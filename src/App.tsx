@@ -14,6 +14,7 @@ export default function App() {
   const replaceDocument = useStore((s) => s.replaceDocument);
   const [saving, setSaving] = useState(false);
   const [available, setAvailable] = useState(true);
+  const [orthographic, setOrthographic] = useState(false);
   const restored = useRef(false);
 
   // Restore once on mount, before any autosave can overwrite it.
@@ -74,19 +75,22 @@ export default function App() {
 
   return (
     <div className="app">
-      <Toolbar>
+      <Toolbar
+        orthographic={orthographic}
+        onToggleProjection={() => setOrthographic((v) => !v)}
+      >
         <SaveIndicator saving={saving} available={available} />
         <FileMenu />
       </Toolbar>
       <StorageBanner available={available} />
       <main className="workspace">
-        <Viewport />
+        <Viewport orthographic={orthographic} />
         <aside className="sidebar">
-          <section>
+          <section className="panel panel-parts">
             <h2>Parts</h2>
             <PartsList />
           </section>
-          <section className="grow">
+          <section className="panel panel-props">
             <h2>Properties</h2>
             <Properties />
           </section>
