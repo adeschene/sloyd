@@ -67,7 +67,11 @@ export const useStore = create<StoreState>((set, get) => {
       if (!get().doc.boards.some((b) => b.id === id)) return;
       edit((doc) => ({
         ...doc,
-        boards: doc.boards.map((b) => (b.id === id ? { ...b, ...patch } : b)),
+        boards: doc.boards.map((b) =>
+          b.id === id
+            ? { ...b, ...patch, ...(patch.position ? { position: [...patch.position] } : {}) }
+            : b,
+        ),
       }));
     },
 

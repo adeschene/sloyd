@@ -36,6 +36,15 @@ describe('updateBoard', () => {
   it('ignores an unknown id without throwing', () => {
     expect(() => useStore.getState().updateBoard('nope', { length: 1 })).not.toThrow();
   });
+
+  it('copies an incoming position array so later caller mutation cannot corrupt history', () => {
+    useStore.getState().addBoard();
+    const id = useStore.getState().doc.boards[0].id;
+    const caller: [number, number, number] = [1, 2, 3];
+    useStore.getState().updateBoard(id, { position: caller });
+    caller[0] = 999;
+    expect(useStore.getState().doc.boards[0].position).toEqual([1, 2, 3]);
+  });
 });
 
 describe('deleteBoard', () => {
