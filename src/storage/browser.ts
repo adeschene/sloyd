@@ -1,0 +1,120 @@
+import { DocumentError, migrateDocument } from '../document/document';
+import type { SloydDocument } from '../document/document';
+import type { RecentEntry, StorageAdapter, StorageCapabilities } from './types';
+
+export const AUTOSAVE_KEY = 'sloyd.autosave.v1';
+
+export class BrowserStorageAdapter implements StorageAdapter {
+  private store: Storage | null;
+  private _available = true;
+
+  constructor(store: Storage | null = safeLocalStorage()) {
+    this.store = store;
+    if (!store) this._available = false;
+  }
+
+  get available(): boolean {
+    return this._available;
+  }
+
+  get capabilities(): StorageCapabilities {
+    return { recentFiles: false, realPaths: false };
+  }
+
+  async autoSave(doc: SloydDocument): Promise<void> {
+    if (!this.store) {
+      this._available = false;
+      return;
+    }
+    try {
+      this.store.setItem(AUTOSAVE_KEY, JSON.stringify(doc));
+      this._available = true;
+    } catch {
+      // Quota exceeded, or private browsing. Never throw from an autosave —
+      // the UI surfaces `available === false` as a banner instead.
+      this._available = false;
+    }
+  }
+
+  async loadAutoSaved(): Promise<SloydDocument | null> {
+    if (!this.store) return null;
+    let raw: string | null;
+    try {
+      raw = this.store.getItem(AUTOSAVE_KEY);
+    } catch {
+      this._available = false;
+      return null;
+    }
+    if (!raw) return null;
+    try {
+      return migrateDocument(JSON.parse(raw));
+    } catch {
+      // Corrupt or foreign autosave: start clean rather than block the app.
+      return null;
+    }
+  }
+
+  /** Validate a project file's text. Throws DocumentError with a reason. */
+  parseProjectFile(text: string): SloydDocument {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      throw new DocumentError('That file is not a valid Sloyd project file.');
+    }
+    return migrateDocument(parsed);
+  }
+
+  async exportProject(doc: SloydDocument): Promise<void> {
+    const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = window.document.createElement('a');
+    a.href = url;
+    a.download = `${sanitizeFilename(doc.name)}.sloyd`;
+    window.document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async importProject(): Promise<SloydDocument> {
+    return new Promise((resolve, reject) => {
+      const input = window.document.createElement('input');
+      input.type = 'file';
+      input.accept = '.sloyd,application/json';
+      input.onchange = async () => {
+        const file = input.files?.[0];
+        if (!file) {
+          reject(new DocumentError('No file chosen.'));
+          return;
+        }
+        try {
+          resolve(this.parseProjectFile(await file.text()));
+        } catch (err) {
+          reject(err);
+        }
+      };
+      input.click();
+    });
+  }
+
+  async listRecent(): Promise<RecentEntry[]> {
+    return [];
+  }
+}
+
+function safeLocalStorage(): Storage | null {
+  try {
+    return typeof window !== 'undefined' ? window.localStorage : null;
+  } catch {
+    // Accessing localStorage throws outright in some privacy modes.
+    return null;
+  }
+}
+
+function sanitizeFilename(name: string): string {
+  const cleaned = name.replace(/[^a-z0-9\-_ ]/gi, '').trim().replace(/\s+/g, '-');
+  return cleaned || 'sloyd-project';
+}
+
+export const storage: StorageAdapter = new BrowserStorageAdapter();
