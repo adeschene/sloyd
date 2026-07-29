@@ -89,6 +89,7 @@ mesh-inspection problem.
 | `units` | parse `"1-1/2"` → `1.5`; format `1.5` → `1-1/2"` | nothing — pure |
 | `document` | schema, defaults, validation, version migration | `units` |
 | `store` | current document + actions (add/update/delete/undo) | `document` |
+| `storage` | load/save/list projects behind a platform-agnostic interface | `document` |
 | `viewport` | renders scene from document; owns camera and gizmo | `store` |
 | `panels` | toolbar, parts list, properties form | `store`, `units` |
 
@@ -159,6 +160,32 @@ Display: nearest 1/16" by default, rendered as `1-1/2"`, `3/4"`, `30-1/16"`. A 1
 precision toggle is a later, cheap addition — `units.precision` already exists in the
 document to carry it.
 
+## Storage seam
+
+All persistence goes through one small interface. Nothing else in the app calls
+`localStorage`, constructs a download link, or touches a file input.
+
+```ts
+interface StorageAdapter {
+  autoSave(doc: Document): Promise<void>;      // debounced by the caller
+  loadAutoSaved(): Promise<Document | null>;
+  exportProject(doc: Document): Promise<void>; // "save as" — may prompt
+  importProject(): Promise<Document>;          // "open" — may prompt
+  listRecent(): Promise<RecentEntry[]>;        // browser: [] in v1
+  capabilities: { recentFiles: boolean; realPaths: boolean };
+}
+```
+
+v1 ships `BrowserStorageAdapter`: `autoSave`/`loadAutoSaved` over localStorage,
+`exportProject` as a download, `importProject` via a file picker, `listRecent` returning
+`[]`, and both capability flags `false`. The UI reads `capabilities` rather than
+sniffing the platform, so a recent-files menu simply does not render in the browser.
+
+This costs roughly thirty lines now. Without it, file handling spreads through
+components and any later port means hunting it down; with it, a new platform is a second
+implementation of a small interface. It also isolates the localStorage failure paths in
+one testable place.
+
 ## UI and interaction
 
 Three regions. No floating windows; no modals except file operations.
@@ -205,7 +232,7 @@ parts should not mean twenty trips through a dialog.
 **Undo/redo.** `Ctrl+Z` / `Ctrl+Shift+Z`, snapshot-based. Nearly free given the document
 model, and painful to add after people have adapted to its absence.
 
-**Files.** Debounced auto-save to localStorage on every change. Export downloads
+**Files.** Debounced auto-save on every change, via the storage seam. Export downloads
 `<name>.sloyd`; import replaces the current document after a confirm. A visible "saved
 locally" indicator, since the honest failure mode is clearing browser data.
 
@@ -220,8 +247,10 @@ guessed at.
 `18mm`, garbage input, and rounding exactly on a 1/32 boundary. Written TDD, before the
 implementation. A quiet bug here means a wasted board.
 
-**Tested normally — `document` and `store`.** Validation, version migration, save/load
-round-trip, and each store action including undo. Pure functions over plain data.
+**Tested normally — `document`, `store`, `storage`.** Validation, version migration,
+save/load round-trip, each store action including undo, and the browser adapter's
+failure paths (quota exceeded, localStorage unavailable, malformed stored JSON) against
+a fake `localStorage`. Mostly pure functions over plain data.
 
 **Not unit-tested — `viewport`.** Testing r3f rendering is high-effort and low-yield;
 verified by driving the app in a browser and screenshotting.
@@ -286,3 +315,27 @@ rebuild is needed to see a change.
   two boards, and the dado width comes from the mating board's actual thickness.
 - **v3 — output.** Cut list grouped by material and thickness, board-feet, sheet-goods
   layout, and a setup sheet carrying joinery measurements to the bench.
+
+### Possible: open source, and a desktop build
+
+Not planned for v1, but the architecture should not foreclose either — and it does not.
+
+Because Sloyd is a static site with no backend, distribution is already wide open: it
+deploys free to GitHub Pages, Netlify, or Cloudflare Pages, so users visit a URL and
+nothing is self-hosted. The VPS is one deployment target among several, not a
+requirement imposed on anyone else.
+
+A desktop build (native file dialogs, offline use, `.sloyd` file associations, no
+"cleared browser data ate my work" failure mode) would be a second `StorageAdapter`
+implementation plus a shell — Tauri or Electron loading the same `dist/`. The code is
+small; the real cost is code signing and notarization (Apple Developer, a Windows
+certificate) and release CI, none of which the application architecture affects.
+
+Tauri vs Electron is genuinely contested for a 3D app and should be benchmarked rather
+than assumed: Tauri's binaries are far smaller, but Electron bundles Chromium so WebGL
+behaves identically across platforms, whereas Tauri uses each OS's webview and
+WebKitGTK on Linux has a rough WebGL history.
+
+Two v1 decisions already serve this: the storage seam above, and `version` in the
+document from the first commit — precisely the field a desktop app needs when opening a
+file the web app wrote years earlier.
