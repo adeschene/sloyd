@@ -19,3 +19,6 @@ canvas { display: block; }
 .part.selected { background: #e07a3f; color: white; }
 .empty { color: #777; font-size: 13px; }
 .spacer { flex: 1; }
+.banner { background: #fdf0d5; border-bottom: 1px solid #e0c9a0; padding: 8px 12px; font-size: 13px; }
+.save-indicator { font-size: 12px; color: #777; }
+.doc-name { max-width: 220px; }

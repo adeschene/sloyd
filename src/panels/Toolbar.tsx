@@ -1,6 +1,7 @@
+import type { ReactNode } from 'react';
 import { useStore } from '../store/store';
 
-export function Toolbar() {
+export function Toolbar({ children }: { children?: ReactNode }) {
   const name = useStore((s) => s.doc.name);
   const setDocumentName = useStore((s) => s.setDocumentName);
   const addBoard = useStore((s) => s.addBoard);
@@ -24,6 +25,7 @@ export function Toolbar() {
       <button onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)">↶</button>
       <button onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)">↷</button>
       <span className="spacer" />
+      {children}
     </header>
   );
 }
