@@ -8,10 +8,11 @@
 
 ## Status
 
-**v1 shipped.** Static SPA, containerized, 119/119 tests passing. Deployed via
-nginx-proxy-manager as `sloyd-app-1` on `proxy_network`, target hostname
-`sloyd.example.com` (see **Manual deployment steps** below — DNS and the NPM proxy
-host are the two pieces a human still has to do).
+**v1 shipped.** Static SPA, containerized, 124/124 tests passing.
+
+Host-specific deployment detail — hostname, container name, proxy configuration, and
+the manual steps a human has to perform — lives in `DEPLOYMENT.local.md`, which is
+gitignored. Read that file before deploying; it is not in the public repo.
 
 v1 deliberately excludes joinery (dados/rabbets) and the cut list — those are v2 and
 v3. The parametric board model exists specifically to make them cheap to add later.
@@ -70,26 +71,17 @@ files saved by earlier versions.
 Full detail: `docs/superpowers/specs/` (design) and `docs/superpowers/plans/`
 (implementation plan). This section is a summary, not a replacement for either.
 
-## Manual deployment steps
+## Deployment
 
-The container (`sloyd-app-1`, port `80`, on `proxy_network`) is built and running.
-Two steps remain that need a human at a browser and a DNS console — **Claude cannot
-perform either of these**:
+Sloyd builds to static files served by nginx from a multi-stage image
+(`docker compose up -d --build`). No bind mounts, no named volumes, no `.env` — there
+is deliberately no server-side state to persist, because the document lives entirely in
+the browser behind `StorageAdapter`. The nginx config does SPA-fallback routing so a
+refresh on a deep route resolves to `index.html` rather than 404ing.
 
-1. Create a DNS **A record** for `sloyd.example.com` pointing at this VPS.
-2. In the nginx-proxy-manager admin UI (`:81`), add a proxy host: domain
-   `sloyd.example.com` → forward to hostname `sloyd-app-1`, port `80`. Then request a
-   Let's Encrypt certificate for it.
-
-## Deployment conventions (inherited from the hub)
-
-- Own compose project (`sloyd`); operate from inside this directory
-  (`docker compose ...`). No ports are published — nginx-proxy-manager reaches the
-  container over `proxy_network`.
-- No bind mounts, no named volumes, no `.env`. There is no server-side state to
-  persist — the document lives entirely in the browser via `StorageAdapter`.
-- Public-facing containers join the external **`proxy_network`** and get a proxy host
-  added by hand in the nginx-proxy-manager admin UI on `:81` (see above).
+**Everything host-specific — hostname, container name, network, proxy setup, and the
+manual steps only a human can do — is in `DEPLOYMENT.local.md` (gitignored).** Read it
+before deploying or touching anything on the host.
 
 ## Working agreements
 

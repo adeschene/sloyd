@@ -5,3 +5,5 @@ dist/
 .superpowers/
 *.tsbuildinfo
 .playwright-mcp/
+DEPLOYMENT.local.md
+*.local.md

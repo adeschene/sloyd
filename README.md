@@ -30,7 +30,7 @@ restore the document, never reconcile scene state.
 ```bash
 npm install
 npm run dev      # start the Vite dev server
-npm test         # run the Vitest suite (119 tests)
+npm test         # run the Vitest suite (124 tests)
 npm run build    # tsc -b && vite build — type-checks and produces dist/
 ```
 
@@ -44,6 +44,8 @@ routing so a refresh on any deep route still resolves to `index.html`.
 docker compose up -d --build
 ```
 
-The container joins the external `proxy_network` and is reached by
-nginx-proxy-manager; it does not publish a port of its own. See this project's
-`CLAUDE.md` for the manual DNS/NPM steps required to put it on `sloyd.example.com`.
+The container does not publish a port of its own — it is intended to sit behind a
+reverse proxy on a shared Docker network, which is why `docker-compose.yml` expects an
+external network rather than mapping ports to the host. Adapt that to your own setup;
+if you just want to run it locally, add a `ports:` mapping or serve `dist/` with any
+static file server.
