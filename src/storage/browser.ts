@@ -72,9 +72,14 @@ export class BrowserStorageAdapter implements StorageAdapter {
     a.href = url;
     a.download = `${sanitizeFilename(doc.name)}.sloyd`;
     window.document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    try {
+      a.click();
+    } finally {
+      // Always clean up, even if click() throws (sandboxed iframe, CSP, etc.) —
+      // otherwise the anchor stays in the DOM and the blob URL leaks.
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
   }
 
   async importProject(): Promise<SloydDocument> {
@@ -82,18 +87,57 @@ export class BrowserStorageAdapter implements StorageAdapter {
       const input = window.document.createElement('input');
       input.type = 'file';
       input.accept = '.sloyd,application/json';
-      input.onchange = async () => {
+
+      let settled = false;
+      let focusTimer: ReturnType<typeof setTimeout> | undefined;
+
+      const cleanup = () => {
+        input.removeEventListener('change', onChange);
+        input.removeEventListener('cancel', onCancel);
+        window.removeEventListener('focus', onFocus);
+        if (focusTimer !== undefined) clearTimeout(focusTimer);
+      };
+
+      const settle = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        fn();
+      };
+
+      const rejectCancelled = () =>
+        settle(() => reject(new DocumentError('File selection was cancelled.')));
+
+      const onChange = async () => {
         const file = input.files?.[0];
         if (!file) {
-          reject(new DocumentError('No file chosen.'));
+          rejectCancelled();
           return;
         }
         try {
-          resolve(this.parseProjectFile(await file.text()));
+          const parsed = this.parseProjectFile(await file.text());
+          settle(() => resolve(parsed));
         } catch (err) {
-          reject(err);
+          settle(() => reject(err));
         }
       };
+
+      const onCancel = () => {
+        rejectCancelled();
+      };
+
+      const onFocus = () => {
+        // Not all browsers fire `cancel` on picker dismissal. As a fallback,
+        // if focus returns to the window and neither `change` nor `cancel`
+        // has fired shortly after, assume the picker was dismissed with no
+        // selection and settle so callers never hang.
+        focusTimer = setTimeout(rejectCancelled, 300);
+      };
+
+      input.addEventListener('change', onChange);
+      input.addEventListener('cancel', onCancel);
+      window.addEventListener('focus', onFocus);
+
       input.click();
     });
   }
