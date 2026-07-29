@@ -19,7 +19,7 @@ export function Properties() {
   };
 
   return (
-    <div className="properties">
+    <div className="properties" key={board.id}>
       <input
         className="input name"
         aria-label="Part name"

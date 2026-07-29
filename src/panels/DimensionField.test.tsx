@@ -77,4 +77,29 @@ describe('DimensionField', () => {
     rerender(<DimensionField label="Length" value={3} onCommit={vi.fn()} />);
     expect((screen.getByLabelText('Length') as HTMLInputElement).value).toBe('3"');
   });
+
+  it('does not commit when a field is only focused and blurred, untouched', async () => {
+    const { onCommit, input } = setup();
+    await userEvent.click(input);
+    await userEvent.tab();
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it('still commits on blur when the user actually edited the field', async () => {
+    const { onCommit, input } = setup();
+    await userEvent.click(input);
+    await userEvent.clear(input);
+    await userEvent.type(input, '2');
+    await userEvent.tab();
+    expect(onCommit).toHaveBeenCalledWith(2);
+  });
+
+  it('survives a focus/blur round trip unchanged for a value off the 1/16" grid', async () => {
+    const { onCommit, input } = setup({ value: 0.7 });
+    expect(input.value).toBe('11/16"');
+    await userEvent.click(input);
+    await userEvent.tab();
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(input.value).toBe('11/16"');
+  });
 });
