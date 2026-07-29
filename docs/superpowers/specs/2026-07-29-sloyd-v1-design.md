@@ -267,8 +267,7 @@ verified by driving the app in a browser and screenshotting.
 
 ## Deployment
 
-`sloyd.example.com`. Multi-stage build, static output, no published ports, no state on
-the server.
+Multi-stage build, static output, no published ports, no state on the server.
 
 ```dockerfile
 FROM node:24-alpine AS build
@@ -297,13 +296,11 @@ networks:
 `nginx.conf` needs SPA fallback (`try_files $uri /index.html`) so a refresh on any route
 does not 404.
 
-**Manual steps (human required, documented in `CLAUDE.md`):**
-
-1. DNS: `sloyd.example.com` A record → VPS IP.
-2. nginx-proxy-manager admin UI on `:81` → new proxy host `sloyd.example.com` forwarding
-   to `sloyd-app-1:80`, with a Let's Encrypt cert requested.
-
-Also: add a `sloyd/` row to the hub table in `/srv/CLAUDE.md`.
+The container publishes no port of its own; it is expected to sit behind a reverse proxy
+on the shared external network. Putting it on a public hostname therefore needs two
+steps a human has to perform — a DNS record, and a proxy host plus certificate in the
+reverse proxy's admin UI. Those are host-specific and live in the deployment runbook,
+not in this repo.
 
 **Dev loop:** `npm run dev` (Vite, hot reload). Docker is for deploying only; no image
 rebuild is needed to see a change.

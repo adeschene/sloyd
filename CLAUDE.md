@@ -2,7 +2,7 @@
 
 > A woodworking-focused 3D modelling/planning web app — a purpose-built alternative to
 > using SketchUp for shop projects.
-> Parent context: `/srv/CLAUDE.md` (Docker hub), `/srv/vps-admin/CLAUDE.md` (VPS).
+> Deployment specifics for this host live in `DEPLOYMENT.local.md` (gitignored).
 
 ---
 
