@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
-import { createDocument } from '../document/document';
+import { createDocument, DocumentError } from '../document/document';
 import { FileMenu } from './FileMenu';
 
 const exportProject = vi.fn();
@@ -46,5 +46,36 @@ describe('FileMenu export', () => {
     await userEvent.click(screen.getByTitle('Export project'));
 
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+});
+
+describe('FileMenu import', () => {
+  it('surfaces no error when the file picker is cancelled', async () => {
+    // Deliberately a message that does NOT contain the word "cancel" — this
+    // pins that cancellation is detected via the typed `cancelled` field,
+    // not by regex-matching the message text. A regex-based check would
+    // fail this test (and would also break for real the moment anyone
+    // rewords the message constructed in storage/browser.ts).
+    importProject.mockRejectedValue(
+      new DocumentError('Never mind, closing.', { cancelled: true }),
+    );
+    render(<FileMenu />);
+
+    await userEvent.click(screen.getByTitle('Import project'));
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('surfaces a visible error when the chosen file is corrupt', async () => {
+    importProject.mockRejectedValue(
+      new DocumentError('That file is not a valid Sloyd project file.'),
+    );
+    render(<FileMenu />);
+
+    await userEvent.click(screen.getByTitle('Import project'));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toBeInTheDocument();
+    expect(alert.textContent).toBe('That file is not a valid Sloyd project file.');
   });
 });

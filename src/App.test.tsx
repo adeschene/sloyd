@@ -106,4 +106,33 @@ describe('App restore-on-mount', () => {
     // now be armed — proven by an edit reaching autoSave after a debounce.
     expect(useStore.getState().doc).toBe(initialDoc);
   });
+
+  it('autosaves an edit once the debounce elapses — proves autosave actually arms', async () => {
+    // Deleting `restored.current = true` from any restore-completion path
+    // leaves this false forever and autoSave() is never called for the rest
+    // of the session — the only other assertion in this describe block
+    // ("document unchanged") stays green even with that bug, so it does not
+    // catch it. This one does.
+    vi.useFakeTimers();
+    try {
+      loadAutoSaved.mockResolvedValue(null);
+      render(<App />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+
+      act(() => {
+        useStore.getState().addBoard();
+      });
+      const editedDoc = useStore.getState().doc;
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(600);
+      });
+
+      expect(autoSave).toHaveBeenCalledWith(editedDoc);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

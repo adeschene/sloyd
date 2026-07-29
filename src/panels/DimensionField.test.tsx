@@ -102,4 +102,40 @@ describe('DimensionField', () => {
     expect(onCommit).not.toHaveBeenCalled();
     expect(input.value).toBe('11/16"');
   });
+
+  it('does not commit on Enter for an untouched value off the 1/16" grid', async () => {
+    // The Enter counterpart to the blur test above. Without the `dirty`
+    // guard on the Enter handler, parsing the normalised display text
+    // ("11/16\"") back to a number yields 0.6875, not the stored 0.7 — an
+    // untouched field would silently rewrite the document and push a bogus
+    // undo entry just because the user pressed Enter to dismiss it.
+    const { onCommit, input } = setup({ value: 0.7 });
+    expect(input.value).toBe('11/16"');
+    await userEvent.click(input);
+    await userEvent.keyboard('{Enter}');
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(input.value).toBe('11/16"');
+  });
+
+  it('still commits on blur for a dirty field even if an external value change arrives while focused', async () => {
+    // Pins the ordering in the adopt-external-value effect: `dirty.current`
+    // must only be reset when `!editing.current`. Moving that reset outside
+    // the guard would make it fire on every value-prop change, including
+    // one that arrives mid-edit (e.g. a gizmo drag on another axis, or an
+    // undo elsewhere), silently dropping this real edit on blur.
+    const onCommit = vi.fn();
+    const { rerender } = render(
+      <DimensionField label="Length" value={1.5} onCommit={onCommit} />,
+    );
+    const input = screen.getByLabelText('Length') as HTMLInputElement;
+    await userEvent.click(input);
+    await userEvent.clear(input);
+    await userEvent.type(input, '2');
+
+    // An external change lands while the field is still focused.
+    rerender(<DimensionField label="Length" value={99} onCommit={onCommit} />);
+
+    await userEvent.tab();
+    expect(onCommit).toHaveBeenCalledWith(2);
+  });
 });

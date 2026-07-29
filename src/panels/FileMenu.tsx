@@ -30,10 +30,13 @@ export function FileMenu() {
       // importProject() rejects both when the user cancels the file picker
       // and when the chosen file is genuinely bad (corrupt JSON, wrong
       // version). A cancelled picker is not an error — the user just
-      // changed their mind — so we detect it by message and stay silent.
-      // Any other DocumentError is a real failure and gets surfaced.
+      // changed their mind — so we stay silent, keyed off the typed
+      // `cancelled` field rather than sniffing the message text (a rewording
+      // of that prose must not turn a cancel into a red error banner, or
+      // vice versa). Any other DocumentError is a real failure and gets
+      // surfaced.
       if (err instanceof DocumentError) {
-        if (!/cancel/i.test(err.message)) setError(err.message);
+        if (!err.cancelled) setError(err.message);
       } else {
         setError('Could not open that file.');
       }

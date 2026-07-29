@@ -9,6 +9,15 @@ interface StoreState {
   selectedId: string | null;
   past: SloydDocument[];
   future: SloydDocument[];
+  /**
+   * One-shot signal: the Length field should take focus the next time the
+   * Properties panel mounts for the selected board. Set by addBoard() only —
+   * selecting a board by clicking it in the list or the viewport must never
+   * steal focus into a field. Consumed (and cleared) by the panel that acts
+   * on it so it never fires twice.
+   */
+  pendingLengthFocus: boolean;
+  consumeLengthFocus: () => boolean;
 
   addBoard: () => void;
   updateBoard: (id: string, patch: Partial<Board>) => void;
@@ -67,6 +76,12 @@ export const useStore = create<StoreState>((set, get) => {
     selectedId: null,
     past: [],
     future: [],
+    pendingLengthFocus: false,
+    consumeLengthFocus: () => {
+      const pending = get().pendingLengthFocus;
+      if (pending) set({ pendingLengthFocus: false });
+      return pending;
+    },
 
     addBoard: () => {
       const boards = get().doc.boards;
@@ -80,6 +95,7 @@ export const useStore = create<StoreState>((set, get) => {
         (doc) => ({ ...doc, boards: [...doc.boards, board] }),
         () => board.id,
       );
+      set({ pendingLengthFocus: true });
     },
 
     updateBoard: (id, patch) => {

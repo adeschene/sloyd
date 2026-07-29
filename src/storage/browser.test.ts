@@ -112,6 +112,10 @@ describe('importProject', () => {
     await expect(promise).rejects.toMatchObject({
       name: 'DocumentError',
       message: expect.stringMatching(/cancel/i),
+      // FileMenu branches on this field, not the message text (see Fix 7 in
+      // the final review) — pin the producer side of that contract here so
+      // a change to this constructor call can't silently break it.
+      cancelled: true,
     });
   });
 
@@ -126,6 +130,7 @@ describe('importProject', () => {
     const assertion = expect(promise).rejects.toMatchObject({
       name: 'DocumentError',
       message: expect.stringMatching(/cancel/i),
+      cancelled: true,
     });
     window.dispatchEvent(new Event('focus'));
     await vi.advanceTimersByTimeAsync(400);

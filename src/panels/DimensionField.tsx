@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState } from 'react';
 import { formatLength, parseLength } from '../units/length';
 
 interface Props {
@@ -10,14 +10,16 @@ interface Props {
   precision?: number;
 }
 
-export function DimensionField({
+export const DimensionField = forwardRef<HTMLInputElement, Props>(function DimensionField({
   label, value, onCommit, allowNegative = false, precision = 16,
-}: Props) {
+}: Props, forwardedRef) {
   const id = useId();
   const [text, setText] = useState(() => formatLength(value, precision));
   const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const editing = useRef(false);
   const reverting = useRef(false);
+  useImperativeHandle(forwardedRef, () => inputRef.current as HTMLInputElement);
   // True only once the user has actually changed the text. Guards against
   // committing (and pushing an undo entry) when a field is merely focused
   // and blurred without being edited — see Task 8 review finding 1.
@@ -28,6 +30,11 @@ export function DimensionField({
     if (!editing.current) {
       setText(formatLength(value, precision));
       dirty.current = false;
+      // An external change (gizmo drag, undo) supersedes whatever the user
+      // was looking at, including a stale validation error from a previous
+      // edit — otherwise the field can show a correct number while still
+      // announcing itself invalid to assistive tech.
+      setError(null);
     }
   }, [value, precision]);
 
@@ -58,6 +65,7 @@ export function DimensionField({
       <label htmlFor={id}>{label}</label>
       <input
         id={id}
+        ref={inputRef}
         value={text}
         aria-invalid={error ? 'true' : 'false'}
         className={error ? 'input invalid' : 'input'}
@@ -77,7 +85,7 @@ export function DimensionField({
           commit();
         }}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') { commit(); return; }
+          if (e.key === 'Enter') { if (dirty.current) commit(); return; }
           if (e.key === 'Escape') {
             reverting.current = true;
             dirty.current = false;
@@ -91,4 +99,4 @@ export function DimensionField({
       {error && <span role="alert" className="field-error">{error}</span>}
     </div>
   );
-}
+});

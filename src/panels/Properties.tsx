@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { useStore } from '../store/store';
 import { MATERIALS } from '../document/document';
 import { DimensionField } from './DimensionField';
@@ -9,6 +10,18 @@ export function Properties() {
   const updateBoard = useStore((s) => s.updateBoard);
   const deleteBoard = useStore((s) => s.deleteBoard);
   const duplicateBoard = useStore((s) => s.duplicateBoard);
+  const lengthRef = useRef<HTMLInputElement>(null);
+
+  // This component remounts (`key={board.id}` below) on every selection
+  // change, including a plain click in the parts list or viewport. Only
+  // honor a focus request that addBoard() actually made — consuming it here
+  // clears the flag so a later remount (e.g. selecting a different board)
+  // does not steal focus again.
+  useEffect(() => {
+    if (board && useStore.getState().consumeLengthFocus()) {
+      lengthRef.current?.focus();
+    }
+  }, [board?.id]);
 
   if (!board) return <p className="empty">Select a part to edit it.</p>;
 
@@ -30,7 +43,7 @@ export function Properties() {
       />
 
       <h3>Dimensions</h3>
-      <DimensionField label="Length" precision={precision} value={board.length}
+      <DimensionField ref={lengthRef} label="Length" precision={precision} value={board.length}
         onCommit={(v) => updateBoard(board.id, { length: v })} />
       <DimensionField label="Width" precision={precision} value={board.width}
         onCommit={(v) => updateBoard(board.id, { width: v })} />

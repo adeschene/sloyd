@@ -106,9 +106,21 @@ export class BrowserStorageAdapter implements StorageAdapter {
       };
 
       const rejectCancelled = () =>
-        settle(() => reject(new DocumentError('File selection was cancelled.')));
+        settle(() => reject(new DocumentError('File selection was cancelled.', { cancelled: true })));
 
       const onChange = async () => {
+        // The window regains focus as soon as the native picker dialog
+        // closes, which fires before `change` when the OS delivers focus
+        // eagerly. If the focus-fallback timer below is still pending when
+        // that happens, it can fire mid-await (file.text() can take a
+        // while) and reject with a cancellation error that FileMenu
+        // silently swallows — the user picked a real file and the app does
+        // nothing. Clear the timer the instant we know a selection is
+        // actually being processed.
+        if (focusTimer !== undefined) {
+          clearTimeout(focusTimer);
+          focusTimer = undefined;
+        }
         const file = input.files?.[0];
         if (!file) {
           rejectCancelled();

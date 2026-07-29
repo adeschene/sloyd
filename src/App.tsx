@@ -31,16 +31,25 @@ export default function App() {
     let cancelled = false;
     (async () => {
       const before = useStore.getState().doc;
-      const saved = await storage.loadAutoSaved();
-      if (cancelled) return;
-      // The user edited while the restore was in flight — their work wins.
-      if (useStore.getState().doc !== before) {
-        restored.current = true;
-        return;
+      try {
+        const saved = await storage.loadAutoSaved();
+        if (cancelled) return;
+        // The user edited while the restore was in flight — their work wins.
+        if (useStore.getState().doc !== before) {
+          setAvailable(storage.available);
+          return;
+        }
+        if (saved) replaceDocument(saved);
+        setAvailable(storage.available);
+      } catch {
+        // loadAutoSaved carries no never-throws contract (unlike autoSave).
+        // A rejection here must not leave restored.current permanently
+        // false — that would silently disable autosave for the rest of the
+        // session while SaveIndicator keeps claiming "Saved locally".
+        if (!cancelled) setAvailable(storage.available);
+      } finally {
+        if (!cancelled) restored.current = true;
       }
-      if (saved) replaceDocument(saved);
-      restored.current = true;
-      setAvailable(storage.available);
     })();
     return () => {
       cancelled = true;

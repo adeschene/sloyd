@@ -7,9 +7,18 @@ export { boardExtents, boardCenter } from './geometry';
 export const CURRENT_VERSION = 1;
 
 export class DocumentError extends Error {
-  constructor(message: string) {
+  /**
+   * Set when this error represents the user backing out of a picker
+   * (e.g. cancelling the file-open dialog) rather than a genuine failure.
+   * Callers should branch on this field, not on the message text — the
+   * message is prose for humans and is not a stable contract.
+   */
+  readonly cancelled: boolean;
+
+  constructor(message: string, options: { cancelled?: boolean } = {}) {
     super(message);
     this.name = 'DocumentError';
+    this.cancelled = options.cancelled ?? false;
   }
 }
 

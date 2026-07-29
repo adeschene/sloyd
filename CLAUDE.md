@@ -39,15 +39,19 @@ ever serialize or restore the document.
 
 Module dependency order (each layer only depends on the ones before it):
 
-1. **`units`** — parse/format fractional inches (e.g. `24 1/2"`). Imports nothing;
-   the leaf of the dependency graph.
-2. **`document`** — the document schema, board geometry, validation, and versioned
-   migration. Depends on `units` only.
-3. **`store`** (Zustand + snapshot-based undo/redo) and **`storage`** (the
+1. **`units`** and **`document`** — both leaves of the dependency graph; each imports
+   nothing from the rest of the app. `units` parses/formats fractional inches (e.g.
+   `24 1/2"`). `document` owns the document schema, board geometry, validation, and
+   versioned migration.
+2. **`store`** (Zustand + snapshot-based undo/redo) and **`storage`** (the
    `StorageAdapter` seam) — both sit above `document`.
-4. **`viewport`** (react-three-fiber scene, camera, grid, gizmo) and **`panels`**
+3. **`viewport`** (react-three-fiber scene, camera, grid, gizmo) and **`panels`**
    (React forms: toolbar, parts list, properties panel) — both read/write through the
-   store; neither talks to `document` or `storage` directly.
+   store, and both also import `document` directly for its exported types and
+   constants (`panels` for `MATERIALS`, `DocumentError`, `Rotation`; `viewport` for
+   geometry helpers). `panels` additionally imports the `storage` adapter singleton
+   for export/import. These are legitimate downward imports, not a layering
+   violation — `document` and `storage` sit below both.
 
 Notable modelling detail: a board's `position` is the **min-corner** of its world
 bounding box, not its center. This matters anywhere geometry or the gizmo touches
