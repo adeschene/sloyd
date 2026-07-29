@@ -17,13 +17,33 @@ export default function App() {
   const restored = useRef(false);
 
   // Restore once on mount, before any autosave can overwrite it.
+  //
+  // Two hazards this guards against:
+  //  - A document edit landing while the restore is still in flight (real
+  //    with a slower storage backend than today's synchronous
+  //    localStorage): if the user's doc has moved on by the time the
+  //    restore resolves, their edit wins and the restore is dropped.
+  //  - StrictMode's double-invoke in dev running two overlapping restores:
+  //    `cancelled` stops a stale continuation from firing after its effect
+  //    was cleaned up.
   useEffect(() => {
+    let cancelled = false;
     (async () => {
+      const before = useStore.getState().doc;
       const saved = await storage.loadAutoSaved();
+      if (cancelled) return;
+      // The user edited while the restore was in flight — their work wins.
+      if (useStore.getState().doc !== before) {
+        restored.current = true;
+        return;
+      }
       if (saved) replaceDocument(saved);
       restored.current = true;
       setAvailable(storage.available);
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [replaceDocument]);
 
   // Debounced autosave on every document change.

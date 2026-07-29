@@ -8,6 +8,16 @@ export function FileMenu() {
   const replaceDocument = useStore((s) => s.replaceDocument);
   const [error, setError] = useState<string | null>(null);
 
+  const onExport = () => {
+    setError(null);
+    storage.exportProject(doc).catch((err) => {
+      // exportProject() can reject if triggering the download itself throws
+      // (sandboxed iframe, CSP) — the one recovery path StorageBanner
+      // recommends when local save is unavailable must not fail silently.
+      setError(err instanceof DocumentError ? err.message : 'Could not export the project.');
+    });
+  };
+
   const onImport = async () => {
     setError(null);
     const dirty = doc.boards.length > 0;
@@ -32,7 +42,7 @@ export function FileMenu() {
 
   return (
     <>
-      <button onClick={() => storage.exportProject(doc)} title="Export project">⬇ Export</button>
+      <button onClick={onExport} title="Export project">⬇ Export</button>
       <button onClick={onImport} title="Import project">⬆ Import</button>
       {error && <span role="alert" className="field-error">{error}</span>}
     </>
