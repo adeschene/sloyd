@@ -54,17 +54,9 @@ export function Gizmo() {
         object={proxy.current}
         mode="translate"
         translationSnap={SNAP_INCHES}
-        onMouseDown={() => {
-          // Task 8 adds gesture coalescing (beginGesture/endGesture) here so a
-          // whole drag becomes a single undo step. Until then each frame's
-          // commit is its own undo entry.
-          dragging.current = true;
-        }}
+        onMouseDown={() => { dragging.current = true; useStore.getState().beginGesture(); }}
         onObjectChange={commit}
-        onMouseUp={() => {
-          dragging.current = false;
-          commit();
-        }}
+        onMouseUp={() => { dragging.current = false; commit(); useStore.getState().endGesture(); }}
       />
     </>
   );

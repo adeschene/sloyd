@@ -21,9 +21,19 @@ interface StoreState {
   redo: () => void;
   canUndo: () => boolean;
   canRedo: () => boolean;
+  beginGesture: () => void;
+  endGesture: () => void;
 }
 
 export const useStore = create<StoreState>((set, get) => {
+  // Coalesce every edit within a gesture (a gizmo drag, a focused text field)
+  // into a single undo entry. The snapshot is taken lazily — on the first
+  // edit() inside the gesture, not in beginGesture() itself — so that
+  // focusing and blurring a field without changing anything leaves no
+  // no-op entry on the undo stack.
+  let gesturing = false;
+  let gestureSnapshotTaken = false;
+
   /**
    * Apply an edit as a new document, pushing the previous one onto the undo
    * stack. Every mutating action funnels through here — that is what keeps
@@ -33,12 +43,21 @@ export const useStore = create<StoreState>((set, get) => {
     fn: (doc: SloydDocument) => SloydDocument,
     selection?: (doc: SloydDocument) => string | null,
   ) => {
-    const { doc, past } = get();
+    const { doc, past, future } = get();
     const next = fn(doc);
+
+    let nextPast = past;
+    let nextFuture = future;
+    if (!gesturing || !gestureSnapshotTaken) {
+      nextPast = [...past, doc].slice(-HISTORY_LIMIT);
+      nextFuture = [];
+      if (gesturing) gestureSnapshotTaken = true;
+    }
+
     set({
       doc: next,
-      past: [...past, doc].slice(-HISTORY_LIMIT),
-      future: [],
+      past: nextPast,
+      future: nextFuture,
       ...(selection ? { selectedId: selection(next) } : {}),
     });
   };
@@ -137,5 +156,8 @@ export const useStore = create<StoreState>((set, get) => {
 
     canUndo: () => get().past.length > 0,
     canRedo: () => get().future.length > 0,
+
+    beginGesture: () => { gesturing = true; gestureSnapshotTaken = false; },
+    endGesture: () => { gesturing = false; gestureSnapshotTaken = false; },
   };
 });

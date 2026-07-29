@@ -1,6 +1,21 @@
 * { box-sizing: border-box; }
 html, body, #root { height: 100%; margin: 0; }
 body { font-family: system-ui, sans-serif; }
-.app { height: 100%; position: relative; }
-.temp-add { position: absolute; z-index: 10; top: 12px; left: 12px; }
 canvas { display: block; }
+
+.app { height: 100%; display: flex; flex-direction: column; }
+.toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #ddd; }
+.workspace { flex: 1; display: flex; min-height: 0; }
+.workspace > :first-child { flex: 1; min-width: 0; }
+.sidebar { width: 300px; border-left: 1px solid #ddd; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 16px; }
+.field { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.field label { width: 84px; font-size: 13px; }
+.input { flex: 1; min-width: 0; padding: 4px 6px; }
+.input.invalid { outline: 2px solid #c0392b; }
+.field-error { color: #c0392b; font-size: 12px; }
+.row { display: flex; gap: 8px; margin-top: 12px; }
+.parts { list-style: none; margin: 0; padding: 0; }
+.part { display: block; width: 100%; text-align: left; padding: 4px 6px; background: none; border: 0; cursor: pointer; }
+.part.selected { background: #e07a3f; color: white; }
+.empty { color: #777; font-size: 13px; }
+.spacer { flex: 1; }

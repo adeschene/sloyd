@@ -136,3 +136,47 @@ describe('replaceDocument', () => {
     expect(s.canUndo()).toBe(false);
   });
 });
+
+describe('gesture coalescing', () => {
+  it('records one undo entry for a whole gesture', () => {
+    useStore.getState().addBoard();
+    const id = useStore.getState().doc.boards[0].id;
+    const before = useStore.getState().past.length;
+
+    useStore.getState().beginGesture();
+    useStore.getState().updateBoard(id, { position: [1, 0, 0] });
+    useStore.getState().updateBoard(id, { position: [2, 0, 0] });
+    useStore.getState().updateBoard(id, { position: [3, 0, 0] });
+    useStore.getState().endGesture();
+
+    expect(useStore.getState().past.length).toBe(before + 1);
+    useStore.getState().undo();
+    expect(useStore.getState().doc.boards[0].position).toEqual([0, 0, 0]);
+  });
+
+  it('records nothing for a gesture that made no edit', () => {
+    useStore.getState().addBoard();
+    const before = useStore.getState().past.length;
+    useStore.getState().beginGesture();
+    useStore.getState().endGesture();
+    expect(useStore.getState().past.length).toBe(before);
+  });
+
+  it('records separately for two consecutive gestures', () => {
+    useStore.getState().addBoard();
+    const id = useStore.getState().doc.boards[0].id;
+    const before = useStore.getState().past.length;
+
+    useStore.getState().beginGesture();
+    useStore.getState().updateBoard(id, { position: [1, 0, 0] });
+    useStore.getState().endGesture();
+
+    useStore.getState().beginGesture();
+    useStore.getState().updateBoard(id, { position: [2, 0, 0] });
+    useStore.getState().endGesture();
+
+    expect(useStore.getState().past.length).toBe(before + 2);
+    useStore.getState().undo();
+    expect(useStore.getState().doc.boards[0].position).toEqual([1, 0, 0]);
+  });
+});
