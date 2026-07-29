@@ -2,6 +2,7 @@ import { Canvas } from '@react-three/fiber';
 import { Grid, OrbitControls } from '@react-three/drei';
 import { useStore } from '../store/store';
 import { BoardMesh } from './BoardMesh';
+import { Gizmo } from './Gizmo';
 
 export function Viewport() {
   const boards = useStore((s) => s.doc.boards);
@@ -46,6 +47,7 @@ export function Viewport() {
         />
       ))}
 
+      <Gizmo />
       <OrbitControls makeDefault enableDamping dampingFactor={0.12} />
     </Canvas>
   );

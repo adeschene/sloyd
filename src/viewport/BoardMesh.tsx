@@ -41,7 +41,13 @@ export function BoardMesh({ board, selected, onSelect }: Props) {
         }}
       >
         <boxGeometry args={extents} />
-        <meshStandardMaterial color={color} roughness={0.75} metalness={0} />
+        <meshStandardMaterial
+          color={color}
+          roughness={0.75}
+          metalness={0}
+          emissive={selected ? '#e07a3f' : '#000000'}
+          emissiveIntensity={selected ? 0.18 : 0}
+        />
       </mesh>
 
       <lineSegments geometry={edges}>
