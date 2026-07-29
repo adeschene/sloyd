@@ -3,3 +3,6 @@ dist
 .git
 docs
 *.log
+.superpowers
+.claude
+.playwright-mcp
