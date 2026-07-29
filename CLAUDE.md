@@ -71,6 +71,78 @@ files saved by earlier versions.
 Full detail: `docs/superpowers/specs/` (design) and `docs/superpowers/plans/`
 (implementation plan). This section is a summary, not a replacement for either.
 
+## Where things live
+
+```
+src/
+├── units/length.ts          parseLength / formatLength. Imports nothing.
+├── document/
+│   ├── types.ts             Board, SloydDocument, Rotation, MATERIALS
+│   ├── geometry.ts          boardExtents / boardCenter (orientation + corner math)
+│   └── document.ts          create / validate / migrate; re-exports the other two
+├── store/store.ts           Zustand store, snapshot undo/redo, gesture coalescing
+├── storage/
+│   ├── types.ts             the StorageAdapter interface
+│   └── browser.ts           BrowserStorageAdapter + the `storage` singleton
+├── viewport/
+│   ├── Viewport.tsx         Canvas, lights, grid, shadow receiver, camera keys
+│   ├── BoardMesh.tsx        one board, derived from the document each render
+│   └── Gizmo.tsx            TransformControls, 1/16" snapping
+├── panels/
+│   ├── DimensionField.tsx   the validating fractional-inch input
+│   ├── Toolbar.tsx  PartsList.tsx  Properties.tsx  FileMenu.tsx
+└── App.tsx                  layout, autosave/restore effects, undo keybindings
+```
+
+Deployment scaffolding: `Dockerfile`, `docker-compose.yml`, `nginx.conf`,
+`security-headers.conf`.
+
+## Invariants — break these and things fail in confusing ways
+
+Each of these cost real debugging during v1. They are load-bearing, not style.
+
+1. **The document is the source of truth.** No component may hold geometry state that
+   isn't derived from it, and nothing may write to a Three.js object's transform as a
+   way of recording a change.
+2. **`position` is the min-corner**, not the center. `boardCenter` exists because
+   Three.js meshes are center-origin and the document is not.
+3. **The `dragging` ref guard in `Gizmo.tsx`.** `TransformControls` computes motion from
+   state captured at drag start; syncing the document into the proxy mid-drag makes it
+   fight itself. The symptom is jitter or drift, not a crash.
+4. **Gesture snapshots are lazy** — taken on the first `edit()` inside a gesture, not in
+   `beginGesture()`. Eager snapshotting leaves no-op undo entries, so `Ctrl+Z` appears
+   to do nothing.
+5. **`DimensionField` only commits when `dirty`.** Otherwise focusing and blurring a
+   field re-parses the *rounded display text* and writes it back, silently quantizing
+   exact values (18mm → 11/16"). Stored values are exact; display rounds.
+6. **`add_header` does not merge across nginx levels.** A `location` block containing any
+   `add_header` discards everything inherited — which is why `security-headers.conf` is
+   `include`d in every block rather than set once on the server.
+7. **`autoSave` must never throw.** It reports failure via `storage.available`, which
+   drives the warning banner.
+
+## Commands
+
+```bash
+npm install
+npm run dev        # Vite dev server; use --port <n> to avoid collisions
+npm test           # Vitest, currently 124 tests
+npm run build      # tsc -b && vite build — this is the typecheck gate
+docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
+```
+
+`npm test` does **not** typecheck. A green suite proves nothing about `tsc`; run
+`npm run build` before claiming anything compiles.
+
+## Open follow-ups
+
+`docs/follow-ups.md` lists everything found during v1 review and consciously deferred,
+ordered by priority. Read it before starting new work in the same area — several items
+are "correct but untested", which is exactly what a refactor breaks silently.
+
+Host-level open items (proxy auth, Cloudflare, monitoring) are in
+`DEPLOYMENT.local.md`, not in the public repo.
+
 ## Deployment
 
 Sloyd builds to static files served by nginx from a multi-stage image
@@ -87,3 +159,12 @@ before deploying or touching anything on the host.
 
 - Build incrementally: small v1, then widen. Prefer shipping a narrow thing that works.
 - Design docs live in `docs/superpowers/specs/`; read the latest before changing behavior.
+- **No pull requests.** Solo repo — commit to `master`, or branch and merge locally
+  (`git merge --no-ff`, verify the merged tree, then delete the branch). Don't open PRs.
+- TDD where it pays. `units` is tested hardest on purpose: a quiet bug there produces
+  wrong measurements, and wrong measurements waste lumber. The r3f viewport has no unit
+  tests by design — verify it by driving a real browser, not by asserting on mocks.
+- When a review finding conflicts with what a plan or spec says, that's a human
+  decision, not one to resolve silently either way.
+- Prefer closing latent bugs over deferring them, including ones only reachable on a
+  future platform — the storage seam exists precisely so a desktop build stays cheap.
