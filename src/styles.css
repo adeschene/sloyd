@@ -33,6 +33,14 @@
   --brass-bright: #e2b568;
   --brass-dim: #7f6231;
   --alert: #e8806a;
+  --alert-bg: #2c1c19;
+  --alert-bg-strong: #4a2b26;
+  --alert-border: #6d3d34;
+  --alert-bright: #f3c4b8;
+
+  --warn-bg: #382d17;
+  --warn-border: #5a481f;
+  --warn-ink: #efd9a5;
 
   --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-num: ui-monospace, 'SF Mono', 'JetBrains Mono', 'Roboto Mono', Menlo,
@@ -169,9 +177,9 @@ button[aria-pressed='true'] {
 }
 
 .danger:hover:not(:disabled) {
-  background: #4a2b26;
-  border-color: #6d3d34;
-  color: #f3c4b8;
+  background: var(--alert-bg-strong);
+  border-color: var(--alert-border);
+  color: var(--alert-bright);
 }
 
 .input {
@@ -205,9 +213,9 @@ button[aria-pressed='true'] {
 
 .banner {
   flex: none;
-  background: #382d17;
-  border-bottom: 1px solid #5a481f;
-  color: #efd9a5;
+  background: var(--warn-bg);
+  border-bottom: 1px solid var(--warn-border);
+  color: var(--warn-ink);
   padding: 8px 14px;
   font-size: 12px;
 }
@@ -253,12 +261,11 @@ button[aria-pressed='true'] {
 }
 
 .panel-parts,
-.panel-props {
+.panel-props,
+.parts {
   scrollbar-width: thin;
   scrollbar-color: var(--graphite-600) transparent;
 }
-
-.parts { scrollbar-width: thin; scrollbar-color: var(--graphite-600) transparent; }
 
 .panel h2 {
   display: flex;
@@ -424,7 +431,6 @@ button[aria-pressed='true'] {
   white-space: nowrap;
 }
 
-/* The toolbar's export error sits inline, so it must not claim a whole row. */
 /* The export error sits inline in the toolbar, not under a field. */
 .toolbar .field-error {
   flex: 0 1 auto;

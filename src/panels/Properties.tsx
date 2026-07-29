@@ -56,11 +56,11 @@ export function Properties() {
         Standing (on edge)
       </label>
 
-      {/* The heading already names this control, so the select carries its
-          accessible name and no second visible label. */}
-      <h3>Material</h3>
+      {/* The heading names this control via aria-labelledby (an aria-label
+          alone would not be programmatically associated with the <h3>). */}
+      <h3 id="material-heading">Material</h3>
       <div className="field field-wide">
-        <select aria-label="Material" className="input" value={board.material}
+        <select aria-labelledby="material-heading" className="input" value={board.material}
           onChange={(e) => updateBoard(board.id, { material: e.target.value })}>
           {Object.entries(MATERIALS).map(([key, m]) => (
             <option key={key} value={key}>{m.label}</option>

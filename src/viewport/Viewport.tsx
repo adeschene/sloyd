@@ -180,8 +180,26 @@ export function Viewport({ orthographic = false }: { orthographic?: boolean }) {
         polygonOffset biases it toward the camera in depth only, the standard
         decal treatment, and renderOrder puts it after the grid so it darkens
         the grid lines it covers instead of being painted over by them.
+
+        Unlike <Grid> (whose raycast geometry never matches its visual
+        footprint — it's identity-rotated and only *looks* horizontal via a
+        shader swap), this mesh has a real rotation-x, so its raycast surface
+        is a true horizontal plane matching what the user reads as "the
+        ground." R3F only raycasts objects that have registered pointer
+        handlers (see internal.interaction in @react-three/fiber's events
+        module), and this mesh has none, so today it is already excluded from
+        click hit-testing and click-to-deselect is unaffected either way.
+        raycast={() => null} is kept anyway as belt-and-braces: it makes the
+        exclusion explicit and correct regardless of R3F's internal event
+        wiring, and protects against a future edit that adds a handler here.
       */}
-      <mesh receiveShadow renderOrder={2} rotation-x={-Math.PI / 2} position-y={0}>
+      <mesh
+        receiveShadow
+        renderOrder={2}
+        rotation-x={-Math.PI / 2}
+        position-y={0}
+        raycast={() => null}
+      >
         <planeGeometry args={[400, 400]} />
         <shadowMaterial
           opacity={0.2}
