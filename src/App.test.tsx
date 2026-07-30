@@ -144,6 +144,11 @@ describe('App keyboard delete', () => {
     render(<App />);
     await act(async () => { await Promise.resolve(); });
     await act(async () => { useStore.getState().addBoard(); });
+    const user = userEvent.setup();
+    // Click the board in the parts list to set focus on the button, not on the
+    // auto-focused Length input. This reflects the real path: the user clicks a
+    // part, then presses Delete/Backspace from the button, not while editing.
+    await user.click(screen.getByRole('button', { name: 'Board' }));
     return useStore.getState().doc.boards[0].id;
   };
 
@@ -202,6 +207,19 @@ describe('App keyboard delete', () => {
 
     const user = userEvent.setup();
     await user.keyboard('{Control>}{Delete}{/Control}');
+
+    expect(useStore.getState().doc.boards).toHaveLength(1);
+  });
+
+  it('does not steal Backspace from the Length field', async () => {
+    // Regression test: Backspace must be blocked when editing dimensions,
+    // not just for arbitrary text inputs. If a bypass for testing artifacts
+    // ever crept in, this would fail.
+    await mountWithOneBoard();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByLabelText('Length'));
+    await user.keyboard('{Backspace}');
 
     expect(useStore.getState().doc.boards).toHaveLength(1);
   });

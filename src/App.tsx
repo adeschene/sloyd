@@ -86,10 +86,10 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
+      // Never steal keys from a field the user is typing in.
+      if (isTextEntry(e.target as HTMLElement)) return;
+
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-        // Never steal keys from a field the user is typing in.
-        if (isTextEntry(target)) return;
         e.preventDefault();
         e.shiftKey ? redo() : undo();
         return;
@@ -99,11 +99,6 @@ export default function App() {
       // keyboard is Backspace, and binding only Delete would mean this
       // feature does not exist there.
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        // Backspace should never steal from a field the user is typing in.
-        // Delete is different — it's a direct action key and works even mid-edit.
-        // Skip the guard for user-event internal inputs (which have IDs like _r_i_).
-        const isUserEventInput = target.id?.startsWith('_r_');
-        if (e.key === 'Backspace' && isTextEntry(target) && !isUserEventInput) return;
         if (e.ctrlKey || e.metaKey || e.altKey) return;
         const id = useStore.getState().selectedId;
         if (!id) return;
