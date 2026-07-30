@@ -7,3 +7,4 @@ dist/
 .playwright-mcp/
 DEPLOYMENT.local.md
 *.local.md
+tmp/

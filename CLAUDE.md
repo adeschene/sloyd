@@ -9,8 +9,9 @@
 ## Status
 
 **v1 shipped**, followed by a polish pass (unique board names, `NameField`,
-`Delete`/`Backspace`, origin axes, a settled grid, a stable gizmo). Static SPA,
-containerized, 190/190 tests passing.
+`Delete`/`Backspace`, origin axes, a settled grid, a stable gizmo) and then follow-ups
+29-30 (a gizmo size ceiling, a separate origin-lines checkbox). Static SPA,
+containerized, 207/207 tests passing.
 
 Host-specific deployment detail — hostname, container name, proxy configuration, and
 the manual steps a human has to perform — lives in `DEPLOYMENT.local.md`, which is
@@ -110,6 +111,7 @@ src/
 │   ├── gridDensity.ts       grid tier ladder (1in -> 1ft -> 12ft). Pure.
 │   ├── screenScale.ts       px-per-inch + screen-stable dash scale. Pure.
 │   ├── Gizmo.tsx            TransformControls, 1/16" snapping
+│   ├── gizmoScale.ts        gizmo size ceiling + grabbable floor. Pure.
 │   └── extent.ts            SCENE_EXTENT, shared by Viewport and OriginAxes
 ├── panels/
 │   ├── DimensionField.tsx   the validating fractional-inch input
@@ -158,13 +160,21 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
    the correction lands, leaving an entry that undoes to nothing. Its `onCommit`
    returns the stored name because dedup can store something other than what was
    typed.
+10. **The gizmo size clamp writes `size` *before* the library's `updateMatrixWorld`,
+    never `handle.scale` after it.** `size` is an input to three-stdlib's scale
+    computation, so the library bakes the correction itself and nothing needs
+    recomposing. Correcting the output instead lands in the re-bake trap that
+    invariant 3's neighbouring comment block documents at length. Related: the clamp
+    is two-sided *and* has a floor on the cap itself (`GIZMO_MIN_CAP_INCHES`) — a
+    board-relative ceiling alone governs close range too and shrinks the gizmo for
+    small parts the moment they are selected.
 
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 190 tests
+npm test           # Vitest, currently 207 tests
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -179,10 +189,10 @@ consciously deferred rather than missed, numbered 1-30. Read it before starting 
 in the same area — several items are "correct but untested", which is exactly what a
 refactor breaks silently.
 
-Two of them are the user's own requests and are the obvious warm-up before v2 proper:
-a max-scale ceiling for the gizmo, which currently grows without limit as the camera
-pulls back (**29**), and a separate visibility checkbox for the origin lines, mirroring
-the grid's (**30**).
+**29 and 30 are closed** — the gizmo now has a size ceiling tied to the selected board
+(with a floor that keeps it grabbable when zoomed far out), and the origin lines have
+their own toolbar checkbox. Both closures are written up in place. With those done,
+**v2 is the next work.**
 
 One entry is a lesson rather than a defect and is worth reading before touching anything
 in the viewport: **26a**. Browser verification on this host runs on software GL

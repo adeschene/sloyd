@@ -113,7 +113,10 @@ at all.
 
 **17. The gizmo patch machinery is ~90 lines sitting above a 63-line component** in
 `src/viewport/Gizmo.tsx`. Extracting it to a sibling module under `src/viewport/`
-would restore one responsibility per file.
+would restore one responsibility per file. *Partly addressed by 29:* the size-ceiling
+arithmetic went straight into `gizmoScale.ts` rather than being added to the pile, so
+the file did not grow by the ~90 lines that work would otherwise have cost. The
+flip-fix machinery itself is still in `Gizmo.tsx` and is what this item is about.
 
 **18. The gizmo patch's effect dependencies omit drei's other recreation key.** drei
 recreates its `TransformControls` instance via a `useMemo` keyed on both the camera
@@ -217,7 +220,63 @@ Reported and consciously skipped as a nit: three-stdlib highlights a hovered axi
 obvious which axis a click will grab. The gizmo materials are already reachable from the
 patch in `Gizmo.tsx`, so recolouring the hover state is cheap when it becomes annoying.
 
-**29. The gizmo grows without limit as the camera pulls back.** three-stdlib sizes the
+**29. ~~The gizmo grows without limit as the camera pulls back.~~ CLOSED — clamped
+through `size`, which is an input rather than an output, so the re-bake caveat never
+applies.** The maths is in `src/viewport/gizmoScale.ts` (pure, unit-tested); the write
+is one line at the top of the existing `updateMatrixWorld` wrapper in `Gizmo.tsx`.
+
+Three things are worth carrying forward:
+
+- **The obvious hook point was the wrong one.** The note below suggested clamping
+  `handle.scale` after the library sets it. That works only with an explicit
+  recomposition, exactly like the flip fix. Driving `size` *before* `original(force)`
+  sidesteps the whole problem: the library computes `handle.scale` from it, so the
+  correction is baked normally and there is nothing to recompose. `size` is written on
+  the gizmo, not the controls — it is declared on `TransformControlsGizmo`, and although
+  `TransformControls` mirrors its own `size` down via a `defineProperty` sync, that sync
+  is one more undocumented internal than this needs.
+- **A ceiling alone would have been a worse bug, twice over.** Clamping the gizmo's
+  world size to a multiple of the board shrinks it *with* the board as the camera pulls
+  back, and the invisible picker cones shrink with it — past some distance there is no
+  grabbable axis and the board cannot be moved at all. Hence `GIZMO_MIN_SIZE`. Measured
+  at the far end (factor 647, the floor engaged): the X picker sits 14px from the gizmo
+  centre, a pointer hover there still resolves to axis `X`, and a real-mouse drag moved
+  the board from 0" to 131-3/16".
+
+  The second way is subtler and was very nearly shipped. A board-relative cap governs
+  *close* range too, not just zoomed-out: the factor at the default framing is only
+  43.5, so `0.75 × extent` shrank a 4in cleat's gizmo to 0.72 the moment it was
+  selected, and pinned a 3/4in offcut at the floor at every zoom — a change to
+  close-range behaviour for a whole class of real parts, which is not what this item
+  asked for. `GIZMO_MIN_CAP_INCHES = 7` is the floor on the cap itself, and 7 is not a
+  taste call: stock world size is `factor / 7`, so it is exactly the gizmo's own size at
+  the default view. Re-measured after the fix: 24in board 1.0, 4in cleat 1.0, 3/4in
+  offcut 0.982 — and that same offcut still clamps to the floor once the camera pulls
+  back.
+- **Past the floor the gizmo is screen-constant again**, at 30% of stock, so in the
+  strictest sense it does resume growing in world units beyond that point — just 3.3×
+  slower. That is the deliberate trade: the ceiling governs the whole useful range
+  (`xScale` measured pinned at exactly 18 = 0.75 × a 24in board, in *both* projections),
+  and the floor guarantees usability past it.
+- **Freezing `size` during a drag was tried and rejected on evidence.** The argument for
+  it was that the board's distance to the camera changes as it moves, so recomputing
+  might make the gizmo pulse. It cuts the other way: frozen, the gizmo grows
+  screen-constant through the drag and then *snaps* to the clamped value on release.
+  Sampled through a real drag in the ceiling's sloped range (not the floor, where a
+  freeze does nothing and looks like it works), the per-frame version moves `size`
+  continuously 0.848 → 0.705 with a largest single-frame change of 0.0148; the frozen
+  version would have held flat and jumped 0.143 at mouse-up, ten times the
+  discontinuity. The lesson is the same one item 15 records: the bracketing experiment
+  is cheap, and reasoning about "feel" is not evidence.
+
+Verified in the browser in both projections, and the orthographic branch matters more
+than it looks: its factor has no distance term at all, so implementing only the
+perspective case would have left the toolbar's Orthographic toggle silently unclamped.
+26a does not apply — this is CPU-side scale arithmetic, not shader behaviour.
+
+Original note follows.
+
+three-stdlib sizes the
 gizmo to stay constant on *screen*, so its world size scales with viewing distance:
 `factor = worldPosition.distanceTo(cameraPosition) * min(1.9 * tan(fov*PI/360) / zoom, 7)`
 in perspective, `(camera.top - camera.bottom) / camera.zoom` in orthographic, then
@@ -232,7 +291,17 @@ frame, so there is an obvious place to clamp `handle.scale` after the library se
 and the same re-bake caveat applies: the correction has to land before the matrices are
 composed, or it will silently do nothing (see the round-2 history in that file).
 
-**30. Origin line visibility needs its own checkbox.** The grid already has one; the axes
+**30. ~~Origin line visibility needs its own checkbox.~~ CLOSED.** Done exactly as
+described: `showAxes` beside `showGrid` in `App.tsx`, a second toolbar checkbox labelled
+"Origin", `{showAxes && <OriginAxes />}` in `Viewport`. Four tests rather than three —
+the three that mirror the grid's, plus one asserting the two toggles drive each other
+not at all, which is the actual requirement. `Toolbar.test.tsx`'s renders now go through
+a `renderToolbar` helper with defaults, so the next view toggle does not have to touch
+every existing test.
+
+Original note follows.
+
+The grid already has one; the axes
 should get the same treatment rather than being tied to it, since they answer different
 questions ("where is the origin" vs "how big is this"). `showGrid` in `App.tsx` is the
 pattern to copy exactly: view state held in `App`, passed to both `Toolbar` and
