@@ -21,6 +21,25 @@ describe('addBoard', () => {
     const second = useStore.getState().doc.boards[1];
     expect([second.length, second.width, second.thickness]).toEqual([48, 11.25, 1.5]);
   });
+
+  it('gives each new board a unique name', () => {
+    useStore.getState().addBoard();
+    useStore.getState().addBoard();
+    useStore.getState().addBoard();
+    expect(useStore.getState().doc.boards.map((b) => b.name))
+      .toEqual(['Board', 'Board (1)', 'Board (2)']);
+  });
+
+  it('reuses a freed number rather than counting upward', () => {
+    useStore.getState().addBoard();
+    useStore.getState().addBoard();
+    useStore.getState().addBoard();
+    const middle = useStore.getState().doc.boards[1].id;
+    useStore.getState().deleteBoard(middle);
+    useStore.getState().addBoard();
+    expect(useStore.getState().doc.boards.map((b) => b.name))
+      .toEqual(['Board', 'Board (2)', 'Board (1)']);
+  });
 });
 
 describe('updateBoard', () => {
@@ -66,8 +85,27 @@ describe('duplicateBoard', () => {
     const { doc, selectedId } = useStore.getState();
     expect(doc.boards).toHaveLength(2);
     expect(doc.boards[1].id).not.toBe(orig.id);
-    expect(doc.boards[1].name).toBe('Shelf copy');
+    expect(doc.boards[1].name).toBe('Shelf (1)');
     expect(selectedId).toBe(doc.boards[1].id);
+  });
+
+  it('names the copy with a numeric suffix, not "copy"', () => {
+    useStore.getState().addBoard();
+    const source = useStore.getState().doc.boards[0];
+    useStore.getState().updateBoard(source.id, { name: 'Leg' });
+    useStore.getState().duplicateBoard(source.id);
+    expect(useStore.getState().doc.boards.map((b) => b.name)).toEqual(['Leg', 'Leg (1)']);
+  });
+
+  it('duplicating a duplicate does not nest suffixes', () => {
+    useStore.getState().addBoard();
+    const source = useStore.getState().doc.boards[0];
+    useStore.getState().updateBoard(source.id, { name: 'Leg' });
+    useStore.getState().duplicateBoard(source.id);
+    const copy = useStore.getState().doc.boards[1];
+    expect(copy.name).toBe('Leg (1)');
+    useStore.getState().duplicateBoard(copy.id);
+    expect(useStore.getState().doc.boards[2].name).toBe('Leg (2)');
   });
 });
 
