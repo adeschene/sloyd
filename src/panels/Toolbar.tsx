@@ -6,9 +6,18 @@ interface Props {
   /** True when the viewport is drawing through an orthographic camera. */
   orthographic: boolean;
   onToggleProjection: () => void;
+  /** True when the ground grid is drawn. */
+  showGrid: boolean;
+  onToggleGrid: () => void;
 }
 
-export function Toolbar({ children, orthographic, onToggleProjection }: Props) {
+export function Toolbar({
+  children,
+  orthographic,
+  onToggleProjection,
+  showGrid,
+  onToggleGrid,
+}: Props) {
   const name = useStore((s) => s.doc.name);
   const setDocumentName = useStore((s) => s.setDocumentName);
   const addBoard = useStore((s) => s.addBoard);
@@ -42,6 +51,10 @@ export function Toolbar({ children, orthographic, onToggleProjection }: Props) {
         >
           Orthographic
         </button>
+        <label className="checkbox toolbar-checkbox">
+          <input type="checkbox" checked={showGrid} onChange={onToggleGrid} />
+          Grid
+        </label>
       </div>
 
       {/* Right group: the document's state on disk. */}
