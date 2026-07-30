@@ -2,6 +2,9 @@ import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { boardCenter, boardExtents, MATERIALS, DEFAULT_MATERIAL } from '../document/document';
 import type { Board } from '../document/document';
+import { faceGrainKinds, grainFamily } from './grainFaces';
+import { boardUVs } from './grainTiling';
+import { grainTexture } from './grainTexture';
 
 /** Brass — the one live colour in the app. */
 const SELECTED = '#c99a4e';
@@ -38,22 +41,33 @@ export function BoardMesh({ board, selected, onSelect }: Props) {
     [color],
   );
 
-  // Edge lines make joints legible — the single biggest readability win.
-  // Build the geometry once per size and dispose both it and the temporary box
-  // it was derived from; constructing these inline would leak GPU memory on
-  // every render.
-  const edges = useMemo(() => {
-    const box = new THREE.BoxGeometry(extents[0], extents[1], extents[2]);
-    const geo = new THREE.EdgesGeometry(box);
-    box.dispose();
+  // The box carries its own UVs: grain scale is world-relative and the textures
+  // are shared, so the per-board part of the mapping lives here rather than on
+  // the texture. Rebuilt whenever anything it depends on changes, and disposed
+  // with it — constructing geometry inline would leak GPU memory every render.
+  const geometry = useMemo(() => {
+    const geo = new THREE.BoxGeometry(extents[0], extents[1], extents[2]);
+    geo.setAttribute('uv', new THREE.BufferAttribute(boardUVs(board), 2));
     return geo;
-  }, [extents[0], extents[1], extents[2]]);
+  }, [
+    extents[0], extents[1], extents[2],
+    board.id, board.rotation, board.standing, board.material,
+  ]);
+
+  useEffect(() => () => geometry.dispose(), [geometry]);
+
+  // Edge lines make joints legible — the single biggest readability win.
+  const edges = useMemo(() => new THREE.EdgesGeometry(geometry), [geometry]);
 
   useEffect(() => () => edges.dispose(), [edges]);
+
+  const kinds = faceGrainKinds(board);
+  const family = grainFamily(board.material);
 
   return (
     <group position={center}>
       <mesh
+        geometry={geometry}
         castShadow
         receiveShadow
         onClick={(e) => {
@@ -73,20 +87,27 @@ export function BoardMesh({ board, selected, onSelect }: Props) {
           onSelect(board.id);
         }}
       >
-        <boxGeometry args={extents} />
-        {/* polygonOffset pushes the faces back a hair so the edge lines below —
+        {/* One material per face, in BoxGeometry's group order, so a face, an
+            edge and an end can each show their own cut of the wood. The texture
+            is a shared greyscale mask; the species colour tints it.
+            polygonOffset pushes the faces back a hair so the edge lines below —
             which sit exactly on those faces — draw solid instead of stippling
-            through the depth test. This is what makes joints legible. */}
-        <meshStandardMaterial
-          color={color}
-          roughness={0.72}
-          metalness={0}
-          emissive={selected ? SELECTED : '#000000'}
-          emissiveIntensity={selected ? 0.16 : 0}
-          polygonOffset
-          polygonOffsetFactor={1}
-          polygonOffsetUnits={1}
-        />
+            through the depth test. */}
+        {kinds.map((kind, i) => (
+          <meshStandardMaterial
+            key={`${i}-${kind}`}
+            attach={`material-${i}`}
+            map={grainTexture(family, kind)}
+            color={color}
+            roughness={0.72}
+            metalness={0}
+            emissive={selected ? SELECTED : '#000000'}
+            emissiveIntensity={selected ? 0.16 : 0}
+            polygonOffset
+            polygonOffsetFactor={1}
+            polygonOffsetUnits={1}
+          />
+        ))}
       </mesh>
 
       {/* THREE.Color cannot parse 8-digit hex — it warns and falls back — so
