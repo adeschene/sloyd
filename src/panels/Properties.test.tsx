@@ -195,6 +195,39 @@ describe('the part name field', () => {
     expect(name.value).toBe('Leg (1)');
   });
 
+  it('re-shows the same deduplicated name with no document write when the dedup result is already the stored name', async () => {
+    useStore.getState().addBoard();               // 'Board'
+    useStore.getState().addBoard();               // 'Board (1)'
+    const second = useStore.getState().doc.boards[1].id;
+    useStore.getState().updateBoard(useStore.getState().doc.boards[0].id, { name: 'Leg' });
+    useStore.getState().selectBoard(second);
+    render(<Properties />);
+
+    // First commit: 'Leg' collides with the other board, so it dedups to
+    // 'Leg (1)' and is stored.
+    const name = screen.getByLabelText('Part name') as HTMLInputElement;
+    await userEvent.clear(name);
+    await userEvent.type(name, 'Leg');
+    await userEvent.tab();
+    expect(name.value).toBe('Leg (1)');
+
+    const before = useStore.getState().doc;
+    const beforePast = useStore.getState().past.length;
+
+    // Second commit: typing 'Leg' again dedups to 'Leg (1)' again — this
+    // time the board's own current name, so `value` never changes and no
+    // re-render fires the adopt-external-changes effect. Only onCommit's
+    // return value can correct the display.
+    await userEvent.clear(name);
+    await userEvent.type(name, 'Leg');
+    await userEvent.tab();
+
+    expect(name.value).toBe('Leg (1)');
+    // No-op: the document must not have been touched at all.
+    expect(useStore.getState().doc).toBe(before);
+    expect(useStore.getState().past.length).toBe(beforePast);
+  });
+
   it('adopts an external change (undo) when the field is not focused', async () => {
     const id = selectFirstBoard();
     render(<Properties />);
