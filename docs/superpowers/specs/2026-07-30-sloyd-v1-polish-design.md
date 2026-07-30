@@ -227,15 +227,28 @@ accident to be guarded against.
 **Symptom.** The arrows on the transform gizmo "invert awkwardly" when the camera comes
 around to the opposite side of an object.
 
-**One premise corrected first.** Nothing is actually reversing direction. In three
-0.185.1, `gizmoTranslate` defines an arrow at *both* ends of every axis —
-`[0.5,0,0]` and `[-0.5,0,0]` for X, and likewise for Y and Z
-(`TransformControls.js:1310-1323`). There is no flip logic anywhere in
-`updateMatrixWorld`; the only camera-dependent behavior is an
-`AXIS_HIDE_THRESHOLD = 0.99` that hides an axis pointing nearly straight at the viewer.
-So the fix is not "stop the arrows from flipping" — they don't.
+**Correction (found during implementation): the premise below was diagnosed against
+the wrong file, and the arrows really do flip.** This section originally claimed
+nothing reverses direction, citing
+`node_modules/three/examples/jsm/controls/TransformControls.js` and its arrows-at-both-
+ends `gizmoTranslate`. That file is not what renders — drei's `<TransformControls>`
+imports from **`three-stdlib`**
+(`node_modules/@react-three/drei/core/TransformControls.js:5`), and three-stdlib's fork
+has explicit per-frame flip logic in `TransformControlsGizmo.updateMatrixWorld`
+(`node_modules/three-stdlib/controls/TransformControls.js:641-674`, with
+`AXIS_HIDE_THRESHOLD`-style constant `AXIS_FLIP_TRESHOLD = 0` at :605): it swaps the
+"fwd"/"bwd"-tagged arrow meshes and negates `handle.scale` at a hard
+`eye · axis == 0` cutover, with no interpolation. The original report — that the
+arrows invert — was literally accurate. The two candidate mechanisms below
+(`depthTest`, plane-handle offsets) were consequently not what caused the symptom; see
+`.superpowers/sdd/2026-07-30-sloyd-v1-polish/task-8-report.md` for the diagnosis that
+found the real cause, and `src/viewport/Gizmo.tsx` for the fix (pin every translate
+handle to its "fwd" orientation and hide the "bwd" duplicate, recomposing the group's
+matrices after the library's own per-frame update so the correction lands in what
+actually renders).
 
-**Two candidate mechanisms.**
+**Two candidate mechanisms (originally proposed, since superseded by the correction
+above).**
 
 - **Every gizmo material sets `depthTest: false`** (`TransformControls.js:1200-1214`).
   The gizmo always paints over the board, so the arrow *behind* the board draws in front

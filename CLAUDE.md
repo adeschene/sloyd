@@ -8,7 +8,9 @@
 
 ## Status
 
-**v1 shipped.** Static SPA, containerized, 124/124 tests passing.
+**v1 shipped**, followed by a polish pass (unique board names, `NameField`,
+`Delete`/`Backspace`, origin axes, a settled grid, a stable gizmo). Static SPA,
+containerized, 167/167 tests passing.
 
 Host-specific deployment detail — hostname, container name, proxy configuration, and
 the manual steps a human has to perform — lives in `DEPLOYMENT.local.md`, which is
@@ -43,7 +45,8 @@ Module dependency order (each layer only depends on the ones before it):
 1. **`units`** and **`document`** — both leaves of the dependency graph; each imports
    nothing from the rest of the app. `units` parses/formats fractional inches (e.g.
    `24 1/2"`). `document` owns the document schema, board geometry, validation, and
-   versioned migration.
+   versioned migration. `document/names.ts` is a leaf alongside it, importing only the
+   `Board` type.
 2. **`store`** (Zustand + snapshot-based undo/redo) and **`storage`** (the
    `StorageAdapter` seam) — both sit above `document`.
 3. **`viewport`** (react-three-fiber scene, camera, grid, gizmo) and **`panels`**
@@ -79,6 +82,7 @@ src/
 ├── document/
 │   ├── types.ts             Board, SloydDocument, Rotation, MATERIALS
 │   ├── geometry.ts          boardExtents / boardCenter (orientation + corner math)
+│   ├── names.ts             uniqueName / dedupeNames. Imports only Board.
 │   └── document.ts          create / validate / migrate; re-exports the other two
 ├── store/store.ts           Zustand store, snapshot undo/redo, gesture coalescing
 ├── storage/
@@ -87,9 +91,11 @@ src/
 ├── viewport/
 │   ├── Viewport.tsx         Canvas, lights, grid, shadow receiver, camera keys
 │   ├── BoardMesh.tsx        one board, derived from the document each render
+│   ├── OriginAxes.tsx       origin axis lines, R=X G=Y(up) B=Z
 │   └── Gizmo.tsx            TransformControls, 1/16" snapping
 ├── panels/
 │   ├── DimensionField.tsx   the validating fractional-inch input
+│   ├── NameField.tsx        part name; commits on blur/Enter, empty reverts
 │   ├── Toolbar.tsx  PartsList.tsx  Properties.tsx  FileMenu.tsx
 └── App.tsx                  layout, autosave/restore effects, undo keybindings
 ```
@@ -120,13 +126,24 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
    `include`d in every block rather than set once on the server.
 7. **`autoSave` must never throw.** It reports failure via `storage.available`, which
    drives the warning banner.
+8. **Board names are unique, and enforced in four places** — `addBoard`,
+   `duplicateBoard`, the name-field commit, and `migrateDocument`. Creation-only
+   enforcement is not enough: an imported or hand-edited file would violate it.
+   `createBoard` cannot dedupe (it has no view of the document), so any new call
+   site that adds a board must pass its name through `uniqueName` itself.
+9. **`NameField` commits once, on blur or Enter — never per keystroke.** An
+   emptied name reverts, and that is only possible with a single commit: writing
+   per keystroke and correcting on blur takes the gesture's undo snapshot before
+   the correction lands, leaving an entry that undoes to nothing. Its `onCommit`
+   returns the stored name because dedup can store something other than what was
+   typed.
 
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 124 tests
+npm test           # Vitest, currently 167 tests
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

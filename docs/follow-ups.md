@@ -92,6 +92,50 @@ feet-and-inches input (`-2'6"`) in `units`.
 
 **14. `src/smoke.test.ts` is redundant** now that 123 real tests exist.
 
+## From the v1 polish pass
+
+Found during the polish pass that fixed name uniqueness, `NameField`, `Delete`/
+`Backspace`, the origin axes, the post-pan/orbit grid shimmer, and the gizmo's
+axis-flip. Consciously deferred, not missed.
+
+**15. `dampingFactor = 0.3` has not had a hands-on check.** "Motion during a drag is
+still smooth" was reasoned analytically — `dampingFactor` doubles as the per-frame
+follow fraction during an active drag, so lag goes from roughly 130ms at 0.12 to 46ms
+at 0.3, both under the ~100ms perceptible threshold — but no human has actually
+orbited with it. Screenshots cannot capture feel. If an orbit reads as twitchy,
+`dampingFactor` is the first value to reconsider.
+
+**16. Neither `dampingFactor = 0.3` nor `fadeDistance = 150` was swept to a minimum.**
+Each is sufficient, not proven minimal; intermediate values (0.2/0.25, and 130/140)
+were not tried.
+
+**17. The gizmo patch machinery is ~90 lines sitting above a 63-line component** in
+`src/viewport/Gizmo.tsx`. Extracting it to a sibling module under `src/viewport/`
+would restore one responsibility per file.
+
+**18. The gizmo patch's effect dependencies omit drei's other recreation key.** drei
+recreates its `TransformControls` instance via a `useMemo` keyed on both the camera
+and `explDomElement`; the effect in `Gizmo.tsx` depends on the camera only, so a
+change of `events.connected` would silently drop the patch. Same class of bug as the
+projection-toggle case that was found and fixed during this pass.
+
+**19. The gizmo patch writes `visible` unconditionally,** discarding the library's own
+`showX`/`showY`/`showZ` gating. Latent only — Sloyd never sets those props.
+
+**20. The gizmo patch is coupled to `three-stdlib`'s internal shape,** which is a
+transitive dependency under a caret-ranged `@react-three/drei`, so it can move on a
+plain `npm install`. It has a shape guard and a latching `try/catch` so it degrades to
+library behaviour rather than throwing, but it must be re-verified on any `three` /
+`three-stdlib` / `drei` bump.
+
+**21. At the default camera the two positive ground axes are nearly invisible,**
+because they run toward and past the camera and leave the frame within a few pixels of
+the origin. The code is correct; the default framing just does not show them off. A
+default-camera tweak would fix it.
+
+**22. `uniqueName`'s next-free-number search is unbounded.** Fine at board-list sizes;
+worth a note if it is ever called on unbounded input.
+
 ## Deliberately out of scope, not defects
 
 Joinery (dados/rabbets) is v2. Cut list, board-feet, and sheet-goods layout are v3.
