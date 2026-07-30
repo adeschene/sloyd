@@ -1,6 +1,5 @@
 import { create } from 'zustand';
-import { createBoard, createDocument } from '../document/document';
-import { uniqueName } from '../document/names';
+import { createBoard, createDocument, uniqueName } from '../document/document';
 import type { Board, SloydDocument } from '../document/document';
 
 const HISTORY_LIMIT = 50;

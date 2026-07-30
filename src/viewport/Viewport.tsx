@@ -8,6 +8,7 @@ import type { Board } from '../document/document';
 import { BoardMesh } from './BoardMesh';
 import { Gizmo } from './Gizmo';
 import { OriginAxes } from './OriginAxes';
+import { SCENE_EXTENT } from './extent';
 
 /** The bench top the model sits on. Light, so wood tones and shadows read. */
 const GROUND = '#e6e3dd';
@@ -15,10 +16,10 @@ const GROUND = '#e6e3dd';
 /**
  * Half-width of the shadow camera's frustum, in inches. World units here are
  * inches, and three's default is roughly ±5 — which would clip the shadow of
- * anything more than a hand's width from the origin. 120in covers a ten-foot
- * working volume, which is more than any single piece of furniture needs.
+ * anything more than a hand's width from the origin. See SCENE_EXTENT for
+ * why this is shared with OriginAxes rather than a local constant.
  */
-const SHADOW_EXTENT = 120;
+const SHADOW_EXTENT = SCENE_EXTENT;
 
 const DEFAULT_EYE: [number, number, number] = [40, 30, 40];
 

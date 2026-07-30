@@ -1,12 +1,14 @@
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
+import { SCENE_EXTENT } from './extent';
 
 /**
- * How far the axes run, in inches. Matches SHADOW_EXTENT in Viewport — the
- * same ten-foot working volume. Finite on purpose: an infinite axis outruns
+ * How far the axes run, in inches. Shares SCENE_EXTENT with SHADOW_EXTENT in
+ * Viewport — the same ten-foot working volume — rather than a local literal,
+ * so the two cannot drift apart. Finite on purpose: an infinite axis outruns
  * the grid's own fade and reads as a stray line across an empty sky.
  */
-const AXIS_EXTENT = 120;
+const AXIS_EXTENT = SCENE_EXTENT;
 
 /**
  * Lift for the two ground axes, in inches. They are coplanar with both the

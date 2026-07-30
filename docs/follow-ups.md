@@ -136,6 +136,22 @@ default-camera tweak would fix it.
 **22. `uniqueName`'s next-free-number search is unbounded.** Fine at board-list sizes;
 worth a note if it is ever called on unbounded input.
 
+**23. `duplicateBoard` passes `rest` (still carrying `name`) into `createBoard`,**
+then immediately overwrites the name with the deduplicated one — a harmless dead
+value, since `createBoard` never reads it, but it reads as if the name survives the
+call. Destructuring `name` out of `rest` alongside `id` would make the intent obvious
+(`src/store/store.ts:133-137`).
+
+**24. The `editing`-cleared-before-`commit()` ordering in `NameField`'s blur handler
+is correct but not pinned by any test.** React batches the event handler, so swapping
+the two lines would not fail the suite. The untestability is inherent to the
+batching, not an oversight.
+
+**25. Modifier handling is asymmetric between the Ctrl+Z branch (ctrl/meta) and the
+Delete branch (ctrl/meta/alt) in `src/App.tsx`.** Intentional per shortcut — each
+guards against a different accidental trigger — but worth a comment if a third
+shortcut is ever added.
+
 ## Deliberately out of scope, not defects
 
 Joinery (dados/rabbets) is v2. Cut list, board-feet, and sheet-goods layout are v3.

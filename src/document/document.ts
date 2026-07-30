@@ -96,9 +96,11 @@ function validateBoard(raw: unknown, index: number): Board {
       ? b.material
       : DEFAULT_MATERIAL;
 
+  const name = typeof b.name === 'string' ? b.name.trim() : '';
+
   return {
     id: typeof b.id === 'string' && b.id ? b.id : nextId(),
-    name: typeof b.name === 'string' && b.name ? b.name : 'Board',
+    name: name || 'Board',
     length: b.length as number,
     width: b.width as number,
     thickness: b.thickness as number,

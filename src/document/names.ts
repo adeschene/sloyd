@@ -14,7 +14,8 @@ const SUFFIX_RE = /^(.*?)\s\((\d+)\)$/;
  *
  * Precondition: `base` is non-empty after trimming. Both call sites
  * guarantee it — the name field reverts an emptied value before committing,
- * and validateBoard substitutes 'Board' for a blank name on load.
+ * and validateBoard trims and substitutes 'Board' for a blank (including
+ * whitespace-only) name on load.
  */
 export function uniqueName(base: string, boards: Board[], excludeId?: string): string {
   const wanted = base.trim();

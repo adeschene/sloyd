@@ -161,4 +161,20 @@ describe('migrateDocument', () => {
     };
     expect(migrateDocument(raw).boards.map((b) => b.name)).toEqual(['Board', 'Board (1)']);
   });
+
+  it('deduplicates the names it substitutes for whitespace-only ones', () => {
+    // A whitespace-only name is not "truthy-empty" but must still be treated
+    // as blank: trimmed to nothing, then substituted, then deduped — not
+    // stored as '' or leaked into a leading-space " (1)".
+    const raw = {
+      version: 1,
+      name: 'Bench',
+      units: { display: 'imperial-fractional', precision: 16 },
+      boards: [
+        { name: '   ', length: 24, width: 3, thickness: 3, position: [0, 0, 0] },
+        { name: '  ', length: 24, width: 3, thickness: 3, position: [0, 0, 6] },
+      ],
+    };
+    expect(migrateDocument(raw).boards.map((b) => b.name)).toEqual(['Board', 'Board (1)']);
+  });
 });

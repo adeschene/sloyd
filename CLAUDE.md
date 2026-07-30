@@ -52,7 +52,7 @@ Module dependency order (each layer only depends on the ones before it):
 3. **`viewport`** (react-three-fiber scene, camera, grid, gizmo) and **`panels`**
    (React forms: toolbar, parts list, properties panel) — both read/write through the
    store, and both also import `document` directly for its exported types and
-   constants (`panels` for `MATERIALS`, `DocumentError`, `Rotation`; `viewport` for
+   constants (`panels` for `MATERIALS`, `DocumentError`, `Rotation`, `uniqueName`; `viewport` for
    geometry helpers). `panels` additionally imports the `storage` adapter singleton
    for export/import. These are legitimate downward imports, not a layering
    violation — `document` and `storage` sit below both.
@@ -92,7 +92,8 @@ src/
 │   ├── Viewport.tsx         Canvas, lights, grid, shadow receiver, camera keys
 │   ├── BoardMesh.tsx        one board, derived from the document each render
 │   ├── OriginAxes.tsx       origin axis lines, R=X G=Y(up) B=Z
-│   └── Gizmo.tsx            TransformControls, 1/16" snapping
+│   ├── Gizmo.tsx            TransformControls, 1/16" snapping
+│   └── extent.ts            SCENE_EXTENT, shared by Viewport and OriginAxes
 ├── panels/
 │   ├── DimensionField.tsx   the validating fractional-inch input
 │   ├── NameField.tsx        part name; commits on blur/Enter, empty reverts
@@ -131,6 +132,9 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
    enforcement is not enough: an imported or hand-edited file would violate it.
    `createBoard` cannot dedupe (it has no view of the document), so any new call
    site that adds a board must pass its name through `uniqueName` itself.
+   `validateBoard` trims before checking for blank — a whitespace-only name is
+   blank too — so `migrateDocument` never hands `dedupeNames` something that
+   trims to `''`.
 9. **`NameField` commits once, on blur or Enter — never per keystroke.** An
    emptied name reverts, and that is only possible with a single commit: writing
    per keystroke and correcting on blur takes the gesture's undo snapshot before
