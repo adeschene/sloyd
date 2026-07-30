@@ -1,7 +1,8 @@
 import {
   createBoard, createDocument, migrateDocument, DocumentError, CURRENT_VERSION,
 } from './document';
-import { boardExtents, boardCenter } from './geometry';
+import { boardExtents, boardCenter, reorientedPosition } from './geometry';
+import type { Board } from './types';
 
 describe('boardExtents', () => {
   const base = createBoard({ length: 36, width: 9, thickness: 0.75 });
@@ -176,5 +177,49 @@ describe('migrateDocument', () => {
       ],
     };
     expect(migrateDocument(raw).boards.map((b) => b.name)).toEqual(['Board', 'Board (1)']);
+  });
+});
+
+describe('reorientedPosition', () => {
+  // The board from the bug report: a 24 x 5-1/2 that jumped sideways when it turned.
+  const base = createBoard({
+    length: 24, width: 5.5, thickness: 0.75, position: [10, 0, 4],
+  });
+  const centreXZ = (b: Board) => {
+    const c = boardCenter(b);
+    return [c[0], c[2]];
+  };
+
+  it('keeps the footprint centred when a flat board turns', () => {
+    const position = reorientedPosition(base, { rotation: 90 });
+    expect(centreXZ({ ...base, rotation: 90, position }))
+      .toEqual(centreXZ(base));
+  });
+
+  it('computes that turn as a concrete corner', () => {
+    // extents 24 x 3/4 x 5-1/2 become 5-1/2 x 3/4 x 24, so the corner takes
+    // half of each swap: X + 9-1/4, Z - 9-1/4.
+    expect(reorientedPosition(base, { rotation: 90 })).toEqual([19.25, 0, -5.25]);
+  });
+
+  it('leaves a turning board on the floor', () => {
+    expect(reorientedPosition(base, { rotation: 90 })[1]).toBe(base.position[1]);
+  });
+
+  it('keeps the footprint centred when a board is stood on edge', () => {
+    const position = reorientedPosition(base, { standing: true });
+    expect(centreXZ({ ...base, standing: true, position }))
+      .toEqual(centreXZ(base));
+  });
+
+  it('leaves a board being stood on edge resting on the floor', () => {
+    // Y-min, not Y-centre: preserving the centre would sink half the board
+    // through the ground as it grows from 3/4in tall to 5-1/2in.
+    expect(reorientedPosition(base, { standing: true })).toEqual([10, 0, 6.375]);
+  });
+
+  it('returns the position unchanged when the orientation does not change', () => {
+    expect(reorientedPosition(base, { rotation: 0 })).toEqual(base.position);
+    expect(reorientedPosition(base, {})).toEqual(base.position);
   });
 });

@@ -3,7 +3,7 @@ import type { Board, Rotation, SloydDocument } from './types';
 import { dedupeNames } from './names';
 
 export * from './types';
-export { boardExtents, boardCenter } from './geometry';
+export { boardExtents, boardCenter, reorientedPosition } from './geometry';
 export { uniqueName, dedupeNames } from './names';
 
 export const CURRENT_VERSION = 1;
