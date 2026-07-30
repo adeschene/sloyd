@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef } from 'react';
-import { Canvas, useThree } from '@react-three/fiber';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Grid, OrbitControls, OrthographicCamera, PerspectiveCamera } from '@react-three/drei';
 import * as THREE from 'three';
 import { useStore } from '../store/store';
@@ -9,6 +9,8 @@ import { BoardMesh } from './BoardMesh';
 import { Gizmo } from './Gizmo';
 import { OriginAxes } from './OriginAxes';
 import { SCENE_EXTENT } from './extent';
+import { gridDensity } from './gridDensity';
+import type { GridTier } from './gridDensity';
 
 /** The bench top the model sits on. Light, so wood tones and shadows read. */
 const GROUND = '#e6e3dd';
@@ -22,6 +24,18 @@ const GROUND = '#e6e3dd';
 const SHADOW_EXTENT = SCENE_EXTENT;
 
 const DEFAULT_EYE: [number, number, number] = [40, 30, 40];
+
+/** Reused rather than allocated per frame in AdaptiveGrid's useFrame. */
+const ORIGIN = new THREE.Vector3(0, 0, 0);
+
+/**
+ * Side length of the ground grid, in inches. SCENE_EXTENT is a half-extent —
+ * the origin axes run from -SCENE_EXTENT to +SCENE_EXTENT — so doubling it
+ * puts the edge of the floor exactly where the axes end, and the two read as
+ * one bounded modelling space rather than two objects of different sizes.
+ * A 20-foot square, far larger than any single piece of furniture.
+ */
+const GRID_EXTENT = SCENE_EXTENT * 2;
 
 interface OrbitLike {
   target: THREE.Vector3;
@@ -126,13 +140,102 @@ function CameraKeys() {
   return null;
 }
 
-export function Viewport({ orthographic = false }: { orthographic?: boolean }) {
+/**
+ * How many screen pixels one world inch covers, at the point the user is
+ * looking at. Perspective scales with distance to the orbit target;
+ * orthographic does not move the camera to zoom, so its scale is the zoom
+ * factor itself — drei sizes the ortho frustum to the canvas in pixels, which
+ * makes world-units-across equal pixels/zoom.
+ */
+function screenPixelsPerInch(
+  camera: THREE.Camera,
+  target: THREE.Vector3,
+  viewportHeightPx: number,
+): number {
+  if (camera instanceof THREE.OrthographicCamera) return camera.zoom;
+  if (camera instanceof THREE.PerspectiveCamera) {
+    const distance = camera.position.distanceTo(target);
+    const worldHeightAtTarget = 2 * distance * Math.tan((camera.fov * Math.PI) / 360);
+    return viewportHeightPx / worldHeightAtTarget;
+  }
+  return Number.NaN;
+}
+
+/**
+ * The ground grid, coarsening as the camera pulls back.
+ *
+ * One inch per cell is the app's unit and stays that way whenever an inch is
+ * actually readable. Past that the grid steps up to feet and then to
+ * twelve-foot lines rather than drawing sub-pixel lines — see gridDensity for
+ * why, and note that this replaced a distance fade. The fade was only ever
+ * masking the aliasing, it dissolved the grid into nothing, and because drei
+ * fades by distance from the *camera* it behaved completely differently in
+ * orthographic (whose framing parks the camera 100+ units back by
+ * construction). fadeStrength={0} turns it off; nothing here fades.
+ */
+function AdaptiveGrid() {
+  const camera = useThree((s) => s.camera);
+  const size = useThree((s) => s.size);
+  const controls = useThree((s) => s.controls) as OrbitLike | null;
+  const [tier, setTier] = useState<GridTier>(() => ({ cellSize: 1, sectionSize: 12 }));
+
+  // Re-evaluated per frame because it depends on the live camera, but only
+  // committed to state when the tier actually changes — a tier change is rare
+  // (a couple of zoom octaves apart), so this is a no-op on almost every frame.
+  useFrame(() => {
+    const target = controls ? controls.target : ORIGIN;
+    const next = gridDensity(screenPixelsPerInch(camera, target, size.height));
+    if (next.cellSize !== tier.cellSize) setTier(next);
+  });
+
+  return (
+    <Grid
+      args={[GRID_EXTENT, GRID_EXTENT]}
+      cellSize={tier.cellSize}
+      // Thickness is measured in render-target pixels, so it has to track the
+      // dpr floor above or the lines come out at half weight in CSS pixels and
+      // the whole grid looks washed out. These are the pre-supersampling
+      // values (0.5 and 1) doubled.
+      cellThickness={1}
+      cellColor="#c6c1b8"
+      sectionSize={tier.sectionSize}
+      sectionThickness={2}
+      sectionColor="#958f84"
+      // Deliberately NOT infiniteGrid, and no fade. An infinite grid has no
+      // single readable density: however coarse the tier, the lines still
+      // recede to the horizon and pile into a grey haze there, which is what
+      // the old distance fade was really hiding. A bounded floor is honest
+      // about where the modelling space is, and every line on it is legible.
+      fadeStrength={0}
+      followCamera={false}
+    />
+  );
+}
+
+interface ViewportProps {
+  /** True when the viewport is drawing through an orthographic camera. */
+  orthographic?: boolean;
+  /** False hides the ground grid entirely. */
+  showGrid?: boolean;
+}
+
+export function Viewport({ orthographic = false, showGrid = true }: ViewportProps) {
   const boards = useStore((s) => s.doc.boards);
   const selectedId = useStore((s) => s.selectedId);
   const selectBoard = useStore((s) => s.selectBoard);
 
+  // The dpr floor of 2 is an anti-aliasing measure, not a sharpness
+  // preference, and it is what makes an unfaded grid viable. A 1in grid
+  // inevitably has sub-pixel spacing somewhere in the frame, and supersampling
+  // is the only lever that reduces the resulting moiré without hiding the
+  // grid: measured by orbiting a settled camera 2 screen pixels and diffing
+  // the frames, far-field churn went 6.58% (strong 1.73%) at dpr 1 to 3.17%
+  // (strong 0.14%) at dpr 2 — level with what the old distance fade achieved,
+  // with nothing faded away. The range form clamps devicePixelRatio rather
+  // than pinning it, so a HiDPI display still renders at its native ratio
+  // instead of being downsampled to 2.
   return (
-    <Canvas shadows onPointerMissed={() => selectBoard(null)}>
+    <Canvas shadows dpr={[2, 3]} onPointerMissed={() => selectBoard(null)}>
       {orthographic ? (
         <OrthographicCamera makeDefault position={DEFAULT_EYE} zoom={12} near={-2000} far={4000} />
       ) : (
@@ -157,50 +260,7 @@ export function Viewport({ orthographic = false }: { orthographic?: boolean }) {
         shadow-normalBias={0.06}
       />
 
-      {/*
-        One inch per cell, one foot per section — the units are the grid.
-        cellSize and cellThickness stay put deliberately (see below); only
-        fadeDistance changed, from 220.
-
-        fadeDistance was 220: at that density the distant 1in grid is badly
-        under-sampled, a textbook moiré generator. Measured by orbiting the
-        settled camera by 2 screen pixels (no boards moving, damping fully
-        decayed both times, so the only difference between the two frames is
-        camera angle) and diffing far/mid/near thirds of the canvas:
-        far-field changed>8=9.21% (strong>40=1.04%) at fadeDistance 220,
-        vs far-field changed>8=3.14% (strong>40=0.11%) at fadeDistance 150 —
-        roughly a two-thirds cut, and strong (>40/255) aliasing very nearly
-        eliminated. Same test with cellThickness=0.4 instead (fadeDistance
-        left at 220) moved the number only 9.21% -> 8.89%, i.e. noise:
-        thickness was not the lever. cellSize=2 (doubling the world size of
-        a "unit") was not tried since fadeDistance alone already closed most
-        of the gap — cellSize is the one prop here that's a design decision
-        ("units are the grid"), not a rendering parameter, so it's a last
-        resort this fix didn't need.
-
-        fadeDistance=120 was tried first — it cut the far-field number
-        further (to 1.67%/0.04%) but drei fades <Grid> by distance from the
-        *camera*, and CameraKeys' orthographic framing parks the camera at
-        least 100 world units back by construction (radius*4+100). At 120
-        that put the whole grid past its own fade horizon: toggling to
-        Orthographic showed a bare background with no grid at all (checked
-        visually, not just measured). 150 was the smallest value that kept
-        the grid visible in both projections, including immediately after
-        Home/F reframing — checked visually in perspective and orthographic,
-        both at the default view and after reframing.
-      */}
-      <Grid
-        args={[240, 240]}
-        cellSize={1}
-        cellThickness={0.5}
-        cellColor="#c6c1b8"
-        sectionSize={12}
-        sectionThickness={1}
-        sectionColor="#958f84"
-        infiniteGrid
-        fadeDistance={150}
-        followCamera={false}
-      />
+      {showGrid && <AdaptiveGrid />}
 
       {/*
         drei's <Grid> is a custom ShaderMaterial with no shadow-map sampling, so
@@ -257,21 +317,33 @@ export function Viewport({ orthographic = false }: { orthographic?: boolean }) {
       <Gizmo />
       <CameraKeys />
       {/*
-        dampingFactor was 0.12. Measured with a 150px flick (see Grid comment
-        for the far-field-only test): 300ms after release the frame was still
-        4.63% different from its fully-settled state (mid-field 23%, i.e. real
-        camera motion, not aliasing) — the camera was provably still creeping
-        well past the "settles in ~1/3s" target. At 0.3 the same flick reads
-        0.01% changed 300ms after release — effectively stationary. 0.3 also
-        shortens the per-frame follow lag during an active drag from ~130ms to
-        ~46ms (dampingFactor is the fraction of accumulated delta applied each
-        frame, even while dragging) — still comfortably damped, not raw/1:1,
-        so the drag keeps a weighted feel without the multi-frame lag that let
-        the tail run on. Untested empirically: subjective "feel" of the drag
-        itself, which screenshots can't capture — if a human disagrees this is
-        the value to reconsider first.
+        Damping is OFF, and that is the fix for the grid shimmer — not a
+        tuning preference.
+
+        The tell came from the report that zooming never shimmered while
+        rotating and panning always did. In three-stdlib's OrbitControls.update
+        (controls/OrbitControls.js:191-238) rotate and pan are the two
+        operations routed through the damping accumulator —
+        `spherical.theta += sphericalDelta.theta * dampingFactor` and
+        `target.addScaledVector(panOffset, dampingFactor)` — while dolly is
+        applied whole: `spherical.radius = clampDistance(radius * scale)`,
+        never scaled by dampingFactor. So the one input that skipped damping
+        was the one input that never shimmered.
+
+        Damping hurts twice over. During a drag it applies only dampingFactor
+        of the accumulated delta per frame, so the camera advances in uneven
+        decaying sub-steps that lag the pointer instead of tracking it 1:1.
+        After release the residual keeps nudging the camera by ever-smaller
+        amounts, and a 1px grid line still renders sub-pixel motion visibly
+        long after the camera looks stopped. Raising dampingFactor 0.12 -> 0.3
+        only made a smaller version of the same problem, which is why it did
+        not fix the reported symptom.
+
+        Undamped, rotate and pan track the mouse exactly and stop dead on
+        release — which is also how SketchUp behaves, so it should read as
+        normal rather than abrupt.
       */}
-      <OrbitControls makeDefault enableDamping dampingFactor={0.3} />
+      <OrbitControls makeDefault enableDamping={false} />
     </Canvas>
   );
 }

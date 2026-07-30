@@ -31,6 +31,10 @@ export default function App() {
   const [saving, setSaving] = useState(false);
   const [available, setAvailable] = useState(true);
   const [orthographic, setOrthographic] = useState(false);
+  // View state, deliberately not part of the document: whether the grid is
+  // drawn is a property of how you're looking at a project, not of the
+  // project, so it neither saves nor lands on the undo stack.
+  const [showGrid, setShowGrid] = useState(true);
   const restored = useRef(false);
 
   // Restore once on mount, before any autosave can overwrite it.
@@ -115,13 +119,15 @@ export default function App() {
       <Toolbar
         orthographic={orthographic}
         onToggleProjection={() => setOrthographic((v) => !v)}
+        showGrid={showGrid}
+        onToggleGrid={() => setShowGrid((v) => !v)}
       >
         <SaveIndicator saving={saving} available={available} />
         <FileMenu />
       </Toolbar>
       <StorageBanner available={available} />
       <main className="workspace">
-        <Viewport orthographic={orthographic} />
+        <Viewport orthographic={orthographic} showGrid={showGrid} />
         <aside className="sidebar">
           <section className="panel panel-parts">
             <h2>Parts</h2>

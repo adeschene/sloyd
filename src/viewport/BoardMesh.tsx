@@ -13,6 +13,13 @@ const SELECTED = '#c99a4e';
  */
 const EDGE_DARKEN = 0.3;
 
+/**
+ * How far the pointer may travel between press and release and still count as
+ * a click rather than a drag, in screen pixels. Matches the slop R3F applies
+ * to its own pointer-missed handling.
+ */
+const CLICK_DRAG_SLOP_PX = 2;
+
 interface Props {
   board: Board;
   selected: boolean;
@@ -50,6 +57,18 @@ export function BoardMesh({ board, selected, onSelect }: Props) {
         castShadow
         receiveShadow
         onClick={(e) => {
+          // Only a click that didn't travel selects. R3F fires onClick for any
+          // release whose object was among the pointer-down hits, with no
+          // drag threshold of its own (see initialHits in @react-three/fiber's
+          // events module), so without this guard a gesture that merely ENDED
+          // over a board selected it. Two ways that bit: dragging a board by
+          // the gizmo while a second board sat behind the cursor put both in
+          // initialHits, so releasing over the second one selected it; and
+          // orbiting the camera from a board and releasing re-selected it.
+          // e.delta is the pixel distance travelled since pointer-down, which
+          // is exactly the drag-versus-click distinction, and 2px matches the
+          // threshold R3F itself uses for its miss handling.
+          if (e.delta > CLICK_DRAG_SLOP_PX) return;
           e.stopPropagation();
           onSelect(board.id);
         }}

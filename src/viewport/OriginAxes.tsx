@@ -1,4 +1,5 @@
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
+import { Line } from '@react-three/drei';
 import * as THREE from 'three';
 import { SCENE_EXTENT } from './extent';
 
@@ -29,9 +30,29 @@ const GROUND_LIFT = 1 / 64;
  */
 const AXIS_COLOR = { x: '#b6483c', y: '#4e8b46', z: '#3f6ea8' } as const;
 
-/** Inches. Long enough to read as "dashed" at furniture scale. */
-const DASH_SIZE = 1.5;
-const GAP_SIZE = 1.5;
+/**
+ * Opacity for the positive and negative half of each axis. The negative half
+ * is dimmer, which is what distinguishes the two directions.
+ *
+ * This was dashed at 1.5in dash/gap, and that was the cause of the reported
+ * "segments cut in and out randomly" as the camera moved. LineDashedMaterial
+ * measures its pattern in WORLD units, so a 3in dash+gap pair shrinks toward
+ * sub-pixel as the axis recedes; past roughly 200in the pattern lands on and
+ * off pixel centres and the line breaks up differently on every frame. It was
+ * never an occlusion or depth problem — verified by toggling both grid
+ * visibility and the axes' depthTest, neither of which changed anything.
+ *
+ * Opacity carries the same "which way is positive" information with nothing
+ * that can alias: the geometry is one continuous segment per half-axis.
+ */
+const POSITIVE_OPACITY = 0.9;
+/**
+ * Not lower than this: at the default camera the positive halves run toward
+ * the viewer and leave the frame within a few pixels of the origin, so the
+ * negative halves are the ones actually on screen. Dim enough to read as
+ * "behind the origin", strong enough to still be the visible axis.
+ */
+const NEGATIVE_OPACITY = 0.45;
 
 type Axis = keyof typeof AXIS_COLOR;
 
@@ -43,64 +64,51 @@ function point(axis: Axis, distance: number): THREE.Vector3 {
 }
 
 /**
- * Axis lines through the world origin: solid in the positive direction,
- * dashed in the negative, so both the origin and the sense of each axis read
- * at a glance.
+ * Axis lines through the world origin: full strength in the positive
+ * direction, dimmed in the negative, so both the origin and the sense of each
+ * axis read at a glance.
  */
 export function OriginAxes() {
   const segments = useMemo(() => {
     const axes: Axis[] = ['x', 'y', 'z'];
     return axes.flatMap((axis) =>
-      ([1, -1] as const).map((sign) => {
-        const geometry = new THREE.BufferGeometry().setFromPoints([
-          point(axis, 0),
-          point(axis, AXIS_EXTENT * sign),
-        ]);
-        // A dashed material measures its dashes along the line via the
-        // geometry's `lineDistance` attribute, which computeLineDistances
-        // lives on THREE.Line/LineSegments, not BufferGeometry — so this
-        // wraps the geometry just long enough to compute it. Without this
-        // step the attribute is missing and the dashes never appear.
-        new THREE.LineSegments(geometry).computeLineDistances();
-        return { key: `${axis}${sign}`, axis, positive: sign > 0, geometry };
-      }),
+      ([1, -1] as const).map((sign) => ({
+        key: `${axis}${sign}`,
+        axis,
+        positive: sign > 0,
+        points: [point(axis, 0), point(axis, AXIS_EXTENT * sign)] as [
+          THREE.Vector3,
+          THREE.Vector3,
+        ],
+      })),
     );
   }, []);
 
-  // Same discipline as BoardMesh's edge geometry: built once, disposed on
-  // unmount, never constructed inline where it would leak on every render.
-  useEffect(
-    () => () => segments.forEach((s) => s.geometry.dispose()),
-    [segments],
-  );
-
   return (
     <>
-      {segments.map(({ key, axis, positive, geometry }) => (
-        // renderOrder 3 puts these after the grid (0) and the shadow
-        // receiver (2), so they draw over the grid lines they cross rather
-        // than being painted over by them. raycast is disabled explicitly:
-        // an axis must never be a click target, for the same
-        // belt-and-braces reason the shadow plane says so.
-        <lineSegments key={key} geometry={geometry} renderOrder={3} raycast={() => null}>
-          {positive ? (
-            <lineBasicMaterial
-              color={AXIS_COLOR[axis]}
-              depthWrite={false}
-              transparent
-              opacity={0.9}
-            />
-          ) : (
-            <lineDashedMaterial
-              color={AXIS_COLOR[axis]}
-              dashSize={DASH_SIZE}
-              gapSize={GAP_SIZE}
-              depthWrite={false}
-              transparent
-              opacity={0.55}
-            />
-          )}
-        </lineSegments>
+      {segments.map(({ key, axis, positive, points }) => (
+        // drei's <Line> rather than a native <lineSegments>: native GL lines
+        // are always exactly one render-target pixel wide and ignore
+        // `linewidth` entirely, so under the viewport's dpr floor of 2 they
+        // downsample to half weight and the axes wash out. <Line> is
+        // mesh-based (Line2), so lineWidth is a real, dpr-independent width.
+        //
+        // renderOrder 3 puts these after the grid (0) and the shadow receiver
+        // (2), so they draw over the grid lines they cross rather than being
+        // painted over. raycast is disabled explicitly: an axis must never be
+        // a click target, for the same belt-and-braces reason the shadow plane
+        // says so.
+        <Line
+          key={key}
+          points={points}
+          color={AXIS_COLOR[axis]}
+          lineWidth={positive ? 1.6 : 1.2}
+          transparent
+          opacity={positive ? POSITIVE_OPACITY : NEGATIVE_OPACITY}
+          depthWrite={false}
+          renderOrder={3}
+          raycast={() => null}
+        />
       ))}
     </>
   );

@@ -98,16 +98,18 @@ Found during the polish pass that fixed name uniqueness, `NameField`, `Delete`/
 `Backspace`, the origin axes, the post-pan/orbit grid shimmer, and the gizmo's
 axis-flip. Consciously deferred, not missed.
 
-**15. `dampingFactor = 0.3` has not had a hands-on check.** "Motion during a drag is
-still smooth" was reasoned analytically — `dampingFactor` doubles as the per-frame
-follow fraction during an active drag, so lag goes from roughly 130ms at 0.12 to 46ms
-at 0.3, both under the ~100ms perceptible threshold — but no human has actually
-orbited with it. Screenshots cannot capture feel. If an orbit reads as twitchy,
-`dampingFactor` is the first value to reconsider.
+**15. ~~`dampingFactor = 0.3` has not had a hands-on check.~~ CLOSED — and the
+hands-on check is exactly what found the real bug.** It was still shimmering in use.
+Damping itself was the cause, not its value: rotate and pan are the two operations
+three-stdlib's `OrbitControls.update` routes through the damping accumulator, and dolly
+is not — which is why zooming never shimmered while rotating and panning always did.
+`enableDamping` is now off. The lesson worth keeping: an analytic argument about "feel"
+is not evidence, and the one bracketing experiment that would have caught this
+(`enableDamping={false}`) was reasoned about rather than run.
 
-**16. Neither `dampingFactor = 0.3` nor `fadeDistance = 150` was swept to a minimum.**
-Each is sufficient, not proven minimal; intermediate values (0.2/0.25, and 130/140)
-were not tried.
+**16. ~~Neither `dampingFactor = 0.3` nor `fadeDistance = 150` was swept to a
+minimum.~~ MOOT.** Both values are gone — damping is off and the grid no longer fades
+at all.
 
 **17. The gizmo patch machinery is ~90 lines sitting above a 63-line component** in
 `src/viewport/Gizmo.tsx`. Extracting it to a sibling module under `src/viewport/`
@@ -131,7 +133,9 @@ library behaviour rather than throwing, but it must be re-verified on any `three
 **21. At the default camera the two positive ground axes are nearly invisible,**
 because they run toward and past the camera and leave the frame within a few pixels of
 the origin. The code is correct; the default framing just does not show them off. A
-default-camera tweak would fix it.
+default-camera tweak would fix it. Still open, and it constrains `NEGATIVE_OPACITY` in
+`OriginAxes.tsx`: since the halves actually on screen by default are the negative ones,
+they cannot be dimmed as far as the positive/negative distinction alone would suggest.
 
 **22. `uniqueName`'s next-free-number search is unbounded.** Fine at board-list sizes;
 worth a note if it is ever called on unbounded input.
@@ -158,3 +162,43 @@ Joinery (dados/rabbets) is v2. Cut list, board-feet, and sheet-goods layout are 
 Multi-select, free-angle rotation, curves, and accounts are unscheduled. The parametric
 board model exists specifically to make the first two cheap — see
 `docs/superpowers/specs/2026-07-29-sloyd-v1-design.md` for why that beats a mesh kernel.
+
+## From the second polish pass
+
+Found while fixing the grid shimmer, the axis flicker, the grid fade and the
+drag-release selection bug.
+
+**24. The grid's density tier is global, not per-fragment.** `gridDensity` picks one
+cell size from the pixels-per-inch at the orbit target, but a ground plane spans a range
+of depths in a single frame, so the far half of the floor is always denser on screen
+than the near half. It is good enough because the floor is bounded and supersampled —
+strong far-field aliasing measures 0.31% — but the principled fix is a grid shader that
+chooses its tier per fragment from the local derivative, which drei's `<Grid>` does not
+do. Revisit only if the floor ever needs to be much larger.
+
+**25. `dpr={[2, 3]}` renders four times the fragments of `dpr=1`.** This is what makes
+an unfaded grid viable, and the scene is trivial enough that it does not matter here —
+but it is a real cost that would matter if the viewport ever gains post-processing or a
+much heavier scene. It also means every line weight in the viewport is now tuned against
+a supersampled buffer: `cellThickness`/`sectionThickness` were doubled to compensate,
+and the origin axes had to move to drei's mesh-based `<Line>` because native GL lines
+ignore `linewidth` and would render at half weight.
+
+**26. The bounded 20ft floor has a visible hard edge.** Deliberate — an infinite grid
+piles into an unreadable haze at the horizon, which is what the old distance fade was
+really hiding — but it does mean zooming far out shows the floor ending in space rather
+than continuing. If that reads badly, the options are a larger extent (at the aliasing
+cost measured above) or fading only the outermost ring, which reintroduces a softer
+version of what was just removed.
+
+**27. Nothing pins the `e.delta` click guard.** `BoardMesh` ignores clicks that travelled
+more than 2px, which is what stops a gizmo drag or a camera orbit from selecting whatever
+it happened to end over. Verified by driving the real app, but the r3f viewport has no
+unit tests by design, so a refactor could drop the guard silently. The guard's value is
+`CLICK_DRAG_SLOP_PX` in `src/viewport/BoardMesh.tsx`.
+
+**28. The gizmo's hover highlight is too close to the board's selection colour.**
+Reported and consciously skipped as a nit: three-stdlib highlights a hovered axis in
+`0xffff00` while a selected board is brass `#c99a4e`, both warm yellows, so it is not
+obvious which axis a click will grab. The gizmo materials are already reachable from the
+patch in `Gizmo.tsx`, so recolouring the hover state is cheap when it becomes annoying.

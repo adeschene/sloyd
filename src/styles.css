@@ -412,6 +412,19 @@ button[aria-pressed='true'] {
 
 .checkbox input { accent-color: var(--brass); cursor: pointer; }
 
+/*
+  The base .checkbox is a sidebar control and carries a top margin for the
+  stacked layout there. In the toolbar it sits in a flex row of buttons, so it
+  drops the margin, tightens the gap, and takes the same letter-spaced
+  treatment as the toolbar's other labels.
+*/
+.toolbar-checkbox {
+  margin-top: 0;
+  gap: 6px;
+  user-select: none;
+  white-space: nowrap;
+}
+
 .row {
   display: flex;
   gap: 8px;
