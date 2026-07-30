@@ -40,6 +40,31 @@ const snap = (v: number) => Math.round(v / SNAP_INCHES) * SNAP_INCHES;
 // optional/cached), so a one-shot effect cannot hold against it. Wrapping the
 // gizmo's own updateMatrixWorld is the only hook point that runs at the right
 // time, every frame, without patching three-stdlib itself.
+//
+// Un-mirroring `scale` is not enough on its own. `original(force)` above ends
+// in `Object3D.prototype.updateMatrixWorld`, which composes every handle's
+// `matrix`/`matrixWorld` from whatever `scale` holds *at that instant* — i.e.
+// from the library's own (possibly mirrored) value, before this patch ever
+// runs. Writing a corrected `handle.scale` after that point changes a number
+// that has already been baked into this frame's matrices and will be reset
+// from scratch by the library before the next frame's bake. So after fixing
+// every handle's scale below, the two translate groups' matrices have to be
+// explicitly recomposed (`updateMatrixWorld(true)`) so the correction
+// actually reaches what gets rendered and raycast against — otherwise the
+// shaft/picker silently keep rendering from the mirrored geometry while only
+// the (render-list-time, not baked) `visible` flag looks fixed.
+//
+// Upgrade coupling: this reaches into three-stdlib internals
+// (`gizmo.picker.translate` / `gizmo.gizmo.translate`, the `tag` property,
+// the per-frame reset/flip behavior at TransformControls.js:508-722) that
+// aren't part of any public API or type. `three-stdlib` is a transitive dep
+// of `@react-three/drei` under a caret range, so it can change on a plain
+// `npm install` with no version bump visible in this repo. The shape is
+// checked once before patching (see `stabilizeTranslateGizmo`'s guard) and
+// the per-frame body is defensive, so a shape change degrades to the
+// library's native (flippy) behavior instead of throwing inside three's
+// render traversal — but it should still be re-verified after any dependency
+// bump touching `three`, `three-stdlib`, or `@react-three/drei`.
 type TaggedHandle = THREE.Object3D & { tag?: string };
 interface HandleGroup {
   translate: THREE.Object3D;
@@ -66,31 +91,73 @@ const AXIS_UNIT: Record<'X' | 'Y' | 'Z', THREE.Vector3> = {
 const IDENTITY_QUATERNION = new THREE.Quaternion();
 const tempAxisVector = new THREE.Vector3();
 
+// Best-effort structural check that the internals this patch depends on are
+// still shaped the way three-stdlib's current TransformControlsGizmo shapes
+// them. Not exhaustive type-checking — just enough to fail closed (skip the
+// patch) instead of throwing inside three's per-frame render traversal if a
+// future three-stdlib version renames or restructures these fields.
+function hasExpectedShape(controls: ControlsInternals | null | undefined): controls is ControlsInternals {
+  const gizmoObj = controls?.gizmo;
+  return (
+    !!gizmoObj &&
+    typeof gizmoObj.updateMatrixWorld === 'function' &&
+    gizmoObj.picker?.translate instanceof THREE.Object3D &&
+    gizmoObj.gizmo?.translate instanceof THREE.Object3D
+  );
+}
+
 function stabilizeTranslateGizmo(controls: ControlsInternals): () => void {
+  if (!hasExpectedShape(controls)) {
+    // Internals don't look like what this patch expects (e.g. a
+    // three-stdlib upgrade restructured the gizmo). Leave the library's
+    // native updateMatrixWorld untouched — the flip bug this patch fixes is
+    // preferable to a viewport that throws every frame. No-op cleanup.
+    return () => {};
+  }
+
   const gizmoObj = controls.gizmo;
   const original = gizmoObj.updateMatrixWorld.bind(gizmoObj);
+  let patchFailed = false;
 
   gizmoObj.updateMatrixWorld = (force?: boolean) => {
     original(force);
-    if (controls.mode !== 'translate') return;
-    const quaternion = controls.space === 'local' ? controls.worldQuaternion : IDENTITY_QUATERNION;
-    for (const group of [gizmoObj.picker.translate, gizmoObj.gizmo.translate]) {
-      group.children.forEach((child) => {
-        const handle = child as TaggedHandle;
-        if (handle.name !== 'X' && handle.name !== 'Y' && handle.name !== 'Z') return;
-        if (handle.tag === 'bwd') {
-          handle.visible = false;
-          return;
-        }
-        const axis = handle.name as 'X' | 'Y' | 'Z';
-        const alignment = Math.abs(
-          tempAxisVector.copy(AXIS_UNIT[axis]).applyQuaternion(quaternion).dot(controls.eye)
-        );
-        if (axis === 'X') handle.scale.x = Math.abs(handle.scale.x);
-        else if (axis === 'Y') handle.scale.y = Math.abs(handle.scale.y);
-        else handle.scale.z = Math.abs(handle.scale.z);
-        handle.visible = alignment <= AXIS_HIDE_THRESHOLD;
-      });
+    if (patchFailed || controls.mode !== 'translate') return;
+    try {
+      const quaternion = controls.space === 'local' ? controls.worldQuaternion : IDENTITY_QUATERNION;
+      const translateGroups = [gizmoObj.picker.translate, gizmoObj.gizmo.translate];
+      for (const group of translateGroups) {
+        group.children.forEach((child) => {
+          const handle = child as TaggedHandle;
+          if (handle.name !== 'X' && handle.name !== 'Y' && handle.name !== 'Z') return;
+          if (handle.tag === 'bwd') {
+            handle.visible = false;
+            return;
+          }
+          const axis = handle.name as 'X' | 'Y' | 'Z';
+          const alignment = Math.abs(
+            tempAxisVector.copy(AXIS_UNIT[axis]).applyQuaternion(quaternion).dot(controls.eye)
+          );
+          if (axis === 'X') handle.scale.x = Math.abs(handle.scale.x);
+          else if (axis === 'Y') handle.scale.y = Math.abs(handle.scale.y);
+          else handle.scale.z = Math.abs(handle.scale.z);
+          handle.visible = alignment <= AXIS_HIDE_THRESHOLD;
+        });
+      }
+      // `original(force)` above already composed every handle's matrix and
+      // matrixWorld from the pre-patch (possibly mirrored) scale — that's
+      // baked, not live, so mutating `scale` alone never reaches what's
+      // rendered or raycast against. Recompose both translate groups now
+      // that their children's scale is corrected, so the fix actually lands
+      // in the matrices three uses this frame. Both groups' own parents were
+      // already brought current by `original(force)`, so `force = true` here
+      // only needs to (and does) recompute this subtree.
+      for (const group of translateGroups) group.updateMatrixWorld(true);
+    } catch {
+      // Something about the internal shape didn't hold up at runtime (e.g.
+      // a child was missing an expected property). Stop trying every frame
+      // and fall back permanently to the library's own (flippy) behavior
+      // rather than repeatedly throwing.
+      patchFailed = true;
     }
   };
 
