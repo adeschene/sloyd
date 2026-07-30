@@ -211,9 +211,15 @@ interface ViewportProps {
   orthographic?: boolean;
   /** False hides the ground grid entirely. */
   showGrid?: boolean;
+  /** False hides the origin axis lines entirely. Independent of `showGrid`. */
+  showAxes?: boolean;
 }
 
-export function Viewport({ orthographic = false, showGrid = true }: ViewportProps) {
+export function Viewport({
+  orthographic = false,
+  showGrid = true,
+  showAxes = true,
+}: ViewportProps) {
   const boards = useStore((s) => s.doc.boards);
   const selectedId = useStore((s) => s.selectedId);
   const selectBoard = useStore((s) => s.selectBoard);
@@ -297,7 +303,7 @@ export function Viewport({ orthographic = false, showGrid = true }: ViewportProp
         />
       </mesh>
 
-      <OriginAxes />
+      {showAxes && <OriginAxes />}
 
       {boards.map((board) => (
         <BoardMesh

@@ -31,10 +31,13 @@ export default function App() {
   const [saving, setSaving] = useState(false);
   const [available, setAvailable] = useState(true);
   const [orthographic, setOrthographic] = useState(false);
-  // View state, deliberately not part of the document: whether the grid is
-  // drawn is a property of how you're looking at a project, not of the
-  // project, so it neither saves nor lands on the undo stack.
+  // View state, deliberately not part of the document: whether the grid and
+  // the origin axes are drawn is a property of how you're looking at a
+  // project, not of the project, so neither saves nor lands on the undo stack.
+  // They are two independent flags because they answer different questions —
+  // "how big is this" and "where is the origin".
   const [showGrid, setShowGrid] = useState(true);
+  const [showAxes, setShowAxes] = useState(true);
   const restored = useRef(false);
 
   // Restore once on mount, before any autosave can overwrite it.
@@ -121,13 +124,15 @@ export default function App() {
         onToggleProjection={() => setOrthographic((v) => !v)}
         showGrid={showGrid}
         onToggleGrid={() => setShowGrid((v) => !v)}
+        showAxes={showAxes}
+        onToggleAxes={() => setShowAxes((v) => !v)}
       >
         <SaveIndicator saving={saving} available={available} />
         <FileMenu />
       </Toolbar>
       <StorageBanner available={available} />
       <main className="workspace">
-        <Viewport orthographic={orthographic} showGrid={showGrid} />
+        <Viewport orthographic={orthographic} showGrid={showGrid} showAxes={showAxes} />
         <aside className="sidebar">
           <section className="panel panel-parts">
             <h2>Parts</h2>
