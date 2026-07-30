@@ -66,6 +66,60 @@ describe('updateBoard', () => {
   });
 });
 
+describe('updateBoard reorients a board in place', () => {
+  const board = () => useStore.getState().doc.boards[0];
+
+  const aBoard = () => {
+    useStore.getState().addBoard();
+    const id = board().id;
+    useStore.getState().updateBoard(id, {
+      length: 24, width: 5.5, thickness: 0.75, position: [10, 0, 4],
+    });
+    return id;
+  };
+
+  it('moves the corner so a turning board keeps its footprint centre', () => {
+    const id = aBoard();
+    useStore.getState().updateBoard(id, { rotation: 90 });
+    expect(board().position).toEqual([19.25, 0, -5.25]);
+  });
+
+  it('moves the corner so a board stood on edge keeps its footprint centre', () => {
+    const id = aBoard();
+    useStore.getState().updateBoard(id, { standing: true });
+    expect(board().position).toEqual([10, 0, 6.375]);
+  });
+
+  it('leaves the position alone when the orientation does not change', () => {
+    const id = aBoard();
+    useStore.getState().updateBoard(id, { rotation: 0 });
+    expect(board().position).toEqual([10, 0, 4]);
+  });
+
+  it('lets an explicit position in the same patch win', () => {
+    const id = aBoard();
+    useStore.getState().updateBoard(id, { rotation: 90, position: [0, 0, 0] });
+    expect(board().position).toEqual([0, 0, 0]);
+  });
+
+  it('records one undo entry, and undo restores orientation and position together', () => {
+    const id = aBoard();
+    const before = useStore.getState().past.length;
+    useStore.getState().updateBoard(id, { rotation: 90 });
+    expect(useStore.getState().past.length).toBe(before + 1);
+
+    useStore.getState().undo();
+    expect(board().rotation).toBe(0);
+    expect(board().position).toEqual([10, 0, 4]);
+  });
+
+  it('does not move a board when an unrelated field changes', () => {
+    const id = aBoard();
+    useStore.getState().updateBoard(id, { material: 'oak' });
+    expect(board().position).toEqual([10, 0, 4]);
+  });
+});
+
 describe('deleteBoard', () => {
   it('removes the board and clears the selection if it was selected', () => {
     useStore.getState().addBoard();

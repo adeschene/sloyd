@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { createBoard, createDocument, uniqueName } from '../document/document';
+import { createBoard, createDocument, reorientedPosition, uniqueName } from '../document/document';
 import type { Board, SloydDocument } from '../document/document';
 
 const HISTORY_LIMIT = 50;
@@ -102,12 +102,28 @@ export const useStore = create<StoreState>((set, get) => {
     },
 
     updateBoard: (id, patch) => {
-      if (!get().doc.boards.some((b) => b.id === id)) return;
+      const current = get().doc.boards.find((b) => b.id === id);
+      if (!current) return;
+
+      // Reorienting turns the board in place. `position` is the min-corner, so
+      // changing rotation or standing swaps the extents underneath a pinned
+      // corner — which is what made a 24 x 5-1/2 board jump sideways when it
+      // turned. The arithmetic lives in document/geometry.ts; doing it here,
+      // once, is what stops every future call site having to remember it. An
+      // explicit position in the same patch wins.
+      const reorienting =
+        (patch.rotation !== undefined && patch.rotation !== current.rotation) ||
+        (patch.standing !== undefined && patch.standing !== current.standing);
+      const position =
+        reorienting && !patch.position
+          ? reorientedPosition(current, { rotation: patch.rotation, standing: patch.standing })
+          : patch.position;
+
       edit((doc) => ({
         ...doc,
         boards: doc.boards.map((b) =>
           b.id === id
-            ? { ...b, ...patch, ...(patch.position ? { position: [...patch.position] } : {}) }
+            ? { ...b, ...patch, ...(position ? { position: [...position] } : {}) }
             : b,
         ),
       }));
