@@ -1,7 +1,13 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { Line } from '@react-three/drei';
+import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
+import type { LineMaterial } from 'three-stdlib';
 import { SCENE_EXTENT } from './extent';
+import { dashScaleForScreenPeriod, screenPixelsPerInch } from './screenScale';
+
+/** Reused rather than allocated per frame in the dash-scale frame loop. */
+const ORIGIN = new THREE.Vector3(0, 0, 0);
 
 /**
  * How far the axes run, in inches. Shares SCENE_EXTENT with SHADOW_EXTENT in
@@ -31,28 +37,32 @@ const GROUND_LIFT = 1 / 64;
 const AXIS_COLOR = { x: '#b6483c', y: '#4e8b46', z: '#3f6ea8' } as const;
 
 /**
- * Opacity for the positive and negative half of each axis. The negative half
- * is dimmer, which is what distinguishes the two directions.
+ * The negative half of each axis is dashed and slightly dimmer, so "behind the
+ * origin" reads two ways at once.
  *
- * This was dashed at 1.5in dash/gap, and that was the cause of the reported
- * "segments cut in and out randomly" as the camera moved. LineDashedMaterial
- * measures its pattern in WORLD units, so a 3in dash+gap pair shrinks toward
- * sub-pixel as the axis recedes; past roughly 200in the pattern lands on and
- * off pixel centres and the line breaks up differently on every frame. It was
- * never an occlusion or depth problem — verified by toggling both grid
- * visibility and the axes' depthTest, neither of which changed anything.
+ * The dashes are the part with history. A first attempt used
+ * LineDashedMaterial on native lines with a fixed 1.5in dash and gap, and that
+ * caused the reported "segments cut in and out randomly": the pattern is
+ * measured in WORLD units, so it shrinks toward sub-pixel as the axis recedes
+ * and then lands on and off pixel centres as the camera moves. It was never an
+ * occlusion or depth problem — verified by toggling both grid visibility and
+ * the axes' depthTest, neither of which changed anything.
  *
- * Opacity carries the same "which way is positive" information with nothing
- * that can alias: the geometry is one continuous segment per half-axis.
+ * Dashes are viable here only because dashScale is recomputed every frame to
+ * hold the pattern at a constant length ON SCREEN rather than in the world —
+ * see dashScaleForScreenPeriod. Without that, this is the same bug again.
  */
 const POSITIVE_OPACITY = 0.9;
+const NEGATIVE_OPACITY = 0.7;
+
 /**
- * Not lower than this: at the default camera the positive halves run toward
- * the viewer and leave the frame within a few pixels of the origin, so the
- * negative halves are the ones actually on screen. Dim enough to read as
- * "behind the origin", strong enough to still be the visible axis.
+ * Dash and gap, in inches, before dashScale rescales them. Their sum is the
+ * pattern length the screen-space correction is computed against; the ratio is
+ * what makes a dash and its gap equal length.
  */
-const NEGATIVE_OPACITY = 0.45;
+const DASH_SIZE = 1;
+const GAP_SIZE = 1;
+const DASH_PATTERN_WORLD_LENGTH = DASH_SIZE + GAP_SIZE;
 
 type Axis = keyof typeof AXIS_COLOR;
 
@@ -64,9 +74,9 @@ function point(axis: Axis, distance: number): THREE.Vector3 {
 }
 
 /**
- * Axis lines through the world origin: full strength in the positive
- * direction, dimmed in the negative, so both the origin and the sense of each
- * axis read at a glance.
+ * Axis lines through the world origin: solid in the positive direction, dashed
+ * and slightly dimmed in the negative, so both the origin and the sense of
+ * each axis read at a glance.
  */
 export function OriginAxes() {
   const segments = useMemo(() => {
@@ -83,6 +93,29 @@ export function OriginAxes() {
       })),
     );
   }, []);
+
+  // The dashed halves, so the frame loop below can retune just those.
+  const dashedMaterials = useRef<LineMaterial[]>([]);
+  const camera = useThree((s) => s.camera);
+  const size = useThree((s) => s.size);
+  const controls = useThree((s) => s.controls) as { target: THREE.Vector3 } | null;
+
+  // Hold the dash pattern at a fixed length on screen. Written straight to the
+  // material uniforms rather than through props, because this changes on
+  // essentially every frame and re-rendering React that often to set a number
+  // would be wasteful — and because LineMaterial reads dashScale per draw
+  // anyway.
+  useFrame(() => {
+    if (dashedMaterials.current.length === 0) return;
+    const target = controls ? controls.target : ORIGIN;
+    const scale = dashScaleForScreenPeriod(
+      DASH_PATTERN_WORLD_LENGTH,
+      screenPixelsPerInch(camera, target, size.height),
+    );
+    for (const material of dashedMaterials.current) {
+      if (material) material.dashScale = scale;
+    }
+  });
 
   return (
     <>
@@ -102,12 +135,29 @@ export function OriginAxes() {
           key={key}
           points={points}
           color={AXIS_COLOR[axis]}
-          lineWidth={positive ? 1.6 : 1.2}
+          lineWidth={positive ? 1.6 : 1.3}
           transparent
           opacity={positive ? POSITIVE_OPACITY : NEGATIVE_OPACITY}
           depthWrite={false}
           renderOrder={3}
           raycast={() => null}
+          dashed={!positive}
+          dashSize={DASH_SIZE}
+          gapSize={GAP_SIZE}
+          ref={
+            positive
+              ? undefined
+              : (line) => {
+                  // Collect the dashed halves' materials for the frame loop.
+                  // A null ref means unmount, so drop it rather than holding a
+                  // disposed material.
+                  const material = line?.material as LineMaterial | undefined;
+                  dashedMaterials.current = dashedMaterials.current.filter(Boolean);
+                  if (material && !dashedMaterials.current.includes(material)) {
+                    dashedMaterials.current.push(material);
+                  }
+                }
+          }
         />
       ))}
     </>

@@ -11,6 +11,7 @@ import { OriginAxes } from './OriginAxes';
 import { SCENE_EXTENT } from './extent';
 import { gridDensity } from './gridDensity';
 import type { GridTier } from './gridDensity';
+import { screenPixelsPerInch } from './screenScale';
 
 /** The bench top the model sits on. Light, so wood tones and shadows read. */
 const GROUND = '#e6e3dd';
@@ -141,27 +142,6 @@ function CameraKeys() {
 }
 
 /**
- * How many screen pixels one world inch covers, at the point the user is
- * looking at. Perspective scales with distance to the orbit target;
- * orthographic does not move the camera to zoom, so its scale is the zoom
- * factor itself — drei sizes the ortho frustum to the canvas in pixels, which
- * makes world-units-across equal pixels/zoom.
- */
-function screenPixelsPerInch(
-  camera: THREE.Camera,
-  target: THREE.Vector3,
-  viewportHeightPx: number,
-): number {
-  if (camera instanceof THREE.OrthographicCamera) return camera.zoom;
-  if (camera instanceof THREE.PerspectiveCamera) {
-    const distance = camera.position.distanceTo(target);
-    const worldHeightAtTarget = 2 * distance * Math.tan((camera.fov * Math.PI) / 360);
-    return viewportHeightPx / worldHeightAtTarget;
-  }
-  return Number.NaN;
-}
-
-/**
  * The ground grid, coarsening as the camera pulls back.
  *
  * One inch per cell is the app's unit and stays that way whenever an inch is
@@ -201,12 +181,26 @@ function AdaptiveGrid() {
       sectionSize={tier.sectionSize}
       sectionThickness={2}
       sectionColor="#958f84"
-      // Deliberately NOT infiniteGrid, and no fade. An infinite grid has no
-      // single readable density: however coarse the tier, the lines still
-      // recede to the horizon and pile into a grey haze there, which is what
+      // Deliberately NOT infiniteGrid: an infinite grid has no single
+      // readable density, since however coarse the tier the lines still
+      // recede to the horizon and pile into a grey haze there — which is what
       // the old distance fade was really hiding. A bounded floor is honest
       // about where the modelling space is, and every line on it is legible.
-      fadeStrength={0}
+      //
+      // The fade is neutralised by pushing it out of range, NOT by
+      // fadeStrength={0}. drei's shader computes
+      //   d = 1.0 - min(dist / fadeDistance, 1.0)
+      //   alpha = (g1 + g2) * pow(d, fadeStrength)
+      // so beyond fadeDistance d is 0, and pow(0.0, 0.0) is UNDEFINED in
+      // GLSL: it returned 1.0 on the software renderer this was first checked
+      // against and NaN on real hardware, where the `alpha <= 0.0` discard
+      // then cut the grid off in a hard disc that followed the camera. With a
+      // fadeDistance this large, d stays within a fraction of 1 across the
+      // whole floor, so the grid is uniform and only the geometry bounds it.
+      // fadeFrom={0} additionally measures from the world origin rather than
+      // the camera, so nothing here can track the camera again.
+      fadeDistance={100000}
+      fadeFrom={0}
       followCamera={false}
     />
   );
