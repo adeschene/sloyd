@@ -9,6 +9,13 @@ interface Props {
   /** True when the ground grid is drawn. */
   showGrid: boolean;
   onToggleGrid: () => void;
+  /**
+   * True when the origin axis lines are drawn. Separate from `showGrid` on
+   * purpose: the axes answer "where is the origin" and the grid answers "how
+   * big is this", and wanting one on rarely means wanting the other on.
+   */
+  showAxes: boolean;
+  onToggleAxes: () => void;
 }
 
 export function Toolbar({
@@ -17,6 +24,8 @@ export function Toolbar({
   onToggleProjection,
   showGrid,
   onToggleGrid,
+  showAxes,
+  onToggleAxes,
 }: Props) {
   const name = useStore((s) => s.doc.name);
   const setDocumentName = useStore((s) => s.setDocumentName);
@@ -54,6 +63,10 @@ export function Toolbar({
         <label className="checkbox toolbar-checkbox">
           <input type="checkbox" checked={showGrid} onChange={onToggleGrid} />
           Grid
+        </label>
+        <label className="checkbox toolbar-checkbox">
+          <input type="checkbox" checked={showAxes} onChange={onToggleAxes} />
+          Origin
         </label>
       </div>
 
