@@ -7,6 +7,8 @@ import { boardExtents } from '../document/document';
 import type { Board } from '../document/document';
 import { BoardMesh } from './BoardMesh';
 import { Gizmo } from './Gizmo';
+import { OriginAxes } from './OriginAxes';
+import { SCENE_EXTENT } from './extent';
 
 /** The bench top the model sits on. Light, so wood tones and shadows read. */
 const GROUND = '#e6e3dd';
@@ -14,10 +16,10 @@ const GROUND = '#e6e3dd';
 /**
  * Half-width of the shadow camera's frustum, in inches. World units here are
  * inches, and three's default is roughly ±5 — which would clip the shadow of
- * anything more than a hand's width from the origin. 120in covers a ten-foot
- * working volume, which is more than any single piece of furniture needs.
+ * anything more than a hand's width from the origin. See SCENE_EXTENT for
+ * why this is shared with OriginAxes rather than a local constant.
  */
-const SHADOW_EXTENT = 120;
+const SHADOW_EXTENT = SCENE_EXTENT;
 
 const DEFAULT_EYE: [number, number, number] = [40, 30, 40];
 
@@ -155,7 +157,38 @@ export function Viewport({ orthographic = false }: { orthographic?: boolean }) {
         shadow-normalBias={0.06}
       />
 
-      {/* One inch per cell, one foot per section — the units are the grid. */}
+      {/*
+        One inch per cell, one foot per section — the units are the grid.
+        cellSize and cellThickness stay put deliberately (see below); only
+        fadeDistance changed, from 220.
+
+        fadeDistance was 220: at that density the distant 1in grid is badly
+        under-sampled, a textbook moiré generator. Measured by orbiting the
+        settled camera by 2 screen pixels (no boards moving, damping fully
+        decayed both times, so the only difference between the two frames is
+        camera angle) and diffing far/mid/near thirds of the canvas:
+        far-field changed>8=9.21% (strong>40=1.04%) at fadeDistance 220,
+        vs far-field changed>8=3.14% (strong>40=0.11%) at fadeDistance 150 —
+        roughly a two-thirds cut, and strong (>40/255) aliasing very nearly
+        eliminated. Same test with cellThickness=0.4 instead (fadeDistance
+        left at 220) moved the number only 9.21% -> 8.89%, i.e. noise:
+        thickness was not the lever. cellSize=2 (doubling the world size of
+        a "unit") was not tried since fadeDistance alone already closed most
+        of the gap — cellSize is the one prop here that's a design decision
+        ("units are the grid"), not a rendering parameter, so it's a last
+        resort this fix didn't need.
+
+        fadeDistance=120 was tried first — it cut the far-field number
+        further (to 1.67%/0.04%) but drei fades <Grid> by distance from the
+        *camera*, and CameraKeys' orthographic framing parks the camera at
+        least 100 world units back by construction (radius*4+100). At 120
+        that put the whole grid past its own fade horizon: toggling to
+        Orthographic showed a bare background with no grid at all (checked
+        visually, not just measured). 150 was the smallest value that kept
+        the grid visible in both projections, including immediately after
+        Home/F reframing — checked visually in perspective and orthographic,
+        both at the default view and after reframing.
+      */}
       <Grid
         args={[240, 240]}
         cellSize={1}
@@ -165,7 +198,7 @@ export function Viewport({ orthographic = false }: { orthographic?: boolean }) {
         sectionThickness={1}
         sectionColor="#958f84"
         infiniteGrid
-        fadeDistance={220}
+        fadeDistance={150}
         followCamera={false}
       />
 
@@ -210,6 +243,8 @@ export function Viewport({ orthographic = false }: { orthographic?: boolean }) {
         />
       </mesh>
 
+      <OriginAxes />
+
       {boards.map((board) => (
         <BoardMesh
           key={board.id}
@@ -221,7 +256,22 @@ export function Viewport({ orthographic = false }: { orthographic?: boolean }) {
 
       <Gizmo />
       <CameraKeys />
-      <OrbitControls makeDefault enableDamping dampingFactor={0.12} />
+      {/*
+        dampingFactor was 0.12. Measured with a 150px flick (see Grid comment
+        for the far-field-only test): 300ms after release the frame was still
+        4.63% different from its fully-settled state (mid-field 23%, i.e. real
+        camera motion, not aliasing) — the camera was provably still creeping
+        well past the "settles in ~1/3s" target. At 0.3 the same flick reads
+        0.01% changed 300ms after release — effectively stationary. 0.3 also
+        shortens the per-frame follow lag during an active drag from ~130ms to
+        ~46ms (dampingFactor is the fraction of accumulated delta applied each
+        frame, even while dragging) — still comfortably damped, not raw/1:1,
+        so the drag keeps a weighted feel without the multi-frame lag that let
+        the tail run on. Untested empirically: subjective "feel" of the drag
+        itself, which screenshots can't capture — if a human disagrees this is
+        the value to reconsider first.
+      */}
+      <OrbitControls makeDefault enableDamping dampingFactor={0.3} />
     </Canvas>
   );
 }

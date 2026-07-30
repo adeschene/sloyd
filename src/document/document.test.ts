@@ -118,4 +118,63 @@ describe('migrateDocument', () => {
     expect(doc.name).toBe('Untitled');
     expect(doc.boards[0].material).toBe('pine');
   });
+
+  it('deduplicates board names, first occurrence keeping its name', () => {
+    const raw = {
+      version: 1,
+      name: 'Bench',
+      units: { display: 'imperial-fractional', precision: 16 },
+      boards: [
+        { name: 'Leg', length: 24, width: 3, thickness: 3, position: [0, 0, 0] },
+        { name: 'Leg', length: 24, width: 3, thickness: 3, position: [0, 0, 6] },
+        { name: 'Leg', length: 24, width: 3, thickness: 3, position: [0, 0, 12] },
+      ],
+    };
+    expect(migrateDocument(raw).boards.map((b) => b.name))
+      .toEqual(['Leg', 'Leg (1)', 'Leg (2)']);
+  });
+
+  it('leaves already-unique names untouched', () => {
+    const raw = {
+      version: 1,
+      name: 'Bench',
+      units: { display: 'imperial-fractional', precision: 16 },
+      boards: [
+        { name: 'Leg', length: 24, width: 3, thickness: 3, position: [0, 0, 0] },
+        { name: 'Apron', length: 40, width: 4, thickness: 0.75, position: [0, 0, 6] },
+      ],
+    };
+    expect(migrateDocument(raw).boards.map((b) => b.name)).toEqual(['Leg', 'Apron']);
+  });
+
+  it('deduplicates the names it substitutes for blank ones', () => {
+    // validateBoard turns a blank name into 'Board'; two blanks must not
+    // both come out as 'Board'.
+    const raw = {
+      version: 1,
+      name: 'Bench',
+      units: { display: 'imperial-fractional', precision: 16 },
+      boards: [
+        { name: '', length: 24, width: 3, thickness: 3, position: [0, 0, 0] },
+        { length: 24, width: 3, thickness: 3, position: [0, 0, 6] },
+      ],
+    };
+    expect(migrateDocument(raw).boards.map((b) => b.name)).toEqual(['Board', 'Board (1)']);
+  });
+
+  it('deduplicates the names it substitutes for whitespace-only ones', () => {
+    // A whitespace-only name is not "truthy-empty" but must still be treated
+    // as blank: trimmed to nothing, then substituted, then deduped — not
+    // stored as '' or leaked into a leading-space " (1)".
+    const raw = {
+      version: 1,
+      name: 'Bench',
+      units: { display: 'imperial-fractional', precision: 16 },
+      boards: [
+        { name: '   ', length: 24, width: 3, thickness: 3, position: [0, 0, 0] },
+        { name: '  ', length: 24, width: 3, thickness: 3, position: [0, 0, 6] },
+      ],
+    };
+    expect(migrateDocument(raw).boards.map((b) => b.name)).toEqual(['Board', 'Board (1)']);
+  });
 });

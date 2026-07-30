@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useStore } from '../store/store';
-import { MATERIALS } from '../document/document';
+import { MATERIALS, uniqueName } from '../document/document';
 import { DimensionField } from './DimensionField';
+import { NameField } from './NameField';
 import type { Rotation } from '../document/document';
 
 export function Properties() {
@@ -31,16 +32,24 @@ export function Properties() {
     updateBoard(board.id, { position });
   };
 
+  /**
+   * Store a renamed board, deduplicated against its siblings, and report the
+   * name that was actually stored so the field can show it.
+   *
+   * The equality check is not an optimization: without it, a rename that
+   * dedups straight back onto the current name (typing "Leg" on the board
+   * already called "Leg (1)") would push an undo entry that changes nothing.
+   * Read the boards imperatively so the check sees the live document.
+   */
+  const commitName = (typed: string) => {
+    const name = uniqueName(typed, useStore.getState().doc.boards, board.id);
+    if (name !== board.name) updateBoard(board.id, { name });
+    return name;
+  };
+
   return (
     <div className="properties" key={board.id}>
-      <input
-        className="input name"
-        aria-label="Part name"
-        value={board.name}
-        onFocus={() => useStore.getState().beginGesture()}
-        onBlur={() => useStore.getState().endGesture()}
-        onChange={(e) => updateBoard(board.id, { name: e.target.value })}
-      />
+      <NameField value={board.name} onCommit={commitName} />
 
       <h3>Dimensions</h3>
       <DimensionField ref={lengthRef} label="Length" precision={precision} value={board.length}

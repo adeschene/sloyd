@@ -1,4 +1,5 @@
-import { act, render } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import App from './App';
 import { useStore } from './store/store';
 import { createDocument, createBoard } from './document/document';
@@ -134,5 +135,92 @@ describe('App restore-on-mount', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('App keyboard delete', () => {
+  const mountWithOneBoard = async () => {
+    loadAutoSaved.mockResolvedValue(null);
+    render(<App />);
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => { useStore.getState().addBoard(); });
+    const user = userEvent.setup();
+    // Click the board in the parts list to set focus on the button, not on the
+    // auto-focused Length input. This reflects the real path: the user clicks a
+    // part, then presses Delete/Backspace from the button, not while editing.
+    await user.click(screen.getByRole('button', { name: 'Board' }));
+    return useStore.getState().doc.boards[0].id;
+  };
+
+  it('deletes the selected board on Delete', async () => {
+    const id = await mountWithOneBoard();
+    expect(useStore.getState().selectedId).toBe(id);
+
+    const user = userEvent.setup();
+    await user.keyboard('{Delete}');
+
+    expect(useStore.getState().doc.boards).toHaveLength(0);
+    expect(useStore.getState().selectedId).toBeNull();
+  });
+
+  it('deletes the selected board on Backspace — the Mac "delete" key', async () => {
+    await mountWithOneBoard();
+
+    const user = userEvent.setup();
+    await user.keyboard('{Backspace}');
+
+    expect(useStore.getState().doc.boards).toHaveLength(0);
+  });
+
+  it('is undoable', async () => {
+    const id = await mountWithOneBoard();
+
+    const user = userEvent.setup();
+    await user.keyboard('{Delete}');
+    act(() => { useStore.getState().undo(); });
+
+    expect(useStore.getState().doc.boards.map((b) => b.id)).toEqual([id]);
+  });
+
+  it('does nothing when no board is selected', async () => {
+    await mountWithOneBoard();
+    act(() => { useStore.getState().selectBoard(null); });
+
+    const user = userEvent.setup();
+    await user.keyboard('{Delete}');
+
+    expect(useStore.getState().doc.boards).toHaveLength(1);
+  });
+
+  it('does not steal Backspace from a text field', async () => {
+    await mountWithOneBoard();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByLabelText('Project name'));
+    await user.keyboard('{Backspace}');
+
+    expect(useStore.getState().doc.boards).toHaveLength(1);
+  });
+
+  it('ignores a modified Delete', async () => {
+    await mountWithOneBoard();
+
+    const user = userEvent.setup();
+    await user.keyboard('{Control>}{Delete}{/Control}');
+
+    expect(useStore.getState().doc.boards).toHaveLength(1);
+  });
+
+  it('does not steal Backspace from the Length field', async () => {
+    // Regression test: Backspace must be blocked when editing dimensions,
+    // not just for arbitrary text inputs. If a bypass for testing artifacts
+    // ever crept in, this would fail.
+    await mountWithOneBoard();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByLabelText('Length'));
+    await user.keyboard('{Backspace}');
+
+    expect(useStore.getState().doc.boards).toHaveLength(1);
   });
 });

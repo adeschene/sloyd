@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { createBoard, createDocument } from '../document/document';
+import { createBoard, createDocument, uniqueName } from '../document/document';
 import type { Board, SloydDocument } from '../document/document';
 
 const HISTORY_LIMIT = 50;
@@ -86,11 +86,14 @@ export const useStore = create<StoreState>((set, get) => {
     addBoard: () => {
       const boards = get().doc.boards;
       const last = boards[boards.length - 1];
-      const board = createBoard(
+      const fresh = createBoard(
         last
           ? { length: last.length, width: last.width, thickness: last.thickness, material: last.material }
           : {},
       );
+      // createBoard has no view of the document and cannot dedupe — that is
+      // the caller's job. See the note on createBoard.
+      const board = { ...fresh, name: uniqueName(fresh.name, boards) };
       edit(
         (doc) => ({ ...doc, boards: [...doc.boards, board] }),
         () => board.id,
@@ -126,11 +129,11 @@ export const useStore = create<StoreState>((set, get) => {
       // array rather than sharing the reference with the source and with every
       // undo snapshot that holds it.
       const { id: _sourceId, ...rest } = source;
-      const copy = createBoard({
+      const fresh = createBoard({
         ...rest,
         position: [...source.position],
-        name: `${source.name} copy`,
       });
+      const copy = { ...fresh, name: uniqueName(source.name, get().doc.boards) };
       edit(
         (doc) => ({ ...doc, boards: [...doc.boards, copy] }),
         () => copy.id,

@@ -1177,7 +1177,13 @@ Check each of these, and fix what fails:
 - The positive half of each is solid, the negative half dashed.
 - No z-fighting with the grid — no shimmering or checkerboarding along the X and Z axes as you orbit. This is the one most likely to need adjustment; if it appears, raise `GROUND_LIFT` (1/32", then 1/16") until it stops, and stop at the smallest value that works.
 - Add a board and drag it over the origin: the board **hides** the axis lines running under it. If the axes draw through the board, `depthTest` has been disabled somewhere it should not be.
-- Click directly on an axis line: selection does not change, and if a board is selected it stays selected.
+- Click directly on an axis line: **corrected — the original expectation here was
+  impossible.** It said selection does not change and a selected board stays selected.
+  But `raycast={() => null}` means an axis line is never a click target, and the
+  Canvas's `onPointerMissed` deselects whenever a click hits nothing — an axis-line
+  click *is* nothing, from the raycaster's point of view. So clicking an axis reads
+  exactly like clicking bare ground: it deselects. That is correct behavior, not a
+  bug.
 - Toggle Orthographic in the toolbar: all of the above still holds.
 - The lines are legible but not loud — they should not compete with the boards for attention.
 
@@ -1240,6 +1246,13 @@ Then try `enableDamping={false}` as a bracketing experiment — not necessarily 
 Restore damping to `0.12`. Now try, one at a time:
 
 - `fadeDistance={120}` (matches the working volume the shadow camera already assumes)
+  — **tried, and wrong: it breaks orthographic.** drei's `<Grid>` fades by distance
+  from the *camera*, not from the origin, and `CameraKeys.frame()` places the
+  orthographic camera at least 100 world units back by construction
+  (`radius * 4 + 100`). At `fadeDistance={120}` that puts the entire grid past its own
+  fade horizon — toggling to Orthographic showed a bare background with no grid at
+  all. `150` is what shipped: the smallest value tried that kept the grid visible in
+  both projections, including immediately after a `Home`/`F` reframe.
 - `cellThickness={0.4}`
 - `cellSize={2}` — last resort only. One inch per cell is a deliberate design decision: "the units are the grid." Prefer fade and thickness over giving that up.
 
@@ -1285,9 +1298,9 @@ was responsible, what was measured, and why this value.>"
 
 **Interfaces:** none.
 
-**One premise to correct before you start.** Nothing is actually flipping. In three 0.185.1, `gizmoTranslate` defines an arrow at *both* ends of every axis — `[0.5,0,0]` and `[-0.5,0,0]` for X, and likewise Y and Z (`node_modules/three/examples/jsm/controls/TransformControls.js:1310-1323`). There is no flip logic in `updateMatrixWorld`; the only camera-dependent behavior is an `AXIS_HIDE_THRESHOLD = 0.99` that hides an axis pointing nearly straight at the viewer. So do not go looking for a flip to disable — there isn't one.
+**Correction (found during implementation): the premise below was wrong — it was diagnosed against the wrong file.** It originally said nothing actually flips, citing `node_modules/three/examples/jsm/controls/TransformControls.js:1310-1323` and that file's arrows-at-both-ends `gizmoTranslate`. But drei's `<TransformControls>` doesn't render that file — it imports `TransformControls` from **`three-stdlib`** (`node_modules/@react-three/drei/core/TransformControls.js:5`), and three-stdlib's fork has explicit per-frame flip logic in `TransformControlsGizmo.updateMatrixWorld` (`node_modules/three-stdlib/controls/TransformControls.js:641-674`, `AXIS_FLIP_TRESHOLD = 0` at :605): it swaps the "fwd"/"bwd"-tagged arrow meshes and negates `handle.scale` at a hard `eye · axis == 0` cutover, with no interpolation. The arrows really do flip — the original bug report was accurate. The `depthTest`/plane-handle candidates below were consequently not the cause; see `.superpowers/sdd/2026-07-30-sloyd-v1-polish/task-8-report.md` for the diagnosis and `src/viewport/Gizmo.tsx` for the shipped fix (pin every translate handle to "fwd", hide "bwd", recompose matrices after the library's own per-frame update).
 
-Two candidate mechanisms:
+Two candidate mechanisms (originally proposed, superseded by the correction above):
 
 - **Every gizmo material sets `depthTest: false`** (`TransformControls.js:1200-1214`). The gizmo always paints over the board, so the arrow *behind* the board draws in front of it. When the camera crosses to the far side, the two arrows on an axis swap actual depth with no corresponding change on screen — which reads as the axis snapping inside-out. In orthographic there is not even a perspective size cue to tell the near arrow from the far one, which fits the report.
 - **The plane handles** (`XY`, `YZ`, `XZ`) sit at fixed positive offsets like `[0.15, 0.15, 0]` and never migrate to the camera-facing quadrant, so from the far side they are buried inside the board.
