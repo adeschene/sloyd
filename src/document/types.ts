@@ -1,4 +1,9 @@
-export type Rotation = 0 | 90 | 180 | 270;
+/**
+ * Degrees about the vertical axis. Two values, not four: a rectangular box has
+ * 2-fold symmetry about the vertical, so 0 and 180 map it exactly onto itself,
+ * and so do 90 and 270. Presented in the UI as "grain along X" / "along Z".
+ */
+export type Rotation = 0 | 90;
 
 export interface Board {
   id: string;

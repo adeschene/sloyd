@@ -23,12 +23,6 @@ describe('boardExtents', () => {
     expect(boardExtents({ ...base, standing: true, rotation: 90 })).toEqual([0.75, 9, 36]);
   });
 
-  it('treats 180 like 0 and 270 like 90', () => {
-    expect(boardExtents({ ...base, standing: false, rotation: 180 }))
-      .toEqual(boardExtents({ ...base, standing: false, rotation: 0 }));
-    expect(boardExtents({ ...base, standing: false, rotation: 270 }))
-      .toEqual(boardExtents({ ...base, standing: false, rotation: 90 }));
-  });
 });
 
 describe('boardCenter', () => {
@@ -177,6 +171,81 @@ describe('migrateDocument', () => {
       ],
     };
     expect(migrateDocument(raw).boards.map((b) => b.name)).toEqual(['Board', 'Board (1)']);
+  });
+});
+
+describe('migrateDocument, v1 to v2', () => {
+  const v1 = (rotation: number) => ({
+    version: 1,
+    name: 'Old',
+    units: { display: 'imperial-fractional', precision: 16 },
+    boards: [{
+      id: 'b1', name: 'Leg', length: 24, width: 5.5, thickness: 0.75,
+      position: [1, 2, 3], rotation, standing: false, material: 'pine',
+    }],
+  });
+
+  it('folds 180 to 0', () => {
+    expect(migrateDocument(v1(180)).boards[0].rotation).toBe(0);
+  });
+
+  it('folds 270 to 90, not to 0', () => {
+    // The regression this pins is an ordering one. validateBoard falls back to
+    // 0 for any rotation outside VALID_ROTATIONS, which is now [0, 90] — so a
+    // fold that ran after validation would turn every saved 270 board a quarter
+    // turn the wrong way, and unlike 0-vs-180 that is a different shape.
+    expect(migrateDocument(v1(270)).boards[0].rotation).toBe(90);
+  });
+
+  it('does not move the boards it folds', () => {
+    const folded = migrateDocument(v1(270)).boards[0];
+    expect(folded.position).toEqual([1, 2, 3]);
+    expect(boardExtents(folded)).toEqual([5.5, 0.75, 24]);
+  });
+
+  it('stamps version 2', () => {
+    expect(CURRENT_VERSION).toBe(2);
+    expect(migrateDocument(v1(180)).version).toBe(2);
+  });
+
+  it('leaves an unrecognised rotation to validateBoard, which falls back to 0', () => {
+    expect(migrateDocument(v1(45)).boards[0].rotation).toBe(0);
+  });
+
+  it('rejects a junk board entry rather than crashing inside the fold', () => {
+    expect(() => migrateDocument({ ...v1(180), boards: [null] })).toThrow(DocumentError);
+  });
+
+  it('passes a v2 document through untouched', () => {
+    const v2 = { ...v1(90), version: 2 };
+    expect(migrateDocument(v2).boards[0].rotation).toBe(90);
+  });
+});
+
+describe('migrateDocument version gate', () => {
+  const withVersion = (version: unknown) => ({
+    version, name: 'x', units: { display: 'imperial-fractional', precision: 16 }, boards: [],
+  });
+
+  it('rejects version 0', () => {
+    expect(() => migrateDocument(withVersion(0))).toThrow(DocumentError);
+  });
+
+  it('rejects a fractional version', () => {
+    expect(() => migrateDocument(withVersion(0.5))).toThrow(DocumentError);
+  });
+
+  it('rejects a negative version', () => {
+    expect(() => migrateDocument(withVersion(-1))).toThrow(DocumentError);
+  });
+
+  it('still names a future version in its message', () => {
+    expect(() => migrateDocument(withVersion(CURRENT_VERSION + 1)))
+      .toThrow(/newer version of Sloyd/i);
+  });
+
+  it('still reports a missing version distinctly', () => {
+    expect(() => migrateDocument({})).toThrow(/missing a version/i);
   });
 });
 

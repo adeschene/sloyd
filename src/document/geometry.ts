@@ -6,7 +6,7 @@ import type { Board, Rotation } from './types';
  */
 export function boardExtents(board: Board): [number, number, number] {
   const { length, width, thickness, standing, rotation } = board;
-  const turned = rotation === 90 || rotation === 270;
+  const turned = rotation === 90;
 
   if (standing) {
     return turned ? [thickness, width, length] : [length, width, thickness];

@@ -6,7 +6,7 @@ export * from './types';
 export { boardExtents, boardCenter, reorientedPosition } from './geometry';
 export { uniqueName, dedupeNames } from './names';
 
-export const CURRENT_VERSION = 1;
+export const CURRENT_VERSION = 2;
 
 export class DocumentError extends Error {
   /**
@@ -60,7 +60,7 @@ export function createDocument(name = 'Untitled'): SloydDocument {
   };
 }
 
-const VALID_ROTATIONS = [0, 90, 180, 270];
+const VALID_ROTATIONS = [0, 90];
 
 function isPositiveFinite(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v) && v > 0;
@@ -112,6 +112,31 @@ function validateBoard(raw: unknown, index: number): Board {
 }
 
 /**
+ * v1 -> v2: the rotation select collapsed from four values to two, so 180 and
+ * 270 fold onto 0 and 90.
+ *
+ * This runs on the RAW board data, before validateBoard. That ordering is
+ * load-bearing: validateBoard falls back to 0 for any rotation outside
+ * VALID_ROTATIONS, which is now [0, 90], so a stored 270 validated first would
+ * come out as 0 rather than 90 — and unlike 0-vs-180, that is a different shape
+ * on screen. Folding first leaves validateBoard's fallback as what it was meant
+ * to be: last-resort handling for garbage.
+ *
+ * The fold is extent-neutral — boardExtents already treated 180 like 0 and 270
+ * like 90 — so it must not adjust any position.
+ *
+ * The input is untrusted, so anything that is not an object passes straight
+ * through for validateBoard to reject with its own message.
+ */
+function foldRotationToV2(raw: unknown): unknown {
+  if (typeof raw !== 'object' || raw === null) return raw;
+  const b = raw as Record<string, unknown>;
+  if (b.rotation === 180) return { ...b, rotation: 0 };
+  if (b.rotation === 270) return { ...b, rotation: 90 };
+  return raw;
+}
+
+/**
  * Validate and upgrade a parsed document to the current schema.
  * Throws DocumentError with a human-readable reason. Never partially loads:
  * either the whole document validates or nothing is returned.
@@ -125,18 +150,24 @@ export function migrateDocument(raw: unknown): SloydDocument {
   if (typeof d.version !== 'number' || !Number.isFinite(d.version)) {
     throw new DocumentError('This file is missing a version and is not a Sloyd project.');
   }
+  if (!Number.isInteger(d.version) || d.version < 1) {
+    throw new DocumentError(
+      `This file has an invalid version (${d.version}) and cannot be opened.`,
+    );
+  }
   if (d.version > CURRENT_VERSION) {
     throw new DocumentError(
       `This project was saved by a newer version of Sloyd (file version ${d.version}, ` +
       `this build understands up to ${CURRENT_VERSION}).`,
     );
   }
-  // v1 is the identity migration. Future versions add upgrade steps here,
-  // each stepping the document forward one version at a time.
 
   if (!Array.isArray(d.boards)) {
     throw new DocumentError('This project has no boards list and cannot be opened.');
   }
+
+  // Upgrade steps run one version at a time, on raw data, before validation.
+  const rawBoards = d.version < 2 ? d.boards.map(foldRotationToV2) : d.boards;
 
   const units = d.units as SloydDocument['units'] | undefined;
   const precision =
@@ -148,6 +179,6 @@ export function migrateDocument(raw: unknown): SloydDocument {
     version: CURRENT_VERSION,
     name: typeof d.name === 'string' && d.name ? d.name : 'Untitled',
     units: { display: 'imperial-fractional', precision },
-    boards: dedupeNames(d.boards.map(validateBoard)),
+    boards: dedupeNames(rawBoards.map(validateBoard)),
   };
 }
