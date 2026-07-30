@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import type { TransformControls as TransformControlsImpl } from 'three-stdlib';
 import { useStore } from '../store/store';
 import { boardCenter, boardExtents } from '../document/document';
+import { gizmoDistanceFactor, gizmoSizeForExtent } from './gizmoScale';
 
 export const SNAP_INCHES = 1 / 16;
 
@@ -73,6 +74,15 @@ interface GizmoInternals {
   updateMatrixWorld: (force?: boolean) => void;
   picker: HandleGroup;
   gizmo: HandleGroup;
+  /**
+   * The library's own scale knob, read (not written) inside its
+   * updateMatrixWorld — which is what makes it the one internal here that can
+   * be driven safely. See the write site in the wrapper, and gizmoScale.ts.
+   */
+  size: number;
+  camera: THREE.Camera | null;
+  worldPosition: THREE.Vector3;
+  cameraPosition: THREE.Vector3;
 }
 interface ControlsInternals {
   gizmo: GizmoInternals;
@@ -102,11 +112,28 @@ function hasExpectedShape(controls: ControlsInternals | null | undefined): contr
     !!gizmoObj &&
     typeof gizmoObj.updateMatrixWorld === 'function' &&
     gizmoObj.picker?.translate instanceof THREE.Object3D &&
-    gizmoObj.gizmo?.translate instanceof THREE.Object3D
+    gizmoObj.gizmo?.translate instanceof THREE.Object3D &&
+    typeof gizmoObj.size === 'number' &&
+    gizmoObj.worldPosition instanceof THREE.Vector3 &&
+    gizmoObj.cameraPosition instanceof THREE.Vector3
   );
 }
 
-function stabilizeTranslateGizmo(controls: ControlsInternals): () => void {
+interface StabilizeOptions {
+  /**
+   * The selected board's longest edge, read fresh on every frame. A ref rather
+   * than a captured value because the patch is installed per selection (and per
+   * camera), not per dimension change — closing over a number would leave the
+   * ceiling stale the moment the board is resized in the Properties panel while
+   * still selected.
+   */
+  boardMaxExtent: { current: number };
+}
+
+function stabilizeTranslateGizmo(
+  controls: ControlsInternals,
+  options: StabilizeOptions,
+): () => void {
   if (!hasExpectedShape(controls)) {
     // Internals don't look like what this patch expects (e.g. a
     // three-stdlib upgrade restructured the gizmo). Leave the library's
@@ -117,9 +144,35 @@ function stabilizeTranslateGizmo(controls: ControlsInternals): () => void {
 
   const gizmoObj = controls.gizmo;
   const original = gizmoObj.updateMatrixWorld.bind(gizmoObj);
+  const originalSize = gizmoObj.size;
   let patchFailed = false;
 
   gizmoObj.updateMatrixWorld = (force?: boolean) => {
+    // Size ceiling (follow-up 29), applied BEFORE the bake. `size` is an input
+    // to the scale computation inside `original`, so unlike the flip fix below
+    // this correction is consumed by the library itself and needs no
+    // recomposition — see gizmoScale.ts for the arithmetic and the reasoning.
+    // It is written on the gizmo rather than on the controls because `size` is
+    // declared on TransformControlsGizmo; TransformControls does mirror its own
+    // `size` down through a defineProperty sync, but relying on that sync would
+    // be one more undocumented internal than this needs.
+    //
+    // Recomputed every frame, drags included. Holding it fixed for the duration
+    // of a drag was tried and is worse: with `size` frozen the gizmo grows
+    // screen-constant as the board moves and then SNAPS to the clamped value on
+    // release. Per-frame is continuous, which is the whole point of clamping an
+    // input the library already recomputes per frame anyway.
+    if (!patchFailed) {
+      try {
+        gizmoObj.size = gizmoSizeForExtent(
+          gizmoDistanceFactor(gizmoObj.camera, gizmoObj.worldPosition, gizmoObj.cameraPosition),
+          options.boardMaxExtent.current,
+        );
+      } catch {
+        patchFailed = true;
+      }
+    }
+
     original(force);
     if (patchFailed || controls.mode !== 'translate') return;
     try {
@@ -155,14 +208,21 @@ function stabilizeTranslateGizmo(controls: ControlsInternals): () => void {
     } catch {
       // Something about the internal shape didn't hold up at runtime (e.g.
       // a child was missing an expected property). Stop trying every frame
-      // and fall back permanently to the library's own (flippy) behavior
-      // rather than repeatedly throwing.
+      // and fall back permanently to the library's own (flippy, unbounded)
+      // behavior rather than repeatedly throwing. One flag covers both the
+      // flip fix and the size ceiling deliberately: they read the same
+      // internals, so a shape change that breaks one has no business being
+      // trusted by the other.
       patchFailed = true;
     }
   };
 
   return () => {
     gizmoObj.updateMatrixWorld = original;
+    // The effect reinstalls on selection and camera changes against the same
+    // gizmo instance, so hand `size` back rather than leaving the last clamped
+    // value behind for whatever runs next.
+    gizmoObj.size = originalSize;
   };
 }
 // -------------------------------------------------------------------------
@@ -185,10 +245,17 @@ export function Gizmo() {
   // change — or a projection toggle silently drops the fix.
   const camera = useThree((s) => s.camera);
 
+  // The board's longest edge, kept current every render so the size ceiling
+  // tracks edits made in the Properties panel while the board stays selected.
+  // The effect below deliberately does not depend on it — reinstalling the
+  // whole patch on every keystroke in a dimension field would be absurd.
+  const boardMaxExtent = useRef(0);
+  boardMaxExtent.current = board ? Math.max(...boardExtents(board)) : 0;
+
   useEffect(() => {
     const controls = controlsRef.current;
     if (!controls) return;
-    return stabilizeTranslateGizmo(controls as unknown as ControlsInternals);
+    return stabilizeTranslateGizmo(controls as unknown as ControlsInternals, { boardMaxExtent });
   }, [board?.id, camera]);
 
   // Keep the invisible proxy object in step with the document. The gizmo drags
