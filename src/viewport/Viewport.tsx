@@ -7,6 +7,7 @@ import { boardExtents } from '../document/document';
 import type { Board } from '../document/document';
 import { BoardMesh } from './BoardMesh';
 import { Gizmo } from './Gizmo';
+import { OriginAxes } from './OriginAxes';
 
 /** The bench top the model sits on. Light, so wood tones and shadows read. */
 const GROUND = '#e6e3dd';
@@ -209,6 +210,8 @@ export function Viewport({ orthographic = false }: { orthographic?: boolean }) {
           polygonOffsetUnits={-4}
         />
       </mesh>
+
+      <OriginAxes />
 
       {boards.map((board) => (
         <BoardMesh
