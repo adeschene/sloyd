@@ -10,7 +10,7 @@
 
 **v1 shipped**, followed by a polish pass (unique board names, `NameField`,
 `Delete`/`Backspace`, origin axes, a settled grid, a stable gizmo). Static SPA,
-containerized, 180/180 tests passing.
+containerized, 190/190 tests passing.
 
 Host-specific deployment detail — hostname, container name, proxy configuration, and
 the manual steps a human has to perform — lives in `DEPLOYMENT.local.md`, which is
@@ -91,8 +91,9 @@ src/
 ├── viewport/
 │   ├── Viewport.tsx         Canvas, lights, grid, shadow receiver, camera keys
 │   ├── BoardMesh.tsx        one board, derived from the document each render
-│   ├── OriginAxes.tsx       origin axis lines, R=X G=Y(up) B=Z; dim = negative
+│   ├── OriginAxes.tsx       origin axis lines, R=X G=Y(up) B=Z; dashed = negative
 │   ├── gridDensity.ts       grid tier ladder (1in -> 1ft -> 12ft). Pure.
+│   ├── screenScale.ts       px-per-inch + screen-stable dash scale. Pure.
 │   ├── Gizmo.tsx            TransformControls, 1/16" snapping
 │   └── extent.ts            SCENE_EXTENT, shared by Viewport and OriginAxes
 ├── panels/
@@ -148,7 +149,7 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 180 tests
+npm test           # Vitest, currently 190 tests
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

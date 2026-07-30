@@ -184,6 +184,16 @@ a supersampled buffer: `cellThickness`/`sectionThickness` were doubled to compen
 and the origin axes had to move to drei's mesh-based `<Line>` because native GL lines
 ignore `linewidth` and would render at half weight.
 
+**26a. `pow(0.0, 0.0)` in a shader is undefined, and a software renderer will lie
+about it.** The grid's first unfaded version used `fadeStrength={0}` and inherited
+drei's default `fadeDistance` of 100, so every fragment past 100in from the camera hit
+`pow(0.0, 0.0)`. llvmpipe returned 1.0 and the grid looked correctly bounded; real GPUs
+returned NaN, the `alpha <= 0.0` discard fired, and the grid became a disc that followed
+the camera. Fixed by pushing `fadeDistance` out of range rather than zeroing the
+exponent. The general lesson: browser verification on this host runs on software GL, so
+anything resting on undefined or precision-sensitive shader behaviour needs a check on
+real hardware.
+
 **26. The bounded 20ft floor has a visible hard edge.** Deliberate — an infinite grid
 piles into an unreadable haze at the horizon, which is what the old distance fade was
 really hiding — but it does mean zooming far out shows the floor ending in space rather
@@ -191,11 +201,15 @@ than continuing. If that reads badly, the options are a larger extent (at the al
 cost measured above) or fading only the outermost ring, which reintroduces a softer
 version of what was just removed.
 
-**27. Nothing pins the `e.delta` click guard.** `BoardMesh` ignores clicks that travelled
-more than 2px, which is what stops a gizmo drag or a camera orbit from selecting whatever
-it happened to end over. Verified by driving the real app, but the r3f viewport has no
-unit tests by design, so a refactor could drop the guard silently. The guard's value is
-`CLICK_DRAG_SLOP_PX` in `src/viewport/BoardMesh.tsx`.
+**27. Two viewport behaviours are verified only by hand.** `BoardMesh` ignores clicks
+that travelled more than `CLICK_DRAG_SLOP_PX` (2px), which is what stops a gizmo drag or
+a camera orbit from selecting whatever it happened to end over; and a `useFrame` in
+`OriginAxes` rewrites `dashScale` every frame to hold the axis dashes at a constant
+on-screen length. Both were checked by driving the real app, and the pure maths behind
+the second is unit-tested in `screenScale.test.ts`, but the r3f viewport has no unit
+tests by design — so a refactor could drop either silently. Dropping the dash scaling in
+particular would not look broken immediately; it would reintroduce the flicker only once
+the camera got far enough away.
 
 **28. The gizmo's hover highlight is too close to the board's selection colour.**
 Reported and consciously skipped as a nit: three-stdlib highlights a hovered axis in
