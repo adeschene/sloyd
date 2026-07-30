@@ -1,8 +1,10 @@
 import { MATERIALS, DEFAULT_MATERIAL } from './types';
 import type { Board, Rotation, SloydDocument } from './types';
+import { dedupeNames } from './names';
 
 export * from './types';
 export { boardExtents, boardCenter } from './geometry';
+export { uniqueName, dedupeNames } from './names';
 
 export const CURRENT_VERSION = 1;
 
@@ -28,6 +30,12 @@ function nextId(): string {
   return `b_${Date.now().toString(36)}_${idCounter.toString(36)}`;
 }
 
+/**
+ * A board with defaults filled in. Deliberately unaware of the document, so
+ * it cannot deduplicate its own name — the caller must pass a name through
+ * uniqueName (see store.addBoard / store.duplicateBoard) or accept that the
+ * default 'Board' may collide.
+ */
 export function createBoard(partial: Partial<Board> = {}): Board {
   return {
     id: nextId(),
@@ -138,6 +146,6 @@ export function migrateDocument(raw: unknown): SloydDocument {
     version: CURRENT_VERSION,
     name: typeof d.name === 'string' && d.name ? d.name : 'Untitled',
     units: { display: 'imperial-fractional', precision },
-    boards: d.boards.map(validateBoard),
+    boards: dedupeNames(d.boards.map(validateBoard)),
   };
 }
