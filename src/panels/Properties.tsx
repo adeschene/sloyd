@@ -65,11 +65,17 @@ export function Properties() {
       <DimensionField label="Z" precision={precision} allowNegative value={board.position[2]} onCommit={setPos(2)} />
 
       <h3>Orientation</h3>
+      {/* Two values, not four. A box has 2-fold symmetry about the vertical, so
+          180 and 270 were spellings of 0 and 90 rather than states of their own.
+          The stored value stays degrees; the label is what the woodworker cares
+          about. X and Z name the same axes as the Position fields above and the
+          origin lines in the viewport. */}
       <div className="field">
-        <label htmlFor="rot">Rotation</label>
-        <select id="rot" className="input" value={board.rotation}
+        <label htmlFor="grain">Grain</label>
+        <select id="grain" className="input" value={board.rotation}
           onChange={(e) => updateBoard(board.id, { rotation: Number(e.target.value) as Rotation })}>
-          {[0, 90, 180, 270].map((r) => <option key={r} value={r}>{r}°</option>)}
+          <option value={0}>Along X</option>
+          <option value={90}>Along Z</option>
         </select>
       </div>
       <label className="checkbox">

@@ -244,3 +244,40 @@ describe('the part name field', () => {
     expect((screen.getByLabelText('Part name') as HTMLInputElement).value).toBe('Board');
   });
 });
+
+describe('the grain control', () => {
+  const selectFirstBoard = () => {
+    useStore.getState().addBoard();
+    const id = useStore.getState().doc.boards[0].id;
+    useStore.getState().selectBoard(id);
+    return id;
+  };
+
+  it('offers exactly two grain directions', () => {
+    selectFirstBoard();
+    render(<Properties />);
+    const grain = screen.getByLabelText('Grain') as HTMLSelectElement;
+    expect([...grain.options].map((o) => o.textContent)).toEqual(['Along X', 'Along Z']);
+  });
+
+  it('commits a change of grain direction', async () => {
+    const id = selectFirstBoard();
+    render(<Properties />);
+    await userEvent.selectOptions(screen.getByLabelText('Grain'), '90');
+    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.rotation).toBe(90);
+  });
+
+  it('shows the stored direction', () => {
+    const id = selectFirstBoard();
+    act(() => { useStore.getState().updateBoard(id, { rotation: 90 }); });
+    render(<Properties />);
+    expect((screen.getByLabelText('Grain') as HTMLSelectElement).value).toBe('90');
+  });
+
+  it('still commits the standing checkbox', async () => {
+    const id = selectFirstBoard();
+    render(<Properties />);
+    await userEvent.click(screen.getByLabelText(/Standing/));
+    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.standing).toBe(true);
+  });
+});
