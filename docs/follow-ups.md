@@ -216,3 +216,26 @@ Reported and consciously skipped as a nit: three-stdlib highlights a hovered axi
 `0xffff00` while a selected board is brass `#c99a4e`, both warm yellows, so it is not
 obvious which axis a click will grab. The gizmo materials are already reachable from the
 patch in `Gizmo.tsx`, so recolouring the hover state is cheap when it becomes annoying.
+
+**29. The gizmo grows without limit as the camera pulls back.** three-stdlib sizes the
+gizmo to stay constant on *screen*, so its world size scales with viewing distance:
+`factor = worldPosition.distanceTo(cameraPosition) * min(1.9 * tan(fov*PI/360) / zoom, 7)`
+in perspective, `(camera.top - camera.bottom) / camera.zoom` in orthographic, then
+`handle.scale.setScalar(factor * size / 7)`
+(`node_modules/three-stdlib/controls/TransformControls.js:530-536`). Screen-constant is
+the intent, but the consequence is that zoomed out the gizmo dwarfs the board it belongs
+to, since the board shrinks on screen while the gizmo does not. It wants a ceiling —
+either clamping the gizmo's world size to some multiple of the selected board's extents
+(`boardExtents` already gives them), or driving the control's `size` prop down as the
+distance grows. Note that `Gizmo.tsx` already wraps the gizmo's `updateMatrixWorld` every
+frame, so there is an obvious place to clamp `handle.scale` after the library sets it —
+and the same re-bake caveat applies: the correction has to land before the matrices are
+composed, or it will silently do nothing (see the round-2 history in that file).
+
+**30. Origin line visibility needs its own checkbox.** The grid already has one; the axes
+should get the same treatment rather than being tied to it, since they answer different
+questions ("where is the origin" vs "how big is this"). `showGrid` in `App.tsx` is the
+pattern to copy exactly: view state held in `App`, passed to both `Toolbar` and
+`Viewport`, deliberately not part of the document so it neither saves nor lands on the
+undo stack. `Toolbar.test.tsx` already covers that last property for the grid and the
+same three tests should cover the axes.

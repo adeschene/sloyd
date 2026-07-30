@@ -19,6 +19,21 @@ gitignored. Read that file before deploying; it is not in the public repo.
 v1 deliberately excludes joinery (dados/rabbets) and the cut list — those are v2 and
 v3. The parametric board model exists specifically to make them cheap to add later.
 
+**Next up is v2, and its design is already written and approved**, at the end of
+`docs/superpowers/specs/2026-07-30-sloyd-v1-polish-design.md` under "Deferred to
+Spec B". Two coupled pieces, and they are coupled on purpose — grain is what makes
+orientation observable, so neither is worth building alone:
+
+- **Orientation semantics.** The four-value rotation select collapses to a two-state
+  "grain runs along X / along Z". A rectangular box has 2-fold symmetry about the
+  vertical axis, so 0°/180° and 90°/270° are literally indistinguishable — no pivot
+  choice changes that. The real bug alongside it is that rotation currently pivots
+  about nothing: `boardExtents` swaps the extents and leaves the min-corner pinned, so
+  a 24×5½ board jumps sideways when it turns. **This is the one thing here that moves
+  the schema:** `CURRENT_VERSION` goes to 2, with a migration folding 180→0 and 270→90.
+- **Wood grain textures.** Face, edge and end grain distinguished per face, with
+  plywood showing veneer on its faces and visible plies on its edges.
+
 ## What Sloyd is
 
 Modelling and planning for woodworking projects: lay out the parts of a build in 3D,
@@ -159,9 +174,22 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-`docs/follow-ups.md` lists everything found during v1 review and consciously deferred,
-ordered by priority. Read it before starting new work in the same area — several items
-are "correct but untested", which is exactly what a refactor breaks silently.
+`docs/follow-ups.md` lists everything found during v1 review and the two polish passes,
+consciously deferred rather than missed, numbered 1-30. Read it before starting new work
+in the same area — several items are "correct but untested", which is exactly what a
+refactor breaks silently.
+
+Two of them are the user's own requests and are the obvious warm-up before v2 proper:
+a max-scale ceiling for the gizmo, which currently grows without limit as the camera
+pulls back (**29**), and a separate visibility checkbox for the origin lines, mirroring
+the grid's (**30**).
+
+One entry is a lesson rather than a defect and is worth reading before touching anything
+in the viewport: **26a**. Browser verification on this host runs on software GL
+(llvmpipe, no GPU), which returns 1.0 for `pow(0.0, 0.0)` where real hardware returns
+NaN. That difference hid a grid bug completely — it looked correct in every screenshot
+and shipped as a camera-following disc. Anything resting on undefined or
+precision-sensitive shader behaviour needs a human looking at real hardware.
 
 Host-level open items (proxy auth, Cloudflare, monitoring) are in
 `DEPLOYMENT.local.md`, not in the public repo.
