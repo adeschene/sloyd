@@ -118,6 +118,24 @@ describe('updateBoard reorients a board in place', () => {
     useStore.getState().updateBoard(id, { material: 'oak' });
     expect(board().position).toEqual([10, 0, 4]);
   });
+
+  it('keeps the footprint centred when standing is toggled on a board already turned', () => {
+    const id = aBoard();
+    useStore.getState().updateBoard(id, { rotation: 90 });
+    useStore.getState().updateBoard(id, { standing: true });
+    expect(board().rotation).toBe(90);
+    expect(board().standing).toBe(true);
+    expect(board().position).toEqual([21.625, 0, -5.25]);
+  });
+
+  it('keeps the footprint centred when rotation is changed on a board already standing', () => {
+    const id = aBoard();
+    useStore.getState().updateBoard(id, { standing: true });
+    useStore.getState().updateBoard(id, { rotation: 90 });
+    expect(board().rotation).toBe(90);
+    expect(board().standing).toBe(true);
+    expect(board().position).toEqual([21.625, 0, -5.25]);
+  });
 });
 
 describe('deleteBoard', () => {

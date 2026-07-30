@@ -111,12 +111,22 @@ export const useStore = create<StoreState>((set, get) => {
       // turned. The arithmetic lives in document/geometry.ts; doing it here,
       // once, is what stops every future call site having to remember it. An
       // explicit position in the same patch wins.
+      // Only include a key here when the patch actually carries it. An object
+      // spread with an explicit `key: undefined` overwrites the target key
+      // rather than falling through to it, so passing both keys unconditionally
+      // would clobber whichever one the patch didn't touch (e.g. toggling
+      // `standing` alone on an already-turned board would reset rotation to
+      // undefined inside reorientedPosition's own spread).
+      const changes: { rotation?: Board['rotation']; standing?: boolean } = {};
+      if (patch.rotation !== undefined) changes.rotation = patch.rotation;
+      if (patch.standing !== undefined) changes.standing = patch.standing;
+
       const reorienting =
         (patch.rotation !== undefined && patch.rotation !== current.rotation) ||
         (patch.standing !== undefined && patch.standing !== current.standing);
       const position =
         reorienting && !patch.position
-          ? reorientedPosition(current, { rotation: patch.rotation, standing: patch.standing })
+          ? reorientedPosition(current, changes)
           : patch.position;
 
       edit((doc) => ({
