@@ -408,3 +408,109 @@ describe('the orientation controls', () => {
       .toEqual(['Along length', 'Across width']);
   });
 });
+
+describe('cuts', () => {
+  const renderWithBoard = () => {
+    useStore.getState().addBoard();
+    const id = useStore.getState().doc.boards[0].id;
+    useStore.getState().selectBoard(id);
+    render(<Properties />);
+    return id;
+  };
+
+  it('adds a cut and shows its controls', async () => {
+    renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    expect(screen.getByLabelText(/from the end/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/cut width/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/depth/i)).toBeInTheDocument();
+  });
+
+  it('never offers the face dimension as the across dimension', async () => {
+    renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    const across = screen.getByLabelText(/runs across/i) as HTMLSelectElement;
+    const face = screen.getByLabelText(/cut into/i) as HTMLSelectElement;
+    const offered = [...across.options].map((o) => o.value);
+    expect(offered).not.toContain(face.value);
+    expect(offered).toHaveLength(2);
+  });
+
+  it('moves across to a legal value when face takes its dimension', async () => {
+    renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    const across = screen.getByLabelText(/runs across/i) as HTMLSelectElement;
+    await userEvent.selectOptions(screen.getByLabelText(/cut into/i), across.value);
+    const after = screen.getByLabelText(/runs across/i) as HTMLSelectElement;
+    expect(after.value).not.toBe((screen.getByLabelText(/cut into/i) as HTMLSelectElement).value);
+    expect([...after.options].map((o) => o.value)).toContain(after.value);
+  });
+
+  it('refuses a depth past the board and does not commit it', async () => {
+    renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    const depth = screen.getByLabelText(/depth/i);
+    await userEvent.clear(depth);
+    await userEvent.type(depth, '4');
+    await userEvent.tab();
+    expect(screen.getByText(/must be at most/i)).toBeInTheDocument();
+  });
+
+  it('refuses a cut that would remove all the stock', async () => {
+    renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    // Full width of the position axis at full depth.
+    await userEvent.clear(screen.getByLabelText(/from the end/i));
+    await userEvent.type(screen.getByLabelText(/from the end/i), '0');
+    await userEvent.tab();
+    await userEvent.clear(screen.getByLabelText(/cut width/i));
+    await userEvent.type(screen.getByLabelText(/cut width/i), '24');
+    await userEvent.tab();
+    await userEvent.clear(screen.getByLabelText(/depth/i));
+    await userEvent.type(screen.getByLabelText(/depth/i), '3/4');
+    await userEvent.tab();
+    expect(screen.getByText(/would remove the whole board/i)).toBeInTheDocument();
+  });
+
+  it('labels a cut flush with the end a rabbet', async () => {
+    renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    await userEvent.clear(screen.getByLabelText(/from the end/i));
+    await userEvent.type(screen.getByLabelText(/from the end/i), '0');
+    await userEvent.tab();
+    expect(screen.getByText(/rabbet/i)).toBeInTheDocument();
+  });
+
+  it('removes a cut', async () => {
+    renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    await userEvent.click(screen.getByRole('button', { name: /remove cut/i }));
+    expect(screen.queryByLabelText(/depth/i)).not.toBeInTheDocument();
+  });
+
+  it('does not leak a whole-board-removal error across a selection change and back', async () => {
+    useStore.getState().addBoard();
+    const id = useStore.getState().doc.boards[0].id;
+    useStore.getState().addBoard();
+    const otherId = useStore.getState().doc.boards[1].id;
+    useStore.getState().selectBoard(id);
+    render(<Properties />);
+
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    await userEvent.clear(screen.getByLabelText(/from the end/i));
+    await userEvent.type(screen.getByLabelText(/from the end/i), '0');
+    await userEvent.tab();
+    await userEvent.clear(screen.getByLabelText(/cut width/i));
+    await userEvent.type(screen.getByLabelText(/cut width/i), '24');
+    await userEvent.tab();
+    await userEvent.clear(screen.getByLabelText(/depth/i));
+    await userEvent.type(screen.getByLabelText(/depth/i), '3/4');
+    await userEvent.tab();
+    expect(screen.getByText(/would remove the whole board/i)).toBeInTheDocument();
+
+    act(() => { useStore.getState().selectBoard(otherId); });
+    act(() => { useStore.getState().selectBoard(id); });
+
+    expect(screen.queryByText(/would remove the whole board/i)).not.toBeInTheDocument();
+  });
+});
