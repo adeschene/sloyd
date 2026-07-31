@@ -76,31 +76,46 @@ function CutRow({ board, cut, precision }: { board: Board; cut: Cut; precision: 
   };
 
   /**
-   * Recompute offset/width/depth for a new face/across pair, rather than
-   * merely clamping the old numbers into the new position axis's range.
-   * Clamping alone can leave `width`'s `max` (`posDim - offset`) at zero or
-   * negative when the old position axis and the new one are wildly
-   * different scales — e.g. this board's original position axis was
-   * `length` (24") and the new one is `thickness` (0.75"): clamping
-   * `offset` down to `posDim` alone already consumes all the room `width`
-   * would have. That leaves a DimensionField the user cannot satisfy, the
-   * numeric analogue of rendering a `<select>` with no matching `<option>`.
-   * Reusing `addCut`'s own formula (a quarter of the position axis, width
-   * the lesser of 3/4" or that quarter) is already proven legal on any
-   * board, so every field stays satisfiable across the change — at the cost
-   * of losing the cut's exact prior position, which changing which
-   * dimension the numbers are measured along already changes the meaning
-   * of.
+   * Adjust offset/width/depth for a new face/across pair, changing only what
+   * the new axis actually makes illegal. A prior version of this function
+   * recomputed all three unconditionally from addCut's formula, which fixed
+   * the unsatisfiable-field bug (below) but introduced a worse one: it threw
+   * away perfectly legal numbers on every face/across change, even when
+   * nothing about them was actually wrong — silently overwriting what the
+   * user typed, which is precisely what refusing-rather-than-clamping and
+   * DimensionField's `dirty` guard both exist to avoid elsewhere in this
+   * panel.
+   *
+   * So: clamp only when a value is no longer legal, and prefer a clamp over
+   * a reset — a clamped number is closer to the user's intent than a
+   * recomputed default. Clamp order mirrors validateCuts' documented order
+   * (offset into [0, newPosDim] first, then width into [0, newPosDim -
+   * offset]): clamping width first would let an already-out-of-range offset
+   * eat into it twice.
+   *
+   * The one case that is NOT a clamp: if offset was clamped all the way to
+   * newPosDim (the old offset was at or past the new axis's full length),
+   * there is zero room left for ANY positive width — clamping alone cannot
+   * produce a legal cut here, only a fresh position can. That is exactly
+   * the unsatisfiable-field bug this function was first written to fix
+   * (switching `face` from `thickness` to `length` on the default cut moves
+   * the position axis from 24" down to 0.75", and the old offset of 6" has
+   * nowhere left to go). Falling back to addCut's own quarter-of-the-axis
+   * formula there is deliberate and narrow, not the general rule.
    */
   const repositionForAxes = (face: Dimension, across: Dimension): Partial<Cut> => {
     const newPosDim = board[positionAxisOf(face, across)];
-    return {
-      face,
-      across,
-      offset: newPosDim / 4,
-      width: Math.min(0.75, newPosDim / 4),
-      depth: Math.min(cut.depth, board[face]),
-    };
+    const newFaceDim = board[face];
+
+    let offset = Math.min(cut.offset, newPosDim);
+    let width = Math.min(cut.width, newPosDim - offset);
+    if (width <= 0) {
+      offset = newPosDim / 4;
+      width = Math.min(0.75, newPosDim / 4);
+    }
+    const depth = Math.min(cut.depth, newFaceDim);
+
+    return { face, across, offset, width, depth };
   };
 
   // Changing `face` to whatever `across` currently holds would leave

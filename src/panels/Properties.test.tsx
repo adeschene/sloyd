@@ -535,6 +535,27 @@ describe('cuts', () => {
     expect(useStore.getState().doc.boards.find((b) => b.id === id)!.cuts[0].width).toBe(0.5);
   });
 
+  it('preserves a legal offset and width when Runs across only moves the position axis', async () => {
+    const id = renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    await userEvent.clear(screen.getByLabelText(/from the end/i));
+    await userEvent.type(screen.getByLabelText(/from the end/i), '1/8');
+    await userEvent.tab();
+    await userEvent.clear(screen.getByLabelText(/cut width/i));
+    await userEvent.type(screen.getByLabelText(/cut width/i), '1/4');
+    await userEvent.tab();
+
+    // Both values are trivially legal on any axis of a 24 x 5.5 x 0.75
+    // board — this changes `across` only, which must not discard them.
+    const across = screen.getByLabelText(/runs across/i) as HTMLSelectElement;
+    const other = [...across.options].map((o) => o.value).find((v) => v !== across.value)!;
+    await userEvent.selectOptions(across, other);
+
+    const cut = useStore.getState().doc.boards.find((b) => b.id === id)!.cuts[0];
+    expect(cut.offset).toBe(0.125);
+    expect(cut.width).toBe(0.25);
+  });
+
   it('clears the whole-board error once a sibling edit resolves it, with no stale display', async () => {
     const id = renderWithBoard();
     await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
