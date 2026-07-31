@@ -55,7 +55,17 @@ type Tile = number | typeof FIT;
  * sheet each show five plies, which is what they look like.
  */
 const TILES: Record<GrainFamily, Record<GrainKind, [Tile, Tile]>> = {
-  wood:    { face: [16, 10], edge: [16, 4],   end: [FIT, FIT] },
+  // face v is 6in, not the more obvious 10-12: with BANDS=16 the cathedral
+  // region (where bandOffset can close, see grainLog.bandOffset) only spans
+  // roughly the innermost couple of bands either side of the pith line — about
+  // an eighth of the tile's v extent. A typical board (5.5in wide) sampling a
+  // 10in tile only sees 55% of it, so a random per-board UV offset has a real
+  // chance (~33%, measured) of landing a window that misses that region
+  // entirely, showing flowing lines with no arch at all. At 6in a 5.5in board
+  // sees over 90% of the tile, which is provably enough that no offset can
+  // miss the region (it's wider than what could be excluded) — every board
+  // shows at least a hint of the figure regardless of its id.
+  wood:    { face: [16, 6], edge: [16, 4],   end: [FIT, FIT] },
   plywood: { face: [24, 16], edge: [16, FIT], end: [16, FIT] },
   mdf:     { face: [8, 8],   edge: [8, 8],    end: [8, 8] },
 };
