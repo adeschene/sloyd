@@ -3,6 +3,7 @@ import { useStore } from '../store/store';
 import { MATERIALS, uniqueName, isSheetGood, cutLabel, positionAxisOf } from '../document/document';
 import { DimensionField } from './DimensionField';
 import { NameField } from './NameField';
+import { formatLength } from '../units/length';
 import type { Rotation, Posture, Grain, Board, Cut, Dimension } from '../document/document';
 
 const DIMENSION_LABEL: Record<Dimension, string> = {
@@ -23,6 +24,16 @@ function CutRow({ board, cut, precision }: { board: Board; cut: Cut; precision: 
   const updateCut = useStore((s) => s.updateCut);
   const removeCut = useStore((s) => s.removeCut);
   const [error, setError] = useState<string | null>(null);
+  // Bumped whenever a patch is refused. The three DimensionFields below are
+  // keyed on it, so a refusal remounts them: each field's own `commit()` has
+  // already optimistically set its local text to the (rejected) typed value
+  // before `set()` below ever sees the patch, and nothing in DimensionField
+  // itself would otherwise resync that text — its adopt-external-change
+  // effect only fires when the STORED value changes, and a refused patch, by
+  // definition, never reaches the store. Remounting re-initialises each
+  // field's local state straight from the still-true stored `cut`, which is
+  // this row's analogue of invariant 5's blur resync.
+  const [attempt, setAttempt] = useState(0);
 
   const pos = positionAxisOf(cut.face, cut.across);
   const posDim = board[pos];
@@ -41,30 +52,74 @@ function CutRow({ board, cut, precision }: { board: Board; cut: Cut; precision: 
            next.width >= board[p];
   };
 
+  // The error is cleared eagerly on any accepted patch (below), but that only
+  // covers changes that go through THIS row's own `set()`. An undo, or a
+  // board dimension growing via the Dimensions section above, changes `cut`
+  // or `board` without ever calling `set()` here — with no invalidation path
+  // of its own, a stale error would otherwise outlive the condition it
+  // describes indefinitely, survivable only by unmounting (removing the cut,
+  // or switching boards and back). Keyed on exactly what `wouldRemoveAll`
+  // reads, so it re-checks whenever any of that changes.
+  useEffect(() => {
+    if (error && !wouldRemoveAll({})) setError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cut.face, cut.across, cut.offset, cut.width, cut.depth, board.length, board.width, board.thickness]);
+
   const set = (patch: Partial<Cut>) => {
     if (wouldRemoveAll(patch)) {
       setError('That would remove the whole board.');
+      setAttempt((n) => n + 1);
       return;
     }
     setError(null);
     updateCut(board.id, cut.id, patch);
   };
 
+  /**
+   * Recompute offset/width/depth for a new face/across pair, rather than
+   * merely clamping the old numbers into the new position axis's range.
+   * Clamping alone can leave `width`'s `max` (`posDim - offset`) at zero or
+   * negative when the old position axis and the new one are wildly
+   * different scales — e.g. this board's original position axis was
+   * `length` (24") and the new one is `thickness` (0.75"): clamping
+   * `offset` down to `posDim` alone already consumes all the room `width`
+   * would have. That leaves a DimensionField the user cannot satisfy, the
+   * numeric analogue of rendering a `<select>` with no matching `<option>`.
+   * Reusing `addCut`'s own formula (a quarter of the position axis, width
+   * the lesser of 3/4" or that quarter) is already proven legal on any
+   * board, so every field stays satisfiable across the change — at the cost
+   * of losing the cut's exact prior position, which changing which
+   * dimension the numbers are measured along already changes the meaning
+   * of.
+   */
+  const repositionForAxes = (face: Dimension, across: Dimension): Partial<Cut> => {
+    const newPosDim = board[positionAxisOf(face, across)];
+    return {
+      face,
+      across,
+      offset: newPosDim / 4,
+      width: Math.min(0.75, newPosDim / 4),
+      depth: Math.min(cut.depth, board[face]),
+    };
+  };
+
   // Changing `face` to whatever `across` currently holds would leave
   // `across` naming the same dimension twice, so it moves in the same
   // edit — the select is never rendered holding a value it has no option
   // for (the rule follow-up 46 arrived at for grain on sheet goods).
-  const setFace = (face: Dimension) => set(
-    face === cut.across
-      ? { face, across: positionAxisOf(face, cut.face) }
-      : { face },
-  );
+  const setFace = (face: Dimension) => {
+    const across = face === cut.across ? positionAxisOf(face, cut.face) : cut.across;
+    set(repositionForAxes(face, across));
+  };
 
   return (
     <div className="cut">
       <div className="row cut-head">
         <span className="cut-label">{cutLabel(board, cut)}</span>
-        <button aria-label="Remove cut" onClick={() => removeCut(board.id, cut.id)}>
+        <button
+          aria-label={`Remove cut (${cutLabel(board, cut)}, offset ${formatLength(cut.offset, precision)})`}
+          onClick={() => removeCut(board.id, cut.id)}
+        >
           Remove
         </button>
       </div>
@@ -91,7 +146,7 @@ function CutRow({ board, cut, precision }: { board: Board; cut: Cut; precision: 
       <div className="field">
         <label htmlFor={`across-${cut.id}`}>Runs across</label>
         <select id={`across-${cut.id}`} className="input" value={cut.across}
-          onChange={(e) => set({ across: e.target.value as Dimension })}>
+          onChange={(e) => set(repositionForAxes(cut.face, e.target.value as Dimension))}>
           {(['length', 'width', 'thickness'] as Dimension[])
             .filter((d) => d !== cut.face)
             .map((d) => (
@@ -100,11 +155,11 @@ function CutRow({ board, cut, precision }: { board: Board; cut: Cut; precision: 
         </select>
       </div>
 
-      <DimensionField label="From the end" precision={precision} value={cut.offset}
+      <DimensionField key={`offset-${attempt}`} label="From the end" precision={precision} value={cut.offset}
         min={0} max={posDim} onCommit={(v) => set({ offset: v })} />
-      <DimensionField label="Cut width" precision={precision} value={cut.width}
-        max={posDim - cut.offset} onCommit={(v) => set({ width: v })} />
-      <DimensionField label="Depth" precision={precision} value={cut.depth}
+      <DimensionField key={`width-${attempt}`} label="Cut width" precision={precision} value={cut.width}
+        max={Math.max(0, posDim - cut.offset)} onCommit={(v) => set({ width: v })} />
+      <DimensionField key={`depth-${attempt}`} label="Depth" precision={precision} value={cut.depth}
         max={faceDim} onCommit={(v) => set({ depth: v })} />
 
       {error && <p className="field-error" role="alert">{error}</p>}
