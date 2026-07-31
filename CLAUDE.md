@@ -9,36 +9,64 @@
 ## Status
 
 **v1 shipped**, followed by a polish pass (unique board names, `NameField`,
-`Delete`/`Backspace`, origin axes, a settled grid, a stable gizmo), then follow-ups
-29-30 (a gizmo size ceiling, a separate origin-lines checkbox), and now **v2**:
-two-state grain orientation, schema version 2 with a migration, the reorient-pivot
-fix, and wood grain textures. Static SPA, containerized, 258/258 tests passing.
+`Delete`/`Backspace`, origin axes, a settled grid, a stable gizmo), follow-ups 29-30
+(a gizmo size ceiling, a separate origin-lines checkbox), **v2** (two-state grain
+orientation, schema version 2, the reorient-pivot fix, wood grain textures), and now
+**v3**: posture (a board can finally stand up), part-local grain (any of a board's
+three dimensions, not just its length), and log-derived grain textures. Static SPA,
+containerized, 307/307 tests passing.
 
 Host-specific deployment detail — hostname, container name, proxy configuration, and
 the manual steps a human has to perform — lives in `DEPLOYMENT.local.md`, which is
 gitignored. Read that file before deploying; it is not in the public repo.
 
-v2 shipped what v1 deferred as "Spec B" — orientation and grain. v1's design and
-`docs/follow-ups.md` both once called joinery "v2"; the naming is now settled (see the
-v2 spec's non-goals): joinery gets its own spec and version label after this one, and
-the cut list stays behind that. **Next up is joinery** (dados/rabbets), then the cut
+Joinery (dados/rabbets) is next, with its own spec and version label after v3 — see
+the v3 spec's non-goals (`docs/superpowers/specs/2026-07-31-sloyd-v3-design.md`,
+section 8). The cut list stays behind that. **Next up is joinery**, then the cut
 list. The parametric board model exists specifically to make both cheap to add.
 
-**What v2 actually did**, at the end of
-`docs/superpowers/specs/2026-07-30-sloyd-v1-polish-design.md` under "Deferred to
-Spec B" (design in `docs/superpowers/specs/2026-07-30-sloyd-v2-design.md`):
+**What v2 did:** collapsed the four-value rotation select to a two-state **Grain**
+select ("Along X" / "Along Z") — a rectangular box has 2-fold symmetry about the
+vertical axis, so 0°/180° and 90°/270° were always literally indistinguishable — and
+fixed the reorient-pivot bug (`boardExtents` swapped extents with the min-corner
+pinned, so a 24×5½ board jumped sideways when it turned; `reorientedPosition` fixes
+that by preserving the footprint's X/Z centre and the Y-min). `CURRENT_VERSION` went
+to 2, with a migration folding 180→0 and 270→90. Plus wood grain textures: face, edge
+and end grain distinguished per face, with plywood showing veneer on its faces and
+visible plies on its edges.
 
-- **Orientation semantics.** The four-value rotation select is now a two-state
-  **Grain** select, "Along X" / "Along Z" — a rectangular box has 2-fold symmetry
-  about the vertical axis, so 0°/180° and 90°/270° were always literally
-  indistinguishable. `Rotation` is narrowed to `0 | 90`. The real bug alongside it was
-  that rotation pivoted about nothing: `boardExtents` swapped the extents and left the
-  min-corner pinned, so a 24×5½ board jumped sideways when it turned.
-  `reorientedPosition` fixes that by preserving the footprint's X/Z centre and the
-  Y-min. **This is the one thing that moved the schema:** `CURRENT_VERSION` is now 2,
-  with a migration folding 180→0 and 270→90.
-- **Wood grain textures.** Face, edge and end grain distinguished per face, with
-  plywood showing veneer on its faces and visible plies on its edges.
+**What v3 actually did**, design in
+`docs/superpowers/specs/2026-07-31-sloyd-v3-design.md`, plan in
+`docs/superpowers/plans/2026-07-31-sloyd-v3.md`:
+
+- **Posture.** `standing` (boolean) became `posture`
+  (`'flat' | 'on-edge' | 'upright'`), naming which dimension points up. One rule
+  generates all six orientations — at 0° the earlier of `[length, width, thickness]`
+  goes on X, at 90° they swap — and it reproduces all four of v2's rows exactly (that
+  agreement is pinned by explicit tests). The two orientations it adds are the
+  upright ones: a leg, a post or a stile could not be modelled before.
+  `axisDimensions` — the single source for this mapping — moved into
+  `src/document/geometry.ts`, with `boardExtents` now a direct expression of it in
+  the same file. The viewport's separate copy is gone.
+- **Part-local grain.** `grain` is its own field
+  (`'length' | 'width' | 'thickness'`), independent of posture. The face whose
+  normal runs along the grain shows end grain; face grain goes to the first of
+  `[thickness, width, length]` that is not the grain; edge grain to the one left.
+  Grain along length reduces to the old fixed map exactly. Grain changes which faces
+  show which cut — it never moves a board, and is deliberately absent from the
+  store's reorient predicate.
+- **Schema 3.** The v2→v3 step maps `standing` to `posture` and defaults `grain`,
+  running on raw board data before `validateBoard` — see invariant 11. Migration is
+  now a real chain: a v1 file walks 1→2→3, folding 270→90 before it gains a posture.
+- **Log-derived grain textures.** Wood is now three cuts through one log: face far
+  from the pith (cathedral arches), edge through it (quartersawn lines), end the
+  cross-section. The ring maths lives in `src/viewport/grainLog.ts`, pure and
+  unit-tested, with `seededRandom`/`hash` moved there from `grainTexture.ts` — this
+  closes follow-up 32. See invariant 14 for why `bandRadius` is `hypot(d, k·delta)`.
+- **`boardUVSignature`**, added after the browser gate caught a real bug:
+  `BoardMesh`'s geometry memo was keyed on a hand-written field list that did not
+  include `grain`, so grain changes never reached the screen while the document was
+  correct. See invariant 15.
 
 ## What Sloyd is
 
@@ -90,9 +118,13 @@ parallel code path.
 **Versioning:** every document carries a `version` field, and every load path (open,
 import, autosave-restore) runs through `migrateDocument` before the document is
 trusted. This is what lets the schema evolve (e.g. for joinery) without breaking files
-saved by earlier versions. `CURRENT_VERSION` is 2; the v1→v2 fold (`foldRotationToV2`,
-180→0 and 270→90) is the worked example every future migration step should match —
-see invariant 11 for why it runs where it does.
+saved by earlier versions. `CURRENT_VERSION` is 3, and migration is a real chain: each
+step runs on raw data, in version order, one version at a time
+(`if (d.version < 2) …; if (d.version < 3) …`), before any board reaches
+`validateBoard`. A v1 file walks 1→2→3 — `foldRotationToV2` (180→0, 270→90) first,
+then `addPostureToV3` (`standing` → `posture`, `grain` defaulted) — which is the
+worked example every future migration step should match. See invariant 11 for why
+both steps run where they do.
 
 Full detail: `docs/superpowers/specs/` (design) and `docs/superpowers/plans/`
 (implementation plan). This section is a summary, not a replacement for either.
@@ -103,10 +135,12 @@ Full detail: `docs/superpowers/specs/` (design) and `docs/superpowers/plans/`
 src/
 ├── units/length.ts          parseLength / formatLength. Imports nothing.
 ├── document/
-│   ├── types.ts             Board, SloydDocument, Rotation, MATERIALS
-│   ├── geometry.ts          boardExtents / boardCenter (orientation + corner math)
+│   ├── types.ts             Board, SloydDocument, Rotation, Posture, Grain, MATERIALS
+│   ├── geometry.ts          axisDimensions (single source) / boardExtents /
+│   │                        boardCenter / reorientedPosition
 │   ├── names.ts             uniqueName / dedupeNames. Imports only Board.
-│   └── document.ts          create / validate / migrate; re-exports the other two
+│   └── document.ts          create / validate / migrate (v1->v2->v3 chain);
+│                            re-exports the other two
 ├── store/store.ts           Zustand store, snapshot undo/redo, gesture coalescing
 ├── storage/
 │   ├── types.ts             the StorageAdapter interface
@@ -120,8 +154,12 @@ src/
 │   ├── Gizmo.tsx            TransformControls, 1/16" snapping
 │   ├── gizmoScale.ts        gizmo size ceiling + grabbable floor. Pure.
 │   ├── extent.ts            SCENE_EXTENT, shared by Viewport and OriginAxes
-│   ├── grainFaces.ts        which dimension runs along each axis/face. Pure.
-│   ├── grainTiling.ts       per-face UVs: tile size, swap, per-board offset. Pure.
+│   ├── grainFaces.ts        faceGrainKinds (per-face cut) + grainFamily; re-exports
+│   │                        axisDimensions from document/geometry.ts. Pure.
+│   ├── grainTiling.ts       per-face UVs: tile size, swap, per-board offset,
+│   │                        boardUVSignature. Pure.
+│   ├── grainLog.ts          the log a board was cut from: ring radii (bandRadius),
+│   │                        wobble, seededRandom/hash. Pure.
 │   └── grainTexture.ts      seeded canvas grain textures, cached, never disposed
 ├── panels/
 │   ├── DimensionField.tsx   the validating fractional-inch input
@@ -144,12 +182,14 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
    Three.js meshes are center-origin and the document is not. Reorienting a board
    pivots it about itself — `reorientedPosition` in `document/geometry.ts` is the
    only place that arithmetic lives, and `store.updateBoard` is what applies it,
-   whenever a patch changes `rotation` or `standing` without carrying its own
+   whenever a patch changes `rotation` or `posture` without carrying its own
    `position`. `reorientedPosition` takes the whole patch (`Partial<Board>`), not just
-   `{ rotation, standing }` — a patch that also changes a dimension needs the pivot
+   `{ rotation, posture }` — a patch that also changes a dimension needs the pivot
    computed from the *post-patch* extents, and `store.updateBoard` passes the patch
    straight through rather than reconstructing a narrower object, for the same
-   undefined-overwrite reason that once justified the narrower one.
+   undefined-overwrite reason that once justified the narrower one. `grain` is
+   deliberately absent from this predicate — it changes which faces show which cut,
+   never a board's extents, so reorienting on a grain change would be a no-op pivot.
 3. **The `dragging` ref guard in `Gizmo.tsx`.** `TransformControls` computes motion from
    state captured at drag start; syncing the document into the proxy mid-drag makes it
    fight itself. The symptom is jitter or drift, not a crash.
@@ -186,11 +226,15 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
     is two-sided *and* has a floor on the cap itself (`GIZMO_MIN_CAP_INCHES`) — a
     board-relative ceiling alone governs close range too and shrinks the gizmo for
     small parts the moment they are selected.
-11. **Migration steps run on raw data, before `validateBoard`.** `validateBoard` falls
-    back to `0` for an unknown rotation, so a fold that ran after it would turn every
-    saved 270° board a quarter turn the wrong way — and unlike 0-vs-180, that is a
-    different shape on screen, not just a redundant one. Upgrade first, validate
-    second.
+11. **Migration steps run on raw data, before `validateBoard`, in version order.**
+    `validateBoard` falls back to `0` for an unknown rotation, so a fold that ran
+    after it would turn every saved 270° board a quarter turn the wrong way — and
+    unlike 0-vs-180, that is a different shape on screen, not just a redundant one.
+    The v2→v3 step (`addPostureToV3`) has the same failure mode: `validateBoard`'s
+    posture fallback is `'flat'`, a perfectly legal value, so a `standing: true`
+    board that reached the validator before gaining a `posture` would come out lying
+    down — silently, and only for files that already exist. Upgrade first, validate
+    second, one version at a time.
 12. **Grain textures are cached at module level and never disposed; per-board
     variation lives in the `uv` attribute, never on the texture.** `texture.repeat`/
     `offset`/`rotation` are per-texture state on an object every board shares —
@@ -199,13 +243,39 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
     `fit`: the whole tile is shown either way on a `FIT` axis, so an offset there
     buys no variation and only shifts the pattern's seam into the middle of the
     face — exactly what `FIT` exists to avoid on wood ends and plywood's ply stack.
+13. **~~`axisDimensions` had a second copy in the viewport, kept from drifting off
+    `document`'s `boardExtents` only by a dedicated test.~~ RETIRED in v3.** Before
+    v3 the mapping from board dimensions to world axes was implicit in a boolean and
+    had to be restated in two files that could disagree; a test existed solely to
+    catch that drift. v3 moved `axisDimensions` into `document/geometry.ts` as the
+    single source, with `boardExtents` now a direct expression of it in the same
+    file and the viewport importing rather than reimplementing it. The drift test
+    was deleted, not forgotten — there is nothing left for it to catch, since the
+    two things it compared are now one thing.
+14. **`bandRadius` is `hypot(d, k·delta)`, not an arbitrary choice of curve.**
+    Because `r = hypot(d, k·delta)`, the in-plane offset `sqrt(r² − d²)` comes out as
+    exactly `k·delta` — evenly spaced, whatever the cut distance `d` — so the ring
+    pattern is periodic across the grain and the tile has no seam. A "simpler"
+    radius (e.g. `r = k·delta` directly) reintroduces a seam that only shows up on a
+    wide board, because the in-plane spacing would then vary with `d`.
+15. **Anything that memoises on what `boardUVs` reads must key on
+    `boardUVSignature`, not a hand-written field list.** v3 added `grain` to what
+    `boardUVs` reads (via `facePlans` → `ranks`) without updating `BoardMesh`'s memo
+    dependency array, so a board's grain silently stopped turning on screen while the
+    document stayed correct and the per-face material maps updated normally — which
+    is exactly what made it look like it worked. No single per-task review could see
+    it: the field was added in one task and consumed by the stale memo in another.
+    The browser gate caught it by pixel-diffing before/after screenshots; the fix
+    keys the memo on `boardUVSignature`, a derived signature that lives next to the
+    code deciding what it must cover, and deliberately excludes `position`/`name` so
+    dragging a board does not rebuild its geometry every frame.
 
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 258 tests
+npm test           # Vitest, currently 307 tests
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -216,15 +286,16 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ## Open follow-ups
 
 `docs/follow-ups.md` lists everything found during v1 review, the two polish passes,
-and v2, consciously deferred rather than missed, numbered 1-30 plus v2's additions.
-Read it before starting new work in the same area — several items are "correct but
-untested", which is exactly what a refactor breaks silently.
+v2, and now v3, consciously deferred rather than missed, numbered 1-30 plus v2's and
+v3's additions. Read it before starting new work in the same area — several items are
+"correct but untested", which is exactly what a refactor breaks silently.
 
 **29 and 30 are closed** — the gizmo now has a size ceiling tied to the selected board
 (with a floor that keeps it grabbable when zoomed far out), and the origin lines have
 their own toolbar checkbox. **5 is closed** — the version gate now rejects versions
-below 1 and non-integer versions. All three closures are written up in place. With
-those done, **joinery is the next work.**
+below 1 and non-integer versions. **32 is closed** — `hash` and `seededRandom` moved
+to `src/viewport/grainLog.ts` and are unit-tested there. All closures are written up
+in place. With those done, **joinery is the next work.**
 
 One entry is a lesson rather than a defect and is worth reading before touching anything
 in the viewport: **26a**. Browser verification on this host runs on software GL
