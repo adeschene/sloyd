@@ -72,14 +72,28 @@ export function wobbleAt(z: number, harmonics: Harmonic[]): number {
   return sum;
 }
 
-/** Harmonics with whole periods and falling amplitude — one slow bend with
- *  finer detail on top, which is how grain reads. */
-export function makeHarmonics(rand: () => number, count = 3): Harmonic[] {
+/**
+ * Harmonics with whole periods and falling amplitude — one slow bend with
+ * finer detail on top, which is how grain reads.
+ *
+ * `peakAmplitude` is the first (i = 0) harmonic's amplitude; the rest fall off
+ * from it. It is the knob that decides how many bands close into cathedral
+ * arches: `bandOffset` drops a band once `(k*delta)^2 < d^2 * w * (2 + w)`
+ * (see its doc comment), so for a given cut distance `d` a bigger wobble
+ * closes more bands, further from the pith. The face cut (`d` well off the
+ * pith) wants only the innermost two or three bands to close — that is what
+ * flatsawn cathedral figure looks like — which needs a small amplitude, on
+ * the order of a twentieth of the band spacing. The edge cut (`d` near zero)
+ * barely feels the wobble at all regardless of amplitude, since the whole
+ * `d^2 * w * (2 + w)` term shrinks with `d`, so it can afford a larger value
+ * for visible waviness without spuriously closing bands.
+ */
+export function makeHarmonics(rand: () => number, count = 3, peakAmplitude = 0.02): Harmonic[] {
   const harmonics: Harmonic[] = [];
   for (let i = 0; i < count; i += 1) {
     harmonics.push({
       periods: 1 + i + Math.floor(rand() * 2),
-      amplitude: 0.34 / (i + 1) ** 1.6,
+      amplitude: peakAmplitude / (i + 1) ** 1.6,
       phase: rand() * Math.PI * 2,
     });
   }

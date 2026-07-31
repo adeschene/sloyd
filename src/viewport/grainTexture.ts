@@ -110,6 +110,18 @@ function speckle(ctx: CanvasRenderingContext2D, rand: Rand, count: number, alpha
  */
 const CUT_DISTANCE = { face: 0.62, edge: 0.05 };
 
+/**
+ * Peak wobble amplitude per cut — see `makeHarmonics`'s doc comment for the
+ * arithmetic. The face cut needs a small amplitude so only the innermost few
+ * bands close into cathedrals. The edge cut keeps the amplitude this module
+ * shipped with (0.34): at `d = 0.05` the closing threshold is `k^2 < ~1.3*w`,
+ * so even at that amplitude only band 0 is ever at risk of closing — the
+ * wobble term barely engages this close to the pith regardless of amplitude
+ * — and changing it would retune the edge face's pixels for no requirement
+ * this task states.
+ */
+const WOBBLE_AMPLITUDE = { face: 0.02, edge: 0.34 };
+
 /** Bands are drawn as an earlywood-to-latewood gradient rather than a hairline:
  *  a soft wide band darkening into a hard thin line at its outer edge. Wood has
  *  no lines in it; it has bands with edges. */
@@ -147,7 +159,7 @@ function band(
  * one tile apart. The pattern is also symmetric about the pith line, so the
  * tile's two v edges carry the same curve.
  */
-function woodCut(d: number): Draw {
+function woodCut(d: number, wobbleAmplitude: number): Draw {
   return (ctx) => {
     base(ctx);
     const delta = 1 / BANDS;
@@ -165,7 +177,7 @@ function woodCut(d: number): Draw {
       // different bands and put a seam back across the grain, which is the one
       // failure this whole construction exists to avoid.
       const bandRand = seededRandom(hash(`band:${Math.abs(k) % half}`));
-      const harmonics = makeHarmonics(bandRand, 3);
+      const harmonics = makeHarmonics(bandRand, 3, wobbleAmplitude);
       const width = 2.2 + bandRand() * 3.4;
       const alpha = 0.10 + bandRand() * 0.14;
 
@@ -247,7 +259,11 @@ const mdf: Draw = (ctx, rand) => {
 };
 
 const DRAW: Record<GrainFamily, Record<GrainKind, Draw>> = {
-  wood:    { face: woodCut(CUT_DISTANCE.face), edge: woodCut(CUT_DISTANCE.edge), end: woodEnd },
+  wood:    {
+    face: woodCut(CUT_DISTANCE.face, WOBBLE_AMPLITUDE.face),
+    edge: woodCut(CUT_DISTANCE.edge, WOBBLE_AMPLITUDE.edge),
+    end: woodEnd,
+  },
   plywood: { face: plywoodFace, edge: plywoodPlies, end: plywoodPlies },
   mdf:     { face: mdf,         edge: mdf,          end: mdf },
 };
