@@ -300,12 +300,31 @@ export function pointToLocalXYZ(board: Board, point: Point): [number, number, nu
 }
 
 /**
+ * Far below anything meaningful at the bench (1/16in display precision) and
+ * well above float ULP drift.
+ *
+ * `validateCuts` in document.ts clamps a cut's width with
+ * `posDim - offset` — its own docstring notes that a board shrunk below an
+ * existing cut is a real, reachable case, not a corrupt file. That
+ * subtraction means `offset + width` is a round-trip through floating point,
+ * not the exact `posDim` it started from, so a genuine rabbet produced by
+ * that clamp can miss an exact `===` comparison by a couple of ULP. Do not
+ * simplify this back to `===`.
+ */
+const FLUSH_EPSILON = 1e-9;
+
+/**
  * What a cut is called. Derived from the geometry rather than stored, so the
  * label can never disagree with the cut: a rabbet is the same removal as a
  * dado, taken flush with one end of the position axis.
  */
 export function cutLabel(board: Board, cut: Cut): 'dado' | 'rabbet' {
   const pos = positionAxisOf(cut.face, cut.across);
-  const flush = cut.offset === 0 || cut.offset + cut.width === board[pos];
+  // A cut flush with both ends at once (spanning the whole position axis)
+  // still satisfies this OR and reads as a rabbet — deliberate, not an
+  // unconsidered case. The validator only rejects a full-span cut when it is
+  // also full-depth, so a full-span, partial-depth cut is a legal input here.
+  const flush = cut.offset === 0 ||
+    Math.abs(cut.offset + cut.width - board[pos]) < FLUSH_EPSILON;
   return flush ? 'rabbet' : 'dado';
 }

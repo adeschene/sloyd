@@ -218,4 +218,20 @@ describe('cutLabel', () => {
     expect(cutLabel(withCuts([atStart]), atStart)).toBe('rabbet');
     expect(cutLabel(withCuts([atEnd]), atEnd)).toBe('rabbet');
   });
+
+  // validateCuts clamps a shrunk board's cut width with `posDim - offset`,
+  // which is exactly how this offset/width pair is built. offset + width
+  // does not round-trip to posDim exactly here — it lands a couple of ULP
+  // above it — so an exact `===` comparison would misclassify this genuine
+  // rabbet as a dado.
+  it('still calls it a rabbet when offset + width drifts off posDim by a couple of ULP', () => {
+    const posDim = 63.36207767762102;
+    const offset = 29.0388509792035;
+    const width = posDim - offset; // the validator's clamp: posDim - offset
+    expect(offset + width).not.toBe(posDim); // sanity: this pair actually drifts
+
+    const board = createBoard({ length: posDim });
+    const cut: Cut = { ...DADO, offset, width };
+    expect(cutLabel(board, cut)).toBe('rabbet');
+  });
 });
