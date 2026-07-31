@@ -112,7 +112,13 @@ export interface FacePlan {
    * that survived a dado.
    */
   tileInches: [number, number];
-  /** Whether each axis (u, v) is FIT — the per-board offset is zeroed there. */
+  /**
+   * Whether each axis (u, v) is FIT. The per-board offset is zeroed on a FIT
+   * axis: the whole tile is shown either way, so the offset buys no
+   * variation and only shifts the pattern's seam into the middle of the
+   * face — exactly what FIT exists to avoid on wood ends and plywood's ply
+   * stack.
+   */
   fit: [boolean, boolean];
 }
 
@@ -189,10 +195,19 @@ export function boardUVs(board: Board, solid: Region = wholeBoard(board)): Float
  * Walked from boardUVs itself: facePlans reads boardExtents (length, width,
  * thickness), axisDimensions (rotation, posture), faceGrainKinds (grain,
  * posture, rotation), grainFamily (material) and ranks (grain); boardUVs
- * itself also reads id via boardUVOffset, and board.cuts via the `solid`
- * argument BoardMesh derives from them. `position` and `name` are
+ * itself also reads id via boardUVOffset, and board.cuts because they
+ * determine which solids exist and therefore which `solid` argument
+ * BoardMesh will call boardUVs with for each one. `position` and `name` are
  * deliberately absent — boardUVs never reads them, and a board being dragged
  * must not rebuild its geometry every frame.
+ *
+ * This signature describes the BOARD, not any one solid — it is identical
+ * whichever solid boardUVs is asked for, since `solid` never appears in the
+ * list above. That is correct for its actual job (keying BoardMesh's memo of
+ * facePlans/tileInches/the offset, all of which are board-level), but it
+ * means a caller rendering one mesh per solid must not key a per-solid cache
+ * on this signature alone — every solid of a board shares one signature and
+ * would collide.
  */
 export function boardUVSignature(board: Board): string {
   return [

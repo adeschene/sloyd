@@ -399,9 +399,18 @@ describe('boardUVs for a sub-box', () => {
     const floor: Region = { length: [0, 24], width: [0, 5.5], thickness: [0, 0.5] };
     const uvs = boardUVs(ply, floor);
     const wholeUvs = boardUVs(ply);
-    // On the FIT axis the whole board spans 0..1; two thirds of the stock
-    // spans 0..2/3, not 0..1.
-    expect(Math.max(...uvs)).toBeLessThan(Math.max(...wholeUvs) + 1e-9);
+
+    // A global max over all 48 floats can't discriminate this: it's dominated
+    // by the broad face's tiled (non-FIT) u, which a thickness-only
+    // restriction never touches, so "max shrank" would hold even if FIT were
+    // wrongly resolved against the solid. The edge face (+Z, index PZ) is
+    // where the bug actually shows: its v axis is thickness and is FIT, so
+    // tileInches there is the BOARD's full 0.75in thickness regardless of
+    // the solid. A 0.5in floor should show 0.5/0.75 of the tile — the plies
+    // the cut left behind — not 0..1 (all five plies squeezed into what
+    // survived), which is what fitting the tile to the solid would produce.
+    const vs = Array.from(uvs.slice(PZ * 8, PZ * 8 + 8)).filter((_, i) => i % 2 === 1);
+    expect(Math.max(...vs)).toBeCloseTo(0.5 / 0.75, 6);
     expect(uvs).not.toEqual(wholeUvs);
   });
 });
