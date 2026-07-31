@@ -1,9 +1,12 @@
 import { MATERIALS, DEFAULT_MATERIAL, isSheetGood } from './types';
-import type { Board, Cut, Rotation, Posture, Grain, SloydDocument } from './types';
+import type { Board, Cut, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument } from './types';
 import { dedupeNames } from './names';
+import { positionAxisOf } from './geometry';
 
 export * from './types';
-export { boardExtents, boardCenter, reorientedPosition, axisDimensions, DIMENSION_ORDER } from './geometry';
+export {
+  boardExtents, boardCenter, reorientedPosition, axisDimensions, DIMENSION_ORDER, positionAxisOf,
+} from './geometry';
 export { uniqueName, dedupeNames } from './names';
 
 export const CURRENT_VERSION = 4;
@@ -70,6 +73,68 @@ function isPositiveFinite(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v) && v > 0;
 }
 
+const VALID_DIMENSIONS: Dimension[] = ['length', 'width', 'thickness'];
+const VALID_FROMS: CutFrom[] = ['min', 'max'];
+
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.min(Math.max(v, lo), hi);
+}
+
+/**
+ * Cuts that fit the board, with unique ids.
+ *
+ * Clamps rather than rejects, because a saved document must always open and a
+ * board whose length was later shrunk below an existing cut is a real case,
+ * not a corrupt file. The panel is the half that refuses bad entry (see
+ * Properties.tsx); this half brings an existing cut back inside the board.
+ *
+ * The clamp ORDER is load-bearing: offset into [0, dim] first, then width into
+ * [0, dim - offset]. The other order gives different results for a cut that
+ * starts past the end.
+ *
+ * Three things are dropped rather than clamped: a cut with nothing left after
+ * clamping, a cut whose `across` is its own `face` (unrepresentable through
+ * the panel, reachable in a hand-edited file), and a cut that would remove ALL
+ * the stock — there is no nearest legal cut for that one, and a board coming
+ * back whole is unmistakable where a board coming back invisible is not.
+ */
+function validateCuts(raw: unknown, board: Omit<Board, 'cuts'>): Cut[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Cut[] = [];
+  const seen = new Set<string>();
+
+  for (const item of raw) {
+    if (typeof item !== 'object' || item === null) continue;
+    const c = item as Record<string, unknown>;
+
+    const face = c.face as Dimension;
+    const across = c.across as Dimension;
+    if (!VALID_DIMENSIONS.includes(face) || !VALID_DIMENSIONS.includes(across)) continue;
+    if (face === across) continue;
+    if (!VALID_FROMS.includes(c.from as CutFrom)) continue;
+    if (!['offset', 'width', 'depth'].every(
+      (k) => typeof c[k] === 'number' && Number.isFinite(c[k]),
+    )) continue;
+
+    const posDim = board[positionAxisOf(face, across)];
+    const faceDim = board[face];
+
+    const offset = clamp(c.offset as number, 0, posDim);
+    const width = clamp(c.width as number, 0, posDim - offset);
+    const depth = clamp(c.depth as number, 0, faceDim);
+    if (width <= 0 || depth <= 0) continue;
+
+    // Full depth AND the full position axis, with `across` always spanning
+    // fully, means nothing survives.
+    if (depth === faceDim && offset === 0 && width === posDim) continue;
+
+    const id = typeof c.id === 'string' && c.id && !seen.has(c.id) ? c.id : nextId();
+    seen.add(id);
+    out.push({ id, face, from: c.from as CutFrom, across, offset, width, depth });
+  }
+  return out;
+}
+
 function validateBoard(raw: unknown, index: number): Board {
   const where = `board ${index + 1}`;
   if (typeof raw !== 'object' || raw === null) {
@@ -113,7 +178,7 @@ function validateBoard(raw: unknown, index: number): Board {
   // CURRENT_VERSION.
   const normalizedGrain = isSheetGood(material) && grain === 'thickness' ? 'length' : grain;
 
-  return {
+  const board: Omit<Board, 'cuts'> = {
     id: typeof b.id === 'string' && b.id ? b.id : nextId(),
     name: name || 'Board',
     length: b.length as number,
@@ -126,8 +191,8 @@ function validateBoard(raw: unknown, index: number): Board {
       : 'flat',
     grain: normalizedGrain,
     material,
-    cuts: Array.isArray(b.cuts) ? (b.cuts as Cut[]) : [],
   };
+  return { ...board, cuts: validateCuts(b.cuts, board) };
 }
 
 /**
