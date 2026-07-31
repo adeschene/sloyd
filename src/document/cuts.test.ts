@@ -181,6 +181,42 @@ describe('boardEdges', () => {
     const board = withCuts([DADO]);
     expect(boardEdges(board)).toEqual(boardEdges(board));
   });
+
+  // Regression for the merge itself — the only novel logic in this function.
+  // A full-depth sever splits the board into two disconnected pieces, so the
+  // result should be exactly two complete box outlines (12 edges each) and
+  // nothing else: no phantom line where the pieces parted, and no fragment
+  // left over from the cut's own boundary planes. If the merge were absent,
+  // the two end faces exposed by the sever would each fragment into more than
+  // their own four edges; if it were over-eager (bridging the gap between the
+  // two pieces), the count would come out under 24 instead.
+  it('gives a full-depth sever exactly two box outlines, 24 segments total', () => {
+    const rip: Cut = { ...DADO, depth: 0.75 };
+    const segs = boardEdges(withCuts([rip]));
+    expect(segs).toHaveLength(24);
+  });
+
+  // Regression for the merge across an UNRELATED cut's grid splits. Two
+  // dados at the same depth but different length ranges each introduce their
+  // own length-axis grid lines; the bottom face (thickness 0, never touched
+  // by either cut) must merge across both of them into its own four edges,
+  // not fragment at every split the dados happen to introduce elsewhere. If
+  // the merge were absent, the bottom face would show extra segments at each
+  // dado's length boundaries; if it were over-eager (bridging the gap between
+  // the two dados' floors), the 36 total below would come out under instead.
+  it('merges the uncut face across two unrelated dados: 4 + 8 = 12 at those planes, 36 total', () => {
+    const a: Cut = { ...DADO, id: 'a', offset: 2, width: 0.75, depth: 0.5 };
+    const b: Cut = { ...DADO, id: 'b', offset: 18, width: 0.75, depth: 0.5 };
+    const segs = boardEdges(withCuts([a, b]));
+
+    const bottom = inPlane(segs, 'thickness', 0);
+    expect(bottom).toHaveLength(4);
+
+    const floors = inPlane(segs, 'thickness', 0.25);
+    expect(floors).toHaveLength(8);
+
+    expect(segs).toHaveLength(36);
+  });
 });
 
 describe('solidWorldBox', () => {

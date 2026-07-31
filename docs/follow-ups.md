@@ -560,8 +560,8 @@ where a component keeps its own copy of the value.
 
 ## From joinery
 
-Five items, all found during joinery's task reviews and recorded rather than fixed.
-Item 48 is the one with user-visible consequences; the rest are hygiene.
+Six items, all found during joinery's task reviews and recorded rather than fixed.
+Items 48 and 53 are the ones with user-visible consequences; the rest are hygiene.
 
 **48. Shrinking a board's dimensions can store a cut that removes the whole board.**
 The Cuts section refuses a cut whose depth, offset and width together remove all the
@@ -605,6 +605,21 @@ the board must be refused), but `DimensionField.test.tsx` itself does not cover 
 including the specific reason `min` exists rather than reusing `allowNegative`, which is
 that `min={0}` must still refuse a negative. This is the "correct but untested" shape
 that the top of this file warns about.
+
+**53. The offset field is the one edit path that does not maintain `offset + width
+<= posDim`.** `src/panels/Properties.tsx` gives the offset field `max={posDim}`,
+while the width field enforces the pair with `max={posDim - cut.offset}` and
+`repositionForAxes` enforces it on face/across changes. Raising offset alone
+leaves the pair inconsistent, with two visible consequences: the width field
+becomes unsatisfiable until offset is lowered (its `max` is 0, and with no `min`
+prop a value of 0 is refused too), and `cutLabel` reports "dado" for a cut that
+renders flush with the end. Verified round-trip: `offset 23, width 6` on a 24"
+board renders identically before and after save/load — the loader clamps width
+to 1 and the same cell is removed — but the label flips dado→rabbet. `offset =
+24` removes nothing, and the cut row silently disappears after a reload. No
+geometry divergence and nothing the user can see is lost mid-session, which is
+why this is Minor. The natural fix is the same shape as `repositionForAxes`:
+clamp the *pair* when either member changes.
 
 Also worth recording, since it is a lesson rather than a defect: **three of joinery's
 bugs were in code the plan supplied verbatim**, not in transcription — an unsatisfiable

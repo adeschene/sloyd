@@ -246,6 +246,27 @@ describe('duplicateBoard', () => {
     useStore.getState().duplicateBoard(copy.id);
     expect(useStore.getState().doc.boards[2].name).toBe('Leg (2)');
   });
+
+  it('copies cuts by value, not by reference, with fresh ids', () => {
+    useStore.getState().addBoard();
+    const source = useStore.getState().doc.boards[0];
+    useStore.getState().addCut(source.id);
+    useStore.getState().duplicateBoard(source.id);
+    const { doc } = useStore.getState();
+    const src = doc.boards[0];
+    const copy = doc.boards[1];
+
+    expect(src.cuts).not.toBe(copy.cuts);
+    expect(src.cuts[0]).not.toBe(copy.cuts[0]);
+    expect(copy.cuts[0].id).not.toBe(src.cuts[0].id);
+
+    const sourceDepth = src.cuts[0].depth;
+    useStore.getState().updateCut(copy.id, copy.cuts[0].id, { depth: 0.5 });
+    const after = useStore.getState().doc.boards;
+    expect(sourceDepth).not.toBe(0.5);
+    expect(after[1].cuts[0].depth).toBe(0.5);
+    expect(after[0].cuts[0].depth).toBe(sourceDepth);
+  });
 });
 
 describe('undo / redo', () => {

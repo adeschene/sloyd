@@ -182,11 +182,18 @@ export const useStore = create<StoreState>((set, get) => {
       if (!source) return;
       // Drop the id so createBoard generates a fresh one, and copy the position
       // array rather than sharing the reference with the source and with every
-      // undo snapshot that holds it.
+      // undo snapshot that holds it. `cuts` needs the same treatment: `rest`
+      // still carries the source's `cuts` array (and its `Cut` objects) by
+      // reference, and createBoard's `cuts: []` default is overwritten by
+      // `...partial` rather than applied — copying the array and minting a
+      // fresh id per cut (via the same nextId() addCut uses) means a future
+      // in-place Cut mutation can't corrupt the source board and every undo
+      // snapshot holding it simultaneously.
       const { id: _sourceId, ...rest } = source;
       const fresh = createBoard({
         ...rest,
         position: [...source.position],
+        cuts: source.cuts.map((cut) => ({ ...cut, id: nextId() })),
       });
       const copy = { ...fresh, name: uniqueName(source.name, get().doc.boards) };
       edit(
