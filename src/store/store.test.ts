@@ -1,5 +1,5 @@
 import { useStore } from './store';
-import { createBoard, createDocument } from '../document/document';
+import { createBoard, createDocument, boardCenter } from '../document/document';
 
 const reset = () => useStore.getState().replaceDocument(createDocument('Test'));
 
@@ -63,6 +63,93 @@ describe('updateBoard', () => {
     useStore.getState().updateBoard(id, { position: caller });
     caller[0] = 999;
     expect(useStore.getState().doc.boards[0].position).toEqual([1, 2, 3]);
+  });
+});
+
+describe('updateBoard reorients a board in place', () => {
+  const board = () => useStore.getState().doc.boards[0];
+
+  const aBoard = () => {
+    useStore.getState().addBoard();
+    const id = board().id;
+    useStore.getState().updateBoard(id, {
+      length: 24, width: 5.5, thickness: 0.75, position: [10, 0, 4],
+    });
+    return id;
+  };
+
+  it('moves the corner so a turning board keeps its footprint centre', () => {
+    const id = aBoard();
+    useStore.getState().updateBoard(id, { rotation: 90 });
+    expect(board().position).toEqual([19.25, 0, -5.25]);
+  });
+
+  it('moves the corner so a board stood on edge keeps its footprint centre', () => {
+    const id = aBoard();
+    useStore.getState().updateBoard(id, { standing: true });
+    expect(board().position).toEqual([10, 0, 6.375]);
+  });
+
+  it('leaves the position alone when the orientation does not change', () => {
+    const id = aBoard();
+    useStore.getState().updateBoard(id, { rotation: 0 });
+    expect(board().position).toEqual([10, 0, 4]);
+  });
+
+  it('lets an explicit position in the same patch win', () => {
+    const id = aBoard();
+    useStore.getState().updateBoard(id, { rotation: 90, position: [0, 0, 0] });
+    expect(board().position).toEqual([0, 0, 0]);
+  });
+
+  it('records one undo entry, and undo restores orientation and position together', () => {
+    const id = aBoard();
+    const before = useStore.getState().past.length;
+    useStore.getState().updateBoard(id, { rotation: 90 });
+    expect(useStore.getState().past.length).toBe(before + 1);
+
+    useStore.getState().undo();
+    expect(board().rotation).toBe(0);
+    expect(board().position).toEqual([10, 0, 4]);
+  });
+
+  it('does not move a board when an unrelated field changes', () => {
+    const id = aBoard();
+    useStore.getState().updateBoard(id, { material: 'oak' });
+    expect(board().position).toEqual([10, 0, 4]);
+  });
+
+  it('keeps the footprint centred when standing is toggled on a board already turned', () => {
+    const id = aBoard();
+    useStore.getState().updateBoard(id, { rotation: 90 });
+    useStore.getState().updateBoard(id, { standing: true });
+    expect(board().rotation).toBe(90);
+    expect(board().standing).toBe(true);
+    expect(board().position).toEqual([21.625, 0, -5.25]);
+  });
+
+  it('keeps the footprint centred when rotation is changed on a board already standing', () => {
+    const id = aBoard();
+    useStore.getState().updateBoard(id, { standing: true });
+    useStore.getState().updateBoard(id, { rotation: 90 });
+    expect(board().rotation).toBe(90);
+    expect(board().standing).toBe(true);
+    expect(board().position).toEqual([21.625, 0, -5.25]);
+  });
+
+  it('keeps the footprint centred when a dimension and the rotation change in one patch', () => {
+    // reorientedPosition must compute the pivot from the post-patch dimensions,
+    // not the board's stale ones — otherwise a length change bundled with a
+    // rotation change lands the board off its true footprint centre.
+    const id = aBoard();
+    const before = useStore.getState().doc.boards.find((b) => b.id === id)!;
+    const preCentre = boardCenter(before);
+    useStore.getState().updateBoard(id, { rotation: 90, length: 48 });
+    const after = board();
+    expect(after.rotation).toBe(90);
+    expect(after.length).toBe(48);
+    const postCentre = boardCenter(after);
+    expect([postCentre[0], postCentre[2]]).toEqual([preCentre[0], preCentre[2]]);
   });
 });
 

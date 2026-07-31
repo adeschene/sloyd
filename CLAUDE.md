@@ -9,29 +9,34 @@
 ## Status
 
 **v1 shipped**, followed by a polish pass (unique board names, `NameField`,
-`Delete`/`Backspace`, origin axes, a settled grid, a stable gizmo) and then follow-ups
-29-30 (a gizmo size ceiling, a separate origin-lines checkbox). Static SPA,
-containerized, 207/207 tests passing.
+`Delete`/`Backspace`, origin axes, a settled grid, a stable gizmo), then follow-ups
+29-30 (a gizmo size ceiling, a separate origin-lines checkbox), and now **v2**:
+two-state grain orientation, schema version 2 with a migration, the reorient-pivot
+fix, and wood grain textures. Static SPA, containerized, 258/258 tests passing.
 
 Host-specific deployment detail — hostname, container name, proxy configuration, and
 the manual steps a human has to perform — lives in `DEPLOYMENT.local.md`, which is
 gitignored. Read that file before deploying; it is not in the public repo.
 
-v1 deliberately excludes joinery (dados/rabbets) and the cut list — those are v2 and
-v3. The parametric board model exists specifically to make them cheap to add later.
+v2 shipped what v1 deferred as "Spec B" — orientation and grain. v1's design and
+`docs/follow-ups.md` both once called joinery "v2"; the naming is now settled (see the
+v2 spec's non-goals): joinery gets its own spec and version label after this one, and
+the cut list stays behind that. **Next up is joinery** (dados/rabbets), then the cut
+list. The parametric board model exists specifically to make both cheap to add.
 
-**Next up is v2, and its design is already written and approved**, at the end of
+**What v2 actually did**, at the end of
 `docs/superpowers/specs/2026-07-30-sloyd-v1-polish-design.md` under "Deferred to
-Spec B". Two coupled pieces, and they are coupled on purpose — grain is what makes
-orientation observable, so neither is worth building alone:
+Spec B" (design in `docs/superpowers/specs/2026-07-30-sloyd-v2-design.md`):
 
-- **Orientation semantics.** The four-value rotation select collapses to a two-state
-  "grain runs along X / along Z". A rectangular box has 2-fold symmetry about the
-  vertical axis, so 0°/180° and 90°/270° are literally indistinguishable — no pivot
-  choice changes that. The real bug alongside it is that rotation currently pivots
-  about nothing: `boardExtents` swaps the extents and leaves the min-corner pinned, so
-  a 24×5½ board jumps sideways when it turns. **This is the one thing here that moves
-  the schema:** `CURRENT_VERSION` goes to 2, with a migration folding 180→0 and 270→90.
+- **Orientation semantics.** The four-value rotation select is now a two-state
+  **Grain** select, "Along X" / "Along Z" — a rectangular box has 2-fold symmetry
+  about the vertical axis, so 0°/180° and 90°/270° were always literally
+  indistinguishable. `Rotation` is narrowed to `0 | 90`. The real bug alongside it was
+  that rotation pivoted about nothing: `boardExtents` swapped the extents and left the
+  min-corner pinned, so a 24×5½ board jumped sideways when it turned.
+  `reorientedPosition` fixes that by preserving the footprint's X/Z centre and the
+  Y-min. **This is the one thing that moved the schema:** `CURRENT_VERSION` is now 2,
+  with a migration folding 180→0 and 270→90.
 - **Wood grain textures.** Face, edge and end grain distinguished per face, with
   plywood showing veneer on its faces and visible plies on its edges.
 
@@ -84,8 +89,10 @@ parallel code path.
 
 **Versioning:** every document carries a `version` field, and every load path (open,
 import, autosave-restore) runs through `migrateDocument` before the document is
-trusted. This is what lets the schema evolve (e.g. for joinery in v2) without breaking
-files saved by earlier versions.
+trusted. This is what lets the schema evolve (e.g. for joinery) without breaking files
+saved by earlier versions. `CURRENT_VERSION` is 2; the v1→v2 fold (`foldRotationToV2`,
+180→0 and 270→90) is the worked example every future migration step should match —
+see invariant 11 for why it runs where it does.
 
 Full detail: `docs/superpowers/specs/` (design) and `docs/superpowers/plans/`
 (implementation plan). This section is a summary, not a replacement for either.
@@ -112,7 +119,10 @@ src/
 │   ├── screenScale.ts       px-per-inch + screen-stable dash scale. Pure.
 │   ├── Gizmo.tsx            TransformControls, 1/16" snapping
 │   ├── gizmoScale.ts        gizmo size ceiling + grabbable floor. Pure.
-│   └── extent.ts            SCENE_EXTENT, shared by Viewport and OriginAxes
+│   ├── extent.ts            SCENE_EXTENT, shared by Viewport and OriginAxes
+│   ├── grainFaces.ts        which dimension runs along each axis/face. Pure.
+│   ├── grainTiling.ts       per-face UVs: tile size, swap, per-board offset. Pure.
+│   └── grainTexture.ts      seeded canvas grain textures, cached, never disposed
 ├── panels/
 │   ├── DimensionField.tsx   the validating fractional-inch input
 │   ├── NameField.tsx        part name; commits on blur/Enter, empty reverts
@@ -131,7 +141,15 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
    isn't derived from it, and nothing may write to a Three.js object's transform as a
    way of recording a change.
 2. **`position` is the min-corner**, not the center. `boardCenter` exists because
-   Three.js meshes are center-origin and the document is not.
+   Three.js meshes are center-origin and the document is not. Reorienting a board
+   pivots it about itself — `reorientedPosition` in `document/geometry.ts` is the
+   only place that arithmetic lives, and `store.updateBoard` is what applies it,
+   whenever a patch changes `rotation` or `standing` without carrying its own
+   `position`. `reorientedPosition` takes the whole patch (`Partial<Board>`), not just
+   `{ rotation, standing }` — a patch that also changes a dimension needs the pivot
+   computed from the *post-patch* extents, and `store.updateBoard` passes the patch
+   straight through rather than reconstructing a narrower object, for the same
+   undefined-overwrite reason that once justified the narrower one.
 3. **The `dragging` ref guard in `Gizmo.tsx`.** `TransformControls` computes motion from
    state captured at drag start; syncing the document into the proxy mid-drag makes it
    fight itself. The symptom is jitter or drift, not a crash.
@@ -168,13 +186,26 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
     is two-sided *and* has a floor on the cap itself (`GIZMO_MIN_CAP_INCHES`) — a
     board-relative ceiling alone governs close range too and shrinks the gizmo for
     small parts the moment they are selected.
+11. **Migration steps run on raw data, before `validateBoard`.** `validateBoard` falls
+    back to `0` for an unknown rotation, so a fold that ran after it would turn every
+    saved 270° board a quarter turn the wrong way — and unlike 0-vs-180, that is a
+    different shape on screen, not just a redundant one. Upgrade first, validate
+    second.
+12. **Grain textures are cached at module level and never disposed; per-board
+    variation lives in the `uv` attribute, never on the texture.** `texture.repeat`/
+    `offset`/`rotation` are per-texture state on an object every board shares —
+    writing them per board would make every board on screen fight over one mapping.
+    The per-board offset in `boardUVs` is zeroed on any axis a `FacePlan` marks
+    `fit`: the whole tile is shown either way on a `FIT` axis, so an offset there
+    buys no variation and only shifts the pattern's seam into the middle of the
+    face — exactly what `FIT` exists to avoid on wood ends and plywood's ply stack.
 
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 207 tests
+npm test           # Vitest, currently 258 tests
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -184,15 +215,16 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-`docs/follow-ups.md` lists everything found during v1 review and the two polish passes,
-consciously deferred rather than missed, numbered 1-30. Read it before starting new work
-in the same area — several items are "correct but untested", which is exactly what a
-refactor breaks silently.
+`docs/follow-ups.md` lists everything found during v1 review, the two polish passes,
+and v2, consciously deferred rather than missed, numbered 1-30 plus v2's additions.
+Read it before starting new work in the same area — several items are "correct but
+untested", which is exactly what a refactor breaks silently.
 
 **29 and 30 are closed** — the gizmo now has a size ceiling tied to the selected board
 (with a floor that keeps it grabbable when zoomed far out), and the origin lines have
-their own toolbar checkbox. Both closures are written up in place. With those done,
-**v2 is the next work.**
+their own toolbar checkbox. **5 is closed** — the version gate now rejects versions
+below 1 and non-integer versions. All three closures are written up in place. With
+those done, **joinery is the next work.**
 
 One entry is a lesson rather than a defect and is worth reading before touching anything
 in the viewport: **26a**. Browser verification on this host runs on software GL

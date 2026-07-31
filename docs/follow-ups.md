@@ -51,9 +51,10 @@ and it contradicts the project's rule that stored values are exact and never sil
 rewritten — the argument for leaving it was that an explicit keypress is not "silent".
 One-line fix: apply the same `!dirty.current` guard to the Enter branch.
 
-**5. `migrateDocument` does not reject `version < 1` or fractional versions.** A document
-with `version: 0` or `0.5` passes the gate and is treated as v1. `createDocument` never
-emits those, so it only matters for hand-edited or foreign files.
+**5. ~~`migrateDocument` does not reject `version < 1` or fractional versions.~~
+CLOSED — folded into the v2 schema work, since it sits inside the version gate that
+work was already editing.** The gate now rejects `version < 1` and non-integer
+versions with a clear `DocumentError` before any migration step runs.
 
 **6. `units` rejects some plausible shop input.** `MIXED_RE` matches exactly one
 space-or-hyphen between whole and fraction, so `1  1/2` (double space) and `1 - 1/2`
@@ -161,10 +162,13 @@ shortcut is ever added.
 
 ## Deliberately out of scope, not defects
 
-Joinery (dados/rabbets) is v2. Cut list, board-feet, and sheet-goods layout are v3.
-Multi-select, free-angle rotation, curves, and accounts are unscheduled. The parametric
-board model exists specifically to make the first two cheap — see
-`docs/superpowers/specs/2026-07-29-sloyd-v1-design.md` for why that beats a mesh kernel.
+Joinery (dados/rabbets) is the next spec, with its own version label after v2 —
+v2 turned out to be orientation and grain, not joinery, and the v2 spec's non-goals
+section settles that naming for good. Cut list, board-feet, and sheet-goods layout
+come after joinery. Multi-select, free-angle rotation, curves, and accounts are
+unscheduled. The parametric board model exists specifically to make the first two
+cheap — see `docs/superpowers/specs/2026-07-29-sloyd-v1-design.md` for why that beats
+a mesh kernel.
 
 ## From the second polish pass
 
@@ -308,3 +312,52 @@ pattern to copy exactly: view state held in `App`, passed to both `Toolbar` and
 `Viewport`, deliberately not part of the document so it neither saves nor lands on the
 undo stack. `Toolbar.test.tsx` already covers that last property for the grid and the
 same three tests should cover the axes.
+
+## From v2
+
+Found while shipping two-state grain orientation, the schema v2 migration, the
+reorient-pivot fix, and wood grain textures. Consciously deferred, not missed.
+
+**31. `BoardMesh` rebuilds all six grain materials whenever `kind` changes, and
+`facePlans`/`faceGrainKinds`/`axisDimensions` are recomputed every render rather than
+memoised.** Cheap today at real board-list sizes, but it is redone on every render of
+every board, not just on the changes that actually affect it (rotation, standing,
+material, dimensions). A `useMemo` keyed on those fields would make the cost match the
+actual invalidation.
+
+**32. `grainTexture`'s `hash()` and `seededRandom()` are pure, DOM-free functions that
+could have had cheap unit tests without a canvas.** The "no unit tests in the r3f
+viewport" rule (see Working agreements) is about verifying rendered output by driving a
+real browser, which is the right call for the canvas drawing itself — but these two
+helpers don't touch a canvas at all, and a regression in either would silently reseed
+every board's grain on the next load.
+
+**33. End-grain rings share one drawn centre across every board.** `woodEnd` fixes
+`cx`/`cy` in canvas space rather than deriving them from the seed, so every board's end
+grain shows arcs from the same implied ring centre — visually fine per board since only
+a small window of a much larger circle is ever visible, but it means no two boards'
+end grain can look like they came from different trees.
+
+**34. The grain constants (streak counts, alpha ranges, tile sizes) have not been
+tuned on real hardware.** They were chosen and screenshotted on this host's software GL
+(llvmpipe, no GPU) — see 26a on why that is not sufficient by itself for anything visual
+— so the aesthetic judgement (does it read as wood at actual viewing distance, is the
+end-grain ring density right) is still open pending a check on real hardware.
+
+**35. `loadAutoSaved`'s catch swallows the schema-too-new case exactly like a corrupt-JSON
+one, and only v2 makes that reachable.** `src/storage/browser.ts` catches everything —
+including `DocumentError('…saved by a newer version…')`, the same error the *import*
+path surfaces to the user in a clear dialog — and returns `null`. `App.tsx` only calls
+`replaceDocument` when `loadAutoSaved` resolves non-null, so the stale-but-too-new
+localStorage entry survives the failed load itself. It does not survive what happens
+next: the user sees an empty document with no explanation, `SaveIndicator` keeps
+reporting "Saved locally" throughout (it has no idea a load ever failed), and the first
+edit fires the debounced `autoSave` over the very entry that could not be read — gone,
+with no way to recover it. Reachable when a rollback to the v1 image follows a v2
+autosave, or when a stale cached build and a fresh one alternate on the same origin —
+narrow, but v2 is the first
+schema bump that makes it possible at all, and every future bump reopens it. Fix shape:
+branch on `err instanceof DocumentError` in the catch and surface "this project was saved
+by a newer version of Sloyd" (the import dialog's own copy is the model) instead of
+silently starting clean; a corrupt-JSON `SyntaxError` still degrades to `null` the way it
+does today.
