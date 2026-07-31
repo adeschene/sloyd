@@ -32,9 +32,21 @@ const FACE_AXES: Array<[Axis, Axis]> = [
  * crosses the thickness and plywood's plies stack the way a sheet's do.
  *
  * With grain along the length this is the old fixed rank, unchanged.
+ *
+ * That reasoning only holds for solid wood, where the grain figure is drawn
+ * on the board itself. A sheet good's plies are a property of the *sheet*,
+ * not of the figure on its face — they always stack across the sheet
+ * thickness, whatever the grain says. Promoting the grain dimension for
+ * plywood or MDF is wrong exactly when grain === 'thickness': that pushes
+ * thickness to rank 0 instead of leaving it last, and the ply stack lands on
+ * the board's width or length instead of its true thickness. So sheet goods
+ * always use the unmodified [length, width, thickness] fallback order — a
+ * sheet's construction does not rotate with its veneer.
  */
 function ranks(board: Board): Record<Dimension, number> {
-  const order = [board.grain, ...DIMENSION_ORDER.filter((d) => d !== board.grain)];
+  const order = grainFamily(board.material) === 'wood'
+    ? [board.grain, ...DIMENSION_ORDER.filter((d) => d !== board.grain)]
+    : DIMENSION_ORDER;
   return {
     length: order.indexOf('length'),
     width: order.indexOf('width'),

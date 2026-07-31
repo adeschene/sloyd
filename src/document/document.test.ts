@@ -89,6 +89,7 @@ describe('createBoard', () => {
     expect(b.position).toEqual([0, 0, 0]);
     expect(b.rotation).toBe(0);
     expect(b.posture).toBe('flat');
+    expect(b.grain).toBe('length');
     expect(b.material).toBe('pine');
   });
 
@@ -208,6 +209,45 @@ describe('migrateDocument', () => {
       ],
     };
     expect(migrateDocument(raw).boards.map((b) => b.name)).toEqual(['Board', 'Board (1)']);
+  });
+});
+
+describe('validateBoard posture and grain fallbacks', () => {
+  // Every migration test above hands the validator an already-legal posture,
+  // so the 'flat' fallback (and grain's 'length' fallback) could be changed to
+  // anything and the suite would stay green — and that fallback is the entire
+  // load-bearing assumption behind the migration-ordering invariant (v2->v3
+  // relies on validateBoard falling back to 'flat' for a v1 board that never
+  // had a posture at all). These pin the fallback values directly.
+  function rawBoard(overrides: Record<string, unknown>) {
+    return {
+      version: CURRENT_VERSION,
+      name: 'Doc',
+      units: { display: 'imperial-fractional', precision: 16 },
+      boards: [{ ...createBoard(), ...overrides }],
+    };
+  }
+
+  it('falls back an unrecognised posture to flat', () => {
+    const doc = migrateDocument(rawBoard({ posture: 'sideways' }));
+    expect(doc.boards[0].posture).toBe('flat');
+  });
+
+  it('falls back a missing posture to flat', () => {
+    const raw = rawBoard({});
+    delete (raw.boards[0] as Record<string, unknown>).posture;
+    expect(migrateDocument(raw).boards[0].posture).toBe('flat');
+  });
+
+  it('falls back an unrecognised grain to length', () => {
+    const doc = migrateDocument(rawBoard({ grain: 'sideways' }));
+    expect(doc.boards[0].grain).toBe('length');
+  });
+
+  it('falls back a missing grain to length', () => {
+    const raw = rawBoard({});
+    delete (raw.boards[0] as Record<string, unknown>).grain;
+    expect(migrateDocument(raw).boards[0].grain).toBe('length');
   });
 });
 

@@ -252,12 +252,21 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
     file and the viewport importing rather than reimplementing it. The drift test
     was deleted, not forgotten — there is nothing left for it to catch, since the
     two things it compared are now one thing.
-14. **`bandRadius` is `hypot(d, k·delta)`, not an arbitrary choice of curve.**
-    Because `r = hypot(d, k·delta)`, the in-plane offset `sqrt(r² − d²)` comes out as
-    exactly `k·delta` — evenly spaced, whatever the cut distance `d` — so the ring
-    pattern is periodic across the grain and the tile has no seam. A "simpler"
-    radius (e.g. `r = k·delta` directly) reintroduces a seam that only shows up on a
-    wide board, because the in-plane spacing would then vary with `d`.
+14. **`bandRadius` is `hypot(d, k·delta)`, not an arbitrary choice of curve — and
+    the tile is seamless by two different mechanisms, not one.** Because
+    `r = hypot(d, k·delta)`, the in-plane offset `sqrt(r² − d²)` comes out as
+    exactly `k·delta` — evenly spaced, whatever the cut distance `d`. A "simpler"
+    radius (e.g. `r = k·delta` directly) reintroduces a seam that only shows up on
+    a wide board, because the in-plane spacing would then vary with `d`. That
+    property alone does not make the tile seamless, though: it is what the *u*
+    direction (along the grain) relies on. The *v* direction (across the grain,
+    the tile's two edges) is seamless for a different reason — `bandRadius` is
+    even in `k` and the seed bucket is `Math.abs(k) % half`, so band `−k` is the
+    exact mirror of band `+k` about the pith line, and the tile's two v edges
+    carry that same mirrored curve. That is mirror symmetry, not translational
+    periodicity — the pattern does not repeat every `SIZE`, it folds about the
+    pith line. `grainTexture.ts`'s `woodCut` comment says this precisely; treat
+    this entry as agreeing with that comment, not restating a looser version of it.
 15. **Anything that memoises on what `boardUVs` reads must key on
     `boardUVSignature`, not a hand-written field list.** v3 added `grain` to what
     `boardUVs` reads (via `facePlans` → `ranks`) without updating `BoardMesh`'s memo

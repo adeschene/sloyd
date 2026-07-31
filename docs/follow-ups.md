@@ -405,7 +405,12 @@ file is touched.
 tile size (6in) was worked out for boards around 5-1/2in wide.** Much narrower boards
 could still land a per-board UV offset that misses the arch region entirely. The
 formula is in the code comment (`TILES.wood.face`'s v-size); revisit if narrow stock
-becomes common.
+becomes common. **The missing number (found in the final v3 review): the cathedral
+region spans 25% of the v-tile, so the guarantee needs `W/6 ≥ 0.75`** — a board
+narrower than about 4-1/2in can miss the arch region entirely, depending on its
+id-derived offset. A 1-1/2in leg sees only 25% of the tile. Not obviously worth
+fixing on its own: narrow stock is often straight-grained anyway, so missing the
+arch there is physically defensible, not just a numerical gap.
 
 **39. The grain constants introduced or changed in v3 (wobble amplitude, the face
 v-tile size, band width/alpha ranges) have not been judged on real hardware.** Same
@@ -419,10 +424,56 @@ flows through — `axisDimensions`, `boardExtents`, and `grainTiling.ts`'s `rank
 read it. Nothing in the codebase mutates it today; the risk is purely that nothing
 stops a future caller from doing so.
 
-**41. `validateBoard`'s posture and grain fallback branches have no unit test, and
-`createBoard`'s `grain` default is unasserted.** Every migration test hands
-`validateBoard` an already-legal posture, so changing the `'flat'` fallback (or the
-`grain` fallback) would break nothing in the suite today — which matters because that
-exact fallback is what invariant 11's migration-ordering argument rests on. Worth a
-direct test of `validateBoard` given a raw object with an invalid or missing
-`posture`/`grain`, independent of the migration path.
+**41. ~~`validateBoard`'s posture and grain fallback branches have no unit test, and
+`createBoard`'s `grain` default is unasserted.~~ CLOSED in the final v3 review pass.**
+Every migration test hands `validateBoard` an already-legal posture, so changing the
+`'flat'` fallback (or the `grain` fallback) would break nothing in the suite today —
+which matters because that exact fallback is what invariant 11's migration-ordering
+argument rests on. Direct tests now exist in `src/document/document.test.ts`
+(`validateBoard posture and grain fallbacks`) covering an unrecognised or missing
+`posture`/`grain`, plus `createBoard`'s `grain` default, independent of the migration
+path. `src/panels/Properties.test.tsx` also gained display-binding coverage for
+Posture, Turn and Grain — setting a board's orientation directly on the store and
+asserting the select's `value`, which is what would catch a control that commits
+correctly but displays wrong after an undo or a selection change.
+
+**42. The `FIT` scale argument on large end faces is calibrated for a ~5-1/2in end,
+and degrades linearly with face size.** `grainTiling.ts`'s `FIT` puts exactly one ring
+pattern across an end face whatever its size — right for a typical ~5-1/2in end
+(~0.27in per ring, plausible softwood spacing), but on an end-grain cutting board's
+broad face (18 × 12) the same one-ring-set stretches to roughly 0.9in per ring, which
+reads as coarse. The alternative is worse: concentric rings cannot tile without a hard
+discontinuity mid-face, so `FIT` stays — this is recording the calibration, not
+proposing a fix. Revisit if end-grain cutting-board-scale parts become common.
+
+**43. A v2 file with its `version` field hand-edited to `3` skips the v2→v3 migration
+step entirely, and `standing` silently becomes `posture: 'flat'`.** `migrateDocument`
+only runs `addPostureToV3` when `d.version < 3` — a file whose `version` says `3` but
+whose boards still carry the v2 `standing` boolean instead of `posture` goes straight to
+`validateBoard`, which has no idea what `standing` means, drops it as an unknown key,
+and falls `posture` back to `'flat'` (see follow-up 41's now-tested fallback). A board
+saved standing up quietly lies down, with no error and no warning. Reachable only by
+hand-editing the version field — user error, not a defect in the migration chain
+itself — but it is exactly the boundary invariant 11's (and follow-up 41's) migration-
+ordering argument describes: the chain protects every version transition it knows it is
+making, and nothing more. Worth writing down as the edge of what the chain covers, not
+worth defending against — there is no way to distinguish a genuinely-empty v3 board from
+a mislabeled v2 one once the version number itself is wrong.
+
+**44. ~~Plywood with `grain: 'thickness'` stacked its plies across the board's width
+instead of its thickness.~~ CLOSED in the final v3 review pass.** `grainTiling.ts`'s
+`ranks()` promoted the grain dimension to rank 0 for every material, on the
+justification that "the fallback order still puts thickness last" — true for `grain`
+`'length'` and `'width'`, false for `grain: 'thickness'`, where thickness itself was
+the one being promoted. Traced case: `plywood`, `grain: 'thickness'`, flat, unrotated,
+24 × 5.5 × 0.75 — the `+X` edge face ended up with `swap = true`, handing the ply
+stack's `FIT` axis to the board's 5.5in width instead of its 0.75in thickness; on
+screen, the narrow edge of a plywood sheet showed five plies running the length of the
+board. Reachable in two clicks (Material → Plywood, Runs → Through thickness). Fixed by
+scoping the grain-first rank to solid wood only — `ranks()` now uses `DIMENSION_ORDER`
+unmodified whenever `grainFamily(board.material) !== 'wood'`, because a sheet's ply
+construction is a property of the sheet, not of the figure on its face, and does not
+rotate with the grain. `src/viewport/grainTiling.test.ts` gained the `grain: 'thickness'`
+plywood case (asserting `swap === false` and that the tiled axis carries the width, not
+the thickness — the two grain values already covered, `length` and `width`, were
+re-verified unchanged).

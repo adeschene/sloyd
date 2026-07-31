@@ -44,12 +44,15 @@ describe('facePlans', () => {
   });
 
   it('fits one ply stack across the thickness of a standing plywood end too', () => {
-    // The rank rule is what makes this work — on an end face the in-plane
-    // dimensions are width and thickness, and width outranks thickness, so v
-    // lands on the thickness whichever way the board is turned. Standing and
-    // rotated is the orientation where that stops being obvious, and it is the
-    // case that would silently paint plies across the length if the rule were
-    // ever "simplified".
+    // The sheet-goods branch of ranks() is what makes this work: plywood
+    // always uses the unmodified [length, width, thickness] order (never the
+    // grain-first order solid wood gets), so on an end face — where the
+    // in-plane dimensions are width and thickness — width outranks thickness
+    // and v lands on the thickness whichever way the board is turned. Standing
+    // and rotated is the orientation where that stops being obvious, and it is
+    // the case that would silently paint plies across the length if that
+    // branch were ever "simplified" back to one rule for every material (see
+    // the grain: 'thickness' case below for what that simplification breaks).
     const plywood = { ...flat, material: 'plywood', posture: 'on-edge' as const, rotation: 90 as const };
     expect(facePlans(plywood)[PZ].kind).toBe('end');
     expect(facePlans(plywood)[PZ].repeat[1]).toBe(1);
@@ -142,6 +145,29 @@ describe('the drawn texture follows the grain', () => {
     const plywood = { ...flat, material: 'plywood', grain: 'width' as const };
     expect(facePlans(plywood)[PZ].repeat[1]).toBe(1);
     expect(facePlans(plywood)[PZ].fit[1]).toBe(true);
+  });
+
+  it('still crosses the thickness — not the width — on a plywood edge when the grain runs through the thickness', () => {
+    // Traced failure (v3 review, finding 1): ranks() used to promote the grain
+    // dimension to rank 0 unconditionally. For grain === 'thickness' that put
+    // thickness first and width last, flipping this face's swap and handing
+    // the FIT (stack) axis to the board's WIDTH instead of its THICKNESS —
+    // a 5.5in board would show the five-ply stack stretched across 5.5in
+    // instead of the true 0.75in. Plywood's plies are a property of the
+    // sheet, not of the figure drawn on its face: they always stack across
+    // the sheet thickness whatever the grain says.
+    const plywood = { ...flat, material: 'plywood', grain: 'thickness' as const };
+    const plan = facePlans(plywood)[PX];
+    expect(plan.kind).toBe('edge');
+    expect(plan.swap).toBe(false);
+    expect(plan.fit[1]).toBe(true);
+    expect(plan.repeat[1]).toBe(1);
+    // The tiled (u) axis must carry the board's WIDTH (5.5in), not its
+    // thickness (0.75in). Pre-fix this was 0.75 / 16 ≈ 0.047; correct is
+    // 5.5 / 16 ≈ 0.344 — a value that only comes out right if the FIT axis
+    // (v) landed on thickness, not width.
+    expect(plan.repeat[0]).toBeCloseTo(flat.width / 16);
+    expect(plan.repeat[0]).not.toBeCloseTo(flat.thickness / 16);
   });
 });
 

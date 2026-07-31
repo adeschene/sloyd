@@ -297,4 +297,32 @@ describe('the orientation controls', () => {
     await userEvent.selectOptions(screen.getByLabelText('Runs'), 'width');
     expect(useStore.getState().doc.boards.find((b) => b.id === id)!.position).toEqual(before);
   });
+
+  // Every "commits a change" test above starts from the default orientation
+  // and drives the control, so it only proves writes reach the document — it
+  // says nothing about whether the control's own displayed value tracks the
+  // store. A control that commits correctly but displays wrongly (e.g. after
+  // an undo, or after switching the selected board) would pass every test
+  // above and still mislead the user. These set the store directly, to a
+  // non-default value, and check what the select shows.
+  it('shows the board\'s stored posture, not the default', () => {
+    const id = selectFirstBoard();
+    useStore.getState().updateBoard(id, { posture: 'upright' });
+    render(<Properties />);
+    expect((screen.getByLabelText('Posture') as HTMLSelectElement).value).toBe('upright');
+  });
+
+  it('shows the board\'s stored turn, not the default', () => {
+    const id = selectFirstBoard();
+    useStore.getState().updateBoard(id, { rotation: 90 });
+    render(<Properties />);
+    expect((screen.getByLabelText('Turn') as HTMLSelectElement).value).toBe('90');
+  });
+
+  it('shows the board\'s stored grain, not the default', () => {
+    const id = selectFirstBoard();
+    useStore.getState().updateBoard(id, { grain: 'thickness' });
+    render(<Properties />);
+    expect((screen.getByLabelText('Runs') as HTMLSelectElement).value).toBe('thickness');
+  });
 });
