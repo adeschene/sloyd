@@ -3,7 +3,7 @@ import { useStore } from '../store/store';
 import { MATERIALS, uniqueName } from '../document/document';
 import { DimensionField } from './DimensionField';
 import { NameField } from './NameField';
-import type { Rotation, Posture } from '../document/document';
+import type { Rotation, Posture, Grain } from '../document/document';
 
 export function Properties() {
   const board = useStore((s) => s.doc.boards.find((b) => b.id === s.selectedId));
@@ -85,6 +85,22 @@ export function Properties() {
           onChange={(e) => updateBoard(board.id, { rotation: Number(e.target.value) as Rotation })}>
           <option value={0}>0°</option>
           <option value={90}>90°</option>
+        </select>
+      </div>
+
+      {/* Grain is a property of the part, not of the world: it names which of
+          the board's own dimensions the fibres follow, so it turns with the
+          board the way real stock does. Across the width is what makes two
+          parts meeting at a right angle share one grain direction; through the
+          thickness is an end-grain board. */}
+      <h3>Grain</h3>
+      <div className="field field-wide">
+        <label htmlFor="grain">Runs</label>
+        <select id="grain" className="input" value={board.grain}
+          onChange={(e) => updateBoard(board.id, { grain: e.target.value as Grain })}>
+          <option value="length">Along length</option>
+          <option value="width">Across width</option>
+          <option value="thickness">Through thickness</option>
         </select>
       </div>
 

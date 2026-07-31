@@ -118,6 +118,33 @@ describe('boardUVs', () => {
   });
 });
 
+describe('the drawn texture follows the grain', () => {
+  const flat = createBoard({ length: 24, width: 5.5, thickness: 0.75, material: 'oak' });
+  const PY = 2, PZ = 4;
+
+  it('runs u along the length when the grain does', () => {
+    // +Y's geometry UVs run u along X and v along Z; flat and unrotated the
+    // length is on X, so u already follows the grain.
+    expect(facePlans(flat)[PY].swap).toBe(false);
+  });
+
+  it('runs u along the width when the grain runs across the board', () => {
+    // Same face, same board, grain across the width — which is on Z here, the
+    // face's v axis. The drawn texture has to turn a quarter turn to follow it.
+    expect(facePlans({ ...flat, grain: 'width' })[PY].swap).toBe(true);
+  });
+
+  it('still crosses the thickness on a plywood narrow face when the grain runs across', () => {
+    // The ply stack must span the sheet thickness whatever the grain does —
+    // plies are a property of the sheet, not of the figure on its face. Note
+    // this face shows a cut END once the grain runs across the width, not an
+    // edge, which is exactly why the tiling must not key off the kind alone.
+    const plywood = { ...flat, material: 'plywood', grain: 'width' as const };
+    expect(facePlans(plywood)[PZ].repeat[1]).toBe(1);
+    expect(facePlans(plywood)[PZ].fit[1]).toBe(true);
+  });
+});
+
 describe('boardUVOffset', () => {
   it('is stable — the same board offsets the same way on every load', () => {
     expect(boardUVOffset('b_abc')).toEqual(boardUVOffset('b_abc'));

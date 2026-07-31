@@ -274,4 +274,27 @@ describe('the orientation controls', () => {
     await userEvent.selectOptions(screen.getByLabelText('Turn'), '90');
     expect(useStore.getState().doc.boards.find((b) => b.id === id)!.rotation).toBe(90);
   });
+
+  it('offers three grain directions', () => {
+    selectFirstBoard();
+    render(<Properties />);
+    const grain = screen.getByLabelText('Runs') as HTMLSelectElement;
+    expect([...grain.options].map((o) => o.textContent))
+      .toEqual(['Along length', 'Across width', 'Through thickness']);
+  });
+
+  it('commits a grain change', async () => {
+    const id = selectFirstBoard();
+    render(<Properties />);
+    await userEvent.selectOptions(screen.getByLabelText('Runs'), 'width');
+    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.grain).toBe('width');
+  });
+
+  it('does not move the board when only the grain changes', async () => {
+    const id = selectFirstBoard();
+    const before = useStore.getState().doc.boards[0].position;
+    render(<Properties />);
+    await userEvent.selectOptions(screen.getByLabelText('Runs'), 'width');
+    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.position).toEqual(before);
+  });
 });

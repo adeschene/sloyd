@@ -1,4 +1,4 @@
-import { boardExtents } from '../document/document';
+import { boardExtents, DIMENSION_ORDER } from '../document/document';
 import type { Board } from '../document/document';
 import { axisDimensions, faceGrainKinds, grainFamily } from './grainFaces';
 import type { Dimension, GrainFamily, GrainKind } from './grainFaces';
@@ -22,16 +22,25 @@ const FACE_AXES: Array<[Axis, Axis]> = [
 ];
 
 /**
- * Length beats width beats thickness. Whichever of a face's two in-plane
- * dimensions ranks lower takes the drawn texture's u.
+ * The grain dimension ranks first, then the rest in [length, width, thickness]
+ * order. Whichever of a face's two in-plane dimensions ranks lower takes the
+ * drawn texture's u.
  *
- * That one rule covers all three kinds. On a broad face the in-plane dimensions
- * are length and width, so u follows the length — which is the direction the
- * grain runs. On an edge they are length and thickness, so u follows the length
- * again and v crosses the thickness, which is where plywood's plies stack. On
- * an end they are width and thickness, so v crosses the thickness once more.
+ * That covers all three kinds. Wherever the grain is in the face's plane, u
+ * follows it — which is the direction the figure is drawn running. On an end
+ * face, where it is not, the fallback order still puts thickness last, so v
+ * crosses the thickness and plywood's plies stack the way a sheet's do.
+ *
+ * With grain along the length this is the old fixed rank, unchanged.
  */
-const RANK: Record<Dimension, number> = { length: 0, width: 1, thickness: 2 };
+function ranks(board: Board): Record<Dimension, number> {
+  const order = [board.grain, ...DIMENSION_ORDER.filter((d) => d !== board.grain)];
+  return {
+    length: order.indexOf('length'),
+    width: order.indexOf('width'),
+    thickness: order.indexOf('thickness'),
+  };
+}
 
 /** One tile spans the whole extent, whatever that extent is. */
 const FIT = 'fit';
@@ -71,10 +80,11 @@ export function facePlans(board: Board): FacePlan[] {
   const dims = axisDimensions(board);
   const kinds = faceGrainKinds(board);
   const tiles = TILES[grainFamily(board.material)];
+  const rank = ranks(board);
 
   return FACE_AXES.map(([gu, gv], face) => {
     const kind = kinds[face];
-    const swap = RANK[dims[gv]] < RANK[dims[gu]];
+    const swap = rank[dims[gv]] < rank[dims[gu]];
     const [du, dv] = swap ? [gv, gu] : [gu, gv];
     const [tu, tv] = tiles[kind];
     return {

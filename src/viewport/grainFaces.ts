@@ -12,23 +12,29 @@ export type GrainKind = 'face' | 'edge' | 'end';
 export type GrainFamily = 'wood' | 'plywood' | 'mdf';
 
 /**
+ * Which face carries the broad flatsawn figure, in preference order. Whichever
+ * of these is not the grain dimension gets face grain; the remaining dimension
+ * gets edge grain.
+ */
+const FACE_PRECEDENCE: Dimension[] = ['thickness', 'width', 'length'];
+
+/**
  * The grain kind on each of a box's six faces, in BoxGeometry's material-group
  * order: +X, -X, +Y, -Y, +Z, -Z.
  *
- * One fact drives all of it: the kind on a face is decided by which dimension
- * runs along its normal. Length along the normal means you are looking at the
- * cut ends of the fibres, so it is end grain; width means edge grain; thickness
- * means the broad face.
+ * The face whose normal runs along the grain shows the cut ends of the fibres,
+ * so it is end grain. Of the other two, the broad one shows flatsawn face grain
+ * and the last shows quartersawn edge grain.
+ *
+ * With grain along the length — every board before v3 — this reduces to the old
+ * fixed map: end on length, face on thickness, edge on width.
  */
-const KIND: Record<Dimension, GrainKind> = {
-  length: 'end',
-  width: 'edge',
-  thickness: 'face',
-};
-
 export function faceGrainKinds(board: Board): GrainKind[] {
+  const faceDim = FACE_PRECEDENCE.find((d) => d !== board.grain)!;
+  const kindOf = (d: Dimension): GrainKind =>
+    d === board.grain ? 'end' : d === faceDim ? 'face' : 'edge';
   const [x, y, z] = axisDimensions(board);
-  return [KIND[x], KIND[x], KIND[y], KIND[y], KIND[z], KIND[z]];
+  return [kindOf(x), kindOf(x), kindOf(y), kindOf(y), kindOf(z), kindOf(z)];
 }
 
 /**
