@@ -243,6 +243,53 @@ describe('the part name field', () => {
     expect(useStore.getState().doc.boards.find((b) => b.id === id)!.name).toBe('Board');
     expect((screen.getByLabelText('Part name') as HTMLInputElement).value).toBe('Board');
   });
+
+  it('does not write the stale text back over an external rename that lands mid-focus, and shows the external name after blur', async () => {
+    const id = selectFirstBoard();
+    render(<Properties />);
+
+    const name = screen.getByLabelText('Part name') as HTMLInputElement;
+    await userEvent.click(name); // focus, type nothing
+
+    act(() => {
+      useStore.getState().updateBoard(id, { name: 'Renamed elsewhere' });
+    });
+
+    await userEvent.tab(); // blur, untouched
+
+    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.name)
+      .toBe('Renamed elsewhere');
+    expect(name.value).toBe('Renamed elsewhere');
+  });
+
+  it('does not write the stale text back over an external rename that lands mid-focus, on Enter', async () => {
+    const id = selectFirstBoard();
+    render(<Properties />);
+
+    const name = screen.getByLabelText('Part name') as HTMLInputElement;
+    await userEvent.click(name); // focus, type nothing
+
+    act(() => {
+      useStore.getState().updateBoard(id, { name: 'Renamed elsewhere' });
+    });
+
+    await userEvent.keyboard('{Enter}'); // untouched Enter
+
+    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.name)
+      .toBe('Renamed elsewhere');
+  });
+
+  it('adds no undo entry for an untouched Enter', async () => {
+    selectFirstBoard();
+    render(<Properties />);
+    const before = useStore.getState().past.length;
+
+    const name = screen.getByLabelText('Part name');
+    await userEvent.click(name);
+    await userEvent.keyboard('{Enter}');
+
+    expect(useStore.getState().past.length).toBe(before);
+  });
 });
 
 describe('the orientation controls', () => {

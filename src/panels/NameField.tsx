@@ -30,6 +30,14 @@ export function NameField({ value, onCommit }: Props) {
   const [text, setText] = useState(value);
   const editing = useRef(false);
   const reverting = useRef(false);
+  // True only once the user has actually changed the text. Guards against
+  // committing (and pushing an undo entry) when a field is merely focused
+  // and blurred without being edited — see DimensionField's `dirty` ref for
+  // the same shape. Without this, a stored name that changes externally
+  // (undo, an import, a rename from elsewhere) while this field is focused
+  // gets clobbered: blurring untouched calls commit() unconditionally,
+  // which writes the stale local `text` back over the external change.
+  const dirty = useRef(false);
 
   // Adopt external changes (undo, an import, a rename from elsewhere) unless
   // the user is mid-edit and would have their typing yanked out from under
@@ -44,9 +52,11 @@ export function NameField({ value, onCommit }: Props) {
     // silently renamed on the user's behalf.
     if (!trimmed) {
       setText(value);
+      dirty.current = false;
       return;
     }
     setText(onCommit(trimmed));
+    dirty.current = false;
   };
 
   return (
@@ -55,7 +65,7 @@ export function NameField({ value, onCommit }: Props) {
       aria-label="Part name"
       value={text}
       onFocus={() => { editing.current = true; }}
-      onChange={(e) => setText(e.target.value)}
+      onChange={(e) => { dirty.current = true; setText(e.target.value); }}
       onBlur={() => {
         // Cleared before commit() so the adopt-external-changes effect above
         // is live when the store update lands — same ordering as
@@ -64,12 +74,23 @@ export function NameField({ value, onCommit }: Props) {
         // A blur triggered by the Escape handler must not commit the text
         // Escape just discarded.
         if (reverting.current) { reverting.current = false; return; }
+        // Untouched field: nothing to commit, and committing here would
+        // write the stale local `text` back over any external rename that
+        // landed while this field was focused (the adopt-external-changes
+        // effect skips while editing, and won't fire again once
+        // editing.current goes false). Resync the display instead, without
+        // committing — same shape as DimensionField.
+        if (!dirty.current) {
+          setText(value);
+          return;
+        }
         commit();
       }}
       onKeyDown={(e) => {
-        if (e.key === 'Enter') { commit(); return; }
+        if (e.key === 'Enter') { if (dirty.current) commit(); return; }
         if (e.key === 'Escape') {
           reverting.current = true;
+          dirty.current = false;
           editing.current = false;
           setText(value);
           (e.target as HTMLInputElement).blur();
