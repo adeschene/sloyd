@@ -35,6 +35,14 @@ function nextId(): string {
   return `b_${Date.now().toString(36)}_${idCounter.toString(36)}`;
 }
 
+// Exported so store.ts can mint a cut id the same way validateCuts re-mints
+// one for a cut missing (or duplicating) an id on load — a monotonic
+// counter, not a `Date.now()` + array-length scheme, because the latter can
+// repeat: add a cut, remove it (array length back to 0), add another within
+// the same millisecond, and both would get the same id. The `b_` prefix is
+// cosmetic; validateCuts already hands cut ids this same generator.
+export { nextId };
+
 /**
  * A board with defaults filled in. Deliberately unaware of the document, so
  * it cannot deduplicate its own name — the caller must pass a name through

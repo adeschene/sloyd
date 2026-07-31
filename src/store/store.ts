@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { createBoard, createDocument, reorientedPosition, uniqueName, isSheetGood } from '../document/document';
-import type { Board, SloydDocument } from '../document/document';
+import { createBoard, createDocument, reorientedPosition, uniqueName, isSheetGood, nextId } from '../document/document';
+import type { Board, Cut, SloydDocument } from '../document/document';
 
 const HISTORY_LIMIT = 50;
 
@@ -32,6 +32,10 @@ interface StoreState {
   canRedo: () => boolean;
   beginGesture: () => void;
   endGesture: () => void;
+
+  addCut: (boardId: string) => void;
+  updateCut: (boardId: string, cutId: string, patch: Partial<Cut>) => void;
+  removeCut: (boardId: string, cutId: string) => void;
 }
 
 export const useStore = create<StoreState>((set, get) => {
@@ -229,5 +233,66 @@ export const useStore = create<StoreState>((set, get) => {
 
     beginGesture: () => { gesturing = true; gestureSnapshotTaken = false; },
     endGesture: () => { gesturing = false; gestureSnapshotTaken = false; },
+
+    /**
+     * A quarter-thickness dado in the broad face, a quarter of the way along.
+     * Chosen to be visible and legal on any board rather than to be a common
+     * joint: it is a starting point to edit, and every number in it is a
+     * fraction of the board's own dimensions, so it fits whatever it lands on.
+     */
+    addCut: (boardId) => {
+      const board = get().doc.boards.find((b) => b.id === boardId);
+      if (!board) return;
+      const cut: Cut = {
+        id: nextId(),
+        face: 'thickness',
+        from: 'max',
+        across: 'width',
+        offset: board.length / 4,
+        width: Math.min(0.75, board.length / 4),
+        depth: board.thickness / 2,
+      };
+      edit((doc) => ({
+        ...doc,
+        boards: doc.boards.map((b) =>
+          b.id === boardId ? { ...b, cuts: [...b.cuts, cut] } : b,
+        ),
+      }));
+    },
+
+    // Cuts are patched here rather than through updateBoard on purpose:
+    // updateBoard reorients when a patch changes rotation or posture, and
+    // `cuts` is deliberately absent from that predicate (invariant 2). A cut
+    // removes stock from inside the board's AABB — it changes no extent and
+    // moves nothing — so a reorient on a cut change would be a no-op pivot.
+    //
+    // Guarded before edit(), same as updateBoard/deleteBoard/duplicateBoard:
+    // an unmatched board or cut id must be a true no-op, not just non-throwing
+    // — edit() unconditionally pushes an undo snapshot and clears the redo
+    // stack, so calling it on a no-op patch would leave a no-op undo entry
+    // (invariant 4) and silently wipe redo.
+    updateCut: (boardId, cutId, patch) => {
+      const board = get().doc.boards.find((b) => b.id === boardId);
+      if (!board || !board.cuts.some((c) => c.id === cutId)) return;
+      edit((doc) => ({
+        ...doc,
+        boards: doc.boards.map((b) =>
+          b.id === boardId
+            ? { ...b, cuts: b.cuts.map((c) => (c.id === cutId ? { ...c, ...patch } : c)) }
+            : b,
+        ),
+      }));
+    },
+
+    removeCut: (boardId, cutId) => {
+      const board = get().doc.boards.find((b) => b.id === boardId);
+      if (!board || !board.cuts.some((c) => c.id === cutId)) return;
+      edit((doc) => ({
+        ...doc,
+        boards: doc.boards.map((b) =>
+          b.id === boardId ? { ...b, cuts: b.cuts.filter((c) => c.id !== cutId) } : b,
+        ),
+      }));
+    },
   };
 });
