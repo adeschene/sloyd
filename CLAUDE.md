@@ -214,9 +214,12 @@ src/
 │   │                        wobble, seededRandom/hash. Pure.
 │   └── grainTexture.ts      seeded canvas grain textures, cached, never disposed
 ├── panels/
-│   ├── DimensionField.tsx   the validating fractional-inch input
+│   ├── DimensionField.tsx   the validating fractional-inch input; min/max
+│   │                        REFUSE out-of-range entry rather than clamping
 │   ├── NameField.tsx        part name; commits on blur/Enter, empty reverts
-│   ├── Toolbar.tsx  PartsList.tsx  Properties.tsx  FileMenu.tsx
+│   ├── Toolbar.tsx  PartsList.tsx  FileMenu.tsx
+│   ├── Properties.tsx       board fields + the Cuts section; CutRow is its own
+│   │                        component so a cut's error dies with the cut
 └── App.tsx                  layout, autosave/restore effects, undo keybindings
 ```
 
@@ -413,12 +416,21 @@ written up in place. **47 is open**: the toolbar's project-name field was checke
 against the same display-staleness shape and does **not** have it — see
 `docs/follow-ups.md` for why.
 
-Joinery added **48-52**, all open and all recorded rather than fixed. The one to read
+Joinery added **48-53**, all open and all recorded rather than fixed. The one to read
 before touching the panel is **48**: shrinking a board's dimensions through the
 *Dimensions* fields can store a cut that removes the whole board, because that write
 goes through `updateBoard` and never meets the Cuts section's guard — the board
 vanishes in-session and comes back whole on reload, since `validateCuts` drops the cut
-on load. With joinery done, **the cut list is the next work.**
+on load. **49** is the same end state reached by two individually-legal cuts, and one
+fix — a placeholder render whenever `boardSolids` is empty — would close both.
+
+The joinery section also ends with a lesson rather than a defect, worth reading before
+executing another plan: **seven of joinery's defects were in code the plan supplied
+verbatim.** They were caught because implementers were told to fix the code rather than
+the expectation, and to stop and escalate when they believed an expectation was itself
+wrong — which happened once, correctly, and changed the plan.
+
+With joinery done, **the cut list is the next work.**
 
 One entry is a lesson rather than a defect and is worth reading before touching anything
 in the viewport: **26a**. Browser verification on this host runs on software GL

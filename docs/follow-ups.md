@@ -621,11 +621,36 @@ geometry divergence and nothing the user can see is lost mid-session, which is
 why this is Minor. The natural fix is the same shape as `repositionForAxes`:
 clamp the *pair* when either member changes.
 
-Also worth recording, since it is a lesson rather than a defect: **three of joinery's
-bugs were in code the plan supplied verbatim**, not in transcription — an unsatisfiable
-test assertion, a `DimensionField` that rejected the offset value a rabbet requires, and
-store actions that pushed no-op undo entries for unknown ids. Each was caught because
-the implementer was told to fix the code rather than the expectation, and to stop and
-escalate if it concluded an expectation was itself wrong. A fourth (edge segments
-fragmenting at grid splits from unrelated cuts) was caught the same way. Plan text is
-not more trustworthy than hand-written code just because it is in the plan.
+Also worth recording, since it is a lesson rather than a defect: **seven of joinery's
+defects were in code the plan supplied verbatim**, not in transcription. In the order
+they surfaced:
+
+1. `cutRegion` threw on a cut naming the same dimension twice (`face === across`),
+   because it wrote the `across` key and then overwrote it with `face`, leaving a
+   dimension undefined.
+2. `boardEdges` emitted one segment per cell, so a cut anywhere fragmented the edge
+   lines on faces it never touched.
+3. `cutLabel` compared floats with `===` on a value the validator's clamp produces by
+   subtraction — wrong about 2.8% of the time at realistic board sizes.
+4. A UV test asserted a global minimum over all six faces, two of which cannot move;
+   the assertion was unsatisfiable for *any* correct implementation.
+5. A second UV test meant to pin the `FIT` rule passed under a mutation implementing
+   the exact bug it existed to catch.
+6. `updateCut`/`removeCut` had no early return, so an unknown id still pushed a no-op
+   undo entry and cleared the redo stack.
+7. The panel's offset field inherited `DimensionField`'s `parsed <= 0` rejection, so it
+   refused `0` — the one value that makes a rabbet, and which the plan's own tests
+   required.
+
+An eighth was introduced by a *fix* rather than by the plan (`repositionForAxes` reset
+values unconditionally, discarding legal user input), and a ninth was pre-existing and
+merely adjacent (`duplicateBoard` shared the source's `cuts` by reference). Separately,
+a test comment claimed merge coverage the test did not have — true of the code's
+description rather than the code.
+
+Every one was caught by the same two rules: implementers were told to fix the code
+rather than the expectation, and to **stop and escalate** if they concluded an
+expectation was itself wrong. Number 4 is the case that proves the second rule earns
+its keep — the implementer stopped, was right, and the plan was the thing that changed.
+Plan text is not more trustworthy than hand-written code just because it is in a plan;
+if anything it is less, because it was never executed before being written down.
