@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { createBoard, createDocument, reorientedPosition, uniqueName } from '../document/document';
+import { createBoard, createDocument, reorientedPosition, uniqueName, isSheetGood } from '../document/document';
 import type { Board, SloydDocument } from '../document/document';
 
 const HISTORY_LIMIT = 50;
@@ -132,11 +132,33 @@ export const useStore = create<StoreState>((set, get) => {
           ? reorientedPosition(current, patch)
           : patch.position;
 
+      // Sheet goods have no 'thickness' grain — see isSheetGood's comment.
+      // Switching a board's material to plywood/MDF while its grain is
+      // 'thickness' resets grain in this same edit, following the reorient
+      // pattern above: doing the derivation once, here, keeps it to one undo
+      // entry instead of two (change material, then a second edit to fix
+      // grain up) and means no other call site has to remember the rule.
+      // Equally important: applying both changes in the same edit means the
+      // panel never renders a frame with material: 'plywood' and grain: 'thickness'
+      // — it never tries to display a controlled <select value="thickness"> with
+      // no matching <option>. A future refactor that decouples the material and
+      // grain changes would need to handle this display state explicitly.
+      const switchingToSheetGoodWithThicknessGrain =
+        patch.material !== undefined &&
+        patch.material !== current.material &&
+        isSheetGood(patch.material) &&
+        (patch.grain ?? current.grain) === 'thickness';
+
       edit((doc) => ({
         ...doc,
         boards: doc.boards.map((b) =>
           b.id === id
-            ? { ...b, ...patch, ...(position ? { position: [...position] } : {}) }
+            ? {
+                ...b,
+                ...patch,
+                ...(position ? { position: [...position] } : {}),
+                ...(switchingToSheetGoodWithThicknessGrain ? { grain: 'length' as const } : {}),
+              }
             : b,
         ),
       }));

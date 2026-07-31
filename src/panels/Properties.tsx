@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useStore } from '../store/store';
-import { MATERIALS, uniqueName } from '../document/document';
+import { MATERIALS, uniqueName, isSheetGood } from '../document/document';
 import { DimensionField } from './DimensionField';
 import { NameField } from './NameField';
 import type { Rotation, Posture, Grain } from '../document/document';
@@ -100,7 +100,7 @@ export function Properties() {
           onChange={(e) => updateBoard(board.id, { grain: e.target.value as Grain })}>
           <option value="length">Along length</option>
           <option value="width">Across width</option>
-          <option value="thickness">Through thickness</option>
+          {!isSheetGood(board.material) && <option value="thickness">Through thickness</option>}
         </select>
       </div>
 

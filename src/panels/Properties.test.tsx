@@ -325,4 +325,39 @@ describe('the orientation controls', () => {
     render(<Properties />);
     expect((screen.getByLabelText('Runs') as HTMLSelectElement).value).toBe('thickness');
   });
+
+  // 'Through thickness' is meaningless for a sheet good — plywood's grain is
+  // its face-veneer direction, which always lies in the sheet plane — so the
+  // panel must not offer it for plywood or MDF.
+  it('offers only two grain directions for plywood', () => {
+    const id = selectFirstBoard();
+    useStore.getState().updateBoard(id, { material: 'plywood' });
+    render(<Properties />);
+    const grain = screen.getByLabelText('Runs') as HTMLSelectElement;
+    expect([...grain.options].map((o) => o.textContent))
+      .toEqual(['Along length', 'Across width']);
+  });
+
+  it('offers only two grain directions for MDF', () => {
+    const id = selectFirstBoard();
+    useStore.getState().updateBoard(id, { material: 'mdf' });
+    render(<Properties />);
+    const grain = screen.getByLabelText('Runs') as HTMLSelectElement;
+    expect([...grain.options].map((o) => o.textContent))
+      .toEqual(['Along length', 'Across width']);
+  });
+
+  it('updates the grain options when the material changes to a sheet good', async () => {
+    const id = selectFirstBoard();
+    render(<Properties />);
+    expect([...(screen.getByLabelText('Runs') as HTMLSelectElement).options])
+      .toHaveLength(3);
+
+    const materialSelect = document.querySelector('select[aria-labelledby="material-heading"]')!;
+    await userEvent.selectOptions(materialSelect, 'plywood');
+
+    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.material).toBe('plywood');
+    expect([...(screen.getByLabelText('Runs') as HTMLSelectElement).options].map((o) => o.textContent))
+      .toEqual(['Along length', 'Across width']);
+  });
 });

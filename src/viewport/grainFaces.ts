@@ -1,5 +1,5 @@
 import type { Board } from '../document/document';
-import { axisDimensions } from '../document/document';
+import { axisDimensions, isSheetGood } from '../document/document';
 import type { Dimension } from '../document/document';
 
 export { axisDimensions };
@@ -42,9 +42,13 @@ export function faceGrainKinds(board: Board): GrainKind[] {
  * structure in a different colour, which is why the tint stays in MATERIALS and
  * this returns only three families. An unknown material reads as wood, matching
  * validateBoard's habit of degrading rather than throwing.
+ *
+ * `isSheetGood` (document/types.ts) is the single source of truth for which
+ * materials are sheet goods — this only adds the plywood/MDF split on top of
+ * it, rather than restating the material names as a second list that could
+ * drift from MATERIALS' `sheet` flags.
  */
 export function grainFamily(material: string): GrainFamily {
-  if (material === 'plywood') return 'plywood';
-  if (material === 'mdf') return 'mdf';
-  return 'wood';
+  if (!isSheetGood(material)) return 'wood';
+  return material === 'plywood' ? 'plywood' : 'mdf';
 }
