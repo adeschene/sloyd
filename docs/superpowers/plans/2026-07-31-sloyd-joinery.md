@@ -1890,7 +1890,7 @@ with `const [cutErrors, setCutErrors] = useState<Record<string, string | null>>(
 
 - [ ] **Step 6: Style the section**
 
-Add to the stylesheet next to the existing `.field` rules — keep it plain, matching the panel's current density:
+Add to `src/styles.css` next to the existing `.field` rules — keep it plain, matching the panel's current density. `--rule` already exists as a colour token; use it rather than introducing a new one:
 
 ```css
 .cut { border-top: 1px solid var(--rule); padding-top: 0.5rem; margin-top: 0.5rem; }
@@ -1908,7 +1908,7 @@ Expected: green. If `renderWithBoard` does not already exist in `Properties.test
 - [ ] **Step 8: Commit**
 
 ```bash
-git add src/panels/Properties.tsx src/panels/DimensionField.tsx src/panels/Properties.test.tsx src/index.css
+git add src/panels/Properties.tsx src/panels/DimensionField.tsx src/panels/Properties.test.tsx src/styles.css
 git commit -m "feat: edit cuts from the properties panel
 
 One row per cut: which dimension it is cut into, which end it enters
