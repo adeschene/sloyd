@@ -376,21 +376,30 @@ does today.
 Found while shipping posture, part-local grain, schema v3, and log-derived grain
 textures. Consciously deferred, not missed.
 
-**36. A `DimensionField` display-staleness bug, found during the browser gate.** A
-Position field that keeps focus across a posture or turn change can show stale text
-after blur while the document itself is correct. Root cause (in
-`src/panels/DimensionField.tsx`): the field's
+**36. ~~A `DimensionField` display-staleness bug, found during the browser gate.~~
+CLOSED in the post-v3 fixes pass.** A Position field that keeps focus across an
+external change could show stale text after blur while the document itself was
+correct. Root cause (in `src/panels/DimensionField.tsx`): the field's
 `useEffect(() => { if (!editing.current) setText(...) }, [value, precision])` only
 re-syncs the displayed text when the effect re-runs, which happens on a `value` or
 `precision` change — not when `editing.current` flips from true to false on blur. If
-an external write (a posture/rotation reorient today; in principle a gizmo drag)
-lands while the field is focused, and nothing changes `value` afterward, the field
-shows stale text indefinitely even though the store is correct; reselecting the part
-(forcing a remount) immediately shows the right value. Predates v3 — the underlying
-`reorientedPosition` wiring was introduced in `68b7422`, well before this branch —
-but v3's Step 2 pivot check is exactly the scenario that exposes it. Screenshots
-`02b-STALE-DISPLAY-BUG-x-field.png` (stale) and `02-pivot-flat-to-upright-correct.png`
-(after remount, correct) in `.superpowers/sdd/2026-07-31-sloyd-v3/screenshots/`.
+an external write landed while the field was focused, and nothing changed `value`
+afterward, the field showed stale text indefinitely even though the store was
+correct; reselecting the part (forcing a remount) immediately showed the right value.
+**The scope turned out to be broader than first written up here: this was never
+specific to a posture/turn change** — the `[value, precision]` deps just don't fire
+again once focus leaves, so *any* external change that lands while the field has
+focus and is otherwise untouched triggers it, orientation changes were only the
+scenario that happened to expose it first. Predates v3 — the underlying
+`reorientedPosition` wiring was introduced in `68b7422`, well before the v3 branch —
+v3's Step 2 pivot check just happened to be what exposed it. Fixed in `42df2ea`: the
+blur handler's untouched branch (`!dirty.current`) now resyncs the display from
+`value` instead of just returning, without committing — committing an untouched
+field is what invariant 5 forbids for the unrelated reason of not overwriting exact
+values with display-rounded ones. See invariant 5 for the shared shape with
+`NameField` below. (This entry previously pointed at two screenshots under
+`.superpowers/sdd/2026-07-31-sloyd-v3/screenshots/`; that directory was deleted when
+the v3 branch merged and no longer exists.)
 
 **37. `Math.abs(k) % half` in `grainTexture.ts`'s `woodCut` maps `k = 0` to the same
 seed bucket as the two edge bands (`k = -half` and `k = +half`), a three-way
@@ -477,3 +486,74 @@ rotate with the grain. `src/viewport/grainTiling.test.ts` gained the `grain: 'th
 plywood case (asserting `swap === false` and that the tiled axis carries the width, not
 the thickness — the two grain values already covered, `length` and `width`, were
 re-verified unchanged).
+
+**This fix over-corrected — see follow-up 46 in the post-v3 section below.** Scoping
+the grain-first rank to solid wood only also made sheet goods ignore `board.grain`
+entirely, which removed the veneer rotation on plywood's face along with the bug.
+
+## From the post-v3 fixes pass
+
+Two bugs found in use after v3 shipped, plus one component checked and found clean.
+Consciously not deferred — closed in the same session they were found, per the
+project's policy against deferring latent bugs.
+
+**45. ~~`NameField` always committed on blur, so an untouched blur wrote the stale
+local text back over any name that changed externally while the field had focus.~~
+CLOSED.** Same defect shape as follow-up 36's `DimensionField` bug (see invariant 5),
+but a different consequence: `DimensionField`'s untouched-blur bug only left the
+*display* stale, because its guard already skipped committing when `!dirty.current`.
+`NameField` had no `dirty` guard at all — its `onBlur` called `commit()`
+unconditionally — so an untouched blur after an external rename (undo, import, a
+future rename-from-elsewhere) landed *wrote the stale local text back over the store*,
+because `commit()` sets the displayed text from `onCommit`'s return value regardless
+of whether anything was actually typed. A silent write, not just a stale display.
+**Latent in production**, because the only path that renames a board today is
+`NameField`'s own commit (`Properties.tsx:46`) — import and migration replace the
+whole document object, which unmounts and remounts the panel rather than racing this
+effect. Closed anyway per the working agreement on latent bugs, since the desktop
+storage seam and any future rename-from-elsewhere path would hit it for real. Fixed in
+`92025ac`: mirrors `DimensionField` exactly — a `dirty` ref set in `onChange`, blur
+resyncing from `value` without committing when `!dirty.current`, `Enter` guarded the
+same way, and `dirty` cleared on both `commit()`'s revert and normal-commit paths. See
+invariant 9 for the write-vs-display distinction.
+
+**46. ~~Plywood's grain control stopped changing anything visible.~~ CLOSED.** A
+regression from follow-up 44's own fix (`fe4deed`). That commit was solving a real
+bug — plywood with `grain: 'thickness'` stacked its plies across the board's *width*
+instead of its true thickness — by making `ranks()` ignore `board.grain` entirely for
+sheet goods and always use the unmodified `[length, width, thickness]` order. That
+also removed the veneer-rotation behaviour the grain control exists to provide on
+plywood's broad face: after `fe4deed`, no `grain` value changed anything visible on a
+sheet good. The two requirements are both real and were treated as one problem when
+they are two: thickness must always rank last for a sheet good (the ply stack is a
+property of the sheet, not of the figure on its face), but the *other two* dimensions
+still need the grain promoted among them, the same as solid wood, so the veneer figure
+turns. Fixed in `770f764`: `ranks()` for a sheet good now produces
+`[grain, the other non-thickness dimension, 'thickness']` — thickness pinned last,
+grain promoted among what's left. Because `'thickness'` is a meaningless grain value
+for a sheet good (plywood's grain is its face-veneer direction, always in the sheet
+plane), it is no longer offered in the Properties panel for plywood/MDF,
+`validateBoard` normalises it away on load (a normalisation, not a migration —
+`CURRENT_VERSION` stayed 3), and `store.updateBoard` resets it in the same edit when a
+material patch switches a board to a sheet good, so the panel is never asked to render
+a `<select>` holding a value it has no matching `<option>` for. A follow-up commit
+(`eb0590a`) then made `grainTiling.ts`'s `ranks()` total on its own — it no longer
+returns `-1` for an out-of-band `grain: 'thickness'` on a sheet good reached by
+constructing a `Board` directly rather than through the validator — so a future
+refactor that moves where validation happens cannot silently reopen this by
+rearranging things `ranks()` was quietly depending on.
+
+**47. The toolbar's project-name field is the remaining component that reads/writes
+document state through an `<input>` and had not been checked against the
+`DimensionField`/`NameField` display-staleness shape (invariant 5) — now checked, and
+found clean.** `Toolbar.tsx`'s project-name `<input>` (`aria-label="Project name"`) is
+a plain controlled input bound directly to `s.doc.name` — `value={name}`,
+`onChange={(e) => setDocumentName(e.target.value)}` — with no local `text` state, no
+`dirty` ref, and no adopt-external-changes effect to skip in the first place. Every
+keystroke writes straight to the store; there is nothing held locally that could go
+stale, because there is no local draft at all. `onFocus`/`onBlur` only wrap
+`beginGesture()`/`endGesture()` for undo coalescing and touch no display state.
+Left open rather than closed: this is a recorded finding, not a fix, and it is worth
+rechecking if this field is ever changed to buffer input locally (e.g. to debounce
+keystrokes rewriting the store on every keystroke) — the staleness shape only exists
+where a component keeps its own copy of the value.

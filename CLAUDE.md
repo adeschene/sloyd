@@ -13,8 +13,11 @@
 (a gizmo size ceiling, a separate origin-lines checkbox), **v2** (two-state grain
 orientation, schema version 2, the reorient-pivot fix, wood grain textures), and now
 **v3**: posture (a board can finally stand up), part-local grain (any of a board's
-three dimensions, not just its length), and log-derived grain textures. Static SPA,
-containerized, 307/307 tests passing.
+three dimensions, not just its length), and log-derived grain textures — and then a
+short post-v3 pass fixing two bugs found in use (`DimensionField` and `NameField`
+both displaying, and in `NameField`'s case writing, stale text after an external
+change landed while the field had focus) plus a plywood-grain regression from v3
+itself. Static SPA, containerized, 334/334 tests passing.
 
 Host-specific deployment detail — hostname, container name, proxy configuration, and
 the manual steps a human has to perform — lives in `DEPLOYMENT.local.md`, which is
@@ -67,6 +70,15 @@ visible plies on its edges.
   `BoardMesh`'s geometry memo was keyed on a hand-written field list that did not
   include `grain`, so grain changes never reached the screen while the document was
   correct. See invariant 15.
+
+**Post-v3 fixes**, found in use rather than in review: `DimensionField` and `NameField`
+both share a display-staleness defect shape, closed in the same session — see
+invariant 5 for the full mechanism, and follow-ups 36 and 45 for what each field's
+specific consequence was. Separately, `fe4deed` (in the v3 branch above) fixed a real
+bug by having sheet goods ignore `grain` entirely in the tiling rank, which also
+silently removed the veneer rotation on plywood's face — the rule now promotes grain
+among the two non-thickness dimensions for sheet goods, so the ply stack still spans
+the true thickness *and* the veneer still turns; see follow-up 46 for the traced case.
 
 ## What Sloyd is
 
@@ -196,9 +208,19 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
 4. **Gesture snapshots are lazy** — taken on the first `edit()` inside a gesture, not in
    `beginGesture()`. Eager snapshotting leaves no-op undo entries, so `Ctrl+Z` appears
    to do nothing.
-5. **`DimensionField` only commits when `dirty`.** Otherwise focusing and blurring a
-   field re-parses the *rounded display text* and writes it back, silently quantizing
-   exact values (18mm → 11/16"). Stored values are exact; display rounds.
+5. **A field holding a local draft — `DimensionField` and `NameField` both — skips
+   its adopt-external-changes effect while focused, and that effect never re-fires
+   afterward, so blur must resync the display from the stored value and must not
+   commit when the field was untouched.** Two distinct failure modes if either half
+   is missing. Commit an untouched field and it rewrites exact stored values with
+   display-rounded ones (0.7" → 11/16") — the original reason for the `dirty` guard.
+   Skip the resync instead and the field shows a stale number *indefinitely* once an
+   external change (a posture/rotation reorient, an undo, a future gizmo drag) lands
+   while the field has focus: the effect is keyed on `[value, precision]` (or on
+   `value` alone for `NameField`), so once it's skipped once for being mid-edit,
+   nothing makes it re-run just because focus later leaves — only a remount (e.g.
+   reselecting the part) shows the correct value again. Stored values are exact;
+   display rounds.
 6. **`add_header` does not merge across nginx levels.** A `location` block containing any
    `add_header` discards everything inherited — which is why `security-headers.conf` is
    `include`d in every block rather than set once on the server.
@@ -217,7 +239,11 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
    per keystroke and correcting on blur takes the gesture's undo snapshot before
    the correction lands, leaving an entry that undoes to nothing. Its `onCommit`
    returns the stored name because dedup can store something other than what was
-   typed.
+   typed. The `dirty` guard (invariant 5) buys a second thing beyond the display
+   staleness: without it, `commit()` ran unconditionally on every blur, so an
+   untouched field blurring after an external rename landed wrote the *stale local
+   text back over it* — a silent write, not just a stale display, and worse for
+   being invisible until the next time something read the name.
 10. **The gizmo size clamp writes `size` *before* the library's `updateMatrixWorld`,
     never `handle.scale` after it.** `size` is an input to three-stdlib's scale
     computation, so the library bakes the correction itself and nothing needs
@@ -284,7 +310,7 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 307 tests
+npm test           # Vitest, currently 334 tests
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -295,16 +321,22 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ## Open follow-ups
 
 `docs/follow-ups.md` lists everything found during v1 review, the two polish passes,
-v2, and now v3, consciously deferred rather than missed, numbered 1-30 plus v2's and
-v3's additions. Read it before starting new work in the same area — several items are
-"correct but untested", which is exactly what a refactor breaks silently.
+v2, v3, and the post-v3 fixes, consciously deferred rather than missed, numbered 1-30
+plus v2's, v3's, and the post-v3 additions. Read it before starting new work in the
+same area — several items are "correct but untested", which is exactly what a
+refactor breaks silently.
 
 **29 and 30 are closed** — the gizmo now has a size ceiling tied to the selected board
 (with a floor that keeps it grabbable when zoomed far out), and the origin lines have
 their own toolbar checkbox. **5 is closed** — the version gate now rejects versions
 below 1 and non-integer versions. **32 is closed** — `hash` and `seededRandom` moved
-to `src/viewport/grainLog.ts` and are unit-tested there. All closures are written up
-in place. With those done, **joinery is the next work.**
+to `src/viewport/grainLog.ts` and are unit-tested there. **36, 45 (the `NameField`
+stale-write), and 46 (the plywood-grain regression) are closed** — see invariant 5
+(display staleness, both fields), invariant 9 (`NameField`'s additional stale-write
+mode), and the "Post-v3 fixes" paragraph above (plywood grain). All closures are
+written up in place. **47 is open**: the toolbar's project-name field was checked
+against the same display-staleness shape and does **not** have it — see
+`docs/follow-ups.md` for why. With those done, **joinery is the next work.**
 
 One entry is a lesson rather than a defect and is worth reading before touching anything
 in the viewport: **26a**. Browser verification on this host runs on software GL
