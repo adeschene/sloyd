@@ -80,8 +80,17 @@ export const DimensionField = forwardRef<HTMLInputElement, Props>(function Dimen
           if (reverting.current) { reverting.current = false; return; }
           // Untouched field: nothing to commit, and committing here would
           // silently rewrite the document with the display-rounded value
-          // (e.g. 0.7" -> 11/16") and push a no-op undo entry.
-          if (!dirty.current) return;
+          // (e.g. 0.7" -> 11/16") and push a no-op undo entry. But an
+          // external change (gizmo drag, undo) may have landed while this
+          // field was focused — the adopt-external-changes effect above
+          // skips while editing, and its deps don't fire again once
+          // editing.current goes false, so nothing else will ever resync
+          // the display. Do that here, without committing.
+          if (!dirty.current) {
+            setText(formatLength(value, precision));
+            setError(null);
+            return;
+          }
           commit();
         }}
         onKeyDown={(e) => {

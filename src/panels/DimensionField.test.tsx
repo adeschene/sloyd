@@ -1,6 +1,17 @@
-import { render, screen } from '@testing-library/react';
+import { useState } from 'react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DimensionField } from './DimensionField';
+
+function Harness({ initial }: { initial: number }) {
+  const [value, setValue] = useState(initial);
+  return (
+    <>
+      <DimensionField label="X" value={value} allowNegative onCommit={setValue} />
+      <button onClick={() => setValue(19.25)}>external change</button>
+    </>
+  );
+}
 
 const setup = (props: Partial<React.ComponentProps<typeof DimensionField>> = {}) => {
   const onCommit = vi.fn();
@@ -137,5 +148,14 @@ describe('DimensionField', () => {
 
     await userEvent.tab();
     expect(onCommit).toHaveBeenCalledWith(2);
+  });
+
+  it('resyncs to an external value that arrived while focused, once the field blurs untouched', async () => {
+    render(<Harness initial={10} />);
+    const input = screen.getByLabelText('X') as HTMLInputElement;
+    await userEvent.click(input);
+    await act(async () => { screen.getByText('external change').click(); });
+    await userEvent.tab();
+    expect(input.value).toBe('19-1/4"');
   });
 });
