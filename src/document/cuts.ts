@@ -178,3 +178,93 @@ export function boardSolids(board: Board): Region[] {
   for (const axis of DIMENSION_ORDER) solids = mergeAlong(solids, axis);
   return solids;
 }
+
+/** A point in a board's own coordinate space. */
+export type Point = Record<Dimension, number>;
+/** A straight edge between two such points. */
+export type Segment = [Point, Point];
+
+/**
+ * The edges of a cut board, derived from the cell grid rather than from the
+ * solids.
+ *
+ * Per-solid EdgesGeometry is wrong, not merely wasteful: the remainder around
+ * a dado is L-shaped in section, an L is not a box, and so the board's uncut
+ * bottom face ends up covered by three abutting solids with seams drawn across
+ * it. BoardMesh's own comment calls edge lines "the single biggest readability
+ * win", so those phantom lines are a legibility bug.
+ *
+ * For every candidate segment — one cell long, on a grid line — look at the up
+ * to four cells around it and draw it unless the local configuration is flat:
+ *
+ *   all four filled      no  (interior stock)
+ *   none filled          no  (empty)
+ *   two, sharing a face  no  (a flat face continuing through)
+ *   two, diagonal        yes
+ *   one, or three        yes
+ *
+ * Cells outside the board count as empty, which is what makes the board's own
+ * silhouette fall out of the same rule instead of needing its own pass. Three
+ * filled is the concave shoulder of a dado; one filled is a convex corner.
+ */
+export function boardEdges(board: Board): Segment[] {
+  const { coords, filled } = grid(board);
+  const counts: Record<Dimension, number> = {
+    length: coords.length.length - 1,
+    width: coords.width.length - 1,
+    thickness: coords.thickness.length - 1,
+  };
+
+  const at = (cell: Record<Dimension, number>): boolean => {
+    for (const d of DIMENSION_ORDER) {
+      if (cell[d] < 0 || cell[d] >= counts[d]) return false;
+    }
+    return filled[cell.length][cell.width][cell.thickness];
+  };
+
+  const out: Segment[] = [];
+  for (const along of DIMENSION_ORDER) {
+    const [p, q] = DIMENSION_ORDER.filter((d) => d !== along);
+    for (let bp = 0; bp < coords[p].length; bp += 1) {
+      for (let bq = 0; bq < coords[q].length; bq += 1) {
+        // The four cells sharing this grid line, indexed by which side of
+        // bp and bq they sit on.
+        const quad = [[bp - 1, bq - 1], [bp - 1, bq], [bp, bq - 1], [bp, bq]];
+
+        // Whether the unit segment at along-index i is drawn, per the
+        // four-cell configuration rule. Computed for every i along this
+        // line before emitting anything, so consecutive drawn cells can be
+        // merged into one segment rather than one per grid split — a split
+        // introduced by a cut elsewhere (e.g. the dado's length boundaries,
+        // which also cut the grid's untouched bottom layer) must not
+        // fragment a face that the cut never actually interrupts here.
+        const drawn = (i: number): boolean => {
+          const on = quad.filter(([cp, cq]) =>
+            at({ [along]: i, [p]: cp, [q]: cq } as unknown as Record<Dimension, number>),
+          );
+          if (on.length === 0 || on.length === 4) return false;
+          // Two cells that differ on only one axis share a face, so the
+          // surface runs straight through and there is no edge here.
+          if (on.length === 2 && (on[0][0] === on[1][0] || on[0][1] === on[1][1])) return false;
+          return true;
+        };
+
+        const base = { [p]: coords[p][bp], [q]: coords[q][bq] } as unknown as Point;
+        let runStart: number | null = null;
+        for (let i = 0; i <= counts[along]; i += 1) {
+          const on = i < counts[along] && drawn(i);
+          if (on && runStart === null) {
+            runStart = i;
+          } else if (!on && runStart !== null) {
+            out.push([
+              { ...base, [along]: coords[along][runStart] } as Point,
+              { ...base, [along]: coords[along][i] } as Point,
+            ]);
+            runStart = null;
+          }
+        }
+      }
+    }
+  }
+  return out;
+}

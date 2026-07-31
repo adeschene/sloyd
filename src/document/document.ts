@@ -8,7 +8,8 @@ export {
   boardExtents, boardCenter, reorientedPosition, axisDimensions, DIMENSION_ORDER, positionAxisOf,
 } from './geometry';
 export { uniqueName, dedupeNames } from './names';
-export { boardSolids, cutRegion, wholeBoard } from './cuts';
+export { boardEdges, boardSolids, cutRegion, wholeBoard } from './cuts';
+export type { Point, Segment } from './cuts';
 
 export const CURRENT_VERSION = 4;
 

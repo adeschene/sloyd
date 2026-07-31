@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
-import { boardSolids, cutRegion, wholeBoard } from './cuts';
-import type { Board, Cut, Region } from './types';
+import { boardEdges, boardSolids, cutRegion, wholeBoard } from './cuts';
+import type { Board, Cut, Dimension, Region } from './types';
 
 /** A 24 x 5-1/2 x 3/4 flat board with whatever cuts are given. */
 const withCuts = (cuts: Cut[]): Board => createBoard({ cuts });
@@ -142,5 +142,43 @@ describe('boardSolids', () => {
     };
     const right: Cut = { ...left, id: 'b', offset: 12, width: 12 };
     expect(boardSolids(withCuts([left, right]))).toEqual([]);
+  });
+});
+
+describe('boardEdges', () => {
+  it('gives an uncut board exactly the twelve edges of its box', () => {
+    expect(boardEdges(createBoard())).toHaveLength(12);
+  });
+
+  /** Segments that lie in the plane `d === value`, ignoring direction. */
+  const inPlane = (segs: ReturnType<typeof boardEdges>, d: Dimension, value: number) =>
+    segs.filter(([a, b]) => a[d] === value && b[d] === value);
+
+  // The whole reason this function exists. The bottom face (thickness 0) is
+  // continuous stock under the dado, but it is covered by three abutting
+  // solids — per-solid edges would draw lines across it at length 6 and 6.75.
+  it('draws no line across the uncut face beneath a dado', () => {
+    const segs = inPlane(boardEdges(withCuts([DADO])), 'thickness', 0);
+    // Only the four edges of the bottom face itself.
+    expect(segs).toHaveLength(4);
+    expect(segs.some(([a, b]) => a.length === 6 && b.length === 6)).toBe(false);
+    expect(segs.some(([a, b]) => a.length === 6.75 && b.length === 6.75)).toBe(false);
+  });
+
+  it('draws the shoulders and floor of a dado', () => {
+    const segs = boardEdges(withCuts([DADO]));
+    // Both shoulders: a concave edge at the dado floor, running across width.
+    const shoulders = segs.filter(
+      ([a, b]) => a.thickness === 0.5 && b.thickness === 0.5 &&
+                  a.length === b.length && (a.length === 6 || a.length === 6.75),
+    );
+    expect(shoulders).toHaveLength(2);
+    // And the top face is now interrupted: it has more than its own four edges.
+    expect(inPlane(segs, 'thickness', 0.75).length).toBeGreaterThan(4);
+  });
+
+  it('is deterministic', () => {
+    const board = withCuts([DADO]);
+    expect(boardEdges(board)).toEqual(boardEdges(board));
   });
 });
