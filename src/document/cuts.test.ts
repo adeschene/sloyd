@@ -182,14 +182,21 @@ describe('boardEdges', () => {
     expect(boardEdges(board)).toEqual(boardEdges(board));
   });
 
-  // Regression for the merge itself — the only novel logic in this function.
   // A full-depth sever splits the board into two disconnected pieces, so the
-  // result should be exactly two complete box outlines (12 edges each) and
-  // nothing else: no phantom line where the pieces parted, and no fragment
-  // left over from the cut's own boundary planes. If the merge were absent,
-  // the two end faces exposed by the sever would each fragment into more than
-  // their own four edges; if it were over-eager (bridging the gap between the
-  // two pieces), the count would come out under 24 instead.
+  // result is exactly two complete box outlines (12 edges each) and nothing
+  // else: no phantom line where the pieces parted, and no fragment left over
+  // from the cut's own boundary planes. If the four-cell rule wrongly treated
+  // the empty slot as stock, the two exposed end faces would go missing and
+  // the count would fall under 24.
+  //
+  // This case does NOT exercise the run-merging, despite splitting the length
+  // axis: each surviving piece is one cell on every axis (the sever adds no
+  // interior thickness plane, and `across: width` spans fully), so no run of
+  // two or more cells ever exists to merge. Verified by mutation — emitting
+  // one segment per cell instead of per run leaves this test green. The merge
+  // is covered by the next test down, and by 'draws no line across the uncut
+  // face beneath a dado'; both go red under that mutation. Do not cite this
+  // one as merge coverage.
   it('gives a full-depth sever exactly two box outlines, 24 segments total', () => {
     const rip: Cut = { ...DADO, depth: 0.75 };
     const segs = boardEdges(withCuts([rip]));
