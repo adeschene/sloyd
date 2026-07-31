@@ -1,5 +1,5 @@
 import { createBoard } from '../document/document';
-import { boardUVOffset, boardUVs, facePlans } from './grainTiling';
+import { boardUVOffset, boardUVs, boardUVSignature, facePlans } from './grainTiling';
 
 const flat = createBoard({ length: 24, width: 5.5, thickness: 0.75, material: 'oak' });
 
@@ -44,13 +44,16 @@ describe('facePlans', () => {
   });
 
   it('fits one ply stack across the thickness of a standing plywood end too', () => {
-    // The rank rule is what makes this work — on an end face the in-plane
-    // dimensions are width and thickness, and width outranks thickness, so v
-    // lands on the thickness whichever way the board is turned. Standing and
-    // rotated is the orientation where that stops being obvious, and it is the
-    // case that would silently paint plies across the length if the rule were
-    // ever "simplified".
-    const plywood = { ...flat, material: 'plywood', standing: true, rotation: 90 as const };
+    // The sheet-goods branch of ranks() is what makes this work: plywood
+    // always uses the unmodified [length, width, thickness] order (never the
+    // grain-first order solid wood gets), so on an end face — where the
+    // in-plane dimensions are width and thickness — width outranks thickness
+    // and v lands on the thickness whichever way the board is turned. Standing
+    // and rotated is the orientation where that stops being obvious, and it is
+    // the case that would silently paint plies across the length if that
+    // branch were ever "simplified" back to one rule for every material (see
+    // the grain: 'thickness' case below for what that simplification breaks).
+    const plywood = { ...flat, material: 'plywood', posture: 'on-edge' as const, rotation: 90 as const };
     expect(facePlans(plywood)[PZ].kind).toBe('end');
     expect(facePlans(plywood)[PZ].repeat[1]).toBe(1);
   });
@@ -115,6 +118,107 @@ describe('boardUVs', () => {
     // +Y face (broad face) tiles on both axes for this material — its u origin
     // should differ between two different ids.
     expect(a[PY * 8]).not.toBeCloseTo(b[PY * 8]);
+  });
+});
+
+describe('the drawn texture follows the grain', () => {
+  const flat = createBoard({ length: 24, width: 5.5, thickness: 0.75, material: 'oak' });
+  const PY = 2, PZ = 4;
+
+  it('runs u along the length when the grain does', () => {
+    // +Y's geometry UVs run u along X and v along Z; flat and unrotated the
+    // length is on X, so u already follows the grain.
+    expect(facePlans(flat)[PY].swap).toBe(false);
+  });
+
+  it('runs u along the width when the grain runs across the board', () => {
+    // Same face, same board, grain across the width — which is on Z here, the
+    // face's v axis. The drawn texture has to turn a quarter turn to follow it.
+    expect(facePlans({ ...flat, grain: 'width' })[PY].swap).toBe(true);
+  });
+
+  it('still crosses the thickness on a plywood narrow face when the grain runs across', () => {
+    // The ply stack must span the sheet thickness whatever the grain does —
+    // plies are a property of the sheet, not of the figure on its face. Note
+    // this face shows a cut END once the grain runs across the width, not an
+    // edge, which is exactly why the tiling must not key off the kind alone.
+    const plywood = { ...flat, material: 'plywood', grain: 'width' as const };
+    expect(facePlans(plywood)[PZ].repeat[1]).toBe(1);
+    expect(facePlans(plywood)[PZ].fit[1]).toBe(true);
+  });
+
+  it('still crosses the thickness — not the width — on a plywood edge when the grain runs through the thickness', () => {
+    // Traced failure (v3 review, finding 1): ranks() used to promote the grain
+    // dimension to rank 0 unconditionally. For grain === 'thickness' that put
+    // thickness first and width last, flipping this face's swap and handing
+    // the FIT (stack) axis to the board's WIDTH instead of its THICKNESS —
+    // a 5.5in board would show the five-ply stack stretched across 5.5in
+    // instead of the true 0.75in. Plywood's plies are a property of the
+    // sheet, not of the figure drawn on its face: they always stack across
+    // the sheet thickness whatever the grain says.
+    const plywood = { ...flat, material: 'plywood', grain: 'thickness' as const };
+    const plan = facePlans(plywood)[PX];
+    expect(plan.kind).toBe('edge');
+    expect(plan.swap).toBe(false);
+    expect(plan.fit[1]).toBe(true);
+    expect(plan.repeat[1]).toBe(1);
+    // The tiled (u) axis must carry the board's WIDTH (5.5in), not its
+    // thickness (0.75in). Pre-fix this was 0.75 / 16 ≈ 0.047; correct is
+    // 5.5 / 16 ≈ 0.344 — a value that only comes out right if the FIT axis
+    // (v) landed on thickness, not width.
+    expect(plan.repeat[0]).toBeCloseTo(flat.width / 16);
+    expect(plan.repeat[0]).not.toBeCloseTo(flat.thickness / 16);
+  });
+});
+
+describe('boardUVSignature', () => {
+  const base = createBoard({ length: 24, width: 5.5, thickness: 0.75, material: 'oak' });
+
+  // This is the regression test for the real bug: BoardMesh's geometry memo
+  // used to key on a hand-written field list that never learned about
+  // `grain`, so a board's grain silently stopped turning on screen. Every
+  // field boardUVs reads, directly or transitively, must change the
+  // signature — that is what keeps the memo from going stale again the next
+  // time boardUVs learns to read something new.
+  const changes: Array<[string, Partial<typeof base>]> = [
+    ['grain', { grain: 'width' }],
+    ['rotation', { rotation: 90 }],
+    ['posture', { posture: 'on-edge' }],
+    ['material', { material: 'plywood' }],
+    ['id', { id: 'b_other' }],
+    ['length', { length: 30 }],
+    ['width', { width: 7.25 }],
+    ['thickness', { thickness: 1.5 }],
+  ];
+
+  it.each(changes)('changes when %s changes', (_field, change) => {
+    const changed = { ...base, ...change };
+    expect(boardUVSignature(changed)).not.toBe(boardUVSignature(base));
+  });
+
+  it('does not change when position changes', () => {
+    const moved = { ...base, position: [10, 20, 30] as [number, number, number] };
+    expect(boardUVSignature(moved)).toBe(boardUVSignature(base));
+  });
+
+  it('does not change when name changes', () => {
+    const renamed = { ...base, name: 'Something Else' };
+    expect(boardUVSignature(renamed)).toBe(boardUVSignature(base));
+  });
+
+  it('produces identical boardUVs output for boards with the same signature', () => {
+    const a = { ...base, position: [1, 2, 3] as [number, number, number], name: 'A' };
+    const b = { ...base, position: [9, 8, 7] as [number, number, number], name: 'B' };
+    expect(boardUVSignature(a)).toBe(boardUVSignature(b));
+    expect(Array.from(boardUVs(a))).toEqual(Array.from(boardUVs(b)));
+  });
+
+  it('produces different boardUVs output whenever the signature changes', () => {
+    for (const [, change] of changes) {
+      const changed = { ...base, ...change };
+      expect(boardUVSignature(changed)).not.toBe(boardUVSignature(base));
+      expect(Array.from(boardUVs(changed))).not.toEqual(Array.from(boardUVs(base)));
+    }
   });
 });
 

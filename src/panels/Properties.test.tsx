@@ -245,7 +245,7 @@ describe('the part name field', () => {
   });
 });
 
-describe('the grain control', () => {
+describe('the orientation controls', () => {
   const selectFirstBoard = () => {
     useStore.getState().addBoard();
     const id = useStore.getState().doc.boards[0].id;
@@ -253,31 +253,76 @@ describe('the grain control', () => {
     return id;
   };
 
-  it('offers exactly two grain directions', () => {
+  it('offers three postures', () => {
     selectFirstBoard();
     render(<Properties />);
-    const grain = screen.getByLabelText('Grain') as HTMLSelectElement;
-    expect([...grain.options].map((o) => o.textContent)).toEqual(['Along X', 'Along Z']);
+    const posture = screen.getByLabelText('Posture') as HTMLSelectElement;
+    expect([...posture.options].map((o) => o.textContent))
+      .toEqual(['Flat', 'On edge', 'Upright']);
   });
 
-  it('commits a change of grain direction', async () => {
+  it('commits a posture change', async () => {
     const id = selectFirstBoard();
     render(<Properties />);
-    await userEvent.selectOptions(screen.getByLabelText('Grain'), '90');
+    await userEvent.selectOptions(screen.getByLabelText('Posture'), 'upright');
+    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.posture).toBe('upright');
+  });
+
+  it('commits a turn', async () => {
+    const id = selectFirstBoard();
+    render(<Properties />);
+    await userEvent.selectOptions(screen.getByLabelText('Turn'), '90');
     expect(useStore.getState().doc.boards.find((b) => b.id === id)!.rotation).toBe(90);
   });
 
-  it('shows the stored direction', () => {
-    const id = selectFirstBoard();
-    act(() => { useStore.getState().updateBoard(id, { rotation: 90 }); });
+  it('offers three grain directions', () => {
+    selectFirstBoard();
     render(<Properties />);
-    expect((screen.getByLabelText('Grain') as HTMLSelectElement).value).toBe('90');
+    const grain = screen.getByLabelText('Runs') as HTMLSelectElement;
+    expect([...grain.options].map((o) => o.textContent))
+      .toEqual(['Along length', 'Across width', 'Through thickness']);
   });
 
-  it('still commits the standing checkbox', async () => {
+  it('commits a grain change', async () => {
     const id = selectFirstBoard();
     render(<Properties />);
-    await userEvent.click(screen.getByLabelText(/Standing/));
-    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.standing).toBe(true);
+    await userEvent.selectOptions(screen.getByLabelText('Runs'), 'width');
+    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.grain).toBe('width');
+  });
+
+  it('does not move the board when only the grain changes', async () => {
+    const id = selectFirstBoard();
+    const before = useStore.getState().doc.boards[0].position;
+    render(<Properties />);
+    await userEvent.selectOptions(screen.getByLabelText('Runs'), 'width');
+    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.position).toEqual(before);
+  });
+
+  // Every "commits a change" test above starts from the default orientation
+  // and drives the control, so it only proves writes reach the document — it
+  // says nothing about whether the control's own displayed value tracks the
+  // store. A control that commits correctly but displays wrongly (e.g. after
+  // an undo, or after switching the selected board) would pass every test
+  // above and still mislead the user. These set the store directly, to a
+  // non-default value, and check what the select shows.
+  it('shows the board\'s stored posture, not the default', () => {
+    const id = selectFirstBoard();
+    useStore.getState().updateBoard(id, { posture: 'upright' });
+    render(<Properties />);
+    expect((screen.getByLabelText('Posture') as HTMLSelectElement).value).toBe('upright');
+  });
+
+  it('shows the board\'s stored turn, not the default', () => {
+    const id = selectFirstBoard();
+    useStore.getState().updateBoard(id, { rotation: 90 });
+    render(<Properties />);
+    expect((screen.getByLabelText('Turn') as HTMLSelectElement).value).toBe('90');
+  });
+
+  it('shows the board\'s stored grain, not the default', () => {
+    const id = selectFirstBoard();
+    useStore.getState().updateBoard(id, { grain: 'thickness' });
+    render(<Properties />);
+    expect((screen.getByLabelText('Runs') as HTMLSelectElement).value).toBe('thickness');
   });
 });

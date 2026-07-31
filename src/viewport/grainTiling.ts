@@ -1,4 +1,4 @@
-import { boardExtents } from '../document/document';
+import { boardExtents, DIMENSION_ORDER } from '../document/document';
 import type { Board } from '../document/document';
 import { axisDimensions, faceGrainKinds, grainFamily } from './grainFaces';
 import type { Dimension, GrainFamily, GrainKind } from './grainFaces';
@@ -22,16 +22,37 @@ const FACE_AXES: Array<[Axis, Axis]> = [
 ];
 
 /**
- * Length beats width beats thickness. Whichever of a face's two in-plane
- * dimensions ranks lower takes the drawn texture's u.
+ * The grain dimension ranks first, then the rest in [length, width, thickness]
+ * order. Whichever of a face's two in-plane dimensions ranks lower takes the
+ * drawn texture's u.
  *
- * That one rule covers all three kinds. On a broad face the in-plane dimensions
- * are length and width, so u follows the length — which is the direction the
- * grain runs. On an edge they are length and thickness, so u follows the length
- * again and v crosses the thickness, which is where plywood's plies stack. On
- * an end they are width and thickness, so v crosses the thickness once more.
+ * That covers all three kinds. Wherever the grain is in the face's plane, u
+ * follows it — which is the direction the figure is drawn running. On an end
+ * face, where it is not, the fallback order still puts thickness last, so v
+ * crosses the thickness and plywood's plies stack the way a sheet's do.
+ *
+ * With grain along the length this is the old fixed rank, unchanged.
+ *
+ * That reasoning only holds for solid wood, where the grain figure is drawn
+ * on the board itself. A sheet good's plies are a property of the *sheet*,
+ * not of the figure on its face — they always stack across the sheet
+ * thickness, whatever the grain says. Promoting the grain dimension for
+ * plywood or MDF is wrong exactly when grain === 'thickness': that pushes
+ * thickness to rank 0 instead of leaving it last, and the ply stack lands on
+ * the board's width or length instead of its true thickness. So sheet goods
+ * always use the unmodified [length, width, thickness] fallback order — a
+ * sheet's construction does not rotate with its veneer.
  */
-const RANK: Record<Dimension, number> = { length: 0, width: 1, thickness: 2 };
+function ranks(board: Board): Record<Dimension, number> {
+  const order = grainFamily(board.material) === 'wood'
+    ? [board.grain, ...DIMENSION_ORDER.filter((d) => d !== board.grain)]
+    : DIMENSION_ORDER;
+  return {
+    length: order.indexOf('length'),
+    width: order.indexOf('width'),
+    thickness: order.indexOf('thickness'),
+  };
+}
 
 /** One tile spans the whole extent, whatever that extent is. */
 const FIT = 'fit';
@@ -46,7 +67,17 @@ type Tile = number | typeof FIT;
  * sheet each show five plies, which is what they look like.
  */
 const TILES: Record<GrainFamily, Record<GrainKind, [Tile, Tile]>> = {
-  wood:    { face: [16, 10], edge: [16, 4],   end: [FIT, FIT] },
+  // face v is 6in, not the more obvious 10-12: with BANDS=16 the cathedral
+  // region (where bandOffset can close, see grainLog.bandOffset) only spans
+  // roughly the innermost couple of bands either side of the pith line — about
+  // an eighth of the tile's v extent. A typical board (5.5in wide) sampling a
+  // 10in tile only sees 55% of it, so a random per-board UV offset has a real
+  // chance (~33%, measured) of landing a window that misses that region
+  // entirely, showing flowing lines with no arch at all. At 6in a 5.5in board
+  // sees over 90% of the tile, which is provably enough that no offset can
+  // miss the region (it's wider than what could be excluded) — every board
+  // shows at least a hint of the figure regardless of its id.
+  wood:    { face: [16, 6], edge: [16, 4],   end: [FIT, FIT] },
   plywood: { face: [24, 16], edge: [16, FIT], end: [16, FIT] },
   mdf:     { face: [8, 8],   edge: [8, 8],    end: [8, 8] },
 };
@@ -71,10 +102,11 @@ export function facePlans(board: Board): FacePlan[] {
   const dims = axisDimensions(board);
   const kinds = faceGrainKinds(board);
   const tiles = TILES[grainFamily(board.material)];
+  const rank = ranks(board);
 
   return FACE_AXES.map(([gu, gv], face) => {
     const kind = kinds[face];
-    const swap = RANK[dims[gv]] < RANK[dims[gu]];
+    const swap = rank[dims[gv]] < rank[dims[gu]];
     const [du, dv] = swap ? [gv, gu] : [gu, gv];
     const [tu, tv] = tiles[kind];
     return {
@@ -114,6 +146,36 @@ export function boardUVs(board: Board): Float32Array {
     }
   }
   return uv;
+}
+
+/**
+ * Everything boardUVs reads, as one string.
+ *
+ * BoardMesh memoises the geometry that carries the UV attribute, and a memo
+ * keyed on a hand-written list of fields goes stale the moment boardUVs learns
+ * to read a new one. That is not hypothetical: `grain` was added in v3 and the
+ * list was not updated, so a board's grain silently stopped turning on screen
+ * while the document was correct. Keying the memo on this instead means the
+ * list lives next to the code that decides it.
+ *
+ * Walked from boardUVs itself: facePlans reads boardExtents (length, width,
+ * thickness), axisDimensions (rotation, posture), faceGrainKinds (grain,
+ * posture, rotation), grainFamily (material) and ranks (grain); boardUVs
+ * itself also reads id via boardUVOffset. `position` and `name` are
+ * deliberately absent — boardUVs never reads them, and a board being dragged
+ * must not rebuild its geometry every frame.
+ */
+export function boardUVSignature(board: Board): string {
+  return [
+    board.id,
+    board.rotation,
+    board.posture,
+    board.material,
+    board.grain,
+    board.length,
+    board.width,
+    board.thickness,
+  ].join('|');
 }
 
 /**

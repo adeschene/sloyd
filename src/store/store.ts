@@ -106,14 +106,14 @@ export const useStore = create<StoreState>((set, get) => {
       if (!current) return;
 
       // Reorienting turns the board in place. `position` is the min-corner, so
-      // changing rotation or standing swaps the extents underneath a pinned
+      // changing rotation or posture swaps the extents underneath a pinned
       // corner — which is what made a 24 x 5-1/2 board jump sideways when it
       // turned. The arithmetic lives in document/geometry.ts; doing it here,
       // once, is what stops every future call site having to remember it. An
       // explicit position in the same patch wins.
       // `patch` is passed straight through as reorientedPosition's `changes`,
       // not reconstructed into a narrower object. `changes` used to be limited
-      // to `{ rotation, standing }` because an earlier version built it with
+      // to `{ rotation, posture }` because an earlier version built it with
       // both keys always present, and an explicit `key: undefined` overwrites
       // in a spread rather than falling through — but reconstructing it that
       // way also silently dropped any dimension change (length/width/thickness)
@@ -122,9 +122,11 @@ export const useStore = create<StoreState>((set, get) => {
       // undefined-overwrite trap: it only ever carries keys its caller
       // actually set, same as the old reconstruction did, but it also carries
       // the dimension keys reorientedPosition now needs.
+      // Grain is deliberately absent: it changes which faces show which cut,
+      // not the board's extents, so it needs no pivot.
       const reorienting =
         (patch.rotation !== undefined && patch.rotation !== current.rotation) ||
-        (patch.standing !== undefined && patch.standing !== current.standing);
+        (patch.posture !== undefined && patch.posture !== current.posture);
       const position =
         reorienting && !patch.position
           ? reorientedPosition(current, patch)

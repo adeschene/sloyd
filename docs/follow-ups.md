@@ -162,13 +162,14 @@ shortcut is ever added.
 
 ## Deliberately out of scope, not defects
 
-Joinery (dados/rabbets) is the next spec, with its own version label after v2 —
-v2 turned out to be orientation and grain, not joinery, and the v2 spec's non-goals
-section settles that naming for good. Cut list, board-feet, and sheet-goods layout
-come after joinery. Multi-select, free-angle rotation, curves, and accounts are
-unscheduled. The parametric board model exists specifically to make the first two
-cheap — see `docs/superpowers/specs/2026-07-29-sloyd-v1-design.md` for why that beats
-a mesh kernel.
+Joinery (dados/rabbets) is the next spec, with its own version label after v3 —
+v2 turned out to be orientation and grain and v3 turned out to be posture and
+part-local grain, neither of them joinery; the v3 spec's non-goals section settles
+that naming for good. Cut list, board-feet, and sheet-goods layout come after
+joinery. Multi-select, free-angle rotation, curves, and accounts are unscheduled.
+The parametric board model exists specifically to make the first two cheap — see
+`docs/superpowers/specs/2026-07-29-sloyd-v1-design.md` for why that beats a mesh
+kernel.
 
 ## From the second polish pass
 
@@ -319,24 +320,32 @@ Found while shipping two-state grain orientation, the schema v2 migration, the
 reorient-pivot fix, and wood grain textures. Consciously deferred, not missed.
 
 **31. `BoardMesh` rebuilds all six grain materials whenever `kind` changes, and
-`facePlans`/`faceGrainKinds`/`axisDimensions` are recomputed every render rather than
-memoised.** Cheap today at real board-list sizes, but it is redone on every render of
-every board, not just on the changes that actually affect it (rotation, standing,
-material, dimensions). A `useMemo` keyed on those fields would make the cost match the
-actual invalidation.
+`faceGrainKinds`/`axisDimensions` are recomputed every render rather than memoised.**
+Updated for v3: `standing` is now `posture`, and the geometry half of this item is
+narrower than it was — `facePlans` is now called only inside `boardUVs`, which the
+`geometry` memo (keyed on `boardUVSignature`, see invariant 15) already gates, so it
+no longer runs on every render. What's still unmemoised in `src/viewport/BoardMesh.tsx`:
+`kinds = faceGrainKinds(board)` (line 69) and `axisDimensions` via `boardExtents`/
+`boardCenter` (lines 36-37) both still run every render. Cheap today at real
+board-list sizes, but it is redone on every render of every board, not just on the
+changes that actually affect it (rotation, posture, grain, material, dimensions). A
+`useMemo` keyed on those fields would make the cost match the actual invalidation.
 
-**32. `grainTexture`'s `hash()` and `seededRandom()` are pure, DOM-free functions that
-could have had cheap unit tests without a canvas.** The "no unit tests in the r3f
-viewport" rule (see Working agreements) is about verifying rendered output by driving a
-real browser, which is the right call for the canvas drawing itself — but these two
-helpers don't touch a canvas at all, and a regression in either would silently reseed
-every board's grain on the next load.
+**32. ~~`grainTexture`'s `hash()` and `seededRandom()` are pure, DOM-free functions that
+could have had cheap unit tests without a canvas.~~ CLOSED in v3.** Both moved to
+`src/viewport/grainLog.ts` — the module `grainTexture.ts` now imports them from — and
+are unit-tested there alongside the rest of the log maths.
 
-**33. End-grain rings share one drawn centre across every board.** `woodEnd` fixes
-`cx`/`cy` in canvas space rather than deriving them from the seed, so every board's end
-grain shows arcs from the same implied ring centre — visually fine per board since only
-a small window of a much larger circle is ever visible, but it means no two boards'
-end grain can look like they came from different trees.
+**33. End-grain rings share one drawn centre across every board. Still open —
+checked against the v3 log rewrite, which did not change this.** `woodEnd` in
+`grainTexture.ts` still fixes `pith` (`cx`/`cy`) as a constant in canvas space rather
+than deriving it from the seed, and the end texture is still cached per
+`family:kind` — not per board — so every wood board's end grain is the same drawn
+texture, sharing one implied ring centre. `grainLog.ts`'s `bandRadius` now supplies
+the radii themselves, but nothing in the v3 work touched where the centre comes
+from. Visually fine per board since only a small window of a much larger circle is
+ever visible, but it means no two boards' end grain can look like they came from
+different trees.
 
 **34. The grain constants (streak counts, alpha ranges, tile sizes) have not been
 tuned on real hardware.** They were chosen and screenshotted on this host's software GL
@@ -361,3 +370,110 @@ branch on `err instanceof DocumentError` in the catch and surface "this project 
 by a newer version of Sloyd" (the import dialog's own copy is the model) instead of
 silently starting clean; a corrupt-JSON `SyntaxError` still degrades to `null` the way it
 does today.
+
+## From v3
+
+Found while shipping posture, part-local grain, schema v3, and log-derived grain
+textures. Consciously deferred, not missed.
+
+**36. A `DimensionField` display-staleness bug, found during the browser gate.** A
+Position field that keeps focus across a posture or turn change can show stale text
+after blur while the document itself is correct. Root cause (in
+`src/panels/DimensionField.tsx`): the field's
+`useEffect(() => { if (!editing.current) setText(...) }, [value, precision])` only
+re-syncs the displayed text when the effect re-runs, which happens on a `value` or
+`precision` change — not when `editing.current` flips from true to false on blur. If
+an external write (a posture/rotation reorient today; in principle a gizmo drag)
+lands while the field is focused, and nothing changes `value` afterward, the field
+shows stale text indefinitely even though the store is correct; reselecting the part
+(forcing a remount) immediately shows the right value. Predates v3 — the underlying
+`reorientedPosition` wiring was introduced in `68b7422`, well before this branch —
+but v3's Step 2 pivot check is exactly the scenario that exposes it. Screenshots
+`02b-STALE-DISPLAY-BUG-x-field.png` (stale) and `02-pivot-flat-to-upright-correct.png`
+(after remount, correct) in `.superpowers/sdd/2026-07-31-sloyd-v3/screenshots/`.
+
+**37. `Math.abs(k) % half` in `grainTexture.ts`'s `woodCut` maps `k = 0` to the same
+seed bucket as the two edge bands (`k = -half` and `k = +half`), a three-way
+collision where a pair was intended.** The centre band ends up sharing its width,
+alpha and harmonics with both edge bands instead of getting its own. No effect on the
+seam invariant (14) — the edge bands still match each other, which is all that
+property requires — and the centre band is spatially far from the edges, so it reads
+as cosmetic. A distinct seed for `k === 0` is the fix, worth doing the next time this
+file is touched.
+
+**38. The "no board misses the cathedral arch" guarantee in `grainTiling.ts`'s face
+tile size (6in) was worked out for boards around 5-1/2in wide.** Much narrower boards
+could still land a per-board UV offset that misses the arch region entirely. The
+formula is in the code comment (`TILES.wood.face`'s v-size); revisit if narrow stock
+becomes common. **The missing number (found in the final v3 review): the cathedral
+region spans 25% of the v-tile, so the guarantee needs `W/6 ≥ 0.75`** — a board
+narrower than about 4-1/2in can miss the arch region entirely, depending on its
+id-derived offset. A 1-1/2in leg sees only 25% of the tile. Not obviously worth
+fixing on its own: narrow stock is often straight-grained anyway, so missing the
+arch there is physically defensible, not just a numerical gap.
+
+**39. The grain constants introduced or changed in v3 (wobble amplitude, the face
+v-tile size, band width/alpha ranges) have not been judged on real hardware.** Same
+caveat as follow-up 34, now covering the ring maths too — chosen and screenshotted on
+this host's software GL (llvmpipe, no GPU; see 26a). The final aesthetic call — does
+it read as wood at actual viewing distance — is the user's, on real hardware.
+
+**40. `DIMENSION_ORDER` in `src/document/geometry.ts` is exported mutable** (not
+`readonly` or `as const`), though it is now the single source every board's geometry
+flows through — `axisDimensions`, `boardExtents`, and `grainTiling.ts`'s `ranks` all
+read it. Nothing in the codebase mutates it today; the risk is purely that nothing
+stops a future caller from doing so.
+
+**41. ~~`validateBoard`'s posture and grain fallback branches have no unit test, and
+`createBoard`'s `grain` default is unasserted.~~ CLOSED in the final v3 review pass.**
+Every migration test hands `validateBoard` an already-legal posture, so changing the
+`'flat'` fallback (or the `grain` fallback) would break nothing in the suite today —
+which matters because that exact fallback is what invariant 11's migration-ordering
+argument rests on. Direct tests now exist in `src/document/document.test.ts`
+(`validateBoard posture and grain fallbacks`) covering an unrecognised or missing
+`posture`/`grain`, plus `createBoard`'s `grain` default, independent of the migration
+path. `src/panels/Properties.test.tsx` also gained display-binding coverage for
+Posture, Turn and Grain — setting a board's orientation directly on the store and
+asserting the select's `value`, which is what would catch a control that commits
+correctly but displays wrong after an undo or a selection change.
+
+**42. The `FIT` scale argument on large end faces is calibrated for a ~5-1/2in end,
+and degrades linearly with face size.** `grainTiling.ts`'s `FIT` puts exactly one ring
+pattern across an end face whatever its size — right for a typical ~5-1/2in end
+(~0.27in per ring, plausible softwood spacing), but on an end-grain cutting board's
+broad face (18 × 12) the same one-ring-set stretches to roughly 0.9in per ring, which
+reads as coarse. The alternative is worse: concentric rings cannot tile without a hard
+discontinuity mid-face, so `FIT` stays — this is recording the calibration, not
+proposing a fix. Revisit if end-grain cutting-board-scale parts become common.
+
+**43. A v2 file with its `version` field hand-edited to `3` skips the v2→v3 migration
+step entirely, and `standing` silently becomes `posture: 'flat'`.** `migrateDocument`
+only runs `addPostureToV3` when `d.version < 3` — a file whose `version` says `3` but
+whose boards still carry the v2 `standing` boolean instead of `posture` goes straight to
+`validateBoard`, which has no idea what `standing` means, drops it as an unknown key,
+and falls `posture` back to `'flat'` (see follow-up 41's now-tested fallback). A board
+saved standing up quietly lies down, with no error and no warning. Reachable only by
+hand-editing the version field — user error, not a defect in the migration chain
+itself — but it is exactly the boundary invariant 11's (and follow-up 41's) migration-
+ordering argument describes: the chain protects every version transition it knows it is
+making, and nothing more. Worth writing down as the edge of what the chain covers, not
+worth defending against — there is no way to distinguish a genuinely-empty v3 board from
+a mislabeled v2 one once the version number itself is wrong.
+
+**44. ~~Plywood with `grain: 'thickness'` stacked its plies across the board's width
+instead of its thickness.~~ CLOSED in the final v3 review pass.** `grainTiling.ts`'s
+`ranks()` promoted the grain dimension to rank 0 for every material, on the
+justification that "the fallback order still puts thickness last" — true for `grain`
+`'length'` and `'width'`, false for `grain: 'thickness'`, where thickness itself was
+the one being promoted. Traced case: `plywood`, `grain: 'thickness'`, flat, unrotated,
+24 × 5.5 × 0.75 — the `+X` edge face ended up with `swap = true`, handing the ply
+stack's `FIT` axis to the board's 5.5in width instead of its 0.75in thickness; on
+screen, the narrow edge of a plywood sheet showed five plies running the length of the
+board. Reachable in two clicks (Material → Plywood, Runs → Through thickness). Fixed by
+scoping the grain-first rank to solid wood only — `ranks()` now uses `DIMENSION_ORDER`
+unmodified whenever `grainFamily(board.material) !== 'wood'`, because a sheet's ply
+construction is a property of the sheet, not of the figure on its face, and does not
+rotate with the grain. `src/viewport/grainTiling.test.ts` gained the `grain: 'thickness'`
+plywood case (asserting `swap === false` and that the tiled axis carries the width, not
+the thickness — the two grain values already covered, `length` and `width`, were
+re-verified unchanged).
