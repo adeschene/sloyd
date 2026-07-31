@@ -17,6 +17,12 @@ const volume = (r: Region) =>
 
 const totalVolume = (solids: Region[]) => solids.reduce((sum, r) => sum + volume(r), 0);
 
+/** Whether two regions share any interior volume. */
+const overlaps = (a: Region, b: Region): boolean =>
+  (['length', 'width', 'thickness'] as const).every(
+    (d) => a[d][0] < b[d][1] && b[d][0] < a[d][1],
+  );
+
 describe('cutRegion', () => {
   it('spans the across axis fully and sits where offset/width say', () => {
     const board = withCuts([DADO]);
@@ -31,12 +37,32 @@ describe('cutRegion', () => {
     const cut = { ...DADO, from: 'min' as const };
     expect(cutRegion(withCuts([cut]), cut).thickness).toEqual([0, 0.25]);
   });
+
+  // face === across is unrepresentable through the panel (the validator
+  // drops it on load) but reachable from a Board built directly, e.g. in a
+  // test or a future creation path. cutRegion must not throw — it must
+  // remove nothing.
+  it('is total: a degenerate cut naming the same dimension twice removes nothing', () => {
+    const degenerate: Cut = { ...DADO, face: 'length', across: 'length' };
+    const board = withCuts([degenerate]);
+    expect(() => cutRegion(board, degenerate)).not.toThrow();
+    expect(cutRegion(board, degenerate)).toEqual({
+      length: [0, 0], width: [0, 0], thickness: [0, 0],
+    });
+  });
 });
 
 describe('boardSolids', () => {
   // The guarantee that joinery costs nothing for boards that do not use it.
   it('returns exactly one solid, the whole board, when there are no cuts', () => {
     const board = createBoard();
+    expect(boardSolids(board)).toEqual([wholeBoard(board)]);
+  });
+
+  it('comes back whole rather than throwing for a degenerate face-equals-across cut', () => {
+    const degenerate: Cut = { ...DADO, face: 'length', across: 'length' };
+    const board = withCuts([degenerate]);
+    expect(() => boardSolids(board)).not.toThrow();
     expect(boardSolids(board)).toEqual([wholeBoard(board)]);
   });
 
@@ -80,10 +106,41 @@ describe('boardSolids', () => {
     };
     const solids = boardSolids(withCuts([DADO, across]));
     expect(solids.length).toBeGreaterThan(3);
-    // No solid may overlap either cut.
-    for (const s of solids) {
-      expect(s.thickness[0]).toBeGreaterThanOrEqual(0);
-      expect(volume(s)).toBeGreaterThan(0);
+
+    // No two solids may overlap each other, and none may overlap either cut.
+    const dadoRegion = cutRegion(withCuts([DADO, across]), DADO);
+    const acrossRegion = cutRegion(withCuts([DADO, across]), across);
+    for (let i = 0; i < solids.length; i += 1) {
+      expect(overlaps(solids[i], dadoRegion)).toBe(false);
+      expect(overlaps(solids[i], acrossRegion)).toBe(false);
+      for (let j = i + 1; j < solids.length; j += 1) {
+        expect(overlaps(solids[i], solids[j])).toBe(false);
+      }
     }
+
+    // Pin the extents for the canonical single-dado case, which this test
+    // otherwise only checks by count and non-overlap. The slab below the
+    // dado (thickness [0, 0.5]) is never interrupted and merges across the
+    // whole board length; the slab above it (thickness [0.5, 0.75]) is cut
+    // in two by the dado and cannot merge across that gap.
+    const dadoOnly = boardSolids(withCuts([DADO]));
+    expect(dadoOnly).toEqual([
+      { length: [0, 24], width: [0, 5.5], thickness: [0, 0.5] },
+      { length: [0, 6], width: [0, 5.5], thickness: [0.5, 0.75] },
+      { length: [6.75, 24], width: [0, 5.5], thickness: [0.5, 0.75] },
+    ]);
+  });
+
+  // Two cuts can each individually survive document.ts's single-cut
+  // full-removal guard yet jointly remove everything the guard cannot see
+  // (it has no view of other cuts). That is a legal, reachable output, not a
+  // bug — see boardSolids's doc comment.
+  it('returns no solids when cuts jointly remove the entire board', () => {
+    const left: Cut = {
+      id: 'a', face: 'thickness', from: 'max', across: 'width',
+      offset: 0, width: 12, depth: 0.75,
+    };
+    const right: Cut = { ...left, id: 'b', offset: 12, width: 12 };
+    expect(boardSolids(withCuts([left, right]))).toEqual([]);
   });
 });

@@ -17,8 +17,24 @@ export function wholeBoard(board: Board): Region {
  * sits at [offset, offset + width] on the implied position axis, and reaches
  * `depth` into `face` from whichever end `from` names. This is the only place
  * `from` is consumed — everything downstream reads the region, not the cut.
+ *
+ * `face` and `across` naming the same dimension is unrepresentable — there is
+ * no position axis left to measure `offset`/`width` along, and writing
+ * `region[cut.across]` then `region[cut.face]` to the same key would leave the
+ * third key unset, so `grid`'s `inside` check would throw destructuring it.
+ * `document.ts`'s validator drops such a cut on load, but this function must
+ * not lean on that: a `Board` built directly (a test, a future creation path)
+ * can still reach here without going through the validator. Making it total
+ * here means a future refactor of *where* validation runs cannot break this
+ * function from a distance — the same reasoning as `ranks()` in
+ * `viewport/grainTiling.ts`. A degenerate cut removes nothing: return a
+ * zero-width region, which `inside`'s strict `>`/`<` interior test can never
+ * contain, whatever cell centre it is compared against.
  */
 export function cutRegion(board: Board, cut: Cut): Region {
+  if (cut.face === cut.across) {
+    return { length: [0, 0], width: [0, 0], thickness: [0, 0] };
+  }
   const pos = positionAxisOf(cut.face, cut.across);
   const faceDim = board[cut.face];
   const region = {} as Region;
@@ -137,6 +153,15 @@ function mergeAlong(solids: Region[], axis: Dimension): Region[] {
  * result seam-free: the remainder around a dado is L-shaped in section and an
  * L is not a box. Edge lines therefore come from boardEdges, not from these
  * solids.
+ *
+ * Can legitimately return `[]`. `document.ts`'s validator only refuses a
+ * single cut that alone removes all the stock (`offset === 0 && width ===
+ * posDim && depth === faceDim`); it has no view of other cuts, so two cuts
+ * that each individually survive can still jointly remove everything (e.g.
+ * two adjacent full-depth, full-width cuts on the same face). That is a
+ * legal, reachable output — a board consumed entirely by its own joinery —
+ * not a bug, and callers (the viewport, a future cut list) must handle an
+ * empty solid set rather than assume at least one box.
  */
 export function boardSolids(board: Board): Region[] {
   if (board.cuts.length === 0) return [wholeBoard(board)];
