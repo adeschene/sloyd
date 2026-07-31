@@ -50,7 +50,7 @@ describe('facePlans', () => {
     // rotated is the orientation where that stops being obvious, and it is the
     // case that would silently paint plies across the length if the rule were
     // ever "simplified".
-    const plywood = { ...flat, material: 'plywood', standing: true, rotation: 90 as const };
+    const plywood = { ...flat, material: 'plywood', posture: 'on-edge' as const, rotation: 90 as const };
     expect(facePlans(plywood)[PZ].kind).toBe('end');
     expect(facePlans(plywood)[PZ].repeat[1]).toBe(1);
   });

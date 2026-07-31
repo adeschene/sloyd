@@ -1,17 +1,44 @@
-import type { Board } from './types';
+import type { Board, Dimension, Posture } from './types';
+
+/** The order two dimensions are considered in when they share the floor. */
+export const DIMENSION_ORDER: Dimension[] = ['length', 'width', 'thickness'];
+
+/** Which dimension each posture puts on the vertical axis. */
+const UP: Record<Posture, Dimension> = {
+  flat: 'thickness',
+  'on-edge': 'width',
+  upright: 'length',
+};
 
 /**
- * World-space size of a board along [X, Y, Z], in inches.
- * Orientation resolves `standing` first, then `rotation`.
+ * Which board dimension runs along each world axis, as [X, Y, Z].
+ *
+ * Posture names the dimension that points up; the other two take X and Z, and
+ * rotation picks which is which — at 0 the earlier of [length, width, thickness]
+ * goes on X, at 90 they swap.
+ *
+ * That single rule reproduces all four orientations v2 could reach and adds the
+ * two it could not. The four v2 rows are asserted explicitly in the tests,
+ * because agreeing with the old table is what makes this a generalisation
+ * rather than a rewrite of every document ever saved.
+ *
+ * This is the ONE place the mapping lives. boardExtents derives from it, and so
+ * does the viewport's grain code — before v3 the mapping was implicit in a
+ * boolean and had to be restated in two files that could drift apart.
  */
-export function boardExtents(board: Board): [number, number, number] {
-  const { length, width, thickness, standing, rotation } = board;
-  const turned = rotation === 90;
+export function axisDimensions(board: Board): [Dimension, Dimension, Dimension] {
+  const up = UP[board.posture];
+  const horizontal = DIMENSION_ORDER.filter((d) => d !== up);
+  const [x, z] = board.rotation === 90
+    ? [horizontal[1], horizontal[0]]
+    : horizontal;
+  return [x, up, z];
+}
 
-  if (standing) {
-    return turned ? [thickness, width, length] : [length, width, thickness];
-  }
-  return turned ? [width, thickness, length] : [length, thickness, width];
+/** World-space size of a board along [X, Y, Z], in inches. */
+export function boardExtents(board: Board): [number, number, number] {
+  const [x, y, z] = axisDimensions(board);
+  return [board[x], board[y], board[z]];
 }
 
 /**

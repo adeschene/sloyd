@@ -1,44 +1,27 @@
-import { createBoard, boardExtents } from '../document/document';
-import { axisDimensions, faceGrainKinds, grainFamily } from './grainFaces';
+import { createBoard } from '../document/document';
+import { faceGrainKinds, grainFamily } from './grainFaces';
 
 const base = createBoard({ length: 36, width: 9, thickness: 0.75 });
-
-describe('axisDimensions', () => {
-  // This mirrors boardExtents exactly, and the two must not drift apart: the
-  // grain kind on a face is decided by which dimension runs along its normal,
-  // so a disagreement would paint end grain on a face.
-  it('agrees with boardExtents in every orientation', () => {
-    for (const rotation of [0, 90] as const) {
-      for (const standing of [false, true]) {
-        const board = { ...base, rotation, standing };
-        const extents = boardExtents(board);
-        axisDimensions(board).forEach((dimension, axis) => {
-          expect(extents[axis]).toBe(board[dimension]);
-        });
-      }
-    }
-  });
-});
 
 describe('faceGrainKinds', () => {
   // Order is BoxGeometry's material groups: +X, -X, +Y, -Y, +Z, -Z.
   it('flat, grain along X: ends on X, faces up and down, edges on Z', () => {
-    expect(faceGrainKinds({ ...base, standing: false, rotation: 0 }))
+    expect(faceGrainKinds({ ...base, posture: 'flat', rotation: 0 }))
       .toEqual(['end', 'end', 'face', 'face', 'edge', 'edge']);
   });
 
   it('flat, grain along Z: edges on X, faces up and down, ends on Z', () => {
-    expect(faceGrainKinds({ ...base, standing: false, rotation: 90 }))
+    expect(faceGrainKinds({ ...base, posture: 'flat', rotation: 90 }))
       .toEqual(['edge', 'edge', 'face', 'face', 'end', 'end']);
   });
 
-  it('standing, grain along X: ends on X, edges up and down, faces on Z', () => {
-    expect(faceGrainKinds({ ...base, standing: true, rotation: 0 }))
+  it('on edge, grain along X: ends on X, edges up and down, faces on Z', () => {
+    expect(faceGrainKinds({ ...base, posture: 'on-edge', rotation: 0 }))
       .toEqual(['end', 'end', 'edge', 'edge', 'face', 'face']);
   });
 
-  it('standing, grain along Z: faces on X, edges up and down, ends on Z', () => {
-    expect(faceGrainKinds({ ...base, standing: true, rotation: 90 }))
+  it('on edge, grain along Z: faces on X, edges up and down, ends on Z', () => {
+    expect(faceGrainKinds({ ...base, posture: 'on-edge', rotation: 90 }))
       .toEqual(['face', 'face', 'edge', 'edge', 'end', 'end']);
   });
 

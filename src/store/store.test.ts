@@ -86,7 +86,7 @@ describe('updateBoard reorients a board in place', () => {
 
   it('moves the corner so a board stood on edge keeps its footprint centre', () => {
     const id = aBoard();
-    useStore.getState().updateBoard(id, { standing: true });
+    useStore.getState().updateBoard(id, { posture: 'on-edge' });
     expect(board().position).toEqual([10, 0, 6.375]);
   });
 
@@ -119,22 +119,36 @@ describe('updateBoard reorients a board in place', () => {
     expect(board().position).toEqual([10, 0, 4]);
   });
 
-  it('keeps the footprint centred when standing is toggled on a board already turned', () => {
+  it('keeps the footprint centred when posture is changed on a board already turned', () => {
     const id = aBoard();
     useStore.getState().updateBoard(id, { rotation: 90 });
-    useStore.getState().updateBoard(id, { standing: true });
+    useStore.getState().updateBoard(id, { posture: 'on-edge' });
     expect(board().rotation).toBe(90);
-    expect(board().standing).toBe(true);
+    expect(board().posture).toBe('on-edge');
     expect(board().position).toEqual([21.625, 0, -5.25]);
   });
 
-  it('keeps the footprint centred when rotation is changed on a board already standing', () => {
+  it('keeps the footprint centred when rotation is changed on a board already on edge', () => {
     const id = aBoard();
-    useStore.getState().updateBoard(id, { standing: true });
+    useStore.getState().updateBoard(id, { posture: 'on-edge' });
     useStore.getState().updateBoard(id, { rotation: 90 });
     expect(board().rotation).toBe(90);
-    expect(board().standing).toBe(true);
+    expect(board().posture).toBe('on-edge');
     expect(board().position).toEqual([21.625, 0, -5.25]);
+  });
+
+  it('stands a board upright in place — the largest pivot the app can make', () => {
+    const id = aBoard();   // 24 x 5-1/2 x 3/4 at [10, 0, 4]
+    useStore.getState().updateBoard(id, { posture: 'upright' });
+    // Extents go 24 x 3/4 x 5-1/2 -> 5-1/2 x 24 x 3/4: X takes +9-1/4,
+    // Z takes +2-3/8, and the board still sits on the floor.
+    expect(board().position).toEqual([19.25, 0, 6.375]);
+  });
+
+  it('leaves an upright board on the floor rather than centring it vertically', () => {
+    const id = aBoard();
+    useStore.getState().updateBoard(id, { posture: 'upright' });
+    expect(board().position[1]).toBe(0);
   });
 
   it('keeps the footprint centred when a dimension and the rotation change in one patch', () => {

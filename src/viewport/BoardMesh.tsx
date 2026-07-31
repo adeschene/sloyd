@@ -31,7 +31,7 @@ interface Props {
 
 export function BoardMesh({ board, selected, onSelect }: Props) {
   // Geometry is derived from the document on every render — the mesh is never
-  // the source of truth. Extents already account for rotation and standing,
+  // the source of truth. Extents already account for rotation and posture,
   // so the mesh itself is axis-aligned and never carries a rotation.
   const extents = boardExtents(board);
   const center = boardCenter(board);
@@ -51,7 +51,7 @@ export function BoardMesh({ board, selected, onSelect }: Props) {
     return geo;
   }, [
     extents[0], extents[1], extents[2],
-    board.id, board.rotation, board.standing, board.material,
+    board.id, board.rotation, board.posture, board.material,
   ]);
 
   useEffect(() => () => geometry.dispose(), [geometry]);

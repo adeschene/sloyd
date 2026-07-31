@@ -3,7 +3,7 @@ import { useStore } from '../store/store';
 import { MATERIALS, uniqueName } from '../document/document';
 import { DimensionField } from './DimensionField';
 import { NameField } from './NameField';
-import type { Rotation } from '../document/document';
+import type { Rotation, Posture } from '../document/document';
 
 export function Properties() {
   const board = useStore((s) => s.doc.boards.find((b) => b.id === s.selectedId));
@@ -65,24 +65,28 @@ export function Properties() {
       <DimensionField label="Z" precision={precision} allowNegative value={board.position[2]} onCommit={setPos(2)} />
 
       <h3>Orientation</h3>
-      {/* Two values, not four. A box has 2-fold symmetry about the vertical, so
-          180 and 270 were spellings of 0 and 90 rather than states of their own.
-          The stored value stays degrees; the label is what the woodworker cares
-          about. X and Z name the same axes as the Position fields above and the
-          origin lines in the viewport. */}
+      {/* Posture names which of the board's dimensions points up, and that is
+          the whole model: it picks the vertical dimension, Turn orders the other
+          two. Upright is what v2 could not express — a leg, a post, a stile.
+          "Turn" rather than "Rotation" because with three postures it is no
+          longer the only thing that rotates the board. */}
       <div className="field">
-        <label htmlFor="grain">Grain</label>
-        <select id="grain" className="input" value={board.rotation}
-          onChange={(e) => updateBoard(board.id, { rotation: Number(e.target.value) as Rotation })}>
-          <option value={0}>Along X</option>
-          <option value={90}>Along Z</option>
+        <label htmlFor="posture">Posture</label>
+        <select id="posture" className="input" value={board.posture}
+          onChange={(e) => updateBoard(board.id, { posture: e.target.value as Posture })}>
+          <option value="flat">Flat</option>
+          <option value="on-edge">On edge</option>
+          <option value="upright">Upright</option>
         </select>
       </div>
-      <label className="checkbox">
-        <input type="checkbox" checked={board.standing}
-          onChange={(e) => updateBoard(board.id, { standing: e.target.checked })} />
-        Standing (on edge)
-      </label>
+      <div className="field">
+        <label htmlFor="turn">Turn</label>
+        <select id="turn" className="input" value={board.rotation}
+          onChange={(e) => updateBoard(board.id, { rotation: Number(e.target.value) as Rotation })}>
+          <option value={0}>0°</option>
+          <option value={90}>90°</option>
+        </select>
+      </div>
 
       {/* The heading names this control via aria-labelledby (an aria-label
           alone would not be programmatically associated with the <h3>). */}

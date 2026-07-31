@@ -1,32 +1,15 @@
 import type { Board } from '../document/document';
+import { axisDimensions } from '../document/document';
+import type { Dimension } from '../document/document';
+
+export { axisDimensions };
+export type { Dimension };
 
 /** Which cut of the wood a face shows. */
 export type GrainKind = 'face' | 'edge' | 'end';
 
 /** How a material is drawn. Species differ in colour, not in grain structure. */
 export type GrainFamily = 'wood' | 'plywood' | 'mdf';
-
-/** One of a board's three dimensions. */
-export type Dimension = 'length' | 'width' | 'thickness';
-
-/**
- * Which board dimension runs along each world axis, as [X, Y, Z].
- *
- * This mirrors boardExtents — standing resolves first, then rotation — and the
- * two must stay in step. A test asserts the agreement directly, because a
- * disagreement would paint end grain on a face without anything else noticing.
- */
-export function axisDimensions(board: Board): [Dimension, Dimension, Dimension] {
-  const turned = board.rotation === 90;
-  if (board.standing) {
-    return turned
-      ? ['thickness', 'width', 'length']
-      : ['length', 'width', 'thickness'];
-  }
-  return turned
-    ? ['width', 'thickness', 'length']
-    : ['length', 'thickness', 'width'];
-}
 
 /**
  * The grain kind on each of a box's six faces, in BoxGeometry's material-group

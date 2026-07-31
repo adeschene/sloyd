@@ -1,12 +1,12 @@
 import { MATERIALS, DEFAULT_MATERIAL } from './types';
-import type { Board, Rotation, SloydDocument } from './types';
+import type { Board, Rotation, Posture, Grain, SloydDocument } from './types';
 import { dedupeNames } from './names';
 
 export * from './types';
-export { boardExtents, boardCenter, reorientedPosition } from './geometry';
+export { boardExtents, boardCenter, reorientedPosition, axisDimensions, DIMENSION_ORDER } from './geometry';
 export { uniqueName, dedupeNames } from './names';
 
-export const CURRENT_VERSION = 2;
+export const CURRENT_VERSION = 3;
 
 export class DocumentError extends Error {
   /**
@@ -45,7 +45,8 @@ export function createBoard(partial: Partial<Board> = {}): Board {
     thickness: 0.75,
     position: [0, 0, 0],
     rotation: 0,
-    standing: false,
+    posture: 'flat',
+    grain: 'length',
     material: DEFAULT_MATERIAL,
     ...partial,
   };
@@ -61,6 +62,8 @@ export function createDocument(name = 'Untitled'): SloydDocument {
 }
 
 const VALID_ROTATIONS = [0, 90];
+const VALID_POSTURES: Posture[] = ['flat', 'on-edge', 'upright'];
+const VALID_GRAINS: Grain[] = ['length', 'width', 'thickness'];
 
 function isPositiveFinite(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v) && v > 0;
@@ -106,7 +109,12 @@ function validateBoard(raw: unknown, index: number): Board {
     thickness: b.thickness as number,
     position: [pos[0], pos[1], pos[2]] as [number, number, number],
     rotation,
-    standing: b.standing === true,
+    posture: VALID_POSTURES.includes(b.posture as Posture)
+      ? (b.posture as Posture)
+      : 'flat',
+    grain: VALID_GRAINS.includes(b.grain as Grain)
+      ? (b.grain as Grain)
+      : 'length',
     material,
   };
 }
@@ -134,6 +142,28 @@ function foldRotationToV2(raw: unknown): unknown {
   if (b.rotation === 180) return { ...b, rotation: 0 };
   if (b.rotation === 270) return { ...b, rotation: 90 };
   return raw;
+}
+
+/**
+ * v2 -> v3: `standing` became `posture`, which names the dimension that points
+ * up, and grain became a field of its own.
+ *
+ * `flat` and `on-edge` are exactly what the boolean meant, so this is
+ * extent-neutral and adjusts no positions. Every v2 board had its fibres running
+ * along its length, because that was the only thing v2 could express.
+ *
+ * Like the v1 -> v2 fold, it runs on raw board data before validateBoard, and
+ * for the same reason: validateBoard's posture fallback is 'flat', so a board
+ * with `standing: true` that reached it first would come out lying down.
+ */
+function addPostureToV3(raw: unknown): unknown {
+  if (typeof raw !== 'object' || raw === null) return raw;
+  const { standing, ...rest } = raw as Record<string, unknown>;
+  return {
+    ...rest,
+    posture: standing === true ? 'on-edge' : 'flat',
+    grain: 'length',
+  };
 }
 
 /**
@@ -167,7 +197,9 @@ export function migrateDocument(raw: unknown): SloydDocument {
   }
 
   // Upgrade steps run one version at a time, on raw data, before validation.
-  const rawBoards = d.version < 2 ? d.boards.map(foldRotationToV2) : d.boards;
+  let rawBoards = d.boards;
+  if (d.version < 2) rawBoards = rawBoards.map(foldRotationToV2);
+  if (d.version < 3) rawBoards = rawBoards.map(addPostureToV3);
 
   const units = d.units as SloydDocument['units'] | undefined;
   const precision =

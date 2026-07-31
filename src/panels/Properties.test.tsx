@@ -245,7 +245,7 @@ describe('the part name field', () => {
   });
 });
 
-describe('the grain control', () => {
+describe('the orientation controls', () => {
   const selectFirstBoard = () => {
     useStore.getState().addBoard();
     const id = useStore.getState().doc.boards[0].id;
@@ -253,31 +253,25 @@ describe('the grain control', () => {
     return id;
   };
 
-  it('offers exactly two grain directions', () => {
+  it('offers three postures', () => {
     selectFirstBoard();
     render(<Properties />);
-    const grain = screen.getByLabelText('Grain') as HTMLSelectElement;
-    expect([...grain.options].map((o) => o.textContent)).toEqual(['Along X', 'Along Z']);
+    const posture = screen.getByLabelText('Posture') as HTMLSelectElement;
+    expect([...posture.options].map((o) => o.textContent))
+      .toEqual(['Flat', 'On edge', 'Upright']);
   });
 
-  it('commits a change of grain direction', async () => {
+  it('commits a posture change', async () => {
     const id = selectFirstBoard();
     render(<Properties />);
-    await userEvent.selectOptions(screen.getByLabelText('Grain'), '90');
+    await userEvent.selectOptions(screen.getByLabelText('Posture'), 'upright');
+    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.posture).toBe('upright');
+  });
+
+  it('commits a turn', async () => {
+    const id = selectFirstBoard();
+    render(<Properties />);
+    await userEvent.selectOptions(screen.getByLabelText('Turn'), '90');
     expect(useStore.getState().doc.boards.find((b) => b.id === id)!.rotation).toBe(90);
-  });
-
-  it('shows the stored direction', () => {
-    const id = selectFirstBoard();
-    act(() => { useStore.getState().updateBoard(id, { rotation: 90 }); });
-    render(<Properties />);
-    expect((screen.getByLabelText('Grain') as HTMLSelectElement).value).toBe('90');
-  });
-
-  it('still commits the standing checkbox', async () => {
-    const id = selectFirstBoard();
-    render(<Properties />);
-    await userEvent.click(screen.getByLabelText(/Standing/));
-    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.standing).toBe(true);
   });
 });

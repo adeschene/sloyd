@@ -269,7 +269,7 @@ export function Gizmo() {
   useEffect(() => {
     if (board && !dragging.current) proxy.current.position.set(...boardCenter(board));
   }, [board?.id, board?.position[0], board?.position[1], board?.position[2],
-      board?.length, board?.width, board?.thickness, board?.rotation, board?.standing]);
+      board?.length, board?.width, board?.thickness, board?.rotation, board?.posture]);
 
   if (!board || !selectedId) return null;
 
