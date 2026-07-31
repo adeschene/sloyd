@@ -557,3 +557,60 @@ Left open rather than closed: this is a recorded finding, not a fix, and it is w
 rechecking if this field is ever changed to buffer input locally (e.g. to debounce
 keystrokes rewriting the store on every keystroke) — the staleness shape only exists
 where a component keeps its own copy of the value.
+
+## From joinery
+
+Five items, all found during joinery's task reviews and recorded rather than fixed.
+Item 48 is the one with user-visible consequences; the rest are hygiene.
+
+**48. Shrinking a board's dimensions can store a cut that removes the whole board.**
+The Cuts section refuses a cut whose depth, offset and width together remove all the
+stock (`CutRow`'s `wouldRemoveAll` guard). But the *Dimensions* fields write through
+`updateBoard`, which never meets that guard, so shrinking a board's thickness below an
+existing cut's depth — or its length below a full-width cut — reaches the same illegal
+state from the other side. `boardSolids` then correctly returns `[]`, the board renders
+nothing and cannot be clicked, and it still sits in the parts list showing its
+dimensions. On the next load `validateCuts` drops the offending cut and the board comes
+back whole, so nothing is permanently lost — but in-session the part is invisible and
+there is no obvious way to get it back. Two candidate fixes, not yet chosen: run the
+same guard on dimension writes, or have `BoardMesh` render a placeholder (a wireframe
+of the board's AABB, say) whenever `boardSolids` is empty, so the part stays selectable
+and the situation is legible. The second is probably better — it also covers any future
+path that reaches an empty solid set.
+
+**49. `boardSolids` returning `[]` is reachable through two individually-legal cuts.**
+`validateCuts`'s full-removal guard is per-cut, so two cuts that each leave stock but
+jointly remove everything (`offset 0, width 12, depth 3/4` plus `offset 12, width 12,
+depth 3/4` on a 24" board) both survive load. This is the same end state as 48 by a
+different route, and the same placeholder fix would cover it. Documented and tested in
+`cuts.ts` as correct behaviour rather than left to be discovered.
+
+**50. The merge in `boardSolids` is not proven maximal.** `mergeAlong` runs once per
+axis in `DIMENSION_ORDER`, which is deterministic and always correct — every merge
+unions two abutting boxes with identical other-spans, so disjointness and total coverage
+are preserved — but it is not proven to produce the fewest possible solids. A residual
+missed merge costs draw calls, never correctness, and edge lines come from the grid
+(invariant 16) so it cannot show up as a visible seam either. Left alone deliberately;
+if it is ever revisited, the thing to measure is solid count on a realistic multi-cut
+part, not the algorithm's elegance.
+
+**51. Cut ids share the `b_` prefix with board ids.** `addCut` mints ids with the same
+`nextId()` counter the boards use, which is what guarantees uniqueness within a board
+and matches how `validateCuts` re-mints on load. The prefix is now just cosmetically
+misleading. Grepped when it was introduced: nothing depends on the prefix.
+
+**52. `DimensionField`'s new `min`/`max` props have no direct unit tests.** They are
+exercised indirectly through the Cuts panel tests (offset 0 must be accepted, depth past
+the board must be refused), but `DimensionField.test.tsx` itself does not cover them —
+including the specific reason `min` exists rather than reusing `allowNegative`, which is
+that `min={0}` must still refuse a negative. This is the "correct but untested" shape
+that the top of this file warns about.
+
+Also worth recording, since it is a lesson rather than a defect: **three of joinery's
+bugs were in code the plan supplied verbatim**, not in transcription — an unsatisfiable
+test assertion, a `DimensionField` that rejected the offset value a rabbet requires, and
+store actions that pushed no-op undo entries for unknown ids. Each was caught because
+the implementer was told to fix the code rather than the expectation, and to stop and
+escalate if it concluded an expectation was itself wrong. A fourth (edge segments
+fragmenting at grid splits from unrelated cuts) was caught the same way. Plan text is
+not more trustworthy than hand-written code just because it is in the plan.
