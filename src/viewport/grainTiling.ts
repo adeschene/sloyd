@@ -1,5 +1,5 @@
-import { boardExtents, DIMENSION_ORDER, isSheetGood } from '../document/document';
-import type { Board } from '../document/document';
+import { boardExtents, DIMENSION_ORDER, isSheetGood, wholeBoard } from '../document/document';
+import type { Board, Region, Span } from '../document/document';
 import { axisDimensions, faceGrainKinds, grainFamily } from './grainFaces';
 import type { Dimension, GrainFamily, GrainKind } from './grainFaces';
 
@@ -99,14 +99,20 @@ export interface FacePlan {
   kind: GrainKind;
   /** True when the drawn texture must be turned a quarter turn to follow the grain. */
   swap: boolean;
-  /** How many tiles cover this face, along the drawn texture's u and v. */
-  repeat: [number, number];
+  /** The world axes carrying the drawn texture's u and v, after any swap. */
+  axes: [Axis, Axis];
   /**
-   * Whether each axis (u, v) is FIT — the whole tile is shown regardless of
-   * face size. The per-board offset must be zeroed on a FIT axis: the whole
-   * tile is shown either way, so the offset buys no variation and only
-   * shifts the pattern's seam into the middle of the face.
+   * Inches per tile along the drawn u and v.
+   *
+   * A FIT axis resolves to the BOARD's extent on that axis, which is what
+   * makes "show the whole tile" and "tile every N inches" one formula:
+   * u = coordinate / tileInches. It is also why a sub-box of a board shows
+   * the fraction of the tile it actually occupies — fitting the tile to the
+   * sub-box instead would squeeze plywood's whole ply stack into the stock
+   * that survived a dado.
    */
+  tileInches: [number, number];
+  /** Whether each axis (u, v) is FIT — the per-board offset is zeroed there. */
   fit: [boolean, boolean];
 }
 
@@ -125,37 +131,46 @@ export function facePlans(board: Board): FacePlan[] {
     return {
       kind,
       swap,
-      repeat: [tileCount(extents[du], tu), tileCount(extents[dv], tv)],
+      axes: [du, dv] as [Axis, Axis],
+      tileInches: [
+        tu === FIT ? extents[du] : tu,
+        tv === FIT ? extents[dv] : tv,
+      ],
       fit: [tu === FIT, tv === FIT],
     };
   });
-}
-
-function tileCount(extent: number, tile: Tile): number {
-  return tile === FIT ? 1 : extent / tile;
 }
 
 /** BoxGeometry emits four vertices per face, with these default UVs. */
 const CORNERS: Array<[number, number]> = [[0, 1], [1, 1], [0, 0], [1, 0]];
 
 /**
- * The `uv` attribute for a board's box: 48 floats, four (u, v) pairs per face in
- * BoxGeometry's own vertex order.
+ * The `uv` attribute for one solid of a board: 48 floats, four (u, v) pairs per
+ * face in BoxGeometry's own vertex order.
  *
- * Everything that varies per board lives here rather than on the texture. The
- * textures are shared by every board on screen and are never mutated; this
- * array is rebuilt and disposed with the geometry.
+ * UVs are PARENT-RELATIVE. A solid's coordinates are looked up in the board's
+ * tiling, not in its own, so the figure runs continuously across a dado instead
+ * of restarting at it — which is what makes a cut read as stock removed from
+ * one board rather than two boards pushed together. Passing no solid gives the
+ * whole board, identical to what this returned before joinery existed.
+ *
+ * The per-board offset stays the BOARD's (invariant 12) for the same reason. A
+ * per-solid offset would break exactly the continuity this exists to get.
  */
-export function boardUVs(board: Board): Float32Array {
+export function boardUVs(board: Board, solid: Region = wholeBoard(board)): Float32Array {
   const plans = facePlans(board);
+  const dims = axisDimensions(board);
   const [ou, ov] = boardUVOffset(board.id);
   const uv = new Float32Array(48);
   let i = 0;
   for (const plan of plans) {
+    const spans = plan.axes.map((axis) => solid[dims[axis]]) as [Span, Span];
     for (const [cu, cv] of CORNERS) {
-      const [u, v] = plan.swap ? [cv, cu] : [cu, cv];
-      uv[i++] = u * plan.repeat[0] + (plan.fit[0] ? 0 : ou);
-      uv[i++] = v * plan.repeat[1] + (plan.fit[1] ? 0 : ov);
+      const [fu, fv] = plan.swap ? [cv, cu] : [cu, cv];
+      const at = (f: number, s: Span, tile: number, off: number, isFit: boolean) =>
+        (s[0] + f * (s[1] - s[0])) / tile + (isFit ? 0 : off);
+      uv[i++] = at(fu, spans[0], plan.tileInches[0], ou, plan.fit[0]);
+      uv[i++] = at(fv, spans[1], plan.tileInches[1], ov, plan.fit[1]);
     }
   }
   return uv;
@@ -174,7 +189,8 @@ export function boardUVs(board: Board): Float32Array {
  * Walked from boardUVs itself: facePlans reads boardExtents (length, width,
  * thickness), axisDimensions (rotation, posture), faceGrainKinds (grain,
  * posture, rotation), grainFamily (material) and ranks (grain); boardUVs
- * itself also reads id via boardUVOffset. `position` and `name` are
+ * itself also reads id via boardUVOffset, and board.cuts via the `solid`
+ * argument BoardMesh derives from them. `position` and `name` are
  * deliberately absent — boardUVs never reads them, and a board being dragged
  * must not rebuild its geometry every frame.
  */
@@ -188,6 +204,13 @@ export function boardUVSignature(board: Board): string {
     board.length,
     board.width,
     board.thickness,
+    // Cuts change which solids exist and therefore which sub-ranges are
+    // asked for. v3 shipped a bug of exactly this shape — `grain` was added
+    // to what boardUVs reads without updating BoardMesh's memo, so grain
+    // silently stopped turning on screen while the document stayed correct.
+    board.cuts
+      .map((c) => [c.face, c.from, c.across, c.offset, c.width, c.depth].join(','))
+      .join(';'),
   ].join('|');
 }
 

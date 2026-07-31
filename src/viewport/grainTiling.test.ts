@@ -1,4 +1,5 @@
-import { createBoard } from '../document/document';
+import { axisDimensions, boardExtents, createBoard, wholeBoard } from '../document/document';
+import type { Region } from '../document/document';
 import { boardUVOffset, boardUVs, boardUVSignature, facePlans } from './grainTiling';
 
 const flat = createBoard({ length: 24, width: 5.5, thickness: 0.75, material: 'oak' });
@@ -24,14 +25,18 @@ describe('facePlans', () => {
   });
 
   it('scales with the world size of the face', () => {
-    const small = facePlans({ ...flat, length: 12 })[PY].repeat[0];
-    const large = facePlans({ ...flat, length: 24 })[PY].repeat[0];
-    expect(large).toBeCloseTo(small * 2);
+    // Tile size is fixed regardless of face size — that fixed size is what
+    // makes a bigger face necessarily show more tiles.
+    expect(facePlans({ ...flat, length: 12 })[PY].tileInches[0]).toBe(16);
+    expect(facePlans({ ...flat, length: 24 })[PY].tileInches[0]).toBe(16);
   });
 
   it('fits one ring pattern across an end, however big the end is', () => {
-    expect(facePlans(flat)[PX].repeat).toEqual([1, 1]);
-    expect(facePlans({ ...flat, width: 11 })[PX].repeat).toEqual([1, 1]);
+    // FIT resolves tileInches to the board's own extent on that axis, so
+    // repeat (extent / tileInches) always comes out to 1 whatever the size.
+    expect(facePlans(flat)[PX].tileInches).toEqual([flat.width, flat.thickness]);
+    const wide = { ...flat, width: 11 };
+    expect(facePlans(wide)[PX].tileInches).toEqual([wide.width, wide.thickness]);
   });
 
   it('fits exactly one ply stack across the thickness of a plywood edge', () => {
@@ -39,8 +44,9 @@ describe('facePlans', () => {
     // +Z is the edge face when flat and unrotated; its v axis carries the
     // thickness, and the drawn ply stack has to span it exactly whether the
     // sheet is 1/2in or 3/4in.
-    expect(facePlans(plywood)[PZ].repeat[1]).toBe(1);
-    expect(facePlans({ ...plywood, thickness: 0.5 })[PZ].repeat[1]).toBe(1);
+    expect(facePlans(plywood)[PZ].tileInches[1]).toBe(plywood.thickness);
+    const thin = { ...plywood, thickness: 0.5 };
+    expect(facePlans(thin)[PZ].tileInches[1]).toBe(thin.thickness);
   });
 
   it('fits one ply stack across the thickness of a standing plywood end too', () => {
@@ -55,13 +61,17 @@ describe('facePlans', () => {
     // the grain: 'thickness' case below for what that simplification breaks).
     const plywood = { ...flat, material: 'plywood', posture: 'on-edge' as const, rotation: 90 as const };
     expect(facePlans(plywood)[PZ].kind).toBe('end');
-    expect(facePlans(plywood)[PZ].repeat[1]).toBe(1);
+    expect(facePlans(plywood)[PZ].tileInches[1]).toBe(plywood.thickness);
   });
 
   it('tiles a plywood edge along its length like any other long face', () => {
     const plywood = { ...flat, material: 'plywood' };
-    expect(facePlans(plywood)[PZ].repeat[0])
-      .toBeGreaterThan(facePlans({ ...plywood, length: 12 })[PZ].repeat[0]);
+    const short = { ...plywood, length: 12 };
+    // Tile size (u) is fixed at 16in for both; the longer board's extent
+    // covers more of it, i.e. a bigger effective repeat.
+    expect(facePlans(plywood)[PZ].tileInches[0]).toBe(facePlans(short)[PZ].tileInches[0]);
+    expect(plywood.length / facePlans(plywood)[PZ].tileInches[0])
+      .toBeGreaterThan(short.length / facePlans(short)[PZ].tileInches[0]);
   });
 });
 
@@ -76,8 +86,9 @@ describe('boardUVs', () => {
     const us = face.filter((_, i) => i % 2 === 0);
     const vs = face.filter((_, i) => i % 2 === 1);
     const plan = facePlans(flat)[PY];
-    expect(Math.max(...us) - Math.min(...us)).toBeCloseTo(plan.repeat[0]);
-    expect(Math.max(...vs) - Math.min(...vs)).toBeCloseTo(plan.repeat[1]);
+    const extents = boardExtents(flat);
+    expect(Math.max(...us) - Math.min(...us)).toBeCloseTo(extents[plan.axes[0]] / plan.tileInches[0]);
+    expect(Math.max(...vs) - Math.min(...vs)).toBeCloseTo(extents[plan.axes[1]] / plan.tileInches[1]);
   });
 
   it('offsets boards differently so neighbours do not read as clones', () => {
@@ -143,8 +154,9 @@ describe('the drawn texture follows the grain', () => {
     // this face shows a cut END once the grain runs across the width, not an
     // edge, which is exactly why the tiling must not key off the kind alone.
     const plywood = { ...flat, material: 'plywood', grain: 'width' as const };
-    expect(facePlans(plywood)[PZ].repeat[1]).toBe(1);
-    expect(facePlans(plywood)[PZ].fit[1]).toBe(true);
+    const plan = facePlans(plywood)[PZ];
+    expect(plan.tileInches[1]).toBe(boardExtents(plywood)[plan.axes[1]]);
+    expect(plan.fit[1]).toBe(true);
   });
 
   it('still crosses the thickness — not the width — on a plywood edge when the grain runs through the thickness', () => {
@@ -161,13 +173,15 @@ describe('the drawn texture follows the grain', () => {
     expect(plan.kind).toBe('edge');
     expect(plan.swap).toBe(false);
     expect(plan.fit[1]).toBe(true);
-    expect(plan.repeat[1]).toBe(1);
+    expect(plan.tileInches[1]).toBe(boardExtents(plywood)[plan.axes[1]]);
     // The tiled (u) axis must carry the board's WIDTH (5.5in), not its
     // thickness (0.75in). Pre-fix this was 0.75 / 16 ≈ 0.047; correct is
     // 5.5 / 16 ≈ 0.344 — a value that only comes out right if the FIT axis
-    // (v) landed on thickness, not width.
-    expect(plan.repeat[0]).toBeCloseTo(flat.width / 16);
-    expect(plan.repeat[0]).not.toBeCloseTo(flat.thickness / 16);
+    // (v) landed on thickness, not width. tileInches[0] is the fixed 16in
+    // tile either way; what must differ is which board dimension the u axis
+    // carries.
+    expect(axisDimensions(plywood)[plan.axes[0]]).toBe('width');
+    expect(plan.tileInches[0]).toBe(16);
   });
 });
 
@@ -192,8 +206,9 @@ describe('plywood grain direction is visible on the broad face (regression)', ()
 
   it('keeps the ply stack spanning the thickness for both grain values', () => {
     for (const grain of ['length', 'width'] as const) {
-      const plan = facePlans({ ...plywood, grain })[PZ];
-      expect(plan.repeat[1]).toBe(1);
+      const board = { ...plywood, grain };
+      const plan = facePlans(board)[PZ];
+      expect(plan.tileInches[1]).toBe(boardExtents(board)[plan.axes[1]]);
       expect(plan.fit[1]).toBe(true);
     }
   });
@@ -207,34 +222,34 @@ describe('solid wood is unaffected by the sheet-goods grain fix', () => {
 
   it('grain: length', () => {
     expect(facePlans({ ...oak, grain: 'length' })).toEqual([
-      { kind: 'end', swap: false, repeat: [1, 1], fit: [true, true] },
-      { kind: 'end', swap: false, repeat: [1, 1], fit: [true, true] },
-      { kind: 'face', swap: false, repeat: [1.5, 0.9166666666666666], fit: [false, false] },
-      { kind: 'face', swap: false, repeat: [1.5, 0.9166666666666666], fit: [false, false] },
-      { kind: 'edge', swap: false, repeat: [1.5, 0.1875], fit: [false, false] },
-      { kind: 'edge', swap: false, repeat: [1.5, 0.1875], fit: [false, false] },
+      { kind: 'end', swap: false, axes: [2, 1], tileInches: [5.5, 0.75], fit: [true, true] },
+      { kind: 'end', swap: false, axes: [2, 1], tileInches: [5.5, 0.75], fit: [true, true] },
+      { kind: 'face', swap: false, axes: [0, 2], tileInches: [16, 6], fit: [false, false] },
+      { kind: 'face', swap: false, axes: [0, 2], tileInches: [16, 6], fit: [false, false] },
+      { kind: 'edge', swap: false, axes: [0, 1], tileInches: [16, 4], fit: [false, false] },
+      { kind: 'edge', swap: false, axes: [0, 1], tileInches: [16, 4], fit: [false, false] },
     ]);
   });
 
   it('grain: width', () => {
     expect(facePlans({ ...oak, grain: 'width' })).toEqual([
-      { kind: 'edge', swap: false, repeat: [0.34375, 0.1875], fit: [false, false] },
-      { kind: 'edge', swap: false, repeat: [0.34375, 0.1875], fit: [false, false] },
-      { kind: 'face', swap: true, repeat: [0.34375, 4], fit: [false, false] },
-      { kind: 'face', swap: true, repeat: [0.34375, 4], fit: [false, false] },
-      { kind: 'end', swap: false, repeat: [1, 1], fit: [true, true] },
-      { kind: 'end', swap: false, repeat: [1, 1], fit: [true, true] },
+      { kind: 'edge', swap: false, axes: [2, 1], tileInches: [16, 4], fit: [false, false] },
+      { kind: 'edge', swap: false, axes: [2, 1], tileInches: [16, 4], fit: [false, false] },
+      { kind: 'face', swap: true, axes: [2, 0], tileInches: [16, 6], fit: [false, false] },
+      { kind: 'face', swap: true, axes: [2, 0], tileInches: [16, 6], fit: [false, false] },
+      { kind: 'end', swap: false, axes: [0, 1], tileInches: [24, 0.75], fit: [true, true] },
+      { kind: 'end', swap: false, axes: [0, 1], tileInches: [24, 0.75], fit: [true, true] },
     ]);
   });
 
   it('grain: thickness', () => {
     expect(facePlans({ ...oak, grain: 'thickness' })).toEqual([
-      { kind: 'edge', swap: true, repeat: [0.046875, 1.375], fit: [false, false] },
-      { kind: 'edge', swap: true, repeat: [0.046875, 1.375], fit: [false, false] },
-      { kind: 'end', swap: false, repeat: [1, 1], fit: [true, true] },
-      { kind: 'end', swap: false, repeat: [1, 1], fit: [true, true] },
-      { kind: 'face', swap: true, repeat: [0.046875, 4], fit: [false, false] },
-      { kind: 'face', swap: true, repeat: [0.046875, 4], fit: [false, false] },
+      { kind: 'edge', swap: true, axes: [1, 2], tileInches: [16, 4], fit: [false, false] },
+      { kind: 'edge', swap: true, axes: [1, 2], tileInches: [16, 4], fit: [false, false] },
+      { kind: 'end', swap: false, axes: [0, 2], tileInches: [24, 5.5], fit: [true, true] },
+      { kind: 'end', swap: false, axes: [0, 2], tileInches: [24, 5.5], fit: [true, true] },
+      { kind: 'face', swap: true, axes: [1, 0], tileInches: [16, 6], fit: [false, false] },
+      { kind: 'face', swap: true, axes: [1, 0], tileInches: [16, 6], fit: [false, false] },
     ]);
   });
 });
@@ -299,15 +314,16 @@ describe('ranks() is total even with invalid grain', () => {
   it('handles plywood with grain: thickness by normalizing locally', () => {
     const plywood = { ...flat, material: 'plywood' as const, grain: 'thickness' as const };
     const plans = facePlans(plywood);
+    const extents = boardExtents(plywood);
 
-    // Every repeat value must be finite and positive.
+    // Every effective repeat (extent / tileInches) must be finite and positive.
     for (const plan of plans) {
-      expect(plan.repeat[0]).toBeGreaterThan(0);
-      expect(plan.repeat[0]).toEqual(expect.any(Number));
-      expect(Number.isFinite(plan.repeat[0])).toBe(true);
-      expect(plan.repeat[1]).toBeGreaterThan(0);
-      expect(plan.repeat[1]).toEqual(expect.any(Number));
-      expect(Number.isFinite(plan.repeat[1])).toBe(true);
+      const repeatU = extents[plan.axes[0]] / plan.tileInches[0];
+      const repeatV = extents[plan.axes[1]] / plan.tileInches[1];
+      expect(repeatU).toBeGreaterThan(0);
+      expect(Number.isFinite(repeatU)).toBe(true);
+      expect(repeatV).toBeGreaterThan(0);
+      expect(Number.isFinite(repeatV)).toBe(true);
     }
 
     // Plywood's ply stack must span the thickness exactly on edges and ends,
@@ -316,11 +332,11 @@ describe('ranks() is total even with invalid grain', () => {
     const plan = plans[PX];
     expect(plan.kind).toBe('edge');
     expect(plan.fit[1]).toBe(true);
-    expect(plan.repeat[1]).toBe(1);
+    expect(plan.tileInches[1]).toBe(extents[plan.axes[1]]);
     // The tiled (u) axis must carry the board's WIDTH (5.5in), not its
     // thickness (0.75in) — the v axis (FIT) on thickness is what makes this right.
-    expect(plan.repeat[0]).toBeCloseTo(flat.width / 16);
-    expect(plan.repeat[0]).not.toBeCloseTo(flat.thickness / 16);
+    expect(axisDimensions(plywood)[plan.axes[0]]).toBe('width');
+    expect(plan.tileInches[0]).toBe(16);
   });
 });
 
@@ -340,5 +356,70 @@ describe('boardUVOffset', () => {
         expect(n).toBeLessThan(1);
       }
     }
+  });
+});
+
+describe('boardUVs for a sub-box', () => {
+  const board = createBoard({ cuts: [] });
+
+  it('is unchanged for the whole board', () => {
+    expect(boardUVs(board, wholeBoard(board))).toEqual(boardUVs(board));
+  });
+
+  // Parent-relative is the whole point: the figure runs continuously across a
+  // dado instead of restarting at it, which is what makes the cut read as
+  // stock removed from one board rather than two boards pushed together.
+  it('maps a sub-box into the parent UV range, not into its own', () => {
+    const half: Region = { length: [12, 24], width: [0, 5.5], thickness: [0, 0.75] };
+    const whole = boardUVs(board);
+    const sub = boardUVs(board, half);
+    // Some u in the far half must land beyond the midpoint of the board's
+    // whole-face u range — a self-relative mapping would restart at the offset.
+    const maxWhole = Math.max(...whole);
+    const maxSub = Math.max(...sub);
+    expect(maxSub).toBeCloseTo(maxWhole, 6);
+    expect(Math.min(...sub)).toBeGreaterThan(Math.min(...whole));
+  });
+
+  // FIT resolves against the BOARD's dimension, then the sub-range is taken
+  // from that mapping. Fitting to the solid would squeeze the whole ply stack
+  // into what survived the cut.
+  it('resolves FIT against the board, so a dado floor shows the surviving plies', () => {
+    const ply = createBoard({ material: 'plywood', cuts: [] });
+    const floor: Region = { length: [0, 24], width: [0, 5.5], thickness: [0, 0.5] };
+    const uvs = boardUVs(ply, floor);
+    const wholeUvs = boardUVs(ply);
+    // On the FIT axis the whole board spans 0..1; two thirds of the stock
+    // spans 0..2/3, not 0..1.
+    expect(Math.max(...uvs)).toBeLessThan(Math.max(...wholeUvs) + 1e-9);
+    expect(uvs).not.toEqual(wholeUvs);
+  });
+});
+
+describe('boardUVSignature', () => {
+  it('changes when a cut is added', () => {
+    const plain = createBoard();
+    const cut = { ...plain, cuts: [{
+      id: 'c1', face: 'thickness' as const, from: 'max' as const,
+      across: 'width' as const, offset: 6, width: 0.75, depth: 0.25,
+    }] };
+    expect(boardUVSignature(cut)).not.toBe(boardUVSignature(plain));
+  });
+
+  it('changes when a cut moves', () => {
+    const a = createBoard({ cuts: [{
+      id: 'c1', face: 'thickness', from: 'max', across: 'width',
+      offset: 6, width: 0.75, depth: 0.25,
+    }] });
+    const b = { ...a, cuts: [{ ...a.cuts[0], offset: 12 }] };
+    expect(boardUVSignature(b)).not.toBe(boardUVSignature(a));
+  });
+
+  // Deliberately excluded: a board being dragged must not rebuild its
+  // geometry every frame.
+  it('ignores position and name', () => {
+    const a = createBoard();
+    expect(boardUVSignature({ ...a, position: [9, 9, 9], name: 'Other' }))
+      .toBe(boardUVSignature(a));
   });
 });
