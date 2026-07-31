@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
-import { boardEdges, boardSolids, cutRegion, wholeBoard } from './cuts';
+import { boardEdges, boardSolids, cutLabel, cutRegion, solidWorldBox, wholeBoard } from './cuts';
 import type { Board, Cut, Dimension, Region } from './types';
 
 /** A 24 x 5-1/2 x 3/4 flat board with whatever cuts are given. */
@@ -180,5 +180,42 @@ describe('boardEdges', () => {
   it('is deterministic', () => {
     const board = withCuts([DADO]);
     expect(boardEdges(board)).toEqual(boardEdges(board));
+  });
+});
+
+describe('solidWorldBox', () => {
+  it('places an uncut board at its own centre', () => {
+    const board = createBoard();
+    const box = solidWorldBox(board, wholeBoard(board));
+    expect(box.center).toEqual([0, 0, 0]);
+    // Flat, 0 degrees: X = length, Y = thickness, Z = width.
+    expect(box.size).toEqual([24, 0.75, 5.5]);
+  });
+
+  it('offsets a sub-box from the board centre', () => {
+    const board = withCuts([DADO]);
+    const half = solidWorldBox(board, {
+      length: [0, 12], width: [0, 5.5], thickness: [0, 0.75],
+    });
+    expect(half.size).toEqual([12, 0.75, 5.5]);
+    expect(half.center).toEqual([-6, 0, 0]);
+  });
+
+  it('follows posture — an upright board puts length on Y', () => {
+    const board = createBoard({ posture: 'upright' });
+    expect(solidWorldBox(board, wholeBoard(board)).size).toEqual([5.5, 24, 0.75]);
+  });
+});
+
+describe('cutLabel', () => {
+  it('calls a cut in the middle of a face a dado', () => {
+    expect(cutLabel(withCuts([DADO]), DADO)).toBe('dado');
+  });
+
+  it('calls a cut flush with either end a rabbet', () => {
+    const atStart = { ...DADO, offset: 0 };
+    const atEnd = { ...DADO, offset: 24 - 0.75 };
+    expect(cutLabel(withCuts([atStart]), atStart)).toBe('rabbet');
+    expect(cutLabel(withCuts([atEnd]), atEnd)).toBe('rabbet');
   });
 });

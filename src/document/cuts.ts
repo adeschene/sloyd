@@ -1,5 +1,5 @@
 import type { Board, Cut, Dimension, Region, Span } from './types';
-import { DIMENSION_ORDER, positionAxisOf } from './geometry';
+import { axisDimensions, boardExtents, DIMENSION_ORDER, positionAxisOf } from './geometry';
 
 /** The board itself, uncut. */
 export function wholeBoard(board: Board): Region {
@@ -267,4 +267,45 @@ export function boardEdges(board: Board): Segment[] {
     }
   }
   return out;
+}
+
+/**
+ * A solid as the viewport wants it: size along [X, Y, Z], and a centre
+ * expressed RELATIVE TO THE BOARD'S OWN CENTRE, because BoardMesh puts a
+ * <group> at boardCenter(board) and hangs every solid inside it.
+ *
+ * The board→world mapping is axisDimensions and nothing else. A board's own
+ * coordinate space runs from 0 to its dimension on each axis, and `position`
+ * is the min-corner, so a local coordinate maps to the world by adding the
+ * corner — which relative to the centre is just "minus half the extent".
+ */
+export function solidWorldBox(
+  board: Board,
+  solid: Region,
+): { center: [number, number, number]; size: [number, number, number] } {
+  const dims = axisDimensions(board);
+  const extents = boardExtents(board);
+  const size = dims.map((d) => solid[d][1] - solid[d][0]) as [number, number, number];
+  const center = dims.map(
+    (d, axis) => (solid[d][0] + solid[d][1]) / 2 - extents[axis] / 2,
+  ) as [number, number, number];
+  return { center, size };
+}
+
+/** A point in the board's space, in the same board-centred frame. */
+export function pointToLocalXYZ(board: Board, point: Point): [number, number, number] {
+  const dims = axisDimensions(board);
+  const extents = boardExtents(board);
+  return dims.map((d, axis) => point[d] - extents[axis] / 2) as [number, number, number];
+}
+
+/**
+ * What a cut is called. Derived from the geometry rather than stored, so the
+ * label can never disagree with the cut: a rabbet is the same removal as a
+ * dado, taken flush with one end of the position axis.
+ */
+export function cutLabel(board: Board, cut: Cut): 'dado' | 'rabbet' {
+  const pos = positionAxisOf(cut.face, cut.across);
+  const flush = cut.offset === 0 || cut.offset + cut.width === board[pos];
+  return flush ? 'rabbet' : 'dado';
 }
