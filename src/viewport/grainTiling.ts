@@ -45,14 +45,21 @@ const FACE_AXES: Array<[Axis, Axis]> = [
  * non-thickness dimension, 'thickness'].
  *
  * 'Through thickness' is not offered for sheet goods (see isSheetGood's
- * comment) and is normalised away by validateBoard, so board.grain is never
- * 'thickness' here for a sheet good — this never has to decide what that
- * would even mean.
+ * comment) and is normalised away by validateBoard, so board.grain should
+ * never be 'thickness' here for a sheet good — but this function makes itself
+ * total by normalizing grain locally instead of relying on that invariant.
+ * That way a future refactor cannot break this function from a distance
+ * by rearranging where validation happens.
  */
 function ranks(board: Board): Record<Dimension, number> {
+  // Normalize grain locally: sheet goods never use 'thickness' grain, so if
+  // we encounter it on a sheet good, treat it as 'length'. This makes the
+  // function total on its own rather than relying on guarantees enforced
+  // elsewhere, so it cannot be broken by changes to the validator.
+  const g = isSheetGood(board.material) && board.grain === 'thickness' ? 'length' : board.grain;
   const order = isSheetGood(board.material)
-    ? [board.grain, DIMENSION_ORDER.find((d) => d !== board.grain && d !== 'thickness')!, 'thickness']
-    : [board.grain, ...DIMENSION_ORDER.filter((d) => d !== board.grain)];
+    ? [g, DIMENSION_ORDER.find((d) => d !== g && d !== 'thickness')!, 'thickness']
+    : [g, ...DIMENSION_ORDER.filter((d) => d !== g)];
   return {
     length: order.indexOf('length'),
     width: order.indexOf('width'),

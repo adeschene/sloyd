@@ -290,6 +290,40 @@ describe('boardUVSignature', () => {
   });
 });
 
+describe('ranks() is total even with invalid grain', () => {
+  // Totality guard: ranks() should not depend on external validation to be safe.
+  // This test creates a plywood board with grain: 'thickness' *directly* via
+  // createBoard, bypassing the store and validator that would normally fix it.
+  // It asserts that facePlans still produces sane output: every repeat value is
+  // finite and positive, and the ply stack still lands on the thickness.
+  it('handles plywood with grain: thickness by normalizing locally', () => {
+    const plywood = { ...flat, material: 'plywood' as const, grain: 'thickness' as const };
+    const plans = facePlans(plywood);
+
+    // Every repeat value must be finite and positive.
+    for (const plan of plans) {
+      expect(plan.repeat[0]).toBeGreaterThan(0);
+      expect(plan.repeat[0]).toEqual(expect.any(Number));
+      expect(Number.isFinite(plan.repeat[0])).toBe(true);
+      expect(plan.repeat[1]).toBeGreaterThan(0);
+      expect(plan.repeat[1]).toEqual(expect.any(Number));
+      expect(Number.isFinite(plan.repeat[1])).toBe(true);
+    }
+
+    // Plywood's ply stack must span the thickness exactly on edges and ends,
+    // regardless of which grain direction was requested. This mimics the
+    // existing test for grain: 'thickness' that validates the fix stays correct.
+    const plan = plans[PX];
+    expect(plan.kind).toBe('edge');
+    expect(plan.fit[1]).toBe(true);
+    expect(plan.repeat[1]).toBe(1);
+    // The tiled (u) axis must carry the board's WIDTH (5.5in), not its
+    // thickness (0.75in) — the v axis (FIT) on thickness is what makes this right.
+    expect(plan.repeat[0]).toBeCloseTo(flat.width / 16);
+    expect(plan.repeat[0]).not.toBeCloseTo(flat.thickness / 16);
+  });
+});
+
 describe('boardUVOffset', () => {
   it('is stable — the same board offsets the same way on every load', () => {
     expect(boardUVOffset('b_abc')).toEqual(boardUVOffset('b_abc'));

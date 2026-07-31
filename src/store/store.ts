@@ -138,6 +138,11 @@ export const useStore = create<StoreState>((set, get) => {
       // pattern above: doing the derivation once, here, keeps it to one undo
       // entry instead of two (change material, then a second edit to fix
       // grain up) and means no other call site has to remember the rule.
+      // Equally important: applying both changes in the same edit means the
+      // panel never renders a frame with material: 'plywood' and grain: 'thickness'
+      // — it never tries to display a controlled <select value="thickness"> with
+      // no matching <option>. A future refactor that decouples the material and
+      // grain changes would need to handle this display state explicitly.
       const switchingToSheetGoodWithThicknessGrain =
         patch.material !== undefined &&
         patch.material !== current.material &&
