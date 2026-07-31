@@ -1,5 +1,5 @@
 import { createBoard } from '../document/document';
-import { boardUVOffset, boardUVs, facePlans } from './grainTiling';
+import { boardUVOffset, boardUVs, boardUVSignature, facePlans } from './grainTiling';
 
 const flat = createBoard({ length: 24, width: 5.5, thickness: 0.75, material: 'oak' });
 
@@ -142,6 +142,57 @@ describe('the drawn texture follows the grain', () => {
     const plywood = { ...flat, material: 'plywood', grain: 'width' as const };
     expect(facePlans(plywood)[PZ].repeat[1]).toBe(1);
     expect(facePlans(plywood)[PZ].fit[1]).toBe(true);
+  });
+});
+
+describe('boardUVSignature', () => {
+  const base = createBoard({ length: 24, width: 5.5, thickness: 0.75, material: 'oak' });
+
+  // This is the regression test for the real bug: BoardMesh's geometry memo
+  // used to key on a hand-written field list that never learned about
+  // `grain`, so a board's grain silently stopped turning on screen. Every
+  // field boardUVs reads, directly or transitively, must change the
+  // signature — that is what keeps the memo from going stale again the next
+  // time boardUVs learns to read something new.
+  const changes: Array<[string, Partial<typeof base>]> = [
+    ['grain', { grain: 'width' }],
+    ['rotation', { rotation: 90 }],
+    ['posture', { posture: 'on-edge' }],
+    ['material', { material: 'plywood' }],
+    ['id', { id: 'b_other' }],
+    ['length', { length: 30 }],
+    ['width', { width: 7.25 }],
+    ['thickness', { thickness: 1.5 }],
+  ];
+
+  it.each(changes)('changes when %s changes', (_field, change) => {
+    const changed = { ...base, ...change };
+    expect(boardUVSignature(changed)).not.toBe(boardUVSignature(base));
+  });
+
+  it('does not change when position changes', () => {
+    const moved = { ...base, position: [10, 20, 30] as [number, number, number] };
+    expect(boardUVSignature(moved)).toBe(boardUVSignature(base));
+  });
+
+  it('does not change when name changes', () => {
+    const renamed = { ...base, name: 'Something Else' };
+    expect(boardUVSignature(renamed)).toBe(boardUVSignature(base));
+  });
+
+  it('produces identical boardUVs output for boards with the same signature', () => {
+    const a = { ...base, position: [1, 2, 3] as [number, number, number], name: 'A' };
+    const b = { ...base, position: [9, 8, 7] as [number, number, number], name: 'B' };
+    expect(boardUVSignature(a)).toBe(boardUVSignature(b));
+    expect(Array.from(boardUVs(a))).toEqual(Array.from(boardUVs(b)));
+  });
+
+  it('produces different boardUVs output whenever the signature changes', () => {
+    for (const [, change] of changes) {
+      const changed = { ...base, ...change };
+      expect(boardUVSignature(changed)).not.toBe(boardUVSignature(base));
+      expect(Array.from(boardUVs(changed))).not.toEqual(Array.from(boardUVs(base)));
+    }
   });
 });
 

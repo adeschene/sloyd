@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { boardCenter, boardExtents, MATERIALS, DEFAULT_MATERIAL } from '../document/document';
 import type { Board } from '../document/document';
 import { faceGrainKinds, grainFamily } from './grainFaces';
-import { boardUVs } from './grainTiling';
+import { boardUVs, boardUVSignature } from './grainTiling';
 import { grainTexture } from './grainTexture';
 
 /** Brass — the one live colour in the app. */
@@ -45,13 +45,18 @@ export function BoardMesh({ board, selected, onSelect }: Props) {
   // are shared, so the per-board part of the mapping lives here rather than on
   // the texture. Rebuilt whenever anything it depends on changes, and disposed
   // with it — constructing geometry inline would leak GPU memory every render.
+  // Keyed on boardUVSignature rather than a hand-written field list — see its
+  // doc comment. extents[0..2] stay in the array too: they are already
+  // implied by the signature's length/width/thickness, but the box's own
+  // size belongs on the memo that builds the box, not just on the memo that
+  // paints it, so this keeps that dependency correct rather than clever.
   const geometry = useMemo(() => {
     const geo = new THREE.BoxGeometry(extents[0], extents[1], extents[2]);
     geo.setAttribute('uv', new THREE.BufferAttribute(boardUVs(board), 2));
     return geo;
   }, [
     extents[0], extents[1], extents[2],
-    board.id, board.rotation, board.posture, board.material,
+    boardUVSignature(board),
   ]);
 
   useEffect(() => () => geometry.dispose(), [geometry]);

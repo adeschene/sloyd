@@ -127,6 +127,36 @@ export function boardUVs(board: Board): Float32Array {
 }
 
 /**
+ * Everything boardUVs reads, as one string.
+ *
+ * BoardMesh memoises the geometry that carries the UV attribute, and a memo
+ * keyed on a hand-written list of fields goes stale the moment boardUVs learns
+ * to read a new one. That is not hypothetical: `grain` was added in v3 and the
+ * list was not updated, so a board's grain silently stopped turning on screen
+ * while the document was correct. Keying the memo on this instead means the
+ * list lives next to the code that decides it.
+ *
+ * Walked from boardUVs itself: facePlans reads boardExtents (length, width,
+ * thickness), axisDimensions (rotation, posture), faceGrainKinds (grain,
+ * posture, rotation), grainFamily (material) and ranks (grain); boardUVs
+ * itself also reads id via boardUVOffset. `position` and `name` are
+ * deliberately absent — boardUVs never reads them, and a board being dragged
+ * must not rebuild its geometry every frame.
+ */
+export function boardUVSignature(board: Board): string {
+  return [
+    board.id,
+    board.rotation,
+    board.posture,
+    board.material,
+    board.grain,
+    board.length,
+    board.width,
+    board.thickness,
+  ].join('|');
+}
+
+/**
  * A per-board offset into the shared texture, so two pine parts sitting edge to
  * edge do not read as clones. Derived from the id rather than drawn at random:
  * the same board must offset the same way on every load. FNV-1a, which is
