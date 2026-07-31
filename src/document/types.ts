@@ -18,6 +18,50 @@ export type Posture = 'flat' | 'on-edge' | 'upright';
  *  turns with the board the way real stock does. */
 export type Grain = Dimension;
 
+/** Which end of a cut's `face` dimension the cut enters from. */
+export type CutFrom = 'min' | 'max';
+
+/**
+ * A rectangular through-cut: stock removed from a board, running fully across
+ * one of its dimensions. A dado is this cut taken in the middle of a face; a
+ * rabbet is the same cut taken at an edge, so the distinction is derived from
+ * the geometry (see cutLabel) rather than stored.
+ *
+ * Every field is part-local — named in length/width/thickness, never in world
+ * axes — so a cut survives posture and rotation exactly the way `grain` does,
+ * and so the numbers are already the ones you take to the bench.
+ *
+ * `face` and `across` name two of the three dimensions. The third — the
+ * POSITION AXIS, which `offset` and `width` are measured along — is implied
+ * rather than stored, so a cut cannot name the same dimension twice.
+ */
+export interface Cut {
+  /** Unique within its board. */
+  id: string;
+  /** The dimension the cut goes into. 'thickness' is a dado in the broad face. */
+  face: Dimension;
+  /** Which end of `face` it enters from. */
+  from: CutFrom;
+  /** The dimension it runs fully across. Always differs from `face`. */
+  across: Dimension;
+  /** Where the cut starts along the implied position axis, in inches. */
+  offset: number;
+  /** How wide the cut is along that axis, in inches. */
+  width: number;
+  /** How far into `face` it goes, in inches. */
+  depth: number;
+}
+
+/** An inclusive [min, max] interval, in inches. */
+export type Span = [number, number];
+
+/**
+ * An axis-aligned box in a board's own coordinate space, keyed by dimension
+ * rather than by axis index — there is no world here, and keying by dimension
+ * is what stops the two from being confused.
+ */
+export type Region = Record<Dimension, Span>;
+
 export interface Board {
   id: string;
   name: string;
@@ -37,6 +81,8 @@ export interface Board {
   grain: Grain;
   /** Key into MATERIALS. */
   material: string;
+  /** Stock removed from this board. Empty for a board with no joinery. */
+  cuts: Cut[];
 }
 
 export interface SloydDocument {

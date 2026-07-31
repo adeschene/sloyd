@@ -1,12 +1,12 @@
 import { MATERIALS, DEFAULT_MATERIAL, isSheetGood } from './types';
-import type { Board, Rotation, Posture, Grain, SloydDocument } from './types';
+import type { Board, Cut, Rotation, Posture, Grain, SloydDocument } from './types';
 import { dedupeNames } from './names';
 
 export * from './types';
 export { boardExtents, boardCenter, reorientedPosition, axisDimensions, DIMENSION_ORDER } from './geometry';
 export { uniqueName, dedupeNames } from './names';
 
-export const CURRENT_VERSION = 3;
+export const CURRENT_VERSION = 4;
 
 export class DocumentError extends Error {
   /**
@@ -48,6 +48,7 @@ export function createBoard(partial: Partial<Board> = {}): Board {
     posture: 'flat',
     grain: 'length',
     material: DEFAULT_MATERIAL,
+    cuts: [],
     ...partial,
   };
 }
@@ -125,6 +126,7 @@ function validateBoard(raw: unknown, index: number): Board {
       : 'flat',
     grain: normalizedGrain,
     material,
+    cuts: Array.isArray(b.cuts) ? (b.cuts as Cut[]) : [],
   };
 }
 
@@ -176,6 +178,21 @@ function addPostureToV3(raw: unknown): unknown {
 }
 
 /**
+ * v3 -> v4: boards gained a list of cuts.
+ *
+ * The mildest step in the chain — the default is empty and validateBoard's
+ * fallback would be the same empty array — but it runs in the same place as
+ * the other two on purpose. The chain's value is that every step has one
+ * shape, so the next step that DOES have a divergent fallback inherits the
+ * correct structure instead of relying on its author noticing. See invariant 11.
+ */
+function addCutsToV4(raw: unknown): unknown {
+  if (typeof raw !== 'object' || raw === null) return raw;
+  const b = raw as Record<string, unknown>;
+  return Array.isArray(b.cuts) ? raw : { ...b, cuts: [] };
+}
+
+/**
  * Validate and upgrade a parsed document to the current schema.
  * Throws DocumentError with a human-readable reason. Never partially loads:
  * either the whole document validates or nothing is returned.
@@ -209,6 +226,7 @@ export function migrateDocument(raw: unknown): SloydDocument {
   let rawBoards = d.boards;
   if (d.version < 2) rawBoards = rawBoards.map(foldRotationToV2);
   if (d.version < 3) rawBoards = rawBoards.map(addPostureToV3);
+  if (d.version < 4) rawBoards = rawBoards.map(addCutsToV4);
 
   const units = d.units as SloydDocument['units'] | undefined;
   const precision =

@@ -354,9 +354,8 @@ describe('migrateDocument, v2 to v3', () => {
     expect('standing' in migrateDocument(v2(true)).boards[0]).toBe(false);
   });
 
-  it('stamps version 3', () => {
-    expect(CURRENT_VERSION).toBe(3);
-    expect(migrateDocument(v2(false)).version).toBe(3);
+  it('stamps the current version', () => {
+    expect(migrateDocument(v2(false)).version).toBe(CURRENT_VERSION);
   });
 });
 
@@ -455,5 +454,67 @@ describe('reorientedPosition', () => {
   it('returns the position unchanged when the orientation does not change', () => {
     expect(reorientedPosition(base, { rotation: 0 })).toEqual(base.position);
     expect(reorientedPosition(base, {})).toEqual(base.position);
+  });
+});
+
+describe('schema 4 — cuts', () => {
+  it('defaults cuts to [] on a new board', () => {
+    expect(createBoard().cuts).toEqual([]);
+  });
+
+  it('gives a v3 file an empty cuts list', () => {
+    const doc = migrateDocument({
+      version: 3,
+      name: 'Old',
+      units: { display: 'imperial-fractional', precision: 16 },
+      boards: [{
+        id: 'a', name: 'Shelf', length: 24, width: 5.5, thickness: 0.75,
+        position: [0, 0, 0], rotation: 0, posture: 'flat', grain: 'length',
+        material: 'pine',
+      }],
+    });
+    expect(doc.version).toBe(4);
+    expect(doc.boards[0].cuts).toEqual([]);
+  });
+
+  // The chain is the point: a v1 file must walk 1 -> 2 -> 3 -> 4, folding
+  // 270 to 90 BEFORE it gains a posture, and gaining cuts last.
+  it('walks a v1 file all the way to 4', () => {
+    const doc = migrateDocument({
+      version: 1,
+      name: 'Ancient',
+      units: { display: 'imperial-fractional', precision: 16 },
+      boards: [{
+        id: 'a', name: 'Leg', length: 30, width: 3, thickness: 3,
+        position: [0, 0, 0], rotation: 270, standing: true, material: 'oak',
+      }],
+    });
+    expect(doc.version).toBe(4);
+    expect(doc.boards[0].rotation).toBe(90);
+    expect(doc.boards[0].posture).toBe('on-edge');
+    expect(doc.boards[0].grain).toBe('length');
+    expect(doc.boards[0].cuts).toEqual([]);
+  });
+
+  it('preserves cuts already present in a v4 file', () => {
+    const doc = migrateDocument({
+      version: 4,
+      name: 'New',
+      units: { display: 'imperial-fractional', precision: 16 },
+      boards: [{
+        id: 'a', name: 'Side', length: 24, width: 5.5, thickness: 0.75,
+        position: [0, 0, 0], rotation: 0, posture: 'flat', grain: 'length',
+        material: 'pine',
+        cuts: [{ id: 'c1', face: 'thickness', from: 'max', across: 'width',
+                 offset: 6, width: 0.75, depth: 0.25 }],
+      }],
+    });
+    expect(doc.boards[0].cuts).toHaveLength(1);
+    expect(doc.boards[0].cuts[0]).toMatchObject({ offset: 6, width: 0.75, depth: 0.25 });
+  });
+
+  it('rejects a file from a newer schema', () => {
+    expect(() => migrateDocument({ version: 5, name: 'x', boards: [] }))
+      .toThrow(/newer version/);
   });
 });
