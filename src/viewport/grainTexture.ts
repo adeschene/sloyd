@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { GrainFamily, GrainKind } from './grainFaces';
-import { hash, seededRandom } from './grainLog';
+import { BANDS, bandOffset, bandRadius, hash, makeHarmonics, seededRandom, wobbleAt } from './grainLog';
 
 /**
  * Grain is drawn as a greyscale mask and tinted by the material's own colour
@@ -99,35 +99,118 @@ function speckle(ctx: CanvasRenderingContext2D, rand: Rand, count: number, alpha
   }
 }
 
-const woodFace: Draw = (ctx, rand) => {
-  base(ctx);
-  for (let i = 0; i < 70; i += 1) {
-    streak(ctx, rand, rand() * SIZE, 0.05 + rand() * 0.13, 0.8 + rand() * 3);
-  }
-};
+/**
+ * How far the cut plane sits from the pith, in tile units, per cut.
+ *
+ * Face grain is a flatsawn slice well off the pith, so the plane grazes the
+ * rings and they close into cathedrals. Edge grain is quartersawn, essentially
+ * through the pith, which is why it comes out as straight tight lines — the
+ * same model, one number apart. It is not exactly zero because a perfectly
+ * straight line reads as printed rather than sawn.
+ */
+const CUT_DISTANCE = { face: 0.62, edge: 0.05 };
 
-/** Quartersawn: the lines an edge shows are tighter and straighter than a face's. */
-const woodEdge: Draw = (ctx, rand) => {
-  base(ctx);
-  for (let i = 0; i < 110; i += 1) {
-    streak(ctx, rand, rand() * SIZE, 0.04 + rand() * 0.10, 0.6 + rand() * 1.2);
-  }
-};
+/** Bands are drawn as an earlywood-to-latewood gradient rather than a hairline:
+ *  a soft wide band darkening into a hard thin line at its outer edge. Wood has
+ *  no lines in it; it has bands with edges. */
+function band(
+  ctx: CanvasRenderingContext2D,
+  points: Array<[number, number]>,
+  width: number,
+  alpha: number,
+) {
+  if (points.length < 2) return;
+  ctx.beginPath();
+  ctx.moveTo(points[0][0], points[0][1]);
+  for (const [x, y] of points.slice(1)) ctx.lineTo(x, y);
 
-/** Growth rings, centred well outside the tile so they read as the gentle arcs
- *  across the end of a flatsawn board rather than a bullseye. */
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  // Earlywood: wide and soft.
+  ctx.strokeStyle = `rgba(120, 82, 48, ${alpha * 0.35})`;
+  ctx.lineWidth = width;
+  ctx.stroke();
+
+  // Latewood: the dense line the ring closes on.
+  ctx.strokeStyle = `rgba(64, 40, 22, ${alpha})`;
+  ctx.lineWidth = Math.max(0.7, width * 0.28);
+  ctx.stroke();
+}
+
+/**
+ * A cut through the log, drawn along u with the pith line down the middle of v.
+ *
+ * Seamless in both directions, by construction rather than by patching: the
+ * wobble has whole periods across the tile, and the bands are evenly spaced by
+ * k*delta (see grainLog.bandRadius), so band k and band k + BANDS land exactly
+ * one tile apart. The pattern is also symmetric about the pith line, so the
+ * tile's two v edges carry the same curve.
+ */
+function woodCut(d: number): Draw {
+  return (ctx) => {
+    base(ctx);
+    const delta = 1 / BANDS;
+    const half = BANDS / 2;
+    const STEPS = 64;
+
+    // Band 0 is the ring exactly tangent to the cut plane, so bandOffset
+    // returns null for it whenever the pith is not wandering toward the cut.
+    // A missing centre band is the model being right, not a bug.
+    for (let k = -half; k <= half; k += 1) {
+      // EVERY property of a band comes from a PRNG seeded by its index modulo
+      // the half-tile, so the bands at k = -half and k = +half — the tile's two
+      // v edges — are identical in wobble, width and weight. Drawing any of
+      // these from the sequential `rand` instead would give the two edges
+      // different bands and put a seam back across the grain, which is the one
+      // failure this whole construction exists to avoid.
+      const bandRand = seededRandom(hash(`band:${Math.abs(k) % half}`));
+      const harmonics = makeHarmonics(bandRand, 3);
+      const width = 2.2 + bandRand() * 3.4;
+      const alpha = 0.10 + bandRand() * 0.14;
+
+      const points: Array<[number, number]> = [];
+      for (let s = 0; s <= STEPS; s += 1) {
+        const z = s / STEPS;
+        const offset = bandOffset(k, d, delta, wobbleAt(z, harmonics));
+        if (offset === null) {
+          // The band has closed — this is an arch tip. Draw what we have and
+          // start a new run when it reopens.
+          band(ctx, points, width, alpha);
+          points.length = 0;
+          continue;
+        }
+        const v = 0.5 + Math.sign(k || 1) * offset;
+        points.push([z * SIZE, v * SIZE]);
+      }
+      band(ctx, points, width, alpha);
+    }
+  };
+}
+
+/**
+ * The cross-section: the rings themselves. No tiling problem to solve here —
+ * end faces use FIT, so exactly one copy is ever shown, which is just as well
+ * because concentric circles cannot tile.
+ */
 const woodEnd: Draw = (ctx, rand) => {
   base(ctx);
-  const cx = SIZE * 0.5;
-  const cy = SIZE * 2.2;
-  for (let r = 40; r < SIZE * 3; r += 9 + rand() * 12) {
+  const delta = 1 / BANDS;
+  // The pith sits off the tile, so the rings read as the arcs across the end of
+  // a flatsawn board rather than a bullseye.
+  const pith: [number, number] = [SIZE * 0.5, SIZE * 1.8];
+  for (let k = 1; k < BANDS * 3; k += 1) {
+    const r = bandRadius(k, CUT_DISTANCE.face, delta) * SIZE * (0.92 + rand() * 0.16);
     ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(70, 45, 25, ${0.05 + rand() * 0.10})`;
-    ctx.lineWidth = 1 + rand() * 2.5;
+    ctx.arc(pith[0], pith[1], r, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(120, 82, 48, ${(0.08 + rand() * 0.10) * 0.35})`;
+    ctx.lineWidth = 3 + rand() * 3;
+    ctx.stroke();
+    ctx.strokeStyle = `rgba(64, 40, 22, ${0.08 + rand() * 0.10})`;
+    ctx.lineWidth = 1 + rand() * 1.4;
     ctx.stroke();
   }
-  speckle(ctx, rand, 900, 0.05);
+  speckle(ctx, rand, 700, 0.045);
 };
 
 const plywoodFace: Draw = (ctx, rand) => {
@@ -164,7 +247,7 @@ const mdf: Draw = (ctx, rand) => {
 };
 
 const DRAW: Record<GrainFamily, Record<GrainKind, Draw>> = {
-  wood:    { face: woodFace,    edge: woodEdge,     end: woodEnd },
+  wood:    { face: woodCut(CUT_DISTANCE.face), edge: woodCut(CUT_DISTANCE.edge), end: woodEnd },
   plywood: { face: plywoodFace, edge: plywoodPlies, end: plywoodPlies },
   mdf:     { face: mdf,         edge: mdf,          end: mdf },
 };
