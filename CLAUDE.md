@@ -145,7 +145,11 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
    pivots it about itself — `reorientedPosition` in `document/geometry.ts` is the
    only place that arithmetic lives, and `store.updateBoard` is what applies it,
    whenever a patch changes `rotation` or `standing` without carrying its own
-   `position`.
+   `position`. `reorientedPosition` takes the whole patch (`Partial<Board>`), not just
+   `{ rotation, standing }` — a patch that also changes a dimension needs the pivot
+   computed from the *post-patch* extents, and `store.updateBoard` passes the patch
+   straight through rather than reconstructing a narrower object, for the same
+   undefined-overwrite reason that once justified the narrower one.
 3. **The `dragging` ref guard in `Gizmo.tsx`.** `TransformControls` computes motion from
    state captured at drag start; syncing the document into the proxy mid-drag makes it
    fight itself. The symptom is jitter or drift, not a crash.
@@ -191,6 +195,10 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
     variation lives in the `uv` attribute, never on the texture.** `texture.repeat`/
     `offset`/`rotation` are per-texture state on an object every board shares —
     writing them per board would make every board on screen fight over one mapping.
+    The per-board offset in `boardUVs` is zeroed on any axis a `FacePlan` marks
+    `fit`: the whole tile is shown either way on a `FIT` axis, so an offset there
+    buys no variation and only shifts the pattern's seam into the middle of the
+    face — exactly what `FIT` exists to avoid on wood ends and plywood's ply stack.
 
 ## Commands
 

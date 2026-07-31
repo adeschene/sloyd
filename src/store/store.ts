@@ -111,22 +111,23 @@ export const useStore = create<StoreState>((set, get) => {
       // turned. The arithmetic lives in document/geometry.ts; doing it here,
       // once, is what stops every future call site having to remember it. An
       // explicit position in the same patch wins.
-      // Only include a key here when the patch actually carries it. An object
-      // spread with an explicit `key: undefined` overwrites the target key
-      // rather than falling through to it, so passing both keys unconditionally
-      // would clobber whichever one the patch didn't touch (e.g. toggling
-      // `standing` alone on an already-turned board would reset rotation to
-      // undefined inside reorientedPosition's own spread).
-      const changes: { rotation?: Board['rotation']; standing?: boolean } = {};
-      if (patch.rotation !== undefined) changes.rotation = patch.rotation;
-      if (patch.standing !== undefined) changes.standing = patch.standing;
-
+      // `patch` is passed straight through as reorientedPosition's `changes`,
+      // not reconstructed into a narrower object. `changes` used to be limited
+      // to `{ rotation, standing }` because an earlier version built it with
+      // both keys always present, and an explicit `key: undefined` overwrites
+      // in a spread rather than falling through — but reconstructing it that
+      // way also silently dropped any dimension change (length/width/thickness)
+      // bundled into the same patch, so the pivot got computed from the
+      // board's stale extents. `patch` itself is just as safe from the
+      // undefined-overwrite trap: it only ever carries keys its caller
+      // actually set, same as the old reconstruction did, but it also carries
+      // the dimension keys reorientedPosition now needs.
       const reorienting =
         (patch.rotation !== undefined && patch.rotation !== current.rotation) ||
         (patch.standing !== undefined && patch.standing !== current.standing);
       const position =
         reorienting && !patch.position
-          ? reorientedPosition(current, changes)
+          ? reorientedPosition(current, patch)
           : patch.position;
 
       edit((doc) => ({

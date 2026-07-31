@@ -1,4 +1,4 @@
-import type { Board, Rotation } from './types';
+import type { Board } from './types';
 
 /**
  * World-space size of a board along [X, Y, Z], in inches.
@@ -45,7 +45,7 @@ export function boardCenter(board: Board): [number, number, number] {
  */
 export function reorientedPosition(
   board: Board,
-  changes: { rotation?: Rotation; standing?: boolean },
+  changes: Partial<Board>,
 ): [number, number, number] {
   const before = boardExtents(board);
   const after = boardExtents({ ...board, ...changes });

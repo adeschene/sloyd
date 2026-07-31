@@ -343,3 +343,21 @@ tuned on real hardware.** They were chosen and screenshotted on this host's soft
 (llvmpipe, no GPU) — see 26a on why that is not sufficient by itself for anything visual
 — so the aesthetic judgement (does it read as wood at actual viewing distance, is the
 end-grain ring density right) is still open pending a check on real hardware.
+
+**35. `loadAutoSaved`'s catch swallows the schema-too-new case exactly like a corrupt-JSON
+one, and only v2 makes that reachable.** `src/storage/browser.ts` catches everything —
+including `DocumentError('…saved by a newer version…')`, the same error the *import*
+path surfaces to the user in a clear dialog — and returns `null`. `App.tsx` only calls
+`replaceDocument` when `loadAutoSaved` resolves non-null, so the stale-but-too-new
+localStorage entry survives the failed load itself. It does not survive what happens
+next: the user sees an empty document with no explanation, `SaveIndicator` keeps
+reporting "Saved locally" throughout (it has no idea a load ever failed), and the first
+edit fires the debounced `autoSave` over the very entry that could not be read — gone,
+with no way to recover it. Reachable when a rollback to the v1 image follows a v2
+autosave, or when a stale cached build and a fresh one alternate on the same origin —
+narrow, but v2 is the first
+schema bump that makes it possible at all, and every future bump reopens it. Fix shape:
+branch on `err instanceof DocumentError` in the catch and surface "this project was saved
+by a newer version of Sloyd" (the import dialog's own copy is the model) instead of
+silently starting clean; a corrupt-JSON `SyntaxError` still degrades to `null` the way it
+does today.

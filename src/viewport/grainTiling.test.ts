@@ -82,6 +82,40 @@ describe('boardUVs', () => {
     const b = boardUVs({ ...flat, id: 'b_two' });
     expect(Array.from(a)).not.toEqual(Array.from(b));
   });
+
+  it('spans a wood end face exactly 0..1 on both axes, whatever the id', () => {
+    // FIT means "show the whole tile" — an offset on a FIT axis buys nothing
+    // and shifts the ring pattern's discontinuity into the middle of the face.
+    for (const id of ['b_one', 'b_two']) {
+      const uv = boardUVs({ ...flat, id });
+      const face = Array.from(uv.slice(PX * 8, PX * 8 + 8));
+      const us = face.filter((_, i) => i % 2 === 0);
+      const vs = face.filter((_, i) => i % 2 === 1);
+      expect(Math.min(...us)).toBeCloseTo(0);
+      expect(Math.max(...us)).toBeCloseTo(1);
+      expect(Math.min(...vs)).toBeCloseTo(0);
+      expect(Math.max(...vs)).toBeCloseTo(1);
+    }
+  });
+
+  it('spans a plywood edge\'s v axis exactly 0..1 — one whole ply stack starting at a glue line', () => {
+    const plywood = { ...flat, material: 'plywood' };
+    for (const id of ['b_one', 'b_two']) {
+      const uv = boardUVs({ ...plywood, id });
+      const face = Array.from(uv.slice(PZ * 8, PZ * 8 + 8));
+      const vs = face.filter((_, i) => i % 2 === 1);
+      expect(Math.min(...vs)).toBeCloseTo(0);
+      expect(Math.max(...vs)).toBeCloseTo(1);
+    }
+  });
+
+  it('still offsets a tiled (non-FIT) axis differently between boards', () => {
+    const a = boardUVs({ ...flat, id: 'b_one' });
+    const b = boardUVs({ ...flat, id: 'b_two' });
+    // +Y face (broad face) tiles on both axes for this material — its u origin
+    // should differ between two different ids.
+    expect(a[PY * 8]).not.toBeCloseTo(b[PY * 8]);
+  });
 });
 
 describe('boardUVOffset', () => {

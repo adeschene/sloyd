@@ -57,6 +57,13 @@ export interface FacePlan {
   swap: boolean;
   /** How many tiles cover this face, along the drawn texture's u and v. */
   repeat: [number, number];
+  /**
+   * Whether each axis (u, v) is FIT — the whole tile is shown regardless of
+   * face size. The per-board offset must be zeroed on a FIT axis: the whole
+   * tile is shown either way, so the offset buys no variation and only
+   * shifts the pattern's seam into the middle of the face.
+   */
+  fit: [boolean, boolean];
 }
 
 export function facePlans(board: Board): FacePlan[] {
@@ -74,6 +81,7 @@ export function facePlans(board: Board): FacePlan[] {
       kind,
       swap,
       repeat: [tileCount(extents[du], tu), tileCount(extents[dv], tv)],
+      fit: [tu === FIT, tv === FIT],
     };
   });
 }
@@ -101,8 +109,8 @@ export function boardUVs(board: Board): Float32Array {
   for (const plan of plans) {
     for (const [cu, cv] of CORNERS) {
       const [u, v] = plan.swap ? [cv, cu] : [cu, cv];
-      uv[i++] = u * plan.repeat[0] + ou;
-      uv[i++] = v * plan.repeat[1] + ov;
+      uv[i++] = u * plan.repeat[0] + (plan.fit[0] ? 0 : ou);
+      uv[i++] = v * plan.repeat[1] + (plan.fit[1] ? 0 : ov);
     }
   }
   return uv;

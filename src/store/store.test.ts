@@ -1,5 +1,5 @@
 import { useStore } from './store';
-import { createBoard, createDocument } from '../document/document';
+import { createBoard, createDocument, boardCenter } from '../document/document';
 
 const reset = () => useStore.getState().replaceDocument(createDocument('Test'));
 
@@ -135,6 +135,21 @@ describe('updateBoard reorients a board in place', () => {
     expect(board().rotation).toBe(90);
     expect(board().standing).toBe(true);
     expect(board().position).toEqual([21.625, 0, -5.25]);
+  });
+
+  it('keeps the footprint centred when a dimension and the rotation change in one patch', () => {
+    // reorientedPosition must compute the pivot from the post-patch dimensions,
+    // not the board's stale ones — otherwise a length change bundled with a
+    // rotation change lands the board off its true footprint centre.
+    const id = aBoard();
+    const before = useStore.getState().doc.boards.find((b) => b.id === id)!;
+    const preCentre = boardCenter(before);
+    useStore.getState().updateBoard(id, { rotation: 90, length: 48 });
+    const after = board();
+    expect(after.rotation).toBe(90);
+    expect(after.length).toBe(48);
+    const postCentre = boardCenter(after);
+    expect([postCentre[0], postCentre[2]]).toEqual([preCentre[0], preCentre[2]]);
   });
 });
 
