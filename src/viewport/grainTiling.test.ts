@@ -373,12 +373,22 @@ describe('boardUVs for a sub-box', () => {
     const half: Region = { length: [12, 24], width: [0, 5.5], thickness: [0, 0.75] };
     const whole = boardUVs(board);
     const sub = boardUVs(board, half);
-    // Some u in the far half must land beyond the midpoint of the board's
-    // whole-face u range — a self-relative mapping would restart at the offset.
     const maxWhole = Math.max(...whole);
     const maxSub = Math.max(...sub);
     expect(maxSub).toBeCloseTo(maxWhole, 6);
-    expect(Math.min(...sub)).toBeGreaterThan(Math.min(...whole));
+
+    // The min/max check above can't be scoped globally: the two end faces
+    // (indices 0 and 1) are FIT on both axes and normal to length, so a
+    // length-only restriction never reaches them — their UVs are 0..1 either
+    // way, which would pin a global min to 0 on both sides regardless of the
+    // mapping and make the assertion pass even for a self-relative mapping.
+    // The +Y face (broad face, index PY) does carry length as its u axis, so
+    // scope the check there: a self-relative mapping would restart this
+    // face's u at the parent's own start; a parent-relative one begins
+    // partway into the parent's u range instead.
+    const uOf = (arr: Float32Array) =>
+      Array.from(arr.slice(PY * 8, PY * 8 + 8)).filter((_, i) => i % 2 === 0);
+    expect(Math.min(...uOf(sub))).toBeGreaterThan(Math.min(...uOf(whole)));
   });
 
   // FIT resolves against the BOARD's dimension, then the sub-range is taken
