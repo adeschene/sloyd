@@ -59,6 +59,12 @@ wrong the first time a part stood up.
 
 `Board` gains `cuts: Cut[]`.
 
+`Cut.id` is unique within its board — `updateCut` and `removeCut` target by it and
+the panel keys its rows on it, so a duplicate would edit or delete the wrong row.
+Ids are minted the same way board ids are, at creation in the store's `addCut`;
+`validateBoard` re-mints any that collide or are missing, the way names are deduped
+(invariant 8) rather than trusted from the file.
+
 ### Dado versus rabbet is derived
 
 A cut is a **rabbet** when it is flush with one end of its position axis
@@ -121,9 +127,42 @@ box rather than the cut.
    case exists to get wrong. Testing a cell's centre is sound precisely because the
    split step guarantees no cell straddles a cut boundary.
 3. **Merge.** A deterministic greedy sweep — axis by axis, in a fixed order, merging
-   any two surviving cells that share a full face. Fewer draw calls, but the visible
-   reason is edge lines: without merging, an uncut face shows interior seams wherever
-   an unrelated cut's boundary plane crossed it.
+   any two surviving cells that share a full face. This is a draw-call and
+   solid-count reduction only. It does **not** solve edge lines — see below.
+
+### Edge lines come from the grid, not from the solids
+
+Merging cannot make the solids seam-free, and the spec should not pretend otherwise.
+Work the canonical case: a ¼"-deep, ¾"-wide dado in the broad face at offset 6,
+running across the width. Split gives six cells, one is dropped, and merging yields
+three solids — the two full-thickness blocks either side and the floor block beneath
+the dado. The remainder is L-shaped in section, and an L is not a box, so the
+board's *bottom* face — continuous stock in reality — is covered by three abutting
+boxes. Per-solid `EdgesGeometry` therefore draws lines across it at 6 and 6¾ that
+correspond to nothing. `BoardMesh`'s own comment calls edge lines "the single
+biggest readability win", so this is legibility, not polish.
+
+So edges are derived from the cell grid, by a pure `boardEdges(board)` in the same
+module, rather than from the solids. For each candidate segment — a grid line on one
+axis, at a (b, c) crossing on the other two — look at the (up to) four cells around
+it and draw the segment unless the local configuration is flat:
+
+| cells filled around the segment | drawn? |
+|---|---|
+| all four | no — interior stock |
+| none | no — empty |
+| exactly two, sharing a face | no — a flat face continuing through |
+| exactly two, diagonal | yes |
+| one, or three | yes |
+
+Cells outside the board count as empty, which makes the board's outer silhouette
+fall out of the same rule rather than needing its own pass. Three filled is the
+concave shoulder of a dado; one filled is a convex corner. Both are real edges and
+both get drawn.
+
+This is exact, pure and CPU-testable, which is the same reason the decomposition
+itself lives here. Section 5's claim that a board outlines as one part is true
+because of *this*, not because of merging.
 
 **A board with no cuts must produce exactly one solid, whose extents equal
 `boardExtents(board)` today.** That is a test, and it is the guarantee that joinery
@@ -159,6 +198,16 @@ The per-board offset rule of invariant 12 is unchanged, and it is still the *boa
 offset, not the solid's — a per-solid offset would break the continuity this section
 exists to get.
 
+**`FIT` resolves against the board, then the sub-range is taken from it.** This is
+the requirement most likely to be implemented backwards, because when a function is
+handed a solid, "fit this axis" reads naturally as "fit it to this box". It is not.
+`FIT` means *show the whole tile on this axis*, and the tile belongs to the board.
+Fitting the ply stack into the floor block under a ¼" dado would squeeze all five
+plies of a plywood sheet into the stock that survived the cut, when the correct
+picture is the plies the cut left behind. End grain on solid wood fails the same way.
+Resolve the mapping for the board's full dimension first; take the solid's sub-range
+out of that.
+
 ### Face grain kinds need no new concept
 
 A face's grain kind already follows its world-axis normal, so the floor and walls of
@@ -179,8 +228,19 @@ Therefore, as a numbered requirement rather than a discovery: **`boardUVSignatur
 must cover `cuts`**, and it stays the single thing anything memoising on
 `boardUVs`-inputs keys on. It continues to exclude `position` and `name`.
 
-Selection highlight and edge lines derive per solid, so a board with a dado still
-highlights and outlines as one part.
+Three things in `BoardMesh` are currently written once because there was once one
+box, and each must become per-solid rather than per-board:
+
+- **Disposal.** `useEffect(() => () => geometry.dispose())` and its `EdgesGeometry`
+  counterpart now cover N geometries. Disposing only the first leaks GPU memory on
+  every render — the exact leak that comment exists to prevent.
+- **Picking.** The `onClick` handler, `CLICK_DRAG_SLOP_PX` guard and all, goes on
+  every solid, so clicking any surviving part of a dadoed board selects the board.
+- **Selection highlight.** Emissive tint applies to every solid, so a selected
+  board lights up whole.
+
+Edge lines are the exception: they come from `boardEdges(board)` for the board as a
+whole (section 4), which is why a board with a dado outlines as one part.
 
 ---
 
@@ -216,9 +276,11 @@ at for `grain` on sheet goods.
 
 The two paths differ on purpose.
 
-**On load, `validateBoard` clamps.** `offset` and `width` are clamped into the
-position axis; `depth` is clamped to at most the face dimension. A cut with
-non-positive width or depth after clamping is dropped. A saved document must always
+**On load, `validateBoard` clamps**, in this order, because the order changes the
+result: `offset` into `[0, dim]` first, then `width` into `[0, dim − offset]`, then
+`depth` into `[0, faceDim]`. A cut with non-positive width or depth after clamping is
+dropped, as is a cut whose `across` equals its `face` (unrepresentable through the
+panel, reachable in a hand-edited file). A saved document must always
 open, and a board whose length was later shrunk below an existing cut is a real case
 rather than a corrupt file — so the cut is brought back inside the board, not
 rejected and not silently vanished.
@@ -231,6 +293,16 @@ saying so.
 A `depth` equal to the full face dimension severs the board. That is legal, clamps to
 itself, and decomposes correctly into two disconnected solids — it is a rip, not a
 malformed cut, and the renderer needs no special case for it.
+
+**A cut that removes *all* of the stock is rejected, in both paths.** Full depth,
+full width and a full-spanning `across` are each individually legal, so together they
+are reachable, and they would leave `boardSolids` returning `[]` — a board that
+renders nothing, cannot be clicked to select, and still sits in the parts list with
+its dimensions. That is a part you can neither see nor get rid of by any obvious
+means. The panel refuses the entry and `validateBoard` drops the cut on load, which
+is the one place a drop is better than a clamp: there is no nearest legal cut to
+clamp to, and the board coming back whole is unmistakable where a board coming back
+invisible is not.
 
 ---
 
@@ -248,6 +320,15 @@ these are CPU-side and exact:
 - A cut at full depth → two disconnected solids.
 - Merging is deterministic: the same board yields the same solids in the same order.
 - The dado/rabbet label agrees with the geometry at both ends of the position axis.
+- `boardEdges`: an uncut board yields exactly the twelve edges of its box; the
+  canonical dado adds the shoulders and floor and adds **no** segment across the
+  uncut bottom face — the case per-solid edges would get wrong.
+- A cut removing all stock never reaches `boardSolids`, because both the panel and
+  `validateBoard` reject it; `validateBoard` returns the board whole.
+- Clamp order: a cut with `offset` past the end and an oversized `width` lands where
+  the stated order says it does, not where the other order would put it.
+- `FIT` axes resolve against the board: the floor solid of a dado in plywood shows
+  the plies the cut left, not all of them squeezed into what remains.
 
 Plus: the migration chain (a v1 file walks 1→2→3→4 and lands with `cuts: []`), the
 clamping rules including the drop cases, and the sub-box UV cases in `grainTiling`.
