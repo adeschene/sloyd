@@ -1,9 +1,186 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store/store';
-import { MATERIALS, uniqueName, isSheetGood } from '../document/document';
+import { MATERIALS, uniqueName, isSheetGood, cutLabel, positionAxisOf } from '../document/document';
 import { DimensionField } from './DimensionField';
 import { NameField } from './NameField';
-import type { Rotation, Posture, Grain } from '../document/document';
+import { formatLength } from '../units/length';
+import type { Rotation, Posture, Grain, Board, Cut, Dimension } from '../document/document';
+
+const DIMENSION_LABEL: Record<Dimension, string> = {
+  length: 'Length',
+  width: 'Width',
+  thickness: 'Thickness',
+};
+
+/**
+ * One cut's controls. A component of its own — rather than an inline `.map`
+ * body in `Properties` — so its "would remove the whole board" error lives in
+ * state keyed to the cut's own lifetime via `key={cut.id}`: it is cleared by
+ * unmount whenever the cut is removed or the board changes (Properties
+ * remounts via `key={board.id}`), so a stale error can never resurface on a
+ * different cut, or on this one after a selection round-trip.
+ */
+function CutRow({ board, cut, precision }: { board: Board; cut: Cut; precision: number }) {
+  const updateCut = useStore((s) => s.updateCut);
+  const removeCut = useStore((s) => s.removeCut);
+  const [error, setError] = useState<string | null>(null);
+  // Bumped whenever a patch is refused. The three DimensionFields below are
+  // keyed on it, so a refusal remounts them: each field's own `commit()` has
+  // already optimistically set its local text to the (rejected) typed value
+  // before `set()` below ever sees the patch, and nothing in DimensionField
+  // itself would otherwise resync that text — its adopt-external-change
+  // effect only fires when the STORED value changes, and a refused patch, by
+  // definition, never reaches the store. Remounting re-initialises each
+  // field's local state straight from the still-true stored `cut`, which is
+  // this row's analogue of invariant 5's blur resync.
+  const [attempt, setAttempt] = useState(0);
+
+  const pos = positionAxisOf(cut.face, cut.across);
+  const posDim = board[pos];
+  const faceDim = board[cut.face];
+
+  // Computed from the POST-patch cut, not the loader's clamped values —
+  // nothing here has been clamped, so a cut can reach an out-of-range state
+  // in-session (e.g. shrinking `face` after adding the cut). `>=`/`<=`
+  // therefore refuses everything the loader's `===` would later drop, not
+  // just the exact edge it checks.
+  const wouldRemoveAll = (patch: Partial<Cut>) => {
+    const next = { ...cut, ...patch };
+    const p = positionAxisOf(next.face, next.across);
+    return next.depth >= board[next.face] &&
+           next.offset <= 0 &&
+           next.width >= board[p];
+  };
+
+  // The error is cleared eagerly on any accepted patch (below), but that only
+  // covers changes that go through THIS row's own `set()`. An undo, or a
+  // board dimension growing via the Dimensions section above, changes `cut`
+  // or `board` without ever calling `set()` here — with no invalidation path
+  // of its own, a stale error would otherwise outlive the condition it
+  // describes indefinitely, survivable only by unmounting (removing the cut,
+  // or switching boards and back). Keyed on exactly what `wouldRemoveAll`
+  // reads, so it re-checks whenever any of that changes.
+  useEffect(() => {
+    if (error && !wouldRemoveAll({})) setError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cut.face, cut.across, cut.offset, cut.width, cut.depth, board.length, board.width, board.thickness]);
+
+  const set = (patch: Partial<Cut>) => {
+    if (wouldRemoveAll(patch)) {
+      setError('That would remove the whole board.');
+      setAttempt((n) => n + 1);
+      return;
+    }
+    setError(null);
+    updateCut(board.id, cut.id, patch);
+  };
+
+  /**
+   * Adjust offset/width/depth for a new face/across pair, changing only what
+   * the new axis actually makes illegal. A prior version of this function
+   * recomputed all three unconditionally from addCut's formula, which fixed
+   * the unsatisfiable-field bug (below) but introduced a worse one: it threw
+   * away perfectly legal numbers on every face/across change, even when
+   * nothing about them was actually wrong — silently overwriting what the
+   * user typed, which is precisely what refusing-rather-than-clamping and
+   * DimensionField's `dirty` guard both exist to avoid elsewhere in this
+   * panel.
+   *
+   * So: clamp only when a value is no longer legal, and prefer a clamp over
+   * a reset — a clamped number is closer to the user's intent than a
+   * recomputed default. Clamp order mirrors validateCuts' documented order
+   * (offset into [0, newPosDim] first, then width into [0, newPosDim -
+   * offset]): clamping width first would let an already-out-of-range offset
+   * eat into it twice.
+   *
+   * The one case that is NOT a clamp: if offset was clamped all the way to
+   * newPosDim (the old offset was at or past the new axis's full length),
+   * there is zero room left for ANY positive width — clamping alone cannot
+   * produce a legal cut here, only a fresh position can. That is exactly
+   * the unsatisfiable-field bug this function was first written to fix
+   * (switching `face` from `thickness` to `length` on the default cut moves
+   * the position axis from 24" down to 0.75", and the old offset of 6" has
+   * nowhere left to go). Falling back to addCut's own quarter-of-the-axis
+   * formula there is deliberate and narrow, not the general rule.
+   */
+  const repositionForAxes = (face: Dimension, across: Dimension): Partial<Cut> => {
+    const newPosDim = board[positionAxisOf(face, across)];
+    const newFaceDim = board[face];
+
+    let offset = Math.min(cut.offset, newPosDim);
+    let width = Math.min(cut.width, newPosDim - offset);
+    if (width <= 0) {
+      offset = newPosDim / 4;
+      width = Math.min(0.75, newPosDim / 4);
+    }
+    const depth = Math.min(cut.depth, newFaceDim);
+
+    return { face, across, offset, width, depth };
+  };
+
+  // Changing `face` to whatever `across` currently holds would leave
+  // `across` naming the same dimension twice, so it moves in the same
+  // edit — the select is never rendered holding a value it has no option
+  // for (the rule follow-up 46 arrived at for grain on sheet goods).
+  const setFace = (face: Dimension) => {
+    const across = face === cut.across ? positionAxisOf(face, cut.face) : cut.across;
+    set(repositionForAxes(face, across));
+  };
+
+  return (
+    <div className="cut">
+      <div className="row cut-head">
+        <span className="cut-label">{cutLabel(board, cut)}</span>
+        <button
+          aria-label={`Remove cut (${cutLabel(board, cut)}, offset ${formatLength(cut.offset, precision)})`}
+          onClick={() => removeCut(board.id, cut.id)}
+        >
+          Remove
+        </button>
+      </div>
+
+      <div className="field">
+        <label htmlFor={`face-${cut.id}`}>Cut into</label>
+        <select id={`face-${cut.id}`} className="input" value={cut.face}
+          onChange={(e) => setFace(e.target.value as Dimension)}>
+          <option value="thickness">Face</option>
+          <option value="width">Edge</option>
+          <option value="length">End</option>
+        </select>
+      </div>
+
+      <div className="field">
+        <label htmlFor={`from-${cut.id}`}>From</label>
+        <select id={`from-${cut.id}`} className="input" value={cut.from}
+          onChange={(e) => set({ from: e.target.value as Cut['from'] })}>
+          <option value="min">Near side</option>
+          <option value="max">Far side</option>
+        </select>
+      </div>
+
+      <div className="field">
+        <label htmlFor={`across-${cut.id}`}>Runs across</label>
+        <select id={`across-${cut.id}`} className="input" value={cut.across}
+          onChange={(e) => set(repositionForAxes(cut.face, e.target.value as Dimension))}>
+          {(['length', 'width', 'thickness'] as Dimension[])
+            .filter((d) => d !== cut.face)
+            .map((d) => (
+              <option key={d} value={d}>{DIMENSION_LABEL[d]}</option>
+            ))}
+        </select>
+      </div>
+
+      <DimensionField key={`offset-${attempt}`} label="From the end" precision={precision} value={cut.offset}
+        min={0} max={posDim} onCommit={(v) => set({ offset: v })} />
+      <DimensionField key={`width-${attempt}`} label="Cut width" precision={precision} value={cut.width}
+        max={Math.max(0, posDim - cut.offset)} onCommit={(v) => set({ width: v })} />
+      <DimensionField key={`depth-${attempt}`} label="Depth" precision={precision} value={cut.depth}
+        max={faceDim} onCommit={(v) => set({ depth: v })} />
+
+      {error && <p className="field-error" role="alert">{error}</p>}
+    </div>
+  );
+}
 
 export function Properties() {
   const board = useStore((s) => s.doc.boards.find((b) => b.id === s.selectedId));
@@ -11,6 +188,7 @@ export function Properties() {
   const updateBoard = useStore((s) => s.updateBoard);
   const deleteBoard = useStore((s) => s.deleteBoard);
   const duplicateBoard = useStore((s) => s.duplicateBoard);
+  const addCut = useStore((s) => s.addCut);
   const lengthRef = useRef<HTMLInputElement>(null);
 
   // This component remounts (`key={board.id}` below) on every selection
@@ -115,6 +293,15 @@ export function Properties() {
           ))}
         </select>
       </div>
+
+      {/* Joinery. One primitive — a rectangular through-cut — so a dado and a
+          rabbet are the same control with different numbers, and the label
+          is derived from the geometry rather than chosen by the user. */}
+      <h3>Cuts</h3>
+      {board.cuts.map((cut) => (
+        <CutRow key={cut.id} board={board} cut={cut} precision={precision} />
+      ))}
+      <button onClick={() => addCut(board.id)}>Add cut</button>
 
       <div className="row">
         <button onClick={() => duplicateBoard(board.id)}>Duplicate</button>

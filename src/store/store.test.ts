@@ -246,6 +246,27 @@ describe('duplicateBoard', () => {
     useStore.getState().duplicateBoard(copy.id);
     expect(useStore.getState().doc.boards[2].name).toBe('Leg (2)');
   });
+
+  it('copies cuts by value, not by reference, with fresh ids', () => {
+    useStore.getState().addBoard();
+    const source = useStore.getState().doc.boards[0];
+    useStore.getState().addCut(source.id);
+    useStore.getState().duplicateBoard(source.id);
+    const { doc } = useStore.getState();
+    const src = doc.boards[0];
+    const copy = doc.boards[1];
+
+    expect(src.cuts).not.toBe(copy.cuts);
+    expect(src.cuts[0]).not.toBe(copy.cuts[0]);
+    expect(copy.cuts[0].id).not.toBe(src.cuts[0].id);
+
+    const sourceDepth = src.cuts[0].depth;
+    useStore.getState().updateCut(copy.id, copy.cuts[0].id, { depth: 0.5 });
+    const after = useStore.getState().doc.boards;
+    expect(sourceDepth).not.toBe(0.5);
+    expect(after[1].cuts[0].depth).toBe(0.5);
+    expect(after[0].cuts[0].depth).toBe(sourceDepth);
+  });
 });
 
 describe('undo / redo', () => {
@@ -355,5 +376,97 @@ describe('gesture coalescing', () => {
     expect(useStore.getState().past.length).toBe(before + 2);
     useStore.getState().undo();
     expect(useStore.getState().doc.boards[0].position).toEqual([1, 0, 0]);
+  });
+});
+
+describe('cuts', () => {
+  const boardId = () => useStore.getState().doc.boards[0].id;
+  const cuts = () => useStore.getState().doc.boards[0].cuts;
+
+  beforeEach(() => {
+    useStore.setState({ doc: createDocument(), selectedId: null, past: [], future: [] });
+    useStore.getState().addBoard();
+  });
+
+  it('adds a cut with a default that fits the board', () => {
+    useStore.getState().addCut(boardId());
+    expect(cuts()).toHaveLength(1);
+    const c = cuts()[0];
+    expect(c.depth).toBeGreaterThan(0);
+    expect(c.face).not.toBe(c.across);
+  });
+
+  it('gives each cut a distinct id', () => {
+    useStore.getState().addCut(boardId());
+    useStore.getState().addCut(boardId());
+    expect(cuts()[0].id).not.toBe(cuts()[1].id);
+  });
+
+  it('patches one cut and leaves the others alone', () => {
+    useStore.getState().addCut(boardId());
+    useStore.getState().addCut(boardId());
+    const [first, second] = cuts();
+    useStore.getState().updateCut(boardId(), second.id, { offset: 9 });
+    expect(cuts()[1].offset).toBe(9);
+    expect(cuts()[0]).toEqual(first);
+  });
+
+  it('removes a cut', () => {
+    useStore.getState().addCut(boardId());
+    useStore.getState().removeCut(boardId(), cuts()[0].id);
+    expect(cuts()).toEqual([]);
+  });
+
+  it('is undoable', () => {
+    useStore.getState().addCut(boardId());
+    useStore.getState().undo();
+    expect(cuts()).toEqual([]);
+  });
+
+  // A cut removes stock from inside the board's AABB: it never changes the
+  // extents and never moves the board, so reorienting on a cut change would
+  // be a no-op pivot. Same reasoning that keeps `grain` out of the predicate.
+  it('never moves the board', () => {
+    const before = useStore.getState().doc.boards[0].position;
+    useStore.getState().addCut(boardId());
+    useStore.getState().updateCut(boardId(), cuts()[0].id, { depth: 0.5 });
+    expect(useStore.getState().doc.boards[0].position).toEqual(before);
+  });
+
+  it('ignores an unknown board or cut', () => {
+    expect(() => useStore.getState().addCut('nope')).not.toThrow();
+    expect(() => useStore.getState().removeCut(boardId(), 'nope')).not.toThrow();
+    expect(cuts()).toEqual([]);
+  });
+
+  // Matching updateBoard/deleteBoard/duplicateBoard: an unmatched id must be a
+  // true no-op, not merely non-throwing — otherwise edit() still pushes a
+  // no-op undo snapshot (invariant 4) and clears the redo stack.
+  it('leaves the undo stack alone for an unknown board or cut', () => {
+    useStore.getState().addCut(boardId());
+    const pastLength = useStore.getState().past.length;
+
+    useStore.getState().updateCut(boardId(), 'nope', { offset: 9 });
+    expect(useStore.getState().past.length).toBe(pastLength);
+
+    useStore.getState().updateCut('nope', cuts()[0].id, { offset: 9 });
+    expect(useStore.getState().past.length).toBe(pastLength);
+
+    useStore.getState().removeCut('nope', cuts()[0].id);
+    expect(useStore.getState().past.length).toBe(pastLength);
+  });
+
+  // The brief's suggested id scheme (`c_${Date.now()}_${cuts.length}`) can
+  // collide: add a cut, remove it (length back to 0), add another within the
+  // same millisecond — both mint the same id. A monotonic counter (the same
+  // scheme `nextId()` already uses for board ids, and that validateCuts
+  // already re-mints onto any cut missing/duplicating an id) does not have
+  // that failure mode.
+  it('still gives a distinct id after an add/remove/add within the same tick', () => {
+    useStore.getState().addCut(boardId());
+    const firstId = cuts()[0].id;
+    useStore.getState().removeCut(boardId(), firstId);
+    useStore.getState().addCut(boardId());
+    expect(cuts()[0].id).not.toBe(firstId);
   });
 });

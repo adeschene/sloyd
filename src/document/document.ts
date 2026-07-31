@@ -1,12 +1,17 @@
 import { MATERIALS, DEFAULT_MATERIAL, isSheetGood } from './types';
-import type { Board, Rotation, Posture, Grain, SloydDocument } from './types';
+import type { Board, Cut, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument } from './types';
 import { dedupeNames } from './names';
+import { positionAxisOf } from './geometry';
 
 export * from './types';
-export { boardExtents, boardCenter, reorientedPosition, axisDimensions, DIMENSION_ORDER } from './geometry';
+export {
+  boardExtents, boardCenter, reorientedPosition, axisDimensions, DIMENSION_ORDER, positionAxisOf,
+} from './geometry';
 export { uniqueName, dedupeNames } from './names';
+export { boardEdges, boardSolids, cutLabel, cutRegion, pointToLocalXYZ, solidWorldBox, wholeBoard } from './cuts';
+export type { Point, Segment } from './cuts';
 
-export const CURRENT_VERSION = 3;
+export const CURRENT_VERSION = 4;
 
 export class DocumentError extends Error {
   /**
@@ -30,6 +35,14 @@ function nextId(): string {
   return `b_${Date.now().toString(36)}_${idCounter.toString(36)}`;
 }
 
+// Exported so store.ts can mint a cut id the same way validateCuts re-mints
+// one for a cut missing (or duplicating) an id on load — a monotonic
+// counter, not a `Date.now()` + array-length scheme, because the latter can
+// repeat: add a cut, remove it (array length back to 0), add another within
+// the same millisecond, and both would get the same id. The `b_` prefix is
+// cosmetic; validateCuts already hands cut ids this same generator.
+export { nextId };
+
 /**
  * A board with defaults filled in. Deliberately unaware of the document, so
  * it cannot deduplicate its own name — the caller must pass a name through
@@ -48,6 +61,7 @@ export function createBoard(partial: Partial<Board> = {}): Board {
     posture: 'flat',
     grain: 'length',
     material: DEFAULT_MATERIAL,
+    cuts: [],
     ...partial,
   };
 }
@@ -67,6 +81,68 @@ const VALID_GRAINS: Grain[] = ['length', 'width', 'thickness'];
 
 function isPositiveFinite(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v) && v > 0;
+}
+
+const VALID_DIMENSIONS: Dimension[] = ['length', 'width', 'thickness'];
+const VALID_FROMS: CutFrom[] = ['min', 'max'];
+
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.min(Math.max(v, lo), hi);
+}
+
+/**
+ * Cuts that fit the board, with unique ids.
+ *
+ * Clamps rather than rejects, because a saved document must always open and a
+ * board whose length was later shrunk below an existing cut is a real case,
+ * not a corrupt file. The panel is the half that refuses bad entry (see
+ * Properties.tsx); this half brings an existing cut back inside the board.
+ *
+ * The clamp ORDER is load-bearing: offset into [0, dim] first, then width into
+ * [0, dim - offset]. The other order gives different results for a cut that
+ * starts past the end.
+ *
+ * Three things are dropped rather than clamped: a cut with nothing left after
+ * clamping, a cut whose `across` is its own `face` (unrepresentable through
+ * the panel, reachable in a hand-edited file), and a cut that would remove ALL
+ * the stock — there is no nearest legal cut for that one, and a board coming
+ * back whole is unmistakable where a board coming back invisible is not.
+ */
+function validateCuts(raw: unknown, board: Omit<Board, 'cuts'>): Cut[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Cut[] = [];
+  const seen = new Set<string>();
+
+  for (const item of raw) {
+    if (typeof item !== 'object' || item === null) continue;
+    const c = item as Record<string, unknown>;
+
+    const face = c.face as Dimension;
+    const across = c.across as Dimension;
+    if (!VALID_DIMENSIONS.includes(face) || !VALID_DIMENSIONS.includes(across)) continue;
+    if (face === across) continue;
+    if (!VALID_FROMS.includes(c.from as CutFrom)) continue;
+    if (!['offset', 'width', 'depth'].every(
+      (k) => typeof c[k] === 'number' && Number.isFinite(c[k]),
+    )) continue;
+
+    const posDim = board[positionAxisOf(face, across)];
+    const faceDim = board[face];
+
+    const offset = clamp(c.offset as number, 0, posDim);
+    const width = clamp(c.width as number, 0, posDim - offset);
+    const depth = clamp(c.depth as number, 0, faceDim);
+    if (width <= 0 || depth <= 0) continue;
+
+    // Full depth AND the full position axis, with `across` always spanning
+    // fully, means nothing survives.
+    if (depth === faceDim && offset === 0 && width === posDim) continue;
+
+    const id = typeof c.id === 'string' && c.id && !seen.has(c.id) ? c.id : nextId();
+    seen.add(id);
+    out.push({ id, face, from: c.from as CutFrom, across, offset, width, depth });
+  }
+  return out;
 }
 
 function validateBoard(raw: unknown, index: number): Board {
@@ -112,7 +188,7 @@ function validateBoard(raw: unknown, index: number): Board {
   // CURRENT_VERSION.
   const normalizedGrain = isSheetGood(material) && grain === 'thickness' ? 'length' : grain;
 
-  return {
+  const board: Omit<Board, 'cuts'> = {
     id: typeof b.id === 'string' && b.id ? b.id : nextId(),
     name: name || 'Board',
     length: b.length as number,
@@ -126,6 +202,7 @@ function validateBoard(raw: unknown, index: number): Board {
     grain: normalizedGrain,
     material,
   };
+  return { ...board, cuts: validateCuts(b.cuts, board) };
 }
 
 /**
@@ -176,6 +253,21 @@ function addPostureToV3(raw: unknown): unknown {
 }
 
 /**
+ * v3 -> v4: boards gained a list of cuts.
+ *
+ * The mildest step in the chain — the default is empty and validateBoard's
+ * fallback would be the same empty array — but it runs in the same place as
+ * the other two on purpose. The chain's value is that every step has one
+ * shape, so the next step that DOES have a divergent fallback inherits the
+ * correct structure instead of relying on its author noticing. See invariant 11.
+ */
+function addCutsToV4(raw: unknown): unknown {
+  if (typeof raw !== 'object' || raw === null) return raw;
+  const b = raw as Record<string, unknown>;
+  return Array.isArray(b.cuts) ? raw : { ...b, cuts: [] };
+}
+
+/**
  * Validate and upgrade a parsed document to the current schema.
  * Throws DocumentError with a human-readable reason. Never partially loads:
  * either the whole document validates or nothing is returned.
@@ -209,6 +301,7 @@ export function migrateDocument(raw: unknown): SloydDocument {
   let rawBoards = d.boards;
   if (d.version < 2) rawBoards = rawBoards.map(foldRotationToV2);
   if (d.version < 3) rawBoards = rawBoards.map(addPostureToV3);
+  if (d.version < 4) rawBoards = rawBoards.map(addCutsToV4);
 
   const units = d.units as SloydDocument['units'] | undefined;
   const precision =

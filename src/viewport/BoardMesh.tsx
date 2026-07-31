@@ -1,6 +1,9 @@
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
-import { boardCenter, boardExtents, MATERIALS, DEFAULT_MATERIAL } from '../document/document';
+import {
+  boardCenter, boardEdges, boardExtents, boardSolids, pointToLocalXYZ,
+  solidWorldBox, MATERIALS, DEFAULT_MATERIAL,
+} from '../document/document';
 import type { Board } from '../document/document';
 import { faceGrainKinds, grainFamily } from './grainFaces';
 import { boardUVs, boardUVSignature } from './grainTiling';
@@ -41,28 +44,38 @@ export function BoardMesh({ board, selected, onSelect }: Props) {
     [color],
   );
 
-  // The box carries its own UVs: grain scale is world-relative and the textures
-  // are shared, so the per-board part of the mapping lives here rather than on
-  // the texture. Rebuilt whenever anything it depends on changes, and disposed
-  // with it — constructing geometry inline would leak GPU memory every render.
-  // Keyed on boardUVSignature rather than a hand-written field list — see its
-  // doc comment. extents[0..2] stay in the array too: they are already
-  // implied by the signature's length/width/thickness, but the box's own
-  // size belongs on the memo that builds the box, not just on the memo that
-  // paints it, so this keeps that dependency correct rather than clever.
-  const geometry = useMemo(() => {
-    const geo = new THREE.BoxGeometry(extents[0], extents[1], extents[2]);
-    geo.setAttribute('uv', new THREE.BufferAttribute(boardUVs(board), 2));
-    return geo;
+  // One geometry per solid. Keyed on boardUVSignature — see its doc comment —
+  // which now covers cuts, so adding a dado rebuilds these. extents stay in
+  // the array for the same reason as before: the box's own size belongs on
+  // the memo that builds the box.
+  const geometries = useMemo(() => {
+    return boardSolids(board).map((solid) => {
+      const { center, size } = solidWorldBox(board, solid);
+      const geo = new THREE.BoxGeometry(size[0], size[1], size[2]);
+      geo.setAttribute('uv', new THREE.BufferAttribute(boardUVs(board, solid), 2));
+      return { geo, center };
+    });
   }, [
     extents[0], extents[1], extents[2],
     boardUVSignature(board),
   ]);
 
-  useEffect(() => () => geometry.dispose(), [geometry]);
+  // Every geometry, not just the first — disposing one of N leaks the rest
+  // on every rebuild.
+  useEffect(() => () => geometries.forEach(({ geo }) => geo.dispose()), [geometries]);
 
-  // Edge lines make joints legible — the single biggest readability win.
-  const edges = useMemo(() => new THREE.EdgesGeometry(geometry), [geometry]);
+  // Edges come from the cell grid, not from the solids: the remainder around
+  // a dado is L-shaped in section, so per-solid EdgesGeometry would draw
+  // seams across the board's own uncut faces. See boardEdges.
+  const edges = useMemo(() => {
+    const points = boardEdges(board).flatMap(([a, b]) => [
+      ...pointToLocalXYZ(board, a),
+      ...pointToLocalXYZ(board, b),
+    ]);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+    return geo;
+  }, [extents[0], extents[1], extents[2], boardUVSignature(board)]);
 
   useEffect(() => () => edges.dispose(), [edges]);
 
@@ -71,49 +84,53 @@ export function BoardMesh({ board, selected, onSelect }: Props) {
 
   return (
     <group position={center}>
-      <mesh
-        geometry={geometry}
-        castShadow
-        receiveShadow
-        onClick={(e) => {
-          // Only a click that didn't travel selects. R3F fires onClick for any
-          // release whose object was among the pointer-down hits, with no
-          // drag threshold of its own (see initialHits in @react-three/fiber's
-          // events module), so without this guard a gesture that merely ENDED
-          // over a board selected it. Two ways that bit: dragging a board by
-          // the gizmo while a second board sat behind the cursor put both in
-          // initialHits, so releasing over the second one selected it; and
-          // orbiting the camera from a board and releasing re-selected it.
-          // e.delta is the pixel distance travelled since pointer-down, which
-          // is exactly the drag-versus-click distinction, and 2px matches the
-          // threshold R3F itself uses for its miss handling.
-          if (e.delta > CLICK_DRAG_SLOP_PX) return;
-          e.stopPropagation();
-          onSelect(board.id);
-        }}
-      >
-        {/* One material per face, in BoxGeometry's group order, so a face, an
-            edge and an end can each show their own cut of the wood. The texture
-            is a shared greyscale mask; the species colour tints it.
-            polygonOffset pushes the faces back a hair so the edge lines below —
-            which sit exactly on those faces — draw solid instead of stippling
-            through the depth test. */}
-        {kinds.map((kind, i) => (
-          <meshStandardMaterial
-            key={`${i}-${kind}`}
-            attach={`material-${i}`}
-            map={grainTexture(family, kind)}
-            color={color}
-            roughness={0.72}
-            metalness={0}
-            emissive={selected ? SELECTED : '#000000'}
-            emissiveIntensity={selected ? 0.16 : 0}
-            polygonOffset
-            polygonOffsetFactor={1}
-            polygonOffsetUnits={1}
-          />
-        ))}
-      </mesh>
+      {geometries.map(({ geo, center: offset }, index) => (
+        <mesh
+          key={index}
+          geometry={geo}
+          position={offset}
+          castShadow
+          receiveShadow
+          onClick={(e) => {
+            // Only a click that didn't travel selects. R3F fires onClick for any
+            // release whose object was among the pointer-down hits, with no
+            // drag threshold of its own (see initialHits in @react-three/fiber's
+            // events module), so without this guard a gesture that merely ENDED
+            // over a board selected it. Two ways that bit: dragging a board by
+            // the gizmo while a second board sat behind the cursor put both in
+            // initialHits, so releasing over the second one selected it; and
+            // orbiting the camera from a board and releasing re-selected it.
+            // e.delta is the pixel distance travelled since pointer-down, which
+            // is exactly the drag-versus-click distinction, and 2px matches the
+            // threshold R3F itself uses for its miss handling.
+            if (e.delta > CLICK_DRAG_SLOP_PX) return;
+            e.stopPropagation();
+            onSelect(board.id);
+          }}
+        >
+          {/* One material per face, in BoxGeometry's group order, so a face, an
+              edge and an end can each show their own cut of the wood. The texture
+              is a shared greyscale mask; the species colour tints it.
+              polygonOffset pushes the faces back a hair so the edge lines below —
+              which sit exactly on those faces — draw solid instead of stippling
+              through the depth test. */}
+          {kinds.map((kind, i) => (
+            <meshStandardMaterial
+              key={`${i}-${kind}`}
+              attach={`material-${i}`}
+              map={grainTexture(family, kind)}
+              color={color}
+              roughness={0.72}
+              metalness={0}
+              emissive={selected ? SELECTED : '#000000'}
+              emissiveIntensity={selected ? 0.16 : 0}
+              polygonOffset
+              polygonOffsetFactor={1}
+              polygonOffsetUnits={1}
+            />
+          ))}
+        </mesh>
+      ))}
 
       {/* THREE.Color cannot parse 8-digit hex — it warns and falls back — so
           the edge's softness lives on the material, not in the colour string. */}

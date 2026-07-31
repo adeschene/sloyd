@@ -2,6 +2,7 @@ import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
 import { createDocument } from '../document/document';
+import { formatLength } from '../units/length';
 import { Properties } from './Properties';
 
 const reset = () => useStore.getState().replaceDocument(createDocument('Test'));
@@ -406,5 +407,201 @@ describe('the orientation controls', () => {
     expect(useStore.getState().doc.boards.find((b) => b.id === id)!.material).toBe('plywood');
     expect([...(screen.getByLabelText('Runs') as HTMLSelectElement).options].map((o) => o.textContent))
       .toEqual(['Along length', 'Across width']);
+  });
+});
+
+describe('cuts', () => {
+  const renderWithBoard = () => {
+    useStore.getState().addBoard();
+    const id = useStore.getState().doc.boards[0].id;
+    useStore.getState().selectBoard(id);
+    render(<Properties />);
+    return id;
+  };
+
+  it('adds a cut and shows its controls', async () => {
+    renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    expect(screen.getByLabelText(/from the end/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/cut width/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/depth/i)).toBeInTheDocument();
+  });
+
+  it('never offers the face dimension as the across dimension', async () => {
+    renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    const across = screen.getByLabelText(/runs across/i) as HTMLSelectElement;
+    const face = screen.getByLabelText(/cut into/i) as HTMLSelectElement;
+    const offered = [...across.options].map((o) => o.value);
+    expect(offered).not.toContain(face.value);
+    expect(offered).toHaveLength(2);
+  });
+
+  it('moves across to a legal value when face takes its dimension', async () => {
+    renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    const across = screen.getByLabelText(/runs across/i) as HTMLSelectElement;
+    await userEvent.selectOptions(screen.getByLabelText(/cut into/i), across.value);
+    const after = screen.getByLabelText(/runs across/i) as HTMLSelectElement;
+    expect(after.value).not.toBe((screen.getByLabelText(/cut into/i) as HTMLSelectElement).value);
+    expect([...after.options].map((o) => o.value)).toContain(after.value);
+  });
+
+  it('refuses a depth past the board and does not commit it', async () => {
+    const id = renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    const before = useStore.getState().doc.boards.find((b) => b.id === id)!.cuts[0].depth;
+    const depth = screen.getByLabelText(/depth/i);
+    await userEvent.clear(depth);
+    await userEvent.type(depth, '4');
+    await userEvent.tab();
+    expect(screen.getByText(/must be at most/i)).toBeInTheDocument();
+    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.cuts[0].depth).toBe(before);
+  });
+
+  it('refuses a cut that would remove all the stock', async () => {
+    renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    // Full width of the position axis at full depth.
+    await userEvent.clear(screen.getByLabelText(/from the end/i));
+    await userEvent.type(screen.getByLabelText(/from the end/i), '0');
+    await userEvent.tab();
+    await userEvent.clear(screen.getByLabelText(/cut width/i));
+    await userEvent.type(screen.getByLabelText(/cut width/i), '24');
+    await userEvent.tab();
+    await userEvent.clear(screen.getByLabelText(/depth/i));
+    await userEvent.type(screen.getByLabelText(/depth/i), '3/4');
+    await userEvent.tab();
+    expect(screen.getByText(/would remove the whole board/i)).toBeInTheDocument();
+  });
+
+  it('labels a cut flush with the end a rabbet', async () => {
+    renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    await userEvent.clear(screen.getByLabelText(/from the end/i));
+    await userEvent.type(screen.getByLabelText(/from the end/i), '0');
+    await userEvent.tab();
+    expect(screen.getByText(/rabbet/i)).toBeInTheDocument();
+  });
+
+  it('removes a cut', async () => {
+    renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    await userEvent.click(screen.getByRole('button', { name: /remove cut/i }));
+    expect(screen.queryByLabelText(/depth/i)).not.toBeInTheDocument();
+  });
+
+  it('does not leak a whole-board-removal error across a selection change and back', async () => {
+    useStore.getState().addBoard();
+    const id = useStore.getState().doc.boards[0].id;
+    useStore.getState().addBoard();
+    const otherId = useStore.getState().doc.boards[1].id;
+    useStore.getState().selectBoard(id);
+    render(<Properties />);
+
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    await userEvent.clear(screen.getByLabelText(/from the end/i));
+    await userEvent.type(screen.getByLabelText(/from the end/i), '0');
+    await userEvent.tab();
+    await userEvent.clear(screen.getByLabelText(/cut width/i));
+    await userEvent.type(screen.getByLabelText(/cut width/i), '24');
+    await userEvent.tab();
+    await userEvent.clear(screen.getByLabelText(/depth/i));
+    await userEvent.type(screen.getByLabelText(/depth/i), '3/4');
+    await userEvent.tab();
+    expect(screen.getByText(/would remove the whole board/i)).toBeInTheDocument();
+
+    act(() => { useStore.getState().selectBoard(otherId); });
+    act(() => { useStore.getState().selectBoard(id); });
+
+    expect(screen.queryByText(/would remove the whole board/i)).not.toBeInTheDocument();
+  });
+
+  it('keeps the width field satisfiable after "Cut into" moves the position axis to a much smaller dimension', async () => {
+    const id = renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    // The default cut's position axis is `length` (24"); switching the face
+    // to "End" (`length`) moves the position axis to `thickness` (0.75") —
+    // a naive clamp of the old offset/width into the new axis's range can
+    // leave `width`'s max at zero or negative, an unsatisfiable field.
+    await userEvent.selectOptions(screen.getByLabelText(/cut into/i), 'length');
+
+    const width = screen.getByLabelText(/cut width/i);
+    await userEvent.clear(width);
+    await userEvent.type(width, '1/2');
+    await userEvent.tab();
+
+    expect(screen.queryByText(/must be at most/i)).not.toBeInTheDocument();
+    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.cuts[0].width).toBe(0.5);
+  });
+
+  it('preserves a legal offset and width when Runs across only moves the position axis', async () => {
+    const id = renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    await userEvent.clear(screen.getByLabelText(/from the end/i));
+    await userEvent.type(screen.getByLabelText(/from the end/i), '1/8');
+    await userEvent.tab();
+    await userEvent.clear(screen.getByLabelText(/cut width/i));
+    await userEvent.type(screen.getByLabelText(/cut width/i), '1/4');
+    await userEvent.tab();
+
+    // Both values are trivially legal on any axis of a 24 x 5.5 x 0.75
+    // board — this changes `across` only, which must not discard them.
+    const across = screen.getByLabelText(/runs across/i) as HTMLSelectElement;
+    const other = [...across.options].map((o) => o.value).find((v) => v !== across.value)!;
+    await userEvent.selectOptions(across, other);
+
+    const cut = useStore.getState().doc.boards.find((b) => b.id === id)!.cuts[0];
+    expect(cut.offset).toBe(0.125);
+    expect(cut.width).toBe(0.25);
+  });
+
+  it('clears the whole-board error once a sibling edit resolves it, with no stale display', async () => {
+    const id = renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    await userEvent.clear(screen.getByLabelText(/from the end/i));
+    await userEvent.type(screen.getByLabelText(/from the end/i), '0');
+    await userEvent.tab();
+    await userEvent.clear(screen.getByLabelText(/cut width/i));
+    await userEvent.type(screen.getByLabelText(/cut width/i), '24');
+    await userEvent.tab();
+    await userEvent.clear(screen.getByLabelText(/depth/i));
+    await userEvent.type(screen.getByLabelText(/depth/i), '3/4');
+    await userEvent.tab();
+    expect(screen.getByText(/would remove the whole board/i)).toBeInTheDocument();
+
+    // A sibling edit that narrows the cut back below full width.
+    await userEvent.clear(screen.getByLabelText(/cut width/i));
+    await userEvent.type(screen.getByLabelText(/cut width/i), '1');
+    await userEvent.tab();
+
+    expect(screen.queryByText(/would remove the whole board/i)).not.toBeInTheDocument();
+    // The rejected depth commit must never have landed, and the depth field
+    // must display that real stored value, not the rejected "3/4" text.
+    const stored = useStore.getState().doc.boards.find((b) => b.id === id)!.cuts[0].depth;
+    expect(stored).not.toBe(0.75);
+    expect((screen.getByLabelText(/depth/i) as HTMLInputElement).value)
+      .toBe(formatLength(stored, 16));
+  });
+
+  it('clears the whole-board error after an undo restores a legal cut', async () => {
+    renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    await userEvent.clear(screen.getByLabelText(/from the end/i));
+    await userEvent.type(screen.getByLabelText(/from the end/i), '0');
+    await userEvent.tab();
+    await userEvent.clear(screen.getByLabelText(/cut width/i));
+    await userEvent.type(screen.getByLabelText(/cut width/i), '24');
+    await userEvent.tab();
+    await userEvent.clear(screen.getByLabelText(/depth/i));
+    await userEvent.type(screen.getByLabelText(/depth/i), '3/4');
+    await userEvent.tab();
+    expect(screen.getByText(/would remove the whole board/i)).toBeInTheDocument();
+
+    // Undoes the width=24 commit (the depth commit was refused, so it never
+    // reached the undo stack) — the cut's width no longer spans the board.
+    act(() => { useStore.getState().undo(); });
+
+    expect(screen.queryByText(/would remove the whole board/i)).not.toBeInTheDocument();
   });
 });

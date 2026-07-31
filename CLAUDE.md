@@ -17,16 +17,48 @@ three dimensions, not just its length), and log-derived grain textures — and t
 short post-v3 pass fixing two bugs found in use (`DimensionField` and `NameField`
 both displaying, and in `NameField`'s case writing, stale text after an external
 change landed while the field had focus) plus a plywood-grain regression from v3
-itself. Static SPA, containerized, 334/334 tests passing.
+itself — and now **joinery**: a board can have stock removed from it. Static SPA,
+containerized, 397/397 tests passing.
 
 Host-specific deployment detail — hostname, container name, proxy configuration, and
 the manual steps a human has to perform — lives in `DEPLOYMENT.local.md`, which is
 gitignored. Read that file before deploying; it is not in the public repo.
 
-Joinery (dados/rabbets) is next, with its own spec and version label after v3 — see
-the v3 spec's non-goals (`docs/superpowers/specs/2026-07-31-sloyd-v3-design.md`,
-section 8). The cut list stays behind that. **Next up is joinery**, then the cut
-list. The parametric board model exists specifically to make both cheap to add.
+**Next up is the cut list**, which joinery was deliberately built before: a cut list
+that does not know about dados reports the wrong numbers for every part that has one.
+The parametric board model exists specifically to make it cheap.
+
+**What joinery did**, design in
+`docs/superpowers/specs/2026-07-31-sloyd-joinery-design.md`, plan in
+`docs/superpowers/plans/2026-07-31-sloyd-joinery.md`:
+
+- **One primitive.** A `Cut` is a rectangular removal that runs fully across one of
+  the board's dimensions. A dado is that cut in the middle of a face; a rabbet is the
+  same cut at an edge — so the difference is *derived* (`cutLabel`), never stored.
+  Fields are part-local (`face`, `from`, `across`, `offset`, `width`, `depth`), named
+  in length/width/thickness, so a cut survives posture and rotation the way `grain`
+  does. `face` and `across` name two dimensions; the third — the **position axis**
+  that `offset` and `width` are measured along — is implied via `positionAxisOf`,
+  never stored, so a cut cannot name the same dimension twice.
+- **Schema 4.** `addCutsToV4` defaults `cuts` to `[]` on raw data before
+  `validateBoard`, extending the chain to 1→2→3→4.
+- **Sub-box decomposition, not CSG.** `src/document/cuts.ts` splits the board at
+  every cut boundary into a grid of cells, drops each cell whose centre is inside any
+  cut, and merges the survivors. Splitting first is what makes the centre test sound;
+  dropping against the **union** is the whole of overlap handling, so two overlapping
+  dados remove the overlapped stock once with no pairwise intersection case. CSG was
+  rejected for a concrete reason: `boardUVs` returns a `Float32Array(48)` keyed to
+  `BoxGeometry`'s 24 vertices, so arbitrary triangle counts would have invalidated
+  invariants 12, 14 and 15 together. A board with no cuts still yields exactly one
+  solid matching `boardExtents`, which is what makes joinery free for boards that
+  don't use it.
+- **Edges come from the grid**, not from the solids — see invariant 16.
+- **UVs stay parent-relative**, so the figure runs continuously across a dado rather
+  than restarting at it — see invariant 17.
+- **Clamp on load, refuse in the panel.** `validateCuts` clamps a cut back inside a
+  board that was later shrunk (a saved document must always open), dropping only what
+  has no nearest legal value. The panel refuses out-of-range entry outright, because
+  silently correcting a number the user just typed loses a measurement.
 
 **What v2 did:** collapsed the four-value rotation select to a two-state **Grain**
 select ("Along X" / "Along Z") — a rectangular box has 2-fold symmetry about the
@@ -129,14 +161,19 @@ parallel code path.
 
 **Versioning:** every document carries a `version` field, and every load path (open,
 import, autosave-restore) runs through `migrateDocument` before the document is
-trusted. This is what lets the schema evolve (e.g. for joinery) without breaking files
-saved by earlier versions. `CURRENT_VERSION` is 3, and migration is a real chain: each
-step runs on raw data, in version order, one version at a time
-(`if (d.version < 2) …; if (d.version < 3) …`), before any board reaches
-`validateBoard`. A v1 file walks 1→2→3 — `foldRotationToV2` (180→0, 270→90) first,
-then `addPostureToV3` (`standing` → `posture`, `grain` defaulted) — which is the
-worked example every future migration step should match. See invariant 11 for why
-both steps run where they do.
+trusted. This is what lets the schema evolve (e.g. for the cut list) without breaking
+files saved by earlier versions. `CURRENT_VERSION` is 4, and migration is a real
+chain: each step runs on raw data, in version order, one version at a time
+(`if (d.version < 2) …; if (d.version < 3) …; if (d.version < 4) …`), before any board
+reaches `validateBoard`. A v1 file walks 1→2→3→4 — `foldRotationToV2` (180→0, 270→90)
+first, then `addPostureToV3` (`standing` → `posture`, `grain` defaulted), then
+`addCutsToV4` (`cuts` defaulted to `[]`) — which is the worked example every future
+migration step should match. See invariant 11 for why the steps run where they do.
+`addCutsToV4` is the mildest step in the chain (its default is empty, and
+`validateBoard`'s fallback would be the same empty array) and it runs in the same
+place anyway, on purpose: the chain's value is that every step has one shape, so the
+next step that *does* have a divergent fallback inherits the correct structure rather
+than depending on its author noticing.
 
 Full detail: `docs/superpowers/specs/` (design) and `docs/superpowers/plans/`
 (implementation plan). This section is a summary, not a replacement for either.
@@ -151,8 +188,11 @@ src/
 │   ├── geometry.ts          axisDimensions (single source) / boardExtents /
 │   │                        boardCenter / reorientedPosition
 │   ├── names.ts             uniqueName / dedupeNames. Imports only Board.
-│   └── document.ts          create / validate / migrate (v1->v2->v3 chain);
-│                            re-exports the other two
+│   ├── cuts.ts              cutRegion / boardSolids (split, drop, merge) /
+│   │                        boardEdges / solidWorldBox / cutLabel. Pure; imports
+│   │                        only ./geometry and ./types, never ./document
+│   └── document.ts          create / validate / migrate (v1->v2->v3->v4 chain);
+│                            re-exports the other three
 ├── store/store.ts           Zustand store, snapshot undo/redo, gesture coalescing
 ├── storage/
 │   ├── types.ts             the StorageAdapter interface
@@ -202,6 +242,10 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
    undefined-overwrite reason that once justified the narrower one. `grain` is
    deliberately absent from this predicate — it changes which faces show which cut,
    never a board's extents, so reorienting on a grain change would be a no-op pivot.
+   **`cuts` is absent for the same reason**, and that is also why cut edits get their
+   own store actions (`addCut`/`updateCut`/`removeCut`) instead of going through
+   `updateBoard`: a cut removes stock from *inside* the board's AABB, so it changes
+   no extent and moves nothing.
 3. **The `dragging` ref guard in `Gizmo.tsx`.** `TransformControls` computes motion from
    state captured at drag start; syncing the document into the proxy mid-drag makes it
    fight itself. The symptom is jitter or drift, not a crash.
@@ -303,14 +347,45 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
     The browser gate caught it by pixel-diffing before/after screenshots; the fix
     keys the memo on `boardUVSignature`, a derived signature that lives next to the
     code deciding what it must cover, and deliberately excludes `position`/`name` so
-    dragging a board does not rebuild its geometry every frame.
+    dragging a board does not rebuild its geometry every frame. Joinery added `cuts`
+    to it for exactly the same reason — cuts change which solids exist, so a memo
+    that missed them would leave a dado invisible while the document stayed correct.
+    One more thing the signature is *not*: it is identical for every solid of a
+    board, because it describes the board. Anything caching per solid must not key
+    on it alone. `BoardMesh` sidesteps this by building all the geometries in one
+    memo that returns an array, so they are rebuilt together.
+16. **Edge lines come from the cell grid, not from the solids.** The remainder around
+    a dado is L-shaped in section, and an L is not a box — so the canonical case (a
+    ¾"-wide, ¼"-deep dado at 6" across a 24" board) leaves three abutting solids
+    covering the board's *continuous* uncut bottom face, and per-solid `EdgesGeometry`
+    draws lines across it at 6 and 6¾ that correspond to no real edge. Merging in
+    `boardSolids` reduces the solid count; it cannot fix this, and it is not meant to.
+    `boardEdges` instead tests the up-to-four cells around each candidate segment and
+    draws unless the configuration is flat (all four filled, none filled, or exactly
+    two sharing a face). Cells outside the board count as empty, which is what makes
+    the outer silhouette, the convex corners and the concave dado shoulders all fall
+    out of one rule. `BoardMesh`'s own comment calls edge lines "the single biggest
+    readability win", so this is legibility, not polish. Contiguous drawn cells on a
+    line are merged into one segment — without that, a cut anywhere on the board
+    fragments the lines on faces it never touches.
+17. **UVs are parent-relative, and `FIT` resolves against the board, not the solid.**
+    `boardUVs(board, solid)` looks a sub-box's coordinates up in the *board's* tiling,
+    so the grain figure runs continuously across a dado instead of restarting at its
+    edges — which is what makes a cut read as stock removed from one board rather than
+    two boards pushed together. The per-board UV offset stays the board's (invariant
+    12) for the same reason. `FIT` is where this is easy to get backwards: it means
+    "show the whole tile on this axis", and the tile belongs to the board, so fitting
+    it to the solid would squeeze plywood's whole five-ply stack into the stock that
+    survived a ¼" dado when the correct picture is the plies the cut left behind.
+    `FacePlan` carries `tileInches` (tile *size*) rather than a tile count precisely
+    so that `FIT` and fixed tiling are one division: `u = coordinate / tileInches`.
 
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 334 tests
+npm test           # Vitest, currently 397 tests
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -321,8 +396,8 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ## Open follow-ups
 
 `docs/follow-ups.md` lists everything found during v1 review, the two polish passes,
-v2, v3, and the post-v3 fixes, consciously deferred rather than missed, numbered 1-30
-plus v2's, v3's, and the post-v3 additions. Read it before starting new work in the
+v2, v3, the post-v3 fixes, and joinery, consciously deferred rather than missed,
+numbered 1-30 plus the per-release additions. Read it before starting new work in the
 same area — several items are "correct but untested", which is exactly what a
 refactor breaks silently.
 
@@ -336,7 +411,14 @@ stale-write), and 46 (the plywood-grain regression) are closed** — see invaria
 mode), and the "Post-v3 fixes" paragraph above (plywood grain). All closures are
 written up in place. **47 is open**: the toolbar's project-name field was checked
 against the same display-staleness shape and does **not** have it — see
-`docs/follow-ups.md` for why. With those done, **joinery is the next work.**
+`docs/follow-ups.md` for why.
+
+Joinery added **48-52**, all open and all recorded rather than fixed. The one to read
+before touching the panel is **48**: shrinking a board's dimensions through the
+*Dimensions* fields can store a cut that removes the whole board, because that write
+goes through `updateBoard` and never meets the Cuts section's guard — the board
+vanishes in-session and comes back whole on reload, since `validateCuts` drops the cut
+on load. With joinery done, **the cut list is the next work.**
 
 One entry is a lesson rather than a defect and is worth reading before touching anything
 in the viewport: **26a**. Browser verification on this host runs on software GL

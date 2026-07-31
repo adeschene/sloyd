@@ -3,6 +3,18 @@ import type { Board, Dimension, Posture } from './types';
 /** The order two dimensions are considered in when they share the floor. */
 export const DIMENSION_ORDER: Dimension[] = ['length', 'width', 'thickness'];
 
+/**
+ * The dimension a cut's offset and width are measured along: the one that is
+ * neither cut into nor run across. Implied rather than stored — see the Cut
+ * doc comment — so this is the single place it is worked out.
+ *
+ * It lives here rather than in document.ts because cuts.ts needs it and
+ * document.ts re-exports cuts.ts; geometry.ts is the leaf both sit above.
+ */
+export function positionAxisOf(face: Dimension, across: Dimension): Dimension {
+  return DIMENSION_ORDER.find((d) => d !== face && d !== across)!;
+}
+
 /** Which dimension each posture puts on the vertical axis. */
 const UP: Record<Posture, Dimension> = {
   flat: 'thickness',

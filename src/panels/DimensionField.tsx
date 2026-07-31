@@ -7,11 +7,19 @@ interface Props {
   onCommit: (inches: number) => void;
   /** Positions may be negative; dimensions may not. */
   allowNegative?: boolean;
+  /** Smallest legal value, inclusive. Overrides the default "> 0" rule for
+   *  fields where zero is legal but negative is not (e.g. a cut's offset,
+   *  which is legitimately flush with the near side). */
+  min?: number;
+  /** Largest legal value, inclusive. Refused rather than clamped: silently
+   *  correcting a number the user just typed loses a measurement without
+   *  saying so. */
+  max?: number;
   precision?: number;
 }
 
 export const DimensionField = forwardRef<HTMLInputElement, Props>(function DimensionField({
-  label, value, onCommit, allowNegative = false, precision = 16,
+  label, value, onCommit, allowNegative = false, min, max, precision = 16,
 }: Props, forwardedRef) {
   const id = useId();
   const [text, setText] = useState(() => formatLength(value, precision));
@@ -46,8 +54,17 @@ export const DimensionField = forwardRef<HTMLInputElement, Props>(function Dimen
       setError('Enter a measurement, e.g. 3/4 or 1-1/2');
       return;
     }
-    if (!allowNegative && parsed <= 0) {
+    if (min !== undefined) {
+      if (parsed < min) {
+        setError(`Must be at least ${formatLength(min, precision)}`);
+        return;
+      }
+    } else if (!allowNegative && parsed <= 0) {
       setError('Must be greater than zero');
+      return;
+    }
+    if (max !== undefined && parsed > max) {
+      setError(`Must be at most ${formatLength(max, precision)}`);
       return;
     }
     setError(null);

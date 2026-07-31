@@ -3,6 +3,7 @@ import {
 } from './document';
 import { boardExtents, boardCenter, reorientedPosition, axisDimensions } from './geometry';
 import type { Board, Posture, Rotation } from './types';
+import type { Cut } from './document';
 
 describe('axisDimensions', () => {
   const b = (posture: Posture, rotation: Rotation) =>
@@ -354,9 +355,8 @@ describe('migrateDocument, v2 to v3', () => {
     expect('standing' in migrateDocument(v2(true)).boards[0]).toBe(false);
   });
 
-  it('stamps version 3', () => {
-    expect(CURRENT_VERSION).toBe(3);
-    expect(migrateDocument(v2(false)).version).toBe(3);
+  it('stamps the current version', () => {
+    expect(migrateDocument(v2(false)).version).toBe(CURRENT_VERSION);
   });
 });
 
@@ -455,5 +455,136 @@ describe('reorientedPosition', () => {
   it('returns the position unchanged when the orientation does not change', () => {
     expect(reorientedPosition(base, { rotation: 0 })).toEqual(base.position);
     expect(reorientedPosition(base, {})).toEqual(base.position);
+  });
+});
+
+describe('schema 4 — cuts', () => {
+  it('defaults cuts to [] on a new board', () => {
+    expect(createBoard().cuts).toEqual([]);
+  });
+
+  it('gives a v3 file an empty cuts list', () => {
+    const doc = migrateDocument({
+      version: 3,
+      name: 'Old',
+      units: { display: 'imperial-fractional', precision: 16 },
+      boards: [{
+        id: 'a', name: 'Shelf', length: 24, width: 5.5, thickness: 0.75,
+        position: [0, 0, 0], rotation: 0, posture: 'flat', grain: 'length',
+        material: 'pine',
+      }],
+    });
+    expect(doc.version).toBe(4);
+    expect(doc.boards[0].cuts).toEqual([]);
+  });
+
+  // The chain is the point: a v1 file must walk 1 -> 2 -> 3 -> 4, folding
+  // 270 to 90 BEFORE it gains a posture, and gaining cuts last.
+  it('walks a v1 file all the way to 4', () => {
+    const doc = migrateDocument({
+      version: 1,
+      name: 'Ancient',
+      units: { display: 'imperial-fractional', precision: 16 },
+      boards: [{
+        id: 'a', name: 'Leg', length: 30, width: 3, thickness: 3,
+        position: [0, 0, 0], rotation: 270, standing: true, material: 'oak',
+      }],
+    });
+    expect(doc.version).toBe(4);
+    expect(doc.boards[0].rotation).toBe(90);
+    expect(doc.boards[0].posture).toBe('on-edge');
+    expect(doc.boards[0].grain).toBe('length');
+    expect(doc.boards[0].cuts).toEqual([]);
+  });
+
+  it('preserves cuts already present in a v4 file', () => {
+    const doc = migrateDocument({
+      version: 4,
+      name: 'New',
+      units: { display: 'imperial-fractional', precision: 16 },
+      boards: [{
+        id: 'a', name: 'Side', length: 24, width: 5.5, thickness: 0.75,
+        position: [0, 0, 0], rotation: 0, posture: 'flat', grain: 'length',
+        material: 'pine',
+        cuts: [{ id: 'c1', face: 'thickness', from: 'max', across: 'width',
+                 offset: 6, width: 0.75, depth: 0.25 }],
+      }],
+    });
+    expect(doc.boards[0].cuts).toHaveLength(1);
+    expect(doc.boards[0].cuts[0]).toMatchObject({ offset: 6, width: 0.75, depth: 0.25 });
+  });
+
+  it('rejects a file from a newer schema', () => {
+    expect(() => migrateDocument({ version: 5, name: 'x', boards: [] }))
+      .toThrow(/newer version/);
+  });
+});
+
+describe('cut validation', () => {
+  const load = (cuts: unknown[]) => migrateDocument({
+    version: 4,
+    name: 'x',
+    units: { display: 'imperial-fractional', precision: 16 },
+    boards: [{
+      id: 'a', name: 'Side', length: 24, width: 5.5, thickness: 0.75,
+      position: [0, 0, 0], rotation: 0, posture: 'flat', grain: 'length',
+      material: 'pine', cuts,
+    }],
+  }).boards[0].cuts;
+
+  const dado = (over: Partial<Cut> = {}): Cut => ({
+    id: 'c1', face: 'thickness', from: 'max', across: 'width',
+    offset: 6, width: 0.75, depth: 0.25, ...over,
+  });
+
+  it('keeps a cut that fits', () => {
+    expect(load([dado()])).toEqual([dado()]);
+  });
+
+  // Clamp order is stated in the spec because the two orders disagree:
+  // offset first into [0, dim], then width into [0, dim - offset].
+  it('clamps offset, then width, in that order', () => {
+    // Position axis is length (24). offset 30 clamps to 24, leaving no room,
+    // so width clamps to 0 and the cut is dropped.
+    expect(load([dado({ offset: 30, width: 4 })])).toEqual([]);
+    // offset 22 clamps to itself; width 4 clamps to 2.
+    expect(load([dado({ offset: 22, width: 4 })])[0]).toMatchObject({ offset: 22, width: 2 });
+  });
+
+  it('clamps depth to the face dimension', () => {
+    expect(load([dado({ depth: 3 })])[0].depth).toBe(0.75);
+  });
+
+  it('drops a cut with a non-positive width or depth', () => {
+    expect(load([dado({ width: 0 })])).toEqual([]);
+    expect(load([dado({ depth: -1 })])).toEqual([]);
+  });
+
+  it('drops a cut whose across equals its face', () => {
+    expect(load([dado({ across: 'thickness' })])).toEqual([]);
+  });
+
+  // A cut at full depth, full width, spanning its across axis leaves
+  // boardSolids with nothing to return: a board that renders nothing, cannot
+  // be clicked, and still sits in the parts list. There is no nearest legal
+  // cut to clamp to, so this is the one case a drop beats a clamp.
+  it('drops a cut that would remove all the stock', () => {
+    expect(load([dado({ offset: 0, width: 24, depth: 0.75 })])).toEqual([]);
+  });
+
+  it('keeps a cut that severs the board but leaves stock', () => {
+    const kept = load([dado({ offset: 6, width: 0.75, depth: 0.75 })]);
+    expect(kept).toHaveLength(1);
+    expect(kept[0].depth).toBe(0.75);
+  });
+
+  it('drops malformed cuts without throwing', () => {
+    expect(load([null, 'nope', {}, dado({ face: 'sideways' as never })])).toEqual([]);
+  });
+
+  it('re-mints duplicate and missing ids', () => {
+    const kept = load([dado({ id: 'same' }), dado({ id: 'same', offset: 10 })]);
+    expect(kept).toHaveLength(2);
+    expect(kept[0].id).not.toBe(kept[1].id);
   });
 });
