@@ -1,4 +1,4 @@
-import { MATERIALS, DEFAULT_MATERIAL } from './types';
+import { MATERIALS, DEFAULT_MATERIAL, isSheetGood } from './types';
 import type { Board, Rotation, Posture, Grain, SloydDocument } from './types';
 import { dedupeNames } from './names';
 
@@ -101,6 +101,17 @@ function validateBoard(raw: unknown, index: number): Board {
 
   const name = typeof b.name === 'string' ? b.name.trim() : '';
 
+  const grain = VALID_GRAINS.includes(b.grain as Grain)
+    ? (b.grain as Grain)
+    : 'length';
+  // 'Through thickness' is meaningless for a sheet good — plywood's grain is
+  // its face-veneer direction, which always lies in the sheet plane. The
+  // panel never offers it for plywood/MDF, but an imported or hand-edited
+  // file could still carry it. A normalisation in the same family as the
+  // name and material fallbacks above, not a migration — it does not bump
+  // CURRENT_VERSION.
+  const normalizedGrain = isSheetGood(material) && grain === 'thickness' ? 'length' : grain;
+
   return {
     id: typeof b.id === 'string' && b.id ? b.id : nextId(),
     name: name || 'Board',
@@ -112,9 +123,7 @@ function validateBoard(raw: unknown, index: number): Board {
     posture: VALID_POSTURES.includes(b.posture as Posture)
       ? (b.posture as Posture)
       : 'flat',
-    grain: VALID_GRAINS.includes(b.grain as Grain)
-      ? (b.grain as Grain)
-      : 'length',
+    grain: normalizedGrain,
     material,
   };
 }

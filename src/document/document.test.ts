@@ -249,6 +249,27 @@ describe('validateBoard posture and grain fallbacks', () => {
     delete (raw.boards[0] as Record<string, unknown>).grain;
     expect(migrateDocument(raw).boards[0].grain).toBe('length');
   });
+
+  // 'Through thickness' is meaningless for a sheet good — plywood's grain is
+  // its face-veneer direction, which always lies in the sheet plane. The
+  // panel never offers it for plywood/MDF, but a hand-edited or older file
+  // could still carry it, so validateBoard normalises rather than throwing.
+  // This is a normalisation in the family of the name/material fallbacks
+  // above, not a migration — CURRENT_VERSION does not change for it.
+  it('normalises a sheet good carrying grain: thickness to length', () => {
+    const doc = migrateDocument(rawBoard({ material: 'plywood', grain: 'thickness' }));
+    expect(doc.boards[0].grain).toBe('length');
+  });
+
+  it('normalises MDF carrying grain: thickness to length too', () => {
+    const doc = migrateDocument(rawBoard({ material: 'mdf', grain: 'thickness' }));
+    expect(doc.boards[0].grain).toBe('length');
+  });
+
+  it('leaves solid wood carrying grain: thickness alone', () => {
+    const doc = migrateDocument(rawBoard({ material: 'oak', grain: 'thickness' }));
+    expect(doc.boards[0].grain).toBe('thickness');
+  });
 });
 
 describe('migrateDocument, v1 to v2', () => {

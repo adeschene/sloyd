@@ -1,4 +1,4 @@
-import { boardExtents, DIMENSION_ORDER } from '../document/document';
+import { boardExtents, DIMENSION_ORDER, isSheetGood } from '../document/document';
 import type { Board } from '../document/document';
 import { axisDimensions, faceGrainKinds, grainFamily } from './grainFaces';
 import type { Dimension, GrainFamily, GrainKind } from './grainFaces';
@@ -33,20 +33,26 @@ const FACE_AXES: Array<[Axis, Axis]> = [
  *
  * With grain along the length this is the old fixed rank, unchanged.
  *
- * That reasoning only holds for solid wood, where the grain figure is drawn
- * on the board itself. A sheet good's plies are a property of the *sheet*,
- * not of the figure on its face — they always stack across the sheet
- * thickness, whatever the grain says. Promoting the grain dimension for
- * plywood or MDF is wrong exactly when grain === 'thickness': that pushes
- * thickness to rank 0 instead of leaving it last, and the ply stack lands on
- * the board's width or length instead of its true thickness. So sheet goods
- * always use the unmodified [length, width, thickness] fallback order — a
- * sheet's construction does not rotate with its veneer.
+ * That reasoning only holds unmodified for solid wood, where the grain figure
+ * is drawn on the board itself. A sheet good's ply stack is a property of the
+ * *sheet*, not of the figure on its face — it always spans the sheet
+ * thickness, whatever the grain says. So thickness must rank last for sheet
+ * goods no matter what. But the veneer figure on the broad face still has to
+ * turn with the grain, the same as solid wood's does — that is the whole
+ * point of the grain control existing on plywood at all. So a sheet good
+ * promotes the grain dimension exactly like solid wood does, but only among
+ * the other *two* dimensions, with thickness pinned last: [grain, the other
+ * non-thickness dimension, 'thickness'].
+ *
+ * 'Through thickness' is not offered for sheet goods (see isSheetGood's
+ * comment) and is normalised away by validateBoard, so board.grain is never
+ * 'thickness' here for a sheet good — this never has to decide what that
+ * would even mean.
  */
 function ranks(board: Board): Record<Dimension, number> {
-  const order = grainFamily(board.material) === 'wood'
-    ? [board.grain, ...DIMENSION_ORDER.filter((d) => d !== board.grain)]
-    : DIMENSION_ORDER;
+  const order = isSheetGood(board.material)
+    ? [board.grain, DIMENSION_ORDER.find((d) => d !== board.grain && d !== 'thickness')!, 'thickness']
+    : [board.grain, ...DIMENSION_ORDER.filter((d) => d !== board.grain)];
   return {
     length: order.indexOf('length'),
     width: order.indexOf('width'),

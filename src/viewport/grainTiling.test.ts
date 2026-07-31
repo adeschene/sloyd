@@ -171,6 +171,74 @@ describe('the drawn texture follows the grain', () => {
   });
 });
 
+describe('plywood grain direction is visible on the broad face (regression)', () => {
+  // Traced failure: fe4deed fixed ranks() ignoring board.grain entirely for
+  // sheet goods, to stop the ply stack spanning the board's width instead of
+  // its thickness. That over-corrected — it also removed the veneer rotation
+  // on the broad face, so no grain value changed anything visible on
+  // plywood. facePlans(plywood)[PY] used to be byte-identical for
+  // grain: 'length' and grain: 'width'; it must not be, while the ply stack
+  // (the edge/end faces' FIT axis) must still land on the thickness either
+  // way.
+  const plywood = createBoard({ length: 24, width: 5.5, thickness: 0.75, material: 'plywood' });
+  const PY = 2, PZ = 4;
+
+  it('flips the broad face swap between grain: length and grain: width', () => {
+    const lengthPlan = facePlans({ ...plywood, grain: 'length' })[PY];
+    const widthPlan = facePlans({ ...plywood, grain: 'width' })[PY];
+    expect(lengthPlan.swap).toBe(false);
+    expect(widthPlan.swap).toBe(true);
+  });
+
+  it('keeps the ply stack spanning the thickness for both grain values', () => {
+    for (const grain of ['length', 'width'] as const) {
+      const plan = facePlans({ ...plywood, grain })[PZ];
+      expect(plan.repeat[1]).toBe(1);
+      expect(plan.fit[1]).toBe(true);
+    }
+  });
+});
+
+describe('solid wood is unaffected by the sheet-goods grain fix', () => {
+  // Pinned from the pre-fix implementation. Solid wood's ranks() branch is
+  // untouched by the sheet-goods fix, so these must come out identical
+  // before and after.
+  const oak = createBoard({ length: 24, width: 5.5, thickness: 0.75, material: 'oak' });
+
+  it('grain: length', () => {
+    expect(facePlans({ ...oak, grain: 'length' })).toEqual([
+      { kind: 'end', swap: false, repeat: [1, 1], fit: [true, true] },
+      { kind: 'end', swap: false, repeat: [1, 1], fit: [true, true] },
+      { kind: 'face', swap: false, repeat: [1.5, 0.9166666666666666], fit: [false, false] },
+      { kind: 'face', swap: false, repeat: [1.5, 0.9166666666666666], fit: [false, false] },
+      { kind: 'edge', swap: false, repeat: [1.5, 0.1875], fit: [false, false] },
+      { kind: 'edge', swap: false, repeat: [1.5, 0.1875], fit: [false, false] },
+    ]);
+  });
+
+  it('grain: width', () => {
+    expect(facePlans({ ...oak, grain: 'width' })).toEqual([
+      { kind: 'edge', swap: false, repeat: [0.34375, 0.1875], fit: [false, false] },
+      { kind: 'edge', swap: false, repeat: [0.34375, 0.1875], fit: [false, false] },
+      { kind: 'face', swap: true, repeat: [0.34375, 4], fit: [false, false] },
+      { kind: 'face', swap: true, repeat: [0.34375, 4], fit: [false, false] },
+      { kind: 'end', swap: false, repeat: [1, 1], fit: [true, true] },
+      { kind: 'end', swap: false, repeat: [1, 1], fit: [true, true] },
+    ]);
+  });
+
+  it('grain: thickness', () => {
+    expect(facePlans({ ...oak, grain: 'thickness' })).toEqual([
+      { kind: 'edge', swap: true, repeat: [0.046875, 1.375], fit: [false, false] },
+      { kind: 'edge', swap: true, repeat: [0.046875, 1.375], fit: [false, false] },
+      { kind: 'end', swap: false, repeat: [1, 1], fit: [true, true] },
+      { kind: 'end', swap: false, repeat: [1, 1], fit: [true, true] },
+      { kind: 'face', swap: true, repeat: [0.046875, 4], fit: [false, false] },
+      { kind: 'face', swap: true, repeat: [0.046875, 4], fit: [false, false] },
+    ]);
+  });
+});
+
 describe('boardUVSignature', () => {
   const base = createBoard({ length: 24, width: 5.5, thickness: 0.75, material: 'oak' });
 

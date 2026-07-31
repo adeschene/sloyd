@@ -46,14 +46,26 @@ export interface SloydDocument {
   boards: Board[];
 }
 
-export const MATERIALS: Record<string, { label: string; color: string }> = {
+export const MATERIALS: Record<string, { label: string; color: string; sheet?: boolean }> = {
   pine:    { label: 'Pine',     color: '#d9b98a' },
   oak:     { label: 'Oak',      color: '#c69c6d' },
   maple:   { label: 'Maple',    color: '#e6d2b5' },
   walnut:  { label: 'Walnut',   color: '#6b4630' },
   cherry:  { label: 'Cherry',   color: '#a4552f' },
-  plywood: { label: 'Plywood',  color: '#cbb391' },
-  mdf:     { label: 'MDF',      color: '#a89a86' },
+  plywood: { label: 'Plywood',  color: '#cbb391', sheet: true },
+  mdf:     { label: 'MDF',      color: '#a89a86', sheet: true },
 };
 
 export const DEFAULT_MATERIAL = 'pine';
+
+/**
+ * Sheet goods (plywood, MDF) are a different domain thing from solid stock:
+ * their "grain" is a face-veneer direction that always lies in the sheet
+ * plane, so 'Through thickness' is not a meaningful value for one — see the
+ * comment on grainFamily in viewport/grainFaces.ts. Lives here, not in
+ * viewport, because panels must not import from viewport, and this is a fact
+ * about the material, not about how it's drawn.
+ */
+export function isSheetGood(material: string): boolean {
+  return MATERIALS[material]?.sheet === true;
+}

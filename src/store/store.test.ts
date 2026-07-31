@@ -167,6 +167,44 @@ describe('updateBoard reorients a board in place', () => {
   });
 });
 
+describe('updateBoard resets grain when switching to a sheet good', () => {
+  // 'Through thickness' is meaningless for plywood/MDF — see grainFamily's
+  // comment. Doing the reset here, in the same edit as the material change,
+  // keeps it to one undo entry rather than two (change material, then a
+  // second edit to fix grain) — the same pattern the reorient logic above
+  // follows for rotation/posture.
+  const board = () => useStore.getState().doc.boards[0];
+
+  it('resets grain to length when switching to plywood while grain is thickness', () => {
+    useStore.getState().addBoard();
+    const id = board().id;
+    useStore.getState().updateBoard(id, { grain: 'thickness' });
+    const before = useStore.getState().past.length;
+    useStore.getState().updateBoard(id, { material: 'plywood' });
+    expect(board().material).toBe('plywood');
+    expect(board().grain).toBe('length');
+    expect(useStore.getState().past.length).toBe(before + 1);
+  });
+
+  it('leaves grain alone when switching to a solid wood', () => {
+    useStore.getState().addBoard();
+    const id = board().id;
+    useStore.getState().updateBoard(id, { grain: 'thickness' });
+    useStore.getState().updateBoard(id, { material: 'oak' });
+    expect(board().material).toBe('oak');
+    expect(board().grain).toBe('thickness');
+  });
+
+  it('leaves grain alone when switching to plywood while grain is not thickness', () => {
+    useStore.getState().addBoard();
+    const id = board().id;
+    useStore.getState().updateBoard(id, { grain: 'width' });
+    useStore.getState().updateBoard(id, { material: 'plywood' });
+    expect(board().material).toBe('plywood');
+    expect(board().grain).toBe('width');
+  });
+});
+
 describe('deleteBoard', () => {
   it('removes the board and clears the selection if it was selected', () => {
     useStore.getState().addBoard();
