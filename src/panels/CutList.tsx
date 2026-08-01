@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useStore } from '../store/store';
 import { buildCutList } from '../document/document';
 
@@ -10,11 +10,23 @@ import { buildCutList } from '../document/document';
  * ready from `buildCutList`, which is what keeps display rounding in one place.
  *
  * Rendered as a direct child of `.app`, which the print stylesheet depends on:
- * it hides `.app > *` other than this overlay.
+ * it hides `.app > *` other than this overlay. Its sibling — everything else
+ * in the app — is `inert` while this is mounted (see App.tsx), which is what
+ * confines Tab to the sheet; the only thing this component owes that
+ * arrangement is taking focus on mount, since focus is otherwise left on a
+ * button that has just become unfocusable.
  */
 export function CutList({ onClose }: { onClose: () => void }) {
   const doc = useStore((s) => s.doc);
   const list = buildCutList(doc);
+  const sheet = useRef<HTMLDivElement>(null);
+
+  // `tabIndex={-1}` makes the sheet focusable without putting it in the tab
+  // order, so focus starts inside the dialog and Tab proceeds to Print/Close
+  // rather than nowhere.
+  useEffect(() => {
+    sheet.current?.focus();
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -26,7 +38,7 @@ export function CutList({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="cutlist-overlay" role="dialog" aria-modal="true" aria-label="Cut list">
-      <div className="cutlist-sheet">
+      <div className="cutlist-sheet" ref={sheet} tabIndex={-1}>
         <header className="cutlist-head">
           <h2>Cut list — {doc.name}</h2>
           <div className="cutlist-actions">
@@ -49,8 +61,18 @@ export function CutList({ onClose }: { onClose: () => void }) {
                     <span className="cutlist-names">{row.names.join(', ')}</span>
                     {row.setup.length > 0 && (
                       <ul className="cutlist-setup">
-                        {row.setup.map((line) => (
-                          <li key={line}>{line}</li>
+                        {/*
+                          Keyed on row key + index, not on the line text: two
+                          cuts can produce the same line. `addCut` derives its
+                          defaults from the board alone, so clicking "Add cut"
+                          twice gives two cuts identical but for `id` — which
+                          both `cutSignature` and `setupLine` exclude — and the
+                          line is the same string twice. Position is the only
+                          thing that distinguishes them, and setup lines never
+                          reorder within a row.
+                        */}
+                        {row.setup.map((line, i) => (
+                          <li key={`${row.key}#${i}`}>{line}</li>
                         ))}
                       </ul>
                     )}

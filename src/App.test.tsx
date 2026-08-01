@@ -7,8 +7,17 @@ import { createDocument, createBoard } from './document/document';
 // The 3D viewport needs a real ResizeObserver and a WebGL-capable canvas,
 // neither of which jsdom provides. App's restore/autosave wiring doesn't
 // depend on the viewport at all, so it's stubbed out here.
+//
+// The stub records its props: `shortcutsSuspended` is the only way the cut
+// list can reach `CameraKeys`' window listener, and the wiring is testable
+// here even though the listener itself is not (the viewport is r3f and is
+// verified in a browser by design).
+const viewportProps = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
 vi.mock('./viewport/Viewport', () => ({
-  Viewport: () => null,
+  Viewport: (props: Record<string, unknown>) => {
+    viewportProps.current = props;
+    return null;
+  },
 }));
 
 const loadAutoSaved = vi.fn();
@@ -221,6 +230,56 @@ describe('App keyboard delete', () => {
 
     expect(useStore.getState().doc.boards).toHaveLength(1);
     expect(useStore.getState().selectedId).toBe(id);
+  });
+
+  it('makes the rest of the app inert while the cut list is open', async () => {
+    // The other half of the Delete guard above. The overlay stops the mouse,
+    // but Tab used to walk into NameField, the project-name field and the
+    // DimensionFields behind the scrim — all of which commit on change or
+    // blur, so reading the sheet could silently rewrite the document.
+    //
+    // Asserted on the attribute rather than by tabbing: jsdom reflects `inert`
+    // but does not implement its focus semantics, so a userEvent.tab() test
+    // would pass identically with and without the fix. What the attribute
+    // buys is verified in a real browser.
+    await mountWithOneBoard();
+    const shell = document.querySelector('.app-shell')!;
+    expect(shell.hasAttribute('inert')).toBe(false);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Cut list' }));
+    expect(shell.hasAttribute('inert')).toBe(true);
+
+    await user.keyboard('{Escape}');
+    expect(shell.hasAttribute('inert')).toBe(false);
+  });
+
+  it('suspends the viewport camera shortcuts while the cut list is open', async () => {
+    // `f`/`Home` live on a window listener inside the Canvas, which `inert`
+    // cannot reach: a window listener never sees which subtree the event came
+    // from. Pressing `f` behind the sheet re-framed the camera invisibly and
+    // handed the user back a moved view. Only the prop wiring is asserted —
+    // the listener is r3f-side and is browser-verified by design.
+    await mountWithOneBoard();
+    expect(viewportProps.current?.shortcutsSuspended).toBe(false);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Cut list' }));
+    expect(viewportProps.current?.shortcutsSuspended).toBe(true);
+
+    await user.keyboard('{Escape}');
+    expect(viewportProps.current?.shortcutsSuspended).toBe(false);
+  });
+
+  it('returns focus to the button that opened the cut list', async () => {
+    await mountWithOneBoard();
+    const user = userEvent.setup();
+    const open = screen.getByRole('button', { name: 'Cut list' });
+
+    await user.click(open);
+    await user.keyboard('{Escape}');
+
+    expect(document.activeElement).toBe(open);
   });
 
   it('does not steal Backspace from the Length field', async () => {

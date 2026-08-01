@@ -71,6 +71,11 @@ canvas { display: block; }
 
 .app { height: 100%; display: flex; flex-direction: column; }
 
+/* Everything but the cut-list overlay, so one `inert` covers it all (App.tsx).
+   It carries the column layout `.app` used to apply to those children direct,
+   which is why the toolbar/banner/workspace sizing is unchanged. */
+.app-shell { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+
 /* ---------------------------------------------------------------- toolbar */
 
 .toolbar {
@@ -559,6 +564,12 @@ button[aria-pressed='true'] {
   /* The overlay is a direct child of `.app` — see CutList.tsx. */
   .app > *:not(.cutlist-overlay) { display: none !important; }
 
+  /* Browsers drop background colours when printing by default, so this only
+     shows with Chrome's "Background graphics" enabled — and then the page
+     below the (usually short) sheet prints as a solid dark block. Follow-up
+     58. */
+  body { background: #fff; }
+
   .cutlist-overlay {
     position: static;
     overflow: visible;
@@ -580,6 +591,9 @@ button[aria-pressed='true'] {
   .cutlist-group h3,
   .cutlist-qty,
   .cutlist-names,
+  /* The empty-sheet line belongs here too: --ink-faint is grey chosen against
+     graphite, and grey on white is the one line on an otherwise blank page. */
+  .cutlist-empty,
   .cutlist-setup { color: #000; }
 
   .cutlist-row {

@@ -50,4 +50,34 @@ describe('CutList', () => {
     await userEvent.keyboard('{Escape}');
     expect(closed).toBe(true);
   });
+
+  it('takes focus on mount', () => {
+    // The other half of confining the keyboard to the sheet (App makes the
+    // rest of the app inert): without this, focus stays on the toolbar button
+    // that opened it, which has just become unfocusable, so focus falls to
+    // <body> and the first Tab goes wherever the browser decides.
+    const { container } = render(<CutList onClose={() => {}} />);
+    expect(document.activeElement).toBe(container.querySelector('.cutlist-sheet'));
+  });
+
+  it('renders two identical setup lines without duplicate React keys', () => {
+    // Two clicks of "Add cut" on one board: `addCut` derives its defaults from
+    // the board alone, so the second cut differs from the first only in `id` —
+    // which both `cutSignature` and `setupLine` exclude — and the two lines are
+    // the same string. Keying on the line text collided. React WARNS rather
+    // than dropping a node, so asserting that both lines render passes either
+    // way; the console is the only place the defect is visible.
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const cut = { face: 'thickness' as const, from: 'min' as const, across: 'width' as const,
+                  offset: 6, width: 0.75, depth: 0.25 };
+    load({ cuts: [{ ...cut, id: 'c1' }, { ...cut, id: 'c2' }] });
+    const { container } = render(<CutList onClose={() => {}} />);
+
+    expect(container.querySelectorAll('.cutlist-setup li')).toHaveLength(2);
+    const dupKeyWarning = spy.mock.calls.some((args) =>
+      args.some((a) => typeof a === 'string' && /same key/i.test(a)),
+    );
+    expect(dupKeyWarning).toBe(false);
+    spy.mockRestore();
+  });
 });
