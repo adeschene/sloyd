@@ -161,6 +161,24 @@ describe('PartDiagram', () => {
     expect(x).toBeGreaterThanOrEqual(right);
     expect(x + labelWidth(vLabel.textContent!)).toBeLessThanOrEqual(vbWidth);
   });
+
+  it('never starts a leader row left of the board itself', () => {
+    // A 1/4" cut on a 3/4" edge: the offset run is shorter than the label
+    // centred on it, which used to put the label 3.2 units left of the board.
+    // Found in a real browser by docs/diagram-overlap-sweep.js's P3 predicate.
+    const { container } = render(
+      <PartDiagram
+        view={view(dado({ face: 'width', across: 'length', offset: 0.25, width: 0.25 }))}
+      />,
+    );
+    const outline = container.querySelector('.cutlist-diagram-outline')!;
+    const left = Number(outline.getAttribute('x'));
+    expect(left).toBeGreaterThan(0);   // this geometry really is inset
+    for (const t of container.querySelectorAll('.cutlist-diagram-leader text')) {
+      const w = labelWidth(t.textContent!);
+      expect(Number(t.getAttribute('x')) - w / 2).toBeGreaterThanOrEqual(left);
+    }
+  });
 });
 
 /**

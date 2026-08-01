@@ -78,7 +78,7 @@ export function PartDiagram({ view }: { view: DiagramView }) {
   // by the same rule as everything else rather than by being assumed to fit.
   const [hx] = packRow(
     [{ centre: fit.offsetX + fit.drawnH / 2, width: labelWidth(view.hLabel) }],
-    0, viewW, GAP_X,
+    fit.offsetX, viewW, GAP_X,
   );
 
   return (
@@ -133,13 +133,19 @@ export function PartDiagram({ view }: { view: DiagramView }) {
           const depthW = labelWidth(cut.depthLabel);
           // In board order, left to right: the offset run, the band, then depth
           // just clear of the band. `packRow` preserves that order.
+          //
+          // Bound at the board's left edge, not the viewBox's. A label centred
+          // on a run shorter than itself would otherwise start left of the
+          // board — harmless in isolation, but the row's leader LINE already
+          // starts at fit.offsetX, so a label drifting left of its own line's
+          // origin reads as belonging to nothing.
           const [ox, wx, dx] = packRow(
             [
               { centre: (fit.offsetX + b.x) / 2, width: labelWidth(cut.offsetLabel) },
               { centre: b.x + b.width / 2, width: labelWidth(cut.widthLabel) },
               { centre: b.x + b.width + GAP_X + depthW / 2, width: depthW },
             ],
-            0, viewW, GAP_X,
+            fit.offsetX, viewW, GAP_X,
           );
           return (
             <g
