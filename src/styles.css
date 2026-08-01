@@ -594,15 +594,9 @@ button[aria-pressed='true'] {
   stroke-width: 2;
 }
 
-.cutlist-diagram-near {
+.cutlist-diagram-cell {
   stroke: currentColor;
-  stroke-width: 2;
-}
-
-.cutlist-diagram-far {
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-dasharray: 10 7;
+  stroke-width: 1;
 }
 
 /* --font-num, not the sheet's UI face: these are numbers, like every other
@@ -620,10 +614,10 @@ button[aria-pressed='true'] {
   stroke-width: 1.5;
 }
 
-/* Near/far, encoded a second time — it used to be above-versus-below the
-   outline for the depth label, which no longer exists. */
-.cutlist-diagram-leader-far line {
-  stroke-dasharray: 10 7;
+.cutlist-diagram-crossings {
+  margin: 2px 0 0;
+  font-size: 0.78em;
+  color: var(--ink-faint);
 }
 
 .cutlist-empty {
@@ -671,6 +665,7 @@ button[aria-pressed='true'] {
      follow-up 58 is what enumerating is for. */
   .cutlist-diagram-head,
   .cutlist-diagram-note,
+  .cutlist-diagram-crossings,
   .cutlist-setup { color: #000; }
 
   .cutlist-row {
