@@ -19,10 +19,12 @@ both displaying, and in `NameField`'s case writing, stale text after an external
 change landed while the field had focus) plus a plywood-grain regression from v3
 itself — then **joinery** (a board can have stock removed from it), the **cut list**
 (the numbers you take to the bench), **cut list diagrams** (each part's joinery drawn
-on the sheet, because the prose setup lines are hard to read at the bench), and now a
+on the sheet, because the prose setup lines are hard to read at the bench), a
 **label layout round** closing the diagrams' one user-visible gap: labels that
-overlapped or bled past the outline because nothing measured the text being placed.
-Static SPA, containerized, 515/515 tests passing.
+overlapped or bled past the outline because nothing measured the text being placed —
+and now a **per-face diagrams round**, closing the diagrams' other one: perpendicular
+cuts on the same face used to fragment into two disconnected figures instead of
+drawing together, crossing, in one. Static SPA, containerized, 548/548 tests passing.
 
 Host-specific deployment detail — hostname, container name, proxy configuration, and
 the manual steps a human has to perform — lives in `DEPLOYMENT.local.md`, which is
@@ -72,15 +74,14 @@ gitignored. Read that file before deploying; it is not in the public repo.
 `docs/superpowers/specs/2026-08-01-sloyd-cut-list-diagrams-design.md`, plan in
 `docs/superpowers/plans/2026-08-01-sloyd-cut-list-diagrams.md`:
 
-- **One view per `(face, across)` pair.** `buildDiagrams(board, precision)` groups a
-  board's cuts by which face they're cut into and which dimension they run across,
-  because within a view the horizontal axis is always the implied position axis and
-  every cut is a band touching two opposite edges — one face can admit two `across`
-  values with different position axes, so keying on the pair (not the face alone) is
-  what keeps every band vertical and every layout the same. Near cuts (`from: 'min'`)
-  draw solid and hatched; far cuts (`from: 'max'`) draw dashed and unfilled — both
-  share one drawing when a board is dadoed from both sides in the same face, which is
-  the point: one glance shows both setups instead of two disconnected prose lines.
+- **One view per `(face, across)` pair — SUPERSEDED by the per-face diagrams round,
+  below.** `buildDiagrams(board, precision)` grouped a board's cuts by which face they
+  were cut into and which dimension they ran across, because within a view the
+  horizontal axis was always the implied position axis and every cut was a band
+  touching two opposite edges. This fragmented a face carrying perpendicular cuts into
+  two figures instead of one — see follow-up 72. The per-face diagrams round re-keys on
+  `(face, from)` instead; near/far is now which figure you're looking at, not a dash
+  inside one, so read this bullet as history, not current behaviour.
 - **A schematic, not a scale drawing.** `diagramScale.ts`'s `fitView` maps board
   inches to drawing units uniformly except at two extremes — a sliver clamp
   (`MAX_ASPECT`) keeps a long thin rail's cross-section wide enough to draw a dado on,
@@ -165,6 +166,70 @@ Sharpened: a label overflowed whenever its run was shorter than the label was wi
   65). See follow-ups 59, 62, 65-70 for the full record, including the round's own two
   new instances of plan-supplied code being wrong (68) and what "sweep clean" does and
   does not mean (69).
+
+**What the per-face diagrams round did**, design in
+`docs/superpowers/specs/2026-08-01-sloyd-per-face-diagrams-design.md`. Chosen
+2026-08-01, after the label layout round shipped. The subject was a defect the label
+layout round didn't touch: a board with perpendicular cuts on one face — a dado across
+the length and another across the width of the same broad face — wasn't having a cut
+dropped, it was having the face **fragmented** into two figures, both headed the same
+thing, each showing one cut and neither showing where they cross. Verified in a real
+browser with a twelve-cut board before any code changed — see follow-up 72.
+
+- **One view per physical face, not per `(face, across)` pair.** `buildDiagrams` now
+  keys on `(face, from)`: six possible views, drawn only where that physical face has at
+  least one cut. Splitting on `from` (near versus far) rather than `across` means every
+  cut made into a given face-and-side appears in the same drawing regardless of which
+  in-plane dimension it runs across, so two perpendicular dados on one face draw
+  together, crossing, in one figure — see follow-up 72 for the fragmentation this
+  replaces and follow-up 73 for what the re-key retires.
+- **The depth field: `cuts.ts`'s split-cover-merge skeleton, one dimension down, with
+  the cover step assigning a maximum instead of dropping a boolean.** `boardSolids`
+  splits the board into cells and drops each one whose centre falls inside any cut — a
+  boolean decision. A face's depth field splits the same way in 2D, but each surviving
+  cell takes the **maximum** depth among the cuts covering it (0 if none), then merges
+  adjacent cells of equal depth into regions. Same skeleton, different operation — this
+  is deliberately **not** `cuts.ts` reused, and the distinction is load-bearing: reaching
+  for `boardSolids` here would not fit, because a depth field needs a number where
+  `boardSolids` only ever needed a keep/drop bit. One rule produces the crossing case,
+  the parallel-overlap case, and the three-or-more-way overlap case together, the same
+  way invariant 16's `boardEdges` rule makes the outer silhouette, the convex corners
+  and the concave dado shoulders fall out of one rule.
+- **Agreement with `boardSolids` is asserted by a test, not argued as a property.** A
+  cell has depth > 0 exactly when the corresponding 3D column has stock removed at that
+  face — design §4 states this as the reason the drawing and the 3D model can't
+  disagree, and `depthField.agreement.test.ts` turns the claim into a test across a set
+  of boards rather than leaving it as prose. See the new invariant below for how that
+  test earned its current shape: it originally asserted only which cells were cut
+  (coverage), not their depth, and a `Math.max → depths[0]` mutation passed silently
+  until the test was corrected to pin depth too.
+- **Rotated leader columns for the vertical axis.** A cut positioned along the
+  horizontal axis keeps the existing leader rows below the drawing; a cut positioned
+  along the vertical axis now gets a leader **column** at the left, its text rotated
+  `-90°`. `packRow` is reused verbatim for both — it's axis-agnostic 1-D arithmetic, so
+  feeding it y-coordinates works unchanged. This needed one new measured constant
+  (`labelHeight`, alongside `CHAR_W`) because a rotated label's extent along the page's
+  x-axis is the glyph box's **height**, not its character-count advance — nothing in
+  `diagramLabels.ts` modelled that before. See follow-up 1 for how it was measured
+  (23.68 units, identical across every string tested, because `getBBox()` on `<text>`
+  returns the font's EM box rather than the tight ink box) and follow-ups 74-75 for a
+  harness trap and a harness bug this measurement work ran into.
+- **Two fills, and a legend line only where crossing cuts actually disagree.** A
+  crossing region is cross-hatched, and gets one legend line (*crossing: 1/4" deep
+  governs*), only when the depth field's merge step yields a region whose depth differs
+  from at least one of the bands producing it — which falls out of the depth field's
+  own maximum-and-merge rule rather than needing a separate check. Two crossing cuts at
+  the same depth merge into one uniform region and correctly show nothing extra: there
+  is no distinction to report. See follow-up 76 for a negative browser finding on how
+  well the two fills read at screen size on their own, independent of the legend line.
+- **No schema change.** `CURRENT_VERSION` is still 4; the depth field derives entirely
+  from `cuts`, which was already stored.
+- **Known, deferred, and verified in a real browser** — see `docs/follow-ups.md`'s "From
+  the per-face diagrams round" section (72-80) for the fragmentation defect and how it
+  was found, the `getBBox()` transform trap and the harness bug in its own fix, the
+  negative hatch-legibility finding, the measured sheet-length numbers, a benign
+  float-dedup gap next to invariant 18, and the round's own (fifth) instance of a
+  plan-supplied constant shipping with a justification that didn't reproduce.
 
 **Deferred behind it**, from the cut list's §7, recorded as decisions rather than
 omissions: **board-feet and sheet totals** (cheap now that `buildCutList` exists, but a
@@ -361,11 +426,21 @@ src/
 │   │                        identical parts into rows, phrase each cut as a setup
 │   │                        line. Pure; imports ./types, ./geometry, ./cuts and
 │   │                        ../units/length — never ./document
-│   ├── diagram.ts           buildDiagrams: one view per (face, across) pair, board
-│   │                        inches, cut bands and labels. Pure; the second thing in
-│   │                        ./document to import from ../units/length
+│   ├── depthField.ts        buildDepthField: split a face at every cut boundary on
+│   │                        both in-plane axes, cover each cell with the MAXIMUM
+│   │                        depth among covering cuts (0 if none), merge equal-depth
+│   │                        neighbours into regions. Same split/cover/merge skeleton
+│   │                        as cuts.ts's boardSolids, one dimension down, with a
+│   │                        different cover operation — see invariant 20. Pure;
+│   │                        imports only ./geometry and ./types
+│   ├── diagram.ts           buildDiagrams: one view per (face, from) — near/far
+│   │                        split into separate views so perpendicular cuts on one
+│   │                        face draw together instead of fragmenting it (follow-up
+│   │                        72) — board inches, cut bands and labels, built on
+│   │                        depthField for crossing regions. Pure; the second thing
+│   │                        in ./document to import from ../units/length
 │   └── document.ts          create / validate / migrate (v1->v2->v3->v4 chain);
-│                            re-exports the other six
+│                            re-exports the other seven
 ├── store/store.ts           Zustand store, snapshot undo/redo, gesture coalescing
 ├── storage/
 │   ├── types.ts             the StorageAdapter interface
@@ -395,15 +470,18 @@ src/
 │   │                        component so a cut's error dies with the cut
 │   ├── diagramScale.ts      fitView (uniform scale + sliver clamp + height ceiling) /
 │   │                        band (centred widening to MIN_FEATURE, ordering-guarded). Pure.
-│   ├── diagramLabels.ts     LABEL_SIZE / CHAR_W / labelWidth (character count ×
-│   │                        monospace advance) / packRow (ideal centres in,
-│   │                        non-overlapping centres out). Pure; the arithmetic
-│   │                        substitute for getComputedTextLength(), which is 0
-│   │                        under jsdom.
-│   ├── PartDiagram.tsx      one view, drawn as SVG: outline, hatched/dashed cut
-│   │                        bands, one stacked leader row per cut (offset/width/
-│   │                        depth packed via packRow). Formats nothing — every
-│   │                        label string arrives from buildDiagrams
+│   ├── diagramLabels.ts     LABEL_SIZE / CHAR_W / labelHeight (measured glyph-box
+│   │                        height, 23.68 units, argument-free — see invariant on
+│   │                        why) / labelWidth (character count × monospace advance)
+│   │                        / packRow (ideal centres in, non-overlapping centres
+│   │                        out, axis-agnostic). Pure; the arithmetic substitute
+│   │                        for getComputedTextLength(), which is 0 under jsdom.
+│   ├── PartDiagram.tsx      one view, drawn as SVG: outline, hatched/cross-hatched
+│   │                        cut and crossing regions, leader rows below for
+│   │                        horizontal-axis cuts and rotated (-90°) leader columns
+│   │                        at left for vertical-axis cuts (both packed via
+│   │                        packRow). Formats nothing — every label string arrives
+│   │                        from buildDiagrams
 │   └── CutList.tsx          the printable sheet: derives from the document on every
 │                            render, owns Escape-to-close and takes focus on mount,
 │                            calls formatLength never, and owns the Diagrams toggle
@@ -607,13 +685,33 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
     starts placing labels on top of each other while every unit test still passes —
     because the tests assert the arithmetic, not the render. See follow-up 66 for the
     bounded, not universal, headroom that arithmetic rests on.
+20. **`depthField.ts` shares `cuts.ts`'s split/cover/merge skeleton but not its
+    operation, and `boardSolids` is not reusable here.** Both split a board (or a
+    face) at every cut boundary into a grid of cells. `boardSolids` then **drops**
+    each cell whose centre falls inside any cut — a boolean keep/drop decision, one
+    dimension (3D). `buildDepthField` instead **assigns** each cell the maximum depth
+    among the cuts covering it, 0 if none — a numeric decision, one dimension down
+    (2D, one face). Reaching for `boardSolids` to compute a face's depth field would
+    not fit: it has no maximum to report, only a bit. Agreement between the two is
+    asserted by a test, `depthField.agreement.test.ts`, not assumed from the shared
+    skeleton — a cell must have depth > 0 exactly when `boardSolids` removed stock at
+    the corresponding column. That test's first version passed with the cover step
+    broken: it asserted only *coverage* (which cells were cut), and a
+    `Math.max → depths[0]` mutation — reporting the depth of an arbitrary covering
+    cut instead of the correct maximum — passed all cases, because coverage agreement
+    doesn't imply depth agreement. The fix asserts each region's actual depth value
+    against `boardSolids`, not merely whether it was cut; after the fix, the same
+    mutation fails with the exact wrong number (`0.375` where `0.125` was expected).
+    Any future agreement test between a 2D derivation and its 3D source must assert
+    the value the derivation claims to compute, not just where it claims to differ
+    from zero.
 
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 515 tests
+npm test           # Vitest, currently 548 tests
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -692,6 +790,26 @@ requirement. **69** records what the sweep's green does and does not mean: it co
 only `<text>`, so a defect made of two fused `<line>`s (found by a human, not any
 guard or test) was invisible to it. **70** records what was *not* verified — an actual
 print-to-PDF render, which the Playwright MCP on this host cannot produce.
+
+The per-face diagrams round **supersedes follow-up 61** (the `(face, across)` key's
+non-goal no longer applies, because a face can no longer produce two figures at all —
+see follow-up 72) and added **72-80** — see `docs/follow-ups.md`'s "From the per-face
+diagrams round" section. **72** is the fragmentation defect itself, found by driving a
+real browser with a twelve-cut board rather than by reading code. **73** records what
+the re-key retired (`hasFar`, `DiagramCut.side`, the far-side dash) and why that isn't
+a regression. **74** and **75** are harness entries: `getBBox()` ignoring an element's
+own transform, and the harness's own first fix for that being written backwards
+(`elCTM.multiply(svgInv)` instead of `svgInv.multiply(elCTM)`) — an identity for
+unrotated text, so it produced false failures on rotated labels only, caught by
+sanity-checking an absurd coordinate rather than by a failing assertion. **76** is a
+negative browser finding: hatch versus cross-hatch alone isn't reliably
+distinguishable at screen size — the legend line carries the distinction. **77**
+confirms design §10's view-count risk as real but mild with measured sheet-length
+numbers. **78** is a benign float-dedup gap in `boundaries()`, recorded next to
+invariant 18's reasoning. **79** carries forward the still-unverified print-to-PDF
+render. **80** is a fifth instance of the plan-supplied-constant lesson (64, 68): a
+task report's justification for a replacement layout constant didn't reproduce under
+review, closed by adding a real guard rather than trusting the arithmetic on its own.
 
 One entry is a lesson rather than a defect and is worth reading before touching anything
 in the viewport: **26a**. Browser verification on this host runs on software GL
