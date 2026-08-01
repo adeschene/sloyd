@@ -1375,3 +1375,99 @@ the report's arithmetic on its own. Read together, follow-ups 64, 68 and 80 are 
 instances across three different rounds of the same failure shape — plan-supplied code
 and plan-supplied justifications are not more trustworthy than hand-written ones, and a
 green suite proves a guard fires, not that it protects the thing it was written for.
+
+## From the board-feet round
+
+Design in `docs/superpowers/specs/2026-08-01-sloyd-board-feet-design.md`. Adds board
+feet (solid stock) and square feet (sheet goods) to the cut list, per row and per group,
+closing the first half of the cut list's §7 non-goal.
+
+**81. The print-block gap that landed is a genuinely new wrinkle on follow-up 58, not a
+restatement of it — enumerating the selector was necessary but not sufficient.**
+Follow-up 58 recorded the cut list's print block leaving text unreadably grey- or
+brass-on-white the first time this modal shipped print styling at all; the fix then was
+to enumerate every text-bearing selector into a `color: #000` list under `@media print`.
+Task 3 of this round did exactly that — it added `.cutlist-stock` (the new row-total
+cell) and `.cutlist-subtotal-label` (the new group-subtotal label) to that same
+enumerated list, and both were reviewed as correct at the time, by both the task's own
+self-review and a subsequent task review. The defect survived both: `.cutlist-subtotal
+.cutlist-stock` (the group-subtotal *number*, not its label) carries a two-class screen
+rule, `color: var(--brass)` (specificity 0,2,0), and the print block's enumerated
+`.cutlist-stock` override is only one class (specificity 0,1,0). A less specific rule
+later in source order still loses to a more specific rule earlier in it — the print
+block's own cascade position doesn't help when the thing it's trying to beat outranks it
+on selector weight, not just on order. The result: every row total printed correctly
+black, but the group subtotal — the number most likely to be the one actually read at
+the bench, since it's what you'd tell a lumber yard — kept printing brass on a page that
+was supposed to be ink on white. It was caught by task 4's own browser pass (rendering
+`@media print`, screenshotting, and reading the image), not by either prior review,
+because neither review rendered the page — both read the diff, and the diff looked
+complete. Closed in a follow-up commit (`a54a086`) by adding a matching two-class
+override, `.cutlist-subtotal .cutlist-stock { color: #000; }`, to the print block
+alongside its other post-enumeration overrides — verified twice, by
+`getComputedStyle(...).color` returning `rgb(0, 0, 0)` under `media: 'print'` and by
+looking at the rendered screenshot. **The lesson for future print-block edits to this
+modal: enumerating a selector is the right first move, but it is not proof the override
+wins — only a render (or a computed-style check under print media) proves the cascade
+actually resolves the way the enumeration assumed it would.** Follow-up 58 taught "list
+every text-bearing selector"; this teaches "then check the list actually outranks
+whatever it's overriding," which a purely textual review of the CSS diff has no way to
+catch, because both rules were plainly present and legible in the file — the failure
+was in their relative specificity, not their existence.
+
+**82. The third instance of the 55/55a representative-row shape, resolved the *other*
+way — recorded here because a future reader who "fixes" the discrepancy will be
+reversing a deliberate decision, not restoring an oversight.** Follow-ups 55/55a
+(cut list round) record that a row's printed *dimensions* are representative — two
+boards belong on one row when they print identically, not when they are bit-identical —
+and that this is correct because a display-precision difference costs nothing at the
+bench. Board feet breaks that symmetry on purpose rather than inheriting it: per design
+§2, `buildCutList` accumulates each board's *exact* volume into `row.stockInches` and
+`group.stockInches` as its existing grouping loop visits each board, not `qty ×` the
+representative board's volume. The visible, expected consequence: a row printing
+`2 × 24" × 5-1/2"` at `1.38 bd ft` will not, in general, satisfy `1.38 == 2 ×
+formatBoardFeet(24 × 5.5 × 0.75)` to the eye doing that arithmetic on the sheet, because
+the two 24"-printing boards are very rarely bit-identical in stored length. This is
+correct, not a bug: rounding the total to make the sheet self-consistent was considered
+and rejected in the design specifically because it would make the *purchasing* number
+wrong, which is the one number on this sheet whose entire job is being exact. Verified
+on the seeded browser document (task 4): the Pine row totals (`1.36 bd ft`, `1.38 bd ft`)
+and subtotal (`2.73 bd ft`) matched the design's precomputed numbers exactly, and no
+discrepancy was visible in this particular seed only because the four seeded boards
+happen to be bit-identical within each row — the divergence this entry describes needs a
+seed like follow-up 55's (two boards a fraction of an inch apart) to actually show on
+screen, which was out of scope for this round's seed and is recorded here rather than
+demonstrated. A second, related consequence: the printed *group subtotals* do not
+necessarily sum to the same number as adding the printed *row* totals together, for
+the identical reason. Each printed figure is independently rounded to two decimals,
+while the subtotal is computed from unrounded accumulated values. Example from the
+spec's own mockup: rows print `1.38` and `1.36` (which sum visibly to `2.74`), but the
+group subtotal prints `2.73` — correctly, because the true total is `393.75 / 144 =
+2.734375`. This is correct, not a bug, by the same argument as the row-to-total
+discrepancy: rounding the subtotal to make the sheet internally self-consistent was
+rejected in the design because it would make the purchasing number wrong.
+
+**83. What `formatBoardFeet`/`formatSquareFeet` deliberately do not do — recorded so a
+future request to add any of these reads as a re-proposal, not a gap.** No rounding up
+to a whole or a yard's typical sale unit (design §5: "the true number, let the user
+round" — the reverse isn't recoverable). No waste factor (design §8: a per-user
+purchasing preference, and a trivial mental multiply on a number now printed for them —
+adding it needs a settings surface this app doesn't have). No user-configurable
+precision: both formatters are fixed at two decimal places regardless of the document's
+`units.precision`, because that field is a fractional-inch *denominator* (16 means
+sixteenths) and feeding it to a decimal-volume formatter would be a category error that
+happens to typecheck (design §5). No document-wide grand total (design §3: pine and
+walnut board feet sum to a real number but not a useful one, and board feet and square
+feet can't be summed at all).
+
+**84. The browser pass used media emulation, not a real PDF render — same tooling
+limitation as follow-ups 70 and 79, applies unchanged here.** `page.emulateMedia({
+media: 'print' })` plus a full-page screenshot is what this host's Playwright can do;
+it exposes no `pdf()` call, so no PDF was produced or inspected for the new row-total
+column or the new subtotal line. What *was* verified directly: the on-screen (screen
+media) totals matched the design's precomputed numbers exactly (Pine rows `1.36 bd ft`
+/ `1.38 bd ft`, subtotal `2.73 bd ft`; Plywood row and subtotal both `5.00 sq ft`), the
+new fourth grid column right-aligned cleanly against the existing three without
+colliding with the multi-name list (`Leg 1, Leg 2`), and — after the follow-up 81 fix —
+both row and subtotal figures render `rgb(0, 0, 0)` under print media by
+`getComputedStyle`, matching what the screenshot showed by eye.

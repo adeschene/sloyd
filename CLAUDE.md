@@ -22,20 +22,22 @@ itself — then **joinery** (a board can have stock removed from it), the **cut 
 on the sheet, because the prose setup lines are hard to read at the bench), a
 **label layout round** closing the diagrams' one user-visible gap: labels that
 overlapped or bled past the outline because nothing measured the text being placed —
-and now a **per-face diagrams round**, closing the diagrams' other one: perpendicular
+a **per-face diagrams round**, closing the diagrams' other one: perpendicular
 cuts on the same face used to fragment into two disconnected figures instead of
-drawing together, crossing, in one. Static SPA, containerized, 546/546 tests passing.
+drawing together, crossing, in one — and now a **board-feet round**, adding the
+purchasing number (board feet for solid stock, square feet for sheet goods) beside the
+bench numbers already on the sheet. Static SPA, containerized, 564/564 tests passing.
 
 Host-specific deployment detail — hostname, container name, proxy configuration, and
 the manual steps a human has to perform — lives in `DEPLOYMENT.local.md`, which is
 gitignored. Read that file before deploying; it is not in the public repo.
 
 **The cut list line of work is CLOSED as of 2026-08-01** — cut list, diagrams, label
-layout and per-face views are all shipped, merged to `master` and deployed to
-production. Do not treat any of the four as in-flight. What is deliberately *not* built
-sits in two places, and both are decisions rather than omissions: the **"Deferred behind
-it"** paragraph below (board-feet and sheet totals; sheet-goods nesting; CSV export and
-name run-collapsing, both declined with reasons worth reading before re-proposing), and
+layout, per-face views and board feet are all shipped, merged to `master` and deployed
+to production. Do not treat any of the five as in-flight. What is deliberately *not*
+built sits in two places, and both are decisions rather than omissions: the **"Deferred
+behind it"** paragraph below (sheet-goods nesting; CSV export and name run-collapsing,
+both declined with reasons worth reading before re-proposing), and
 `docs/follow-ups.md`'s open entries. **48 and 49 — a board whose cuts remove all its
 stock rendering as nothing — are now CLOSED**, by the empty-solids placeholder described
 below; no open follow-up currently has a user-visible consequence. Two things about the
@@ -275,10 +277,68 @@ browser with a twelve-cut board before any code changed — see follow-up 72.
   float-dedup gap next to invariant 18, and the round's own (fifth) instance of a
   plan-supplied constant shipping with a justification that didn't reproduce.
 
+**What the board-feet round did**, design in
+`docs/superpowers/specs/2026-08-01-sloyd-board-feet-design.md`. Chosen 2026-08-01,
+closing the first half of the cut list's §7 non-goal — board-feet and sheet totals had
+been deferred with a reason, not omitted, and that reason (*"a purchasing number, not a
+bench number, and this release is about the bench"*) had expired once the bench release
+shipped. Adds one purchasing number beside the bench numbers already on the sheet: board
+feet per row and per group for solid stock, square feet for sheet goods (keyed off the
+existing `isSheetGood`), with no document-wide grand total — pine and walnut board feet
+sum to a real number but not a useful one, and board feet cannot be added to square feet
+at all.
+
+- **Stock, not remainder.** The volume comes from a board's stock dimensions;
+  `cuts` are ignored entirely. A dado does not reduce the board you buy — the stock
+  leaves the yard whole and the joinery happens afterward, out of material already paid
+  for. This is the inverse of what every other consumer of `cuts` does (`boardSolids`
+  removes stock, `buildDepthField` reports how much, `buildDiagrams` draws it), which is
+  exactly why the rule is stated as a comment in `cutlist.ts`, not left to be inferred
+  from the pattern everything else follows.
+- **Exact, not representative — the third instance of the 55/55a shape, resolved the
+  *other* way.** A cut-list row is representative: two boards belong on one row when
+  they *print* identically, not when they are equal (follow-up 55, invariant 18). For a
+  printed dimension that's invisible by construction, but board feet is a sum, so the
+  error would multiply by `qty` and then accumulate again across the group. The
+  accumulator sums each board's *exact* volume as the existing grouping loop visits it —
+  no second pass, and a row and its group subtotal come from the same numbers in the
+  same pass, so they cannot disagree. The visible consequence is stated rather than
+  hidden: a row's board feet may not exactly equal `qty ×` the dimensions printed beside
+  it, because the printed dimensions are rounded and the total is not. Rounding the
+  total to match was considered and rejected — it would make the sheet self-consistent
+  by making the purchasing number wrong, which is the wrong direction for a number whose
+  whole job is telling you how much lumber to buy.
+- **A new leaf, not a widened one.** `src/units/quantity.ts` exports
+  `formatBoardFeet`/`formatSquareFeet`, fixed at two decimal places and not
+  user-configurable — the document's `units.precision` is a fractional-inch denominator,
+  meaningless applied to a decimal volume. `cutlist.ts` already imported from `units`
+  (for `formatLength`), so this widens an existing layer edge rather than opening a new
+  one; see the Architecture section.
+- **The panel formats nothing**, the same rule the row text and the diagram labels
+  already follow — `row.stock`/`group.stock` arrive ready to print from `buildCutList`.
+- **A print-block gap that survived one task review and one implementer self-review,
+  caught only by rendering the fix.** Follow-up 58's exact defect shape recurred:
+  `.cutlist-subtotal .cutlist-stock`'s two-class screen rule (brass) outranked the print
+  block's enumerated single-class `.cutlist-stock` override, so the group subtotal —
+  the number most likely to be read at the bench — kept printing brass on white while
+  every row total printed correctly black. The enumeration itself was done correctly;
+  it just wasn't the most specific rule in the cascade. Fixed by adding a matching
+  two-class override, verified both by `getComputedStyle` (`rgb(0, 0, 0)`) and by eye on
+  a rendered screenshot. See follow-up 81 for why this is a new wrinkle on 58, not a
+  restatement of it.
+- **No schema change.** `CURRENT_VERSION` is still 4; board feet derives entirely from
+  dimensions already stored.
+- **Known, deferred, and verified in a real browser** — see `docs/follow-ups.md`'s
+  "From the board-feet round" section for the print-block finding above, what
+  `formatBoardFeet` deliberately does not do (no rounding up, no waste factor, no
+  user-configurable precision), and confirmation this pass used media emulation, not a
+  real PDF render (follow-ups 70 and 79 still apply — this host's Playwright exposes no
+  `pdf()`).
+
 **Deferred behind it**, from the cut list's §7, recorded as decisions rather than
-omissions: **board-feet and sheet totals** (cheap now that `buildCutList` exists, but a
-purchasing number rather than a bench number) and **sheet-goods nesting**, a real
-packing problem wanting its own spec. CSV/clipboard export and name run-collapsing
+omissions: board-feet and sheet totals are no longer deferred — see the board-feet round
+above — leaving **sheet-goods nesting**, a real packing problem wanting its own spec, as
+the one item still open there. CSV/clipboard export and name run-collapsing
 (`Leg 1..4`) were looked at and declined, for reasons worth reading before proposing
 either again. In the older ledger, **48 and 49** were the only two entries with a
 user-visible consequence — unaffected by the cut list or the diagrams, and closed
@@ -392,10 +452,11 @@ ever serialize or restore the document.
 Module dependency order (each layer only depends on the ones before it):
 
 1. **`units`**, then **`document`**. `units` is the bottom layer and imports nothing;
-   it parses/formats fractional inches (e.g. `24 1/2"`). `document` sits directly
-   above it and owns the document schema, board geometry, validation, and versioned
-   migration. `document/names.ts` is a leaf alongside it, importing only the `Board`
-   type.
+   `length.ts` parses/formats fractional inches (e.g. `24 1/2"`) and `quantity.ts` — the
+   board-feet round's addition, a second leaf beside it — formats decimal board-feet and
+   square-feet quantities. `document` sits directly above it and owns the document
+   schema, board geometry, validation, and versioned migration. `document/names.ts` is a
+   leaf alongside it, importing only the `Board` type.
 
    **The cut list added the one edge between them:** `document/cutlist.ts` imports
    `formatLength` from `units`, because a row's grouping key is built out of formatted
@@ -416,6 +477,13 @@ Module dependency order (each layer only depends on the ones before it):
    differently in the two places a person looks at it on one sheet. One `document →
    units` import could be argued as an exception; two, for the same reason, is the
    edge the layer order actually has.
+
+   **The board-feet round widened the same edge rather than opening a new one.**
+   `cutlist.ts` also imports `formatBoardFeet`/`formatSquareFeet` from
+   `units/quantity.ts`. This is a different justification from the `formatLength` edge
+   above — board feet is not a grouping key, so the "prints identically" argument
+   doesn't reach it — but `cutlist.ts` already crossed into `units`, so nothing new
+   opens: it is the cheapest available answer to "where does this go."
 2. **`store`** (Zustand + snapshot-based undo/redo) and **`storage`** (the
    `StorageAdapter` seam) — both sit above `document`.
 3. **`viewport`** (react-three-fiber scene, camera, grid, gizmo) and **`panels`**
@@ -458,7 +526,12 @@ Full detail: `docs/superpowers/specs/` (design) and `docs/superpowers/plans/`
 
 ```
 src/
-├── units/length.ts          parseLength / formatLength. Imports nothing.
+├── units/
+│   ├── length.ts             parseLength / formatLength. Imports nothing.
+│   └── quantity.ts           formatBoardFeet / formatSquareFeet — decimal quantities,
+│                             two places fixed, not the fractional-inch precision
+│                             length.ts uses. Imports nothing; a sibling leaf, not a
+│                             widening of length.ts (a volume is not a length)
 ├── document/
 │   ├── types.ts             Board, SloydDocument, Rotation, Posture, Grain, MATERIALS
 │   ├── geometry.ts          axisDimensions (single source) / boardExtents /
@@ -469,8 +542,12 @@ src/
 │   │                        only ./geometry and ./types, never ./document
 │   ├── cutlist.ts           buildCutList: group by material+thickness, collapse
 │   │                        identical parts into rows, phrase each cut as a setup
-│   │                        line. Pure; imports ./types, ./geometry, ./cuts and
-│   │                        ../units/length — never ./document
+│   │                        line; accumulates each row's and group's exact stock
+│   │                        (board feet, or square feet for sheet goods) as the
+│   │                        grouping loop visits each board — never from the row's
+│   │                        rounded, representative dimensions. Pure; imports
+│   │                        ./types, ./geometry, ./cuts, ../units/length and
+│   │                        ../units/quantity — never ./document
 │   ├── depthField.ts        buildDepthField: split a face at every cut boundary on
 │   │                        both in-plane axes, cover each cell with the MAXIMUM
 │   │                        depth among covering cuts (0 if none), emitted one rect
@@ -787,7 +864,7 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 546 tests
+npm test           # Vitest, currently 564 tests
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -798,10 +875,10 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ## Open follow-ups
 
 `docs/follow-ups.md` lists everything found during v1 review, the two polish passes,
-v2, v3, the post-v3 fixes, joinery, and the cut list, consciously deferred rather than missed,
-numbered 1-30 plus the per-release additions. Read it before starting new work in the
-same area — several items are "correct but untested", which is exactly what a
-refactor breaks silently.
+v2, v3, the post-v3 fixes, joinery, the cut list and its diagrams rounds, and the
+board-feet round, consciously deferred rather than missed, numbered 1-30 plus the
+per-release additions. Read it before starting new work in the same area — several
+items are "correct but untested", which is exactly what a refactor breaks silently.
 
 **29 and 30 are closed** — the gizmo now has a size ceiling tied to the selected board
 (with a floor that keeps it grabbable when zoomed far out), and the origin lines have
@@ -891,6 +968,23 @@ invariant 18's reasoning. **79** carries forward the still-unverified print-to-P
 render. **80** is a fifth instance of the plan-supplied-constant lesson (64, 68): a
 task report's justification for a replacement layout constant didn't reproduce under
 review, closed by adding a real guard rather than trusting the arithmetic on its own.
+
+The board-feet round added **81-84** — see `docs/follow-ups.md`'s "From the board-feet
+round" section. **81** is a new wrinkle on follow-up 58, not a restatement: the print
+block's `.cutlist-stock` was correctly enumerated into the `@media print` black-text
+list, but a more specific two-class screen rule (`.cutlist-subtotal .cutlist-stock`,
+brass) still outranked it, so the group subtotal printed brass on white through one task
+review and one implementer self-review — caught only when task 4's browser pass actually
+rendered the page, and closed by adding a matching two-class print override (`a54a086`).
+**82** is the third instance of the 55/55a representative-row shape, resolved the
+*other* way on purpose: board feet accumulates each board's exact volume rather than
+`qty ×` the row's representative dimensions, so a row's total may not exactly equal what
+a reader would compute from the rounded dimensions printed beside it — correct, because
+rounding the total would make the purchasing number wrong. **83** records what
+`formatBoardFeet`/`formatSquareFeet` deliberately don't do: no rounding up, no waste
+factor, no user-configurable precision. **84** carries forward the still-unverified
+print-to-PDF render (70, 79) — this round's browser pass used `emulateMedia`, not a real
+PDF.
 
 One entry is a lesson rather than a defect and is worth reading before touching anything
 in the viewport: **26a**. Browser verification on this host runs on software GL

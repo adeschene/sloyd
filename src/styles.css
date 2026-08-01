@@ -537,7 +537,7 @@ button[aria-pressed='true'] {
 
 .cutlist-row {
   display: grid;
-  grid-template-columns: 3.5em 11em 1fr;
+  grid-template-columns: 3.5em 11em 1fr 7.5em;
   gap: 4px 12px;
   padding: 8px 0;
   border-bottom: 1px solid var(--rule-soft);
@@ -551,6 +551,35 @@ button[aria-pressed='true'] {
 
 .cutlist-names {
   color: var(--ink-dim);
+}
+
+/* Right-aligned and monospace so a column of totals aligns on the decimal
+   point. --font-num is the same stack the diagram labels rely on. */
+.cutlist-stock {
+  text-align: right;
+  font-family: var(--font-num);
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+
+.cutlist-subtotal {
+  display: grid;
+  grid-template-columns: 1fr 7.5em;
+  gap: 12px;
+  margin: 8px 0 0;
+  padding-top: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cutlist-subtotal-label {
+  text-align: right;
+  color: var(--ink-faint);
+}
+
+/* The subtotal is the group's own total, so it reads brighter than the rows
+   it sums. */
+.cutlist-subtotal .cutlist-stock {
+  color: var(--brass);
 }
 
 .cutlist-setup {
@@ -656,6 +685,8 @@ button[aria-pressed='true'] {
   .cutlist-group h3,
   .cutlist-qty,
   .cutlist-names,
+  .cutlist-stock,
+  .cutlist-subtotal-label,
   /* The empty-sheet line belongs here too: --ink-faint is grey chosen against
      graphite, and grey on white is the one line on an otherwise blank page. */
   .cutlist-empty,
@@ -674,6 +705,14 @@ button[aria-pressed='true'] {
   }
 
   .cutlist-setup { border-left-color: #999; }
+
+  /* .cutlist-subtotal .cutlist-stock (screen rule, specificity 0,2,0) beats
+     the enumerated .cutlist-stock above (0,1,0), so the group subtotal — the
+     figure most likely to be read at the bench — kept printing brass on
+     white even after .cutlist-stock joined the list. Enumerating the class
+     alone is not enough wherever a more specific selector also sets color;
+     this rule has to match that specificity to win. */
+  .cutlist-subtotal .cutlist-stock { color: #000; }
 
   /* The SVG inherits `color`, and every stroke and fill inside it is
      `currentColor`, so this one declaration blackens the whole drawing. Both

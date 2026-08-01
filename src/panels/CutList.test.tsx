@@ -24,7 +24,7 @@ describe('CutList', () => {
          { material: 'oak', thickness: 0.75, length: 24, width: 3.5 });
     render(<CutList onClose={() => {}} />);
 
-    expect(screen.getByText('Oak — 3/4"')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Oak — 3/4"' })).toBeInTheDocument();
     expect(screen.getByText('2 ×')).toBeInTheDocument();
     expect(screen.getByText('24" × 3-1/2"')).toBeInTheDocument();
     expect(screen.getByText('P0, P1')).toBeInTheDocument();
@@ -120,5 +120,24 @@ describe('CutList', () => {
     render(<CutList onClose={() => {}} />);
     expect(screen.getByText(/3\/4" dado, 3\/8" deep/)).toBeInTheDocument();
     expect(screen.getByText(/Schematic — not to scale/)).toBeInTheDocument();
+  });
+
+  it('renders the stock total for each row and the group subtotal', () => {
+    // Two DIFFERENTLY sized boards on purpose. An earlier version of this test
+    // used two identical ones, which collapse onto a single row — so the row
+    // and the subtotal printed the same string and an assertion on that string
+    // passed even if the row's own cell were deleted. Distinct sizes give three
+    // distinct strings, so each assertion can only be satisfied by the element
+    // it is actually about.
+    //   24 x 5-1/2 x 3/4 =  99      in3 -> 0.69 bd ft
+    //   36 x 7-1/4 x 3/4 = 195.75   in3 -> 1.36 bd ft
+    //                      294.75   in3 -> 2.05 bd ft (subtotal)
+    load({ material: 'pine', thickness: 0.75, length: 24, width: 5.5 },
+         { material: 'pine', thickness: 0.75, length: 36, width: 7.25 });
+    const { container } = render(<CutList onClose={() => {}} />);
+    expect(screen.getByText('0.69 bd ft')).toBeInTheDocument();
+    expect(screen.getByText('1.36 bd ft')).toBeInTheDocument();
+    expect(container.querySelector('.cutlist-subtotal .cutlist-stock')?.textContent)
+      .toBe('2.05 bd ft');
   });
 });
