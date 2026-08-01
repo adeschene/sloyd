@@ -14,6 +14,8 @@ export { buildCutList } from './cutlist';
 export type { CutList, CutListGroup, CutListRow } from './cutlist';
 export { buildDiagrams } from './diagram';
 export type { DiagramCut, DiagramView } from './diagram';
+export { buildDepthField } from './depthField';
+export type { FaceCell } from './depthField';
 
 export const CURRENT_VERSION = 4;
 
