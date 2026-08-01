@@ -162,3 +162,106 @@ describe('PartDiagram', () => {
     expect(x + labelWidth(vLabel.textContent!)).toBeLessThanOrEqual(vbWidth);
   });
 });
+
+/**
+ * The seven geometries from follow-up 59's measured browser sweep, as unit
+ * tests. Three of them (2, 3 and 6) FAILED in the browser before this round.
+ *
+ * WHAT THIS PROVES AND WHAT IT DOES NOT. Label width is now arithmetic
+ * (`labelWidth`), so the overlap predicate `docs/diagram-overlap-sweep.js`
+ * computes from real `getBBox()` values is computable here from the `x`/`y`
+ * ATTRIBUTES, which jsdom does report. That closes the hole for LAYOUT LOGIC.
+ * It does NOT close it for FONT METRICS: if LABEL_EM is too small, or a machine
+ * resolves --font-num to a wider face, every test below passes and the browser
+ * still overlaps. The browser sweep remains the arbiter.
+ */
+describe('PartDiagram label collisions — the seven sweep geometries', () => {
+  interface Box { text: string; left: number; right: number; top: number; bottom: number }
+
+  const boxes = (container: HTMLElement): Box[] =>
+    [...container.querySelectorAll('text')].map((t) => {
+      const text = t.textContent ?? '';
+      const w = labelWidth(text);
+      const x = Number(t.getAttribute('x'));
+      const y = Number(t.getAttribute('y'));
+      // `x` is the CENTRE under text-anchor: middle and the LEFT EDGE otherwise.
+      // Reading it as a left edge regardless would make every assertion below
+      // wrong in exactly the direction that hides a collision.
+      const left = t.getAttribute('text-anchor') === 'middle' ? x - w / 2 : x;
+      // At font-size 20 the glyph box rises ~15 above the baseline and drops ~5
+      // below it; a dominant-baseline: middle label straddles `y` instead.
+      const mid = t.getAttribute('dominant-baseline') === 'middle';
+      return {
+        text,
+        left,
+        right: left + w,
+        top: mid ? y - 10 : y - 15,
+        bottom: mid ? y + 10 : y + 5,
+      };
+    });
+
+  const overlaps = (a: Box, b: Box) =>
+    a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+
+  const check = (container: HTMLElement) => {
+    const svg = container.querySelector('svg')!;
+    const [, , vbW, vbH] = svg.getAttribute('viewBox')!.split(/\s+/).map(Number);
+    const bs = boxes(container);
+    expect(bs.length).toBeGreaterThan(0);
+    for (let i = 0; i < bs.length; i += 1) {
+      for (let j = i + 1; j < bs.length; j += 1) {
+        expect(
+          overlaps(bs[i], bs[j]),
+          `"${bs[i].text}" overlaps "${bs[j].text}"`,
+        ).toBe(false);
+      }
+      expect(bs[i].left, `"${bs[i].text}" reaches left of the viewBox`).toBeGreaterThanOrEqual(0);
+      expect(bs[i].right, `"${bs[i].text}" reaches right of the viewBox`).toBeLessThanOrEqual(vbW);
+      expect(bs[i].top, `"${bs[i].text}" reaches above the viewBox`).toBeGreaterThanOrEqual(0);
+      expect(bs[i].bottom, `"${bs[i].text}" reaches below the viewBox`).toBeLessThanOrEqual(vbH);
+    }
+  };
+
+  const draw = (board: Parameters<typeof createBoard>[0]) => {
+    const { container } = render(
+      <PartDiagram view={buildDiagrams(createBoard(board), 16)[0]} />,
+    );
+    return container;
+  };
+
+  it('1 baseline — one dado on a 24" x 5-1/2" board (the calibration control)', () => {
+    check(draw({ cuts: [dado()] }));
+  });
+
+  it('2 two-close — two dados 3/4" apart on a 24" square panel (was FAIL)', () => {
+    check(draw({ width: 24, cuts: [dado({ offset: 6 }), dado({ id: 'c2', offset: 7.5 })] }));
+  });
+
+  it('3 offset-zero — a cut at offset 0 (was FAIL)', () => {
+    check(draw({ cuts: [dado({ offset: 0, width: 0.125 })] }));
+  });
+
+  it('4 flush-max — a rabbet flush at the max end', () => {
+    check(draw({ cuts: [dado({ offset: 23.25, width: 0.75 })] }));
+  });
+
+  it('5 min-width — an edge groove, drawnH floored (was a 0.7-unit near-miss)', () => {
+    // face: 'width', across: 'length' gives along: 'thickness' — h = 0.75,
+    // v = 24, which is fitView's MIN_WIDTH branch.
+    check(draw({ cuts: [dado({ face: 'width', across: 'length', offset: 0.25, width: 0.25 })] }));
+  });
+
+  it('6 narrow-drawn — a 24" x 100-15/16" panel, the acceptance case (was FAIL)', () => {
+    check(draw({ length: 24, width: 100.9375, cuts: [dado()] }));
+  });
+
+  it('7 many-cuts — five spread dados', () => {
+    check(draw({
+      cuts: [0, 4, 8, 12, 16].map((offset, i) => dado({ id: `c${i}`, offset })),
+    }));
+  });
+
+  it('survives a board cut from both sides in the same view', () => {
+    check(draw({ cuts: [dado(), dado({ id: 'c2', offset: 12, from: 'max' })] }));
+  });
+});
