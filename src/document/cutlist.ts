@@ -127,6 +127,11 @@ function setupLine(board: Board, cut: Cut, precision: number): string {
  * with the screen — two rows that print identically ARE one row, by
  * construction, and no float is ever compared for equality.
  *
+ * One exception, and it is on the screen: the dado/rabbet WORD in a setup line
+ * is not built from this key at all. See the note at `setup:` in
+ * `buildCutList` and follow-up 55a — every number agrees with the key; the
+ * noun is the representative board's.
+ *
  * `position`, `rotation` and `posture` are absent deliberately: they say where
  * a part sits in the model, not how it is cut from stock. `grain` IS present —
  * a part whose fibres run along its width is laid out on the board differently

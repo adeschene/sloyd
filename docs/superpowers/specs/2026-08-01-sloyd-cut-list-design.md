@@ -196,6 +196,15 @@ and React keys off it.
 Each row's `setup` is derived from the cuts shared by every part in that row — they are
 identical by construction, so the first part to land in the row supplies them.
 
+*[Editorial annotation, added by the branch's final review pass: true of the cuts, not
+of one word derived from them. `cutSignature` is exact, so the cuts really are identical
+and every number on a setup line is right for every part in the row — but `cutLabel`
+decides dado-versus-rabbet against the board's exact dimensions while the row collapsed
+at display precision, so the row's label is the representative's. Behaviour left as
+designed; see follow-up 55a for why that is the better word at this precision. Annotated
+rather than rewritten, per the same rule the plan's field-name error is kept under: these
+documents are the record of what was decided, not documentation of what shipped.]*
+
 **Computed during grouping, not from the finished row.** `cutLabel(board, cut)` takes a
 `Board`, because dado-versus-rabbet depends on the board's dimensions and not on the cut
 alone. So the setup lines are built while the board is in hand — as the row is created —
