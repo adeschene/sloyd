@@ -706,6 +706,14 @@ button[aria-pressed='true'] {
 
   .cutlist-setup { border-left-color: #999; }
 
+  /* .cutlist-subtotal .cutlist-stock (screen rule, specificity 0,2,0) beats
+     the enumerated .cutlist-stock above (0,1,0), so the group subtotal — the
+     figure most likely to be read at the bench — kept printing brass on
+     white even after .cutlist-stock joined the list. Enumerating the class
+     alone is not enough wherever a more specific selector also sets color;
+     this rule has to match that specificity to win. */
+  .cutlist-subtotal .cutlist-stock { color: #000; }
+
   /* The SVG inherits `color`, and every stroke and fill inside it is
      `currentColor`, so this one declaration blackens the whole drawing. Both
      fills — the hatch for an ordinary cut cell and the cross-hatch for a
