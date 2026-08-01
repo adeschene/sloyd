@@ -30,11 +30,15 @@ const CLICK_DRAG_SLOP_PX = 2;
  * How solid the placeholder ghost is when a board's own cuts have removed all
  * of its stock (`boardSolids` returning `[]` — follow-ups 48 and 49).
  *
- * Browser-settled, not derived: the scene background is near-white, so the low
- * value the design first reached for was invisible against it. The ghost only
- * has to say "the part is here and you can click it" — the outline carries the
- * shape — so it stays faint enough to read as absent stock rather than as a
- * board that is merely translucent.
+ * Browser-settled by comparison, not derived. 0.1 was rendered against this
+ * app's near-white ground and rejected: at that value the grid reads straight
+ * through the fill and the ghost collapses to outline-only, which is exactly
+ * what the fill exists to avoid — see invariant 21 for why an outline alone is
+ * not enough. 0.22 gives it a discernible body while staying faint enough to
+ * read as absent stock rather than as a board that is merely translucent.
+ *
+ * Two values compared in one browser on one background, not a sweep. A darker
+ * theme would want this re-checked.
  */
 const GHOST_OPACITY = 0.22;
 

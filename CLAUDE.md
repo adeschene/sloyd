@@ -769,9 +769,13 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
     `raycaster.params.Line.threshold` (default 1 world unit, so 1 inch here) of a
     drawn line, which leaves the whole interior of the ghost dead to the pointer.
     The part would look right in every screenshot and be unclickable everywhere
-    except within an inch of an edge — and being clickable is *half of what 48
-    asked for*, since removing the offending cut is the only in-session way back.
-    The fill is the hit target; the outline is the legibility. Keep both, and test
+    except within an inch of an edge. That is a viewport-parity rule, not a
+    recovery-path one: a part you can see is a part you can click, everywhere
+    else in this app. (Recovery never depended on it — the parts list has always
+    selected a consumed board by id, and Ctrl+Z has always reverted the edit that
+    caused it. The pre-fix defect was that the part was invisible, not that it
+    was unreachable.) The fill is the hit target; the outline is the legibility.
+    Keep both, and test
     a change here by clicking the MIDDLE of a ghost face, never its edge. Related:
     the ghost's `depthWrite` is off so a part with no stock never occludes one that
     has some, and the placeholder deliberately rides in the existing `geometries`

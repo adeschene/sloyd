@@ -577,7 +577,11 @@ What the fix actually needed, beyond the ledger's own sketch:
   `raycaster.params.Line.threshold` (1 world unit — here, 1 inch) of a drawn line. An
   outline-only placeholder leaves the board's whole interior dead to the pointer, so
   the ghost has to be a real mesh. Verified by clicking the middle of a ghost face, not
-  its edge.
+  its edge. To be precise about what this buys: it is viewport *parity* — a part you
+  can see should be clickable, as everywhere else in the app — not the sole route back.
+  Recovery was never actually blocked, since the parts list selects a consumed board by
+  id and Ctrl+Z reverts the edit; the defect was that the part was invisible, not that
+  it was unreachable.
 - **`boardEdges` returns nothing in this state**, so the ghost supplies its own outline
   from its box. That is not an oversight in `boardEdges` — its rule draws a segment
   only where filled and empty cells meet, and here every cell is empty, so drawing
@@ -591,10 +595,18 @@ What the fix actually needed, beyond the ledger's own sketch:
   stock was sawn, and this board has no stock left. `depthWrite` is off so a part with
   no stock never occludes one that has some, and the ghost neither casts nor receives
   shadows.
-- **`GHOST_OPACITY` is browser-settled, not derived.** The value the design first
-  reached for was invisible against this app's near-white background. Recorded here in
-  the same spirit as `MAX_ASPECT`/`MAX_HEIGHT` (follow-up 60): a constant a screenshot
-  settles, not a test.
+- **`GHOST_OPACITY` is browser-settled by comparison, not derived.** 0.1 was actually
+  rendered and rejected — against this app's near-white ground the grid reads straight
+  through it and the ghost collapses to outline-only, defeating the fill. 0.22 keeps a
+  discernible body. Recorded in the same spirit as `MAX_ASPECT`/`MAX_HEIGHT`
+  (follow-up 60): a constant a screenshot settles, not a test. The honest bound is two
+  values on one background in one browser, not a sweep.
+
+  This bullet is also the round's own brush with the lesson at 64/68/80. Its first
+  draft claimed the low value "was invisible against it" — a provenance for 0.22 that
+  had never been rendered, since 0.22 was written straight into the first edit. Review
+  caught it, and the fix was to *run the comparison* rather than to soften the wording.
+  Sixth instance of the shape; the first one caught in a doc rather than in code.
 
 Verified in a real browser, both routes, before and after: 49 by seeding two adjacent
 full-depth cuts on a 24" board (the ledger's own numbers) and confirming the board drew
