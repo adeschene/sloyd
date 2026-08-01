@@ -99,8 +99,11 @@ describe('labelHeight', () => {
   });
 
   it('does not depend on the string, unlike labelWidth', () => {
-    // Height is a property of the FACE, not the text. A per-string height
-    // would be wrong for exactly the rotated labels this exists to serve.
-    expect(labelHeight()).toBe(LABEL_BOX_H);
+    // Height is a property of the FACE, not the text — literally so:
+    // labelHeight takes no argument at all, unlike labelWidth(s). A per-string
+    // height would be wrong for exactly the rotated labels this exists to
+    // serve, and a future signature change adding a string parameter would
+    // fail this assertion.
+    expect(labelHeight.length).toBe(0);
   });
 });

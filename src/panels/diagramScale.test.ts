@@ -1,4 +1,4 @@
-import { band, bandOn, fitView, DRAW_WIDTH, MAX_ASPECT, MAX_HEIGHT, MIN_FEATURE, MIN_WIDTH } from './diagramScale';
+import { bandOn, fitView, DRAW_WIDTH, MAX_ASPECT, MAX_HEIGHT, MIN_FEATURE, MIN_WIDTH } from './diagramScale';
 
 describe('fitView', () => {
   it('scales uniformly when the aspect ratio is comfortable', () => {
@@ -57,30 +57,33 @@ describe('fitView', () => {
   });
 });
 
-describe('band', () => {
+// These exercise bandOn through a real DiagramFit on the horizontal axis —
+// the same widening/ordering/clamping coverage the now-deleted `band()`
+// wrapper carried, re-expressed against the function it always delegated to.
+describe('bandOn, applied to a horizontal-axis fit', () => {
   it('places a comfortable band at true scale', () => {
     const fit = fitView(24, 5.5);
-    const b = band([6, 6.75], fit);
-    expect(b.x).toBeCloseTo(6 * fit.sx, 10);
-    expect(b.width).toBeCloseTo(0.75 * fit.sx, 10);
+    const b = bandOn([6, 6.75], fit.sx, fit.offsetX, fit.drawnH);
+    expect(b.start).toBeCloseTo(6 * fit.sx, 10);
+    expect(b.size).toBeCloseTo(0.75 * fit.sx, 10);
   });
 
   it('widens a hairline band to the minimum', () => {
     const fit = fitView(96, 3.5);          // sx ~= 10.4 units per inch
-    const b = band([84, 84.125], fit);     // 1/8" -> ~1.3 units, too thin
-    expect(b.width).toBe(MIN_FEATURE);
+    const b = bandOn([84, 84.125], fit.sx, fit.offsetX, fit.drawnH);     // 1/8" -> ~1.3 units, too thin
+    expect(b.size).toBe(MIN_FEATURE);
   });
 
   it('widens about the centre, so position stays honest', () => {
     const fit = fitView(96, 3.5);
     const centre = (84 * fit.sx + 84.125 * fit.sx) / 2 + fit.offsetX;
-    const b = band([84, 84.125], fit);
-    expect(b.x + b.width / 2).toBeCloseTo(centre, 10);
+    const b = bandOn([84, 84.125], fit.sx, fit.offsetX, fit.drawnH);
+    expect(b.start + b.size / 2).toBeCloseTo(centre, 10);
   });
 
   it('respects the horizontal offset of a centred drawing', () => {
     const fit = fitView(24, 24);
-    expect(band([0, 24], fit).x).toBeCloseTo(fit.offsetX, 10);
+    expect(bandOn([0, 24], fit.sx, fit.offsetX, fit.drawnH).start).toBeCloseTo(fit.offsetX, 10);
   });
 
   it('keeps a widened band inside the outline at the min edge', () => {
@@ -88,33 +91,34 @@ describe('band', () => {
     // MIN_FEATURE used to get x = centre - 3, i.e. LEFT of the board's own
     // edge, and `overflow: visible` drew it there rather than clipping it.
     const fit = fitView(24, 5.5);
-    const b = band([0, 0.125], fit);
-    expect(b.x).toBeGreaterThanOrEqual(fit.offsetX);
-    expect(b.width).toBe(MIN_FEATURE);
+    const b = bandOn([0, 0.125], fit.sx, fit.offsetX, fit.drawnH);
+    expect(b.start).toBeGreaterThanOrEqual(fit.offsetX);
+    expect(b.size).toBe(MIN_FEATURE);
   });
 
   it('keeps a widened band inside the outline at the max edge', () => {
     const fit = fitView(24, 5.5);
-    const b = band([23.875, 24], fit);
-    expect(b.x + b.width).toBeLessThanOrEqual(fit.offsetX + fit.drawnH);
-    expect(b.width).toBe(MIN_FEATURE);
+    const b = bandOn([23.875, 24], fit.sx, fit.offsetX, fit.drawnH);
+    expect(b.start + b.size).toBeLessThanOrEqual(fit.offsetX + fit.drawnH);
+    expect(b.size).toBe(MIN_FEATURE);
   });
 
   it('respects the offset of a centred drawing when it clamps', () => {
     const fit = fitView(0.75, 24);            // the MIN_WIDTH branch: offsetX > 0
-    const b = band([0, 0.01], fit);
-    expect(b.x).toBeGreaterThanOrEqual(fit.offsetX);
+    const b = bandOn([0, 0.01], fit.sx, fit.offsetX, fit.drawnH);
+    expect(b.start).toBeGreaterThanOrEqual(fit.offsetX);
   });
 
   it('normalises an out-of-order span instead of drawing it in the wrong place', () => {
     // Follow-up 62, closed. A [max, min] span gives a NEGATIVE width, which
     // fails the MIN_FEATURE test and falls into the widening branch — so it
     // used to draw a plausible-looking narrow band centred between the two
-    // values, with no error anywhere. cutRegion never emits one, but band() is
+    // values, with no error anywhere. cutRegion never emits one, but bandOn is
     // a small exported pure function a future caller can reach without reading
     // cutRegion's contract first.
     const fit = fitView(24, 5.5);
-    expect(band([6.75, 6], fit)).toEqual(band([6, 6.75], fit));
+    expect(bandOn([6.75, 6], fit.sx, fit.offsetX, fit.drawnH))
+      .toEqual(bandOn([6, 6.75], fit.sx, fit.offsetX, fit.drawnH));
   });
 });
 
@@ -138,12 +142,5 @@ describe('bandOn', () => {
 
   it('normalises an out-of-order span', () => {
     expect(bandOn([6.75, 6], 40, 0, 1000)).toEqual(bandOn([6, 6.75], 40, 0, 1000));
-  });
-
-  it('is what band() delegates to, so the two cannot drift', () => {
-    const fit = fitView(24, 5.5);
-    const b = band([6, 6.75], fit);
-    const on = bandOn([6, 6.75], fit.sx, fit.offsetX, fit.drawnH);
-    expect(b).toEqual({ x: on.start, width: on.size });
   });
 });

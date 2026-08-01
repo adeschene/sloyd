@@ -676,10 +676,12 @@ button[aria-pressed='true'] {
   .cutlist-setup { border-left-color: #999; }
 
   /* The SVG inherits `color`, and every stroke and fill inside it is
-     `currentColor`, so this one declaration blackens the whole drawing. The
-     hatch is a <pattern> fill — FOREGROUND content, which survives Chrome's
-     "Background graphics" being off. A CSS background would not, and the
-     near/far distinction would silently collapse to solid-versus-dashed. */
+     `currentColor`, so this one declaration blackens the whole drawing. Both
+     fills — the hatch for an ordinary cut cell and the cross-hatch for a
+     crossing (overlapping cuts of differing depth) — are <pattern> fills,
+     FOREGROUND content that survives Chrome's "Background graphics" being
+     off. A CSS background would not, and the hatch-versus-cross-hatch
+     distinction would silently vanish on a default print. */
   .cutlist-diagram svg { color: #000; }
 
   /* A drawn row is several times taller than a text row. `break-inside` is

@@ -68,7 +68,7 @@ describe('PartDiagram', () => {
 
   it('prints the crossing legend it was given and formats nothing itself', () => {
     render(<PartDiagram view={crossingView()} />);
-    expect(screen.getByText('crossing: 3/8" deep governs')).toBeInTheDocument();
+    expect(screen.getByText('overlap: 3/8" deep governs')).toBeInTheDocument();
   });
 
   it('no longer dashes anything for a far side', () => {

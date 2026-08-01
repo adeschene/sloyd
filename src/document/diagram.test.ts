@@ -21,15 +21,6 @@ describe('buildDiagrams', () => {
     expect(views[0].cuts).toEqual([]);
   });
 
-  it('puts the in-plane dimensions on horizontal and vertical', () => {
-    const views = buildDiagrams(board(dado()), 16);
-    expect(views).toHaveLength(1);
-    expect(views[0].horizontal).toBe('length');
-    expect(views[0].vertical).toBe('width');
-    expect(views[0].h).toBe(24);
-    expect(views[0].v).toBe(5.5);
-  });
-
   it('always puts the earlier DIMENSION_ORDER dimension horizontal', () => {
     const views = buildDiagrams(board(
       dado(),
@@ -69,15 +60,11 @@ describe('buildDiagrams', () => {
     ]});
     const views = buildDiagrams(board, 16);
     expect(views).toHaveLength(2);
-    expect(views.map((v) => v.from).sort()).toEqual(['max', 'min']);
-  });
-
-  it('puts the earlier DIMENSION_ORDER dimension on the horizontal axis', () => {
-    const views = buildDiagrams(createBoard({ cuts: [
-      { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 6, width: 0.75, depth: 0.375 },
-    ]}), 16);
-    expect(views[0].horizontal).toBe('length');
-    expect(views[0].vertical).toBe('width');
+    // NOTE: this asserts the actual emitted order, not an alphabetised one —
+    // 'max'.localeCompare('min') is negative, so the `from` tiebreak in
+    // buildDiagrams's final sort puts 'max' before 'min' for a shared face,
+    // regardless of insertion order.
+    expect(views.map((v) => v.from)).toEqual(['max', 'min']);
   });
 
   it('tags each cut with the axis its offset is measured along', () => {
@@ -95,7 +82,26 @@ describe('buildDiagrams', () => {
       { id: 'a', face: 'thickness', from: 'min', across: 'width',  offset: 6, width: 0.75, depth: 0.125 },
       { id: 'b', face: 'thickness', from: 'min', across: 'length', offset: 4, width: 0.75, depth: 0.375 },
     ]}), 16);
-    expect(views[0].crossings).toEqual(['crossing: 3/8" deep governs']);
+    expect(views[0].crossings).toEqual(['overlap: 3/8" deep governs']);
+  });
+
+  it('collapses two SEPARATE crossings at the same governing depth to one legend line', () => {
+    // Four cuts forming a criss-cross grid: two full-width bands (across
+    // width, positioned along length) and two full-length bands (across
+    // length, positioned along width). Every across-width band crosses every
+    // across-length band, giving FOUR distinct, non-adjacent crossing cells —
+    // but all four are governed by the same 1/2" cut, so there must be
+    // exactly one legend line, not four. A naive `filter+map` without a
+    // dedup step would print it once per crossing CELL instead of once per
+    // distinct depth.
+    const views = buildDiagrams(createBoard({ length: 24, width: 12, cuts: [
+      { id: 'a', face: 'thickness', from: 'min', across: 'width',  offset: 2,  width: 1, depth: 0.5 },
+      { id: 'c', face: 'thickness', from: 'min', across: 'width',  offset: 16, width: 1, depth: 0.5 },
+      { id: 'b', face: 'thickness', from: 'min', across: 'length', offset: 2,  width: 1, depth: 0.25 },
+      { id: 'd', face: 'thickness', from: 'min', across: 'length', offset: 8,  width: 1, depth: 0.1 },
+    ]}), 16);
+    expect(views[0].cells.filter((c) => c.crossing).length).toBeGreaterThan(1);
+    expect(views[0].crossings).toEqual(['overlap: 1/2" deep governs']);
   });
 
   it('reports NO legend line when crossing cuts share a depth', () => {

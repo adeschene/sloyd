@@ -183,13 +183,13 @@ browser with a twelve-cut board before any code changed — see follow-up 72.
   in-plane dimension it runs across, so two perpendicular dados on one face draw
   together, crossing, in one figure — see follow-up 72 for the fragmentation this
   replaces and follow-up 73 for what the re-key retires.
-- **The depth field: `cuts.ts`'s split-cover-merge skeleton, one dimension down, with
-  the cover step assigning a maximum instead of dropping a boolean.** `boardSolids`
-  splits the board into cells and drops each one whose centre falls inside any cut — a
-  boolean decision. A face's depth field splits the same way in 2D, but each surviving
-  cell takes the **maximum** depth among the cuts covering it (0 if none), then merges
-  adjacent cells of equal depth into regions. Same skeleton, different operation — this
-  is deliberately **not** `cuts.ts` reused, and the distinction is load-bearing: reaching
+- **The depth field: `cuts.ts`'s split-cover skeleton, one dimension down, with the
+  cover step assigning a maximum instead of dropping a boolean.** `boardSolids` splits
+  the board into cells and drops each one whose centre falls inside any cut — a boolean
+  decision. A face's depth field splits the same way in 2D, and each surviving cell
+  takes the **maximum** depth among the cuts covering it (0 if none) — emitted as one
+  cell per grid rect, with no merge step. Same skeleton, different operation — this is
+  deliberately **not** `cuts.ts` reused, and the distinction is load-bearing: reaching
   for `boardSolids` here would not fit, because a depth field needs a number where
   `boardSolids` only ever needed a keep/drop bit. One rule produces the crossing case,
   the parallel-overlap case, and the three-or-more-way overlap case together, the same
@@ -210,18 +210,22 @@ browser with a twelve-cut board before any code changed — see follow-up 72.
   feeding it y-coordinates works unchanged. This needed one new measured constant
   (`labelHeight`, alongside `CHAR_W`) because a rotated label's extent along the page's
   x-axis is the glyph box's **height**, not its character-count advance — nothing in
-  `diagramLabels.ts` modelled that before. See follow-up 1 for how it was measured
-  (23.68 units, identical across every string tested, because `getBBox()` on `<text>`
-  returns the font's EM box rather than the tight ink box) and follow-ups 74-75 for a
-  harness trap and a harness bug this measurement work ran into.
+  `diagramLabels.ts` modelled that before. See that file's own doc comment on
+  `LABEL_ASCENT`/`LABEL_DESCENT` for how it was measured (23.68 units, identical across
+  every string tested, because `getBBox()` on `<text>` returns the font's EM box rather
+  than the tight ink box) and follow-ups 74-75 for a harness trap and a harness bug this
+  measurement work ran into.
 - **Two fills, and a legend line only where crossing cuts actually disagree.** A
-  crossing region is cross-hatched, and gets one legend line (*crossing: 1/4" deep
-  governs*), only when the depth field's merge step yields a region whose depth differs
-  from at least one of the bands producing it — which falls out of the depth field's
-  own maximum-and-merge rule rather than needing a separate check. Two crossing cuts at
-  the same depth merge into one uniform region and correctly show nothing extra: there
-  is no distinction to report. See follow-up 76 for a negative browser finding on how
-  well the two fills read at screen size on their own, independent of the legend line.
+  crossing region is cross-hatched, and gets one legend line (*overlap: 1/4" deep
+  governs*), only when the depth field's cover step assigns a cell a depth that differs
+  from at least one of the covering cuts' own depths — which falls out of the depth
+  field's own maximum rule rather than needing a separate check. Two crossing cuts at
+  the same depth produce uniform-depth cells and correctly show nothing extra: there is
+  no distinction to report. `diagram.ts` still de-duplicates by depth before printing a
+  legend line, which is what keeps two *separate* crossings at the same governing depth
+  to one line, not two — there is no merge step upstream doing that collapsing for it.
+  See follow-up 76 for a negative browser finding on how well the two fills read at
+  screen size on their own, independent of the legend line.
 - **No schema change.** `CURRENT_VERSION` is still 4; the depth field derives entirely
   from `cuts`, which was already stored.
 - **Known, deferred, and verified in a real browser** — see `docs/follow-ups.md`'s "From
@@ -428,9 +432,9 @@ src/
 │   │                        ../units/length — never ./document
 │   ├── depthField.ts        buildDepthField: split a face at every cut boundary on
 │   │                        both in-plane axes, cover each cell with the MAXIMUM
-│   │                        depth among covering cuts (0 if none), merge equal-depth
-│   │                        neighbours into regions. Same split/cover/merge skeleton
-│   │                        as cuts.ts's boardSolids, one dimension down, with a
+│   │                        depth among covering cuts (0 if none), emitted one rect
+│   │                        per cell — no merge step. Same split/cover skeleton as
+│   │                        cuts.ts's boardSolids, one dimension down, with a
 │   │                        different cover operation — see invariant 20. Pure;
 │   │                        imports only ./geometry and ./types
 │   ├── diagram.ts           buildDiagrams: one view per (face, from) — near/far
@@ -469,10 +473,12 @@ src/
 │   ├── Properties.tsx       board fields + the Cuts section; CutRow is its own
 │   │                        component so a cut's error dies with the cut
 │   ├── diagramScale.ts      fitView (uniform scale + sliver clamp + height ceiling) /
-│   │                        band (centred widening to MIN_FEATURE, ordering-guarded). Pure.
-│   ├── diagramLabels.ts     LABEL_SIZE / CHAR_W / labelHeight (measured glyph-box
-│   │                        height, 23.68 units, argument-free — see invariant on
-│   │                        why) / labelWidth (character count × monospace advance)
+│   │                        bandOn (axis-agnostic centred widening to MIN_FEATURE,
+│   │                        ordering-guarded). Pure.
+│   ├── diagramLabels.ts     LABEL_SIZE / CHAR_W / labelHeight (LABEL_BOX_H = 25, a
+│   │                        rounded-up bound on the measured 23.68-unit glyph box,
+│   │                        argument-free — see invariant on why) / labelWidth
+│   │                        (character count × monospace advance)
 │   │                        / packRow (ideal centres in, non-overlapping centres
 │   │                        out, axis-agnostic). Pure; the arithmetic substitute
 │   │                        for getComputedTextLength(), which is 0 under jsdom.
@@ -685,24 +691,30 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
     starts placing labels on top of each other while every unit test still passes —
     because the tests assert the arithmetic, not the render. See follow-up 66 for the
     bounded, not universal, headroom that arithmetic rests on.
-20. **`depthField.ts` shares `cuts.ts`'s split/cover/merge skeleton but not its
+20. **`depthField.ts` shares `cuts.ts`'s split/cover skeleton but not its
     operation, and `boardSolids` is not reusable here.** Both split a board (or a
     face) at every cut boundary into a grid of cells. `boardSolids` then **drops**
     each cell whose centre falls inside any cut — a boolean keep/drop decision, one
     dimension (3D). `buildDepthField` instead **assigns** each cell the maximum depth
     among the cuts covering it, 0 if none — a numeric decision, one dimension down
     (2D, one face). Reaching for `boardSolids` to compute a face's depth field would
-    not fit: it has no maximum to report, only a bit. Agreement between the two is
-    asserted by a test, `depthField.agreement.test.ts`, not assumed from the shared
-    skeleton — a cell must have depth > 0 exactly when `boardSolids` removed stock at
-    the corresponding column. That test's first version passed with the cover step
-    broken: it asserted only *coverage* (which cells were cut), and a
-    `Math.max → depths[0]` mutation — reporting the depth of an arbitrary covering
-    cut instead of the correct maximum — passed all cases, because coverage agreement
-    doesn't imply depth agreement. The fix asserts each region's actual depth value
-    against `boardSolids`, not merely whether it was cut; after the fix, the same
-    mutation fails with the exact wrong number (`0.375` where `0.125` was expected).
-    Any future agreement test between a 2D derivation and its 3D source must assert
+    not fit: it has no maximum to report, only a bit. Unlike `boardSolids`,
+    `buildDepthField` has no merge step: it emits one `FaceCell` per grid rect and
+    stops there, which is correct rather than incomplete — the hatch each cell renders
+    with is an SVG `<pattern>` (`patternUnits="userSpaceOnUse"`), so adjacent cells of
+    equal depth already render indistinguishably from one merged region, and the one
+    place a *count* of distinct regions matters (the crossing legend) is handled by
+    `diagram.ts` deduplicating crossing depths into a `Set`, not by merging cells.
+    Agreement between the two is asserted by a test, `depthField.agreement.test.ts`,
+    not assumed from the shared skeleton — a cell must have depth > 0 exactly when
+    `boardSolids` removed stock at the corresponding column. That test's first version
+    passed with the cover step broken: it asserted only *coverage* (which cells were
+    cut), and a `Math.max → depths[0]` mutation — reporting the depth of an arbitrary
+    covering cut instead of the correct maximum — passed all cases, because coverage
+    agreement doesn't imply depth agreement. The fix asserts each region's actual
+    depth value against `boardSolids`, not merely whether it was cut; after the fix,
+    the same mutation fails with the exact wrong number (`0.375` where `0.125` was
+    expected). Any future agreement test between a 2D derivation and its 3D source must assert
     the value the derivation claims to compute, not just where it claims to differ
     from zero.
 

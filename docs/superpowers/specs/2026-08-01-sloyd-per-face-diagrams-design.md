@@ -86,6 +86,18 @@ The core is a 2D echo of what `cuts.ts` does in 3D:
    none.
 3. **Merge** adjacent cells of equal depth into regions.
 
+> **Implementation note, added after the fact:** `buildDepthField` does not implement
+> step 3 as a literal merge. It emits the raw grid cells from steps 1-2 (`FaceCell[]`),
+> undeduplicated, and `PartDiagram.tsx` draws one `<rect>` per cell. This is the
+> equivalence the next paragraph already argues for — the hatch pattern renders adjacent
+> equal-depth cells indistinguishably from a merged region — so no region-merging code
+> was written. The one thing step 3 was for besides rendering, deciding how many legend
+> lines to print, is done in `diagram.ts` by deduplicating crossing cells' depths through
+> a `Set` rather than by merging shapes. This paragraph records what shipped; the
+> narrative below is left as the design record and should be read as history, not as a
+> description of `depthField.ts`'s current code (whose own doc comment says "classify
+> each cell by its centre," not "merge").
+
 **Merging is a labelling concern, not a rendering one.** A merged region can be
 L-shaped or plus-shaped, which is not a `<rect>` — but it does not have to be drawn as
 one shape. The hatch is a `<pattern>` with `patternUnits="userSpaceOnUse"`, so the

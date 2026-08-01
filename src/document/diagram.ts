@@ -146,7 +146,7 @@ export function buildDiagrams(board: Board, precision: number): DiagramView[] {
     const depths = [...new Set(view.cells.filter((c) => c.crossing).map((c) => c.depth))].sort(
       (a, b) => a - b,
     );
-    view.crossings = depths.map((d) => `crossing: ${f(d)} deep governs`);
+    view.crossings = depths.map((d) => `overlap: ${f(d)} deep governs`);
   }
   // `from` as the tiebreak ('min' before 'max') so the order is total, the
   // same reason `mergeAlong` and `buildCutList`'s row sort both carry one.

@@ -1205,8 +1205,10 @@ in isolation; the fragmentation is a property of what a *board* with crossing jo
 one face looks like once drawn, which only a rendered board with genuinely
 perpendicular cuts on the same face exposes. `boardSolids` already handled the crossing
 correctly in 3D — this was a presentation failure, not a model one (design §1). Closed
-by re-keying on `(face, from)` and computing a depth field (design §4) that merges the
-crossing into its own region.
+by re-keying on `(face, from)` and computing a depth field (design §4) that classifies
+the crossing as its own kind of cell (maximum depth, `crossing: true`) — emitted as
+per-cell rects with no merge step, since the `<pattern>` hatch already renders adjacent
+equal-depth cells as one continuous region.
 
 **73. `hasFar`, `DiagramCut.side`, and the far-side dash were retired one round after
 being added — not a regression.** The dashed leader line and the near/far hatch
@@ -1304,7 +1306,8 @@ adds a fifth: Task 6's `COL = 39` — the width reserved for a rotated leader co
 replaced the plan's literal `COL = 26`, and the task report's recorded justification for
 39 did not reproduce when the final reviewer checked it: reverting to `26` and re-running
 the task's own 25 tests, all 25 still passed. The derivation behind `39` is sound (it
-comes from the measured glyph-height constant, follow-up 1's `23.68`, plus margin), but
+comes from the measured glyph-height constant — `diagramLabels.ts`'s `23.68`, documented
+in that file's own comment on `LABEL_ASCENT`/`LABEL_DESCENT` — plus margin), but
 the constant had shipped **unguarded** — nothing in the test suite actually depended on
 its value being large enough, so a wrong number and a right number were indistinguishable
 to the suite. This is why the fix round that followed added a real guard (text-vs-outline

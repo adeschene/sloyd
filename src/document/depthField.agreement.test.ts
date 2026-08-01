@@ -31,6 +31,14 @@ const stockAtMinFace = (board: Board, x: number, y: number): boolean => {
  * At the min-side face, a solid starting at thickness[0] = d means everything
  * above d was cut away — so the removed depth is the SHALLOWEST start among the
  * solids over that point. No solid at all means the cut went clean through.
+ *
+ * The `Math.min` above is sound only because every geometry in GEOMETRIES uses
+ * `from: 'min'` — this helper reads solids' MIN-side thickness bound, which is
+ * only the removed depth at the min face. Adding a `from: 'max'` or mixed-face
+ * geometry to GEOMETRIES would not make this helper silently wrong: it would
+ * make the agreement assertion FAIL LOUDLY (a wrong number pinned against the
+ * real depth field), never pass with the wrong answer — the safe direction for
+ * a helper's blind spot to fail in.
  */
 const removedDepthAtMinFace = (board: Board, x: number, y: number): number => {
   const over = boardSolids(board).filter(
