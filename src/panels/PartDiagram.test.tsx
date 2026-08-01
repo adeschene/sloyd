@@ -73,4 +73,14 @@ describe('PartDiagram', () => {
     const ids = [...container.querySelectorAll('pattern')].map((p) => p.id);
     expect(new Set(ids).size).toBe(2);
   });
+
+  it('keeps the first leader label clear of the outline', () => {
+    const { container } = render(<PartDiagram view={view(dado())} />);
+    const outline = container.querySelector('.cutlist-diagram-outline')!;
+    const bottom = Number(outline.getAttribute('y')) + Number(outline.getAttribute('height'));
+    const label = container.querySelector('.cutlist-diagram-leader text')!;
+    // A baseline is not a bounding box: the glyphs rise ~15 units above it at
+    // font-size 20, and the label must still clear the board's bottom edge.
+    expect(Number(label.getAttribute('y')) - 15).toBeGreaterThan(bottom);
+  });
 });

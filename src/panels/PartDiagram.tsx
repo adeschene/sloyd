@@ -6,8 +6,10 @@ import { band, fitView, DRAW_WIDTH } from './diagramScale';
 const TOP = 26;
 /** Room below the outline for far-side depth labels, when there are any. */
 const FAR = 22;
+/** Clearance between the outline (or the far-side depth labels) and the leader stack. */
+const GAP = 16;
 /** One stacked leader row per cut. */
-const ROW = 22;
+const ROW = 26;
 /** The overall-length run along the bottom. */
 const BOTTOM = 34;
 /** Room to the right of the outline for the overall-width label. */
@@ -49,7 +51,7 @@ export function PartDiagram({ view }: { view: DiagramView }) {
   const top = TOP;
   const bottom = top + fit.drawnV;
   const far = view.hasFar ? FAR : 0;
-  const leaders = bottom + far;
+  const leaders = bottom + far + GAP;
   const height = leaders + ROW * view.cuts.length + BOTTOM;
   const baseline = height - BOTTOM / 2;
 
@@ -112,11 +114,11 @@ export function PartDiagram({ view }: { view: DiagramView }) {
           return (
             <g className="cutlist-diagram-leader" key={cut.id}>
               <line x1={fit.offsetX} y1={y} x2={b.x} y2={y} />
-              <text x={(fit.offsetX + b.x) / 2} y={y - 4} textAnchor="middle">
+              <text x={(fit.offsetX + b.x) / 2} y={y - 6} textAnchor="middle">
                 {cut.offsetLabel}
               </text>
               <line x1={b.x} y1={y} x2={b.x + b.width} y2={y} />
-              <text x={b.x + b.width / 2} y={y - 4} textAnchor="middle">
+              <text x={b.x + b.width / 2} y={y - 6} textAnchor="middle">
                 {cut.widthLabel}
               </text>
             </g>
@@ -125,7 +127,7 @@ export function PartDiagram({ view }: { view: DiagramView }) {
 
         <g className="cutlist-diagram-leader">
           <line x1={fit.offsetX} y1={baseline} x2={fit.offsetX + fit.drawnH} y2={baseline} />
-          <text x={fit.offsetX + fit.drawnH / 2} y={baseline - 4} textAnchor="middle">
+          <text x={fit.offsetX + fit.drawnH / 2} y={baseline - 6} textAnchor="middle">
             {view.hLabel}
           </text>
         </g>
