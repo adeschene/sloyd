@@ -17,9 +17,10 @@ three dimensions, not just its length), and log-derived grain textures — and t
 short post-v3 pass fixing two bugs found in use (`DimensionField` and `NameField`
 both displaying, and in `NameField`'s case writing, stale text after an external
 change landed while the field had focus) plus a plywood-grain regression from v3
-itself — then **joinery** (a board can have stock removed from it), and now the
-**cut list**: the numbers you take to the bench. Static SPA, containerized, 438/438
-tests passing.
+itself — then **joinery** (a board can have stock removed from it), the **cut list**
+(the numbers you take to the bench), and now **cut list diagrams**: each part's
+joinery drawn on the sheet, because the prose setup lines are hard to read at the
+bench. Static SPA, containerized, 482/482 tests passing.
 
 Host-specific deployment detail — hostname, container name, proxy configuration, and
 the manual steps a human has to perform — lives in `DEPLOYMENT.local.md`, which is
@@ -64,6 +65,49 @@ gitignored. Read that file before deploying; it is not in the public repo.
   `f` re-frames the camera invisibly and hands back a moved view. A prop rather than
   store state on purpose: the open flag is local view state, outside the document and
   the undo stack. **Any new `window` listener must join this list.**
+
+**What the cut list diagrams did**, design in
+`docs/superpowers/specs/2026-08-01-sloyd-cut-list-diagrams-design.md`, plan in
+`docs/superpowers/plans/2026-08-01-sloyd-cut-list-diagrams.md`:
+
+- **One view per `(face, across)` pair.** `buildDiagrams(board, precision)` groups a
+  board's cuts by which face they're cut into and which dimension they run across,
+  because within a view the horizontal axis is always the implied position axis and
+  every cut is a band touching two opposite edges — one face can admit two `across`
+  values with different position axes, so keying on the pair (not the face alone) is
+  what keeps every band vertical and every layout the same. Near cuts (`from: 'min'`)
+  draw solid and hatched; far cuts (`from: 'max'`) draw dashed and unfilled — both
+  share one drawing when a board is dadoed from both sides in the same face, which is
+  the point: one glance shows both setups instead of two disconnected prose lines.
+- **A schematic, not a scale drawing.** `diagramScale.ts`'s `fitView` maps board
+  inches to drawing units uniformly except at two extremes — a sliver clamp
+  (`MAX_ASPECT`) keeps a long thin rail's cross-section wide enough to draw a dado on,
+  and a height ceiling (`MAX_HEIGHT`) keeps a square panel from growing off the sheet.
+  `band`'s own widening (`MIN_FEATURE`) is centred, not left-anchored, so a narrow cut
+  still reads as being where the setup line says it is. All four constants are named
+  exports precisely so a browser pass can retune them without touching the geometry —
+  see the browser-verification report for the ones this pass exercised.
+- **`PartDiagram.tsx` formats nothing.** Every label string arrives ready from
+  `buildDiagrams`, the same rule `CutList.tsx` already followed for the row text, so
+  display rounding stays in one place. The hatch is an SVG `<pattern>` fill —
+  foreground content, not a CSS background — specifically so it survives print with
+  Chrome's "Background graphics" turned off; a CSS background would not, and the
+  near/far distinction would silently collapse to solid-versus-dashed.
+- **A three-state toggle, not a boolean.** `CutList.tsx` defaults to drawing only
+  parts that have joinery — a plain board's outline adds nothing prose doesn't already
+  say — with "All parts" and "None" as the other two states. Local view state, same
+  reasoning as `shortcutsSuspended`: it's outside the document and the undo stack.
+- **No schema change.** `CURRENT_VERSION` is still 4; the diagrams are derived from
+  `cuts`, which was already stored.
+- **The second `document → units` import.** `diagram.ts` imports `formatLength` from
+  `units` for the same reason `cutlist.ts` does — a label has to be produced by the
+  function that does the printing — which makes that edge a settled boundary rather
+  than the one-off exception it read as when `cutlist.ts` opened it.
+- **Known, deferred, and verified in a real browser** — see
+  `docs/follow-ups.md`'s "From the cut list diagrams" section for the depth-label
+  collision on close cuts (unsolved on purpose, with the named fix), which constants
+  turned out to need browser judgement rather than a test, and what the browser pass
+  actually checked versus what it could not.
 
 **What is next is not yet chosen.** The cut list's §7 records the candidates as
 decisions rather than omissions, and the two nearest are **board-feet and sheet
@@ -200,6 +244,14 @@ Module dependency order (each layer only depends on the ones before it):
    formatter as a parameter was considered and rejected: it would move the definition
    of part identity out to whichever call site passed the function, which is exactly
    the decision that should live in one place next to the grouping code.
+
+   **The cut list diagrams made it a settled boundary rather than a one-off.**
+   `document/diagram.ts` is the *second* thing in `document` to import `formatLength`
+   from `units`, for the identical reason: a diagram's labels have to be produced by
+   the same function that prints the row text next to it, or a dimension could read
+   differently in the two places a person looks at it on one sheet. One `document →
+   units` import could be argued as an exception; two, for the same reason, is the
+   edge the layer order actually has.
 2. **`store`** (Zustand + snapshot-based undo/redo) and **`storage`** (the
    `StorageAdapter` seam) — both sit above `document`.
 3. **`viewport`** (react-three-fiber scene, camera, grid, gizmo) and **`panels`**
@@ -255,8 +307,11 @@ src/
 │   │                        identical parts into rows, phrase each cut as a setup
 │   │                        line. Pure; imports ./types, ./geometry, ./cuts and
 │   │                        ../units/length — never ./document
+│   ├── diagram.ts           buildDiagrams: one view per (face, across) pair, board
+│   │                        inches, cut bands and labels. Pure; the second thing in
+│   │                        ./document to import from ../units/length
 │   └── document.ts          create / validate / migrate (v1->v2->v3->v4 chain);
-│                            re-exports the other five
+│                            re-exports the other six
 ├── store/store.ts           Zustand store, snapshot undo/redo, gesture coalescing
 ├── storage/
 │   ├── types.ts             the StorageAdapter interface
@@ -284,9 +339,15 @@ src/
 │   ├── Toolbar.tsx  PartsList.tsx  FileMenu.tsx
 │   ├── Properties.tsx       board fields + the Cuts section; CutRow is its own
 │   │                        component so a cut's error dies with the cut
+│   ├── diagramScale.ts      fitView (uniform scale + sliver clamp + height ceiling) /
+│   │                        band (centred widening to MIN_FEATURE). Pure.
+│   ├── PartDiagram.tsx      one view, drawn as SVG: outline, hatched/dashed cut
+│   │                        bands, stacked leaders. Formats nothing — every label
+│   │                        string arrives from buildDiagrams
 │   └── CutList.tsx          the printable sheet: derives from the document on every
 │                            render, owns Escape-to-close and takes focus on mount,
-│                            calls formatLength never
+│                            calls formatLength never, and owns the Diagrams toggle
+│                            (none / joinery only / all — local view state)
 └── App.tsx                  layout, autosave/restore effects, undo keybindings, and
                              the `.app-shell` wrapper that goes `inert` behind the
                              cut list
@@ -475,7 +536,7 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 438 tests
+npm test           # Vitest, currently 482 tests
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -525,6 +586,23 @@ also *corrected* rather than closed, 54 having overstated its risk and 55 having
 49 are unaffected by it** and stay open: the cut list reports *stock* dimensions, and
 a board whose cuts happen to remove all of it still has the stock it was cut from, so
 it appears on the sheet correctly even while it renders as nothing in the viewport.
+
+The cut list diagrams added **59-64**, all open, all recorded rather than fixed. **59**
+is the one with a user-visible consequence — depth labels can collide when two cuts sit
+close together, unsolved on purpose per spec §5, with the fix (move depth into the
+leader row) already named. **60** records `MAX_ASPECT`/`MAX_HEIGHT` as browser-settled
+rather than test-settled: both extremes this pass checked (a 96" rail, a 24" square
+panel) read as legible at the values shipped, but no test pins *readability*, only
+consistency. **61** confirms the §2 non-goal (one view per `(face, across)` pair, cuts
+that name the same dimension twice) survived verification — the panel's own `setFace`
+already prevents the degenerate case, so `diagram.ts`'s guard is belt-and-suspenders,
+not load-bearing, in the UI path. **62** and **63** are latent-not-live: `band()` has no
+ordering guard on its `Span` argument (unreachable while `cutRegion` is the only
+producer), and `DiagramCut.v`/`.kind` are unused by `PartDiagram` today. **64** is a
+lesson, not a defect — Task 4's plan-supplied spacing constants overlapped a label with
+the outline before review caught it, the same failure shape as joinery's "seven defects
+in code the plan supplied verbatim," now with a second instance from a different
+feature.
 
 One entry is a lesson rather than a defect and is worth reading before touching anything
 in the viewport: **26a**. Browser verification on this host runs on software GL
