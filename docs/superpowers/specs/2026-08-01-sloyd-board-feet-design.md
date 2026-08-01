@@ -90,9 +90,9 @@ Per-row and per-group. **No document-wide grand total.**
 
 ```
 Pine — 3/4"
-  2 ×  24" × 5-1/2"    Leg 1, Leg 2        1.83 bd ft
-  1 ×  36" × 7-1/4"    Rail                1.36 bd ft
-                              Pine — 3/4":  3.19 bd ft
+  2 ×  24" × 5-1/2"    Leg 1, Leg 2         1.38 bd ft
+  1 ×  36" × 7-1/4"    Rail                 1.36 bd ft
+                              Pine — 3/4":   2.73 bd ft
 
 Plywood — 3/4"
   3 ×  24" × 30"       Panel 1, Panel 2, Panel 3
