@@ -62,6 +62,12 @@ function sweepDiagrams() {
       bbox: el.getBBox(),
     }));
 
+    // The overall-width label is the LAST <text> in the svg and is deliberately
+    // placed to the right of the outline, so P3 must exempt it. Identified by
+    // position rather than by class, because it shares `cutlist-diagram-depth`
+    // with the per-cut depth labels.
+    const widthLabel = texts[texts.length - 1]?.text;
+
     const issues = [];
 
     // P1 — pairwise overlap. Catches depth-vs-depth, depth-vs-leader, and
@@ -103,7 +109,7 @@ function sweepDiagrams() {
     // overall-width label is deliberately to the RIGHT of the outline, so it is
     // exempt; nothing legitimately sits to the left of it.
     for (const t of texts) {
-      if (t.bbox.x < box.x - 0.5 && t.text !== outlineWidthLabel(svg)) {
+      if (t.bbox.x < box.x - 0.5 && t.text !== widthLabel) {
         issues.push({
           kind: 'left-of-board',
           text: t.text,
@@ -120,10 +126,4 @@ function sweepDiagrams() {
       issues,
     };
   });
-}
-
-/** The vLabel is the last <text> in the svg — placed right of the outline. */
-function outlineWidthLabel(svg) {
-  const texts = svg.querySelectorAll('text');
-  return texts[texts.length - 1]?.textContent;
 }
