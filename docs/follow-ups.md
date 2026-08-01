@@ -801,6 +801,24 @@ the page) rather than a second bug. Left open because the fix is a real layout c
 but touches `ROW`'s height and the leader loop in `PartDiagram.tsx`), not something to
 improvise mid-verification-pass.
 
+**A third instance of the same root cause, found in the final review pass: bands and
+labels can bleed past the outline at the extremes.** A cut at `offset: 0` narrower
+than `MIN_FEATURE` gets `x = centre − 3`, left of the board's edge (`fit.offsetX`);
+its depth label extends further still. `overflow: visible` keeps it drawn rather than
+clipped, so it is visible, not hidden-but-wrong. This is not a fourth bug — it is
+labels placed by band centre with no awareness of the outline's own boundary, which
+is the identical shape the two collisions above already describe — so it is folded
+into this entry rather than opened separately. Left unfixed for the same reason: the
+fix is the same real layout change already deferred here.
+
+**59a. Pagination outcome, recorded.** Spec §7 named "does a drawn row survive a
+printed page break" as a browser-verification item; it was checked (task 6's check 9)
+but the outcome had gone unrecorded here. Checked against a real PDF, backgrounds
+suppressed: the page break landed cleanly between two rows — the 24"×24" panel's row
+and the following `24" × 5-1/2"` board's row — with no drawn diagram split across the
+boundary and no row's text separated from its own figure. **PASS**, confirming
+`break-inside: avoid` holds on both `.cutlist-row` and `.cutlist-diagram`.
+
 **60. `MAX_ASPECT` (8) and `MAX_HEIGHT` (420) are browser-settled, not test-settled.**
 The unit tests pin `fitView`'s *behaviour* — that a sliver clamps, that a tall drawing
 shrinks uniformly and centres — but nothing in the suite asserts that the result is
@@ -835,16 +853,20 @@ always emits min-then-max, so this is unreachable today rather than deferred-and
 Recorded because `band()` is a small pure function a future caller could reach with a
 hand-built `Span` without reading `cutRegion`'s contract first.
 
-**63. `DiagramCut.v` and `DiagramCut.kind` are carried but unused by `PartDiagram`.**
-`v` is redundant by construction — every band in the current layout spans the view's
-full height, so nothing consumes the explicit span — and `kind` (`'dado' | 'rabbet'`,
-from `cutLabel`) is computed and attached but never read by the renderer. Not dead
-weight in the sense of being pointless: `DiagramView`/`DiagramCut` are `diagram.ts`'s
-own exported shape, tested directly and independently of `PartDiagram`, and a future
-caller (or a future renderer variant) reading `kind` to label a band "dado" vs
-"rabbet" directly is a plausible next use rather than a hypothetical one. Left as is —
-trimming either field would save nothing `PartDiagram` currently needs and would
-narrow a tested, documented shape for no behavioural gain.
+**63. `DiagramCut.v`, `DiagramCut.kind`, and now `DiagramFit.sy` are carried but
+unused by their only consumer.** `v` is redundant by construction — every band in the
+current layout spans the view's full height, so nothing consumes the explicit span —
+and `kind` (`'dado' | 'rabbet'`, from `cutLabel`) is computed and attached but never
+read by the renderer. `PartDiagram` uses `drawnV` and `sx` (via `band`); `sy` is
+exported and tested but never read there either — it is the third member of the same
+family. Not dead weight in the sense of being pointless: `DiagramView`/`DiagramCut`
+are `diagram.ts`'s own exported shape and `DiagramFit` is `diagramScale.ts`'s, all
+tested directly and independently of `PartDiagram`, and a future caller (or a future
+renderer variant) reading `kind` to label a band "dado" vs "rabbet" directly, or `sy`
+to document/assert non-uniform scaling, is a plausible next use rather than a
+hypothetical one. Left as is — trimming any of the three would save nothing
+`PartDiagram` currently needs and would narrow a tested, documented shape for no
+behavioural gain.
 
 **64. Task 4's layout constants were wrong as the plan supplied them — a lesson,
 same shape as joinery's "seven defects were in code the plan supplied verbatim."**
@@ -856,3 +878,22 @@ test asserting the leader stack starts below the outline and the far label with
 margin to spare. Recorded beside the joinery lesson because it is the same failure
 shape recurring in a different feature: a plan's code is not more trustworthy than
 hand-written code, and this is the cut list diagrams' one entry in that ledger.
+
+**A second plan-supplied defect, found in the final review pass — and a deeper one.**
+`fitView` (`diagramScale.ts`) clamps `drawnV` from below for a short board
+(`MAX_ASPECT`) and from above for a tall one (`MAX_HEIGHT`), but nothing clamped
+`drawnH` after the shrink branch handling a *tall* board ran — a board with `h = 0.75,
+v = 24` (a full-length groove in a board's edge: `face: 'width', across: 'length'`
+gives `along: 'thickness'`, ordinary joinery, not a pathological input) drew `drawnH =
+13.12` against a `MIN_FEATURE = 6` band, i.e. a single cut band 45.7% of the entire
+drawn board width. Fixed with a `MIN_WIDTH` floor, symmetric with `MAX_ASPECT`, applied
+before `offsetX` is computed so centring stays correct; guarded by tests pinning
+`drawnH === MIN_WIDTH`, the resulting non-uniform scale, and that centring still holds.
+This is deeper than the first entry above: `MIN_FEATURE` and `MAX_ASPECT` both exist in
+the same plan specifically as guards against extremes, so the missing `drawnH` floor
+is a gap in the plan's own stated reasoning, not a typo or an overlooked font metric.
+Neither the unit tests (which never called `fitView` with `h < v`'s inverse case at
+this ratio) nor the browser pass (which checked the two extremes the plan named, per
+follow-up 60, but not this one) reached the path. Two plan-supplied defects in one
+feature is the point worth recording: a plan's own stated guards are not proof it
+checked every direction they imply.

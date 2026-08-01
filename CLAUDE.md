@@ -20,7 +20,7 @@ change landed while the field had focus) plus a plywood-grain regression from v3
 itself — then **joinery** (a board can have stock removed from it), the **cut list**
 (the numbers you take to the bench), and now **cut list diagrams**: each part's
 joinery drawn on the sheet, because the prose setup lines are hard to read at the
-bench. Static SPA, containerized, 482/482 tests passing.
+bench. Static SPA, containerized, 488/488 tests passing.
 
 Host-specific deployment detail — hostname, container name, proxy configuration, and
 the manual steps a human has to perform — lives in `DEPLOYMENT.local.md`, which is
@@ -536,7 +536,7 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 482 tests
+npm test           # Vitest, currently 488 tests
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
