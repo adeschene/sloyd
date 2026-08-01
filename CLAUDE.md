@@ -26,7 +26,7 @@ a **per-face diagrams round**, closing the diagrams' other one: perpendicular
 cuts on the same face used to fragment into two disconnected figures instead of
 drawing together, crossing, in one — and now a **board-feet round**, adding the
 purchasing number (board feet for solid stock, square feet for sheet goods) beside the
-bench numbers already on the sheet. Static SPA, containerized, 563/563 tests passing.
+bench numbers already on the sheet. Static SPA, containerized, 564/564 tests passing.
 
 Host-specific deployment detail — hostname, container name, proxy configuration, and
 the manual steps a human has to perform — lives in `DEPLOYMENT.local.md`, which is
@@ -864,7 +864,7 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 563 tests
+npm test           # Vitest, currently 564 tests
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
