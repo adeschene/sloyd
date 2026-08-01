@@ -25,6 +25,21 @@ const stockAtMinFace = (board: Board, x: number, y: number): boolean => {
   );
 };
 
+/**
+ * How deep stock is removed at (x, y), read out of the 3D model.
+ *
+ * At the min-side face, a solid starting at thickness[0] = d means everything
+ * above d was cut away — so the removed depth is the SHALLOWEST start among the
+ * solids over that point. No solid at all means the cut went clean through.
+ */
+const removedDepthAtMinFace = (board: Board, x: number, y: number): number => {
+  const over = boardSolids(board).filter(
+    (s) => x > s.length[0] && x < s.length[1] && y > s.width[0] && y < s.width[1],
+  );
+  if (over.length === 0) return board.thickness;
+  return Math.min(...over.map((s) => s.thickness[0]));
+};
+
 const GEOMETRIES: { name: string; cuts: Cut[] }[] = [
   { name: 'one dado across the width', cuts: [cut({ id: 'a', across: 'width', offset: 6, width: 0.75 })] },
   { name: 'two parallel disjoint', cuts: [
@@ -62,6 +77,10 @@ describe('the depth field agrees with boardSolids, by construction', () => {
         stockAtMinFace(board, x, y),
         `field says cut at ${x},${y}; boardSolids still has stock there`,
       ).toBe(false);
+      expect(
+        removedDepthAtMinFace(board, x, y),
+        `field says ${c.depth}" deep at ${x},${y}; boardSolids removed a different amount`,
+      ).toBeCloseTo(c.depth, 10);
     }
 
     // And the converse: anywhere the 3D model removed stock at this face, the
