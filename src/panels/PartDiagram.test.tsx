@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { buildDiagrams, createBoard } from '../document/document';
 import type { Cut } from '../document/document';
-import { PartDiagram } from './PartDiagram';
+import { PartDiagram, LEFT_PAD, TICK } from './PartDiagram';
 import { labelWidth, LABEL_ASCENT, LABEL_DESCENT, LABEL_BOX_H } from './diagramLabels';
 
 const dado = (over: Partial<Cut> = {}): Cut => ({
@@ -37,6 +37,26 @@ describe('PartDiagram', () => {
     const cross = container.querySelectorAll('.cutlist-diagram-cross');
     expect(cross).toHaveLength(1);
     expect(cross[0].getAttribute('fill')).toMatch(/^url\(#/);
+  });
+
+  it('gives a crossing cell a DIFFERENT pattern than an ordinary cell', () => {
+    // `cross-hatches only the crossing cells` above only pins the CLASS and
+    // that the fill is *some* url(#...) — it would still pass if every cell,
+    // crossing or not, used the same pattern. The whole point of the
+    // cross-hatch is that it is visually distinct from a plain hatch, and
+    // that distinction has to survive print with Background graphics off, so
+    // it must be a real second pattern, not just a repeated reference.
+    const { container } = render(<PartDiagram view={crossingView()} />);
+    const cells = [...container.querySelectorAll('.cutlist-diagram-cell')];
+    const crossing = cells.find((c) => c.classList.contains('cutlist-diagram-cross'))!;
+    const plain = cells.find((c) => !c.classList.contains('cutlist-diagram-cross'))!;
+    const crossingFill = crossing.getAttribute('fill')!;
+    const plainFill = plain.getAttribute('fill')!;
+    expect(crossingFill).not.toBe(plainFill);
+    const idOf = (fill: string) => fill.replace(/^url\(#/, '').replace(/\)$/, '');
+    const patternIds = [...container.querySelectorAll('pattern')].map((p) => p.id);
+    expect(patternIds).toContain(idOf(crossingFill));
+    expect(patternIds).toContain(idOf(plainFill));
   });
 
   it('gives a vertically-positioned cut a rotated leader column, not a row', () => {
@@ -180,19 +200,110 @@ describe('PartDiagram', () => {
     // is never the earlier ("horizontal") of a view's two in-plane dimensions.
     // Found in the same spirit as the row case (a run shorter than its label),
     // but the failure direction rotates with the axis: a column label must not
-    // drift above the outline's top edge (y < 0), the analogue of a row label
-    // drifting left of the board.
+    // drift above the outline's TOP EDGE, the analogue of a row label
+    // drifting left of the board's left edge.
+    //
+    // Bounding against 0 (the viewBox) instead of the outline's own `y` gave
+    // this test almost no bite: `packRow`'s actual bound is `top = 4`, so a
+    // regression that clamped at 0 instead of `top` would still pass a
+    // `>= 0` check by 4 units. Bounding against the outline is what the name
+    // claims and is what a mutation of the column bound (`top` -> `0`)
+    // actually fails on.
     const { container } = render(
       <PartDiagram
         view={view(dado({ face: 'width', across: 'length', offset: 0.25, width: 0.25 }))}
       />,
     );
+    const outline = container.querySelector('.cutlist-diagram-outline')!;
+    const outlineTop = Number(outline.getAttribute('y'));
     const col = container.querySelector('.cutlist-diagram-leader-v')!;
     expect(col).toBeInTheDocument();
     for (const t of col.querySelectorAll('text')) {
       const w = labelWidth(t.textContent!);
       const y = Number(t.getAttribute('y'));
-      expect(y - w / 2).toBeGreaterThanOrEqual(0);
+      expect(y - w / 2).toBeGreaterThanOrEqual(outlineTop);
+    }
+  });
+
+  it('never starts a leader-row label left of the outline itself', () => {
+    // The row-axis mirror of the column test above, and of a fix from the
+    // previous round: `packRow`'s row bound is `left + fit.offsetX` (the
+    // outline's own left edge), not `left` alone. On a board that enters the
+    // shrink branch, `fit.offsetX` is large (437.5 here) and a `0"` offset
+    // label centred on a zero-width run would otherwise land at 425.1 — 12.4
+    // units left of the outline — if the bound were `left` without
+    // `fit.offsetX` added in. Assert `outline.x > 0` first so this cannot
+    // pass vacuously on a board where offsetX is 0.
+    const { container } = render(
+      <PartDiagram
+        view={buildDiagrams(
+          createBoard({ length: 24, width: 100.9375, cuts: [dado({ offset: 0, width: 0.125 })] }),
+          16,
+        )[0]}
+      />,
+    );
+    const outline = container.querySelector('.cutlist-diagram-outline')!;
+    const outlineX = Number(outline.getAttribute('x'));
+    expect(outlineX).toBeGreaterThan(0);
+    for (const t of container.querySelectorAll('.cutlist-diagram-leader text')) {
+      const w = labelWidth(t.textContent!);
+      expect(Number(t.getAttribute('x')) - w / 2).toBeGreaterThanOrEqual(outlineX);
+    }
+  });
+
+  it('anchors leader columns immediately left of the outline, even under the shrink branch', () => {
+    // FINDING 1 (live defect, fixed here): the gutter used to be anchored at
+    // x = 0 while the outline sat at `left + fit.offsetX`. Under the shrink
+    // branch `offsetX` can be hundreds of units, leaving the leader column
+    // pointing at empty space instead of the board. Assert `fit.offsetX > 0`
+    // first (via the outline's own x exceeding what `left` alone could
+    // explain) so this cannot pass vacuously.
+    const { container } = render(
+      <PartDiagram
+        view={buildDiagrams(
+          createBoard({ length: 24, width: 100.9375, cuts: [
+            dado({ across: 'length', offset: 0.25, width: 0.25 }),
+          ] }),
+          16,
+        )[0]}
+      />,
+    );
+    const outline = container.querySelector('.cutlist-diagram-outline')!;
+    const outlineX = Number(outline.getAttribute('x'));
+    const cols = [...container.querySelectorAll('.cutlist-diagram-leader-v')];
+    expect(cols.length).toBeGreaterThan(0);
+    // Sanity check that this geometry really does have a large offsetX: with
+    // exactly one column, `outline.x = fit.offsetX + COL + LEFT_PAD`, and COL
+    // alone is under 40 — an outline this far right cannot be explained
+    // without a large offsetX.
+    expect(outlineX).toBeGreaterThan(400);
+    const last = cols[cols.length - 1];
+    const ticks = [...last.querySelectorAll('line')].map((l) => [
+      Number(l.getAttribute('x1')), Number(l.getAttribute('x2')),
+    ]).flat();
+    const rightmostTick = Math.max(...ticks);
+    expect(outlineX - rightmostTick).toBeCloseTo(LEFT_PAD, 10);
+  });
+
+  it('keeps a rotated label clear of its own leader line and ticks', () => {
+    // Regression guard for the COL derivation: COL = 26 (the brief's literal
+    // value) does not fail by producing a negative x — labelX = COL*i +
+    // LABEL_ASCENT anchors column 0 at [0, 25] independent of COL. It fails
+    // because the label box [0, 25] swallows its own ticks ([18, 26] at
+    // COL=26) and leader line (at x=22) — a text-vs-line collision, which no
+    // text-vs-text or text-vs-viewBox check can ever see. This asserts the
+    // real invariant directly: a column's label never reaches its own line.
+    const { container } = render(<PartDiagram view={crossingView()} />);
+    const col = container.querySelector('.cutlist-diagram-leader-v')!;
+    const verticals = [...col.querySelectorAll('line')].filter(
+      (l) => l.getAttribute('x1') === l.getAttribute('x2'),
+    );
+    expect(verticals.length).toBeGreaterThan(0);
+    const lineX = Number(verticals[0].getAttribute('x1'));
+    for (const t of col.querySelectorAll('text')) {
+      const labelX = Number(t.getAttribute('x'));
+      const rightEdge = labelX + LABEL_DESCENT;
+      expect(rightEdge).toBeLessThanOrEqual(lineX - TICK);
     }
   });
 

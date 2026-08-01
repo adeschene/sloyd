@@ -18,11 +18,11 @@ const GAP_X = 8;
 /** Half-length of a run's end tick. Runs abut, so without these the offset run
  *  and the band run fuse into one line and the offset label appears to measure
  *  to the far side of the cut. */
-const TICK = 4;
+export const TICK = 4;
 /** Clearance between a rotated column label's own box and its leader line. */
 const COL_GAP = 6;
 /** Clearance between the last leader column's tick marks and the outline. */
-const LEFT_PAD = 12;
+export const LEFT_PAD = 12;
 /**
  * One leader column's width, DERIVED rather than hard-coded.
  *
@@ -123,7 +123,17 @@ export function PartDiagram({ view }: { view: DiagramView }) {
       ],
       top, Infinity, GAP_X,
     );
-    return { cut, b, oy, wy, dy, depthW, x: COL * (i + 1) - TICK, labelX: COL * i + LABEL_ASCENT };
+    return {
+      cut, b, oy, wy, dy, depthW,
+      // Anchored at `fit.offsetX`, not 0 — under the shrink branch (a tall
+      // narrow board) `offsetX` can be several hundred units, and the gutter
+      // has to sit immediately left of the OUTLINE, not left of the viewBox's
+      // own left edge, or the leader line points at empty space instead of
+      // the board (found by mutation review: a 450-unit gap on a 24" x
+      // 100-15/16" panel).
+      x: fit.offsetX + COL * (i + 1) - TICK,
+      labelX: fit.offsetX + COL * i + LABEL_ASCENT,
+    };
   });
   const maxColumnBottom = columns.length
     ? Math.max(...columns.map((c) => c.dy + c.depthW / 2))
