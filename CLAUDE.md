@@ -18,9 +18,11 @@ short post-v3 pass fixing two bugs found in use (`DimensionField` and `NameField
 both displaying, and in `NameField`'s case writing, stale text after an external
 change landed while the field had focus) plus a plywood-grain regression from v3
 itself — then **joinery** (a board can have stock removed from it), the **cut list**
-(the numbers you take to the bench), and now **cut list diagrams**: each part's
-joinery drawn on the sheet, because the prose setup lines are hard to read at the
-bench. Static SPA, containerized, 488/488 tests passing.
+(the numbers you take to the bench), **cut list diagrams** (each part's joinery drawn
+on the sheet, because the prose setup lines are hard to read at the bench), and now a
+**label layout round** closing the diagrams' one user-visible gap: labels that
+overlapped or bled past the outline because nothing measured the text being placed.
+Static SPA, containerized, 515/515 tests passing.
 
 Host-specific deployment detail — hostname, container name, proxy configuration, and
 the manual steps a human has to perform — lives in `DEPLOYMENT.local.md`, which is
@@ -104,36 +106,61 @@ gitignored. Read that file before deploying; it is not in the public repo.
   function that does the printing — which makes that edge a settled boundary rather
   than the one-off exception it read as when `cutlist.ts` opened it.
 - **Known, deferred, and verified in a real browser** — see
-  `docs/follow-ups.md`'s "From the cut list diagrams" section for the depth-label
-  collision on close cuts (unsolved on purpose, with the named fix), which constants
+  `docs/follow-ups.md`'s "From the cut list diagrams" section for which constants
   turned out to need browser judgement rather than a test, and what the browser pass
-  actually checked versus what it could not.
+  actually checked versus what it could not. The depth-label collision on close cuts
+  was shipped open on purpose; it is closed by the label layout round below, not by
+  this one.
 
-**What is next: a diagram refinement round — layout edge cases and text overlap.**
-Chosen 2026-08-01, after the diagrams shipped and deployed. The subject is follow-up
-**59**, whose diagnosis is one sentence: *every `<text>` in `PartDiagram.tsx` is
-positioned by geometry alone, and nothing measures the width of the string being
-placed — SVG text has extent, and the code treats it as a point.* Sharpened: a label
-overflows whenever its run is shorter than the label is wide.
+**What the label layout round did**, design in
+`docs/superpowers/specs/2026-08-01-sloyd-diagram-label-layout-design.md`. Chosen
+2026-08-01, after the cut list diagrams shipped and deployed. The subject was
+follow-up **59**, whose diagnosis was one sentence: *every `<text>` in
+`PartDiagram.tsx` is positioned by geometry alone, and nothing measures the width of
+the string being placed — SVG text has extent, and the code treated it as a point.*
+Sharpened: a label overflowed whenever its run was shorter than the label was wide.
 
-Start from **59's measured table and item 65**, not from a fresh survey. A `getBBox()`
-harness (`docs/diagram-overlap-sweep.js`) already drove seven geometries in a real
-browser: four pass, three fail, and two plausible-sounding hypotheses were *disproved*
-and written down so they are not re-proposed. The failing cases are two dados ¾" apart,
-a cut at `offset: 0`, and — the one worth reading — a board drawn narrow by the shrink
-branch, where a ¾" cut gets a 6-unit run carrying a 41-unit label. That last is reached
-by any part wider than about 40% of its length, so a shelf or a panel, not an exotic
-input. One passing case clears by under a unit and should be read as a near-miss.
-
-Note what will not do: spec §5's named fix (fold the depth label into the leader row)
-closes the first failure and neither of the others, because those are leader labels
-colliding with each other and with the board's own edge. A fix aimed at the diagnosis
-has to reckon with label width somewhere — measured text, or a layout that cannot
-collide by construction. That is a design question, hence a round rather than a patch.
-
-This class of defect is invisible to the test suite by construction: `getBBox()` returns
-zeros under jsdom, which is how it survived a full TDD pass, two task reviews and a
-whole-branch review. Verify in a browser.
+- **Measured, not estimated — and arithmetic because the obvious tool doesn't exist
+  under test.** The fix needed to know how wide a label is before drawing it. The
+  obvious way, `getComputedTextLength()`, returns `0` under jsdom — invisible to
+  vitest by construction, which is the exact hole the whole defect class came through
+  in the first place. So `diagramLabels.ts`'s `labelWidth` is arithmetic instead:
+  character count × `CHAR_W`, where `CHAR_W` rests on `--font-num` (the monospace
+  stack already used everywhere else numbers print in this app) advancing at a fixed
+  rate per glyph. Measured in a real browser: **12.029 units/glyph** at font-size 20,
+  identical for digits, punctuation and mixed strings — a real monospace face, not an
+  assumption. `CHAR_W = 12.4` bounds that from above with 0.371 units/glyph of
+  headroom, so the bound errs toward spacing labels slightly too far apart rather than
+  too little (see follow-up 66 for what happens on a machine where the headroom isn't
+  enough).
+- **One-row-per-cut closes cross-cut collisions by construction.** Every number a cut
+  owns now lives in that cut's own stacked leader row, `ROW` units apart with no
+  arithmetic involved — two different cuts' labels cannot collide regardless of
+  string length, because nothing has to compute whether they do. Only the up-to-three
+  labels sharing one row (offset, width, depth) can still collide, and those are
+  settled by `packRow`, which measures each label via `labelWidth` and shifts labels
+  right, in board order, only as far as a genuine overflow requires.
+- **Depth moved into the row for a reason deeper than the collision that prompted
+  it.** Depth runs perpendicular to this view — it has no position on the page, so
+  centring it on its band was never spatially meaningful in the first place. Placing
+  it beside the band, in the row, is honest about that; the collision was the symptom
+  that surfaced a placement that was wrong on its own terms even before two labels
+  ever got close enough to overlap.
+- **End ticks fixed a defect the collision fix hadn't touched.** Adjacent leader-row
+  runs (the offset run, the band run) were collinear with identical stroke and read as
+  one continuous line, so the offset label appeared to measure all the way to the
+  cut's far side. A human looking at a rendered diagram found this, not the sweep
+  (which only reads `<text>`) or any test. Fixed with a short tick (`TICK`) at each
+  run boundary.
+- **The honest boundary: the unit tests cover layout logic, not font metrics.** Eight
+  geometries are pinned as unit tests and pass because `packRow`'s arithmetic is
+  correct given `CHAR_W` — they cannot, and do not claim to, prove that `--font-num`
+  actually advances at that rate in any given browser. That claim is browser-measured
+  (above) and re-verified by the sweep (`docs/diagram-overlap-sweep.js`), which came
+  back **ALL CLEAN: 8 geometries, 0 issues** at a re-derived `TOL = 0.1` (see follow-up
+  65). See follow-ups 59, 62, 65-70 for the full record, including the round's own two
+  new instances of plan-supplied code being wrong (68) and what "sweep clean" does and
+  does not mean (69).
 
 **Deferred behind it**, from the cut list's §7, recorded as decisions rather than
 omissions: **board-feet and sheet totals** (cheap now that `buildCutList` exists, but a
@@ -363,10 +390,16 @@ src/
 │   ├── Properties.tsx       board fields + the Cuts section; CutRow is its own
 │   │                        component so a cut's error dies with the cut
 │   ├── diagramScale.ts      fitView (uniform scale + sliver clamp + height ceiling) /
-│   │                        band (centred widening to MIN_FEATURE). Pure.
+│   │                        band (centred widening to MIN_FEATURE, ordering-guarded). Pure.
+│   ├── diagramLabels.ts     LABEL_SIZE / CHAR_W / labelWidth (character count ×
+│   │                        monospace advance) / packRow (ideal centres in,
+│   │                        non-overlapping centres out). Pure; the arithmetic
+│   │                        substitute for getComputedTextLength(), which is 0
+│   │                        under jsdom.
 │   ├── PartDiagram.tsx      one view, drawn as SVG: outline, hatched/dashed cut
-│   │                        bands, stacked leaders. Formats nothing — every label
-│   │                        string arrives from buildDiagrams
+│   │                        bands, one stacked leader row per cut (offset/width/
+│   │                        depth packed via packRow). Formats nothing — every
+│   │                        label string arrives from buildDiagrams
 │   └── CutList.tsx          the printable sheet: derives from the document on every
 │                            render, owns Escape-to-close and takes focus on mount,
 │                            calls formatLength never, and owns the Diagrams toggle
@@ -553,13 +586,30 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
     values compared to stored values, and two cuts a user entered identically hold
     identical doubles. Exact comparison is the correct tool precisely because nothing
     computes these numbers on the way in.
+19. **`LABEL_SIZE` has exactly one home, and `--font-num` on diagram text is
+    load-bearing, not cosmetic.** `LABEL_SIZE` (`diagramLabels.ts`) is applied to the
+    `<svg>` element as a `fontSize` attribute; `styles.css` must never set a
+    `font-size` on diagram text (`.cutlist-diagram-overall`,
+    `.cutlist-diagram-leader text`). The reason is stronger than the usual
+    single-source-of-truth argument: `labelWidth`'s arithmetic (character count ×
+    `CHAR_W`) is only true of the size the browser actually renders, so a second
+    `font-size` living in the CSS — even one that happened to agree with
+    `LABEL_SIZE` today — would be a value a future edit could drift out of step with
+    silently, exactly the shape follow-up 64 already recorded once for spacing
+    constants. The font-family matters for the same load-bearing reason: `--font-num`
+    is a monospace stack, which is what makes a fixed units-per-glyph advance true in
+    the first place. Swap it for a proportional face and every glyph's width varies,
+    `labelWidth` returns a number with no relationship to what's drawn, and `packRow`
+    starts placing labels on top of each other while every unit test still passes —
+    because the tests assert the arithmetic, not the render. See follow-up 66 for the
+    bounded, not universal, headroom that arithmetic rests on.
 
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 488 tests
+npm test           # Vitest, currently 515 tests
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -610,22 +660,34 @@ also *corrected* rather than closed, 54 having overstated its risk and 55 having
 a board whose cuts happen to remove all of it still has the stock it was cut from, so
 it appears on the sheet correctly even while it renders as nothing in the viewport.
 
-The cut list diagrams added **59-64**, all open, all recorded rather than fixed. **59**
-is the one with a user-visible consequence — depth labels can collide when two cuts sit
-close together, unsolved on purpose per spec §5, with the fix (move depth into the
-leader row) already named. **60** records `MAX_ASPECT`/`MAX_HEIGHT` as browser-settled
-rather than test-settled: both extremes this pass checked (a 96" rail, a 24" square
-panel) read as legible at the values shipped, but no test pins *readability*, only
-consistency. **61** confirms the §2 non-goal (one view per `(face, across)` pair, cuts
-that name the same dimension twice) survived verification — the panel's own `setFace`
-already prevents the degenerate case, so `diagram.ts`'s guard is belt-and-suspenders,
-not load-bearing, in the UI path. **62** and **63** are latent-not-live: `band()` has no
-ordering guard on its `Span` argument (unreachable while `cutRegion` is the only
-producer), and `DiagramCut.v`/`.kind` are unused by `PartDiagram` today. **64** is a
+The cut list diagrams added **59-64**. **59 is now closed** by the label layout round
+below — depth labels no longer collide, because every number a cut owns lives in that
+cut's own stacked leader row (cross-cut collisions close by construction) and the
+up-to-three labels sharing a row are settled by `packRow` (collisions within a row
+close by arithmetic on a measured monospace advance). **60** records
+`MAX_ASPECT`/`MAX_HEIGHT`/`MIN_WIDTH` as browser-settled rather than test-settled — the
+label layout round re-checked all three extremes with the new layout in place and
+changed no constant. **61** confirms the §2 non-goal (one view per `(face, across)`
+pair, cuts that name the same dimension twice) survived verification — the panel's own
+`setFace` already prevents the degenerate case, so `diagram.ts`'s guard is
+belt-and-suspenders, not load-bearing, in the UI path. **62 is now closed** — an
+ordering guard on `band()`'s `Span` argument, added opportunistically while that
+function was already open for another fix. **63** is latent-not-live still:
+`DiagramCut.v`/`.kind`/`DiagramFit.sy` are unused by `PartDiagram` today. **64** is a
 lesson, not a defect — Task 4's plan-supplied spacing constants overlapped a label with
 the outline before review caught it, the same failure shape as joinery's "seven defects
 in code the plan supplied verbatim," now with a second instance from a different
 feature.
+
+The label layout round closed **59 and 62**, amended **60, 63 and 65**, and added
+**66-70** — see `docs/follow-ups.md`'s "From the label layout round" section. **68** is
+a second lesson entry worth reading beside 64: this round produced a *third and
+fourth* instance of plan-supplied code being wrong, both shaped the same way — a guard
+written for one direction, and a test written to the guard rather than to the
+requirement. **69** records what the sweep's green does and does not mean: it collects
+only `<text>`, so a defect made of two fused `<line>`s (found by a human, not any
+guard or test) was invisible to it. **70** records what was *not* verified — an actual
+print-to-PDF render, which the Playwright MCP on this host cannot produce.
 
 One entry is a lesson rather than a defect and is worth reading before touching anything
 in the viewport: **26a**. Browser verification on this host runs on software GL
