@@ -252,4 +252,83 @@ describe('buildCutList', () => {
     expect(line).toContain(`${drawn.depthLabel} —`);
     expect(line).toContain(`${drawn.offsetLabel} from the`);
   });
+
+  it('reports board feet for a row, quantity included', () => {
+    // 24 * 5.5 * 0.75 = 99 cubic inches each; two of them = 198; /144 = 1.375
+    const list = buildCutList(docWith(
+      { length: 24, width: 5.5, thickness: 0.75 },
+      { length: 24, width: 5.5, thickness: 0.75 },
+    ));
+    expect(list.groups[0].rows[0].stock).toBe('1.38 bd ft');
+    expect(list.groups[0].rows[0].stockInches).toBeCloseTo(198, 10);
+  });
+
+  it('sums each board EXACTLY, not the row representative times quantity', () => {
+    // These two print identically at 1/16" and so share a row (invariant 18),
+    // but they are not the same purchase. The row must total 99 + 99.0825 =
+    // 198.0825 cubic inches, NOT 2 x 99. This is spec section 2, and it is the
+    // test that fails if someone later "simplifies" this to qty * volume.
+    const list = buildCutList(docWith(
+      { length: 24, width: 5.5, thickness: 0.75 },
+      { length: 24.02, width: 5.5, thickness: 0.75 },
+    ));
+    expect(list.groups[0].rows).toHaveLength(1);
+    expect(list.groups[0].rows[0].qty).toBe(2);
+    expect(list.groups[0].rows[0].stockInches).toBeCloseTo(198.0825, 6);
+    expect(list.groups[0].rows[0].stockInches).not.toBeCloseTo(198, 6);
+  });
+
+  it('ignores cuts — board feet is stock bought, not stock remaining', () => {
+    // A dado does not reduce the board you buy. Spec section 1. If someone
+    // "fixes" this by subtracting removed stock, this test is what stops them.
+    const dado: Cut = {
+      id: 'c1', face: 'thickness', from: 'max', across: 'width',
+      offset: 6, width: 0.75, depth: 0.25,
+    };
+    const plain = buildCutList(docWith({ length: 24, width: 5.5, thickness: 0.75 }));
+    const dadoed = buildCutList(docWith({ length: 24, width: 5.5, thickness: 0.75, cuts: [dado] }));
+    expect(dadoed.groups[0].rows[0].stockInches)
+      .toBeCloseTo(plain.groups[0].rows[0].stockInches, 10);
+    expect(dadoed.groups[0].rows[0].stock).toBe('0.69 bd ft');
+  });
+
+  it('reports square feet for sheet goods, with thickness absent from the maths', () => {
+    // 24 * 30 = 720 square inches; /144 = 5.00. Thickness must not appear.
+    const list = buildCutList(docWith(
+      { material: 'plywood', length: 24, width: 30, thickness: 0.75 },
+    ));
+    expect(list.groups[0].rows[0].stock).toBe('5.00 sq ft');
+    expect(list.groups[0].rows[0].stockInches).toBeCloseTo(720, 10);
+  });
+
+  it('reports square feet for MDF too', () => {
+    const list = buildCutList(docWith(
+      { material: 'mdf', length: 12, width: 12, thickness: 0.5 },
+    ));
+    expect(list.groups[0].rows[0].stock).toBe('1.00 sq ft');
+  });
+
+  it('subtotals a group as the sum of its rows', () => {
+    const list = buildCutList(docWith(
+      { length: 24, width: 5.5, thickness: 0.75 },   // 99
+      { length: 36, width: 7.25, thickness: 0.75 },  // 195.75
+    ));
+    const group = list.groups[0];
+    expect(group.rows).toHaveLength(2);
+    const summed = group.rows.reduce((n, r) => n + r.stockInches, 0);
+    expect(group.stockInches).toBeCloseTo(summed, 10);
+    expect(group.stockInches).toBeCloseTo(294.75, 10);
+    expect(group.stock).toBe('2.05 bd ft');
+  });
+
+  it('gives a sheet-goods group its own unit', () => {
+    const list = buildCutList(docWith(
+      { material: 'plywood', length: 24, width: 30, thickness: 0.75 },
+      { material: 'pine', length: 24, width: 5.5, thickness: 0.75 },
+    ));
+    const ply = list.groups.find((g) => g.material === 'plywood')!;
+    const pine = list.groups.find((g) => g.material === 'pine')!;
+    expect(ply.stock).toBe('5.00 sq ft');
+    expect(pine.stock).toBe('0.69 bd ft');
+  });
 });

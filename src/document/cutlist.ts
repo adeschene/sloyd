@@ -1,10 +1,11 @@
-import { MATERIALS } from './types';
+import { MATERIALS, isSheetGood } from './types';
 import type { Board, Cut, Grain, SloydDocument } from './types';
 import { positionAxisOf } from './geometry';
 import { cutLabel } from './cuts';
 import { buildDiagrams } from './diagram';
 import type { DiagramView } from './diagram';
 import { formatLength } from '../units/length';
+import { formatBoardFeet, formatSquareFeet } from '../units/quantity';
 
 /**
  * One row of the cut list: every part that is cut from the same stock, in the
@@ -44,6 +45,26 @@ export interface CutListRow {
    * word.
    */
   diagrams: DiagramView[];
+  /**
+   * Raw accumulated inches of stock this row consumes: CUBIC inches for solid
+   * lumber, SQUARE inches for sheet goods. Quantity is already included.
+   *
+   * THE ONE NUMBER ON THIS ROW THAT IS NOT THE REPRESENTATIVE'S. Every other
+   * dimension here is the first board's (see this interface's own doc comment
+   * and follow-up 55); this is summed from every board's exact dimensions as
+   * the grouping loop visits it. The distinction is not pedantic: a printed
+   * dimension's rounding error is invisible because every board on the row
+   * prints the same string, but a SUM multiplies that error by `qty` and then
+   * again across the group. Two boards 0.02" apart are one row correctly, and
+   * are not the same purchase.
+   *
+   * The visible consequence, which is intended: this may not equal `qty` times
+   * the dimensions printed beside it. The printed dimensions are rounded; this
+   * is not.
+   */
+  stockInches: number;
+  /** `stockInches` formatted with its unit, e.g. `1.38 bd ft`. */
+  stock: string;
 }
 
 export interface CutListGroup {
@@ -59,6 +80,15 @@ export interface CutListGroup {
   /** e.g. `Pine — 3/4"` */
   label: string;
   rows: CutListRow[];
+  /**
+   * The sum of this group's rows' `stockInches`, in the same unit — cubic
+   * inches for solid lumber, square inches for sheet goods. A group is one
+   * material, and `isSheetGood` is a fact about the material, so a group is
+   * uniform in unit and never has to choose.
+   */
+  stockInches: number;
+  /** `stockInches` formatted with its unit, e.g. `2.05 bd ft`. */
+  stock: string;
 }
 
 export interface CutList {
@@ -166,6 +196,24 @@ function rowKey(board: Board, precision: number): string {
   ].join('|');
 }
 
+/**
+ * The stock one board consumes, in the unit its material is sold in: cubic
+ * inches for solid lumber, square inches for sheet goods (which are sold by
+ * the sheet — thickness is a property of the sheet you buy, not a multiplier).
+ *
+ * STOCK DIMENSIONS ONLY — `board.cuts` is deliberately not read. A dado does
+ * not reduce the board you buy: the stock leaves the yard whole and the
+ * joinery happens afterward, out of material already paid for. This is the
+ * inverse of what every other consumer of `cuts` does (`boardSolids` removes
+ * stock, `buildDepthField` measures the removal, `buildDiagrams` draws it), so
+ * a reader arriving from `cuts.ts` will be primed to subtract here. Don't.
+ */
+function stockInchesOf(board: Board): number {
+  return isSheetGood(board.material)
+    ? board.length * board.width
+    : board.length * board.width * board.thickness;
+}
+
 export function buildCutList(doc: SloydDocument): CutList {
   const precision = doc.units.precision;
   const groups = new Map<string, CutListGroup>();
@@ -180,6 +228,8 @@ export function buildCutList(doc: SloydDocument): CutList {
         thickness: board.thickness,
         label: `${materialLabel(board.material)} — ${formatLength(board.thickness, precision)}`,
         rows: [],
+        stockInches: 0,
+        stock: '',
       };
       groups.set(groupKey, group);
     }
@@ -212,12 +262,22 @@ export function buildCutList(doc: SloydDocument): CutList {
         // more useful one at the bench. Follow-up 55.
         setup: board.cuts.map((cut) => setupLine(board, cut, precision)),
         diagrams: buildDiagrams(board, precision),
+        stockInches: 0,
+        stock: '',
       };
       rows.set(key, row);
       group.rows.push(row);
     }
     row.qty += 1;
     row.names.push(board.name);
+
+    // Accumulated HERE, in the same visit that increments `qty`, and from this
+    // board's own exact dimensions — see stockInches' doc comment. Adding to
+    // the group in the same statement is what makes a subtotal and its rows
+    // impossible to disagree: they are the same additions, not two passes.
+    const stock = stockInchesOf(board);
+    row.stockInches += stock;
+    group.stockInches += stock;
   }
 
   const out = [...groups.values()];
@@ -227,6 +287,9 @@ export function buildCutList(doc: SloydDocument): CutList {
     group.rows.sort(
       (a, b) => b.length - a.length || b.width - a.width || a.key.localeCompare(b.key),
     );
+    const format = isSheetGood(group.material) ? formatSquareFeet : formatBoardFeet;
+    group.stock = format(group.stockInches);
+    for (const row of group.rows) row.stock = format(row.stockInches);
   }
   out.sort(
     (a, b) =>
