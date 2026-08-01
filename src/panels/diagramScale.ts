@@ -87,11 +87,35 @@ export function fitView(h: number, v: number): DiagramFit {
  * the far end — and centre-preserving widening keeps the error symmetric and
  * bounded at MIN_FEATURE / 2. The annotated numbers stay exact regardless; the
  * printed caption says the drawing is schematic.
+ *
+ * Two guards sit around that, and neither is decoration:
+ *
+ * ORDERING. A `[max, min]` span yields a negative width, which fails the
+ * MIN_FEATURE test and falls into the widening branch — drawing a plausible
+ * narrow band in the wrong place with no error anywhere (follow-up 62).
+ * `cutRegion` is the only current producer and always emits min-then-max, but
+ * this is a small exported pure function and a hand-built Span is one import
+ * away.
+ *
+ * CLAMPING. Widening about the centre puts the band outside the board whenever
+ * the cut is within MIN_FEATURE / 2 of an edge — a cut at `offset: 0` came out
+ * at `x = centre - 3`, left of the outline, and `overflow: visible` drew it
+ * there. Clamping gives up exact centring in precisely the case where exact
+ * centring is wrong, and nowhere else.
  */
 export function band(span: Span, fit: DiagramFit): { x: number; width: number } {
-  const x0 = fit.offsetX + span[0] * fit.sx;
-  const x1 = fit.offsetX + span[1] * fit.sx;
+  const lo = Math.min(span[0], span[1]);
+  const hi = Math.max(span[0], span[1]);
+  const x0 = fit.offsetX + lo * fit.sx;
+  const x1 = fit.offsetX + hi * fit.sx;
   const width = x1 - x0;
   if (width >= MIN_FEATURE) return { x: x0, width };
-  return { x: (x0 + x1) / 2 - MIN_FEATURE / 2, width: MIN_FEATURE };
+
+  // Widen about the centre, then slide back inside the outline if that pushed
+  // an edge cut out of it. `Math.max` last so a board drawn narrower than
+  // MIN_FEATURE pins to the left edge rather than inverting the clamp.
+  const left = fit.offsetX;
+  const right = fit.offsetX + fit.drawnH;
+  const x = (x0 + x1) / 2 - MIN_FEATURE / 2;
+  return { x: Math.max(left, Math.min(x, right - MIN_FEATURE)), width: MIN_FEATURE };
 }
