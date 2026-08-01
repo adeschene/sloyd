@@ -4,6 +4,7 @@ import { Toolbar } from './panels/Toolbar';
 import { PartsList } from './panels/PartsList';
 import { Properties } from './panels/Properties';
 import { FileMenu, SaveIndicator, StorageBanner } from './panels/FileMenu';
+import { CutList } from './panels/CutList';
 import { storage } from './storage/browser';
 import { useStore } from './store/store';
 
@@ -38,6 +39,9 @@ export default function App() {
   // "how big is this" and "where is the origin".
   const [showGrid, setShowGrid] = useState(true);
   const [showAxes, setShowAxes] = useState(true);
+  // Also view state, and also deliberately outside the document and the undo
+  // stack: the cut list is a way of looking at a project, not part of one.
+  const [cutListOpen, setCutListOpen] = useState(false);
   const restored = useRef(false);
 
   // Restore once on mount, before any autosave can overwrite it.
@@ -96,6 +100,12 @@ export default function App() {
       // Never steal keys from a field the user is typing in.
       if (isTextEntry(e.target as HTMLElement)) return;
 
+      // The cut list covers the app, so board shortcuts must not fire behind
+      // it — Delete/Backspace especially, which would silently delete the
+      // selected board while the user is reading a sheet that never shows a
+      // selection. Escape is handled by CutList itself.
+      if (cutListOpen) return;
+
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         e.shiftKey ? redo() : undo();
@@ -115,7 +125,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [undo, redo, deleteBoard]);
+  }, [undo, redo, deleteBoard, cutListOpen]);
 
   return (
     <div className="app">
@@ -126,6 +136,7 @@ export default function App() {
         onToggleGrid={() => setShowGrid((v) => !v)}
         showAxes={showAxes}
         onToggleAxes={() => setShowAxes((v) => !v)}
+        onOpenCutList={() => setCutListOpen(true)}
       >
         <SaveIndicator saving={saving} available={available} />
         <FileMenu />
@@ -144,6 +155,7 @@ export default function App() {
           </section>
         </aside>
       </main>
+      {cutListOpen && <CutList onClose={() => setCutListOpen(false)} />}
     </div>
   );
 }

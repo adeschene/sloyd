@@ -24,6 +24,7 @@ function renderToolbar(overrides: Partial<Parameters<typeof Toolbar>[0]> = {}) {
       onToggleGrid={noop}
       showAxes
       onToggleAxes={noop}
+      onOpenCutList={noop}
       {...overrides}
     />,
   );
@@ -105,5 +106,12 @@ describe('Toolbar view toggles', () => {
 
     expect(onToggleAxes).toHaveBeenCalledTimes(1);
     expect(onToggleGrid).not.toHaveBeenCalled();
+  });
+
+  it('opens the cut list', async () => {
+    let opened = false;
+    renderToolbar({ onOpenCutList: () => { opened = true; } });
+    await userEvent.click(screen.getByText('Cut list'));
+    expect(opened).toBe(true);
   });
 });

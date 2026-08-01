@@ -211,6 +211,18 @@ describe('App keyboard delete', () => {
     expect(useStore.getState().doc.boards).toHaveLength(1);
   });
 
+  it('does not delete the selected board while the cut list is open', async () => {
+    const id = await mountWithOneBoard();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Cut list' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    await user.keyboard('{Delete}');
+
+    expect(useStore.getState().doc.boards).toHaveLength(1);
+    expect(useStore.getState().selectedId).toBe(id);
+  });
+
   it('does not steal Backspace from the Length field', async () => {
     // Regression test: Backspace must be blocked when editing dimensions,
     // not just for arbitrary text inputs. If a bypass for testing artifacts
