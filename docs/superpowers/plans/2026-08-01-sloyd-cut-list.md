@@ -112,14 +112,20 @@ describe('buildCutList', () => {
   });
 
   it('collapses lengths closer together than the display precision', () => {
-    // 1/32" apart, rendered at 1/16" — both print as 24", so they are one row.
-    const list = buildCutList(docWith({ length: 24 }, { length: 24.03125 }));
+    // 0.02" apart: both print as 24" at 1/16", so they are one row.
+    //
+    // NOT 24.03125 (a clean 1/32"), which looks like the obvious choice and is
+    // wrong: it is exactly half a tick at 1/16", `Math.round` takes .5 upward,
+    // and it prints as 24-1/16". Verified with the real arithmetic rather than
+    // assumed — `formatLength`'s tick count for 24, 24.02 and 24.03125 at
+    // precision 16 is 384, 384 and 385.
+    const list = buildCutList(docWith({ length: 24 }, { length: 24.02 }));
     expect(list.groups[0].rows).toHaveLength(1);
     expect(list.groups[0].rows[0].qty).toBe(2);
   });
 
   it('splits those same lengths when the document asks for 1/32"', () => {
-    const doc = docWith({ length: 24 }, { length: 24.03125 });
+    const doc = docWith({ length: 24 }, { length: 24.02 });
     doc.units = { display: 'imperial-fractional', precision: 32 };
     expect(buildCutList(doc).groups[0].rows).toHaveLength(2);
   });
@@ -374,13 +380,16 @@ Replace the `leaves setup empty at this stage` test in `src/document/cutlist.tes
   });
 
   it('names the position axis from face and across, not from a stored field', () => {
-    // face=length, across=thickness leaves width as the position axis.
+    // face=length, across=thickness leaves width as the position axis. The
+    // offset drops to 2" because the position axis is now the board's 5-1/2"
+    // width — the default 6" would be off the end of it, and a test that
+    // encoded an out-of-range cut as ordinary is one a future reader copies.
     const list = buildCutList(docWith({
-      cuts: [dado({ face: 'length', across: 'thickness', from: 'max', depth: 0.5 })],
+      cuts: [dado({ face: 'length', across: 'thickness', from: 'max', offset: 2, depth: 0.5 })],
     }));
     expect(list.groups[0].rows[0].setup[0]).toBe(
       '3/4" dado, 1/2" deep — into the length face (max side), ' +
-      '6" from the width min end, running across the thickness',
+      '2" from the width min end, running across the thickness',
     );
   });
 
@@ -418,12 +427,14 @@ Replace the `leaves setup empty at this stage` test in `src/document/cutlist.tes
     // The asymmetry IS the design: a stock dimension rounded to the precision
     // you cut to costs nothing, a dado location rounded the same way costs the
     // joint. Both halves in one test so neither can be relaxed alone.
-    const loose = buildCutList(docWith({ length: 24 }, { length: 24.03125 }));
+    // The SAME 0.02" delta on both halves, which is what makes this a contrast
+    // rather than two unrelated assertions.
+    const loose = buildCutList(docWith({ length: 24 }, { length: 24.02 }));
     expect(loose.groups[0].rows).toHaveLength(1);
 
     const strict = buildCutList(docWith(
       { cuts: [dado({ offset: 6 })] },
-      { cuts: [dado({ offset: 6.03125 })] },
+      { cuts: [dado({ offset: 6.02 })] },
     ));
     expect(strict.groups[0].rows).toHaveLength(2);
   });
