@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import {
   boardCenter, boardEdges, boardExtents, boardSolids, pointToLocalXYZ,
-  solidWorldBox, MATERIALS, DEFAULT_MATERIAL,
+  solidWorldBox, wholeBoard, MATERIALS, DEFAULT_MATERIAL,
 } from '../document/document';
 import type { Board } from '../document/document';
 import { faceGrainKinds, grainFamily } from './grainFaces';
@@ -26,6 +26,22 @@ const EDGE_DARKEN = 0.3;
  */
 const CLICK_DRAG_SLOP_PX = 2;
 
+/**
+ * How solid the placeholder ghost is when a board's own cuts have removed all
+ * of its stock (`boardSolids` returning `[]` — follow-ups 48 and 49).
+ *
+ * Browser-settled by comparison, not derived. 0.1 was rendered against this
+ * app's near-white ground and rejected: at that value the grid reads straight
+ * through the fill and the ghost collapses to outline-only, which is exactly
+ * what the fill exists to avoid — see invariant 21 for why an outline alone is
+ * not enough. 0.22 gives it a discernible body while staying faint enough to
+ * read as absent stock rather than as a board that is merely translucent.
+ *
+ * Two values compared in one browser on one background, not a sweep. A darker
+ * theme would want this re-checked.
+ */
+const GHOST_OPACITY = 0.22;
+
 interface Props {
   board: Board;
   selected: boolean;
@@ -48,13 +64,40 @@ export function BoardMesh({ board, selected, onSelect }: Props) {
   // which now covers cuts, so adding a dado rebuilds these. extents stay in
   // the array for the same reason as before: the box's own size belongs on
   // the memo that builds the box.
+  //
+  // `boardSolids` can legitimately return `[]` — a board whose own cuts have
+  // consumed all of its stock, reachable by shrinking a dimension past an
+  // existing cut (follow-up 48) or by two individually-legal cuts that jointly
+  // remove everything (49). Before this branch existed the board then drew
+  // nothing at all: no meshes, and no edges either, since boardEdges' rule
+  // draws nothing when every cell is empty. It stayed in the parts list showing
+  // its dimensions while being invisible and unclickable in the viewport, and a
+  // reload silently repaired it (validateCuts drops the offending cut), which
+  // made the state look like a rendering glitch rather than something the user
+  // did. So: fall back to one placeholder box at the board's own AABB.
+  //
+  // The fallback lives in THIS memo rather than a new one on purpose. A second
+  // memo would need its own hand-written dependency list, which is exactly
+  // invariant 15's failure mode; riding along here inherits the signature key
+  // and the disposal effect below for free.
   const geometries = useMemo(() => {
-    return boardSolids(board).map((solid) => {
-      const { center, size } = solidWorldBox(board, solid);
-      const geo = new THREE.BoxGeometry(size[0], size[1], size[2]);
-      geo.setAttribute('uv', new THREE.BufferAttribute(boardUVs(board, solid), 2));
-      return { geo, center };
-    });
+    const solids = boardSolids(board);
+    if (solids.length === 0) {
+      const { center, size } = solidWorldBox(board, wholeBoard(board));
+      return {
+        placeholder: true,
+        items: [{ geo: new THREE.BoxGeometry(size[0], size[1], size[2]), center }],
+      };
+    }
+    return {
+      placeholder: false,
+      items: solids.map((solid) => {
+        const { center, size } = solidWorldBox(board, solid);
+        const geo = new THREE.BoxGeometry(size[0], size[1], size[2]);
+        geo.setAttribute('uv', new THREE.BufferAttribute(boardUVs(board, solid), 2));
+        return { geo, center };
+      }),
+    };
   }, [
     extents[0], extents[1], extents[2],
     boardUVSignature(board),
@@ -62,12 +105,25 @@ export function BoardMesh({ board, selected, onSelect }: Props) {
 
   // Every geometry, not just the first — disposing one of N leaks the rest
   // on every rebuild.
-  useEffect(() => () => geometries.forEach(({ geo }) => geo.dispose()), [geometries]);
+  useEffect(
+    () => () => geometries.items.forEach(({ geo }) => geo.dispose()),
+    [geometries],
+  );
 
   // Edges come from the cell grid, not from the solids: the remainder around
   // a dado is L-shaped in section, so per-solid EdgesGeometry would draw
   // seams across the board's own uncut faces. See boardEdges.
+  //
+  // In the placeholder case boardEdges returns nothing — its rule draws a
+  // segment only where filled and empty cells meet, and every cell is empty —
+  // so the ghost's outline is taken from its own box instead. That outline is
+  // what actually carries the part's shape; the translucent fill only makes it
+  // pickable across its whole face rather than within a line's raycast
+  // threshold.
   const edges = useMemo(() => {
+    if (geometries.placeholder) {
+      return new THREE.EdgesGeometry(geometries.items[0].geo);
+    }
     const points = boardEdges(board).flatMap(([a, b]) => [
       ...pointToLocalXYZ(board, a),
       ...pointToLocalXYZ(board, b),
@@ -75,7 +131,7 @@ export function BoardMesh({ board, selected, onSelect }: Props) {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
     return geo;
-  }, [extents[0], extents[1], extents[2], boardUVSignature(board)]);
+  }, [extents[0], extents[1], extents[2], boardUVSignature(board), geometries]);
 
   useEffect(() => () => edges.dispose(), [edges]);
 
@@ -84,13 +140,15 @@ export function BoardMesh({ board, selected, onSelect }: Props) {
 
   return (
     <group position={center}>
-      {geometries.map(({ geo, center: offset }, index) => (
+      {geometries.items.map(({ geo, center: offset }, index) => (
         <mesh
           key={index}
           geometry={geo}
           position={offset}
-          castShadow
-          receiveShadow
+          // A ghost casts no shadow and receives none — there is no stock here
+          // to do either, and a shadow would assert the part is solid.
+          castShadow={!geometries.placeholder}
+          receiveShadow={!geometries.placeholder}
           onClick={(e) => {
             // Only a click that didn't travel selects. R3F fires onClick for any
             // release whose object was among the pointer-down hits, with no
@@ -108,13 +166,22 @@ export function BoardMesh({ board, selected, onSelect }: Props) {
             onSelect(board.id);
           }}
         >
-          {/* One material per face, in BoxGeometry's group order, so a face, an
-              edge and an end can each show their own cut of the wood. The texture
-              is a shared greyscale mask; the species colour tints it.
-              polygonOffset pushes the faces back a hair so the edge lines below —
-              which sit exactly on those faces — draw solid instead of stippling
-              through the depth test. */}
-          {kinds.map((kind, i) => (
+          {/* The ghost takes ONE plain material rather than the six grain
+              materials: per-face grain describes how stock was sawn, and this
+              board has no stock left to have been sawn from anything. Its job
+              is only to be visible and pickable. depthWrite stays off so the
+              ghost never occludes real boards standing behind it — a part with
+              no stock must not hide one that has some. */}
+          {geometries.placeholder ? (
+            <meshStandardMaterial
+              color={selected ? SELECTED : color}
+              roughness={0.9}
+              metalness={0}
+              transparent
+              opacity={GHOST_OPACITY}
+              depthWrite={false}
+            />
+          ) : kinds.map((kind, i) => (
             <meshStandardMaterial
               key={`${i}-${kind}`}
               attach={`material-${i}`}

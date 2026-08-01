@@ -36,12 +36,39 @@ production. Do not treat any of the four as in-flight. What is deliberately *not
 sits in two places, and both are decisions rather than omissions: the **"Deferred behind
 it"** paragraph below (board-feet and sheet totals; sheet-goods nesting; CSV export and
 name run-collapsing, both declined with reasons worth reading before re-proposing), and
-`docs/follow-ups.md`'s open entries. The two with a real user-visible consequence are
-still **48 and 49** — a board whose cuts remove all its stock renders as nothing — which
-no round since joinery has touched. Two things about the diagrams remain unverified
+`docs/follow-ups.md`'s open entries. **48 and 49 — a board whose cuts remove all its
+stock rendering as nothing — are now CLOSED**, by the empty-solids placeholder described
+below; no open follow-up currently has a user-visible consequence. Two things about the
+diagrams remain unverified
 rather than fixed: a **print-to-PDF render** (this host's Playwright exposes no `pdf()`)
 and **hatch-versus-cross-hatch legibility at screen size**, which is a recorded negative
 finding, not an assumption — see follow-ups 76 and 79.
+
+**What the empty-solids placeholder did** (2026-08-01, closing follow-ups 48 and 49; no
+spec — the diagnosis and the chosen fix were already in the ledger). A board whose own
+cuts consumed all of its stock drew *nothing*: no meshes, and no edges either, since
+`boardEdges`' rule draws only where filled and empty cells meet. It sat in the parts
+list showing its dimensions while being invisible and unclickable, and a reload silently
+repaired it (`validateCuts` drops the cut), which made the state read as a rendering
+glitch rather than as something the user did. `BoardMesh` now falls back to one
+translucent ghost box at the board's AABB whenever `boardSolids` returns `[]`.
+
+- **The ghost is a mesh because "selectable" demands one.** `THREE.Line` raycasting
+  only hits within ~1" of a drawn line, so the wireframe the ledger first sketched
+  would have made the part legible without making it clickable — half of what 48 asked
+  for. The fill is what makes the whole face pickable; the outline (taken from the
+  ghost's own box, since `boardEdges` yields nothing here) is what carries its shape.
+- **It rides in the existing `geometries` memo**, which is now `{ placeholder, items }`
+  rather than a bare array. A separate memo would have needed its own hand-written
+  dependency list — invariant 15's exact failure mode — where riding along inherits the
+  `boardUVSignature` key and the disposal effect unchanged.
+- **No guard was added to dimension writes**, 48's other candidate fix. One state, one
+  mechanism: the placeholder covers both routes and any future one, and a dimension
+  guard would have to refuse an edit the user is entitled to make.
+- **Verified in a browser, both routes, before and after** — the repo's rule for
+  viewport work. `GHOST_OPACITY` is a browser-settled constant in the sense of
+  follow-up 60, not something a test could fix. No schema change, no new tests: the
+  precondition (`boardSolids` returning `[]`) was already pinned in `cuts.test.ts`.
 
 **What the cut list did**, design in
 `docs/superpowers/specs/2026-08-01-sloyd-cut-list-design.md`, plan in
@@ -253,8 +280,9 @@ omissions: **board-feet and sheet totals** (cheap now that `buildCutList` exists
 purchasing number rather than a bench number) and **sheet-goods nesting**, a real
 packing problem wanting its own spec. CSV/clipboard export and name run-collapsing
 (`Leg 1..4`) were looked at and declined, for reasons worth reading before proposing
-either again. In the older ledger, **48 and 49** remain the only two entries with a
-user-visible consequence, unaffected by the cut list or the diagrams.
+either again. In the older ledger, **48 and 49** were the only two entries with a
+user-visible consequence — unaffected by the cut list or the diagrams, and closed
+separately by the empty-solids placeholder.
 
 **What joinery did**, design in
 `docs/superpowers/specs/2026-07-31-sloyd-joinery-design.md`, plan in
@@ -464,7 +492,9 @@ src/
 │   └── browser.ts           BrowserStorageAdapter + the `storage` singleton
 ├── viewport/
 │   ├── Viewport.tsx         Canvas, lights, grid, shadow receiver, camera keys
-│   ├── BoardMesh.tsx        one board, derived from the document each render
+│   ├── BoardMesh.tsx        one board, derived from the document each render;
+│   │                        falls back to a translucent ghost box at the AABB
+│   │                        when boardSolids is empty — see invariant 21
 │   ├── OriginAxes.tsx       origin axis lines, R=X G=Y(up) B=Z; dashed = negative
 │   ├── gridDensity.ts       grid tier ladder (1in -> 1ft -> 12ft). Pure.
 │   ├── screenScale.ts       px-per-inch + screen-stable dash scale. Pure.
@@ -730,6 +760,27 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
     expected). Any future agreement test between a 2D derivation and its 3D source must assert
     the value the derivation claims to compute, not just where it claims to differ
     from zero.
+21. **The empty-solids placeholder must stay a mesh, not a wireframe.** When
+    `boardSolids` returns `[]` — a board its own cuts have consumed, follow-ups 48
+    and 49 — `BoardMesh` draws a translucent ghost box at the board's AABB. The
+    obvious "simplification" is to drop the fill and keep only the outline, since
+    the outline is what carries the shape. That silently breaks selection:
+    `THREE.Line` raycasting registers a hit only within
+    `raycaster.params.Line.threshold` (default 1 world unit, so 1 inch here) of a
+    drawn line, which leaves the whole interior of the ghost dead to the pointer.
+    The part would look right in every screenshot and be unclickable everywhere
+    except within an inch of an edge. That is a viewport-parity rule, not a
+    recovery-path one: a part you can see is a part you can click, everywhere
+    else in this app. (Recovery never depended on it — the parts list has always
+    selected a consumed board by id, and Ctrl+Z has always reverted the edit that
+    caused it. The pre-fix defect was that the part was invisible, not that it
+    was unreachable.) The fill is the hit target; the outline is the legibility.
+    Keep both, and test
+    a change here by clicking the MIDDLE of a ghost face, never its edge. Related:
+    the ghost's `depthWrite` is off so a part with no stock never occludes one that
+    has some, and the placeholder deliberately rides in the existing `geometries`
+    memo rather than a new one — a second memo would need its own hand-written
+    dependency list, which is invariant 15's failure mode exactly.
 
 ## Commands
 
@@ -764,13 +815,17 @@ written up in place. **47 is open**: the toolbar's project-name field was checke
 against the same display-staleness shape and does **not** have it — see
 `docs/follow-ups.md` for why.
 
-Joinery added **48-53**, all open and all recorded rather than fixed. The one to read
-before touching the panel is **48**: shrinking a board's dimensions through the
-*Dimensions* fields can store a cut that removes the whole board, because that write
-goes through `updateBoard` and never meets the Cuts section's guard — the board
-vanishes in-session and comes back whole on reload, since `validateCuts` drops the cut
-on load. **49** is the same end state reached by two individually-legal cuts, and one
-fix — a placeholder render whenever `boardSolids` is empty — would close both.
+Joinery added **48-53**. **48 and 49 are now CLOSED**, together, by the single fix 48
+itself predicted would cover both: a placeholder render whenever `boardSolids` is empty.
+Both routes into the state are still reachable and still worth knowing before touching
+the panel — 48's is a *Dimensions* write, which goes through `updateBoard` and never
+meets the Cuts section's guard, so shrinking a board can leave a cut that removes all of
+it; 49's is two individually-legal cuts that jointly do the same. What changed is the
+consequence: the part now draws as a ghost, stays selectable, and can be recovered by
+removing the offending cut, instead of vanishing until a reload silently repaired it.
+**50-53 remain open**, all hygiene. See `docs/follow-ups.md` for the closure write-up,
+including why a wireframe would have closed only half of 48 and why no guard was added
+to dimension writes.
 
 The joinery section also ends with a lesson rather than a defect, worth reading before
 executing another plan: **seven of joinery's defects were in code the plan supplied
@@ -783,9 +838,10 @@ The cut list added **54-58**. **56 and 58 are closed** by the branch's final rev
 and the print block no longer leaves `body` or `.cutlist-empty` dark; 54 and 55 were
 also *corrected* rather than closed, 54 having overstated its risk and 55 having gained
 55a, the one place the representative rule reaches a printed word. **48 and
-49 are unaffected by it** and stay open: the cut list reports *stock* dimensions, and
-a board whose cuts happen to remove all of it still has the stock it was cut from, so
-it appears on the sheet correctly even while it renders as nothing in the viewport.
+49 were unaffected by it** (they were closed separately, in the viewport): the cut list
+reports *stock* dimensions, and a board whose cuts happen to remove all of it still has
+the stock it was cut from, so it appeared on the sheet correctly even back when it
+rendered as nothing in the viewport.
 
 The cut list diagrams added **59-64**. **59 is now closed** by the label layout round
 below — depth labels no longer collide, because every number a cut owns lives in that
