@@ -654,3 +654,71 @@ expectation was itself wrong. Number 4 is the case that proves the second rule e
 its keep — the implementer stopped, was right, and the plan was the thing that changed.
 Plan text is not more trustworthy than hand-written code just because it is in a plan;
 if anything it is less, because it was never executed before being written down.
+
+## From the cut list
+
+Five items. Nothing here is user-visible today; four are the "correct but untested"
+shape this file exists to catch before a refactor breaks it silently, and one is a
+print-only cosmetic. Recording them rather than leaving the section empty is the
+point — a section that says "nothing deferred" is a real record, and this one is not
+that.
+
+**54. `rowKey` and `groupKey` must stay in lockstep, and no test pins it.** A row's key
+and its group's key are two separately hand-written `|`-joined field lists that both
+begin with `material` and formatted `thickness`. If they ever disagree about a leading
+field — someone adds `grain` to the group key, or reorders one — rows silently land in
+the wrong group, or a group ends up holding rows that should have been two groups. The
+existing tests check grouping and collapsing behaviour through the public output, which
+catches a *wrong* result but not a *drifting* pair, because the natural way to break
+this is to change one list while adding a feature that the behavioural tests do not
+cover. The cheap fix is to derive the group key as a prefix of the row key rather than
+writing it twice; the cheaper interim fix is a test asserting `rowKey` starts with
+`groupKey`.
+
+**55. A row's exact numbers are a representative, not a consensus.** `CutListRow`
+carries raw `length`/`width`/`thickness` floats alongside its formatted `dims` string,
+and those floats come from whichever board landed in the row *first*. That is correct
+by construction — the row collapsed because everything in it prints identically, and
+identical-printing is the only guarantee, not identical floats. But it means a consumer
+that compares two rows' raw numbers for equality, or sums them expecting exactness, is
+reading a number that only represents the group to within display precision. Nothing
+consumes them today (`CutList.tsx` renders `dims` and never touches the floats), which
+is exactly why this needs writing down before something does. See invariant 18 for the
+rule the floats are downstream of.
+
+**56. The cut-list modal has no focus trap and no initial-focus management.** Opening
+the sheet leaves focus on the toolbar button that opened it, and Tab walks straight out
+of the dialog into the toolbar and panels behind it, which are visually covered and
+functionally still there. Escape-to-close works and is tested, and the sheet is
+`role="dialog"`, so the accessible name and the exit are right — it is the containment
+that is missing. Low urgency for a single-user shop tool driven mostly by mouse, but
+it is the one part of the panel that a screen-reader user would find genuinely
+confusing, and the fix (focus the sheet on mount, cycle Tab within it) is small.
+
+**57. The overlay scrim is a hardcoded colour, not a token.** `.cutlist-overlay` uses
+`rgba(12, 14, 16, 0.72)` directly because `:root` defines no scrim or alpha-surface
+custom property — there has never been a second overlay to justify one. The print
+block's `#fff`/`#ccc`/`#999` are deliberately outside the token system (ink on paper is
+not the screen palette) and should stay that way; the scrim is the one value that
+*should* be a token the moment a second overlay exists. Brief-origin, kept verbatim,
+recorded rather than quietly changed.
+
+**58. `body` keeps its dark background under `@media print`.** Verified in the browser:
+in print media the toolbar, viewport and panels are correctly hidden and the sheet is
+black on white with no buttons, but `body` still computes to `rgb(20, 22, 25)`. Browsers
+omit background colours when printing by default, so the normal path prints clean — the
+screenshots confirm it. With "Background graphics" enabled, though, the area of the page
+below the (short) sheet prints as a solid dark block, which on a real printer is a lot of
+ink for nothing. A one-line `body { background: #fff; }` inside the existing print block
+closes it. Left alone here only because the task that found it was documentation and
+verification, with a standing instruction not to touch `src/` without a defect to fix —
+this is cosmetic and conditional, not a defect, but it is worth doing next time
+`styles.css` is open.
+
+Items **48 and 49 remain open and are unaffected by the cut list.** Both are about
+`boardSolids` returning `[]` — a board whose cuts remove all of its stock renders as
+nothing. The cut list reports the *stock* a part is made from, which such a board still
+has, so it appears on the sheet with correct dimensions and setup lines even while it is
+invisible in the viewport. The sheet is arguably the one place the part is currently
+still legible, but that is a coincidence of what the cut list reports, not a fix, and
+the placeholder-render fix those two items call for is still the right one.

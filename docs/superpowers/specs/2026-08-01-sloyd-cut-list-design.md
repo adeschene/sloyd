@@ -66,7 +66,7 @@ exists to catch them disagreeing.
 
 The edge is safe: `units` imports nothing, so `document → units` creates no cycle and
 no inversion. It makes `units` strictly the bottom layer rather than a sibling leaf.
-It is also natural rather than grudging — `units.display.precision` already lives
+It is also natural rather than grudging — `units.precision` already lives
 *in the document*, so the document layer already owns the precision value; it simply
 had no reason to consume it until now.
 
@@ -137,7 +137,7 @@ collected into `names`.
 ### Tolerance is display precision, expressed as the key itself
 
 The grouping key is built by running every *number* through `formatLength` at
-`doc.units.display.precision` and concatenating the results with `|` — a character
+`doc.units.precision` and concatenating the results with `|` — a character
 `formatLength` never emits (its output is digits, `-`, `/` and `"`), so no combination
 of values can collide by running two fields together. Every *enum* field — `material`,
 `grain`, `face`, `from`, `across` — goes into the key verbatim; all of them are
