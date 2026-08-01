@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { buildDiagrams, createBoard } from '../document/document';
 import type { Cut } from '../document/document';
 import { PartDiagram } from './PartDiagram';
+import { labelWidth } from './diagramLabels';
 
 const dado = (over: Partial<Cut> = {}): Cut => ({
   id: 'c1', face: 'thickness', from: 'min', across: 'width',
@@ -96,21 +97,33 @@ describe('PartDiagram', () => {
     expect(Number(label.getAttribute('y')) - 15).toBeGreaterThan(bottom);
   });
 
-  it('keeps the first leader label clear of the outline AND the far label, when there is a far cut', () => {
-    // Follow-up 64's guard test only ever rendered a near-only cut (FAR = 0),
-    // so it never actually exercised the far-label clearance it claimed. A
-    // far cut pushes the leader stack down by FAR + GAP past the outline; this
-    // pins that the leader row clears the far depth label too, not just the
-    // outline edge.
-    const { container } = render(<PartDiagram view={view(dado({ from: 'max' }))} />);
+  it('draws no text at all above or below the outline', () => {
+    // The heart of this round: every number a cut owns now lives in that cut's
+    // own leader row, which is what makes cross-cut collisions impossible by
+    // construction rather than by arithmetic. Nothing may drift back into the
+    // band above or below the board.
+    const { container } = render(<PartDiagram view={view(dado(), dado({ id: 'c2', from: 'max' }))} />);
     const outline = container.querySelector('.cutlist-diagram-outline')!;
-    const bottom = Number(outline.getAttribute('y')) + Number(outline.getAttribute('height'));
-    const farLabel = container.querySelector('.cutlist-diagram-depth')!;
-    const farLabelBottom = Number(farLabel.getAttribute('y')) + 5; // glyph descent
-    const leaderLabel = container.querySelector('.cutlist-diagram-leader text')!;
-    const leaderTop = Number(leaderLabel.getAttribute('y')) - 15;
-    expect(leaderTop).toBeGreaterThan(bottom);
-    expect(leaderTop).toBeGreaterThan(farLabelBottom);
+    const top = Number(outline.getAttribute('y'));
+    const bottom = top + Number(outline.getAttribute('height'));
+    for (const t of container.querySelectorAll('text')) {
+      const y = Number(t.getAttribute('y'));
+      // The overall-width label sits BESIDE the outline, vertically within it.
+      if (t.classList.contains('cutlist-diagram-overall')) continue;
+      expect(y - 15).toBeGreaterThan(bottom);
+    }
+    expect(top).toBeGreaterThan(0);
+  });
+
+  it('dashes a far cut\'s leader row, so near/far stays encoded twice', () => {
+    // Depth labels used to sit above the outline for a near cut and below for a
+    // far one — the same distinction the band's line style makes, encoded
+    // redundantly on purpose. Folding depth into the row costs that second
+    // encoding, so the row's own leader line takes it over.
+    const { container } = render(<PartDiagram view={view(dado(), dado({ id: 'c2', from: 'max' }))} />);
+    const rows = [...container.querySelectorAll('.cutlist-diagram-leader')];
+    const far = rows.filter((g) => g.classList.contains('cutlist-diagram-leader-far'));
+    expect(far).toHaveLength(1);
   });
 
   it('tracks the outline\'s actual right edge for the overall-width label, not the nominal width', () => {
@@ -123,10 +136,24 @@ describe('PartDiagram', () => {
     );
     const outline = container.querySelector('.cutlist-diagram-outline')!;
     const right = Number(outline.getAttribute('x')) + Number(outline.getAttribute('width'));
-    const depthLabels = [...container.querySelectorAll('.cutlist-diagram-depth')];
-    // The overall-width label is the one NOT positioned by a cut's band centre.
-    const vLabel = depthLabels.find((el) => el.getAttribute('text-anchor') !== 'middle')!;
+    const vLabel = container.querySelector('.cutlist-diagram-overall')!;
     expect(Number(vLabel.getAttribute('x'))).toBeCloseTo(right + 12, 10);
     expect(vLabel.getAttribute('dominant-baseline')).toBe('middle');
+  });
+
+  it('pulls the overall-width label back inside the viewBox when the gutter cannot hold it', () => {
+    // A long board with a long width label: right + 12 + labelWidth would run
+    // past DRAW_WIDTH + RIGHT. Goal 2 of the spec is about the viewBox, so this
+    // is enforced rather than assumed to be unreachable.
+    const { container } = render(
+      <PartDiagram
+        view={buildDiagrams(createBoard({ length: 240, width: 100.9375, cuts: [dado()] }), 16)[0]}
+      />,
+    );
+    const svg = container.querySelector('svg')!;
+    const vbWidth = Number(svg.getAttribute('viewBox')!.split(/\s+/)[2]);
+    const vLabel = container.querySelector('.cutlist-diagram-overall')!;
+    expect(Number(vLabel.getAttribute('x')) + labelWidth(vLabel.textContent!))
+      .toBeLessThanOrEqual(vbWidth);
   });
 });

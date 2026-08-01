@@ -605,15 +605,25 @@ button[aria-pressed='true'] {
   stroke-dasharray: 10 7;
 }
 
-.cutlist-diagram-depth,
+/* --font-num, not the sheet's UI face: these are numbers, like every other
+   number in the app — and the monospace advance is what makes labelWidth()
+   arithmetic rather than a measurement jsdom cannot make. font-size is set on
+   the <svg> from LABEL_SIZE and must NOT be duplicated here. */
+.cutlist-diagram-overall,
 .cutlist-diagram-leader text {
   fill: currentColor;
-  font-size: 20px;
+  font-family: var(--font-num);
 }
 
 .cutlist-diagram-leader line {
   stroke: currentColor;
   stroke-width: 1.5;
+}
+
+/* Near/far, encoded a second time — it used to be above-versus-below the
+   outline for the depth label, which no longer exists. */
+.cutlist-diagram-leader-far line {
+  stroke-dasharray: 10 7;
 }
 
 .cutlist-empty {

@@ -1,12 +1,11 @@
 import { useId } from 'react';
 import type { DiagramView } from '../document/document';
 import { band, fitView, DRAW_WIDTH } from './diagramScale';
+import { labelWidth, packRow, LABEL_SIZE } from './diagramLabels';
 
-/** Room above the outline for near-side depth labels. */
-const TOP = 26;
-/** Room below the outline for far-side depth labels, when there are any. */
-const FAR = 22;
-/** Clearance between the outline (or the far-side depth labels) and the leader stack. */
+/** Stroke clearance above the outline. Nothing is DRAWN above it any more. */
+const TOP = 4;
+/** Clearance between the outline and the leader stack. */
 const GAP = 16;
 /** One stacked leader row per cut. */
 const ROW = 26;
@@ -14,6 +13,10 @@ const ROW = 26;
 const BOTTOM = 34;
 /** Room to the right of the outline for the overall-width label. */
 const RIGHT = 90;
+/** Minimum clearance between two labels in a row, and band-to-depth-label. */
+const GAP_X = 8;
+/** The full drawable interval — the viewBox, not the outline. */
+const VIEW_W = DRAW_WIDTH + RIGHT;
 
 /**
  * One view of a part, as a schematic.
@@ -29,10 +32,16 @@ const RIGHT = 90;
  * near/far distinction would silently collapse to solid-versus-dashed on a
  * default print.
  *
- * Leaders STACK, one row per cut, rather than being placed inline. That is
- * what avoids a collision solver; it costs vertical space linear in the cut
- * count, which is acceptable because a part with six cuts is a part whose
- * prose was the actual problem.
+ * NOTHING IS DRAWN ABOVE OR BELOW THE OUTLINE. Every number a cut owns lives in
+ * that cut's own stacked leader row, which is what makes a collision BETWEEN
+ * cuts impossible by construction — rows are ROW units apart vertically, so no
+ * arithmetic is involved. Only the three labels WITHIN a row can collide, and
+ * `packRow` settles those (follow-up 59).
+ *
+ * Depth moved into the row for a better reason than the collision that prompted
+ * it: depth runs PERPENDICULAR to this view. It has no position on the page, so
+ * centring it on its band was never spatially meaningful — placing it beside the
+ * band is honest about that.
  */
 export function PartDiagram({ view }: { view: DiagramView }) {
   // A `<pattern>` id must be unique in the document: two diagrams sharing one
@@ -50,16 +59,30 @@ export function PartDiagram({ view }: { view: DiagramView }) {
 
   const top = TOP;
   const bottom = top + fit.drawnV;
-  const far = view.hasFar ? FAR : 0;
-  const leaders = bottom + far + GAP;
+  const leaders = bottom + GAP;
   const height = leaders + ROW * view.cuts.length + BOTTOM;
   const baseline = height - BOTTOM / 2;
+
+  // The overall-length label is a one-item row, so it clamps into the viewBox
+  // by the same rule as everything else rather than by being assumed to fit.
+  const [hx] = packRow(
+    [{ centre: fit.offsetX + fit.drawnH / 2, width: labelWidth(view.hLabel) }],
+    0, VIEW_W, GAP_X,
+  );
+  // The overall-width label is anchored at its START, beside the outline, so it
+  // is pulled back rather than centred when the gutter cannot hold it.
+  const vx = Math.min(fit.offsetX + fit.drawnH + 12, VIEW_W - labelWidth(view.vLabel));
 
   return (
     <figure className="cutlist-diagram">
       <figcaption className="cutlist-diagram-head">{view.heading}</figcaption>
 
-      <svg viewBox={`0 0 ${DRAW_WIDTH + RIGHT} ${height}`} role="img" aria-label={view.heading}>
+      <svg
+        viewBox={`0 0 ${VIEW_W} ${height}`}
+        fontSize={LABEL_SIZE}
+        role="img"
+        aria-label={view.heading}
+      >
         <defs>
           <pattern
             id={hatch}
@@ -84,57 +107,58 @@ export function PartDiagram({ view }: { view: DiagramView }) {
           const b = band(cut.h, fit);
           const near = cut.side === 'min';
           return (
-            <g key={cut.id}>
-              <rect
-                className={near ? 'cutlist-diagram-near' : 'cutlist-diagram-far'}
-                x={b.x}
-                y={top}
-                width={b.width}
-                height={fit.drawnV}
-                fill={near ? `url(#${hatch})` : 'none'}
-              />
-              {/* Above for near, below for far: the same distinction the line
-                  style makes, encoded a second time and redundantly on
-                  purpose. */}
-              <text
-                className="cutlist-diagram-depth"
-                x={b.x + b.width / 2}
-                y={near ? top - 8 : bottom + 16}
-                textAnchor="middle"
-              >
-                {cut.depthLabel}
-              </text>
-            </g>
+            <rect
+              key={cut.id}
+              className={near ? 'cutlist-diagram-near' : 'cutlist-diagram-far'}
+              x={b.x}
+              y={top}
+              width={b.width}
+              height={fit.drawnV}
+              fill={near ? `url(#${hatch})` : 'none'}
+            />
           );
         })}
 
         {view.cuts.map((cut, i) => {
           const b = band(cut.h, fit);
           const y = leaders + ROW * i + ROW / 2;
+          const depthW = labelWidth(cut.depthLabel);
+          // In board order, left to right: the offset run, the band, then depth
+          // just clear of the band. `packRow` preserves that order.
+          const [ox, wx, dx] = packRow(
+            [
+              { centre: (fit.offsetX + b.x) / 2, width: labelWidth(cut.offsetLabel) },
+              { centre: b.x + b.width / 2, width: labelWidth(cut.widthLabel) },
+              { centre: b.x + b.width + GAP_X + depthW / 2, width: depthW },
+            ],
+            0, VIEW_W, GAP_X,
+          );
           return (
-            <g className="cutlist-diagram-leader" key={cut.id}>
+            <g
+              className={
+                cut.side === 'min'
+                  ? 'cutlist-diagram-leader'
+                  : 'cutlist-diagram-leader cutlist-diagram-leader-far'
+              }
+              key={cut.id}
+            >
               <line x1={fit.offsetX} y1={y} x2={b.x} y2={y} />
-              <text x={(fit.offsetX + b.x) / 2} y={y - 6} textAnchor="middle">
-                {cut.offsetLabel}
-              </text>
               <line x1={b.x} y1={y} x2={b.x + b.width} y2={y} />
-              <text x={b.x + b.width / 2} y={y - 6} textAnchor="middle">
-                {cut.widthLabel}
-              </text>
+              <text x={ox} y={y - 6} textAnchor="middle">{cut.offsetLabel}</text>
+              <text x={wx} y={y - 6} textAnchor="middle">{cut.widthLabel}</text>
+              <text x={dx} y={y - 6} textAnchor="middle">{cut.depthLabel}</text>
             </g>
           );
         })}
 
         <g className="cutlist-diagram-leader">
           <line x1={fit.offsetX} y1={baseline} x2={fit.offsetX + fit.drawnH} y2={baseline} />
-          <text x={fit.offsetX + fit.drawnH / 2} y={baseline - 6} textAnchor="middle">
-            {view.hLabel}
-          </text>
+          <text x={hx} y={baseline - 6} textAnchor="middle">{view.hLabel}</text>
         </g>
 
         <text
-          className="cutlist-diagram-depth"
-          x={fit.offsetX + fit.drawnH + 12}
+          className="cutlist-diagram-overall"
+          x={vx}
           y={top + fit.drawnV / 2}
           dominantBaseline="middle"
         >
