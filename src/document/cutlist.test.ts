@@ -181,4 +181,42 @@ describe('buildCutList', () => {
     ));
     expect(strict.groups[0].rows).toHaveLength(2);
   });
+
+  it('carries a diagram on every row, including cut-free ones', () => {
+    const list = buildCutList(docWith({}));
+    expect(list.groups[0].rows[0].diagrams).toHaveLength(1);
+    expect(list.groups[0].rows[0].diagrams[0].cuts).toEqual([]);
+  });
+
+  it('draws the row representative\'s cuts', () => {
+    const cut: Cut = { id: 'c1', face: 'thickness', from: 'min', across: 'width',
+                       offset: 6, width: 0.75, depth: 0.375 };
+    const [row] = buildCutList(docWith({ cuts: [cut] })).groups[0].rows;
+    expect(row.diagrams[0].cuts[0].h).toEqual([6, 6.75]);
+  });
+
+  it('agrees with the setup line it is printed beside', () => {
+    // The picture and the prose are two renderings of one Cut, and nothing
+    // else would catch them drifting: a change to setupLine's formatting that
+    // skipped buildDiagrams would leave a sheet contradicting itself in print.
+    // Assert on the STRINGS, not the numbers.
+    const cut: Cut = { id: 'c1', face: 'thickness', from: 'min', across: 'width',
+                       offset: 6, width: 0.75, depth: 0.375 };
+    const [row] = buildCutList(docWith({ cuts: [cut] })).groups[0].rows;
+    const line = row.setup[0];
+    const drawn = row.diagrams[0].cuts[0];
+
+    expect(line.startsWith(`${drawn.widthLabel} ${drawn.kind},`)).toBe(true);
+    expect(line).toContain(`${drawn.depthLabel} —`);
+    expect(line).toContain(`${drawn.offsetLabel} from the`);
+  });
+
+  it('keeps that agreement at a different precision', () => {
+    const cut: Cut = { id: 'c1', face: 'thickness', from: 'min', across: 'width',
+                       offset: 6.03, width: 0.75, depth: 0.375 };
+    const doc = docWith({ cuts: [cut] });
+    doc.units = { display: 'imperial-fractional', precision: 32 };
+    const [row] = buildCutList(doc).groups[0].rows;
+    expect(row.setup[0]).toContain(`${row.diagrams[0].cuts[0].offsetLabel} from the`);
+  });
 });

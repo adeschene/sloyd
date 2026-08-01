@@ -2,6 +2,8 @@ import { MATERIALS } from './types';
 import type { Board, Cut, Grain, SloydDocument } from './types';
 import { positionAxisOf } from './geometry';
 import { cutLabel } from './cuts';
+import { buildDiagrams } from './diagram';
+import type { DiagramView } from './diagram';
 import { formatLength } from '../units/length';
 
 /**
@@ -28,6 +30,20 @@ export interface CutListRow {
   dims: string;
   /** One line per cut, already formatted. Empty for a row with no joinery. */
   setup: string[];
+  /**
+   * The same cuts, drawn. Always populated — a cut-free row carries its one
+   * broad-face view, because the sheet's "all parts" setting renders it.
+   *
+   * Making this conditional would push a VIEW decision down into the
+   * derivation and give the panel two shapes to handle, for no saving: the
+   * work is a handful of rectangles per board.
+   *
+   * Representative, exactly as `setup` is: these are the first board's cuts.
+   * Every number is right for every part in the row (`cutSignature` is exact);
+   * only `kind` carries follow-up 55a's caveat, identically to the printed
+   * word.
+   */
+  diagrams: DiagramView[];
 }
 
 export interface CutListGroup {
@@ -195,6 +211,7 @@ export function buildCutList(doc: SloydDocument): CutList {
         // precision the sheet is printed to, the representative's word is the
         // more useful one at the bench. Follow-up 55.
         setup: board.cuts.map((cut) => setupLine(board, cut, precision)),
+        diagrams: buildDiagrams(board, precision),
       };
       rows.set(key, row);
       group.rows.push(row);
