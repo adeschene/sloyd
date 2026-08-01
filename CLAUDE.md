@@ -24,11 +24,24 @@ on the sheet, because the prose setup lines are hard to read at the bench), a
 overlapped or bled past the outline because nothing measured the text being placed —
 and now a **per-face diagrams round**, closing the diagrams' other one: perpendicular
 cuts on the same face used to fragment into two disconnected figures instead of
-drawing together, crossing, in one. Static SPA, containerized, 548/548 tests passing.
+drawing together, crossing, in one. Static SPA, containerized, 546/546 tests passing.
 
 Host-specific deployment detail — hostname, container name, proxy configuration, and
 the manual steps a human has to perform — lives in `DEPLOYMENT.local.md`, which is
 gitignored. Read that file before deploying; it is not in the public repo.
+
+**The cut list line of work is CLOSED as of 2026-08-01** — cut list, diagrams, label
+layout and per-face views are all shipped, merged to `master` and deployed to
+production. Do not treat any of the four as in-flight. What is deliberately *not* built
+sits in two places, and both are decisions rather than omissions: the **"Deferred behind
+it"** paragraph below (board-feet and sheet totals; sheet-goods nesting; CSV export and
+name run-collapsing, both declined with reasons worth reading before re-proposing), and
+`docs/follow-ups.md`'s open entries. The two with a real user-visible consequence are
+still **48 and 49** — a board whose cuts remove all its stock renders as nothing — which
+no round since joinery has touched. Two things about the diagrams remain unverified
+rather than fixed: a **print-to-PDF render** (this host's Playwright exposes no `pdf()`)
+and **hatch-versus-cross-hatch legibility at screen size**, which is a recorded negative
+finding, not an assumption — see follow-ups 76 and 79.
 
 **What the cut list did**, design in
 `docs/superpowers/specs/2026-08-01-sloyd-cut-list-design.md`, plan in
@@ -723,7 +736,7 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 548 tests
+npm test           # Vitest, currently 546 tests
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
