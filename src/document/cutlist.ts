@@ -1,5 +1,7 @@
 import { MATERIALS } from './types';
-import type { Board, Grain, SloydDocument } from './types';
+import type { Board, Cut, Grain, SloydDocument } from './types';
+import { positionAxisOf } from './geometry';
+import { cutLabel } from './cuts';
 import { formatLength } from '../units/length';
 
 /**
@@ -52,6 +54,53 @@ function materialLabel(material: string): string {
 }
 
 /**
+ * The joinery half of a row's identity — EXACT, deliberately unlike the
+ * dimensions.
+ *
+ * A stock dimension rounded to the precision you cut to costs you nothing; you
+ * were going to cut to that precision anyway. A dado LOCATION rounded the same
+ * way costs you the joint: two dados 1/32" apart are two different setups, and
+ * a merged row would print one offset and be quietly wrong about the other
+ * part. Being too strict splits a row, which is visible and harmless; being too
+ * loose prints a wrong measurement, which is neither.
+ *
+ * This is not the float-equality hazard that made `cutLabel` wrong 2.8% of the
+ * time — that compared a SUBTRACTION RESULT against a bound. These are stored
+ * values compared to stored values, and two cuts entered as the same number are
+ * the same number.
+ *
+ * Sorting is what makes it order-independent: the same two dados added in
+ * either order produce the same signature. `id` is excluded — it is identity,
+ * not geometry.
+ */
+function cutSignature(cuts: Cut[]): string {
+  return cuts
+    .map((c) =>
+      [c.face, c.from, c.across, String(c.offset), String(c.width), String(c.depth)].join(':'),
+    )
+    .sort()
+    .join(';');
+}
+
+/**
+ * One cut as a line you can read at the bench.
+ *
+ * Takes the board, not just the cut, because `cutLabel` needs it — dado versus
+ * rabbet depends on where the cut sits in the board's dimensions. That is why
+ * setup lines are built during grouping, while the board is in hand, rather
+ * than reconstructed later from a CutListRow, which carries no board.
+ */
+function setupLine(board: Board, cut: Cut, precision: number): string {
+  const f = (n: number) => formatLength(n, precision);
+  const pos = positionAxisOf(cut.face, cut.across);
+  return (
+    `${f(cut.width)} ${cutLabel(board, cut)}, ${f(cut.depth)} deep — ` +
+    `into the ${cut.face} face (${cut.from} side), ` +
+    `${f(cut.offset)} from the ${pos} min end, running across the ${cut.across}`
+  );
+}
+
+/**
  * What makes two parts one row.
  *
  * Every NUMBER goes through `formatLength` at the document's precision, and
@@ -75,6 +124,7 @@ function rowKey(board: Board, precision: number): string {
     f(board.length),
     f(board.width),
     board.grain,
+    cutSignature(board.cuts),
   ].join('|');
 }
 
@@ -110,7 +160,7 @@ export function buildCutList(doc: SloydDocument): CutList {
         thickness: board.thickness,
         grain: board.grain,
         dims: `${formatLength(board.length, precision)} × ${formatLength(board.width, precision)}`,
-        setup: [],
+        setup: board.cuts.map((cut) => setupLine(board, cut, precision)),
       };
       rows.set(key, row);
       group.rows.push(row);

@@ -1,5 +1,6 @@
 import { buildCutList, createBoard, createDocument } from './document';
 import type { Board, SloydDocument } from './document';
+import type { Cut } from './types';
 
 /** A document containing exactly these boards, with unique default names. */
 const docWith = (...boards: Partial<Board>[]): SloydDocument => ({
@@ -93,7 +94,86 @@ describe('buildCutList', () => {
     ]);
   });
 
-  it('leaves setup empty at this stage', () => {
+  const dado = (over: Partial<Cut> = {}): Cut => ({
+    id: 'c1', face: 'thickness', from: 'min', across: 'width',
+    offset: 6, width: 0.75, depth: 0.25, ...over,
+  });
+
+  it('has no setup lines for a board with no cuts', () => {
     expect(buildCutList(docWith({})).groups[0].rows[0].setup).toEqual([]);
+  });
+
+  it('phrases a dado part-locally', () => {
+    const list = buildCutList(docWith({ cuts: [dado()] }));
+    expect(list.groups[0].rows[0].setup).toEqual([
+      '3/4" dado, 1/4" deep — into the thickness face (min side), ' +
+      '6" from the length min end, running across the width',
+    ]);
+  });
+
+  it('phrases a cut flush with an end as a rabbet', () => {
+    const list = buildCutList(docWith({ cuts: [dado({ offset: 0 })] }));
+    expect(list.groups[0].rows[0].setup[0]).toContain('3/4" rabbet');
+    expect(list.groups[0].rows[0].setup[0]).toContain('0" from the length min end');
+  });
+
+  it('names the position axis from face and across, not from a stored field', () => {
+    // face=length, across=thickness leaves width as the position axis. The
+    // offset drops to 2" because the position axis is now the board's 5-1/2"
+    // width — the default 6" would be off the end of it, and a test that
+    // encoded an out-of-range cut as ordinary is one a future reader copies.
+    const list = buildCutList(docWith({
+      cuts: [dado({ face: 'length', across: 'thickness', from: 'max', offset: 2, depth: 0.5 })],
+    }));
+    expect(list.groups[0].rows[0].setup[0]).toBe(
+      '3/4" dado, 1/2" deep — into the length face (max side), ' +
+      '2" from the width min end, running across the thickness',
+    );
+  });
+
+  it('collapses boards carrying the same cuts added in opposite orders', () => {
+    const a = dado();
+    const b = dado({ id: 'c2', offset: 12 });
+    const list = buildCutList(docWith(
+      { cuts: [a, b] },
+      { cuts: [{ ...b, id: 'c3' }, { ...a, id: 'c4' }] },
+    ));
+    expect(list.groups[0].rows).toHaveLength(1);
+    expect(list.groups[0].rows[0].qty).toBe(2);
+    expect(list.groups[0].rows[0].setup).toHaveLength(2);
+  });
+
+  it('never collapses a cut-bearing board with a cut-free one', () => {
+    const list = buildCutList(docWith({ cuts: [dado()] }, { cuts: [] }));
+    expect(list.groups[0].rows).toHaveLength(2);
+  });
+
+  it.each([
+    ['depth', { depth: 0.5 }],
+    // `face: 'length'` rather than `'width'`: `across` is already 'width', and
+    // a cut naming the same dimension twice is degenerate — legal input to
+    // `cutRegion`, which is total about it, but not something to assert on here.
+    ['face', { face: 'length' as const }],
+    ['from', { from: 'max' as const }],
+    ['across', { across: 'length' as const }],
+  ])('splits boards whose cuts differ in %s', (_field, difference) => {
+    const list = buildCutList(docWith({ cuts: [dado()] }, { cuts: [dado(difference)] }));
+    expect(list.groups[0].rows).toHaveLength(2);
+  });
+
+  it('groups dimensions at display precision but cuts exactly', () => {
+    // The asymmetry IS the design: a stock dimension rounded to the precision
+    // you cut to costs nothing, a dado location rounded the same way costs the
+    // joint. Both halves in one test so neither can be relaxed alone.
+    // The SAME 0.02" delta on both halves, which is what makes this a contrast
+    // rather than two unrelated assertions.
+    const loose = buildCutList(docWith({ length: 24 }, { length: 24.02 }));
+    expect(loose.groups[0].rows).toHaveLength(1);
+
+    const strict = buildCutList(docWith(
+      { cuts: [dado({ offset: 6 })] },
+      { cuts: [dado({ offset: 6.02 })] },
+    ));
+    expect(strict.groups[0].rows).toHaveLength(2);
   });
 });
