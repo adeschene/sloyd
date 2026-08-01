@@ -10,6 +10,8 @@ export {
 export { uniqueName, dedupeNames } from './names';
 export { boardEdges, boardSolids, cutLabel, cutRegion, pointToLocalXYZ, solidWorldBox, wholeBoard } from './cuts';
 export type { Point, Segment } from './cuts';
+export { buildCutList } from './cutlist';
+export type { CutList, CutListGroup, CutListRow } from './cutlist';
 
 export const CURRENT_VERSION = 4;
 
