@@ -98,7 +98,9 @@ bigger" is the obvious first proposal and it is wrong.
 
 ## 4. The drawing's new layout
 
-Nothing is drawn above or below the outline. Every number belonging to a cut lives in
+No text hangs off the outline's top or bottom edge the way it did in the old TOP/FAR
+bands — the leader rows and the overall-length run are still drawn below the outline,
+that geometry is the point. Every number belonging to a cut lives in
 that cut's own stacked leader row.
 
 ```
@@ -188,6 +190,18 @@ is fine, because the gutter's only other occupant is `vLabel`, which sits at the
 outline's vertical midpoint while every row sits below the outline. Goal 2 is about the
 viewBox, not about the outline; only *bands* are clamped to the outline (§4).
 
+> **Superseded during execution.** Both bounds named above were overridden by a human
+> ruling before ship and this paragraph's reasoning is now the opposite of shipped
+> policy. Shipped: `min = fit.offsetX`, not `0` — follow-up 67 records why (a label
+> centred on a run shorter than itself was drifting left of the board's own edge, which
+> mattered more than the viewBox headroom this paragraph argued for). And `max = viewW`,
+> which is no longer `DRAW_WIDTH + RIGHT` — follow-up 68 (instance 3) records why: the
+> nominal bound let the overall-width label satisfy the viewBox constraint by being
+> pulled back across the outline, so the viewBox itself now grows
+> (`viewW = Math.max(VIEW_W, right + 12 + vw)`) instead. This paragraph is kept verbatim
+> above as the design's original reasoning, not corrected in place, because it is a
+> historical record of what was proposed — read it as superseded, not as current.
+
 **The row always fits, and that is a property rather than a hope.** `offsetLabel` and
 `widthLabel` are at most about 10 characters each and `depthLabel` about 14; 34
 characters at 12.4 units is ~422 units plus two gaps, against a viewBox
@@ -195,11 +209,24 @@ characters at 12.4 units is ~422 units plus two gaps, against a viewBox
 function is defined on inputs a future caller could construct — not because a real part
 reaches it.
 
+> **Superseded during execution.** This claim is false, and a shipped part falsifies it:
+> follow-up 71 records sweep case 4 (`flush-max`, a ¾" rabbet on an ordinary 24"×5½"
+> board, one of the eight geometries pinned as a unit test) reaching Step 2's overflow
+> branch for real. The arithmetic above compared total label width (~422 units) against
+> the viewBox width (1090) but never accounted for *where* the cascade places the
+> labels — near `x = 1000` on this board, not spread from `x = 0` — which is what makes
+> the row's actual post-cascade extent (1136.8 units) exceed `viewW`. "Not because a
+> real part reaches it" was wrong; kept verbatim above as the design's original
+> (incorrect) reasoning, not corrected in place, for the same historical-record reason
+> as the note above.
+
 ### 5.1 `LABEL_SIZE` has exactly one home
 
 The font size moves out of `styles.css` and onto the `<svg>` element as an attribute
-driven by `LABEL_SIZE`, with `.cutlist-diagram-depth` / `.cutlist-diagram-leader text`
-keeping only `fill` and the newly-added `font-family: var(--font-num)`. The constant the
+driven by `LABEL_SIZE`, with `.cutlist-diagram-leader text` keeping only `fill` and the
+newly-added `font-family: var(--font-num)`. (This paragraph originally also named
+`.cutlist-diagram-depth`; that class was deleted during execution when depth moved into
+the leader row and lost its own element — see follow-up 63.) The constant the
 arithmetic uses must be the constant the browser renders; a font size duplicated across
 a `.ts` and a `.css` file is precisely the drift follow-up 64 is a record of.
 
@@ -329,5 +356,13 @@ constants stay named exports of `diagramScale.ts` either way.
   rather than as "slightly off", because at case 6 the displacement is a fifth of the
   drawn board and calling that slight would be wrong. This is the deliberate trade: a
   legible number displaced beats an illegible one exactly placed.
+
+  **This describes only the case where the row's total width still fits inside `max`
+  after the cascade — case 6's row (642 units wide) never exceeds `viewW` (1090).** It
+  is not the whole of `packRow`'s behaviour, and reading it as such is wrong in the
+  direction of the shift, not just incomplete: when a row's cascade *does* overflow
+  `max`, `packRow`'s second phase then shifts the WHOLE row LEFT as one, preserving
+  every gap. That phase is real and reachable — see follow-up 71's `flush-max` case,
+  where a depth label ends up left of the band it names because of it.
 - **Losing the above/below near-far encoding** is mitigated by the dashed leader line,
   which is a browser-judgement item for §7's pass rather than something a test pins.

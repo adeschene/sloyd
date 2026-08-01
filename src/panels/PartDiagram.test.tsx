@@ -97,11 +97,12 @@ describe('PartDiagram', () => {
     expect(Number(label.getAttribute('y')) - 15).toBeGreaterThan(bottom);
   });
 
-  it('draws no text at all above or below the outline', () => {
+  it('keeps every cut\'s leader-row text below the outline, never above it', () => {
     // The heart of this round: every number a cut owns now lives in that cut's
     // own leader row, which is what makes cross-cut collisions impossible by
-    // construction rather than by arithmetic. Nothing may drift back into the
-    // band above or below the board.
+    // construction rather than by arithmetic. No leader-row label may drift
+    // back above the outline's bottom edge (the overall-width label is exempt
+    // below — it sits BESIDE the outline, not in a leader row).
     const { container } = render(<PartDiagram view={view(dado(), dado({ id: 'c2', from: 'max' }))} />);
     const outline = container.querySelector('.cutlist-diagram-outline')!;
     const top = Number(outline.getAttribute('y'));
@@ -187,8 +188,12 @@ describe('PartDiagram', () => {
     // real rendered diagram, not by a predicate.
     const { container } = render(<PartDiagram view={view(dado())} />);
     const row = container.querySelector('.cutlist-diagram-leader')!;
+    // A tick is a VERTICAL, non-zero-length line: x1 === x2 alone also matches
+    // a zero-length horizontal run (e.g. a cut at offset: 0, where the offset
+    // run collapses to a point), which would over-count on that geometry.
     const ticks = [...row.querySelectorAll('line')].filter(
-      (l) => l.getAttribute('x1') === l.getAttribute('x2'),
+      (l) => l.getAttribute('x1') === l.getAttribute('x2')
+        && l.getAttribute('y1') !== l.getAttribute('y2'),
     );
     expect(ticks).toHaveLength(3);
     // The middle tick is what separates the two runs: it must sit exactly at the

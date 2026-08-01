@@ -4,9 +4,19 @@ import type { Span } from '../document/document';
  * The nominal content width of a diagram, in DRAWING UNITS.
  *
  * The SVG carries a viewBox and fills its grid cell, so these are not CSS
- * pixels — but the unit-to-px ratio is a constant per medium, because every
- * diagram on the sheet renders into the same cell width (and print has its own
- * constant). That is what makes MIN_FEATURE meaningful as a fixed number.
+ * pixels. That USED TO make the unit-to-px ratio a constant per medium, and
+ * that is no longer true: `PartDiagram.tsx` grows the viewBox
+ * (`viewW = Math.max(VIEW_W, right + 12 + vw)`) whenever the overall-width
+ * label needs more room than the nominal `DRAW_WIDTH + RIGHT`, which a
+ * width label of 7+ characters already triggers — a common part, not an
+ * edge case. Since the SVG element itself still renders into a fixed-width
+ * grid cell, a wider viewBox means every unit in THAT diagram maps to fewer
+ * real pixels than in a diagram that didn't grow — diagrams on one sheet can
+ * render at scales differing by roughly 4%. The consequence for
+ * `MIN_FEATURE`: it is drawn at its nominal 6 units only in the untouched
+ * case, and at an effective ~5.8 on the widest diagrams seen so far. This
+ * comment is documentation only — neither the constant nor the layout
+ * changed because of it.
  */
 export const DRAW_WIDTH = 1000;
 /** A board is never drawn thinner than DRAW_WIDTH / this. */

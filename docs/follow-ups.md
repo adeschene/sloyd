@@ -813,9 +813,15 @@ distinction splits cleanly into what closed **by construction** versus what need
 - **By arithmetic: within-row collisions.** The only labels that can still collide
   are the up-to-three sharing one row — offset, width, depth — and those are settled
   by `packRow` (`src/panels/diagramLabels.ts`), which measures each label's width via
-  `labelWidth` (character count × `CHAR_W`, a monospace advance) and shifts labels
-  right in board order until they clear, overflowing into the gutter rather than
-  crossing the board, only if a row genuinely cannot fit.
+  `labelWidth` (character count × `CHAR_W`, a monospace advance) and runs in two
+  phases, in that order: labels **cascade right**, in board order, during the
+  left-to-right sweep (each pushed clear of the one before it); only THEN, if the
+  row's total still overflows `max`, does the whole row **shift left** as one, which
+  is what preserves every gap. The row overflows into the gutter, rather than crossing
+  the board, only if it genuinely cannot fit even after that shift. See follow-up 71
+  for a worked case where the left-shift phase fires and a label ends up left of the
+  band it names — accepted drafting behaviour, not a bug, but worth reading before
+  assuming the cascade is the whole story.
 - **A run-fusion defect found along the way, also fixed.** Adjacent leader-row runs
   (the offset run and the band run) were collinear with identical stroke, so they read
   as one line from the board's edge to the cut's far side — making the offset label
@@ -1052,11 +1058,12 @@ Closes follow-up 59; amends 60, 63 and 65; closes 62 opportunistically. New entr
 below.
 
 **66. `LABEL_EM` is an upper bound taken from one machine's monospace resolution —
-recorded as a bounded risk, not a universal constant.** `--font-num` measured a fixed
-12.029 units/glyph advance at font-size 20 in a real browser on this host, for digits,
-punctuation and mixed strings alike; `CHAR_W = LABEL_SIZE * LABEL_EM = 12.4` bounds
-that from above with 0.371 units/glyph of headroom. That headroom is this machine's
-number, not a proof about every monospace stack `--font-num` could resolve to
+recorded as a bounded risk, not a universal constant.** `--font-num` measured a
+≈12.03 units/glyph advance at font-size 20 in a real browser on this host (two
+independent probes, 12.042 and 12.029), for digits, punctuation and mixed strings
+alike; `CHAR_W = LABEL_SIZE * LABEL_EM = 12.4` bounds that from above with **0.358**
+units/glyph of headroom against the higher of the two probes. That headroom is this
+machine's number, not a proof about every monospace stack `--font-num` could resolve to
 elsewhere. The failure direction is asymmetric and deliberately favours the safe side:
 if a browser's `--font-num` face is *wider* than 12.4 units/glyph, `labelWidth`
 under-counts and `packRow` under-spaces — labels **crowd**, they do not **pile up**,
@@ -1131,6 +1138,46 @@ checked, and is not a substitute claim for a print pass: the `@media print` bloc
 `.cutlist-diagram-leader line`'s stroke likewise inherits — so both properties carry through to
 print unchanged rather than silently reverting to a proportional face or a different
 stroke. Pagination (a drawn row surviving a page break) was verified in the previous
-round and is recorded at item 59a; it was not re-checked this round because nothing in
-this round's changes touches page-break behaviour. Do not read either fact as "the
-print output was checked" — it was not.
+round and is recorded at item 59a; it was **not** re-checked this round, and the reason
+is the same tooling limitation named above — the Playwright MCP on this host exposes no
+`pdf()` call, so there was no way to produce a fresh render to check it against, not
+because this round's changes leave page-break behaviour untouched. That second claim
+would in fact be false: `TOP` went 26→4, `FAR` (22) was deleted, and `viewW` can now grow
+past the nominal `DRAW_WIDTH + RIGHT` — every diagram's rendered height changed (roughly
+40 units shorter from the `TOP`/`FAR` change alone), and a grown `viewW` changes rendered
+pixel height again under `height: auto`. Page breaks would therefore very likely land in
+different places than the 59a run recorded. What is true, and is the actual reason this
+was not re-verified as a defect risk: `break-inside: avoid` on `.cutlist-row` and
+`.cutlist-diagram` is untouched by this round's `src/` changes and very likely still
+holds — but that is an expectation carried over from 59a, not a fresh verification. Do
+not read either fact as "the print output was checked" — it was not.
+
+**71. `packRow`'s left-shift phase is real, reachable, and pulls a label away from the
+band it names — recorded from a final-review re-derivation, open rather than fixed.**
+`packRow` runs two phases, not one: labels cascade right in board order during the
+sweep, and only then, if the row still overflows `max`, does the whole row shift left as
+one. Case 6 (item 59's table, and spec §9's worked walkthrough) never reaches the
+left-shift phase — its row (642 units) fits comfortably under `viewW` (1090) — so every
+existing worked example in `CLAUDE.md`, this file, and the design spec described only
+the cascade-right phase, which reads as the whole story if you have not derived a case
+where the second phase fires. It does fire. Worked here, re-derived in the final review
+pass and checked against the code rather than assumed: sweep case **4** (`flush-max`, a ¾"
+rabbet at `offset: 23.25` on a 24"×5½" board). The band draws at 968.75–1000. The row's
+natural (post-cascade) extent is 1136.8 units wide against `viewW = 1090`, so the whole
+row shifts left by 38.8 units to fit — and the `3/4"` label, which the cascade had
+already pushed right to sit beside the band, ends up spanning 920.8–970.4: mostly to the
+LEFT of the band it names.
+
+This is accepted drafting behaviour, not a defect — it was looked at in a browser during
+this round and reads correctly there, and `packRow`'s contract never promised a label
+stays right of its own band, only that labels within a row do not overlap each other and
+the row stays inside `[min, max]` where it can. But it is worth being honest about what
+it costs: of spec §3's four goals, goal 3 ("the numbers stay spatially attached to the
+geometry they describe") is at its weakest exactly here — a label can end up on the
+visually wrong side of the feature it names, once a row runs long enough to trigger the
+second phase. **No test asserts attachment.** The eight geometry tests in
+`PartDiagram.test.tsx` assert non-overlap and viewBox containment; those are both real
+properties and neither one is "does this label still read as belonging to this
+geometry," which is what goal 3 actually asks for and what a human has to judge. Recorded
+as an open follow-up rather than silently treated as covered by the existing test
+layers.

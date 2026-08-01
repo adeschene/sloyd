@@ -127,10 +127,11 @@ Sharpened: a label overflowed whenever its run was shorter than the label was wi
   in the first place. So `diagramLabels.ts`'s `labelWidth` is arithmetic instead:
   character count × `CHAR_W`, where `CHAR_W` rests on `--font-num` (the monospace
   stack already used everywhere else numbers print in this app) advancing at a fixed
-  rate per glyph. Measured in a real browser: **12.029 units/glyph** at font-size 20,
-  identical for digits, punctuation and mixed strings — a real monospace face, not an
-  assumption. `CHAR_W = 12.4` bounds that from above with 0.371 units/glyph of
-  headroom, so the bound errs toward spacing labels slightly too far apart rather than
+  rate per glyph. Measured in a real browser: **≈12.03 units/glyph** at font-size 20
+  (two independent probes, 12.042 and 12.029, identical for digits, punctuation and
+  mixed strings) — a real monospace face, not an assumption. `CHAR_W = 12.4` bounds
+  that from above with **0.358** units/glyph of headroom against the higher of the two
+  probes, so the bound errs toward spacing labels slightly too far apart rather than
   too little (see follow-up 66 for what happens on a machine where the headroom isn't
   enough).
 - **One-row-per-cut closes cross-cut collisions by construction.** Every number a cut
@@ -138,8 +139,11 @@ Sharpened: a label overflowed whenever its run was shorter than the label was wi
   arithmetic involved — two different cuts' labels cannot collide regardless of
   string length, because nothing has to compute whether they do. Only the up-to-three
   labels sharing one row (offset, width, depth) can still collide, and those are
-  settled by `packRow`, which measures each label via `labelWidth` and shifts labels
-  right, in board order, only as far as a genuine overflow requires.
+  settled by `packRow`, which measures each label via `labelWidth` and runs in two
+  phases: labels cascade RIGHT, in board order, during the left-to-right sweep; only
+  if the row still overflows `max` afterward does the WHOLE row then shift LEFT as
+  one, which is what preserves every gap. See follow-up 71 for a worked case
+  (`flush-max`) where that left shift pulls a label past the band it names.
 - **Depth moved into the row for a reason deeper than the collision that prompted
   it.** Depth runs perpendicular to this view — it has no position on the page, so
   centring it on its band was never spatially meaningful in the first place. Placing

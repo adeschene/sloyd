@@ -2,17 +2,25 @@ import { labelWidth, packRow, CHAR_W, LABEL_SIZE, LABEL_EM } from './diagramLabe
 
 describe('labelWidth', () => {
   it('is linear in the character count', () => {
-    // Measured in a real browser at font-size 20 with --font-num: every glyph
-    // is exactly 12.05 units. See the spec's section 2 table.
+    // Measured in a real browser at font-size 20 with --font-num: two
+    // independent probes gave 12.042 and 12.029 units/glyph (≈12.03-12.04),
+    // not a single exact figure. See the spec's section 2 table. This test
+    // pins labelWidth's MODEL (length * CHAR_W), not that measurement — it
+    // cannot fail, because the implementation IS that arithmetic.
     expect(labelWidth('6"')).toBeCloseTo(2 * CHAR_W, 10);
     expect(labelWidth('3/4"')).toBeCloseTo(4 * CHAR_W, 10);
     expect(labelWidth('100-15/16"')).toBeCloseTo(10 * CHAR_W, 10);
   });
 
   it('bounds the measured advance from ABOVE, never below', () => {
-    // 12.05 was measured; CHAR_W must exceed it or the packer under-spaces and
-    // the browser overlaps while every test here passes.
+    // The highest of the two measured probes was 12.042 units/glyph; CHAR_W
+    // must exceed the measurement or the packer under-spaces and the browser
+    // overlaps while every test here passes. 12.05 is a conservative floor
+    // above both probes, not the measurement itself.
     expect(CHAR_W).toBeGreaterThan(12.05);
+    // This line pins the MODEL (CHAR_W = LABEL_SIZE * LABEL_EM) rather than
+    // testing behaviour — it cannot fail, since that product IS CHAR_W's
+    // definition. Kept because it documents the relationship, not as coverage.
     expect(CHAR_W).toBe(LABEL_SIZE * LABEL_EM);
   });
 

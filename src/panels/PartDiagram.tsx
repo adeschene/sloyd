@@ -36,11 +36,13 @@ const VIEW_W = DRAW_WIDTH + RIGHT;
  * near/far distinction would silently collapse to solid-versus-dashed on a
  * default print.
  *
- * NOTHING IS DRAWN ABOVE OR BELOW THE OUTLINE. Every number a cut owns lives in
- * that cut's own stacked leader row, which is what makes a collision BETWEEN
- * cuts impossible by construction — rows are ROW units apart vertically, so no
- * arithmetic is involved. Only the three labels WITHIN a row can collide, and
- * `packRow` settles those (follow-up 59).
+ * NO TEXT HANGS OFF THE OUTLINE'S TOP OR BOTTOM EDGE THE WAY IT DID IN THE OLD
+ * TOP/FAR BANDS. The leader rows and the overall-length run are still drawn
+ * below the outline — that geometry is the point — but every number a cut
+ * owns now lives in that cut's own stacked leader row, which is what makes a
+ * collision BETWEEN cuts impossible by construction — rows are ROW units apart
+ * vertically, so no arithmetic is involved. Only the three labels WITHIN a row
+ * can collide, and `packRow` settles those (follow-up 59).
  *
  * Depth moved into the row for a better reason than the collision that prompted
  * it: depth runs PERPENDICULAR to this view. It has no position on the page, so

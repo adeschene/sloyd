@@ -11,10 +11,12 @@
  * So the labels are set in `--font-num` instead — the monospace stack the rest
  * of the app already uses for every number it prints, and the one thing the
  * diagram labels inexplicably did not use. Measured in a real browser at
- * font-size 20, that face advances EXACTLY 12.05 units per glyph for the whole
- * label alphabet (digits, `/`, `-`, `"`, space, and the word "deep"), so a
- * label's width is its character count times a constant. See the design spec's
- * section 2 for the measurements.
+ * font-size 20, that face advances at a fixed rate per glyph for the whole
+ * label alphabet (digits, `/`, `-`, `"`, space, and the word "deep") — two
+ * independent probes on this host gave 12.042 and 12.029 units/glyph (≈12.03-
+ * 12.04), not a single exact figure — so a label's width is its character
+ * count times a constant. See the design spec's section 2 for the
+ * measurements.
  */
 
 /**
@@ -33,9 +35,11 @@ export const LABEL_SIZE = 20;
 /**
  * An UPPER BOUND on monospace advance, in em.
  *
- * Measured 0.6025 on this host; 0.62 leaves headroom for a machine whose
- * `--font-num` stack resolves to a wider face. The bound must err HIGH: too
- * wide only spaces labels further apart than they needed, while too narrow
+ * Measured ≈0.602 on this host (two independent probes: 12.042 and 12.029
+ * units/glyph at font-size 20, i.e. 0.6021em and 0.60145em); 0.62 leaves
+ * headroom for a machine whose `--font-num` stack resolves to a wider face.
+ * The bound must err HIGH: too wide only spaces labels further apart than
+ * they needed, while too narrow
  * silently reintroduces the overlap this module exists to prevent, with every
  * unit test still passing.
  */
