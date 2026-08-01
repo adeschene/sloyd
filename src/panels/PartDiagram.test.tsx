@@ -179,6 +179,24 @@ describe('PartDiagram', () => {
       expect(Number(t.getAttribute('x')) - w / 2).toBeGreaterThanOrEqual(left);
     }
   });
+
+  it('delimits each measured run with end ticks', () => {
+    // The offset run and the band run abut and are collinear, so without ticks
+    // they read as ONE line from the board's edge to the cut's far side, making
+    // the offset label look like it measures to the far side. Found by eye on a
+    // real rendered diagram, not by a predicate.
+    const { container } = render(<PartDiagram view={view(dado())} />);
+    const row = container.querySelector('.cutlist-diagram-leader')!;
+    const ticks = [...row.querySelectorAll('line')].filter(
+      (l) => l.getAttribute('x1') === l.getAttribute('x2'),
+    );
+    expect(ticks).toHaveLength(3);
+    // The middle tick is what separates the two runs: it must sit exactly at the
+    // band's near edge, shared by both.
+    const band = container.querySelector('.cutlist-diagram-near')!;
+    const xs = ticks.map((l) => Number(l.getAttribute('x1'))).sort((a, b) => a - b);
+    expect(xs[1]).toBeCloseTo(Number(band.getAttribute('x')), 10);
+  });
 });
 
 /**

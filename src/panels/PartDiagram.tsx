@@ -15,6 +15,10 @@ const BOTTOM = 34;
 const RIGHT = 90;
 /** Minimum clearance between two labels in a row, and band-to-depth-label. */
 const GAP_X = 8;
+/** Half-length of a run's end tick. Runs abut, so without these the offset run
+ *  and the band run fuse into one line and the offset label appears to measure
+ *  to the far side of the cut. */
+const TICK = 4;
 /** The full drawable interval — the viewBox, not the outline. */
 const VIEW_W = DRAW_WIDTH + RIGHT;
 
@@ -158,6 +162,9 @@ export function PartDiagram({ view }: { view: DiagramView }) {
             >
               <line x1={fit.offsetX} y1={y} x2={b.x} y2={y} />
               <line x1={b.x} y1={y} x2={b.x + b.width} y2={y} />
+              <line x1={fit.offsetX} y1={y - TICK} x2={fit.offsetX} y2={y + TICK} />
+              <line x1={b.x} y1={y - TICK} x2={b.x} y2={y + TICK} />
+              <line x1={b.x + b.width} y1={y - TICK} x2={b.x + b.width} y2={y + TICK} />
               <text x={ox} y={y - 6} textAnchor="middle">{cut.offsetLabel}</text>
               <text x={wx} y={y - 6} textAnchor="middle">{cut.widthLabel}</text>
               <text x={dx} y={y - 6} textAnchor="middle">{cut.depthLabel}</text>
@@ -167,6 +174,13 @@ export function PartDiagram({ view }: { view: DiagramView }) {
 
         <g className="cutlist-diagram-leader">
           <line x1={fit.offsetX} y1={baseline} x2={fit.offsetX + fit.drawnH} y2={baseline} />
+          <line x1={fit.offsetX} y1={baseline - TICK} x2={fit.offsetX} y2={baseline + TICK} />
+          <line
+            x1={fit.offsetX + fit.drawnH}
+            y1={baseline - TICK}
+            x2={fit.offsetX + fit.drawnH}
+            y2={baseline + TICK}
+          />
           <text x={hx} y={baseline - 6} textAnchor="middle">{view.hLabel}</text>
         </g>
 
