@@ -1,4 +1,4 @@
-import { band, fitView, DRAW_WIDTH, MAX_ASPECT, MAX_HEIGHT, MIN_FEATURE, MIN_WIDTH } from './diagramScale';
+import { band, bandOn, fitView, DRAW_WIDTH, MAX_ASPECT, MAX_HEIGHT, MIN_FEATURE, MIN_WIDTH } from './diagramScale';
 
 describe('fitView', () => {
   it('scales uniformly when the aspect ratio is comfortable', () => {
@@ -115,5 +115,35 @@ describe('band', () => {
     // cutRegion's contract first.
     const fit = fitView(24, 5.5);
     expect(band([6.75, 6], fit)).toEqual(band([6, 6.75], fit));
+  });
+});
+
+describe('bandOn', () => {
+  it('places a comfortable band at true scale on either axis', () => {
+    expect(bandOn([6, 6.75], 40, 0, 1000)).toEqual({ start: 240, size: 30 });
+    expect(bandOn([6, 6.75], 40, 100, 1000)).toEqual({ start: 340, size: 30 });
+  });
+
+  it('widens a hairline band about its centre', () => {
+    const b = bandOn([6, 6.05], 40, 0, 1000);
+    expect(b.size).toBe(MIN_FEATURE);
+    expect(b.start + b.size / 2).toBeCloseTo(6.025 * 40, 10);
+  });
+
+  it('clamps a widened band inside the extent at both ends', () => {
+    expect(bandOn([0, 0.01], 40, 0, 1000).start).toBe(0);
+    const far = bandOn([24, 24], 40, 0, 960);
+    expect(far.start + far.size).toBeLessThanOrEqual(960);
+  });
+
+  it('normalises an out-of-order span', () => {
+    expect(bandOn([6.75, 6], 40, 0, 1000)).toEqual(bandOn([6, 6.75], 40, 0, 1000));
+  });
+
+  it('is what band() delegates to, so the two cannot drift', () => {
+    const fit = fitView(24, 5.5);
+    const b = band([6, 6.75], fit);
+    const on = bandOn([6, 6.75], fit.sx, fit.offsetX, fit.drawnH);
+    expect(b).toEqual({ x: on.start, width: on.size });
   });
 });

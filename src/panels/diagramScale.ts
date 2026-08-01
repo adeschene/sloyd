@@ -90,6 +90,42 @@ export function fitView(h: number, v: number): DiagramFit {
 }
 
 /**
+ * A band along ONE axis, given that axis's scale, origin and drawn extent.
+ *
+ * Axis-agnostic on purpose: a per-face view draws cut bands on BOTH axes — a
+ * cut positioned along the horizontal axis is a vertical band, one positioned
+ * along the vertical axis is a horizontal band — and the widening, ordering and
+ * clamping rules are identical either way. Keeping one implementation is what
+ * stops the vertical axis quietly acquiring different behaviour.
+ *
+ * Both guards live here rather than in the caller. ORDERING: a [max, min] span
+ * yields a negative size, which fails the MIN_FEATURE test and falls into the
+ * widening branch, drawing a plausible band in the wrong place with no error
+ * (follow-up 62). CLAMPING: widening about the centre puts the band outside the
+ * board whenever the cut is within MIN_FEATURE / 2 of an edge.
+ */
+export function bandOn(
+  span: Span,
+  scale: number,
+  origin: number,
+  extent: number,
+): { start: number; size: number } {
+  const lo = Math.min(span[0], span[1]);
+  const hi = Math.max(span[0], span[1]);
+  const a = origin + lo * scale;
+  const b = origin + hi * scale;
+  const size = b - a;
+  if (size >= MIN_FEATURE) return { start: a, size };
+  const centred = (a + b) / 2 - MIN_FEATURE / 2;
+  // `Math.max` last so an extent narrower than MIN_FEATURE pins to the origin
+  // rather than inverting the clamp.
+  return {
+    start: Math.max(origin, Math.min(centred, origin + extent - MIN_FEATURE)),
+    size: MIN_FEATURE,
+  };
+}
+
+/**
  * A cut's band along the horizontal axis.
  *
  * Widening is ABOUT THE CENTRE, not from the left edge. Position is the
@@ -114,18 +150,6 @@ export function fitView(h: number, v: number): DiagramFit {
  * centring is wrong, and nowhere else.
  */
 export function band(span: Span, fit: DiagramFit): { x: number; width: number } {
-  const lo = Math.min(span[0], span[1]);
-  const hi = Math.max(span[0], span[1]);
-  const x0 = fit.offsetX + lo * fit.sx;
-  const x1 = fit.offsetX + hi * fit.sx;
-  const width = x1 - x0;
-  if (width >= MIN_FEATURE) return { x: x0, width };
-
-  // Widen about the centre, then slide back inside the outline if that pushed
-  // an edge cut out of it. `Math.max` last so a board drawn narrower than
-  // MIN_FEATURE pins to the left edge rather than inverting the clamp.
-  const left = fit.offsetX;
-  const right = fit.offsetX + fit.drawnH;
-  const x = (x0 + x1) / 2 - MIN_FEATURE / 2;
-  return { x: Math.max(left, Math.min(x, right - MIN_FEATURE)), width: MIN_FEATURE };
+  const { start, size } = bandOn(span, fit.sx, fit.offsetX, fit.drawnH);
+  return { x: start, width: size };
 }
