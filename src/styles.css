@@ -555,6 +555,59 @@ button[aria-pressed='true'] {
   font-size: 0.9em;
 }
 
+.cutlist-diagram {
+  grid-column: 2 / -1;
+  margin: 10px 0 0;
+}
+
+.cutlist-diagram svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  color: var(--ink);
+  overflow: visible;
+}
+
+.cutlist-diagram-head {
+  margin-bottom: 4px;
+  font-size: 0.85em;
+  color: var(--ink-dim);
+}
+
+.cutlist-diagram-note {
+  margin: 2px 0 0;
+  font-size: 0.78em;
+  color: var(--ink-faint);
+}
+
+.cutlist-diagram-outline {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.cutlist-diagram-near {
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.cutlist-diagram-far {
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-dasharray: 10 7;
+}
+
+.cutlist-diagram-depth,
+.cutlist-diagram-leader text {
+  fill: currentColor;
+  font-size: 20px;
+}
+
+.cutlist-diagram-leader line {
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+
 .cutlist-empty {
   margin-top: 24px;
   color: var(--ink-faint);
