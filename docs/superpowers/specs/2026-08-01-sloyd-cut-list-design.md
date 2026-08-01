@@ -136,10 +136,12 @@ collected into `names`.
 
 ### Tolerance is display precision, expressed as the key itself
 
-The grouping key is built by running every number through `formatLength` at
+The grouping key is built by running every *number* through `formatLength` at
 `doc.units.display.precision` and concatenating the results with `|` — a character
 `formatLength` never emits (its output is digits, `-`, `/` and `"`), so no combination
-of values can collide by running two fields together.
+of values can collide by running two fields together. Every *enum* field — `material`,
+`grain`, `face`, `from`, `across` — goes into the key verbatim; all of them are
+lowercase identifiers containing no `|`.
 
 That is the whole tolerance rule. Two rows that print identically *are* one row, by
 construction — there is no separate comparison step that could disagree with what the
@@ -151,12 +153,26 @@ their row prints the rounded value. This is correct for a shop sheet — the use
 the precision they cut to — but it means the cut list is *not* a faithful report of
 exact stored values, and never claims to be.
 
-### The joinery signature
+### The joinery signature — exact, and deliberately not display precision
 
-A row's cuts must match as well. Each cut renders to a canonical formatted string —
-`face`, `from`, `across`, and the formatted `offset`, `width`, `depth`; `id` excluded,
-since it is identity rather than geometry — the strings are sorted, and the sorted
-list is joined into the key.
+A row's cuts must match as well. Each cut renders to a canonical string —
+`face`, `from`, `across` verbatim, then `offset`, `width` and `depth` as their **exact
+numbers** (`String(n)`), not formatted; `id` excluded, since it is identity rather than
+geometry. The strings are sorted, and the sorted list is joined into the key.
+
+**This is the one place the display-precision rule does not apply, and the asymmetry is
+the point.** A stock dimension rounded to the precision you cut to costs you nothing —
+you were going to cut to that precision anyway. A dado *location* rounded the same way
+costs you the joint: two dados 1/32" apart are two different setups, and a sheet that
+merged them would print one offset and quietly be wrong about the other part. So
+dimensions collapse at display precision; cuts must match exactly.
+
+Note that this is a comparison of two numbers for equality within a key string, not a
+float `===` on a computed value — the hazard that made `cutLabel` wrong 2.8% of the
+time was comparing a *subtraction result* against a bound. These are stored values
+compared to stored values, and two cuts entered as the same number are the same number.
+The failure mode of being too strict is a split row, which is visible and harmless; the
+failure mode of being too loose is a wrong measurement, which is neither.
 
 Sorting is what makes the signature order-independent: two boards carrying the same
 two dados collapse regardless of which cut was added first. A board with no cuts
@@ -177,8 +193,14 @@ and React keys off it.
 
 ## 4. The setup lines
 
-Each row's `setup` is derived from the cuts shared by every part in that row (they are
-identical by construction, so any member's cuts will do — read them from the first).
+Each row's `setup` is derived from the cuts shared by every part in that row — they are
+identical by construction, so the first part to land in the row supplies them.
+
+**Computed during grouping, not from the finished row.** `cutLabel(board, cut)` takes a
+`Board`, because dado-versus-rabbet depends on the board's dimensions and not on the cut
+alone. So the setup lines are built while the board is in hand — as the row is created —
+rather than reconstructed afterward from `CutListRow`, which deliberately does not carry
+a board. Nothing downstream of `buildCutList` needs one.
 
 One line per cut, phrased part-locally, so the numbers are already the ones you take
 to the bench:
@@ -239,6 +261,9 @@ from what was on screen.
   precision 32.
 - Joinery signature: same two cuts added in opposite order collapse; a differing
   `depth` splits; a cut-bearing board never collapses with a cut-free one.
+- Joinery is exact, dimensions are not: two boards whose *lengths* differ by 1/32"
+  collapse at precision 16, while two boards whose *dado offsets* differ by 1/32" do
+  not — one test asserting both halves, since the asymmetry is the design.
 - Setup lines: a dado and a rabbet each produce the expected string, including the
   position axis for every `face`/`across` pairing.
 - Ordering: groups and rows come out in the specified order, deterministically.
