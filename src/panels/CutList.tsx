@@ -107,7 +107,7 @@ export function CutList({ onClose }: { onClose: () => void }) {
                 ))}
               </ul>
               <p className="cutlist-subtotal">
-                <span className="cutlist-subtotal-label">{group.label}</span>
+                <span className="cutlist-subtotal-label">{group.label}:</span>
                 <span className="cutlist-stock">{group.stock}</span>
               </p>
             </section>

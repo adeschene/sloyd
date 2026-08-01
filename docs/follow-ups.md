@@ -1437,7 +1437,15 @@ discrepancy was visible in this particular seed only because the four seeded boa
 happen to be bit-identical within each row — the divergence this entry describes needs a
 seed like follow-up 55's (two boards a fraction of an inch apart) to actually show on
 screen, which was out of scope for this round's seed and is recorded here rather than
-demonstrated.
+demonstrated. A second, related consequence: the printed *group subtotals* do not
+necessarily sum to the same number as adding the printed *row* totals together, for
+the identical reason. Each printed figure is independently rounded to two decimals,
+while the subtotal is computed from unrounded accumulated values. Example from the
+spec's own mockup: rows print `1.38` and `1.36` (which sum visibly to `2.74`), but the
+group subtotal prints `2.73` — correctly, because the true total is `393.75 / 144 =
+2.734375`. This is correct, not a bug, by the same argument as the row-to-total
+discrepancy: rounding the subtotal to make the sheet internally self-consistent was
+rejected in the design because it would make the purchasing number wrong.
 
 **83. What `formatBoardFeet`/`formatSquareFeet` deliberately do not do — recorded so a
 future request to add any of these reads as a re-proposal, not a gap.** No rounding up
@@ -1463,4 +1471,3 @@ new fourth grid column right-aligned cleanly against the existing three without
 colliding with the multi-name list (`Leg 1, Leg 2`), and — after the follow-up 81 fix —
 both row and subtotal figures render `rgb(0, 0, 0)` under print media by
 `getComputedStyle`, matching what the screenshot showed by eye.
-green suite proves a guard fires, not that it protects the thing it was written for.

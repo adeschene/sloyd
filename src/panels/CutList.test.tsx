@@ -121,4 +121,12 @@ describe('CutList', () => {
     expect(screen.getByText(/3\/4" dado, 3\/8" deep/)).toBeInTheDocument();
     expect(screen.getByText(/Schematic — not to scale/)).toBeInTheDocument();
   });
+
+  it('renders the stock total for a row', () => {
+    load({ material: 'pine', thickness: 0.75, length: 24, width: 5.5 },
+         { material: 'pine', thickness: 0.75, length: 24, width: 5.5 });
+    render(<CutList onClose={() => {}} />);
+    // Both row and group subtotal show the same total; verify at least one is rendered
+    expect(screen.getAllByText('1.38 bd ft').length).toBeGreaterThan(0);
+  });
 });
