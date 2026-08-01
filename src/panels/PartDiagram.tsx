@@ -134,8 +134,9 @@ export function PartDiagram({ view }: { view: DiagramView }) {
 
         <text
           className="cutlist-diagram-depth"
-          x={DRAW_WIDTH + 12}
+          x={fit.offsetX + fit.drawnH + 12}
           y={top + fit.drawnV / 2}
+          dominantBaseline="middle"
         >
           {view.vLabel}
         </text>

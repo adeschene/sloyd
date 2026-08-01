@@ -211,12 +211,45 @@ describe('buildCutList', () => {
     expect(line).toContain(`${drawn.offsetLabel} from the`);
   });
 
+  it('agrees with each setup line even when the drawing reorders the cuts', () => {
+    // `setup` stays in board.cuts order; `diagrams[i].cuts` sorts by h[0]. With
+    // only one cut (the test above) that difference is invisible — the
+    // correspondence holds trivially because there is nothing to reorder.
+    // Enter two cuts on the SAME view (thickness face, across width) in
+    // DESCENDING offset order, so the sort actually reorders the drawn cuts
+    // relative to `setup`, and match each setup line to its cut by `id`
+    // rather than by array position.
+    const far: Cut = { id: 'far', face: 'thickness', from: 'min', across: 'width',
+                       offset: 12, width: 0.75, depth: 0.375 };
+    const near: Cut = { id: 'near', face: 'thickness', from: 'min', across: 'width',
+                        offset: 6, width: 0.5, depth: 0.25 };
+    const board = createBoard({ name: 'P0', cuts: [far, near] });
+    const [row] = buildCutList({ ...createDocument('Test'), boards: [board] }).groups[0].rows;
+
+    // The drawing sorts by h[0]: `near` (offset 6) comes before `far` (offset 12).
+    expect(row.diagrams[0].cuts.map((c) => c.id)).toEqual(['near', 'far']);
+    // `setup` stays in board.cuts order: `far` first, then `near`.
+    expect(row.setup).toHaveLength(2);
+
+    for (const [cutId, expectedIndex] of [['far', 0], ['near', 1]] as const) {
+      const line = row.setup[expectedIndex];
+      const drawn = row.diagrams[0].cuts.find((c) => c.id === cutId)!;
+      expect(line.startsWith(`${drawn.widthLabel} ${drawn.kind},`)).toBe(true);
+      expect(line).toContain(`${drawn.depthLabel} —`);
+      expect(line).toContain(`${drawn.offsetLabel} from the`);
+    }
+  });
+
   it('keeps that agreement at a different precision', () => {
     const cut: Cut = { id: 'c1', face: 'thickness', from: 'min', across: 'width',
                        offset: 6.03, width: 0.75, depth: 0.375 };
     const doc = docWith({ cuts: [cut] });
     doc.units = { display: 'imperial-fractional', precision: 32 };
     const [row] = buildCutList(doc).groups[0].rows;
-    expect(row.setup[0]).toContain(`${row.diagrams[0].cuts[0].offsetLabel} from the`);
+    const line = row.setup[0];
+    const drawn = row.diagrams[0].cuts[0];
+    expect(line.startsWith(`${drawn.widthLabel} ${drawn.kind},`)).toBe(true);
+    expect(line).toContain(`${drawn.depthLabel} —`);
+    expect(line).toContain(`${drawn.offsetLabel} from the`);
   });
 });

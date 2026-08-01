@@ -1,4 +1,4 @@
-import { band, fitView, DRAW_WIDTH, MAX_ASPECT, MAX_HEIGHT, MIN_FEATURE } from './diagramScale';
+import { band, fitView, DRAW_WIDTH, MAX_ASPECT, MAX_HEIGHT, MIN_FEATURE, MIN_WIDTH } from './diagramScale';
 
 describe('fitView', () => {
   it('scales uniformly when the aspect ratio is comfortable', () => {
@@ -32,6 +32,21 @@ describe('fitView', () => {
     // An invariant of the CONSTANTS, not of the inputs. If you change either
     // constant, re-read the ladder before changing this expectation.
     expect(DRAW_WIDTH / MAX_ASPECT).toBeLessThan(MAX_HEIGHT);
+  });
+
+  it('floors a tall, narrow board so the shrink branch cannot squeeze it to a hairline', () => {
+    // 0.75" x 24" — a full-length groove in a board's edge (face: 'width',
+    // across: 'length' gives along: 'thickness'). Without a floor this comes
+    // out at drawnH ~= 13.12, a MIN_FEATURE band nearly half the board's width.
+    const fit = fitView(0.75, 24);
+    expect(fit.drawnH).toBe(MIN_WIDTH);
+    expect(fit.drawnV).toBe(MAX_HEIGHT);
+    expect(fit.sx).not.toBeCloseTo(fit.sy, 5);
+  });
+
+  it('still centres the drawing once drawnH is floored', () => {
+    const fit = fitView(0.75, 24);
+    expect(fit.offsetX).toBeCloseTo((DRAW_WIDTH - fit.drawnH) / 2, 10);
   });
 
   it('never returns a non-finite scale for a degenerate board', () => {

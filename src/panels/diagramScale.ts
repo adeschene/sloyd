@@ -15,6 +15,13 @@ export const MAX_ASPECT = 8;
 export const MAX_HEIGHT = 420;
 /** A cut band is never drawn narrower than this. */
 export const MIN_FEATURE = 6;
+/**
+ * A board is never drawn narrower than this — the mirror of the sliver clamp,
+ * for a board that is tall rather than short. Symmetric with MAX_ASPECT on
+ * purpose: neither dimension is drawn thinner than DRAW_WIDTH / MAX_ASPECT,
+ * whichever way round the board is.
+ */
+export const MIN_WIDTH = DRAW_WIDTH / MAX_ASPECT;
 
 export interface DiagramFit {
   /** Drawing units per inch, horizontally. */
@@ -47,7 +54,8 @@ export function fitView(h: number, v: number): DiagramFit {
 
   const floor = DRAW_WIDTH / MAX_ASPECT;
   if (drawnV < floor) {
-    // The sliver clamp — the ONLY step that makes the scale non-uniform. A
+    // The sliver clamp — the FIRST of two steps that make the scale
+    // non-uniform (see the MIN_WIDTH floor below for the second). A
     // 96" x 3-1/2" rail needs somewhere to put a dado.
     drawnV = floor;
   } else if (drawnV > MAX_HEIGHT) {
@@ -56,6 +64,15 @@ export function fitView(h: number, v: number): DiagramFit {
     // DRAW_WIDTH / MAX_ASPECT is 125 and MAX_HEIGHT is 420.
     drawnH = DRAW_WIDTH * (MAX_HEIGHT / drawnV);
     drawnV = MAX_HEIGHT;
+    if (drawnH < MIN_WIDTH) {
+      // The mirror of the sliver clamp, on the axis this branch shrinks. A
+      // tall, narrow board — e.g. a full-length groove in a board's edge,
+      // where `h` is the thickness and `v` is the length — would otherwise
+      // shrink to a hairline once `v` is capped at MAX_HEIGHT. Floor it
+      // before centring, like the sliver clamp does at the other extreme:
+      // this is the SECOND step that makes the scale non-uniform.
+      drawnH = MIN_WIDTH;
+    }
     offsetX = (DRAW_WIDTH - drawnH) / 2;
   }
 
