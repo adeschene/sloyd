@@ -18,7 +18,7 @@ short post-v3 pass fixing two bugs found in use (`DimensionField` and `NameField
 both displaying, and in `NameField`'s case writing, stale text after an external
 change landed while the field had focus) plus a plywood-grain regression from v3
 itself — then **joinery** (a board can have stock removed from it), and now the
-**cut list**: the numbers you take to the bench. Static SPA, containerized, 432/432
+**cut list**: the numbers you take to the bench. Static SPA, containerized, 438/438
 tests passing.
 
 Host-specific deployment detail — hostname, container name, proxy configuration, and
@@ -48,9 +48,22 @@ gitignored. Read that file before deploying; it is not in the public repo.
   exactly — see invariant 18.
 - **Printable, and print is the point.** The sheet is a full-screen modal that
   `@media print` strips to ink on white: toolbar, viewport and panels are hidden, the
-  Print and Close buttons with them. While it is open, board shortcuts are suppressed
-  — Delete behind a full-screen view that shows no selection would otherwise delete
-  the selected part invisibly.
+  Print and Close buttons with them.
+- **A modal is inert twice over, and the second half is easy to miss.** While the sheet
+  is open the rest of the app — everything under `.app-shell` — carries the `inert`
+  attribute, which takes the whole subtree out of the tab order, out of hit-testing and
+  out of the accessibility tree in one attribute; the sheet takes focus on mount and
+  `App` gives it back to the opener on close. That is what stops Tab reaching
+  `NameField`, the project-name field and the `DimensionField`s behind the scrim, all of
+  which commit on change or blur — the failure mode was *silently editing the document
+  while reading a sheet that shows no selection*, not merely an aria gap. But `inert`
+  cannot touch a **`window` listener**, which never sees which subtree an event came
+  from, so every window-level shortcut needs the open flag passed to it explicitly:
+  `App`'s own keydown effect early-returns on it (Delete/Backspace, undo/redo), and
+  `Viewport` takes it as the `shortcutsSuspended` prop for `f`/`Home` — without which
+  `f` re-frames the camera invisibly and hands back a moved view. A prop rather than
+  store state on purpose: the open flag is local view state, outside the document and
+  the undo stack. **Any new `window` listener must join this list.**
 
 **What is next is not yet chosen.** The cut list's §7 records the candidates as
 decisions rather than omissions, and the two nearest are **board-feet and sheet
@@ -60,7 +73,8 @@ is a real packing problem and wants its own spec. CSV/clipboard export and name
 run-collapsing (`Leg 1..4`) were both looked at and declined, for reasons worth reading
 before proposing either again. Absent a new feature, the standing work is the open
 ledger — 47-58 in `docs/follow-ups.md`, of which **48 and 49 are the only two with a
-user-visible consequence**.
+user-visible consequence** now that the branch's final review pass closed **56** (modal
+containment — see the inert bullet above) and **58** (`body` under `@media print`).
 
 **What joinery did**, design in
 `docs/superpowers/specs/2026-07-31-sloyd-joinery-design.md`, plan in
@@ -242,7 +256,7 @@ src/
 │   │                        line. Pure; imports ./types, ./geometry, ./cuts and
 │   │                        ../units/length — never ./document
 │   └── document.ts          create / validate / migrate (v1->v2->v3->v4 chain);
-│                            re-exports the other four
+│                            re-exports the other five
 ├── store/store.ts           Zustand store, snapshot undo/redo, gesture coalescing
 ├── storage/
 │   ├── types.ts             the StorageAdapter interface
@@ -271,8 +285,11 @@ src/
 │   ├── Properties.tsx       board fields + the Cuts section; CutRow is its own
 │   │                        component so a cut's error dies with the cut
 │   └── CutList.tsx          the printable sheet: derives from the document on every
-│                            render, owns Escape-to-close, calls formatLength never
-└── App.tsx                  layout, autosave/restore effects, undo keybindings
+│                            render, owns Escape-to-close and takes focus on mount,
+│                            calls formatLength never
+└── App.tsx                  layout, autosave/restore effects, undo keybindings, and
+                             the `.app-shell` wrapper that goes `inert` behind the
+                             cut list
 ```
 
 Deployment scaffolding: `Dockerfile`, `docker-compose.yml`, `nginx.conf`,
@@ -436,9 +453,10 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
     so that `FIT` and fixed tiling are one division: `u = coordinate / tileInches`.
 18. **On the cut list, dimensions collapse at display precision and cuts must match
     exactly.** The two halves of a row key are built by two deliberately different
-    code paths — `formatLength(n, doc.units.precision)` for every dimension, raw
-    `String(n)` for every field of every cut — and neither may be relaxed to match the
-    other, in either direction. The reason is what each error costs at the bench. A
+    code paths — `formatLength(n, doc.units.precision)` for every dimension, and for a
+    cut the three enum fields (`face`, `from`, `across`) verbatim with raw `String(n)`
+    on the three numbers (`offset`, `width`, `depth`) — and neither may be relaxed to
+    match the other, in either direction. The reason is what each error costs at the bench. A
     stock dimension rounded to the nearest 1/16" costs nothing: two boards 0.02" apart
     are one board to anyone cutting them, and splitting them into two rows over a
     difference no saw can hold makes the sheet lie about how much stock to buy. A
@@ -457,7 +475,7 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 432 tests
+npm test           # Vitest, currently 438 tests
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -499,7 +517,11 @@ verbatim.** They were caught because implementers were told to fix the code rath
 the expectation, and to stop and escalate when they believed an expectation was itself
 wrong — which happened once, correctly, and changed the plan.
 
-The cut list added **54-58**, all open and all recorded rather than fixed. **48 and
+The cut list added **54-58**. **56 and 58 are closed** by the branch's final review pass
+— the modal is now contained (`inert` shell, focus on mount, focus restored on close)
+and the print block no longer leaves `body` or `.cutlist-empty` dark; 54 and 55 were
+also *corrected* rather than closed, 54 having overstated its risk and 55 having gained
+55a, the one place the representative rule reaches a printed word. **48 and
 49 are unaffected by it** and stay open: the cut list reports *stock* dimensions, and
 a board whose cuts happen to remove all of it still has the stock it was cut from, so
 it appears on the sheet correctly even while it renders as nothing in the viewport.

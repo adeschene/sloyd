@@ -33,7 +33,12 @@ export interface CutListRow {
 export interface CutListGroup {
   /** MATERIALS key. */
   material: string;
-  /** Exact inches. */
+  /**
+   * Exact inches — but the FIRST board's, exactly as `CutListRow`'s numbers
+   * are: a group collapsed because its parts' thicknesses print identically,
+   * not because they are equal. Representative, not consensus; do not compare
+   * two groups' thicknesses for equality. `label` is what the user sees.
+   */
   thickness: number;
   /** e.g. `Pine — 3/4"` */
   label: string;
@@ -45,9 +50,21 @@ export interface CutList {
 }
 
 /**
- * Total rather than assuming a validated document, for the same reason
- * `cutRegion` is: a Board built directly — a test, a future creation path —
- * can reach here without passing the validator.
+ * The `??` guards an unknown material KEY, not an unvalidated board.
+ *
+ * It used to claim the latter, and that claim was not survivable: `buildCutList`
+ * reads `board.cuts` twice (here in `rowKey` via `cutSignature`, and again for
+ * `setup`), so raw pre-v4 data throws before any fallback here could help, and
+ * pre-v3 data would produce an undefined `grain` in the key rather than an
+ * exception — garbage, not safety. Every path into this function runs through
+ * `migrateDocument`, which is where that guarantee belongs.
+ *
+ * What remains is narrow and worth keeping: a Board constructed in code —
+ * a test, a future creation path — can carry a material string `MATERIALS`
+ * does not know (`validateBoard` would have replaced it with the default), and
+ * printing the raw key beats printing `undefined` in a group heading. So: a
+ * one-field fallback with a stated scope, not a totality claim the rest of the
+ * function cannot honour.
  */
 function materialLabel(material: string): string {
   return MATERIALS[material]?.label ?? material;
@@ -160,6 +177,18 @@ export function buildCutList(doc: SloydDocument): CutList {
         thickness: board.thickness,
         grain: board.grain,
         dims: `${formatLength(board.length, precision)} × ${formatLength(board.width, precision)}`,
+        // The setup lines are the FIRST board's, and the row's other boards
+        // hold numerically identical cuts — `cutSignature` is exact, so that
+        // much really is by construction. The WORD is not: `cutLabel` decides
+        // dado-versus-rabbet by testing the cut against the board's exact
+        // dimensions, and the dimensions collapsed at display precision. Two
+        // boards 24" and 24.02" long share a row, and a cut at offset 23.25
+        // width 0.75 is flush on the first and not on the second — so the row
+        // prints "rabbet" for a part that is really a dado 0.02" from the end.
+        // Every NUMBER on the line is right for every part in the row; only
+        // the noun is the representative's. Left as is deliberately: at the
+        // precision the sheet is printed to, the representative's word is the
+        // more useful one at the bench. Follow-up 55.
         setup: board.cuts.map((cut) => setupLine(board, cut, precision)),
       };
       rows.set(key, row);

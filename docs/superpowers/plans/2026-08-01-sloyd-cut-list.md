@@ -15,7 +15,7 @@ Spec: `docs/superpowers/specs/2026-08-01-sloyd-cut-list-design.md`. Read it befo
 - **`npm test` does not typecheck.** Run `npm run build` before claiming anything compiles. Both must be green before every commit.
 - **`src/document/cutlist.ts` must never import `./document`.** `document.ts` re-exports it; importing back is a cycle. Import `./types`, `./geometry`, `./cuts`, and `../units/length` only. (`cuts.ts` is the precedent.)
 - **This feature adds a single new import edge to the architecture: `document → units`.** That is deliberate and specified (spec §2). It is the *only* layering change; nothing else moves.
-- **Stored values are exact; display rounds.** Every number that reaches the user goes through `formatLength(n, doc.units.display.precision)`. The panel calls `formatLength` zero times.
+- **Stored values are exact; display rounds.** Every number that reaches the user goes through `formatLength(n, doc.units.display.precision)`. The panel calls `formatLength` zero times. *[Editorial correction, added after implementation: `doc.units.display.precision` is wrong — the field is flat, `doc.units.precision`, `display` being the sibling format name. The implementation uses `doc.units.precision`. The error is left in place deliberately, as a record of a plan-supplied defect: this plan is history, not documentation, and joinery's lesson — seven defects in code the plan supplied verbatim — is only legible if the plans keep the defects they shipped with.]*
 - **No new fields on `Board`, `Cut`, or `SloydDocument`.** If a task seems to need one, stop and escalate — it means derived state is leaking into the document.
 - **Dimensions group at display precision; cut geometry must match exactly.** This asymmetry is the design, not an oversight (spec §3).
 - **Part-local vocabulary only.** `length`/`width`/`thickness`, never world axes, in every user-visible string.
@@ -251,7 +251,10 @@ function rowKey(board: Board, precision: number): string {
 }
 
 export function buildCutList(doc: SloydDocument): CutList {
-  const precision = doc.units.display.precision;
+  const precision = doc.units.display.precision; // [Editorial correction: wrong field —
+  // the real one is flat, `doc.units.precision`. The shipped code uses that; this line
+  // is left wrong on purpose as a record of a plan-supplied defect. See the same note
+  // in §"Stored values are exact".]
   const groups = new Map<string, CutListGroup>();
   const rows = new Map<string, CutListRow>();
 

@@ -150,6 +150,11 @@ describe('buildCutList', () => {
 
   it.each([
     ['depth', { depth: 0.5 }],
+    // `width` is the cut's own width (how wide the trench is), not the board's
+    // — the split it must produce is a differently-sized dado, and the case
+    // exists because it is the one Cut geometry field the rest of this list
+    // would otherwise leave to `offset`'s tolerance test alone.
+    ['width', { width: 0.5 }],
     // `face: 'length'` rather than `'width'`: `across` is already 'width', and
     // a cut naming the same dimension twice is degenerate — legal input to
     // `cutRegion`, which is total about it, but not something to assert on here.

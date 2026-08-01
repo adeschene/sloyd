@@ -657,23 +657,37 @@ if anything it is less, because it was never executed before being written down.
 
 ## From the cut list
 
-Five items. Nothing here is user-visible today; four are the "correct but untested"
-shape this file exists to catch before a refactor breaks it silently, and one is a
-print-only cosmetic. Recording them rather than leaving the section empty is the
-point — a section that says "nothing deferred" is a real record, and this one is not
-that.
+Five items, of which **56 and 58 are now closed** by the branch's final review pass —
+see each entry. The three that remain are the "correct but untested" shape this file
+exists to catch before a refactor breaks it silently, plus one hardcoded colour.
 
-**54. `rowKey` and `groupKey` must stay in lockstep, and no test pins it.** A row's key
-and its group's key are two separately hand-written `|`-joined field lists that both
-begin with `material` and formatted `thickness`. If they ever disagree about a leading
-field — someone adds `grain` to the group key, or reorders one — rows silently land in
-the wrong group, or a group ends up holding rows that should have been two groups. The
-existing tests check grouping and collapsing behaviour through the public output, which
-catches a *wrong* result but not a *drifting* pair, because the natural way to break
-this is to change one list while adding a feature that the behavioural tests do not
-cover. The cheap fix is to derive the group key as a prefix of the row key rather than
-writing it twice; the cheaper interim fix is a test asserting `rowKey` starts with
-`groupKey`.
+The original preamble here said "nothing is user-visible today", and that was wrong
+about 56: it was filed as an accessibility gap (no focus trap, no initial focus), and
+the containment it described missing was also what let **Tab walk out of the sheet
+into `NameField`, the project-name field and the `DimensionField`s and edit the
+document silently** — a data defect, not an aria one, reached with the keyboard alone.
+Worth remembering as a shape: an item filed under the heading it was noticed from can
+be the same defect as one under a heading nobody was looking at.
+
+**54. One drift between `rowKey` and `groupKey` is uncovered: a field in the group key
+that is not in the row key.** A row's key and its group's key are two separately
+hand-written `|`-joined field lists that both begin with `material` and formatted
+`thickness`. The entry originally claimed the pair was wholly untested; that overstates
+it, and the review that filed it corrected itself. What the existing tests *do* catch:
+the `it.each` split tests fail immediately if either key drops `material` or
+`thickness`, because two boards differing only in that field would then collapse into
+one row. And reordering `rowKey`'s fields is harmless — the key is an opaque identity
+string, not a parse target, and the sort's `localeCompare` tiebreak only needs it to be
+total.
+
+The genuinely uncovered case is narrower: **adding a field to `groupKey` that is not
+also in `rowKey`.** Two boards alike in everything the row key sees but differing in
+the new field would then land in two groups while sharing one row — the row is created
+under the first group and the second group is created empty, so the sheet renders an
+`<section>` with a heading and no rows under it. Nothing today asserts that a rendered
+group is non-empty. The cheap fix is still to derive the group key as a prefix of the
+row key rather than writing it twice; the cheaper interim one is a test asserting every
+group has at least one row.
 
 **55. A row's exact numbers are a representative, not a consensus.** `CutListRow`
 carries raw `length`/`width`/`thickness` floats alongside its formatted `dims` string,
@@ -684,9 +698,44 @@ that compares two rows' raw numbers for equality, or sums them expecting exactne
 reading a number that only represents the group to within display precision. Nothing
 consumes them today (`CutList.tsx` renders `dims` and never touches the floats), which
 is exactly why this needs writing down before something does. See invariant 18 for the
-rule the floats are downstream of.
+rule the floats are downstream of. `CutListGroup.thickness` is the same representative
+and now carries the same caveat in its doc comment — it originally had a bare
+"Exact inches", which is how a consumer would have found the caveat only on whichever
+field happened to be documented more carefully.
 
-**56. The cut-list modal has no focus trap and no initial-focus management.** Opening
+**55a. The same representative rule reaches one printed word, and there it is
+visible.** A row's setup lines come from the first board too, and the row's cuts really
+are numerically identical — `cutSignature` is exact, so every *number* on the line is
+right for every part in the row. The *label* is not. `cutLabel` decides
+dado-versus-rabbet by testing the cut against that board's **exact** dimensions, while
+the row collapsed at **display** precision: two boards 24" and 24.02" long share a row,
+and a cut at `offset 23.25, width 0.75` is flush with the end of the first but 0.02"
+short on the second, so the sheet prints "rabbet" for a part that is strictly a dado.
+Left as is deliberately, as a judgement rather than a deferral — at the precision the
+sheet is printed to, 0.02" of remaining stock is not a shoulder anyone will cut, and the
+representative's word is the more useful one at the bench. The alternative, computing
+the label per board and splitting the row when they disagree, would split a row over a
+difference no saw can hold, which is exactly what invariant 18 rules out for dimensions.
+Recorded here and in a comment at the `setup:` line so a future reader who notices the
+mismatch finds it decided rather than missed.
+
+**56. CLOSED — the cut-list modal had no focus trap and no initial-focus management.**
+Closed in the branch's final review pass, and closed as a *data* defect rather than the
+accessibility nicety it was filed as: Tab out of the sheet reached `NameField`, the
+project-name field and the `DimensionField`s, all of which commit on change or blur, so
+a keyboard user silently edited the document while reading a sheet that shows no
+selection. The fix is not the "cycle Tab within it" this entry proposed. Everything but
+the overlay now lives in one `.app-shell` wrapper carrying the `inert` attribute while
+the sheet is open, which removes the whole subtree from the tab order, from hit-testing
+and from the accessibility tree at once — no hand-rolled cycler, and nothing to keep in
+sync with a future focusable control. The sheet takes focus on mount (`tabIndex={-1}`
+plus a ref), and `App` restores focus to whatever opened it on close, captured at open
+time because `inert` blurs the opener before the modal's mount effect runs. Note the
+half-closure this replaced: Delete/Backspace was already guarded in `App`, so the
+keyboard hazard was known and only the pointer half of it had been believed. Original
+entry follows.
+
+**56 (original).** Opening
 the sheet leaves focus on the toolbar button that opened it, and Tab walks straight out
 of the dialog into the toolbar and panels behind it, which are visually covered and
 functionally still there. Escape-to-close works and is tested, and the sheet is
@@ -703,7 +752,14 @@ not the screen palette) and should stay that way; the scrim is the one value tha
 *should* be a token the moment a second overlay exists. Brief-origin, kept verbatim,
 recorded rather than quietly changed.
 
-**58. `body` keeps its dark background under `@media print`.** Verified in the browser:
+**58. CLOSED — `body` kept its dark background under `@media print`.** Closed in the
+branch's final review pass by exactly the one-line `body { background: #fff; }` this
+entry called for, added to the existing print block; the same pass added `.cutlist-empty`
+to that block's colour reset, which was grey-on-white for the same reason and had not
+been noticed because the empty sheet is the one state nobody prints. Original entry
+follows.
+
+**58 (original).** Verified in the browser:
 in print media the toolbar, viewport and panels are correctly hidden and the sheet is
 black on white with no buttons, but `body` still computes to `rgb(20, 22, 25)`. Browsers
 omit background colours when printing by default, so the normal path prints clean — the
