@@ -512,6 +512,14 @@ button[aria-pressed='true'] {
   gap: 8px;
 }
 
+.cutlist-diagram-mode {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85em;
+  color: var(--ink-dim);
+}
+
 .cutlist-group {
   margin-top: 28px;
 }

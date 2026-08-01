@@ -1,6 +1,16 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store/store';
 import { buildCutList } from '../document/document';
+import { PartDiagram } from './PartDiagram';
+
+/**
+ * Which rows get drawn. LOCAL VIEW STATE, deliberately not in the store: it is
+ * outside the document and outside the undo stack, the same reasoning that
+ * made `shortcutsSuspended` a prop rather than store state. `buildCutList`
+ * stays a pure function of the document — this chooses what to RENDER, never
+ * what to compute. It is not persisted; a fresh open starts at 'joinery'.
+ */
+type DiagramMode = 'none' | 'joinery' | 'all';
 
 /**
  * The cut list as a printable sheet.
@@ -20,6 +30,7 @@ export function CutList({ onClose }: { onClose: () => void }) {
   const doc = useStore((s) => s.doc);
   const list = buildCutList(doc);
   const sheet = useRef<HTMLDivElement>(null);
+  const [diagrams, setDiagrams] = useState<DiagramMode>('joinery');
 
   // `tabIndex={-1}` makes the sheet focusable without putting it in the tab
   // order, so focus starts inside the dialog and Tab proceeds to Print/Close
@@ -42,6 +53,17 @@ export function CutList({ onClose }: { onClose: () => void }) {
         <header className="cutlist-head">
           <h2>Cut list — {doc.name}</h2>
           <div className="cutlist-actions">
+            <label className="cutlist-diagram-mode">
+              Diagrams
+              <select
+                value={diagrams}
+                onChange={(e) => setDiagrams(e.target.value as DiagramMode)}
+              >
+                <option value="none">None</option>
+                <option value="joinery">Joinery only</option>
+                <option value="all">All parts</option>
+              </select>
+            </label>
             <button onClick={() => window.print()}>Print</button>
             <button onClick={onClose} aria-label="Close cut list">✕</button>
           </div>
@@ -76,6 +98,10 @@ export function CutList({ onClose }: { onClose: () => void }) {
                         ))}
                       </ul>
                     )}
+                    {(diagrams === 'all' || (diagrams === 'joinery' && row.setup.length > 0)) &&
+                      row.diagrams.map((view) => (
+                        <PartDiagram key={view.key} view={view} />
+                      ))}
                   </li>
                 ))}
               </ul>
