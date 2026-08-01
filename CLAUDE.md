@@ -33,18 +33,52 @@ the manual steps a human has to perform — lives in `DEPLOYMENT.local.md`, whic
 gitignored. Read that file before deploying; it is not in the public repo.
 
 **The cut list line of work is CLOSED as of 2026-08-01** — cut list, diagrams, label
-layout, per-face views and board feet are all shipped, merged to `master` and deployed
-to production. Do not treat any of the five as in-flight. What is deliberately *not*
-built sits in two places, and both are decisions rather than omissions: the **"Deferred
-behind it"** paragraph below (sheet-goods nesting; CSV export and name run-collapsing,
-both declined with reasons worth reading before re-proposing), and
-`docs/follow-ups.md`'s open entries. **48 and 49 — a board whose cuts remove all its
+layout, per-face views and board feet are all shipped and merged to `master`. Do not
+treat any of the five as in-flight.
+
+**`master` is AHEAD of production.** Everything through the per-face diagrams round is
+deployed. The two rounds after it — the **empty-solids placeholder** and **board feet** —
+are merged and verified but have **not** been deployed; the user deferred the deploy
+deliberately, it is not an oversight. Production therefore still renders a fully-consumed
+board as nothing and still prints a cut list with no stock totals. Anyone picking this up
+should either run `docker compose up -d --build` (see `DEPLOYMENT.local.md` first) or
+leave it alone knowingly — but must not assume production matches `master`.
+
+What is deliberately *not* built sits in two places, and both are decisions rather than
+omissions: the **"Deferred behind it"** paragraph below (sheet-goods nesting; CSV export
+and name run-collapsing, both declined with reasons worth reading before re-proposing),
+and `docs/follow-ups.md`'s open entries. **48 and 49 — a board whose cuts remove all its
 stock rendering as nothing — are now CLOSED**, by the empty-solids placeholder described
 below; no open follow-up currently has a user-visible consequence. Two things about the
-diagrams remain unverified
-rather than fixed: a **print-to-PDF render** (this host's Playwright exposes no `pdf()`)
-and **hatch-versus-cross-hatch legibility at screen size**, which is a recorded negative
-finding, not an assumption — see follow-ups 76 and 79.
+diagrams remain unverified rather than fixed: a **print-to-PDF render** (this host's
+Playwright exposes no `pdf()`) and **hatch-versus-cross-hatch legibility at screen
+size**, which is a recorded negative finding, not an assumption — see follow-ups 76
+and 79.
+
+**NEXT LINE OF WORK: sheet-goods nesting.** Chosen 2026-08-01, not yet started — no
+spec, no plan, no branch. It is the last item from the cut list's §7 and it is the one
+piece of that release's deferral that was never "cheap": it is a real 2D packing
+problem, and both prior rounds refused to let it in through a side door (the cut list
+declined it outright; the board-feet round chose square feet over a sheet *count* for
+exactly this reason). What a design round will have to settle before any code:
+
+- **It is the first feature since v4 that may need a schema change.** A sheet count or a
+  layout needs a stock sheet size, and the document does not store one — 4×8 is an
+  assumption about the world, not a fact about the project. If that becomes a field, it
+  is `CURRENT_VERSION` 5 and a fifth migration step, and the chain in `document.ts` is
+  the worked example to copy.
+- **The inputs already exist.** `buildCutList` groups by material and thickness, which
+  is exactly a nesting problem's input partition, and `isSheetGood` already separates
+  sheet stock from solid. Grain direction matters for real nesting (a part may not be
+  free to rotate 90°) and `Board.grain` is already part-local and already stored.
+- **Kerf, and whether the answer is a number or a picture.** A count is a purchasing
+  number; a layout is a bench output and a much bigger surface — the sheet already
+  renders SVG diagrams, so a layout would have somewhere to live, which is a reason to
+  scope carefully rather than a reason to build it.
+
+Start with `superpowers:brainstorming`, and read the cut list design's §7 and the
+board-feet design's §4 first — both record *why* this was deferred, and those reasons
+are the design constraints.
 
 **What the empty-solids placeholder did** (2026-08-01, closing follow-ups 48 and 49; no
 spec — the diagnosis and the chosen fix were already in the ledger). A board whose own
