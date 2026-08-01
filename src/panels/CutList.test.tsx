@@ -80,4 +80,45 @@ describe('CutList', () => {
     expect(dupKeyWarning).toBe(false);
     spy.mockRestore();
   });
+
+  const dadoed = {
+    cuts: [{ id: 'c1', face: 'thickness' as const, from: 'min' as const,
+             across: 'width' as const, offset: 6, width: 0.75, depth: 0.375 }],
+  };
+
+  it('draws a joinery row by default and leaves a plain row undrawn', () => {
+    load(dadoed, {});
+    const { container } = render(<CutList onClose={() => {}} />);
+    expect(container.querySelectorAll('.cutlist-diagram')).toHaveLength(1);
+  });
+
+  it('draws nothing when diagrams are turned off', async () => {
+    load(dadoed, {});
+    const { container } = render(<CutList onClose={() => {}} />);
+    await userEvent.selectOptions(screen.getByLabelText('Diagrams'), 'none');
+    expect(container.querySelectorAll('.cutlist-diagram')).toHaveLength(0);
+  });
+
+  it('draws every row when asked for all parts', async () => {
+    load(dadoed, {});
+    const { container } = render(<CutList onClose={() => {}} />);
+    await userEvent.selectOptions(screen.getByLabelText('Diagrams'), 'all');
+    expect(container.querySelectorAll('.cutlist-diagram')).toHaveLength(2);
+  });
+
+  it('starts a fresh open at joinery only', () => {
+    load(dadoed, {});
+    const first = render(<CutList onClose={() => {}} />);
+    expect(first.container.querySelectorAll('.cutlist-diagram')).toHaveLength(1);
+    first.unmount();
+    const second = render(<CutList onClose={() => {}} />);
+    expect(second.container.querySelectorAll('.cutlist-diagram')).toHaveLength(1);
+  });
+
+  it('keeps the setup line beside the drawing rather than replacing it', () => {
+    load(dadoed);
+    render(<CutList onClose={() => {}} />);
+    expect(screen.getByText(/3\/4" dado, 3\/8" deep/)).toBeInTheDocument();
+    expect(screen.getByText(/Schematic — not to scale/)).toBeInTheDocument();
+  });
 });

@@ -366,12 +366,21 @@ likely to ship a defect, because the failure is invisible on screen.
   "Background graphics" is enabled. A `<pattern>` fill is foreground content and
   survives that setting; a CSS background would not, and the near/far distinction
   would silently collapse to "solid outline versus dashed outline" on a default print.
-- **Strokes and text use `currentColor`**, so the existing `.cutlist-*` colour reset
-  reaches them.
-- **Every new class is still enumerated in the `@media print` block explicitly.**
-  `currentColor` inheritance is a convenience, not a guarantee, and follow-up 58
-  shipped a grey-on-white `.cutlist-empty` for precisely the reason that nobody prints
-  the state they did not think about. Enumerate; do not rely on cascade.
+- **Strokes and text use `currentColor` where that is the class's ONLY colour, and
+  those classes are covered by one rule, not enumerated.** `.cutlist-diagram-outline`,
+  `-near`, `-far`, `-depth` and `-leader` carry no colour of their own — every stroke
+  and fill inside the SVG is `currentColor` — so the single `.cutlist-diagram svg {
+  color: #000; }` rule reaches all of them by inheritance, and enumerating them
+  individually would add lines that repeat what the cascade already guarantees. This
+  is unconditional, not a case-by-case judgement: a class with no colour declaration
+  of its own has nothing for an enumeration to override.
+- **Every class that carries its OWN colour is still enumerated in the `@media print`
+  block explicitly.** `.cutlist-diagram-head` and `.cutlist-diagram-note` use
+  `--ink-dim`/`--ink-faint` — real colour declarations, not `currentColor` — so they
+  are exactly the classes follow-up 58's lesson is about: `currentColor` inheritance
+  is a convenience for classes with no colour of their own, never a guarantee for
+  classes that already have one, and those are the ones that print grey on white if
+  forgotten. Enumerate those; do not rely on cascade to override a declared colour.
 - **Pagination.** `.cutlist-row` already has `break-inside: avoid`. A row with a
   diagram is several times taller, and whether that rule survives — or strands a row
   on a fresh page — is a browser-verification item. It is not something a jsdom test

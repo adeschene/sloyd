@@ -778,3 +778,122 @@ has, so it appears on the sheet with correct dimensions and setup lines even whi
 invisible in the viewport. The sheet is arguably the one place the part is currently
 still legible, but that is a coincidence of what the cut list reports, not a fix, and
 the placeholder-render fix those two items call for is still the right one.
+
+## From the cut list diagrams
+
+Design in `docs/superpowers/specs/2026-08-01-sloyd-cut-list-diagrams-design.md`, plan
+in `docs/superpowers/plans/2026-08-01-sloyd-cut-list-diagrams.md`. Verified by driving
+a real browser (Playwright, the only tooling that works on this host — see **26a**);
+what was checked and what was deferred is recorded per item below, not asserted as a
+blanket "verified".
+
+**59. Depth labels collide when two cuts sit close together on one view — open,
+unsolved on purpose.** Spec §5 records this as a known gap and names the fix: move the
+depth label into the leader row instead of hanging it off the outline. Reproduced in
+the browser with two near-side dados 3/4" apart on a 24" × 24" panel — both say
+`3/8" deep`, both centre on their own band, and at that spacing the two strings
+overlap into unreadable text. The same shape showed up unprompted on a board with one
+cut offset only 3/16" from the edge: the depth label collided with the leader row's own
+offset/width labels underneath it, which is a second instance of the identical root
+cause (labels placed by band centre, with no collision awareness of any other text on
+the page) rather than a second bug. Left open because the fix is a real layout change
+(the leader row already carries offset and width per cut; adding depth is mechanical
+but touches `ROW`'s height and the leader loop in `PartDiagram.tsx`), not something to
+improvise mid-verification-pass.
+
+**A third instance of the same root cause, found in the final review pass: bands and
+labels can bleed past the outline at the extremes.** A cut at `offset: 0` narrower
+than `MIN_FEATURE` gets `x = centre − 3`, left of the board's edge (`fit.offsetX`);
+its depth label extends further still. `overflow: visible` keeps it drawn rather than
+clipped, so it is visible, not hidden-but-wrong. This is not a fourth bug — it is
+labels placed by band centre with no awareness of the outline's own boundary, which
+is the identical shape the two collisions above already describe — so it is folded
+into this entry rather than opened separately. Left unfixed for the same reason: the
+fix is the same real layout change already deferred here.
+
+**59a. Pagination outcome, recorded.** Spec §7 named "does a drawn row survive a
+printed page break" as a browser-verification item; it was checked (task 6's check 9)
+but the outcome had gone unrecorded here. Checked against a real PDF, backgrounds
+suppressed: the page break landed cleanly between two rows — the 24"×24" panel's row
+and the following `24" × 5-1/2"` board's row — with no drawn diagram split across the
+boundary and no row's text separated from its own figure. **PASS**, confirming
+`break-inside: avoid` holds on both `.cutlist-row` and `.cutlist-diagram`.
+
+**60. `MAX_ASPECT` (8) and `MAX_HEIGHT` (420) are browser-settled, not test-settled.**
+The unit tests pin `fitView`'s *behaviour* — that a sliver clamps, that a tall drawing
+shrinks uniformly and centres — but nothing in the suite asserts that the result is
+*readable*, because readability is a browser judgement, not a computable property. This
+pass exercised both extremes named in the plan: a 96" × 3-1/2" rail (drawn aspect ≈
+7.9:1 against the 8:1 floor, dado clearly visible) and a 24" × 24" panel (drawn as a
+centred square, not squashed, against the 420-unit ceiling). Both read as legible at
+the sizes checked; neither constant was changed. That is a judgement call recorded
+here, not a proof — a future part with more extreme proportions, or a screen/print size
+this pass did not check, could still call the same constants into question, and they
+stay named exports in `diagramScale.ts` for exactly that reason.
+
+**61. §2's "one view per `(face, across)` pair, not per face" non-goal was checked
+against the panel, not just against `diagram.ts`'s tests, and it holds — the case it
+protects against cannot currently be reached through the UI.** The concern is a cut
+naming the same dimension for both `face` and `across`, which has no position axis to
+draw against; `diagram.ts` handles it defensively (`if (cut.face === cut.across)
+continue`) for a document built or imported from outside the panel. In the panel
+itself, `Properties.tsx`'s `setFace` already swaps `across` away from the new `face`
+whenever they'd collide (`across = face === cut.across ? positionAxisOf(face,
+cut.face) : cut.across`), so a person using the Cuts section cannot construct the
+degenerate cut in the first place. Reads as a non-goal that survived verification, not
+a bug: the browser check confirmed the *panel* path is already closed, which is what
+makes `diagram.ts`'s own guard belt-and-suspenders rather than load-bearing today.
+
+**62. `band()` has no ordering guard on its `Span` argument — latent, not live.** A
+`Span` with `[max, min]` instead of `[min, max]` would produce a negative `width`,
+which the `width < MIN_FEATURE` branch would then silently re-centre as if it were a
+legitimate narrow cut, drawing a plausible-looking band in the wrong place with no
+error. Every current producer of a `Span` reaching `band()` is `cutRegion`, which
+always emits min-then-max, so this is unreachable today rather than deferred-and-risky.
+Recorded because `band()` is a small pure function a future caller could reach with a
+hand-built `Span` without reading `cutRegion`'s contract first.
+
+**63. `DiagramCut.v`, `DiagramCut.kind`, and now `DiagramFit.sy` are carried but
+unused by their only consumer.** `v` is redundant by construction — every band in the
+current layout spans the view's full height, so nothing consumes the explicit span —
+and `kind` (`'dado' | 'rabbet'`, from `cutLabel`) is computed and attached but never
+read by the renderer. `PartDiagram` uses `drawnV` and `sx` (via `band`); `sy` is
+exported and tested but never read there either — it is the third member of the same
+family. Not dead weight in the sense of being pointless: `DiagramView`/`DiagramCut`
+are `diagram.ts`'s own exported shape and `DiagramFit` is `diagramScale.ts`'s, all
+tested directly and independently of `PartDiagram`, and a future caller (or a future
+renderer variant) reading `kind` to label a band "dado" vs "rabbet" directly, or `sy`
+to document/assert non-uniform scaling, is a plausible next use rather than a
+hypothetical one. Left as is — trimming any of the three would save nothing
+`PartDiagram` currently needs and would narrow a tested, documented shape for no
+behavioural gain.
+
+**64. Task 4's layout constants were wrong as the plan supplied them — a lesson,
+same shape as joinery's "seven defects were in code the plan supplied verbatim."**
+The first leader row's label overlapped the outline (and, on a view with a far-side
+cut, the far depth label too), because the plan's spacing arithmetic never accounted
+for actual font metrics. Caught in review, not in the browser pass — fixed with a
+named `GAP` constant and a wider `ROW`, and guarded afterward by a numeric-coordinate
+test asserting the leader stack starts below the outline and the far label with
+margin to spare. Recorded beside the joinery lesson because it is the same failure
+shape recurring in a different feature: a plan's code is not more trustworthy than
+hand-written code, and this is the cut list diagrams' one entry in that ledger.
+
+**A second plan-supplied defect, found in the final review pass — and a deeper one.**
+`fitView` (`diagramScale.ts`) clamps `drawnV` from below for a short board
+(`MAX_ASPECT`) and from above for a tall one (`MAX_HEIGHT`), but nothing clamped
+`drawnH` after the shrink branch handling a *tall* board ran — a board with `h = 0.75,
+v = 24` (a full-length groove in a board's edge: `face: 'width', across: 'length'`
+gives `along: 'thickness'`, ordinary joinery, not a pathological input) drew `drawnH =
+13.12` against a `MIN_FEATURE = 6` band, i.e. a single cut band 45.7% of the entire
+drawn board width. Fixed with a `MIN_WIDTH` floor, symmetric with `MAX_ASPECT`, applied
+before `offsetX` is computed so centring stays correct; guarded by tests pinning
+`drawnH === MIN_WIDTH`, the resulting non-uniform scale, and that centring still holds.
+This is deeper than the first entry above: `MIN_FEATURE` and `MAX_ASPECT` both exist in
+the same plan specifically as guards against extremes, so the missing `drawnH` floor
+is a gap in the plan's own stated reasoning, not a typo or an overlooked font metric.
+Neither the unit tests (which never called `fitView` with `h < v`'s inverse case at
+this ratio) nor the browser pass (which checked the two extremes the plan named, per
+follow-up 60, but not this one) reached the path. Two plan-supplied defects in one
+feature is the point worth recording: a plan's own stated guards are not proof it
+checked every direction they imply.

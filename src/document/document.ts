@@ -12,6 +12,8 @@ export { boardEdges, boardSolids, cutLabel, cutRegion, pointToLocalXYZ, solidWor
 export type { Point, Segment } from './cuts';
 export { buildCutList } from './cutlist';
 export type { CutList, CutListGroup, CutListRow } from './cutlist';
+export { buildDiagrams } from './diagram';
+export type { DiagramCut, DiagramView } from './diagram';
 
 export const CURRENT_VERSION = 4;
 

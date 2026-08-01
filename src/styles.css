@@ -512,6 +512,14 @@ button[aria-pressed='true'] {
   gap: 8px;
 }
 
+.cutlist-diagram-mode {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85em;
+  color: var(--ink-dim);
+}
+
 .cutlist-group {
   margin-top: 28px;
 }
@@ -555,6 +563,59 @@ button[aria-pressed='true'] {
   font-size: 0.9em;
 }
 
+.cutlist-diagram {
+  grid-column: 2 / -1;
+  margin: 10px 0 0;
+}
+
+.cutlist-diagram svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  color: var(--ink);
+  overflow: visible;
+}
+
+.cutlist-diagram-head {
+  margin-bottom: 4px;
+  font-size: 0.85em;
+  color: var(--ink-dim);
+}
+
+.cutlist-diagram-note {
+  margin: 2px 0 0;
+  font-size: 0.78em;
+  color: var(--ink-faint);
+}
+
+.cutlist-diagram-outline {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.cutlist-diagram-near {
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.cutlist-diagram-far {
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-dasharray: 10 7;
+}
+
+.cutlist-diagram-depth,
+.cutlist-diagram-leader text {
+  fill: currentColor;
+  font-size: 20px;
+}
+
+.cutlist-diagram-leader line {
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+
 .cutlist-empty {
   margin-top: 24px;
   color: var(--ink-faint);
@@ -594,6 +655,12 @@ button[aria-pressed='true'] {
   /* The empty-sheet line belongs here too: --ink-faint is grey chosen against
      graphite, and grey on white is the one line on an otherwise blank page. */
   .cutlist-empty,
+  /* The diagram's heading and caption are the same shape of defect: both are
+     --ink-dim/--ink-faint, both are grey on white, and neither is noticed on
+     screen. Enumerated rather than left to `currentColor` inheritance —
+     follow-up 58 is what enumerating is for. */
+  .cutlist-diagram-head,
+  .cutlist-diagram-note,
   .cutlist-setup { color: #000; }
 
   .cutlist-row {
@@ -602,6 +669,18 @@ button[aria-pressed='true'] {
   }
 
   .cutlist-setup { border-left-color: #999; }
+
+  /* The SVG inherits `color`, and every stroke and fill inside it is
+     `currentColor`, so this one declaration blackens the whole drawing. The
+     hatch is a <pattern> fill — FOREGROUND content, which survives Chrome's
+     "Background graphics" being off. A CSS background would not, and the
+     near/far distinction would silently collapse to solid-versus-dashed. */
+  .cutlist-diagram svg { color: #000; }
+
+  /* A drawn row is several times taller than a text row. `break-inside` is
+     already set on .cutlist-row; keeping the figure intact as well stops a
+     leader stack being orphaned from its outline. */
+  .cutlist-diagram { break-inside: avoid; }
 }
 
 @media (prefers-reduced-motion: reduce) {
