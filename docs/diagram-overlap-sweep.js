@@ -30,18 +30,25 @@ function sweepDiagrams() {
   /**
    * Slack, in drawing units, before a boundary breach counts.
    *
-   * Calibrated against the clean baseline case, not guessed: a near-side depth
-   * label sits at `y = TOP - 8 = 18` with a `getBBox` height of 23.68, so its
-   * box starts at y = −0.6 — six tenths of a unit above the viewBox, on EVERY
-   * diagram that has a near cut, including ones with no defect at all. That is
-   * the glyph box's ascent padding, not visible ink.
+   * RE-DERIVED 2026-08-01, after the label layout round, from a fresh run on
+   * the `1 baseline` geometry alone — in that order, because the control is
+   * what produces the tolerance and checking a guessed tolerance against the
+   * cases inverts the calibration.
    *
-   * Without this, the predicate flags every diagram in the app and tells you
-   * nothing. With it, the baseline passes and only real breaches survive. If
-   * you change `TOP` or the label font-size, re-check this number against a
-   * known-good diagram before trusting a run.
+   * It used to be 1, to absorb a 0.6-unit overhang above the viewBox that every
+   * near-side depth label produced at `y = TOP - 8 = 18` with a `getBBox` height
+   * of 23.68. That was ascent padding rather than visible ink — and it is now
+   * GONE, because no text is drawn above the outline at all: every number a cut
+   * owns lives in that cut's own leader row. Measured on the baseline, the worst
+   * overhang past any of the four edges is exactly 0.00, and the smallest
+   * clearance to any edge is 5.83 units.
+   *
+   * So this is float noise headroom, not an allowance for a known artefact. Do
+   * not raise it to make a failure disappear — at 5.83 units of real clearance,
+   * anything this flags is a genuine breach. If `TOP` or the label font-size
+   * changes, re-derive it the same way.
    */
-  const TOL = 1;
+  const TOL = 0.1;
 
   /** Two boxes overlap only if they do so on BOTH axes. Touching is not overlap. */
   const overlaps = (a, b) =>
@@ -64,8 +71,11 @@ function sweepDiagrams() {
 
     // The overall-width label is the LAST <text> in the svg and is deliberately
     // placed to the right of the outline, so P3 must exempt it. Identified by
-    // position rather than by class, because it shares `cutlist-diagram-depth`
-    // with the per-cut depth labels.
+    // position rather than by class: it now carries `cutlist-diagram-overall`
+    // and could be selected by that instead, but position is what this has
+    // always keyed on and it survives a class rename — which is exactly what
+    // happened to the class it used to share with the per-cut depth labels
+    // (`cutlist-diagram-depth`, deleted in the label layout round).
     const widthLabel = texts[texts.length - 1]?.text;
 
     const issues = [];

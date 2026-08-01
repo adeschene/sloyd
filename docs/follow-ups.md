@@ -787,29 +787,54 @@ a real browser (Playwright, the only tooling that works on this host — see **2
 what was checked and what was deferred is recorded per item below, not asserted as a
 blanket "verified".
 
-**59. Depth labels collide when two cuts sit close together on one view — open,
-unsolved on purpose.** Spec §5 records this as a known gap and names the fix: move the
-depth label into the leader row instead of hanging it off the outline. Reproduced in
-the browser with two near-side dados 3/4" apart on a 24" × 24" panel — both say
-`3/8" deep`, both centre on their own band, and at that spacing the two strings
-overlap into unreadable text. The same shape showed up unprompted on a board with one
-cut offset only 3/16" from the edge: the depth label collided with the leader row's own
-offset/width labels underneath it, which is a second instance of the identical root
-cause (labels placed by band centre, with no collision awareness of any other text on
-the page) rather than a second bug. Left open because the fix is a real layout change
-(the leader row already carries offset and width per cut; adding depth is mechanical
-but touches `ROW`'s height and the leader loop in `PartDiagram.tsx`), not something to
-improvise mid-verification-pass.
+**59. Depth labels collide when two cuts sit close together on one view — CLOSED,
+2026-08-01, by the label layout round.** Design in
+`docs/superpowers/specs/2026-08-01-sloyd-diagram-label-layout-design.md`. All three
+folded-in instances (two dados ¾" apart, a cut at `offset: 0`, and the narrow-drawn
+board carrying a 41-unit label on a 6-unit run) are closed. The browser sweep
+(`docs/diagram-overlap-sweep.js`) is now **ALL CLEAN: 8 geometries, 0 issues**, at a
+re-derived `TOL = 0.1` (see amended item 65).
 
-**A third instance of the same root cause, found in the final review pass: bands and
-labels can bleed past the outline at the extremes.** A cut at `offset: 0` narrower
-than `MIN_FEATURE` gets `x = centre − 3`, left of the board's edge (`fit.offsetX`);
-its depth label extends further still. `overflow: visible` keeps it drawn rather than
-clipped, so it is visible, not hidden-but-wrong. This is not a fourth bug — it is
-labels placed by band centre with no awareness of the outline's own boundary, which
-is the identical shape the two collisions above already describe — so it is folded
-into this entry rather than opened separately. Left unfixed for the same reason: the
-fix is the same real layout change already deferred here.
+The fix addressed the diagnosis this entry itself stated — *"nothing measures the
+width of the string being placed"* — rather than spec §5's named symptom, and that
+distinction splits cleanly into what closed **by construction** versus what needed
+**arithmetic**:
+
+- **By construction: cross-cut collisions.** Every number a cut owns now lives in
+  that cut's own stacked leader row (`ROW` units tall, one row per cut, in
+  `PartDiagram.tsx`), so two different cuts' labels are vertically separated by a
+  fixed offset with no arithmetic involved and nothing to get wrong — they cannot
+  collide with each other regardless of string length. This is also why depth moved
+  off the outline entirely, not only to escape the collision: depth runs
+  *perpendicular* to the view, so centring it on its band was never spatially
+  meaningful in the first place. Placing it beside the band, in the row, is honest
+  about that; the collision was the symptom that surfaced a placement that was wrong
+  on its own terms.
+- **By arithmetic: within-row collisions.** The only labels that can still collide
+  are the up-to-three sharing one row — offset, width, depth — and those are settled
+  by `packRow` (`src/panels/diagramLabels.ts`), which measures each label's width via
+  `labelWidth` (character count × `CHAR_W`, a monospace advance) and runs in two
+  phases, in that order: labels **cascade right**, in board order, during the
+  left-to-right sweep (each pushed clear of the one before it); only THEN, if the
+  row's total still overflows `max`, does the whole row **shift left** as one, which
+  is what preserves every gap. The row overflows into the gutter, rather than crossing
+  the board, only if it genuinely cannot fit even after that shift. See follow-up 71
+  for a worked case where the left-shift phase fires and a label ends up left of the
+  band it names — accepted drafting behaviour, not a bug, but worth reading before
+  assuming the cascade is the whole story.
+- **A run-fusion defect found along the way, also fixed.** Adjacent leader-row runs
+  (the offset run and the band run) were collinear with identical stroke, so they read
+  as one line from the board's edge to the cut's far side — making the offset label
+  look like it measured edge-to-far-side. Found by a human looking at a rendered
+  diagram, not by the sweep (which only reads `<text>`). Fixed with end ticks
+  (`TICK`) at each run boundary.
+
+`getComputedTextLength()`, the obvious way to measure a label, returns 0 under jsdom
+— which is why `labelWidth` is arithmetic (character count × a measured constant)
+rather than a DOM measurement, and why the packer is unit-testable at all. See
+`docs/superpowers/specs/2026-08-01-sloyd-diagram-label-layout-design.md` §2 for the
+`--font-num` measurement this rests on, and the new invariant in `CLAUDE.md` for why
+that constant has exactly one home.
 
 ### The diagnosis, stated once — 2026-08-01, from a measured sweep
 
@@ -886,17 +911,31 @@ and the following `24" × 5-1/2"` board's row — with no drawn diagram split ac
 boundary and no row's text separated from its own figure. **PASS**, confirming
 `break-inside: avoid` holds on both `.cutlist-row` and `.cutlist-diagram`.
 
-**60. `MAX_ASPECT` (8) and `MAX_HEIGHT` (420) are browser-settled, not test-settled.**
-The unit tests pin `fitView`'s *behaviour* — that a sliver clamps, that a tall drawing
-shrinks uniformly and centres — but nothing in the suite asserts that the result is
-*readable*, because readability is a browser judgement, not a computable property. This
-pass exercised both extremes named in the plan: a 96" × 3-1/2" rail (drawn aspect ≈
-7.9:1 against the 8:1 floor, dado clearly visible) and a 24" × 24" panel (drawn as a
-centred square, not squashed, against the 420-unit ceiling). Both read as legible at
-the sizes checked; neither constant was changed. That is a judgement call recorded
-here, not a proof — a future part with more extreme proportions, or a screen/print size
-this pass did not check, could still call the same constants into question, and they
-stay named exports in `diagramScale.ts` for exactly that reason.
+**60. `MAX_ASPECT` (8), `MAX_HEIGHT` (420) and `MIN_WIDTH` are browser-settled, not
+test-settled — amended 2026-08-01, the label layout round's Task 6.** The unit tests
+pin `fitView`'s *behaviour* — that a sliver clamps, that a tall drawing shrinks
+uniformly and centres — but nothing in the suite asserts that the result is
+*readable*, because readability is a browser judgement, not a computable property.
+The original pass exercised the two extremes named in the plan (a 96" rail against
+`MAX_ASPECT`, a 24" square panel against `MAX_HEIGHT`); this round's Task 6 went back
+to the browser with the label layout in place and looked at three geometries:
+
+- `MAX_ASPECT`: a 96" × 3-1/2" rail draws 1000×125, the mid-span dado clearly visible.
+- `MAX_HEIGHT`: a 24" square panel draws a centred 420×420 square, not squashed — and
+  the two ¾"-apart dados that used to fail (follow-up 59's "two-close" case) now read
+  as separate, which is the case this round exists to fix.
+- `MIN_WIDTH`: a 24" × 100-15/16" panel draws 125×420, tight but legible, with the
+  label row starting exactly at the board's left edge (the `fit.offsetX` binding from
+  Task 5).
+
+`MIN_FEATURE = 6` was also exercised in the same pass: the rail's ¾" dado draws at
+true scale (7.8 units), the narrow-drawn panel's widens from 3.9 to 6, and both are
+visible. **No constant was changed** — this is the plan's named legitimate outcome,
+not an omission, so no code review was dispatched for this task. That is still a
+judgement call recorded here, not a proof: a future part with more extreme
+proportions, or a screen/print size this pass did not check, could still call the same
+constants into question, and they stay named exports in `diagramScale.ts` for exactly
+that reason.
 
 **61. §2's "one view per `(face, across)` pair, not per face" non-goal was checked
 against the panel, not just against `diagram.ts`'s tests, and it holds — the case it
@@ -911,29 +950,35 @@ degenerate cut in the first place. Reads as a non-goal that survived verificatio
 a bug: the browser check confirmed the *panel* path is already closed, which is what
 makes `diagram.ts`'s own guard belt-and-suspenders rather than load-bearing today.
 
-**62. `band()` has no ordering guard on its `Span` argument — latent, not live.** A
-`Span` with `[max, min]` instead of `[min, max]` would produce a negative `width`,
-which the `width < MIN_FEATURE` branch would then silently re-centre as if it were a
-legitimate narrow cut, drawing a plausible-looking band in the wrong place with no
-error. Every current producer of a `Span` reaching `band()` is `cutRegion`, which
-always emits min-then-max, so this is unreachable today rather than deferred-and-risky.
-Recorded because `band()` is a small pure function a future caller could reach with a
-hand-built `Span` without reading `cutRegion`'s contract first.
+**62. `band()` has no ordering guard on its `Span` argument — CLOSED, 2026-08-01, the
+label layout round's Task 2.** A `Span` with `[max, min]` instead of `[min, max]`
+would have produced a negative `width`, which the `width < MIN_FEATURE` branch would
+then silently re-centre as if it were a legitimate narrow cut, drawing a
+plausible-looking band in the wrong place with no error. Closed opportunistically,
+not because a real caller reached it — Task 2 was already editing `band()` to clamp a
+widened band inside the outline, and adding the ordering guard while the function was
+open cost nothing extra. Every current producer of a `Span` reaching `band()` is still
+`cutRegion`, which always emits min-then-max, so this was latent rather than live even
+before the fix; the guard exists for a future hand-built `Span` that skips
+`cutRegion`'s contract.
 
-**63. `DiagramCut.v`, `DiagramCut.kind`, and now `DiagramFit.sy` are carried but
-unused by their only consumer.** `v` is redundant by construction — every band in the
-current layout spans the view's full height, so nothing consumes the explicit span —
-and `kind` (`'dado' | 'rabbet'`, from `cutLabel`) is computed and attached but never
-read by the renderer. `PartDiagram` uses `drawnV` and `sx` (via `band`); `sy` is
-exported and tested but never read there either — it is the third member of the same
-family. Not dead weight in the sense of being pointless: `DiagramView`/`DiagramCut`
-are `diagram.ts`'s own exported shape and `DiagramFit` is `diagramScale.ts`'s, all
-tested directly and independently of `PartDiagram`, and a future caller (or a future
-renderer variant) reading `kind` to label a band "dado" vs "rabbet" directly, or `sy`
-to document/assert non-uniform scaling, is a plausible next use rather than a
-hypothetical one. Left as is — trimming any of the three would save nothing
-`PartDiagram` currently needs and would narrow a tested, documented shape for no
-behavioural gain.
+**63. `DiagramCut.v`, `DiagramCut.kind`, and `DiagramFit.sy` are carried but unused by
+their only consumer — amended 2026-08-01.** `v` is redundant by construction — every
+band in the current layout spans the view's full height, so nothing consumes the
+explicit span — and `kind` (`'dado' | 'rabbet'`, from `cutLabel`) is computed and
+attached but never read by the renderer. `PartDiagram` uses `drawnV` and `sx` (via
+`band`); `sy` is exported and tested but never read there either — it is the third
+member of the same family. The label layout round removed
+`.cutlist-diagram-depth` (the depth label moved into the leader row and lost its own
+class), so this entry's wording has been checked against the current code and still
+describes it accurately: the three unused fields are unchanged by the round. Not dead
+weight in the sense of being pointless: `DiagramView`/`DiagramCut` are `diagram.ts`'s
+own exported shape and `DiagramFit` is `diagramScale.ts`'s, all tested directly and
+independently of `PartDiagram`, and a future caller (or a future renderer variant)
+reading `kind` to label a band "dado" vs "rabbet" directly, or `sy` to document/assert
+non-uniform scaling, is a plausible next use rather than a hypothetical one. Left as
+is — trimming any of the three would save nothing `PartDiagram` currently needs and
+would narrow a tested, documented shape for no behavioural gain.
 
 **64. Task 4's layout constants were wrong as the plan supplied them — a lesson,
 same shape as joinery's "seven defects were in code the plan supplied verbatim."**
@@ -973,23 +1018,166 @@ and any depth or leader label reaching left of the board's own edge. It produced
 table in item **59** and it is how that table gets re-checked after any layout change.
 
 **It lives in `docs/` deliberately** — neither `tsc -b` nor vitest looks there, so it
-adds nothing to the build, the typecheck, or the 488-test suite. It is not a unit test
-and should not become one: `getBBox()` returns zeros under jsdom, so this class of
-defect is only observable in a real browser. That is precisely why it went unnoticed
-through a full TDD pass, two task reviews and a whole-branch review.
+adds nothing to the build or the typecheck. It is not a unit test and should not
+become one: `getBBox()` returns zeros under jsdom, so this class of defect is only
+observable in a real browser. That is precisely why it went unnoticed through a full
+TDD pass, two task reviews and a whole-branch review.
 
 To run it: open the cut list with the parts on screen, set the Diagrams toggle to
 **All parts** if cut-free rows matter, and evaluate `sweepDiagrams()`. An empty
 `issues` array is a pass.
 
-Two things to know before trusting a run. **Calibrate before you conclude:** the
-`TOL = 1` constant exists because every near-side depth label overhangs the viewBox top
-by 0.6 units of ascent padding; without the tolerance the predicate flags every diagram
-in the app, including clean ones. If `TOP` or the label font-size changes, re-check that
-number against a known-good diagram. **And keep a passing case in any geometry set you
-drive it with** — `1 baseline` is there to prove the harness can still say "pass", which
-is the only thing that makes a FAIL mean anything.
+**Amended 2026-08-01, the label layout round: `TOL` re-derived from 1 to 0.1.** The
+original `1` was picked to swallow the 0.6-unit ascent padding described below without
+independent measurement of how much margin that left. Task 5 re-ran the sweep
+baseline-only (no other geometry, so nothing could hide a bad tolerance behind a real
+pass) and measured directly: the worst overhang past any viewBox edge came out at
+exactly `0.00`, and the smallest edge clearance measured was `5.83` units. `0.1` is
+derived from that headroom, not picked to make the suite pass — it still swallows the
+ascent padding with room to spare, and it is tight enough to flag a real regression
+that `1` would have hidden. The **calibrate before you conclude** instruction stands
+unchanged: if `TOP` or `LABEL_SIZE` changes, re-run the baseline-only measurement and
+re-derive `TOL` again rather than reusing `0.1` on faith.
 
-The seven geometries used on 2026-08-01 are described in item 59's table; they are
-seeded by writing a document straight to `localStorage` under `sloyd.autosave.v1` and
-reloading, which is faster and more repeatable than building parts through the UI.
+**And keep a passing case in any geometry set you drive it with** — `1 baseline` is
+there to prove the harness can still say "pass", which is the only thing that makes a
+FAIL mean anything.
+
+The seven geometries described in item 59's table were joined by an eighth in Task 4
+(a board dadoed from both sides in the same face, exercising the near/far distinction
+in one drawing) — all eight are now pinned as unit tests in addition to being
+sweep-checked in the browser, and the round's final browser pass ran the full eight
+and came back **ALL CLEAN: 0 issues** at `TOL = 0.1`. They are seeded by writing a
+document straight to `localStorage` under `sloyd.autosave.v1` and reloading, which is
+faster and more repeatable than building parts through the UI.
+
+## From the label layout round
+
+Design in `docs/superpowers/specs/2026-08-01-sloyd-diagram-label-layout-design.md`.
+Closes follow-up 59; amends 60, 63 and 65; closes 62 opportunistically. New entries
+below.
+
+**66. `LABEL_EM` is an upper bound taken from one machine's monospace resolution —
+recorded as a bounded risk, not a universal constant.** `--font-num` measured a
+≈12.03 units/glyph advance at font-size 20 in a real browser on this host (two
+independent probes, 12.042 and 12.029), for digits, punctuation and mixed strings
+alike; `CHAR_W = LABEL_SIZE * LABEL_EM = 12.4` bounds that from above with **0.358**
+units/glyph of headroom against the higher of the two probes. That headroom is this
+machine's number, not a proof about every monospace stack `--font-num` could resolve to
+elsewhere. The failure direction is asymmetric and deliberately favours the safe side:
+if a browser's `--font-num` face is *wider* than 12.4 units/glyph, `labelWidth`
+under-counts and `packRow` under-spaces — labels **crowd**, they do not **pile up**,
+because `packRow` still pushes each label right of the one before it in order; nothing
+in the algorithm can make labels overlap by less spacing than computed, only by more
+than needed. The sweep (item 65) is exactly the instrument that would catch a real
+crowding case on a different machine — this is recorded so a future "labels look a
+little tight in Chrome on Windows" report is read as this risk landing, not as a new
+defect.
+
+**67. `packRow`'s lower bound is now `fit.offsetX`, narrowing its left-shift headroom
+— latent, not live.** Task 5's fix (binding both `packRow` call sites' minimum to the
+board's own left edge rather than the viewBox's) closed a real P3 (an offset label
+drifting left of the board it annotates), but it also means a row that overflows can
+shift left only as far as `fit.offsetX`, not all the way to the viewBox origin. Today
+that headroom is never exhausted: `fit.offsetX <= 437.5` against `viewW >= 1090`
+leaves roughly 652 units of gutter to the right, so no observed row has come close to
+needing the old, wider left-shift range. Unreachable today rather than deferred, in
+the same spirit as follow-ups 62 and 63: a small pure function whose contract a future
+caller could violate without reading it first, this time by feeding `packRow` a wider
+label set or a narrower board than any case this round exercised.
+
+**68. LESSON — this round produced the THIRD and FOURTH instances of plan-supplied
+code being wrong; follow-up 64 already records the first two.** The pattern across all
+four, stated once because it is now established rather than coincidental: **a guard
+written for one direction, and a test written to the guard rather than to the
+requirement.**
+
+- *(3)* The `vx` clamp positioning the overall-width label satisfied the viewBox
+  bound — the label stayed inside `0..viewW` — **by violating the outline it existed
+  to protect**: on a 240" × 100-15/16" board it placed the label 33.3 units to the
+  *left* of the outline's right edge, drawn across the figure it was meant to sit
+  beside. The plan's own test blessed this, because it asserted only the viewBox
+  bound and never checked the label's position relative to the outline — a test
+  written to the guard, not to the requirement the guard was supposed to serve. Fixed
+  by a human ruling, not by relaxing the clamp: grow the viewBox
+  (`viewW = max(VIEW_W, right + 12 + vw)`) so the label always sits at `right + 12`
+  and is never pulled left at all.
+- *(4)* The leader row's two runs (the offset run and the band run) were drawn as
+  adjacent, collinear lines with identical stroke, so they visually fused into one
+  line — a guard against *overlapping labels* that said nothing about *whether the
+  lines a reader's eye follows still mean what they claim to*. The offset label ended
+  up looking like it measured from the board's edge to the cut's *far* side, not its
+  near side, because there was no visual break where one run's meaning ended and the
+  next began. Fixed with end ticks (`TICK`) at each run boundary — found by a human
+  looking at the rendered diagram, not by any guard, review, or test (see item 69).
+
+Read beside follow-up 64: two features now, four instances, one shape. A plan's code
+is not more trustworthy than hand-written code, and a test that asserts the guard's
+own bound proves the guard fires — it does not prove the guard protects the thing it
+was written for.
+
+**69. What the sweep's green does and does not mean — recorded so a future clean run
+is not over-trusted.** `docs/diagram-overlap-sweep.js` collects only `<text>` elements
+and checks their bounding boxes for overlap, viewBox escape, and left-of-edge
+placement. The run-fusion defect (item 68, instance 4) involved no text at all — two
+`<line>` elements reading as one — so it was invisible to the sweep by construction,
+regardless of tolerance. It was equally invisible to the eight unit tests (which pin
+coordinates, not visual continuity) and to three code reviews across the round. It was
+found by a human looking at a rendered diagram. **"Sweep clean" means no text
+collides; it does not mean the drawing reads correctly.** Anything about a diagram
+that a person perceives through relationships between *lines*, not just where *text*
+sits, needs the same browser-eyes verification the sweep was built to reduce, not
+replace.
+
+**70. NOT verified this round: an actual print-to-PDF render.** The Playwright MCP on
+this host exposes no `pdf()` call, so no PDF was produced or inspected. What *was*
+checked, and is not a substitute claim for a print pass: the `@media print` block in
+`styles.css` contains no rule touching the diagram's `font-family` or leader
+`stroke` — `.cutlist-diagram-overall` and `.cutlist-diagram-leader text` set only
+`font-family` outside the print block and nothing overrides it inside;
+`.cutlist-diagram-leader line`'s stroke likewise inherits — so both properties carry through to
+print unchanged rather than silently reverting to a proportional face or a different
+stroke. Pagination (a drawn row surviving a page break) was verified in the previous
+round and is recorded at item 59a; it was **not** re-checked this round, and the reason
+is the same tooling limitation named above — the Playwright MCP on this host exposes no
+`pdf()` call, so there was no way to produce a fresh render to check it against, not
+because this round's changes leave page-break behaviour untouched. That second claim
+would in fact be false: `TOP` went 26→4, `FAR` (22) was deleted, and `viewW` can now grow
+past the nominal `DRAW_WIDTH + RIGHT` — every diagram's rendered height changed (roughly
+40 units shorter from the `TOP`/`FAR` change alone), and a grown `viewW` changes rendered
+pixel height again under `height: auto`. Page breaks would therefore very likely land in
+different places than the 59a run recorded. What is true, and is the actual reason this
+was not re-verified as a defect risk: `break-inside: avoid` on `.cutlist-row` and
+`.cutlist-diagram` is untouched by this round's `src/` changes and very likely still
+holds — but that is an expectation carried over from 59a, not a fresh verification. Do
+not read either fact as "the print output was checked" — it was not.
+
+**71. `packRow`'s left-shift phase is real, reachable, and pulls a label away from the
+band it names — recorded from a final-review re-derivation, open rather than fixed.**
+`packRow` runs two phases, not one: labels cascade right in board order during the
+sweep, and only then, if the row still overflows `max`, does the whole row shift left as
+one. Case 6 (item 59's table, and spec §9's worked walkthrough) never reaches the
+left-shift phase — its row (642 units) fits comfortably under `viewW` (1090) — so every
+existing worked example in `CLAUDE.md`, this file, and the design spec described only
+the cascade-right phase, which reads as the whole story if you have not derived a case
+where the second phase fires. It does fire. Worked here, re-derived in the final review
+pass and checked against the code rather than assumed: sweep case **4** (`flush-max`, a ¾"
+rabbet at `offset: 23.25` on a 24"×5½" board). The band draws at 968.75–1000. The row's
+natural (post-cascade) extent is 1136.8 units wide against `viewW = 1090`, so the whole
+row shifts left by 38.8 units to fit — and the `3/4"` label, which the cascade had
+already pushed right to sit beside the band, ends up spanning 920.8–970.4: mostly to the
+LEFT of the band it names.
+
+This is accepted drafting behaviour, not a defect — it was looked at in a browser during
+this round and reads correctly there, and `packRow`'s contract never promised a label
+stays right of its own band, only that labels within a row do not overlap each other and
+the row stays inside `[min, max]` where it can. But it is worth being honest about what
+it costs: of spec §3's four goals, goal 3 ("the numbers stay spatially attached to the
+geometry they describe") is at its weakest exactly here — a label can end up on the
+visually wrong side of the feature it names, once a row runs long enough to trigger the
+second phase. **No test asserts attachment.** The eight geometry tests in
+`PartDiagram.test.tsx` assert non-overlap and viewBox containment; those are both real
+properties and neither one is "does this label still read as belonging to this
+geometry," which is what goal 3 actually asks for and what a human has to judge. Recorded
+as an open follow-up rather than silently treated as covered by the existing test
+layers.

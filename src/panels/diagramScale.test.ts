@@ -82,4 +82,38 @@ describe('band', () => {
     const fit = fitView(24, 24);
     expect(band([0, 24], fit).x).toBeCloseTo(fit.offsetX, 10);
   });
+
+  it('keeps a widened band inside the outline at the min edge', () => {
+    // Follow-up 59's third instance: a cut at offset 0 narrower than
+    // MIN_FEATURE used to get x = centre - 3, i.e. LEFT of the board's own
+    // edge, and `overflow: visible` drew it there rather than clipping it.
+    const fit = fitView(24, 5.5);
+    const b = band([0, 0.125], fit);
+    expect(b.x).toBeGreaterThanOrEqual(fit.offsetX);
+    expect(b.width).toBe(MIN_FEATURE);
+  });
+
+  it('keeps a widened band inside the outline at the max edge', () => {
+    const fit = fitView(24, 5.5);
+    const b = band([23.875, 24], fit);
+    expect(b.x + b.width).toBeLessThanOrEqual(fit.offsetX + fit.drawnH);
+    expect(b.width).toBe(MIN_FEATURE);
+  });
+
+  it('respects the offset of a centred drawing when it clamps', () => {
+    const fit = fitView(0.75, 24);            // the MIN_WIDTH branch: offsetX > 0
+    const b = band([0, 0.01], fit);
+    expect(b.x).toBeGreaterThanOrEqual(fit.offsetX);
+  });
+
+  it('normalises an out-of-order span instead of drawing it in the wrong place', () => {
+    // Follow-up 62, closed. A [max, min] span gives a NEGATIVE width, which
+    // fails the MIN_FEATURE test and falls into the widening branch — so it
+    // used to draw a plausible-looking narrow band centred between the two
+    // values, with no error anywhere. cutRegion never emits one, but band() is
+    // a small exported pure function a future caller can reach without reading
+    // cutRegion's contract first.
+    const fit = fitView(24, 5.5);
+    expect(band([6.75, 6], fit)).toEqual(band([6, 6.75], fit));
+  });
 });
