@@ -811,6 +811,73 @@ is the identical shape the two collisions above already describe — so it is fo
 into this entry rather than opened separately. Left unfixed for the same reason: the
 fix is the same real layout change already deferred here.
 
+### The diagnosis, stated once — 2026-08-01, from a measured sweep
+
+**Every `<text>` in `PartDiagram.tsx` is positioned by geometry alone and nothing
+anywhere measures the width of the string being placed. SVG text has extent; the code
+treats it as a point.** Each label is centred on a computed run — the offset run, the
+band, the outline — and no code compares the run's length to the label's. That single
+sentence generates every instance above and every one below, which is why this is one
+entry and not six.
+
+The sharpened rule, from the measurements: **a label overflows whenever its run is
+shorter than the label is wide.** `offset: 0` is just the case where the run is zero
+long. That framing also explains why some suspicious geometries pass — they pass by
+luck, not by design (see `5 min-width` below, which clears by under a unit).
+
+Measured with `docs/diagram-overlap-sweep.js` (item **65**) against a real browser and
+real `getBBox()` values, not estimated character widths — the instrument matters here,
+because this feature has twice been wrong about layout from the wrong one (item 64).
+Seven geometries, four pass, three fail:
+
+| case | drawn width | verdict | what breaks |
+|---|---|---|---|
+| `1 baseline` — one dado, 24"×5½" | 1000 | **pass** | — (calibration control) |
+| `2 two-close` — two dados ¾" apart | 420 | **FAIL** | the two `3/8" deep` labels overlap |
+| `3 offset-zero` — cut at `offset: 0` | 1000 | **FAIL** | `0"`×`1/8"` overlap; three labels reach to x = −46 |
+| `4 flush-max` — rabbet flush at the max end | 1000 | **pass** | — |
+| `5 min-width` — edge groove, `drawnH` floored | 125 | **pass** | — (by ~0.7 units; see below) |
+| `6 narrow-drawn` — 24"×100-15/16" panel | 125 | **FAIL** | `6"`×`3/4"` overlap; depth label 15 units left of the board |
+| `7 many-cuts` — five spread dados | 1000 | **pass** | — |
+
+**Case 6 is new and is the one to read.** It is not about a cut near an edge: the board
+is drawn narrow because the *shrink* branch fires and `MIN_WIDTH` floors `drawnH` to
+125. At that width a ¾" cut on a 24" board gets a run of 3.9 units, widened to
+`MIN_FEATURE = 6`, carrying a 41-unit `3/4"` label — a label seven times its own run.
+Any part wider than about 40% of its length reaches this branch, so a shelf or a panel
+gets there, not an exotic input.
+
+**Case 5 passes by luck and should be read as a near-miss, not a clean result.** Its
+runs happen to be ~41.7 units against ~41-unit labels. Same `drawnH = 125` as case 6;
+different cut proportions. A slightly longer label (`11/16"`, `1-1/4"`) would fail it.
+
+**Two hypotheses this sweep DISPROVED**, recorded because they look plausible and would
+otherwise be re-proposed: a depth label on a cut flush at the max end does *not* collide
+with the overall-width label (they occupy different vertical bands), and a long
+`vLabel` does *not* overflow the 90-unit `RIGHT` gutter — because the width label now
+tracks `fit.offsetX + fit.drawnH` rather than the nominal `DRAW_WIDTH`, which was fixed
+in the same session's final review pass.
+
+**One universal, sub-pixel, and deliberately not fixed:** every near-side depth label's
+glyph box starts at y = −0.6, six tenths of a unit above the viewBox, because it sits at
+`TOP − 8 = 18` with a box 23.68 tall. That is ascent padding, not visible ink. It is the
+reason the sweep needs a 1-unit tolerance, and calibrating that tolerance is what makes
+the baseline pass.
+
+**None of this is a regression.** All three failures were live in the build deployed on
+2026-08-01, and follow-up 59 was shipped open by an explicit decision — the prose setup
+lines above each drawing carry the correct numbers regardless. New instances of an
+already-accepted root cause are the same decision, not new breakage.
+
+**What a refinement round should weigh.** The fix named in spec §5 — fold the depth
+label into the stacked leader row — closes case 2 but *not* cases 3 and 6, because those
+are leader labels colliding with each other and with the board's own edge. A fix that
+addresses the stated diagnosis rather than the first symptom has to reckon with label
+width somewhere: measuring text (`getComputedTextLength`, or HTML labels the browser
+lays out), or a layout that cannot collide by construction (one label per stacked row,
+left-aligned at a fixed x rather than centred on its run), or leader lines with
+callouts. That is a design question, which is why this is a round and not a patch.
+
 **59a. Pagination outcome, recorded.** Spec §7 named "does a drawn row survive a
 printed page break" as a browser-verification item; it was checked (task 6's check 9)
 but the outcome had gone unrecorded here. Checked against a real PDF, backgrounds
@@ -897,3 +964,32 @@ this ratio) nor the browser pass (which checked the two extremes the plan named,
 follow-up 60, but not this one) reached the path. Two plan-supplied defects in one
 feature is the point worth recording: a plan's own stated guards are not proof it
 checked every direction they imply.
+
+**65. `docs/diagram-overlap-sweep.js` — the text-collision harness. Not a defect; the
+artifact a refinement round starts from.** A browser-pasteable diagnostic that reads
+real `getBBox()` values off rendered diagrams and asserts three predicates per figure:
+pairwise overlap between every `<text>` in the same SVG, any text outside the viewBox,
+and any depth or leader label reaching left of the board's own edge. It produced the
+table in item **59** and it is how that table gets re-checked after any layout change.
+
+**It lives in `docs/` deliberately** — neither `tsc -b` nor vitest looks there, so it
+adds nothing to the build, the typecheck, or the 488-test suite. It is not a unit test
+and should not become one: `getBBox()` returns zeros under jsdom, so this class of
+defect is only observable in a real browser. That is precisely why it went unnoticed
+through a full TDD pass, two task reviews and a whole-branch review.
+
+To run it: open the cut list with the parts on screen, set the Diagrams toggle to
+**All parts** if cut-free rows matter, and evaluate `sweepDiagrams()`. An empty
+`issues` array is a pass.
+
+Two things to know before trusting a run. **Calibrate before you conclude:** the
+`TOL = 1` constant exists because every near-side depth label overhangs the viewBox top
+by 0.6 units of ascent padding; without the tolerance the predicate flags every diagram
+in the app, including clean ones. If `TOP` or the label font-size changes, re-check that
+number against a known-good diagram. **And keep a passing case in any geometry set you
+drive it with** — `1 baseline` is there to prove the harness can still say "pass", which
+is the only thing that makes a FAIL mean anything.
+
+The seven geometries used on 2026-08-01 are described in item 59's table; they are
+seeded by writing a document straight to `localStorage` under `sloyd.autosave.v1` and
+reloading, which is faster and more repeatable than building parts through the UI.

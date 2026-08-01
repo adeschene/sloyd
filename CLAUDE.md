@@ -109,16 +109,39 @@ gitignored. Read that file before deploying; it is not in the public repo.
   turned out to need browser judgement rather than a test, and what the browser pass
   actually checked versus what it could not.
 
-**What is next is not yet chosen.** The cut list's §7 records the candidates as
-decisions rather than omissions, and the two nearest are **board-feet and sheet
-totals** (cheap now that `buildCutList` exists, but a purchasing number rather than a
-bench number, which is why this release skipped it) and **sheet-goods nesting**, which
-is a real packing problem and wants its own spec. CSV/clipboard export and name
-run-collapsing (`Leg 1..4`) were both looked at and declined, for reasons worth reading
-before proposing either again. Absent a new feature, the standing work is the open
-ledger — 47-58 in `docs/follow-ups.md`, of which **48 and 49 are the only two with a
-user-visible consequence** now that the branch's final review pass closed **56** (modal
-containment — see the inert bullet above) and **58** (`body` under `@media print`).
+**What is next: a diagram refinement round — layout edge cases and text overlap.**
+Chosen 2026-08-01, after the diagrams shipped and deployed. The subject is follow-up
+**59**, whose diagnosis is one sentence: *every `<text>` in `PartDiagram.tsx` is
+positioned by geometry alone, and nothing measures the width of the string being
+placed — SVG text has extent, and the code treats it as a point.* Sharpened: a label
+overflows whenever its run is shorter than the label is wide.
+
+Start from **59's measured table and item 65**, not from a fresh survey. A `getBBox()`
+harness (`docs/diagram-overlap-sweep.js`) already drove seven geometries in a real
+browser: four pass, three fail, and two plausible-sounding hypotheses were *disproved*
+and written down so they are not re-proposed. The failing cases are two dados ¾" apart,
+a cut at `offset: 0`, and — the one worth reading — a board drawn narrow by the shrink
+branch, where a ¾" cut gets a 6-unit run carrying a 41-unit label. That last is reached
+by any part wider than about 40% of its length, so a shelf or a panel, not an exotic
+input. One passing case clears by under a unit and should be read as a near-miss.
+
+Note what will not do: spec §5's named fix (fold the depth label into the leader row)
+closes the first failure and neither of the others, because those are leader labels
+colliding with each other and with the board's own edge. A fix aimed at the diagnosis
+has to reckon with label width somewhere — measured text, or a layout that cannot
+collide by construction. That is a design question, hence a round rather than a patch.
+
+This class of defect is invisible to the test suite by construction: `getBBox()` returns
+zeros under jsdom, which is how it survived a full TDD pass, two task reviews and a
+whole-branch review. Verify in a browser.
+
+**Deferred behind it**, from the cut list's §7, recorded as decisions rather than
+omissions: **board-feet and sheet totals** (cheap now that `buildCutList` exists, but a
+purchasing number rather than a bench number) and **sheet-goods nesting**, a real
+packing problem wanting its own spec. CSV/clipboard export and name run-collapsing
+(`Leg 1..4`) were looked at and declined, for reasons worth reading before proposing
+either again. In the older ledger, **48 and 49** remain the only two entries with a
+user-visible consequence, unaffected by the cut list or the diagrams.
 
 **What joinery did**, design in
 `docs/superpowers/specs/2026-07-31-sloyd-joinery-design.md`, plan in
