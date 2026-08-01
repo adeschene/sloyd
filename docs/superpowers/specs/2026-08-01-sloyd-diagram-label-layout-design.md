@@ -257,10 +257,13 @@ spacing, not for clipping.
 arbiter. Run against the same seven geometries, seeded through `localStorage` under
 `sloyd.autosave.v1`. Two harness notes carried forward from item 65:
 
-- **`TOL = 1` must be re-calibrated downward.** It exists solely because every near-side
-  depth label overhangs the viewBox top by 0.6 units of ascent padding. With no text
-  above the outline, that overhang disappears — leaving the tolerance at 1 would mask a
-  real regression of up to a unit.
+- **`TOL = 1` must be re-derived, in this order.** It exists solely because every
+  near-side depth label overhangs the viewBox top by 0.6 units of ascent padding, and
+  with no text above the outline that overhang disappears. The order matters: land the
+  layout change, run the sweep on `1 baseline` alone, read the *actual* worst overhang
+  off that run, and set `TOL` from the number. Guessing a lower value and then running
+  the seven cases inverts the calibration — the control exists to produce the
+  tolerance, not to be checked against a tolerance picked in advance.
 - **Keep `1 baseline` in the set.** It is the only thing that makes a FAIL mean
   anything.
 
@@ -284,9 +287,14 @@ constants stay named exports of `diagramScale.ts` either way.
 ## 8. Order of work
 
 1. `diagramLabels.ts` — `labelWidth`, `packRow`, and their tests.
-2. `band()` clamped to the outline; `diagramScale.test.ts` extended. Note this also
-   makes follow-up **62**'s latent hazard narrower, though it does not close it — an
-   out-of-order `Span` still yields a negative width; it is now merely clamped in.
+2. `band()` clamped to the outline, **and follow-up 62 closed while in there** — an
+   ordering guard on the `Span`, two lines. Today an out-of-order `[max, min]` yields a
+   negative `width`, which fails the `width >= MIN_FEATURE` test and falls into the
+   widening branch, so it silently re-centres as a legitimate-looking narrow band in
+   the wrong place. Clamping alone would not change that: the clamp moves `x`, and the
+   band it is clamping is already a positive `MIN_FEATURE` one. Deferring a two-line
+   fix in the function being edited is not worth the entry it would keep open.
+   `diagramScale.test.ts` extended for both.
 3. `PartDiagram.tsx` re-laid out: depth into the row, `TOP`/`FAR` revised, `packRow`
    applied, far leaders dashed, font size onto the `<svg>`.
 4. `styles.css`: `font-family: var(--font-num)` on the diagram labels, `font-size`
@@ -303,10 +311,23 @@ constants stay named exports of `diagramScale.ts` either way.
 - **`LABEL_EM` is an upper bound taken from one machine's monospace resolution.** A
   wider face degrades gracefully (crowding, not piling) and the sweep is what would
   catch it. Mitigated, not eliminated; recorded as a follow-up after the round.
-- **`packRow` moves a label away from its ideal centre**, so on a crowded row a number
-  may sit slightly off the run it names. The leader line beneath still shows the true
-  geometry, and the caption already says the drawing is schematic. This is the
-  deliberate trade: a legible number slightly displaced beats an illegible one exactly
-  placed.
+- **`packRow` moves a label away from its ideal centre.** Worked for case 6, the worst
+  of the seven — `fitView(24, 100.9375)` gives `drawnH = 125`, `offsetX = 437.5`,
+  `sx = 5.208`, and the 6"/¾" cut's band widens to `x = 467.7, width = 6`:
+
+  | label | width | ideal centre | packed centre | displaced |
+  |---|---|---|---|---|
+  | `6"` | 24.8 | 452.6 | 452.6 | not at all |
+  | `3/4"` | 49.6 | 470.7 | 497.8 | +27 |
+  | `3/8" deep` | 111.6 | 537.5 | 586.4 | +49 |
+
+  The row spans 440 → 642 against a board drawn 437.5 → 562.5, so it is a **cascade,
+  not a clump**: the leftmost label does not move at all and the others displace right
+  in order, with depth landing just off the board's right edge. That is ordinary
+  drafting practice when a number will not fit between its extension lines, and the
+  row's own leader line beneath still shows the true geometry. Recorded with numbers
+  rather than as "slightly off", because at case 6 the displacement is a fifth of the
+  drawn board and calling that slight would be wrong. This is the deliberate trade: a
+  legible number displaced beats an illegible one exactly placed.
 - **Losing the above/below near-far encoding** is mitigated by the dashed leader line,
   which is a browser-judgement item for §7's pass rather than something a test pins.
