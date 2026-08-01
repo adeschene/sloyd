@@ -71,6 +71,11 @@ canvas { display: block; }
 
 .app { height: 100%; display: flex; flex-direction: column; }
 
+/* Everything but the cut-list overlay, so one `inert` covers it all (App.tsx).
+   It carries the column layout `.app` used to apply to those children direct,
+   which is why the toolbar/banner/workspace sizing is unchanged. */
+.app-shell { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+
 /* ---------------------------------------------------------------- toolbar */
 
 .toolbar {
@@ -466,6 +471,137 @@ button[aria-pressed='true'] {
   flex: 0 1 auto;
   margin: 0;
   max-width: 260px;
+}
+
+/* ---- Cut list ------------------------------------------------------------
+ * A sheet laid over the instrument. On paper it stops being a modal: the
+ * print block below hides everything else in `.app` and strips the overlay
+ * back to ink on white. Same DOM either way — there is no second render path
+ * that could drift from what was on screen.
+ */
+
+.cutlist-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: center;
+  padding: 32px 16px;
+  overflow: auto;
+  background: rgba(12, 14, 16, 0.72);
+}
+
+.cutlist-sheet {
+  width: min(760px, 100%);
+  height: max-content;
+  padding: 24px 28px 32px;
+  background: var(--graphite-900);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+}
+
+.cutlist-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.cutlist-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.cutlist-group {
+  margin-top: 28px;
+}
+
+.cutlist-group h3 {
+  margin: 0 0 8px;
+  color: var(--brass);
+}
+
+.cutlist-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cutlist-row {
+  display: grid;
+  grid-template-columns: 3.5em 11em 1fr;
+  gap: 4px 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--rule-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.cutlist-qty {
+  text-align: right;
+  color: var(--ink-dim);
+}
+
+.cutlist-names {
+  color: var(--ink-dim);
+}
+
+.cutlist-setup {
+  grid-column: 2 / -1;
+  margin: 4px 0 0;
+  padding: 2px 0 2px 12px;
+  border-left: 2px solid var(--brass-dim);
+  list-style: none;
+  color: var(--ink-dim);
+  font-size: 0.9em;
+}
+
+.cutlist-empty {
+  margin-top: 24px;
+  color: var(--ink-faint);
+}
+
+@media print {
+  /* The overlay is a direct child of `.app` — see CutList.tsx. */
+  .app > *:not(.cutlist-overlay) { display: none !important; }
+
+  /* Browsers drop background colours when printing by default, so this only
+     shows with Chrome's "Background graphics" enabled — and then the page
+     below the (usually short) sheet prints as a solid dark block. Follow-up
+     58. */
+  body { background: #fff; }
+
+  .cutlist-overlay {
+    position: static;
+    overflow: visible;
+    padding: 0;
+    background: #fff;
+  }
+
+  .cutlist-sheet {
+    width: 100%;
+    padding: 0;
+    background: #fff;
+    border: 0;
+  }
+
+  .cutlist-actions { display: none; }
+
+  .cutlist-overlay,
+  .cutlist-sheet,
+  .cutlist-group h3,
+  .cutlist-qty,
+  .cutlist-names,
+  /* The empty-sheet line belongs here too: --ink-faint is grey chosen against
+     graphite, and grey on white is the one line on an otherwise blank page. */
+  .cutlist-empty,
+  .cutlist-setup { color: #000; }
+
+  .cutlist-row {
+    border-bottom: 1px solid #ccc;
+    break-inside: avoid;
+  }
+
+  .cutlist-setup { border-left-color: #999; }
 }
 
 @media (prefers-reduced-motion: reduce) {

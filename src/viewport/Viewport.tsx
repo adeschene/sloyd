@@ -47,8 +47,13 @@ interface OrbitLike {
  * `F` frames the selection, `Home` frames the whole model. Both keep the
  * current viewing direction and only change where the camera is looking from
  * and how far away it is — the framing never re-orients the model.
+ *
+ * `suspended` is how the cut list reaches this. The listener is on `window`,
+ * so making the app's DOM inert behind the sheet does not stop it: pressing
+ * `f` while reading a printable sheet would re-frame the camera invisibly and
+ * hand the user back a moved view when they close it.
  */
-function CameraKeys() {
+function CameraKeys({ suspended }: { suspended: boolean }) {
   const boards = useStore((s) => s.doc.boards);
   const selectedId = useStore((s) => s.selectedId);
   const camera = useThree((s) => s.camera);
@@ -102,6 +107,7 @@ function CameraKeys() {
   );
 
   useEffect(() => {
+    if (suspended) return;
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       // Never steal keys from a field the user is typing in.
@@ -122,7 +128,10 @@ function CameraKeys() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [boards, selectedId, frame]);
+    // `suspended` belongs in the dependency list, not just in the body: an
+    // effect that reads a flag it does not depend on keeps the first value it
+    // saw, which is invariant 15's failure shape in a listener.
+  }, [boards, selectedId, frame, suspended]);
 
   // Swapping projection hands OrbitControls a fresh camera whose target is the
   // origin, which would throw the view away. Re-frame the model instead. The
@@ -213,12 +222,22 @@ interface ViewportProps {
   showGrid?: boolean;
   /** False hides the origin axis lines entirely. Independent of `showGrid`. */
   showAxes?: boolean;
+  /**
+   * True while something covers the viewport (today: the cut list). The camera
+   * shortcuts stop listening — a `window` listener cannot see that the app is
+   * inert behind a modal, so the flag has to be passed in. A prop rather than
+   * store state on purpose: the cut list's open flag is local view state,
+   * outside the document and the undo stack, and putting it in the store to
+   * save one prop would move it into the app's shared state for no gain.
+   */
+  shortcutsSuspended?: boolean;
 }
 
 export function Viewport({
   orthographic = false,
   showGrid = true,
   showAxes = true,
+  shortcutsSuspended = false,
 }: ViewportProps) {
   const boards = useStore((s) => s.doc.boards);
   const selectedId = useStore((s) => s.selectedId);
@@ -315,7 +334,7 @@ export function Viewport({
       ))}
 
       <Gizmo />
-      <CameraKeys />
+      <CameraKeys suspended={shortcutsSuspended} />
       {/*
         Damping is OFF, and that is the fix for the grid shimmer — not a
         tuning preference.

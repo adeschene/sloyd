@@ -4,6 +4,7 @@ import { Toolbar } from './panels/Toolbar';
 import { PartsList } from './panels/PartsList';
 import { Properties } from './panels/Properties';
 import { FileMenu, SaveIndicator, StorageBanner } from './panels/FileMenu';
+import { CutList } from './panels/CutList';
 import { storage } from './storage/browser';
 import { useStore } from './store/store';
 
@@ -38,6 +39,14 @@ export default function App() {
   // "how big is this" and "where is the origin".
   const [showGrid, setShowGrid] = useState(true);
   const [showAxes, setShowAxes] = useState(true);
+  // Also view state, and also deliberately outside the document and the undo
+  // stack: the cut list is a way of looking at a project, not part of one.
+  const [cutListOpen, setCutListOpen] = useState(false);
+  // Where focus was when the sheet opened, so closing it puts focus back.
+  // Captured HERE rather than in CutList's mount effect: `inert` on the shell
+  // blurs whatever was focused behind the scrim, so by the time the modal
+  // mounts the opener is already gone from `document.activeElement`.
+  const opener = useRef<HTMLElement | null>(null);
   const restored = useRef(false);
 
   // Restore once on mount, before any autosave can overwrite it.
@@ -91,10 +100,35 @@ export default function App() {
     return () => clearTimeout(t);
   }, [doc]);
 
+  // Closing the sheet puts focus back where it was. In an effect rather than
+  // in `onClose` because the shell is still `inert` when the handler runs —
+  // focusing an inert element does nothing — and effects run after the commit
+  // that removes the attribute. Fires on mount too, harmlessly: `opener` is
+  // null until something opens the sheet.
+  useEffect(() => {
+    if (cutListOpen) return;
+    const back = opener.current;
+    opener.current = null;
+    back?.focus();
+  }, [cutListOpen]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       // Never steal keys from a field the user is typing in.
       if (isTextEntry(e.target as HTMLElement)) return;
+
+      // The cut list covers the app, so board shortcuts must not fire behind
+      // it — Delete/Backspace especially, which would silently delete the
+      // selected board while the user is reading a sheet that never shows a
+      // selection. Escape is handled by CutList itself.
+      //
+      // This guard exists BECAUSE the listener is on `window`: the `inert`
+      // shell below makes the covered UI unfocusable and unclickable, but a
+      // window listener never sees the DOM tree the event came from as a
+      // reason not to fire. Every window-level shortcut in the app needs the
+      // flag reaching it explicitly — which is why `Viewport` takes it as a
+      // prop rather than inferring it.
+      if (cutListOpen) return;
 
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
@@ -115,35 +149,61 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [undo, redo, deleteBoard]);
+  }, [undo, redo, deleteBoard, cutListOpen]);
 
   return (
     <div className="app">
-      <Toolbar
-        orthographic={orthographic}
-        onToggleProjection={() => setOrthographic((v) => !v)}
-        showGrid={showGrid}
-        onToggleGrid={() => setShowGrid((v) => !v)}
-        showAxes={showAxes}
-        onToggleAxes={() => setShowAxes((v) => !v)}
-      >
-        <SaveIndicator saving={saving} available={available} />
-        <FileMenu />
-      </Toolbar>
-      <StorageBanner available={available} />
-      <main className="workspace">
-        <Viewport orthographic={orthographic} showGrid={showGrid} showAxes={showAxes} />
-        <aside className="sidebar">
-          <section className="panel panel-parts">
-            <h2>Parts</h2>
-            <PartsList />
-          </section>
-          <section className="panel panel-props">
-            <h2>Properties</h2>
-            <Properties />
-          </section>
-        </aside>
-      </main>
+      {/*
+        Everything except the sheet lives in one wrapper so it can be made
+        `inert` in a single place while the cut list is open. Without it Tab
+        walks out of the modal into NameField, the project-name field and the
+        DimensionFields behind the scrim — all of which commit on change or
+        blur, so the user silently edits the document while reading a sheet
+        that shows no selection. `inert` removes the whole subtree from the tab
+        order, from hit-testing and from the accessibility tree at once, which
+        is why no hand-rolled Tab cycler is needed here.
+
+        The wrapper is still a direct child of `.app`, so the print rule
+        (`.app > *:not(.cutlist-overlay)`) hides it exactly as it hid the three
+        elements it replaced.
+      */}
+      <div className="app-shell" inert={cutListOpen}>
+        <Toolbar
+          orthographic={orthographic}
+          onToggleProjection={() => setOrthographic((v) => !v)}
+          showGrid={showGrid}
+          onToggleGrid={() => setShowGrid((v) => !v)}
+          showAxes={showAxes}
+          onToggleAxes={() => setShowAxes((v) => !v)}
+          onOpenCutList={() => {
+            opener.current = document.activeElement as HTMLElement | null;
+            setCutListOpen(true);
+          }}
+        >
+          <SaveIndicator saving={saving} available={available} />
+          <FileMenu />
+        </Toolbar>
+        <StorageBanner available={available} />
+        <main className="workspace">
+          <Viewport
+            orthographic={orthographic}
+            showGrid={showGrid}
+            showAxes={showAxes}
+            shortcutsSuspended={cutListOpen}
+          />
+          <aside className="sidebar">
+            <section className="panel panel-parts">
+              <h2>Parts</h2>
+              <PartsList />
+            </section>
+            <section className="panel panel-props">
+              <h2>Properties</h2>
+              <Properties />
+            </section>
+          </aside>
+        </main>
+      </div>
+      {cutListOpen && <CutList onClose={() => setCutListOpen(false)} />}
     </div>
   );
 }

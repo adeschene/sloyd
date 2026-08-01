@@ -17,16 +17,64 @@ three dimensions, not just its length), and log-derived grain textures — and t
 short post-v3 pass fixing two bugs found in use (`DimensionField` and `NameField`
 both displaying, and in `NameField`'s case writing, stale text after an external
 change landed while the field had focus) plus a plywood-grain regression from v3
-itself — and now **joinery**: a board can have stock removed from it. Static SPA,
-containerized, 397/397 tests passing.
+itself — then **joinery** (a board can have stock removed from it), and now the
+**cut list**: the numbers you take to the bench. Static SPA, containerized, 438/438
+tests passing.
 
 Host-specific deployment detail — hostname, container name, proxy configuration, and
 the manual steps a human has to perform — lives in `DEPLOYMENT.local.md`, which is
 gitignored. Read that file before deploying; it is not in the public repo.
 
-**Next up is the cut list**, which joinery was deliberately built before: a cut list
-that does not know about dados reports the wrong numbers for every part that has one.
-The parametric board model exists specifically to make it cheap.
+**What the cut list did**, design in
+`docs/superpowers/specs/2026-08-01-sloyd-cut-list-design.md`, plan in
+`docs/superpowers/plans/2026-08-01-sloyd-cut-list.md`:
+
+- **Stock rows, then setup lines.** `buildCutList(doc)` groups parts by material and
+  thickness (*Pine — ¾"*), collapses identical parts into one row carrying a
+  quantity and the names it covers, and hangs one bench-readable setup line under each
+  part that has joinery — *¾" dado, ⅜" deep — into the thickness face (max side), 6"
+  from the length min end, running across the width*. Joinery was deliberately
+  built first for this reason: a cut list that does not know about dados reports the
+  wrong numbers for every part that has one, so a board's cuts join its row identity
+  and two otherwise-identical boards split apart the moment one of them is dadoed.
+- **Pure derivation, no new state.** `src/document/cutlist.ts` is a pure function of
+  the document and `panels/CutList.tsx` calls it on every render — there is no cached
+  copy and therefore nothing that can go stale. No schema change: `CURRENT_VERSION`
+  is still 4, because everything the sheet reports was already stored.
+- **The layering amendment.** `cutlist.ts` is the first thing in `document` to import
+  from `units` — see the Architecture section for why identity has to be spelled by
+  the same function that does the printing.
+- **Asymmetric tolerance.** Dimensions collapse at display precision, cuts must match
+  exactly — see invariant 18.
+- **Printable, and print is the point.** The sheet is a full-screen modal that
+  `@media print` strips to ink on white: toolbar, viewport and panels are hidden, the
+  Print and Close buttons with them.
+- **A modal is inert twice over, and the second half is easy to miss.** While the sheet
+  is open the rest of the app — everything under `.app-shell` — carries the `inert`
+  attribute, which takes the whole subtree out of the tab order, out of hit-testing and
+  out of the accessibility tree in one attribute; the sheet takes focus on mount and
+  `App` gives it back to the opener on close. That is what stops Tab reaching
+  `NameField`, the project-name field and the `DimensionField`s behind the scrim, all of
+  which commit on change or blur — the failure mode was *silently editing the document
+  while reading a sheet that shows no selection*, not merely an aria gap. But `inert`
+  cannot touch a **`window` listener**, which never sees which subtree an event came
+  from, so every window-level shortcut needs the open flag passed to it explicitly:
+  `App`'s own keydown effect early-returns on it (Delete/Backspace, undo/redo), and
+  `Viewport` takes it as the `shortcutsSuspended` prop for `f`/`Home` — without which
+  `f` re-frames the camera invisibly and hands back a moved view. A prop rather than
+  store state on purpose: the open flag is local view state, outside the document and
+  the undo stack. **Any new `window` listener must join this list.**
+
+**What is next is not yet chosen.** The cut list's §7 records the candidates as
+decisions rather than omissions, and the two nearest are **board-feet and sheet
+totals** (cheap now that `buildCutList` exists, but a purchasing number rather than a
+bench number, which is why this release skipped it) and **sheet-goods nesting**, which
+is a real packing problem and wants its own spec. CSV/clipboard export and name
+run-collapsing (`Leg 1..4`) were both looked at and declined, for reasons worth reading
+before proposing either again. Absent a new feature, the standing work is the open
+ledger — 47-58 in `docs/follow-ups.md`, of which **48 and 49 are the only two with a
+user-visible consequence** now that the branch's final review pass closed **56** (modal
+containment — see the inert bullet above) and **58** (`body` under `@media print`).
 
 **What joinery did**, design in
 `docs/superpowers/specs/2026-07-31-sloyd-joinery-design.md`, plan in
@@ -135,18 +183,30 @@ ever serialize or restore the document.
 
 Module dependency order (each layer only depends on the ones before it):
 
-1. **`units`** and **`document`** — both leaves of the dependency graph; each imports
-   nothing from the rest of the app. `units` parses/formats fractional inches (e.g.
-   `24 1/2"`). `document` owns the document schema, board geometry, validation, and
-   versioned migration. `document/names.ts` is a leaf alongside it, importing only the
-   `Board` type.
+1. **`units`**, then **`document`**. `units` is the bottom layer and imports nothing;
+   it parses/formats fractional inches (e.g. `24 1/2"`). `document` sits directly
+   above it and owns the document schema, board geometry, validation, and versioned
+   migration. `document/names.ts` is a leaf alongside it, importing only the `Board`
+   type.
+
+   **The cut list added the one edge between them:** `document/cutlist.ts` imports
+   `formatLength` from `units`, because a row's grouping key is built out of formatted
+   strings. Part identity is defined as *"prints identically"* — two boards belong on
+   one row when the numbers a person reads off the sheet are the same — so the key
+   must be produced by the very function that does the printing. Comparing raw floats
+   instead would split a row over a difference no one can see or cut to. The edge
+   creates no cycle (`units` still imports nothing, and nothing above `document`
+   changed), so this is a layer boundary moving by one, not a violation. Injecting the
+   formatter as a parameter was considered and rejected: it would move the definition
+   of part identity out to whichever call site passed the function, which is exactly
+   the decision that should live in one place next to the grouping code.
 2. **`store`** (Zustand + snapshot-based undo/redo) and **`storage`** (the
    `StorageAdapter` seam) — both sit above `document`.
 3. **`viewport`** (react-three-fiber scene, camera, grid, gizmo) and **`panels`**
    (React forms: toolbar, parts list, properties panel) — both read/write through the
    store, and both also import `document` directly for its exported types and
-   constants (`panels` for `MATERIALS`, `DocumentError`, `Rotation`, `uniqueName`; `viewport` for
-   geometry helpers). `panels` additionally imports the `storage` adapter singleton
+   constants (`panels` for `MATERIALS`, `DocumentError`, `Rotation`, `uniqueName` and
+   `buildCutList`; `viewport` for geometry helpers). `panels` additionally imports the `storage` adapter singleton
    for export/import. These are legitimate downward imports, not a layering
    violation — `document` and `storage` sit below both.
 
@@ -191,8 +251,12 @@ src/
 │   ├── cuts.ts              cutRegion / boardSolids (split, drop, merge) /
 │   │                        boardEdges / solidWorldBox / cutLabel. Pure; imports
 │   │                        only ./geometry and ./types, never ./document
+│   ├── cutlist.ts           buildCutList: group by material+thickness, collapse
+│   │                        identical parts into rows, phrase each cut as a setup
+│   │                        line. Pure; imports ./types, ./geometry, ./cuts and
+│   │                        ../units/length — never ./document
 │   └── document.ts          create / validate / migrate (v1->v2->v3->v4 chain);
-│                            re-exports the other three
+│                            re-exports the other five
 ├── store/store.ts           Zustand store, snapshot undo/redo, gesture coalescing
 ├── storage/
 │   ├── types.ts             the StorageAdapter interface
@@ -220,7 +284,12 @@ src/
 │   ├── Toolbar.tsx  PartsList.tsx  FileMenu.tsx
 │   ├── Properties.tsx       board fields + the Cuts section; CutRow is its own
 │   │                        component so a cut's error dies with the cut
-└── App.tsx                  layout, autosave/restore effects, undo keybindings
+│   └── CutList.tsx          the printable sheet: derives from the document on every
+│                            render, owns Escape-to-close and takes focus on mount,
+│                            calls formatLength never
+└── App.tsx                  layout, autosave/restore effects, undo keybindings, and
+                             the `.app-shell` wrapper that goes `inert` behind the
+                             cut list
 ```
 
 Deployment scaffolding: `Dockerfile`, `docker-compose.yml`, `nginx.conf`,
@@ -382,13 +451,31 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
     survived a ¼" dado when the correct picture is the plies the cut left behind.
     `FacePlan` carries `tileInches` (tile *size*) rather than a tile count precisely
     so that `FIT` and fixed tiling are one division: `u = coordinate / tileInches`.
+18. **On the cut list, dimensions collapse at display precision and cuts must match
+    exactly.** The two halves of a row key are built by two deliberately different
+    code paths — `formatLength(n, doc.units.precision)` for every dimension, and for a
+    cut the three enum fields (`face`, `from`, `across`) verbatim with raw `String(n)`
+    on the three numbers (`offset`, `width`, `depth`) — and neither may be relaxed to
+    match the other, in either direction. The reason is what each error costs at the bench. A
+    stock dimension rounded to the nearest 1/16" costs nothing: two boards 0.02" apart
+    are one board to anyone cutting them, and splitting them into two rows over a
+    difference no saw can hold makes the sheet lie about how much stock to buy. A
+    *cut* rounded the same way costs the joint — two dados 0.02" apart are two setups,
+    and collapsing them onto one row tells the user to run one, which is a part that
+    does not fit and stock already consumed. So: round what is bought, never what is
+    machined. This is **not** the float-`===` hazard `cutLabel` had (see joinery's
+    lesson list, item 3). That bug compared a *subtraction result* against a bound,
+    where the arithmetic itself introduces the error; here both sides are stored
+    values compared to stored values, and two cuts a user entered identically hold
+    identical doubles. Exact comparison is the correct tool precisely because nothing
+    computes these numbers on the way in.
 
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 397 tests
+npm test           # Vitest, currently 438 tests
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -399,7 +486,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ## Open follow-ups
 
 `docs/follow-ups.md` lists everything found during v1 review, the two polish passes,
-v2, v3, the post-v3 fixes, and joinery, consciously deferred rather than missed,
+v2, v3, the post-v3 fixes, joinery, and the cut list, consciously deferred rather than missed,
 numbered 1-30 plus the per-release additions. Read it before starting new work in the
 same area — several items are "correct but untested", which is exactly what a
 refactor breaks silently.
@@ -430,7 +517,14 @@ verbatim.** They were caught because implementers were told to fix the code rath
 the expectation, and to stop and escalate when they believed an expectation was itself
 wrong — which happened once, correctly, and changed the plan.
 
-With joinery done, **the cut list is the next work.**
+The cut list added **54-58**. **56 and 58 are closed** by the branch's final review pass
+— the modal is now contained (`inert` shell, focus on mount, focus restored on close)
+and the print block no longer leaves `body` or `.cutlist-empty` dark; 54 and 55 were
+also *corrected* rather than closed, 54 having overstated its risk and 55 having gained
+55a, the one place the representative rule reaches a printed word. **48 and
+49 are unaffected by it** and stay open: the cut list reports *stock* dimensions, and
+a board whose cuts happen to remove all of it still has the stock it was cut from, so
+it appears on the sheet correctly even while it renders as nothing in the viewport.
 
 One entry is a lesson rather than a defect and is worth reading before touching anything
 in the viewport: **26a**. Browser verification on this host runs on software GL

@@ -16,6 +16,8 @@ interface Props {
    */
   showAxes: boolean;
   onToggleAxes: () => void;
+  /** Opens the cut list sheet. */
+  onOpenCutList: () => void;
 }
 
 export function Toolbar({
@@ -26,6 +28,7 @@ export function Toolbar({
   onToggleGrid,
   showAxes,
   onToggleAxes,
+  onOpenCutList,
 }: Props) {
   const name = useStore((s) => s.doc.name);
   const setDocumentName = useStore((s) => s.setDocumentName);
@@ -49,6 +52,9 @@ export function Toolbar({
           onChange={(e) => setDocumentName(e.target.value)}
         />
         <button className="btn-primary" onClick={addBoard}>+ Add board</button>
+        <button onClick={onOpenCutList} title="Cut list — parts, quantities and joinery">
+          Cut list
+        </button>
         <span className="toolbar-divider" />
         <button onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
         <button onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>

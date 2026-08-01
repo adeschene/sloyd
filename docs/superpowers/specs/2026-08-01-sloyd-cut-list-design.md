@@ -66,7 +66,7 @@ exists to catch them disagreeing.
 
 The edge is safe: `units` imports nothing, so `document → units` creates no cycle and
 no inversion. It makes `units` strictly the bottom layer rather than a sibling leaf.
-It is also natural rather than grudging — `units.display.precision` already lives
+It is also natural rather than grudging — `units.precision` already lives
 *in the document*, so the document layer already owns the precision value; it simply
 had no reason to consume it until now.
 
@@ -137,7 +137,7 @@ collected into `names`.
 ### Tolerance is display precision, expressed as the key itself
 
 The grouping key is built by running every *number* through `formatLength` at
-`doc.units.display.precision` and concatenating the results with `|` — a character
+`doc.units.precision` and concatenating the results with `|` — a character
 `formatLength` never emits (its output is digits, `-`, `/` and `"`), so no combination
 of values can collide by running two fields together. Every *enum* field — `material`,
 `grain`, `face`, `from`, `across` — goes into the key verbatim; all of them are
@@ -195,6 +195,15 @@ and React keys off it.
 
 Each row's `setup` is derived from the cuts shared by every part in that row — they are
 identical by construction, so the first part to land in the row supplies them.
+
+*[Editorial annotation, added by the branch's final review pass: true of the cuts, not
+of one word derived from them. `cutSignature` is exact, so the cuts really are identical
+and every number on a setup line is right for every part in the row — but `cutLabel`
+decides dado-versus-rabbet against the board's exact dimensions while the row collapsed
+at display precision, so the row's label is the representative's. Behaviour left as
+designed; see follow-up 55a for why that is the better word at this precision. Annotated
+rather than rewritten, per the same rule the plan's field-name error is kept under: these
+documents are the record of what was decided, not documentation of what shipped.]*
 
 **Computed during grouping, not from the finished row.** `cutLabel(board, cut)` takes a
 `Board`, because dado-versus-rabbet depends on the board's dimensions and not on the cut
