@@ -563,6 +563,53 @@ where a component keeps its own copy of the value.
 Six items, all found during joinery's task reviews and recorded rather than fixed.
 Items 48 and 53 are the ones with user-visible consequences; the rest are hygiene.
 
+**48 and 49 are CLOSED** — both by the same placeholder render, exactly as 48 predicted
+("the second is probably better — it also covers any future path that reaches an empty
+solid set"). `BoardMesh` now falls back to one translucent ghost box at the board's own
+AABB whenever `boardSolids` returns `[]`. Both original entries are kept verbatim below,
+because the two routes to the state remain reachable — the fix makes the state legible
+and recoverable rather than unreachable.
+
+What the fix actually needed, beyond the ledger's own sketch:
+
+- **A wireframe would have closed only half of it.** 48 asked for the part to stay
+  *selectable*, and `THREE.Line` raycasting only registers hits within
+  `raycaster.params.Line.threshold` (1 world unit — here, 1 inch) of a drawn line. An
+  outline-only placeholder leaves the board's whole interior dead to the pointer, so
+  the ghost has to be a real mesh. Verified by clicking the middle of a ghost face, not
+  its edge.
+- **`boardEdges` returns nothing in this state**, so the ghost supplies its own outline
+  from its box. That is not an oversight in `boardEdges` — its rule draws a segment
+  only where filled and empty cells meet, and here every cell is empty, so drawing
+  nothing is the rule working correctly on a board with no stock.
+- **The fallback rides in the existing `geometries` memo** rather than a new one. A
+  second memo would have needed its own hand-written dependency list, which is
+  precisely invariant 15's failure mode; riding along inherits both the
+  `boardUVSignature` key (which already covers `cuts`) and the existing disposal
+  effect.
+- **One plain material, not the six grain materials** — per-face grain describes how
+  stock was sawn, and this board has no stock left. `depthWrite` is off so a part with
+  no stock never occludes one that has some, and the ghost neither casts nor receives
+  shadows.
+- **`GHOST_OPACITY` is browser-settled, not derived.** The value the design first
+  reached for was invisible against this app's near-white background. Recorded here in
+  the same spirit as `MAX_ASPECT`/`MAX_HEIGHT` (follow-up 60): a constant a screenshot
+  settles, not a test.
+
+Verified in a real browser, both routes, before and after: 49 by seeding two adjacent
+full-depth cuts on a 24" board (the ledger's own numbers) and confirming the board drew
+nothing at all; 48 by shrinking a board's *length* through the Dimensions field until a
+surviving cut spanned it. After the fix each renders a ghost, click-selects from the
+middle of its face, and recovers in-session — removing the offending cut brings the
+solid board straight back, with no reload.
+
+**Deliberately NOT done: no guard was added to dimension writes.** That was 48's other
+candidate. The placeholder subsumes it, and adding both would mean two mechanisms for
+one state — the second of which would also have to refuse a dimension edit the user has
+every right to make, since the cut is the thing that no longer fits, not the dimension.
+
+The two original entries follow, unchanged.
+
 **48. Shrinking a board's dimensions can store a cut that removes the whole board.**
 The Cuts section refuses a cut whose depth, offset and width together remove all the
 stock (`CutRow`'s `wouldRemoveAll` guard). But the *Dimensions* fields write through
