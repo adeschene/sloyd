@@ -91,3 +91,31 @@ export function packRow(items: LabelBox[], min: number, max: number, gap: number
 
   return lefts.map((left, i) => left + items[i].width / 2);
 }
+
+/**
+ * The glyph box above and below the baseline, in user units.
+ *
+ * MEASURED, not derived from LABEL_SIZE. At font-size 20 with --font-num a
+ * label's `getBBox` height is 23.68 units — 18.6 above the baseline and 5.07
+ * below. These are rounded UP for the same reason CHAR_W is: too tall only
+ * spaces rows further apart than needed, while too short silently reintroduces
+ * the overlap this module exists to prevent, with every unit test passing.
+ *
+ * These exist because a `rotate(-90)` label's extent along X is the glyph box
+ * HEIGHT, and nothing here modelled that — `labelWidth` measures advance along
+ * the text direction only. Until this round that number lived hard-coded in a
+ * test helper, which is not a place a layout constant can live.
+ */
+export const LABEL_ASCENT = 19;
+export const LABEL_DESCENT = 6;
+export const LABEL_BOX_H = LABEL_ASCENT + LABEL_DESCENT;
+
+/**
+ * The height of any label, whatever it says.
+ *
+ * A function rather than a bare constant so call sites read symmetrically with
+ * `labelWidth(s)` — but it deliberately takes NO string, because height is a
+ * property of the face and not of the text. A per-string height would be wrong
+ * for precisely the rotated labels this serves.
+ */
+export const labelHeight = (): number => LABEL_BOX_H;

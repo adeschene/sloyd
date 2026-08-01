@@ -594,15 +594,9 @@ button[aria-pressed='true'] {
   stroke-width: 2;
 }
 
-.cutlist-diagram-near {
+.cutlist-diagram-cell {
   stroke: currentColor;
-  stroke-width: 2;
-}
-
-.cutlist-diagram-far {
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-dasharray: 10 7;
+  stroke-width: 1;
 }
 
 /* --font-num, not the sheet's UI face: these are numbers, like every other
@@ -620,10 +614,10 @@ button[aria-pressed='true'] {
   stroke-width: 1.5;
 }
 
-/* Near/far, encoded a second time — it used to be above-versus-below the
-   outline for the depth label, which no longer exists. */
-.cutlist-diagram-leader-far line {
-  stroke-dasharray: 10 7;
+.cutlist-diagram-crossings {
+  margin: 2px 0 0;
+  font-size: 0.78em;
+  color: var(--ink-faint);
 }
 
 .cutlist-empty {
@@ -671,6 +665,7 @@ button[aria-pressed='true'] {
      follow-up 58 is what enumerating is for. */
   .cutlist-diagram-head,
   .cutlist-diagram-note,
+  .cutlist-diagram-crossings,
   .cutlist-setup { color: #000; }
 
   .cutlist-row {
@@ -681,10 +676,12 @@ button[aria-pressed='true'] {
   .cutlist-setup { border-left-color: #999; }
 
   /* The SVG inherits `color`, and every stroke and fill inside it is
-     `currentColor`, so this one declaration blackens the whole drawing. The
-     hatch is a <pattern> fill — FOREGROUND content, which survives Chrome's
-     "Background graphics" being off. A CSS background would not, and the
-     near/far distinction would silently collapse to solid-versus-dashed. */
+     `currentColor`, so this one declaration blackens the whole drawing. Both
+     fills — the hatch for an ordinary cut cell and the cross-hatch for a
+     crossing (overlapping cuts of differing depth) — are <pattern> fills,
+     FOREGROUND content that survives Chrome's "Background graphics" being
+     off. A CSS background would not, and the hatch-versus-cross-hatch
+     distinction would silently vanish on a default print. */
   .cutlist-diagram svg { color: #000; }
 
   /* A drawn row is several times taller than a text row. `break-inside` is

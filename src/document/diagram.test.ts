@@ -15,30 +15,22 @@ describe('buildDiagrams', () => {
     const views = buildDiagrams(board(), 16);
     expect(views).toHaveLength(1);
     expect(views[0].face).toBe('thickness');
-    expect(views[0].across).toBe('width');
-    expect(views[0].along).toBe('length');
+    expect(views[0].from).toBe('min');
+    expect(views[0].horizontal).toBe('length');
+    expect(views[0].vertical).toBe('width');
     expect(views[0].cuts).toEqual([]);
-    expect(views[0].hasFar).toBe(false);
   });
 
-  it('puts the position axis on the horizontal and `across` on the vertical', () => {
-    const views = buildDiagrams(board(dado()), 16);
-    expect(views).toHaveLength(1);
-    expect(views[0].along).toBe('length');
-    expect(views[0].h).toBe(24);
-    expect(views[0].v).toBe(5.5);
-  });
-
-  it('always sets `along` to positionAxisOf(face, across)', () => {
+  it('always puts the earlier DIMENSION_ORDER dimension horizontal', () => {
     const views = buildDiagrams(board(
       dado(),
       dado({ id: 'c2', face: 'width', across: 'length', offset: 0.1, width: 0.2 }),
       dado({ id: 'c3', face: 'length', across: 'thickness', offset: 1, width: 0.5 }),
     ), 16);
-    expect(views.map((v) => [v.face, v.across, v.along])).toEqual([
-      ['length', 'thickness', 'width'],
+    expect(views.map((v) => [v.face, v.horizontal, v.vertical])).toEqual([
+      ['length', 'width', 'thickness'],
       ['width', 'length', 'thickness'],
-      ['thickness', 'width', 'length'],
+      ['thickness', 'length', 'width'],
     ]);
   });
 
@@ -48,34 +40,88 @@ describe('buildDiagrams', () => {
     expect(views[0].cuts[0].v).toEqual([0, 5.5]);
   });
 
-  it('splits one face into two views when `across` differs', () => {
-    // Both cuts go into the thickness face, but their position axes differ —
-    // this is the case the (face, across) key exists for. Spec section 2.
-    const views = buildDiagrams(board(
-      dado(),
-      dado({ id: 'c2', across: 'length', offset: 1, width: 0.75 }),
-    ), 16);
-    expect(views).toHaveLength(2);
-    expect(views.map((v) => v.along)).toEqual(['width', 'length']);
+  it('draws ONE view per physical face, not per (face, across) pair', () => {
+    // The defect this round exists to fix: two perpendicular cuts on the same
+    // face used to produce two diagrams, each showing one cut and neither
+    // showing where they cross.
+    const board = createBoard({ length: 24, width: 12, cuts: [
+      { id: 'a', face: 'thickness', from: 'min', across: 'width',  offset: 6, width: 0.75, depth: 0.375 },
+      { id: 'b', face: 'thickness', from: 'min', across: 'length', offset: 4, width: 0.75, depth: 0.125 },
+    ]});
+    const views = buildDiagrams(board, 16);
+    expect(views).toHaveLength(1);
+    expect(views[0].cuts).toHaveLength(2);
   });
 
-  it('keeps both sides of one face in a single view', () => {
-    const views = buildDiagrams(board(dado(), dado({ id: 'c2', from: 'max' })), 16);
-    expect(views).toHaveLength(1);
-    expect(views[0].cuts.map((c) => c.side)).toEqual(['min', 'max']);
-    expect(views[0].hasFar).toBe(true);
+  it('splits the two sides of one face into separate views', () => {
+    const board = createBoard({ cuts: [
+      { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 6, width: 0.75, depth: 0.375 },
+      { id: 'b', face: 'thickness', from: 'max', across: 'width', offset: 6, width: 0.75, depth: 0.375 },
+    ]});
+    const views = buildDiagrams(board, 16);
+    expect(views).toHaveLength(2);
+    // Asserts the ACTUAL emitted order, not an alphabetised one: 'min' before
+    // 'max' regardless of insertion order, per FROM_ORDER in buildDiagrams —
+    // the near side reads first, matching the "(min side)" prose phrasing.
+    expect(views.map((v) => v.from)).toEqual(['min', 'max']);
+  });
+
+  it('tags each cut with the axis its offset is measured along', () => {
+    const views = buildDiagrams(createBoard({ length: 24, width: 12, cuts: [
+      { id: 'a', face: 'thickness', from: 'min', across: 'width',  offset: 6, width: 0.75, depth: 0.375 },
+      { id: 'b', face: 'thickness', from: 'min', across: 'length', offset: 4, width: 0.75, depth: 0.125 },
+    ]}), 16);
+    const byId = Object.fromEntries(views[0].cuts.map((c) => [c.id, c]));
+    expect(byId.a.axis).toBe('h');   // across the width -> positioned along the length
+    expect(byId.b.axis).toBe('v');   // across the length -> positioned along the width
+  });
+
+  it('reports one legend line per distinct crossing depth', () => {
+    const views = buildDiagrams(createBoard({ length: 24, width: 12, cuts: [
+      { id: 'a', face: 'thickness', from: 'min', across: 'width',  offset: 6, width: 0.75, depth: 0.125 },
+      { id: 'b', face: 'thickness', from: 'min', across: 'length', offset: 4, width: 0.75, depth: 0.375 },
+    ]}), 16);
+    expect(views[0].crossings).toEqual(['overlap: 3/8" deep governs']);
+  });
+
+  it('collapses two SEPARATE crossings at the same governing depth to one legend line', () => {
+    // Four cuts forming a criss-cross grid: two full-width bands (across
+    // width, positioned along length) and two full-length bands (across
+    // length, positioned along width). Every across-width band crosses every
+    // across-length band, giving FOUR distinct, non-adjacent crossing cells —
+    // but all four are governed by the same 1/2" cut, so there must be
+    // exactly one legend line, not four. A naive `filter+map` without a
+    // dedup step would print it once per crossing CELL instead of once per
+    // distinct depth.
+    const views = buildDiagrams(createBoard({ length: 24, width: 12, cuts: [
+      { id: 'a', face: 'thickness', from: 'min', across: 'width',  offset: 2,  width: 1, depth: 0.5 },
+      { id: 'c', face: 'thickness', from: 'min', across: 'width',  offset: 16, width: 1, depth: 0.5 },
+      { id: 'b', face: 'thickness', from: 'min', across: 'length', offset: 2,  width: 1, depth: 0.25 },
+      { id: 'd', face: 'thickness', from: 'min', across: 'length', offset: 8,  width: 1, depth: 0.1 },
+    ]}), 16);
+    expect(views[0].cells.filter((c) => c.crossing).length).toBeGreaterThan(1);
+    expect(views[0].crossings).toEqual(['overlap: 1/2" deep governs']);
+  });
+
+  it('reports NO legend line when crossing cuts share a depth', () => {
+    const views = buildDiagrams(createBoard({ length: 24, width: 12, cuts: [
+      { id: 'a', face: 'thickness', from: 'min', across: 'width',  offset: 6, width: 0.75, depth: 0.375 },
+      { id: 'b', face: 'thickness', from: 'min', across: 'length', offset: 4, width: 0.75, depth: 0.375 },
+    ]}), 16);
+    expect(views[0].crossings).toEqual([]);
   });
 
   it('does not move a band when the cut enters from the far side', () => {
-    // `from` moves the cut along the FACE axis, which no view shows. If this
-    // fails, the region span is being read out by the wrong key.
+    // `from` now selects a different VIEW; within that view a band still
+    // reads out the same region spans. If this fails, the region span is
+    // being read out by the wrong key.
     const near = buildDiagrams(board(dado()), 16)[0].cuts[0];
     const far = buildDiagrams(board(dado({ from: 'max' })), 16)[0].cuts[0];
     expect(far.h).toEqual(near.h);
     expect(far.v).toEqual(near.v);
   });
 
-  it('orders views by DIMENSION_ORDER on face, then across', () => {
+  it('orders views by DIMENSION_ORDER on face, then from', () => {
     const views = buildDiagrams(board(
       dado({ id: 'c3', face: 'length', across: 'thickness', offset: 1, width: 0.5 }),
       dado(),
@@ -92,9 +138,9 @@ describe('buildDiagrams', () => {
     expect(views[0].cuts.map((c) => c.id)).toEqual(['early', 'late']);
   });
 
-  it('heads a view with its face and direction', () => {
+  it('heads a view with its face and side', () => {
     expect(buildDiagrams(board(dado()), 16)[0].heading)
-      .toBe('Thickness face — across the width');
+      .toBe('Thickness face — min side');
   });
 
   it('formats every label at the given precision', () => {

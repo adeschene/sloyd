@@ -1181,3 +1181,138 @@ properties and neither one is "does this label still read as belonging to this
 geometry," which is what goal 3 actually asks for and what a human has to judge. Recorded
 as an open follow-up rather than silently treated as covered by the existing test
 layers.
+
+## From the per-face diagrams round
+
+Design in `docs/superpowers/specs/2026-08-01-sloyd-per-face-diagrams-design.md`.
+**Supersedes the `(face, across)` view key from the cut list diagrams (follow-up 61)**
+— views are now keyed on `(face, from)`, one per physical face-and-side, and follow-up
+61's premise (a face can legitimately produce two figures) no longer applies: a face
+now produces at most one figure regardless of how many differently-oriented cuts it
+carries.
+
+**72. The `(face, across)` key fragmented a single face into two figures — found by
+driving a real browser with a twelve-cut board, not by reading code.** A 24"×12" board
+with rabbets on all four edges of both faces plus crossing shallow dados on both faces
+— twelve cuts, ordinary casework joinery — produced exactly two diagrams, both headed
+"Thickness face," each showing one of the two crossing dados and neither showing the
+other. The same physical face was drawn twice, in two different orientations and two
+different aspect ratios, each telling half the truth: near and far bands from the two
+faces coincided at the same position with only hatch-versus-dash to separate them,
+leader rows came in identical pairs, and the actual joint — where the two centre dados
+cross — appeared in neither figure. This was not reachable by inspecting `diagram.ts`
+in isolation; the fragmentation is a property of what a *board* with crossing joinery on
+one face looks like once drawn, which only a rendered board with genuinely
+perpendicular cuts on the same face exposes. `boardSolids` already handled the crossing
+correctly in 3D — this was a presentation failure, not a model one (design §1). Closed
+by re-keying on `(face, from)` and computing a depth field (design §4) that classifies
+the crossing as its own kind of cell (maximum depth, `crossing: true`) — emitted as
+per-cell rects with no merge step, since the `<pattern>` hatch already renders adjacent
+equal-depth cells as one continuous region.
+
+**73. `hasFar`, `DiagramCut.side`, and the far-side dash were retired one round after
+being added — not a regression.** The dashed leader line and the near/far hatch
+distinction were added in the label layout round as the replacement encoding for
+near/far after depth moved off the outline. Splitting diagram views on `from` (follow-up
+72's fix) means every view now shows exactly one side of one face, so there is nothing
+left for a second encoding to distinguish within a single drawing — the near/far
+question is answered by which figure you're looking at, not by a mark inside it. A
+reviewer checking this round should confirm the fields and the dash are **gone**, not
+that they survived; their removal is the point, not an oversight.
+
+**74. `getBBox()` ignores an element's own transform — a standing trap for anyone
+extending the sweep harness.** The rotated leader columns (design §7) rotate their
+`<text>` elements `rotate(-90)` for labels running along the vertical axis.
+`getBBox()` on such an element returns the box in the element's **local**, untransformed
+coordinate system — it does not compose the element's own transform, let alone the
+chain up to the SVG root. Measured directly: a rotated label reported **120.29 × 23.68**
+against a true on-screen box of **14 × 71.13** — width and height not merely wrong but
+roughly swapped and scaled, because the reported box is the label's box *before*
+rotation, read as if it still applied to the untransformed frame. Any future harness
+code (or any code anywhere that calls `getBBox()` on rotated content) must compose the
+element's computed transform (its CTM relative to the SVG root) with the raw box before
+trusting the numbers — `getBBox()` alone is only correct for unrotated elements, which is
+every element this codebase drew before this round.
+
+**75. HARNESS LESSON, not a defect: the fix for follow-up 74 was itself written
+backwards on the first attempt, and it produced false failures rather than an obvious
+crash.** The correct composition order is `svgInv.multiply(elCTM)` — the element's CTM
+expressed in the SVG's own coordinate space. The first attempt wrote
+`elCTM.multiply(svgInv)`, the operands swapped. For every *untransformed* element this
+is the identity matrix, so the horizontal (non-rotated) control label read correctly and
+passed sanity-checking — only the rotated labels were wrong, and wrong in a way that
+looked like a real defect rather than an instrument bug: they reported an x-coordinate
+of **-4043** in a viewBox only **1141** units wide, producing false FAIL results on all
+four figures carrying a rotated column. The tell that caught it was not a failing
+assertion — the harness ran and produced output — it was sanity-checking an absurd
+number (a label sitting nearly 4000 units left of a ~1000-unit board) against the
+element's own attributes, which made no sense for any real geometry. **The lesson: an
+instrument needs a control that can distinguish "the instrument is broken" from "the
+thing being measured is broken."** A rotated-vs-unrotated pair of controls is exactly
+that — the unrotated control kept reading correctly throughout, which is what made the
+backwards multiply detectable at all rather than simply producing plausible-looking
+wrong numbers everywhere.
+
+**76. NEGATIVE BROWSER FINDING, recorded honestly: hatch versus cross-hatch is not
+reliably distinguishable at screen size.** Same category as follow-up 60
+(browser-settled, not test-settled). Design §7 chose two fills — hatch for an ordinary
+cut region, cross-hatch for a crossing whose covering cuts' depths differ — specifically
+to avoid an unbounded fill-per-depth scheme. The browser sweep confirmed the *mechanism*
+works end to end (one figure showed a genuine cross-hatch region and the legend line
+"crossing: 1/4" deep governs"; a second figure with equal-depth crossing cuts correctly
+showed neither), but also showed that a person looking at the rendered SVG at normal
+screen size is not reliably picking the fill pattern apart — **the legend line is
+carrying the information, not the fill.** The two-fills decision may be worth revisiting
+with this evidence: a bolder visual distinction (a different stroke weight or colour on
+the crossing's outline, rather than a second hatch density) might carry the distinction
+the fill alone does not. Recorded as evidence for a future design decision, not as a
+defect to fix now — the legend line means the sheet is not wrong, only that the fill by
+itself is not pulling its weight.
+
+**77. Sheet length rises with view count — real but mild, confirming design §10.** The
+twelve-cut worst case (follow-up 72's board) now draws **2 figures at 1122px** combined,
+against roughly **299px** for a simple cut-free part. A ten-part sheet carrying a mix of
+plain and heavily-joined parts measured at **4654px total**. Long, but not impractical —
+scrolling a sheet, not paginating past a reasonable print length. Design §10 flagged
+view count as a risk worth a browser look before calling the round done; this is that
+look, and the risk is confirmed real but mild rather than disproved or escalated.
+
+**78. `boundaries()`'s exact-equality dedup can leave an invisible extra cell —
+benign, recorded next to invariant 18's reasoning.** `depthField.ts`'s `boundaries()`
+collects cell-boundary coordinates in a `Set<number>`, which dedupes only on exact
+bit-equality. Two cuts whose shared edge is computed by different arithmetic (say,
+`2.9 + 3.1` versus a stored `6`) would not dedupe, producing an extra sliver cell a few
+ULPs wide next to its neighbour. The consequence is benign, not a wrong picture: the
+sliver carries the same covering cuts and the same depth as the cell beside it, and the
+SVG hatch pattern (anchored to the drawing, not to each rect — design §4) makes two
+adjacent equal-depth cells visually indistinguishable. So this is an invisible extra
+array entry, not a rendering defect. Recorded here rather than fixed because nothing
+in the current cut-construction path (the panel only ever writes cut boundaries as
+plain stored numbers, never as a sum) reaches the case that would produce it — the same
+"latent, not live" shape as follow-ups 62 and 67.
+
+**79. Print-to-PDF is still not verified on this host.** Carried forward again, not
+re-promised: the Playwright MCP available here exposes no `pdf()` call, so no PDF was
+produced or inspected for the rotated leader columns, the depth field's fills, or the
+crossing legend. This is the same tooling limitation recorded at follow-up 70
+(the label layout round) and it applies unchanged to this round's renderer changes.
+
+**80. LESSON — this round produced a fifth instance of a plan-supplied constant being
+wrong, and a stale justification for it in the same report.** Follow-up 64 records the
+first two instances (both in the cut list diagrams round); follow-up 68 records a third
+and fourth (the label layout round), naming the shared shape: **a guard written for one
+direction, and a test written to the guard rather than to the requirement.** This round
+adds a fifth: Task 6's `COL = 39` — the width reserved for a rotated leader column —
+replaced the plan's literal `COL = 26`, and the task report's recorded justification for
+39 did not reproduce when the final reviewer checked it: reverting to `26` and re-running
+the task's own 25 tests, all 25 still passed. The derivation behind `39` is sound (it
+comes from the measured glyph-height constant — `diagramLabels.ts`'s `23.68`, documented
+in that file's own comment on `LABEL_ASCENT`/`LABEL_DESCENT` — plus margin), but
+the constant had shipped **unguarded** — nothing in the test suite actually depended on
+its value being large enough, so a wrong number and a right number were indistinguishable
+to the suite. This is why the fix round that followed added a real guard (text-vs-outline
+and text-vs-line checks, not just text-vs-text and text-vs-viewBox) rather than trusting
+the report's arithmetic on its own. Read together, follow-ups 64, 68 and 80 are five
+instances across three different rounds of the same failure shape — plan-supplied code
+and plan-supplied justifications are not more trustworthy than hand-written ones, and a
+green suite proves a guard fires, not that it protects the thing it was written for.

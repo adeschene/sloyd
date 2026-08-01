@@ -1,4 +1,4 @@
-import { labelWidth, packRow, CHAR_W, LABEL_SIZE, LABEL_EM } from './diagramLabels';
+import { labelWidth, packRow, CHAR_W, LABEL_SIZE, LABEL_EM, LABEL_ASCENT, LABEL_DESCENT, LABEL_BOX_H, labelHeight } from './diagramLabels';
 
 describe('labelWidth', () => {
   it('is linear in the character count', () => {
@@ -78,5 +78,32 @@ describe('packRow', () => {
 
   it('clamps a single over-left label into the interval', () => {
     expect(packRow([{ centre: 5, width: 30 }], 0, 100, 8)).toEqual([15]);
+  });
+});
+
+describe('labelHeight', () => {
+  it('bounds the measured glyph box from ABOVE, never below', () => {
+    // Measured in a real browser at font-size 20 with --font-num: the glyph
+    // box is 23.68 units tall, 18.6 above the baseline and 5.07 below. The
+    // bound must err HIGH for the same reason CHAR_W does — too tall only
+    // spaces rows further apart, too short silently reintroduces overlap with
+    // every test still green.
+    expect(labelHeight()).toBeGreaterThan(23.68);
+    expect(LABEL_ASCENT).toBeGreaterThan(18.6);
+    expect(LABEL_DESCENT).toBeGreaterThan(5.07);
+  });
+
+  it('is the sum of its two halves', () => {
+    expect(labelHeight()).toBeCloseTo(LABEL_ASCENT + LABEL_DESCENT, 10);
+    expect(LABEL_BOX_H).toBe(labelHeight());
+  });
+
+  it('does not depend on the string, unlike labelWidth', () => {
+    // Height is a property of the FACE, not the text — literally so:
+    // labelHeight takes no argument at all, unlike labelWidth(s). A per-string
+    // height would be wrong for exactly the rotated labels this exists to
+    // serve, and a future signature change adding a string parameter would
+    // fail this assertion.
+    expect(labelHeight.length).toBe(0);
   });
 });

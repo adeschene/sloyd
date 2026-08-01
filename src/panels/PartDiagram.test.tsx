@@ -1,8 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import { buildDiagrams, createBoard } from '../document/document';
 import type { Cut } from '../document/document';
-import { PartDiagram } from './PartDiagram';
-import { labelWidth } from './diagramLabels';
+import { PartDiagram, LEFT_PAD, TICK } from './PartDiagram';
+import { labelWidth, LABEL_ASCENT, LABEL_DESCENT, LABEL_BOX_H } from './diagramLabels';
 
 const dado = (over: Partial<Cut> = {}): Cut => ({
   id: 'c1', face: 'thickness', from: 'min', across: 'width',
@@ -11,35 +11,70 @@ const dado = (over: Partial<Cut> = {}): Cut => ({
 
 const view = (...cuts: Cut[]) => buildDiagrams(createBoard({ cuts }), 16)[0];
 
+/** The perpendicular-crossing board from Task 5's `diagram.test.ts` (its
+ * "reports one legend line per distinct crossing depth" case): one
+ * horizontal-axis cut and one vertical-axis cut on the same face, at
+ * different depths, so they cross in exactly one cell. */
+const crossingView = () => buildDiagrams(createBoard({ length: 24, width: 12, cuts: [
+  { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 6, width: 0.75, depth: 0.125 },
+  { id: 'b', face: 'thickness', from: 'min', across: 'length', offset: 4, width: 0.75, depth: 0.375 },
+] }), 16)[0];
+
 describe('PartDiagram', () => {
-  it('draws the outline and one band per cut', () => {
+  it('draws the outline and one cell per non-crossing cut', () => {
     const { container } = render(<PartDiagram view={view(dado(), dado({ id: 'c2', offset: 12 }))} />);
     expect(container.querySelectorAll('.cutlist-diagram-outline')).toHaveLength(1);
-    expect(container.querySelectorAll('.cutlist-diagram-near')).toHaveLength(2);
+    expect(container.querySelectorAll('.cutlist-diagram-cell')).toHaveLength(2);
   });
 
-  it('marks a far-side cut differently from a near one', () => {
-    const { container } = render(<PartDiagram view={view(dado({ from: 'max' }))} />);
-    expect(container.querySelectorAll('.cutlist-diagram-far')).toHaveLength(1);
-    expect(container.querySelectorAll('.cutlist-diagram-near')).toHaveLength(0);
+  it('draws one cell rect per depth-field cell', () => {
+    const { container } = render(<PartDiagram view={crossingView()} />);
+    expect(container.querySelectorAll('.cutlist-diagram-cell').length).toBeGreaterThan(1);
   });
 
-  it('hatches a near cut and leaves a far one unfilled', () => {
-    const { container } = render(<PartDiagram view={view(dado(), dado({ id: 'c2', from: 'max' }))} />);
-    expect(container.querySelector('.cutlist-diagram-near')!.getAttribute('fill'))
-      .toMatch(/^url\(#/);
-    expect(container.querySelector('.cutlist-diagram-far')!.getAttribute('fill'))
-      .toBe('none');
+  it('cross-hatches only the crossing cells', () => {
+    const { container } = render(<PartDiagram view={crossingView()} />);
+    const cross = container.querySelectorAll('.cutlist-diagram-cross');
+    expect(cross).toHaveLength(1);
+    expect(cross[0].getAttribute('fill')).toMatch(/^url\(#/);
   });
 
-  it('shows the legend only when a far cut is present', () => {
-    render(<PartDiagram view={view(dado())} />);
-    expect(screen.queryByText(/far side/)).not.toBeInTheDocument();
+  it('gives a crossing cell a DIFFERENT pattern than an ordinary cell', () => {
+    // `cross-hatches only the crossing cells` above only pins the CLASS and
+    // that the fill is *some* url(#...) — it would still pass if every cell,
+    // crossing or not, used the same pattern. The whole point of the
+    // cross-hatch is that it is visually distinct from a plain hatch, and
+    // that distinction has to survive print with Background graphics off, so
+    // it must be a real second pattern, not just a repeated reference.
+    const { container } = render(<PartDiagram view={crossingView()} />);
+    const cells = [...container.querySelectorAll('.cutlist-diagram-cell')];
+    const crossing = cells.find((c) => c.classList.contains('cutlist-diagram-cross'))!;
+    const plain = cells.find((c) => !c.classList.contains('cutlist-diagram-cross'))!;
+    const crossingFill = crossing.getAttribute('fill')!;
+    const plainFill = plain.getAttribute('fill')!;
+    expect(crossingFill).not.toBe(plainFill);
+    const idOf = (fill: string) => fill.replace(/^url\(#/, '').replace(/\)$/, '');
+    const patternIds = [...container.querySelectorAll('pattern')].map((p) => p.id);
+    expect(patternIds).toContain(idOf(crossingFill));
+    expect(patternIds).toContain(idOf(plainFill));
   });
 
-  it('explains the two line styles when both sides are cut', () => {
-    render(<PartDiagram view={view(dado(), dado({ id: 'c2', from: 'max' }))} />);
-    expect(screen.getByText(/far side/)).toBeInTheDocument();
+  it('gives a vertically-positioned cut a rotated leader column, not a row', () => {
+    const { container } = render(<PartDiagram view={crossingView()} />);
+    const col = container.querySelector('.cutlist-diagram-leader-v')!;
+    expect(col).toBeInTheDocument();
+    expect(col.querySelector('text')!.getAttribute('transform')).toMatch(/rotate\(-90/);
+  });
+
+  it('prints the crossing legend it was given and formats nothing itself', () => {
+    render(<PartDiagram view={crossingView()} />);
+    expect(screen.getByText('overlap: 3/8" deep governs')).toBeInTheDocument();
+  });
+
+  it('no longer dashes anything for a far side', () => {
+    // Retired with hasFar (spec section 6): every view is one side now.
+    const { container } = render(<PartDiagram view={crossingView()} />);
+    expect(container.querySelector('.cutlist-diagram-leader-far')).toBeNull();
   });
 
   it('captions every diagram as schematic', () => {
@@ -58,13 +93,15 @@ describe('PartDiagram', () => {
 
   it('names the view for a screen reader', () => {
     render(<PartDiagram view={view(dado())} />);
-    expect(screen.getByRole('img', { name: 'Thickness face — across the width' }))
+    expect(screen.getByRole('img', { name: 'Thickness face — min side' }))
       .toBeInTheDocument();
   });
 
-  it('gives its hatch pattern an id unique to the instance', () => {
+  it('gives every pattern an id unique to the instance', () => {
     // Two diagrams on one sheet must not share a <pattern> id, or the second
-    // silently reuses the first's fill.
+    // silently reuses the first's fill. Assert uniqueness by count rather than
+    // a fixed number, so a third pattern added later doesn't need this test
+    // recounted.
     const { container } = render(
       <>
         <PartDiagram view={view(dado())} />
@@ -72,19 +109,21 @@ describe('PartDiagram', () => {
       </>,
     );
     const ids = [...container.querySelectorAll('pattern')].map((p) => p.id);
-    expect(new Set(ids).size).toBe(2);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it('strips the pattern id of every character unsafe inside url(#...)', () => {
+  it('strips every pattern id of every character unsafe inside url(#...)', () => {
     // useId() returns a value wrapped in reserved characters (`:r0:`, and
     // `«r0»` in React 19) that stop a `url(#...)` reference from parsing past
     // the punctuation. jsdom does not catch this — the attribute still starts
-    // with `url(#`, so only a real browser draws an unhatched rect. This
-    // pins the id to a safe alphabet so a regression back to a bare useId()
-    // fails here instead of silently in Chrome.
+    // with `url(#`, so only a real browser draws an unhatched rect. This pins
+    // both the hatch and cross-hatch pattern ids to a safe alphabet so a
+    // regression back to a bare useId() fails here instead of silently in
+    // Chrome.
     const { container } = render(<PartDiagram view={view(dado())} />);
-    const id = container.querySelector('pattern')!.id;
-    expect(id).toMatch(/^hatch[a-zA-Z0-9]+$/);
+    for (const p of container.querySelectorAll('pattern')) {
+      expect(p.id).toMatch(/^(hatch|cross)[a-zA-Z0-9]+$/);
+    }
   });
 
   it('keeps the first leader label clear of the outline', () => {
@@ -98,12 +137,14 @@ describe('PartDiagram', () => {
   });
 
   it('keeps every cut\'s leader-row text below the outline, never above it', () => {
-    // The heart of this round: every number a cut owns now lives in that cut's
-    // own leader row, which is what makes cross-cut collisions impossible by
-    // construction rather than by arithmetic. No leader-row label may drift
-    // back above the outline's bottom edge (the overall-width label is exempt
-    // below — it sits BESIDE the outline, not in a leader row).
-    const { container } = render(<PartDiagram view={view(dado(), dado({ id: 'c2', from: 'max' }))} />);
+    // The heart of the previous round: every number a cut owns now lives in
+    // that cut's own leader row, which is what makes cross-cut collisions
+    // impossible by construction rather than by arithmetic. No leader-row
+    // label may drift back above the outline's bottom edge (the overall-width
+    // label is exempt below — it sits BESIDE the outline, not in a leader row).
+    // Both cuts are horizontal-axis (default `across: 'width'`), so this board
+    // is row-only by construction — no leader column exists to exempt.
+    const { container } = render(<PartDiagram view={view(dado(), dado({ id: 'c2', offset: 12 }))} />);
     const outline = container.querySelector('.cutlist-diagram-outline')!;
     const top = Number(outline.getAttribute('y'));
     const bottom = top + Number(outline.getAttribute('height'));
@@ -114,17 +155,6 @@ describe('PartDiagram', () => {
       expect(y - 15).toBeGreaterThan(bottom);
     }
     expect(top).toBeGreaterThan(0);
-  });
-
-  it('dashes a far cut\'s leader row, so near/far stays encoded twice', () => {
-    // Depth labels used to sit above the outline for a near cut and below for a
-    // far one — the same distinction the band's line style makes, encoded
-    // redundantly on purpose. Folding depth into the row costs that second
-    // encoding, so the row's own leader line takes it over.
-    const { container } = render(<PartDiagram view={view(dado(), dado({ id: 'c2', from: 'max' }))} />);
-    const rows = [...container.querySelectorAll('.cutlist-diagram-leader')];
-    const far = rows.filter((g) => g.classList.contains('cutlist-diagram-leader-far'));
-    expect(far).toHaveLength(1);
   });
 
   it('tracks the outline\'s actual right edge for the overall-width label, not the nominal width', () => {
@@ -163,21 +193,117 @@ describe('PartDiagram', () => {
     expect(x + labelWidth(vLabel.textContent!)).toBeLessThanOrEqual(vbWidth);
   });
 
-  it('never starts a leader row left of the board itself', () => {
-    // A 1/4" cut on a 3/4" edge: the offset run is shorter than the label
-    // centred on it, which used to put the label 3.2 units left of the board.
-    // Found in a real browser by docs/diagram-overlap-sweep.js's P3 predicate.
+  it('never starts a leader column above the outline itself', () => {
+    // The vertical analogue of the old row case: a thin cut positioned along
+    // the board's thickness is ALWAYS a leader column now, never a row —
+    // `thickness` sorts last in DIMENSION_ORDER, so a cut positioned along it
+    // is never the earlier ("horizontal") of a view's two in-plane dimensions.
+    // Found in the same spirit as the row case (a run shorter than its label),
+    // but the failure direction rotates with the axis: a column label must not
+    // drift above the outline's TOP EDGE, the analogue of a row label
+    // drifting left of the board's left edge.
+    //
+    // Bounding against 0 (the viewBox) instead of the outline's own `y` gave
+    // this test almost no bite: `packRow`'s actual bound is `top = 4`, so a
+    // regression that clamped at 0 instead of `top` would still pass a
+    // `>= 0` check by 4 units. Bounding against the outline is what the name
+    // claims and is what a mutation of the column bound (`top` -> `0`)
+    // actually fails on.
     const { container } = render(
       <PartDiagram
         view={view(dado({ face: 'width', across: 'length', offset: 0.25, width: 0.25 }))}
       />,
     );
     const outline = container.querySelector('.cutlist-diagram-outline')!;
-    const left = Number(outline.getAttribute('x'));
-    expect(left).toBeGreaterThan(0);   // this geometry really is inset
+    const outlineTop = Number(outline.getAttribute('y'));
+    const col = container.querySelector('.cutlist-diagram-leader-v')!;
+    expect(col).toBeInTheDocument();
+    for (const t of col.querySelectorAll('text')) {
+      const w = labelWidth(t.textContent!);
+      const y = Number(t.getAttribute('y'));
+      expect(y - w / 2).toBeGreaterThanOrEqual(outlineTop);
+    }
+  });
+
+  it('never starts a leader-row label left of the outline itself', () => {
+    // The row-axis mirror of the column test above, and of a fix from the
+    // previous round: `packRow`'s row bound is `left + fit.offsetX` (the
+    // outline's own left edge), not `left` alone. On a board that enters the
+    // shrink branch, `fit.offsetX` is large (437.5 here) and a `0"` offset
+    // label centred on a zero-width run would otherwise land at 425.1 — 12.4
+    // units left of the outline — if the bound were `left` without
+    // `fit.offsetX` added in. Assert `outline.x > 0` first so this cannot
+    // pass vacuously on a board where offsetX is 0.
+    const { container } = render(
+      <PartDiagram
+        view={buildDiagrams(
+          createBoard({ length: 24, width: 100.9375, cuts: [dado({ offset: 0, width: 0.125 })] }),
+          16,
+        )[0]}
+      />,
+    );
+    const outline = container.querySelector('.cutlist-diagram-outline')!;
+    const outlineX = Number(outline.getAttribute('x'));
+    expect(outlineX).toBeGreaterThan(0);
     for (const t of container.querySelectorAll('.cutlist-diagram-leader text')) {
       const w = labelWidth(t.textContent!);
-      expect(Number(t.getAttribute('x')) - w / 2).toBeGreaterThanOrEqual(left);
+      expect(Number(t.getAttribute('x')) - w / 2).toBeGreaterThanOrEqual(outlineX);
+    }
+  });
+
+  it('anchors leader columns immediately left of the outline, even under the shrink branch', () => {
+    // FINDING 1 (live defect, fixed here): the gutter used to be anchored at
+    // x = 0 while the outline sat at `left + fit.offsetX`. Under the shrink
+    // branch `offsetX` can be hundreds of units, leaving the leader column
+    // pointing at empty space instead of the board. Assert `fit.offsetX > 0`
+    // first (via the outline's own x exceeding what `left` alone could
+    // explain) so this cannot pass vacuously.
+    const { container } = render(
+      <PartDiagram
+        view={buildDiagrams(
+          createBoard({ length: 24, width: 100.9375, cuts: [
+            dado({ across: 'length', offset: 0.25, width: 0.25 }),
+          ] }),
+          16,
+        )[0]}
+      />,
+    );
+    const outline = container.querySelector('.cutlist-diagram-outline')!;
+    const outlineX = Number(outline.getAttribute('x'));
+    const cols = [...container.querySelectorAll('.cutlist-diagram-leader-v')];
+    expect(cols.length).toBeGreaterThan(0);
+    // Sanity check that this geometry really does have a large offsetX: with
+    // exactly one column, `outline.x = fit.offsetX + COL + LEFT_PAD`, and COL
+    // alone is under 40 — an outline this far right cannot be explained
+    // without a large offsetX.
+    expect(outlineX).toBeGreaterThan(400);
+    const last = cols[cols.length - 1];
+    const ticks = [...last.querySelectorAll('line')].map((l) => [
+      Number(l.getAttribute('x1')), Number(l.getAttribute('x2')),
+    ]).flat();
+    const rightmostTick = Math.max(...ticks);
+    expect(outlineX - rightmostTick).toBeCloseTo(LEFT_PAD, 10);
+  });
+
+  it('keeps a rotated label clear of its own leader line and ticks', () => {
+    // Regression guard for the COL derivation: COL = 26 (the brief's literal
+    // value) does not fail by producing a negative x — labelX = COL*i +
+    // LABEL_ASCENT anchors column 0 at [0, 25] independent of COL. It fails
+    // because the label box [0, 25] swallows its own ticks ([18, 26] at
+    // COL=26) and leader line (at x=22) — a text-vs-line collision, which no
+    // text-vs-text or text-vs-viewBox check can ever see. This asserts the
+    // real invariant directly: a column's label never reaches its own line.
+    const { container } = render(<PartDiagram view={crossingView()} />);
+    const col = container.querySelector('.cutlist-diagram-leader-v')!;
+    const verticals = [...col.querySelectorAll('line')].filter(
+      (l) => l.getAttribute('x1') === l.getAttribute('x2'),
+    );
+    expect(verticals.length).toBeGreaterThan(0);
+    const lineX = Number(verticals[0].getAttribute('x1'));
+    for (const t of col.querySelectorAll('text')) {
+      const labelX = Number(t.getAttribute('x'));
+      const rightEdge = labelX + LABEL_DESCENT;
+      expect(rightEdge).toBeLessThanOrEqual(lineX - TICK);
     }
   });
 
@@ -198,15 +324,18 @@ describe('PartDiagram', () => {
     expect(ticks).toHaveLength(3);
     // The middle tick is what separates the two runs: it must sit exactly at the
     // band's near edge, shared by both.
-    const band = container.querySelector('.cutlist-diagram-near')!;
+    const cell = container.querySelector('.cutlist-diagram-cell')!;
     const xs = ticks.map((l) => Number(l.getAttribute('x1'))).sort((a, b) => a - b);
-    expect(xs[1]).toBeCloseTo(Number(band.getAttribute('x')), 10);
+    expect(xs[1]).toBeCloseTo(Number(cell.getAttribute('x')), 10);
   });
 });
 
 /**
  * The seven geometries from follow-up 59's measured browser sweep, as unit
- * tests. Three of them (2, 3 and 6) FAILED in the browser before this round.
+ * tests. Three of them (2, 3 and 6) FAILED in the browser before the previous
+ * round closed them. This round re-keyed several of these boards' views by
+ * physical face (Task 5), which turns some of them into leader-COLUMN cases
+ * rather than leader-ROW cases — see case 5's updated comment.
  *
  * WHAT THIS PROVES AND WHAT IT DOES NOT. Label width is now arithmetic
  * (`labelWidth`), so the overlap predicate `docs/diagram-overlap-sweep.js`
@@ -225,19 +354,35 @@ describe('PartDiagram label collisions — the seven sweep geometries', () => {
       const w = labelWidth(text);
       const x = Number(t.getAttribute('x'));
       const y = Number(t.getAttribute('y'));
+      const rotated = (t.getAttribute('transform') ?? '').includes('rotate(-90');
+      if (rotated) {
+        // rotate(-90 x y) turns the text's own horizontal advance into a
+        // VERTICAL extent centred on y (labelWidth(s), matching packRow's
+        // centre semantics directly) and its ascent/descent into a
+        // horizontal extent to either side of x — asymmetric, since ascent
+        // (19) and descent (6) differ. See diagramLabels.ts's doc comment on
+        // labelHeight for why this pair of constants exists at all.
+        return {
+          text,
+          left: x - LABEL_ASCENT,
+          right: x + LABEL_DESCENT,
+          top: y - w / 2,
+          bottom: y + w / 2,
+        };
+      }
       // `x` is the CENTRE under text-anchor: middle and the LEFT EDGE otherwise.
       // Reading it as a left edge regardless would make every assertion below
       // wrong in exactly the direction that hides a collision.
       const left = t.getAttribute('text-anchor') === 'middle' ? x - w / 2 : x;
-      // At font-size 20 the glyph box rises ~15 above the baseline and drops ~5
-      // below it; a dominant-baseline: middle label straddles `y` instead.
+      // At font-size 20 the glyph box rises ~19 above the baseline and drops
+      // ~6 below it; a dominant-baseline: middle label straddles `y` instead.
       const mid = t.getAttribute('dominant-baseline') === 'middle';
       return {
         text,
         left,
         right: left + w,
-        top: mid ? y - 10 : y - 15,
-        bottom: mid ? y + 10 : y + 5,
+        top: mid ? y - LABEL_BOX_H / 2 : y - LABEL_ASCENT,
+        bottom: mid ? y + LABEL_BOX_H / 2 : y + LABEL_DESCENT,
       };
     });
 
@@ -286,10 +431,27 @@ describe('PartDiagram label collisions — the seven sweep geometries', () => {
     check(draw({ cuts: [dado({ offset: 23.25, width: 0.75 })] }));
   });
 
-  it('5 min-width — an edge groove, drawnH floored (was a 0.7-unit near-miss)', () => {
-    // face: 'width', across: 'length' gives along: 'thickness' — h = 0.75,
-    // v = 24, which is fitView's MIN_WIDTH branch.
-    check(draw({ cuts: [dado({ face: 'width', across: 'length', offset: 0.25, width: 0.25 })] }));
+  it('5 min-width — an edge groove, drawnV sliver-clamped (was a 0.7-unit near-miss)', () => {
+    // face: 'width', across: 'length' gives horizontal: 'length', vertical:
+    // 'thickness' — h = 24, v = 0.75, which is fitView's sliver clamp
+    // (drawnV floors at DRAW_WIDTH / MAX_ASPECT). A cut positioned along
+    // thickness is always a leader COLUMN under the per-face grouping (Task
+    // 5) — thickness sorts last in DIMENSION_ORDER, so it is never a view's
+    // "horizontal" dimension.
+    const container = draw({ cuts: [dado({ face: 'width', across: 'length', offset: 0.25, width: 0.25 })] });
+    check(container);
+    // The thing that actually drove the Infinity-bound column-packing design:
+    // this column's depth label needs far more than the nominal row-only
+    // height (leaders + BOTTOM, ~179 units here), so the figure's height must
+    // have grown to fit it — this is the on-the-other-axis analogue of the
+    // overall-width label growing `viewW`. Asserting only the sweep's general
+    // bounds check (which happens to cover this) would let a future revert to
+    // a bounded packRow pass silently as long as the numbers still fit.
+    const svg = container.querySelector('svg')!;
+    const [, , , vbH] = svg.getAttribute('viewBox')!.split(/\s+/).map(Number);
+    const outline = container.querySelector('.cutlist-diagram-outline')!;
+    const nominalHeight = Number(outline.getAttribute('y')) + Number(outline.getAttribute('height')) + 16 + 34;
+    expect(vbH).toBeGreaterThan(nominalHeight);
   });
 
   it('6 narrow-drawn — a 24" x 100-15/16" panel, the acceptance case (was FAIL)', () => {
@@ -302,7 +464,15 @@ describe('PartDiagram label collisions — the seven sweep geometries', () => {
     }));
   });
 
-  it('survives a board cut from both sides in the same view', () => {
-    check(draw({ cuts: [dado(), dado({ id: 'c2', offset: 12, from: 'max' })] }));
+  it('8 same-view crossing — two perpendicular cuts crossing in one view', () => {
+    // Replaces the old "cut from both sides in the same view" case: `from`
+    // now selects a different VIEW entirely (Task 5), so a single view can no
+    // longer mix near and far cuts. The equivalent stress case for one view
+    // is two cuts naming DIFFERENT across dimensions — one leader row and one
+    // leader column together, plus the crossing legend line.
+    check(draw({ length: 24, width: 12, cuts: [
+      dado({ id: 'a', across: 'width', offset: 6, width: 0.75, depth: 0.125 }),
+      dado({ id: 'b', across: 'length', offset: 4, width: 0.75, depth: 0.375 }),
+    ] }));
   });
 });

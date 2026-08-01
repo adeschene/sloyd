@@ -50,6 +50,49 @@ function sweepDiagrams() {
    */
   const TOL = 0.1;
 
+  /**
+   * An element's box in the SVG's OWN coordinate system, with its transform applied.
+   *
+   * `getBBox()` alone is NOT enough and the difference is not subtle. It is
+   * measured in the element's user space BEFORE the element's own transform, so
+   * a `rotate(-90)` leader-column label reports its UNROTATED extents. Measured
+   * on this app: a rotated `100-15/16"` returned a bbox of 120.29 x 23.68 while
+   * its true on-screen box was 14 x 71.13 — width and height swapped.
+   *
+   * Reading `getBBox()` directly would therefore measure every rotated label as
+   * if it were horizontal AND STILL PASS. That is the same
+   * silently-succeeding-predicate failure that let follow-up 59 ship through a
+   * full TDD pass and three reviews, which is why this composes with the CTM
+   * rather than trusting the raw box.
+   */
+  const boxOf = (el, svg) => {
+    const b = el.getBBox();
+    // ORDER IS LOAD-BEARING: svgInverse x elementCTM, not the reverse.
+    // `A.multiply(B)` is A x B, and we want to map element user space -> SVG
+    // user space. Writing it backwards happens to be the IDENTITY for an
+    // untransformed element (elCTM === svgCTM, so elCTM x svgInv cancels), so a
+    // horizontal-label control still reads correctly and the error only shows
+    // on the rotated labels this helper exists for — where it put a label at
+    // x = -4043 in a 1141-wide viewBox. Caught by sanity-checking an absurd
+    // number against the element's own attributes; do not "simplify" the order.
+    const m = svg.getScreenCTM().inverse().multiply(el.getScreenCTM());
+    const pts = [
+      [b.x, b.y], [b.x + b.width, b.y],
+      [b.x, b.y + b.height], [b.x + b.width, b.y + b.height],
+    ].map(([x, y]) => {
+      const p = svg.createSVGPoint();
+      p.x = x; p.y = y;
+      return p.matrixTransform(m);
+    });
+    const xs = pts.map((p) => p.x);
+    const ys = pts.map((p) => p.y);
+    return {
+      x: Math.min(...xs), y: Math.min(...ys),
+      width: Math.max(...xs) - Math.min(...xs),
+      height: Math.max(...ys) - Math.min(...ys),
+    };
+  };
+
   /** Two boxes overlap only if they do so on BOTH axes. Touching is not overlap. */
   const overlaps = (a, b) =>
     a.x < b.x + b.width && b.x < a.x + a.width &&
@@ -66,7 +109,7 @@ function sweepDiagrams() {
     const texts = [...svg.querySelectorAll('text')].map((el) => ({
       text: el.textContent,
       cls: el.getAttribute('class') || 'leader',
-      bbox: el.getBBox(),
+      bbox: boxOf(el, svg),
     }));
 
     // The overall-width label is the LAST <text> in the svg and is deliberately
