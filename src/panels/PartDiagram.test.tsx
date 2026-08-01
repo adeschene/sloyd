@@ -141,10 +141,12 @@ describe('PartDiagram', () => {
     expect(vLabel.getAttribute('dominant-baseline')).toBe('middle');
   });
 
-  it('pulls the overall-width label back inside the viewBox when the gutter cannot hold it', () => {
-    // A long board with a long width label: right + 12 + labelWidth would run
-    // past DRAW_WIDTH + RIGHT. Goal 2 of the spec is about the viewBox, so this
-    // is enforced rather than assumed to be unreachable.
+  it('never pulls the overall-width label back across the outline', () => {
+    // The clamp used to satisfy the viewBox bound by violating the thing the
+    // bound protects: on this board it put the label 33 units left of the
+    // outline's right edge, drawing it across the figure. The viewBox grows
+    // instead. Both bounds are asserted because fixing either one alone is
+    // what produced the defect.
     const { container } = render(
       <PartDiagram
         view={buildDiagrams(createBoard({ length: 240, width: 100.9375, cuts: [dado()] }), 16)[0]}
@@ -152,8 +154,11 @@ describe('PartDiagram', () => {
     );
     const svg = container.querySelector('svg')!;
     const vbWidth = Number(svg.getAttribute('viewBox')!.split(/\s+/)[2]);
+    const outline = container.querySelector('.cutlist-diagram-outline')!;
+    const right = Number(outline.getAttribute('x')) + Number(outline.getAttribute('width'));
     const vLabel = container.querySelector('.cutlist-diagram-overall')!;
-    expect(Number(vLabel.getAttribute('x')) + labelWidth(vLabel.textContent!))
-      .toBeLessThanOrEqual(vbWidth);
+    const x = Number(vLabel.getAttribute('x'));
+    expect(x).toBeGreaterThanOrEqual(right);
+    expect(x + labelWidth(vLabel.textContent!)).toBeLessThanOrEqual(vbWidth);
   });
 });

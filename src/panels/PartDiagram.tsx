@@ -63,22 +63,30 @@ export function PartDiagram({ view }: { view: DiagramView }) {
   const height = leaders + ROW * view.cuts.length + BOTTOM;
   const baseline = height - BOTTOM / 2;
 
+  // The overall-width label always sits BESIDE the outline, never pulled back
+  // across it. When the RIGHT gutter cannot hold the label, the viewBox grows
+  // to make room rather than the label moving inward — the label overlapping
+  // the drawing is a worse failure than the figure rendering slightly smaller,
+  // and pulling it left satisfied the viewBox bound by violating the thing the
+  // bound existed to protect.
+  const vw = labelWidth(view.vLabel);
+  const right = fit.offsetX + fit.drawnH;
+  const viewW = Math.max(VIEW_W, right + 12 + vw);
+  const vx = right + 12;
+
   // The overall-length label is a one-item row, so it clamps into the viewBox
   // by the same rule as everything else rather than by being assumed to fit.
   const [hx] = packRow(
     [{ centre: fit.offsetX + fit.drawnH / 2, width: labelWidth(view.hLabel) }],
-    0, VIEW_W, GAP_X,
+    0, viewW, GAP_X,
   );
-  // The overall-width label is anchored at its START, beside the outline, so it
-  // is pulled back rather than centred when the gutter cannot hold it.
-  const vx = Math.min(fit.offsetX + fit.drawnH + 12, VIEW_W - labelWidth(view.vLabel));
 
   return (
     <figure className="cutlist-diagram">
       <figcaption className="cutlist-diagram-head">{view.heading}</figcaption>
 
       <svg
-        viewBox={`0 0 ${VIEW_W} ${height}`}
+        viewBox={`0 0 ${viewW} ${height}`}
         fontSize={LABEL_SIZE}
         role="img"
         aria-label={view.heading}
@@ -131,7 +139,7 @@ export function PartDiagram({ view }: { view: DiagramView }) {
               { centre: b.x + b.width / 2, width: labelWidth(cut.widthLabel) },
               { centre: b.x + b.width + GAP_X + depthW / 2, width: depthW },
             ],
-            0, VIEW_W, GAP_X,
+            0, viewW, GAP_X,
           );
           return (
             <g
