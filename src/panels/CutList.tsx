@@ -81,6 +81,7 @@ export function CutList({ onClose }: { onClose: () => void }) {
                     <span className="cutlist-qty">{row.qty} ×</span>
                     <span className="cutlist-dims">{row.dims}</span>
                     <span className="cutlist-names">{row.names.join(', ')}</span>
+                    <span className="cutlist-stock">{row.stock}</span>
                     {row.setup.length > 0 && (
                       <ul className="cutlist-setup">
                         {/*
@@ -105,6 +106,10 @@ export function CutList({ onClose }: { onClose: () => void }) {
                   </li>
                 ))}
               </ul>
+              <p className="cutlist-subtotal">
+                <span className="cutlist-subtotal-label">{group.label}</span>
+                <span className="cutlist-stock">{group.stock}</span>
+              </p>
             </section>
           ))
         )}

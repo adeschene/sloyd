@@ -24,7 +24,7 @@ describe('CutList', () => {
          { material: 'oak', thickness: 0.75, length: 24, width: 3.5 });
     render(<CutList onClose={() => {}} />);
 
-    expect(screen.getByText('Oak — 3/4"')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Oak — 3/4"' })).toBeInTheDocument();
     expect(screen.getByText('2 ×')).toBeInTheDocument();
     expect(screen.getByText('24" × 3-1/2"')).toBeInTheDocument();
     expect(screen.getByText('P0, P1')).toBeInTheDocument();
