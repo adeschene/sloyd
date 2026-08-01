@@ -60,11 +60,10 @@ describe('buildDiagrams', () => {
     ]});
     const views = buildDiagrams(board, 16);
     expect(views).toHaveLength(2);
-    // NOTE: this asserts the actual emitted order, not an alphabetised one —
-    // 'max'.localeCompare('min') is negative, so the `from` tiebreak in
-    // buildDiagrams's final sort puts 'max' before 'min' for a shared face,
-    // regardless of insertion order.
-    expect(views.map((v) => v.from)).toEqual(['max', 'min']);
+    // Asserts the ACTUAL emitted order, not an alphabetised one: 'min' before
+    // 'max' regardless of insertion order, per FROM_ORDER in buildDiagrams —
+    // the near side reads first, matching the "(min side)" prose phrasing.
+    expect(views.map((v) => v.from)).toEqual(['min', 'max']);
   });
 
   it('tags each cut with the axis its offset is measured along', () => {

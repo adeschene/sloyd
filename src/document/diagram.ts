@@ -148,12 +148,16 @@ export function buildDiagrams(board: Board, precision: number): DiagramView[] {
     );
     view.crossings = depths.map((d) => `overlap: ${f(d)} deep governs`);
   }
-  // `from` as the tiebreak ('min' before 'max') so the order is total, the
-  // same reason `mergeAlong` and `buildCutList`'s row sort both carry one.
+  // 'min' before 'max' — the near side is the one a person reads first, it is
+  // the default `from` for a new cut, and it matches the "(min side)" phrasing
+  // the prose setup lines already use. NOT localeCompare: 'max' sorts before
+  // 'min' alphabetically, which is the opposite of the intent and is what this
+  // comment used to describe while the code did the reverse.
+  const FROM_ORDER: CutFrom[] = ['min', 'max'];
   out.sort(
     (a, b) =>
       DIMENSION_ORDER.indexOf(a.face) - DIMENSION_ORDER.indexOf(b.face) ||
-      a.from.localeCompare(b.from),
+      FROM_ORDER.indexOf(a.from) - FROM_ORDER.indexOf(b.from),
   );
   return out;
 }
