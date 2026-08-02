@@ -168,6 +168,13 @@ export interface Nesting {
   unplaceable: { boardId: string; name: string; dims: string }[];
   /** e.g. `3 sheets (96" × 48")`, already formatted. */
   label: string;
+  /**
+   * Just the sheet size, e.g. `96" × 48"` — a separate field rather than a
+   * substring of `label`, so the unplaceable line can name the sheet without
+   * a panel picking `label` apart. The panel formats nothing, and that
+   * includes un-formatting.
+   */
+  sheet: string;
 }
 
 export function buildNesting(
