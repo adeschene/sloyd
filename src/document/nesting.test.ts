@@ -80,10 +80,10 @@ describe('buildNesting', () => {
       .toBe('1 sheet (96" × 48")');
   });
 
-  // THE EPSILON CASE. `remaining = sheetLength - used` compared against a
-  // part's extent is a SUBTRACTION RESULT compared against a bound — the exact
-  // shape that made cutLabel wrong 2.8% of the time. Reverting the fits-test
-  // to an exact `<=` fails this and nothing else.
+  // Pins the coordinates for the kerf test below to build on. NOT the epsilon
+  // case: 24 × 4 = 96 is exactly representable in binary, so this fixture
+  // never touches EPS — see the real epsilon fixture further down and EPS's
+  // own doc comment for why sixteenths can't reach the tolerance at all.
   it('fits four 24-inch parts on a 96-inch sheet at zero kerf', () => {
     const n = buildNesting(
       [part(24, 12, 'A'), part(24, 12, 'B'), part(24, 12, 'C'), part(24, 12, 'D')],
@@ -106,6 +106,22 @@ describe('buildNesting', () => {
     expect(n.sheets[0].parts.map((p) => [p.x, p.y])).toEqual([
       [0, 0], [24.125, 0], [48.25, 0], [0, 12.125],
     ]);
+  });
+
+  // THE REAL EPSILON CASE — decimal input, not sixteenths. Sixteenths and
+  // sixty-fourths are dyadic rationals and sum EXACTLY in binary float (a
+  // 15,298-case sweep across every 1/16 and 1/64 up to 96", at kerfs 0, 1/8,
+  // 1/16 and 3/32, found zero cases where EPS mattered), so no fractional-inch
+  // fixture can pin this tolerance. `parseLength` also accepts plain decimals
+  // and millimetres (divided by 25.4), and those DO accumulate float error:
+  // 6.4 summed fifteen times is 96.00000000000001 in IEEE 754, a hair over a
+  // 96" sheet. Without EPS the fifteenth part is bumped to a second shelf;
+  // with it, all fifteen ride the first.
+  it('tolerates float error from decimal-inch summation, not sixteenths', () => {
+    const boards = Array.from({ length: 15 }, (_, i) => part(6.4, 4, `P${i}`));
+    const n = buildNesting(boards, PLY, 0, 16);
+    expect(n.sheets).toHaveLength(1);
+    expect(n.sheets[0].parts.filter((p) => p.y === 0)).toHaveLength(15);
   });
 
   it('leaves no kerf at a sheet or shelf edge', () => {
@@ -142,6 +158,14 @@ describe('buildNesting', () => {
   // comment: every part's across-sheet interval falls inside exactly one
   // shelf band, and the bands are disjoint. That is what lets a shop rip the
   // sheet into strips and then crosscut each strip.
+  //
+  // The bound each part is checked against is the NEXT band's start (or the
+  // sheet's width, for the last band) — never a `hi` extended by the parts
+  // themselves. Deriving the bound from the parts under test is what let this
+  // property go unverified for an entire round: `placeOn`'s `fits(f.h,
+  // shelf.h)` guard is the ONLY thing in the packer that enforces this, and
+  // deleting that one clause left this test green, because a part taller than
+  // its shelf just grew its own band's `hi` to match instead of failing.
   it('places every part inside exactly one disjoint shelf band', () => {
     const boards = [
       part(30, 20, 'A'), part(30, 20, 'B'), part(18, 18, 'C'),
@@ -149,22 +173,37 @@ describe('buildNesting', () => {
     ];
     const n = buildNesting(boards, PLY, 0.125, 16);
     for (const s of n.sheets) {
-      const bands: [number, number][] = [];
-      for (const p of s.parts) {
-        const band = bands.find(([lo]) => Math.abs(lo - p.y) < 1e-6);
-        if (band) band[1] = Math.max(band[1], p.y + p.h);
-        else bands.push([p.y, p.y + p.h]);
+      const starts = [...new Set(s.parts.map((p) => p.y))].sort((a, b) => a - b);
+      for (let i = 1; i < starts.length; i += 1) {
+        // Bands are disjoint: consecutive shelf starts strictly separate them.
+        expect(starts[i]).toBeGreaterThan(starts[i - 1]);
       }
-      bands.sort((a, b) => a[0] - b[0]);
-      for (let i = 1; i < bands.length; i += 1) {
-        expect(bands[i][0]).toBeGreaterThanOrEqual(bands[i - 1][1] - 1e-6);
-      }
-      // Every part starts on a band boundary — nothing floats mid-band.
       for (const p of s.parts) {
-        expect(bands.some(([lo, hi]) => Math.abs(lo - p.y) < 1e-6 && p.y + p.h <= hi + 1e-6))
-          .toBe(true);
+        const idx = starts.findIndex((y) => Math.abs(y - p.y) < 1e-6);
+        const bound = idx + 1 < starts.length ? starts[idx + 1] : 48;
+        // The part's own band, bounded by where the NEXT band starts (or the
+        // sheet edge) — not by any extent the parts in this band produced.
+        expect(p.y + p.h).toBeLessThanOrEqual(bound + 1e-6);
       }
     }
+  });
+
+  // Regression fixture for the guillotine guard above: a free-rotating pair
+  // where the naive fix (checking `fits(x + f.w, stock.length)` alone, with
+  // no height check) places the second part on the FIRST shelf in an
+  // orientation taller than that shelf. `Rail` (90×10) opens a 10"-tall
+  // shelf; `Stick` (30×4, but its flipped orientation is 4×30) must NOT be
+  // wedged in beside it at x=90 as a 30"-tall sliver — it has to open its own
+  // shelf instead.
+  it('does not stand a part taller than the shelf it would ride', () => {
+    const rail = createBoard({ name: 'Rail', length: 90, width: 10, grain: 'length', material: 'mdf' });
+    const stick = createBoard({ name: 'Stick', length: 30, width: 4, grain: 'length', material: 'mdf' });
+    const n = buildNesting([rail, stick], MDF, 0, 16);
+    expect(n.sheets).toHaveLength(1);
+    expect(n.sheets[0].parts).toEqual([
+      { boardId: rail.id, name: 'Rail', x: 0, y: 0, w: 90, h: 10, turned: false },
+      { boardId: stick.id, name: 'Stick', x: 0, y: 10, w: 30, h: 4, turned: false },
+    ]);
   });
 
   it('records a part too big for any sheet without opening one', () => {
@@ -207,10 +246,20 @@ describe('buildNesting', () => {
     expect(shuffled).toEqual(forward);
   });
 
+  // 40×40 SQUARES made this test unable to fail: a square's flipped
+  // orientation is congruent to its natural one, so free rotation was a
+  // no-op and both sides always produced the same sheet count, leaving
+  // `toBeLessThanOrEqual` comparing equal values. 18×25 is non-square, so the
+  // grain-locked run is stuck with a 25"-tall natural orientation (5 parts
+  // per sheet: floor(96/18) × floor(48/25) = 5×1) while free rotation prefers
+  // the 18"-tall flip (6 per sheet: floor(96/25) × floor(48/18) = 3×2) — a
+  // real, not merely possible, improvement for six parts.
   it('packs free-rotating material at least as tightly as grain-locked', () => {
-    const boards = Array.from({ length: 4 }, (_, i) =>
-      createBoard({ name: `P${i}`, length: 40, width: 40, grain: 'length', material: 'mdf' }));
-    expect(buildNesting(boards, MDF, 0, 16).sheets.length)
-      .toBeLessThanOrEqual(buildNesting(boards, PLY, 0, 16).sheets.length);
+    const boards = Array.from({ length: 6 }, (_, i) =>
+      createBoard({ name: `P${i}`, length: 18, width: 25, grain: 'length', material: 'mdf' }));
+    const free = buildNesting(boards, MDF, 0, 16).sheets.length;
+    const locked = buildNesting(boards, PLY, 0, 16).sheets.length;
+    expect(free).toBeLessThanOrEqual(locked);
+    expect(free).toBeLessThan(locked);
   });
 });

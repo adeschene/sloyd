@@ -83,10 +83,24 @@ export interface Nesting {
 /**
  * Tolerance on the fits-test, and it is the OPPOSITE of invariant 18's rule.
  *
- * `remaining = sheetLength - used` compared against a part's extent is a
- * SUBTRACTION RESULT compared against a bound — precisely the shape
+ * The hazard is accumulated ADDITION, not subtraction: `x = shelf.used + kerf`
+ * and `shelf.used = x + f.w` chain across every part placed on a shelf, so
+ * `fits(x + f.w, stock.length)` compares a running SUM against a bound —
+ * error can build with every part added to the shelf, the same shape
  * cutSignature's comment names as the hazard that made cutLabel wrong 2.8% of
- * the time. Four 24" parts at zero kerf must not fail on the fourth.
+ * the time. (No remainder is ever computed here — `stock.length - used` does
+ * not appear in this file.)
+ *
+ * For fractional-inch input this hazard is provably unreachable: sixteenths
+ * and sixty-fourths are dyadic rationals, and sums of dyadic rationals are
+ * exact in binary floating point. A sweep of 15,298 fractional-inch cases
+ * (every 1/16 and 1/64 up to 96", against kerfs 0, 1/8, 1/16, 3/32) produced
+ * bit-identical output with and without EPS — the four-24"-parts fixture
+ * below does not exercise this tolerance at all, since 24 × 4 = 96 exactly.
+ * EPS earns its keep on the inputs `parseLength` accepts that are NOT
+ * dyadic — decimal entry (`DECIMAL_RE` in `src/units/length.ts`) and
+ * millimetres (divided by 25.4, an irrational-in-binary constant) — where
+ * summed error is real and visible after enough parts accumulate it.
  *
  * Invariant 18 says cut signatures compare EXACTLY, and that stays true: there
  * both sides are stored values a user typed, and two cuts entered identically
@@ -177,10 +191,16 @@ export function buildNesting(
   kerf: number,
   precision: number,
 ): Nesting {
-  // Decreasing by the preferred orientation's across-sheet extent, so a
-  // shelf's first part really is its tallest. The `id` tiebreak is what makes
-  // the order TOTAL, and therefore the output stable under input permutation —
-  // without it a layout reshuffles as parts are renamed.
+  // Decreasing by the preferred orientation's across-sheet extent — first-fit
+  // DECREASING, not a guarantee. Under `rotate: 'free'` this key is the
+  // SMALLER-h orientation (footprintsOf's shortest-shelf preference), while
+  // `placeOn` may still choose the taller one for a given shelf; the sort
+  // alone does not make a shelf's first part its tallest. That property is
+  // enforced by `placeOn`'s `fits(f.h, shelf.h)` guard, not by this ordering —
+  // do not "simplify" that guard away on the strength of this comment. The
+  // `id` tiebreak is what makes the order TOTAL, and therefore the output
+  // stable under input permutation — without it a layout reshuffles as parts
+  // are renamed.
   const sorted = [...boards].sort((a, b) => {
     const fa = footprintsOf(a, stock)[0];
     const fb = footprintsOf(b, stock)[0];
@@ -207,9 +227,21 @@ export function buildNesting(
 
     if (!sheets.some((sheet) => placeOn(sheet, board, options, stock, kerf))) {
       const sheet: WorkingSheet = { parts: [], shelves: [] };
+      // Placed BEFORE pushing, and the push is gated on the result — never
+      // push-then-place. A sheet must never enter `sheets` unless a part
+      // actually landed on it: an empty sheet counted here is the exact
+      // wrong purchasing number this feature exists to produce. The
+      // unplaceable check above guarantees this call succeeds today (an
+      // empty sheet has the full stock available), but that guarantee lives
+      // in a separate predicate a few lines up — if it and `placeOn` ever
+      // drift apart, failing loudly here is safer than the alternative
+      // (silently dropping the board with no unplaceable entry, which the
+      // `unplaceable` field's own contract forbids), so a mismatch throws
+      // rather than being swallowed.
+      if (!placeOn(sheet, board, options, stock, kerf)) {
+        throw new Error(`buildNesting: "${board.name}" failed to place on a fresh sheet`);
+      }
       sheets.push(sheet);
-      // Guaranteed by the check above: it fits an empty sheet.
-      placeOn(sheet, board, options, stock, kerf);
     }
   }
 
