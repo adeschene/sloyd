@@ -1,8 +1,14 @@
 import { create } from 'zustand';
 import { createBoard, createDocument, reorientedPosition, uniqueName, isSheetGood, nextId } from '../document/document';
-import type { Board, Cut, SloydDocument } from '../document/document';
+import type { Board, Cut, SloydDocument, SnapPoint } from '../document/document';
 
 const HISTORY_LIMIT = 50;
+
+/**
+ * Which viewport tool has the pointer. View state, not document state — it is
+ * never saved and never undone, exactly like `selectedId`.
+ */
+export type ToolMode = 'select' | 'move';
 
 interface StoreState {
   doc: SloydDocument;
@@ -18,6 +24,23 @@ interface StoreState {
    */
   pendingLengthFocus: boolean;
   consumeLengthFocus: () => boolean;
+
+  /**
+   * The active viewport tool, and the snap point the Move tool is carrying.
+   *
+   * Both live here rather than being prop-drilled from App the way
+   * `shortcutsSuspended` is. That flag's reasoning — putting one flag into
+   * shared state "to save one prop" buys nothing — does not reach these:
+   * `tool` has consumers in Toolbar, Viewport, MoveTool and (via one prop)
+   * BoardMesh, at three different depths. They are still view state, so they
+   * are deliberately outside the document and outside the undo stack.
+   */
+  tool: ToolMode;
+  grabbed: SnapPoint | null;
+  setTool: (tool: ToolMode) => void;
+  grabSnapPoint: (point: SnapPoint) => void;
+  cancelGrab: () => void;
+  commitSnapMove: (target: SnapPoint) => void;
 
   addBoard: () => void;
   updateBoard: (id: string, patch: Partial<Board>) => void;
@@ -85,6 +108,74 @@ export const useStore = create<StoreState>((set, get) => {
       const pending = get().pendingLengthFocus;
       if (pending) set({ pendingLengthFocus: false });
       return pending;
+    },
+
+    tool: 'select',
+    grabbed: null,
+
+    // Changing tools always drops the grab. A snap point carried into a
+    // different tool has nothing that can consume it.
+    setTool: (tool) => set({ tool, grabbed: null }),
+
+    grabSnapPoint: (point) => set({ grabbed: point }),
+
+    cancelGrab: () => set({ grabbed: null }),
+
+    /**
+     * Move the grabbed board so its grabbed point lands exactly on `target`.
+     *
+     * One subtraction, applied through updateBoard — which is what earns undo,
+     * autosave and gesture coalescing without a line of new bookkeeping.
+     *
+     * Deliberately NOT snapped to SNAP_INCHES. Gizmo.tsx snaps because a free
+     * drag lands on arbitrary numbers and a board should come to rest where a
+     * person can measure to. Here the whole point is that the two points
+     * coincide exactly, and rounding could break that silently, by a
+     * sixteenth. If both boards already sit on 1/16" boundaries the delta is
+     * exact anyway and a snap would be a no-op — the only case where it does
+     * anything is the case where it does damage.
+     *
+     * The patch carries `position` only, so updateBoard's reorient predicate
+     * is never reached. Correct: a snap move translates, it never turns.
+     */
+    commitSnapMove: (target) => {
+      const grabbed = get().grabbed;
+      if (!grabbed) return;
+      // A board cannot be snapped onto itself. It is a legal subtraction — it
+      // would translate the board by its own length — but never what anyone
+      // means. MoveTool also withholds these candidates so the case cannot be
+      // clicked; this guard is what makes the rule true of the action itself.
+      if (target.owner.id === grabbed.owner.id) return;
+
+      const board = get().doc.boards.find((b) => b.id === grabbed.owner.id);
+      if (!board) {
+        set({ grabbed: null });
+        return;
+      }
+
+      const delta = [
+        target.at[0] - grabbed.at[0],
+        target.at[1] - grabbed.at[1],
+        target.at[2] - grabbed.at[2],
+      ] as const;
+
+      // Guarded before the edit, the same rule updateCut and removeCut follow:
+      // edit() unconditionally pushes an undo snapshot and clears redo, so a
+      // no-op move would leave a no-op undo entry (invariant 4) and silently
+      // wipe the redo stack.
+      if (delta[0] === 0 && delta[1] === 0 && delta[2] === 0) {
+        set({ grabbed: null });
+        return;
+      }
+
+      get().updateBoard(board.id, {
+        position: [
+          board.position[0] + delta[0],
+          board.position[1] + delta[1],
+          board.position[2] + delta[2],
+        ],
+      });
+      set({ grabbed: null, selectedId: board.id });
     },
 
     addBoard: () => {
@@ -171,6 +262,8 @@ export const useStore = create<StoreState>((set, get) => {
     deleteBoard: (id) => {
       if (!get().doc.boards.some((b) => b.id === id)) return;
       const wasSelected = get().selectedId === id;
+      // A grab on the board being deleted has nothing left to move.
+      if (get().grabbed?.owner.id === id) set({ grabbed: null });
       edit(
         (doc) => ({ ...doc, boards: doc.boards.filter((b) => b.id !== id) }),
         () => (wasSelected ? null : get().selectedId),
@@ -207,7 +300,7 @@ export const useStore = create<StoreState>((set, get) => {
 
     setDocumentName: (name) => edit((doc) => ({ ...doc, name })),
 
-    replaceDocument: (doc) => set({ doc, selectedId: null, past: [], future: [] }),
+    replaceDocument: (doc) => set({ doc, selectedId: null, past: [], future: [], grabbed: null }),
 
     undo: () => {
       const { past, future, doc, selectedId } = get();
@@ -219,6 +312,9 @@ export const useStore = create<StoreState>((set, get) => {
         past: past.slice(0, -1),
         future: [doc, ...future].slice(0, HISTORY_LIMIT),
         selectedId: stillThere ? selectedId : null,
+        // A grab captured a world position; an undo can move the board out
+        // from under it, and committing would then apply a wrong delta.
+        grabbed: null,
       });
     },
 
@@ -232,6 +328,7 @@ export const useStore = create<StoreState>((set, get) => {
         past: [...past, doc].slice(-HISTORY_LIMIT),
         future: future.slice(1),
         selectedId: stillThere ? selectedId : null,
+        grabbed: null,
       });
     },
 

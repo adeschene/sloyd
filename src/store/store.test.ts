@@ -1,5 +1,5 @@
 import { useStore } from './store';
-import { createBoard, createDocument, boardCenter } from '../document/document';
+import { createBoard, createDocument, boardCenter, boardSnapPoints } from '../document/document';
 
 const reset = () => useStore.getState().replaceDocument(createDocument('Test'));
 
@@ -468,5 +468,180 @@ describe('cuts', () => {
     useStore.getState().removeCut(boardId(), firstId);
     useStore.getState().addCut(boardId());
     expect(cuts()[0].id).not.toBe(firstId);
+  });
+});
+
+describe('the Move tool', () => {
+  /** Two boards, returned with the store reset around them. */
+  const twoBoards = () => {
+    useStore.setState({
+      doc: createDocument(),
+      selectedId: null,
+      past: [],
+      future: [],
+      tool: 'select',
+      grabbed: null,
+    });
+    const s = useStore.getState();
+    s.addBoard();
+    s.addBoard();
+    const [a, b] = useStore.getState().doc.boards;
+    return { a, b };
+  };
+
+  const cornerOf = (id: string) => {
+    const board = useStore.getState().doc.boards.find((x) => x.id === id)!;
+    return boardSnapPoints(board).find((p) => p.kind === 'corner')!;
+  };
+
+  it('starts in the select tool with nothing grabbed', () => {
+    twoBoards();
+    expect(useStore.getState().tool).toBe('select');
+    expect(useStore.getState().grabbed).toBeNull();
+  });
+
+  it('drops any grab when the tool changes', () => {
+    const { a } = twoBoards();
+    useStore.getState().setTool('move');
+    useStore.getState().grabSnapPoint(cornerOf(a.id));
+    expect(useStore.getState().grabbed).not.toBeNull();
+    useStore.getState().setTool('select');
+    expect(useStore.getState().grabbed).toBeNull();
+  });
+
+  it('moves the grabbed board so the two points coincide exactly', () => {
+    const { a, b } = twoBoards();
+    // Put b somewhere unrelated so the delta is non-trivial.
+    useStore.getState().updateBoard(b.id, { position: [37.5, 11.25, -4.125] });
+    const grab = cornerOf(a.id);
+    const target = cornerOf(b.id);
+    useStore.getState().grabSnapPoint(grab);
+    useStore.getState().commitSnapMove(target);
+
+    const moved = useStore.getState().doc.boards.find((x) => x.id === a.id)!;
+    const landed = boardSnapPoints(moved).find(
+      (p) => p.kind === grab.kind && p.at.every((v, i) => v === target.at[i]),
+    );
+    expect(landed).toBeDefined();
+  });
+
+  it('does not round the result to 1/16 inch', () => {
+    const { a, b } = twoBoards();
+    // 0.01 is far off any sixteenth; a snap would visibly change it.
+    useStore.getState().updateBoard(b.id, { position: [0.01, 0, 0] });
+    useStore.getState().grabSnapPoint(cornerOf(a.id));
+    useStore.getState().commitSnapMove(cornerOf(b.id));
+    const moved = useStore.getState().doc.boards.find((x) => x.id === a.id)!;
+    expect(moved.position[0]).toBeCloseTo(0.01, 10);
+  });
+
+  it('clears the grab and selects the board it moved', () => {
+    const { a, b } = twoBoards();
+    // b must be moved off a first. Two fresh boards share a default position,
+    // so without this the delta is exactly zero and the commit correctly takes
+    // the no-op path below instead of the one under test.
+    useStore.getState().updateBoard(b.id, { position: [40, 0, 0] });
+    useStore.getState().grabSnapPoint(cornerOf(a.id));
+    useStore.getState().commitSnapMove(cornerOf(b.id));
+    expect(useStore.getState().grabbed).toBeNull();
+    expect(useStore.getState().selectedId).toBe(a.id);
+  });
+
+  it('reverts a whole snap move with one undo', () => {
+    const { a, b } = twoBoards();
+    useStore.getState().updateBoard(b.id, { position: [40, 0, 0] });
+    const before = [...useStore.getState().doc.boards.find((x) => x.id === a.id)!.position];
+    useStore.getState().grabSnapPoint(cornerOf(a.id));
+    useStore.getState().commitSnapMove(cornerOf(b.id));
+    useStore.getState().undo();
+    expect(useStore.getState().doc.boards.find((x) => x.id === a.id)!.position)
+      .toEqual(before);
+  });
+
+  it('ignores a target on the grabbed board itself', () => {
+    const { a } = twoBoards();
+    const corners = boardSnapPoints(useStore.getState().doc.boards[0]!)
+      .filter((p) => p.kind === 'corner');
+    const before = [...useStore.getState().doc.boards.find((x) => x.id === a.id)!.position];
+    useStore.getState().grabSnapPoint(corners[0]!);
+    useStore.getState().commitSnapMove(corners[7]!);
+    expect(useStore.getState().doc.boards.find((x) => x.id === a.id)!.position)
+      .toEqual(before);
+    expect(useStore.getState().grabbed).not.toBeNull();
+  });
+
+  it('is a no-op with nothing grabbed', () => {
+    const { a, b } = twoBoards();
+    const undoDepth = useStore.getState().past.length;
+    useStore.getState().commitSnapMove(cornerOf(b.id));
+    expect(useStore.getState().past.length).toBe(undoDepth);
+    expect(useStore.getState().doc.boards.find((x) => x.id === a.id)).toBeDefined();
+  });
+
+  it('leaves no undo entry when the two points already coincide', () => {
+    const { a, b } = twoBoards();
+    const grab = cornerOf(a.id);
+    // Move b so its grabbed-kind corner is already where a's is.
+    const target = cornerOf(b.id);
+    const board = useStore.getState().doc.boards.find((x) => x.id === b.id)!;
+    useStore.getState().updateBoard(b.id, {
+      position: [
+        board.position[0] + (grab.at[0] - target.at[0]),
+        board.position[1] + (grab.at[1] - target.at[1]),
+        board.position[2] + (grab.at[2] - target.at[2]),
+      ],
+    });
+    const undoDepth = useStore.getState().past.length;
+    useStore.getState().grabSnapPoint(grab);
+    useStore.getState().commitSnapMove(cornerOf(b.id));
+    // Invariant 4's shape: a no-op edit would still push a snapshot and wipe
+    // redo, so Ctrl+Z would appear to do nothing.
+    expect(useStore.getState().past.length).toBe(undoDepth);
+    expect(useStore.getState().grabbed).toBeNull();
+  });
+
+  it('drops a grab when the grabbed board is deleted', () => {
+    const { a } = twoBoards();
+    useStore.getState().grabSnapPoint(cornerOf(a.id));
+    useStore.getState().deleteBoard(a.id);
+    expect(useStore.getState().grabbed).toBeNull();
+  });
+
+  it('keeps a grab when some other board is deleted', () => {
+    const { a, b } = twoBoards();
+    useStore.getState().grabSnapPoint(cornerOf(a.id));
+    useStore.getState().deleteBoard(b.id);
+    expect(useStore.getState().grabbed).not.toBeNull();
+  });
+
+  it('drops a grab on undo and on redo', () => {
+    const { a } = twoBoards();
+    // grabbed.at is a world position captured at grab time; an undo can move
+    // the board out from under it, and committing would then apply a delta
+    // derived from a position that no longer describes anything.
+    useStore.getState().grabSnapPoint(cornerOf(a.id));
+    useStore.getState().undo();
+    expect(useStore.getState().grabbed).toBeNull();
+
+    useStore.getState().grabSnapPoint(cornerOf(useStore.getState().doc.boards[0]!.id));
+    useStore.getState().redo();
+    expect(useStore.getState().grabbed).toBeNull();
+  });
+
+  it('drops a grab when the document is replaced', () => {
+    const { a } = twoBoards();
+    useStore.getState().grabSnapPoint(cornerOf(a.id));
+    useStore.getState().replaceDocument(createDocument());
+    expect(useStore.getState().grabbed).toBeNull();
+  });
+
+  it('cancelGrab clears the grab and moves nothing', () => {
+    const { a } = twoBoards();
+    const before = [...useStore.getState().doc.boards.find((x) => x.id === a.id)!.position];
+    useStore.getState().grabSnapPoint(cornerOf(a.id));
+    useStore.getState().cancelGrab();
+    expect(useStore.getState().grabbed).toBeNull();
+    expect(useStore.getState().doc.boards.find((x) => x.id === a.id)!.position)
+      .toEqual(before);
   });
 });
