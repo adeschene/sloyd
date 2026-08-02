@@ -735,6 +735,10 @@ describe('the Move tool', () => {
 
   it('clears the grab and selects the board it moved', () => {
     const { a, b } = twoBoards();
+    // b must be moved off a first. Two fresh boards share a default position,
+    // so without this the delta is exactly zero and the commit correctly takes
+    // the no-op path below instead of the one under test.
+    useStore.getState().updateBoard(b.id, { position: [40, 0, 0] });
     useStore.getState().grabSnapPoint(cornerOf(a.id));
     useStore.getState().commitSnapMove(cornerOf(b.id));
     expect(useStore.getState().grabbed).toBeNull();
