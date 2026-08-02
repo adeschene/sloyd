@@ -26,10 +26,15 @@ a **per-face diagrams round**, closing the diagrams' other one: perpendicular
 cuts on the same face used to fragment into two disconnected figures instead of
 drawing together, crossing, in one — a **board-feet round**, adding the
 purchasing number (board feet for solid stock, square feet for sheet goods) beside the
-bench numbers already on the sheet — and now a **sheet-nesting round**, closing the cut
+bench numbers already on the sheet — a **sheet-nesting round**, closing the cut
 list's last §7 non-goal: a sheet count and a guillotine-cuttable layout drawing for
-every sheet-goods group, schema version 5. Static SPA, containerized, 617/617 tests
-passing.
+every sheet-goods group, schema version 5 — and now **snap-move**, a SketchUp-style
+Move tool: grab a corner, edge midpoint or face centre of one board, click one on
+another, and the first board moves so the two points coincide exactly. Snap-move is
+**not** a cut-list descendant, unlike the five rounds before it; it is the first work
+on the viewport's *interaction* surface since the gizmo size ceiling (follow-up 29),
+and the first new tool the app has had. It makes **no schema change** —
+`CURRENT_VERSION` stays 5. Static SPA, containerized, 660/660 tests passing.
 
 Host-specific deployment detail — hostname, container name, proxy configuration, and
 the manual steps a human has to perform — lives in `DEPLOYMENT.local.md`, which is
@@ -39,10 +44,16 @@ gitignored. Read that file before deploying; it is not in the public repo.
 layout, per-face views and board feet are all shipped and merged to `master`. Do not
 treat any of the five as in-flight.
 
-**Production matches `master` as of 2026-08-02.** For three rounds it deliberately did
-not — the empty-solids placeholder, board feet and sheet-goods nesting sat merged and
-undeployed because the user chose to hold them — and they went out together. Verified
-after: `200` on `/` and on a deep route, 0 console errors, the Cloudflare beacon present.
+**Production no longer matches `master`: the snap-move round is merged and
+undeployed.** It caught up on 2026-08-02, after three rounds during which it
+deliberately did not — the empty-solids placeholder, board feet and sheet-goods nesting
+sat merged and undeployed because the user chose to hold them, and they went out
+together. That deploy was verified after: `200` on `/` and on a deep route, 0 console
+errors, the Cloudflare beacon present. Snap-move landed on top of it and has not
+shipped. **Deploying it carries no version-gate rollback cost**, unlike the deploy
+below: it changes no schema, so a document saved by a snap-move build still reads
+`version: 5` and the currently-live image opens it unchanged. Rolling back after this
+one costs nothing but the tool.
 
 **That deploy was the first to ship a schema bump to production, which changes what
 rollback costs.** A document saved by the live build carries `version: 5`; the previous
@@ -64,6 +75,126 @@ diagrams remain unverified rather than fixed: a **print-to-PDF render** (this ho
 Playwright exposes no `pdf()`) and **hatch-versus-cross-hatch legibility at screen
 size**, which is a recorded negative finding, not an assumption — see follow-ups 76
 and 79.
+
+**What the snap-move round did**, design in
+`docs/superpowers/specs/2026-08-02-sloyd-snap-move-design.md`. Chosen 2026-08-02, after
+the sheet-nesting round shipped and production caught up to `master`. Point-to-point
+board placement, and the first thing in six rounds that is not about the cut list: with
+the Move tool active, hovering the viewport marks the single nearest *snap point* — a
+board corner, an edge midpoint or a face centre — within a pixel radius of the cursor;
+clicking it grabs it; clicking a point on another board moves the grabbed board so the
+two points coincide exactly. No button is held between the two clicks, which is the
+whole payoff of click-move-click over press-drag-release: the camera stays fully usable
+mid-move, so you can orbit around to find the face you are aiming at and the grab
+survives it.
+
+- **26 points per board, and the volume centre is deliberately not the 27th.** A board
+  is always an axis-aligned box — `rotation` is only 0 or 90 about Y and `posture` merely
+  names which dimension points up — so its candidates are exactly the 3×3×3 lattice of
+  `{min, mid, max}` on each world axis, read off `position` and `boardExtents`. There is
+  no arbitrary transform to invert and no oriented bounding box. The count of axes
+  sitting at `mid` is what names the kind, out of the same loop rather than from a
+  separate classification: none is a corner, one an edge midpoint, two a face centre.
+  Three would be the volume centre, and `boardSnapPoints` skips it — it is the one
+  lattice point that floats inside the solid where nothing draws it, so its marker would
+  hang in mid-air with no feature under it, which is the opposite of an inference
+  indicator's job. All 26 are distinct for any board with non-zero dimensions, so no
+  de-duplication step exists to go wrong.
+- **`SnapOwner` is the one decision in the round that outlives the round.** The picker
+  consumes `SnapPoint[]` and never sees a `Board`, and a `SnapPoint`'s `owner` is a
+  discriminated union (`{ type: 'board'; id: string }`) rather than a bare board id.
+  Today there is exactly one member, which makes the union look like ceremony until you
+  look at the named follow-ups: a guide point is a bare position the user placed, a
+  guide line contributes its endpoints and its intersections with other guides, and the
+  tape measure's anchor is transient and owned by the tool itself. None of those belongs
+  to a board. With a bare id, every one of them would have to reopen the picker's
+  signature — and the cheapest shortcut at that moment would be to synthesise a fake
+  `Board` to carry a guide point, which would put a lie in the document layer. Taking
+  `SnapPoint[]` costs nothing today and makes each follow-up a new *provider* instead.
+  The cut-aware points deferred in §8 land the same way: dado shoulders are a second
+  provider over the same board, not a different picker (follow-up 99).
+- **Screen space, not raycast-first — chosen against the cheaper option for a concrete
+  reason.** The obvious approach is to raycast the board under the cursor and offer only
+  that board's points; it is cheaper and it disambiguates for free. It is also wrong,
+  because **a corner silhouetted against empty space has no board under the cursor at
+  all**. Raycast-first would make exactly the corners that are easiest to see the
+  hardest to hit, which is the reverse of what the tool is for. `pickSnapPoint` instead
+  projects every candidate to canvas pixels and takes the nearest within `PICK_RADIUS_PX`,
+  breaking ties by depth. `project` is a **callback, not a camera**, which is what keeps
+  the module free of THREE and therefore unit-testable — the repo's rule that the r3f
+  viewport is verified by driving a browser still holds for how the tool *feels*, but
+  which point is nearest is arithmetic, and arithmetic does not need a browser. The same
+  argument covers occluded candidates staying pickable: from some angles the silhouetted
+  corner *is* the occluded one (follow-up 104).
+- **The move is one subtraction through `updateBoard`, and is deliberately unsnapped.**
+  `position += target.at − grabbed.at`, applied through the existing action, which earns
+  undo, autosave and gesture coalescing without a line of new bookkeeping. It is **not**
+  rounded to `SNAP_INCHES` — see invariant 25 for why that is the opposite of what
+  `Gizmo.tsx` correctly does. Two guards sit in front of the edit and both have named
+  failure modes rather than being defensive habit: a **zero-delta guard**, because
+  `edit()` unconditionally pushes an undo snapshot and clears redo, so a no-op move would
+  leave a no-op undo entry (invariant 4) and silently wipe the redo stack; and a
+  **self-snap guard**, deliberately redundant with `MoveTool`'s candidate filter, which
+  already withholds the grabbed board's own points so the case draws no marker and cannot
+  be clicked. The filter makes the rule true of the UI; the guard makes it true of the
+  action. Snapping a board's corner onto its own opposite corner is a legal subtraction —
+  it translates the board by its own length — and never what a person means.
+- **`tool` and `grabbed` live in the store, which departs from `shortcutsSuspended`'s
+  reasoning on purpose.** Both are view state beside `selectedId`: outside the document,
+  outside the undo stack. CLAUDE.md's existing text says `shortcutsSuspended` is
+  prop-drilled from `App` because putting one flag into shared state *"to save one prop
+  would move it into the app's shared state for no gain"* — that reasoning is still
+  correct there and does not reach here. `tool` has four consumers at three different
+  depths: `Toolbar` renders the pair, `Viewport` hides the gizmo, `MoveTool` decides
+  whether to listen at all, and `BoardMesh` (via one prop) stops selecting. Threading one
+  flag to four places through two levels is the worse trade, and the store already holds
+  exactly this category of state. Read the two as one rule applied to two different fan-
+  outs, not as a contradiction.
+- **Four existing behaviours had to be gated, and none was hypothetical.** Board
+  click-to-select (the commit click lands on a board having travelled ~0 px, so it passes
+  the slop test and the panel jumps to the board you just dropped onto); click-to-deselect
+  via `onPointerMissed` (cancelling a grab in empty space would clear the selection, and a
+  modal tool must not change selection as a side effect); the gizmo, whose handles sit
+  over the very board whose corner you are trying to grab and which captures the pointer
+  first, so it is not rendered in move mode; and Delete/Backspace, which would delete the
+  board being carried. `OrbitControls` needs **no** gate — a drag past
+  `CLICK_DRAG_SLOP_PX` is not a click — and that is the payoff that justified
+  click-move-click over press-drag-release.
+- **The design's §5.5 was corrected during implementation (`88fd8e1`), and the corrected
+  version is both cheaper and more correct.** The design originally said `Escape` would
+  be a *new* `window` listener joining the standing list of shortcuts that must take the
+  cut-list open flag explicitly. It is not. All three keyboard bindings — `M`, `Escape`
+  and the Delete guard — went inside `App`'s **existing** keydown effect, which already
+  early-returns on `cutListOpen` at its top. That is not merely one fewer listener: it is
+  the behaviour the round actually wants. Pressing Escape while reading the cut list must
+  close the sheet and leave any grab behind it untouched, which is exactly what the
+  existing guard produces, and which a second listener would have had to re-derive and
+  could drift from. Below that guard, Escape backs out one level at a time — drop the
+  grab if there is one, otherwise leave the tool.
+- **Three off-palette colours, with the user's explicit approval.** Corner green
+  (`#2e9e5b`), edge-midpoint cyan (`#22b8d4`), face-centre violet (`#8a5fd0`), each with
+  a light ring (`#f5f2ec`) because a flat fill legible on the near-white ground is not
+  reliably legible on walnut. CLAUDE.md records brass as *"the one live colour in the
+  app"*, and these break that deliberately: an inference marker is transient chrome, not
+  part of the model, and it has one job — telling you which *kind* of point you are about
+  to snap to before you commit. Shape cannot carry that at the ~9 px a marker must be to
+  sit on a corner without hiding it; hue can. All three are cool and saturated against a
+  palette that is entirely warm and desaturated, so they read as not-part-of-the-model
+  rather than as a clashing member of it. Browser-settled in the sense of follow-up 60,
+  not test-settled.
+- **Known, deferred, and verified in a real browser** — see
+  `docs/browser-verification-snap-move.md` for Task 9's pass (marker colour and
+  legibility for all three kinds on all three woods, screen-constant marker size across
+  zoom, a silhouetted corner, a deliberately constructed occluded corner, exact
+  coincidence read out of `localStorage` rather than judged by eye, an off-grid move
+  confirming no 1/16" rounding, one `Ctrl+Z` reverting a whole move, all four gates, and
+  the cut-list Escape interaction) and `docs/follow-ups.md`'s "From the snap-move round"
+  section (99-108) for the deferrals and the round's own two lessons: a plan-supplied
+  test whose *fixture* put two boards at one default position so the delta was
+  legitimately zero — the seventh instance of that chain, and the cleanest one, because
+  the implementer stopped rather than editing the assertion — and a verification report
+  that claimed broader marker coverage than it had checked, closed by taking the missing
+  screenshots rather than by narrowing the prose.
 
 **What the sheet-nesting round did**, design in
 `docs/superpowers/specs/2026-08-02-sloyd-sheet-nesting-design.md`. Chosen 2026-08-01,
@@ -138,18 +269,29 @@ reader can actually take to the panel saw.
   the unplaceable line and its exclusion from every sheet's part list, zero overlaps
   and zero out-of-bounds rects, print colours including the exact two-class selector
   that broke in follow-up 81) and `docs/follow-ups.md`'s "From the sheet-nesting
-  round" section (85-94) for what it found in review before that pass — including a
+  round" section (85-98) for what it found in review before that pass — including a
   test whose own stated justification didn't reproduce (the sixth instance of that
   lesson, follow-ups 64/68/80) and a guillotine-cuttability test that could not fail
   until its bound stopped being self-derived.
 
-There is no next line of work chosen yet. Sheet-nesting closes the cut list's §7 list
-entirely — see the updated "Deferred behind it" paragraph below — and no successor has
-been picked.
+Sheet-nesting closed the cut list's §7 list entirely — see the updated "Deferred behind
+it" paragraph below — and snap-move was the successor picked, deliberately in a
+different part of the app rather than a sixth cut-list descendant.
 
-Start with `superpowers:brainstorming`, and read the cut list design's §7 and the
-board-feet design's §4 first — both record *why* this was deferred, and those reasons
-are the design constraints.
+**There is no next line of work chosen after snap-move**, but unlike last time there
+are named candidates rather than an empty field: the **tape measure, guide points and
+guide lines**, which the user named as the intended follow-ups to snap-move
+(follow-up 105), and **cut-aware snap points** (follow-up 99), which the user
+explicitly deferred to keep the Move tool's v1 small. All four are cheap in the same
+specific way — each is a new `SnapPoint` *provider*, not a change to `pickSnapPoint` —
+which is what the `SnapOwner` union was built for. Guides persist, so they need a
+schema bump to v6 and a `guides` array beside `boards` and `stock`; the tape measure
+and cut shoulders need none.
+
+Start with `superpowers:brainstorming`, and read the snap-move design's §2.3 and §8
+first — §2.3 is the interface all four candidates land through, and §8 records *why*
+each was deferred, which makes those reasons the design constraints rather than a
+to-do list.
 
 **What the empty-solids placeholder did** (2026-08-01, closing follow-ups 48 and 49; no
 spec — the diagnosis and the chosen fix were already in the ledger). A board whose own
@@ -211,11 +353,15 @@ translucent ghost box at the board's AABB whenever `boardSolids` returns `[]`.
   while reading a sheet that shows no selection*, not merely an aria gap. But `inert`
   cannot touch a **`window` listener**, which never sees which subtree an event came
   from, so every window-level shortcut needs the open flag passed to it explicitly:
-  `App`'s own keydown effect early-returns on it (Delete/Backspace, undo/redo), and
+  `App`'s own keydown effect early-returns on it (Delete/Backspace, undo/redo, and —
+  since the snap-move round — `Escape` and `M`, which joined that same effect rather
+  than adding a listener), and
   `Viewport` takes it as the `shortcutsSuspended` prop for `f`/`Home` — without which
   `f` re-frames the camera invisibly and hands back a moved view. A prop rather than
   store state on purpose: the open flag is local view state, outside the document and
-  the undo stack. **Any new `window` listener must join this list.**
+  the undo stack — see the snap-move round for the fan-out where that reasoning
+  correctly does *not* reach, and why `tool`/`grabbed` went into the store instead.
+  **Any new `window` listener must join this list.**
 
 **What the cut list diagrams did**, design in
 `docs/superpowers/specs/2026-08-01-sloyd-cut-list-diagrams-design.md`, plan in
@@ -564,7 +710,15 @@ Module dependency order (each layer only depends on the ones before it):
    board-feet round's addition, a second leaf beside it — formats decimal board-feet and
    square-feet quantities. `document` sits directly above it and owns the document
    schema, board geometry, validation, and versioned migration. `document/names.ts` is a
-   leaf alongside it, importing only the `Board` type.
+   leaf alongside it, importing only the `Board` type. **`document/snapPoints.ts` (the
+   snap-move round's addition) is the second such leaf, and it is the first new one
+   since the three `formatLength` edges below were declared settled — it does not take
+   that edge.** A snap point carries no printed string: it is three numbers, a kind and
+   an owner, and nothing about it is ever read off a page. So the "prints identically"
+   argument that justifies the three imports below simply does not reach it, and
+   `snapPoints.ts` imports only `./types` and `./geometry`. Worth stating rather than
+   leaving to inference, because "everything under `document` imports `formatLength`
+   now" would be the wrong generalisation to carry into the next leaf.
 
    **The cut list added the one edge between them:** `document/cutlist.ts` imports
    `formatLength` from `units`, because a row's grouping key is built out of formatted
@@ -609,7 +763,9 @@ Module dependency order (each layer only depends on the ones before it):
    (React forms: toolbar, parts list, properties panel) — both read/write through the
    store, and both also import `document` directly for its exported types and
    constants (`panels` for `MATERIALS`, `DocumentError`, `Rotation`, `uniqueName` and
-   `buildCutList`; `viewport` for geometry helpers). `panels` additionally imports the `storage` adapter singleton
+   `buildCutList`; `viewport` for geometry helpers, and — since the snap-move round —
+   `boardSnapPoints` plus the `SnapPoint`/`SnapKind` types, which `MoveTool`,
+   `SnapMarker` and `snapPick` all take from `document`). `panels` additionally imports the `storage` adapter singleton
    for export/import. These are legitimate downward imports, not a layering
    violation — `document` and `storage` sit below both.
 
@@ -709,18 +865,56 @@ src/
 │   │                        see the new invariant below. Pure; imports ./types and
 │   │                        ../units/length — the third leaf under ./document to
 │   │                        import from units, never ./document
+│   ├── snapPoints.ts        boardSnapPoints: a board's 26 snap candidates — the
+│   │                        3x3x3 lattice of {min, mid, max} per world axis,
+│   │                        minus the volume centre; the count of axes at `mid`
+│   │                        names the kind (0 corner, 1 edge-mid, 2 face-centre).
+│   │                        Exports SnapKind / SnapOwner / SnapPoint — the owner
+│   │                        is a discriminated union so guide points, guide lines
+│   │                        and the tape measure add a member rather than
+│   │                        reopening the picker. Pure; imports only ./types and
+│   │                        ./geometry — notably NOT ../units, unlike cutlist.ts,
+│   │                        diagram.ts and nesting.ts: a snap point carries no
+│   │                        printed string, so that boundary is untouched here
 │   └── document.ts          create / validate / migrate (v1->v2->v3->v4->v5 chain,
 │                            v5 document-level rather than per-board — see
-│                            Architecture); re-exports the other eight
-├── store/store.ts           Zustand store, snapshot undo/redo, gesture coalescing
+│                            Architecture); re-exports the other nine
+├── store/store.ts           Zustand store, snapshot undo/redo, gesture coalescing;
+│                            also `tool` ('select' | 'move') and `grabbed`
+│                            (SnapPoint | null) as view state beside selectedId,
+│                            with setTool / grabSnapPoint / cancelGrab /
+│                            commitSnapMove — see invariants 24 and 25
 ├── storage/
 │   ├── types.ts             the StorageAdapter interface
 │   └── browser.ts           BrowserStorageAdapter + the `storage` singleton
 ├── viewport/
-│   ├── Viewport.tsx         Canvas, lights, grid, shadow receiver, camera keys
+│   ├── Viewport.tsx         Canvas, lights, grid, shadow receiver, camera keys;
+│   │                        renders <MoveTool />, hides <Gizmo /> in move mode,
+│   │                        gates onPointerMissed, crosshair cursor
 │   ├── BoardMesh.tsx        one board, derived from the document each render;
 │   │                        falls back to a translucent ghost box at the AABB
-│   │                        when boardSolids is empty — see invariant 21
+│   │                        when boardSolids is empty — see invariant 21. Takes a
+│   │                        required `selectable` prop gating onClick, so the Move
+│   │                        tool's commit click cannot select the board it drops
+│   │                        onto
+│   ├── MoveTool.tsx         the Move tool: pointerdown/move/up on gl.domElement
+│   │                        (canvas-relative pixels are what pickSnapPoint wants,
+│   │                        and it avoids an invisible full-screen plane every
+│   │                        other hit test would then have to exclude), hover held
+│   │                        in a ref and committed to state only on change, and
+│   │                        the grabbed + hovered markers. Withholds the grabbed
+│   │                        board's own candidates so the case draws no marker
+│   ├── SnapMarker.tsx       one screen-constant, always-on-top marker
+│   │                        (depthTest off, so an occluded candidate's pick is
+│   │                        visible). Owns the three off-palette colours, the ring
+│   │                        and MARKER_PX/RING_PX — all browser-settled
+│   ├── snapPick.ts          pickSnapPoint: nearest candidate in SCREEN space
+│   │                        within radiusPx, ties broken by depth (nearer the
+│   │                        camera wins); plus sameSnapPoint and PICK_RADIUS_PX.
+│   │                        `project` is a callback, not a camera — that is what
+│   │                        keeps THREE out and makes it unit-testable. Pure
+│   ├── pointer.ts           CLICK_DRAG_SLOP_PX, shared by BoardMesh and MoveTool
+│   │                        rather than copied — the follow-up 64 drift shape
 │   ├── OriginAxes.tsx       origin axis lines, R=X G=Y(up) B=Z; dashed = negative
 │   ├── gridDensity.ts       grid tier ladder (1in -> 1ft -> 12ft). Pure.
 │   ├── screenScale.ts       px-per-inch + screen-stable dash scale. Pure.
@@ -738,7 +932,9 @@ src/
 │   ├── DimensionField.tsx   the validating fractional-inch input; min/max
 │   │                        REFUSE out-of-range entry rather than clamping
 │   ├── NameField.tsx        part name; commits on blur/Enter, empty reverts
-│   ├── Toolbar.tsx  PartsList.tsx  FileMenu.tsx
+│   ├── Toolbar.tsx          project name, Add board, Cut list, undo/redo, the
+│   │                        Select / Move button pair, view toggles
+│   ├── PartsList.tsx  FileMenu.tsx
 │   ├── Properties.tsx       board fields + the Cuts section; CutRow is its own
 │   │                        component so a cut's error dies with the cut
 │   ├── diagramScale.ts      fitView (uniform scale + sliver clamp + height ceiling) /
@@ -804,7 +1000,14 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
    **`cuts` is absent for the same reason**, and that is also why cut edits get their
    own store actions (`addCut`/`updateCut`/`removeCut`) instead of going through
    `updateBoard`: a cut removes stock from *inside* the board's AABB, so it changes
-   no extent and moves nothing.
+   no extent and moves nothing. **A snap move reaches the predicate and correctly
+   fails it**, which is worth stating because it is the one caller that hands
+   `updateBoard` a bare `position`: `commitSnapMove` patches `position` only, so
+   `reorienting` is false, `reorientedPosition` is never consulted, and the explicit
+   position passes straight through. That is right rather than incidental — a snap move
+   translates, it never turns. A future tool that both moves and turns a board in one
+   gesture must carry its own `position` in the same patch (which wins over the pivot,
+   per the rule above) or it will be pivoted on top of its own translation.
 3. **The `dragging` ref guard in `Gizmo.tsx`.** `TransformControls` computes motion from
    state captured at drag start; syncing the document into the proxy mid-drag makes it
    fight itself. The symptom is jitter or drift, not a crash.
@@ -1063,13 +1266,55 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
     taller than that shelf). Any future test of a "cannot exceed its container" property
     must bound against a value the thing under test does not itself produce; see
     follow-up 88 for the full account.
+24. **A grab holds a world position, so anything that moves the boards under it must
+    drop it.** `grabbed.at` is a `[x, y, z]` captured at grab time, not a reference to
+    anything that updates — it is what `commitSnapMove` subtracts from the target to get
+    its delta. So five store actions clear it *because they move boards under a live
+    grab*, and all five are load-bearing rather than defensive: `undo` and `redo` (either
+    can move the grabbed board out from under the captured point), `replaceDocument`
+    (open, import and autosave-restore all route through it, and the board the grab names
+    may not exist in the new document at all), and `deleteBoard` and `updateBoard` —
+    which both clear **conditionally**, only when the affected board is the grabbed one,
+    since an edit to some *other* board changes nothing about the captured position.
+    `updateBoard`'s case is the one Properties can reach live in Move mode: nothing
+    disables the panel while a point is grabbed, and `commitSnapMove` even selects the
+    board it just moved, so a Length or Posture edit typed into Properties right after a
+    grab routes through `updateBoard` and can relocate the grabbed board out from under
+    its own point. Committing after any of these five would apply a delta derived from a
+    position that no longer describes anything: the board moves by a wrong amount, with
+    nothing on screen to indicate why, and the wrong amount is undoable but not obviously
+    wrong. **A future action that rewrites `doc.boards` wholesale joins this list** —
+    that is the test, not "does it touch positions", because a wholesale rewrite can
+    invalidate the grab by removing its owner as easily as by moving it. Note this list
+    is not everything that nulls `grabbed`: `setTool`, `cancelGrab`, `commitSnapMove`
+    itself and its board-not-found path all do too, for their own reasons (`setTool`'s is
+    that a snap point carried into a different tool has nothing that can consume it).
+    Only the five above are here because the world moved.
+25. **The snap move is deliberately NOT rounded to `SNAP_INCHES`, and this is the exact
+    opposite of what `Gizmo.tsx` does — both are correct.** The gizmo snaps to 1/16"
+    because a free drag lands on arbitrary numbers and a board should come to rest
+    somewhere a person can measure to. A snap move's entire purpose is the *exact*
+    coincidence of two points, and the two cases divide cleanly: if both boards already
+    sit on 1/16" boundaries the delta is exact and a snap is a no-op, so the only case
+    where rounding does anything at all is the case where it silently breaks the result
+    the user just asked for, by a sixteenth, with the display rounding to the same string
+    either way (invariant 5) so nothing on screen shows it. Anyone "tidying" this by
+    reusing the gizmo's snap would be applying one rule uniformly to two operations that
+    differ in kind. Compare invariant 22, which makes the same shape of argument in the
+    other direction for `nesting.ts`'s epsilon: apply the tolerance that matches the
+    arithmetic you actually have — round what a free drag produced, tolerate float error
+    where float error is what you have, and touch neither where the number is a
+    difference of two stored positions. Verified rather than argued: Task 9 dropped a
+    board onto a target at `y = 0.01` (off the 1/16" grid) and read `0.010000000000000009`
+    back out of `localStorage` — IEEE-754 noise from the corner-offset arithmetic, not a
+    snap, which would have landed on `0` exactly.
 
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 617 tests
+npm test           # Vitest, currently 660 tests across 32 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1081,8 +1326,8 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 `docs/follow-ups.md` lists everything found during v1 review, the two polish passes,
 v2, v3, the post-v3 fixes, joinery, the cut list and its diagrams rounds, the
-board-feet round, and the sheet-nesting round, consciously deferred rather than
-missed, numbered 1-30 plus the per-release additions. Read it before starting new work
+board-feet round, the sheet-nesting round and the snap-move round, consciously deferred
+rather than missed, numbered 1-30 plus the per-release additions. Read it before starting new work
 in the same area — several items are "correct but untested", which is exactly what a
 refactor breaks silently.
 
@@ -1192,7 +1437,7 @@ factor, no user-configurable precision. **84** carries forward the still-unverif
 print-to-PDF render (70, 79) — this round's browser pass used `emulateMedia`, not a real
 PDF.
 
-The sheet-nesting round added **85-94** — see `docs/follow-ups.md`'s "From the
+The sheet-nesting round added **85-98** — see `docs/follow-ups.md`'s "From the
 sheet-nesting round" section. **85** records shelf FFD's density cost against a
 maxrects packer as the design's deliberate choice, not a shortfall — guillotine
 cuttability is a domain fact, not a quality tier. **86** carries follow-up 83's rule
@@ -1217,7 +1462,39 @@ in words, so a near-square part's rotation is ambiguous on the page. **93** and 
 are the Task 8 browser pass: no defect found, the exact `.cutlist-subtotal
 .cutlist-stock` selector that broke in follow-up 81 re-checked and held, and the
 still-open gaps (print-to-PDF, carrying 70/79/84; a 3+-shelf sheet's rendering, not
-just its packing, unexercised).
+just its packing, unexercised). **95-98** came *after* that list was first written —
+they are the final-review and post-merge additions (`316204d`, `7594473`), which is why
+the snap-move round starts at 99 rather than at the 95 its own brief expected: an
+unplaceable part counted in square feet but not in sheets, `fitLabel`'s terminal
+`index` tier having no height check, board `id` uniqueness being newly load-bearing
+(via `buildNesting`'s sort tiebreak and `SheetLayout`'s React key) but never enforced
+the way `dedupeNames` enforces names, and the missing kerf-editing UI with its
+asymmetric default — the `0.125` default under-counts for a wider kerf, which is the
+direction that costs a trip back to the yard.
+
+The snap-move round added **99-108** — see `docs/follow-ups.md`'s "From the snap-move
+round" section. **99-105** are the design's §8 non-goals, recorded as decisions rather
+than omissions and worth reading before re-proposing any of them: cut shoulders as snap
+points (deferred at the user's direction, and cheap when it lands because it is a second
+*provider*, not a change to `pickSnapPoint`), no free movement, no axis inference or
+locking (downstream of the free-movement deferral, not an independent gap), no ghost
+preview (rejected with the user — with snap-targets-only the result is fully determined
+by the marker already on screen), single-board moves only (a selection-model change, not
+a tool change), occluded candidates being pickable **on purpose**, and the tape measure,
+guide points and guide lines the user named as the intended successors. **106** is a
+harness entry in the shape of 74/75: every interaction Task 9 drove was a synthetic
+`PointerEvent` at a screenshot-located pixel, because board corners have no DOM presence
+— so real pointer-capture, touch and OS input timing were never exercised, and the one
+artifact that produced (a confused `OrbitControls` drag state after
+`releasePointerCapture` threw) was root-caused to the harness and worked around, not
+absorbed into a finding. **107** and **108** are the round's own two lessons: the
+**seventh** instance of the plan-supplied-code chain (64, 68 twice, 80, 87, 88) — a Task
+3 test whose *fixture* left two boards at one default position, so the delta was
+legitimately zero and `commitSnapMove` correctly took its no-op path, found by an
+implementer who stopped and escalated rather than editing the assertion to match — and a
+verification report that stated marker coverage more broadly than it had checked, closed
+by taking the four missing screenshots rather than by narrowing the prose, because
+narrowing would have been cheaper and worse.
 
 One entry is a lesson rather than a defect and is worth reading before touching anything
 in the viewport: **26a**. Browser verification on this host runs on software GL

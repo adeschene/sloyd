@@ -279,10 +279,18 @@ click only if it travelled no more than `CLICK_DRAG_SLOP_PX`. That constant
 moves out of `BoardMesh.tsx` into a shared module so both read one value; a
 second copy is the drift shape follow-up 64 already recorded once.
 
-`Escape` is the one **`window`** listener this round adds, and per CLAUDE.md's
-standing rule it must join the `shortcutsSuspended` list: `inert` cannot touch a
-window listener, so without the flag, pressing Escape to close the cut list
-would also silently cancel a grab behind the sheet.
+`Escape`, `M` and the Delete guard are keyboard, so they need a **`window`**
+listener — and CLAUDE.md's standing rule is that every one of those must take
+the cut-list open flag explicitly, because `inert` cannot touch a window
+listener. This round adds **no new listener**: all three bindings go inside
+`App`'s existing keydown effect, which already early-returns on `cutListOpen` at
+its top.
+
+That is cheaper than a second listener, and it is also the correct behaviour
+rather than merely an economical one. Pressing Escape while reading the cut list
+must close the sheet and leave any grab behind it untouched, which is exactly
+what the existing guard produces. A separate listener would have had to
+re-derive the same rule and could drift from it.
 
 ### 5.6 Hover state is committed on change, not per event
 

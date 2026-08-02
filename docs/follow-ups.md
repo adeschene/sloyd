@@ -1677,3 +1677,151 @@ too little material, with no way to correct it short of hand-editing the file.
 Over-counting — a thin-kerf blade or a track saw, where the true kerf is narrower than
 the default — is harmless, since it only ever buys a spare sheet. An under-count is the
 direction that costs a trip back to the yard mid-project.
+
+## From the snap-move round
+
+Design in `docs/superpowers/specs/2026-08-02-sloyd-snap-move-design.md`. Adds a
+SketchUp-style Move tool: grab a corner, edge midpoint or face centre of one board,
+click one on another, and the first board moves so the two points coincide exactly.
+The first work on the viewport's *interaction* surface since the gizmo size ceiling
+(follow-up 29), and the first round in six that is not a cut-list descendant.
+
+**Numbering note.** This round starts at 99, not 95, and the gap is worth explaining
+because two planning documents said otherwise. 95-98 were added to the sheet-nesting
+section *after* CLAUDE.md's "the sheet-nesting round added 85-94" line was written, by
+the final-review and post-merge passes (`316204d`, `7594473`), and that line was never
+updated — so anything working from CLAUDE.md's count rather than from this file would
+have collided with four existing entries. This file is the authority on its own
+numbering; CLAUDE.md's two "85-94" references were corrected to 85-98 in the same
+commit that added this section.
+
+**99. Cut shoulders are not snap points.** A dado's shoulders are real corners a
+woodworker would expect to snap to — the inside corner where a shelf's dado meets its
+face is arguably the single most useful point on a joined board — and `boardSolids`
+already yields them, so nothing has to be computed that this app does not compute
+today. Deferred at the user's explicit direction to keep v1 small, which is the whole
+reason `boardSnapPoints` takes a `Board` and produces the box's 26 lattice points
+rather than reading `cuts` at all. It is cheap when it lands, and cheap in a specific
+way worth stating so a future implementer does not reach for the wrong seam: it is a
+second *provider* over the same board, a function returning `SnapPoint[]` that
+`MoveTool` concatenates onto `boardSnapPoints`' output — not a change to
+`pickSnapPoint`, which never sees a `Board` and never needs to. See the design's §2.3.
+
+**100. No free movement, and the second click cancels rather than dropping.** Away
+from a candidate the board does not move at all; a click in empty space with a grab
+held cancels the grab. Free-hand positioning stays the gizmo's job, which is why the
+two tools are a modal pair rather than one tool that does both. Projecting the cursor
+onto the ground plane, or onto whatever face happens to be under it, is what SketchUp
+actually does and is meaningfully more machinery than it looks: a ray/plane
+intersection, a rule for what happens when the cursor points at the sky and there is
+no plane to hit, and — because the result would no longer be determined by a marker
+already on screen — a live preview to make the landing position legible before
+committing. Three pieces of work, none of which the snap-targets-only tool needs.
+
+**101. No axis inference and no axis locking**, because there is no free movement to
+constrain. SketchUp constrains a move to the red/green/blue axis when the drag runs
+near one and locks it with an arrow key; both exist to make an otherwise-unconstrained
+drag land somewhere predictable. Here the landing position is a point the user clicked,
+so there is nothing for a constraint to add. This entry is recorded rather than left
+unsaid because "SketchUp has axis locking and this doesn't" reads as a missing feature
+until you notice it is downstream of 100 — it becomes worth building the moment free
+movement does, and not before.
+
+**102. No ghost preview of the landing position.** Rejected with the user rather than
+skipped: with snap-targets-only, the result is fully determined by the marker already
+sitting under the cursor, so a preview would restate information the screen is already
+showing. It also costs a second render of the board's geometry — the same meshes, the
+same `boardUVs` work, at a second transform — for a frame that is discarded on every
+pointer move. If 100 ever lands, this one lands with it: a free move genuinely is not
+legible without a preview, which is why the two are recorded as one decision made
+twice rather than as two independent deferrals.
+
+**103. Single-board moves only.** The store holds one `selectedId`, and the grab holds
+one `SnapPoint` whose `owner` names one board. Moving several parts at once is a
+selection-model change — a set of ids, a rule for what the parts list shows, a rule for
+what the Properties panel shows when two parts disagree — not a tool change.
+`commitSnapMove` would need almost nothing new (it already applies a delta rather than
+an absolute position, so it would loop), which is precisely why this is filed as
+depending on selection rather than on the tool.
+
+**104. Occluded candidates are pickable on purpose.** A candidate hidden behind another
+board is still picked if it is nearest on screen, and its marker draws on top
+(`depthTest={false}`). Recorded because it is exactly the kind of decision a later
+reader would otherwise read as an oversight and "fix." Rejecting occluded candidates
+costs an occlusion raycast *per candidate per pointer move*, and it would be wrong even
+if it were free: it composes badly with §3.1's whole justification, because from some
+camera angles the silhouetted corner that screen-space picking exists to make reachable
+*is* the occluded one. Task 9 confirmed the case is not merely permitted but usable —
+an upright plywood board's bottom corner, deliberately buried inside a pine board's
+footprint, picked cleanly with its marker drawn over pine's solid surface.
+
+**105. The tape measure, guide points and guide lines.** Named by the user as the
+intended follow-ups to this round and deliberately not designed here. Guides persist —
+a guide point the user placed is a fact about the project, not a derivation — so they
+will need a schema bump (v6) and a `guides` array beside `boards` and `stock`, which
+makes them the first thing since the sheet-nesting round to touch the migration chain.
+The tape measure probably needs none: its anchor is transient and owned by the tool.
+This round's only obligation to all three was §2.3's `SnapOwner` union, which it
+discharged — a discriminated union rather than a bare board id, so each of the three
+adds a member and a provider instead of reopening the picker's signature. The
+alternative the union exists to prevent is worth naming: with a bare id, the cheapest
+way to carry a guide point through the picker would be to synthesise a fake `Board` for
+it, which would put a lie in the document layer.
+
+**106. HARNESS ENTRY, in the shape of follow-ups 74 and 75: everything Task 9 drove was
+a synthetic `PointerEvent`, and that is a real bound on what the pass proves.** Board
+corners have no DOM presence and no accessibility node — they are geometry inside a
+WebGL canvas — so every hover, grab, drop and orbit in
+`docs/browser-verification-snap-move.md` was dispatched at a canvas-relative pixel
+coordinate found by screenshotting, cropping and zooming to locate the corner, then
+re-screenshotting to confirm a marker actually appeared there. That is the only way to
+hit an exact 3D point from outside the page, and it means real pointer-capture
+semantics, real touch input and real OS-level input timing were never exercised, only
+approximated. It surfaced once as an artifact rather than staying theoretical:
+`OrbitControls`' `releasePointerCapture` throws on a synthetic `pointerup`
+(`NotFoundError: No active pointer with the given id is found`), which occasionally
+left its internal drag state confused across a second, differently-typed synthetic
+event and produced an unintended camera rotation. Root-caused to the harness, worked
+around, and every finding re-verified against a clean camera state — not silently
+absorbed into a result. Separately, an attempt to re-derive the camera's screen
+projection analytically (to compute corner pixel coordinates without screenshots) was
+abandoned after producing self-contradictory results, most likely an error reproducing
+three.js's `lookAt` argument order. That weakens nothing above — every hover was
+confirmed by a screenshot showing the correct marker, never assumed from projection
+maths — but it means no independent numeric check of the projection exists.
+
+**107. LESSON — the seventh instance of the plan-supplied-code chain (follow-ups 64, 68
+twice, 80, 87, 88), and the cleanest example yet of the working agreement doing its
+job.** The plan's Task 3 test file contained a case asserting that a committed snap move
+clears the grab and selects the board it moved. It failed. The reason was in the
+fixture, not the assertion: `twoBoards()` creates two fresh boards, which share a
+default `position`, so grabbing a corner of one and dropping it on the corresponding
+corner of the other produced a delta of exactly zero — and `commitSnapMove`'s zero-delta
+guard correctly took the no-op path instead of the path under test. Its three sibling
+tests all carried the `updateBoard` line moving the second board off the first; this one
+had been written without it. What makes this worth recording is not the defect, which is
+small, but the response: the implementer stopped and escalated rather than editing the
+assertion to match what the code did, which is exactly what joinery's lesson asked for
+("fix the code rather than the expectation, and escalate when you believe the
+expectation is itself wrong") — here the third possibility, a wrong *setup* under a
+correct expectation, which neither the code nor the assertion would have revealed.
+Closed by fixing the plan (`1110d32`), not the test's expectation.
+
+**108. LESSON — Task 9's verification report claimed broader marker coverage than it had
+actually checked, and the fix was to take the missing screenshots rather than to narrow
+the prose.** The report's colour-legibility paragraph read broadly enough to imply all
+three marker kinds had been verified on all three materials. In fact only corner/green
+had been hovered on pine, walnut and plywood; edge-midpoint/cyan and face-centre/violet
+had only ever been checked on walnut. Caught in review, closed by hovering an edge
+midpoint and a face centre on a pine board and a plywood board — four boards, one at a
+time at the world origin, camera switched to **Orthographic** for that pass specifically
+because it makes the corner-parallelogram arithmetic used to locate an interior point
+exact rather than perspective-approximate (a face centre has no board edge to anchor a
+crop against). The direction of the fix is the point. Narrowing the sentence to match
+what had been done would have been cheaper, would have left the report honest, and would
+have been the worse outcome: the claim was worth making, so the work to earn it was
+worth doing. A verification report is the artifact everything downstream trusts about a
+surface no test covers, which makes an overclaim in one strictly more expensive than an
+overclaim anywhere else in this repo. See `docs/browser-verification-snap-move.md`,
+where both the original paragraph and its correction are left in place rather than
+rewritten into a clean claim — the correction is the record.

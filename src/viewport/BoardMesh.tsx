@@ -8,6 +8,7 @@ import type { Board } from '../document/document';
 import { faceGrainKinds, grainFamily } from './grainFaces';
 import { boardUVs, boardUVSignature } from './grainTiling';
 import { grainTexture } from './grainTexture';
+import { CLICK_DRAG_SLOP_PX } from './pointer';
 
 /** Brass — the one live colour in the app. */
 const SELECTED = '#c99a4e';
@@ -18,13 +19,6 @@ const SELECTED = '#c99a4e';
  * keeps every joint visible whatever the species.
  */
 const EDGE_DARKEN = 0.3;
-
-/**
- * How far the pointer may travel between press and release and still count as
- * a click rather than a drag, in screen pixels. Matches the slop R3F applies
- * to its own pointer-missed handling.
- */
-const CLICK_DRAG_SLOP_PX = 2;
 
 /**
  * How solid the placeholder ghost is when a board's own cuts have removed all
@@ -46,9 +40,22 @@ interface Props {
   board: Board;
   selected: boolean;
   onSelect: (id: string) => void;
+  /**
+   * False while a viewport tool other than Select owns the pointer.
+   *
+   * Passed from Viewport rather than read from the store: it is one prop from
+   * this component's own parent, not a thread from App, and it keeps BoardMesh
+   * prop-driven the way it already is.
+   *
+   * Without it the Move tool's commit click — which lands ON a board, having
+   * travelled ~0 px, so it passes the slop test below — would also select that
+   * board, jumping the Properties panel to the part the user just snapped TO
+   * rather than the one they moved.
+   */
+  selectable: boolean;
 }
 
-export function BoardMesh({ board, selected, onSelect }: Props) {
+export function BoardMesh({ board, selected, onSelect, selectable }: Props) {
   // Geometry is derived from the document on every render — the mesh is never
   // the source of truth. Extents already account for rotation and posture,
   // so the mesh itself is axis-aligned and never carries a rotation.
@@ -150,6 +157,7 @@ export function BoardMesh({ board, selected, onSelect }: Props) {
           castShadow={!geometries.placeholder}
           receiveShadow={!geometries.placeholder}
           onClick={(e) => {
+            if (!selectable) return;
             // Only a click that didn't travel selects. R3F fires onClick for any
             // release whose object was among the pointer-down hits, with no
             // drag threshold of its own (see initialHits in @react-three/fiber's

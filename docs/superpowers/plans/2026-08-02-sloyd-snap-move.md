@@ -735,6 +735,10 @@ describe('the Move tool', () => {
 
   it('clears the grab and selects the board it moved', () => {
     const { a, b } = twoBoards();
+    // b must be moved off a first. Two fresh boards share a default position,
+    // so without this the delta is exactly zero and the commit correctly takes
+    // the no-op path below instead of the one under test.
+    useStore.getState().updateBoard(b.id, { position: [40, 0, 0] });
     useStore.getState().grabSnapPoint(cornerOf(a.id));
     useStore.getState().commitSnapMove(cornerOf(b.id));
     expect(useStore.getState().grabbed).toBeNull();
@@ -1555,7 +1559,10 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 **Files:**
 - Modify: `src/viewport/Viewport.tsx` (the `Viewport` function, roughly lines 236–367)
-- Modify: `src/styles.css`
+
+No CSS change: the crosshair is an inline `style` prop on `<Canvas>` (R3F puts
+`style` on its wrapping div and the canvas inherits the cursor), so
+`src/styles.css` is deliberately untouched.
 
 **Interfaces:**
 - Consumes: `MoveTool` (Task 6), `tool` from the store (Task 3).

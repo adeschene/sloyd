@@ -18,6 +18,8 @@ export { buildDepthField } from './depthField';
 export type { FaceCell } from './depthField';
 export { buildNesting, footprintsOf } from './nesting';
 export type { Nesting, NestedSheet, PlacedPart, UnplaceablePart, Footprint } from './nesting';
+export { boardSnapPoints } from './snapPoints';
+export type { SnapKind, SnapOwner, SnapPoint } from './snapPoints';
 
 /**
  * v5 added `stock.kerf`.

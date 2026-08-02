@@ -130,6 +130,31 @@ export default function App() {
       // prop rather than inferring it.
       if (cutListOpen) return;
 
+      // Escape backs out one level: drop the grab first, then the tool. Note
+      // this sits below the cutListOpen guard on purpose — CutList owns
+      // Escape while it is open, and a grab behind the sheet must survive it.
+      if (e.key === 'Escape') {
+        const { grabbed, tool, cancelGrab, setTool } = useStore.getState();
+        if (grabbed) {
+          e.preventDefault();
+          cancelGrab();
+        } else if (tool !== 'select') {
+          e.preventDefault();
+          setTool('select');
+        }
+        return;
+      }
+
+      // M toggles the Move tool. Modifier chords are left alone — Ctrl+M and
+      // Cmd+M are the browser's and the OS's.
+      if (e.key === 'm' || e.key === 'M') {
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        e.preventDefault();
+        const { tool, setTool } = useStore.getState();
+        setTool(tool === 'move' ? 'select' : 'move');
+        return;
+      }
+
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         e.shiftKey ? redo() : undo();
@@ -141,6 +166,10 @@ export default function App() {
       // feature does not exist there.
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (e.ctrlKey || e.metaKey || e.altKey) return;
+        // Deleting the board currently being carried would leave the grab
+        // pointing at something that no longer exists. The store drops the
+        // grab defensively too; this is what stops the delete happening at all.
+        if (useStore.getState().grabbed) return;
         const id = useStore.getState().selectedId;
         if (!id) return;
         e.preventDefault();

@@ -37,6 +37,8 @@ export function Toolbar({
   const redo = useStore((s) => s.redo);
   const canUndo = useStore((s) => s.past.length > 0);
   const canRedo = useStore((s) => s.future.length > 0);
+  const tool = useStore((s) => s.tool);
+  const setTool = useStore((s) => s.setTool);
 
   return (
     <header className="toolbar">
@@ -58,6 +60,21 @@ export function Toolbar({
         <span className="toolbar-divider" />
         <button onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
         <button onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>
+        <span className="toolbar-divider" />
+        <button
+          onClick={() => setTool('select')}
+          aria-pressed={tool === 'select'}
+          title="Select tool — click a part to select it, drag its gizmo to move it (Esc)"
+        >
+          Select
+        </button>
+        <button
+          onClick={() => setTool('move')}
+          aria-pressed={tool === 'move'}
+          title="Move tool — click a corner or midpoint, then click one on another part to snap them together (M)"
+        >
+          Move
+        </button>
         <span className="toolbar-divider" />
         <button
           onClick={onToggleProjection}
