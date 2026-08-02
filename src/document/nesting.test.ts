@@ -173,11 +173,13 @@ describe('buildNesting', () => {
     ];
     const n = buildNesting(boards, PLY, 0.125, 16);
     for (const s of n.sheets) {
+      // Distinct shelf starts, ascending. A deduped, sorted array is strictly
+      // increasing BY CONSTRUCTION — that alone proves nothing about
+      // disjointness. Disjointness is carried entirely by the per-part bound
+      // check below: if two bands actually overlapped, some part in the
+      // lower one would have `p.y + p.h` reaching past the next band's
+      // start, and that is what the assertion below catches.
       const starts = [...new Set(s.parts.map((p) => p.y))].sort((a, b) => a - b);
-      for (let i = 1; i < starts.length; i += 1) {
-        // Bands are disjoint: consecutive shelf starts strictly separate them.
-        expect(starts[i]).toBeGreaterThan(starts[i - 1]);
-      }
       for (const p of s.parts) {
         const idx = starts.findIndex((y) => Math.abs(y - p.y) < 1e-6);
         const bound = idx + 1 < starts.length ? starts[idx + 1] : 48;

@@ -213,35 +213,34 @@ export function buildNesting(
   for (const board of sorted) {
     const options = footprintsOf(board, stock);
 
-    // Checked against an EMPTY sheet, before anything is opened: a part that
-    // can never fit is reported, not dropped (follow-ups 48/49's shape — never
-    // render nothing for a state the user created) and cannot spin the loop.
-    if (!options.some((f) => fits(f.w, stock.length) && fits(f.h, stock.width))) {
+    // ONE PATH, not two predicates that could drift apart. Earlier this
+    // called a standalone `options.some(fits(...))` pre-check before ever
+    // opening a sheet, then trusted that check's verdict when deciding
+    // whether a failed fresh-sheet placement was possible — and had that
+    // trust betrayed by a THROW when the two disagreed. But `buildNesting`
+    // is called on every render of the cut list, with no cache and no error
+    // boundary (see `buildCutList` and `panels/CutList.tsx`), so a throw
+    // here blanks the whole sheet for a state whose correct rendering is a
+    // one-line "doesn't fit" entry — worse than the empty-sheet bug it was
+    // guarding against. `UnplaceablePart`'s own doc comment already names
+    // the condition precisely: "parts that fit no empty sheet in any allowed
+    // orientation." A part that fails `placeOn` on a FRESH (therefore empty)
+    // sheet has just demonstrated that condition directly, so recording it
+    // here loses no information and needs no separate predicate to agree
+    // with. Try existing sheets first; if none take it, try one fresh sheet;
+    // only THAT attempt's own result decides placed-vs-unplaceable, so there
+    // is nothing left to diverge from.
+    if (sheets.some((sheet) => placeOn(sheet, board, options, stock, kerf))) continue;
+
+    const sheet: WorkingSheet = { parts: [], shelves: [] };
+    if (placeOn(sheet, board, options, stock, kerf)) {
+      sheets.push(sheet);
+    } else {
       unplaceable.push({
         boardId: board.id,
         name: board.name,
         dims: `${formatLength(board.length, precision)} × ${formatLength(board.width, precision)}`,
       });
-      continue;
-    }
-
-    if (!sheets.some((sheet) => placeOn(sheet, board, options, stock, kerf))) {
-      const sheet: WorkingSheet = { parts: [], shelves: [] };
-      // Placed BEFORE pushing, and the push is gated on the result — never
-      // push-then-place. A sheet must never enter `sheets` unless a part
-      // actually landed on it: an empty sheet counted here is the exact
-      // wrong purchasing number this feature exists to produce. The
-      // unplaceable check above guarantees this call succeeds today (an
-      // empty sheet has the full stock available), but that guarantee lives
-      // in a separate predicate a few lines up — if it and `placeOn` ever
-      // drift apart, failing loudly here is safer than the alternative
-      // (silently dropping the board with no unplaceable entry, which the
-      // `unplaceable` field's own contract forbids), so a mismatch throws
-      // rather than being swallowed.
-      if (!placeOn(sheet, board, options, stock, kerf)) {
-        throw new Error(`buildNesting: "${board.name}" failed to place on a fresh sheet`);
-      }
-      sheets.push(sheet);
     }
   }
 
