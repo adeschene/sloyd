@@ -1269,23 +1269,27 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
 24. **A grab holds a world position, so anything that moves the boards under it must
     drop it.** `grabbed.at` is a `[x, y, z]` captured at grab time, not a reference to
     anything that updates — it is what `commitSnapMove` subtracts from the target to get
-    its delta. So four store actions clear it *because they move boards under a live
-    grab*, and all four are load-bearing rather than defensive: `undo` and `redo` (either
+    its delta. So five store actions clear it *because they move boards under a live
+    grab*, and all five are load-bearing rather than defensive: `undo` and `redo` (either
     can move the grabbed board out from under the captured point), `replaceDocument`
     (open, import and autosave-restore all route through it, and the board the grab names
-    may not exist in the new document at all), and `deleteBoard` — which clears
-    **conditionally**, only when the deleted board is the grabbed one, since deleting some
-    *other* board changes nothing about the captured position. Committing after any of
-    them would apply a delta derived from a position that no longer describes anything:
-    the board moves by a wrong amount, with nothing on screen to indicate why, and the
-    wrong amount is undoable but not obviously wrong. **A future action that rewrites
-    `doc.boards` wholesale joins this list** — that is the test, not "does it touch
-    positions", because a wholesale rewrite can invalidate the grab by removing its owner
-    as easily as by moving it. Note this list is not everything that nulls `grabbed`:
-    `setTool`, `cancelGrab`, `commitSnapMove` itself and its board-not-found path all do
-    too, for their own reasons (`setTool`'s is that a snap point carried into a different
-    tool has nothing that can consume it). Only the four above are here because the world
-    moved.
+    may not exist in the new document at all), and `deleteBoard` and `updateBoard` —
+    which both clear **conditionally**, only when the affected board is the grabbed one,
+    since an edit to some *other* board changes nothing about the captured position.
+    `updateBoard`'s case is the one Properties can reach live in Move mode: nothing
+    disables the panel while a point is grabbed, and `commitSnapMove` even selects the
+    board it just moved, so a Length or Posture edit typed into Properties right after a
+    grab routes through `updateBoard` and can relocate the grabbed board out from under
+    its own point. Committing after any of these five would apply a delta derived from a
+    position that no longer describes anything: the board moves by a wrong amount, with
+    nothing on screen to indicate why, and the wrong amount is undoable but not obviously
+    wrong. **A future action that rewrites `doc.boards` wholesale joins this list** —
+    that is the test, not "does it touch positions", because a wholesale rewrite can
+    invalidate the grab by removing its owner as easily as by moving it. Note this list
+    is not everything that nulls `grabbed`: `setTool`, `cancelGrab`, `commitSnapMove`
+    itself and its board-not-found path all do too, for their own reasons (`setTool`'s is
+    that a snap point carried into a different tool has nothing that can consume it).
+    Only the five above are here because the world moved.
 25. **The snap move is deliberately NOT rounded to `SNAP_INCHES`, and this is the exact
     opposite of what `Gizmo.tsx` does — both are correct.** The gizmo snaps to 1/16"
     because a free drag lands on arbitrary numbers and a board should come to rest

@@ -31,8 +31,19 @@ export function MoveTool() {
   // Mirrors `hovered` so the pointermove handler can compare against the
   // current pick without re-subscribing the listener on every hover change.
   const hoveredRef = useRef<SnapPoint | null>(null);
-  // Where the pointer went down, for the click-versus-drag test.
-  const downAt = useRef<{ x: number; y: number } | null>(null);
+  // Where the pointer went down, for the click-versus-drag test. Tagged with
+  // the pointerId that set it: a multi-touch pinch fires pointerdown for both
+  // fingers, and without the id, the second finger's down would overwrite the
+  // first's, so releasing the first finger measures its travel against the
+  // second finger's position and can spuriously pass the slop test — grabbing
+  // or committing a point the user never aimed at. Requiring the matching id
+  // on pointerup (rather than just ignoring a second concurrent pointerdown)
+  // means each finger's own down/up pair still works correctly on its own;
+  // it's only cross-finger measurement that's excluded. Latent and
+  // touch-only — this tool has never been driven by real touch input
+  // (follow-up 106) — but closed per the working agreement to fix latent bugs
+  // reachable only on a future platform.
+  const downAt = useRef<{ x: number; y: number; pointerId: number } | null>(null);
 
   /**
    * Every board's candidates, minus the grabbed board's own.
@@ -83,7 +94,7 @@ export function MoveTool() {
 
     const onPointerDown = (e: PointerEvent) => {
       if (e.button !== 0) return;
-      downAt.current = { x: e.clientX, y: e.clientY };
+      downAt.current = { x: e.clientX, y: e.clientY, pointerId: e.pointerId };
     };
 
     const onPointerMove = (e: PointerEvent) => {
@@ -99,6 +110,12 @@ export function MoveTool() {
     const onPointerUp = (e: PointerEvent) => {
       if (e.button !== 0) return;
       const down = downAt.current;
+      // A release whose pointerId doesn't match the down that's on file isn't
+      // this pointer's click — its own down either hasn't happened (single
+      // slot already held by another finger) or was itself overwritten. Leave
+      // downAt alone rather than clearing it: the finger that actually owns
+      // it still needs it on its own pointerup.
+      if (down && down.pointerId !== e.pointerId) return;
       downAt.current = null;
       if (!down) return;
       // A release that travelled is an orbit, a pan or a zoom — not a click.

@@ -200,6 +200,21 @@ export const useStore = create<StoreState>((set, get) => {
       const current = get().doc.boards.find((b) => b.id === id);
       if (!current) return;
 
+      // Invariant 24: a grab holds a world position captured at grab time, not
+      // a reference to the board. Properties stays fully live in Move mode
+      // (App renders it unconditionally, and commitSnapMove even selects the
+      // board it just moved), so a Length or Posture edit reachable from the
+      // panel can relocate the grabbed board out from under its own captured
+      // point. Clearing here — conditionally, only when this is the grabbed
+      // board, the same shape as deleteBoard's guard just below — is what
+      // keeps that invariant's enumeration true; committing afterward would
+      // otherwise apply a delta derived from a position that no longer
+      // describes anything. Safe for commitSnapMove's own call into
+      // updateBoard: it computes `delta` from `grabbed.at` before calling
+      // this, and unconditionally nulls `grabbed` right after — so clearing
+      // it here a moment early is a no-op there, not a race.
+      if (get().grabbed?.owner.id === id) set({ grabbed: null });
+
       // Reorienting turns the board in place. `position` is the min-corner, so
       // changing rotation or posture swaps the extents underneath a pinned
       // corner — which is what made a 24 x 5-1/2 board jump sideways when it

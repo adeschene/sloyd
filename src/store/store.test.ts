@@ -614,6 +614,24 @@ describe('the Move tool', () => {
     expect(useStore.getState().grabbed).not.toBeNull();
   });
 
+  it('drops a grab when the grabbed board is edited', () => {
+    // Properties stays fully live in Move mode (nothing disables it), so a
+    // Length edit reachable right after a grab can relocate the grabbed board
+    // out from under its own captured point (invariant 24). updateBoard must
+    // drop the grab the same way deleteBoard does.
+    const { a } = twoBoards();
+    useStore.getState().grabSnapPoint(cornerOf(a.id));
+    useStore.getState().updateBoard(a.id, { length: 30 });
+    expect(useStore.getState().grabbed).toBeNull();
+  });
+
+  it('keeps a grab when some other board is edited', () => {
+    const { a, b } = twoBoards();
+    useStore.getState().grabSnapPoint(cornerOf(a.id));
+    useStore.getState().updateBoard(b.id, { length: 30 });
+    expect(useStore.getState().grabbed).not.toBeNull();
+  });
+
   it('drops a grab on undo and on redo', () => {
     const { a } = twoBoards();
     // grabbed.at is a world position captured at grab time; an undo can move
