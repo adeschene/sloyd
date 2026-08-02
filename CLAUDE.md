@@ -39,20 +39,18 @@ gitignored. Read that file before deploying; it is not in the public repo.
 layout, per-face views and board feet are all shipped and merged to `master`. Do not
 treat any of the five as in-flight.
 
-**Production matches `master` as of 2026-08-02.** The three-round gap is closed — the
-empty-solids placeholder, board feet and sheet-goods nesting all deployed together. One
-consequence worth knowing before any rollback: this was the first deploy to ship a schema
-bump (v5) to production, so a document saved by the live build is *refused* by the
-previous image rather than silently downgraded. See `DEPLOYMENT.local.md`. The paragraph
-below is kept as the record of the deferral that preceded it.
+**Production matches `master` as of 2026-08-02.** For three rounds it deliberately did
+not — the empty-solids placeholder, board feet and sheet-goods nesting sat merged and
+undeployed because the user chose to hold them — and they went out together. Verified
+after: `200` on `/` and on a deep route, 0 console errors, the Cloudflare beacon present.
 
-~~**`master` is AHEAD of production.**~~ Everything through the per-face diagrams round is
-deployed. The two rounds after it — the **empty-solids placeholder** and **board feet** —
-are merged and verified but have **not** been deployed; the user deferred the deploy
-deliberately, it is not an oversight. Production therefore still renders a fully-consumed
-board as nothing and still prints a cut list with no stock totals. Anyone picking this up
-should either run `docker compose up -d --build` (see `DEPLOYMENT.local.md` first) or
-leave it alone knowingly — but must not assume production matches `master`.
+**That deploy was the first to ship a schema bump to production, which changes what
+rollback costs.** A document saved by the live build carries `version: 5`; the previous
+image understands up to 4 and *refuses* such a file rather than silently dropping the
+kerf. That is the version gate working as designed, but autosave lives in the browser at
+`sloyd.autosave.v1`, so rolling back would strand any project saved since. Export first
+if it ever comes to that. `DEPLOYMENT.local.md` has the full runbook and the bundle
+hashes.
 
 What is deliberately *not* built sits in two places, and both are decisions rather than
 omissions: the **"Deferred behind it"** paragraph below (CSV export and name

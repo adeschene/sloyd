@@ -1633,23 +1633,6 @@ line immediately below the heading, so a reader sees *why* the sheet count reads
 right next to the number that does — but the two numbers themselves still disagree on
 what they're counting.
 
-**98. There is no UI for editing `stock.kerf`, and the default's error is
-asymmetric.** `stock.kerf` is migrated, defaulted, validated (`document.ts`) and used
-by the packer (`nesting.ts`), and it is undoable like any other document field — but
-nothing in `Toolbar.tsx` or `Properties.tsx` lets a user change it. Changing it means
-hand-editing the saved JSON. This was deliberate, not an oversight: a kerf control
-belongs with the settings surface a future custom-materials round will need anyway, and
-adding one here would have meant a store action plus a toolbar or preferences panel
-that nothing else in this round required — the fix is small when someone wants it
-(a `setKerf` store action and a field), which is exactly why it was safe to defer rather
-than build speculatively. The error direction is worth saying out loud rather than
-leaving as an unstated risk: the `0.125` default UNDER-counts for a shop running a
-1/4" CNC router or any wider kerf, so the sheet count comes out low and the user buys
-too little material, with no way to correct it short of hand-editing the file.
-Over-counting — a thin-kerf blade or a track saw, where the true kerf is narrower than
-the default — is harmless, since it only ever buys a spare sheet. An under-count is the
-direction that costs a trip back to the yard mid-project.
-
 **96. `fitLabel`'s terminal `index` tier has no height check.** `src/panels/
 diagramLabels.ts:147` returns `'index'` unconditionally as the last case in the
 tier ladder, with no comparison against `boxH` the way the `'full'` and `'name'` tiers
@@ -1677,3 +1660,20 @@ plus a React duplicate-key console warning from `SheetLayout`. Pre-existing gap 
 `validateBoard`, newly depended upon by this round rather than introduced by it — the
 obvious fix is to give `id` the same dedupe-on-load treatment invariant 8 already gives
 `name`.
+
+**98. There is no UI for editing `stock.kerf`, and the default's error is
+asymmetric.** `stock.kerf` is migrated, defaulted, validated (`document.ts`) and used
+by the packer (`nesting.ts`), and it is undoable like any other document field — but
+nothing in `Toolbar.tsx` or `Properties.tsx` lets a user change it. Changing it means
+hand-editing the saved JSON. This was deliberate, not an oversight: a kerf control
+belongs with the settings surface a future custom-materials round will need anyway, and
+adding one here would have meant a store action plus a toolbar or preferences panel
+that nothing else in this round required — the fix is small when someone wants it
+(a `setKerf` store action and a field), which is exactly why it was safe to defer rather
+than build speculatively. The error direction is worth saying out loud rather than
+leaving as an unstated risk: the `0.125` default UNDER-counts for a shop running a
+1/4" CNC router or any wider kerf, so the sheet count comes out low and the user buys
+too little material, with no way to correct it short of hand-editing the file.
+Over-counting — a thin-kerf blade or a track saw, where the true kerf is narrower than
+the default — is harmless, since it only ever buys a spare sheet. An under-count is the
+direction that costs a trip back to the yard mid-project.
