@@ -52,6 +52,19 @@ export interface PlacedPart {
   w: number;
   h: number;
   turned: boolean;
+  /**
+   * Already formatted, e.g. `48" × 24"` — `length × width`, the board's OWN
+   * dimensions, never `w`/`h` as placed. Two things this deliberately is not:
+   * a re-derivation of the footprint (a turned part's `w`/`h` are swapped
+   * relative to `length`/`width`, so printing those would transpose the
+   * number a reader just saw on the cut-list row for the same board — see
+   * `CutListRow.dims` in `cutlist.ts`, which always prints `length × width`
+   * regardless of how a board sits), and not raw floats (`parseLength`
+   * accepts decimal and millimetre entry, so an unformatted dimension can be
+   * a 15-digit artifact). The panel formats nothing; this field is why it
+   * doesn't have to for a placed part either.
+   */
+  dims: string;
 }
 
 export interface NestedSheet {
@@ -131,10 +144,20 @@ function placeOn(
   options: Footprint[],
   stock: SheetStock,
   kerf: number,
+  precision: number,
 ): boolean {
   const put = (f: Footprint, x: number, y: number) => {
     sheet.parts.push({
-      boardId: board.id, name: board.name, x, y, w: f.w, h: f.h, turned: f.turned,
+      boardId: board.id,
+      name: board.name,
+      x,
+      y,
+      w: f.w,
+      h: f.h,
+      turned: f.turned,
+      // length × width, the board's own dimensions — matches
+      // CutListRow.dims's order for the same board regardless of `turned`.
+      dims: `${formatLength(board.length, precision)} × ${formatLength(board.width, precision)}`,
     });
   };
 
@@ -230,10 +253,10 @@ export function buildNesting(
     // with. Try existing sheets first; if none take it, try one fresh sheet;
     // only THAT attempt's own result decides placed-vs-unplaceable, so there
     // is nothing left to diverge from.
-    if (sheets.some((sheet) => placeOn(sheet, board, options, stock, kerf))) continue;
+    if (sheets.some((sheet) => placeOn(sheet, board, options, stock, kerf, precision))) continue;
 
     const sheet: WorkingSheet = { parts: [], shelves: [] };
-    if (placeOn(sheet, board, options, stock, kerf)) {
+    if (placeOn(sheet, board, options, stock, kerf, precision)) {
       sheets.push(sheet);
     } else {
       unplaceable.push({

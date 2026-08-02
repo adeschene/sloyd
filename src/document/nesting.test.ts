@@ -80,6 +80,32 @@ describe('buildNesting', () => {
       .toBe('1 sheet (96" × 48")');
   });
 
+  // FINDING 1's regression pin. `part()` builds a plywood, length-grained
+  // board, so 23.5" is entered as a decimal (`parseLength` accepts that) and
+  // must come out through `formatLength` as a fraction, exactly like the
+  // matching cut-list row for the same board — not as the raw float
+  // `SheetLayout.tsx` used to interpolate directly.
+  it('formats a placed part\'s dims, not the raw float', () => {
+    const n = buildNesting([part(23.5, 12, 'A')], PLY, 0, 16);
+    expect(n.sheets[0].parts[0].dims).toBe('23-1/2" × 12"');
+  });
+
+  // The order is `length × width` — the board's OWN dimensions — even for a
+  // part `footprintsOf` turns 90° to fit the sheet, so a grain-turned part's
+  // placed `w`/`h` (swapped relative to length/width) never leaks into the
+  // printed string. This is what keeps the layout label agreeing with the
+  // cut-list row for the same board, which always prints `length × width`
+  // regardless of how the part sits (see `CutListRow.dims` in cutlist.ts).
+  it('prints length × width regardless of turned orientation', () => {
+    const b = createBoard({
+      name: 'Turned', length: 48, width: 24, thickness: 0.75,
+      grain: 'width', material: 'plywood',
+    });
+    const n = buildNesting([b], PLY, 0, 16);
+    expect(n.sheets[0].parts[0].turned).toBe(true);
+    expect(n.sheets[0].parts[0].dims).toBe('48" × 24"');
+  });
+
   // Pins the coordinates for the kerf test below to build on. NOT the epsilon
   // case: 24 × 4 = 96 is exactly representable in binary, so this fixture
   // never touches EPS — see the real epsilon fixture further down and EPS's
@@ -203,8 +229,8 @@ describe('buildNesting', () => {
     const n = buildNesting([rail, stick], MDF, 0, 16);
     expect(n.sheets).toHaveLength(1);
     expect(n.sheets[0].parts).toEqual([
-      { boardId: rail.id, name: 'Rail', x: 0, y: 0, w: 90, h: 10, turned: false },
-      { boardId: stick.id, name: 'Stick', x: 0, y: 10, w: 30, h: 4, turned: false },
+      { boardId: rail.id, name: 'Rail', x: 0, y: 0, w: 90, h: 10, turned: false, dims: '90" × 10"' },
+      { boardId: stick.id, name: 'Stick', x: 0, y: 10, w: 30, h: 4, turned: false, dims: '30" × 4"' },
     ]);
   });
 
