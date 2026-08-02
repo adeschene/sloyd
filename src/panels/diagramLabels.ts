@@ -119,3 +119,30 @@ export const LABEL_BOX_H = LABEL_ASCENT + LABEL_DESCENT;
  * for precisely the rotated labels this serves.
  */
 export const labelHeight = (): number => LABEL_BOX_H;
+
+/** Which of a sheet-layout label's three tiers a part's rectangle can hold. */
+export type LabelTier = 'full' | 'name' | 'index';
+
+/**
+ * The fallback ladder for a label drawn INSIDE its own rectangle.
+ *
+ * `packRow` is not used on a sheet layout and does not need to be: every label
+ * lives in its own disjoint rect, so two labels cannot collide however long
+ * their strings are. What CAN happen is a label wider than the part it names —
+ * follow-up 59's defect exactly — so the three tiers degrade instead: both
+ * lines, then the name alone, then a bare index keyed to a list beside the
+ * sheet.
+ *
+ * Measured, not estimated: `labelWidth`'s monospace arithmetic is the same
+ * one PartDiagram's leader rows rest on, which is why `--font-num` on these
+ * elements is load-bearing (invariant 19).
+ *
+ * `lines[0]` is the name; the rest are detail lines.
+ */
+export function fitLabel(lines: string[], boxW: number, boxH: number): LabelTier {
+  if (lines.length === 0) return 'index';
+  const room = (s: string) => labelWidth(s) <= boxW;
+  if (lines.every(room) && labelHeight() * lines.length <= boxH) return 'full';
+  if (room(lines[0]) && labelHeight() <= boxH) return 'name';
+  return 'index';
+}
