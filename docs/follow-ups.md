@@ -1583,20 +1583,29 @@ one is ever edited without the other. Second: nothing on a rendered sheet says "
 in words — `PlacedPart.turned` exists in the data and is asserted in tests, but
 `SheetLayout.tsx` never prints it, so a reader looking at a near-square part's
 rectangle cannot tell a 90° turn from a simple transposition of the printed dimensions.
-The ambiguity is real only near a 1:1 aspect ratio; it vanishes as a part's length and
-width diverge, which is presumably why no reviewer flagged it as blocking.
+The ambiguity is bounded twice over, not just once. It is real only near a 1:1 aspect
+ratio — it vanishes as a part's length and width diverge — and it is only reachable
+under `rotate: 'free'` (MDF) in the first place: `footprintsOf` returns exactly one
+footprint under `rotate: 'grain'` (plywood), so the packer itself never turns a plywood
+part — the only way a plywood part's grain runs across the sheet is the orientation the
+cut-list row already states. Which is presumably why no reviewer flagged it as blocking.
 
 **93. The Task 8 browser pass found no defects, and specifically re-checked the exact
 selector shape that broke twice before.** Follow-up 81's defect — a more specific
 two-class screen rule outranking a correctly-enumerated single-class print override —
 was the standing worry named going into this round's own print verification, since this
 round adds its own new print-affected classes (`.cutlist-layout-count`,
-`.cutlist-layout-head`, `.cutlist-unplaceable`, `.cutlist-layout-key`, and the SVG part/
-sheet fills). `getComputedStyle` under `emulateMedia({ media: 'print' })` returned
-`rgb(0, 0, 0)` for all of them, including `.cutlist-subtotal .cutlist-stock` itself —
-the identical two-class selector that broke in follow-up 81 — confirming that round's
-fix still holds now that a sheet-goods group's print block has more content beneath it.
-No print-colour defect was found; the styles.css comment near the `@media print` block
+`.cutlist-layout-head`, `.cutlist-unplaceable`, `.cutlist-layout-key`). `getComputedStyle`
+under `emulateMedia({ media: 'print' })` returned `rgb(0, 0, 0)` for all four, and for
+`.cutlist-subtotal .cutlist-stock` itself — the identical two-class selector that broke
+in follow-up 81 — confirming that round's fix still holds now that a sheet-goods
+group's print block has more content beneath it. The SVG fills were checked too, but
+came back deliberately mixed, not uniformly black: `.cutlist-layout-sheet`'s stroke and
+the layout `<svg>`'s own fill are `rgb(0, 0, 0)`, while `.cutlist-layout-part`'s fill is
+`rgb(255, 255, 255)` — white, on purpose, because a part label sits on top of its
+rectangle and black-on-black would make the label unreadable. See
+`docs/browser-verification-sheet-nesting.md`'s print check for the full set. No
+print-colour defect was found; the styles.css comment near the `@media print` block
 already names follow-ups 58 and 81 and this pass confirmed that reasoning holds
 rendered, rather than surfacing a new instance.
 
@@ -1610,3 +1619,44 @@ in the browser fixture (it produced at most two shelves per sheet) — the packi
 at that density was not eyeballed. Real (non-software) GL was not exercised either,
 though it is not applicable here: `SheetLayout`/`buildNesting` touch no shader or
 WebGL path, so invariant 26a's warning does not reach this round's own code.
+
+**95. An unplaceable part is counted in square feet but not in sheets.**
+`cutlist.ts`'s grouping loop adds every board's own `stockInchesOf` to `group.stockInches`
+unconditionally, before `buildNesting` ever runs — a sheet-goods group's square-footage
+subtotal reflects every board in the group, placed or not. `buildNesting` opens a sheet
+only when a part actually lands on it (see `nesting.ts`'s fresh-sheet gate), so a part
+that fits no sheet in any orientation adds to the square-foot total but never to
+`sheets.length`. A group heading can therefore read `0 sheets (96" × 48")` beside a
+nonzero square-foot figure — two purchasing numbers with different scope printed on one
+line. Mitigated in practice because `CutList.tsx` prints the unplaceable-parts naming
+line immediately below the heading, so a reader sees *why* the sheet count reads low
+right next to the number that does — but the two numbers themselves still disagree on
+what they're counting.
+
+**96. `fitLabel`'s terminal `index` tier has no height check.** `src/panels/
+diagramLabels.ts:147` returns `'index'` unconditionally as the last case in the
+tier ladder, with no comparison against `boxH` the way the `'full'` and `'name'` tiers
+above it both have. A part narrow enough to fail the `'name'` tier's width check but
+whose rectangle is also short (both dimensions small — a small square-ish offcut) gets
+a 25-unit-tall label (`LABEL_ASCENT + LABEL_DESCENT`, see follow-up 91) drawn inside a
+rectangle nothing has confirmed is tall enough to hold it. The browser pass covered ten
+parts down to a 3"-wide `Back Cleat` on a 96" sheet (`docs/browser-verification-
+sheet-nesting.md`), which clears comfortably; this is the residual below that width,
+and specifically the height axis the width-only fixtures never exercised — the same
+defect class `fitLabel` exists to close for the other two tiers, left open on the one
+tier that has no fallback beneath it.
+
+**97. Board `id` uniqueness is newly load-bearing but never enforced.**
+`buildNesting`'s sort tiebreak (`a.id.localeCompare(b.id)` in `nesting.ts`) and
+`SheetLayout.tsx`'s `<g key={p.boardId}>` both now depend on every board in a document
+having a distinct `id` — the tiebreak needs it for a total order, the React key needs it
+to avoid two siblings sharing a key. Nothing enforces that. `validateBoard` mints an id
+(`nextId()`) only when `b.id` is missing or not a non-empty string; two boards that both
+arrive with `id: "a"` both keep `"a"` — there is no id equivalent of `dedupeNames`
+(invariant 8), which is called on every load specifically to fix this failure shape for
+*names*. A hand-edited or badly-merged file with duplicate ids would give
+`buildNesting` a non-total sort (so an unstable layout that can reorder between renders)
+plus a React duplicate-key console warning from `SheetLayout`. Pre-existing gap in
+`validateBoard`, newly depended upon by this round rather than introduced by it — the
+obvious fix is to give `id` the same dedupe-on-load treatment invariant 8 already gives
+`name`.

@@ -480,7 +480,7 @@ describe('schema 4 — cuts', () => {
 
   // The chain is the point: a v1 file must walk 1 -> 2 -> 3 -> 4 -> 5, folding
   // 270 to 90 BEFORE it gains a posture, and gaining cuts last.
-  it('walks a v1 file all the way to 4', () => {
+  it('walks a v1 file all the way to 5', () => {
     const doc = migrateDocument({
       version: 1,
       name: 'Ancient',

@@ -330,8 +330,12 @@ export function migrateDocument(raw: unknown): SloydDocument {
 
   // A DOCUMENT-level field, so unlike foldRotationToV2/addPostureToV3/
   // addCutsToV4 it has no per-board upgrade step: it is read defensively off
-  // the raw document and defaulted, exactly as `precision` above is. Clamped
-  // rather than thrown on, because a saved document must always open.
+  // the raw document and defaulted, exactly as `precision` above is. Defaulted
+  // to DEFAULT_KERF, not clamped to the nearest boundary, when absent,
+  // non-numeric, or outside [0, 1) — because a saved document must always
+  // open, but a rejected value has no boundary that means anything (a
+  // negative kerf and a bogus string are equally not-a-kerf). The `< 1`
+  // upper bound exists because an inch-wide kerf is a typo, not a saw.
   const rawStock = d.stock;
   const kerf =
     typeof rawStock === 'object' && rawStock !== null && !Array.isArray(rawStock) &&

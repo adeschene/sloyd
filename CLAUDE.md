@@ -53,7 +53,8 @@ run-collapsing — the only two items left there now that sheet-goods nesting is
 by the round below — both declined with reasons worth reading before re-proposing),
 and `docs/follow-ups.md`'s open entries. **48 and 49 — a board whose cuts remove all its
 stock rendering as nothing — are now CLOSED**, by the empty-solids placeholder described
-below; no open follow-up currently has a user-visible consequence. Two things about the
+below; one open follow-up now has a user-visible consequence — see 92 below, bounded to
+near-1:1-aspect-ratio parts under free rotation. Two things about the
 diagrams remain unverified rather than fixed: a **print-to-PDF render** (this host's
 Playwright exposes no `pdf()`) and **hatch-versus-cross-hatch legibility at screen
 size**, which is a recorded negative finding, not an assumption — see follow-ups 76
@@ -83,8 +84,10 @@ reader can actually take to the panel saw.
 - **Schema 5, and the first migration step in the chain that is not a per-board
   upgrade.** `stock` is document-level, so unlike `foldRotationToV2`,
   `addPostureToV3` and `addCutsToV4` it has no `rawBoards.map` step at all — it is
-  read defensively off the raw document and clamped to `[0, 1)`, exactly the way
-  `units.precision` already was, rather than joining the per-board chain. The version
+  read defensively off the raw document and defaulted to `0.125` when absent,
+  non-numeric, or outside `[0, 1)` (not clamped to that range's nearest boundary —
+  a `kerf: 1.5` becomes `0.125`, not `0.999`), exactly the way `units.precision`
+  already was, rather than joining the per-board chain. The version
   bump exists for the gate at the *other* end, not for upgrading old files (an absent
   `stock` simply defaults): without it, a v4 build would open a file with a
   user-set kerf, silently drop the field, and print a different sheet count than the
@@ -1061,7 +1064,7 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 564 tests
+npm test           # Vitest, currently 617 tests
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

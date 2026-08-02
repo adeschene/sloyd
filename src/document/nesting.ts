@@ -256,6 +256,11 @@ export function buildNesting(
     if (sheets.some((sheet) => placeOn(sheet, board, options, stock, kerf, precision))) continue;
 
     const sheet: WorkingSheet = { parts: [], shelves: [] };
+    // A fresh sheet must never enter `sheets` unless a part actually landed
+    // on it. `sheets.length` becomes the count printed on the sheet — an
+    // empty sheet counted here is the exact wrong purchasing number this
+    // feature exists to produce, so `push` happens only inside this branch,
+    // gated on `placeOn`'s own result, never unconditionally before it.
     if (placeOn(sheet, board, options, stock, kerf, precision)) {
       sheets.push(sheet);
     } else {

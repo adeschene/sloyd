@@ -116,8 +116,10 @@ const kerf =
     : 0.125;
 ```
 
-Clamped to `[0, 1)`: a negative kerf places parts overlapping, and a one-inch kerf is
-a typo, not a saw.
+Defaulted to `0.125`, not clamped to `[0, 1)`'s nearest boundary, when the stored
+value is absent, non-numeric, or outside that range: a negative kerf places parts
+overlapping, so there is no boundary value for it to be pulled toward, and a one-inch
+kerf is a typo, not a saw.
 
 **Then why bump the version at all, if an absent field simply defaults?** Because of
 the gate at the *other* end. `migrateDocument` refuses a file whose version exceeds
@@ -409,7 +411,8 @@ overlaps two parts reports the same count as one that does not.
   produce a layout that reshuffles as parts are renamed.
 
 `document.test.ts` gains the v5 chain: a v1 file walks 1→2→3→4→5, `stock.kerf`
-defaults on every older file, an out-of-range kerf clamps, and a v6 file is refused.
+defaults on every older file, an out-of-range kerf is replaced with the default
+(not clamped to `[0, 1)`'s boundary), and a v6 file is refused.
 
 `cutlist.test.ts` gains: a sheet-goods group carries a `nesting`, a solid-stock group
 does not.
