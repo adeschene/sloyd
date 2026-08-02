@@ -92,14 +92,44 @@ export interface SloydDocument {
   boards: Board[];
 }
 
-export const MATERIALS: Record<string, { label: string; color: string; sheet?: boolean }> = {
+/**
+ * The stock a sheet good is sold as.
+ *
+ * A property of the MATERIAL, not of the project: a 4x8 sheet is a fact about
+ * plywood the same way `sheet: true` used to be, and Baltic birch comes 5x5
+ * because of what it is rather than because of what you are building.
+ *
+ * This is deliberately the shape a later custom-materials round fills in — a
+ * custom unveneered plywood is an entry with `rotate: 'free'`, Baltic birch is
+ * one with `length: 60, width: 60` — so nothing in `nesting.ts` changes when
+ * these entries move from a module constant into document data.
+ */
+export interface SheetStock {
+  /** Inches. The long dimension of a full sheet. */
+  length: number;
+  /** Inches. */
+  width: number;
+  /**
+   * 'grain' — the part's own `grain` field determines its orientation on the
+   *   sheet and the packer never turns it. Correct for veneered plywood, where
+   *   a part turned 90 degrees has its face veneer running the wrong way in
+   *   the finished piece.
+   * 'free'  — the packer may lay the part either way. Correct for MDF, which
+   *   has no grain at all.
+   */
+  rotate: 'grain' | 'free';
+}
+
+export const MATERIALS: Record<string, { label: string; color: string; sheet?: SheetStock }> = {
   pine:    { label: 'Pine',     color: '#d9b98a' },
   oak:     { label: 'Oak',      color: '#c69c6d' },
   maple:   { label: 'Maple',    color: '#e6d2b5' },
   walnut:  { label: 'Walnut',   color: '#6b4630' },
   cherry:  { label: 'Cherry',   color: '#a4552f' },
-  plywood: { label: 'Plywood',  color: '#cbb391', sheet: true },
-  mdf:     { label: 'MDF',      color: '#a89a86', sheet: true },
+  plywood: { label: 'Plywood',  color: '#cbb391',
+             sheet: { length: 96, width: 48, rotate: 'grain' } },
+  mdf:     { label: 'MDF',      color: '#a89a86',
+             sheet: { length: 96, width: 48, rotate: 'free' } },
 };
 
 export const DEFAULT_MATERIAL = 'pine';
@@ -113,5 +143,10 @@ export const DEFAULT_MATERIAL = 'pine';
  * about the material, not about how it's drawn.
  */
 export function isSheetGood(material: string): boolean {
-  return MATERIALS[material]?.sheet === true;
+  return MATERIALS[material]?.sheet !== undefined;
+}
+
+/** The sheet a material is sold as, or undefined for solid lumber. */
+export function sheetStockOf(material: string): SheetStock | undefined {
+  return MATERIALS[material]?.sheet;
 }
