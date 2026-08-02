@@ -1,4 +1,4 @@
-import { MATERIALS, DEFAULT_MATERIAL, isSheetGood } from './types';
+import { MATERIALS, DEFAULT_MATERIAL, DEFAULT_KERF, isSheetGood } from './types';
 import type { Board, Cut, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument } from './types';
 import { dedupeNames } from './names';
 import { positionAxisOf } from './geometry';
@@ -16,8 +16,20 @@ export { buildDiagrams } from './diagram';
 export type { DiagramCut, DiagramView } from './diagram';
 export { buildDepthField } from './depthField';
 export type { FaceCell } from './depthField';
+export { buildNesting, footprintsOf } from './nesting';
+export type { Nesting, NestedSheet, PlacedPart, UnplaceablePart, Footprint } from './nesting';
 
-export const CURRENT_VERSION = 4;
+/**
+ * v5 added `stock.kerf`.
+ *
+ * Note the bump is NOT needed to upgrade an old file — an absent `stock`
+ * simply defaults, exactly as an absent `units.precision` does. It is needed
+ * for the gate at the OTHER end: without it, a v4 build would open a file
+ * where the user set a 1/4" kerf, silently drop the field, and print a
+ * different sheet count than the build that saved it. A wrong purchasing
+ * number with no indication anything was lost.
+ */
+export const CURRENT_VERSION = 5;
 
 export class DocumentError extends Error {
   /**
@@ -77,6 +89,7 @@ export function createDocument(name = 'Untitled'): SloydDocument {
     version: CURRENT_VERSION,
     name,
     units: { display: 'imperial-fractional', precision: 16 },
+    stock: { kerf: DEFAULT_KERF },
     boards: [],
   };
 }
@@ -315,10 +328,29 @@ export function migrateDocument(raw: unknown): SloydDocument {
       ? units.precision
       : 16;
 
+  // A DOCUMENT-level field, so unlike foldRotationToV2/addPostureToV3/
+  // addCutsToV4 it has no per-board upgrade step: it is read defensively off
+  // the raw document and defaulted, exactly as `precision` above is. Defaulted
+  // to DEFAULT_KERF, not clamped to the nearest boundary, when absent,
+  // non-numeric, or outside [0, 1) — because a saved document must always
+  // open, but a rejected value has no boundary that means anything (a
+  // negative kerf and a bogus string are equally not-a-kerf). The `< 1`
+  // upper bound exists because an inch-wide kerf is a typo, not a saw.
+  const rawStock = d.stock;
+  const kerf =
+    typeof rawStock === 'object' && rawStock !== null && !Array.isArray(rawStock) &&
+    typeof (rawStock as { kerf?: unknown }).kerf === 'number' &&
+    Number.isFinite((rawStock as { kerf: number }).kerf) &&
+    (rawStock as { kerf: number }).kerf >= 0 &&
+    (rawStock as { kerf: number }).kerf < 1
+      ? (rawStock as { kerf: number }).kerf
+      : DEFAULT_KERF;
+
   return {
     version: CURRENT_VERSION,
     name: typeof d.name === 'string' && d.name ? d.name : 'Untitled',
     units: { display: 'imperial-fractional', precision },
+    stock: { kerf },
     boards: dedupeNames(rawBoards.map(validateBoard)),
   };
 }

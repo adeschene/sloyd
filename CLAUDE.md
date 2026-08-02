@@ -24,9 +24,12 @@ on the sheet, because the prose setup lines are hard to read at the bench), a
 overlapped or bled past the outline because nothing measured the text being placed —
 a **per-face diagrams round**, closing the diagrams' other one: perpendicular
 cuts on the same face used to fragment into two disconnected figures instead of
-drawing together, crossing, in one — and now a **board-feet round**, adding the
+drawing together, crossing, in one — a **board-feet round**, adding the
 purchasing number (board feet for solid stock, square feet for sheet goods) beside the
-bench numbers already on the sheet. Static SPA, containerized, 564/564 tests passing.
+bench numbers already on the sheet — and now a **sheet-nesting round**, closing the cut
+list's last §7 non-goal: a sheet count and a guillotine-cuttable layout drawing for
+every sheet-goods group, schema version 5. Static SPA, containerized, 617/617 tests
+passing.
 
 Host-specific deployment detail — hostname, container name, proxy configuration, and
 the manual steps a human has to perform — lives in `DEPLOYMENT.local.md`, which is
@@ -45,36 +48,99 @@ should either run `docker compose up -d --build` (see `DEPLOYMENT.local.md` firs
 leave it alone knowingly — but must not assume production matches `master`.
 
 What is deliberately *not* built sits in two places, and both are decisions rather than
-omissions: the **"Deferred behind it"** paragraph below (sheet-goods nesting; CSV export
-and name run-collapsing, both declined with reasons worth reading before re-proposing),
+omissions: the **"Deferred behind it"** paragraph below (CSV export and name
+run-collapsing — the only two items left there now that sheet-goods nesting is closed
+by the round below — both declined with reasons worth reading before re-proposing),
 and `docs/follow-ups.md`'s open entries. **48 and 49 — a board whose cuts remove all its
 stock rendering as nothing — are now CLOSED**, by the empty-solids placeholder described
-below; no open follow-up currently has a user-visible consequence. Two things about the
+below; one open follow-up now has a user-visible consequence — see 92 below, bounded to
+near-1:1-aspect-ratio parts under free rotation. Two things about the
 diagrams remain unverified rather than fixed: a **print-to-PDF render** (this host's
 Playwright exposes no `pdf()`) and **hatch-versus-cross-hatch legibility at screen
 size**, which is a recorded negative finding, not an assumption — see follow-ups 76
 and 79.
 
-**NEXT LINE OF WORK: sheet-goods nesting.** Chosen 2026-08-01, not yet started — no
-spec, no plan, no branch. It is the last item from the cut list's §7 and it is the one
-piece of that release's deferral that was never "cheap": it is a real 2D packing
-problem, and both prior rounds refused to let it in through a side door (the cut list
-declined it outright; the board-feet round chose square feet over a sheet *count* for
-exactly this reason). What a design round will have to settle before any code:
+**What the sheet-nesting round did**, design in
+`docs/superpowers/specs/2026-08-02-sloyd-sheet-nesting-design.md`. Chosen 2026-08-01,
+closing the cut list's last §7 non-goal — nesting was deferred with a reason (a real 2D
+packing problem, not a cheap addition; the cut list declined it outright and the
+board-feet round chose square feet over a sheet *count* for the identical reason), and
+that reason is now answered rather than expired. For every sheet-goods group, one
+purchasing number and its evidence: a sheet count (*3 sheets (96" × 48")*) beside the
+square feet already there, and, behind its own toggle, one SVG drawing per sheet
+showing where each part sits — guillotine-cuttable by construction, so it is a sheet a
+reader can actually take to the panel saw.
 
-- **It is the first feature since v4 that may need a schema change.** A sheet count or a
-  layout needs a stock sheet size, and the document does not store one — 4×8 is an
-  assumption about the world, not a fact about the project. If that becomes a field, it
-  is `CURRENT_VERSION` 5 and a fifth migration step, and the chain in `document.ts` is
-  the worked example to copy.
-- **The inputs already exist.** `buildCutList` groups by material and thickness, which
-  is exactly a nesting problem's input partition, and `isSheetGood` already separates
-  sheet stock from solid. Grain direction matters for real nesting (a part may not be
-  free to rotate 90°) and `Board.grain` is already part-local and already stored.
-- **Kerf, and whether the answer is a number or a picture.** A count is a purchasing
-  number; a layout is a bench output and a much bigger surface — the sheet already
-  renders SVG diagrams, so a layout would have somewhere to live, which is a reason to
-  scope carefully rather than a reason to build it.
+- **Three facts, three homes.** Sheet size and rotation policy are facts about the
+  *material*, not the project: `MATERIALS.sheet` changed from `boolean` to a
+  `SheetStock` object (`{ length, width, rotate: 'grain' | 'free' }`) — plywood is
+  `{ 96, 48, 'grain' }` (a part turned 90° would run its face veneer the wrong way),
+  MDF is `{ 96, 48, 'free' }` (no grain to protect). `isSheetGood` keeps its exact
+  signature; `sheetStockOf` is new. Kerf is a fact about the *shop*, so it lives on the
+  document as `stock: { kerf: number }`, default 1/8". A part's orientation is a fact
+  about the *part*, and nothing new was stored for it — `Board.grain`, already
+  part-local since v3, is what `footprintsOf` reads to decide whether a part lies on
+  the sheet turned.
+- **Schema 5, and the first migration step in the chain that is not a per-board
+  upgrade.** `stock` is document-level, so unlike `foldRotationToV2`,
+  `addPostureToV3` and `addCutsToV4` it has no `rawBoards.map` step at all — it is
+  read defensively off the raw document and defaulted to `0.125` when absent,
+  non-numeric, or outside `[0, 1)` (not clamped to that range's nearest boundary —
+  a `kerf: 1.5` becomes `0.125`, not `0.999`), exactly the way `units.precision`
+  already was, rather than joining the per-board chain. The version
+  bump exists for the gate at the *other* end, not for upgrading old files (an absent
+  `stock` simply defaults): without it, a v4 build would open a file with a
+  user-set kerf, silently drop the field, and print a different sheet count than the
+  build that saved it. See the Architecture section for the worked contrast with the
+  four `rawBoards.map` steps before it.
+- **`src/document/nesting.ts` — shelf first-fit-decreasing, because guillotine
+  cuttability is a domain fact, not a quality tier chosen for simplicity.** Every cut a
+  shop makes on a sheet runs edge to edge; a denser maxrects packer routinely produces
+  placements — an L-shaped remainder needing a cut that stops mid-sheet — nobody can
+  actually cut. `buildNesting` takes `doc.boards`, never `CutListRow`s — the fourth
+  instance of the 55/55a representative-row shape (follow-up 82), resolved the way
+  board feet resolved it: a row's rounded, representative dimensions can overflow a
+  real sheet, so every rectangle carries its own board's exact footprint, and
+  `buildCutList` packs each sheet-goods group from that group's boards in the same
+  pass that already accumulates its square footage. Stock, not remainder — `cuts` are
+  never read, the same rule `stockInchesOf` states for board feet, for the identical
+  reason: a part is cut from the sheet at its stock size, and joinery happens
+  afterward, out of material already on the bench. A part too big for any sheet is
+  recorded in `Nesting.unplaceable` and named on the printed sheet, never dropped —
+  follow-ups 48/49's shape, applied here rather than repeated.
+- **`src/panels/SheetLayout.tsx` draws one SVG per sheet**, deliberately not an
+  extension of `PartDiagram` — a sheet with parts on it and a board with cuts in it are
+  different drawings that happen to both be SVG. `fitLabel` (in `diagramLabels.ts`)
+  degrades a label through a three-tier fallback ladder — name and dimensions stacked,
+  then name alone, then a bare index keyed to a list printed beside the sheet — using
+  the same measured `labelWidth`/`LABEL_BOX_H` the diagrams already rely on, because
+  every label here lives inside its own disjoint rect and so needs a fallback rather
+  than `packRow`'s collision arithmetic.
+- **`MATERIALS.sheet`'s new shape is deliberately what a future custom-materials round
+  fills in.** Customisable ply count, veneer colour, grain on/off, custom sheet
+  sizing are planned but not part of this round; when they land, `MATERIALS` entries
+  move from a module constant into document data, and nothing in `nesting.ts` changes
+  when that happens — it already reads `sheet.length`/`.width`/`.rotate` off whatever
+  entry it's handed.
+- **No UI for editing kerf.** The field is migrated, defaulted, validated, undoable and
+  used by the packer — but changing it means editing the saved JSON directly. This is
+  a deliberate deferral to the custom-materials round's own settings surface, not an
+  oversight: a kerf control needs a store action and a toolbar or preferences panel
+  that nothing else in this round needs.
+- **Known, deferred, and verified in a real browser** — see
+  `docs/browser-verification-sheet-nesting.md` for what Task 8's pass checked (sheet
+  counts against rendered figure counts, zero label bleeds across ten placed parts,
+  the unplaceable line and its exclusion from every sheet's part list, zero overlaps
+  and zero out-of-bounds rects, print colours including the exact two-class selector
+  that broke in follow-up 81) and `docs/follow-ups.md`'s "From the sheet-nesting
+  round" section (85-94) for what it found in review before that pass — including a
+  test whose own stated justification didn't reproduce (the sixth instance of that
+  lesson, follow-ups 64/68/80) and a guillotine-cuttability test that could not fail
+  until its bound stopped being self-derived.
+
+There is no next line of work chosen yet. Sheet-nesting closes the cut list's §7 list
+entirely — see the updated "Deferred behind it" paragraph below — and no successor has
+been picked.
 
 Start with `superpowers:brainstorming`, and read the cut list design's §7 and the
 board-feet design's §4 first — both record *why* this was deferred, and those reasons
@@ -371,12 +437,13 @@ at all.
 
 **Deferred behind it**, from the cut list's §7, recorded as decisions rather than
 omissions: board-feet and sheet totals are no longer deferred — see the board-feet round
-above — leaving **sheet-goods nesting**, a real packing problem wanting its own spec, as
-the one item still open there. CSV/clipboard export and name run-collapsing
-(`Leg 1..4`) were looked at and declined, for reasons worth reading before proposing
-either again. In the older ledger, **48 and 49** were the only two entries with a
-user-visible consequence — unaffected by the cut list or the diagrams, and closed
-separately by the empty-solids placeholder.
+above — and sheet-goods nesting is no longer deferred either — see the sheet-nesting
+round above. That closes the cut list's §7 list entirely, leaving only the two items
+looked at and declined on purpose: CSV/clipboard export and name run-collapsing
+(`Leg 1..4`), for reasons worth reading before proposing either again. In the older
+ledger, **48 and 49** were the only two entries with a user-visible consequence —
+unaffected by the cut list or the diagrams, and closed separately by the empty-solids
+placeholder.
 
 **What joinery did**, design in
 `docs/superpowers/specs/2026-07-31-sloyd-joinery-design.md`, plan in
@@ -478,7 +545,9 @@ Static single-page app. No server, no database, no API, no env vars.
 
 **Governing rule: the plain-JSON document is the source of truth; the Three.js scene
 is derived from it and is never authoritative.** A document is
-`{ version, name, units, boards: [...] }`. Dragging a board in the viewport computes a
+`{ version, name, units, stock, boards: [...] }` — `stock` (the sheet-nesting round's
+addition, `{ kerf: number }`) is the first document-level field alongside `units` that
+isn't `boards`. Dragging a board in the viewport computes a
 number, writes it to the document, and the scene re-renders from the updated document
 — never the reverse. This is what keeps undo, save/load, and export simple: they only
 ever serialize or restore the document.
@@ -518,6 +587,17 @@ Module dependency order (each layer only depends on the ones before it):
    above — board feet is not a grouping key, so the "prints identically" argument
    doesn't reach it — but `cutlist.ts` already crossed into `units`, so nothing new
    opens: it is the cheapest available answer to "where does this go."
+
+   **The sheet-nesting round opened its own `document → units` import rather than
+   widening an existing one, because `nesting.ts` isn't `cutlist.ts`.** `document/
+   nesting.ts` imports `formatLength` directly, for the same reason `cutlist.ts` and
+   `diagram.ts` did: `PlacedPart.dims` and `UnplaceablePart.dims` are printed strings,
+   and the function that prints a dimension anywhere on the sheet has to be the one
+   that prints it here too, or a turned part's layout label could read differently
+   from the cut-list row for the same board (this exact defect shipped in Task 7's
+   first draft and was fixed — see follow-up 90). This is now the *third* leaf under
+   `document` making the identical `formatLength` import, which is what makes it a
+   settled boundary rather than something to keep re-litigating per file.
 2. **`store`** (Zustand + snapshot-based undo/redo) and **`storage`** (the
    `StorageAdapter` seam) — both sit above `document`.
 3. **`viewport`** (react-three-fiber scene, camera, grid, gizmo) and **`panels`**
@@ -540,7 +620,7 @@ parallel code path.
 **Versioning:** every document carries a `version` field, and every load path (open,
 import, autosave-restore) runs through `migrateDocument` before the document is
 trusted. This is what lets the schema evolve (e.g. for the cut list) without breaking
-files saved by earlier versions. `CURRENT_VERSION` is 4, and migration is a real
+files saved by earlier versions. `CURRENT_VERSION` is 5, and migration is a real
 chain: each step runs on raw data, in version order, one version at a time
 (`if (d.version < 2) …; if (d.version < 3) …; if (d.version < 4) …`), before any board
 reaches `validateBoard`. A v1 file walks 1→2→3→4 — `foldRotationToV2` (180→0, 270→90)
@@ -552,6 +632,24 @@ migration step should match. See invariant 11 for why the steps run where they d
 place anyway, on purpose: the chain's value is that every step has one shape, so the
 next step that *does* have a divergent fallback inherits the correct structure rather
 than depending on its author noticing.
+
+**The v4→v5 step breaks that shape on purpose, and is the first step in the chain that
+is NOT a `rawBoards.map` call.** `foldRotationToV2`, `addPostureToV3` and `addCutsToV4`
+are all per-board upgrades, run before `validateBoard` because that validator's
+fallback for a missing field is a legal-but-wrong value rather than an absence
+(invariant 11). `stock: { kerf: number }` is a **document-level** field — there is no
+per-board version of a kerf — so it has no `rawBoards.map` step at all. It is handled
+the way `units.precision` already was: read defensively off the raw document
+(`d.stock`), and defaulted to `0.125` when absent, non-numeric, or outside `[0, 1)`.
+The version bump is not needed to upgrade an old file — an absent `stock` defaults
+cleanly regardless of `CURRENT_VERSION`. It is needed for the refusal gate at the
+*other* end: without the bump, a v4 build would open a file carrying a user-set kerf,
+silently drop the field on save, and print a different sheet count than the build that
+wrote it — a wrong purchasing number with nothing to indicate anything was lost. See
+the sheet-nesting design's §2.2 for the full argument, which is the same one that
+justified `addCutsToV4` despite its default matching the validator's own fallback: the
+chain's value is that every version number means something definite, not that every
+step changes what a fresh document looks like.
 
 Full detail: `docs/superpowers/specs/` (design) and `docs/superpowers/plans/`
 (implementation plan). This section is a summary, not a replacement for either.
@@ -567,7 +665,10 @@ src/
 │                             length.ts uses. Imports nothing; a sibling leaf, not a
 │                             widening of length.ts (a volume is not a length)
 ├── document/
-│   ├── types.ts             Board, SloydDocument, Rotation, Posture, Grain, MATERIALS
+│   ├── types.ts             Board, SloydDocument (now carries `stock: { kerf }`),
+│   │                        Rotation, Posture, Grain, MATERIALS (`sheet` is now a
+│   │                        `SheetStock` object, not a boolean), SheetStock,
+│   │                        isSheetGood, sheetStockOf
 │   ├── geometry.ts          axisDimensions (single source) / boardExtents /
 │   │                        boardCenter / reorientedPosition
 │   ├── names.ts             uniqueName / dedupeNames. Imports only Board.
@@ -595,8 +696,17 @@ src/
 │   │                        72) — board inches, cut bands and labels, built on
 │   │                        depthField for crossing regions. Pure; the second thing
 │   │                        in ./document to import from ../units/length
-│   └── document.ts          create / validate / migrate (v1->v2->v3->v4 chain);
-│                            re-exports the other seven
+│   ├── nesting.ts           buildNesting: shelf first-fit-decreasing packer for one
+│   │                        sheet-goods group's boards (never CutListRows — the
+│   │                        fourth 55/55a instance). Takes stock size, rotation
+│   │                        policy and kerf; emits placed parts, an unplaceable list
+│   │                        and formatted labels. The fits-test carries an epsilon —
+│   │                        see the new invariant below. Pure; imports ./types and
+│   │                        ../units/length — the third leaf under ./document to
+│   │                        import from units, never ./document
+│   └── document.ts          create / validate / migrate (v1->v2->v3->v4->v5 chain,
+│                            v5 document-level rather than per-board — see
+│                            Architecture); re-exports the other eight
 ├── store/store.ts           Zustand store, snapshot undo/redo, gesture coalescing
 ├── storage/
 │   ├── types.ts             the StorageAdapter interface
@@ -634,18 +744,31 @@ src/
 │   │                        argument-free — see invariant on why) / labelWidth
 │   │                        (character count × monospace advance)
 │   │                        / packRow (ideal centres in, non-overlapping centres
-│   │                        out, axis-agnostic). Pure; the arithmetic substitute
-│   │                        for getComputedTextLength(), which is 0 under jsdom.
+│   │                        out, axis-agnostic) / fitLabel (the sheet-nesting
+│   │                        round's addition — a three-tier fallback ladder, full
+│   │                        / name / index, for a label that has no neighbour to
+│   │                        pack against because it lives inside its own disjoint
+│   │                        rect). Pure; the arithmetic substitute for
+│   │                        getComputedTextLength(), which is 0 under jsdom.
 │   ├── PartDiagram.tsx      one view, drawn as SVG: outline, hatched/cross-hatched
 │   │                        cut and crossing regions, leader rows below for
 │   │                        horizontal-axis cuts and rotated (-90°) leader columns
 │   │                        at left for vertical-axis cuts (both packed via
 │   │                        packRow). Formats nothing — every label string arrives
 │   │                        from buildDiagrams
+│   ├── SheetLayout.tsx      one SVG per sheet in a nesting: outlined parts, light
+│   │                        fill, waste left white; labels via fitLabel's ladder,
+│   │                        never packRow (every label's rect is already disjoint).
+│   │                        NOT an extension of PartDiagram — a sheet with parts on
+│   │                        it and a board with cuts in it are different drawings
+│   │                        that happen to both be SVG. Formats nothing — every
+│   │                        string, including a placed part's dims, arrives from
+│   │                        buildNesting
 │   └── CutList.tsx          the printable sheet: derives from the document on every
 │                            render, owns Escape-to-close and takes focus on mount,
 │                            calls formatLength never, and owns the Diagrams toggle
-│                            (none / joinery only / all — local view state)
+│                            (none / joinery only / all) and the Sheet layouts toggle
+│                            (on / off) — both local view state
 └── App.tsx                  layout, autosave/restore effects, undo keybindings, and
                              the `.app-shell` wrapper that goes `inert` behind the
                              cut list
@@ -892,13 +1015,56 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
     has some, and the placeholder deliberately rides in the existing `geometries`
     memo rather than a new one — a second memo would need its own hand-written
     dependency list, which is invariant 15's failure mode exactly.
+22. **`nesting.ts`'s fits-test carries an epsilon, and this is the deliberate OPPOSITE
+    of invariant 18 — not a relaxation of it.** Invariant 18 says a cut-list row's
+    dimensions collapse at display precision but its cuts must match exactly, because
+    both sides of that comparison are stored values a user typed, and two cuts entered
+    identically hold identical doubles — nothing computes them on the way in. Here one
+    side of the comparison *is* computed: `shelf.used` accumulates by addition as each
+    part is placed (`x = shelf.used + kerf`, `shelf.used = x + f.w`), so `fits(x + f.w,
+    stock.length)` compares a running sum against a bound — the same shape
+    `cutSignature`'s comment names as the hazard that made `cutLabel` wrong 2.8% of the
+    time. Tolerating float error here is the same rule as invariant 18's, applied to
+    the opposite arithmetic: round nothing that is machined, tolerate float error where
+    float error is what you actually have. **What actually reaches the tolerance is
+    narrower than it first looks, and the round's own plan got this wrong.** A plan
+    comment claimed reverting the fits-test to an exact `<=` would fail "this test and
+    nothing else" — false, because the fixture it pointed at (four 24" parts on a 96"
+    sheet) sums to exactly `96` in binary float, so it never touched `EPS` at all. A
+    15,298-case sweep across every 1/16" and 1/64" up to 96", against four kerfs, came
+    back bit-identical with and without the epsilon: sixteenths and sixty-fourths are
+    dyadic rationals, and sums of dyadic rationals are exact in IEEE 754. `EPS` earns
+    its keep only because `parseLength` also accepts plain decimals and millimetres
+    (÷25.4, not exact in binary) — fifteen 6.4"-decimal parts summed on one shelf land
+    at `96.00000000000001"`, a hair over the sheet, and only the tolerance keeps the
+    fifteenth part off a second one. See follow-up 87 — the sixth instance of the
+    plan-supplied-justification lesson (64, 68, 80), and the first one caught by a
+    mutation sweep rather than by a human reading the fixture.
+23. **The shelf-height guard (`placeOn`'s `fits(f.h, shelf.h)`) is the SOLE enforcer of
+    guillotine cuttability, and a self-derived test bound cannot catch its removal.**
+    The whole justification for shelf packing over a denser maxrects layout (design §4)
+    is that every cut a shop makes runs edge to edge — which is only true if a shelf
+    never holds a part taller than the part that opened it. That one guard is the only
+    line in `nesting.ts` enforcing it; nothing about the sort order guarantees it (the
+    sort only orders sheets' *first* parts by height, `placeOn`'s guard is what keeps
+    every later part on the shelf no taller). The obvious way to test the property —
+    derive each shelf's band from the parts placed inside it — silently can't fail: a
+    part that spills past its shelf just grows that shelf's own recorded band to match,
+    so "every part falls inside its band" stays true by construction. Deleting the
+    guard entirely passed the task's full test file, 19/19. The fix bounds each part
+    against the *next* shelf's start (or the sheet edge for the last shelf) — a bound
+    the parts under test cannot move — plus a dedicated regression fixture (an MDF
+    rail wide enough to open a shelf, and a stick whose flipped orientation would stand
+    taller than that shelf). Any future test of a "cannot exceed its container" property
+    must bound against a value the thing under test does not itself produce; see
+    follow-up 88 for the full account.
 
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 564 tests
+npm test           # Vitest, currently 617 tests
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -909,10 +1075,11 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ## Open follow-ups
 
 `docs/follow-ups.md` lists everything found during v1 review, the two polish passes,
-v2, v3, the post-v3 fixes, joinery, the cut list and its diagrams rounds, and the
-board-feet round, consciously deferred rather than missed, numbered 1-30 plus the
-per-release additions. Read it before starting new work in the same area — several
-items are "correct but untested", which is exactly what a refactor breaks silently.
+v2, v3, the post-v3 fixes, joinery, the cut list and its diagrams rounds, the
+board-feet round, and the sheet-nesting round, consciously deferred rather than
+missed, numbered 1-30 plus the per-release additions. Read it before starting new work
+in the same area — several items are "correct but untested", which is exactly what a
+refactor breaks silently.
 
 **29 and 30 are closed** — the gizmo now has a size ceiling tied to the selected board
 (with a floor that keeps it grabbable when zoomed far out), and the origin lines have
@@ -1019,6 +1186,33 @@ rounding the total would make the purchasing number wrong. **83** records what
 factor, no user-configurable precision. **84** carries forward the still-unverified
 print-to-PDF render (70, 79) — this round's browser pass used `emulateMedia`, not a real
 PDF.
+
+The sheet-nesting round added **85-94** — see `docs/follow-ups.md`'s "From the
+sheet-nesting round" section. **85** records shelf FFD's density cost against a
+maxrects packer as the design's deliberate choice, not a shortfall — guillotine
+cuttability is a domain fact, not a quality tier. **86** carries follow-up 83's rule
+forward from board feet to sheets: no offcut tracking, no waste factor, no rounding
+up, plus this round's own non-goals (no solid-stock nesting, no hand-rearranging, no
+mixed sheet sizes per material). **87** and **88** are the sixth and (a second,
+related) instance of the plan-supplied-justification lesson (64, 68, 80) — an epsilon
+test whose fixture never touched `EPS` at all, and a guillotine-cuttability test that
+could not fail because its bound was derived from the parts it was checking; see
+invariants 22 and 23 above for the mechanism of each. **89** is a pure-derivation
+lesson: a first review-fix pass added a `throw` to `buildNesting`, which is called on
+every cut-list render with no error boundary, and the actual fix collapsed two
+predicates into one path instead. **90** is the round's own instance of the
+cut-list-must-agree-with-itself defect the diagrams and board-feet rounds already hit
+in different shapes — a placed part's dims printed as an unformatted, possibly
+transposed float — closed by moving formatting into `nesting.ts`. **91** upgrades a
+label-centring finding filed MINOR to load-bearing: the old baseline placed ink 3
+units past the box `fitLabel` had just measured it against. **92** records two
+deferred minors: a formatted-dims expression duplicated verbatim in two places in
+`nesting.ts` with nothing pinning agreement, and no rendered sheet ever says "turned"
+in words, so a near-square part's rotation is ambiguous on the page. **93** and **94**
+are the Task 8 browser pass: no defect found, the exact `.cutlist-subtotal
+.cutlist-stock` selector that broke in follow-up 81 re-checked and held, and the
+still-open gaps (print-to-PDF, carrying 70/79/84; a 3+-shelf sheet's rendering, not
+just its packing, unexercised).
 
 One entry is a lesson rather than a defect and is worth reading before touching anything
 in the viewport: **26a**. Browser verification on this host runs on software GL

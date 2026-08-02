@@ -1471,3 +1471,209 @@ new fourth grid column right-aligned cleanly against the existing three without
 colliding with the multi-name list (`Leg 1, Leg 2`), and — after the follow-up 81 fix —
 both row and subtotal figures render `rgb(0, 0, 0)` under print media by
 `getComputedStyle`, matching what the screenshot showed by eye.
+
+## From the sheet-nesting round
+
+Design in `docs/superpowers/specs/2026-08-02-sloyd-sheet-nesting-design.md`. Adds a
+sheet count and an SVG layout per sheet to the cut list's sheet-goods groups, closing
+the cut list's last §7 non-goal — nesting is no longer deferred.
+
+**85. Shelf first-fit-decreasing packs a few percent looser than a maxrects packer, and
+that is the design's choice, not a shortfall found afterward.** A shop breaks a sheet
+down on a table saw or a track saw and every cut runs edge to edge; a maxrects layout
+routinely produces placements — an L-shaped remainder needing a cut that stops in the
+middle of the sheet — that are denser on paper and uncuttable on a saw. Shelf packing
+was picked *because* it corresponds to how the material is actually broken down, not
+because it was the simpler option available. The loss is bounded by the sort putting
+like heights together before packing begins (design §4, §7).
+
+**86. What `buildNesting` deliberately does not do, carrying follow-up 83's rule
+forward from board feet to sheets.** No offcut or remnant tracking — "you'll have a
+96×11 strip left over" is a real want and a different feature, needing a notion of
+inventory the document doesn't have. No waste factor and no rounding up — the count is
+what the layout actually consumes; a user who wants a spare sheet can buy one, and a
+tool that pads the number silently is lying about a purchasing figure, the same
+argument follow-up 83 already made for board feet. No solid-stock cut optimisation —
+nesting parts along an 8-foot board is a 1D problem with its own answer, and board feet
+is what this app says about solid stock. No hand-rearranging of a layout — it is a
+derived drawing, not a document, and making it editable would put geometry state
+outside the document (invariant 1). No mixed sheet sizes within one material — one
+`SheetStock` per material entry; "some of my plywood is 5×5" belongs to the
+custom-materials round's own document-level sizing, not a list bolted on here.
+
+**87. The sixth instance of the plan-supplied-justification lesson (follow-ups 64, 68,
+80) and the first one caught by a mutation sweep rather than by eye.** The plan's own
+prose asserted that reverting the fits-test's epsilon comparison to an exact `<=` would
+fail "this [test] and nothing else." That was false: the fixture it pointed at was four
+24" parts on a 96" sheet, and `24 × 4 = 96` is exactly representable in binary
+floating point, so the fixture never touched `EPS` at all — it passed identically with
+or without the tolerance. A 15,298-case sweep (every 1/16" and 1/64" up to 96", against
+kerfs of 0, 1/8", 1/16" and 3/32") confirmed the epsilon comparison and the exact one
+are bit-identical across the entire fractional-inch input space, because sixteenths and
+sixty-fourths are dyadic rationals and sums of dyadic rationals are exact in binary
+float. `EPS` is still load-bearing, but only because `parseLength` also accepts plain
+decimal entry and millimetres (divided by 25.4, which is not exact in binary) — fifteen
+6.4"-decimal parts summed on one shelf land at `96.00000000000001"` in IEEE 754, a hair
+over the sheet, and only the epsilon keeps the fifteenth part off a second shelf.
+Closed by replacing the mischaracterized fixture's comment (it now pins coordinates for
+the kerf test, nothing more) and adding the real epsilon fixture, confirmed by mutation
+(deleting `EPS` fails the new test and only the new test).
+
+**88. The guillotine-cuttability test could not fail, and no fixture alone could have
+fixed it — the bound had to stop being self-derived.** The property the whole algorithm
+exists to guarantee (§4 of the design) is that every part's across-sheet interval falls
+inside exactly one shelf band. The first version of that test derived each band's upper
+bound from the very parts placed inside it — so a part that spilled past the shelf it
+rode on simply grew that shelf's recorded band to match, and the assertion that the
+part fell "inside" its band was true by construction regardless of whether the packer's
+own height guard (`placeOn`'s `fits(f.h, shelf.h)`) was doing anything at all. Deleting
+that guard — the sole line in the packer enforcing guillotine cuttability — left the
+task's full test file at 19/19 green. Fixed by bounding each part against the *next*
+band's start (or the sheet edge for the last band) instead of a bound the parts under
+test produced, plus a dedicated MDF fixture (a 90×10 rail opening a shelf, a 30×4 stick
+whose flipped orientation is 4×30 tall) that fails without the guard and passes with
+it.
+
+**89. A pure derivation gained a `throw` during the round's first review-fix pass, and
+that was itself a defect — fixed by collapsing two paths into one rather than trusting
+the throw to never fire.** `buildNesting` is called by `buildCutList` on every render
+of the cut list, with no cache and no error boundary. An early fix added a `throw` for
+the case where a standalone pre-check ("does this part fit *some* empty sheet") and the
+later placement attempt disagreed — meant as a safety net, it would instead have
+blanked the entire cut list for the single most ordinary unplaceable case, an oversized
+part, which `UnplaceablePart` already exists to report as one line. The actual fix
+removed the throw and the separate pre-check together: try existing sheets, then try
+exactly one fresh sheet, and let *that* attempt's own result decide placed versus
+unplaceable — there is now only one `placeOn` call deciding the outcome, so there is
+nothing left for a second predicate to diverge from.
+
+**90. Task 7's `SheetLayout.tsx` formatted a placed part's dimensions from raw floats,
+so the same board could print two different strings on one sheet.** The cut-list row
+for a board prints `formatLength(board.length, precision) × formatLength(board.width,
+precision)` — a fraction, e.g. `23-1/2"`. The layout component, reading the packer's
+placed `w`/`h` directly, printed the unformatted float instead (`23.5"`), and for a
+board `footprintsOf` turned 90° to fit the sheet, `w`/`h` are swapped relative to
+`length`/`width` — so a turned part's layout label could also read `24" × 48"` against
+the row's `48" × 24"` for the identical board. Fixed by moving `dims` into
+`PlacedPart` itself, formatted once in `nesting.ts` from the board's own `length` and
+`width` (never re-derived from the placed, possibly-swapped `w`/`h`), the same shape
+`UnplaceablePart.dims` already used. `SheetLayout.tsx` now formats nothing, matching
+`CutList.tsx` and `PartDiagram.tsx`.
+
+**91. A label-centring finding filed MINOR was, on inspection, load-bearing: the old
+baseline placed ink past the very budget `fitLabel` had just checked against.** The
+original arithmetic centred a label at `cy + LABEL_ASCENT / 2`. `fitLabel` measures a
+label's box as `LABEL_ASCENT + LABEL_DESCENT` (25 units) and checks that box against
+the rectangle; the correct baseline for centring that box on `cy` is
+`cy + (LABEL_ASCENT - LABEL_DESCENT) / 2`. With `LABEL_ASCENT = 19` and
+`LABEL_DESCENT = 6`, the old formula placed the baseline 3 units lower than the box
+`fitLabel` had measured — meaning a label `fitLabel` reported as fitting could have its
+descenders extend 3 units past the rectangle it was measured against. No case in this
+round's fixtures actually overflowed visibly, which is why the finding read as
+cosmetic; the mechanism is not cosmetic, because it is exactly the shape that would let
+`fitLabel`'s tier decision silently disagree with what renders. Fixed to
+`cy + (LABEL_ASCENT - LABEL_DESCENT) / 2`.
+
+**92. Two deferred minors, left open rather than fixed, because neither has a known
+failure case yet.** First: in `nesting.ts` the formatted-dims expression
+(`` `${formatLength(board.length, precision)} × ${formatLength(board.width,
+precision)}` ``) appears verbatim in two places — the placed-part path inside `put()`
+and the unplaceable-part path — with nothing pinning that the two stay in agreement if
+one is ever edited without the other. Second: nothing on a rendered sheet says "turned"
+in words — `PlacedPart.turned` exists in the data and is asserted in tests, but
+`SheetLayout.tsx` never prints it, so a reader looking at a near-square part's
+rectangle cannot tell a 90° turn from a simple transposition of the printed dimensions.
+The ambiguity is bounded twice over, not just once. It is real only near a 1:1 aspect
+ratio — it vanishes as a part's length and width diverge — and it is only reachable
+under `rotate: 'free'` (MDF) in the first place: `footprintsOf` returns exactly one
+footprint under `rotate: 'grain'` (plywood), so the packer itself never turns a plywood
+part — the only way a plywood part's grain runs across the sheet is the orientation the
+cut-list row already states. Which is presumably why no reviewer flagged it as blocking.
+
+**93. The Task 8 browser pass found no defects, and specifically re-checked the exact
+selector shape that broke twice before.** Follow-up 81's defect — a more specific
+two-class screen rule outranking a correctly-enumerated single-class print override —
+was the standing worry named going into this round's own print verification, since this
+round adds its own new print-affected classes (`.cutlist-layout-count`,
+`.cutlist-layout-head`, `.cutlist-unplaceable`, `.cutlist-layout-key`). `getComputedStyle`
+under `emulateMedia({ media: 'print' })` returned `rgb(0, 0, 0)` for all four, and for
+`.cutlist-subtotal .cutlist-stock` itself — the identical two-class selector that broke
+in follow-up 81 — confirming that round's fix still holds now that a sheet-goods
+group's print block has more content beneath it. The SVG fills were checked too, but
+came back deliberately mixed, not uniformly black: `.cutlist-layout-sheet`'s stroke and
+the layout `<svg>`'s own fill are `rgb(0, 0, 0)`, while `.cutlist-layout-part`'s fill is
+`rgb(255, 255, 255)` — white, on purpose, because a part label sits on top of its
+rectangle and black-on-black would make the label unreadable. See
+`docs/browser-verification-sheet-nesting.md`'s print check for the full set. No
+print-colour defect was found; the styles.css comment near the `@media print` block
+already names follow-ups 58 and 81 and this pass confirmed that reasoning holds
+rendered, rather than surfacing a new instance.
+
+**94. What the Task 8 pass did not check, carried forward rather than newly
+discovered.** A real print-to-PDF render remains unverified — this host's Playwright
+exposes no `pdf()`, so `emulateMedia` plus a screenshot is the closest available check,
+the same standing gap follow-ups 70, 79 and 84 already record for the diagrams and
+board-feet rounds. A sheet dense enough to need three or more shelves was not exercised
+in the browser fixture (it produced at most two shelves per sheet) — the packing
+*algorithm*'s behaviour at that density is unit-tested, but its on-screen *rendering*
+at that density was not eyeballed. Real (non-software) GL was not exercised either,
+though it is not applicable here: `SheetLayout`/`buildNesting` touch no shader or
+WebGL path, so invariant 26a's warning does not reach this round's own code.
+
+**95. An unplaceable part is counted in square feet but not in sheets.**
+`cutlist.ts`'s grouping loop adds every board's own `stockInchesOf` to `group.stockInches`
+unconditionally, before `buildNesting` ever runs — a sheet-goods group's square-footage
+subtotal reflects every board in the group, placed or not. `buildNesting` opens a sheet
+only when a part actually lands on it (see `nesting.ts`'s fresh-sheet gate), so a part
+that fits no sheet in any orientation adds to the square-foot total but never to
+`sheets.length`. A group heading can therefore read `0 sheets (96" × 48")` beside a
+nonzero square-foot figure — two purchasing numbers with different scope printed on one
+line. Mitigated in practice because `CutList.tsx` prints the unplaceable-parts naming
+line immediately below the heading, so a reader sees *why* the sheet count reads low
+right next to the number that does — but the two numbers themselves still disagree on
+what they're counting.
+
+**98. There is no UI for editing `stock.kerf`, and the default's error is
+asymmetric.** `stock.kerf` is migrated, defaulted, validated (`document.ts`) and used
+by the packer (`nesting.ts`), and it is undoable like any other document field — but
+nothing in `Toolbar.tsx` or `Properties.tsx` lets a user change it. Changing it means
+hand-editing the saved JSON. This was deliberate, not an oversight: a kerf control
+belongs with the settings surface a future custom-materials round will need anyway, and
+adding one here would have meant a store action plus a toolbar or preferences panel
+that nothing else in this round required — the fix is small when someone wants it
+(a `setKerf` store action and a field), which is exactly why it was safe to defer rather
+than build speculatively. The error direction is worth saying out loud rather than
+leaving as an unstated risk: the `0.125` default UNDER-counts for a shop running a
+1/4" CNC router or any wider kerf, so the sheet count comes out low and the user buys
+too little material, with no way to correct it short of hand-editing the file.
+Over-counting — a thin-kerf blade or a track saw, where the true kerf is narrower than
+the default — is harmless, since it only ever buys a spare sheet. An under-count is the
+direction that costs a trip back to the yard mid-project.
+
+**96. `fitLabel`'s terminal `index` tier has no height check.** `src/panels/
+diagramLabels.ts:147` returns `'index'` unconditionally as the last case in the
+tier ladder, with no comparison against `boxH` the way the `'full'` and `'name'` tiers
+above it both have. A part narrow enough to fail the `'name'` tier's width check but
+whose rectangle is also short (both dimensions small — a small square-ish offcut) gets
+a 25-unit-tall label (`LABEL_ASCENT + LABEL_DESCENT`, see follow-up 91) drawn inside a
+rectangle nothing has confirmed is tall enough to hold it. The browser pass covered ten
+parts down to a 3"-wide `Back Cleat` on a 96" sheet (`docs/browser-verification-
+sheet-nesting.md`), which clears comfortably; this is the residual below that width,
+and specifically the height axis the width-only fixtures never exercised — the same
+defect class `fitLabel` exists to close for the other two tiers, left open on the one
+tier that has no fallback beneath it.
+
+**97. Board `id` uniqueness is newly load-bearing but never enforced.**
+`buildNesting`'s sort tiebreak (`a.id.localeCompare(b.id)` in `nesting.ts`) and
+`SheetLayout.tsx`'s `<g key={p.boardId}>` both now depend on every board in a document
+having a distinct `id` — the tiebreak needs it for a total order, the React key needs it
+to avoid two siblings sharing a key. Nothing enforces that. `validateBoard` mints an id
+(`nextId()`) only when `b.id` is missing or not a non-empty string; two boards that both
+arrive with `id: "a"` both keep `"a"` — there is no id equivalent of `dedupeNames`
+(invariant 8), which is called on every load specifically to fix this failure shape for
+*names*. A hand-edited or badly-merged file with duplicate ids would give
+`buildNesting` a non-total sort (so an unstable layout that can reorder between renders)
+plus a React duplicate-key console warning from `SheetLayout`. Pre-existing gap in
+`validateBoard`, newly depended upon by this round rather than introduced by it — the
+obvious fix is to give `id` the same dedupe-on-load treatment invariant 8 already gives
+`name`.

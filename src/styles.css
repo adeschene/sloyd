@@ -654,6 +654,58 @@ button[aria-pressed='true'] {
   color: var(--ink-faint);
 }
 
+/* `.cutlist-sheet` is the printable modal itself — every class this round adds
+   uses the `cutlist-layout-` prefix so the two never collide. */
+.cutlist-layout-count { color: var(--ink-dim); font-weight: 400; }
+
+/* `--alert` is the palette's existing token for inline warning/error text on
+   a dark panel — `.field-error` already uses it the same way. `--warn-bg`/
+   `--warn-border`/`--warn-ink` were considered and rejected: those three are a
+   matched PILL (background + border + text), built for the toolbar's banner,
+   and using only `--warn-ink` here would orphan it from the backdrop it was
+   tuned against. */
+.cutlist-unplaceable {
+  color: var(--alert);
+  margin: 0.25rem 0;
+}
+
+.cutlist-layout { margin: 0.75rem 0 1.25rem; }
+
+.cutlist-layout-head {
+  color: var(--ink-dim);
+  margin-bottom: 0.25rem;
+}
+
+.cutlist-layout svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  font-family: var(--font-num);
+  fill: var(--ink);
+  stroke: none;
+}
+
+.cutlist-layout-sheet {
+  fill: none;
+  stroke: var(--ink-dim);
+  stroke-width: 2;
+}
+
+/* --graphite-800 is one step lighter than .cutlist-sheet's own
+   --graphite-900 background, which is what makes a part's rect read as
+   material sitting ON the sheet rather than a hole in it. */
+.cutlist-layout-part {
+  fill: var(--graphite-800);
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+.cutlist-layout-key {
+  color: var(--ink-dim);
+  margin: 0.25rem 0 0;
+  padding-left: 1rem;
+}
+
 @media print {
   /* The overlay is a direct child of `.app` — see CutList.tsx. */
   .app > *:not(.cutlist-overlay) { display: none !important; }
@@ -697,7 +749,10 @@ button[aria-pressed='true'] {
   .cutlist-diagram-head,
   .cutlist-diagram-note,
   .cutlist-diagram-crossings,
-  .cutlist-setup { color: #000; }
+  .cutlist-setup,
+  .cutlist-layout-count,
+  .cutlist-layout-head,
+  .cutlist-layout-key { color: #000; }
 
   .cutlist-row {
     border-bottom: 1px solid #ccc;
@@ -713,6 +768,26 @@ button[aria-pressed='true'] {
      alone is not enough wherever a more specific selector also sets color;
      this rule has to match that specificity to win. */
   .cutlist-subtotal .cutlist-stock { color: #000; }
+
+  /* Follow-ups 58 and 81 are the SAME defect: an enumerated single-class
+     override outranked by a MORE SPECIFIC screen rule. That contest does not
+     exist here — `.cutlist-layout svg` at (0,1,1) matches only the `<svg>`
+     element, never the `.cutlist-layout-part`/`.cutlist-layout-sheet`
+     children, which each carry their own explicit `fill`/`stroke` and so
+     never inherit from it. What decides those two IS a specificity tie:
+     the screen and print rules for each are both (0,1,0), so the winner is
+     SOURCE ORDER — this print block sits after the screen rules in the file,
+     so it wins whenever both apply. `.cutlist-layout svg { fill: #000; }`
+     earns its keep a different way: it blackens the `<text>` labels, which
+     set no `fill` of their own and inherit it from the `<svg>` exactly the
+     way the screen rule (`.cutlist-layout svg { fill: var(--ink); }`)
+     intends. Two different mechanisms, not one battle — keep both rules,
+     but don't cite the wrong one when reasoning about either. */
+  .cutlist-layout svg { fill: #000; }
+  .cutlist-layout-part { fill: #fff; stroke: #000; }
+  .cutlist-layout-sheet { stroke: #000; }
+  .cutlist-unplaceable { color: #000; font-weight: 600; }
+  .cutlist-layout { break-inside: avoid; }
 
   /* The SVG inherits `color`, and every stroke and fill inside it is
      `currentColor`, so this one declaration blackens the whole drawing. Both
