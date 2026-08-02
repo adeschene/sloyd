@@ -1559,7 +1559,10 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 
 **Files:**
 - Modify: `src/viewport/Viewport.tsx` (the `Viewport` function, roughly lines 236–367)
-- Modify: `src/styles.css`
+
+No CSS change: the crosshair is an inline `style` prop on `<Canvas>` (R3F puts
+`style` on its wrapping div and the canvas inherits the cursor), so
+`src/styles.css` is deliberately untouched.
 
 **Interfaces:**
 - Consumes: `MoveTool` (Task 6), `tool` from the store (Task 3).
