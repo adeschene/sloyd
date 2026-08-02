@@ -39,7 +39,14 @@ gitignored. Read that file before deploying; it is not in the public repo.
 layout, per-face views and board feet are all shipped and merged to `master`. Do not
 treat any of the five as in-flight.
 
-**`master` is AHEAD of production.** Everything through the per-face diagrams round is
+**Production matches `master` as of 2026-08-02.** The three-round gap is closed — the
+empty-solids placeholder, board feet and sheet-goods nesting all deployed together. One
+consequence worth knowing before any rollback: this was the first deploy to ship a schema
+bump (v5) to production, so a document saved by the live build is *refused* by the
+previous image rather than silently downgraded. See `DEPLOYMENT.local.md`. The paragraph
+below is kept as the record of the deferral that preceded it.
+
+~~**`master` is AHEAD of production.**~~ Everything through the per-face diagrams round is
 deployed. The two rounds after it — the **empty-solids placeholder** and **board feet** —
 are merged and verified but have **not** been deployed; the user deferred the deploy
 deliberately, it is not an oversight. Production therefore still renders a fully-consumed
