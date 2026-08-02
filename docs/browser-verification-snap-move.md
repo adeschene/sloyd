@@ -70,6 +70,29 @@ CLAUDE.md says it does. The same corner colour was also confirmed on pine
 (`corner-marker-on-pine.png`) and on plywood (`silhouetted-corner-plywood.png`) — legible
 on both light woods with no ring-related regression.
 
+**Correction (fix round, same day):** the paragraph above originally read broadly enough
+to imply all three marker kinds had been checked on all three woods. In fact only
+corner/green had been checked on pine, walnut and plywood; edge-midpoint/cyan and
+face-centre/violet had only ever been hovered on walnut. This was flagged in review and
+closed by taking the four missing shots rather than narrowing the claim: edge midpoint
+and face centre, each on a pine board and a plywood board (four boards total, one at a
+time at the world origin, `Move` tool active), using the same crop-and-zoom-a-screenshot
+approach as the rest of this report, with the camera switched to **Orthographic** for the
+plywood/pine pass specifically because it makes the corner-parallelogram arithmetic used
+to locate an interior point (a face centre has no board edge to anchor a crop against)
+exact instead of perspective-approximate. All four were confirmed:
+
+- Edge midpoint on pine → cyan `#22b8d4`, legible against pine's lighter grain.
+  (`hover-pine-edgemid-cyan-crop.png`)
+- Face centre on pine → violet `#8a5fd0`. (`hover-pine-facecenter-violet-crop.png`)
+- Edge midpoint on plywood → cyan `#22b8d4`, clearly visible against the ply-edge
+  lamination texture. (`hover-plywood-edgemid-cyan-crop.png`)
+- Face centre on plywood → violet `#8a5fd0`. (`hover-plywood-facecenter-violet-crop.png`)
+
+All three marker kinds are now confirmed legible on all three woods named in the task
+brief (pine, walnut, plywood); nothing remains narrower than the original paragraph
+implied.
+
 **No marker at a board's volume centre.** `src/document/snapPoints.ts`'s
 `boardSnapPoints` enumerates the 3×3×3 lattice of `{min, mid, max}` per axis and
 explicitly `continue`s the one case where all three axes are `mid` (the volume centre)
@@ -157,6 +180,21 @@ itself is not exact in binary), not a snap to any grid — 1/16" would have land
 `0` exactly. The landed value is **not** rounded to 1/16", confirmed by the actual
 stored number, not by inspection of the display (which — per invariant 5's display
 rounds/stored is exact rule — showed `0"` in the Properties panel the whole time).
+
+**Correction (fix round, same day) — which corner:** this session's own screenshots for
+this specific check are ambiguous (the fixture had already moved on to the two-board
+setup by this point, and no screenshot filename was cited against this paragraph in the
+first place), so the corner is identified from the numbers already recorded above, not
+from a screenshot. Board was grabbed at its own zero-offset corner (a `(min-x, min-y,
+min-z)` pick, offset `(0,0,0)`), and it landed at exactly `[30, 0.010000000000000009,
+15]` — equal to Board (1)'s own stated position `[30, 0.01, 15]` on X and Z with only
+float noise on Y. That is only possible if the corner clicked on Board (1) was itself
+its zero-offset `(min-x, min-y, min-z)` corner, the one coincident with its `position`
+field: any other corner on the 3×3×3 lattice would have added a nonzero length, width,
+or thickness offset on at least one axis, and the landed X and Z would then differ from
+Board (1)'s position by that board's own 24" or 5.5", not match it exactly. So the noise
+in `target.at[1]` traces to `0.01 + 0` on the Y axis specifically (position plus a
+zero corner-lattice offset), not to an addition involving the board's thickness.
 
 **One `Ctrl+Z` reverts the whole move.** After each of the commits above, a single
 `Ctrl+Z` restored the moved board to its pre-grab position exactly (verified via
