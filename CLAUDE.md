@@ -44,16 +44,26 @@ gitignored. Read that file before deploying; it is not in the public repo.
 layout, per-face views and board feet are all shipped and merged to `master`. Do not
 treat any of the five as in-flight.
 
-**Production no longer matches `master`: the snap-move round is merged and
-undeployed.** It caught up on 2026-08-02, after three rounds during which it
-deliberately did not — the empty-solids placeholder, board feet and sheet-goods nesting
-sat merged and undeployed because the user chose to hold them, and they went out
-together. That deploy was verified after: `200` on `/` and on a deep route, 0 console
-errors, the Cloudflare beacon present. Snap-move landed on top of it and has not
-shipped. **Deploying it carries no version-gate rollback cost**, unlike the deploy
-below: it changes no schema, so a document saved by a snap-move build still reads
-`version: 5` and the currently-live image opens it unchanged. Rolling back after this
-one costs nothing but the tool.
+**Production matches `master` as of 2026-08-02**, snap-move included — it was merged
+and deployed the same day, unlike the three rounds before it that sat merged and held
+back at the user's choice. Verified after: `200` on `/` and on a deep route both
+in-network and publicly, the new bundle (`index-PzaLeA8Y.js` → `index-DNH_-g9z.js`)
+served at the edge, the Select/Move pair present in the live toolbar, 0 console errors
+(two known three.js deprecation warnings), and exactly one Cloudflare beacon.
+
+**Snap-move carried no version-gate rollback cost**, unlike the deploy described below.
+It changes no schema, so a document saved by the live build still reads `version: 5` and
+the previous image opens it unchanged — rolling this one back would cost nothing but the
+tool itself. That is a property of this round, not a new general rule: the paragraph
+below still governs any rollback past the sheet-nesting deploy.
+
+**Production was verified by loading the page only, and that is a standing rule rather
+than this round's shortcut.** Sloyd has no server-side state, so `sloyd.autosave.v1` in
+the user's browser *is* their project; exercising a new feature against production would
+overwrite it with a demo document and there is nothing to restore from. New rendering
+gets verified against the dev server (that is what
+`docs/browser-verification-snap-move.md` is), and the deploy itself gets confirmed by
+bundle hash. See `DEPLOYMENT.local.md` for the full statement.
 
 **That deploy was the first to ship a schema bump to production, which changes what
 rollback costs.** A document saved by the live build carries `version: 5`; the previous
@@ -278,15 +288,24 @@ Sheet-nesting closed the cut list's §7 list entirely — see the updated "Defer
 it" paragraph below — and snap-move was the successor picked, deliberately in a
 different part of the app rather than a sixth cut-list descendant.
 
-**There is no next line of work chosen after snap-move**, but unlike last time there
-are named candidates rather than an empty field: the **tape measure, guide points and
-guide lines**, which the user named as the intended follow-ups to snap-move
-(follow-up 105), and **cut-aware snap points** (follow-up 99), which the user
-explicitly deferred to keep the Move tool's v1 small. All four are cheap in the same
-specific way — each is a new `SnapPoint` *provider*, not a change to `pickSnapPoint` —
-which is what the `SnapOwner` union was built for. Guides persist, so they need a
-schema bump to v6 and a `guides` array beside `boards` and `stock`; the tape measure
-and cut shoulders need none.
+**The next line of work IS chosen, as of 2026-08-02: the tape measure, guide points and
+guide lines** — the three the user named as the intended follow-ups to snap-move when
+they asked for the Move tool in the first place (follow-up 105), confirmed as the
+successor immediately after snap-move deployed. They are one line of work rather than
+three, because guide points and guide lines are the same schema change and the tape
+measure is the tool that places them.
+
+A fourth candidate sits beside them but was **not** chosen: **cut-aware snap points**
+(follow-up 99), which the user explicitly deferred to keep the Move tool's v1 small. It
+is independent of the three and can land before, after, or never.
+
+All four are cheap in the same specific way — each is a new `SnapPoint` *provider*, not
+a change to `pickSnapPoint` — which is what the `SnapOwner` union was built for. Guides
+persist, so they need a schema bump to v6 and a `guides` array beside `boards` and
+`stock`; the tape measure and cut shoulders need none. That v6 bump is the round's one
+real design question, and the sheet-nesting round's `stock` step is its worked example:
+`guides` is document-level, so it takes the `d.stock`-style defensive read rather than
+joining the `rawBoards.map` chain.
 
 Start with `superpowers:brainstorming`, and read the snap-move design's §2.3 and §8
 first — §2.3 is the interface all four candidates land through, and §8 records *why*
