@@ -242,6 +242,7 @@ export function Viewport({
   const boards = useStore((s) => s.doc.boards);
   const selectedId = useStore((s) => s.selectedId);
   const selectBoard = useStore((s) => s.selectBoard);
+  const tool = useStore((s) => s.tool);
 
   // The dpr floor of 2 is an anti-aliasing measure, not a sharpness
   // preference, and it is what makes an unfaded grid viable. A 1in grid
@@ -330,6 +331,7 @@ export function Viewport({
           board={board}
           selected={board.id === selectedId}
           onSelect={selectBoard}
+          selectable={tool === 'select'}
         />
       ))}
 
