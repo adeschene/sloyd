@@ -474,11 +474,11 @@ describe('schema 4 — cuts', () => {
         material: 'pine',
       }],
     });
-    expect(doc.version).toBe(4);
+    expect(doc.version).toBe(5);
     expect(doc.boards[0].cuts).toEqual([]);
   });
 
-  // The chain is the point: a v1 file must walk 1 -> 2 -> 3 -> 4, folding
+  // The chain is the point: a v1 file must walk 1 -> 2 -> 3 -> 4 -> 5, folding
   // 270 to 90 BEFORE it gains a posture, and gaining cuts last.
   it('walks a v1 file all the way to 4', () => {
     const doc = migrateDocument({
@@ -490,7 +490,7 @@ describe('schema 4 — cuts', () => {
         position: [0, 0, 0], rotation: 270, standing: true, material: 'oak',
       }],
     });
-    expect(doc.version).toBe(4);
+    expect(doc.version).toBe(5);
     expect(doc.boards[0].rotation).toBe(90);
     expect(doc.boards[0].posture).toBe('on-edge');
     expect(doc.boards[0].grain).toBe('length');
@@ -515,7 +515,7 @@ describe('schema 4 — cuts', () => {
   });
 
   it('rejects a file from a newer schema', () => {
-    expect(() => migrateDocument({ version: 5, name: 'x', boards: [] }))
+    expect(() => migrateDocument({ version: 6, name: 'x', boards: [] }))
       .toThrow(/newer version/);
   });
 });
@@ -586,5 +586,64 @@ describe('cut validation', () => {
     const kept = load([dado({ id: 'same' }), dado({ id: 'same', offset: 10 })]);
     expect(kept).toHaveLength(2);
     expect(kept[0].id).not.toBe(kept[1].id);
+  });
+});
+
+describe('schema v5 — stock.kerf', () => {
+  it('gives a new document the default kerf', () => {
+    expect(createDocument('Test').stock).toEqual({ kerf: 0.125 });
+    expect(createDocument('Test').version).toBe(5);
+  });
+
+  it('defaults kerf on a v4 file that has none', () => {
+    const doc = migrateDocument({ version: 4, name: 'Old', boards: [] });
+    expect(doc.stock).toEqual({ kerf: 0.125 });
+    expect(doc.version).toBe(5);
+  });
+
+  it('keeps a kerf the user set', () => {
+    const doc = migrateDocument({ version: 5, name: 'X', stock: { kerf: 0.25 }, boards: [] });
+    expect(doc.stock.kerf).toBe(0.25);
+  });
+
+  // A negative kerf places parts overlapping; an inch-wide kerf is a typo, not
+  // a saw. Both fall back rather than throwing — a saved document must always
+  // open, the same rule validateCuts follows.
+  it.each([-0.1, 1, 2, Number.NaN, Infinity])('rejects an impossible kerf (%s)', (kerf) => {
+    const doc = migrateDocument({ version: 5, name: 'X', stock: { kerf }, boards: [] });
+    expect(doc.stock.kerf).toBe(0.125);
+  });
+
+  it('accepts a zero kerf', () => {
+    const doc = migrateDocument({ version: 5, name: 'X', stock: { kerf: 0 }, boards: [] });
+    expect(doc.stock.kerf).toBe(0);
+  });
+
+  it('ignores a stock field that is not an object', () => {
+    for (const stock of ['x', 3, null, []]) {
+      expect(migrateDocument({ version: 5, name: 'X', stock, boards: [] }).stock.kerf).toBe(0.125);
+    }
+  });
+
+  // The whole reason the version is bumped: without it, a v4 build would open
+  // a file carrying a 1/4" kerf, silently drop it, and print a different sheet
+  // count than the build that saved it.
+  it('refuses a file from a newer build', () => {
+    expect(() => migrateDocument({ version: 6, name: 'X', boards: [] })).toThrow(DocumentError);
+  });
+
+  it('walks a v1 file all the way to v5', () => {
+    const doc = migrateDocument({
+      version: 1,
+      name: 'Ancient',
+      boards: [{ name: 'A', length: 24, width: 4, thickness: 0.75, position: [0, 0, 0],
+                 rotation: 270, standing: true, material: 'pine' }],
+    });
+    expect(doc.version).toBe(5);
+    expect(doc.stock).toEqual({ kerf: 0.125 });
+    expect(doc.boards[0].rotation).toBe(90);
+    expect(doc.boards[0].posture).toBe('on-edge');
+    expect(doc.boards[0].grain).toBe('length');
+    expect(doc.boards[0].cuts).toEqual([]);
   });
 });

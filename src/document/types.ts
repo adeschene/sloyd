@@ -89,6 +89,13 @@ export interface SloydDocument {
   version: number;
   name: string;
   units: { display: 'imperial-fractional'; precision: number };
+  /**
+   * Facts about the SHOP, not about the project's materials. A table saw takes
+   * 1/8", a thin-kerf blade less, a CNC router 1/4" — that belongs to the
+   * person, so it travels with their file and is undoable like anything else.
+   * Sheet SIZE deliberately lives on MATERIALS instead; see SheetStock.
+   */
+  stock: { kerf: number };
   boards: Board[];
 }
 
@@ -133,6 +140,9 @@ export const MATERIALS: Record<string, { label: string; color: string; sheet?: S
 };
 
 export const DEFAULT_MATERIAL = 'pine';
+
+/** Inches. A standard table-saw blade. */
+export const DEFAULT_KERF = 0.125;
 
 /**
  * Sheet goods (plywood, MDF) are a different domain thing from solid stock:
