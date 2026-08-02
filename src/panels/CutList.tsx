@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store/store';
-import { buildCutList } from '../document/document';
+import { buildCutList, sheetStockOf } from '../document/document';
 import { PartDiagram } from './PartDiagram';
+import { SheetLayout } from './SheetLayout';
 
 /**
  * Which rows get drawn. LOCAL VIEW STATE, deliberately not in the store: it is
@@ -31,6 +32,14 @@ export function CutList({ onClose }: { onClose: () => void }) {
   const list = buildCutList(doc);
   const sheet = useRef<HTMLDivElement>(null);
   const [diagrams, setDiagrams] = useState<DiagramMode>('joinery');
+  /**
+   * Whether sheet layouts are drawn. LOCAL VIEW STATE, same reasoning as
+   * `diagrams` above. Separate from the Diagrams select on purpose: "all
+   * parts / joinery only / none" is a statement about PER-PART drawings and
+   * has no meaning for a sheet, so folding these in would make one control
+   * answer two unrelated questions.
+   */
+  const [layouts, setLayouts] = useState(true);
 
   // `tabIndex={-1}` makes the sheet focusable without putting it in the tab
   // order, so focus starts inside the dialog and Tab proceeds to Print/Close
@@ -64,6 +73,14 @@ export function CutList({ onClose }: { onClose: () => void }) {
                 <option value="all">All parts</option>
               </select>
             </label>
+            <label className="cutlist-layout-mode">
+              <input
+                type="checkbox"
+                checked={layouts}
+                onChange={(e) => setLayouts(e.target.checked)}
+              />
+              Sheet layouts
+            </label>
             <button onClick={() => window.print()}>Print</button>
             <button onClick={onClose} aria-label="Close cut list">✕</button>
           </div>
@@ -74,7 +91,17 @@ export function CutList({ onClose }: { onClose: () => void }) {
         ) : (
           list.groups.map((group) => (
             <section className="cutlist-group" key={group.label}>
-              <h3>{group.label}</h3>
+              <h3>
+                {group.label}
+                {group.nesting && (
+                  <span className="cutlist-layout-count"> · {group.nesting.label}</span>
+                )}
+              </h3>
+              {group.nesting?.unplaceable.map((p) => (
+                <p className="cutlist-unplaceable" key={p.boardId}>
+                  {p.name} ({p.dims}) does not fit a {group.nesting!.sheet} sheet.
+                </p>
+              ))}
               <ul className="cutlist-rows">
                 {group.rows.map((row) => (
                   <li className="cutlist-row" key={row.key}>
@@ -110,6 +137,9 @@ export function CutList({ onClose }: { onClose: () => void }) {
                 <span className="cutlist-subtotal-label">{group.label}:</span>
                 <span className="cutlist-stock">{group.stock}</span>
               </p>
+              {layouts && group.nesting && group.nesting.sheets.length > 0 && (
+                <SheetLayout nesting={group.nesting} stock={sheetStockOf(group.material)!} />
+              )}
             </section>
           ))
         )}

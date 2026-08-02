@@ -654,6 +654,48 @@ button[aria-pressed='true'] {
   color: var(--ink-faint);
 }
 
+/* `.cutlist-sheet` is the printable modal itself — every class this round adds
+   uses the `cutlist-layout-` prefix so the two never collide. */
+.cutlist-layout-count { color: var(--ink-dim); font-weight: 400; }
+
+.cutlist-unplaceable {
+  color: var(--warn, #b4532a);
+  margin: 0.25rem 0;
+}
+
+.cutlist-layout { margin: 0.75rem 0 1.25rem; }
+
+.cutlist-layout-head {
+  color: var(--ink-dim);
+  margin-bottom: 0.25rem;
+}
+
+.cutlist-layout svg {
+  width: 100%;
+  height: auto;
+  font-family: var(--font-num);
+  fill: var(--ink);
+  stroke: none;
+}
+
+.cutlist-layout-sheet {
+  fill: none;
+  stroke: var(--ink-dim);
+  stroke-width: 2;
+}
+
+.cutlist-layout-part {
+  fill: var(--panel-2, #2a2a28);
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+.cutlist-layout-key {
+  color: var(--ink-dim);
+  margin: 0.25rem 0 0;
+  padding-left: 1rem;
+}
+
 @media print {
   /* The overlay is a direct child of `.app` — see CutList.tsx. */
   .app > *:not(.cutlist-overlay) { display: none !important; }
@@ -697,7 +739,10 @@ button[aria-pressed='true'] {
   .cutlist-diagram-head,
   .cutlist-diagram-note,
   .cutlist-diagram-crossings,
-  .cutlist-setup { color: #000; }
+  .cutlist-setup,
+  .cutlist-layout-count,
+  .cutlist-layout-head,
+  .cutlist-layout-key { color: #000; }
 
   .cutlist-row {
     border-bottom: 1px solid #ccc;
@@ -713,6 +758,16 @@ button[aria-pressed='true'] {
      alone is not enough wherever a more specific selector also sets color;
      this rule has to match that specificity to win. */
   .cutlist-subtotal .cutlist-stock { color: #000; }
+
+  /* Follow-ups 58 and 81 are the same defect twice: an enumerated single-class
+     override outranked by a more specific screen rule. `.cutlist-layout svg`
+     sets `fill` at specificity (0,1,1), so a bare `.cutlist-layout-part` here
+     would lose. These match or beat it deliberately. */
+  .cutlist-layout svg { fill: #000; }
+  .cutlist-layout-part { fill: #fff; stroke: #000; }
+  .cutlist-layout-sheet { stroke: #000; }
+  .cutlist-unplaceable { color: #000; font-weight: 600; }
+  .cutlist-layout { break-inside: avoid; }
 
   /* The SVG inherits `color`, and every stroke and fill inside it is
      `currentColor`, so this one declaration blackens the whole drawing. Both
