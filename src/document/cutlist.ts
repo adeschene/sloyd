@@ -1,9 +1,11 @@
-import { MATERIALS, isSheetGood } from './types';
+import { MATERIALS, isSheetGood, sheetStockOf } from './types';
 import type { Board, Cut, Grain, SloydDocument } from './types';
 import { positionAxisOf } from './geometry';
 import { cutLabel } from './cuts';
 import { buildDiagrams } from './diagram';
 import type { DiagramView } from './diagram';
+import { buildNesting } from './nesting';
+import type { Nesting } from './nesting';
 import { formatLength } from '../units/length';
 import { formatBoardFeet, formatSquareFeet } from '../units/quantity';
 
@@ -89,6 +91,16 @@ export interface CutListGroup {
   stockInches: number;
   /** `stockInches` formatted with its unit, e.g. `2.05 bd ft`. */
   stock: string;
+  /**
+   * How this group's parts lay out on full sheets — present exactly when
+   * `isSheetGood(material)`, absent otherwise, so the panel's existing
+   * is-this-sheet-goods branch is the only condition it needs.
+   *
+   * Built from this group's BOARDS, not its rows: a row is representative and
+   * a layout built from rounded dimensions can overflow a real sheet. See
+   * buildNesting's own comment.
+   */
+  nesting?: Nesting;
 }
 
 export interface CutList {
@@ -218,6 +230,10 @@ export function buildCutList(doc: SloydDocument): CutList {
   const precision = doc.units.precision;
   const groups = new Map<string, CutListGroup>();
   const rows = new Map<string, CutListRow>();
+  // Boards per group, kept beside the groups rather than on them: nesting
+  // needs every board's exact footprint, and CutListGroup deliberately
+  // carries rows (representative) rather than boards.
+  const groupBoards = new Map<CutListGroup, Board[]>();
 
   for (const board of doc.boards) {
     const groupKey = `${board.material}|${formatLength(board.thickness, precision)}`;
@@ -232,6 +248,7 @@ export function buildCutList(doc: SloydDocument): CutList {
         stock: '',
       };
       groups.set(groupKey, group);
+      groupBoards.set(group, []);
     }
 
     // rowKey starts with the group's own two fields, so a row key is unique
@@ -278,6 +295,7 @@ export function buildCutList(doc: SloydDocument): CutList {
     const stock = stockInchesOf(board);
     row.stockInches += stock;
     group.stockInches += stock;
+    groupBoards.get(group)!.push(board);
   }
 
   const out = [...groups.values()];
@@ -290,6 +308,14 @@ export function buildCutList(doc: SloydDocument): CutList {
     const format = isSheetGood(group.material) ? formatSquareFeet : formatBoardFeet;
     group.stock = format(group.stockInches);
     for (const row of group.rows) row.stock = format(row.stockInches);
+
+    // One nesting per group, because a group IS the packing partition: one
+    // material (so one sheet size and one rotation policy) and one thickness
+    // (parts of different thickness cannot share a sheet).
+    const sheet = sheetStockOf(group.material);
+    if (sheet) {
+      group.nesting = buildNesting(groupBoards.get(group)!, sheet, doc.stock.kerf, precision);
+    }
   }
   out.sort(
     (a, b) =>

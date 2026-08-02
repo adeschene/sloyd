@@ -332,3 +332,49 @@ describe('buildCutList', () => {
     expect(pine.stock).toBe('0.69 bd ft');
   });
 });
+
+describe('sheet nesting on the cut list', () => {
+  it('gives a sheet-goods group a nesting', () => {
+    const list = buildCutList(docWith(
+      { material: 'plywood', thickness: 0.75, length: 24, width: 12 },
+    ));
+    expect(list.groups[0].nesting?.label).toBe('1 sheet (96" × 48")');
+    expect(list.groups[0].nesting?.sheets).toHaveLength(1);
+  });
+
+  it('gives a solid-stock group none', () => {
+    const list = buildCutList(docWith({ material: 'pine' }));
+    expect(list.groups[0].nesting).toBeUndefined();
+  });
+
+  // Every board in the group is packed, not one rectangle per ROW: a row is
+  // representative, and four identical parts still need four rectangles.
+  it('packs every board, not every row', () => {
+    const list = buildCutList(docWith(
+      ...Array.from({ length: 4 }, () => ({ material: 'plywood', thickness: 0.75, length: 24, width: 12 })),
+    ));
+    expect(list.groups[0].rows).toHaveLength(1);
+    expect(list.groups[0].rows[0].qty).toBe(4);
+    expect(list.groups[0].nesting!.sheets.flatMap((s) => s.parts)).toHaveLength(4);
+  });
+
+  it('packs each thickness onto its own sheets', () => {
+    const list = buildCutList(docWith(
+      { material: 'plywood', thickness: 0.75, length: 24, width: 12 },
+      { material: 'plywood', thickness: 0.5, length: 24, width: 12 },
+    ));
+    expect(list.groups).toHaveLength(2);
+    for (const g of list.groups) expect(g.nesting!.sheets).toHaveLength(1);
+  });
+
+  it("uses the document's kerf", () => {
+    const four = Array.from({ length: 4 }, () => (
+      { material: 'plywood', thickness: 0.75, length: 24, width: 12 }));
+    const tight = { ...docWith(...four), stock: { kerf: 0 } };
+    const wide = { ...docWith(...four), stock: { kerf: 0.125 } };
+    expect(buildCutList(tight).groups[0].nesting!.sheets[0].parts.map((p) => p.x))
+      .toEqual([0, 24, 48, 72]);
+    expect(buildCutList(wide).groups[0].nesting!.sheets[0].parts.map((p) => p.y))
+      .toEqual([0, 0, 0, 12.125]);
+  });
+});

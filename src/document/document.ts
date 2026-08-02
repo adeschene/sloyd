@@ -16,6 +16,8 @@ export { buildDiagrams } from './diagram';
 export type { DiagramCut, DiagramView } from './diagram';
 export { buildDepthField } from './depthField';
 export type { FaceCell } from './depthField';
+export { buildNesting, footprintsOf } from './nesting';
+export type { Nesting, NestedSheet, PlacedPart, UnplaceablePart, Footprint } from './nesting';
 
 /**
  * v5 added `stock.kerf`.
