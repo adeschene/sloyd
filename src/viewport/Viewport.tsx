@@ -7,6 +7,7 @@ import { boardExtents } from '../document/document';
 import type { Board } from '../document/document';
 import { BoardMesh } from './BoardMesh';
 import { Gizmo } from './Gizmo';
+import { MoveTool } from './MoveTool';
 import { OriginAxes } from './OriginAxes';
 import { SCENE_EXTENT } from './extent';
 import { gridDensity } from './gridDensity';
@@ -255,7 +256,17 @@ export function Viewport({
   // than pinning it, so a HiDPI display still renders at its native ratio
   // instead of being downsampled to 2.
   return (
-    <Canvas shadows dpr={[2, 3]} onPointerMissed={() => selectBoard(null)}>
+    <Canvas
+      shadows
+      dpr={[2, 3]}
+      // A modal tool must not change the selection as a side effect. Without
+      // this, cancelling a grab by clicking empty space would also clear the
+      // selection, and the Properties panel would empty for no stated reason.
+      onPointerMissed={() => { if (tool === 'select') selectBoard(null); }}
+      // R3F puts `style` on the wrapping div; the canvas inherits the cursor.
+      // This is the only signal, other than the toolbar, that the tool is armed.
+      style={{ cursor: tool === 'move' ? 'crosshair' : undefined }}
+    >
       {orthographic ? (
         <OrthographicCamera makeDefault position={DEFAULT_EYE} zoom={12} near={-2000} far={4000} />
       ) : (
@@ -335,7 +346,11 @@ export function Viewport({
         />
       ))}
 
-      <Gizmo />
+      {/* The gizmo's handles sit over the very board whose corner the Move
+          tool is trying to grab, and it captures the pointer first. There is
+          no way to share the pointer between them, so it is not rendered. */}
+      {tool === 'select' && <Gizmo />}
+      <MoveTool />
       <CameraKeys suspended={shortcutsSuspended} />
       {/*
         Damping is OFF, and that is the fix for the grid shimmer — not a
