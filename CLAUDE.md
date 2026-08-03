@@ -51,26 +51,36 @@ gitignored. Read that file before deploying; it is not in the public repo.
 layout, per-face views and board feet are all shipped and merged to `master`. Do not
 treat any of the five as in-flight.
 
-**Production matches `master` as of 2026-08-03, selected-board grabs included.** That
-round was merged and deployed the same day, as snap-move was before it — unlike the three
-rounds before *that*, which sat merged and held back at the user's choice. Verified after
-the deploy: `200` on `/` and on a deep route both in-network and publicly, the new bundle
-(`index-DNH_-g9z.js` → `index-BH2XnbVu.js`) served at the edge, the toolbar hint
-*Select a part to move* live with the Move tool armed and nothing selected (and the Move
-button still enabled, per the design), 0 console errors (three known three.js deprecation
+**Production matches `master` as of 2026-08-03, cut-aware snap points included.** That
+round was merged and deployed the same day, as snap-move and selected-board grabs were
+before it — unlike the three rounds before *those*, which sat merged and held back at the
+user's choice. Verified after the deploy: `200` on `/` and on a deep route both
+in-network and publicly, the new bundle (`index-BH2XnbVu.js` → `index-BFdaQ-al.js`)
+served at the edge and in-network (so this is not a stale-cache read), the app mounted
+with its canvas and full toolbar, 0 console errors (two known three.js deprecation
 warnings), and exactly one Cloudflare beacon.
 
-**That statement lapsed when cut-aware snap points merged, and one part of the gap is a
-bug fix rather than a feature.** `master` now filters `boardSnapPoints` through
-`stockProbe` (design §5.1, follow-up 122), which stops a rabbet's flush-end mouth
-positions being offered as markers hanging a quarter-inch out in the air over removed
-stock. That defect predates the round — it has been true of every rabbet since joinery
-shipped, and it went live with snap-move — so production carries it today. Rollback costs
-nothing but the feature: no schema change, so a document saved by either build reads
-`version: 5` and opens in the other unchanged.
+**Part of what that deploy carried is a bug fix rather than a feature, and it is worth
+knowing which.** `boardSnapPoints` now filters through `stockProbe` (design §5.1,
+follow-up 122), which stops a rabbet's flush-end mouth positions being offered as markers
+hanging a quarter-inch out in the air over removed stock. That defect predated the round
+— it had been true of every rabbet since joinery shipped, and it went live with snap-move
+— so production carried it until this deploy. Rollback costs nothing but the round: no
+schema change, so a document saved by either build reads `version: 5` and opens in the
+other unchanged.
 
-**The verification touched production's `localStorage` not at all, and the reason is
-worth carrying forward.** Arming the Move tool is a change to `tool`, which is view state
+**This round's own change could NOT be confirmed against production, and that is the
+standing rule working rather than a gap in the check.** A cut point only exists on a board
+that has a cut, so seeing one marked means building a document — which writes
+`sloyd.autosave.v1`, which is the user's real project. So the deploy was confirmed by
+bundle hash, and the feature itself was verified against the dev server twice
+(`docs/browser-verification-cut-snap-points.md`, the main pass and its re-check after the
+§5.1 fix). `sloyd.autosave.v1` was confirmed **absent** in the verifying browser
+afterward — checked, not assumed. Contrast the selected-board grabs deploy below, where
+the round's change *was* confirmable live because arming a tool writes nothing.
+
+**That earlier verification touched production's `localStorage` not at all, and the reason
+is worth carrying forward.** Arming the Move tool is a change to `tool`, which is view state
 beside `selectedId` — outside the document, outside the undo stack, never saved — so the
 hint could be confirmed live while `sloyd.autosave.v1` stayed absent in the verifying
 browser (checked, not assumed). Everything needing an actual board was exercised against
