@@ -895,3 +895,57 @@ describe('SnapOwner widening — a guide is a legal target', () => {
     expect(useStore.getState().doc.boards[0].position[0]).toBe(board.position[0] + 3);
   });
 });
+
+describe('guide actions', () => {
+  it('appends a guide at the given position', () => {
+    useStore.getState().addGuide([1, 2, 3]);
+    expect(useStore.getState().doc.guides).toHaveLength(1);
+    expect(useStore.getState().doc.guides[0].at).toEqual([1, 2, 3]);
+  });
+
+  it('removes one guide by id and leaves the rest', () => {
+    useStore.getState().addGuide([1, 0, 0]);
+    useStore.getState().addGuide([2, 0, 0]);
+    const [first, second] = useStore.getState().doc.guides;
+    useStore.getState().removeGuide(first.id);
+    expect(useStore.getState().doc.guides.map((g) => g.id)).toEqual([second.id]);
+  });
+
+  it('clears every guide', () => {
+    useStore.getState().addGuide([1, 0, 0]);
+    useStore.getState().addGuide([2, 0, 0]);
+    useStore.getState().clearGuides();
+    expect(useStore.getState().doc.guides).toEqual([]);
+  });
+
+  it('places guides on the undo stack', () => {
+    useStore.getState().addGuide([1, 2, 3]);
+    useStore.getState().undo();
+    expect(useStore.getState().doc.guides).toEqual([]);
+    useStore.getState().redo();
+    expect(useStore.getState().doc.guides).toHaveLength(1);
+  });
+
+  // Invariant 4's rule: edit() unconditionally pushes an undo snapshot and
+  // clears redo, so a no-op must not reach it. Same guard shape as
+  // commitSnapMove's zero-delta and removeCut's.
+  it('leaves no undo entry when removing a guide that does not exist', () => {
+    useStore.getState().addGuide([1, 2, 3]);
+    const before = useStore.getState().doc;
+    useStore.getState().removeGuide('nope');
+    expect(useStore.getState().doc).toBe(before);
+  });
+
+  it('leaves no undo entry when clearing an already-empty guide list', () => {
+    const before = useStore.getState().doc;
+    useStore.getState().clearGuides();
+    expect(useStore.getState().doc).toBe(before);
+  });
+
+  it('does not touch the board selection', () => {
+    useStore.getState().addBoard();
+    const selected = useStore.getState().selectedId;
+    useStore.getState().addGuide([1, 2, 3]);
+    expect(useStore.getState().selectedId).toBe(selected);
+  });
+});

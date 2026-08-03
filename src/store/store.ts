@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { createBoard, createDocument, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor } from '../document/document';
+import { createBoard, createDocument, createGuide, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor } from '../document/document';
 import type { Board, BoardSnapPoint, Cut, SloydDocument, SnapPoint } from '../document/document';
 
 const HISTORY_LIMIT = 50;
@@ -68,6 +68,10 @@ interface StoreState {
   addCut: (boardId: string) => void;
   updateCut: (boardId: string, cutId: string, patch: Partial<Cut>) => void;
   removeCut: (boardId: string, cutId: string) => void;
+
+  addGuide: (at: [number, number, number]) => void;
+  removeGuide: (id: string) => void;
+  clearGuides: () => void;
 }
 
 export const useStore = create<StoreState>((set, get) => {
@@ -511,6 +515,33 @@ export const useStore = create<StoreState>((set, get) => {
         ),
       }));
       dropGrabIfGone(boardId);
+    },
+
+    /**
+     * Place a guide point. Document data, so it lands on the undo stack like
+     * any other edit — a guide the user placed is a fact about the project.
+     *
+     * Deliberately does NOT change `selectedId`: a guide is not a board, and
+     * the properties panel is a panel for boards. Compare commitSnapMove,
+     * which DOES select, because it moved a board the user is working on.
+     */
+    addGuide: (at) => {
+      const guide = createGuide(at);
+      edit((doc) => ({ ...doc, guides: [...doc.guides, guide] }));
+    },
+
+    removeGuide: (id) => {
+      // Guarded before the edit, the same rule updateCut, removeCut and
+      // commitSnapMove follow: edit() unconditionally pushes an undo snapshot
+      // and clears redo, so a no-op would leave a no-op undo entry
+      // (invariant 4) and silently wipe the redo stack.
+      if (!get().doc.guides.some((g) => g.id === id)) return;
+      edit((doc) => ({ ...doc, guides: doc.guides.filter((g) => g.id !== id) }));
+    },
+
+    clearGuides: () => {
+      if (get().doc.guides.length === 0) return;
+      edit((doc) => ({ ...doc, guides: [] }));
     },
   };
 });
