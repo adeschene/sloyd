@@ -472,7 +472,16 @@ describe('cuts', () => {
 });
 
 describe('the Move tool', () => {
-  /** Two boards, returned with the store reset around them. */
+  /**
+   * Two boards, returned with the store reset around them and the FIRST one
+   * selected.
+   *
+   * addBoard selects what it creates, so without this the fixture leaves the
+   * second board selected while every test below grabs a point on the first —
+   * a combination the Move tool will not produce once its candidates are
+   * restricted to the selected board's points. Selecting `a` is what makes
+   * the fixture model a state a user can actually reach.
+   */
   const twoBoards = () => {
     useStore.setState({
       doc: createDocument(),
@@ -486,6 +495,7 @@ describe('the Move tool', () => {
     s.addBoard();
     s.addBoard();
     const [a, b] = useStore.getState().doc.boards;
+    useStore.getState().selectBoard(a!.id);
     return { a, b };
   };
 
@@ -539,12 +549,15 @@ describe('the Move tool', () => {
     const { a, b } = twoBoards();
     // b must be moved off a first. Two fresh boards share a default position,
     // so without this the delta is exactly zero and the commit correctly takes
-    // the no-op path below instead of the one under test.
+    // the no-op path instead of the one under test.
     useStore.getState().updateBoard(b.id, { position: [40, 0, 0] });
-    useStore.getState().grabSnapPoint(cornerOf(a.id));
-    useStore.getState().commitSnapMove(cornerOf(b.id));
+    // Grab from b, not a: the fixture selects a, so asserting selectedId === a
+    // after moving a would pass without commitSnapMove writing anything.
+    useStore.getState().selectBoard(b.id);
+    useStore.getState().grabSnapPoint(cornerOf(b.id));
+    useStore.getState().commitSnapMove(cornerOf(a.id));
     expect(useStore.getState().grabbed).toBeNull();
-    expect(useStore.getState().selectedId).toBe(a.id);
+    expect(useStore.getState().selectedId).toBe(b.id);
   });
 
   it('reverts a whole snap move with one undo', () => {
@@ -608,10 +621,22 @@ describe('the Move tool', () => {
   });
 
   it('keeps a grab when some other board is deleted', () => {
+    // This pins the SHAPE of edit()'s condition, not merely that it fires:
+    // the resulting selection is compared against the grabbed board's id,
+    // rather than the grab being cleared whenever a `selection` callback ran
+    // at all. deleteBoard always passes a callback, and here it resolves to
+    // the still-selected `a` — the board the grab belongs to — so nothing has
+    // moved out from under the captured point and the user has not
+    // retargeted the tool. Dropping `heldGrab.owner.id !== nextSelectedId`
+    // fails exactly here, which is what makes this test load-bearing rather
+    // than a restatement of the one above. (Its sibling below, "keeps a grab
+    // when some other board is edited", is what fails if the
+    // `selection !== undefined` half is dropped instead.)
     const { a, b } = twoBoards();
     useStore.getState().grabSnapPoint(cornerOf(a.id));
     useStore.getState().deleteBoard(b.id);
-    expect(useStore.getState().grabbed).not.toBeNull();
+    expect(useStore.getState().selectedId).toBe(a.id);
+    expect(useStore.getState().grabbed?.owner.id).toBe(a.id);
   });
 
   it('drops a grab when the grabbed board is edited', () => {
@@ -661,5 +686,74 @@ describe('the Move tool', () => {
     expect(useStore.getState().grabbed).toBeNull();
     expect(useStore.getState().doc.boards.find((x) => x.id === a.id)!.position)
       .toEqual(before);
+  });
+
+  it('drops a grab when a different board is selected', () => {
+    // A grab is only offered on the selected board's points, so the selection
+    // moving elsewhere means the user retargeted the tool. Keeping the grab
+    // would leave the tool carrying a point belonging to a board the
+    // properties panel is no longer showing, with nothing explaining it.
+    const { a, b } = twoBoards();
+    useStore.getState().grabSnapPoint(cornerOf(a.id));
+    useStore.getState().selectBoard(b.id);
+    expect(useStore.getState().grabbed).toBeNull();
+  });
+
+  it('keeps a grab when the same board is re-selected', () => {
+    const { a } = twoBoards();
+    useStore.getState().grabSnapPoint(cornerOf(a.id));
+    useStore.getState().selectBoard(a.id);
+    expect(useStore.getState().grabbed).not.toBeNull();
+  });
+
+  it('drops a grab when the selection is cleared', () => {
+    const { a } = twoBoards();
+    useStore.getState().grabSnapPoint(cornerOf(a.id));
+    useStore.getState().selectBoard(null);
+    expect(useStore.getState().grabbed).toBeNull();
+  });
+
+  it('drops a grab when Add board selects the new board', () => {
+    // addBoard selects its new board through edit()'s `selection` callback,
+    // not through selectBoard — a second writer of selectedId that nothing
+    // gates in Move mode. Without the clear inside edit(), the toolbar button
+    // reaches exactly the mismatched state the tests above rule out.
+    const { a } = twoBoards();
+    useStore.getState().grabSnapPoint(cornerOf(a.id));
+    useStore.getState().addBoard();
+    expect(useStore.getState().grabbed).toBeNull();
+  });
+
+  it('drops a grab when Duplicate selects the copy', () => {
+    const { a } = twoBoards();
+    useStore.getState().grabSnapPoint(cornerOf(a.id));
+    useStore.getState().duplicateBoard(a.id);
+    expect(useStore.getState().grabbed).toBeNull();
+  });
+
+  it('refuses to commit when the grabbed board is not the selected one', () => {
+    // Task 1's clearing removes every ordinary route to this mismatch, so it
+    // is built directly here rather than driven through the store's own
+    // writers. This is the action-level half of the rule MoveTool's candidate
+    // memo enforces at the UI: the filter makes it true of the UI, the guard
+    // makes it true of the action, the same pairing the self-snap case
+    // already uses.
+    const { a, b } = twoBoards();
+    useStore.getState().updateBoard(b.id, { position: [40, 0, 0] });
+    const before = [...useStore.getState().doc.boards.find((x) => x.id === a.id)!.position];
+    const undoDepth = useStore.getState().past.length;
+
+    useStore.getState().grabSnapPoint(cornerOf(a.id));
+    // Reach past the store's own clearing to build the state under test.
+    useStore.setState({ selectedId: b.id });
+    useStore.getState().commitSnapMove(cornerOf(b.id));
+
+    expect(useStore.getState().doc.boards.find((x) => x.id === a.id)!.position)
+      .toEqual(before);
+    // No edit() ran, so no undo snapshot was pushed and redo was not wiped.
+    expect(useStore.getState().past.length).toBe(undoDepth);
+    // The grab is left in hand rather than discarded: the state should be
+    // unreachable, and silently dropping it would make it undiagnosable.
+    expect(useStore.getState().grabbed).not.toBeNull();
   });
 });

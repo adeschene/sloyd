@@ -14,9 +14,9 @@
 
 - **No schema change.** `CURRENT_VERSION` stays `5`. Nothing in this round touches `src/document/`.
 - **`npm test` does not typecheck.** `npm run build` (`tsc -b && vite build`) is the typecheck gate. A green suite proves nothing about `tsc`. Run the build before claiming any task compiles.
-- **Baseline is 660 tests across 32 files, all passing.** Tasks 1 and 2 add tests; note the new count in each commit's verification step.
+- **Baseline is 662 tests across 32 files, all passing** — measured on this branch, not taken from CLAUDE.md, whose "660/660" claim is stale. Tasks 1 and 2 add tests; note the new count in each commit's verification step.
 - **The r3f viewport has no unit tests by design.** `MoveTool.tsx` (Task 3) is verified by driving a real browser (Task 5), never by asserting on mocks. Do not add a test file for it.
-- **No pull requests.** Solo repo — commit directly to `master`.
+- **No pull requests.** Solo repo. Work happens on the branch `feat/selected-board-grabs`, merged into `master` locally with `git merge --no-ff` at the end. Never open a PR.
 - **If a supplied test or expectation looks wrong, stop and escalate.** Do not edit an assertion to make it pass. This repo has recorded seven instances of plan-supplied code being wrong (follow-ups 64, 68 ×2, 80, 87, 88, 107); the ones that ended well ended well because an implementer stopped. Task 2 contains one deliberate fixture change with a written justification — if that justification does not hold up when you read it, escalate rather than proceed.
 
 ---
@@ -111,9 +111,15 @@ In `src/store/store.ts`, replace the `set({ ... })` at the end of `edit()` with:
     // in hand is no longer one they could have picked up. `edit()` rather
     // than each caller: addBoard and duplicateBoard both select what they
     // create through this callback, and so will the next action that does.
-    const nextSelectedId = selection ? selection(next) : get().selectedId;
+    //
+    // Only the callback path is considered. An edit that carries no
+    // `selection` moves selectedId nowhere, so it has nothing to invalidate;
+    // reaching further would also silently repair a mismatch that
+    // commitSnapMove's guard exists to expose rather than paper over.
+    const nextSelectedId = selection ? selection(next) : null;
     const heldGrab = get().grabbed;
-    const dropGrab = heldGrab !== null && heldGrab.owner.id !== nextSelectedId;
+    const dropGrab =
+      selection !== undefined && heldGrab !== null && heldGrab.owner.id !== nextSelectedId;
 
     set({
       doc: next,
@@ -124,7 +130,14 @@ In `src/store/store.ts`, replace the `set({ ... })` at the end of `edit()` with:
     });
 ```
 
-Note `nextSelectedId` falls back to the *current* `selectedId` when there is no callback, so an ordinary edit with no selection change never drops a grab that matches. Spreading `grabbed` conditionally rather than writing `grabbed: dropGrab ? null : get().grabbed` keeps this `set` from touching the key at all in the common case.
+**Amended during execution** (`aa09766` reported BLOCKED and was right). The
+first draft of this step fell back to the *current* `selectedId` when there was
+no `selection` callback, which meant any edit at all dropped a grab that was
+already mismatched — dropping it because of a state that predated the edit
+rather than because the edit moved anything. Restricting to `selection !==
+undefined` is both narrower and more honest about what the site does. Spreading
+`grabbed` conditionally rather than writing `grabbed: dropGrab ? null :
+get().grabbed` keeps this `set` from touching the key at all in the common case.
 
 - [ ] **Step 4: Clear the grab in `selectBoard`**
 
@@ -142,11 +155,40 @@ Replace `selectBoard` (currently `selectBoard: (id) => set({ selectedId: id }),`
       })),
 ```
 
+- [ ] **Step 4a: Correct the `twoBoards()` fixture — moved here from Task 2 during execution**
+
+The fixture (`store.test.ts` ~lines 476-490) creates two boards and leaves the
+**second** selected, because `addBoard` selects what it creates — while every
+Move-tool test grabs a point on the **first**. That combination is a state the UI
+cannot produce once the Move tool offers only the selected board's points, and it
+makes `keeps a grab when some other board is deleted` fail against Step 3's
+clearing for a reason that has nothing to do with the behaviour under test. It is
+corrected because it modelled something impossible, not to make an assertion pass
+— the distinction follow-up 107 turns on.
+
+Add `useStore.getState().selectBoard(a!.id);` before the `return { a, b };`, and
+replace the helper's comment with:
+
+```ts
+  /**
+   * Two boards, returned with the store reset around them and the FIRST one
+   * selected.
+   *
+   * addBoard selects what it creates, so without this the fixture leaves the
+   * second board selected while every test below grabs a point on the first —
+   * a combination the UI cannot produce, since the Move tool only offers the
+   * selected board's points. Selecting `a` is what makes the fixture model a
+   * state a user can actually reach.
+   */
+```
+
+Make no other change to any existing test.
+
 - [ ] **Step 5: Run the full suite**
 
 Run: `npm test`
 
-Expected: all pass, 665 tests (660 + 5). If any *pre-existing* Move-tool test now fails, stop and escalate — Task 1 is not supposed to change the behaviour of any existing test, and a break here means the fallback in Step 3 is wrong, not that the old test was.
+Expected: all pass, 667 tests (662 + 5). If any *pre-existing* Move-tool test now fails, stop and escalate — Task 1 is not supposed to change the behaviour of any existing test, and a break here means the fallback in Step 3 is wrong, not that the old test was.
 
 - [ ] **Step 6: Typecheck**
 
@@ -173,11 +215,9 @@ git commit -m "feat: drop the Move grab when the selection moves off the grabbed
 - Consumes: Task 1's clearing rule (this guard is deliberately redundant with it).
 - Produces: nothing new. `commitSnapMove`'s signature is unchanged.
 
-**Read this before writing code — the fixture change is deliberate and needs to be understood, not pattern-matched.**
+**Read this before writing code.**
 
-The existing fixture creates two boards and leaves `selectedId` pointing at the **second** one, because `addBoard` selects what it creates. Every existing Move-tool test then grabs a point on the **first**. That combination — grabbing board A's point while board B is selected — is a state the UI can no longer produce after Task 3, and one this guard now rejects outright. So the fixture is not being edited to make a failing assertion pass; it is being corrected to set up a state the tool can actually reach. The distinction matters and is exactly what follow-up 107 is about: change the fixture when the fixture was modelling something impossible, never when it was modelling the bug.
-
-The check on that reasoning is Step 4's dedicated test: it constructs the mismatch **explicitly**, so the guard has a test that fails when the guard is deleted. If the fixture change were doing the guard's job, deleting the guard would leave every test green.
+The `twoBoards()` fixture used to leave `selectedId` on the **second** board (because `addBoard` selects what it creates) while every Move-tool test grabbed a point on the **first** — a state the UI cannot produce once the tool offers only the selected board's points. **Task 1 already corrected it** (its Step 4a), so you inherit a fixture that selects board `a`. Do not re-do that work, and do not assume the correction is what makes this task's guard pass: it isn't. The guard gets its own test in Step 1, which constructs the mismatch **explicitly** by reaching past the store's own clearing, so the guard has a test that fails when the guard is deleted. Step 8 makes you prove exactly that.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -185,11 +225,11 @@ Add to `src/store/store.test.ts`, at the end of the `describe('the Move tool', .
 
 ```ts
   it('refuses to commit when the grabbed board is not the selected one', () => {
-    // Unreachable through the UI — the candidate filter withholds every point
-    // that isn't the selected board's, and every selectedId writer drops the
-    // grab. This is the action-level half of that rule: the filter makes it
-    // true of the UI, the guard makes it true of the action, the same pairing
-    // the self-snap case already uses.
+    // The mismatch is constructed directly here because Task 1's clearing
+    // removes every ordinary route to it: each writer of selectedId drops a
+    // grab that stops matching. This is the action-level half of that rule —
+    // the candidate filter makes it true of the UI, the guard makes it true
+    // of the action, the same pairing the self-snap case already uses.
     const { a, b } = twoBoards();
     useStore.getState().updateBoard(b.id, { position: [40, 0, 0] });
     const before = [...useStore.getState().doc.boards.find((x) => x.id === a.id)!.position];
@@ -223,9 +263,9 @@ Expected: FAIL on the position assertion — board A actually moves, because not
 In `commitSnapMove`, immediately after the existing self-snap guard (`if (target.owner.id === grabbed.owner.id) return;`), add:
 
 ```ts
-      // The Move tool only offers the selected board's points as grab
-      // candidates, and every writer of selectedId drops a grab that stops
-      // matching (see edit() and selectBoard). This guard is deliberately
+      // MoveTool's candidate memo, which this branch narrows to the selected
+      // board's points, and every writer of selectedId, which drops a grab
+      // that stops matching (see edit() and selectBoard). This guard is
       // redundant with both: the filter makes the rule true of the UI, this
       // makes it true of the action, so a future sixth writer of selectedId
       // that misses the rule costs a grab that refuses to commit rather than
@@ -241,48 +281,15 @@ Run: `npm test -- src/store/store.test.ts -t "refuses to commit"`
 
 Expected: PASS.
 
-- [ ] **Step 5: Run the full Move-tool block and watch it break**
+- [ ] **Step 5: Run the full Move-tool block**
 
 Run: `npm test -- src/store/store.test.ts -t "the Move tool"`
 
-Expected: **several pre-existing tests now fail** — every one that grabs board A while the fixture left board B selected. This is the fixture problem described above, not a defect in the guard. Read the failures and confirm they are all of that shape (a commit that did nothing) before continuing. If a failure is *not* of that shape, stop and escalate.
+Expected: **all pass.** Task 1 already corrected the `twoBoards()` fixture (its Step 4a — moved there during execution, because Task 1's clearing needed it first), so every existing Move-tool test now sets up with the grabbed board selected and the guard never fires for them. If a pre-existing test *does* fail, stop and escalate: that means the guard rejects a state the UI can legitimately produce, which is a design problem, not a fixture one.
 
-- [ ] **Step 6: Correct the fixture**
+- [ ] **Step 6: Keep the selection assertion honest**
 
-In `src/store/store.test.ts`, replace the `twoBoards()` helper's body ending with:
-
-```ts
-  /**
-   * Two boards, returned with the store reset around them and the FIRST one
-   * selected.
-   *
-   * addBoard selects what it creates, so without this the fixture leaves the
-   * second board selected while every test below grabs a point on the first —
-   * a combination the UI cannot produce, since the Move tool only offers the
-   * selected board's points. Selecting `a` is what makes the fixture model a
-   * state a user can actually reach; it is not what makes commitSnapMove's
-   * mismatch guard pass, which has its own test constructing the mismatch
-   * explicitly.
-   */
-  const twoBoards = () => {
-    useStore.setState({
-      doc: createDocument(),
-      selectedId: null,
-      past: [],
-      future: [],
-      tool: 'select',
-      grabbed: null,
-    });
-    const s = useStore.getState();
-    s.addBoard();
-    s.addBoard();
-    const [a, b] = useStore.getState().doc.boards;
-    useStore.getState().selectBoard(a!.id);
-    return { a, b };
-  };
-```
-
-Then check the one existing test that asserts on `selectedId` — `clears the grab and selects the board it moved` (~line 538). It expects `selectedId` to be `a.id` after the commit, which is now also true *before* the commit. Strengthen it so it still proves `commitSnapMove` writes the selection, rather than passing because the fixture already did: change its setup to select `b` and grab from `b`, moving `b` onto `a`:
+The fixture now selects board `a`, which makes one existing test vacuous — `clears the grab and selects the board it moved` (~line 538). It expects `selectedId` to be `a.id` after the commit, which is now also true *before* the commit. Strengthen it so it still proves `commitSnapMove` writes the selection, rather than passing because the fixture already did: change its setup to select `b` and grab from `b`, moving `b` onto `a`:
 
 ```ts
   it('clears the grab and selects the board it moved', () => {
@@ -307,7 +314,7 @@ Make no other change to any existing test. If one still fails after the fixture 
 
 Run: `npm test`
 
-Expected: all pass, 666 tests (665 + 1).
+Expected: all pass, 668 tests (667 + 1).
 
 - [ ] **Step 8: Prove the guard is load-bearing**
 
@@ -400,7 +407,7 @@ Expected: exit 0. `boards.find` returns `Board | undefined`, which the ternary n
 
 Run: `npm test`
 
-Expected: 666 passing, unchanged from Task 2 — nothing under test imports `MoveTool`.
+Expected: 668 passing, unchanged from Task 2 — nothing under test imports `MoveTool`.
 
 - [ ] **Step 6: Commit**
 
@@ -470,7 +477,7 @@ literal hex value.
 
 Run: `npm run build && npm test`
 
-Expected: build exit 0; 666 tests passing.
+Expected: build exit 0; 668 tests passing.
 
 - [ ] **Step 5: Commit**
 

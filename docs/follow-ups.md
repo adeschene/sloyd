@@ -1825,3 +1825,169 @@ surface no test covers, which makes an overclaim in one strictly more expensive 
 overclaim anywhere else in this repo. See `docs/browser-verification-snap-move.md`,
 where both the original paragraph and its correction are left in place rather than
 rewritten into a clean claim — the correction is the record.
+
+## From the selected-board grabs round
+
+**109. NON-GOAL — no click-to-select in Move mode, and this is the decision that keeps
+the tool modal.** The round narrows grab candidates to the selected board, which makes
+"how do I choose the board to move?" a real question; the answer is the **parts list**,
+or selecting before switching to Move (design §4). Re-enabling board click-to-select
+while nothing is grabbed was considered and rejected for two reasons worth reading
+before proposing it again. First, it costs the rule *a modal tool must not change the
+selection as a side effect* — the rule would become *…except while nothing is grabbed*,
+which is a rule with a mode inside it. Second, it introduces a new ambiguity of exactly
+the kind this round exists to remove: a click on a board face can also be a click within
+`PICK_RADIUS_PX` of one of that board's snap points, so one gesture would mean two
+things depending on sub-pixel distance. Consecutive moves of one board already need no
+trip to the parts list — `commitSnapMove` selects the board it just moved.
+
+**110. NON-GOAL — the TARGET set is deliberately not restricted, and "restrict targets
+too, for symmetry" is the obvious wrong next step.** Design §3: two coincident *target*
+points produce the identical delta, so which one `pickSnapPoint` returns is
+unobservable — the board lands in the same place either way. Two coincident *grab*
+points name two different boards, and the choice moves one of them. The ambiguity is
+only harmful on one side. Restricting targets as well would be actively wrong rather
+than merely redundant: the board being moved is by definition the selected one, so a
+selected-only target set would leave nothing to snap **to**. Verified in the browser —
+with A grabbed, B's points are offered as targets and the move lands exactly.
+
+**111. NON-GOAL — still one board per gesture.** Multi-board moves remain a
+selection-model change (a multi-selection, and a rule for what a grabbed point means
+when it belongs to one member of a set), not a tool change. Carried forward unchanged
+from follow-up 103; this round narrows what a *single* selection offers and does not
+touch how many things can be selected.
+
+**112. NON-GOAL — no change to the gizmo or to any of the four gates the snap-move round
+installed.** The gizmo is still absent in Move mode, board click-to-select is still off,
+`onPointerMissed` deselect is still gated, and Delete/Backspace still refuse while a
+point is carried. All four were re-driven as a regression check
+(`docs/browser-verification-selected-board-grabs.md`, Step 7) rather than assumed, and
+all four hold. No schema change either — `CURRENT_VERSION` stays 5, so a rollback past
+this round costs the behaviour and nothing else.
+
+**113. COMPOSITION — the guide-points design's §3.1 filter is SUBSUMED by this round's,
+and whichever ships second must merge them into one expression rather than stacking two.**
+`2026-08-03-sloyd-guide-points-design.md` §3.1 (specced, not implemented) filters
+grabbable candidates to **board-owned** points, so a guide can be snapped *to* but never
+*from*. This round's rule — grabbable candidates are the **selected board's** points —
+already implies it: points owned by the selected board are board-owned by construction.
+When guides land, the correct shape is a single predicate in `MoveTool`'s no-grab branch,
+not a board-owned filter chained onto a selected-board lookup. Two filters that agree
+today are two places for a future rule to disagree, and the second one would be dead code
+that reads as load-bearing. Note the branch structure this has to live in: the memo is
+deliberately *two sets rather than one set with a filter* (pre-grab and post-grab), and
+§3.1's rule belongs only to the pre-grab branch.
+
+**114. The browser pass found NO defect, and that sentence is the whole finding.**
+`docs/browser-verification-selected-board-grabs.md` records what was checked — the same
+pixel marking A's corner or B's edge midpoint depending only on the selection, the
+*positions* of both boards read out of `localStorage` to say which board actually moved,
+all 52 candidate points hovered with nothing selected for zero markers, the three
+grab-drop paths, the four gates, and a clean console. Nothing came back wrong. This entry
+exists so the section is not read as though it had findings it did not have (follow-up
+108's lesson, applied to the shape of the record rather than to a single paragraph).
+What the pass could *not* check is listed in the report's own "What was NOT checked"
+section, and the two gaps worth carrying are touch/pen input and the fact that the
+pre-fix behaviour was not re-driven (that would require reverting `src/`, which the
+verification task does not touch — the diagnosis rests on design §1 and the store unit
+tests).
+
+**115. HARNESS — follow-up 106 is now HALF closed, and the half that closed is worth
+copying into the next viewport round.** 106 recorded that every interaction the snap-move
+pass drove was a synthetic `PointerEvent` at a screenshot-located pixel, with two
+consequences: real pointer-capture/touch/OS input timing were never exercised, and an
+attempt to compute corner pixel coordinates analytically was abandoned after producing
+self-contradictory results. Both were addressed here, neither by cleverness:
+
+- **Coordinates.** Rather than re-deriving the projection (which is what failed before —
+  most likely a `lookAt` argument-order error), this pass reached the live r3f root
+  through the Vite dev server's own module graph (`import('/node_modules/.vite/deps/
+  @react-three_fiber.js')` → `_roots`, the same module instance the app is running) and
+  ran the exact six lines of `MoveTool.tsx`'s `project()` against the same camera and
+  `size`. A disagreement with the tool's own arithmetic is impossible by construction,
+  and the projector was validated against a rendered marker before anything rested on it.
+  The same route gives read access to the app's store and to `boardSnapPoints`, which is
+  what made "hover all 52 candidates and assert zero markers" cheap enough to actually do.
+- **Input.** Playwright's `page.mouse`/`page.keyboard` (CDP-driven, trusted, with real
+  pointer capture) replaced `dispatchEvent(new PointerEvent(...))`. The synthetic phase
+  reproduced 106's exact artifact — drei's `OrbitControls` throwing `NotFoundError:
+  releasePointerCapture` — and that error's stack traces through `eval`, i.e. through the
+  injected script, which is what identifies it as the harness rather than the app. Under
+  real input the console is clean. Worth recording exactly how that switch happened,
+  because it is 108's lesson recurring one level up: the pass *started* synthetic, the
+  report's first draft claimed real input for all of it, and review caught that the
+  round's central evidence (the two ownership commits and both shared-point hovers) was
+  in the synthetic half. It was closed by **re-driving those checks under real input and
+  re-taking their screenshots**, not by narrowing the sentence — same direction as 108,
+  applied to a claim about method rather than about coverage.
+
+**What did NOT close:** touch and pen. `MoveTool`'s `pointerId`-tagged `downAt` guard
+exists for a multi-touch pinch and is still unexercised by any pass. And corners still
+have no DOM presence — the pointer goes to a *computed* coordinate, so the projector
+being validated against a rendered marker is what stands in for a locator, not a
+substitute for one.
+
+**116. Marker colour encodes KIND, not owner — which is why the fixture was built with a
+shared point that is a corner of one board and an edge midpoint of the other.** Worth
+recording as a verification-design note, because the obvious fixture (two boards sharing
+a corner) makes the marker useless as evidence: a green disc with A selected and a green
+disc with B selected are pixel-identical, so two screenshots of it would show a change
+in nothing. Offsetting the second board so the shared world point lands on the *midpoint
+of one of its edges* makes the hue at one fixed pixel discriminate the owner, which turns
+a screenshot into evidence instead of an illustration. The numeric read (which board's
+`position` changed) is still primary; this is what let the visual check say anything at
+all. The general shape: when an indicator's colour encodes a property other than the one
+under test, build the fixture so the two cases differ in the property the indicator
+*does* encode.
+
+**117. The toolbar hint has NO unit test, and that is a decision rather than a gap in
+coverage.** `panels/` is the one layer above `document` this repo does unit-test with
+RTL (`Properties.test.tsx`, `App.test.tsx`), so "it's a viewport, we drive a browser"
+does not excuse it the way it excuses `MoveTool.tsx` — the hint is a `panels/` component
+and an RTL assertion on it would be cheap. It was still assigned to the browser pass
+(design §8), for a reason worth stating: what the hint has to get right is not *that a
+string renders when a store flag is set* — that is one line of JSX and a test of it
+would restate the implementation — but that the state it names is genuinely inert, i.e.
+that with nothing selected no point anywhere is markable or grabbable. That claim cannot
+be made in jsdom at all: it needs the r3f scene, the projection and a pointer. The
+browser pass made it exhaustively (all 52 candidates hovered, zero markers, five clicked,
+zero grabs) and screenshotted the hint alongside. An RTL test would have added a second,
+weaker check of the easy half. If the hint later grows conditions — a different string
+per state, or a dependence on something beyond `tool && !selectedId` — that reasoning
+expires and it should get one.
+
+**118. LESSON — a review finding whose justification did not reproduce, and the FIRST in
+this chain sourced from a reviewer rather than from a plan.** Follow-ups 64, 68 (twice),
+80, 87, 88 and 107 are all instances of plan-supplied code or a plan-supplied
+justification being wrong. This one has the same shape from a different direction: the
+whole-branch review asked for a new store test on the grounds that mutating `edit()`'s
+
+```
+dropGrab = selection !== undefined && heldGrab !== null && heldGrab.owner.id !== nextSelectedId
+```
+
+to drop the id comparison "passes all 668 tests today" — i.e. that the narrow half of the
+condition, the exact thing Task 1's implementer escalated about, was unpinned. It is not.
+Applying that mutation and running `npx vitest run src/store/store.test.ts` fails
+`keeps a grab when some other board is deleted` — `1 failed | 68 passed` — because
+`twoBoards()` leaves `a` selected, so `deleteBoard(b.id)` takes `wasSelected === false`
+and its selection callback returns the still-selected `a.id`; the correct code compares
+`a.id === a.id` and keeps the grab, the mutation drops it. The *other* half is pinned
+too, and by a different test: mutating away `selection !== undefined` instead fails
+`keeps a grab when some other board is edited` (`1 failed | 68 passed`), because
+`updateBoard` on a board that is not the grabbed one carries no callback at all. Both
+were confirmed by applying each mutation, running the file, and restoring — the suite
+returns `69 passed` in that file, 668 overall.
+
+So no test was added; a duplicate of an existing assertion would have been the worse
+outcome in a repo that has two entries (87, 88) about tests that could not fail. What was
+added instead is a comment on the existing deleted-board test naming *which* half of the
+condition it pins and which sibling pins the other — because the reason it was proposed
+as missing is that nothing in the file said what it was for — plus two sharper assertions
+on it (`selectedId` and the grab's owner id, rather than a bare `not.toBeNull()`). The
+transferable point is the same one the chain has been making since 64, now with the
+source generalised: **a claim that a mutation survives the suite is a claim about a
+command's output, and it is cheap to run.** The reviewer was working under instructions
+not to run the suite, which makes reasoning the only option available to them and makes
+running it the reader's job — not a criticism of the review, but the reason a finding of
+this shape gets verified before it gets implemented.

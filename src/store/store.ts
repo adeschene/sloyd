@@ -90,11 +90,36 @@ export const useStore = create<StoreState>((set, get) => {
       if (gesturing) gestureSnapshotTaken = true;
     }
 
+    // Invariant 24's second list — the one that records what nulls `grabbed`
+    // for reasons other than the world moving. `MoveTool`'s candidate memo
+    // offers only the SELECTED board's points as grab candidates, so a
+    // selection that moves to a different board means the user retargeted the
+    // tool, and the point in hand is no longer one they could have picked up.
+    // `edit()` rather than each caller: addBoard and duplicateBoard both
+    // select what they create through this callback, and so will the next
+    // action that does.
+    //
+    // The condition compares the RESULTING selection against the grabbed
+    // board — not merely whether a `selection` callback ran. Dropping the
+    // comparison would clear a grab on any edit that carries a callback at
+    // all, including the ones whose callback resolves to the same board the
+    // grab already belongs to (deleteBoard removing some OTHER board is the
+    // reachable case). Pinned by a store test.
+    //
+    // Only the callback path is considered. An edit that carries no
+    // `selection` moves selectedId nowhere, so it has nothing to invalidate;
+    // reaching further would also silently repair a mismatch that
+    // `commitSnapMove`'s guard is meant to expose rather than paper over.
+    const nextSelectedId = selection ? selection(next) : null;
+    const heldGrab = get().grabbed;
+    const dropGrab = selection !== undefined && heldGrab !== null && heldGrab.owner.id !== nextSelectedId;
+
     set({
       doc: next,
       past: nextPast,
       future: nextFuture,
-      ...(selection ? { selectedId: selection(next) } : {}),
+      ...(selection ? { selectedId: nextSelectedId } : {}),
+      ...(dropGrab ? { grabbed: null } : {}),
     });
   };
 
@@ -146,6 +171,16 @@ export const useStore = create<StoreState>((set, get) => {
       // means. MoveTool also withholds these candidates so the case cannot be
       // clicked; this guard is what makes the rule true of the action itself.
       if (target.owner.id === grabbed.owner.id) return;
+      // MoveTool's candidate memo offers only the selected board's points,
+      // and every writer of selectedId drops a grab that stops matching (see
+      // edit() and selectBoard). This guard is deliberately redundant with
+      // both: the filter makes the rule true of the UI, this makes it true of
+      // the action, so a future writer of selectedId that misses the rule
+      // costs a grab that refuses to commit rather than a board that moves
+      // without the user knowing which one it was. `grabbed` is deliberately
+      // left in hand — this state is unreachable through the UI, and
+      // discarding it quietly would hide that it had become reachable.
+      if (grabbed.owner.id !== get().selectedId) return;
 
       const board = get().doc.boards.find((b) => b.id === grabbed.owner.id);
       if (!board) {
@@ -311,7 +346,15 @@ export const useStore = create<StoreState>((set, get) => {
     },
 
     // Selection is view state, not document state — deliberately not undoable.
-    selectBoard: (id) => set({ selectedId: id }),
+    // Same rule as edit()'s: the grabbed board must be the selected one. This
+    // is the path the parts list takes, which is the only way to change which
+    // board the Move tool will move (BoardMesh's `selectable` is false in
+    // move mode, deliberately — design §4).
+    selectBoard: (id) =>
+      set((s) => ({
+        selectedId: id,
+        ...(s.grabbed && s.grabbed.owner.id !== id ? { grabbed: null } : {}),
+      })),
 
     setDocumentName: (name) => edit((doc) => ({ ...doc, name })),
 
