@@ -1,6 +1,6 @@
 // No `import ... from 'vitest'` — `globals: true` is set in vite.config.ts.
 import type { SnapPoint } from '../document/document';
-import { PICK_RADIUS_PX, pickSnapPoint, sameSnapPoint } from './snapPick';
+import { PICK_RADIUS_PX, pickSnapPoint } from './snapPick';
 import type { Projector } from './snapPick';
 
 let n = 0;
@@ -93,42 +93,5 @@ describe('pickSnapPoint', () => {
 
   it('ships a 12px default radius', () => {
     expect(PICK_RADIUS_PX).toBe(12);
-  });
-});
-
-describe('sameSnapPoint', () => {
-  it('treats two nulls as the same', () => {
-    expect(sameSnapPoint(null, null)).toBe(true);
-  });
-
-  it('treats null and a point as different', () => {
-    const p = point([1, 0, 0]);
-    expect(sameSnapPoint(p, null)).toBe(false);
-    expect(sameSnapPoint(null, p)).toBe(false);
-  });
-
-  it('compares by owner, kind and position rather than by reference', () => {
-    const a: SnapPoint = { kind: 'corner', at: [1, 2, 3], owner: { type: 'board', id: 'x' } };
-    const b: SnapPoint = { kind: 'corner', at: [1, 2, 3], owner: { type: 'board', id: 'x' } };
-    expect(a).not.toBe(b);
-    expect(sameSnapPoint(a, b)).toBe(true);
-  });
-
-  it('separates two points that differ only in kind', () => {
-    const a: SnapPoint = { kind: 'corner', at: [1, 2, 3], owner: { type: 'board', id: 'x' } };
-    const b: SnapPoint = { ...a, kind: 'face-center' };
-    expect(sameSnapPoint(a, b)).toBe(false);
-  });
-
-  it('separates two points that differ only in owner', () => {
-    const a: SnapPoint = { kind: 'corner', at: [1, 2, 3], owner: { type: 'board', id: 'x' } };
-    const b: SnapPoint = { ...a, owner: { type: 'board', id: 'y' } };
-    expect(sameSnapPoint(a, b)).toBe(false);
-  });
-
-  it('separates two points that differ only in position', () => {
-    const a: SnapPoint = { kind: 'corner', at: [1, 2, 3], owner: { type: 'board', id: 'x' } };
-    const b: SnapPoint = { ...a, at: [1, 2, 4] };
-    expect(sameSnapPoint(a, b)).toBe(false);
   });
 });

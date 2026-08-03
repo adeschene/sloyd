@@ -4,7 +4,8 @@
 import { createBoard } from './document';
 import { boardExtents } from './geometry';
 import { boardSolids } from './cuts';
-import { boardSnapPoints, cutSnapPoints, snapPointsFor } from './snapPoints';
+import { boardSnapPoints, cutSnapPoints, sameSnapPoint, snapPointsFor } from './snapPoints';
+import type { SnapPoint } from './snapPoints';
 import type { Board, Cut, Posture, Rotation } from './types';
 
 /** A 24 x 6 x 1 board at a non-zero, non-symmetric corner. */
@@ -402,5 +403,49 @@ describe('snapPointsFor', () => {
       { id: 'b', face: 'thickness', from: 'min', across: 'width', offset: 12, width: 12, depth: 1 },
     ]);
     expect(snapPointsFor(board)).toHaveLength(26);
+  });
+});
+
+let n = 0;
+const point = (at: [number, number, number], id = `b${(n += 1)}`): SnapPoint => ({
+  kind: 'corner',
+  at,
+  owner: { type: 'board', id },
+});
+
+describe('sameSnapPoint', () => {
+  it('treats two nulls as the same', () => {
+    expect(sameSnapPoint(null, null)).toBe(true);
+  });
+
+  it('treats null and a point as different', () => {
+    const p = point([1, 0, 0]);
+    expect(sameSnapPoint(p, null)).toBe(false);
+    expect(sameSnapPoint(null, p)).toBe(false);
+  });
+
+  it('compares by owner, kind and position rather than by reference', () => {
+    const a: SnapPoint = { kind: 'corner', at: [1, 2, 3], owner: { type: 'board', id: 'x' } };
+    const b: SnapPoint = { kind: 'corner', at: [1, 2, 3], owner: { type: 'board', id: 'x' } };
+    expect(a).not.toBe(b);
+    expect(sameSnapPoint(a, b)).toBe(true);
+  });
+
+  it('separates two points that differ only in kind', () => {
+    const a: SnapPoint = { kind: 'corner', at: [1, 2, 3], owner: { type: 'board', id: 'x' } };
+    const b: SnapPoint = { ...a, kind: 'face-center' };
+    expect(sameSnapPoint(a, b)).toBe(false);
+  });
+
+  it('separates two points that differ only in owner', () => {
+    const a: SnapPoint = { kind: 'corner', at: [1, 2, 3], owner: { type: 'board', id: 'x' } };
+    const b: SnapPoint = { ...a, owner: { type: 'board', id: 'y' } };
+    expect(sameSnapPoint(a, b)).toBe(false);
+  });
+
+  it('separates two points that differ only in position', () => {
+    const a: SnapPoint = { kind: 'corner', at: [1, 2, 3], owner: { type: 'board', id: 'x' } };
+    const b: SnapPoint = { ...a, at: [1, 2, 4] };
+    expect(sameSnapPoint(a, b)).toBe(false);
   });
 });

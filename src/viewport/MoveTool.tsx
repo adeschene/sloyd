@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { boardSnapPoints } from '../document/document';
+import { boardSnapPoints, sameSnapPoint } from '../document/document';
 import type { SnapPoint } from '../document/document';
 import { useStore } from '../store/store';
 import { CLICK_DRAG_SLOP_PX } from './pointer';
-import { PICK_RADIUS_PX, pickSnapPoint, sameSnapPoint } from './snapPick';
+import { PICK_RADIUS_PX, pickSnapPoint } from './snapPick';
 import type { ProjectedPoint } from './snapPick';
 import { SnapMarker } from './SnapMarker';
 
