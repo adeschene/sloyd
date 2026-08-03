@@ -437,3 +437,104 @@ All screenshots were taken under the filenames cited above and kept out of the r
 (`.playwright-mcp/shots-cut-snap/`, gitignored), the same way the snap-move and
 selected-board grabs passes handled theirs — the report cites them by name, the
 binaries are not carried in git.
+
+## Re-check after the box-lattice fix
+
+Finding 2 above ends "Recommend a follow-up; do not act on it here." It was acted on, in
+the same branch, immediately: `999ca29` filters `boardSnapPoints` through `stockProbe`
+too, with an explicit `boardSolids(board).length === 0` exception keeping all 26 points on
+a board its own cuts consumed, because the ghost box **is** drawn (invariant 21). Read
+finding 2 as **closed by that commit**, not as an open recommendation. Finding 1 — the ¼"
+pick ambiguity between a cut's floor corner and its mouth corner at default zoom — is
+untouched by the fix and remains open.
+
+This section is a **narrow re-check of that fix only**, not a second pass; nothing above
+was re-run. Full detail in
+`.superpowers/sdd/2026-08-03-sloyd-cut-snap-points/task-6c-report.md`. Same host, same
+harness, same rules: the app's own `project()` against the live camera through the dev
+server's module graph, real `page.mouse`/`page.keyboard`/wheel input throughout with no
+synthetic dispatch, marker presence read out of the scene graph at `renderOrder === 11`,
+counts read from the modules and screenshots carrying only the visual claims.
+
+**Two method differences, both recorded rather than glossed.** The fixture was written
+into `localStorage` as JSON and the page reloaded rather than built through the Properties
+panel — and then read back out and re-derived through the modules before anything was
+shot, which is also what confirmed no cut was dropped on load (the *Consumed* board kept
+both of its cuts and `boardSolids` returned `[]`). And a harness trap in the shape of
+follow-ups 74/75: the canvas sits 52.8 px below the top of the page and `MoveTool`'s
+`cursorOf` subtracts that rect, so a projection is **canvas**-relative while
+`page.mouse.move` takes **page** coordinates. Driving the raw projection put every cursor
+55 px off and read exactly like a coordinate-mapping defect in this round's code. It was
+the harness; adding `rect.top` reconciled the app's pick with the projector everywhere
+afterwards.
+
+**Every absence below was gap-measured before it was captioned.** A withheld mouth point
+is only `depth` away from the floor point that survives, so at a low enough zoom hovering
+it marks a *displaced* marker rather than none. The minimum pixel distance from each
+withheld position to **any** offered point was computed with the app's own projector and
+required to exceed `PICK_RADIUS_PX = 12` first. The fixture's rabbet is 0.75" deep in 2"
+stock for that reason — deep enough for a 15-25 px gap at the zooms used, and still under
+half the thickness so that exactly the three flush-end mouth points are withheld. (A
+deeper rabbet correctly withholds more: depth 1.0" in 1.5" stock returns 20, because the
+board's thickness-mid lattice plane is then inside the removed stock too. Checked and
+understood, not filed as a finding.)
+
+Fixture, one document: **Rabbet panel** — pine, upright, 24 × 12 × 2 at `(0,0,0)`, one cut
+`thickness`/`max`/`width`, offset **0**, width 3", depth ¾"; **Dado panel** — pine, flat,
+24 × 12 × ¾ at `(20,0,-6)`, one cut `thickness`/`max`/`width`, offset 8", width ¾", depth
+¼"; **Consumed** — walnut, flat, 6 × 4 × ¾ at `(-14,0,0)`, two `from: 'min'` cuts at
+offset 0 and 3, each 3" wide and ¾" deep. Posed rather than flat at the origin, for §6's
+reason.
+
+**1. The rabbet's flush end no longer marks.** `boardSnapPoints` returns **23**, and the
+three missing points were pinned by value — the 26-point lattice was rebuilt independently
+and differenced — as `(0,0,2)` corner, `(6,0,2)` edge-mid, `(12,0,2)` corner: exactly the
+flush-end mouth row, and nothing else. `cutSnapPoints` still returns 12. On screen at 17.4
+px/inch, with the nearest offered point 15.7 / 16.7 / 18.0 px away, all three hovers
+returned **zero markers** — `fix-rabbet-flush-corner-no-marker.png`,
+`fix-rabbet-flush-edgemid-no-marker.png`, `fix-rabbet-flush-corner12-no-marker.png` — and
+again after a real wheel zoom to 22.4 px/inch (gaps 20-25 px),
+`fix-rabbet-zoom-flush-edgemid-no-marker.png`.
+
+**2. Positive control, same session.** The rabbet's *other*, non-flush shoulder still
+marks: `(0,3,2)` green (`fix-rabbet-other-shoulder-marker.png`) and `(6,3,2)` cyan
+(`fix-rabbet-other-shoulder-edgemid-marker.png`, and at zoom
+`fix-rabbet-zoom-other-shoulder-marker.png` — the disc sits on the drawn shoulder line 72
+px above the cursor position that produced nothing one hover earlier, same view). Two more
+controls bracket the withheld point on its own axis: the floor corner ¾" below it
+(`fix-rabbet-floor-corner-marker.png`, `fix-rabbet-zoom-floor-edgemid-marker.png`) and the
+board's own lower corner at the same end, still in stock
+(`fix-rabbet-flush-end-lower-corner-marker.png`).
+
+**3. The regression check — a plain mid-face dado still offers all 26.** `boardSnapPoints`
+returns 26 and `cutSnapPoints` 15. Not a sample: **all 26 were projected and hovered one at
+a time**, and all 26 rendered exactly one marker at their own position, none picking a
+neighbour. Shot one of each kind plus a cut point: `fix-dado-box-corner-marker.png`,
+`fix-dado-box-facecentre-marker.png`, `fix-dado-box-edgemid-marker.png`,
+`fix-dado-cut-floor-marker.png`.
+
+**4. The consumed-board ghost keeps all 26 and offers no cut points.**
+`boardSolids` → `[]`, `boardSnapPoints` → 26, `cutSnapPoints` → 0. **All 26 hovered
+individually**, all 26 marked (`fix-consumed-ghost-box-facecentre-marker.png` shows the
+violet disc on the translucent ghost; `fix-consumed-ghost-box-corner-marker.png` a corner).
+The two would-be cut floor centres, 73.4 px and 72.0 px from any offered point, rendered
+nothing — `fix-consumed-ghost-no-cut-marker.png`,
+`fix-consumed-ghost-no-cut-marker-b.png`.
+
+**Console: 0 errors**, and warnings of the same three known kinds listed under Step 7 and
+nothing else. (The tool returned 73 warning lines with `all: true` against a
+per-navigation header of 8 — session total versus since-last-navigation; the 0-errors
+claim holds either way.)
+
+**No defect found, and the re-check's own boundaries.** It exercised the fix and its
+immediate neighbourhood only. **No grab was held at any point**, so all four checks
+drove only the *pre-grab* branch of `MoveTool`'s candidate memo; the post-grab branch
+calls the same changed function, which means the fix now filters **targets** on other
+boards too — intended on §2's reading, with no breakage mechanism visible (Step 3's
+target above was a `cutSnapPoints` floor corner, untouched by the diff), but undriven
+here and worth knowing beside follow-up 110. Not re-run: the headline operation, the
+deeper-cut overlap case, grab clearing, the legibility table, and the pick-radius
+measurement. Not covered at all: faces other than `thickness`, `rotation: 90`, touch and
+pen, a real GPU, production, and a screenshot of the deeper-rabbet (20-point) case. Screenshots for this section live
+in `.playwright-mcp/shots-cut-snap-fix/` — a different directory from the pass above, and
+gitignored the same way.
