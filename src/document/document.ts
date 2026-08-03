@@ -20,7 +20,7 @@ export { buildDepthField } from './depthField';
 export type { FaceCell } from './depthField';
 export { buildNesting, footprintsOf } from './nesting';
 export type { Nesting, NestedSheet, PlacedPart, UnplaceablePart, Footprint } from './nesting';
-export { boardSnapPoints, cutSnapPoints, guideSnapPoints, sameSnapPoint, snapPointsFor } from './snapPoints';
+export { boardSnapPoints, cutSnapPoints, guideSnapPoints, offsetPoint, sameSnapPoint, snapPointsFor } from './snapPoints';
 export type { BoardSnapPoint, SnapKind, SnapOwner, SnapPoint } from './snapPoints';
 
 /**

@@ -288,3 +288,40 @@ export function guideSnapPoints(guides: GuidePoint[]): SnapPoint[] {
     owner: { type: 'guide' as const, id: g.id },
   }));
 }
+
+/**
+ * A position `distance` from `anchor`, along the ray toward `toward`.
+ *
+ * One subtraction and one scale, and the three things a user might want are
+ * NOT three code paths — they are three values of one free parameter:
+ *
+ *   distance <  |toward - anchor|  ->  between the two points
+ *   distance >  |toward - anchor|  ->  past the target, same ray
+ *   distance <  0                  ->  backward from the anchor
+ *
+ * Returns null for a zero-length direction rather than normalising it.
+ * Normalising the zero vector yields NaN on every component, and that is not
+ * a theoretical case: it is what happens the moment the cursor returns to the
+ * point it started on. NaN coordinates would enter the document and pass every
+ * downstream check as "a number". Same shape as commitSnapMove's zero-delta
+ * guard — a guard with a named failure mode, not defensive habit — except that
+ * one prevents a no-op undo entry and this one prevents corrupt geometry.
+ *
+ * A non-finite `distance` is refused for the same reason: parseLength returns
+ * null for unparseable input, but a caller that skipped it must not be able to
+ * write Infinity into a position.
+ */
+export function offsetPoint(
+  anchor: [number, number, number],
+  toward: [number, number, number],
+  distance: number,
+): [number, number, number] | null {
+  if (!Number.isFinite(distance)) return null;
+  const dx = toward[0] - anchor[0];
+  const dy = toward[1] - anchor[1];
+  const dz = toward[2] - anchor[2];
+  const length = Math.hypot(dx, dy, dz);
+  if (length === 0) return null;
+  const k = distance / length;
+  return [anchor[0] + dx * k, anchor[1] + dy * k, anchor[2] + dz * k];
+}

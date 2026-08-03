@@ -4,7 +4,7 @@
 import { createBoard } from './document';
 import { boardExtents } from './geometry';
 import { boardSolids } from './cuts';
-import { boardSnapPoints, cutSnapPoints, guideSnapPoints, sameSnapPoint, snapPointsFor } from './snapPoints';
+import { boardSnapPoints, cutSnapPoints, guideSnapPoints, offsetPoint, sameSnapPoint, snapPointsFor } from './snapPoints';
 import type { SnapPoint } from './snapPoints';
 import type { Board, Cut, Posture, Rotation } from './types';
 
@@ -533,5 +533,59 @@ describe('guideSnapPoints', () => {
     expect(all).toHaveLength(27);
     expect(all.filter((p) => p.owner.type === 'guide')).toHaveLength(1);
     expect(all.filter((p) => p.owner.type === 'board')).toHaveLength(26);
+  });
+});
+
+describe('offsetPoint', () => {
+  const anchor: [number, number, number] = [0, 0, 0];
+  const toward: [number, number, number] = [12, 0, 0];
+
+  it('lands between the two points below the measured distance', () => {
+    expect(offsetPoint(anchor, toward, 6)).toEqual([6, 0, 0]);
+  });
+
+  it('lands exactly on the target at the measured distance', () => {
+    expect(offsetPoint(anchor, toward, 12)).toEqual([12, 0, 0]);
+  });
+
+  it('overshoots past the target above the measured distance', () => {
+    expect(offsetPoint(anchor, toward, 18)).toEqual([18, 0, 0]);
+  });
+
+  it('runs backward from the anchor for a negative distance', () => {
+    expect(offsetPoint(anchor, toward, -6)).toEqual([-6, 0, 0]);
+  });
+
+  it('places at the anchor for a zero distance', () => {
+    expect(offsetPoint(anchor, toward, 0)).toEqual([0, 0, 0]);
+  });
+
+  it('normalises a diagonal direction rather than scaling the component-wise delta', () => {
+    // A 3-4-5 triangle: the direction is 5 long, so a distance of 5 must land
+    // exactly on the target and a distance of 10 exactly twice as far.
+    const result = offsetPoint([0, 0, 0], [3, 4, 0], 10);
+    expect(result![0]).toBeCloseTo(6, 10);
+    expect(result![1]).toBeCloseTo(8, 10);
+    expect(result![2]).toBeCloseTo(0, 10);
+  });
+
+  it('offsets from a non-zero anchor', () => {
+    expect(offsetPoint([10, 2, -5], [10, 2, 5], 4)).toEqual([10, 2, -1]);
+  });
+
+  // §1.2 — the case that costs one mouse movement to reach. Normalising a
+  // zero vector yields NaN on every component, and NaN coordinates entering
+  // the document would pass every downstream check as "a number".
+  it('refuses a zero-length direction rather than emitting NaN', () => {
+    expect(offsetPoint([1, 2, 3], [1, 2, 3], 6)).toBeNull();
+  });
+
+  it('refuses a zero-length direction even at distance zero', () => {
+    expect(offsetPoint([1, 2, 3], [1, 2, 3], 0)).toBeNull();
+  });
+
+  it('refuses a non-finite distance', () => {
+    expect(offsetPoint(anchor, toward, NaN)).toBeNull();
+    expect(offsetPoint(anchor, toward, Infinity)).toBeNull();
   });
 });
