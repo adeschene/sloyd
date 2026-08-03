@@ -165,15 +165,16 @@ export const useStore = create<StoreState>((set, get) => {
       // means. MoveTool also withholds these candidates so the case cannot be
       // clicked; this guard is what makes the rule true of the action itself.
       if (target.owner.id === grabbed.owner.id) return;
-      // The Move tool only offers the selected board's points as grab
-      // candidates, and every writer of selectedId drops a grab that stops
-      // matching (see edit() and selectBoard). This guard is deliberately
-      // redundant with both: the filter makes the rule true of the UI, this
-      // makes it true of the action, so a future sixth writer of selectedId
-      // that misses the rule costs a grab that refuses to commit rather than
-      // a board that moves without the user knowing which one it was.
-      // `grabbed` is deliberately left in hand — this state should be
-      // unreachable, and discarding it quietly would hide that it wasn't.
+      // MoveTool's candidate memo, which this branch narrows to the selected
+      // board's points, and every writer of selectedId drops a grab that
+      // stops matching (see edit() and selectBoard). This guard is
+      // deliberately redundant with both: the filter makes the rule true of
+      // the UI, this makes it true of the action, so a future sixth writer of
+      // selectedId that misses the rule costs a grab that refuses to commit
+      // rather than a board that moves without the user knowing which one it
+      // was. `grabbed` is deliberately left in hand — this state should be
+      // unreachable once the filter lands, and discarding it quietly would
+      // hide that it wasn't.
       if (grabbed.owner.id !== get().selectedId) return;
 
       const board = get().doc.boards.find((b) => b.id === grabbed.owner.id);
