@@ -121,6 +121,15 @@ canvas { display: block; }
   background: var(--rule);
 }
 
+/* Shown only while the Move tool is armed with nothing selected — the one
+   state where the tool is live but nothing is grabbable. Muted, because it
+   describes what to do next rather than reporting an error. */
+.toolbar-hint {
+  font-size: 12px;
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+
 .brand {
   font-family: var(--font-num);
   font-size: 12px;

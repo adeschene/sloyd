@@ -39,6 +39,7 @@ export function Toolbar({
   const canRedo = useStore((s) => s.future.length > 0);
   const tool = useStore((s) => s.tool);
   const setTool = useStore((s) => s.setTool);
+  const selectedId = useStore((s) => s.selectedId);
 
   return (
     <header className="toolbar">
@@ -75,6 +76,15 @@ export function Toolbar({
         >
           Move
         </button>
+        {tool === 'move' && !selectedId && (
+          // The Move tool grabs points on the selected board only, so with
+          // nothing selected no marker ever appears and the tool reads as
+          // broken rather than as waiting. The button stays enabled: disabling
+          // it would take a control away to explain a state, and would need
+          // its own rule for a board deleted while the tool is active — which
+          // this needs none for, since deleteBoard already clears both.
+          <span className="toolbar-hint">Select a part to move</span>
+        )}
         <span className="toolbar-divider" />
         <button
           onClick={onToggleProjection}
