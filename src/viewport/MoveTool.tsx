@@ -55,8 +55,8 @@ export function MoveTool() {
    * corner, and offering both meant pickSnapPoint's depth tie-break silently
    * decided which board was about to move. The marker sits at a position both
    * boards share, so nothing on screen said which one it named. With nothing
-   * selected this is empty, and nothing is grabbable at all (the toolbar hint
-   * this branch adds says so).
+   * selected this is empty, and nothing is grabbable at all — which is what
+   * the toolbar's "Select a part to move" hint exists to explain.
    *
    * AFTER a grab: every board's points minus the grabbed board's own.
    * Deliberately NOT restricted the same way — two coincident TARGET points

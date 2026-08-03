@@ -1939,3 +1939,55 @@ a screenshot into evidence instead of an illustration. The numeric read (which b
 all. The general shape: when an indicator's colour encodes a property other than the one
 under test, build the fixture so the two cases differ in the property the indicator
 *does* encode.
+
+**117. The toolbar hint has NO unit test, and that is a decision rather than a gap in
+coverage.** `panels/` is the one layer above `document` this repo does unit-test with
+RTL (`Properties.test.tsx`, `App.test.tsx`), so "it's a viewport, we drive a browser"
+does not excuse it the way it excuses `MoveTool.tsx` — the hint is a `panels/` component
+and an RTL assertion on it would be cheap. It was still assigned to the browser pass
+(design §8), for a reason worth stating: what the hint has to get right is not *that a
+string renders when a store flag is set* — that is one line of JSX and a test of it
+would restate the implementation — but that the state it names is genuinely inert, i.e.
+that with nothing selected no point anywhere is markable or grabbable. That claim cannot
+be made in jsdom at all: it needs the r3f scene, the projection and a pointer. The
+browser pass made it exhaustively (all 52 candidates hovered, zero markers, five clicked,
+zero grabs) and screenshotted the hint alongside. An RTL test would have added a second,
+weaker check of the easy half. If the hint later grows conditions — a different string
+per state, or a dependence on something beyond `tool && !selectedId` — that reasoning
+expires and it should get one.
+
+**118. LESSON — a review finding whose justification did not reproduce, and the FIRST in
+this chain sourced from a reviewer rather than from a plan.** Follow-ups 64, 68 (twice),
+80, 87, 88 and 107 are all instances of plan-supplied code or a plan-supplied
+justification being wrong. This one has the same shape from a different direction: the
+whole-branch review asked for a new store test on the grounds that mutating `edit()`'s
+
+```
+dropGrab = selection !== undefined && heldGrab !== null && heldGrab.owner.id !== nextSelectedId
+```
+
+to drop the id comparison "passes all 668 tests today" — i.e. that the narrow half of the
+condition, the exact thing Task 1's implementer escalated about, was unpinned. It is not.
+Applying that mutation and running `npx vitest run src/store/store.test.ts` fails
+`keeps a grab when some other board is deleted` — `1 failed | 68 passed` — because
+`twoBoards()` leaves `a` selected, so `deleteBoard(b.id)` takes `wasSelected === false`
+and its selection callback returns the still-selected `a.id`; the correct code compares
+`a.id === a.id` and keeps the grab, the mutation drops it. The *other* half is pinned
+too, and by a different test: mutating away `selection !== undefined` instead fails
+`keeps a grab when some other board is edited` (`1 failed | 68 passed`), because
+`updateBoard` on a board that is not the grabbed one carries no callback at all. Both
+were confirmed by applying each mutation, running the file, and restoring — the suite
+returns `69 passed` in that file, 668 overall.
+
+So no test was added; a duplicate of an existing assertion would have been the worse
+outcome in a repo that has two entries (87, 88) about tests that could not fail. What was
+added instead is a comment on the existing deleted-board test naming *which* half of the
+condition it pins and which sibling pins the other — because the reason it was proposed
+as missing is that nothing in the file said what it was for — plus two sharper assertions
+on it (`selectedId` and the grab's owner id, rather than a bare `not.toBeNull()`). The
+transferable point is the same one the chain has been making since 64, now with the
+source generalised: **a claim that a mutation survives the suite is a claim about a
+command's output, and it is cheap to run.** The reviewer was working under instructions
+not to run the suite, which makes reasoning the only option available to them and makes
+running it the reader's job — not a criticism of the review, but the reason a finding of
+this shape gets verified before it gets implemented.

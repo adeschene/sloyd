@@ -46,9 +46,12 @@ gitignored. Read that file before deploying; it is not in the public repo.
 layout, per-face views and board feet are all shipped and merged to `master`. Do not
 treat any of the five as in-flight.
 
-**Production matches `master` as of 2026-08-02**, snap-move included — it was merged
+**Production matches `master` through snap-move, as of 2026-08-02 — but NOT through the
+selected-board grabs round, which is merged and not yet deployed.** Snap-move was merged
 and deployed the same day, unlike the three rounds before it that sat merged and held
-back at the user's choice. Verified after: `200` on `/` and on a deep route both
+back at the user's choice; the round after it has had no deploy at all, so the live
+build still offers every board's snap points as grab candidates. Verified after the
+snap-move deploy: `200` on `/` and on a deep route both
 in-network and publicly, the new bundle (`index-PzaLeA8Y.js` → `index-DNH_-g9z.js`)
 served at the edge, the Select/Move pair present in the live toolbar, 0 console errors
 (two known three.js deprecation warnings), and exactly one Cloudflare beacon.
@@ -242,7 +245,7 @@ now the **selected** board's points only; after a grab, the target set is unchan
   for, since `deleteBoard` already clears both and the app lands in the hinted state.
 - **Known, deferred, and verified in a real browser** — see
   `docs/browser-verification-selected-board-grabs.md` and `docs/follow-ups.md`'s "From
-  the selected-board grabs round" section (109-116). That pass found **no defect**, and
+  the selected-board grabs round" section (109-118). That pass found **no defect**, and
   it changed the repo's browser method in two ways worth reusing: the projector is the
   app's own `project()` run against the live r3f camera (reached through the Vite dev
   server's module graph) rather than a re-derivation, and every interaction backing a
@@ -973,8 +976,13 @@ src/
 │   │                        and it avoids an invisible full-screen plane every
 │   │                        other hit test would then have to exclude), hover held
 │   │                        in a ref and committed to state only on change, and
-│   │                        the grabbed + hovered markers. Withholds the grabbed
-│   │                        board's own candidates so the case draws no marker
+│   │                        the grabbed + hovered markers. The candidate memo is
+│   │                        TWO sets, not one set with a filter: before a grab,
+│   │                        only the SELECTED board's points (empty when nothing
+│   │                        is selected, so nothing is grabbable); after a grab,
+│   │                        every board's points minus the grabbed board's own,
+│   │                        so the self-snap case draws no marker. Targets are
+│   │                        deliberately unrestricted — see design §3
 │   ├── SnapMarker.tsx       one screen-constant, always-on-top marker
 │   │                        (depthTest off, so an occluded candidate's pick is
 │   │                        visible). Owns the three off-palette colours, the ring
@@ -1004,7 +1012,11 @@ src/
 │   │                        REFUSE out-of-range entry rather than clamping
 │   ├── NameField.tsx        part name; commits on blur/Enter, empty reverts
 │   ├── Toolbar.tsx          project name, Add board, Cut list, undo/redo, the
-│   │                        Select / Move button pair, view toggles
+│   │                        Select / Move button pair, view toggles; plus the
+│   │                        "Select a part to move" hint, shown when move is
+│   │                        armed with nothing selected. The Move button stays
+│   │                        ENABLED — the hint explains the state instead of
+│   │                        removing the control
 │   ├── PartsList.tsx  FileMenu.tsx
 │   ├── Properties.tsx       board fields + the Cuts section; CutRow is its own
 │   │                        component so a cut's error dies with the cut
@@ -1357,9 +1369,12 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
     wrong. **A future action that rewrites `doc.boards` wholesale joins this list** —
     that is the test, not "does it touch positions", because a wholesale rewrite can
     invalidate the grab by removing its owner as easily as by moving it. Note this list
-    is not everything that nulls `grabbed`: `setTool`, `cancelGrab`, `commitSnapMove`
-    itself and its board-not-found path all do too, for their own reasons (`setTool`'s is
-    that a snap point carried into a different tool has nothing that can consume it).
+    is not everything that nulls `grabbed`: `setTool`, `cancelGrab`, and all three of
+    `commitSnapMove`'s own paths that reach the end of a gesture — the successful move,
+    the board-not-found path, and the zero-delta early return — do too, for their own
+    reasons (`setTool`'s is that a snap point carried into a different tool has nothing
+    that can consume it; the zero-delta return's is that the gesture is over even though
+    no edit was worth making).
     **The selected-board grabs round added one more to that second list, for a reason
     that is neither of the two above: the user retargeted the tool.** Since only the
     selected board's points are grab candidates, a selection that lands on a different
@@ -1578,7 +1593,7 @@ verification report that stated marker coverage more broadly than it had checked
 by taking the four missing screenshots rather than by narrowing the prose, because
 narrowing would have been cheaper and worse.
 
-The selected-board grabs round added **109-116**. **109-113** are the design's §9
+The selected-board grabs round added **109-118**. **109-113** are the design's §9
 non-goals and its §5 composition note, recorded as decisions: no click-to-select in Move
 mode, no restriction on the target set, no multi-board moves, no gizmo or gate change,
 and — the one that will matter soonest — the guide-points design's §3.1 board-owned
@@ -1590,7 +1605,15 @@ a projector taken from the app's own `project()` replaced synthetic `PointerEven
 failed re-derivation; touch and pen remain unexercised. **116** is a verification-design
 note — a marker's colour encodes snap *kind*, not owner, so the fixture was built with a
 shared point that is a corner of one board and an edge midpoint of the other, which is
-what let a screenshot say anything about ownership at all.
+what let a screenshot say anything about ownership at all. **117** records the toolbar
+hint's missing unit test as a decision — `panels/` *is* RTL-tested here, so the reason is
+that the hint's real claim (nothing is markable or grabbable) cannot be made in jsdom at
+all, not that panels are exempt. **118** is the newest link in the
+plan-supplied-justification chain (64, 68 twice, 80, 87, 88, 107) and the first sourced
+from a **reviewer** rather than a plan: a requested test whose premise — that a mutation
+of `edit()`'s grab-clearing condition survives the suite — did not reproduce, both halves
+of that condition already being pinned by a different existing test each. Closed by
+running the two mutations and recording the output, not by adding a duplicate test.
 
 One entry is a lesson rather than a defect and is worth reading before touching anything
 in the viewport: **26a**. Browser verification on this host runs on software GL

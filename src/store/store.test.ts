@@ -621,10 +621,22 @@ describe('the Move tool', () => {
   });
 
   it('keeps a grab when some other board is deleted', () => {
+    // This pins the SHAPE of edit()'s condition, not merely that it fires:
+    // the resulting selection is compared against the grabbed board's id,
+    // rather than the grab being cleared whenever a `selection` callback ran
+    // at all. deleteBoard always passes a callback, and here it resolves to
+    // the still-selected `a` — the board the grab belongs to — so nothing has
+    // moved out from under the captured point and the user has not
+    // retargeted the tool. Dropping `heldGrab.owner.id !== nextSelectedId`
+    // fails exactly here, which is what makes this test load-bearing rather
+    // than a restatement of the one above. (Its sibling below, "keeps a grab
+    // when some other board is edited", is what fails if the
+    // `selection !== undefined` half is dropped instead.)
     const { a, b } = twoBoards();
     useStore.getState().grabSnapPoint(cornerOf(a.id));
     useStore.getState().deleteBoard(b.id);
-    expect(useStore.getState().grabbed).not.toBeNull();
+    expect(useStore.getState().selectedId).toBe(a.id);
+    expect(useStore.getState().grabbed?.owner.id).toBe(a.id);
   });
 
   it('drops a grab when the grabbed board is edited', () => {
