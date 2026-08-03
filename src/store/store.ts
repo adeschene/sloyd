@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { createBoard, createDocument, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor } from '../document/document';
-import type { Board, Cut, SloydDocument, SnapPoint } from '../document/document';
+import type { Board, BoardSnapPoint, Cut, SloydDocument, SnapPoint } from '../document/document';
 
 const HISTORY_LIMIT = 50;
 
@@ -34,11 +34,20 @@ interface StoreState {
    * `tool` has consumers in Toolbar, Viewport, MoveTool and (via one prop)
    * BoardMesh, at three different depths. They are still view state, so they
    * are deliberately outside the document and outside the undo stack.
+   *
+   * `grabbed` is a BoardSnapPoint, not a SnapPoint, and that is load-bearing
+   * rather than tidy: the guide-points round widened SnapOwner, and eight
+   * reads in this file assume `owner.id` names a board. Seven of them are
+   * correct only because MoveTool never offers a guide as a grab source — an
+   * invariant enforced two modules away. The narrower type moves that
+   * enforcement here, where tsc can hold it. `tapeAnchor` below is
+   * deliberately the WIDE type; the difference is what says which of the two
+   * can hold a guide.
    */
   tool: ToolMode;
-  grabbed: SnapPoint | null;
+  grabbed: BoardSnapPoint | null;
   setTool: (tool: ToolMode) => void;
-  grabSnapPoint: (point: SnapPoint) => void;
+  grabSnapPoint: (point: BoardSnapPoint) => void;
   cancelGrab: () => void;
   commitSnapMove: (target: SnapPoint) => void;
 
@@ -207,7 +216,14 @@ export const useStore = create<StoreState>((set, get) => {
       // would translate the board by its own length — but never what anyone
       // means. MoveTool also withholds these candidates so the case cannot be
       // clicked; this guard is what makes the rule true of the action itself.
-      if (target.owner.id === grabbed.owner.id) return;
+      //
+      // Compares OWNERS, not bare ids, since the guide-points round: a guide is
+      // a legal target, both union members carry `id: string`, and a guide
+      // whose id collided with the grabbed board's would otherwise read as a
+      // self-snap and silently refuse a move the user asked for. This is the
+      // ONLY runtime ownership test left in the file — everything else is the
+      // BoardSnapPoint type. See design §3.0.
+      if (target.owner.type === 'board' && target.owner.id === grabbed.owner.id) return;
       // MoveTool's candidate memo offers only the selected board's points,
       // and every writer of selectedId drops a grab that stops matching (see
       // edit() and selectBoard). This guard is deliberately redundant with

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { sameSnapPoint, snapPointsFor } from '../document/document';
-import type { SnapPoint } from '../document/document';
+import { guideSnapPoints, sameSnapPoint, snapPointsFor } from '../document/document';
+import type { BoardSnapPoint, SnapPoint } from '../document/document';
 import { useStore } from '../store/store';
 import { CLICK_DRAG_SLOP_PX } from './pointer';
 import { PICK_RADIUS_PX, pickSnapPoint } from './snapPick';
@@ -13,14 +13,37 @@ import { SnapMarker } from './SnapMarker';
 const projected = new THREE.Vector3();
 
 /**
+ * Narrows a picked candidate to a board-owned one, for the grab call.
+ *
+ * A written-out predicate rather than an inline `hit.owner.type === 'board'`,
+ * and the reason is a TypeScript fact worth recording rather than rediscovering:
+ * `SnapPoint` is an INTERFACE whose `owner` is the union — it is not itself a
+ * discriminated union — so the inline test narrows `hit.owner` and leaves `hit`
+ * a plain `SnapPoint`. tsc then rejects the call with "Type 'SnapPoint' is not
+ * assignable to parameter of type 'BoardSnapPoint'" even though the test
+ * directly in front of it has just established the fact. There is nothing for
+ * the compiler to narrow `hit` TO without being told, which is what this is.
+ *
+ * So the ownership test here is REQUIRED, not a redundant echo of the candidate
+ * memo: the memo's two branches have different element types (BoardSnapPoint[]
+ * pre-grab, a mixed array post-grab), the memo's inferred type is their union,
+ * and the pre-grab branch's board-ownership does not survive that. This is the
+ * one place a picked point becomes the store's BoardSnapPoint. Contrast
+ * commitSnapMove's self-snap guard, which IS deliberately redundant with the
+ * memo.
+ */
+const isBoardOwned = (p: SnapPoint): p is BoardSnapPoint => p.owner.type === 'board';
+
+/**
  * The Move tool: click a snap point to grab it, click another to drop the
  * grabbed board so the two points coincide exactly.
  *
  * Renders nothing and listens to nothing unless `tool === 'move'`.
  */
-export function MoveTool() {
+export function MoveTool({ showGuides = true }: { showGuides?: boolean }) {
   const tool = useStore((s) => s.tool);
   const boards = useStore((s) => s.doc.boards);
+  const guides = useStore((s) => s.doc.guides);
   const grabbed = useStore((s) => s.grabbed);
   const selectedId = useStore((s) => s.selectedId);
 
@@ -76,14 +99,27 @@ export function MoveTool() {
    * the side panel, so a cut point is most often a TARGET, on the board that
    * is not selected. One function rather than two concatenations so the
    * branches cannot drift (follow-up 113).
+   *
+   * GUIDES ARE TARGETS, NEVER GRAB SOURCES, so they appear in the post-grab
+   * branch only — you snap a board onto a guide, never a guide onto a board.
+   * The pre-grab branch needs no filter to make that true: it is one selected
+   * board's points, which are board-owned by construction. Stacking a
+   * board-owned filter on a rule that is already narrower would be two
+   * predicates that agree today and two places for a future rule to disagree
+   * (follow-ups 113 and 125). Hidden guides offer no candidates either — a
+   * marker over an invisible point is an indicator with nothing under it
+   * (design §6).
    */
   const candidates = useMemo(() => {
     if (grabbed) {
-      return boards.flatMap(snapPointsFor).filter((p) => p.owner.id !== grabbed.owner.id);
+      return [
+        ...boards.flatMap(snapPointsFor).filter((p) => p.owner.id !== grabbed.owner.id),
+        ...(showGuides ? guideSnapPoints(guides) : []),
+      ];
     }
     const selected = boards.find((b) => b.id === selectedId);
     return selected ? snapPointsFor(selected) : [];
-  }, [boards, grabbed, selectedId]);
+  }, [boards, grabbed, selectedId, guides, showGuides]);
 
   useEffect(() => {
     if (tool !== 'move') {
@@ -156,7 +192,10 @@ export function MoveTool() {
       // for any event arriving between a store write and the next commit.
       const store = useStore.getState();
       if (!store.grabbed) {
-        if (hit) store.grabSnapPoint(hit);
+        // Required by the compiler, not a redundant echo of the memo — see
+        // isBoardOwned's comment for why it is a predicate rather than the
+        // inline test the design sketched.
+        if (hit && isBoardOwned(hit)) store.grabSnapPoint(hit);
         return;
       }
       if (hit) store.commitSnapMove(hit);
@@ -179,7 +218,8 @@ export function MoveTool() {
       el.removeEventListener('pointerleave', onPointerLeave);
     };
     // `candidates` is in the list because the handlers close over it, and it
-    // already depends on `boards`, `grabbed` and `selectedId`. `size.width`/
+    // already depends on `boards`, `grabbed`, `selectedId`, `guides` and
+    // `showGuides` — so none of those belongs here again. `size.width`/
     // `.height` rather than `size` so a re-created size object does not
     // resubscribe.
   }, [tool, candidates, gl, camera, size.width, size.height]);

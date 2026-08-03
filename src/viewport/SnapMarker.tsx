@@ -14,21 +14,31 @@ import { screenPixelsPerInch } from './screenScale';
  * before you commit. Shape cannot carry that at the ~9px a marker has to be to
  * sit on a corner without hiding it. Hue can.
  *
- * All three are cool and saturated against a palette that is entirely warm and
+ * All four are cool and saturated against a palette that is entirely warm and
  * desaturated (ground #e6e3dd, grid #c6c1b8/#958f84, brass #c99a4e), so they
  * read as not-part-of-the-model rather than as a clashing member of it. The
- * hues are spread far enough apart to stay mutually distinct, and they echo
- * SketchUp's own endpoint/midpoint convention closely enough to be read
- * without a legend — muted well below SketchUp's pure primaries, which would
- * look like error states here.
+ * hues are spread far enough apart to stay mutually distinct, and the first
+ * three echo SketchUp's own endpoint/midpoint convention closely enough to be
+ * read without a legend — muted well below SketchUp's pure primaries, which
+ * would look like error states here.
  *
  * Browser-settled in the sense of follow-up 60: verified against pine, walnut
- * and plywood on this app's own ground, not argued from theory.
+ * and plywood on this app's own ground, not argued from theory. That verdict
+ * covers the original three; the guide colour below carries the same
+ * obligation and Task 10 discharges it.
  */
 export const SNAP_COLORS: Record<SnapKind, string> = {
   corner: '#2e9e5b',
   'edge-mid': '#22b8d4',
   'face-center': '#8a5fd0',
+  // The guide-points round's fourth. A guide is not a corner, an edge midpoint
+  // or a face centre, and colouring it as one would tell the user something
+  // false about what they are about to snap to — the marker's only job. Kept
+  // cool and desaturated with the other three, and placed in the blue-violet
+  // gap between cyan and violet so all four stay mutually distinct.
+  // Browser-settled in the sense of follow-up 60: Task 10 confirms or retunes
+  // it against pine, walnut and plywood. Do not "fix" it from theory.
+  guide: '#4f6fd0',
 };
 
 /**

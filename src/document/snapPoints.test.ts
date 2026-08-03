@@ -4,7 +4,7 @@
 import { createBoard } from './document';
 import { boardExtents } from './geometry';
 import { boardSolids } from './cuts';
-import { boardSnapPoints, cutSnapPoints, sameSnapPoint, snapPointsFor } from './snapPoints';
+import { boardSnapPoints, cutSnapPoints, guideSnapPoints, sameSnapPoint, snapPointsFor } from './snapPoints';
 import type { SnapPoint } from './snapPoints';
 import type { Board, Cut, Posture, Rotation } from './types';
 
@@ -506,5 +506,32 @@ describe('sameSnapPoint', () => {
     const a: SnapPoint = { kind: 'corner', at: [1, 2, 3], owner: { type: 'board', id: 'x' } };
     const b: SnapPoint = { ...a, at: [1, 2, 4] };
     expect(sameSnapPoint(a, b)).toBe(false);
+  });
+});
+
+describe('guideSnapPoints', () => {
+  it('yields one candidate per guide, owned by that guide', () => {
+    const points = guideSnapPoints([
+      { id: 'g1', at: [1, 2, 3] },
+      { id: 'g2', at: [-4, 0, 8] },
+    ]);
+    expect(points).toEqual([
+      { kind: 'guide', at: [1, 2, 3], owner: { type: 'guide', id: 'g1' } },
+      { kind: 'guide', at: [-4, 0, 8], owner: { type: 'guide', id: 'g2' } },
+    ]);
+  });
+
+  it('yields nothing for no guides', () => {
+    expect(guideSnapPoints([])).toEqual([]);
+  });
+
+  // The whole payoff of §2.3: the picker's signature never moved, so the two
+  // providers' output concatenates into one array.
+  it('concatenates with board candidates into one array', () => {
+    const b = board();
+    const all = [...boardSnapPoints(b), ...guideSnapPoints([{ id: 'g1', at: [0, 0, 0] }])];
+    expect(all).toHaveLength(27);
+    expect(all.filter((p) => p.owner.type === 'guide')).toHaveLength(1);
+    expect(all.filter((p) => p.owner.type === 'board')).toHaveLength(26);
   });
 });

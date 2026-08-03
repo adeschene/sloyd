@@ -859,3 +859,39 @@ describe('the Move tool', () => {
     expect(useStore.getState().grabbed).not.toBeNull();
   });
 });
+
+describe('SnapOwner widening — a guide is a legal target', () => {
+  const guidePoint = (id: string, at: [number, number, number]) =>
+    ({ kind: 'guide' as const, at, owner: { type: 'guide' as const, id } });
+
+  it('a board can be snapped onto a guide point', () => {
+    useStore.getState().addBoard();
+    const board = useStore.getState().doc.boards[0];
+    const corner = boardSnapPoints(board)[0];
+    useStore.getState().grabSnapPoint(corner);
+    useStore.getState().commitSnapMove(guidePoint('g1', [
+      corner.at[0] + 5, corner.at[1] + 6, corner.at[2] + 7,
+    ]));
+    const moved = useStore.getState().doc.boards[0];
+    expect(moved.position).toEqual([
+      board.position[0] + 5, board.position[1] + 6, board.position[2] + 7,
+    ]);
+    expect(useStore.getState().grabbed).toBeNull();
+  });
+
+  // The self-snap guard compares OWNERS, not bare ids — the ONE runtime
+  // narrowing the BoardSnapPoint type does not subsume, because the TARGET can
+  // legitimately be a guide. Without the `type` test, a guide whose id
+  // collided with the grabbed board's would read as a self-snap and the move
+  // would be silently refused. See the design's §3.0.
+  it('does not mistake a guide for the grabbed board when their ids collide', () => {
+    useStore.getState().addBoard();
+    const board = useStore.getState().doc.boards[0];
+    const corner = boardSnapPoints(board)[0];
+    useStore.getState().grabSnapPoint(corner);
+    useStore.getState().commitSnapMove(guidePoint(board.id, [
+      corner.at[0] + 3, corner.at[1], corner.at[2],
+    ]));
+    expect(useStore.getState().doc.boards[0].position[0]).toBe(board.position[0] + 3);
+  });
+});

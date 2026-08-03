@@ -49,15 +49,21 @@ export type Projector = (at: [number, number, number]) => ProjectedPoint | null;
  * the silhouetted corner above IS the occluded one. Its marker draws on top
  * so the pick is at least visible (§3.2).
  *
+ * Generic in the candidate type, and it never reads `owner` — so picking from
+ * an array of BoardSnapPoint yields a BoardSnapPoint, which is what lets
+ * MoveTool's grab call typecheck without a runtime ownership test on the
+ * branch where the candidates are board-owned by construction. The picker
+ * itself is indifferent: every kind snaps identically.
+ *
  * Ties in screen distance are broken by depth, nearer to the camera first.
  */
-export function pickSnapPoint(
-  candidates: SnapPoint[],
+export function pickSnapPoint<T extends SnapPoint>(
+  candidates: T[],
   project: Projector,
   cursor: { x: number; y: number },
   radiusPx: number,
-): SnapPoint | null {
-  let best: SnapPoint | null = null;
+): T | null {
+  let best: T | null = null;
   // Seeded with the radius so "within range" and "better than what we have"
   // are one comparison. Squared throughout — no square root is needed to
   // order distances, and the boundary stays exact.

@@ -1,24 +1,28 @@
 import { boardSolids, cutRegion, stockProbe } from './cuts';
 import type { Point } from './cuts';
 import { axisDimensions, boardExtents, positionAxisOf } from './geometry';
-import type { Board, Cut } from './types';
+import type { Board, Cut, GuidePoint } from './types';
 
 /**
  * What a snap point sits on. Drives the marker's colour, and nothing else —
  * every kind snaps identically.
  */
-export type SnapKind = 'corner' | 'edge-mid' | 'face-center';
+export type SnapKind = 'corner' | 'edge-mid' | 'face-center' | 'guide';
 
 /**
  * What a snap point belongs to.
  *
- * A discriminated union rather than a bare board id, deliberately: guide
- * points, guide lines and the tape measure are the named follow-ups to this
- * round, and every one of them produces candidates owned by something that is
- * not a board. Adding a member here is how they land; the picker's signature
- * never has to change. See the design's §2.3.
+ * A discriminated union rather than a bare board id — see the snap-move
+ * design's §2.3. The guide-points round is the first member to arrive, and it
+ * arrived exactly as predicted: a new provider, no change to pickSnapPoint.
+ *
+ * READ THE TYPE, NOT THE ID. Both members carry `id: string`, so `owner.id`
+ * typechecks on the union while meaning two different things. Every consumer
+ * that means "this board" must narrow on `owner.type === 'board'` first.
  */
-export type SnapOwner = { type: 'board'; id: string };
+export type SnapOwner =
+  | { type: 'board'; id: string }
+  | { type: 'guide'; id: string };
 
 export interface SnapPoint {
   kind: SnapKind;
@@ -26,6 +30,23 @@ export interface SnapPoint {
   at: [number, number, number];
   owner: SnapOwner;
 }
+
+/**
+ * A snap point that belongs to a board — the box lattice and the cut-owned
+ * points, which is everything both providers in this module produce.
+ *
+ * Exists so `grabbed` can be typed as one. The Move tool grabs boards and
+ * targets anything (design §3.1), and this is what makes the grab half of that
+ * rule CHECKABLE rather than remembered: eight reads in store.ts assume
+ * `owner.id` names a board, seven of them are correct only because MoveTool's
+ * candidate memo never offers a guide as a grab source, and an invariant
+ * enforced two modules away is what the next round breaks. Narrowing the field
+ * is the least accidental form available.
+ *
+ * `tapeAnchor` is deliberately NOT this type. The difference between the two
+ * fields is now the documentation of which one can hold a guide.
+ */
+export type BoardSnapPoint = SnapPoint & { owner: { type: 'board'; id: string } };
 
 /**
  * Whether two picks are the same point, by value.
@@ -90,16 +111,18 @@ export function sameSnapPoint(a: SnapPoint | null, b: SnapPoint | null): boolean
  * across the two would mean reaching into `cuts.ts`'s private `grid()`, which
  * stays unexported on purpose.
  */
-export function boardSnapPoints(board: Board): SnapPoint[] {
+export function boardSnapPoints(board: Board): BoardSnapPoint[] {
   const [ex, ey, ez] = boardExtents(board);
   const [px, py, pz] = board.position;
   // `position` is the min-corner, not the centre — see invariant 2.
   const xs = [px, px + ex / 2, px + ex];
   const ys = [py, py + ey / 2, py + ey];
   const zs = [pz, pz + ez / 2, pz + ez];
-  const owner: SnapOwner = { type: 'board', id: board.id };
+  // Annotated as BoardSnapPoint['owner'], not as the wide SnapOwner: the wide
+  // annotation would not narrow, and the return type is what would fail.
+  const owner: BoardSnapPoint['owner'] = { type: 'board', id: board.id };
 
-  const points: SnapPoint[] = [];
+  const points: BoardSnapPoint[] = [];
   for (let i = 0; i < 3; i += 1) {
     for (let j = 0; j < 3; j += 1) {
       for (let k = 0; k < 3; k += 1) {
@@ -225,12 +248,12 @@ function pointsOfCut(board: Board, cut: Cut): { at: Point; kind: SnapKind }[] {
  * still costs nothing at all for the boards that do not use it — the same
  * guarantee boardSolids makes in its first line.
  */
-export function cutSnapPoints(board: Board): SnapPoint[] {
+export function cutSnapPoints(board: Board): BoardSnapPoint[] {
   if (board.cuts.length === 0) return [];
   const touchesStock = stockProbe(board);
-  const owner: SnapOwner = { type: 'board', id: board.id };
+  const owner: BoardSnapPoint['owner'] = { type: 'board', id: board.id };
 
-  const out: SnapPoint[] = [];
+  const out: BoardSnapPoint[] = [];
   for (const cut of board.cuts) {
     for (const { at, kind } of pointsOfCut(board, cut)) {
       if (!touchesStock(at)) continue;
@@ -248,6 +271,20 @@ export function cutSnapPoints(board: Board): SnapPoint[] {
  * expressions that agree today are two places for a future rule to disagree
  * (follow-up 113).
  */
-export function snapPointsFor(board: Board): SnapPoint[] {
+export function snapPointsFor(board: Board): BoardSnapPoint[] {
   return [...boardSnapPoints(board), ...cutSnapPoints(board)];
+}
+
+/**
+ * One candidate per guide point.
+ *
+ * The whole of what the guide-points round needed from this module. Boards
+ * offer 26 derived points; a guide offers the one position it is.
+ */
+export function guideSnapPoints(guides: GuidePoint[]): SnapPoint[] {
+  return guides.map((g) => ({
+    kind: 'guide' as const,
+    at: [g.at[0], g.at[1], g.at[2]] as [number, number, number],
+    owner: { type: 'guide' as const, id: g.id },
+  }));
 }
