@@ -1,13 +1,29 @@
 # Guide Points and the Tape Measure — Implementation Plan
 
-> **DO NOT EXECUTE THIS PLAN AS WRITTEN. Deferred by one round on 2026-08-03** —
-> cut-aware snap points (follow-up 99) go first; see CLAUDE.md's "next line of work"
-> section. The plan needs a revision pass before it is executed, because its design's
-> §3.1 candidate-filter section is out of date: `MoveTool`'s pre-grab branch is now
-> restricted to the *selected* board's points, and the cut-points round will widen the
-> same branch to two providers. Any task in here that touches that filter must be
-> rewritten against the code as it stands then, not as it stood when this was written.
-> Nothing else in the plan is known stale.
+> **REVISED 2026-08-03 against the merged code, and now executable.** This plan was
+> written before the selected-board grabs and cut-aware snap points rounds shipped,
+> and was held back behind the latter. The revision pass has run. What changed:
+>
+> - **Task 2 is substantially rewritten.** The design's §3 grew from four store
+>   narrowings to eight, and the answer changed with it: a `BoardSnapPoint` type and
+>   a generic `pickSnapPoint`, not eight runtime checks. One of the plan's original
+>   tests is **deleted** rather than rewritten, on purpose — read §3.0.
+> - **`MoveTool`'s memo is two branches now, and the pre-grab one needs no filter.**
+>   The original Step 7 would have reverted both prior rounds: it rebuilt the memo
+>   as `boards.flatMap(boardSnapPoints)`, losing the selected-board restriction and
+>   the cut-owned points, and its dependency list omitted `selectedId`.
+> - **Task 5's clearing list grew by three** (the cut edits) **and gained two
+>   prohibitions** (`edit()`'s selection callback and `selectBoard` must NOT clear
+>   the anchor).
+> - **Task 7's tape reads `snapPointsFor`, not `boardSnapPoints`** — otherwise the
+>   tape cannot measure to a dado shoulder, which is half of what this round and the
+>   last one unlock together. Its `sameSnapPoint` import also moved module.
+> - **Tasks 6 and 10 gain the resting-versus-hovered guide marker** (design §5.2),
+>   decided with the user during this revision.
+> - **Follow-ups start at 129**, not 109.
+>
+> Everything else — Tasks 1, 3, 4, 8, 9 — was checked against the current code and
+> is unchanged.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -22,10 +38,11 @@
 - **Design doc:** `docs/superpowers/specs/2026-08-03-sloyd-guide-points-design.md`. Read it before starting. Section references below (§1.2, §2.2, §3, §4) point into it.
 - **No `import { describe, it, expect } from 'vitest'`.** This repo runs `globals: true` (`vite.config.ts`); every existing test file omits the import. Match them.
 - **`npm test` does NOT typecheck.** A green suite proves nothing about `tsc`. Run `npm run build` before claiming anything compiles. Both gates must pass before every commit.
-- **Test count is currently 660 across 32 files.** Each task states the expected direction of change, never a specific total — do not "fix" a mismatch by editing a count.
+- **Test count is currently 699 across 32 files** (re-measured at the revision pass; it was 660 when this plan was first drafted). Each task states the expected direction of change, never a specific total — do not "fix" a mismatch by editing a count.
 - **The r3f viewport has no unit tests by design.** Verify it by driving a real browser (Task 10), not by asserting on mocks. Pure modules (`snapPoints.ts`, `snapPick.ts`, the store) *are* unit-tested.
 - **No pull requests.** Solo repo. Work on a branch `feat/guide-points`, merge with `git merge --no-ff` at the end.
-- **If a test in this plan fails and you believe the *expectation* is wrong rather than the code — STOP and escalate.** Do not edit the assertion to match the behaviour. This has happened seven times in this repo's history (follow-ups 64, 68 ×2, 80, 87, 88, 107) and every instance was caught because an implementer stopped. You are the eighth chance.
+- **If a test in this plan fails and you believe the *expectation* is wrong rather than the code — STOP and escalate.** Do not edit the assertion to match the behaviour. This has happened nine times in this repo's history (follow-ups 64, 68 ×2, 80, 87, 88, 107, 118, 126) and every instance was caught because someone stopped. You are the tenth chance.
+- **`snapPointsFor`, not `boardSnapPoints`, is what a board offers.** The cut-points round made a board's candidates the box lattice *plus* its cuts' shoulders, behind one function. Anywhere this plan or your instinct reaches for `boardSnapPoints` directly, ask whether cut points belong there — they almost always do, and the exception (`GuideMarkers`, which draws guides only) is not about boards at all.
 - **`position` is a min-corner, not a centre** (invariant 2). Guide points are bare positions and have no such subtlety, but anything you read off a board does.
 
 ---
@@ -48,10 +65,11 @@
 |---|---|
 | `src/document/types.ts` | `GuidePoint` interface; `guides` on `SloydDocument`. |
 | `src/document/document.ts` | `CURRENT_VERSION = 6`; `createDocument` seeds `guides: []`; `validateGuides`; migration reads `d.guides`; re-export `guideSnapPoints`, `offsetPoint`, `createGuide`. |
-| `src/document/snapPoints.ts` | `SnapOwner` widened; `SnapKind` gains `'guide'`; `guideSnapPoints`; `offsetPoint`. |
-| `src/store/store.ts` | `ToolMode` gains `'tape'`; `tapeAnchor`; `addGuide`/`removeGuide`/`clearGuides`; the four `.owner.id` narrowings; clearing across seven actions. |
-| `src/viewport/SnapMarker.tsx` | Fourth colour for `SnapKind` `'guide'`. |
-| `src/viewport/MoveTool.tsx` | Candidate filter: guides as targets, boards as grab sources; `showGuides` gate. |
+| `src/document/snapPoints.ts` | `SnapOwner` widened; `BoardSnapPoint`; `SnapKind` gains `'guide'`; the three board providers' return types; `guideSnapPoints`; `offsetPoint`. |
+| `src/viewport/snapPick.ts` | `pickSnapPoint` becomes generic in the candidate type. Three type positions, no logic. |
+| `src/store/store.ts` | `ToolMode` gains `'tape'`; `tapeAnchor`; `addGuide`/`removeGuide`/`clearGuides`; `grabbed` retyped to `BoardSnapPoint`; `dropGrabIfGone` generalised to clear the anchor too; clearing across ten actions and deliberately not across two. |
+| `src/viewport/SnapMarker.tsx` | Fourth colour for `SnapKind` `'guide'`, and a `resting` variant (design §5.2). |
+| `src/viewport/MoveTool.tsx` | Guides added to the **post-grab branch only**; `showGuides` gate; one narrowing at the grab call. |
 | `src/viewport/Viewport.tsx` | Renders `TapeTool` and `GuideMarkers`; `showGuides` prop; cursor for any non-select tool. |
 | `src/panels/Toolbar.tsx` | Tape button; Guides checkbox. |
 | `src/App.tsx` | `showGuides` state; `T` binding; Escape backs out of the tape anchor; `TapeReadout`; `GuidesList`. |
@@ -373,23 +391,36 @@ argument — see the design's §2.2."
 
 ---
 
-## Task 2: `SnapOwner` widening, `guideSnapPoints`, and the four narrowings
+## Task 2: `SnapOwner` widening, `BoardSnapPoint`, and `guideSnapPoints`
 
 This is the round's single most dangerous edit and it is deliberately one task: **every affected read keeps typechecking while quietly meaning something else.** Both union members carry `id: string`, so `owner.id` stays valid on the widened union and `tsc` reports nothing. Splitting this across tasks would leave a green build in a wrong state.
 
+> **This task changed most in the revision pass. Read the design's §3.0 and §3.1 before writing anything.**
+>
+> The original plan told you to add `owner.type === 'board' &&` in front of four store reads. There are **eight** such reads now, and enumerating them is no longer the chosen answer: the round instead narrows the *field type*, so all eight compile unchanged and are correct by construction rather than by an invariant enforced two modules away.
+>
+> Two things follow that will look like omissions if you have not read §3.0:
+>
+> 1. **`commitSnapMove` does NOT get a `if (grabbed.owner.type !== 'board')` guard.** Its `grabbed` cannot be guide-owned — that is what the type says. Adding the guard back would be unreachable code that reads as load-bearing.
+> 2. **One test from the original plan is deleted, not rewritten** — the one handing `commitSnapMove` a guide-owned grab. Under this design that state cannot be constructed in TypeScript, so the test cannot be written; that is the win, not a gap. Same reasoning as follow-up 118.
+
 **Files:**
 - Modify: `src/document/snapPoints.ts`
+- Modify: `src/viewport/snapPick.ts`
 - Modify: `src/document/document.ts` (re-export)
 - Modify: `src/viewport/SnapMarker.tsx`
 - Modify: `src/viewport/MoveTool.tsx`
-- Modify: `src/store/store.ts:148,150,216,281`
+- Modify: `src/store/store.ts` (two type positions, and exactly one runtime narrowing)
 - Test: `src/document/snapPoints.test.ts`, `src/store/store.test.ts`
 
 **Interfaces:**
 - Consumes: `GuidePoint` (Task 1).
 - Produces:
   - `type SnapOwner = { type: 'board'; id: string } | { type: 'guide'; id: string }`
+  - `type BoardSnapPoint = SnapPoint & { owner: { type: 'board'; id: string } }`
   - `type SnapKind = 'corner' | 'edge-mid' | 'face-center' | 'guide'`
+  - `boardSnapPoints` / `cutSnapPoints` / `snapPointsFor` return `BoardSnapPoint[]`
+  - `pickSnapPoint<T extends SnapPoint>(candidates: T[], …): T | null`
   - `guideSnapPoints(guides: GuidePoint[]): SnapPoint[]`
 
 - [ ] **Step 1: Write the failing provider tests**
@@ -431,12 +462,18 @@ Extend the import at the top of that file:
 import { boardSnapPoints, guideSnapPoints } from './snapPoints';
 ```
 
-- [ ] **Step 2: Write the failing store-narrowing tests**
+- [ ] **Step 2: Write the failing store tests**
+
+Two tests, not three. The third one the original plan specified — a guide-owned value handed to `grabSnapPoint` — is **deleted**, because `grabbed: BoardSnapPoint | null` makes that state unconstructible. If you find yourself wanting to write it with an `as` cast to get past `tsc`, stop: the cast would be asserting the exact fact the type exists to deny, which is follow-up 128's shape.
+
+Both surviving tests exercise the **one** ownership comparison that is still a runtime question — `commitSnapMove`'s self-snap guard, where the target genuinely can be a guide.
+
+Note the board must be **selected** for `commitSnapMove` to proceed at all: the selected-board grabs round added `grabbed.owner.id !== get().selectedId` as a refusal, and `addBoard` already selects what it creates, so the fixture below satisfies it incidentally rather than by luck. Do not remove `addBoard`'s role here.
 
 Append to `src/store/store.test.ts`:
 
 ```ts
-describe('SnapOwner widening — guide-owned points must not be read as boards', () => {
+describe('SnapOwner widening — a guide is a legal target', () => {
   const guidePoint = (id: string, at: [number, number, number]) =>
     ({ kind: 'guide' as const, at, owner: { type: 'guide' as const, id } });
 
@@ -455,8 +492,11 @@ describe('SnapOwner widening — guide-owned points must not be read as boards',
     expect(useStore.getState().grabbed).toBeNull();
   });
 
-  // The self-snap guard compares OWNERS, not bare ids. A guide whose id
-  // happened to equal a board's must not be mistaken for the grabbed board.
+  // The self-snap guard compares OWNERS, not bare ids — the ONE runtime
+  // narrowing the BoardSnapPoint type does not subsume, because the TARGET can
+  // legitimately be a guide. Without the `type` test, a guide whose id
+  // collided with the grabbed board's would read as a self-snap and the move
+  // would be silently refused. See the design's §3.0.
   it('does not mistake a guide for the grabbed board when their ids collide', () => {
     useStore.getState().addBoard();
     const board = useStore.getState().doc.boards[0];
@@ -467,20 +507,10 @@ describe('SnapOwner widening — guide-owned points must not be read as boards',
     ]));
     expect(useStore.getState().doc.boards[0].position[0]).toBe(board.position[0] + 3);
   });
-
-  // grabbed is board-owned by construction (MoveTool's filter). If a
-  // guide-owned point ever reaches commitSnapMove as the GRABBED value, the
-  // action must decline rather than search doc.boards for a guide id.
-  it('declines to commit a guide-owned grab instead of searching boards for it', () => {
-    useStore.getState().addBoard();
-    const before = useStore.getState().doc;
-    useStore.getState().grabSnapPoint(guidePoint('g1', [0, 0, 0]));
-    useStore.getState().commitSnapMove(guidePoint('g2', [9, 9, 9]));
-    expect(useStore.getState().doc).toBe(before);
-    expect(useStore.getState().grabbed).toBeNull();
-  });
 });
 ```
+
+**Before moving on, confirm the second test can fail.** Drop the `target.owner.type === 'board' &&` clause from the guard once you have written it (Step 6) and check that this test goes red. A guard whose removal changes nothing is follow-up 126's shape — a test title that pins neither half of itself — and this one is cheap to verify because the mutation is a four-word deletion.
 
 - [ ] **Step 3: Run both to verify they fail**
 
@@ -512,7 +542,34 @@ export type SnapKind = 'corner' | 'edge-mid' | 'face-center' | 'guide';
 export type SnapOwner =
   | { type: 'board'; id: string }
   | { type: 'guide'; id: string };
+
+/**
+ * A snap point that belongs to a board — the box lattice and the cut-owned
+ * points, which is everything both providers in this module produce.
+ *
+ * Exists so `grabbed` can be typed as one. The Move tool grabs boards and
+ * targets anything (design §3.1), and this is what makes the grab half of that
+ * rule CHECKABLE rather than remembered: eight reads in store.ts assume
+ * `owner.id` names a board, seven of them are correct only because MoveTool's
+ * candidate memo never offers a guide as a grab source, and an invariant
+ * enforced two modules away is what the next round breaks. Narrowing the field
+ * is the least accidental form available.
+ *
+ * `tapeAnchor` is deliberately NOT this type. The difference between the two
+ * fields is now the documentation of which one can hold a guide.
+ */
+export type BoardSnapPoint = SnapPoint & { owner: { type: 'board'; id: string } };
 ```
+
+Then annotate the three board providers. **Their bodies do not change** — each already builds `owner: SnapOwner = { type: 'board', id: board.id }` and produces nothing else, so this is the annotation catching up with the code:
+
+```ts
+export function boardSnapPoints(board: Board): BoardSnapPoint[]
+export function cutSnapPoints(board: Board): BoardSnapPoint[]
+export function snapPointsFor(board: Board): BoardSnapPoint[]
+```
+
+Inside each, the local `const owner: SnapOwner = { type: 'board', id: board.id }` must become `const owner = { type: 'board', id: board.id } as const` (or be annotated `BoardSnapPoint['owner']`) — annotated as the wide `SnapOwner` it will not narrow, and `tsc` will tell you so at the return.
 
 And append the provider:
 
@@ -534,8 +591,31 @@ export function guideSnapPoints(guides: GuidePoint[]): SnapPoint[] {
 
 Add `GuidePoint` to the file's type import: `import type { Board, GuidePoint } from './types';`
 
-Re-export from `document.ts`: change line 21 to
-`export { boardSnapPoints, guideSnapPoints } from './snapPoints';`
+Re-export from `document.ts`: add `guideSnapPoints` to the existing `./snapPoints` value export (which already carries `boardSnapPoints`, `cutSnapPoints`, `snapPointsFor` and `sameSnapPoint`), and add `BoardSnapPoint` to the type re-export beside `SnapPoint`/`SnapKind`/`SnapOwner`.
+
+- [ ] **Step 4b: Make `pickSnapPoint` generic**
+
+In `src/viewport/snapPick.ts` — three type positions, no logic:
+
+```ts
+export function pickSnapPoint<T extends SnapPoint>(
+  candidates: T[],
+  project: Projector,
+  cursor: { x: number; y: number },
+  radiusPx: number,
+): T | null {
+  let best: T | null = null;
+```
+
+Add to its doc comment, above the existing "Ties in screen distance" line:
+
+```
+ * Generic in the candidate type, and it never reads `owner` — so picking from
+ * an array of BoardSnapPoint yields a BoardSnapPoint, which is what lets
+ * MoveTool's grab call typecheck without a runtime ownership test on the
+ * branch where the candidates are board-owned by construction. The picker
+ * itself is indifferent: every kind snaps identically.
+```
 
 - [ ] **Step 5: Add the fourth marker colour**
 
@@ -559,85 +639,112 @@ export const SNAP_COLORS: Record<SnapKind, string> = {
 };
 ```
 
-- [ ] **Step 6: Narrow the four store reads**
+- [ ] **Step 6: Retype `grabbed`, and add the one surviving runtime narrowing**
 
-In `src/store/store.ts`:
-
-**`commitSnapMove`** — replace the self-snap guard and the board lookup (currently lines 148-153):
+In `src/store/store.ts`. **Two type positions and one guard — that is the whole store change in this task.** The eight `owner.id` reads the design's §3 enumerates need no edits at all; `tsc` will confirm that by staying silent about them.
 
 ```ts
-      // The grabbed point must belong to a BOARD. MoveTool's candidate filter
-      // makes this true of the UI (it offers only board-owned points as grab
-      // sources); this makes it true of the action. Narrowing on `type` rather
-      // than trusting `owner.id` is load-bearing since the guide-points round:
-      // both union members carry `id: string`, so reading `.id` off an
-      // unnarrowed owner typechecks while meaning something else, and the
-      // board lookup below would silently take its not-found path.
-      if (grabbed.owner.type !== 'board') {
-        set({ grabbed: null });
-        return;
-      }
+  grabbed: BoardSnapPoint | null;
+  grabSnapPoint: (point: BoardSnapPoint) => void;
+```
+
+Import the type: `import type { Board, BoardSnapPoint, Cut, SloydDocument, SnapPoint } from '../document/document';`
+
+Extend the doc comment above `tool`/`grabbed`:
+
+```ts
+   * `grabbed` is a BoardSnapPoint, not a SnapPoint, and that is load-bearing
+   * rather than tidy: the guide-points round widened SnapOwner, and eight
+   * reads in this file assume `owner.id` names a board. Seven of them are
+   * correct only because MoveTool never offers a guide as a grab source — an
+   * invariant enforced two modules away. The narrower type moves that
+   * enforcement here, where tsc can hold it. `tapeAnchor` below is
+   * deliberately the WIDE type; the difference is what says which of the two
+   * can hold a guide.
+```
+
+Then, in `commitSnapMove`, extend the existing self-snap guard — this is the one comparison the type does not subsume, because the *target* can legitimately be a guide:
+
+```ts
       // A board cannot be snapped onto itself. It is a legal subtraction — it
       // would translate the board by its own length — but never what anyone
       // means. MoveTool also withholds these candidates so the case cannot be
       // clicked; this guard is what makes the rule true of the action itself.
-      // Compares owners, not bare ids: a guide is a legal target, and one
-      // whose id collided with a board's must not read as a self-snap.
+      //
+      // Compares OWNERS, not bare ids, since the guide-points round: a guide is
+      // a legal target, both union members carry `id: string`, and a guide
+      // whose id collided with the grabbed board's would otherwise read as a
+      // self-snap and silently refuse a move the user asked for. This is the
+      // ONLY runtime ownership test left in the file — everything else is the
+      // BoardSnapPoint type. See design §3.0.
       if (target.owner.type === 'board' && target.owner.id === grabbed.owner.id) return;
-
-      const board = get().doc.boards.find((b) => b.id === grabbed.owner.id);
 ```
 
-**`updateBoard`'s grab-clear** (line 216) and **`deleteBoard`'s** (line 281) — narrow both:
+**Do not add** `if (grabbed.owner.type !== 'board') return;`. An earlier draft of this plan did; under the current typing it is unreachable code that reads as load-bearing.
 
-```ts
-      if (get().grabbed?.owner.type === 'board' && get().grabbed?.owner.id === id) {
-        set({ grabbed: null });
-      }
+- [ ] **Step 7: Add guides to MoveTool's POST-GRAB branch only**
+
+> **The original plan's Step 7 would have reverted two shipped rounds.** It rebuilt the memo as a single `boards.flatMap(boardSnapPoints)`, which drops the selected-board restriction (selected-board grabs) and the cut-owned points (cut points), and its dependency list omitted `selectedId` — invariant 15's exact failure mode, and one that would have looked like it worked. **Read the memo in the file before editing it.** The change below is additive to what is there.
+
+The pre-grab branch is already the *selected board's* points, which are board-owned by construction, so the design's original §3.1 filter is discharged rather than merged (follow-up 125). **Adding a `p.owner.type === 'board'` filter there would be dead code that reads as load-bearing.**
+
+In `src/viewport/MoveTool.tsx`:
+
+```tsx
+export function MoveTool({ showGuides = true }: { showGuides?: boolean }) {
 ```
-
-Keep each one's existing comment block above it, and append to both:
-
-```ts
-      // Narrowed on `type` since the guide-points round. Correct without the
-      // narrowing today — a grab is board-owned by construction — but written
-      // as though `owner.id` names a board, and an accident that holds only
-      // because of an invariant enforced two modules away is what the next
-      // round breaks.
-```
-
-- [ ] **Step 7: Filter MoveTool's grab sources**
-
-In `src/viewport/MoveTool.tsx`, replace the `candidates` memo. Note this deliberately keeps **one** array — the picker still sees everything; what changes is which points are offered while nothing is grabbed:
 
 ```ts
   const guides = useStore((s) => s.doc.guides);
-
-  /**
-   * Board candidates minus the grabbed board's own, plus guide candidates.
-   *
-   * Two rules, and they differ by design (§3.1): you snap a BOARD onto a
-   * guide, never a guide onto a board. So while nothing is grabbed, only
-   * board-owned points are offered — a guide is a target, not a grab source,
-   * and offering it would let the user pick up something the tool cannot
-   * carry. That filter is also what makes `grabbed` board-owned by
-   * construction, which is what the narrowings in commitSnapMove rest on.
-   *
-   * Withholding same-board candidates is what makes the self-snap exclusion
-   * legible: an ineligible point draws no marker, so the case is never offered
-   * rather than being offered and then silently ignored on click.
-   */
-  const candidates = useMemo(() => {
-    const boardPoints = boards.flatMap(boardSnapPoints);
-    if (!grabbed) return boardPoints;
-    return [
-      ...boardPoints.filter((p) => p.owner.id !== grabbed.owner.id),
-      ...guideSnapPoints(guides),
-    ];
-  }, [boards, guides, grabbed]);
 ```
 
-Update the import: `import { boardSnapPoints, guideSnapPoints } from '../document/document';`
+Extend the existing memo's doc comment with a paragraph, keeping every one already there:
+
+```ts
+   * GUIDES ARE TARGETS, NEVER GRAB SOURCES, so they appear in the post-grab
+   * branch only — you snap a board onto a guide, never a guide onto a board.
+   * The pre-grab branch needs no filter to make that true: it is one selected
+   * board's points, which are board-owned by construction. Stacking a
+   * board-owned filter on a rule that is already narrower would be two
+   * predicates that agree today and two places for a future rule to disagree
+   * (follow-ups 113 and 125). Hidden guides offer no candidates either — a
+   * marker over an invisible point is an indicator with nothing under it
+   * (design §6).
+```
+
+and add the one line to the branch itself:
+
+```ts
+  const candidates = useMemo(() => {
+    if (grabbed) {
+      return [
+        ...boards.flatMap(snapPointsFor).filter((p) => p.owner.id !== grabbed.owner.id),
+        ...(showGuides ? guideSnapPoints(guides) : []),
+      ];
+    }
+    const selected = boards.find((b) => b.id === selectedId);
+    return selected ? snapPointsFor(selected) : [];
+  }, [boards, grabbed, selectedId, guides, showGuides]);
+```
+
+**`selectedId` stays in the dependency list.** Adding `guides` and `showGuides` beside it is the edit; replacing it is invariant 15.
+
+Then the grab call in `onPointerUp` takes the one narrowing that turns a `SnapPoint` into a `BoardSnapPoint`:
+
+```ts
+      if (!store.grabbed) {
+        // Board-owned by construction — this branch's candidates are the
+        // selected board's points — and checked anyway, because this is the
+        // one place a picked SnapPoint becomes the store's BoardSnapPoint.
+        // Deliberately redundant in the same sense as commitSnapMove's
+        // self-snap guard: the memo makes the rule true of the UI, this makes
+        // it true of the type.
+        if (hit && hit.owner.type === 'board') store.grabSnapPoint(hit);
+        return;
+      }
+```
+
+Update the import: `import { guideSnapPoints, sameSnapPoint, snapPointsFor } from '../document/document';`
 
 - [ ] **Step 8: Run the tests**
 
@@ -653,15 +760,17 @@ Expected: exits 0.
 
 ```bash
 git add src/document/snapPoints.ts src/document/snapPoints.test.ts src/document/document.ts \
-        src/viewport/SnapMarker.tsx src/viewport/MoveTool.tsx \
+        src/viewport/snapPick.ts src/viewport/SnapMarker.tsx src/viewport/MoveTool.tsx \
         src/store/store.ts src/store/store.test.ts
-git commit -m "feat: widen SnapOwner with guides, and narrow the four reads it breaks
+git commit -m "feat: widen SnapOwner with guides, and type the grab as board-owned
 
-Both union members carry \`id: string\`, so every existing \`.owner.id\`
-read stayed valid on the widened union while meaning something else.
-All four narrow on \`type\` now. MoveTool offers guides as targets and
-boards as grab sources, which is what makes \`grabbed\` board-owned by
-construction. See the design's §3."
+Both union members carry \`id: string\`, so all eight \`.owner.id\` reads
+in the store stayed valid on the widened union while meaning something
+else. Rather than eight runtime narrowings, \`grabbed\` is a
+BoardSnapPoint: the three board providers return it, pickSnapPoint is
+generic, and tsc holds the rule the candidate memo used to hold alone.
+One runtime narrowing survives — the self-snap guard, where the target
+genuinely can be a guide. See the design's §3.0."
 ```
 
 ---
@@ -788,7 +897,7 @@ export function offsetPoint(
 ```
 
 Re-export from `document.ts`:
-`export { boardSnapPoints, guideSnapPoints, offsetPoint } from './snapPoints';`
+add `offsetPoint` to the existing `./snapPoints` value export. **Add to it; do not retype the list** — it already carries `boardSnapPoints`, `cutSnapPoints`, `snapPointsFor`, `sameSnapPoint` and (since Task 2) `guideSnapPoints`, and rewriting the line from this plan's memory would silently drop the ones the cut-points round added.
 
 - [ ] **Step 4: Run the tests**
 
@@ -955,6 +1064,11 @@ guide is not a board."
 
 The tape anchor is a **second instance of invariant 24** (design §4): it holds a world position captured at click time, so anything that moves the world under it must drop it. It needs everything `grabbed` needs, plus `removeGuide` and `clearGuides` — which `grabbed` does not need, because a grab is never guide-owned.
 
+> **Two revisions here, both from rounds that shipped after this plan was drafted.**
+>
+> 1. **The cut edits join the list.** `addCut`/`updateCut`/`removeCut` clear a grab *point-precisely* via `dropGrabIfGone` — they can destroy the feature under a held point rather than moving the board out from under it. An anchor can sit on a dado shoulder for the same reason a grab can, so it needs the same treatment. **Generalise the existing helper to test both held points against one predicate; do not write a second copy of it** (design §4.1).
+> 2. **Two clears the anchor must NOT inherit.** `edit()`'s selection callback and `selectBoard` both drop a grab, because the Move tool's grab candidates are the *selected* board's points. The tape anchors on any board — measuring from one board to another is most of what the tool is for — so clearing on selection change would break it invisibly. This is a **prohibition with its own tests**, because "add `tapeAnchor: null` beside every `grabbed: null`" is exactly what a tidying pass would do (design §4.2).
+
 **Files:**
 - Modify: `src/store/store.ts`
 - Modify: `src/viewport/Viewport.tsx` (cursor only)
@@ -1058,8 +1172,62 @@ describe('tapeAnchor — invariant 24, second instance', () => {
     expect(useStore.getState().tapeAnchor).toBeNull();
     expect(board).toBeTruthy();
   });
+
+  // Invariant 24's third clause, which this plan predates: a cut edit does not
+  // move the board, it can destroy the FEATURE under the held point. An anchor
+  // on a shoulder needs the same point-precise clear a grab on one gets.
+  it('drops an anchor on a cut shoulder when that cut is removed', () => {
+    useStore.getState().addBoard();
+    const board = useStore.getState().doc.boards[0];
+    useStore.getState().addCut(board.id);
+    const cut = useStore.getState().doc.boards[0].cuts[0];
+    const shoulder = cutSnapPoints(useStore.getState().doc.boards[0])[0];
+    useStore.getState().setTapeAnchor(shoulder);
+    useStore.getState().removeCut(board.id, cut.id);
+    expect(useStore.getState().tapeAnchor).toBeNull();
+  });
+
+  // Point-precise, not blanket: a box corner usually survives a cut edit on
+  // the same board, because a mid-face dado touches no box point. This is the
+  // same asymmetry dropGrabIfGone already has for grabs — see invariant 24.
+  it('keeps an anchor on a box corner when a mid-face cut is added', () => {
+    useStore.getState().addBoard();
+    const board = useStore.getState().doc.boards[0];
+    useStore.getState().setTapeAnchor(boardSnapPoints(board)[0]);
+    useStore.getState().addCut(board.id);
+    expect(useStore.getState().tapeAnchor).not.toBeNull();
+  });
+});
+
+// Design §4.2. These are PROHIBITIONS, and they exist because adding
+// `tapeAnchor: null` beside every `grabbed: null` is what a tidying pass would
+// do. The tape anchors on any board; the Move tool grabs only the selected
+// one. Only the second rule has anything to do with selection.
+describe('tapeAnchor is NOT cleared by selection changes', () => {
+  it('survives selecting a different board', () => {
+    useStore.getState().addBoard();
+    const first = useStore.getState().doc.boards[0];
+    useStore.getState().setTapeAnchor(boardSnapPoints(first)[0]);
+    useStore.getState().addBoard();
+    const second = useStore.getState().doc.boards[1];
+    useStore.getState().selectBoard(second.id);
+    expect(useStore.getState().tapeAnchor).not.toBeNull();
+  });
+
+  // addBoard selects what it creates through edit()'s selection callback,
+  // which is the path that drops a grab. Measuring from an existing board to a
+  // brand-new one is an ordinary thing to want.
+  it('survives an edit whose selection callback moves the selection', () => {
+    useStore.getState().addBoard();
+    const first = useStore.getState().doc.boards[0];
+    useStore.getState().setTapeAnchor(boardSnapPoints(first)[0]);
+    useStore.getState().addBoard();
+    expect(useStore.getState().tapeAnchor).not.toBeNull();
+  });
 });
 ```
+
+Add `cutSnapPoints` to the file's `../document/document` import if it is not already there.
 
 - [ ] **Step 2: Run to verify failure**
 
@@ -1141,9 +1309,60 @@ And add conditional clears:
    Unconditional rather than narrowed on purpose — every guide is going, so any
    guide-owned anchor is invalid, and a board-owned one is cheap to drop.
 
+9. **`dropGrabIfGone` — generalise it rather than copying it.** The three cut
+   actions already call it after their `edit()`. It must now clear the anchor on
+   the same terms, and the two checks are the same predicate over two fields:
+
+```ts
+  /**
+   * Invariant 24, for cut edits — now for BOTH held points.
+   *
+   * ... (keep the entire existing comment; it explains why this is
+   * point-precise rather than blanket, why exact === is correct, and why the
+   * call must sit AFTER edit()) ...
+   *
+   * The guide-points round added `tapeAnchor` as invariant 24's second
+   * instance, and a tape anchor can sit on a dado shoulder for exactly the
+   * reason a grab can. One helper over both rather than a second copy: two
+   * functions computing snapPointsFor(board) and comparing with sameSnapPoint
+   * are two places for a future rule to disagree (follow-up 113). The
+   * board-id guard makes a guide-owned anchor fall through untouched, which is
+   * correct — a cut edit cannot affect a guide.
+   */
+  const dropHeldIfGone = (boardId: string) => {
+    const board = get().doc.boards.find((b) => b.id === boardId);
+    const points = board ? snapPointsFor(board) : [];
+    const gone = (held: SnapPoint | null) =>
+      held !== null &&
+      held.owner.type === 'board' &&
+      held.owner.id === boardId &&
+      !points.some((p) => sameSnapPoint(p, held));
+    const patch: { grabbed?: null; tapeAnchor?: null } = {};
+    if (gone(get().grabbed)) patch.grabbed = null;
+    if (gone(get().tapeAnchor)) patch.tapeAnchor = null;
+    if (patch.grabbed !== undefined || patch.tapeAnchor !== undefined) set(patch);
+  };
+```
+
+   Rename the three call sites in `addCut`/`updateCut`/`removeCut`. **Keep the
+   name honest** — if you would rather leave it `dropGrabIfGone`, don't: it
+   clears two things now, and a name that says one of them is how the next
+   reader concludes the anchor is unhandled and adds a second copy.
+
+   Note the `held.owner.type === 'board'` test is redundant for `grabbed` (its
+   type says so) and load-bearing for `tapeAnchor` (its type does not). That
+   asymmetry is the design's §3.0 showing through, and is worth the one-line
+   comment.
+
+**Do NOT add `tapeAnchor: null` to `edit()`'s `dropGrab` or to `selectBoard`.**
+Both drop a grab because the Move tool's grab candidates are the *selected*
+board's points; the tape has no such restriction and measuring from one board to
+another is most of what it is for. Design §4.2, and pinned by the two
+prohibition tests in Step 1.
+
 - [ ] **Step 5: Widen the Viewport cursor to any non-select tool**
 
-In `src/viewport/Viewport.tsx`, line ~268:
+`Viewport.tsx` currently reads `style={{ cursor: tool === 'move' ? 'crosshair' : undefined }}`. Invert the test so a third tool is covered:
 
 ```ts
       // R3F puts `style` on the wrapping div; the canvas inherits the cursor.
@@ -1152,6 +1371,16 @@ In `src/viewport/Viewport.tsx`, line ~268:
       // pointer behaviour and must not read as the Select tool.
       style={{ cursor: tool === 'select' ? undefined : 'crosshair' }}
 ```
+
+**This is the only gate in the file that needs changing, and that is a finding rather than an assumption — check it, don't take it on faith.** The other three snap-move gates are already written as `=== 'select'` rather than `!== 'move'`, so a third tool inherits all of them correctly with no edit:
+
+| Gate | Line | Reads |
+|---|---|---|
+| board click-to-select | `<BoardMesh selectable={…} />` | `tool === 'select'` |
+| click-to-deselect | `onPointerMissed` | `if (tool === 'select')` |
+| the gizmo | `{… && <Gizmo />}` | `tool === 'select'` |
+
+The Delete/Backspace guard in `App.tsx` is the fourth, and it *does* need extending — Task 8 Step 4. Toolbar's "Select a part to move" hint reads `tool === 'move' && !selectedId` and correctly stays Move-only.
 
 - [ ] **Step 6: Run the tests**
 
@@ -1208,7 +1437,28 @@ If the existing helper does not accept prop overrides, extend it to spread a `Pa
 Run: `npm test -- src/panels/Toolbar.test.tsx`
 Expected: FAIL — no element labelled `Guides`.
 
-- [ ] **Step 3: Create `GuideMarkers`**
+- [ ] **Step 3: Add `SnapMarker`'s resting variant, then create `GuideMarkers`**
+
+Design §5.2, decided with the user during the revision pass. Every other snap point exists only while hovered, so its marker *appearing* is the confirmation that it is what you are about to snap to. A guide is drawn whenever guides are shown, which takes that signal away — hover one and nothing changes.
+
+In `src/viewport/SnapMarker.tsx`, add an optional prop and one browser-settled constant beside `MARKER_PX`/`RING_PX`:
+
+```tsx
+/**
+ * A resting guide's marker, in screen pixels — smaller than MARKER_PX, and
+ * drawn without the ring.
+ *
+ * Guides are the only points drawn when nothing is hovering them, so this is
+ * what keeps "the marker grew" as the confirmation that a point is picked —
+ * the signal every other kind gets for free by appearing at all. It has to
+ * stay big enough to aim at and quiet enough that a dozen guides do not read
+ * as noise, which makes it browser-settled in the sense of follow-up 60. Task
+ * 10 confirms or retunes it; do not "fix" it from theory.
+ */
+export const RESTING_PX = 6;
+```
+
+Take `resting?: boolean` on the component, use `RESTING_PX` for the disc and skip the ring when it is set. **Leave every other marker path untouched** — the hovered and grabbed markers must render exactly as they do today, so a guide under the cursor grows into the same marker every other kind uses.
 
 `src/viewport/GuideMarkers.tsx`:
 
@@ -1225,10 +1475,16 @@ import { SnapMarker } from './SnapMarker';
  * Select mode too — unlike a snap marker, which is transient chrome that only
  * exists while a tool is hovering something.
  *
- * Reuses SnapMarker rather than drawing its own disc, which is what keeps a
- * guide looking identical whether it is merely present or currently under the
- * cursor. That is deliberate: the marker's colour names the KIND of point, and
- * a guide is the same kind of thing in both states.
+ * Reuses SnapMarker rather than drawing its own disc, in its RESTING variant.
+ * A guide's hue names what it is in both states; the SIZE is what says whether
+ * it is currently picked. Without that distinction a guide would be the one
+ * kind of point where hovering gives no confirmation at all, because the
+ * marker was already there — see design §5.2.
+ *
+ * The hovered marker is drawn by whichever tool is hovering it (MoveTool,
+ * TapeTool), on top of this one and at full size. Two markers at one position
+ * is correct and is what produces the growth: SnapMarker draws with depthTest
+ * off, so the larger one wins visually.
  */
 export function GuideMarkers() {
   const guides = useStore((s) => s.doc.guides);
@@ -1236,7 +1492,7 @@ export function GuideMarkers() {
   return (
     <>
       {points.map((p) => (
-        <SnapMarker key={p.owner.id} point={p} />
+        <SnapMarker key={p.owner.id} point={p} resting />
       ))}
     </>
   );
@@ -1261,28 +1517,14 @@ In `src/viewport/Viewport.tsx`, add to the props interface beside `showAxes`:
 
 Default it to `true` in the destructure, render `{showGuides && <GuideMarkers />}` beside the `showAxes && <OriginAxes />` line, and pass it to `<MoveTool showGuides={showGuides} />`.
 
-- [ ] **Step 5: Gate MoveTool's guide candidates**
+- [ ] **Step 5: Confirm MoveTool's gate — no new edit**
 
-In `src/viewport/MoveTool.tsx`, take the prop and gate the guide half of the memo only — board candidates are unaffected:
+`MoveTool` already takes `showGuides` and already gates the guide half of its post-grab branch: that landed in **Task 2 Step 7**, because the branch and the prop had to be written together to compile. Nothing to add here.
 
-```tsx
-export function MoveTool({ showGuides = true }: { showGuides?: boolean }) {
-```
+Two things to verify rather than write:
 
-```ts
-  const candidates = useMemo(() => {
-    const boardPoints = boards.flatMap(boardSnapPoints);
-    if (!grabbed) return boardPoints;
-    return [
-      ...boardPoints.filter((p) => p.owner.id !== grabbed.owner.id),
-      // Hidden guides offer no candidates — §6. A marker over an invisible
-      // point would be an indicator with nothing under it.
-      ...(showGuides ? guideSnapPoints(guides) : []),
-    ];
-  }, [boards, guides, grabbed, showGuides]);
-```
-
-Add `showGuides` to the pointer effect's dependency array too (the handlers close over `candidates`, which already depends on it, so this is satisfied by `candidates` already being listed — verify, and add nothing if so).
+- The pointer effect's dependency array lists `candidates`, which already depends on `showGuides` — so `showGuides` needs no separate entry. Check the array; add nothing if this holds.
+- The memo's deps are `[boards, grabbed, selectedId, guides, showGuides]`. If `selectedId` is missing, Task 2 was applied incorrectly — stop and fix it there, not here. That is invariant 15's failure mode and it would look like it worked.
 
 - [ ] **Step 6: Add the Toolbar checkbox**
 
@@ -1347,7 +1589,7 @@ See the design's §6."
 - Modify: `src/viewport/Viewport.tsx`, `src/App.tsx`, `src/styles.css`
 
 **Interfaces:**
-- Consumes: `tapeAnchor`/`setTapeAnchor`/`clearTapeAnchor` (Task 5), `addGuide` (Task 4), `offsetPoint` (Task 3), `guideSnapPoints`/`boardSnapPoints` (Task 2), `pickSnapPoint`/`sameSnapPoint`/`PICK_RADIUS_PX` (existing), `CLICK_DRAG_SLOP_PX` (existing).
+- Consumes: `tapeAnchor`/`setTapeAnchor`/`clearTapeAnchor` (Task 5), `addGuide` (Task 4), `offsetPoint` (Task 3), `guideSnapPoints` (Task 2), `snapPointsFor`/`sameSnapPoint` (existing, both from `document/document` — `sameSnapPoint` moved out of `snapPick.ts` in the cut-points round and is no longer importable from there), `pickSnapPoint`/`PICK_RADIUS_PX` (existing, from `./snapPick`), `CLICK_DRAG_SLOP_PX` (existing).
 - Produces: `<TapeTool showGuides />`, `<TapeReadout />`.
 
 **Read `src/viewport/MoveTool.tsx` in full before starting.** `TapeTool` mirrors its pointer structure exactly — the pointerId-tagged `downAt`, the drag-slop test, the re-pick at the release position, the hover-committed-on-change ref, the `project` callback. Every one of those carries a comment explaining a real failure mode. Copy the structure and the reasoning; do not re-derive it.
@@ -1360,11 +1602,11 @@ See the design's §6."
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { boardSnapPoints, guideSnapPoints } from '../document/document';
+import { guideSnapPoints, sameSnapPoint, snapPointsFor } from '../document/document';
 import type { SnapPoint } from '../document/document';
 import { useStore } from '../store/store';
 import { CLICK_DRAG_SLOP_PX } from './pointer';
-import { PICK_RADIUS_PX, pickSnapPoint, sameSnapPoint } from './snapPick';
+import { PICK_RADIUS_PX, pickSnapPoint } from './snapPick';
 import type { ProjectedPoint } from './snapPick';
 import { SnapMarker } from './SnapMarker';
 
@@ -1403,13 +1645,22 @@ export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
   /**
    * Every candidate: boards and guides alike, with no exclusions.
    *
-   * Unlike MoveTool this withholds nothing. There is no self-snap case to
-   * exclude — measuring from one corner of a board to another corner of the
-   * SAME board is an ordinary thing to want, and placing a guide there is
-   * exactly what the tool is for.
+   * Unlike MoveTool this withholds nothing, in EITHER direction. There is no
+   * self-snap case to exclude — measuring from one corner of a board to
+   * another corner of the SAME board is an ordinary thing to want, and placing
+   * a guide there is exactly what the tool is for — and there is no
+   * selected-board restriction either, because the tape measures BETWEEN
+   * boards and restricting it to one would remove most of what it is for.
+   * (That is also why tapeAnchor is deliberately absent from the two
+   * selection-based clears — design §4.2.)
+   *
+   * snapPointsFor, NOT boardSnapPoints: a board's candidates are the box
+   * lattice plus its cuts' shoulders since the cut-points round. Reaching for
+   * boardSnapPoints here would silently make the tape unable to measure to a
+   * dado shoulder — half of what this round and the last one unlock together.
    */
   const candidates = useMemo(
-    () => [...boards.flatMap(boardSnapPoints), ...(showGuides ? guideSnapPoints(guides) : [])],
+    () => [...boards.flatMap(snapPointsFor), ...(showGuides ? guideSnapPoints(guides) : [])],
     [boards, guides, showGuides],
   );
 
@@ -2067,9 +2318,11 @@ Use the Playwright MCP — it is the only browser tooling that works on this hos
 
 - [ ] **Step 2: Check each of these, with a screenshot for each**
 
-Build a document with at least three boards of different materials (pine, walnut, plywood) at different postures.
+Build a document with at least three boards of different materials (pine, walnut, plywood) at different postures, **and put a dado in at least one of them** — checks 15-17 need one, and they are the point of doing this round after the cut-points round rather than before it.
 
 1. **The fourth marker colour is legible and distinct** on the near-white ground, on walnut, and on plywood — and distinguishable from corner green, edge-mid cyan and face-centre violet with all four on screen. `SNAP_COLORS.guide` is browser-settled (follow-up 60): **retune it here if it does not hold, and say so in the report.**
+
+1b. **The resting-versus-hovered distinction reads** (design §5.2). A resting guide is visibly smaller and ringless; hovering it grows it into the full marker. Screenshot both states of the same guide. `RESTING_PX` is browser-settled the same way: retune it here if a dozen guides read as noise, or if a resting one is too small to aim at, and say so.
 2. **Anchor, hover, dashed line.** Anchor a corner, hover another, confirm the readout shows a plausible distance and the measuring line is visible. Record whether `computeLineDistances` was needed (Task 7's note).
 3. **Plain second click places a guide at the target** — read the placed position out of `localStorage`, do not judge by eye.
 4. **A typed distance BELOW the measured lands between the two points.** Measure a 24" span, type `6"`, and confirm the stored position from `localStorage` is exactly 6" along.
@@ -2083,6 +2336,14 @@ Build a document with at least three boards of different materials (pine, walnut
 12. **The cut-list Escape interaction.** Anchor the tape, open the cut list, press Escape: the sheet closes and the anchor survives.
 13. **Undo.** One `Ctrl+Z` after placing a guide removes exactly that guide. One after a Clear all restores all of them.
 14. **Console is clean** — 0 errors. The two known three.js deprecation warnings are expected.
+
+**Checks 15-17 are what this round and the cut-points round unlock together, and none of them was in the original plan.** They are the reason the tape reads `snapPointsFor`.
+
+15. **The tape measures to a dado shoulder.** Anchor a board corner, hover the inside corner where a dado floor meets its shoulder, and confirm the readout shows a plausible distance and the shoulder marks. If it does not mark at all, `TapeTool` is reading `boardSnapPoints` — Task 7's candidate memo is wrong.
+16. **A guide can be placed on a shoulder**, and read out of `localStorage` at the shoulder's exact coordinates. Note follow-up 123's measured ambiguity applies here: a dado's floor corner and mouth corner project ~3.6 px apart at the default camera, so **zoom in** before aiming, and say in the report which you got.
+17. **A shelf can be seated into a dado via a guide.** Place a guide on the shoulder, switch to Move, grab the shelf's end corner, snap it onto the guide, and read the board position out of `localStorage`. This is the headline operation done the long way round; it should land exactly, and it is worth recording whether the guide added anything over snapping to the shoulder directly.
+18. **Coincident candidates, design §10.** After check 3 has put a guide exactly on a board corner, hover that pixel repeatedly and record which hue wins and whether it is stable across re-hovers. **This is expected to be arbitrary and is accepted** — both candidates are at the identical position, so only the colour is undetermined. Record what you actually observed; if it *flickers* between hues on a stationary cursor, that is worth a follow-up (the fix is a deterministic ordering rule, per 120 — not de-duplication).
+19. **The two anchor prohibitions hold in the real app** (design §4.2). Anchor the tape on one board, then click a different board in the parts list: the anchor survives. Anchor, then **+ Add board**: the anchor survives. Both are unit-tested in Task 5, but the unit tests cannot see that the readout keeps working.
 
 - [ ] **Step 3: Write the report**
 
@@ -2105,22 +2366,25 @@ git commit -m "docs: browser verification for the guide-points round"
 
 - [ ] **Step 1: Add the round's follow-ups**
 
-Append a "From the guide-points round" section to `docs/follow-ups.md`, numbered from **109** (the snap-move round ended at 108). At minimum, record:
+Append a "From the guide-points round" section to `docs/follow-ups.md`, numbered from **129** (the cut-aware snap points round ended at 128 — **not 109**, which is what this plan said before the revision pass; two rounds landed in between). At minimum, record:
 
 - **105 is now CLOSED** for guide points and the tape measure; **guide lines were dropped**, with the design's §9 reason (a segment between two guide points is redundant with the points themselves).
+- **125 is CLOSED, and by a document rather than by code.** It asked whoever shipped second to merge the guide-points board-owned filter with the selected-board rule into one predicate. The revision pass found there is nothing to merge: the pre-grab branch is already the selected board's points, which are board-owned by construction, so the filter was *discharged*. Record that the resolution was to write no filter at all — a future reader finding no merged predicate should not conclude one was forgotten.
+- **120 gained a reachable instance** — design §10. A guide placed on a board corner makes two candidates coincide at zero separation, so `pickSnapPoint`'s depth tie-break is degenerate and the marker's hue falls to concat order. Accepted; record what Task 10's check 18 actually observed.
 - Semi-infinite construction lines, still open, still a maybe.
 - Guide ids are not deduplicated — the same exposure follow-up 97 records for board ids, deliberately left to whichever round closes 97.
 - Guides cannot be moved or renamed; delete and re-place.
-- Whether `SNAP_COLORS.guide` was retuned in Task 10, and to what.
-- Any lesson the round produced. **If a test in this plan turned out to be wrong and an implementer stopped rather than editing the assertion, that is the eighth instance of the plan-supplied-code chain (64, 68 ×2, 80, 87, 88, 107) and it belongs here.**
+- Whether `SNAP_COLORS.guide` and `RESTING_PX` were retuned in Task 10, and to what.
+- **The `BoardSnapPoint` decision and what it costs.** It removes seven runtime narrowings at the price of one type and a generic `pickSnapPoint`. What it does *not* cover: a future held-point field that is board-owned but typed `SnapPoint` inherits none of the protection, and the one surviving narrowing (`commitSnapMove`'s self-snap guard) is still a remembered rule.
+- Any lesson the round produced. **If a test in this plan turned out to be wrong and an implementer stopped rather than editing the assertion, that is the tenth instance of the plan-supplied-code chain (64, 68 ×2, 80, 87, 88, 107, 118, 126) and it belongs here.** Note that the revision pass itself found one before execution: the original Task 2 Step 7 would have reverted two shipped rounds, which is the first time that chain was caught by re-reading a plan against the code rather than by running it.
 
 - [ ] **Step 2: Update CLAUDE.md**
 
 - Status: v6, the new test count from `npm test`, and a "What the guide-points round did" paragraph.
 - The "next line of work IS chosen" paragraph is now spent — replace it with what the round shipped, and leave the successor open unless the user names one.
 - Architecture: `guides` beside `stock` as the second document-level field taking the non-`rawBoards.map` migration shape, with §2.2's distinct bump argument.
-- Where things live: `TapeTool.tsx`, `GuideMarkers.tsx`, `TapeReadout.tsx`, `GuidesList.tsx`, and `snapPoints.ts` gaining `guideSnapPoints`/`offsetPoint`.
-- Invariants: extend **24** to name `tapeAnchor` as its second instance and list its two extra actions — stating that `clearGuides`' clear is **unconditional** (every guide is going, so any guide-owned anchor is invalid and a board-owned one is cheap to drop), so the next reader does not narrow it as a cleanup; note that `tapeHover` is deliberately *not* on the list and why (it is latched, but nothing commits from it without an anchor). Extend **25** to note that a tape-placed guide is unrounded for the same reason a snap move is; add a new invariant for the `SnapOwner` read-the-type-not-the-id rule (§3) — that one is a genuine trap and belongs in the numbered list.
+- Where things live: `TapeTool.tsx`, `GuideMarkers.tsx`, `TapeReadout.tsx`, `GuidesList.tsx`, `snapPoints.ts` gaining `guideSnapPoints`/`offsetPoint`/`BoardSnapPoint`, `snapPick.ts`'s `pickSnapPoint` becoming generic, and `SnapMarker.tsx` gaining `RESTING_PX`.
+- Invariants: extend **24** to name `tapeAnchor` as its second instance and list its extra actions — the two guide actions, **and the three cut edits via the generalised `dropHeldIfGone`**. State that `clearGuides`' clear is **unconditional** (every guide is going, so any guide-owned anchor is invalid and a board-owned one is cheap to drop), so the next reader does not narrow it as a cleanup. State the **prohibition** explicitly: `edit()`'s selection callback and `selectBoard` clear a grab and must **not** clear the anchor, because the tape has no selected-board restriction — that one is what a tidying pass would get wrong. Note that `tapeHover` is deliberately *not* on the list and why (it is latched, but nothing commits from it without an anchor). Extend **25** to note that a tape-placed guide is unrounded for the same reason a snap move is; add a new invariant for the `SnapOwner` rule (§3) — but write it as **"`grabbed` is a `BoardSnapPoint`, and that is what makes eight reads correct"** rather than as "read the type, not the id", because the round's answer was to move the enforcement into the type rather than into eight remembered checks. Name the one place a runtime narrowing survives and why.
 - Update `CURRENT_VERSION` from 5 to 6 everywhere it appears in prose.
 
 - [ ] **Step 3: Verify before claiming done**
@@ -2159,16 +2423,20 @@ Deployment is a separate decision — do not deploy without asking.
 | §2.1 document-level migration, no `rawBoards.map` | 1 |
 | §2.2 the distinct bump argument | 1 (comment), 11 (CLAUDE.md) |
 | §2.3 drop don't refuse; ids not deduped | 1, 11 |
-| §3 the four narrowings | 2 |
-| §3.1 Move grabs boards, targets anything | 2, 6, 10 (checks 8, 9) |
-| §4 `tapeAnchor`, seven clearing actions | 5 |
-| §4.1 why it lives in the store | 5 (comment) |
-| §5 `guideSnapPoints`, one picker | 2 |
+| §3 / §3.0 `BoardSnapPoint`, generic picker, the one surviving narrowing | 2 |
+| §3.1 Move grabs boards, targets anything; pre-grab branch needs no filter | 2 (Step 7), 6 (Step 5, verify only), 10 (checks 8, 9) |
+| §4 `tapeAnchor`, ten clearing actions | 5 |
+| §4.1 the cut edits, one generalised helper | 5 (Step 4 item 9) |
+| §4.2 the two clears it must NOT inherit | 5 (Step 1 prohibition tests, Step 4), 10 (check 19) |
+| §4.3 why it lives in the store (was §4.1) | 5 (comment) |
+| §5 `guideSnapPoints`, one picker, the tape reads `snapPointsFor` | 2, 7, 10 (checks 15-17) |
 | §5.1 fourth `SnapKind` and colour | 2, 10 (check 1) |
-| §6 checkbox gates candidates | 6, 10 (check 10) |
+| §5.2 resting versus hovered guide marker | 6 (Step 3), 10 (check 1b) |
+| §6 checkbox gates candidates | 2 (Step 7), 6, 10 (check 10) |
 | §7 guides list, no selection model | 9 |
 | §8 what is tested, §8.1 what is not | 1-9, 10 |
 | §9 non-goals | 11 |
+| §10 coincident candidates, accepted | 10 (check 18), 11 |
 
 **Placeholder scan:** two steps deliberately say "read the existing file and match it" rather than showing code — Task 6 Step 1's toolbar test helper, Task 9 Step 5's CSS. Both are cases where inventing a second pattern beside an existing one is the wrong move, and both name exactly what to read. Task 7 Step 5's CSS leaves four properties to be filled from existing rules for the same reason. No TBDs.
 

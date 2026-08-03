@@ -5,21 +5,30 @@ between them, and place a persistent **guide point** — at the hovered point, o
 at any distance along the ray between them. Guide points are themselves snap
 candidates, so the Move tool can snap a board onto one.
 
-> **STATUS as of 2026-08-03, later the same day: DEFERRED BY ONE ROUND — not
-> cancelled, and not in flight.** Cut-aware snap points (follow-up 99) were moved
-> ahead of this work; see CLAUDE.md's "next line of work" section for the three
-> reasons. Two consequences for whoever picks this design back up:
+> **STATUS as of 2026-08-03, end of day: REVISED against the code as it stands,
+> and now current.** This design was written before the selected-board grabs round
+> and the cut-aware snap points round shipped, was deferred by one round behind the
+> latter, and has been rewritten here against the merged result. Four sections
+> changed and one is new:
 >
-> 1. **§3.1 is out of date and must be rewritten before the plan is executed.** It
->    filters grabbable candidates to *board-owned* points. The selected-board grabs
->    round (shipped 2026-08-03) narrowed that branch to the *selected* board's
->    points, and the cut-points round will widen the same branch to two providers.
->    Merge all of it into one predicate rather than stacking filters — see
->    follow-up 113.
-> 2. **Nothing else in this design is known stale**, including the v6 migration
->    argument, the `tapeAnchor` treatment in §4, and the §9 scope cut. Cut points
->    make no schema change and add no document state, so they cannot invalidate any
->    of it.
+> - **§3 is materially different.** The widening no longer breaks four store reads
+>   that each need a runtime narrowing — it breaks *eight*, and the answer is a
+>   type (`BoardSnapPoint`) rather than eight checks. Read it fresh; the old §3 is
+>   not a subset of the new one.
+> - **§3.1 is discharged rather than merged.** Its board-owned filter no longer
+>   needs to exist at all: the pre-grab branch is already the *selected board's*
+>   points, which are board-owned by construction. Adding a filter there would be
+>   the dead-code-that-reads-as-load-bearing shape of follow-ups 113 and 125.
+> - **§4 gained three actions and one prohibition.** Cut edits can destroy the
+>   feature under an anchor now that a shoulder is anchorable; the two
+>   *selection*-based clears must deliberately NOT touch the anchor.
+> - **§5 had a false sentence** about `snapPoints.ts`'s imports, and understated
+>   what the tape can measure to. §5.1 gains hover feedback.
+> - **§10 is new**: guides make zero-separation coincident candidates reachable on
+>   the round's most common path.
+>
+> Unchanged and still current: the whole of §1, the v6 migration argument in §2,
+> §6, §7 and §9's scope cut.
 
 Chosen 2026-08-03, immediately after the snap-move round shipped and deployed.
 This is the successor snap-move's §8 named: the user identified the tape
@@ -181,7 +190,7 @@ closes 97.
 
 ---
 
-## 3. Widening `SnapOwner` — four reads break silently
+## 3. Widening `SnapOwner` — eight reads break silently, and a type fixes all of them
 
 ```ts
 export type SnapOwner =
@@ -195,40 +204,141 @@ quietly meaning something else.** Both members carry a field named `id` of type
 `string`, so `owner.id` remains valid on the widened union and TypeScript
 reports nothing.
 
-Four reads in `src/store/store.ts` are affected:
+The count has grown since this design was first written. Eight reads assume
+`owner.id` names a board — five of them added by the two rounds that shipped
+between the writing and now:
 
-| Line | Today | After the widening, unfixed |
+| Site in `src/store/store.ts` | What it assumes | Added by |
 |---|---|---|
-| 148 | self-snap guard, `target.owner.id === grabbed.owner.id` | compares a guide id against a board id |
-| 150 | `doc.boards.find(b => b.id === grabbed.owner.id)` | a guide-owned grab finds nothing and takes the board-not-found path silently |
-| 216 | `updateBoard`'s conditional grab-clear | never matches a guide-owned grab |
-| 281 | `deleteBoard`'s conditional grab-clear | never matches a guide-owned grab |
+| `edit()`'s `dropGrab`, `heldGrab.owner.id !== nextSelectedId` | the grab names a board that could be selected | selected-board grabs |
+| `dropGrabIfGone`, `grabbed.owner.id !== boardId` | the grab names a board with cuts | cut points |
+| `commitSnapMove`, self-snap guard | both sides name boards | snap-move |
+| `commitSnapMove`, `grabbed.owner.id !== get().selectedId` | the grab names the selected board | selected-board grabs |
+| `commitSnapMove`, `doc.boards.find(b => b.id === grabbed.owner.id)` | a lookup that would silently take its not-found path | snap-move |
+| `updateBoard`'s conditional grab-clear | never matches a guide-owned grab | snap-move |
+| `deleteBoard`'s conditional grab-clear | never matches a guide-owned grab | snap-move |
+| `selectBoard`'s conditional grab-clear | never matches a guide-owned grab | selected-board grabs |
 
-Each must narrow on `owner.type === 'board'` explicitly rather than relying on
-`id` being present. Lines 216 and 281 are correct *by accident* after the
-widening — a guide-owned value can never be `grabbed` (§3.1) — but they are
-still written as though `owner.id` names a board, and an accident that holds
-only because of an invariant enforced two modules away is exactly the kind of
-thing the next round breaks.
+### 3.0 The answer is a narrower type, not eight narrower checks
+
+Writing `owner.type === 'board' &&` in front of eight comparisons would work,
+and it would be wrong in the way this design already objects to: seven of those
+eight are correct *by accident* even unfixed, because a guide-owned value can
+never be `grabbed` — and **an accident that holds only because of an invariant
+enforced two modules away is exactly the kind of thing the next round breaks.**
+A comment cannot enforce that. A type can.
+
+```ts
+/**
+ * A snap point that belongs to a board — the box lattice and the cut-owned
+ * points, which is everything both providers under `document/` produce.
+ *
+ * Exists so that `grabbed` can be typed as one. The Move tool grabs boards and
+ * targets anything (§3.1), and this is what makes the grab half of that rule
+ * checkable rather than remembered.
+ */
+export type BoardSnapPoint = SnapPoint & { owner: { type: 'board'; id: string } };
+```
+
+Four signatures move, and nothing else does:
+
+- `boardSnapPoints`, `cutSnapPoints` and `snapPointsFor` return
+  `BoardSnapPoint[]`. Each already produces exactly that; only the annotation
+  is new.
+- `pickSnapPoint` becomes generic — `<T extends SnapPoint>(candidates: T[], …)
+  => T | null`. It never reads `owner`, so this is three type positions and no
+  logic. The payoff is that picking from a board-only candidate array yields a
+  `BoardSnapPoint`, which is what makes the grab call typecheck with no runtime
+  test.
+- `grabbed: BoardSnapPoint | null` and `grabSnapPoint(point: BoardSnapPoint)`.
+- `tapeAnchor` stays `SnapPoint | null`, and **the difference between the two
+  fields is now the documentation**: the one that can hold a guide is the one
+  typed to. That is the property no comment achieves.
+
+All eight reads above then compile unchanged and are correct by construction.
+**One runtime narrowing survives**, in `commitSnapMove`'s self-snap guard,
+because it is the one comparison where the other side genuinely can be a guide:
+
+```ts
+if (target.owner.type === 'board' && target.owner.id === grabbed.owner.id) return;
+```
+
+Without the `type` test, a guide whose id happened to collide with the grabbed
+board's would read as a self-snap and the move would be silently refused.
+
+Two consequences worth stating so they are not read as gaps:
+
+- **The "a guide-owned grab must be declined" case stops being testable, and
+  that is the win.** An earlier draft of the plan specified a store test
+  handing `commitSnapMove` a guide-owned `grabbed`. Under this design that state
+  cannot be constructed in TypeScript at all, so the test is deleted rather than
+  rewritten — the same reasoning follow-up 118 records for a requested test
+  whose premise did not reproduce. Do not add a runtime `if (grabbed.owner.type
+  !== 'board')` guard to `commitSnapMove` to make the test writable again.
+- **`MoveTool`'s grab call needs one narrowing at the point of entry** — see
+  §3.1, which is where the rule now lives in full.
 
 `sameSnapPoint` needs no change: it already compares `owner.type` alongside
 `owner.id`.
 
-### 3.1 Move grabs boards; it targets anything
+### 3.1 Move grabs boards; it targets anything — and the filter this used to ask for already exists
 
-`MoveTool` filters its **grabbable** candidates to board-owned points, and
-offers **all** candidates as targets. You snap a board onto a guide; you never
-snap a guide onto a board.
+**This section previously said `MoveTool` must filter its grabbable candidates
+to board-owned points. It must not: that filter would be dead code.** The
+selected-board grabs round rewrote the memo into two branches, and the
+cut-points round widened both:
 
-This is what makes `grabbed` board-owned by construction, which is in turn what
-makes lines 216 and 281 above correct. Stating the rule in one place — the
-candidate filter — rather than leaving it implied by four narrowings is the
-same division snap-move already used for its self-snap case: the filter makes
-the rule true of the UI, the narrowing makes it true of the actions.
+```ts
+const candidates = useMemo(() => {
+  if (grabbed) {
+    return boards.flatMap(snapPointsFor).filter((p) => p.owner.id !== grabbed.owner.id);
+  }
+  const selected = boards.find((b) => b.id === selectedId);
+  return selected ? snapPointsFor(selected) : [];
+}, [boards, grabbed, selectedId]);
+```
 
-A guide point is not itself movable in this round. Repositioning a guide means
-deleting it and placing another, which is two clicks for a marker that took
-two clicks to create.
+The pre-grab branch is *one selected board's* points. Those are board-owned by
+construction, so **`guides` belongs only in the post-grab branch** and the
+pre-grab branch needs no edit at all beyond a comment. Stacking a board-owned
+filter on top of a rule that is already narrower would be two predicates that
+agree today and two places for a future rule to disagree — follow-ups 113 and
+125 exactly, and 125 is discharged by this paragraph rather than by any code.
+
+So the round's edit to this memo is:
+
+```ts
+    return [
+      ...boards.flatMap(snapPointsFor).filter((p) => p.owner.id !== grabbed.owner.id),
+      // Guides are TARGETS, never grab sources — hence this branch only. The
+      // pre-grab branch is the selected board's points, board-owned by
+      // construction, so the rule needs no filter to be true there.
+      ...(showGuides ? guideSnapPoints(guides) : []),
+    ];
+```
+
+with `guides` and `showGuides` joining the dependency list **beside the existing
+`selectedId`, not replacing it** — dropping it is invariant 15's failure mode and
+would look like it worked.
+
+The grab call in `onPointerUp` takes the one narrowing §3.0 leaves:
+
+```ts
+      if (!store.grabbed) {
+        // Board-owned by construction (the pre-grab branch), and checked
+        // anyway, because this is the one place a SnapPoint becomes a
+        // BoardSnapPoint. Deliberately redundant in the same sense as
+        // commitSnapMove's self-snap guard: the memo makes the rule true of
+        // the UI, this makes it true of the type.
+        if (hit && hit.owner.type === 'board') store.grabSnapPoint(hit);
+        return;
+      }
+```
+
+You snap a board onto a guide; you never snap a guide onto a board. A guide
+point is not itself movable in this round. Repositioning a guide means deleting
+it and placing another, which is two clicks for a marker that took two clicks
+to create.
 
 ---
 
@@ -245,7 +355,8 @@ under it moves, the readout measures from a position that no longer describes
 anything, and a guide placed from it lands somewhere the user did not point at.
 
 So `tapeAnchor` gets the same treatment, plus two more actions that `grabbed`
-does not need:
+does not need — and, since the cut-points round shipped, the three cut edits as
+well:
 
 | Action | Clears `grabbed` | Clears `tapeAnchor` |
 |---|---|---|
@@ -253,15 +364,53 @@ does not need:
 | `replaceDocument` | yes | yes |
 | `deleteBoard` (conditional) | yes | yes |
 | `updateBoard` (conditional) | yes | yes |
+| `addCut`, `updateCut`, `removeCut` (point-precise) | yes | **yes** |
 | `removeGuide` (conditional) | n/a — a grab is never guide-owned | **yes** |
 | `clearGuides` | n/a | **yes** |
 | `setTool` | yes | yes |
+| `edit()`'s selection callback | yes | **NO — see below** |
+| `selectBoard` | yes | **NO — see below** |
 
-`removeGuide` and `clearGuides` are the two new ones, and they are reachable:
-the guides list is not disabled while the tape is anchored, so deleting the
-guide you anchored on is one click away.
+`removeGuide` and `clearGuides` are reachable for the obvious reason: the guides
+list is not disabled while the tape is anchored, so deleting the guide you
+anchored on is one click away.
 
-### 4.1 This is why `tapeAnchor` lives in the store
+### 4.1 The cut edits, which this design predates
+
+Invariant 24's third clause — added by the cut-points round — is that
+`addCut`/`updateCut`/`removeCut` can destroy the *feature underneath* a held
+point rather than moving the board out from under it, so they clear
+**point-precisely** via `dropGrabIfGone(boardId)`: the grab survives iff the
+point it holds is still among that board's `snapPointsFor` output after the
+edit.
+
+A tape anchor can sit on a dado shoulder for exactly the same reason a grab can,
+so it needs exactly the same treatment. **Generalise `dropGrabIfGone` to test
+both held points against the one predicate rather than writing a second copy of
+it** — two functions computing `snapPointsFor(board)` and comparing with
+`sameSnapPoint` are two places for a future rule to disagree, which is
+follow-up 113's shape applied before it can bite. The board-id guard at the top
+already makes a guide-owned anchor fall through untouched, which is correct: a
+cut edit cannot affect a guide.
+
+### 4.2 The two clears the anchor must NOT inherit
+
+`edit()`'s selection callback and `selectBoard` both drop a grab, and the
+reason is specific to the Move tool: its grab candidates are the *selected*
+board's points, so a selection landing elsewhere means the user retargeted the
+tool and the point in hand is one they could no longer have picked up.
+
+**None of that reaches the tape.** The tape offers every board's points as
+anchors — measuring from one board to another is the ordinary case, and it is
+most of what the tool is for. Clearing the anchor when the selection changes
+would break the tool for its main use, and it would do so invisibly, since
+nothing about the gesture involves selecting anything.
+
+This is stated as a prohibition rather than left as an absence because "add
+`tapeAnchor: null` beside every `grabbed: null`" is precisely what a tidying
+pass would do, and it would look like consistency.
+
+### 4.3 This is why `tapeAnchor` lives in the store
 
 It cannot get that clearing anywhere else. A `useState` inside `TapeTool` would
 have to subscribe to every one of those seven actions and re-derive when to
@@ -281,18 +430,34 @@ one rule applied to three different fan-outs.
 export function guideSnapPoints(guides: GuidePoint[]): SnapPoint[];
 ```
 
-One candidate per guide, `owner: { type: 'guide', id }`. `boardSnapPoints` is
-untouched, and `pickSnapPoint` is untouched — both tools concatenate the two
-providers' output and hand the picker one array.
+One candidate per guide, `owner: { type: 'guide', id }`. `boardSnapPoints` and
+`cutSnapPoints` are untouched, and `pickSnapPoint` gains only the generic
+parameter §3.0 describes — both tools concatenate the providers' output and hand
+the picker one array.
 
-This is §2.3 discharging exactly what it was written for, and it is worth
-noting how little happened: the round that was supposed to justify a
-discriminated union added a nine-line function and one union member.
+This is §2.3 discharging exactly what it was written for, and it is worth noting
+how little happened: the round that was supposed to justify a discriminated union
+added a nine-line function and one union member. The cut-points round has since
+exercised the same interface once for real, as a second provider *over boards*;
+this is the first one that is not.
 
-`snapPoints.ts` still imports only `./types` and `./geometry`. A guide point
+**The tape measures to everything, which since the cut-points round means
+`snapPointsFor`, not `boardSnapPoints`.** `TapeTool`'s candidate set is
+`boards.flatMap(snapPointsFor)` plus the guides, with nothing withheld — there
+is no self-snap case to exclude, because measuring from one corner of a board to
+another corner of the *same* board is an ordinary thing to want and placing a
+guide there is exactly what the tool is for. Using `boardSnapPoints` alone would
+silently make the tape unable to measure to a dado shoulder, which is one of the
+two things this round and the last one unlock together.
+
+**`snapPoints.ts`'s imports.** An earlier version of this section claimed the
+module imports only `./types` and `./geometry`. That stopped being true in the
+cut-points round, which added `./cuts` (for the `Point` type and `stockProbe`).
+What is still true, and is the part that matters, is the boundary this design
+does not cross: `snapPoints.ts` does **not** import `../units`. A guide point
 carries no printed string, so the `formatLength` edge that `cutlist.ts`,
-`diagram.ts` and `nesting.ts` all take stays untaken here — the same reasoning
-snap-move recorded for the module in the first place.
+`diagram.ts` and `nesting.ts` all take stays untaken here. The guides *list*
+formats coordinates (§7), and it lives in `panels/`, which may.
 
 ### 5.1 A fourth `SnapKind`
 
@@ -306,6 +471,32 @@ follow-up 60**, not test-settled: legibility on the near-white ground, on
 walnut, and against the other three markers at ~9 px is a judgement a test
 cannot make. The spec proposes one and the verification pass is what confirms
 or retunes it.
+
+Worth reading against follow-up 121, which *rejected* a fourth kind for cut
+points, because the two decisions look contradictory and are not. There the
+argument was that hue encodes which *kind* and position encodes which *feature*,
+and a dado shoulder is a corner — a new colour would have said something the
+marker's location already said. A guide is not a corner, an edge midpoint or a
+face centre of anything; it is a position the user placed. Same rule, opposite
+answer, because the thing being named is genuinely different.
+
+### 5.2 A guide draws differently when it is resting than when it is hovered
+
+Every other snap point exists only while hovered, so its marker appearing *is*
+the confirmation that it is what you are about to snap to. A guide is drawn
+whenever guides are shown, which takes that signal away: hover one and nothing
+changes, so there is no moment at which the tool says "this one."
+
+So `SnapMarker` takes a `resting` variant, drawn smaller and without the ring;
+the hovered and grabbed marker is unchanged. A guide under the cursor therefore
+grows into exactly the marker every other kind of point uses, which is the
+confirmation the rest of the tool already gives.
+
+The resting size is one more **browser-settled constant** in follow-up 60's
+sense — it has to stay legible enough to aim at while staying quiet enough that
+a document with a dozen guides does not read as noise. The spec proposes it and
+the verification pass confirms or retunes it. This is the one place the round
+touches `SnapMarker`'s geometry rather than only its palette.
 
 ---
 
@@ -352,8 +543,14 @@ Pure and unit-tested:
   walks the whole chain; a v6 file round-trips.
 - `validateGuide` — a non-finite coordinate, a two-element `at`, a blank id,
   a non-array `guides`.
-- The four narrowed store reads — a guide-owned `SnapPoint` handed to
-  `commitSnapMove` must not be treated as a board.
+- `commitSnapMove`'s surviving narrowing — a **guide** target whose id collides
+  with the grabbed board's must move the board rather than reading as a
+  self-snap. That is the one ownership case still expressible in TypeScript;
+  §3.0 explains why the other seven are not, and why the test that would have
+  covered them is deleted rather than rewritten.
+- `tapeAnchor`'s clearing — every row of §4's table, **including the two "NO"
+  rows**. A test that a selection change *leaves the anchor alone* is what stops
+  a later tidying pass from adding the clear.
 
 ### 8.1 What a test cannot settle here
 
@@ -405,9 +602,49 @@ Each looked at and deferred, with a reason.
   an annotation, not stock. Nothing on the printed sheet should change because
   one exists.
 - **Guides as Move-tool grab sources** (§3.1).
-- **Cut-aware snap points** (follow-up 99). Still independent of this round,
-  still cheap, still a second provider rather than a picker change. It can land
-  before, after or never.
+- **Cut-aware snap points** (follow-up 99). **SHIPPED** — this entry is history.
+  It landed first, as a second provider rather than a picker change, exactly as
+  predicted. What it changes for this round is listed in the STATUS block; the
+  one substantive consequence is that the tape must read `snapPointsFor` (§5).
 - **Snapping to the origin, to grid intersections or to the ground plane.**
   Unchanged from snap-move's §8 — all are providers, all are cheap, none is
   needed here.
+
+---
+
+## 10. Coincident candidates, accepted with their numbers
+
+Follow-up 123 records the cut-points round's honest negative result: at the
+default camera a dado's floor corner and its mouth corner project **3.6 px**
+apart, both `corner` and so both the same green, against a ~9 px marker — and no
+pick radius can separate two candidates that close, because any radius large
+enough to aim with contains both. The remedy is zoom.
+
+**Guides make the degenerate version of that reachable on this round's most
+common path.** Placing a guide at a board corner — check 3 of the verification
+pass, and the obvious thing to do with the tool — puts two candidates at
+*identical* world positions from then on. Not 3.6 px apart: zero. Their screen
+distance ties and their NDC depth ties, so `pickSnapPoint`'s depth tie-break is
+fully degenerate and the winner falls to concatenation order.
+
+**Accepted, not fixed**, and the reason is that only one observable thing is
+arbitrary:
+
+- **Pre-grab in Move mode**, a guide is not a candidate at all (§3.1), so there
+  is nothing to tie.
+- **Post-grab, and in Tape mode**, the two candidates are at the same position,
+  so whichever wins produces the identical delta or the identical measurement.
+  The board lands in the same place; the tape reads the same number.
+- **Only the marker's hue is arbitrary** — guide blue or corner green,
+  decided by concat order.
+
+That is follow-up 120's shape (two coincident candidates differing in kind, so
+the colour is decided by the tie-break) rather than follow-up 123's (two
+*distinguishable* candidates too close to aim between). It is recorded here as a
+decision so that a future round reading a flickering marker reaches for a
+deterministic ordering rule — which is what 120 already names as the fix — and
+not for a de-duplication step, which would delete a real candidate.
+
+A guide placed at a corner is also the case where §5.2's resting-versus-hovered
+distinction does the most work: the resting guide marker is visibly there before
+the pick, so the user can see that two things occupy the pixel.
