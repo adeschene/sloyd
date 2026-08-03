@@ -85,6 +85,65 @@ describe('boardSnapPoints', () => {
     expect(hit?.kind).toBe('edge-mid');
   });
 
+  it('withholds a rabbet\'s flush-end box-lattice positions (design §5.1)', () => {
+    // Same posed board and cut shape as the "offers 12 for a rabbet" case
+    // below: offset 0 makes the cut flush with the length-min end, so its
+    // mouth row sits exactly on three of the board's own 26 lattice points —
+    // (length=0, thickness=max, width={0,3,6}) — rather than a quarter-inch
+    // above them. dims = [thickness, width, length], so those are world
+    // X=11 (thickness max), Z=-5 (length min), Y in {2,5,8}.
+    const rabbet: Cut = { ...DADO, offset: 0, width: 2 };
+    const b = posed([rabbet]);
+    const points = boardSnapPoints(b);
+
+    expect(points).toHaveLength(23);
+    expect(points.filter((p) => p.kind === 'corner')).toHaveLength(6);
+    expect(points.filter((p) => p.kind === 'edge-mid')).toHaveLength(11);
+    expect(points.filter((p) => p.kind === 'face-center')).toHaveLength(6);
+
+    const withheld: [number, number, number][] = [
+      [11, 2, -5],
+      [11, 5, -5],
+      [11, 8, -5],
+    ];
+    for (const at of withheld) {
+      expect(
+        points.some((p) => p.at[0] === at[0] && p.at[1] === at[1] && p.at[2] === at[2]),
+        `should not offer ${at.join(',')}`,
+      ).toBe(false);
+    }
+  });
+
+  it('leaves all 26 for a board with no cuts (fast path, no grid built)', () => {
+    const b = posed([]);
+    expect(boardSnapPoints(b)).toHaveLength(26);
+    expect(snapPointsFor(b)).toEqual(boardSnapPoints(b));
+  });
+
+  it('leaves all 26 for a plain mid-face dado touching no box-lattice point', () => {
+    // DADO sits at length [6, 6.75] across a 24in board and reaches thickness
+    // [0.75, 1] — nowhere near length 0/24, width 0/6 or thickness 0/1 all at
+    // once, so it shares no coordinate with any of the 26 lattice points.
+    const b = posed([DADO]);
+    expect(boardSnapPoints(b)).toHaveLength(26);
+  });
+
+  it('keeps all 26 box points when the board\'s own cuts consume all its stock', () => {
+    // The ghost box IS drawn at the AABB (invariant 21), so its 26 points
+    // still sit on a drawn feature even though stockProbe would say every one
+    // of them touches no remaining stock. This must be an explicit
+    // boardSolids(board).length === 0 check, not inferred from the filtered
+    // set coming back empty (design §5.1) — a board could in principle have
+    // every box point in removed stock while stock remains in its middle.
+    const consumed = posed([
+      { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 0, width: 12, depth: 1 },
+      { id: 'b', face: 'thickness', from: 'min', across: 'width', offset: 12, width: 12, depth: 1 },
+    ]);
+    expect(boardSolids(consumed)).toHaveLength(0);
+    expect(boardSnapPoints(consumed)).toHaveLength(26);
+    expect(cutSnapPoints(consumed)).toEqual([]);
+  });
+
   // Every posture/rotation combination. The mapping from board dimensions to
   // world axes lives in axisDimensions (via boardExtents) and must not be
   // re-derived here — this asserts the points track it, not that it is right.

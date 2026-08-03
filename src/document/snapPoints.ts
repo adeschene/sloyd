@@ -1,4 +1,4 @@
-import { cutRegion, stockProbe } from './cuts';
+import { boardSolids, cutRegion, stockProbe } from './cuts';
 import type { Point } from './cuts';
 import { axisDimensions, boardExtents, positionAxisOf } from './geometry';
 import type { Board, Cut } from './types';
@@ -66,6 +66,29 @@ export function sameSnapPoint(a: SnapPoint | null, b: SnapPoint | null): boolean
  *
  * Pure, and derived on demand: nothing about snap points is stored, the same
  * way the cut list, the diagrams and the nesting are derived.
+ *
+ * Filtered through `stockProbe` too, not just `cutSnapPoints` — added after a
+ * browser pass found a rabbet's flush end (`offset === 0`) reaches the
+ * board's own surface, so the three mouth positions the cut provider
+ * correctly withholds are, by construction, box-lattice points too. This
+ * function never consulted `cuts` before that pass, so it kept offering them:
+ * markers sitting a quarter-inch out in the air (design §5.1). The one
+ * exception is the same one `cutSnapPoints`/`stockProbe` already make: when
+ * `boardSolids` is empty (a board its own cuts consumed entirely), all 26
+ * stay, because `BoardMesh` still draws a translucent ghost box at the AABB
+ * (invariant 21) — the box points sit on a drawn feature even though every
+ * cell is empty. That is an explicit `boardSolids(board).length === 0` check
+ * rather than "the filtered set came back empty": a board could in principle
+ * have every box point sit in removed stock while stock remains in its
+ * middle, and those are not the same condition.
+ *
+ * A board with no cuts returns before either check runs any grid arithmetic
+ * at all, the same zero-cost guarantee `boardSolids`/`cutSnapPoints` make in
+ * their first line. A cut board therefore builds the cell grid twice here —
+ * once inside `stockProbe`, once inside `boardSolids` — which is accepted:
+ * both run when the document changes, never per frame, and reusing one grid
+ * across the two would mean reaching into `cuts.ts`'s private `grid()`, which
+ * stays unexported on purpose.
  */
 export function boardSnapPoints(board: Board): SnapPoint[] {
   const [ex, ey, ez] = boardExtents(board);
@@ -88,7 +111,19 @@ export function boardSnapPoints(board: Board): SnapPoint[] {
       }
     }
   }
-  return points;
+
+  if (board.cuts.length === 0) return points;
+  if (boardSolids(board).length === 0) return points;
+
+  const dims = axisDimensions(board);
+  const touchesStock = stockProbe(board);
+  return points.filter((p) => {
+    const local = {} as Point;
+    local[dims[0]] = p.at[0] - px;
+    local[dims[1]] = p.at[1] - py;
+    local[dims[2]] = p.at[2] - pz;
+    return touchesStock(local);
+  });
 }
 
 /**
