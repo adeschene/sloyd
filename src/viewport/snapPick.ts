@@ -82,25 +82,3 @@ export function pickSnapPoint(
   }
   return best;
 }
-
-/**
- * Whether two picks are the same point, by value.
- *
- * `boardSnapPoints` rebuilds its array on every call, so two picks of the same
- * corner are never reference-equal. This is what lets the hover state be
- * committed to React only when the pick actually changes rather than on every
- * pointermove — the same "re-evaluate continuously, commit only on change"
- * pattern AdaptiveGrid uses for grid tiers.
- */
-export function sameSnapPoint(a: SnapPoint | null, b: SnapPoint | null): boolean {
-  if (a === b) return true;
-  if (!a || !b) return false;
-  return (
-    a.kind === b.kind &&
-    a.owner.type === b.owner.type &&
-    a.owner.id === b.owner.id &&
-    a.at[0] === b.at[0] &&
-    a.at[1] === b.at[1] &&
-    a.at[2] === b.at[2]
-  );
-}

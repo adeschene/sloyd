@@ -226,6 +226,40 @@ Both floater cases fall out of it, rather than needing a rule each:
 empty `cuts` array, so joinery still costs nothing at all for the boards that do
 not use it — the same guarantee `boardSolids` makes in its first line.
 
+### 5.1 The box lattice is filtered too — added after the browser pass
+
+This section was written as though the filter applied only to cut-owned points.
+The browser pass proved that incomplete, and the finding is worth stating in
+full because it is the round's own governing constraint failing on the oldest
+code in the feature.
+
+**A rabbet's flush-end mouth positions are also board box-lattice points.** With
+`offset === 0` the cut reaches the board's own end, so the three positions
+`cutSnapPoints` correctly withholds are, by construction, corners and an edge
+midpoint of the board's box. `boardSnapPoints` never consulted `cuts`, so it
+offered them anyway — markers sitting a quarter-inch out in the air, exactly
+what §2 says must not happen. Verified rather than argued: `stockProbe` returns
+`false` for all three, and `boardSolids` puts the nearest remaining stock ¼"
+away.
+
+This predates the round — it has been true of every rabbet since joinery
+shipped, and it shipped to production with snap-move. It is fixed here anyway,
+because a constraint that holds only in the new provider is not the constraint
+this design claims.
+
+So `boardSnapPoints` filters through the same probe, with **one exception,
+which is the same one §5 already made**: when `boardSolids` is empty, all 26
+box points stay. The ghost box at the AABB *is* drawn (invariant 21), so its
+points sit on a drawn feature; nothing draws a consumed board's shoulders. The
+exception is written as an explicit `boardSolids(board).length === 0` check
+rather than inferred from the filtered set coming back empty — those two
+conditions are not equivalent (a board could have every box point in removed
+stock while stock remains in its middle), and the explicit one is the rule this
+paragraph states.
+
+The zero-cost guarantee is preserved by the same early return: a board with no
+cuts is not filtered and builds no grid.
+
 ---
 
 ## 6. Local→world, and the trap in it
@@ -323,7 +357,14 @@ if (
 ```
 
 - Holding a box corner and editing a cut on the same board → the grab
-  **survives**, because the corner genuinely did not move.
+  **usually survives**, because the corner genuinely did not move — a
+  mid-face dado, for instance, touches no box point.
+- Holding a box corner and editing a cut so it consumes that corner's own
+  stock (a rabbet pulled flush with the board's end, `offset === 0`) → the
+  grab **drops**, by the identical rule: `boardSnapPoints` itself withholds
+  a box point once `stockProbe` says nothing is left under it, so the point
+  is no longer among `snapPointsFor(next)` and the clear fires exactly as it
+  does for a shoulder.
 - Holding the shoulder you just edited or deleted → the grab **drops**.
 - A cut edit on a different board → untouched, per invariant 24's existing
   conditional shape.
@@ -367,7 +408,9 @@ cannot fail.
 | `stockProbe` on a split plane | a point on a boundary between a filled and an empty cell is offered |
 
 Store tests for §7.2: grab a shoulder then `removeCut` → cleared; grab a box
-corner then `addCut` on the same board → **survives**; grab, then a cut edit on
+corner then `addCut` on the same board (a mid-face dado, touching no box
+point) → **survives**; grab a box corner then `updateCut` it flush with that
+corner's end, consuming its stock → **drops**; grab, then a cut edit on
 another board → survives.
 
 `npm run build` is the typecheck gate; `npm test` does not typecheck.
@@ -413,6 +456,18 @@ Each looked at and declined, with the reason, so none has to be re-derived.
 
 In the sense of follow-up 60: these are settled by looking, and no test should
 be written to pin a number chosen here.
+
+**Settled by the browser pass, and accepted with the user rather than fixed:**
+at the default camera (14.08 px/inch, measured) a dado's floor corner and its
+mouth corner project **3.6 px** apart — closer than the 9 px marker is wide, so
+the two discs overlap and, both being `corner`, they are the same colour. The
+pick never fails; it silently returns the wrong one of two, and the result is
+¼" out. Aim tolerance is ±1.8 px at that zoom, ±4.2 px at 43 px/inch, and
+parity with `PICK_RADIUS_PX = 12` needs roughly 45-50 px/inch. **Retuning the
+radius cannot fix this** — any radius large enough to aim with contains both
+candidates. The remedy is zoom, which is what anyone aiming at a ¼" feature
+would do anyway. Recorded as a follow-up with these numbers rather than
+addressed by shrinking the point set.
 
 - **Clustering against the pick radius.** Cut points sit far tighter than the
   box lattice — a ¾"-wide, ¼"-deep dado's floor corner and mouth corner are ¼"

@@ -1,5 +1,5 @@
 import { useStore } from './store';
-import { createBoard, createDocument, boardCenter, boardSnapPoints } from '../document/document';
+import { createBoard, createDocument, boardCenter, boardSnapPoints, cutSnapPoints } from '../document/document';
 
 const reset = () => useStore.getState().replaceDocument(createDocument('Test'));
 
@@ -669,6 +669,108 @@ describe('the Move tool', () => {
     useStore.getState().grabSnapPoint(cornerOf(useStore.getState().doc.boards[0]!.id));
     useStore.getState().redo();
     expect(useStore.getState().grabbed).toBeNull();
+  });
+
+  const shoulderOf = (id: string) => {
+    const board = useStore.getState().doc.boards.find((x) => x.id === id)!;
+    const point = cutSnapPoints(board)[0];
+    expect(point, 'fixture must have a cut with offerable points').toBeDefined();
+    return point;
+  };
+
+  it('drops a grab on a shoulder when the cut is removed', () => {
+    const { a } = twoBoards();
+    useStore.getState().setTool('move');
+    useStore.getState().addCut(a.id);
+    useStore.getState().grabSnapPoint(shoulderOf(a.id));
+    expect(useStore.getState().grabbed).not.toBeNull();
+
+    const cutId = useStore.getState().doc.boards.find((x) => x.id === a.id)!.cuts[0].id;
+    useStore.getState().removeCut(a.id, cutId);
+    expect(useStore.getState().grabbed).toBeNull();
+  });
+
+  it('drops a grab on a shoulder when the cut moves under it', () => {
+    const { a } = twoBoards();
+    useStore.getState().setTool('move');
+    useStore.getState().addCut(a.id);
+    useStore.getState().grabSnapPoint(shoulderOf(a.id));
+
+    const cutId = useStore.getState().doc.boards.find((x) => x.id === a.id)!.cuts[0].id;
+    useStore.getState().updateCut(a.id, cutId, { offset: 9 });
+    expect(useStore.getState().grabbed).toBeNull();
+  });
+
+  it('KEEPS a grab on a box corner when a cut is added to the same board', () => {
+    // This passes for a NARROWER reason than the title alone suggests:
+    // addCut's default cut is a mid-face dado at offset === length / 4, which
+    // touches no box point at all, so nothing here exercises stockProbe's
+    // filter on boardSnapPoints. The corner did not move, so the captured
+    // position still describes it, and a blanket clear would be safe but
+    // would drop a grab needlessly. See the DROPS test below for the other
+    // half of the rule: a cut edited to actually reach the corner's own
+    // stock removes the point from boardSnapPoints' output, and the grab is
+    // correctly dropped rather than kept.
+    const { a } = twoBoards();
+    useStore.getState().setTool('move');
+    const corner = cornerOf(a.id);
+    useStore.getState().grabSnapPoint(corner);
+    useStore.getState().addCut(a.id);
+    expect(useStore.getState().grabbed).toEqual(corner);
+  });
+
+  const flushCornerOf = (id: string) => {
+    // The corner at length === 0, thickness === board.thickness (the `max`
+    // face a default cut enters) — as opposed to cornerOf's all-mins corner,
+    // which no cut on this board's `thickness`/`max` face can ever reach.
+    const board = useStore.getState().doc.boards.find((x) => x.id === id)!;
+    const corner = boardSnapPoints(board).find(
+      (p) =>
+        p.kind === 'corner' &&
+        p.at[0] === board.position[0] &&
+        p.at[1] === board.position[1] + board.thickness,
+    );
+    expect(corner, 'fixture must have a flush-face corner').toBeDefined();
+    return corner!;
+  };
+
+  it('DROPS a grab on a box corner when a cut moves to consume its stock', () => {
+    // The other half of the KEEPS test above, pinning follow-up 129: since
+    // Task 6b, boardSnapPoints filters its 26 box-lattice points through
+    // stockProbe (closing follow-up 122), so a box corner is not immune to
+    // dropGrabIfGone the way the KEEPS test's title alone suggests — it
+    // survives only as long as its own stock survives. This is the SAME
+    // rule dropGrabIfGone always applied to a shoulder, reached here through
+    // boardSnapPoints' output rather than through cutSnapPoints'.
+    const { a } = twoBoards();
+    useStore.getState().setTool('move');
+    const corner = flushCornerOf(a.id);
+    useStore.getState().grabSnapPoint(corner);
+
+    useStore.getState().addCut(a.id);
+    // Confirms the fixture: the default cut (offset === length / 4) is a
+    // mid-face dado and does not yet touch this corner, so the grab is
+    // still held before the edit under test.
+    expect(useStore.getState().grabbed).toEqual(corner);
+
+    const cutId = useStore.getState().doc.boards.find((x) => x.id === a.id)!.cuts[0].id;
+    // Pull the cut flush with the board's own end. cutRegion spans the
+    // FULL `across` dimension (width) regardless of offset, so with
+    // offset === 0 and the default width (0.75) the removed region is
+    // length [0, 0.75] x width [0, board.width] x thickness [0.375, 0.75]
+    // (from: 'max', depth: thickness / 2 = 0.375) — which contains the
+    // grabbed corner (length 0, thickness board.thickness) on all three
+    // axes, so its stock is gone and boardSnapPoints no longer offers it.
+    useStore.getState().updateCut(a.id, cutId, { offset: 0 });
+    expect(useStore.getState().grabbed).toBeNull();
+  });
+
+  it('keeps a grab when a cut is edited on a DIFFERENT board', () => {
+    const { a, b } = twoBoards();
+    useStore.getState().setTool('move');
+    useStore.getState().grabSnapPoint(cornerOf(a.id));
+    useStore.getState().addCut(b.id);
+    expect(useStore.getState().grabbed).not.toBeNull();
   });
 
   it('drops a grab when the document is replaced', () => {

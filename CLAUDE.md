@@ -35,8 +35,13 @@ another, and the first board moves so the two points coincide exactly. Snap-move
 on the viewport's *interaction* surface since the gizmo size ceiling (follow-up 29),
 and the first new tool the app has had — followed immediately by a **selected-board
 grabs** round narrowing that tool's grab set to the currently selected board, which is
-the first correction snap-move needed in use. Neither makes a schema change —
-`CURRENT_VERSION` stays 5. Static SPA, containerized, 668/668 tests passing.
+the first correction snap-move needed in use — and now **cut-aware snap points**, which
+closes follow-up 99 by having every `Cut` contribute snap points of its own (a dado's
+floor rectangle and the two shoulder lines at its mouth), so the operation the Move tool
+most obviously exists for — seat a shelf into a side panel's dado — can finally be done
+exactly rather than by snapping to a face centre and nudging. None of the three makes a
+schema change — `CURRENT_VERSION` stays 5. Static SPA, containerized, 698/698 tests
+passing across 32 files.
 
 Host-specific deployment detail — hostname, container name, proxy configuration, and
 the manual steps a human has to perform — lives in `DEPLOYMENT.local.md`, which is
@@ -54,6 +59,15 @@ the deploy: `200` on `/` and on a deep route both in-network and publicly, the n
 *Select a part to move* live with the Move tool armed and nothing selected (and the Move
 button still enabled, per the design), 0 console errors (three known three.js deprecation
 warnings), and exactly one Cloudflare beacon.
+
+**That statement lapsed when cut-aware snap points merged, and one part of the gap is a
+bug fix rather than a feature.** `master` now filters `boardSnapPoints` through
+`stockProbe` (design §5.1, follow-up 122), which stops a rabbet's flush-end mouth
+positions being offered as markers hanging a quarter-inch out in the air over removed
+stock. That defect predates the round — it has been true of every rabbet since joinery
+shipped, and it went live with snap-move — so production carries it today. Rollback costs
+nothing but the feature: no schema change, so a document saved by either build reads
+`version: 5` and opens in the other unchanged.
 
 **The verification touched production's `localStorage` not at all, and the reason is
 worth carrying forward.** Arming the Move tool is a change to `tool`, which is view state
@@ -262,6 +276,114 @@ now the **selected** board's points only; after a grab, the target set is unchan
   report claiming otherwise, and the fix was to re-drive the affected checks under real
   input rather than to narrow the claim.
 
+**What the cut-aware snap points round did**, design in
+`docs/superpowers/specs/2026-08-03-sloyd-cut-snap-points-design.md`, browser pass in
+`docs/browser-verification-cut-snap-points.md`. Chosen 2026-08-03, closing follow-up 99
+ahead of the guides round that had been picked a day earlier. A dado's shoulders are now
+snap points, which closes the operation the Move tool most obviously exists for: cut a
+dado in a side panel, grab the shelf's end corner, click the inside corner where the dado
+floor meets its shoulder, and the shelf seats exactly instead of being snapped to a face
+centre and nudged. No schema change — `CURRENT_VERSION` stays 5 — no new tool, no new
+document state, no new store field, no new UI surface.
+
+- **The governing constraint is not new, and it decides everything.** *A marker must sit
+  on a feature that is actually drawn.* That rule was already written twice in this repo:
+  the snap-move design excludes a board's volume centre because it floats inside the solid
+  where nothing draws it, and invariant 16 is the same rule for edges, which is why
+  `boardEdges` exists rather than per-solid `EdgesGeometry`. Applied here it rules out
+  three tempting shortcuts. **Deriving from `boardSolids`** — which follow-up 99 itself
+  pulled toward, saying *"`boardSolids` already yields them"* — is wrong for exactly the
+  reason invariant 16 already litigated: the canonical dado leaves three abutting solids
+  across a continuous uncut face, so the solids' corners include phantom seam corners that
+  correspond to no real feature. Solid corners are not the shape's corners. **Reusing the
+  3×3×3 rule verbatim on the cut's box** is wrong because the cut's mouth is an *opening*:
+  its face centre and the edge midpoints spanning it hang in void. And **offering points
+  unconditionally** is wrong because two cuts can overlap and the shallower one's floor may
+  no longer exist.
+- **A cut DEFINES up to 15 points and OFFERS those touching remaining stock.** The floor
+  rectangle contributes all nine combinations of `{min, mid, max}` on the two in-plane
+  axes; the mouth contributes only its two shoulder lines, six points, because its middle
+  row spans the opening. A plain dado offers all 15. **A rabbet offers 12**, because its
+  flush end has no shoulder — and that falls out of the filter with **no `cutLabel`
+  branch**, which is the cleanest evidence the filter does real work: *"is there a shoulder
+  here"* and *"does this point touch stock"* are the same question. Nothing downstream may
+  treat 15 as a count it can rely on.
+- **`stockProbe` is `boardEdges`' rule generalised from a segment to a point.**
+  `cuts.ts`'s one new export builds the same cell grid `boardSolids` and `boardEdges`
+  already share, once, and returns a predicate. For each dimension it takes every cell
+  index whose **closed** span contains the coordinate — one when the coordinate falls in a
+  cell's interior, two when it lands exactly on a split plane — and the point touches stock
+  iff any combination of those indices is a filled cell. Up to eight cells rather than
+  four; same shape of rule, same reason. One rule, not a case each: a consumed board's
+  points, a floor corner a deeper cut removed, and a rabbet's flush end all fall out of it.
+  A board with no cuts returns before any grid arithmetic runs, the same zero-cost
+  guarantee `boardSolids` makes in its first line.
+- **The existing three `SnapKind`s cover all 15, and `SnapMarker.tsx` is unchanged.**
+  Follow-up 99 worried that `boardSnapPoints`' rule — count the axes sitting at `mid`, and
+  the count names the kind — would not transfer. It transfers; it applies **within the
+  rectangle**, counting mids among the two in-plane axes only. The depth axis never
+  contributes a mid, because a mid-depth point would sit on the shoulder wall rather than
+  on either rectangle, and shoulder-wall points are declined (follow-up 119). A fourth kind
+  was rejected because hue encodes *which kind*, position encodes *which feature*, and a
+  new off-palette colour would have imported follow-up 60's whole browser-settling
+  obligation to say something the marker's location already says.
+- **`boardSnapPoints` is now filtered too, and that fixed a defect older than the round.**
+  Design §5.1 was written *after* the browser pass, which found the round's own governing
+  constraint failing on the oldest code in the feature: a rabbet's flush-end mouth
+  positions are also board box-lattice points by construction, so `boardSnapPoints` —
+  which never consulted `cuts` — offered markers hanging a quarter-inch out in the air over
+  removed stock. True of every rabbet since joinery shipped, and live in production today.
+  It is filtered through the same probe, with **one explicit exception**: when
+  `boardSolids(board).length === 0` all 26 box points stay, because the ghost box at the
+  AABB *is* drawn (invariant 21) while nothing at all draws a consumed board's shoulders.
+  The exception is a literal `boardSolids(board).length === 0` check rather than being
+  inferred from the filtered set coming back empty — those two conditions are not
+  equivalent, and the explicit one is the rule the design states. See follow-up 122.
+- **Local→world is the round's one invisible-to-numbers trap.** Cut points are the first
+  snap points where posture and rotation actually matter: the box lattice is
+  posture-agnostic because `boardExtents` has already folded both in, but a cut is defined
+  in part-local `length`/`width`/`thickness`. The mapping is
+  `position[axis] + local[axisDimensions(board)[axis]]`, a bare addition only because
+  `position` is the min-corner (invariant 2). **Neither existing helper does this and both
+  look like they do** — `pointToLocalXYZ` and `solidWorldBox` return coordinates relative
+  to the board's *centre*, because `BoardMesh` hangs solids in a `<group>` at
+  `boardCenter(board)` — so reaching for either puts every point off by half the board,
+  which looks entirely plausible in a screenshot. Two poses with hand-derived world
+  coordinates are what pin it; a flat, unrotated board at the origin passes with a
+  completely wrong mapping, because every axis is the identity there.
+- **`snapPointsFor` is one function called in BOTH of `MoveTool`'s branches, and the
+  post-grab one is not optional.** The roadmap text that preceded this round described it
+  as extending "the pre-grab branch", and read alone that would have shipped the feature
+  half-working: the headline operation grabs a corner **on the shelf** and clicks the dado
+  shoulder **on the side panel**, so the cut point is a *target*, on the board that is not
+  selected. Pre-grab only and the operation this round exists for does not work; post-grab
+  only and a shoulder cannot be grabbed. One exported union rather than two concatenations,
+  so the branches cannot drift — follow-up 113's rule applied before it can bite rather
+  than after. No new memo and no dependency-list change: `cuts` rides inside `boards`,
+  already a dependency, so invariant 15's failure mode is not reachable here.
+- **Invariant 24 gained three names and a third *reason*** — see the invariant itself for
+  the mechanism. `addCut`/`updateCut`/`removeCut` do not invalidate a captured position;
+  they can destroy the *feature underneath it*, which is why their clear is point-precise
+  rather than blanket. `sameSnapPoint` moved from `viewport/snapPick.ts` into
+  `document/snapPoints.ts` to make that possible, because the store cannot import from
+  `viewport`; `snapPick.ts` imports it from `document` instead — one home, not a re-export,
+  so there is no second name for it to be found under.
+- **Known, deferred, and verified in a real browser** — see
+  `docs/browser-verification-cut-snap-points.md` (the main pass, plus a narrower "Re-check
+  after the box-lattice fix" section appended to it) and `docs/follow-ups.md`'s "From the
+  cut-aware snap points round" section (119-128). The pass found **no defect in this
+  round's code** and two findings, both adjudicated with the user: the box-lattice gap was
+  **fixed now** and became design §5.1, and the pick ambiguity was **accepted**. That
+  second one is the round's honest negative result and is recorded with its numbers rather
+  than as an impression: at the default camera (14.08 px/inch) a dado's floor corner and
+  its mouth corner project 3.6 px apart, both `corner` so both the same green, and the
+  marker is ~9 px wide — so the two discs overlap almost entirely. Aim tolerance is ±1.8 px
+  there and ±4.2 px at 43.25 px/inch, with parity against `PICK_RADIUS_PX = 12` needing
+  roughly 45-50 px/inch. **No radius can separate two candidates that close** — any radius
+  large enough to aim with contains both — so retuning the constant, which design §9.1 had
+  proposed as the remedy, is not one. The remedy is zoom, which is what anyone aiming at a
+  ¼" feature would do anyway. See follow-up 123.
+
 **What the sheet-nesting round did**, design in
 `docs/superpowers/specs/2026-08-02-sloyd-sheet-nesting-design.md`. Chosen 2026-08-01,
 closing the cut list's last §7 non-goal — nesting was deferred with a reason (a real 2D
@@ -344,63 +466,37 @@ Sheet-nesting closed the cut list's §7 list entirely — see the updated "Defer
 it" paragraph below — and snap-move was the successor picked, deliberately in a
 different part of the app rather than a sixth cut-list descendant.
 
-**The next line of work is CUT-AWARE SNAP POINTS (follow-up 99), as of 2026-08-03 — and
-this is a deliberate REORDERING, not the plan that was in place a day earlier.** The
-tape measure, guide points and guide lines were chosen on 2026-08-02 and already have
-both a design (`docs/superpowers/specs/2026-08-03-sloyd-guide-points-design.md`) and a
-committed implementation plan. They are still the line of work after this one. They were
-moved back a place, on purpose, and the reasons are worth having rather than
-re-deriving:
+**The next line of work is THE TAPE MEASURE, GUIDE POINTS AND GUIDE LINES, as of
+2026-08-03 — and unlike every round before it, this one already has both a design
+(`docs/superpowers/specs/2026-08-03-sloyd-guide-points-design.md`) and a committed
+implementation plan, written on 2026-08-02.** It was moved back one place to let
+cut-aware snap points go first, on the reasoning recorded in that round's write-up below
+— guides are the general-purpose *workaround* for the absence of cut points, so shipping
+them first would have taught people to reach for the workaround and cost the signal about
+what guides actually need to cover. That reordering is now spent: cut points shipped, and
+guides are next.
 
-- **Cut points close the operation the Move tool most obviously exists for, and guides
-  are the workaround for its absence.** You cut a dado in a side panel and then want to
-  seat the shelf in it — the point you aim at is the inside corner where the dado floor
-  meets its shoulder, and it is not on offer, so today you snap to a face centre and
-  nudge. Follow-up 99 already called that "arguably the single most useful point on a
-  joined board". Shipping the general-purpose workaround first teaches people to reach
-  for it and costs the signal about what guides actually need to cover.
-- **The cost asymmetry runs the right way.** Cut points are a second provider over the
-  same board: no schema change, no new document state, no new tool, no UI surface, no
-  rollback cost. Guides need schema **v6**, a `guides` array beside `boards` and `stock`,
-  a placement tool, a visibility toggle, a list, and a migration step — and v6 is a real
-  version gate, the first since sheet nesting. The cheap round exercises the provider
-  seam before the expensive one leans on it.
-- **It lets `MoveTool`'s grab filter reach its final shape in one step.** The pre-grab
-  branch is currently "the selected board's points"; cut points extend it to "the
-  selected board's points, from both providers" — the same rule, one more source. Guides
-  then introduce the first category that is deliberately *never* grabbable, which is a
-  different kind of change to make against a settled filter than against a moving one.
+This is the expensive round the two cheap ones were sequenced ahead of. It needs schema
+**v6** — a `guides` array beside `boards` and `stock`, and a migration step, the first
+real version gate since sheet nesting — plus a placement tool, a visibility toggle and a
+list. The tape measure probably needs none of that: its anchor is transient and owned by
+the tool itself. Read follow-up 105 for what the user asked for, and the snap-move
+design's §2.3 for the interface all three land through: each is a new `SnapPoint`
+*provider*, not a change to `pickSnapPoint`, which is what the `SnapOwner` discriminated
+union was built for and what the cut-points round has now exercised once for real.
 
-Both remaining candidates are cheap in the same specific way — each is a new `SnapPoint`
-*provider*, not a change to `pickSnapPoint` — which is what the `SnapOwner` union was
-built for.
-
-**Two questions the cut-points brainstorm has to settle, neither of which falls out of
-the existing code:**
-
-1. **Which points a cut contributes, and what kind they are.** `boardSnapPoints`' rule —
-   count the axes sitting at `mid`, and the count names the kind — does not transfer: a
-   dado shoulder is a corner of the *cut*, not of the board's box. Either `SnapKind`
-   gains a member or the existing three get reinterpreted, and that is a UI decision as
-   much as a naming one, because `SnapMarker`'s three off-palette colours carry the kind.
-2. **What a board with no stock left offers.** A board its own cuts have consumed renders
-   as a translucent ghost (invariant 21) and `boardSolids` returns `[]`. Whether it still
-   contributes cut points, and whether they mean anything there, needs an answer rather
-   than falling out of the implementation.
-
-Start with `superpowers:brainstorming`, and read the snap-move design's §2.3 and §8
-first — §2.3 is the interface both remaining candidates land through, and §8 records
-*why* each was deferred, which makes those reasons the design constraints rather than a
-to-do list. Read the selected-board grabs round below as well: it is where the new
-provider's output gets filtered.
-
-**When the guides round does start, its plan needs a revision pass first, and the
-specific reason is recorded so it is not rediscovered.** The guide-points design's §3.1
-filters grabbable candidates to *board-owned* points; the selected-board grabs round
-subsumed that with a narrower rule, and cut points will widen the same branch again.
-Merge them into one predicate in the pre-grab branch rather than stacking filters — two
-that agree today are two places for a future rule to disagree, and the redundant one
-would be dead code that reads as load-bearing (follow-up 113).
+**Its plan needs a revision pass before it is executed, and the specific reason is
+recorded so it is not rediscovered.** The guide-points design's §3.1 filters grabbable
+candidates to *board-owned* points. The selected-board grabs round subsumed that with a
+narrower rule (the **selected** board's points, which are board-owned by construction),
+and the cut-points round widened the same branch again (the selected board's points, from
+**both providers**, via `snapPointsFor`). Guides therefore land third into that branch,
+not second. Merge the rules into **one** predicate in the pre-grab branch rather than
+stacking filters — two that agree today are two places for a future rule to disagree, and
+the redundant one would be dead code that reads as load-bearing (follow-ups 113 and 125).
+Note also that guides introduce the first category of point that is deliberately *never*
+grabbable, and that `MoveTool`'s memo is two sets rather than one set with a filter, so
+§3.1's rule belongs only to the pre-grab branch.
 
 **What the empty-solids placeholder did** (2026-08-01, closing follow-ups 48 and 49; no
 spec — the diagnosis and the chosen fix were already in the ledger). A board whose own
@@ -824,10 +920,15 @@ Module dependency order (each layer only depends on the ones before it):
    since the three `formatLength` edges below were declared settled — it does not take
    that edge.** A snap point carries no printed string: it is three numbers, a kind and
    an owner, and nothing about it is ever read off a page. So the "prints identically"
-   argument that justifies the three imports below simply does not reach it, and
-   `snapPoints.ts` imports only `./types` and `./geometry`. Worth stating rather than
-   leaving to inference, because "everything under `document` imports `formatLength`
-   now" would be the wrong generalisation to carry into the next leaf.
+   argument that justifies the three imports below simply does not reach it. Worth
+   stating rather than leaving to inference, because "everything under `document`
+   imports `formatLength` now" would be the wrong generalisation to carry into the next
+   leaf. The cut-aware snap points round widened `snapPoints.ts` *sideways* without
+   touching that: it now imports `./cuts` as well as `./types` and `./geometry`, because
+   the local→world mapping needs `cuts.ts`'s `Point` type and `geometry.ts` sits below
+   `cuts.ts` and so cannot host it. It still does **not** import `../units`, which is
+   the point of this paragraph — a snap point still carries no printed string, and no
+   amount of new geometry changes that.
 
    **The cut list added the one edge between them:** `document/cutlist.ts` imports
    `formatLength` from `units`, because a row's grouping key is built out of formatted
@@ -874,7 +975,12 @@ Module dependency order (each layer only depends on the ones before it):
    constants (`panels` for `MATERIALS`, `DocumentError`, `Rotation`, `uniqueName` and
    `buildCutList`; `viewport` for geometry helpers, and — since the snap-move round —
    `boardSnapPoints` plus the `SnapPoint`/`SnapKind` types, which `MoveTool`,
-   `SnapMarker` and `snapPick` all take from `document`). `panels` additionally imports the `storage` adapter singleton
+   `SnapMarker` and `snapPick` all take from `document`, joined since the cut-aware snap
+   points round by `snapPointsFor` (what `MoveTool` now calls in both branches) and
+   `sameSnapPoint` (which moved *down* into `document/snapPoints.ts` so the store could
+   reach it, and which `snapPick.ts` now imports rather than owns). `store` takes the
+   same two, which is the whole reason `sameSnapPoint` had to move: the store cannot
+   import from `viewport`.) `panels` additionally imports the `storage` adapter singleton
    for export/import. These are legitimate downward imports, not a layering
    violation — `document` and `storage` sit below both.
 
@@ -943,7 +1049,13 @@ src/
 │   │                        boardCenter / reorientedPosition
 │   ├── names.ts             uniqueName / dedupeNames. Imports only Board.
 │   ├── cuts.ts              cutRegion / boardSolids (split, drop, merge) /
-│   │                        boardEdges / solidWorldBox / cutLabel. Pure; imports
+│   │                        boardEdges / solidWorldBox / cutLabel / stockProbe
+│   │                        (builds the shared cell grid once and returns a
+│   │                        predicate: does a board-local point touch any
+│   │                        remaining stock? boardEdges' four-cell configuration
+│   │                        test generalised from a segment to a point — up to
+│   │                        eight cells — with CLOSED spans, so a point landing
+│   │                        on a split plane sees both sides). Pure; imports
 │   │                        only ./geometry and ./types, never ./document
 │   ├── cutlist.ts           buildCutList: group by material+thickness, collapse
 │   │                        identical parts into rows, phrase each cut as a setup
@@ -974,17 +1086,33 @@ src/
 │   │                        see the new invariant below. Pure; imports ./types and
 │   │                        ../units/length — the third leaf under ./document to
 │   │                        import from units, never ./document
-│   ├── snapPoints.ts        boardSnapPoints: a board's 26 snap candidates — the
+│   ├── snapPoints.ts        boardSnapPoints: a board's box candidates — the
 │   │                        3x3x3 lattice of {min, mid, max} per world axis,
 │   │                        minus the volume centre; the count of axes at `mid`
 │   │                        names the kind (0 corner, 1 edge-mid, 2 face-centre).
-│   │                        Exports SnapKind / SnapOwner / SnapPoint — the owner
-│   │                        is a discriminated union so guide points, guide lines
-│   │                        and the tape measure add a member rather than
-│   │                        reopening the picker. Pure; imports only ./types and
-│   │                        ./geometry — notably NOT ../units, unlike cutlist.ts,
-│   │                        diagram.ts and nesting.ts: a snap point carries no
-│   │                        printed string, so that boundary is untouched here
+│   │                        26 on an uncut board, but NOT unconditionally 26:
+│   │                        since design §5.1 the lattice is filtered through
+│   │                        stockProbe too, so a rabbet's flush-end mouth row is
+│   │                        withheld — with one explicit exception, a board whose
+│   │                        cuts consumed it entirely (boardSolids empty) keeps
+│   │                        all 26, because the ghost box IS drawn (invariant 21).
+│   │                        cutSnapPoints: the up-to-15 a cut defines (floor
+│   │                        rectangle 9 + the two shoulder lines at the mouth 6,
+│   │                        the mouth's middle row excluded because it spans the
+│   │                        opening), offering those touching remaining stock —
+│   │                        15 for a dado, 12 for a rabbet, with no cutLabel
+│   │                        branch. snapPointsFor: the union, called in BOTH of
+│   │                        MoveTool's branches. sameSnapPoint lives here rather
+│   │                        than in viewport/snapPick.ts because the store needs
+│   │                        it and cannot import viewport — one home, not a
+│   │                        re-export. Exports SnapKind / SnapOwner / SnapPoint —
+│   │                        the owner is a discriminated union so guide points,
+│   │                        guide lines and the tape measure add a member rather
+│   │                        than reopening the picker. Pure; imports ./types,
+│   │                        ./geometry and ./cuts (for Point and stockProbe) —
+│   │                        notably NOT ../units, unlike cutlist.ts, diagram.ts
+│   │                        and nesting.ts: a snap point carries no printed
+│   │                        string, so that boundary is untouched here
 │   └── document.ts          create / validate / migrate (v1->v2->v3->v4->v5 chain,
 │                            v5 document-level rather than per-board — see
 │                            Architecture); re-exports the other nine
@@ -992,7 +1120,11 @@ src/
 │                            also `tool` ('select' | 'move') and `grabbed`
 │                            (SnapPoint | null) as view state beside selectedId,
 │                            with setTool / grabSnapPoint / cancelGrab /
-│                            commitSnapMove — see invariants 24 and 25
+│                            commitSnapMove, plus dropGrabIfGone(boardId), which
+│                            addCut/updateCut/removeCut each call AFTER their
+│                            edit(): the grab survives iff the grabbed point is
+│                            still among that board's snapPointsFor output — see
+│                            invariants 24 and 25
 ├── storage/
 │   ├── types.ts             the StorageAdapter interface
 │   └── browser.ts           BrowserStorageAdapter + the `storage` singleton
@@ -1017,16 +1149,24 @@ src/
 │   │                        is selected, so nothing is grabbable); after a grab,
 │   │                        every board's points minus the grabbed board's own,
 │   │                        so the self-snap case draws no marker. Targets are
-│   │                        deliberately unrestricted — see design §3
+│   │                        deliberately unrestricted — see design §3. BOTH
+│   │                        branches go through snapPointsFor, so a cut shoulder
+│   │                        is both grabbable and — the point of the cut-aware
+│   │                        round — a TARGET on the board that is not selected
 │   ├── SnapMarker.tsx       one screen-constant, always-on-top marker
 │   │                        (depthTest off, so an occluded candidate's pick is
 │   │                        visible). Owns the three off-palette colours, the ring
 │   │                        and MARKER_PX/RING_PX — all browser-settled
 │   ├── snapPick.ts          pickSnapPoint: nearest candidate in SCREEN space
 │   │                        within radiusPx, ties broken by depth (nearer the
-│   │                        camera wins); plus sameSnapPoint and PICK_RADIUS_PX.
-│   │                        `project` is a callback, not a camera — that is what
-│   │                        keeps THREE out and makes it unit-testable. Pure
+│   │                        camera wins); plus PICK_RADIUS_PX. sameSnapPoint is
+│   │                        no longer here — it moved down into document/
+│   │                        snapPoints.ts so the store could reach it, and this
+│   │                        file imports it from there (one home, not a
+│   │                        re-export, so there is no second name for it to be
+│   │                        found under). `project` is a callback, not a camera —
+│   │                        that is what keeps THREE out and makes it
+│   │                        unit-testable. Pure
 │   ├── pointer.ts           CLICK_DRAG_SLOP_PX, shared by BoardMesh and MoveTool
 │   │                        rather than copied — the follow-up 64 drift shape
 │   ├── OriginAxes.tsx       origin axis lines, R=X G=Y(up) B=Z; dashed = negative
@@ -1422,6 +1562,35 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
     before any `edit()`, and deliberately leaves `grabbed` in hand — the state should be
     unreachable, and discarding it quietly would hide that it wasn't.
     Only the five above are here because the world moved.
+    **The cut-aware snap points round added three more — `addCut`, `updateCut` and
+    `removeCut` — for a THIRD reason, and with a NARROWER rule than any of the above.**
+    The five world-moved actions invalidate a *captured position*: the board slides out
+    from under a point that still exists. A cut edit can do something else — it can
+    destroy the **feature underneath the point**, or create one, so the point itself
+    stops being on offer. `removeCut` deletes the shoulder being carried; `updateCut`
+    moves it; `addCut` can overlap an older cut and take its floor away through
+    `stockProbe`. These three do not inherit `updateBoard`'s conditional clear because
+    they are deliberately routed *around* `updateBoard` (a cut changes no extent, so
+    reorienting on a cut change would be a no-op pivot — invariant 2's own reasoning),
+    which is exactly why they needed their own and could be given a better one. The clear
+    is therefore **point-precise, not board-precise**: `dropGrabIfGone(boardId)` runs
+    **after** the `edit()`, and keeps the grab iff the grabbed point is still among that
+    board's `snapPointsFor` output. Holding a box corner while editing a cut on the same
+    board usually **keeps** the grab, because the corner usually did not move — a
+    mid-face dado touches no box point — but not always: `boardSnapPoints` itself
+    withholds a box point once `stockProbe` finds no stock left under it (the round's
+    own filter, added after a rabbet's flush end reached a box corner), so a cut edited
+    to consume that corner's stock (a rabbet pulled flush with the board's end) makes
+    the point stop being on offer and the grab **drops**, by the same rule that drops a
+    grabbed shoulder rather than by a separate case. Holding the shoulder you just
+    deleted **drops** it; a cut edit on another board is untouched, per
+    the existing conditional shape. Two things are load-bearing and easy to undo by
+    "tidying": the comparison is exact `===` on the three coordinates, correct for
+    invariant 18's reason (both sides are produced by the same arithmetic from the same
+    stored values, and nothing computes a difference on the way in), and the call must
+    sit **after** `edit()`, since the whole question is what the board offers once the
+    edit has landed. A blanket clear would be simpler and wrong — see follow-up 127 for
+    the two cases the store tests do not reach.
 25. **The snap move is deliberately NOT rounded to `SNAP_INCHES`, and this is the exact
     opposite of what `Gizmo.tsx` does — both are correct.** The gizmo snaps to 1/16"
     because a free drag lands on arbitrary numbers and a board should come to rest
@@ -1446,7 +1615,7 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 668 tests across 32 files
+npm test           # Vitest, currently 698 tests across 32 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1458,7 +1627,8 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 `docs/follow-ups.md` lists everything found during v1 review, the two polish passes,
 v2, v3, the post-v3 fixes, joinery, the cut list and its diagrams rounds, the
-board-feet round, the sheet-nesting round and the snap-move round, consciously deferred
+board-feet round, the sheet-nesting round, the snap-move round, the selected-board grabs
+round and the cut-aware snap points round, consciously deferred
 rather than missed, numbered 1-30 plus the per-release additions. Read it before starting new work
 in the same area — several items are "correct but untested", which is exactly what a
 refactor breaks silently.
@@ -1649,6 +1819,29 @@ from a **reviewer** rather than a plan: a requested test whose premise — that 
 of `edit()`'s grab-clearing condition survives the suite — did not reproduce, both halves
 of that condition already being pinned by a different existing test each. Closed by
 running the two mutations and recording the output, not by adding a duplicate test.
+
+The cut-aware snap points round **closed 99** and added **119-128**. **119-121** are the
+design's §9 non-goals as decisions: no points on the shoulder walls (declined on clutter
+grounds, *not* by the governing constraint — a wall is real drawn material, which makes
+this the one exclusion that needed a different argument), no de-duplication against the
+box lattice, and no fourth `SnapKind`. **120** carries the subtlety in the second of
+those: two coincident candidates produce the identical delta, so the move is unaffected,
+but they can differ in *kind* and therefore in marker hue, which means the colour is
+decided by `pickSnapPoint`'s depth tie-break — and if that ever reads as flicker the fix
+is a deterministic ordering rule, not a de-duplication step. **122** is the round's most
+interesting entry: a browser pass found the round's own governing constraint failing on
+the oldest code in the feature, and it was fixed in-branch (`999ca29`) rather than filed.
+**123** is the accepted pick-radius finding with its measured numbers — 3.6 px separation
+at the default camera, ±1.8 px aim tolerance, ±4.2 px at 43.25 px/inch, parity with
+`PICK_RADIUS_PX = 12` at roughly 45-50 px/inch — and the reason no radius can fix it.
+**124** collects what neither browser pass checked, from both reports. **125** is
+follow-up 113 with a third contributor to the same branch, which is what the guides
+round's plan revision has to reconcile. **126** is the newest link in the
+plan-supplied-justification chain (64, 68 twice, 80, 87, 88, 107, 118) and the first
+sourced from a test *title*: "(fast path, no grid built)" pins neither half of itself.
+**127** and **128** are deferred minors — two grab-clearing cases the store tests do not
+reach, and three hygiene items including two type assertions resting on facts the
+assertion cannot enforce.
 
 One entry is a lesson rather than a defect and is worth reading before touching anything
 in the viewport: **26a**. Browser verification on this host runs on software GL
