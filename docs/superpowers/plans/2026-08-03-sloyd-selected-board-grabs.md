@@ -14,9 +14,9 @@
 
 - **No schema change.** `CURRENT_VERSION` stays `5`. Nothing in this round touches `src/document/`.
 - **`npm test` does not typecheck.** `npm run build` (`tsc -b && vite build`) is the typecheck gate. A green suite proves nothing about `tsc`. Run the build before claiming any task compiles.
-- **Baseline is 660 tests across 32 files, all passing.** Tasks 1 and 2 add tests; note the new count in each commit's verification step.
+- **Baseline is 662 tests across 32 files, all passing** — measured on this branch, not taken from CLAUDE.md, whose "660/660" claim is stale. Tasks 1 and 2 add tests; note the new count in each commit's verification step.
 - **The r3f viewport has no unit tests by design.** `MoveTool.tsx` (Task 3) is verified by driving a real browser (Task 5), never by asserting on mocks. Do not add a test file for it.
-- **No pull requests.** Solo repo — commit directly to `master`.
+- **No pull requests.** Solo repo. Work happens on the branch `feat/selected-board-grabs`, merged into `master` locally with `git merge --no-ff` at the end. Never open a PR.
 - **If a supplied test or expectation looks wrong, stop and escalate.** Do not edit an assertion to make it pass. This repo has recorded seven instances of plan-supplied code being wrong (follow-ups 64, 68 ×2, 80, 87, 88, 107); the ones that ended well ended well because an implementer stopped. Task 2 contains one deliberate fixture change with a written justification — if that justification does not hold up when you read it, escalate rather than proceed.
 
 ---
@@ -146,7 +146,7 @@ Replace `selectBoard` (currently `selectBoard: (id) => set({ selectedId: id }),`
 
 Run: `npm test`
 
-Expected: all pass, 665 tests (660 + 5). If any *pre-existing* Move-tool test now fails, stop and escalate — Task 1 is not supposed to change the behaviour of any existing test, and a break here means the fallback in Step 3 is wrong, not that the old test was.
+Expected: all pass, 667 tests (662 + 5). If any *pre-existing* Move-tool test now fails, stop and escalate — Task 1 is not supposed to change the behaviour of any existing test, and a break here means the fallback in Step 3 is wrong, not that the old test was.
 
 - [ ] **Step 6: Typecheck**
 
@@ -307,7 +307,7 @@ Make no other change to any existing test. If one still fails after the fixture 
 
 Run: `npm test`
 
-Expected: all pass, 666 tests (665 + 1).
+Expected: all pass, 668 tests (667 + 1).
 
 - [ ] **Step 8: Prove the guard is load-bearing**
 
@@ -400,7 +400,7 @@ Expected: exit 0. `boards.find` returns `Board | undefined`, which the ternary n
 
 Run: `npm test`
 
-Expected: 666 passing, unchanged from Task 2 — nothing under test imports `MoveTool`.
+Expected: 668 passing, unchanged from Task 2 — nothing under test imports `MoveTool`.
 
 - [ ] **Step 6: Commit**
 
@@ -470,7 +470,7 @@ literal hex value.
 
 Run: `npm run build && npm test`
 
-Expected: build exit 0; 666 tests passing.
+Expected: build exit 0; 668 tests passing.
 
 - [ ] **Step 5: Commit**
 
