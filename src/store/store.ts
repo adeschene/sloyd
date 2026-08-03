@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { createBoard, createDocument, reorientedPosition, uniqueName, isSheetGood, nextId } from '../document/document';
+import { createBoard, createDocument, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor } from '../document/document';
 import type { Board, Cut, SloydDocument, SnapPoint } from '../document/document';
 
 const HISTORY_LIMIT = 50;
@@ -121,6 +121,36 @@ export const useStore = create<StoreState>((set, get) => {
       ...(selection ? { selectedId: nextSelectedId } : {}),
       ...(dropGrab ? { grabbed: null } : {}),
     });
+  };
+
+  /**
+   * Invariant 24, for cut edits.
+   *
+   * A grab holds a WORLD POSITION captured at grab time, so anything that can
+   * move or destroy the feature under it must drop it. Cut edits reach that
+   * bar as soon as a shoulder is grabbable: removeCut can delete the point
+   * being carried and updateCut can move it, after which commitSnapMove would
+   * apply a delta derived from a position that describes nothing.
+   *
+   * They do not go through updateBoard (invariant 2 — a cut changes no extent,
+   * so reorienting on a cut change would be a no-op pivot), so they do not
+   * inherit its conditional clear and need this instead.
+   *
+   * Precise rather than blanket: the grab survives if the point it holds is
+   * still on offer after the edit, which is the case whenever a box-lattice
+   * point is held and only the joinery changed. Exact === on the coordinates
+   * is correct here for invariant 18's reason — both sides come from the same
+   * arithmetic over the same stored values, so an unmoved point holds
+   * identical doubles, and nothing computes a difference on the way in.
+   *
+   * Call AFTER edit(), so `get().doc` is the post-edit document.
+   */
+  const dropGrabIfGone = (boardId: string) => {
+    const grabbed = get().grabbed;
+    if (!grabbed || grabbed.owner.id !== boardId) return;
+    const board = get().doc.boards.find((b) => b.id === boardId);
+    if (board && snapPointsFor(board).some((p) => sameSnapPoint(p, grabbed))) return;
+    set({ grabbed: null });
   };
 
   return {
@@ -420,6 +450,7 @@ export const useStore = create<StoreState>((set, get) => {
           b.id === boardId ? { ...b, cuts: [...b.cuts, cut] } : b,
         ),
       }));
+      dropGrabIfGone(boardId);
     },
 
     // Cuts are patched here rather than through updateBoard on purpose:
@@ -444,6 +475,7 @@ export const useStore = create<StoreState>((set, get) => {
             : b,
         ),
       }));
+      dropGrabIfGone(boardId);
     },
 
     removeCut: (boardId, cutId) => {
@@ -455,6 +487,7 @@ export const useStore = create<StoreState>((set, get) => {
           b.id === boardId ? { ...b, cuts: b.cuts.filter((c) => c.id !== cutId) } : b,
         ),
       }));
+      dropGrabIfGone(boardId);
     },
   };
 });

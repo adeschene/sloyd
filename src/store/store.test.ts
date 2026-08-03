@@ -1,5 +1,5 @@
 import { useStore } from './store';
-import { createBoard, createDocument, boardCenter, boardSnapPoints } from '../document/document';
+import { createBoard, createDocument, boardCenter, boardSnapPoints, cutSnapPoints } from '../document/document';
 
 const reset = () => useStore.getState().replaceDocument(createDocument('Test'));
 
@@ -669,6 +669,55 @@ describe('the Move tool', () => {
     useStore.getState().grabSnapPoint(cornerOf(useStore.getState().doc.boards[0]!.id));
     useStore.getState().redo();
     expect(useStore.getState().grabbed).toBeNull();
+  });
+
+  const shoulderOf = (id: string) => {
+    const board = useStore.getState().doc.boards.find((x) => x.id === id)!;
+    const point = cutSnapPoints(board)[0];
+    expect(point, 'fixture must have a cut with offerable points').toBeDefined();
+    return point;
+  };
+
+  it('drops a grab on a shoulder when the cut is removed', () => {
+    const { a } = twoBoards();
+    useStore.getState().setTool('move');
+    useStore.getState().addCut(a.id);
+    useStore.getState().grabSnapPoint(shoulderOf(a.id));
+    expect(useStore.getState().grabbed).not.toBeNull();
+
+    const cutId = useStore.getState().doc.boards.find((x) => x.id === a.id)!.cuts[0].id;
+    useStore.getState().removeCut(a.id, cutId);
+    expect(useStore.getState().grabbed).toBeNull();
+  });
+
+  it('drops a grab on a shoulder when the cut moves under it', () => {
+    const { a } = twoBoards();
+    useStore.getState().setTool('move');
+    useStore.getState().addCut(a.id);
+    useStore.getState().grabSnapPoint(shoulderOf(a.id));
+
+    const cutId = useStore.getState().doc.boards.find((x) => x.id === a.id)!.cuts[0].id;
+    useStore.getState().updateCut(a.id, cutId, { offset: 9 });
+    expect(useStore.getState().grabbed).toBeNull();
+  });
+
+  it('KEEPS a grab on a box corner when a cut is added to the same board', () => {
+    const { a } = twoBoards();
+    useStore.getState().setTool('move');
+    const corner = cornerOf(a.id);
+    useStore.getState().grabSnapPoint(corner);
+    useStore.getState().addCut(a.id);
+    // The corner did not move, so the captured position still describes it.
+    // A blanket clear would be safe but would drop a grab needlessly.
+    expect(useStore.getState().grabbed).toEqual(corner);
+  });
+
+  it('keeps a grab when a cut is edited on a DIFFERENT board', () => {
+    const { a, b } = twoBoards();
+    useStore.getState().setTool('move');
+    useStore.getState().grabSnapPoint(cornerOf(a.id));
+    useStore.getState().addCut(b.id);
+    expect(useStore.getState().grabbed).not.toBeNull();
   });
 
   it('drops a grab when the document is replaced', () => {
