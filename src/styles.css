@@ -225,6 +225,51 @@ button[aria-pressed='true'] {
 .workspace { flex: 1; display: flex; min-height: 0; }
 .workspace > :first-child { flex: 1; min-width: 0; }
 
+/* The viewport and whatever is drawn over it. `position: relative` is the
+   whole point: R3F's canvas wrapper is a sibling of any overlay, not an
+   ancestor, so without a positioned parent an absolutely positioned overlay
+   resolves against the initial containing block and lands under the sidebar.
+   Sized by the `.workspace > :first-child` rule above, which it inherits by
+   being that first child. */
+.viewport-stack {
+  position: relative;
+  display: flex;
+  min-height: 0;
+}
+
+/* The tape's live readout — SketchUp's VCB, over the canvas rather than in it.
+   Same surface, border and radius as the panels and inputs, so it reads as
+   part of the instrument rather than as a floating widget. */
+.tape-readout {
+  position: absolute;
+  right: 1rem;
+  bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  background: var(--graphite-850);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  color: var(--ink);
+  /* The canvas below takes raw pointer events; this box must keep its own, or
+     the input could not be clicked into. */
+  pointer-events: auto;
+  z-index: 2;
+}
+
+.tape-readout-label {
+  font-family: var(--font-num);
+  font-size: 12px;
+  min-width: 5ch;
+  text-align: right;
+}
+
+.tape-readout-input {
+  width: 8ch;
+  font-family: var(--font-num);
+}
+
 .banner {
   flex: none;
   background: var(--warn-bg);

@@ -10,6 +10,7 @@ import { Gizmo } from './Gizmo';
 import { GuideMarkers } from './GuideMarkers';
 import { MoveTool } from './MoveTool';
 import { OriginAxes } from './OriginAxes';
+import { TapeTool } from './TapeTool';
 import { SCENE_EXTENT } from './extent';
 import { gridDensity } from './gridDensity';
 import type { GridTier } from './gridDensity';
@@ -365,6 +366,7 @@ export function Viewport({
           no way to share the pointer between them, so it is not rendered. */}
       {tool === 'select' && <Gizmo />}
       <MoveTool showGuides={showGuides} />
+      <TapeTool showGuides={showGuides} />
       <CameraKeys suspended={shortcutsSuspended} />
       {/*
         Damping is OFF, and that is the fix for the grid shimmer — not a

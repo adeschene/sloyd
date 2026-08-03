@@ -5,6 +5,7 @@ import { PartsList } from './panels/PartsList';
 import { Properties } from './panels/Properties';
 import { FileMenu, SaveIndicator, StorageBanner } from './panels/FileMenu';
 import { CutList } from './panels/CutList';
+import { TapeReadout } from './panels/TapeReadout';
 import { storage } from './storage/browser';
 import { useStore } from './store/store';
 
@@ -217,13 +218,33 @@ export default function App() {
         </Toolbar>
         <StorageBanner available={available} />
         <main className="workspace">
-          <Viewport
-            orthographic={orthographic}
-            showGrid={showGrid}
-            showAxes={showAxes}
-            showGuides={showGuides}
-            shortcutsSuspended={cutListOpen}
-          />
+          {/*
+            The viewport and anything drawn OVER it share one positioned
+            wrapper. `.workspace` is a plain flex row with no positioning of
+            its own and R3F's canvas div is a sibling rather than an ancestor,
+            so an absolutely positioned overlay with no wrapper would resolve
+            against the initial containing block and land under the sidebar.
+            The wrapper is the workspace's first child, so the existing
+            `.workspace > :first-child { flex: 1; min-width: 0 }` rule sizes it
+            exactly as it sized the Viewport before — this follows the layout
+            rather than adding a second one.
+
+            It stays inside `.app-shell` on purpose: TapeReadout contains an
+            <input> that commits to the document, which is precisely the class
+            of control the cut list's `inert` shell exists to take out of the
+            tab order (follow-up 56). Hoisting it to a child of `.app` would
+            reopen that defect and lose the print rule as well.
+          */}
+          <div className="viewport-stack">
+            <Viewport
+              orthographic={orthographic}
+              showGrid={showGrid}
+              showAxes={showAxes}
+              showGuides={showGuides}
+              shortcutsSuspended={cutListOpen}
+            />
+            <TapeReadout />
+          </div>
           <aside className="sidebar">
             <section className="panel panel-parts">
               <h2>Parts</h2>

@@ -73,6 +73,24 @@ interface StoreState {
   setTapeAnchor: (point: SnapPoint) => void;
   clearTapeAnchor: () => void;
 
+  /**
+   * The candidate currently under the cursor in Tape mode.
+   *
+   * In the store ONLY because the readout is a DOM overlay outside the Canvas
+   * and needs it — this is not view state with the standing to sit beside
+   * `tool`.
+   *
+   * Deliberately NOT on invariant 24's clearing list, and the reason is the
+   * anchor, not this field. While anchored it is LATCHED (TapeTool's
+   * onPointerLeave), so it can outlive a board move — but nothing can be
+   * committed from it alone: every path through TapeReadout.commit() reads
+   * `tapeAnchor` first and returns when it is null, and all seven of those
+   * actions clear the anchor. Clearing this too would be belt-and-braces that
+   * also breaks the latch the typed offset depends on.
+   */
+  tapeHover: SnapPoint | null;
+  setTapeHover: (point: SnapPoint | null) => void;
+
   addBoard: () => void;
   updateBoard: (id: string, patch: Partial<Board>) => void;
   deleteBoard: (id: string) => void;
@@ -252,10 +270,14 @@ export const useStore = create<StoreState>((set, get) => {
     tool: 'select',
     grabbed: null,
     tapeAnchor: null,
+    tapeHover: null,
 
-    // Changing tools always drops both held points. A snap point carried into
-    // a different tool has nothing that can consume it.
-    setTool: (tool) => set({ tool, grabbed: null, tapeAnchor: null }),
+    // Changing tools always drops every held point — the two that can be
+    // committed from (`grabbed`, `tapeAnchor`) and the tape's hover, which is
+    // published for the readout and would otherwise leave a stale distance on
+    // screen. A snap point carried into a different tool has nothing that can
+    // consume it.
+    setTool: (tool) => set({ tool, grabbed: null, tapeAnchor: null, tapeHover: null }),
 
     grabSnapPoint: (point) => set({ grabbed: point }),
 
@@ -264,6 +286,8 @@ export const useStore = create<StoreState>((set, get) => {
     setTapeAnchor: (point) => set({ tapeAnchor: point }),
 
     clearTapeAnchor: () => set({ tapeAnchor: null }),
+
+    setTapeHover: (point) => set({ tapeHover: point }),
 
     /**
      * Move the grabbed board so its grabbed point lands exactly on `target`.
