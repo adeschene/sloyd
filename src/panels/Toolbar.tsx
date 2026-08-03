@@ -16,6 +16,14 @@ interface Props {
    */
   showAxes: boolean;
   onToggleAxes: () => void;
+  /**
+   * True when tape-measure guide points are drawn. A third flag beside
+   * showGrid and showAxes, and view state for the same reason — guides are
+   * scaffolding, and wanting them on is a property of what you are doing right
+   * now, not of the project.
+   */
+  showGuides: boolean;
+  onToggleGuides: () => void;
   /** Opens the cut list sheet. */
   onOpenCutList: () => void;
 }
@@ -28,6 +36,8 @@ export function Toolbar({
   onToggleGrid,
   showAxes,
   onToggleAxes,
+  showGuides,
+  onToggleGuides,
   onOpenCutList,
 }: Props) {
   const name = useStore((s) => s.doc.name);
@@ -100,6 +110,10 @@ export function Toolbar({
         <label className="checkbox toolbar-checkbox">
           <input type="checkbox" checked={showAxes} onChange={onToggleAxes} />
           Origin
+        </label>
+        <label className="checkbox toolbar-checkbox">
+          <input type="checkbox" checked={showGuides} onChange={onToggleGuides} />
+          Guides
         </label>
       </div>
 

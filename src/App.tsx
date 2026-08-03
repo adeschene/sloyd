@@ -39,6 +39,7 @@ export default function App() {
   // "how big is this" and "where is the origin".
   const [showGrid, setShowGrid] = useState(true);
   const [showAxes, setShowAxes] = useState(true);
+  const [showGuides, setShowGuides] = useState(true);
   // Also view state, and also deliberately outside the document and the undo
   // stack: the cut list is a way of looking at a project, not part of one.
   const [cutListOpen, setCutListOpen] = useState(false);
@@ -204,6 +205,8 @@ export default function App() {
           onToggleGrid={() => setShowGrid((v) => !v)}
           showAxes={showAxes}
           onToggleAxes={() => setShowAxes((v) => !v)}
+          showGuides={showGuides}
+          onToggleGuides={() => setShowGuides((v) => !v)}
           onOpenCutList={() => {
             opener.current = document.activeElement as HTMLElement | null;
             setCutListOpen(true);
@@ -218,6 +221,7 @@ export default function App() {
             orthographic={orthographic}
             showGrid={showGrid}
             showAxes={showAxes}
+            showGuides={showGuides}
             shortcutsSuspended={cutListOpen}
           />
           <aside className="sidebar">

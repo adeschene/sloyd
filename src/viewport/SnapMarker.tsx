@@ -55,6 +55,19 @@ export const MARKER_PX = 9;
 export const RING_PX = 2;
 
 /**
+ * A resting guide's marker, in screen pixels — smaller than MARKER_PX, and
+ * drawn without the ring.
+ *
+ * Guides are the only points drawn when nothing is hovering them, so this is
+ * what keeps "the marker grew" as the confirmation that a point is picked —
+ * the signal every other kind gets for free by appearing at all. It has to
+ * stay big enough to aim at and quiet enough that a dozen guides do not read
+ * as noise, which makes it browser-settled in the sense of follow-up 60. Task
+ * 10 confirms or retunes it; do not "fix" it from theory.
+ */
+export const RESTING_PX = 6;
+
+/**
  * Everything drawn by the Move tool renders after the boards. depthTest is off
  * (see the materials below), so this is what orders the ring behind the fill.
  */
@@ -71,8 +84,14 @@ const SEGMENTS = 24;
  * ladder does. Drawing on top (depthTest false) is what makes the design's
  * decision to keep occluded candidates pickable usable rather than merely
  * permitted: a back corner can be picked, so its marker has to be visible.
+ *
+ * `resting`, when set, draws the guide-only small variant (RESTING_PX, no
+ * ring) instead of the normal hovered/grabbed size — see RESTING_PX's own
+ * comment for why. Every other call site leaves this unset, and must keep
+ * rendering at full size: the growth from resting to full size on hover is
+ * the whole point, and it only works if the full-size path is untouched.
  */
-export function SnapMarker({ point }: { point: SnapPoint }) {
+export function SnapMarker({ point, resting = false }: { point: SnapPoint; resting?: boolean }) {
   const group = useRef<THREE.Group>(null);
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
@@ -103,19 +122,21 @@ export function SnapMarker({ point }: { point: SnapPoint }) {
           needs a hit here, and leaving it pickable would put an invisible
           obstacle in front of the boards it sits on. Same treatment as the
           shadow-receiver plane in Viewport. */}
-      <mesh renderOrder={MARKER_RENDER_ORDER} raycast={() => null}>
-        <circleGeometry args={[MARKER_PX / 2 + RING_PX, SEGMENTS]} />
-        <meshBasicMaterial
-          color={RING_COLOR}
-          depthTest={false}
-          depthWrite={false}
-          transparent
-          opacity={0.95}
-          toneMapped={false}
-        />
-      </mesh>
+      {!resting && (
+        <mesh renderOrder={MARKER_RENDER_ORDER} raycast={() => null}>
+          <circleGeometry args={[MARKER_PX / 2 + RING_PX, SEGMENTS]} />
+          <meshBasicMaterial
+            color={RING_COLOR}
+            depthTest={false}
+            depthWrite={false}
+            transparent
+            opacity={0.95}
+            toneMapped={false}
+          />
+        </mesh>
+      )}
       <mesh renderOrder={MARKER_RENDER_ORDER + 1} raycast={() => null}>
-        <circleGeometry args={[MARKER_PX / 2, SEGMENTS]} />
+        <circleGeometry args={[(resting ? RESTING_PX : MARKER_PX) / 2, SEGMENTS]} />
         <meshBasicMaterial
           color={SNAP_COLORS[point.kind]}
           depthTest={false}
