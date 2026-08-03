@@ -344,35 +344,63 @@ Sheet-nesting closed the cut list's §7 list entirely — see the updated "Defer
 it" paragraph below — and snap-move was the successor picked, deliberately in a
 different part of the app rather than a sixth cut-list descendant.
 
-**The next line of work IS chosen, as of 2026-08-02: the tape measure, guide points and
-guide lines** — the three the user named as the intended follow-ups to snap-move when
-they asked for the Move tool in the first place (follow-up 105), confirmed as the
-successor immediately after snap-move deployed. They are one line of work rather than
-three, because guide points and guide lines are the same schema change and the tape
-measure is the tool that places them.
+**The next line of work is CUT-AWARE SNAP POINTS (follow-up 99), as of 2026-08-03 — and
+this is a deliberate REORDERING, not the plan that was in place a day earlier.** The
+tape measure, guide points and guide lines were chosen on 2026-08-02 and already have
+both a design (`docs/superpowers/specs/2026-08-03-sloyd-guide-points-design.md`) and a
+committed implementation plan. They are still the line of work after this one. They were
+moved back a place, on purpose, and the reasons are worth having rather than
+re-deriving:
 
-A fourth candidate sits beside them but was **not** chosen: **cut-aware snap points**
-(follow-up 99), which the user explicitly deferred to keep the Move tool's v1 small. It
-is independent of the three and can land before, after, or never.
+- **Cut points close the operation the Move tool most obviously exists for, and guides
+  are the workaround for its absence.** You cut a dado in a side panel and then want to
+  seat the shelf in it — the point you aim at is the inside corner where the dado floor
+  meets its shoulder, and it is not on offer, so today you snap to a face centre and
+  nudge. Follow-up 99 already called that "arguably the single most useful point on a
+  joined board". Shipping the general-purpose workaround first teaches people to reach
+  for it and costs the signal about what guides actually need to cover.
+- **The cost asymmetry runs the right way.** Cut points are a second provider over the
+  same board: no schema change, no new document state, no new tool, no UI surface, no
+  rollback cost. Guides need schema **v6**, a `guides` array beside `boards` and `stock`,
+  a placement tool, a visibility toggle, a list, and a migration step — and v6 is a real
+  version gate, the first since sheet nesting. The cheap round exercises the provider
+  seam before the expensive one leans on it.
+- **It lets `MoveTool`'s grab filter reach its final shape in one step.** The pre-grab
+  branch is currently "the selected board's points"; cut points extend it to "the
+  selected board's points, from both providers" — the same rule, one more source. Guides
+  then introduce the first category that is deliberately *never* grabbable, which is a
+  different kind of change to make against a settled filter than against a moving one.
 
-All four are cheap in the same specific way — each is a new `SnapPoint` *provider*, not
-a change to `pickSnapPoint` — which is what the `SnapOwner` union was built for. Guides
-persist, so they need a schema bump to v6 and a `guides` array beside `boards` and
-`stock`; the tape measure and cut shoulders need none. That v6 bump is the round's one
-real design question, and the sheet-nesting round's `stock` step is its worked example:
-`guides` is document-level, so it takes the `d.stock`-style defensive read rather than
-joining the `rawBoards.map` chain.
+Both remaining candidates are cheap in the same specific way — each is a new `SnapPoint`
+*provider*, not a change to `pickSnapPoint` — which is what the `SnapOwner` union was
+built for.
+
+**Two questions the cut-points brainstorm has to settle, neither of which falls out of
+the existing code:**
+
+1. **Which points a cut contributes, and what kind they are.** `boardSnapPoints`' rule —
+   count the axes sitting at `mid`, and the count names the kind — does not transfer: a
+   dado shoulder is a corner of the *cut*, not of the board's box. Either `SnapKind`
+   gains a member or the existing three get reinterpreted, and that is a UI decision as
+   much as a naming one, because `SnapMarker`'s three off-palette colours carry the kind.
+2. **What a board with no stock left offers.** A board its own cuts have consumed renders
+   as a translucent ghost (invariant 21) and `boardSolids` returns `[]`. Whether it still
+   contributes cut points, and whether they mean anything there, needs an answer rather
+   than falling out of the implementation.
 
 Start with `superpowers:brainstorming`, and read the snap-move design's §2.3 and §8
-first — §2.3 is the interface all four candidates land through, and §8 records *why*
-each was deferred, which makes those reasons the design constraints rather than a
-to-do list. **Read the selected-board grabs round below before writing the guides
-design's candidate-filter section**, because it lands in the same place: `MoveTool`'s
-memo is now two branches (pre-grab: the selected board's points; post-grab: unchanged),
-and the guide-points design's §3.1 board-owned filter is *subsumed* by the pre-grab
-branch rather than sitting beside it. Merge the two into one predicate in that branch;
-two filters that agree today are two places for a future rule to disagree, and the
-second would be dead code that reads as load-bearing (follow-up 113).
+first — §2.3 is the interface both remaining candidates land through, and §8 records
+*why* each was deferred, which makes those reasons the design constraints rather than a
+to-do list. Read the selected-board grabs round below as well: it is where the new
+provider's output gets filtered.
+
+**When the guides round does start, its plan needs a revision pass first, and the
+specific reason is recorded so it is not rediscovered.** The guide-points design's §3.1
+filters grabbable candidates to *board-owned* points; the selected-board grabs round
+subsumed that with a narrower rule, and cut points will widen the same branch again.
+Merge them into one predicate in the pre-grab branch rather than stacking filters — two
+that agree today are two places for a future rule to disagree, and the redundant one
+would be dead code that reads as load-bearing (follow-up 113).
 
 **What the empty-solids placeholder did** (2026-08-01, closing follow-ups 48 and 49; no
 spec — the diagnosis and the chosen fix were already in the ledger). A board whose own

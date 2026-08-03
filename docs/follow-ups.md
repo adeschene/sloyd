@@ -1695,7 +1695,19 @@ have collided with four existing entries. This file is the authority on its own
 numbering; CLAUDE.md's two "85-94" references were corrected to 85-98 in the same
 commit that added this section.
 
-**99. Cut shoulders are not snap points.** A dado's shoulders are real corners a
+**99. Cut shoulders are not snap points. — CHOSEN AS THE NEXT ROUND, 2026-08-03**, ahead
+of the tape measure and guide points, which were chosen the day before and have been
+moved back one place. The deferral reason below (keeping the Move tool's v1 small) has
+expired: v1 shipped, deployed, and has since had a follow-up round of its own. Two
+questions the brainstorm has to answer, because neither falls out of the existing code —
+which points a cut contributes and what `SnapKind` they carry (the lattice rule of
+"count the axes at `mid`" does not transfer, since a shoulder corner belongs to the cut
+rather than the board's box, and the marker colours carry the kind), and what a board
+whose cuts consumed all its stock offers, given `boardSolids` returns `[]` there and the
+part renders as a ghost (invariant 21). CLAUDE.md's "next line of work" section carries
+the reordering argument in full. Original entry follows, unchanged.
+
+A dado's shoulders are real corners a
 woodworker would expect to snap to — the inside corner where a shelf's dado meets its
 face is arguably the single most useful point on a joined board — and `boardSolids`
 already yields them, so nothing has to be computed that this app does not compute

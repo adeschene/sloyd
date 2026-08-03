@@ -5,6 +5,22 @@ between them, and place a persistent **guide point** — at the hovered point, o
 at any distance along the ray between them. Guide points are themselves snap
 candidates, so the Move tool can snap a board onto one.
 
+> **STATUS as of 2026-08-03, later the same day: DEFERRED BY ONE ROUND — not
+> cancelled, and not in flight.** Cut-aware snap points (follow-up 99) were moved
+> ahead of this work; see CLAUDE.md's "next line of work" section for the three
+> reasons. Two consequences for whoever picks this design back up:
+>
+> 1. **§3.1 is out of date and must be rewritten before the plan is executed.** It
+>    filters grabbable candidates to *board-owned* points. The selected-board grabs
+>    round (shipped 2026-08-03) narrowed that branch to the *selected* board's
+>    points, and the cut-points round will widen the same branch to two providers.
+>    Merge all of it into one predicate rather than stacking filters — see
+>    follow-up 113.
+> 2. **Nothing else in this design is known stale**, including the v6 migration
+>    argument, the `tapeAnchor` treatment in §4, and the §9 scope cut. Cut points
+>    make no schema change and add no document state, so they cannot invalidate any
+>    of it.
+
 Chosen 2026-08-03, immediately after the snap-move round shipped and deployed.
 This is the successor snap-move's §8 named: the user identified the tape
 measure, guide points and guide lines as the intended follow-ups when they

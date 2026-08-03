@@ -1,5 +1,14 @@
 # Guide Points and the Tape Measure — Implementation Plan
 
+> **DO NOT EXECUTE THIS PLAN AS WRITTEN. Deferred by one round on 2026-08-03** —
+> cut-aware snap points (follow-up 99) go first; see CLAUDE.md's "next line of work"
+> section. The plan needs a revision pass before it is executed, because its design's
+> §3.1 candidate-filter section is out of date: `MoveTool`'s pre-grab branch is now
+> restricted to the *selected* board's points, and the cut-points round will widen the
+> same branch to two providers. Any task in here that touches that filter must be
+> rewritten against the code as it stands then, not as it stood when this was written.
+> Nothing else in the plan is known stale.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a Tape tool that measures between two snap points and places persistent, snappable guide points — at the hovered point, or at any typed distance along the ray from the anchor.
