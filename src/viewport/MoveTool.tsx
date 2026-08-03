@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { boardSnapPoints, sameSnapPoint } from '../document/document';
+import { sameSnapPoint, snapPointsFor } from '../document/document';
 import type { SnapPoint } from '../document/document';
 import { useStore } from '../store/store';
 import { CLICK_DRAG_SLOP_PX } from './pointer';
@@ -69,13 +69,20 @@ export function MoveTool() {
    * case is never offered rather than being offered and then silently ignored
    * on click. (commitSnapMove guards it too — that guard makes the rule true
    * of the action, this makes it true of the UI.)
+   *
+   * Both branches go through snapPointsFor, which is the box lattice plus the
+   * cut-owned points. BOTH is load-bearing, not symmetry: the operation cut
+   * points exist for grabs a corner on the shelf and clicks the shoulder on
+   * the side panel, so a cut point is most often a TARGET, on the board that
+   * is not selected. One function rather than two concatenations so the
+   * branches cannot drift (follow-up 113).
    */
   const candidates = useMemo(() => {
     if (grabbed) {
-      return boards.flatMap(boardSnapPoints).filter((p) => p.owner.id !== grabbed.owner.id);
+      return boards.flatMap(snapPointsFor).filter((p) => p.owner.id !== grabbed.owner.id);
     }
     const selected = boards.find((b) => b.id === selectedId);
-    return selected ? boardSnapPoints(selected) : [];
+    return selected ? snapPointsFor(selected) : [];
   }, [boards, grabbed, selectedId]);
 
   useEffect(() => {
