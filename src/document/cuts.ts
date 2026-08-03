@@ -179,6 +179,49 @@ export function boardSolids(board: Board): Region[] {
   return solids;
 }
 
+/**
+ * Whether a point in the board's own space touches any remaining stock.
+ *
+ * The one rule behind every withheld snap point (design §5): a marker must sit
+ * on a feature that is actually drawn, and a point with no filled cell around
+ * it sits in a hole. Both cases fall out of it — a board its own cuts consumed
+ * entirely (nothing is filled, so nothing is offered) and a cut's floor corner
+ * that a deeper, overlapping cut has since removed.
+ *
+ * This is boardEdges' four-cell configuration test generalised from a segment
+ * to a point: on each axis a coordinate either falls inside one cell or lands
+ * exactly on a split plane between two, so up to eight cells touch it, and one
+ * filled cell is enough. The span test is CLOSED (`>=`/`<=`) precisely so a
+ * point on a boundary — which is where every interesting snap point sits —
+ * sees the cells on both sides of it.
+ *
+ * Returns a closure because the grid is built once per board and probed many
+ * times: a board with n cuts is asked about 15n points.
+ */
+export function stockProbe(board: Board): (p: Point) => boolean {
+  const { coords, filled } = grid(board);
+
+  /** Every cell index on `d` whose closed span contains `v`. Empty if outside. */
+  const cells = (d: Dimension, v: number): number[] => {
+    const out: number[] = [];
+    for (let i = 0; i < coords[d].length - 1; i += 1) {
+      if (v >= coords[d][i] && v <= coords[d][i + 1]) out.push(i);
+    }
+    return out;
+  };
+
+  return (p) => {
+    for (const i of cells('length', p.length)) {
+      for (const j of cells('width', p.width)) {
+        for (const k of cells('thickness', p.thickness)) {
+          if (filled[i][j][k]) return true;
+        }
+      }
+    }
+    return false;
+  };
+}
+
 /** A point in a board's own coordinate space. */
 export type Point = Record<Dimension, number>;
 /** A straight edge between two such points. */

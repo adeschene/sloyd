@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
-import { boardEdges, boardSolids, cutLabel, cutRegion, solidWorldBox, wholeBoard } from './cuts';
+import { boardEdges, boardSolids, cutLabel, cutRegion, solidWorldBox, stockProbe, wholeBoard } from './cuts';
 import type { Board, Cut, Dimension, Region } from './types';
 
 /** A 24 x 5-1/2 x 3/4 flat board with whatever cuts are given. */
@@ -276,5 +276,64 @@ describe('cutLabel', () => {
     const board = createBoard({ length: posDim });
     const cut: Cut = { ...DADO, offset, width };
     expect(cutLabel(board, cut)).toBe('rabbet');
+  });
+});
+
+describe('stockProbe', () => {
+  // Canonical dado on the default 24 x 5-1/2 x 3/4 board: a 3/4in-wide,
+  // 1/4in-deep cut at 6in along, running across the width, entering the
+  // thickness face from `max`. So cutRegion is
+  // { length: [6, 6.75], width: [0, 5.5], thickness: [0.5, 0.75] }.
+
+  it('accepts a point in solid stock well away from any cut', () => {
+    const touches = stockProbe(withCuts([DADO]));
+    expect(touches({ length: 3, width: 2, thickness: 0.25 })).toBe(true);
+  });
+
+  it('rejects a point in the middle of the removed stock', () => {
+    const touches = stockProbe(withCuts([DADO]));
+    // Dead centre of the dado's own volume: no cell touching it is filled.
+    expect(touches({ length: 6.375, width: 2.75, thickness: 0.625 })).toBe(false);
+  });
+
+  it('accepts a point on the dado floor, where filled and empty cells meet', () => {
+    const touches = stockProbe(withCuts([DADO]));
+    // thickness 0.5 is a split plane: the cell below it is stock, the cell
+    // above it was removed. Touching one filled cell is enough — this is the
+    // whole reason the test is on the CLOSED span, not the open one.
+    expect(touches({ length: 6.375, width: 2.75, thickness: 0.5 })).toBe(true);
+  });
+
+  it('accepts a point on a shoulder wall', () => {
+    const touches = stockProbe(withCuts([DADO]));
+    // length 6 is the shoulder plane; the stock on the low side of it is filled.
+    expect(touches({ length: 6, width: 2.75, thickness: 0.625 })).toBe(true);
+  });
+
+  it('rejects every point on a board its own cuts consumed', () => {
+    // Two adjacent full-depth cuts, each individually legal (neither is
+    // full-width, so validateCuts refuses neither), jointly removing all the
+    // stock. boardSolids returns [] here — see its doc comment.
+    const board = withCuts([
+      { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 0, width: 12, depth: 0.75 },
+      { id: 'b', face: 'thickness', from: 'min', across: 'width', offset: 12, width: 12, depth: 0.75 },
+    ]);
+    expect(boardSolids(board)).toHaveLength(0);
+    const touches = stockProbe(board);
+    expect(touches({ length: 0, width: 0, thickness: 0 })).toBe(false);
+    expect(touches({ length: 12, width: 2.75, thickness: 0.75 })).toBe(false);
+    expect(touches({ length: 24, width: 5.5, thickness: 0.375 })).toBe(false);
+  });
+
+  it('rejects a point outside the board entirely', () => {
+    const touches = stockProbe(withCuts([DADO]));
+    expect(touches({ length: 30, width: 2, thickness: 0.25 })).toBe(false);
+    expect(touches({ length: 3, width: 2, thickness: -1 })).toBe(false);
+  });
+
+  it('accepts the board corner of an uncut board', () => {
+    const touches = stockProbe(withCuts([]));
+    expect(touches({ length: 0, width: 0, thickness: 0 })).toBe(true);
+    expect(touches({ length: 24, width: 5.5, thickness: 0.75 })).toBe(true);
   });
 });
