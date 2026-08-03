@@ -264,8 +264,10 @@ export function Viewport({
       // selection, and the Properties panel would empty for no stated reason.
       onPointerMissed={() => { if (tool === 'select') selectBoard(null); }}
       // R3F puts `style` on the wrapping div; the canvas inherits the cursor.
-      // This is the only signal, other than the toolbar, that the tool is armed.
-      style={{ cursor: tool === 'move' ? 'crosshair' : undefined }}
+      // This is the only signal, other than the toolbar, that a tool is armed.
+      // Any non-select tool, not `=== 'move'`: the Tape tool arms the same
+      // pointer behaviour and must not read as the Select tool.
+      style={{ cursor: tool === 'select' ? undefined : 'crosshair' }}
     >
       {orthographic ? (
         <OrthographicCamera makeDefault position={DEFAULT_EYE} zoom={12} near={-2000} far={4000} />

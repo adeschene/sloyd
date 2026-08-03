@@ -8,7 +8,7 @@ const HISTORY_LIMIT = 50;
  * Which viewport tool has the pointer. View state, not document state — it is
  * never saved and never undone, exactly like `selectedId`.
  */
-export type ToolMode = 'select' | 'move';
+export type ToolMode = 'select' | 'move' | 'tape';
 
 interface StoreState {
   doc: SloydDocument;
@@ -50,6 +50,28 @@ interface StoreState {
   grabSnapPoint: (point: BoardSnapPoint) => void;
   cancelGrab: () => void;
   commitSnapMove: (target: SnapPoint) => void;
+
+  /**
+   * The point the Tape tool is measuring from.
+   *
+   * A SECOND INSTANCE OF INVARIANT 24, not a copy of `grabbed`. Like a grab it
+   * holds a world position captured at click time — the readout's distance and
+   * the direction a typed offset runs along both derive from `tapeAnchor.at` —
+   * so if the world moves under it, the readout measures from a position that
+   * no longer describes anything and a guide placed from it lands somewhere
+   * the user never pointed at.
+   *
+   * It lives here rather than in TapeTool for exactly that reason: it cannot
+   * get its clearing anywhere else. A useState inside the component would have
+   * to subscribe to seven actions and re-derive when to drop itself, which is
+   * the bookkeeping invariant 24 exists to avoid.
+   *
+   * It needs two actions `grabbed` does not: removeGuide and clearGuides. A
+   * grab is never guide-owned (MoveTool's filter); an anchor can be.
+   */
+  tapeAnchor: SnapPoint | null;
+  setTapeAnchor: (point: SnapPoint) => void;
+  clearTapeAnchor: () => void;
 
   addBoard: () => void;
   updateBoard: (id: string, patch: Partial<Board>) => void;
@@ -123,6 +145,18 @@ export const useStore = create<StoreState>((set, get) => {
     // `selection` moves selectedId nowhere, so it has nothing to invalidate;
     // reaching further would also silently repair a mismatch that
     // `commitSnapMove`'s guard is meant to expose rather than paper over.
+    //
+    // `tapeAnchor` is DELIBERATELY NOT dropped here, and this is a prohibition
+    // rather than an omission (design §4.2). Everything above is an argument
+    // about the SELECTED board: the Move tool offers only the selected board's
+    // points as grab candidates, so a selection that moves elsewhere means the
+    // user retargeted the tool. The Tape tool has no such restriction — it
+    // anchors on any board or guide, and measuring from one board to another
+    // is most of what it exists for, so clearing the anchor when the selection
+    // moves would break the tool invisibly. Note addBoard reaches here, so
+    // "measure from this board to the one I am about to add" is a live path.
+    // Pinned by two tests in store.test.ts; adding `tapeAnchor: null` beside
+    // the `grabbed: null` below is exactly what they exist to catch.
     const nextSelectedId = selection ? selection(next) : null;
     const heldGrab = get().grabbed;
     const dropGrab = selection !== undefined && heldGrab !== null && heldGrab.owner.id !== nextSelectedId;
@@ -137,7 +171,7 @@ export const useStore = create<StoreState>((set, get) => {
   };
 
   /**
-   * Invariant 24, for cut edits.
+   * Invariant 24, for cut edits — now for BOTH held points.
    *
    * A grab holds a WORLD POSITION captured at grab time, so anything that can
    * move or destroy the feature under it must drop it. Cut edits reach that
@@ -163,14 +197,44 @@ export const useStore = create<StoreState>((set, get) => {
    * point holds identical doubles, and nothing computes a difference on the
    * way in.
    *
-   * Call AFTER edit(), so `get().doc` is the post-edit document.
+   * Call AFTER edit(), so `get().doc` is the post-edit document. Unlike
+   * removeGuide's clear — which may sit on either side of its edit, because
+   * the guide id is gone either way — this one MUST come after: the whole
+   * question it asks is what the board offers once the edit has landed.
+   *
+   * The guide-points round added `tapeAnchor` as invariant 24's second
+   * instance, and a tape anchor can sit on a dado shoulder for exactly the
+   * reason a grab can. One helper over both rather than a second copy: two
+   * functions computing snapPointsFor(board) and comparing with sameSnapPoint
+   * are two places for a future rule to disagree (follow-up 113). The
+   * board-id guard makes a guide-owned anchor fall through untouched, which is
+   * correct — a cut edit cannot affect a guide.
+   *
+   * KEEPS THE ORIGINAL'S GUARD-FIRST SHAPE. snapPointsFor builds the cell grid
+   * for a cut board, and these three actions fire on every ordinary edit in
+   * the Cuts panel — so the overwhelmingly common case (nothing held at all)
+   * must return before any of that runs, exactly as dropGrabIfGone did.
    */
-  const dropGrabIfGone = (boardId: string) => {
-    const grabbed = get().grabbed;
-    if (!grabbed || grabbed.owner.id !== boardId) return;
+  const dropHeldIfGone = (boardId: string) => {
+    // `type === 'board'` is redundant for `grabbed` (its type says so) and
+    // load-bearing for `tapeAnchor` (its type does not) — design §3.0 showing
+    // through in one predicate over two fields. Returns the point rather than
+    // a boolean so the two call sites below need no non-null assertion.
+    const heldOnBoard = (held: SnapPoint | null): SnapPoint | null =>
+      held !== null && held.owner.type === 'board' && held.owner.id === boardId ? held : null;
+
+    const grabbed = heldOnBoard(get().grabbed);
+    const anchor = heldOnBoard(get().tapeAnchor);
+    if (!grabbed && !anchor) return; // the cheap path — no grid built
+
     const board = get().doc.boards.find((b) => b.id === boardId);
-    if (board && snapPointsFor(board).some((p) => sameSnapPoint(p, grabbed))) return;
-    set({ grabbed: null });
+    const points = board ? snapPointsFor(board) : [];
+    const survives = (held: SnapPoint) => points.some((p) => sameSnapPoint(p, held));
+
+    const patch: { grabbed?: null; tapeAnchor?: null } = {};
+    if (grabbed && !survives(grabbed)) patch.grabbed = null;
+    if (anchor && !survives(anchor)) patch.tapeAnchor = null;
+    if (patch.grabbed !== undefined || patch.tapeAnchor !== undefined) set(patch);
   };
 
   return {
@@ -187,14 +251,19 @@ export const useStore = create<StoreState>((set, get) => {
 
     tool: 'select',
     grabbed: null,
+    tapeAnchor: null,
 
-    // Changing tools always drops the grab. A snap point carried into a
-    // different tool has nothing that can consume it.
-    setTool: (tool) => set({ tool, grabbed: null }),
+    // Changing tools always drops both held points. A snap point carried into
+    // a different tool has nothing that can consume it.
+    setTool: (tool) => set({ tool, grabbed: null, tapeAnchor: null }),
 
     grabSnapPoint: (point) => set({ grabbed: point }),
 
     cancelGrab: () => set({ grabbed: null }),
+
+    setTapeAnchor: (point) => set({ tapeAnchor: point }),
+
+    clearTapeAnchor: () => set({ tapeAnchor: null }),
 
     /**
      * Move the grabbed board so its grabbed point lands exactly on `target`.
@@ -307,6 +376,14 @@ export const useStore = create<StoreState>((set, get) => {
       // it here a moment early is a no-op there, not a race.
       if (get().grabbed?.owner.id === id) set({ grabbed: null });
 
+      // The tape anchor is invariant 24's second instance and needs the same
+      // conditional clear for the same reason — see its declaration. The
+      // `owner.type` test is what `grabbed`'s line above does not need: an
+      // anchor may be guide-owned, and a guide id is not a board id.
+      if (get().tapeAnchor?.owner.type === 'board' && get().tapeAnchor?.owner.id === id) {
+        set({ tapeAnchor: null });
+      }
+
       // Reorienting turns the board in place. `position` is the min-corner, so
       // changing rotation or posture swaps the extents underneath a pinned
       // corner — which is what made a 24 x 5-1/2 board jump sideways when it
@@ -369,8 +446,13 @@ export const useStore = create<StoreState>((set, get) => {
     deleteBoard: (id) => {
       if (!get().doc.boards.some((b) => b.id === id)) return;
       const wasSelected = get().selectedId === id;
-      // A grab on the board being deleted has nothing left to move.
+      // A grab on the board being deleted has nothing left to move, and an
+      // anchor on it has nothing left to measure from — invariant 24, both
+      // instances, the same conditional shape as updateBoard's.
       if (get().grabbed?.owner.id === id) set({ grabbed: null });
+      if (get().tapeAnchor?.owner.type === 'board' && get().tapeAnchor?.owner.id === id) {
+        set({ tapeAnchor: null });
+      }
       edit(
         (doc) => ({ ...doc, boards: doc.boards.filter((b) => b.id !== id) }),
         () => (wasSelected ? null : get().selectedId),
@@ -407,6 +489,12 @@ export const useStore = create<StoreState>((set, get) => {
     // is the path the parts list takes, which is the only way to change which
     // board the Move tool will move (BoardMesh's `selectable` is false in
     // move mode, deliberately — design §4).
+    //
+    // `tapeAnchor` is DELIBERATELY NOT dropped here, the same prohibition
+    // edit() carries and for the same reason (design §4.2): the rule above is
+    // about the Move tool's selected-board grab set, and the tape has no such
+    // restriction. Picking a part out of the parts list mid-measurement must
+    // not silently discard the anchor. Pinned by a test.
     selectBoard: (id) =>
       set((s) => ({
         selectedId: id,
@@ -415,7 +503,8 @@ export const useStore = create<StoreState>((set, get) => {
 
     setDocumentName: (name) => edit((doc) => ({ ...doc, name })),
 
-    replaceDocument: (doc) => set({ doc, selectedId: null, past: [], future: [], grabbed: null }),
+    replaceDocument: (doc) =>
+      set({ doc, selectedId: null, past: [], future: [], grabbed: null, tapeAnchor: null }),
 
     undo: () => {
       const { past, future, doc, selectedId } = get();
@@ -428,8 +517,11 @@ export const useStore = create<StoreState>((set, get) => {
         future: [doc, ...future].slice(0, HISTORY_LIMIT),
         selectedId: stillThere ? selectedId : null,
         // A grab captured a world position; an undo can move the board out
-        // from under it, and committing would then apply a wrong delta.
+        // from under it, and committing would then apply a wrong delta. The
+        // tape anchor captured one for the same reason and goes with it —
+        // an undo can also take away the guide it is anchored on.
         grabbed: null,
+        tapeAnchor: null,
       });
     },
 
@@ -444,6 +536,7 @@ export const useStore = create<StoreState>((set, get) => {
         future: future.slice(1),
         selectedId: stillThere ? selectedId : null,
         grabbed: null,
+        tapeAnchor: null,
       });
     },
 
@@ -477,7 +570,7 @@ export const useStore = create<StoreState>((set, get) => {
           b.id === boardId ? { ...b, cuts: [...b.cuts, cut] } : b,
         ),
       }));
-      dropGrabIfGone(boardId);
+      dropHeldIfGone(boardId);
     },
 
     // Cuts are patched here rather than through updateBoard on purpose:
@@ -502,7 +595,7 @@ export const useStore = create<StoreState>((set, get) => {
             : b,
         ),
       }));
-      dropGrabIfGone(boardId);
+      dropHeldIfGone(boardId);
     },
 
     removeCut: (boardId, cutId) => {
@@ -514,7 +607,7 @@ export const useStore = create<StoreState>((set, get) => {
           b.id === boardId ? { ...b, cuts: b.cuts.filter((c) => c.id !== cutId) } : b,
         ),
       }));
-      dropGrabIfGone(boardId);
+      dropHeldIfGone(boardId);
     },
 
     /**
@@ -536,11 +629,25 @@ export const useStore = create<StoreState>((set, get) => {
       // and clears redo, so a no-op would leave a no-op undo entry
       // (invariant 4) and silently wipe the redo stack.
       if (!get().doc.guides.some((g) => g.id === id)) return;
+      // Invariant 24, the clause `grabbed` does not need: an anchor CAN be
+      // guide-owned, and nothing disables the guides list while the tape is
+      // anchored, so deleting the guide you are measuring from is one click
+      // away. Unlike dropHeldIfGone this may sit on either side of the edit —
+      // the guide id is equally gone before and after — but it is written
+      // before it to match every other guard in this file.
+      if (get().tapeAnchor?.owner.type === 'guide' && get().tapeAnchor?.owner.id === id) {
+        set({ tapeAnchor: null });
+      }
       edit((doc) => ({ ...doc, guides: doc.guides.filter((g) => g.id !== id) }));
     },
 
     clearGuides: () => {
       if (get().doc.guides.length === 0) return;
+      // Unconditional rather than narrowed to guide-owned anchors on purpose:
+      // every guide is going, so any guide-owned anchor is invalid, and a
+      // board-owned one is cheap to drop. Narrowing would buy one edge case
+      // and cost a reader the certainty that no stale anchor survives here.
+      set({ tapeAnchor: null });
       edit((doc) => ({ ...doc, guides: [] }));
     },
   };
