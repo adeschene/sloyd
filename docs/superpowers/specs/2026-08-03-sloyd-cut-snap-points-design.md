@@ -18,8 +18,11 @@ inside corner where the dado floor meets its shoulder, and it is not on offer,
 so you snap to a face centre and nudge. Follow-up 99 already called that corner
 *"arguably the single most useful point on a joined board"*.
 
-This round makes every cut contribute **15** points: its floor rectangle
-(9) and the two shoulder lines at its mouth (6).
+This round has every cut **define** up to 15 points — its floor rectangle (9)
+and the two shoulder lines at its mouth (6) — of which it **offers** those that
+still touch remaining stock (§5). A plain dado offers all 15. A rabbet offers
+12, because its flush end has no shoulder; that falls out of the filter with no
+special case, and is the cleanest evidence the filter is doing real work.
 
 It is deliberately the cheap round before the expensive one. The tape measure,
 guide points and guide lines were chosen a day earlier and already have a
@@ -74,7 +77,12 @@ Applied here it rules out three tempting shortcuts:
 
 ---
 
-## 3. The 15 points a cut contributes
+## 3. The up-to-15 points a cut defines
+
+This section is about what a cut **defines**. What it **offers** is that set
+minus whatever §5's filter withholds — always 15 for a plain dado, 12 for a
+rabbet, fewer where cuts overlap. Nothing downstream may treat 15 as a count it
+can rely on.
 
 Work in the cut's own box, `cutRegion(board, cut)`, and name its three axes:
 
@@ -207,6 +215,12 @@ Both floater cases fall out of it, rather than needing a rule each:
 - **A floor corner a deeper or overlapping cut has since removed.** The cells
   under it are empty, so the point is withheld. This case is reachable today —
   it is the same two-cuts-that-jointly-remove-stock shape as follow-ups 48/49.
+- **A rabbet's flush end, which has no shoulder.** With `offset === 0` the mouth
+  points at the position-min end sit over the cut's own cell, so all three are
+  withheld and the rabbet offers 12. This is worth stating because it is the
+  case that would otherwise tempt someone to branch the provider on `cutLabel`:
+  a rabbet needs no special case at all, because *"is there a shoulder here"*
+  and *"does this point touch stock"* are the same question.
 
 **A board with no cuts never builds a grid.** The provider returns early on an
 empty `cuts` array, so joinery still costs nothing at all for the boards that do
@@ -344,7 +358,8 @@ cannot fail.
 |---|---|
 | Canonical dado, posed board | all 15 world positions, by hand |
 | Same | 8 `corner`, 6 `edge-mid`, 1 `face-center` |
-| Rabbet (`offset === 0`) | still 15; mouth corners coinciding with board points are not de-duplicated (§9) |
+| Rabbet (`offset === 0`) | **12**, and the three withheld are exactly the flush-end mouth row — a rabbet has one shoulder, and no `cutLabel` branch is needed to know it |
+| Rabbet with `depth === thickness / 2` | a cut point coincides with a board lattice point and is **not** de-duplicated (§9) |
 | Deeper cut over a shallower one | the shallower's covered floor points are withheld |
 | Two cuts jointly consuming the board | `cutSnapPoints` is `[]`; `snapPointsFor` is exactly the 26 box points |
 | Board with no cuts | `snapPointsFor` deep-equals `boardSnapPoints`, 26 points |
@@ -368,12 +383,22 @@ Each looked at and declined, with the reason, so none has to be re-derived.
   is excluded on clutter grounds instead. A wall is legible from the floor and
   mouth points already bounding it, and adding a third rectangle per cut would
   worsen §9.1's real risk to buy a point nobody aims at.
-- **No de-duplication against the box lattice.** A rabbet's mouth corner sits
-  exactly on a board corner. Both candidates carry the same position, the same
-  kind and the same owner, so they produce the identical delta and which one
-  `pickSnapPoint`'s tie-break returns is unobservable — the same argument the
-  selected-board grabs round makes for coincident *targets*. A de-duplication
-  step would be machinery whose only observable effect is on a count.
+- **No de-duplication against the box lattice.** A cut point can land exactly on
+  a board lattice point — a rabbet with `depth = thickness / 2` puts its flush
+  floor corner precisely on the board's own edge midpoint, for instance. Both
+  candidates carry the same position and the same owner, so they produce the
+  **identical delta**, and that is the whole of the argument: the move is the
+  same whichever one `pickSnapPoint`'s depth tie-break returns, exactly as the
+  selected-board grabs round argued for coincident *targets*.
+
+  **The two can differ in `kind`, and therefore in marker colour**, which the
+  delta argument does not cover and which is recorded rather than hidden: in the
+  example above the cut provider calls it a `corner` (no in-plane mids) while the
+  box lattice calls it an `edge-mid` (the thickness axis sits at mid), so the
+  hue you see is decided by the tie-break. Both descriptions are true of the
+  same position, the marker sits in the right place either way, and the move is
+  unaffected — but if a browser pass finds this reads as flicker, the fix is a
+  deterministic ordering rule, not a de-duplication step.
 - **No fourth `SnapKind` and no marker change.** §4.
 - **No cut points in the cut list or the diagrams.** Those derive from `cuts`
   independently and are unaffected.

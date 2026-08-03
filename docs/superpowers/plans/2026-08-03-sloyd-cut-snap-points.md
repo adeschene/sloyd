@@ -2,9 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make a cut's shoulders snappable — every cut contributes 15 points (its floor rectangle and the two shoulder lines at its mouth) to the Move tool, so a shelf can be seated exactly in a side panel's dado.
+**Goal:** Make a cut's shoulders snappable — every cut defines up to 15 points (its floor rectangle and the two shoulder lines at its mouth) and offers those that still touch remaining stock, so a shelf can be seated exactly in a side panel's dado.
 
-**Architecture:** A second `SnapPoint` *provider* over the same board, exactly as the snap-move design's §2.3 anticipated. `document/cuts.ts` gains `stockProbe`, a predicate built once per board from the existing cell grid, answering "does this point touch remaining stock". `document/snapPoints.ts` gains `cutSnapPoints` (the 15 points per cut, filtered by that probe) and `snapPointsFor` (box lattice + cut points), which `MoveTool` calls in **both** branches of its candidate memo. `pickSnapPoint` is untouched, `SnapKind` is untouched, `SnapMarker.tsx` is untouched, and there is no schema change.
+**"Up to 15" is exact wording, not hedging.** A plain dado offers all 15; a rabbet offers 12, because its flush end has no shoulder and the filter withholds that row; overlapping cuts offer fewer still. Nowhere — in code, comments, tests, or CLAUDE.md — may 15 be stated as a count a cut always has.
+
+**Architecture:** A second `SnapPoint` *provider* over the same board, exactly as the snap-move design's §2.3 anticipated. `document/cuts.ts` gains `stockProbe`, a predicate built once per board from the existing cell grid, answering "does this point touch remaining stock". `document/snapPoints.ts` gains `cutSnapPoints` (the up-to-15 points each cut defines, filtered by that probe) and `snapPointsFor` (box lattice + cut points), which `MoveTool` calls in **both** branches of its candidate memo. `pickSnapPoint` is untouched, `SnapKind` is untouched, `SnapMarker.tsx` is untouched, and there is no schema change.
 
 **Tech Stack:** TypeScript, React 18, react-three-fiber, Zustand, Vitest (`globals: true`), Vite.
 
@@ -12,7 +14,7 @@
 
 - **Design doc:** `docs/superpowers/specs/2026-08-03-sloyd-cut-snap-points-design.md`. Read it before Task 1. Section references below (§3, §5, §7.2, §9) are to that file.
 - **No schema change.** `CURRENT_VERSION` stays **5**. Nothing in `document.ts`'s migration chain is touched.
-- **No new `SnapKind` and no change to `src/viewport/SnapMarker.tsx`.** The three existing kinds and their three browser-settled colours cover all 15 points.
+- **No new `SnapKind` and no change to `src/viewport/SnapMarker.tsx`.** The three existing kinds and their three browser-settled colours cover every point a cut defines.
 - **No change to `src/viewport/snapPick.ts`'s `pickSnapPoint`.** Task 3 moves `sameSnapPoint` out of that file; `pickSnapPoint` itself is not edited.
 - **`document/snapPoints.ts` must not import from `../units`.** A snap point carries no printed string. It may import `./types`, `./geometry` and (new in this round) `./cuts`.
 - **Exact `===` comparison on coordinates, never `toBeCloseTo`, in the hand-written world-coordinate assertions.** Every expected value in this plan is a dyadic rational and exact in IEEE 754. If an assertion fails on the last bits, the mapping is wrong — do not relax the comparison. (`toBeCloseTo` is fine in the *existing* posture/rotation sweep in `snapPoints.test.ts`; do not change those.)
@@ -38,7 +40,7 @@ npm test        # baseline: 668 passing
 | `src/document/cuts.ts` | Modify | New export `stockProbe(board)` — the "touches remaining stock" predicate, built once from the existing private `grid(board)` |
 | `src/document/cuts.test.ts` | Modify | `stockProbe` cases |
 | `src/document/snapPoints.ts` | Modify | New exports `cutSnapPoints`, `snapPointsFor`; `sameSnapPoint` moves here from `viewport/snapPick.ts` |
-| `src/document/snapPoints.test.ts` | Modify | The 15 points, their kinds, their world coordinates, the withheld cases; `sameSnapPoint`'s tests move here |
+| `src/document/snapPoints.test.ts` | Modify | The point set, its kinds, its world coordinates, the withheld cases; `sameSnapPoint`'s tests move here |
 | `src/document/document.ts` | Modify | Re-export the three new names |
 | `src/viewport/snapPick.ts` | Modify | `sameSnapPoint` removed |
 | `src/viewport/snapPick.test.ts` | Modify | `sameSnapPoint`'s describe block removed (moved) |
@@ -345,13 +347,36 @@ describe('cutSnapPoints', () => {
     }
   });
 
-  it('still offers 15 for a rabbet, without de-duplicating against the box', () => {
-    // offset 0 makes it flush with the length-min end, so four of its mouth
-    // corners land exactly on board box points. Coincident candidates carry
-    // the same position, kind and owner, so they produce the identical delta
-    // and which one the picker returns is unobservable — design §9.
+  it('offers 12 for a rabbet: a flush end has no shoulder', () => {
+    // offset 0 makes it flush with the length-min end, so the three mouth
+    // points of that row sit over the cut's own cell and stockProbe withholds
+    // them. NO cutLabel branch is needed to know a rabbet has one shoulder —
+    // "is there a shoulder here" and "does this point touch stock" are the
+    // same question, and the filter already answers it (design §5).
     const rabbet: Cut = { ...DADO, offset: 0, width: 2 };
-    expect(cutSnapPoints(posed([rabbet]))).toHaveLength(15);
+    const points = cutSnapPoints(posed([rabbet]));
+    expect(points).toHaveLength(12);
+    // Mouth plane is thickness 1 -> X = 11. The flush end is length 0 -> Z = -5.
+    // Exactly that row is gone; the other shoulder (length 2 -> Z = -3) is not.
+    expect(points.some((p) => p.at[0] === 11 && p.at[2] === -5)).toBe(false);
+    expect(points.filter((p) => p.at[0] === 11 && p.at[2] === -3)).toHaveLength(3);
+    // The 9 floor points all survive: the stock beneath the floor is intact.
+    expect(points.filter((p) => p.at[0] === 10.75)).toHaveLength(9);
+  });
+
+  it('does not de-duplicate a cut point that lands on a board lattice point', () => {
+    // depth = thickness/2 puts the rabbet's flush floor corner at thickness
+    // 0.5 -> X = 10.5, which is also the board's own X midpoint. The board
+    // lattice calls that position an edge-mid (thickness at mid); the cut
+    // provider calls it a corner (no in-plane mids). Same position, same
+    // owner, so the DELTA is identical either way and the move is unaffected
+    // — which is the whole of the argument for not de-duplicating (design §9).
+    const rabbet: Cut = { ...DADO, offset: 0, width: 2, depth: 0.5 };
+    const b = posed([rabbet]);
+    const shared = [10.5, 2, -5];
+    const hits = snapPointsFor(b).filter((p) => key(p.at) === key(shared));
+    expect(hits).toHaveLength(2);
+    expect(new Set(hits.map((p) => p.kind))).toEqual(new Set(['corner', 'edge-mid']));
   });
 
   it('withholds the points a deeper overlapping cut has removed', () => {
@@ -574,7 +599,7 @@ Expected: exit 0; suite green.
 
 ```bash
 git add src/document/snapPoints.ts src/document/snapPoints.test.ts src/document/document.ts
-git commit -m "feat: cutSnapPoints — 15 snap points per cut, filtered to remaining stock"
+git commit -m "feat: cutSnapPoints — a cut's floor and shoulder points, filtered to remaining stock"
 ```
 
 ---
@@ -913,7 +938,7 @@ git commit -m "docs: browser verification for cut-aware snap points"
 
 - [ ] **Step 1: Close follow-up 99 in `docs/follow-ups.md`**
 
-Mark it **CLOSED**, in place, with what the round decided against what the entry asked: 15 points per cut (floor rectangle + shoulder lines at the mouth), the existing three `SnapKind`s reused, and `stockProbe` answering both of the entry's open questions with one rule. State that it landed as a *provider*, as the entry predicted, with `pickSnapPoint` untouched.
+Mark it **CLOSED**, in place, with what the round decided against what the entry asked: up to 15 points per cut (floor rectangle + shoulder lines at the mouth) of which those touching remaining stock are offered — 15 for a dado, 12 for a rabbet — the existing three `SnapKind`s reused, and `stockProbe` answering both of the entry's open questions with one rule. State that it landed as a *provider*, as the entry predicted, with `pickSnapPoint` untouched.
 
 - [ ] **Step 2: Add this round's entries to `docs/follow-ups.md`**
 
