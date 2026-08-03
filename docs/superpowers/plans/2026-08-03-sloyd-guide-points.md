@@ -65,6 +65,13 @@
   - `createGuide(at: [number, number, number]): GuidePoint`
   - `CURRENT_VERSION === 6`
 
+- [ ] **Step 0: Record the baseline**
+
+Run: `npm test`
+Expected: PASS. **Write down the file count and the test count.**
+
+This matters for Step 7 specifically: that step tells you to add `guides: []` to fixtures that lack it, and without a baseline you cannot tell a fixture fix from a real regression by count alone.
+
 - [ ] **Step 1: Write the failing tests**
 
 Append to `src/document/document.test.ts`:
@@ -1463,7 +1470,21 @@ export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
       store.clearTapeAnchor();
     };
 
+    /**
+     * THE LATCH, and it is load-bearing rather than an optimisation.
+     *
+     * MoveTool clears its hover on leave, because a grab needs no hover to
+     * survive — the next click re-picks. The tape does: the typed distance
+     * runs along the anchor -> hover direction, and the ONLY way to type is to
+     * move the pointer off the canvas and into the readout input. Clearing on
+     * leave would therefore destroy the direction on the way to entering the
+     * number, and every typed offset would fail with "no target" — the round's
+     * central feature, dead.
+     *
+     * So while anchored, the last target stands until a new one replaces it.
+     */
     const onPointerLeave = () => {
+      if (useStore.getState().tapeAnchor) return;
       hoveredRef.current = null;
       setHovered(null);
     };
@@ -1479,6 +1500,14 @@ export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
       el.removeEventListener('pointerleave', onPointerLeave);
     };
   }, [tool, candidates, gl, camera, size.width, size.height]);
+
+  // Clearing the anchor ends the measurement, so the latched target goes with
+  // it — otherwise a stale marker would sit on screen after Escape.
+  useEffect(() => {
+    if (anchor) return;
+    hoveredRef.current = null;
+    setHovered(null);
+  }, [anchor]);
 
   // Published for the readout, which lives in the DOM outside the Canvas and
   // so cannot read r3f state itself. A ref would not re-render it; this is
@@ -1519,7 +1548,16 @@ export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
 }
 ```
 
-**Note on `lineDashedMaterial`:** three.js requires `computeLineDistances()` on the geometry for dashes to appear at all, and r3f does not call it for you. If the line renders solid, either call it via a ref in a `useLayoutEffect`, or fall back to `lineBasicMaterial` — a solid measuring line is acceptable and is **not** worth a fight. Record whichever you chose in the task report. (Follow-up 26a's warning applies here: this host's software GL is not a reliable judge of line rendering. Do not tune it beyond "visible".)
+- [ ] **Step 1b: Settle the measuring line, then move on**
+
+Two known traps here, both of which have cost time elsewhere and neither of which is worth more than one attempt:
+
+1. **Dashes need `computeLineDistances()`.** three.js will not draw a `lineDashedMaterial` without it and r3f does not call it for you. Call it on the geometry via a ref in a `useLayoutEffect`, re-running whenever the position array changes.
+2. **`<line>` can collide with SVG's `line` in TS's JSX namespace.** If `npm run build` complains about the intrinsic, use `<primitive object={...} />` with a `THREE.Line` built in a `useMemo` rather than fighting the types.
+
+**If either resists one attempt, fall back to `lineBasicMaterial` and a solid line.** A solid measuring line is fully acceptable — it is a connector, not a legend, and nothing in the design rests on it being dashed. Record which you shipped in the task report.
+
+Follow-up 26a applies: this host runs software GL (llvmpipe) and is not a reliable judge of line rendering. Do not tune this beyond "visible".
 
 - [ ] **Step 2: Add `tapeHover` to the store**
 
@@ -1531,9 +1569,15 @@ The readout is DOM, outside the `<Canvas>`, so it cannot read `TapeTool`'s local
    *
    * In the store ONLY because the readout is a DOM overlay outside the Canvas
    * and needs it — this is not view state with the standing to sit beside
-   * `tool`. It is deliberately NOT cleared by the seven invariant-24 actions:
-   * unlike the anchor it is re-derived on the very next pointermove, so a
-   * stale value survives at most one frame and cannot be committed from.
+   * `tool`.
+   *
+   * Deliberately NOT on invariant 24's clearing list, and the reason is the
+   * anchor, not this field. While anchored it is LATCHED (TapeTool's
+   * onPointerLeave), so it can outlive a board move — but nothing can be
+   * committed from it alone: every path through TapeReadout.commit() reads
+   * `tapeAnchor` first and returns when it is null, and all seven of those
+   * actions clear the anchor. Clearing this too would be belt-and-braces that
+   * also breaks the latch the typed offset depends on.
    */
   tapeHover: SnapPoint | null;
   setTapeHover: (point: SnapPoint | null) => void;
@@ -1595,10 +1639,18 @@ export function TapeReadout() {
 
   const commit = () => {
     const store = useStore.getState();
+    const from = store.tapeAnchor;
+    // The anchor can be cleared out from under a focused input by any of
+    // invariant 24's seven actions. Read it rather than asserting it.
+    if (!from) return;
+    // TapeTool latches its hover while anchored, which is what makes this
+    // non-null after the pointer left the canvas to reach this input. Without
+    // that latch this branch would fire on every typed offset — see
+    // TapeTool's onPointerLeave.
     const target = store.tapeHover;
-    // No direction without a hovered point, and offsetPoint refuses a
-    // zero-length one — §1.2. Both leave the anchor in place so the user can
-    // simply move the cursor and try again.
+    // No direction without a target, and offsetPoint refuses a zero-length
+    // one — §1.2. Both leave the anchor in place so the user can move the
+    // cursor and try again.
     if (!target) {
       setError(true);
       return;
@@ -1608,7 +1660,7 @@ export function TapeReadout() {
       setError(true);
       return;
     }
-    const at = offsetPoint(store.tapeAnchor!.at, target.at, distance);
+    const at = offsetPoint(from.at, target.at, distance);
     if (!at) {
       setError(true);
       return;
@@ -1636,6 +1688,18 @@ export function TapeReadout() {
           if (e.key === 'Enter') {
             e.preventDefault();
             commit();
+            return;
+          }
+          // Escape needs its own handler HERE, because App's window listener
+          // early-returns on isTextEntry — which this input is. Without it,
+          // Escape would do nothing at all while focus is in the box, and the
+          // box is where the user has to be to type a distance. Backs out one
+          // level, matching App's ladder: drop the anchor, then let a second
+          // Escape (now that focus has left) drop the tool.
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            useStore.getState().clearTapeAnchor();
+            input.current?.blur();
           }
         }}
       />
@@ -1644,7 +1708,7 @@ export function TapeReadout() {
 }
 ```
 
-**Do not autofocus the input.** Focusing it would put `isTextEntry` in `App`'s keydown guard between the user and every shortcut — including Escape, which is how they back out of the tool.
+**Do not autofocus the input.** Focusing it would put `isTextEntry` in `App`'s keydown guard between the user and every shortcut — which is precisely why the Escape handler above has to exist locally. Autofocusing would extend that dead zone to the whole gesture rather than only to the moment the user chose to type.
 
 - [ ] **Step 4: Render both**
 
@@ -2047,7 +2111,7 @@ Append a "From the guide-points round" section to `docs/follow-ups.md`, numbered
 - The "next line of work IS chosen" paragraph is now spent — replace it with what the round shipped, and leave the successor open unless the user names one.
 - Architecture: `guides` beside `stock` as the second document-level field taking the non-`rawBoards.map` migration shape, with §2.2's distinct bump argument.
 - Where things live: `TapeTool.tsx`, `GuideMarkers.tsx`, `TapeReadout.tsx`, `GuidesList.tsx`, and `snapPoints.ts` gaining `guideSnapPoints`/`offsetPoint`.
-- Invariants: extend **24** to name `tapeAnchor` as its second instance and list its two extra actions; extend **25** to note that a tape-placed guide is unrounded for the same reason a snap move is; add a new invariant for the `SnapOwner` read-the-type-not-the-id rule (§3) — that one is a genuine trap and belongs in the numbered list.
+- Invariants: extend **24** to name `tapeAnchor` as its second instance and list its two extra actions — stating that `clearGuides`' clear is **unconditional** (every guide is going, so any guide-owned anchor is invalid and a board-owned one is cheap to drop), so the next reader does not narrow it as a cleanup; note that `tapeHover` is deliberately *not* on the list and why (it is latched, but nothing commits from it without an anchor). Extend **25** to note that a tape-placed guide is unrounded for the same reason a snap move is; add a new invariant for the `SnapOwner` read-the-type-not-the-id rule (§3) — that one is a genuine trap and belongs in the numbered list.
 - Update `CURRENT_VERSION` from 5 to 6 everywhere it appears in prose.
 
 - [ ] **Step 3: Verify before claiming done**
@@ -2101,4 +2165,10 @@ Deployment is a separate decision — do not deploy without asking.
 
 **Type consistency:** `guideSnapPoints`, `offsetPoint`, `createGuide`, `validateGuides`, `addGuide`, `removeGuide`, `clearGuides`, `tapeAnchor`, `setTapeAnchor`, `clearTapeAnchor`, `tapeHover`, `setTapeHover`, `showGuides`, `onToggleGuides` — each is used in later tasks exactly as declared in the task that produces it.
 
-**One thing the plan adds that the spec did not name:** `tapeHover` in the store (Task 7 Step 2). The spec assumed the readout could see the tool's hover; it cannot, because the readout is DOM outside the `<Canvas>`. Its doc comment states why it does *not* join invariant 24's clearing list.
+**Three things the plan adds that the spec did not name**, all discovered by tracing the typed-offset gesture end to end rather than by reading either document:
+
+1. **`tapeHover` in the store** (Task 7 Step 2). The spec assumed the readout could see the tool's hover; it cannot, because the readout is DOM outside the `<Canvas>`.
+2. **The hover latch** (Task 7 Step 1, `onPointerLeave`). The only way to type a distance is to move the pointer off the canvas and into the readout. `MoveTool`'s `onPointerLeave` clears the hover — copying it verbatim would have destroyed the direction on the way to entering the number, so *every* typed offset would have failed with "no target". The round's central feature would not have worked, and no unit test in this plan would have caught it.
+3. **A local Escape handler on the readout input** (Task 7 Step 3). `App`'s window listener early-returns on `isTextEntry`, so Escape is dead exactly where the user has to be to type.
+
+These are why the design's §1 gesture is one sentence and Task 7 is the longest task: the gesture crosses the canvas/DOM boundary twice, and both crossings have a failure mode.
