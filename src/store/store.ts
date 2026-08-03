@@ -90,11 +90,28 @@ export const useStore = create<StoreState>((set, get) => {
       if (gesturing) gestureSnapshotTaken = true;
     }
 
+    // Invariant 24's second list — the one that records what nulls `grabbed`
+    // for reasons other than the world moving. The Move tool only offers the
+    // SELECTED board's points as grab candidates, so a selection that moves
+    // to a different board means the user retargeted the tool, and the point
+    // in hand is no longer one they could have picked up. `edit()` rather
+    // than each caller: addBoard and duplicateBoard both select what they
+    // create through this callback, and so will the next action that does.
+    //
+    // Only the callback path is considered. An edit that carries no
+    // `selection` moves selectedId nowhere, so it has nothing to invalidate;
+    // reaching further would also silently repair a mismatch that
+    // commitSnapMove's guard exists to expose rather than paper over.
+    const nextSelectedId = selection ? selection(next) : null;
+    const heldGrab = get().grabbed;
+    const dropGrab = selection !== undefined && heldGrab !== null && heldGrab.owner.id !== nextSelectedId;
+
     set({
       doc: next,
       past: nextPast,
       future: nextFuture,
-      ...(selection ? { selectedId: selection(next) } : {}),
+      ...(selection ? { selectedId: nextSelectedId } : {}),
+      ...(dropGrab ? { grabbed: null } : {}),
     });
   };
 
@@ -311,7 +328,15 @@ export const useStore = create<StoreState>((set, get) => {
     },
 
     // Selection is view state, not document state — deliberately not undoable.
-    selectBoard: (id) => set({ selectedId: id }),
+    // Same rule as edit()'s: the grabbed board must be the selected one. This
+    // is the path the parts list takes, which is the only way to change which
+    // board the Move tool will move (BoardMesh's `selectable` is false in
+    // move mode, deliberately — design §4).
+    selectBoard: (id) =>
+      set((s) => ({
+        selectedId: id,
+        ...(s.grabbed && s.grabbed.owner.id !== id ? { grabbed: null } : {}),
+      })),
 
     setDocumentName: (name) => edit((doc) => ({ ...doc, name })),
 

@@ -472,7 +472,16 @@ describe('cuts', () => {
 });
 
 describe('the Move tool', () => {
-  /** Two boards, returned with the store reset around them. */
+  /**
+   * Two boards, returned with the store reset around them and the FIRST one
+   * selected.
+   *
+   * addBoard selects what it creates, so without this the fixture leaves the
+   * second board selected while every test below grabs a point on the first —
+   * a combination the UI cannot produce, since the Move tool only offers the
+   * selected board's points. Selecting `a` is what makes the fixture model a
+   * state a user can actually reach.
+   */
   const twoBoards = () => {
     useStore.setState({
       doc: createDocument(),
@@ -486,6 +495,7 @@ describe('the Move tool', () => {
     s.addBoard();
     s.addBoard();
     const [a, b] = useStore.getState().doc.boards;
+    useStore.getState().selectBoard(a!.id);
     return { a, b };
   };
 
@@ -661,5 +671,48 @@ describe('the Move tool', () => {
     expect(useStore.getState().grabbed).toBeNull();
     expect(useStore.getState().doc.boards.find((x) => x.id === a.id)!.position)
       .toEqual(before);
+  });
+
+  it('drops a grab when a different board is selected', () => {
+    // A grab is only offered on the selected board's points, so the selection
+    // moving elsewhere means the user retargeted the tool. Keeping the grab
+    // would leave the tool carrying a point belonging to a board the
+    // properties panel is no longer showing, with nothing explaining it.
+    const { a, b } = twoBoards();
+    useStore.getState().grabSnapPoint(cornerOf(a.id));
+    useStore.getState().selectBoard(b.id);
+    expect(useStore.getState().grabbed).toBeNull();
+  });
+
+  it('keeps a grab when the same board is re-selected', () => {
+    const { a } = twoBoards();
+    useStore.getState().grabSnapPoint(cornerOf(a.id));
+    useStore.getState().selectBoard(a.id);
+    expect(useStore.getState().grabbed).not.toBeNull();
+  });
+
+  it('drops a grab when the selection is cleared', () => {
+    const { a } = twoBoards();
+    useStore.getState().grabSnapPoint(cornerOf(a.id));
+    useStore.getState().selectBoard(null);
+    expect(useStore.getState().grabbed).toBeNull();
+  });
+
+  it('drops a grab when Add board selects the new board', () => {
+    // addBoard selects its new board through edit()'s `selection` callback,
+    // not through selectBoard — a second writer of selectedId that nothing
+    // gates in Move mode. Without the clear inside edit(), the toolbar button
+    // reaches exactly the mismatched state the tests above rule out.
+    const { a } = twoBoards();
+    useStore.getState().grabSnapPoint(cornerOf(a.id));
+    useStore.getState().addBoard();
+    expect(useStore.getState().grabbed).toBeNull();
+  });
+
+  it('drops a grab when Duplicate selects the copy', () => {
+    const { a } = twoBoards();
+    useStore.getState().grabSnapPoint(cornerOf(a.id));
+    useStore.getState().duplicateBoard(a.id);
+    expect(useStore.getState().grabbed).toBeNull();
   });
 });
