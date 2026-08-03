@@ -22,6 +22,7 @@ export function MoveTool() {
   const tool = useStore((s) => s.tool);
   const boards = useStore((s) => s.doc.boards);
   const grabbed = useStore((s) => s.grabbed);
+  const selectedId = useStore((s) => s.selectedId);
 
   const gl = useThree((s) => s.gl);
   const camera = useThree((s) => s.camera);
@@ -46,18 +47,36 @@ export function MoveTool() {
   const downAt = useRef<{ x: number; y: number; pointerId: number } | null>(null);
 
   /**
-   * Every board's candidates, minus the grabbed board's own.
+   * The points on offer, which are two different sets rather than one set
+   * with a filter.
    *
-   * Withholding same-board candidates is what makes the exclusion legible: an
-   * ineligible point draws no marker, so the case is never offered rather than
-   * being offered and then silently ignored on click. (commitSnapMove guards
-   * it too — that guard makes the rule true of the action, this makes it true
-   * of the UI.)
+   * BEFORE a grab: only the SELECTED board's points. Boards in a real project
+   * touch — that is what the tool is for — so two of them routinely share a
+   * corner, and offering both meant pickSnapPoint's depth tie-break silently
+   * decided which board was about to move. The marker sits at a position both
+   * boards share, so nothing on screen said which one it named. With nothing
+   * selected this is empty, and nothing is grabbable at all (the toolbar hint
+   * this branch adds says so).
+   *
+   * AFTER a grab: every board's points minus the grabbed board's own.
+   * Deliberately NOT restricted the same way — two coincident TARGET points
+   * produce the identical delta, so which one wins is unobservable, and the
+   * board being moved is by definition the selected one, so a selected-only
+   * target set would leave nothing to snap to. See design §3.
+   *
+   * Withholding the grabbed board's own candidates is what makes the
+   * self-snap exclusion legible: an ineligible point draws no marker, so the
+   * case is never offered rather than being offered and then silently ignored
+   * on click. (commitSnapMove guards it too — that guard makes the rule true
+   * of the action, this makes it true of the UI.)
    */
   const candidates = useMemo(() => {
-    const all = boards.flatMap(boardSnapPoints);
-    return grabbed ? all.filter((p) => p.owner.id !== grabbed.owner.id) : all;
-  }, [boards, grabbed]);
+    if (grabbed) {
+      return boards.flatMap(boardSnapPoints).filter((p) => p.owner.id !== grabbed.owner.id);
+    }
+    const selected = boards.find((b) => b.id === selectedId);
+    return selected ? boardSnapPoints(selected) : [];
+  }, [boards, grabbed, selectedId]);
 
   useEffect(() => {
     if (tool !== 'move') {
@@ -153,8 +172,9 @@ export function MoveTool() {
       el.removeEventListener('pointerleave', onPointerLeave);
     };
     // `candidates` is in the list because the handlers close over it, and it
-    // already depends on both `boards` and `grabbed`. `size.width`/`.height`
-    // rather than `size` so a re-created size object does not resubscribe.
+    // already depends on `boards`, `grabbed` and `selectedId`. `size.width`/
+    // `.height` rather than `size` so a re-created size object does not
+    // resubscribe.
   }, [tool, candidates, gl, camera, size.width, size.height]);
 
   if (tool !== 'move') return null;
