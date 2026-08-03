@@ -195,6 +195,117 @@ describe('cutSnapPoints', () => {
     expect(got.size).toBe(15);
   });
 
+  /**
+   * Same board and same offset/width as DADO, but `from: 'min'` — closes the
+   * gap where every coordinate-bearing test above used 'max'. A mutation that
+   * swaps the min branch's mouth/floor assignment (`mouth = faceHi, floor =
+   * faceLo` for 'min') must fail this test.
+   *
+   * cutRegion for from:'min' enters at the board's own thickness-0 surface, so
+   * the entered surface (mouth) is the LOW end and the floor is the far
+   * (deeper) end — the opposite pairing from DADO's from:'max':
+   *
+   *   region.thickness = [0, 0.25]   (from: 'min', depth 0.25)
+   *   mouth = thickness 0    -> X = 10 + 0    = 10
+   *   floor = thickness 0.25 -> X = 10 + 0.25 = 10.25
+   *   pos (length) {6, 6.375, 6.75}  -> Z {1, 1.375, 1.75}   (unchanged)
+   *   across (width) {0, 3, 6}       -> Y {2, 5, 8}          (unchanged)
+   */
+  it('places all 15 points correctly for from: "min" (mouth and floor swapped)', () => {
+    const DADO_MIN: Cut = {
+      id: 'c1min', face: 'thickness', from: 'min', across: 'width',
+      offset: 6, width: 0.75, depth: 0.25,
+    };
+    const points = cutSnapPoints(posed([DADO_MIN]));
+    const got = new Map(points.map((p) => [key(p.at), p.kind]));
+
+    const expected: [number[], string][] = [
+      // Floor rectangle, X = 10.25.
+      [[10.25, 2, 1], 'corner'],
+      [[10.25, 2, 1.375], 'edge-mid'],
+      [[10.25, 2, 1.75], 'corner'],
+      [[10.25, 5, 1], 'edge-mid'],
+      [[10.25, 5, 1.375], 'face-center'],
+      [[10.25, 5, 1.75], 'edge-mid'],
+      [[10.25, 8, 1], 'corner'],
+      [[10.25, 8, 1.375], 'edge-mid'],
+      [[10.25, 8, 1.75], 'corner'],
+      // Mouth: the two shoulder lines only, X = 10.
+      [[10, 2, 1], 'corner'],
+      [[10, 5, 1], 'edge-mid'],
+      [[10, 8, 1], 'corner'],
+      [[10, 2, 1.75], 'corner'],
+      [[10, 5, 1.75], 'edge-mid'],
+      [[10, 8, 1.75], 'corner'],
+    ];
+
+    for (const [at, kind] of expected) {
+      expect(got.get(key(at)), `missing ${key(at)}`).toBe(kind);
+    }
+    expect(got.size).toBe(15);
+  });
+
+  /**
+   * A SECOND pose — flat, unrotated, off-origin — proving toWorld is really
+   * derived from axisDimensions rather than hard-coded to the `posed` fixture
+   * above. For posture 'flat', rotation 0: dims = [length, thickness, width],
+   * i.e. X = local.length, Y = local.thickness, Z = local.width — every axis
+   * different from the posed fixture's [thickness, width, length].
+   *
+   * Board: 24 x 6 x 1 at [3, -1, 7], flat, rotation 0. Same DADO cut (face
+   * thickness, from max, across width, offset 6, width 0.75, depth 0.25):
+   *
+   *   cutRegion  = { length: [6, 6.75], width: [0, 6], thickness: [0.75, 1] }
+   *   mouth (thickness 1)    -> Y = -1 + 1    = 0
+   *   floor (thickness 0.75) -> Y = -1 + 0.75 = -0.25
+   *   pos (length) {6, 6.375, 6.75}  -> X = 3 + {6, 6.375, 6.75} = {9, 9.375, 9.75}
+   *   across (width) {0, 3, 6}       -> Z = 7 + {0, 3, 6} = {7, 10, 13}
+   *
+   * A hard-coded toWorld (always +p.thickness on X, +p.width on Y, +p.length
+   * on Z, as the posed fixture would demand) produces a completely different,
+   * wrong set of numbers for this board — this is what makes the mutation
+   * observable.
+   */
+  it('places points correctly for a second, different pose (flat/0)', () => {
+    const flatBoard: Board = createBoard({
+      length: 24,
+      width: 6,
+      thickness: 1,
+      position: [3, -1, 7],
+      posture: 'flat',
+      rotation: 0,
+      cuts: [DADO],
+    });
+    const points = cutSnapPoints(flatBoard);
+    expect(points).toHaveLength(15);
+    const got = new Map(points.map((p) => [key(p.at), p.kind]));
+
+    const expected: [number[], string][] = [
+      // Floor rectangle, Y = -0.25.
+      [[9, -0.25, 7], 'corner'],
+      [[9, -0.25, 10], 'edge-mid'],
+      [[9, -0.25, 13], 'corner'],
+      [[9.375, -0.25, 7], 'edge-mid'],
+      [[9.375, -0.25, 10], 'face-center'],
+      [[9.375, -0.25, 13], 'edge-mid'],
+      [[9.75, -0.25, 7], 'corner'],
+      [[9.75, -0.25, 10], 'edge-mid'],
+      [[9.75, -0.25, 13], 'corner'],
+      // Mouth: the two shoulder lines only, Y = 0.
+      [[9, 0, 7], 'corner'],
+      [[9, 0, 10], 'edge-mid'],
+      [[9, 0, 13], 'corner'],
+      [[9.75, 0, 7], 'corner'],
+      [[9.75, 0, 10], 'edge-mid'],
+      [[9.75, 0, 13], 'corner'],
+    ];
+
+    for (const [at, kind] of expected) {
+      expect(got.get(key(at)), `missing ${key(at)}`).toBe(kind);
+    }
+    expect(got.size).toBe(15);
+  });
+
   it('offers nothing at the mouth\'s middle row, which spans the opening', () => {
     const points = cutSnapPoints(posed([DADO]));
     // X = 11 (mouth plane), Z = 1.375 (pos mid). All three would hang in the

@@ -76,6 +76,10 @@ export function boardSnapPoints(board: Board): SnapPoint[] {
  * in a <group> at boardCenter(board). Using either here puts every point off
  * by half the board — which looks entirely plausible in a screenshot, and is
  * why the tests pose the fixture rather than sitting it flat at the origin.
+ * Two distinct poses are exercised with hand-derived coordinates (not just
+ * one): a second pose with a different axisDimensions mapping on all three
+ * axes is what actually proves this reads the mapping rather than
+ * hard-coding one board's arrangement of it.
  */
 function toWorld(board: Board, p: Point): [number, number, number] {
   const dims = axisDimensions(board);
