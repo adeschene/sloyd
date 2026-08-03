@@ -1695,17 +1695,55 @@ have collided with four existing entries. This file is the authority on its own
 numbering; CLAUDE.md's two "85-94" references were corrected to 85-98 in the same
 commit that added this section.
 
-**99. Cut shoulders are not snap points. — CHOSEN AS THE NEXT ROUND, 2026-08-03**, ahead
-of the tape measure and guide points, which were chosen the day before and have been
-moved back one place. The deferral reason below (keeping the Move tool's v1 small) has
-expired: v1 shipped, deployed, and has since had a follow-up round of its own. Two
-questions the brainstorm has to answer, because neither falls out of the existing code —
-which points a cut contributes and what `SnapKind` they carry (the lattice rule of
-"count the axes at `mid`" does not transfer, since a shoulder corner belongs to the cut
-rather than the board's box, and the marker colours carry the kind), and what a board
-whose cuts consumed all its stock offers, given `boardSolids` returns `[]` there and the
-part renders as a ghost (invariant 21). CLAUDE.md's "next line of work" section carries
-the reordering argument in full. Original entry follows, unchanged.
+**99. ~~Cut shoulders are not snap points.~~ CLOSED — 2026-08-03, by the cut-aware snap
+points round.** Design in
+`docs/superpowers/specs/2026-08-03-sloyd-cut-snap-points-design.md`; browser pass in
+`docs/browser-verification-cut-snap-points.md`. It landed exactly as the original entry
+below predicted — as a second *provider*, `cutSnapPoints(board)`, with `pickSnapPoint`
+untouched and never seeing a `Board` — which is the strongest evidence the snap-move
+design's §2.3 `SnapPoint[]` seam was the right shape.
+
+What the round decided, against what this entry asked:
+
+- **Which points a cut contributes.** A cut **defines** up to 15 and **offers** those
+  that still touch remaining stock. The 15 are two rectangles at the two ends of the cut's
+  depth axis: the **floor** rectangle, all nine combinations of `{min, mid, max}` on the
+  position and across axes, and the **mouth** — the plane at the board's own surface —
+  contributing only its two shoulder lines, six points. The mouth's middle row is dropped
+  because it spans the *opening*, so those three (its face centre among them) would sit in
+  the hole rather than on wood: the snap-move design's volume-centre exclusion applied one
+  dimension down. A plain dado offers all 15; **a rabbet offers 12**, because its flush end
+  has no shoulder — and that falls out of the stock filter with no `cutLabel` branch at
+  all, because *"is there a shoulder here"* and *"does this point touch stock"* turn out to
+  be the same question.
+- **The kind question, resolved by reusing the existing three.** This entry recorded the
+  worry that `boardSnapPoints`' rule — count the axes sitting at `mid`, and the count names
+  the kind — would not transfer. It does transfer; it just applies *within the rectangle*,
+  counting mids among the two in-plane axes only. Zero is a corner, one an edge midpoint,
+  two a face centre; the depth axis never contributes a mid, because a mid-depth point sits
+  on the shoulder wall rather than on either rectangle (follow-up 119). So all 15 are
+  covered by the three `SnapKind`s that already existed, `SnapMarker.tsx` is unchanged, and
+  no fourth off-palette hue had to be browser-settled (follow-up 121). The floor's centre
+  is not a stretched reuse of violet either: the dado floor is a real drawn face and its
+  centre is the centre of that face.
+- **Both of the entry's open questions, answered by one rule.** `cuts.ts` gained
+  `stockProbe(board)`, which builds the existing cell grid once and returns a predicate:
+  does a point in the board's own space touch any remaining stock? It is `boardEdges`'
+  four-cell configuration test generalised from a segment to a point — up to eight cells —
+  with *closed* spans, so a point landing exactly on a split plane sees both sides. A
+  board its own cuts consumed offers **no** cut points, because no cell is filled; a floor
+  corner a deeper cut has since removed is withheld for the same reason; the rabbet's
+  flush end likewise. The asymmetry this entry asked about — a consumed board keeps all 26
+  of its **box** points — is deliberate rather than inconsistent: invariant 21 has
+  `BoardMesh` draw a translucent ghost box at the AABB in exactly that case, so the box
+  points still sit on a drawn feature, while nothing at all draws a consumed board's
+  shoulders.
+- **No schema change** (`CURRENT_VERSION` stays 5), no new tool, no new store field, no new
+  UI surface. The round did add one thing this entry did not anticipate: `boardSnapPoints`
+  is now filtered through the same probe — see follow-up 122, which is the round's most
+  interesting finding and closes a defect that predates it.
+
+Original entry follows, unchanged.
 
 A dado's shoulders are real corners a
 woodworker would expect to snap to — the inside corner where a shelf's dado meets its
@@ -2003,3 +2041,262 @@ command's output, and it is cheap to run.** The reviewer was working under instr
 not to run the suite, which makes reasoning the only option available to them and makes
 running it the reader's job — not a criticism of the review, but the reason a finding of
 this shape gets verified before it gets implemented.
+
+## From the cut-aware snap points round
+
+Design in `docs/superpowers/specs/2026-08-03-sloyd-cut-snap-points-design.md`, browser
+pass in `docs/browser-verification-cut-snap-points.md` (which carries a second,
+narrower "Re-check after the box-lattice fix" section appended to it). Every `Cut` now
+contributes snap points of its own — a floor rectangle and the two shoulder lines at its
+mouth — filtered through `stockProbe` so only points still touching remaining stock are
+offered. Follow-up **99 is closed** by it, in place above. No schema change:
+`CURRENT_VERSION` stays 5.
+
+**119. NON-GOAL — no points on the shoulder walls, and this one is excluded on clutter
+grounds rather than by the governing constraint.** Worth stating precisely, because the
+rest of the round's exclusions all come from *a marker must sit on a feature that is
+actually drawn* and this one does not. A mid-depth point on a cut's shoulder wall sits on
+real drawn material; the constraint would permit it. It is declined anyway: the wall is
+already legible from the floor and mouth points bounding it, and a third rectangle per cut
+would add five more points to a cluster that design §9.1 already identifies as the round's
+real feel risk (follow-up 123). Buying a point nobody aims at by worsening the ambiguity
+between the two points everybody aims at is the wrong trade. The mechanical consequence is
+what keeps §3.1's kind rule simple: because no point ever sits at mid-depth, the depth axis
+never contributes a `mid`, so counting mids among the two *in-plane* axes is the whole rule
+and the three existing `SnapKind`s cover all 15.
+
+**120. NON-GOAL — no de-duplication against the box lattice, and the subtlety is in the
+COLOUR rather than in the move.** A cut point can land exactly on a board lattice point: a
+rabbet with `depth = thickness / 2` puts its flush floor corner precisely on the board's
+own edge midpoint. Both candidates carry the same position *and the same owner*, so they
+produce the identical delta — the board lands in the same place whichever one
+`pickSnapPoint`'s depth tie-break returns, which is exactly the argument follow-up 110
+already made for coincident *targets*. That is the whole of the case for doing nothing.
+
+What the delta argument does not cover, recorded rather than hidden: **the two coincident
+candidates can differ in `kind`, and therefore in marker hue.** In the example above the
+cut provider calls the point a `corner` (no in-plane mids) while the box lattice calls it
+an `edge-mid` (the thickness axis sits at mid), so the colour you see is decided by the
+tie-break. Both descriptions are true of the same position, the marker sits in the right
+place either way, and the move is unaffected. If a future browser pass finds this reads as
+flicker, **the fix is a deterministic ordering rule, not a de-duplication step** — the two
+points are not redundant, they are two true descriptions with different names. This case
+was **not driven in a browser**: the pass's fixture used a ¼"-deep cut, which never reaches
+`depth = thickness / 2`. See follow-up 124, and note carefully that the rabbet finding at
+follow-up 122 is a *position* coincidence, a different thing from the *kind* coincidence
+this entry is about.
+
+**121. NON-GOAL — no fourth `SnapKind`, and `SnapMarker.tsx` is unchanged.** A cut-owned
+kind was considered and rejected. Hue encodes *which kind of point*, and it still does
+after this round: a floor corner is green like a board corner, a shoulder-line midpoint
+cyan like a board edge midpoint, the dado floor's centre violet. A fourth kind would import
+a browser-settling obligation — a new off-palette hue, cool and saturated, mutually
+distinct from the three existing ones and legible against pine, walnut and plywood, per
+follow-up 60's process — in order to encode something the user is already looking at:
+*which feature* is carried by **where the marker sits**. Splitting `corner` into two
+colours by owner would weaken a mapping already verified in a browser to buy a distinction
+the position already makes. Distinguishing by shape instead was rejected against a finding
+the snap-move design already recorded: at the ~9 px a marker must be to sit on a corner
+without hiding it, shape cannot carry a distinction, which is why hue was chosen in the
+first place. The browser pass re-checked all three hues on a *cut floor* — which is shaded
+rather than lit, the condition they were never settled against — on pine, walnut and
+plywood, nine checks, and retuned nothing.
+
+**122. The round's own governing constraint was failing on the OLDEST code in the feature,
+and the browser pass is what found it — CLOSED in-branch by `999ca29`, design §5.1.** This
+is the most interesting entry in the section, and its shape is worth more than its size.
+
+The round was designed as though the stock filter applied only to cut-owned points. It
+does not suffice there. **A rabbet's flush-end mouth positions are also board box-lattice
+points**: with `offset === 0` the cut reaches the board's own end, so the three positions
+`cutSnapPoints` correctly withholds are, by construction, two corners and an edge midpoint
+of the board's box — for *every* rabbet, not as an accident of one fixture.
+`boardSnapPoints` never consulted `cuts`, so it offered them anyway, and the marker hung a
+quarter-inch out in the air over removed stock. That is precisely what design §2 says must
+not happen.
+
+Verified against the code rather than argued from the picture, because the screenshot at
+that viewing angle is genuinely ambiguous: `stockProbe` on the rabbeted board returned
+`false` for all three positions, and `boardSolids` put the nearest remaining material ¼"
+away. The pass's own finding 2 recommended a follow-up and explicitly declined to act; the
+user adjudicated it **fix now**, it became Task 6b, and the design gained §5.1.
+
+Three things about the fix are load-bearing:
+
+- **It predates the round and it shipped to production with snap-move.** It has been true
+  of every rabbet since joinery landed. It was fixed here anyway, on the grounds that a
+  constraint holding only in the new provider is not the constraint the design claims.
+- **The consumed-board exception survives, and is written explicitly.** When
+  `boardSolids(board).length === 0`, all 26 box points stay, because the ghost box at the
+  AABB *is* drawn (invariant 21). The check is a literal `boardSolids(board).length === 0`
+  rather than being inferred from the filtered set coming back empty — those two conditions
+  are **not** equivalent (a board could have every box point in removed stock while stock
+  remains in its middle), and the explicit one is the rule the design actually states. See
+  follow-up 128 for what is not pinned about that distinction.
+- **The zero-cost guarantee is preserved** by the same early return `boardSolids` makes in
+  its first line: a board with no cuts is not filtered and builds no grid.
+
+Re-checked in a browser (`999ca29`, then the report's appended section): `boardSnapPoints`
+returns **23** on the rabbeted panel, the three missing pinned by value against an
+independently rebuilt lattice, all three hovers returning zero markers with the nearest
+offered point 15-25 px away — gap-measured against `PICK_RADIUS_PX` *before* each absence
+was captioned, so a withheld point could not read as absent merely because a surviving
+neighbour was inside the radius. Positive controls in the same session on the rabbet's
+other, non-flush shoulder; a plain mid-face dado still offering all 26, every one hovered
+individually; the consumed ghost still offering all 26 and no cut points.
+
+**123. The ¼" pick ambiguity at default zoom is REAL, MEASURED, and ACCEPTED with the user
+rather than fixed.** Design §9.1 flagged clustering against `PICK_RADIUS_PX` as the
+round's one genuine feel risk and asked for it to be checked at working zoom. It was, and
+this is the pass's negative result. The numbers, because an impression would be useless
+here:
+
+- At the app's **default framing — 14.08 px/inch, the camera you get on load** — a dado's
+  floor corner `(0, 8, 0.5)` and its mouth corner `(0, 8, 0.75)` project **3.6 px** apart
+  (`(637.3, 394.8)` and `(633.9, 396.0)`, separation `3.64 px`). Both are `corner`, so both
+  draw the **same green disc**.
+- The marker is **~9 px across**, so at that separation the two possible markers overlap
+  almost entirely. There is no room to render a visible tie-break: highlighting the
+  alternative candidate would draw it underneath the one already on screen.
+- Stepped along the segment between them with real mouse input in ½-px increments, reading
+  the scene graph at each stop, the pick flips between t = 1.5 and t = 2.0 px — the
+  perpendicular bisector at 1.80, as the arithmetic predicts. **Aim tolerance ±1.8 px.**
+- At a detail zoom of **43.25 px/inch**: separation **8.46 px**, tolerance **±4.2 px**.
+  Workable. Separation scales at roughly 0.26-0.31 px per px/inch for that fixture and
+  camera angle, so **parity with `PICK_RADIUS_PX = 12` needs about 45-50 px/inch**.
+
+The failure mode is precisely stated, and it is not the obvious one: it is never "nothing
+marks". Both candidates sit far inside the pick radius, so *something* always marks, in the
+right place, in the right colour — just possibly the wrong one of the two, with nothing on
+screen to say so. A user who wanted the floor and got the mouth seats their shelf ¼" proud
+and finds out at the bench.
+
+**No radius can fix this, and that is worth saying because §9.1 itself proposed retuning
+the constant as the remedy.** The radius governs how far a candidate may be from the
+cursor, not how two candidates 3.6 px apart are told apart; any radius large enough to be
+aimable at all contains both. The real remedies are all design decisions rather than
+constant edits — a tie-break the user can see, a modifier key to cycle coincident
+candidates, or accepting that this operation is done zoomed in, which is what anyone aiming
+at a ¼" feature would do anyway. **The user adjudicated this as ACCEPT: follow-up only, no
+code change.** The point set was not shrunk to work around it either; the numbers above are
+the record so a future round can start from them rather than re-measuring.
+
+**124. What the two browser passes did NOT check.** Collected from both reports so the
+gaps are in one place rather than split across a pass and its re-check.
+
+- **The post-grab (target) branch was never driven under a held grab in the re-check.** The
+  main pass drove it and it is the whole point of the headline operation (Step 3: grab the
+  shelf's corner, orbit, click the panel's dado floor corner, exact coincidence read back
+  out of `localStorage`). But the box-lattice fix of follow-up 122 landed *after* that, and
+  the re-check held no grab at any point — so all four of its checks exercised only the
+  pre-grab branch. The fix changes `boardSnapPoints`, which both branches call through
+  `snapPointsFor`, which means it now filters **targets** on other boards too. That is
+  intended on design §2's reading and no breakage mechanism is visible (Step 3's target was
+  a `cutSnapPoints` floor corner, untouched by the diff), but it is undriven, and worth
+  knowing beside follow-up 110.
+- **Touch and pen.** Every interaction was a real *mouse* pointer — real `page.mouse` and
+  `page.keyboard` throughout, no synthetic dispatch at any point, so unlike the
+  selected-board grabs pass there is no mixed-provenance caveat. But `MoveTool`'s
+  `pointerId`-tagged `downAt` guard exists for a multi-touch pinch and remains unexercised
+  after three rounds. Follow-up 106's touch half still stands.
+- **`rotation === 90`.** The fixture exercises a non-identity *posture* (`upright`), which
+  is what makes the local→world mapping a real permutation rather than the identity and is
+  the trap design §6 was written around, but it leaves `rotation` at 0. The unit-test
+  fixture covers `rotation === 90` with hand-derived world coordinates; no browser pass
+  does.
+- **Faces other than `thickness`, and `from: 'min'`.** Every cut in the main fixture was
+  `face: 'thickness'`, `from: 'max'`, `across: 'width'` (the re-check's consumed board used
+  `from: 'min'`). The other faces are unit-tested with hand-written world coordinates; they
+  were not looked at in a browser.
+- **Design §9's coincident-KIND case** — a rabbet with `depth = thickness / 2`. Neither
+  pass reached it; the fixtures were ¼" and ¾" deep. See follow-up 120, and do not read
+  follow-up 122's rabbet finding as covering it: that is a *position* coincidence between
+  two providers, not a *kind* disagreement about one position.
+- **A cut floor deeper than ½" as a legibility case**, and no screenshot of the deeper
+  rabbet's 20-point case (depth 1.0" in 1.5" stock correctly withholds more, because the
+  board's own thickness-mid lattice plane is then inside the removed stock — checked and
+  understood, not shot).
+- **`updateCut` clearing a grab in the UI.** Step 6 drove `removeCut` (drops) and `addCut`
+  (survives); editing a grabbed shoulder's own cut so the point *moves* is unit-tested
+  only.
+- **A real GPU.** Software GL (llvmpipe), per follow-up 26a. Stated rather than left unsaid:
+  nothing in this round rests on shader behaviour — every marker is a `MeshBasicMaterial`
+  disc with `depthTest` and `toneMapped` off at `renderOrder 11` — and the one claim that
+  touches shading at all (that the three hues stay legible on a dado floor) is a contrast
+  judgement about ink the renderer draws unconditionally.
+- **Production.** The dev server only, per the standing rule: `sloyd.autosave.v1` in a real
+  browser *is* someone's project.
+
+**125. COMPOSITION — follow-up 113's branch now has a THIRD contributor, and the guides
+round's plan still needs its revision pass before it starts.** The guide-points design's
+§3.1 filters grabbable candidates to *board-owned* points; the selected-board grabs round
+subsumed that with a narrower rule (grabbable candidates are the **selected** board's
+points, which are board-owned by construction); this round widens the same branch again
+(the selected board's points **from both providers**, via `snapPointsFor`). 113 already
+said whichever ships second must merge them into **one** predicate rather than stack
+filters, because two expressions that agree today are two places for a future rule to
+disagree and the redundant one would be dead code reading as load-bearing. Guides land
+third into that branch, not second, which makes the instruction more pressing rather than
+less. Two things about the shape it has to fit: the memo is deliberately *two sets rather
+than one set with a filter* (pre-grab and post-grab), §3.1's rule belongs only to the
+pre-grab branch, and guides will introduce the first category of point that is deliberately
+**never** grabbable — a different kind of change to make against a settled filter than
+against a moving one. This round applied 113's own rule to itself pre-emptively rather than
+after the fact: `snapPointsFor` is one exported function called in both branches, not two
+concatenations that could drift.
+
+**126. LESSON — a test whose title names a property nothing in the suite pins. The newest
+link in the chain (follow-ups 64, 68 twice, 80, 87, 88, 107, 118), and the first sourced
+from a title rather than from a plan's code or a reviewer's premise.** Task 6b's suite
+contains a case titled with the parenthetical **"(fast path, no grid built)"**. It pins
+neither half of that: deleting `boardSnapPoints`' no-cuts early return leaves the suite
+green. Re-run rather than reasoned about, per follow-up 118's rule that a claim a mutation
+survives is a claim about a command's output and is cheap to check — with the early return
+removed, `npx vitest run src/document/snapPoints.test.ts` returns **38 passed**, unchanged.
+An identical result is what you would expect (a board with no cuts has an all-filled grid,
+so the filter withholds nothing), which is the point: the title asserts a *performance*
+property — that no grid arithmetic runs
+at all — and the assertion checks an output that is the same either way. Nothing here is
+broken; the fast path exists and is correct. What is wrong is a test title claiming
+coverage the test does not provide, which is the exact currency this chain trades in, and
+the cheapest honest fixes are the two the chain always points at: drop the parenthetical,
+or leave it and comment that the fast path itself is unpinned. Deferred, not done. A real
+pin would need to observe the grid *not* being built — a spy on the private `grid()`, which
+is unexported on purpose — so the correct resolution is probably the honest title rather
+than the machinery.
+
+**127. Two grab-clearing cases the store tests do not reach.** Both minor, both deferred
+with the reasoning rather than dropped, because `dropGrabIfGone`'s precision is the whole
+point of design §7.2 and these are the two edges of it.
+
+- **`addCut`'s post-`edit()` placement is load-bearing but untested.** The helper must run
+  *after* the edit, because a newly added cut can overlap an older cut's shoulder and
+  remove those points through `stockProbe` — calling it before `edit()` there would be a
+  real defect. Both `addCut` tests grab a **box** corner, which survives either way, so the
+  ordering mutation is invisible at that call site. It is caught at two of the three call
+  sites, not three.
+- **A grab on cut A's shoulder surviving an unrelated edit to cut B on the same board** is
+  reasoned correct and unpinned. It is the case that distinguishes point-precise clearing
+  from board-precise clearing on a *multi-cut* board, which is the direction the rule is
+  most likely to be simplified in by someone who does not know why it is narrow.
+
+**128. Three hygiene minors carried out of the reviews.** None affects behaviour; all three
+are recorded so a later reader does not re-derive them.
+
+- **The de-duplication test sits in the wrong `describe`.** It lives under
+  `describe('cutSnapPoints')` but exercises `snapPointsFor` — it is about the *union* of the
+  two providers, which is the only place a coincidence can be observed at all.
+- **Two type assertions rest on facts the assertion itself cannot enforce.** In
+  `pointsOfCut`, the `as unknown as Point` cast makes the `face === across` guard
+  load-bearing for **type** safety as well as for arithmetic (a degenerate cut would set
+  only two of three `Dimension` keys), which is worth a half-sentence in the guard's own
+  comment. In `boardSnapPoints`, `const local = {} as Point` relies on `axisDimensions`
+  returning a full permutation of the three dimensions — true today, and unenforceable
+  through the assertion.
+- **Nothing discriminates §5.1's explicit `boardSolids(board).length === 0` check from the
+  inferred form it forbids.** Rewriting the exception as "the filtered set came back empty"
+  passes 38/38. The two conditions genuinely differ, but the case that separates them is
+  §5.1's own hypothetical — a board with every box point in removed stock while stock
+  remains in its middle — which has to be constructed deliberately. The explicit check is
+  the rule the design states, and it is kept for that reason rather than because a test
+  demands it.
