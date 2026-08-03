@@ -478,9 +478,9 @@ describe('the Move tool', () => {
    *
    * addBoard selects what it creates, so without this the fixture leaves the
    * second board selected while every test below grabs a point on the first —
-   * a combination the UI cannot produce, since the Move tool only offers the
-   * selected board's points. Selecting `a` is what makes the fixture model a
-   * state a user can actually reach.
+   * a combination the Move tool will not produce once its candidates are
+   * restricted to the selected board's points. Selecting `a` is what makes
+   * the fixture model a state a user can actually reach.
    */
   const twoBoards = () => {
     useStore.setState({

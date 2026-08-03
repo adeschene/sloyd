@@ -91,17 +91,19 @@ export const useStore = create<StoreState>((set, get) => {
     }
 
     // Invariant 24's second list — the one that records what nulls `grabbed`
-    // for reasons other than the world moving. The Move tool only offers the
-    // SELECTED board's points as grab candidates, so a selection that moves
-    // to a different board means the user retargeted the tool, and the point
-    // in hand is no longer one they could have picked up. `edit()` rather
-    // than each caller: addBoard and duplicateBoard both select what they
-    // create through this callback, and so will the next action that does.
+    // for reasons other than the world moving. `MoveTool`'s candidate memo
+    // offers only the SELECTED board's points as grab candidates (narrowed to
+    // that in this branch), so a selection that moves to a different board
+    // means the user retargeted the tool, and the point in hand is no longer
+    // one they could have picked up. `edit()` rather than each caller:
+    // addBoard and duplicateBoard both select what they create through this
+    // callback, and so will the next action that does.
     //
     // Only the callback path is considered. An edit that carries no
     // `selection` moves selectedId nowhere, so it has nothing to invalidate;
-    // reaching further would also silently repair a mismatch that
-    // commitSnapMove's guard exists to expose rather than paper over.
+    // reaching further would also silently repair a mismatch that this
+    // branch's `commitSnapMove` guard is meant to expose rather than paper
+    // over.
     const nextSelectedId = selection ? selection(next) : null;
     const heldGrab = get().grabbed;
     const dropGrab = selection !== undefined && heldGrab !== null && heldGrab.owner.id !== nextSelectedId;
