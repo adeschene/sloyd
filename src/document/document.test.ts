@@ -1,5 +1,5 @@
 import {
-  createBoard, createDocument, migrateDocument, DocumentError, CURRENT_VERSION,
+  createBoard, createDocument, createGuide, migrateDocument, DocumentError, CURRENT_VERSION,
 } from './document';
 import { boardExtents, boardCenter, reorientedPosition, axisDimensions } from './geometry';
 import type { Board, Posture, Rotation } from './types';
@@ -474,13 +474,13 @@ describe('schema 4 — cuts', () => {
         material: 'pine',
       }],
     });
-    expect(doc.version).toBe(5);
+    expect(doc.version).toBe(6);
     expect(doc.boards[0].cuts).toEqual([]);
   });
 
-  // The chain is the point: a v1 file must walk 1 -> 2 -> 3 -> 4 -> 5, folding
-  // 270 to 90 BEFORE it gains a posture, and gaining cuts last.
-  it('walks a v1 file all the way to 5', () => {
+  // The chain is the point: a v1 file must walk 1 -> 2 -> 3 -> 4 -> 5 -> 6,
+  // folding 270 to 90 BEFORE it gains a posture, and gaining cuts before guides.
+  it('walks a v1 file all the way to 6', () => {
     const doc = migrateDocument({
       version: 1,
       name: 'Ancient',
@@ -490,7 +490,7 @@ describe('schema 4 — cuts', () => {
         position: [0, 0, 0], rotation: 270, standing: true, material: 'oak',
       }],
     });
-    expect(doc.version).toBe(5);
+    expect(doc.version).toBe(6);
     expect(doc.boards[0].rotation).toBe(90);
     expect(doc.boards[0].posture).toBe('on-edge');
     expect(doc.boards[0].grain).toBe('length');
@@ -515,7 +515,7 @@ describe('schema 4 — cuts', () => {
   });
 
   it('rejects a file from a newer schema', () => {
-    expect(() => migrateDocument({ version: 6, name: 'x', boards: [] }))
+    expect(() => migrateDocument({ version: 7, name: 'x', boards: [] }))
       .toThrow(/newer version/);
   });
 });
@@ -592,13 +592,13 @@ describe('cut validation', () => {
 describe('schema v5 — stock.kerf', () => {
   it('gives a new document the default kerf', () => {
     expect(createDocument('Test').stock).toEqual({ kerf: 0.125 });
-    expect(createDocument('Test').version).toBe(5);
+    expect(createDocument('Test').version).toBe(6);
   });
 
   it('defaults kerf on a v4 file that has none', () => {
     const doc = migrateDocument({ version: 4, name: 'Old', boards: [] });
     expect(doc.stock).toEqual({ kerf: 0.125 });
-    expect(doc.version).toBe(5);
+    expect(doc.version).toBe(6);
   });
 
   it('keeps a kerf the user set', () => {
@@ -629,21 +629,127 @@ describe('schema v5 — stock.kerf', () => {
   // a file carrying a 1/4" kerf, silently drop it, and print a different sheet
   // count than the build that saved it.
   it('refuses a file from a newer build', () => {
-    expect(() => migrateDocument({ version: 6, name: 'X', boards: [] })).toThrow(DocumentError);
+    expect(() => migrateDocument({ version: 7, name: 'X', boards: [] })).toThrow(DocumentError);
   });
 
-  it('walks a v1 file all the way to v5', () => {
+  it('walks a v1 file all the way to v6', () => {
     const doc = migrateDocument({
       version: 1,
       name: 'Ancient',
       boards: [{ name: 'A', length: 24, width: 4, thickness: 0.75, position: [0, 0, 0],
                  rotation: 270, standing: true, material: 'pine' }],
     });
-    expect(doc.version).toBe(5);
+    expect(doc.version).toBe(6);
+    expect(doc.guides).toEqual([]);
     expect(doc.stock).toEqual({ kerf: 0.125 });
     expect(doc.boards[0].rotation).toBe(90);
     expect(doc.boards[0].posture).toBe('on-edge');
     expect(doc.boards[0].grain).toBe('length');
     expect(doc.boards[0].cuts).toEqual([]);
+  });
+});
+
+describe('guides — schema v6', () => {
+  it('a fresh document has an empty guides array at version 6', () => {
+    const doc = createDocument('Test');
+    expect(doc.version).toBe(6);
+    expect(doc.guides).toEqual([]);
+  });
+
+  it('defaults guides to [] when a v5 file has none', () => {
+    const doc = migrateDocument({
+      version: 5,
+      name: 'Old',
+      units: { display: 'imperial-fractional', precision: 16 },
+      stock: { kerf: 0.125 },
+      boards: [],
+    });
+    expect(doc.guides).toEqual([]);
+    expect(doc.version).toBe(6);
+  });
+
+  it('keeps well-formed guides', () => {
+    const doc = migrateDocument({
+      version: 6,
+      name: 'G',
+      units: { display: 'imperial-fractional', precision: 16 },
+      stock: { kerf: 0.125 },
+      guides: [{ id: 'g1', at: [1, 2, 3] }],
+      boards: [],
+    });
+    expect(doc.guides).toEqual([{ id: 'g1', at: [1, 2, 3] }]);
+  });
+
+  // Dropped, never refused: a saved document must always open. Same rule
+  // validateCuts follows. A guide has no nearest-legal-value to clamp toward,
+  // so dropping is the only available repair. See design §2.3.
+  it('drops malformed guides rather than throwing', () => {
+    const doc = migrateDocument({
+      version: 6,
+      name: 'G',
+      units: { display: 'imperial-fractional', precision: 16 },
+      stock: { kerf: 0.125 },
+      guides: [
+        { id: 'ok', at: [1, 2, 3] },
+        { id: 'nan', at: [1, NaN, 3] },
+        { id: 'infinite', at: [1, Infinity, 3] },
+        { id: 'short', at: [1, 2] },
+        { id: 'notarray', at: 'nope' },
+        { id: '', at: [0, 0, 0] },
+        { at: [0, 0, 0] },
+        null,
+        'guide',
+      ],
+      boards: [],
+    });
+    expect(doc.guides).toEqual([{ id: 'ok', at: [1, 2, 3] }]);
+  });
+
+  it('defaults a non-array guides field to []', () => {
+    const doc = migrateDocument({
+      version: 6,
+      name: 'G',
+      units: { display: 'imperial-fractional', precision: 16 },
+      stock: { kerf: 0.125 },
+      guides: { id: 'g1' },
+      boards: [],
+    });
+    expect(doc.guides).toEqual([]);
+  });
+
+  // The gate at the far end is the whole reason for the bump — see §2.2. The
+  // argument is NOT v5's (a wrong purchasing number); it is silent data loss
+  // on round-trip.
+  it('still refuses a version above CURRENT_VERSION', () => {
+    expect(() => migrateDocument({ version: 7, name: 'x', boards: [] }))
+      .toThrow(DocumentError);
+  });
+
+  // A v1 file must still walk the whole chain, gaining guides at the end.
+  it('a v1 file walks 1 -> 6', () => {
+    const doc = migrateDocument({
+      version: 1,
+      name: 'Ancient',
+      units: { display: 'imperial-fractional', precision: 16 },
+      boards: [{
+        id: 'b1', name: 'B', length: 24, width: 6, thickness: 1,
+        position: [0, 0, 0], rotation: 270, standing: true, material: 'pine',
+      }],
+    });
+    expect(doc.version).toBe(6);
+    expect(doc.guides).toEqual([]);
+    expect(doc.stock.kerf).toBe(0.125);
+    expect(doc.boards[0].rotation).toBe(90);
+    expect(doc.boards[0].posture).toBe('on-edge');
+    expect(doc.boards[0].cuts).toEqual([]);
+  });
+});
+
+describe('createGuide', () => {
+  it('gives each guide a distinct id and copies the position', () => {
+    const a = createGuide([1, 2, 3]);
+    const b = createGuide([1, 2, 3]);
+    expect(a.at).toEqual([1, 2, 3]);
+    expect(a.id).not.toBe(b.id);
   });
 });
