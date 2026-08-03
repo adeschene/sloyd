@@ -561,6 +561,8 @@ export type SnapOwner =
 export type BoardSnapPoint = SnapPoint & { owner: { type: 'board'; id: string } };
 ```
 
+**This form was spiked against the real repo during the revision pass, not reasoned about.** The concern was that intersecting a *union*-typed property distributes rather than eliminating the guide arm, leaving `type: never` where a reader expects `'board'`. It narrows correctly — `const t: 'board' = point.owner.type` compiles — and so does the `interface BoardSnapPoint extends SnapPoint` spelling, which is the fallback if you hit trouble. The whole spike (this type, the three annotations, the generic picker, the two store type positions, the self-snap clause) built clean on `tsc -b` with **699/699 still passing and not one existing test needing an edit**. Take that as a floor, not a guarantee: it did not include the guides provider, `MoveTool`'s new memo, or anything from Tasks 4-9.
+
 Then annotate the three board providers. **Their bodies do not change** — each already builds `owner: SnapOwner = { type: 'board', id: board.id }` and produces nothing else, so this is the annotation catching up with the code:
 
 ```ts
@@ -569,7 +571,9 @@ export function cutSnapPoints(board: Board): BoardSnapPoint[]
 export function snapPointsFor(board: Board): BoardSnapPoint[]
 ```
 
-Inside each, the local `const owner: SnapOwner = { type: 'board', id: board.id }` must become `const owner = { type: 'board', id: board.id } as const` (or be annotated `BoardSnapPoint['owner']`) — annotated as the wide `SnapOwner` it will not narrow, and `tsc` will tell you so at the return.
+Inside each, the local `const owner: SnapOwner = { type: 'board', id: board.id }` must become `const owner = { type: 'board', id: board.id } as const` (or be annotated `BoardSnapPoint['owner']`) — annotated as the wide `SnapOwner` it will not narrow, and `tsc` will tell you so at the return. The intermediate `const points: SnapPoint[]` / `const out: SnapPoint[]` accumulators need the same widening removed. All three were confirmed necessary and sufficient in the spike.
+
+**Expect this to bite in tests you write, and never fix it with a cast.** A hand-built literal like `{ kind: 'corner', at: […], owner: { type: 'board', id: 'x' } }` infers `type` as `string`, so passing it to `grabSnapPoint` will not compile. Narrow the literal (`type: 'board' as const`, or a small helper the way `store.test.ts`'s `cornerOf` already does) — **never** by casting to `BoardSnapPoint` or widening the store's field, either of which asserts the exact fact the type exists to deny (follow-up 128's shape). No *existing* test needed this: every current `grabSnapPoint` call goes through a helper backed by `boardSnapPoints` or `cutSnapPoints`, which is why the spike came back clean.
 
 And append the provider:
 
@@ -733,15 +737,22 @@ Then the grab call in `onPointerUp` takes the one narrowing that turns a `SnapPo
 
 ```ts
       if (!store.grabbed) {
-        // Board-owned by construction — this branch's candidates are the
-        // selected board's points — and checked anyway, because this is the
-        // one place a picked SnapPoint becomes the store's BoardSnapPoint.
-        // Deliberately redundant in the same sense as commitSnapMove's
-        // self-snap guard: the memo makes the rule true of the UI, this makes
-        // it true of the type.
         if (hit && hit.owner.type === 'board') store.grabSnapPoint(hit);
         return;
       }
+```
+
+**Get this comment's category right — an earlier draft of this plan had it backwards, and in this repo the redundant-versus-load-bearing distinction is most of what a comment is for.** The memo's two branches have different types (`BoardSnapPoint[]` pre-grab, a mixed array post-grab), so the memo's inferred type is the union of them and `hit` is a plain `SnapPoint | null` *regardless of which branch produced it*. The branch's board-ownership does not survive that union, so this test is **required by the compiler**, not a belt-and-braces echo of the memo.
+
+**Confirm which it is rather than trusting either draft**: write it, then delete the `hit.owner.type === 'board' &&` clause and run `npm run build`. If it fails, the guard is required and the comment should say so. If it compiles, the guard is redundant and belongs in `commitSnapMove`'s deliberately-redundant category instead. One command, at the moment it is cheapest to ask.
+
+```ts
+        // Required by the compiler, not a redundant echo of the memo: the memo
+        // unions a BoardSnapPoint[] branch with a mixed one, so `hit` is a
+        // plain SnapPoint and the pre-grab branch's board-ownership does not
+        // survive into the type. This is the one place a picked point becomes
+        // the store's BoardSnapPoint. (Contrast commitSnapMove's self-snap
+        // guard, which IS deliberately redundant with the memo.)
 ```
 
 Update the import: `import { guideSnapPoints, sameSnapPoint, snapPointsFor } from '../document/document';`
@@ -1328,21 +1339,37 @@ And add conditional clears:
    * are two places for a future rule to disagree (follow-up 113). The
    * board-id guard makes a guide-owned anchor fall through untouched, which is
    * correct — a cut edit cannot affect a guide.
+   *
+   * KEEPS THE ORIGINAL'S GUARD-FIRST SHAPE. snapPointsFor builds the cell grid
+   * for a cut board, and these three actions fire on every ordinary edit in
+   * the Cuts panel — so the overwhelmingly common case (nothing held at all)
+   * must return before any of that runs, exactly as dropGrabIfGone did.
    */
   const dropHeldIfGone = (boardId: string) => {
+    // `type === 'board'` is redundant for `grabbed` (its type says so) and
+    // load-bearing for `tapeAnchor` (its type does not) — design §3.0 showing
+    // through in one predicate over two fields.
+    const holds = (held: SnapPoint | null): held is SnapPoint =>
+      held !== null && held.owner.type === 'board' && held.owner.id === boardId;
+
+    const grabbed = get().grabbed;
+    const anchor = get().tapeAnchor;
+    const checkGrab = holds(grabbed);
+    const checkAnchor = holds(anchor);
+    if (!checkGrab && !checkAnchor) return; // the cheap path — no grid built
+
     const board = get().doc.boards.find((b) => b.id === boardId);
     const points = board ? snapPointsFor(board) : [];
-    const gone = (held: SnapPoint | null) =>
-      held !== null &&
-      held.owner.type === 'board' &&
-      held.owner.id === boardId &&
-      !points.some((p) => sameSnapPoint(p, held));
+    const survives = (held: SnapPoint) => points.some((p) => sameSnapPoint(p, held));
+
     const patch: { grabbed?: null; tapeAnchor?: null } = {};
-    if (gone(get().grabbed)) patch.grabbed = null;
-    if (gone(get().tapeAnchor)) patch.tapeAnchor = null;
+    if (checkGrab && !survives(grabbed!)) patch.grabbed = null;
+    if (checkAnchor && !survives(anchor!)) patch.tapeAnchor = null;
     if (patch.grabbed !== undefined || patch.tapeAnchor !== undefined) set(patch);
   };
 ```
+
+**Pin the cheap path with a test that can fail.** Follow-up 126 is this repo's record of a test whose *title* — "(fast path, no grid built)" — pinned neither half of itself. Do not repeat it: if you assert the early return, assert it by spying on something the grid path actually does, or don't claim it in a title. An honest test of the behaviour (a cut edit with nothing held leaves both fields null) is fine and does not need the performance claim attached.
 
    Rename the three call sites in `addCut`/`updateCut`/`removeCut`. **Keep the
    name honest** — if you would rather leave it `dropGrabIfGone`, don't: it
@@ -1483,8 +1510,8 @@ import { SnapMarker } from './SnapMarker';
  *
  * The hovered marker is drawn by whichever tool is hovering it (MoveTool,
  * TapeTool), on top of this one and at full size. Two markers at one position
- * is correct and is what produces the growth: SnapMarker draws with depthTest
- * off, so the larger one wins visually.
+ * is correct and is what produces the growth — same hue, so the small one
+ * simply disappears inside the large one.
  */
 export function GuideMarkers() {
   const guides = useStore((s) => s.doc.guides);
