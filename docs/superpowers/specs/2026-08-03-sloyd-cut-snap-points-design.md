@@ -357,7 +357,14 @@ if (
 ```
 
 - Holding a box corner and editing a cut on the same board → the grab
-  **survives**, because the corner genuinely did not move.
+  **usually survives**, because the corner genuinely did not move — a
+  mid-face dado, for instance, touches no box point.
+- Holding a box corner and editing a cut so it consumes that corner's own
+  stock (a rabbet pulled flush with the board's end, `offset === 0`) → the
+  grab **drops**, by the identical rule: `boardSnapPoints` itself withholds
+  a box point once `stockProbe` says nothing is left under it, so the point
+  is no longer among `snapPointsFor(next)` and the clear fires exactly as it
+  does for a shoulder.
 - Holding the shoulder you just edited or deleted → the grab **drops**.
 - A cut edit on a different board → untouched, per invariant 24's existing
   conditional shape.
@@ -401,7 +408,9 @@ cannot fail.
 | `stockProbe` on a split plane | a point on a boundary between a filled and an empty cell is offered |
 
 Store tests for §7.2: grab a shoulder then `removeCut` → cleared; grab a box
-corner then `addCut` on the same board → **survives**; grab, then a cut edit on
+corner then `addCut` on the same board (a mid-face dado, touching no box
+point) → **survives**; grab a box corner then `updateCut` it flush with that
+corner's end, consuming its stock → **drops**; grab, then a cut edit on
 another board → survives.
 
 `npm run build` is the typecheck gate; `npm test` does not typecheck.

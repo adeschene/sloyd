@@ -2300,3 +2300,35 @@ are recorded so a later reader does not re-derive them.
   remains in its middle — which has to be constructed deliberately. The explicit check is
   the rule the design states, and it is kept for that reason rather than because a test
   demands it.
+
+**129. LESSON — three documents illustrated `dropGrabIfGone`'s rule with a claim the
+round's own Task 6b had already made false, and the seam between the two tasks is exactly
+why no per-task review caught it.** `dropGrabIfGone`'s doc comment, design §7.2's bullet
+list and CLAUDE.md's invariant 24 all said a box corner **survives** a cut edit on the same
+board "because the corner genuinely did not move" — true when Task 4 wrote it, since
+`boardSnapPoints` at that point never consulted `cuts` at all. Task 6b, landed several
+commits later to close follow-up 122, made `boardSnapPoints` filter its 26 box-lattice
+points through `stockProbe` — so a cut edited to consume a corner's own stock (a rabbet
+pulled flush with that end, reachable through the Cuts panel by typing `offset: 0`) now
+removes that corner from `snapPointsFor`'s output, and `dropGrabIfGone` correctly drops the
+grab. The **behaviour is right**: the stock is gone, nothing draws there, and committing
+would apply a delta derived from a position describing nothing. The **prose was wrong**,
+in three places, because each was written against `dropGrabIfGone`'s own logic — which
+never changed and is still correct — rather than against what `boardSnapPoints` actually
+offers, which did.
+
+This is not a new instance of the plan-supplied-code chain (64, 68 twice, 80, 87, 88, 107,
+118, 126): nothing here is a defect in code, and nothing a per-task review of either task
+could have caught. Task 4's review had no way to know a later task would narrow
+`boardSnapPoints`' output; Task 6b's review (the one that produced follow-up 122) was about
+whether the filter was applied everywhere it needed to be, not about whether an earlier
+task's comment still held once it was. The over-claim was only visible from outside both
+tasks, holding Task 4's illustration next to Task 6b's filter at once — which is what a
+final whole-branch review is for and what a per-task review structurally cannot do. Found
+and fixed there: the general rule in all three places ("the grab survives iff the point is
+still among that board's snap points") was already correct and is left alone; only the
+illustrative clause changed, to name both the common case (a mid-face dado survives) and
+the case Task 6b introduced (a flush cut consumes the corner and the grab drops), rather
+than asserting only the first as if the second could not occur. A store test pins the
+second half directly, alongside the existing test for the first (both in
+`src/store/store.test.ts`, `describe('the Move tool')`).

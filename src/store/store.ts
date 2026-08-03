@@ -136,12 +136,19 @@ export const useStore = create<StoreState>((set, get) => {
    * so reorienting on a cut change would be a no-op pivot), so they do not
    * inherit its conditional clear and need this instead.
    *
-   * Precise rather than blanket: the grab survives if the point it holds is
-   * still on offer after the edit, which is the case whenever a box-lattice
-   * point is held and only the joinery changed. Exact === on the coordinates
-   * is correct here for invariant 18's reason — both sides come from the same
-   * arithmetic over the same stored values, so an unmoved point holds
-   * identical doubles, and nothing computes a difference on the way in.
+   * Precise rather than blanket: the grab survives iff the point it holds is
+   * still among that board's snap points after the edit. A box-lattice point
+   * usually survives a cut edit — a mid-face dado touches no box point — but
+   * not always: `boardSnapPoints` filters through `stockProbe` too, so a cut
+   * pulled flush with a board's end can consume a corner's own stock, and a
+   * grab on that corner is correctly dropped right along with a grab on a
+   * shoulder. "Only the joinery changed" does not imply the position is
+   * untouched — it implies the position is untouched UNLESS the joinery
+   * change removed the stock the held point sits on. Exact === on the
+   * coordinates is correct here for invariant 18's reason — both sides come
+   * from the same arithmetic over the same stored values, so an unmoved
+   * point holds identical doubles, and nothing computes a difference on the
+   * way in.
    *
    * Call AFTER edit(), so `get().doc` is the post-edit document.
    */

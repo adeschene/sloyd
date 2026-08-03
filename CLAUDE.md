@@ -1576,8 +1576,14 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
     is therefore **point-precise, not board-precise**: `dropGrabIfGone(boardId)` runs
     **after** the `edit()`, and keeps the grab iff the grabbed point is still among that
     board's `snapPointsFor` output. Holding a box corner while editing a cut on the same
-    board **keeps** the grab, because the corner genuinely did not move; holding the
-    shoulder you just deleted **drops** it; a cut edit on another board is untouched, per
+    board usually **keeps** the grab, because the corner usually did not move — a
+    mid-face dado touches no box point — but not always: `boardSnapPoints` itself
+    withholds a box point once `stockProbe` finds no stock left under it (the round's
+    own filter, added after a rabbet's flush end reached a box corner), so a cut edited
+    to consume that corner's stock (a rabbet pulled flush with the board's end) makes
+    the point stop being on offer and the grab **drops**, by the same rule that drops a
+    grabbed shoulder rather than by a separate case. Holding the shoulder you just
+    deleted **drops** it; a cut edit on another board is untouched, per
     the existing conditional shape. Two things are load-bearing and easy to undo by
     "tidying": the comparison is exact `===` on the three coordinates, correct for
     invariant 18's reason (both sides are produced by the same arithmetic from the same
