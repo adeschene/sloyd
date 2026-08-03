@@ -1098,6 +1098,10 @@ describe('tapeAnchor is NOT cleared by selection changes', () => {
     useStore.getState().setTapeAnchor(boardSnapPoints(first)[0]);
     useStore.getState().addBoard();
     const second = useStore.getState().doc.boards[1];
+    // addBoard already selected `second`, so select the anchored board first —
+    // otherwise the selection never actually moves and the test's title claims
+    // more than its fixture does (follow-up 126's shape).
+    useStore.getState().selectBoard(first.id);
     useStore.getState().selectBoard(second.id);
     expect(useStore.getState().tapeAnchor).not.toBeNull();
   });
