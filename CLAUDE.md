@@ -33,8 +33,10 @@ Move tool: grab a corner, edge midpoint or face centre of one board, click one o
 another, and the first board moves so the two points coincide exactly. Snap-move is
 **not** a cut-list descendant, unlike the five rounds before it; it is the first work
 on the viewport's *interaction* surface since the gizmo size ceiling (follow-up 29),
-and the first new tool the app has had. It makes **no schema change** —
-`CURRENT_VERSION` stays 5. Static SPA, containerized, 660/660 tests passing.
+and the first new tool the app has had — followed immediately by a **selected-board
+grabs** round narrowing that tool's grab set to the currently selected board, which is
+the first correction snap-move needed in use. Neither makes a schema change —
+`CURRENT_VERSION` stays 5. Static SPA, containerized, 668/668 tests passing.
 
 Host-specific deployment detail — hostname, container name, proxy configuration, and
 the manual steps a human has to perform — lives in `DEPLOYMENT.local.md`, which is
@@ -206,6 +208,50 @@ survives it.
   that claimed broader marker coverage than it had checked, closed by taking the missing
   screenshots rather than by narrowing the prose.
 
+**What the selected-board grabs round did**, design in
+`docs/superpowers/specs/2026-08-03-sloyd-selected-board-grabs-design.md`. Chosen
+2026-08-03, immediately after snap-move deployed, because the tool as shipped offered
+**every** board's snap points as grab candidates — and boards in a real project touch,
+which is what the tool is *for*, so two of them routinely share a corner and
+`pickSnapPoint`'s depth tie-break silently decided which board was about to move. The
+tie-break is deterministic but invisible: the marker sits at a position both boards
+share, so nothing on screen said which one it named. Before a grab, the candidates are
+now the **selected** board's points only; after a grab, the target set is unchanged.
+
+- **The asymmetry is the design.** Two coincident *target* points produce the identical
+  delta, so which one wins is unobservable — the board lands in the same place either
+  way. Two coincident *grab* points name two different boards. Only one side is harmful,
+  so only one side is restricted, and restricting targets "for symmetry" would be
+  actively wrong: the board being moved is by definition the selected one, so a
+  selected-only target set would leave nothing to snap **to** (follow-up 110).
+- **Two sets, not one set with a filter.** `MoveTool`'s memo now branches: no grab →
+  the selected board's points (empty when nothing is selected); grab live → unchanged,
+  every board's points minus the grabbed board's own. The dep list gains `selectedId`,
+  which is invariant 15's exact failure mode and would have looked like it worked.
+- **The grab must not survive the selection moving.** Written at `edit()`'s `selection`
+  callback rather than at each caller — `addBoard` and `duplicateBoard` both select what
+  they create through it, so a grab plus **+ Add board** was a live path to the state
+  this prevents — plus `selectBoard`, plus a redundant refusal in `commitSnapMove`. See
+  invariant 24's second list: this clears a grab because the *user retargeted the tool*,
+  not because the world moved under a captured position.
+- **A toolbar hint, and the Move button stays enabled.** *Select a part to move*, shown
+  when `tool === 'move' && !selectedId`, because with nothing selected nothing is
+  markable and the tool otherwise reads as broken rather than as waiting. Disabling the
+  button was rejected: it takes a control away to explain a state, and it would need its
+  own rule for the selected board being deleted mid-tool — which the hint needs no rule
+  for, since `deleteBoard` already clears both and the app lands in the hinted state.
+- **Known, deferred, and verified in a real browser** — see
+  `docs/browser-verification-selected-board-grabs.md` and `docs/follow-ups.md`'s "From
+  the selected-board grabs round" section (109-116). That pass found **no defect**, and
+  it changed the repo's browser method in two ways worth reusing: the projector is the
+  app's own `project()` run against the live r3f camera (reached through the Vite dev
+  server's module graph) rather than a re-derivation, and every interaction backing a
+  recorded result was real `page.mouse`/`page.keyboard` input rather than a synthetic
+  `PointerEvent` — which closes half of follow-up 106 and leaves touch/pen open. 115 also
+  records how that second half was earned: the pass started synthetic, review caught the
+  report claiming otherwise, and the fix was to re-drive the affected checks under real
+  input rather than to narrow the claim.
+
 **What the sheet-nesting round did**, design in
 `docs/superpowers/specs/2026-08-02-sloyd-sheet-nesting-design.md`. Chosen 2026-08-01,
 closing the cut list's last §7 non-goal — nesting was deferred with a reason (a real 2D
@@ -310,7 +356,13 @@ joining the `rawBoards.map` chain.
 Start with `superpowers:brainstorming`, and read the snap-move design's §2.3 and §8
 first — §2.3 is the interface all four candidates land through, and §8 records *why*
 each was deferred, which makes those reasons the design constraints rather than a
-to-do list.
+to-do list. **Read the selected-board grabs round below before writing the guides
+design's candidate-filter section**, because it lands in the same place: `MoveTool`'s
+memo is now two branches (pre-grab: the selected board's points; post-grab: unchanged),
+and the guide-points design's §3.1 board-owned filter is *subsumed* by the pre-grab
+branch rather than sitting beside it. Merge the two into one predicate in that branch;
+two filters that agree today are two places for a future rule to disagree, and the
+second would be dead code that reads as load-bearing (follow-up 113).
 
 **What the empty-solids placeholder did** (2026-08-01, closing follow-ups 48 and 49; no
 spec — the diagnosis and the chosen fix were already in the ledger). A board whose own
@@ -1308,6 +1360,17 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
     is not everything that nulls `grabbed`: `setTool`, `cancelGrab`, `commitSnapMove`
     itself and its board-not-found path all do too, for their own reasons (`setTool`'s is
     that a snap point carried into a different tool has nothing that can consume it).
+    **The selected-board grabs round added one more to that second list, for a reason
+    that is neither of the two above: the user retargeted the tool.** Since only the
+    selected board's points are grab candidates, a selection that lands on a different
+    board means the point in hand is one the user could no longer have picked up — so
+    `edit()` clears the grab when its optional `selection` callback resolves to
+    something other than the grabbed board's id (which is what makes `addBoard` and
+    `duplicateBoard` inherit the behaviour rather than each having to remember it), and
+    `selectBoard` applies the same rule directly. `commitSnapMove` carries the
+    action-level half: it refuses outright when `grabbed.owner.id !== selectedId`,
+    before any `edit()`, and deliberately leaves `grabbed` in hand — the state should be
+    unreachable, and discarding it quietly would hide that it wasn't.
     Only the five above are here because the world moved.
 25. **The snap move is deliberately NOT rounded to `SNAP_INCHES`, and this is the exact
     opposite of what `Gizmo.tsx` does — both are correct.** The gizmo snaps to 1/16"
@@ -1333,7 +1396,7 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 660 tests across 32 files
+npm test           # Vitest, currently 668 tests across 32 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1514,6 +1577,20 @@ implementer who stopped and escalated rather than editing the assertion to match
 verification report that stated marker coverage more broadly than it had checked, closed
 by taking the four missing screenshots rather than by narrowing the prose, because
 narrowing would have been cheaper and worse.
+
+The selected-board grabs round added **109-116**. **109-113** are the design's §9
+non-goals and its §5 composition note, recorded as decisions: no click-to-select in Move
+mode, no restriction on the target set, no multi-board moves, no gizmo or gate change,
+and — the one that will matter soonest — the guide-points design's §3.1 board-owned
+filter is *subsumed* by this round's selected-board rule, so whichever ships second must
+merge the two into one expression rather than stacking them. **114** records that the
+browser pass found no defect, stated plainly so the section is not read as having
+findings it did not have. **115** half-closes follow-up 106: real `page.mouse` input and
+a projector taken from the app's own `project()` replaced synthetic `PointerEvent`s and a
+failed re-derivation; touch and pen remain unexercised. **116** is a verification-design
+note — a marker's colour encodes snap *kind*, not owner, so the fixture was built with a
+shared point that is a corner of one board and an edge midpoint of the other, which is
+what let a screenshot say anything about ownership at all.
 
 One entry is a lesson rather than a defect and is worth reading before touching anything
 in the viewport: **26a**. Browser verification on this host runs on software GL
