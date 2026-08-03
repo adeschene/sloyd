@@ -40,7 +40,7 @@ closes follow-up 99 by having every `Cut` contribute snap points of its own (a d
 floor rectangle and the two shoulder lines at its mouth), so the operation the Move tool
 most obviously exists for — seat a shelf into a side panel's dado — can finally be done
 exactly rather than by snapping to a face centre and nudging. None of the three makes a
-schema change — `CURRENT_VERSION` stays 5. Static SPA, containerized, 698/698 tests
+schema change — `CURRENT_VERSION` stays 5. Static SPA, containerized, 699/699 tests
 passing across 32 files.
 
 Host-specific deployment detail — hostname, container name, proxy configuration, and
@@ -1625,7 +1625,7 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 698 tests across 32 files
+npm test           # Vitest, currently 699 tests across 32 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

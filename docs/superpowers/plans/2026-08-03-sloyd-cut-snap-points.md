@@ -1,5 +1,14 @@
 # Cut-Aware Snap Points Implementation Plan
 
+> **EXECUTED 2026-08-03.** All seven tasks ran, plus two the plan did not anticipate: a
+> **Task 6b** filtering `boardSnapPoints` through `stockProbe` (the browser pass found the
+> design's own governing constraint failing on the oldest code in the feature — design
+> §5.1, follow-up 122), and a **Task 6c** re-check of that fix. Merged as `932c02a`,
+> deployed the same day. Two plan-supplied expectations turned out wrong and were
+> escalated rather than edited around: the rabbet count (15 → 12, corrected before
+> execution) and a `store.test.ts` import that would have failed `noUnusedLocals`.
+> Kept as written, as the record of what was planned versus what happened.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make a cut's shoulders snappable — every cut defines up to 15 points (its floor rectangle and the two shoulder lines at its mouth) and offers those that still touch remaining stock, so a shelf can be seated exactly in a side panel's dado.

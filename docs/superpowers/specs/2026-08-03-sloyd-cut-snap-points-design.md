@@ -1,9 +1,13 @@
 # Cut-aware snap points — design
 
 **Date:** 2026-08-03
-**Status:** approved, not yet implemented
-**Follow-up closed:** 99
+**Status:** SHIPPED — merged to `master` as `932c02a` and deployed the same day
+(`index-BH2XnbVu.js` → `index-BFdaQ-al.js`)
+**Follow-up closed:** 99. **Opened:** 119-129
 **Schema:** unchanged — `CURRENT_VERSION` stays 5
+**Amended mid-round:** §5.1 and §9.1's pick-radius paragraph were written AFTER the
+browser pass, which found the design's own governing constraint failing on
+`boardSnapPoints`. Read them as part of the design, not as an appendix.
 
 ---
 
