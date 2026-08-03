@@ -46,15 +46,22 @@ gitignored. Read that file before deploying; it is not in the public repo.
 layout, per-face views and board feet are all shipped and merged to `master`. Do not
 treat any of the five as in-flight.
 
-**Production matches `master` through snap-move, as of 2026-08-02 — but NOT through the
-selected-board grabs round, which is merged and not yet deployed.** Snap-move was merged
-and deployed the same day, unlike the three rounds before it that sat merged and held
-back at the user's choice; the round after it has had no deploy at all, so the live
-build still offers every board's snap points as grab candidates. Verified after the
-snap-move deploy: `200` on `/` and on a deep route both
-in-network and publicly, the new bundle (`index-PzaLeA8Y.js` → `index-DNH_-g9z.js`)
-served at the edge, the Select/Move pair present in the live toolbar, 0 console errors
-(two known three.js deprecation warnings), and exactly one Cloudflare beacon.
+**Production matches `master` as of 2026-08-03, selected-board grabs included.** That
+round was merged and deployed the same day, as snap-move was before it — unlike the three
+rounds before *that*, which sat merged and held back at the user's choice. Verified after
+the deploy: `200` on `/` and on a deep route both in-network and publicly, the new bundle
+(`index-DNH_-g9z.js` → `index-BH2XnbVu.js`) served at the edge, the toolbar hint
+*Select a part to move* live with the Move tool armed and nothing selected (and the Move
+button still enabled, per the design), 0 console errors (three known three.js deprecation
+warnings), and exactly one Cloudflare beacon.
+
+**The verification touched production's `localStorage` not at all, and the reason is
+worth carrying forward.** Arming the Move tool is a change to `tool`, which is view state
+beside `selectedId` — outside the document, outside the undo stack, never saved — so the
+hint could be confirmed live while `sloyd.autosave.v1` stayed absent in the verifying
+browser (checked, not assumed). Everything needing an actual board was exercised against
+the dev server. The standing rule's test is whether an interaction writes a document, not
+whether it looks small.
 
 **Snap-move carried no version-gate rollback cost**, unlike the deploy described below.
 It changes no schema, so a document saved by the live build still reads `version: 5` and
