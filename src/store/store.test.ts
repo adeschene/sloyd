@@ -549,12 +549,15 @@ describe('the Move tool', () => {
     const { a, b } = twoBoards();
     // b must be moved off a first. Two fresh boards share a default position,
     // so without this the delta is exactly zero and the commit correctly takes
-    // the no-op path below instead of the one under test.
+    // the no-op path instead of the one under test.
     useStore.getState().updateBoard(b.id, { position: [40, 0, 0] });
-    useStore.getState().grabSnapPoint(cornerOf(a.id));
-    useStore.getState().commitSnapMove(cornerOf(b.id));
+    // Grab from b, not a: the fixture selects a, so asserting selectedId === a
+    // after moving a would pass without commitSnapMove writing anything.
+    useStore.getState().selectBoard(b.id);
+    useStore.getState().grabSnapPoint(cornerOf(b.id));
+    useStore.getState().commitSnapMove(cornerOf(a.id));
     expect(useStore.getState().grabbed).toBeNull();
-    expect(useStore.getState().selectedId).toBe(a.id);
+    expect(useStore.getState().selectedId).toBe(b.id);
   });
 
   it('reverts a whole snap move with one undo', () => {
@@ -714,5 +717,30 @@ describe('the Move tool', () => {
     useStore.getState().grabSnapPoint(cornerOf(a.id));
     useStore.getState().duplicateBoard(a.id);
     expect(useStore.getState().grabbed).toBeNull();
+  });
+
+  it('refuses to commit when the grabbed board is not the selected one', () => {
+    // Unreachable through the UI — the candidate filter withholds every point
+    // that isn't the selected board's, and every selectedId writer drops the
+    // grab. This is the action-level half of that rule: the filter makes it
+    // true of the UI, the guard makes it true of the action, the same pairing
+    // the self-snap case already uses.
+    const { a, b } = twoBoards();
+    useStore.getState().updateBoard(b.id, { position: [40, 0, 0] });
+    const before = [...useStore.getState().doc.boards.find((x) => x.id === a.id)!.position];
+    const undoDepth = useStore.getState().past.length;
+
+    useStore.getState().grabSnapPoint(cornerOf(a.id));
+    // Reach past the store's own clearing to build the state under test.
+    useStore.setState({ selectedId: b.id });
+    useStore.getState().commitSnapMove(cornerOf(b.id));
+
+    expect(useStore.getState().doc.boards.find((x) => x.id === a.id)!.position)
+      .toEqual(before);
+    // No edit() ran, so no undo snapshot was pushed and redo was not wiped.
+    expect(useStore.getState().past.length).toBe(undoDepth);
+    // The grab is left in hand rather than discarded: the state should be
+    // unreachable, and silently dropping it would make it undiagnosable.
+    expect(useStore.getState().grabbed).not.toBeNull();
   });
 });
