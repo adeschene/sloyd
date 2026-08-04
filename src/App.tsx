@@ -7,6 +7,7 @@ import { GuidesList } from './panels/GuidesList';
 import { FileMenu, SaveIndicator, StorageBanner } from './panels/FileMenu';
 import { CutList } from './panels/CutList';
 import { TapeReadout } from './panels/TapeReadout';
+import { canBeginLength } from './units/length';
 import { storage } from './storage/browser';
 import { useStore } from './store/store';
 
@@ -171,6 +172,54 @@ export default function App() {
         const { tool, setTool } = useStore.getState();
         setTool(tool === 'tape' ? 'select' : 'tape');
         return;
+      }
+
+      // TYPE-ANYWHERE DISTANCE ENTRY — SketchUp's VCB, and the reason the Tape
+      // tool is worth having at all.
+      //
+      // Clicking a second snap point only ever places a guide where a snap
+      // point already was, which duplicates a point that existed. Typing a
+      // distance places one where nothing was — but the box that takes it lives
+      // in the corner of the canvas, is deliberately not autofocused, and
+      // announces itself with a placeholder. Reaching it means taking the
+      // pointer off the target you are measuring to. So the feature was
+      // present and effectively unreachable. This routes the first character
+      // into the box and focuses it, so a distance is typed where the eye
+      // already is.
+      //
+      // It lives inside this EXISTING listener rather than in one of its own,
+      // which is the rule CLAUDE.md states for every window-level shortcut: a
+      // window listener never sees which subtree an event came from, so each
+      // one needs the cut-list flag explicitly. Here that inheritance buys two
+      // guards rather than one — `cutListOpen` above (no seeding a hidden box
+      // while a sheet is being read) and `isTextEntry` at the top, which is
+      // also why only the FIRST character needs capturing: once the input has
+      // focus every later keystroke matches isTextEntry and returns early,
+      // reaching the field directly.
+      //
+      // Only characters that can BEGIN a length (canBeginLength, derived from
+      // parseLength's own patterns) — letters would eat the `t` and `m` tool
+      // shortcuts. Modifier chords are left alone, matching the M and T blocks
+      // above: Ctrl+0 and Cmd+- are the browser's zoom.
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && canBeginLength(e.key)) {
+        const { tool, tapeAnchor, setTapeTyped } = useStore.getState();
+        if (tool === 'tape' && tapeAnchor) {
+          // preventDefault because some of these characters are browser
+          // shortcuts with nothing focused ('/' opens quick-find in Firefox,
+          // and '-' is a zoom-out chord on some layouts).
+          e.preventDefault();
+          // REPLACES rather than appends. Reaching this line means nothing was
+          // focused (isTextEntry returned early otherwise), so this keystroke
+          // is not a continuation of anything — it is a fresh number, typed
+          // after the user went back to the canvas. Appending would silently
+          // splice it onto whatever was abandoned in the box.
+          setTapeTyped(e.key);
+          // Returning INSIDE the tape branch, not below it: a digit that was
+          // not captured has not been handled, so it must fall through to
+          // whatever else this listener grows rather than being swallowed by a
+          // tool that is not even armed.
+          return;
+        }
       }
 
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {

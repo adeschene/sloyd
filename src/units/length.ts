@@ -58,6 +58,42 @@ export function parseLength(input: string): number | null {
 }
 
 /**
+ * Could this single character begin a length `parseLength` would accept?
+ *
+ * The Tape tool's type-anywhere capture (App.tsx's keydown effect) uses this to
+ * decide whether a keystroke arriving with nothing focused is the start of a
+ * distance — in which case it is routed into the readout — or a shortcut. It is
+ * a fact about the grammar above, so it lives beside the grammar rather than
+ * inline in an event handler where nothing would ever compare it to the
+ * patterns it is derived from.
+ *
+ * Derived from all five patterns, not guessed:
+ *  - `DECIMAL_RE` accepts `\d+\.?\d*` or `\.\d+`, so a digit or `.` can lead.
+ *  - the sign strip at the top of `parseLength` accepts a leading `-`.
+ *  - `MM_RE`, `FEET_RE`, `MIXED_RE` and `FRACTION_RE` every one require a digit
+ *    first. Nothing this module parses begins with `/`, `'` or `"` — a bare
+ *    `/4` is not a length, so capturing `/` would swallow a keystroke and seed
+ *    the box with a value that can never parse.
+ *
+ * Whitespace is the one exclusion NOT justified by the patterns: `parseLength`
+ * trims, so `' 4'` does parse. Space scrolls, and a character contributing
+ * nothing to the number should not be the one that opens the box.
+ *
+ * Letters are excluded outright even though `mm`, `ft` and `in` are legal
+ * SUFFIXES: `t` and `m` are the app's tool shortcuts, and a length that begins
+ * with a letter does not exist. If any pattern above ever gains a new leading
+ * form, this set has to be revisited with it — that coupling is the reason the
+ * two sit in one file.
+ */
+export function canBeginLength(key: string): boolean {
+  // Length 1 filters out every named key in one test — 'Enter', 'Escape',
+  // 'Backspace', 'ArrowLeft' — none of which is a character at all, and none of
+  // which would have to be enumerated as this list grows.
+  if (key.length !== 1) return false;
+  return (key >= '0' && key <= '9') || key === '.' || key === '-';
+}
+
+/**
  * Render decimal inches as a shop-readable fraction, reduced to lowest terms.
  * `precision` is the denominator to round to (16 => nearest 1/16").
  */
