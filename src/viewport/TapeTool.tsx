@@ -280,8 +280,9 @@ export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
           // Not decoration: the Canvas passes no `flat`, so r3f applies ACES
           // tone mapping by default, and SnapMarker sets toneMapped={false} on
           // its discs for exactly this reason. Without it the line renders a
-          // tone-mapped #4f6fd0 beside an untone-mapped #4f6fd0 marker, and
-          // TAPE_COLOR's claim that the two read as one tool is simply false.
+          // tone-mapped guide hue beside an untone-mapped one, and TAPE_COLOR's
+          // claim that the two read as one tool is simply false. Named rather
+          // than spelled: the literal lives once, in SNAP_COLORS.guide.
           toneMapped={false}
           renderOrder={9}
           raycast={() => null}

@@ -602,7 +602,9 @@ export const useStore = create<StoreState>((set, get) => {
     // about the Move tool's selected-board grab set, and the tape has no such
     // restriction. Picking a part out of the parts list mid-measurement must
     // not silently discard the anchor. `tapeHover` is left alone here too,
-    // for the same reason. Pinned by a test.
+    // for the same reason. A test pins the ANCHOR half of that here; the
+    // hover's is pinned at edit()'s selection callback (two tests latch a
+    // hover across addBoard()), not at this action.
     selectBoard: (id) =>
       set((s) => ({
         selectedId: id,

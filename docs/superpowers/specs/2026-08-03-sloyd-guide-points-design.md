@@ -386,8 +386,11 @@ the same `dropHeldIfGone` survival test the cut edits use, called after the
 edit: a rename keeps the anchor, a Length or Posture change drops it. `grabbed`
 keeps its board-precise clause, which predates this round by two. The same
 amendment governs `tapeHover`, invariant 24's third instance, which this design
-predates entirely — see §4.2 and the field's declaration in `store.ts` for the
-full enumeration.
+predates entirely. §4.2 covers only one half of its governance — the *selection*
+prohibition it shares with the anchor; for the point-precise `updateBoard` rule
+and the full enumeration of which writers are survival-tested, which are
+owner-conditional and which are blanket, read the field's declaration in
+`store.ts`.
 
 ### 4.1 The cut edits, which this design predates
 

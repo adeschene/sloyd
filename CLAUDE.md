@@ -39,9 +39,14 @@ the first correction snap-move needed in use — and now **cut-aware snap points
 closes follow-up 99 by having every `Cut` contribute snap points of its own (a dado's
 floor rectangle and the two shoulder lines at its mouth), so the operation the Move tool
 most obviously exists for — seat a shelf into a side panel's dado — can finally be done
-exactly rather than by snapping to a face centre and nudging. None of the three makes a
-schema change — `CURRENT_VERSION` stays 5. Static SPA, containerized, 699/699 tests
-passing across 32 files.
+exactly rather than by snapping to a face centre and nudging. None of those three made a
+schema change — `CURRENT_VERSION` stayed 5 through all of them — and now **guide points
+and the tape measure**, which does: press `T`, click a snap point to anchor, hover a
+second to read the distance in an overlay, then click to place a persistent **guide
+point** or type a length to place one that far along the anchor→hover ray. Guides are
+document data (**schema version 6**), snappable by the Move tool, drawn as smaller
+"resting" markers that grow when hovered, hidden by a Guides checkbox, and listed in a
+sidebar panel. Static SPA, containerized, 768/768 tests passing across 33 files.
 
 Host-specific deployment detail — hostname, container name, proxy configuration, and
 the manual steps a human has to perform — lives in `DEPLOYMENT.local.md`, which is
@@ -149,16 +154,23 @@ survives it.
 - **`SnapOwner` is the one decision in the round that outlives the round.** The picker
   consumes `SnapPoint[]` and never sees a `Board`, and a `SnapPoint`'s `owner` is a
   discriminated union (`{ type: 'board'; id: string }`) rather than a bare board id.
-  Today there is exactly one member, which makes the union look like ceremony until you
-  look at the named follow-ups: a guide point is a bare position the user placed, a
-  guide line contributes its endpoints and its intersections with other guides, and the
-  tape measure's anchor is transient and owned by the tool itself. None of those belongs
-  to a board. With a bare id, every one of them would have to reopen the picker's
-  signature — and the cheapest shortcut at that moment would be to synthesise a fake
-  `Board` to carry a guide point, which would put a lie in the document layer. Taking
-  `SnapPoint[]` costs nothing today and makes each follow-up a new *provider* instead.
-  The cut-aware points deferred in §8 land the same way: dado shoulders are a second
-  provider over the same board, not a different picker (follow-up 99).
+  At that point there was exactly one member, which made the union look like ceremony
+  until you looked at the named follow-ups: a guide point is a bare position the user
+  placed, a guide line contributes its endpoints and its intersections with other guides,
+  and the tape measure's anchor was expected to be transient and owned by the tool itself.
+  None of those belongs to a board. With a bare id, every one of them would have to reopen
+  the picker's signature — and the cheapest shortcut at that moment would be to synthesise
+  a fake `Board` to carry a guide point, which would put a lie in the document layer.
+  Taking `SnapPoint[]` cost nothing and made each follow-up a new *provider* instead.
+  The cut-aware points deferred in §8 landed the same way: dado shoulders are a second
+  provider over the same board, not a different picker (follow-up 99). **The
+  guide-points round then added the second member and settled two of those predictions,
+  one of them the other way**: guides are indeed a provider and the picker's signature
+  never moved, but the tape's anchor turned out to need the *store* rather than the tool
+  (it holds a captured world position, so it needs invariant 24's clearing, which a
+  `useState` in the component cannot get), and guide lines were dropped outright
+  (follow-up 130). The widening also has a cost this bullet could not foresee — see
+  invariant 26.
 - **Screen space, not raycast-first — chosen against the cheaper option for a concrete
   reason.** The obvious approach is to raycast the board under the cursor and offer only
   that board's points; it is cheaper and it disambiguates for free. It is also wrong,
@@ -381,7 +393,7 @@ document state, no new store field, no new UI surface.
 - **Known, deferred, and verified in a real browser** — see
   `docs/browser-verification-cut-snap-points.md` (the main pass, plus a narrower "Re-check
   after the box-lattice fix" section appended to it) and `docs/follow-ups.md`'s "From the
-  cut-aware snap points round" section (119-128). The pass found **no defect in this
+  cut-aware snap points round" section (119-129). The pass found **no defect in this
   round's code** and two findings, both adjudicated with the user: the box-lattice gap was
   **fixed now** and became design §5.1, and the pick ambiguity was **accepted**. That
   second one is the round's honest negative result and is recorded with its numbers rather
@@ -476,37 +488,110 @@ Sheet-nesting closed the cut list's §7 list entirely — see the updated "Defer
 it" paragraph below — and snap-move was the successor picked, deliberately in a
 different part of the app rather than a sixth cut-list descendant.
 
-**The next line of work is THE TAPE MEASURE, GUIDE POINTS AND GUIDE LINES, as of
-2026-08-03 — and unlike every round before it, this one already has both a design
-(`docs/superpowers/specs/2026-08-03-sloyd-guide-points-design.md`) and a committed
-implementation plan, written on 2026-08-02.** It was moved back one place to let
-cut-aware snap points go first, on the reasoning recorded in that round's write-up below
-— guides are the general-purpose *workaround* for the absence of cut points, so shipping
-them first would have taught people to reach for the workaround and cost the signal about
-what guides actually need to cover. That reordering is now spent: cut points shipped, and
-guides are next.
+**What the guide-points round did**, design in
+`docs/superpowers/specs/2026-08-03-sloyd-guide-points-design.md` (amended twice during
+execution), browser pass in `docs/browser-verification-guide-points.md`. Chosen
+2026-08-03 and executed 2026-08-04. This is the expensive round the two cheap ones were
+sequenced ahead of — it had been moved back one place to let cut-aware snap points go
+first, because guides are the general-purpose *workaround* for the absence of cut points
+and shipping them first would have taught people to reach for the workaround. That
+reordering is spent. It is also the first round in the repo to start from a design **and**
+a committed plan written a day earlier, which is what made a pre-execution revision pass
+possible — see the lesson at the end.
 
-This is the expensive round the two cheap ones were sequenced ahead of. It needs schema
-**v6** — a `guides` array beside `boards` and `stock`, and a migration step, the first
-real version gate since sheet nesting — plus a placement tool, a visibility toggle and a
-list. The tape measure probably needs none of that: its anchor is transient and owned by
-the tool itself. Read follow-up 105 for what the user asked for, and the snap-move
-design's §2.3 for the interface all three land through: each is a new `SnapPoint`
-*provider*, not a change to `pickSnapPoint`, which is what the `SnapOwner` discriminated
-union was built for and what the cut-points round has now exercised once for real.
+A third tool, modal, beside Select and Move. With **Tape** active (`T`): hovering marks
+the nearest snap point exactly as Move does; clicking sets the **anchor**; hovering
+elsewhere marks a second point, draws a line between them and shows the distance in an
+overlay; and then **clicking** places a persistent **guide point** at the hovered
+position, or **typing a length and pressing Enter** places one at
+`anchor + normalize(hover − anchor) × typed`. No button is held between the two clicks,
+for the reason snap-move chose click-move-click: the camera stays fully usable
+mid-measurement.
 
-**Its plan needs a revision pass before it is executed, and the specific reason is
-recorded so it is not rediscovered.** The guide-points design's §3.1 filters grabbable
-candidates to *board-owned* points. The selected-board grabs round subsumed that with a
-narrower rule (the **selected** board's points, which are board-owned by construction),
-and the cut-points round widened the same branch again (the selected board's points, from
-**both providers**, via `snapPointsFor`). Guides therefore land third into that branch,
-not second. Merge the rules into **one** predicate in the pre-grab branch rather than
-stacking filters — two that agree today are two places for a future rule to disagree, and
-the redundant one would be dead code that reads as load-bearing (follow-ups 113 and 125).
-Note also that guides introduce the first category of point that is deliberately *never*
-grabbable, and that `MoveTool`'s memo is two sets rather than one set with a filter, so
-§3.1's rule belongs only to the pre-grab branch.
+- **Schema v6, and the bump's argument is NOT v5's — copying v5's wording would have been
+  wrong.** `guides: GuidePoint[]` is a document-level field, so it takes `stock`'s
+  migration shape and has no `rawBoards.map` step at all; that makes it the **second**
+  instance of that shape, which is what turns it into the stated pattern for
+  document-level fields rather than an exception. But v5's justification was a *wrong
+  purchasing number* — a v4 build would drop a user-set kerf and print a different sheet
+  count. Guides produce no number: nothing on the cut list, in the nesting or in the
+  board-feet totals reads them, and a build without them prints exactly what a build with
+  them prints. The argument here is plainer and weaker, and it is still what the gate is
+  for: **silent data loss on round-trip**. A v5 build opens a v6 file, drops every guide
+  the user placed, autosaves, and they are gone with nothing indicating it. As with v5 the
+  bump is **not** needed to upgrade an old file — an absent `guides` defaults to `[]`
+  cleanly regardless of `CURRENT_VERSION`. `validateGuides` drops a malformed guide rather
+  than refusing the file (`validateCuts`' rule and its reason), and dropping is the only
+  available repair because a guide has no nearest-legal-value to clamp toward.
+- **A guide has no name, and that is a schema decision rather than a UI one.** Its
+  position is what identifies it. A naming scheme would have dragged in `uniqueName`,
+  invariant 8's four-place enforcement and a rename field, for a marker whose only job is
+  to be somewhere. Guide ids are deliberately **not** deduplicated — see follow-up 131,
+  which inherits 97's exposure rather than closing half of it.
+- **`SnapOwner`'s widening is the round's single most dangerous edit, and the answer was a
+  TYPE rather than eight checks.** Both union members carry an `id: string`, so every
+  existing `owner.id` read keeps typechecking while quietly meaning something else. Eight
+  reads in `store.ts` assume `owner.id` names a board, and seven of them are correct only
+  because `MoveTool` never offers a guide as a grab source — an invariant enforced two
+  modules away, which is exactly the kind of accident the next round breaks and which no
+  comment can hold. `BoardSnapPoint` moves that enforcement into tsc. See the new
+  invariant 26 for the full rule, and follow-up 135 for what a type does **not** buy.
+- **Follow-up 125 was closed by a document, not by code, and the absence is deliberate.**
+  125 asked whoever shipped second to merge design §3.1's board-owned candidate filter
+  with the selected-board rule into one predicate. There was nothing to merge:
+  `MoveTool`'s pre-grab branch is already the selected board's points, board-owned by
+  construction, so the filter was **discharged** — writing it would have produced the dead
+  code 113 and 125 exist to warn about. Guides join the **post-grab** branch only. A
+  reader looking for a merged predicate will find a comment; that is the resolution, not
+  an oversight.
+- **`tapeAnchor` is invariant 24's second instance and `tapeHover` its third, and the
+  third earned it the hard way.** An anchor holds a world position captured at click time,
+  exactly as a grab does. A *hover* would normally be too transient to go stale — the next
+  pointermove re-picks it — except that `TapeTool` **latches** it while anchored, because
+  the only route to typing a distance is off the canvas and into the readout. So it can
+  sit unreplaced across an arbitrary number of edits. All three are cleared through one
+  generalised helper, `dropHeldIfGone`, and the clearing rules differ per field in ways
+  invariant 24 now spells out — including a `grabbed`/`tapeAnchor` asymmetry at
+  `updateBoard` that is deferred **with a condition**, because it is a trap in both
+  tidying directions (follow-up 134).
+- **A fourth `SnapKind` and a fourth off-palette hue (`#4f6fd0`), which reads against
+  follow-up 121 rather than contradicting it.** 121 *rejected* a fourth kind for cut
+  points because hue encodes which *kind* and position encodes which *feature*, and a dado
+  shoulder is a corner — a new colour would have said what the marker's location already
+  said. A guide is not a corner, an edge midpoint or a face centre of anything; it is a
+  position the user placed. Same rule, opposite answer.
+- **A guide draws differently resting than hovered, and that is not decoration.** Every
+  other snap point exists only while hovered, so its marker *appearing* is the confirmation
+  that it is what you are about to snap to. A guide is drawn whenever guides are shown,
+  which takes that signal away. `SnapMarker` gained a `resting` variant (`RESTING_PX`,
+  no ring) so a guide under the cursor **grows** into exactly the marker every other kind
+  uses. This is the one place the round touches `SnapMarker`'s geometry rather than its
+  palette.
+- **The Guides checkbox gates candidates, not just pixels.** While guides are hidden they
+  offer no snap candidates, in **either** tool — a marker over an invisible point is the
+  same defect snap-move avoided by skipping the volume centre. `showGuides` is local view
+  state in `App`, prop-drilled: it joins `shortcutsSuspended`, **not** `tool`/`grabbed`.
+  Read the three together as one rule applied to three fan-outs.
+- **The guides list has no selection model**, deliberately — no `selectedGuideId`, no
+  Delete-key path, nothing touching `selectedId`. It exists to remove guides. This also
+  sidesteps invariant 21's trap rather than meeting it in a browser: a guide's marker is
+  far smaller than a board, so click-the-guide-in-the-viewport is a known-bad hit target,
+  recorded before anyone builds it.
+- **Known, deferred, and verified in a real browser** — see
+  `docs/browser-verification-guide-points.md` (20/20 checks, **no defect** in the round's
+  code, neither browser-settled constant retuned) and `docs/follow-ups.md`'s "From the
+  guide-points round" section (130-141) for the deferrals and the round's lessons. 141 is
+  the one to read: the plan-supplied-code chain took **four** instances in this round plus
+  a fifth from a brief-supplied comment, and three fixtures passed for the wrong reason —
+  two of them sharing one root cause, that `boardSnapPoints(board)[0]` is the min corner,
+  which *is* `board.position`, so a length change never moves it. The most obvious point to
+  grab in a fixture is the one point that survives the edit you are testing.
+
+**The next line of work is not chosen.** Guides were the last named successor from
+snap-move's §8 and follow-up 105; that list is now spent apart from **semi-infinite
+construction lines**, which were set aside with guide lines on the judgement that points
+with typed offsets may simply be enough in practice (follow-up 130). Nothing in the ledger
+picks what comes next.
 
 **What the empty-solids placeholder did** (2026-08-01, closing follow-ups 48 and 49; no
 spec — the diagnosis and the chosen fix were already in the ledger). A board whose own
@@ -911,9 +996,10 @@ Static single-page app. No server, no database, no API, no env vars.
 
 **Governing rule: the plain-JSON document is the source of truth; the Three.js scene
 is derived from it and is never authoritative.** A document is
-`{ version, name, units, stock, boards: [...] }` — `stock` (the sheet-nesting round's
-addition, `{ kerf: number }`) is the first document-level field alongside `units` that
-isn't `boards`. Dragging a board in the viewport computes a
+`{ version, name, units, stock, guides: [...], boards: [...] }` — `stock` (the
+sheet-nesting round's addition, `{ kerf: number }`) is the first document-level field
+alongside `units` that isn't `boards`, and `guides` (the guide-points round's addition,
+`GuidePoint[]`) is the second. Dragging a board in the viewport computes a
 number, writes it to the document, and the scene re-renders from the updated document
 — never the reverse. This is what keeps undo, save/load, and export simple: they only
 ever serialize or restore the document.
@@ -1006,7 +1092,7 @@ parallel code path.
 **Versioning:** every document carries a `version` field, and every load path (open,
 import, autosave-restore) runs through `migrateDocument` before the document is
 trusted. This is what lets the schema evolve (e.g. for the cut list) without breaking
-files saved by earlier versions. `CURRENT_VERSION` is 5, and migration is a real
+files saved by earlier versions. `CURRENT_VERSION` is 6, and migration is a real
 chain: each step runs on raw data, in version order, one version at a time
 (`if (d.version < 2) …; if (d.version < 3) …; if (d.version < 4) …`), before any board
 reaches `validateBoard`. A v1 file walks 1→2→3→4 — `foldRotationToV2` (180→0, 270→90)
@@ -1037,6 +1123,23 @@ justified `addCutsToV4` despite its default matching the validator's own fallbac
 chain's value is that every version number means something definite, not that every
 step changes what a fresh document looks like.
 
+**The v5→v6 step is the SECOND of that shape, which is what makes it the pattern for
+document-level fields rather than an exception — but its bump argument is a different
+one, and copying v5's wording would have been wrong.** `guides: GuidePoint[]` is
+document-level (there is no per-board version of a guide), so like `stock` it has **no
+`rawBoards.map` step at all**: it is read defensively off the raw document and defaulted
+to `[]` when absent or not an array, and `validateGuides` then drops any guide whose `at`
+is not three finite numbers or whose `id` is not a non-empty string — never refusing the
+file, because a saved document must always open. What does *not* carry over is v5's
+justification. Guides produce no number: nothing on the cut list, in the nesting or in the
+board-feet totals reads them, so a v5 build and a v6 build print exactly the same sheet.
+The argument here is plainer and weaker, and it is still what the gate exists for:
+**silent data loss on round-trip** — a v5 build opens a v6 file, drops every guide the
+user placed, autosaves, and they are gone with nothing on screen indicating it. As with
+v5, the bump is **not** needed to upgrade an old file. See the guide-points design's §2.2,
+which states this explicitly so the next person adding a document-level field reads which
+of the two arguments applies to theirs rather than inheriting the wrong one.
+
 Full detail: `docs/superpowers/specs/` (design) and `docs/superpowers/plans/`
 (implementation plan). This section is a summary, not a replacement for either.
 
@@ -1051,7 +1154,8 @@ src/
 │                             length.ts uses. Imports nothing; a sibling leaf, not a
 │                             widening of length.ts (a volume is not a length)
 ├── document/
-│   ├── types.ts             Board, SloydDocument (now carries `stock: { kerf }`),
+│   ├── types.ts             Board, GuidePoint, SloydDocument (now carries
+│   │                        `stock: { kerf }` and `guides: GuidePoint[]`),
 │   │                        Rotation, Posture, Grain, MATERIALS (`sheet` is now a
 │   │                        `SheetStock` object, not a boolean), SheetStock,
 │   │                        isSheetGood, sheetStockOf
@@ -1115,33 +1219,56 @@ src/
 │   │                        MoveTool's branches. sameSnapPoint lives here rather
 │   │                        than in viewport/snapPick.ts because the store needs
 │   │                        it and cannot import viewport — one home, not a
-│   │                        re-export. Exports SnapKind / SnapOwner / SnapPoint —
-│   │                        the owner is a discriminated union so guide points,
-│   │                        guide lines and the tape measure add a member rather
-│   │                        than reopening the picker. Pure; imports ./types,
-│   │                        ./geometry and ./cuts (for Point and stockProbe) —
-│   │                        notably NOT ../units, unlike cutlist.ts, diagram.ts
-│   │                        and nesting.ts: a snap point carries no printed
-│   │                        string, so that boundary is untouched here
-│   └── document.ts          create / validate / migrate (v1->v2->v3->v4->v5 chain,
-│                            v5 document-level rather than per-board — see
-│                            Architecture); re-exports the other nine
+│   │                        re-export. guideSnapPoints: one candidate per guide,
+│   │                        the guide-points round's whole provider — the third
+│   │                        one, and the first that is not over boards.
+│   │                        offsetPoint(anchor, toward, distance): the tape's one
+│   │                        subtraction, returning null for a zero-length
+│   │                        direction (§1.2) or a non-finite distance rather than
+│   │                        letting NaN into the document. Exports SnapKind (now
+│   │                        four, 'guide' added) / SnapOwner / SnapPoint /
+│   │                        BoardSnapPoint — the owner is a discriminated union so
+│   │                        guides and the tape measure added a member rather than
+│   │                        reopening the picker, and BoardSnapPoint is what makes
+│   │                        the widening safe (invariant 26). Pure; imports
+│   │                        ./types, ./geometry and ./cuts (for Point and
+│   │                        stockProbe) — notably NOT ../units, unlike cutlist.ts,
+│   │                        diagram.ts and nesting.ts: a snap point carries no
+│   │                        printed string, so that boundary is untouched here
+│   └── document.ts          create / validate / migrate (v1->v2->v3->v4->v5->v6
+│                            chain, v5 and v6 document-level rather than per-board
+│                            — see Architecture); validateGuides (drop malformed,
+│                            never refuse the file); createGuide; re-exports the
+│                            other nine
 ├── store/store.ts           Zustand store, snapshot undo/redo, gesture coalescing;
-│                            also `tool` ('select' | 'move') and `grabbed`
-│                            (SnapPoint | null) as view state beside selectedId,
-│                            with setTool / grabSnapPoint / cancelGrab /
-│                            commitSnapMove, plus dropGrabIfGone(boardId), which
-│                            addCut/updateCut/removeCut each call AFTER their
-│                            edit(): the grab survives iff the grabbed point is
-│                            still among that board's snapPointsFor output — see
-│                            invariants 24 and 25
+│                            also `tool` ('select' | 'move' | 'tape') and three
+│                            HELD POINTS as view state beside selectedId —
+│                            `grabbed` (BoardSnapPoint | null, the narrow type on
+│                            purpose: invariant 26), `tapeAnchor` and `tapeHover`
+│                            (both SnapPoint | null, wide because either can hold a
+│                            guide) — with setTool / grabSnapPoint / cancelGrab /
+│                            commitSnapMove / setTapeAnchor / clearTapeAnchor /
+│                            setTapeHover, plus addGuide / removeGuide /
+│                            clearGuides, plus dropHeldIfGone(boardId) — the
+│                            guide-points round's generalisation of
+│                            dropGrabIfGone over all three fields, which
+│                            addCut/updateCut/removeCut AND updateBoard each call
+│                            AFTER their edit(): a held point survives iff it is
+│                            still among that board's snapPointsFor output. Which
+│                            writers are survival-tested, which are
+│                            owner-conditional and which are blanket is enumerated
+│                            at `tapeHover`'s declaration, which is the single
+│                            source of truth for it — see invariants 24, 25 and 26
 ├── storage/
 │   ├── types.ts             the StorageAdapter interface
 │   └── browser.ts           BrowserStorageAdapter + the `storage` singleton
 ├── viewport/
 │   ├── Viewport.tsx         Canvas, lights, grid, shadow receiver, camera keys;
-│   │                        renders <MoveTool />, hides <Gizmo /> in move mode,
-│   │                        gates onPointerMissed, crosshair cursor
+│   │                        renders <MoveTool />, <TapeTool /> and (when
+│   │                        showGuides) <GuideMarkers />, hides <Gizmo /> outside
+│   │                        select mode, gates onPointerMissed, crosshair cursor.
+│   │                        Sits inside App's `.viewport-stack` wrapper, which is
+│   │                        what TapeReadout positions against
 │   ├── BoardMesh.tsx        one board, derived from the document each render;
 │   │                        falls back to a translucent ghost box at the AABB
 │   │                        when boardSolids is empty — see invariant 21. Takes a
@@ -1162,14 +1289,51 @@ src/
 │   │                        deliberately unrestricted — see design §3. BOTH
 │   │                        branches go through snapPointsFor, so a cut shoulder
 │   │                        is both grabbable and — the point of the cut-aware
-│   │                        round — a TARGET on the board that is not selected
+│   │                        round — a TARGET on the board that is not selected.
+│   │                        Guides join the POST-GRAB branch only (targets, never
+│   │                        grab sources) and only when showGuides; `guides` and
+│   │                        `showGuides` sit in the dep list BESIDE selectedId,
+│   │                        which invariant 15 is about. The pre-grab branch
+│   │                        needs no board-owned filter — it is already one
+│   │                        board's points (follow-up 132)
+│   ├── TapeTool.tsx         the Tape tool: MoveTool's sibling, same raw-DOM
+│   │                        pointer handling on gl.domElement, same picker. Its
+│   │                        candidate set withholds NOTHING in either direction —
+│   │                        no self-snap case (measuring corner-to-corner on one
+│   │                        board is ordinary) and no selected-board restriction
+│   │                        (measuring BETWEEN boards is most of what it is for,
+│   │                        which is why design §4.2's two selection clears are
+│   │                        prohibitions). Reads s.tapeHover directly rather than
+│   │                        holding a second copy, so marker, line and readout
+│   │                        cannot diverge; LATCHES the hover while anchored,
+│   │                        because the only route to typing a distance is off
+│   │                        the canvas. Draws the measuring line (drei <Line>,
+│   │                        solid, toneMapped off so it matches the marker hue)
+│   ├── GuideMarkers.tsx     every guide in the document, drawn whenever guides
+│   │                        are shown and independent of any tool — a guide is
+│   │                        document data, so it is visible in select mode too.
+│   │                        Reuses SnapMarker in its RESTING variant; the hovered
+│   │                        marker is drawn by whichever tool is hovering it, on
+│   │                        top and at full size, which is what produces the
+│   │                        growth
 │   ├── SnapMarker.tsx       one screen-constant, always-on-top marker
 │   │                        (depthTest off, so an occluded candidate's pick is
-│   │                        visible). Owns the three off-palette colours, the ring
-│   │                        and MARKER_PX/RING_PX — all browser-settled
+│   │                        visible). Owns the four off-palette colours, the ring
+│   │                        and MARKER_PX/RING_PX/RESTING_PX — all browser-settled.
+│   │                        RESTING_PX is the guide-only smaller, ringless
+│   │                        variant: guides are the only points drawn when nothing
+│   │                        hovers them, so growth is what replaces "the marker
+│   │                        appeared" as the pick confirmation (design §5.2)
 │   ├── snapPick.ts          pickSnapPoint: nearest candidate in SCREEN space
 │   │                        within radiusPx, ties broken by depth (nearer the
-│   │                        camera wins); plus PICK_RADIUS_PX. sameSnapPoint is
+│   │                        camera wins), and an exact depth tie keeps the
+│   │                        first-found — which is what makes a guide sitting on
+│   │                        a board point deterministic for a fixed candidate
+│   │                        order (follow-up 133). GENERIC in the candidate type
+│   │                        since the guide-points round, so a board-only array
+│   │                        yields a BoardSnapPoint; currently unrealized, both
+│   │                        call sites pass a union. Plus PICK_RADIUS_PX.
+│   │                        sameSnapPoint is
 │   │                        no longer here — it moved down into document/
 │   │                        snapPoints.ts so the store could reach it, and this
 │   │                        file imports it from there (one home, not a
@@ -1197,11 +1361,20 @@ src/
 │   │                        REFUSE out-of-range entry rather than clamping
 │   ├── NameField.tsx        part name; commits on blur/Enter, empty reverts
 │   ├── Toolbar.tsx          project name, Add board, Cut list, undo/redo, the
-│   │                        Select / Move button pair, view toggles; plus the
-│   │                        "Select a part to move" hint, shown when move is
-│   │                        armed with nothing selected. The Move button stays
-│   │                        ENABLED — the hint explains the state instead of
-│   │                        removing the control
+│   │                        Select / Move / Tape button trio, view toggles
+│   │                        (Grid, Origin, Guides); plus the "Select a part to
+│   │                        move" hint, shown when move is armed with nothing
+│   │                        selected. The Move button stays ENABLED — the hint
+│   │                        explains the state instead of removing the control
+│   ├── TapeReadout.tsx      the tape's DOM overlay: the measured distance and the
+│   │                        typed-length input. A real <input> outside the Canvas
+│   │                        (not drei Html), so parseLength and the app's own
+│   │                        field styling apply; renders nothing without an
+│   │                        anchor. Placed inside `.app-shell` on purpose, so the
+│   │                        cut list's `inert` still covers it
+│   ├── GuidesList.tsx       one row per guide, coordinates through formatLength
+│   │                        at the document's precision, an x per row and a Clear
+│   │                        all. NO selection model, deliberately — design §7
 │   ├── PartsList.tsx  FileMenu.tsx
 │   ├── Properties.tsx       board fields + the Cuts section; CutRow is its own
 │   │                        component so a cut's error dies with the cut
@@ -1238,9 +1411,15 @@ src/
 │                            calls formatLength never, and owns the Diagrams toggle
 │                            (none / joinery only / all) and the Sheet layouts toggle
 │                            (on / off) — both local view state
-└── App.tsx                  layout, autosave/restore effects, undo keybindings, and
-                             the `.app-shell` wrapper that goes `inert` behind the
-                             cut list
+└── App.tsx                  layout, autosave/restore effects, undo keybindings, the
+                             `.app-shell` wrapper that goes `inert` behind the
+                             cut list, the `.viewport-stack` wrapper TapeReadout
+                             positions against, and `showGuides` as local view
+                             state prop-drilled to Viewport and Toolbar (it joins
+                             `shortcutsSuspended`, NOT the store's `tool`). `M`,
+                             `T` and Escape all live inside the ONE existing
+                             keydown effect, inheriting its cutListOpen and
+                             text-entry guards rather than adding a listener
 ```
 
 Deployment scaffolding: `Dockerfile`, `docker-compose.yml`, `nginx.conf`,
@@ -1601,6 +1780,63 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
     sit **after** `edit()`, since the whole question is what the board offers once the
     edit has landed. A blanket clear would be simpler and wrong — see follow-up 127 for
     the two cases the store tests do not reach.
+
+    **The guide-points round added `tapeAnchor` as this invariant's SECOND instance and
+    `tapeHover` as its THIRD, generalised `dropGrabIfGone` into `dropHeldIfGone` over all
+    three, and left one asymmetry that must not be tidied away.** An anchor holds a world
+    position captured at click time exactly as a grab does — the readout's distance and
+    the direction a typed offset runs along both derive from `tapeAnchor.at` — so if the
+    world moves under it, a guide placed from it lands somewhere the user never pointed
+    at. A *hover* would normally be too transient to qualify, and that is what makes the
+    third instance worth stating: `TapeTool` **latches** the hover while anchored (the
+    only route to typing a distance is off the canvas and into the readout), so it can
+    sit unreplaced across an arbitrary number of edits, and the reachable path is the one
+    this invariant already records for `grabbed` — anchor on board A, hover a point on
+    board B, leave the canvas, edit board B's Length in Properties. `tapeAnchor` correctly
+    survives that, which is precisely why a live anchor says nothing about the target
+    being current. One helper over all three rather than a second copy, for follow-up
+    113's reason; `dropHeldIfGone` keeps the original's **guard-first shape**, returning
+    before any grid arithmetic when none of the three fields is relevant, and adding a
+    field is exactly how that would be lost. Four things about the three fields' clearing
+    are load-bearing:
+
+    - **`clearGuides` clears both tape fields UNCONDITIONALLY**, and that is right rather
+      than sloppy: every guide is going, so any guide-owned anchor is invalid and a
+      board-owned one is cheap to drop, and narrowing would buy one edge case at the cost
+      of a reader's certainty that no stale anchor survives. The *hover* going
+      unconditionally is defensible **only** because the anchor is nulled in the same
+      statement — no anchor, no latch, since `TapeReadout` renders nothing without one and
+      every commit path returns on it. That is a property of the five statements that do
+      it (`setTool`, `clearGuides`, `undo`, `redo`, `replaceDocument`), not a licence to
+      add a sixth.
+    - **A PROHIBITION: `edit()`'s selection callback and `selectBoard` must NOT clear
+      `tapeAnchor` or `tapeHover`.** Those two drop a *grab* for a reason specific to the
+      Move tool — its grab candidates are the selected board's points, so a selection
+      landing elsewhere means the user retargeted the tool. None of that reaches the tape,
+      which has no selected-board restriction at all: measuring from one board to another
+      is most of what it exists for, and "measure from this board to the one I am about to
+      add" is a live path through `addBoard`. Stated as a prohibition rather than left as
+      an absence because *"add `tapeAnchor: null` beside every `grabbed: null`"* is exactly
+      what a tidying pass would do, and it would look like consistency. Store tests exist
+      to catch it.
+    - **THE ASYMMETRY, and it is a trap in both directions.** At `updateBoard` the two
+      tape fields are point-precise (they route through `dropHeldIfGone(id)` after the
+      edit) while **`grabbed` keeps a board-precise clause**, so renaming the grabbed board
+      cancels the grab. That is deferred *because it is shipped Move-tool behaviour from
+      two rounds back*, **not** because the argument fails to reach it — `updateBoard` is
+      the only rename path, and `{ name }`/`{ material }`/`{ grain }` move no point. The
+      tape needed the fix because nulling the anchor nulls the latched hover and unmounts
+      the readout, destroying the whole measurement; a cancelled grab costs one click.
+      Mechanically: the board-precise `grabbed` clause fires **first** and pre-empts the
+      survival test below it, which is exactly what made `tapeAnchor`'s old clause a no-op.
+      So **deleting the `grabbed` clause would silently convert it to point-precise**, and
+      **adding one back for either tape field would silently re-break the rename case** —
+      caught only by the two "keeps" tests, never by the "drops" ones, which pass under
+      either rule. See follow-up 134.
+    - **The enumeration lives in ONE place** — `tapeHover`'s declaration in `store.ts`,
+      which says which writers are survival-tested, which are owner-conditional and which
+      are blanket. Point at it; do not restate a count anywhere else, which is how a
+      comment in this file went stale once already.
 25. **The snap move is deliberately NOT rounded to `SNAP_INCHES`, and this is the exact
     opposite of what `Gizmo.tsx` does — both are correct.** The gizmo snaps to 1/16"
     because a free drag lands on arbitrary numbers and a board should come to rest
@@ -1620,12 +1856,63 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
     back out of `localStorage` — IEEE-754 noise from the corner-offset arithmetic, not a
     snap, which would have landed on `0` exactly.
 
+    **A tape-placed guide is unrounded for the identical reason**, and the two halves of
+    the tape agree: a click places a guide at `hit.at`, the hovered candidate's own
+    position, and a typed length places one at `offsetPoint(anchor, hover, d)` —
+    `anchor + dir × d` with no rounding step in either path. A guide exists to be snapped
+    *to*, so rounding it to 1/16" would move it off the feature it was placed on and make
+    the subsequent snap land somewhere the user did not point at, while the display
+    rounds to the same string either way (invariant 5) so nothing on screen shows it.
+    Same rule, third operation: round what a free drag produced, and touch nothing that
+    is already an exact position or a difference of two of them.
+26. **`grabbed` is a `BoardSnapPoint`, and that is what makes eight reads correct.** The
+    guide-points round widened `SnapOwner` with a `{ type: 'guide'; id: string }` member,
+    and that edit is silent by construction: both members carry an `id` of type `string`,
+    so every existing `owner.id` read keeps typechecking while quietly meaning something
+    else. Eight reads in `store.ts` assume `owner.id` names a **board** — enumerated in
+    the guide-points design's §3 and pointed at from `grabbed`'s own declaration; do not
+    restate the list here. Seven of those eight are correct only *by accident* even
+    unfixed, because a guide-owned value can never reach `grabbed` — and that accident
+    holds solely because of a filter enforced two modules away in `MoveTool`, which is
+    exactly the kind of thing the next round breaks. **A comment cannot enforce it; a type
+    can.** So `boardSnapPoints`, `cutSnapPoints` and `snapPointsFor` are annotated
+    `BoardSnapPoint[]` (each already produced exactly that), `pickSnapPoint` became
+    generic in the candidate type, and `grabbed`/`grabSnapPoint` take the narrow type.
+    The providers construct `owner` with a narrowed literal, so tsc — not a reviewer —
+    holds the property those eight reads depend on.
+
+    The consequence that reads as a gap and is the win: **the "a guide-owned grab must be
+    declined" store test was deleted, because that state cannot be constructed in
+    TypeScript at all.** Follow-up 118's shape. Do **not** add a runtime
+    `if (grabbed.owner.type !== 'board')` guard to `commitSnapMove` to make it writable
+    again.
+
+    **One runtime narrowing survives on the grab path, and it is not vestigial.**
+    `commitSnapMove`'s self-snap guard tests `target.owner.type === 'board'` before
+    comparing ids, because the *target* genuinely can be a guide — the tool targets
+    everything. Without the type test, a guide whose id happened to collide with the
+    grabbed board's would read as a self-snap and the move would be silently refused.
+
+    The price of the wide type is also worth knowing before adding a fourth held-point
+    field: `tapeAnchor` and `tapeHover` are `SnapPoint` on purpose — **the difference
+    between them and `grabbed` IS the documentation of which can hold a guide** — and they
+    pay for it in five runtime `owner.type` tests (`heldOnBoard` inside `dropHeldIfGone`,
+    two in `deleteBoard`, two in `removeGuide`). Any new field typed `SnapPoint` inherits
+    that, and the type buys it nothing. Related and separate: `pickSnapPoint`'s generic is
+    currently **unrealized** — both call sites pass a union-typed array, so `T` never
+    resolves to `BoardSnapPoint` anywhere in the repo today. It is correct and free; it is
+    not load-bearing for anything that compiles now, and `MoveTool` still narrows at the
+    point of entry via `isBoardOwned` (a written-out type predicate, because
+    `SnapPoint` is an interface whose `owner` is the union — narrowing the *property*
+    inline does not narrow the *value*, which is how the plan's spelling failed to
+    compile; see follow-up 141).
+
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 699 tests across 32 files
+npm test           # Vitest, currently 768 tests across 33 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1638,7 +1925,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 `docs/follow-ups.md` lists everything found during v1 review, the two polish passes,
 v2, v3, the post-v3 fixes, joinery, the cut list and its diagrams rounds, the
 board-feet round, the sheet-nesting round, the snap-move round, the selected-board grabs
-round and the cut-aware snap points round, consciously deferred
+round, the cut-aware snap points round and the guide-points round, consciously deferred
 rather than missed, numbered 1-30 plus the per-release additions. Read it before starting new work
 in the same area — several items are "correct but untested", which is exactly what a
 refactor breaks silently.
@@ -1830,7 +2117,9 @@ of `edit()`'s grab-clearing condition survives the suite — did not reproduce, 
 of that condition already being pinned by a different existing test each. Closed by
 running the two mutations and recording the output, not by adding a duplicate test.
 
-The cut-aware snap points round **closed 99** and added **119-128**. **119-121** are the
+The cut-aware snap points round **closed 99** and added **119-129** — 129 landed after
+that round's own final review, which is why the guide-points round starts at 130 rather
+than at the 129 its plan expected. **119-121** are the
 design's §9 non-goals as decisions: no points on the shoulder walls (declined on clutter
 grounds, *not* by the governing constraint — a wall is real drawn material, which makes
 this the one exclusion that needed a different argument), no de-duplication against the
@@ -1845,13 +2134,36 @@ the oldest code in the feature, and it was fixed in-branch (`999ca29`) rather th
 at the default camera, ±1.8 px aim tolerance, ±4.2 px at 43.25 px/inch, parity with
 `PICK_RADIUS_PX = 12` at roughly 45-50 px/inch — and the reason no radius can fix it.
 **124** collects what neither browser pass checked, from both reports. **125** is
-follow-up 113 with a third contributor to the same branch, which is what the guides
-round's plan revision has to reconcile. **126** is the newest link in the
+follow-up 113 with a third contributor to the same branch — **closed by the guide-points
+round, and by a document rather than by code; see 132**. **126** is the newest link in the
 plan-supplied-justification chain (64, 68 twice, 80, 87, 88, 107, 118) and the first
 sourced from a test *title*: "(fast path, no grid built)" pins neither half of itself.
 **127** and **128** are deferred minors — two grab-clearing cases the store tests do not
 reach, and three hygiene items including two type assertions resting on facts the
-assertion cannot enforce.
+assertion cannot enforce. **129** is a post-round entry from that branch's final review:
+three documents illustrated `dropGrabIfGone`'s rule with a claim a later task in the same
+round had made false, visible only from outside both tasks.
+
+The guide-points round **closed 105** (for two of the three things it named — guide lines
+were dropped, with a reason) **and 125** (by a document rather than by code: there was no
+filter to merge, so none was written) and added **130-141**. **130** and **131** are the
+design's §9 non-goals and the guide-id exposure, both decisions rather than omissions —
+semi-infinite construction lines are the one item there still genuinely open. **132**
+records 125's discharge in the form a future reader needs, since an absent filter is
+indistinguishable from a forgotten one. **133** is follow-up 120 gaining a *reachable*
+instance at zero separation (a guide on a board corner), found stable 6/6 and 8/8 with the
+mechanism confirmed in code — concat order plus first-found-at-equal-depth — and scoped to
+one `boards` ordering. **134** is the `grabbed`/`tapeAnchor` asymmetry at `updateBoard`,
+deferred with a condition and written into invariant 24 because it is a tidying trap in
+both directions. **135** is what `BoardSnapPoint` bought and what it does not cover.
+**136** records that neither browser-settled constant was retuned and what evidence
+settled each. **137** and **138** are Task 10's three self-flagged concerns and its named
+gaps. **139** is two store tests that cannot fail, honest rather than false — do not
+"strengthen" them with an ESM spy. **140** is a **pre-existing** ~1-in-4 test flake, newly
+diagnosed with evidence: `depthField.agreement.test.ts`'s heaviest case times out at
+5000 ms, reproduces identically on master, and this branch touches none of that code;
+remedy is a per-file `testTimeout` or splitting the case. **141** is the round's biggest
+lesson and the largest single-round addition the plan-supplied-code chain has taken.
 
 One entry is a lesson rather than a defect and is worth reading before touching anything
 in the viewport: **26a**. Browser verification on this host runs on software GL
