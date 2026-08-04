@@ -132,14 +132,19 @@ export default function App() {
       // prop rather than inferring it.
       if (cutListOpen) return;
 
-      // Escape backs out one level: drop the grab first, then the tool. Note
-      // this sits below the cutListOpen guard on purpose — CutList owns
-      // Escape while it is open, and a grab behind the sheet must survive it.
+      // Escape backs out one level: drop what is held first, then the tool.
+      // Note this sits below the cutListOpen guard on purpose — CutList owns
+      // Escape while it is open, and a grab or anchor behind the sheet must
+      // survive it.
       if (e.key === 'Escape') {
-        const { grabbed, tool, cancelGrab, setTool } = useStore.getState();
+        const { grabbed, tapeAnchor, tool, cancelGrab, clearTapeAnchor, setTool } =
+          useStore.getState();
         if (grabbed) {
           e.preventDefault();
           cancelGrab();
+        } else if (tapeAnchor) {
+          e.preventDefault();
+          clearTapeAnchor();
         } else if (tool !== 'select') {
           e.preventDefault();
           setTool('select');
@@ -157,6 +162,16 @@ export default function App() {
         return;
       }
 
+      // T toggles the Tape tool, the same shape as M. Modifier chords are left
+      // alone — Ctrl+T and Cmd+T are the browser's.
+      if (e.key === 't' || e.key === 'T') {
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        e.preventDefault();
+        const { tool, setTool } = useStore.getState();
+        setTool(tool === 'tape' ? 'select' : 'tape');
+        return;
+      }
+
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         e.shiftKey ? redo() : undo();
@@ -168,10 +183,11 @@ export default function App() {
       // feature does not exist there.
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (e.ctrlKey || e.metaKey || e.altKey) return;
-        // Deleting the board currently being carried would leave the grab
-        // pointing at something that no longer exists. The store drops the
-        // grab defensively too; this is what stops the delete happening at all.
-        if (useStore.getState().grabbed) return;
+        // Deleting the board being carried — or the one the tape is anchored
+        // on — would leave the held point naming something that no longer
+        // exists. The store drops both defensively; this stops the delete
+        // happening at all.
+        if (useStore.getState().grabbed || useStore.getState().tapeAnchor) return;
         const id = useStore.getState().selectedId;
         if (!id) return;
         e.preventDefault();

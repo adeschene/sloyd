@@ -128,3 +128,13 @@ describe('Guides checkbox', () => {
     expect(onToggleGuides).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('Tape button', () => {
+  it('is pressed when the tape tool is active and activates it on click', async () => {
+    renderToolbar();
+    const tape = screen.getByRole('button', { name: /tape/i });
+    expect(tape).toHaveAttribute('aria-pressed', 'false');
+    await userEvent.click(tape);
+    expect(useStore.getState().tool).toBe('tape');
+  });
+});

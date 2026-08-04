@@ -95,6 +95,13 @@ export function Toolbar({
           // this needs none for, since deleteBoard already clears both.
           <span className="toolbar-hint">Select a part to move</span>
         )}
+        <button
+          onClick={() => setTool('tape')}
+          aria-pressed={tool === 'tape'}
+          title="Tape measure — click a point, then click another to measure and place a guide point; type a distance to place it partway (T)"
+        >
+          Tape
+        </button>
         <span className="toolbar-divider" />
         <button
           onClick={onToggleProjection}
