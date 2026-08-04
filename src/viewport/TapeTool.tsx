@@ -262,6 +262,16 @@ export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
    * and the commit agree because they call the same function, not because two
    * pieces of code were written to match.
    */
+  // Memoised on object identities, unlike the coordinate-keyed `line` memo just
+  // below — the two dependency styles differ on purpose and it is worth saying
+  // so, because invariant 15 is about exactly this kind of hand-written list.
+  // `line` is keyed on coordinates because drei rebuilds a LineGeometry on a
+  // new array identity, so an over-invalidation there costs real work. This one
+  // exists only to hold the array stable FOR that memo, and a new `anchor` or
+  // `hovered` object always means a new point, so over-invalidating costs one
+  // pure recomputation and nothing else. Under-invalidation is what invariant
+  // 15 warns about, and neither list can under-invalidate: all three inputs are
+  // listed.
   const preview = useMemo(() => {
     if (!anchor || !hovered) return null;
     const distance = parseLength(typed);
