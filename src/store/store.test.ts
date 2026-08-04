@@ -1098,13 +1098,27 @@ describe('tapeAnchor — invariant 24, second instance', () => {
 // would pass every "drops" case below and destroy the latch, which is the whole
 // reason the field is in the store.
 describe('tapeHover — invariant 24, third instance', () => {
-  /** Anchor on one board and latch a hover onto a second. Returns both. */
+  /**
+   * Anchor on one board and latch a hover onto a second. Returns both.
+   *
+   * The hovered point is deliberately a corner AWAY from the origin, not
+   * `boardSnapPoints(to)[0]`. That first point is the min corner, which IS the
+   * board's `position` — so growing the board's length leaves it exactly where
+   * it was, and a point-precise clear correctly keeps it. A fixture built on
+   * it made the "drops when the hovered board is edited" test pass only while
+   * the clear was board-precise, and it went on passing for the wrong reason
+   * once it wasn't. Same shape as the anchor's redo-fixture lesson: fix the
+   * fixture, leave the assertion. The surviving-corner case is worth pinning
+   * too and now has its own test below.
+   */
   const anchorAndHover = () => {
     useStore.getState().addBoard();
     useStore.getState().addBoard();
     const [from, to] = useStore.getState().doc.boards;
+    const far = boardSnapPoints(to).find((p) => p.at[0] > 0);
+    if (!far) throw new Error('fixture: expected a snap point off the min corner');
     useStore.getState().setTapeAnchor(boardSnapPoints(from)[0]);
-    useStore.getState().setTapeHover(boardSnapPoints(to)[0]);
+    useStore.getState().setTapeHover(far);
     return { from, to };
   };
 
@@ -1143,10 +1157,48 @@ describe('tapeHover — invariant 24, third instance', () => {
     expect(useStore.getState().tapeHover).not.toBeNull();
   });
 
+  // `updateBoard` is also the ONLY rename path — there is no renameBoard — and
+  // a rename moves no point. A board-precise clause (the shape `grabbed` and
+  // `tapeAnchor` use there) drops the latch here, and TapeTool would go on
+  // drawing a marker the readout had already dropped. Hence the survival test.
+  it('keeps a latched hover when the hovered board is only RENAMED', () => {
+    const { to } = anchorAndHover();
+    useStore.getState().updateBoard(to.id, { name: 'Renamed' });
+    expect(useStore.getState().tapeHover).not.toBeNull();
+  });
+
+  // Point-precision is sharper than "did this board change": the min corner IS
+  // the board's position, so growing the length moves every corner except that
+  // one. The hover survives because the point survives — which is the rule
+  // stated, not a special case.
+  it('keeps a latched hover on a corner the edit does not move', () => {
+    useStore.getState().addBoard();
+    useStore.getState().addBoard();
+    const [from, to] = useStore.getState().doc.boards;
+    useStore.getState().setTapeAnchor(boardSnapPoints(from)[0]);
+    const min = boardSnapPoints(to).find((p) => p.at[0] === 0 && p.at[1] === 0 && p.at[2] === 0);
+    if (!min) throw new Error('fixture: expected a min-corner snap point');
+    useStore.getState().setTapeHover(min);
+    useStore.getState().updateBoard(to.id, { length: 48 });
+    expect(useStore.getState().tapeHover).not.toBeNull();
+  });
+
   it('drops a latched hover when the hovered board is deleted', () => {
     const { to } = anchorAndHover();
     useStore.getState().deleteBoard(to.id);
     expect(useStore.getState().tapeHover).toBeNull();
+  });
+
+  // deleteBoard's mirror of the updateBoard keeps-test. Without it an
+  // unconditional `set({ tapeHover: null })` there passes every other case in
+  // this block — board-precision is correct at deleteBoard (a deleted board
+  // offers no points at all), but only a test says so.
+  it('keeps a latched hover when a THIRD board is deleted', () => {
+    anchorAndHover();
+    useStore.getState().addBoard();
+    const third = useStore.getState().doc.boards[2];
+    useStore.getState().deleteBoard(third.id);
+    expect(useStore.getState().tapeHover).not.toBeNull();
   });
 
   // dropHeldIfGone's survival test, not a board-id test: a cut edit does not
@@ -1195,8 +1247,37 @@ describe('tapeHover — invariant 24, third instance', () => {
     expect(useStore.getState().tapeHover).not.toBeNull();
   });
 
-  // The one place the clear is blanket, and it is only defensible because the
-  // anchor is cleared blanket in the same statement — no anchor, no latch.
+  // The three wholesale-rewrite actions. Invariant 24's own test for joining
+  // its list is "does this rewrite doc.boards", not "does it touch positions" —
+  // every board can move at once, so no per-owner condition would mean
+  // anything, and all three null the anchor in the same statement, so the
+  // latch is already over.
+  it('drops the hover on undo', () => {
+    anchorAndHover();
+    useStore.getState().undo();
+    expect(useStore.getState().tapeHover).toBeNull();
+  });
+
+  it('drops the hover on redo', () => {
+    anchorAndHover();
+    useStore.getState().undo();
+    // Re-latched with a bare setTapeHover, NOT via an edit: any edit wipes
+    // `future`, so redo() would early-return without running its body and the
+    // assertion would say nothing about redo at all. Same trap the anchor's
+    // own undo/redo test records.
+    useStore.getState().setTapeHover(boardSnapPoints(useStore.getState().doc.boards[0])[0]);
+    useStore.getState().redo();
+    expect(useStore.getState().tapeHover).toBeNull();
+  });
+
+  it('drops the hover when the document is replaced', () => {
+    anchorAndHover();
+    useStore.getState().replaceDocument(createDocument('Other'));
+    expect(useStore.getState().tapeHover).toBeNull();
+  });
+
+  // Blanket here, and only defensible because the anchor is cleared blanket in
+  // the same statement — no anchor, no latch.
   it('drops any hover when every guide is cleared', () => {
     anchorAndHover();
     useStore.getState().addGuide([1, 2, 3]);

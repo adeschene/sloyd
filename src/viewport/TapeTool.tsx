@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Line } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
@@ -38,8 +38,34 @@ export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
 
-  const [hovered, setHovered] = useState<SnapPoint | null>(null);
+  /**
+   * The hover lives in the STORE, not in a useState here, and the marker below
+   * is drawn from that same value.
+   *
+   * It has to be in the store regardless — the readout is a DOM overlay
+   * outside the Canvas and cannot read component state — and the first version
+   * of this file kept a local copy beside it, publishing to the store in an
+   * effect. That copy was a divergence waiting to happen: the store clears the
+   * hover point-precisely (invariant 24's third instance) and a local copy
+   * hears nothing about it, so the viewport would go on drawing a marker and a
+   * measuring line for a target the readout had already dropped — the tool
+   * saying "here it is" and the readout saying "no target" at the same moment.
+   * One source, so there is nothing to keep in sync.
+   *
+   * `hoveredRef` survives that as the pointermove comparison (committing to
+   * React only when the pick changes, since pointermove fires far more often).
+   * It is synced FROM the store below rather than only written here, which is
+   * what makes a store-side clear re-pickable: without that sync the ref would
+   * still name the cleared point, sameSnapPoint would match it, and the next
+   * pointermove over the same position would publish nothing.
+   */
+  const hovered = useStore((s) => s.tapeHover);
+  const setHovered = useStore((s) => s.setTapeHover);
   const hoveredRef = useRef<SnapPoint | null>(null);
+  useEffect(() => {
+    hoveredRef.current = hovered;
+  }, [hovered]);
+
   const downAt = useRef<{ x: number; y: number; pointerId: number } | null>(null);
 
   /**
@@ -66,7 +92,6 @@ export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
 
   useEffect(() => {
     if (tool !== 'tape') {
-      hoveredRef.current = null;
       setHovered(null);
       return;
     }
@@ -180,24 +205,21 @@ export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
     // `candidates` is in the list because the handlers close over it, and it
     // already depends on `boards`, `guides` and `showGuides` — so none of
     // those belongs here again. `size.width`/`.height` rather than `size` so a
-    // re-created size object does not resubscribe.
-  }, [tool, candidates, gl, camera, size.width, size.height]);
+    // re-created size object does not resubscribe. `setHovered` is listed
+    // because the handlers close over it; it is a zustand action and so stable
+    // for the store's lifetime, which makes listing it free rather than
+    // churn — the same reason a useState setter is safe to list.
+  }, [tool, candidates, gl, camera, size.width, size.height, setHovered]);
 
   // Clearing the anchor ends the measurement, so the latched target goes with
-  // it — otherwise a stale marker would sit on screen after Escape.
+  // it — otherwise a stale marker would sit on screen after Escape. Redundant
+  // with the store for the paths that null both in one statement (setTool,
+  // clearGuides, undo, redo, replaceDocument); load-bearing for clearTapeAnchor
+  // itself, which nulls only the anchor.
   useEffect(() => {
     if (anchor) return;
-    hoveredRef.current = null;
     setHovered(null);
-  }, [anchor]);
-
-  // Published for the readout, which lives in the DOM outside the Canvas and
-  // so cannot read r3f state itself. A ref would not re-render it; this is
-  // the one piece of tool state that has a consumer outside the scene graph.
-  const setHoverPoint = useStore((s) => s.setTapeHover);
-  useEffect(() => {
-    setHoverPoint(hovered);
-  }, [hovered, setHoverPoint]);
+  }, [anchor, setHovered]);
 
   // Memoised on the six coordinates rather than rebuilt inline: drei's <Line>
   // keys its LineGeometry (and the computeLineDistances call) on the `points`

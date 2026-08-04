@@ -96,12 +96,25 @@ interface StoreState {
    * anchored). `tapeAnchor` correctly survives — its own board did not move —
    * so the anchor being non-null says nothing about the target being current.
    *
-   * Cleared POINT-PRECISELY, never blanket. A blanket `tapeHover: null` beside
-   * every `tapeAnchor: null` would destroy the latch, which is the whole
-   * reason this field is in the store at all — so the clear is conditioned on
-   * the point being gone (dropHeldIfGone's snapPointsFor survival test) or on
-   * its own owner being the board or guide that just changed, never on an edit
-   * merely having happened.
+   * Cleared POINT-PRECISELY wherever the latch could still be alive, never on
+   * an edit merely having happened. A blanket `tapeHover: null` beside every
+   * `tapeAnchor: null` would destroy the latch, which is the whole reason this
+   * field is in the store at all. So:
+   *
+   *  - `updateBoard` routes through dropHeldIfGone's snapPointsFor survival
+   *    test, NOT through the board-id test its own `grabbed` and `tapeAnchor`
+   *    clauses use. That test is too loose here: `updateBoard` is also the
+   *    only rename path, and a rename moves no point, so a board-precise
+   *    clause would drop the latch while TapeTool went on drawing the marker.
+   *  - `addCut`/`updateCut`/`removeCut` reach the same survival test.
+   *  - `deleteBoard` and `removeGuide` are owner-conditional, which is exactly
+   *    point-precise there: neither owner offers any point afterward.
+   *  - `setTool`, `clearGuides`, `undo`, `redo` and `replaceDocument` clear it
+   *    blanket, and all five are defensible only because each nulls the ANCHOR
+   *    in the same statement. No anchor, no latch: TapeReadout renders nothing
+   *    without one and every commit path returns on it, so there is nothing
+   *    left to preserve. That is a property of those five statements, not a
+   *    licence to add a sixth.
    */
   tapeHover: SnapPoint | null;
   setTapeHover: (point: SnapPoint | null) => void;
@@ -204,7 +217,9 @@ export const useStore = create<StoreState>((set, get) => {
   };
 
   /**
-   * Invariant 24, for cut edits — now for BOTH held points.
+   * Invariant 24 for all THREE held points — and no longer only for cut edits:
+   * updateBoard calls this too, because a board patch that moves no point
+   * (a rename) must not drop a latched hover.
    *
    * A grab holds a WORLD POSITION captured at grab time, so anything that can
    * move or destroy the feature under it must drop it. Cut edits reach that
@@ -253,8 +268,8 @@ export const useStore = create<StoreState>((set, get) => {
   const dropHeldIfGone = (boardId: string) => {
     // `type === 'board'` is redundant for `grabbed` (its type says so) and
     // load-bearing for `tapeAnchor` (its type does not) — design §3.0 showing
-    // through in one predicate over two fields. Returns the point rather than
-    // a boolean so the two call sites below need no non-null assertion.
+    // through in one predicate over three fields. Returns the point rather
+    // than a boolean so the three call sites below need no non-null assertion.
     const heldOnBoard = (held: SnapPoint | null): SnapPoint | null =>
       held !== null && held.owner.type === 'board' && held.owner.id === boardId ? held : null;
 
@@ -438,18 +453,24 @@ export const useStore = create<StoreState>((set, get) => {
         set({ tapeAnchor: null });
       }
 
-      // And the LATCHED HOVER, invariant 24's third instance, which needs its
-      // own clause because the anchor's says nothing about it: the reachable
-      // path is anchoring on board A, hovering a point on board B, leaving the
+      // The LATCHED HOVER is invariant 24's third instance and needs its own
+      // clause, because the anchor's says nothing about it: the reachable path
+      // is anchoring on board A, hovering a point on board B, leaving the
       // canvas for the readout, and editing B's Length here. A's anchor
-      // correctly survives — A did not move — so without this the readout
-      // would print a distance to a point that no longer exists and Enter
-      // would place a guide along a direction derived from it. Conditional on
-      // the hovered board, the same shape as the two clauses above: an edit to
-      // a third board must leave the latch alone.
-      if (get().tapeHover?.owner.type === 'board' && get().tapeHover?.owner.id === id) {
-        set({ tapeHover: null });
-      }
+      // correctly survives — A did not move — so without a clause of its own
+      // the readout would print a distance to a point that no longer exists
+      // and Enter would place a guide along a direction derived from it.
+      //
+      // But it is NOT written here, and not in the shape of the two clauses
+      // above. Those are board-precise: any patch to the board clears them.
+      // That is too loose for the hover, because `updateBoard` is also the
+      // only rename path (there is no renameBoard), and `{ name }`,
+      // `{ material }` and `{ grain }` move no point at all — so a
+      // board-precise clause drops the latch on a rename, while TapeTool goes
+      // on drawing the marker and the line it no longer agrees with. The
+      // readout says "no target" and the viewport says otherwise. See
+      // dropHeldIfGone at the bottom of updateBoard, which asks the only
+      // question that is actually correct here: is the point still on offer?
 
       // Reorienting turns the board in place. `position` is the min-corner, so
       // changing rotation or posture swaps the extents underneath a pinned
@@ -508,6 +529,16 @@ export const useStore = create<StoreState>((set, get) => {
             : b,
         ),
       }));
+
+      // Point-precise, and AFTER the edit for the reason dropHeldIfGone's own
+      // comment gives: the question is what the board offers once the edit has
+      // landed. A rename leaves every point exactly where it was, so the latch
+      // survives; a Length, Posture, Rotation or Position change moves them,
+      // so it drops. `grabbed` and `tapeAnchor` were already dealt with above,
+      // board-precisely — reaching them here too is a no-op (heldOnBoard finds
+      // nothing left to test) rather than a second opinion, so the two rules
+      // cannot disagree about the same field.
+      dropHeldIfGone(id);
     },
 
     deleteBoard: (id) => {
@@ -515,8 +546,14 @@ export const useStore = create<StoreState>((set, get) => {
       const wasSelected = get().selectedId === id;
       // A grab on the board being deleted has nothing left to move, an anchor
       // on it has nothing left to measure from, and a latched hover on it has
-      // nothing left to measure TO — invariant 24, all three instances, the
-      // same conditional shape as updateBoard's.
+      // nothing left to measure TO — invariant 24, all three instances.
+      //
+      // Board-precise is exactly right HERE, unlike in updateBoard: a deleted
+      // board offers no snap points at all, so "is this point still on offer"
+      // and "is this the deleted board" are the same question with the same
+      // answer for every point on it. There is no rename-shaped case — no
+      // patch to a board being deleted that leaves its points in place — so
+      // the looser test has nothing looser to admit.
       if (get().grabbed?.owner.id === id) set({ grabbed: null });
       if (get().tapeAnchor?.owner.type === 'board' && get().tapeAnchor?.owner.id === id) {
         set({ tapeAnchor: null });
@@ -574,8 +611,24 @@ export const useStore = create<StoreState>((set, get) => {
 
     setDocumentName: (name) => edit((doc) => ({ ...doc, name })),
 
+    // `tapeHover` goes with the anchor in all three wholesale-rewrite actions
+    // (here, undo and redo), for the reason invariant 24 states as its own
+    // test: a wholesale rewrite of `doc.boards` can invalidate a held point by
+    // moving it OR by removing its owner, and every board can move at once, so
+    // no per-owner condition would be meaningful. Blanket is defensible for
+    // the same narrow reason it is at clearGuides and nowhere else — the
+    // anchor is nulled in the SAME statement, so the latch is already over and
+    // there is nothing left to preserve.
     replaceDocument: (doc) =>
-      set({ doc, selectedId: null, past: [], future: [], grabbed: null, tapeAnchor: null }),
+      set({
+        doc,
+        selectedId: null,
+        past: [],
+        future: [],
+        grabbed: null,
+        tapeAnchor: null,
+        tapeHover: null,
+      }),
 
     undo: () => {
       const { past, future, doc, selectedId } = get();
@@ -590,9 +643,13 @@ export const useStore = create<StoreState>((set, get) => {
         // A grab captured a world position; an undo can move the board out
         // from under it, and committing would then apply a wrong delta. The
         // tape anchor captured one for the same reason and goes with it —
-        // an undo can also take away the guide it is anchored on.
+        // an undo can also take away the guide it is anchored on — and so
+        // does the latched hover, which is a captured position too and whose
+        // owner an undo can equally remove. See replaceDocument for why
+        // blanket is right for all three of these and not elsewhere.
         grabbed: null,
         tapeAnchor: null,
+        tapeHover: null,
       });
     },
 
@@ -608,6 +665,7 @@ export const useStore = create<StoreState>((set, get) => {
         selectedId: stillThere ? selectedId : null,
         grabbed: null,
         tapeAnchor: null,
+        tapeHover: null,
       });
     },
 
