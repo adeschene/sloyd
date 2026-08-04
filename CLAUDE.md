@@ -58,17 +58,31 @@ gitignored. Read that file before deploying; it is not in the public repo.
 layout, per-face views and board feet are all shipped and merged to `master`. Do not
 treat any of the five as in-flight.
 
-**Production matches `master` as of 2026-08-03, cut-aware snap points included.** That
-round was merged and deployed the same day, as snap-move and selected-board grabs were
-before it — unlike the three rounds before *those*, which sat merged and held back at the
-user's choice. Verified after the deploy: `200` on `/` and on a deep route both
-in-network and publicly, the new bundle (`index-BH2XnbVu.js` → `index-BFdaQ-al.js`)
+**Production matches `master` as of 2026-08-04, both of that day's rounds included.** The
+tape measure and guide points (`dbca088`, bundle `index-BFdaQ-al.js` →
+`index-BV9UlR3E.js`) and then type-anywhere distance entry (`1e61eae`,
+`index-BV9UlR3E.js` → `index-BvW6so6V.js`) were each merged and deployed the same day, as
+cut-aware snap points, snap-move and selected-board grabs were before them — unlike the
+three rounds before *those*, which sat merged and held back at the user's choice. **The
+live schema frontier is now v6, not v5** — the paragraph further down describing v5 as the
+first bump to reach production is history, not the current gate; see the v6 rollback note
+below it. `DEPLOYMENT.local.md` carries both runbook entries and what each could and could
+not confirm live: the guide-points deploy confirmed the tool's *arming* surface only, and
+the type-anywhere deploy confirmed **nothing** of its own change, because the readout
+renders only once the tape is anchored and anchoring needs a board — so the standing
+localStorage rule below applied totally rather than partially. `sloyd.autosave.v1` was
+confirmed absent in the verifying browser after both.
+
+**Production matched `master` at 2026-08-03 too, cut-aware snap points included**, and
+that deploy is worth keeping distinct from the two above, because part of what it carried
+was a bug fix rather than a feature. Verified after it: `200` on `/` and on a deep route
+both in-network and publicly, the new bundle (`index-BH2XnbVu.js` → `index-BFdaQ-al.js`)
 served at the edge and in-network (so this is not a stale-cache read), the app mounted
 with its canvas and full toolbar, 0 console errors (two known three.js deprecation
 warnings), and exactly one Cloudflare beacon.
 
-**Part of what that deploy carried is a bug fix rather than a feature, and it is worth
-knowing which.** `boardSnapPoints` now filters through `stockProbe` (design §5.1,
+**The bug fix inside the cut-aware snap points deploy is worth knowing by name.**
+`boardSnapPoints` now filters through `stockProbe` (design §5.1,
 follow-up 122), which stops a rabbet's flush-end mouth positions being offered as markers
 hanging a quarter-inch out in the air over removed stock. That defect predated the round
 — it had been true of every rabbet since joinery shipped, and it went live with snap-move
@@ -76,7 +90,7 @@ hanging a quarter-inch out in the air over removed stock. That defect predated t
 schema change, so a document saved by either build reads `version: 5` and opens in the
 other unchanged.
 
-**This round's own change could NOT be confirmed against production, and that is the
+**That round's own change could NOT be confirmed against production, and that is the
 standing rule working rather than a gap in the check.** A cut point only exists on a board
 that has a cut, so seeing one marked means building a document — which writes
 `sloyd.autosave.v1`, which is the user's real project. So the deploy was confirmed by
@@ -108,13 +122,21 @@ gets verified against the dev server (that is what
 `docs/browser-verification-snap-move.md` is), and the deploy itself gets confirmed by
 bundle hash. See `DEPLOYMENT.local.md` for the full statement.
 
-**That deploy was the first to ship a schema bump to production, which changes what
-rollback costs.** A document saved by the live build carries `version: 5`; the previous
-image understands up to 4 and *refuses* such a file rather than silently dropping the
-kerf. That is the version gate working as designed, but autosave lives in the browser at
-`sloyd.autosave.v1`, so rolling back would strand any project saved since. Export first
-if it ever comes to that. `DEPLOYMENT.local.md` has the full runbook and the bundle
-hashes.
+**The live version gate is v6, and rolling back past the guide-points deploy is what now
+costs something.** A document saved by the current build carries `version: 6`; the
+previous image (`index-BFdaQ-al.js`) understands up to 5 and *refuses* such a file rather
+than silently dropping the guides — which is the gate working as designed, and is exactly
+the silent-data-loss case the bump was argued from. Autosave lives in the browser at
+`sloyd.autosave.v1`, so rolling back that far would strand any project saved since.
+Export first if it ever comes to that. The type-anywhere deploy on top of it changed no
+schema, so rolling back only *that* one is free.
+
+**The sheet-nesting deploy was the first to ship a schema bump at all**, and its
+paragraph is kept because the reasoning is the pattern rather than because the numbers are
+current: a document saved by that build carried `version: 5` and the image before it
+understood up to 4, refusing the file rather than silently dropping the kerf. Read it as
+the first instance of the rule the v6 paragraph above now states with live numbers.
+`DEPLOYMENT.local.md` has the full runbook and every bundle hash.
 
 What is deliberately *not* built sits in two places, and both are decisions rather than
 omissions: the **"Deferred behind it"** paragraph below (CSV export and name
@@ -659,11 +681,80 @@ tool, no new document state.
   one named the `key.length` guard while every key it listed was rejected by the character
   range anyway.
 
-**The next line of work is not chosen.** Guides were the last named successor from
-snap-move's §8 and follow-up 105; that list is now spent apart from **semi-infinite
-construction lines**, which were set aside with guide lines on the judgement that points
-with typed offsets may simply be enough in practice (follow-up 130). Nothing in the ledger
-picks what comes next.
+**The next line of work is GUIDE POINTS IN ARBITRARY CARDINAL DIRECTIONS, chosen
+2026-08-04 by the user immediately after confirming both tape rounds work in real use.**
+No design and no plan yet — this paragraph records the motivating problem and the open
+questions, and deliberately answers none of them.
+
+**The problem is that a guide can currently land in exactly two places, and both of them
+require a second snap point to exist.** Clicking while anchored places a guide **on** the
+hovered snap point, which is close to redundant — a snap point was already there, and the
+user's own verdict on the round-1 shape was *"I can effectively only duplicate existing
+grab-points."* Typing a length places one along the **anchor→hover ray**
+(`offsetPoint(anchor, toward, distance)` in `document/snapPoints.ts`, which normalises
+`toward − anchor` and refuses a zero-length direction). The ray is what makes the typed
+path valuable, and it is also the whole constraint: **the direction is always borrowed
+from a second existing feature**, so the tool can only measure *between things that
+already exist*. There is no way to put a guide 3" straight up from a corner, or 6" out
+along Z from a face centre, unless some other snap point happens to lie in that direction
+— and in a project of rectangular parts, the direction you want is usually one no feature
+points along yet. Cardinal placement removes exactly that: anchor, choose an axis, type a
+distance.
+
+**The open design questions, recorded rather than settled — the round's design owns
+these:**
+
+- **World axes or board-local axes, which is the central one.** World X/Y/Z is the obvious
+  reading and the one the phrase "cardinal" suggests. But a board carries `rotation` (0 or
+  90 about Y) and `posture`, and `axisDimensions` in `src/document/geometry.ts` is the
+  single source mapping its length/width/thickness onto world axes — so for a turned board
+  "3 inches along the board" and "3 inches along X" are different points, and a
+  woodworker plausibly wants each at different moments. An anchor on a board's snap point
+  knows which board it came from (`SnapOwner`'s `board` member carries the id), so
+  board-local is *reachable*; an anchor on a guide is owned by no board, so it is not
+  reachable from every anchor. That asymmetry is part of the question, not an argument
+  against either answer.
+- **How the axis is chosen.** A modifier key, an on-screen affordance, typed syntax
+  (`x12`? `12x`?), or inference from cursor direction the way SketchUp infers axis locking
+  from which way you start dragging. Note that **the tape has no axis concept at all
+  today** — nothing in `TapeTool.tsx`, `TapeReadout.tsx` or the store names an axis — so
+  whatever is chosen is the first of its kind here, and there is no existing idiom to
+  match.
+- **How it composes with the ray path — a mode, or a fallback?** Three verified
+  integration points constrain the answer. `offsetPoint` already does the arithmetic a
+  cardinal offset needs; what is missing is a *direction source* that is not a second snap
+  point, and whether the axis path synthesises a `toward` and reuses it or takes its own
+  path is a design choice with a real difference in blast radius. `TapeReadout`'s
+  `commit()` currently treats a missing target as an error (`if (!target) { setError(true);
+  return; }`) — in axis mode there is no target **by construction**, so cardinal placement
+  turns "no target" from a refusal into a legitimate state, which is precisely what makes
+  follow-up 144's proposed cause-carrying `error` stop being cosmetic. And `TapeTool`'s
+  measuring line is `lineEnd = preview ?? hovered?.at ?? null`, so with no hover there is
+  nothing for the line to draw against — what the line shows in axis mode is an open
+  question, not an oversight to fix in passing.
+- **Whether the ray path survives.** It may be complementary rather than superseded —
+  measuring *between* two features and projecting *from* one are different operations, and
+  the ray is the only one that can answer "half the distance between these two". Deciding
+  it is a subset of the cardinal case would be a real simplification and would also throw
+  away the round-1 gesture; deciding it is not costs a second mode to explain.
+
+**What this does not need is a schema change.** `GuidePoint` is `{ id, at }` with `at` a
+bare world position — a guide placed along an axis is *the same document data* as one
+placed along a ray, so `CURRENT_VERSION` stays 6, `validateGuides` is unchanged, and there
+is no migration step. The two existing round-2 mechanisms should be **extended rather than
+duplicated**: the type-anywhere capture in `App`'s keydown effect (which is where every
+window-level shortcut belongs, and which already inherits the `cutListOpen` and
+`isTextEntry` guards) and the derived preview marker in `TapeTool` (derived every render,
+never stored, sharing `offsetPoint` with the commit path so the marker and the placement
+agree by construction). A second capture path or a second preview would be two places for
+the same rule to disagree.
+
+Recorded as follow-up **145**. It **narrows** rather than closes the semi-infinite
+construction lines item in follow-up 130 — an axis-parallel line from a feature was the
+user's original mental model, and cardinal offsets answer part of its motivation (reach
+along an axis from one feature) while providing no line at all. What was promoted is the
+**cardinal-direction** case specifically, not arbitrary 3D placement: a free-floating
+guide at an arbitrary point in space is still not asked for and is still not a goal.
 
 **What the empty-solids placeholder did** (2026-08-01, closing follow-ups 48 and 49; no
 spec — the diagnosis and the chosen fix were already in the ledger). A board whose own
@@ -2016,7 +2107,8 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 `docs/follow-ups.md` lists everything found during v1 review, the two polish passes,
 v2, v3, the post-v3 fixes, joinery, the cut list and its diagrams rounds, the
 board-feet round, the sheet-nesting round, the snap-move round, the selected-board grabs
-round, the cut-aware snap points round and the guide-points round, consciously deferred
+round, the cut-aware snap points round, the guide-points round and the type-anywhere
+round, consciously deferred
 rather than missed, numbered 1-30 plus the per-release additions. Read it before starting new work
 in the same area — several items are "correct but untested", which is exactly what a
 refactor breaks silently.
@@ -2255,6 +2347,25 @@ diagnosed with evidence: `depthField.agreement.test.ts`'s heaviest case times ou
 5000 ms, reproduces identically on master, and this branch touches none of that code;
 remedy is a per-file `testTimeout` or splitting the case. **141** is the round's biggest
 lesson and the largest single-round addition the plan-supplied-code chain has taken.
+
+The type-anywhere round added **142-144**, all three about the same small surface. **142**
+narrows the round's legibility deferral rather than adding to it: a guide hovered as the
+tape's *target* draws the same size and hue as the typed preview beside it, and the
+browser pass hovered a board corner, which is the case that cannot show it. **143** is a
+coupling rather than a defect — `tapeTyped`'s anchor-loss clear is owned by a
+`TapeReadout` effect, which is the right home and which rests on that component being
+**unconditionally mounted**; the append fix in the same round is what turned the
+consequence of breaking it from a cosmetic flicker into a silently wrong placement, so do
+not "tidy" the mount behind `tool === 'tape'`. **144** is a knowingly-made trade: widening
+the error-clearing effect to `[text, hovered]` cures two of `commit()`'s three refusal
+causes and clears the third without curing it, because a boolean cannot express the
+distinction at all — its named remedy is to make `error` carry its cause.
+
+**145 is the chosen successor rather than an open finding** — cardinal-direction guide
+placement, named by the user on 2026-08-04 and written up in the status section above. It
+**narrows and does not close** 130's semi-infinite construction lines bullet, and it is
+the entry that makes 144 worth revisiting: in axis mode `commit()`'s "no target" refusal
+becomes a legitimate state, so the cause-carrying `error` stops being cosmetic.
 
 One entry is a lesson rather than a defect and is worth reading before touching anything
 in the viewport: **26a**. Browser verification on this host runs on software GL

@@ -2717,3 +2717,86 @@ no-target refusal stays marked until an unrelated character is typed) or too wid
 and there is no third option that does not add the cause. Whoever picks this up should also
 consider whether the cause is worth *printing* — the box says "wrong" and never says what,
 which is the same complaint that produced this whole round about the placeholder.
+
+## The chosen successor — 2026-08-04
+
+**145. CARDINAL-DIRECTION GUIDE PLACEMENT is the next line of work — CHOSEN, not
+proposed.** The user named it immediately after confirming in real use that both tape
+rounds work: *"being able to draw guide points in arbitrary cardinal directions."* This
+entry exists so the next design starts from the motivating problem rather than
+re-deriving it, and so the questions it must answer are not mistaken for questions it
+already has answers to. **It records no decisions.**
+
+**The problem, stated as it actually is.** A guide can land in exactly two places today,
+and both borrow their direction from a feature that already exists. Clicking while
+anchored places one **on** the hovered snap point — which is very nearly redundant, and is
+the complaint that produced the type-anywhere round in the first place (*"I can
+effectively only duplicate existing grab-points, which adds nothing"*). Typing a length
+places one along the **anchor→hover ray**, via `offsetPoint(anchor, toward, distance)` in
+`document/snapPoints.ts`. The ray is what makes the typed path worth having, and it is
+also the entire limitation: **a second snap point is what supplies the direction**, so the
+tool can only ever measure *between things that already exist*. There is no way to place a
+guide 3" straight up from a corner, or 6" out along Z from a face centre, unless some
+other feature happens to lie along that direction — and in a model made of rectangular
+parts, the direction wanted is usually one nothing points along yet.
+
+**Relationship to 130, stated precisely because the temptation is to overstate it.** 130's
+non-goal list does **not** contain a "free placement off the ray" item, and this entry does
+not close anything in it. The nearest neighbour is the **semi-infinite construction lines**
+bullet — axis-parallel lines bounded to `SCENE_EXTENT`, recorded there as the user's
+original mental model and set aside on the judgement that *"points with typed offsets may
+simply be enough in practice."* That judgement is now half-refuted and half-confirmed:
+typed offsets are enough *as a mechanism*, and they are not enough *as long as the
+direction has to be borrowed*. Cardinal placement answers part of construction lines'
+motivation — reach along an axis from one feature — while providing no line, so read 130's
+bullet as **narrowed, still open**, not closed. And what was promoted is the
+**cardinal-direction** case specifically: an axis and a distance. Arbitrary 3D placement —
+a guide dropped at a free position in space, with no anchor and no axis — was not asked
+for, is not implied by this, and remains a non-goal.
+
+**The open questions, listed so the design can be judged against them:**
+
+- **World axes or board-local axes.** The central question. `axisDimensions`
+  (`src/document/geometry.ts`) is the single source mapping a board's
+  length/width/thickness onto world axes through `posture` and `rotation`, so on a board
+  turned 90° "along the board" and "along X" are different points. Both readings are
+  defensible for woodworking. Note the asymmetry that constrains the answer: a
+  `SnapOwner` is `{ type: 'board' | 'guide'; id }`, so an anchor taken from a board can
+  name its board and an anchor taken from a guide cannot name anything — board-local is
+  not reachable from every anchor.
+- **How the axis is chosen.** Modifier key, on-screen affordance, typed syntax, or
+  inference from cursor direction (SketchUp infers axis locking from the drag). **The tape
+  has no axis concept at all** — nothing in `TapeTool.tsx`, `TapeReadout.tsx` or the store
+  names one — so there is no existing idiom to match and this is the first of its kind.
+- **Mode, or fallback when nothing is hovered?** Three verified integration points, each
+  of which is a constraint rather than an answer:
+  - `offsetPoint` already normalises `toward − anchor` and refuses a zero-length or
+    non-finite input, so the *arithmetic* exists; what is missing is a direction source
+    that is not a second snap point. Whether the axis path synthesises a `toward` and
+    reuses `offsetPoint` or takes its own path is a real choice about blast radius.
+  - `TapeReadout`'s `commit()` does `if (!target) { setError(true); return; }`. In axis
+    mode there is **no target by construction**, so this turns a refusal into a legitimate
+    state — which is exactly what makes **follow-up 144**'s remedy (an `error` carrying
+    its cause: `'no-target' | 'unparseable' | 'zero-length'`) stop being cosmetic. 144 is
+    filed as not-worth-fixing on the grounds that its one broken case is cosmetic; this
+    round should re-read that judgement rather than inherit it.
+  - `TapeTool`'s measuring line is `lineEnd = preview ?? hovered?.at ?? null`. With no
+    hover there is no far end. What the line draws against in axis mode is an open
+    question.
+- **Does the ray path survive?** Possibly complementary rather than superseded: measuring
+  *between* two features and projecting *from* one are different operations, and only the
+  ray answers "half the distance between these two" — the very gesture 130 used to justify
+  dropping guide lines. Folding it into the cardinal case would be a genuine
+  simplification and would also discard that gesture.
+
+**No schema change.** `GuidePoint` is `{ id, at }` with `at` a bare world position, so a
+guide placed along an axis is the same document data as one placed along a ray:
+`CURRENT_VERSION` stays 6, `validateGuides` is untouched, no migration step. **Extend, do
+not duplicate**, the two mechanisms round 2 built — the type-anywhere capture inside
+`App`'s existing keydown effect (already carrying the `cutListOpen` and `isTextEntry`
+guards, and the standing rule that every window-level shortcut joins that effect rather
+than adding a listener) and the preview marker derived every render in `TapeTool`, which
+shares `offsetPoint` with the commit path so the marker and the placement agree by
+construction. A second capture or a second preview would be two places for one rule to
+disagree — follow-ups 113 and 125's shape, arriving before the code exists rather than
+after.
