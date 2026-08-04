@@ -201,7 +201,12 @@ export default function App() {
       // parseLength's own patterns) — letters would eat the `t` and `m` tool
       // shortcuts. Modifier chords are left alone, matching the M and T blocks
       // above: Ctrl+0 and Cmd+- are the browser's zoom.
-      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && canBeginLength(e.key)) {
+      // No `e.key.length === 1` test here beside canBeginLength: that rule is
+      // canBeginLength's own (it is what rejects 'Enter', 'ArrowLeft' and the
+      // rest in one line, and a test pins it there). Two predicates that agree
+      // today are two places for a future rule to disagree, and the redundant
+      // one reads as load-bearing — follow-ups 113 and 125.
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && canBeginLength(e.key)) {
         const { tool, tapeAnchor, setTapeTyped } = useStore.getState();
         if (tool === 'tape' && tapeAnchor) {
           // preventDefault because some of these characters are browser
