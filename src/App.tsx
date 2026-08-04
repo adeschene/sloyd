@@ -3,6 +3,7 @@ import { Viewport } from './viewport/Viewport';
 import { Toolbar } from './panels/Toolbar';
 import { PartsList } from './panels/PartsList';
 import { Properties } from './panels/Properties';
+import { GuidesList } from './panels/GuidesList';
 import { FileMenu, SaveIndicator, StorageBanner } from './panels/FileMenu';
 import { CutList } from './panels/CutList';
 import { TapeReadout } from './panels/TapeReadout';
@@ -269,6 +270,10 @@ export default function App() {
             <section className="panel panel-props">
               <h2>Properties</h2>
               <Properties />
+            </section>
+            <section className="panel panel-guides">
+              <h2>Guides</h2>
+              <GuidesList />
             </section>
           </aside>
         </main>
