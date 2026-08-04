@@ -277,11 +277,36 @@ button[aria-pressed='true'] {
   white-space: nowrap;
 }
 
+/* The reason a refusal happened, in the hint's own slot and size — it replaces
+   the hint rather than stacking under it, so the box does not change height
+   when a commit is refused. Colour is the app's existing alert ink, not a new
+   one. */
+.tape-readout-error {
+  color: var(--alert-bright);
+}
+
 .tape-readout-label {
   font-family: var(--font-num);
   font-size: 12px;
   min-width: 5ch;
   text-align: right;
+}
+
+/* The app's existing "this control is active" idiom, borrowed from
+   button[aria-pressed='true'] rather than introduced as a fourth off-palette
+   colour — a DOM chip is not a 3D inference marker, and the reasons SnapMarker
+   went off-palette (a ~9px disc on walnut) do not reach a text badge on a dark
+   panel. */
+.tape-readout-axis {
+  font-family: var(--font-num);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.6;
+  padding: 0 0.4rem;
+  border: 1px solid var(--brass-dim);
+  border-radius: calc(var(--radius) / 2);
+  background: var(--graphite-950);
+  color: var(--brass-bright);
 }
 
 .tape-readout-input {

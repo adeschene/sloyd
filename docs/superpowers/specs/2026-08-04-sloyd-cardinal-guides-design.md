@@ -223,7 +223,8 @@ look broken while locked.
 - **On a snap point:** `setTapeAnchor(hit)`, axis preserved. No guide is placed.
   The typed distance is the only way to place while locked, which is what the
   lock is for — and it means walking a row of corners placing a guide 3" up from
-  each is click, type, Enter, click, type, Enter.
+  each is click, type, Enter, click, type, Enter. (This sentence is false —
+  see follow-up 146.)
 - **On empty space:** `clearTapeAnchor()`, which drops the axis with it (§3.1) —
   the same cancel the tool has today.
 
@@ -379,7 +380,7 @@ their project.
   wrong ones (the trap the cut-points round recorded for local→world).
 - A negative distance placing on the opposite side.
 - The re-anchor-under-lock gesture: click, type, Enter, click, type, Enter, with
-  the axis pressed once.
+  the axis pressed once. (This expected result is false — see follow-up 146.)
 - The **two-keystroke** check, which is the only one able to distinguish a landed
   focus from a failed one: press `X`, type `3`, then `5`, and confirm the box
   reads `35` — a failed focus would drop the second character.

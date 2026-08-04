@@ -1,7 +1,30 @@
 import { useEffect, useRef, useState } from 'react';
 import { parseLength, formatLength } from '../units/length';
-import { offsetPoint } from '../document/document';
+import { offsetPoint, tapeAxisFromKey, towardFor } from '../document/document';
 import { useStore } from '../store/store';
+
+/**
+ * WHY the refusal is a union rather than a boolean — follow-up 144, closed here
+ * because this round is what makes it stop being cosmetic.
+ *
+ * With the axis lock, "there is no target" stops being a refusal at all: in
+ * axis mode `towardFor` always returns a direction, so `no-direction` is
+ * unreachable by construction. `degenerate` is NOT unreachable under a lock —
+ * it remains reachable in BOTH modes via `offsetPoint`'s `Number.isFinite`
+ * guard, which also catches a non-finite typed distance (e.g. `parseLength`
+ * returning `Infinity` for a long enough run of digits), not just a
+ * zero-length direction. A boolean cannot say which of three questions
+ * failed, and — worse — could not be CLEARED correctly: its one effect was
+ * keyed on [text, hovered], so any new hover cured every error, including an
+ * unparseable number that a hover has nothing to say about.
+ */
+type TapeError = 'no-direction' | 'unparseable' | 'degenerate' | null;
+
+const ERROR_TEXT: Record<Exclude<TapeError, null>, string> = {
+  'no-direction': 'Hover a point, or press X / Y / Z',
+  unparseable: "Can't read that as a length",
+  degenerate: 'No direction to place along',
+};
 
 /**
  * The tape's live distance and typed-length entry — SketchUp's VCB.
@@ -28,49 +51,45 @@ export function TapeReadout() {
   // are.
   const text = useStore((s) => s.tapeTyped);
   const setText = useStore((s) => s.setTapeTyped);
-  const [error, setError] = useState(false);
+  const axis = useStore((s) => s.tapeAxis);
+  const [error, setError] = useState<TapeError>(null);
   const input = useRef<HTMLInputElement>(null);
 
   // A fresh anchor starts a fresh measurement.
   useEffect(() => {
     setText('');
-    setError(false);
+    setError(null);
   }, [anchor, setText]);
 
   /**
-   * A new character clears the error state.
+   * A new character re-answers "can this be read as a length", and nothing else.
    *
-   * This CANNOT be left in `onChange` any more, and that is a real defect
-   * rather than tidying: the type-anywhere path writes the store directly, so
-   * `onChange` never fires for the first character. Without this effect,
-   * failing a commit (Enter with no target, or an unparseable number) and then
-   * going back to the canvas and typing a fresh digit would leave the box
-   * rendering `invalid` over a value that has not been judged yet.
-   *
-   * Keyed on the text, which is exactly why it does not defeat the error it is
-   * clearing: `commit()` sets `error` WITHOUT touching `tapeTyped` — and it is
-   * the only caller that sets it — so no single event both raises the error and
-   * changes the text. This does not re-run, and the red survives until the next
-   * character arrives, which is the moment it should die.
-   *
-   * KEYED ON THE HOVER TOO, because the text is not the only thing that can
-   * remove the cause. `commit()` refuses with no target, and the cure for that
-   * is hovering one — which changes no character, so a text-only key would
-   * leave the box red over a measurement that would now succeed, until Enter
-   * proved it by working. A new pick is a new answer to "is there a target",
-   * which is precisely the question that failed.
-   *
-   * Note the store bails on `Object.is`, so re-typing the same value writes
-   * nothing and re-runs nothing. That case is unreachable through the capture
-   * path since it started appending (a string plus a character is never itself)
-   * and unreachable through `onChange` (a change event that changes nothing
-   * cannot be produced by typing). It is left as a property rather than
-   * defended against, because defending would mean holding an error generation
-   * counter to solve a case no input produces.
+   * Still an effect rather than an onChange handler, for the reason the round-2
+   * comment gave: the type-anywhere path writes the store directly, so onChange
+   * never fires for the first character. Still safe against defeating the error
+   * it clears, for the same reason too — commit() sets the error WITHOUT
+   * touching `tapeTyped` and is the only caller that sets one, so no single
+   * event both raises an error and changes the text.
    */
   useEffect(() => {
-    setError(false);
-  }, [text, hovered]);
+    setError((e) => (e === 'unparseable' ? null : e));
+  }, [text]);
+
+  /**
+   * A new hover OR a new axis re-answers "is there a direction".
+   *
+   * Both cures for the same question, which is why they share an effect. The
+   * axis half is the one the boolean could not have: pressing X after a
+   * no-direction refusal genuinely fixes it, and under the old rule the red
+   * would have survived until Enter proved otherwise.
+   *
+   * And a hover no longer clears an UNPARSEABLE number, which the single
+   * [text, hovered] effect did — harmless-looking on the ray path, and simply
+   * wrong under a lock where a hover cures nothing at all.
+   */
+  useEffect(() => {
+    setError((e) => (e === 'no-direction' || e === 'degenerate' ? null : e));
+  }, [hovered, axis]);
 
   /**
    * Take focus once there is something in the box.
@@ -112,26 +131,22 @@ export function TapeReadout() {
     // actions enumerated at `tapeHover`'s declaration in store.ts (invariant
     // 24's third instance). Read it rather than asserting it.
     if (!from) return;
-    // TapeTool latches its hover while anchored, which is what makes this
-    // non-null after the pointer left the canvas to reach this input. Without
-    // that latch this branch would fire on every typed offset — see
-    // TapeTool's onPointerLeave.
-    const target = store.tapeHover;
-    // No direction without a target, and offsetPoint refuses a zero-length
-    // one — §1.2. Both leave the anchor in place so the user can move the
-    // cursor and try again.
-    if (!target) {
-      setError(true);
+    // The SAME function TapeTool's preview memo calls, which is what keeps the
+    // marker and the placement agreeing under both modes rather than only under
+    // the ray one — design §4.
+    const toward = towardFor(from.at, store.tapeAxis, store.tapeHover?.at ?? null);
+    if (!toward) {
+      setError('no-direction');
       return;
     }
     const distance = parseLength(text);
     if (distance === null) {
-      setError(true);
+      setError('unparseable');
       return;
     }
-    const at = offsetPoint(from.at, target.at, distance);
+    const at = offsetPoint(from.at, toward, distance);
     if (!at) {
-      setError(true);
+      setError('degenerate');
       return;
     }
     store.addGuide(at);
@@ -141,6 +156,16 @@ export function TapeReadout() {
   return (
     <div className="tape-readout">
       <div className="tape-readout-row">
+        {axis && (
+          // The confirmation that the lock landed. It is the ONLY one in axis
+          // mode until a number is typed: with no target there is nothing for
+          // the measuring line to draw against, and drawing a semi-infinite
+          // axis line instead would be follow-up 130's construction line, which
+          // this round explicitly does not build (design §4.1, §8).
+          <span className="tape-readout-axis" data-testid="tape-readout-axis">
+            {axis.toUpperCase()}
+          </span>
+        )}
         <span className="tape-readout-label">
           {measured === null ? '—' : formatLength(measured, precision)}
         </span>
@@ -161,6 +186,19 @@ export function TapeReadout() {
               commit();
               return;
             }
+            // X / Y / Z have to be handled HERE as well as in App's window
+            // listener, and this is not redundancy — it is forced. App's effect
+            // early-returns on isTextEntry, which this input is, so once the
+            // first character lands its listener never sees another key. Escape
+            // is in this handler for exactly the same reason.
+            //
+            // The modifier test keeps Ctrl+Z (and Cmd+X, Cmd+C, Cmd+V) alone.
+            const axisKey = tapeAxisFromKey(e.key);
+            if (axisKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+              e.preventDefault();
+              useStore.getState().setTapeAxis(axisKey);
+              return;
+            }
             // Escape needs its own handler HERE, because App's window listener
             // early-returns on isTextEntry — which this input is. Without it,
             // Escape would do nothing at all while focus is in the box, and the
@@ -171,7 +209,15 @@ export function TapeReadout() {
             // leaves the tool.
             if (e.key === 'Escape') {
               e.preventDefault();
-              useStore.getState().clearTapeAnchor();
+              const store = useStore.getState();
+              // Same ladder as App's, one rung at a time: drop the axis if there
+              // is one, otherwise drop the anchor and blur so a second Escape
+              // reaches the window listener and leaves the tool.
+              if (store.tapeAxis) {
+                store.setTapeAxis(null);
+                return;
+              }
+              store.clearTapeAnchor();
               input.current?.blur();
             }
           }}
@@ -189,7 +235,15 @@ export function TapeReadout() {
         `.toolbar-hint`, --ink-dim): it is read once and then permanently in the
         way, so it must not compete with the measured distance beside it.
       */}
-      <span className="tape-readout-hint">Type a distance, Enter to place</span>
+      {error ? (
+        <span className="tape-readout-hint tape-readout-error" data-testid="tape-readout-error">
+          {ERROR_TEXT[error]}
+        </span>
+      ) : (
+        <span className="tape-readout-hint">
+          {axis ? `Along ${axis.toUpperCase()} — Enter to place` : 'Type a distance, Enter to place'}
+        </span>
+      )}
     </div>
   );
 }

@@ -205,10 +205,22 @@ describe('App keyboard delete', () => {
     await mountWithOneBoard();
 
     const user = userEvent.setup();
-    await user.click(screen.getByLabelText('Project name'));
+    const projectName = screen.getByLabelText('Project name');
+    await user.click(projectName);
     await user.keyboard('{Backspace}');
 
     expect(useStore.getState().doc.boards).toHaveLength(1);
+
+    // Blur before the test (and RTL's auto-unmount) ends. Focusing this field
+    // calls the store's beginGesture(), and gesturing/gestureSnapshotTaken
+    // are module-level state in store.ts, not part of the Zustand store that
+    // replaceDocument resets between tests — unmounting a still-focused field
+    // does not fire blur in jsdom, so without this the leaked gesture silently
+    // coalesces every edit() in whichever test runs next into one snapshot,
+    // discovered when it made a later Ctrl+Z a no-op. This blur is what keeps
+    // that leak from crossing into the next test, not just this one's own
+    // assertion.
+    projectName.blur();
   });
 
   it('ignores a modified Delete', async () => {
@@ -381,9 +393,13 @@ describe('App type-anywhere tape capture', () => {
   // the only kind that can distinguish "canBeginLength rejected it" from "some
   // earlier block ate it". Mutating the predicate to `e.key.length === 1` fails
   // here and nowhere else in this file.
+  //
+  // 'x' is no longer such a letter as of the cardinal-axis round — x/y/z are
+  // now claimed by the axis-lock block above this capture, so 'q' is used
+  // here instead. Do not reintroduce x/y/z for this purpose.
   it('does not capture a letter that no other binding claims', async () => {
     const user = await anchoredTape();
-    await user.keyboard('x');
+    await user.keyboard('q');
 
     expect(useStore.getState().tapeTyped).toBe('');
   });
@@ -417,5 +433,189 @@ describe('App type-anywhere tape capture', () => {
     await user.keyboard('7');
 
     expect(useStore.getState().tapeTyped).toBe('');
+  });
+
+  it('locks a world axis from the canvas and toggles it back off', async () => {
+    const user = await anchoredTape();
+    await user.keyboard('x');
+    expect(useStore.getState().tapeAxis).toBe('x');
+    await user.keyboard('x');
+    expect(useStore.getState().tapeAxis).toBeNull();
+  });
+
+  it('does not lock an axis with no anchor', async () => {
+    const user = await anchoredTape();
+    await act(async () => { useStore.getState().clearTapeAnchor(); });
+    await user.keyboard('y');
+    expect(useStore.getState().tapeAxis).toBeNull();
+  });
+
+  // THE ONE THAT MATTERS. Ctrl+Z is `e.key === 'z'`, so an axis block guarding
+  // modifiers with an early return would swallow undo entirely.
+  it('leaves Ctrl+Z reaching the undo binding below it', async () => {
+    const user = await anchoredTape();
+    const before = useStore.getState().doc.boards.length;
+    await act(async () => { useStore.getState().addBoard(); });
+    await user.click(screen.getByRole('button', { name: 'Board' }));
+    await user.keyboard('{Control>}z{/Control}');
+    expect(useStore.getState().doc.boards).toHaveLength(before);
+    expect(useStore.getState().tapeAxis).toBeNull();
+  });
+
+  it('backs out one level at a time on Escape: axis, then anchor, then tool', async () => {
+    const user = await anchoredTape();
+    await user.keyboard('z');
+    expect(useStore.getState().tapeAxis).toBe('z');
+
+    await user.keyboard('{Escape}');
+    expect(useStore.getState().tapeAxis).toBeNull();
+    expect(useStore.getState().tapeAnchor).not.toBeNull();
+
+    await user.keyboard('{Escape}');
+    expect(useStore.getState().tapeAnchor).toBeNull();
+    expect(useStore.getState().tool).toBe('tape');
+
+    await user.keyboard('{Escape}');
+    expect(useStore.getState().tool).toBe('select');
+  });
+
+  it('does not lock an axis while the cut list is open', async () => {
+    const user = await anchoredTape();
+    await user.click(screen.getByRole('button', { name: /cut list/i }));
+    await user.keyboard('x');
+    expect(useStore.getState().tapeAxis).toBeNull();
+  });
+
+  const reason = () => screen.queryByTestId('tape-readout-error')?.textContent ?? null;
+
+  it('names the cause when there is no direction at all', async () => {
+    const user = await anchoredTape();
+    await user.keyboard('5{Enter}');
+    expect(box().className).toContain('invalid');
+    expect(reason()).toMatch(/hover a point/i);
+    expect(useStore.getState().doc.guides).toHaveLength(0);
+  });
+
+  it('names the cause when the number cannot be read', async () => {
+    const user = await anchoredTape();
+    const board = useStore.getState().doc.boards[0];
+    await act(async () => { useStore.getState().setTapeHover(boardSnapPoints(board)[25]); });
+    await user.keyboard('.{Enter}');
+    expect(box().className).toContain('invalid');
+    expect(reason()).toMatch(/length/i);
+  });
+
+  // The distinction the boolean could not express: a hover is not an answer to
+  // "can this be read as a length", so it must not clear that error.
+  it('does not let a new hover clear an unparseable number', async () => {
+    const user = await anchoredTape();
+    const board = useStore.getState().doc.boards[0];
+    await act(async () => { useStore.getState().setTapeHover(boardSnapPoints(board)[25]); });
+    await user.keyboard('.{Enter}');
+    expect(box().className).toContain('invalid');
+
+    await act(async () => { useStore.getState().setTapeHover(boardSnapPoints(board)[24]); });
+    expect(box().className).toContain('invalid');
+  });
+
+  it('lets a new character clear an unparseable number', async () => {
+    const user = await anchoredTape();
+    const board = useStore.getState().doc.boards[0];
+    await act(async () => { useStore.getState().setTapeHover(boardSnapPoints(board)[25]); });
+    await user.keyboard('.{Enter}');
+    expect(box().className).toContain('invalid');
+    await user.keyboard('5');
+    expect(box().className).not.toContain('invalid');
+  });
+
+  // Pressing an axis key genuinely cures a no-direction refusal, and under the
+  // boolean the red would have survived until Enter proved otherwise. This
+  // calls setTapeAxis directly to pin TapeReadout's [hovered, axis] clearing
+  // effect; the keyboard route to setTapeAxis is covered separately by 'shows
+  // which axis is locked', 'changes the axis from inside the focused box,
+  // keeping the number' and 'does not lock an axis while the cut list is
+  // open' — the split is deliberate, not a gap.
+  it('clears a no-direction refusal when an axis is locked', async () => {
+    const user = await anchoredTape();
+    await user.keyboard('5{Enter}');
+    expect(box().className).toContain('invalid');
+    await act(async () => { useStore.getState().setTapeAxis('y'); });
+    expect(box().className).not.toContain('invalid');
+  });
+
+  it('places a guide along the locked axis with no target hovered at all', async () => {
+    const user = await anchoredTape();
+    const anchorAt = useStore.getState().tapeAnchor!.at;
+    await act(async () => { useStore.getState().setTapeAxis('y'); });
+    await user.keyboard('3 1/2{Enter}');
+
+    const guides = useStore.getState().doc.guides;
+    expect(guides).toHaveLength(1);
+    expect(guides[0].at).toEqual([anchorAt[0], anchorAt[1] + 3.5, anchorAt[2]]);
+    expect(useStore.getState().tapeAnchor).toBeNull();
+  });
+
+  it('places on the opposite side for a negative distance', async () => {
+    const user = await anchoredTape();
+    const anchorAt = useStore.getState().tapeAnchor!.at;
+    await act(async () => { useStore.getState().setTapeAxis('x'); });
+    await user.keyboard('-2{Enter}');
+    expect(useStore.getState().doc.guides[0].at).toEqual([
+      anchorAt[0] - 2, anchorAt[1], anchorAt[2],
+    ]);
+  });
+
+  // §5.1: the lock is a lock. A hover latched before the axis was pressed must
+  // not supply the direction.
+  it('ignores a latched hover while an axis is locked', async () => {
+    const user = await anchoredTape();
+    const board = useStore.getState().doc.boards[0];
+    const anchorAt = useStore.getState().tapeAnchor!.at;
+    await act(async () => {
+      useStore.getState().setTapeHover(boardSnapPoints(board)[25]);
+      useStore.getState().setTapeAxis('y');
+    });
+    await user.keyboard('1{Enter}');
+    expect(useStore.getState().doc.guides[0].at).toEqual([
+      anchorAt[0], anchorAt[1] + 1, anchorAt[2],
+    ]);
+  });
+
+  it('shows which axis is locked', async () => {
+    const user = await anchoredTape();
+    expect(screen.queryByTestId('tape-readout-axis')).toBeNull();
+    await user.keyboard('x');
+    expect(screen.getByTestId('tape-readout-axis').textContent).toBe('X');
+  });
+
+  // The case App's listener CANNOT serve: isTextEntry early-returns once the
+  // box has focus, so this branch is the only route to correcting a mis-pressed
+  // axis mid-number.
+  it('changes the axis from inside the focused box, keeping the number', async () => {
+    const user = await anchoredTape();
+    await user.keyboard('x');
+    await user.keyboard('3');
+    expect(document.activeElement).toBe(box());
+    await user.keyboard('y');
+    expect(useStore.getState().tapeAxis).toBe('y');
+    expect(box().value).toBe('3');
+  });
+
+  it('does not type the axis letter into the box', async () => {
+    const user = await anchoredTape();
+    await user.keyboard('3');
+    await user.keyboard('z');
+    expect(box().value).toBe('3');
+  });
+
+  it('backs out the axis first on Escape from inside the box', async () => {
+    const user = await anchoredTape();
+    await user.keyboard('x3');
+    await user.keyboard('{Escape}');
+    expect(useStore.getState().tapeAxis).toBeNull();
+    expect(useStore.getState().tapeAnchor).not.toBeNull();
+
+    await user.keyboard('{Escape}');
+    expect(useStore.getState().tapeAnchor).toBeNull();
   });
 });

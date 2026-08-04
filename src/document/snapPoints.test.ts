@@ -4,7 +4,7 @@
 import { createBoard } from './document';
 import { boardExtents } from './geometry';
 import { boardSolids } from './cuts';
-import { boardSnapPoints, cutSnapPoints, guideSnapPoints, offsetPoint, sameSnapPoint, snapPointsFor } from './snapPoints';
+import { boardSnapPoints, cutSnapPoints, guideSnapPoints, offsetPoint, sameSnapPoint, snapPointsFor, tapeAxisFromKey, towardFor } from './snapPoints';
 import type { SnapPoint } from './snapPoints';
 import type { Board, Cut, Posture, Rotation } from './types';
 
@@ -587,5 +587,77 @@ describe('offsetPoint', () => {
   it('refuses a non-finite distance', () => {
     expect(offsetPoint(anchor, toward, NaN)).toBeNull();
     expect(offsetPoint(anchor, toward, Infinity)).toBeNull();
+  });
+});
+
+describe('towardFor', () => {
+  const anchor: [number, number, number] = [3, 5, 7];
+
+  it('returns a point one inch along each world axis', () => {
+    expect(towardFor(anchor, 'x', null)).toEqual([4, 5, 7]);
+    expect(towardFor(anchor, 'y', null)).toEqual([3, 6, 7]);
+    expect(towardFor(anchor, 'z', null)).toEqual([3, 5, 8]);
+  });
+
+  it('falls back to the hover when no axis is locked', () => {
+    expect(towardFor(anchor, null, [1, 1, 1])).toEqual([1, 1, 1]);
+  });
+
+  it('returns null with neither an axis nor a hover', () => {
+    expect(towardFor(anchor, null, null)).toBeNull();
+  });
+
+  // §5.1. The lock is a lock: a hover latched before the axis was pressed must
+  // not go on supplying a direction the user cannot see and did not choose.
+  it('lets the axis win over a hover that is still latched', () => {
+    expect(towardFor(anchor, 'z', [99, 99, 99])).toEqual([3, 5, 8]);
+  });
+
+  // The anchor is the caller's array and is read all over the app. Mutating it
+  // in place would move the anchor itself every time a preview recomputed.
+  it('does not mutate the anchor it was given', () => {
+    const a: [number, number, number] = [3, 5, 7];
+    towardFor(a, 'x', null);
+    expect(a).toEqual([3, 5, 7]);
+  });
+});
+
+describe('towardFor composed with offsetPoint', () => {
+  const anchor: [number, number, number] = [2, 0, 0];
+  const along = (axis: 'x' | 'y' | 'z', d: number) =>
+    offsetPoint(anchor, towardFor(anchor, axis, null)!, d);
+
+  // INVARIANT 25's fourth operation. A guide exists to be snapped TO, so
+  // rounding it to 1/16" would move it off the number the user typed while the
+  // display rounded to the same string either way (invariant 5).
+  it('places an off-grid distance exactly, with no rounding', () => {
+    expect(along('y', 0.01)).toEqual([2, 0.01, 0]);
+    expect(along('x', 3.5)).toEqual([5.5, 0, 0]);
+  });
+
+  it('places a negative distance on the opposite side of the anchor', () => {
+    expect(along('x', -3)).toEqual([-1, 0, 0]);
+    expect(along('z', -0.25)).toEqual([2, 0, -0.25]);
+  });
+
+  // The synthesized `toward` is exactly 1" away, so offsetPoint's
+  // zero-length guard is unreachable in axis mode — §4.
+  it('never hits offsetPoint zero-length refusal in axis mode', () => {
+    expect(along('x', 0)).toEqual([2, 0, 0]);
+  });
+});
+
+describe('tapeAxisFromKey', () => {
+  it('accepts both cases of each axis letter', () => {
+    expect(tapeAxisFromKey('x')).toBe('x');
+    expect(tapeAxisFromKey('X')).toBe('x');
+    expect(tapeAxisFromKey('Y')).toBe('y');
+    expect(tapeAxisFromKey('z')).toBe('z');
+  });
+
+  it('rejects everything else, including the keys the app already binds', () => {
+    for (const key of ['m', 't', 'f', 'Home', 'Escape', 'Enter', '3', '', 'xy']) {
+      expect(tapeAxisFromKey(key)).toBeNull();
+    }
   });
 });

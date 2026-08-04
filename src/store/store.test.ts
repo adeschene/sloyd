@@ -1407,3 +1407,172 @@ describe('tapeTyped — a string, deliberately NOT invariant 24', () => {
     expect(useStore.getState().tapeTyped).toBe('3 1/2');
   });
 });
+
+// `tapeAxis` sits beside three fields invariant 24 governs and is deliberately
+// NOT a fourth instance of it — it holds no world position, so no document edit
+// can invalidate it (the same argument `tapeTyped`'s block above makes). What it
+// DOES have is a structural rule: an axis with no anchor names no ray, so it
+// lives exactly as long as the anchor. Design §3.1.
+describe('tapeAxis — a lock, deliberately NOT invariant 24', () => {
+  const anchorOn = () => {
+    useStore.getState().addBoard();
+    const board = useStore.getState().doc.boards[0];
+    useStore.getState().setTapeAnchor(boardSnapPoints(board)[0]);
+    return board;
+  };
+
+  it('locks an axis while anchored', () => {
+    anchorOn();
+    useStore.getState().setTapeAxis('y');
+    expect(useStore.getState().tapeAxis).toBe('y');
+  });
+
+  it('toggles off when the same axis is pressed again', () => {
+    anchorOn();
+    useStore.getState().setTapeAxis('y');
+    useStore.getState().setTapeAxis('y');
+    expect(useStore.getState().tapeAxis).toBeNull();
+  });
+
+  it('switches directly between axes', () => {
+    anchorOn();
+    useStore.getState().setTapeAxis('y');
+    useStore.getState().setTapeAxis('x');
+    expect(useStore.getState().tapeAxis).toBe('x');
+  });
+
+  it('refuses to lock with no anchor — an axis with no anchor names no ray', () => {
+    useStore.getState().setTapeAxis('x');
+    expect(useStore.getState().tapeAxis).toBeNull();
+  });
+
+  it('can always be cleared explicitly, anchor or not', () => {
+    anchorOn();
+    useStore.getState().setTapeAxis('z');
+    useStore.getState().setTapeAxis(null);
+    expect(useStore.getState().tapeAxis).toBeNull();
+  });
+
+  // THE HALF THAT IS EASY TO GET BACKWARDS, and the one a "clear it everywhere"
+  // implementation passes every other test while breaking. Re-anchoring under a
+  // lock is design §5.2's first bullet: click a corner, press the axis, click a
+  // DIFFERENT corner, type, Enter — the second click retargets the anchor and
+  // places nothing. Note what this does not say: the lock does not outlive a
+  // commit, because commit() ends with clearTapeAnchor(). See `tapeAxis`'s
+  // declaration in store.ts and follow-up 147.
+  it('SURVIVES a re-anchor', () => {
+    const board = anchorOn();
+    useStore.getState().setTapeAxis('y');
+    useStore.getState().setTapeAnchor(boardSnapPoints(board)[3]);
+    expect(useStore.getState().tapeAxis).toBe('y');
+    expect(useStore.getState().tapeAnchor).not.toBeNull();
+  });
+
+  it('drops with the anchor when the tool changes', () => {
+    anchorOn();
+    useStore.getState().setTapeAxis('y');
+    useStore.getState().setTool('select');
+    expect(useStore.getState().tapeAxis).toBeNull();
+  });
+
+  it('drops with the anchor on an explicit clear', () => {
+    anchorOn();
+    useStore.getState().setTapeAxis('y');
+    useStore.getState().clearTapeAnchor();
+    expect(useStore.getState().tapeAxis).toBeNull();
+  });
+
+  it('drops with the anchor on undo and on redo', () => {
+    useStore.getState().addBoard();
+    useStore.getState().addBoard();
+    useStore.getState().setTapeAnchor(boardSnapPoints(useStore.getState().doc.boards[0])[0]);
+    useStore.getState().setTapeAxis('x');
+    useStore.getState().undo();
+    expect(useStore.getState().tapeAxis).toBeNull();
+
+    // Re-armed with a bare setTapeAnchor rather than through an edit: addBoard's
+    // edit() wipes `future`, so redo() would early-return without running its
+    // body and the assertion below would say nothing about redo. Same reason the
+    // tapeAnchor block above re-arms this way.
+    useStore.getState().setTapeAnchor(boardSnapPoints(useStore.getState().doc.boards[0])[0]);
+    useStore.getState().setTapeAxis('x');
+    useStore.getState().redo();
+    expect(useStore.getState().tapeAxis).toBeNull();
+  });
+
+  it('drops with the anchor when the document is replaced', () => {
+    anchorOn();
+    useStore.getState().setTapeAxis('z');
+    useStore.getState().replaceDocument(createDocument('Other'));
+    expect(useStore.getState().tapeAxis).toBeNull();
+  });
+
+  it('drops with the anchor when the anchored board is deleted', () => {
+    const board = anchorOn();
+    useStore.getState().setTapeAxis('z');
+    useStore.getState().deleteBoard(board.id);
+    expect(useStore.getState().tapeAxis).toBeNull();
+  });
+
+  it('drops with the anchor when the anchored guide is removed', () => {
+    useStore.getState().addGuide([1, 2, 3]);
+    const guide = useStore.getState().doc.guides[0];
+    useStore.getState().setTapeAnchor({
+      kind: 'guide',
+      at: [1, 2, 3],
+      owner: { type: 'guide', id: guide.id },
+    });
+    useStore.getState().setTapeAxis('x');
+    useStore.getState().removeGuide(guide.id);
+    expect(useStore.getState().tapeAnchor).toBeNull();
+    expect(useStore.getState().tapeAxis).toBeNull();
+  });
+
+  it('drops with the anchor when every guide is cleared', () => {
+    useStore.getState().addGuide([1, 2, 3]);
+    anchorOn();
+    useStore.getState().setTapeAxis('x');
+    useStore.getState().clearGuides();
+    expect(useStore.getState().tapeAxis).toBeNull();
+  });
+
+  // dropHeldIfGone is POINT-PRECISE and runs after every updateBoard, addCut,
+  // updateCut and removeCut. Both halves matter and only one of them is obvious.
+  it('drops with the anchor when an edit takes the anchored point away', () => {
+    const board = anchorOn();
+    // Chosen BY THE PROPERTY THAT MAKES THE TEST MEAN SOMETHING, not by index.
+    // boardSnapPoints(board)[0] is the min corner, which IS board.position, so
+    // growing the length leaves it exactly where it was and the point-precise
+    // clear correctly KEEPS it — the test would pass while pinning nothing.
+    // That is follow-up 141's root cause verbatim: the most obvious point to
+    // grab in a fixture is the one point that survives the edit you are testing.
+    // A default board is `flat` at rotation 0, so axisDimensions puts `length`
+    // on X; any point above the min X therefore moves when the length grows.
+    const moves = boardSnapPoints(board).find((p) => p.at[0] > board.position[0])!;
+    useStore.getState().setTapeAnchor(moves);
+    useStore.getState().setTapeAxis('y');
+    useStore.getState().updateBoard(board.id, { length: board.length + 12 });
+    expect(useStore.getState().tapeAnchor).toBeNull();
+    expect(useStore.getState().tapeAxis).toBeNull();
+  });
+
+  it('KEEPS the lock through an edit the anchor survives', () => {
+    const board = anchorOn();
+    useStore.getState().setTapeAxis('y');
+    // The min corner is board.position, which a rename cannot move — and this
+    // is the case §3.1 exists to state: the axis drops when the anchor actually
+    // drops, not merely when a conditional writer runs.
+    useStore.getState().updateBoard(board.id, { name: 'Renamed' });
+    expect(useStore.getState().tapeAnchor).not.toBeNull();
+    expect(useStore.getState().tapeAxis).toBe('y');
+  });
+
+  it('KEEPS the lock when an unrelated board is deleted', () => {
+    const board = anchorOn();
+    useStore.getState().setTapeAxis('y');
+    useStore.getState().addBoard();
+    const other = useStore.getState().doc.boards.find((b) => b.id !== board.id)!;
+    useStore.getState().deleteBoard(other.id);
+    expect(useStore.getState().tapeAxis).toBe('y');
+  });
+});
