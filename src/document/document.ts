@@ -1,5 +1,7 @@
 import { MATERIALS, DEFAULT_MATERIAL, DEFAULT_KERF, isSheetGood } from './types';
-import type { Board, Cut, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument } from './types';
+import type {
+  Board, Cut, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, GuidePoint,
+} from './types';
 import { dedupeNames } from './names';
 import { positionAxisOf } from './geometry';
 
@@ -18,8 +20,8 @@ export { buildDepthField } from './depthField';
 export type { FaceCell } from './depthField';
 export { buildNesting, footprintsOf } from './nesting';
 export type { Nesting, NestedSheet, PlacedPart, UnplaceablePart, Footprint } from './nesting';
-export { boardSnapPoints, cutSnapPoints, sameSnapPoint, snapPointsFor } from './snapPoints';
-export type { SnapKind, SnapOwner, SnapPoint } from './snapPoints';
+export { boardSnapPoints, cutSnapPoints, guideSnapPoints, offsetPoint, sameSnapPoint, snapPointsFor } from './snapPoints';
+export type { BoardSnapPoint, SnapKind, SnapOwner, SnapPoint } from './snapPoints';
 
 /**
  * v5 added `stock.kerf`.
@@ -30,8 +32,18 @@ export type { SnapKind, SnapOwner, SnapPoint } from './snapPoints';
  * where the user set a 1/4" kerf, silently drop the field, and print a
  * different sheet count than the build that saved it. A wrong purchasing
  * number with no indication anything was lost.
+ *
+ * v6 added `guides`.
+ *
+ * v6's bump argument is NOT v5's, and the difference is worth keeping: v5
+ * existed because a v4 build would drop a user-set kerf and print a DIFFERENT
+ * SHEET COUNT — a wrong purchasing number with nothing indicating loss.
+ * Guides produce no number at all; nothing on the cut list reads them. The
+ * argument here is plain silent data loss on round-trip: a v5 build opens a
+ * v6 file, drops every guide the user placed, autosaves, and they are gone.
+ * Weaker consequence, same class, still exactly what the gate is for.
  */
-export const CURRENT_VERSION = 5;
+export const CURRENT_VERSION = 6;
 
 export class DocumentError extends Error {
   /**
@@ -92,8 +104,17 @@ export function createDocument(name = 'Untitled'): SloydDocument {
     name,
     units: { display: 'imperial-fractional', precision: 16 },
     stock: { kerf: DEFAULT_KERF },
+    guides: [],
     boards: [],
   };
+}
+
+/**
+ * A guide point at a world position. Unlike createBoard this needs no
+ * dedupe step from its caller — a guide has no name to collide.
+ */
+export function createGuide(at: [number, number, number]): GuidePoint {
+  return { id: nextId(), at: [at[0], at[1], at[2]] };
 }
 
 const VALID_ROTATIONS = [0, 90];
@@ -164,6 +185,34 @@ function validateCuts(raw: unknown, board: Omit<Board, 'cuts'>): Cut[] {
     out.push({ id, face, from: c.from as CutFrom, across, offset, width, depth });
   }
   return out;
+}
+
+/**
+ * The well-formed guides out of raw data, in order.
+ *
+ * Drops rather than refuses, the same rule validateCuts follows and for the
+ * same reason: a saved document must always open. Unlike a cut there is
+ * nothing to clamp toward — a guide with a NaN coordinate has no nearest
+ * legal position — so dropping is the only available repair.
+ *
+ * Ids are NOT deduplicated. Follow-up 97 records that board id uniqueness
+ * became load-bearing while never being enforced the way dedupeNames enforces
+ * names; guides inherit the same exposure, and closing it here alone would be
+ * the inconsistent half-measure. See design §2.3.
+ */
+export function validateGuides(raw: unknown): GuidePoint[] {
+  if (!Array.isArray(raw)) return [];
+  const guides: GuidePoint[] = [];
+  for (const item of raw) {
+    if (typeof item !== 'object' || item === null) continue;
+    const g = item as Record<string, unknown>;
+    if (typeof g.id !== 'string' || !g.id) continue;
+    const at = g.at;
+    if (!Array.isArray(at) || at.length !== 3) continue;
+    if (!at.every((n) => typeof n === 'number' && Number.isFinite(n))) continue;
+    guides.push({ id: g.id, at: [at[0] as number, at[1] as number, at[2] as number] });
+  }
+  return guides;
 }
 
 function validateBoard(raw: unknown, index: number): Board {
@@ -348,11 +397,20 @@ export function migrateDocument(raw: unknown): SloydDocument {
       ? (rawStock as { kerf: number }).kerf
       : DEFAULT_KERF;
 
+  // Document-level, so — exactly like `stock` and unlike rotation, posture and
+  // cuts — this has NO rawBoards.map step. There is no per-board version of a
+  // guide, so invariant 11's hazard (validateBoard's fallback for a missing
+  // field being a legal-but-wrong value rather than an absence) does not exist
+  // here. Read defensively off the raw document; an absent field defaults
+  // cleanly regardless of CURRENT_VERSION.
+  const guides = validateGuides(d.guides);
+
   return {
     version: CURRENT_VERSION,
     name: typeof d.name === 'string' && d.name ? d.name : 'Untitled',
     units: { display: 'imperial-fractional', precision },
     stock: { kerf },
+    guides,
     boards: dedupeNames(rawBoards.map(validateBoard)),
   };
 }

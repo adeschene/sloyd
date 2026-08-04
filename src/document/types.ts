@@ -85,6 +85,21 @@ export interface Board {
   cuts: Cut[];
 }
 
+/**
+ * A position the user placed with the tape measure, as a snap target for
+ * later work. Persistent — unlike a snap point, which is derived on demand
+ * from a board — so it is document data and lands on the undo stack.
+ *
+ * No name. A guide's position is what identifies it, and inventing a naming
+ * scheme would drag in uniqueName, invariant 8's four-place enforcement, and
+ * a rename field, for a marker whose only job is to be somewhere.
+ */
+export interface GuidePoint {
+  id: string;
+  /** World position, inches. */
+  at: [number, number, number];
+}
+
 export interface SloydDocument {
   version: number;
   name: string;
@@ -96,6 +111,11 @@ export interface SloydDocument {
    * Sheet SIZE deliberately lives on MATERIALS instead; see SheetStock.
    */
   stock: { kerf: number };
+  /**
+   * Tape-measure guide points. Document-level like `stock`, so the v5 -> v6
+   * migration step has no rawBoards.map — see document.ts.
+   */
+  guides: GuidePoint[];
   boards: Board[];
 }
 

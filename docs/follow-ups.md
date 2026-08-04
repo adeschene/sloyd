@@ -2332,3 +2332,314 @@ the case Task 6b introduced (a flush cut consumes the corner and the grab drops)
 than asserting only the first as if the second could not occur. A store test pins the
 second half directly, alongside the existing test for the first (both in
 `src/store/store.test.ts`, `describe('the Move tool')`).
+
+## From the guide-points round
+
+**130. NON-GOALS — design §9, and follow-up 105 is CLOSED for two of the three things it
+named.** The user asked for a tape measure, guide points and guide lines when they asked
+for the Move tool. The first two shipped. **Guide lines were dropped**, at the user's
+direction mid-brainstorm, and the reason is recorded rather than left as an absence: a
+segment drawn between two guide points is redundant with the points themselves. Its only
+new contribution would have been its own midpoint as a candidate, and that is already
+reachable — anchor on one end and type half the measured distance, which is the tool's
+central gesture rather than a workaround. Removing it also collapsed the schema to one
+shape, dropped a line renderer, and made line-line intersections — the case `SnapOwner`
+would have had to grow a two-owner member for — not arise at all.
+
+The rest of §9, each looked at and deferred with a reason:
+
+- **Semi-infinite construction lines** (axis-parallel, bounded to `SCENE_EXTENT` the way
+  the grid is) — the user's original mental model, set aside with guide lines and on the
+  same judgement: points with typed offsets may simply be enough in practice. **Still
+  open**, and the one item here most likely to be re-proposed.
+- **Moving or editing an existing guide.** Delete and re-place. A guide is two clicks to
+  create; a drag-to-reposition gesture would need its own tool mode, its own gates and a
+  decision about undo coalescing. A guide also has **no name** and no rename field — its
+  position is what identifies it, and inventing a naming scheme would drag in
+  `uniqueName`, invariant 8's four-place enforcement and a field, for a marker whose only
+  job is to be somewhere.
+- **Guides in the cut list, the nesting or the board-feet totals.** A guide is an
+  annotation, not stock. Nothing on the printed sheet changes because one exists.
+- **Guides as Move-tool grab sources.** You snap a board onto a guide; you never snap a
+  guide onto a board. See 132 for why this needed no filter to be true.
+- **No selection model for guides** (design §7). No `selectedGuideId`, no Delete-key
+  path, nothing touching `selectedId` — the list exists to remove guides, and adding
+  selection would mean deciding what a selected guide shows in a properties panel that is
+  a panel for boards. This also sidesteps invariant 21's trap rather than meeting it in a
+  browser: click-the-guide-in-the-viewport is a known-bad hit target, because
+  `THREE.Line`/marker raycasting registers a hit only within an inch of what is drawn and
+  a guide's marker is far smaller than a board.
+
+**131. Guide ids are not deduplicated, and this is a knowing choice.** `validateGuides`
+keeps a guide whose `at` is three finite numbers and whose `id` is a non-empty string, and
+drops anything else — `validateCuts`' rule and its reason, that a saved document must
+always open, with dropping the only available repair because a guide has no
+nearest-legal-value to clamp toward. What it does *not* do is enforce uniqueness. Follow-up
+97 records that board `id` uniqueness became load-bearing in the sheet-nesting round while
+never being enforced the way `dedupeNames` enforces names; guides inherit exactly that
+exposure — a duplicate id would make `removeGuide` delete two rows at once and hand React
+two identical keys. Enforcing it for guides while leaving boards unenforced would be the
+inconsistent half-measure, so both are left to whichever round closes 97.
+
+**132. Follow-up 125 is CLOSED, and by a document rather than by code — which is why a
+reader looking for the merged predicate will not find one.** 125 asked whoever shipped
+second to merge the guide-points design's §3.1 board-owned candidate filter with the
+selected-board grabs round's narrower rule into **one** predicate, rather than stacking two
+filters that agree today and become two places for a future rule to disagree. There was
+nothing to merge. `MoveTool`'s pre-grab branch is already *the selected board's* points,
+and those are board-owned by construction, so §3.1's filter would have been dead code
+reading as load-bearing — follow-ups 113 and 125's own shape, arriving as the thing they
+warned about rather than as the thing they asked for. **The resolution was to write no
+filter at all**, and §3.1 was rewritten during the design's revision pass to say so.
+
+Recorded explicitly because the absence is indistinguishable from an oversight: the
+pre-grab branch in `MoveTool.tsx` carries only a comment where 125 might lead someone to
+expect a predicate. Guides join the **post-grab** branch only, beside `showGuides`, with
+`guides`/`showGuides` added to the dependency list *beside* the existing `selectedId` —
+dropping it there is invariant 15's failure mode and would have looked like it worked.
+
+**133. Follow-up 120 gained a REACHABLE instance, at zero separation rather than 3.6 px —
+and it came out stable, with the mechanism confirmed in code rather than inferred from the
+screenshots.** 120 records that two coincident candidates can differ in *kind*, so the
+marker's hue is decided by `pickSnapPoint`'s depth tie-break; 123 records the ¼" case at
+3.6 px. Placing a guide **on a board corner** — the obvious thing to do with the tool, and
+check 3 of the browser pass — puts two candidates at *identical* world positions from then
+on. Screen distance ties, NDC depth ties, and the tie-break is fully degenerate.
+
+**Accepted, not fixed**, because only one observable thing is arbitrary. Pre-grab in Move
+mode a guide is not a candidate at all (132), so there is nothing to tie. Post-grab and in
+Tape mode the two candidates are at the same position, so whichever wins yields the
+identical delta or the identical measurement — the board lands in the same place, the tape
+reads the same number. Only the **hue** is arbitrary: guide blue or corner green.
+
+Task 10's check 18 aimed at exactly this and found the outcome **fully stable** — 6/6
+re-hovers and 8/8 stationary samples all returned the board corner, so 120's flicker
+trigger never fired. The reviewer then confirmed the *mechanism* rather than accepting the
+sample: `TapeTool` concatenates `boards.flatMap(snapPointsFor)` **before**
+`guideSnapPoints(guides)`, and `pickSnapPoint` keeps the first candidate found at equal
+depth (`distSq < bestDistSq || projected.depth < bestDepth` — an exact depth tie fails
+both), so the winner is deterministic for a fixed candidate order. **Scoped to one `boards`
+ordering**: nothing pins that order across a document edit, so this is stability under an
+unchanged candidate list, not a guarantee. If it ever does read as flicker, the fix is a
+deterministic ordering rule — which is what 120 already names — and **not** a
+de-duplication step, which would delete a real candidate.
+
+**134. THE `grabbed` / `tapeAnchor` ASYMMETRY AT `updateBoard`, named here and in CLAUDE.md
+invariant 24 because it is a documentation trap in both directions.** After this round the
+two tape fields are cleared **point-precisely** at `updateBoard` — they route through
+`dropHeldIfGone(id)` after the edit, so a rename keeps them and a Length or Posture change
+drops them. `grabbed` keeps its **board-precise** clause, so renaming the grabbed board
+cancels the grab.
+
+This was deferred **because it is shipped Move-tool behaviour from two rounds back, not
+because the argument fails to reach it.** The argument reaches it exactly: `updateBoard` is
+the only rename path (there is no `renameBoard`), and `{ name }`, `{ material }` and
+`{ grain }` move no point at all. The tape's version of that defect was worse and is what
+forced the fix — nulling `tapeAnchor` nulls the latched hover through `TapeTool`'s anchor
+effect, which unmounts the readout, so a rename destroyed the whole measurement — while a
+cancelled grab merely costs one click.
+
+The mechanism matters for anyone tidying either rule into the other, and both directions
+are silent:
+
+- `updateBoard`'s board-precise `grabbed` clause fires **before** `dropHeldIfGone(id)` at
+  the bottom of the same action, and pre-empts it. That pre-emption is exactly what made
+  `tapeAnchor`'s old clause a no-op over the survival test sitting underneath it. So
+  **deleting the `grabbed` clause would silently convert `grabbed` to point-precise** — a
+  behaviour change with no diff at the survival test.
+- Conversely, **adding a board-precise clause back for either tape field would silently
+  re-break the rename case**, and the store tests that catch it are the two "keeps"
+  cases (`keeps a latched hover when the hovered board is only RENAMED`, and the anchor's
+  mirror), not the "drops" cases, which pass either way.
+
+**135. `BoardSnapPoint` replaced eight remembered checks with one type — and what it does
+NOT cover is worth knowing before the next held-point field is added.** Widening `SnapOwner`
+with a `guide` member is the round's single most dangerous edit, because both members carry
+an `id: string`, so every existing `owner.id` read keeps typechecking while quietly meaning
+something else. Eight reads in `store.ts` assume `owner.id` names a board (enumerated in
+design §3's table and pointed at from `grabbed`'s own declaration — not restated here,
+which is how a count goes stale). Seven of them are correct only because `MoveTool` never
+offers a guide as a grab source, which is an invariant enforced two modules away and
+exactly the kind of accident the next round breaks.
+
+The answer was `BoardSnapPoint = SnapPoint & { owner: { type: 'board'; id: string } }`,
+with `boardSnapPoints`/`cutSnapPoints`/`snapPointsFor` annotated as returning it,
+`pickSnapPoint` made generic in the candidate type, and `grabbed`/`grabSnapPoint` typed to
+it. That is **compile-time** enforcement of a rule that was previously remembered, and the
+whole-branch review confirmed it is real rather than decorative: the providers construct
+`owner` with a narrowed literal, so tsc holds the property the eight reads depend on. One
+consequence is a *win* rather than a gap — the "a guide-owned grab must be declined" store
+test was **deleted**, because that state cannot be constructed in TypeScript at all
+(follow-up 118's shape). Do not add a runtime `if (grabbed.owner.type !== 'board')` guard
+to `commitSnapMove` to make it writable again.
+
+Its limits, all three verified against the code rather than argued:
+
+- **`pickSnapPoint`'s generic is currently unrealized.** Both call sites pass a
+  union-typed array (each tool's memo has branches of different element type), so `T` never
+  resolves to `BoardSnapPoint` anywhere in the repo today. It is kept because it is free and
+  correct — do not read it as load-bearing for anything that compiles now.
+- **One runtime narrowing survives on the grab path, and it is not vestigial**:
+  `commitSnapMove`'s self-snap guard tests `target.owner.type === 'board'` because the
+  *target* genuinely can be a guide, and without it a guide whose id collided with the
+  grabbed board's would read as a self-snap and the move would be silently refused.
+- **A field typed `SnapPoint` pays in runtime tests, and that is the price of being able
+  to hold a guide.** `tapeAnchor` and `tapeHover` are deliberately the wide type — the
+  difference between them and `grabbed` *is* the documentation of which can hold a guide —
+  and they cost five `owner.type` tests: `heldOnBoard` inside `dropHeldIfGone`, two in
+  `deleteBoard`, two in `removeGuide`. A future held-point field typed `SnapPoint` inherits
+  that, and the type buys it nothing.
+
+**136. Neither browser-settled constant was retuned, and the evidence for each is
+different.** Both are follow-up 60 constants — judgements a test cannot make — and Task 10
+carried the obligation the code comments assign it. `src/viewport/SnapMarker.tsx` is
+**unchanged** by the pass.
+
+- **`SNAP_COLORS.guide = '#4f6fd0'`** (the fourth off-palette hue, added because a guide is
+  not a corner, an edge midpoint or a face centre — see 121, which *rejected* a fourth kind
+  for cut points on the opposite side of the same rule). Check 1: legible on the near-white
+  ground, on plywood, on walnut and on pine, and distinct from all three existing hues
+  including the pair that could have failed, `#8a5fd0` violet, shot side by side at
+  identical size on one plywood face.
+- **`RESTING_PX = 6`** (design §5.2's resting variant, the one place this round touches
+  `SnapMarker`'s geometry rather than its palette). Two halves, judged separately. *Quiet
+  enough*: judged at **twelve** simultaneous on-screen guides, which is the bar
+  `RESTING_PX`' own comment sets, rather than at whatever the pass happened to accumulate —
+  though at one camera framing, not at every zoom. *Big enough to aim at*: aiming is bounded
+  by `PICK_RADIUS_PX = 12`, not by the marker, so 6 px only has to be findable by eye, which
+  **check 8** (grab onto a resting guide, hit first attempt) and **check 1b**'s hovered frame
+  each demonstrate directly. Check 9 is deliberately *not* cited: its control hovers a board
+  corner, and board points have no resting representation at all — see 141.
+
+**137. Task 10's three self-flagged concerns.** The implementer raised all three unprompted;
+none was found by review, and the first is the most likely thing in the report to misread.
+
+- **Check 17 does not independently prove guide-as-Move-target.** Its winning candidate was
+  the board's dado shoulder, not the guide — the Shelf still landed at exactly
+  `[0, 8, 0.5]` because the two positions are identical, so the *check* passes and its
+  assertion is true, but the guide is not what it demonstrates. **Check 8 is the one that
+  does**, and it was pixel-verified by the reviewer (54 px of exact `#4f6fd0` with a ring =
+  a full-size guide marker).
+- **A guide placed exactly on a board point is invisible AS A GUIDE while that point is
+  hovered.** The `r = 3` resting disc sits entirely under the `r = 4.5` hovered disc, and
+  the hue shown is the board point's. Correct behaviour, and design §10's arbitrariness
+  (133) seen from the render side rather than the pick side: the marker's hue cannot tell
+  you a guide is there. What can is the resting marker *before* the pick.
+- **A harness note in the shape of 74/75/106.** A clipped `page.screenshot({ clip })` taken
+  ~500 ms after a hover raced the frame and returned pixel-identical crops for two
+  genuinely different states. Full-page captures after a 1 s settle, cropped offline, were
+  reliable. Anyone re-running check 1b should use the latter.
+
+**138. What the browser pass did NOT check**, collected so the gaps sit in one place.
+Touch and pen (follow-up 106's remaining half — every interaction was real
+`page.mouse`/`page.keyboard`, so there is no synthetic-dispatch caveat this time, but
+`pointerId`-tagged `downAt` still goes unexercised after four rounds); real hardware GL
+(26a); print and print-to-PDF (70/79/84); the orthographic camera; export/import and the
+v5→v6 migration **in the browser** (both are unit-tested); `TapeTool.tsx`'s **own**
+`showGuides` gate on its candidate memo, which is independent of `MoveTool`'s and was
+closed as a report omission rather than driven — check 10 drove only the Move branch; and
+this round's own point-precise anchor/hover clearing at
+`updateBoard`/`addCut`/`updateCut`/`removeCut`, which is unit-tested thoroughly but never
+driven in the app.
+
+**139. Two store tests cannot fail, and they are honest empty slots rather than false
+ones.** `src/store/store.test.ts:1104` and `:1314` each assert a held-point field is `null`
+after a cut edit made with nothing held — and both fields were already `null`. They pin the
+*behaviour* their titles claim (a cut edit with nothing held leaves the fields alone) and
+deliberately make **no** performance claim about `dropHeldIfGone`'s guard-first cheap path,
+which is follow-up 126's lesson applied at the point of writing rather than after. **Do not
+"strengthen" them with an ESM spy on the private grid builder** — that was weighed and
+rejected, for 126's own reason: the correct resolution of an unpinnable performance claim is
+an honest title, not machinery. The guard-first shape is verified by reading it.
+
+**140. A PRE-EXISTING test flake, newly diagnosed — not this round's, and not a merge
+blocker.** `src/document/depthField.agreement.test.ts` > *"rabbets on all four edges plus
+crossing dados"* **times out at 5000 ms** roughly **1 run in 4** (about 3 failures in ~20
+runs on this branch). It is not asserting wrong; it is the heaviest geometry in that
+fixture set — four rabbets plus crossing dados is the most cell-splitting case — and the
+file already burns ~6.6 s for 6 tests in isolation, so the per-test 5 s ceiling is close
+under load. This VPS ran many parallel agents all session.
+
+**Confirmed pre-existing, twice over.** `git diff 3b7c15d..HEAD` over `depthField.ts`,
+`depthField.agreement.test.ts`, `cuts.ts` and `geometry.ts` is **empty** — the code under
+test is byte-identical to master. And the full suite was run four times on master (699
+tests): run 1 failed with the same test and the same timeout, runs 2-4 passed. The same
+1-in-4 rate.
+
+Recorded with its own correction, because an earlier note in the execution ledger claimed
+this was controller-caused (a `pkill -f` self-match) and **that was wrong** — it was offered
+before the failing test had been captured, and the failure recurred with no `pkill` near it.
+A separate note recording "seven consecutive clean runs" was luck inside the rate, not
+evidence of stability. **Named remedy**: raise `testTimeout` for that one file, or split the
+heaviest geometry into its own case. Neither was done here; this round changed no code that
+file touches.
+
+**141. LESSON — the plan-supplied-code chain gained FOUR instances in one round, plus a
+fifth from a brief-supplied COMMENT, and three fixtures that passed for the wrong reason.
+Two of the three shared one root cause. This is the largest single-round addition the chain
+has taken (64, 68 twice, 80, 87, 88, 107, 118, 126), and the two things that make this
+round's instances distinctive are worth more than the count.**
+
+**The first was caught before execution, by re-reading the plan against the code — not by
+running it.** The plan's revision pass, done immediately before Task 1 against the merged
+result of the two rounds that had landed since the design was written, found Task 2 Step 7
+wrong on the page. It never reached code, so the ledger gives it no ordinal and neither does
+this entry; it is the cheapest catch in the whole chain and the only one in it that cost
+nothing but a read. It is also the argument for the revision pass itself, which follow-up
+125 had demanded and which every prior link in this chain would have been cheaper for.
+
+The three that did reach code:
+
+- **TENTH — the brief's inline grab guard does not compile.** `hit.owner.type === 'board'`
+  as an inline test does **not** narrow `hit`: `SnapPoint` is an interface whose `owner` is
+  the union, so narrowing the *property* does not narrow the *value*. Fixed with a
+  module-local type predicate, `isBoardOwned`.
+- **ELEVENTH — the brief's "drops the anchor on undo and on redo" test could not pass.**
+  Its `anchorOn()` helper re-armed via `addBoard()`, whose `edit()` wipes `future`, so
+  `redo()` early-returned and never ran its body. The implementer fixed the **fixture** and
+  left both assertions byte-for-byte, and explicitly declined the tempting wrong fix
+  (clearing on redo's early-return path — nothing moved there, and it would diverge from
+  `grabbed`). That task also caught its own first two prohibition mutations passing because
+  they were **unreachable** rather than survived, and re-ran with faithful ones — follow-up
+  126's lesson applied self-critically, mid-task.
+- **TWELFTH — the brief's Step 1b was unimplementable.** It said to call
+  `computeLineDistances()` on the geometry via a ref. That method is on `THREE.Line`, not on
+  `BufferGeometry` (one hit in `@types/three`), so the spelling as written would have thrown
+  at runtime — and this host's software GL would not have shown it. Notable for *how* it was
+  settled: the implementer spent **zero attempts** on the brief's spelling and instead proved
+  it wrong from the type definitions, the reviewer independently verified both halves, and
+  the fix was to follow the pattern `OriginAxes.tsx` had already settled (drei's `<Line>`,
+  which calls the method itself and sidesteps the `<line>`-versus-SVG-`line` JSX trap the same
+  step had budgeted an attempt for).
+
+**The ninth link in the separate plan-supplied-JUSTIFICATION chain, and the second sourced
+from a brief-supplied comment rather than from plan code**: `store.ts`'s anchor-clearing doc
+comment, supplied verbatim by the brief, claimed all seven anchor-clearing actions cleared
+**unconditionally**. Four clear only when the *anchor's own* owner is affected — so a live
+anchor implies nothing about the *target* being current, and a latched `tapeHover` could
+outlive the feature under it by a reachable path (anchor on A, hover B, leave the canvas,
+edit B's Length). This was taken to the user as a plan conflict and ruled **FIX**,
+point-precisely; blanket clearing was explicitly rejected because it would destroy the latch,
+which is the whole reason the field is in the store.
+
+**And the round's own sharpest lesson, from three fixtures that passed for the wrong reason
+— two of them sharing one root cause.** The eleventh instance above is the first
+(brief-supplied). The other two were **self-inflicted**, and both were the same mistake:
+
+> `boardSnapPoints(board)[0]` is the **min corner**, which *is* `board.position`. A
+> `{ length: 48 }` change never moves it.
+
+A test named *"drops a latched hover when the HOVERED board is edited"* had been passing
+only because the clause under test was board-precise; the moment the clause became
+point-precise the test failed, and **the fixture was wrong, not the code**. The identical
+repair then rippled into exactly one Task 5 anchor test, *"drops the anchor when its own
+board moves"*, for the identical reason. Both were fixed at the fixture with the assertions
+left byte-for-byte, and both gained a mirror "keeps" case — the surviving-corner case for
+the hover, the rename case for the anchor — because the "drops" direction passes under
+either rule and only the "keeps" direction discriminates. The rest of the anchor block was
+**audited rather than assumed**, and the audit was spot-checked by the reviewer.
+
+Stated as a rule, because it is more general than these two tests: **the most obvious point
+to grab in a fixture is the one point that survives the edit you are testing.** A fixture
+that reaches for index 0 of a point provider is reaching for the corner most likely to be
+invariant under the very change the test exists to detect.

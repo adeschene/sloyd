@@ -4,7 +4,7 @@
 import { createBoard } from './document';
 import { boardExtents } from './geometry';
 import { boardSolids } from './cuts';
-import { boardSnapPoints, cutSnapPoints, sameSnapPoint, snapPointsFor } from './snapPoints';
+import { boardSnapPoints, cutSnapPoints, guideSnapPoints, offsetPoint, sameSnapPoint, snapPointsFor } from './snapPoints';
 import type { SnapPoint } from './snapPoints';
 import type { Board, Cut, Posture, Rotation } from './types';
 
@@ -506,5 +506,86 @@ describe('sameSnapPoint', () => {
     const a: SnapPoint = { kind: 'corner', at: [1, 2, 3], owner: { type: 'board', id: 'x' } };
     const b: SnapPoint = { ...a, at: [1, 2, 4] };
     expect(sameSnapPoint(a, b)).toBe(false);
+  });
+});
+
+describe('guideSnapPoints', () => {
+  it('yields one candidate per guide, owned by that guide', () => {
+    const points = guideSnapPoints([
+      { id: 'g1', at: [1, 2, 3] },
+      { id: 'g2', at: [-4, 0, 8] },
+    ]);
+    expect(points).toEqual([
+      { kind: 'guide', at: [1, 2, 3], owner: { type: 'guide', id: 'g1' } },
+      { kind: 'guide', at: [-4, 0, 8], owner: { type: 'guide', id: 'g2' } },
+    ]);
+  });
+
+  it('yields nothing for no guides', () => {
+    expect(guideSnapPoints([])).toEqual([]);
+  });
+
+  // The whole payoff of §2.3: the picker's signature never moved, so the two
+  // providers' output concatenates into one array.
+  it('concatenates with board candidates into one array', () => {
+    const b = board();
+    const all = [...boardSnapPoints(b), ...guideSnapPoints([{ id: 'g1', at: [0, 0, 0] }])];
+    expect(all).toHaveLength(27);
+    expect(all.filter((p) => p.owner.type === 'guide')).toHaveLength(1);
+    expect(all.filter((p) => p.owner.type === 'board')).toHaveLength(26);
+  });
+});
+
+describe('offsetPoint', () => {
+  const anchor: [number, number, number] = [0, 0, 0];
+  const toward: [number, number, number] = [12, 0, 0];
+
+  it('lands between the two points below the measured distance', () => {
+    expect(offsetPoint(anchor, toward, 6)).toEqual([6, 0, 0]);
+  });
+
+  it('lands exactly on the target at the measured distance', () => {
+    expect(offsetPoint(anchor, toward, 12)).toEqual([12, 0, 0]);
+  });
+
+  it('overshoots past the target above the measured distance', () => {
+    expect(offsetPoint(anchor, toward, 18)).toEqual([18, 0, 0]);
+  });
+
+  it('runs backward from the anchor for a negative distance', () => {
+    expect(offsetPoint(anchor, toward, -6)).toEqual([-6, 0, 0]);
+  });
+
+  it('places at the anchor for a zero distance', () => {
+    expect(offsetPoint(anchor, toward, 0)).toEqual([0, 0, 0]);
+  });
+
+  it('normalises a diagonal direction rather than scaling the component-wise delta', () => {
+    // A 3-4-5 triangle: the direction is 5 long, so a distance of 5 must land
+    // exactly on the target and a distance of 10 exactly twice as far.
+    const result = offsetPoint([0, 0, 0], [3, 4, 0], 10);
+    expect(result![0]).toBeCloseTo(6, 10);
+    expect(result![1]).toBeCloseTo(8, 10);
+    expect(result![2]).toBeCloseTo(0, 10);
+  });
+
+  it('offsets from a non-zero anchor', () => {
+    expect(offsetPoint([10, 2, -5], [10, 2, 5], 4)).toEqual([10, 2, -1]);
+  });
+
+  // §1.2 — the case that costs one mouse movement to reach. Normalising a
+  // zero vector yields NaN on every component, and NaN coordinates entering
+  // the document would pass every downstream check as "a number".
+  it('refuses a zero-length direction rather than emitting NaN', () => {
+    expect(offsetPoint([1, 2, 3], [1, 2, 3], 6)).toBeNull();
+  });
+
+  it('refuses a zero-length direction even at distance zero', () => {
+    expect(offsetPoint([1, 2, 3], [1, 2, 3], 0)).toBeNull();
+  });
+
+  it('refuses a non-finite distance', () => {
+    expect(offsetPoint(anchor, toward, NaN)).toBeNull();
+    expect(offsetPoint(anchor, toward, Infinity)).toBeNull();
   });
 });

@@ -225,6 +225,51 @@ button[aria-pressed='true'] {
 .workspace { flex: 1; display: flex; min-height: 0; }
 .workspace > :first-child { flex: 1; min-width: 0; }
 
+/* The viewport and whatever is drawn over it. `position: relative` is the
+   whole point: R3F's canvas wrapper is a sibling of any overlay, not an
+   ancestor, so without a positioned parent an absolutely positioned overlay
+   resolves against the initial containing block and lands under the sidebar.
+   Sized by the `.workspace > :first-child` rule above, which it inherits by
+   being that first child. */
+.viewport-stack {
+  position: relative;
+  display: flex;
+  min-height: 0;
+}
+
+/* The tape's live readout — SketchUp's VCB, over the canvas rather than in it.
+   Same surface, border and radius as the panels and inputs, so it reads as
+   part of the instrument rather than as a floating widget. */
+.tape-readout {
+  position: absolute;
+  right: 1rem;
+  bottom: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  background: var(--graphite-850);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  color: var(--ink);
+  /* The canvas below takes raw pointer events; this box must keep its own, or
+     the input could not be clicked into. */
+  pointer-events: auto;
+  z-index: 2;
+}
+
+.tape-readout-label {
+  font-family: var(--font-num);
+  font-size: 12px;
+  min-width: 5ch;
+  text-align: right;
+}
+
+.tape-readout-input {
+  width: 8ch;
+  font-family: var(--font-num);
+}
+
 .banner {
   flex: none;
   background: var(--warn-bg);
@@ -276,9 +321,19 @@ button[aria-pressed='true'] {
 
 .panel-parts,
 .panel-props,
-.parts {
+.panel-guides,
+.parts,
+.guides {
   scrollbar-width: thin;
   scrollbar-color: var(--graphite-600) transparent;
+}
+
+/* Guides sits below Properties and, like Parts, never shrinks: a zero basis
+   would give up height to Properties instead of getting its own scrollbar. */
+.panel-guides {
+  flex: 0 0 auto;
+  max-height: 34%;
+  border-top: 1px solid var(--rule);
 }
 
 .panel h2 {
@@ -358,6 +413,61 @@ button[aria-pressed='true'] {
   border-left-color: var(--brass);
   color: var(--ink);
   font-weight: 600;
+}
+
+/* ---------------------------------------------------------------- guides list */
+
+.guides {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.guides li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px 6px 11px;
+  border-left: 2px solid transparent;
+}
+
+.guides li:hover {
+  background: var(--graphite-850);
+  border-left-color: var(--rule);
+}
+
+.guide-coords {
+  flex: 1;
+  font-family: var(--font-num);
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+
+/* A bare icon button, right-aligned in its row — no border or fill of its
+   own, since a rule per guide would out-noise the list it sits in. */
+.guide-remove {
+  flex: none;
+  padding: 0 6px;
+  background: none;
+  border: 0;
+  border-radius: var(--radius);
+  color: var(--ink-faint);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.guide-remove:hover:not(:disabled) {
+  background: var(--alert-bg-strong);
+  border-color: transparent;
+  color: var(--alert-bright);
+}
+
+.guides-clear {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
 }
 
 /* ---------------------------------------------------------------- properties */

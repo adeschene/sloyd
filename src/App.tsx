@@ -3,8 +3,10 @@ import { Viewport } from './viewport/Viewport';
 import { Toolbar } from './panels/Toolbar';
 import { PartsList } from './panels/PartsList';
 import { Properties } from './panels/Properties';
+import { GuidesList } from './panels/GuidesList';
 import { FileMenu, SaveIndicator, StorageBanner } from './panels/FileMenu';
 import { CutList } from './panels/CutList';
+import { TapeReadout } from './panels/TapeReadout';
 import { storage } from './storage/browser';
 import { useStore } from './store/store';
 
@@ -39,6 +41,7 @@ export default function App() {
   // "how big is this" and "where is the origin".
   const [showGrid, setShowGrid] = useState(true);
   const [showAxes, setShowAxes] = useState(true);
+  const [showGuides, setShowGuides] = useState(true);
   // Also view state, and also deliberately outside the document and the undo
   // stack: the cut list is a way of looking at a project, not part of one.
   const [cutListOpen, setCutListOpen] = useState(false);
@@ -130,14 +133,19 @@ export default function App() {
       // prop rather than inferring it.
       if (cutListOpen) return;
 
-      // Escape backs out one level: drop the grab first, then the tool. Note
-      // this sits below the cutListOpen guard on purpose — CutList owns
-      // Escape while it is open, and a grab behind the sheet must survive it.
+      // Escape backs out one level: drop what is held first, then the tool.
+      // Note this sits below the cutListOpen guard on purpose — CutList owns
+      // Escape while it is open, and a grab or anchor behind the sheet must
+      // survive it.
       if (e.key === 'Escape') {
-        const { grabbed, tool, cancelGrab, setTool } = useStore.getState();
+        const { grabbed, tapeAnchor, tool, cancelGrab, clearTapeAnchor, setTool } =
+          useStore.getState();
         if (grabbed) {
           e.preventDefault();
           cancelGrab();
+        } else if (tapeAnchor) {
+          e.preventDefault();
+          clearTapeAnchor();
         } else if (tool !== 'select') {
           e.preventDefault();
           setTool('select');
@@ -155,6 +163,16 @@ export default function App() {
         return;
       }
 
+      // T toggles the Tape tool, the same shape as M. Modifier chords are left
+      // alone — Ctrl+T and Cmd+T are the browser's.
+      if (e.key === 't' || e.key === 'T') {
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+        e.preventDefault();
+        const { tool, setTool } = useStore.getState();
+        setTool(tool === 'tape' ? 'select' : 'tape');
+        return;
+      }
+
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         e.shiftKey ? redo() : undo();
@@ -166,10 +184,11 @@ export default function App() {
       // feature does not exist there.
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (e.ctrlKey || e.metaKey || e.altKey) return;
-        // Deleting the board currently being carried would leave the grab
-        // pointing at something that no longer exists. The store drops the
-        // grab defensively too; this is what stops the delete happening at all.
-        if (useStore.getState().grabbed) return;
+        // Deleting the board being carried — or the one the tape is anchored
+        // on — would leave the held point naming something that no longer
+        // exists. The store drops both defensively; this stops the delete
+        // happening at all.
+        if (useStore.getState().grabbed || useStore.getState().tapeAnchor) return;
         const id = useStore.getState().selectedId;
         if (!id) return;
         e.preventDefault();
@@ -204,6 +223,8 @@ export default function App() {
           onToggleGrid={() => setShowGrid((v) => !v)}
           showAxes={showAxes}
           onToggleAxes={() => setShowAxes((v) => !v)}
+          showGuides={showGuides}
+          onToggleGuides={() => setShowGuides((v) => !v)}
           onOpenCutList={() => {
             opener.current = document.activeElement as HTMLElement | null;
             setCutListOpen(true);
@@ -214,12 +235,33 @@ export default function App() {
         </Toolbar>
         <StorageBanner available={available} />
         <main className="workspace">
-          <Viewport
-            orthographic={orthographic}
-            showGrid={showGrid}
-            showAxes={showAxes}
-            shortcutsSuspended={cutListOpen}
-          />
+          {/*
+            The viewport and anything drawn OVER it share one positioned
+            wrapper. `.workspace` is a plain flex row with no positioning of
+            its own and R3F's canvas div is a sibling rather than an ancestor,
+            so an absolutely positioned overlay with no wrapper would resolve
+            against the initial containing block and land under the sidebar.
+            The wrapper is the workspace's first child, so the existing
+            `.workspace > :first-child { flex: 1; min-width: 0 }` rule sizes it
+            exactly as it sized the Viewport before — this follows the layout
+            rather than adding a second one.
+
+            It stays inside `.app-shell` on purpose: TapeReadout contains an
+            <input> that commits to the document, which is precisely the class
+            of control the cut list's `inert` shell exists to take out of the
+            tab order (follow-up 56). Hoisting it to a child of `.app` would
+            reopen that defect and lose the print rule as well.
+          */}
+          <div className="viewport-stack">
+            <Viewport
+              orthographic={orthographic}
+              showGrid={showGrid}
+              showAxes={showAxes}
+              showGuides={showGuides}
+              shortcutsSuspended={cutListOpen}
+            />
+            <TapeReadout />
+          </div>
           <aside className="sidebar">
             <section className="panel panel-parts">
               <h2>Parts</h2>
@@ -228,6 +270,10 @@ export default function App() {
             <section className="panel panel-props">
               <h2>Properties</h2>
               <Properties />
+            </section>
+            <section className="panel panel-guides">
+              <h2>Guides</h2>
+              <GuidesList />
             </section>
           </aside>
         </main>

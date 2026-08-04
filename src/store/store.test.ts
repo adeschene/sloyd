@@ -738,9 +738,9 @@ describe('the Move tool', () => {
     // The other half of the KEEPS test above, pinning follow-up 129: since
     // Task 6b, boardSnapPoints filters its 26 box-lattice points through
     // stockProbe (closing follow-up 122), so a box corner is not immune to
-    // dropGrabIfGone the way the KEEPS test's title alone suggests — it
+    // dropHeldIfGone the way the KEEPS test's title alone suggests — it
     // survives only as long as its own stock survives. This is the SAME
-    // rule dropGrabIfGone always applied to a shoulder, reached here through
+    // rule dropHeldIfGone always applied to a shoulder, reached here through
     // boardSnapPoints' output rather than through cutSnapPoints'.
     const { a } = twoBoards();
     useStore.getState().setTool('move');
@@ -857,5 +857,497 @@ describe('the Move tool', () => {
     // The grab is left in hand rather than discarded: the state should be
     // unreachable, and silently dropping it would make it undiagnosable.
     expect(useStore.getState().grabbed).not.toBeNull();
+  });
+});
+
+describe('SnapOwner widening — a guide is a legal target', () => {
+  const guidePoint = (id: string, at: [number, number, number]) =>
+    ({ kind: 'guide' as const, at, owner: { type: 'guide' as const, id } });
+
+  it('a board can be snapped onto a guide point', () => {
+    useStore.getState().addBoard();
+    const board = useStore.getState().doc.boards[0];
+    const corner = boardSnapPoints(board)[0];
+    useStore.getState().grabSnapPoint(corner);
+    useStore.getState().commitSnapMove(guidePoint('g1', [
+      corner.at[0] + 5, corner.at[1] + 6, corner.at[2] + 7,
+    ]));
+    const moved = useStore.getState().doc.boards[0];
+    expect(moved.position).toEqual([
+      board.position[0] + 5, board.position[1] + 6, board.position[2] + 7,
+    ]);
+    expect(useStore.getState().grabbed).toBeNull();
+  });
+
+  // The self-snap guard compares OWNERS, not bare ids — the ONE runtime
+  // narrowing the BoardSnapPoint type does not subsume, because the TARGET can
+  // legitimately be a guide. Without the `type` test, a guide whose id
+  // collided with the grabbed board's would read as a self-snap and the move
+  // would be silently refused. See the design's §3.0.
+  it('does not mistake a guide for the grabbed board when their ids collide', () => {
+    useStore.getState().addBoard();
+    const board = useStore.getState().doc.boards[0];
+    const corner = boardSnapPoints(board)[0];
+    useStore.getState().grabSnapPoint(corner);
+    useStore.getState().commitSnapMove(guidePoint(board.id, [
+      corner.at[0] + 3, corner.at[1], corner.at[2],
+    ]));
+    expect(useStore.getState().doc.boards[0].position[0]).toBe(board.position[0] + 3);
+  });
+});
+
+describe('guide actions', () => {
+  it('appends a guide at the given position', () => {
+    useStore.getState().addGuide([1, 2, 3]);
+    expect(useStore.getState().doc.guides).toHaveLength(1);
+    expect(useStore.getState().doc.guides[0].at).toEqual([1, 2, 3]);
+  });
+
+  it('removes one guide by id and leaves the rest', () => {
+    useStore.getState().addGuide([1, 0, 0]);
+    useStore.getState().addGuide([2, 0, 0]);
+    const [first, second] = useStore.getState().doc.guides;
+    useStore.getState().removeGuide(first.id);
+    expect(useStore.getState().doc.guides.map((g) => g.id)).toEqual([second.id]);
+  });
+
+  it('clears every guide', () => {
+    useStore.getState().addGuide([1, 0, 0]);
+    useStore.getState().addGuide([2, 0, 0]);
+    useStore.getState().clearGuides();
+    expect(useStore.getState().doc.guides).toEqual([]);
+  });
+
+  it('places guides on the undo stack', () => {
+    useStore.getState().addGuide([1, 2, 3]);
+    useStore.getState().undo();
+    expect(useStore.getState().doc.guides).toEqual([]);
+    useStore.getState().redo();
+    expect(useStore.getState().doc.guides).toHaveLength(1);
+  });
+
+  // Invariant 4's rule: edit() unconditionally pushes an undo snapshot and
+  // clears redo, so a no-op must not reach it. Same guard shape as
+  // commitSnapMove's zero-delta and removeCut's.
+  it('leaves no undo entry when removing a guide that does not exist', () => {
+    useStore.getState().addGuide([1, 2, 3]);
+    const before = useStore.getState().doc;
+    useStore.getState().removeGuide('nope');
+    expect(useStore.getState().doc).toBe(before);
+  });
+
+  it('leaves no undo entry when clearing an already-empty guide list', () => {
+    const before = useStore.getState().doc;
+    useStore.getState().clearGuides();
+    expect(useStore.getState().doc).toBe(before);
+  });
+
+  it('does not touch the board selection', () => {
+    useStore.getState().addBoard();
+    const selected = useStore.getState().selectedId;
+    useStore.getState().addGuide([1, 2, 3]);
+    expect(useStore.getState().selectedId).toBe(selected);
+  });
+});
+
+describe('tapeAnchor — invariant 24, second instance', () => {
+  const anchorOn = () => {
+    useStore.getState().addBoard();
+    const board = useStore.getState().doc.boards[0];
+    const point = boardSnapPoints(board)[0];
+    useStore.getState().setTapeAnchor(point);
+    return board;
+  };
+
+  it('holds and clears an anchor', () => {
+    const point = { kind: 'guide' as const, at: [1, 2, 3] as [number, number, number], owner: { type: 'guide' as const, id: 'g1' } };
+    useStore.getState().setTapeAnchor(point);
+    expect(useStore.getState().tapeAnchor).toEqual(point);
+    useStore.getState().clearTapeAnchor();
+    expect(useStore.getState().tapeAnchor).toBeNull();
+  });
+
+  it('drops the anchor when the tool changes', () => {
+    anchorOn();
+    useStore.getState().setTool('select');
+    expect(useStore.getState().tapeAnchor).toBeNull();
+  });
+
+  it('drops the anchor on undo and on redo', () => {
+    useStore.getState().addBoard();
+    useStore.getState().addBoard();
+    const first = useStore.getState().doc.boards[0];
+    useStore.getState().setTapeAnchor(boardSnapPoints(first)[0]);
+    useStore.getState().undo();
+    expect(useStore.getState().tapeAnchor).toBeNull();
+
+    // Re-armed with a bare setTapeAnchor, NOT anchorOn(): anchorOn calls
+    // addBoard, whose edit() wipes `future`, so redo() would early-return
+    // without running its body and the assertion below would say nothing
+    // about redo at all. Exactly why the grab test above re-arms with
+    // grabSnapPoint rather than with an edit.
+    useStore.getState().setTapeAnchor(boardSnapPoints(useStore.getState().doc.boards[0])[0]);
+    useStore.getState().redo();
+    expect(useStore.getState().tapeAnchor).toBeNull();
+  });
+
+  it('drops the anchor when the document is replaced', () => {
+    anchorOn();
+    useStore.getState().replaceDocument(createDocument('Other'));
+    expect(useStore.getState().tapeAnchor).toBeNull();
+  });
+
+  it('drops the anchor when its own board is deleted', () => {
+    const board = anchorOn();
+    useStore.getState().deleteBoard(board.id);
+    expect(useStore.getState().tapeAnchor).toBeNull();
+  });
+
+  // The anchored point here is deliberately NOT anchorOn()'s min corner, which
+  // IS `board.position` — growing the length leaves it exactly where it was,
+  // so a point-precise clear correctly keeps it. This test passed on that
+  // fixture only while updateBoard's clause was board-precise; when that clause
+  // was deleted in favour of dropHeldIfGone's survival test, the accident
+  // surfaced. Fixture repaired, assertion untouched — the same repair the
+  // hover block's own fixture needed one round earlier, and the third instance
+  // of this shape in this round.
+  it('drops the anchor when its own board moves', () => {
+    useStore.getState().addBoard();
+    const board = useStore.getState().doc.boards[0];
+    const far = boardSnapPoints(board).find((p) => p.at[0] > 0);
+    if (!far) throw new Error('fixture: expected a snap point off the min corner');
+    useStore.getState().setTapeAnchor(far);
+    useStore.getState().updateBoard(board.id, { length: 48 });
+    expect(useStore.getState().tapeAnchor).toBeNull();
+  });
+
+  // The mirror, and the guard for the behaviour the deleted clause got wrong:
+  // updateBoard is the only rename path, a rename moves no point, and nulling
+  // the anchor takes the hover and the whole readout down with it (TapeTool's
+  // anchor effect, then TapeReadout's own early return). So a rename must
+  // leave the measurement standing.
+  it('keeps the anchor when its own board is only RENAMED', () => {
+    const board = anchorOn();
+    useStore.getState().updateBoard(board.id, { name: 'Renamed' });
+    expect(useStore.getState().tapeAnchor).not.toBeNull();
+  });
+
+  it('keeps the anchor when a DIFFERENT board changes', () => {
+    const board = anchorOn();
+    useStore.getState().addBoard();
+    const other = useStore.getState().doc.boards.find((b) => b.id !== board.id)!;
+    useStore.getState().updateBoard(other.id, { length: 48 });
+    expect(useStore.getState().tapeAnchor).not.toBeNull();
+  });
+
+  // The two `grabbed` does not need — a grab is never guide-owned, but an
+  // anchor can be, and the guides list is not disabled while the tape is
+  // anchored, so deleting the guide you anchored on is one click away.
+  it('drops a guide-owned anchor when that guide is removed', () => {
+    useStore.getState().addGuide([1, 2, 3]);
+    const guide = useStore.getState().doc.guides[0];
+    useStore.getState().setTapeAnchor({
+      kind: 'guide', at: guide.at, owner: { type: 'guide', id: guide.id },
+    });
+    useStore.getState().removeGuide(guide.id);
+    expect(useStore.getState().tapeAnchor).toBeNull();
+  });
+
+  it('keeps a guide-owned anchor when a DIFFERENT guide is removed', () => {
+    useStore.getState().addGuide([1, 2, 3]);
+    useStore.getState().addGuide([4, 5, 6]);
+    const [first, second] = useStore.getState().doc.guides;
+    useStore.getState().setTapeAnchor({
+      kind: 'guide', at: first.at, owner: { type: 'guide', id: first.id },
+    });
+    useStore.getState().removeGuide(second.id);
+    expect(useStore.getState().tapeAnchor).not.toBeNull();
+  });
+
+  it('drops any anchor when every guide is cleared', () => {
+    const board = anchorOn();
+    useStore.getState().addGuide([1, 2, 3]);
+    useStore.getState().clearGuides();
+    expect(useStore.getState().tapeAnchor).toBeNull();
+    expect(board).toBeTruthy();
+  });
+
+  // Invariant 24's third clause, which this plan predates: a cut edit does not
+  // move the board, it can destroy the FEATURE under the held point. An anchor
+  // on a shoulder needs the same point-precise clear a grab on one gets.
+  it('drops an anchor on a cut shoulder when that cut is removed', () => {
+    useStore.getState().addBoard();
+    const board = useStore.getState().doc.boards[0];
+    useStore.getState().addCut(board.id);
+    const cut = useStore.getState().doc.boards[0].cuts[0];
+    const shoulder = cutSnapPoints(useStore.getState().doc.boards[0])[0];
+    useStore.getState().setTapeAnchor(shoulder);
+    useStore.getState().removeCut(board.id, cut.id);
+    expect(useStore.getState().tapeAnchor).toBeNull();
+  });
+
+  // Point-precise, not blanket: a box corner usually survives a cut edit on
+  // the same board, because a mid-face dado touches no box point. This is the
+  // same asymmetry dropHeldIfGone already has for grabs — see invariant 24.
+  it('keeps an anchor on a box corner when a mid-face cut is added', () => {
+    useStore.getState().addBoard();
+    const board = useStore.getState().doc.boards[0];
+    useStore.getState().setTapeAnchor(boardSnapPoints(board)[0]);
+    useStore.getState().addCut(board.id);
+    expect(useStore.getState().tapeAnchor).not.toBeNull();
+  });
+
+  // No performance claim in the title on purpose (follow-up 126): this pins
+  // the BEHAVIOUR — a cut edit with nothing held leaves both fields alone —
+  // and says nothing about whether the cell grid was built. The guard-first
+  // shape of dropHeldIfGone is verified by reading it, not by this test.
+  it('leaves both held points alone when a cut is edited with nothing held', () => {
+    useStore.getState().addBoard();
+    const board = useStore.getState().doc.boards[0];
+    useStore.getState().addCut(board.id);
+    expect(useStore.getState().grabbed).toBeNull();
+    expect(useStore.getState().tapeAnchor).toBeNull();
+  });
+});
+
+// Invariant 24's THIRD instance. A hover is normally too transient to hold a
+// stale position — the next pointermove re-picks it — but TapeTool LATCHES it
+// while anchored, because the only route to typing a distance is off the canvas
+// and into the readout. So it can sit unreplaced across any number of edits,
+// and a stale one puts a typed guide somewhere the user never pointed at.
+//
+// Every test here is point-precise on purpose. The two "keeps" are the ones
+// that matter most: a blanket `tapeHover: null` beside every `tapeAnchor: null`
+// would pass every "drops" case below and destroy the latch, which is the whole
+// reason the field is in the store.
+describe('tapeHover — invariant 24, third instance', () => {
+  /**
+   * Anchor on one board and latch a hover onto a second. Returns both.
+   *
+   * The hovered point is deliberately a corner AWAY from the origin, not
+   * `boardSnapPoints(to)[0]`. That first point is the min corner, which IS the
+   * board's `position` — so growing the board's length leaves it exactly where
+   * it was, and a point-precise clear correctly keeps it. A fixture built on
+   * it made the "drops when the hovered board is edited" test pass only while
+   * the clear was board-precise, and it went on passing for the wrong reason
+   * once it wasn't. Same shape as the anchor's redo-fixture lesson: fix the
+   * fixture, leave the assertion. The surviving-corner case is worth pinning
+   * too and now has its own test below.
+   */
+  const anchorAndHover = () => {
+    useStore.getState().addBoard();
+    useStore.getState().addBoard();
+    const [from, to] = useStore.getState().doc.boards;
+    const far = boardSnapPoints(to).find((p) => p.at[0] > 0);
+    if (!far) throw new Error('fixture: expected a snap point off the min corner');
+    useStore.getState().setTapeAnchor(boardSnapPoints(from)[0]);
+    useStore.getState().setTapeHover(far);
+    return { from, to };
+  };
+
+  it('holds and clears a hover', () => {
+    useStore.getState().addBoard();
+    const point = boardSnapPoints(useStore.getState().doc.boards[0])[0];
+    useStore.getState().setTapeHover(point);
+    expect(useStore.getState().tapeHover).toEqual(point);
+    useStore.getState().setTapeHover(null);
+    expect(useStore.getState().tapeHover).toBeNull();
+  });
+
+  it('drops the hover when the tool changes', () => {
+    anchorAndHover();
+    useStore.getState().setTool('select');
+    expect(useStore.getState().tapeHover).toBeNull();
+  });
+
+  // The traced path this whole block exists for: the ANCHOR's board did not
+  // move, so the anchor correctly survives — which is exactly why its survival
+  // says nothing about the target being current. Both assertions matter.
+  it('drops a latched hover when the HOVERED board is edited', () => {
+    const { to } = anchorAndHover();
+    useStore.getState().updateBoard(to.id, { length: 48 });
+    expect(useStore.getState().tapeHover).toBeNull();
+    expect(useStore.getState().tapeAnchor).not.toBeNull();
+  });
+
+  // The latch. Editing some third board must leave the measurement intact, or
+  // typing a distance becomes a race against every unrelated edit.
+  it('keeps a latched hover when a THIRD board is edited', () => {
+    anchorAndHover();
+    useStore.getState().addBoard();
+    const third = useStore.getState().doc.boards[2];
+    useStore.getState().updateBoard(third.id, { length: 48 });
+    expect(useStore.getState().tapeHover).not.toBeNull();
+  });
+
+  // `updateBoard` is also the ONLY rename path — there is no renameBoard — and
+  // a rename moves no point. A board-precise clause (the shape `grabbed` uses
+  // there) drops the latch here, and TapeTool would go on
+  // drawing a marker the readout had already dropped. Hence the survival test.
+  it('keeps a latched hover when the hovered board is only RENAMED', () => {
+    const { to } = anchorAndHover();
+    useStore.getState().updateBoard(to.id, { name: 'Renamed' });
+    expect(useStore.getState().tapeHover).not.toBeNull();
+  });
+
+  // Point-precision is sharper than "did this board change": the min corner IS
+  // the board's position, so growing the length moves every corner except that
+  // one. The hover survives because the point survives — which is the rule
+  // stated, not a special case.
+  it('keeps a latched hover on a corner the edit does not move', () => {
+    useStore.getState().addBoard();
+    useStore.getState().addBoard();
+    const [from, to] = useStore.getState().doc.boards;
+    useStore.getState().setTapeAnchor(boardSnapPoints(from)[0]);
+    const min = boardSnapPoints(to).find((p) => p.at[0] === 0 && p.at[1] === 0 && p.at[2] === 0);
+    if (!min) throw new Error('fixture: expected a min-corner snap point');
+    useStore.getState().setTapeHover(min);
+    useStore.getState().updateBoard(to.id, { length: 48 });
+    expect(useStore.getState().tapeHover).not.toBeNull();
+  });
+
+  it('drops a latched hover when the hovered board is deleted', () => {
+    const { to } = anchorAndHover();
+    useStore.getState().deleteBoard(to.id);
+    expect(useStore.getState().tapeHover).toBeNull();
+  });
+
+  // deleteBoard's mirror of the updateBoard keeps-test. Without it an
+  // unconditional `set({ tapeHover: null })` there passes every other case in
+  // this block — board-precision is correct at deleteBoard (a deleted board
+  // offers no points at all), but only a test says so.
+  it('keeps a latched hover when a THIRD board is deleted', () => {
+    anchorAndHover();
+    useStore.getState().addBoard();
+    const third = useStore.getState().doc.boards[2];
+    useStore.getState().deleteBoard(third.id);
+    expect(useStore.getState().tapeHover).not.toBeNull();
+  });
+
+  // dropHeldIfGone's survival test, not a board-id test: a cut edit does not
+  // move the board, it destroys the FEATURE under the point.
+  it('drops a hover on a cut shoulder when that cut is removed', () => {
+    useStore.getState().addBoard();
+    const board = useStore.getState().doc.boards[0];
+    useStore.getState().addCut(board.id);
+    const cut = useStore.getState().doc.boards[0].cuts[0];
+    useStore.getState().setTapeHover(cutSnapPoints(useStore.getState().doc.boards[0])[0]);
+    useStore.getState().removeCut(board.id, cut.id);
+    expect(useStore.getState().tapeHover).toBeNull();
+  });
+
+  // The second latch test, and the one that pins point-precision inside
+  // dropHeldIfGone itself: a mid-face dado touches no box point, so a hover on
+  // a box corner of the very board being cut survives.
+  it('keeps a hover on a box corner when a mid-face cut is added to that board', () => {
+    useStore.getState().addBoard();
+    const board = useStore.getState().doc.boards[0];
+    useStore.getState().setTapeHover(boardSnapPoints(board)[0]);
+    useStore.getState().addCut(board.id);
+    expect(useStore.getState().tapeHover).not.toBeNull();
+  });
+
+  // A guide is a snap candidate like any other, so measuring TO one is
+  // ordinary — and the guides list stays live while the tape is anchored.
+  it('drops a guide-owned hover when that guide is removed', () => {
+    useStore.getState().addGuide([1, 2, 3]);
+    const guide = useStore.getState().doc.guides[0];
+    useStore.getState().setTapeHover({
+      kind: 'guide', at: guide.at, owner: { type: 'guide', id: guide.id },
+    });
+    useStore.getState().removeGuide(guide.id);
+    expect(useStore.getState().tapeHover).toBeNull();
+  });
+
+  it('keeps a guide-owned hover when a DIFFERENT guide is removed', () => {
+    useStore.getState().addGuide([1, 2, 3]);
+    useStore.getState().addGuide([4, 5, 6]);
+    const [first, second] = useStore.getState().doc.guides;
+    useStore.getState().setTapeHover({
+      kind: 'guide', at: first.at, owner: { type: 'guide', id: first.id },
+    });
+    useStore.getState().removeGuide(second.id);
+    expect(useStore.getState().tapeHover).not.toBeNull();
+  });
+
+  // The three wholesale-rewrite actions. Invariant 24's own test for joining
+  // its list is "does this rewrite doc.boards", not "does it touch positions" —
+  // every board can move at once, so no per-owner condition would mean
+  // anything, and all three null the anchor in the same statement, so the
+  // latch is already over.
+  it('drops the hover on undo', () => {
+    anchorAndHover();
+    useStore.getState().undo();
+    expect(useStore.getState().tapeHover).toBeNull();
+  });
+
+  it('drops the hover on redo', () => {
+    anchorAndHover();
+    useStore.getState().undo();
+    // Re-latched with a bare setTapeHover, NOT via an edit: any edit wipes
+    // `future`, so redo() would early-return without running its body and the
+    // assertion would say nothing about redo at all. Same trap the anchor's
+    // own undo/redo test records.
+    useStore.getState().setTapeHover(boardSnapPoints(useStore.getState().doc.boards[0])[0]);
+    useStore.getState().redo();
+    expect(useStore.getState().tapeHover).toBeNull();
+  });
+
+  it('drops the hover when the document is replaced', () => {
+    anchorAndHover();
+    useStore.getState().replaceDocument(createDocument('Other'));
+    expect(useStore.getState().tapeHover).toBeNull();
+  });
+
+  // Blanket here, and only defensible because the anchor is cleared blanket in
+  // the same statement — no anchor, no latch.
+  it('drops any hover when every guide is cleared', () => {
+    anchorAndHover();
+    useStore.getState().addGuide([1, 2, 3]);
+    useStore.getState().clearGuides();
+    expect(useStore.getState().tapeHover).toBeNull();
+  });
+
+  // No performance claim in the title (follow-up 126): this pins the BEHAVIOUR
+  // — a cut edit with nothing held leaves all three fields alone. The
+  // guard-first shape of dropHeldIfGone is verified by reading it.
+  it('leaves all three held points alone when a cut is edited with nothing held', () => {
+    useStore.getState().addBoard();
+    const board = useStore.getState().doc.boards[0];
+    useStore.getState().addCut(board.id);
+    expect(useStore.getState().grabbed).toBeNull();
+    expect(useStore.getState().tapeAnchor).toBeNull();
+    expect(useStore.getState().tapeHover).toBeNull();
+  });
+});
+
+// Design §4.2. These are PROHIBITIONS, and they exist because adding
+// `tapeAnchor: null` beside every `grabbed: null` is what a tidying pass would
+// do. The tape anchors on any board; the Move tool grabs only the selected
+// one. Only the second rule has anything to do with selection.
+describe('tapeAnchor is NOT cleared by selection changes', () => {
+  it('survives selecting a different board', () => {
+    useStore.getState().addBoard();
+    const first = useStore.getState().doc.boards[0];
+    useStore.getState().setTapeAnchor(boardSnapPoints(first)[0]);
+    useStore.getState().addBoard();
+    const second = useStore.getState().doc.boards[1];
+    // addBoard already selected `second`, so select the anchored board first —
+    // otherwise the selection never actually moves and the test's title claims
+    // more than its fixture does (follow-up 126's shape).
+    useStore.getState().selectBoard(first.id);
+    useStore.getState().selectBoard(second.id);
+    expect(useStore.getState().tapeAnchor).not.toBeNull();
+  });
+
+  // addBoard selects what it creates through edit()'s selection callback,
+  // which is the path that drops a grab. Measuring from an existing board to a
+  // brand-new one is an ordinary thing to want.
+  it('survives an edit whose selection callback moves the selection', () => {
+    useStore.getState().addBoard();
+    const first = useStore.getState().doc.boards[0];
+    useStore.getState().setTapeAnchor(boardSnapPoints(first)[0]);
+    useStore.getState().addBoard();
+    expect(useStore.getState().tapeAnchor).not.toBeNull();
   });
 });

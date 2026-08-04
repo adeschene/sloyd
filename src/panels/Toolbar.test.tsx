@@ -24,6 +24,8 @@ function renderToolbar(overrides: Partial<Parameters<typeof Toolbar>[0]> = {}) {
       onToggleGrid={noop}
       showAxes
       onToggleAxes={noop}
+      showGuides
+      onToggleGuides={noop}
       onOpenCutList={noop}
       {...overrides}
     />,
@@ -113,5 +115,26 @@ describe('Toolbar view toggles', () => {
     renderToolbar({ onOpenCutList: () => { opened = true; } });
     await userEvent.click(screen.getByText('Cut list'));
     expect(opened).toBe(true);
+  });
+});
+
+describe('Guides checkbox', () => {
+  it('renders checked and calls back on change', async () => {
+    const onToggleGuides = vi.fn();
+    renderToolbar({ showGuides: true, onToggleGuides });
+    const box = screen.getByLabelText('Guides') as HTMLInputElement;
+    expect(box.checked).toBe(true);
+    await userEvent.click(box);
+    expect(onToggleGuides).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Tape button', () => {
+  it('is pressed when the tape tool is active and activates it on click', async () => {
+    renderToolbar();
+    const tape = screen.getByRole('button', { name: /tape/i });
+    expect(tape).toHaveAttribute('aria-pressed', 'false');
+    await userEvent.click(tape);
+    expect(useStore.getState().tool).toBe('tape');
   });
 });

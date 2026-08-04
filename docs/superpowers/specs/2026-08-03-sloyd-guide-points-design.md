@@ -363,7 +363,7 @@ well:
 | `undo`, `redo` | yes | yes |
 | `replaceDocument` | yes | yes |
 | `deleteBoard` (conditional) | yes | yes |
-| `updateBoard` (conditional) | yes | yes |
+| `updateBoard` (**point-precise**) | yes (conditional) | **yes, point-precise** |
 | `addCut`, `updateCut`, `removeCut` (point-precise) | yes | **yes** |
 | `removeGuide` (conditional) | n/a — a grab is never guide-owned | **yes** |
 | `clearGuides` | n/a | **yes** |
@@ -374,6 +374,23 @@ well:
 `removeGuide` and `clearGuides` are reachable for the obvious reason: the guides
 list is not disabled while the tape is anchored, so deleting the guide you
 anchored on is one click away.
+
+**Amended during Task 7 (2026-08-04), with the user's approval: `updateBoard`
+clears `tapeAnchor` POINT-PRECISELY, not on the board-id condition this table
+originally specified.** `updateBoard` is also the only rename path — there is no
+`renameBoard` — and `{ name }`, `{ material }` and `{ grain }` move no point at
+all, so a board-precise clause dropped the anchor on a rename and took the whole
+measurement with it (nulling the anchor nulls the latched hover through
+`TapeTool`'s anchor effect, which unmounts the readout). It now routes through
+the same `dropHeldIfGone` survival test the cut edits use, called after the
+edit: a rename keeps the anchor, a Length or Posture change drops it. `grabbed`
+keeps its board-precise clause, which predates this round by two. The same
+amendment governs `tapeHover`, invariant 24's third instance, which this design
+predates entirely. §4.2 covers only one half of its governance — the *selection*
+prohibition it shares with the anchor; for the point-precise `updateBoard` rule
+and the full enumeration of which writers are survival-tested, which are
+owner-conditional and which are blanket, read the field's declaration in
+`store.ts`.
 
 ### 4.1 The cut edits, which this design predates
 
@@ -410,11 +427,19 @@ This is stated as a prohibition rather than left as an absence because "add
 `tapeAnchor: null` beside every `grabbed: null`" is precisely what a tidying
 pass would do, and it would look like consistency.
 
+`tapeHover` inherits the same prohibition, for the same reason: it is no more
+restricted to the selected board than the anchor is, so neither `edit()`'s
+selection callback nor `selectBoard` drops it either.
+
 ### 4.3 This is why `tapeAnchor` lives in the store
 
 It cannot get that clearing anywhere else. A `useState` inside `TapeTool` would
-have to subscribe to every one of those seven actions and re-derive when to
-drop itself — the exact bookkeeping invariant 24 exists to avoid.
+have to subscribe to every action in the table above and re-derive when to
+drop itself — the exact bookkeeping invariant 24 exists to avoid. The argument
+does not rest on how many actions that table lists — only on there being many,
+and on the store already being the one place that has to know about all of
+them. Read the count off the table itself if you need it; do not restate it
+here, which is how this comment went stale once already.
 
 That reasoning is the same one snap-move used for `tool` and `grabbed`, and it
 still does not reach `shortcutsSuspended`, which stays prop-drilled: that flag

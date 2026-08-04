@@ -7,8 +7,10 @@ import { boardExtents } from '../document/document';
 import type { Board } from '../document/document';
 import { BoardMesh } from './BoardMesh';
 import { Gizmo } from './Gizmo';
+import { GuideMarkers } from './GuideMarkers';
 import { MoveTool } from './MoveTool';
 import { OriginAxes } from './OriginAxes';
+import { TapeTool } from './TapeTool';
 import { SCENE_EXTENT } from './extent';
 import { gridDensity } from './gridDensity';
 import type { GridTier } from './gridDensity';
@@ -224,6 +226,15 @@ interface ViewportProps {
   /** False hides the origin axis lines entirely. Independent of `showGrid`. */
   showAxes?: boolean;
   /**
+   * False hides the guide points AND withholds them as snap candidates.
+   *
+   * Not merely a render flag: a marker appearing over an invisible point is
+   * the same defect the snap-move round avoided by skipping a board's volume
+   * centre — an inference indicator hanging where nothing is drawn, which is
+   * the opposite of its job. See the design's §6.
+   */
+  showGuides?: boolean;
+  /**
    * True while something covers the viewport (today: the cut list). The camera
    * shortcuts stop listening — a `window` listener cannot see that the app is
    * inert behind a modal, so the flag has to be passed in. A prop rather than
@@ -238,6 +249,7 @@ export function Viewport({
   orthographic = false,
   showGrid = true,
   showAxes = true,
+  showGuides = true,
   shortcutsSuspended = false,
 }: ViewportProps) {
   const boards = useStore((s) => s.doc.boards);
@@ -264,8 +276,10 @@ export function Viewport({
       // selection, and the Properties panel would empty for no stated reason.
       onPointerMissed={() => { if (tool === 'select') selectBoard(null); }}
       // R3F puts `style` on the wrapping div; the canvas inherits the cursor.
-      // This is the only signal, other than the toolbar, that the tool is armed.
-      style={{ cursor: tool === 'move' ? 'crosshair' : undefined }}
+      // This is the only signal, other than the toolbar, that a tool is armed.
+      // Any non-select tool, not `=== 'move'`: the Tape tool arms the same
+      // pointer behaviour and must not read as the Select tool.
+      style={{ cursor: tool === 'select' ? undefined : 'crosshair' }}
     >
       {orthographic ? (
         <OrthographicCamera makeDefault position={DEFAULT_EYE} zoom={12} near={-2000} far={4000} />
@@ -335,6 +349,7 @@ export function Viewport({
       </mesh>
 
       {showAxes && <OriginAxes />}
+      {showGuides && <GuideMarkers />}
 
       {boards.map((board) => (
         <BoardMesh
@@ -350,7 +365,8 @@ export function Viewport({
           tool is trying to grab, and it captures the pointer first. There is
           no way to share the pointer between them, so it is not rendered. */}
       {tool === 'select' && <Gizmo />}
-      <MoveTool />
+      <MoveTool showGuides={showGuides} />
+      <TapeTool showGuides={showGuides} />
       <CameraKeys suspended={shortcutsSuspended} />
       {/*
         Damping is OFF, and that is the fix for the grid shimmer — not a

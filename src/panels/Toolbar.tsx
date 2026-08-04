@@ -16,6 +16,14 @@ interface Props {
    */
   showAxes: boolean;
   onToggleAxes: () => void;
+  /**
+   * True when tape-measure guide points are drawn. A third flag beside
+   * showGrid and showAxes, and view state for the same reason — guides are
+   * scaffolding, and wanting them on is a property of what you are doing right
+   * now, not of the project.
+   */
+  showGuides: boolean;
+  onToggleGuides: () => void;
   /** Opens the cut list sheet. */
   onOpenCutList: () => void;
 }
@@ -28,6 +36,8 @@ export function Toolbar({
   onToggleGrid,
   showAxes,
   onToggleAxes,
+  showGuides,
+  onToggleGuides,
   onOpenCutList,
 }: Props) {
   const name = useStore((s) => s.doc.name);
@@ -85,6 +95,13 @@ export function Toolbar({
           // this needs none for, since deleteBoard already clears both.
           <span className="toolbar-hint">Select a part to move</span>
         )}
+        <button
+          onClick={() => setTool('tape')}
+          aria-pressed={tool === 'tape'}
+          title="Tape measure — click a point, then click another to measure and place a guide point; type a distance to place it partway (T)"
+        >
+          Tape
+        </button>
         <span className="toolbar-divider" />
         <button
           onClick={onToggleProjection}
@@ -100,6 +117,10 @@ export function Toolbar({
         <label className="checkbox toolbar-checkbox">
           <input type="checkbox" checked={showAxes} onChange={onToggleAxes} />
           Origin
+        </label>
+        <label className="checkbox toolbar-checkbox">
+          <input type="checkbox" checked={showGuides} onChange={onToggleGuides} />
+          Guides
         </label>
       </div>
 
