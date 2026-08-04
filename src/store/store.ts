@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { createBoard, createDocument, createGuide, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor } from '../document/document';
-import type { Board, BoardSnapPoint, Cut, SloydDocument, SnapPoint } from '../document/document';
+import type { Board, BoardSnapPoint, Cut, SloydDocument, SnapPoint, TapeAxis } from '../document/document';
 
 const HISTORY_LIMIT = 50;
 
@@ -151,6 +151,39 @@ interface StoreState {
    */
   tapeTyped: string;
   setTapeTyped: (text: string) => void;
+
+  /**
+   * The world axis the typed distance runs along, or null for the ray path.
+   *
+   * NOT A FOURTH INSTANCE OF INVARIANT 24, for `tapeTyped`'s reason rather than
+   * its own: the three fields above hold captured WORLD POSITIONS, which is what
+   * makes them go stale when the boards move under them. This holds an enum.
+   * `'x'` means the same thing after an undo, a resize or a deleted cut, so it
+   * must NOT be given clearing rules by analogy with its neighbours — doing so
+   * would silently unlock an axis mid-measurement on every unrelated edit.
+   *
+   * Its one rule is STRUCTURAL instead: an axis with no anchor names no ray — no
+   * origin for the offset to run from, and TapeReadout renders nothing without
+   * an anchor — so the axis lives exactly as long as `tapeAnchor`. Stated as a
+   * rule over that set rather than as a list of writers, because a list here is
+   * a count that goes stale (a comment in CLAUDE.md did exactly that once).
+   * Concretely, in both directions:
+   *
+   *  - every site that nulls `tapeAnchor` nulls this too, at the SAME
+   *    conditionality: blanket where the anchor's clear is blanket,
+   *    owner-conditional in `deleteBoard`/`removeGuide`, point-precise inside
+   *    `dropHeldIfGone`. So an edit the anchor SURVIVES leaves the lock alone.
+   *  - `setTapeAnchor` PRESERVES it, which is the half a "clear it everywhere"
+   *    implementation breaks while passing every other test. It is what makes
+   *    the design's §5.2 gesture work: click a corner, type, Enter, click the
+   *    next corner, type, Enter — with the axis pressed once.
+   *
+   * See design §3. `setTapeAxis(axis)` toggles (setting the axis already locked
+   * clears it) and is a no-op with no anchor; `setTapeAxis(null)` always clears,
+   * which is what Escape's ladder uses.
+   */
+  tapeAxis: TapeAxis | null;
+  setTapeAxis: (axis: TapeAxis | null) => void;
 
   addBoard: () => void;
   updateBoard: (id: string, patch: Partial<Board>) => void;
@@ -320,9 +353,14 @@ export const useStore = create<StoreState>((set, get) => {
     const points = board ? snapPointsFor(board) : [];
     const survives = (held: SnapPoint) => points.some((p) => sameSnapPoint(p, held));
 
-    const patch: { grabbed?: null; tapeAnchor?: null; tapeHover?: null } = {};
+    const patch: { grabbed?: null; tapeAnchor?: null; tapeHover?: null; tapeAxis?: null } = {};
     if (grabbed && !survives(grabbed)) patch.grabbed = null;
-    if (anchor && !survives(anchor)) patch.tapeAnchor = null;
+    if (anchor && !survives(anchor)) {
+      patch.tapeAnchor = null;
+      // The lock goes with the anchor and only with it — point-precise, like
+      // the clear it rides on. An edit this anchor survives leaves it alone.
+      patch.tapeAxis = null;
+    }
     // The survival test is what keeps the latch: a hover on a box corner rides
     // through a mid-face cut edit untouched, exactly as an anchor on one does.
     if (hover && !survives(hover)) patch.tapeHover = null;
@@ -352,6 +390,7 @@ export const useStore = create<StoreState>((set, get) => {
     tapeAnchor: null,
     tapeHover: null,
     tapeTyped: '',
+    tapeAxis: null,
 
     // Changing tools always drops every held point — the two that can be
     // committed from (`grabbed`, `tapeAnchor`) and the tape's hover, which is
@@ -364,7 +403,7 @@ export const useStore = create<StoreState>((set, get) => {
     // gone there is no ray for it to be a distance along, so leaving it would
     // hand the next measurement a number the user typed for the previous one.
     setTool: (tool) =>
-      set({ tool, grabbed: null, tapeAnchor: null, tapeHover: null, tapeTyped: '' }),
+      set({ tool, grabbed: null, tapeAnchor: null, tapeHover: null, tapeTyped: '', tapeAxis: null }),
 
     grabSnapPoint: (point) => set({ grabbed: point }),
 
@@ -375,11 +414,24 @@ export const useStore = create<StoreState>((set, get) => {
     // Nulls only the anchor. The hover follows it, but not from here: it is
     // TapeTool's anchor effect (its `useEffect` keyed on `anchor`) that sees
     // the anchor go null and nulls the latched hover in turn.
-    clearTapeAnchor: () => set({ tapeAnchor: null }),
+    clearTapeAnchor: () => set({ tapeAnchor: null, tapeAxis: null }),
 
     setTapeHover: (point) => set({ tapeHover: point }),
 
     setTapeTyped: (text) => set({ tapeTyped: text }),
+
+    setTapeAxis: (axis) => {
+      // An explicit clear always lands — Escape's ladder calls it, and it must
+      // work whether or not an anchor is still there.
+      if (axis === null) {
+        set({ tapeAxis: null });
+        return;
+      }
+      // A lock with no anchor names no ray. Refused here rather than in each
+      // of the two keyboard handlers, so neither needs a guard of its own.
+      if (!get().tapeAnchor) return;
+      set({ tapeAxis: get().tapeAxis === axis ? null : axis });
+    },
 
     /**
      * Move the grabbed board so its grabbed point lands exactly on `target`.
@@ -597,7 +649,7 @@ export const useStore = create<StoreState>((set, get) => {
       // the looser test has nothing looser to admit.
       if (get().grabbed?.owner.id === id) set({ grabbed: null });
       if (get().tapeAnchor?.owner.type === 'board' && get().tapeAnchor?.owner.id === id) {
-        set({ tapeAnchor: null });
+        set({ tapeAnchor: null, tapeAxis: null });
       }
       if (get().tapeHover?.owner.type === 'board' && get().tapeHover?.owner.id === id) {
         set({ tapeHover: null });
@@ -675,6 +727,7 @@ export const useStore = create<StoreState>((set, get) => {
         grabbed: null,
         tapeAnchor: null,
         tapeHover: null,
+        tapeAxis: null,
       }),
 
     undo: () => {
@@ -697,6 +750,7 @@ export const useStore = create<StoreState>((set, get) => {
         grabbed: null,
         tapeAnchor: null,
         tapeHover: null,
+        tapeAxis: null,
       });
     },
 
@@ -713,6 +767,7 @@ export const useStore = create<StoreState>((set, get) => {
         grabbed: null,
         tapeAnchor: null,
         tapeHover: null,
+        tapeAxis: null,
       });
     },
 
@@ -812,7 +867,7 @@ export const useStore = create<StoreState>((set, get) => {
       // the guide id is equally gone before and after — but it is written
       // before it to match every other guard in this file.
       if (get().tapeAnchor?.owner.type === 'guide' && get().tapeAnchor?.owner.id === id) {
-        set({ tapeAnchor: null });
+        set({ tapeAnchor: null, tapeAxis: null });
       }
       // The same clause for the latched hover, and it is NOT symmetry: a guide
       // is a snap candidate like any other, so "anchor on a board, measure to
@@ -844,7 +899,7 @@ export const useStore = create<StoreState>((set, get) => {
       // enumerated at `tapeHover`'s declaration, and defensible for the reason
       // they all share: the field it depends on is cleared blanket in the same
       // statement.
-      set({ tapeAnchor: null, tapeHover: null });
+      set({ tapeAnchor: null, tapeHover: null, tapeAxis: null });
       edit((doc) => ({ ...doc, guides: [] }));
     },
   };
