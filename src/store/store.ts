@@ -445,32 +445,25 @@ export const useStore = create<StoreState>((set, get) => {
       // it here a moment early is a no-op there, not a race.
       if (get().grabbed?.owner.id === id) set({ grabbed: null });
 
-      // The tape anchor is invariant 24's second instance and needs the same
-      // conditional clear for the same reason — see its declaration. The
-      // `owner.type` test is what `grabbed`'s line above does not need: an
-      // anchor may be guide-owned, and a guide id is not a board id.
-      if (get().tapeAnchor?.owner.type === 'board' && get().tapeAnchor?.owner.id === id) {
-        set({ tapeAnchor: null });
-      }
-
-      // The LATCHED HOVER is invariant 24's third instance and needs its own
-      // clause, because the anchor's says nothing about it: the reachable path
-      // is anchoring on board A, hovering a point on board B, leaving the
-      // canvas for the readout, and editing B's Length here. A's anchor
-      // correctly survives — A did not move — so without a clause of its own
-      // the readout would print a distance to a point that no longer exists
-      // and Enter would place a guide along a direction derived from it.
+      // BOTH TAPE FIELDS ARE DELIBERATELY ABSENT HERE, and their absence is the
+      // rule rather than an omission: they are governed by the
+      // dropHeldIfGone(id) call at the bottom of this action instead.
       //
-      // But it is NOT written here, and not in the shape of the two clauses
-      // above. Those are board-precise: any patch to the board clears them.
-      // That is too loose for the hover, because `updateBoard` is also the
-      // only rename path (there is no renameBoard), and `{ name }`,
-      // `{ material }` and `{ grain }` move no point at all — so a
-      // board-precise clause drops the latch on a rename, while TapeTool goes
-      // on drawing the marker and the line it no longer agrees with. The
-      // readout says "no target" and the viewport says otherwise. See
-      // dropHeldIfGone at the bottom of updateBoard, which asks the only
-      // question that is actually correct here: is the point still on offer?
+      // A board-precise clause — the shape `grabbed` uses above — asks "did
+      // this board change", and that is too loose for a captured point,
+      // because `updateBoard` is also the ONLY rename path (there is no
+      // renameBoard) and `{ name }`, `{ material }` and `{ grain }` move no
+      // point at all. The anchor had such a clause and it destroyed a whole
+      // measurement on a rename: nulling `tapeAnchor` nulls the hover through
+      // TapeTool's anchor effect, which unmounts the readout. The hover had
+      // one and it desynced the two halves — marker and measuring line still
+      // drawn, readout showing no target. One argument, both fields, so one
+      // survival test governs both.
+      //
+      // `grabbed` keeps its board-precise clause on purpose: it is Move-tool
+      // state that predates this round by two, and narrowing it is a behaviour
+      // change to a shipped tool rather than a fix to this one. Recorded in
+      // the round's follow-ups rather than changed in passing.
 
       // Reorienting turns the board in place. `position` is the min-corner, so
       // changing rotation or posture swaps the extents underneath a pinned
@@ -532,12 +525,13 @@ export const useStore = create<StoreState>((set, get) => {
 
       // Point-precise, and AFTER the edit for the reason dropHeldIfGone's own
       // comment gives: the question is what the board offers once the edit has
-      // landed. A rename leaves every point exactly where it was, so the latch
-      // survives; a Length, Posture, Rotation or Position change moves them,
-      // so it drops. `grabbed` and `tapeAnchor` were already dealt with above,
-      // board-precisely — reaching them here too is a no-op (heldOnBoard finds
-      // nothing left to test) rather than a second opinion, so the two rules
-      // cannot disagree about the same field.
+      // landed. A rename leaves every point exactly where it was, so both the
+      // anchor and the latched hover survive; a Length, Posture, Rotation or
+      // Position change moves them, so they drop. A guide-owned anchor falls
+      // through untouched — heldOnBoard requires `owner.type === 'board'` —
+      // which is the same behaviour the deleted clause had. `grabbed` was
+      // already nulled above if it named this board, so reaching it here is a
+      // no-op rather than a second opinion.
       dropHeldIfGone(id);
     },
 
@@ -616,9 +610,12 @@ export const useStore = create<StoreState>((set, get) => {
     // test: a wholesale rewrite of `doc.boards` can invalidate a held point by
     // moving it OR by removing its owner, and every board can move at once, so
     // no per-owner condition would be meaningful. Blanket is defensible for
-    // the same narrow reason it is at clearGuides and nowhere else — the
-    // anchor is nulled in the SAME statement, so the latch is already over and
-    // there is nothing left to preserve.
+    // one narrow reason, shared by every site that does it — the anchor is
+    // nulled in the SAME statement, so the latch is already over and there is
+    // nothing left to preserve. The full enumeration of which writers are
+    // survival-tested, which are owner-conditional and which are blanket lives
+    // at `tapeHover`'s declaration; do not restate a count here, which is how
+    // this comment went stale once already.
     replaceDocument: (doc) =>
       set({
         doc,
@@ -793,9 +790,10 @@ export const useStore = create<StoreState>((set, get) => {
       // on it — so the anchor going means the latch is already over and there
       // is nothing left to preserve. (TapeTool's own anchor effect would clear
       // the local hover a render later regardless; this keeps the store from
-      // holding a stale point in between.) This is the ONE place tapeHover is
-      // cleared blanket, and it is only defensible because the field it
-      // depends on is cleared blanket in the same statement.
+      // holding a stale point in between.) It is one of the blanket sites
+      // enumerated at `tapeHover`'s declaration, and defensible for the reason
+      // they all share: the field it depends on is cleared blanket in the same
+      // statement.
       set({ tapeAnchor: null, tapeHover: null });
       edit((doc) => ({ ...doc, guides: [] }));
     },

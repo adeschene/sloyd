@@ -1003,10 +1003,33 @@ describe('tapeAnchor — invariant 24, second instance', () => {
     expect(useStore.getState().tapeAnchor).toBeNull();
   });
 
+  // The anchored point here is deliberately NOT anchorOn()'s min corner, which
+  // IS `board.position` — growing the length leaves it exactly where it was,
+  // so a point-precise clear correctly keeps it. This test passed on that
+  // fixture only while updateBoard's clause was board-precise; when that clause
+  // was deleted in favour of dropHeldIfGone's survival test, the accident
+  // surfaced. Fixture repaired, assertion untouched — the same repair the
+  // hover block's own fixture needed one round earlier, and the third instance
+  // of this shape in this round.
   it('drops the anchor when its own board moves', () => {
-    const board = anchorOn();
+    useStore.getState().addBoard();
+    const board = useStore.getState().doc.boards[0];
+    const far = boardSnapPoints(board).find((p) => p.at[0] > 0);
+    if (!far) throw new Error('fixture: expected a snap point off the min corner');
+    useStore.getState().setTapeAnchor(far);
     useStore.getState().updateBoard(board.id, { length: 48 });
     expect(useStore.getState().tapeAnchor).toBeNull();
+  });
+
+  // The mirror, and the guard for the behaviour the deleted clause got wrong:
+  // updateBoard is the only rename path, a rename moves no point, and nulling
+  // the anchor takes the hover and the whole readout down with it (TapeTool's
+  // anchor effect, then TapeReadout's own early return). So a rename must
+  // leave the measurement standing.
+  it('keeps the anchor when its own board is only RENAMED', () => {
+    const board = anchorOn();
+    useStore.getState().updateBoard(board.id, { name: 'Renamed' });
+    expect(useStore.getState().tapeAnchor).not.toBeNull();
   });
 
   it('keeps the anchor when a DIFFERENT board changes', () => {

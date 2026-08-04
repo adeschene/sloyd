@@ -363,7 +363,7 @@ well:
 | `undo`, `redo` | yes | yes |
 | `replaceDocument` | yes | yes |
 | `deleteBoard` (conditional) | yes | yes |
-| `updateBoard` (conditional) | yes | yes |
+| `updateBoard` (**point-precise**) | yes (conditional) | **yes, point-precise** |
 | `addCut`, `updateCut`, `removeCut` (point-precise) | yes | **yes** |
 | `removeGuide` (conditional) | n/a — a grab is never guide-owned | **yes** |
 | `clearGuides` | n/a | **yes** |
@@ -374,6 +374,20 @@ well:
 `removeGuide` and `clearGuides` are reachable for the obvious reason: the guides
 list is not disabled while the tape is anchored, so deleting the guide you
 anchored on is one click away.
+
+**Amended during Task 7 (2026-08-04), with the user's approval: `updateBoard`
+clears `tapeAnchor` POINT-PRECISELY, not on the board-id condition this table
+originally specified.** `updateBoard` is also the only rename path — there is no
+`renameBoard` — and `{ name }`, `{ material }` and `{ grain }` move no point at
+all, so a board-precise clause dropped the anchor on a rename and took the whole
+measurement with it (nulling the anchor nulls the latched hover through
+`TapeTool`'s anchor effect, which unmounts the readout). It now routes through
+the same `dropHeldIfGone` survival test the cut edits use, called after the
+edit: a rename keeps the anchor, a Length or Posture change drops it. `grabbed`
+keeps its board-precise clause, which predates this round by two. The same
+amendment governs `tapeHover`, invariant 24's third instance, which this design
+predates entirely — see §4.2 and the field's declaration in `store.ts` for the
+full enumeration.
 
 ### 4.1 The cut edits, which this design predates
 
