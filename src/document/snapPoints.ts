@@ -325,3 +325,70 @@ export function offsetPoint(
   const k = distance / length;
   return [anchor[0] + dx * k, anchor[1] + dy * k, anchor[2] + dz * k];
 }
+
+/**
+ * A world axis the tape can lock its typed offset to.
+ *
+ * WORLD, not board-local, and that is the round's central decision rather than
+ * a default. `axisDimensions` maps a board's length/width/thickness onto the
+ * world axes, and by construction it is always a PERMUTATION of [X, Y, Z] —
+ * `posture` names which dimension is up and `rotation` is only 0 or 90 about Y,
+ * so each dimension lands on exactly one axis and no two share one. There is no
+ * oblique case the document can express. So board-local axes would reach the
+ * same six directions and buy a LABEL, not a capability — and they would be
+ * unreachable from a guide-owned anchor, which owns no board. See design §2.
+ */
+export type TapeAxis = 'x' | 'y' | 'z';
+
+const AXIS_INDEX: Record<TapeAxis, 0 | 1 | 2> = { x: 0, y: 1, z: 2 };
+
+/**
+ * The point a typed distance runs TOWARD, in either of the tape's two modes.
+ *
+ * ONE function called from BOTH `TapeTool`'s preview memo and `TapeReadout`'s
+ * commit, which is the whole point of its existence. The round-2 guarantee was
+ * that the marker and the placement agree by construction rather than by two
+ * pieces of code being written to match, and it rested on both paths sharing
+ * `offsetPoint`. Axis mode changes what `toward` IS, so if each side computed
+ * its own the guarantee would be half true — arithmetic shared, direction not.
+ *
+ * Locked: the anchor plus one inch along the axis. The length is deliberately
+ * exactly 1 and never 0, which is what makes `offsetPoint`'s zero-length
+ * refusal unreachable in axis mode — the magnitude is normalised away there, so
+ * any non-zero value would do and 1 is the one that reads as a unit vector.
+ *
+ * Unlocked: the hovered point, which is the round-1 behaviour unchanged.
+ *
+ * The axis WINS over a hover rather than falling back to it (§5.1). `TapeTool`
+ * latches its hover while anchored, so a stale one can sit unreplaced across an
+ * arbitrary number of events; a lock that a value the user cannot see can
+ * override is not a lock.
+ */
+export function towardFor(
+  anchor: [number, number, number],
+  axis: TapeAxis | null,
+  hover: [number, number, number] | null,
+): [number, number, number] | null {
+  if (!axis) return hover;
+  // A copy, never a write into the caller's array: `anchor` is `tapeAnchor.at`,
+  // read by the readout's distance, by the measuring line and by the commit.
+  const out: [number, number, number] = [anchor[0], anchor[1], anchor[2]];
+  out[AXIS_INDEX[axis]] += 1;
+  return out;
+}
+
+/**
+ * The axis a keystroke names, or null.
+ *
+ * Lives beside the type it produces rather than in either of the two keyboard
+ * handlers that need it — `App`'s window keydown effect and `TapeReadout`'s own
+ * `onKeyDown`, which exists because `isTextEntry` stops the window listener
+ * seeing anything once the distance box has focus. Two copies of this mapping
+ * that agree today are two places for a future rule to disagree, which is the
+ * drift shape follow-up 64 recorded. Same reasoning that puts `canBeginLength`
+ * in `units/length.ts` beside the grammar it is derived from.
+ */
+export function tapeAxisFromKey(key: string): TapeAxis | null {
+  const lower = key.toLowerCase();
+  return lower === 'x' || lower === 'y' || lower === 'z' ? lower : null;
+}
