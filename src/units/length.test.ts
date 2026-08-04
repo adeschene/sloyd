@@ -149,4 +149,18 @@ describe('canBeginLength', () => {
       expect(canBeginLength(k)).toBe(false);
     }
   });
+
+  // The guard the previous test does NOT pin, discovered by mutating it away
+  // and watching the suite stay green. Every named key above is rejected by the
+  // character range anyway ('E' sorts above '9'), so deleting `key.length !== 1`
+  // cost nothing there — the test read as covering a guard it did not touch.
+  // A DIGIT-LEADING multi-character string is what separates them: '12' <= '9'
+  // compares first characters and is true, so without the length test this
+  // takes a whole string for a keystroke. That matters because the argument is
+  // a KeyboardEvent.key and the box it seeds is filled with exactly one
+  // character — a predicate that accepts '12' invites a caller that passes the
+  // accumulated text.
+  it('takes one keystroke, not a string that starts like a length', () => {
+    for (const s of ['12', '1 1/2', '3/4', '.5', '-5']) expect(canBeginLength(s)).toBe(false);
+  });
 });
