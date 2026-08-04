@@ -239,12 +239,15 @@ image). They read as small blue scaffolding dots, plainly present and plainly se
 the boards; they do not compete with the model or with the grid.
 `guide-resting-density-8-guides.png` is the same judgement earlier in the pass at eight.
 **Judging "big enough to aim at":** aiming is governed by `PICK_RADIUS_PX = 12`, not by the
-marker, so the marker only has to be findable by eye — and this pass has three direct
-observations of exactly that, not just the theory that it should work: check 8's grab-onto-guide
-(a resting guide, aimed at and hit, on the first attempt), check 9's positive control (the same),
-and 1b's own hovered crop (the cursor found and grew the resting disc it was aimed at). All three
-are a successful aim at a resting 6 px marker, at the default camera, by the same real mouse
-input the rest of the pass used. Both halves of the constant's obligation hold, so it stays at 6.
+marker, so the marker only has to be findable by eye — and this pass has two direct observations
+of exactly that, not just the theory that it should work: check 8's grab-onto-guide (a resting
+guide, aimed at and hit, on the first attempt) and 1b's own hovered crop (the cursor found and
+grew the resting disc it was aimed at). Both are a successful aim at a resting 6 px marker, at
+the default camera, by the same real mouse input the rest of the pass used. (Check 9's positive
+control is a different thing: it hovers the Rail's own board corner, which is evidence the
+pointer/candidate listener was alive, not a resting-guide aim — board points have no resting
+representation at all, per `RESTING_PX`'s own doc comment in `SnapMarker.tsx`, so it is not cited
+here.) Both halves of the constant's obligation hold, so it stays at 6.
 
 **One caveat on the pixel counts.** The first attempt at these two crops used
 `page.screenshot({ clip })` taken ~500 ms after the hover and returned *identical* pixel
@@ -508,7 +511,7 @@ Both browser-settled constants (follow-up 60) were confirmed and **neither was c
   1b's caveat on the exact pixel counts); **twelve** simultaneous guides — the bar the
   constant's own comment states, not the eight this pass first tried — read as quiet scaffolding
   rather than noise; and aiming is bounded by `PICK_RADIUS_PX = 12`, not by the marker, so 6 px
-  only has to be findable, which checks 8, 9 and 1b's hovered frame each confirm by successfully
+  only has to be findable, which checks 8 and 1b's hovered frame each confirm by successfully
   aiming at one. The twelve-guide frame (`guide-resting-density-12-guides.png`) was shot at a
   visibly different camera position than the rest of this pass, so "reads as quiet scaffolding"
   is a judgement at that specific framing, not a claim that holds at every zoom and angle.
