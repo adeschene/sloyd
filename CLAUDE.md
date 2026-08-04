@@ -62,27 +62,24 @@ gitignored. Read that file before deploying; it is not in the public repo.
 layout, per-face views and board feet are all shipped and merged to `master`. Do not
 treat any of the five as in-flight.
 
-**The cardinal guides round is NOT in production and is NOT merged**, which is what keeps
-the paragraph below true. It sits complete on `feat/cardinal-guides`, verified against the
-dev server (`docs/browser-verification-cardinal-guides.md`), awaiting a whole-branch review
-and a merge the user performs. Rolling back past it would cost nothing at all if it does
-ship: it changes no schema, so a document saved by it reads `version: 6` and the current
-production image opens it unchanged, guides and all.
-
-**Production matches `master` as of 2026-08-04, both of that day's rounds included.** The
-tape measure and guide points (`dbca088`, bundle `index-BFdaQ-al.js` →
-`index-BV9UlR3E.js`) and then type-anywhere distance entry (`1e61eae`,
-`index-BV9UlR3E.js` → `index-BvW6so6V.js`) were each merged and deployed the same day, as
+**Production matches `master` as of 2026-08-04, all THREE of that day's rounds included.**
+The tape measure and guide points (`dbca088`, bundle `index-BFdaQ-al.js` →
+`index-BV9UlR3E.js`), then type-anywhere distance entry (`1e61eae`, `index-BV9UlR3E.js` →
+`index-BvW6so6V.js`), and then cardinal guides (`a998793`, `index-BvW6so6V.js` →
+`index-K_vbIrhN.js`) were each merged and deployed the same day, as
 cut-aware snap points, snap-move and selected-board grabs were before them — unlike the
 three rounds before *those*, which sat merged and held back at the user's choice. **The
 live schema frontier is now v6, not v5** — the paragraph further down describing v5 as the
 first bump to reach production is history, not the current gate; see the v6 rollback note
-below it. `DEPLOYMENT.local.md` carries both runbook entries and what each could and could
-not confirm live: the guide-points deploy confirmed the tool's *arming* surface only, and
-the type-anywhere deploy confirmed **nothing** of its own change, because the readout
-renders only once the tape is anchored and anchoring needs a board — so the standing
-localStorage rule below applied totally rather than partially. `sloyd.autosave.v1` was
-confirmed absent in the verifying browser after both.
+below it. Cardinal guides changes no schema, so **rolling back only that one is free**: a
+document saved by it reads `version: 6` and the previous image opens it unchanged, guides
+and all. `DEPLOYMENT.local.md` carries all three runbook entries and what each could and
+could not confirm live: the guide-points deploy confirmed the tool's *arming* surface only,
+and the type-anywhere and cardinal-guides deploys each confirmed **nothing** of their own
+change, because the readout renders only once the tape is anchored — and `X`/`Y`/`Z` act
+only when it is — and anchoring needs a board, so the standing localStorage rule below
+applied totally rather than partially to both. `sloyd.autosave.v1` was confirmed absent in
+the verifying browser after all three.
 
 **Production matched `master` at 2026-08-03 too, cut-aware snap points included**, and
 that deploy is worth keeping distinct from the two above, because part of what it carried
