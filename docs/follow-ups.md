@@ -2887,18 +2887,37 @@ which is the anchor itself — and is refused with `degenerate` (*That target is
 anchor*). One guide, not two. Nothing wrong is written to the document, and the refusal
 names its own cause, which is this round's own §7 machinery working on the round's own gap.
 
-**Two of the three places carrying the false illustration were code, and both were
-corrected in Task 7**: `store.ts`'s `tapeAxis` doc comment (which had copied the sentence
-verbatim, immediately under the correct structural rule that contradicts it) and
-`store.test.ts`'s `SURVIVES a re-anchor` comment. The test itself is correct and was not
-touched — only its narration. **Design §5.2 was left unedited**, as the historical record,
-annotated by this entry: the repo's habit is to mark superseded design text rather than
-rewrite it. This is follow-up **129**'s shape recurring exactly — *three documents
-illustrating a rule with a claim the code makes false, visible only from outside all of
-them* — and another link in the plan-supplied-justification chain (64, 68 twice, 80, 87,
-88, 107, 118, 126, 141), with the distinguishing feature that here the claim was **in the
-design before any code existed** and survived six task reviews, because every individual
-task's code was correct. Only running the sentence end to end in a browser could catch it.
+**The false illustration had SIX homes — the design (twice, §5.2 and §9's browser-check
+list), the plan (which is where the code copies came from), and THREE in code — and all
+three CODE copies are corrected.** `store.ts`'s `tapeAxis` doc comment (which had copied the
+sentence verbatim, immediately under the correct structural rule that contradicts it),
+`store.test.ts`'s `SURVIVES a re-anchor` comment, and `TapeTool.tsx`'s comment on the
+locked-click branch itself. The test itself is correct and was not touched — only its
+narration. **Design §5.2 was left unedited**, as the historical record, annotated by this
+entry: the repo's habit is to mark superseded design text rather than rewrite it, and the
+plan is left alone for the same reason — a plan is a record of what was asked for, and this
+entry is the correction.
+
+**The third code copy is the interesting one, and this entry's first version both
+undercounted it and wrongly claimed the correction was complete.** It sat in
+`TapeTool.tsx`, on the very branch that implements the re-anchor — the one piece of code
+in the round whose behaviour is *unambiguously correct*. So no per-task review had any
+reason to doubt its prose: the code under the comment did exactly what the comment's first
+clause said, and the false clause was the *consequence* it drew about a path that lives in
+a different file. That is the general shape worth carrying: a comment is most likely to go
+unchecked where the code it annotates is right, because correctness of the code is what
+reviewers actually test the comment against. The corrected version states the
+click/commit asymmetry explicitly rather than only the half its own branch owns — a click
+retargets the lock for free, a successful Enter drops it — precisely so a future reader of
+that branch cannot draw the same conclusion again.
+
+This is follow-up **129**'s shape recurring exactly — *documents illustrating a rule with a
+claim the code makes false, visible only from outside all of them* — and another link in
+the plan-supplied-justification chain (64, 68 twice, 80, 87, 88, 107, 118, 126, 141), with
+the distinguishing feature that here the claim was **in the design before any code
+existed** and survived six task reviews, because every individual task's code was correct.
+Only running the sentence end to end in a browser could catch the claim, and only a review
+sweeping for the *sentence* rather than for the behaviour could catch its third copy.
 
 **147. Should the axis outlive a COMMIT? Open, and a §3.1 amendment rather than a defect —
 the user's call.** 146 records that it does not. The question this leaves is whether it

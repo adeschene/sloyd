@@ -771,9 +771,13 @@ how a guide was created is stored, and nothing should be.
   `clearTapeAnchor()`, which is the structural rule above doing what it says, so walking a
   row of corners costs one axis press per guide. The design's §5.2 illustrated the bullet
   with a gesture (*click, type, Enter, click, type, Enter*, one axis press) that its own §3.1
-  makes false, and the claim had been copied verbatim into two code comments. Found by
+  makes false, and the claim had been copied verbatim into three code comments. Found by
   driving it end to end in a browser, not by reading — every individual task's code was
-  correct. The two code comments are corrected; the design text is left as the record. See
+  correct. All three code comments are corrected; the design and the plan are left as the
+  record. The third copy sat in `TapeTool.tsx`, on the locked-click branch — the one piece
+  of code in the round whose behaviour is unambiguously correct, which is exactly why its
+  prose went unchecked, and it was caught only by a review sweeping for the sentence rather
+  than for the behaviour. See
   follow-ups 146 and 147, and note that whether the axis *should* survive a commit is a §3.1
   amendment and a human decision, not a bug fix.
 - **Follow-up 144 is CLOSED, and the axis is what made it stop being cosmetic.** `error`
@@ -2219,7 +2223,7 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 785 tests across 33 files
+npm test           # Vitest, currently 828 tests across 33 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -2505,7 +2509,8 @@ gesture (*click, type, Enter, click, type, Enter*, one axis press) that its own 
 false, because `commit()` ends with `clearTapeAnchor()` — found by driving the sentence end
 to end in a browser, since every individual task's code was correct, and it is follow-up
 129's shape recurring with the claim present in the design *before* any code existed. The
-two code comments that had copied it are corrected; the design text is left as the record.
+three code comments that had copied it are corrected; the design and plan text are left as
+the record.
 **147** is the behaviour question 146 leaves open — should the axis outlive a commit? — a
 §3.1 amendment and a human decision, with the trade and a cheap middle option written out
 so it is not re-derived. **148** is the most portable entry here and has nothing to do with

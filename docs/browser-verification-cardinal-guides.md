@@ -19,7 +19,7 @@ the locked-but-nothing-typed state reads on screen.
 **All 8 numbered checks were run.** Seven passed outright. Check 6 passed for the
 *mechanism* and produced the pass's one finding, against a *claim* rather than against the
 code: the axis does not outlive a commit, so a gesture stated in design §5.2 and copied
-verbatim into two code comments is false as written. **Neither browser-settled constant
+verbatim into three code comments is false as written. **Neither browser-settled constant
 was retuned and §9.1's 1" stub was not applied** — see check 8.
 
 ## How this was driven
@@ -210,10 +210,14 @@ cause**, which is this round's own §7 machinery doing its job on the round's ow
 Classified narrowly, because "the §5.2 gesture doesn't work" would overstate it: the
 mechanism is correct, §3.1 is correct and faithfully implemented, and what is false is one
 illustrative sentence that §3.1 contradicts. That sentence had been copied verbatim into
-`store.ts`'s `tapeAxis` doc comment and into `store.test.ts`'s `SURVIVES a re-anchor`
-comment — follow-up 129's shape exactly, three documents illustrating a rule with a claim
-the code makes false. **Both code comments were corrected in this task**; the design text
-is left as the historical record and is annotated by follow-up 146. Whether the axis
+three code comments — `store.ts`'s `tapeAxis` doc comment, `store.test.ts`'s
+`SURVIVES a re-anchor` comment, and `TapeTool.tsx`'s comment on the locked-click branch
+itself — which is follow-up 129's shape exactly, documents illustrating a rule with a claim
+the code makes false. **All three were corrected in this task.** The `TapeTool.tsx` one was
+missed on the first pass and found by review, and the reason is the interesting part: it
+sits on the branch whose behaviour is unambiguously correct, so nothing about the code under
+it invited doubt about its prose. The design text is left as the historical record and is
+annotated by follow-up 146. Whether the axis
 *should* outlive a commit is a §3.1 amendment and a human decision, filed as follow-up 147
 rather than resolved here.
 

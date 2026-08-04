@@ -194,12 +194,21 @@ export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
         store.clearTapeAnchor();
         return;
       }
-      // LOCKED: a click re-anchors and KEEPS the axis, so walking a row of
-      // corners placing a guide 3" up from each is click, type, Enter, click,
-      // type, Enter — with the axis pressed once (design §5.2). Placing a guide
-      // here instead would mean a click and Enter placing guides in two
+      // LOCKED: a click re-anchors and KEEPS the axis (design §5.2). Placing a
+      // guide here instead would mean a click and Enter placing guides in two
       // different positions while one direction is drawn on screen, which is
       // the disagreement the lock exists to prevent.
+      //
+      // The CLICK/COMMIT ASYMMETRY, stated here because this branch is exactly
+      // half of it and reading it alone invites the wrong conclusion — which is
+      // the one this comment's first version drew. A click retargets the lock
+      // for free: aim at the wrong corner, click the right one, the axis is
+      // still armed. A successful ENTER does not, because commit() ends with
+      // clearTapeAnchor(), which drops the axis with the anchor — the structural
+      // rule at `tapeAxis`'s declaration in store.ts, not an oversight here. So
+      // walking a row of corners costs one axis press per PLACEMENT, and
+      // `click, type, Enter, click, type, Enter` places one guide along the axis
+      // and then refuses the second. Whether it should is follow-up 147.
       if (store.tapeAxis) {
         store.setTapeAnchor(hit);
         return;
