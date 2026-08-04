@@ -8,13 +8,19 @@ import { useStore } from '../store/store';
 import { CLICK_DRAG_SLOP_PX } from './pointer';
 import { PICK_RADIUS_PX, pickSnapPoint } from './snapPick';
 import type { ProjectedPoint } from './snapPick';
-import { SnapMarker } from './SnapMarker';
+import { SnapMarker, SNAP_COLORS } from './SnapMarker';
 
 /** Reused rather than allocated per candidate per pointer event. */
 const projected = new THREE.Vector3();
 
-/** The measuring line's colour — the guide marker's hue, so the two read as one tool. */
-const TAPE_COLOR = '#4f6fd0';
+/**
+ * The measuring line's colour — the guide marker's hue, so the two read as
+ * one tool. Taken from `SNAP_COLORS.guide` rather than hard-coded a second
+ * time: that constant is browser-settled and retunable (SnapMarker.tsx), so a
+ * second literal here would silently desynchronise from it the next time it
+ * moves.
+ */
+const TAPE_COLOR = SNAP_COLORS.guide;
 
 /**
  * The Tape tool: click a snap point to anchor, hover a second to read the

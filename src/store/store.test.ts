@@ -738,9 +738,9 @@ describe('the Move tool', () => {
     // The other half of the KEEPS test above, pinning follow-up 129: since
     // Task 6b, boardSnapPoints filters its 26 box-lattice points through
     // stockProbe (closing follow-up 122), so a box corner is not immune to
-    // dropGrabIfGone the way the KEEPS test's title alone suggests — it
+    // dropHeldIfGone the way the KEEPS test's title alone suggests — it
     // survives only as long as its own stock survives. This is the SAME
-    // rule dropGrabIfGone always applied to a shoulder, reached here through
+    // rule dropHeldIfGone always applied to a shoulder, reached here through
     // boardSnapPoints' output rather than through cutSnapPoints'.
     const { a } = twoBoards();
     useStore.getState().setTool('move');
@@ -1088,7 +1088,7 @@ describe('tapeAnchor — invariant 24, second instance', () => {
 
   // Point-precise, not blanket: a box corner usually survives a cut edit on
   // the same board, because a mid-face dado touches no box point. This is the
-  // same asymmetry dropGrabIfGone already has for grabs — see invariant 24.
+  // same asymmetry dropHeldIfGone already has for grabs — see invariant 24.
   it('keeps an anchor on a box corner when a mid-face cut is added', () => {
     useStore.getState().addBoard();
     const board = useStore.getState().doc.boards[0];
@@ -1181,8 +1181,8 @@ describe('tapeHover — invariant 24, third instance', () => {
   });
 
   // `updateBoard` is also the ONLY rename path — there is no renameBoard — and
-  // a rename moves no point. A board-precise clause (the shape `grabbed` and
-  // `tapeAnchor` use there) drops the latch here, and TapeTool would go on
+  // a rename moves no point. A board-precise clause (the shape `grabbed` uses
+  // there) drops the latch here, and TapeTool would go on
   // drawing a marker the readout had already dropped. Hence the survival test.
   it('keeps a latched hover when the hovered board is only RENAMED', () => {
     const { to } = anchorAndHover();

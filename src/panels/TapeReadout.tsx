@@ -42,8 +42,9 @@ export function TapeReadout() {
   const commit = () => {
     const store = useStore.getState();
     const from = store.tapeAnchor;
-    // The anchor can be cleared out from under a focused input by any of
-    // invariant 24's seven actions. Read it rather than asserting it.
+    // The anchor can be cleared out from under a focused input by any of the
+    // actions enumerated at `tapeHover`'s declaration in store.ts (invariant
+    // 24's third instance). Read it rather than asserting it.
     if (!from) return;
     // TapeTool latches its hover while anchored, which is what makes this
     // non-null after the pointer left the canvas to reach this input. Without

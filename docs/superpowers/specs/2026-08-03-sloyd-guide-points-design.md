@@ -424,11 +424,19 @@ This is stated as a prohibition rather than left as an absence because "add
 `tapeAnchor: null` beside every `grabbed: null`" is precisely what a tidying
 pass would do, and it would look like consistency.
 
+`tapeHover` inherits the same prohibition, for the same reason: it is no more
+restricted to the selected board than the anchor is, so neither `edit()`'s
+selection callback nor `selectBoard` drops it either.
+
 ### 4.3 This is why `tapeAnchor` lives in the store
 
 It cannot get that clearing anywhere else. A `useState` inside `TapeTool` would
-have to subscribe to every one of those seven actions and re-derive when to
-drop itself — the exact bookkeeping invariant 24 exists to avoid.
+have to subscribe to every action in the table above and re-derive when to
+drop itself — the exact bookkeeping invariant 24 exists to avoid. The argument
+does not rest on how many actions that table lists — only on there being many,
+and on the store already being the one place that has to know about all of
+them. Read the count off the table itself if you need it; do not restate it
+here, which is how this comment went stale once already.
 
 That reasoning is the same one snap-move used for `tool` and `grabbed`, and it
 still does not reach `shortcutsSuspended`, which stays prop-drilled: that flag

@@ -63,8 +63,8 @@ interface StoreState {
    *
    * It lives here rather than in TapeTool for exactly that reason: it cannot
    * get its clearing anywhere else. A useState inside the component would have
-   * to subscribe to seven actions and re-derive when to drop itself, which is
-   * the bookkeeping invariant 24 exists to avoid.
+   * to subscribe to every action enumerated below and re-derive when to drop
+   * itself, which is the bookkeeping invariant 24 exists to avoid.
    *
    * It needs two actions `grabbed` does not: removeGuide and clearGuides. A
    * grab is never guide-owned (MoveTool's filter); an anchor can be.
@@ -102,10 +102,10 @@ interface StoreState {
    * field is in the store at all. So:
    *
    *  - `updateBoard` routes through dropHeldIfGone's snapPointsFor survival
-   *    test, NOT through the board-id test its own `grabbed` and `tapeAnchor`
-   *    clauses use. That test is too loose here: `updateBoard` is also the
-   *    only rename path, and a rename moves no point, so a board-precise
-   *    clause would drop the latch while TapeTool went on drawing the marker.
+   *    test, NOT through the board-id test its own `grabbed` clause uses.
+   *    That test is too loose here: `updateBoard` is also the only rename
+   *    path, and a rename moves no point, so a board-precise clause would
+   *    drop the latch while TapeTool went on drawing the marker.
    *  - `addCut`/`updateCut`/`removeCut` reach the same survival test.
    *  - `deleteBoard` and `removeGuide` are owner-conditional, which is exactly
    *    point-precise there: neither owner offers any point afterward.
@@ -201,6 +201,8 @@ export const useStore = create<StoreState>((set, get) => {
     // is most of what it exists for, so clearing the anchor when the selection
     // moves would break the tool invisibly. Note addBoard reaches here, so
     // "measure from this board to the one I am about to add" is a live path.
+    // `tapeHover` is not dropped here either, for the identical reason — it
+    // is not restricted to the selected board any more than the anchor is.
     // Pinned by two tests in store.test.ts; adding `tapeAnchor: null` beside
     // the `grabbed: null` below is exactly what they exist to catch.
     const nextSelectedId = selection ? selection(next) : null;
@@ -330,6 +332,9 @@ export const useStore = create<StoreState>((set, get) => {
 
     setTapeAnchor: (point) => set({ tapeAnchor: point }),
 
+    // Nulls only the anchor. The hover follows it, but not from here: it is
+    // TapeTool's anchor effect (its `useEffect` keyed on `anchor`) that sees
+    // the anchor go null and nulls the latched hover in turn.
     clearTapeAnchor: () => set({ tapeAnchor: null }),
 
     setTapeHover: (point) => set({ tapeHover: point }),
@@ -596,7 +601,8 @@ export const useStore = create<StoreState>((set, get) => {
     // edit() carries and for the same reason (design §4.2): the rule above is
     // about the Move tool's selected-board grab set, and the tape has no such
     // restriction. Picking a part out of the parts list mid-measurement must
-    // not silently discard the anchor. Pinned by a test.
+    // not silently discard the anchor. `tapeHover` is left alone here too,
+    // for the same reason. Pinned by a test.
     selectBoard: (id) =>
       set((s) => ({
         selectedId: id,
