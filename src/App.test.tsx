@@ -575,4 +575,42 @@ describe('App type-anywhere tape capture', () => {
       anchorAt[0], anchorAt[1] + 1, anchorAt[2],
     ]);
   });
+
+  it('shows which axis is locked', async () => {
+    const user = await anchoredTape();
+    expect(screen.queryByTestId('tape-readout-axis')).toBeNull();
+    await user.keyboard('x');
+    expect(screen.getByTestId('tape-readout-axis').textContent).toBe('X');
+  });
+
+  // The case App's listener CANNOT serve: isTextEntry early-returns once the
+  // box has focus, so this branch is the only route to correcting a mis-pressed
+  // axis mid-number.
+  it('changes the axis from inside the focused box, keeping the number', async () => {
+    const user = await anchoredTape();
+    await user.keyboard('x');
+    await user.keyboard('3');
+    expect(document.activeElement).toBe(box());
+    await user.keyboard('y');
+    expect(useStore.getState().tapeAxis).toBe('y');
+    expect(box().value).toBe('3');
+  });
+
+  it('does not type the axis letter into the box', async () => {
+    const user = await anchoredTape();
+    await user.keyboard('3');
+    await user.keyboard('z');
+    expect(box().value).toBe('3');
+  });
+
+  it('backs out the axis first on Escape from inside the box', async () => {
+    const user = await anchoredTape();
+    await user.keyboard('x3');
+    await user.keyboard('{Escape}');
+    expect(useStore.getState().tapeAxis).toBeNull();
+    expect(useStore.getState().tapeAnchor).not.toBeNull();
+
+    await user.keyboard('{Escape}');
+    expect(useStore.getState().tapeAnchor).toBeNull();
+  });
 });

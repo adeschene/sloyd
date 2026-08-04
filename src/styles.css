@@ -292,6 +292,23 @@ button[aria-pressed='true'] {
   text-align: right;
 }
 
+/* The app's existing "this control is active" idiom, borrowed from
+   button[aria-pressed='true'] rather than introduced as a fourth off-palette
+   colour — a DOM chip is not a 3D inference marker, and the reasons SnapMarker
+   went off-palette (a ~9px disc on walnut) do not reach a text badge on a dark
+   panel. */
+.tape-readout-axis {
+  font-family: var(--font-num);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.6;
+  padding: 0 0.4rem;
+  border: 1px solid var(--brass-dim);
+  border-radius: calc(var(--radius) / 2);
+  background: var(--graphite-950);
+  color: var(--brass-bright);
+}
+
 .tape-readout-input {
   width: 8ch;
   font-family: var(--font-num);

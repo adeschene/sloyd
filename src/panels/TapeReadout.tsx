@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { parseLength, formatLength } from '../units/length';
-import { offsetPoint, towardFor } from '../document/document';
+import { offsetPoint, tapeAxisFromKey, towardFor } from '../document/document';
 import { useStore } from '../store/store';
 
 /**
@@ -152,6 +152,16 @@ export function TapeReadout() {
   return (
     <div className="tape-readout">
       <div className="tape-readout-row">
+        {axis && (
+          // The confirmation that the lock landed. It is the ONLY one in axis
+          // mode until a number is typed: with no target there is nothing for
+          // the measuring line to draw against, and drawing a semi-infinite
+          // axis line instead would be follow-up 130's construction line, which
+          // this round explicitly does not build (design §4.1, §8).
+          <span className="tape-readout-axis" data-testid="tape-readout-axis">
+            {axis.toUpperCase()}
+          </span>
+        )}
         <span className="tape-readout-label">
           {measured === null ? '—' : formatLength(measured, precision)}
         </span>
@@ -172,6 +182,19 @@ export function TapeReadout() {
               commit();
               return;
             }
+            // X / Y / Z have to be handled HERE as well as in App's window
+            // listener, and this is not redundancy — it is forced. App's effect
+            // early-returns on isTextEntry, which this input is, so once the
+            // first character lands its listener never sees another key. Escape
+            // is in this handler for exactly the same reason.
+            //
+            // The modifier test keeps Ctrl+Z (and Cmd+X, Cmd+C, Cmd+V) alone.
+            const axisKey = tapeAxisFromKey(e.key);
+            if (axisKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+              e.preventDefault();
+              useStore.getState().setTapeAxis(axisKey);
+              return;
+            }
             // Escape needs its own handler HERE, because App's window listener
             // early-returns on isTextEntry — which this input is. Without it,
             // Escape would do nothing at all while focus is in the box, and the
@@ -182,7 +205,15 @@ export function TapeReadout() {
             // leaves the tool.
             if (e.key === 'Escape') {
               e.preventDefault();
-              useStore.getState().clearTapeAnchor();
+              const store = useStore.getState();
+              // Same ladder as App's, one rung at a time: drop the axis if there
+              // is one, otherwise drop the anchor and blur so a second Escape
+              // reaches the window listener and leaves the tool.
+              if (store.tapeAxis) {
+                store.setTapeAxis(null);
+                return;
+              }
+              store.clearTapeAnchor();
               input.current?.blur();
             }
           }}
@@ -205,7 +236,9 @@ export function TapeReadout() {
           {ERROR_TEXT[error]}
         </span>
       ) : (
-        <span className="tape-readout-hint">Type a distance, Enter to place</span>
+        <span className="tape-readout-hint">
+          {axis ? `Along ${axis.toUpperCase()} — Enter to place` : 'Type a distance, Enter to place'}
+        </span>
       )}
     </div>
   );
