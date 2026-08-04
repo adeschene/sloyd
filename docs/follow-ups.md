@@ -2752,7 +2752,8 @@ which is the same complaint that produced this whole round about the placeholder
 
 ## The chosen successor — 2026-08-04
 
-**145 is SHIPPED (2026-08-04, branch `feat/cardinal-guides`), and every open question
+**145 is SHIPPED, MERGED AND LIVE (2026-08-04 — merged as `a998793`, deployed as bundle
+`index-K_vbIrhN.js`, and confirmed working in real use by the user), and every open question
 below now has an answer.** Design
 `docs/superpowers/specs/2026-08-04-sloyd-cardinal-guides-design.md`, browser pass
 `docs/browser-verification-cardinal-guides.md`. Answers, in the order the questions are
@@ -2919,8 +2920,15 @@ existed** and survived six task reviews, because every individual task's code wa
 Only running the sentence end to end in a browser could catch the claim, and only a review
 sweeping for the *sentence* rather than for the behaviour could catch its third copy.
 
-**147. Should the axis outlive a COMMIT? Open, and a §3.1 amendment rather than a defect —
-the user's call.** 146 records that it does not. The question this leaves is whether it
+**147. Should the axis outlive a COMMIT? Open BY RULING rather than by default — the user
+was asked and chose to ship as-is (2026-08-04).** The ruling: the single-sentence rule below
+is worth one keystroke per guide, and the question is worth revisiting only with real use
+behind it. That use has since begun — the round is merged and live, and the user reports it
+works well — so anyone reopening this now has evidence available that nobody had when it was
+first filed. Do not read what follows as an unmade decision; read it as a made one with its
+reasoning preserved.
+
+146 records that the axis does not survive a commit. The question this leaves is whether it
 should: `commit()` currently ends with `clearTapeAnchor()`, which drops the lock, so
 walking a row of corners costs one axis press per guide. Three things a decision should
 weigh. **For keeping it:** §3.1's rule is a single sentence that a reader can hold — *the

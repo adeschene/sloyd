@@ -2510,7 +2510,10 @@ three code comments that had copied it are corrected; the design and plan text a
 the record.
 **147** is the behaviour question 146 leaves open — should the axis outlive a commit? — a
 §3.1 amendment and a human decision, with the trade and a cheap middle option written out
-so it is not re-derived. **148** is the most portable entry here and has nothing to do with
+so it is not re-derived. **The user was asked and ruled SHIP AS-IS**, so it is open by
+decision rather than by default: the single-sentence rule (the axis lives exactly as long
+as the anchor) is worth one keystroke per guide, and it is worth revisiting only with real
+use behind it — which now exists, the round being live and confirmed working. **148** is the most portable entry here and has nothing to do with
 this round's feature: `store.ts` holds `gesturing` and `gestureSnapshotTaken` as
 module-level closure variables that `replaceDocument` does not reset, so a component
 unmounting mid-gesture leaks them into every later test in the file and silently breaks
@@ -2522,10 +2525,14 @@ framing §9.1's stub would rest on, `no-direction` found unreachable live and wh
 coverage gaps, and two harness traps (autosave lagging the store by ~200 ms, and a DOM read
 racing a React effect).
 
-**No successor has been chosen.** The roadmap paragraph that used to sit in the status
-section was this round; nothing has replaced it yet, and `docs/follow-ups.md`'s open entries
-— 130's construction lines and 147 among them — are where the next conversation should
-start.
+**No successor has been chosen, and the tape line of work is complete for now.** Three
+rounds landed on that surface in one day and all three are live; the user's original
+critique of the first — *"I can effectively only duplicate existing grab-points, which adds
+nothing"* — is fully answered, since a guide can now go 3" straight up from a corner with
+nothing in that direction. The roadmap paragraph that used to sit in the status section was
+this round; nothing has replaced it yet, and `docs/follow-ups.md`'s open entries — 130's
+semi-infinite construction lines and 147 among them — are where the next conversation
+should start.
 
 One entry is a lesson rather than a defect and is worth reading before touching anything
 in the viewport: **26a**. Browser verification on this host runs on software GL
