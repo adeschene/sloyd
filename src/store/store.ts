@@ -174,9 +174,19 @@ interface StoreState {
    *    owner-conditional in `deleteBoard`/`removeGuide`, point-precise inside
    *    `dropHeldIfGone`. So an edit the anchor SURVIVES leaves the lock alone.
    *  - `setTapeAnchor` PRESERVES it, which is the half a "clear it everywhere"
-   *    implementation breaks while passing every other test. It is what makes
-   *    the design's §5.2 gesture work: click a corner, type, Enter, click the
-   *    next corner, type, Enter — with the axis pressed once.
+   *    implementation breaks while passing every other test. It is what lets a
+   *    lock be RETARGETED before it is spent: click a corner, press the axis,
+   *    click a different corner, type, Enter — the second click moves the
+   *    anchor and places nothing (design §5.2's first bullet).
+   *
+   *    What it does NOT buy — and design §5.2's illustration and this comment's
+   *    first version both claimed it did — is a lock that outlives a COMMIT.
+   *    `commit()` ends with `clearTapeAnchor()`, which is the rule above doing
+   *    exactly what it says, so `click, type, Enter, click, type, Enter` places
+   *    ONE guide along the axis and then refuses the second (verified in a
+   *    browser: the second Enter reports `degenerate`). Walking a row of corners
+   *    costs one axis press per guide today. Whether it should is follow-up 147
+   *    and is a §3.1 amendment rather than a defect.
    *
    * See design §3. `setTapeAxis(axis)` toggles (setting the axis already locked
    * clears it) and is a no-op with no anchor; `setTapeAxis(null)` always clears,

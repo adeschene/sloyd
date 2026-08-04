@@ -1455,8 +1455,11 @@ describe('tapeAxis — a lock, deliberately NOT invariant 24', () => {
 
   // THE HALF THAT IS EASY TO GET BACKWARDS, and the one a "clear it everywhere"
   // implementation passes every other test while breaking. Re-anchoring under a
-  // lock is the §5.2 gesture: click a corner, type, Enter, click the next
-  // corner, type, Enter — with the axis pressed once at the start.
+  // lock is design §5.2's first bullet: click a corner, press the axis, click a
+  // DIFFERENT corner, type, Enter — the second click retargets the anchor and
+  // places nothing. Note what this does not say: the lock does not outlive a
+  // commit, because commit() ends with clearTapeAnchor(). See `tapeAxis`'s
+  // declaration in store.ts and follow-up 147.
   it('SURVIVES a re-anchor', () => {
     const board = anchorOn();
     useStore.getState().setTapeAxis('y');

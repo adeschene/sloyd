@@ -47,8 +47,12 @@ point** or type a length to place one that far along the anchor→hover ray. Gui
 document data (**schema version 6**), snappable by the Move tool, drawn as smaller
 "resting" markers that grow when hovered, hidden by a Guides checkbox, and listed in a
 sidebar panel — and then **type-anywhere distance entry**, a short round making that
-typed path reachable rather than merely present. Static SPA, containerized, 785/785 tests
-passing across 33 files.
+typed path reachable rather than merely present — and now **cardinal guide points**, which
+gives the tape a **world-axis lock**: with an anchor set, `X`, `Y` or `Z` locks that axis
+and a typed distance places a guide that far along it, so a guide can go 3" straight up
+from a corner without a second snap point happening to lie in that direction. No schema
+change — `CURRENT_VERSION` stays 6 and no migration step was added. Static SPA,
+containerized, 828/828 tests passing across 33 files.
 
 Host-specific deployment detail — hostname, container name, proxy configuration, and
 the manual steps a human has to perform — lives in `DEPLOYMENT.local.md`, which is
@@ -57,6 +61,13 @@ gitignored. Read that file before deploying; it is not in the public repo.
 **The cut list line of work is CLOSED as of 2026-08-01** — cut list, diagrams, label
 layout, per-face views and board feet are all shipped and merged to `master`. Do not
 treat any of the five as in-flight.
+
+**The cardinal guides round is NOT in production and is NOT merged**, which is what keeps
+the paragraph below true. It sits complete on `feat/cardinal-guides`, verified against the
+dev server (`docs/browser-verification-cardinal-guides.md`), awaiting a whole-branch review
+and a merge the user performs. Rolling back past it would cost nothing at all if it does
+ship: it changes no schema, so a document saved by it reads `version: 6` and the current
+production image opens it unchanged, guides and all.
 
 **Production matches `master` as of 2026-08-04, both of that day's rounds included.** The
 tape measure and guide points (`dbca088`, bundle `index-BFdaQ-al.js` →
@@ -681,80 +692,124 @@ tool, no new document state.
   one named the `key.length` guard while every key it listed was rejected by the character
   range anyway.
 
-**The next line of work is GUIDE POINTS IN ARBITRARY CARDINAL DIRECTIONS, chosen
-2026-08-04 by the user immediately after confirming both tape rounds work in real use.**
-No design and no plan yet — this paragraph records the motivating problem and the open
-questions, and deliberately answers none of them.
+**What the cardinal guides round did**, design in
+`docs/superpowers/specs/2026-08-04-sloyd-cardinal-guides-design.md`, browser pass in
+`docs/browser-verification-cardinal-guides.md`. Chosen 2026-08-04 by the user immediately
+after confirming both tape rounds work in real use, and executed the same day — the third
+round in a row on the tape's surface. A guide could land in exactly two places, and both
+borrowed their direction from a feature that already existed: **on** the hovered snap
+point, or along the **anchor→hover ray**. So the tool could only ever measure *between
+things that already exist*, and in a model made of rectangular parts the direction you want
+is usually one no feature points along yet. With an anchor set, `X` / `Y` / `Z` now locks a
+world axis and a typed distance places a guide that far along it. Negative distances go the
+other way. **No schema change** — `CURRENT_VERSION` stays 6, `validateGuides` is untouched,
+and no migration step was added, which is the point rather than a coincidence: nothing about
+how a guide was created is stored, and nothing should be.
 
-**The problem is that a guide can currently land in exactly two places, and both of them
-require a second snap point to exist.** Clicking while anchored places a guide **on** the
-hovered snap point, which is close to redundant — a snap point was already there, and the
-user's own verdict on the round-1 shape was *"I can effectively only duplicate existing
-grab-points."* Typing a length places one along the **anchor→hover ray**
-(`offsetPoint(anchor, toward, distance)` in `document/snapPoints.ts`, which normalises
-`toward − anchor` and refuses a zero-length direction). The ray is what makes the typed
-path valuable, and it is also the whole constraint: **the direction is always borrowed
-from a second existing feature**, so the tool can only measure *between things that
-already exist*. There is no way to put a guide 3" straight up from a corner, or 6" out
-along Z from a face centre, unless some other snap point happens to lie in that direction
-— and in a project of rectangular parts, the direction you want is usually one no feature
-points along yet. Cardinal placement removes exactly that: anchor, choose an axis, type a
-distance.
-
-**The open design questions, recorded rather than settled — the round's design owns
-these:**
-
-- **World axes or board-local axes, which is the central one.** World X/Y/Z is the obvious
-  reading and the one the phrase "cardinal" suggests. But a board carries `rotation` (0 or
-  90 about Y) and `posture`, and `axisDimensions` in `src/document/geometry.ts` is the
-  single source mapping its length/width/thickness onto world axes — so for a turned board
-  "3 inches along the board" and "3 inches along X" are different points, and a
-  woodworker plausibly wants each at different moments. An anchor on a board's snap point
-  knows which board it came from (`SnapOwner`'s `board` member carries the id), so
-  board-local is *reachable*; an anchor on a guide is owned by no board, so it is not
-  reachable from every anchor. That asymmetry is part of the question, not an argument
-  against either answer.
-- **How the axis is chosen.** A modifier key, an on-screen affordance, typed syntax
-  (`x12`? `12x`?), or inference from cursor direction the way SketchUp infers axis locking
-  from which way you start dragging. Note that **the tape has no axis concept at all
-  today** — nothing in `TapeTool.tsx`, `TapeReadout.tsx` or the store names an axis — so
-  whatever is chosen is the first of its kind here, and there is no existing idiom to
-  match.
-- **How it composes with the ray path — a mode, or a fallback?** Three verified
-  integration points constrain the answer. `offsetPoint` already does the arithmetic a
-  cardinal offset needs; what is missing is a *direction source* that is not a second snap
-  point, and whether the axis path synthesises a `toward` and reuses it or takes its own
-  path is a design choice with a real difference in blast radius. `TapeReadout`'s
-  `commit()` currently treats a missing target as an error (`if (!target) { setError(true);
-  return; }`) — in axis mode there is no target **by construction**, so cardinal placement
-  turns "no target" from a refusal into a legitimate state, which is precisely what makes
-  follow-up 144's proposed cause-carrying `error` stop being cosmetic. And `TapeTool`'s
-  measuring line is `lineEnd = preview ?? hovered?.at ?? null`, so with no hover there is
-  nothing for the line to draw against — what the line shows in axis mode is an open
-  question, not an oversight to fix in passing.
-- **Whether the ray path survives.** It may be complementary rather than superseded —
-  measuring *between* two features and projecting *from* one are different operations, and
-  the ray is the only one that can answer "half the distance between these two". Deciding
-  it is a subset of the cardinal case would be a real simplification and would also throw
-  away the round-1 gesture; deciding it is not costs a second mode to explain.
-
-**What this does not need is a schema change.** `GuidePoint` is `{ id, at }` with `at` a
-bare world position — a guide placed along an axis is *the same document data* as one
-placed along a ray, so `CURRENT_VERSION` stays 6, `validateGuides` is unchanged, and there
-is no migration step. The two existing round-2 mechanisms should be **extended rather than
-duplicated**: the type-anywhere capture in `App`'s keydown effect (which is where every
-window-level shortcut belongs, and which already inherits the `cutListOpen` and
-`isTextEntry` guards) and the derived preview marker in `TapeTool` (derived every render,
-never stored, sharing `offsetPoint` with the commit path so the marker and the placement
-agree by construction). A second capture path or a second preview would be two places for
-the same rule to disagree.
-
-Recorded as follow-up **145**. It **narrows** rather than closes the semi-infinite
-construction lines item in follow-up 130 — an axis-parallel line from a feature was the
-user's original mental model, and cardinal offsets answer part of its motivation (reach
-along an axis from one feature) while providing no line at all. What was promoted is the
-**cardinal-direction** case specifically, not arbitrary 3D placement: a free-floating
-guide at an arbitrary point in space is still not asked for and is still not a goal.
+- **The round's own stated "central question" COLLAPSED under §2, and that is the thing a
+  later reader would otherwise re-litigate.** The question was world axes or board-local
+  axes, and it was recorded as genuinely open. It is not a balance of arguments:
+  `axisDimensions` is by construction always a **permutation** of the world axes — `posture`
+  names which dimension is up, `rotation` is only 0 or 90 about Y, so each of
+  length/width/thickness lands on exactly one axis and no two share one, and the document
+  can express no oblique case at all. Board-local axes therefore reach the *same six
+  directions*: they would buy a **label**, not a capability. The guide-anchor asymmetry
+  (a guide-owned anchor names no board, so board-local is not reachable from every anchor)
+  survives as a second, independent reason, but it was not the deciding one. Written into
+  `towardFor`'s doc comment so the argument sits beside the code it justifies. The browser
+  pass is what turns it from a reading of the code into an observation: the same three keys
+  produce the same three world offsets from a `flat` board and from an `upright` board
+  turned 90°.
+- **`towardFor` is the round's one real idea, and it exists so the marker and the placement
+  cannot disagree.** One exported function, called from **both** `TapeTool`'s preview memo
+  and `TapeReadout`'s `commit()`: locked, it returns the anchor plus exactly one inch along
+  the axis; unlocked, it returns the hovered point unchanged. Round 2's guarantee was that
+  the preview and the placement agree by construction because both call `offsetPoint`, and
+  axis mode changes what `toward` **is** — so had each side computed its own direction that
+  guarantee would have been half true, arithmetic shared and direction not. The one-inch
+  length is deliberate and never zero: the magnitude is normalised away, so any non-zero
+  value would do, and it makes `offsetPoint`'s zero-length refusal unreachable in axis mode.
+- **The axis WINS over a hover rather than falling back to it**, which is the trap §5.1
+  closes. `TapeTool` latches its hover while anchored (invariant 24's third instance exists
+  because of that latch), so a hover captured before the lock can sit unreplaced across an
+  arbitrary number of events — and a lock that a value the user cannot see can override is
+  not a lock. The hovered marker is still **drawn** while locked, because it truthfully says
+  *this is what you would snap to if you unlocked*, and suppressing it would make the tool
+  look broken. The browser pass produced an accidental proof of the rule: in all six of
+  check 1's placements the latched hover was the anchor corner itself, which on the ray path
+  is a zero-length direction `offsetPoint` refuses — so every one of them would have failed
+  had the hover won.
+- **`tapeAxis` is store state and is deliberately NOT invariant 24's fourth instance**, for
+  `tapeTyped`'s reason rather than its own. The three fields beside it hold captured **world
+  positions**, which is what makes them go stale when the boards move under them; this holds
+  an enum, and `'x'` means the same thing after an undo, a resize or a deleted cut. Giving
+  it clearing rules by analogy would silently unlock an axis mid-measurement on every
+  unrelated edit. Its one rule is **structural** instead — an axis with no anchor names no
+  ray, so it lives exactly as long as `tapeAnchor` — and that rule is stated over the
+  anchor-clearing set rather than as a list of writers, because a list here is a count that
+  goes stale. Read it at `tapeAxis`'s declaration in `store.ts`; do not restate it anywhere
+  else, including here.
+- **Two keyboard handlers, and the second one is forced rather than redundant.** `X`/`Y`/`Z`
+  went into `App`'s **existing** keydown effect beside `M` and `T` — CLAUDE.md's standing
+  rule for every window-level shortcut, and here the inheritance buys behaviour: `cutListOpen`
+  above means nothing arms an axis behind a sheet. But `isTextEntry` at the top of that same
+  effect is exactly why `TapeReadout` needs its **own** branch: once the first digit lands
+  the box has focus, and `App`'s listener never sees another key. Escape had already set that
+  precedent for the identical reason. Both call one `tapeAxisFromKey`, which lives beside the
+  type it produces — the drift shape follow-up 64 recorded, refused before it can start. One
+  spelling detail is load-bearing: the modifier test is part of the *condition*, not an early
+  `return` like `M`'s and `T`'s, because `Ctrl+Z` is `e.key === 'z'` and a returning guard
+  would swallow undo. That branch is also the one thing in the round no jsdom test can prove
+  — the question is which handler an event reaches — and the browser pass drove it both ways
+  (from no axis, and changing an existing lock), confirming the letter never enters the text.
+- **A click while locked RE-ANCHORS and keeps the lock rather than placing a guide.**
+  Placing at the clicked point was rejected: a click and Enter would then place guides in two
+  different positions while one direction is drawn on screen, which is the disagreement the
+  lock exists to prevent. `setTapeAnchor` preserving the axis is the half a "clear it
+  everywhere" implementation breaks while passing every other test.
+  **What that does NOT buy is a lock outliving a COMMIT** — `commit()` ends with
+  `clearTapeAnchor()`, which is the structural rule above doing what it says, so walking a
+  row of corners costs one axis press per guide. The design's §5.2 illustrated the bullet
+  with a gesture (*click, type, Enter, click, type, Enter*, one axis press) that its own §3.1
+  makes false, and the claim had been copied verbatim into two code comments. Found by
+  driving it end to end in a browser, not by reading — every individual task's code was
+  correct. The two code comments are corrected; the design text is left as the record. See
+  follow-ups 146 and 147, and note that whether the axis *should* survive a commit is a §3.1
+  amendment and a human decision, not a bug fix.
+- **Follow-up 144 is CLOSED, and the axis is what made it stop being cosmetic.** `error`
+  became `'no-direction' | 'unparseable' | 'degenerate' | null` and the one over-wide effect
+  split in two: `[text]` clears only `unparseable`, `[hovered, axis]` clears only the two a
+  pick or a lock can answer. 144 was filed as not-worth-fixing because its one broken case
+  was cosmetic; axis mode turns *there is no target* from a refusal into a legitimate state
+  by construction, and pressing `X` after a `no-direction` refusal genuinely cures it — a
+  cure a hover cannot express and one bit cannot distinguish. The cause is also **printed**
+  now, one short line in the hint's own slot so the box does not change height when a commit
+  is refused. Note the names moved from the ones 144 proposed (`no-target` → `no-direction`,
+  `zero-length` → `degenerate`), because the question stopped being *is there a target*.
+- **Locked with nothing typed draws NO measuring line**, chosen on scope grounds rather than
+  as an omission: the honest thing to draw is a semi-infinite axis line, which is follow-up
+  130's construction line and is out of this round's scope. §9.1 named a 1" stub as the
+  remedy if the browser pass found it read as broken. It reads as **waiting** — the chip
+  appears in the same instant, the hint changes to *Along Y — Enter to place*, and one
+  keystroke restores both a line and a preview marker — so the stub was **not** applied. The
+  sharpest observation in the pass is recorded with it: the line does not merely fail to
+  appear, it *disappears*, and a thing vanishing is a weaker confirmation than a thing
+  appearing. See follow-up 150.
+- **The axis chip is the app's existing active-control idiom, not a fifth off-palette hue.**
+  Brass on graphite with a brass-dim border, borrowed from `button[aria-pressed='true']`.
+  The reasons `SnapMarker` went off-palette — a ~9 px disc that must read on walnut — do not
+  reach a text badge on a dark DOM panel, so nothing here imports follow-up 60's
+  browser-settling obligation beyond "is it legible", which the pass answers directly.
+- **Known, deferred, and verified in a real browser** — see
+  `docs/browser-verification-cardinal-guides.md` (all 8 checks run, **no defect in this
+  round's code**, no constant retuned, and the two-posture fixture that is the check the
+  cut-points round's local→world trap exists to demand) and `docs/follow-ups.md`'s "From the
+  cardinal guides round" section (146-150). 148 is the one to read even if nothing else here
+  is touched: `store.ts` holds `gesturing` and `gestureSnapshotTaken` as module-level closure
+  variables that `replaceDocument` does not reset, so a component unmounting mid-gesture
+  leaks them into every later test in the file and silently breaks undo bookkeeping.
+  Reproduced, worked around in-file, and independently confirmed by a reviewer; the real
+  remedy is store-level and was not attempted.
 
 **What the empty-solids placeholder did** (2026-08-01, closing follow-ups 48 and 49; no
 spec — the diagnosis and the chosen fix were already in the ledger). A board whose own
@@ -1407,7 +1462,22 @@ src/
 │   │                        offsetPoint(anchor, toward, distance): the tape's one
 │   │                        subtraction, returning null for a zero-length
 │   │                        direction (§1.2) or a non-finite distance rather than
-│   │                        letting NaN into the document. Exports SnapKind (now
+│   │                        letting NaN into the document. towardFor(anchor,
+│   │                        axis, hover): the cardinal round's addition and the
+│   │                        tape's ONE direction source in both modes — locked,
+│   │                        the anchor plus exactly 1" along the world axis (so
+│   │                        offsetPoint's zero-length refusal is unreachable
+│   │                        there); unlocked, the hover unchanged. Called from
+│   │                        BOTH TapeTool's preview memo and TapeReadout's
+│   │                        commit(), which is what keeps the marker and the
+│   │                        placement agreeing under the lock the way round 2's
+│   │                        shared offsetPoint kept them agreeing on the ray.
+│   │                        The axis WINS over a hover, never falls back to it
+│   │                        (§5.1). tapeAxisFromKey(key): the one X/Y/Z mapping,
+│   │                        beside the type it produces rather than in either of
+│   │                        the two keyboard handlers that call it. Exports
+│   │                        TapeAxis ('x' | 'y' | 'z'), whose doc comment carries
+│   │                        the world-vs-board-local argument. Exports SnapKind (now
 │   │                        four, 'guide' added) / SnapOwner / SnapPoint /
 │   │                        BoardSnapPoint — the owner is a discriminated union so
 │   │                        guides and the tape measure added a member rather than
@@ -1440,7 +1510,18 @@ src/
 │                            writers are survival-tested, which are
 │                            owner-conditional and which are blanket is enumerated
 │                            at `tapeHover`'s declaration, which is the single
-│                            source of truth for it — see invariants 24, 25 and 26
+│                            source of truth for it — see invariants 24, 25 and 26.
+│                            Plus `tapeAxis` (TapeAxis | null) and setTapeAxis,
+│                            the cardinal round's addition: NOT a fourth held
+│                            point and deliberately NOT invariant 24's fourth
+│                            instance — it holds an enum, not a world position,
+│                            so it cannot go stale and must not be given clearing
+│                            rules by analogy. Its one rule is structural (an
+│                            axis with no anchor names no ray, so it lives
+│                            exactly as long as tapeAnchor) and is stated as a
+│                            RULE over the anchor-clearing set at `tapeAxis`'s
+│                            own declaration rather than as a list of writers.
+│                            Read it there; do not restate a count of them
 ├── storage/
 │   ├── types.ts             the StorageAdapter interface
 │   └── browser.ts           BrowserStorageAdapter + the `storage` singleton
@@ -1490,7 +1571,17 @@ src/
 │   │                        cannot diverge; LATCHES the hover while anchored,
 │   │                        because the only route to typing a distance is off
 │   │                        the canvas. Draws the measuring line (drei <Line>,
-│   │                        solid, toneMapped off so it matches the marker hue)
+│   │                        solid, toneMapped off so it matches the marker hue).
+│   │                        SUBSCRIBES to tapeAxis (not merely lists it in a dep
+│   │                        array — a dep entry over a value nothing subscribes
+│   │                        to is invariant 15's failure mode wearing the right
+│   │                        clothes), derives the preview through towardFor so
+│   │                        the marker and the placement share one direction
+│   │                        source, and while an axis is locked with nothing
+│   │                        typed draws NO line at all — a decision, not an
+│   │                        omission; the honest alternative is follow-up 130's
+│   │                        construction line. A click while locked RE-ANCHORS
+│   │                        and keeps the lock instead of placing a guide
 │   ├── GuideMarkers.tsx     every guide in the document, drawn whenever guides
 │   │                        are shown and independent of any tool — a guide is
 │   │                        document data, so it is visible in select mode too.
@@ -1553,7 +1644,20 @@ src/
 │   │                        (not drei Html), so parseLength and the app's own
 │   │                        field styling apply; renders nothing without an
 │   │                        anchor. Placed inside `.app-shell` on purpose, so the
-│   │                        cut list's `inert` still covers it
+│   │                        cut list's `inert` still covers it. Owns the AXIS
+│   │                        CHIP (the app's existing active-control idiom, brass
+│   │                        on graphite — not a fifth off-palette hue), and the
+│   │                        CAUSE-CARRYING refusal that closes follow-up 144:
+│   │                        TapeError is 'no-direction' | 'unparseable' |
+│   │                        'degenerate' | null, printed as one line in the
+│   │                        hint's own slot, with TWO clearing effects rather
+│   │                        than one over-wide one — [text] clears only
+│   │                        unparseable, [hovered, axis] only the two a pick or
+│   │                        a lock can answer. Also owns a TWIN X/Y/Z branch in
+│   │                        its onKeyDown beside Escape's, which is forced
+│   │                        rather than redundant: App's listener early-returns
+│   │                        on isTextEntry, so once this box has focus it never
+│   │                        sees another key
 │   ├── GuidesList.tsx       one row per guide, coordinates through formatLength
 │   │                        at the document's precision, an x per row and a Clear
 │   │                        all. NO selection model, deliberately — design §7
@@ -1599,9 +1703,17 @@ src/
                              positions against, and `showGuides` as local view
                              state prop-drilled to Viewport and Toolbar (it joins
                              `shortcutsSuspended`, NOT the store's `tool`). `M`,
-                             `T` and Escape all live inside the ONE existing
-                             keydown effect, inheriting its cutListOpen and
-                             text-entry guards rather than adding a listener
+                             `T`, `X`/`Y`/`Z` and Escape all live inside the ONE
+                             existing keydown effect, inheriting its cutListOpen
+                             and text-entry guards rather than adding a listener.
+                             The axis block's modifier test is part of its
+                             CONDITION rather than an early return like M's and
+                             T's, because Ctrl+Z is `e.key === 'z'` and a
+                             returning guard would swallow undo; it acts only
+                             when the tape is armed AND anchored, and otherwise
+                             falls THROUGH rather than swallowing the key.
+                             Escape's ladder is now grabbed -> tapeAxis ->
+                             tapeAnchor -> leave tool
 ```
 
 Deployment scaffolding: `Dockerfile`, `docker-compose.yml`, `nginx.conf`,
@@ -2047,6 +2159,19 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
     rounds to the same string either way (invariant 5) so nothing on screen shows it.
     Same rule, third operation: round what a free drag produced, and touch nothing that
     is already an exact position or a difference of two of them.
+
+    **An AXIS-placed guide is the fourth operation, and it is the one where the rule is
+    easiest to think you have already satisfied.** `towardFor` returns the anchor plus
+    exactly one inch along the axis, `offsetPoint` normalises that to a unit vector, and
+    the result is `anchor[i] + distance` on one index with the other two copied through —
+    so a locked placement is arithmetic on an exact position and a parsed number, and
+    nothing in it wants rounding. The temptation here is different from the gizmo's: the
+    axis path *looks* like it should land on the grid, because a person typing `3` along
+    Y from a corner on the grid does land on it, and the only case where a snap would do
+    anything is the case where it silently breaks the number the user typed. Verified
+    rather than argued: a locked `0.01` along X from a corner at `x = 5` read back out of
+    `localStorage` as exactly `5.01` (not `5`, not `5.0625`) — see
+    `docs/browser-verification-cardinal-guides.md`.
 26. **`grabbed` is a `BoardSnapPoint`, and that is what makes eight reads correct.** The
     guide-points round widened `SnapOwner` with a `{ type: 'guide'; id: string }` member,
     and that edit is silent by construction: both members carry an `id` of type `string`,
@@ -2107,8 +2232,8 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 `docs/follow-ups.md` lists everything found during v1 review, the two polish passes,
 v2, v3, the post-v3 fixes, joinery, the cut list and its diagrams rounds, the
 board-feet round, the sheet-nesting round, the snap-move round, the selected-board grabs
-round, the cut-aware snap points round, the guide-points round and the type-anywhere
-round, consciously deferred
+round, the cut-aware snap points round, the guide-points round, the type-anywhere round
+and the cardinal guides round, consciously deferred
 rather than missed, numbered 1-30 plus the per-release additions. Read it before starting new work
 in the same area — several items are "correct but untested", which is exactly what a
 refactor breaks silently.
@@ -2359,13 +2484,46 @@ consequence of breaking it from a cosmetic flicker into a silently wrong placeme
 not "tidy" the mount behind `tool === 'tape'`. **144** is a knowingly-made trade: widening
 the error-clearing effect to `[text, hovered]` cures two of `commit()`'s three refusal
 causes and clears the third without curing it, because a boolean cannot express the
-distinction at all — its named remedy is to make `error` carry its cause.
+distinction at all — its named remedy is to make `error` carry its cause. **144 is now
+CLOSED** by the cardinal guides round, with the cause names shifted from the ones it
+proposed (`no-target` -> `no-direction`, `zero-length` -> `degenerate`) because the
+question stopped being *is there a target*; the original entry is kept unedited beneath
+its closure note, because what it records about the limits of one bit is what produced
+the union.
 
-**145 is the chosen successor rather than an open finding** — cardinal-direction guide
-placement, named by the user on 2026-08-04 and written up in the status section above. It
-**narrows and does not close** 130's semi-infinite construction lines bullet, and it is
-the entry that makes 144 worth revisiting: in axis mode `commit()`'s "no target" refusal
-becomes a legitimate state, so the cause-carrying `error` stops being cosmetic.
+**145 is SHIPPED** — cardinal-direction guide placement, named by the user on 2026-08-04
+and executed the same day; the entry now carries an answer to each of the open questions
+it recorded, including that its own "central question" collapsed rather than being decided.
+It **narrows and does not close** 130's semi-infinite construction lines bullet, which
+remains the one genuinely open item there — and the browser pass is what makes that
+narrowing evidence rather than assertion: typed offsets are enough as a *mechanism*, and
+what is still wanted is the line as a *visual*.
+
+The cardinal guides round added **146-150**. **146** is the round's one finding and it is
+against a claim rather than against code: design §5.2 illustrated its own mechanism with a
+gesture (*click, type, Enter, click, type, Enter*, one axis press) that its own §3.1 makes
+false, because `commit()` ends with `clearTapeAnchor()` — found by driving the sentence end
+to end in a browser, since every individual task's code was correct, and it is follow-up
+129's shape recurring with the claim present in the design *before* any code existed. The
+two code comments that had copied it are corrected; the design text is left as the record.
+**147** is the behaviour question 146 leaves open — should the axis outlive a commit? — a
+§3.1 amendment and a human decision, with the trade and a cheap middle option written out
+so it is not re-derived. **148** is the most portable entry here and has nothing to do with
+this round's feature: `store.ts` holds `gesturing` and `gestureSnapshotTaken` as
+module-level closure variables that `replaceDocument` does not reset, so a component
+unmounting mid-gesture leaks them into every later test in the file and silently breaks
+undo bookkeeping; reproduced, worked around in-file with a `.blur()`, and independently
+confirmed by a reviewer, with the real store-level remedy named and not attempted.
+**149** records §8's non-goals as decisions. **150** carries the browser pass: no defect in
+this round's code, no constant retuned, the disappearing-line observation recorded with the
+framing §9.1's stub would rest on, `no-direction` found unreachable live and why, the named
+coverage gaps, and two harness traps (autosave lagging the store by ~200 ms, and a DOM read
+racing a React effect).
+
+**No successor has been chosen.** The roadmap paragraph that used to sit in the status
+section was this round; nothing has replaced it yet, and `docs/follow-ups.md`'s open entries
+— 130's construction lines and 147 among them — are where the next conversation should
+start.
 
 One entry is a lesson rather than a defect and is worth reading before touching anything
 in the viewport: **26a**. Browser verification on this host runs on software GL
