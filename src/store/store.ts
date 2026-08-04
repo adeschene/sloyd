@@ -80,13 +80,28 @@ interface StoreState {
    * and needs it — this is not view state with the standing to sit beside
    * `tool`.
    *
-   * Deliberately NOT on invariant 24's clearing list, and the reason is the
-   * anchor, not this field. While anchored it is LATCHED (TapeTool's
-   * onPointerLeave), so it can outlive a board move — but nothing can be
-   * committed from it alone: every path through TapeReadout.commit() reads
-   * `tapeAnchor` first and returns when it is null, and all seven of those
-   * actions clear the anchor. Clearing this too would be belt-and-braces that
-   * also breaks the latch the typed offset depends on.
+   * INVARIANT 24'S THIRD INSTANCE, and it earns that the hard way. A hover is
+   * normally too transient to hold a stale position: the next pointermove
+   * re-picks it. But while anchored it is LATCHED (TapeTool's onPointerLeave),
+   * because the only route to typing a distance is off the canvas and into the
+   * readout — so it can sit unreplaced across an arbitrary number of edits,
+   * and it is a world position captured at hover time exactly like the other
+   * two. A typed offset runs along anchor -> hover, so a stale hover puts the
+   * guide somewhere the user never pointed at, and the readout prints a
+   * distance to a point that no longer exists.
+   *
+   * The reachable path is the one invariant 24 already records for `grabbed`:
+   * anchor on board A, hover a point on board B, leave the canvas, edit board
+   * B's Length in Properties (nothing disables the panel while the tape is
+   * anchored). `tapeAnchor` correctly survives — its own board did not move —
+   * so the anchor being non-null says nothing about the target being current.
+   *
+   * Cleared POINT-PRECISELY, never blanket. A blanket `tapeHover: null` beside
+   * every `tapeAnchor: null` would destroy the latch, which is the whole
+   * reason this field is in the store at all — so the clear is conditioned on
+   * the point being gone (dropHeldIfGone's snapPointsFor survival test) or on
+   * its own owner being the board or guide that just changed, never on an edit
+   * merely having happened.
    */
   tapeHover: SnapPoint | null;
   setTapeHover: (point: SnapPoint | null) => void;
@@ -221,8 +236,10 @@ export const useStore = create<StoreState>((set, get) => {
    * question it asks is what the board offers once the edit has landed.
    *
    * The guide-points round added `tapeAnchor` as invariant 24's second
-   * instance, and a tape anchor can sit on a dado shoulder for exactly the
-   * reason a grab can. One helper over both rather than a second copy: two
+   * instance and `tapeHover` as its third — a latched hover holds a captured
+   * world position for as long as the anchor lives, so it sits on a dado
+   * shoulder for exactly the reason the other two do. One helper over all
+   * three rather than a second copy: two
    * functions computing snapPointsFor(board) and comparing with sameSnapPoint
    * are two places for a future rule to disagree (follow-up 113). The
    * board-id guard makes a guide-owned anchor fall through untouched, which is
@@ -243,16 +260,29 @@ export const useStore = create<StoreState>((set, get) => {
 
     const grabbed = heldOnBoard(get().grabbed);
     const anchor = heldOnBoard(get().tapeAnchor);
-    if (!grabbed && !anchor) return; // the cheap path — no grid built
+    const hover = heldOnBoard(get().tapeHover);
+    // The cheap path, now over three fields. It must still return before any
+    // grid arithmetic when none of them is relevant — that is the whole reason
+    // this shape exists, and adding a field is exactly how it would be lost.
+    if (!grabbed && !anchor && !hover) return;
 
     const board = get().doc.boards.find((b) => b.id === boardId);
     const points = board ? snapPointsFor(board) : [];
     const survives = (held: SnapPoint) => points.some((p) => sameSnapPoint(p, held));
 
-    const patch: { grabbed?: null; tapeAnchor?: null } = {};
+    const patch: { grabbed?: null; tapeAnchor?: null; tapeHover?: null } = {};
     if (grabbed && !survives(grabbed)) patch.grabbed = null;
     if (anchor && !survives(anchor)) patch.tapeAnchor = null;
-    if (patch.grabbed !== undefined || patch.tapeAnchor !== undefined) set(patch);
+    // The survival test is what keeps the latch: a hover on a box corner rides
+    // through a mid-face cut edit untouched, exactly as an anchor on one does.
+    if (hover && !survives(hover)) patch.tapeHover = null;
+    if (
+      patch.grabbed !== undefined ||
+      patch.tapeAnchor !== undefined ||
+      patch.tapeHover !== undefined
+    ) {
+      set(patch);
+    }
   };
 
   return {
@@ -408,6 +438,19 @@ export const useStore = create<StoreState>((set, get) => {
         set({ tapeAnchor: null });
       }
 
+      // And the LATCHED HOVER, invariant 24's third instance, which needs its
+      // own clause because the anchor's says nothing about it: the reachable
+      // path is anchoring on board A, hovering a point on board B, leaving the
+      // canvas for the readout, and editing B's Length here. A's anchor
+      // correctly survives — A did not move — so without this the readout
+      // would print a distance to a point that no longer exists and Enter
+      // would place a guide along a direction derived from it. Conditional on
+      // the hovered board, the same shape as the two clauses above: an edit to
+      // a third board must leave the latch alone.
+      if (get().tapeHover?.owner.type === 'board' && get().tapeHover?.owner.id === id) {
+        set({ tapeHover: null });
+      }
+
       // Reorienting turns the board in place. `position` is the min-corner, so
       // changing rotation or posture swaps the extents underneath a pinned
       // corner — which is what made a 24 x 5-1/2 board jump sideways when it
@@ -470,12 +513,16 @@ export const useStore = create<StoreState>((set, get) => {
     deleteBoard: (id) => {
       if (!get().doc.boards.some((b) => b.id === id)) return;
       const wasSelected = get().selectedId === id;
-      // A grab on the board being deleted has nothing left to move, and an
-      // anchor on it has nothing left to measure from — invariant 24, both
-      // instances, the same conditional shape as updateBoard's.
+      // A grab on the board being deleted has nothing left to move, an anchor
+      // on it has nothing left to measure from, and a latched hover on it has
+      // nothing left to measure TO — invariant 24, all three instances, the
+      // same conditional shape as updateBoard's.
       if (get().grabbed?.owner.id === id) set({ grabbed: null });
       if (get().tapeAnchor?.owner.type === 'board' && get().tapeAnchor?.owner.id === id) {
         set({ tapeAnchor: null });
+      }
+      if (get().tapeHover?.owner.type === 'board' && get().tapeHover?.owner.id === id) {
+        set({ tapeHover: null });
       }
       edit(
         (doc) => ({ ...doc, boards: doc.boards.filter((b) => b.id !== id) }),
@@ -662,6 +709,16 @@ export const useStore = create<StoreState>((set, get) => {
       if (get().tapeAnchor?.owner.type === 'guide' && get().tapeAnchor?.owner.id === id) {
         set({ tapeAnchor: null });
       }
+      // The same clause for the latched hover, and it is NOT symmetry: a guide
+      // is a snap candidate like any other, so "anchor on a board, measure to
+      // an existing guide, type an offset" is an ordinary gesture — and the
+      // guides list stays live throughout it, so deleting the guide being
+      // measured TO is as reachable as deleting the one being measured FROM.
+      // Narrowed to this guide: removing a different one must not break the
+      // latch.
+      if (get().tapeHover?.owner.type === 'guide' && get().tapeHover?.owner.id === id) {
+        set({ tapeHover: null });
+      }
       edit((doc) => ({ ...doc, guides: doc.guides.filter((g) => g.id !== id) }));
     },
 
@@ -671,7 +728,17 @@ export const useStore = create<StoreState>((set, get) => {
       // every guide is going, so any guide-owned anchor is invalid, and a
       // board-owned one is cheap to drop. Narrowing would buy one edge case
       // and cost a reader the certainty that no stale anchor survives here.
-      set({ tapeAnchor: null });
+      //
+      // The hover goes with it, and unconditionally is right HERE for a reason
+      // that does not generalise: the latch only exists while an anchor does —
+      // TapeReadout renders nothing without one and every commit path returns
+      // on it — so the anchor going means the latch is already over and there
+      // is nothing left to preserve. (TapeTool's own anchor effect would clear
+      // the local hover a render later regardless; this keeps the store from
+      // holding a stale point in between.) This is the ONE place tapeHover is
+      // cleared blanket, and it is only defensible because the field it
+      // depends on is cleared blanket in the same statement.
+      set({ tapeAnchor: null, tapeHover: null });
       edit((doc) => ({ ...doc, guides: [] }));
     },
   };
