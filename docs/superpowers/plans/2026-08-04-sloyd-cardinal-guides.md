@@ -1338,7 +1338,7 @@ Drive real `page.mouse` / `page.keyboard` input, not synthetic `PointerEvent`s �
 3. **An off-grid distance** (`0.01`) landing exactly, with no 1/16" rounding — read from `localStorage`, as the snap-move pass did.
 4. **The two-keystroke focus check.** Press `X`, then type `3`, then `5`; confirm the box reads `35`. This is the only check able to distinguish a landed focus from a failed one — a failed focus drops the second character.
 5. **`X`/`Y`/`Z` reaching the axis from inside the focused box** (Task 5's branch), which no jsdom test can prove, since the question is which handler the event reaches.
-6. **The re-anchor gesture**: press `Y` once, then click, type, Enter, click, type, Enter — two guides, one axis press.
+6. **The re-anchor gesture**: press `Y` once, then click, type, Enter, click, type, Enter — two guides, one axis press. (This expected result is false — see follow-up 146.)
 7. **Escape's four rungs**, from the canvas and from inside the box.
 8. **Legibility**: the axis chip against the readout panel, and what "locked with nothing typed draws no line" reads as. Both are browser-settled in the sense of follow-up 60. If the no-line state reads as broken, apply §9.1's 1" stub and re-check; if it reads as waiting, record that as the finding.
 

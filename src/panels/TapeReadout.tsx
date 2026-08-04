@@ -8,18 +8,22 @@ import { useStore } from '../store/store';
  * because this round is what makes it stop being cosmetic.
  *
  * With the axis lock, "there is no target" stops being a refusal at all: in
- * axis mode `towardFor` always returns a direction, so `no-direction` and
- * `degenerate` are both unreachable by construction. A boolean cannot say which
- * of three questions failed, and — worse — could not be CLEARED correctly:
- * its one effect was keyed on [text, hovered], so any new hover cured every
- * error, including an unparseable number that a hover has nothing to say about.
+ * axis mode `towardFor` always returns a direction, so `no-direction` is
+ * unreachable by construction. `degenerate` is NOT unreachable under a lock —
+ * it remains reachable in BOTH modes via `offsetPoint`'s `Number.isFinite`
+ * guard, which also catches a non-finite typed distance (e.g. `parseLength`
+ * returning `Infinity` for a long enough run of digits), not just a
+ * zero-length direction. A boolean cannot say which of three questions
+ * failed, and — worse — could not be CLEARED correctly: its one effect was
+ * keyed on [text, hovered], so any new hover cured every error, including an
+ * unparseable number that a hover has nothing to say about.
  */
 type TapeError = 'no-direction' | 'unparseable' | 'degenerate' | null;
 
 const ERROR_TEXT: Record<Exclude<TapeError, null>, string> = {
   'no-direction': 'Hover a point, or press X / Y / Z',
   unparseable: "Can't read that as a length",
-  degenerate: 'That target is on the anchor',
+  degenerate: 'No direction to place along',
 };
 
 /**

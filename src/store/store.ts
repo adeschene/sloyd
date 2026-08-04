@@ -421,9 +421,11 @@ export const useStore = create<StoreState>((set, get) => {
 
     setTapeAnchor: (point) => set({ tapeAnchor: point }),
 
-    // Nulls only the anchor. The hover follows it, but not from here: it is
-    // TapeTool's anchor effect (its `useEffect` keyed on `anchor`) that sees
-    // the anchor go null and nulls the latched hover in turn.
+    // Nulls the anchor AND the axis — the axis lives exactly as long as the
+    // anchor it locks (see the `tapeAxis` declaration). It does NOT null the
+    // hover: the hover follows, but not from here. It is TapeTool's anchor
+    // effect (its `useEffect` keyed on `anchor`) that sees the anchor go null
+    // and nulls the latched hover in turn.
     clearTapeAnchor: () => set({ tapeAnchor: null, tapeAxis: null }),
 
     setTapeHover: (point) => set({ tapeHover: point }),

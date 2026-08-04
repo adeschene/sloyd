@@ -529,8 +529,13 @@ describe('App type-anywhere tape capture', () => {
   });
 
   // Pressing an axis key genuinely cures a no-direction refusal, and under the
-  // boolean the red would have survived until Enter proved otherwise.
-  it('lets an axis key clear a no-direction refusal', async () => {
+  // boolean the red would have survived until Enter proved otherwise. This
+  // calls setTapeAxis directly to pin TapeReadout's [hovered, axis] clearing
+  // effect; the keyboard route to setTapeAxis is covered separately by 'shows
+  // which axis is locked', 'changes the axis from inside the focused box,
+  // keeping the number' and 'does not lock an axis while the cut list is
+  // open' — the split is deliberate, not a gap.
+  it('clears a no-direction refusal when an axis is locked', async () => {
     const user = await anchoredTape();
     await user.keyboard('5{Enter}');
     expect(box().className).toContain('invalid');
