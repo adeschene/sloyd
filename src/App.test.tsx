@@ -205,10 +205,22 @@ describe('App keyboard delete', () => {
     await mountWithOneBoard();
 
     const user = userEvent.setup();
-    await user.click(screen.getByLabelText('Project name'));
+    const projectName = screen.getByLabelText('Project name');
+    await user.click(projectName);
     await user.keyboard('{Backspace}');
 
     expect(useStore.getState().doc.boards).toHaveLength(1);
+
+    // Blur before the test (and RTL's auto-unmount) ends. Focusing this field
+    // calls the store's beginGesture(), and gesturing/gestureSnapshotTaken
+    // are module-level state in store.ts, not part of the Zustand store that
+    // replaceDocument resets between tests — unmounting a still-focused field
+    // does not fire blur in jsdom, so without this the leaked gesture silently
+    // coalesces every edit() in whichever test runs next into one snapshot,
+    // discovered when it made a later Ctrl+Z a no-op. This blur is what keeps
+    // that leak from crossing into the next test, not just this one's own
+    // assertion.
+    projectName.blur();
   });
 
   it('ignores a modified Delete', async () => {
@@ -381,9 +393,13 @@ describe('App type-anywhere tape capture', () => {
   // the only kind that can distinguish "canBeginLength rejected it" from "some
   // earlier block ate it". Mutating the predicate to `e.key.length === 1` fails
   // here and nowhere else in this file.
+  //
+  // 'x' is no longer such a letter as of the cardinal-axis round — x/y/z are
+  // now claimed by the axis-lock block above this capture, so 'q' is used
+  // here instead. Do not reintroduce x/y/z for this purpose.
   it('does not capture a letter that no other binding claims', async () => {
     const user = await anchoredTape();
-    await user.keyboard('x');
+    await user.keyboard('q');
 
     expect(useStore.getState().tapeTyped).toBe('');
   });
@@ -417,5 +433,56 @@ describe('App type-anywhere tape capture', () => {
     await user.keyboard('7');
 
     expect(useStore.getState().tapeTyped).toBe('');
+  });
+
+  it('locks a world axis from the canvas and toggles it back off', async () => {
+    const user = await anchoredTape();
+    await user.keyboard('x');
+    expect(useStore.getState().tapeAxis).toBe('x');
+    await user.keyboard('x');
+    expect(useStore.getState().tapeAxis).toBeNull();
+  });
+
+  it('does not lock an axis with no anchor', async () => {
+    const user = await anchoredTape();
+    await act(async () => { useStore.getState().clearTapeAnchor(); });
+    await user.keyboard('y');
+    expect(useStore.getState().tapeAxis).toBeNull();
+  });
+
+  // THE ONE THAT MATTERS. Ctrl+Z is `e.key === 'z'`, so an axis block guarding
+  // modifiers with an early return would swallow undo entirely.
+  it('leaves Ctrl+Z reaching the undo binding below it', async () => {
+    const user = await anchoredTape();
+    const before = useStore.getState().doc.boards.length;
+    await act(async () => { useStore.getState().addBoard(); });
+    await user.click(screen.getByRole('button', { name: 'Board' }));
+    await user.keyboard('{Control>}z{/Control}');
+    expect(useStore.getState().doc.boards).toHaveLength(before);
+    expect(useStore.getState().tapeAxis).toBeNull();
+  });
+
+  it('backs out one level at a time on Escape: axis, then anchor, then tool', async () => {
+    const user = await anchoredTape();
+    await user.keyboard('z');
+    expect(useStore.getState().tapeAxis).toBe('z');
+
+    await user.keyboard('{Escape}');
+    expect(useStore.getState().tapeAxis).toBeNull();
+    expect(useStore.getState().tapeAnchor).not.toBeNull();
+
+    await user.keyboard('{Escape}');
+    expect(useStore.getState().tapeAnchor).toBeNull();
+    expect(useStore.getState().tool).toBe('tape');
+
+    await user.keyboard('{Escape}');
+    expect(useStore.getState().tool).toBe('select');
+  });
+
+  it('does not lock an axis while the cut list is open', async () => {
+    const user = await anchoredTape();
+    await user.click(screen.getByRole('button', { name: /cut list/i }));
+    await user.keyboard('x');
+    expect(useStore.getState().tapeAxis).toBeNull();
   });
 });

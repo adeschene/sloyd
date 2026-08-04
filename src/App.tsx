@@ -8,6 +8,7 @@ import { FileMenu, SaveIndicator, StorageBanner } from './panels/FileMenu';
 import { CutList } from './panels/CutList';
 import { TapeReadout } from './panels/TapeReadout';
 import { canBeginLength } from './units/length';
+import { tapeAxisFromKey } from './document/document';
 import { storage } from './storage/browser';
 import { useStore } from './store/store';
 
@@ -139,11 +140,17 @@ export default function App() {
       // Escape while it is open, and a grab or anchor behind the sheet must
       // survive it.
       if (e.key === 'Escape') {
-        const { grabbed, tapeAnchor, tool, cancelGrab, clearTapeAnchor, setTool } =
+        const { grabbed, tapeAxis, tapeAnchor, tool, cancelGrab, setTapeAxis, clearTapeAnchor, setTool } =
           useStore.getState();
         if (grabbed) {
           e.preventDefault();
           cancelGrab();
+        } else if (tapeAxis) {
+          // A rung above the anchor, keeping this ladder's back-out-one-level
+          // shape: an axis is a level, and dropping the whole measurement to
+          // correct a mis-pressed axis key would cost the anchor too.
+          e.preventDefault();
+          setTapeAxis(null);
         } else if (tapeAnchor) {
           e.preventDefault();
           clearTapeAnchor();
@@ -172,6 +179,32 @@ export default function App() {
         const { tool, setTool } = useStore.getState();
         setTool(tool === 'tape' ? 'select' : 'tape');
         return;
+      }
+
+      // X / Y / Z lock a world axis, so a typed distance can run somewhere no
+      // second snap point happens to lie. In this EXISTING listener with M and
+      // T rather than in one of its own, which is CLAUDE.md's standing rule for
+      // window-level shortcuts — and here the inheritance buys behaviour rather
+      // than merely satisfying the rule: `cutListOpen` above means nothing arms
+      // an axis behind a sheet, and `isTextEntry` at the top is why the twin
+      // branch in TapeReadout has to exist at all (once the box has focus this
+      // listener never sees the key).
+      //
+      // The modifier test is part of the CONDITION and deliberately not an
+      // early `return` like M's and T's: Ctrl+Z is `e.key === 'z'`, so a
+      // returning guard here would swallow undo before the block below ever
+      // runs. Same spelling the capture below uses, for the same reason.
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && tapeAxisFromKey(e.key)) {
+        const { tool, tapeAnchor, setTapeAxis } = useStore.getState();
+        // An axis with no anchor names no ray. The store refuses it anyway;
+        // testing here is what keeps the key FALLING THROUGH when the tape is
+        // not armed, rather than being swallowed by a tool that is not in use —
+        // the rule the capture below states for its own early return.
+        if (tool === 'tape' && tapeAnchor) {
+          e.preventDefault();
+          setTapeAxis(tapeAxisFromKey(e.key));
+          return;
+        }
       }
 
       // TYPE-ANYWHERE DISTANCE ENTRY — SketchUp's VCB, and the reason the Tape
