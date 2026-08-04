@@ -46,7 +46,9 @@ second to read the distance in an overlay, then click to place a persistent **gu
 point** or type a length to place one that far along the anchor→hover ray. Guides are
 document data (**schema version 6**), snappable by the Move tool, drawn as smaller
 "resting" markers that grow when hovered, hidden by a Guides checkbox, and listed in a
-sidebar panel. Static SPA, containerized, 768/768 tests passing across 33 files.
+sidebar panel — and then **type-anywhere distance entry**, a short round making that
+typed path reachable rather than merely present. Static SPA, containerized, 785/785 tests
+passing across 33 files.
 
 Host-specific deployment detail — hostname, container name, proxy configuration, and
 the manual steps a human has to perform — lives in `DEPLOYMENT.local.md`, which is
@@ -587,6 +589,76 @@ mid-measurement.
   which *is* `board.position`, so a length change never moves it. The most obvious point to
   grab in a fixture is the one point that survives the edit you are testing.
 
+**What the type-anywhere round did** (2026-08-04, no spec — the diagnosis was one
+sentence from the user and the remedy followed from it). The guide-points round shipped
+the typed path as the tool's whole value and left it effectively undiscoverable: the
+distance box sits in the corner of the canvas, appears only after anchoring, is
+deliberately not autofocused, and announced itself with the placeholder *distance*. Using
+it meant taking the pointer off the target you were measuring to — which is precisely why
+that round had to build the hover latch. The verdict was the user's: *"I can't place guide
+points anywhere that isn't a snap-point, so I can effectively only duplicate existing
+grab-points, which adds nothing."* No schema change (`CURRENT_VERSION` stays 6), no new
+tool, no new document state.
+
+- **Typing a digit anywhere routes it into the box and focuses it — SketchUp's VCB.** It
+  went into `App`'s **existing** keydown effect rather than a listener of its own, which
+  is the standing rule for every window-level shortcut, and here the inheritance buys the
+  behaviour rather than merely satisfying the rule: `cutListOpen` above means nothing
+  seeds a box hidden behind a sheet, and `isTextEntry` at the top is *why only the first
+  character needs capturing at all* — once the input has focus every later keystroke
+  matches that guard and returns early, reaching the field directly. `TapeReadout` takes
+  focus from an effect keyed on the text rather than being handed a ref by `App`, so
+  neither module knows the other exists.
+- **`canBeginLength` lives in `units/length.ts`, beside the grammar it is derived from,
+  and its set is `{0-9, ., -}`.** Not `/`: `FRACTION_RE` is `^(\d+)\/(\d+)$` and
+  `MM_RE`/`FEET_RE`/`MIXED_RE` all require a digit first, so nothing this app parses
+  begins with a slash and capturing one would swallow a keystroke *and* seed a value that
+  can never parse. Whitespace is the one exclusion the grammar does not justify
+  (`parseLength` trims, so `' 4'` parses) and it is rejected anyway, with its own test so
+  it does not read as an oversight. The predicate stays *can begin a length* even though
+  the write appends — that question is asked afresh on every unfocused keystroke, and
+  widening it to *can appear in a length* would hand `/` and `"` to a possibly-empty box.
+- **The capture APPENDS, and the first version replacing was a real defect rather than a
+  taste call.** A drag past `CLICK_DRAG_SLOP_PX` is an orbit, not a click — the camera is
+  left deliberately usable between anchoring and placing, and CLAUDE.md sells that as the
+  payoff — but a pointerdown on the canvas **blurs the input while the anchor lives**. So
+  the gesture the tool is built around is *type `1`, orbit to see the face, type `2`*, and
+  replacing answers `2` while the box read `1` the whole way round. The rule is that the
+  displayed text and the next keystroke's effect must not disagree; appending is what
+  makes the box behave the same whether or not it has focus.
+- **`tapeTyped` is in the store and is deliberately NOT invariant 24's fourth instance.**
+  The three fields beside it hold captured world positions and go stale when the boards
+  move under them; this holds a string, and `"3 1/2"` means the same thing after an undo,
+  a resize or a deleted cut. Giving it clearing rules by analogy would wipe a half-typed
+  number on every unrelated edit. Two tests hold both halves — `setTool` clears it (the
+  anchor is gone, so there is no ray for the number to be a distance along), and it
+  **survives** an edit that clears the anchor it was typed for. Its other clear is owned
+  by a panel effect rather than the store, which is the right home and also a coupling —
+  see follow-up 143 for why `TapeReadout` must stay unconditionally mounted.
+- **The preview is DERIVED every render and never stored**, which is the same rule the
+  app already applies to snap points generally. A stored preview position would be a
+  fourth held world position needing every clearing rule invariant 24 spells out; derived
+  from the anchor, the hover and the text, it evaluates to `null` the instant any of them
+  goes and cannot be stale because it is never a fact. It shares `offsetPoint` with the
+  commit path, so the marker and the placement agree by construction rather than by two
+  pieces of code being written to match. The measuring line runs to the preview when there
+  is one — otherwise an overshooting or negative distance leaves the marker floating free
+  of the line.
+- **`SnapMarker`'s prop narrowed from `SnapPoint` to `{ at, kind }`.** The preview belongs
+  to nothing and is in no candidate list, so typing it as a `SnapPoint` would have meant
+  inventing an `owner` — and `owner` is read by `pickSnapPoint` and by the store's
+  point-precise clearing, so a fabricated one invites handing the preview to logic that
+  would be meaningless for it. A narrower prop makes tsc refuse instead.
+- **Known, deferred, and verified in a real browser** — the round's own defect (the
+  `invalid` marking outliving its cause, an invariant-5-family staleness reached from a
+  new direction: the path that writes the text is no longer the path that clears the
+  error), the two-digit browser check that is the only one able to distinguish a landed
+  focus from a failed one, and follow-ups 142-143. Two tests in this round passed for the
+  wrong reason and were found by mutation, not by reading: one asserted `canBeginLength`
+  rejects letters while actually pinning that the `M` block sits above the capture, and
+  one named the `key.length` guard while every key it listed was rejected by the character
+  range anyway.
+
 **The next line of work is not chosen.** Guides were the last named successor from
 snap-move's §8 and follow-up 105; that list is now spent apart from **semi-infinite
 construction lines**, which were set aside with guide lines on the judgement that points
@@ -1079,6 +1151,25 @@ Module dependency order (each layer only depends on the ones before it):
    import from `viewport`.) `panels` additionally imports the `storage` adapter singleton
    for export/import. These are legitimate downward imports, not a layering
    violation — `document` and `storage` sit below both.
+
+   **The type-anywhere round opened the FIRST `viewport → units` edge, and it is the
+   first import of its kind in the repo.** `viewport/TapeTool.tsx` imports `parseLength`
+   from `units/length.ts`. Legal without argument — `units` is the bottom layer and
+   imports nothing, `viewport` sits two layers above it, and no cycle is possible in
+   that direction — but it is recorded here for the same reason the three `document →
+   units` edges above each got a paragraph: so the next file that needs it follows a
+   stated boundary instead of re-deciding one. It is also *appropriate* rather than
+   merely permitted. The tape's live preview has to know what the text the user typed
+   MEANS in inches before it can place a marker, and deciding that is the entire job of
+   `parseLength` — the one function in the app that owns the fractional-inch grammar.
+   The alternatives are both worse in the way the `formatLength` edges already
+   litigated: re-deriving the parse in the viewport puts a second answer to "how long is
+   `1-1/2`" in the codebase, and parsing in the panel and passing a number through the
+   store makes the store hold a derived value beside the string it was derived from.
+   Note what this edge is NOT: `viewport` still does not import `formatLength`, because
+   nothing in the 3D scene prints a length — the readout that does is a `panels`
+   component. A marker is a position, not a label, which is the same distinction that
+   keeps `document/snapPoints.ts` off this edge entirely.
 
 Notable modelling detail: a board's `position` is the **min-corner** of its world
 bounding box, not its center. This matters anywhere geometry or the gizmo touches
@@ -1912,7 +2003,7 @@ Each of these cost real debugging during v1. They are load-bearing, not style.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 768 tests across 33 files
+npm test           # Vitest, currently 785 tests across 33 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

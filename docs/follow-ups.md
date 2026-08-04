@@ -2643,3 +2643,41 @@ Stated as a rule, because it is more general than these two tests: **the most ob
 to grab in a fixture is the one point that survives the edit you are testing.** A fixture
 that reaches for index 0 of a point provider is reaching for the corner most likely to be
 invariant under the very change the test exists to detect.
+
+## From the type-anywhere round
+
+**142. A guide hovered as the TAPE'S TARGET draws the same size and the same hue as the
+typed preview beside it, and the browser pass took the easier case.** The preview marker is
+`SNAP_COLORS.guide` at full `MARKER_PX`, and both choices are defended: it will *become* a
+guide, so colouring it as the kind of point it was measured *from* would say something false
+about the thing being placed, and a resting size (`RESTING_PX`) would say "already placed"
+about a point that is not. But a guide can itself be a snap target — that is the whole of
+follow-up 137's chain-a-measurement case — and when it is, the hovered marker and the
+preview marker are two full-size discs in one colour, distinguished only by position. The
+verification pass hovered a board corner (green against blue-violet), which is the case that
+cannot show this. Nothing here is a defect: the two markers are never at the same place
+(a zero-length ray is refused, and a typed distance equal to the measured one puts the
+preview exactly on the target, where one disc covering another is the honest picture). It
+narrows the round's existing legibility deferral rather than adding to it — the open
+question is only whether *which is which* reads without thinking, and it is a browser
+question, in the sense of follow-up 60. Cheapest remedies if it ever needs one, in order:
+drop the preview's ring, or draw the hovered marker resting-sized while a preview exists.
+
+**143. `tapeTyped`'s anchor-loss clear is owned by a PANEL EFFECT, not by the store, so the
+field outlives the anchor by one render — and the correctness of that rests on
+`TapeReadout` being unconditionally mounted.** `setTool` clears `tapeTyped` in the store
+beside the three held points, but the *other* way an anchor goes — `clearTapeAnchor`,
+`undo`, `redo`, `replaceDocument`, `removeGuide`, `deleteBoard`, `dropHeldIfGone` — clears
+only the anchor, and the text is reset by `TapeReadout`'s own `useEffect` keyed on
+`[anchor]`. This is deliberate and it is the right home: a fresh anchor starts a fresh
+measurement, which is a statement about the *entry*, and the store has no business holding
+a rule about what a text box should say. It was checked rather than assumed — `App` renders
+`<TapeReadout />` unconditionally inside `.viewport-stack`, so the effect always exists to
+run even though the component returns `null` without an anchor (its hooks run above that
+early return, which is what makes this work at all). But that is a **coupling**, not a
+property: mounting the readout conditionally — `{tool === 'tape' && <TapeReadout />}`, which
+looks like an obvious tidy given it renders nothing otherwise — would leave a stale number
+in the store across a tool round-trip, visible the next time an anchor was set. Two things
+would close it if it ever bites: clear `tapeTyped` beside every `tapeAnchor: null` in the
+store (rejected today — it puts a fact about a text box into seven store actions), or keep
+the mount unconditional and say so where it is written. The second is what is in place.

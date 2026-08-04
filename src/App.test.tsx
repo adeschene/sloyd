@@ -2,7 +2,7 @@ import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from './App';
 import { useStore } from './store/store';
-import { createDocument, createBoard } from './document/document';
+import { createDocument, createBoard, boardSnapPoints } from './document/document';
 
 // The 3D viewport needs a real ResizeObserver and a WebGL-capable canvas,
 // neither of which jsdom provides. App's restore/autosave wiring doesn't
@@ -293,5 +293,129 @@ describe('App keyboard delete', () => {
     await user.keyboard('{Backspace}');
 
     expect(useStore.getState().doc.boards).toHaveLength(1);
+  });
+});
+
+// The Tape tool's type-anywhere capture. The MARKER and the preview are r3f and
+// are verified in a browser by design; this block covers only what is DOM and
+// logic — which keystroke is taken, what it does to the stored text, and the two
+// guards the capture inherits by living inside App's existing keydown effect.
+describe('App type-anywhere tape capture', () => {
+  const anchoredTape = async () => {
+    loadAutoSaved.mockResolvedValue(null);
+    render(<App />);
+    await act(async () => { await Promise.resolve(); });
+    await act(async () => { useStore.getState().addBoard(); });
+    const board = useStore.getState().doc.boards[0];
+    await act(async () => {
+      useStore.getState().setTool('tape');
+      useStore.getState().setTapeAnchor(boardSnapPoints(board)[0]);
+    });
+    const user = userEvent.setup();
+    // addBoard auto-focuses the Length field, and the capture is deliberately
+    // blocked while a text field has focus. Click the part in the list to move
+    // focus to a button first — the same step the delete block above takes, for
+    // the same reason.
+    await user.click(screen.getByRole('button', { name: 'Board' }));
+    return user;
+  };
+
+  const box = () => screen.getByLabelText('Guide distance from anchor') as HTMLInputElement;
+
+  it('routes a leading digit into the readout and focuses it', async () => {
+    const user = await anchoredTape();
+    await user.keyboard('1');
+
+    expect(useStore.getState().tapeTyped).toBe('1');
+    expect(box().value).toBe('1');
+    expect(document.activeElement).toBe(box());
+  });
+
+  // THE ORBIT CASE, and the reason the capture appends rather than replaces.
+  // A drag past CLICK_DRAG_SLOP_PX is an orbit, not a click — the camera is
+  // deliberately left usable between anchoring and placing — but a pointerdown
+  // on the canvas BLURS this input while the anchor lives on. So the gesture
+  // the tool is built around is "type 1, orbit, type 2", and a replacing
+  // capture answers `2` while the box read `1` the whole way round. jsdom
+  // cannot drag a canvas; blurring the input is the same shape, and it is the
+  // half that matters — focus left, the anchor did not.
+  it('appends to a number the user was interrupted mid-way through', async () => {
+    const user = await anchoredTape();
+    await user.keyboard('1');
+    await act(async () => { box().blur(); });
+    expect(useStore.getState().tapeTyped).toBe('1');
+
+    await user.keyboard('2');
+
+    expect(useStore.getState().tapeTyped).toBe('12');
+    expect(box().value).toBe('12');
+  });
+
+  // The isTextEntry guard this capture inherits by living inside App's existing
+  // keydown effect rather than in one of its own. Without it, typing a
+  // dimension while the tape happened to be anchored would have its first
+  // character stolen.
+  it('does not capture while a text field has focus', async () => {
+    const user = await anchoredTape();
+    await user.click(screen.getByLabelText('Width'));
+    await user.keyboard('5');
+
+    expect(useStore.getState().tapeTyped).toBe('');
+  });
+
+  // This pins ORDERING, not the character set — and the distinction was found
+  // by mutation, not by reading. Widening the capture to every single character
+  // leaves this test green, because the M block sits ABOVE the capture in the
+  // same effect and returns first. That is a real claim worth holding (arming
+  // the tape must not cost you the tool shortcuts), but it is not the claim the
+  // title used to make.
+  it('leaves M reaching the Move binding above it', async () => {
+    const user = await anchoredTape();
+    await user.keyboard('m');
+
+    expect(useStore.getState().tapeTyped).toBe('');
+    expect(useStore.getState().tool).toBe('move');
+  });
+
+  // The character set itself, tested with a letter that has NO other binding —
+  // the only kind that can distinguish "canBeginLength rejected it" from "some
+  // earlier block ate it". Mutating the predicate to `e.key.length === 1` fails
+  // here and nowhere else in this file.
+  it('does not capture a letter that no other binding claims', async () => {
+    const user = await anchoredTape();
+    await user.keyboard('x');
+
+    expect(useStore.getState().tapeTyped).toBe('');
+  });
+
+  // The error must not outlive its cause. Enter with no target is refused, and
+  // the cure is acquiring a target — which changes no CHARACTER, so an effect
+  // keyed on the text alone leaves the box red over a measurement that would
+  // now succeed, until Enter proves it by working. Nothing else in the suite
+  // holds this: dropping `hovered` from that effect's key is otherwise silent.
+  it('clears the refusal marking once a target is acquired', async () => {
+    const user = await anchoredTape();
+    await user.keyboard('5{Enter}');
+    expect(box().className).toContain('invalid');
+    // Refused, not committed: the anchor stays so the user can point somewhere
+    // and try again, which is the whole reason this state is reachable.
+    expect(useStore.getState().doc.guides).toHaveLength(0);
+    expect(useStore.getState().tapeAnchor).not.toBeNull();
+
+    const board = useStore.getState().doc.boards[0];
+    await act(async () => {
+      useStore.getState().setTapeHover(boardSnapPoints(board)[1]);
+    });
+
+    expect(box().className).not.toContain('invalid');
+    expect(box().value).toBe('5');
+  });
+
+  it('does nothing with no anchor — the tape must be measuring from somewhere', async () => {
+    const user = await anchoredTape();
+    await act(async () => { useStore.getState().clearTapeAnchor(); });
+    await user.keyboard('7');
+
+    expect(useStore.getState().tapeTyped).toBe('');
   });
 });

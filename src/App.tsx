@@ -201,24 +201,50 @@ export default function App() {
       // parseLength's own patterns) — letters would eat the `t` and `m` tool
       // shortcuts. Modifier chords are left alone, matching the M and T blocks
       // above: Ctrl+0 and Cmd+- are the browser's zoom.
+      //
+      // The predicate stays "can BEGIN a length" even though the write below
+      // appends, and the mismatch is deliberate: it is what decides whether an
+      // unfocused keystroke is a NUMBER or a SHORTCUT, and that question is
+      // asked afresh each time. Widening it to "can appear in a length" would
+      // hand `/` and `"` to a box that may be empty. The cost is that a blurred
+      // `3` cannot be continued with `/4` from the canvas — the user is one
+      // click from the box, which is now visibly holding their number.
+      //
       // No `e.key.length === 1` test here beside canBeginLength: that rule is
       // canBeginLength's own (it is what rejects 'Enter', 'ArrowLeft' and the
       // rest in one line, and a test pins it there). Two predicates that agree
       // today are two places for a future rule to disagree, and the redundant
       // one reads as load-bearing — follow-ups 113 and 125.
       if (!e.ctrlKey && !e.metaKey && !e.altKey && canBeginLength(e.key)) {
-        const { tool, tapeAnchor, setTapeTyped } = useStore.getState();
+        const { tool, tapeAnchor, tapeTyped, setTapeTyped } = useStore.getState();
         if (tool === 'tape' && tapeAnchor) {
           // preventDefault because some of these characters are browser
           // shortcuts with nothing focused ('/' opens quick-find in Firefox,
           // and '-' is a zoom-out chord on some layouts).
           e.preventDefault();
-          // REPLACES rather than appends. Reaching this line means nothing was
-          // focused (isTextEntry returned early otherwise), so this keystroke
-          // is not a continuation of anything — it is a fresh number, typed
-          // after the user went back to the canvas. Appending would silently
-          // splice it onto whatever was abandoned in the box.
-          setTapeTyped(e.key);
+          // APPENDS rather than replaces, and this is a correction: the first
+          // version replaced, on the reasoning that an unfocused keystroke
+          // cannot be a continuation of anything. It can, by the one gesture
+          // this tool is built around.
+          //
+          // A drag past CLICK_DRAG_SLOP_PX is an orbit, not a click — that is
+          // exactly why OrbitControls is left ungated between anchoring and
+          // placing, and CLAUDE.md sells it as the payoff ("the camera stays
+          // fully usable mid-move, so you can orbit around to find the face you
+          // are aiming at"). But a pointerdown on the canvas BLURS this input
+          // while leaving the anchor alive. So the encouraged gesture is: type
+          // `1`, orbit to see the face, type `2` — and replacing gives you `2`
+          // while the box read `1` the whole way round. The displayed text and
+          // the next keystroke's effect must not disagree; appending is what
+          // makes the box behave the same whether or not it has focus, which is
+          // the only rule a person can hold in their head about a text field.
+          //
+          // The cost is the case this comment used to claim was the common one:
+          // a number abandoned rather than interrupted gets typed onto. That is
+          // recoverable in one keystroke (the box takes focus below, so
+          // Backspace works) and is visible while it happens, where the
+          // interrupted-number case was neither.
+          setTapeTyped(tapeTyped + e.key);
           // Returning INSIDE the tape branch, not below it: a digit that was
           // not captured has not been handled, so it must fall through to
           // whatever else this listener grows rather than being swallowed by a
@@ -314,6 +340,17 @@ export default function App() {
               showGuides={showGuides}
               shortcutsSuspended={cutListOpen}
             />
+            {/*
+              UNCONDITIONALLY MOUNTED, and that is load-bearing rather than
+              lazy. It returns null unless the tape is anchored, so
+              `{tool === 'tape' && <TapeReadout />}` looks like a free tidy —
+              but its hooks run above that early return, and one of them is the
+              effect keyed on `[anchor]` that resets `tapeTyped` when a
+              measurement ends. Every anchor-clearing path except `setTool`
+              relies on it (the store clears the anchor and leaves the text),
+              so an unmounted readout leaves a stale number in the store to
+              surface the next time a point is anchored. See follow-up 143.
+            */}
             <TapeReadout />
           </div>
           <aside className="sidebar">

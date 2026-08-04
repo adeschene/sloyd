@@ -48,13 +48,29 @@ export function TapeReadout() {
    * rendering `invalid` over a value that has not been judged yet.
    *
    * Keyed on the text, which is exactly why it does not defeat the error it is
-   * clearing: `commit()` sets `error` WITHOUT touching `tapeTyped`, so this
-   * does not re-run and the red survives until the next character arrives —
-   * which is the moment it should die.
+   * clearing: `commit()` sets `error` WITHOUT touching `tapeTyped` — and it is
+   * the only caller that sets it — so no single event both raises the error and
+   * changes the text. This does not re-run, and the red survives until the next
+   * character arrives, which is the moment it should die.
+   *
+   * KEYED ON THE HOVER TOO, because the text is not the only thing that can
+   * remove the cause. `commit()` refuses with no target, and the cure for that
+   * is hovering one — which changes no character, so a text-only key would
+   * leave the box red over a measurement that would now succeed, until Enter
+   * proved it by working. A new pick is a new answer to "is there a target",
+   * which is precisely the question that failed.
+   *
+   * Note the store bails on `Object.is`, so re-typing the same value writes
+   * nothing and re-runs nothing. That case is unreachable through the capture
+   * path since it started appending (a string plus a character is never itself)
+   * and unreachable through `onChange` (a change event that changes nothing
+   * cannot be produced by typing). It is left as a property rather than
+   * defended against, because defending would mean holding an error generation
+   * counter to solve a case no input produces.
    */
   useEffect(() => {
     setError(false);
-  }, [text]);
+  }, [text, hovered]);
 
   /**
    * Take focus once there is something in the box.
