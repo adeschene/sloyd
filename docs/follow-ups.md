@@ -2643,3 +2643,77 @@ Stated as a rule, because it is more general than these two tests: **the most ob
 to grab in a fixture is the one point that survives the edit you are testing.** A fixture
 that reaches for index 0 of a point provider is reaching for the corner most likely to be
 invariant under the very change the test exists to detect.
+
+## From the type-anywhere round
+
+**142. A guide hovered as the TAPE'S TARGET draws the same size and the same hue as the
+typed preview beside it, and the browser pass took the easier case.** The preview marker is
+`SNAP_COLORS.guide` at full `MARKER_PX`, and both choices are defended: it will *become* a
+guide, so colouring it as the kind of point it was measured *from* would say something false
+about the thing being placed, and a resting size (`RESTING_PX`) would say "already placed"
+about a point that is not. But a guide can itself be a snap target — that is the whole of
+follow-up 137's chain-a-measurement case — and when it is, the hovered marker and the
+preview marker are two full-size discs in one colour, distinguished only by position. The
+verification pass hovered a board corner (green against blue-violet), which is the case that
+cannot show this. Nothing here is a defect: the two markers are never at the same place
+(a zero-length ray is refused, and a typed distance equal to the measured one puts the
+preview exactly on the target, where one disc covering another is the honest picture). It
+narrows the round's existing legibility deferral rather than adding to it — the open
+question is only whether *which is which* reads without thinking, and it is a browser
+question, in the sense of follow-up 60. Cheapest remedies if it ever needs one, in order:
+drop the preview's ring, or draw the hovered marker resting-sized while a preview exists.
+
+**143. `tapeTyped`'s anchor-loss clear is owned by a PANEL EFFECT, not by the store, so the
+field outlives the anchor by one render — and the correctness of that rests on
+`TapeReadout` being unconditionally mounted.** `setTool` clears `tapeTyped` in the store
+beside the three held points, but the *other* way an anchor goes — `clearTapeAnchor`,
+`undo`, `redo`, `replaceDocument`, `removeGuide`, `deleteBoard`, `dropHeldIfGone` — clears
+only the anchor, and the text is reset by `TapeReadout`'s own `useEffect` keyed on
+`[anchor]`. This is deliberate and it is the right home: a fresh anchor starts a fresh
+measurement, which is a statement about the *entry*, and the store has no business holding
+a rule about what a text box should say. It was checked rather than assumed — `App` renders
+`<TapeReadout />` unconditionally inside `.viewport-stack`, so the effect always exists to
+run even though the component returns `null` without an anchor (its hooks run above that
+early return, which is what makes this work at all). But that is a **coupling**, not a
+property: mounting the readout conditionally — `{tool === 'tape' && <TapeReadout />}`, which
+looks like an obvious tidy given it renders nothing otherwise — would leave a stale number
+in the store across a tool round-trip, visible the next time an anchor was set.
+
+**The append fix in the same round is what turns this coupling from benign into
+consequential, and that is why this entry reads sharper than it did when it was written.**
+While the capture REPLACED, a stale `tapeTyped` surviving an anchor loss was harmlessly
+overwritten by the next keystroke — the failure was one frame of a wrong number in a box
+that then corrected itself. The capture now APPENDS, so a stale value is CONCATENATED: the
+user types `5` against a fresh anchor and gets `35`, a number they never typed, which
+parses cleanly and places a guide 30 inches from where they meant. Nothing breaks today —
+the mount is unconditional — but the consequence of breaking it went from cosmetic to a
+silently wrong placement, which is the class of defect this app's whole document-is-truth
+rule exists to avoid. Two things
+would close it if it ever bites: clear `tapeTyped` beside every `tapeAnchor: null` in the
+store (rejected today — it puts a fact about a text box into seven store actions), or keep
+the mount unconditional and say so where it is written. The second is what is in place.
+
+**144. The error-clearing effect was WIDENED to `[text, hovered]` and now clears a refusal
+it does not cure — introduced by that widening, not pre-existing.** `commit()` refuses for
+three distinct causes, and a new pick answers only two of them. *No target* is answered by
+acquiring one; a *zero-length ray* (anchor and hover at the same position, which
+`offsetPoint` refuses) is answered by hovering somewhere else. **Unparseable text is not.**
+Type `abc`, press Enter with a target, and the box marks invalid correctly; move the pointer
+to any other snap point and `setTapeHover` fires, the effect runs, and the red clears over a
+value that still cannot parse. Keyed on `[text]` alone — the shape before this change — the
+red survived until a character changed, which was right for this cause and wrong for the
+other two. That is the trade the widening made, and it was made knowingly for the wrong
+reason: the two causes it fixes are the reachable ones, and the one it breaks is cosmetic.
+
+Not fixed, on three grounds: it is cosmetic (the value is still there, still wrong, and
+still refused), it self-corrects on the very next Enter, and the clean remedy is a small
+design change rather than a patch. **The remedy, named so it is not re-derived:** make
+`error` carry its CAUSE rather than a boolean — `null | 'no-target' | 'unparseable' |
+'zero-length'` — then clear the two pick-answerable causes when `hovered` changes and any
+cause when `text` changes, which is two effects or one effect with a switch. Say plainly why
+the widening happened rather than treating it as carelessness: **a boolean cannot express
+the distinction at all.** With one bit, the key has to be either too narrow (a cured
+no-target refusal stays marked until an unrelated character is typed) or too wide (this),
+and there is no third option that does not add the cause. Whoever picks this up should also
+consider whether the cause is worth *printing* — the box says "wrong" and never says what,
+which is the same complaint that produced this whole round about the placeholder.

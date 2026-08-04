@@ -244,9 +244,13 @@ button[aria-pressed='true'] {
   position: absolute;
   right: 1rem;
   bottom: 1rem;
+  /* A column now: the measurement row, then the hint under it. Stacking rather
+     than widening keeps the box the same width it was, which matters for a
+     thing pinned to the corner of a viewport people resize. */
   display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.3rem;
   padding: 0.4rem 0.6rem;
   background: var(--graphite-850);
   border: 1px solid var(--rule);
@@ -256,6 +260,21 @@ button[aria-pressed='true'] {
      the input could not be clicked into. */
   pointer-events: auto;
   z-index: 2;
+}
+
+.tape-readout-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* The app's existing hint idiom — same size and --ink-dim as .toolbar-hint, so
+   the two read as one class of text rather than as two decisions. */
+.tape-readout-hint {
+  font-size: 11px;
+  color: var(--ink-dim);
+  text-align: right;
+  white-space: nowrap;
 }
 
 .tape-readout-label {

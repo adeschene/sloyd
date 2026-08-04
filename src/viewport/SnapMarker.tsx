@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import type { SnapKind, SnapPoint } from '../document/document';
+import type { SnapKind } from '../document/document';
 import { screenPixelsPerInch } from './screenScale';
 
 /**
@@ -91,7 +91,22 @@ const SEGMENTS = 24;
  * rendering at full size: the growth from resting to full size on hover is
  * the whole point, and it only works if the full-size path is untouched.
  */
-export function SnapMarker({ point, resting = false }: { point: SnapPoint; resting?: boolean }) {
+/**
+ * What this component actually needs: a position and a kind.
+ *
+ * DELIBERATELY NOT `SnapPoint`, even though every SnapPoint satisfies it. The
+ * tape's typed preview is a position derived from the anchor, the hover and a
+ * parsed number — it belongs to nothing, it is in no candidate list, and it
+ * cannot be picked. Typing it as a SnapPoint would have meant inventing an
+ * `owner` for it, and an owner is not decoration: the store's point-precise
+ * clearing (invariant 24) and `pickSnapPoint` both read it, so a fabricated one
+ * invites handing the preview to logic that would be meaningless for it — or
+ * worse, to logic that would act on it. A narrower prop makes tsc say no
+ * instead. SnapMarker never read `owner`; this only stops writing one down.
+ */
+type MarkerPoint = { at: [number, number, number]; kind: SnapKind };
+
+export function SnapMarker({ point, resting = false }: { point: MarkerPoint; resting?: boolean }) {
   const group = useRef<THREE.Group>(null);
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);

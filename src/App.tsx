@@ -7,6 +7,7 @@ import { GuidesList } from './panels/GuidesList';
 import { FileMenu, SaveIndicator, StorageBanner } from './panels/FileMenu';
 import { CutList } from './panels/CutList';
 import { TapeReadout } from './panels/TapeReadout';
+import { canBeginLength } from './units/length';
 import { storage } from './storage/browser';
 import { useStore } from './store/store';
 
@@ -173,6 +174,85 @@ export default function App() {
         return;
       }
 
+      // TYPE-ANYWHERE DISTANCE ENTRY — SketchUp's VCB, and the reason the Tape
+      // tool is worth having at all.
+      //
+      // Clicking a second snap point only ever places a guide where a snap
+      // point already was, which duplicates a point that existed. Typing a
+      // distance places one where nothing was — but the box that takes it lives
+      // in the corner of the canvas, is deliberately not autofocused, and
+      // announces itself with a placeholder. Reaching it means taking the
+      // pointer off the target you are measuring to. So the feature was
+      // present and effectively unreachable. This routes the first character
+      // into the box and focuses it, so a distance is typed where the eye
+      // already is.
+      //
+      // It lives inside this EXISTING listener rather than in one of its own,
+      // which is the rule CLAUDE.md states for every window-level shortcut: a
+      // window listener never sees which subtree an event came from, so each
+      // one needs the cut-list flag explicitly. Here that inheritance buys two
+      // guards rather than one — `cutListOpen` above (no seeding a hidden box
+      // while a sheet is being read) and `isTextEntry` at the top, which is
+      // also why only the FIRST character needs capturing: once the input has
+      // focus every later keystroke matches isTextEntry and returns early,
+      // reaching the field directly.
+      //
+      // Only characters that can BEGIN a length (canBeginLength, derived from
+      // parseLength's own patterns) — letters would eat the `t` and `m` tool
+      // shortcuts. Modifier chords are left alone, matching the M and T blocks
+      // above: Ctrl+0 and Cmd+- are the browser's zoom.
+      //
+      // The predicate stays "can BEGIN a length" even though the write below
+      // appends, and the mismatch is deliberate: it is what decides whether an
+      // unfocused keystroke is a NUMBER or a SHORTCUT, and that question is
+      // asked afresh each time. Widening it to "can appear in a length" would
+      // hand `/` and `"` to a box that may be empty. The cost is that a blurred
+      // `3` cannot be continued with `/4` from the canvas — the user is one
+      // click from the box, which is now visibly holding their number.
+      //
+      // No `e.key.length === 1` test here beside canBeginLength: that rule is
+      // canBeginLength's own (it is what rejects 'Enter', 'ArrowLeft' and the
+      // rest in one line, and a test pins it there). Two predicates that agree
+      // today are two places for a future rule to disagree, and the redundant
+      // one reads as load-bearing — follow-ups 113 and 125.
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && canBeginLength(e.key)) {
+        const { tool, tapeAnchor, tapeTyped, setTapeTyped } = useStore.getState();
+        if (tool === 'tape' && tapeAnchor) {
+          // preventDefault because some of these characters are browser
+          // shortcuts with nothing focused ('/' opens quick-find in Firefox,
+          // and '-' is a zoom-out chord on some layouts).
+          e.preventDefault();
+          // APPENDS rather than replaces, and this is a correction: the first
+          // version replaced, on the reasoning that an unfocused keystroke
+          // cannot be a continuation of anything. It can, by the one gesture
+          // this tool is built around.
+          //
+          // A drag past CLICK_DRAG_SLOP_PX is an orbit, not a click — that is
+          // exactly why OrbitControls is left ungated between anchoring and
+          // placing, and CLAUDE.md sells it as the payoff ("the camera stays
+          // fully usable mid-move, so you can orbit around to find the face you
+          // are aiming at"). But a pointerdown on the canvas BLURS this input
+          // while leaving the anchor alive. So the encouraged gesture is: type
+          // `1`, orbit to see the face, type `2` — and replacing gives you `2`
+          // while the box read `1` the whole way round. The displayed text and
+          // the next keystroke's effect must not disagree; appending is what
+          // makes the box behave the same whether or not it has focus, which is
+          // the only rule a person can hold in their head about a text field.
+          //
+          // The cost is the case this comment used to claim was the common one:
+          // a number abandoned rather than interrupted gets typed onto. That is
+          // recoverable in one keystroke (the box takes focus below, so
+          // Backspace works) and is visible while it happens, where the
+          // interrupted-number case was neither.
+          setTapeTyped(tapeTyped + e.key);
+          // Returning INSIDE the tape branch, not below it: a digit that was
+          // not captured has not been handled, so it must fall through to
+          // whatever else this listener grows rather than being swallowed by a
+          // tool that is not even armed.
+          return;
+        }
+      }
+
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         e.shiftKey ? redo() : undo();
@@ -260,6 +340,17 @@ export default function App() {
               showGuides={showGuides}
               shortcutsSuspended={cutListOpen}
             />
+            {/*
+              UNCONDITIONALLY MOUNTED, and that is load-bearing rather than
+              lazy. It returns null unless the tape is anchored, so
+              `{tool === 'tape' && <TapeReadout />}` looks like a free tidy —
+              but its hooks run above that early return, and one of them is the
+              effect keyed on `[anchor]` that resets `tapeTyped` when a
+              measurement ends. Every anchor-clearing path except `setTool`
+              relies on it (the store clears the anchor and leaves the text),
+              so an unmounted readout leaves a stale number in the store to
+              surface the next time a point is anchored. See follow-up 143.
+            */}
             <TapeReadout />
           </div>
           <aside className="sidebar">

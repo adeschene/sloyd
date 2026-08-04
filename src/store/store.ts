@@ -119,6 +119,39 @@ interface StoreState {
   tapeHover: SnapPoint | null;
   setTapeHover: (point: SnapPoint | null) => void;
 
+  /**
+   * The text currently in the tape's distance box.
+   *
+   * NOT A FOURTH INSTANCE OF INVARIANT 24, and the distinction is the whole
+   * reason this comment is longer than the field. The three fields above hold
+   * captured WORLD POSITIONS, which is what makes them go stale when the boards
+   * move under them and what earns them their point-precise clearing rules.
+   * This is a STRING the user typed. `"3 1/2"` means the same thing after an
+   * undo, after a board is resized, after a cut is deleted — there is nothing
+   * about it that any document edit can invalidate, so it must NOT be given
+   * clearing rules by analogy with its neighbours. Adding `tapeTyped: ''` to
+   * `updateBoard`, `undo` or `dropHeldIfGone` would silently wipe a
+   * half-entered number every time an unrelated edit landed, which reads as the
+   * box "randomly clearing itself" and has no defect behind it to justify it.
+   * Pinned by two tests: it is cleared by `setTool`, and it SURVIVES an edit
+   * that clears the anchor it was typed for.
+   *
+   * It is in the store for the same reason `tapeHover` is — the readout is a
+   * DOM overlay outside the Canvas, and now two things on the other side of
+   * that boundary need the text: App's keydown effect writes the first typed
+   * character into it (the type-anywhere capture, so the user never has to
+   * travel to the corner and click the box), and TapeTool parses it to derive
+   * the live preview marker. Neither can reach a useState inside TapeReadout.
+   *
+   * `setTool` clears it, and that clear is about the ENTRY being over rather
+   * than about staleness: changing tools drops the anchor, so there is no
+   * measurement left for the number to be a distance along. TapeReadout's own
+   * anchor effect covers the other end of the same idea — a fresh anchor starts
+   * a fresh measurement, so it starts a fresh number too.
+   */
+  tapeTyped: string;
+  setTapeTyped: (text: string) => void;
+
   addBoard: () => void;
   updateBoard: (id: string, patch: Partial<Board>) => void;
   deleteBoard: (id: string) => void;
@@ -318,13 +351,20 @@ export const useStore = create<StoreState>((set, get) => {
     grabbed: null,
     tapeAnchor: null,
     tapeHover: null,
+    tapeTyped: '',
 
     // Changing tools always drops every held point — the two that can be
     // committed from (`grabbed`, `tapeAnchor`) and the tape's hover, which is
     // published for the readout and would otherwise leave a stale distance on
     // screen. A snap point carried into a different tool has nothing that can
     // consume it.
-    setTool: (tool) => set({ tool, grabbed: null, tapeAnchor: null, tapeHover: null }),
+    //
+    // `tapeTyped` goes with them, for a DIFFERENT reason than the other three
+    // (see its declaration): a typed number is not stale, but with the anchor
+    // gone there is no ray for it to be a distance along, so leaving it would
+    // hand the next measurement a number the user typed for the previous one.
+    setTool: (tool) =>
+      set({ tool, grabbed: null, tapeAnchor: null, tapeHover: null, tapeTyped: '' }),
 
     grabSnapPoint: (point) => set({ grabbed: point }),
 
@@ -338,6 +378,8 @@ export const useStore = create<StoreState>((set, get) => {
     clearTapeAnchor: () => set({ tapeAnchor: null }),
 
     setTapeHover: (point) => set({ tapeHover: point }),
+
+    setTapeTyped: (text) => set({ tapeTyped: text }),
 
     /**
      * Move the grabbed board so its grabbed point lands exactly on `target`.

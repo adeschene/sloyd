@@ -1,4 +1,4 @@
-import { parseLength, formatLength } from './length';
+import { parseLength, formatLength, canBeginLength } from './length';
 
 describe('parseLength', () => {
   it.each([
@@ -94,5 +94,73 @@ describe('round-trip', () => {
     for (const v of [0.75, 1.5, 30.0625, 12, 0.0625]) {
       expect(parseLength(formatLength(v))).toBeCloseTo(v, 9);
     }
+  });
+});
+
+// canBeginLength decides which keystroke, arriving with nothing focused, is the
+// start of a typed distance rather than a shortcut (App.tsx's Tape capture).
+// Its whole claim is that it agrees with parseLength's grammar, so the first
+// test below is that agreement rather than a restatement of the character set.
+describe('canBeginLength', () => {
+  // Every form parseLength documents as accepted. If the predicate rejected any
+  // of these first characters, the user would type the first character of a
+  // legal length and nothing would happen — the feature silently absent for
+  // that whole form.
+  it('accepts the first character of everything parseLength accepts', () => {
+    for (const s of ['3/4', '0.75', '.5', '1-1/2', '1 1/2', '1 1/2"', "2'6\"", '18mm', '-5', '7']) {
+      expect(parseLength(s)).not.toBeNull();
+      expect(canBeginLength(s[0])).toBe(true);
+    }
+  });
+
+  // The converse, and the reason the brief's proposed set was narrowed: no
+  // pattern in length.ts admits a leading '/', quote or foot mark, so capturing
+  // one would seed the box with a value that can never parse and swallow the
+  // keystroke on the way.
+  it('rejects characters no length can begin with', () => {
+    for (const c of ['/', "'", '"', '+', 'm', 'i', 'x']) {
+      expect(parseLength(c + '4')).toBeNull();
+      expect(canBeginLength(c)).toBe(false);
+    }
+  });
+
+  // Whitespace is the one rejection that is NOT justified by parseLength —
+  // `parseLength(' 4')` is 4, because it trims. It is rejected anyway: Space
+  // scrolls, and a keystroke that contributes nothing to the number should not
+  // be the one that opens the box.
+  it('rejects a space even though parseLength tolerates a leading one', () => {
+    expect(parseLength(' 4')).toBe(4);
+    expect(canBeginLength(' ')).toBe(false);
+  });
+
+  // The tool shortcuts, named explicitly: capturing a letter would make T and M
+  // unreachable the moment the tape was anchored.
+  it('rejects the tool shortcut letters in both cases', () => {
+    for (const c of ['t', 'T', 'm', 'M']) expect(canBeginLength(c)).toBe(false);
+  });
+
+  // Named keys are multi-character KeyboardEvent.key values, which is what the
+  // `key.length !== 1` test filters — one rule instead of an enumeration that
+  // would have to grow every time a key exists. The empty string is in the list
+  // because `''[0]` is undefined and an index-based implementation would throw
+  // or coerce rather than return false.
+  it('rejects named keys', () => {
+    for (const k of ['Enter', 'Escape', 'Backspace', 'ArrowLeft', 'Delete', 'Shift', '']) {
+      expect(canBeginLength(k)).toBe(false);
+    }
+  });
+
+  // The guard the previous test does NOT pin, discovered by mutating it away
+  // and watching the suite stay green. Every named key above is rejected by the
+  // character range anyway ('E' sorts above '9'), so deleting `key.length !== 1`
+  // cost nothing there — the test read as covering a guard it did not touch.
+  // A DIGIT-LEADING multi-character string is what separates them: '12' <= '9'
+  // compares first characters and is true, so without the length test this
+  // takes a whole string for a keystroke. That matters because the argument is
+  // a KeyboardEvent.key and the box it seeds is filled with exactly one
+  // character — a predicate that accepts '12' invites a caller that passes the
+  // accumulated text.
+  it('takes one keystroke, not a string that starts like a length', () => {
+    for (const s of ['12', '1 1/2', '3/4', '.5', '-5']) expect(canBeginLength(s)).toBe(false);
   });
 });

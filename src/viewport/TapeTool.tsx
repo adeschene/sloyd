@@ -2,8 +2,17 @@ import { useEffect, useMemo, useRef } from 'react';
 import { Line } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { guideSnapPoints, sameSnapPoint, snapPointsFor } from '../document/document';
+import { guideSnapPoints, offsetPoint, sameSnapPoint, snapPointsFor } from '../document/document';
 import type { SnapPoint } from '../document/document';
+// THE FIRST `viewport -> units` IMPORT in the repo. Legal under CLAUDE.md's
+// layer order — `units` is the bottom layer, `viewport` sits well above it —
+// but new, so it is worth saying why it is not a shortcut. The preview has to
+// know what the user typed MEANS in inches, and `parseLength` is the one
+// function in the app that decides that. Re-deriving it here (or passing the
+// parsed number down through the store) would put a second answer to "how long
+// is `1-1/2`" in the codebase, which is the class of duplication the three
+// `document -> units` edges were each opened to avoid.
+import { parseLength } from '../units/length';
 import { useStore } from '../store/store';
 import { CLICK_DRAG_SLOP_PX } from './pointer';
 import { PICK_RADIUS_PX, pickSnapPoint } from './snapPick';
@@ -39,6 +48,10 @@ export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
   const boards = useStore((s) => s.doc.boards);
   const guides = useStore((s) => s.doc.guides);
   const anchor = useStore((s) => s.tapeAnchor);
+  // The raw text from the readout's box, parsed below. Subscribed here rather
+  // than passed in: TapeReadout is a DOM sibling outside the Canvas, so there
+  // is no props route between the two — see `tapeTyped` in store.ts.
+  const typed = useStore((s) => s.tapeTyped);
 
   const gl = useThree((s) => s.gl);
   const camera = useThree((s) => s.camera);
@@ -227,14 +240,64 @@ export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
     setHovered(null);
   }, [anchor, setHovered]);
 
+  /**
+   * WHERE THE GUIDE WILL ACTUALLY LAND, given what is typed so far.
+   *
+   * DERIVED EVERY RENDER, NEVER STORED, and that is the whole design rather
+   * than an implementation preference. A stored preview position would be a
+   * FOURTH held world position — captured at one moment, describing the world
+   * as it was then — and would therefore need every clearing rule invariant 24
+   * spells out for `grabbed`, `tapeAnchor` and `tapeHover`: drop it when the
+   * anchor's board moves, when the hovered board is edited, on undo, on
+   * replaceDocument, on removeGuide. Derived, it needs none of them, because it
+   * is a pure function of three things that already have those rules. Delete
+   * the anchor and it evaluates to null on the very next render; move a board
+   * and it moves with the point it is measured from. It cannot go stale,
+   * because it is never a fact — the same reason nothing about snap points is
+   * stored anywhere in this app.
+   *
+   * `offsetPoint` returns null for a zero-length direction (anchor and hover on
+   * the same position) and for a non-finite distance, so the two degenerate
+   * cases the readout refuses on Enter simply draw nothing here — the preview
+   * and the commit agree because they call the same function, not because two
+   * pieces of code were written to match.
+   */
+  // Memoised on object identities, unlike the coordinate-keyed `line` memo just
+  // below — the two dependency styles differ on purpose and it is worth saying
+  // so, because invariant 15 is about exactly this kind of hand-written list.
+  // `line` is keyed on coordinates because drei rebuilds a LineGeometry on a
+  // new array identity, so an over-invalidation there costs real work. This one
+  // exists only to hold the array stable FOR that memo, and a new `anchor` or
+  // `hovered` object always means a new point, so over-invalidating costs one
+  // pure recomputation and nothing else. Under-invalidation is what invariant
+  // 15 warns about, and neither list can under-invalidate: all three inputs are
+  // listed.
+  const preview = useMemo(() => {
+    if (!anchor || !hovered) return null;
+    const distance = parseLength(typed);
+    if (distance === null) return null;
+    return offsetPoint(anchor.at, hovered.at, distance);
+  }, [anchor, hovered, typed]);
+
+  // The far end of the measuring line: the preview when there is one, the
+  // hovered point otherwise.
+  //
+  // Drawing to the HOVER while a preview exists would leave the marker floating
+  // free of the line for any typed distance longer than the measured one — and
+  // for a negative one it would put the marker on the opposite side of the
+  // anchor entirely, with the line pointing away from it. The line's job is to
+  // say "this is the measurement you are making", and once a number is typed
+  // the measurement ends at the number.
+  const lineEnd = preview ?? hovered?.at ?? null;
+
   // Memoised on the six coordinates rather than rebuilt inline: drei's <Line>
   // keys its LineGeometry (and the computeLineDistances call) on the `points`
   // identity, so a fresh array per render would rebuild both on every commit.
   // Same shape as SnapMarker's own position memo.
   const line = useMemo(
-    () => (anchor && hovered ? [anchor.at, hovered.at] : null),
+    () => (anchor && lineEnd ? [anchor.at, lineEnd] : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [anchor?.at[0], anchor?.at[1], anchor?.at[2], hovered?.at[0], hovered?.at[1], hovered?.at[2]],
+    [anchor?.at[0], anchor?.at[1], anchor?.at[2], lineEnd?.[0], lineEnd?.[1], lineEnd?.[2]],
   );
 
   if (tool !== 'tape') return null;
@@ -243,6 +306,19 @@ export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
     <>
       {anchor && <SnapMarker point={anchor} />}
       {hovered && <SnapMarker point={hovered} />}
+      {preview && (
+        // The guide hue, at FULL marker size — honest on both counts. This is
+        // not a resting guide (RESTING_PX is what says "placed, not picked"),
+        // it is the point Enter is about to create, so it is drawn the size a
+        // point under active consideration is drawn everywhere else in the app.
+        // The hue is `guide` because that is what it will BE — colouring it by
+        // the kind of the point it was measured from would say something false
+        // about the thing being placed.
+        //
+        // Not a SnapPoint, deliberately — see MarkerPoint in SnapMarker.tsx.
+        // It is owned by nothing and can never be picked.
+        <SnapMarker point={{ at: preview, kind: 'guide' }} />
+      )}
       {line && (
         // drei's <Line> rather than a native <line>, for the reason OriginAxes
         // states at length: native GL lines are always exactly one

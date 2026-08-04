@@ -1351,3 +1351,59 @@ describe('tapeAnchor is NOT cleared by selection changes', () => {
     expect(useStore.getState().tapeAnchor).not.toBeNull();
   });
 });
+
+// `tapeTyped` sits beside three fields invariant 24 governs and is deliberately
+// NOT a fourth instance of it: it holds a STRING the user typed, not a world
+// position captured at a moment. "3 1/2" means the same thing after any edit,
+// so it must survive everything that clears its neighbours. These tests pin
+// both halves — the one clear it does have, and the survival that is the whole
+// reason its doc comment exists.
+describe('tapeTyped — a string, deliberately NOT invariant 24', () => {
+  const anchored = () => {
+    useStore.getState().addBoard();
+    const board = useStore.getState().doc.boards[0];
+    useStore.getState().setTool('tape');
+    // A corner AWAY from the origin, not `boardSnapPoints(board)[0]` — that
+    // first point IS the board's position (the min corner), so growing the
+    // length leaves it exactly where it was and the anchor correctly survives.
+    // Built on it, the survival test below would pass while asserting nothing,
+    // which is the fixture lesson the tapeHover block above already records.
+    const far = boardSnapPoints(board).find((p) => p.at[0] > 0);
+    if (!far) throw new Error('fixture: expected a snap point off the min corner');
+    useStore.getState().setTapeAnchor(far);
+    useStore.getState().setTapeTyped('3 1/2');
+    return board;
+  };
+
+  it('holds what was typed', () => {
+    useStore.getState().setTapeTyped('3/4');
+    expect(useStore.getState().tapeTyped).toBe('3/4');
+  });
+
+  // The one clear it has, and it is about the ENTRY being over rather than
+  // about staleness: leaving the tool drops the anchor, so there is no ray left
+  // for the number to be a distance along.
+  it('is cleared by setTool', () => {
+    anchored();
+    useStore.getState().setTool('select');
+    expect(useStore.getState().tapeTyped).toBe('');
+  });
+
+  // The survival half. Editing the anchored board is exactly what clears
+  // `tapeAnchor`/`tapeHover` point-precisely — and it must NOT touch the text,
+  // or a half-typed number disappears every time an unrelated edit lands.
+  it('survives an edit that clears the anchor it was typed for', () => {
+    const board = anchored();
+    useStore.getState().updateBoard(board.id, { length: 48 });
+    expect(useStore.getState().tapeAnchor).toBeNull();
+    expect(useStore.getState().tapeTyped).toBe('3 1/2');
+  });
+
+  // Undo is on invariant 24's list for all three held positions, for the same
+  // captured-position reason. A typed string is not a position.
+  it('survives undo', () => {
+    anchored();
+    useStore.getState().undo();
+    expect(useStore.getState().tapeTyped).toBe('3 1/2');
+  });
+});
