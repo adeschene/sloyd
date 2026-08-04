@@ -110,6 +110,15 @@ from, and the readout that displays the lock does not render without an anchor
   document is a count that goes stale — which CLAUDE.md records having happened
   once already. The implementation should satisfy the rule at each site, and the
   store tests should pin the rule, not the number.
+- **The axis drops when the anchor actually drops, not when a conditional writer
+  merely runs.** Three of those nine are conditional — `deleteBoard`,
+  `removeGuide` and `dropHeldIfGone` — and the last is point-precise and runs
+  after every `updateBoard`, `addCut`, `updateCut` and `removeCut`. So editing an
+  *unrelated* board mid-measurement leaves the lock alone, and so does an edit to
+  the anchored board that the anchor **survives**. Worth stating rather than
+  leaving to inference, because §5.2 sells a repeated gesture with the axis
+  pressed once, and a reader could reasonably fear that any board edit silently
+  unlocks it.
 - **`setTapeAnchor` PRESERVES it.** This is the half that is easy to get
   backwards, and it is what makes re-anchoring under a lock work (§5.2): walking
   along a row of corners placing a guide 3" up from each must not require
@@ -174,9 +183,12 @@ Two properties fall out rather than being written:
 
 - The `preview` memo (`TapeTool.tsx:275`) loses its `!hovered` gate — that gate
   is precisely what makes axis mode draw nothing today. It gains `axis` in its
-  dependency list. The memo stays **derived every render and never stored**,
-  which is unchanged and is the reason a fourth held world position never
-  appears.
+  dependency list — and must **subscribe** to it, not merely list it: this memo
+  reads `typed` off the store rather than taking it as a prop, and the axis has
+  to arrive the same way. A dep-list entry over a value the component never
+  subscribes to is invariant 15's failure mode wearing the right clothes. The
+  memo stays **derived every render and never stored**, which is unchanged and is
+  the reason a fourth held world position never appears.
 - `lineEnd` (`TapeTool.tsx:291`) becomes `preview ?? (axis ? null : hovered?.at)
   ?? null`. Locked with nothing typed yet draws **no line**, and that is a
   decision rather than an omission: the honest thing to draw there would be a
@@ -234,7 +246,9 @@ The branch acts only when `tool === 'tape' && tapeAnchor`, and otherwise **falls
 through** rather than returning — a key that was not handled has not been
 handled, which is the rule the type-anywhere capture states for its own early
 return. No conflict exists today: the app binds `m`, `t`, `f`, `Home`, `Escape`,
-`Delete`/`Backspace` and the undo chords, and nothing else.
+`Delete`/`Backspace` and the undo chords in `App`, plus `f` and `Home` in
+`Viewport` — and nothing else. Checked in both files rather than in `App` alone,
+since `Viewport` owns its own listener behind `shortcutsSuspended`.
 
 **`TapeReadout`'s own `onKeyDown` takes them too**, and this is not redundancy —
 it is forced. Once the first digit lands, the input has focus, so `isTextEntry`
@@ -381,3 +395,10 @@ nothing typed draws no line" reads as *waiting* or as *broken* — §4.1 chose i
 scope grounds, and if the browser pass says it reads as broken, the finding gets
 recorded with what it costs rather than fixed by importing §8's construction
 line.
+
+**The named remedy if that finding comes back negative** is a **1" stub**: draw
+the measuring line from the anchor to `offsetPoint(anchor, toward, 1)`. It uses
+the machinery §4 already puts in place, needs no new concept, and is emphatically
+not a construction line — it terminates at a finite, stated length rather than
+running to the scene edge. Named here so the browser pass has something to reach
+for instead of either living with an ambiguous state or reopening §8.
