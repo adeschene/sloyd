@@ -2677,7 +2677,43 @@ run even though the component returns `null` without an anchor (its hooks run ab
 early return, which is what makes this work at all). But that is a **coupling**, not a
 property: mounting the readout conditionally — `{tool === 'tape' && <TapeReadout />}`, which
 looks like an obvious tidy given it renders nothing otherwise — would leave a stale number
-in the store across a tool round-trip, visible the next time an anchor was set. Two things
+in the store across a tool round-trip, visible the next time an anchor was set.
+
+**The append fix in the same round is what turns this coupling from benign into
+consequential, and that is why this entry reads sharper than it did when it was written.**
+While the capture REPLACED, a stale `tapeTyped` surviving an anchor loss was harmlessly
+overwritten by the next keystroke — the failure was one frame of a wrong number in a box
+that then corrected itself. The capture now APPENDS, so a stale value is CONCATENATED: the
+user types `5` against a fresh anchor and gets `35`, a number they never typed, which
+parses cleanly and places a guide 30 inches from where they meant. Nothing breaks today —
+the mount is unconditional — but the consequence of breaking it went from cosmetic to a
+silently wrong placement, which is the class of defect this app's whole document-is-truth
+rule exists to avoid. Two things
 would close it if it ever bites: clear `tapeTyped` beside every `tapeAnchor: null` in the
 store (rejected today — it puts a fact about a text box into seven store actions), or keep
 the mount unconditional and say so where it is written. The second is what is in place.
+
+**144. The error-clearing effect was WIDENED to `[text, hovered]` and now clears a refusal
+it does not cure — introduced by that widening, not pre-existing.** `commit()` refuses for
+three distinct causes, and a new pick answers only two of them. *No target* is answered by
+acquiring one; a *zero-length ray* (anchor and hover at the same position, which
+`offsetPoint` refuses) is answered by hovering somewhere else. **Unparseable text is not.**
+Type `abc`, press Enter with a target, and the box marks invalid correctly; move the pointer
+to any other snap point and `setTapeHover` fires, the effect runs, and the red clears over a
+value that still cannot parse. Keyed on `[text]` alone — the shape before this change — the
+red survived until a character changed, which was right for this cause and wrong for the
+other two. That is the trade the widening made, and it was made knowingly for the wrong
+reason: the two causes it fixes are the reachable ones, and the one it breaks is cosmetic.
+
+Not fixed, on three grounds: it is cosmetic (the value is still there, still wrong, and
+still refused), it self-corrects on the very next Enter, and the clean remedy is a small
+design change rather than a patch. **The remedy, named so it is not re-derived:** make
+`error` carry its CAUSE rather than a boolean — `null | 'no-target' | 'unparseable' |
+'zero-length'` — then clear the two pick-answerable causes when `hovered` changes and any
+cause when `text` changes, which is two effects or one effect with a switch. Say plainly why
+the widening happened rather than treating it as carelessness: **a boolean cannot express
+the distinction at all.** With one bit, the key has to be either too narrow (a cured
+no-target refusal stays marked until an unrelated character is typed) or too wide (this),
+and there is no third option that does not add the cause. Whoever picks this up should also
+consider whether the cause is worth *printing* — the box says "wrong" and never says what,
+which is the same complaint that produced this whole round about the placeholder.
