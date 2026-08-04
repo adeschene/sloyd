@@ -277,6 +277,14 @@ button[aria-pressed='true'] {
   white-space: nowrap;
 }
 
+/* The reason a refusal happened, in the hint's own slot and size — it replaces
+   the hint rather than stacking under it, so the box does not change height
+   when a commit is refused. Colour is the app's existing alert ink, not a new
+   one. */
+.tape-readout-error {
+  color: var(--alert-bright);
+}
+
 .tape-readout-label {
   font-family: var(--font-num);
   font-size: 12px;

@@ -485,4 +485,94 @@ describe('App type-anywhere tape capture', () => {
     await user.keyboard('x');
     expect(useStore.getState().tapeAxis).toBeNull();
   });
+
+  const reason = () => screen.queryByTestId('tape-readout-error')?.textContent ?? null;
+
+  it('names the cause when there is no direction at all', async () => {
+    const user = await anchoredTape();
+    await user.keyboard('5{Enter}');
+    expect(box().className).toContain('invalid');
+    expect(reason()).toMatch(/hover a point/i);
+    expect(useStore.getState().doc.guides).toHaveLength(0);
+  });
+
+  it('names the cause when the number cannot be read', async () => {
+    const user = await anchoredTape();
+    const board = useStore.getState().doc.boards[0];
+    await act(async () => { useStore.getState().setTapeHover(boardSnapPoints(board)[25]); });
+    await user.keyboard('.{Enter}');
+    expect(box().className).toContain('invalid');
+    expect(reason()).toMatch(/length/i);
+  });
+
+  // The distinction the boolean could not express: a hover is not an answer to
+  // "can this be read as a length", so it must not clear that error.
+  it('does not let a new hover clear an unparseable number', async () => {
+    const user = await anchoredTape();
+    const board = useStore.getState().doc.boards[0];
+    await act(async () => { useStore.getState().setTapeHover(boardSnapPoints(board)[25]); });
+    await user.keyboard('.{Enter}');
+    expect(box().className).toContain('invalid');
+
+    await act(async () => { useStore.getState().setTapeHover(boardSnapPoints(board)[24]); });
+    expect(box().className).toContain('invalid');
+  });
+
+  it('lets a new character clear an unparseable number', async () => {
+    const user = await anchoredTape();
+    const board = useStore.getState().doc.boards[0];
+    await act(async () => { useStore.getState().setTapeHover(boardSnapPoints(board)[25]); });
+    await user.keyboard('.{Enter}');
+    expect(box().className).toContain('invalid');
+    await user.keyboard('5');
+    expect(box().className).not.toContain('invalid');
+  });
+
+  // Pressing an axis key genuinely cures a no-direction refusal, and under the
+  // boolean the red would have survived until Enter proved otherwise.
+  it('lets an axis key clear a no-direction refusal', async () => {
+    const user = await anchoredTape();
+    await user.keyboard('5{Enter}');
+    expect(box().className).toContain('invalid');
+    await act(async () => { useStore.getState().setTapeAxis('y'); });
+    expect(box().className).not.toContain('invalid');
+  });
+
+  it('places a guide along the locked axis with no target hovered at all', async () => {
+    const user = await anchoredTape();
+    const anchorAt = useStore.getState().tapeAnchor!.at;
+    await act(async () => { useStore.getState().setTapeAxis('y'); });
+    await user.keyboard('3 1/2{Enter}');
+
+    const guides = useStore.getState().doc.guides;
+    expect(guides).toHaveLength(1);
+    expect(guides[0].at).toEqual([anchorAt[0], anchorAt[1] + 3.5, anchorAt[2]]);
+    expect(useStore.getState().tapeAnchor).toBeNull();
+  });
+
+  it('places on the opposite side for a negative distance', async () => {
+    const user = await anchoredTape();
+    const anchorAt = useStore.getState().tapeAnchor!.at;
+    await act(async () => { useStore.getState().setTapeAxis('x'); });
+    await user.keyboard('-2{Enter}');
+    expect(useStore.getState().doc.guides[0].at).toEqual([
+      anchorAt[0] - 2, anchorAt[1], anchorAt[2],
+    ]);
+  });
+
+  // §5.1: the lock is a lock. A hover latched before the axis was pressed must
+  // not supply the direction.
+  it('ignores a latched hover while an axis is locked', async () => {
+    const user = await anchoredTape();
+    const board = useStore.getState().doc.boards[0];
+    const anchorAt = useStore.getState().tapeAnchor!.at;
+    await act(async () => {
+      useStore.getState().setTapeHover(boardSnapPoints(board)[25]);
+      useStore.getState().setTapeAxis('y');
+    });
+    await user.keyboard('1{Enter}');
+    expect(useStore.getState().doc.guides[0].at).toEqual([
+      anchorAt[0], anchorAt[1] + 1, anchorAt[2],
+    ]);
+  });
 });
