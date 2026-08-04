@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { Line } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { guideSnapPoints, offsetPoint, sameSnapPoint, snapPointsFor } from '../document/document';
+import { guideSnapPoints, offsetPoint, sameSnapPoint, snapPointsFor, towardFor } from '../document/document';
 import type { SnapPoint } from '../document/document';
 // THE FIRST `viewport -> units` IMPORT in the repo. Legal under CLAUDE.md's
 // layer order — `units` is the bottom layer, `viewport` sits well above it —
@@ -52,6 +52,12 @@ export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
   // than passed in: TapeReadout is a DOM sibling outside the Canvas, so there
   // is no props route between the two — see `tapeTyped` in store.ts.
   const typed = useStore((s) => s.tapeTyped);
+  // Subscribed, not merely added to a dep list: this component reads `typed`
+  // off the store rather than as a prop, and the axis has to arrive the same
+  // way. A dep-list entry over a value nothing subscribes to is invariant 15's
+  // failure mode wearing the right clothes — the memo would be correct and
+  // would simply never re-run.
+  const axis = useStore((s) => s.tapeAxis);
 
   const gl = useThree((s) => s.gl);
   const camera = useThree((s) => s.camera);
@@ -188,6 +194,16 @@ export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
         store.clearTapeAnchor();
         return;
       }
+      // LOCKED: a click re-anchors and KEEPS the axis, so walking a row of
+      // corners placing a guide 3" up from each is click, type, Enter, click,
+      // type, Enter — with the axis pressed once (design §5.2). Placing a guide
+      // here instead would mean a click and Enter placing guides in two
+      // different positions while one direction is drawn on screen, which is
+      // the disagreement the lock exists to prevent.
+      if (store.tapeAxis) {
+        store.setTapeAnchor(hit);
+        return;
+      }
       store.addGuide(hit.at);
       store.clearTapeAnchor();
     };
@@ -250,7 +266,8 @@ export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
    * spells out for `grabbed`, `tapeAnchor` and `tapeHover`: drop it when the
    * anchor's board moves, when the hovered board is edited, on undo, on
    * replaceDocument, on removeGuide. Derived, it needs none of them, because it
-   * is a pure function of three things that already have those rules. Delete
+   * is a pure function of things that already have those rules (plus the axis,
+   * which is store state with no world position to go stale at all). Delete
    * the anchor and it evaluates to null on the very next render; move a board
    * and it moves with the point it is measured from. It cannot go stale,
    * because it is never a fact — the same reason nothing about snap points is
@@ -261,6 +278,13 @@ export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
    * cases the readout refuses on Enter simply draw nothing here — the preview
    * and the commit agree because they call the same function, not because two
    * pieces of code were written to match.
+   *
+   * `towardFor` is now what supplies the direction, and it is the SAME call
+   * TapeReadout's commit() makes — anchor, axis, hover, in that order — so the
+   * marker and the placement cannot disagree about which ray a typed number
+   * runs along. That is also what keeps this a derivation rather than a fourth
+   * held point even now that a lock exists: the axis lives in the store
+   * already (tapeAxis), so nothing new is captured here, only read.
    */
   // Memoised on object identities, unlike the coordinate-keyed `line` memo just
   // below — the two dependency styles differ on purpose and it is worth saying
@@ -270,14 +294,19 @@ export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
   // exists only to hold the array stable FOR that memo, and a new `anchor` or
   // `hovered` object always means a new point, so over-invalidating costs one
   // pure recomputation and nothing else. Under-invalidation is what invariant
-  // 15 warns about, and neither list can under-invalidate: all three inputs are
-  // listed.
+  // 15 warns about, and neither list can under-invalidate: all four inputs —
+  // anchor, hovered, typed and axis — are listed.
   const preview = useMemo(() => {
-    if (!anchor || !hovered) return null;
+    if (!anchor) return null;
+    // The SAME call TapeReadout's commit() makes. The `!hovered` gate this
+    // replaces is exactly what made axis mode draw nothing — the direction no
+    // longer has to come from a second feature.
+    const toward = towardFor(anchor.at, axis, hovered?.at ?? null);
+    if (!toward) return null;
     const distance = parseLength(typed);
     if (distance === null) return null;
-    return offsetPoint(anchor.at, hovered.at, distance);
-  }, [anchor, hovered, typed]);
+    return offsetPoint(anchor.at, toward, distance);
+  }, [anchor, hovered, typed, axis]);
 
   // The far end of the measuring line: the preview when there is one, the
   // hovered point otherwise.
@@ -288,7 +317,15 @@ export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
   // anchor entirely, with the line pointing away from it. The line's job is to
   // say "this is the measurement you are making", and once a number is typed
   // the measurement ends at the number.
-  const lineEnd = preview ?? hovered?.at ?? null;
+  //
+  // Locked with nothing typed yet draws NO line, and that is a decision rather
+  // than an omission: the honest thing to draw would be a semi-infinite axis
+  // line, which is follow-up 130's construction line and is out of this round's
+  // scope (design §8). The readout's axis chip is what confirms the lock. If
+  // the browser pass finds this reads as broken rather than as waiting, §9.1
+  // names the remedy — a 1" stub to offsetPoint(anchor, toward, 1) — rather
+  // than reopening §8.
+  const lineEnd = preview ?? (axis ? null : hovered?.at) ?? null;
 
   // Memoised on the six coordinates rather than rebuilt inline: drei's <Line>
   // keys its LineGeometry (and the computeLineDistances call) on the `points`
