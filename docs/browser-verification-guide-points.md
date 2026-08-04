@@ -31,7 +31,8 @@ any pre-existing project.
 
 Method carried forward from the two previous passes:
 
-- **The projector is the app's own arithmetic against the live r3f camera.** `TapeTool.tsx`'s
+- **The projector is a verbatim transcription of the app's arithmetic, run against the live
+  r3f camera.** `TapeTool.tsx`'s
   `project()` is a closure inside a `useEffect` and is not exported, so — as in the
   cut-points pass — its six lines were transcribed verbatim and re-run against the **live**
   camera and `size` objects, reached through the Vite dev server's module graph
@@ -57,8 +58,9 @@ Method carried forward from the two previous passes:
   circle radius and world position. A full-size marker is the pair `(ring r = 6.5, disc r = 4.5)`;
   a resting guide is a lone `r = 3` disc with no ring. An empty array is a real assertion of
   absence.
-- **Every absence claim has a positive control in the same hover session**, named where it
-  occurs, so a listener that had silently stopped firing could not read as a clean pass.
+- **Most absence claims have a positive control in the same hover session**, named where it
+  occurs, so a listener that had silently stopped firing could not read as a clean pass. One
+  exception is recorded rather than hidden — see check 11's "no deselect" row below.
 - **Every coordinate claim is read out of `localStorage['sloyd.autosave.v1']`** after autosave
   settles (~1 s), parsed as JSON — never judged by eye. The Guides panel *displays* rounded
   values (`formatLength`), which is correct and is exactly why the stored document is the
@@ -166,24 +168,30 @@ blue at *full size* with one of the other three on a named material, not one fra
 markers in it. Two of the three pairings are the ones that matter (blue vs violet is the
 closest, blue vs cyan the second closest); green is far from all of them.
 
-| Frame | Ground | Pairing | File |
+| Frame | What's actually in it | Pairing | File |
 |---|---|---|---|
-| A | plywood face + near-white ground | corner `#2e9e5b` + edge-mid `#22b8d4` + three resting guides `#4f6fd0` | `guide-color-plywood-green-cyan-blue.png` |
-| B | plywood face | face-centre `#8a5fd0` (full) + guide `#4f6fd0` (full) | `guide-hue-plywood-violet-blue.png` |
+| A | pine rail edges + plywood face | corner `#2e9e5b` + edge-mid `#22b8d4` + three resting guides `#4f6fd0` | `guide-color-plywood-green-cyan-blue.png` |
+| B | plywood face, straddling the panel's edge — the left marker sits partly over the ground | face-centre `#8a5fd0` (full) + guide `#4f6fd0` (full) | `guide-hue-plywood-violet-blue.png` |
 | C | walnut top face | corner `#2e9e5b` (full) + guide `#4f6fd0` (full) + two resting guides | `guide-hue-walnut-green-blue.png` |
 | D | pine face | edge-mid `#22b8d4` (full) + guide `#4f6fd0` (full) | `guide-hue-pine-cyan-blue.png` |
 
 Findings from looking at them:
 
-- **Legible on all four grounds.** The near-white ground (`#e6e3dd`), plywood, walnut (the
-  darkest surface in the app) and pine all leave the blue disc plainly visible. On walnut it
-  is the hardest case — a mid-dark blue on mid-dark brown — and the light ring is what carries
-  it at full size; at resting size (ringless) it is quieter but still unambiguous. Frame C
-  shows both states of blue on walnut in one image.
+- **Legible on plywood, walnut and pine** (frames A, C, D): plainly visible on all three. On
+  walnut it is the hardest case — a mid-dark blue on mid-dark brown — and the light ring is
+  what carries it at full size; at resting size (ringless) it is quieter but still unambiguous.
+  Frame C shows both states of blue on walnut in one image. **Legible on the near-white
+  ground** too, but that claim is carried by different evidence than this table: check 1b's
+  hovered crop (`guide-1b-hovered-zoom.png`) shows the full-size marker straddling ground and
+  plywood in one frame, and check 8's frame (`guide-move-grab-onto-guide.png`) shows a full-size
+  marker sitting entirely over the ground. Neither of frames A-D above is a clean ground-only
+  shot — A's markers sit on the pine rail and the plywood face, and B's left marker is only
+  partly over the ground.
 - **Distinct from violet, which is the pair that could have failed.** Frame B puts
-  `#4f6fd0` and `#8a5fd0` side by side at identical size on identical material. They read as
-  blue and purple, not as two shades of one thing. This is the one comparison a theory
-  argument could not settle, and it is settled.
+  `#4f6fd0` and `#8a5fd0` side by side at identical size on the same plywood face, straddling
+  the panel's edge. They read as blue and purple, not as two shades of one thing. This is the
+  one comparison a theory argument could not settle, and it is settled — the frame does not
+  need to be tidier than it is for that.
 - **Distinct from cyan and green** by a wide margin (frames A and D).
 - **Still reads as chrome, not as model.** All four remain cool and saturated against a
   palette that is entirely warm and desaturated, so the guide colour does not break the
@@ -212,8 +220,15 @@ resting:  28 px of guide blue,   0 px of ring
 hovered:  67 px of guide blue,  33 px of ring
 ```
 
-which matches `π·3² ≈ 28` and `π·4.5² ≈ 64` — i.e. the growth is real and is exactly the
-size change the code intends, not an impression.
+**No colour-match tolerance for this count was recorded**, so these exact figures are not
+independently reproducible as stated — a recount against the same crops with a different
+tolerance returned 26→57 and 0→37. What that recount agrees with exactly: the ring goes from
+wholly absent to clearly present, 0 px either way. What it agrees with in direction: the disc
+grows substantially between the two states. What it does **not** support is treating 67 as
+arithmetic confirmation of `π·4.5² ≈ 64` — 67 is 4.7% off that figure, which is inside the noise
+of an untoleranced count, not a check of the constant's exact geometry. The growth is real and
+is the size change the code intends; the specific pixel counts should be read as illustrative,
+not as a confirmed measurement of `MARKER_PX`/`RING_PX`.
 
 **Judging "quiet enough".** `RESTING_PX`'s own comment sets the bar at *"a dozen guides do
 not read as noise"*, so the judgement was made at a dozen rather than at whatever the pass
@@ -223,10 +238,13 @@ marker's world position and checking it falls inside the canvas, not by counting
 image). They read as small blue scaffolding dots, plainly present and plainly secondary to
 the boards; they do not compete with the model or with the grid.
 `guide-resting-density-8-guides.png` is the same judgement earlier in the pass at eight.
-**Judging "big enough to aim at":** aiming is governed by
-`PICK_RADIUS_PX = 12`, not by the marker, so the marker only has to be findable by eye — and
-at 6 px on all four grounds it is. Both halves of the constant's obligation hold, so it stays
-at 6.
+**Judging "big enough to aim at":** aiming is governed by `PICK_RADIUS_PX = 12`, not by the
+marker, so the marker only has to be findable by eye — and this pass has three direct
+observations of exactly that, not just the theory that it should work: check 8's grab-onto-guide
+(a resting guide, aimed at and hit, on the first attempt), check 9's positive control (the same),
+and 1b's own hovered crop (the cursor found and grew the resting disc it was aimed at). All three
+are a successful aim at a resting 6 px marker, at the default camera, by the same real mouse
+input the rest of the pass used. Both halves of the constant's obligation hold, so it stays at 6.
 
 **One caveat on the pixel counts.** The first attempt at these two crops used
 `page.screenshot({ clip })` taken ~500 ms after the hover and returned *identical* pixel
@@ -303,16 +321,20 @@ ring, `grabbed` still `null`. `guide-move-no-grab-on-guide-no-marker.png`.
 `(-14, 0, 2)` immediately after added the `r = 6.5` ring plus an `r = 4.5` `#2e9e5b` disc. So
 the listener was alive and the absence above is a real absence.
 
-## Check 10 — the Guides checkbox hides *and* withholds
+## Check 10 — the Guides checkbox hides *and* withholds (Move tool)
 
-**PASS**, both halves.
+**PASS**, both halves, driven against `MoveTool`'s candidate gate.
 
 - **Hides.** With the checkbox off, the scene marker walk returned `[]` — all eight resting
-  discs gone. `guide-checkbox-off-hidden.png`.
+  discs gone. This is `Viewport.tsx`'s `{showGuides && <GuideMarkers />}` — rendering, not
+  candidate gating — so on its own it says nothing about either tool's `showGuides ?
+  guideSnapPoints(guides) : []` memo. `guide-checkbox-off-hidden.png`.
 - **Withholds.** Still with it off: Move armed, the Rail's corner grabbed (`grabbed` true),
   pointer moved onto the known guide position `(0, 30, 0.75)`. The only full-size marker in
-  the scene was the grabbed point's own; nothing rendered at the guide.
-  `guide-checkbox-off-no-candidate.png`.
+  the scene was the grabbed point's own; nothing rendered at the guide. This exercises
+  `MoveTool.tsx`'s own `showGuides ? guideSnapPoints(guides) : []` (line 117, the post-grab
+  branch) — **`TapeTool.tsx` has the identical-looking gate at its own line 89, independently,
+  and this check does not touch it.** `guide-checkbox-off-no-candidate.png`.
 - **Positive control, same session:** moving on to a board corner `(0, 24, 0.75)` produced a
   full-size `#2e9e5b` marker there.
 
@@ -328,7 +350,7 @@ the listener was alive and the absence above is a real absence.
 | No gizmo | scene object-type walk | Select mode: `TransformControlsGizmo` + `TransformControlsPlane` present, 72 meshes. Tape mode, **same board still selected**: both absent, 22 meshes |
 | Delete does not delete while anchored | `Delete` then `Backspace` with an anchor live | 3 boards before, 3 after; anchor survived |
 
-Two of these four rows are absence claims, and **both have a positive control**:
+Two of these four rows are absence claims **with** a positive control:
 
 - *Gizmo.* The Select-mode reading is the control — it is what makes the Tape-mode absence
   mean something. (A first attempt at this check read `0` in *both* modes because it sampled
@@ -341,6 +363,12 @@ Two of these four rows are absence claims, and **both have a positive control**:
   nothing else changed — and `Delete` again → **2 boards, the Shelf gone**. `Ctrl+Z` restored
   all three. So the gate is the anchor and nothing else, and the first reading was a real
   refusal rather than a dead listener.
+
+A third row, *"No deselect on an empty-space click,"* is an absence claim of the identical
+shape — an unchanged `selectedId` is also what a click that never registered would produce —
+and it has **no** positive control here: nothing in this session drove a Select-mode click at
+the same empty pixel to confirm that a click there *does* deselect. Named rather than folded
+into the "both" above.
 
 `guide-gate-gizmo-select-mode.png` / `guide-gate-no-gizmo-tape-mode.png`.
 
@@ -475,10 +503,15 @@ Both browser-settled constants (follow-up 60) were confirmed and **neither was c
 - **`SNAP_COLORS.guide = '#4f6fd0'`** — see check 1. Legible on the near-white ground, on
   plywood, on walnut and on pine; distinct from `#2e9e5b`, `#22b8d4` and — the pair that could
   have failed — `#8a5fd0`.
-- **`RESTING_PX = 6`** — see check 1b. The resting/hovered growth reads unmistakably
-  (28 px → 67 px of ink, plus a ring appearing); eight simultaneous guides read as quiet
-  scaffolding rather than noise; and aiming is bounded by `PICK_RADIUS_PX = 12`, not by the
-  marker, so 6 px only has to be findable, which it is.
+- **`RESTING_PX = 6`** — see check 1b. The resting/hovered growth reads unmistakably (a
+  substantial disc-size increase, plus a ring going from wholly absent to clearly present — see
+  1b's caveat on the exact pixel counts); **twelve** simultaneous guides — the bar the
+  constant's own comment states, not the eight this pass first tried — read as quiet scaffolding
+  rather than noise; and aiming is bounded by `PICK_RADIUS_PX = 12`, not by the marker, so 6 px
+  only has to be findable, which checks 8, 9 and 1b's hovered frame each confirm by successfully
+  aiming at one. The twelve-guide frame (`guide-resting-density-12-guides.png`) was shot at a
+  visibly different camera position than the rest of this pass, so "reads as quiet scaffolding"
+  is a judgement at that specific framing, not a claim that holds at every zoom and angle.
 
 Consequently `src/viewport/SnapMarker.tsx` is **unchanged** by this pass.
 
@@ -530,6 +563,12 @@ Stated plainly, per follow-up 108.
   a cut while anchored. That behaviour is unit-tested and is outside the brief's 19 checks,
   but it is named here rather than left silent, because the standard this report is held to is
   follow-up 108's.
+- **`TapeTool`'s own Guides-checkbox gate.** Check 10 drove `MoveTool.tsx`'s
+  `showGuides ? guideSnapPoints(guides) : []` (line 117, post-grab branch) — it did not touch
+  `TapeTool.tsx`'s own identical-looking gate at line 89, which is a separate `useMemo` and a
+  separate withholding, not a shared one. Nothing here anchored or hovered the tape with the
+  checkbox off, so whether the tape can still be aimed at a guide position while `showGuides`
+  is `false` is unverified.
 - **More than a dozen guides.** Twelve on screen at once is what was judged (and eight
   earlier); nothing here says how the resting markers read at fifty.
 - **The Guides panel's scroll behaviour** with a list long enough to overflow, and its
