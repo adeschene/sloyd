@@ -6,6 +6,26 @@ export interface RecentEntry {
   savedAt: number;
 }
 
+/** One row in the project library. Index metadata, never document data. */
+export interface ProjectEntry {
+  id: string;
+  /** Mirrors doc.name so the list renders without parsing every project. */
+  name: string;
+  savedAt: number;
+  createdAt: number;
+}
+
+/**
+ * The library index. `layout` versions the ARRANGEMENT OF KEYS, which is a
+ * different thing from a document's `version` and must never be compared
+ * against CURRENT_VERSION — they change for unrelated reasons.
+ */
+export interface LibraryIndex {
+  layout: number;
+  activeId: string;
+  projects: ProjectEntry[];
+}
+
 export interface StorageCapabilities {
   /** Can the platform offer a recent-files menu? */
   recentFiles: boolean;
