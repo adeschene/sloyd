@@ -1,8 +1,8 @@
 import { DocumentError, createDocument, migrateDocument, nextId } from '../document/document';
 import type { SloydDocument } from '../document/document';
-import type { LibraryIndex } from './types';
+import type { LibraryIndex, ProjectEntry } from './types';
 import type { RecentEntry, StorageAdapter, StorageCapabilities } from './types';
-import { LAYOUT_VERSION, parseIndex, sortEntries } from './libraryIndex';
+import { LAYOUT_VERSION, parseIndex, removeEntry, sortEntries, touchEntry } from './libraryIndex';
 
 export const AUTOSAVE_KEY = 'sloyd.autosave.v1';
 export const LIBRARY_KEY = 'sloyd.library.v1';
@@ -27,13 +27,14 @@ export class BrowserStorageAdapter implements StorageAdapter {
     return { recentFiles: false, realPaths: false };
   }
 
-  async autoSave(doc: SloydDocument): Promise<void> {
-    if (!this.store) {
+  async autoSave(id: string, doc: SloydDocument): Promise<void> {
+    if (!this.store || !id) {
       this._available = false;
       return;
     }
     try {
-      this.store.setItem(AUTOSAVE_KEY, JSON.stringify(doc));
+      this.store.setItem(PROJECT_PREFIX + id, JSON.stringify(doc));
+      this.writeIndex(touchEntry(this.readIndex(), id, doc.name, this.now()));
       this._available = true;
     } catch {
       // Quota exceeded, or private browsing. Never throw from an autosave —
@@ -87,16 +88,11 @@ export class BrowserStorageAdapter implements StorageAdapter {
       return this.adopt(legacy);
     }
 
-    // Present. Parse it ourselves rather than going through readJSON, which
-    // collapses "present but unparseable" into the same null as "absent" —
-    // exactly the distinction this branch exists to preserve.
-    let parsed: unknown = null;
-    try {
-      parsed = JSON.parse(rawLibrary);
-    } catch {
-      parsed = null;
-    }
-    const existing = parseIndex(parsed);
+    // Present. Parse it through the same string->index path `readIndex`
+    // uses, rather than going through readJSON, which collapses "present
+    // but unparseable" into the same null as "absent" — exactly the
+    // distinction this branch exists to preserve.
+    const existing = this.parseIndexString(rawLibrary);
     if (!existing) {
       // Present but corrupt JSON, or a layout we don't understand. Do not
       // adopt over it — write nothing, degrade to a read-only legacy view.
@@ -130,6 +126,21 @@ export class BrowserStorageAdapter implements StorageAdapter {
   }
 
   /**
+   * Write a project's document and verify the round-trip before any caller
+   * commits an index that points at it. THE single home for that ordering —
+   * `adopt`, `addUntitledProject` and `createProject` all funnel through
+   * here rather than each carrying their own copy. A safety rule written out
+   * three times is a rule that holds in two places after the next edit
+   * (R10). Throws rather than swallowing, so every caller shares one catch
+   * block instead of re-deriving this order; callers must guarantee
+   * `this.store` is non-null before calling.
+   */
+  private writeVerifiedProject(id: string, doc: SloydDocument): void {
+    this.store!.setItem(PROJECT_PREFIX + id, JSON.stringify(doc));
+    if (!this.store!.getItem(PROJECT_PREFIX + id)) throw new Error('project did not persist');
+  }
+
+  /**
    * Write new, verify, THEN commit the index. Never overwrite in place, and
    * NEVER delete AUTOSAVE_KEY — it costs a few KB and it is the entire
    * rollback story for this round. Nothing writes to it after this point.
@@ -138,9 +149,7 @@ export class BrowserStorageAdapter implements StorageAdapter {
     const id = nextId();
     const at = this.now();
     try {
-      this.store!.setItem(PROJECT_PREFIX + id, JSON.stringify(doc));
-      // Verify the round-trip before committing the index to it.
-      if (!this.store!.getItem(PROJECT_PREFIX + id)) throw new Error('project did not persist');
+      this.writeVerifiedProject(id, doc);
       const index: LibraryIndex = {
         layout: LAYOUT_VERSION,
         activeId: id,
@@ -158,10 +167,13 @@ export class BrowserStorageAdapter implements StorageAdapter {
   }
 
   /**
-   * Adds a fresh Untitled project to an already-existing (empty) index.
+   * Adds a fresh Untitled project to an already-existing index — NOT
+   * necessarily empty: the "index names projects but none are loadable"
+   * branch in `openLibrary` passes one with entries already in it.
    * Deliberately distinct from `adopt`: adoption has already happened once
    * by the time this runs, so the legacy key is stale and must not be
-   * re-read. Same write-verify-then-commit shape as `adopt`.
+   * re-read. Same write-verify-then-commit shape as `adopt`, via
+   * `writeVerifiedProject`.
    */
   private async addUntitledProject(
     index: LibraryIndex,
@@ -170,8 +182,7 @@ export class BrowserStorageAdapter implements StorageAdapter {
     const id = nextId();
     const at = this.now();
     try {
-      this.store!.setItem(PROJECT_PREFIX + id, JSON.stringify(doc));
-      if (!this.store!.getItem(PROJECT_PREFIX + id)) throw new Error('project did not persist');
+      this.writeVerifiedProject(id, doc);
       const updated: LibraryIndex = {
         ...index,
         activeId: id,
@@ -184,6 +195,115 @@ export class BrowserStorageAdapter implements StorageAdapter {
       this._available = false;
       return { activeId: '', doc, libraryAvailable: false };
     }
+  }
+
+  /** Parse a raw string into a usable index, or null. The one place a raw
+   * LIBRARY_KEY string becomes a `LibraryIndex` — `openLibrary` (which needs
+   * to tell "absent" apart from "present but unparseable") and `readIndex`
+   * (which doesn't care which, and defaults either way) both call this
+   * rather than each re-deriving the JSON.parse + parseIndex pair (R1). */
+  private parseIndexString(raw: string): LibraryIndex | null {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+    return parseIndex(parsed);
+  }
+
+  /**
+   * Read the index, or an empty one. Never throws.
+   *
+   * Deliberately the OPPOSITE of `openLibrary`'s refusal on a
+   * present-but-unparseable index: `openLibrary` refuses because adopting
+   * over a real, unparseable index would silently replace named projects
+   * with a stale single-entry one. This defaults instead, because every
+   * caller here (`autoSave`, `createProject`, `deleteProject`,
+   * `setActiveProject`) is a small, additive or row-scoped edit, not a
+   * wholesale rebuild — but that safety holds ONLY because `openLibrary`
+   * already reported `libraryAvailable: false` for that same store and
+   * callers are expected to stop calling these methods when it did. This
+   * method has no way to re-check that on its own; if a caller reaches it
+   * on a genuinely present-but-corrupt index, it commits over the corruption
+   * with an empty one instead of refusing.
+   */
+  private readIndex(): LibraryIndex {
+    const empty: LibraryIndex = { layout: LAYOUT_VERSION, activeId: '', projects: [] };
+    if (!this.store) return empty;
+    const raw = readRaw(this.store, LIBRARY_KEY);
+    if (raw === null) return empty;
+    return this.parseIndexString(raw) ?? empty;
+  }
+
+  /** Write the index. Returns false on failure; never throws. */
+  private writeIndex(index: LibraryIndex): boolean {
+    if (!this.store) return false;
+    try {
+      this.store.setItem(LIBRARY_KEY, JSON.stringify(index));
+      return true;
+    } catch {
+      this._available = false;
+      return false;
+    }
+  }
+
+  async listProjects(): Promise<ProjectEntry[]> {
+    return sortEntries(this.readIndex().projects);
+  }
+
+  async createProject(doc: SloydDocument): Promise<string> {
+    const id = nextId();
+    if (!this.store) return id;
+    const at = this.now();
+    try {
+      this.writeVerifiedProject(id, doc);
+      const index = this.readIndex();
+      this.writeIndex({
+        ...index,
+        activeId: id,
+        projects: [...index.projects, { id, name: doc.name, savedAt: at, createdAt: at }],
+      });
+      this._available = true;
+    } catch {
+      this._available = false;
+    }
+    return id;
+  }
+
+  async duplicateProject(id: string): Promise<string | null> {
+    const doc = await this.loadProject(id);
+    if (!doc) return null;
+    // No uniqueness enforced across the library: projects are keyed by id,
+    // and invariant 8 governs BOARD names inside a document, not project
+    // names. A library that renamed your projects at you would be worse
+    // than two rows alike.
+    return this.createProject({ ...doc, name: `${doc.name} copy` });
+  }
+
+  async deleteProject(id: string): Promise<{ activeId: string; doc: SloydDocument }> {
+    try {
+      this.store?.removeItem(PROJECT_PREFIX + id);
+    } catch {
+      this._available = false;
+    }
+    const index = removeEntry(this.readIndex(), id);
+
+    // Never a no-project state: the last delete makes a fresh Untitled.
+    if (index.projects.length === 0) {
+      this.writeIndex(index);
+      const doc = createDocument();
+      const newId = await this.createProject(doc);
+      return { activeId: newId, doc };
+    }
+
+    const next = sortEntries(index.projects)[0];
+    this.writeIndex({ ...index, activeId: next.id });
+    return { activeId: next.id, doc: (await this.loadProject(next.id)) ?? createDocument(next.name) };
+  }
+
+  async setActiveProject(id: string): Promise<void> {
+    this.writeIndex({ ...this.readIndex(), activeId: id });
   }
 
   async loadProject(id: string): Promise<SloydDocument | null> {

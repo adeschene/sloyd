@@ -43,10 +43,30 @@ export interface StorageAdapter {
   readonly available: boolean;
   readonly capabilities: StorageCapabilities;
 
-  /** Persist the working document. Callers debounce; this must never throw. */
-  autoSave(doc: SloydDocument): Promise<void>;
-  /** Restore the working document, or null if there is none or it is unusable. */
-  loadAutoSaved(): Promise<SloydDocument | null>;
+  /**
+   * Persist one project. Callers debounce; this must never throw (inv 7).
+   *
+   * The id is an EXPLICIT ARGUMENT, not adapter state, and that is what
+   * closes the switch race: a debounce armed while project A was open would
+   * otherwise fire after a switch and write A's document into B's slot —
+   * silent data loss, invisible in any screenshot. Do not "simplify" this
+   * back to a remembered active id.
+   */
+  autoSave(id: string, doc: SloydDocument): Promise<void>;
+  /** Boot: read the library, adopting the legacy autosave slot on first run. */
+  openLibrary(): Promise<{ activeId: string; doc: SloydDocument; libraryAvailable: boolean }>;
+  /** One project's document, or null if its key is missing or unusable. */
+  loadProject(id: string): Promise<SloydDocument | null>;
+  /** Every project, most recently saved first. */
+  listProjects(): Promise<ProjectEntry[]>;
+  /** Store a new project and return its id. */
+  createProject(doc: SloydDocument): Promise<string>;
+  /** Copy a project under a new id, suffixed "copy". Null if id is unknown. */
+  duplicateProject(id: string): Promise<string | null>;
+  /** Delete a project and resolve with what should now be open. */
+  deleteProject(id: string): Promise<{ activeId: string; doc: SloydDocument }>;
+  /** Record which project is open, so the next boot returns to it. */
+  setActiveProject(id: string): Promise<void>;
   /** "Save as" — writes the project out. May prompt the user. */
   exportProject(doc: SloydDocument): Promise<void>;
   /** "Open" — prompts and resolves with the chosen project. Rejects on cancel. */

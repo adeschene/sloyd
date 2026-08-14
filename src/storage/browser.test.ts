@@ -46,12 +46,15 @@ const docWithBoard = () => {
 };
 
 describe('autoSave / loadAutoSaved', () => {
-  it('round-trips a document', async () => {
+  it('round-trips a document through the id it is given', async () => {
+    // autoSave now writes to the project it is told, not to AUTOSAVE_KEY —
+    // loadAutoSaved is the legacy read path openLibrary uses for adoption,
+    // not autoSave's counterpart any more. loadProject is.
     const fake = new FakeStorage();
     const a = new BrowserStorageAdapter(fake);
     const doc = docWithBoard();
-    await a.autoSave(doc);
-    expect(await a.loadAutoSaved()).toEqual(doc);
+    await a.autoSave('some-id', doc);
+    expect(await a.loadProject('some-id')).toEqual(doc);
   });
 
   it('returns null when nothing has been saved', async () => {
@@ -77,13 +80,13 @@ describe('autoSave / loadAutoSaved', () => {
     const fake = new FakeStorage();
     fake.full = true;
     const a = new BrowserStorageAdapter(fake);
-    await a.autoSave(docWithBoard());
+    await a.autoSave('some-id', docWithBoard());
     expect(a.available).toBe(false);
   });
 
   it('reports unavailability when storage itself is missing', async () => {
     const a = new BrowserStorageAdapter(null);
-    await a.autoSave(docWithBoard());
+    await a.autoSave('some-id', docWithBoard());
     expect(a.available).toBe(false);
     expect(await a.loadAutoSaved()).toBeNull();
   });
@@ -497,5 +500,130 @@ describe('openLibrary — adoption', () => {
 
     expect(libraryAvailable).toBe(false);
     expect(store.getItem(LIBRARY_KEY)).toBe(rawIndex);
+  });
+});
+
+describe('project CRUD', () => {
+  const boot = async (now = () => 1000) => {
+    const store = new FakeStorage();
+    const adapter = new BrowserStorageAdapter(store, now);
+    const { activeId } = await adapter.openLibrary();
+    return { store, adapter, activeId };
+  };
+
+  it('autoSave writes to the id it is given, not to a remembered one', async () => {
+    const { store, adapter, activeId } = await boot();
+    const other = await adapter.createProject(createDocument('Other'));
+
+    const doc = docWithBoard();
+    await adapter.autoSave(activeId, doc);
+
+    expect(JSON.parse(store.getItem(PROJECT_PREFIX + activeId)!)).toEqual(doc);
+    expect(JSON.parse(store.getItem(PROJECT_PREFIX + other)!).boards).toEqual([]);
+  });
+
+  it('autoSave updates the index name and timestamp', async () => {
+    let clock = 1000;
+    const { store, adapter, activeId } = await boot(() => clock);
+    clock = 5000;
+    await adapter.autoSave(activeId, createDocument('Renamed'));
+
+    const row = JSON.parse(store.getItem(LIBRARY_KEY)!).projects[0];
+    expect(row).toMatchObject({ name: 'Renamed', savedAt: 5000 });
+  });
+
+  it('autoSave never throws when storage is full', async () => {
+    const { store, adapter, activeId } = await boot();
+    store.full = true;
+    await expect(adapter.autoSave(activeId, createDocument())).resolves.toBeUndefined();
+    expect(adapter.available).toBe(false);
+  });
+
+  it('listProjects returns most recently saved first', async () => {
+    let clock = 1000;
+    const { adapter } = await boot(() => clock);
+    clock = 3000;
+    const second = await adapter.createProject(createDocument('Second'));
+
+    const list = await adapter.listProjects();
+    expect(list[0].id).toBe(second);
+    expect(list).toHaveLength(2);
+  });
+
+  it('createProject stores the document and adds a row', async () => {
+    const { store, adapter } = await boot();
+    const id = await adapter.createProject(createDocument('Fresh'));
+    expect(JSON.parse(store.getItem(PROJECT_PREFIX + id)!).name).toBe('Fresh');
+    expect((await adapter.listProjects()).map((p) => p.name)).toContain('Fresh');
+  });
+
+  it('does not commit the index when createProject writes a project that silently fails to persist', async () => {
+    // Extends the write-verify-then-commit pin to the third caller of the
+    // shared primitive (R10) — adopt and addUntitledProject already have
+    // this test's siblings in the openLibrary suite above.
+    const store = new GhostProjectWriteStorage();
+    const rawIndex = JSON.stringify({
+      layout: LAYOUT_VERSION,
+      activeId: 'existing',
+      projects: [{ id: 'existing', name: 'Existing', savedAt: 1, createdAt: 1 }],
+    });
+    store.setItem(LIBRARY_KEY, rawIndex);
+    const adapter = new BrowserStorageAdapter(store, () => 1000);
+
+    await adapter.createProject(createDocument('Doomed'));
+
+    expect(adapter.available).toBe(false);
+    expect(store.getItem(LIBRARY_KEY)).toBe(rawIndex);
+  });
+
+  it('duplicateProject copies the document under a new id', async () => {
+    const { adapter, activeId } = await boot();
+    await adapter.autoSave(activeId, docWithBoard());
+
+    const copyId = await adapter.duplicateProject(activeId);
+    expect(copyId).not.toBe(activeId);
+    const copy = await adapter.loadProject(copyId!);
+    expect(copy!.boards).toHaveLength(1);
+    expect(copy!.name).toBe('Bench copy');
+  });
+
+  it('duplicateProject returns null for an unknown id', async () => {
+    const { adapter } = await boot();
+    expect(await adapter.duplicateProject('ghost')).toBeNull();
+  });
+
+  it('deleteProject removes the key and the row', async () => {
+    const { store, adapter, activeId } = await boot();
+    const other = await adapter.createProject(createDocument('Other'));
+
+    await adapter.deleteProject(other);
+
+    expect(store.getItem(PROJECT_PREFIX + other)).toBeNull();
+    expect((await adapter.listProjects()).map((p) => p.id)).toEqual([activeId]);
+  });
+
+  it('deleting the active project switches to the most recently saved survivor', async () => {
+    let clock = 1000;
+    const { adapter, activeId } = await boot(() => clock);
+    clock = 2000;
+    await adapter.createProject(createDocument('Older'));
+    clock = 3000;
+    const newest = await adapter.createProject(createDocument('Newest'));
+
+    const next = await adapter.deleteProject(activeId);
+
+    expect(next.activeId).toBe(newest);
+    expect(next.doc.name).toBe('Newest');
+  });
+
+  it('deleting the last project leaves a fresh Untitled active', async () => {
+    // There is never a no-project state, so no component has to render one.
+    const { adapter, activeId } = await boot();
+    const next = await adapter.deleteProject(activeId);
+
+    expect(next.doc.name).toBe('Untitled');
+    expect(next.doc.boards).toEqual([]);
+    expect(await adapter.listProjects()).toHaveLength(1);
+    expect(next.activeId).toBe((await adapter.listProjects())[0].id);
   });
 });
