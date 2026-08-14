@@ -332,14 +332,29 @@ export class BrowserStorageAdapter implements StorageAdapter {
     return this.createProject({ ...doc, name: `${doc.name} copy` });
   }
 
-  async deleteProject(id: string): Promise<{ activeId: string; doc: SloydDocument }> {
+  /**
+   * Delete a project and resolve with what the caller's open project should
+   * become — or `null`, meaning NOTHING about the open project should
+   * change. `null` deliberately covers two different situations, not one:
+   * the delete refused outright (index present but unusable), and a delete
+   * that succeeded but removed a project OTHER than the active one. Neither
+   * is a failure the caller needs to react to beyond `available` — both
+   * just mean "the project you already have open is still correct." A
+   * non-null result means the open project changed and must be adopted,
+   * e.g. `const next = await deleteProject(id); if (next) { setActiveId(next.activeId);
+   * replaceDocument(next.doc); }` — the merged null keeps that the only
+   * reasonable way to call it; an unconditional `replaceDocument` on every
+   * result would otherwise silently discard unsaved edits on a background
+   * delete (Finding 4).
+   */
+  async deleteProject(id: string): Promise<{ activeId: string; doc: SloydDocument } | null> {
     // Refuse before touching anything — including the project key itself —
     // if the index is present but unusable (Finding 3). A partial delete
     // (key gone, corrupt index left alone) would be worse than no delete.
     const index = this.readIndexForWrite();
     if (!index) {
       this._available = false;
-      return { activeId: id, doc: (await this.loadProject(id)) ?? createDocument() };
+      return null;
     }
 
     try {
@@ -358,17 +373,20 @@ export class BrowserStorageAdapter implements StorageAdapter {
       this.writeIndex(remaining);
       const doc = createDocument();
       const newId = await this.createProject(doc);
-      return { activeId: newId ?? '', doc };
+      // A failed create here means nothing usable was produced — same
+      // "nothing to adopt" signal as the other null returns (Finding 5),
+      // not a fabricated id for a project that was never actually stored.
+      if (!newId) return null;
+      return { activeId: newId, doc };
     }
 
     if (!wasActive) {
       // A background delete must not move the caret out from under
-      // whatever the caller is currently looking at.
+      // whatever the caller is currently looking at — and now that the
+      // caller is open project is provably untouched, there is nothing for
+      // it to adopt.
       this.writeIndex(remaining);
-      return {
-        activeId: index.activeId,
-        doc: (await this.loadProject(index.activeId)) ?? createDocument(),
-      };
+      return null;
     }
 
     const next = sortEntries(remaining.projects)[0];

@@ -63,8 +63,13 @@ export interface StorageAdapter {
   createProject(doc: SloydDocument): Promise<string | null>;
   /** Copy a project under a new id, suffixed "copy". Null if id is unknown. */
   duplicateProject(id: string): Promise<string | null>;
-  /** Delete a project and resolve with what should now be open. */
-  deleteProject(id: string): Promise<{ activeId: string; doc: SloydDocument }>;
+  /**
+   * Delete a project and resolve with what the open project should become,
+   * or null if nothing about it should change — the delete refused, or it
+   * removed a project other than the active one. A non-null result must be
+   * adopted (switch to it); null must not trigger a `replaceDocument` call.
+   */
+  deleteProject(id: string): Promise<{ activeId: string; doc: SloydDocument } | null>;
   /** Record which project is open, so the next boot returns to it. */
   setActiveProject(id: string): Promise<void>;
   /** "Save as" — writes the project out. May prompt the user. */

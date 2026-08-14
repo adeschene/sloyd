@@ -681,7 +681,10 @@ describe('project CRUD', () => {
 
     const result = await adapter.deleteProject(other!);
 
-    expect(result.activeId).toBe(activeId);
+    // null means "nothing about the open project changed" (Finding 4) — a
+    // background delete must never hand the caller a different active
+    // project than the one it already had open.
+    expect(result).toBeNull();
     const index = JSON.parse(store.getItem(LIBRARY_KEY)!);
     expect(index.activeId).toBe(activeId);
     expect((await adapter.listProjects()).map((p) => p.id).sort()).toEqual(
@@ -689,23 +692,29 @@ describe('project CRUD', () => {
     );
   });
 
-  it('deleting the active project switches to the most recently saved survivor', async () => {
+  it('deleting the active project switches to the most recently saved survivor, not merely the last-inserted or first-inserted one (Finding 6)', async () => {
+    // The survivor with the highest savedAt sits in the MIDDLE of the
+    // remaining projects' insertion order, so this can only pass if the
+    // code actually sorts by savedAt — picking `[0]` or `[length - 1]`
+    // without sorting both land on the wrong project.
     let clock = 1000;
     const { adapter, activeId } = await boot(() => clock);
     clock = 2000;
-    await adapter.createProject(createDocument('Older'));
+    await adapter.createProject(createDocument('InsertedFirst'));
+    clock = 5000;
+    const mostRecent = await adapter.createProject(createDocument('MostRecentlySaved'));
     clock = 3000;
-    const newest = await adapter.createProject(createDocument('Newest'));
-    // createProject already left `newest` active as a side effect — pin it
-    // back to the ORIGINAL boot project explicitly so this test actually
-    // deletes the active project, rather than coincidentally re-asserting
-    // "background delete leaves activeId alone" under a misleading name.
+    await adapter.createProject(createDocument('InsertedLast'));
+    // createProject already left `InsertedLast` active as a side effect —
+    // pin it back to the ORIGINAL boot project explicitly so this test
+    // actually deletes the active project.
     await adapter.setActiveProject(activeId);
 
     const next = await adapter.deleteProject(activeId);
 
-    expect(next.activeId).toBe(newest);
-    expect(next.doc.name).toBe('Newest');
+    expect(next).not.toBeNull();
+    expect(next!.activeId).toBe(mostRecent);
+    expect(next!.doc.name).toBe('MostRecentlySaved');
   });
 
   it('deleting the last project leaves a fresh Untitled active', async () => {
@@ -713,10 +722,11 @@ describe('project CRUD', () => {
     const { adapter, activeId } = await boot();
     const next = await adapter.deleteProject(activeId);
 
-    expect(next.doc.name).toBe('Untitled');
-    expect(next.doc.boards).toEqual([]);
+    expect(next).not.toBeNull();
+    expect(next!.doc.name).toBe('Untitled');
+    expect(next!.doc.boards).toEqual([]);
     expect(await adapter.listProjects()).toHaveLength(1);
-    expect(next.activeId).toBe((await adapter.listProjects())[0].id);
+    expect(next!.activeId).toBe((await adapter.listProjects())[0].id);
   });
 
   it('setActiveProject records which project is open', async () => {
@@ -768,8 +778,9 @@ describe('refusing to write over an unusable (but present) index (Finding 3)', (
     store.setItem(PROJECT_PREFIX + 'p1', JSON.stringify(createDocument('Existing')));
     const adapter = new BrowserStorageAdapter(store, () => 1000);
 
-    await adapter.deleteProject('p1');
+    const result = await adapter.deleteProject('p1');
 
+    expect(result).toBeNull();
     expect(adapter.available).toBe(false);
     expect(store.getItem(LIBRARY_KEY)).toBe(raw);
     // A partial delete — key gone, corrupt index left untouched — would be
