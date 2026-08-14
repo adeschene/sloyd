@@ -29,16 +29,33 @@ vi.mock('./viewport/Viewport', () => ({
 // into the next (the exact shape of follow-up 148).
 type FakeProject = { entry: ProjectEntry; doc: SloydDocument };
 
+// `storage.available` was a static `true` literal on the mock object, and
+// `autoSave` a bare `vi.fn()` that never touched it — so nothing in this
+// file could exercise the setAvailable/StorageBanner wiring at all. That
+// blind spot is exactly why Finding 2 (browser.ts's corrupt-index refusal
+// leaving `_available` untouched, so the app claims "Saved locally" while
+// writing nothing) was invisible to a green suite. `mockAvailable` is now
+// mutated by the fake itself, the same way the real adapter mutates
+// `_available`: `autoSave` flips it false on a falsy id (mirroring
+// `BrowserStorageAdapter.autoSave`'s own guard) and true on a real save;
+// `failNextOpenLibrary()` flips it false the way the real corrupt/
+// unrecognised-index branch does. Read via a getter on the mock object
+// below, so `storage.available` always reflects the current value.
+let mockAvailable = true;
+
 function makeLibraryFake() {
   const projects = new Map<string, FakeProject>();
   let activeId = '';
   let counter = 0;
+  let failNextOpen = false;
 
   return {
     reset() {
       projects.clear();
       activeId = '';
       counter = 0;
+      failNextOpen = false;
+      mockAvailable = true;
     },
     /** Seed a project directly (bypassing createProject) and make it active. */
     seed(doc: SloydDocument, id = `p${++counter}`) {
@@ -49,7 +66,21 @@ function makeLibraryFake() {
       activeId = id;
       return id;
     },
+    /**
+     * Models `browser.ts`'s corrupt/unrecognised-LIBRARY_KEY refusal
+     * (Finding 2): the next `openLibrary()` call degrades to a read-only
+     * legacy view — `activeId: ''`, `libraryAvailable: false` — and flips
+     * `available` false, the way the real adapter now does.
+     */
+    failNextOpenLibrary() {
+      failNextOpen = true;
+    },
     async openLibrary() {
+      if (failNextOpen) {
+        failNextOpen = false;
+        mockAvailable = false;
+        return { activeId: '', doc: useStore.getState().doc, libraryAvailable: false };
+      }
       const p = projects.get(activeId);
       if (p) return { activeId, doc: p.doc, libraryAvailable: true };
       // Nothing seeded for this test: behave like "restore has nothing to
@@ -108,13 +139,21 @@ const createProject = vi.fn((...args: [SloydDocument]) => fake.createProject(...
 const duplicateProject = vi.fn((...args: [string]) => fake.duplicateProject(...args));
 const deleteProject = vi.fn((...args: [string]) => fake.deleteProject(...args));
 const setActiveProject = vi.fn((...args: [string]) => fake.setActiveProject(...args));
-const autoSave = vi.fn().mockResolvedValue(undefined);
+// Mirrors `BrowserStorageAdapter.autoSave`'s own guard (a falsy id refuses
+// and flips `available` false) so the banner path is reachable through the
+// real call path rather than only by hand-setting `mockAvailable`.
+const defaultAutoSave = async (id: string, _doc: SloydDocument) => {
+  mockAvailable = Boolean(id);
+};
+const autoSave = vi.fn<(id: string, doc: SloydDocument) => Promise<void>>(defaultAutoSave);
 const exportProject = vi.fn().mockResolvedValue(undefined);
 const importProject = vi.fn();
 
 vi.mock('./storage/browser', () => ({
   storage: {
-    available: true,
+    get available() {
+      return mockAvailable;
+    },
     capabilities: { recentFiles: false, realPaths: false },
     openLibrary: () => openLibrary(),
     loadProject: (...args: unknown[]) => loadProject(...(args as [string])),
@@ -123,7 +162,7 @@ vi.mock('./storage/browser', () => ({
     duplicateProject: (...args: unknown[]) => duplicateProject(...(args as [string])),
     deleteProject: (...args: unknown[]) => deleteProject(...(args as [string])),
     setActiveProject: (...args: unknown[]) => setActiveProject(...(args as [string])),
-    autoSave: (...args: unknown[]) => autoSave(...args),
+    autoSave: (id: string, doc: SloydDocument) => autoSave(id, doc),
     exportProject: (...args: unknown[]) => exportProject(...args),
     importProject: (...args: unknown[]) => importProject(...args),
     listRecent: () => Promise.resolve([]),
@@ -142,7 +181,7 @@ beforeEach(() => {
   duplicateProject.mockReset().mockImplementation((...args: [string]) => fake.duplicateProject(...args));
   deleteProject.mockReset().mockImplementation((...args: [string]) => fake.deleteProject(...args));
   setActiveProject.mockReset().mockImplementation((...args: [string]) => fake.setActiveProject(...args));
-  autoSave.mockReset().mockResolvedValue(undefined);
+  autoSave.mockReset().mockImplementation(defaultAutoSave);
   exportProject.mockReset().mockResolvedValue(undefined);
   importProject.mockReset();
 });
@@ -293,25 +332,60 @@ describe('App restore-on-mount', () => {
     expect(useStore.getState().doc).toBe(saved);
   });
 
-  // The `!activeId` guard in the autosave effect is what makes a refused
+  // The `!activeId` guard in the autosave effect is what stops a refused
   // adoption (spec §2.2, `browser.ts`'s "degrade to a read-only legacy view")
-  // safe rather than merely quiet: `autoSave('', doc)` would itself flip
-  // `available` false and stick the storage banner on for the rest of the
-  // session. Nothing else in this file mounts with `libraryAvailable: false`,
-  // so this is the only thing standing between a future tidy dropping the
-  // guard and that regression going unnoticed.
-  it('does not autosave when the library failed to open', async () => {
+  // from calling `autoSave('', doc)` at all — real work, since that call
+  // would itself be a no-op write with nothing to write to. It is NOT what
+  // shows the banner: `available` is now set false inside `openLibrary`
+  // itself (Finding 2), so the banner must appear from the restore alone,
+  // before any autosave attempt ever happens. Both are asserted here.
+  it('does not autosave when the library failed to open, and shows the banner', async () => {
     vi.useFakeTimers();
     try {
-      const legacy = createDocument('Legacy');
-      openLibrary.mockResolvedValue({ activeId: '', doc: legacy, libraryAvailable: false });
+      fake.failNextOpenLibrary();
       render(<App />);
       await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+
+      expect(screen.getByRole('alert')).toHaveTextContent(/can.t save to this browser/i);
 
       act(() => { useStore.getState().setDocumentName('Edited'); });
       await act(async () => { await vi.advanceTimersByTimeAsync(700); });
 
       expect(autoSave).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // FINDING 1 REGRESSION TEST: an edit landing mid-restore must not
+  // permanently disable autosave for the rest of the session. Before the
+  // fix, `activeId`/`libraryAvailable` were only adopted on the branch that
+  // also calls `replaceDocument` — so the edit-wins branch left `activeId`
+  // at `''` forever, and the `!activeId` guard on the autosave effect
+  // silently killed every later save while SaveIndicator kept claiming
+  // "Saved locally". This mounts with a slow (deferred) restore, lets an
+  // edit land first exactly like the existing "does not clobber" test, and
+  // then proves autosave still arms afterward.
+  it('still autosaves after an edit lands mid-restore', async () => {
+    vi.useFakeTimers();
+    try {
+      const { promise, resolve } = deferred<{ activeId: string; doc: SloydDocument; libraryAvailable: boolean }>();
+      openLibrary.mockReturnValue(promise);
+
+      render(<App />);
+      act(() => { useStore.getState().addBoard(); });
+
+      await act(async () => {
+        resolve({ activeId: 'p-mid-restore', doc: createDocument('Saved'), libraryAvailable: true });
+        await promise;
+        await vi.advanceTimersByTimeAsync(0);
+      });
+
+      act(() => { useStore.getState().setDocumentName('Edited after restore'); });
+      const editedDoc = useStore.getState().doc;
+      await act(async () => { await vi.advanceTimersByTimeAsync(700); });
+
+      expect(autoSave).toHaveBeenCalledWith('p-mid-restore', editedDoc);
     } finally {
       vi.useRealTimers();
     }

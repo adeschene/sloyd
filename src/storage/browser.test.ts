@@ -451,6 +451,26 @@ describe('openLibrary — adoption', () => {
     expect(doc.name).toBe('Bench');
   });
 
+  // Fix round on Task 4, Finding 2: this refusal branch used to leave
+  // `_available` untouched, so a working store with an unusable index left
+  // the app claiming "Saved locally" while writing nothing anywhere and a
+  // reload would lose the session. A refused index means one EXISTS, so
+  // adoption already happened and AUTOSAVE_KEY is stale by definition —
+  // writing to it would destroy the round's entire rollback story, so there
+  // is no honest place left to persist to and `available` must say so.
+  it('flips `available` false on a refused (corrupt or unrecognised) index, even with a working store', async () => {
+    const store = new FakeStorage();
+    store.setItem(LIBRARY_KEY, '{not json at all');
+
+    const adapter = new BrowserStorageAdapter(store, () => 1000);
+    expect(adapter.available).toBe(true); // sanity: the store itself works
+
+    const { libraryAvailable } = await adapter.openLibrary();
+
+    expect(libraryAvailable).toBe(false);
+    expect(adapter.available).toBe(false);
+  });
+
   it('treats a present-but-empty-string index as PRESENT, not absent', async () => {
     const store = new FakeStorage();
     store.setItem(LIBRARY_KEY, '');

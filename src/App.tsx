@@ -65,7 +65,10 @@ export default function App() {
   //  - A document edit landing while the restore is still in flight (real
   //    with a slower storage backend than today's synchronous
   //    localStorage): if the user's doc has moved on by the time the
-  //    restore resolves, their edit wins and the restore is dropped.
+  //    restore resolves, their edit wins and the RESTORED DOCUMENT is
+  //    dropped — but activeId/libraryAvailable are adopted regardless (see
+  //    the comment below), because which project is open is not in
+  //    question just because the document lost the race.
   //  - StrictMode's double-invoke in dev running two overlapping restores:
   //    `cancelled` stops a stale continuation from firing after its effect
   //    was cleaned up.
@@ -76,16 +79,41 @@ export default function App() {
       try {
         const { activeId: id, doc: saved, libraryAvailable: libraryOk } = await storage.openLibrary();
         if (cancelled) return;
-        // The user edited while the restore was in flight — their work wins.
+        // ADOPTED UNCONDITIONALLY, before the edit-wins check below.
+        // Which DOCUMENT survives is about the user's edit racing the
+        // restore; which PROJECT is open, and whether the library opened at
+        // all, is not in question either way — openLibrary already
+        // resolved, successfully, with a real answer for both. Making this
+        // conditional on the branch below is exactly what silently disabled
+        // autosave for the rest of the session: activeId stayed '' forever,
+        // the !activeId guard on the autosave effect killed every later
+        // save, and SaveIndicator kept claiming "Saved locally" with no
+        // banner to say otherwise. (This is the same hazard the old
+        // loadAutoSaved-based comment here used to name for a different
+        // path — restored below rather than lost.)
+        setActiveId(id);
+        setLibraryAvailable(libraryOk);
+        // The user edited while the restore was in flight — their work
+        // wins. Only the DOCUMENT is skipped by this; activeId/
+        // libraryAvailable are already adopted above.
         if (useStore.getState().doc !== before) {
           setAvailable(storage.available);
           return;
         }
-        setActiveId(id);
-        setLibraryAvailable(libraryOk);
         replaceDocument(saved);
         setAvailable(storage.available);
       } catch {
+        // openLibrary itself carries a documented never-throws contract,
+        // unlike the loadAutoSaved() this replaced, so THIS catch has no
+        // data to adopt when it's openLibrary's own rejection that lands
+        // here — activeId/libraryAvailable correctly stay at their initial
+        // false/'' values (autosave off). Not a claim that nothing between
+        // the two setActiveId/setLibraryAvailable calls above and here can
+        // throw (replaceDocument is a plain store call, not a documented
+        // never-throws one) — only that if it did, activeId would already
+        // be adopted and restored.current would still correctly become
+        // true, which is fine, not the half-adopted state this comment
+        // used to warn about.
         if (!cancelled) setAvailable(storage.available);
       } finally {
         if (!cancelled) restored.current = true;

@@ -106,7 +106,20 @@ export class BrowserStorageAdapter implements StorageAdapter {
     const existing = this.parseIndexString(rawLibrary);
     if (!existing) {
       // Present but corrupt JSON, or a layout we don't understand. Do not
-      // adopt over it — write nothing, degrade to a read-only legacy view.
+      // adopt over it — write nothing, degrade to a GENUINELY read-only
+      // legacy view, not a session that claims to save and doesn't.
+      //
+      // `_available` goes false here on purpose, ruled rather than assumed:
+      // a refused index means an index EXISTS, so adoption already happened
+      // and AUTOSAVE_KEY is stale by definition — writing to it would
+      // destroy this round's entire rollback story (that key must never be
+      // written again after adoption) for a slot nothing reads once the
+      // index is repaired. So there is no honest place left to persist to,
+      // and the banner ("Sloyd can't save to this browser — your work
+      // exists only in this tab. Use Export before closing it.") must say
+      // so rather than let SaveIndicator keep claiming "Saved locally"
+      // while nothing is written anywhere and a reload loses the session.
+      this._available = false;
       return { activeId: '', doc: legacy, libraryAvailable: false };
     }
 
