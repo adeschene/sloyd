@@ -220,6 +220,119 @@ button[aria-pressed='true'] {
   font-weight: 500;
 }
 
+/* ------------------------------------------------------------ project menu */
+
+.project-menu { position: relative; display: inline-flex; }
+
+.project-menu-caret {
+  padding: 5px 6px;
+  font-size: 10px;
+  color: var(--ink-dim);
+}
+
+.project-menu-popup {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 5;
+  min-width: 20rem;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  gap: 1px;
+  /* Same surface, border and radius as the tape readout — this reads as part
+     of the instrument rather than as a floating widget, the app's one idiom
+     for a panel over the canvas. */
+  background: var(--graphite-850);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.35);
+}
+
+.project-row { display: flex; align-items: center; gap: 2px; }
+
+.project-row-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: var(--radius);
+  padding: 5px 6px;
+}
+
+.project-row-open:hover { background: var(--graphite-700); }
+
+.project-dot { color: var(--brass-bright); width: 0.6em; flex: none; }
+
+.project-row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-row-time {
+  font-family: var(--font-num);
+  color: var(--ink-faint);
+  font-size: 0.85em;
+  white-space: nowrap;
+}
+
+/*
+ * Always in the DOM; only the VISIBILITY is hover-driven, and focus reveals
+ * them too — hover alone would put duplicate and delete out of reach without
+ * a pointer (the brief's own requirement, restated here so a future edit
+ * does not "simplify" this into a conditional render).
+ */
+.project-row-action {
+  flex: none;
+  opacity: 0;
+  background: none;
+  border: none;
+  padding: 5px 6px;
+  color: var(--ink-dim);
+}
+
+.project-row:hover .project-row-action,
+.project-row-action:focus-visible {
+  opacity: 1;
+}
+
+.project-row-action:hover { background: var(--graphite-700); color: var(--ink); }
+
+/* The armed "Delete?" confirm reuses the app's existing .danger idiom
+   (button hover already goes alert-toned) rather than a new colour, and
+   stays fully opaque — it is the one action that must never depend on
+   hover to be seen once armed. */
+.project-row-action.danger {
+  opacity: 1;
+  color: var(--alert-bright);
+  background: var(--alert-bg-strong);
+  border-color: var(--alert-border);
+}
+
+.project-menu-divider {
+  height: 1px;
+  background: var(--rule);
+  margin: 4px 2px;
+}
+
+.project-menu-cmd {
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: var(--radius);
+  padding: 6px;
+  color: var(--ink);
+}
+
+.project-menu-cmd:hover { background: var(--graphite-700); }
+
 /* ---------------------------------------------------------------- workspace */
 
 .workspace { flex: 1; display: flex; min-height: 0; }

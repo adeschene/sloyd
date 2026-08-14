@@ -1,10 +1,11 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from './App';
 import { useStore } from './store/store';
 import { createDocument, createBoard, boardSnapPoints } from './document/document';
 import type { SloydDocument } from './document/document';
 import type { ProjectEntry } from './storage/types';
+import { storage } from './storage/browser';
 
 // The 3D viewport needs a real ResizeObserver and a WebGL-capable canvas,
 // neither of which jsdom provides. App's restore/autosave wiring doesn't
@@ -386,6 +387,97 @@ describe('App restore-on-mount', () => {
       await act(async () => { await vi.advanceTimersByTimeAsync(700); });
 
       expect(autoSave).toHaveBeenCalledWith('p-mid-restore', editedDoc);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // EXIT-CRITERION-2 DISCRIMINATING TEST (added during Task 5, not in the
+  // brief). The brief's Step 7 race test (see "App project switching" below)
+  // cannot fail on its own mutation instruction: `doc` alone is already in
+  // the autosave effect's dep list, every switch calls `replaceDocument` with
+  // a fresh object, so the effect's cleanup clears the outgoing timer before
+  // any fake-timer advance happens — the test never reaches a state where a
+  // timer armed before a switch is still pending after one, no matter how the
+  // id reaches `autoSave`. This test targets the one path where `activeId`
+  // changes and `doc` does NOT: the edit-wins branch of the restore, where
+  // `setActiveId` is adopted but `replaceDocument` is skipped (see the
+  // comment on that branch above). The existing "still autosaves after an
+  // edit lands mid-restore" test masks this by editing the document again
+  // afterward (`setDocumentName('Edited after restore')`), which changes
+  // `doc` and reruns the effect regardless of whether `activeId` is a dep.
+  // This test omits that second edit, so the ONLY thing that can rearm
+  // autosave is `activeId` itself changing — which fails to fire the effect
+  // at all if `activeId` is dropped from `}, [doc, activeId])`.
+  it('arms autosave against the id adopted mid-restore, with no edit afterward', async () => {
+    vi.useFakeTimers();
+    try {
+      const { promise, resolve } = deferred<{ activeId: string; doc: SloydDocument; libraryAvailable: boolean }>();
+      openLibrary.mockReturnValue(promise);
+
+      render(<App />);
+      act(() => { useStore.getState().addBoard(); });
+      const editedDoc = useStore.getState().doc;
+
+      await act(async () => {
+        resolve({ activeId: 'p-mid', doc: createDocument('Saved'), libraryAvailable: true });
+        await promise;
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      await act(async () => { await vi.advanceTimersByTimeAsync(700); });
+
+      expect(autoSave).toHaveBeenCalledWith('p-mid', editedDoc);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('App project switching', () => {
+  it('does not write the outgoing project into the incoming project’s slot', async () => {
+    // THE RACE: App debounces autosave 600ms on `doc`. If the active id lived
+    // inside the adapter, a timer armed while A was open would fire after a
+    // switch and write A's document into B's slot — silent data loss, and
+    // invisible in every screenshot. This test fails the moment the id stops
+    // being an explicit argument captured in the same closure as the doc.
+    vi.useFakeTimers();
+    const writes: Array<{ id: string; name: string }> = [];
+    // The module-level `autoSave` mock, not `vi.spyOn(storage, 'autoSave')`:
+    // this file's own convention (see "autosaves against the active project
+    // id" above), and it matters here — spying directly on the mocked
+    // storage object's property bypasses the same `mockAvailable` modelling
+    // either way, but stacking a second mock on top of the module fn that
+    // `beforeEach` already resets is the shape that goes stale first.
+    autoSave.mockImplementation(async (id: string, doc: SloydDocument) => {
+      writes.push({ id, name: doc.name });
+    });
+
+    try {
+      render(<App />);
+      await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+      const idA = (await storage.listProjects())[0].id;
+
+      // Edit project A, arming the debounce but NOT letting it fire.
+      act(() => { useStore.getState().setDocumentName('Project A'); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+
+      // Switch away before the timer fires. fireEvent + getBy, not
+      // userEvent + findBy: userEvent's pointer machinery and findBy's
+      // waitFor both poll on real setTimeout under the hood, which never
+      // fires under fake timers unless something else drives them, and both
+      // buttons are already synchronously present (the popup's command row
+      // does not wait on the async listProjects() fetch).
+      act(() => { fireEvent.click(screen.getByLabelText('Open project menu')); });
+      act(() => { fireEvent.click(screen.getByRole('menuitem', { name: /New project/ })); });
+      // onNewProject is async (createProject, then replaceDocument) — flush
+      // its microtasks before advancing the debounce.
+      await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
+
+      const idB = useStore.getState().doc.name === 'Untitled'
+        ? (await storage.listProjects()).find((p) => p.id !== idA)!.id
+        : idA;
+      expect(writes.filter((w) => w.id === idB && w.name === 'Project A')).toEqual([]);
     } finally {
       vi.useRealTimers();
     }

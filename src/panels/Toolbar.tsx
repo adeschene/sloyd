@@ -1,8 +1,22 @@
 import type { ReactNode } from 'react';
 import { useStore } from '../store/store';
+import { ProjectMenu } from './ProjectMenu';
 
 interface Props {
   children?: ReactNode;
+  /**
+   * False when library adoption failed (spec §2.2) — the session runs the
+   * legacy single-slot path and the menu is not rendered at all. A failed
+   * adoption must degrade to today's app, not to a menu that lies about
+   * being able to switch, duplicate or delete anything.
+   */
+  libraryAvailable: boolean;
+  activeId: string;
+  onOpenProject: (id: string) => void;
+  onNewProject: () => void;
+  onDuplicateProject: (id: string) => void;
+  onDeleteProject: (id: string) => void;
+  onImportProject: () => void;
   /** True when the viewport is drawing through an orthographic camera. */
   orthographic: boolean;
   onToggleProjection: () => void;
@@ -39,6 +53,13 @@ export function Toolbar({
   showGuides,
   onToggleGuides,
   onOpenCutList,
+  libraryAvailable,
+  activeId,
+  onOpenProject,
+  onNewProject,
+  onDuplicateProject,
+  onDeleteProject,
+  onImportProject,
 }: Props) {
   const name = useStore((s) => s.doc.name);
   const setDocumentName = useStore((s) => s.setDocumentName);
@@ -64,6 +85,16 @@ export function Toolbar({
           onBlur={() => useStore.getState().endGesture()}
           onChange={(e) => setDocumentName(e.target.value)}
         />
+        {libraryAvailable && (
+          <ProjectMenu
+            activeId={activeId}
+            onOpen={onOpenProject}
+            onNew={onNewProject}
+            onDuplicate={onDuplicateProject}
+            onDelete={onDeleteProject}
+            onImport={onImportProject}
+          />
+        )}
         <button className="btn-primary" onClick={addBoard}>+ Add board</button>
         <button onClick={onOpenCutList} title="Cut list — parts, quantities and joinery">
           Cut list

@@ -8,7 +8,7 @@ import { FileMenu, SaveIndicator, StorageBanner } from './panels/FileMenu';
 import { CutList } from './panels/CutList';
 import { TapeReadout } from './panels/TapeReadout';
 import { canBeginLength } from './units/length';
-import { tapeAxisFromKey } from './document/document';
+import { tapeAxisFromKey, createDocument } from './document/document';
 import { storage } from './storage/browser';
 import { useStore } from './store/store';
 
@@ -155,14 +155,32 @@ export default function App() {
     await storage.setActiveProject(id);
   }, [activeId, replaceDocument]);
 
-  // TASK 5 SCAFFOLDING: `libraryAvailable` decides whether the project menu
-  // renders at all (a failed adoption must show today's app, not a menu that
-  // lies), and `openProject` is its switch handler. Neither is threaded into
-  // Toolbar yet — that wiring is Task 5's, deliberately out of scope here.
-  // Referenced only so `noUnusedLocals` doesn't fail the build in the
-  // meantime; remove this line once Task 5 consumes them for real.
-  void libraryAvailable;
-  void openProject;
+  // Creates a fresh project, makes it the active one, and swaps the document
+  // in — the same replaceDocument-based shape as openProject and for the same
+  // reason (invariant 24, spec §3.1): a wholesale swap of what "the document"
+  // means belongs on that path, not on a bespoke action that would have to
+  // re-derive every held-point clearing rule undo/redo/openProject already
+  // gets for free.
+  //
+  // `createProject` returns `string | null` — null means the write failed and
+  // nothing was persisted (storage/types.ts). Nothing here is adopted in that
+  // case: no activeId change, no replaceDocument, so the session stays
+  // exactly where it was rather than switching to a project that does not
+  // exist on disk.
+  const onNewProject = useCallback(async () => {
+    const next = createDocument('Untitled');
+    const id = await storage.createProject(next);
+    if (!id) return;
+    setActiveId(id);
+    replaceDocument(next);
+  }, [replaceDocument]);
+
+  // TASK 6 SCAFFOLDING: duplicate, delete and import get their real handlers
+  // in Task 6. These no-op placeholders exist only so ProjectMenu — mounted
+  // below — has something to call; they do not touch storage.
+  const onDuplicateProject = useCallback((_id: string) => {}, []);
+  const onDeleteProject = useCallback((_id: string) => {}, []);
+  const onImportProject = useCallback(() => {}, []);
 
   // Closing the sheet puts focus back where it was. In an effect rather than
   // in `onClose` because the shell is still `inert` when the handler runs —
@@ -401,6 +419,13 @@ export default function App() {
             opener.current = document.activeElement as HTMLElement | null;
             setCutListOpen(true);
           }}
+          libraryAvailable={libraryAvailable}
+          activeId={activeId}
+          onOpenProject={openProject}
+          onNewProject={onNewProject}
+          onDuplicateProject={onDuplicateProject}
+          onDeleteProject={onDeleteProject}
+          onImportProject={onImportProject}
         >
           <SaveIndicator saving={saving} available={available} />
           <FileMenu />

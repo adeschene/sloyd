@@ -27,6 +27,13 @@ function renderToolbar(overrides: Partial<Parameters<typeof Toolbar>[0]> = {}) {
       showGuides
       onToggleGuides={noop}
       onOpenCutList={noop}
+      libraryAvailable={false}
+      activeId=""
+      onOpenProject={noop}
+      onNewProject={noop}
+      onDuplicateProject={noop}
+      onDeleteProject={noop}
+      onImportProject={noop}
       {...overrides}
     />,
   );
