@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { FocusEvent } from 'react';
 import { storage } from '../storage/browser';
 import type { ProjectEntry } from '../storage/types';
 
@@ -12,7 +13,7 @@ interface Props {
 }
 
 /** "2 min ago" — coarse on purpose; the exact second is never the question. */
-function relativeTime(at: number, now: number): string {
+export function relativeTime(at: number, now: number): string {
   const mins = Math.floor((now - at) / 60000);
   if (mins < 1) return 'just now';
   if (mins < 60) return `${mins} min ago`;
@@ -26,6 +27,14 @@ function relativeTime(at: number, now: number): string {
  * The caret-triggered dropdown that lists every project in the library. The
  * project-name input beside it stays a plain rename field — this is the only
  * way to switch, duplicate, delete or start a project.
+ *
+ * NOT an ARIA menu (no `role="menu"`/`menuitem`/`menuitemradio`, no arrow-key
+ * or roving-tabindex navigation) — considered and rejected. A row carries a
+ * name plus two independent actions, which is grid-shaped, not menu-shaped;
+ * the full menu pattern is more machinery defending a role this popup does
+ * not need. Plain buttons in DOM (Tab) order are the honest interaction, and
+ * `aria-current` marks the open project the way a nav landmark would, not
+ * `aria-checked`.
  */
 export function ProjectMenu({ activeId, onOpen, onNew, onDuplicate, onDelete, onImport }: Props) {
   const [open, setOpen] = useState(false);
@@ -51,13 +60,23 @@ export function ProjectMenu({ activeId, onOpen, onNew, onDuplicate, onDelete, on
   // governs shortcuts bound to `window`, where the listener can never tell
   // which subtree an event came from and so every consumer needs the
   // cut-list-open flag threaded to it explicitly. Neither hazard applies
-  // here: this listener is scoped to `root`, and the menu cannot be open
-  // behind the cut list in the first place — the app shell goes `inert`
-  // while the sheet is open, and opening the sheet is itself a toolbar click,
-  // which already closes this popup via the outside-click handler below.
-  // Routing Escape through App would mean lifting this component's open
-  // state into App just to re-derive a `cutListOpen` guard against a state
-  // that cannot occur. This looks like an invariant 27 violation; it is not.
+  // here: this listener is scoped to `root`, not `window`, so it only ever
+  // fires for a key pressed inside the popup.
+  //
+  // The popup is NOT provably unreachable behind the cut list, unlike an
+  // earlier version of this comment claimed: Tab out of the open popup to
+  // the Cut list button and press Enter, and the resulting `click` fires
+  // with no preceding `pointerdown` — the outside-click handler below never
+  // sees it, so the popup stays open (invisibly, behind the now-`inert`
+  // shell) until something else closes it. No permanently-unclosable state
+  // results — the close-on-focusout handler a few lines down closes the
+  // popup the moment focus leaves it, which happens as part of that same Tab
+  // press, before the Enter that opens the sheet. But the popup's closing is
+  // therefore doing real work in that path, not a formality, which is why
+  // routing Escape through App would still buy nothing: App's `cutListOpen`
+  // guard exists to stop a shortcut from acting on a hidden subtree, and by
+  // the time the sheet could be open, this popup's own focusout has already
+  // closed it.
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -78,26 +97,40 @@ export function ProjectMenu({ activeId, onOpen, onNew, onDuplicate, onDelete, on
     };
   }, [open]);
 
+  // Close on focusout: Tabbing past the last control in the popup (or
+  // Shift+Tabbing past the caret) moves focus outside `root` without any
+  // pointerdown, which the outside-click handler above cannot see at all —
+  // this is the other half of what keeps the popup from lingering open
+  // behind whatever focus lands on next (see the invariant-27 comment
+  // above). `relatedTarget` is the element gaining focus; null means focus
+  // left the document entirely (e.g. the address bar), which should also
+  // close it. React has no `onFocusOut` prop — its bubbling equivalent of
+  // native `focusout` is `onBlur` (React normalizes the non-bubbling native
+  // `focus`/`blur` pair into bubbling synthetic `onFocus`/`onBlur`), so this
+  // is bound as `onBlur` on the root, not the native event name.
+  const onFocusOut = useCallback((e: FocusEvent<HTMLDivElement>) => {
+    const next = e.relatedTarget as Node | null;
+    if (!next || !root.current?.contains(next)) setOpen(false);
+  }, []);
+
   const now = Date.now();
 
   return (
-    <div className="project-menu" ref={root}>
+    <div className="project-menu" ref={root} onBlur={onFocusOut}>
       <button
         className="project-menu-caret"
         aria-label="Open project menu"
         aria-expanded={open}
-        aria-haspopup="menu"
         onClick={() => setOpen((o) => !o)}
       >
         ▾
       </button>
       {open && (
-        <div className="project-menu-popup" role="menu">
+        <div className="project-menu-popup">
           {projects.map((p) => (
             <div className="project-row" key={p.id}>
               <button
-                role="menuitemradio"
-                aria-checked={p.id === activeId}
+                aria-current={p.id === activeId ? 'true' : undefined}
                 className="project-row-open"
                 onClick={() => { setOpen(false); onOpen(p.id); }}
               >
@@ -113,9 +146,20 @@ export function ProjectMenu({ activeId, onOpen, onNew, onDuplicate, onDelete, on
               >
                 ⧉
               </button>
+              {/*
+                Both branches render a <button> at this same sibling index —
+                that's what lets focus survive the arm/disarm swap (React
+                reuses the DOM node in place rather than unmounting one button
+                and mounting another) without an explicit focus-restore
+                effect. A future edit that gives either branch a distinct
+                `key` would silently break that: React would then treat them
+                as different elements, unmount/remount across the swap, and
+                drop focus back to the document body.
+              */}
               {armed === p.id ? (
                 <button
                   className="project-row-action danger"
+                  aria-label={`Delete ${p.name}?`}
                   onClick={() => { setArmed(null); onDelete(p.id); refresh(); }}
                 >
                   Delete?
@@ -133,10 +177,10 @@ export function ProjectMenu({ activeId, onOpen, onNew, onDuplicate, onDelete, on
             </div>
           ))}
           <div className="project-menu-divider" />
-          <button role="menuitem" className="project-menu-cmd" onClick={() => { setOpen(false); onNew(); }}>
+          <button className="project-menu-cmd" onClick={() => { setOpen(false); onNew(); }}>
             + New project
           </button>
-          <button role="menuitem" className="project-menu-cmd" onClick={() => { setOpen(false); onImport(); }}>
+          <button className="project-menu-cmd" onClick={() => { setOpen(false); onImport(); }}>
             ⬆ Import…
           </button>
         </div>

@@ -468,7 +468,10 @@ describe('App project switching', () => {
       // buttons are already synchronously present (the popup's command row
       // does not wait on the async listProjects() fetch).
       act(() => { fireEvent.click(screen.getByLabelText('Open project menu')); });
-      act(() => { fireEvent.click(screen.getByRole('menuitem', { name: /New project/ })); });
+      // Plain button, not `role="menuitem"` — ProjectMenu dropped its ARIA
+      // menu roles (Finding 3, fix round 1): the popup is Tab-ordered
+      // buttons, not a roving-tabindex menu.
+      act(() => { fireEvent.click(screen.getByRole('button', { name: /New project/ })); });
       // onNewProject is async (createProject, then replaceDocument) — flush
       // its microtasks before advancing the debounce.
       await act(async () => { await vi.advanceTimersByTimeAsync(0); });
@@ -481,6 +484,28 @@ describe('App project switching', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  // MINOR FINDING: ProjectMenu's Escape handler calls `e.stopPropagation()`,
+  // and that call is load-bearing — without it, the same keydown would also
+  // reach App's window-level listener and walk its grabbed/tapeAxis/
+  // tapeAnchor/tool ladder, which (with nothing grabbed and no tape state)
+  // resets `tool` to 'select'. Deleting `stopPropagation()` is invisible to
+  // every other test in this file, since none of them open the project menu
+  // with a non-'select' tool active. This one does.
+  it('does not let Escape inside the project menu fall through to App’s tool ladder', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await act(async () => { await Promise.resolve(); });
+
+    act(() => { useStore.getState().setTool('move'); });
+    await user.click(screen.getByLabelText('Open project menu'));
+    expect(screen.getByLabelText('Open project menu')).toHaveAttribute('aria-expanded', 'true');
+
+    await user.keyboard('{Escape}');
+
+    expect(screen.getByLabelText('Open project menu')).toHaveAttribute('aria-expanded', 'false');
+    expect(useStore.getState().tool).toBe('move');
   });
 });
 

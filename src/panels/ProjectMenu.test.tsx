@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ProjectMenu } from './ProjectMenu';
+import { ProjectMenu, relativeTime } from './ProjectMenu';
 import { storage } from '../storage/browser';
 
 const entries = [
@@ -19,28 +19,43 @@ const open = async () => {
   return user;
 };
 
+// Rows are plain buttons now (Finding 3 — this popup dropped `role="menu"`
+// and its children's menu roles, deliberately: a row carries a name plus two
+// independent actions, which is grid- not menu-shaped, and a real menu
+// pattern would need arrow-key/roving-tabindex navigation this popup does
+// not have). Queried by class rather than by accessible `name` so these
+// tests don't depend on how the browser flattens the dot/name/time spans
+// into one string — the duplicate/delete buttons carry their own distinct
+// `aria-label`s and are still queried that way below.
+const openRows = () =>
+  screen.getAllByRole('button').filter((b) => b.classList.contains('project-row-open'));
+
 describe('ProjectMenu', () => {
   it('lists projects in the order the adapter returned them', async () => {
     render(<ProjectMenu activeId="a" onOpen={vi.fn()} onNew={vi.fn()} onDuplicate={vi.fn()} onDelete={vi.fn()} onImport={vi.fn()} />);
     await open();
-    const rows = await screen.findAllByRole('menuitemradio');
-    expect(rows.map((r) => r.textContent)).toEqual([
-      expect.stringContaining('Shaker end table'),
-      expect.stringContaining('Workbench'),
-    ]);
+    const rows = await screen.findAllByText(/Shaker end table|Workbench/, { selector: '.project-row-name' });
+    expect(rows.map((r) => r.textContent)).toEqual(['Shaker end table', 'Workbench']);
   });
 
   it('marks the active project', async () => {
     render(<ProjectMenu activeId="a" onOpen={vi.fn()} onNew={vi.fn()} onDuplicate={vi.fn()} onDelete={vi.fn()} onImport={vi.fn()} />);
     await open();
-    expect(await screen.findByRole('menuitemradio', { name: /Workbench/ })).toBeChecked();
+    await screen.findAllByText('Workbench');
+    const rows = openRows();
+    const workbench = rows.find((r) => r.textContent?.includes('Workbench'))!;
+    const shaker = rows.find((r) => r.textContent?.includes('Shaker'))!;
+    expect(workbench).toHaveAttribute('aria-current', 'true');
+    expect(shaker).not.toHaveAttribute('aria-current');
   });
 
   it('opens a project on click', async () => {
     const onOpen = vi.fn();
     render(<ProjectMenu activeId="a" onOpen={onOpen} onNew={vi.fn()} onDuplicate={vi.fn()} onDelete={vi.fn()} onImport={vi.fn()} />);
     const user = await open();
-    await user.click(await screen.findByRole('menuitemradio', { name: /Shaker/ }));
+    await screen.findAllByText('Shaker end table');
+    const shaker = openRows().find((r) => r.textContent?.includes('Shaker'))!;
+    await user.click(shaker);
     expect(onOpen).toHaveBeenCalledWith('b');
   });
 
@@ -49,9 +64,15 @@ describe('ProjectMenu', () => {
     const onDelete = vi.fn();
     render(<ProjectMenu activeId="a" onOpen={vi.fn()} onNew={vi.fn()} onDuplicate={vi.fn()} onDelete={onDelete} onImport={vi.fn()} />);
     const user = await open();
-    await user.click((await screen.findAllByLabelText(/^Delete /))[0]);
+    const deleteButtons = await screen.findAllByLabelText(/^Delete /);
+    await user.click(deleteButtons[0]);
     expect(onDelete).not.toHaveBeenCalled();
-    await user.click(await screen.findByRole('button', { name: 'Delete?' }));
+    // The armed confirm's accessible name carries the project name (Minor
+    // finding: "Delete?" alone is ambiguous with several rows armed at
+    // once — not reachable simultaneously today since arming one row
+    // disarms any other, but the name should say which row regardless).
+    const confirm = await screen.findByRole('button', { name: 'Delete Shaker end table?' });
+    await user.click(confirm);
     expect(onDelete).toHaveBeenCalledWith('b');
   });
 
@@ -61,7 +82,7 @@ describe('ProjectMenu', () => {
     const user = await open();
     await user.click((await screen.findAllByLabelText(/^Delete /))[0]);
     await user.click((await screen.findAllByLabelText(/^Duplicate /))[1]);
-    expect(screen.queryByRole('button', { name: 'Delete?' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Delete Shaker end table?' })).toBeNull();
     expect(onDelete).not.toHaveBeenCalled();
   });
 
@@ -69,8 +90,9 @@ describe('ProjectMenu', () => {
     const onOpen = vi.fn();
     render(<ProjectMenu activeId="a" onOpen={onOpen} onNew={vi.fn()} onDuplicate={vi.fn()} onDelete={vi.fn()} onImport={vi.fn()} />);
     const user = await open();
+    await screen.findAllByText('Workbench');
     await user.keyboard('{Escape}');
-    expect(screen.queryByRole('menu')).toBeNull();
+    expect(screen.queryByLabelText(/^Delete /)).toBeNull();
     expect(onOpen).not.toHaveBeenCalled();
   });
 
@@ -81,5 +103,61 @@ describe('ProjectMenu', () => {
     await open();
     expect(await screen.findAllByLabelText(/^Duplicate /)).toHaveLength(2);
     expect(await screen.findAllByLabelText(/^Delete /)).toHaveLength(2);
+  });
+
+  // Finding 3's replacement for the ARIA-menu content model: no roles to
+  // assert, so this pins the actual mechanism — Tab order — instead. The
+  // sequence is arm (click ×), then Tab, then Enter/Space on the confirm
+  // that received focus, which only works if focus SURVIVED the swap.
+  it('keeps focus on the confirm button after arming, so Space commits it', async () => {
+    const onDelete = vi.fn();
+    render(<ProjectMenu activeId="a" onOpen={vi.fn()} onNew={vi.fn()} onDuplicate={vi.fn()} onDelete={onDelete} onImport={vi.fn()} />);
+    const user = await open();
+    const armButton = (await screen.findAllByLabelText(/^Delete /))[0];
+    act(() => { armButton.focus(); });
+    await user.keyboard('{Enter}');
+    // Same element in the DOM at this sibling index — the arm swaps its
+    // label/class, not its identity — so focus was never dropped.
+    expect(document.activeElement).toHaveAccessibleName('Delete Shaker end table?');
+    await user.keyboard(' ');
+    expect(onDelete).toHaveBeenCalledWith('b');
+  });
+
+  it('closes when focus leaves the popup entirely (Tab out), independent of outside-click', async () => {
+    render(
+      <>
+        <ProjectMenu activeId="a" onOpen={vi.fn()} onNew={vi.fn()} onDuplicate={vi.fn()} onDelete={vi.fn()} onImport={vi.fn()} />
+        <button>outside</button>
+      </>,
+    );
+    await open();
+    await screen.findAllByText('Workbench');
+    const outside = screen.getByRole('button', { name: 'outside' });
+    act(() => { outside.focus(); });
+    expect(screen.queryByText('Workbench')).toBeNull();
+  });
+});
+
+describe('relativeTime', () => {
+  const now = 1_000_000;
+
+  it('reads as "just now" under a minute', () => {
+    expect(relativeTime(now - 30_000, now)).toBe('just now');
+  });
+
+  it('reads in minutes under an hour', () => {
+    expect(relativeTime(now - 5 * 60_000, now)).toBe('5 min ago');
+  });
+
+  it('reads in hours under a day', () => {
+    expect(relativeTime(now - 3 * 3_600_000, now)).toBe('3 hr ago');
+  });
+
+  it('reads "yesterday" for exactly one day', () => {
+    expect(relativeTime(now - 24 * 3_600_000, now)).toBe('yesterday');
+  });
+
+  it('reads in days beyond a day', () => {
+    expect(relativeTime(now - 3 * 24 * 3_600_000, now)).toBe('3 days ago');
   });
 });

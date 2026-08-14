@@ -126,12 +126,29 @@ export default function App() {
 
   // Debounced autosave on every document change.
   //
-  // `activeId` is in the dep list and passed EXPLICITLY, which is what makes
-  // switching safe: a switch changes both it and `doc` in one render, and
-  // this effect's cleanup clears the pending timer before the new one arms.
-  // Drop the id from either place and a timer armed before a switch writes
-  // the outgoing project into the incoming project's slot. See the race test
-  // in App.test.tsx.
+  // TWO SEPARATE THINGS, and it matters which one guards which failure:
+  //
+  // The protection against the SWITCH RACE is `activeId` being passed as an
+  // EXPLICIT ARGUMENT captured in the same closure as `doc` — not read back
+  // off adapter state — PLUS `doc` changing on every switch (openProject and
+  // onNewProject both call `replaceDocument` with a fresh object). That
+  // combination is what makes this effect's cleanup clear the outgoing
+  // project's pending timer before the incoming one's ever arms: `doc`
+  // alone, already in the dep list, is enough to force the rerun-and-cleanup
+  // on every switch. See the race test in App.test.tsx — and see its own
+  // comment for why `activeId`'s presence or absence in THIS dep list does
+  // not, on its own, change whether that specific race is reachable.
+  //
+  // `activeId`'s OWN reason to be a dependency is different and is not
+  // redundant: it is what arms autosave AT ALL after a mid-restore adoption,
+  // the one path where `activeId` changes without `doc` changing (the
+  // restore effect's edit-wins branch above adopts `activeId` but skips
+  // `replaceDocument`, since the user's in-flight edit is what should win).
+  // Drop `activeId` from this dep list and that adoption never reruns this
+  // effect, so autosave silently never arms for the rest of the session
+  // until some unrelated later edit happens to change `doc` on its own. See
+  // "arms autosave against the id adopted mid-restore" in App.test.tsx,
+  // verified failing under that exact mutation.
   useEffect(() => {
     if (!restored.current || !activeId) return;
     setSaving(true);

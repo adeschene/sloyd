@@ -136,6 +136,24 @@ describe('Guides checkbox', () => {
   });
 });
 
+describe('Project menu gating', () => {
+  // The menu is gated behind `libraryAvailable` so a failed library adoption
+  // degrades to today's single-project app rather than to a menu that lies
+  // about being able to switch, duplicate, delete or import anything —
+  // flipping this to `libraryAvailable ||` (i.e. always rendering) would
+  // still pass every other test in this file, since none of them assert on
+  // its absence. These two are what close that gap.
+  it('does not render the project menu when the library is unavailable', () => {
+    renderToolbar({ libraryAvailable: false });
+    expect(screen.queryByLabelText('Open project menu')).toBeNull();
+  });
+
+  it('renders the project menu when the library is available', () => {
+    renderToolbar({ libraryAvailable: true, activeId: 'p1' });
+    expect(screen.getByLabelText('Open project menu')).toBeInTheDocument();
+  });
+});
+
 describe('Tape button', () => {
   it('is pressed when the tape tool is active and activates it on click', async () => {
     renderToolbar();
