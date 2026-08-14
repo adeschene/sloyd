@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Viewport } from './viewport/Viewport';
 import { Toolbar } from './panels/Toolbar';
 import { PartsList } from './panels/PartsList';
@@ -53,6 +53,11 @@ export default function App() {
   // mounts the opener is already gone from `document.activeElement`.
   const opener = useRef<HTMLElement | null>(null);
   const restored = useRef(false);
+  const [activeId, setActiveId] = useState('');
+  // False when adoption failed (spec §2.2). The session runs the legacy
+  // single-slot path and the caret is not rendered — a failed adoption must
+  // degrade to TODAY'S APP, not to an empty one or to a menu that lies.
+  const [libraryAvailable, setLibraryAvailable] = useState(false);
 
   // Restore once on mount, before any autosave can overwrite it.
   //
@@ -69,20 +74,18 @@ export default function App() {
     (async () => {
       const before = useStore.getState().doc;
       try {
-        const saved = await storage.loadAutoSaved();
+        const { activeId: id, doc: saved, libraryAvailable: libraryOk } = await storage.openLibrary();
         if (cancelled) return;
         // The user edited while the restore was in flight — their work wins.
         if (useStore.getState().doc !== before) {
           setAvailable(storage.available);
           return;
         }
-        if (saved) replaceDocument(saved);
+        setActiveId(id);
+        setLibraryAvailable(libraryOk);
+        replaceDocument(saved);
         setAvailable(storage.available);
       } catch {
-        // loadAutoSaved carries no never-throws contract (unlike autoSave).
-        // A rejection here must not leave restored.current permanently
-        // false — that would silently disable autosave for the rest of the
-        // session while SaveIndicator keeps claiming "Saved locally".
         if (!cancelled) setAvailable(storage.available);
       } finally {
         if (!cancelled) restored.current = true;
@@ -94,16 +97,44 @@ export default function App() {
   }, [replaceDocument]);
 
   // Debounced autosave on every document change.
+  //
+  // `activeId` is in the dep list and passed EXPLICITLY, which is what makes
+  // switching safe: a switch changes both it and `doc` in one render, and
+  // this effect's cleanup clears the pending timer before the new one arms.
+  // Drop the id from either place and a timer armed before a switch writes
+  // the outgoing project into the incoming project's slot. See the race test
+  // in App.test.tsx.
   useEffect(() => {
-    if (!restored.current) return;
+    if (!restored.current || !activeId) return;
     setSaving(true);
     const t = setTimeout(async () => {
-      await storage.autoSave(doc);
+      await storage.autoSave(activeId, doc);
       setAvailable(storage.available);
       setSaving(false);
     }, 600);
     return () => clearTimeout(t);
-  }, [doc]);
+  }, [doc, activeId]);
+
+  // Switching IS a replaceDocument call (invariant 24, spec §3.1): a fresh
+  // action would have to re-derive every held-point clearing rule, and a
+  // wholesale rewrite of doc.boards is exactly what that invariant names.
+  const openProject = useCallback(async (id: string) => {
+    if (id === activeId) return;
+    const next = await storage.loadProject(id);
+    if (!next) return;
+    setActiveId(id);
+    replaceDocument(next);
+    await storage.setActiveProject(id);
+  }, [activeId, replaceDocument]);
+
+  // TASK 5 SCAFFOLDING: `libraryAvailable` decides whether the project menu
+  // renders at all (a failed adoption must show today's app, not a menu that
+  // lies), and `openProject` is its switch handler. Neither is threaded into
+  // Toolbar yet — that wiring is Task 5's, deliberately out of scope here.
+  // Referenced only so `noUnusedLocals` doesn't fail the build in the
+  // meantime; remove this line once Task 5 consumes them for real.
+  void libraryAvailable;
+  void openProject;
 
   // Closing the sheet puts focus back where it was. In an effect rather than
   // in `onClose` because the shell is still `inert` when the handler runs —

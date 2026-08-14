@@ -3,6 +3,8 @@ import userEvent from '@testing-library/user-event';
 import App from './App';
 import { useStore } from './store/store';
 import { createDocument, createBoard, boardSnapPoints } from './document/document';
+import type { SloydDocument } from './document/document';
+import type { ProjectEntry } from './storage/types';
 
 // The 3D viewport needs a real ResizeObserver and a WebGL-capable canvas,
 // neither of which jsdom provides. App's restore/autosave wiring doesn't
@@ -20,7 +22,92 @@ vi.mock('./viewport/Viewport', () => ({
   },
 }));
 
-const loadAutoSaved = vi.fn();
+// A small in-memory stand-in for the library half of StorageAdapter (R4).
+// Real enough to behave — openLibrary/loadProject/createProject etc. all
+// read and write the same map — but with no persistence of its own, so
+// `reset()` in beforeEach (R5) is what stops one test's projects leaking
+// into the next (the exact shape of follow-up 148).
+type FakeProject = { entry: ProjectEntry; doc: SloydDocument };
+
+function makeLibraryFake() {
+  const projects = new Map<string, FakeProject>();
+  let activeId = '';
+  let counter = 0;
+
+  return {
+    reset() {
+      projects.clear();
+      activeId = '';
+      counter = 0;
+    },
+    /** Seed a project directly (bypassing createProject) and make it active. */
+    seed(doc: SloydDocument, id = `p${++counter}`) {
+      projects.set(id, {
+        entry: { id, name: doc.name, savedAt: Date.now(), createdAt: Date.now() },
+        doc,
+      });
+      activeId = id;
+      return id;
+    },
+    async openLibrary() {
+      const p = projects.get(activeId);
+      if (p) return { activeId, doc: p.doc, libraryAvailable: true };
+      // Nothing seeded for this test: behave like "restore has nothing to
+      // adopt" by handing back the document already in the store, under a
+      // fresh id, rather than silently swapping in an unrelated document.
+      const doc = useStore.getState().doc;
+      const id = `p${++counter}`;
+      projects.set(id, {
+        entry: { id, name: doc.name, savedAt: Date.now(), createdAt: Date.now() },
+        doc,
+      });
+      activeId = id;
+      return { activeId, doc, libraryAvailable: true };
+    },
+    async loadProject(id: string) {
+      return projects.get(id)?.doc ?? null;
+    },
+    async listProjects(): Promise<ProjectEntry[]> {
+      return [...projects.values()].map((p) => p.entry);
+    },
+    async createProject(doc: SloydDocument) {
+      const id = `p${++counter}`;
+      projects.set(id, {
+        entry: { id, name: doc.name, savedAt: Date.now(), createdAt: Date.now() },
+        doc,
+      });
+      activeId = id;
+      return id;
+    },
+    async duplicateProject(id: string) {
+      const p = projects.get(id);
+      if (!p) return null;
+      const newId = `p${++counter}`;
+      const name = `${p.entry.name} copy`;
+      projects.set(newId, {
+        entry: { id: newId, name, savedAt: Date.now(), createdAt: Date.now() },
+        doc: { ...p.doc, name },
+      });
+      return newId;
+    },
+    async deleteProject(_id: string) {
+      return null;
+    },
+    async setActiveProject(id: string) {
+      activeId = id;
+    },
+  };
+}
+
+const fake = makeLibraryFake();
+
+const openLibrary = vi.fn(() => fake.openLibrary());
+const loadProject = vi.fn((...args: [string]) => fake.loadProject(...args));
+const listProjects = vi.fn(() => fake.listProjects());
+const createProject = vi.fn((...args: [SloydDocument]) => fake.createProject(...args));
+const duplicateProject = vi.fn((...args: [string]) => fake.duplicateProject(...args));
+const deleteProject = vi.fn((...args: [string]) => fake.deleteProject(...args));
+const setActiveProject = vi.fn((...args: [string]) => fake.setActiveProject(...args));
 const autoSave = vi.fn().mockResolvedValue(undefined);
 const exportProject = vi.fn().mockResolvedValue(undefined);
 const importProject = vi.fn();
@@ -29,7 +116,13 @@ vi.mock('./storage/browser', () => ({
   storage: {
     available: true,
     capabilities: { recentFiles: false, realPaths: false },
-    loadAutoSaved: (...args: unknown[]) => loadAutoSaved(...args),
+    openLibrary: () => openLibrary(),
+    loadProject: (...args: unknown[]) => loadProject(...(args as [string])),
+    listProjects: () => listProjects(),
+    createProject: (...args: unknown[]) => createProject(...(args as [SloydDocument])),
+    duplicateProject: (...args: unknown[]) => duplicateProject(...(args as [string])),
+    deleteProject: (...args: unknown[]) => deleteProject(...(args as [string])),
+    setActiveProject: (...args: unknown[]) => setActiveProject(...(args as [string])),
     autoSave: (...args: unknown[]) => autoSave(...args),
     exportProject: (...args: unknown[]) => exportProject(...args),
     importProject: (...args: unknown[]) => importProject(...args),
@@ -41,7 +134,14 @@ const reset = () => useStore.getState().replaceDocument(createDocument('Test'));
 
 beforeEach(() => {
   reset();
-  loadAutoSaved.mockReset();
+  fake.reset();
+  openLibrary.mockReset().mockImplementation(() => fake.openLibrary());
+  loadProject.mockReset().mockImplementation((...args: [string]) => fake.loadProject(...args));
+  listProjects.mockReset().mockImplementation(() => fake.listProjects());
+  createProject.mockReset().mockImplementation((...args: [SloydDocument]) => fake.createProject(...args));
+  duplicateProject.mockReset().mockImplementation((...args: [string]) => fake.duplicateProject(...args));
+  deleteProject.mockReset().mockImplementation((...args: [string]) => fake.deleteProject(...args));
+  setActiveProject.mockReset().mockImplementation((...args: [string]) => fake.setActiveProject(...args));
   autoSave.mockReset().mockResolvedValue(undefined);
   exportProject.mockReset().mockResolvedValue(undefined);
   importProject.mockReset();
@@ -57,8 +157,8 @@ function deferred<T>() {
 
 describe('App restore-on-mount', () => {
   it('does not clobber a document the user edited while the restore was in flight', async () => {
-    const { promise, resolve } = deferred<ReturnType<typeof createDocument> | null>();
-    loadAutoSaved.mockReturnValue(promise);
+    const { promise, resolve } = deferred<{ activeId: string; doc: SloydDocument; libraryAvailable: boolean }>();
+    openLibrary.mockReturnValue(promise);
 
     render(<App />);
 
@@ -73,7 +173,7 @@ describe('App restore-on-mount', () => {
     // The restore now resolves with an unrelated saved document.
     const saved = { ...createDocument('Saved'), boards: [createBoard(), createBoard()] };
     await act(async () => {
-      resolve(saved);
+      resolve({ activeId: 'p-saved', doc: saved, libraryAvailable: true });
       await promise;
     });
 
@@ -85,8 +185,8 @@ describe('App restore-on-mount', () => {
   });
 
   it('does not replace the document after the component has unmounted', async () => {
-    const { promise, resolve } = deferred<ReturnType<typeof createDocument> | null>();
-    loadAutoSaved.mockReturnValue(promise);
+    const { promise, resolve } = deferred<{ activeId: string; doc: SloydDocument; libraryAvailable: boolean }>();
+    openLibrary.mockReturnValue(promise);
 
     const { unmount } = render(<App />);
     const beforeDoc = useStore.getState().doc;
@@ -95,7 +195,7 @@ describe('App restore-on-mount', () => {
 
     const saved = { ...createDocument('Saved'), boards: [createBoard()] };
     await act(async () => {
-      resolve(saved);
+      resolve({ activeId: 'p-saved', doc: saved, libraryAvailable: true });
       await promise;
     });
 
@@ -103,8 +203,8 @@ describe('App restore-on-mount', () => {
   });
 
   it('still marks the restore complete when there is nothing to restore', async () => {
-    loadAutoSaved.mockResolvedValue(null);
     const initialDoc = useStore.getState().doc;
+    openLibrary.mockResolvedValue({ activeId: 'p1', doc: initialDoc, libraryAvailable: true });
 
     await act(async () => {
       render(<App />);
@@ -125,7 +225,8 @@ describe('App restore-on-mount', () => {
     // catch it. This one does.
     vi.useFakeTimers();
     try {
-      loadAutoSaved.mockResolvedValue(null);
+      const initialDoc = useStore.getState().doc;
+      openLibrary.mockResolvedValue({ activeId: 'p1', doc: initialDoc, libraryAvailable: true });
       render(<App />);
       await act(async () => {
         await vi.advanceTimersByTimeAsync(0);
@@ -140,7 +241,77 @@ describe('App restore-on-mount', () => {
         await vi.advanceTimersByTimeAsync(600);
       });
 
-      expect(autoSave).toHaveBeenCalledWith(editedDoc);
+      expect(autoSave).toHaveBeenCalledWith('p1', editedDoc);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // THE RACE THIS ROUND CLOSES (spec's headline hazard). The id must reach
+  // autoSave as an explicit argument captured in the same effect closure as
+  // the document — not read back off adapter state — or a timer armed while
+  // one project is open can fire after a switch and write into the wrong
+  // slot. This only proves the id reaches autoSave at all (the precondition);
+  // the full switch-mid-debounce test lands in Task 5 once there is a menu
+  // to switch from.
+  it('autosaves against the active project id, not a remembered one', async () => {
+    vi.useFakeTimers();
+    const writes: Array<{ id: string; name: string }> = [];
+    autoSave.mockImplementation(async (id: string, doc: SloydDocument) => {
+      writes.push({ id, name: doc.name });
+    });
+
+    try {
+      render(<App />);
+      await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+      act(() => { useStore.getState().setDocumentName('Project A'); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(700); });
+
+      expect(writes).toHaveLength(1);
+      expect(writes[0].name).toBe('Project A');
+      expect(writes[0].id).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // "Boot loads your project" itself — every test above passes `initialDoc`
+  // (or lets the fake default to the store's own current doc) as
+  // `openLibrary`'s payload, so none of them can tell `replaceDocument(saved)`
+  // apart from it being deleted outright. This mounts against a genuinely
+  // DIFFERENT document and checks the store actually adopts it.
+  it('adopts the document openLibrary returns', async () => {
+    const saved = { ...createDocument('From library'), boards: [createBoard()] };
+    openLibrary.mockResolvedValue({ activeId: 'p7', doc: saved, libraryAvailable: true });
+
+    await act(async () => {
+      render(<App />);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(useStore.getState().doc).toBe(saved);
+  });
+
+  // The `!activeId` guard in the autosave effect is what makes a refused
+  // adoption (spec §2.2, `browser.ts`'s "degrade to a read-only legacy view")
+  // safe rather than merely quiet: `autoSave('', doc)` would itself flip
+  // `available` false and stick the storage banner on for the rest of the
+  // session. Nothing else in this file mounts with `libraryAvailable: false`,
+  // so this is the only thing standing between a future tidy dropping the
+  // guard and that regression going unnoticed.
+  it('does not autosave when the library failed to open', async () => {
+    vi.useFakeTimers();
+    try {
+      const legacy = createDocument('Legacy');
+      openLibrary.mockResolvedValue({ activeId: '', doc: legacy, libraryAvailable: false });
+      render(<App />);
+      await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+
+      act(() => { useStore.getState().setDocumentName('Edited'); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(700); });
+
+      expect(autoSave).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
     }
@@ -149,7 +320,6 @@ describe('App restore-on-mount', () => {
 
 describe('App keyboard delete', () => {
   const mountWithOneBoard = async () => {
-    loadAutoSaved.mockResolvedValue(null);
     render(<App />);
     await act(async () => { await Promise.resolve(); });
     await act(async () => { useStore.getState().addBoard(); });
@@ -314,7 +484,6 @@ describe('App keyboard delete', () => {
 // guards the capture inherits by living inside App's existing keydown effect.
 describe('App type-anywhere tape capture', () => {
   const anchoredTape = async () => {
-    loadAutoSaved.mockResolvedValue(null);
     render(<App />);
     await act(async () => { await Promise.resolve(); });
     await act(async () => { useStore.getState().addBoard(); });
