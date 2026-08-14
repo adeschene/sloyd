@@ -65,29 +65,40 @@ export class BrowserStorageAdapter implements StorageAdapter {
    * slot the first time. Never throws: a failure here degrades to the
    * pre-library app rather than to an empty one.
    *
-   * Adoption fires on exactly one condition: LIBRARY_KEY is ABSENT. A
-   * present-but-unusable index (corrupt, or a layout this build does not
-   * recognise — in particular a NEWER one) must never be treated as an
+   * Adoption fires on exactly one condition: LIBRARY_KEY is ABSENT — tested
+   * on the RAW `getItem` result, before any JSON.parse. A present-but-empty
+   * string still counts as present: something wrote that key. A
+   * present-but-unusable index (corrupt JSON, or a layout this build does
+   * not recognise — in particular a NEWER one) must never be treated as an
    * absent one: doing so would silently clobber real project data with a
-   * fresh single-entry index built from the stale legacy document. Refuse,
-   * the same way the document layer refuses an unrecognised `version`
-   * rather than guessing at it.
+   * fresh single-entry index built from the stale legacy document. Refuse
+   * instead, the same way the document layer refuses an unrecognised
+   * `version` rather than guessing at it.
    */
   async openLibrary(): Promise<{ activeId: string; doc: SloydDocument; libraryAvailable: boolean }> {
     const legacy = (await this.loadAutoSaved()) ?? createDocument();
 
     if (!this.store) return { activeId: '', doc: legacy, libraryAvailable: false };
 
-    const rawIndex = readJSON(this.store, LIBRARY_KEY);
-    if (rawIndex === null) {
-      // The only route that adopts: the key is genuinely absent (or
-      // unreadable, which this build cannot distinguish from absent).
+    const rawLibrary = readRaw(this.store, LIBRARY_KEY);
+    if (rawLibrary === null) {
+      // The only route that adopts: the key is genuinely absent (or the
+      // read itself failed, which this build treats the same way).
       return this.adopt(legacy);
     }
 
-    const existing = parseIndex(rawIndex);
+    // Present. Parse it ourselves rather than going through readJSON, which
+    // collapses "present but unparseable" into the same null as "absent" —
+    // exactly the distinction this branch exists to preserve.
+    let parsed: unknown = null;
+    try {
+      parsed = JSON.parse(rawLibrary);
+    } catch {
+      parsed = null;
+    }
+    const existing = parseIndex(parsed);
     if (!existing) {
-      // Present but unparseable, or a layout we don't understand. Do not
+      // Present but corrupt JSON, or a layout we don't understand. Do not
       // adopt over it — write nothing, degrade to a read-only legacy view.
       return { activeId: '', doc: legacy, libraryAvailable: false };
     }
@@ -111,9 +122,11 @@ export class BrowserStorageAdapter implements StorageAdapter {
       if (doc) return { activeId: id, doc, libraryAvailable: true };
     }
 
-    // The index names projects but none of their keys are loadable. Degrade
-    // rather than clobber, same as an unparseable index.
-    return { activeId: '', doc: legacy, libraryAvailable: false };
+    // The index names projects but none of their keys are loadable. An
+    // index exists, so adoption already happened and the legacy document is
+    // stale by definition — the honest answer is the same as the
+    // empty-projects case: add a fresh Untitled project, never re-adopt.
+    return this.addUntitledProject(existing);
   }
 
   /**
@@ -298,14 +311,24 @@ function safeLocalStorage(): Storage | null {
   }
 }
 
-/** Read and JSON.parse a key. Null for absent, unreadable or corrupt. */
-function readJSON(store: Storage, key: string): unknown {
-  let raw: string | null;
+/**
+ * Raw `getItem`, with read errors folded into `null`. Distinct from
+ * `readJSON` on purpose: `openLibrary` needs to know whether the key is
+ * PRESENT (even as an unparseable or empty string) before it decides
+ * whether to adopt, and `readJSON` cannot answer that — it already
+ * collapses "present but corrupt" into the same null as "absent".
+ */
+function readRaw(store: Storage, key: string): string | null {
   try {
-    raw = store.getItem(key);
+    return store.getItem(key);
   } catch {
     return null;
   }
+}
+
+/** Read and JSON.parse a key. Null for absent, unreadable or corrupt. */
+function readJSON(store: Storage, key: string): unknown {
+  const raw = readRaw(store, key);
   if (!raw) return null;
   try {
     return JSON.parse(raw);

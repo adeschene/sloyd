@@ -427,4 +427,75 @@ describe('openLibrary — adoption', () => {
     const updated = JSON.parse(store.getItem(LIBRARY_KEY)!);
     expect(updated.projects).toHaveLength(1);
   });
+
+  it('refuses to adopt over a present index that is corrupt JSON, even with a real project key present', async () => {
+    // Fix round 2, finding 2 reopened: readJSON collapsed "present but
+    // corrupt" into the same null as "absent", so this shape used to sail
+    // past the absent-key check and adopt over a real, orphaned project.
+    const store = new FakeStorage();
+    const real = docWithBoard();
+    store.setItem(PROJECT_PREFIX + 'p1', JSON.stringify(real));
+    const rawIndex = '{not json at all';
+    store.setItem(LIBRARY_KEY, rawIndex);
+    store.setItem(AUTOSAVE_KEY, JSON.stringify(docWithBoard()));
+    store.written = []; // isolate to writes made by openLibrary itself
+
+    const { doc, libraryAvailable } = await new BrowserStorageAdapter(store, () => 1000).openLibrary();
+
+    expect(libraryAvailable).toBe(false);
+    expect(store.getItem(LIBRARY_KEY)).toBe(rawIndex);
+    expect(store.written).toEqual([]);
+    expect(doc.name).toBe('Bench');
+  });
+
+  it('treats a present-but-empty-string index as PRESENT, not absent', async () => {
+    const store = new FakeStorage();
+    store.setItem(LIBRARY_KEY, '');
+    store.setItem(AUTOSAVE_KEY, JSON.stringify(docWithBoard()));
+    store.written = []; // isolate to writes made by openLibrary itself
+
+    const { doc, libraryAvailable } = await new BrowserStorageAdapter(store, () => 1000).openLibrary();
+
+    expect(libraryAvailable).toBe(false);
+    expect(store.getItem(LIBRARY_KEY)).toBe('');
+    expect(store.written).toEqual([]);
+    expect(doc.name).toBe('Bench');
+  });
+
+  it('adds a fresh Untitled project when the index names projects but none of them are loadable (R9)', async () => {
+    const store = new FakeStorage();
+    const index = {
+      layout: LAYOUT_VERSION,
+      activeId: 'missing-a',
+      projects: [
+        { id: 'missing-a', name: 'A', savedAt: 1000, createdAt: 1000 },
+        { id: 'missing-b', name: 'B', savedAt: 2000, createdAt: 2000 },
+      ],
+    };
+    store.setItem(LIBRARY_KEY, JSON.stringify(index));
+    store.setItem(AUTOSAVE_KEY, JSON.stringify(docWithBoard()));
+
+    const { activeId, doc, libraryAvailable } = await new BrowserStorageAdapter(store, () => 3000).openLibrary();
+
+    expect(libraryAvailable).toBe(true);
+    expect(doc.name).toBe('Untitled');
+    expect(doc.boards).toEqual([]);
+    const updated = JSON.parse(store.getItem(LIBRARY_KEY)!);
+    // The two unloadable entries are kept as-is; a third, loadable one joins them.
+    expect(updated.projects).toHaveLength(3);
+    expect(updated.activeId).toBe(activeId);
+  });
+
+  it('does not commit the index when addUntitledProject writes a project that silently fails to persist', async () => {
+    // Extends the write-verify-then-commit pin (finding 1) to the second
+    // place that shape is written, not just `adopt`.
+    const store = new GhostProjectWriteStorage();
+    const rawIndex = JSON.stringify({ layout: LAYOUT_VERSION, activeId: '', projects: [] });
+    store.setItem(LIBRARY_KEY, rawIndex);
+
+    const { libraryAvailable } = await new BrowserStorageAdapter(store, () => 1000).openLibrary();
+
+    expect(libraryAvailable).toBe(false);
+    expect(store.getItem(LIBRARY_KEY)).toBe(rawIndex);
+  });
 });
