@@ -1,5 +1,6 @@
-import { BrowserStorageAdapter, AUTOSAVE_KEY } from './browser';
+import { BrowserStorageAdapter, AUTOSAVE_KEY, LIBRARY_KEY, PROJECT_PREFIX } from './browser';
 import { createBoard, createDocument, DocumentError } from '../document/document';
+import { LAYOUT_VERSION } from './libraryIndex';
 
 class FakeStorage implements Storage {
   private map = new Map<string, string>();
@@ -233,5 +234,80 @@ describe('capabilities', () => {
   it('lists no recent projects', async () => {
     const a = new BrowserStorageAdapter(new FakeStorage());
     expect(await a.listRecent()).toEqual([]);
+  });
+});
+
+describe('openLibrary — adoption', () => {
+  it('adopts an existing autosave as project one', async () => {
+    const store = new FakeStorage();
+    const legacy = docWithBoard();
+    store.setItem(AUTOSAVE_KEY, JSON.stringify(legacy));
+
+    const adapter = new BrowserStorageAdapter(store, () => 1000);
+    const { activeId, doc, libraryAvailable } = await adapter.openLibrary();
+
+    expect(libraryAvailable).toBe(true);
+    expect(doc).toEqual(legacy);
+    const index = JSON.parse(store.getItem(LIBRARY_KEY)!);
+    expect(index.layout).toBe(LAYOUT_VERSION);
+    expect(index.activeId).toBe(activeId);
+    expect(index.projects).toHaveLength(1);
+    expect(JSON.parse(store.getItem(PROJECT_PREFIX + activeId)!)).toEqual(legacy);
+  });
+
+  it('LEAVES THE OLD KEY BYTE-FOR-BYTE INTACT', async () => {
+    // This assertion IS the rollback story: a build from before this round
+    // must find sloyd.autosave.v1 exactly as it left it. Do not delete this
+    // test to tidy up, and do not "clean up" the old key it guards.
+    const store = new FakeStorage();
+    const raw = JSON.stringify(docWithBoard());
+    store.setItem(AUTOSAVE_KEY, raw);
+
+    await new BrowserStorageAdapter(store, () => 1000).openLibrary();
+
+    expect(store.getItem(AUTOSAVE_KEY)).toBe(raw);
+  });
+
+  it('creates an Untitled project when there is no autosave', async () => {
+    const store = new FakeStorage();
+    const { doc } = await new BrowserStorageAdapter(store, () => 1000).openLibrary();
+    expect(doc.name).toBe('Untitled');
+    expect(doc.boards).toEqual([]);
+    expect(JSON.parse(store.getItem(LIBRARY_KEY)!).projects).toHaveLength(1);
+  });
+
+  it('treats a corrupt autosave as an absent one, without throwing', async () => {
+    const store = new FakeStorage();
+    store.setItem(AUTOSAVE_KEY, '{not json');
+    const { doc, libraryAvailable } = await new BrowserStorageAdapter(store, () => 1000).openLibrary();
+    expect(libraryAvailable).toBe(true);
+    expect(doc.name).toBe('Untitled');
+    expect(store.getItem(AUTOSAVE_KEY)).toBe('{not json');
+  });
+
+  it('reads an existing library instead of re-adopting', async () => {
+    const store = new FakeStorage();
+    store.setItem(AUTOSAVE_KEY, JSON.stringify(docWithBoard()));
+    const adapter = new BrowserStorageAdapter(store, () => 1000);
+    const first = await adapter.openLibrary();
+
+    // A later boot must not mint a second project from the same old key.
+    const second = await new BrowserStorageAdapter(store, () => 2000).openLibrary();
+    expect(second.activeId).toBe(first.activeId);
+    expect(JSON.parse(store.getItem(LIBRARY_KEY)!).projects).toHaveLength(1);
+  });
+
+  it('degrades to the legacy document when the project write fails', async () => {
+    // A failed adoption must leave TODAY'S APP, not an empty one.
+    const store = new FakeStorage();
+    const legacy = docWithBoard();
+    store.setItem(AUTOSAVE_KEY, JSON.stringify(legacy));
+    store.full = true;
+
+    const { doc, libraryAvailable } = await new BrowserStorageAdapter(store, () => 1000).openLibrary();
+
+    expect(libraryAvailable).toBe(false);
+    expect(doc).toEqual(legacy);
+    expect(store.getItem(LIBRARY_KEY)).toBeNull();
   });
 });

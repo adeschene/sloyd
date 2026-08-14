@@ -1,15 +1,21 @@
-import { DocumentError, migrateDocument } from '../document/document';
+import { DocumentError, createDocument, migrateDocument, nextId } from '../document/document';
 import type { SloydDocument } from '../document/document';
+import type { LibraryIndex } from './types';
 import type { RecentEntry, StorageAdapter, StorageCapabilities } from './types';
+import { LAYOUT_VERSION, parseIndex, sortEntries } from './libraryIndex';
 
 export const AUTOSAVE_KEY = 'sloyd.autosave.v1';
+export const LIBRARY_KEY = 'sloyd.library.v1';
+export const PROJECT_PREFIX = 'sloyd.project.';
 
 export class BrowserStorageAdapter implements StorageAdapter {
   private store: Storage | null;
   private _available = true;
+  private now: () => number;
 
-  constructor(store: Storage | null = safeLocalStorage()) {
+  constructor(store: Storage | null = safeLocalStorage(), now: () => number = () => Date.now()) {
     this.store = store;
+    this.now = now;
     if (!store) this._available = false;
   }
 
@@ -50,6 +56,69 @@ export class BrowserStorageAdapter implements StorageAdapter {
       return migrateDocument(JSON.parse(raw));
     } catch {
       // Corrupt or foreign autosave: start clean rather than block the app.
+      return null;
+    }
+  }
+
+  /**
+   * The boot path. Reads the library, adopting the legacy single autosave
+   * slot the first time. Never throws: a failure here degrades to the
+   * pre-library app rather than to an empty one.
+   */
+  async openLibrary(): Promise<{ activeId: string; doc: SloydDocument; libraryAvailable: boolean }> {
+    const legacy = (await this.loadAutoSaved()) ?? createDocument();
+
+    if (!this.store) return { activeId: '', doc: legacy, libraryAvailable: false };
+
+    const existing = parseIndex(readJSON(this.store, LIBRARY_KEY));
+    if (existing && existing.projects.length > 0) {
+      const activeId = existing.projects.some((p) => p.id === existing.activeId)
+        ? existing.activeId
+        : sortEntries(existing.projects)[0].id;
+      const doc = await this.loadProject(activeId);
+      if (doc) return { activeId, doc, libraryAvailable: true };
+      // The index names a project whose key is gone. Fall through and adopt,
+      // which is the same recovery as a first boot.
+    }
+
+    return this.adopt(legacy);
+  }
+
+  /**
+   * Write new, verify, THEN commit the index. Never overwrite in place, and
+   * NEVER delete AUTOSAVE_KEY — it costs a few KB and it is the entire
+   * rollback story for this round. Nothing writes to it after this point.
+   */
+  private async adopt(doc: SloydDocument): Promise<{ activeId: string; doc: SloydDocument; libraryAvailable: boolean }> {
+    const id = nextId();
+    const at = this.now();
+    try {
+      this.store!.setItem(PROJECT_PREFIX + id, JSON.stringify(doc));
+      // Verify the round-trip before committing the index to it.
+      if (!this.store!.getItem(PROJECT_PREFIX + id)) throw new Error('project did not persist');
+      const index: LibraryIndex = {
+        layout: LAYOUT_VERSION,
+        activeId: id,
+        projects: [{ id, name: doc.name, savedAt: at, createdAt: at }],
+      };
+      this.store!.setItem(LIBRARY_KEY, JSON.stringify(index));
+      this._available = true;
+      return { activeId: id, doc, libraryAvailable: true };
+    } catch {
+      this._available = false;
+      // Adoption is retried on the next boot: the absent index is the only
+      // thing that triggers it, so nothing has to remember this failed.
+      return { activeId: '', doc, libraryAvailable: false };
+    }
+  }
+
+  async loadProject(id: string): Promise<SloydDocument | null> {
+    if (!this.store || !id) return null;
+    const raw = readJSON(this.store, PROJECT_PREFIX + id);
+    if (raw === null) return null;
+    try {
+      return migrateDocument(raw);
+    } catch {
       return null;
     }
   }
@@ -164,6 +233,22 @@ function safeLocalStorage(): Storage | null {
     return typeof window !== 'undefined' ? window.localStorage : null;
   } catch {
     // Accessing localStorage throws outright in some privacy modes.
+    return null;
+  }
+}
+
+/** Read and JSON.parse a key. Null for absent, unreadable or corrupt. */
+function readJSON(store: Storage, key: string): unknown {
+  let raw: string | null;
+  try {
+    raw = store.getItem(key);
+  } catch {
+    return null;
+  }
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
     return null;
   }
 }
