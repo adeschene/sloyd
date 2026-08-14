@@ -64,24 +64,56 @@ export class BrowserStorageAdapter implements StorageAdapter {
    * The boot path. Reads the library, adopting the legacy single autosave
    * slot the first time. Never throws: a failure here degrades to the
    * pre-library app rather than to an empty one.
+   *
+   * Adoption fires on exactly one condition: LIBRARY_KEY is ABSENT. A
+   * present-but-unusable index (corrupt, or a layout this build does not
+   * recognise — in particular a NEWER one) must never be treated as an
+   * absent one: doing so would silently clobber real project data with a
+   * fresh single-entry index built from the stale legacy document. Refuse,
+   * the same way the document layer refuses an unrecognised `version`
+   * rather than guessing at it.
    */
   async openLibrary(): Promise<{ activeId: string; doc: SloydDocument; libraryAvailable: boolean }> {
     const legacy = (await this.loadAutoSaved()) ?? createDocument();
 
     if (!this.store) return { activeId: '', doc: legacy, libraryAvailable: false };
 
-    const existing = parseIndex(readJSON(this.store, LIBRARY_KEY));
-    if (existing && existing.projects.length > 0) {
-      const activeId = existing.projects.some((p) => p.id === existing.activeId)
-        ? existing.activeId
-        : sortEntries(existing.projects)[0].id;
-      const doc = await this.loadProject(activeId);
-      if (doc) return { activeId, doc, libraryAvailable: true };
-      // The index names a project whose key is gone. Fall through and adopt,
-      // which is the same recovery as a first boot.
+    const rawIndex = readJSON(this.store, LIBRARY_KEY);
+    if (rawIndex === null) {
+      // The only route that adopts: the key is genuinely absent (or
+      // unreadable, which this build cannot distinguish from absent).
+      return this.adopt(legacy);
     }
 
-    return this.adopt(legacy);
+    const existing = parseIndex(rawIndex);
+    if (!existing) {
+      // Present but unparseable, or a layout we don't understand. Do not
+      // adopt over it — write nothing, degrade to a read-only legacy view.
+      return { activeId: '', doc: legacy, libraryAvailable: false };
+    }
+
+    if (existing.projects.length === 0) {
+      // Adoption already happened once (the index exists). Add a fresh
+      // project rather than re-adopting the now-stale legacy document.
+      return this.addUntitledProject(existing);
+    }
+
+    // Try the recorded active project first, then fall back to the most
+    // recently saved loadable one. Never re-adopt here either.
+    const ordered = [
+      existing.activeId,
+      ...sortEntries(existing.projects)
+        .map((p) => p.id)
+        .filter((id) => id !== existing.activeId),
+    ];
+    for (const id of ordered) {
+      const doc = await this.loadProject(id);
+      if (doc) return { activeId: id, doc, libraryAvailable: true };
+    }
+
+    // The index names projects but none of their keys are loadable. Degrade
+    // rather than clobber, same as an unparseable index.
+    return { activeId: '', doc: legacy, libraryAvailable: false };
   }
 
   /**
@@ -108,6 +140,35 @@ export class BrowserStorageAdapter implements StorageAdapter {
       this._available = false;
       // Adoption is retried on the next boot: the absent index is the only
       // thing that triggers it, so nothing has to remember this failed.
+      return { activeId: '', doc, libraryAvailable: false };
+    }
+  }
+
+  /**
+   * Adds a fresh Untitled project to an already-existing (empty) index.
+   * Deliberately distinct from `adopt`: adoption has already happened once
+   * by the time this runs, so the legacy key is stale and must not be
+   * re-read. Same write-verify-then-commit shape as `adopt`.
+   */
+  private async addUntitledProject(
+    index: LibraryIndex,
+  ): Promise<{ activeId: string; doc: SloydDocument; libraryAvailable: boolean }> {
+    const doc = createDocument();
+    const id = nextId();
+    const at = this.now();
+    try {
+      this.store!.setItem(PROJECT_PREFIX + id, JSON.stringify(doc));
+      if (!this.store!.getItem(PROJECT_PREFIX + id)) throw new Error('project did not persist');
+      const updated: LibraryIndex = {
+        ...index,
+        activeId: id,
+        projects: [...index.projects, { id, name: doc.name, savedAt: at, createdAt: at }],
+      };
+      this.store!.setItem(LIBRARY_KEY, JSON.stringify(updated));
+      this._available = true;
+      return { activeId: id, doc, libraryAvailable: true };
+    } catch {
+      this._available = false;
       return { activeId: '', doc, libraryAvailable: false };
     }
   }

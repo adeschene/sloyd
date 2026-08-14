@@ -5,6 +5,8 @@ import { LAYOUT_VERSION } from './libraryIndex';
 class FakeStorage implements Storage {
   private map = new Map<string, string>();
   full = false;
+  /** Every key ever passed to setItem, success or failure, in call order. */
+  written: string[] = [];
 
   get length() { return this.map.size; }
   clear() { this.map.clear(); }
@@ -12,12 +14,28 @@ class FakeStorage implements Storage {
   getItem(k: string) { return this.map.get(k) ?? null; }
   removeItem(k: string) { this.map.delete(k); }
   setItem(k: string, v: string) {
+    this.written.push(k);
     if (this.full) {
       const e = new Error('QuotaExceededError');
       e.name = 'QuotaExceededError';
       throw e;
     }
     this.map.set(k, v);
+  }
+}
+
+/**
+ * Simulates a write that silently does not persist: setItem for a
+ * `sloyd.project.*` key succeeds (no throw) but reading it straight back
+ * returns null, as a corrupted/dropped write would. Exists to pin
+ * `adopt`'s write-verify-then-commit ORDER: without the round-trip check
+ * gating the index write, this storage would still end up with a committed
+ * index pointing at an unreadable project.
+ */
+class GhostProjectWriteStorage extends FakeStorage {
+  getItem(k: string) {
+    if (k.startsWith(PROJECT_PREFIX)) return null;
+    return super.getItem(k);
   }
 }
 
@@ -309,5 +327,104 @@ describe('openLibrary — adoption', () => {
     expect(libraryAvailable).toBe(false);
     expect(doc).toEqual(legacy);
     expect(store.getItem(LIBRARY_KEY)).toBeNull();
+  });
+
+  it('does not commit the index when the adopted project write silently fails to persist', async () => {
+    // Pins the write-verify-THEN-commit ORDER in `adopt`: setItem succeeds
+    // (no throw) but the round-trip read comes back null, as a dropped or
+    // corrupted write would. If the index write were ever moved ahead of
+    // the verification, this would still end up with a committed index
+    // pointing at an unreadable project.
+    const store = new GhostProjectWriteStorage();
+    const legacy = docWithBoard();
+    store.setItem(AUTOSAVE_KEY, JSON.stringify(legacy));
+
+    const { libraryAvailable, doc } = await new BrowserStorageAdapter(store, () => 1000).openLibrary();
+
+    expect(libraryAvailable).toBe(false);
+    expect(doc).toEqual(legacy);
+    expect(store.getItem(LIBRARY_KEY)).toBeNull();
+  });
+
+  it('never calls setItem on AUTOSAVE_KEY during adoption', async () => {
+    // Finding 3: the byte-identity test above cannot distinguish "never
+    // written" from "written back with identical bytes" — a v6 document
+    // round-trips through migrateDocument unchanged either way. Assert on
+    // the call log itself instead.
+    const store = new FakeStorage();
+    store.setItem(AUTOSAVE_KEY, JSON.stringify(docWithBoard()));
+    store.written = []; // isolate to writes made by openLibrary itself
+
+    await new BrowserStorageAdapter(store, () => 1000).openLibrary();
+
+    expect(store.written).not.toContain(AUTOSAVE_KEY);
+  });
+
+  it('refuses to adopt over a present index it cannot parse (an unrecognised layout)', async () => {
+    // The worst case from Finding 2: a newer build's `layout: 2` index,
+    // naming real projects, must not be silently rewritten to a
+    // single-entry layout-1 index built from the stale legacy document.
+    const store = new FakeStorage();
+    const foreignIndex = {
+      layout: 2,
+      activeId: 'p1',
+      projects: [{ id: 'p1', name: 'Future Project', savedAt: 5, createdAt: 5 }],
+    };
+    const rawIndex = JSON.stringify(foreignIndex);
+    store.setItem(LIBRARY_KEY, rawIndex);
+    store.setItem(AUTOSAVE_KEY, JSON.stringify(docWithBoard()));
+    store.written = []; // isolate to writes made by openLibrary itself
+
+    const { doc, libraryAvailable } = await new BrowserStorageAdapter(store, () => 1000).openLibrary();
+
+    expect(libraryAvailable).toBe(false);
+    // Byte-identical: nothing was written, to the index or anywhere else.
+    expect(store.getItem(LIBRARY_KEY)).toBe(rawIndex);
+    expect(store.written).toEqual([]);
+    expect(doc.name).toBe('Bench');
+  });
+
+  it('falls back to the most recently saved loadable project when activeId names a missing key', async () => {
+    const store = new FakeStorage();
+    const older = docWithBoard();
+    older.name = 'Older';
+    const newer = docWithBoard();
+    newer.name = 'Newer';
+    store.setItem(PROJECT_PREFIX + 'older-id', JSON.stringify(older));
+    store.setItem(PROJECT_PREFIX + 'newer-id', JSON.stringify(newer));
+    const index = {
+      layout: LAYOUT_VERSION,
+      activeId: 'missing-id',
+      projects: [
+        { id: 'older-id', name: 'Older', savedAt: 1000, createdAt: 1000 },
+        { id: 'newer-id', name: 'Newer', savedAt: 2000, createdAt: 2000 },
+      ],
+    };
+    store.setItem(LIBRARY_KEY, JSON.stringify(index));
+
+    const { activeId, doc, libraryAvailable } = await new BrowserStorageAdapter(store, () => 3000).openLibrary();
+
+    expect(libraryAvailable).toBe(true);
+    expect(activeId).toBe('newer-id');
+    expect(doc.name).toBe('Newer');
+    // Must not re-adopt: still exactly the two projects the index named.
+    expect(JSON.parse(store.getItem(LIBRARY_KEY)!).projects).toHaveLength(2);
+  });
+
+  it('adds a fresh Untitled project to an existing empty index, never re-adopting the legacy key', async () => {
+    const store = new FakeStorage();
+    const staleLegacy = docWithBoard();
+    staleLegacy.name = 'Stale';
+    store.setItem(AUTOSAVE_KEY, JSON.stringify(staleLegacy));
+    const index = { layout: LAYOUT_VERSION, activeId: '', projects: [] };
+    store.setItem(LIBRARY_KEY, JSON.stringify(index));
+
+    const { doc, libraryAvailable } = await new BrowserStorageAdapter(store, () => 1000).openLibrary();
+
+    expect(libraryAvailable).toBe(true);
+    expect(doc.name).toBe('Untitled');
+    expect(doc.boards).toEqual([]);
+    const updated = JSON.parse(store.getItem(LIBRARY_KEY)!);
+    expect(updated.projects).toHaveLength(1);
   });
 });
