@@ -32,15 +32,26 @@ export class BrowserStorageAdapter implements StorageAdapter {
       this._available = false;
       return;
     }
+    // Refuse rather than commit an empty index over one that is present but
+    // unusable — matches openLibrary's own refuse-don't-clobber rule
+    // (Finding 3). `available` only goes true once BOTH writes below
+    // succeed — never unconditionally, which is what silently hid a failed
+    // index commit behind a successful project write (Finding 1).
+    const index = this.readIndexForWrite();
+    if (!index) {
+      this._available = false;
+      return;
+    }
     try {
       this.store.setItem(PROJECT_PREFIX + id, JSON.stringify(doc));
-      this.writeIndex(touchEntry(this.readIndex(), id, doc.name, this.now()));
-      this._available = true;
     } catch {
       // Quota exceeded, or private browsing. Never throw from an autosave —
       // the UI surfaces `available === false` as a banner instead.
       this._available = false;
+      return;
     }
+    const ok = this.writeIndex(touchEntry(index, id, doc.name, this.now()));
+    if (ok) this._available = true;
   }
 
   async loadAutoSaved(): Promise<SloydDocument | null> {
@@ -213,20 +224,16 @@ export class BrowserStorageAdapter implements StorageAdapter {
   }
 
   /**
-   * Read the index, or an empty one. Never throws.
+   * Read the index for a READ, defaulting to empty. Never throws.
    *
-   * Deliberately the OPPOSITE of `openLibrary`'s refusal on a
-   * present-but-unparseable index: `openLibrary` refuses because adopting
-   * over a real, unparseable index would silently replace named projects
-   * with a stale single-entry one. This defaults instead, because every
-   * caller here (`autoSave`, `createProject`, `deleteProject`,
-   * `setActiveProject`) is a small, additive or row-scoped edit, not a
-   * wholesale rebuild — but that safety holds ONLY because `openLibrary`
-   * already reported `libraryAvailable: false` for that same store and
-   * callers are expected to stop calling these methods when it did. This
-   * method has no way to re-check that on its own; if a caller reaches it
-   * on a genuinely present-but-corrupt index, it commits over the corruption
-   * with an empty one instead of refusing.
+   * Deliberately more forgiving than `readIndexForWrite`: `listProjects` is
+   * the only caller, and a listing that comes back empty rather than
+   * refusing is the graceful-degradation half of Finding 3's ruling —
+   * "reads may keep degrading gracefully." Do not reach for this from a
+   * mutating method; that was Finding 3's Critical/Important defect
+   * (`setActiveProject` in particular could commit an empty index over one
+   * `openLibrary` had refused to touch). Mutating methods use
+   * `readIndexForWrite` instead.
    */
   private readIndex(): LibraryIndex {
     const empty: LibraryIndex = { layout: LAYOUT_VERSION, activeId: '', projects: [] };
@@ -234,6 +241,30 @@ export class BrowserStorageAdapter implements StorageAdapter {
     const raw = readRaw(this.store, LIBRARY_KEY);
     if (raw === null) return empty;
     return this.parseIndexString(raw) ?? empty;
+  }
+
+  /**
+   * Read the index for a MUTATION. Null means REFUSE — the caller must
+   * write nothing and report `available = false` — and that happens
+   * precisely when the key is PRESENT but unusable (corrupt JSON, or an
+   * unrecognised layout): the same condition `openLibrary` refuses to adopt
+   * over, for the same reason. Committing an empty index over that would
+   * silently drop every real project row it named — the exact harm
+   * `openLibrary`'s refusal exists to prevent, and this enforces it at the
+   * seam itself rather than trusting every caller (App included) to check
+   * `libraryAvailable` first (Finding 3).
+   *
+   * An ABSENT key still defaults to an empty index and returns it, not
+   * null: nothing has been written yet, so there is nothing to protect —
+   * the same distinction `openLibrary` draws between "absent" (proceed) and
+   * "present but unparseable" (refuse).
+   */
+  private readIndexForWrite(): LibraryIndex | null {
+    const empty: LibraryIndex = { layout: LAYOUT_VERSION, activeId: '', projects: [] };
+    if (!this.store) return empty;
+    const raw = readRaw(this.store, LIBRARY_KEY);
+    if (raw === null) return empty;
+    return this.parseIndexString(raw);
   }
 
   /** Write the index. Returns false on failure; never throws. */
@@ -252,22 +283,42 @@ export class BrowserStorageAdapter implements StorageAdapter {
     return sortEntries(this.readIndex().projects);
   }
 
-  async createProject(doc: SloydDocument): Promise<string> {
+  async createProject(doc: SloydDocument): Promise<string | null> {
+    if (!this.store) return null;
+    // Refuse before writing anything if the index is present but unusable
+    // (Finding 3) — same rule as autoSave, stated once there.
+    const index = this.readIndexForWrite();
+    if (!index) {
+      this._available = false;
+      return null;
+    }
     const id = nextId();
-    if (!this.store) return id;
     const at = this.now();
     try {
       this.writeVerifiedProject(id, doc);
-      const index = this.readIndex();
-      this.writeIndex({
-        ...index,
-        activeId: id,
-        projects: [...index.projects, { id, name: doc.name, savedAt: at, createdAt: at }],
-      });
-      this._available = true;
     } catch {
       this._available = false;
+      return null;
     }
+    const ok = this.writeIndex({
+      ...index,
+      activeId: id,
+      projects: [...index.projects, { id, name: doc.name, savedAt: at, createdAt: at }],
+    });
+    if (!ok) {
+      // The project key persisted but got no index row, and `touchEntry`
+      // only ever updates a row that already exists — no later `autoSave`
+      // could add one. Left alone, that key is a permanent, invisible
+      // orphan (Finding 1). Best-effort clean it up rather than return an
+      // id that looks real but names nothing `listProjects` will ever show.
+      try {
+        this.store.removeItem(PROJECT_PREFIX + id);
+      } catch {
+        // Nothing more to do — `available` below already reports failure.
+      }
+      return null;
+    }
+    this._available = true;
     return id;
   }
 
@@ -282,28 +333,57 @@ export class BrowserStorageAdapter implements StorageAdapter {
   }
 
   async deleteProject(id: string): Promise<{ activeId: string; doc: SloydDocument }> {
+    // Refuse before touching anything — including the project key itself —
+    // if the index is present but unusable (Finding 3). A partial delete
+    // (key gone, corrupt index left alone) would be worse than no delete.
+    const index = this.readIndexForWrite();
+    if (!index) {
+      this._available = false;
+      return { activeId: id, doc: (await this.loadProject(id)) ?? createDocument() };
+    }
+
     try {
       this.store?.removeItem(PROJECT_PREFIX + id);
     } catch {
       this._available = false;
     }
-    const index = removeEntry(this.readIndex(), id);
+    // Captured BEFORE removeEntry, which drops the row but never touches
+    // `activeId` itself — this is the only source of truth for whether the
+    // project being deleted was the one open (Finding 2).
+    const wasActive = index.activeId === id;
+    const remaining = removeEntry(index, id);
 
     // Never a no-project state: the last delete makes a fresh Untitled.
-    if (index.projects.length === 0) {
-      this.writeIndex(index);
+    if (remaining.projects.length === 0) {
+      this.writeIndex(remaining);
       const doc = createDocument();
       const newId = await this.createProject(doc);
-      return { activeId: newId, doc };
+      return { activeId: newId ?? '', doc };
     }
 
-    const next = sortEntries(index.projects)[0];
-    this.writeIndex({ ...index, activeId: next.id });
+    if (!wasActive) {
+      // A background delete must not move the caret out from under
+      // whatever the caller is currently looking at.
+      this.writeIndex(remaining);
+      return {
+        activeId: index.activeId,
+        doc: (await this.loadProject(index.activeId)) ?? createDocument(),
+      };
+    }
+
+    const next = sortEntries(remaining.projects)[0];
+    this.writeIndex({ ...remaining, activeId: next.id });
     return { activeId: next.id, doc: (await this.loadProject(next.id)) ?? createDocument(next.name) };
   }
 
   async setActiveProject(id: string): Promise<void> {
-    this.writeIndex({ ...this.readIndex(), activeId: id });
+    const index = this.readIndexForWrite();
+    if (!index) {
+      this._available = false;
+      return;
+    }
+    const ok = this.writeIndex({ ...index, activeId: id });
+    if (ok) this._available = true;
   }
 
   async loadProject(id: string): Promise<SloydDocument | null> {

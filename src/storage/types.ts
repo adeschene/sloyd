@@ -59,8 +59,8 @@ export interface StorageAdapter {
   loadProject(id: string): Promise<SloydDocument | null>;
   /** Every project, most recently saved first. */
   listProjects(): Promise<ProjectEntry[]>;
-  /** Store a new project and return its id. */
-  createProject(doc: SloydDocument): Promise<string>;
+  /** Store a new project and return its id, or null if the write failed. */
+  createProject(doc: SloydDocument): Promise<string | null>;
   /** Copy a project under a new id, suffixed "copy". Null if id is unknown. */
   duplicateProject(id: string): Promise<string | null>;
   /** Delete a project and resolve with what should now be open. */

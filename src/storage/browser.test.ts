@@ -503,6 +503,32 @@ describe('openLibrary — adoption', () => {
   });
 });
 
+/**
+ * Simulates a store where every OTHER key persists normally but a write to
+ * LIBRARY_KEY throws while `failIndex` is set — e.g. that key straddling a
+ * quota boundary a smaller project key does not. Distinct from
+ * GhostProjectWriteStorage (which drops a PROJECT key's write silently):
+ * this one throws, and only on the index key, so a caller's own project
+ * write can genuinely succeed while the index commit that is supposed to
+ * follow it fails. Exists to probe fix-round-1 Finding 1: `available` must
+ * not be set true after a successful project write if the index write that
+ * follows it fails — `FakeStorage.full` can't isolate this because it fails
+ * on the FIRST setItem, masking the ordering bug behind a single catch.
+ * `failIndex` starts false so tests can seed LIBRARY_KEY before arming it.
+ */
+class FailingIndexWriteStorage extends FakeStorage {
+  failIndex = false;
+  setItem(k: string, v: string) {
+    if (this.failIndex && k === LIBRARY_KEY) {
+      this.written.push(k);
+      const e = new Error('QuotaExceededError');
+      e.name = 'QuotaExceededError';
+      throw e;
+    }
+    super.setItem(k, v);
+  }
+}
+
 describe('project CRUD', () => {
   const boot = async (now = () => 1000) => {
     const store = new FakeStorage();
@@ -519,7 +545,7 @@ describe('project CRUD', () => {
     await adapter.autoSave(activeId, doc);
 
     expect(JSON.parse(store.getItem(PROJECT_PREFIX + activeId)!)).toEqual(doc);
-    expect(JSON.parse(store.getItem(PROJECT_PREFIX + other)!).boards).toEqual([]);
+    expect(JSON.parse(store.getItem(PROJECT_PREFIX + other!)!).boards).toEqual([]);
   });
 
   it('autoSave updates the index name and timestamp', async () => {
@@ -539,6 +565,26 @@ describe('project CRUD', () => {
     expect(adapter.available).toBe(false);
   });
 
+  it('autoSave does not report available when the index write fails, even though the project write persisted (Finding 1)', async () => {
+    const store = new FailingIndexWriteStorage();
+    store.setItem(LIBRARY_KEY, JSON.stringify({
+      layout: LAYOUT_VERSION,
+      activeId: 'p1',
+      projects: [{ id: 'p1', name: 'Bench', savedAt: 1, createdAt: 1 }],
+    }));
+    store.failIndex = true;
+    const adapter = new BrowserStorageAdapter(store, () => 5000);
+
+    await adapter.autoSave('p1', createDocument('Renamed'));
+
+    // The project write DID persist...
+    expect(JSON.parse(store.getItem(PROJECT_PREFIX + 'p1')!).name).toBe('Renamed');
+    // ...but `available` must reflect the index write's failure, not the
+    // unrelated project write's success. This is the half of invariant 7
+    // that `autoSave` not throwing does not by itself satisfy.
+    expect(adapter.available).toBe(false);
+  });
+
   it('listProjects returns most recently saved first', async () => {
     let clock = 1000;
     const { adapter } = await boot(() => clock);
@@ -553,7 +599,7 @@ describe('project CRUD', () => {
   it('createProject stores the document and adds a row', async () => {
     const { store, adapter } = await boot();
     const id = await adapter.createProject(createDocument('Fresh'));
-    expect(JSON.parse(store.getItem(PROJECT_PREFIX + id)!).name).toBe('Fresh');
+    expect(JSON.parse(store.getItem(PROJECT_PREFIX + id!)!).name).toBe('Fresh');
     expect((await adapter.listProjects()).map((p) => p.name)).toContain('Fresh');
   });
 
@@ -576,6 +622,22 @@ describe('project CRUD', () => {
     expect(store.getItem(LIBRARY_KEY)).toBe(rawIndex);
   });
 
+  it('createProject does not report available, returns null, and cleans up the orphaned key when the index write fails (Finding 1)', async () => {
+    const store = new FailingIndexWriteStorage();
+    store.setItem(LIBRARY_KEY, JSON.stringify({ layout: LAYOUT_VERSION, activeId: '', projects: [] }));
+    store.failIndex = true;
+    const adapter = new BrowserStorageAdapter(store, () => 1000);
+    const before = store.length;
+
+    const id = await adapter.createProject(createDocument('Doomed'));
+
+    expect(id).toBeNull();
+    expect(adapter.available).toBe(false);
+    // No permanent orphan: the project key that was written before the
+    // index commit failed is cleaned up, not left behind with no row.
+    expect(store.length).toBe(before);
+  });
+
   it('duplicateProject copies the document under a new id', async () => {
     const { adapter, activeId } = await boot();
     await adapter.autoSave(activeId, docWithBoard());
@@ -596,10 +658,35 @@ describe('project CRUD', () => {
     const { store, adapter, activeId } = await boot();
     const other = await adapter.createProject(createDocument('Other'));
 
-    await adapter.deleteProject(other);
+    await adapter.deleteProject(other!);
 
-    expect(store.getItem(PROJECT_PREFIX + other)).toBeNull();
+    expect(store.getItem(PROJECT_PREFIX + other!)).toBeNull();
     expect((await adapter.listProjects()).map((p) => p.id)).toEqual([activeId]);
+  });
+
+  it('deleting a project that is NOT active leaves the active project untouched (Finding 2)', async () => {
+    // Bounds against `activeId`, a value pinned via `setActiveProject` —
+    // a call independent of `deleteProject` — rather than a value
+    // `deleteProject` picks itself (invariant 23's shape: a test that
+    // derives its expectation from the call under test cannot fail).
+    let clock = 1000;
+    const { store, adapter, activeId } = await boot(() => clock);
+    clock = 2000;
+    const other = await adapter.createProject(createDocument('Other'));
+    clock = 3000;
+    const another = await adapter.createProject(createDocument('Another'));
+    // createProject moves the active pointer to whatever it just created —
+    // pin it back to the original project, independent of the delete below.
+    await adapter.setActiveProject(activeId);
+
+    const result = await adapter.deleteProject(other!);
+
+    expect(result.activeId).toBe(activeId);
+    const index = JSON.parse(store.getItem(LIBRARY_KEY)!);
+    expect(index.activeId).toBe(activeId);
+    expect((await adapter.listProjects()).map((p) => p.id).sort()).toEqual(
+      [activeId, another].sort(),
+    );
   });
 
   it('deleting the active project switches to the most recently saved survivor', async () => {
@@ -609,6 +696,11 @@ describe('project CRUD', () => {
     await adapter.createProject(createDocument('Older'));
     clock = 3000;
     const newest = await adapter.createProject(createDocument('Newest'));
+    // createProject already left `newest` active as a side effect — pin it
+    // back to the ORIGINAL boot project explicitly so this test actually
+    // deletes the active project, rather than coincidentally re-asserting
+    // "background delete leaves activeId alone" under a misleading name.
+    await adapter.setActiveProject(activeId);
 
     const next = await adapter.deleteProject(activeId);
 
@@ -625,5 +717,73 @@ describe('project CRUD', () => {
     expect(next.doc.boards).toEqual([]);
     expect(await adapter.listProjects()).toHaveLength(1);
     expect(next.activeId).toBe((await adapter.listProjects())[0].id);
+  });
+
+  it('setActiveProject records which project is open', async () => {
+    const { store, adapter, activeId } = await boot();
+    await adapter.createProject(createDocument('Other'));
+
+    await adapter.setActiveProject(activeId);
+
+    expect(JSON.parse(store.getItem(LIBRARY_KEY)!).activeId).toBe(activeId);
+  });
+});
+
+describe('refusing to write over an unusable (but present) index (Finding 3)', () => {
+  // Reuses the same corrupt-JSON shape the openLibrary suite above already
+  // pins for the read/adopt path; this describes the write path's mirror
+  // rule — mutations must refuse it exactly like openLibrary does, not
+  // default past it the way a plain read is allowed to.
+  const corruptStore = () => {
+    const store = new FakeStorage();
+    const raw = '{not json at all';
+    store.setItem(LIBRARY_KEY, raw);
+    return { store, raw };
+  };
+
+  it('autoSave refuses rather than committing an empty index over a corrupt one', async () => {
+    const { store, raw } = corruptStore();
+    store.setItem(PROJECT_PREFIX + 'p1', JSON.stringify(createDocument('Existing')));
+
+    const adapter = new BrowserStorageAdapter(store, () => 1000);
+    await adapter.autoSave('p1', createDocument('Renamed'));
+
+    expect(adapter.available).toBe(false);
+    expect(store.getItem(LIBRARY_KEY)).toBe(raw);
+  });
+
+  it('createProject refuses rather than committing an empty index over a corrupt one', async () => {
+    const { store, raw } = corruptStore();
+    const adapter = new BrowserStorageAdapter(store, () => 1000);
+
+    const id = await adapter.createProject(createDocument('New'));
+
+    expect(id).toBeNull();
+    expect(adapter.available).toBe(false);
+    expect(store.getItem(LIBRARY_KEY)).toBe(raw);
+  });
+
+  it('deleteProject refuses rather than committing an empty index over a corrupt one, and leaves the project key alone too', async () => {
+    const { store, raw } = corruptStore();
+    store.setItem(PROJECT_PREFIX + 'p1', JSON.stringify(createDocument('Existing')));
+    const adapter = new BrowserStorageAdapter(store, () => 1000);
+
+    await adapter.deleteProject('p1');
+
+    expect(adapter.available).toBe(false);
+    expect(store.getItem(LIBRARY_KEY)).toBe(raw);
+    // A partial delete — key gone, corrupt index left untouched — would be
+    // worse than refusing the whole operation.
+    expect(store.getItem(PROJECT_PREFIX + 'p1')).not.toBeNull();
+  });
+
+  it('setActiveProject refuses rather than committing an empty index over a corrupt one', async () => {
+    const { store, raw } = corruptStore();
+    const adapter = new BrowserStorageAdapter(store, () => 1000);
+
+    await adapter.setActiveProject('p1');
+
+    expect(adapter.available).toBe(false);
+    expect(store.getItem(LIBRARY_KEY)).toBe(raw);
   });
 });
