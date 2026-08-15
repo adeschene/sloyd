@@ -117,7 +117,7 @@ must never be treated as an absent one, because that silently clobbers real
 project data with a fresh single-entry index built from the stale legacy
 document. The document layer already refuses a `version` it doesn't
 understand rather than guessing at it (the reason for the v6 bump); the
-storage layer owes the same refusal to a `layout` it doesn't understand. Four
+storage layer owes the same refusal to a `layout` it doesn't understand. Five
 cases, and only the first adopts:
 
 - **Key absent.** Adopt, exactly as steps 1–4 above.
@@ -134,6 +134,14 @@ cases, and only the first adopts:
 - **Index parses with `projects: []`.** Create a fresh `Untitled` project and
   add it to the existing (empty) index. Still never re-adopt the legacy key —
   same reasoning as above.
+- **Index parses and names projects, but NONE of them are loadable.** The
+  fall-back above ran out of candidates. Treated exactly like the empty-index
+  case: create a fresh `Untitled` and add it to the existing index, which
+  keeps the rows it already names rather than discarding them. Still never
+  re-adopt — the index exists, so adoption already happened and the legacy
+  document is stale by definition. (Added after the fact: the code always did
+  this and the enumeration above omitted it, which made the enumeration look
+  exhaustive when it was not.)
 
 ---
 

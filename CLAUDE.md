@@ -24,12 +24,13 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **907/907 tests passing across 35 files**, schema
+Static SPA, containerized, **912/912 tests passing across 35 files**, schema
 `CURRENT_VERSION` **6**.
 
 **Production matches `master` as of 2026-08-04**, all three of that day's rounds
 included. `DEPLOYMENT.local.md` carries every runbook entry and bundle hash. The project
-library round (08-14) is on `master` and **not yet deployed**.
+library round (08-14) is complete and reviewed on the branch `feat/project-library`
+— **not yet merged to `master`, and not yet deployed**.
 
 **The project library changed the storage layout, and NOT the schema.** There are now two
 things carrying a version: the document's `version` (still **6**) and the library index's
@@ -43,8 +44,9 @@ paragraph below.
 
 **The tape line of work is complete for now** — three rounds landed on that surface on 08-04
 and all three are live. **The project library (08-14) was the successor**, chosen from the
-user's own critique that there was no clear way to store, switch or create projects; it is
-merged to `master` and awaiting deployment. No successor to *it* has been chosen. The next
+user's own critique that there was no clear way to store, switch or create projects; the
+work is complete and reviewed on `feat/project-library`, awaiting a merge to `master` and a
+deployment after that. No successor to *it* has been chosen. The next
 conversation should start from `docs/follow-ups.md`'s open entries — see the pointer section
 below.
 
@@ -720,9 +722,16 @@ worked examples behind several of them are in `docs/history.md`.
     for one reason — an index exists, so adoption already happened, and the legacy document
     is stale **by definition**.
 31. **Write the project key, verify it reads back, THEN commit the index — and that ordering
-    lives in exactly ONE private primitive (`writeVerifiedProject`) that every writer calls.**
-    An index row pointing at a key that never landed is a project the list offers and cannot
-    open. The ordering had grown **two** homes (`adopt`, `addUntitledProject`) and was on its
+    lives in exactly ONE private primitive (`writeVerifiedProject`) that every writer which
+    commits a NEW index row calls.** An index row pointing at a key that never landed is a
+    project the list offers and cannot open. The narrowing is exact, not hedging: `autoSave`
+    is a writer and does **not** call it, because it overwrites a key an existing row already
+    names and adds no row at all. What it owes instead is the mirror rule — **`autoSave`
+    REFUSES an id with no index row**, since `touchEntry` only ever updates a row that already
+    exists, so writing would leave a project key nothing lists while the succeeding index
+    write flipped `available` back to `true` and the indicator went on reading *Saved locally*.
+    That is the same gap as this invariant's, seen from the other side: a row without a key
+    versus a key without a row. Refusing is not throwing, so invariant 7 is intact. The ordering had grown **two** homes (`adopt`, `addUntitledProject`) and was on its
     way to a third (`createProject`) before it was collapsed: a safety rule written out three
     times is a rule that holds in two places after the next edit.
 

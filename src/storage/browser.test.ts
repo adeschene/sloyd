@@ -39,10 +39,44 @@ class GhostProjectWriteStorage extends FakeStorage {
   }
 }
 
+/**
+ * Project writes stop ROUND-TRIPPING once this is set: `setItem` still
+ * succeeds, but reading a `sloyd.project.*` key back returns null, the way a
+ * dropped or corrupted write would. Index writes keep working throughout, and
+ * that combination is the whole point — the QUOTA variant self-recovers (the
+ * index write fails too, so the row survives and the next autosave restores
+ * it), and only a dropped project write with a working index loses data.
+ * Toggleable, unlike `GhostProjectWriteStorage` above, so a test can set a
+ * library up normally and then break it partway through.
+ */
+class DroppedProjectWriteStorage extends FakeStorage {
+  dropProjectWrites = false;
+  getItem(k: string) {
+    if (this.dropProjectWrites && k.startsWith(PROJECT_PREFIX)) return null;
+    return super.getItem(k);
+  }
+}
+
 const docWithBoard = () => {
   const doc = createDocument('Bench');
   doc.boards.push(createBoard({ name: 'Top' }));
   return doc;
+};
+
+/**
+ * Seed an index naming exactly these ids. `autoSave` REFUSES an id with no
+ * index row (see its own comment), so any test calling it directly has to say
+ * which projects the library knows about — seeding is not incidental setup.
+ */
+const seedIndex = (store: Storage, ...ids: string[]) => {
+  store.setItem(
+    LIBRARY_KEY,
+    JSON.stringify({
+      layout: LAYOUT_VERSION,
+      activeId: ids[0] ?? '',
+      projects: ids.map((id) => ({ id, name: id, savedAt: 1, createdAt: 1 })),
+    }),
+  );
 };
 
 describe('autoSave / loadAutoSaved', () => {
@@ -51,6 +85,7 @@ describe('autoSave / loadAutoSaved', () => {
     // loadAutoSaved is the legacy read path openLibrary uses for adoption,
     // not autoSave's counterpart any more. loadProject is.
     const fake = new FakeStorage();
+    seedIndex(fake, 'some-id');
     const a = new BrowserStorageAdapter(fake);
     const doc = docWithBoard();
     await a.autoSave('some-id', doc);
@@ -78,10 +113,31 @@ describe('autoSave / loadAutoSaved', () => {
 
   it('reports unavailability instead of throwing when the quota is exceeded', async () => {
     const fake = new FakeStorage();
+    // Seeded BEFORE `full` is set, and load-bearing: without a row for
+    // 'some-id' the refusal added for Finding 1 short-circuits ahead of
+    // `setItem` and this test goes green without ever reaching the quota path
+    // it is named for — a cannot-fail test manufactured by an unrelated fix.
+    seedIndex(fake, 'some-id');
     fake.full = true;
     const a = new BrowserStorageAdapter(fake);
     await a.autoSave('some-id', docWithBoard());
     expect(a.available).toBe(false);
+  });
+
+  it('refuses an id with no index row rather than writing a project nothing lists (Finding 1)', async () => {
+    const fake = new FakeStorage();
+    const a = new BrowserStorageAdapter(fake, () => 1000);
+    const { activeId } = await a.openLibrary();
+
+    await a.autoSave('ghost', createDocument('Ghost'));
+
+    // `touchEntry` only ever updates a row that ALREADY exists, so writing
+    // here would produce a key no `listProjects` can ever show while
+    // reporting success — and, worse, would flip `available` back to true
+    // after a real failure had turned it off.
+    expect(a.available).toBe(false);
+    expect(fake.getItem(PROJECT_PREFIX + 'ghost')).toBeNull();
+    expect((await a.listProjects()).map((p) => p.id)).toEqual([activeId]);
   });
 
   it('reports unavailability when storage itself is missing', async () => {
@@ -656,6 +712,35 @@ describe('project CRUD', () => {
     // No permanent orphan: the project key that was written before the
     // index commit failed is cleaned up, not left behind with no row.
     expect(store.length).toBe(before);
+  });
+
+  it('deleting the last project reports failure when the replacement cannot be written, and no later autosave claims success for the deleted one (Finding 1)', async () => {
+    // The end-to-end shape of the critical finding. The storage double fails
+    // PROJECT writes while letting INDEX writes through: the quota variant
+    // self-recovers, this one does not.
+    const store = new DroppedProjectWriteStorage();
+    const adapter = new BrowserStorageAdapter(store, () => 1000);
+    const { activeId } = await adapter.openLibrary();
+    store.dropProjectWrites = true;
+
+    const next = await adapter.deleteProject(activeId);
+
+    // The index is now empty and the replacement `createProject` failed, so
+    // there is nothing for the caller to adopt — which leaves React's
+    // `activeId` still naming the DELETED project.
+    expect(next).toBeNull();
+    expect(adapter.available).toBe(false);
+    expect(await adapter.listProjects()).toEqual([]);
+
+    // That stale id is exactly what the next autosave arrives with. It must
+    // stay refused: writing the key would succeed, `touchEntry` would map no
+    // row, the index write would succeed, and `available` would flip back to
+    // TRUE — the indicator reading "Saved locally" while the work is
+    // invisible to the menu and gone on the next reload.
+    await adapter.autoSave(activeId, docWithBoard());
+
+    expect(adapter.available).toBe(false);
+    expect(await adapter.listProjects()).toEqual([]);
   });
 
   it('duplicateProject copies the document under a new id', async () => {

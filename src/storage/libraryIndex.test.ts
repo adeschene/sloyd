@@ -29,6 +29,23 @@ describe('parseIndex', () => {
     expect(parseIndex({ ...index(entry('a', 1)), layout: 99 })).toBeNull();
   });
 
+  it('returns null when layout is absent entirely', () => {
+    // Both other layout cases above use a NUMBER greater than LAYOUT_VERSION,
+    // so `i.layout !== LAYOUT_VERSION` could be narrowed to
+    // `typeof i.layout === 'number' && i.layout !== LAYOUT_VERSION` with every
+    // test still green — and under that narrowing a foreign or truncated
+    // `{ projects: [...] }` blob sitting at LIBRARY_KEY parses as a VALID
+    // index, which is exactly the clobber invariant 30 exists to prevent.
+    // This case and the wrong-type one below are what pin the check.
+    expect(parseIndex({ activeId: '', projects: [] })).toBeNull();
+    expect(parseIndex({ activeId: 'a', projects: [entry('a', 1)] })).toBeNull();
+  });
+
+  it('returns null for a layout of the wrong type', () => {
+    expect(parseIndex({ ...index(entry('a', 1)), layout: '1' })).toBeNull();
+    expect(parseIndex({ ...index(entry('a', 1)), layout: null })).toBeNull();
+  });
+
   it('drops a malformed entry rather than refusing the whole index', () => {
     // Same argument as validateGuides: a saved library must always open.
     const raw = {

@@ -42,6 +42,25 @@ export class BrowserStorageAdapter implements StorageAdapter {
       this._available = false;
       return;
     }
+    // REFUSE an id the index does not name. `touchEntry` only ever updates a
+    // row that already exists, so writing here would produce a project key no
+    // `listProjects` can show — invisible in the menu, gone on the next
+    // reload — while the index write succeeded and flipped `available` back
+    // to TRUE, so the indicator reads "Saved locally" the whole way down.
+    //
+    // Deliberately the BROAD remedy rather than a patch to the one path that
+    // was found (a failed replacement after deleting the last project, which
+    // leaves the caller holding the deleted id). It closes the class at the
+    // seam: a project deleted in ANOTHER TAB leaves this tab in exactly the
+    // same state with no code path of its own to fix, and no convention in
+    // `App.tsx` could cover that.
+    //
+    // Refusing is not throwing — invariant 7's contract is intact, and
+    // `available === false` is precisely the report it asks for.
+    if (!index.projects.some((p) => p.id === id)) {
+      this._available = false;
+      return;
+    }
     try {
       this.store.setItem(PROJECT_PREFIX + id, JSON.stringify(doc));
     } catch {
@@ -360,12 +379,22 @@ export class BrowserStorageAdapter implements StorageAdapter {
 
   /**
    * Delete a project and resolve with what the caller's open project should
-   * become — or `null`, meaning NOTHING about the open project should
-   * change. `null` deliberately covers two different situations, not one:
-   * the delete refused outright (index present but unusable), and a delete
-   * that succeeded but removed a project OTHER than the active one. Neither
-   * is a failure the caller needs to react to beyond `available` — both
-   * just mean "the project you already have open is still correct." A
+   * become — or `null`, meaning there is NOTHING for the caller to adopt.
+   * `null` deliberately covers THREE different situations, not one:
+   *
+   *  1. the delete refused outright (index present but unusable);
+   *  2. a delete that succeeded but removed a project OTHER than the active
+   *     one — a background delete;
+   *  3. the last project was deleted and its replacement could not be
+   *     written, so the caller is left holding an id naming a project that
+   *     no longer exists.
+   *
+   * The first two mean "the project you already have open is still correct."
+   * The third does not, and is deliberately not papered over here: an id is
+   * not fabricated for a project that was never stored, and `autoSave`
+   * refuses an id the index does not name, so `available` reports the state
+   * honestly for every route into it — including one caused by another tab.
+   * Callers need react to none of the three beyond `available`. A
    * non-null result means the open project changed and must be adopted,
    * e.g. `const next = await deleteProject(id); if (next) { setActiveId(next.activeId);
    * replaceDocument(next.doc); }` — the merged null keeps that the only

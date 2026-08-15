@@ -561,6 +561,43 @@ describe('App project switching', () => {
     }
   });
 
+  it('flushes the outgoing project’s pending write before switching away', async () => {
+    // THE OTHER HALF of the race test above, and a different question: that
+    // one proves no document reaches the WRONG slot, by showing the effect's
+    // cleanup cancels the outgoing timer. Nobody asked whether the cancelled
+    // write ever happens at all — it did not, so the outgoing project's last
+    // <=600ms of edits were silently discarded on every switch.
+    //
+    // The whole point is that the debounce is NEVER advanced past 600ms
+    // between the edit and the switch. Add such a wait and this test passes
+    // with the flush deleted.
+    vi.useFakeTimers();
+    const writes: Array<{ id: string; name: string }> = [];
+    autoSave.mockImplementation(async (id: string, doc: SloydDocument) => {
+      writes.push({ id, name: doc.name });
+    });
+
+    try {
+      render(<App />);
+      await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+      const idA = (await storage.listProjects())[0].id;
+
+      act(() => { useStore.getState().setDocumentName('Project A'); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(100); });
+      expect(writes).toEqual([]);
+
+      act(() => { fireEvent.click(screen.getByLabelText('Open project menu')); });
+      act(() => { fireEvent.click(screen.getByRole('button', { name: /New project/ })); });
+      // Microtasks only — `flushAutoSave` is awaited by the handler, not
+      // scheduled on a timer, so this must not need the debounce to elapse.
+      await act(async () => { await vi.advanceTimersByTimeAsync(0); });
+
+      expect(writes).toContainEqual({ id: idA, name: 'Project A' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   // MINOR FINDING: ProjectMenu's Escape handler calls `e.stopPropagation()`,
   // and that call is load-bearing — without it, the same keydown would also
   // reach App's window-level listener and walk its grabbed/tapeAxis/
@@ -1081,13 +1118,13 @@ describe('project library: new, duplicate, delete, import', () => {
     act(() => { useStore.getState().addBoard(); });
     const first = useStore.getState().doc.boards[0].id;
 
-    // Autosave is debounced 600ms and switching cancels a still-pending
-    // timer without flushing it (the documented "switch race" — see "does
-    // not write the outgoing project into the incoming project's slot"
-    // above). Real timers here, so the wait is real: switch before this and
-    // the board never reaches the fake's stored 'Test' project at all,
-    // which would make this test fail for a reason that has nothing to do
-    // with per-project isolation.
+    // Autosave is debounced 600ms. Switching now FLUSHES the pending write
+    // rather than cancelling it (see "flushes the outgoing project's pending
+    // write before switching away" above), so this wait is no longer what
+    // makes the board reach the stored 'Test' project — it is kept
+    // deliberately anyway, so that this test goes on measuring per-project
+    // ISOLATION and cannot start passing or failing for the flush's reasons.
+    // Real timers, so the wait is real.
     await act(async () => { await new Promise((r) => setTimeout(r, 700)); });
 
     await user.click(await screen.findByLabelText('Open project menu'));
