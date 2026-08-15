@@ -124,6 +124,189 @@ and 79.
 
 ## What each round did
 
+**What the project library round did**, design in
+`docs/superpowers/specs/2026-08-14-sloyd-project-library-design.md` (amended mid-round —
+see §2.2 below), browser pass in `docs/browser-verification-project-library.md`. Opened
+2026-08-14 by the user: *"There doesn't seem to be a clear way to store, switch, or create
+new projects."* That was an accurate reading of the app, and this round makes it false.
+Sloyd had exactly one project and nothing said so: `sloyd.autosave.v1` was the whole of the
+user's persistent state, the only way to start a second project was to empty the first, and
+Import replaced what was on screen behind a `window.confirm`. There are now an index at
+`sloyd.library.v1` and one `sloyd.project.<id>` per project, with a caret beside the
+toolbar's project-name field opening a list that switches, creates, duplicates, deletes and
+imports. The seam had anticipated this — `StorageAdapter` already declared `listRecent()`
+and a `capabilities.recentFiles` flag, and the browser adapter answered `[]` and `false` to
+both; much of the round is making those honest.
+
+**Why the project id lives in the index and not the document — the decision the whole
+layout hangs off.** A project needs an identity that survives renaming, and `SloydDocument`
+has a `name` and no `id`; keying the library by name breaks the moment two projects share
+one, which the app cannot prevent and should not try to. The id is therefore minted by the
+library and stored **only in the index**, so the document gains no field and
+`CURRENT_VERSION` stays **6**. That is a deliberate reading of the rule that a version bump
+exists for the refusal gate at the far end, applied by checking what a *lost* id would
+actually cost: a `.sloyd` file carries no id, so importing one into any build produces a new
+library entry — which is not v5's wrong number and not v6's silent data loss, it is the
+behaviour you would want from an import anyway. Neither bump argument reaches this field, so
+no bump. The payoff is stated in the status section and is large: **rolling back past this
+round costs nothing at the document level**, which is not true of the two rounds before it.
+
+**Two things now carry a version, and they are separate on purpose.** `migrateDocument`
+versions the *document*; nothing versioned the *arrangement of keys the documents sit in*,
+because until now there was one key and no arrangement. `layout: 1` in the index is that
+version. They move on their own schedules because they change for unrelated reasons, and a
+`.sloyd` file written by this build is byte-identical to one written before the library
+existed.
+
+**Why adoption verifies before it commits.** `sloyd.autosave.v1` *is* the user's project on
+a pre-library build — no server-side state, nothing to restore from — so an adoption path
+that orphans that key destroys real work and the round has no way to apologise for it. The
+order is therefore: read the legacy key, migrate it, write `sloyd.project.<id>`, **read that
+key back and confirm it parses**, and only then commit the index. Write new, verify, commit;
+never overwrite in place. If the verify fails, the index is not written, the legacy key stays
+authoritative, the session runs the pre-library path, and adoption is simply retried on the
+next boot — since the absent index is the only thing that triggers it. **A failed adoption
+must degrade to *today's app*, not to an empty one.** And the old key is never deleted: it
+costs a few kilobytes and it is the entire rollback story, so the adapter carries a comment
+saying so at the point where deleting it would be natural. All of that is invariant 30 and
+31; the browser pass confirmed the byte-identity of the legacy key in all four of its
+adoption cases, comparing against a pretty-printed seed so that an equivalent-JSON rewrite
+could not pass as no rewrite.
+
+**§2.2 was amended mid-round, and the amendment is the round's most important correction
+(R7).** The spec said adopt "when `sloyd.library.v1` is absent"; the implementation
+broadened that to "absent **or** unusable", which meant a `layout: 2` index naming real
+projects would be silently rewritten to a layout-1 index holding the stale pre-library
+document. The argument that settled it is an appeal to a rule the codebase already had: **the
+document layer refuses a `version` it does not understand rather than guessing at it — that
+is exactly what the v6 bump bought — so the storage layer owes the same refusal to a `layout`
+it does not understand.** Adoption was narrowed to the spec's literal words and the spec was
+amended in the same commit, evidence governing over authored plan text. A present-but-unusable
+index now writes nothing and degrades to a genuinely read-only legacy session with the storage
+banner showing (R16 — the first cut of that branch left `available` true, so the app claimed
+"Saved locally" while writing nowhere). Two neighbouring branches were then enumerated rather
+than discovered later: an index that parses but names a missing project falls back to another
+loadable one, and one with `projects: []` creates a fresh `Untitled` — **never a re-adopt**,
+for one reason, that an index existing means adoption already happened and the legacy
+document is stale by definition.
+
+**Why the menu's Escape sits outside `App`'s single keydown effect.** Invariant 27 requires
+every **window-level** shortcut to live in that one effect and any new `window` listener to
+take the cut-list-open flag explicitly. The menu's Escape is bound to the menu's **own
+subtree** and its outside-click listener is mounted only while the menu is open, so neither
+is window-level in invariant 27's sense: the hazard that invariant exists for is a listener
+that cannot tell which subtree an event came from, and a listener scoped to `root` can. The
+positive reason not to route it through `App` is that doing so would mean threading menu
+state upward and re-deriving a `cutListOpen` guard. That guard's job is to stop a shortcut
+acting on a hidden subtree — and by the time the cut list could be open, the popup's own
+close-on-focusout has already closed it, since opening the sheet is a toolbar click that
+moves focus out of the popup first. Worth recording that the *first* version of this comment
+overclaimed: it said the popup was provably unreachable behind the cut list, and it is not —
+Tab out of the open popup to the Cut list button and press Enter, and the resulting `click`
+fires with no preceding `pointerdown`, which the outside-click handler never sees. No stuck
+state results, because focusout closes it during that same Tab; but the closing is doing real
+work there rather than being a formality, and the comment now says so.
+
+**Why the ARIA menu roles were dropped rather than backed with roving tabindex (R19).** The
+first cut claimed `role="menu"` with generic `div` wrappers inside it, plain buttons as
+descendants, a bare `div` divider and no arrow-key navigation — so assistive technology in
+menu-navigation mode might not expose the duplicate and delete controls at all, defeating the
+keyboard-reachability constraint at the semantic layer even though the DOM and the CSS were
+right. The choice was between implementing the full pattern and dropping the claim. **Dropped
+it:** a row carries a name plus two independent actions, which is grid-shaped rather than
+menu-shaped, and the full menu pattern is more machinery defending a role this popup does not
+need. Plain buttons in DOM (Tab) order are the honest interaction, `aria-expanded` stays on
+the caret, `aria-current` marks the open project the way a nav landmark would (not
+`aria-checked`), and close-on-focusout was added to cover the Tab-out that no pointerdown
+accompanies. The browser pass then had to earn that back: Tab order was walked in both
+directions, both row controls were reached and operated by keyboard alone, and a full two-step
+delete was armed and confirmed without a pointer.
+
+**Two more decisions stated rather than left implicit.** Import's `window.confirm` is
+**retired**: it existed because the outgoing document was about to be destroyed, and once
+every project autosaves to its own slot nothing is destroyed by opening another one — so
+Import, New and picking a row all switch without prompting, which is written down precisely
+because inheriting the confirm by analogy is the obvious thing to do and would be wrong. And
+delete is a **two-step inline confirm** rather than a native dialog — the app throws exactly
+one native dialog today and this round retires it, so adding a second would move against that;
+keeping the confirmation inside the row also keeps the project's name visible while you
+confirm, which is the fact you actually need. Deleting the active project switches to the most
+recently saved remaining one; deleting the last immediately creates a fresh `Untitled`, so
+there is never a no-project state and no component has to render one.
+
+**The bug that reached the fix round, and why it was invisible (R21/R22).** `createProject`
+had a hidden side effect — it set the stored `activeId` — which two of its three callers
+wanted and `duplicateProject` did not. After duplicating, the stored `activeId` moved to the
+copy while React's `activeId`, the on-screen document and the menu's `aria-current` all stayed
+on the original: nothing looked wrong, and the **next boot opened the copy**. It was fixed at
+the adapter by making the side effect explicit in the signature —
+`createProject(doc, { activate })`, so every call site states which it means — rather than by
+patching `duplicateProject` to restore the prior id, which would leave the trap armed for the
+next caller. The reason no test caught it is R22 and is the more useful half: `App.test.tsx`'s
+fake `duplicateProject` never touched `activeId` where the real adapter did, so the fake could
+not model the bug. The browser pass checked the fix at the byte the bug lived in — duplicate,
+reload, and read `activeId` out of the index — rather than at what looked selected.
+
+**Six distinct plan-supplied tests in this round could not fail, and that belongs in the
+record.** (*Distinct* is load-bearing: the ledger's own running count calls R18 the sixth
+instance, which it is only because the dep-array observation was logged twice — as a Task 4
+deferred minor and again as R17 — so R22 is the seventh ledger entry and the sixth distinct
+test. Both counts are right; follow-up 155 carries the derivation, because a bare number
+copied into several homes is 146's shape.) The
+repo already tracks this failure class — invariant 23 is the canonical case, and CLAUDE.md's
+"code and justifications supplied verbatim by a plan have been wrong" chain is the ledger —
+but six in one round is the sharpest single data point in it, and one of the six was hiding a
+real shipped bug rather than merely being weak. Enumerated in follow-up 155; in brief: the
+write-verify-commit ordering survived being inverted (22/22 green), the byte-identity
+guarantee survived an equivalent-JSON rewrite of the key it protects, "a background delete
+leaves the open project alone" survived an early return that made it vacuous (55/55), the
+switch-race test passes with `activeId` removed from the dep array, the
+`libraryAvailable: false` gate survived being flipped to `libraryAvailable ||` (all 889), and
+the App fake's `duplicateProject` diverged from the real one in exactly the field R21's bug
+lived in. Five were found by a reviewer mutating the code and re-running; the sixth by asking
+why a known bug had produced no red. The pattern is narrower and more actionable than "write
+better tests": **a test whose subject is an ordering, a refusal, or a "cannot exceed" property
+must be mutated before it is believed**, because all three shapes admit a test that observes
+the end state and cannot see the step that was skipped.
+
+**The autosave race, and a correction to how it is prevented (R17).** If the active project id
+lived inside the adapter, a debounce armed while project A was open would fire after a switch
+and write A's document into B's slot — real, silent data loss. So the id is an explicit
+argument, `autoSave(id, doc)`. The plan said the `activeId` entry in the effect's dependency
+array was what closed the race; mutation testing showed that is false — with `[doc]` alone
+the race test still passes, because the id is captured in the same closure as `doc` and `doc`
+changes on every switch, so the effect's existing cleanup clears the pending timer before the
+new one arms. The dep entry is nevertheless load-bearing, for a different reason found in the
+same investigation: there is exactly one path where `activeId` changes and `doc` does not —
+the restore effect's edit-wins branch — and without the entry that adoption never re-arms
+autosave, killing every save for the session while the indicator still reads "Saved locally".
+Both halves are now invariant 29, written so a future reader who deletes the entry because
+"the race doesn't need it" is warned off.
+
+**The write-verify-commit ordering ended up in one primitive because it was on its way to
+three (R10).** `adopt` and `addUntitledProject` each carried a copy and `createProject` was
+about to add a third; a safety rule written out three times is a rule that holds in two places
+after the next edit. It is now `writeVerifiedProject`, called by all three — invariant 31. The
+same seam carries the refusal (R13): a mutating operation reads the index through
+`readIndexForWrite` and refuses when it is unusable, rather than trusting every caller to
+check `libraryAvailable` first, because a convention that has to hold in `App.tsx` to protect
+`localStorage` is not a seam. `deleteProject` refuses before touching the project key itself —
+a partial delete is worse than no delete.
+
+**What the browser pass confirmed and what it could not.** All five adoption cases passed,
+including the two the tests can only approximate: a v1-era document migrating *before*
+adoption (asserted on the payload — rotation 270 → 90 and `standing: true` → `on-edge`, since
+invariant 11's failure mode is a legal-but-wrong value that looks fine in any render), and the
+refusal gate, where a `layout: 2` index left every byte untouched, the caret was absent from
+the DOM, the storage banner rendered with its real text, and — beyond the brief — an edit made
+in that degraded session still wrote nothing anywhere after the debounce elapsed. Switch,
+duplicate-then-reload, all three delete shapes and two imports were driven for real, with
+every result read out of `localStorage` rather than judged from the screen. Zero console
+errors throughout. What it could not reach: a genuinely quota-full `localStorage` (153), two
+tabs sharing one origin (154, a materially new situation this round creates and nothing was
+designed for), any browser but Chromium, any window size but one, and touch input. Two
+cosmetic findings were recorded rather than fixed (151, 152).
+
 **What the snap-move round did**, design in
 `docs/superpowers/specs/2026-08-02-sloyd-snap-move-design.md`. Chosen 2026-08-02, after
 the sheet-nesting round shipped and production caught up to `master`. Point-to-point
@@ -1176,7 +1359,7 @@ to live in CLAUDE.md's `## Open follow-ups` section.
 v2, v3, the post-v3 fixes, joinery, the cut list and its diagrams rounds, the
 board-feet round, the sheet-nesting round, the snap-move round, the selected-board grabs
 round, the cut-aware snap points round, the guide-points round, the type-anywhere round
-and the cardinal guides round, consciously deferred
+the cardinal guides round and the project library round, consciously deferred
 rather than missed, numbered 1-30 plus the per-release additions. Read it before starting new work
 in the same area — several items are "correct but untested", which is exactly what a
 refactor breaks silently.
@@ -1467,14 +1650,30 @@ framing §9.1's stub would rest on, `no-direction` found unreachable live and wh
 coverage gaps, and two harness traps (autosave lagging the store by ~200 ms, and a DOM read
 racing a React effect).
 
-**No successor has been chosen, and the tape line of work is complete for now.** Three
-rounds landed on that surface in one day and all three are live; the user's original
+**The tape line of work is complete for now, and the project library was its successor.**
+Three tape rounds landed on that surface in one day and all three are live; the user's original
 critique of the first — *"I can effectively only duplicate existing grab-points, which adds
 nothing"* — is fully answered, since a guide can now go 3" straight up from a corner with
 nothing in that direction. The roadmap paragraph that used to sit in the status section was
-this round; nothing has replaced it yet, and `docs/follow-ups.md`'s open entries — 130's
-semi-infinite construction lines and 147 among them — are where the next conversation
-should start.
+that round; the project library (08-14) replaced it, and `docs/follow-ups.md`'s open
+entries — 130's semi-infinite construction lines and 147 among them — are where the next
+conversation should start.
+
+**From the project library round: 151-156.** Full narrative in the round's own section
+above and in `docs/browser-verification-project-library.md`. **151** and **152** are the two
+cosmetic findings the browser pass recorded rather than fixed — the row's controls reveal
+independently on keyboard focus, so a keyboard user never sees that a second one follows,
+and Escape leaves focus on `<body>` rather than returning it to the caret. **153** and
+**154** are what the pass could not reach: a genuinely quota-full `localStorage` (only the
+unrecognised-layout route to `available === false` was driven live), and two tabs sharing one
+origin — a materially new situation this round creates, since each tab now holds its own
+`activeId` and its own autosave timer and nothing listens for the `storage` event. **155** is
+the round's most portable entry and the one to read before executing any plan: **six**
+plan-supplied tests were shown by mutation to be incapable of failing, enumerated one by one,
+with the pattern named — a test whose subject is an ordering, a refusal, or a "cannot exceed"
+property must be mutated before it is believed. **156** records the App fake's remaining
+`activeId` divergence, left knowingly because the contract is pinned at the adapter layer
+instead, which is the layer the bug lived in.
 
 One entry is a lesson rather than a defect and is worth reading before touching anything
 in the viewport: **26a**. Browser verification on this host runs on software GL

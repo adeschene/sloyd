@@ -3047,3 +3047,105 @@ DOM read 150 ms after a keystroke can race a React effect: the *a new character 
 unparseable refusal* probe reported the refusal still present at 150 ms and absent when
 re-read. The behaviour is correct; the sample was early. Both are recorded because either
 shape would read as a defect in a longer check that was not repeated.
+
+## From the project library round
+
+**151. The row's two controls reveal INDEPENDENTLY on keyboard focus, so a keyboard user
+never sees that a second one follows.** `.project-row-action` is `opacity: 0` at rest and
+revealed by two rules: `.project-row:hover .project-row-action` (the whole row, both
+controls) and `.project-row-action:focus-visible` (**one** control, the focused one). With a
+pointer you see duplicate *and* delete together and can choose; Tabbing onto duplicate shows
+duplicate alone, with nothing indicating that one more Tab reaches delete. Both are reachable
+and both were operated by keyboard alone in the browser pass, so this is discoverability, not
+access. The obvious fix — add `.project-row:focus-within .project-row-action` beside the
+hover rule — is one line and was **not** applied, on the grounds that it is a visual decision
+nobody has looked at on real hardware and this round's ruling everywhere else has been to
+record rather than retune. Recorded now because the argument for the current state is
+"nobody noticed", which is not an argument.
+
+**152. Escape closes the project menu and leaves focus on `<body>` rather than returning it
+to the caret.** Confirmed live: `document.activeElement` after an Escape from an armed delete
+is the body element. The popup unmounts the focused button and nothing restores focus to the
+trigger that opened it, so a keyboard user who backs out of the menu is returned to the top of
+the document rather than to where they were. Cheap to fix (a ref on the caret and a `.focus()`
+in the Escape branch) and deliberately not fixed here: it is a behaviour change to the one
+handler this round argued *out* of invariant 27's scope (design §4.1), and doing it in a
+docs-only task would put an unreviewed edit on that file. Note the two closing paths differ:
+the focusout close happens *because* focus went somewhere sensible, so it has nothing to
+restore — only the Escape path is affected.
+
+**153. A genuinely full `localStorage` was never produced in a browser.** `available` goes
+false down two routes: an unrecognised or corrupt index (driven live, see
+`docs/browser-verification-project-library.md` case 5) and `setItem` **throwing** — quota
+exhausted, or a privacy mode that refuses writes. Only the first was exercised against a real
+browser; the second is covered by a storage double that throws on demand. The two are not the
+same shape: on the throwing route the project write can fail *after* the index has been read
+and *before* it is committed, and what the user sees depends on `autoSave`'s ordering
+(`_available` may only go true once both writes land — R11). The double pins that ordering;
+what it cannot show is how the app reads to a person once a real browser starts refusing
+writes mid-session. Filling a real origin to its quota and driving a few edits is the
+remedy.
+
+**154. Two tabs of Sloyd on one origin is now a materially different situation, and nothing
+was designed or driven for it.** Before this round two tabs fought over one key and the loser
+was obvious. Now each tab holds its **own** `activeId` in React state and its own 600 ms
+autosave timer over its own document, and nothing listens for the `storage` event. So: two
+tabs on *different* projects are fine and always were — that is the layout working. Two tabs
+on the *same* project last-write-wins per debounce, as before. The new case is the index:
+tab A creating or deleting a project rewrites `sloyd.library.v1`, and tab B's next mutating
+write is built from the index **it** last read, so A's row can be dropped by B without either
+tab showing anything. No data in a project document is lost by that — only the row naming it,
+which orphans the `sloyd.project.<id>` key rather than deleting it, so it is recoverable by
+hand. Not driven in the browser pass and not modelled by any test. The honest small remedy is
+a `storage`-event listener that re-reads the index; the honest large one is a lock, which is
+more machinery than a single-user woodworking app has earned.
+
+**155. SIX DISTINCT plan-supplied tests in this round could not fail, and one of them was
+hiding a real shipped bug.** Say *distinct*, because the ledger's own running count and this
+enumeration disagree by one and both are right: `progress.md`'s R18 calls itself the "sixth
+instance this round", which it is only because the dep-array observation was logged **twice**
+(once as a Task 4 deferred minor, once as R17 when Task 5 investigated it), making R22 the
+seventh ledger entry and the sixth distinct test. The number is stated here rather than only
+in CLAUDE.md precisely because a bare count copied into several homes without its derivation
+is follow-up 146's shape. The full narrative is in `docs/history.md`; recorded here as a
+numbered entry
+because CLAUDE.md's "code and justifications supplied verbatim by a plan have been wrong"
+chain now points at it, and because the enumeration is the useful part:
+
+- **R6** — the write-verify-commit ordering. The reviewer rewrote `adopt` to commit the index
+  first and deleted the round-trip check: **22/22 still passed.**
+- **R8** — the byte-identity guarantee on `sloyd.autosave.v1`. A guarded *equivalent-JSON*
+  rewrite of that key left the flagship test green, because it compared parsed values.
+- **R12** — "a background delete leaves the open project alone". An early return that
+  preserved the caller's active project still passed **55/55**; the test named for the
+  behaviour could not fail.
+- **R17** — the switch-race test. With `[doc]` alone in the dep array it **still passes**, so
+  it does not cover what the plan said it covered. That correction is now invariant 29.
+- **R18** — the `libraryAvailable: false` gate that hides the project menu. Flipping it to
+  `libraryAvailable ||` passed **all 889**.
+- **R22** — `App.test.tsx`'s fake `duplicateProject` did not set `activeId` where the real
+  adapter did, **which is why no test could expose R21** — the shipped bug where duplicating
+  moved the persisted active project to the copy, so the next boot opened the wrong project.
+  This is the one that was not merely a weak test.
+
+Five were caught by a reviewer mutating the code and re-running; the sixth (R22) by asking why
+a known bug had produced no red. **The lesson is narrower and more actionable than "write
+better tests": a test whose subject is an ORDERING, a REFUSAL, or a "cannot exceed" property
+must be mutated before it is believed** — those three shapes all admit a test that observes the
+end state and cannot see the step that was skipped. Invariant 23 said this about containers;
+this round says it about orderings and refusals too, and invariant 31 carries it for the
+storage seam.
+
+**156. `App.test.tsx`'s fake still does not model `activeId` on duplicate.** Left as it is,
+knowingly. After R21's fix the fake is *coincidentally* correct — the real adapter's
+`duplicateProject` passes `{ activate: false }`, and the fake never touched `activeId` either
+— so the App-level tests agree with the shipped contract by luck rather than by modelling it,
+and cannot distinguish correct-by-fix from correct-by-luck. The contract is pinned instead at
+the layer the bug lived in: `src/storage/browser.test.ts`,
+*'duplicateProject does not move the persisted active project to the copy'*, against the real
+adapter. That is the right layer, and it is why this is a note rather than a defect. The
+reason to keep the entry is the general one: this is the **fifth** fake divergence found in
+this round alone (`available` a static literal, `deleteProject` always returning null,
+`loadProject` returning by identity, `openLibrary` absent, and this), and the App fake is now
+carrying enough approximation that the next person to add a test against it should check what
+it actually models before trusting a green.

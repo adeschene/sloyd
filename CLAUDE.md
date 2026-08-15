@@ -24,15 +24,29 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **828/828 tests passing across 33 files**, schema
+Static SPA, containerized, **907/907 tests passing across 35 files**, schema
 `CURRENT_VERSION` **6**.
 
 **Production matches `master` as of 2026-08-04**, all three of that day's rounds
-included. `DEPLOYMENT.local.md` carries every runbook entry and bundle hash.
+included. `DEPLOYMENT.local.md` carries every runbook entry and bundle hash. The project
+library round (08-14) is on `master` and **not yet deployed**.
 
-**No successor has been chosen, and the tape line of work is complete for now.** Three
-rounds landed on that surface in one day and all three are live. The next conversation
-should start from `docs/follow-ups.md`'s open entries — see the pointer section below.
+**The project library changed the storage layout, and NOT the schema.** There are now two
+things carrying a version: the document's `version` (still **6**) and the library index's
+`layout` (**1**), and they change for unrelated reasons. The consequence to hold on to:
+**rolling back past this round costs nothing at the document level** — a `.sloyd` file this
+build writes is byte-identical to one written before the library existed, and a pre-round
+build finds `sloyd.autosave.v1` exactly as it left it. The one thing a rollback loses is any
+project created *after* adoption, which lives in `sloyd.project.<id>` keys the old build
+cannot see. Export first. This is not true of the two rounds before it — see the rollback
+paragraph below.
+
+**The tape line of work is complete for now** — three rounds landed on that surface on 08-04
+and all three are live. **The project library (08-14) was the successor**, chosen from the
+user's own critique that there was no clear way to store, switch or create projects; it is
+merged to `master` and awaiting deployment. No successor to *it* has been chosen. The next
+conversation should start from `docs/follow-ups.md`'s open entries — see the pointer section
+below.
 
 **The cut list line of work is CLOSED as of 2026-08-01.** Cut list, diagrams, label
 layout, per-face views, board feet and sheet nesting are all shipped and merged. Do not
@@ -65,6 +79,7 @@ narrative for every row is in `docs/history.md`.
 | guide points + tape | 08-04 | 6 | the Tape tool, `guides: GuidePoint[]` |
 | type-anywhere entry | 08-04 | — | *no spec* — typing a digit anywhere routes into the readout |
 | cardinal guides | 08-04 | — | `X`/`Y`/`Z` lock a world axis for a typed distance |
+| project library | 08-14 | — | multiple projects in the browser; `sloyd.library.v1` |
 
 ### The deployment rule, stated once
 
@@ -232,7 +247,14 @@ src/
 │                           held point (it holds an enum, so it cannot go stale and
 │                           must not be given clearing rules by analogy). Inv 24
 ├── storage/                types.ts (StorageAdapter), browser.ts (the singleton).
-│                           Inv 7
+│                           Inv 7; and invs 29, 30, 31 for the library
+│   └── libraryIndex.ts     LAYOUT_VERSION + parseIndex / sortEntries / touchEntry /
+│                           removeEntry. Versions the ARRANGEMENT OF KEYS, never a
+│                           document — which is why it is separate from
+│                           CURRENT_VERSION and why `parseIndex` returning null is a
+│                           REFUSAL (inv 30), while a single malformed ENTRY is
+│                           dropped (validateGuides' argument verbatim). Pure;
+│                           imports only ./types
 ├── viewport/               NO unit tests by design — driven in a real browser
 │   ├── Viewport.tsx        Canvas, lights, grid, camera keys; hides Gizmo outside
 │   │                       select mode, gates onPointerMissed
@@ -295,6 +317,18 @@ src/
 │   ├── GuidesList.tsx      one row per guide, an x per row, Clear all. NO selection
 │   │                       model, deliberately: a guide's marker is a known-bad hit
 │   │                       target, so there is no click-the-guide path to get wrong
+│   ├── ProjectMenu.tsx     the caret-triggered project list: switch, duplicate, the
+│   │                       two-step inline delete, + New project, Import. NOT an ARIA
+│   │                       menu, decided rather than omitted — a row is a name plus
+│   │                       two independent actions, which is grid-shaped, so plain
+│   │                       buttons in DOM (Tab) order are the interaction and
+│   │                       `aria-current` marks the open project. Its Escape and
+│   │                       outside-click are bound to the menu's OWN subtree and are
+│   │                       NOT inv 27's business (see design §4.1). The arm/disarm
+│   │                       swap renders a <button> at the same sibling index in both
+│   │                       branches, which is the only reason focus survives it —
+│   │                       giving either branch a `key` silently breaks that. Rendered
+│   │                       ONLY when libraryAvailable (inv 30)
 │   ├── PartsList.tsx  FileMenu.tsx
 │   ├── Properties.tsx      board fields + Cuts; CutRow is its own component so a
 │   │                       cut's error dies with the cut
@@ -639,6 +673,73 @@ worked examples behind several of them are in `docs/history.md`.
     so the tool's central gesture is *type `1`, orbit to see the face, type `2`* — and
     replacing would answer `2` while the box read `1` the whole way round. **The displayed
     text and the next keystroke's effect must not disagree.**
+29. **The active project id is an EXPLICIT ARGUMENT to `autoSave(id, doc)`, never adapter
+    state — and the mechanism is not the one the plan claimed.** If the id lived inside the
+    adapter, a debounce armed while project A was open would fire after a switch and write
+    **A's document into B's slot**: no error, no visual difference, B's work gone on the next
+    read. The signature is what stops it, because a future edit that drops the id has to
+    delete an argument rather than merely forget an ordering.
+
+    **State the protection precisely; the plan got this wrong and mutation testing corrected
+    it.** What makes the race unreachable is the id being **captured in the same effect
+    closure as `doc`**, plus **`doc` changing on every switch** — so the effect's existing
+    cleanup clears the pending timer before the new one arms. With `[doc]` alone the race
+    test still passes; the dep entry is belt-and-braces *for the race*.
+
+    **But `activeId`'s dep-array entry is genuinely load-bearing for a different reason, and
+    a reader who deletes it because "the race doesn't need it" will break autosave
+    silently.** There is exactly one path where `activeId` changes and `doc` does **not** —
+    the restore effect's edit-wins branch, which adopts `activeId` while keeping the user's
+    in-progress document. Drop the entry and that adoption never re-runs the effect: the
+    `!activeId` guard then kills **every save for the rest of the session**, while
+    `SaveIndicator` goes on reading *Saved locally*. **Do not remove it, and do not
+    re-justify it with the race.**
+30. **`sloyd.autosave.v1` is never deleted and never written after adoption, and adoption
+    fires on exactly ONE condition: the index key is ABSENT.** That key *is* the user's
+    project on a pre-library build, Sloyd has no server-side state, and there is nothing to
+    restore from — so it costs a few kilobytes and it is this round's entire rollback story.
+    Deleting it to be tidy converts a free rollback into an unrecoverable one, which is why
+    `browser.ts` carries a comment saying so at the point where deleting it would be natural.
+
+    **Absence is tested on the RAW `getItem` result, before any `JSON.parse`.** A
+    present-but-unusable index — corrupt JSON, an empty string, or an unrecognised `layout`,
+    in particular a **newer** one — must never be treated as an absent one. Treating it as
+    absent silently clobbers real project data with a fresh single-entry index built from the
+    now-stale legacy document. So it **refuses and writes nothing**, degrading to a genuinely
+    read-only legacy session with `available === false` and the storage banner showing (not a
+    session that claims to save and doesn't, and not one that resumes writing to the stale
+    legacy key). **The reasoning, which is the part to carry forward: the document layer
+    already refuses a `version` it does not understand rather than guessing at it — that is
+    what the v6 bump bought — and the storage layer owes exactly the same refusal to a
+    `layout` it does not understand.** Adoption is retried on the next boot for free, since
+    the absent index is the only thing that triggers it.
+
+    Two neighbouring branches are **not** adoption and must not become it: an index that
+    parses but whose `activeId` names a missing project falls back to another loadable
+    project, and one with `projects: []` creates a fresh `Untitled`. Both refuse to re-adopt,
+    for one reason — an index exists, so adoption already happened, and the legacy document
+    is stale **by definition**.
+31. **Write the project key, verify it reads back, THEN commit the index — and that ordering
+    lives in exactly ONE private primitive (`writeVerifiedProject`) that every writer calls.**
+    An index row pointing at a key that never landed is a project the list offers and cannot
+    open. The ordering had grown **two** homes (`adopt`, `addUntitledProject`) and was on its
+    way to a third (`createProject`) before it was collapsed: a safety rule written out three
+    times is a rule that holds in two places after the next edit.
+
+    **A passing test cannot prove this one, and the round has the receipt:** a reviewer
+    rewrote `adopt` to commit the index *first* and deleted the round-trip check, and 22/22
+    still passed. What covers it is a storage double that **accepts writes but drops
+    `sloyd.project.*` on read**, asserting the index key stays null — the bound comes from
+    outside the code under test, invariant 23's rule applied to an ordering instead of a
+    container.
+
+    The same seam carries the other half: **every mutating operation reads the index through
+    `readIndexForWrite` and refuses when it is unusable**, writing nothing and reporting
+    `available = false`. Reads may keep degrading gracefully (`listProjects` returns `[]`);
+    mutations may not. This is enforced **at the seam**, not by a convention that every caller
+    checks `libraryAvailable` first — a convention that has to hold in `App.tsx` to protect
+    `localStorage` is not a seam. `deleteProject` refuses **before touching the project key
+    itself**: a partial delete (key gone, corrupt index left alone) is worse than no delete.
 
 
 ## Commands
@@ -646,7 +747,7 @@ worked examples behind several of them are in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 828 tests across 33 files
+npm test           # Vitest, currently 907 tests across 35 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -656,7 +757,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is the authoritative list** — 1-150, consciously deferred rather
+**`docs/follow-ups.md` is the authoritative list** — 1-156, consciously deferred rather
 than missed, each written up in place with its closure where it has one. Read the entries
 for the area you are about to touch before starting; several are "correct but untested",
 which is exactly what a refactor breaks silently.
@@ -692,11 +793,20 @@ The handful worth knowing without opening that file:
 **One chain runs through the whole ledger and is the single most useful thing to know
 before executing a plan: code and justifications supplied verbatim by a plan, spec, brief
 or reviewer have been wrong at least ten times** (64, 68 ×2, 80, 87, 88, 107, 118, 126,
-141 ×4-5). The recurring shapes: a fixture that passes for the wrong reason, a test bound
-derived from the thing under test, a constant whose stated justification doesn't reproduce,
-and a claim copied into several documents before any code existed. They were caught because
-implementers were told to fix the *code* rather than the *expectation*, and to stop and
-escalate when they believed an expectation was itself wrong.
+141 ×4-5, and 155 for the project-library round's own six). The recurring shapes: a fixture
+that passes for the wrong reason, a test bound derived from the thing under test, a constant
+whose stated justification doesn't reproduce, and a claim copied into several documents
+before any code existed. They were caught because implementers were told to fix the *code*
+rather than the *expectation*, and to stop and escalate when they believed an expectation was
+itself wrong.
+
+**The project library round is the sharpest single data point in that chain and is worth
+knowing as a number: SIX DISTINCT plan-supplied tests were shown, by mutation, to be
+incapable of failing** — and one of them was hiding a real shipped bug rather than merely
+being weak. Follow-up **155** enumerates all six and derives the count (the round's own ledger
+reaches six one entry earlier, having logged the same observation twice); take the number from
+there rather than restating it. **Mutate the test, don't just run it**, on anything
+whose whole justification is an ordering, a refusal, or a "cannot exceed" property.
 
 Host-level open items (proxy auth, Cloudflare, monitoring) are in `DEPLOYMENT.local.md`.
 
