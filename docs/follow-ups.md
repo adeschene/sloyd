@@ -3149,3 +3149,45 @@ this round alone (`available` a static literal, `deleteProject` always returning
 `loadProject` returning by identity, `openLibrary` absent, and this), and the App fake is now
 carrying enough approximation that the next person to add a test against it should check what
 it actually models before trusting a green.
+
+---
+
+**157. The three async handlers beside `openProject` are unguarded, and the persisted
+`activeId` can end on the loser.** `openProject` got an in-flight guard in the final fix
+wave; `onNewProject`, `onDeleteProject` and `importIntoLibrary` are now all
+async-before-mutation too, and one of them fired during an in-flight `openProject` can still
+interleave. **No wrong-slot write is possible** — each handler writes a matched
+`(id, doc)` pair, which is invariant 29's whole point — so the only casualty is the
+*persisted* `activeId`, which can end on the project the user did not finish on. The next
+boot then opens the wrong one. Deliberately left narrow: the ruling on the final wave was to
+guard `openProject` only, because that is the path a user can actually double-click, and
+widening the guard across four handlers at the end of the round was a bigger change than the
+defect justified.
+
+The remedy is one shared in-flight token rather than four separate guards.
+
+**And the reason this entry exists rather than a fix: the re-reviewer showed the guard IS
+straightforwardly testable, contrary to the fixer's stated reason for skipping it.** A
+deferred-promise `loadProject`, two rows clicked and resolved out of order, asserting the
+persisted `setActiveProject` ends on the row the user ended on — that bounds against a value
+the guard cannot itself move, which is the *opposite* of the can't-fail shape (155) the fixer
+was rightly wary of. The technique was already proven in this round on `ProjectMenu`'s
+await-before-refresh test. **"This cannot be tested" meaning "I did not find the technique"
+is itself one of this round's recurring findings.**
+
+**158. Two comments overstate what the code does, both in the same fix wave that narrowed
+invariant 31 for exactly this reason.** Neither changes behaviour; both are the failure mode
+this repo has now logged five times in one round, which is why they are written down rather
+than left to be rediscovered.
+
+- `App.tsx`'s "ONE RULE FOR ALL FOUR HANDLERS" comment above the `setAvailable` calls is
+  false for `onDuplicateProject`: a corrupt or missing source returns null through
+  `loadProject`, which never moves `_available`, so its `setAvailable` reports a stale
+  `true`. Same gap the fix wave consciously recorded for `openProject` — the difference is
+  that one is documented as a known limit and this one is documented as a rule.
+- Invariant 29's matched-pair requirement (the flush must write the outgoing document with
+  the outgoing id) is **doc-enforced only**. Rewriting the flush to
+  `storage.autoSave(activeId, p.doc)` — reintroducing exactly the mismatch the invariant
+  forbids — passes all 51 `App.test.tsx` tests. The invariant is correct and the code obeys
+  it; nothing makes the code keep obeying it. A type that pairs the id and document at the
+  point they are captured would enforce what the sentence currently only asks for.
