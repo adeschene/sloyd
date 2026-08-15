@@ -27,10 +27,15 @@ tradition built around hand woodworking.
 Static SPA, containerized, **912/912 tests passing across 35 files**, schema
 `CURRENT_VERSION` **6**.
 
-**Production matches `master` as of 2026-08-04**, all three of that day's rounds
-included. `DEPLOYMENT.local.md` carries every runbook entry and bundle hash. The project
-library round (08-14) is complete and reviewed on the branch `feat/project-library`
-— **not yet merged to `master`, and not yet deployed**.
+**Production matches `master` as of 2026-08-15**, the project library round included
+(merged as `6210fb9`, bundle `index-DOJGjiK1.js`). `DEPLOYMENT.local.md` carries every
+runbook entry and bundle hash.
+
+**That deploy was the first that ACTS on a user's stored data at page load**, which
+changes what "verified by loading the page" buys — see the deployment rule below. Every
+earlier round's feature was inert until exercised; adoption is not. Read
+`DEPLOYMENT.local.md`'s entry for the safety argument and the asymmetric rollback cost
+before assuming a future round can be reverted as cheaply.
 
 **The project library changed the storage layout, and NOT the schema.** There are now two
 things carrying a version: the document's `version` (still **6**) and the library index's
@@ -44,9 +49,8 @@ paragraph below.
 
 **The tape line of work is complete for now** — three rounds landed on that surface on 08-04
 and all three are live. **The project library (08-14) was the successor**, chosen from the
-user's own critique that there was no clear way to store, switch or create projects; the
-work is complete and reviewed on `feat/project-library`, awaiting a merge to `master` and a
-deployment after that. No successor to *it* has been chosen. The next
+user's own critique that there was no clear way to store, switch or create projects; it is
+merged and live as of 2026-08-15. No successor to *it* has been chosen. The next
 conversation should start from `docs/follow-ups.md`'s open entries — see the pointer section
 below.
 
