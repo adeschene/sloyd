@@ -696,6 +696,19 @@ worked examples behind several of them are in `docs/history.md`.
     `!activeId` guard then kills **every save for the rest of the session**, while
     `SaveIndicator` goes on reading *Saved locally*. **Do not remove it, and do not
     re-justify it with the race.**
+
+    **A third thing, and the one a tidying pass reaches for: the cleanup CANCELS the
+    outgoing write, so every switch must FLUSH it first.** Cancelling closed the race and
+    nobody asked whether the write ever happened — it did not, and the outgoing project's
+    last ≤600 ms of edits were discarded on every switch, the central gesture of the
+    library. So `App` holds the pending write as **ONE record** (`{ id, doc, timer }`) and
+    every switch handler awaits `flushAutoSave()` before `setActiveId`/`replaceDocument`.
+    **A PROHIBITION: do not split that record into separate refs, and do not read `activeId`
+    back off state inside the flush** — holding the pair together is what makes the crossing
+    race *structural* rather than timed, since every flush path then writes a matched pair
+    whatever it reads. Two refs can be updated a render apart, and the failure is A's
+    document in B's slot, silently. The detail lives in `App.tsx`'s comment on `pending`;
+    point at it rather than restating it.
 30. **`sloyd.autosave.v1` is never deleted and never written after adoption, and adoption
     fires on exactly ONE condition: the index key is ABSENT.** That key *is* the user's
     project on a pre-library build, Sloyd has no server-side state, and there is nothing to
