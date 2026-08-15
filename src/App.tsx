@@ -5,10 +5,12 @@ import { PartsList } from './panels/PartsList';
 import { Properties } from './panels/Properties';
 import { GuidesList } from './panels/GuidesList';
 import { FileMenu, SaveIndicator, StorageBanner } from './panels/FileMenu';
+import type { FileMenuHandle } from './panels/FileMenu';
 import { CutList } from './panels/CutList';
 import { TapeReadout } from './panels/TapeReadout';
 import { canBeginLength } from './units/length';
 import { tapeAxisFromKey, createDocument } from './document/document';
+import type { SloydDocument } from './document/document';
 import { storage } from './storage/browser';
 import { useStore } from './store/store';
 
@@ -192,12 +194,44 @@ export default function App() {
     replaceDocument(next);
   }, [replaceDocument]);
 
-  // TASK 6 SCAFFOLDING: duplicate, delete and import get their real handlers
-  // in Task 6. These no-op placeholders exist only so ProjectMenu — mounted
-  // below — has something to call; they do not touch storage.
-  const onDuplicateProject = useCallback((_id: string) => {}, []);
-  const onDeleteProject = useCallback((_id: string) => {}, []);
-  const onImportProject = useCallback(() => {}, []);
+  // Duplicate does NOT switch: you asked for a copy, not to leave what you
+  // were doing. The new row appears in the list on the menu's own refresh.
+  const onDuplicateProject = useCallback(async (id: string) => {
+    await storage.duplicateProject(id);
+  }, []);
+
+  // `deleteProject` resolves `{ activeId, doc } | null`, where null means
+  // "nothing about the open project should change" — covering BOTH a
+  // refused delete (unusable index) and a successful delete of a project
+  // that was not the active one (storage/types.ts). The adapter has already
+  // made that decision; re-deriving it here with an `id === activeId` check
+  // would risk replacing a document that did not need replacing, dropping
+  // unsaved edits.
+  const onDeleteProject = useCallback(async (id: string) => {
+    const next = await storage.deleteProject(id);
+    if (next) {
+      setActiveId(next.activeId);
+      replaceDocument(next.doc);
+    }
+  }, [replaceDocument]);
+
+  // The trigger for Import now lives in ProjectMenu; the flow itself and its
+  // error surface stay owned by FileMenu (see fileMenuRef below). This is
+  // what App hands FileMenu as `onImported`: given a document the user just
+  // picked off disk, store it as a NEW library entry and switch to it — the
+  // same replaceDocument-based shape as onNewProject/openProject (invariant
+  // 24, spec §3.1).
+  const importIntoLibrary = useCallback(async (doc: SloydDocument) => {
+    const id = await storage.createProject(doc);
+    if (!id) return;
+    setActiveId(id);
+    replaceDocument(doc);
+  }, [replaceDocument]);
+
+  const fileMenuRef = useRef<FileMenuHandle>(null);
+  const onImportProject = useCallback(() => {
+    void fileMenuRef.current?.importProjectIntoLibrary();
+  }, []);
 
   // Closing the sheet puts focus back where it was. In an effect rather than
   // in `onClose` because the shell is still `inert` when the handler runs —
@@ -445,7 +479,7 @@ export default function App() {
           onImportProject={onImportProject}
         >
           <SaveIndicator saving={saving} available={available} />
-          <FileMenu />
+          <FileMenu ref={fileMenuRef} onImported={importIntoLibrary} />
         </Toolbar>
         <StorageBanner available={available} />
         <main className="workspace">

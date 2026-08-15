@@ -1,8 +1,10 @@
+import { createRef } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
 import { createDocument, DocumentError } from '../document/document';
 import { FileMenu } from './FileMenu';
+import type { FileMenuHandle } from './FileMenu';
 
 const exportProject = vi.fn();
 const importProject = vi.fn();
@@ -30,7 +32,7 @@ beforeEach(() => {
 describe('FileMenu export', () => {
   it('surfaces a visible error when exportProject rejects', async () => {
     exportProject.mockRejectedValue(new Error('sandboxed iframe blocked the download'));
-    render(<FileMenu />);
+    render(<FileMenu onImported={vi.fn()} />);
 
     await userEvent.click(screen.getByTitle('Export project'));
 
@@ -41,7 +43,7 @@ describe('FileMenu export', () => {
 
   it('shows nothing after a successful export', async () => {
     exportProject.mockResolvedValue(undefined);
-    render(<FileMenu />);
+    render(<FileMenu onImported={vi.fn()} />);
 
     await userEvent.click(screen.getByTitle('Export project'));
 
@@ -49,7 +51,25 @@ describe('FileMenu export', () => {
   });
 });
 
+// Import no longer has its own trigger button in FileMenu — the button
+// moved into ProjectMenu (Task 6). The flow and its error surface stayed
+// here, so the tests drive it through the imperative handle ProjectMenu's
+// click handler calls, `ref.current.importProjectIntoLibrary()`.
 describe('FileMenu import', () => {
+  it('does not prompt before importing — every project has its own slot now', async () => {
+    const confirm = vi.spyOn(window, 'confirm');
+    importProject.mockResolvedValue(createDocument('Imported'));
+    const onImported = vi.fn().mockResolvedValue(undefined);
+    const ref = createRef<FileMenuHandle>();
+    render(<FileMenu ref={ref} onImported={onImported} />);
+
+    await ref.current!.importProjectIntoLibrary();
+
+    expect(confirm).not.toHaveBeenCalled();
+    expect(onImported).toHaveBeenCalledWith(expect.objectContaining({ name: 'Imported' }));
+    confirm.mockRestore();
+  });
+
   it('surfaces no error when the file picker is cancelled', async () => {
     // Deliberately a message that does NOT contain the word "cancel" — this
     // pins that cancellation is detected via the typed `cancelled` field,
@@ -59,9 +79,10 @@ describe('FileMenu import', () => {
     importProject.mockRejectedValue(
       new DocumentError('Never mind, closing.', { cancelled: true }),
     );
-    render(<FileMenu />);
+    const ref = createRef<FileMenuHandle>();
+    render(<FileMenu ref={ref} onImported={vi.fn()} />);
 
-    await userEvent.click(screen.getByTitle('Import project'));
+    await ref.current!.importProjectIntoLibrary();
 
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
@@ -70,12 +91,28 @@ describe('FileMenu import', () => {
     importProject.mockRejectedValue(
       new DocumentError('That file is not a valid Sloyd project file.'),
     );
-    render(<FileMenu />);
+    const ref = createRef<FileMenuHandle>();
+    render(<FileMenu ref={ref} onImported={vi.fn()} />);
 
-    await userEvent.click(screen.getByTitle('Import project'));
+    await ref.current!.importProjectIntoLibrary();
 
     const alert = await screen.findByRole('alert');
     expect(alert).toBeInTheDocument();
     expect(alert.textContent).toBe('That file is not a valid Sloyd project file.');
+  });
+
+  it('does not surface an error when onImported itself rejects being reported as an import failure', async () => {
+    // Sanity check on ownership: onImported's own errors are not this
+    // component's concern to catch specially — it's a thrown error inside
+    // the try block just like a bad file, and gets the generic message.
+    importProject.mockResolvedValue(createDocument('Imported'));
+    const onImported = vi.fn().mockRejectedValue(new Error('storage full'));
+    const ref = createRef<FileMenuHandle>();
+    render(<FileMenu ref={ref} onImported={onImported} />);
+
+    await ref.current!.importProjectIntoLibrary();
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toBe('Could not open that file.');
   });
 });

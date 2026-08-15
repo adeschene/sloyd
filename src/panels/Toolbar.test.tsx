@@ -9,6 +9,7 @@ const reset = () => useStore.getState().replaceDocument(createDocument('Test'));
 beforeEach(reset);
 
 const noop = () => {};
+const asyncNoop = async () => {};
 
 /**
  * Every view toggle is optional-by-omission here: the defaults keep each test
@@ -31,8 +32,8 @@ function renderToolbar(overrides: Partial<Parameters<typeof Toolbar>[0]> = {}) {
       activeId=""
       onOpenProject={noop}
       onNewProject={noop}
-      onDuplicateProject={noop}
-      onDeleteProject={noop}
+      onDuplicateProject={asyncNoop}
+      onDeleteProject={asyncNoop}
       onImportProject={noop}
       {...overrides}
     />,

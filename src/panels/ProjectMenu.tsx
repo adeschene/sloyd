@@ -7,8 +7,8 @@ interface Props {
   activeId: string;
   onOpen: (id: string) => void;
   onNew: () => void;
-  onDuplicate: (id: string) => void;
-  onDelete: (id: string) => void;
+  onDuplicate: (id: string) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
   onImport: () => void;
 }
 
@@ -142,7 +142,7 @@ export function ProjectMenu({ activeId, onOpen, onNew, onDuplicate, onDelete, on
                 className="project-row-action"
                 aria-label={`Duplicate ${p.name}`}
                 title="Duplicate"
-                onClick={() => { setArmed(null); onDuplicate(p.id); refresh(); }}
+                onClick={async () => { setArmed(null); await onDuplicate(p.id); refresh(); }}
               >
                 ⧉
               </button>
@@ -160,7 +160,7 @@ export function ProjectMenu({ activeId, onOpen, onNew, onDuplicate, onDelete, on
                 <button
                   className="project-row-action danger"
                   aria-label={`Delete ${p.name}?`}
-                  onClick={() => { setArmed(null); onDelete(p.id); refresh(); }}
+                  onClick={async () => { setArmed(null); await onDelete(p.id); refresh(); }}
                 >
                   Delete?
                 </button>

@@ -14,8 +14,8 @@ interface Props {
   activeId: string;
   onOpenProject: (id: string) => void;
   onNewProject: () => void;
-  onDuplicateProject: (id: string) => void;
-  onDeleteProject: (id: string) => void;
+  onDuplicateProject: (id: string) => Promise<void>;
+  onDeleteProject: (id: string) => Promise<void>;
   onImportProject: () => void;
   /** True when the viewport is drawing through an orthographic camera. */
   orthographic: boolean;

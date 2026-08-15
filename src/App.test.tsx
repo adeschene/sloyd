@@ -49,19 +49,28 @@ function makeLibraryFake() {
   let activeId = '';
   let counter = 0;
   let failNextOpen = false;
+  // A monotonic stand-in for `savedAt`/`createdAt`, not `Date.now()`: two
+  // entries created back to back in a test can land in the same
+  // millisecond, and `listProjects` (below) sorts most-recently-saved
+  // first — a real ordering property tests rely on. A tied `Date.now()`
+  // would make that sort a no-op (stable sort keeps insertion order) and
+  // silently flip which project a "most recent" assertion picks.
+  let clock = 0;
+  const tick = () => ++clock;
 
   return {
     reset() {
       projects.clear();
       activeId = '';
       counter = 0;
+      clock = 0;
       failNextOpen = false;
       mockAvailable = true;
     },
     /** Seed a project directly (bypassing createProject) and make it active. */
     seed(doc: SloydDocument, id = `p${++counter}`) {
       projects.set(id, {
-        entry: { id, name: doc.name, savedAt: Date.now(), createdAt: Date.now() },
+        entry: { id, name: doc.name, savedAt: tick(), createdAt: tick() },
         doc,
       });
       activeId = id;
@@ -90,22 +99,36 @@ function makeLibraryFake() {
       const doc = useStore.getState().doc;
       const id = `p${++counter}`;
       projects.set(id, {
-        entry: { id, name: doc.name, savedAt: Date.now(), createdAt: Date.now() },
+        entry: { id, name: doc.name, savedAt: tick(), createdAt: tick() },
         doc,
       });
       activeId = id;
       return { activeId, doc, libraryAvailable: true };
     },
     async loadProject(id: string) {
-      return projects.get(id)?.doc ?? null;
+      // Mirrors browser.ts's own loadProject: a JSON round-trip through
+      // localStorage and migrateDocument, so the caller never gets back the
+      // SAME object identity that is sitting in `projects`. Returning the
+      // stored object by reference would let a test that edits after
+      // switching and asserts the OTHER project's stored document is
+      // untouched pass for the wrong reason — the edit would be mutating
+      // the very object this fake still considers "stored".
+      const p = projects.get(id);
+      return p ? structuredClone(p.doc) : null;
     },
     async listProjects(): Promise<ProjectEntry[]> {
-      return [...projects.values()].map((p) => p.entry);
+      // Mirrors `sortEntries` (storage/libraryIndex.ts): most recently
+      // saved first, `createdAt` as the tiebreak. The real adapter's
+      // `listProjects` is documented to return this order, and the
+      // project-switch test below depends on it to pick a specific row.
+      return [...projects.values()]
+        .map((p) => p.entry)
+        .sort((a, b) => b.savedAt - a.savedAt || b.createdAt - a.createdAt);
     },
     async createProject(doc: SloydDocument) {
       const id = `p${++counter}`;
       projects.set(id, {
-        entry: { id, name: doc.name, savedAt: Date.now(), createdAt: Date.now() },
+        entry: { id, name: doc.name, savedAt: tick(), createdAt: tick() },
         doc,
       });
       activeId = id;
@@ -117,16 +140,63 @@ function makeLibraryFake() {
       const newId = `p${++counter}`;
       const name = `${p.entry.name} copy`;
       projects.set(newId, {
-        entry: { id: newId, name, savedAt: Date.now(), createdAt: Date.now() },
+        entry: { id: newId, name, savedAt: tick(), createdAt: tick() },
         doc: { ...p.doc, name },
       });
       return newId;
     },
-    async deleteProject(_id: string) {
-      return null;
+    /**
+     * Models `browser.ts`'s real contract (storage/types.ts): resolves
+     * `{ activeId, doc } | null`, where `null` covers TWO cases — an unknown
+     * id (nothing to delete) and a successful delete of a project other
+     * than the active one (a "background delete", which must not move the
+     * caret out from under whatever is currently open). Only deleting the
+     * ACTIVE project returns non-null, and deleting the last project never
+     * leaves a no-project state — it manufactures a fresh Untitled one, the
+     * same as the real adapter.
+     */
+    async deleteProject(id: string) {
+      const existed = projects.has(id);
+      const wasActive = activeId === id;
+      if (existed) projects.delete(id);
+      if (!wasActive) return null;
+
+      if (projects.size === 0) {
+        const doc = createDocument();
+        const newId = `p${++counter}`;
+        projects.set(newId, {
+          entry: { id: newId, name: doc.name, savedAt: tick(), createdAt: tick() },
+          doc,
+        });
+        activeId = newId;
+        return { activeId, doc };
+      }
+
+      const next = [...projects.values()][0];
+      activeId = next.entry.id;
+      return { activeId, doc: structuredClone(next.doc) };
     },
     async setActiveProject(id: string) {
       activeId = id;
+    },
+    /**
+     * Mirrors `BrowserStorageAdapter.autoSave`: writes the document into the
+     * SAME map `loadProject`/`listProjects` read, not just the module-level
+     * `mockAvailable` flag the default mock used to flip in isolation. Without
+     * this, nothing an autosave ever "persists" is visible to a later
+     * `loadProject` — a switch-away-and-back test would read back the
+     * project's ORIGINAL document forever, no matter how long a real-timer
+     * test waited for the debounce.
+     */
+    autoSave(id: string, doc: SloydDocument) {
+      if (!id) return;
+      const existing = projects.get(id);
+      projects.set(id, {
+        entry: existing
+          ? { ...existing.entry, name: doc.name, savedAt: tick() }
+          : { id, name: doc.name, savedAt: tick(), createdAt: tick() },
+        doc,
+      });
     },
   };
 }
@@ -142,9 +212,12 @@ const deleteProject = vi.fn((...args: [string]) => fake.deleteProject(...args));
 const setActiveProject = vi.fn((...args: [string]) => fake.setActiveProject(...args));
 // Mirrors `BrowserStorageAdapter.autoSave`'s own guard (a falsy id refuses
 // and flips `available` false) so the banner path is reachable through the
-// real call path rather than only by hand-setting `mockAvailable`.
-const defaultAutoSave = async (id: string, _doc: SloydDocument) => {
+// real call path rather than only by hand-setting `mockAvailable`. Also
+// writes through to `fake`'s own map (see `fake.autoSave`'s comment) so a
+// document that autosaves is actually there for a later `loadProject`.
+const defaultAutoSave = async (id: string, doc: SloydDocument) => {
   mockAvailable = Boolean(id);
+  fake.autoSave(id, doc);
 };
 const autoSave = vi.fn<(id: string, doc: SloydDocument) => Promise<void>>(defaultAutoSave);
 const exportProject = vi.fn().mockResolvedValue(undefined);
@@ -977,5 +1050,73 @@ describe('App type-anywhere tape capture', () => {
 
     await user.keyboard('{Escape}');
     expect(useStore.getState().tapeAnchor).toBeNull();
+  });
+});
+
+// The brief this round supplied two selectors that do not match the shipped
+// DOM and were fixed rather than forced green (see task-6-report.md):
+//  - ProjectMenu is DELIBERATELY not an ARIA menu (its own doc comment:
+//    "considered and rejected") — its rows and commands are plain buttons,
+//    not `menuitem`/`menuitemradio`.
+//  - The armed delete button's accessible name is `Delete ${p.name}?`
+//    (ProjectMenu.tsx), not the bare `'Delete?'` an exact-match query needs.
+describe('project library: new, duplicate, delete, import', () => {
+  it('creates a new project and switches to it', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByLabelText('Open project menu'));
+    await user.click(await screen.findByRole('button', { name: /New project/ }));
+
+    expect(await screen.findByLabelText('Project name')).toHaveValue('Untitled');
+    expect(useStore.getState().doc.boards).toEqual([]);
+  });
+
+  it('keeps each project’s boards in its own slot across a switch', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByLabelText('Project name');
+
+    act(() => { useStore.getState().addBoard(); });
+    const first = useStore.getState().doc.boards[0].id;
+
+    // Autosave is debounced 600ms and switching cancels a still-pending
+    // timer without flushing it (the documented "switch race" — see "does
+    // not write the outgoing project into the incoming project's slot"
+    // above). Real timers here, so the wait is real: switch before this and
+    // the board never reaches the fake's stored 'Test' project at all,
+    // which would make this test fail for a reason that has nothing to do
+    // with per-project isolation.
+    await act(async () => { await new Promise((r) => setTimeout(r, 700)); });
+
+    await user.click(await screen.findByLabelText('Open project menu'));
+    await user.click(await screen.findByRole('button', { name: /New project/ }));
+    expect(useStore.getState().doc.boards).toEqual([]);
+
+    // Switch back to the original ('Test') project by name — robust to
+    // row order, and exercises the same "own slot" property the brief's
+    // position-based `rows[rows.length - 1]` was after.
+    await user.click(await screen.findByLabelText('Open project menu'));
+    await user.click(await screen.findByRole('button', { name: /^Test/ }));
+
+    // openProject is fire-and-forget from the row's onClick (ProjectMenu
+    // does not await it before closing the popup), so the switch's
+    // loadProject/replaceDocument round trip needs its own wait rather than
+    // being assumed complete the instant the click resolves.
+    expect(await screen.findByLabelText('Project name')).toHaveValue('Test');
+    expect(useStore.getState().doc.boards[0].id).toBe(first);
+  });
+
+  it('deleting the last project leaves a usable app', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await screen.findByLabelText('Project name');
+
+    await user.click(await screen.findByLabelText('Open project menu'));
+    await user.click((await screen.findAllByLabelText(/^Delete /))[0]);
+    await user.click(await screen.findByRole('button', { name: /Delete .*\?/ }));
+
+    expect(await screen.findByLabelText('Project name')).toHaveValue('Untitled');
+    act(() => { useStore.getState().addBoard(); });
+    expect(useStore.getState().doc.boards).toHaveLength(1);
   });
 });
