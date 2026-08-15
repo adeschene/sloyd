@@ -287,3 +287,39 @@ pre-existing and none is raised by this round's code: `THREE.Clock: This module 
 deprecated`, `THREE.WebGLShadowMap: PCFSoftShadowMap has been deprecated` (the bulk of the
 log — it repeats per render), and llvmpipe `GPU stall due to ReadPixels` performance notices
 from the software GL stack (follow-up 26a's environment). Nothing new appeared at any point.
+
+---
+
+## Addendum, 2026-08-15: confirmed live in production by the user
+
+Everything above was recorded against the **dev server**, before the round was merged or
+deployed. That is the standing rule and the write-up was correct to say production had
+never been opened.
+
+It has now. The round was merged (`6210fb9`), deployed to `sloyd.oddbox.tech` (bundle
+`index-K_vbIrhN.js` → `index-DOJGjiK1.js`, same hash at the edge and in-network, `200` on
+`/` and on a deep route both ways), and **the user exercised the feature against production
+and reported it working**.
+
+Two things that record is and is not:
+
+- **It is the first confirmation that adoption ran correctly against a real, long-lived
+  `sloyd.autosave.v1`** — a document written by an actual build over actual use, not a
+  hand-seeded fixture. That is the one input the dev-server pass could only approximate,
+  and it is the input the whole round was designed around.
+- **It is not a systematic pass.** No case list was walked, nothing was read back out of
+  `localStorage`, and the negative findings above stay open exactly as written —
+  follow-ups **151**, **152**, **153**, **154**, and the unchecked narrow viewport.
+
+**A note on the deployment rule, which this round bent for a good reason.** The rule says
+production is verified by loading the page only, because exercising a feature there writes
+a document over the user's own and there is nothing to restore from. This round was
+exercised in production anyway — deliberately, by the user, because the alternative
+(reaching a dev server on a VPS over SSH) did not work. The cost is understood and small:
+adoption preserves `sloyd.autosave.v1` untouched, so the pre-round project is still exactly
+where it was.
+
+**The rule itself should be read more carefully after this round, not less.** Every earlier
+feature was inert until exercised, so a page load genuinely proved nothing was disturbed.
+Adoption is not inert — the page load *is* the exercise. A future round that acts at load
+time needs its own argument rather than inheriting this one.
