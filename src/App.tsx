@@ -1,14 +1,16 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Viewport } from './viewport/Viewport';
 import { Toolbar } from './panels/Toolbar';
 import { PartsList } from './panels/PartsList';
 import { Properties } from './panels/Properties';
 import { GuidesList } from './panels/GuidesList';
 import { FileMenu, SaveIndicator, StorageBanner } from './panels/FileMenu';
+import type { FileMenuHandle } from './panels/FileMenu';
 import { CutList } from './panels/CutList';
 import { TapeReadout } from './panels/TapeReadout';
 import { canBeginLength } from './units/length';
-import { tapeAxisFromKey } from './document/document';
+import { tapeAxisFromKey, createDocument, DocumentError } from './document/document';
+import type { SloydDocument } from './document/document';
 import { storage } from './storage/browser';
 import { useStore } from './store/store';
 
@@ -53,6 +55,11 @@ export default function App() {
   // mounts the opener is already gone from `document.activeElement`.
   const opener = useRef<HTMLElement | null>(null);
   const restored = useRef(false);
+  const [activeId, setActiveId] = useState('');
+  // False when adoption failed (spec §2.2). The session runs the legacy
+  // single-slot path and the caret is not rendered — a failed adoption must
+  // degrade to TODAY'S APP, not to an empty one or to a menu that lies.
+  const [libraryAvailable, setLibraryAvailable] = useState(false);
 
   // Restore once on mount, before any autosave can overwrite it.
   //
@@ -60,7 +67,10 @@ export default function App() {
   //  - A document edit landing while the restore is still in flight (real
   //    with a slower storage backend than today's synchronous
   //    localStorage): if the user's doc has moved on by the time the
-  //    restore resolves, their edit wins and the restore is dropped.
+  //    restore resolves, their edit wins and the RESTORED DOCUMENT is
+  //    dropped — but activeId/libraryAvailable are adopted regardless (see
+  //    the comment below), because which project is open is not in
+  //    question just because the document lost the race.
   //  - StrictMode's double-invoke in dev running two overlapping restores:
   //    `cancelled` stops a stale continuation from firing after its effect
   //    was cleaned up.
@@ -69,20 +79,43 @@ export default function App() {
     (async () => {
       const before = useStore.getState().doc;
       try {
-        const saved = await storage.loadAutoSaved();
+        const { activeId: id, doc: saved, libraryAvailable: libraryOk } = await storage.openLibrary();
         if (cancelled) return;
-        // The user edited while the restore was in flight — their work wins.
+        // ADOPTED UNCONDITIONALLY, before the edit-wins check below.
+        // Which DOCUMENT survives is about the user's edit racing the
+        // restore; which PROJECT is open, and whether the library opened at
+        // all, is not in question either way — openLibrary already
+        // resolved, successfully, with a real answer for both. Making this
+        // conditional on the branch below is exactly what silently disabled
+        // autosave for the rest of the session: activeId stayed '' forever,
+        // the !activeId guard on the autosave effect killed every later
+        // save, and SaveIndicator kept claiming "Saved locally" with no
+        // banner to say otherwise. (This is the same hazard the old
+        // loadAutoSaved-based comment here used to name for a different
+        // path — restored below rather than lost.)
+        setActiveId(id);
+        setLibraryAvailable(libraryOk);
+        // The user edited while the restore was in flight — their work
+        // wins. Only the DOCUMENT is skipped by this; activeId/
+        // libraryAvailable are already adopted above.
         if (useStore.getState().doc !== before) {
           setAvailable(storage.available);
           return;
         }
-        if (saved) replaceDocument(saved);
+        replaceDocument(saved);
         setAvailable(storage.available);
       } catch {
-        // loadAutoSaved carries no never-throws contract (unlike autoSave).
-        // A rejection here must not leave restored.current permanently
-        // false — that would silently disable autosave for the rest of the
-        // session while SaveIndicator keeps claiming "Saved locally".
+        // openLibrary itself carries a documented never-throws contract,
+        // unlike the loadAutoSaved() this replaced, so THIS catch has no
+        // data to adopt when it's openLibrary's own rejection that lands
+        // here — activeId/libraryAvailable correctly stay at their initial
+        // false/'' values (autosave off). Not a claim that nothing between
+        // the two setActiveId/setLibraryAvailable calls above and here can
+        // throw (replaceDocument is a plain store call, not a documented
+        // never-throws one) — only that if it did, activeId would already
+        // be adopted and restored.current would still correctly become
+        // true, which is fine, not the half-adopted state this comment
+        // used to warn about.
         if (!cancelled) setAvailable(storage.available);
       } finally {
         if (!cancelled) restored.current = true;
@@ -94,16 +127,221 @@ export default function App() {
   }, [replaceDocument]);
 
   // Debounced autosave on every document change.
+  //
+  // TWO SEPARATE THINGS, and it matters which one guards which failure:
+  //
+  // The protection against the SWITCH RACE is `activeId` being passed as an
+  // EXPLICIT ARGUMENT captured in the same closure as `doc` — not read back
+  // off adapter state — PLUS `doc` changing on every switch (openProject and
+  // onNewProject both call `replaceDocument` with a fresh object). That
+  // combination is what makes this effect's cleanup clear the outgoing
+  // project's pending timer before the incoming one's ever arms: `doc`
+  // alone, already in the dep list, is enough to force the rerun-and-cleanup
+  // on every switch. See the race test in App.test.tsx — and see its own
+  // comment for why `activeId`'s presence or absence in THIS dep list does
+  // not, on its own, change whether that specific race is reachable.
+  //
+  // `activeId`'s OWN reason to be a dependency is different and is not
+  // redundant: it is what arms autosave AT ALL after a mid-restore adoption,
+  // the one path where `activeId` changes without `doc` changing (the
+  // restore effect's edit-wins branch above adopts `activeId` but skips
+  // `replaceDocument`, since the user's in-flight edit is what should win).
+  // Drop `activeId` from this dep list and that adoption never reruns this
+  // effect, so autosave silently never arms for the rest of the session
+  // until some unrelated later edit happens to change `doc` on its own. See
+  // "arms autosave against the id adopted mid-restore" in App.test.tsx,
+  // verified failing under that exact mutation.
+  //
+  // A THIRD thing, added later and not a restatement of either: the effect's
+  // cleanup closes the race by CANCELLING the outgoing project's pending
+  // write, and nobody asked whether that write ever happened at all. It did
+  // not — the outgoing project's last <=600 ms of edits were discarded on
+  // every switch. `flushAutoSave` below is what makes it happen, and it
+  // carries the same id-paired-with-document shape for the same reason.
+  //
+  // THE PENDING WRITE, held as ONE record: the timer, the id it was armed
+  // for, and the document that was current when it armed.
+  //
+  // PROHIBITION: do not split these into separate refs (or read `activeId`
+  // back off state inside the flush). Holding them together is what makes
+  // spec §3's crossing race structurally impossible rather than
+  // timing-dependent — every flush path writes a MATCHED pair, whichever
+  // record it happens to read. Two refs can be updated one render apart, and
+  // the failure is A's document landing in B's slot, silently.
+  const pending = useRef<{ id: string; doc: SloydDocument; timer: ReturnType<typeof setTimeout> } | null>(null);
+
+  /**
+   * Write the pending autosave NOW, if there is one. Called by the debounce
+   * timer itself and — this is the point — by every handler that is about to
+   * switch which project is open.
+   *
+   * Without it the switch handlers' `setActiveId` + `replaceDocument` re-run
+   * the effect below, whose cleanup `clearTimeout`s the outgoing project's
+   * pending write and re-arms for the INCOMING one: the outgoing project's
+   * last <=600 ms of edits are simply discarded, and switching back shows a
+   * stale document. Edit a dimension, open the caret, pick another project is
+   * the central gesture of this feature; it must not lose the edit.
+   */
+  const flushAutoSave = useCallback(async () => {
+    const p = pending.current;
+    if (!p) return;
+    clearTimeout(p.timer);
+    pending.current = null;
+    await storage.autoSave(p.id, p.doc);
+    setAvailable(storage.available);
+    setSaving(false);
+  }, []);
+
   useEffect(() => {
-    if (!restored.current) return;
+    if (!restored.current || !activeId) return;
     setSaving(true);
-    const t = setTimeout(async () => {
-      await storage.autoSave(doc);
-      setAvailable(storage.available);
-      setSaving(false);
+    const timer = setTimeout(() => {
+      void flushAutoSave();
     }, 600);
-    return () => clearTimeout(t);
-  }, [doc]);
+    // Recorded AFTER the timer exists so the record is never half-built. A
+    // rerun overwrites it, which is correct: for an edit to the same project
+    // the newer document supersedes, and for a SWITCH the handler has already
+    // awaited `flushAutoSave` before calling `setActiveId`, so the outgoing
+    // pair was written before this line can replace it.
+    pending.current = { id: activeId, doc, timer };
+    return () => clearTimeout(timer);
+  }, [doc, activeId, flushAutoSave]);
+
+  // Switching IS a replaceDocument call (invariant 24, spec §3.1): a fresh
+  // action would have to re-derive every held-point clearing rule, and a
+  // wholesale rewrite of doc.boards is exactly what that invariant names.
+  //
+  // Every switch handler FLUSHES first: the pending write is for the project
+  // being left, and the effect's cleanup would otherwise throw it away.
+  //
+  // `switching` guards the one handler that can be re-entered from the UI
+  // before it finishes: two fast row clicks both await `loadProject`, and
+  // whichever `setActiveProject` resolves LAST wins the persisted active id —
+  // which may be the row the user did not end on. The other three handlers
+  // are driven by menu items that close the menu as they fire, so they are
+  // left alone rather than given a guard by analogy.
+  const switching = useRef(false);
+  const openProject = useCallback(async (id: string) => {
+    if (id === activeId || switching.current) return;
+    switching.current = true;
+    try {
+      await flushAutoSave();
+      const next = await storage.loadProject(id);
+      if (!next) return;
+      setActiveId(id);
+      replaceDocument(next);
+      await storage.setActiveProject(id);
+      setAvailable(storage.available);
+    } finally {
+      switching.current = false;
+    }
+  }, [activeId, replaceDocument, flushAutoSave]);
+
+  // Creates a fresh project, makes it the active one, and swaps the document
+  // in — the same replaceDocument-based shape as openProject and for the same
+  // reason (invariant 24, spec §3.1): a wholesale swap of what "the document"
+  // means belongs on that path, not on a bespoke action that would have to
+  // re-derive every held-point clearing rule undo/redo/openProject already
+  // gets for free.
+  //
+  // `createProject` returns `string | null` — null means the write failed and
+  // nothing was persisted (storage/types.ts). Nothing here is adopted in that
+  // case: no activeId change, no replaceDocument, so the session stays
+  // exactly where it was rather than switching to a project that does not
+  // exist on disk.
+  //
+  // ONE RULE FOR ALL FOUR HANDLERS: every one of them reports the storage
+  // layer's verdict by calling `setAvailable(storage.available)` when it
+  // finishes, success or failure. Without it a refused delete or a failed
+  // create is invisible until some later autosave happens to move the flag —
+  // the user acts, nothing happens, and nothing says why.
+  //
+  // `importIntoLibrary` ADDITIONALLY throws, and that is not an
+  // inconsistency: it is the only one of the four invoked from a flow that
+  // already owns a visible error surface at the point of action (FileMenu's,
+  // where a corrupt file reports itself). The banner is easy to miss right
+  // after a deliberate action; the other three have nowhere else to put it.
+  const onNewProject = useCallback(async () => {
+    const next = createDocument('Untitled');
+    await flushAutoSave();
+    const id = await storage.createProject(next);
+    setAvailable(storage.available);
+    if (!id) return;
+    setActiveId(id);
+    replaceDocument(next);
+  }, [replaceDocument, flushAutoSave]);
+
+  // Duplicate does NOT switch: you asked for a copy, not to leave what you
+  // were doing. The new row appears in the list on the menu's own refresh.
+  // It still flushes — the copy is taken from what is STORED, so an unwritten
+  // edit would be missing from a duplicate of the project you are looking at.
+  const onDuplicateProject = useCallback(async (id: string) => {
+    await flushAutoSave();
+    await storage.duplicateProject(id);
+    setAvailable(storage.available);
+  }, [flushAutoSave]);
+
+  // `deleteProject` resolves `{ activeId, doc } | null`, where null means
+  // there is nothing to adopt — covering THREE cases: a refused delete
+  // (unusable index), a successful delete of a project that was not the
+  // active one, and a last-project delete whose replacement could not be
+  // written (browser.ts states the list). The adapter has already
+  // made that decision; re-deriving it here with an `id === activeId` check
+  // would risk replacing a document that did not need replacing, dropping
+  // unsaved edits.
+  //
+  // The flush covers a BACKGROUND delete: the open project keeps its
+  // document, and its pending write must not be cancelled by the rerender the
+  // delete causes. Deleting the open project flushes into a key that is about
+  // to be removed, which is harmless.
+  //
+  // `null` also covers a third case nobody enumerated at first — the open
+  // project was destroyed and its replacement could not be written — where
+  // `activeId` below goes on naming a project that no longer exists. That is
+  // deliberately NOT patched up here: `storage.autoSave` refuses an id the
+  // index does not name (see its comment), so `available` reports it and the
+  // banner tells the truth, at the seam, for every route into that state
+  // including one caused by another tab.
+  const onDeleteProject = useCallback(async (id: string) => {
+    await flushAutoSave();
+    const next = await storage.deleteProject(id);
+    setAvailable(storage.available);
+    if (next) {
+      setActiveId(next.activeId);
+      replaceDocument(next.doc);
+    }
+  }, [replaceDocument, flushAutoSave]);
+
+  // The trigger for Import now lives in ProjectMenu; the flow itself and its
+  // error surface stay owned by FileMenu (see fileMenuRef below). This is
+  // what App hands FileMenu as `onImported`: given a document the user just
+  // picked off disk, store it as a NEW library entry and switch to it — the
+  // same replaceDocument-based shape as onNewProject/openProject (invariant
+  // 24, spec §3.1).
+  const importIntoLibrary = useCallback(async (doc: SloydDocument) => {
+    await flushAutoSave();
+    const id = await storage.createProject(doc);
+    // Before the throw below, not after it: the banner must not lag behind
+    // the error the user is already reading.
+    setAvailable(storage.available);
+    if (!id) {
+      // A silent no-op here would leave the user staring at whatever was on
+      // screen with no sign the import they just did anything did not take
+      // effect — `StorageBanner` covers the underlying `available` flip,
+      // but that banner is easy to miss right after an action was taken.
+      // Thrown INSIDE `importProjectIntoLibrary`'s try block (FileMenu.tsx),
+      // so it surfaces exactly where the user acted, the same as a corrupt
+      // file would.
+      throw new DocumentError('Could not save the imported project.');
+    }
+    setActiveId(id);
+    replaceDocument(doc);
+  }, [replaceDocument, flushAutoSave]);
+
+  const fileMenuRef = useRef<FileMenuHandle>(null);
+  const onImportProject = useCallback(() => {
+    void fileMenuRef.current?.importProjectIntoLibrary();
+  }, []);
 
   // Closing the sheet puts focus back where it was. In an effect rather than
   // in `onClose` because the shell is still `inert` when the handler runs —
@@ -342,9 +580,16 @@ export default function App() {
             opener.current = document.activeElement as HTMLElement | null;
             setCutListOpen(true);
           }}
+          libraryAvailable={libraryAvailable}
+          activeId={activeId}
+          onOpenProject={openProject}
+          onNewProject={onNewProject}
+          onDuplicateProject={onDuplicateProject}
+          onDeleteProject={onDeleteProject}
+          onImportProject={onImportProject}
         >
           <SaveIndicator saving={saving} available={available} />
-          <FileMenu />
+          <FileMenu ref={fileMenuRef} onImported={importIntoLibrary} />
         </Toolbar>
         <StorageBanner available={available} />
         <main className="workspace">

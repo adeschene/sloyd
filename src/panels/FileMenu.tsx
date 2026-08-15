@@ -1,11 +1,32 @@
-import { useState } from 'react';
+import { forwardRef, useImperativeHandle, useState } from 'react';
 import { storage } from '../storage/browser';
 import { useStore } from '../store/store';
 import { DocumentError } from '../document/document';
+import type { SloydDocument } from '../document/document';
 
-export function FileMenu() {
+interface Props {
+  /**
+   * Called with the imported document once `storage.importProject()`
+   * resolves. Importing now creates a NEW library entry rather than
+   * replacing what is on screen (that is App's `importIntoLibrary`) — the
+   * old confirm dialog asked permission for something that no longer
+   * happens, which is why it is gone rather than moved.
+   */
+  onImported: (doc: SloydDocument) => Promise<void>;
+}
+
+/**
+ * The imperative surface `ProjectMenu`'s "Import…" row triggers. The import
+ * flow's logic and error surface both stay owned by `FileMenu` — only the
+ * button that starts it lives elsewhere now, so a ref is what lets a click
+ * in a different subtree reach this component's local `error` state.
+ */
+export interface FileMenuHandle {
+  importProjectIntoLibrary: () => Promise<void>;
+}
+
+export const FileMenu = forwardRef<FileMenuHandle, Props>(function FileMenu({ onImported }, ref) {
   const doc = useStore((s) => s.doc);
-  const replaceDocument = useStore((s) => s.replaceDocument);
   const [error, setError] = useState<string | null>(null);
 
   const onExport = () => {
@@ -18,14 +39,13 @@ export function FileMenu() {
     });
   };
 
-  const onImport = async () => {
+  const importProjectIntoLibrary = async () => {
     setError(null);
-    const dirty = doc.boards.length > 0;
-    if (dirty && !window.confirm('Opening a project replaces what is on screen. Continue?')) {
-      return;
-    }
     try {
-      replaceDocument(await storage.importProject());
+      // No confirm: importing creates a NEW library entry rather than
+      // replacing what is on screen, so there is nothing to lose. The old
+      // prompt asked permission for something that no longer happens.
+      await onImported(await storage.importProject());
     } catch (err) {
       // importProject() rejects both when the user cancels the file picker
       // and when the chosen file is genuinely bad (corrupt JSON, wrong
@@ -43,14 +63,15 @@ export function FileMenu() {
     }
   };
 
+  useImperativeHandle(ref, () => ({ importProjectIntoLibrary }));
+
   return (
     <>
       <button onClick={onExport} title="Export project">⬇ Export</button>
-      <button onClick={onImport} title="Import project">⬆ Import</button>
       {error && <span role="alert" className="field-error">{error}</span>}
     </>
   );
-}
+});
 
 export function SaveIndicator({ saving, available }: { saving: boolean; available: boolean }) {
   if (!available) return null;

@@ -111,6 +111,38 @@ existing banner already explains). Adoption is retried on the next boot, since
 the absent index is the only thing that triggers it. **A failed adoption must
 degrade to *today's app*, not to an empty one.**
 
+**Adoption fires on exactly one condition: `sloyd.library.v1` is ABSENT.**
+Nothing else may trigger it — in particular, a *present but unusable* index
+must never be treated as an absent one, because that silently clobbers real
+project data with a fresh single-entry index built from the stale legacy
+document. The document layer already refuses a `version` it doesn't
+understand rather than guessing at it (the reason for the v6 bump); the
+storage layer owes the same refusal to a `layout` it doesn't understand. Five
+cases, and only the first adopts:
+
+- **Key absent.** Adopt, exactly as steps 1–4 above.
+- **Key present but `parseIndex` returns null** — corrupt JSON, or a `layout`
+  this build does not recognise (in particular a *newer* layout than
+  `LAYOUT_VERSION`). Write nothing. Return the legacy document read-only
+  (`libraryAvailable: false`). This is a refusal, not a recovery: a future
+  build's projects must not be silently discarded because this build can't
+  read the index that names them.
+- **Index parses, `activeId` names a project whose key is missing.** Fall back
+  to the most recently saved project that *is* loadable — never re-adopt the
+  legacy key here, since adoption already happened once and the legacy
+  document is now stale by definition.
+- **Index parses with `projects: []`.** Create a fresh `Untitled` project and
+  add it to the existing (empty) index. Still never re-adopt the legacy key —
+  same reasoning as above.
+- **Index parses and names projects, but NONE of them are loadable.** The
+  fall-back above ran out of candidates. Treated exactly like the empty-index
+  case: create a fresh `Untitled` and add it to the existing index, which
+  keeps the rows it already names rather than discarding them. Still never
+  re-adopt — the index exists, so adoption already happened and the legacy
+  document is stale by definition. (Added after the fact: the code always did
+  this and the enumeration above omitted it, which made the enumeration look
+  exhaustive when it was not.)
+
 ---
 
 ## 3. The switch, and a data-loss race that must not be timed around
