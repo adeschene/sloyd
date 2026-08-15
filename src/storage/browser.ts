@@ -296,7 +296,7 @@ export class BrowserStorageAdapter implements StorageAdapter {
     return sortEntries(this.readIndex().projects);
   }
 
-  async createProject(doc: SloydDocument): Promise<string | null> {
+  async createProject(doc: SloydDocument, options?: { activate?: boolean }): Promise<string | null> {
     if (!this.store) return null;
     // Refuse before writing anything if the index is present but unusable
     // (Finding 3) — same rule as autoSave, stated once there.
@@ -305,6 +305,12 @@ export class BrowserStorageAdapter implements StorageAdapter {
       this._available = false;
       return null;
     }
+    // Explicit, not implicit: `activate` defaults true because most callers
+    // want it, but `duplicateProject` passes `false` rather than relying on
+    // this method to activate and then having the caller restore the prior
+    // id — that shape leaves the trap armed for the NEXT caller (fix round
+    // 1, Finding 1).
+    const activate = options?.activate ?? true;
     const id = nextId();
     const at = this.now();
     try {
@@ -315,7 +321,7 @@ export class BrowserStorageAdapter implements StorageAdapter {
     }
     const ok = this.writeIndex({
       ...index,
-      activeId: id,
+      activeId: activate ? id : index.activeId,
       projects: [...index.projects, { id, name: doc.name, savedAt: at, createdAt: at }],
     });
     if (!ok) {
@@ -342,7 +348,14 @@ export class BrowserStorageAdapter implements StorageAdapter {
     // and invariant 8 governs BOARD names inside a document, not project
     // names. A library that renamed your projects at you would be worse
     // than two rows alike.
-    return this.createProject({ ...doc, name: `${doc.name} copy` });
+    //
+    // `{ activate: false }`: duplicate does NOT switch — you asked for a
+    // copy, not to leave what you're doing. Without this, the copy silently
+    // becomes the persisted active project (the index's `activeId` moves to
+    // it) while the on-screen document, React's `activeId` and the menu's
+    // `aria-current` all stay on the original — no data loss, but the next
+    // boot opens the wrong project (fix round 1, Finding 1).
+    return this.createProject({ ...doc, name: `${doc.name} copy` }, { activate: false });
   }
 
   /**

@@ -9,7 +9,7 @@ import type { FileMenuHandle } from './panels/FileMenu';
 import { CutList } from './panels/CutList';
 import { TapeReadout } from './panels/TapeReadout';
 import { canBeginLength } from './units/length';
-import { tapeAxisFromKey, createDocument } from './document/document';
+import { tapeAxisFromKey, createDocument, DocumentError } from './document/document';
 import type { SloydDocument } from './document/document';
 import { storage } from './storage/browser';
 import { useStore } from './store/store';
@@ -223,7 +223,16 @@ export default function App() {
   // 24, spec §3.1).
   const importIntoLibrary = useCallback(async (doc: SloydDocument) => {
     const id = await storage.createProject(doc);
-    if (!id) return;
+    if (!id) {
+      // A silent no-op here would leave the user staring at whatever was on
+      // screen with no sign the import they just did anything did not take
+      // effect — `StorageBanner` covers the underlying `available` flip,
+      // but that banner is easy to miss right after an action was taken.
+      // Thrown INSIDE `importProjectIntoLibrary`'s try block (FileMenu.tsx),
+      // so it surfaces exactly where the user acted, the same as a corrupt
+      // file would.
+      throw new DocumentError('Could not save the imported project.');
+    }
     setActiveId(id);
     replaceDocument(doc);
   }, [replaceDocument]);

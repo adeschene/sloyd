@@ -206,7 +206,9 @@ const fake = makeLibraryFake();
 const openLibrary = vi.fn(() => fake.openLibrary());
 const loadProject = vi.fn((...args: [string]) => fake.loadProject(...args));
 const listProjects = vi.fn(() => fake.listProjects());
-const createProject = vi.fn((...args: [SloydDocument]) => fake.createProject(...args));
+const createProject = vi.fn<(doc: SloydDocument) => Promise<string | null>>(
+  (...args: [SloydDocument]) => fake.createProject(...args),
+);
 const duplicateProject = vi.fn((...args: [string]) => fake.duplicateProject(...args));
 const deleteProject = vi.fn((...args: [string]) => fake.deleteProject(...args));
 const setActiveProject = vi.fn((...args: [string]) => fake.setActiveProject(...args));
@@ -1118,5 +1120,24 @@ describe('project library: new, duplicate, delete, import', () => {
     expect(await screen.findByLabelText('Project name')).toHaveValue('Untitled');
     act(() => { useStore.getState().addBoard(); });
     expect(useStore.getState().doc.boards).toHaveLength(1);
+  });
+
+  // Minor 2 (fix round 1): a failed createProject during import used to
+  // vanish silently at the import site — StorageBanner would eventually
+  // cover it via the `available` flip, but that's easy to miss right after
+  // the action that caused it. `importIntoLibrary` now throws a
+  // DocumentError the FileMenu ref's try/catch surfaces as a normal alert.
+  it('surfaces an error when importing fails to save into the library', async () => {
+    const user = userEvent.setup();
+    importProject.mockResolvedValue(createDocument('Imported'));
+    createProject.mockResolvedValueOnce(null);
+    render(<App />);
+    await screen.findByLabelText('Project name');
+
+    await user.click(await screen.findByLabelText('Open project menu'));
+    await user.click(await screen.findByRole('button', { name: /Import/ }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toBe('Could not save the imported project.');
   });
 });

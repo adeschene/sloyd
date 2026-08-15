@@ -59,9 +59,22 @@ export interface StorageAdapter {
   loadProject(id: string): Promise<SloydDocument | null>;
   /** Every project, most recently saved first. */
   listProjects(): Promise<ProjectEntry[]>;
-  /** Store a new project and return its id, or null if the write failed. */
-  createProject(doc: SloydDocument): Promise<string | null>;
-  /** Copy a project under a new id, suffixed "copy". Null if id is unknown. */
+  /**
+   * Store a new project and return its id, or null if the write failed.
+   *
+   * `activate` defaults to true — most callers (new project, import) mean
+   * "make this the open project." `duplicateProject` is the one caller that
+   * does not: a copy appears in the list without moving the caret. This is
+   * an EXPLICIT parameter rather than an implicit "create always activates,
+   * duplicateProject restores the prior id afterward" because the restore
+   * shape leaves the trap armed for the next caller — every call site must
+   * say which behaviour it means.
+   */
+  createProject(doc: SloydDocument, options?: { activate?: boolean }): Promise<string | null>;
+  /**
+   * Copy a project under a new id, suffixed "copy". Null if id is unknown.
+   * Does NOT activate the copy — see `createProject`'s `activate` doc.
+   */
   duplicateProject(id: string): Promise<string | null>;
   /**
    * Delete a project and resolve with what the open project should become,

@@ -674,6 +674,27 @@ describe('project CRUD', () => {
     expect(await adapter.duplicateProject('ghost')).toBeNull();
   });
 
+  // Fix round 1, Finding 1: `duplicateProject` delegates to `createProject`,
+  // which used to unconditionally activate the id it just wrote — so a
+  // duplicate silently repointed the PERSISTED active project at the copy
+  // while the caller's own `activeId` state, the on-screen document and the
+  // menu's `aria-current` all stayed on the original. No data loss (both
+  // documents persist, autosave keeps writing the original id), but the
+  // NEXT BOOT would open the copy instead of what the user was looking at.
+  // Read the index straight off `store`, not through `listProjects` (which
+  // doesn't expose `activeId`) or `openLibrary` (which would itself repair
+  // a wrong value by re-deriving `ordered` — this test needs the raw
+  // written value, not openLibrary's best effort to recover from it).
+  it('duplicateProject does not move the persisted active project to the copy', async () => {
+    const { store, adapter, activeId } = await boot();
+
+    const copyId = await adapter.duplicateProject(activeId);
+
+    const index = JSON.parse(store.getItem(LIBRARY_KEY)!);
+    expect(index.activeId).toBe(activeId);
+    expect(index.activeId).not.toBe(copyId);
+  });
+
   it('deleteProject removes the key and the row', async () => {
     const { store, adapter, activeId } = await boot();
     const other = await adapter.createProject(createDocument('Other'));

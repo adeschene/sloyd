@@ -101,10 +101,11 @@ describe('FileMenu import', () => {
     expect(alert.textContent).toBe('That file is not a valid Sloyd project file.');
   });
 
-  it('does not surface an error when onImported itself rejects being reported as an import failure', async () => {
+  it('surfaces the generic import error when onImported itself rejects', async () => {
     // Sanity check on ownership: onImported's own errors are not this
     // component's concern to catch specially — it's a thrown error inside
-    // the try block just like a bad file, and gets the generic message.
+    // the try block just like a bad file, and (unless it's a DocumentError)
+    // gets the same generic message a corrupt file would.
     importProject.mockResolvedValue(createDocument('Imported'));
     const onImported = vi.fn().mockRejectedValue(new Error('storage full'));
     const ref = createRef<FileMenuHandle>();

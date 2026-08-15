@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ProjectMenu, relativeTime } from './ProjectMenu';
 import { storage } from '../storage/browser';
@@ -121,6 +121,31 @@ describe('ProjectMenu', () => {
     expect(document.activeElement).toHaveAccessibleName('Delete Shaker end table?');
     await user.keyboard(' ');
     expect(onDelete).toHaveBeenCalledWith('b');
+  });
+
+  // R20 (fix round 1, Finding 3): the row's onClick used to fire
+  // `refresh()` right after `onDuplicate`/`onDelete` synchronously, not
+  // after awaiting them — harmless while both were no-ops, but a real race
+  // once they touch storage. A deferred promise as the `onDuplicate` prop is
+  // the general technique for pinning "awaits before proceeding": the click
+  // handler cannot reach `refresh()` (and so cannot call `listProjects()`
+  // again) until the test itself releases the promise.
+  it('awaits onDuplicate before refreshing the project list', async () => {
+    const listProjects = vi.spyOn(storage, 'listProjects').mockResolvedValue(entries);
+    let release!: () => void;
+    const onDuplicate = vi.fn(() => new Promise<void>((r) => { release = r; }));
+    render(<ProjectMenu activeId="a" onOpen={vi.fn()} onNew={vi.fn()} onDuplicate={onDuplicate} onDelete={vi.fn()} onImport={vi.fn()} />);
+    const user = await open();
+    const dupButtons = await screen.findAllByLabelText(/^Duplicate /);
+    listProjects.mockClear(); // drop the call `open()` itself triggered
+
+    await user.click(dupButtons[0]);
+    expect(onDuplicate).toHaveBeenCalledWith('b');
+    // Still pending: the click's own refresh must not have run yet.
+    expect(listProjects).not.toHaveBeenCalled();
+
+    release();
+    await waitFor(() => expect(listProjects).toHaveBeenCalled());
   });
 
   it('closes when focus leaves the popup entirely (Tab out), independent of outside-click', async () => {
