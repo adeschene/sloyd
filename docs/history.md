@@ -124,6 +124,70 @@ and 79.
 
 ## What each round did
 
+**What the ply-sign round did (2026-08-31)** — the tenth round of the day and the only one
+of the ten that started from a user bug report rather than the ledger. `FACE_AXES` recorded
+which world axis each of `BoxGeometry`'s default UV axes runs along and threw away **which
+way** it runs, with a comment stating that as a decision: *"signs are irrelevant here — grain
+is mirror-symmetric, so all that matters is which axis carries u and which carries v."*
+
+That is true of a whole board and false of a solid, and the distinction is invariant 17 —
+`boardUVs` looks a SOLID up in the BOARD's tiling, so a solid's span is a sub-range, and
+reversing the axis puts that sub-range on the wrong side of its face. On a 3/4in plywood panel
+with a 1/4in dado the two solids meeting at the split plane handed each other **v = 0 from one
+side and v = 1 from the other**: the outermost ply butted against the innermost, one
+double-width light band in the middle of the stack and a part-ply at each edge. Which is the
+report word for word — *"the middle layer is too wide and the outer layers are too narrow"*.
+
+**Three of the box's twelve UV axes run backwards** (`+X`'s u, `+Y`'s v, `-Z`'s u), so three
+of six faces had been wrong on every board the app ever drew. Four things hid it and all four
+had to hold at once: an uncut board shows the whole tile either way; solid wood's figure is
+near-random, so a mirror reads as a different board rather than a wrong one; MDF has no
+structure to misplace; and plywood's edge is the one texture in the app where **position
+within the tile carries meaning**. Plywood plus a cut is the only combination that shows it,
+which is exactly the combination the user narrowed to on their second message — the first
+described it as an orientation problem, and an orientation problem is what the first pass
+spent its time not finding.
+
+**The most portable part of the round is that negative pass, because it was rigorous and
+wrong.** Three things were measured before the cut was mentioned and all three came back
+clean: the texture (five equal bands, read off the canvas at texel rows 0/102/205/307/410),
+the UV scale (`tileInches[1] === thickness` in all 24 posture × rotation × grain combinations,
+on both narrow faces), and the render (five bands equal within 3% in all 48 face/orientation
+cases). **A 48-case sweep written during the diagnosis passed with the bug live**, and so did
+every uv assertion already in `grainTiling.test.ts`, because all of them assert a **scale** —
+how much of the tile a face covers — and the defect was a **direction**. A reversed axis maps
+`[0, 1]` to `[1, 0]`: same span, same min, same max, mirrored content. **A test that reads
+only the extremes of a mapping cannot see the mapping.** That is 155's shape in a new place,
+and it is why the fix ships with a test that asserts one interior number rather than a range:
+`uv - position / tileInches` is `boardUVs`' additive constant, so it must be identical for
+every vertex of every solid of a board — varying *within* a face catches a reversed axis,
+differing *between* solids catches a misplaced sub-range.
+
+**The ordering in the fix is the half a tidying pass gets backwards, and it is stated as such
+at the code.** A sign belongs to the pair (face, GEOMETRY axis), which is the same thing as
+the drawn u/v only when `swap` is false. So the flip runs BEFORE the swap; flipping after it
+applies `+X`'s u sign to the drawn v — precisely the upright faces the defect showed on. That
+version reds four tests; the original no-flip reds six; one wrong sign in the table reds five.
+
+**Both new tests build a real `THREE.BoxGeometry`**, which is the point rather than a
+convenience: the vertex layout and the default UVs belong to three.js, a fixture would be this
+module's own belief about them, and this module's own belief about them was the bug
+(invariant 23's rule). No WebGL is involved, so it stays inside the no-unit-tests-for-the-r3f-
+viewport rule.
+
+**One change nobody asked for, recorded rather than left to be found**: the fix mirrors the
+drawn texture on `+X`, `+Y` and `-Z` for every board, cut or not. Invisible on plywood edges
+and streaky faces; visible on **wood end grain**, whose ring pattern has its pith off-tile at
+v = 1.8, so flipping `+Y`'s v moves it to -0.8 and the arcs curve the other way. A board's
+`+Y` and `-Y` ends used to disagree with each other and now agree.
+
+**And one thing the round deliberately did not do.** The first pass also measured why five
+correctly-placed plies are hard to read at 3/4in — 2 px boundary rules that go sub-pixel at
+any real board size, a 7% light/dark step, and the mesh outline covering a share of the outer
+plies only. That was put to the user, who looked and said the layers read as even. It is
+filed under 163 as open-by-decision; bundling a taste change into a correctness fix would have
+made both harder to judge.
+
 **What the key-list round did (2026-08-31)** — the ninth and smallest round of the day, one
 CSS rule, closing **162** the same day the browser pass for 161 raised it. The sheet's key
 list drew the browser's default disc in front of an `<li>` whose text already begins `1. `,

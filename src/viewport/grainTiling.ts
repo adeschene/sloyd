@@ -7,18 +7,43 @@ import type { Dimension, GrainFamily, GrainKind } from './grainFaces';
 type Axis = 0 | 1 | 2;
 
 /**
- * Which world axis each face's default UVs run along, in BoxGeometry's
- * material-group order (+X, -X, +Y, -Y, +Z, -Z). Signs are irrelevant here —
- * grain is mirror-symmetric, so all that matters is which axis carries u and
- * which carries v.
+ * One of a face's two default UV axes: which world axis it runs along, and
+ * whether it runs WITH that axis (+1) or against it (-1).
+ *
+ * THE SIGN IS LOAD-BEARING, and the comment that used to stand here said the
+ * opposite: "signs are irrelevant — grain is mirror-symmetric, so all that
+ * matters is which axis carries u and which carries v." That is true of a
+ * whole board and false of a solid, which is why it survived until joinery
+ * met plywood. Reversing an axis maps [0, 1] to [1, 0] — the same full tile,
+ * mirrored, and a mirrored tile is still a tile. But `boardUVs` looks a SOLID
+ * up in the BOARD's tiling (invariant 17), so a solid's span is a sub-range,
+ * and reversing puts that sub-range on the wrong side of the face. Two solids
+ * meeting at a split plane then disagree about the v there: a 3/4in plywood
+ * panel with a 1/4in dado drew the outer third as v 0.33 -> 0 and the inner
+ * two thirds as v 1 -> 0.33, so the shared plane carried v = 0 from one side
+ * and v = 1 from the other and the outermost ply landed against the innermost
+ * — one double-width light band in the middle of the stack and a part-ply at
+ * each edge. Invisible on solid wood, whose figure is near-random; plain on
+ * plywood, whose edge texture is a STRUCTURE where position means something.
+ *
+ * Read off a real BoxGeometry rather than reasoned about, and pinned that way
+ * by a test — three.js owns this table, not us.
  */
-const FACE_AXES: Array<[Axis, Axis]> = [
-  [2, 1], // +X
-  [2, 1], // -X
-  [0, 2], // +Y
-  [0, 2], // -Y
-  [0, 1], // +Z
-  [0, 1], // -Z
+type UVAxis = [Axis, 1 | -1];
+
+/**
+ * Each face's default UV axes, in BoxGeometry's material-group order
+ * (+X, -X, +Y, -Y, +Z, -Z). One table, carrying both the axis and its sign:
+ * a parallel sign table would be a second thing indexed by face that has to
+ * agree with this one.
+ */
+const FACE_AXES: Array<[UVAxis, UVAxis]> = [
+  [[2, -1], [1,  1]], // +X
+  [[2,  1], [1,  1]], // -X
+  [[0,  1], [2, -1]], // +Y
+  [[0,  1], [2,  1]], // -Y
+  [[0,  1], [1,  1]], // +Z
+  [[0, -1], [1,  1]], // -Z
 ];
 
 /**
@@ -129,7 +154,7 @@ export function facePlans(board: Board): FacePlan[] {
   const tiles = TILES[grainFamily(board.material)];
   const rank = ranks(board);
 
-  return FACE_AXES.map(([gu, gv], face) => {
+  return FACE_AXES.map(([[gu], [gv]], face) => {
     const kind = kinds[face];
     const swap = rank[dims[gv]] < rank[dims[gu]];
     const [du, dv] = swap ? [gv, gu] : [gu, gv];
@@ -169,10 +194,24 @@ export function boardUVs(board: Board, solid: Region = wholeBoard(board)): Float
   const [ou, ov] = boardUVOffset(board.id);
   const uv = new Float32Array(48);
   let i = 0;
-  for (const plan of plans) {
+  for (let face = 0; face < plans.length; face += 1) {
+    const plan = plans[face];
+    const [[, su], [, sv]] = FACE_AXES[face];
     const spans = plan.axes.map((axis) => solid[dims[axis]]) as [Span, Span];
     for (const [cu, cv] of CORNERS) {
-      const [fu, fv] = plan.swap ? [cv, cu] : [cu, cv];
+      // Resolve each geometry corner into a fraction that runs WITH its world
+      // axis, so that 0 means the span's min and 1 means its max. `at` below
+      // reads the fraction that way, and three of the box's twelve UV axes run
+      // the other way (see FACE_AXES).
+      //
+      // THIS MUST HAPPEN BEFORE THE SWAP, and that is the half a tidying pass
+      // gets backwards. A sign belongs to the pair (face, GEOMETRY axis), not
+      // to the drawn u/v — those are the same thing only when swap is false.
+      // Flipping after the swap would apply +X's u sign to the drawn v, which
+      // is precisely the upright faces the original defect showed on.
+      const gu = su > 0 ? cu : 1 - cu;
+      const gv = sv > 0 ? cv : 1 - cv;
+      const [fu, fv] = plan.swap ? [gv, gu] : [gu, gv];
       const at = (f: number, s: Span, tile: number, off: number, isFit: boolean) =>
         (s[0] + f * (s[1] - s[0])) / tile + (isFit ? 0 : off);
       uv[i++] = at(fu, spans[0], plan.tileInches[0], ou, plan.fit[0]);

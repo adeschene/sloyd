@@ -24,10 +24,19 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **947/947 tests passing across 36 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
+Static SPA, containerized, **954/954 tests passing across 36 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **6**.
 
-**PRODUCTION MATCHES `master` as of 2026-08-31.** Production serves bundle
+**A TENTH ROUND LANDED ON 2026-08-31 AND IS NOT DEPLOYED: the ply-sign round (follow-up
+163), the only round of the day that came from a user bug report rather than the ledger.** It
+is a real rendering defect and it has been there since v3: `FACE_AXES` discarded the
+*direction* of each of `BoxGeometry`'s UV axes, so on a board with a **cut** each solid's
+sub-range was placed on the wrong side of its face, and the two solids meeting at a split
+plane disagreed about the coordinate there. Visible only on **plywood with a cut** — invariant
+35 says why that combination and no other. Everything below this paragraph describes the state
+before it.
+
+**PRODUCTION MATCHES `master` as of 2026-08-31, EXCEPT for the ply-sign round above.** Production serves bundle
 `index-DU8uasNy.js` with CSS `index-CtYur9k3.css`, which is `c50a138` — the key-list round
 (follow-up 162), the day's **fourth** deploy and the smallest round yet shipped: one CSS
 rule, dropping the default disc the sheet's key list drew in front of a line that already
@@ -72,7 +81,8 @@ different things make `git log` look ahead when it is not, and both are normal h
   built a byte-identical bundle: the agreement-test round (follow-up 140), 159's focus test,
   and the whole delete-token round (follow-up 160).
 
-**Nothing is pending.** `DEPLOYMENT.local.md` carries every runbook entry and bundle hash.
+**The ply-sign round (163) IS pending — it is the one thing `master` has that production does
+not.** `DEPLOYMENT.local.md` carries every runbook entry and bundle hash.
 
 **The 2026-08-15 project-library deploy was the first that ACTS on a user's stored data at
 page load**, which
@@ -108,7 +118,7 @@ every one of them is now live** — 157/158, 97/131, 148, 92, 140, 159, 160, 161
 listed in the table below. Three ship nothing on their own (140, 159's focus test, and all of
 160: test files only, byte-identical bundles).
 
-**NO CANDIDATE IS STANDING and nothing is pending.** The standing-candidate list is empty for
+**NO CANDIDATE IS STANDING.** The standing-candidate list is empty for
 the first time since the tape rounds: 160, 161 and 162 all closed on 08-31, and 161's own
 residue (162) closed the same day. 130 remains available-but-unasked — read its bullet below
 before proposing it, especially 26a's cost. **So the next conversation starts from a blank
@@ -160,6 +170,7 @@ show it. Prefer a readout where one suffices; add an image when the finding is s
 | delete token | 08-31 | — | *no spec* — follow-up 160: `deleteProject`'s index write is pinned synchronous with its read; no source change |
 | turned index | 08-31 | — | *no spec* — follow-up 161: `fitLabel`'s `requireDetail` removes the `name` rung, so a turned part demotes to `index` rather than printing a bare name |
 | key list | 08-31 | — | *no spec* — follow-up 162: `.cutlist-layout-key` gets the `list-style: none` reset every other list in the app already had. CSS only |
+| ply sign | 08-31 | — | *no spec* — follow-up 163: `FACE_AXES` carries each UV axis's SIGN, so a solid's sub-range lands on the right side of its face (invariant 35). The one round of the day that came from a bug report |
 
 ### The deployment rule, stated once
 
@@ -390,7 +401,10 @@ src/
 │   ├── gizmoScale.ts       size ceiling + grabbable floor. Pure
 │   ├── extent.ts           SCENE_EXTENT, shared by Viewport and OriginAxes
 │   ├── grainFaces.ts       faceGrainKinds + grainFamily; re-exports axisDimensions
-│   ├── grainTiling.ts      per-face UVs, boardUVSignature. Invs 12, 15, 17. Pure
+│   ├── grainTiling.ts      per-face UVs, boardUVSignature. FACE_AXES carries each UV
+│   │                      axis's world axis AND ITS SIGN, and boardUVs applies the
+│   │                      sign BEFORE the swap (inv 35) — a whole board hides a
+│   │                      reversed axis, a SOLID does not. Invs 12, 15, 17, 35. Pure
 │   ├── grainLog.ts         bandRadius (inv 14), wobble, seededRandom / hash. Pure
 │   └── grainTexture.ts     seeded canvas textures, cached, never disposed
 ├── panels/
@@ -1026,12 +1040,51 @@ worked examples behind several of them are in `docs/history.md`.
     snapshot test and `beginGesture` clears the flag anyway.
 
 
+35. **`FACE_AXES` carries each UV axis's SIGN, and the flip is applied BEFORE the swap.** The
+    table records which world axis each of `BoxGeometry`'s default UV axes runs along; it used
+    to discard which *way*, on a stated argument — *"signs are irrelevant, grain is
+    mirror-symmetric"* — that is true of a whole board and false of a solid. `boardUVs` looks
+    a **solid** up in the **board's** tiling (invariant 17), so a solid's span is a sub-range,
+    and reversing the axis puts that sub-range on the wrong side of the face. Two solids
+    meeting at a split plane then disagree about the coordinate there: a 3/4" plywood panel
+    with a 1/4" dado handed **v = 0 from one side and v = 1 from the other**, butting the
+    outermost ply against the innermost — one double-width light band mid-stack and a part-ply
+    at each edge.
+
+    Four parts, each of which a reasonable edit gets wrong:
+
+    - **THE FLIP MUST HAPPEN BEFORE THE SWAP.** A sign belongs to the pair (face, *geometry*
+      axis), which is the same thing as the drawn u/v **only when `swap` is false**. Flipping
+      after the swap applies `+X`'s u sign to the drawn v — precisely the upright faces the
+      defect showed on. It is the plausible wrong version, it is what a tidying pass reaches
+      for, and no uv-range assertion notices it (mutated: it reds four tests, all of them
+      new).
+    - **The sign lives IN `FACE_AXES`, not in a parallel table.** A second thing indexed by
+      face that has to agree with the first is invariant 13's shape, promoted before it can
+      drift.
+    - **THREE OF TWELVE AXES RUN BACKWARDS** — `+X`'s u, `+Y`'s v, `-Z`'s u — and that table
+      belongs to three.js, not to us. It is read back off a real `BoxGeometry` by a test, so a
+      library bump fails there rather than silently un-fixing this. Do not hardcode it from
+      memory.
+    - **Why it hid for so long, which is the test lesson:** an uncut board shows the whole tile
+      either way, solid wood's figure is near-random so a mirror reads as a different board,
+      MDF has no structure, and plywood's edge is the ONE texture where position within the
+      tile means something. **Every uv assertion in `grainTiling.test.ts` was blind to it, and
+      so was a 48-case sweep written during the diagnosis**, because all of them assert a
+      *scale* (`tileInches`, min, max) and the defect was a *direction* — `[0,1]` reversed has
+      the same span. **A test that reads only the extremes of a mapping cannot see the
+      mapping.** What catches it is one interior number: `uv - position / tileInches` is
+      `boardUVs`' additive constant, so it must be identical for every vertex of every solid of
+      a board. Varying *within* a face means a reversed axis; differing *between* solids means
+      a misplaced sub-range.
+
+
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 947 tests across 36 files
+npm test           # Vitest, currently 954 tests across 36 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1098,6 +1151,12 @@ The handful worth knowing without opening that file:
   number in the part's rectangle comes from `nextIndex` and a list marker would come from DOM
   position — one value, two deciders. Also records what it really was: the one list in the
   app that never got the `list-style: none; padding: 0` reset the other four all have.
+- **163** — CLOSED 2026-08-31, and the one entry of the day that came from a bug report. Read
+  its closure before adding a UV assertion of any kind: the sweep written while diagnosing it
+  passed with the bug live, because it asserted a scale and the defect was a direction. Also
+  read it before touching a plywood edge for a *different* reason — it carries a measured,
+  deliberately-unfixed finding about ply legibility at 3/4" that the user was shown and ruled
+  on.
 - **26a** — **read this before touching anything in the viewport.** Browser verification on
   this host runs on software GL (llvmpipe, no GPU), which returns 1.0 for `pow(0.0, 0.0)`
   where real hardware returns NaN. That difference hid a grid bug completely — it looked

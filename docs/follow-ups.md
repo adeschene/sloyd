@@ -3640,3 +3640,68 @@ fourth turned part added to 161's fixture), because a one-line list can show nei
 nor numbering. Print carries the change unchanged: the `@media print` block sets `color` on
 this class and nothing else. Addendum in `docs/browser-verification-turned-index.md`.
 
+
+**163. `FACE_AXES` discarded the SIGN of each UV axis, so a solid's sub-range landed on the
+wrong side of its face.** Reported as "when a plywood board is on end, the layers don't draw
+correctly — the middle layer is too wide and the outer layers are too narrow", then narrowed
+by the user to "only on plywood boards when I add a cut", which is what made it findable.
+
+**CLOSED 2026-08-31, same session, by a two-line change in `boardUVs` plus the sign in
+`FACE_AXES`.** `docs/browser-verification-ply-cut-uv.md` carries the measurements and the
+before/after image.
+
+**The mechanism.** `FACE_AXES` recorded which world axis each of `BoxGeometry`'s default UV
+axes runs along and threw away which way it runs, with a comment saying why: *"signs are
+irrelevant — grain is mirror-symmetric, so all that matters is which axis carries u and which
+carries v."* True of a whole board, false of a solid. `boardUVs` looks a SOLID up in the
+BOARD's tiling (invariant 17), so a solid's span is a sub-range, and reversing the axis puts
+that sub-range on the wrong side of the face. On a 3/4in panel with a 1/4in dado the two
+solids meeting at the split plane handed each other **v = 0 from one side and v = 1 from the
+other** — the outermost ply butted against the innermost, one double-width light band mid-
+stack and a part-ply at each edge, which is the report verbatim.
+
+Three of the box's twelve UV axes run backwards (`+X`'s u, `+Y`'s v, `-Z`'s u), so three of
+six faces were wrong on every board ever drawn. Four things hid it at once and all four have
+to be true: an uncut board shows the whole tile either way; solid wood's figure is
+near-random, so a mirror reads as a different board rather than a wrong one; MDF has no
+structure; and plywood's edge is the ONE texture in this app where **position within the tile
+carries meaning**. Plywood plus a cut is the only combination that shows it.
+
+**Read this before writing another UV test: EVERY range assertion in `grainTiling.test.ts`
+was blind to it, and a 48-case sweep written during the diagnosis passed with the bug live.**
+The sweep asserted `tileInches[1] === thickness` — a SCALE — and the defect was a DIRECTION.
+A reversed axis maps `[0, 1]` to `[1, 0]`: same span, same min, same max, mirrored content.
+This is 155's shape arriving in a new place, and the general form is worth carrying: **a test
+that reads only the extremes of a mapping cannot see the mapping.** What catches it is one
+number — `uv - position / tileInches`, `boardUVs`' additive constant — asserted identical for
+every vertex of every solid of a board. A reversed axis makes it vary WITHIN a face; a solid
+in the wrong half of the tile makes it differ BETWEEN solids.
+
+**The ordering in the fix is load-bearing, and it is the half a tidying pass gets backwards.**
+A sign belongs to the pair (face, GEOMETRY axis), which is the same thing as the drawn u/v
+only when `swap` is false. The flip therefore happens BEFORE the swap; flipping after it
+applies `+X`'s u sign to the drawn v, which is precisely the upright faces the defect showed
+on. Mutated: that version reds four tests, the no-flip original reds six, one wrong sign in
+the table reds five.
+
+**Both new tests build a real `THREE.BoxGeometry` rather than a fixture**, and that is the
+point rather than a convenience — the vertex layout and default UVs belong to three.js, a
+fixture would be this module's own belief about them, and this module's own belief about them
+WAS the bug (invariant 23). No WebGL is involved, so it stays inside the no-unit-tests-for-the-
+viewport rule.
+
+**One thing changed that nobody asked for, recorded rather than left to be found.** The fix
+mirrors the drawn texture on `+X`, `+Y` and `-Z` for every board, cut or not. Invisible on
+plywood edges and streaky faces. Visible on **wood end grain**: the ring pattern's pith sits
+off-tile at v = 1.8, so flipping `+Y`'s v moves it to -0.8 and the arcs curve the other way.
+Before, a board's `+Y` and `-Y` ends disagreed with each other; now they agree.
+
+**A separate, measured, NOT-fixed finding from the same session, filed here rather than acted
+on.** At a realistic 3/4in thickness the five plies are hard to read even when correctly
+placed: the boundary rules are 2 px in a 512 px texture, so they are sub-pixel at any real
+board size and vanish; what survives is a 0.10-alpha alternation, a 7% step (255 vs 236); and
+the mesh's own `lineSegments` outline covers a share of the OUTER plies only — on a ~20 px
+edge, 1 px each side is roughly a quarter of each outer ply. **The user was shown this and
+said the layers look even to them, so it is open by decision, not by oversight.** Any remedy
+is a taste call about how a plywood edge should read and wants asking first, the way 161 was
+asked.

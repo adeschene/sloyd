@@ -1,4 +1,7 @@
-import { axisDimensions, boardExtents, createBoard, wholeBoard } from '../document/document';
+import * as THREE from 'three';
+import {
+  axisDimensions, boardExtents, boardSolids, createBoard, solidWorldBox, wholeBoard,
+} from '../document/document';
 import type { Region } from '../document/document';
 import { boardUVOffset, boardUVs, boardUVSignature, facePlans } from './grainTiling';
 
@@ -440,5 +443,175 @@ describe('boardUVSignature', () => {
     const a = createBoard();
     expect(boardUVSignature({ ...a, position: [9, 9, 9], name: 'Other' }))
       .toBe(boardUVSignature(a));
+  });
+});
+
+describe('UVs run WITH the world axis, so solids of one board agree (fu 163)', () => {
+  // Traced failure: FACE_AXES recorded which world axis each of BoxGeometry's
+  // UV axes runs along and explicitly discarded the SIGN, on the argument that
+  // grain is mirror-symmetric. True of a whole board — reversing an axis maps
+  // [0, 1] to [1, 0], the same tile mirrored. False of a SOLID, whose span is
+  // a sub-range of the board's tiling (invariant 17): reversing puts that
+  // sub-range on the wrong side of the face, and two solids meeting at a split
+  // plane then disagree about the coordinate there. A 3/4in plywood panel with
+  // a 1/4in dado drew v = 0 on one side of the shared plane and v = 1 on the
+  // other, butting the outermost ply against the innermost — one double-width
+  // light band mid-stack, and a part-ply at each edge.
+  //
+  // These tests use a real THREE.BoxGeometry rather than a fixture of vertex
+  // positions. That is the point: the vertex layout and default UVs belong to
+  // three.js, so a fixture would be this module's own belief about them, and
+  // the bug WAS this module's own belief about them (invariant 23's rule —
+  // bound against a value the thing under test does not produce). No WebGL is
+  // involved; BoxGeometry is arithmetic.
+
+  const dado = {
+    id: 'c1', face: 'thickness' as const, from: 'min' as const,
+    across: 'width' as const, offset: 10, width: 0.75, depth: 0.25,
+  };
+
+  it('agrees with the signs BoxGeometry actually emits', () => {
+    // Read the table back off the library. FACE_AXES is not exported, so this
+    // asserts the same three negatives the module encodes: +X's u, +Y's v and
+    // -Z's u run against their world axis. A three.js bump that changed any of
+    // them would silently un-fix the defect above; this is what notices.
+    const geo = new THREE.BoxGeometry(2, 4, 6);
+    const pos = geo.attributes.position.array;
+    const uv = geo.attributes.uv.array;
+
+    const signOf = (face: number, which: 0 | 1): [number, number] => {
+      const at = (k: number) => {
+        const i = face * 4 + k;
+        return { p: [pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2]], c: uv[i * 2 + which] };
+      };
+      const vs = [0, 1, 2, 3].map(at);
+      const lo = vs.filter((x) => x.c === 0);
+      const hi = vs.filter((x) => x.c === 1);
+      for (const axis of [0, 1, 2]) {
+        const mLo = lo.reduce((s, x) => s + x.p[axis], 0) / lo.length;
+        const mHi = hi.reduce((s, x) => s + x.p[axis], 0) / hi.length;
+        if (Math.abs(mHi - mLo) > 1e-9) return [axis, mHi > mLo ? 1 : -1];
+      }
+      throw new Error('no axis varies with this UV coordinate');
+    };
+
+    expect([0, 1, 2, 3, 4, 5].map((f) => [signOf(f, 0), signOf(f, 1)])).toEqual([
+      [[2, -1], [1, 1]], // +X
+      [[2, 1], [1, 1]],  // -X
+      [[0, 1], [2, -1]], // +Y
+      [[0, 1], [2, 1]],  // -Y
+      [[0, 1], [1, 1]],  // +Z
+      [[0, -1], [1, 1]], // -Z
+    ]);
+  });
+
+  /**
+   * Every (vertex position, uv) pair of every solid of a board, for one face.
+   *
+   * Positions are put back into the board's own frame — solidWorldBox returns
+   * a centre relative to the board's centre, which is how BoardMesh places
+   * each solid inside its group — so two solids' samples are directly
+   * comparable.
+   */
+  const samples = (board: Parameters<typeof boardUVs>[0], face: number) => {
+    const plan = facePlans(board)[face];
+    const out: Array<{ pu: number; pv: number; u: number; v: number }> = [];
+    for (const solid of boardSolids(board)) {
+      const { center, size } = solidWorldBox(board, solid);
+      const geo = new THREE.BoxGeometry(size[0], size[1], size[2]);
+      const pos = geo.attributes.position.array;
+      const uv = boardUVs(board, solid);
+      for (let k = 0; k < 4; k += 1) {
+        const i = face * 4 + k;
+        const world = [
+          pos[i * 3] + center[0],
+          pos[i * 3 + 1] + center[1],
+          pos[i * 3 + 2] + center[2],
+        ];
+        out.push({
+          pu: world[plan.axes[0]], pv: world[plan.axes[1]],
+          u: uv[i * 2], v: uv[i * 2 + 1],
+        });
+      }
+    }
+    return out;
+  };
+
+  /**
+   * The whole rule in one number.
+   *
+   * `boardUVs` is `coordinate / tileInches + constant`, so `uv - position /
+   * tileInches` is that constant — the same for every vertex of every solid of
+   * a board iff the mapping from world position to texture coordinate is ONE
+   * mapping. It catches both halves at once and neither in isolation: a
+   * reversed axis makes the slope negative so the residual varies WITHIN a
+   * face, and a solid placed in the wrong half of the tile makes it differ
+   * BETWEEN solids. Asserting the uv range instead cannot see either, which is
+   * exactly why the range assertions above passed while this was broken.
+   */
+  const residuals = (board: Parameters<typeof boardUVs>[0], face: number) => {
+    const plan = facePlans(board)[face];
+    const ss = samples(board, face);
+    // u and v have their own constant (different tile, different offset), so
+    // they are compared within themselves, never against each other.
+    return {
+      u: ss.map((s) => s.u - s.pu / plan.tileInches[0]),
+      v: ss.map((s) => s.v - s.pv / plan.tileInches[1]),
+    };
+  };
+
+  const boards = {
+    'plywood upright, dado': createBoard({
+      material: 'plywood', posture: 'upright', length: 24, width: 12, thickness: 0.75, cuts: [dado],
+    }),
+    'plywood flat, dado': createBoard({
+      material: 'plywood', posture: 'flat', length: 24, width: 12, thickness: 0.75, cuts: [dado],
+    }),
+    'plywood on-edge rotated, dado': createBoard({
+      material: 'plywood', posture: 'on-edge', rotation: 90, length: 24, width: 12,
+      thickness: 0.75, cuts: [dado],
+    }),
+    'oak flat, rabbet': createBoard({
+      material: 'oak', length: 24, width: 5.5, thickness: 0.75,
+      cuts: [{ id: 'r1', face: 'thickness', from: 'max', across: 'width', offset: 0, width: 2, depth: 0.25 }],
+    }),
+    'plywood upright, no cut': createBoard({
+      material: 'plywood', posture: 'upright', length: 24, width: 12, thickness: 0.75,
+    }),
+  };
+
+  for (const [name, board] of Object.entries(boards)) {
+    it(`reads one mapping from position to texture coordinate — ${name}`, () => {
+      for (let face = 0; face < 6; face += 1) {
+        const { u, v } = residuals(board, face);
+        for (const r of u) expect(r).toBeCloseTo(u[0], 6);
+        for (const r of v) expect(r).toBeCloseTo(v[0], 6);
+      }
+    });
+  }
+
+  it('puts the outermost ply against the face of a dadoed plywood panel', () => {
+    // The user-visible statement of the same thing, on the surface where it
+    // showed: on the edge of a 3/4in panel with a 1/4in dado, the two solids
+    // meeting at the dado floor must hand each other the SAME v, and the two
+    // outer faces of the panel must be the two ends of the ply stack. Before
+    // the fix the shared plane carried 0 from one side and 1 from the other.
+    const board = boards['plywood upright, dado'];
+    const face = 0; // +X, the panel's edge
+    const plan = facePlans(board)[face];
+    expect(plan.kind).toBe('edge');
+    expect(plan.fit[1]).toBe(true);
+
+    const ss = samples(board, face);
+    const thickness = board.thickness;
+    // v as a function of position across the thickness, with the board's own
+    // min-face at pv = -thickness / 2.
+    for (const s of ss) expect(s.v).toBeCloseTo(s.pv / thickness + 0.5, 6);
+
+    // Both ends of the stack are present, and the dado floor is one third in.
+    const vs = ss.map((s) => s.v).sort((a, b) => a - b);
+    expect(vs[0]).toBeCloseTo(0, 6);
+    expect(vs[vs.length - 1]).toBeCloseTo(1, 6);
+    expect(vs.some((v) => Math.abs(v - 1 / 3) < 1e-6)).toBe(true);
   });
 });
