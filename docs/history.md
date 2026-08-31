@@ -177,7 +177,12 @@ the rung survives. All three tiers were computed against the real `buildNesting`
 the browser was opened, then confirmed in it — the turned part drawing `1`, the key reading
 `1. Side — 15" × 18" turned`, its twin printing both lines, and the numbering staying one
 sequence. `docs/browser-verification-turned-index.md`. 947/947 tests across 36 files, build
-clean, no schema or storage-layout change — **but the bundle does change, so this one deploys.**
+clean, no schema or storage-layout change — but the bundle does change, so unlike the two
+rounds before it this one shipped. **Deployed the same day as `5985ee2`, bundle
+`index-8v7-ukbU.js` -> `index-CePWNaxg.js`, the third deploy of 2026-08-31.** Confirmed by
+page load and bundle hash at both the edge and in-network, `localStorage` cleared afterward;
+the demotion itself was not exercised against production, since seeing it needs parts on a
+sheet and that would write a document. `DEPLOYMENT.local.md` carries the runbook entry.
 
 **What the delete-token round did (2026-08-31)** — the seventh small round of the day, the
 second in a row to close a follow-up by rejecting the remedy that follow-up named, and the

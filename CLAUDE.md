@@ -28,12 +28,22 @@ Static SPA, containerized, **947/947 tests passing across 36 files** (the ~1-in-
 `CURRENT_VERSION` **6**.
 
 **PRODUCTION MATCHES `master` as of 2026-08-31.** Production serves bundle
-`index-8v7-ukbU.js`, which is `59d531b` — the duplicate-error round (follow-up 159), the
-day's second deploy. Its one shipped change is user-facing and could **not** be exercised
-live: reaching it means manufacturing a corrupt library state in a production browser, so it
-was driven against the dev server on that seeded state
+`index-CePWNaxg.js`, which is `5985ee2` — the turned-index round (follow-up 161), the day's
+**third** deploy. Its one shipped change is user-facing and is a rendering change to the
+printable cut list: a turned part whose rectangle fits its name but not its dimension line
+now demotes to a numbered box whose key entry carries name, dimensions and the word, instead
+of printing a bare name that says nothing. It was **not** exercised against production — it
+needs sheet-good parts on a sheet, so exercising it would write a document — and was verified
+against the dev server instead (`docs/browser-verification-turned-index.md`), which is the
+deployment rule working rather than a gap. Confirmed live by page load and bundle hash at
+both the edge and in-network, with `localStorage` cleared in the verifying browser afterward.
+
+The day's second deploy served `index-8v7-ukbU.js`, which was `59d531b` — the
+duplicate-error round (follow-up 159). Its one shipped change could **not** be exercised
+live either: reaching it means manufacturing a corrupt library state in a production browser,
+so it was driven against the dev server on that seeded state
 (`docs/browser-verification-duplicate-error.md`). Its correct appearance on a healthy
-production load is no appearance, and that was checked. The earlier deploy that day served
+production load is no appearance, and that was checked. The first deploy that day served
 `index-Bt74Y3lR.js`, which was `4484f92`. That build shipped three rounds at once: the
 id-uniqueness round (follow-ups 97 and 131), which had been unreleased by decision; the
 gesture-flags round (follow-up 148); and the turned-label round (follow-up 92), **the only
@@ -45,12 +55,10 @@ against the dev server instead (`docs/browser-verification-turned-label.md`), wh
 deployment rule working rather than a gap.
 
 **Check what a later commit touches before reading `git log` as a pending release** — three
-rounds edit test files only and build a byte-identical bundle: the agreement-test round
-(follow-up 140) and 159's focus test, both inside the deployed commit, and the delete-token
-round (follow-up 160), which sits past it. **The turned-index round (follow-up 161) is the
-exception and IS pending: it changes what the app draws, so it changes the bundle.** Read
-`DEPLOYMENT.local.md` before deploying it; that file carries every runbook entry and bundle
-hash.
+rounds inside the current build ship nothing on their own, each edit-tests-only and each
+byte-identical to the bundle before it: the agreement-test round (follow-up 140), 159's focus
+test, and the whole delete-token round (follow-up 160). **Nothing is pending.**
+`DEPLOYMENT.local.md` carries every runbook entry and bundle hash.
 
 **The 2026-08-15 project-library deploy was the first that ACTS on a user's stored data at
 page load**, which
