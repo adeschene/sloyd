@@ -28,7 +28,13 @@ Static SPA, containerized, **935/935 tests passing across 35 files** (the ~1-in-
 `CURRENT_VERSION` **6**.
 
 **PRODUCTION MATCHES `master` as of 2026-08-31.** Production serves bundle
-`index-Bt74Y3lR.js`, which is `4484f92`. That build shipped three rounds at once: the
+`index-8v7-ukbU.js`, which is `59d531b` — the duplicate-error round (follow-up 159), the
+day's second deploy. Its one shipped change is user-facing and could **not** be exercised
+live: reaching it means manufacturing a corrupt library state in a production browser, so it
+was driven against the dev server on that seeded state
+(`docs/browser-verification-duplicate-error.md`). Its correct appearance on a healthy
+production load is no appearance, and that was checked. The earlier deploy that day served
+`index-Bt74Y3lR.js`, which was `4484f92`. That build shipped three rounds at once: the
 id-uniqueness round (follow-ups 97 and 131), which had been unreleased by decision; the
 gesture-flags round (follow-up 148); and the turned-label round (follow-up 92), **the only
 user-facing change of the three** and the one that prompted the deploy. Confirmed live by
@@ -38,11 +44,10 @@ production — it needs boards, so exercising it would write a document — and 
 against the dev server instead (`docs/browser-verification-turned-label.md`), which is the
 deployment rule working rather than a gap.
 
-**`master` has since moved past the deployed commit, and it is NOT a "master is ahead"
-situation:** the agreement-test round (follow-up 140) edits one test file, so the bundle it
-builds is byte-identical and there is nothing to deploy. Check what a later commit touches
-before reading `git log` as a pending release. `DEPLOYMENT.local.md` carries every runbook
-entry and bundle hash.
+**Check what a later commit touches before reading `git log` as a pending release** — two
+commits in the current build (the agreement-test round, follow-up 140, and 159's focus test)
+edit test files only and build a byte-identical bundle. `DEPLOYMENT.local.md` carries every
+runbook entry and bundle hash.
 
 **The 2026-08-15 project-library deploy was the first that ACTS on a user's stored data at
 page load**, which
@@ -72,9 +77,8 @@ load-bearing.
 **NO SUCCESSOR FEATURE ROUND HAS BEEN CHOSEN, and 130 is no longer the presumed one** — it
 was picked on 2026-08-31 and set aside a moment later without a stated reason, so treat it
 as available rather than as either chosen or rejected. The 08-31 session ran **five** small
-already-diagnosed rounds instead — 157/158, 97/131, 148, 92, 140 and 159. The first four are
-in the deployed bundle; 140 touches a test file only, so it ships nothing; **159 is
-user-facing and NOT yet deployed**. The next conversation should start from `docs/follow-ups.md`'s open entries; see
+already-diagnosed rounds instead — 157/158, 97/131, 148, 92, 140 and 159, across **two**
+deploys. All are live; 140 and 159's focus test touch test files only, so they ship nothing. The next conversation should start from `docs/follow-ups.md`'s open entries; see
 the pointer section below. The standing candidates, in the order they were last presented:
 **160**, and **161** (the one label tier where a turned part still says nothing).
 
