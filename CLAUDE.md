@@ -24,7 +24,7 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **926/926 tests passing across 35 files**, schema
+Static SPA, containerized, **926/926 tests passing across 35 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **6**.
 
 **PRODUCTION MATCHES `master` as of 2026-08-31.** Production serves bundle
@@ -36,9 +36,13 @@ page load and bundle hash at both the edge and in-network, with `localStorage` c
 verifying browser afterward. The turned label itself was **not** exercised against
 production — it needs boards, so exercising it would write a document — and was verified
 against the dev server instead (`docs/browser-verification-turned-label.md`), which is the
-deployment rule working rather than a gap. `DEPLOYMENT.local.md` carries every runbook entry
-and bundle hash. `DEPLOYMENT.local.md` carries every
-runbook entry and bundle hash.
+deployment rule working rather than a gap.
+
+**`master` has since moved past the deployed commit, and it is NOT a "master is ahead"
+situation:** the agreement-test round (follow-up 140) edits one test file, so the bundle it
+builds is byte-identical and there is nothing to deploy. Check what a later commit touches
+before reading `git log` as a pending release. `DEPLOYMENT.local.md` carries every runbook
+entry and bundle hash.
 
 **The 2026-08-15 project-library deploy was the first that ACTS on a user's stored data at
 page load**, which
@@ -67,12 +71,12 @@ load-bearing.
 
 **NO SUCCESSOR FEATURE ROUND HAS BEEN CHOSEN, and 130 is no longer the presumed one** — it
 was picked on 2026-08-31 and set aside a moment later without a stated reason, so treat it
-as available rather than as either chosen or rejected. The 08-31 session ran two small
-already-diagnosed correctness rounds instead. The next conversation should start from
-`docs/follow-ups.md`'s open entries — see the pointer section below. **148 and 92 are now closed** — the day's third
-and fourth small rounds. The standing candidates, in the order they were last presented:
-**140** (the 1-in-4 test flake), **159** and **160**, and the newly filed **161** (the one
-label tier where a turned part still says nothing).
+as available rather than as either chosen or rejected. The 08-31 session ran **five** small
+already-diagnosed rounds instead — 157/158, 97/131, 148, 92 and 140. The first four are in
+the deployed bundle; 140 touches a test file only, so it ships nothing. The next conversation should start from `docs/follow-ups.md`'s open entries; see
+the pointer section below. The standing candidates, in the order they were last presented:
+**159** and **160**, and the newly filed **161** (the one label tier where a turned part
+still says nothing).
 
 **The cut list line of work is CLOSED as of 2026-08-01.** Cut list, diagrams, label
 layout, per-face views, board feet and sheet nesting are all shipped and merged. Do not
@@ -110,6 +114,7 @@ narrative for every row is in `docs/history.md`.
 | id uniqueness | 08-31 | — | *no spec* — `takeId` closes follow-ups 97 and 131; duplicate board and guide ids are repaired on load (invariant 33) |
 | gesture flags | 08-31 | — | *no spec* — follow-up 148: `gesturing`/`gestureSnapshotTaken` move into the store's state, so `replaceDocument` ends a leaked gesture |
 | turned label | 08-31 | — | *no spec* — follow-up 92: `formatDims` is the one home of `length × width`, and a turned part's label says so in words |
+| agreement-test cost | 08-31 | — | *no spec* — follow-up 140: the agreement test hoists `boardSolids` out of its probe loops; no source change |
 
 ### The deployment rule, stated once
 
@@ -994,9 +999,10 @@ The handful worth knowing without opening that file:
   undo bookkeeping. Both are store state now. Read its closure before writing a test whose
   subject is a reset: the obvious assertion (`gesturing === false`) cannot fail, and the
   one that works asserts an undo entry.
-- **140** — a pre-existing ~1-in-4 test flake: `depthField.agreement.test.ts`'s heaviest
-  case times out at 5000 ms. Reproduces on `master`. Remedy is a per-file `testTimeout` or
-  splitting the case.
+- **140** — CLOSED 2026-08-31, and worth reading for how rather than what: it was closed by
+  neither remedy it named. The heavy case was not expensive geometry, it was a test calling
+  a pure function 4,650 times for one unchanging board. 1,549 ms → 11 ms inside a full-suite
+  run, no `testTimeout`, no source change.
 - **92** — CLOSED 2026-08-31. Both halves: `formatDims` is now the single home of
   `length × width` in `nesting.ts`, and a turned part's label says `turned` in words. Read
   its closure before adding anything to a sheet label — the word rides on
@@ -1024,6 +1030,15 @@ whose stated justification doesn't reproduce, and a claim copied into several do
 before any code existed. They were caught because implementers were told to fix the *code*
 rather than the *expectation*, and to stop and escalate when they believed an expectation was
 itself wrong.
+
+**A FIFTH SHAPE, and it is this ledger's own text rather than a plan's: a remedy an entry
+NAMES is a hypothesis recorded at diagnosis time, not a prescription.** Follow-up **140** is
+the worked example. It called its heavy test case irreducible geometry and named two fixes —
+raise `testTimeout`, or split the case — and both would have turned the suite green while
+leaving the actual cause in place: the test was calling a pure function **4,650 times** for
+one unchanging board. **Measure before adopting the remedy an entry names**, on any entry
+whose diagnosis rests on something being inherently expensive, inherently racy, or otherwise
+not worth looking at again.
 
 **The project library round is the sharpest single data point in that chain and is worth
 knowing as a number: SIX DISTINCT plan-supplied tests were shown, by mutation, to be

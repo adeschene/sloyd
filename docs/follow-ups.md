@@ -2659,6 +2659,43 @@ evidence of stability. **Named remedy**: raise `testTimeout` for that one file, 
 heaviest geometry into its own case. Neither was done here; this round changed no code that
 file touches.
 
+**CLOSED 2026-08-31, by NEITHER named remedy — and that is the entry's own lesson.** Both
+remedies treat the case as legitimately expensive geometry that needs more room. It is not.
+The two probe helpers each called `boardSolids(board)` **on every invocation**, for a board
+that does not change inside a case: 21 cells × 2 reads plus a 96 × 48 converse sweep is
+**4,650 calls** returning the same six regions. `boardSolids` is pure, so hoisting it to one
+call per case changes what the test COSTS and nothing about what it CHECKS.
+
+Measured inside a full-suite run, which is the contended condition the flake needs — a
+standalone run of the file never reproduced it:
+
+| | heaviest case | share of the 5,000 ms ceiling |
+|---|---|---|
+| before | 1,549–1,690 ms | 31–34% |
+| after | 11–19 ms | 0.2–0.4% |
+
+**Reported honestly: the timeout itself was NOT reproduced this session.** Eleven full-suite
+runs on the unmodified file all passed, which is consistent with a rate quoted at ~1 in 4 on
+a day with many parallel agents and is not evidence the flake is imaginary. What is
+established is the mechanism, measured directly, and about a hundredfold of headroom where
+there was three. No `testTimeout` was added: a per-file ceiling is what you reach for when
+the work is irreducible, and pinning one here would preserve the waste and hide the cause.
+
+**The test was mutated afterward, because a hoist that quietly broke the assertions would
+also be fast and green** — and invariant 20 records that this very file's first version
+passed with the cover step broken. Four mutations of `depthField.ts`, all caught: `Math.min`
+for `Math.max` (3 red), every depth shaved by 1/64 — a right-coverage, wrong-number mutation
+of exactly the kind invariant 20 warns a coverage-only test would miss (6 red), dropping
+cells covered by a single cut (6 red), and emitting a cell everywhere (6 red). `depthField.ts`
+itself is untouched by this round.
+
+**The portable part.** A remedy written into this ledger is a hypothesis recorded at
+diagnosis time, not a prescription — the same standing caution the ledger already applies to
+code and justifications supplied by a plan, a spec or a reviewer, turned on the ledger
+itself. Both remedies here were reasonable when written and would have worked, in the sense
+that the suite would have gone green; neither would have found that the test was doing
+4,650× the work it needed to. **Measure before adopting the remedy an entry names.**
+
 **141. LESSON — the plan-supplied-code chain gained FOUR instances in one round, plus a
 fifth from a brief-supplied COMMENT, and three fixtures that passed for the wrong reason.
 Two of the three shared one root cause. This is the largest single-round addition the chain

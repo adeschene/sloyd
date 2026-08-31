@@ -1,7 +1,24 @@
 import { buildDepthField } from './depthField';
 import { boardSolids } from './cuts';
 import { createBoard } from './document';
-import type { Board, Cut } from './types';
+import type { Cut } from './types';
+
+/**
+ * The solids of ONE board, computed once per case.
+ *
+ * Both helpers below used to take the `Board` and call `boardSolids` themselves,
+ * which meant recomputing the same answer for an unchanging board on every
+ * probe: 21 cells × 2 reads plus a 96 × 48 sweep is **4,650 calls** in the
+ * heaviest case, all returning the same six regions. That, and not the geometry,
+ * is what put the case at ~2.5 s against Vitest's 5 s per-test ceiling and made
+ * it time out about one run in four under parallel load (follow-up 140).
+ *
+ * `boardSolids` is pure and the board is not mutated inside a case, so hoisting
+ * changes what the test COSTS and nothing about what it CHECKS — the assertions
+ * below are untouched. Type it off the function rather than importing `Region`,
+ * which is not exported.
+ */
+type Solids = ReturnType<typeof boardSolids>;
 
 const cut = (over: Partial<Cut>): Cut => ({
   id: 'c', face: 'thickness', from: 'min', across: 'width',
@@ -15,9 +32,9 @@ const cut = (over: Partial<Cut>): Cut => ({
  * Probes just INSIDE the face rather than exactly on it, because a solid's
  * bounds are closed and a point exactly on a boundary belongs to both sides.
  */
-const stockAtMinFace = (board: Board, x: number, y: number): boolean => {
+const stockAtMinFace = (solids: Solids, x: number, y: number): boolean => {
   const z = 1e-6;
-  return boardSolids(board).some(
+  return solids.some(
     (s) =>
       x > s.length[0] && x < s.length[1] &&
       y > s.width[0] && y < s.width[1] &&
@@ -40,11 +57,11 @@ const stockAtMinFace = (board: Board, x: number, y: number): boolean => {
  * real depth field), never pass with the wrong answer — the safe direction for
  * a helper's blind spot to fail in.
  */
-const removedDepthAtMinFace = (board: Board, x: number, y: number): number => {
-  const over = boardSolids(board).filter(
+const removedDepthAtMinFace = (solids: Solids, thickness: number, x: number, y: number): number => {
+  const over = solids.filter(
     (s) => x > s.length[0] && x < s.length[1] && y > s.width[0] && y < s.width[1],
   );
-  if (over.length === 0) return board.thickness;
+  if (over.length === 0) return thickness;
   return Math.min(...over.map((s) => s.thickness[0]));
 };
 
@@ -75,6 +92,8 @@ describe('the depth field agrees with boardSolids, by construction', () => {
   it.each(GEOMETRIES)('$name', ({ cuts }) => {
     const board = createBoard({ length: 24, width: 12, cuts });
     const cells = buildDepthField(board, 'thickness', 'min', 'length', 'width');
+    // Once per case — see Solids above. The 3D side of the agreement.
+    const solids = boardSolids(board);
 
     // Every cell the field reports as cut must be cut in the 3D model.
     for (const c of cells) {
@@ -82,11 +101,11 @@ describe('the depth field agrees with boardSolids, by construction', () => {
       const y = (c.v[0] + c.v[1]) / 2;
       expect(c.depth, `cell at ${x},${y} must have positive depth`).toBeGreaterThan(0);
       expect(
-        stockAtMinFace(board, x, y),
+        stockAtMinFace(solids, x, y),
         `field says cut at ${x},${y}; boardSolids still has stock there`,
       ).toBe(false);
       expect(
-        removedDepthAtMinFace(board, x, y),
+        removedDepthAtMinFace(solids, board.thickness, x, y),
         `field says ${c.depth}" deep at ${x},${y}; boardSolids removed a different amount`,
       ).toBeCloseTo(c.depth, 10);
     }
@@ -98,7 +117,7 @@ describe('the depth field agrees with boardSolids, by construction', () => {
       cells.some((c) => x > c.h[0] && x < c.h[1] && y > c.v[0] && y < c.v[1]);
     for (let x = 0.125; x < 24; x += 0.25) {
       for (let y = 0.125; y < 12; y += 0.25) {
-        if (!stockAtMinFace(board, x, y)) {
+        if (!stockAtMinFace(solids, x, y)) {
           expect(covered(x, y), `boardSolids removed stock at ${x},${y}; field has no cell`).toBe(true);
         }
       }

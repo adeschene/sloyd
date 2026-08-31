@@ -124,6 +124,49 @@ and 79.
 
 ## What each round did
 
+**What the agreement-test round did (2026-08-31)** — the fifth small round of the day, and
+the only one to close a follow-up by rejecting both remedies that follow-up named. **140**
+recorded `depthField.agreement.test.ts`'s heaviest case ("rabbets on all four edges plus
+crossing dados") timing out at 5,000 ms about one run in four, diagnosed it as legitimately
+heavy geometry sitting close to the ceiling, and named two fixes: raise `testTimeout` for the
+file, or split the case.
+
+Both treat the cost as irreducible. It was not. The two probe helpers, `stockAtMinFace` and
+`removedDepthAtMinFace`, each called `boardSolids(board)` **on every invocation** — and the
+test probes 21 cells twice over plus a 96 × 48 converse sweep, so one case made **4,650
+calls** to a pure function of a board that never changes inside it, every one returning the
+same six regions. Hoisting it to a single call per case changes what the test costs and
+nothing about what it checks; the assertions are untouched, and `depthField.ts` was not
+edited at all.
+
+Measured inside a full-suite run, which is the contended condition the flake needs — the file
+run standalone never reproduced it — the heaviest case went from **1,549–1,690 ms** (a third
+of the ceiling) to **11–19 ms** (a fraction of a percent). No `testTimeout` was added: a
+per-file ceiling is the tool for work that is genuinely irreducible, and setting one here
+would have preserved the waste and hidden the cause.
+
+**Two things reported rather than glossed.** The timeout itself was **not reproduced** this
+session — eleven full-suite runs on the unmodified file all passed, consistent with a rate
+quoted at ~1 in 4 on a day when the box was running many parallel agents, and not evidence
+the flake was imaginary. And the first attempt to demonstrate the fix was a bad measurement:
+a background Chromium left over from the previous round's browser pass was taking 262% of
+this box's four cores, which inflated whole-suite duration from ~18 s to ~33 s and briefly
+looked like the change had made things slower. It had not; the comparison was re-run old
+against new under one condition.
+
+**The test was mutated afterward**, because a hoist that quietly broke the assertions would
+also be fast and green — and invariant 20 records that this very file's first version passed
+with its cover step broken. Four mutations of `depthField.ts`, all caught: `Math.min` for
+`Math.max` (3 red), every depth shaved by 1/64 (6 red) — the right-coverage, wrong-number
+case invariant 20 exists to warn about — dropping cells covered by a single cut (6 red), and
+emitting a cell everywhere (6 red).
+
+The portable lesson goes in the same family as the ledger's long-running one about
+plan-supplied text, turned on the ledger itself: **a remedy an entry names is a hypothesis
+recorded at diagnosis time, not a prescription.** Both of 140's were reasonable and both
+would have turned the suite green. Neither would have noticed the test was doing 4,650 times
+the work it needed to. 926/926 tests, build clean, no source change.
+
 **What the turned-label round did (2026-08-31)** — the fourth small round of the day, and
 the first of them with anything a user can see. Follow-up **92** had been open since the
 sheet-nesting round with two unrelated halves, and both are closed here.
