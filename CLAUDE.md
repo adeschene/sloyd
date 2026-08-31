@@ -94,13 +94,20 @@ load-bearing.
 
 **NO SUCCESSOR FEATURE ROUND HAS BEEN CHOSEN, and 130 is no longer the presumed one** — it
 was picked on 2026-08-31 and set aside a moment later without a stated reason, so treat it
-as available rather than as either chosen or rejected. The 08-31 session ran the small
-already-diagnosed rounds listed below instead — 157/158, 97/131, 148, 92, 140, 159 and 160,
-across **two** deploys. All are live; 140, 159's focus test and 160 touch test files only, so
-they ship nothing. The next conversation should start from `docs/follow-ups.md`'s open entries; see
-the pointer section below. **160, 161 and 162 are all now CLOSED, and NO
-CANDIDATE IS STANDING** — 130 remains available-but-unasked (see below). The next
-conversation genuinely starts from a blank slate on feature direction.
+as available rather than as either chosen or rejected.
+
+**The 08-31 session ran NINE small already-diagnosed rounds instead, across FOUR deploys, and
+every one of them is now live** — 157/158, 97/131, 148, 92, 140, 159, 160, 161 and 162, all
+listed in the table below. Three ship nothing on their own (140, 159's focus test, and all of
+160: test files only, byte-identical bundles).
+
+**NO CANDIDATE IS STANDING and nothing is pending.** The standing-candidate list is empty for
+the first time since the tape rounds: 160, 161 and 162 all closed on 08-31, and 161's own
+residue (162) closed the same day. 130 remains available-but-unasked — read its bullet below
+before proposing it, especially 26a's cost. **So the next conversation starts from a blank
+slate on feature direction**, and the honest first move is to ask rather than to pick from
+`docs/follow-ups.md`, whose remaining open entries are deferred-by-decision or
+recorded-negative findings rather than queued work.
 
 **The cut list line of work is CLOSED as of 2026-08-01.** Cut list, diagrams, label
 layout, per-face views, board feet and sheet nesting are all shipped and merged. Do not
@@ -111,7 +118,10 @@ CSV/clipboard export and name run-collapsing (`Leg 1..4`).
 
 Each row's design spec is `docs/superpowers/specs/<date>-sloyd-<slug>-design.md` and, for
 the later ones, a browser pass at `docs/browser-verification-<slug>.md`. The full
-narrative for every row is in `docs/history.md`.
+narrative for every row is in `docs/history.md`. **Screenshots from a browser pass live in
+`docs/img/`** — new as of the turned-index round (161), which is the first pass where the
+thing under test was a layout decision rather than a value, so a DOM readout alone did not
+show it. Prefer a readout where one suffices; add an image when the finding is spatial.
 
 | Round | Date | Schema | What it added |
 |---|---|---|---|
@@ -142,6 +152,7 @@ narrative for every row is in `docs/history.md`.
 | duplicate error | 08-31 | — | *no spec* — follow-up 159: a failed duplicate reports its cause inline on the failing row |
 | delete token | 08-31 | — | *no spec* — follow-up 160: `deleteProject`'s index write is pinned synchronous with its read; no source change |
 | turned index | 08-31 | — | *no spec* — follow-up 161: `fitLabel`'s `requireDetail` removes the `name` rung, so a turned part demotes to `index` rather than printing a bare name |
+| key list | 08-31 | — | *no spec* — follow-up 162: `.cutlist-layout-key` gets the `list-style: none` reset every other list in the app already had. CSS only |
 
 ### The deployment rule, stated once
 
@@ -1112,6 +1123,19 @@ something being inherently expensive, inherently racy, or otherwise not worth lo
 again. Done once and worth repeating cheaply: after 140 was closed, every other test file was
 checked for the same shape and none had it — the slowest remaining test in the suite is 831 ms
 and is jsdom-bound, not a probe loop.
+
+**Follow-up 160 is the second worked example, and it extends the shape in two directions —
+read it before acting on any entry's named remedy.** 140's named remedies were merely
+wasteful; 160's was **impossible**, and the entry could not have known: `onDeleteProject`
+captures `activeId` before its awaits, so the "intended active id" it proposed passing would
+have named the project being deleted. Adopting it on the entry's authority would have written
+a dangling id and made things worse. Second, and the part 140 does not teach: **check
+REACHABILITY, not only cost.** 160 described a race that cannot occur on this adapter at all,
+because every `BrowserStorageAdapter` method is synchronous-bodied and no two of `App`'s four
+adopting handlers can overlap in production. The round that closed it changed no source and
+shipped a prohibition plus two tests instead. **So the question to ask of a named remedy is
+three-part: is it possible, is the problem reachable, and does the remedy address the actual
+cause** — and the entry's own text is evidence for none of the three.
 
 **The project library round is the sharpest single data point in that chain and is worth
 knowing as a number: SIX DISTINCT plan-supplied tests were shown, by mutation, to be
