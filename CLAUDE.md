@@ -1031,14 +1031,18 @@ before any code existed. They were caught because implementers were told to fix 
 rather than the *expectation*, and to stop and escalate when they believed an expectation was
 itself wrong.
 
-**A FIFTH SHAPE, and it is this ledger's own text rather than a plan's: a remedy an entry
-NAMES is a hypothesis recorded at diagnosis time, not a prescription.** Follow-up **140** is
-the worked example. It called its heavy test case irreducible geometry and named two fixes —
-raise `testTimeout`, or split the case — and both would have turned the suite green while
-leaving the actual cause in place: the test was calling a pure function **4,650 times** for
-one unchanging board. **Measure before adopting the remedy an entry names**, on any entry
-whose diagnosis rests on something being inherently expensive, inherently racy, or otherwise
-not worth looking at again.
+**A FIFTH SHAPE — and note it is NOT a fifth instance: 140 does not join the count or the
+list above, because the wrong text was this ledger's own rather than a plan's, and the count
+is taken from 155's derivation.** The shape: **a remedy an entry NAMES is a hypothesis
+recorded at diagnosis time, not a prescription.** Follow-up **140** is the worked example. It
+called its heavy test case irreducible geometry and named two fixes — raise `testTimeout`, or
+split the case — and both would have turned the suite green while leaving the actual cause in
+place: the test was calling a pure function **4,650 times** for one unchanging board.
+**Measure before adopting the remedy an entry names**, on any entry whose diagnosis rests on
+something being inherently expensive, inherently racy, or otherwise not worth looking at
+again. Done once and worth repeating cheaply: after 140 was closed, every other test file was
+checked for the same shape and none had it — the slowest remaining test in the suite is 831 ms
+and is jsdom-bound, not a probe loop.
 
 **The project library round is the sharpest single data point in that chain and is worth
 knowing as a number: SIX DISTINCT plan-supplied tests were shown, by mutation, to be
