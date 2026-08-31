@@ -24,7 +24,7 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **934/934 tests passing across 35 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
+Static SPA, containerized, **935/935 tests passing across 35 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **6**.
 
 **PRODUCTION MATCHES `master` as of 2026-08-31.** Production serves bundle
@@ -970,7 +970,7 @@ worked examples behind several of them are in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 934 tests across 35 files
+npm test           # Vitest, currently 935 tests across 35 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

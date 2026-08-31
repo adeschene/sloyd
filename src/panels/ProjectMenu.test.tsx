@@ -174,6 +174,27 @@ describe('ProjectMenu', () => {
     });
   });
 
+  /**
+   * The file's own warning, finally pinned. The arm/disarm swap renders a
+   * <button> at the same sibling index in both branches, and that — not an
+   * explicit focus restore — is what keeps focus on the control the user just
+   * pressed. Giving either branch a `key` makes React unmount and remount
+   * across the swap, dropping focus to the body, and nothing else in this file
+   * would notice.
+   *
+   * Written when follow-up 159 wrapped each row in a Fragment carrying `key`
+   * and a `.project-row-group` div. That leaves the delete buttons' index
+   * inside `.project-row` untouched, so the warning's subject survives — but
+   * "it should still be fine" is exactly the reasoning the warning exists to
+   * distrust, so it is asserted rather than reasoned about.
+   */
+  it('keeps focus on the delete control across the arm swap', async () => {
+    render(<ProjectMenu activeId="a" onOpen={vi.fn()} onNew={vi.fn()} onDuplicate={vi.fn()} onDelete={vi.fn()} onImport={vi.fn()} />);
+    const user = await open();
+    await user.click(await screen.findByLabelText('Delete Workbench'));
+    expect(document.activeElement).toBe(screen.getByLabelText('Delete Workbench?'));
+  });
+
   it('exposes duplicate and delete to the keyboard, not hover alone', async () => {
     // Hover-only reveal would put both operations out of reach without a
     // pointer. They are always in the DOM; CSS handles the reveal.

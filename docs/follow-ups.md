@@ -3454,6 +3454,15 @@ adapter flag (1). Survived: reading `storage.available` before rather than after
 `setAvailable` — genuinely unobservable, and the comment now says so instead of claiming the
 ordering matters.
 
+One thing the round pinned that it did not change: wrapping each row in a `Fragment` plus a
+`.project-row-group` div moved `key` off the row div, and `ProjectMenu.tsx` carries an explicit
+warning that the delete arm/disarm swap keeps focus only because both branches render a
+`<button>` at the same sibling index. The buttons' index inside `.project-row` is untouched, so
+the warning's subject survives — but "it should still be fine" is the reasoning that warning
+exists to distrust, so there is now a test asserting focus lands on `Delete X?` after arming.
+It had none before. Mutation: giving the armed branch its own `key` — the documented break —
+turns it red.
+
 Verified against the dev server on the real path — a library index naming two projects with
 only one project key present, which is the state 154 or a hand edit produces:
 `docs/browser-verification-duplicate-error.md`. The unit tests drive a stubbed `onDuplicate`
