@@ -54,4 +54,55 @@ describe('fitLabel', () => {
   it('fits the name alone when the box matches its extent exactly', () => {
     expect(fitLabel([NAME, DIMS], labelWidth(NAME), labelHeight())).toBe('name');
   });
+
+  // ---- Follow-up 161: a detail line that must not be dropped --------------
+  //
+  // The `name` tier prints `lines[0]` and nothing else, so a part whose
+  // rectangle fits its name but not its dimension line prints NO dimensions
+  // — and, since follow-up 92 put the word `turned` on that line, no word
+  // either. `requireDetail` removes the middle rung for a caller whose detail
+  // lines carry a FACT rather than only numbers: `full` or `index`, nothing
+  // between. `SheetLayout` is the only caller that passes it, and it passes
+  // `p.turned`.
+  //
+  // The flag is an argument rather than something `fitLabel` sniffs out of
+  // the strings: recovering `turned` by searching `DIMS` for the word would
+  // parse a formatted string to learn something the caller already holds as a
+  // boolean, which is why `nesting.ts` keeps `turned` beside `dims` instead
+  // of only inside it.
+  it('skips the name tier when the detail line is required', () => {
+    // Same box as 'drops to the name when the dimensions line is too wide'
+    // above, so the ONLY difference between the two results is the flag.
+    expect(fitLabel([NAME, DIMS], labelWidth(NAME) + 1, tall, { requireDetail: true }))
+      .toBe('index');
+  });
+
+  it('skips the name tier when the box is too short for two lines', () => {
+    // The other route into `name` — vertical, not horizontal. Both rungs have
+    // to go, or a short-and-wide part keeps printing a bare name.
+    expect(fitLabel([NAME, DIMS], wide, labelHeight() + 1, { requireDetail: true }))
+      .toBe('index');
+  });
+
+  it('still shows both lines when both fit and the detail is required', () => {
+    // The flag must not demote a label that can print everything. A mutation
+    // that returns 'index' whenever `requireDetail` is set passes both tests
+    // above and fails this one.
+    expect(fitLabel([NAME, DIMS], wide, tall, { requireDetail: true })).toBe('full');
+  });
+
+  it('leaves an already-indexed label alone when the detail is required', () => {
+    expect(fitLabel([NAME, DIMS], labelWidth(NAME) - 1, tall, { requireDetail: true }))
+      .toBe('index');
+  });
+
+  it('reaches the name tier when the detail is NOT required', () => {
+    // The default, spelled out on the same box as the first test in this
+    // block: omitting the option must leave every existing caller's ladder
+    // exactly as it was. A mutation that skips the name rung unconditionally
+    // turns this red.
+    expect(fitLabel([NAME, DIMS], labelWidth(NAME) + 1, tall)).toBe('name');
+    expect(fitLabel([NAME, DIMS], labelWidth(NAME) + 1, tall, { requireDetail: false }))
+      .toBe('name');
+  });
 });

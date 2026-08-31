@@ -138,11 +138,33 @@ export type LabelTier = 'full' | 'name' | 'index';
  * elements is load-bearing (invariant 19).
  *
  * `lines[0]` is the name; the rest are detail lines.
+ *
+ * `requireDetail` REMOVES THE MIDDLE RUNG (follow-up 161). The `name` tier
+ * draws `lines[0]` and nothing else, which is a fine degradation while the
+ * detail lines carry only numbers a reader can look up — but follow-up 92 put
+ * the word `turned` on a sheet part's dimension line, and a fact silently
+ * dropped is not the same as a number the cut-list row repeats. A caller
+ * whose detail lines carry a fact passes this and gets `full` or `index`,
+ * never a bare name. `index` loses nothing: the key list beside the sheet is
+ * built from the same lines.
+ *
+ * IT IS AN ARGUMENT, NOT SOMETHING MEASURED OUT OF THE STRINGS. The
+ * alternative — searching `lines[1]` for the word — would parse a formatted
+ * string to recover a fact the caller already holds as a boolean, and
+ * `nesting.ts` keeps `turned` beside `dims` precisely so nobody has to
+ * (`PlacedPart.dims`'s comment: one is the fact, the other is how it prints).
+ * `SheetLayout` is the only caller that passes it.
  */
-export function fitLabel(lines: string[], boxW: number, boxH: number): LabelTier {
+export function fitLabel(
+  lines: string[],
+  boxW: number,
+  boxH: number,
+  options?: { requireDetail?: boolean },
+): LabelTier {
   if (lines.length === 0) return 'index';
   const room = (s: string) => labelWidth(s) <= boxW;
   if (lines.every(room) && labelHeight() * lines.length <= boxH) return 'full';
+  if (options?.requireDetail) return 'index';
   if (room(lines[0]) && labelHeight() <= boxH) return 'name';
   return 'index';
 }

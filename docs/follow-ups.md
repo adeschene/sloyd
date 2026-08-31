@@ -3561,3 +3561,56 @@ where the user could have had a name. That is a legible-sheet judgement about mi
 parts, not a correctness question, and the round's design question had already been put to
 the user and answered ("a word on the dimension line"), which this is not.
 
+**CLOSED 2026-08-31 by the named remedy, after the design question was put to the user.**
+Three options were presented with the size of the affected band measured rather than
+asserted — on a 96" sheet, `24" × 18"` needs ~11.9" of part width to print and
+`24" × 18" turned` needs ~20.2", so a turned part between roughly 12" and 20" wide fell to
+the `name` tier and printed neither. The user chose the demotion over the two alternatives:
+**retiring the `name` tier entirely** (uniform — a part shows its complete label or a number,
+never a partial one — but it repaints sheets that have no defect, since an unturned part at
+that tier also prints no dimensions) and **leaving it** (this entry's own bound: nothing on
+screen misleads, because no dimensions are printed to be transposed).
+
+Four things decided rather than fallen into:
+
+- **The rule lives in `fitLabel`, not in `SheetLayout`.** The obvious version is a panel-side
+  override — `tier === 'name' && p.turned ? 'index' : tier` — and it would give the ladder two
+  deciders, one in `diagramLabels.ts` and one in the component. That is invariant 31's shape
+  ("a rule written out twice holds in one place after the next edit"). Instead `fitLabel`
+  takes `options?: { requireDetail?: boolean }` and, when set, **skips the middle rung**:
+  `full` or `index`, nothing between. Default off, so every existing call site is unchanged.
+- **`requireDetail` is an ARGUMENT, never a search of the strings.** Recovering `turned` by
+  looking for the word in `lines[1]` would parse a formatted string to learn a fact the caller
+  already holds as a boolean — and `nesting.ts` keeps `turned` beside `dims` precisely so
+  nobody has to (`PlacedPart.dims`'s comment: one is the fact, the other is how it prints).
+- **Nothing else moved.** The key entry is already `${p.name} — ${p.dims}` and `dims` already
+  carries the word from 92, so the demoted part's entry is complete for free; and `nextIndex`
+  already counts only parts that reach the index tier, so the new route feeds the existing
+  counter rather than opening a second one. Confirmed in the browser, not assumed.
+- **`SheetLayout` got its first tests.** The component had **none** — 92's browser pass says so
+  in as many words — so the wiring would have been unpinned. `src/panels/SheetLayout.test.tsx`
+  is new; `PAD` is now exported so the test can size its parts from `labelWidth` instead of
+  keeping a second copy of the number (invariant 19's argument, one constant over).
+
+Five mutations, all caught, and the split matters. Dropping the `requireDetail` branch reds
+four tests across both files. Skipping the `name` rung unconditionally reds six — including
+the unturned-part assertion, which is the one bounding the change to turned parts only.
+Returning `index` whenever the flag is set (demoting even a part that fits everything) reds
+two. Inverting the flag at the call site reds three. **And dropping the argument from
+`SheetLayout` entirely reds only the component tests** — the `fitLabel` unit tests stay green
+through it, which is the whole justification for the new file.
+
+Verified against the dev server on a fixture where the geometry decides nothing: `Side`
+(turned) and `Back` (unturned) are laid out on rectangles of exactly the same size,
+187.5 × 156.25, and a third part `Rail` is unturned at the `name` tier to show the rung
+survives. `docs/browser-verification-turned-index.md`.
+
+**162. The sheet's key list draws a bullet in front of a line that already numbers itself.**
+`.cutlist-layout-key` sets `color`, `margin` and `padding-left` but never `list-style`, so the
+browser's default marker stands in front of an `<li>` whose text begins `1. `, and the entry
+reads `• 1. Side — 15" × 18" turned`. Pre-existing — the width-driven route into the index
+tier has always produced it — and recorded now because 161 makes that tier meaningfully more
+common, which is what made it visible in the browser pass. One line of CSS, but it is a visual
+change to a printable sheet and was not part of the design the user approved, so it is filed
+rather than folded in.
+

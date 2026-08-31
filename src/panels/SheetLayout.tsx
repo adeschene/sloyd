@@ -2,8 +2,15 @@ import type { Nesting, NestedSheet, SheetStock } from '../document/document';
 import { DRAW_WIDTH } from './diagramScale';
 import { fitLabel, labelHeight, LABEL_ASCENT, LABEL_DESCENT, LABEL_SIZE } from './diagramLabels';
 
-/** Clearance between a label and its rectangle's edge, in drawing units. */
-const PAD = 6;
+/**
+ * Clearance between a label and its rectangle's edge, in drawing units.
+ *
+ * Exported for `SheetLayout.test.tsx`, which sizes its parts from
+ * `labelWidth` and has to subtract the same padding this does. A second copy
+ * of the number in the test is the drift invariant 19 argues against for
+ * `LABEL_SIZE`, one constant over.
+ */
+export const PAD = 6;
 
 /**
  * One sheet of stock with the parts laid out on it.
@@ -53,7 +60,17 @@ function Sheet({ sheet, stock, index }: { sheet: NestedSheet; stock: SheetStock;
           const y = p.y * s;
           const w = p.w * s;
           const ph = p.h * s;
-          const tier = fitLabel([p.name, p.dims], w - 2 * PAD, ph - 2 * PAD);
+          // `requireDetail: p.turned` — follow-up 161. The `name` tier prints
+          // the name alone, so a turned part whose rect fits its name but not
+          // its dimension line would print neither its dimensions nor the word
+          // 92 put on that line. Demoting it to `index` trades a name in place
+          // for a key entry carrying all three, which is strictly more.
+          // The BOOLEAN is what travels, never a search of `p.dims` for the
+          // word: `nesting.ts` keeps the fact beside the string so nobody has
+          // to parse it back out.
+          const tier = fitLabel([p.name, p.dims], w - 2 * PAD, ph - 2 * PAD, {
+            requireDetail: p.turned,
+          });
           const cx = x + w / 2;
           const cy = y + ph / 2;
           // (LABEL_ASCENT - LABEL_DESCENT) / 2 centres the measured glyph box

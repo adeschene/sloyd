@@ -24,7 +24,7 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **937/937 tests passing across 35 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
+Static SPA, containerized, **947/947 tests passing across 36 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **6**.
 
 **PRODUCTION MATCHES `master` as of 2026-08-31.** Production serves bundle
@@ -47,9 +47,10 @@ deployment rule working rather than a gap.
 **Check what a later commit touches before reading `git log` as a pending release** — three
 rounds edit test files only and build a byte-identical bundle: the agreement-test round
 (follow-up 140) and 159's focus test, both inside the deployed commit, and the delete-token
-round (follow-up 160), which sits past it. Nothing after `59d531b` changes the bundle —
-this round's commit rebuilds to `index-8v7-ukbU.js`, checked rather than assumed, and `c151f79` is docs
-only. `DEPLOYMENT.local.md` carries every runbook entry and bundle hash.
+round (follow-up 160), which sits past it. **The turned-index round (follow-up 161) is the
+exception and IS pending: it changes what the app draws, so it changes the bundle.** Read
+`DEPLOYMENT.local.md` before deploying it; that file carries every runbook entry and bundle
+hash.
 
 **The 2026-08-15 project-library deploy was the first that ACTS on a user's stored data at
 page load**, which
@@ -82,9 +83,10 @@ as available rather than as either chosen or rejected. The 08-31 session ran the
 already-diagnosed rounds listed below instead — 157/158, 97/131, 148, 92, 140, 159 and 160,
 across **two** deploys. All are live; 140, 159's focus test and 160 touch test files only, so
 they ship nothing. The next conversation should start from `docs/follow-ups.md`'s open entries; see
-the pointer section below. **160 is now CLOSED**, leaving **161** (the one label tier where a
-turned part still says nothing) as the only standing candidate — and its remedy is a design
-decision, so it needs the user asked before it is work.
+the pointer section below. **160 and 161 are both now CLOSED, and NO CANDIDATE IS
+STANDING** — 130 remains available-but-unasked (see below), and the newest open entry is
+**162**, a one-line CSS bullet on the sheet's key list, filed rather than folded into 161
+because it is a visual change to a printable sheet.
 
 **The cut list line of work is CLOSED as of 2026-08-01.** Cut list, diagrams, label
 layout, per-face views, board feet and sheet nesting are all shipped and merged. Do not
@@ -125,6 +127,7 @@ narrative for every row is in `docs/history.md`.
 | agreement-test cost | 08-31 | — | *no spec* — follow-up 140: the agreement test hoists `boardSolids` out of its probe loops; no source change |
 | duplicate error | 08-31 | — | *no spec* — follow-up 159: a failed duplicate reports its cause inline on the failing row |
 | delete token | 08-31 | — | *no spec* — follow-up 160: `deleteProject`'s index write is pinned synchronous with its read; no source change |
+| turned index | 08-31 | — | *no spec* — follow-up 161: `fitLabel`'s `requireDetail` removes the `name` rung, so a turned part demotes to `index` rather than printing a bare name |
 
 ### The deployment rule, stated once
 
@@ -400,13 +403,23 @@ src/
 │   │                       MAX_HEIGHT / MIN_WIDTH are browser-settled. Pure
 │   ├── diagramLabels.ts    LABEL_SIZE / CHAR_W / labelHeight / labelWidth / packRow
 │   │                       (axis-agnostic, reused verbatim for rotated columns) /
-│   │                       fitLabel. The arithmetic substitute for
-│   │                       getComputedTextLength(), 0 under jsdom. Inv 19. Pure
+│   │                       fitLabel, whose `requireDetail` option REMOVES THE
+│   │                       MIDDLE RUNG — full or index, never a bare name — for
+│   │                       a caller whose detail lines carry a FACT rather than
+│   │                       only numbers (fu 161). An ARGUMENT, never a search of
+│   │                       the strings for the word. The arithmetic substitute
+│   │                       for getComputedTextLength(), 0 under jsdom. Inv 19.
+│   │                       Pure
 │   ├── PartDiagram.tsx     one view as SVG. Formats NOTHING. The hatch is an SVG
 │   │                       <pattern> fill — foreground content, so it survives print
 │   │                       with background graphics off
 │   ├── SheetLayout.tsx     one SVG per sheet; labels via fitLabel, never packRow
-│   │                       (rects are already disjoint). Formats nothing
+│   │                       (rects are already disjoint). Formats nothing. THE
+│   │                       ONLY CALLER passing fitLabel's `requireDetail`, as
+│   │                       `p.turned` (fu 161) — the tier decision stays in
+│   │                       fitLabel, NOT as an override here, or the ladder has
+│   │                       two deciders. Exports PAD so its tests size parts
+│   │                       from labelWidth rather than keeping a second copy
 │   └── CutList.tsx         the printable sheet, derived every render — no cached
 │                           copy, so nothing can go stale. Owns Escape-to-close, takes
 │                           focus on mount, owns both toggles as local view state
@@ -986,7 +999,7 @@ worked examples behind several of them are in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 937 tests across 35 files
+npm test           # Vitest, currently 947 tests across 36 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -996,7 +1009,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is the authoritative list** — 1-161, consciously deferred rather
+**`docs/follow-ups.md` is the authoritative list** — 1-162, consciously deferred rather
 than missed, each written up in place with its closure where it has one. Read the entries
 for the area you are about to touch before starting; several are "correct but untested",
 which is exactly what a refactor breaks silently.
@@ -1043,8 +1056,14 @@ The handful worth knowing without opening that file:
   Read its closure before making any storage method genuinely async: the reachability of both
   160 and 157 rests on `BrowserStorageAdapter` being synchronous-bodied throughout, which is
   why those races can only be built by hanging a mock.
-- **161** — its residue: the `name` label tier prints neither dimensions nor the word, so
-  it is the one tier where a turned part still says nothing. Remedy is a design decision.
+- **161** — CLOSED 2026-08-31 by the remedy it named, after the design question was put to
+  the user with the affected band measured (~12" to ~20" of part width on a 96" sheet). The
+  rule lives in `fitLabel` as `requireDetail`, NOT as a panel-side override of the tier —
+  read the closure before adding a fourth tier or a second caller. `SheetLayout` got its
+  first tests in the same round, and the wiring mutation is caught only by them.
+- **162** — the sheet's key list draws a bullet in front of a line that already numbers
+  itself (`• 1. Side — …`): `.cutlist-layout-key` never sets `list-style`. Pre-existing;
+  newly visible because 161 makes the index tier more common. One line of CSS, unasked.
 - **26a** — **read this before touching anything in the viewport.** Browser verification on
   this host runs on software GL (llvmpipe, no GPU), which returns 1.0 for `pow(0.0, 0.0)`
   where real hardware returns NaN. That difference hid a grid bug completely — it looked

@@ -124,6 +124,61 @@ and 79.
 
 ## What each round did
 
+**What the turned-index round did (2026-08-31)** — the eighth small round of the day, the
+first since the duplicate-error round to change what the app draws, and the one that closed
+follow-up 92's residue. **161** recorded that `fitLabel`'s `name` tier draws the name and
+nothing else, so a part whose rectangle fits its name but not its dimension line prints
+neither its dimensions nor the word 92 put on that line — the one tier 92's fix does not
+reach. The entry stopped there deliberately: the remedy is a legible-sheet judgement, not a
+correctness question.
+
+**The design question was put to the user with the affected band measured rather than
+asserted.** On a 96" sheet, `24" × 18"` needs about 11.9" of part width to print and
+`24" × 18" turned` needs about 20.2", so a turned part roughly 12" to 20" wide fell to the
+`name` tier and printed nothing about itself. Three options: demote a turned part to `index`;
+retire the `name` tier altogether (uniform, since an unturned part at that tier also prints no
+dimensions — but it repaints sheets with no defect); or leave it, on the entry's own bound that
+no dimensions are printed to be transposed. The user chose the demotion.
+
+**The rule went into `fitLabel`, not into `SheetLayout`.** The tempting version is a panel-side
+override, and it would leave the ladder with two deciders — invariant 31's shape, a rule
+written twice holding in one place after the next edit. Instead `fitLabel` gained
+`options?: { requireDetail?: boolean }`, which **removes the middle rung**: `full` or `index`,
+nothing between. Default off, so every existing caller is untouched, and `SheetLayout` is the
+only one that ever passes it. It travels as a **boolean argument, never a search of the
+strings** — recovering `turned` by looking for the word in the dimension line would parse a
+formatted string to learn a fact the caller already holds, which is exactly why `nesting.ts`
+keeps `turned` beside `dims` instead of only inside it.
+
+Nothing else had to move, which is the sign the tier was the right lever: the key entry is
+already `name — dims` and `dims` already carries the word, so a demoted part's entry is
+complete for free, and `nextIndex` already counts only parts that reach the index tier, so the
+new route feeds the existing counter rather than opening a second one.
+
+**`SheetLayout` got its first tests, and the mutation pass is why they exist.** The component
+had none — 92's browser pass says so in as many words. Five mutations, all caught: dropping the
+`requireDetail` branch reds four tests across both files; skipping the `name` rung
+unconditionally reds six, including the unturned-part assertion that bounds the change;
+returning `index` whenever the flag is set reds two; inverting the flag reds three. **And
+dropping the argument from `SheetLayout` reds only the component tests** — the `fitLabel` unit
+tests sail through it, which is the entire justification for the new file. `PAD` is exported so
+the tests size their parts from `labelWidth` rather than keeping a second copy of the number.
+
+One thing the round did **not** do on its own authority: a bullet the key list draws in front
+of a line that already numbers itself (`• 1. Side — …`), which `.cutlist-layout-key` never
+suppresses. Pre-existing, but this round makes the index tier common enough to notice it.
+Filed as **162** rather than folded in — it is a visual change to a printable sheet and was not
+in the approved design.
+
+**The browser pass was built so the geometry decides nothing**: `Side` (turned) and `Back`
+(unturned) sit on rectangles of exactly the same size, 187.5 × 156.25 drawing units, and only
+the flag separates their results; a third part, `Rail`, is unturned at the `name` tier to show
+the rung survives. All three tiers were computed against the real `buildNesting` output before
+the browser was opened, then confirmed in it — the turned part drawing `1`, the key reading
+`1. Side — 15" × 18" turned`, its twin printing both lines, and the numbering staying one
+sequence. `docs/browser-verification-turned-index.md`. 947/947 tests across 36 files, build
+clean, no schema or storage-layout change — **but the bundle does change, so this one deploys.**
+
 **What the delete-token round did (2026-08-31)** — the seventh small round of the day, the
 second in a row to close a follow-up by rejecting the remedy that follow-up named, and the
 second to ship no source change at all. Follow-up **160** recorded that
