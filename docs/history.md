@@ -18,6 +18,29 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-08-31 with the ply-sign round (163) live** — bundle
+`index-DU8uasNy.js` → `index-CZu96cak.js`, commit `eb6a632`, the **fifth** deploy of that day
+and the only one of the day's ten rounds that began with a user bug report. **The CSS hash did
+not move** (`index-CtYur9k3.css` both sides), which is the mirror of the standing note that a
+CSS-only round still moves the JS hash: a TypeScript-only round leaves the CSS asset alone.
+Verified after: `200` on `/` and on a deep route both in-network and publicly, the new bundle
+served at the edge and in-network so it is not a stale-cache read, the app mounted with canvas
+1296×1168 and the full toolbar, storage banner absent, indicator reading *Saved locally*, 0
+console errors with only the two known THREE deprecation warnings, and `localStorage` cleared
+in the verifying browser afterward and confirmed empty.
+
+**Its own change was not exercised live, and that reason is the strongest in the series**:
+seeing it needs a plywood board *with a cut*, so exercising it would write a document into the
+verifying browser. Its correct appearance on a healthy empty load is no appearance, and that
+was checked. It was measured against the dev server instead — the edge of a dadoed 3/4"
+panel rendered straight on and read back with `gl.readPixels`, `D27 L78 D82 L158 D55` before
+against five even plies after, on a scanline the cut does not touch.
+`docs/browser-verification-ply-cut-uv.md` carries that and the before/after image. **26a does
+not apply to this evidence**: nothing in the path rests on undefined shader behaviour — CPU-
+drawn textures, `BoxGeometry`, `MeshBasicMaterial`, no lighting term and no `pow`.
+
+**No schema or storage-layout change**, so rolling back costs only the round.
+
 **The cut list line of work is CLOSED as of 2026-08-01** — cut list, diagrams, label
 layout, per-face views and board feet are all shipped and merged to `master`. Do not
 treat any of the five as in-flight.

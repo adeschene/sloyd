@@ -27,20 +27,25 @@ tradition built around hand woodworking.
 Static SPA, containerized, **954/954 tests passing across 36 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **6**.
 
-**A TENTH ROUND LANDED ON 2026-08-31 AND IS NOT DEPLOYED: the ply-sign round (follow-up
-163), the only round of the day that came from a user bug report rather than the ledger.** It
-is a real rendering defect and it has been there since v3: `FACE_AXES` discarded the
-*direction* of each of `BoxGeometry`'s UV axes, so on a board with a **cut** each solid's
-sub-range was placed on the wrong side of its face, and the two solids meeting at a split
-plane disagreed about the coordinate there. Visible only on **plywood with a cut** — invariant
-35 says why that combination and no other. Everything below this paragraph describes the state
-before it.
+**PRODUCTION MATCHES `master` as of 2026-08-31.** Production serves bundle
+`index-CZu96cak.js` with CSS `index-CtYur9k3.css`, which is `eb6a632` — the ply-sign round
+(follow-up 163), the day's **fifth** deploy and the only one of the ten rounds that came from
+a user bug report rather than the ledger. It fixes a real rendering defect that had been live
+since v3: `FACE_AXES` discarded the *direction* of each of `BoxGeometry`'s UV axes, so on a
+board with a **cut** each solid's sub-range landed on the wrong side of its face and the two
+solids meeting at a split plane disagreed about the coordinate there. Visible only on
+**plywood with a cut** — invariant 35 says why that combination and no other. **Note the
+mirror of the CSS/JS-hash note below: this round moved the JS hash and left the CSS hash
+alone**, being TypeScript-only. **163 was not exercised against production either**, and its
+reason is the strongest of the series: seeing it needs a plywood board *with a cut*, so
+exercising it would write a document. Its correct appearance on a healthy empty load is no
+appearance, and that was checked; the change itself was measured against the dev server with
+`gl.readPixels` (`docs/browser-verification-ply-cut-uv.md`).
 
-**PRODUCTION MATCHES `master` as of 2026-08-31, EXCEPT for the ply-sign round above.** Production serves bundle
-`index-DU8uasNy.js` with CSS `index-CtYur9k3.css`, which is `c50a138` — the key-list round
-(follow-up 162), the day's **fourth** deploy and the smallest round yet shipped: one CSS
-rule, dropping the default disc the sheet's key list drew in front of a line that already
-numbers itself. **Note that a CSS-only change still moves the JS hash** — the entry chunk
+The day's fourth deploy served `index-DU8uasNy.js` with CSS `index-CtYur9k3.css`, which was
+`c50a138` — the key-list round (follow-up 162), the smallest round yet shipped: one CSS rule,
+dropping the default disc the sheet's key list drew in front of a line that already numbers
+itself. **Note that a CSS-only change still moves the JS hash** — the entry chunk
 references the CSS asset by name — so a moved JS hash is not by itself evidence that
 behaviour changed.
 
@@ -81,8 +86,7 @@ different things make `git log` look ahead when it is not, and both are normal h
   built a byte-identical bundle: the agreement-test round (follow-up 140), 159's focus test,
   and the whole delete-token round (follow-up 160).
 
-**The ply-sign round (163) IS pending — it is the one thing `master` has that production does
-not.** `DEPLOYMENT.local.md` carries every runbook entry and bundle hash.
+**Nothing is pending.** `DEPLOYMENT.local.md` carries every runbook entry and bundle hash.
 
 **The 2026-08-15 project-library deploy was the first that ACTS on a user's stored data at
 page load**, which
@@ -113,14 +117,25 @@ load-bearing.
 was picked on 2026-08-31 and set aside a moment later without a stated reason, so treat it
 as available rather than as either chosen or rejected.
 
-**The 08-31 session ran NINE small already-diagnosed rounds instead, across FOUR deploys, and
-every one of them is now live** — 157/158, 97/131, 148, 92, 140, 159, 160, 161 and 162, all
-listed in the table below. Three ship nothing on their own (140, 159's focus test, and all of
-160: test files only, byte-identical bundles).
+**The 08-31 session ran TEN rounds instead, across FIVE deploys, and every one of them is now
+live** — 157/158, 97/131, 148, 92, 140, 159, 160, 161, 162 and 163, all listed in the table
+below. Three ship nothing on their own (140, 159's focus test, and all of 160: test files
+only, byte-identical bundles).
 
-**NO CANDIDATE IS STANDING.** The standing-candidate list is empty for
-the first time since the tape rounds: 160, 161 and 162 all closed on 08-31, and 161's own
-residue (162) closed the same day. 130 remains available-but-unasked — read its bullet below
+**NINE of the ten were small already-diagnosed items off the ledger. 163 is the exception and
+is a different kind of thing, which is the part worth carrying forward:** it started from a
+user bug report, it was a live rendering defect dating to v3 rather than a known residue, and
+the first investigation measured the wrong layer clean and said so before the user's second
+message ("only when I add a cut") narrowed it. Read its follow-up entry before writing any UV
+assertion — a 48-case sweep written *during* that diagnosis passed with the bug live.
+
+**NO CANDIDATE IS STANDING and nothing is pending.** The standing-candidate list is empty for
+the first time since the tape rounds: 160, 161, 162 and 163 all closed on 08-31, and 161's own
+residue (162) closed the same day. 163 left a residue of its own and it is **open by
+decision, not by oversight** — the measured legibility of a plywood edge at 3/4in (sub-pixel
+ply rules, a 7% light/dark step, the mesh outline covering the outer plies only). The user was
+shown the measurements and ruled that the layers read as even. Do not re-open it without
+asking. 130 remains available-but-unasked — read its bullet below
 before proposing it, especially 26a's cost. **So the next conversation starts from a blank
 slate on feature direction**, and the honest first move is to ask rather than to pick from
 `docs/follow-ups.md`, whose remaining open entries are deferred-by-decision or
