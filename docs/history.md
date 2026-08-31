@@ -124,6 +124,73 @@ and 79.
 
 ## What each round did
 
+**What the switch-token round did (2026-08-31)** — no spec and no plan; both remedies
+were already written down in the ledger as follow-ups 157 and 158, which is why this
+went straight at the code. It closes the project library round's own two loose ends.
+
+**157 — one shared in-flight token.** The four handlers that adopt a new active project
+are all async before they mutate, so two can be out at once and adopt in either order.
+The library round guarded only `openProject`, on the ruling that it was the one path a
+user could double-click. Executing the fix turned up three things the ledger entry did
+not say.
+
+The first is that the shipped guard was not merely narrow, it was the **wrong shape**.
+It was a boolean that DECLINED the second click — so a user who clicked row A, reopened
+the caret and clicked row B ended on **A**, the row they did not choose. That is the
+same casualty the entry was filed about, arriving by the other road. Worse, the test the
+entry itself specified — "two rows clicked and resolved out of order" — is unreachable
+under a decline, because the second click never issues a `loadProject` at all. The
+ledger had specified a test its own code could not run. So the guard was deleted rather
+than generalised, and the rule became one sentence: **the last handler to start owns the
+outcome.**
+
+The second is that the token check alone did not fix the thing it was supposed to fix.
+A superseded `onNewProject` had already let `createProject` move the index's `activeId`
+to the project it wrote, so abandoning the adoption still left the persisted id on a
+document the user was not looking at. `browser.ts` had already ruled on exactly this for
+`duplicateProject` — an implicit activate "leaves the trap armed for the NEXT caller" —
+and `onNewProject` and `importIntoLibrary` **were** the next callers. Both now pass
+`{ activate: false }` and call `setActiveProject` themselves after the check, so moving
+the persisted id and adopting it are one step on one side of it. `onDeleteProject`
+cannot be made to do this (its index write is intrinsic — the project is gone and a
+replacement must be named in the same write), so it keeps a narrower guarantee, written
+down as follow-up 160 rather than left as a silence.
+
+The third is small and was decided rather than inherited: the bump sits *before*
+`openProject`'s `id === activeId` early return, so clicking the already-open row while a
+switch is out means "stay here" and cancels it. Uniform last-click-wins is one sentence.
+
+**158 — a `tsc` receipt instead of a review comment.** The pending autosave write was
+`{ id, doc, timer }`, and invariant 29's matched-pair requirement was doc-enforced only:
+rewriting the flush to `storage.autoSave(activeId, p.doc)` reintroduced exactly the
+forbidden mismatch and passed all 51 `App.test.tsx` tests. The record is now
+`{ write, timer }`, where `write` is a thunk built inside the autosave effect — the one
+scope where `activeId` and `doc` are each other's counterpart by construction, because
+the effect reran for exactly those two values. The flush has no id and no document, so
+the forbidden line does not compile. A branded pair type was considered and dropped: it
+relocates the mismatch (`projectWrite(activeId, p.doc)` is still constructible) and
+costs a `StorageAdapter` signature change across a dozen test call sites. The other half
+of 158 was comment-only — `App.tsx` claimed "ONE RULE FOR ALL FOUR HANDLERS" about
+reporting the storage verdict, which is false for `onDuplicateProject`, and the comment
+now states the rule and its limit. Flipping `_available` there was rejected: the store is
+working, one project is simply gone, and the banner would be lying. What that leaves —
+a failed duplicate being silent — is follow-up 159.
+
+**Everything here was mutated before it was believed**, which is the project library
+round's own lesson (follow-up 155) applied to its own leftovers. Deleting `openProject`'s
+supersede check turns both new App tests red; making `onNewProject` read the token
+without bumping it turns the first red; the `activate` contract is pinned against the
+**real** adapter in `browser.test.ts` and mutated in both directions. That last choice
+was forced: `App.test.tsx`'s fake `createProject` took one parameter and activated
+unconditionally, so an assertion about the persisted active project written against it
+would have passed for reasons unrelated to the change. That is the **sixth** divergence
+between the App fake and the real adapter, after the five follow-up 156 enumerates; the
+fake was taught the parameter rather than the divergence being left silent.
+
+916/916 tests across 35 files, `npm run build` clean. No schema change, no storage layout
+change, nothing user-visible except that the project you finish on is the project that
+reopens.
+
 **What the project library round did**, design in
 `docs/superpowers/specs/2026-08-14-sloyd-project-library-design.md` (amended mid-round —
 see §2.2 below), browser pass in `docs/browser-verification-project-library.md`. Opened

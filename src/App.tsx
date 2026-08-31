@@ -159,16 +159,25 @@ export default function App() {
   // every switch. `flushAutoSave` below is what makes it happen, and it
   // carries the same id-paired-with-document shape for the same reason.
   //
-  // THE PENDING WRITE, held as ONE record: the timer, the id it was armed
-  // for, and the document that was current when it armed.
+  // THE PENDING WRITE, held as ONE record: the timer, and a THUNK that closes
+  // over the id and the document it was armed for.
   //
-  // PROHIBITION: do not split these into separate refs (or read `activeId`
-  // back off state inside the flush). Holding them together is what makes
-  // spec §3's crossing race structurally impossible rather than
+  // PROHIBITION: do not split the pair into separate refs, and do not read
+  // `activeId` back off state inside the flush. Holding them together is what
+  // makes spec §3's crossing race structurally impossible rather than
   // timing-dependent — every flush path writes a MATCHED pair, whichever
   // record it happens to read. Two refs can be updated one render apart, and
   // the failure is A's document landing in B's slot, silently.
-  const pending = useRef<{ id: string; doc: SloydDocument; timer: ReturnType<typeof setTimeout> } | null>(null);
+  //
+  // The THUNK is what upgrades that prohibition from asked-for to enforced
+  // (follow-up 158). The record used to carry `{ id, doc, timer }`, and the
+  // forbidden line — `storage.autoSave(activeId, p.doc)`, the state id paired
+  // with the captured document — compiled and passed all 51 tests in this
+  // file. There is now no `p.doc` to pair anything with: the only scope where
+  // both halves exist is the effect below, where they ARE each other's
+  // counterpart by construction, and the flush has nothing to mismatch. That
+  // is a `tsc` failure rather than a review comment.
+  const pending = useRef<{ write: () => Promise<void>; timer: ReturnType<typeof setTimeout> } | null>(null);
 
   /**
    * Write the pending autosave NOW, if there is one. Called by the debounce
@@ -187,7 +196,7 @@ export default function App() {
     if (!p) return;
     clearTimeout(p.timer);
     pending.current = null;
-    await storage.autoSave(p.id, p.doc);
+    await p.write();
     setAvailable(storage.available);
     setSaving(false);
   }, []);
@@ -198,12 +207,16 @@ export default function App() {
     const timer = setTimeout(() => {
       void flushAutoSave();
     }, 600);
+    // THE CAPTURE POINT. This closure is the one scope in the app holding a
+    // matched (id, document) pair, and it holds it because the effect reran
+    // for exactly these two values — no argument to pass, so none to swap.
+    const write = () => storage.autoSave(activeId, doc);
     // Recorded AFTER the timer exists so the record is never half-built. A
     // rerun overwrites it, which is correct: for an edit to the same project
     // the newer document supersedes, and for a SWITCH the handler has already
     // awaited `flushAutoSave` before calling `setActiveId`, so the outgoing
     // pair was written before this line can replace it.
-    pending.current = { id: activeId, doc, timer };
+    pending.current = { write, timer };
     return () => clearTimeout(timer);
   }, [doc, activeId, flushAutoSave]);
 
@@ -214,27 +227,44 @@ export default function App() {
   // Every switch handler FLUSHES first: the pending write is for the project
   // being left, and the effect's cleanup would otherwise throw it away.
   //
-  // `switching` guards the one handler that can be re-entered from the UI
-  // before it finishes: two fast row clicks both await `loadProject`, and
-  // whichever `setActiveProject` resolves LAST wins the persisted active id —
-  // which may be the row the user did not end on. The other three handlers
-  // are driven by menu items that close the menu as they fire, so they are
-  // left alone rather than given a guard by analogy.
-  const switching = useRef(false);
+  // ONE SHARED IN-FLIGHT TOKEN for every handler that adopts a new active
+  // project, and the rule it enforces is one sentence: THE LAST HANDLER TO
+  // START OWNS THE OUTCOME. Each bumps the token on entry and re-reads it
+  // after its awaits; a handler that finds the token moved abandons its
+  // adoption and persists nothing.
+  //
+  // All four are async-before-mutation, so two can be in flight at once —
+  // click a row, then reopen the caret and pick another, or pick New while
+  // the first load is still out. No wrong-slot WRITE is possible (every write
+  // is a matched pair, invariant 29), so the casualty is narrower and quieter:
+  // the persisted active id ends on the project the user did not finish on,
+  // and the next boot opens it (follow-up 157).
+  //
+  // This REPLACES `openProject`'s earlier boolean re-entry guard, which
+  // declined the second click. A decline cannot be right here: it ends the
+  // session on the row the user did NOT click last. Four separate guards
+  // would each have had to re-derive that, so there is one token.
+  //
+  // The bump sits BEFORE the `id === activeId` early return on purpose, so
+  // "last click wins" holds uniformly: clicking the already-open row while a
+  // switch to another project is out means "stay here", and cancels it.
+  const switchToken = useRef(0);
   const openProject = useCallback(async (id: string) => {
-    if (id === activeId || switching.current) return;
-    switching.current = true;
-    try {
-      await flushAutoSave();
-      const next = await storage.loadProject(id);
-      if (!next) return;
-      setActiveId(id);
-      replaceDocument(next);
-      await storage.setActiveProject(id);
-      setAvailable(storage.available);
-    } finally {
-      switching.current = false;
-    }
+    const token = ++switchToken.current;
+    if (id === activeId) return;
+    await flushAutoSave();
+    const next = await storage.loadProject(id);
+    if (!next || token !== switchToken.current) return;
+    setActiveId(id);
+    replaceDocument(next);
+    await storage.setActiveProject(id);
+    // BELOW the token check, unlike the other three handlers, and for the
+    // reason 158's limit states rather than by drift: `loadProject` moves no
+    // verdict — a missing or unreadable project returns null while the store
+    // goes on working — so the only verdict this handler has to report is
+    // `setActiveProject`'s, and that call only happens when it wins. Reporting
+    // above the check would report nothing.
+    setAvailable(storage.available);
   }, [activeId, replaceDocument, flushAutoSave]);
 
   // Creates a fresh project, makes it the active one, and swaps the document
@@ -250,25 +280,48 @@ export default function App() {
   // exactly where it was rather than switching to a project that does not
   // exist on disk.
   //
-  // ONE RULE FOR ALL FOUR HANDLERS: every one of them reports the storage
-  // layer's verdict by calling `setAvailable(storage.available)` when it
-  // finishes, success or failure. Without it a refused delete or a failed
-  // create is invisible until some later autosave happens to move the flag —
-  // the user acts, nothing happens, and nothing says why.
+  // ONE RULE FOR ALL FOUR HANDLERS, WITH ONE KNOWN LIMIT: every one of them
+  // reports the storage layer's verdict by calling
+  // `setAvailable(storage.available)` when it finishes, success or failure.
+  // Without it a refused delete or a failed create is invisible until some
+  // later autosave happens to move the flag — the user acts, nothing happens,
+  // and nothing says why.
+  //
+  // THE LIMIT, stated because this comment claimed a rule it did not have
+  // (follow-up 158): `onDuplicateProject` can report a stale `true`. A
+  // missing or unreadable source returns null through `loadProject`, which
+  // deliberately moves nothing — the store is working, one project is gone —
+  // so `storage.available` is still whatever it last was. Flipping it false
+  // there would make the banner say persistence is broken when it is not,
+  // which browser.ts rules against for the same reason it does at its own
+  // `_available` sites. The gap is that a failed duplicate is silent; that is
+  // follow-up 159, not something to paper over here.
   //
   // `importIntoLibrary` ADDITIONALLY throws, and that is not an
   // inconsistency: it is the only one of the four invoked from a flow that
   // already owns a visible error surface at the point of action (FileMenu's,
   // where a corrupt file reports itself). The banner is easy to miss right
   // after a deliberate action; the other three have nowhere else to put it.
+  //
+  // `{ activate: false }` plus an explicit `setActiveProject` AFTER the token
+  // check, rather than letting `createProject` activate what it writes. This
+  // is browser.ts's own ruling applied to its next caller: an implicit
+  // activate leaves the trap armed, and here the trap is real — a superseded
+  // handler that had already let the adapter move the index's `activeId`
+  // would leave the persisted project pointing at a document the user is not
+  // looking at, which is the very thing the token exists to prevent. Moving
+  // the persisted id and adopting it are now one step, on one side of the
+  // check.
   const onNewProject = useCallback(async () => {
     const next = createDocument('Untitled');
+    const token = ++switchToken.current;
     await flushAutoSave();
-    const id = await storage.createProject(next);
+    const id = await storage.createProject(next, { activate: false });
     setAvailable(storage.available);
-    if (!id) return;
+    if (!id || token !== switchToken.current) return;
     setActiveId(id);
     replaceDocument(next);
+    await storage.setActiveProject(id);
   }, [replaceDocument, flushAutoSave]);
 
   // Duplicate does NOT switch: you asked for a copy, not to leave what you
@@ -302,11 +355,21 @@ export default function App() {
   // index does not name (see its comment), so `available` reports it and the
   // banner tells the truth, at the seam, for every route into that state
   // including one caused by another tab.
+  //
+  // The token check covers the ADOPTION only, and that is the honest limit:
+  // `deleteProject`'s own move of the index `activeId` is intrinsic — the
+  // project is gone and the adapter must name a replacement — so a delete
+  // superseded by a switch can still leave the persisted id on that
+  // replacement rather than on the project now open. The consequence is
+  // bounded (a valid project, and `autoSave` refuses an id the index does not
+  // name, so `available` reports anything worse); recorded as follow-up 160
+  // rather than chased here.
   const onDeleteProject = useCallback(async (id: string) => {
+    const token = ++switchToken.current;
     await flushAutoSave();
     const next = await storage.deleteProject(id);
     setAvailable(storage.available);
-    if (next) {
+    if (next && token === switchToken.current) {
       setActiveId(next.activeId);
       replaceDocument(next.doc);
     }
@@ -318,9 +381,16 @@ export default function App() {
   // picked off disk, store it as a NEW library entry and switch to it — the
   // same replaceDocument-based shape as onNewProject/openProject (invariant
   // 24, spec §3.1).
+  //
+  // Superseding an import does NOT lose it: the project is written and listed
+  // either way, and only the switch to it is abandoned. Being a file-picker
+  // gesture it is the least likely of the four to be overtaken, which is why
+  // the throw below stays about the write failing and says nothing about the
+  // token.
   const importIntoLibrary = useCallback(async (doc: SloydDocument) => {
+    const token = ++switchToken.current;
     await flushAutoSave();
-    const id = await storage.createProject(doc);
+    const id = await storage.createProject(doc, { activate: false });
     // Before the throw below, not after it: the banner must not lag behind
     // the error the user is already reading.
     setAvailable(storage.available);
@@ -334,8 +404,10 @@ export default function App() {
       // file would.
       throw new DocumentError('Could not save the imported project.');
     }
+    if (token !== switchToken.current) return;
     setActiveId(id);
     replaceDocument(doc);
+    await storage.setActiveProject(id);
   }, [replaceDocument, flushAutoSave]);
 
   const fileMenuRef = useRef<FileMenuHandle>(null);

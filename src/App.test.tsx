@@ -125,13 +125,22 @@ function makeLibraryFake() {
         .map((p) => p.entry)
         .sort((a, b) => b.savedAt - a.savedAt || b.createdAt - a.createdAt);
     },
-    async createProject(doc: SloydDocument) {
+    /**
+     * Models `createProject`'s `activate` parameter, which this fake used to
+     * ignore while unconditionally activating what it wrote — the SIXTH
+     * divergence between this fake and the real adapter (follow-up 156
+     * enumerates the first five). App now passes `{ activate: false }` and
+     * calls `setActiveProject` itself, on the far side of the in-flight
+     * token, so a fake that activates regardless would report a persisted
+     * active project the real adapter never wrote.
+     */
+    async createProject(doc: SloydDocument, options?: { activate?: boolean }) {
       const id = `p${++counter}`;
       projects.set(id, {
         entry: { id, name: doc.name, savedAt: tick(), createdAt: tick() },
         doc,
       });
-      activeId = id;
+      if (options?.activate ?? true) activeId = id;
       return id;
     },
     async duplicateProject(id: string) {
@@ -206,9 +215,9 @@ const fake = makeLibraryFake();
 const openLibrary = vi.fn(() => fake.openLibrary());
 const loadProject = vi.fn((...args: [string]) => fake.loadProject(...args));
 const listProjects = vi.fn(() => fake.listProjects());
-const createProject = vi.fn<(doc: SloydDocument) => Promise<string | null>>(
-  (...args: [SloydDocument]) => fake.createProject(...args),
-);
+const createProject = vi.fn<
+  (doc: SloydDocument, options?: { activate?: boolean }) => Promise<string | null>
+>((...args: [SloydDocument, { activate?: boolean }?]) => fake.createProject(...args));
 const duplicateProject = vi.fn((...args: [string]) => fake.duplicateProject(...args));
 const deleteProject = vi.fn((...args: [string]) => fake.deleteProject(...args));
 const setActiveProject = vi.fn((...args: [string]) => fake.setActiveProject(...args));
@@ -234,7 +243,8 @@ vi.mock('./storage/browser', () => ({
     openLibrary: () => openLibrary(),
     loadProject: (...args: unknown[]) => loadProject(...(args as [string])),
     listProjects: () => listProjects(),
-    createProject: (...args: unknown[]) => createProject(...(args as [SloydDocument])),
+    createProject: (...args: unknown[]) =>
+      createProject(...(args as [SloydDocument, { activate?: boolean }?])),
     duplicateProject: (...args: unknown[]) => duplicateProject(...(args as [string])),
     deleteProject: (...args: unknown[]) => deleteProject(...(args as [string])),
     setActiveProject: (...args: unknown[]) => setActiveProject(...(args as [string])),
@@ -253,7 +263,9 @@ beforeEach(() => {
   openLibrary.mockReset().mockImplementation(() => fake.openLibrary());
   loadProject.mockReset().mockImplementation((...args: [string]) => fake.loadProject(...args));
   listProjects.mockReset().mockImplementation(() => fake.listProjects());
-  createProject.mockReset().mockImplementation((...args: [SloydDocument]) => fake.createProject(...args));
+  createProject.mockReset().mockImplementation(
+    (...args: [SloydDocument, { activate?: boolean }?]) => fake.createProject(...args),
+  );
   duplicateProject.mockReset().mockImplementation((...args: [string]) => fake.duplicateProject(...args));
   deleteProject.mockReset().mockImplementation((...args: [string]) => fake.deleteProject(...args));
   setActiveProject.mockReset().mockImplementation((...args: [string]) => fake.setActiveProject(...args));
@@ -618,6 +630,106 @@ describe('App project switching', () => {
 
     expect(screen.getByLabelText('Open project menu')).toHaveAttribute('aria-expanded', 'false');
     expect(useStore.getState().tool).toBe('move');
+  });
+
+  // ---- Follow-up 157: one shared in-flight token ---------------------------
+  //
+  // All four handlers that adopt a new active project (openProject,
+  // onNewProject, onDeleteProject, importIntoLibrary) are
+  // async-before-mutation, so two of them can be in flight at once and adopt
+  // in EITHER order. No wrong-slot write is possible — every write is a
+  // matched (id, doc) pair, which is invariant 29's whole point — but the
+  // user could end on the project they did not choose, and the next boot
+  // then opens it. `openProject` alone used to carry a boolean re-entry
+  // guard that DECLINED the second click; a decline cannot be right here,
+  // because it ends the session on the row the user did NOT click last.
+  //
+  // The rule the token buys, stated once: THE LAST HANDLER TO START OWNS THE
+  // OUTCOME. An earlier one that resolves late abandons its adoption.
+  //
+  // MUTATE BOTH OF THESE (follow-up 155). A supersede guard is exactly the
+  // REFUSAL shape that admits a test which observes only the end state and
+  // cannot see the step that was skipped. Deleting the
+  // `token !== switchToken.current` check from `openProject` must turn both
+  // red; it was confirmed doing so.
+  const settle = async () => {
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+  };
+
+  const openMenu = async () => {
+    fireEvent.click(screen.getByLabelText('Open project menu'));
+    // The popup's rows come from an async listProjects(); its command row
+    // does not. Settle so both are present.
+    await settle();
+  };
+
+  it('abandons an earlier switch that resolves after a later one has landed', async () => {
+    const idA = fake.seed(createDocument('Project A'), 'pA');
+    fake.seed(createDocument('Home'), 'pHome');
+
+    let releaseA!: (doc: SloydDocument | null) => void;
+    loadProject.mockImplementation(
+      () => new Promise<SloydDocument | null>((resolve) => { releaseA = resolve; }),
+    );
+
+    render(<App />);
+    await settle();
+    expect(useStore.getState().doc.name).toBe('Home');
+
+    // Click project A. Its load hangs.
+    await openMenu();
+    fireEvent.click(screen.getByRole('button', { name: /^Project A/ }));
+    await settle();
+    expect(useStore.getState().doc.name).toBe('Home');
+
+    // While it hangs the user makes a new project, which lands.
+    await openMenu();
+    fireEvent.click(screen.getByRole('button', { name: /New project/ }));
+    await settle();
+    expect(useStore.getState().doc.name).toBe('Untitled');
+
+    // Only now does A's load resolve. It must not adopt, and must not
+    // repoint the persisted active project at itself.
+    releaseA(createDocument('Project A'));
+    await settle();
+
+    expect(useStore.getState().doc.name).toBe('Untitled');
+    expect(setActiveProject).not.toHaveBeenCalledWith(idA);
+  });
+
+  it('ends on the row the user clicked last when two loads resolve out of order', async () => {
+    fake.seed(createDocument('Project A'), 'pA');
+    const idB = fake.seed(createDocument('Project B'), 'pB');
+    fake.seed(createDocument('Home'), 'pHome');
+
+    const gates = new Map<string, (doc: SloydDocument | null) => void>();
+    loadProject.mockImplementation(
+      (id: string) => new Promise<SloydDocument | null>((resolve) => { gates.set(id, resolve); }),
+    );
+
+    render(<App />);
+    await settle();
+
+    await openMenu();
+    fireEvent.click(screen.getByRole('button', { name: /^Project A/ }));
+    await settle();
+
+    await openMenu();
+    fireEvent.click(screen.getByRole('button', { name: /^Project B/ }));
+    await settle();
+
+    // Both loads are open at once — which is only reachable because the
+    // second click is no longer declined. Resolve them in the WRONG order:
+    // the row the user ended on comes back first, the abandoned one second.
+    expect(gates.size).toBe(2);
+    gates.get('pB')!(createDocument('Project B'));
+    await settle();
+    gates.get('pA')!(createDocument('Project A'));
+    await settle();
+
+    expect(useStore.getState().doc.name).toBe('Project B');
+    expect(setActiveProject).toHaveBeenLastCalledWith(idB);
+    expect(setActiveProject).not.toHaveBeenCalledWith('pA');
   });
 });
 

@@ -3152,6 +3152,45 @@ it actually models before trusting a green.
 
 ---
 
+**157. CLOSED 2026-08-31 — one shared in-flight token, and the boolean guard it replaced
+was itself wrong.** `App` now holds ONE `switchToken` ref; all four adopting handlers
+(`openProject`, `onNewProject`, `onDeleteProject`, `importIntoLibrary`) bump it on entry and
+re-read it after their awaits, and one that finds it moved abandons its adoption. The rule is
+one sentence — **the last handler to START owns the outcome** — which is why it is one token
+rather than four guards, each of which would have had to re-derive it.
+
+Three things this round found that the entry below did not say:
+
+- **`openProject`'s boolean re-entry guard could not have been generalised, because it was
+  the wrong shape.** It DECLINED the second click, so the session ended on the row the user
+  did **not** click last — which is the same casualty this entry was filed about, arriving by
+  the other road. It is deleted, not extended. Note also that the test this entry specified
+  ("two rows clicked and resolved out of order") is **unreachable under a decline**: the
+  second click never issues a `loadProject`, so there is nothing to resolve out of order. The
+  ledger specified a test its own shipped code could not run.
+- **The token check alone was not enough for the two `createProject` callers.** A superseded
+  `onNewProject` had already let the adapter move the index's `activeId` to the project it
+  wrote, so abandoning the adoption left the persisted id on a document the user is not
+  looking at — this entry's exact casualty, surviving the fix. Both callers now pass
+  `{ activate: false }` and call `setActiveProject` themselves **after** the check, so moving
+  the persisted id and adopting it are one step on one side of it. That is `browser.ts`'s own
+  `duplicateProject` ruling ("an implicit activate leaves the trap armed for the NEXT caller")
+  applied to the next callers.
+- **The bump sits BEFORE `openProject`'s `id === activeId` early return**, decided rather than
+  inherited: clicking the already-open row while a switch is out means "stay here", and
+  cancels it. Uniform last-click-wins is one sentence; two rules would be two.
+
+`onDeleteProject` keeps a narrower guarantee on purpose — see **160**.
+
+Covered by two `App.test.tsx` tests, both **mutated before being believed** (155's rule):
+deleting `openProject`'s check turns both red, and making `onNewProject` read the token
+without bumping it turns the first red. The `activate` contract is pinned separately in
+`src/storage/browser.test.ts` against the **real** adapter, and mutated in both directions —
+because `App.test.tsx`'s fake ignored the parameter entirely, which was the **sixth**
+divergence in the list 156 keeps (now taught to the fake rather than left silent).
+
+The original entry follows unedited.
+
 **157. The three async handlers beside `openProject` are unguarded, and the persisted
 `activeId` can end on the loser.** `openProject` got an in-flight guard in the final fix
 wave; `onNewProject`, `onDeleteProject` and `importIntoLibrary` are now all
@@ -3175,6 +3214,24 @@ was rightly wary of. The technique was already proven in this round on `ProjectM
 await-before-refresh test. **"This cannot be tested" meaning "I did not find the technique"
 is itself one of this round's recurring findings.**
 
+**158. CLOSED 2026-08-31 — both, and the second one has a `tsc` receipt.**
+
+- The `App.tsx` comment now states the rule **and its one known limit**: `onDuplicateProject`
+  can report a stale `true`, because a missing or unreadable source returns null through
+  `loadProject`, which deliberately moves nothing. Comment-only was the right remedy: flipping
+  `_available` there would make the banner claim persistence is broken when it is working and
+  one project is simply gone, which `browser.ts` rules against at its own `_available` sites.
+  What is left over — a failed duplicate being silent to the user — is **159**.
+- The pending-write record is no longer `{ id, doc, timer }` but `{ write, timer }`, where
+  `write` is a **thunk created inside the autosave effect**, the one scope where `activeId` and
+  `doc` are each other's counterpart by construction. The mismatch this entry named is now
+  unwritable rather than merely forbidden: `storage.autoSave(activeId, p.doc)` fails to
+  compile, `Property 'doc' does not exist`. **That failing `tsc` is the receipt** — the thing
+  the entry pointed out all 51 `App.test.tsx` tests could not produce, and a reminder that
+  `npm test` does not typecheck. Invariant 29 carries the new shape.
+
+The original entry follows unedited.
+
 **158. Two comments overstate what the code does, both in the same fix wave that narrowed
 invariant 31 for exactly this reason.** Neither changes behaviour; both are the failure mode
 this repo has now logged five times in one round, which is why they are written down rather
@@ -3191,3 +3248,31 @@ than left to be rediscovered.
   forbids — passes all 51 `App.test.tsx` tests. The invariant is correct and the code obeys
   it; nothing makes the code keep obeying it. A type that pairs the id and document at the
   point they are captured would enforce what the sentence currently only asks for.
+
+## From the 157/158 correctness round — 2026-08-31
+
+**159. A duplicate that fails is silent.** `onDuplicateProject` reports the storage layer's
+verdict like the other three handlers, but `duplicateProject` returning null for a missing or
+unreadable source moves no verdict to report (see 158's closure), so the user presses ⧉ and
+nothing happens — no new row, no banner, no message. The shape of the remedy already exists
+and was ruled on for a neighbour: `importIntoLibrary` **throws** into a flow that owns a
+visible error surface at the point of action, precisely because "the banner is easy to miss
+right after a deliberate action." Duplicate has no such surface — it is a bare button in
+`ProjectMenu`'s row — so the honest fix is a surface, not a throw, and that is a design
+question rather than a fix. Recorded, not built: it is reachable only when a project key has
+gone missing or corrupt underneath a listed row, which is the two-tab case (**154**) or hand
+editing.
+
+**160. `onDeleteProject`'s in-flight token covers its ADOPTION, not the index write, and that
+residue is deliberate.** The other three handlers can be made to move the persisted `activeId`
+only on the far side of the token check (157's closure). `deleteProject` cannot: the project is
+gone and the adapter must name a replacement in the same write that removes the row, so a
+delete overtaken by a switch can still leave the persisted id on that replacement rather than
+on the project now open — one wrong project on the next boot, no data lost. Two things bound it
+and are why it is filed rather than chased. The replacement is always a **valid, loadable**
+project, unlike the pre-157 case where the id could name what the user was not looking at for
+arbitrary reasons; and `autoSave` refuses an id the index does not name, so anything worse than
+"the wrong project opens" reports itself through `available`. Closing it properly means
+`deleteProject` taking the caller's intended active id as an argument — the same shape as
+`autoSave`'s explicit id (invariant 29) and worth doing if the adapter is touched for another
+reason.

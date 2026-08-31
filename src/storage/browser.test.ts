@@ -780,6 +780,34 @@ describe('project CRUD', () => {
     expect(index.activeId).not.toBe(copyId);
   });
 
+  // Follow-up 157: `App`'s onNewProject and importIntoLibrary now pass
+  // `{ activate: false }` and call `setActiveProject` themselves, on the far
+  // side of the in-flight token — so that a handler overtaken by a later one
+  // cannot have already moved the persisted active project to a document the
+  // user is not looking at. That makes the parameter load-bearing for a
+  // second caller, and it is pinned HERE, against the real adapter, because
+  // `App.test.tsx`'s fake models storage rather than being it (follow-up
+  // 156). Read the index straight off `store` for the reason the test above
+  // states.
+  it('createProject leaves the persisted active project alone when activate is false', async () => {
+    const { store, adapter, activeId } = await boot();
+
+    const id = await adapter.createProject(createDocument('Quiet'), { activate: false });
+
+    expect(id).not.toBeNull();
+    expect(JSON.parse(store.getItem(LIBRARY_KEY)!).activeId).toBe(activeId);
+    expect((await adapter.listProjects()).map((p) => p.id)).toContain(id);
+  });
+
+  it('createProject activates by default', async () => {
+    const { store, adapter, activeId } = await boot();
+
+    const id = await adapter.createProject(createDocument('Loud'));
+
+    expect(id).not.toBe(activeId);
+    expect(JSON.parse(store.getItem(LIBRARY_KEY)!).activeId).toBe(id);
+  });
+
   it('deleteProject removes the key and the row', async () => {
     const { store, adapter, activeId } = await boot();
     const other = await adapter.createProject(createDocument('Other'));

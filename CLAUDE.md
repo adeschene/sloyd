@@ -24,7 +24,7 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **912/912 tests passing across 35 files**, schema
+Static SPA, containerized, **916/916 tests passing across 35 files**, schema
 `CURRENT_VERSION` **6**.
 
 **Production matches `master` as of 2026-08-15**, the project library round included
@@ -86,6 +86,7 @@ narrative for every row is in `docs/history.md`.
 | type-anywhere entry | 08-04 | — | *no spec* — typing a digit anywhere routes into the readout |
 | cardinal guides | 08-04 | — | `X`/`Y`/`Z` lock a world axis for a typed distance |
 | project library | 08-14 | — | multiple projects in the browser; `sloyd.library.v1` |
+| switch-token fixes | 08-31 | — | *no spec* — one in-flight token for the four adopting handlers (invariant 32); the pending write becomes a captured-pair thunk |
 
 ### The deployment rule, stated once
 
@@ -358,7 +359,11 @@ src/
                             prop-drilled view state (it joins `shortcutsSuspended`,
                             NOT the store's `tool`). M, T, X/Y/Z, Escape and undo/redo
                             all live in the ONE existing keydown effect — inv 27.
-                            Escape's ladder: grabbed → tapeAxis → tapeAnchor → tool
+                            Escape's ladder: grabbed → tapeAxis → tapeAnchor → tool.
+                            Also owns `pending` (the autosave write, held as a
+                            CAPTURED-PAIR THUNK — inv 29) and `switchToken`, the
+                            one in-flight token every adopting handler bumps
+                            (inv 32)
 ```
 
 Deployment scaffolding: `Dockerfile`, `docker-compose.yml`, `nginx.conf`,
@@ -705,14 +710,24 @@ worked examples behind several of them are in `docs/history.md`.
     outgoing write, so every switch must FLUSH it first.** Cancelling closed the race and
     nobody asked whether the write ever happened — it did not, and the outgoing project's
     last ≤600 ms of edits were discarded on every switch, the central gesture of the
-    library. So `App` holds the pending write as **ONE record** (`{ id, doc, timer }`) and
-    every switch handler awaits `flushAutoSave()` before `setActiveId`/`replaceDocument`.
+    library. So `App` holds the pending write as **ONE record** and every switch handler
+    awaits `flushAutoSave()` before `setActiveId`/`replaceDocument`.
     **A PROHIBITION: do not split that record into separate refs, and do not read `activeId`
     back off state inside the flush** — holding the pair together is what makes the crossing
     race *structural* rather than timed, since every flush path then writes a matched pair
     whatever it reads. Two refs can be updated a render apart, and the failure is A's
     document in B's slot, silently. The detail lives in `App.tsx`'s comment on `pending`;
     point at it rather than restating it.
+
+    **The record is `{ write, timer }`, NOT `{ id, doc, timer }`, and that is the prohibition
+    being enforced rather than restated (follow-up 158).** `write` is a thunk built inside the
+    autosave effect — the one scope where `activeId` and `doc` are each other's counterpart,
+    because the effect reran for exactly those two values, so there is no argument to pass and
+    none to swap. The flush holds no id and no document, so the forbidden line
+    `storage.autoSave(activeId, p.doc)` does not compile. Before this it did, and passed all 51
+    `App.test.tsx` tests. **Do not "restore inspectability" by putting the id or the document
+    back on the record** — reading either one back is exactly how the mismatch becomes writable
+    again.
 30. **`sloyd.autosave.v1` is never deleted and never written after adoption, and adoption
     fires on exactly ONE condition: the index key is ABSENT.** That key *is* the user's
     project on a pre-library build, Sloyd has no server-side state, and there is nothing to
@@ -766,6 +781,39 @@ worked examples behind several of them are in `docs/history.md`.
     checks `libraryAvailable` first — a convention that has to hold in `App.tsx` to protect
     `localStorage` is not a seam. `deleteProject` refuses **before touching the project key
     itself**: a partial delete (key gone, corrupt index left alone) is worse than no delete.
+32. **Every handler that adopts a new active project bumps ONE shared in-flight token, and
+    the rule is: THE LAST HANDLER TO START OWNS THE OUTCOME.** All four — `openProject`,
+    `onNewProject`, `onDeleteProject`, `importIntoLibrary` — are async before they mutate, so
+    two can be out at once (click a row, reopen the caret, pick another; or pick New while the
+    first load is still in flight). No wrong-slot write is possible, because every write is a
+    matched pair by invariant 29; the casualty is quieter, which is why it shipped — the
+    **persisted** `activeId` ends on the project the user did not finish on, and the next boot
+    opens it.
+
+    Three parts, none of them optional:
+
+    - **One token, not four guards.** Each handler bumps `switchToken` on entry and re-reads it
+      after its awaits; one that finds it moved abandons its adoption. Four separate guards
+      would each have to re-derive the sentence above, and the one that shipped got it wrong —
+      `openProject`'s boolean re-entry guard **declined** the second click, which ends the
+      session on the row the user did *not* click last. Do not reintroduce a decline.
+    - **The token check must sit on the same side as the write that moves the persisted id.**
+      This is why `onNewProject` and `importIntoLibrary` pass
+      `createProject(doc, { activate: false })` and call `setActiveProject` themselves *after*
+      the check. Letting the adapter activate what it writes puts the persisted move **before**
+      the check, so a superseded handler leaves the persisted id on a document nobody is
+      looking at — this invariant's own casualty, surviving its own fix. `browser.ts` had
+      already ruled this way for `duplicateProject`; these are the next callers it warned about.
+    - **`onDeleteProject` is the documented exception, not an oversight.** Its index write is
+      intrinsic — the project is gone and the adapter must name a replacement in the same write
+      — so its token check covers adoption only. Bounded by the replacement always being
+      loadable and by `autoSave` refusing an id the index does not name. Follow-up 160.
+
+    The bump sits **before** `openProject`'s `id === activeId` early return, so last-click-wins
+    holds uniformly: clicking the open row while a switch is out means "stay here". **Mutate
+    any test of this** — a supersede guard is a refusal, the shape invariants 23 and 31 and
+    follow-up 155 all say admits a test that observes the end state and cannot see the skipped
+    step.
 
 
 ## Commands
@@ -773,7 +821,7 @@ worked examples behind several of them are in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 907 tests across 35 files
+npm test           # Vitest, currently 916 tests across 35 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -783,7 +831,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is the authoritative list** — 1-156, consciously deferred rather
+**`docs/follow-ups.md` is the authoritative list** — 1-160, consciously deferred rather
 than missed, each written up in place with its closure where it has one. Read the entries
 for the area you are about to touch before starting; several are "correct but untested",
 which is exactly what a refactor breaks silently.
