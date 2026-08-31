@@ -1646,6 +1646,35 @@ and specifically the height axis the width-only fixtures never exercised — the
 defect class `fitLabel` exists to close for the other two tiers, left open on the one
 tier that has no fallback beneath it.
 
+**97. CLOSED 2026-08-31, together with 131 — `takeId` in `document.ts`.** The repair is the
+one `validateCuts` already had, given a name and two more callers: the first occurrence of an
+id keeps it, later duplicates are re-minted. `validateBoard` now takes the document's `seen`
+set, `validateGuides` keeps its own, and `validateCuts` lost its inline copy so the rule has
+one home rather than three. Invariant 33 carries the detail.
+
+Three things worth knowing that the entry below does not say:
+
+- **It is a threaded set, not a `dedupeIds` pass beside `dedupeNames`.** The symmetry is
+  tempting and wrong. A *name* needs a replacement computed FROM its siblings, which is why
+  `dedupeNames` cannot live inside `validateBoard`; an *id* needs nothing from them but "is
+  this taken", which a set answers as it goes. A second pass would mean `validateBoard` mints
+  an id that the pass may then overwrite — two deciders for one field.
+- **Re-minting is safe because of a schema property, and that property is worth stating so it
+  can be checked later:** nothing inside a document references a board or guide id. A future
+  field that points at a board BY ID would turn this single expression into a two-pass
+  rewrite.
+- **No creation-time half, unlike invariant 8's four places.** `nextId` is a monotonic counter
+  and Import replaces a document rather than merging into one, so load is the only place two
+  ids can collide.
+
+**Four mutations, all caught**, which is the point of doing them rather than trusting a green:
+`takeId` returning `raw` unconditionally (4 red), `seen.add` deleted (4 red), re-minting
+everything (9 red — including the test written specifically to catch this over-fix, since
+distinctness alone cannot), and cut ids sharing one document-wide set instead of per-board
+(3 red).
+
+The original entry follows unedited.
+
 **97. Board `id` uniqueness is newly load-bearing but never enforced.**
 `buildNesting`'s sort tiebreak (`a.id.localeCompare(b.id)` in `nesting.ts`) and
 `SheetLayout.tsx`'s `<g key={p.boardId}>` both now depend on every board in a document
@@ -2379,6 +2408,16 @@ The rest of §9, each looked at and deferred with a reason:
   browser: click-the-guide-in-the-viewport is a known-bad hit target, because
   `THREE.Line`/marker raycasting registers a hit only within an inch of what is drawn and
   a guide's marker is far smaller than a board.
+
+**131. CLOSED 2026-08-31 with 97, which is exactly how this entry asked to be closed.** It
+said enforcing guide ids while leaving boards unenforced would be the inconsistent
+half-measure, so both were left to whichever round closed 97 — and one round closed both,
+with `validateCuts`' rule extracted as `takeId` and shared by all three. The one distinction
+this entry's own reasoning implies and the fix preserves: a guide with **no** id is still
+DROPPED rather than minted, because that is malformed data under `validateGuides`' stated
+rule, while a duplicate is a well-formed guide wearing a taken label. Invariant 33.
+
+The original entry follows unedited.
 
 **131. Guide ids are not deduplicated, and this is a knowing choice.** `validateGuides`
 keeps a guide whose `at` is three finite numbers and whose `id` is a non-empty string, and

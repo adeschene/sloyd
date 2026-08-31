@@ -124,6 +124,52 @@ and 79.
 
 ## What each round did
 
+**What the id-uniqueness round did (2026-08-31)** — the second small round of the day, and
+like the first it had no spec: follow-ups 97 and 131 had the remedy written down, and 131
+explicitly deferred to "whichever round closes 97", so closing either alone was ruled out
+before the work started.
+
+The gap was that `validateBoard` minted an id only when one was **missing**. Two boards
+arriving as `id: 'a'` both kept it — and by the sheet-nesting round that had become
+load-bearing without anyone noticing: `buildNesting`'s tiebreak (`a.id.localeCompare(b.id)`)
+needs a total order or the layout can reorder between renders, and `SheetLayout` keys its
+groups by board id. Guides had the same exposure by a different route, where a duplicate id
+makes `removeGuide` delete two rows at once. Only reachable through Import, which is the
+only door a hand-edited or badly-merged file comes through.
+
+**The rule was already in the file.** `validateCuts` had been re-minting a duplicate cut id
+since the joinery round; it just had it inline and nobody had given it a name. So the round
+is an extraction rather than an invention: `takeId(raw, seen)`, called by all three
+validators, with `seen.add` **inside** it — a call site that forgets that turns the whole
+rule into a no-op, and no test of that call site's own behaviour would see it.
+
+Two design points were decided rather than inherited. The first is that it is a threaded
+`seen` set rather than a `dedupeIds` pass beside `dedupeNames`, which is the symmetric-looking
+option and the wrong one: a name needs a replacement computed *from* its siblings, which is
+precisely why `dedupeNames` cannot live inside `validateBoard`, whereas an id needs nothing
+from them but "is this taken". A second pass would have left two deciders for one field. The
+second is that cut ids stay scoped **per board** while board and guide ids are per document —
+`Properties.tsx` keys `CutRow` by cut id within one board, so two boards may each carry a cut
+called `c1` and neither is wrong.
+
+What makes re-minting the later duplicate safe is a property of the schema rather than luck,
+and it is written into invariant 33 so it can be checked when it stops being true: nothing
+inside a document references a board or guide id. `Board.cuts` is inline, `GuidePoint` is
+`{ id, at }`, and every id lookup in the app reads runtime state set after a load. A future
+field pointing at a board BY ID would turn this single expression into a two-pass rewrite.
+
+**Four mutations, all caught.** `takeId` returning `raw` unconditionally (4 red), `seen.add`
+deleted (4 red), re-minting *everything* (9 red), and cut ids sharing one document-wide set
+(3 red). The third is the one worth keeping: re-minting every id passes every distinctness
+assertion just as well as the correct rule does, and would quietly rewrite the ids in every
+file that was already correct — so there is a test whose whole job is to assert that an
+already-distinct document comes back untouched, and the others pin the surviving id by its
+literal fixture value rather than by counting the set.
+
+923/923 tests across 35 files, `npm run build` clean. No schema change: `CURRENT_VERSION`
+stays 6, because an id repair is a normalisation in the same family as the name and material
+fallbacks, not a migration.
+
 **What the switch-token round did (2026-08-31)** — no spec and no plan; both remedies
 were already written down in the ledger as follow-ups 157 and 158, which is why this
 went straight at the code. It closes the project library round's own two loose ends.

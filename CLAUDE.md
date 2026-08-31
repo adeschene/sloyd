@@ -24,7 +24,7 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **916/916 tests passing across 35 files**, schema
+Static SPA, containerized, **923/923 tests passing across 35 files**, schema
 `CURRENT_VERSION` **6**.
 
 **Production matches `master` as of 2026-08-31**, the switch-token round included
@@ -89,6 +89,7 @@ narrative for every row is in `docs/history.md`.
 | cardinal guides | 08-04 | — | `X`/`Y`/`Z` lock a world axis for a typed distance |
 | project library | 08-14 | — | multiple projects in the browser; `sloyd.library.v1` |
 | switch-token fixes | 08-31 | — | *no spec* — one in-flight token for the four adopting handlers (invariant 32); the pending write becomes a captured-pair thunk |
+| id uniqueness | 08-31 | — | *no spec* — `takeId` closes follow-ups 97 and 131; duplicate board and guide ids are repaired on load (invariant 33) |
 
 ### The deployment rule, stated once
 
@@ -202,7 +203,9 @@ src/
 │   │                       Grain, MATERIALS, SheetStock, isSheetGood, sheetStockOf
 │   ├── geometry.ts         axisDimensions (SINGLE SOURCE, inv 13) / boardExtents /
 │   │                       boardCenter / reorientedPosition (inv 2)
-│   ├── names.ts            uniqueName / dedupeNames (inv 8). Imports only Board
+│   ├── names.ts            uniqueName / dedupeNames (inv 8). Imports only Board.
+│   │                       NAMES ONLY — id uniqueness is `takeId` in
+│   │                       document.ts (inv 33), for the reason stated there
 │   ├── cuts.ts             cutRegion / boardSolids (split, drop against the UNION,
 │   │                       merge) / boardEdges (inv 16) / solidWorldBox / cutLabel /
 │   │                       stockProbe (boardEdges' rule from a segment to a point;
@@ -247,7 +250,9 @@ src/
 │   │                       it with a rotated, non-flat pose. Imports ./types,
 │   │                       ./geometry, ./cuts — notably NOT ../units
 │   └── document.ts         create / validate / migrate (inv 11); validateGuides;
-│                           createGuide; re-exports the rest
+│                           createGuide; `takeId`, the ONE home of the
+│                           id-uniqueness rule for boards, guides and cuts
+│                           (inv 33); re-exports the rest
 ├── store/store.ts          Zustand, snapshot undo/redo (inv 4), gesture coalescing.
 │                           `tool` and the three HELD POINTS — `grabbed`
 │                           (BoardSnapPoint, narrow on purpose — inv 26),
@@ -817,13 +822,51 @@ worked examples behind several of them are in `docs/history.md`.
     follow-up 155 all say admits a test that observes the end state and cannot see the skipped
     step.
 
+33. **A duplicate id is repaired on LOAD, by one helper, and the FIRST occurrence keeps its
+    id.** `takeId(raw, seen)` in `document.ts` is the only place that decides what id a
+    board, guide or cut gets. Before it, `validateBoard` minted an id only when one was
+    **missing**, so two boards both arriving as `id: 'a'` both kept it — and that is not
+    cosmetic: `buildNesting`'s tiebreak (`a.id.localeCompare(b.id)`) needs a total order or
+    the sheet layout can reorder between renders, `SheetLayout` keys its groups by board id,
+    and a duplicate guide id makes `removeGuide` delete two rows at once. Reachable through
+    Import, which is the only door a hand-edited or badly-merged file comes through.
+
+    Four things about it, each of which a reasonable edit gets wrong:
+
+    - **Re-mint the LATER one, never all of them.** Re-minting every id satisfies every
+      distinctness assertion equally well and quietly rewrites the ids in every file that was
+      already correct. The tests pin the survivor by its literal fixture value for this
+      reason, not just the set's size.
+    - **`seen.add` lives inside `takeId`.** A call site that forgets it turns the rule into a
+      no-op — every id looks unseen — and no test of that call site's own behaviour notices.
+    - **Cut ids are scoped PER BOARD, board and guide ids per document.** `Properties.tsx`
+      keys `CutRow` by cut id within one board and the store looks a cut up by
+      `(boardId, cutId)`, so two boards may each carry a cut called `c1` and neither is wrong.
+      Widening cut ids to one document-wide set is a silent behaviour change.
+    - **A guide with NO id is still dropped, not minted.** `validateGuides`' existing rule is
+      untouched: missing is malformed data, a duplicate is a good guide wearing a taken label.
+
+    **What makes re-minting safe is a property of the schema, not a coincidence:** nothing
+    inside a document references a board or guide id. `Board.cuts` is inline, `GuidePoint` is
+    `{ id, at }`, and every id lookup in the app reads runtime state set after a load
+    (`selectedId`, `grabbed.owner.id`, the `find` calls in the store and viewport). **A future
+    field that points at a board BY ID breaks this**, and would make the repair a two-pass
+    rewrite rather than a single expression.
+
+    Threaded as one `seen` set through `rawBoards.map`, **not** a `dedupeIds` pass beside
+    `dedupeNames` — a name needs a replacement computed *from* its siblings and so cannot be
+    decided one at a time, while an id needs nothing from them but "is this taken". A second
+    pass would leave two deciders for one field. And unlike invariant 8's four-place
+    enforcement, this needs no creation-time half: `nextId` is a monotonic counter and Import
+    replaces a document rather than merging into one, so load is the only place ids collide.
+
 
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 916 tests across 35 files
+npm test           # Vitest, currently 923 tests across 35 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

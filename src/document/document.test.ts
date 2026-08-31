@@ -745,6 +745,131 @@ describe('guides — schema v6', () => {
   });
 });
 
+describe('id uniqueness on load — follow-ups 97 and 131', () => {
+  // The gap: `validateBoard` mints an id only when one is MISSING, so two
+  // boards that both arrive carrying `id: 'a'` both keep it. `buildNesting`'s
+  // sort tiebreak (`a.id.localeCompare(b.id)`) then has no total order, so the
+  // layout can reorder between renders, and `SheetLayout`'s `<g key={p.boardId}>`
+  // hands React two identical keys. Guides inherit the same exposure: a
+  // duplicate id makes `removeGuide` delete two rows at once.
+  //
+  // `validateCuts` already had the rule; this closes the other two. The FIRST
+  // occurrence keeps its id and later ones are re-minted — and every test here
+  // asserts that half explicitly, because "they are all distinct" alone is
+  // satisfiable by re-minting all of them, which would silently rewrite ids in
+  // every file that was already correct.
+  const boardsWith = (ids: unknown[]) => migrateDocument({
+    version: 6,
+    name: 'Dup',
+    units: { display: 'imperial-fractional', precision: 16 },
+    stock: { kerf: 0.125 },
+    guides: [],
+    boards: ids.map((id, i) => ({
+      id, name: `B${i}`, length: 24, width: 5.5, thickness: 0.75,
+      position: [0, 0, 0], rotation: 0, posture: 'flat', grain: 'length',
+      material: 'pine', cuts: [],
+    })),
+  }).boards;
+
+  const guidesWith = (ids: unknown[]) => migrateDocument({
+    version: 6,
+    name: 'Dup',
+    units: { display: 'imperial-fractional', precision: 16 },
+    stock: { kerf: 0.125 },
+    guides: ids.map((id) => ({ id, at: [1, 2, 3] })),
+    boards: [],
+  }).guides;
+
+  it('re-mints a duplicate board id and leaves the first one alone', () => {
+    const boards = boardsWith(['a', 'a', 'b']);
+    expect(boards).toHaveLength(3);
+    // The bound comes from the FIXTURE, not from the code under test
+    // (invariant 23): 'a' and 'b' are values this loader cannot produce.
+    expect(boards[0].id).toBe('a');
+    expect(boards[2].id).toBe('b');
+    expect(boards[1].id).not.toBe('a');
+    expect(new Set(boards.map((b) => b.id)).size).toBe(3);
+  });
+
+  it('re-mints a duplicate guide id and leaves the first one alone', () => {
+    const guides = guidesWith(['g', 'g']);
+    expect(guides).toHaveLength(2);
+    expect(guides[0].id).toBe('g');
+    expect(guides[1].id).not.toBe('g');
+    expect(guides[0].at).toEqual([1, 2, 3]);
+    expect(guides[1].at).toEqual([1, 2, 3]);
+  });
+
+  it('leaves a document whose ids are already distinct completely alone', () => {
+    // The other half of "re-mints the LATER one". A rule that re-minted
+    // everything would pass every distinctness assertion above and quietly
+    // rewrite the id of every board in every file that was already correct.
+    expect(boardsWith(['a', 'b', 'c']).map((b) => b.id)).toEqual(['a', 'b', 'c']);
+    expect(guidesWith(['g1', 'g2']).map((g) => g.id)).toEqual(['g1', 'g2']);
+  });
+
+  it('mints ids for boards and guides that have none, without colliding', () => {
+    const boards = boardsWith([undefined, undefined, '']);
+    expect(new Set(boards.map((b) => b.id)).size).toBe(3);
+    expect(boards.every((b) => b.id.length > 0)).toBe(true);
+  });
+
+  // A guide with a bad id is DROPPED, not re-minted — validateGuides' existing
+  // rule and unchanged by this round. Only a duplicate of a well-formed id is
+  // repaired, because there the guide itself is fine and only its label is not.
+  it('still drops a guide with no id rather than minting one', () => {
+    expect(guidesWith(['g1', undefined, ''])).toHaveLength(1);
+  });
+
+  // Cut ids stay scoped to their own board: `Properties.tsx` keys CutRow by
+  // cut id within one board, and the store looks a cut up by (boardId, cutId).
+  // Two boards may each carry a cut called 'c1' and neither is wrong.
+  it('scopes cut ids per board, so two boards may share a cut id', () => {
+    const doc = migrateDocument({
+      version: 6,
+      name: 'Cuts',
+      units: { display: 'imperial-fractional', precision: 16 },
+      stock: { kerf: 0.125 },
+      guides: [],
+      boards: ['a', 'b'].map((id) => ({
+        id, name: id, length: 24, width: 5.5, thickness: 0.75,
+        position: [0, 0, 0], rotation: 0, posture: 'flat', grain: 'length',
+        material: 'pine',
+        cuts: [{
+          id: 'c1', face: 'thickness', from: 'max', across: 'width',
+          offset: 6, width: 0.75, depth: 0.25,
+        }],
+      })),
+    });
+    expect(doc.boards[0].cuts[0].id).toBe('c1');
+    expect(doc.boards[1].cuts[0].id).toBe('c1');
+  });
+
+  // The pre-existing half of the rule, pinned here beside the two new ones so
+  // all three live together: a duplicate WITHIN one board is still repaired.
+  it('re-mints a duplicate cut id within one board', () => {
+    const doc = migrateDocument({
+      version: 6,
+      name: 'Cuts',
+      units: { display: 'imperial-fractional', precision: 16 },
+      stock: { kerf: 0.125 },
+      guides: [],
+      boards: [{
+        id: 'a', name: 'a', length: 24, width: 5.5, thickness: 0.75,
+        position: [0, 0, 0], rotation: 0, posture: 'flat', grain: 'length',
+        material: 'pine',
+        cuts: [
+          { id: 'c1', face: 'thickness', from: 'max', across: 'width', offset: 6, width: 0.75, depth: 0.25 },
+          { id: 'c1', face: 'thickness', from: 'max', across: 'width', offset: 10, width: 0.75, depth: 0.25 },
+        ],
+      }],
+    });
+    const cuts = doc.boards[0].cuts;
+    expect(cuts[0].id).toBe('c1');
+    expect(cuts[1].id).not.toBe('c1');
+  });
+});
+
 describe('createGuide', () => {
   it('gives each guide a distinct id and copies the position', () => {
     const a = createGuide([1, 2, 3]);

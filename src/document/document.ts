@@ -76,6 +76,47 @@ function nextId(): string {
 export { nextId };
 
 /**
+ * The id this thing keeps, or a fresh one if it is missing or ALREADY TAKEN.
+ *
+ * The one home for the id-uniqueness rule, called by `validateBoard`,
+ * `validateGuides` and `validateCuts` (follow-ups 97 and 131). `validateCuts`
+ * had it inline first and the other two did not have it at all, which is the
+ * gap this closes: `validateBoard` minted only when an id was MISSING, so two
+ * boards both arriving as `id: 'a'` both kept it. That is not cosmetic —
+ * `buildNesting`'s tiebreak (`a.id.localeCompare(b.id)`) needs a total order or
+ * the sheet layout can reorder between renders, `SheetLayout` keys its groups by
+ * board id, and for guides a duplicate makes `removeGuide` delete two rows at
+ * once.
+ *
+ * THE FIRST OCCURRENCE KEEPS ITS ID; later duplicates are re-minted. Re-minting
+ * ALL of them would satisfy every distinctness test just as well and would
+ * quietly rewrite the ids in every file that was already correct — so the tests
+ * pin the survivor by its literal value, not just the set's size.
+ *
+ * Re-minting a duplicate is safe precisely because nothing INSIDE a document
+ * references a board or guide id: `Board.cuts` is inline and `GuidePoint` is
+ * `{ id, at }`. Every id lookup in the app (`selectedId`, `grabbed.owner.id`,
+ * the `find` calls in the store and the viewport) reads runtime state that is
+ * set after a load, so a re-mint cannot leave a dangling reference. A future
+ * field that points at a board BY ID would break that and would need this to
+ * become a two-pass rewrite instead.
+ *
+ * `seen.add` happens HERE rather than at the call sites. A caller that forgets
+ * it turns the whole rule into a no-op — every id looks unseen — and no test
+ * of the caller's own behaviour would notice.
+ *
+ * Not needed at creation time, unlike the four-place name enforcement of
+ * invariant 8: `nextId` is a monotonic counter (see its comment) and import
+ * replaces a document rather than merging into one, so load is the only place
+ * two ids can collide.
+ */
+function takeId(raw: unknown, seen: Set<string>): string {
+  const id = typeof raw === 'string' && raw && !seen.has(raw) ? raw : nextId();
+  seen.add(id);
+  return id;
+}
+
+/**
  * A board with defaults filled in. Deliberately unaware of the document, so
  * it cannot deduplicate its own name — the caller must pass a name through
  * uniqueName (see store.addBoard / store.duplicateBoard) or accept that the
@@ -180,8 +221,11 @@ function validateCuts(raw: unknown, board: Omit<Board, 'cuts'>): Cut[] {
     // fully, means nothing survives.
     if (depth === faceDim && offset === 0 && width === posDim) continue;
 
-    const id = typeof c.id === 'string' && c.id && !seen.has(c.id) ? c.id : nextId();
-    seen.add(id);
+    // Scoped to THIS board's `seen`, not the document's: `Properties.tsx` keys
+    // CutRow by cut id within one board and the store looks a cut up by
+    // (boardId, cutId), so two boards may each carry a cut called 'c1' and
+    // neither is wrong.
+    const id = takeId(c.id, seen);
     out.push({ id, face, from: c.from as CutFrom, across, offset, width, depth });
   }
   return out;
@@ -195,27 +239,31 @@ function validateCuts(raw: unknown, board: Omit<Board, 'cuts'>): Cut[] {
  * nothing to clamp toward — a guide with a NaN coordinate has no nearest
  * legal position — so dropping is the only available repair.
  *
- * Ids are NOT deduplicated. Follow-up 97 records that board id uniqueness
- * became load-bearing while never being enforced the way dedupeNames enforces
- * names; guides inherit the same exposure, and closing it here alone would be
- * the inconsistent half-measure. See design §2.3.
+ * Duplicate ids ARE repaired, via `takeId` — the first guide with a given id
+ * keeps it and later ones are re-minted (follow-ups 97 and 131, closed
+ * together because closing either alone was the inconsistent half-measure).
  */
 export function validateGuides(raw: unknown): GuidePoint[] {
   if (!Array.isArray(raw)) return [];
   const guides: GuidePoint[] = [];
+  const seen = new Set<string>();
   for (const item of raw) {
     if (typeof item !== 'object' || item === null) continue;
     const g = item as Record<string, unknown>;
+    // A MISSING id still drops the guide; only a DUPLICATE of a well-formed one
+    // is repaired. The two are different failures: a guide with no id is
+    // malformed data, which this function drops by its stated rule, while a
+    // duplicate is a perfectly good guide wearing a taken label.
     if (typeof g.id !== 'string' || !g.id) continue;
     const at = g.at;
     if (!Array.isArray(at) || at.length !== 3) continue;
     if (!at.every((n) => typeof n === 'number' && Number.isFinite(n))) continue;
-    guides.push({ id: g.id, at: [at[0] as number, at[1] as number, at[2] as number] });
+    guides.push({ id: takeId(g.id, seen), at: [at[0] as number, at[1] as number, at[2] as number] });
   }
   return guides;
 }
 
-function validateBoard(raw: unknown, index: number): Board {
+function validateBoard(raw: unknown, index: number, seen: Set<string>): Board {
   const where = `board ${index + 1}`;
   if (typeof raw !== 'object' || raw === null) {
     throw new DocumentError(`${where} is not an object`);
@@ -259,7 +307,7 @@ function validateBoard(raw: unknown, index: number): Board {
   const normalizedGrain = isSheetGood(material) && grain === 'thickness' ? 'length' : grain;
 
   const board: Omit<Board, 'cuts'> = {
-    id: typeof b.id === 'string' && b.id ? b.id : nextId(),
+    id: takeId(b.id, seen),
     name: name || 'Board',
     length: b.length as number,
     width: b.width as number,
@@ -404,6 +452,7 @@ export function migrateDocument(raw: unknown): SloydDocument {
   // here. Read defensively off the raw document; an absent field defaults
   // cleanly regardless of CURRENT_VERSION.
   const guides = validateGuides(d.guides);
+  const boardIds = new Set<string>();
 
   return {
     version: CURRENT_VERSION,
@@ -411,6 +460,14 @@ export function migrateDocument(raw: unknown): SloydDocument {
     units: { display: 'imperial-fractional', precision },
     stock: { kerf },
     guides,
-    boards: dedupeNames(rawBoards.map(validateBoard)),
+    // ONE `seen` set threaded across the whole list, which is why this is not
+    // a `dedupeIds` pass beside `dedupeNames`. A name needs a replacement
+    // computed FROM its siblings, so it cannot be decided one board at a time;
+    // an id needs nothing from them but "is this taken", which a set answers as
+    // it goes. A second pass would leave two deciders for one field — the
+    // validator minting an id that the pass may then overwrite.
+    boards: dedupeNames(
+      rawBoards.map((b, i) => validateBoard(b, i, boardIds)),
+    ),
   };
 }
