@@ -92,3 +92,48 @@ print path. Both the index number and the key line already existed and already p
 changed is only how often a part reaches them.
 
 `localStorage` was cleared in the verifying browser afterward, checked rather than assumed.
+
+---
+
+# Addendum: follow-up 162, the key list's stray marker
+
+Driven immediately after the above, on `npm run dev -- --port 5232`, same seeding route with
+a **fourth** part added (`Lid`, 14" × 17", also turned) so the key list has two entries — a
+one-line list cannot show alignment or numbering.
+
+`.cutlist-layout-key` now sets `list-style: none` and `padding-left: 0`. Read out of the live
+DOM:
+
+```
+listStyleType : "none"
+paddingLeft   : "0px"
+entries       : ["1. Side — 15\" × 18\" turned", "2. Lid — 14\" × 17\" turned"]
+leftEdges     : { caption: 453, svg: 453, firstKeyLine: 453 }
+```
+
+![The key list with no bullets, flush with the sheet's left edge](img/162-key-list.png)
+
+Three things confirmed:
+
+1. **No marker.** The line reads `1. Side — …`, not `• 1. Side — …`.
+2. **One left edge.** The `Sheet 1` caption, the drawing and the first key line all begin at
+   the same 453px. `padding-left` existed to make room for the marker, so it went with it.
+3. **The numbering is still one sequence and still matches the sheet.** Two demoted parts,
+   `1` and `2` in their rectangles and `1.` and `2.` in the key.
+
+**The number stays in the text; the list is still a `<ul>`.** The tempting version is an
+`<ol>` with the `n. ` prefix dropped, letting the browser number the entries — rejected, and
+not on taste: the number inside the part's rectangle comes from `nextIndex`, and a list marker
+would come from DOM position. That is one value with two deciders, agreeing only while the
+orders happen to match.
+
+**What the change really was.** `.parts`, `.guides`, `.cutlist-rows` and `.cutlist-setup` all
+carry `list-style: none` with `padding: 0`. `.cutlist-layout-key` was the **one list in the
+app that never got that reset** — an omission rather than a decision, which is why the fix
+reads as the app catching up with itself rather than as a new opinion.
+
+**Print.** The `@media print` block sets `color` on this class and nothing else, so
+`list-style: none` and `padding-left: 0` carry into print unchanged — verified by reading the
+cascade, not by a PDF render, for the standing reason (follow-ups 70/79/84).
+
+`localStorage` cleared in the verifying browser afterward, checked rather than assumed.

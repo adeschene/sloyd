@@ -124,6 +124,35 @@ and 79.
 
 ## What each round did
 
+**What the key-list round did (2026-08-31)** — the ninth and smallest round of the day, one
+CSS rule, closing **162** the same day the browser pass for 161 raised it. The sheet's key
+list drew the browser's default disc in front of an `<li>` whose text already begins `1. `,
+so an entry read `• 1. Side — 15" × 18" turned`. Pre-existing, and newly visible because 161
+made the index tier common enough to look at.
+
+**What it turned out to be is better than "a stray bullet".** `.parts`, `.guides`,
+`.cutlist-rows` and `.cutlist-setup` all carry `list-style: none` with `padding: 0`;
+`.cutlist-layout-key` was the **one list in the app that never got that reset**. So the fix is
+the app catching up with its own idiom, not a new opinion about how a key list should look —
+which is why it needed no design question of its own, unlike 161.
+
+**The `<ol>` version was rejected for 161's own reason.** Making it an ordered list and
+dropping the `n. ` prefix would let the browser number the entries — but the number inside the
+part's rectangle comes from `nextIndex`, so the two numbers would then have **two deciders**,
+agreeing only while DOM order and counter order happen to match. One counter printed in both
+places is the point, and `styles.css` carries that as a prohibition at the rule itself.
+`padding-left` went with the marker rather than surviving it: it existed to make room for a
+disc, and zero puts the key's left edge on the same pixel as the `Sheet n` caption and the
+drawing — measured at 453px for all three.
+
+No unit test, and that is a classification rather than a gap: CSS is the same class as the
+r3f viewport — verified by driving a real browser, not by asserting on a stylesheet. The pass
+used a **two-entry** key list, a fourth turned part added to 161's fixture, because a one-line
+list can show neither alignment nor numbering. 947/947, build clean. **Deployed the same day,
+bundle `index-CePWNaxg.js` -> `index-DU8uasNy.js` with the CSS at `index-CtYur9k3.css` — the
+fourth deploy of 2026-08-31.** Both hashes move: the JS entry references the CSS asset name,
+so a CSS-only change is not a JS-identical build.
+
 **What the turned-index round did (2026-08-31)** — the eighth small round of the day, the
 first since the duplicate-error round to change what the app draws, and the one that closed
 follow-up 92's residue. **161** recorded that `fitLabel`'s `name` tier draws the name and

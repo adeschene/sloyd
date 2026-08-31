@@ -992,10 +992,30 @@ button[aria-pressed='true'] {
   stroke-width: 2;
 }
 
+/* NO MARKER, and the number stays in the TEXT (follow-up 162). Each <li>
+   already begins with its own `n. `, taken from the same `nextIndex` counter
+   that drew the number inside the part's rectangle, so the default disc
+   rendered a second marker in front of a line that numbers itself —
+   `• 1. Side — 15" × 18" turned`.
+
+   The tempting fix is an <ol> with the prefix dropped, letting the browser
+   number the list. Do NOT: the number in the SVG box comes from `nextIndex`
+   and a list marker would come from DOM position, which puts one value under
+   two deciders that agree only while the orders happen to match. One counter,
+   printed twice, is the point.
+
+   `padding-left` goes with the marker rather than surviving it: with nothing
+   to make room for, zero aligns the key's left edge with the `Sheet n`
+   caption and the drawing itself — measured, all three at the same px.
+
+   This is not a new choice so much as a missing one. `.parts`, `.guides`,
+   `.cutlist-rows` and `.cutlist-setup` all carry `list-style: none` with
+   `padding: 0`; this was the ONE list in the app that never got that reset. */
 .cutlist-layout-key {
   color: var(--ink-dim);
   margin: 0.25rem 0 0;
-  padding-left: 1rem;
+  padding-left: 0;
+  list-style: none;
 }
 
 @media print {

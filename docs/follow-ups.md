@@ -3614,3 +3614,29 @@ common, which is what made it visible in the browser pass. One line of CSS, but 
 change to a printable sheet and was not part of the design the user approved, so it is filed
 rather than folded in.
 
+**CLOSED 2026-08-31, same day, at the user's request.** `.cutlist-layout-key` now sets
+`list-style: none` and `padding-left: 0`.
+
+**What it turned out to be is better than "a stray bullet": it was the ONE list in the app
+that never got the reset the other four have.** `.parts`, `.guides`, `.cutlist-rows` and
+`.cutlist-setup` all carry `list-style: none` with `padding: 0`. This one carried neither, so
+the fix is the app catching up with its own idiom rather than a new opinion about how a key
+list should look — which is also why it needed no design question of its own.
+
+**The `<ol>` version was considered and rejected, and the reason is the same one that shaped
+161.** Making the list an `<ol>` and dropping the `n. ` prefix would let the browser number
+the entries — but the number inside the part's rectangle comes from `nextIndex`, so the two
+numbers would then have **two deciders**, agreeing only while DOM order and counter order
+happen to match. One counter, printed in both places, is the point. `styles.css` carries that
+as a prohibition at the rule rather than as a note here.
+
+**`padding-left` went with the marker rather than surviving it.** It existed to make room for
+a disc; with no disc, zero puts the key's left edge on the same pixel as the `Sheet n` caption
+and the drawing — measured at 453px for all three, not eyeballed.
+
+No unit test: this is CSS, which is the same class as the viewport — verified by driving a
+real browser, not by asserting on a stylesheet. The pass used a **two-entry** key list (a
+fourth turned part added to 161's fixture), because a one-line list can show neither alignment
+nor numbering. Print carries the change unchanged: the `@media print` block sets `color` on
+this class and nothing else. Addendum in `docs/browser-verification-turned-index.md`.
+
