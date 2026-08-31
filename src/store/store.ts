@@ -792,6 +792,12 @@ export const useStore = create<StoreState>((set, get) => {
         // does the latched hover, which is a captured position too and whose
         // owner an undo can equally remove. See replaceDocument for why
         // blanket is right for all three of these and not elsewhere.
+        //
+        // INVARIANT 34: `gesturing`/`gestureSnapshotTaken` deliberately do
+        // NOT join this list, here or in redo. A gesture belongs to the
+        // component that opened it and an undo does not end it; clearing
+        // them here would split one focused field's gesture in half after a
+        // Ctrl+Z. Their reset lives in replaceDocument only.
         grabbed: null,
         tapeAnchor: null,
         tapeHover: null,
@@ -809,6 +815,7 @@ export const useStore = create<StoreState>((set, get) => {
         past: [...past, doc].slice(-HISTORY_LIMIT),
         future: future.slice(1),
         selectedId: stillThere ? selectedId : null,
+        // Invariant 34 applies here identically — see undo.
         grabbed: null,
         tapeAnchor: null,
         tapeHover: null,

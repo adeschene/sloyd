@@ -884,6 +884,49 @@ worked examples behind several of them are in `docs/history.md`.
     replaces a document rather than merging into one, so load is the only place ids collide.
 
 
+34. **The gesture flags are STATE so that `replaceDocument` can reach them, and that is the
+    ONLY place they are reset — and NOTHING may subscribe to them.** `gesturing` and
+    `gestureSnapshotTaken` were `let` bindings in the store factory's closure, which meant a
+    component unmounting **while a gesture was open** (ordinary in RTL, where `cleanup()`
+    tears the tree down and jsdom fires no blur; reachable in the browser wherever a focused
+    field is removed rather than blurred) left `gesturing` true for the rest of the session.
+    Invariant 4's lazy snapshot then skips every undo snapshot from that point on — no error,
+    just missing undo entries in code that never opened a gesture, which reads as a defect in
+    whatever runs next. They are fields now, so the one action that already rewrites
+    everything which must not outlive a document clears them too.
+
+    Three parts, and the last two are prohibitions:
+
+    - **In the state is what makes a clearing rule enumerable.** A flag reset by convention
+      at every call site is the shape invariant 24 had to write out; the reason those rules
+      can be enumerated at all is that they are in the state. `Gizmo.tsx`'s two mid-drag
+      `endGesture` effects stay the primary guard regardless — nothing about a mid-drag
+      unmount implies a document is about to be replaced.
+    - **A PROHIBITION: they must NOT join the `grabbed: null` list in `undo`/`redo`.**
+      Invariant 24's own trap, one field over: it is exactly what a tidying pass does and it
+      looks like consistency. A gesture belongs to the component that opened it and an undo
+      does not end it, so clearing them there splits one focused field's gesture in half
+      after a Ctrl+Z — a behaviour change with no defect behind it. Pointers sit at both
+      sites.
+    - **A PROHIBITION: no component may read either field.** They are public by necessity
+      and private by intent. The whole cost argument for the move is that every `useStore`
+      call site passes a selector returning a bare field or a single element reference — no
+      object or array literals, which re-render on every `set()` regardless — so the one
+      `set()` per gesture boundary (focus, blur, gizmo mousedown and mouseup, never per
+      frame) re-renders nothing. A single `useStore((s) => s.gesturing)` for an "editing…"
+      indicator puts a re-render on every gesture boundary and quietly costs what the check
+      bought.
+
+    **The test for any of this asserts an UNDO ENTRY, never a flag value.**
+    `expect(gesturing).toBe(false)` after `replaceDocument` cannot fail — the field
+    initialises false, so it passes with the reset deleted (follow-up 155's shape). Leave a
+    gesture open, replace the document, edit, assert `past` grew. Two related mutations
+    survive and are recorded rather than chased: `gestureSnapshotTaken: false` in
+    `replaceDocument` is symmetry with `endGesture`, not coverage, and `takeSnapshot =
+    gesturing` could be `= true` — both unobservable because `!gesturing` short-circuits the
+    snapshot test and `beginGesture` clears the flag anyway.
+
+
 ## Commands
 
 ```bash

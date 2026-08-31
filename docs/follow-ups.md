@@ -3028,7 +3028,10 @@ Three details worth carrying, each decided rather than inherited:
 
 - **The reset stops at `replaceDocument`.** Adding the pair beside `grabbed: null` in
   `undo`/`redo` is the invariant-24 tidying instinct and would split one focused field's
-  gesture in half after a Ctrl+Z — a behaviour change with no defect behind it.
+  gesture in half after a Ctrl+Z — a behaviour change with no defect behind it. Both this
+  and the no-subscription rule are **invariant 34** now, with pointers at `undo` and `redo`
+  themselves: the prohibition was initially written only inside `replaceDocument`, where
+  someone tidying `undo` would never see it.
 - **The test asserts an UNDO ENTRY, not a flag value.** `expect(gesturing).toBe(false)`
   after `replaceDocument` cannot fail: the field initialises false, so it passes with the
   reset deleted — follow-up **155**'s shape exactly. What the test does instead is leave a
