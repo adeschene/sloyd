@@ -27,11 +27,17 @@ tradition built around hand woodworking.
 Static SPA, containerized, **923/923 tests passing across 35 files**, schema
 `CURRENT_VERSION` **6**.
 
-**Production matches `master` as of 2026-08-31**, the switch-token round included
-(committed as `839935c`, bundle `index-DGokhnUh.js`). `DEPLOYMENT.local.md` carries every
+**`master` IS AHEAD OF PRODUCTION as of 2026-08-31 — do not read this section as "production
+matches master".** Production serves bundle `index-DGokhnUh.js`, which is `d0a29cf` (the
+switch-token round, follow-ups 157 and 158). `master` has one further commit, `9cab7f6` (the
+id-uniqueness round, follow-ups 97 and 131), which is **merged and unreleased by decision**:
+the user was offered a deploy and said no need for now. Nothing user-facing changed in it —
+it repairs duplicate ids on load, reachable only through an imported hand-edited file — so
+there is no urgency, but the next deploy carries it. `DEPLOYMENT.local.md` carries every
 runbook entry and bundle hash.
 
-**That deploy was the first that ACTS on a user's stored data at page load**, which
+**The 2026-08-15 project-library deploy was the first that ACTS on a user's stored data at
+page load**, which
 changes what "verified by loading the page" buys — see the deployment rule below. Every
 earlier round's feature was inert until exercised; adoption is not. Read
 `DEPLOYMENT.local.md`'s entry for the safety argument and the asymmetric rollback cost
@@ -51,10 +57,19 @@ paragraph below.
 and all three are live. **The project library (08-14) was the successor**, chosen from the
 user's own critique that there was no clear way to store, switch or create projects; it is
 merged and live as of 2026-08-15. Its two loose ends were closed on 2026-08-31 by the
-switch-token round (follow-ups 157 and 158), which is live. **No successor feature round has
-been chosen** — 130 (semi-infinite construction lines) is the standing candidate, not a
-decision. The next conversation should start from `docs/follow-ups.md`'s open entries — see
-the pointer section below.
+switch-token round (follow-ups 157 and 158), which is live, and the same day's id-uniqueness
+round (97 and 131) closed a pre-existing gap that the sheet-nesting round had made
+load-bearing.
+
+**NO SUCCESSOR FEATURE ROUND HAS BEEN CHOSEN, and 130 is no longer the presumed one** — it
+was picked on 2026-08-31 and set aside a moment later without a stated reason, so treat it
+as available rather than as either chosen or rejected. The 08-31 session ran two small
+already-diagnosed correctness rounds instead. The next conversation should start from
+`docs/follow-ups.md`'s open entries — see the pointer section below. The standing candidates
+after those two rounds, in the order they were last presented: **92** (nothing says "turned"
+on a rendered sheet — the one open item with a user-visible consequence), **148** (the
+module-level gesture flags), **140** (the 1-in-4 test flake), and the newly filed **159**
+and **160**.
 
 **The cut list line of work is CLOSED as of 2026-08-01.** Cut list, diagrams, label
 layout, per-face views, board feet and sheet nesting are all shipped and merged. Do not
@@ -884,8 +899,13 @@ which is exactly what a refactor breaks silently.
 The handful worth knowing without opening that file:
 
 - **130** — semi-infinite construction lines, the one genuinely open item on the tape
-  surface and the most likely next round. Narrowed but not closed by cardinal guides:
-  typed offsets are enough as a *mechanism*; what is still wanted is the line as a *visual*.
+  surface. Narrowed but not closed by cardinal guides: typed offsets are enough as a
+  *mechanism*; what is still wanted is the line as a *visual*. **It was chosen and then
+  immediately set aside on 2026-08-31, with no reason given** — so it is neither fresh
+  ground nor argued against, and this bullet no longer calls it "the most likely next
+  round". Ask before assuming it is wanted. Note the cost 26a puts on it: axis lines bounded
+  to `SCENE_EXTENT` with dash scaling are exactly the extent- and precision-sensitive class
+  that software GL hid a shipped grid bug inside, so it needs a human on real hardware.
 - **147** — should a locked axis outlive a commit? A §3.1 amendment and a human decision,
   not a bug fix. **The user was asked and ruled SHIP AS-IS**, so it is open by decision:
   one keystroke per guide is worth the single-sentence rule, revisit only with real use.
