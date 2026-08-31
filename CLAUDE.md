@@ -537,6 +537,26 @@ worked examples behind several of them are in `docs/history.md`.
     proportional face and `labelWidth` returns a number unrelated to what's drawn,
     `packRow` starts stacking labels, and **every unit test still passes** — because the
     tests assert the arithmetic, not the render.
+
+    **The third clause, and the one a panel edit reaches first: THE MEASURED STRING AND
+    THE DRAWN STRING MUST BE THE SAME STRING.** A label's full text has to be assembled
+    *before* it reaches `fitLabel`/`packRow`, which means in the module that builds it —
+    `nesting.ts` for a sheet part, `diagram.ts` for a view — never in the component. This
+    is why `PlacedPart.dims` carries the word `turned` itself rather than `SheetLayout`
+    writing `{p.turned && ' turned'}` beside it (follow-up 92): a panel-side concatenation
+    measures one string and draws a longer one, which is this invariant's stated failure
+    mode arriving by a different door, with the same green suite. A panel putting a bare
+    literal next to measured text looks like exactly the sort of thing panels do, so the
+    prohibition is worth stating rather than inferring — and it is the rule any second
+    mark on a sheet label must land against, follow-up **161**'s remedy included.
+
+    The other half of the clause is what makes it checkable: **a glyph outside the
+    monospace stack breaks the advance and nothing on screen says so**, so a non-ASCII
+    mark must be measured in a browser before it is trusted. Done once, and it is the
+    reason a symbol was rejected for 92 — in Chromium at the applied 20px, ASCII letters,
+    digits, `"` and the already-present `×` all advance 12.0345 against `CHAR_W`'s 12.4,
+    an over-estimate in the safe direction (too wide costs a tier; too narrow overflows
+    the box). `docs/browser-verification-turned-label.md` carries the table.
 20. **`depthField.ts` shares `cuts.ts`'s split/cover skeleton but not its operation, and
     `boardSolids` is not reusable here.** `boardSolids` **drops** each cell whose centre
     falls inside any cut — a bit, in 3D. `buildDepthField` **assigns** each cell the
