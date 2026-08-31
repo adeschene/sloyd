@@ -3484,6 +3484,60 @@ arbitrary reasons; and `autoSave` refuses an id the index does not name, so anyt
 `autoSave`'s explicit id (invariant 29) and worth doing if the adapter is touched for another
 reason.
 
+**CLOSED 2026-08-31, by neither remedy this entry named and with no source change.** The
+diagnosis above is right about the shape and wrong about both the fix and the reachability.
+The fifth shape again (140's): *a remedy an entry names is a hypothesis recorded at diagnosis
+time, not a prescription.*
+
+**The named remedy is dead, and the sentence is worth keeping so nobody revives it.**
+`onDeleteProject` captures `activeId` **before** its awaits. On the only path that matters —
+deleting the project that is open, then being overtaken by a switch — the captured value is
+the project being deleted. Passing it as the intended active id would write an id naming
+something that no longer exists, which is strictly worse than naming the valid replacement.
+An argument computed at call time cannot know a switch that starts after it.
+
+**The obvious restructure is not a fix either, and the reason generalises.** Moving the
+`activeId` write out of the adapter (`deleteProject(id, { activate: false })`, caller calls
+`setActiveProject` after the token check, the shape invariant 32 uses for the other three) only
+helps if the adapter's index read-modify-write is atomic. Where it is, the residue does not
+exist to begin with; where it is not, the delete's write is derived from a stale read and can
+clobber the winner's id with a **deleted** one — a dangling `activeId` that makes `autoSave`
+refuse and raise the storage banner, worse than the wrong-but-valid project this entry
+describes. Either way the property in question belongs to the seam, not to this method's
+signature: `createProject`, `autoSave`/`touchEntry`, `setActiveProject` and `deleteProject` all
+do read-modify-write on the index, so an adapter without atomicity is already broken for all
+four and no delete-shaped change rescues it.
+
+**And it is unreachable on the current adapter — the fact the entry never checked.** Every
+index write in `deleteProject` lands in the same synchronous run as the `readIndexForWrite` it
+derives from: no `await` separates them on either branch that moves `activeId`, and the
+last-project branch writes through `createProject`, whose body is synchronous end to end. So
+the persisted id cannot move on the far side of a suspension point, and a later-started
+switch's own write is always the last one. The claim is broader than delete:
+**every method on `BrowserStorageAdapter` is synchronous-bodied**, so no two of `App`'s four
+adopting handlers can overlap in production at all — microtasks drain before the next click is
+dispatched, so each runs to completion inside its own task. That is exactly why 157's race
+tests have to hang a mocked `loadProject` to construct a race, and it puts 160 and 157 in one
+class: latent, reachable only on a future adapter with real async I/O, which is the basis 157
+was closed on.
+
+One method genuinely does suspend and is not a counterexample: `importProject` awaits
+`file.text()`. It sits **before** `importIntoLibrary`'s token bump, so no token-holding
+critical section spans it.
+
+**What shipped is the pin, because the property was an accident and is now a decision.**
+`deleteProject`'s doc comment carries an explicit prohibition against putting an `await`
+between the index read and the index writes, and two tests in `browser.test.ts` call
+`deleteProject` **without awaiting it** and read the committed index straight out of the store
+— one per branch that moves `activeId`. Awaiting the call first is what would make them
+unable to fail, so the comment says not to tidy them that way.
+
+Mutated, not merely run. `await Promise.resolve()` between `readIndexForWrite` and the index
+write turns **both** red; `await Promise.resolve()` inside `createProject` before its own write
+turns the last-project one red on its own, which is what shows that test covers the callee
+rather than the caller. No other test in the file caught either mutation, so nothing else was
+holding this.
+
 ## From the turned-label round — 2026-08-31
 
 **161. The `name` tier still says nothing about a turned part, and the remedy is a design

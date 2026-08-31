@@ -124,6 +124,52 @@ and 79.
 
 ## What each round did
 
+**What the delete-token round did (2026-08-31)** — the seventh small round of the day, the
+second in a row to close a follow-up by rejecting the remedy that follow-up named, and the
+second to ship no source change at all. Follow-up **160** recorded that
+`onDeleteProject`'s in-flight token (invariant 32) covers its adoption but not the adapter's
+own move of the index `activeId`, so a delete overtaken by a later-started switch could leave
+the persisted id on the replacement rather than on the project now open. It named a fix —
+`deleteProject` taking the caller's intended active id, the shape of `autoSave`'s explicit id
+— and deferred it as worth doing if the adapter were touched anyway.
+
+**Both the named remedy and the obvious restructure turned out not to close it.** The named
+remedy cannot: `onDeleteProject` captures `activeId` **before** its awaits, so on the only
+path that matters the captured value names the project being deleted, and writing it would
+leave the index naming something that no longer exists — strictly worse than naming the valid
+replacement. An argument computed at call time cannot know a switch that starts after it. The
+restructure that looked like invariant 32's own pattern — `{ activate: false }` plus a
+caller-side `setActiveProject` after the token check — helps only if the adapter's index
+read-modify-write is atomic; where it is, the residue does not arise, and where it is not, the
+delete's write is derived from a stale read and can clobber the winner's id with a **deleted**
+one, a dangling `activeId` that makes `autoSave` refuse and raises the storage banner. Since
+`createProject`, `autoSave`, `setActiveProject` and `deleteProject` all read-modify-write the
+index, an adapter without that atomicity is already broken for all four. **The property belongs
+to the seam, not to one method's signature.**
+
+**And the residue is unreachable on the current adapter, which the entry never checked.**
+Every index write in `deleteProject` lands in the same synchronous run as the
+`readIndexForWrite` it derives from — no `await` between them on either branch that moves
+`activeId`, and the last-project branch writes through `createProject`, whose body is
+synchronous end to end. The claim generalises: **every method on `BrowserStorageAdapter` is
+synchronous-bodied**, so no two of `App`'s four adopting handlers can overlap in production at
+all, because microtasks drain before the next click is dispatched. That is why 157's race tests
+have to hang a mocked `loadProject` to build a race, and it puts 160 in 157's class — latent,
+reachable only on a future adapter with real async I/O. `importProject`'s `await file.text()`
+is the one genuine suspension in the file and is not a counterexample: it sits before
+`importIntoLibrary`'s token bump, so no token-holding critical section spans it.
+
+**So what shipped is the pin, because the property was an accident and is now a decision.**
+`deleteProject`'s doc comment carries an explicit prohibition against an `await` between the
+index read and the index writes, and two tests call `deleteProject` **without awaiting it**,
+reading the committed index straight out of the store — one per branch that moves `activeId`.
+Awaiting the call is exactly what would make them unable to fail, so the comment says not to
+tidy them that way. Mutated rather than merely run: an `await Promise.resolve()` between the
+read and the write turns both red, and one inside `createProject` before its own write turns
+the last-project test red on its own, showing it covers the callee rather than the caller. No
+other test in the file caught either mutation. 937/937 tests, build clean, no source, schema
+or storage-layout change — nothing to deploy.
+
 **What the duplicate-error round did (2026-08-31)** — the sixth small round of the day, and
 the first since the project library to add a control surface rather than only correct one.
 Follow-up **159** had recorded that `onDuplicateProject` reports the storage layer's verdict

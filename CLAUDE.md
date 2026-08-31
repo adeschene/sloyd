@@ -24,7 +24,7 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **935/935 tests passing across 35 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
+Static SPA, containerized, **937/937 tests passing across 35 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **6**.
 
 **PRODUCTION MATCHES `master` as of 2026-08-31.** Production serves bundle
@@ -44,10 +44,12 @@ production — it needs boards, so exercising it would write a document — and 
 against the dev server instead (`docs/browser-verification-turned-label.md`), which is the
 deployment rule working rather than a gap.
 
-**Check what a later commit touches before reading `git log` as a pending release** — two
-commits in the current build (the agreement-test round, follow-up 140, and 159's focus test)
-edit test files only and build a byte-identical bundle. `DEPLOYMENT.local.md` carries every
-runbook entry and bundle hash.
+**Check what a later commit touches before reading `git log` as a pending release** — three
+rounds edit test files only and build a byte-identical bundle: the agreement-test round
+(follow-up 140) and 159's focus test, both inside the deployed commit, and the delete-token
+round (follow-up 160), which sits past it. Nothing after `59d531b` changes the bundle —
+this round's commit rebuilds to `index-8v7-ukbU.js`, checked rather than assumed, and `c151f79` is docs
+only. `DEPLOYMENT.local.md` carries every runbook entry and bundle hash.
 
 **The 2026-08-15 project-library deploy was the first that ACTS on a user's stored data at
 page load**, which
@@ -76,11 +78,13 @@ load-bearing.
 
 **NO SUCCESSOR FEATURE ROUND HAS BEEN CHOSEN, and 130 is no longer the presumed one** — it
 was picked on 2026-08-31 and set aside a moment later without a stated reason, so treat it
-as available rather than as either chosen or rejected. The 08-31 session ran **five** small
-already-diagnosed rounds instead — 157/158, 97/131, 148, 92, 140 and 159, across **two**
-deploys. All are live; 140 and 159's focus test touch test files only, so they ship nothing. The next conversation should start from `docs/follow-ups.md`'s open entries; see
-the pointer section below. The standing candidates, in the order they were last presented:
-**160**, and **161** (the one label tier where a turned part still says nothing).
+as available rather than as either chosen or rejected. The 08-31 session ran the small
+already-diagnosed rounds listed below instead — 157/158, 97/131, 148, 92, 140, 159 and 160,
+across **two** deploys. All are live; 140, 159's focus test and 160 touch test files only, so
+they ship nothing. The next conversation should start from `docs/follow-ups.md`'s open entries; see
+the pointer section below. **160 is now CLOSED**, leaving **161** (the one label tier where a
+turned part still says nothing) as the only standing candidate — and its remedy is a design
+decision, so it needs the user asked before it is work.
 
 **The cut list line of work is CLOSED as of 2026-08-01.** Cut list, diagrams, label
 layout, per-face views, board feet and sheet nesting are all shipped and merged. Do not
@@ -120,6 +124,7 @@ narrative for every row is in `docs/history.md`.
 | turned label | 08-31 | — | *no spec* — follow-up 92: `formatDims` is the one home of `length × width`, and a turned part's label says so in words |
 | agreement-test cost | 08-31 | — | *no spec* — follow-up 140: the agreement test hoists `boardSolids` out of its probe loops; no source change |
 | duplicate error | 08-31 | — | *no spec* — follow-up 159: a failed duplicate reports its cause inline on the failing row |
+| delete token | 08-31 | — | *no spec* — follow-up 160: `deleteProject`'s index write is pinned synchronous with its read; no source change |
 
 ### The deployment rule, stated once
 
@@ -879,7 +884,14 @@ worked examples behind several of them are in `docs/history.md`.
     - **`onDeleteProject` is the documented exception, not an oversight.** Its index write is
       intrinsic — the project is gone and the adapter must name a replacement in the same write
       — so its token check covers adoption only. Bounded by the replacement always being
-      loadable and by `autoSave` refusing an id the index does not name. Follow-up 160.
+      loadable and by `autoSave` refusing an id the index does not name. Follow-up 160 filed
+      that residue and **closed it without a source change**: the id-argument it named cannot
+      work (the handler captures `activeId` before its awaits, so it names the project being
+      deleted), and the residue is unreachable here anyway because **every index write in
+      `deleteProject` lands in the same synchronous run as its index read** — now a stated
+      prohibition on the method plus two tests that call it WITHOUT awaiting it. The general
+      form: an adapter with real async I/O owes atomic read-modify-write on the index, which
+      every index writer needs, not just this one.
 
     The bump sits **before** `openProject`'s `id === activeId` early return, so last-click-wins
     holds uniformly: clicking the open row while a switch is out means "stay here". **Mutate
@@ -974,7 +986,7 @@ worked examples behind several of them are in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 935 tests across 35 files
+npm test           # Vitest, currently 937 tests across 35 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -984,7 +996,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is the authoritative list** — 1-160, consciously deferred rather
+**`docs/follow-ups.md` is the authoritative list** — 1-161, consciously deferred rather
 than missed, each written up in place with its closure where it has one. Read the entries
 for the area you are about to touch before starting; several are "correct but untested",
 which is exactly what a refactor breaks silently.
@@ -1024,6 +1036,13 @@ The handful worth knowing without opening that file:
   `PlacedPart.dims` rather than the panel because `fitLabel` must measure the string it
   draws, and a non-ASCII symbol was rejected for invariant 19's reason, measured in a
   browser rather than argued.
+- **160** — CLOSED 2026-08-31, and the second entry in two rounds closed by rejecting the
+  remedy it named. `deleteProject` taking the caller's intended active id cannot work — the
+  handler captures `activeId` before its awaits — and the residue is unreachable on this
+  adapter because every index write in `deleteProject` is synchronous with its index read.
+  Read its closure before making any storage method genuinely async: the reachability of both
+  160 and 157 rests on `BrowserStorageAdapter` being synchronous-bodied throughout, which is
+  why those races can only be built by hanging a mock.
 - **161** — its residue: the `name` label tier prints neither dimensions nor the word, so
   it is the one tier where a turned part still says nothing. Remedy is a design decision.
 - **26a** — **read this before touching anything in the viewport.** Browser verification on

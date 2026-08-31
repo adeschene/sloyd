@@ -382,12 +382,22 @@ export default function App() {
   //
   // The token check covers the ADOPTION only, and that is the honest limit:
   // `deleteProject`'s own move of the index `activeId` is intrinsic — the
-  // project is gone and the adapter must name a replacement — so a delete
-  // superseded by a switch can still leave the persisted id on that
-  // replacement rather than on the project now open. The consequence is
-  // bounded (a valid project, and `autoSave` refuses an id the index does not
-  // name, so `available` reports anything worse); recorded as follow-up 160
-  // rather than chased here.
+  // project is gone and the adapter must name a replacement — so it cannot be
+  // deferred to the far side of the check the way the other three handlers'
+  // `setActiveProject` calls are (invariant 32).
+  //
+  // Follow-up 160 filed that as a residue and it is CLOSED, by neither the
+  // remedy it named nor a change here. Two facts closed it. The named remedy —
+  // `deleteProject` taking the caller's intended active id — cannot work: this
+  // handler captures `activeId` BEFORE its awaits, so on the only path that
+  // matters the captured value names the project being deleted, and writing it
+  // would leave the index naming something that no longer exists. And the
+  // residue is unreachable here anyway, because every index write in
+  // `deleteProject` lands in the same synchronous run as its index read (a
+  // prohibition and two tests now hold that), so a later-started switch's own
+  // write is always the last one. An adapter with genuinely async I/O owes
+  // atomic read-modify-write on the index — which every index writer needs,
+  // not just this one.
   const onDeleteProject = useCallback(async (id: string) => {
     const token = ++switchToken.current;
     await flushAutoSave();

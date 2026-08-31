@@ -883,6 +883,62 @@ describe('project CRUD', () => {
     expect(next!.activeId).toBe((await adapter.listProjects())[0].id);
   });
 
+  // ---- Follow-up 160: the index move lands before the promise settles -----
+  //
+  // 160 filed a residue: `onDeleteProject`'s in-flight token (invariant 32)
+  // covers its ADOPTION but not the adapter's own move of the index
+  // `activeId`, so a delete overtaken by a later-started switch could leave
+  // the persisted id on the replacement rather than on the project now open.
+  //
+  // What closes it is not a signature change but a property this adapter
+  // already has and nothing pinned: **every index write in `deleteProject`
+  // lands in the same synchronous run as the `readIndexForWrite` it derives
+  // from.** No `await` separates them on either branch that moves `activeId`
+  // — the last-project branch writes through `createProject`, whose body is
+  // synchronous end to end. Because every method on this adapter is
+  // synchronous-bodied, no two of `App`'s four adopting handlers can ever
+  // overlap in production at all: microtasks drain before the next click is
+  // dispatched, so each runs to completion inside its own task. That is why
+  // 157's race tests have to hang a mocked `loadProject` to construct one.
+  //
+  // These two tests are what make the property falsifiable rather than
+  // accidental: they call `deleteProject` WITHOUT awaiting it and read the
+  // committed index straight out of the store. Inserting a single
+  // `await Promise.resolve()` between the read and the write turns both red
+  // — checked. Do not "tidy" them by awaiting the call first; awaiting is
+  // precisely what makes the assertion unable to fail.
+  it('commits the active-project move before the delete promise settles (follow-up 160)', async () => {
+    let clock = 1000;
+    const { store, adapter, activeId } = await boot(() => clock);
+    clock = 2000;
+    const other = await adapter.createProject(createDocument('Other'));
+    await adapter.setActiveProject(activeId);
+
+    const promise = adapter.deleteProject(activeId);
+
+    const index = JSON.parse(store.getItem(LIBRARY_KEY)!);
+    expect(index.projects.map((p: { id: string }) => p.id)).toEqual([other]);
+    expect(index.activeId).toBe(other);
+
+    await promise;
+  });
+
+  it('commits the replacement of a deleted LAST project before the promise settles (follow-up 160)', async () => {
+    // The other branch that moves `activeId`, and the one where the write
+    // happens inside `createProject` rather than inline — so it pins that
+    // callee's synchronous body too.
+    const { store, adapter, activeId } = await boot();
+
+    const promise = adapter.deleteProject(activeId);
+
+    const index = JSON.parse(store.getItem(LIBRARY_KEY)!);
+    expect(index.projects).toHaveLength(1);
+    expect(index.activeId).toBe(index.projects[0].id);
+    expect(index.activeId).not.toBe(activeId);
+
+    await promise;
+  });
+
   it('setActiveProject records which project is open', async () => {
     const { store, adapter, activeId } = await boot();
     await adapter.createProject(createDocument('Other'));

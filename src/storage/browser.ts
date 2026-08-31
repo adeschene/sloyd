@@ -401,6 +401,18 @@ export class BrowserStorageAdapter implements StorageAdapter {
    * reasonable way to call it; an unconditional `replaceDocument` on every
    * result would otherwise silently discard unsaved edits on a background
    * delete (Finding 4).
+   *
+   * DO NOT PUT AN `await` BETWEEN THE INDEX READ AND THE INDEX WRITES BELOW.
+   * Every write here lands in the same synchronous run as the
+   * `readIndexForWrite` it derives from — including the last-project branch,
+   * which writes through `createProject`'s synchronous body. That is what
+   * makes follow-up 160's residue unreachable on this adapter: the index
+   * `activeId` cannot move on the far side of a suspension point, so a
+   * later-started switch's own write is always the last one. Pinned by two
+   * tests in `browser.test.ts` that call this WITHOUT awaiting it; a single
+   * `await Promise.resolve()` here turns them red. An adapter with genuinely
+   * async I/O owes atomic read-modify-write on the index instead — a property
+   * of the seam, not of this method's signature (160's closure).
    */
   async deleteProject(id: string): Promise<{ activeId: string; doc: SloydDocument } | null> {
     // Refuse before touching anything — including the project key itself —
