@@ -1590,6 +1590,42 @@ footprint under `rotate: 'grain'` (plywood), so the packer itself never turns a 
 part — the only way a plywood part's grain runs across the sheet is the orientation the
 cut-list row already states. Which is presumably why no reviewer flagged it as blocking.
 
+**CLOSED 2026-08-31, both halves.**
+
+The first is structural rather than tested: the expression is now `formatDims(length,
+width, precision)`, one home, called by all **three** sites — the placed part, the
+unplaceable part, and the sheet-stock label, which this entry did not name but is the same
+expression over a `SheetStock`. It takes two numbers rather than a `Board` precisely so
+that third caller can share it. There is no test, and that is the point: two spellings that
+must agree needed one pinning them, one spelling does not.
+
+The second is a **word on the dimension line** — a turned part reads `23" × 24" turned`,
+and its key-list entry reads `1. Cleat — 5" × 6" turned`. Four things were decided rather
+than fallen into:
+
+- **The word rides on `PlacedPart.dims`, not on a panel-side concatenation, and that is
+  invariant 19 rather than tidiness.** `SheetLayout` hands `[name, dims]` to `fitLabel` and
+  then draws those same two strings; concatenating in the panel would measure one string
+  and draw a longer one, and every unit test would still pass, because the tests assert the
+  arithmetic and not the render.
+- **Appended, never a transposition.** `dims` keeps printing `length × width`, so the pair
+  on the sheet still matches the cut-list row for the same board. The existing test that
+  pins that now also asserts the string does **not** contain the swapped pair — a whole-string
+  `toBe` would go on passing if a future edit swapped the numbers and kept the suffix.
+- **Never on an unplaceable part.** It fit no sheet in any allowed orientation, so it was
+  never placed and has no orientation to report.
+- **A symbol was considered and rejected**, and the browser pass is what would have caught
+  it: a glyph outside the `--font-num` monospace stack advances differently, and invariant
+  19's whole arithmetic dies silently on that. Measured instead — ASCII letters, digits, `"`
+  and the non-ASCII `×` all advance 12.0345 at the applied 20px, against `CHAR_W`'s 12.4, an
+  over-estimate in the safe direction.
+
+The cost, accepted rather than hidden: seven more characters means a turned part reaches a
+smaller label tier sooner than an unturned one. Verified live at all three tiers —
+`docs/browser-verification-turned-label.md`, which also carries the per-glyph advance table
+and the overflow measurements. Mutation: never appending (2 red), always appending (3 red),
+and transposing inside `formatDims` (7 red).
+
 **93. The Task 8 browser pass found no defects, and specifically re-checked the exact
 selector shape that broke twice before.** Follow-up 81's defect — a more specific
 two-class screen rule outranking a correctly-enumerated single-class print override —
@@ -3357,3 +3393,27 @@ arbitrary reasons; and `autoSave` refuses an id the index does not name, so anyt
 `deleteProject` taking the caller's intended active id as an argument — the same shape as
 `autoSave`'s explicit id (invariant 29) and worth doing if the adapter is touched for another
 reason.
+
+## From the turned-label round — 2026-08-31
+
+**161. The `name` tier still says nothing about a turned part, and the remedy is a design
+decision rather than a fix.** `fitLabel` picks one of three tiers by measurement, and only
+two of them print `dims`: `full` draws the name and the dimension line, `index` draws a
+number whose key-list entry is built from `dims`, and **`name` draws the name alone**. So a
+part whose rectangle fits its name but not its dimension line prints neither its dimensions
+nor the word — follow-up 92's ambiguity surviving in the one tier its fix does not reach.
+Adding seven characters to the dimension line makes a turned part reach that tier slightly
+sooner than before, so this round narrowed the gap's entrance and did not close it.
+
+Bounded the same two ways 92 was: only near a 1:1 aspect ratio, and only under
+`rotate: 'free'`. Narrower still in one way — at this tier no dimensions are printed at all,
+so a reader has no transposed pair in front of them to be misled *by*; they have to go to
+the cut-list row for the numbers, and the row does not describe the placement either way.
+
+**The named remedy, and why it was not just done.** `SheetLayout` could demote a turned part
+from `name` to `index`, since the key entry carries name, dimensions and the word — strictly
+more information than the name alone, at the cost of an indirection and of a numbered box
+where the user could have had a name. That is a legible-sheet judgement about mid-sized
+parts, not a correctness question, and the round's design question had already been put to
+the user and answered ("a word on the dimension line"), which this is not.
+

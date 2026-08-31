@@ -103,7 +103,53 @@ describe('buildNesting', () => {
     });
     const n = buildNesting([b], PLY, 0, 16);
     expect(n.sheets[0].parts[0].turned).toBe(true);
-    expect(n.sheets[0].parts[0].dims).toBe('48" × 24"');
+    // The pair is NOT transposed — the point of this test, unchanged by the
+    // word that now follows it. Asserted as a non-match as well as a match,
+    // because `toBe` on the whole string would go on passing if a future edit
+    // both swapped the numbers and kept the suffix.
+    expect(n.sheets[0].parts[0].dims).toBe('48" × 24" turned');
+    expect(n.sheets[0].parts[0].dims).not.toContain('24" × 48"');
+  });
+
+  /**
+   * Follow-up 92's second half. `PlacedPart.turned` existed in the data and
+   * was asserted here, but nothing on a rendered sheet said it in words — so
+   * a reader looking at a near-square rectangle could not tell a 90° turn
+   * from a transposition of the printed dimensions. The word rides on `dims`
+   * rather than being concatenated in the panel for invariant 19's reason:
+   * `SheetLayout` measures the very strings it draws.
+   */
+  it('says "turned" only for a part the packer laid across the sheet', () => {
+    const turned = createBoard({
+      name: 'Turned', length: 48, width: 24, thickness: 0.75,
+      grain: 'width', material: 'plywood',
+    });
+    const straight = createBoard({
+      name: 'Straight', length: 48, width: 24, thickness: 0.75,
+      grain: 'length', material: 'plywood',
+    });
+    const n = buildNesting([turned, straight], PLY, 0, 16);
+    const parts = n.sheets.flatMap((s) => s.parts);
+    const t = parts.find((p) => p.name === 'Turned')!;
+    const st = parts.find((p) => p.name === 'Straight')!;
+
+    expect(t.turned).toBe(true);
+    expect(t.dims).toContain('turned');
+    expect(st.turned).toBe(false);
+    expect(st.dims).not.toContain('turned');
+  });
+
+  // A part that fit no sheet in ANY allowed orientation was never placed, so
+  // it has no orientation to report — the word would be a claim about a
+  // placement that does not exist.
+  it('never says "turned" on an unplaceable part', () => {
+    const tooBig = createBoard({
+      name: 'Back Panel', length: 100, width: 30, thickness: 0.75,
+      grain: 'width', material: 'plywood',
+    });
+    const n = buildNesting([tooBig], PLY, 0, 16);
+    expect(n.unplaceable).toHaveLength(1);
+    expect(n.unplaceable[0].dims).toBe('100" × 30"');
   });
 
   // Pins the coordinates for the kerf test below to build on. NOT the epsilon

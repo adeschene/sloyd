@@ -24,18 +24,18 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **924/924 tests passing across 35 files**, schema
+Static SPA, containerized, **926/926 tests passing across 35 files**, schema
 `CURRENT_VERSION` **6**.
 
 **`master` IS AHEAD OF PRODUCTION as of 2026-08-31 — do not read this section as "production
 matches master".** Production serves bundle `index-DGokhnUh.js`, which is `d0a29cf` (the
-switch-token round, follow-ups 157 and 158). `master` has **two** further commits, both
-**merged and unreleased by decision**: `9cab7f6` (the id-uniqueness round, follow-ups 97 and
-131), where the user was offered a deploy and said no need for now, and the gesture-flags
-round (follow-up 148). Nothing user-facing changed in either — one repairs duplicate ids on
-load, reachable only through an imported hand-edited file; the other moves two private flags
-into the store's state and changes no behaviour a user can see — so there is no urgency, but
-the next deploy carries both. `DEPLOYMENT.local.md` carries every
+switch-token round, follow-ups 157 and 158). `master` has **three** further commits, all
+**merged and unreleased**: `9cab7f6` (the id-uniqueness round, follow-ups 97 and 131), where
+the user was offered a deploy and said no need for now; the gesture-flags round (follow-up
+148); and the turned-label round (follow-up 92). **The third one IS user-facing** — a turned
+part's label on a rendered sheet now says `turned` — which the first two were not, so the
+"no urgency" that covered them does not extend to it on its own argument. It has not been
+offered for deploy yet. `DEPLOYMENT.local.md` carries every
 runbook entry and bundle hash.
 
 **The 2026-08-15 project-library deploy was the first that ACTS on a user's stored data at
@@ -67,11 +67,10 @@ load-bearing.
 was picked on 2026-08-31 and set aside a moment later without a stated reason, so treat it
 as available rather than as either chosen or rejected. The 08-31 session ran two small
 already-diagnosed correctness rounds instead. The next conversation should start from
-`docs/follow-ups.md`'s open entries — see the pointer section below. **148 is now closed** — the day's third
-small round moved the gesture flags into the store's state. The standing candidates, in the
-order they were last presented: **92** (nothing says "turned" on a rendered sheet — the one
-open item with a user-visible consequence), **140** (the 1-in-4 test flake), and **159** and
-**160**.
+`docs/follow-ups.md`'s open entries — see the pointer section below. **148 and 92 are now closed** — the day's third
+and fourth small rounds. The standing candidates, in the order they were last presented:
+**140** (the 1-in-4 test flake), **159** and **160**, and the newly filed **161** (the one
+label tier where a turned part still says nothing).
 
 **The cut list line of work is CLOSED as of 2026-08-01.** Cut list, diagrams, label
 layout, per-face views, board feet and sheet nesting are all shipped and merged. Do not
@@ -108,6 +107,7 @@ narrative for every row is in `docs/history.md`.
 | switch-token fixes | 08-31 | — | *no spec* — one in-flight token for the four adopting handlers (invariant 32); the pending write becomes a captured-pair thunk |
 | id uniqueness | 08-31 | — | *no spec* — `takeId` closes follow-ups 97 and 131; duplicate board and guide ids are repaired on load (invariant 33) |
 | gesture flags | 08-31 | — | *no spec* — follow-up 148: `gesturing`/`gestureSnapshotTaken` move into the store's state, so `replaceDocument` ends a leaked gesture |
+| turned label | 08-31 | — | *no spec* — follow-up 92: `formatDims` is the one home of `length × width`, and a turned part's label says so in words |
 
 ### The deployment rule, stated once
 
@@ -235,7 +235,13 @@ src/
 │   ├── diagram.ts          buildDiagrams — one view per (face, from), so
 │   │                       perpendicular cuts on a face draw together
 │   ├── nesting.ts          buildNesting — shelf FFD, because guillotine cuttability
-│   │                       is a DOMAIN FACT, not a quality tier. Takes doc.boards,
+│   │                       is a DOMAIN FACT, not a quality tier. `formatDims` is
+│   │                       the ONE home of `length × width` here, shared by the
+│   │                       placed part, the unplaceable part and the sheet label
+│   │                       (fu 92); a turned part's `dims` carries the WORD
+│   │                       `turned`, on the string rather than in the panel so
+│   │                       fitLabel measures what SheetLayout draws (inv 19).
+│   │                       Takes doc.boards,
 │   │                       NEVER CutListRows (rounded row dimensions can overflow a
 │   │                       real sheet). Stock, not remainder. Too-big parts go in
 │   │                       `unplaceable`, never dropped. Invs 22, 23
@@ -932,7 +938,7 @@ worked examples behind several of them are in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 924 tests across 35 files
+npm test           # Vitest, currently 926 tests across 35 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -969,8 +975,14 @@ The handful worth knowing without opening that file:
 - **140** — a pre-existing ~1-in-4 test flake: `depthField.agreement.test.ts`'s heaviest
   case times out at 5000 ms. Reproduces on `master`. Remedy is a per-file `testTimeout` or
   splitting the case.
-- **92** — the one open follow-up with a user-visible consequence: a near-square part's
-  rotation is ambiguous on a rendered sheet, since nothing says "turned" in words.
+- **92** — CLOSED 2026-08-31. Both halves: `formatDims` is now the single home of
+  `length × width` in `nesting.ts`, and a turned part's label says `turned` in words. Read
+  its closure before adding anything to a sheet label — the word rides on
+  `PlacedPart.dims` rather than the panel because `fitLabel` must measure the string it
+  draws, and a non-ASCII symbol was rejected for invariant 19's reason, measured in a
+  browser rather than argued.
+- **161** — its residue: the `name` label tier prints neither dimensions nor the word, so
+  it is the one tier where a turned part still says nothing. Remedy is a design decision.
 - **26a** — **read this before touching anything in the viewport.** Browser verification on
   this host runs on software GL (llvmpipe, no GPU), which returns 1.0 for `pow(0.0, 0.0)`
   where real hardware returns NaN. That difference hid a grid bug completely — it looked

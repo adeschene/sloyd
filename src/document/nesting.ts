@@ -2,6 +2,23 @@ import type { Board, SheetStock } from './types';
 import { formatLength } from '../units/length';
 
 /**
+ * `length × width`, formatted — the ONE home of that expression here.
+ *
+ * It had three copies (a placed part, an unplaceable part, the sheet stock
+ * itself) with nothing pinning that they stayed in agreement if one were ever
+ * edited alone — follow-up 92's first half. They are one dimension pair read
+ * off one sheet, and the module already imports `formatLength` so that a
+ * dimension cannot read differently in two places on one printed sheet; three
+ * spellings of the same expression is that guarantee held by convention
+ * rather than by construction.
+ *
+ * Takes two numbers rather than a `Board`, which is what lets the sheet-stock
+ * call site share it — `SheetStock` is not a `Board` and never will be.
+ */
+const formatDims = (length: number, width: number, precision: number) =>
+  `${formatLength(length, precision)} × ${formatLength(width, precision)}`;
+
+/**
  * How a part lands on a sheet: its footprint AS PLACED.
  *
  * `w` runs along the sheet's length, `h` across it. `turned` is true when the
@@ -53,7 +70,8 @@ export interface PlacedPart {
   h: number;
   turned: boolean;
   /**
-   * Already formatted, e.g. `48" × 24"` — `length × width`, the board's OWN
+   * Already formatted, e.g. `48" × 24"`, or `48" × 24" turned` for a part the
+   * packer laid across the sheet — `length × width`, the board's OWN
    * dimensions, never `w`/`h` as placed. Two things this deliberately is not:
    * a re-derivation of the footprint (a turned part's `w`/`h` are swapped
    * relative to `length`/`width`, so printing those would transpose the
@@ -63,6 +81,20 @@ export interface PlacedPart {
    * accepts decimal and millimetre entry, so an unformatted dimension can be
    * a 15-digit artifact). The panel formats nothing; this field is why it
    * doesn't have to for a placed part either.
+   *
+   * **The word `turned` is part of THIS string rather than the panel's, and
+   * that is invariant 19 rather than tidiness** (follow-up 92's second half).
+   * `SheetLayout` hands `[name, dims]` to `fitLabel` and then draws those same
+   * two strings, so the measured text and the drawn text are the same object;
+   * a panel-side concatenation would measure one string and draw a longer one,
+   * and every unit test would still pass because the tests assert the
+   * arithmetic, not the render. It costs the part label seven characters, so a
+   * turned part reaches a smaller label tier sooner than an unturned one —
+   * accepted, because the alternative is a rectangle whose rotation a reader
+   * cannot recover at all near a 1:1 aspect ratio.
+   *
+   * `turned` above stays a boolean beside it: one is the fact, the other is
+   * what gets printed, and the tests for the packer assert the fact.
    */
   dims: string;
 }
@@ -146,6 +178,11 @@ function placeOn(
   kerf: number,
   precision: number,
 ): boolean {
+  // length × width, the board's own dimensions — matches CutListRow.dims's
+  // order for the same board regardless of `turned`. Computed once here
+  // rather than inside `put`, which runs per placement attempt.
+  const dims = formatDims(board.length, board.width, precision);
+
   const put = (f: Footprint, x: number, y: number) => {
     sheet.parts.push({
       boardId: board.id,
@@ -155,9 +192,9 @@ function placeOn(
       w: f.w,
       h: f.h,
       turned: f.turned,
-      // length × width, the board's own dimensions — matches
-      // CutListRow.dims's order for the same board regardless of `turned`.
-      dims: `${formatLength(board.length, precision)} × ${formatLength(board.width, precision)}`,
+      // The word is APPENDED, never a transposition of the numbers: a reader
+      // must see the same pair here as on the cut-list row for this board.
+      dims: f.turned ? `${dims} turned` : dims,
     });
   };
 
@@ -267,14 +304,15 @@ export function buildNesting(
       unplaceable.push({
         boardId: board.id,
         name: board.name,
-        dims: `${formatLength(board.length, precision)} × ${formatLength(board.width, precision)}`,
+        // No `turned` here, and not an omission: a part that fit no sheet in
+        // ANY allowed orientation was never placed, so it has none to report.
+        dims: formatDims(board.length, board.width, precision),
       });
     }
   }
 
   const count = sheets.length;
-  const sheet =
-    `${formatLength(stock.length, precision)} × ${formatLength(stock.width, precision)}`;
+  const sheet = formatDims(stock.length, stock.width, precision);
   return {
     sheets: sheets.map((s) => ({ parts: s.parts })),
     unplaceable,

@@ -124,6 +124,58 @@ and 79.
 
 ## What each round did
 
+**What the turned-label round did (2026-08-31)** — the fourth small round of the day, and
+the first of them with anything a user can see. Follow-up **92** had been open since the
+sheet-nesting round with two unrelated halves, and both are closed here.
+
+The first half was structural. `` `${formatLength(length)} × ${formatLength(width)}` ``
+appeared verbatim in the placed-part path, the unplaceable-part path and — unnamed by 92,
+but the same expression over a `SheetStock` — the sheet-size label, with nothing pinning
+that the three stayed in agreement if one were ever edited alone. `nesting.ts` imports
+`formatLength` in the first place so that one dimension cannot read differently in two
+places on one printed sheet; three spellings is that guarantee held by convention rather
+than by construction. It is now `formatDims(length, width, precision)`, taking two numbers
+rather than a `Board` so the sheet-stock caller can share it. No test came with it,
+deliberately: two spellings that must agree needed one pinning them, one spelling does not.
+
+The second half was the user-visible one. `PlacedPart.turned` existed in the data and was
+asserted in tests, but nothing on a rendered sheet said it in words, so a near-square
+rectangle could not be told apart from a transposition of the printed dimensions. Four
+options were put to the user — a word, a symbol, printing the placed footprint instead, and
+a corner tick with a legend — and the word was chosen. A turned part now reads
+`23" × 24" turned`, and its key-list entry `1. Cleat — 5" × 6" turned`.
+
+**The word rides on `PlacedPart.dims` rather than being concatenated in the panel, and that
+is invariant 19 rather than tidiness.** `SheetLayout` hands `[name, dims]` to `fitLabel` and
+then draws those same two strings; a panel-side concatenation would measure one string and
+draw a longer one, and every unit test would still pass — the tests assert the arithmetic,
+not the render. It is appended and never a transposition, so the pair still matches the
+cut-list row for the same board; the test that pins that now also asserts the swapped pair
+is absent, since a whole-string `toBe` would go on passing if a future edit swapped the
+numbers and kept the suffix. An unplaceable part never gets the word: it fit no sheet in any
+orientation, so it was never placed and has no orientation to report.
+
+**The browser pass earned its keep, and would have earned more against the option not
+chosen.** `SheetLayout` has no panel tests at all — its only coverage is `buildNesting`'s
+unit tests and this pass — and the change lands on invariant 19's arithmetic, whose failure
+mode is invisible by construction: `labelWidth` is characters × `CHAR_W`, and a glyph with a
+different advance makes that number unrelated to the render while everything stays green.
+Measured in Chromium: ASCII letters, digits, `"` and the non-ASCII `×` all advance 12.0345
+at the applied 20px, against `CHAR_W`'s 12.4 — an over-estimate of about 3%, the safe
+direction its own comment says it is rounded up for. The rejected symbol option is exactly
+what that measurement exists to catch. All three label tiers were driven (`full` turned,
+`full` unturned, `index` via the key list) and no label exceeded its rectangle; the longest,
+at 192.6, sat in a 250-wide box. `docs/browser-verification-turned-label.md` has the tables.
+
+The accepted cost is seven characters, so a turned part reaches a smaller label tier sooner
+than an unturned one. That has a residue, filed as **161** rather than fixed: the `name`
+tier prints neither dimensions nor the word, so it is the one tier where a turned part still
+says nothing. The remedy — demote a turned part from `name` to `index`, where the key entry
+carries everything — is a legibility judgement about mid-sized parts, and the round's design
+question had already been asked and answered. Mutation: never appending (2 red), always
+appending (3 red), transposing inside `formatDims` (7 red). 926/926 tests, build clean, no
+schema change.
+
 **What the gesture-flags round did (2026-08-31)** — the third small round of the day, and
 the one with the least user-visible surface: nothing about the app changes, and the defect
 it closes was only ever reachable in tests and in a browser path nobody had hit. Follow-up
