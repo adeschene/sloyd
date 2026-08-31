@@ -797,14 +797,15 @@ describe('App keyboard delete', () => {
     expect(useStore.getState().doc.boards).toHaveLength(1);
 
     // Blur before the test (and RTL's auto-unmount) ends. Focusing this field
-    // calls the store's beginGesture(), and gesturing/gestureSnapshotTaken
-    // are module-level state in store.ts, not part of the Zustand store that
-    // replaceDocument resets between tests — unmounting a still-focused field
-    // does not fire blur in jsdom, so without this the leaked gesture silently
-    // coalesces every edit() in whichever test runs next into one snapshot,
-    // discovered when it made a later Ctrl+Z a no-op. This blur is what keeps
-    // that leak from crossing into the next test, not just this one's own
-    // assertion.
+    // calls the store's beginGesture(), and unmounting a still-focused field
+    // does not fire blur in jsdom, so the gesture is left open. Follow-up 148
+    // has since moved gesturing/gestureSnapshotTaken into the store's state,
+    // where `beforeEach`'s replaceDocument resets them, so this blur is no
+    // longer the only thing standing between a leaked gesture and the next
+    // test in this file. It is KEPT anyway, and not as belt-and-braces: it
+    // makes the test end in the state a real user's browser would also end in
+    // (a blurred field closes its gesture), which is what the test should
+    // have been doing regardless of where the flag lives.
     projectName.blur();
   });
 

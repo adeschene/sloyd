@@ -124,6 +124,61 @@ and 79.
 
 ## What each round did
 
+**What the gesture-flags round did (2026-08-31)** — the third small round of the day, and
+the one with the least user-visible surface: nothing about the app changes, and the defect
+it closes was only ever reachable in tests and in a browser path nobody had hit. Follow-up
+**148** had the diagnosis, the reproduction and the named remedy already written down, so
+there was no spec and no plan — the same shape as the day's first two rounds.
+
+`store.ts` held `gesturing` and `gestureSnapshotTaken` as `let` bindings in the closure
+`create()`'s factory opens, not as fields on the store. Everything else that must not
+outlive a document — the document, the history, all three held points, the tape axis —
+is state, and `replaceDocument` rewrites it; these two were the exception it could not
+reach. So a component that unmounted **while a gesture was open** left `gesturing` true for
+the rest of the session, and invariant 4's lazy snapshot then skipped every undo snapshot
+from that point on. The symptom is not an error: it is missing undo entries in code that
+never opened a gesture, which reads as a defect in whatever runs next. In RTL, where
+`cleanup()` tears the tree down between tests and jsdom fires no blur on unmount, "whatever
+runs next" is every later test in the file.
+
+The fix is the first of the two remedies 148 named, and it named it the better one for a
+reason worth restating: a flag reset by convention at every call site is the same shape as
+the held-point clearing rules invariant 24 had to enumerate, and what makes those
+enumerable at all is that they live in the state. The entry attached a precondition to it —
+`beginGesture`/`endGesture` cost no re-render precisely because the flags were outside
+state — and that was checked rather than argued: every `useStore` call site in `src/`
+passes a selector and none names either field, so the move costs one `set()` at each
+gesture boundary (focus, blur, gizmo mousedown and mouseup — never per frame) and re-renders
+nothing. The fields are public by necessity and private by intent, and `StoreState`'s
+declaration says so.
+
+**The interesting part of the round is the test, and it is a 155 lesson applied
+prospectively rather than learned again.** The obvious test — assert `gesturing === false`
+after `replaceDocument` — cannot fail: the field initialises false, so it passes with the
+reset deleted. The test written instead leaves a gesture open, replaces the document, edits,
+and asserts `past` grew; with the flags left standing the edit coalesces into a snapshot
+nobody took and `past` stays empty. Mutation confirmed it turns **7** tests red, six of them
+the contamination crossing into later tests — the reported symptom, reproduced from the
+other side.
+
+**Two mutations survived, and reporting them is the point.** Deleting
+`gestureSnapshotTaken: false` from `replaceDocument` passes 137/137, because `!gesturing`
+short-circuits the snapshot test and `beginGesture` clears the flag regardless; it is kept
+as symmetry with `endGesture` — "the gesture is closed" said once, wherever it is said —
+and not claimed as covered. `takeSnapshot = gesturing` can be written `= true` with nothing
+observing the difference, for the same reason and pre-dating this round. Both semantic
+mutations — the `gesturing` reset, and persisting `gestureSnapshotTaken` out of `edit()` —
+fail loudly. 924/924 tests across 35 files, build clean, no schema change and no storage
+change.
+
+Two comments were corrected rather than left to drift. `Gizmo.tsx`'s mid-drag guard called
+`gesturing` "the store's private flag" and said a leak lasts "forever"; both are now false,
+and the guard stays primary anyway, since nothing about a mid-drag unmount implies a
+document is about to be replaced. `App.test.tsx`'s `.blur()` workaround was **kept** — the
+reviewer who confirmed the leak also confirmed the blur was legitimate rather than masking,
+because it ends the test in the state a real browser would end in, which is true no matter
+where the flag lives.
+
 **What the id-uniqueness round did (2026-08-31)** — the second small round of the day, and
 like the first it had no spec: follow-ups 97 and 131 had the remedy written down, and 131
 explicitly deferred to "whichever round closes 97", so closing either alone was ruled out

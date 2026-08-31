@@ -24,16 +24,18 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **923/923 tests passing across 35 files**, schema
+Static SPA, containerized, **924/924 tests passing across 35 files**, schema
 `CURRENT_VERSION` **6**.
 
 **`master` IS AHEAD OF PRODUCTION as of 2026-08-31 — do not read this section as "production
 matches master".** Production serves bundle `index-DGokhnUh.js`, which is `d0a29cf` (the
-switch-token round, follow-ups 157 and 158). `master` has one further commit, `9cab7f6` (the
-id-uniqueness round, follow-ups 97 and 131), which is **merged and unreleased by decision**:
-the user was offered a deploy and said no need for now. Nothing user-facing changed in it —
-it repairs duplicate ids on load, reachable only through an imported hand-edited file — so
-there is no urgency, but the next deploy carries it. `DEPLOYMENT.local.md` carries every
+switch-token round, follow-ups 157 and 158). `master` has **two** further commits, both
+**merged and unreleased by decision**: `9cab7f6` (the id-uniqueness round, follow-ups 97 and
+131), where the user was offered a deploy and said no need for now, and the gesture-flags
+round (follow-up 148). Nothing user-facing changed in either — one repairs duplicate ids on
+load, reachable only through an imported hand-edited file; the other moves two private flags
+into the store's state and changes no behaviour a user can see — so there is no urgency, but
+the next deploy carries both. `DEPLOYMENT.local.md` carries every
 runbook entry and bundle hash.
 
 **The 2026-08-15 project-library deploy was the first that ACTS on a user's stored data at
@@ -65,11 +67,11 @@ load-bearing.
 was picked on 2026-08-31 and set aside a moment later without a stated reason, so treat it
 as available rather than as either chosen or rejected. The 08-31 session ran two small
 already-diagnosed correctness rounds instead. The next conversation should start from
-`docs/follow-ups.md`'s open entries — see the pointer section below. The standing candidates
-after those two rounds, in the order they were last presented: **92** (nothing says "turned"
-on a rendered sheet — the one open item with a user-visible consequence), **148** (the
-module-level gesture flags), **140** (the 1-in-4 test flake), and the newly filed **159**
-and **160**.
+`docs/follow-ups.md`'s open entries — see the pointer section below. **148 is now closed** — the day's third
+small round moved the gesture flags into the store's state. The standing candidates, in the
+order they were last presented: **92** (nothing says "turned" on a rendered sheet — the one
+open item with a user-visible consequence), **140** (the 1-in-4 test flake), and **159** and
+**160**.
 
 **The cut list line of work is CLOSED as of 2026-08-01.** Cut list, diagrams, label
 layout, per-face views, board feet and sheet nesting are all shipped and merged. Do not
@@ -105,6 +107,7 @@ narrative for every row is in `docs/history.md`.
 | project library | 08-14 | — | multiple projects in the browser; `sloyd.library.v1` |
 | switch-token fixes | 08-31 | — | *no spec* — one in-flight token for the four adopting handlers (invariant 32); the pending write becomes a captured-pair thunk |
 | id uniqueness | 08-31 | — | *no spec* — `takeId` closes follow-ups 97 and 131; duplicate board and guide ids are repaired on load (invariant 33) |
+| gesture flags | 08-31 | — | *no spec* — follow-up 148: `gesturing`/`gestureSnapshotTaken` move into the store's state, so `replaceDocument` ends a leaked gesture |
 
 ### The deployment rule, stated once
 
@@ -269,6 +272,11 @@ src/
 │                           id-uniqueness rule for boards, guides and cuts
 │                           (inv 33); re-exports the rest
 ├── store/store.ts          Zustand, snapshot undo/redo (inv 4), gesture coalescing.
+│                           `gesturing`/`gestureSnapshotTaken` are STATE, not closure
+│                           variables, so `replaceDocument` clears a gesture whose
+│                           component went away without closing it (fu 148) — public
+│                           by necessity, private by intent: nothing subscribes, and
+│                           subscribing would re-render on every gesture boundary.
 │                           `tool` and the three HELD POINTS — `grabbed`
 │                           (BoardSnapPoint, narrow on purpose — inv 26),
 │                           `tapeAnchor`, `tapeHover` (SnapPoint, wide because either
@@ -881,7 +889,7 @@ worked examples behind several of them are in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 923 tests across 35 files
+npm test           # Vitest, currently 924 tests across 35 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -909,11 +917,12 @@ The handful worth knowing without opening that file:
 - **147** — should a locked axis outlive a commit? A §3.1 amendment and a human decision,
   not a bug fix. **The user was asked and ruled SHIP AS-IS**, so it is open by decision:
   one keystroke per guide is worth the single-sentence rule, revisit only with real use.
-- **148** — the most portable entry here, nothing to do with any feature: `store.ts` holds
-  `gesturing` and `gestureSnapshotTaken` as module-level closure variables that
-  `replaceDocument` does not reset, so a component unmounting mid-gesture leaks them into
-  every later test in the file and silently breaks undo bookkeeping. Reproduced and
-  independently confirmed; worked around in-file, real remedy is store-level and untried.
+- **148** — CLOSED 2026-08-31. `store.ts` held `gesturing` and `gestureSnapshotTaken` as
+  module-level closure variables `replaceDocument` could not reach, so a component
+  unmounting mid-gesture leaked them into every later test in the file and silently broke
+  undo bookkeeping. Both are store state now. Read its closure before writing a test whose
+  subject is a reset: the obvious assertion (`gesturing === false`) cannot fail, and the
+  one that works asserts an undo entry.
 - **140** — a pre-existing ~1-in-4 test flake: `depthField.agreement.test.ts`'s heaviest
   case times out at 5000 ms. Reproduces on `master`. Remedy is a per-file `testTimeout` or
   splitting the case.

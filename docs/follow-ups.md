@@ -3014,6 +3014,45 @@ enumerable is that they are *in the state*. Anyone taking this on should note th
 `beginGesture`/`endGesture` currently cost no re-render precisely because the flags are
 outside state, so moving them needs a check that no consumer subscribes to them.
 
+**CLOSED 2026-08-31 by the store-state round — the first remedy, the one this entry argued
+for.** Both flags are now fields on the Zustand store, initialised false, and
+`replaceDocument` clears them alongside the held points. The named precondition was checked
+rather than assumed: every `useStore` call site in `src/` passes a selector and none names
+either field, so the cost of the move is one `set()` per gesture boundary — focus, blur,
+gizmo mousedown and mouseup, never per frame — and no component re-renders on it. They are
+public by necessity and private by intent; the declaration in `StoreState` says so, because
+subscribing to either would put a re-render on every gesture boundary and is the one new
+hazard the change introduces.
+
+Three details worth carrying, each decided rather than inherited:
+
+- **The reset stops at `replaceDocument`.** Adding the pair beside `grabbed: null` in
+  `undo`/`redo` is the invariant-24 tidying instinct and would split one focused field's
+  gesture in half after a Ctrl+Z — a behaviour change with no defect behind it.
+- **The test asserts an UNDO ENTRY, not a flag value.** `expect(gesturing).toBe(false)`
+  after `replaceDocument` cannot fail: the field initialises false, so it passes with the
+  reset deleted — follow-up **155**'s shape exactly. What the test does instead is leave a
+  gesture open, replace the document, edit, and assert `past` grew. Mutation confirmed it:
+  deleting `gesturing: false` turned **7** tests red, and six of them were the leak crossing
+  into later tests in the same file, which is the contamination this entry described.
+- **`gestureSnapshotTaken: false` in `replaceDocument` is symmetry, not coverage, and
+  saying so is the honest report.** Deleting it alone passes 137/137, because `!gesturing`
+  short-circuits the snapshot test and `beginGesture` clears the flag anyway. It is kept so
+  that "the gesture is closed" is one statement wherever it is said (it mirrors
+  `endGesture`), not because a test would catch its removal. A second surviving mutation is
+  in the same family and pre-dates this round: `takeSnapshot = gesturing` can be written
+  `= true` with nothing observing the difference, since the flag is meaningless while
+  `gesturing` is false. The two mutations that carry the semantics — the `gesturing` reset
+  and persisting `gestureSnapshotTaken` out of `edit()` — both fail loudly.
+
+Task 3's `.blur()` in `src/App.test.tsx` was **kept**, and its comment rewritten to say why
+it is no longer load-bearing but still correct: it ends the test in the state a real user's
+browser would end in, which is what the reviewer found when confirming it was not masking.
+`Gizmo.tsx`'s mid-drag guard comment, which called `gesturing` "the store's private flag"
+and said a leak lasts "forever", was corrected on both counts — and the guard itself stays
+primary, because nothing about a mid-drag unmount implies a document is about to be
+replaced.
+
 **149. NON-GOALS — design §8, recorded as decisions rather than omissions.**
 
 - **No schema change**, and none was needed. `GuidePoint` is `{ id, at }` with `at` a bare

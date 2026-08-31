@@ -208,6 +208,26 @@ interface StoreState {
   canRedo: () => boolean;
   beginGesture: () => void;
   endGesture: () => void;
+  /**
+   * Gesture bookkeeping, and the one pair of fields here NOTHING SHOULD
+   * SUBSCRIBE TO. They are in the state for one reason: `replaceDocument`
+   * already rewrites everything that must not outlive a document, and these
+   * two were the exception — module-level closure variables it could not
+   * reach, so a component unmounting mid-gesture left `gesturing` true for
+   * the rest of the session and every later edit coalesced into a snapshot
+   * nobody took (follow-up 148). A flag reset by convention at each call
+   * site is the shape invariant 24 had to enumerate; being in the state is
+   * what makes such a rule enumerable.
+   *
+   * The cost of the move is one `set()` per begin/end — focus, blur, gizmo
+   * mousedown and mouseup, never per frame — and it is only that small
+   * because every `useStore` call site passes a selector, so no consumer
+   * re-renders on a field it does not name. Reading these from a component
+   * would put a re-render on every gesture boundary and is the reason to
+   * treat them as private in everything but the type.
+   */
+  gesturing: boolean;
+  gestureSnapshotTaken: boolean;
 
   addCut: (boardId: string) => void;
   updateCut: (boardId: string, cutId: string, patch: Partial<Cut>) => void;
@@ -219,14 +239,6 @@ interface StoreState {
 }
 
 export const useStore = create<StoreState>((set, get) => {
-  // Coalesce every edit within a gesture (a gizmo drag, a focused text field)
-  // into a single undo entry. The snapshot is taken lazily — on the first
-  // edit() inside the gesture, not in beginGesture() itself — so that
-  // focusing and blurring a field without changing anything leaves no
-  // no-op entry on the undo stack.
-  let gesturing = false;
-  let gestureSnapshotTaken = false;
-
   /**
    * Apply an edit as a new document, pushing the previous one onto the undo
    * stack. Every mutating action funnels through here — that is what keeps
@@ -236,15 +248,16 @@ export const useStore = create<StoreState>((set, get) => {
     fn: (doc: SloydDocument) => SloydDocument,
     selection?: (doc: SloydDocument) => string | null,
   ) => {
-    const { doc, past, future } = get();
+    const { doc, past, future, gesturing, gestureSnapshotTaken } = get();
     const next = fn(doc);
 
     let nextPast = past;
     let nextFuture = future;
+    let takeSnapshot = false;
     if (!gesturing || !gestureSnapshotTaken) {
       nextPast = [...past, doc].slice(-HISTORY_LIMIT);
       nextFuture = [];
-      if (gesturing) gestureSnapshotTaken = true;
+      takeSnapshot = gesturing;
     }
 
     // Invariant 24's second list — the one that records what nulls `grabbed`
@@ -289,6 +302,7 @@ export const useStore = create<StoreState>((set, get) => {
       doc: next,
       past: nextPast,
       future: nextFuture,
+      ...(takeSnapshot ? { gestureSnapshotTaken: true } : {}),
       ...(selection ? { selectedId: nextSelectedId } : {}),
       ...(dropGrab ? { grabbed: null } : {}),
     });
@@ -388,6 +402,16 @@ export const useStore = create<StoreState>((set, get) => {
     selectedId: null,
     past: [],
     future: [],
+
+    // Coalesce every edit within a gesture (a gizmo drag, a focused text
+    // field) into a single undo entry. The snapshot is taken lazily — on the
+    // first edit() inside the gesture, not in beginGesture() itself — so that
+    // focusing and blurring a field without changing anything leaves no no-op
+    // entry on the undo stack (invariant 4). See the declaration in
+    // StoreState for why these two sit in the state and why nothing reads
+    // them from a component.
+    gesturing: false,
+    gestureSnapshotTaken: false,
     pendingLengthFocus: false,
     consumeLengthFocus: () => {
       const pending = get().pendingLengthFocus;
@@ -740,6 +764,15 @@ export const useStore = create<StoreState>((set, get) => {
         tapeAnchor: null,
         tapeHover: null,
         tapeAxis: null,
+        // Follow-up 148. NOT the same reason as the held points above: those
+        // clear because the world they name has been replaced, while these
+        // clear because a gesture belongs to the component that opened it and
+        // that component may be gone without ever having closed it. The reset
+        // stops HERE — adding these two beside `grabbed: null` in undo/redo
+        // would split one focused field's gesture in half after a Ctrl+Z,
+        // which is a behaviour change with no defect behind it.
+        gesturing: false,
+        gestureSnapshotTaken: false,
       }),
 
     undo: () => {
@@ -786,8 +819,8 @@ export const useStore = create<StoreState>((set, get) => {
     canUndo: () => get().past.length > 0,
     canRedo: () => get().future.length > 0,
 
-    beginGesture: () => { gesturing = true; gestureSnapshotTaken = false; },
-    endGesture: () => { gesturing = false; gestureSnapshotTaken = false; },
+    beginGesture: () => set({ gesturing: true, gestureSnapshotTaken: false }),
+    endGesture: () => set({ gesturing: false, gestureSnapshotTaken: false }),
 
     /**
      * A quarter-thickness dado in the broad face, a quarter of the way along.

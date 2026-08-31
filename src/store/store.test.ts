@@ -377,6 +377,41 @@ describe('gesture coalescing', () => {
     useStore.getState().undo();
     expect(useStore.getState().doc.boards[0].position).toEqual([1, 0, 0]);
   });
+
+  /**
+   * Follow-up 148. A component can unmount mid-gesture — ordinary in RTL,
+   * where cleanup() tears the tree down between tests, and reachable in the
+   * browser wherever a focused field is removed rather than blurred — so
+   * `endGesture` may simply never run. While the two flags lived in the
+   * store's closure, nothing reset them: `replaceDocument` rewrote the
+   * document, the history and every held point and left a gesture nobody
+   * opened standing for the rest of the session.
+   *
+   * The assertion is an UNDO ENTRY, not a flag value. Asserting
+   * `gesturing === false` after `replaceDocument` cannot fail — the field
+   * initialises false, so it passes with the reset deleted (follow-up 155's
+   * shape). Here the leak has a consequence: with the flags left standing,
+   * the edit below coalesces into a snapshot that was never taken, `past`
+   * stays empty and Ctrl+Z does nothing.
+   */
+  it('a gesture left open does not survive replaceDocument', () => {
+    useStore.getState().addBoard();
+    const id = useStore.getState().doc.boards[0].id;
+    useStore.getState().beginGesture();
+    useStore.getState().updateBoard(id, { position: [1, 0, 0] });
+    // No endGesture() — the component went away mid-gesture.
+
+    useStore.getState().replaceDocument(createDocument('Next'));
+    expect(useStore.getState().past).toHaveLength(0);
+
+    useStore.getState().addBoard();
+    const next = useStore.getState().doc.boards[0].id;
+    useStore.getState().updateBoard(next, { position: [2, 0, 0] });
+
+    expect(useStore.getState().past).toHaveLength(2);
+    useStore.getState().undo();
+    expect(useStore.getState().doc.boards[0].position).toEqual([0, 0, 0]);
+  });
 });
 
 describe('cuts', () => {

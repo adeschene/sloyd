@@ -274,11 +274,14 @@ export function Gizmo() {
   // Invariant 4's gesture-leak guard, closing both routes by which
   // TransformControls can go away mid-drag without ever firing onMouseUp.
   // beginGesture()/endGesture() are meant to bracket exactly one drag; if
-  // endGesture() is skipped, the store's private `gesturing` flag stays true
-  // forever, and edit()'s "skip the snapshot after the first one per gesture"
-  // rule (store.ts) then skips every undo snapshot from that point on — a
-  // single Ctrl+Z reverts everything since, with no error and no visible
-  // cause. Unmounting mid-drag skips `onMouseUp`: both effects below exist
+  // endGesture() is skipped, the store's `gesturing` flag stays true until
+  // the next replaceDocument, and edit()'s "skip the snapshot after the first
+  // one per gesture" rule (store.ts) skips every undo snapshot from that
+  // point on — a single Ctrl+Z reverts everything since, with no error and no
+  // visible cause. Follow-up 148 moved that flag into the store's state, so
+  // an open/import/restore now ends a leaked gesture; these two effects stay
+  // the primary guard, because nothing about a mid-drag unmount implies a
+  // document is about to be replaced. Unmounting mid-drag skips `onMouseUp`: both effects below exist
   // because unmount runs cleanup, never the mouse handlers.
   //
   // Route 1 (pre-existing): the board is deleted or deselected, which trips
