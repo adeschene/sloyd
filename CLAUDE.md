@@ -28,15 +28,22 @@ Static SPA, containerized, **947/947 tests passing across 36 files** (the ~1-in-
 `CURRENT_VERSION` **6**.
 
 **PRODUCTION MATCHES `master` as of 2026-08-31.** Production serves bundle
-`index-CePWNaxg.js`, which is `5985ee2` — the turned-index round (follow-up 161), the day's
-**third** deploy. Its one shipped change is user-facing and is a rendering change to the
-printable cut list: a turned part whose rectangle fits its name but not its dimension line
-now demotes to a numbered box whose key entry carries name, dimensions and the word, instead
-of printing a bare name that says nothing. It was **not** exercised against production — it
-needs sheet-good parts on a sheet, so exercising it would write a document — and was verified
-against the dev server instead (`docs/browser-verification-turned-index.md`), which is the
-deployment rule working rather than a gap. Confirmed live by page load and bundle hash at
-both the edge and in-network, with `localStorage` cleared in the verifying browser afterward.
+`index-DU8uasNy.js` with CSS `index-CtYur9k3.css`, which is `c50a138` — the key-list round
+(follow-up 162), the day's **fourth** deploy and the smallest round yet shipped: one CSS
+rule, dropping the default disc the sheet's key list drew in front of a line that already
+numbers itself. **Note that a CSS-only change still moves the JS hash** — the entry chunk
+references the CSS asset by name — so a moved JS hash is not by itself evidence that
+behaviour changed.
+
+The day's third deploy served `index-CePWNaxg.js`, which was `5985ee2` — the turned-index
+round (follow-up 161), a rendering change to the printable cut list: a turned part whose
+rectangle fits its name but not its dimension line now demotes to a numbered box whose key
+entry carries name, dimensions and the word, instead of printing a bare name that says
+nothing. Neither 161 nor 162 was exercised against production — both need parts nested on a
+sheet, so exercising either would write a document — and both were verified against the dev
+server instead (`docs/browser-verification-turned-index.md`), which is the deployment rule
+working rather than a gap. Both confirmed live by page load and asset hashes at the edge and
+in-network, with `localStorage` cleared in the verifying browser afterward.
 
 The day's second deploy served `index-8v7-ukbU.js`, which was `59d531b` — the
 duplicate-error round (follow-up 159). Its one shipped change could **not** be exercised
@@ -91,10 +98,9 @@ as available rather than as either chosen or rejected. The 08-31 session ran the
 already-diagnosed rounds listed below instead — 157/158, 97/131, 148, 92, 140, 159 and 160,
 across **two** deploys. All are live; 140, 159's focus test and 160 touch test files only, so
 they ship nothing. The next conversation should start from `docs/follow-ups.md`'s open entries; see
-the pointer section below. **160 and 161 are both now CLOSED, and NO CANDIDATE IS
-STANDING** — 130 remains available-but-unasked (see below), and the newest open entry is
-**162**, a one-line CSS bullet on the sheet's key list, filed rather than folded into 161
-because it is a visual change to a printable sheet.
+the pointer section below. **160, 161 and 162 are all now CLOSED, and NO
+CANDIDATE IS STANDING** — 130 remains available-but-unasked (see below). The next
+conversation genuinely starts from a blank slate on feature direction.
 
 **The cut list line of work is CLOSED as of 2026-08-01.** Cut list, diagrams, label
 layout, per-face views, board feet and sheet nesting are all shipped and merged. Do not
@@ -1069,9 +1075,11 @@ The handful worth knowing without opening that file:
   rule lives in `fitLabel` as `requireDetail`, NOT as a panel-side override of the tier —
   read the closure before adding a fourth tier or a second caller. `SheetLayout` got its
   first tests in the same round, and the wiring mutation is caught only by them.
-- **162** — the sheet's key list draws a bullet in front of a line that already numbers
-  itself (`• 1. Side — …`): `.cutlist-layout-key` never sets `list-style`. Pre-existing;
-  newly visible because 161 makes the index tier more common. One line of CSS, unasked.
+- **162** — CLOSED 2026-08-31. The bullet is gone, but read the closure before touching
+  that list: the `<ol>`-with-no-prefix version is REJECTED at the rule itself, because the
+  number in the part's rectangle comes from `nextIndex` and a list marker would come from DOM
+  position — one value, two deciders. Also records what it really was: the one list in the
+  app that never got the `list-style: none; padding: 0` reset the other four all have.
 - **26a** — **read this before touching anything in the viewport.** Browser verification on
   this host runs on software GL (llvmpipe, no GPU), which returns 1.0 for `pow(0.0, 0.0)`
   where real hardware returns NaN. That difference hid a grid bug completely — it looked
