@@ -24,7 +24,7 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **926/926 tests passing across 35 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
+Static SPA, containerized, **934/934 tests passing across 35 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **6**.
 
 **PRODUCTION MATCHES `master` as of 2026-08-31.** Production serves bundle
@@ -72,11 +72,11 @@ load-bearing.
 **NO SUCCESSOR FEATURE ROUND HAS BEEN CHOSEN, and 130 is no longer the presumed one** — it
 was picked on 2026-08-31 and set aside a moment later without a stated reason, so treat it
 as available rather than as either chosen or rejected. The 08-31 session ran **five** small
-already-diagnosed rounds instead — 157/158, 97/131, 148, 92 and 140. The first four are in
-the deployed bundle; 140 touches a test file only, so it ships nothing. The next conversation should start from `docs/follow-ups.md`'s open entries; see
+already-diagnosed rounds instead — 157/158, 97/131, 148, 92, 140 and 159. The first four are
+in the deployed bundle; 140 touches a test file only, so it ships nothing; **159 is
+user-facing and NOT yet deployed**. The next conversation should start from `docs/follow-ups.md`'s open entries; see
 the pointer section below. The standing candidates, in the order they were last presented:
-**159** and **160**, and the newly filed **161** (the one label tier where a turned part
-still says nothing).
+**160**, and **161** (the one label tier where a turned part still says nothing).
 
 **The cut list line of work is CLOSED as of 2026-08-01.** Cut list, diagrams, label
 layout, per-face views, board feet and sheet nesting are all shipped and merged. Do not
@@ -115,6 +115,7 @@ narrative for every row is in `docs/history.md`.
 | gesture flags | 08-31 | — | *no spec* — follow-up 148: `gesturing`/`gestureSnapshotTaken` move into the store's state, so `replaceDocument` ends a leaked gesture |
 | turned label | 08-31 | — | *no spec* — follow-up 92: `formatDims` is the one home of `length × width`, and a turned part's label says so in words |
 | agreement-test cost | 08-31 | — | *no spec* — follow-up 140: the agreement test hoists `boardSolids` out of its probe loops; no source change |
+| duplicate error | 08-31 | — | *no spec* — follow-up 159: a failed duplicate reports its cause inline on the failing row |
 
 ### The deployment rule, stated once
 
@@ -368,6 +369,10 @@ src/
 │   │                       model, deliberately: a guide's marker is a known-bad hit
 │   │                       target, so there is no click-the-guide path to get wrong
 │   ├── ProjectMenu.tsx     the caret-triggered project list: switch, duplicate, the
+│   │                       inline duplicate error (fu 159) — cause-carrying like
+│   │                       TapeError, per-ROW so two rows cannot be confused, and
+│   │                       cleared by ONE effect keyed on `open` rather than beside
+│   │                       each of six close paths (inv 34's argument),
 │   │                       two-step inline delete, + New project, Import. NOT an ARIA
 │   │                       menu, decided rather than omitted — a row is a name plus
 │   │                       two independent actions, which is grid-shaped, so plain
@@ -965,7 +970,7 @@ worked examples behind several of them are in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 926 tests across 35 files
+npm test           # Vitest, currently 934 tests across 35 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1003,6 +1008,12 @@ The handful worth knowing without opening that file:
   neither remedy it named. The heavy case was not expensive geometry, it was a test calling
   a pure function 4,650 times for one unchanging board. 1,549 ms → 11 ms inside a full-suite
   run, no `testTimeout`, no source change.
+- **159** — CLOSED 2026-08-31. A failed duplicate now names its cause inline on the failing
+  row. Read its closure before touching that handler: the cause is read off
+  `storage.available` (the ADAPTER flag, never the React `available`, which is a render
+  behind), and the read's position relative to `setAvailable` is deliberately documented as
+  NOT mattering — a surviving mutation, recorded so nobody preserves an ordering that means
+  nothing.
 - **92** — CLOSED 2026-08-31. Both halves: `formatDims` is now the single home of
   `length × width` in `nesting.ts`, and a turned part's label says `turned` in words. Read
   its closure before adding anything to a sheet label — the word rides on

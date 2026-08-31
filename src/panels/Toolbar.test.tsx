@@ -10,6 +10,8 @@ beforeEach(reset);
 
 const noop = () => {};
 const asyncNoop = async () => {};
+// Duplicate reports a cause or null (follow-up 159); null is "it worked".
+const asyncOk = async () => null;
 
 /**
  * Every view toggle is optional-by-omission here: the defaults keep each test
@@ -32,7 +34,7 @@ function renderToolbar(overrides: Partial<Parameters<typeof Toolbar>[0]> = {}) {
       activeId=""
       onOpenProject={noop}
       onNewProject={noop}
-      onDuplicateProject={asyncNoop}
+      onDuplicateProject={asyncOk}
       onDeleteProject={asyncNoop}
       onImportProject={noop}
       {...overrides}

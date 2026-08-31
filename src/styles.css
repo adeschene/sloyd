@@ -251,6 +251,22 @@ button[aria-pressed='true'] {
 
 .project-row { display: flex; align-items: center; gap: 2px; }
 
+/* A row and, when its duplicate failed, the message under it (follow-up 159).
+   The group is what the message belongs to — the row itself is a flex line of
+   buttons and a full-width child would sit in it rather than under it. */
+.project-row-group { display: flex; flex-direction: column; }
+
+/* Reuses `.field-error`'s colour and scale rather than introducing a second
+   inline-error idiom — the same move `.toolbar .field-error` already makes.
+   Only the box changes: indented under the row it belongs to, and allowed to
+   wrap, since the popup has a min-width and these sentences are longer than a
+   field's. */
+.project-menu-popup .field-error {
+  flex: none;
+  margin: 0 0.5rem 4px 1.6rem;
+  white-space: normal;
+}
+
 .project-row-open {
   flex: 1;
   min-width: 0;

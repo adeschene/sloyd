@@ -96,6 +96,84 @@ describe('ProjectMenu', () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
+  /**
+   * Follow-up 159. `duplicateProject` returns null for a source that is
+   * missing or unreadable, and that path moves no verdict: `storage.available`
+   * is untouched (the store is working, one project's data is gone), so the
+   * banner cannot speak for it. The user pressed a button and nothing
+   * happened. The surface is inline on the row, the way a cut's error lives
+   * with its cut — not the banner, which is easy to miss right after a
+   * deliberate action.
+   */
+  describe('a failed duplicate', () => {
+    const failing = (cause: 'source-missing' | 'write-failed') =>
+      vi.fn().mockResolvedValue(cause);
+
+    it('reports itself on the row that failed', async () => {
+      const onDuplicate = failing('source-missing');
+      render(<ProjectMenu activeId="a" onOpen={vi.fn()} onNew={vi.fn()} onDuplicate={onDuplicate} onDelete={vi.fn()} onImport={vi.fn()} />);
+      const user = await open();
+      await user.click(await screen.findByLabelText('Duplicate Workbench'));
+
+      const err = await screen.findByRole('status');
+      expect(err.textContent).toMatch(/missing/i);
+      // On the failing row, not merely somewhere in the popup — the whole
+      // point of a per-row surface is that two rows cannot be confused.
+      expect(err.closest('.project-row-group')).toContainElement(
+        screen.getByLabelText('Duplicate Workbench'),
+      );
+      expect(err.closest('.project-row-group')).not.toContainElement(
+        screen.getByLabelText('Duplicate Shaker end table'),
+      );
+    });
+
+    it('names the cause, because the two failures need different sentences', async () => {
+      const onDuplicate = failing('write-failed');
+      render(<ProjectMenu activeId="a" onOpen={vi.fn()} onNew={vi.fn()} onDuplicate={onDuplicate} onDelete={vi.fn()} onImport={vi.fn()} />);
+      const user = await open();
+      await user.click(await screen.findByLabelText('Duplicate Workbench'));
+      // A write failure is not the source going missing, and saying so would
+      // send the user looking for the wrong thing. The banner also shows here.
+      expect((await screen.findByRole('status')).textContent).toMatch(/storage/i);
+      expect((await screen.findByRole('status')).textContent).not.toMatch(/missing/i);
+    });
+
+    it('says nothing when the duplicate succeeds', async () => {
+      const onDuplicate = vi.fn().mockResolvedValue(null);
+      render(<ProjectMenu activeId="a" onOpen={vi.fn()} onNew={vi.fn()} onDuplicate={onDuplicate} onDelete={vi.fn()} onImport={vi.fn()} />);
+      const user = await open();
+      await user.click(await screen.findByLabelText('Duplicate Workbench'));
+      await waitFor(() => expect(onDuplicate).toHaveBeenCalled());
+      expect(screen.queryByRole('status')).toBeNull();
+    });
+
+    it('clears when the menu is closed and reopened', async () => {
+      const onDuplicate = failing('source-missing');
+      render(<ProjectMenu activeId="a" onOpen={vi.fn()} onNew={vi.fn()} onDuplicate={onDuplicate} onDelete={vi.fn()} onImport={vi.fn()} />);
+      const user = await open();
+      await user.click(await screen.findByLabelText('Duplicate Workbench'));
+      await screen.findByRole('status');
+
+      await user.click(screen.getByLabelText('Open project menu'));
+      await user.click(screen.getByLabelText('Open project menu'));
+      await screen.findAllByText('Workbench');
+      expect(screen.queryByRole('status')).toBeNull();
+    });
+
+    it('does not leave one row\'s error standing after another row succeeds', async () => {
+      const onDuplicate = vi.fn()
+        .mockResolvedValueOnce('source-missing')
+        .mockResolvedValueOnce(null);
+      render(<ProjectMenu activeId="a" onOpen={vi.fn()} onNew={vi.fn()} onDuplicate={onDuplicate} onDelete={vi.fn()} onImport={vi.fn()} />);
+      const user = await open();
+      await user.click(await screen.findByLabelText('Duplicate Workbench'));
+      await screen.findByRole('status');
+
+      await user.click(screen.getByLabelText('Duplicate Shaker end table'));
+      await waitFor(() => expect(screen.queryByRole('status')).toBeNull());
+    });
+  });
+
   it('exposes duplicate and delete to the keyboard, not hover alone', async () => {
     // Hover-only reveal would put both operations out of reach without a
     // pointer. They are always in the DOM; CSS handles the reveal.
@@ -132,8 +210,10 @@ describe('ProjectMenu', () => {
   // again) until the test itself releases the promise.
   it('awaits onDuplicate before refreshing the project list', async () => {
     const listProjects = vi.spyOn(storage, 'listProjects').mockResolvedValue(entries);
-    let release!: () => void;
-    const onDuplicate = vi.fn(() => new Promise<void>((r) => { release = r; }));
+    let release!: (v: null) => void;
+    // Resolves null — a SUCCESSFUL duplicate held open, which is what this
+    // test is about; the failure paths are covered in their own describe.
+    const onDuplicate = vi.fn(() => new Promise<null>((r) => { release = r; }));
     render(<ProjectMenu activeId="a" onOpen={vi.fn()} onNew={vi.fn()} onDuplicate={onDuplicate} onDelete={vi.fn()} onImport={vi.fn()} />);
     const user = await open();
     const dupButtons = await screen.findAllByLabelText(/^Duplicate /);
@@ -144,7 +224,7 @@ describe('ProjectMenu', () => {
     // Still pending: the click's own refresh must not have run yet.
     expect(listProjects).not.toHaveBeenCalled();
 
-    release();
+    release(null);
     await waitFor(() => expect(listProjects).toHaveBeenCalled());
   });
 

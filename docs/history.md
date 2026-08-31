@@ -124,6 +124,57 @@ and 79.
 
 ## What each round did
 
+**What the duplicate-error round did (2026-08-31)** — the sixth small round of the day, and
+the first since the project library to add a control surface rather than only correct one.
+Follow-up **159** had recorded that `onDuplicateProject` reports the storage layer's verdict
+like its three siblings, but that `duplicateProject` returning null for a missing or
+unreadable source moves no verdict to report: `storage.available` stays true, correctly,
+because the store is working and one project's data is gone. The user pressed ⧉ and nothing
+happened — no row, no banner, no message. The entry stopped there on purpose, because the
+honest fix is a surface and a surface is a design question.
+
+That question was put to the user with four options — a message on the failing row, one
+message at the foot of the popup, marking the row unopenable instead, and (implicitly, from
+`importIntoLibrary`) throwing. The row-level surface was chosen, which is also the one the
+app's own idiom already argues for: a cut's error lives with its cut.
+
+**The cause is carried rather than collapsed to a boolean**, because `duplicateProject`
+returns null for two reasons that need different sentences. `source-missing` is 159's case;
+`write-failed` is storage refusing the new key, which raises the banner too, and telling that
+user their data is "missing" would send them looking for the wrong thing. This is
+`TapeReadout`'s cause-carrying `TapeError` applied one component over.
+
+**The two are told apart by `storage.available` — the adapter flag, never the `available`
+React state**, which is a render behind and is not updated synchronously by `setAvailable`.
+Mutation pinned that: swapping them turns the write-failure case red. The same mutation pass
+also killed a claim of the round's own — that the read had to sit *after* `setAvailable`. It
+does not; that call touches React state and mutates nothing on the adapter, so hoisting the
+read changes no behaviour and no test. The comment was corrected to say which half is real,
+so a later reader does not preserve an ordering that means nothing while feeling protected by
+it. That is the ledger's recurring "a constant whose stated justification doesn't reproduce"
+shape, caught this time inside the round that wrote it.
+
+**One clearing rule, as an effect keyed on `open`**, not a reset beside each of the popup's
+six close paths — invariant 34's argument, one component over. The per-row error also dies
+with its row for free, since it renders inside `projects.map`.
+
+Ten mutations, with both survivors reported rather than hidden. Caught: never reporting (6
+red), never clearing on success, dropping the clearing effect, showing the message on every
+row (4), one message for both causes (2), always `source-missing`, always `write-failed`,
+never reporting from `App` (2), and reading React state instead of the adapter flag. Survived:
+the `setAvailable` ordering above, which is why the comment changed instead of the code.
+
+**The browser pass covered what no fake could.** The unit tests drive a stubbed `onDuplicate`
+and a fake store, so they pin the wiring; only a real browser shows the real adapter taking
+its null branch for a key that is really absent. `localStorage` was seeded with a library
+index naming two projects and only one project key written — the state the two-tab case
+(**154**) or a hand edit produces. The message appeared under the failing row and not the
+healthy one, in `.field-error`'s existing `--alert` colour at 11px, wrapping to two lines
+inside the 20rem popup without overflowing it; the banner correctly stayed away; nothing was
+written; and both clearing rules held live, including a success on the healthy row clearing
+the broken row's message. `docs/browser-verification-duplicate-error.md`. 934/934 tests,
+build clean, no schema or storage-layout change.
+
 **What the agreement-test round did (2026-08-31)** — the fifth small round of the day, and
 the only one to close a follow-up by rejecting both remedies that follow-up named. **140**
 recorded `depthField.agreement.test.ts`'s heaviest case ("rabbets on all four edges plus

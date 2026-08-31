@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { useStore } from '../store/store';
 import { ProjectMenu } from './ProjectMenu';
+import type { DuplicateFailure } from './ProjectMenu';
 
 interface Props {
   children?: ReactNode;
@@ -14,7 +15,7 @@ interface Props {
   activeId: string;
   onOpenProject: (id: string) => void;
   onNewProject: () => void;
-  onDuplicateProject: (id: string) => Promise<void>;
+  onDuplicateProject: (id: string) => Promise<DuplicateFailure | null>;
   onDeleteProject: (id: string) => Promise<void>;
   onImportProject: () => void;
   /** True when the viewport is drawing through an orthographic camera. */

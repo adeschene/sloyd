@@ -3417,6 +3417,50 @@ question rather than a fix. Recorded, not built: it is reachable only when a pro
 gone missing or corrupt underneath a listed row, which is the two-tab case (**154**) or hand
 editing.
 
+**CLOSED 2026-08-31. The surface was built, and it is per-row.** `onDuplicateProject` now
+resolves `DuplicateFailure | null`, and `ProjectMenu` prints the message under the row that
+failed. The design question the entry raised was put to the user, who chose the row-level
+surface over one message at the foot of the popup and over marking the row unopenable.
+
+Four things decided rather than fallen into:
+
+- **The cause is carried, not collapsed to a boolean.** `duplicateProject` returns null for
+  two reasons and they need different sentences: `source-missing` is this entry's case, and
+  `write-failed` is storage refusing the new key — which also raises the banner, so saying
+  "missing" there would send the user looking for the wrong thing. Same shape as
+  `TapeReadout`'s cause-carrying `TapeError`.
+- **The two are told apart by `storage.available`, and it must be the ADAPTER FLAG, not the
+  `available` React state.** The React value is a render behind and `setAvailable` does not
+  update it synchronously, so reading it reports the *previous* attempt's verdict. Pinned by
+  mutation. What is **not** load-bearing, though it looks it: the read's position relative to
+  `setAvailable` — that call touches React state and mutates nothing on the adapter, so
+  hoisting the read above it changes no behaviour and no test. Both facts are in `App.tsx`'s
+  comment, the second one precisely so a later reader does not preserve an ordering that means
+  nothing while feeling protected by it.
+- **ONE clearing rule, as an effect keyed on `open`** — not a `setFailed(null)` beside each of
+  the six close paths (Escape, outside click, focus-out, opening a row, New, Import). A flag
+  reset by convention at every call site is the shape invariant 34 argues against, and a
+  seventh close path inherits the clear without knowing it exists. The per-row error also dies
+  with its row for free: it renders inside `projects.map`, so an id that leaves the list takes
+  its message with it.
+- **`.field-error` reused, not a second inline-error idiom**, with a scoped
+  `.project-menu-popup` override — the move `.toolbar .field-error` already makes.
+
+Ten mutations, and the two that survived are recorded rather than hidden. Caught: never
+reporting (6 red), never clearing on success (1), dropping the clearing effect (1), showing the
+message on every row (4), one message for both causes (2), always `source-missing` (1), always
+`write-failed` (1), never reporting from `App` (2), and reading the React state instead of the
+adapter flag (1). Survived: reading `storage.available` before rather than after
+`setAvailable` — genuinely unobservable, and the comment now says so instead of claiming the
+ordering matters.
+
+Verified against the dev server on the real path — a library index naming two projects with
+only one project key present, which is the state 154 or a hand edit produces:
+`docs/browser-verification-duplicate-error.md`. The unit tests drive a stubbed `onDuplicate`
+and a fake store, so they pin the wiring; only the browser pass shows the real adapter taking
+the null branch for a key that is really absent, the banner correctly staying away, and
+nothing being written.
+
 **160. `onDeleteProject`'s in-flight token covers its ADOPTION, not the index write, and that
 residue is deliberate.** The other three handlers can be made to move the persisted `activeId`
 only on the far side of the token check (157's closure). `deleteProject` cannot: the project is

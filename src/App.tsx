@@ -8,6 +8,7 @@ import { FileMenu, SaveIndicator, StorageBanner } from './panels/FileMenu';
 import type { FileMenuHandle } from './panels/FileMenu';
 import { CutList } from './panels/CutList';
 import { TapeReadout } from './panels/TapeReadout';
+import type { DuplicateFailure } from './panels/ProjectMenu';
 import { canBeginLength } from './units/length';
 import { tapeAxisFromKey, createDocument, DocumentError } from './document/document';
 import type { SloydDocument } from './document/document';
@@ -294,8 +295,12 @@ export default function App() {
   // so `storage.available` is still whatever it last was. Flipping it false
   // there would make the banner say persistence is broken when it is not,
   // which browser.ts rules against for the same reason it does at its own
-  // `_available` sites. The gap is that a failed duplicate is silent; that is
-  // follow-up 159, not something to paper over here.
+  // `_available` sites. That limit STILL HOLDS and is still right; what
+  // changed (follow-up 159) is that the banner is no longer the only place
+  // a duplicate could have reported itself, so the limit costs nothing.
+  // `onDuplicateProject` now returns WHY it failed and ProjectMenu prints it
+  // on the failing row — the same reasoning that gives `importIntoLibrary`
+  // its throw, applied to the one handler that had nowhere to put a verdict.
   //
   // `importIntoLibrary` ADDITIONALLY throws, and that is not an
   // inconsistency: it is the only one of the four invoked from a flow that
@@ -328,10 +333,29 @@ export default function App() {
   // were doing. The new row appears in the list on the menu's own refresh.
   // It still flushes — the copy is taken from what is STORED, so an unwritten
   // edit would be missing from a duplicate of the project you are looking at.
-  const onDuplicateProject = useCallback(async (id: string) => {
+  // The cause is READ OFF `storage.available` rather than plumbed out of the
+  // adapter, and that is exact rather than convenient: `duplicateProject`
+  // returns null for two reasons, and they are told apart by precisely this
+  // flag. A source it could not load moves nothing, so the store is still
+  // available; a write it could not commit sets `_available = false` on its
+  // way out.
+  //
+  // **`storage.available`, NOT the `available` React state** — that is the
+  // load-bearing half, and it was pinned by mutation rather than argued.
+  // `available` is a render behind and `setAvailable` does not update it
+  // synchronously, so reading it here reports the PREVIOUS attempt's verdict:
+  // swapping the two turns the write-failure case red. What is NOT
+  // load-bearing, despite looking like it: the position relative to
+  // `setAvailable`. That call sets React state and mutates nothing on the
+  // adapter, so hoisting the read above it changes no behaviour and no test —
+  // checked, so that a later reader does not preserve an ordering that means
+  // nothing while feeling protected by it.
+  const onDuplicateProject = useCallback(async (id: string): Promise<DuplicateFailure | null> => {
     await flushAutoSave();
-    await storage.duplicateProject(id);
+    const copyId = await storage.duplicateProject(id);
     setAvailable(storage.available);
+    if (copyId) return null;
+    return storage.available ? 'source-missing' : 'write-failed';
   }, [flushAutoSave]);
 
   // `deleteProject` resolves `{ activeId, doc } | null`, where null means

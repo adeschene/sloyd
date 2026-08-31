@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from './App';
 import { useStore } from './store/store';
@@ -630,6 +630,60 @@ describe('App project switching', () => {
 
     expect(screen.getByLabelText('Open project menu')).toHaveAttribute('aria-expanded', 'false');
     expect(useStore.getState().tool).toBe('move');
+  });
+
+  // ---- Follow-up 159: a failed duplicate reports its cause -----------------
+  //
+  // ProjectMenu prints the message; App decides WHICH. Those tests pass a
+  // cause straight in, so this is the only coverage of the decision itself —
+  // and the decision is the subtle half. `duplicateProject` returns null for
+  // two reasons and they are told apart by `storage.available`: a source it
+  // could not load moves nothing (the store works, one project's data is
+  // gone), while a write it could not commit flips the flag on its way out.
+  describe('a duplicate that fails', () => {
+    it('reports a missing source without claiming storage is broken', async () => {
+      const user = userEvent.setup();
+      // Listed, but its project key is gone underneath — the two-tab case
+      // (154) or a hand edit. The adapter's own null path, not a mock of it.
+      duplicateProject.mockResolvedValue(null);
+      render(<App />);
+      await act(async () => { await Promise.resolve(); });
+
+      await user.click(screen.getByLabelText('Open project menu'));
+      const dup = await screen.findByLabelText(/^Duplicate /);
+      await user.click(dup);
+
+      const err = await screen.findByRole('status');
+      expect(err.textContent).toMatch(/missing/i);
+      // The banner must NOT appear: persistence is fine, and saying it is
+      // broken would send the user somewhere there is nothing to fix.
+      expect(screen.queryByText(/not available|storage/i, { selector: '.storage-banner' })).toBeNull();
+    });
+
+    it('reports a write failure as a write failure', async () => {
+      const user = userEvent.setup();
+      duplicateProject.mockImplementation(async () => { mockAvailable = false; return null; });
+      render(<App />);
+      await act(async () => { await Promise.resolve(); });
+
+      await user.click(screen.getByLabelText('Open project menu'));
+      await user.click(await screen.findByLabelText(/^Duplicate /));
+
+      expect((await screen.findByRole('status')).textContent).toMatch(/storage/i);
+      expect((await screen.findByRole('status')).textContent).not.toMatch(/missing/i);
+    });
+
+    it('says nothing when the duplicate works', async () => {
+      const user = userEvent.setup();
+      render(<App />);
+      await act(async () => { await Promise.resolve(); });
+
+      await user.click(screen.getByLabelText('Open project menu'));
+      await user.click(await screen.findByLabelText(/^Duplicate /));
+      await waitFor(() => expect(duplicateProject).toHaveBeenCalled());
+
+      expect(screen.queryByRole('status')).toBeNull();
+    });
   });
 
   // ---- Follow-up 157: one shared in-flight token ---------------------------
