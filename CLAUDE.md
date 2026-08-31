@@ -27,15 +27,17 @@ tradition built around hand woodworking.
 Static SPA, containerized, **926/926 tests passing across 35 files**, schema
 `CURRENT_VERSION` **6**.
 
-**`master` IS AHEAD OF PRODUCTION as of 2026-08-31 — do not read this section as "production
-matches master".** Production serves bundle `index-DGokhnUh.js`, which is `d0a29cf` (the
-switch-token round, follow-ups 157 and 158). `master` has **three** further commits, all
-**merged and unreleased**: `9cab7f6` (the id-uniqueness round, follow-ups 97 and 131), where
-the user was offered a deploy and said no need for now; the gesture-flags round (follow-up
-148); and the turned-label round (follow-up 92). **The third one IS user-facing** — a turned
-part's label on a rendered sheet now says `turned` — which the first two were not, so the
-"no urgency" that covered them does not extend to it on its own argument. It has not been
-offered for deploy yet. `DEPLOYMENT.local.md` carries every
+**PRODUCTION MATCHES `master` as of 2026-08-31.** Production serves bundle
+`index-Bt74Y3lR.js`, which is `4484f92`. That build shipped three rounds at once: the
+id-uniqueness round (follow-ups 97 and 131), which had been unreleased by decision; the
+gesture-flags round (follow-up 148); and the turned-label round (follow-up 92), **the only
+user-facing change of the three** and the one that prompted the deploy. Confirmed live by
+page load and bundle hash at both the edge and in-network, with `localStorage` cleared in the
+verifying browser afterward. The turned label itself was **not** exercised against
+production — it needs boards, so exercising it would write a document — and was verified
+against the dev server instead (`docs/browser-verification-turned-label.md`), which is the
+deployment rule working rather than a gap. `DEPLOYMENT.local.md` carries every runbook entry
+and bundle hash. `DEPLOYMENT.local.md` carries every
 runbook entry and bundle hash.
 
 **The 2026-08-15 project-library deploy was the first that ACTS on a user's stored data at
