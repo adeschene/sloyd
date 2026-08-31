@@ -61,11 +61,18 @@ production — it needs boards, so exercising it would write a document — and 
 against the dev server instead (`docs/browser-verification-turned-label.md`), which is the
 deployment rule working rather than a gap.
 
-**Check what a later commit touches before reading `git log` as a pending release** — three
-rounds inside the current build ship nothing on their own, each edit-tests-only and each
-byte-identical to the bundle before it: the agreement-test round (follow-up 140), 159's focus
-test, and the whole delete-token round (follow-up 160). **Nothing is pending.**
-`DEPLOYMENT.local.md` carries every runbook entry and bundle hash.
+**Check what a later commit touches before reading `git log` as a pending release.** Two
+different things make `git log` look ahead when it is not, and both are normal here:
+
+- **The deployed commit ALWAYS trails `HEAD`, by construction.** A deploy's own record — this
+  Status block, the runbook entry, the history note — is written *after* the deploy it
+  describes, so the commit naming a bundle can never be the last commit. Expect at least one
+  docs-only commit past whatever hash Status names, and do not read it as unreleased work.
+- **Some rounds ship nothing at all.** Three inside the current build are edit-tests-only and
+  built a byte-identical bundle: the agreement-test round (follow-up 140), 159's focus test,
+  and the whole delete-token round (follow-up 160).
+
+**Nothing is pending.** `DEPLOYMENT.local.md` carries every runbook entry and bundle hash.
 
 **The 2026-08-15 project-library deploy was the first that ACTS on a user's stored data at
 page load**, which
