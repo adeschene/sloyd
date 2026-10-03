@@ -195,3 +195,49 @@ describe('hangs — one fault, one report', () => {
     ))).toEqual(['overlap']);
   });
 });
+
+const tips = (doc: SloydDocument) => checkDesign(doc, NO_LIMITS).filter((v) => v.kind === 'tips');
+/** A 10x1x10 base on the floor with a 10in-deep, 1in-thick beam of length L resting on it from x = 0. */
+const cantilever = (L: number) => docOf(span('Base', [0, 0, 0], [10, 1, 10]), span('Beam', [0, 1, 0], [L, 2, 10]));
+
+describe('tips (fu 165)', () => {
+  it('passes a centre of mass more than the margin inside (L = 21.6 puts it at x ≈ 8.965)', () => {
+    expect(tips(cantilever(21.6))).toEqual([]);
+  });
+  it('flags one less than the margin inside (L = 21.8 puts it at x ≈ 9.045), naming the direction', () => {
+    const v = tips(cantilever(21.8));
+    expect(v).toHaveLength(1);
+    expect(v[0].message.startsWith('The piece would tip toward +X: its centre of mass is 0.955in inside the edge')).toBe(true);
+    expect(v[0].message).toContain('keep it at least 1in inside');
+  });
+  it('says "beyond" when the centre of mass is outside the footprint', () => {
+    // Centre at x = (100·5 + 300·15) / 400 = 12.5; the footprint's +X edge is at 10.
+    expect(tips(cantilever(30))[0].message).toContain('its centre of mass is 2.5in beyond the edge');
+  });
+
+  it('a 3in footprint uses a 0.75in margin, not an impossible 1in', () => {
+    const doc = docOf(span('Foot', [0, 0, 0], [3, 1, 3]), span('Arm', [0, 1, 0], [4.9, 2, 3]));
+    expect(tips(doc)).toEqual([]); // centre at x ≈ 2.089: 0.911 inside, under 1 but over 0.75
+  });
+
+  it('weighs by VOLUME: a light arm far out does not tip a heavy base', () => {
+    expect(tips(docOf(span('Base', [0, 0, 0], [10, 1, 10]), span('Arm', [0, 1, 4.5], [30, 1.25, 5.5])))).toEqual([]);
+  });
+
+  it('side table C: a heavy top offset past the plinth tips; centred, it does not', () => {
+    const table = (topMinX: number) => docOf(
+      span('Plinth', [-8, 0, -6], [8, 1.5, 6]),
+      span('Spine', [-0.375, 1.5, -6], [0.375, 24.5, 6]),
+      span('Top', [topMinX, 24.5, -8], [topMinX + 30, 26, 8]),
+    );
+    expect(tips(table(-15))).toEqual([]);
+    expect(tips(table(0))[0].message).toContain('would tip toward +X');
+  });
+
+  it('no part on the floor: no tips (everything is already unsupported)', () => {
+    expect(kinds(docOf(box('A', [0, 5, 0], [10, 1, 10])))).toEqual(['unsupported']);
+  });
+  it('a floating part adds no weight (Deviation 1): unsupported only', () => {
+    expect(kinds(docOf(box('Base', [0, 0, 0], [2, 1, 2]), box('Far', [40, 5, 0], [10, 1, 10])))).toEqual(['unsupported']);
+  });
+});

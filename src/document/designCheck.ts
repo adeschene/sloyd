@@ -12,6 +12,7 @@ import { boardExtents } from './geometry';
  * take the → units edge (CLAUDE.md, Architecture).
  *
  * `hangs` (fu 165): every part off the floor must be held: resting, between, or lapped (inv 39).
+ * `tips` (fu 165): the grounded parts' volume-weighted centre of mass sits at least min(1in, s/4) inside the floor footprint's hull.
  *
  * PHASE 2 NOTE (spec §4.4): `overlap` must become "interpenetration not
  * accounted for by a cut" when joinery is generated. Relax it on purpose.
@@ -47,6 +48,70 @@ const distance = (a: Box, b: Box) =>
 
 /** Coverage a side face needs, on BOTH faces of a pair, to hold a part between two others (fu 165). */
 export const HELD_COVERAGE = 0.5;
+
+/** Inches the centre of mass must sit inside the floor footprint; shrinks to s/4 for a footprint under 4in across (fu 165). */
+export const TIP_MARGIN = 1;
+
+type P2 = [number, number];
+/** Andrew's monotone chain, counter-clockwise in (x, z); collinear points dropped. */
+function hull(points: P2[]): P2[] {
+  const ps = [...points].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cross = (o: P2, a: P2, b: P2) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const half = (list: P2[]) => {
+    const h: P2[] = [];
+    for (const p of list) {
+      while (h.length >= 2 && cross(h[h.length - 2], h[h.length - 1], p) <= 0) h.pop();
+      h.push(p);
+    }
+    h.pop();
+    return h;
+  };
+  return [...half(ps), ...half([...ps].reverse())];
+}
+
+/**
+ * STABLE (fu 165): the volume-weighted centre of mass of the GROUNDED parts
+ * must sit at least min(TIP_MARGIN, s/4) inside the convex hull of the
+ * on-the-floor parts' plan corners. Floating parts are left out — they are
+ * already `unsupported`, and one fault gets one report.
+ */
+function tipsMessage(boxes: Box[], grounded: Set<number>): string | null {
+  const floor = boxes.filter((b) => b.min[1] <= TOUCH);
+  if (floor.length === 0) return null;
+  let vol = 0, cx = 0, cz = 0;
+  for (const i of grounded) {
+    const b = boxes[i];
+    const v = (b.max[0] - b.min[0]) * (b.max[1] - b.min[1]) * (b.max[2] - b.min[2]);
+    vol += v;
+    cx += v * (b.min[0] + b.max[0]) / 2;
+    cz += v * (b.min[2] + b.max[2]) / 2;
+  }
+  const c: P2 = [cx / vol, cz / vol];
+  const h = hull(floor.flatMap((b): P2[] => [
+    [b.min[0], b.min[2]], [b.max[0], b.min[2]], [b.max[0], b.max[2]], [b.min[0], b.max[2]],
+  ]));
+  if (h.length < 3) {
+    return 'The piece would tip: its centre of mass is not over a usable footprint. Widen the base or move weight inward.';
+  }
+  const xs = h.map((p) => p[0]);
+  const zs = h.map((p) => p[1]);
+  const s = Math.min(Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs));
+  const m = Math.min(TIP_MARGIN, s / 4);
+  let d = Infinity;
+  let normal: P2 = [1, 0];
+  h.forEach((a, k) => {
+    const b = h[(k + 1) % h.length];
+    const ex = b[0] - a[0], ez = b[1] - a[1];
+    const len = Math.hypot(ex, ez);
+    const dist = (ex * (c[1] - a[1]) - ez * (c[0] - a[0])) / len; // + inside (CCW: interior on the left)
+    if (dist < d) { d = dist; normal = [ez / len, -ex / len]; }   // outward = right of the edge
+  });
+  if (d >= m) return null;
+  const dir = Math.abs(normal[0]) >= Math.abs(normal[1])
+    ? `${normal[0] >= 0 ? '+' : '-'}X`
+    : `${normal[1] >= 0 ? '+' : '-'}Z`;
+  return `The piece would tip toward ${dir}: its centre of mass is ${inches(Math.abs(d))} ${d >= 0 ? 'inside' : 'beyond'} the edge of what touches the floor; keep it at least ${inches(m)} inside. Widen the base or move weight inward.`;
+}
 
 /** One face contact ON a box: which face (axis, side), who touches it, over what area. */
 interface Contact { other: number; axis: number; side: -1 | 1; area: number }
@@ -179,6 +244,9 @@ export function checkDesign(doc: SloydDocument, limits: DesignLimits): Violation
     const message = hangsMessage(b, contacts[i], boxes);
     if (message) out.push({ kind: 'hangs', message });
   });
+
+  const tip = tipsMessage(boxes, grounded);
+  if (tip) out.push({ kind: 'tips', message: tip });
   return out;
 }
 
