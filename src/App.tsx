@@ -97,8 +97,9 @@ export default function App() {
   useEffect(() => {
     void storage.getLlmSettings().then(setLlmSettingsState);
   }, []);
-  // Where focus was when the sheet opened, so closing it puts focus back.
-  // Captured HERE rather than in CutList's mount effect: `inert` on the shell
+  // Where focus was when the sheet or a dialog opened, so closing it puts
+  // focus back. Captured HERE, in each opener, rather than in CutList's or a
+  // dialog's mount effect: `inert` on the shell
   // blurs whatever was focused behind the scrim, so by the time the modal
   // mounts the opener is already gone from `document.activeElement`.
   const opener = useRef<HTMLElement | null>(null);
@@ -529,10 +530,11 @@ export default function App() {
       // Never steal keys from a field the user is typing in.
       if (isTextEntry(e.target as HTMLElement)) return;
 
-      // The cut list or a dialog covers the app, so board shortcuts must not fire behind
-      // it — Delete/Backspace especially, which would silently delete the
-      // selected board while the user is reading a sheet that never shows a
-      // selection. Escape is handled by CutList itself.
+      // The cut list or a dialog covers the app, so board shortcuts must not
+      // fire behind it — Delete/Backspace especially, which would silently
+      // delete the selected board while the user is reading a sheet that never
+      // shows a selection. Escape is handled by CutList and the dialogs
+      // themselves.
       //
       // This guard exists BECAUSE the listener is on `window`: the `inert`
       // shell below makes the covered UI unfocusable and unclickable, but a
@@ -548,8 +550,8 @@ export default function App() {
       if (modalOpen) return;
 
       // Escape backs out one level: drop what is held first, then the tool.
-      // Note this sits below the cutListOpen guard on purpose — CutList owns
-      // Escape while it is open, and a grab or anchor behind the sheet must
+      // Note this sits below the modalOpen guard on purpose — CutList and both
+      // dialogs own Escape while open, and a grab or anchor behind them must
       // survive it.
       if (e.key === 'Escape') {
         const { grabbed, tapeAxis, tapeAnchor, tool, cancelGrab, setTapeAxis, clearTapeAnchor, setTool } =
@@ -597,8 +599,8 @@ export default function App() {
       // second snap point happens to lie. In this EXISTING listener with M and
       // T rather than in one of its own, which is CLAUDE.md's standing rule for
       // window-level shortcuts — and here the inheritance buys behaviour rather
-      // than merely satisfying the rule: `cutListOpen` above means nothing arms
-      // an axis behind a sheet, and `isTextEntry` at the top is why the twin
+      // than merely satisfying the rule: `modalOpen` above means nothing arms
+      // an axis behind a sheet or a dialog, and `isTextEntry` at the top is why the twin
       // branch in TapeReadout has to exist at all (once the box has focus this
       // listener never sees the key).
       //
@@ -635,9 +637,9 @@ export default function App() {
       // It lives inside this EXISTING listener rather than in one of its own,
       // which is the rule CLAUDE.md states for every window-level shortcut: a
       // window listener never sees which subtree an event came from, so each
-      // one needs the cut-list flag explicitly. Here that inheritance buys two
-      // guards rather than one — `cutListOpen` above (no seeding a hidden box
-      // while a sheet is being read) and `isTextEntry` at the top, which is
+      // one needs the modal flag explicitly. Here that inheritance buys two
+      // guards rather than one — `modalOpen` above (no seeding a hidden box
+      // while a sheet or a dialog is up) and `isTextEntry` at the top, which is
       // also why only the FIRST character needs capturing: once the input has
       // focus every later keystroke matches isTextEntry and returns early,
       // reaching the field directly.
@@ -727,8 +729,9 @@ export default function App() {
   return (
     <div className="app">
       {/*
-        Everything except the sheet lives in one wrapper so it can be made
-        `inert` in a single place while the cut list is open. Without it Tab
+        Everything except the sheet and the dialogs lives in one wrapper so it
+        can be made `inert` in a single place while any of them is open
+        (`modalOpen`). Without it Tab
         walks out of the modal into NameField, the project-name field and the
         DimensionFields behind the scrim — all of which commit on change or
         blur, so the user silently edits the document while reading a sheet

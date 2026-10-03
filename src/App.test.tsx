@@ -1481,6 +1481,34 @@ describe('Generate', () => {
     expect(name.closest('.project-row-open')!.querySelector('.project-row-new')).toHaveTextContent('new');
   });
 
+  it('a generation landing mid-switch does not supersede the switch (invariant 32)', async () => {
+    // Generation is NOT an adopting handler (spec §3.3): it must never bump
+    // switchToken. If it did, a run finishing while a project switch is out
+    // would make the switch find its token moved and abandon itself — the
+    // user clicked a row and nothing happens. Nothing else pins this.
+    llmSettings = { provider: 'anthropic', apiKey: 'k', model: 'claude-opus-5-5' };
+    const otherDoc = createDocument('Other');
+    const otherId = fake.seed(otherDoc);
+    fake.seed(createDocument('Main'));
+    await mountWithOneBoard();
+    const held = deferred<SloydDocument | null>();
+    loadProject.mockImplementationOnce(() => held.promise);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Open project menu' }));
+    const row = await screen.findByText('Other', { selector: '.project-row-name' });
+    await user.click(row.closest('button')!);
+    await waitFor(() => expect(loadProject).toHaveBeenCalledWith(otherId));
+    // The switch is now out, parked on loadProject. Run a generation to
+    // completion underneath it.
+    await user.click(screen.getByRole('button', { name: /generate/i }));
+    await user.type(screen.getByLabelText('Description'), 'a bench');
+    await user.click(screen.getByRole('button', { name: 'Generate' }));
+    await screen.findByRole('button', { name: 'Open Bench' });
+    await act(async () => { held.resolve(structuredClone(otherDoc)); });
+    await waitFor(() => expect(setActiveProject).toHaveBeenCalledWith(otherId));
+    expect(useStore.getState().doc.name).toBe('Other');
+  });
+
   it('Settings saves through the storage seam', async () => {
     await mountWithOneBoard();
     const user = userEvent.setup();
@@ -1496,12 +1524,10 @@ describe('Generate', () => {
     llmSettings = { provider: 'anthropic', apiKey: 'k', model: 'claude-opus-5-5' };
     await mountWithOneBoard();
     const user = userEvent.setup();
-    // The stored settings are read once on mount; wait for them to arrive
-    // before opening, or the dialog renders with no key and no Forget button.
-    await waitFor(() => expect(getLlmSettings).toHaveBeenCalled());
-    await act(async () => { await Promise.resolve(); });
     await user.click(screen.getByRole('button', { name: /settings/i }));
-    await user.click(screen.getByRole('button', { name: 'Forget key' }));
+    // Found rather than got: the stored settings are read once on mount, and
+    // Forget only renders once they have landed in App's state.
+    await user.click(await screen.findByRole('button', { name: 'Forget key' }));
     expect(clearLlmSettings).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('dialog', { name: 'Settings' })).toBeNull();
     expect(viewportProps.current?.shortcutsSuspended).toBe(false);
