@@ -75,11 +75,22 @@ the fourth call.
 
 **What this pass could not confirm**, each one stated rather than implied:
 
-- **The cost figures.** The user did not report the per-row estimates, so nothing here
-  checks the cost arithmetic against a real bill. Follow-up 168.
-- **`cache_read_input_tokens` on repair calls.** It was never observed. Ruling 18's
-  expectation stands untested: the system prompt is probably below the minimum cacheable
-  prefix. Follow-up 167.
+- **The cost figures, only partly confirmed.** The user read the token usage off the
+  Anthropic console. Dollar costs had not appeared there yet, and the app's per-row
+  estimates were not recorded:
+
+  | Model | Calls | Input tokens | Output tokens | At the app's prices |
+  |---|---|---|---|---|
+  | Opus 5.5 (2 bookcases) | 2 | 2,756 | 3,196 | $0.011 + $0.064 = **$0.075** ($0.037 per design) |
+  | Sonnet 5.5 (workbench + 3 side tables) | 9 | 17,345 | 8,520 | $0.035 + $0.085 = **$0.120** ($0.030 per design) |
+
+  That is **≈ $0.19 for six designs**, and **output is 77% of it**. Opus averaged about 1,380
+  input tokens per call, which is roughly the system prompt plus the request. Sonnet averaged
+  about 1,930, because repair calls carry the history. The billed dollars are still unchecked
+  against these numbers. Follow-up 168.
+- **`cache_read_input_tokens` on repair calls.** It was never observed. The usage above
+  makes this matter much less than the plan assumed, though: all input across all eleven
+  calls cost $0.046. Follow-up 167.
 - **The server-side fallback path.** No run reported a refusal, so the after-the-last-fallback
   parse has unit tests only.
 - **Effort.** Plan Step 3 tunes `medium` only if Opus routinely leaves issues after four

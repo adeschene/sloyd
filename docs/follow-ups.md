@@ -3750,8 +3750,18 @@ with a temporary usage log on a repair round. If it is zero, the remedy is a cac
 breakpoint on the last history turn as well: the history is append-only (invariant 37), so
 it is a clean prefix.
 
+**The live pass's console usage makes this LOW VALUE** (`docs/browser-verification-generate.md`).
+Input was 20,101 tokens across eleven calls, $0.046 of a $0.19 total, against $0.149 of
+output. Opus's first calls averaged about 1,380 input tokens, so a fully cached repair round
+would save a fraction of a cent. Output is 77% of the spend. Any cost work should look
+there first: the effort level, the thinking share of the output, and whether repairs could
+send a delta instead of a whole design. Do not spend a round on caching.
+
 **168. The cost estimate has not been checked against a real bill, and loses money on two
-paths.** The live pass did not record the per-row estimates. Separately, the cost of any
+paths.** The live pass did not record the per-row estimates. The console's token counts
+priced at the app's own rates give $0.075 for the Opus pair and $0.120 for the Sonnet four.
+Compare those with the billed dollars once the console shows them; a mismatch means the
+price table is wrong, not the arithmetic. Separately, the cost of any
 calls made before an `LlmError` (auth, rate limit, network) is dropped rather than reported,
 because `RunFailed` carries usage and `LlmError` does not. A sub-cent run also prints
 "≈ $0.00", which reads as free.
