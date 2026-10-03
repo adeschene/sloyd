@@ -5,7 +5,7 @@ import type { Violation } from '../document/designCheck';
 import { ZERO_USAGE, addUsage } from '../llm/types';
 import type { LlmClient, LlmMessage, LlmUsage } from '../llm/types';
 import { SYSTEM_PROMPT, limitsOf, repairMessage, unusableMessage, userMessage } from './prompt';
-import type { GenerateSettings } from './prompt';
+import type { Concept, GenerateSettings } from './prompt';
 
 /** Repair rounds after the first call — 4 calls at most (spec §4.5). */
 export const MAX_REPAIRS = 3;
@@ -54,9 +54,10 @@ export async function runGeneration(
   settings: GenerateSettings,
   signal: AbortSignal,
   onProgress: (p: RunProgress) => void,
+  concept?: Concept,
 ): Promise<RunOutcome> {
   const limits = limitsOf(settings);
-  const messages: LlmMessage[] = [client.userTurn(userMessage(settings))];
+  const messages: LlmMessage[] = [client.userTurn(userMessage(settings, concept))];
   let usage = ZERO_USAGE;
   let best: { doc: SloydDocument; violations: Violation[] } | null = null;
   /** The previous attempt's violation count, or null when it was unusable. */

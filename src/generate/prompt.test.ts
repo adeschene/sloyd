@@ -8,6 +8,14 @@ const base: GenerateSettings = {
 };
 
 describe('prompt', () => {
+  it('without a concept, the message is byte-identical to the pre-variety output', () => {
+    expect(userMessage(base)).toBe(
+      'Design this: A bookcase with five shelves\n\nHard limits:\n- Overall width (X) at most 36in.\n' +
+      '- Overall height (Y) at most 72in.\n- At most 30 parts (moderate detail).\n\nPreferences:\n' +
+      '- Prefer Plywood (material key "plywood") for most parts.\n' +
+      '- Style: Shaker: plain, light, well-proportioned; tapered or square legs; no ornament.',
+    );
+  });
   it('keeps the system prompt free of anything per-run, so it caches', () => {
     expect(SYSTEM_PROMPT).not.toContain('bookcase');
     expect(SYSTEM_PROMPT).not.toMatch(/\d{4}-\d{2}-\d{2}/);
@@ -26,6 +34,11 @@ describe('prompt', () => {
     const m = userMessage({ ...base, material: 'any', style: 'any' });
     expect(m).not.toMatch(/prefer/i);
     expect(m).not.toMatch(/style/i);
+  });
+  it('ends with the concept line when given a concept', () => {
+    const m = userMessage(base, { title: 'Trestle base', brief: 'Two slab ends and a stretcher.' });
+    expect(m.startsWith(userMessage(base))).toBe(true);
+    expect(m.endsWith('\n\nDesign this version: Trestle base — Two slab ends and a stretcher.')).toBe(true);
   });
   it('maps settings to limits — width X, depth Z, height Y, the detail cap', () => {
     expect(limitsOf(base)).toEqual({ width: 36, depth: null, height: 72, maxParts: DETAIL_CAPS.moderate });
