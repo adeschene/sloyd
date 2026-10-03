@@ -24,10 +24,24 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **954/954 tests passing across 36 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
+Static SPA, containerized, **1094/1094 tests passing across 44 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **6**.
 
-**PRODUCTION MATCHES `master` as of 2026-08-31.** Production serves bundle
+**PRODUCTION MATCHES `master` as of 2026-10-03 with the Generate round live.** It serves
+bundle `index-BAsxEohe.js` with CSS `index-DEQSkZ3q.css`, from merge commit `fa834dc`. A
+person stores a Claude API key in Settings, describes a piece, and gets 1–3 prototypes built
+from boards, each saved as a **new, unactivated** library project (invariant 36). **It is
+the first round with a network dependency**: the browser calls `api.anthropic.com`
+directly, and the CSP's `connect-src` names it. **It was deployed before its live test, at
+the user's request, and the user then drove real generations on production.** That was safe
+only because generation never writes into an existing project. The better route is now
+known: the user can **watch** the Playwright browser this session drives, so next time
+Claude drives the dev server and the user supervises. Results are in
+`docs/browser-verification-generate.md`. 6 of 6 generations completed. **Two findings are
+open: 164, a batch converging on one design, and 165, a support check that passes a badly
+supported part.**
+
+**The previous production build, 2026-08-31.** It served bundle
 `index-CZu96cak.js` with CSS `index-CtYur9k3.css`, which is `eb6a632` — the ply-sign round
 (follow-up 163), the day's **fifth** deploy and the only one of the ten rounds that came from
 a user bug report rather than the ledger. It fixes a real rendering defect that had been live
@@ -113,7 +127,13 @@ switch-token round (follow-ups 157 and 158), which is live, and the same day's i
 round (97 and 131) closed a pre-existing gap that the sheet-nesting round had made
 load-bearing.
 
-**NO SUCCESSOR FEATURE ROUND HAS BEEN CHOSEN, and 130 is no longer the presumed one** — it
+**The Generate round (2026-10-03) was the successor**, chosen by the user from a blank
+slate. Its planned follow-on is **phase 2, refine and joinery (follow-up 171)**. **Follow-up
+164 (batch variety) bears directly on phase 1's stated purpose and is probably the better
+next round**, so ask which one before starting either. The paragraphs below are the
+2026-08-31 state, kept for its reasoning.
+
+**As of 2026-08-31: NO SUCCESSOR FEATURE ROUND HAD BEEN CHOSEN, and 130 is no longer the presumed one** — it
 was picked on 2026-08-31 and set aside a moment later without a stated reason, so treat it
 as available rather than as either chosen or rejected.
 
@@ -186,6 +206,7 @@ show it. Prefer a readout where one suffices; add an image when the finding is s
 | turned index | 08-31 | — | *no spec* — follow-up 161: `fitLabel`'s `requireDetail` removes the `name` rung, so a turned part demotes to `index` rather than printing a bare name |
 | key list | 08-31 | — | *no spec* — follow-up 162: `.cutlist-layout-key` gets the `list-style: none` reset every other list in the app already had. CSS only |
 | ply sign | 08-31 | — | *no spec* — follow-up 163: `FACE_AXES` carries each UV axis's SIGN, so a solid's sub-range lands on the right side of its face (invariant 35). The one round of the day that came from a bug report |
+| generate | 10-03 | — | prototypes from a description via Claude; each generation is a new, unactivated project (invariant 36) |
 
 ### The deployment rule, stated once
 
@@ -199,6 +220,16 @@ exercising it writes a document — arming a tool writes nothing and was confirm
 anything needing a board was not. `sloyd.autosave.v1` is confirmed **absent** in the
 verifying browser afterward, checked rather than assumed.
 
+**The Generate round is the one exception, and the reason it holds is narrow.** Generation
+was exercised against production by the user, because it only ever ADDS library projects
+with `activate: false` and never writes into the open one (invariant 36). That makes it a
+different kind of thing from every earlier feature, not a precedent for them. Even so, the
+preferred route is the dev server with the user watching the Playwright browser Claude
+drives. A paid run needs the user's approval each time, and the key never goes into chat
+or a committed file. A Generate deploy is verified by page load, bundle hash, **and the
+edge's CSP header** (`connect-src 'self' https://api.anthropic.com`), which the dev server
+does not send.
+
 **Rollback cost is a schema question.** A document saved by the current build carries
 `version: 6`, and any image understanding less **refuses** it rather than silently
 dropping the guides — the gate working as designed, and the silent-data-loss case the
@@ -208,7 +239,10 @@ round that changed no schema costs nothing but the round itself.
 
 ## Architecture
 
-Static single-page app. No server, no database, no API, no env vars.
+Static single-page app. No server, no database, no backend API, no env vars. **One
+outbound call exists**: Generate calls `api.anthropic.com` straight from the browser with
+the user's own key (`dangerouslyAllowBrowser`). The key lives only in `sloyd.llm.v1` and the
+CSP's `connect-src` allows only that origin. There is still no server-side state.
 
 **Governing rule: the plain-JSON document is the source of truth; the Three.js scene is
 derived from it and is never authoritative.** A document is
@@ -229,7 +263,12 @@ Each layer depends only on the ones before it:
 2. **`document`** — schema, geometry, validation, versioned migration.
 3. **`store`** (Zustand + snapshot undo/redo) and **`storage`** (the `StorageAdapter`
    seam).
-4. **`viewport`** (react-three-fiber) and **`panels`** (React forms) — both read/write
+4. **`llm`** — the provider seam (`LlmClient`, `LlmMessage` opaque). Imports NOTHING from
+   the app, so a second provider is a second implementation and nothing else.
+5. **`generate`** — the prompt and the run loop. Imports only `document` and `llm`.
+   `useGenerations.ts` sits beside `App.tsx`, not in here, because it owns React state and
+   the storage writes.
+6. **`viewport`** (react-three-fiber) and **`panels`** (React forms) — both read/write
    through the store and both import `document` directly for types and constants.
    `panels` also imports the `storage` singleton. These are legitimate downward imports.
 
@@ -351,6 +390,15 @@ src/
 │   │                       off by half the board, plausibly, in any screenshot; pin
 │   │                       it with a rotated, non-flat pose. Imports ./types,
 │   │                       ./geometry, ./cuts — notably NOT ../units
+│   ├── generated.ts        the LLM's design shape: DESIGN_SCHEMA ({x,y,z} objects, not
+│   │                       tuples — structured outputs cannot enforce an array length),
+│   │                       parseDesign (Object.hasOwn on MATERIALS), designToDocument
+│   │                       (axisDimensions, SNAP_INCHES, floor + centre, then
+│   │                       migrateDocument like any load; finiteness re-checked AFTER
+│   │                       the snap)
+│   ├── designCheck.ts      checkDesign: overlap (> TOUCH on all 3 axes; phase-1-only,
+│   │                       inv 38), support (a chain of FACE contacts to the floor —
+│   │                       topological, fu 165), too-large, too-many. Pure
 │   └── document.ts         create / validate / migrate (inv 11); validateGuides;
 │                           createGuide; `takeId`, the ONE home of the
 │                           id-uniqueness rule for boards, guides and cuts
@@ -376,6 +424,19 @@ src/
 │                           REFUSAL (inv 30), while a single malformed ENTRY is
 │                           dropped (validateGuides' argument verbatim). Pure;
 │                           imports only ./types
+├── llm/                    imports nothing from the app
+│   ├── types.ts            LlmClient / LlmMessage (OPAQUE, inv 37) / LlmUsage / LlmError
+│   └── anthropic.ts        the Claude client: beta.messages.stream + finalMessage,
+│                           structured output, adaptive thinking, effort medium,
+│                           server-side fallback. JSON is parsed from text AFTER the last
+│                           fallback block; the turn goes back verbatim. toLlmError
+├── generate/               imports only document + llm
+│   ├── prompt.ts           SYSTEM_PROMPT, STYLES, DETAIL_CAPS, user/repair messages
+│   └── run.ts              runGeneration: MAX_REPAIRS = 3 (4 calls), append-only
+│                           history, keeps the fewest-violation attempt (later wins a tie)
+├── useGenerations.ts       the batch: one at a time, " — A/B/C" names, auth aborts all,
+│                           post-run abort guard, writes ONLY via createProject(doc,
+│                           { activate: false }) (inv 36)
 ├── viewport/               NO unit tests by design — driven in a real browser
 │   ├── Viewport.tsx        Canvas, lights, grid, camera keys; hides Gizmo outside
 │   │                       select mode, gates onPointerMissed
@@ -457,6 +518,9 @@ src/
 │   │                       branches, which is the only reason focus survives it —
 │   │                       giving either branch a `key` silently breaks that. Rendered
 │   │                       ONLY when libraryAvailable (inv 30)
+│   ├── SettingsDialog.tsx  key (password field, Forget key) + model. Cut-list overlay
+│   │                       pattern, not <dialog> (spec §6.2 as-built note)
+│   ├── GenerateDialog.tsx  the form, the per-run rows, Cancel. Same overlay pattern
 │   ├── PartsList.tsx  FileMenu.tsx
 │   ├── Properties.tsx      board fields + Cuts; CutRow is its own component so a
 │   │                       cut's error dies with the cut
@@ -485,7 +549,8 @@ src/
 │                           copy, so nothing can go stale. Owns Escape-to-close, takes
 │                           focus on mount, owns both toggles as local view state
 └── App.tsx                 layout, autosave/restore, the `.app-shell` that goes
-                            `inert` behind the cut list, the `.viewport-stack`
+                            `inert` behind ANY modal (`modalOpen = cutListOpen ||
+                            dialog !== null`, inv 27), the `newIds` badge set, the `.viewport-stack`
                             TapeReadout positions against, `showGuides` as local
                             prop-drilled view state (it joins `shortcutsSuspended`,
                             NOT the store's `tool`). M, T, X/Y/Z, Escape and undo/redo
@@ -800,7 +865,11 @@ worked examples behind several of them are in `docs/history.md`.
     union), and `MoveTool` still narrows at entry via `isBoardOwned`, a written-out type
     predicate — narrowing the *property* inline does not narrow the *value*.
 27. **Every window-level shortcut goes into `App`'s ONE existing keydown effect, and any
-    new `window` listener must take the cut-list-open flag explicitly.** While the cut list
+    new `window` listener must take the modal-open flag explicitly.** *(Since the Generate
+    round the flag is `modalOpen = cutListOpen || dialog !== null`. Read every
+    `cutListOpen` below as `modalOpen`; the reasoning is unchanged. A dialog's real
+    exposure is focus on the sheet or a button, not typing, which `isTextEntry` already
+    covers. That is spec §6.4 as corrected.)* While the cut list
     is open the rest of the app carries `inert`, removing the subtree from the tab order,
     hit-testing and the a11y tree in one attribute — the failure mode being *silently
     editing the document while reading a sheet that shows no selection*, since `NameField`,
@@ -1094,12 +1163,37 @@ worked examples behind several of them are in `docs/history.md`.
       a misplaced sub-range.
 
 
+36. **Generation never adopts a project.** `useGenerations` writes through
+    `createProject(doc, { activate: false })` and NOTHING else: no `switchToken` bump, no
+    `replaceDocument`, no store action. Opening a generated design goes through
+    `openProject` like any other row. Two things depend on it. The user is never pulled out
+    of the project they are editing by a run that finishes in the background. And
+    invariant 32's race stays closed, because a handler that does not adopt cannot be
+    superseded. It is also **the whole reason Generate could be exercised against
+    production**: it adds rows and writes into nothing that exists. A future "open it when
+    done" convenience must call `openProject`, not adopt inline.
+
+37. **The generation history is append-only, and `LlmMessage` is `unknown` so it stays
+    that way.** A repair round sends every earlier turn back **verbatim**, including the
+    assistant turn exactly as the API returned it: thinking blocks, fallback blocks and
+    all. Editing a past turn breaks thinking-block validation and any prompt-cache prefix.
+    The client parses the design from text after the last fallback block but **returns
+    the untouched turn** for the history. Do not "clean up" the stored turn to just the
+    JSON. The type is opaque so that the code outside `llm/` cannot read into a turn and
+    therefore cannot rewrite one. A test pins the appended turn **by identity**.
+
+38. **`overlap` is a phase-1 rule, and phase 2 must relax it deliberately.** Phase 1 has no
+    joinery, so two parts sharing volume is always an error (more than `TOUCH` = 1/32 on
+    all three axes). Phase 2 adds `Cut`s, and a tenon inside its mortise IS overlap. It
+    must become "overlap not accounted for by a cut", **in `checkDesign`, in one place**.
+    Do not raise `TOUCH` to make joints pass, and do not drop the check.
+
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 954 tests across 36 files
+npm test           # Vitest, currently 1094 tests across 44 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1109,7 +1203,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is the authoritative list** — 1-162, consciously deferred rather
+**`docs/follow-ups.md` is the authoritative list** — 1-173, consciously deferred rather
 than missed, each written up in place with its closure where it has one. Read the entries
 for the area you are about to touch before starting; several are "correct but untested",
 which is exactly what a refactor breaks silently.
@@ -1172,6 +1266,13 @@ The handful worth knowing without opening that file:
   read it before touching a plywood edge for a *different* reason — it carries a measured,
   deliberately-unfixed finding about ply legibility at 3/4" that the user was shown and ruled
   on.
+- **164** — the generations in one batch converge on the same design (three Sonnet side
+  tables differing only in stretcher width). Variety is phase 1's purpose, so this is the
+  probable next round. Its named remedies are hypotheses; measure first.
+- **165** — `checkDesign`'s support rule is topological, and the live workbench had a part
+  it passed that the user judged badly supported. The part was never inspected; read it
+  out of the library before choosing a rule.
+- **171** — phase 2, refine and joinery, the planned successor. Read invariant 38 first.
 - **26a** — **read this before touching anything in the viewport.** Browser verification on
   this host runs on software GL (llvmpipe, no GPU), which returns 1.0 for `pow(0.0, 0.0)`
   where real hardware returns NaN. That difference hid a grid bug completely — it looked

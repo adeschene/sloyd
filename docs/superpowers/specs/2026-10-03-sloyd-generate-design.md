@@ -330,6 +330,13 @@ button reads **Generating 2/3…** and still opens the dialog.
 Both are native `<dialog>` elements opened with `showModal()`, which makes the
 rest of the page inert and handles Escape.
 
+> **As built (plan deviation 2):** neither is a native `<dialog>`. Both follow
+> the cut list's existing overlay pattern instead — a `role="dialog"` sheet that
+> takes focus on mount and owns its own Escape, with `.app-shell` going `inert`
+> behind it via App's `modalOpen`. One modal mechanism in the app rather than
+> two, and the one invariant 27 already reasons about. Verified in the browser:
+> `docs/browser-verification-generate.md`.
+
 **Settings:** provider (Claude, fixed for now); API key (password field,
 **Forget key**); model (Opus 5.5 / Sonnet 5.5); and one line: *"Stored in this
 browser only. Anyone with access to this browser profile can read it."*

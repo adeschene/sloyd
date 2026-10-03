@@ -18,6 +18,22 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-03 with the Generate round live**: bundle
+`index-CZu96cak.js` → `index-BAsxEohe.js` (CSS `index-CtYur9k3.css` → `index-DEQSkZ3q.css`),
+merge commit `fa834dc`. Verified after: `200` on `/` and on a deep route, both in-network and
+publicly; the new bundle served at the edge; and the edge's CSP reading `connect-src 'self'
+https://api.anthropic.com`. That last check is the one thing the dev server cannot show,
+because it sends no CSP.
+
+**This round broke the order the deployment rule assumes, and said so.** It was deployed
+*before* its live test and its docs, at the user's request, so they could drive real
+generations on the live site. This was safe for a reason specific to the feature:
+generation only ever adds new, unactivated library projects (invariant 36) and never writes
+into the open one. **The premise behind the request was wrong.** The user can watch the
+Playwright browser this session drives, so "Claude drives the dev server, the user
+supervises" was available and is the route for next time. The results are in
+`docs/browser-verification-generate.md`.
+
 **Production matches `master` as of 2026-08-31 with the ply-sign round (163) live** — bundle
 `index-DU8uasNy.js` → `index-CZu96cak.js`, commit `eb6a632`, the **fifth** deploy of that day
 and the only one of the day's ten rounds that began with a user bug report. **The CSS hash did
@@ -146,6 +162,77 @@ and 79.
 ---
 
 ## What each round did
+
+**What the Generate round did (2026-10-03)**: the first feature round since the project
+library, and the first with a network dependency. The user asked whether a person could
+describe a piece, pick some settings and get a prototype built from Sloyd boards by an LLM.
+The design discussion settled on three phases. **Phase 1, this round, is variety and
+exploration** (the user's option C): 1–3 independent designs per click. **Refine and joinery
+(B) is phase 2.** A budget cap and "use what I have" come later, and materials take little
+effort because the user can change them in one field.
+
+The shape, in one pass. The user stores a Claude API key in Settings, held in
+`sloyd.llm.v1` and never in a project or the index. Generate takes a description,
+max width/depth/height, material, style and detail. Each run sends one request with a
+structured-output JSON schema: a design is `{ name, parts: [{ name, material, at, size }] }`
+in world inches. `designToDocument` converts it into boards, getting length, width,
+thickness and posture from the size via `axisDimensions` (inv 13), snapping to `SNAP_INCHES`,
+translating onto the floor and centring, then passing everything through `migrateDocument`
+like any other load. `checkDesign` then reports overlaps, unsupported parts, too-large and
+too-many. A design with problems goes back as a repair turn, up to three times (four calls),
+in an append-only history (invariant 37). The run keeps the attempt with the fewest
+violations and lets a later attempt win a tie. A design that still has violations after the
+last call is saved anyway and reports them, because a flawed prototype is still a
+prototype.
+
+**Where it sits.** `llm/` is the provider seam (`LlmClient`, with `LlmMessage` opaque) and
+imports nothing from the app. `generate/` is the prompt and the run loop and imports only
+`document` and `llm`. `useGenerations` beside `App` owns the batch: one batch at a time,
+" — A/B/C" name suffixes, an auth error aborting every run, and a post-run abort guard so
+a cancel that lands after the answer writes nothing. Results go into the library through
+`createProject(doc, { activate: false })` and nothing else (invariant 36). The user is
+never pulled out of their work, and invariant 32's token is never touched. The dialogs
+share the cut list's modal flag, generalised to `modalOpen` (invariant 27).
+
+**Four deviations from the spec, all approved with the plan:**
+
+1. **Vectors are `{x, y, z}` objects, not tuples.** Structured outputs cannot enforce a
+   fixed-length array, but they can enforce three required number fields.
+2. **The dialogs use the cut list's overlay pattern, not native `<dialog>`.** This keeps one
+   modal mechanism, the one invariant 27 already reasons about. The spec's §6.2 now carries
+   an as-built note.
+3. **"An export never contains the key" is tested as "no stored key except `sloyd.llm.v1`
+   contains it".** Export serialises a document with no field the key could ride in, so
+   the reachable mistake is the adapter writing settings into the wrong key. This version
+   of the assertion can fail on that.
+4. **Spec §6.4's reason was wrong and was corrected before execution.** Typing in the
+   description is never at risk because `isTextEntry` returns first. The exposure is focus
+   on the sheet or a button, which is the state the dialog opens in.
+
+**What the reviews caught**, worth knowing because each one passed its task's own tests:
+
+- `parseDesign` used `in MATERIALS` and so accepted `"constructor"`. `validateBoard` had the
+  same hole and predated the round; both now use `Object.hasOwn`, so there is one rule for
+  one question.
+- When a refusal triggered the server-side fallback, the client joined text across both
+  answers. It now parses only after the last fallback block, while still sending the whole
+  turn back verbatim.
+- API errors surfaced as a bare status. They now carry the API's own message, and a 5xx
+  gets *server error* wording.
+- An unusable attempt displayed "Fixing 1 issue". It now reads "Retrying".
+- A snap could overflow `1e308` to `Infinity` after the finiteness check, so finiteness is
+  re-checked after the snap.
+- Two tests that could not fail without the code they guard were added: the post-run
+  abort guard, and the appended assistant turn's identity.
+
+**The SDK added 58.8 kB gzipped** (336.72 → 395.52 kB), under the 150 kB threshold that
+would have made it lazy-loaded. **Tests went from 954 to 1094 across 44 files.**
+
+**The live pass**: Opus bookcases 2/2 with no repair; a Sonnet workbench with one repair, a
+workable design with MDF chosen for the top, but one piece the user judged badly supported
+(follow-up 165); Sonnet side tables 3/3 after one, one and two repairs, but **essentially one
+design three times** (follow-up 164). Variety is phase 1's stated purpose, so 164 is the
+finding to carry forward.
 
 **What the ply-sign round did (2026-08-31)** — the tenth round of the day and the only one
 of the ten that started from a user bug report rather than the ledger. `FACE_AXES` recorded

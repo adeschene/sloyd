@@ -3705,3 +3705,95 @@ edge, 1 px each side is roughly a quarter of each outer ply. **The user was show
 said the layers look even to them, so it is open by decision, not by oversight.** Any remedy
 is a taste call about how a plywood edge should read and wants asking first, the way 161 was
 asked.
+
+## From the Generate round — 2026-10-03
+
+**164. The generations in one batch converge on the same design, and variety was the point
+of phase 1.** The user chose to build variety and exploration first (option C) and joinery
+second. In the live pass, three Sonnet 5.5 side tables (oak, Mid-century, Detailed) came
+back **essentially identical**, differing only in stretcher width. The two Opus bookcases
+were only "slightly different". The cause is structural: every run in a batch sends the
+same system prompt and the same user message, so the only source of difference is sampling.
+**Hypothesis, not prescription** (the fifth shape in CLAUDE.md): give each run in a batch a
+distinct direction, such as a variation index plus a short "make this one differ from a
+typical design in X" line, or one call that plans N contrasting concepts and then one call
+per concept. Measure before adopting either. Both cost something: the first needs an axis
+of variation that does not fight the user's own style choice, and the second adds a call
+per batch. **This is the strongest candidate for the next round** because it touches the
+round's stated purpose. Ask first.
+
+**165. `checkDesign`'s support rule is topological, not structural, and the user found a
+piece it passes that is not properly supported.** The workbench (Sonnet 5.5, Shop,
+Moderate) passed every check after one repair, and the user judged one piece "not quite
+supported properly". By construction, support means a chain of FACE contacts (overlap more
+than `TOUCH` on two axes, coincident on the third) down to the floor. Any face contact
+counts, however small and wherever it sits. So a long rail resting on a 1/8in corner of a
+leg, or a shelf hanging off one cleat at one end, is "supported". **The specific piece was
+not inspected**, so which of these it was is unknown. Read the design out of the user's
+library before theorising. Candidate rules, each with a cost: a minimum contact area
+relative to the part; a centre-of-mass-over-contact test; or requiring support at two
+separated points for a part longer than N inches. Any of them makes a repair round more
+likely, and each repair round costs money.
+
+**166. Centring a design whose coordinates are near 1e307 overflows.** This is ruling 19
+from the round's ledger. `designToDocument` translates the design onto the floor and
+centres it; for parts near the top of the double range the translation sum overflows. The
+finiteness re-check after snapping (`3600252`) catches the snap case but not this one. Real
+model output does not reach these values, and the failure is loud: the generation fails
+with an odd message instead of writing garbage.
+
+**167. Prompt caching was never observed working.** The system prompt carries
+`cache_control`, but it is probably below the minimum cacheable prefix for both models. If
+so, every repair call pays full input price for the system prompt and the growing history.
+The live pass did not log usage, so `cache_read_input_tokens` was never seen. Measure it
+with a temporary usage log on a repair round. If it is zero, the remedy is a cache
+breakpoint on the last history turn as well: the history is append-only (invariant 37), so
+it is a clean prefix.
+
+**168. The cost estimate has not been checked against a real bill, and loses money on two
+paths.** The live pass did not record the per-row estimates. Separately, the cost of any
+calls made before an `LlmError` (auth, rate limit, network) is dropped rather than reported,
+because `RunFailed` carries usage and `LlmError` does not. A sub-cent run also prints
+"≈ $0.00", which reads as free.
+
+**169. Deferred minors from the round's reviews, each judged not worth a fix round:**
+
+- The edge-contact hint text in `repairMessage` could say more plainly that an edge or
+  corner touch is not support.
+- `batchSize` is fixed when Generate is clicked, so changing the radio mid-batch does
+  nothing until the next batch. That is correct, just unexplained.
+- A mid-stream `api_error` that `toLlmError` does not map lands in `'other'`, not in the
+  *try again shortly* class a 5xx gets, so the message does not tell the user a retry may
+  work.
+- Starting a new batch replaces the previous batch's rows in the dialog. The projects
+  themselves are untouched.
+
+**170. The Generate dialog's form layout is off in two places (cosmetic).** From the
+browser-pass screenshot (`docs/img/generate-dialog-no-key.png`):
+
+- The *Generations* legend is a `<legend>` in the body face, white and sentence case. Every
+  other field label uses the uppercase monospace label style, and the 1/2/3 radios spread
+  across the row with small digits.
+- The max width/depth/height row puts three labels and three inputs into the width the
+  other rows give one control, so the labels leave the label column and the inputs are
+  narrow.
+
+Both are CSS in `.generate-*`. Neither affects function.
+
+**171. Phase 2: refine and joinery, the planned successor to this round.** Option B from
+the design discussion: take a generated design and sharpen it, adding real joints as
+`Cut`s and fixing proportions. **Invariant 38 is the trap to read first.** `overlap` is
+phase-1-only: phase 1 forbids parts interpenetrating because nothing accounts for it, and
+phase 2 must relax that to "overlap not accounted for by a cut", deliberately and in one
+place. Also wanted before it: 164, since refining one of three identical designs is less
+useful than refining one of three different ones.
+
+**172. A design-quality eval set.** The live pass is three prompts judged by eye. Tuning the
+prompt, the effort level or the repair messages (164, 165, 167) needs a fixed prompt set and
+a grading rule, or every change is judged on a different sample. Costs real money per run,
+so get approval for each run.
+
+**173. Settings deferred by decision during the design discussion:** a budget cap per batch,
+"use what I have" (generate from a stock inventory), and providers other than Claude. The
+`LlmClient` interface in `src/llm/types.ts` is the seam for the last one. `LlmMessage` is
+opaque precisely so a second provider cannot be made to share the first one's turn shape.

@@ -235,10 +235,11 @@ interface ViewportProps {
    */
   showGuides?: boolean;
   /**
-   * True while something covers the viewport (today: the cut list). The camera
-   * shortcuts stop listening — a `window` listener cannot see that the app is
-   * inert behind a modal, so the flag has to be passed in. A prop rather than
-   * store state on purpose: the cut list's open flag is local view state,
+   * True while something covers the viewport — App's `modalOpen`: the cut
+   * list, or the Generate or Settings dialog. The camera shortcuts stop
+   * listening — a `window` listener cannot see that the app is inert behind a
+   * modal, so the flag has to be passed in. A prop rather than store state on
+   * purpose: the modal flags are local view state,
    * outside the document and the undo stack, and putting it in the store to
    * save one prop would move it into the app's shared state for no gain.
    */
