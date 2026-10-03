@@ -49,7 +49,7 @@ export function conceptsMessage(s: GenerateSettings, count: number): string {
 }
 
 function clean(v: unknown, max: number): string | null {
-  return typeof v === 'string' && v.trim() !== '' ? v.trim().slice(0, max) : null;
+  return typeof v === 'string' && v.trim() !== '' ? v.trim().slice(0, max).trimEnd() : null;
 }
 
 /**
@@ -72,7 +72,7 @@ export function parseConcepts(json: unknown, count: number): Concept[] | null {
   return out;
 }
 
-/** Used when planning fails for any reason but a rejected key or a cancel (spec §4). Index = run. */
+/** Used when planning fails for any reason but a rejected key or a cancel (variety spec §4). Index = run. */
 export const FALLBACK_CONCEPTS: readonly Concept[] = [
   { title: 'Conventional', brief: 'The classic, most expected construction for this piece.' },
   { title: 'Minimal', brief: 'The fewest, lightest parts that still make a sound piece.' },

@@ -117,14 +117,15 @@ describe('GenerateDialog', () => {
     const letterSpan = li?.querySelector('.generate-run-letter');
     const conceptSpan = li?.querySelector('.generate-run-concept');
     const statusSpan = li?.querySelector('.generate-run-status');
-    if (letterSpan && conceptSpan && statusSpan) {
-      expect(letterSpan.compareDocumentPosition(conceptSpan) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
-        Node.DOCUMENT_POSITION_FOLLOWING
-      );
-      expect(conceptSpan.compareDocumentPosition(statusSpan) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
-        Node.DOCUMENT_POSITION_FOLLOWING
-      );
-    }
+    expect(letterSpan).not.toBeNull();
+    expect(conceptSpan).not.toBeNull();
+    expect(statusSpan).not.toBeNull();
+    expect(letterSpan!.compareDocumentPosition(conceptSpan!) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
+    expect(conceptSpan!.compareDocumentPosition(statusSpan!) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
   });
 
   it('shows no plan line for a batch of 1', () => {

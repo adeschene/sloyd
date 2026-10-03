@@ -67,6 +67,11 @@ describe('concepts', () => {
     expect(x.brief).toBe('b'.repeat(BRIEF_MAX));
   });
 
+  it('leaves no trailing space when the cut lands after a space', () => {
+    const [x] = parseConcepts({ concepts: [{ title: `  ${'t'.repeat(TITLE_MAX - 1)} ${'u'.repeat(20)}  `, brief: 'b' }] }, 1)!;
+    expect(x.title).toBe('t'.repeat(TITLE_MAX - 1));
+  });
+
   it('returns null concepts, with usage, for an unusable reply', async () => {
     const { client } = fake({ json: null, unusable: 'truncated', assistantTurn: {}, usage });
     expect(await planConcepts(client, settings, 2, new AbortController().signal)).toEqual({ concepts: null, usage });

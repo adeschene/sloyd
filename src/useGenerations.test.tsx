@@ -186,6 +186,8 @@ describe('useGenerations — batch planning (fu 164)', () => {
     await waitFor(() => expect(result.current.live).toBe(0));
     expect(calls(c).some(isPlan)).toBe(false);
     expect(result.current.plan).toBeNull();
+    expect(runFirstMessages(c)[0]).not.toContain('Design this version');
+    expect(result.current.rows[0].concept).toBeUndefined();
   });
 
   it('plans ONCE, first, then gives each run a DIFFERENT concept', async () => {

@@ -136,10 +136,9 @@ export function useGenerations(opts: { onCreated: (projectId: string) => void; o
     void (async () => {
       let concepts: readonly (Concept | undefined)[] = keys.map(() => undefined);
       if (planning) {
+        let out: Awaited<ReturnType<typeof planConcepts>> | null = null;
         try {
-          const out = await planConcepts(client, settings, count, ctl.signal);
-          concepts = out.concepts ?? FALLBACK_CONCEPTS.slice(0, count);
-          setPlan({ status: out.concepts ? 'ready' : 'fallback', costUsd: client.estimateCostUsd(out.usage) });
+          out = await planConcepts(client, settings, count, ctl.signal);
         } catch (e) {
           if (e instanceof LlmError && e.kind === 'auth') {
             setPlan({ status: 'failed', costUsd: null, error: e.message });
@@ -151,9 +150,13 @@ export function useGenerations(opts: { onCreated: (projectId: string) => void; o
             endAll({ status: 'cancelled' });
             return;
           }
-          // Anything else: the fallback IS the retry (spec §4).
+          // Anything else: the fallback IS the retry (variety spec §4).
           concepts = FALLBACK_CONCEPTS.slice(0, count);
           setPlan({ status: 'fallback', costUsd: null });
+        }
+        if (out) {
+          concepts = out.concepts ?? FALLBACK_CONCEPTS.slice(0, count);
+          setPlan({ status: out.concepts ? 'ready' : 'fallback', costUsd: client.estimateCostUsd(out.usage) });
         }
         // A cancel that lands as planning resolves still means "start nothing".
         // Checked HERE, before any run — the post-run guard would hide started
