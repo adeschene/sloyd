@@ -65,7 +65,7 @@ export function parseDesign(json: unknown): GeneratedDesign | null {
   if (json.parts.length === 0) return null;
   for (const p of json.parts) {
     if (!isObj(p) || typeof p.name !== 'string' || typeof p.material !== 'string') return null;
-    if (!(p.material in MATERIALS) || !isVec3(p.at) || !isVec3(p.size)) return null;
+    if (!Object.hasOwn(MATERIALS, p.material) || !isVec3(p.at) || !isVec3(p.size)) return null;
   }
   return json as unknown as GeneratedDesign;
 }

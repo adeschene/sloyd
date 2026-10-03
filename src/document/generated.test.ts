@@ -104,6 +104,7 @@ describe('parseDesign', () => {
   it.each([
     null, 42, {}, { name: 'x' }, { name: 'x', parts: [] },
     { name: 'x', parts: [{ name: 'A', material: 'pine', at: { x: 0, y: 0 }, size: { x: 1, y: 1, z: 1 } }] },
+    { name: 'x', parts: [{ name: 'A', material: 'constructor', at: { x: 0, y: 0, z: 0 }, size: { x: 1, y: 1, z: 1 } }] },
     { name: 'x', parts: [{ name: 'A', material: 'unobtanium', at: { x: 0, y: 0, z: 0 }, size: { x: 1, y: 1, z: 1 } }] },
   ])('rejects %j', (bad) => {
     expect(parseDesign(bad)).toBeNull();
