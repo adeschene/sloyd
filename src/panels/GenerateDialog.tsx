@@ -27,6 +27,7 @@ function parseLimit(text: string): number | null | 'bad' {
 
 function statusText(r: RunRow): string {
   switch (r.status) {
+    case 'waiting': return 'Waiting for its concept…';
     case 'designing': return 'Designing…';
     case 'repairing': return `Fixing ${r.issues} issue${r.issues === 1 ? '' : 's'} (round ${r.round}/${MAX_REPAIRS})…`;
     case 'retrying': return `Retrying (round ${r.round}/${MAX_REPAIRS})…`;
