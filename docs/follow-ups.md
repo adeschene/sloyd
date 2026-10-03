@@ -3722,6 +3722,28 @@ of variation that does not fight the user's own style choice, and the second add
 per batch. **This is the strongest candidate for the next round** because it touches the
 round's stated purpose. Ask first.
 
+**CLOSED 2026-10-03 by the batch variety round, using the remedy it named second, and the user
+judged the result live.** A batch of 2–3 now makes ONE planning call
+(`src/generate/concepts.ts`) for N structurally contrasting concepts. Each run gets its
+concept as one line at the end of its first user message, so `SYSTEM_PROMPT` stays a fixed
+prefix and repairs carry it for free (invariant 37). A batch of 1 is unchanged and pinned
+by a literal. The first remedy named above, a per-run variation hint, was rejected at
+design time, and it survives only as the fallback roles. The reason: a run designing alone
+cannot see what its siblings chose, so "be different" converges again on the second most
+obvious idea. Only something that sees all N at once can make them contrast.
+
+The live pass (`docs/browser-verification-batch-variety.md`) re-ran the exact batch that
+failed: oak, Mid-century, Detailed, 3, Sonnet. It produced a case on a leg frame, a
+trestle, and a cantilevered spine. A second batch, an Opus bench, produced four legs,
+slab ends, and a trestle with a backrest. All six completed first time, for ≈ $0.20.
+
+**What a later round could reopen, and why it was not acted on.** Bench A (four legs) and
+Bench B (slab ends) are structurally different but read alike from above: a long plank
+seat over aprons in both. The planner can also return near-identical concepts, and nothing
+rejects them. Both were seen and set aside: the user judged the batches distinct, and a
+duplicate check would be code for a case not yet observed. If a future live pass shows
+duplicates, the cheap remedy is a re-ask with the duplicates named, inside `planConcepts`.
+
 **165. `checkDesign`'s support rule is topological, not structural, and the user found a
 piece it passes that is not properly supported.** The workbench (Sonnet 5.5, Shop,
 Moderate) passed every check after one repair, and the user judged one piece "not quite
@@ -3756,6 +3778,16 @@ output. Opus's first calls averaged about 1,380 input tokens, so a fully cached 
 would save a fraction of a cent. Output is 77% of the spend. Any cost work should look
 there first: the effort level, the thinking share of the output, and whether repairs could
 send a delta instead of a whole design. Do not spend a round on caching.
+
+**The premise was WRONG, and the batch variety live pass measured it** (2026-10-03,
+`docs/browser-verification-batch-variety.md`). The system prompt **does** cache: every
+side-table run read 1,271 cached tokens, because the user's earlier single run had written
+the cache minutes before. What does not cache is the **cold parallel start**. Every bench
+run read 0, because all three started together before any had written the cache, and each
+paid to write it. So the entry's question "is the prefix long enough?" is answered yes. The
+live gap is narrower: a batch's runs could share one cache write if one run (or the planning
+call, if it shared the prefix) went first. At these prices that is still well under a cent
+per batch, so the LOW VALUE verdict above stands; only its reason changed.
 
 **168. The cost estimate has not been checked against a real bill, and loses money on two
 paths.** The live pass did not record the per-row estimates. The console's token counts
@@ -3807,3 +3839,41 @@ so get approval for each run.
 "use what I have" (generate from a stock inventory), and providers other than Claude. The
 `LlmClient` interface in `src/llm/types.ts` is the seam for the last one. `LlmMessage` is
 opaque precisely so a second provider cannot be made to share the first one's turn shape.
+
+## From the batch variety round — 2026-10-03
+
+**174. Settings accepts text that cannot be an API key, and the error that follows hides the
+API's reason.** In the live pass, three pastes into Settings were saved and then rejected
+by the API, one call each. One was 248 characters with whitespace and non-ASCII characters
+inside it. Settings already trims the ends; it does not look at the middle. Two remedies,
+**hypotheses, not prescriptions**:
+
+- Refuse on Save a key with inner whitespace or characters outside printable ASCII, with an
+  inline reason.
+- Carry the API's own message into the auth error ("API key was rejected — check Settings.
+  (API key is invalid.)"). `toLlmError` already does this for `'other'` errors, and auth is
+  the case where it would have helped.
+
+**Do NOT check a prefix.** During diagnosis Claude claimed standard keys start with
+`sk-ant-api`, and the key that then worked does not. A prefix rule would have refused a
+valid key. The live pass records the correction.
+
+**175. Deferred minors from the batch variety round's reviews**, each judged not worth a fix
+round:
+
+- `FALLBACK_CONCEPTS`' test pins the titles but only checks that the briefs are non-empty,
+  so editing a mandated brief would pass.
+- No test asserts that the abort signal reaches `complete` inside `planConcepts`. The
+  end-to-end cancel tests exercise it.
+- Two hook tests keep a local `let calls` that shadows the file's new `calls(c)` helper.
+- The fallback `it.each` covers `overloaded` only, of the five non-auth error kinds. All
+  five share one branch.
+- The plan line has no `role="status"` or `aria-live`. The rows have none either.
+- `.generate-run-concept` has no wrap rule. Titles are capped at 40 characters.
+- **A throw from `client.estimateCostUsd` after planning now escapes the batch's async
+  block** and would leave the batch live until a reload. Previously a throw there was
+  silently swallowed into a fallback, which the final review moved it out of. It is
+  unreachable today, because `AnthropicClient.estimateCostUsd` is arithmetic that returns
+  `null` for an unknown model. It only matters for a future client whose cost function can
+  throw.
+
