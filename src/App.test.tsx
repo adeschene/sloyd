@@ -262,6 +262,23 @@ vi.mock('./storage/browser', () => ({
   },
 }));
 
+// The Anthropic client is replaced wholesale so no test can reach the
+// network: `complete` defers to whatever the current test put in
+// `completeImpl`. The rest of the module (CLAUDE_MODELS, DEFAULT_MODEL) is
+// the real one, because SettingsDialog reads it.
+const completeImpl = vi.hoisted(() => ({ current: null as null | ((...a: unknown[]) => Promise<unknown>) }));
+vi.mock('./llm/anthropic', async (orig) => {
+  const real = await orig<typeof import('./llm/anthropic')>();
+  return {
+    ...real,
+    AnthropicClient: class {
+      userTurn(t: string) { return t; }
+      estimateCostUsd() { return 0.01; }
+      complete(...a: unknown[]) { return completeImpl.current!(...a); }
+    },
+  };
+});
+
 const reset = () => useStore.getState().replaceDocument(createDocument('Test'));
 
 beforeEach(() => {
@@ -795,19 +812,23 @@ describe('App project switching', () => {
   });
 });
 
-describe('App keyboard delete', () => {
-  const mountWithOneBoard = async () => {
-    render(<App />);
-    await act(async () => { await Promise.resolve(); });
-    await act(async () => { useStore.getState().addBoard(); });
-    const user = userEvent.setup();
-    // Click the board in the parts list to set focus on the button, not on the
-    // auto-focused Length input. This reflects the real path: the user clicks a
-    // part, then presses Delete/Backspace from the button, not while editing.
-    await user.click(screen.getByRole('button', { name: 'Board' }));
-    return useStore.getState().doc.boards[0].id;
-  };
+// Module scope rather than inside 'App keyboard delete', where it started:
+// the Generate tests below need the same "one board, selected, focus on a
+// button rather than a field" starting point, because that is exactly the
+// state in which a shortcut leaking past a dialog does damage.
+const mountWithOneBoard = async () => {
+  render(<App />);
+  await act(async () => { await Promise.resolve(); });
+  await act(async () => { useStore.getState().addBoard(); });
+  const user = userEvent.setup();
+  // Click the board in the parts list to set focus on the button, not on the
+  // auto-focused Length input. This reflects the real path: the user clicks a
+  // part, then presses Delete/Backspace from the button, not while editing.
+  await user.click(screen.getByRole('button', { name: 'Board' }));
+  return useStore.getState().doc.boards[0].id;
+};
 
+describe('App keyboard delete', () => {
   it('deletes the selected board on Delete', async () => {
     const id = await mountWithOneBoard();
     expect(useStore.getState().selectedId).toBe(id);
@@ -1351,5 +1372,138 @@ describe('project library: new, duplicate, delete, import', () => {
 
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toBe('Could not save the imported project.');
+  });
+});
+
+describe('Generate', () => {
+  const GOOD = {
+    name: 'Bench',
+    parts: [{ name: 'Top', material: 'pine', at: { x: 0, y: 0, z: 0 }, size: { x: 10, y: 1, z: 10 } }],
+  };
+  const usage = { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0 };
+
+  beforeEach(() => {
+    completeImpl.current = async () => ({ json: GOOD, assistantTurn: {}, usage });
+  });
+
+  it('suspends shortcuts and makes the shell inert while a dialog is open', async () => {
+    // The exposure is focus OUTSIDE a text field — the sheet (focused on
+    // mount) or a dialog button. Typing in the textarea proves nothing:
+    // isTextEntry already returns early there.
+    await mountWithOneBoard();
+    // `tool` is not reset by `replaceDocument`, and the type-anywhere tests
+    // above leave it on 'tape' — so without this the `m` assertion below
+    // compares against a tool the test never chose. `setTool` also drops any
+    // tape anchor or grab, either of which would make the Backspace assertion
+    // pass for the wrong reason (the delete branch refuses while one is held).
+    act(() => useStore.getState().setTool('select'));
+    const boardId = useStore.getState().doc.boards[0].id;
+    useStore.getState().selectBoard(boardId);
+    const pastBefore = useStore.getState().past.length;
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /generate/i }));
+    expect(viewportProps.current?.shortcutsSuspended).toBe(true);
+    expect(document.querySelector('.app-shell')!.hasAttribute('inert')).toBe(true);
+    expect(document.activeElement).toBe(document.querySelector('.modal-sheet'));
+    await user.keyboard('m');
+    expect(useStore.getState().tool).toBe('select');
+    await user.keyboard('{Backspace}');
+    expect(useStore.getState().doc.boards).toHaveLength(1);
+    await user.keyboard('{Control>}z{/Control}');
+    expect(useStore.getState().past.length).toBe(pastBefore);
+    await user.keyboard('{Escape}');
+    expect(viewportProps.current?.shortcutsSuspended).toBe(false);
+  });
+
+  it('a finished generation lands in the library without switching or touching the document', async () => {
+    llmSettings = { provider: 'anthropic', apiKey: 'k', model: 'claude-opus-5-5' };
+    await mountWithOneBoard();
+    const docBefore = useStore.getState().doc;
+    const pastBefore = useStore.getState().past.length;
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /generate/i }));
+    await user.type(screen.getByLabelText('Description'), 'a bench');
+    await user.click(screen.getByRole('button', { name: 'Generate' }));
+    await screen.findByRole('button', { name: 'Open Bench' });
+    expect(createProject).toHaveBeenCalledWith(expect.objectContaining({ name: 'Bench' }), { activate: false });
+    expect(setActiveProject).not.toHaveBeenCalled();
+    expect(useStore.getState().doc).toBe(docBefore);
+    expect(useStore.getState().past.length).toBe(pastBefore);
+  });
+
+  it('closing the dialog does not cancel; reopening shows the same rows', async () => {
+    llmSettings = { provider: 'anthropic', apiKey: 'k', model: 'claude-opus-5-5' };
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    completeImpl.current = async () => { await gate; return { json: GOOD, assistantTurn: {}, usage }; };
+    await mountWithOneBoard();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /generate/i }));
+    await user.type(screen.getByLabelText('Description'), 'a bench');
+    await user.click(screen.getByRole('button', { name: 'Generate' }));
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.getByRole('button', { name: /generating 0\/1/i })).toBeInTheDocument();
+    release();
+    await user.click(await screen.findByRole('button', { name: /generate/i }));
+    await screen.findByRole('button', { name: 'Open Bench' });
+  });
+
+  it('opening a generated project goes through openProject and clears its new badge', async () => {
+    llmSettings = { provider: 'anthropic', apiKey: 'k', model: 'claude-opus-5-5' };
+    await mountWithOneBoard();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /generate/i }));
+    await user.type(screen.getByLabelText('Description'), 'a bench');
+    await user.click(screen.getByRole('button', { name: 'Generate' }));
+    await user.click(await screen.findByRole('button', { name: 'Open Bench' }));
+    await waitFor(() => expect(setActiveProject).toHaveBeenCalled());
+    expect(useStore.getState().doc.name).toBe('Bench');
+    await user.click(screen.getByRole('button', { name: 'Open project menu' }));
+    // Wait for the list itself: the menu loads asynchronously, so asserting
+    // the badge's absence before any row exists would pass vacuously.
+    await screen.findByText('Bench', { selector: '.project-row-name' });
+    expect(screen.queryByText('new')).toBeNull();
+  });
+
+  it('a generated project carries a new badge in the menu until opened', async () => {
+    // The positive half of the test above, so its `queryByText('new')` is
+    // known to be looking at something that can appear.
+    llmSettings = { provider: 'anthropic', apiKey: 'k', model: 'claude-opus-5-5' };
+    await mountWithOneBoard();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /generate/i }));
+    await user.type(screen.getByLabelText('Description'), 'a bench');
+    await user.click(screen.getByRole('button', { name: 'Generate' }));
+    await screen.findByRole('button', { name: 'Open Bench' });
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    await user.click(screen.getByRole('button', { name: 'Open project menu' }));
+    const name = await screen.findByText('Bench', { selector: '.project-row-name' });
+    expect(name.closest('.project-row-open')!.querySelector('.project-row-new')).toHaveTextContent('new');
+  });
+
+  it('Settings saves through the storage seam', async () => {
+    await mountWithOneBoard();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /settings/i }));
+    await user.type(screen.getByLabelText('API key'), 'sk-ant-x');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(setLlmSettings).toHaveBeenCalledWith({ provider: 'anthropic', apiKey: 'sk-ant-x', model: 'claude-opus-5-5' });
+  });
+
+  it('Forget key clears through the storage seam and closes the dialog', async () => {
+    // SettingsDialog does not close itself on Forget; App does. Left open it
+    // would keep offering "Saved — type to replace" for a key that is gone.
+    llmSettings = { provider: 'anthropic', apiKey: 'k', model: 'claude-opus-5-5' };
+    await mountWithOneBoard();
+    const user = userEvent.setup();
+    // The stored settings are read once on mount; wait for them to arrive
+    // before opening, or the dialog renders with no key and no Forget button.
+    await waitFor(() => expect(getLlmSettings).toHaveBeenCalled());
+    await act(async () => { await Promise.resolve(); });
+    await user.click(screen.getByRole('button', { name: /settings/i }));
+    await user.click(screen.getByRole('button', { name: 'Forget key' }));
+    expect(clearLlmSettings).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog', { name: 'Settings' })).toBeNull();
+    expect(viewportProps.current?.shortcutsSuspended).toBe(false);
   });
 });

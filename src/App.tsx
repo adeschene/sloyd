@@ -8,6 +8,11 @@ import { FileMenu, SaveIndicator, StorageBanner } from './panels/FileMenu';
 import type { FileMenuHandle } from './panels/FileMenu';
 import { CutList } from './panels/CutList';
 import { TapeReadout } from './panels/TapeReadout';
+import { GenerateDialog } from './panels/GenerateDialog';
+import { SettingsDialog } from './panels/SettingsDialog';
+import { useGenerations } from './useGenerations';
+import { AnthropicClient } from './llm/anthropic';
+import type { LlmSettings } from './storage/types';
 import type { DuplicateFailure } from './panels/ProjectMenu';
 import { canBeginLength } from './units/length';
 import { tapeAxisFromKey, createDocument, DocumentError } from './document/document';
@@ -50,6 +55,48 @@ export default function App() {
   // Also view state, and also deliberately outside the document and the undo
   // stack: the cut list is a way of looking at a project, not part of one.
   const [cutListOpen, setCutListOpen] = useState(false);
+  // Which dialog is open. View state like `cutListOpen`, and it joins that
+  // flag as a reason the shell is inert and every window shortcut is
+  // suspended (invariant 27). Not because of typing in the description —
+  // isTextEntry already covers text fields — but because the dialog's sheet
+  // and buttons hold focus too, and `inert` cannot reach a window listener:
+  // `m`, Backspace or Ctrl+Z pressed there would arm Move, delete the
+  // selected board, or undo, behind the dialog.
+  const [dialog, setDialog] = useState<'generate' | 'settings' | null>(null);
+  // THE ONE FLAG every "something covers the app" consumer reads — the inert
+  // shell, the keydown effect, `shortcutsSuspended`, the focus restore. One
+  // derived value rather than `cutListOpen || dialog !== null` spelled out at
+  // each site, so a third modal joins in one place and no consumer can be
+  // left reading only the old flag.
+  const modalOpen = cutListOpen || dialog !== null;
+  const [llmSettings, setLlmSettingsState] = useState<LlmSettings | null>(null);
+  // Generated this session and not yet opened (spec §6.3). Session-only:
+  // not persisted and not in the store — a badge is a property of this
+  // sitting, and nothing about it belongs on the undo stack.
+  const [newIds, setNewIds] = useState<ReadonlySet<string>>(new Set());
+  // How many runs the live batch started with, for the Toolbar's
+  // "Generating done/total…". `useGenerations` knows how many are LIVE; the
+  // total is the count the user picked, so it is held here beside the call.
+  const [batchSize, setBatchSize] = useState(0);
+  // The runs belong to App, not to the dialog, so closing the dialog does not
+  // cancel them and reopening it shows the same rows (spec §3.4).
+  //
+  // NOT A FIFTH ADOPTING HANDLER (spec §3.3, invariant 32): a finished run
+  // writes with `createProject(doc, { activate: false })` and nothing else —
+  // no switchToken bump, no setActiveId, no replaceDocument. The only way a
+  // generated project becomes the open one is the user clicking Open, which
+  // goes through `openProject` like any other row. Do not "help" by adopting
+  // the first finished design: three can land at unrelated moments, and each
+  // would yank the user out of what they were editing.
+  const generations = useGenerations({
+    onCreated: (id) => setNewIds((s) => new Set(s).add(id)),
+    // The same verdict-reporting rule the four switch handlers follow: a
+    // failed write must reach the banner, not only the run's row.
+    onStorageVerdict: () => setAvailable(storage.available),
+  });
+  useEffect(() => {
+    void storage.getLlmSettings().then(setLlmSettingsState);
+  }, []);
   // Where focus was when the sheet opened, so closing it puts focus back.
   // Captured HERE rather than in CutList's mount effect: `inert` on the shell
   // blurs whatever was focused behind the scrim, so by the time the modal
@@ -257,6 +304,17 @@ export default function App() {
     const next = await storage.loadProject(id);
     if (!next || token !== switchToken.current) return;
     setActiveId(id);
+    // Opening a project is what "not yet opened" ends, by whatever route —
+    // the dialog's Open, or the project menu's row. Here rather than in the
+    // dialog's handler so the menu route clears it too. Returns the SAME set
+    // when there is nothing to clear, so an ordinary switch re-renders
+    // nothing on its account.
+    setNewIds((s) => {
+      if (!s.has(id)) return s;
+      const n = new Set(s);
+      n.delete(id);
+      return n;
+    });
     replaceDocument(next);
     await storage.setActiveProject(id);
     // BELOW the token check, unlike the other three handlers, and for the
@@ -454,19 +512,24 @@ export default function App() {
   // focusing an inert element does nothing — and effects run after the commit
   // that removes the attribute. Fires on mount too, harmlessly: `opener` is
   // null until something opens the sheet.
+  //
+  // Keyed on `modalOpen`, not `cutListOpen`, so the dialogs get the same
+  // return trip. A hop from Generate to Settings (the "Set up your API key"
+  // button) keeps `modalOpen` true throughout, so this does not fire in
+  // between and focus lands back on the toolbar button the user started from.
   useEffect(() => {
-    if (cutListOpen) return;
+    if (modalOpen) return;
     const back = opener.current;
     opener.current = null;
     back?.focus();
-  }, [cutListOpen]);
+  }, [modalOpen]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       // Never steal keys from a field the user is typing in.
       if (isTextEntry(e.target as HTMLElement)) return;
 
-      // The cut list covers the app, so board shortcuts must not fire behind
+      // The cut list or a dialog covers the app, so board shortcuts must not fire behind
       // it — Delete/Backspace especially, which would silently delete the
       // selected board while the user is reading a sheet that never shows a
       // selection. Escape is handled by CutList itself.
@@ -477,7 +540,12 @@ export default function App() {
       // reason not to fire. Every window-level shortcut in the app needs the
       // flag reaching it explicitly — which is why `Viewport` takes it as a
       // prop rather than inferring it.
-      if (cutListOpen) return;
+      //
+      // `modalOpen` rather than `cutListOpen` since the Generate and Settings
+      // dialogs (spec §6.4): their sheet takes focus on mount and is not a
+      // text field, so isTextEntry above does not stop `m`, Backspace or
+      // Ctrl+Z pressed there. Both dialogs own their Escape, as CutList does.
+      if (modalOpen) return;
 
       // Escape backs out one level: drop what is held first, then the tool.
       // Note this sits below the cutListOpen guard on purpose — CutList owns
@@ -654,7 +722,7 @@ export default function App() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [undo, redo, deleteBoard, cutListOpen]);
+  }, [undo, redo, deleteBoard, modalOpen]);
 
   return (
     <div className="app">
@@ -672,7 +740,7 @@ export default function App() {
         (`.app > *:not(.cutlist-overlay)`) hides it exactly as it hid the three
         elements it replaced.
       */}
-      <div className="app-shell" inert={cutListOpen}>
+      <div className="app-shell" inert={modalOpen}>
         <Toolbar
           orthographic={orthographic}
           onToggleProjection={() => setOrthographic((v) => !v)}
@@ -693,6 +761,16 @@ export default function App() {
           onDuplicateProject={onDuplicateProject}
           onDeleteProject={onDeleteProject}
           onImportProject={onImportProject}
+          onOpenGenerate={() => {
+            opener.current = document.activeElement as HTMLElement | null;
+            setDialog('generate');
+          }}
+          onOpenSettings={() => {
+            opener.current = document.activeElement as HTMLElement | null;
+            setDialog('settings');
+          }}
+          generating={generations.live > 0 ? { live: generations.live, total: batchSize } : null}
+          newIds={newIds}
         >
           <SaveIndicator saving={saving} available={available} />
           <FileMenu ref={fileMenuRef} onImported={importIntoLibrary} />
@@ -722,7 +800,7 @@ export default function App() {
               showGrid={showGrid}
               showAxes={showAxes}
               showGuides={showGuides}
-              shortcutsSuspended={cutListOpen}
+              shortcutsSuspended={modalOpen}
             />
             {/*
               UNCONDITIONALLY MOUNTED, and that is load-bearing rather than
@@ -754,6 +832,53 @@ export default function App() {
         </main>
       </div>
       {cutListOpen && <CutList onClose={() => setCutListOpen(false)} />}
+      {/*
+        The two dialogs sit beside CutList, outside `.app-shell`, for the same
+        reasons it does: the shell goes `inert` behind them, and the print rule
+        (`.app > *:not(.cutlist-overlay)`) hides them without a rule of their
+        own.
+      */}
+      {dialog === 'settings' && (
+        <SettingsDialog
+          settings={llmSettings}
+          onSave={async (s) => {
+            const ok = await storage.setLlmSettings(s);
+            if (ok) setLlmSettingsState(s);
+            return ok;
+          }}
+          // Closes here because SettingsDialog does not close itself on
+          // Forget — left open, it would go on showing a form whose "Saved —
+          // type to replace" placeholder describes a key that no longer exists.
+          onForget={async () => {
+            await storage.clearLlmSettings();
+            setLlmSettingsState(null);
+            setDialog(null);
+          }}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog === 'generate' && (
+        <GenerateDialog
+          hasKey={llmSettings !== null}
+          libraryAvailable={libraryAvailable}
+          rows={generations.rows}
+          live={generations.live}
+          onGenerate={(s, n) => {
+            if (!llmSettings) return;
+            setBatchSize(n);
+            generations.start(new AnthropicClient(llmSettings.apiKey, llmSettings.model), s, n);
+          }}
+          onCancel={generations.cancel}
+          // The ONE adopting path generation uses (spec §3.3): the existing
+          // `openProject`, token and flush and all.
+          onOpenProject={(id) => {
+            setDialog(null);
+            void openProject(id);
+          }}
+          onOpenSettings={() => setDialog('settings')}
+          onClose={() => setDialog(null)}
+        />
+      )}
     </div>
   );
 }

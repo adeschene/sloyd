@@ -30,7 +30,19 @@ interface Props {
   onDuplicate: (id: string) => Promise<DuplicateFailure | null>;
   onDelete: (id: string) => Promise<void>;
   onImport: () => void;
+  /**
+   * Generated this session and not yet opened — session-only App state, not
+   * persisted (spec §6.3). Optional so the 16 existing renders in
+   * ProjectMenu.test.tsx need no change.
+   */
+  newIds?: ReadonlySet<string>;
 }
+
+// The default for `newIds`, at module level so an omitted prop is the SAME
+// set on every render rather than a fresh `new Set()` each time — nothing
+// memoises on it today, but a default that changes identity per render is
+// the kind of thing a later dep list trips over (invariant 15's shape).
+const NO_IDS: ReadonlySet<string> = new Set();
 
 /** "2 min ago" — coarse on purpose; the exact second is never the question. */
 export function relativeTime(at: number, now: number): string {
@@ -56,7 +68,7 @@ export function relativeTime(at: number, now: number): string {
  * `aria-current` marks the open project the way a nav landmark would, not
  * `aria-checked`.
  */
-export function ProjectMenu({ activeId, onOpen, onNew, onDuplicate, onDelete, onImport }: Props) {
+export function ProjectMenu({ activeId, onOpen, onNew, onDuplicate, onDelete, onImport, newIds = NO_IDS }: Props) {
   const [open, setOpen] = useState(false);
   const [projects, setProjects] = useState<ProjectEntry[]>([]);
   // Which row's delete is armed. Two-step rather than window.confirm: it
@@ -176,6 +188,7 @@ export function ProjectMenu({ activeId, onOpen, onNew, onDuplicate, onDelete, on
               >
                 <span className="project-dot" aria-hidden="true">{p.id === activeId ? '●' : ''}</span>
                 <span className="project-row-name">{p.name}</span>
+                {newIds.has(p.id) && <span className="project-row-new">new</span>}
                 <span className="project-row-time">{relativeTime(p.savedAt, now)}</span>
               </button>
               <button

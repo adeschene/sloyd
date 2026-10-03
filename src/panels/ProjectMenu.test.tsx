@@ -287,3 +287,16 @@ describe('relativeTime', () => {
     expect(relativeTime(now - 3 * 24 * 3_600_000, now)).toBe('3 days ago');
   });
 });
+
+describe('ProjectMenu new badge', () => {
+  it('badges a row whose id is in newIds, and only that row', async () => {
+    render(<ProjectMenu activeId="a" newIds={new Set(['b'])} onOpen={vi.fn()} onNew={vi.fn()} onDuplicate={vi.fn()} onDelete={vi.fn()} onImport={vi.fn()} />);
+    await open();
+    await screen.findAllByText('Shaker end table');
+    const rows = openRows();
+    const shaker = rows.find((r) => r.textContent?.includes('Shaker'))!;
+    const workbench = rows.find((r) => r.textContent?.includes('Workbench'))!;
+    expect(shaker.querySelector('.project-row-new')).toHaveTextContent('new');
+    expect(workbench.querySelector('.project-row-new')).toBeNull();
+  });
+});
