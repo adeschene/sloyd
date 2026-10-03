@@ -69,6 +69,18 @@ describe('designToDocument', () => {
     expect(doc.boards.flatMap((b) => b.position).every(Number.isFinite)).toBe(true);
   });
 
+  it.each([
+    ['a size', [0, 0, 0], [1e308, 1, 1]],
+    ['a position', [1e308, 0, 0], [10, 1, 1]],
+  ] as const)('rejects %s that is finite but overflows when snapped (1e308 / (1/16) = Infinity)', (_, at, size) => {
+    const { doc, rejected } = designToDocument(design(
+      part('Huge', [...at], [...size]),
+      part('Good', [0, 0, 0], [10, 1, 1]),
+    ));
+    expect(rejected).toEqual([{ name: 'Huge', reason: 'not-finite' }]);
+    expect(doc.boards.map((b) => b.name)).toEqual(['Good']);
+  });
+
   it.each([[0], [-2], [0.01]])('rejects a part whose size rounds to %s or below zero as too-small', (s) => {
     const { rejected } = designToDocument(design(part('Thin', [0, 0, 0], [10, s, 1])));
     expect(rejected).toEqual([{ name: 'Thin', reason: 'too-small' }]);

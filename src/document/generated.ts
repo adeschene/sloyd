@@ -116,12 +116,14 @@ export function designToDocument(design: GeneratedDesign): { doc: SloydDocument;
   const rejected: RejectedPart[] = [];
   const boards: Omit<Board, 'id'>[] = [];
   for (const p of design.parts) {
-    const raw = [p.at.x, p.at.y, p.at.z, p.size.x, p.size.y, p.size.z];
-    if (!raw.every(Number.isFinite)) {
+    // Checked AFTER the snap: a finite value near Number.MAX_VALUE overflows
+    // to Infinity on the division by SNAP_INCHES. Covers NaN/±Infinity too.
+    const snapped = [p.at.x, p.at.y, p.at.z, p.size.x, p.size.y, p.size.z].map(snap);
+    if (!snapped.every(Number.isFinite)) {
       rejected.push({ name: p.name, reason: 'not-finite' });
       continue;
     }
-    const [ax, ay, az, sx, sy, sz] = raw.map(snap);
+    const [ax, ay, az, sx, sy, sz] = snapped;
     if (sx <= 0 || sy <= 0 || sz <= 0) {
       rejected.push({ name: p.name, reason: 'too-small' });
       continue;
