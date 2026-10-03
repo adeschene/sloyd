@@ -128,12 +128,20 @@ describe('hangs — the real workbench (fu 165)', () => {
   });
 });
 
+describe('hangs — a load on top', () => {
+  it('a crate set ON the hanging shelf does not hold it up', () => {
+    const doc = migrateDocument(JSON.parse(workbenchRaw));
+    const withCrate = { ...doc, boards: [...doc.boards, span('Crate', [-5, 6, -4], [5, 12, 4])] };
+    const v = hangs(withCrate);
+    expect(v.map((x) => x.message.split(' ')[0] + ' ' + x.message.split(' ')[1])).toEqual(['Lower shelf']);
+  });
+});
+
 describe('hangs — the three ways to be held', () => {
-  it('(a) resting: a top on four legs', () => {
+  it('(a) resting: a square post standing on a plinth, held by nothing else', () => {
     expect(hangs(docOf(
-      span('Leg 1', [0, 0, 0], [2, 28, 2]), span('Leg 2', [18, 0, 0], [20, 28, 2]),
-      span('Leg 3', [0, 0, 18], [2, 28, 20]), span('Leg 4', [18, 0, 18], [20, 28, 20]),
-      span('Top', [0, 28, 0], [20, 29, 20]),
+      span('Plinth', [0, 0, 0], [10, 1, 10]),
+      span('Post', [3.5, 1, 3.5], [6.5, 21, 6.5]),
     ))).toEqual([]);
   });
 
@@ -144,6 +152,11 @@ describe('hangs — the three ways to be held', () => {
   );
   it('(b) between: a shelf whose ends are covered exactly 50% passes', () => {
     expect(hangs(between(12))).toEqual([]);
+  });
+  it('(b) between: 0.4974 coverage prints as 49%, never 50%', () => {
+    const v = hangs(between(11.9375));
+    expect(v).toHaveLength(1);
+    expect(v[0].message).toContain('covered 49% and 49%');
   });
   it('(b) between: 49% fails, and says so', () => {
     const v = hangs(between(11.76));

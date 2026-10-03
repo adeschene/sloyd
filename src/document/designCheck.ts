@@ -85,8 +85,8 @@ function coverage(b: Box, cs: Contact[], axis: number, side: -1 | 1): number {
 
 /**
  * HELD (fu 165, inv 39): (a) something under it, (b) both faces of the X or Z
- * pair covered >= HELD_COVERAGE, or (c) any contact on a broad face (normal to
- * its smallest extent; ties all count). (c) is what lets a backrest or an
+ * pair covered >= HELD_COVERAGE, or (c) any contact on a broad face other than its
+ * top (normal to its smallest extent; ties all count; a load on top never holds a part up). (c) is what lets a backrest or an
  * apron screwed to a post's face pass — without it, ordinary face-mounted
  * parts fail and cost repair rounds for nothing. Coverage, not two-sidedness,
  * is what catches the workbench shelf: it touched legs on BOTH ends, 19% each.
@@ -97,13 +97,13 @@ function hangsMessage(b: Box, cs: Contact[], boxes: Box[]): string | null {
   if (pairs.some((p) => p.lo >= HELD_COVERAGE && p.hi >= HELD_COVERAGE)) return null;
   const ext = [0, 1, 2].map((k) => b.max[k] - b.min[k]);
   const thin = Math.min(...ext);
-  if (cs.some((c) => ext[c.axis] - thin <= 1e-9)) return null;
+  if (cs.some((c) => ext[c.axis] - thin <= 1e-9 && !(c.axis === 1 && c.side === 1))) return null;
 
   // The pair closest to passing: larger smaller-coverage; a tie keeps X.
   const best = Math.min(pairs[1].lo, pairs[1].hi) > Math.min(pairs[0].lo, pairs[0].hi) ? pairs[1] : pairs[0];
   const who = [...new Set(cs.filter((c) => c.axis === best.axis).map((c) => c.other))].sort((x, y) => x - y);
   const by = who.length ? ` (by ${who.map((k) => boxes[k].name).join(', ')})` : '';
-  const pct = (v: number) => Math.round(100 * v);
+  const pct = (v: number) => Math.floor(100 * v + 1e-9);
   return `${b.name} is not held: nothing is under it, and its ${AXES[best.axis]} sides are covered ${pct(best.lo)}% and ${pct(best.hi)}%${by}; each needs ${pct(HELD_COVERAGE)}%. Rest it on a part below, fit it between two parts that cover its sides, or fasten its broad face to another part.`;
 }
 
