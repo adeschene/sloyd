@@ -1153,4 +1153,4 @@ button[aria-pressed='true'] {
 .generate-run-letter { font-family: var(--font-num); width: 1.5em; }
 .generate-run-status { flex: 1; }
 .generate-run-cost { font-family: var(--font-num); opacity: 0.75; }
-.generate-run-failed .generate-run-status { color: var(--danger, #e06c5a); }
+.generate-run-failed .generate-run-status { color: var(--alert); }
