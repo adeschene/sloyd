@@ -1119,3 +1119,27 @@ button[aria-pressed='true'] {
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
+
+/* Generate / Settings dialogs — the cut list's overlay idiom, smaller sheet. */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 48px 16px;
+  overflow: auto;
+  background: rgba(12, 14, 16, 0.72);
+}
+.modal-sheet {
+  width: min(560px, 100%);
+  padding: 20px 24px;
+  background: var(--graphite-800);
+  border: 1px solid var(--graphite-600);
+  border-radius: 8px;
+  outline: none;
+}
+.modal-sheet h2 { margin: 0 0 16px; }
+.modal-note { font-size: 12px; opacity: 0.75; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
