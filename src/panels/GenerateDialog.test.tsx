@@ -2,10 +2,10 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { GenerateDialog } from './GenerateDialog';
-import type { RunRow } from '../useGenerations';
+import type { PlanLine, RunRow } from '../useGenerations';
 
 const props = (over: Partial<Parameters<typeof GenerateDialog>[0]> = {}) => ({
-  hasKey: true, libraryAvailable: true, rows: [] as RunRow[], live: 0,
+  hasKey: true, libraryAvailable: true, rows: [] as RunRow[], live: 0, plan: null,
   onGenerate: vi.fn(), onCancel: vi.fn(), onOpenProject: vi.fn(), onOpenSettings: vi.fn(), onClose: vi.fn(),
   ...over,
 });
@@ -84,5 +84,39 @@ describe('GenerateDialog', () => {
     expect(screen.getByText(/rate limited/i)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Open Bench — B' }));
     expect(p.onOpenProject).toHaveBeenCalledWith('p2');
+  });
+
+  it.each([
+    [{ status: 'planning', costUsd: null }, 'Planning 3 contrasting designs…'],
+    [{ status: 'ready', costUsd: 0.012 }, 'Concepts'],
+    [{ status: 'fallback', costUsd: null }, 'Concepts unavailable — using built-in variations'],
+    [{ status: 'failed', costUsd: null, error: 'API key was rejected — check Settings.' }, 'Failed: API key was rejected — check Settings.'],
+    [{ status: 'cancelled', costUsd: null }, 'Cancelled'],
+  ] as [PlanLine, string][])('renders the plan line: %o', (plan, text) => {
+    const rows: RunRow[] = ['A', 'B', 'C'].map((letter, i) => ({ key: i, letter, status: 'waiting', costUsd: null }));
+    render(<GenerateDialog {...props({ plan, rows })} />);
+    expect(screen.getByText(text)).toBeInTheDocument();
+  });
+
+  it('shows the planning cost when known', () => {
+    const rows: RunRow[] = [{ key: 1, letter: 'A', status: 'waiting', costUsd: null }];
+    render(<GenerateDialog {...props({ plan: { status: 'ready', costUsd: 0.012 }, rows })} />);
+    expect(screen.getByText('≈ $0.01')).toBeInTheDocument();
+  });
+
+  it('a waiting row says so, and a row shows its concept', () => {
+    const rows: RunRow[] = [
+      { key: 1, letter: 'A', status: 'waiting', costUsd: null },
+      { key: 2, letter: 'B', status: 'designing', concept: 'Trestle base', costUsd: null },
+    ];
+    render(<GenerateDialog {...props({ plan: { status: 'ready', costUsd: null }, rows })} />);
+    expect(screen.getByText('Waiting for its concept…')).toBeInTheDocument();
+    expect(screen.getByText('Trestle base')).toBeInTheDocument();
+  });
+
+  it('shows no plan line for a batch of 1', () => {
+    const rows: RunRow[] = [{ key: 1, letter: null, status: 'designing', costUsd: null }];
+    render(<GenerateDialog {...props({ rows })} />);
+    expect(screen.queryByText(/Planning|Concepts/)).not.toBeInTheDocument();
   });
 });

@@ -1154,6 +1154,10 @@ button[aria-pressed='true'] {
 .generate-run-status { flex: 1; }
 .generate-run-cost { font-family: var(--font-num); opacity: 0.75; }
 .generate-run-failed .generate-run-status { color: var(--alert); }
+.generate-plan { display: flex; gap: 8px; align-items: center; margin: 16px 0 0; }
+.generate-plan + .generate-runs { margin-top: 6px; }
+.generate-plan-failed .generate-run-status { color: var(--alert); }
+.generate-run-concept { font-weight: 600; }
 
 /* The project menu's "new" badge on a project generated this session and not
    yet opened (spec §6.3). Brass on graphite — the app's existing chip idiom

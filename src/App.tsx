@@ -866,6 +866,7 @@ export default function App() {
           libraryAvailable={libraryAvailable}
           rows={generations.rows}
           live={generations.live}
+          plan={generations.plan}
           onGenerate={(s, n) => {
             if (!llmSettings) return;
             setBatchSize(n);

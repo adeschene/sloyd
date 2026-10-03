@@ -4,13 +4,14 @@ import { MATERIALS } from '../document/types';
 import { DETAIL_CAPS, STYLES } from '../generate/prompt';
 import type { Detail, GenerateSettings, Style } from '../generate/prompt';
 import { MAX_REPAIRS } from '../generate/run';
-import type { RunRow } from '../useGenerations';
+import type { PlanLine, RunRow } from '../useGenerations';
 
 interface Props {
   hasKey: boolean;
   libraryAvailable: boolean;
   rows: RunRow[];
   live: number;
+  plan: PlanLine | null;
   onGenerate: (s: GenerateSettings, count: 1 | 2 | 3) => void;
   onCancel: () => void;
   onOpenProject: (projectId: string) => void;
@@ -23,6 +24,16 @@ function parseLimit(text: string): number | null | 'bad' {
   if (!text.trim()) return null;
   const v = parseLength(text);
   return v !== null && v > 0 ? v : 'bad';
+}
+
+function planText(plan: PlanLine, n: number): string {
+  switch (plan.status) {
+    case 'planning': return `Planning ${n} contrasting designs…`;
+    case 'ready': return 'Concepts';
+    case 'fallback': return 'Concepts unavailable — using built-in variations';
+    case 'failed': return `Failed: ${plan.error}`;
+    case 'cancelled': return 'Cancelled';
+  }
 }
 
 function statusText(r: RunRow): string {
@@ -129,18 +140,27 @@ export function GenerateDialog(p: Props) {
         {!p.libraryAvailable && <p className="field-error" role="status">Generate is unavailable — storage is unavailable, so a design would have nowhere to go.</p>}
 
         {p.rows.length > 0 && (
-          <ul className="generate-runs">
-            {p.rows.map((r) => (
-              <li key={r.key} className={`generate-run generate-run-${r.status}`}>
-                {r.letter && <span className="generate-run-letter">{r.letter}</span>}
-                <span className="generate-run-status">{statusText(r)}</span>
-                {r.costUsd !== null && <span className="generate-run-cost">{`≈ $${r.costUsd.toFixed(2)}`}</span>}
-                {r.status === 'ready' && r.projectId && (
-                  <button aria-label={`Open ${r.projectName}`} onClick={() => p.onOpenProject(r.projectId!)}>Open</button>
-                )}
-              </li>
-            ))}
-          </ul>
+          <>
+            {p.plan && (
+              <p className={`generate-plan generate-plan-${p.plan.status}`}>
+                <span className="generate-run-status">{planText(p.plan, p.rows.length)}</span>
+                {p.plan.costUsd !== null && <span className="generate-run-cost">{`≈ $${p.plan.costUsd.toFixed(2)}`}</span>}
+              </p>
+            )}
+            <ul className="generate-runs">
+              {p.rows.map((r) => (
+                <li key={r.key} className={`generate-run generate-run-${r.status}`}>
+                  {r.letter && <span className="generate-run-letter">{r.letter}</span>}
+                  <span className="generate-run-status">{statusText(r)}</span>
+                  {r.concept && <span className="generate-run-concept">{r.concept}</span>}
+                  {r.costUsd !== null && <span className="generate-run-cost">{`≈ $${r.costUsd.toFixed(2)}`}</span>}
+                  {r.status === 'ready' && r.projectId && (
+                    <button aria-label={`Open ${r.projectName}`} onClick={() => p.onOpenProject(r.projectId!)}>Open</button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </>
         )}
 
         <div className="modal-actions">
