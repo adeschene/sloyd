@@ -27,7 +27,7 @@ tradition built around hand woodworking.
 Static SPA, containerized, **1134/1134 tests passing across 45 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **6**.
 
-**PRODUCTION RUNS the Generate round as of 2026-10-03, and `master` is now one round ahead of it (batch variety, below).** It serves
+**PRODUCTION MATCHES `master` as of 2026-10-03 with the batch variety round live** — bundle `index-CHx6ZAo-.js`, CSS `index-Co3i2lF7.css`, merge commit `b46b28d`. The Generate round's own deploy, earlier the same day, is described next. It served
 bundle `index-BAsxEohe.js` with CSS `index-DEQSkZ3q.css`, from merge commit `fa834dc`. A
 person stores a Claude API key in Settings, describes a piece, and gets 1–3 prototypes built
 from boards, each saved as a **new, unactivated** library project (invariant 36). **It is
@@ -41,14 +41,14 @@ Claude drives the dev server and the user supervises. Results are in
 findings: 164, a batch converging on one design, now CLOSED (below); and 165, a support
 check that passes a badly supported part, still open.
 
-**`master` IS AHEAD OF PRODUCTION by the batch variety round (follow-up 164, 2026-10-03),
-which is merged and NOT deployed.** A batch of 2–3 now makes one planning call
+**The batch variety round (follow-up 164, 2026-10-03) is merged AND deployed**, confirmed by
+page load, bundle hash and the CSP header at the edge and in-network. A batch of 2–3 now makes one planning call
 (`generate/concepts.ts`) for N structurally contrasting concepts, and each run designs its
 own; a batch of 1 is unchanged. It was the first live pass **driven by Claude with the
 user watching**. The user judged both batches (a side table on Sonnet, a bench on Opus)
 structurally different, which closed 164. Results are in
-`docs/browser-verification-batch-variety.md`. There is no schema change, so deploying it
-costs nothing to roll back.
+`docs/browser-verification-batch-variety.md`. There is no schema change, so rolling it
+back costs nothing but the round.
 
 **The previous production build, 2026-08-31.** It served bundle
 `index-CZu96cak.js` with CSS `index-CtYur9k3.css`, which is `eb6a632` — the ply-sign round

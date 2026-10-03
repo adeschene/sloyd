@@ -18,6 +18,17 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-03 with the batch variety round live** (follow-up
+164): bundle `index-BAsxEohe.js` → `index-CHx6ZAo-.js`, CSS `index-DEQSkZ3q.css` →
+`index-Co3i2lF7.css`, merge commit `b46b28d`. It is the day's second deploy. The CSS hash
+moved because the round added the plan-line and concept styles. Verified after: `200` on `/`
+and on a deep route, in-network and publicly; the new bundle served both at the edge and
+in-network; and CSP `connect-src 'self' https://api.anthropic.com` unchanged at the edge.
+**This deploy follows the deployment rule's normal order**, live test first and deploy
+second, unlike the Generate round's earlier the same day. Its feature was verified against
+the dev server with the user watching (`docs/browser-verification-batch-variety.md`), so
+nothing was exercised against production. There is no schema change.
+
 **Production matches `master` as of 2026-10-03 with the Generate round live**: bundle
 `index-CZu96cak.js` → `index-BAsxEohe.js` (CSS `index-CtYur9k3.css` → `index-DEQSkZ3q.css`),
 merge commit `fa834dc`. Verified after: `200` on `/` and on a deep route, both in-network and
@@ -207,7 +218,7 @@ user's. Two findings outlived the round:
   wrong claim, that keys start with `sk-ant-api`, which the working key disproved. It is
   recorded so the eventual check does not encode it.
 
-**Not deployed.** Tests went from 1094 to 1134 across 45 files. There is no schema change.
+**Deployed the same day** (bundle `index-CHx6ZAo-.js`). Tests went from 1094 to 1134 across 45 files. There is no schema change.
 
 **What the Generate round did (2026-10-03)**: the first feature round since the project
 library, and the first with a network dependency. The user asked whether a person could
