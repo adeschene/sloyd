@@ -18,6 +18,13 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-03 with the key check round live** (follow-up 174):
+bundle `index-B9DOKF_H.js` → `index-BhhW2iNw.js`, merge commit `d0ba83b`, the day's fourth
+deploy. The CSS is unchanged (`index-Co3i2lF7.css`). Verified after: `200` on `/` and on a
+deep route, both in-network and publicly; the new bundle served at both; CSP `connect-src
+'self' https://api.anthropic.com` unchanged at the edge (the free check call depends on it).
+Verified against the dev server first, with the user watching. There is no schema change.
+
 **Production matches `master` as of 2026-10-03 with the held and stable round live** (follow-up
 165): bundle `index-CHx6ZAo-.js` → `index-B9DOKF_H.js`, merge commit `a0f452f`, the day's
 third deploy. **The CSS hash did not move** (`index-Co3i2lF7.css`), because the round is
@@ -198,7 +205,7 @@ Settings". The fix measured before it chose:
   would refuse a valid key, and a mutation proves the tests would catch one being added.
 
 The live check was free: Claude drove both refusal cases, and the user pasted the real key.
-Tests went from 1163 to 1180. There is no schema change.
+Deployed the same day (bundle `index-BhhW2iNw.js`). Tests went from 1163 to 1180. There is no schema change.
 
 **What the held and stable round did (2026-10-03)**: follow-up 165. `checkDesign`'s support
 rule only asked whether parts connected to the floor through face contacts, in any direction,
