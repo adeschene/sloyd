@@ -17,9 +17,13 @@ const TWO_ISSUES = { name: 'Two', parts: [p('A', 0), p('B', 5), p('C', 9)] };   
 
 type Step = unknown | 'truncated' | 'unparseable' | LlmError;
 
-/** A scripted client that records a COPY of every request's history. */
+/**
+ * A scripted client that records a COPY of every request's history, and
+ * keeps the (frozen) turn objects it returns so tests can check identity.
+ */
 function fakeClient(steps: Step[]) {
   const seen: unknown[][] = [];
+  const turns: object[] = [];
   let i = 0;
   const client: LlmClient = {
     userTurn: (text) => ({ role: 'user', text }),
@@ -27,13 +31,14 @@ function fakeClient(steps: Step[]) {
     complete: vi.fn(async (req: LlmRequest): Promise<LlmResult> => {
       seen.push([...req.messages]);
       const step = steps[Math.min(i, steps.length - 1)];
-      const turn = { role: 'assistant', n: i++ };
+      const turn = Object.freeze({ role: 'assistant', n: i++ });
+      turns.push(turn);
       if (step instanceof LlmError) throw step;
       if (step === 'truncated' || step === 'unparseable') return { json: null, unusable: step, assistantTurn: turn, usage };
       return { json: step, assistantTurn: turn, usage };
     }),
   };
-  return { client, seen };
+  return { client, seen, turns };
 }
 const run = (client: LlmClient, signal = new AbortController().signal) =>
   runGeneration(client, settings, signal, () => {});
@@ -67,11 +72,16 @@ describe('runGeneration', () => {
   });
 
   it('keeps the history APPEND-ONLY — every request extends the previous one unedited', async () => {
-    const { client, seen } = fakeClient([ONE_ISSUE, 'truncated', ONE_ISSUE, GOOD]);
+    const { client, seen, turns } = fakeClient([ONE_ISSUE, 'truncated', ONE_ISSUE, GOOD]);
     await run(client);
+    expect(seen).toHaveLength(4);
     for (let k = 1; k < seen.length; k++) {
-      expect(seen[k].slice(0, seen[k - 1].length)).toEqual(seen[k - 1]);
-      expect(seen[k].length).toBe(seen[k - 1].length + 2);
+      const prev = seen[k - 1];
+      for (let j = 0; j < prev.length; j++) expect(seen[k][j]).toBe(prev[j]);
+      // The turn the client returned goes in AS THAT OBJECT — a copy would
+      // compare equal by value and still be an edit (thinking signatures).
+      expect(seen[k][prev.length]).toBe(turns[k - 1]);
+      expect(seen[k].length).toBe(prev.length + 2);
     }
   });
 
