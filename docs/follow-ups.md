@@ -3886,6 +3886,23 @@ inside it. Settings already trims the ends; it does not look at the middle. Two 
 `sk-ant-api`, and the key that then worked does not. A prefix rule would have refused a
 valid key. The live pass records the correction.
 
+**CLOSED 2026-10-03 by the key check round, using both remedies the entry named plus a
+third**, `docs/browser-verification-key-check.md`. Measured first, as CLAUDE.md asks of a
+named remedy. Of the three bad pastes, a shape check alone catches only two: the 212-character
+key was well-formed and simply invalid. So Save also verifies a newly typed key with a free
+`GET /v1/models?limit=1` (`checkAnthropicKey` in `llm/anthropic.ts`, beside the client):
+
+- **401/403:** the key is refused, and the API's reason is shown.
+- **Anything else** (offline, rate limited, overloaded): the key is saved, with a note.
+  A network blip must not stop someone saving.
+- **Changing only the model** skips the check.
+
+The shape rule is "one run of printable ASCII", with **no prefix rule**: the key that worked
+in the batch variety pass does not start with `sk-ant-api`, and a deliberate mutation adding
+a prefix rule turns six tests red. **One test case was corrected while writing it:** a line
+break cannot be the bad character, because a single-line `<input>` strips LF and CR itself,
+so the test uses a tab.
+
 **175. Deferred minors from the batch variety round's reviews**, each judged not worth a fix
 round:
 
