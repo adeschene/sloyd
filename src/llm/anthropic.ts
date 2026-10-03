@@ -25,6 +25,15 @@ const MAX_TOKENS = 32000;
 /** The slice of the SDK this client uses — what lets tests pass a fake. */
 type SdkLike = Pick<Anthropic, 'beta'>;
 
+/**
+ * The API's own sentence from an error body (`{ error: { message } }`), or
+ * null. Never the key: the body is the API's reply, not our request.
+ */
+function apiReason(e: InstanceType<typeof Anthropic.APIError>): string | null {
+  const m = (e.error as { error?: { message?: unknown } } | undefined)?.error?.message;
+  return typeof m === 'string' && m.trim() !== '' ? m.trim() : null;
+}
+
 export function toLlmError(e: unknown, signal: AbortSignal): LlmError {
   if (e instanceof LlmError) return e;
   if (signal.aborted || e instanceof Anthropic.APIUserAbortError) return new LlmError('cancelled', 'Cancelled.');
@@ -33,7 +42,12 @@ export function toLlmError(e: unknown, signal: AbortSignal): LlmError {
     // `status` is undefined for an error event mid-stream; the typed `type`
     // (the body's `error.type`) still says what happened.
     const { status, type } = e;
-    if (status === 401 || status === 403) return new LlmError('auth', 'API key was rejected — check Settings.');
+    if (status === 401 || status === 403) {
+      // The API's reason, when it gave one (fu 174): "check Settings" alone
+      // cannot tell a mistyped key from a revoked one.
+      const reason = apiReason(e);
+      return new LlmError('auth', `API key was rejected — check Settings.${reason ? ` (${reason})` : ''}`);
+    }
     if (status === 429 || type === 'rate_limit_error') {
       return new LlmError('rate-limit', 'Rate limited by the Claude API — try again shortly.');
     }
@@ -119,5 +133,26 @@ export class AnthropicClient implements LlmClient {
     } catch {
       return { json: null, unusable: 'unparseable', assistantTurn, usage };
     }
+  }
+}
+
+export type KeyCheck = { status: 'valid' } | { status: 'rejected'; reason: string } | { status: 'unchecked' };
+
+/**
+ * Checks a key with ONE FREE call — list one model — before Settings stores
+ * it (fu 174). Only a 401/403 is a verdict on the key; anything else (offline,
+ * rate limited, overloaded) is `unchecked`, and the caller saves anyway: a
+ * network blip must not stop someone saving their key.
+ */
+export async function checkAnthropicKey(apiKey: string, sdk?: Pick<Anthropic, 'models'>): Promise<KeyCheck> {
+  const client = sdk ?? new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
+  try {
+    await client.models.list({ limit: 1 });
+    return { status: 'valid' };
+  } catch (e) {
+    if (e instanceof Anthropic.APIError && (e.status === 401 || e.status === 403)) {
+      return { status: 'rejected', reason: apiReason(e) ?? 'the key was not accepted.' };
+    }
+    return { status: 'unchecked' };
   }
 }

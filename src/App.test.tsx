@@ -271,6 +271,8 @@ vi.mock('./llm/anthropic', async (orig) => {
   const real = await orig<typeof import('./llm/anthropic')>();
   return {
     ...real,
+    // Never the real network from jsdom: the key check is a fetch.
+    checkAnthropicKey: async () => ({ status: 'valid' as const }),
     AnthropicClient: class {
       userTurn(t: string) { return t; }
       estimateCostUsd() { return 0.01; }

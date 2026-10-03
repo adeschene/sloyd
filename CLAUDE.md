@@ -24,7 +24,7 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **1163/1163 tests passing across 45 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
+Static SPA, containerized, **1180/1180 tests passing across 45 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **6**.
 
 **PRODUCTION MATCHES `master` as of 2026-10-03 with the held and stable round live** — bundle `index-B9DOKF_H.js`, CSS `index-Co3i2lF7.css` (unchanged: a TypeScript-only round), merge commit `a0f452f`. The batch variety deploy before it served `index-CHx6ZAo-.js` from `b46b28d`. The Generate round's own deploy, earlier the same day, is described next. It served
@@ -40,6 +40,12 @@ Claude drives the dev server and the user supervises. Results are in
 `docs/browser-verification-generate.md`. 6 of 6 generations completed. It left two
 findings: 164, a batch converging on one design, now CLOSED (below); and 165, a support
 check that passes a badly supported part, still open.
+
+**`master` IS AHEAD OF PRODUCTION by the key check round (follow-up 174, 2026-10-03),
+merged and NOT deployed.** Settings refuses a key with whitespace or non-ASCII inside it,
+verifies a newly typed key with one free `GET /v1/models` before storing it, and an auth
+error now carries the API's own reason. There is **no prefix rule**, on purpose
+(`docs/browser-verification-key-check.md`).
 
 **The held and stable round (follow-up 165, 2026-10-03) is merged AND deployed.** `checkDesign` now reports a part that is not *held* (`hangs`) and a
 piece that would *tip* (`tips`), and the model is told both rules up front (invariant 39).
@@ -145,8 +151,7 @@ load-bearing.
 slate. **Batch variety (164) and held and stable (165) followed it and are done.** The
 planned follow-on is **phase 2, refine and joinery (follow-up 171)**; read invariants 38
 and 39 first, because joinery is exactly where "overlap" and "held" both change meaning.
-The smaller open candidate is **174** (Settings saves text that cannot be a key). Ask which
-before starting either.
+174 (the key check) is done too. Ask before starting anything.
 The paragraphs below are the 2026-08-31 state, kept for its reasoning.
 
 **As of 2026-08-31: NO SUCCESSOR FEATURE ROUND HAD BEEN CHOSEN, and 130 is no longer the presumed one** — it
@@ -225,6 +230,7 @@ show it. Prefer a readout where one suffices; add an image when the finding is s
 | generate | 10-03 | — | prototypes from a description via Claude; each generation is a new, unactivated project (invariant 36) |
 | batch variety | 10-03 | — | one planning call gives each run in a batch of 2–3 a contrasting concept (fu 164); a batch of 1 is unchanged |
 | held and stable | 10-03 | — | checkDesign reports a part that is not held and a piece that would tip (fu 165, inv 39) |
+| key check | 10-03 | — | *no spec* — fu 174: Settings shape-checks a key and verifies it with a free call before storing it; the auth error carries the API's reason. No prefix rule |
 
 ### The deployment rule, stated once
 
@@ -558,7 +564,12 @@ src/
 │   │                       giving either branch a `key` silently breaks that. Rendered
 │   │                       ONLY when libraryAvailable (inv 30)
 │   ├── SettingsDialog.tsx  key (password field, Forget key) + model. Cut-list overlay
-│   │                       pattern, not <dialog> (spec §6.2 as-built note)
+│   │                       pattern, not <dialog> (spec §6.2 as-built note). A NEWLY
+│   │                       TYPED key is shape-checked (one run of printable ASCII, NO
+│   │                       prefix rule) and then verified via the `checkKey` prop
+│   │                       (App passes `checkAnthropicKey`, one free GET /v1/models):
+│   │                       401/403 refuses with the API's reason; anything else saves
+│   │                       with a note (fu 174)
 │   ├── GenerateDialog.tsx  the form, the per-run rows, Cancel. Same overlay pattern
 │   ├── PartsList.tsx  FileMenu.tsx
 │   ├── Properties.tsx      board fields + Cuts; CutRow is its own component so a
@@ -1277,7 +1288,7 @@ worked examples behind several of them are in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 1163 tests across 45 files
+npm test           # Vitest, currently 1180 tests across 45 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1360,8 +1371,9 @@ The handful worth knowing without opening that file:
   REPAIRING a `hangs` or `tips` violation, since nothing triggered one.
 - **167** — prompt caching DOES work (1,271 cached tokens per run, measured); the entry's
   original premise was wrong. The real gap is a batch's cold parallel start. Still low value.
-- **174** — Settings saves text that cannot be an API key. **Do not check a prefix**: a
-  claim during diagnosis that keys start with `sk-ant-api` was disproved by the working key.
+- **174** — CLOSED 2026-10-03 by the key check round. Read its closure before touching
+  Settings' Save: the free verification call saves anyway on anything but a 401/403, and
+  **there is deliberately no prefix rule** (a working key does not start with `sk-ant-api`).
 - **171** — phase 2, refine and joinery, the planned successor. Read invariant 38 first.
 - **26a** — **read this before touching anything in the viewport.** Browser verification on
   this host runs on software GL (llvmpipe, no GPU), which returns 1.0 for `pow(0.0, 0.0)`

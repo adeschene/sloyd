@@ -11,7 +11,7 @@ import { TapeReadout } from './panels/TapeReadout';
 import { GenerateDialog } from './panels/GenerateDialog';
 import { SettingsDialog } from './panels/SettingsDialog';
 import { useGenerations } from './useGenerations';
-import { AnthropicClient } from './llm/anthropic';
+import { AnthropicClient, checkAnthropicKey } from './llm/anthropic';
 import type { LlmSettings } from './storage/types';
 import type { DuplicateFailure } from './panels/ProjectMenu';
 import { canBeginLength } from './units/length';
@@ -844,6 +844,7 @@ export default function App() {
       {dialog === 'settings' && (
         <SettingsDialog
           settings={llmSettings}
+          checkKey={checkAnthropicKey}
           onSave={async (s) => {
             const ok = await storage.setLlmSettings(s);
             if (ok) setLlmSettingsState(s);

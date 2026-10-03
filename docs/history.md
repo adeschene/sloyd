@@ -183,6 +183,23 @@ and 79.
 
 ## What each round did
 
+**What the key check round did (2026-10-03)**: follow-up 174, a bounded round with a design
+approved in chat and no spec. During the batch variety live pass, three pastes into Settings
+were saved and then rejected by the API one call later. The error said only "check
+Settings". The fix measured before it chose:
+
+- **A shape check alone would have caught two of the three.** The third key was well-formed
+  and invalid. So Save now refuses a key with whitespace or non-printable-ASCII inside it,
+  instantly and offline.
+- **Save then verifies the key with one free call** that lists models. A 401/403 refuses the
+  key with the API's own reason; anything else saves it with a note. A generation's auth
+  error now appends the API's reason too.
+- **No prefix rule.** A key that works does not start with `sk-ant-api`, so a prefix rule
+  would refuse a valid key, and a mutation proves the tests would catch one being added.
+
+The live check was free: Claude drove both refusal cases, and the user pasted the real key.
+Tests went from 1163 to 1180. There is no schema change.
+
 **What the held and stable round did (2026-10-03)**: follow-up 165. `checkDesign`'s support
 rule only asked whether parts connected to the floor through face contacts, in any direction,
 so the user's live workbench passed with its lower shelf hanging by four corner patches
