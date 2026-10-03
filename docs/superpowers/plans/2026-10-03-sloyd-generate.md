@@ -8,13 +8,14 @@
 
 **Tech Stack:** React 19, TypeScript 7, Zustand, Vitest 4 + Testing Library (jsdom), `@anthropic-ai/sdk` (new), nginx CSP.
 
-**Spec:** `docs/superpowers/specs/2026-10-03-sloyd-generate-design.md` — read it before starting any task. Where this plan and the spec disagree, the two **Deviations** below are the only intended ones; anything else is a plan error — stop and escalate.
+**Spec:** `docs/superpowers/specs/2026-10-03-sloyd-generate-design.md` — read it before starting any task. Where this plan and the spec disagree, the four **Deviations** below are the only intended ones; anything else is a plan error — stop and escalate.
 
 ## Deviations from the spec (approved with the plan)
 
 1. **Vectors are `{x, y, z}` objects, not `[x, y, z]` tuples** (spec §4.1). Structured outputs do not support "complex array constraints", so a fixed-length tuple cannot be enforced by the schema; an object with three required number fields can.
 2. **The dialogs use the existing `CutList` overlay pattern, not native `<dialog>`** (spec §6.2). `.app-shell` already goes `inert` for the cut list; generalising that flag to "any modal open" gives the same inertness with code the suite already exercises, and avoids depending on jsdom's `showModal` support.
 3. **"An exported document never contains the key" is tested as "no stored key other than `sloyd.llm.v1` contains the key"** (spec §8.1). Export serialises the document, which has no field the key could ride in; the reachable mistake is the adapter writing settings into a project or index key, and this is the assertion that can fail on it.
+4. **Spec §6.4's stated reason is corrected.** Typing in the description cannot fire a shortcut — `isTextEntry` already returns early for any text field. The real exposure is focus that is NOT in a text field: the dialog sheet itself (focused on mount via `tabIndex={-1}`) and every dialog button. With focus there, `m`, `Backspace` and `Ctrl+Z` would reach `App`'s window listener and arm Move, delete the selected board, or undo — behind the dialog. The `modalOpen` guard is still required; only the reason changes, in the spec, the App comment and the test.
 
 ## Global Constraints
 
@@ -1567,9 +1568,7 @@ export class AnthropicClient implements LlmClient {
 
 - [ ] **Step 5: Run** tests — PASS. **`npm run build` — must succeed with no `as any` added** beyond the single `messages` cast above. If the SDK's param type rejects `fallbacks`, `betas` or `output_config.effort`, report which — do not suppress.
 
-- [ ] **Step 6: Bundle check.** `npm run build` output: note the new main-chunk size against the previous build's (`git stash; npm run build; git stash pop` if needed). Record both in the commit message. If the SDK adds more than ~150 kB gzipped, stop and raise lazy-loading it (`import()` inside `useGenerations`) as a question.
-
-- [ ] **Step 7: Commit** (`feat(llm): Claude client — streaming, structured output, fallback, error kinds`).
+- [ ] **Step 6: Commit** (`feat(llm): Claude client — streaming, structured output, fallback, error kinds`).
 
 ---
 
@@ -2351,8 +2350,8 @@ Note the Cancel button exists only while `live > 0`, and the **Close** button is
 **Interfaces:**
 - Consumes: everything above.
 - Produces (props added):
-  - `Toolbar`: `onOpenGenerate: () => void; onOpenSettings: () => void; generating: { live: number; total: number } | null; newIds: ReadonlySet<string>`.
-  - `ProjectMenu`: `newIds: ReadonlySet<string>`.
+  - `Toolbar`: `onOpenGenerate: () => void; onOpenSettings: () => void; generating: { live: number; total: number } | null; newIds?: ReadonlySet<string>`.
+  - `ProjectMenu`: `newIds?: ReadonlySet<string>` (defaults to an empty set).
 
 - [ ] **Step 1: Write the failing App tests** — add to `src/App.test.tsx` (it already mocks the viewport and storage; reuse its helpers, e.g. `mountWithOneBoard`). Mock the Anthropic client module so no network is touched:
 
@@ -2383,14 +2382,24 @@ describe('Generate', () => {
   });
 
   it('suspends shortcuts and makes the shell inert while a dialog is open', async () => {
+    // The exposure is focus OUTSIDE a text field — the sheet (focused on
+    // mount) or a dialog button. Typing in the textarea proves nothing:
+    // isTextEntry already returns early there.
     await mountWithOneBoard();
+    const boardId = useStore.getState().doc.boards[0].id;
+    useStore.getState().selectBoard(boardId);
+    const pastBefore = useStore.getState().past.length;
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: /generate/i }));
     expect(viewportProps.current?.shortcutsSuspended).toBe(true);
     expect(document.querySelector('.app-shell')!.hasAttribute('inert')).toBe(true);
-    // Typing in the description must not arm the Move tool behind the dialog.
-    await user.type(screen.getByLabelText('Description'), 'm');
+    expect(document.activeElement).toBe(document.querySelector('.modal-sheet'));
+    await user.keyboard('m');
     expect(useStore.getState().tool).toBe('select');
+    await user.keyboard('{Backspace}');
+    expect(useStore.getState().doc.boards).toHaveLength(1);
+    await user.keyboard('{Control>}z{/Control}');
+    expect(useStore.getState().past.length).toBe(pastBefore);
     await user.keyboard('{Escape}');
     expect(viewportProps.current?.shortcutsSuspended).toBe(false);
   });
@@ -2457,13 +2466,13 @@ Match the names used here (`createProject`, `setActiveProject`, `mountWithOneBoa
 
 - [ ] **Step 2: Run** `npm test` — the new tests FAIL.
 
-- [ ] **Step 3: `ProjectMenu.tsx`.** Add `newIds: ReadonlySet<string>;` to `Props` (doc comment: *"Generated this session and not yet opened — session-only App state, not persisted (spec §6.3)."*), destructure it, and inside `.project-row-open` after the name span:
+- [ ] **Step 3: `ProjectMenu.tsx`.** Add `newIds?: ReadonlySet<string>;` to `Props` (doc comment: *"Generated this session and not yet opened — session-only App state, not persisted (spec §6.3). Optional so the 16 existing renders in ProjectMenu.test.tsx need no change."*), add a module-level `const NO_IDS: ReadonlySet<string> = new Set();`, destructure it as `newIds = NO_IDS`, and inside `.project-row-open` after the name span:
 
 ```tsx
 {newIds.has(p.id) && <span className="project-row-new">new</span>}
 ```
 
-- [ ] **Step 4: `Toolbar.tsx`.** Add the four props above with doc comments, pass `newIds` to `ProjectMenu`, and after the Cut list button:
+- [ ] **Step 4: `Toolbar.tsx`.** Add the props above with doc comments — `onOpenGenerate`, `onOpenSettings` and `generating` REQUIRED (a missing wiring should not compile), `newIds` optional like ProjectMenu's. `tsconfig.json` includes `src`, so test files are type-checked: add `onOpenGenerate={noop} onOpenSettings={noop} generating={null}` to `renderToolbar` in `src/panels/Toolbar.test.tsx` (its only render site). Pass `newIds` to `ProjectMenu`, and after the Cut list button:
 
 ```tsx
 <button onClick={onOpenGenerate} title="Generate a prototype from a description">
@@ -2485,9 +2494,11 @@ and in the right group, before `{children}`:
   ```tsx
   // Which dialog is open. View state like `cutListOpen`, and it joins that
   // flag as a reason the shell is inert and every window shortcut is
-  // suspended (invariant 27) — `inert` cannot reach a window listener, so
-  // typing "make it 36in wide" in the description would otherwise arm the
-  // Move tool behind the dialog.
+  // suspended (invariant 27). Not because of typing in the description —
+  // isTextEntry already covers text fields — but because the dialog's sheet
+  // and buttons hold focus too, and `inert` cannot reach a window listener:
+  // `m`, Backspace or Ctrl+Z pressed there would arm Move, delete the
+  // selected board, or undo, behind the dialog.
   const [dialog, setDialog] = useState<'generate' | 'settings' | null>(null);
   const modalOpen = cutListOpen || dialog !== null;
   const [llmSettings, setLlmSettingsState] = useState<LlmSettings | null>(null);
@@ -2570,9 +2581,11 @@ and in the right group, before `{children}`:
 
 - [ ] **Step 7: Run** `npm test` — ALL PASS, including every pre-existing `App.test.tsx` test (the shortcut and cut-list tests are the ones this task can break). `npm run build` — success.
 
-- [ ] **Step 8: Mutation check.** `inert={modalOpen}` → `inert={cutListOpen}`: the inert test must fail. In the keydown effect `if (modalOpen) return;` → `if (cutListOpen) return;`: the typed-`m` test must fail. Revert.
+- [ ] **Step 8: Mutation check.** `inert={modalOpen}` → `inert={cutListOpen}`: the inert test must fail. In the keydown effect `if (modalOpen) return;` → `if (cutListOpen) return;`: the sheet-focused `m`/`Backspace` assertions must fail. Revert.
 
-- [ ] **Step 9: Commit** (`feat: wire Generate and Settings into the toolbar, project menu and shortcuts`).
+- [ ] **Step 9: Bundle check.** Only now does anything import `llm/anthropic.ts`, so only now does the SDK reach the bundle. Compare the main chunk's gzipped size from `npm run build` against `master`'s (`git stash -u && git checkout master && npm run build`, note it, `git checkout generate && git stash pop`). Record both in the commit message. If the SDK adds more than ~150 kB gzipped, stop and raise lazy-loading it (`await import('./llm/anthropic')` inside `onGenerate`) as a question rather than deciding.
+
+- [ ] **Step 10: Commit** (`feat: wire Generate and Settings into the toolbar, project menu and shortcuts`).
 
 ---
 
@@ -2592,7 +2605,16 @@ docker run --rm -d --name sloyd-csp-check -p 127.0.0.1:18080:80 sloyd-csp-check
 curl -sI http://127.0.0.1:18080/ | grep -i content-security-policy
 ```
 
-Expected: the header contains `connect-src 'self' https://api.anthropic.com`. Then, with the Playwright MCP, open `http://127.0.0.1:18080/`, and in the page run `fetch('https://api.anthropic.com/v1/models').then(r => r.status).catch(e => 'blocked: ' + e)`. Expected: a **status number** (401 without a key), and **no** CSP violation in the console — that proves the policy permits the origin. Then `docker stop sloyd-csp-check && docker rmi sloyd-csp-check`.
+Expected: the header contains `connect-src 'self' https://api.anthropic.com`. Then, with the Playwright MCP, open `http://127.0.0.1:18080/` and run in the page:
+
+```js
+window.__csp = [];
+document.addEventListener('securitypolicyviolation', (e) => window.__csp.push(e.blockedURI + ' ' + e.violatedDirective));
+await fetch('https://api.anthropic.com/v1/models').catch(() => {});
+window.__csp
+```
+
+The pass signal is **`window.__csp` empty, no CSP violation in the console, and the request present in Playwright's network list** — NOT the fetch's status or rejection: without the browser-access header a CORS rejection looks identical to a CSP block from inside `.catch`. As a control, run the same snippet against `https://example.com/` and confirm it DOES record a `connect-src` violation — otherwise the listener is proving nothing. Then `docker stop sloyd-csp-check && docker rmi sloyd-csp-check`.
 
 - [ ] **Step 3: Commit** (`feat(nginx): allow the Claude API origin for Generate`).
 

@@ -367,9 +367,13 @@ not in the store.
 `showModal()`'s inertness cannot reach a `window` listener; that is invariant
 27's whole point. So **"a dialog is open" joins `cutListOpen`** as a reason
 `App`'s one keydown effect early-returns and `Viewport`'s `shortcutsSuspended`
-is true. Without it, typing *"make it 36in wide"* in the description would
-arm tools and seed the tape readout behind the dialog. No new `window`
-listener is added.
+is true. The exposure is NOT typing in the description — `isTextEntry`
+already returns early for any text field — but focus that is not in one: the
+dialog's sheet (focused on mount) and its buttons. With focus there, `m`,
+Backspace or Ctrl+Z would arm Move, delete the selected board, or undo,
+behind the dialog. *(Corrected 2026-10-03 during planning; the first version
+of this paragraph named the typing case, which cannot happen.)* No new
+`window` listener is added.
 
 ---
 
