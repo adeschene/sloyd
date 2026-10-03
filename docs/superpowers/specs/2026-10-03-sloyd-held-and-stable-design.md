@@ -72,8 +72,12 @@ Every part **not on the floor** must be held in at least one of these ways:
   **≥ 0.5**.
 - **(c) Lapped:** at least one face contact on one of its broad faces. A contact on its
   **top (`+Y`) face** counts only when the part above is **held without this part**: that
-  part is on the floor, or it meets (a), (b) or (c) with its own contacts to this part
-  removed. One level only: for that inner test, a top-face contact never counts.
+  part is on the floor, or, **with this part removed from the design, it is still connected
+  to the floor** (the existing grounding walk) **and** it meets (a), (b) or (c) with its own
+  contacts to this part removed. One level only: for that inner test, a top-face contact
+  never counts. *(The floor-connection clause is a third user ruling, after the fix-wave
+  re-review showed that without it a box, or two lapped uprights, standing on a hanging shelf
+  held each other and so "held" the shelf. Remove the shelf and they connect to nothing.)*
   *(Second amendment, 2026-10-03, on the user's ruling after the final review. Excluding the
   top face outright, as the first amendment below did, failed ordinary under-mounted parts:
   cleats screwed up under a seat, battens under a top, runners hung from a top. It also
