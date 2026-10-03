@@ -1,0 +1,252 @@
+{
+  "version": 6,
+  "name": "Simple workbench",
+  "units": {
+    "display": "imperial-fractional",
+    "precision": 16
+  },
+  "stock": {
+    "kerf": 0.125
+  },
+  "guides": [],
+  "boards": [
+    {
+      "id": "b_musbct5u_12",
+      "name": "Front left leg",
+      "length": 33.25,
+      "width": 3.5,
+      "thickness": 3.5,
+      "position": [
+        -30,
+        0,
+        -12
+      ],
+      "rotation": 0,
+      "posture": "upright",
+      "grain": "length",
+      "material": "pine",
+      "cuts": []
+    },
+    {
+      "id": "b_musbct5u_13",
+      "name": "Front right leg",
+      "length": 33.25,
+      "width": 3.5,
+      "thickness": 3.5,
+      "position": [
+        26.5,
+        0,
+        -12
+      ],
+      "rotation": 0,
+      "posture": "upright",
+      "grain": "length",
+      "material": "pine",
+      "cuts": []
+    },
+    {
+      "id": "b_musbct5u_14",
+      "name": "Back left leg",
+      "length": 33.25,
+      "width": 3.5,
+      "thickness": 3.5,
+      "position": [
+        -30,
+        0,
+        8.5
+      ],
+      "rotation": 0,
+      "posture": "upright",
+      "grain": "length",
+      "material": "pine",
+      "cuts": []
+    },
+    {
+      "id": "b_musbct5u_15",
+      "name": "Back right leg",
+      "length": 33.25,
+      "width": 3.5,
+      "thickness": 3.5,
+      "position": [
+        26.5,
+        0,
+        8.5
+      ],
+      "rotation": 0,
+      "posture": "upright",
+      "grain": "length",
+      "material": "pine",
+      "cuts": []
+    },
+    {
+      "id": "b_musbct5u_16",
+      "name": "Front top rail",
+      "length": 53,
+      "width": 5.5,
+      "thickness": 1.5,
+      "position": [
+        -26.5,
+        27.75,
+        -12
+      ],
+      "rotation": 0,
+      "posture": "on-edge",
+      "grain": "length",
+      "material": "pine",
+      "cuts": []
+    },
+    {
+      "id": "b_musbct5u_17",
+      "name": "Back top rail",
+      "length": 53,
+      "width": 5.5,
+      "thickness": 1.5,
+      "position": [
+        -26.5,
+        27.75,
+        10.5
+      ],
+      "rotation": 0,
+      "posture": "on-edge",
+      "grain": "length",
+      "material": "pine",
+      "cuts": []
+    },
+    {
+      "id": "b_musbct5u_18",
+      "name": "Left top rail",
+      "length": 17,
+      "width": 5.5,
+      "thickness": 1.5,
+      "position": [
+        -30,
+        27.75,
+        -8.5
+      ],
+      "rotation": 90,
+      "posture": "on-edge",
+      "grain": "length",
+      "material": "pine",
+      "cuts": []
+    },
+    {
+      "id": "b_musbct5u_19",
+      "name": "Right top rail",
+      "length": 17,
+      "width": 5.5,
+      "thickness": 1.5,
+      "position": [
+        28.5,
+        27.75,
+        -8.5
+      ],
+      "rotation": 90,
+      "posture": "on-edge",
+      "grain": "length",
+      "material": "pine",
+      "cuts": []
+    },
+    {
+      "id": "b_musbct5u_1a",
+      "name": "Front low rail",
+      "length": 53,
+      "width": 3.5,
+      "thickness": 1.5,
+      "position": [
+        -26.5,
+        6,
+        -12
+      ],
+      "rotation": 0,
+      "posture": "on-edge",
+      "grain": "length",
+      "material": "pine",
+      "cuts": []
+    },
+    {
+      "id": "b_musbct5u_1b",
+      "name": "Back low rail",
+      "length": 53,
+      "width": 3.5,
+      "thickness": 1.5,
+      "position": [
+        -26.5,
+        6,
+        10.5
+      ],
+      "rotation": 0,
+      "posture": "on-edge",
+      "grain": "length",
+      "material": "pine",
+      "cuts": []
+    },
+    {
+      "id": "b_musbct5u_1c",
+      "name": "Left low rail",
+      "length": 17,
+      "width": 3.5,
+      "thickness": 1.5,
+      "position": [
+        -30,
+        6,
+        -8.5
+      ],
+      "rotation": 90,
+      "posture": "on-edge",
+      "grain": "length",
+      "material": "pine",
+      "cuts": []
+    },
+    {
+      "id": "b_musbct5u_1d",
+      "name": "Right low rail",
+      "length": 17,
+      "width": 3.5,
+      "thickness": 1.5,
+      "position": [
+        28.5,
+        6,
+        -8.5
+      ],
+      "rotation": 90,
+      "posture": "on-edge",
+      "grain": "length",
+      "material": "pine",
+      "cuts": []
+    },
+    {
+      "id": "b_musbct5u_1e",
+      "name": "Lower shelf",
+      "length": 53,
+      "width": 21,
+      "thickness": 0.75,
+      "position": [
+        -26.5,
+        5.25,
+        -10.5
+      ],
+      "rotation": 0,
+      "posture": "flat",
+      "grain": "length",
+      "material": "plywood",
+      "cuts": []
+    },
+    {
+      "id": "b_musbct5u_1f",
+      "name": "Benchtop",
+      "length": 64,
+      "width": 28,
+      "thickness": 1.5,
+      "position": [
+        -32,
+        33.25,
+        -14
+      ],
+      "rotation": 0,
+      "posture": "flat",
+      "grain": "length",
+      "material": "mdf",
+      "cuts": []
+    }
+  ]
+}

@@ -11,10 +11,12 @@ import { boardExtents } from './geometry';
  * actionable. Not a person-facing string, which is why this module does not
  * take the → units edge (CLAUDE.md, Architecture).
  *
+ * `hangs` (fu 165): every part off the floor must be held: resting, between, or lapped (inv 39).
+ *
  * PHASE 2 NOTE (spec §4.4): `overlap` must become "interpenetration not
  * accounted for by a cut" when joinery is generated. Relax it on purpose.
  */
-export type ViolationKind = 'too-small' | 'overlap' | 'unsupported' | 'too-large' | 'too-many-parts';
+export type ViolationKind = 'too-small' | 'overlap' | 'unsupported' | 'too-large' | 'too-many-parts' | 'hangs' | 'tips';
 export interface Violation { kind: ViolationKind; message: string }
 export interface DesignLimits { width: number | null; depth: number | null; height: number | null; maxParts: number }
 
@@ -43,6 +45,68 @@ const connected = (a: Box, b: Box) => {
 const distance = (a: Box, b: Box) =>
   Math.hypot(...[0, 1, 2].map((i) => Math.max(0, -shared(a, b, i))));
 
+/** Coverage a side face needs, on BOTH faces of a pair, to hold a part between two others (fu 165). */
+export const HELD_COVERAGE = 0.5;
+
+/** One face contact ON a box: which face (axis, side), who touches it, over what area. */
+interface Contact { other: number; axis: number; side: -1 | 1; area: number }
+
+/**
+ * Face contacts per box: face planes coincide within TOUCH on one axis, and
+ * the shared span is > TOUCH on BOTH others. Disjoint from overlap BY
+ * DEFINITION — coincident planes mean a shared span <= TOUCH on that axis —
+ * so an interpenetrating pair is never a contact here.
+ */
+function contactsOf(boxes: Box[]): Contact[][] {
+  const out: Contact[][] = boxes.map(() => []);
+  boxes.forEach((a, i) => {
+    boxes.forEach((b, j) => {
+      if (i === j) return;
+      for (const axis of [0, 1, 2]) {
+        const [p, q] = [0, 1, 2].filter((k) => k !== axis);
+        const sp = shared(a, b, p);
+        const sq = shared(a, b, q);
+        if (sp <= TOUCH || sq <= TOUCH) continue;
+        if (Math.abs(a.min[axis] - b.max[axis]) <= TOUCH) out[i].push({ other: j, axis, side: -1, area: sp * sq });
+        else if (Math.abs(a.max[axis] - b.min[axis]) <= TOUCH) out[i].push({ other: j, axis, side: 1, area: sp * sq });
+      }
+    });
+  });
+  return out;
+}
+
+/** Fraction of one face of `b` covered by its contacts, capped at 1. */
+function coverage(b: Box, cs: Contact[], axis: number, side: -1 | 1): number {
+  const [p, q] = [0, 1, 2].filter((k) => k !== axis);
+  const face = (b.max[p] - b.min[p]) * (b.max[q] - b.min[q]);
+  const touched = cs.filter((c) => c.axis === axis && c.side === side).reduce((s, c) => s + c.area, 0);
+  return Math.min(1, touched / face);
+}
+
+/**
+ * HELD (fu 165, inv 39): (a) something under it, (b) both faces of the X or Z
+ * pair covered >= HELD_COVERAGE, or (c) any contact on a broad face (normal to
+ * its smallest extent; ties all count). (c) is what lets a backrest or an
+ * apron screwed to a post's face pass — without it, ordinary face-mounted
+ * parts fail and cost repair rounds for nothing. Coverage, not two-sidedness,
+ * is what catches the workbench shelf: it touched legs on BOTH ends, 19% each.
+ */
+function hangsMessage(b: Box, cs: Contact[], boxes: Box[]): string | null {
+  if (cs.some((c) => c.axis === 1 && c.side === -1)) return null;
+  const pairs = [0, 2].map((axis) => ({ axis, lo: coverage(b, cs, axis, -1), hi: coverage(b, cs, axis, 1) }));
+  if (pairs.some((p) => p.lo >= HELD_COVERAGE && p.hi >= HELD_COVERAGE)) return null;
+  const ext = [0, 1, 2].map((k) => b.max[k] - b.min[k]);
+  const thin = Math.min(...ext);
+  if (cs.some((c) => ext[c.axis] - thin <= 1e-9)) return null;
+
+  // The pair closest to passing: larger smaller-coverage; a tie keeps X.
+  const best = Math.min(pairs[1].lo, pairs[1].hi) > Math.min(pairs[0].lo, pairs[0].hi) ? pairs[1] : pairs[0];
+  const who = [...new Set(cs.filter((c) => c.axis === best.axis).map((c) => c.other))].sort((x, y) => x - y);
+  const by = who.length ? ` (by ${who.map((k) => boxes[k].name).join(', ')})` : '';
+  const pct = (v: number) => Math.round(100 * v);
+  return `${b.name} is not held: nothing is under it, and its ${AXES[best.axis]} sides are covered ${pct(best.lo)}% and ${pct(best.hi)}%${by}; each needs ${pct(HELD_COVERAGE)}%. Rest it on a part below, fit it between two parts that cover its sides, or fasten its broad face to another part.`;
+}
+
 export function checkDesign(doc: SloydDocument, limits: DesignLimits): Violation[] {
   const boxes: Box[] = doc.boards.map((b) => {
     const e = boardExtents(b);
@@ -57,10 +121,13 @@ export function checkDesign(doc: SloydDocument, limits: DesignLimits): Violation
     }
   }
 
+  const overlapping = new Set<number>();
   for (let i = 0; i < boxes.length; i++) {
     for (let j = 0; j < i; j++) {
       const s = [0, 1, 2].map((k) => shared(boxes[i], boxes[j], k));
       if (s.every((v) => v > TOUCH)) {
+        overlapping.add(i);
+        overlapping.add(j);
         const axis = s.indexOf(Math.min(...s));
         out.push({ kind: 'overlap', message: `${boxes[i].name} passes ${inches(s[axis])} into ${boxes[j].name} along ${AXES[axis]}.` });
       }
@@ -103,6 +170,15 @@ export function checkDesign(doc: SloydDocument, limits: DesignLimits): Violation
   if (boxes.length > limits.maxParts) {
     out.push({ kind: 'too-many-parts', message: `${boxes.length} parts; the limit is ${limits.maxParts}.` });
   }
+
+  // Held (fu 165). One fault, one report: a part on the floor, already
+  // unsupported, or named in an overlap is never also reported as hanging.
+  const contacts = contactsOf(boxes);
+  boxes.forEach((b, i) => {
+    if (b.min[1] <= TOUCH || !grounded.has(i) || overlapping.has(i)) return;
+    const message = hangsMessage(b, contacts[i], boxes);
+    if (message) out.push({ kind: 'hangs', message });
+  });
   return out;
 }
 

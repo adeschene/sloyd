@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { checkDesign, rejectedViolations, TOUCH } from './designCheck';
 import type { DesignLimits } from './designCheck';
-import { createBoard, createDocument } from './document';
+import { createBoard, createDocument, migrateDocument } from './document';
+import workbenchRaw from './fixtures/simple-workbench.sloyd?raw';
 import type { SloydDocument } from './document';
 import type { Board } from './types';
 
@@ -98,5 +99,86 @@ describe('ordering and rejected parts', () => {
         { kind: 'too-small', message: expect.stringContaining('Bad') },
         { kind: 'too-small', message: expect.stringContaining('Thin') },
       ]);
+  });
+});
+
+/** A box from its min and max corners, as a flat board (length X, thickness Y, width Z). */
+const span = (name: string, min: [number, number, number], max: [number, number, number]): Board =>
+  box(name, min, [max[0] - min[0], max[1] - min[1], max[2] - min[2]]);
+const hangs = (doc: SloydDocument) => checkDesign(doc, NO_LIMITS).filter((v) => v.kind === 'hangs');
+
+describe('hangs — the real workbench (fu 165)', () => {
+  const workbench = () => migrateDocument(JSON.parse(workbenchRaw));
+
+  it('flags ONLY the lower shelf, which hangs by its corners below the low rails', () => {
+    const v = checkDesign(workbench(), NO_LIMITS);
+    expect(v.map((x) => x.kind)).toEqual(['hangs']);
+    expect(v[0].message.startsWith('Lower shelf is not held: nothing is under it')).toBe(true);
+    expect(v[0].message).toContain('X sides are covered 19% and 19%');
+    expect(v[0].message).toContain('(by Front left leg, Front right leg, Back left leg, Back right leg)');
+    expect(v[0].message).toContain('each needs 50%');
+  });
+
+  it('passes once the shelf rests ON the low rails — the fix the message suggests', () => {
+    const doc = workbench();
+    const shelf = doc.boards.find((b) => b.name === 'Lower shelf')!;
+    // Between the legs on X, over the front and back low rails on Z, on top of them on Y.
+    const fixed = { ...shelf, width: 24, position: [-26.5, 9.5, -12] as [number, number, number] };
+    expect(checkDesign({ ...doc, boards: doc.boards.map((b) => (b === shelf ? fixed : b)) }, NO_LIMITS)).toEqual([]);
+  });
+});
+
+describe('hangs — the three ways to be held', () => {
+  it('(a) resting: a top on four legs', () => {
+    expect(hangs(docOf(
+      span('Leg 1', [0, 0, 0], [2, 28, 2]), span('Leg 2', [18, 0, 0], [20, 28, 2]),
+      span('Leg 3', [0, 0, 18], [2, 28, 20]), span('Leg 4', [18, 0, 18], [20, 28, 20]),
+      span('Top', [0, 28, 0], [20, 29, 20]),
+    ))).toEqual([]);
+  });
+
+  const between = (sideDepth: number) => docOf(
+    span('Left side', [0, 0, 0], [0.75, 20, sideDepth]),
+    span('Right side', [20.75, 0, 0], [21.5, 20, sideDepth]),
+    span('Shelf', [0.75, 10, 0], [20.75, 10.75, 24]),
+  );
+  it('(b) between: a shelf whose ends are covered exactly 50% passes', () => {
+    expect(hangs(between(12))).toEqual([]);
+  });
+  it('(b) between: 49% fails, and says so', () => {
+    const v = hangs(between(11.76));
+    expect(v).toHaveLength(1);
+    expect(v[0].message).toContain('X sides are covered 49% and 49% (by Left side, Right side)');
+  });
+
+  it('(c) lapped: a backrest screwed to the faces of two posts, nothing under it', () => {
+    expect(hangs(docOf(
+      span('Post A', [0, 0, 0], [2, 30, 3]),
+      span('Post B', [20, 0, 0], [22, 30, 3]),
+      span('Backrest', [0, 20, 3], [22, 26, 3.75]),
+    ))).toEqual([]);
+  });
+
+  it('side table C: a shelf edge-on to one face of a spine hangs — one side is not "between"', () => {
+    const v = hangs(docOf(
+      span('Plinth', [-8, 0, -6], [8, 1.5, 6]),
+      span('Spine', [-0.375, 1.5, -6], [0.375, 24.5, 6]),
+      span('Top', [-15, 24.5, -8], [15, 26, 8]),
+      span('Shelf', [0.375, 10, -6], [12, 10.75, 6]),
+    ));
+    expect(v.map((x) => x.message.split(' ')[0])).toEqual(['Shelf']);
+    expect(v[0].message).toContain('X sides are covered 100% and 0% (by Spine)');
+  });
+});
+
+describe('hangs — one fault, one report', () => {
+  it('a floating part is unsupported, never also hangs', () => {
+    expect(kinds(docOf(box('Base', [0, 0, 0], [10, 1, 10]), box('Float', [0, 5, 0], [10, 1, 10])))).toEqual(['unsupported']);
+  });
+  it('a part sunk into another is an overlap, never also hangs', () => {
+    expect(kinds(docOf(
+      span('Post', [0, 0, 0], [2, 30, 2]),
+      span('Peg', [1, 10, 0.5], [6, 11, 1.5]),
+    ))).toEqual(['overlap']);
   });
 });
