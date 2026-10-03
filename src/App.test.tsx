@@ -231,6 +231,10 @@ const defaultAutoSave = async (id: string, doc: SloydDocument) => {
   fake.autoSave(id, doc);
 };
 const autoSave = vi.fn<(id: string, doc: SloydDocument) => Promise<void>>(defaultAutoSave);
+let llmSettings: import('./storage/types').LlmSettings | null = null;
+const getLlmSettings = vi.fn(async () => llmSettings);
+const setLlmSettings = vi.fn(async (s: import('./storage/types').LlmSettings) => { llmSettings = s; return true; });
+const clearLlmSettings = vi.fn(async () => { llmSettings = null; });
 const exportProject = vi.fn().mockResolvedValue(undefined);
 const importProject = vi.fn();
 
@@ -249,6 +253,9 @@ vi.mock('./storage/browser', () => ({
     deleteProject: (...args: unknown[]) => deleteProject(...(args as [string])),
     setActiveProject: (...args: unknown[]) => setActiveProject(...(args as [string])),
     autoSave: (id: string, doc: SloydDocument) => autoSave(id, doc),
+    getLlmSettings: () => getLlmSettings(),
+    setLlmSettings: (s: import('./storage/types').LlmSettings) => setLlmSettings(s),
+    clearLlmSettings: () => clearLlmSettings(),
     exportProject: (...args: unknown[]) => exportProject(...args),
     importProject: (...args: unknown[]) => importProject(...args),
     listRecent: () => Promise.resolve([]),
@@ -272,6 +279,7 @@ beforeEach(() => {
   autoSave.mockReset().mockImplementation(defaultAutoSave);
   exportProject.mockReset().mockResolvedValue(undefined);
   importProject.mockReset();
+  llmSettings = null; getLlmSettings.mockClear(); setLlmSettings.mockClear(); clearLlmSettings.mockClear();
 });
 
 function deferred<T>() {

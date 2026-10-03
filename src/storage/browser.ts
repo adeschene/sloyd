@@ -1,11 +1,12 @@
 import { DocumentError, createDocument, migrateDocument, nextId } from '../document/document';
 import type { SloydDocument } from '../document/document';
 import type { LibraryIndex, ProjectEntry } from './types';
-import type { RecentEntry, StorageAdapter, StorageCapabilities } from './types';
+import type { LlmSettings, RecentEntry, StorageAdapter, StorageCapabilities } from './types';
 import { LAYOUT_VERSION, parseIndex, removeEntry, sortEntries, touchEntry } from './libraryIndex';
 
 export const AUTOSAVE_KEY = 'sloyd.autosave.v1';
 export const LIBRARY_KEY = 'sloyd.library.v1';
+export const LLM_KEY = 'sloyd.llm.v1';
 export const PROJECT_PREFIX = 'sloyd.project.';
 
 export class BrowserStorageAdapter implements StorageAdapter {
@@ -580,6 +581,44 @@ export class BrowserStorageAdapter implements StorageAdapter {
 
       input.click();
     });
+  }
+
+  async getLlmSettings(): Promise<LlmSettings | null> {
+    if (!this.store) return null;
+    const raw = readRaw(this.store, LLM_KEY);
+    if (raw === null) return null;
+    try {
+      const v = JSON.parse(raw) as Record<string, unknown>;
+      if (
+        typeof v === 'object' && v !== null && !Array.isArray(v) &&
+        v.provider === 'anthropic' &&
+        typeof v.apiKey === 'string' && v.apiKey.length > 0 &&
+        typeof v.model === 'string' && v.model.length > 0
+      ) {
+        return { provider: 'anthropic', apiKey: v.apiKey, model: v.model };
+      }
+    } catch {
+      // fall through: malformed reads as absent
+    }
+    return null;
+  }
+
+  async setLlmSettings(settings: LlmSettings): Promise<boolean> {
+    if (!this.store) return false;
+    try {
+      this.store.setItem(LLM_KEY, JSON.stringify(settings));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async clearLlmSettings(): Promise<void> {
+    try {
+      this.store?.removeItem(LLM_KEY);
+    } catch {
+      // nothing to report: the key is either gone or storage is unusable
+    }
   }
 
   async listRecent(): Promise<RecentEntry[]> {
