@@ -163,6 +163,52 @@ and 79.
 
 ## What each round did
 
+**What the batch variety round did (2026-10-03)**: follow-up 164, the Generate round's
+own top finding. Phase 1's whole purpose was variety, and a batch of three Sonnet side
+tables had come back as one design three times. The cause was structural: N identical
+requests, so any difference was down to sampling. Telling each run to "be different"
+cannot fix it, because a run designing alone cannot see its siblings, and every run reaches
+for the same second-most-obvious idea. So the design is **one planning call that sees all
+N at once**.
+
+**What it is:**
+- `concepts.ts` asks for N concepts that differ in *structure*: support, construction and
+  arrangement, with "only the dimensions differ" explicitly excluded. It also states what
+  Sloyd can build (rectangular boards, face to face, no joinery, curves or tapers), so the
+  planner cannot propose what a run cannot make.
+- It reuses the runs' own `userMessage`, so planner and runs read one set of constraints.
+- The parse is **all-or-nothing** over the first N, so a batch never mixes planned concepts
+  with the built-in roles.
+- Each concept rides as one line at the end of its run's first user message, so the system
+  prompt stays a fixed prefix and repairs carry the concept for free (invariant 37).
+- In `useGenerations`, a rejected key or a cancel during planning ends the batch before any
+  run starts. Any other failure falls back to three built-in roles: Conventional, Minimal,
+  Different support. A cancel landing as planning resolves still starts nothing.
+- A batch of 1 is byte-for-byte unchanged, pinned against a literal.
+
+**The process caught three tests that could not fail.**
+- Task 4's review found a row's concept rendered *after* its status, contrary to the spec.
+  The only test checked that the text existed.
+- The fix round's order test then wrapped its assertions in an `if`, which passes vacuously
+  when a class is renamed. The final review caught that by mutation.
+- The final review also found that the spec's required "batch of 1 unchanged" mutation
+  survived every hook test. Only `userMessage` was pinned, not the hook's wiring.
+
+That is follow-up 155's shape twice more in one round. **Mutate the test, don't just run
+it.** It held here only because the final review did.
+
+**The live pass was the first driven by Claude with the user watching** the same Playwright
+browser: the route the Generate round's record named, after that round had been deployed
+early because it was assumed unavailable. The verdict, *structurally different*, was the
+user's. Two findings outlived the round:
+- **Prompt caching works.** Follow-up 167's premise was wrong; the real gap is a batch's
+  cold parallel start.
+- **Settings saves text that cannot be a key** (follow-up 174). Diagnosing it produced a
+  wrong claim, that keys start with `sk-ant-api`, which the working key disproved. It is
+  recorded so the eventual check does not encode it.
+
+**Not deployed.** Tests went from 1094 to 1134 across 45 files. There is no schema change.
+
 **What the Generate round did (2026-10-03)**: the first feature round since the project
 library, and the first with a network dependency. The user asked whether a person could
 describe a piece, pick some settings and get a prototype built from Sloyd boards by an LLM.

@@ -24,10 +24,10 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **1094/1094 tests passing across 44 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
+Static SPA, containerized, **1134/1134 tests passing across 45 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **6**.
 
-**PRODUCTION MATCHES `master` as of 2026-10-03 with the Generate round live.** It serves
+**PRODUCTION RUNS the Generate round as of 2026-10-03, and `master` is now one round ahead of it (batch variety, below).** It serves
 bundle `index-BAsxEohe.js` with CSS `index-DEQSkZ3q.css`, from merge commit `fa834dc`. A
 person stores a Claude API key in Settings, describes a piece, and gets 1–3 prototypes built
 from boards, each saved as a **new, unactivated** library project (invariant 36). **It is
@@ -37,9 +37,18 @@ the user's request, and the user then drove real generations on production.** Th
 only because generation never writes into an existing project. The better route is now
 known: the user can **watch** the Playwright browser this session drives, so next time
 Claude drives the dev server and the user supervises. Results are in
-`docs/browser-verification-generate.md`. 6 of 6 generations completed. **Two findings are
-open: 164, a batch converging on one design, and 165, a support check that passes a badly
-supported part.**
+`docs/browser-verification-generate.md`. 6 of 6 generations completed. It left two
+findings: 164, a batch converging on one design, now CLOSED (below); and 165, a support
+check that passes a badly supported part, still open.
+
+**`master` IS AHEAD OF PRODUCTION by the batch variety round (follow-up 164, 2026-10-03),
+which is merged and NOT deployed.** A batch of 2–3 now makes one planning call
+(`generate/concepts.ts`) for N structurally contrasting concepts, and each run designs its
+own; a batch of 1 is unchanged. It was the first live pass **driven by Claude with the
+user watching**. The user judged both batches (a side table on Sonnet, a bench on Opus)
+structurally different, which closed 164. Results are in
+`docs/browser-verification-batch-variety.md`. There is no schema change, so deploying it
+costs nothing to roll back.
 
 **The previous production build, 2026-08-31.** It served bundle
 `index-CZu96cak.js` with CSS `index-CtYur9k3.css`, which is `eb6a632` — the ply-sign round
@@ -128,10 +137,11 @@ round (97 and 131) closed a pre-existing gap that the sheet-nesting round had ma
 load-bearing.
 
 **The Generate round (2026-10-03) was the successor**, chosen by the user from a blank
-slate. Its planned follow-on is **phase 2, refine and joinery (follow-up 171)**. **Follow-up
-164 (batch variety) bears directly on phase 1's stated purpose and is probably the better
-next round**, so ask which one before starting either. The paragraphs below are the
-2026-08-31 state, kept for its reasoning.
+slate. **Batch variety (164) followed it and is done.** The planned follow-on is
+**phase 2, refine and joinery (follow-up 171)**. The smaller open candidates are **165**
+(support is topological; the live passes keep producing top-heavy designs it passes) and
+**174** (Settings saves text that cannot be a key). Ask which before starting any of them.
+The paragraphs below are the 2026-08-31 state, kept for its reasoning.
 
 **As of 2026-08-31: NO SUCCESSOR FEATURE ROUND HAD BEEN CHOSEN, and 130 is no longer the presumed one** — it
 was picked on 2026-08-31 and set aside a moment later without a stated reason, so treat it
@@ -207,6 +217,7 @@ show it. Prefer a readout where one suffices; add an image when the finding is s
 | key list | 08-31 | — | *no spec* — follow-up 162: `.cutlist-layout-key` gets the `list-style: none` reset every other list in the app already had. CSS only |
 | ply sign | 08-31 | — | *no spec* — follow-up 163: `FACE_AXES` carries each UV axis's SIGN, so a solid's sub-range lands on the right side of its face (invariant 35). The one round of the day that came from a bug report |
 | generate | 10-03 | — | prototypes from a description via Claude; each generation is a new, unactivated project (invariant 36) |
+| batch variety | 10-03 | — | one planning call gives each run in a batch of 2–3 a contrasting concept (fu 164); a batch of 1 is unchanged |
 
 ### The deployment rule, stated once
 
@@ -431,12 +442,27 @@ src/
 │                           server-side fallback. JSON is parsed from text AFTER the last
 │                           fallback block; the turn goes back verbatim. toLlmError
 ├── generate/               imports only document + llm
-│   ├── prompt.ts           SYSTEM_PROMPT, STYLES, DETAIL_CAPS, user/repair messages
+│   ├── prompt.ts           SYSTEM_PROMPT, STYLES, DETAIL_CAPS, user/repair messages;
+│   │                       `Concept` lives HERE so prompt.ts never imports concepts.ts.
+│   │                       The concept rides in the USER turn (one `Design this
+│   │                       version:` line), NEVER in SYSTEM_PROMPT, which must stay a
+│   │                       fixed prefix
+│   ├── concepts.ts         the batch planning call (fu 164): one call sees all N, which
+│   │                       is the point — a run designing alone cannot contrast with
+│   │                       siblings it cannot see. Reuses userMessage. Parse is
+│   │                       ALL-OR-NOTHING over the first N (never mixes planned and
+│   │                       built-in). FALLBACK_CONCEPTS: Conventional / Minimal /
+│   │                       Different support
 │   └── run.ts              runGeneration: MAX_REPAIRS = 3 (4 calls), append-only
 │                           history, keeps the fewest-violation attempt (later wins a tie)
 ├── useGenerations.ts       the batch: one at a time, " — A/B/C" names, auth aborts all,
 │                           post-run abort guard, writes ONLY via createProject(doc,
-│                           { activate: false }) (inv 36)
+│                           { activate: false }) (inv 36). For N ≥ 2 it PLANS FIRST:
+│                           auth or cancel during planning start no run, anything else
+│                           falls back; a cancel landing AS planning resolves is caught
+│                           by a check BEFORE the runs — its test asserts run CALLS,
+│                           because the post-run guard would hide started runs from a
+│                           nothing-was-written check
 ├── viewport/               NO unit tests by design — driven in a real browser
 │   ├── Viewport.tsx        Canvas, lights, grid, camera keys; hides Gizmo outside
 │   │                       select mode, gates onPointerMissed
@@ -1193,7 +1219,7 @@ worked examples behind several of them are in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 1094 tests across 44 files
+npm test           # Vitest, currently 1134 tests across 45 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1203,7 +1229,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is the authoritative list** — 1-173, consciously deferred rather
+**`docs/follow-ups.md` is the authoritative list** — 1-175, consciously deferred rather
 than missed, each written up in place with its closure where it has one. Read the entries
 for the area you are about to touch before starting; several are "correct but untested",
 which is exactly what a refactor breaks silently.
@@ -1266,12 +1292,17 @@ The handful worth knowing without opening that file:
   read it before touching a plywood edge for a *different* reason — it carries a measured,
   deliberately-unfixed finding about ply legibility at 3/4" that the user was shown and ruled
   on.
-- **164** — the generations in one batch converge on the same design (three Sonnet side
-  tables differing only in stretcher width). Variety is phase 1's purpose, so this is the
-  probable next round. Its named remedies are hypotheses; measure first.
+- **164** — CLOSED 2026-10-03 by the batch variety round. Read its closure before touching
+  the planner: it records why per-run hints were rejected, and the one residue seen live
+  (two benches distinct in structure but alike from above).
 - **165** — `checkDesign`'s support rule is topological, and the live workbench had a part
   it passed that the user judged badly supported. The part was never inspected; read it
-  out of the library before choosing a rule.
+  out of the library before choosing a rule. The batch variety pass added a second
+  instance: a side table balanced on one spine.
+- **167** — prompt caching DOES work (1,271 cached tokens per run, measured); the entry's
+  original premise was wrong. The real gap is a batch's cold parallel start. Still low value.
+- **174** — Settings saves text that cannot be an API key. **Do not check a prefix**: a
+  claim during diagnosis that keys start with `sk-ant-api` was disproved by the working key.
 - **171** — phase 2, refine and joinery, the planned successor. Read invariant 38 first.
 - **26a** — **read this before touching anything in the viewport.** Browser verification on
   this host runs on software GL (llvmpipe, no GPU), which returns 1.0 for `pow(0.0, 0.0)`

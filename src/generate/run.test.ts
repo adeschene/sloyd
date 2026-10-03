@@ -107,6 +107,20 @@ describe('runGeneration', () => {
     expect(client.complete).toHaveBeenCalledTimes(1);
   });
 
+  it('puts the concept in the first message, and repairs keep it', async () => {
+    const { client, seen } = fakeClient([ONE_ISSUE, GOOD]);
+    await runGeneration(client, settings, new AbortController().signal, () => {}, { title: 'T', brief: 'B' });
+    const first = (seen[0][0] as { text: string }).text;
+    expect(first.endsWith('Design this version: T — B')).toBe(true);
+    expect(seen[1][0]).toEqual(seen[0][0]);
+  });
+
+  it('without a concept, the first message has no concept line', async () => {
+    const { client, seen } = fakeClient([GOOD]);
+    await run(client);
+    expect((seen[0][0] as { text: string }).text).not.toContain('Design this version');
+  });
+
   it('tells the model about DEDUPED names — the ones it can find in its next answer', async () => {
     const dup = { name: 'Dup', parts: [p('Shelf', 0), p('Shelf', 5)] };
     const { client, seen } = fakeClient([dup, GOOD]);

@@ -29,6 +29,15 @@ export interface GenerateSettings {
   detail: Detail;
 }
 
+/**
+ * One of a batch's contrasting directions (follow-up 164). Defined here, not
+ * in concepts.ts, so prompt.ts never imports concepts.ts.
+ */
+export interface Concept {
+  title: string;
+  brief: string;
+}
+
 const STYLE_NOTES: Record<Exclude<Style, 'any'>, string> = {
   shaker: 'Shaker: plain, light, well-proportioned; tapered or square legs; no ornament.',
   mission: 'Mission / Arts & Crafts: heavy, rectilinear, thick stock, exposed structure, vertical slats.',
@@ -65,7 +74,7 @@ export function limitsOf(s: GenerateSettings): DesignLimits {
   return { width: s.width, depth: s.depth, height: s.height, maxParts: DETAIL_CAPS[s.detail] };
 }
 
-export function userMessage(s: GenerateSettings): string {
+export function userMessage(s: GenerateSettings, concept?: Concept): string {
   const lines = [`Design this: ${s.description.trim()}`, '', 'Hard limits:'];
   if (s.width !== null) lines.push(`- Overall width (X) at most ${s.width}in.`);
   if (s.depth !== null) lines.push(`- Overall depth (Z) at most ${s.depth}in.`);
@@ -76,6 +85,10 @@ export function userMessage(s: GenerateSettings): string {
     lines.push(`- Prefer ${MATERIALS[s.material]?.label ?? s.material} (material key "${s.material}") for most parts.`);
   }
   if (s.style !== 'any') lines.push(`- Style: ${STYLE_NOTES[s.style]}`);
+  // The concept rides in the USER turn, never in SYSTEM_PROMPT, which must
+  // stay a fixed prefix. Without one, this output is byte-identical to the
+  // pre-variety message (pinned by a literal in the test).
+  if (concept) lines.push('', `Design this version: ${concept.title} — ${concept.brief}`);
   return lines.join('\n');
 }
 
