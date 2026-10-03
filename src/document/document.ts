@@ -289,7 +289,7 @@ function validateBoard(raw: unknown, index: number, seen: Set<string>): Board {
     : 0;
 
   const material =
-    typeof b.material === 'string' && b.material in MATERIALS
+    typeof b.material === 'string' && Object.hasOwn(MATERIALS, b.material)
       ? b.material
       : DEFAULT_MATERIAL;
 
