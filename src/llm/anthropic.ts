@@ -30,11 +30,23 @@ export function toLlmError(e: unknown, signal: AbortSignal): LlmError {
   if (signal.aborted || e instanceof Anthropic.APIUserAbortError) return new LlmError('cancelled', 'Cancelled.');
   if (e instanceof Anthropic.APIConnectionError) return new LlmError('network', 'Could not reach the Claude API.');
   if (e instanceof Anthropic.APIError) {
-    const status = (e as { status?: number }).status ?? 0;
+    // `status` is undefined for an error event mid-stream; the typed `type`
+    // (the body's `error.type`) still says what happened.
+    const { status, type } = e;
     if (status === 401 || status === 403) return new LlmError('auth', 'API key was rejected — check Settings.');
-    if (status === 429) return new LlmError('rate-limit', 'Rate limited by the Claude API — try again shortly.');
-    if (status >= 500) return new LlmError('overloaded', 'The Claude API is overloaded — try again shortly.');
-    return new LlmError('other', `The Claude API returned an error (${status}).`);
+    if (status === 429 || type === 'rate_limit_error') {
+      return new LlmError('rate-limit', 'Rate limited by the Claude API — try again shortly.');
+    }
+    if (status === 529 || type === 'overloaded_error') {
+      return new LlmError('overloaded', 'The Claude API is overloaded — try again shortly.');
+    }
+    // Same retryable class as an overload, but not one — say what it was.
+    if (status !== undefined && status >= 500) {
+      return new LlmError('overloaded', 'The Claude API had a server error — try again shortly.');
+    }
+    // The SDK's message is the status plus the API's error body (never the
+    // key) — the API's own explanation, which is what makes this actionable.
+    return new LlmError('other', `The Claude API returned an error: ${e.message}`);
   }
   return new LlmError('other', e instanceof Error ? e.message : 'Unexpected error.');
 }

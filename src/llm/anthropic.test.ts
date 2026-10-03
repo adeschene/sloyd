@@ -22,6 +22,26 @@ describe('toLlmError', () => {
   ])('maps %o to %s', (e, kind) => {
     expect(toLlmError(e, live).kind).toBe(kind);
   });
+  it('carries the API\'s own explanation on an otherwise-unmapped error', () => {
+    const e = sdkError(Anthropic.APIError, { status: 400, message: '400 {"type":"invalid_request_error","message":"max_tokens too large"}' });
+    const got = toLlmError(e, live);
+    expect(got.kind).toBe('other');
+    expect(got.message).toContain('max_tokens too large');
+  });
+  it('words a 5xx as a server error, keeping the retryable kind; 529 stays "overloaded"', () => {
+    const e500 = toLlmError(sdkError(Anthropic.APIError, { status: 500 }), live);
+    expect(e500.kind).toBe('overloaded');
+    expect(e500.message).toMatch(/server error/i);
+    expect(e500.message).not.toMatch(/overloaded/i);
+    // Regression guard (green before and after): 529 keeps its own wording.
+    expect(toLlmError(sdkError(Anthropic.APIError, { status: 529 }), live).message).toMatch(/overloaded/i);
+  });
+  it.each([
+    ['overloaded_error', 'overloaded'],
+    ['rate_limit_error', 'rate-limit'],
+  ])('maps a mid-stream error (no status) by its typed `type` %s to %s', (type, kind) => {
+    expect(toLlmError(sdkError(Anthropic.APIError, { status: undefined, type }), live).kind).toBe(kind);
+  });
   it('reports anything after an abort as cancelled', () => {
     const c = new AbortController();
     c.abort();
