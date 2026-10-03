@@ -70,8 +70,17 @@ Every part **not on the floor** must be held in at least one of these ways:
 - **(a) Resting:** at least one face contact on its `-Y` (bottom) face.
 - **(b) Between:** for the X pair or the Z pair, the coverage of **both** faces is
   **≥ 0.5**.
-- **(c) Lapped:** at least one face contact on one of its broad faces, **other than its
-  top (`+Y`) face**. *(Amended 2026-10-03 on the user's ruling, after the Task 1 review
+- **(c) Lapped:** at least one face contact on one of its broad faces. A contact on its
+  **top (`+Y`) face** counts only when the part above is **held without this part**: that
+  part is on the floor, or it meets (a), (b) or (c) with its own contacts to this part
+  removed. One level only: for that inner test, a top-face contact never counts.
+  *(Second amendment, 2026-10-03, on the user's ruling after the final review. Excluding the
+  top face outright, as the first amendment below did, failed ordinary under-mounted parts:
+  cleats screwed up under a seat, battens under a top, runners hung from a top. It also
+  left the prompt's "fasten its broad face" advice steering repairs to a non-fix. A crate
+  on a hanging shelf still does not hold the shelf, because the crate is held only by the
+  shelf.)*
+- *(First amendment, superseded by the one above:)* **other than its top (`+Y`) face**. *(Amended 2026-10-03 on the user's ruling, after the Task 1 review
   probed it. As first written, (c) counted the top face, so anything set ON a hanging
   shelf, such as a crate on the workbench's shelf, made the shelf "held". Something sitting
   on a part never holds it up.)*
