@@ -27,7 +27,7 @@ tradition built around hand woodworking.
 Static SPA, containerized, **1163/1163 tests passing across 45 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **6**.
 
-**PRODUCTION MATCHES `master` as of 2026-10-03 with the batch variety round live** — bundle `index-CHx6ZAo-.js`, CSS `index-Co3i2lF7.css`, merge commit `b46b28d`. The Generate round's own deploy, earlier the same day, is described next. It served
+**PRODUCTION MATCHES `master` as of 2026-10-03 with the held and stable round live** — bundle `index-B9DOKF_H.js`, CSS `index-Co3i2lF7.css` (unchanged: a TypeScript-only round), merge commit `a0f452f`. The batch variety deploy before it served `index-CHx6ZAo-.js` from `b46b28d`. The Generate round's own deploy, earlier the same day, is described next. It served
 bundle `index-BAsxEohe.js` with CSS `index-DEQSkZ3q.css`, from merge commit `fa834dc`. A
 person stores a Claude API key in Settings, describes a piece, and gets 1–3 prototypes built
 from boards, each saved as a **new, unactivated** library project (invariant 36). **It is
@@ -41,8 +41,7 @@ Claude drives the dev server and the user supervises. Results are in
 findings: 164, a batch converging on one design, now CLOSED (below); and 165, a support
 check that passes a badly supported part, still open.
 
-**`master` IS AHEAD OF PRODUCTION by the held and stable round (follow-up 165, 2026-10-03),
-merged and NOT deployed.** `checkDesign` now reports a part that is not *held* (`hangs`) and a
+**The held and stable round (follow-up 165, 2026-10-03) is merged AND deployed.** `checkDesign` now reports a part that is not *held* (`hangs`) and a
 piece that would *tip* (`tips`), and the model is told both rules up front (invariant 39).
 Verified against the dev server with the user watching
 (`docs/browser-verification-held-and-stable.md`). There is no schema change.

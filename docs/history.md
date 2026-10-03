@@ -18,6 +18,15 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-03 with the held and stable round live** (follow-up
+165): bundle `index-CHx6ZAo-.js` → `index-B9DOKF_H.js`, merge commit `a0f452f`, the day's
+third deploy. **The CSS hash did not move** (`index-Co3i2lF7.css`), because the round is
+TypeScript-only. Verified after: `200` on `/` and on a deep route, both in-network and
+publicly; the new bundle served both at the edge and in-network; CSP `connect-src 'self'
+https://api.anthropic.com` unchanged at the edge. The feature was verified against the dev
+server with the user watching, then deployed, the normal order. Nothing was exercised
+against production. There is no schema change.
+
 **Production matches `master` as of 2026-10-03 with the batch variety round live** (follow-up
 164): bundle `index-BAsxEohe.js` → `index-CHx6ZAo-.js`, CSS `index-DEQSkZ3q.css` →
 `index-Co3i2lF7.css`, merge commit `b46b28d`. It is the day's second deploy. The CSS hash
@@ -218,7 +227,7 @@ is not also reported as hanging.
 - No `hangs` or `tips` message was ever sent, so the repair round trip is still unseen
   (follow-up 177).
 
-Tests went from 1134 to 1163. There is no schema change.
+Deployed the same day (bundle `index-B9DOKF_H.js`). Tests went from 1134 to 1163. There is no schema change.
 
 **What the batch variety round did (2026-10-03)**: follow-up 164, the Generate round's
 own top finding. Phase 1's whole purpose was variety, and a batch of three Sonnet side
