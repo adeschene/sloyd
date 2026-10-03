@@ -137,6 +137,38 @@ describe('hangs — a load on top', () => {
   });
 });
 
+describe('hangs — a contact on the top face (user ruling)', () => {
+  it('a cleat screwed up under a bench seat is held — the seat rests on legs without it', () => {
+    expect(hangs(docOf(
+      span('Leg 1', [0, 0, 0], [2, 17, 2]),
+      span('Leg 2', [46, 0, 0], [48, 17, 2]),
+      span('Leg 3', [0, 0, 12], [2, 17, 14]),
+      span('Leg 4', [46, 0, 12], [48, 17, 14]),
+      span('Seat', [0, 17, 0], [48, 18.5, 14]),
+      span('Cleat', [10, 16.25, 2], [11.5, 17, 12]),
+    ))).toEqual([]);
+  });
+  it('a shelf screwed up under rails that the legs hold is held', () => {
+    const doc = migrateDocument(JSON.parse(workbenchRaw));
+    const shelf = doc.boards.find((b) => b.name === 'Lower shelf')!;
+    const fixed = { ...shelf, width: 24, position: [-26.5, 5.25, -12] as [number, number, number] };
+    expect(hangs({ ...doc, boards: doc.boards.map((b) => (b === shelf ? fixed : b)) })).toEqual([]);
+  });
+});
+
+describe('hangs — the top-face exception recurses one level only', () => {
+  it('a crate wedged under a held cap still does not hold the shelf under it', () => {
+    const v = hangs(docOf(
+      span('Post L', [18, 0, 0], [20, 40, 4]),
+      span('Post R', [30, 0, 0], [32, 40, 4]),
+      span('Cap', [20, 16, 0], [30, 17, 4]), // between the posts: held
+      span('Crate', [22, 15, 0], [28, 16, 4]), // flat, under the cap, on the shelf
+      span('Shelf', [22, 14, 0], [28, 15, 4]),
+    ));
+    expect(v.map((x) => x.message.split(' ')[0])).toEqual(['Shelf']);
+  });
+});
+
 describe('hangs — the three ways to be held', () => {
   it('(a) resting: a square post standing on a plinth, held by nothing else', () => {
     expect(hangs(docOf(
@@ -218,6 +250,23 @@ describe('tips (fu 165)', () => {
   it('a 3in footprint uses a 0.75in margin, not an impossible 1in', () => {
     const doc = docOf(span('Foot', [0, 0, 0], [3, 1, 3]), span('Arm', [0, 1, 0], [4.9, 2, 3]));
     expect(tips(doc)).toEqual([]); // centre at x ≈ 2.089: 0.911 inside, under 1 but over 0.75
+  });
+
+  it('a centre of mass exactly the margin inside passes; a sixteenth further out fails', () => {
+    const at = (x: number) => docOf(span('Base', [0, 0, 0], [10, 1, 10]), span('Beam', [x, 1, 0], [x + 10, 2, 10]));
+    expect(tips(at(8))).toEqual([]); // centre at x = 9, d = 1 = margin
+    const v = tips(at(8.0625));
+    expect(v).toHaveLength(1);
+    expect(v[0].message).toContain('0.969in inside');
+  });
+  it('reports a +Z tip for an overhang along Z', () => {
+    const v = tips(docOf(span('Base', [0, 0, 0], [10, 1, 10]), span('Beam', [0, 1, 0], [10, 2, 30])));
+    expect(v).toHaveLength(1);
+    expect(v[0].message).toContain('would tip toward +Z');
+  });
+  it("the shrunk margin uses the footprint's SMALLER side", () => {
+    // centre at x ≈ 2.089: 0.911 inside; s = 3 -> m = 0.75 passes, but s = 20 -> m = 1 would fail
+    expect(tips(docOf(span('Foot', [0, 0, 0], [3, 1, 20]), span('Arm', [0, 1, 0], [4.9, 2, 20])))).toEqual([]);
   });
 
   it('weighs by VOLUME: a light arm far out does not tip a heavy base', () => {

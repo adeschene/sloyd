@@ -150,19 +150,36 @@ function coverage(b: Box, cs: Contact[], axis: number, side: -1 | 1): number {
 
 /**
  * HELD (fu 165, inv 39): (a) something under it, (b) both faces of the X or Z
- * pair covered >= HELD_COVERAGE, or (c) any contact on a broad face other than its
- * top (normal to its smallest extent; ties all count; a load on top never holds a part up). (c) is what lets a backrest or an
- * apron screwed to a post's face pass — without it, ordinary face-mounted
- * parts fail and cost repair rounds for nothing. Coverage, not two-sidedness,
- * is what catches the workbench shelf: it touched legs on BOTH ends, 19% each.
+ * pair covered >= HELD_COVERAGE, or (c) a contact on a broad face (normal to its
+ * smallest extent; ties all count). On the TOP (+Y) broad face a contact counts
+ * only when the part above is held WITHOUT this part: it is on the floor, or it
+ * meets (a), (b) or (c) using its own contacts with this part removed, one level
+ * only (in that inner test a +Y contact never counts, so there is no recursion).
+ * Why: cleats and battens screwed up under a seat are real construction, but a
+ * crate sitting on a shelf is held only by the shelf, so it must not hold the
+ * shelf up. (c) is what lets a backrest or an apron screwed to a post's face
+ * pass; coverage, not two-sidedness, is what catches the workbench shelf: it
+ * touched legs on BOTH ends, 19% each.
  */
-function hangsMessage(b: Box, cs: Contact[], boxes: Box[]): string | null {
-  if (cs.some((c) => c.axis === 1 && c.side === -1)) return null;
-  const pairs = [0, 2].map((axis) => ({ axis, lo: coverage(b, cs, axis, -1), hi: coverage(b, cs, axis, 1) }));
-  if (pairs.some((p) => p.lo >= HELD_COVERAGE && p.hi >= HELD_COVERAGE)) return null;
+function isHeld(i: number, boxes: Box[], contacts: Contact[][], without: number | null, allowTop: boolean): boolean {
+  const b = boxes[i];
+  const cs = without === null ? contacts[i] : contacts[i].filter((c) => c.other !== without);
+  if (cs.some((c) => c.axis === 1 && c.side === -1)) return true;
+  if ([0, 2].some((axis) => coverage(b, cs, axis, -1) >= HELD_COVERAGE && coverage(b, cs, axis, 1) >= HELD_COVERAGE)) return true;
   const ext = [0, 1, 2].map((k) => b.max[k] - b.min[k]);
   const thin = Math.min(...ext);
-  if (cs.some((c) => ext[c.axis] - thin <= 1e-9 && !(c.axis === 1 && c.side === 1))) return null;
+  return cs.some((c) => {
+    if (ext[c.axis] - thin > 1e-9) return false;
+    if (!(c.axis === 1 && c.side === 1)) return true;
+    return allowTop && (boxes[c.other].min[1] <= TOUCH || isHeld(c.other, boxes, contacts, i, false));
+  });
+}
+
+function hangsMessage(i: number, boxes: Box[], contacts: Contact[][]): string | null {
+  if (isHeld(i, boxes, contacts, null, true)) return null;
+  const b = boxes[i];
+  const cs = contacts[i];
+  const pairs = [0, 2].map((axis) => ({ axis, lo: coverage(b, cs, axis, -1), hi: coverage(b, cs, axis, 1) }));
 
   // The pair closest to passing: larger smaller-coverage; a tie keeps X.
   const best = Math.min(pairs[1].lo, pairs[1].hi) > Math.min(pairs[0].lo, pairs[0].hi) ? pairs[1] : pairs[0];
@@ -241,7 +258,7 @@ export function checkDesign(doc: SloydDocument, limits: DesignLimits): Violation
   const contacts = contactsOf(boxes);
   boxes.forEach((b, i) => {
     if (b.min[1] <= TOUCH || !grounded.has(i) || overlapping.has(i)) return;
-    const message = hangsMessage(b, contacts[i], boxes);
+    const message = hangsMessage(i, boxes, contacts);
     if (message) out.push({ kind: 'hangs', message });
   });
 
