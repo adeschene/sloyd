@@ -1,4 +1,4 @@
-import { BrowserStorageAdapter, AUTOSAVE_KEY, LIBRARY_KEY, PROJECT_PREFIX } from './browser';
+import { BrowserStorageAdapter, AUTOSAVE_KEY, LIBRARY_KEY, LLM_KEY, PROJECT_PREFIX } from './browser';
 import { createBoard, createDocument, DocumentError } from '../document/document';
 import { LAYOUT_VERSION } from './libraryIndex';
 
@@ -1006,5 +1006,46 @@ describe('refusing to write over an unusable (but present) index (Finding 3)', (
 
     expect(adapter.available).toBe(false);
     expect(store.getItem(LIBRARY_KEY)).toBe(raw);
+  });
+});
+
+describe('LLM settings', () => {
+  const settings = { provider: 'anthropic' as const, apiKey: 'sk-ant-SECRET-123', model: 'claude-opus-5-5' };
+
+  it('round-trips', async () => {
+    const a = new BrowserStorageAdapter(new FakeStorage());
+    expect(await a.getLlmSettings()).toBeNull();
+    expect(await a.setLlmSettings(settings)).toBe(true);
+    expect(await a.getLlmSettings()).toEqual(settings);
+    await a.clearLlmSettings();
+    expect(await a.getLlmSettings()).toBeNull();
+  });
+
+  it.each(['not json', '{}', '{"provider":"anthropic","apiKey":"","model":"m"}', '{"provider":"other","apiKey":"k","model":"m"}', '[]'])(
+    'reads %s as no settings, never a throw', async (raw) => {
+      const s = new FakeStorage();
+      s.setItem(LLM_KEY, raw);
+      expect(await new BrowserStorageAdapter(s).getLlmSettings()).toBeNull();
+    });
+
+  it('reports a failed write as false and does not touch `available`', async () => {
+    const s = new FakeStorage();
+    const a = new BrowserStorageAdapter(s);
+    s.full = true;
+    expect(await a.setLlmSettings(settings)).toBe(false);
+    expect(a.available).toBe(true);
+  });
+
+  it('never writes the key into any other storage key', async () => {
+    const s = new FakeStorage();
+    const a = new BrowserStorageAdapter(s);
+    await a.openLibrary();
+    await a.setLlmSettings(settings);
+    const id = await a.createProject(createDocument('P'), { activate: false });
+    await a.autoSave(id!, createDocument('P'));
+    for (let i = 0; i < s.length; i++) {
+      const k = s.key(i)!;
+      if (k !== LLM_KEY) expect(s.getItem(k)).not.toContain('SECRET');
+    }
   });
 });

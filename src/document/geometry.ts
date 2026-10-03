@@ -4,6 +4,14 @@ import type { Board, Dimension, Posture } from './types';
 export const DIMENSION_ORDER: Dimension[] = ['length', 'width', 'thickness'];
 
 /**
+ * The 1/16" grid a FREE value is rounded to — a gizmo drag, or a model's
+ * generated part. Lives here rather than in viewport so that document code
+ * (generated.ts) can round to the same grid without importing upward. Never
+ * applied to an exact position or a difference of two (invariant 25).
+ */
+export const SNAP_INCHES = 1 / 16;
+
+/**
  * The dimension a cut's offset and width are measured along: the one that is
  * neither cut into nor run across. Implied rather than stored — see the Cut
  * doc comment — so this is the single place it is worked out.

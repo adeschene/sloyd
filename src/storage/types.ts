@@ -34,6 +34,17 @@ export interface StorageCapabilities {
 }
 
 /**
+ * The bring-your-own-key settings for Generate. Stored in this browser only,
+ * under its own key — never in the library index and never inside a
+ * SloydDocument, so no export can carry it.
+ */
+export interface LlmSettings {
+  provider: 'anthropic';
+  apiKey: string;
+  model: string;
+}
+
+/**
  * The single seam between Sloyd and any platform's persistence. Nothing else
  * in the app may touch localStorage, build a download link, or open a file
  * picker. A desktop build is a second implementation of this interface.
@@ -91,4 +102,14 @@ export interface StorageAdapter {
   importProject(): Promise<SloydDocument>;
   /** Recently opened projects. Returns [] where unsupported. */
   listRecent(): Promise<RecentEntry[]>;
+  /** The LLM settings, or null when none are set or the stored value is unusable. Never throws. */
+  getLlmSettings(): Promise<LlmSettings | null>;
+  /**
+   * Store the LLM settings; false if the write failed. Deliberately does NOT
+   * move `available`, which reports PROJECT persistence — a settings write
+   * failing says nothing about whether autosave works.
+   */
+  setLlmSettings(settings: LlmSettings): Promise<boolean>;
+  /** Forget the key. */
+  clearLlmSettings(): Promise<void>;
 }

@@ -153,6 +153,18 @@ describe('migrateDocument', () => {
     expect(doc.boards[0].material).toBe('pine');
   });
 
+  it.each(['toString', 'constructor', '__proto__'])(
+    'treats an INHERITED key (%s) as an unknown material, not a material',
+    (material) => {
+      const raw = {
+        version: 1,
+        units: { display: 'imperial-fractional', precision: 16 },
+        boards: [{ ...createBoard(), material }],
+      };
+      expect(migrateDocument(raw).boards[0].material).toBe('pine');
+    },
+  );
+
   it('deduplicates board names, first occurrence keeping its name', () => {
     const raw = {
       version: 1,

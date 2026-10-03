@@ -5,9 +5,8 @@ import * as THREE from 'three';
 import type { TransformControls as TransformControlsImpl } from 'three-stdlib';
 import { useStore } from '../store/store';
 import { boardCenter, boardExtents } from '../document/document';
+import { SNAP_INCHES } from '../document/geometry';
 import { gizmoDistanceFactor, gizmoSizeForExtent } from './gizmoScale';
-
-export const SNAP_INCHES = 1 / 16;
 
 const snap = (v: number) => Math.round(v / SNAP_INCHES) * SNAP_INCHES;
 

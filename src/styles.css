@@ -1119,3 +1119,51 @@ button[aria-pressed='true'] {
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
+
+/* Generate / Settings dialogs — the cut list's overlay idiom, smaller sheet. */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 48px 16px;
+  overflow: auto;
+  background: rgba(12, 14, 16, 0.72);
+}
+.modal-sheet {
+  width: min(560px, 100%);
+  padding: 20px 24px;
+  background: var(--graphite-800);
+  border: 1px solid var(--graphite-600);
+  border-radius: 8px;
+  outline: none;
+}
+.modal-sheet h2 { margin: 0 0 16px; }
+.modal-note { font-size: 12px; opacity: 0.75; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+.generate-limits { display: flex; gap: 8px; }
+.generate-limit { flex: 1; min-width: 0; }
+.generate-count { display: flex; gap: 12px; border: 0; padding: 0; }
+.generate-count legend { padding: 0; margin-bottom: 4px; }
+.generate-runs { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 6px; }
+.generate-run { display: flex; gap: 8px; align-items: center; }
+.generate-run-letter { font-family: var(--font-num); width: 1.5em; }
+.generate-run-status { flex: 1; }
+.generate-run-cost { font-family: var(--font-num); opacity: 0.75; }
+.generate-run-failed .generate-run-status { color: var(--alert); }
+
+/* The project menu's "new" badge on a project generated this session and not
+   yet opened (spec §6.3). Brass on graphite — the app's existing chip idiom
+   (TapeReadout's axis chip), not a new hue. */
+.project-row-new {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--brass);
+  color: var(--graphite-800);
+}

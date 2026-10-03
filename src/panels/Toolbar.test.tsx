@@ -37,6 +37,9 @@ function renderToolbar(overrides: Partial<Parameters<typeof Toolbar>[0]> = {}) {
       onDuplicateProject={asyncOk}
       onDeleteProject={asyncNoop}
       onImportProject={noop}
+      onOpenGenerate={noop}
+      onOpenSettings={noop}
+      generating={null}
       {...overrides}
     />,
   );
@@ -164,5 +167,31 @@ describe('Tape button', () => {
     expect(tape).toHaveAttribute('aria-pressed', 'false');
     await userEvent.click(tape);
     expect(useStore.getState().tool).toBe('tape');
+  });
+});
+
+describe('Toolbar Generate button', () => {
+  it('reads Generate… when nothing is running', () => {
+    renderToolbar();
+    expect(screen.getByRole('button', { name: 'Generate…' })).toBeInTheDocument();
+  });
+
+  it('counts finished runs while a batch is live — done = total − live', () => {
+    renderToolbar({ generating: { live: 1, total: 3 } });
+    expect(screen.getByRole('button', { name: 'Generating 2/3…' })).toBeInTheDocument();
+  });
+
+  it('still opens the dialog while a batch is live', async () => {
+    const onOpenGenerate = vi.fn();
+    renderToolbar({ generating: { live: 2, total: 2 }, onOpenGenerate });
+    await userEvent.click(screen.getByRole('button', { name: 'Generating 0/2…' }));
+    expect(onOpenGenerate).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens Settings from the gear', async () => {
+    const onOpenSettings = vi.fn();
+    renderToolbar({ onOpenSettings });
+    await userEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
   });
 });

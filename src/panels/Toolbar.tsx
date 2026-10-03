@@ -41,6 +41,26 @@ interface Props {
   onToggleGuides: () => void;
   /** Opens the cut list sheet. */
   onOpenCutList: () => void;
+  /**
+   * Opens the Generate dialog. Required, like `onOpenSettings` and
+   * `generating`: a Toolbar rendered without the wiring should fail to
+   * compile, not render a button that does nothing.
+   */
+  onOpenGenerate: () => void;
+  /** Opens the Settings dialog (the API key and model). */
+  onOpenSettings: () => void;
+  /**
+   * The live batch, or null when nothing is running. While non-null the
+   * Generate button reads "Generating done/total…" and STILL opens the dialog
+   * (spec §6.1) — closing the dialog does not cancel, so this label is the
+   * only sign runs are out while it is shut.
+   */
+  generating: { live: number; total: number } | null;
+  /**
+   * Generated this session and not yet opened; passed through to
+   * ProjectMenu for its badge (spec §6.3). Optional, like ProjectMenu's own.
+   */
+  newIds?: ReadonlySet<string>;
 }
 
 export function Toolbar({
@@ -61,6 +81,10 @@ export function Toolbar({
   onDuplicateProject,
   onDeleteProject,
   onImportProject,
+  onOpenGenerate,
+  onOpenSettings,
+  generating,
+  newIds,
 }: Props) {
   const name = useStore((s) => s.doc.name);
   const setDocumentName = useStore((s) => s.setDocumentName);
@@ -94,11 +118,15 @@ export function Toolbar({
             onDuplicate={onDuplicateProject}
             onDelete={onDeleteProject}
             onImport={onImportProject}
+            newIds={newIds}
           />
         )}
         <button className="btn-primary" onClick={addBoard}>+ Add board</button>
         <button onClick={onOpenCutList} title="Cut list — parts, quantities and joinery">
           Cut list
+        </button>
+        <button onClick={onOpenGenerate} title="Generate a prototype from a description">
+          {generating ? `Generating ${generating.total - generating.live}/${generating.total}…` : 'Generate…'}
         </button>
         <span className="toolbar-divider" />
         <button onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
@@ -156,8 +184,11 @@ export function Toolbar({
         </label>
       </div>
 
-      {/* Right group: the document's state on disk. */}
-      <div className="toolbar-group toolbar-right">{children}</div>
+      {/* Right group: settings, then the document's state on disk. */}
+      <div className="toolbar-group toolbar-right">
+        <button onClick={onOpenSettings} aria-label="Settings" title="Settings">⚙</button>
+        {children}
+      </div>
     </header>
   );
 }
