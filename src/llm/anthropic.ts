@@ -92,7 +92,16 @@ export class AnthropicClient implements LlmClient {
     // Verbatim: the whole content, thinking blocks included (spec §4.5).
     const assistantTurn = { role: 'assistant', content: message.content };
     if (message.stop_reason === 'max_tokens') return { json: null, unusable: 'truncated', assistantTurn, usage };
-    const text = message.content.filter((b) => b.type === 'text').map((b) => (b as { text: string }).text).join('');
+    // Only the answering model's text: with `fallbacks`, a declining model's
+    // partial output stays in `content` AHEAD of a `fallback` block, and joining
+    // it with the rescued answer would make that answer unparseable. The turn
+    // above still carries everything — the server validates the block's position.
+    let start = 0;
+    message.content.forEach((b, i) => {
+      if (b.type === 'fallback') start = i + 1;
+    });
+    const answer = message.content.slice(start);
+    const text = answer.filter((b) => b.type === 'text').map((b) => (b as { text: string }).text).join('');
     try {
       return { json: JSON.parse(text), assistantTurn, usage };
     } catch {

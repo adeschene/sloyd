@@ -76,6 +76,25 @@ describe('AnthropicClient', () => {
     expect(r).toMatchObject({ json: null, unusable: 'truncated' });
   });
 
+  it('parses only the text after the last fallback block, and keeps the turn verbatim', async () => {
+    const content = [
+      { type: 'text', text: '{"name":"Bo' },
+      {
+        type: 'fallback',
+        from: { model: 'claude-opus-5-5' },
+        to: { model: 'claude-sonnet-5-5' },
+        trigger: { type: 'refusal', category: null },
+      },
+      { type: 'thinking', thinking: '', signature: 's' },
+      { type: 'text', text: '{"name":"x","parts":[]}' },
+    ];
+    const { sdk } = fakeSdk(msg({ content }));
+    const r = await new AnthropicClient('k', DEFAULT_MODEL, sdk as never).complete(req, live);
+    expect(r.json).toEqual({ name: 'x', parts: [] });
+    expect(r.unusable).toBeUndefined();
+    expect((r.assistantTurn as { content: unknown }).content).toBe(content);
+  });
+
   it('marks bad JSON as unparseable', async () => {
     const { sdk } = fakeSdk(msg({ content: [{ type: 'text', text: '{nope' }] }));
     const r = await new AnthropicClient('k', DEFAULT_MODEL, sdk as never).complete(req, live);
