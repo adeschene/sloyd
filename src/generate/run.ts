@@ -10,7 +10,15 @@ import type { GenerateSettings } from './prompt';
 /** Repair rounds after the first call — 4 calls at most (spec §4.5). */
 export const MAX_REPAIRS = 3;
 
-export type RunProgress = { phase: 'designing' } | { phase: 'repairing'; round: number; issues: number };
+/**
+ * `repairing` follows a USABLE attempt and carries its violation count;
+ * `retrying` follows an UNUSABLE one (truncated, unparseable, or every part
+ * rejected), which has no issue count worth showing.
+ */
+export type RunProgress =
+  | { phase: 'designing' }
+  | { phase: 'repairing'; round: number; issues: number }
+  | { phase: 'retrying'; round: number };
 
 export interface RunOutcome {
   doc: SloydDocument;
@@ -51,21 +59,33 @@ export async function runGeneration(
   const messages: LlmMessage[] = [client.userTurn(userMessage(settings))];
   let usage = ZERO_USAGE;
   let best: { doc: SloydDocument; violations: Violation[] } | null = null;
-  let lastIssues = 0;
+  /** The previous attempt's violation count, or null when it was unusable. */
+  let lastIssues: number | null = null;
 
   for (let attempt = 0; attempt <= MAX_REPAIRS; attempt++) {
-    onProgress(attempt === 0 ? { phase: 'designing' } : { phase: 'repairing', round: attempt, issues: lastIssues });
+    onProgress(
+      attempt === 0 ? { phase: 'designing' }
+        : lastIssues === null ? { phase: 'retrying', round: attempt }
+          : { phase: 'repairing', round: attempt, issues: lastIssues },
+    );
     const res = await client.complete({ system: SYSTEM_PROMPT, messages: [...messages], schema: DESIGN_SCHEMA }, signal);
     usage = addUsage(usage, res.usage);
     messages.push(res.assistantTurn);
 
     const design = res.json === null ? null : parseDesign(res.json);
+    const converted = design && designToDocument(design);
     let feedback: string;
-    if (!design) {
+    if (!converted) {
       feedback = unusableMessage(res.unusable ?? 'unparseable');
-      lastIssues = 1;
+      lastIssues = null;
+    } else if (converted.doc.boards.length === 0) {
+      // Every part rejected: unusable, and never a `best` — a zero-board
+      // document is not a prototype. parseDesign refuses an empty parts
+      // list, so `rejected` names every part and says why.
+      feedback = repairMessage(rejectedViolations(converted.rejected));
+      lastIssues = null;
     } else {
-      const { doc, rejected } = designToDocument(design);
+      const { doc, rejected } = converted;
       const violations = [...rejectedViolations(rejected), ...checkDesign(doc, limits)];
       if (!best || violations.length <= best.violations.length) best = { doc, violations };
       if (violations.length === 0) break;

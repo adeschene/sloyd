@@ -1,17 +1,18 @@
 import { useCallback, useRef, useState } from 'react';
 import { runGeneration, RunFailed } from './generate/run';
+import type { RunProgress } from './generate/run';
 import type { GenerateSettings } from './generate/prompt';
 import { LlmError } from './llm/types';
 import type { LlmClient } from './llm/types';
 import { storage } from './storage/browser';
 
-export type RunStatus = 'designing' | 'repairing' | 'ready' | 'failed' | 'cancelled';
+export type RunStatus = 'designing' | 'repairing' | 'retrying' | 'ready' | 'failed' | 'cancelled';
 
 export interface RunRow {
   key: number;
   letter: string | null;
   status: RunStatus;
-  /** repairing: the round number. */
+  /** repairing, retrying: the round number. */
   round?: number;
   /** repairing: issues being fixed; ready: issues remaining. */
   issues?: number;
@@ -22,6 +23,14 @@ export interface RunRow {
 }
 
 const LETTERS = ['A', 'B', 'C'];
+
+function progressPatch(p: RunProgress): Partial<RunRow> {
+  switch (p.phase) {
+    case 'designing': return { status: 'designing' };
+    case 'repairing': return { status: 'repairing', round: p.round, issues: p.issues };
+    case 'retrying': return { status: 'retrying', round: p.round, issues: undefined };
+  }
+}
 
 /**
  * The batch of generation runs, owned by App so closing the dialog does not
@@ -61,8 +70,7 @@ export function useGenerations(opts: { onCreated: (projectId: string) => void; o
       const letter = count > 1 ? LETTERS[i] : null;
       void (async () => {
         try {
-          const out = await runGeneration(client, settings, ctl.signal, (p) =>
-            patch(key, p.phase === 'designing' ? { status: 'designing' } : { status: 'repairing', round: p.round, issues: p.issues }));
+          const out = await runGeneration(client, settings, ctl.signal, (p) => patch(key, progressPatch(p)));
           const costUsd = client.estimateCostUsd(out.usage);
           // A cancel that lands after the model answered but before the write
           // still means "write nothing" (spec §3.4).

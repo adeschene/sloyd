@@ -14,6 +14,8 @@ const p = (name: string, y: number) => ({
 const GOOD = { name: 'Stack', parts: [p('A', 0), p('B', 1)] };
 const ONE_ISSUE = { name: 'One', parts: [p('A', 0), p('B', 5)] };                 // B floats
 const TWO_ISSUES = { name: 'Two', parts: [p('A', 0), p('B', 5), p('C', 9)] };     // B, C float
+/** Parses, but every part is rejected (size rounds to zero) — zero boards. */
+const ALL_REJECTED = { name: 'Gone', parts: [{ ...p('Sliver', 0), size: { x: 10, y: 0.01, z: 10 } }] };
 
 type Step = unknown | 'truncated' | 'unparseable' | LlmError;
 
@@ -124,5 +126,44 @@ describe('runGeneration', () => {
       { phase: 'repairing', round: 1, issues: 2 },
       { phase: 'repairing', round: 2, issues: 1 },
     ]);
+  });
+
+  it('reports a round after an UNUSABLE attempt as retrying, not as fixing one issue', async () => {
+    const { client } = fakeClient(['unparseable', ONE_ISSUE, GOOD]);
+    const progress = vi.fn();
+    await runGeneration(client, settings, new AbortController().signal, progress);
+    expect(progress.mock.calls.map((c) => c[0])).toEqual([
+      { phase: 'designing' },
+      { phase: 'retrying', round: 1 },
+      { phase: 'repairing', round: 2, issues: 1 },
+    ]);
+  });
+
+  it('goes back to repairing after a usable attempt, and to retrying after a truncated one', async () => {
+    const { client } = fakeClient([ONE_ISSUE, 'truncated', GOOD]);
+    const progress = vi.fn();
+    await runGeneration(client, settings, new AbortController().signal, progress);
+    expect(progress.mock.calls.map((c) => c[0])).toEqual([
+      { phase: 'designing' },
+      { phase: 'repairing', round: 1, issues: 1 },
+      { phase: 'retrying', round: 2 },
+    ]);
+  });
+
+  it('never keeps a design whose parts were ALL rejected — zero boards is not a prototype', async () => {
+    const { client } = fakeClient([ALL_REJECTED, TWO_ISSUES, TWO_ISSUES, TWO_ISSUES]);
+    const out = await run(client);
+    expect(out.doc.name).toBe('Two');
+    expect(out.doc.boards.length).toBeGreaterThan(0);
+  });
+
+  it('fails a run whose only designs had every part rejected, telling the model why each was', async () => {
+    const { client, seen } = fakeClient([ALL_REJECTED]);
+    const progress = vi.fn();
+    const err = await runGeneration(client, settings, new AbortController().signal, progress).catch((e) => e);
+    expect(err).toBeInstanceOf(RunFailed);
+    const feedback = (seen[1][2] as { text: string }).text;
+    expect(feedback).toContain('Sliver has a size of zero or less after rounding to 1/16in.');
+    expect(progress.mock.calls[1][0]).toEqual({ phase: 'retrying', round: 1 });
   });
 });

@@ -63,6 +63,13 @@ describe('GenerateDialog', () => {
     expect(screen.getByText(/storage is unavailable/i)).toBeInTheDocument();
   });
 
+  it('shows a retry after an unusable answer as a retry, with no issue count', () => {
+    const rows: RunRow[] = [{ key: 1, letter: null, status: 'retrying', round: 2, costUsd: null }];
+    render(<GenerateDialog {...props({ rows })} />);
+    expect(screen.getByText('Retrying (round 2/3)…')).toBeInTheDocument();
+    expect(screen.queryByText(/fixing/i)).not.toBeInTheDocument();
+  });
+
   it('renders each run row and opens a ready project', async () => {
     const rows: RunRow[] = [
       { key: 1, letter: 'A', status: 'repairing', round: 1, issues: 2, costUsd: null },

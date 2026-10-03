@@ -105,6 +105,25 @@ describe('useGenerations', () => {
     expect(result.current.rows[0].status).toBe('cancelled');
   });
 
+  it('shows a round after an unusable answer as retrying, with its round number', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    let calls = 0;
+    const c = client(async () => {
+      if (++calls === 1) return { json: null, unusable: 'unparseable', assistantTurn: {}, usage };
+      await gate;
+      return ok();
+    });
+    const { result } = setup();
+    act(() => result.current.start(c, settings, 1));
+    await waitFor(() => expect(result.current.rows[0].status).toBe('retrying'));
+    expect(result.current.rows[0]).toMatchObject({ status: 'retrying', round: 1 });
+    expect(result.current.rows[0].issues).toBeUndefined();
+    release();
+    await waitFor(() => expect(result.current.live).toBe(0));
+    expect(result.current.rows[0].status).toBe('ready');
+  });
+
   it('an auth failure stops every run and says why on each row', async () => {
     let calls = 0;
     const c = client((_req, signal) => {

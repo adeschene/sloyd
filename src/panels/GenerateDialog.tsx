@@ -29,6 +29,7 @@ function statusText(r: RunRow): string {
   switch (r.status) {
     case 'designing': return 'Designing…';
     case 'repairing': return `Fixing ${r.issues} issue${r.issues === 1 ? '' : 's'} (round ${r.round}/${MAX_REPAIRS})…`;
+    case 'retrying': return `Retrying (round ${r.round}/${MAX_REPAIRS})…`;
     case 'ready': return r.issues ? `Ready · ${r.issues} issue${r.issues === 1 ? '' : 's'}` : 'Ready';
     case 'cancelled': return 'Cancelled';
     case 'failed': return `Failed: ${r.error}`;
