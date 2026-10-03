@@ -174,6 +174,52 @@ and 79.
 
 ## What each round did
 
+**What the held and stable round did (2026-10-03)**: follow-up 165. `checkDesign`'s support
+rule only asked whether parts connected to the floor through face contacts, in any direction,
+so the user's live workbench passed with its lower shelf hanging by four corner patches
+under its low rails. The user chose two failure classes to catch: tipping, and parts that
+hang. They then exported the actual workbench to the server, and **reading it changed the
+rule**. "Held between two parts" passes that shelf, because legs touch both its ends; what
+was wrong was 19% coverage of each end. So `hangs` measures coverage:
+
+- (a) resting on something;
+- (b) between two parts covering ≥ 50% of each opposite side;
+- (c) lapped on a broad face, so a backrest screwed to a post's face still passes.
+
+`tips` compares the grounded parts' volume-weighted centre of mass with the floor
+footprint's hull, using a 1in margin that shrinks for narrow bases. The model is also told
+both rules up front.
+
+**The round is mostly the story of rule (c), and every turn in it was a probe, not an
+argument.** The task reviewer set a crate on the hanging shelf, and (c) counted the crate's
+contact on the shelf's top face, so the shelf passed. The user ruled the top face out. The
+final reviewer then built cleats under a bench seat, which now failed, and showed that the
+prompt's own "fasten its broad face" advice steered a repair to a non-fix. The user ruled
+the top face back in, but only when the part above is held without this part. The fix-wave
+re-reviewer then stood a box, and separately two lapped uprights, on the hanging shelf.
+They held each other and so held the shelf. The user ruled that the part above must also
+still reach the floor without this part. **Three rulings, three proven holes.** Invariant
+39 records the result and prohibits "simplifying" any of it back.
+
+**The tests had the usual weakness, and the reviews caught it again:**
+- The test named for rule (a) could not fail without (a), because a flat top's underside is
+  also a broad face.
+- The `tips` margin boundary survived a `>=` → `>` mutation.
+- Only the +X tip direction was ever asserted.
+
+Each was replaced by a test that a deliberate break turns red. Two approved plan deviations
+apply one-fault-one-report: a floating part adds no weight to `tips`, and an overlapping part
+is not also reported as hanging.
+
+**The live pass**, driven by Claude with the user watching:
+- The same workbench request put the shelf **on** the stretchers, first time.
+- The side table batch produced a plinth cabinet where it had produced a spine cantilever.
+- All four designs check clean when the shipped `checkDesign` runs on the stored documents.
+- No `hangs` or `tips` message was ever sent, so the repair round trip is still unseen
+  (follow-up 177).
+
+Tests went from 1134 to 1163. There is no schema change.
+
 **What the batch variety round did (2026-10-03)**: follow-up 164, the Generate round's
 own top finding. Phase 1's whole purpose was variety, and a batch of three Sonnet side
 tables had come back as one design three times. The cause was structural: N identical

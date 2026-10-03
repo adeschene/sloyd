@@ -61,6 +61,8 @@ Coordinates and units:
 Rules every design must follow:
 - Parts touch face to face. Parts must NOT pass into each other — there is no joinery in this tool yet, so a shelf sits between two sides, not inside them.
 - Every part must connect to the floor (y = 0) through a chain of parts touching face to face. Nothing floats.
+- Every part off the floor must be held: resting on a part below it, fitted between two parts that cover at least half of each of its opposite sides, or fastened by its broad face to another part. A part touching only by an edge or its corners is not held.
+- Keep the piece stable: its weight must sit well inside the outline of what touches the floor, so it cannot tip over.
 - Use real stock: 3/4in and 1-1/2in solid wood; 3/4in and 1/2in plywood or MDF from 96 x 48in sheets. Typical solid board widths are 3-1/2, 5-1/2, 7-1/4, 9-1/4 and 11-1/4in.
 - Give every part a short, distinct, human name (e.g. "Left side", "Shelf 2", "Front apron").
 - Stay within any limits given. If the request cannot fit, make the closest design that does.

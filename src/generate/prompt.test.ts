@@ -49,4 +49,16 @@ describe('prompt', () => {
     expect(m).toContain('C is not connected.');
     expect(m).toMatch(/whole/i);
   });
+  it('states the held and stable rules up front (fu 165)', () => {
+    expect(SYSTEM_PROMPT).toContain(
+      '- Every part off the floor must be held: resting on a part below it, fitted between two parts that cover at least half of each of its opposite sides, or fastened by its broad face to another part. A part touching only by an edge or its corners is not held.',
+    );
+    expect(SYSTEM_PROMPT).toContain(
+      '- Keep the piece stable: its weight must sit well inside the outline of what touches the floor, so it cannot tip over.',
+    );
+    const lines = SYSTEM_PROMPT.split('\n');
+    const floor = lines.findIndex((l) => l.startsWith('- Every part must connect to the floor'));
+    expect(lines[floor + 1].startsWith('- Every part off the floor must be held')).toBe(true);
+    expect(lines[floor + 2].startsWith('- Keep the piece stable')).toBe(true);
+  });
 });
