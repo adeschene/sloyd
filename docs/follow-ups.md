@@ -3757,6 +3757,34 @@ relative to the part; a centre-of-mass-over-contact test; or requiring support a
 separated points for a part longer than N inches. Any of them makes a repair round more
 likely, and each repair round costs money.
 
+**CLOSED 2026-10-03 by the held and stable round, judged by the user live.** The workbench
+was read before any rule was chosen, as this entry asked. Its lower shelf sat **under** the
+four low rails (y 5.25–6.0 against rails at 6.0–9.5). The rails were also outside its plan
+outline, so it met them along lines only, and it hung by four 0.75 × 2in patches against the
+legs' inner faces, with nothing under it. The obvious rule, "held between two parts",
+**passes it**: legs touch both of its ends. What is wrong is coverage, 19% of each end. That
+measurement is what shaped the rule. `checkDesign` now has:
+
+- **`hangs`**: a part off the floor must be held (a) resting, (b) between two parts that
+  cover ≥ 50% of each opposite side, or (c) lapped on a broad face.
+- **`tips`**: the grounded parts' volume-weighted centre of mass must sit at least min(1in,
+  s/4) inside the floor footprint's hull.
+
+Invariant 39 carries the rules. **Three user rulings shaped (c), each one closing a hole a
+reviewer proved by probe**, not by argument:
+
+1. A crate set on the hanging shelf "held" it, so the top face stopped counting.
+2. That failed cleats under a seat and steered repairs to a non-fix, so a top-face contact
+   counts again, but only when the part above is held without this part.
+3. A box or two lapped uprights standing on the shelf then held each other, so the part
+   above must also still reach the floor without this part.
+
+The live pass (`docs/browser-verification-held-and-stable.md`):
+- The same workbench request now puts the shelf **on** the stretchers, first time.
+- The side table batch that produced the spine cantilever produced a plinth cabinet instead.
+- All four designs check clean against the shipped code.
+- No `hangs` or `tips` message was ever sent.
+
 **166. Centring a design whose coordinates are near 1e307 overflows.** This is ruling 19
 from the round's ledger. `designToDocument` translates the design onto the floor and
 centres it; for parts near the top of the double range the translation sum overflows. The
@@ -3876,4 +3904,37 @@ round:
   unreachable today, because `AnthropicClient.estimateCostUsd` is arithmetic that returns
   `null` for an unknown model. It only matters for a future client whose cost function can
   throw.
+
+## From the held and stable round — 2026-10-03
+
+**176. Known limits of `hangs` and `tips`, recorded rather than coded**, each a judgement that
+the case is unseen or by design:
+
+- **Mutual lapping.** Two panels glued face to face, each touching the posts by a sliver, are
+  each "held" by the other through (c). Nothing in either is anchored. The generator has not
+  produced it.
+- **Coverage is summed, not unioned.** Two contact rectangles that overlap on one face count
+  twice toward 50%. It is capped at 100%, and it is reachable only when the touching parts
+  themselves overlap, which is already its own violation.
+- **Square-section parts are held by any side contact.** The broad-face tie rule makes all
+  four long faces of a square leg "broad". This is spec-intended.
+- **Edge-attached trim hangs by design**: breadboard ends, a corner shelf with one end on a
+  side and its back edge on a back panel, and edge-on cleats. Edge contact does not hold,
+  and (b) needs a same-axis pair. Watch for these in a Detailed live run; if they keep
+  costing repair rounds, (b) may need to accept perpendicular pairs.
+- **Corner regions in `tips`.** When the centre of mass is outside near a hull vertex, `|d|`
+  is the distance to the farthest-violated edge's line, which is less than the true
+  distance. On an edge tie the first hull edge wins, so the direction can read `-Z` where X
+  was as plausible. Both follow spec §4, or the spec is silent.
+- **The degenerate-hull branch is unreachable**, because every box has positive extents. Its
+  wording does not say "beyond" as spec §4 does.
+- **One-word part names in two test helpers.** The `names` helpers in the `hangs` tests take
+  the message's first words, which assumes one-word part names.
+
+**177. A live round trip of a `hangs` or `tips` repair has not been seen.** In the live pass,
+five design calls drew no message from either rule: the model obeyed the two prompt lines
+up front. The checks and their exact messages are unit-tested (the user's own workbench is
+a fixture, and its message text is pinned), but whether the model *repairs* well from
+"X sides are covered 19% and 19% …" is unobserved. The next paid run that triggers one
+should record the round trip. Chasing it with extra batches was judged not worth the money.
 

@@ -24,7 +24,7 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **1134/1134 tests passing across 45 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
+Static SPA, containerized, **1163/1163 tests passing across 45 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **6**.
 
 **PRODUCTION MATCHES `master` as of 2026-10-03 with the batch variety round live** — bundle `index-CHx6ZAo-.js`, CSS `index-Co3i2lF7.css`, merge commit `b46b28d`. The Generate round's own deploy, earlier the same day, is described next. It served
@@ -40,6 +40,12 @@ Claude drives the dev server and the user supervises. Results are in
 `docs/browser-verification-generate.md`. 6 of 6 generations completed. It left two
 findings: 164, a batch converging on one design, now CLOSED (below); and 165, a support
 check that passes a badly supported part, still open.
+
+**`master` IS AHEAD OF PRODUCTION by the held and stable round (follow-up 165, 2026-10-03),
+merged and NOT deployed.** `checkDesign` now reports a part that is not *held* (`hangs`) and a
+piece that would *tip* (`tips`), and the model is told both rules up front (invariant 39).
+Verified against the dev server with the user watching
+(`docs/browser-verification-held-and-stable.md`). There is no schema change.
 
 **The batch variety round (follow-up 164, 2026-10-03) is merged AND deployed**, confirmed by
 page load, bundle hash and the CSP header at the edge and in-network. A batch of 2–3 now makes one planning call
@@ -137,10 +143,11 @@ round (97 and 131) closed a pre-existing gap that the sheet-nesting round had ma
 load-bearing.
 
 **The Generate round (2026-10-03) was the successor**, chosen by the user from a blank
-slate. **Batch variety (164) followed it and is done.** The planned follow-on is
-**phase 2, refine and joinery (follow-up 171)**. The smaller open candidates are **165**
-(support is topological; the live passes keep producing top-heavy designs it passes) and
-**174** (Settings saves text that cannot be a key). Ask which before starting any of them.
+slate. **Batch variety (164) and held and stable (165) followed it and are done.** The
+planned follow-on is **phase 2, refine and joinery (follow-up 171)**; read invariants 38
+and 39 first, because joinery is exactly where "overlap" and "held" both change meaning.
+The smaller open candidate is **174** (Settings saves text that cannot be a key). Ask which
+before starting either.
 The paragraphs below are the 2026-08-31 state, kept for its reasoning.
 
 **As of 2026-08-31: NO SUCCESSOR FEATURE ROUND HAD BEEN CHOSEN, and 130 is no longer the presumed one** — it
@@ -218,6 +225,7 @@ show it. Prefer a readout where one suffices; add an image when the finding is s
 | ply sign | 08-31 | — | *no spec* — follow-up 163: `FACE_AXES` carries each UV axis's SIGN, so a solid's sub-range lands on the right side of its face (invariant 35). The one round of the day that came from a bug report |
 | generate | 10-03 | — | prototypes from a description via Claude; each generation is a new, unactivated project (invariant 36) |
 | batch variety | 10-03 | — | one planning call gives each run in a batch of 2–3 a contrasting concept (fu 164); a batch of 1 is unchanged |
+| held and stable | 10-03 | — | checkDesign reports a part that is not held and a piece that would tip (fu 165, inv 39) |
 
 ### The deployment rule, stated once
 
@@ -408,8 +416,14 @@ src/
 │   │                       migrateDocument like any load; finiteness re-checked AFTER
 │   │                       the snap)
 │   ├── designCheck.ts      checkDesign: overlap (> TOUCH on all 3 axes; phase-1-only,
-│   │                       inv 38), support (a chain of FACE contacts to the floor —
-│   │                       topological, fu 165), too-large, too-many. Pure
+│   │                       inv 38), unsupported (a chain of FACE contacts to the floor —
+│   │                       topological, unchanged), too-large, too-many, then `hangs`
+│   │                       (every part off the floor HELD, inv 39 — contactsOf /
+│   │                       coverage / isHeld; groundedSet is the ONE grounding walk,
+│   │                       with an optional skip) and `tips` (grounded parts' volume-
+│   │                       weighted centre of mass >= min(1in, s/4) inside the floor
+│   │                       hull). Messages are FOR THE MODEL. Pure. The user's real
+│   │                       workbench is `fixtures/simple-workbench.sloyd`
 │   └── document.ts         create / validate / migrate (inv 11); validateGuides;
 │                           createGuide; `takeId`, the ONE home of the
 │                           id-uniqueness rule for boards, guides and cuts
@@ -1214,12 +1228,57 @@ worked examples behind several of them are in `docs/history.md`.
     must become "overlap not accounted for by a cut", **in `checkDesign`, in one place**.
     Do not raise `TOUCH` to make joints pass, and do not drop the check.
 
+39. **Support means HELD, not touching: every part off the floor must be held, and the piece
+    must not tip.** `unsupported` (the old rule) only asks whether a part connects to the
+    floor through face contacts, in any direction, so a shelf hanging by four corner patches
+    under its rails passed it. That is the user's real workbench, now a test fixture.
+    `hangs` asks whether each part is held, in one of three ways:
+
+    - **(a) Resting:** a face contact on its bottom.
+    - **(b) Between:** both faces of the X or the Z pair covered **≥ 50%**.
+    - **(c) Lapped:** a face contact on a broad face (normal to its smallest extent; ties
+      all count). A contact on its **top** counts only when the part above is on the floor,
+      or **still reaches the floor with this part removed** AND is held by its other
+      contacts (one level; inside that test a top contact never counts).
+
+    `tips` requires the **grounded** parts' volume-weighted centre of mass to sit at least
+    min(1in, s/4) inside the convex hull of what touches the floor.
+
+    Five things a reasonable edit gets wrong, each from a measured case:
+
+    - **COVERAGE, not two-sidedness, is what catches the workbench shelf.** Legs touch BOTH
+      of its ends, so "held between two parts" passes it; it fails because each end is only
+      19% covered.
+    - **(c) exists so face-mounted parts pass.** A backrest or an apron screwed to a post's
+      face has nothing under it and nothing opposite it. Without (c), ordinary designs fail
+      and spend the user's money on repair rounds for nothing.
+    - **The top-face clause is three user rulings deep, and each closed a hole a reviewer
+      PROVED by probe:**
+      1. A crate set on the hanging shelf "held" it, so the top face was excluded.
+      2. That failed cleats under a seat, so it counts again when the part above is held
+         without this part.
+      3. A box, or two lapped uprights, standing on the shelf then held each other, so the
+         part above must also still reach the floor without this part.
+
+      **A PROHIBITION: do not drop (c), the coverage threshold, or either half of the
+      top-face clause to "simplify".** Each one exists because removing it was shown, by
+      construction, to pass a hanging part or fail a sound one.
+    - **One fault, one report.** A part on the floor, already `unsupported`, or named in an
+      `overlap` is never also `hangs`; a floating part adds no weight to `tips`. Contact and
+      overlap are disjoint **by definition** (coincident face planes mean a shared span ≤
+      TOUCH on that axis), so overlap can never hold anything.
+    - **`groundedSet` is the ONE grounding walk**, shared by `unsupported` and the top-face
+      clause, with an optional skip. A second walk is two deciders for one question.
+
+    **Known limits are follow-up 176.** The main one is mutual lapping: two parts glued face
+    to face each "hold" the other. Read it before tightening anything.
+
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 1134 tests across 45 files
+npm test           # Vitest, currently 1163 tests across 45 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1229,7 +1288,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is the authoritative list** — 1-175, consciously deferred rather
+**`docs/follow-ups.md` is the authoritative list** — 1-177, consciously deferred rather
 than missed, each written up in place with its closure where it has one. Read the entries
 for the area you are about to touch before starting; several are "correct but untested",
 which is exactly what a refactor breaks silently.
@@ -1295,10 +1354,11 @@ The handful worth knowing without opening that file:
 - **164** — CLOSED 2026-10-03 by the batch variety round. Read its closure before touching
   the planner: it records why per-run hints were rejected, and the one residue seen live
   (two benches distinct in structure but alike from above).
-- **165** — `checkDesign`'s support rule is topological, and the live workbench had a part
-  it passed that the user judged badly supported. The part was never inspected; read it
-  out of the library before choosing a rule. The batch variety pass added a second
-  instance: a side table balanced on one spine.
+- **165** — CLOSED 2026-10-03 by the held and stable round; invariant 39 is the rule. Read
+  its closure for the workbench evidence and the three rulings on (c).
+- **176 / 177** — the held rules' known limits (mutual lapping, edge-attached trim hangs by
+  design, corner-region `tips` distance) and the one thing not seen live: the model
+  REPAIRING a `hangs` or `tips` violation, since nothing triggered one.
 - **167** — prompt caching DOES work (1,271 cached tokens per run, measured); the entry's
   original premise was wrong. The real gap is a batch's cold parallel start. Still low value.
 - **174** — Settings saves text that cannot be an API key. **Do not check a prefix**: a
