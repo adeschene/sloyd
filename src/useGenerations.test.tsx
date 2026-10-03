@@ -91,6 +91,20 @@ describe('useGenerations', () => {
     expect(result.current.rows.map((r) => r.status)).toEqual(['cancelled', 'cancelled']);
   });
 
+  it('a cancel landing after the model ANSWERED still writes nothing', async () => {
+    const { result } = setup();
+    // The client resolves with a good design despite the abort — the race
+    // the post-run guard exists for; runGeneration itself never checks it.
+    const c = client(async () => {
+      act(() => result.current.cancel());
+      return ok();
+    });
+    act(() => result.current.start(c, settings, 1));
+    await waitFor(() => expect(result.current.live).toBe(0));
+    expect(createProject).not.toHaveBeenCalled();
+    expect(result.current.rows[0].status).toBe('cancelled');
+  });
+
   it('an auth failure stops every run and says why on each row', async () => {
     let calls = 0;
     const c = client((_req, signal) => {
