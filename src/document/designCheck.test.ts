@@ -169,6 +169,28 @@ describe('hangs — the top-face exception recurses one level only', () => {
   });
 });
 
+describe('hangs — parts standing on a hanging shelf', () => {
+  const base = () => [
+    span('Post A', [0, 0, 0], [2, 30, 2]),
+    span('Post B', [22, 0, 0], [24, 30, 2]),
+    span('Shelf', [2, 10, 0], [22, 10.75, 20]),
+  ];
+  const names = (d: SloydDocument) => hangs(d).map((x) => x.message.split(' ')[0] + ' ' + x.message.split(' ')[1]);
+  it('the bare shelf hangs', () => {
+    expect(names(docOf(...base()))).toEqual(['Shelf is']);
+  });
+  it('two uprights lapped to each other on a hanging shelf do not hold it', () => {
+    expect(names(docOf(...base(),
+      span('Up 1', [8, 10.75, 5], [8.75, 20, 15]),
+      span('Up 2', [8.75, 10.75, 5], [9.5, 20, 15])))).toEqual(['Shelf is']);
+  });
+  it('a butt-jointed box on a hanging shelf does not hold it', () => {
+    expect(names(docOf(...base(),
+      span('Side A', [12, 10.75, 5], [12.75, 16, 15]),
+      span('Front', [12.75, 10.75, 5], [18, 16, 5.75])))).toEqual(['Shelf is']);
+  });
+});
+
 describe('hangs — the three ways to be held', () => {
   it('(a) resting: a square post standing on a plinth, held by nothing else', () => {
     expect(hangs(docOf(

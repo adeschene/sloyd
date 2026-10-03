@@ -113,6 +113,23 @@ function tipsMessage(boxes: Box[], grounded: Set<number>): string | null {
   return `The piece would tip toward ${dir}: its centre of mass is ${inches(Math.abs(d))} ${d >= 0 ? 'inside' : 'beyond'} the edge of what touches the floor; keep it at least ${inches(m)} inside. Widen the base or move weight inward.`;
 }
 
+/** The parts connected to the floor through touching parts, optionally with one part removed from the design. */
+function groundedSet(boxes: Box[], skip: number | null = null): Set<number> {
+  const grounded = new Set<number>();
+  const queue = boxes.flatMap((b, i) => (i !== skip && b.min[1] <= TOUCH ? [i] : []));
+  queue.forEach((i) => grounded.add(i));
+  while (queue.length) {
+    const i = queue.shift()!;
+    boxes.forEach((b, j) => {
+      if (j !== skip && !grounded.has(j) && connected(boxes[i], b)) {
+        grounded.add(j);
+        queue.push(j);
+      }
+    });
+  }
+  return grounded;
+}
+
 /** One face contact ON a box: which face (axis, side), who touches it, over what area. */
 interface Contact { other: number; axis: number; side: -1 | 1; area: number }
 
@@ -155,13 +172,17 @@ function coverage(b: Box, cs: Contact[], axis: number, side: -1 | 1): number {
  * only when the part above is held WITHOUT this part: it is on the floor, or it
  * meets (a), (b) or (c) using its own contacts with this part removed, one level
  * only (in that inner test a +Y contact never counts, so there is no recursion).
+ * It must also still be connected to the floor with this part removed from the
+ * design (the grounding walk, skipping this part): otherwise a box, or two lapped
+ * uprights, standing on a hanging shelf hold each other and so "hold" the shelf,
+ * when without the shelf they connect to nothing.
  * Why: cleats and battens screwed up under a seat are real construction, but a
  * crate sitting on a shelf is held only by the shelf, so it must not hold the
  * shelf up. (c) is what lets a backrest or an apron screwed to a post's face
  * pass; coverage, not two-sidedness, is what catches the workbench shelf: it
  * touched legs on BOTH ends, 19% each.
  */
-function isHeld(i: number, boxes: Box[], contacts: Contact[][], without: number | null, allowTop: boolean): boolean {
+function isHeld(i: number, boxes: Box[], contacts: Contact[][], without: number | null, allowTop: boolean, groundedWithout: (skip: number) => Set<number>): boolean {
   const b = boxes[i];
   const cs = without === null ? contacts[i] : contacts[i].filter((c) => c.other !== without);
   if (cs.some((c) => c.axis === 1 && c.side === -1)) return true;
@@ -171,12 +192,14 @@ function isHeld(i: number, boxes: Box[], contacts: Contact[][], without: number 
   return cs.some((c) => {
     if (ext[c.axis] - thin > 1e-9) return false;
     if (!(c.axis === 1 && c.side === 1)) return true;
-    return allowTop && (boxes[c.other].min[1] <= TOUCH || isHeld(c.other, boxes, contacts, i, false));
+    if (!allowTop) return false;
+    const o = c.other;
+    return boxes[o].min[1] <= TOUCH || (groundedWithout(i).has(o) && isHeld(o, boxes, contacts, i, false, groundedWithout));
   });
 }
 
-function hangsMessage(i: number, boxes: Box[], contacts: Contact[][]): string | null {
-  if (isHeld(i, boxes, contacts, null, true)) return null;
+function hangsMessage(i: number, boxes: Box[], contacts: Contact[][], groundedWithout: (skip: number) => Set<number>): string | null {
+  if (isHeld(i, boxes, contacts, null, true, groundedWithout)) return null;
   const b = boxes[i];
   const cs = contacts[i];
   const pairs = [0, 2].map((axis) => ({ axis, lo: coverage(b, cs, axis, -1), hi: coverage(b, cs, axis, 1) }));
@@ -216,18 +239,7 @@ export function checkDesign(doc: SloydDocument, limits: DesignLimits): Violation
     }
   }
 
-  const grounded = new Set<number>();
-  const queue = boxes.flatMap((b, i) => (b.min[1] <= TOUCH ? [i] : []));
-  queue.forEach((i) => grounded.add(i));
-  while (queue.length) {
-    const i = queue.shift()!;
-    boxes.forEach((b, j) => {
-      if (!grounded.has(j) && connected(boxes[i], b)) {
-        grounded.add(j);
-        queue.push(j);
-      }
-    });
-  }
+  const grounded = groundedSet(boxes);
   boxes.forEach((b, i) => {
     if (grounded.has(i)) return;
     const near = [...grounded].map((g) => boxes[g]).sort((p, q) => distance(b, p) - distance(b, q))[0];
@@ -256,9 +268,14 @@ export function checkDesign(doc: SloydDocument, limits: DesignLimits): Violation
   // Held (fu 165). One fault, one report: a part on the floor, already
   // unsupported, or named in an overlap is never also reported as hanging.
   const contacts = contactsOf(boxes);
+  const memo = new Map<number, Set<number>>();
+  const groundedWithout = (skip: number) => {
+    if (!memo.has(skip)) memo.set(skip, groundedSet(boxes, skip));
+    return memo.get(skip)!;
+  };
   boxes.forEach((b, i) => {
     if (b.min[1] <= TOUCH || !grounded.has(i) || overlapping.has(i)) return;
-    const message = hangsMessage(i, boxes, contacts);
+    const message = hangsMessage(i, boxes, contacts, groundedWithout);
     if (message) out.push({ kind: 'hangs', message });
   });
 
