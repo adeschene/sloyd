@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import Anthropic from '@anthropic-ai/sdk';
-import { AnthropicClient, CLAUDE_MODELS, DEFAULT_MODEL, toLlmError } from './anthropic';
+import { AnthropicClient, CLAUDE_MODELS, DEFAULT_MODEL, checkAnthropicKey, toLlmError } from './anthropic';
 
 // Error instances built from the SDK's OWN classes without depending on
 // their constructor signatures.
@@ -132,5 +132,44 @@ describe('AnthropicClient', () => {
     expect(new AnthropicClient('k', 'claude-opus-5-5', {} as never).estimateCostUsd(u)).toBeCloseTo(24);
     expect(new AnthropicClient('k', 'claude-sonnet-5-5', {} as never).estimateCostUsd(u)).toBeCloseTo(12);
     expect(new AnthropicClient('k', 'mystery', {} as never).estimateCostUsd(u)).toBeNull();
+  });
+});
+
+describe('the API reason on a rejected key (fu 174)', () => {
+  const body = (message: string) => ({ type: 'error', error: { type: 'authentication_error', message } });
+  it('appends the API\'s own reason to the auth message', () => {
+    const e = toLlmError(sdkError(Anthropic.APIError, { status: 401, error: body('invalid x-api-key') }), live);
+    expect(e.kind).toBe('auth');
+    expect(e.message).toBe('API key was rejected — check Settings. (invalid x-api-key)');
+  });
+  it('keeps the plain message when the API gave no reason', () => {
+    expect(toLlmError(sdkError(Anthropic.APIError, { status: 401 }), live).message).toBe('API key was rejected — check Settings.');
+  });
+});
+
+describe('checkAnthropicKey (fu 174)', () => {
+  const sdkWith = (list: () => Promise<unknown>) => ({ models: { list: vi.fn(list) } });
+  it('lists one model — a free call — and reports a working key as valid', async () => {
+    const sdk = sdkWith(async () => ({ data: [] }));
+    expect(await checkAnthropicKey('k', sdk as never)).toEqual({ status: 'valid' });
+    expect(sdk.models.list).toHaveBeenCalledWith({ limit: 1 });
+  });
+  it('reports a rejected key with the API\'s reason', async () => {
+    const sdk = sdkWith(() => Promise.reject(sdkError(Anthropic.APIError, {
+      status: 401, error: { type: 'error', error: { type: 'authentication_error', message: 'API key is invalid.' } },
+    })));
+    expect(await checkAnthropicKey('k', sdk as never)).toEqual({ status: 'rejected', reason: 'API key is invalid.' });
+  });
+  it('a 403 is a rejection too, with a fallback reason when the API gave none', async () => {
+    const sdk = sdkWith(() => Promise.reject(sdkError(Anthropic.APIError, { status: 403 })));
+    expect(await checkAnthropicKey('k', sdk as never)).toEqual({ status: 'rejected', reason: 'the key was not accepted.' });
+  });
+  it.each([
+    ['offline', sdkError(Anthropic.APIConnectionError)],
+    ['rate limited', sdkError(Anthropic.APIError, { status: 429 })],
+    ['overloaded', sdkError(Anthropic.APIError, { status: 529 })],
+    ['anything else', new TypeError('boom')],
+  ])('cannot check when %s — the caller saves anyway', async (_n, err) => {
+    expect(await checkAnthropicKey('k', sdkWith(() => Promise.reject(err)) as never)).toEqual({ status: 'unchecked' });
   });
 });
