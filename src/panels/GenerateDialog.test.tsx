@@ -112,6 +112,19 @@ describe('GenerateDialog', () => {
     render(<GenerateDialog {...props({ plan: { status: 'ready', costUsd: null }, rows })} />);
     expect(screen.getByText('Waiting for its concept…')).toBeInTheDocument();
     expect(screen.getByText('Trestle base')).toBeInTheDocument();
+    // Verify DOM order: concept span comes after letter span and before status span
+    const li = screen.getByText('Trestle base').closest('li');
+    const letterSpan = li?.querySelector('.generate-run-letter');
+    const conceptSpan = li?.querySelector('.generate-run-concept');
+    const statusSpan = li?.querySelector('.generate-run-status');
+    if (letterSpan && conceptSpan && statusSpan) {
+      expect(letterSpan.compareDocumentPosition(conceptSpan) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING
+      );
+      expect(conceptSpan.compareDocumentPosition(statusSpan) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING
+      );
+    }
   });
 
   it('shows no plan line for a batch of 1', () => {

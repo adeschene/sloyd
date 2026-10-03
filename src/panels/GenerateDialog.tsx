@@ -151,8 +151,8 @@ export function GenerateDialog(p: Props) {
               {p.rows.map((r) => (
                 <li key={r.key} className={`generate-run generate-run-${r.status}`}>
                   {r.letter && <span className="generate-run-letter">{r.letter}</span>}
-                  <span className="generate-run-status">{statusText(r)}</span>
                   {r.concept && <span className="generate-run-concept">{r.concept}</span>}
+                  <span className="generate-run-status">{statusText(r)}</span>
                   {r.costUsd !== null && <span className="generate-run-cost">{`≈ $${r.costUsd.toFixed(2)}`}</span>}
                   {r.status === 'ready' && r.projectId && (
                     <button aria-label={`Open ${r.projectName}`} onClick={() => p.onOpenProject(r.projectId!)}>Open</button>
