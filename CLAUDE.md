@@ -27,7 +27,7 @@ tradition built around hand woodworking.
 Static SPA, containerized, **1519/1519 tests passing across 55 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **7**.
 
-**PRODUCTION MATCHES `master` as of 2026-10-04 with the cut words round live** — bundle `index-Cw_EeWuY.js`, CSS `index-DqhKBEnY.css` (unchanged), merge commit `8c9be52`, **schema 7**. Before it the same day: joinery `index-Ci7lVCzJ.js` (`d2a14ac`), phantom cut `index-B2Yuq550.js` (`e7bf3bc`), stopped cuts `index-CoHIAVxf.js` (`c054ede`), which bumped the schema to 7 (rolling back past it strands v7 documents; export first). Before it, 2026-10-03: key check `index-BhhW2iNw.js` (`d0ba83b`), held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
+**PRODUCTION MATCHES `master` as of 2026-10-04 with the cut lines round live** — bundle `index-BPmx9i74.js`, CSS `index-DqhKBEnY.css` (unchanged), merge commit `f602a2d`, **schema 7**. Before it the same day: cut words `index-Cw_EeWuY.js` (`8c9be52`), joinery `index-Ci7lVCzJ.js` (`d2a14ac`), phantom cut `index-B2Yuq550.js` (`e7bf3bc`), stopped cuts `index-CoHIAVxf.js` (`c054ede`), which bumped the schema to 7 (rolling back past it strands v7 documents; export first). Before it, 2026-10-03: key check `index-BhhW2iNw.js` (`d0ba83b`), held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
 bundle `index-BAsxEohe.js` with CSS `index-DEQSkZ3q.css`, from merge commit `fa834dc`. A
 person stores a Claude API key in Settings, describes a piece, and gets 1–3 prototypes built
 from boards, each saved as a **new, unactivated** library project (invariant 36). **It is
@@ -41,7 +41,7 @@ Claude drives the dev server and the user supervises. Results are in
 findings: 164, a batch converging on one design, now CLOSED (below); and 165, a support
 check that passes a badly supported part, still open.
 
-**The cut lines round (follow-ups 192–194, 2026-10-04) is on branch `cutlines`, live-checked by the user, NOT yet merged.** `cutShape` is the one description of a cut; the setup line and the drawing both format from it, and a with-grain channel says `groove` (`docs/browser-verification-cut-lines.md`). No schema change. Its open questions are follow-ups 195–197.
+**The cut lines round (follow-ups 192–194, 2026-10-04) is merged AND deployed.** `cutShape` is the one description of a cut; the setup line and the drawing both format from it, and a with-grain channel says `groove` (`docs/browser-verification-cut-lines.md`). No schema change. Its open questions are follow-ups 195–197.
 
 **The cut words round (follow-ups 180, 181, 189, 2026-10-04) is merged AND deployed.** Words only: a cut is named from the stock actually left around its opening, a tenon prints as one line (`docs/browser-verification-cut-words.md`). No schema change.
 
