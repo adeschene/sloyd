@@ -264,7 +264,11 @@ It changes no names, and adds and removes no parts.
 **Two corrections from the final review: cuts move with their part, and moving recipes run
 first.**
 - **`resize` re-bases the cuts a part already carries.** Cuts are measured from the board's
-  ends, so growing or shrinking at one end shifts them. Otherwise a rail tenoned at its far end
+  ends, so growing or shrinking at one end shifts them. **A cut that runs out at the growing end
+  keeps running out**, and only a cut stopped short of that end stays where it is. A through
+  rabbet must stay through: without this rule, a bookcase bottom rabbeted before it grows into
+  its dados ends up with notches 1/4″ short of each end, and the back collides with them. This
+  was added in the fix wave and signed off by the controller. Otherwise a rail tenoned at its far end
   first and its near end second has its first tenon moved by the second's length. That is
   document-order dependent geometry the model cannot repair.
 - **Recipes that MOVE parts run first.** The order is crossings (half-lap), then face-against-edge
@@ -274,7 +278,7 @@ first.**
 (its lowest part's min Y ≤ `TOUCH`, the same one-sided test `checkDesign` uses for "on the floor"), **everything is lowered back onto it** after the
 recipes run. Without this, a rabbeted bottom panel moves up into its frame, the whole piece
 lifts off the floor, and every part reports as unsupported and is blamed on the joinery. This
-is a Task 5 review correction. Recipes run in site order. A site whose
+is a Task 5 review correction. Recipes run in the order below (moving recipes first, site order within a kind). A site whose
 parts an earlier site already moved is **recomputed from the current geometry**. It is not
 reused from the original contact.
 
