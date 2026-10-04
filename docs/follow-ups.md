@@ -4138,17 +4138,17 @@ word (`cutLabel`) now comes from the clipped box's opening (spec §2.7).
   the length that spans the full width prints `11-1/4" dado … stopped 24" short of …`. A random
   search by the Task 5 reviewer found this in 4 of 1,389 `dado` labels. It happens because the
   stops sit on `across` while the open pair is the position axis.
-- **Status:** open, low. Writing the line from the shape would remove the class.
+- **Status:** CLOSED 2026-10-04 by the cut lines round. `cutShape` describes a cut by its opening (run axis, position, stops at closed ends); the setup line and the drawing both format from it, so one shape prints one line whichever way it is stored, and a through word can no longer carry a stop. The drawing was found to print the same stored numbers while planning and was changed with the line (spec §2.4).
 
 **193. Grain-aware words: `groove` with the grain, `dado` across it.** Woodworking usage names a
 channel running with the grain a groove and one running across it a dado. `cutLabel` has no grain
 input, so it says `dado` for both.
 - **Basis:** the research behind the round (a groove runs with the grain, a dado across it).
-- **Status:** deferred, a vocabulary decision for the user.
+- **Status:** CLOSED 2026-10-04 by the cut lines round, the user's ruling: a channel whose run axis is the board's grain says `groove` / `stopped groove` / `blind groove`, on solid wood and plywood; MDF (a sheet with free rotation) has no grain and keeps `dado`.
 
 **194. Two boards a hair apart in exact length share a cut-list row but can differ in tenons.**
 They collapse at display precision (invariant 18), yet `findTenons` may recognise a tenon on one
 and not the other. The first-listed board decides the row's lines.
 - **Reach:** effectively unreachable, since the tenon cap (ℓ ≤ L/2) puts the boundary far from
   any hair's-breadth difference. The same class as follow-up 55a.
-- **Status:** open, low.
+- **Status:** CLOSED 2026-10-04 by decision, the user's ruling, with no code: follow-up 55a's ruling covers it (a row is decided at display precision and its first board's lines represent it).

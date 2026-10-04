@@ -403,6 +403,11 @@ src/
 │   │                       old table. `openSides`: open = no stock between a side
 │   │                       and the edge; read by `cutLabel` AND the setup line's
 │   │                       stop clause (one helper, word and stops cannot differ).
+│   │                       `cutShape` is the ONE description of a cut (word, run axis,
+│   │                       position, stops at closed ends, as numbers); `cutLabel` is
+│   │                       its word, and the setup line AND the drawing format from it,
+│   │                       never from stored fields (fu 192). `groove` when the run axis
+│   │                       is the grain on a material with grain (fu 193).
 │   │                       It and `cutLabel` take an optional precomputed `solids`
 │   │                       (one `boardSolids` per board) — skip it, cut list ~3.5×
 │   │                       slower. Home of
@@ -1490,7 +1495,7 @@ The handful worth knowing without opening that file:
   Settings' Save: the free verification call saves anyway on anything but a 401/403, and
   **there is deliberately no prefix rule** (a working key does not start with `sk-ant-api`).
 - **171** — joinery is BUILT (2026-10-04, "Add joinery…"); refine by instruction is now **179**.
-  Read invariants 38 and 41, and follow-ups 180–194 (180, 181 and 189 are closed by the cut words round; the round's residues: cut-list words for a
+  Read invariants 38 and 41, and follow-ups 180–194 (180, 181 and 189 are closed by the cut words round, 192–194 by the cut lines round; the round's residues: cut-list words for a
   tenon and a closed shelf housing, the default-tenon cap's edges, opposite-face tenons,
   half-lap stacks), before touching `generate/joints/`.
 - **178** — CLOSED 2026-10-04. A cut a board edit has left removing nothing is hidden from
