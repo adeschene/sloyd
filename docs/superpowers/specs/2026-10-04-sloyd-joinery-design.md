@@ -84,7 +84,7 @@ dimensions faces the contact**: `axisDimensions(P)[k]`.
 |---|---|---|---|---|
 | 1 | Both parts show their `length` (two ends meet) | — not a site (butt) | | |
 | 2 | One part shows its `length` AND its whole end lies inside the contact | **end into face** | that part (E) | the other (R) |
-| 3 | One part shows its `thickness` AND the other shows its `width` | **face against edge** | the part showing `thickness` (the panel, E) | the other (R) |
+| 3 | One part shows its `thickness`, is **at most 1/2″ thick**, AND the other shows its `width` | **face against edge** | the part showing `thickness` (the panel, E) | the other (R) |
 | 4 | Both show `thickness`, the thicknesses are equal within `TOUCH`, and they CROSS | **crossing** | the part on the +k side (E, the mover) | the other (R) |
 | 5 | Anything else | — not a site | | |
 
@@ -93,6 +93,11 @@ dimensions faces the contact**: `axisDimensions(P)[k]`.
   part touching.
 - **Crossing** means that on one in-plane axis E extends past R at both ends, and on the other
   in-plane axis R extends past E at both ends.
+- **Why rule 3 needs a thin panel** (a correction made while writing the plan). Without the
+  limit, a 3/4″ top resting on an apron's edge matches rule 3 exactly as a back panel on a
+  side's edge does. Every table top would then be dropped into rabbets. Back and bottom panels
+  are thin, while tops and shelves are not, so 1/2″ separates them. An apron under a top is
+  therefore not a site.
 - **Why rule 2 comes first.** A top sitting on a side's end matches rule 2, with the side
   entering the top's underside, before rule 3 could read it as the top's face against an edge.
   A top on a side is a dado or a mortise in the top, not a rabbet.
@@ -310,7 +315,7 @@ Everything else carries over unchanged for joinery:
 | A rejected key (401/403, `LlmError` kind `auth`) | Stops the run. Nothing is written, and the key message is shown. |
 | Cancel | Nothing is written. |
 | The FIRST call fails any other way (network, overloaded, refused, unparseable) | **The defaults are built and checked once.** The result is saved with the note *"Joints chosen by built-in rules — the model call failed: <reason>."* |
-| A REPAIR call fails | The best attempt so far is kept, as in Generate. |
+| A REPAIR call fails | The best attempt so far is kept. This is a correction: Generate propagates the error and loses its attempt, so this is a new `keepBestOnError` option on `runRepairLoop`. Joinery turns it on; Generate keeps today's behaviour. |
 
 ### 6.3 The check (invariant 38, in one place)
 
@@ -345,8 +350,8 @@ It uses the same overlay pattern as `GenerateDialog`, and joins `App`'s `dialog`
 - **Ready:**
   - the project's name;
   - the sites, one line each, e.g. *"Rail → Leg: end into face"*, in a scrolling list;
-  - the model, defaulting to the Settings model and changeable here, using the same control as
-    Generate;
+  - the model, read from Settings (a correction: Generate has no per-dialog model control, so
+    this has none either; change it in Settings);
   - the cost estimate;
   - Run and Cancel.
 - **No sites:** *"No joints to add — no parts meet end-to-face, face-to-edge, or crossing."*,
