@@ -204,6 +204,28 @@ and 79.
 
 ## What each round did
 
+**What the phantom-cut round did (2026-10-04)**: follow-up 178. This was a bounded round, and
+it came straight after the stopped cuts round. It went before phase 2 for one reason: phase 2's
+"refine" step will resize boards that already carry cuts, which is exactly what produces a cut
+that removes nothing.
+
+- **The detection.** `cutRemovesNothing` in `cuts.ts` asks whether the cut's box, clipped to
+  the board, has any volume. Clipping matters because `cutRegion`'s all-zero sentinel catches
+  crossed stops but not an offset past the end.
+- **Readers that skip such a cut:**
+  - the cut list's text and its row signature (the latter through `cutsThatRemoveStock`);
+  - the diagrams;
+  - the snap points.
+- **Properties keeps the cut and flags it.** The user chose this over dropping it at the edit,
+  so that growing the board back restores the joint.
+- **What the review found.** It approved the change. Its one real catch was that the test
+  meant to prove the predicate agrees with `boardSolids` never called the predicate. The
+  rewrite asserts the agreement for every case and caught a NaN disagreement as well.
+- **Docs.** Invariant 40 gained a paragraph. The row key now depends on exact board dimensions
+  through the predicate, which is invariant 18's rule, and that is recorded so nobody rounds
+  it away.
+- **Live pass:** `docs/browser-verification-phantom-cut.md`.
+
 **What the stopped cuts round did (2026-10-04)**: chosen by the user as the step before
 phase 2 (follow-up 171). Their question was whether the joint vocabulary should grow before
 phase 2 does. The answer: a `Cut` could already express dados, rabbets, grooves, half-laps,
