@@ -367,3 +367,50 @@ describe('faceContacts', () => {
     expect(faceContacts(d)).toEqual([{ a: 0, b: 1, axis: 1, side: 1, area: 40 }]);
   });
 });
+
+describe('faceContacts: side -1', () => {
+  it('names a\'s MIN face when it is the upper part, listed once', () => {
+    const d = { ...createDocument('T'), boards: [
+      createBoard({ name: 'Upper', length: 10, width: 4, thickness: 1, position: [0, 1, 0] }),
+      createBoard({ name: 'Lower', length: 10, width: 4, thickness: 1, position: [0, 0, 0] }),
+    ] };
+    expect(faceContacts(d)).toEqual([{ a: 0, b: 1, axis: 1, side: -1, area: 40 }]);
+  });
+});
+
+describe('overlap: the deepest solid pair is the one reported', () => {
+  it('names the deeper of two overlapping solid pairs', () => {
+    // A's dado leaves two end blocks (x 0-4, x 6-10, y .25-1). B overlaps the
+    // first by 0.5in (X) and the second by 0.75in (Y, the smaller span).
+    const d = { ...createDocument('T'), boards: [
+      createBoard({ name: 'A', length: 10, width: 4, thickness: 1, position: [0, 0, 0],
+        cuts: [{ id: 'd', face: 'thickness', from: 'max', across: 'width', offset: 4, width: 2, depth: 0.75, stopMin: 0, stopMax: 0 }] }),
+      createBoard({ name: 'B', length: 6.5, width: 4, thickness: 1.75, position: [3.5, 0.25, 0] }),
+    ] };
+    const o = checkDesign(d, { width: null, depth: null, height: null, maxParts: 99 }).filter((v) => v.kind === 'overlap');
+    expect(o).toHaveLength(1);
+    expect(o[0].message).toBe('B passes 0.75in into A along Y.');
+  });
+});
+
+describe('hangs reads SOLID contacts (spec §6.3)', () => {
+  const tenon = (id: string, from: 'min' | 'max', offset: number) => ({
+    id, face: 'width' as const, from, across: 'thickness' as const, offset, width: 1, depth: 0.5, stopMin: 0, stopMax: 0,
+  });
+  const mortise = (from: 'min' | 'max') => ({
+    id: 'm', face: 'width' as const, from, across: 'length' as const, offset: 0.5, width: 0.75, depth: 1, stopMin: 24, stopMax: 1.5,
+  });
+  const rail = () => createBoard({ name: 'Rail', length: 19, width: 3.5, thickness: 0.75, posture: 'on-edge', position: [0.75, 23.5, 0.5],
+    cuts: [tenon('a', 'min', 0), tenon('b', 'max', 0), tenon('c', 'min', 18), tenon('d', 'max', 18)] });
+  const doc = () => ({ ...createDocument('T'), boards: [
+    createBoard({ name: 'Leg1', length: 28, width: 1.75, thickness: 1.75, posture: 'upright', position: [0, 0, 0], cuts: [mortise('max')] }),
+    createBoard({ name: 'Leg2', length: 28, width: 1.75, thickness: 1.75, posture: 'upright', position: [18.75, 0, 0], cuts: [mortise('min')] }),
+    rail(),
+  ] });
+
+  it('a rail tenoned between two legs is held, and nothing overlaps', () => {
+    const v = checkDesign(doc(), { width: null, depth: null, height: null, maxParts: 99 });
+    expect(v.filter((x) => x.kind === 'overlap')).toEqual([]);
+    expect(v.filter((x) => x.kind === 'hangs')).toEqual([]);
+  });
+});

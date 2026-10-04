@@ -141,17 +141,31 @@ interface Contact { other: number; axis: number; side: -1 | 1; area: number }
  * so an interpenetrating pair is never a contact here.
  */
 function contactsOf(boxes: Box[]): Contact[][] {
-  const out: Contact[][] = boxes.map(() => []);
-  boxes.forEach((a, i) => {
-    boxes.forEach((b, j) => {
+  return solidContactsOf(boxes.map((b) => [b]));
+}
+
+/**
+ * Face contacts between parts, measured between their SOLIDS (spec §6.3): a
+ * seated tenon's box interpenetrates its leg's box, but its solid does not, so
+ * only solids can say what is touching what. Aggregated per part — any solid of
+ * i against any solid of j (i !== j); solids of the SAME part are ignored.
+ * A cut-free part has one solid, equal to its box, so this is `contactsOf`'s
+ * old behaviour exactly.
+ */
+function solidContactsOf(solids: Box[][]): Contact[][] {
+  const out: Contact[][] = solids.map(() => []);
+  solids.forEach((as, i) => {
+    solids.forEach((bs, j) => {
       if (i === j) return;
-      for (const axis of [0, 1, 2]) {
-        const [p, q] = [0, 1, 2].filter((k) => k !== axis);
-        const sp = shared(a, b, p);
-        const sq = shared(a, b, q);
-        if (sp <= TOUCH || sq <= TOUCH) continue;
-        if (Math.abs(a.min[axis] - b.max[axis]) <= TOUCH) out[i].push({ other: j, axis, side: -1, area: sp * sq });
-        else if (Math.abs(a.max[axis] - b.min[axis]) <= TOUCH) out[i].push({ other: j, axis, side: 1, area: sp * sq });
+      for (const a of as) for (const b of bs) {
+        for (const axis of [0, 1, 2]) {
+          const [p, q] = [0, 1, 2].filter((k) => k !== axis);
+          const sp = shared(a, b, p);
+          const sq = shared(a, b, q);
+          if (sp <= TOUCH || sq <= TOUCH) continue;
+          if (Math.abs(a.min[axis] - b.max[axis]) <= TOUCH) out[i].push({ other: j, axis, side: -1, area: sp * sq });
+          else if (Math.abs(a.max[axis] - b.min[axis]) <= TOUCH) out[i].push({ other: j, axis, side: 1, area: sp * sq });
+        }
       }
     });
   });
@@ -303,7 +317,7 @@ export function checkDesign(doc: SloydDocument, limits: DesignLimits): Violation
 
   // Held (fu 165). One fault, one report: a part on the floor, already
   // unsupported, or named in an overlap is never also reported as hanging.
-  const contacts = contactsOf(boxes);
+  const contacts = solidContactsOf(solids);
   const memo = new Map<number, Set<number>>();
   const groundedWithout = (skip: number) => {
     if (!memo.has(skip)) memo.set(skip, groundedSet(boxes, skip));
