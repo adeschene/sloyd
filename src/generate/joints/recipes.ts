@@ -243,12 +243,18 @@ function halfLap(site: Site, boards: Board[], state: State): string | null {
     if (partners.some((p) => Math.abs(p.min[k] - partners[0].min[k]) > TOUCH || Math.abs(p.max[k] - partners[0].max[k]) > TOUCH)) {
       return `${E.name}'s half-lap partners do not lie in one plane`;
     }
-    E.position[k] += side * E.thickness;
+    // ALIGN rather than move by t: E's touching face lands exactly on R's
+    // opposite face, so a TOUCH-sized gap or thickness difference cannot
+    // leave E out of R's plane.
+    const eNow = boxOf(E);
+    const rNow = boxOf(R);
+    E.position[k] += side === -1 ? rNow.min[k] - eNow.min[k] : rNow.max[k] - eNow.max[k];
     state.moved.add(E.name);
     state.movedFace.set(site.enter, faceKey);
   }
-  // Pure guard: unreachable through applyJoints, because the pre-check above
-  // refuses non-coplanar partners before E's first drop. Kept as a defence.
+  // Defensive guard: through applyJoints E was just aligned onto the first
+  // partner and the pre-check proved the rest coplanar within TOUCH, so only
+  // a thickness difference beyond TOUCH (which rule 4 forbids) could trip it.
   if (Math.abs(boxOf(E).min[k] - boxOf(R).min[k]) > TOUCH || Math.abs(boxOf(E).max[k] - boxOf(R).max[k]) > TOUCH) {
     return `${E.name} no longer lies in ${R.name}'s plane after an earlier half-lap`;
   }

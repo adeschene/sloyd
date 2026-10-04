@@ -362,3 +362,27 @@ describe('half-lap: partners in different planes skip every site', () => {
     expect(checkDesign(out.doc, limits(out.doc)).filter((v) => v.kind === 'overlap')).toEqual([]);
   });
 });
+
+describe('half-lap: off-grid thickness and gap align E onto R', () => {
+  // Rule 4 allows a thickness difference, and contact a gap, of up to TOUCH.
+  const cases: [string, number, number][] = [['thinner, 0.02 gap', 0.73, 0.02], ['thicker, 0.02 overlap', 0.77, -0.02]];
+  for (const [label, thickness, gap] of cases) {
+    it(`laps Upper (${label}) into Lower's plane, no overlap, nothing skipped`, () => {
+      const doc = design(
+        { name: 'Lower', at: [0, 5, 9], size: [20, 0.75, 2] },
+        { name: 'Upper', at: [9, 5.75, 0], size: [2, 0.75, 20] },
+      );
+      const lo = board(doc, 'Lower');
+      const up = board(doc, 'Upper');
+      up.thickness = thickness;
+      up.position[1] = lo.position[1] + lo.thickness + gap;
+      const out = applyJoints(doc, findSites(doc), [{ site: 1, joint: 'half-lap' }]);
+      expect(out.skipped).toEqual([]);
+      expect(out.applied).toHaveLength(1);
+      expect(board(out.doc, 'Upper').position[1]).toBeCloseTo(board(out.doc, 'Lower').position[1], 9);
+      expect(board(out.doc, 'Upper').cuts).toHaveLength(1);
+      expect(board(out.doc, 'Lower').cuts).toHaveLength(1);
+      expect(checkDesign(out.doc, limits(out.doc)).filter((v) => v.kind === 'overlap')).toEqual([]);
+    });
+  }
+});
