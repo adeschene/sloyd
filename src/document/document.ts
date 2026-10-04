@@ -492,3 +492,5 @@ export function migrateDocument(raw: unknown): SloydDocument {
     ),
   };
 }
+export { findTenons } from './tenons';
+export type { Tenon } from './tenons';
