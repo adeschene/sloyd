@@ -442,6 +442,31 @@ describe('cutSnapPoints', () => {
   });
 });
 
+describe('cutSnapPoints — every through-cut offers exactly what it did before stops', () => {
+  const counts = (cuts: Cut[]) => {
+    const pts = cutSnapPoints(posed(cuts));
+    return [
+      pts.filter((p) => p.kind === 'corner').length,
+      pts.filter((p) => p.kind === 'edge-mid').length,
+      pts.filter((p) => p.kind === 'face-center').length,
+    ];
+  };
+
+  it.each<[string, Cut[], number[]]>([
+    ['dado', [DADO], [8, 6, 1]],
+    ['rabbet at the min end', [{ ...DADO, offset: 0, width: 2 }], [6, 5, 1]],
+    ['rabbet at the max end', [{ ...DADO, offset: 22, width: 2 }], [6, 5, 1]],
+    ['dado from the min side', [{ ...DADO, from: 'min' }], [8, 6, 1]],
+    ['edge groove', [{ ...DADO, face: 'width', across: 'length', offset: 0.25, width: 0.5, depth: 0.5 }], [8, 6, 1]],
+    ['end slot', [{ ...DADO, face: 'length', across: 'thickness', offset: 2, width: 1, depth: 3 }], [8, 6, 1]],
+    ['full-depth dado', [{ ...DADO, depth: 1 }], [8, 4, 0]],
+    ['two overlapping dados', [DADO, { ...DADO, id: 'c2', offset: 6.5, depth: 0.5 }], [10, 9, 2]],
+    ['crossing dado and groove', [DADO, { ...DADO, id: 'c2', across: 'length', offset: 2, width: 0.5 }], [16, 12, 2]],
+  ])('%s', (_, cuts, pinned) => {
+    expect(counts(cuts)).toEqual(pinned);
+  });
+});
+
 describe('snapPointsFor', () => {
   it('is exactly boardSnapPoints for a board with no cuts', () => {
     const b = posed([]);
