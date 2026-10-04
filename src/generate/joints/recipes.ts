@@ -88,6 +88,20 @@ function dado(E: Board, R: Board, k: number, side: -1 | 1, d: number, stop?: { a
   R.cuts.push(pocketFor(R, pocket));
 }
 
+/** Indices of parts (not `skip`) whose face butts E's `side` face on k, sharing real area. */
+function buttingFace(boards: Board[], e: number, k: number, side: -1 | 1, skip: (i: number) => boolean): number[] {
+  const eb = boxOf(boards[e]);
+  const plane = side === 1 ? eb.max[k] : eb.min[k];
+  return boards.map((_, i) => i).filter((i) => {
+    if (i === e || skip(i)) return false;
+    const xb = boxOf(boards[i]);
+    const xFace = side === 1 ? xb.min[k] : xb.max[k];
+    const shares = [0, 1, 2].filter((a) => a !== k)
+      .every((a) => Math.min(eb.max[a], xb.max[a]) - Math.max(eb.min[a], xb.min[a]) > TOUCH);
+    return Math.abs(xFace - plane) <= TOUCH && shares;
+  });
+}
+
 const overall = (boards: Board[]): V3 => {
   const boxes = boards.map(boxOf);
   return [0, 1, 2].map((k) => Math.max(...boxes.map((b) => b.max[k])) - Math.min(...boxes.map((b) => b.min[k]))) as V3;
@@ -112,6 +126,7 @@ export function applyJoints(doc: SloydDocument, sites: Site[], choices: JointCho
     // receivers keep their length when it moves; everything else butting it
     // is trimmed (Task 5).
     rabbetReceivers: new Set(sites.filter((s) => byId.get(s.id)?.joint === 'rabbet').map((s) => `${s.enter}->${s.receive}`)),
+    halfLapPartners: new Set(sites.filter((s) => byId.get(s.id)?.joint === 'half-lap').map((s) => `${s.enter}->${s.receive}`)),
   };
 
   for (const site of sites) {
@@ -122,7 +137,7 @@ export function applyJoints(doc: SloydDocument, sites: Site[], choices: JointCho
     const R = boards[site.receive];
     const k = site.axis;
     const side = site.side;
-    const panelAlreadyIn = joint === 'rabbet' && state.movedFace.get(site.enter) === `${k}|${side}`;
+    const panelAlreadyIn = (joint === 'rabbet' || joint === 'half-lap') && state.movedFace.get(site.enter) === `${k}|${side}`;
     if (!panelAlreadyIn && !touching(E, R, k, side)) {
       skipped.push({ site: site.id, reason: `${E.name} no longer meets ${R.name} after an earlier joint` });
       continue;
@@ -131,11 +146,21 @@ export function applyJoints(doc: SloydDocument, sites: Site[], choices: JointCho
       case 'mortise-tenon': mortiseTenon(E, R, k, side, c!.tenonLength!); break;
       case 'dado': dado(E, R, k, side, c!.depth!); break;
       case 'stopped-dado': dado(E, R, k, side, c!.depth!, { at: c!.stopAt!, inset: c!.inset! }); break;
-      default: rest(joint, site, boards, state, c!); break;
+      default: {
+        const blocked = rest(joint, site, boards, state, c!);
+        if (blocked) { skipped.push({ site: site.id, reason: blocked }); continue; }
+      }
     }
     applied.push({ site: site.id, joint });
   }
 
+  // A rabbeted bottom moves up into its frame; if the design stood on the
+  // floor, lower everything back onto it (spec §4.7).
+  const lowest = (bs: Board[]) => Math.min(...bs.map((b) => boxOf(b).min[1]));
+  if (doc.boards.length > 0 && lowest(doc.boards) <= TOUCH) {
+    const drop = lowest(boards);
+    for (const b of boards) b.position[1] -= drop;
+  }
   const out = migrateDocument({ ...doc, version: CURRENT_VERSION, boards });
   return {
     doc: out, applied, skipped,
@@ -144,12 +169,12 @@ export function applyJoints(doc: SloydDocument, sites: Site[], choices: JointCho
   };
 }
 
-type State = { moved: Set<string>; trimmed: Set<string>; movedFace: Map<number, string>; rabbetReceivers: Set<string> };
+type State = { moved: Set<string>; trimmed: Set<string>; movedFace: Map<number, string>; rabbetReceivers: Set<string>; halfLapPartners: Set<string> };
 
-function rest(joint: JointKind, site: Site, boards: Board[], state: State, c: JointChoice): void {
-  if (joint === 'rabbet') rabbet(site, boards, state, c.depth!);
-  else if (joint === 'half-lap') halfLap(site, boards, state);
-  else throw new Error(`applyJoints: unknown joint ${joint}`);
+function rest(joint: JointKind, site: Site, boards: Board[], state: State, c: JointChoice): string | null {
+  if (joint === 'rabbet') { rabbet(site, boards, state, c.depth!); return null; }
+  if (joint === 'half-lap') return halfLap(site, boards, state);
+  throw new Error(`applyJoints: unknown joint ${joint}`);
 }
 
 /**
@@ -169,21 +194,12 @@ function rabbet(site: Site, boards: Board[], state: State, r: number) {
   const rb = boxOf(R);
 
   if (state.movedFace.get(site.enter) !== faceKey) {
-    const eb = boxOf(E);
-    const plane = side === 1 ? eb.max[k] : eb.min[k];
-    boards.forEach((X, i) => {
-      if (i === site.enter || i === site.receive) return;
-      const xb = boxOf(X);
-      const xFace = side === 1 ? xb.min[k] : xb.max[k];
-      const sharesFace = [0, 1, 2].filter((a) => a !== k)
-        .every((a) => Math.min(eb.max[a], xb.max[a]) - Math.max(eb.min[a], xb.min[a]) > TOUCH);
-      // Rabbet receivers of this panel keep their length; everyone else
-      // butting the moving face is shortened on that face.
-      if (Math.abs(xFace - plane) <= TOUCH && sharesFace && !state.rabbetReceivers.has(`${site.enter}->${i}`)) {
-        resize(X, k, (side === 1 ? -1 : 1) as -1 | 1, -t);
-        state.trimmed.add(X.name);
-      }
-    });
+    // Rabbet receivers of this panel keep their length; everyone else
+    // butting the moving face is shortened on that face.
+    for (const i of buttingFace(boards, site.enter, k, side, (j) => j === site.receive || state.rabbetReceivers.has(`${site.enter}->${j}`))) {
+      resize(boards[i], k, (side === 1 ? -1 : 1) as -1 | 1, -t);
+      state.trimmed.add(boards[i].name);
+    }
     E.position[k] += side * t;
     state.moved.add(E.name);
     state.movedFace.set(site.enter, faceKey);
@@ -212,13 +228,20 @@ function rabbet(site: Site, boards: Board[], state: State, r: number) {
  * Half-lap (spec §4.6). E — the part on the +axis side — drops by t into R's
  * plane; each is notched by half where they cross, E on R's original side.
  */
-function halfLap(site: Site, boards: Board[], state: State) {
+function halfLap(site: Site, boards: Board[], state: State): string | null {
   const E = boards[site.enter];
   const R = boards[site.receive];
   const k = site.axis;
   const side = site.side;
-  E.position[k] += side * E.thickness;
-  state.moved.add(E.name);
+  const faceKey = `${k}|${side}`;
+  if (state.movedFace.get(site.enter) !== faceKey) {
+    // Dropping E must not drive it into anything but its own lap partners.
+    const blocker = buttingFace(boards, site.enter, k, side, (j) => state.halfLapPartners.has(`${site.enter}->${j}`))[0];
+    if (blocker !== undefined) return `moving ${E.name} would drive it into ${boards[blocker].name}`;
+    E.position[k] += side * E.thickness;
+    state.moved.add(E.name);
+    state.movedFace.set(site.enter, faceKey);
+  }
   const eb = boxOf(E);
   const rb = boxOf(R);
   const mid = (rb.min[k] + rb.max[k]) / 2;
@@ -229,4 +252,5 @@ function halfLap(site: Site, boards: Board[], state: State) {
   const crossing = { [p]: cross(p), [q]: cross(q) };
   E.cuts.push(pocketFor(E, withSpans(eb, { ...crossing, [k]: side === -1 ? lower : upper })));
   R.cuts.push(pocketFor(R, withSpans(rb, { ...crossing, [k]: side === -1 ? upper : lower })));
+  return null;
 }

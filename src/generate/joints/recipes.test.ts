@@ -167,6 +167,10 @@ describe('purity', () => {
   });
 });
 
+const rabbetPick = (depth: number) => (s: { id: number; kind: string }) => s.kind === 'face-against-edge'
+  ? { site: s.id, joint: 'rabbet' as const, depth }
+  : { site: s.id, joint: 'butt' as const };
+
 describe('rabbet: the back panel moves into rabbets, and is trimmed back to the rabbet line', () => {
   const doc = design(
     { name: 'Left', at: [0, 0, 0], size: [0.75, 30, 11.25] },
@@ -174,11 +178,12 @@ describe('rabbet: the back panel moves into rabbets, and is trimmed back to the 
     { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 11.25] },
     { name: 'Back', at: [0, 0, 11.25], size: [21.5, 30, 0.25] },
   );
-  const sites = findSites(doc);
-  const choices = sites.map((s) => s.kind === 'face-against-edge'
-    ? { site: s.id, joint: 'rabbet' as const, depth: 0.375 }
-    : { site: s.id, joint: 'butt' as const });
-  const out = applyJoints(doc, sites, choices);
+  let sites: ReturnType<typeof findSites>;
+  let out: ReturnType<typeof applyJoints>;
+  beforeAll(() => {
+    sites = findSites(doc);
+    out = applyJoints(doc, sites, sites.map(rabbetPick(0.375)));
+  });
   const z = (name: string) => { const b = board(out.doc, name); const o = board(doc, name); return [b.position[2] - o.position[2]]; };
 
   it('finds two rabbet sites, one per side', () => {
@@ -197,7 +202,7 @@ describe('rabbet: the back panel moves into rabbets, and is trimmed back to the 
 
   it('trims the shelf that butted the back by the back\'s thickness', () => {
     expect(board(out.doc, 'Shelf').width).toBe(11);
-    expect(out.trimmed.sort()).toEqual(['Back', 'Shelf']);
+    expect([...out.trimmed].sort()).toEqual(['Back', 'Shelf']);
   });
 
   it('rabbets each side, no overlap anywhere, and reports the piece 1/4in shallower', () => {
@@ -208,6 +213,62 @@ describe('rabbet: the back panel moves into rabbets, and is trimmed back to the 
     expect(checkDesign(out.doc, limits(out.doc)).filter((v) => v.kind === 'overlap')).toEqual([]);
     expect(out.sizeBefore[2] - out.sizeAfter[2]).toBe(0.25);
   });
+
+  it('puts each rabbet 3/8in in from its side\'s INNER face, 1/4in from the back edge', () => {
+    // Left's inner face is its max-X face; Right's is its min-X face.
+    const l = board(out.doc, 'Left').cuts[0];
+    expect([l.from, l.offset, l.width, l.depth]).toEqual(['max', 0.375, 0.375, 0.25]);
+    const r = board(out.doc, 'Right').cuts[0];
+    expect([r.from, r.offset, r.width, r.depth]).toEqual(['max', 0, 0.375, 0.25]);
+  });
+});
+
+describe('rabbet: a centre partition is not a rabbet site', () => {
+  const doc = design(
+    { name: 'Left', at: [0, 0, 0], size: [0.75, 30, 11.25] },
+    { name: 'Right', at: [20.75, 0, 0], size: [0.75, 30, 11.25] },
+    { name: 'Partition', at: [10.375, 0, 0], size: [0.75, 30, 11.25] },
+    { name: 'Back', at: [0, 0, 11.25], size: [21.5, 30, 0.25] },
+  );
+  let sites: ReturnType<typeof findSites>;
+  let out: ReturnType<typeof applyJoints>;
+  beforeAll(() => {
+    sites = findSites(doc);
+    out = applyJoints(doc, sites, sites.map(rabbetPick(0.375)));
+  });
+
+  it('gives exactly Left and Right', () => {
+    const fae = sites.filter((s) => s.kind === 'face-against-edge');
+    expect(fae.map((s) => doc.boards[s.receive].name).sort()).toEqual(['Left', 'Right']);
+  });
+
+  it('keeps the back full width, trims the partition, no overlap', () => {
+    expect(board(out.doc, 'Back').width).toBe(20.75);
+    expect(board(out.doc, 'Partition').width).toBe(11);
+    expect(checkDesign(out.doc, limits(out.doc)).filter((v) => v.kind === 'overlap')).toEqual([]);
+  });
+});
+
+describe('rabbet: the piece stays on the floor', () => {
+  // A drawer: the bottom panel sits in the frame's rabbets and rises 1/4in.
+  const doc = design(
+    { name: 'SideL', at: [0, 0.25, 0], size: [0.5, 4, 12] },
+    { name: 'SideR', at: [9.5, 0.25, 0], size: [0.5, 4, 12] },
+    { name: 'Front', at: [0.5, 0.25, 0], size: [9, 4, 0.5] },
+    { name: 'BackP', at: [0.5, 0.25, 11.5], size: [9, 4, 0.5] },
+    { name: 'Bottom', at: [0, 0, 0], size: [10, 0.25, 12] },
+  );
+  let out: ReturnType<typeof applyJoints>;
+  beforeAll(() => {
+    const sites = findSites(doc);
+    out = applyJoints(doc, sites, sites.map((s) => s.kind === 'face-against-edge'
+      ? { site: s.id, joint: 'rabbet' as const, depth: 0.25 } : { site: s.id, joint: 'butt' as const }));
+  });
+
+  it('lowers everything back to y = 0 and reports nothing unsupported', () => {
+    expect(Math.min(...out.doc.boards.map((b) => b.position[1]))).toBeCloseTo(0, 9);
+    expect(checkDesign(out.doc, limits(out.doc)).filter((v) => v.kind === 'unsupported')).toEqual([]);
+  });
 });
 
 describe('half-lap', () => {
@@ -215,7 +276,8 @@ describe('half-lap', () => {
     { name: 'Lower', at: [0, 5, 9], size: [20, 0.75, 2] },
     { name: 'Upper', at: [9, 5.75, 0], size: [2, 0.75, 20] },
   );
-  const out = applyJoints(doc, findSites(doc), [{ site: 1, joint: 'half-lap' }]);
+  let out: ReturnType<typeof applyJoints>;
+  beforeAll(() => { out = applyJoints(doc, findSites(doc), [{ site: 1, joint: 'half-lap' }]); });
 
   it('drops the upper part into the lower one\'s plane, notches both by half, no overlap', () => {
     expect(board(out.doc, 'Upper').position[1]).toBe(board(out.doc, 'Lower').position[1]);
@@ -226,5 +288,49 @@ describe('half-lap', () => {
     expect(boxVolume(out.doc, 'Lower') - volume(out.doc, 'Lower')).toBeCloseTo(notch, 9);
     expect(boxVolume(out.doc, 'Upper') - volume(out.doc, 'Upper')).toBeCloseTo(notch, 9);
     expect(out.moved).toEqual(['Upper']);
+  });
+});
+
+describe('half-lap: a stretcher grid', () => {
+  const doc = design(
+    { name: 'LowA', at: [0, 5, 0], size: [20, 0.75, 2] },
+    { name: 'LowB', at: [0, 5, 10], size: [20, 0.75, 2] },
+    { name: 'UpA', at: [2, 5.75, -4], size: [2, 0.75, 20] },
+    { name: 'UpB', at: [12, 5.75, -4], size: [2, 0.75, 20] },
+  );
+  let sites: ReturnType<typeof findSites>;
+  let out: ReturnType<typeof applyJoints>;
+  beforeAll(() => {
+    sites = findSites(doc);
+    out = applyJoints(doc, sites, sites.map((s) => ({ site: s.id, joint: 'half-lap' as const })));
+  });
+
+  it('notches all four crossings, moves each upper part once, no overlap', () => {
+    expect(sites.filter((s) => s.kind === 'crossing')).toHaveLength(4);
+    expect(out.skipped).toEqual([]);
+    expect(out.applied).toHaveLength(4);
+    for (const n of ['LowA', 'LowB', 'UpA', 'UpB']) expect(board(out.doc, n).cuts).toHaveLength(2);
+    for (const n of ['UpA', 'UpB']) expect(board(out.doc, n).position[1] - board(doc, n).position[1]).toBeCloseTo(-0.75, 9);
+    expect([...out.moved].sort()).toEqual(['UpA', 'UpB']);
+    expect(checkDesign(out.doc, limits(out.doc)).filter((v) => v.kind === 'overlap')).toEqual([]);
+  });
+});
+
+describe('half-lap: a drop that would hit something else is skipped', () => {
+  const doc = design(
+    { name: 'Lower', at: [0, 5, 9], size: [20, 0.75, 2] },
+    { name: 'Upper', at: [9, 5.75, 0], size: [2, 0.75, 20] },
+    { name: 'Block', at: [9, 5, 0], size: [2, 0.75, 2] },
+  );
+  let out: ReturnType<typeof applyJoints>;
+  beforeAll(() => {
+    const sites = findSites(doc);
+    out = applyJoints(doc, sites, sites.filter((s) => s.kind === 'crossing').map((s) => ({ site: s.id, joint: 'half-lap' as const })));
+  });
+
+  it('skips the site with the reason, and nothing moves or overlaps', () => {
+    expect(out.skipped.map((s) => s.reason)).toEqual(['moving Upper would drive it into Block']);
+    expect(out.moved).toEqual([]);
+    expect(checkDesign(out.doc, limits(out.doc)).filter((v) => v.kind === 'overlap')).toEqual([]);
   });
 });

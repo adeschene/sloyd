@@ -112,11 +112,15 @@ export function findSites(doc: SloydDocument): Site[] {
     // Rule 3: a THIN panel's face against an edge AT THE PANEL'S OWN EDGE —
     // a side framing a back, never a shelf meeting the back mid-panel (that
     // one butts, and is trimmed when the panel moves).
-    const atPanelEdge = (panel: number, other: number) => inPlane(axis).some((p) => {
+    // The edge is measured along R's THICKNESS axis (the direction the
+    // rabbet's trim acts), so a centre partition — whose contact spans the
+    // panel's full height but not its width — is not a site.
+    const atPanelEdge = (panel: number, other: number) => {
+      const p = axisDimensions(doc.boards[other]).indexOf('thickness');
       const lo = Math.max(boxes[panel].min[p], boxes[other].min[p]);
       const hi = Math.min(boxes[panel].max[p], boxes[other].max[p]);
       return lo <= boxes[panel].min[p] + TOUCH || hi >= boxes[panel].max[p] - TOUCH;
-    });
+    };
     if (da === 'thickness' && db === 'width' && A.thickness <= THIN_PANEL && atPanelEdge(c.a, c.b)) { push('face-against-edge', c.a, c.b, c.side); continue; }
     if (db === 'thickness' && da === 'width' && B.thickness <= THIN_PANEL && atPanelEdge(c.b, c.a)) { push('face-against-edge', c.b, c.a, (-c.side) as -1 | 1); continue; }
     // Rule 4: equal-thickness parts crossing.
