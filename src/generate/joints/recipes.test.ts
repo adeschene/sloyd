@@ -53,11 +53,13 @@ describe('mortise and tenon', () => {
     expect(volume(out.doc, 'Rail') - 18 * 3.5 * 0.75).toBeCloseTo(tenon, 9);
   });
 
-  it('labels the leg\'s cut a mortise and the rail\'s four cuts rabbets', () => {
+  it('labels the leg\'s cut a mortise and the rail\'s four cuts: two face rabbets, two shoulder notches', () => {
     const leg = board(out.doc, 'Leg');
     expect(leg.cuts.map((c) => cutLabel(leg, c))).toEqual(['mortise']);
     const rail = board(out.doc, 'Rail');
-    expect(rail.cuts.map((c) => cutLabel(rail, c)).sort()).toEqual(['rabbet', 'rabbet', 'rabbet', 'rabbet']);
+    // Cut-words spec §2.5: the two width-side shoulders are full-thickness corner cuts
+    // (length [0,1] x width [0,1/2] or [3,3.5] x thickness [0,3/4]) — notches, no longer rabbets.
+    expect(rail.cuts.map((c) => cutLabel(rail, c)).sort()).toEqual(['notch', 'notch', 'rabbet', 'rabbet']);
   });
 
   it('reports the joint applied', () => {

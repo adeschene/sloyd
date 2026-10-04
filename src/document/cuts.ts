@@ -414,6 +414,32 @@ export function pointToLocalXYZ(board: Board, point: Point): [number, number, nu
  */
 export const FLUSH_EPSILON = 1e-9;
 
+/**
+ * Which sides of a cut's opening are OPEN (cut-words spec §2.4): no stock
+ * remains between that side and the board's edge — in the strip as wide as
+ * the opening and spanning the cut's depth. A side at the edge has an empty
+ * strip; a side that runs out into another cut's removed space has a strip
+ * with no stock. The `face` entry is always closed (it is the depth axis).
+ */
+export function openSides(board: Board, cut: Cut): Record<Dimension, { min: boolean; max: boolean }> {
+  const r = cutRegion(board, cut);
+  const span = (d: Dimension): Span => [Math.max(0, r[d][0]), Math.min(board[d], r[d][1])];
+  const solids = boardSolids(board);
+  const noStock = (strip: Region) =>
+    DIMENSION_ORDER.some((d) => strip[d][1] - strip[d][0] <= FLUSH_EPSILON) ||
+    !solids.some((s) => DIMENSION_ORDER.every((d) => Math.min(s[d][1], strip[d][1]) - Math.max(s[d][0], strip[d][0]) > FLUSH_EPSILON));
+  const box = { length: span('length'), width: span('width'), thickness: span('thickness') };
+  const out = {} as Record<Dimension, { min: boolean; max: boolean }>;
+  for (const d of DIMENSION_ORDER) {
+    if (d === cut.face) { out[d] = { min: false, max: false }; continue; }
+    out[d] = {
+      min: noStock({ ...box, [d]: [0, box[d][0]] }),
+      max: noStock({ ...box, [d]: [box[d][1], board[d]] }),
+    };
+  }
+  return out;
+}
+
 /** Every name a cut can have. Derived from its shape by cutLabel, never stored. */
 export type CutKind =
   | 'dado' | 'rabbet'
@@ -451,7 +477,9 @@ function fieldLabel(board: Board, cut: Cut): CutKind {
  * box makes on the face it enters — which of the opening's four sides reach
  * the board's edge, and its proportions. Derived only from the box, so one
  * pocket stored two ways (either in-plane dimension as `across`) gets one
- * word (fu 181).
+ * word (fu 181). Open sides count stock-free strips, not only edges (§2.4);
+ * a full-thickness corner cut is a notch (§2.5); mortise vs groove is depth
+ * against length (§2.6).
  */
 export function cutLabel(board: Board, cut: Cut): CutKind {
   if (cutRemovesNothing(board, cut)) return fieldLabel(board, cut);
@@ -459,10 +487,13 @@ export function cutLabel(board: Board, cut: Cut): CutKind {
   const [a, b] = DIMENSION_ORDER.filter((d) => d !== cut.face);
   const span = (d: Dimension): Span => [Math.max(0, r[d][0]), Math.min(board[d], r[d][1])];
   const ext = (d: Dimension) => span(d)[1] - span(d)[0];
-  const opens = (d: Dimension) =>
+  const ends = (d: Dimension) =>
     (span(d)[0] <= FLUSH_EPSILON ? 1 : 0) + (span(d)[1] >= board[d] - FLUSH_EPSILON ? 1 : 0);
-  const na = opens(a);
-  const nb = opens(b);
+  // Spec §2.5: a full-thickness cut at a corner of the broad face.
+  if (ends('thickness') === 2 && ends('length') === 1 && ends('width') === 1) return 'notch';
+  const open = openSides(board, cut);
+  const na = (open[a].min ? 1 : 0) + (open[a].max ? 1 : 0);
+  const nb = (open[b].min ? 1 : 0) + (open[b].max ? 1 : 0);
   if (na + nb >= 3) return 'rabbet';
   if (na + nb === 2) return na === 2 || nb === 2 ? 'dado' : 'stopped rabbet';
   if (na + nb === 1) {
@@ -474,5 +505,8 @@ export function cutLabel(board: Board, cut: Cut): CutKind {
     return run > 4 * reach ? 'stopped rabbet' : 'notch';
   }
   if (cut.depth >= board[cut.face]) return 'through mortise';
-  return cut.depth > Math.min(ext(a), ext(b)) ? 'mortise' : 'blind dado';
+  // Spec §2.6: a mortise is deeper than it is wide and no longer than 8x its depth.
+  const narrow = Math.min(ext(a), ext(b));
+  const long = Math.max(ext(a), ext(b));
+  return cut.depth > narrow && long <= 8 * cut.depth ? 'mortise' : 'blind dado';
 }

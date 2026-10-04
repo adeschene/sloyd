@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
-import { boardEdges, boardSolids, cutLabel, cutRegion, cutRemovesNothing, solidWorldBox, stockProbe, wholeBoard } from './cuts';
+import { boardEdges, boardSolids, cutLabel, openSides, cutRegion, cutRemovesNothing, solidWorldBox, stockProbe, wholeBoard } from './cuts';
 import type { Board, Cut, Dimension, Region } from './types';
 
 /** A 24 x 5-1/2 x 3/4 flat board with whatever cuts are given. */
@@ -512,5 +512,81 @@ describe('cutLabel names the opening (cut-words spec §2)', () => {
 
   it('a cut that removes nothing keeps its old-table word', () => {
     expect(cutLabel(b, c({ offset: 30 }))).toBe('dado');
+  });
+});
+
+describe('open means no stock (cut-words spec §2.4)', () => {
+  // A bookcase side: 72 long × 11-1/4 wide (back to front) × 3/4 thick.
+  // The back rabbet removes width [0, 1/4] × thickness [3/8, 3/4] along the whole length.
+  const backRabbet = (over: Partial<Cut> = {}): Cut => ({
+    id: 'r', face: 'width', from: 'min', across: 'length', offset: 0.375, width: 0.375, depth: 0.25, stopMin: 0, stopMax: 0, ...over,
+  });
+  // A shelf housing 24in up: width [stopMin, 11.25 − stopMax] × thickness [1/2, 3/4].
+  const housing = (over: Partial<Cut> = {}): Cut => ({
+    id: 'h', face: 'thickness', from: 'max', across: 'width', offset: 24, width: 0.75, depth: 0.25, stopMin: 0.25, stopMax: 0, ...over,
+  });
+  const side = (...cuts: Cut[]) => createBoard({ length: 72, width: 11.25, thickness: 0.75, cuts });
+
+  it('a housing that runs out into the back rabbet is a dado', () => {
+    const b = side(backRabbet(), housing());
+    expect(openSides(b, b.cuts[1]).width).toEqual({ min: true, max: true });
+    expect(cutLabel(b, b.cuts[1])).toBe('dado');
+  });
+
+  it('the same housing with no rabbet is still stopped', () => {
+    const b = side(housing());
+    expect(cutLabel(b, b.cuts[0])).toBe('stopped dado');
+  });
+
+  it('a rabbet too narrow to reach the housing leaves stock: stopped', () => {
+    // width [0, 1/8] removed; [1/8, 1/4] still stands between the housing and the back edge.
+    const b = side(backRabbet({ depth: 0.125 }), housing());
+    expect(cutLabel(b, b.cuts[1])).toBe('stopped dado');
+  });
+
+  it('a rabbet too shallow to cover the housing\'s depth leaves stock: stopped', () => {
+    // thickness [5/8, 3/4] removed; the housing is [1/2, 3/4], so [1/2, 5/8] still stands.
+    const b = side(backRabbet({ offset: 0.625, width: 0.125 }), housing());
+    expect(cutLabel(b, b.cuts[1])).toBe('stopped dado');
+  });
+
+  it('a housing stopped at the front and open into the rabbet is a stopped dado; with no rabbet a blind dado', () => {
+    expect(cutLabel(side(backRabbet(), housing({ stopMax: 0.75 })), housing({ stopMax: 0.75 }))).toBe('stopped dado');
+    expect(cutLabel(side(housing({ stopMax: 0.75 })), housing({ stopMax: 0.75 }))).toBe('blind dado');
+  });
+});
+
+describe('a full-thickness corner cut is a notch (cut-words spec §2.5)', () => {
+  // A shelf 30-1/2 long × 11 wide × 3/4 thick, notched at the length-min/width-max corner: length [0, 1/4] × width [10-1/4, 11].
+  const shelf = (cut: Cut) => createBoard({ length: 30.5, width: 11, thickness: 0.75, cuts: [cut] });
+  it('stored entering the end', () => {
+    const cut: Cut = { id: 'n', face: 'length', from: 'min', across: 'thickness', offset: 10.25, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
+    expect(cutLabel(shelf(cut), cut)).toBe('notch');
+  });
+  it('the same box stored entering the broad face, through', () => {
+    const cut: Cut = { id: 'n', face: 'thickness', from: 'min', across: 'width', offset: 0, width: 0.25, depth: 0.75, stopMin: 10.25, stopMax: 0 };
+    expect(cutLabel(shelf(cut), cut)).toBe('notch');
+  });
+  it('a full-thickness strip along a whole edge is not a notch', () => {
+    const cut: Cut = { id: 'n', face: 'width', from: 'max', across: 'length', offset: 0, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
+    expect(cutLabel(shelf(cut), cut)).not.toBe('notch');
+  });
+});
+
+describe('a mortise is a deep hole, not a long channel (cut-words spec §2.6)', () => {
+  const pocket = (b: { length: number; width: number; thickness: number }, cut: Cut) => cutLabel(createBoard({ ...b, cuts: [cut] }), cut);
+  it('the workbench mortise: 1/2 × 4-1/2, 1-1/4 deep', () => {
+    // A 34in leg, 1-3/4 square. Opening: thickness [1/2, 1] × length [28, 32.5].
+    expect(pocket({ length: 34, width: 1.75, thickness: 1.75 },
+      { id: 'm', face: 'width', from: 'max', across: 'length', offset: 0.5, width: 0.5, depth: 1.25, stopMin: 28, stopMax: 1.5 })).toBe('mortise');
+  });
+  it('a 30in back groove 1/4 wide and 3/8 deep is a blind dado', () => {
+    expect(pocket({ length: 72, width: 11.25, thickness: 0.75 },
+      { id: 'g', face: 'thickness', from: 'min', across: 'length', offset: 1, width: 0.25, depth: 0.375, stopMin: 2, stopMax: 40 })).toBe('blind dado');
+  });
+  it('exactly 8× its depth is still a mortise', () => {
+    // Opening 1/4 × 4, depth 1/2: 4 = 8 × 1/2.
+    expect(pocket({ length: 34, width: 1.75, thickness: 1.75 },
+      { id: 'm', face: 'width', from: 'max', across: 'length', offset: 0.5, width: 0.25, depth: 0.5, stopMin: 10, stopMax: 20 })).toBe('mortise');
   });
 });

@@ -1,7 +1,7 @@
 import { MATERIALS, isSheetGood, sheetStockOf } from './types';
 import type { Board, Cut, Grain, SloydDocument } from './types';
 import { positionAxisOf } from './geometry';
-import { CUT_GEOMETRY_KEYS, cutLabel, cutsThatRemoveStock } from './cuts';
+import { CUT_GEOMETRY_KEYS, cutLabel, cutsThatRemoveStock, openSides } from './cuts';
 import { findTenons } from './tenons';
 import type { Tenon } from './tenons';
 import { buildDiagrams } from './diagram';
@@ -162,12 +162,16 @@ function cutSignature(cuts: Cut[]): string {
  * across — so an unstopped cut prints byte-for-byte as it did before stops
  * existed.
  */
-function stopClause(cut: Cut, f: (n: number) => string): string {
-  if (cut.stopMin > 0 && cut.stopMax > 0) {
+function stopClause(board: Board, cut: Cut, f: (n: number) => string): string {
+  // A stop whose end has no stock in the gap prints nothing (spec §2.4).
+  const o = openSides(board, cut)[cut.across];
+  const min = cut.stopMin > 0 && !o.min;
+  const max = cut.stopMax > 0 && !o.max;
+  if (min && max) {
     return `, stopped ${f(cut.stopMin)} short of the min end and ${f(cut.stopMax)} short of the max end`;
   }
-  if (cut.stopMin > 0) return `, stopped ${f(cut.stopMin)} short of the min end`;
-  if (cut.stopMax > 0) return `, stopped ${f(cut.stopMax)} short of the max end`;
+  if (min) return `, stopped ${f(cut.stopMin)} short of the min end`;
+  if (max) return `, stopped ${f(cut.stopMax)} short of the max end`;
   return '';
 }
 
@@ -186,7 +190,7 @@ function setupLine(board: Board, cut: Cut, precision: number): string {
     `${f(cut.width)} ${cutLabel(board, cut)}, ${f(cut.depth)} deep — ` +
     `into the ${cut.face} face (${cut.from} side), ` +
     `${f(cut.offset)} from the ${pos} min end, running across the ${cut.across}` +
-    stopClause(cut, f)
+    stopClause(board, cut, f)
   );
 }
 

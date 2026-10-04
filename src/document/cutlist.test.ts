@@ -494,3 +494,17 @@ describe('tenons on the sheet (fu 180)', () => {
     ]);
   });
 });
+
+describe('a stop with no stock in its gap is not printed (cut-words spec §2.4)', () => {
+  const backRabbet: Cut = { id: 'r', face: 'width', from: 'min', across: 'length', offset: 0.375, width: 0.375, depth: 0.25, stopMin: 0, stopMax: 0 };
+  const housing: Cut = { id: 'h', face: 'thickness', from: 'max', across: 'width', offset: 24, width: 0.75, depth: 0.25, stopMin: 0.25, stopMax: 0 };
+  const setup = (cuts: Cut[]) => buildCutList(docWith({ length: 72, width: 11.25, thickness: 0.75, cuts })).groups[0].rows[0].setup;
+  it('a housing running out into the back rabbet prints as a plain dado', () => {
+    expect(setup([backRabbet, housing])[1]).toBe(
+      '3/4" dado, 1/4" deep — into the thickness face (max side), 24" from the length min end, running across the width');
+  });
+  it('with no rabbet, the stop still prints', () => {
+    expect(setup([housing])[0]).toBe(
+      '3/4" stopped dado, 1/4" deep — into the thickness face (max side), 24" from the length min end, running across the width, stopped 1/4" short of the min end');
+  });
+});
