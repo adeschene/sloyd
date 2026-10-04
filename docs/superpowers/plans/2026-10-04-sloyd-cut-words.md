@@ -607,3 +607,267 @@ Run `npm test && npm run build`. Commit: `docs: cut words — follow-ups 180/181
 1. The final whole-branch review.
 2. The live check (spec §6): no paid calls; the user judges the words.
 3. The write-up, then the merge and deploy on the user's word.
+
+---
+
+## Amendment: live-check rulings (spec §2.4–2.7)
+
+The live check found a housing that runs out into the back rabbet printing as `stopped dado … stopped 1/4" short`. The user chose to name cuts from the stock that is actually there. Two further rulings, calls 2 and 3, are in spec §2.5 and §2.6. These tasks follow the Global Constraints above.
+
+### Task 5: `openSides`, the corner notch, mortise by depth, and the stop clause
+
+**Files:**
+- Modify: `src/document/cuts.ts`
+  - add `openSides`;
+  - rewrite `cutLabel`'s open counting and its closed branch;
+  - add the corner-notch test.
+- Modify: `src/document/cutlist.ts`: `stopClause` takes the board and leaves out an open stop.
+- Test: `src/document/cuts.test.ts`, `src/document/cutlist.test.ts`
+
+**Interfaces:**
+- Produces: `export function openSides(board: Board, cut: Cut): Record<Dimension, { min: boolean; max: boolean }>`. The entry for `cut.face` is always `{ min: false, max: false }`.
+
+- [ ] **Step 1: Write the failing tests**
+
+Append to `src/document/cuts.test.ts`, importing `openSides`:
+
+```ts
+describe('open means no stock (cut-words spec §2.4)', () => {
+  // A bookcase side: 72 long × 11-1/4 wide (back to front) × 3/4 thick.
+  // The back rabbet removes width [0, 1/4] × thickness [3/8, 3/4] along the whole length.
+  const backRabbet = (over: Partial<Cut> = {}): Cut => ({
+    id: 'r', face: 'width', from: 'min', across: 'length', offset: 0.375, width: 0.375, depth: 0.25, stopMin: 0, stopMax: 0, ...over,
+  });
+  // A shelf housing 24in up: width [stopMin, 11.25 − stopMax] × thickness [1/2, 3/4].
+  const housing = (over: Partial<Cut> = {}): Cut => ({
+    id: 'h', face: 'thickness', from: 'max', across: 'width', offset: 24, width: 0.75, depth: 0.25, stopMin: 0.25, stopMax: 0, ...over,
+  });
+  const side = (...cuts: Cut[]) => createBoard({ length: 72, width: 11.25, thickness: 0.75, cuts });
+
+  it('a housing that runs out into the back rabbet is a dado', () => {
+    const b = side(backRabbet(), housing());
+    expect(openSides(b, b.cuts[1]).width).toEqual({ min: true, max: true });
+    expect(cutLabel(b, b.cuts[1])).toBe('dado');
+  });
+
+  it('the same housing with no rabbet is still stopped', () => {
+    const b = side(housing());
+    expect(cutLabel(b, b.cuts[0])).toBe('stopped dado');
+  });
+
+  it('a rabbet too narrow to reach the housing leaves stock: stopped', () => {
+    // width [0, 1/8] removed; [1/8, 1/4] still stands between the housing and the back edge.
+    const b = side(backRabbet({ depth: 0.125 }), housing());
+    expect(cutLabel(b, b.cuts[1])).toBe('stopped dado');
+  });
+
+  it('a rabbet too shallow to cover the housing\'s depth leaves stock: stopped', () => {
+    // thickness [5/8, 3/4] removed; the housing is [1/2, 3/4], so [1/2, 5/8] still stands.
+    const b = side(backRabbet({ offset: 0.625, width: 0.125 }), housing());
+    expect(cutLabel(b, b.cuts[1])).toBe('stopped dado');
+  });
+
+  it('a housing stopped at the front and open into the rabbet is a stopped dado; with no rabbet a blind dado', () => {
+    expect(cutLabel(side(backRabbet(), housing({ stopMax: 0.75 })), housing({ stopMax: 0.75 }))).toBe('stopped dado');
+    expect(cutLabel(side(housing({ stopMax: 0.75 })), housing({ stopMax: 0.75 }))).toBe('blind dado');
+  });
+});
+
+describe('a full-thickness corner cut is a notch (cut-words spec §2.5)', () => {
+  // A shelf 30-1/2 long × 11 wide × 3/4 thick, notched at the length-min/width-max corner: length [0, 1/4] × width [10-1/4, 11].
+  const shelf = (cut: Cut) => createBoard({ length: 30.5, width: 11, thickness: 0.75, cuts: [cut] });
+  it('stored entering the end', () => {
+    const cut: Cut = { id: 'n', face: 'length', from: 'min', across: 'thickness', offset: 10.25, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
+    expect(cutLabel(shelf(cut), cut)).toBe('notch');
+  });
+  it('the same box stored entering the broad face, through', () => {
+    const cut: Cut = { id: 'n', face: 'thickness', from: 'min', across: 'width', offset: 0, width: 0.25, depth: 0.75, stopMin: 10.25, stopMax: 0 };
+    expect(cutLabel(shelf(cut), cut)).toBe('notch');
+  });
+  it('a full-thickness strip along a whole edge is not a notch', () => {
+    const cut: Cut = { id: 'n', face: 'width', from: 'max', across: 'length', offset: 0, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
+    expect(cutLabel(shelf(cut), cut)).not.toBe('notch');
+  });
+});
+
+describe('a mortise is a deep hole, not a long channel (cut-words spec §2.6)', () => {
+  const pocket = (b: { length: number; width: number; thickness: number }, cut: Cut) => cutLabel(createBoard({ ...b, cuts: [cut] }), cut);
+  it('the workbench mortise: 1/2 × 4-1/2, 1-1/4 deep', () => {
+    // A 34in leg, 1-3/4 square. Opening: thickness [1/2, 1] × length [28, 32.5].
+    expect(pocket({ length: 34, width: 1.75, thickness: 1.75 },
+      { id: 'm', face: 'width', from: 'max', across: 'length', offset: 0.5, width: 0.5, depth: 1.25, stopMin: 28, stopMax: 1.5 })).toBe('mortise');
+  });
+  it('a 30in back groove 1/4 wide and 3/8 deep is a blind dado', () => {
+    expect(pocket({ length: 72, width: 11.25, thickness: 0.75 },
+      { id: 'g', face: 'thickness', from: 'min', across: 'length', offset: 1, width: 0.25, depth: 0.375, stopMin: 2, stopMax: 40 })).toBe('blind dado');
+  });
+  it('exactly 8× its depth is still a mortise', () => {
+    // Opening 1/4 × 4, depth 1/2: 4 = 8 × 1/2.
+    expect(pocket({ length: 34, width: 1.75, thickness: 1.75 },
+      { id: 'm', face: 'width', from: 'max', across: 'length', offset: 0.5, width: 0.25, depth: 0.5, stopMin: 10, stopMax: 20 })).toBe('mortise');
+  });
+});
+```
+
+Append to `src/document/cutlist.test.ts`:
+
+```ts
+describe('a stop with no stock in its gap is not printed (cut-words spec §2.4)', () => {
+  const backRabbet: Cut = { id: 'r', face: 'width', from: 'min', across: 'length', offset: 0.375, width: 0.375, depth: 0.25, stopMin: 0, stopMax: 0 };
+  const housing: Cut = { id: 'h', face: 'thickness', from: 'max', across: 'width', offset: 24, width: 0.75, depth: 0.25, stopMin: 0.25, stopMax: 0 };
+  const setup = (cuts: Cut[]) => buildCutList(docWith({ length: 72, width: 11.25, thickness: 0.75, cuts })).groups[0].rows[0].setup;
+  it('a housing running out into the back rabbet prints as a plain dado', () => {
+    expect(setup([backRabbet, housing])[1]).toBe(
+      '3/4" dado, 1/4" deep — into the thickness face (max side), 24" from the length min end, running across the width');
+  });
+  it('with no rabbet, the stop still prints', () => {
+    expect(setup([housing])[0]).toBe(
+      '3/4" stopped dado, 1/4" deep — into the thickness face (max side), 24" from the length min end, running across the width, stopped 1/4" short of the min end');
+  });
+});
+```
+
+**Where the numbers come from** (hand-derived; if one differs, STOP and report):
+
+- **The back rabbet's region.** On the width axis it is `[0, 0.25]`, because the cut enters the width face from min, 1/4″ deep. On thickness it is `[0.375, 0.75]`.
+- **The housing.**
+  - Its region is width `[0.25, 11.25]` × thickness `[0.5, 0.75]` × length `[24, 24.75]`.
+  - The strip toward width-min is width `[0, 0.25]` × thickness `[0.5, 0.75]` × length `[24, 24.75]`. The rabbet removed all of it, so that side is open.
+  - Width-max is at the edge, so both width ends are open. That makes it a `dado`.
+- **The narrow rabbet.** It removes width `[0, 0.125]` only, so stock remains in `[0.125, 0.25]` and the side stays closed.
+- **The shallow rabbet.** It removes thickness `[0.625, 0.75]` only, so stock remains in `[0.5, 0.625]` and the side stays closed.
+- **The front-stopped housing.**
+  - With the rabbet, its width span is `[0.25, 10.5]`: open toward min, closed at max, closed on length. That is one open side, with reach 10.25 > run 0.75, so a `stopped dado`.
+  - With no rabbet nothing is open, and depth 0.25 is not greater than 0.75, so a `blind dado`.
+- **The notches.**
+  - Both boxes are length `[0, 0.25]` × width `[10.25, 11]` × thickness `[0, 0.75]`. Each reaches exactly one end of the length and one of the width, through the full thickness.
+  - The strip is length `[0, 30.5]`, which reaches both ends of the length, so it is not a notch.
+- **The mortise.**
+  - Its opening is 0.5 × (34 − 28 − 1.5 = 4.5).
+  - Depth 1.25 > 0.5, and 4.5 ≤ 10, so `mortise`.
+- **The groove.**
+  - Its opening is 0.25 × (72 − 2 − 40 = 30).
+  - Depth 0.375 > 0.25, but 30 > 3, so `blind dado`.
+- **The tie.**
+  - Its opening is 0.25 × (34 − 10 − 20 = 4).
+  - Depth 0.5 > 0.25, and 4 ≤ 4, so `mortise`.
+
+- [ ] **Step 2: Run the tests and confirm they fail**
+
+Run: `npx vitest run src/document/cuts.test.ts src/document/cutlist.test.ts`. Record which tests fail and which pass.
+
+- [ ] **Step 3: Implement**
+
+In `cuts.ts`, below `cutRegion` and `boardSolids`:
+
+```ts
+/**
+ * Which sides of a cut's opening are OPEN (cut-words spec §2.4): no stock
+ * remains between that side and the board's edge — in the strip as wide as
+ * the opening and spanning the cut's depth. A side at the edge has an empty
+ * strip; a side that runs out into another cut's removed space has a strip
+ * with no stock. The `face` entry is always closed (it is the depth axis).
+ */
+export function openSides(board: Board, cut: Cut): Record<Dimension, { min: boolean; max: boolean }> {
+  const r = cutRegion(board, cut);
+  const span = (d: Dimension): Span => [Math.max(0, r[d][0]), Math.min(board[d], r[d][1])];
+  const solids = boardSolids(board);
+  const noStock = (strip: Region) =>
+    DIMENSION_ORDER.some((d) => strip[d][1] - strip[d][0] <= FLUSH_EPSILON) ||
+    !solids.some((s) => DIMENSION_ORDER.every((d) => Math.min(s[d][1], strip[d][1]) - Math.max(s[d][0], strip[d][0]) > FLUSH_EPSILON));
+  const box = { length: span('length'), width: span('width'), thickness: span('thickness') };
+  const out = {} as Record<Dimension, { min: boolean; max: boolean }>;
+  for (const d of DIMENSION_ORDER) {
+    if (d === cut.face) { out[d] = { min: false, max: false }; continue; }
+    out[d] = {
+      min: noStock({ ...box, [d]: [0, box[d][0]] }),
+      max: noStock({ ...box, [d]: [box[d][1], board[d]] }),
+    };
+  }
+  return out;
+}
+```
+
+In `cutLabel`, after the `cutRemovesNothing` early return and the existing `r`, `span` and `ext`:
+
+```ts
+  const ends = (d: Dimension) =>
+    (span(d)[0] <= FLUSH_EPSILON ? 1 : 0) + (span(d)[1] >= board[d] - FLUSH_EPSILON ? 1 : 0);
+  if (ends('thickness') === 2 && ends('length') === 1 && ends('width') === 1) return 'notch';
+  const open = openSides(board, cut);
+  const na = (open[a].min ? 1 : 0) + (open[a].max ? 1 : 0);
+  const nb = (open[b].min ? 1 : 0) + (open[b].max ? 1 : 0);
+```
+
+Then:
+- Remove the old `opens` helper and the old `na`/`nb`.
+- Keep the table branches as they are.
+- Replace the last line with:
+
+```ts
+  const narrow = Math.min(ext(a), ext(b));
+  const long = Math.max(ext(a), ext(b));
+  return cut.depth > narrow && long <= 8 * cut.depth ? 'mortise' : 'blind dado';
+```
+
+Update `cutLabel`'s doc comment so it also cites spec §2.4–2.6.
+
+In `cutlist.ts`:
+- `stopClause(board, cut, f)` reads `const o = openSides(board, cut)[cut.across];`.
+- A stop prints only when it is `> 0` AND its end is not open (`!o.min` for stopMin, `!o.max` for stopMax). Keep the three existing string shapes.
+- Update `setupLine`'s call.
+- Import `openSides`.
+
+- [ ] **Step 4: Run, then fix any existing test that pinned an OLD word**
+
+Run `npm test`. The only existing expectations allowed to change are ones spec §2.4–2.6 changes:
+- a full-thickness corner cut that read `rabbet` (for example the joinery shelf "notched to match");
+- a housing that runs out into another cut and read `stopped …`;
+- a long closed groove that read `mortise`.
+
+For each one you change:
+- hand-check it against the spec;
+- cite the section in a comment;
+- list it in the report.
+
+Anything else that goes red is a bug in the new code.
+
+- [ ] **Step 5: Mutation-check**
+
+Apply each change, check the test that should fail, and record the result:
+
+| Mutation | Test that must fail |
+|---|---|
+| `noStock` checks only that the strip is empty, not the solids | the rabbet-into-dado test |
+| The strip spans the full board on the face axis, not the cut's depth | the shallow-rabbet test |
+| Remove the notch line | the two notch tests |
+| `ends('length') === 1` → `>= 1` | the strip test |
+| Drop `long <= 8 * cut.depth` | the groove test |
+| `<=` → `<` in the 8× test | the tie test |
+| `stopClause` ignores `openSides` | the plain-dado setup-line test |
+
+- [ ] **Step 6: Commit**
+
+Run `npm test && npm run build`, then commit:
+`feat(cuts): open means no stock — a housing into a rabbet is a dado; corner notch; mortise by depth (spec §2.4–2.6)`.
+
+### Task 6: docs for the amendment
+
+**Files:** `CLAUDE.md`, `docs/follow-ups.md`
+
+- [ ] **Step 1: follow-ups**
+
+Add three entries, in the format of the entries around 180–191:
+- **192:** the setup line is written from the cut's stored fields, not its shape (spec §2.7). Give the stopped-housing example.
+- **193:** grain-aware words, `groove` with the grain and `dado` across it. The research basis: a groove runs with the grain, a dado across it.
+- **194:** two boards a hair apart in exact length share a cut-list row, but can differ in whether `findTenons` recognises a tenon. The first-listed board decides the row's lines. Effectively unreachable (the ℓ ≤ L/2 cap); the same class as follow-up 55a.
+
+- [ ] **Step 2: CLAUDE.md**
+
+- In the `cuts.ts` tree entry, add `openSides`: open means no stock between the side and the edge, read by both `cutLabel` and the setup line's stop clause (one helper, so the word and the stops cannot disagree). Keep the line widths.
+- Update "1-191" to "1-194".
+- Update the test count in Status and in Commands.
+
+- [ ] **Step 3: Check and commit**
+
+Run `npm test && npm run build`. Commit: `docs: cut words amendment — openSides; follow-ups 192–194`.
