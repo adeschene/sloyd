@@ -24,7 +24,7 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **1475/1475 tests passing across 54 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
+Static SPA, containerized, **1492/1492 tests passing across 54 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **7**.
 
 **PRODUCTION MATCHES `master` as of 2026-10-04 with the joinery round live** — bundle `index-Ci7lVCzJ.js`, CSS `index-DqhKBEnY.css` (unchanged), merge commit `d2a14ac`, **schema 7**. Before it the same day: phantom cut `index-B2Yuq550.js` (`e7bf3bc`), stopped cuts `index-CoHIAVxf.js` (`c054ede`), which bumped the schema to 7 (rolling back past it strands v7 documents; export first). Before it, 2026-10-03: key check `index-BhhW2iNw.js` (`d0ba83b`), held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
@@ -397,7 +397,12 @@ src/
 │   │                       nothing); `cutLabel` names a cut from its OPENING (sides
 │   │                       reaching the edge + proportions; cut-words spec §2).
 │   │                       One box, one word; a cut removing nothing keeps the
-│   │                       old table. Home of
+│   │                       old table. `openSides`: open = no stock between a side
+│   │                       and the edge; read by `cutLabel` AND the setup line's
+│   │                       stop clause (one helper, word and stops cannot differ).
+│   │                       It and `cutLabel` take an optional precomputed `solids`
+│   │                       (one `boardSolids` per board) — skip it, cut list ~3.5×
+│   │                       slower. Home of
 │   │                       `CUT_GEOMETRY_FIELDS` / `CUT_GEOMETRY_KEYS` (inv 40)
 │   ├── tenons.ts           findTenons: a tenon from the end cuts leaving one tongue
 │   │                       (ℓ ≤ L/2, ≥ 2 cuts, exactly one remaining rectangle).
@@ -1395,7 +1400,7 @@ worked examples behind several of them are in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 1475 tests across 54 files
+npm test           # Vitest, currently 1492 tests across 54 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1405,7 +1410,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is the authoritative list** — 1-191, consciously deferred rather
+**`docs/follow-ups.md` is the authoritative list** — 1-194, consciously deferred rather
 than missed, each written up in place with its closure where it has one. Read the entries
 for the area you are about to touch before starting; several are "correct but untested",
 which is exactly what a refactor breaks silently.

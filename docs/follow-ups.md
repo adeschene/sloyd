@@ -4023,7 +4023,7 @@ cut list or a cut kind the vocabulary does not yet have.
 an edge rabbet stopped short of both ends, so `cutLabel` falls through to the nearest shape it
 knows. Reported by the final review; not re-observed in this fix wave. Needs a word, not a
 geometry change.
-- **Status:** CLOSED 2026-10-04 by the cut-words round. Words now come from the clipped box's opening, so one box gets one word whatever its stored fields. The joinery Top's back rabbet, this entry's example, now reads `stopped rabbet`.
+- **Status:** CLOSED 2026-10-04 by the cut-words round. Words now come from the clipped box's opening, so one box gets one word whatever its stored fields. The joinery Top's back rabbet, this entry's example, now reads `stopped rabbet`. Refined after the live check by §2.4 (a side is open when no stock remains): the joined bookcase's housings into the back rabbet now read `dado`.
 
 **182. A dado stopped at the back next to a back rabbet.** Since the final-review fix (rabbets run
 before end-into-face), the DEFAULT bookcase reaches this path: each shelf is trimmed for the back
@@ -4102,7 +4102,7 @@ generated bookcase, whose back panel sat between the sides.
   (a housing is long and shallow, a mortise narrow and deep), or the receiving part being a
   panel.
 - **Status:** a cut-list vocabulary question for the user, in the same family as 180 and 181.
-- **Status:** CLOSED 2026-10-04 by the cut-words round. A closed pocket is named by its proportions, giving `blind dado` for a shallow housing.
+- **Status:** CLOSED 2026-10-04 by the cut-words round. A closed pocket is named by its proportions, giving `blind dado` for a shallow housing. Refined after the live check by §2.4 (a side is open when no stock remains): the joined bookcase's housings into the back rabbet now read `dado`.
 
 **190. Rails entering one post from OPPOSITE faces collide on the defaults.** A centre post or
 long-bench middle leg has rails tenoned in from both sides at one height.
@@ -4123,4 +4123,28 @@ remaining-rectangle split compares the cuts' span edges with `===`.
   uncovered cells. The tenon goes unrecognised and prints as shoulder lines.
 - **Reach:** recipe output is unaffected. Its spans come from one box, and its shoulders overlap
   the cheeks rather than abut them. Not reachable through joinery.
+- **Status:** open, low.
+
+## From the cut words amendment — 2026-10-04
+
+**192. The setup line is written from the cut's stored fields, not its shape.** The cut-list
+setup line (`setupLines`) still describes a cut by its stored `stopMin`/`stopMax`, while the
+word (`cutLabel`) now comes from the clipped box's opening (spec §2.7).
+- **Example:** a dado stopped at the front, whose far end runs into a back rabbet, has a stored
+  stop and a word that agrees only because both read `openSides`. A stopped housing whose stop
+  lands where the stock is already gone is named `dado` but could still carry a stop in a
+  hand-edited document.
+- **Status:** open, low. Writing the line from the shape would remove the class.
+
+**193. Grain-aware words: `groove` with the grain, `dado` across it.** Woodworking usage names a
+channel running with the grain a groove and one running across it a dado. `cutLabel` has no grain
+input, so it says `dado` for both.
+- **Basis:** the research behind the round (a groove runs with the grain, a dado across it).
+- **Status:** deferred, a vocabulary decision for the user.
+
+**194. Two boards a hair apart in exact length share a cut-list row but can differ in tenons.**
+They collapse at display precision (invariant 18), yet `findTenons` may recognise a tenon on one
+and not the other. The first-listed board decides the row's lines.
+- **Reach:** effectively unreachable, since the tenon cap (ℓ ≤ L/2) puts the boundary far from
+  any hair's-breadth difference. The same class as follow-up 55a.
 - **Status:** open, low.
