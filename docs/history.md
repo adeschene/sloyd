@@ -18,6 +18,19 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-04 with the phantom-cut round live** (follow-up
+178). The bundle went from `index-CoHIAVxf.js` to `index-B2Yuq550.js`, and the CSS from
+`index-Co3i2lF7.css` to `index-DqhKBEnY.css` (the `.field-note` pill). The merge commit is
+`e7bf3bc`.
+
+Verified after the deploy:
+- `200` on `/` and on a deep route, both in-network and publicly;
+- the new bundle served at both;
+- CSP `connect-src 'self' https://api.anthropic.com` unchanged at the edge.
+
+The round was verified against the dev server first, with the user watching. There is no
+schema change, so rolling back to `index-CoHIAVxf.js` costs only this round.
+
 **Production matches `master` as of 2026-10-04 with the stopped cuts round live.** The bundle
 went from `index-BhhW2iNw.js` to `index-CoHIAVxf.js`; the merge commit is `c054ede`. The CSS
 is unchanged (`index-Co3i2lF7.css`).
