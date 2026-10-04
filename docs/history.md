@@ -18,6 +18,14 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-04 with the cut words round live** (follow-ups 180,
+181, 189). The bundle went from `index-Ci7lVCzJ.js` to `index-Cw_EeWuY.js`, and the CSS is
+unchanged (`index-DqhKBEnY.css`). The merge commit is `8c9be52`. Verified after the deploy: the new
+bundle on `/` and a deep route, both in-network and at the edge, and CSP `connect-src 'self'
+https://api.anthropic.com` unchanged at the edge. The words themselves were not exercised against
+production — seeing them needs a document with cuts — and were verified against the dev server
+(`docs/browser-verification-cut-words.md`).
+
 **Production matches `master` as of 2026-10-04 with the joinery round live** (phase 2,
 follow-up 171). The bundle went from `index-B2Yuq550.js` to `index-Ci7lVCzJ.js`, and the CSS is
 unchanged (`index-DqhKBEnY.css`), because the dialog reuses the existing overlay classes. The
