@@ -180,3 +180,36 @@ describe('buildDiagrams', () => {
     expect(views[0].cuts).toEqual([]);
   });
 });
+
+describe('buildDiagrams — stopped cuts', () => {
+  const only = (cut: Cut) => buildDiagrams(board(cut), 16)[0].cuts[0];
+
+  it('adds no stop labels to a cut that is not stopped', () => {
+    const c = only(dado());
+    expect(c.stopMinLabel).toBeUndefined();
+    expect(c.stopMaxLabel).toBeUndefined();
+    expect(c.lengthLabel).toBeUndefined();
+  });
+
+  it('labels one stop and the cut\'s own length', () => {
+    const c = only(dado({ stopMax: 1 }));
+    expect(c.stopMinLabel).toBeUndefined();
+    expect(c.stopMaxLabel).toBe('1"');
+    expect(c.lengthLabel).toBe('4-1/2"');
+  });
+
+  it('labels both stops of a mortise', () => {
+    const c = only(dado({ stopMin: 1, stopMax: 1.5 }));
+    expect(c.stopMinLabel).toBe('1"');
+    expect(c.stopMaxLabel).toBe('1-1/2"');
+    expect(c.lengthLabel).toBe('3"');
+    expect(c.kind).toBe('mortise');
+  });
+
+  it('draws a stopped cut as its rectangle', () => {
+    // Broad face: horizontal = length, vertical = width (the across axis here).
+    const c = only(dado({ stopMin: 1, stopMax: 1.5 }));
+    expect(c.h).toEqual([6, 6.75]);
+    expect(c.v).toEqual([1, 4]);
+  });
+});

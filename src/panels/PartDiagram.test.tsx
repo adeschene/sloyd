@@ -328,6 +328,18 @@ describe('PartDiagram', () => {
     const xs = ticks.map((l) => Number(l.getAttribute('x1'))).sort((a, b) => a - b);
     expect(xs[1]).toBeCloseTo(Number(cell.getAttribute('x')), 10);
   });
+
+  it('draws a cut whose stops cross without a NaN anywhere', () => {
+    // A Board built directly (bypassing the loader), as a shortened board
+    // reaches it mid-session: the region is empty, nothing is removed.
+    const v = buildDiagrams(createBoard({ cuts: [dado({ stopMin: 4, stopMax: 3 })] }), 16)[0];
+    const { container } = render(<PartDiagram view={v} />);
+    for (const el of container.querySelectorAll('*')) {
+      for (const attr of el.getAttributeNames()) {
+        expect(el.getAttribute(attr), `${el.tagName} ${attr}`).not.toMatch(/NaN/);
+      }
+    }
+  });
 });
 
 /**
@@ -474,6 +486,45 @@ describe('PartDiagram label collisions — the seven sweep geometries', () => {
       dado({ id: 'a', across: 'width', offset: 6, width: 0.75, depth: 0.125 }),
       dado({ id: 'b', across: 'length', offset: 4, width: 0.75, depth: 0.375 }),
     ] }));
+  });
+
+  it('9 blind mortise — a stopped horizontal-axis cut adds a stop COLUMN', () => {
+    const container = draw({ cuts: [dado({ stopMin: 1, stopMax: 1.5 })] });
+    check(container);
+    const texts = [...container.querySelectorAll('.cutlist-diagram-leader-v text')].map((t) => t.textContent);
+    expect(texts).toEqual(['1"', '3"', '1-1/2"']);
+  });
+
+  it('10 stopped dado — one stop draws one stop label and the length', () => {
+    const container = draw({ cuts: [dado({ stopMax: 1 })] });
+    check(container);
+    const texts = [...container.querySelectorAll('.cutlist-diagram-leader-v text')].map((t) => t.textContent);
+    expect(texts).toEqual(['4-1/2"', '1"']);
+  });
+
+  it('11 a stopped vertical-axis cut adds a stop ROW', () => {
+    // across: 'length' makes this cut positioned along width (a column); its
+    // stops run along length, the horizontal axis, so they are a row.
+    const container = draw({ length: 24, width: 12, cuts: [
+      dado({ across: 'length', offset: 4, width: 0.75, stopMin: 2, stopMax: 3 }),
+    ] });
+    check(container);
+    const rows = [...container.querySelectorAll('g.cutlist-diagram-leader:not(.cutlist-diagram-leader-v)')];
+    const stopRow = rows.find((g) => [...g.querySelectorAll('text')].some((t) => t.textContent === '19"'));
+    expect(stopRow, 'the stop row carries the 19" length').toBeDefined();
+    expect([...stopRow!.querySelectorAll('text')].map((t) => t.textContent)).toEqual(['2"', '19"', '3"']);
+  });
+
+  it('12 crowded stops — a mortise with sixteenth stops still never overlaps', () => {
+    check(draw({ cuts: [dado({ stopMin: 0.0625, stopMax: 0.0625 })] }));
+  });
+
+  it('13 a stopped cut on a sliver view (edge face) never overlaps or bleeds', () => {
+    check(draw({ cuts: [dado({ face: 'width', across: 'length', offset: 0.25, width: 0.25, stopMin: 2, stopMax: 2 })] }));
+  });
+
+  it('14 a mortise and an unstopped dado together', () => {
+    check(draw({ width: 12, cuts: [dado({ id: 'm', stopMin: 2, stopMax: 2 }), dado({ id: 'd', offset: 14 })] }));
   });
 });
 

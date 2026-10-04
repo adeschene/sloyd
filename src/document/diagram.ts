@@ -28,6 +28,12 @@ export interface DiagramCut {
   widthLabel: string;
   /** From `cutLabel`. Representative, not consensus — see spec section 8. */
   kind: CutKind;
+  /** e.g. `1"` — how far short of the across axis's min end. Present only when > 0. */
+  stopMinLabel?: string;
+  /** How far short of the across axis's max end. Present only when > 0. */
+  stopMaxLabel?: string;
+  /** The cut's own extent along `across`. Present exactly when the cut is stopped. */
+  lengthLabel?: string;
 }
 
 export interface DiagramView {
@@ -65,7 +71,8 @@ const capitalise = (d: Dimension): string => d[0].toUpperCase() + d.slice(1);
  * both were used, each showing one cut and neither showing where they cross.
  * Keying on the face itself means both in-plane dimensions are always drawn —
  * the earlier in `DIMENSION_ORDER` horizontal, the later vertical — and every
- * cut is a band running fully across whichever of the two is its `across`,
+ * cut is a band along whichever of the two is its `across` (fully across it
+ * unless stopped),
  * positioned along whichever is its implied position axis (`axis: 'h' | 'v'`
  * on the cut records which). `from` DOES split a view now: near and far sides
  * of one face are physically different surfaces, so each gets its own
@@ -130,6 +137,13 @@ export function buildDiagrams(board: Board, precision: number): DiagramView[] {
       offsetLabel: f(cut.offset),
       widthLabel: f(cut.width),
       kind: cutLabel(board, cut),
+      // Assembled here, never in the panel: the measured string and the drawn
+      // string must be the same string (invariant 19).
+      ...(cut.stopMin > 0 ? { stopMinLabel: f(cut.stopMin) } : {}),
+      ...(cut.stopMax > 0 ? { stopMaxLabel: f(cut.stopMax) } : {}),
+      ...(cut.stopMin > 0 || cut.stopMax > 0
+        ? { lengthLabel: f(region[cut.across][1] - region[cut.across][0]) }
+        : {}),
     });
   }
 
