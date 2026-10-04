@@ -1,4 +1,4 @@
-import type { Board, Cut, Dimension, Region, Span } from './types';
+import { MATERIALS, type Board, type Cut, type Dimension, type Region, type Span } from './types';
 import { axisDimensions, boardExtents, DIMENSION_ORDER, positionAxisOf } from './geometry';
 
 /**
@@ -444,7 +444,8 @@ export type CutKind =
   | 'dado' | 'rabbet'
   | 'stopped dado' | 'stopped rabbet'
   | 'mortise' | 'through mortise'
-  | 'notch' | 'blind dado';
+  | 'notch' | 'blind dado'
+  | 'groove' | 'stopped groove' | 'blind groove';
 
 /**
  * The OLD table (stopped-cuts spec §4.1). Used only for a cut that removes
@@ -540,6 +541,31 @@ function tableWord(board: Board, cut: Cut, span: (d: Dimension) => Span, ext: (d
   return cut.depth > narrow && long <= 8 * cut.depth ? 'mortise' : 'blind dado';
 }
 
+/** Spec §3: the with-grain name of each channel word. Every other word has none. */
+const GROOVE: Partial<Record<CutKind, CutKind>> = {
+  dado: 'groove', 'stopped dado': 'stopped groove', 'blind dado': 'blind groove',
+};
+
+/**
+ * Whether a material has a grain direction for `groove` to follow. Read off the
+ * material table, not a list of names: a sheet whose stock rotates freely
+ * (MDF) has none, so a new grainless sheet good follows by declaring that.
+ */
+function hasGrain(material: string): boolean {
+  return MATERIALS[material]?.sheet?.rotate !== 'free';
+}
+
+/**
+ * What a cut is called (cut-words spec §2): read from the OPENING its clipped
+ * box makes on the face it enters — which of the opening's four sides reach
+ * the board's edge, and its proportions. Derived only from the box, so one
+ * pocket stored two ways (either in-plane dimension as `across`) gets one
+ * word (fu 181). Open sides count stock-free strips, not only edges (§2.4);
+ * a full-thickness corner cut is a notch (§2.5); mortise vs blind dado is
+ * depth against length (§2.6). A channel running with the board's grain is a
+ * groove, not a dado (cut-lines spec §3). Also gives the run axis, position
+ * and stops that the cut-list line and drawing print (cut-lines spec §2.1).
+ */
 export function cutShape(board: Board, cut: Cut, solids: Region[] = boardSolids(board)): CutShape {
   const r = cutRegion(board, cut);
   const span = (d: Dimension): Span => [Math.max(0, r[d][0]), Math.min(board[d], r[d][1])];
@@ -548,8 +574,12 @@ export function cutShape(board: Board, cut: Cut, solids: Region[] = boardSolids(
   const run = runAxis(cut, ext, open);
   const pos = DIMENSION_ORDER.find((d) => d !== cut.face && d !== run)!;
   const along = span(run);
+  const table = cutRemovesNothing(board, cut) ? null : tableWord(board, cut, span, ext, open);
+  const word = table === null
+    ? fieldLabel(board, cut)
+    : run === board.grain && hasGrain(board.material) ? GROOVE[table] ?? table : table;
   return {
-    word: cutRemovesNothing(board, cut) ? fieldLabel(board, cut) : tableWord(board, cut, span, ext, open),
+    word,
     run,
     pos,
     at: span(pos),
