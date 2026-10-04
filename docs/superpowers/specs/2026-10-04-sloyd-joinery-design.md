@@ -97,8 +97,11 @@ dimensions faces the contact**: `axisDimensions(P)[k]`.
   receiving part frames the panel: a side at the back panel's edge. A shelf whose back edge meets
   the panel in its middle is not a rabbet site. It butts the panel and is trimmed when the panel
   moves (§4.5). Without this condition a bookcase's shelves would be rabbeted instead of trimmed.
-  "Reaches the panel's edge" means the contact's span on one of the panel's in-plane axes ends
-  within `TOUCH` of the panel's own end.
+  "Reaches the panel's edge" means the contact's span **along the receiving part's thickness
+  axis**, the direction the rabbet's trim acts, ends within `TOUCH` of the panel's own end on
+  that axis. This is a Task 5 review correction. "Any in-plane axis" accepted a centre partition,
+  whose contact spans the back's full height, and the trim then cut away half the back with no
+  check noticing.
 - **Why rule 3 needs a thin panel** (a correction made while writing the plan). Without the
   limit, a 3/4″ top resting on an apron's edge matches rule 3 exactly as a back panel on a
   side's edge does. Every table top would then be dropped into rabbets. Back and bottom panels
@@ -222,6 +225,14 @@ E is the panel. R is the part whose edge it covers.
 
 ### 4.6 Half-lap (crossing)
 
+**Corrections from the Task 5 review:**
+- **E drops at most once per face.** Every crossing E has on that face is notched, whatever
+  the site order. In a stretcher grid, without this rule the second crossing is skipped and
+  parts are left interpenetrating.
+- **A move that would drive E into something else is skipped.** If anything other than E's
+  half-lap partners butts the face that moves, E's half-lap sites are skipped with the reason
+  `moving <E> would drive it into <X>`. This covers a rail that also rests on a block.
+
 The parts are the same thickness `t`.
 
 - **E moves** toward R by `t` along `k`, so both lie in one plane.
@@ -240,7 +251,11 @@ There are no sizes for the model to choose.
 - `moved` and `trimmed`: the names of parts moved and trimmed;
 - `sizeChange`: the overall X/Y/Z before and after.
 
-It changes no names, and adds and removes no parts. Recipes run in site order. A site whose
+It changes no names, and adds and removes no parts. **If the original design sat on the floor**
+(its lowest part at y = 0 within `TOUCH`), **everything is lowered back onto it** after the
+recipes run. Without this, a rabbeted bottom panel moves up into its frame, the whole piece
+lifts off the floor, and every part reports as unsupported and is blamed on the joinery. This
+is a Task 5 review correction. Recipes run in site order. A site whose
 parts an earlier site already moved is **recomputed from the current geometry**. It is not
 reused from the original contact.
 
