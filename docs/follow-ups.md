@@ -4163,7 +4163,7 @@ across and stop fields) shows Runs across: Length with stops 24 and 47-1/4.
   sheet to the shape.
 - **Remedies:** a read-only shape summary on the cut row, or an action that re-stores the cut in its
   shape's orientation.
-- **Status:** open, a decision for the user.
+- **Status:** CLOSED 2026-10-04 by the cut storage round, the user's ruling: joinery stores every cut the way the sheet reads it (`pocketFor` → `storedAsShape`), and a row stored the other way shows "The cut list reads this cut as running across the …" with a one-click **Match the cut list** (one undo step, same stock removed). No load-time rewrite.
 
 **196. A square opening prints one of two lines, depending on storage.** Spec §2.1 rule 3 breaks an
 exact tie in extents by the stored `across`, so a square notch or a square mortise stored two ways
@@ -4173,7 +4173,7 @@ prints two different (both true) lines.
   running across the length, stopped 6" short of the min end and 17-1/4" short of the max end`.
 - **Reach:** square corner notches (a shelf notched around a leg) are common.
 - **Remedy:** a shape-only tiebreak, e.g. prefer an axis with an open end, then `DIMENSION_ORDER`.
-- **Status:** open, a rule change for the user.
+- **Status:** CLOSED 2026-10-04 by the cut storage round, the user's ruling: on an exact tie a cut runs along the direction with exactly one open end, else length, width, thickness. `runAxis` no longer reads the stored `across`.
 
 **197. An overhanging cut's drawn band is unclipped but its labels are clipped.** `buildDiagrams`
 still draws `cutRegion` unclipped (`h`/`v`, unchanged by spec §2.4) while the labels now come from

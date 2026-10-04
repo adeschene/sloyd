@@ -411,6 +411,10 @@ src/
 │   │                       its word, and the setup line AND the drawing format from it,
 │   │                       never from stored fields (fu 192). `groove` when the run axis
 │   │                       is the grain on a material with grain (fu 193).
+│   │                       `storedAsShape` re-stores a sideways cut with across = its run (same stock;
+│   │                       an already-aligned cut comes back as the same object, so no float noise
+│   │                       splits rows). The run never reads the stored across, square ties included
+│   │                       (fu 196).
 │   │                       It and `cutLabel` take an optional precomputed `solids`
 │   │                       (one `boardSolids` per board) — skip it, cut list ~3.5×
 │   │                       slower. Home of
@@ -541,7 +545,8 @@ src/
 │       ├── pocket.ts       pocketFor: the ONE world box -> Cut converter (inv 41);
 │       │                   throws on a box removing the whole board; snaps within 1e-9
 │       │                   of 0 or a board end; `across` = most boundary contact, not
-│       │                   dimension order (a stopped dado read as a "notch")
+│       │                   dimension order (a stopped dado read as a "notch"), then stores it the way
+│       │                   the sheet reads it (`storedAsShape`, fu 195)
 │       ├── sites.ts        findSites / rangesOf. Rule 3 needs a thin panel (<= 1/2in)
 │       │                   and the contact reaching the panel's edge along the
 │       │                   RECEIVING part's thickness axis (a centre partition otherwise
@@ -1402,7 +1407,9 @@ worked examples behind several of them are in `docs/history.md`.
     because a pose mistake there is a plausible cut in the wrong place. It throws on a box
     that removes the whole board, snaps within 1e-9 of 0 or a board end, and takes `across`
     as the dimension with the most boundary contact (order alone mislabelled a stopped dado
-    a "notch"). `useJoinery` writes only through `createProject(doc, { activate: false })` —
+    a "notch"). That choice is then re-stored through `storedAsShape`, against the board WITH
+    its existing cuts, so a joined cut's stored `across` is the direction the cut sheet prints
+    (fu 195). `useJoinery` writes only through `createProject(doc, { activate: false })` —
     invariant 36 extended. And only problems the joinery INTRODUCED drive repairs:
     `runJoinery` checks the original and the joined design and compares problems by `kind`
     plus their `parts` names (the field exists for this), NEVER by message text, which

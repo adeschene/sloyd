@@ -21,9 +21,9 @@ export function boxOf(b: Board): WorldBox {
  * dimension where the clipped box reaches the board's boundary — the
  * shallowest such, ties to the earlier in DIMENSION_ORDER. `across` carries
  * the stops: the remaining dimension with the most boundary contact (full
- * span, then one end), ties to the earlier; the last is the position axis. `across` is then re-stored as the shape's run
- * (`storedAsShape`), so the stored form matches the cut sheet; the region is
- * unchanged.
+ * span, then one end), ties to the earlier; the last is the position axis.
+ * `across` is then re-stored as the shape's run (`storedAsShape`), so the
+ * stored form matches the cut sheet; the region is unchanged.
  *
  * A box touching no face is an enclosed void, which no cut can make. That is
  * a recipe bug, so this THROWS rather than returning something wrong.
@@ -73,8 +73,10 @@ export function pocketFor(board: Board, box: WorldBox): Cut {
     stopMin: local[across][0],
     stopMax: board[across] - local[across][1],
   };
-  // Stored the way the cut sheet reads it (cut-storage spec §3.2), seen on the
-  // board WITH its existing cuts, because another cut can open one of this
-  // cut's ends (the shelf housing beside the back rabbet). Same region.
+  // Stored the way the cut sheet reads it (cut-storage spec §3.2). The board's
+  // existing cuts matter: another cut can open one of this cut's ends (the
+  // shelf housing beside the back rabbet). Adding the new cut describes the
+  // board as it will be stored but does not change the result, since
+  // openSides only looks outside the cut's own opening. Same region.
   return storedAsShape({ ...board, cuts: [...board.cuts, cut] }, cut);
 }
