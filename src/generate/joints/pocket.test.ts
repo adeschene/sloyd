@@ -1,4 +1,4 @@
-import { createBoard } from '../../document/document';
+import { createBoard, createDocument, migrateDocument } from '../../document/document';
 import { stockProbe } from '../../document/cuts';
 import { axisDimensions } from '../../document/geometry';
 import type { Board, Posture, Rotation } from '../../document/types';
@@ -65,5 +65,40 @@ describe('pocketFor', () => {
   it('throws on a box that misses the board', () => {
     const b = createBoard({ length: 6, width: 3, thickness: 1, position: [0, 0, 0] });
     expect(() => pocketFor(b, { min: [20, 20, 20], max: [21, 21, 21] })).toThrow(/misses/);
+  });
+
+  it('snaps a stop within EPS of a board end to exactly 0', () => {
+    const b = createBoard({ length: 6, width: 3, thickness: 1, position: [0.3, 0.1, 0.7] });
+    const e = boxOf(b);
+    // length spans the whole X; thickness-Y pocket from the top; max-X 1e-12 short of the end
+    const cut = pocketFor(b, { min: [e.min[0] + 2, e.max[1] - 0.5, e.min[2] + 0.25], max: [e.max[0] - 1e-12, e.max[1] + 1, e.min[2] + 0.75] });
+    expect(cut.stopMax).toBe(0);
+    expect(cut.stopMin).toBeGreaterThan(0);
+  });
+
+  it('throws on a box that removes the whole board', () => {
+    const b = createBoard({ length: 6, width: 3, thickness: 1, position: [0, 0, 0] });
+    expect(() => pocketFor(b, { min: [-1, -1, -1], max: [9, 9, 9] })).toThrow(/removes the whole of/);
+  });
+
+  it('a stopped dado on a posed board: across is the dimension reaching one end, and the cut survives migration', () => {
+    const b = createBoard({ length: 6, width: 3, thickness: 1, posture: 'upright', rotation: 90, position: [1, 2, 3] });
+    const dims = axisDimensions(b);
+    // local box: thickness [0.5,1] (face), width [0,1] (one end), length [2,3] (interior)
+    const range = { thickness: [0.5, 1], width: [0, 1], length: [2, 3] } as const;
+    const box: WorldBox = {
+      min: [0, 1, 2].map((i) => b.position[i] + range[dims[i]][0]) as WorldBox['min'],
+      max: [0, 1, 2].map((i) => b.position[i] + range[dims[i]][1]) as WorldBox['max'],
+    };
+    const cut = pocketFor(b, box);
+    expect(cut.across).toBe('width');
+    expect(Math.min(cut.stopMin, cut.stopMax)).toBe(0);
+    expect(Math.max(cut.stopMin, cut.stopMax)).toBeGreaterThan(0);
+    const doc = { ...createDocument(), boards: [{ ...b, cuts: [cut] }] };
+    const back = migrateDocument(JSON.parse(JSON.stringify(doc))).boards[0].cuts[0];
+    for (const k of ['offset', 'width', 'depth', 'stopMin', 'stopMax'] as const) expect(back[k]).toBe(cut[k]);
+    expect(back.across).toBe(cut.across);
+    expect(back.face).toBe(cut.face);
+    expect(back.from).toBe(cut.from);
   });
 });

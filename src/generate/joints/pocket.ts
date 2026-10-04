@@ -30,13 +30,19 @@ export function pocketFor(board: Board, box: WorldBox): Cut {
   const dims = axisDimensions(board);
   const local = {} as Record<Dimension, [number, number]>;
   dims.forEach((d, i) => {
+    // Snap within EPS to the exact ends, so a non-dyadic coordinate cannot
+    // leave a 1e-16 stop that validateCuts keeps and cutLabel calls a notch.
+    const snap = (v: number) => (Math.abs(v) <= EPS ? 0 : Math.abs(v - board[d]) <= EPS ? board[d] : v);
     local[d] = [
-      Math.max(0, box.min[i] - board.position[i]),
-      Math.min(board[d], box.max[i] - board.position[i]),
+      snap(Math.max(0, box.min[i] - board.position[i])),
+      snap(Math.min(board[d], box.max[i] - board.position[i])),
     ];
   });
   if (DIMENSION_ORDER.some((d) => local[d][1] - local[d][0] <= EPS)) {
     throw new Error(`pocketFor: the box misses ${board.name}`);
+  }
+  if (DIMENSION_ORDER.every((d) => local[d][0] <= EPS && local[d][1] >= board[d] - EPS)) {
+    throw new Error(`pocketFor: the box removes the whole of ${board.name}`);
   }
   const atMin = (d: Dimension) => local[d][0] <= EPS;
   const atMax = (d: Dimension) => local[d][1] >= board[d] - EPS;
