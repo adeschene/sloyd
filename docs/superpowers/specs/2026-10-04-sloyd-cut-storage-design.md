@@ -77,9 +77,11 @@ A new export in `cuts.ts`. It returns the same cut re-stored with `across = cutS
 one's. Clipping only drops stored overhang that removed nothing. The stops are always ≥ 0
 because the spans are clipped.
 
-**When it is the identity.** If the cut is already stored with `across === run` and has no
-overhang, the result is field-for-field equal to the input. A caller can therefore test
-`cut.across !== shape.run` to decide whether to offer the change.
+**When it is the identity.** A cut already stored with `across === run` is returned UNCHANGED,
+the same object, overhang and all. Recomputing its fields would not be exact: `(offset + width) −
+offset` is not `width` for a decimal such as 0.1 + 0.2 (found while planning). Only a sideways cut is
+re-stored, from the clipped opening. A caller therefore tests `cut.across !== shape.run` to decide
+whether to offer the change.
 
 **It is meaningful only for a cut that removes stock.** For one that removes nothing it returns the
 cut unchanged.
@@ -145,8 +147,10 @@ regrouped by shape in this round.
   - for each case it gives the same clipped region (`cutRegion` clipped, compared per axis) and
     the same `cutShape` as the input;
   - its `across` is the run;
-  - it is field-for-field the identity on a cut already stored the way it runs;
-  - it drops overhang: a cut at offset −1/4, width 1 becomes offset 0, width 3/4.
+  - it returns the very same object for a cut already stored the way it runs, including a
+    decimal one (offset 0.1, width 0.2);
+  - re-storing a sideways cut drops overhang: the dado stored across the length with its width
+    span hanging 1/2″ past the near edge comes back with stops 0 and 0.
 
   Cases: 192's housing (stored across the length, with the back rabbet), the two-storage dado,
   the stopped dado, the mortise and the edge notch.
