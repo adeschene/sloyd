@@ -146,7 +146,87 @@ export function applyJoints(doc: SloydDocument, sites: Site[], choices: JointCho
 
 type State = { moved: Set<string>; trimmed: Set<string>; movedFace: Map<number, string>; rabbetReceivers: Set<string> };
 
-/** Task 5 fills this in: rabbet and half-lap. */
-function rest(joint: JointKind, _site: Site, _boards: Board[], _state: State, _c: JointChoice): void {
-  throw new Error(`applyJoints: ${joint} is not built yet`);
+function rest(joint: JointKind, site: Site, boards: Board[], state: State, c: JointChoice): void {
+  if (joint === 'rabbet') rabbet(site, boards, state, c.depth!);
+  else if (joint === 'half-lap') halfLap(site, boards, state);
+  else throw new Error(`applyJoints: unknown joint ${joint}`);
+}
+
+/**
+ * Rabbet (spec §4.5). The panel moves ONCE toward its receivers by its own
+ * thickness, and every OTHER part butting the face that moves is shortened by
+ * the same amount first — otherwise the back drives into the shelves. Each
+ * receiver gets a rabbet t deep from its edge and r in from its inner face,
+ * and the panel is trimmed back to the rabbet line.
+ */
+function rabbet(site: Site, boards: Board[], state: State, r: number) {
+  const E = boards[site.enter];
+  const R = boards[site.receive];
+  const k = site.axis;
+  const side = site.side;
+  const t = E.thickness;
+  const faceKey = `${k}|${side}`;
+  const rb = boxOf(R);
+
+  if (state.movedFace.get(site.enter) !== faceKey) {
+    const eb = boxOf(E);
+    const plane = side === 1 ? eb.max[k] : eb.min[k];
+    boards.forEach((X, i) => {
+      if (i === site.enter || i === site.receive) return;
+      const xb = boxOf(X);
+      const xFace = side === 1 ? xb.min[k] : xb.max[k];
+      const sharesFace = [0, 1, 2].filter((a) => a !== k)
+        .every((a) => Math.min(eb.max[a], xb.max[a]) - Math.max(eb.min[a], xb.min[a]) > TOUCH);
+      // Rabbet receivers of this panel keep their length; everyone else
+      // butting the moving face is shortened on that face.
+      if (Math.abs(xFace - plane) <= TOUCH && sharesFace && !state.rabbetReceivers.has(`${site.enter}->${i}`)) {
+        resize(X, k, (side === 1 ? -1 : 1) as -1 | 1, -t);
+        state.trimmed.add(X.name);
+      }
+    });
+    E.position[k] += side * t;
+    state.moved.add(E.name);
+    state.movedFace.set(site.enter, faceKey);
+  }
+
+  const P = side === -1 ? rb.max[k] : rb.min[k];
+  const kSpan: [number, number] = side === -1 ? [P - t, P] : [P, P + t];
+  const nAx = axisDimensions(R).indexOf('thickness');
+  const q = [0, 1, 2].find((a) => a !== k && a !== nAx)!;
+  const eb = boxOf(E);
+  const inner = (eb.min[nAx] + eb.max[nAx]) / 2 >= (rb.min[nAx] + rb.max[nAx]) / 2 ? 'max' : 'min';
+  const nSpan: [number, number] = inner === 'max' ? [rb.max[nAx] - r, rb.max[nAx]] : [rb.min[nAx], rb.min[nAx] + r];
+  const qSpan: [number, number] = [Math.max(eb.min[q], rb.min[q]), Math.min(eb.max[q], rb.max[q])];
+  R.cuts.push(pocketFor(R, withSpans(rb, { [k]: kSpan, [nAx]: nSpan, [q]: qSpan })));
+
+  if (inner === 'max' && eb.min[nAx] < nSpan[0] - 1e-9) {
+    resize(E, nAx, -1, -(nSpan[0] - eb.min[nAx]));
+    state.trimmed.add(E.name);
+  } else if (inner === 'min' && eb.max[nAx] > nSpan[1] + 1e-9) {
+    resize(E, nAx, 1, -(eb.max[nAx] - nSpan[1]));
+    state.trimmed.add(E.name);
+  }
+}
+
+/**
+ * Half-lap (spec §4.6). E — the part on the +axis side — drops by t into R's
+ * plane; each is notched by half where they cross, E on R's original side.
+ */
+function halfLap(site: Site, boards: Board[], state: State) {
+  const E = boards[site.enter];
+  const R = boards[site.receive];
+  const k = site.axis;
+  const side = site.side;
+  E.position[k] += side * E.thickness;
+  state.moved.add(E.name);
+  const eb = boxOf(E);
+  const rb = boxOf(R);
+  const mid = (rb.min[k] + rb.max[k]) / 2;
+  const lower: [number, number] = [rb.min[k], mid];
+  const upper: [number, number] = [mid, rb.max[k]];
+  const cross = (a: number): [number, number] => [Math.max(eb.min[a], rb.min[a]), Math.min(eb.max[a], rb.max[a])];
+  const [p, q] = [0, 1, 2].filter((a) => a !== k);
+  const crossing = { [p]: cross(p), [q]: cross(q) };
+  E.cuts.push(pocketFor(E, withSpans(eb, { ...crossing, [k]: side === -1 ? lower : upper })));
+  R.cuts.push(pocketFor(R, withSpans(rb, { ...crossing, [k]: side === -1 ? upper : lower })));
 }

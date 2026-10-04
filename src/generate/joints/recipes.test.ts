@@ -166,3 +166,65 @@ describe('purity', () => {
     expect(JSON.stringify(doc)).toBe(before);
   });
 });
+
+describe('rabbet: the back panel moves into rabbets, and is trimmed back to the rabbet line', () => {
+  const doc = design(
+    { name: 'Left', at: [0, 0, 0], size: [0.75, 30, 11.25] },
+    { name: 'Right', at: [20.75, 0, 0], size: [0.75, 30, 11.25] },
+    { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 11.25] },
+    { name: 'Back', at: [0, 0, 11.25], size: [21.5, 30, 0.25] },
+  );
+  const sites = findSites(doc);
+  const choices = sites.map((s) => s.kind === 'face-against-edge'
+    ? { site: s.id, joint: 'rabbet' as const, depth: 0.375 }
+    : { site: s.id, joint: 'butt' as const });
+  const out = applyJoints(doc, sites, choices);
+  const z = (name: string) => { const b = board(out.doc, name); const o = board(doc, name); return [b.position[2] - o.position[2]]; };
+
+  it('finds two rabbet sites, one per side', () => {
+    expect(sites.filter((s) => s.kind === 'face-against-edge')).toHaveLength(2);
+  });
+
+  it('moves the back ONCE, by its own thickness, toward the sides', () => {
+    expect(z('Back')).toEqual([-0.25]);
+    expect(out.moved).toEqual(['Back']);
+  });
+
+  it('trims the back to the rabbet lines: inner width plus two rabbet depths', () => {
+    // Between the sides is 20in; each rabbet reaches 3/8in into a side.
+    expect(board(out.doc, 'Back').width).toBe(20.75);
+  });
+
+  it('trims the shelf that butted the back by the back\'s thickness', () => {
+    expect(board(out.doc, 'Shelf').width).toBe(11);
+    expect(out.trimmed.sort()).toEqual(['Back', 'Shelf']);
+  });
+
+  it('rabbets each side, no overlap anywhere, and reports the piece 1/4in shallower', () => {
+    for (const name of ['Left', 'Right']) {
+      const b = board(out.doc, name);
+      expect(b.cuts.map((c) => cutLabel(b, c))).toEqual(['rabbet']);
+    }
+    expect(checkDesign(out.doc, limits(out.doc)).filter((v) => v.kind === 'overlap')).toEqual([]);
+    expect(out.sizeBefore[2] - out.sizeAfter[2]).toBe(0.25);
+  });
+});
+
+describe('half-lap', () => {
+  const doc = design(
+    { name: 'Lower', at: [0, 5, 9], size: [20, 0.75, 2] },
+    { name: 'Upper', at: [9, 5.75, 0], size: [2, 0.75, 20] },
+  );
+  const out = applyJoints(doc, findSites(doc), [{ site: 1, joint: 'half-lap' }]);
+
+  it('drops the upper part into the lower one\'s plane, notches both by half, no overlap', () => {
+    expect(board(out.doc, 'Upper').position[1]).toBe(board(out.doc, 'Lower').position[1]);
+    expect(board(out.doc, 'Upper').cuts).toHaveLength(1);
+    expect(board(out.doc, 'Lower').cuts).toHaveLength(1);
+    expect(checkDesign(out.doc, limits(out.doc)).filter((v) => v.kind === 'overlap')).toEqual([]);
+    const notch = 2 * 2 * 0.375;
+    expect(boxVolume(out.doc, 'Lower') - volume(out.doc, 'Lower')).toBeCloseTo(notch, 9);
+    expect(boxVolume(out.doc, 'Upper') - volume(out.doc, 'Upper')).toBeCloseTo(notch, 9);
+    expect(out.moved).toEqual(['Upper']);
+  });
+});
