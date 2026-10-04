@@ -716,3 +716,24 @@ describe('tapeAxisFromKey', () => {
     }
   });
 });
+
+describe('cutSnapPoints — a cut that removes nothing offers nothing (follow-up 178)', () => {
+  // `posed` is 24 x 6 x 1. Invariant 16: a snap point must sit on a feature
+  // that is actually drawn, and a cut that removes nothing draws nothing.
+  it('offers nothing for a cut whose offset sits exactly at the board end', () => {
+    expect(cutSnapPoints(posed([{ ...DADO, offset: 24 }]))).toEqual([]);
+  });
+
+  it('offers nothing for a cut whose stops cross', () => {
+    expect(cutSnapPoints(posed([{ ...DADO, stopMin: 4, stopMax: 3 }]))).toEqual([]);
+  });
+
+  it('still offers a live cut\'s points beside one that removes nothing', () => {
+    // Two boards, so two owner ids: compare where and what, not whose.
+    const strip = (pts: ReturnType<typeof cutSnapPoints>) => pts.map((p) => [p.kind, ...p.at]);
+    const live = strip(cutSnapPoints(posed([DADO])));
+    const both = strip(cutSnapPoints(posed([DADO, { ...DADO, id: 'c2', offset: 24 }])));
+    expect(live).toHaveLength(15);
+    expect(both).toEqual(live);
+  });
+});
