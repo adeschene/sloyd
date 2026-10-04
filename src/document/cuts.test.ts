@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
-import { boardEdges, boardSolids, cutLabel, openSides, cutRegion, cutRemovesNothing, solidWorldBox, stockProbe, wholeBoard } from './cuts';
+import { boardEdges, boardSolids, cutLabel, cutShape, openSides, cutRegion, cutRemovesNothing, solidWorldBox, stockProbe, wholeBoard } from './cuts';
 import type { Board, Cut, Dimension, Region } from './types';
 
 /** A 24 x 5-1/2 x 3/4 flat board with whatever cuts are given. */
@@ -505,9 +505,9 @@ describe('cutLabel names the opening (cut-words spec §2)', () => {
     expect(cutLabel(b, acrossWidth)).toBe('stopped rabbet');
   });
 
-  it('ties: a square pocket on an edge is a notch; a pocket as deep as wide is a blind dado', () => {
+  it('ties: a square pocket on an edge is a notch; a pocket as deep as wide, running with the grain, is a blind groove', () => {
     expect(cutLabel(b, c({ across: 'length', offset: 0, width: 0.75, stopMin: 10, stopMax: 13.25 }))).toBe('notch');
-    expect(cutLabel(b, c({ across: 'length', offset: 2, width: 0.5, depth: 0.5, stopMin: 10, stopMax: 12 }))).toBe('blind dado');
+    expect(cutLabel(b, c({ across: 'length', offset: 2, width: 0.5, depth: 0.5, stopMin: 10, stopMax: 12 }))).toBe('blind groove');
   });
 
   it('a cut that removes nothing keeps its old-table word', () => {
@@ -593,13 +593,112 @@ describe('a mortise is a deep hole, not a long channel (cut-words spec §2.6)', 
     expect(pocket({ length: 34, width: 1.75, thickness: 1.75 },
       { id: 'm', face: 'width', from: 'max', across: 'length', offset: 0.5, width: 0.5, depth: 1.25, stopMin: 28, stopMax: 1.5 })).toBe('mortise');
   });
-  it('a 30in back groove 1/4 wide and 3/8 deep is a blind dado', () => {
+  it('a 30in back groove 1/4 wide and 3/8 deep (with the grain) is a blind groove', () => {
     expect(pocket({ length: 72, width: 11.25, thickness: 0.75 },
-      { id: 'g', face: 'thickness', from: 'min', across: 'length', offset: 1, width: 0.25, depth: 0.375, stopMin: 2, stopMax: 40 })).toBe('blind dado');
+      { id: 'g', face: 'thickness', from: 'min', across: 'length', offset: 1, width: 0.25, depth: 0.375, stopMin: 2, stopMax: 40 })).toBe('blind groove');
   });
   it('exactly 8× its depth is still a mortise', () => {
     // Opening 1/4 × 4, depth 1/2: 4 = 8 × 1/2.
     expect(pocket({ length: 34, width: 1.75, thickness: 1.75 },
       { id: 'm', face: 'width', from: 'max', across: 'length', offset: 0.5, width: 0.25, depth: 0.5, stopMin: 10, stopMax: 20 })).toBe('mortise');
+  });
+});
+
+describe('cutShape: one description, whichever way the cut is stored (cut-lines spec §2.1)', () => {
+  // The default board is 24 (length) x 5-1/2 (width) x 3/4 (thickness), grain along the length.
+  const b = (cuts: Cut[] = []) => withCuts(cuts);
+  const cut = (c: Partial<Cut>): Cut => ({ ...DADO, ...c });
+  const same = (c1: Cut, c2: Cut) => expect(cutShape(b([c1]), c1)).toEqual(cutShape(b([c2]), c2));
+
+  it('a dado: runs along the axis it passes through, either storage', () => {
+    const s = cutShape(b([DADO]), DADO);
+    expect(s).toEqual({ word: 'dado', run: 'width', pos: 'length', at: [6, 6.75], along: [0, 5.5], stopMin: null, stopMax: null });
+    same(DADO, cut({ across: 'length', offset: 0, width: 5.5, stopMin: 6, stopMax: 17.25 }));
+  });
+
+  it('a rabbet: either storage', () => {
+    const r = cut({ offset: 0 });
+    expect(cutShape(b([r]), r)).toMatchObject({ word: 'rabbet', run: 'width', pos: 'length', at: [0, 0.75] });
+    same(r, cut({ across: 'length', offset: 0, width: 5.5, stopMin: 0, stopMax: 23.25 }));
+  });
+
+  it('a stopped dado runs toward its open edge and stops at the closed one', () => {
+    const s = cut({ stopMax: 1 });
+    expect(cutShape(b([s]), s)).toEqual({ word: 'stopped dado', run: 'width', pos: 'length', at: [6, 6.75], along: [0, 4.5], stopMin: null, stopMax: 1 });
+    same(s, cut({ across: 'length', offset: 0, width: 4.5, stopMin: 6, stopMax: 17.25 }));
+  });
+
+  it('a mortise runs along its long side, with both stops', () => {
+    const m = cut({ across: 'length', offset: 2, width: 0.5, depth: 0.625, stopMin: 6, stopMax: 15 });
+    expect(cutShape(b([m]), m)).toEqual({ word: 'mortise', run: 'length', pos: 'width', at: [2, 2.5], along: [6, 9], stopMin: 6, stopMax: 15 });
+    same(m, cut({ across: 'width', offset: 6, width: 3, depth: 0.625, stopMin: 2, stopMax: 3 }));
+  });
+
+  it('a square closed opening runs along the stored across (rule 3), so it is stable', () => {
+    const sq = cut({ offset: 6, width: 1, stopMin: 2, stopMax: 2.5 });
+    expect(cutShape(b([sq]), sq).run).toBe('width');
+    const sq2 = cut({ across: 'length', offset: 2, width: 1, stopMin: 6, stopMax: 17 });
+    expect(cutShape(b([sq2]), sq2).run).toBe('length');
+  });
+
+  it('the axis open at both ends wins even when the other extent is longer (rule 1)', () => {
+    const wide = cut({ offset: 2, width: 20 });
+    expect(cutShape(b([wide]), wide)).toMatchObject({ run: 'width', pos: 'length', at: [2, 22], along: [0, 5.5], stopMin: null, stopMax: null });
+  });
+
+  it('an end opened by another cut is open: no stop there', () => {
+    const backRabbet: Cut = { id: 'r', face: 'width', from: 'min', across: 'length', offset: 0.375, width: 0.375, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const housing: Cut = { id: 'h', face: 'thickness', from: 'max', across: 'length', offset: 0.25, width: 10.25, depth: 0.25, stopMin: 24, stopMax: 47.25 };
+    const side = createBoard({ length: 72, width: 11.25, thickness: 0.75, cuts: [backRabbet, housing] });
+    expect(cutShape(side, housing)).toEqual({
+      word: 'stopped dado', run: 'width', pos: 'length', at: [24, 24.75], along: [0.25, 10.5], stopMin: null, stopMax: 0.75,
+    });
+  });
+
+  it('a cut that removes nothing keeps its old word and does not throw', () => {
+    const gone = cut({ offset: 30 });
+    expect(() => cutShape(b([gone]), gone)).not.toThrow();
+    expect(cutLabel(b([gone]), gone)).toBe(cutShape(b([gone]), gone).word);
+  });
+});
+
+describe('groove: a channel running with the grain (cut-lines spec §3)', () => {
+  // The default board's grain runs along its length. A channel on the broad
+  // face running along the length: face thickness, across length.
+  const along = (c: Partial<Cut> = {}): Cut => ({ ...DADO, across: 'length', offset: 2, width: 0.75, ...c });
+  const word = (board: Partial<Board>, c: Cut) => cutLabel(createBoard({ ...board, cuts: [c] }), c);
+
+  it('with the grain on pine is a groove; across it is a dado', () => {
+    expect(word({}, along())).toBe('groove');
+    expect(word({}, DADO)).toBe('dado');
+  });
+
+  it('turning the board\'s grain turns the word', () => {
+    expect(word({ grain: 'width' }, along())).toBe('dado');
+    expect(word({ grain: 'width' }, DADO)).toBe('groove');
+  });
+
+  it('plywood has grain; MDF does not', () => {
+    expect(word({ material: 'plywood' }, along())).toBe('groove');
+    expect(word({ material: 'mdf' }, along())).toBe('dado');
+  });
+
+  it('stopped and blind versions', () => {
+    expect(word({}, along({ stopMax: 1 }))).toBe('stopped groove');
+    expect(word({}, along({ stopMin: 1, stopMax: 1 }))).toBe('blind groove');
+  });
+
+  it('a panel groove in a rail\'s EDGE is a groove', () => {
+    const edge: Cut = { id: 'g', face: 'width', from: 'max', across: 'length', offset: 0.25, width: 0.25, depth: 0.375, stopMin: 0, stopMax: 0 };
+    expect(word({}, edge)).toBe('groove');
+  });
+
+  it('a rabbet and a mortise with the grain keep their words', () => {
+    expect(word({}, along({ offset: 0 }))).toBe('rabbet');
+    expect(word({}, along({ width: 0.5, depth: 0.625, stopMin: 6, stopMax: 15 }))).toBe('mortise');
+  });
+
+  it('a cut that removes nothing stays on the old table', () => {
+    expect(word({}, along({ offset: 30 }))).not.toMatch(/groove/);
   });
 });

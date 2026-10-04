@@ -1,7 +1,7 @@
 import { MATERIALS, isSheetGood, sheetStockOf } from './types';
 import type { Board, Cut, Grain, Region, SloydDocument } from './types';
-import { positionAxisOf } from './geometry';
-import { CUT_GEOMETRY_KEYS, boardSolids, cutLabel, cutsThatRemoveStock, openSides } from './cuts';
+import { CUT_GEOMETRY_KEYS, boardSolids, cutShape, cutsThatRemoveStock } from './cuts';
+import type { CutShape } from './cuts';
 import { findTenons } from './tenons';
 import type { Tenon } from './tenons';
 import { buildDiagrams } from './diagram';
@@ -158,40 +158,39 @@ function cutSignature(cuts: Cut[]): string {
 }
 
 /**
- * The setup line's tail for a stopped cut, or '' for one that runs fully
- * across — so an unstopped cut prints byte-for-byte as it did before stops
- * existed.
+ * The setup line's tail: one stop for each CLOSED end of the cut's run axis,
+ * or '' (cut-lines spec §2.2). An end with no stock in the gap — the board's
+ * edge, or another cut's opening — is open and prints nothing, so a dado,
+ * groove or rabbet, which runs through, can never carry a stop.
  */
-function stopClause(board: Board, cut: Cut, f: (n: number) => string, solids: Region[]): string {
-  if (cut.stopMin <= 0 && cut.stopMax <= 0) return '';
-  // A stop whose end has no stock in the gap prints nothing (spec §2.4).
-  const o = openSides(board, cut, solids)[cut.across];
-  const min = cut.stopMin > 0 && !o.min;
-  const max = cut.stopMax > 0 && !o.max;
-  if (min && max) {
-    return `, stopped ${f(cut.stopMin)} short of the min end and ${f(cut.stopMax)} short of the max end`;
+function stopClause(s: CutShape, f: (n: number) => string): string {
+  if (s.stopMin !== null && s.stopMax !== null) {
+    return `, stopped ${f(s.stopMin)} short of the min end and ${f(s.stopMax)} short of the max end`;
   }
-  if (min) return `, stopped ${f(cut.stopMin)} short of the min end`;
-  if (max) return `, stopped ${f(cut.stopMax)} short of the max end`;
+  if (s.stopMin !== null) return `, stopped ${f(s.stopMin)} short of the min end`;
+  if (s.stopMax !== null) return `, stopped ${f(s.stopMax)} short of the max end`;
   return '';
 }
 
 /**
- * One cut as a line you can read at the bench.
+ * One cut as a line you can read at the bench, written from its SHAPE
+ * (`cutShape`), never its stored fields: one pocket can be stored two ways,
+ * and the line must not depend on which (follow-up 192). The drawing beside it
+ * formats the same `CutShape` (diagram.ts), which is what keeps the two in
+ * agreement.
  *
- * Takes the board, not just the cut, because `cutLabel` needs it — dado versus
- * rabbet depends on where the cut sits in the board's dimensions. That is why
- * setup lines are built during grouping, while the board is in hand, rather
- * than reconstructed later from a CutListRow, which carries no board.
+ * Takes the board, not just the cut, because the shape depends on the board's
+ * dimensions and its other cuts. That is why setup lines are built during
+ * grouping, while the board is in hand.
  */
 function setupLine(board: Board, cut: Cut, precision: number, solids: Region[]): string {
   const f = (n: number) => formatLength(n, precision);
-  const pos = positionAxisOf(cut.face, cut.across);
+  const s = cutShape(board, cut, solids);
   return (
-    `${f(cut.width)} ${cutLabel(board, cut, solids)}, ${f(cut.depth)} deep — ` +
+    `${f(s.at[1] - s.at[0])} ${s.word}, ${f(cut.depth)} deep — ` +
     `into the ${cut.face} face (${cut.from} side), ` +
-    `${f(cut.offset)} from the ${pos} min end, running across the ${cut.across}` +
-    stopClause(board, cut, f, solids)
+    `${f(s.at[0])} from the ${s.pos} min end, running across the ${s.run}` +
+    stopClause(s, f)
   );
 }
 

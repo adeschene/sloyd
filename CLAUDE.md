@@ -24,7 +24,7 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **1492/1492 tests passing across 54 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
+Static SPA, containerized, **1519/1519 tests passing across 55 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **7**.
 
 **PRODUCTION MATCHES `master` as of 2026-10-04 with the cut words round live** — bundle `index-Cw_EeWuY.js`, CSS `index-DqhKBEnY.css` (unchanged), merge commit `8c9be52`, **schema 7**. Before it the same day: joinery `index-Ci7lVCzJ.js` (`d2a14ac`), phantom cut `index-B2Yuq550.js` (`e7bf3bc`), stopped cuts `index-CoHIAVxf.js` (`c054ede`), which bumped the schema to 7 (rolling back past it strands v7 documents; export first). Before it, 2026-10-03: key check `index-BhhW2iNw.js` (`d0ba83b`), held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
@@ -40,6 +40,8 @@ Claude drives the dev server and the user supervises. Results are in
 `docs/browser-verification-generate.md`. 6 of 6 generations completed. It left two
 findings: 164, a batch converging on one design, now CLOSED (below); and 165, a support
 check that passes a badly supported part, still open.
+
+**The cut lines round (follow-ups 192–194, 2026-10-04) is on branch `cutlines`, live-checked by the user, NOT yet merged.** `cutShape` is the one description of a cut; the setup line and the drawing both format from it, and a with-grain channel says `groove` (`docs/browser-verification-cut-lines.md`). No schema change. Its open questions are follow-ups 195–197.
 
 **The cut words round (follow-ups 180, 181, 189, 2026-10-04) is merged AND deployed.** Words only: a cut is named from the stock actually left around its opening, a tenon prints as one line (`docs/browser-verification-cut-words.md`). No schema change.
 
@@ -250,6 +252,7 @@ show it. Prefer a readout where one suffices; add an image when the finding is s
 | phantom cut | 10-04 | — | *no spec* — fu 178: a cut a board edit has left removing nothing is hidden from the cut list, drawings and snap points, and flagged on its row; kept, not dropped |
 | joinery | 10-04 | — | "Add joinery…": sites found by code, one model call chooses, `pocketFor` recipes build mortise and tenon / dado / stopped dado / rabbet / half-lap into a new unactivated project (invs 38 rewritten, 41) |
 | cut words | 10-04 | — | fu 180/181/189: a cut is named from its OPENING, open meaning NO STOCK left (`openSides`), so one shape gets one word; `findTenons` prints a tenon as one line; corner notch; mortise by depth:length |
+| cut lines | 10-04 | — | fu 192/193 (194 by decision): `cutShape` is the ONE description of a cut (word, run axis, position, stops at closed ends); the setup line AND the drawing format from it, never stored fields; `groove` with the grain, solid wood and plywood |
 
 ### The deployment rule, stated once
 
@@ -401,8 +404,13 @@ src/
 │   │                       reaching the edge + proportions; cut-words spec §2).
 │   │                       One box, one word; a cut removing nothing keeps the
 │   │                       old table. `openSides`: open = no stock between a side
-│   │                       and the edge; read by `cutLabel` AND the setup line's
-│   │                       stop clause (one helper, word and stops cannot differ).
+│   │                       and the edge; called only inside `cutShape`, which the
+│   │                       word, the setup line and the drawing all read.
+│   │                       `cutShape` is the ONE description of a cut (word, run axis,
+│   │                       position, stops at closed ends, as numbers); `cutLabel` is
+│   │                       its word, and the setup line AND the drawing format from it,
+│   │                       never from stored fields (fu 192). `groove` when the run axis
+│   │                       is the grain on a material with grain (fu 193).
 │   │                       It and `cutLabel` take an optional precomputed `solids`
 │   │                       (one `boardSolids` per board) — skip it, cut list ~3.5×
 │   │                       slower. Home of
@@ -413,13 +421,17 @@ src/
 │   ├── cutlist.ts          buildCutList (inv 18). STOCK, NOT REMAINDER — `cuts`
 │   │                       ignored, because a dado does not reduce the board you buy;
 │   │                       accumulates EXACT stock, never qty × rounded dimensions.
+│   │                       The setup line is formatted from `cutShape`, never from
+│   │                       stored `across`/`offset`/`width`/stops (fu 192).
 │   │                       `cutSignature` is derived from `CUT_GEOMETRY_FIELDS`
 │   │                       in cuts.ts, checked against `Cut` by `satisfies` (inv 40)
 │   ├── depthField.ts       buildDepthField (inv 20). Reads its rectangles
 │   │                       from `cutRegion` — it once rebuilt them with the across
 │   │                       span hard-coded to full length
 │   ├── diagram.ts          buildDiagrams — one view per (face, from), so
-│   │                       perpendicular cuts on a face draw together
+│   │                       perpendicular cuts on a face draw together. Its labels
+│   │                       are formatted from `cutShape`, never from stored
+│   │                       `across`/`offset`/`width`/stops (fu 192)
 │   ├── nesting.ts          buildNesting — shelf FFD, because guillotine cuttability
 │   │                       is a DOMAIN FACT, not a quality tier. `formatDims` is
 │   │                       the ONE home of `length × width` here, shared by the
@@ -1403,7 +1415,7 @@ worked examples behind several of them are in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 1492 tests across 54 files
+npm test           # Vitest, currently 1519 tests across 55 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1413,7 +1425,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is the authoritative list** — 1-194, consciously deferred rather
+**`docs/follow-ups.md` is the authoritative list** — 1-197, consciously deferred rather
 than missed, each written up in place with its closure where it has one. Read the entries
 for the area you are about to touch before starting; several are "correct but untested",
 which is exactly what a refactor breaks silently.
@@ -1490,7 +1502,7 @@ The handful worth knowing without opening that file:
   Settings' Save: the free verification call saves anyway on anything but a 401/403, and
   **there is deliberately no prefix rule** (a working key does not start with `sk-ant-api`).
 - **171** — joinery is BUILT (2026-10-04, "Add joinery…"); refine by instruction is now **179**.
-  Read invariants 38 and 41, and follow-ups 180–194 (180, 181 and 189 are closed by the cut words round; the round's residues: cut-list words for a
+  Read invariants 38 and 41, and follow-ups 180–194 (180, 181 and 189 are closed by the cut words round, 192–194 by the cut lines round; the round's residues: cut-list words for a
   tenon and a closed shelf housing, the default-tenon cap's edges, opposite-face tenons,
   half-lap stacks), before touching `generate/joints/`.
 - **178** — CLOSED 2026-10-04. A cut a board edit has left removing nothing is hidden from

@@ -44,7 +44,7 @@ const VIEW_W = DRAW_WIDTH + RIGHT;
  * One measured run beside the outline. A cut's POSITION leader (offset run,
  * band, then depth with no run of its own) or, for a stopped cut, its STOP
  * leader in the other orientation (near-stop run, band, far-stop run) — the
- * stops measure along `across`, perpendicular to the position.
+ * stops measure along the cut's RUN axis, perpendicular to the position.
  *
  * Every string arrives from `buildDiagrams`; this formats nothing.
  */
@@ -136,7 +136,7 @@ const labelItems = (l: Leader, lo: number, hi: number, b: { start: number; size:
  * meaningful — placing it beside the band is honest about that.
  *
  * A STOPPED cut adds a second leader in the OTHER orientation — its stops
- * measure along `across`, which is perpendicular to its position — so a
+ * measure along the cut's run axis, which is perpendicular to its position — so a
  * stopped horizontal-axis cut gets a column and a stopped vertical-axis cut a
  * row. Leaders, not cuts, are what get a row or a column now; position leaders
  * come first, so a diagram with no stopped cut draws exactly as it did before
@@ -163,7 +163,7 @@ export function PartDiagram({ view }: { view: DiagramView }) {
   const vCuts = view.cuts.filter((c) => c.axis === 'v');
   // Position leaders first, in their existing order, so every unstopped
   // diagram draws exactly as before; a stopped cut's stop leader is appended
-  // in the OTHER orientation (its stops run along `across`).
+  // in the OTHER orientation (its stops run along the cut's run axis).
   const rowLeaders: Leader[] = [
     ...hCuts.map((c) => positionLeader(c, c.h)),
     ...vCuts.map((c) => stopLeader(c, c.h)).filter(present),

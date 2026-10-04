@@ -4138,17 +4138,46 @@ word (`cutLabel`) now comes from the clipped box's opening (spec §2.7).
   the length that spans the full width prints `11-1/4" dado … stopped 24" short of …`. A random
   search by the Task 5 reviewer found this in 4 of 1,389 `dado` labels. It happens because the
   stops sit on `across` while the open pair is the position axis.
-- **Status:** open, low. Writing the line from the shape would remove the class.
+- **Status:** CLOSED 2026-10-04 by the cut lines round. `cutShape` describes a cut by its opening (run axis, position, stops at closed ends); the setup line and the drawing both format from it, so one shape prints one line whichever way it is stored, and a through word can no longer carry a stop. The drawing was found to print the same stored numbers while planning and was changed with the line (spec §2.4).
 
 **193. Grain-aware words: `groove` with the grain, `dado` across it.** Woodworking usage names a
 channel running with the grain a groove and one running across it a dado. `cutLabel` has no grain
 input, so it says `dado` for both.
 - **Basis:** the research behind the round (a groove runs with the grain, a dado across it).
-- **Status:** deferred, a vocabulary decision for the user.
+- **Status:** CLOSED 2026-10-04 by the cut lines round, the user's ruling: a channel whose run axis is the board's grain says `groove` / `stopped groove` / `blind groove`, on solid wood and plywood; MDF (a sheet with free rotation) has no grain and keeps `dado`.
 
 **194. Two boards a hair apart in exact length share a cut-list row but can differ in tenons.**
 They collapse at display precision (invariant 18), yet `findTenons` may recognise a tenon on one
 and not the other. The first-listed board decides the row's lines.
 - **Reach:** effectively unreachable, since the tenon cap (ℓ ≤ L/2) puts the boundary far from
   any hair's-breadth difference. The same class as follow-up 55a.
+- **Status:** CLOSED 2026-10-04 by decision, the user's ruling, with no code: follow-up 55a's ruling covers it (a row is decided at display precision and its first board's lines represent it).
+
+## From the cut lines round — 2026-10-04
+
+**195. Properties shows the stored cut while the sheet shows its shape.** For follow-up 192's
+housing (stored across the side's length), the sheet now says "running across the width, stopped
+3/4" short of the max end", while the cut's Properties row (`src/panels/Properties.tsx`, the Runs
+across and stop fields) shows Runs across: Length with stops 24 and 47-1/4.
+- **Before:** both described the stored form, so they agreed. The cut lines round moved only the
+  sheet to the shape.
+- **Remedies:** a read-only shape summary on the cut row, or an action that re-stores the cut in its
+  shape's orientation.
+- **Status:** open, a decision for the user.
+
+**196. A square opening prints one of two lines, depending on storage.** Spec §2.1 rule 3 breaks an
+exact tie in extents by the stored `across`, so a square notch or a square mortise stored two ways
+prints two different (both true) lines.
+- **Example:** the same edge notch prints `3/4" notch … 6" from the length min end, running across
+  the width, stopped 4-3/4" short of the max end` or `3/4" notch … 0" from the width min end,
+  running across the length, stopped 6" short of the min end and 17-1/4" short of the max end`.
+- **Reach:** square corner notches (a shelf notched around a leg) are common.
+- **Remedy:** a shape-only tiebreak, e.g. prefer an axis with an open end, then `DIMENSION_ORDER`.
+- **Status:** open, a rule change for the user.
+
+**197. An overhanging cut's drawn band is unclipped but its labels are clipped.** `buildDiagrams`
+still draws `cutRegion` unclipped (`h`/`v`, unchanged by spec §2.4) while the labels now come from
+the clipped `CutShape`, e.g. `h: [-0.5, 0.5]` labelled offset `0"`, width `1/2"`.
+- **Reach:** shrinking a board under an end rabbet.
+- **Remedy:** clip `h`/`v` to the board.
 - **Status:** open, low.
