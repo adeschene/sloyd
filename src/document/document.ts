@@ -13,6 +13,8 @@ export { uniqueName, dedupeNames } from './names';
 export { boardEdges, boardSolids, CUT_GEOMETRY_FIELDS, CUT_GEOMETRY_KEYS, cutLabel, cutRegion, cutRemovesNothing, cutsThatRemoveStock, pointToLocalXYZ, solidWorldBox, wholeBoard } from './cuts';
 export type { CutKind, Point, Segment } from './cuts';
 export { buildCutList } from './cutlist';
+export { findTenons } from './tenons';
+export type { Tenon } from './tenons';
 export type { CutList, CutListGroup, CutListRow } from './cutlist';
 export { buildDiagrams } from './diagram';
 export type { DiagramCut, DiagramView } from './diagram';
@@ -492,5 +494,3 @@ export function migrateDocument(raw: unknown): SloydDocument {
     ),
   };
 }
-export { findTenons } from './tenons';
-export type { Tenon } from './tenons';

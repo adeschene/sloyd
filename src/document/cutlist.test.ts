@@ -453,3 +453,35 @@ describe('sheet nesting on the cut list', () => {
       .toEqual([0, 0, 0, 12.125]);
   });
 });
+
+describe('tenons on the sheet (fu 180)', () => {
+  const dado = (): Cut => ({
+    id: 'c1', face: 'thickness', from: 'min', across: 'width',
+    offset: 6, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0,
+  });
+  const cheek = (id: string, from: 'min' | 'max', end: 'min' | 'max'): Cut => ({
+    id, face: 'thickness', from, across: 'width', offset: end === 'min' ? 0 : 23, width: 1, depth: 0.25, stopMin: 0, stopMax: 0,
+  });
+  const shoulder = (id: string, from: 'min' | 'max', end: 'min' | 'max'): Cut => ({
+    id, face: 'width', from, across: 'thickness', offset: end === 'min' ? 0 : 23, width: 1, depth: 0.5, stopMin: 0, stopMax: 0,
+  });
+  const tenon = (end: 'min' | 'max', p: string) =>
+    [cheek(`${p}1`, 'min', end), cheek(`${p}2`, 'max', end), shoulder(`${p}3`, 'min', end), shoulder(`${p}4`, 'max', end)];
+
+  it('prints one line per tenon, replacing its shoulder lines', () => {
+    // The default board is 24 × 5-1/2 × 3/4: tenon 1 long, 1/4 thick, 4-1/2 wide.
+    const list = buildCutList(docWith({ cuts: [...tenon('min', 'a'), ...tenon('max', 'b')] }));
+    expect(list.groups[0].rows[0].setup).toEqual([
+      '1" tenon, 1/4" thick × 4-1/2" wide — at the length min end',
+      '1" tenon, 1/4" thick × 4-1/2" wide — at the length max end',
+    ]);
+  });
+
+  it('prints a dado beside a tenon exactly as before', () => {
+    const list = buildCutList(docWith({ cuts: [...tenon('min', 'a'), dado()] }));
+    expect(list.groups[0].rows[0].setup).toEqual([
+      '1" tenon, 1/4" thick × 4-1/2" wide — at the length min end',
+      '3/4" dado, 1/4" deep — into the thickness face (min side), 6" from the length min end, running across the width',
+    ]);
+  });
+});

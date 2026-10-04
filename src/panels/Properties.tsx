@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store/store';
-import { MATERIALS, uniqueName, isSheetGood, cutLabel, cutRemovesNothing, positionAxisOf } from '../document/document';
+import { MATERIALS, uniqueName, isSheetGood, cutLabel, cutRemovesNothing, findTenons, positionAxisOf } from '../document/document';
 import { DimensionField } from './DimensionField';
 import { NameField } from './NameField';
 import { formatLength } from '../units/length';
@@ -24,6 +24,7 @@ function CutRow({ board, cut, precision }: { board: Board; cut: Cut; precision: 
   const updateCut = useStore((s) => s.updateCut);
   const removeCut = useStore((s) => s.removeCut);
   const [error, setError] = useState<string | null>(null);
+  const word = findTenons(board).some((t) => t.cutIds.includes(cut.id)) ? 'tenon shoulder' : cutLabel(board, cut);
   // Bumped whenever a patch is refused. The three DimensionFields below are
   // keyed on it, so a refusal remounts them: each field's own `commit()` has
   // already optimistically set its local text to the (rejected) typed value
@@ -160,9 +161,9 @@ function CutRow({ board, cut, precision }: { board: Board; cut: Cut; precision: 
   return (
     <div className="cut">
       <div className="row cut-head">
-        <span className="cut-label">{cutLabel(board, cut)}</span>
+        <span className="cut-label">{word}</span>
         <button
-          aria-label={`Remove cut (${cutLabel(board, cut)}, offset ${formatLength(cut.offset, precision)})`}
+          aria-label={`Remove cut (${word}, offset ${formatLength(cut.offset, precision)})`}
           onClick={() => removeCut(board.id, cut.id)}
         >
           Remove
