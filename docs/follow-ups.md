@@ -3974,3 +3974,31 @@ stops add a second way in. **Open by decision, for the user:** the remedy is a d
 — hide the cut from the sheet, flag it on the row, or drop it at the edit — and none was
 chosen. A shared "region is empty" test in `cutlist.ts` and `diagram.ts` is the obvious
 mechanism whichever is picked.
+
+**CLOSED 2026-10-04 by the phantom-cut round, using the user's pick: hide it from the sheet
+and flag it on the row.** Dropping it at the edit was rejected, because shrinking a board and
+growing it back is ordinary while sizing a part, and dropping would lose the joint.
+
+- **One test decides it.** `cutRemovesNothing(board, cut)` in `cuts.ts` is true when the
+  cut's box, CLIPPED to the board, has no volume.
+  - Clipping is the point. `cutRegion`'s all-zero sentinel covers crossed stops, but not an
+    offset past the end.
+  - It is written as `!(span > 0)`, so a NaN span counts as empty, which is what
+    `boardSolids` makes of it.
+  - It is asserted equal to "the solids are the whole board" for every case, in both
+    directions. The first version of that test never called the predicate (a review
+    finding).
+- **Its readers:**
+  - the cut list's setup lines and its row signature, so a board carrying such a cut groups
+    with an identical clean one;
+  - the diagrams;
+  - and, at the user's word after the review, the snap points. Invariant 16: a cut that
+    removes nothing draws nothing, so it offers nothing. Before, a cut sitting exactly at the
+    board's end put shoulder points on the end face.
+- **What it does not touch:** the document, the 3D view, `boardUVSignature` (growing the
+  board back must rebuild the geometry), nesting and board feet.
+- **Properties.** The row keeps the cut and its fields, and shows a note: "This cut no longer
+  fits the board and removes nothing. It will be dropped when the project is reopened." The
+  last sentence is true: the loader drops every case the predicate reaches in the app. The
+  row's label still names the stored shape ("Dado"), which the user saw live and passed.
+- **Live pass:** `docs/browser-verification-phantom-cut.md`.

@@ -24,7 +24,7 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **1282/1282 tests passing across 45 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
+Static SPA, containerized, **1318/1318 tests passing across 45 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **7**.
 
 **PRODUCTION MATCHES `master` as of 2026-10-04 with the stopped cuts round live** — bundle `index-CoHIAVxf.js`, CSS `index-Co3i2lF7.css` (unchanged), merge commit `c054ede`, **schema 7** (rollback strands v7 documents; export first). Before it, 2026-10-03: key check `index-BhhW2iNw.js` (`d0ba83b`), held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
@@ -40,6 +40,11 @@ Claude drives the dev server and the user supervises. Results are in
 `docs/browser-verification-generate.md`. 6 of 6 generations completed. It left two
 findings: 164, a batch converging on one design, now CLOSED (below); and 165, a support
 check that passes a badly supported part, still open.
+
+**The phantom-cut round (follow-up 178, 2026-10-04) is verified live on branch `phantom`, NOT
+yet merged.** A cut a board edit has left removing nothing is hidden from the cut list, its
+drawings and the snap points, and flagged on its Properties row; it is kept, so growing the
+board back restores it (`docs/browser-verification-phantom-cut.md`). No schema change.
 
 **The stopped cuts round (2026-10-04) is merged AND deployed.**
 A `Cut` can stop short of either end (`stopMin`/`stopMax`), schema **7**, so mortises exist
@@ -237,6 +242,7 @@ show it. Prefer a readout where one suffices; add an image when the finding is s
 | held and stable | 10-03 | — | checkDesign reports a part that is not held and a piece that would tip (fu 165, inv 39) |
 | key check | 10-03 | — | *no spec* — fu 174: Settings shape-checks a key and verifies it with a free call before storing it; the auth error carries the API's reason. No prefix rule |
 | stopped cuts | 10-04 | 7 | a `Cut` stops short of either end (`stopMin`/`stopMax`): mortises, through mortises, stopped dados, notches. One field table, two readers (inv 40) |
+| phantom cut | 10-04 | — | *no spec* — fu 178: a cut a board edit has left removing nothing is hidden from the cut list, drawings and snap points, and flagged on its row; kept, not dropped |
 
 ### The deployment rule, stated once
 
@@ -380,6 +386,9 @@ src/
 │   │                       merge) / boardEdges (inv 16) / solidWorldBox / cutLabel /
 │   │                       stockProbe (boardEdges' rule from a segment to a point;
 │   │                       CLOSED spans, so a point on a split plane sees both sides).
+│   │                       `cutRemovesNothing` / `cutsThatRemoveStock`: a cut whose box,
+│   │                       CLIPPED to the board, has no volume (fu 178) — skipped by the
+│   │                       cut list, the diagrams and the snap points, kept in the document.
 │   │                       cutRegion honours `stopMin`/`stopMax` (crossed stops remove
 │   │                       nothing); `cutLabel` → `CutKind`, seven words derived
 │   │                       from the shape (stopped-cuts spec §4.1). Home of
@@ -1321,12 +1330,21 @@ worked examples behind several of them are in `docs/history.md`.
     with a list in a function body**, and do not add a field to the table's exclusions without
     a written reason.
 
+    **The table decides which FIELDS make two cuts the same; `cutsThatRemoveStock` decides
+    which CUTS are compared at all** (follow-up 178). A cut a board edit has left removing
+    nothing is left out of `cutSignature`, so it cannot split a row. The consequence that
+    reads like a bug and is not: the row key now depends on each board's EXACT dimensions
+    through that test, not only the display-rounded ones. A 10" board and a 10.02" board each
+    carrying a dado at offset 10.01 split into two rows that print the same size — correctly,
+    because one of them really has a sliver cut and the other has none. That is invariant
+    18's rule (round what is bought, never what is machined). Do not "fix" it by rounding.
+
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 1282 tests across 45 files
+npm test           # Vitest, currently 1318 tests across 45 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1414,9 +1432,10 @@ The handful worth knowing without opening that file:
   **there is deliberately no prefix rule** (a working key does not start with `sk-ant-api`).
 - **171** — phase 2, refine and joinery, the planned successor. Read invariant 38 first. The
   stopped cuts round (2026-10-04) landed first, so a tenon now has a mortise to sit in.
-- **178** — a cut a board shrink has left removing nothing (crossed stops, or an offset past
-  the end) is still printed on the cut list until reload. Pre-existing for dados; open BY
-  DECISION, for the user: hide, flag, or drop it.
+- **178** — CLOSED 2026-10-04. A cut a board edit has left removing nothing is hidden from
+  the cut list, its drawings and the snap points, and flagged on its Properties row; it is
+  KEPT, so growing the board back restores it. Read the closure before adding a reader of
+  `board.cuts` that prints or counts cuts: it should probably read `cutsThatRemoveStock`.
 - **26a** — **read this before touching anything in the viewport.** Browser verification on
   this host runs on software GL (llvmpipe, no GPU), which returns 1.0 for `pow(0.0, 0.0)`
   where real hardware returns NaN. That difference hid a grid bug completely — it looked

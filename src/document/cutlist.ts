@@ -1,7 +1,7 @@
 import { MATERIALS, isSheetGood, sheetStockOf } from './types';
 import type { Board, Cut, Grain, SloydDocument } from './types';
 import { positionAxisOf } from './geometry';
-import { CUT_GEOMETRY_KEYS, cutLabel } from './cuts';
+import { CUT_GEOMETRY_KEYS, cutLabel, cutsThatRemoveStock } from './cuts';
 import { buildDiagrams } from './diagram';
 import type { DiagramView } from './diagram';
 import { buildNesting } from './nesting';
@@ -217,7 +217,9 @@ function rowKey(board: Board, precision: number): string {
     f(board.length),
     f(board.width),
     board.grain,
-    cutSignature(board.cuts),
+    // A cut a board edit has left removing nothing changes nothing you cut,
+    // so it must not split a row (follow-up 178).
+    cutSignature(cutsThatRemoveStock(board)),
   ].join('|');
 }
 
@@ -290,7 +292,7 @@ export function buildCutList(doc: SloydDocument): CutList {
         // the noun is the representative's. Left as is deliberately: at the
         // precision the sheet is printed to, the representative's word is the
         // more useful one at the bench. Follow-up 55.
-        setup: board.cuts.map((cut) => setupLine(board, cut, precision)),
+        setup: cutsThatRemoveStock(board).map((cut) => setupLine(board, cut, precision)),
         diagrams: buildDiagrams(board, precision),
         stockInches: 0,
         stock: '',

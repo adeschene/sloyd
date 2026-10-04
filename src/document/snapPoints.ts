@@ -1,4 +1,4 @@
-import { boardSolids, cutRegion, stockProbe } from './cuts';
+import { boardSolids, cutRegion, cutRemovesNothing, stockProbe } from './cuts';
 import type { Point } from './cuts';
 import { axisDimensions, boardExtents, positionAxisOf } from './geometry';
 import type { Board, Cut, GuidePoint } from './types';
@@ -261,6 +261,11 @@ export function cutSnapPoints(board: Board): BoardSnapPoint[] {
 
   const out: BoardSnapPoint[] = [];
   for (const cut of board.cuts) {
+    // A cut a board edit has left removing nothing draws nothing, so it offers
+    // nothing (invariant 16). Without this, a cut sitting exactly at the board's
+    // end put shoulder points on the end face that stockProbe's closed spans
+    // keep, and crossed stops collapsed onto a box corner (follow-up 178).
+    if (cutRemovesNothing(board, cut)) continue;
     for (const { at, kind } of pointsOfCut(board, cut)) {
       if (!touchesStock(at)) continue;
       out.push({ kind, at: toWorld(board, at), owner });

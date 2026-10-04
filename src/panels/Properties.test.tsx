@@ -419,6 +419,25 @@ describe('cuts', () => {
     return id;
   };
 
+  it('flags a cut a board shrink has left removing nothing, and clears it when the board grows back (fu 178)', async () => {
+    const id = renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    // The default cut sits 6" along a 24" board; at 5" it lies past the end.
+    act(() => { useStore.getState().updateBoard(id, { length: 5 }); });
+    expect(screen.getByText(/no longer fits the board and removes nothing/i)).toBeInTheDocument();
+    // Kept, not dropped: its fields are still there to edit.
+    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.cuts).toHaveLength(1);
+    expect(screen.getByLabelText(/from the end/i)).toBeInTheDocument();
+    act(() => { useStore.getState().updateBoard(id, { length: 24 }); });
+    expect(screen.queryByText(/no longer fits the board/i)).not.toBeInTheDocument();
+  });
+
+  it('shows no note on an ordinary cut', async () => {
+    renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    expect(screen.queryByText(/no longer fits the board/i)).not.toBeInTheDocument();
+  });
+
   it('adds a cut and shows its controls', async () => {
     renderWithBoard();
     await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
