@@ -41,6 +41,12 @@ Claude drives the dev server and the user supervises. Results are in
 findings: 164, a batch converging on one design, now CLOSED (below); and 165, a support
 check that passes a badly supported part, still open.
 
+**The stopped cuts round (2026-10-04) is verified live on branch `stopped`, NOT yet merged.**
+A `Cut` can stop short of either end (`stopMin`/`stopMax`), schema **7**, so mortises exist
+for phase 2 (171) to write its overlap rule against. Verified against the dev server with the
+user watching (`docs/browser-verification-stopped-cuts.md`). Rolling it back strands v7 files;
+export first.
+
 **The key check round (follow-up 174, 2026-10-03) is merged AND deployed.** Settings refuses a key with whitespace or non-ASCII inside it,
 verifies a newly typed key with one free `GET /v1/models` before storing it, and an auth
 error now carries the API's own reason. There is **no prefix rule**, on purpose
@@ -230,6 +236,7 @@ show it. Prefer a readout where one suffices; add an image when the finding is s
 | batch variety | 10-03 | — | one planning call gives each run in a batch of 2–3 a contrasting concept (fu 164); a batch of 1 is unchanged |
 | held and stable | 10-03 | — | checkDesign reports a part that is not held and a piece that would tip (fu 165, inv 39) |
 | key check | 10-03 | — | *no spec* — fu 174: Settings shape-checks a key and verifies it with a free call before storing it; the auth error carries the API's reason. No prefix rule |
+| stopped cuts | 10-04 | 7 | a `Cut` stops short of either end (`stopMin`/`stopMax`): mortises, through mortises, stopped dados, notches. One field table, two readers (inv 40) |
 
 ### The deployment rule, stated once
 
@@ -1329,7 +1336,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is the authoritative list** — 1-177, consciously deferred rather
+**`docs/follow-ups.md` is the authoritative list** — 1-178, consciously deferred rather
 than missed, each written up in place with its closure where it has one. Read the entries
 for the area you are about to touch before starting; several are "correct but untested",
 which is exactly what a refactor breaks silently.
@@ -1405,7 +1412,11 @@ The handful worth knowing without opening that file:
 - **174** — CLOSED 2026-10-03 by the key check round. Read its closure before touching
   Settings' Save: the free verification call saves anyway on anything but a 401/403, and
   **there is deliberately no prefix rule** (a working key does not start with `sk-ant-api`).
-- **171** — phase 2, refine and joinery, the planned successor. Read invariant 38 first.
+- **171** — phase 2, refine and joinery, the planned successor. Read invariant 38 first. The
+  stopped cuts round (2026-10-04) landed first, so a tenon now has a mortise to sit in.
+- **178** — a cut a board shrink has left removing nothing (crossed stops, or an offset past
+  the end) is still printed on the cut list until reload. Pre-existing for dados; open BY
+  DECISION, for the user: hide, flag, or drop it.
 - **26a** — **read this before touching anything in the viewport.** Browser verification on
   this host runs on software GL (llvmpipe, no GPU), which returns 1.0 for `pow(0.0, 0.0)`
   where real hardware returns NaN. That difference hid a grid bug completely — it looked

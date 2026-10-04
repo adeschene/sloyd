@@ -190,6 +190,39 @@ and 79.
 
 ## What each round did
 
+**What the stopped cuts round did (2026-10-04)**: chosen by the user as the step before
+phase 2 (follow-up 171). Their question was whether the joint vocabulary should grow before
+phase 2 does. The answer: a `Cut` could already express dados, rabbets, grooves, half-laps,
+tenons (as four rabbets), bridle slots and finger joints. It could not express anything that
+**stops short**, so there was no mortise for a tenon to sit in. Without one, 171's "overlap
+accounted for by a cut" rule would be written against the wrong joint set.
+
+- **What changed:**
+  - `Cut` gains `stopMin`/`stopMax`, and the schema goes to v7. The bump is argued from
+    **wrong geometry**: a v6 build would show a blind mortise as a through-dado.
+  - `cutRegion` honours the stops.
+  - `cutLabel` names seven shapes, with the vocabulary set by the user.
+  - The cut list prints the stops, and its drawings label them on a second leader.
+  - A cut's mouth now offers its whole opening as snap points.
+  - Properties gains two "Stop short of…" fields.
+- **The user's rulings:** labels derived from the shape; entry as two stop distances; stops
+  labelled on the drawing, not only in text.
+- **Reviews caught three plan-supplied test gaps and one real defect:**
+  1. The 2D/3D agreement test probed only cell centres, so it passed with the old
+     full-length hatch (invariant 20).
+  2. Four mutations to the new stop leader all survived the plan's drawing tests.
+  3. The final whole-branch review found `boardUVSignature`, BoardMesh's memo key, still
+     building its cut part from a hand-written list without the stops. A stop edit would
+     never reach the 3D view until a reload.
+     - That last one is why invariant 40 names **two** readers.
+     - It is also why the field table now lives in `cuts.ts` (`CUT_GEOMETRY_FIELDS`).
+  4. The same review also found a Properties cut row that locked after a board shrink. It is
+     fixed: the "leave no cut" refusal fires only on a transition into that state.
+- **Deferred:** a cut a shrink has left removing nothing is still printed until reload, as a
+  shrunken dado already was. That is follow-up 178, open for the user's decision.
+- **Live pass:** `docs/browser-verification-stopped-cuts.md`. It includes a stop edit and its
+  undo redrawing without a reload, and a tenon snapped into a mortise with zero overlap.
+
 **What the key check round did (2026-10-03)**: follow-up 174, a bounded round with a design
 approved in chat and no spec. During the batch variety live pass, three pastes into Settings
 were saved and then rejected by the API one call later. The error said only "check
