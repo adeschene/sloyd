@@ -550,6 +550,19 @@ describe('open means no stock (cut-words spec §2.4)', () => {
     expect(cutLabel(b, b.cuts[1])).toBe('stopped dado');
   });
 
+  // The mirror: a rabbet at width-max, removing width [11, 11.25] x thickness [3/8, 3/4].
+  const frontRabbet = (): Cut => backRabbet({ from: 'max' });
+  it('a housing running out into a rabbet at the MAX side is a dado', () => {
+    const b = side(frontRabbet(), housing({ stopMin: 0, stopMax: 0.25 }));
+    expect(openSides(b, b.cuts[1]).width).toEqual({ min: true, max: true });
+    expect(cutLabel(b, b.cuts[1])).toBe('dado');
+  });
+  it('the same pair with the min end stopped 3/4 is a stopped dado', () => {
+    const b = side(frontRabbet(), housing({ stopMin: 0.75, stopMax: 0.25 }));
+    expect(openSides(b, b.cuts[1]).width).toEqual({ min: false, max: true });
+    expect(cutLabel(b, b.cuts[1])).toBe('stopped dado');
+  });
+
   it('a housing stopped at the front and open into the rabbet is a stopped dado; with no rabbet a blind dado', () => {
     expect(cutLabel(side(backRabbet(), housing({ stopMax: 0.75 })), housing({ stopMax: 0.75 }))).toBe('stopped dado');
     expect(cutLabel(side(housing({ stopMax: 0.75 })), housing({ stopMax: 0.75 }))).toBe('blind dado');
@@ -569,7 +582,7 @@ describe('a full-thickness corner cut is a notch (cut-words spec §2.5)', () => 
   });
   it('a full-thickness strip along a whole edge is not a notch', () => {
     const cut: Cut = { id: 'n', face: 'width', from: 'max', across: 'length', offset: 0, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
-    expect(cutLabel(shelf(cut), cut)).not.toBe('notch');
+    expect(cutLabel(shelf(cut), cut)).toBe('rabbet');
   });
 });
 

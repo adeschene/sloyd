@@ -421,10 +421,9 @@ export const FLUSH_EPSILON = 1e-9;
  * strip; a side that runs out into another cut's removed space has a strip
  * with no stock. The `face` entry is always closed (it is the depth axis).
  */
-export function openSides(board: Board, cut: Cut): Record<Dimension, { min: boolean; max: boolean }> {
+export function openSides(board: Board, cut: Cut, solids: Region[] = boardSolids(board)): Record<Dimension, { min: boolean; max: boolean }> {
   const r = cutRegion(board, cut);
   const span = (d: Dimension): Span => [Math.max(0, r[d][0]), Math.min(board[d], r[d][1])];
-  const solids = boardSolids(board);
   const noStock = (strip: Region) =>
     DIMENSION_ORDER.some((d) => strip[d][1] - strip[d][0] <= FLUSH_EPSILON) ||
     !solids.some((s) => DIMENSION_ORDER.every((d) => Math.min(s[d][1], strip[d][1]) - Math.max(s[d][0], strip[d][0]) > FLUSH_EPSILON));
@@ -481,7 +480,7 @@ function fieldLabel(board: Board, cut: Cut): CutKind {
  * a full-thickness corner cut is a notch (§2.5); mortise vs groove is depth
  * against length (§2.6).
  */
-export function cutLabel(board: Board, cut: Cut): CutKind {
+export function cutLabel(board: Board, cut: Cut, solids: Region[] = boardSolids(board)): CutKind {
   if (cutRemovesNothing(board, cut)) return fieldLabel(board, cut);
   const r = cutRegion(board, cut);
   const [a, b] = DIMENSION_ORDER.filter((d) => d !== cut.face);
@@ -491,7 +490,7 @@ export function cutLabel(board: Board, cut: Cut): CutKind {
     (span(d)[0] <= FLUSH_EPSILON ? 1 : 0) + (span(d)[1] >= board[d] - FLUSH_EPSILON ? 1 : 0);
   // Spec §2.5: a full-thickness cut at a corner of the broad face.
   if (ends('thickness') === 2 && ends('length') === 1 && ends('width') === 1) return 'notch';
-  const open = openSides(board, cut);
+  const open = openSides(board, cut, solids);
   const na = (open[a].min ? 1 : 0) + (open[a].max ? 1 : 0);
   const nb = (open[b].min ? 1 : 0) + (open[b].max ? 1 : 0);
   if (na + nb >= 3) return 'rabbet';

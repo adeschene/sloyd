@@ -1,7 +1,7 @@
 import { MATERIALS, isSheetGood, sheetStockOf } from './types';
-import type { Board, Cut, Grain, SloydDocument } from './types';
+import type { Board, Cut, Grain, Region, SloydDocument } from './types';
 import { positionAxisOf } from './geometry';
-import { CUT_GEOMETRY_KEYS, cutLabel, cutsThatRemoveStock, openSides } from './cuts';
+import { CUT_GEOMETRY_KEYS, boardSolids, cutLabel, cutsThatRemoveStock, openSides } from './cuts';
 import { findTenons } from './tenons';
 import type { Tenon } from './tenons';
 import { buildDiagrams } from './diagram';
@@ -162,9 +162,10 @@ function cutSignature(cuts: Cut[]): string {
  * across — so an unstopped cut prints byte-for-byte as it did before stops
  * existed.
  */
-function stopClause(board: Board, cut: Cut, f: (n: number) => string): string {
+function stopClause(board: Board, cut: Cut, f: (n: number) => string, solids: Region[]): string {
+  if (cut.stopMin <= 0 && cut.stopMax <= 0) return '';
   // A stop whose end has no stock in the gap prints nothing (spec §2.4).
-  const o = openSides(board, cut)[cut.across];
+  const o = openSides(board, cut, solids)[cut.across];
   const min = cut.stopMin > 0 && !o.min;
   const max = cut.stopMax > 0 && !o.max;
   if (min && max) {
@@ -183,14 +184,14 @@ function stopClause(board: Board, cut: Cut, f: (n: number) => string): string {
  * setup lines are built during grouping, while the board is in hand, rather
  * than reconstructed later from a CutListRow, which carries no board.
  */
-function setupLine(board: Board, cut: Cut, precision: number): string {
+function setupLine(board: Board, cut: Cut, precision: number, solids: Region[]): string {
   const f = (n: number) => formatLength(n, precision);
   const pos = positionAxisOf(cut.face, cut.across);
   return (
-    `${f(cut.width)} ${cutLabel(board, cut)}, ${f(cut.depth)} deep — ` +
+    `${f(cut.width)} ${cutLabel(board, cut, solids)}, ${f(cut.depth)} deep — ` +
     `into the ${cut.face} face (${cut.from} side), ` +
     `${f(cut.offset)} from the ${pos} min end, running across the ${cut.across}` +
-    stopClause(board, cut, f)
+    stopClause(board, cut, f, solids)
   );
 }
 
@@ -206,9 +207,10 @@ function setupLines(board: Board, precision: number): string[] {
   const owner = new Map(tenons.flatMap((t) => t.cutIds.map((id) => [id, t] as const)));
   const done = new Set<Tenon>();
   const lines: string[] = [];
+  const solids = boardSolids(board);
   for (const cut of cutsThatRemoveStock(board)) {
     const t = owner.get(cut.id);
-    if (!t) { lines.push(setupLine(board, cut, precision)); continue; }
+    if (!t) { lines.push(setupLine(board, cut, precision, solids)); continue; }
     if (!done.has(t)) { done.add(t); lines.push(tenonLine(t, precision)); }
   }
   return lines;

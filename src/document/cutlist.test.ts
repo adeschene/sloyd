@@ -503,6 +503,15 @@ describe('a stop with no stock in its gap is not printed (cut-words spec §2.4)'
     expect(setup([backRabbet, housing])[1]).toBe(
       '3/4" dado, 1/4" deep — into the thickness face (max side), 24" from the length min end, running across the width');
   });
+  const frontRabbet: Cut = { ...backRabbet, id: 'f', from: 'max' };
+  it('a housing running out into a rabbet at the max side prints no stop clause', () => {
+    expect(setup([frontRabbet, { ...housing, stopMin: 0, stopMax: 0.25 }])[1]).toBe(
+      '3/4" dado, 1/4" deep — into the thickness face (max side), 24" from the length min end, running across the width');
+  });
+  it('with the min end stopped 3/4 it prints only the min stop', () => {
+    expect(setup([frontRabbet, { ...housing, stopMin: 0.75, stopMax: 0.25 }])[1]).toBe(
+      '3/4" stopped dado, 1/4" deep — into the thickness face (max side), 24" from the length min end, running across the width, stopped 3/4" short of the min end');
+  });
   it('with no rabbet, the stop still prints', () => {
     expect(setup([housing])[0]).toBe(
       '3/4" stopped dado, 1/4" deep — into the thickness face (max side), 24" from the length min end, running across the width, stopped 1/4" short of the min end');

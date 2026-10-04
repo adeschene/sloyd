@@ -1,6 +1,6 @@
 import type { Board, CutFrom, Dimension, Span } from './types';
 import { DIMENSION_ORDER, positionAxisOf } from './geometry';
-import { cutLabel, cutRegion, cutRemovesNothing, type CutKind } from './cuts';
+import { boardSolids, cutLabel, cutRegion, cutRemovesNothing, type CutKind } from './cuts';
 import { buildDepthField, type FaceCell } from './depthField';
 import { formatLength } from '../units/length';
 
@@ -118,6 +118,7 @@ export function buildDiagrams(board: Board, precision: number): DiagramView[] {
     return view;
   };
 
+  const solids = boardSolids(board);
   for (const cut of board.cuts) {
     // A cut a board edit has left removing nothing is not drawn: there is no
     // stock for it to remove, and the 3D view already shows none (fu 178).
@@ -139,7 +140,7 @@ export function buildDiagrams(board: Board, precision: number): DiagramView[] {
       depthLabel: `${f(cut.depth)} deep`,
       offsetLabel: f(cut.offset),
       widthLabel: f(cut.width),
-      kind: cutLabel(board, cut),
+      kind: cutLabel(board, cut, solids),
       // Assembled here, never in the panel: the measured string and the drawn
       // string must be the same string (invariant 19).
       ...(cut.stopMin > 0 ? { stopMinLabel: f(cut.stopMin) } : {}),

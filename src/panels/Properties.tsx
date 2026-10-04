@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store/store';
-import { MATERIALS, uniqueName, isSheetGood, cutLabel, cutRemovesNothing, findTenons, positionAxisOf } from '../document/document';
+import { MATERIALS, uniqueName, isSheetGood, boardSolids, cutLabel, cutRemovesNothing, findTenons, positionAxisOf } from '../document/document';
 import { DimensionField } from './DimensionField';
 import { NameField } from './NameField';
 import { formatLength } from '../units/length';
-import type { Rotation, Posture, Grain, Board, Cut, Dimension } from '../document/document';
+import type { Rotation, Posture, Grain, Board, Cut, Dimension, Region } from '../document/document';
 
 const DIMENSION_LABEL: Record<Dimension, string> = {
   length: 'Length',
@@ -20,11 +20,11 @@ const DIMENSION_LABEL: Record<Dimension, string> = {
  * remounts via `key={board.id}`), so a stale error can never resurface on a
  * different cut, or on this one after a selection round-trip.
  */
-function CutRow({ board, cut, precision }: { board: Board; cut: Cut; precision: number }) {
+function CutRow({ board, cut, precision, solids }: { board: Board; cut: Cut; precision: number; solids: Region[] }) {
   const updateCut = useStore((s) => s.updateCut);
   const removeCut = useStore((s) => s.removeCut);
   const [error, setError] = useState<string | null>(null);
-  const word = findTenons(board).some((t) => t.cutIds.includes(cut.id)) ? 'tenon shoulder' : cutLabel(board, cut);
+  const word = findTenons(board).some((t) => t.cutIds.includes(cut.id)) ? 'tenon shoulder' : cutLabel(board, cut, solids);
   // Bumped whenever a patch is refused. The three DimensionFields below are
   // keyed on it, so a refusal remounts them: each field's own `commit()` has
   // already optimistically set its local text to the (rejected) typed value
@@ -252,6 +252,9 @@ export function Properties() {
 
   if (!board) return <p className="empty">Select a part to edit it.</p>;
 
+  // Once per render, shared by every CutRow's label (no memo key to go stale — inv 15).
+  const solids = boardSolids(board);
+
   const setPos = (axis: 0 | 1 | 2) => (v: number) => {
     const position = [...board.position] as [number, number, number];
     position[axis] = v;
@@ -347,7 +350,7 @@ export function Properties() {
           is derived from the geometry rather than chosen by the user. */}
       <h3>Cuts</h3>
       {board.cuts.map((cut) => (
-        <CutRow key={cut.id} board={board} cut={cut} precision={precision} />
+        <CutRow key={cut.id} board={board} cut={cut} precision={precision} solids={solids} />
       ))}
       <button onClick={() => addCut(board.id)}>Add cut</button>
 
