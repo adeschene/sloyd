@@ -4152,3 +4152,32 @@ and not the other. The first-listed board decides the row's lines.
 - **Reach:** effectively unreachable, since the tenon cap (ℓ ≤ L/2) puts the boundary far from
   any hair's-breadth difference. The same class as follow-up 55a.
 - **Status:** CLOSED 2026-10-04 by decision, the user's ruling, with no code: follow-up 55a's ruling covers it (a row is decided at display precision and its first board's lines represent it).
+
+## From the cut lines round — 2026-10-04
+
+**195. Properties shows the stored cut while the sheet shows its shape.** For follow-up 192's
+housing (stored across the side's length), the sheet now says "running across the width, stopped
+3/4" short of the max end", while the cut's Properties row (`src/panels/Properties.tsx`, the Runs
+across and stop fields) shows Runs across: Length with stops 24 and 47-1/4.
+- **Before:** both described the stored form, so they agreed. The cut lines round moved only the
+  sheet to the shape.
+- **Remedies:** a read-only shape summary on the cut row, or an action that re-stores the cut in its
+  shape's orientation.
+- **Status:** open, a decision for the user.
+
+**196. A square opening prints one of two lines, depending on storage.** Spec §2.1 rule 3 breaks an
+exact tie in extents by the stored `across`, so a square notch or a square mortise stored two ways
+prints two different (both true) lines.
+- **Example:** the same edge notch prints `3/4" notch … 6" from the length min end, running across
+  the width, stopped 4-3/4" short of the max end` or `3/4" notch … 0" from the width min end,
+  running across the length, stopped 6" short of the min end and 17-1/4" short of the max end`.
+- **Reach:** square corner notches (a shelf notched around a leg) are common.
+- **Remedy:** a shape-only tiebreak, e.g. prefer an axis with an open end, then `DIMENSION_ORDER`.
+- **Status:** open, a rule change for the user.
+
+**197. An overhanging cut's drawn band is unclipped but its labels are clipped.** `buildDiagrams`
+still draws `cutRegion` unclipped (`h`/`v`, unchanged by spec §2.4) while the labels now come from
+the clipped `CutShape`, e.g. `h: [-0.5, 0.5]` labelled offset `0"`, width `1/2"`.
+- **Reach:** shrinking a board under an end rabbet.
+- **Remedy:** clip `h`/`v` to the board.
+- **Status:** open, low.

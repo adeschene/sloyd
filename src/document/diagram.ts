@@ -26,7 +26,10 @@ export interface DiagramCut {
   offsetLabel: string;
   /** e.g. `3/4"` — the opening's extent along the position axis. */
   widthLabel: string;
-  /** From `cutShape(...).word`. Representative, not consensus — see spec section 8. */
+  /**
+   * The word from `cutShape` (the same `CutShape` the setup line formats). Representative of its
+   * row, not consensus — see follow-up 55a in docs/follow-ups.md.
+   */
   kind: CutKind;
   /** e.g. `1"` — how far short of the RUN axis's min end; present only where that end is closed. */
   stopMinLabel?: string;

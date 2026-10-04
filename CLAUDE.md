@@ -401,8 +401,8 @@ src/
 │   │                       reaching the edge + proportions; cut-words spec §2).
 │   │                       One box, one word; a cut removing nothing keeps the
 │   │                       old table. `openSides`: open = no stock between a side
-│   │                       and the edge; read by `cutLabel` AND the setup line's
-│   │                       stop clause (one helper, word and stops cannot differ).
+│   │                       and the edge; called only inside `cutShape`, which the
+│   │                       word, the setup line and the drawing all read.
 │   │                       `cutShape` is the ONE description of a cut (word, run axis,
 │   │                       position, stops at closed ends, as numbers); `cutLabel` is
 │   │                       its word, and the setup line AND the drawing format from it,
@@ -418,13 +418,17 @@ src/
 │   ├── cutlist.ts          buildCutList (inv 18). STOCK, NOT REMAINDER — `cuts`
 │   │                       ignored, because a dado does not reduce the board you buy;
 │   │                       accumulates EXACT stock, never qty × rounded dimensions.
+│   │                       The setup line is formatted from `cutShape`, never from
+│   │                       stored `across`/`offset`/`width`/stops (fu 192).
 │   │                       `cutSignature` is derived from `CUT_GEOMETRY_FIELDS`
 │   │                       in cuts.ts, checked against `Cut` by `satisfies` (inv 40)
 │   ├── depthField.ts       buildDepthField (inv 20). Reads its rectangles
 │   │                       from `cutRegion` — it once rebuilt them with the across
 │   │                       span hard-coded to full length
 │   ├── diagram.ts          buildDiagrams — one view per (face, from), so
-│   │                       perpendicular cuts on a face draw together
+│   │                       perpendicular cuts on a face draw together. Its labels
+│   │                       are formatted from `cutShape`, never from stored
+│   │                       `across`/`offset`/`width`/stops (fu 192)
 │   ├── nesting.ts          buildNesting — shelf FFD, because guillotine cuttability
 │   │                       is a DOMAIN FACT, not a quality tier. `formatDims` is
 │   │                       the ONE home of `length × width` here, shared by the
@@ -1418,7 +1422,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is the authoritative list** — 1-194, consciously deferred rather
+**`docs/follow-ups.md` is the authoritative list** — 1-197, consciously deferred rather
 than missed, each written up in place with its closure where it has one. Read the entries
 for the area you are about to touch before starting; several are "correct but untested",
 which is exactly what a refactor breaks silently.
