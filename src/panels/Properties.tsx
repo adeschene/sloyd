@@ -32,7 +32,8 @@ function CutRow({ board, cut, precision, solids }: { board: Board; cut: Cut; pre
   // And only where the re-store is accepted: `storedAsShape` hands back the
   // same object when the sheet would read the result differently, and a button
   // that changes nothing would leave an undo entry that does nothing (inv 4).
-  const restored = !tenon && !cutRemovesNothing(board, cut) && cut.across !== shape.run
+  // Nor where only the tie's final default chose the direction (fu 198).
+  const restored = !tenon && !cutRemovesNothing(board, cut) && cut.across !== shape.run && !shape.runByDefault
     ? storedAsShape(board, cut, solids)
     : cut;
   const sideways = restored !== cut;

@@ -498,6 +498,13 @@ export interface CutShape {
   stopMin: number | null;
   /** Gap from the run's max end to the board's edge, or null where that end is open. */
   stopMax: number | null;
+  /**
+   * True only when the run came from the tie's final default (length, width,
+   * thickness): the extents are exactly equal and neither or both directions
+   * have exactly one open end. Properties offers no 'Match the cut list' then
+   * (follow-up 198).
+   */
+  runByDefault: boolean;
 }
 
 type Opening = ReturnType<typeof openSides>;
@@ -508,18 +515,18 @@ type Opening = ReturnType<typeof openSides>;
  * opening) the direction with exactly one open end, else the earlier in
  * DIMENSION_ORDER (cut-storage spec §2). Never the stored `across`.
  */
-function runAxis(cut: Cut, ext: (d: Dimension) => number, open: Opening): Dimension {
+function runAxis(cut: Cut, ext: (d: Dimension) => number, open: Opening): { axis: Dimension; byDefault: boolean } {
   const [a, b] = DIMENSION_ORDER.filter((d) => d !== cut.face);
   const through = (d: Dimension) => open[d].min && open[d].max;
-  if (through(a) !== through(b)) return through(a) ? a : b;
-  if (ext(a) !== ext(b)) return ext(a) > ext(b) ? a : b;
+  if (through(a) !== through(b)) return { axis: through(a) ? a : b, byDefault: false };
+  if (ext(a) !== ext(b)) return { axis: ext(a) > ext(b) ? a : b, byDefault: false };
   // Cut-storage spec §2: on an EXACT tie, the direction with exactly one open
   // end (the edge the cut enters from); otherwise the earlier dimension. Never
   // the stored `across`: joinery stores a cut WITH across = run, so reading
   // across here would let storage and direction decide each other.
   const oneOpen = (d: Dimension) => open[d].min !== open[d].max;
-  if (oneOpen(a) !== oneOpen(b)) return oneOpen(a) ? a : b;
-  return a;
+  if (oneOpen(a) !== oneOpen(b)) return { axis: oneOpen(a) ? a : b, byDefault: false };
+  return { axis: a, byDefault: true };
 }
 
 /** The cut-words table (cut-words spec §2.2–2.6), read off the opening. */
@@ -578,7 +585,7 @@ export function cutShape(board: Board, cut: Cut, solids: Region[] = boardSolids(
   const span = (d: Dimension): Span => [Math.max(0, r[d][0]), Math.min(board[d], r[d][1])];
   const ext = (d: Dimension) => span(d)[1] - span(d)[0];
   const open = openSides(board, cut, solids);
-  const run = runAxis(cut, ext, open);
+  const { axis: run, byDefault: runByDefault } = runAxis(cut, ext, open);
   const pos = DIMENSION_ORDER.find((d) => d !== cut.face && d !== run)!;
   const along = span(run);
   const table = cutRemovesNothing(board, cut) ? null : tableWord(board, cut, span, ext, open);
@@ -593,6 +600,7 @@ export function cutShape(board: Board, cut: Cut, solids: Region[] = boardSolids(
     along,
     stopMin: open[run].min ? null : along[0],
     stopMax: open[run].max ? null : board[run] - along[1],
+    runByDefault,
   };
 }
 

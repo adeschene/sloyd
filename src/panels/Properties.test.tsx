@@ -785,6 +785,19 @@ describe('cuts', () => {
     const note = /The cut list reads this cut as running across the width\./;
     const runsAcross = (cutId: string) => document.getElementById(`across-${cutId}`) as HTMLSelectElement;
 
+    it('shows nothing for a square cut whose direction only the default decides (fu 198)', () => {
+      const id = renderWithBoard();
+      // A 3/4" square mortise on the default board, typed running across the WIDTH; the sheet reads it along the length.
+      act(() => {
+        const st = useStore.getState();
+        st.addCut(id);
+        const [c] = useStore.getState().doc.boards[0].cuts;
+        st.updateCut(id, c.id, { face: 'thickness', from: 'max', across: 'width', offset: 6, width: 0.75, depth: 1 / 2, stopMin: 2, stopMax: 2.75 });
+      });
+      expect(screen.queryByText(/The cut list reads this cut/)).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Match the cut list' })).not.toBeInTheDocument();
+    });
+
     it('shows the note and the button on the sideways housing only', () => {
       const { rabbetId, housingId } = seedSide();
       expect(screen.getAllByText(note)).toHaveLength(1);
