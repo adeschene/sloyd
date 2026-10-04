@@ -18,6 +18,20 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-04 with the joinery round live** (phase 2,
+follow-up 171). The bundle went from `index-B2Yuq550.js` to `index-Ci7lVCzJ.js`, and the CSS is
+unchanged (`index-DqhKBEnY.css`), because the dialog reuses the existing overlay classes. The
+merge commit is `d2a14ac`.
+
+Verified after the deploy:
+- `200` on `/` and on a deep route, both in-network and publicly;
+- the new bundle served at both;
+- CSP `connect-src 'self' https://api.anthropic.com` unchanged at the edge (joinery calls the
+  API through it, as Generate does).
+
+The round was verified first against the dev server with the user watching, using four paid
+calls. There is no schema change, so a rollback to `index-B2Yuq550.js` costs only this round.
+
 **Production matches `master` as of 2026-10-04 with the phantom-cut round live** (follow-up
 178). The bundle went from `index-CoHIAVxf.js` to `index-B2Yuq550.js`, and the CSS from
 `index-Co3i2lF7.css` to `index-DqhKBEnY.css` (the `.field-note` pill). The merge commit is

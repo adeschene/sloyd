@@ -27,7 +27,7 @@ tradition built around hand woodworking.
 Static SPA, containerized, **1431/1431 tests passing across 52 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **7**.
 
-**PRODUCTION MATCHES `master` as of 2026-10-04 with the phantom-cut round live** — bundle `index-B2Yuq550.js`, CSS `index-DqhKBEnY.css`, merge commit `e7bf3bc`, **schema 7**. Before it the same day: stopped cuts `index-CoHIAVxf.js` (`c054ede`), which bumped the schema to 7 (rolling back past it strands v7 documents; export first). Before it, 2026-10-03: key check `index-BhhW2iNw.js` (`d0ba83b`), held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
+**PRODUCTION MATCHES `master` as of 2026-10-04 with the joinery round live** — bundle `index-Ci7lVCzJ.js`, CSS `index-DqhKBEnY.css` (unchanged), merge commit `d2a14ac`, **schema 7**. Before it the same day: phantom cut `index-B2Yuq550.js` (`e7bf3bc`), stopped cuts `index-CoHIAVxf.js` (`c054ede`), which bumped the schema to 7 (rolling back past it strands v7 documents; export first). Before it, 2026-10-03: key check `index-BhhW2iNw.js` (`d0ba83b`), held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
 bundle `index-BAsxEohe.js` with CSS `index-DEQSkZ3q.css`, from merge commit `fa834dc`. A
 person stores a Claude API key in Settings, describes a piece, and gets 1–3 prototypes built
 from boards, each saved as a **new, unactivated** library project (invariant 36). **It is
@@ -41,8 +41,7 @@ Claude drives the dev server and the user supervises. Results are in
 findings: 164, a batch converging on one design, now CLOSED (below); and 165, a support
 check that passes a badly supported part, still open.
 
-**The joinery round (phase 2, follow-up 171, 2026-10-04) is verified live on branch `joinery`,
-NOT yet merged.** "Add joinery…" returns the open design joined, as a new unactivated project
+**The joinery round (phase 2, follow-up 171, 2026-10-04) is merged AND deployed.** "Add joinery…" returns the open design joined, as a new unactivated project
 (`docs/browser-verification-joinery.md`). No schema change. Read invariants 38 and 41 before
 touching `generate/joints/` or `checkDesign`.
 
