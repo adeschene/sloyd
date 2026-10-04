@@ -527,3 +527,43 @@ describe('a cut that runs out keeps running out when its part grows', () => {
     expect(overlapsOf(out.doc)).toEqual([]);
   });
 });
+
+describe('run-out rule (joinery residual fix)', () => {
+  const foot = (name: string, x: number): P => ({ name, at: [x, 0, 0], size: [2, 2, 11.25] });
+  const footed: Record<string, P> = {
+    footL: foot('Foot L', -1.25),
+    footR: foot('Foot R', 30.75),
+    sideL: { name: 'Left side', at: [0, 2, 0], size: [0.75, 40, 11.25] },
+    sideR: { name: 'Right side', at: [30, 2, 0], size: [0.75, 40, 11.25] },
+    bottom: { name: 'Bottom', at: [0.75, 2, 0], size: [29.25, 0.75, 11.25] },
+    top: { name: 'Top', at: [0.75, 41.25, 0], size: [29.25, 0.75, 11.25] },
+  };
+  const run = (doc: SloydDocument) => {
+    const sites = findSites(doc);
+    return applyJoints(doc, sites, sites.map((s) => defaultChoice(s, doc, sites)));
+  };
+  const cutsOf = (doc: SloydDocument, name: string) => board(doc, name).cuts.map((c) => ({ ...c, id: undefined }));
+
+  it('a housing flush with a growing end stays a 3/4in dado above the end, in either listing order', () => {
+    const outs = [['bottom', 'top', 'sideL', 'sideR', 'footL', 'footR'], ['footL', 'footR', 'sideL', 'sideR', 'bottom', 'top']]
+      .map((order) => run(design(...order.map((k) => footed[k]))));
+    for (const out of outs) {
+      const side = board(out.doc, 'Left side');
+      const housings = side.cuts.filter((c) => cutLabel(side, c) === 'dado' && Math.abs(c.width - 0.75) < 1e-9 && c.offset > 1e-9);
+      expect(housings.length).toBeGreaterThan(0);
+      expect(side.cuts.some((c) => cutLabel(side, c) === 'rabbet' && c.width > 0.75 + 1e-9)).toBe(false);
+    }
+    expect(cutsOf(outs[0].doc, 'Left side')).toEqual(cutsOf(outs[1].doc, 'Left side'));
+    expect(cutsOf(outs[0].doc, 'Right side')).toEqual(cutsOf(outs[1].doc, 'Right side'));
+  });
+
+  it('a back grooved into an overhanging top and rabbeted into the sides does not overlap, Top listed first', () => {
+    const doc = design(
+      { name: 'Top', at: [0, 71.25, -0.25], size: [31.5, 0.75, 11.5] },
+      { name: 'Back', at: [0, 0, -0.25], size: [31.5, 71.25, 0.25] },
+      { name: 'Left side', at: [0, 0, 0], size: [0.75, 71.25, 11.25] },
+      { name: 'Right side', at: [30.75, 0, 0], size: [0.75, 71.25, 11.25] },
+    );
+    expect(overlapsOf(run(doc).doc)).toEqual([]);
+  });
+});
