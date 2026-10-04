@@ -231,6 +231,41 @@ and 79.
 
 ## What each round did
 
+**What the cut words round did (2026-10-04)**: follow-ups 180, 181 and 189, the three wording
+residues the joinery round left. It changed words only: no geometry, no schema, no change to how
+cut-list rows group.
+
+- **What it does.**
+  1. **A cut is named from its shape, never from how it is stored.** `cutLabel` reads the opening
+     the cut's clipped box makes on its face: which sides are open, plus its proportions. So one
+     pocket stored two ways gets one word (181), and a closed shallow housing reads `blind dado`
+     (189).
+  2. **A tenon is recognised from its cuts.** `findTenons` looks for at least two end cuts that
+     share one length and leave exactly one tongue. It prints as one line, `1-1/4" tenon, 1/2"
+     thick × 4-1/2" wide — at the length min end`, in place of four rabbet lines (180). Properties
+     labels its cuts `tenon shoulder`.
+- **The live check changed the rule, at the user's call.** A shelf housing running out into a back
+  rabbet printed `stopped dado … stopped 1/4" short`, but at the bench it is a through dado.
+  - "Open" now means **no stock remains** between the side and the board's edge (spec §2.4,
+    `openSides`). The word and the stop clause read the same helper.
+  - The user then left three calls to Claude, with research (spec §2.5–2.7):
+    - a full-thickness corner cut is a `notch`;
+    - a mortise must be deep relative to its length, at most 8× its depth;
+    - writing the whole line from the shape was deferred, as follow-up 192.
+  - A 4× length-to-width rule for mortise was rejected **because it would have renamed the
+    workbench's real mortises**. Checking a proposed vocabulary rule against the user's own fixture
+    caught that before any code.
+- **Reviews mattered as usual.**
+  - Mutation testing found four guards with no test that could fail them:
+    - `findTenons`' fill check;
+    - its ℓ tolerance, where a real ULP case exists at L = 17.9;
+    - the max side of `openSides`;
+    - its stop clause.
+  - The Task 5 review measured `buildCutList` about 20× slower. One `boardSolids` per board instead
+    of one per cut brought the joined workbench from 50 ms to 14 ms.
+- **Follow-ups 191–194** are its residues, recorded in `docs/follow-ups.md`. The browser pass is
+  `docs/browser-verification-cut-words.md`.
+
 **What the joinery round did (2026-10-04).** This is phase 2, follow-up 171. The user chose
 "Add joinery" as phase 2's first job, ahead of refining a design by instruction. It ran
 straight after the stopped-cuts round, which supplied the mortise, and the phantom-cut round,

@@ -24,7 +24,7 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **1431/1431 tests passing across 52 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
+Static SPA, containerized, **1492/1492 tests passing across 54 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **7**.
 
 **PRODUCTION MATCHES `master` as of 2026-10-04 with the joinery round live** — bundle `index-Ci7lVCzJ.js`, CSS `index-DqhKBEnY.css` (unchanged), merge commit `d2a14ac`, **schema 7**. Before it the same day: phantom cut `index-B2Yuq550.js` (`e7bf3bc`), stopped cuts `index-CoHIAVxf.js` (`c054ede`), which bumped the schema to 7 (rolling back past it strands v7 documents; export first). Before it, 2026-10-03: key check `index-BhhW2iNw.js` (`d0ba83b`), held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
@@ -40,6 +40,8 @@ Claude drives the dev server and the user supervises. Results are in
 `docs/browser-verification-generate.md`. 6 of 6 generations completed. It left two
 findings: 164, a batch converging on one design, now CLOSED (below); and 165, a support
 check that passes a badly supported part, still open.
+
+**The cut words round (follow-ups 180, 181, 189, 2026-10-04) is live-checked on branch `cutwords`, not yet merged.** Words only: a cut is named from the stock actually left around its opening, a tenon prints as one line (`docs/browser-verification-cut-words.md`). No schema change.
 
 **The joinery round (phase 2, follow-up 171, 2026-10-04) is merged AND deployed.** "Add joinery…" returns the open design joined, as a new unactivated project
 (`docs/browser-verification-joinery.md`). No schema change. Read invariants 38 and 41 before
@@ -247,6 +249,7 @@ show it. Prefer a readout where one suffices; add an image when the finding is s
 | stopped cuts | 10-04 | 7 | a `Cut` stops short of either end (`stopMin`/`stopMax`): mortises, through mortises, stopped dados, notches. One field table, two readers (inv 40) |
 | phantom cut | 10-04 | — | *no spec* — fu 178: a cut a board edit has left removing nothing is hidden from the cut list, drawings and snap points, and flagged on its row; kept, not dropped |
 | joinery | 10-04 | — | "Add joinery…": sites found by code, one model call chooses, `pocketFor` recipes build mortise and tenon / dado / stopped dado / rabbet / half-lap into a new unactivated project (invs 38 rewritten, 41) |
+| cut words | 10-04 | — | fu 180/181/189: a cut is named from its OPENING, open meaning NO STOCK left (`openSides`), so one shape gets one word; `findTenons` prints a tenon as one line; corner notch; mortise by depth:length |
 
 ### The deployment rule, stated once
 
@@ -394,9 +397,19 @@ src/
 │   │                       CLIPPED to the board, has no volume (fu 178) — skipped by the
 │   │                       cut list, the diagrams and the snap points, kept in the document.
 │   │                       cutRegion honours `stopMin`/`stopMax` (crossed stops remove
-│   │                       nothing); `cutLabel` → `CutKind`, seven words derived
-│   │                       from the shape (stopped-cuts spec §4.1). Home of
+│   │                       nothing); `cutLabel` names a cut from its OPENING (sides
+│   │                       reaching the edge + proportions; cut-words spec §2).
+│   │                       One box, one word; a cut removing nothing keeps the
+│   │                       old table. `openSides`: open = no stock between a side
+│   │                       and the edge; read by `cutLabel` AND the setup line's
+│   │                       stop clause (one helper, word and stops cannot differ).
+│   │                       It and `cutLabel` take an optional precomputed `solids`
+│   │                       (one `boardSolids` per board) — skip it, cut list ~3.5×
+│   │                       slower. Home of
 │   │                       `CUT_GEOMETRY_FIELDS` / `CUT_GEOMETRY_KEYS` (inv 40)
+│   ├── tenons.ts           findTenons: a tenon from the end cuts leaving one tongue
+│   │                       (ℓ ≤ L/2, ≥ 2 cuts, exactly one remaining rectangle).
+│   │                       The sheet prints one line per tenon
 │   ├── cutlist.ts          buildCutList (inv 18). STOCK, NOT REMAINDER — `cuts`
 │   │                       ignored, because a dado does not reduce the board you buy;
 │   │                       accumulates EXACT stock, never qty × rounded dimensions.
@@ -1390,7 +1403,7 @@ worked examples behind several of them are in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 1431 tests across 52 files
+npm test           # Vitest, currently 1492 tests across 54 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1400,7 +1413,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is the authoritative list** — 1-190, consciously deferred rather
+**`docs/follow-ups.md` is the authoritative list** — 1-194, consciously deferred rather
 than missed, each written up in place with its closure where it has one. Read the entries
 for the area you are about to touch before starting; several are "correct but untested",
 which is exactly what a refactor breaks silently.
@@ -1477,7 +1490,7 @@ The handful worth knowing without opening that file:
   Settings' Save: the free verification call saves anyway on anything but a 401/403, and
   **there is deliberately no prefix rule** (a working key does not start with `sk-ant-api`).
 - **171** — joinery is BUILT (2026-10-04, "Add joinery…"); refine by instruction is now **179**.
-  Read invariants 38 and 41, and follow-ups 180–190 (the round's residues: cut-list words for a
+  Read invariants 38 and 41, and follow-ups 180–194 (180, 181 and 189 are closed by the cut words round; the round's residues: cut-list words for a
   tenon and a closed shelf housing, the default-tenon cap's edges, opposite-face tenons,
   half-lap stacks), before touching `generate/joints/`.
 - **178** — CLOSED 2026-10-04. A cut a board edit has left removing nothing is hidden from

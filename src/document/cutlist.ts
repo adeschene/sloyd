@@ -1,7 +1,9 @@
 import { MATERIALS, isSheetGood, sheetStockOf } from './types';
-import type { Board, Cut, Grain, SloydDocument } from './types';
+import type { Board, Cut, Grain, Region, SloydDocument } from './types';
 import { positionAxisOf } from './geometry';
-import { CUT_GEOMETRY_KEYS, cutLabel, cutsThatRemoveStock } from './cuts';
+import { CUT_GEOMETRY_KEYS, boardSolids, cutLabel, cutsThatRemoveStock, openSides } from './cuts';
+import { findTenons } from './tenons';
+import type { Tenon } from './tenons';
 import { buildDiagrams } from './diagram';
 import type { DiagramView } from './diagram';
 import { buildNesting } from './nesting';
@@ -160,12 +162,17 @@ function cutSignature(cuts: Cut[]): string {
  * across — so an unstopped cut prints byte-for-byte as it did before stops
  * existed.
  */
-function stopClause(cut: Cut, f: (n: number) => string): string {
-  if (cut.stopMin > 0 && cut.stopMax > 0) {
+function stopClause(board: Board, cut: Cut, f: (n: number) => string, solids: Region[]): string {
+  if (cut.stopMin <= 0 && cut.stopMax <= 0) return '';
+  // A stop whose end has no stock in the gap prints nothing (spec §2.4).
+  const o = openSides(board, cut, solids)[cut.across];
+  const min = cut.stopMin > 0 && !o.min;
+  const max = cut.stopMax > 0 && !o.max;
+  if (min && max) {
     return `, stopped ${f(cut.stopMin)} short of the min end and ${f(cut.stopMax)} short of the max end`;
   }
-  if (cut.stopMin > 0) return `, stopped ${f(cut.stopMin)} short of the min end`;
-  if (cut.stopMax > 0) return `, stopped ${f(cut.stopMax)} short of the max end`;
+  if (min) return `, stopped ${f(cut.stopMin)} short of the min end`;
+  if (max) return `, stopped ${f(cut.stopMax)} short of the max end`;
   return '';
 }
 
@@ -177,15 +184,36 @@ function stopClause(cut: Cut, f: (n: number) => string): string {
  * setup lines are built during grouping, while the board is in hand, rather
  * than reconstructed later from a CutListRow, which carries no board.
  */
-function setupLine(board: Board, cut: Cut, precision: number): string {
+function setupLine(board: Board, cut: Cut, precision: number, solids: Region[]): string {
   const f = (n: number) => formatLength(n, precision);
   const pos = positionAxisOf(cut.face, cut.across);
   return (
-    `${f(cut.width)} ${cutLabel(board, cut)}, ${f(cut.depth)} deep — ` +
+    `${f(cut.width)} ${cutLabel(board, cut, solids)}, ${f(cut.depth)} deep — ` +
     `into the ${cut.face} face (${cut.from} side), ` +
     `${f(cut.offset)} from the ${pos} min end, running across the ${cut.across}` +
-    stopClause(cut, f)
+    stopClause(board, cut, f, solids)
   );
+}
+
+/** A tenon as one bench line (fu 180): it replaces the shoulder cuts it is made of. */
+function tenonLine(t: Tenon, precision: number): string {
+  const f = (n: number) => formatLength(n, precision);
+  return `${f(t.length)} tenon, ${f(t.thickness)} thick × ${f(t.width)} wide — at the length ${t.end} end`;
+}
+
+/** Setup lines: one per tenon (where its first cut stood), the rest one per cut, unchanged. */
+function setupLines(board: Board, precision: number): string[] {
+  const tenons = findTenons(board);
+  const owner = new Map(tenons.flatMap((t) => t.cutIds.map((id) => [id, t] as const)));
+  const done = new Set<Tenon>();
+  const lines: string[] = [];
+  const solids = boardSolids(board);
+  for (const cut of cutsThatRemoveStock(board)) {
+    const t = owner.get(cut.id);
+    if (!t) { lines.push(setupLine(board, cut, precision, solids)); continue; }
+    if (!done.has(t)) { done.add(t); lines.push(tenonLine(t, precision)); }
+  }
+  return lines;
 }
 
 /**
@@ -292,7 +320,7 @@ export function buildCutList(doc: SloydDocument): CutList {
         // the noun is the representative's. Left as is deliberately: at the
         // precision the sheet is printed to, the representative's word is the
         // more useful one at the bench. Follow-up 55.
-        setup: cutsThatRemoveStock(board).map((cut) => setupLine(board, cut, precision)),
+        setup: setupLines(board, precision),
         diagrams: buildDiagrams(board, precision),
         stockInches: 0,
         stock: '',

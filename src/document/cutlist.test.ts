@@ -140,10 +140,11 @@ describe('buildCutList', () => {
     );
   });
 
-  it('names both stops of a mortise', () => {
+  it('names both stops of a blind dado', () => {
+    // Cut-words spec §2.2 (closed pocket, depth 1/4 not deeper than its 3/4 smaller extent): 'blind dado', formerly 'mortise'.
     const list = buildCutList(docWith({ cuts: [dado({ stopMin: 1, stopMax: 1.5 })] }));
     expect(list.groups[0].rows[0].setup).toEqual([
-      '3/4" mortise, 1/4" deep — into the thickness face (min side), ' +
+      '3/4" blind dado, 1/4" deep — into the thickness face (min side), ' +
       '6" from the length min end, running across the width, ' +
       'stopped 1" short of the min end and 1-1/2" short of the max end',
     ]);
@@ -450,5 +451,69 @@ describe('sheet nesting on the cut list', () => {
       .toEqual([0, 24, 48, 72]);
     expect(buildCutList(wide).groups[0].nesting!.sheets[0].parts.map((p) => p.y))
       .toEqual([0, 0, 0, 12.125]);
+  });
+});
+
+describe('tenons on the sheet (fu 180)', () => {
+  const dado = (): Cut => ({
+    id: 'c1', face: 'thickness', from: 'min', across: 'width',
+    offset: 6, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0,
+  });
+  const cheek = (id: string, from: 'min' | 'max', end: 'min' | 'max'): Cut => ({
+    id, face: 'thickness', from, across: 'width', offset: end === 'min' ? 0 : 23, width: 1, depth: 0.25, stopMin: 0, stopMax: 0,
+  });
+  const shoulder = (id: string, from: 'min' | 'max', end: 'min' | 'max'): Cut => ({
+    id, face: 'width', from, across: 'thickness', offset: end === 'min' ? 0 : 23, width: 1, depth: 0.5, stopMin: 0, stopMax: 0,
+  });
+  const tenon = (end: 'min' | 'max', p: string) =>
+    [cheek(`${p}1`, 'min', end), cheek(`${p}2`, 'max', end), shoulder(`${p}3`, 'min', end), shoulder(`${p}4`, 'max', end)];
+
+  it('prints one line per tenon, replacing its shoulder lines', () => {
+    // The default board is 24 × 5-1/2 × 3/4: tenon 1 long, 1/4 thick, 4-1/2 wide.
+    const list = buildCutList(docWith({ cuts: [...tenon('min', 'a'), ...tenon('max', 'b')] }));
+    expect(list.groups[0].rows[0].setup).toEqual([
+      '1" tenon, 1/4" thick × 4-1/2" wide — at the length min end',
+      '1" tenon, 1/4" thick × 4-1/2" wide — at the length max end',
+    ]);
+  });
+
+  it('puts the tenon line where its first cut stood (spec 4.1)', () => {
+    const [a1, a2, a3, a4] = tenon('min', 'a');
+    const list = buildCutList(docWith({ cuts: [a1, a2, dado(), a3, a4] }));
+    expect(list.groups[0].rows[0].setup).toEqual([
+      '1" tenon, 1/4" thick × 4-1/2" wide — at the length min end',
+      '3/4" dado, 1/4" deep — into the thickness face (min side), 6" from the length min end, running across the width',
+    ]);
+  });
+
+  it('prints a dado beside a tenon exactly as before', () => {
+    const list = buildCutList(docWith({ cuts: [...tenon('min', 'a'), dado()] }));
+    expect(list.groups[0].rows[0].setup).toEqual([
+      '1" tenon, 1/4" thick × 4-1/2" wide — at the length min end',
+      '3/4" dado, 1/4" deep — into the thickness face (min side), 6" from the length min end, running across the width',
+    ]);
+  });
+});
+
+describe('a stop with no stock in its gap is not printed (cut-words spec §2.4)', () => {
+  const backRabbet: Cut = { id: 'r', face: 'width', from: 'min', across: 'length', offset: 0.375, width: 0.375, depth: 0.25, stopMin: 0, stopMax: 0 };
+  const housing: Cut = { id: 'h', face: 'thickness', from: 'max', across: 'width', offset: 24, width: 0.75, depth: 0.25, stopMin: 0.25, stopMax: 0 };
+  const setup = (cuts: Cut[]) => buildCutList(docWith({ length: 72, width: 11.25, thickness: 0.75, cuts })).groups[0].rows[0].setup;
+  it('a housing running out into the back rabbet prints as a plain dado', () => {
+    expect(setup([backRabbet, housing])[1]).toBe(
+      '3/4" dado, 1/4" deep — into the thickness face (max side), 24" from the length min end, running across the width');
+  });
+  const frontRabbet: Cut = { ...backRabbet, id: 'f', from: 'max' };
+  it('a housing running out into a rabbet at the max side prints no stop clause', () => {
+    expect(setup([frontRabbet, { ...housing, stopMin: 0, stopMax: 0.25 }])[1]).toBe(
+      '3/4" dado, 1/4" deep — into the thickness face (max side), 24" from the length min end, running across the width');
+  });
+  it('with the min end stopped 3/4 it prints only the min stop', () => {
+    expect(setup([frontRabbet, { ...housing, stopMin: 0.75, stopMax: 0.25 }])[1]).toBe(
+      '3/4" stopped dado, 1/4" deep — into the thickness face (max side), 24" from the length min end, running across the width, stopped 3/4" short of the min end');
+  });
+  it('with no rabbet, the stop still prints', () => {
+    expect(setup([housing])[0]).toBe(
+      '3/4" stopped dado, 1/4" deep — into the thickness face (max side), 24" from the length min end, running across the width, stopped 1/4" short of the min end');
   });
 });

@@ -419,6 +419,25 @@ describe('cuts', () => {
     return id;
   };
 
+  it('labels a tenon\'s cuts "tenon shoulder" and a lone rabbet "rabbet" (fu 180)', async () => {
+    const id = renderWithBoard();
+    const cheek = (cid: string, from: 'min' | 'max') => ({ id: cid, face: 'thickness' as const, from, across: 'width' as const, offset: 0, width: 1, depth: 0.25, stopMin: 0, stopMax: 0 });
+    // updateBoard cannot set cuts (invariant 2), so seed through the cut actions.
+    act(() => {
+      const st = useStore.getState();
+      st.addCut(id);
+      st.addCut(id);
+      const [c1, c2] = useStore.getState().doc.boards[0].cuts;
+      st.updateCut(id, c1.id, cheek(c1.id, 'min'));
+      st.updateCut(id, c2.id, cheek(c2.id, 'max'));
+    });
+    expect(screen.getAllByText('tenon shoulder')).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: /Remove cut \(tenon shoulder/ })).toHaveLength(2);
+    act(() => { useStore.getState().removeCut(id, useStore.getState().doc.boards[0].cuts[1].id); });
+    expect(screen.queryByText('tenon shoulder')).not.toBeInTheDocument();
+    expect(screen.getByText('rabbet')).toBeInTheDocument();
+  });
+
   it('flags a cut a board shrink has left removing nothing, and clears it when the board grows back (fu 178)', async () => {
     const id = renderWithBoard();
     await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
@@ -632,13 +651,14 @@ describe('cuts', () => {
     await userEvent.tab();
   };
 
-  it('commits both stops and names the cut a mortise', async () => {
+  it('commits both stops and names the cut a blind dado', async () => {
     const id = renderWithBoard();
     await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
     await typeInto(/stop short of near end/i, '1');
     await typeInto(/stop short of far end/i, '1.5');
     expect(stored(id)).toMatchObject({ stopMin: 1, stopMax: 1.5 });
-    expect(screen.getByText('mortise')).toBeInTheDocument();
+    // Cut-words spec §2.2: closed pocket 3 x 3/4, depth 3/8 not deeper than 3/4 -> 'blind dado', formerly 'mortise'.
+    expect(screen.getByText('blind dado')).toBeInTheDocument();
   });
 
   it('names a cut stopped at one end a stopped dado', async () => {

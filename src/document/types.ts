@@ -24,10 +24,10 @@ export type CutFrom = 'min' | 'max';
 /**
  * A rectangular cut: stock removed from a board. It runs across one of the
  * board's dimensions — fully, unless `stopMin`/`stopMax` stop it short of an
- * end. A dado is this cut taken in the middle of a face and a rabbet the same
- * cut taken at an edge; stopped at one end it is a stopped dado or rabbet, and
- * stopped at both a mortise (or a notch at an edge). The name is derived from
- * the geometry (see cutLabel) rather than stored.
+ * end. Its name (dado, rabbet, stopped dado, mortise, ...) is never stored: cutLabel
+ * derives it from the opening the cut makes on its face — which sides reach the
+ * board's edge, and its proportions (cut-words spec §2) — so one shape gets one
+ * word however its fields happen to be stored.
  *
  * Every field is part-local — named in length/width/thickness, never in world
  * axes — so a cut survives posture and rotation exactly the way `grain` does,
