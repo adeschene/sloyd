@@ -523,6 +523,12 @@ describe('PartDiagram label collisions — the seven sweep geometries', () => {
     check(draw({ cuts: [dado({ face: 'width', across: 'length', offset: 0.25, width: 0.25, stopMin: 2, stopMax: 2 })] }));
   });
 
+  it('15 a stop column that runs deepest grows the figure', () => {
+    // A 1-1/2" board is short enough that the stop column's last label, not the
+    // outline, decides the figure's height.
+    check(draw({ width: 1.5, cuts: [dado({ stopMin: 0.0625, stopMax: 0.0625 })] }));
+  });
+
   it('14 a mortise and an unstopped dado together', () => {
     check(draw({ width: 12, cuts: [dado({ id: 'm', stopMin: 2, stopMax: 2 }), dado({ id: 'd', offset: 14 })] }));
   });
@@ -564,5 +570,95 @@ describe('PartDiagram — a view with no stopped cut draws exactly as before', (
     ['no cuts', {}, 527349744],
   ])('%s', (_, board, pinned) => {
     expect(fingerprint(board)).toBe(pinned);
+  });
+});
+
+describe('PartDiagram — the stop leader measures its own runs', () => {
+  const num = (e: Element, a: string) => Number(e.getAttribute(a));
+  const render1 = (board: Parameters<typeof createBoard>[0]) =>
+    render(<PartDiagram view={buildDiagrams(createBoard(board), 16)[0]} />).container;
+  const outline = (c: HTMLElement) => c.querySelector('.cutlist-diagram-outline')!;
+  const textsOf = (g: Element) => [...g.querySelectorAll('text')].map((t) => t.textContent);
+
+  /** The stop leader: the group whose texts are exactly `texts`. */
+  const leaderWith = (c: HTMLElement, texts: string[]) => {
+    const g = [...c.querySelectorAll('g.cutlist-diagram-leader')]
+      .find((e) => JSON.stringify(textsOf(e)) === JSON.stringify(texts));
+    expect(g, `a leader labelled ${texts.join(', ')}`).toBeDefined();
+    return g!;
+  };
+
+  /** Runs and ticks of one leader along `axis` ('x' = row, 'y' = column), as sorted numbers. */
+  const parts = (g: Element, axis: 'x' | 'y') => {
+    const other = axis === 'x' ? 'y' : 'x';
+    const lines = [...g.querySelectorAll('line')];
+    const runs = lines
+      .filter((l) => num(l, `${other}1`) === num(l, `${other}2`) && num(l, `${axis}1`) !== num(l, `${axis}2`))
+      .map((l) => [num(l, `${axis}1`), num(l, `${axis}2`)].sort((a, b) => a - b));
+    const ticks = lines
+      .filter((l) => num(l, `${axis}1`) === num(l, `${axis}2`) && num(l, `${other}1`) !== num(l, `${other}2`))
+      .map((l) => num(l, `${axis}1`)).sort((a, b) => a - b);
+    return { runs: runs.sort((a, b) => a[0] - b[0]), ticks };
+  };
+  /** The label's coordinate along the leader's axis (the centre of a middle-anchored text). */
+  const at = (g: Element, axis: 'x' | 'y') => [...g.querySelectorAll('text')].map((t) => num(t, axis));
+
+  const rowBoard = { length: 24, width: 12, cuts: [
+    dado({ across: 'length', offset: 4, width: 0.75, stopMin: 2, stopMax: 3 }),
+  ] };
+  const colBoard = { cuts: [dado({ stopMin: 1, stopMax: 1.5 })] };
+
+  it.each([
+    ['row', 'x', rowBoard, ['2"', '19"', '3"'], 'x', 'width'],
+    ['column', 'y', colBoard, ['1"', '3"', '1-1/2"'], 'y', 'height'],
+  ] as const)('a two-stop %s leader: near run, band, far run, four ticks, labels on their runs', (_, axis, board, texts, a, size) => {
+    const c = render1(board);
+    const o = outline(c);
+    const lo = num(o, a);
+    const hi = lo + num(o, size);
+    const g = leaderWith(c, [...texts]);
+    const { runs, ticks } = parts(g, axis);
+    expect(runs).toHaveLength(3);
+    const [nearRun, bandRun, farRun] = runs;
+    expect(nearRun[0]).toBeCloseTo(lo, 6);
+    expect(nearRun[1]).toBeCloseTo(bandRun[0], 6);
+    expect(farRun[0]).toBeCloseTo(bandRun[1], 6);
+    expect(farRun[1]).toBeCloseTo(hi, 6);
+    expect(ticks).toHaveLength(4);
+    [lo, bandRun[0], bandRun[1], hi].forEach((t, i) => expect(ticks[i]).toBeCloseTo(t, 6));
+    // Label order is near stop, band, far stop; each must sit on ITS run.
+    const [nearAt, bandAt, farAt] = at(g, axis);
+    expect(nearAt).toBeGreaterThan(nearRun[0]);
+    expect(nearAt).toBeLessThan(nearRun[1]);
+    expect(bandAt).toBeGreaterThan(bandRun[0]);
+    expect(bandAt).toBeLessThan(bandRun[1]);
+    expect(farAt).toBeGreaterThan(farRun[0]);
+    expect(farAt).toBeLessThan(farRun[1]);
+  });
+
+  it.each([
+    ['row', 'x', { length: 24, width: 12, cuts: [
+      dado({ across: 'length', offset: 4, width: 0.75, stopMax: 3 }),
+    ] }, ['21"', '3"'], 'x', 'width'],
+    ['column', 'y', { cuts: [dado({ stopMax: 1 })] }, ['4-1/2"', '1"'], 'y', 'height'],
+  ] as const)('a one-stop %s leader: no near run, far run ends at the outline', (_, axis, board, texts, a, size) => {
+    const c = render1(board);
+    const o = outline(c);
+    const lo = num(o, a);
+    const hi = lo + num(o, size);
+    const g = leaderWith(c, [...texts]);
+    const { runs, ticks } = parts(g, axis);
+    expect(runs).toHaveLength(2);
+    const [bandRun, farRun] = runs;
+    expect(bandRun[0]).toBeCloseTo(lo, 6);
+    expect(farRun[0]).toBeCloseTo(bandRun[1], 6);
+    expect(farRun[1]).toBeCloseTo(hi, 6);
+    expect(ticks).toHaveLength(3);
+    [bandRun[0], bandRun[1], hi].forEach((t, i) => expect(ticks[i]).toBeCloseTo(t, 6));
+    const [bandAt, farAt] = at(g, axis);
+    expect(bandAt).toBeGreaterThan(bandRun[0]);
+    expect(bandAt).toBeLessThan(bandRun[1]);
+    expect(farAt).toBeGreaterThan(farRun[0]);
+    expect(farAt).toBeLessThan(farRun[1]);
   });
 });

@@ -7,7 +7,7 @@ import { labelWidth, labelHeight, packRow, LABEL_ASCENT, LABEL_SIZE } from './di
 const TOP = 4;
 /** Clearance between the outline and the leader stack. */
 const GAP = 16;
-/** One stacked leader row per horizontal-axis cut. */
+/** One stacked leader row per row leader (a horizontal-axis cut's position, or a stopped vertical-axis cut's stops). */
 const ROW = 26;
 /** The overall-length run along the bottom. */
 const BOTTOM = 34;
