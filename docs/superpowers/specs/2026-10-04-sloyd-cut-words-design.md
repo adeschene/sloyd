@@ -119,8 +119,8 @@ actually there.
 - A shallower neighbouring cut leaves stock in the strip, so the side stays closed.
 
 **One helper, `openSides(board, cut)`, in `cuts.ts`.** It answers this for both ends of both opening
-axes. Both `cutLabel` and the setup line's stop clause (§4.1) read it, so the word and the stops cannot
-disagree.
+axes. Both `cutLabel` and the setup line's stop clause (§4.1) read it, so a stop's end and the word's
+open side are one decision. Exception: a stop on `across` while the open pair is the position axis can still print beside a through word, which is the §2.7 class.
 
 ### 2.5 Ruling: a cut through the whole thickness at a corner is a `notch` (call 2, Claude's judgement)
 
@@ -147,7 +147,7 @@ mortises (1/2″ × 4-1/2″, 1-1/4″ deep) into `blind dado`, because wide rai
 - **The rule:** a closed, non-through pocket reads `mortise` only when it is deeper than its narrower
   side AND **no longer than 8× its depth**.
 - **Otherwise** it reads `blind dado`, the vocabulary's word for a closed housing or groove.
-- **Strictness:** the comparison is strict, so exactly 8× is still a mortise.
+- **Strictness:** the bound is inclusive (`<=`), so a pocket exactly 8× as long as it is deep is still a mortise.
 - **Cases:**
 
 | Case | Opening | Depth | Word |
