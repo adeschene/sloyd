@@ -24,7 +24,7 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **1180/1180 tests passing across 45 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
+Static SPA, containerized, **1282/1282 tests passing across 45 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **7**.
 
 **PRODUCTION MATCHES `master` as of 2026-10-03 with the key check round live** — bundle `index-BhhW2iNw.js`, CSS `index-Co3i2lF7.css` (unchanged), merge commit `d0ba83b`. Before it the same day: held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
@@ -374,15 +374,17 @@ src/
 │   │                       stockProbe (boardEdges' rule from a segment to a point;
 │   │                       CLOSED spans, so a point on a split plane sees both sides).
 │   │                       cutRegion honours `stopMin`/`stopMax` (crossed stops remove
-│   │                       nothing); `cutLabel` → `CutKind`, seven words derived from the shape (stopped-cuts spec
-│   │                       §4.1)
+│   │                       nothing); `cutLabel` → `CutKind`, seven words derived
+│   │                       from the shape (stopped-cuts spec §4.1). Home of
+│   │                       `CUT_GEOMETRY_FIELDS` / `CUT_GEOMETRY_KEYS` (inv 40)
 │   ├── cutlist.ts          buildCutList (inv 18). STOCK, NOT REMAINDER — `cuts`
 │   │                       ignored, because a dado does not reduce the board you buy;
 │   │                       accumulates EXACT stock, never qty × rounded dimensions.
-│   │                       `cutSignature` is built from `SIGNATURE_FIELDS`, checked
-│   │                       against `Cut` by `satisfies` (inv 40)
-│   ├── depthField.ts       buildDepthField (inv 20). reads its rectangles from `cutRegion` — it once rebuilt
-│   │                       them with the across span hard-coded to full length
+│   │                       `cutSignature` is derived from `CUT_GEOMETRY_FIELDS`
+│   │                       in cuts.ts, checked against `Cut` by `satisfies` (inv 40)
+│   ├── depthField.ts       buildDepthField (inv 20). Reads its rectangles
+│   │                       from `cutRegion` — it once rebuilt them with the across
+│   │                       span hard-coded to full length
 │   ├── diagram.ts          buildDiagrams — one view per (face, from), so
 │   │                       perpendicular cuts on a face draw together
 │   ├── nesting.ts          buildNesting — shelf FFD, because guillotine cuttability
@@ -402,9 +404,10 @@ src/
 │   │                       EXCEPT a fully consumed board, a literal
 │   │                       `boardSolids(b).length === 0` check, which keeps all 26
 │   │                       because the ghost box IS drawn — inv 21) / cutSnapPoints
-│   │                       (floor rectangle 9 +
-│   │                       the mouth's opening, every point but its centre, 8; stockProbe drops a through-cut's two
-│   │                       across-end mouth points, so 15 for a dado, 12 for a rabbet, 17 for a blind mortise) / snapPointsFor (the
+│   │                       (floor rectangle 9 + the mouth's opening, every point
+│   │                       but its centre, 8; stockProbe drops a through-cut's two
+│   │                       across-end mouth points, so 15 for a dado, 12 for a
+│   │                       rabbet, 17 for a blind mortise) / snapPointsFor (the
 │   │                       union, called in BOTH of MoveTool's branches — a cut point
 │   │                       must be a TARGET on the unselected board or the headline
 │   │                       operation does not work) / guideSnapPoints / sameSnapPoint
@@ -584,7 +587,9 @@ src/
 │   ├── PartsList.tsx  FileMenu.tsx
 │   ├── Properties.tsx      board fields + Cuts; CutRow is its own component so a
 │   │                       cut's error dies with the cut. Stop short of near/far
-│   │                       end; a stop pair leaving no cut is refused, and changing `across` RESETS the stops
+│   │                       end; a stop pair leaving no cut is refused (only on a transition INTO
+│   │                       it, so a board shrink cannot lock the row), and changing
+│   │                       `across` RESETS the stops
 │   ├── diagramScale.ts     fitView / bandOn (ordering-guarded). MAX_ASPECT /
 │   │                       MAX_HEIGHT / MIN_WIDTH are browser-settled. Pure
 │   ├── diagramLabels.ts    LABEL_SIZE / CHAR_W / labelHeight / labelWidth / packRow
@@ -1295,22 +1300,26 @@ worked examples behind several of them are in `docs/history.md`.
     to face each "hold" the other. Read it before tightening anything.
 
 40. **Anything that decides "same cut" from a list of `Cut`'s fields must be checked against
-    the type by the compiler.** `cutSignature` decides which parts share a cut-list row, and
-    it was a hand-written field list. Adding `stopMin`/`stopMax` to `Cut` without adding them
-    there would have grouped a mortised leg with a through-dadoed one: one row, one setup,
-    half the legs cut wrong, and every existing test green. So `SIGNATURE_FIELDS` is a table
-    that `satisfies Record<Exclude<keyof Cut, 'id'>, true>`, and a new `Cut` field fails `tsc`
-    until it is listed. This is invariant 15 one layer over: a hand-written list of what a
-    computation reads goes stale silently. **Do not replace the table with a list in the
-    function body**, and do not add a field to the table's exclusions without a written
-    reason.
+    the type by the compiler.** Two readers do: `cutSignature`, which groups cut-list rows,
+    and `boardUVSignature`, which is BoardMesh's memo key. Both were hand-written field lists.
+    Adding `stopMin`/`stopMax` to `Cut` without adding them to the first would have grouped a
+    mortised leg with a through-dadoed one: one row, one setup, half the legs cut wrong, and
+    every existing test green. So `CUT_GEOMETRY_FIELDS` (in `cuts.ts`) is a table that
+    `satisfies Record<Exclude<keyof Cut, 'id'>, true>`, both readers derive from it, and a new
+    `Cut` field fails `tsc` until it is listed. This is invariant 15 one layer over: a
+    hand-written list of what a computation reads goes stale silently. The second reader was
+    missed when the table was first written, and the 3D view kept drawing a through-dado after
+    a stop edit — found by the whole-branch review, which is why the table now lives in
+    `cuts.ts` beside `Cut`'s geometry rather than in the cut list. **Do not replace the table
+    with a list in a function body**, and do not add a field to the table's exclusions without
+    a written reason.
 
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 1180 tests across 45 files
+npm test           # Vitest, currently 1282 tests across 45 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

@@ -437,6 +437,15 @@ describe('boardUVSignature', () => {
     expect(boardUVSignature(b)).not.toBe(boardUVSignature(a));
   });
 
+  it.each(['stopMin', 'stopMax'] as const)('changes when only %s changes', (key) => {
+    const a = createBoard({ cuts: [{
+      id: 'c1', face: 'thickness', from: 'max', across: 'width',
+      offset: 6, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0,
+    }] });
+    const b = { ...a, cuts: [{ ...a.cuts[0], [key]: 1 }] };
+    expect(boardUVSignature(b)).not.toBe(boardUVSignature(a));
+  });
+
   // Deliberately excluded: a board being dragged must not rebuild its
   // geometry every frame.
   it('ignores position and name', () => {

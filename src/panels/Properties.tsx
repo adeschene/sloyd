@@ -84,7 +84,10 @@ function CutRow({ board, cut, precision }: { board: Board; cut: Cut; precision: 
       setAttempt((n) => n + 1);
       return;
     }
-    if (wouldLeaveNoCut(patch)) {
+    // Only a transition INTO the no-cut state is refused. A board shrink can
+    // leave a cut with no length already; refusing every edit then would lock
+    // the row, since even stopMax -> 0 still leaves the pair crossing.
+    if (wouldLeaveNoCut(patch) && !wouldLeaveNoCut({})) {
       setError('That would leave no cut.');
       setAttempt((n) => n + 1);
       return;

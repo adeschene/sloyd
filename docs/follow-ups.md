@@ -3961,3 +3961,16 @@ a fixture, and its message text is pinned), but whether the model *repairs* well
 "X sides are covered 19% and 19% …" is unobserved. The next paid run that triggers one
 should record the round trip. Chasing it with extra batches was judged not worth the money.
 
+## From the stopped cuts round — 2026-10-04
+
+**178. A cut a board shrink has left with no stock to remove is still printed.** Shorten a
+board under one of its cuts and the cut can end up removing nothing: a stopped cut whose
+stops now cross, or a dado whose offset now lies past the board's end. The 3D view correctly
+shows no cut, but `cutLabel`, the setup line and the diagram still describe it — a "3/4"
+mortise … stopped 3" short of the min end and 2" short of the max end" on a 2" board, or a
+phantom dado "20" from the length min end" on a 10" one. The loader drops such a cut on the
+next load, so it lasts only for the session. The phantom dado predates the stopped-cuts round;
+stops add a second way in. **Open by decision, for the user:** the remedy is a design choice
+— hide the cut from the sheet, flag it on the row, or drop it at the edit — and none was
+chosen. A shared "region is empty" test in `cutlist.ts` and `diagram.ts` is the obvious
+mechanism whichever is picked.

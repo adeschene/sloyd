@@ -1,7 +1,7 @@
 import { MATERIALS, isSheetGood, sheetStockOf } from './types';
 import type { Board, Cut, Grain, SloydDocument } from './types';
 import { positionAxisOf } from './geometry';
-import { cutLabel } from './cuts';
+import { CUT_GEOMETRY_KEYS, cutLabel } from './cuts';
 import { buildDiagrams } from './diagram';
 import type { DiagramView } from './diagram';
 import { buildNesting } from './nesting';
@@ -147,26 +147,10 @@ function materialLabel(material: string): string {
  * Sorting is what makes it order-independent: the same two dados added in
  * either order produce the same signature. `id` is excluded — it is identity,
  * not geometry.
- *
- * Every field of `Cut` that decides "same cut": all but `id`.
- *
- * A TABLE CHECKED AGAINST THE TYPE, not a list in a function body (invariant
- * 40). The signature used to be a hand-written field list, and adding
- * `stopMin`/`stopMax` to `Cut` without adding them there would have grouped a
- * mortised leg with a through-dadoed one: one row, one setup, half the legs
- * cut wrong. `satisfies` makes a new `Cut` field fail `tsc` here until it is
- * listed — invariant 15's lesson, one layer over.
  */
-const SIGNATURE_FIELDS = {
-  face: true, from: true, across: true, offset: true, width: true, depth: true,
-  stopMin: true, stopMax: true,
-} as const satisfies Record<Exclude<keyof Cut, 'id'>, true>;
-
-const SIGNATURE_KEYS = Object.keys(SIGNATURE_FIELDS) as (keyof typeof SIGNATURE_FIELDS)[];
-
 function cutSignature(cuts: Cut[]): string {
   return cuts
-    .map((c) => SIGNATURE_KEYS.map((k) => String(c[k])).join(':'))
+    .map((c) => CUT_GEOMETRY_KEYS.map((k) => String(c[k])).join(':'))
     .sort()
     .join(';');
 }

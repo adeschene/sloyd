@@ -492,7 +492,7 @@ describe('schema 4 — cuts', () => {
 
   // The chain is the point: a v1 file must walk 1 -> 2 -> 3 -> 4 -> 5 -> 6,
   // folding 270 to 90 BEFORE it gains a posture, and gaining cuts before guides.
-  it('walks a v1 file all the way to 6', () => {
+  it('walks a v1 file all the way to 7', () => {
     const doc = migrateDocument({
       version: 1,
       name: 'Ancient',
@@ -644,7 +644,7 @@ describe('schema v5 — stock.kerf', () => {
     expect(() => migrateDocument({ version: 8, name: 'X', boards: [] })).toThrow(DocumentError);
   });
 
-  it('walks a v1 file all the way to v6', () => {
+  it('walks a v1 file all the way to v7', () => {
     const doc = migrateDocument({
       version: 1,
       name: 'Ancient',
@@ -738,7 +738,7 @@ describe('guides — schema v6', () => {
   });
 
   // A v1 file must still walk the whole chain, gaining guides at the end.
-  it('a v1 file walks 1 -> 6', () => {
+  it('a v1 file walks 1 -> 7', () => {
     const doc = migrateDocument({
       version: 1,
       name: 'Ancient',

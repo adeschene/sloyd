@@ -44,7 +44,10 @@ export interface Cut {
   face: Dimension;
   /** Which end of `face` it enters from. */
   from: CutFrom;
-  /** The dimension it runs fully across. Always differs from `face`. */
+  /**
+   * The dimension the cut runs across, fully unless `stopMin`/`stopMax` stop it
+   * short. Always differs from `face`.
+   */
   across: Dimension;
   /** Where the cut starts along the implied position axis, in inches. */
   offset: number;

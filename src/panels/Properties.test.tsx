@@ -693,4 +693,36 @@ describe('cuts', () => {
     expect(screen.queryByText(/would remove the whole board/i)).not.toBeInTheDocument();
     expect(stored(id)).toMatchObject({ offset: 0, width: 24, depth: 0.75, stopMax: 1 });
   });
+
+  it('allows a full-depth, full-width cut that stops short at the near end', async () => {
+    const id = renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    await typeInto(/stop short of near end/i, '1');
+    await typeInto(/from the end/i, '0');
+    await typeInto(/cut width/i, '24');
+    await typeInto(/^depth$/i, '3/4');
+    expect(screen.queryByText(/would remove the whole board/i)).not.toBeInTheDocument();
+    expect(stored(id)).toMatchObject({ offset: 0, width: 24, depth: 0.75, stopMin: 1 });
+  });
+
+  it('keeps a cut editable after a board shrink leaves its stops crossing', async () => {
+    const id = renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    await typeInto(/stop short of near end/i, '3');
+    await typeInto(/stop short of far end/i, '2');
+    expect(stored(id)).toMatchObject({ stopMin: 3, stopMax: 2 });
+    // Width 5.5 -> 2: 3 + 2 >= 2, so the cut now has no length across.
+    act(() => { useStore.getState().updateBoard(id, { width: 2 }); });
+
+    await typeInto(/from the end/i, '1');
+    expect(screen.queryByText(/would leave no cut/i)).not.toBeInTheDocument();
+    expect(stored(id).offset).toBe(1);
+
+    await typeInto(/stop short of far end/i, '0');
+    expect(stored(id).stopMax).toBe(0);
+
+    await typeInto(/stop short of near end/i, '1');
+    expect(stored(id).stopMin).toBe(1);
+    expect(stored(id).stopMin + stored(id).stopMax).toBeLessThan(2);
+  });
 });

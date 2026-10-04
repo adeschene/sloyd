@@ -241,8 +241,8 @@ function pointsOfCut(board: Board, cut: Cut): { at: Point; kind: SnapKind }[] {
 }
 
 /**
- * A board's cut-owned snap candidates: up to 17 per cut (15 for a through-cut), minus any whose stock is
- * gone.
+ * A board's cut-owned snap candidates: up to 17 per cut (15 for a plain through
+ * dado), minus any whose stock is gone.
  *
  * The second provider the snap-move design's §2.3 was built for — pickSnapPoint
  * consumes SnapPoint[] and never sees a Board, so this is an addition rather

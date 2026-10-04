@@ -1,6 +1,25 @@
 import type { Board, Cut, Dimension, Region, Span } from './types';
 import { axisDimensions, boardExtents, DIMENSION_ORDER, positionAxisOf } from './geometry';
 
+/**
+ * Every field of `Cut` that decides "same cut": all but `id`.
+ *
+ * A TABLE CHECKED AGAINST THE TYPE, not a list in a function body (invariant
+ * 40). Two readers derive from it: `cutSignature` (cut-list row grouping) and
+ * `boardUVSignature` (BoardMesh's memo key). Both used to be hand-written
+ * field lists, and adding `stopMin`/`stopMax` to `Cut` without adding them
+ * there would have grouped a mortised leg with a through-dadoed one, or left
+ * the 3D view drawing a stale cut. `satisfies` makes a new `Cut` field fail
+ * `tsc` here until it is listed — invariant 15's lesson, one layer over.
+ */
+export const CUT_GEOMETRY_FIELDS = {
+  face: true, from: true, across: true, offset: true, width: true, depth: true,
+  stopMin: true, stopMax: true,
+} as const satisfies Record<Exclude<keyof Cut, 'id'>, true>;
+
+export const CUT_GEOMETRY_KEYS =
+  Object.keys(CUT_GEOMETRY_FIELDS) as (keyof typeof CUT_GEOMETRY_FIELDS)[];
+
 /** The board itself, uncut. */
 export function wholeBoard(board: Board): Region {
   return {
