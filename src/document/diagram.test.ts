@@ -213,3 +213,17 @@ describe('buildDiagrams — stopped cuts', () => {
     expect(c.v).toEqual([1, 4]);
   });
 });
+
+describe('buildDiagrams — a cut that removes nothing (follow-up 178)', () => {
+  it('draws no band for it, and keeps a live cut beside it', () => {
+    const views = buildDiagrams(board(dado({ stopMin: 3, stopMax: 3 }), dado({ id: 'c2', offset: 12 })), 16);
+    expect(views.flatMap((v) => v.cuts.map((c) => c.id))).toEqual(['c2']);
+  });
+
+  it('falls back to the plain broad-face drawing when every cut removes nothing', () => {
+    const views = buildDiagrams(board(dado({ face: 'width', across: 'length', offset: 30 })), 16);
+    expect(views).toHaveLength(1);
+    expect(views[0].face).toBe('thickness');
+    expect(views[0].cuts).toEqual([]);
+  });
+});

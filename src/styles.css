@@ -697,6 +697,16 @@ button[aria-pressed='true'] {
   line-height: 1.4;
 }
 
+/* A fact about the row, not a refusal: `.field-error`'s scale, the warning ink. */
+.field-note {
+  flex: 0 0 100%;
+  margin: 0 0 2px;
+  color: var(--warn-ink);
+  font-family: var(--font-num);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 .cut {
   border-top: 1px solid var(--rule);
   padding-top: 0.5rem;

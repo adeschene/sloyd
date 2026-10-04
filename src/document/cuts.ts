@@ -76,6 +76,32 @@ export function cutRegion(board: Board, cut: Cut): Region {
   return region;
 }
 
+/**
+ * True when a cut takes no stock out of its board (follow-up 178).
+ *
+ * The box `cutRegion` returns, clipped to the board, has no volume. That is a
+ * cut a board edit has left behind: stops that now cross, an offset now past
+ * the board's end, or a width or depth of zero. `cutRegion`'s all-zero region
+ * covers only the first, so the test is the CLIPPED box, not that sentinel —
+ * which is also exactly what `boardSolids` already does, so the 3D view and
+ * this agree by construction.
+ *
+ * Such a cut is kept in the document (shrinking a board and growing it back
+ * must not lose the joint), but the cut list does not print it and Properties
+ * says so. The loader drops it on the next open, as it always has.
+ */
+export function cutRemovesNothing(board: Board, cut: Cut): boolean {
+  const region = cutRegion(board, cut);
+  return DIMENSION_ORDER.some(
+    (d) => Math.min(region[d][1], board[d]) - Math.max(region[d][0], 0) <= 0,
+  );
+}
+
+/** The cuts that actually remove stock — what the cut list prints and groups by. */
+export function cutsThatRemoveStock(board: Board): Cut[] {
+  return board.cuts.filter((cut) => !cutRemovesNothing(board, cut));
+}
+
 interface Grid {
   /** Sorted, deduplicated split planes per dimension, always including 0 and the dimension. */
   coords: Record<Dimension, number[]>;

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store/store';
-import { MATERIALS, uniqueName, isSheetGood, cutLabel, positionAxisOf } from '../document/document';
+import { MATERIALS, uniqueName, isSheetGood, cutLabel, cutRemovesNothing, positionAxisOf } from '../document/document';
 import { DimensionField } from './DimensionField';
 import { NameField } from './NameField';
 import { formatLength } from '../units/length';
@@ -168,6 +168,16 @@ function CutRow({ board, cut, precision }: { board: Board; cut: Cut; precision: 
           Remove
         </button>
       </div>
+
+      {/* Kept rather than dropped, so growing the board back restores the
+          joint; the cut list leaves it out meanwhile. The loader drops such a
+          cut on the next open, and the note says so (follow-up 178). */}
+      {cutRemovesNothing(board, cut) && (
+        <p className="field-note" role="status">
+          This cut no longer fits the board and removes nothing. It will be dropped when the
+          project is reopened.
+        </p>
+      )}
 
       <div className="field">
         <label htmlFor={`face-${cut.id}`}>Cut into</label>

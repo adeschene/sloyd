@@ -149,6 +149,26 @@ describe('buildCutList', () => {
     ]);
   });
 
+  it('omits a cut a board shrink has left removing nothing (fu 178)', () => {
+    const list = buildCutList(docWith({ length: 10, cuts: [dado({ offset: 20 })] }));
+    expect(list.groups[0].rows[0].setup).toEqual([]);
+  });
+
+  it('omits a cut whose stops cross, and keeps a live cut beside it', () => {
+    // The default board is 5-1/2" wide: stops of 3 and 3 cross.
+    const list = buildCutList(docWith({ cuts: [dado({ stopMin: 3, stopMax: 3 }), dado({ id: 'c2', offset: 12 })] }));
+    expect(list.groups[0].rows[0].setup).toEqual([
+      '3/4" dado, 1/4" deep — into the thickness face (min side), ' +
+      '12" from the length min end, running across the width',
+    ]);
+  });
+
+  it('groups a board carrying such a cut with an otherwise identical clean board', () => {
+    const list = buildCutList(docWith({ length: 10, cuts: [dado({ offset: 20 })] }, { length: 10 }));
+    expect(list.groups[0].rows).toHaveLength(1);
+    expect(list.groups[0].rows[0].qty).toBe(2);
+  });
+
   it('splits two parts that differ only in a stop into two rows', () => {
     const list = buildCutList(docWith({ cuts: [dado()] }, { cuts: [dado({ stopMax: 1 })] }));
     expect(list.groups[0].rows).toHaveLength(2);

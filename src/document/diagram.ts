@@ -1,6 +1,6 @@
 import type { Board, CutFrom, Dimension, Span } from './types';
 import { DIMENSION_ORDER, positionAxisOf } from './geometry';
-import { cutLabel, cutRegion, type CutKind } from './cuts';
+import { cutLabel, cutRegion, cutRemovesNothing, type CutKind } from './cuts';
 import { buildDepthField, type FaceCell } from './depthField';
 import { formatLength } from '../units/length';
 
@@ -119,6 +119,9 @@ export function buildDiagrams(board: Board, precision: number): DiagramView[] {
   };
 
   for (const cut of board.cuts) {
+    // A cut a board edit has left removing nothing is not drawn: there is no
+    // stock for it to remove, and the 3D view already shows none (fu 178).
+    if (cutRemovesNothing(board, cut)) continue;
     // A cut naming one dimension twice has no position axis to draw against.
     // `validateCuts` drops it on load, but a Board built in code can still
     // reach here — the same totality reasoning `cutRegion`'s own doc comment

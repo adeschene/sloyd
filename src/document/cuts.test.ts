@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
-import { boardEdges, boardSolids, cutLabel, cutRegion, solidWorldBox, stockProbe, wholeBoard } from './cuts';
+import { boardEdges, boardSolids, cutLabel, cutRegion, cutRemovesNothing, solidWorldBox, stockProbe, wholeBoard } from './cuts';
 import type { Board, Cut, Dimension, Region } from './types';
 
 /** A 24 x 5-1/2 x 3/4 flat board with whatever cuts are given. */
@@ -425,5 +425,37 @@ describe('cutLabel with stops', () => {
 
   it('calls a depth past the face (out of range mid-session) through', () => {
     expect(cutLabel(b, c({ stopMin: 1, stopMax: 1, depth: 1.5 }))).toBe('through mortise');
+  });
+});
+
+describe('cutRemovesNothing (follow-up 178)', () => {
+  // A 10 x 2 x 1 board: what a 24" part with a dado looks like after a shrink.
+  const b = createBoard({ length: 10, width: 2, thickness: 1 });
+  const c = (over: Partial<Cut>): Cut => ({
+    id: 'c', face: 'thickness', from: 'min', across: 'width',
+    offset: 4, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0, ...over,
+  });
+
+  it.each<[string, Partial<Cut>, boolean]>([
+    ['an ordinary dado', {}, false],
+    ['a cut running partly past the end', { offset: 9.5, width: 1 }, false],
+    ['a far-side cut deeper than the face', { from: 'max', depth: 3 }, false],
+    ['a mortise', { stopMin: 0.5, stopMax: 0.5 }, false],
+    ['stops that cross', { stopMin: 1.5, stopMax: 1 }, true],
+    ['stops that exactly meet', { stopMin: 1, stopMax: 1 }, true],
+    ['an offset past the end', { offset: 20 }, true],
+    ['an offset exactly at the end', { offset: 10 }, true],
+    ['zero width', { width: 0 }, true],
+    ['zero depth', { depth: 0 }, true],
+    ['a cut naming one dimension twice', { across: 'thickness' }, true],
+  ])('%s', (_, over, want) => {
+    expect(cutRemovesNothing(b, c(over))).toBe(want);
+  });
+
+  it('agrees with the solids: a cut it calls empty leaves the board whole', () => {
+    for (const over of [{ offset: 20 }, { stopMin: 1.5, stopMax: 1 }, { offset: 10 }]) {
+      const cutBoard = createBoard({ length: 10, width: 2, thickness: 1, cuts: [c(over)] });
+      expect(boardSolids(cutBoard)).toEqual(boardSolids(b));
+    }
   });
 });
