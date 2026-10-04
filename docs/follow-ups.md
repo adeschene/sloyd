@@ -4072,8 +4072,45 @@ that end still stays put in the world, which is what keeps a tenon in place. Shr
 them. Physically it is the right reading of "runs out", but it is a deviation from the ruling's
 literal formula, so §4.7 should be amended or the rule reverted by decision.
 
+**CLOSED 2026-10-04.** The controller signed off the rule, and spec §4.7 is amended. The
+re-review then found that the POSITION-axis half was wrong:
+- **The case:** a housing flush with an end holds a part that sits AT that end, and that part
+  does not move when the board grows.
+- **The failure:** extending the housing made the geometry depend on document order. A footed
+  case side printed a "1-7/16″ rabbet" instead of a 3/4″ dado, and left a hidden void.
+- **The decision:** the user approved dropping that half (commit `d55f1ab`).
+- **What remains:** only the `across` half. A through cut keeps running out along its across
+  axis, and a cut positioned flush with an end stays where it is.
+- **The tests:** the footed side in both listing orders, plus a grooved-back ordering test.
+
 **188. The default tenon cap's edges.** I1 caps a default tenon 1/16in short of another default
 tenon's cross-section inside the same part. Three recorded limits: the cap rounds DOWN to 1/16in
 (so rounding cannot eat the clearance); when the cap falls below the range's 1/2in floor, the clamp
 wins and the two tenons still meet, which the check then reports; and the cap ignores how far the
 OTHER tenon actually reaches, so it can shorten a tenon whose neighbour is too short to meet it.
+
+**189. A shelf housing closed at both ends prints as "mortise".** This was seen live on a
+generated bookcase, whose back panel sat between the sides.
+- **What happens:** the model stopped each shelf's dado at the front. Each shelf also ends 1/2″
+  short of the sides' back edge, so the pocket is closed at both ends. `cutLabel`'s table (the
+  stopped-cuts round) therefore calls it a `mortise`.
+- **Geometry vs. word:** the geometry is right. A woodworker would call it a blind (stopped)
+  dado. A mortise is a pocket for a tenon, not a housing for a whole board's end.
+- **Possible discriminator:** the pocket's width along the position axis compared with its length
+  (a housing is long and shallow, a mortise narrow and deep), or the receiving part being a
+  panel.
+- **Status:** a cut-list vocabulary question for the user, in the same family as 180 and 181.
+
+**190. Rails entering one post from OPPOSITE faces collide on the defaults.** A centre post or
+long-bench middle leg has rails tenoned in from both sides at one height.
+- **The numbers:** each default tenon is 1-3/16″, so together they need 2-3/8″ in a 1-3/4″ post.
+- **Why the cap misses it:** I1's cap only looks at ADJACENT faces (`o.axis === k` is skipped
+  by construction).
+- **The fix would be** to cap each to under half the post's depth when the opposite site exists.
+- **Reach:** the model can still choose well, and the repair loop catches it. Only the
+  fallback, which builds the defaults and never repairs them, delivers the overlap.
+
+Also seen live, and not a defect: on a hand-built corner leg, the model avoided the
+adjacent-tenon collision by itself, choosing 11/16″ tenons. So no repair round ran, and the
+joinery repair path has been seen only in unit tests, the same as 177 for `hangs`/`tips`.
+

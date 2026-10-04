@@ -41,6 +41,11 @@ Claude drives the dev server and the user supervises. Results are in
 findings: 164, a batch converging on one design, now CLOSED (below); and 165, a support
 check that passes a badly supported part, still open.
 
+**The joinery round (phase 2, follow-up 171, 2026-10-04) is verified live on branch `joinery`,
+NOT yet merged.** "Add joinery…" returns the open design joined, as a new unactivated project
+(`docs/browser-verification-joinery.md`). No schema change. Read invariants 38 and 41 before
+touching `generate/joints/` or `checkDesign`.
+
 **The phantom-cut round (follow-up 178, 2026-10-04) is merged AND deployed.** A cut a board edit has left removing nothing is hidden from the cut list, its
 drawings and the snap points, and flagged on its Properties row; it is kept, so growing the
 board back restores it (`docs/browser-verification-phantom-cut.md`). No schema change.
@@ -242,6 +247,7 @@ show it. Prefer a readout where one suffices; add an image when the finding is s
 | key check | 10-03 | — | *no spec* — fu 174: Settings shape-checks a key and verifies it with a free call before storing it; the auth error carries the API's reason. No prefix rule |
 | stopped cuts | 10-04 | 7 | a `Cut` stops short of either end (`stopMin`/`stopMax`): mortises, through mortises, stopped dados, notches. One field table, two readers (inv 40) |
 | phantom cut | 10-04 | — | *no spec* — fu 178: a cut a board edit has left removing nothing is hidden from the cut list, drawings and snap points, and flagged on its row; kept, not dropped |
+| joinery | 10-04 | — | "Add joinery…": sites found by code, one model call chooses, `pocketFor` recipes build mortise and tenon / dado / stopped dado / rabbet / half-lap into a new unactivated project (invs 38 rewritten, 41) |
 
 ### The deployment rule, stated once
 
@@ -1395,7 +1401,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is the authoritative list** — 1-179, consciously deferred rather
+**`docs/follow-ups.md` is the authoritative list** — 1-190, consciously deferred rather
 than missed, each written up in place with its closure where it has one. Read the entries
 for the area you are about to touch before starting; several are "correct but untested",
 which is exactly what a refactor breaks silently.
@@ -1471,8 +1477,10 @@ The handful worth knowing without opening that file:
 - **174** — CLOSED 2026-10-03 by the key check round. Read its closure before touching
   Settings' Save: the free verification call saves anyway on anything but a 401/403, and
   **there is deliberately no prefix rule** (a working key does not start with `sk-ant-api`).
-- **171** — phase 2, refine and joinery, the planned successor. Read invariant 38 first. The
-  stopped cuts round (2026-10-04) landed first, so a tenon now has a mortise to sit in.
+- **171** — joinery is BUILT (2026-10-04, "Add joinery…"); refine by instruction is now **179**.
+  Read invariants 38 and 41, and follow-ups 180–190 (the round's residues: cut-list words for a
+  tenon and a closed shelf housing, the default-tenon cap's edges, opposite-face tenons,
+  half-lap stacks), before touching `generate/joints/`.
 - **178** — CLOSED 2026-10-04. A cut a board edit has left removing nothing is hidden from
   the cut list, its drawings and the snap points, and flagged on its Properties row; it is
   KEPT, so growing the board back restores it. Read the closure before adding a reader of
