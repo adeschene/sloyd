@@ -89,6 +89,11 @@ otherwise the nearest value on the side that KEEPS THE RUN (the run's extent nev
 position's never grows), within one ulp of the board's dimension. After it: 0 oscillations, 0 run
 changes; 6 exact-tie notches read as stopped dados after growing by that ulp.
 
+**The guard (user ruling).** If the re-stored cut's `cutShape` differs from the original's in
+`word`, `run`, `pos` or which stops are null, `storedAsShape` returns the original cut unchanged,
+so a re-store never changes what the sheet says. On the sweep it refuses exactly those 6
+exact-square corner openings.
+
 **When it is the identity.** A cut already stored with `across === run` is returned UNCHANGED,
 the same object, overhang and all. Recomputing its fields would not be exact: `(offset + width) −
 offset` is not `width` for a decimal such as 0.1 + 0.2 (found while planning). Only a sideways cut is
@@ -125,6 +130,8 @@ In `CutRow`, for a cut that removes stock and is not a tenon shoulder, when
 - **A note** under the row's heading, as a `field-note`:
   `The cut list reads this cut as running across the <run>.` The run is lower-case, in the
   sheet's own word.
+- **Only where the re-store is accepted.** The note and button show only when
+  `storedAsShape(board, cut, solids) !== cut`, so a cut §3.1's guard refuses shows neither.
 - **A button, `Match the cut list`.** It applies `storedAsShape` through the row's existing `set()`
   as ONE `updateCut`, so it is one undo step and passes the row's existing refusals (which a
   same-geometry patch never trips).

@@ -29,7 +29,13 @@ function CutRow({ board, cut, precision, solids }: { board: Board; cut: Cut; pre
   const word = tenon ? 'tenon shoulder' : shape.word;
   // Cut-storage spec §3.3: offered only where the sheet prints THIS cut's own
   // line (not a tenon's shoulder) and reads it running the other way.
-  const sideways = !tenon && !cutRemovesNothing(board, cut) && cut.across !== shape.run;
+  // And only where the re-store is accepted: `storedAsShape` hands back the
+  // same object when the sheet would read the result differently, and a button
+  // that changes nothing would leave an undo entry that does nothing (inv 4).
+  const restored = !tenon && !cutRemovesNothing(board, cut) && cut.across !== shape.run
+    ? storedAsShape(board, cut, solids)
+    : cut;
+  const sideways = restored !== cut;
   // Bumped whenever a patch is refused. The three DimensionFields below are
   // keyed on it, so a refusal remounts them: each field's own `commit()` has
   // already optimistically set its local text to the (rejected) typed value
@@ -192,7 +198,7 @@ function CutRow({ board, cut, precision, solids }: { board: Board; cut: Cut; pre
           <p>The cut list reads this cut as running across the {shape.run}.</p>
           {/* The button unmounts once the cut matches, so focus moves to the
               field the click just changed rather than dropping to <body>. */}
-          <button onClick={() => { set(storedAsShape(board, cut, solids)); acrossRef.current?.focus(); }}>
+          <button onClick={() => { set(restored); acrossRef.current?.focus(); }}>
             Match the cut list
           </button>
         </div>

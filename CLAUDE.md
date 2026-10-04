@@ -1414,6 +1414,8 @@ worked examples behind several of them are in `docs/history.md`.
     (fu 195). The re-stored cut removes the same stock: its boundaries are reproduced to the
     bit wherever the schema can express them, and otherwise (a far stop under half the
     board's dimension, in millimetres) land within one ulp, on the side that keeps the run.
+    A re-store the sheet would read differently (word, run, position axis, which ends are
+    stopped) is refused: `storedAsShape` returns the original, and Properties offers nothing.
     A later growth through `rebaseCuts` may still treat the two stored forms differently
     (follow-up 199). `useJoinery` writes only through `createProject(doc, { activate: false })` —
     invariant 36 extended. And only problems the joinery INTRODUCED drive repairs:

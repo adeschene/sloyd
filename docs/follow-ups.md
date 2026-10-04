@@ -4163,7 +4163,7 @@ across and stop fields) shows Runs across: Length with stops 24 and 47-1/4.
   sheet to the shape.
 - **Remedies:** a read-only shape summary on the cut row, or an action that re-stores the cut in its
   shape's orientation.
-- **Status:** CLOSED 2026-10-04 by the cut storage round, the user's ruling: joinery stores every cut the way the sheet reads it (`pocketFor` → `storedAsShape`), and a row stored the other way shows "The cut list reads this cut as running across the …" with a one-click **Match the cut list** (one undo step, same stock removed). No load-time rewrite.
+- **Status:** CLOSED 2026-10-04 by the cut storage round, the user's ruling: joinery stores every cut the way the sheet reads it (`pocketFor` → `storedAsShape`), and a row stored the other way shows "The cut list reads this cut as running across the …" with a one-click **Match the cut list** (one undo step, same stock removed). No load-time rewrite. Final-review ruling: a re-store the sheet would read differently (word, direction or stopped ends) is refused, and the note and button are not shown for it.
 
 **196. A square opening prints one of two lines, depending on storage.** Spec §2.1 rule 3 breaks an
 exact tie in extents by the stored `across`, so a square notch or a square mortise stored two ways

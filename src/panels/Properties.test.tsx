@@ -819,6 +819,20 @@ describe('cuts', () => {
       expect(screen.getByText(note).closest('[role="status"]')).not.toBeNull();
     });
 
+    it('shows nothing for a sideways cut the sheet would read differently once re-stored', () => {
+      // The exact-square mm corner opening from cuts.test.ts: storedAsShape refuses it.
+      const id = renderWithBoard();
+      act(() => {
+        const st = useStore.getState();
+        st.addCut(id);
+        const [c] = useStore.getState().doc.boards[0].cuts;
+        st.updateCut(id, c.id, { face: 'length', from: 'min', across: 'thickness', offset: 0, width: 0.6712598425196851, depth: 9.370078740157481, stopMin: 0.03937007874015748, stopMax: 0.03937007874015741 });
+      });
+      expect(screen.getAllByText('notch')).toHaveLength(1);
+      expect(screen.queryByText(/The cut list reads this cut/)).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Match the cut list' })).not.toBeInTheDocument();
+    });
+
     it('shows nothing for a tenon shoulder stored sideways', () => {
       const id = renderWithBoard();
       // Two cheeks at the length's min end, each stored across the LENGTH (stops 0 / 23)

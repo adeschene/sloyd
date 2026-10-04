@@ -604,11 +604,17 @@ export function cutLabel(board: Board, cut: Cut, solids: Region[] = boardSolids(
 /**
  * The same cut, stored the way it runs (cut-storage spec §3.1): `across` is
  * its shape's run, the position and width are its clipped opening along the
- * other axis, and the stops are its clipped opening along the run. It removes
- * the same stock — to the bit wherever the schema can express the opening's
- * far ends, otherwise within one ulp of the board's dimension on the side that
- * keeps the run (below); clipping only drops stored overhang that removed
+ * other axis, and the stops are its clipped opening along the run. The promise:
+ * the re-stored cut PRINTS THE SAME word, direction and stops; its boundaries
+ * are exact where the format allows and otherwise within one ulp, on the side
+ * that keeps the run (below). Clipping only drops stored overhang that removed
  * nothing.
+ *
+ * Where even that ulp would change what the sheet says, the cut comes back
+ * unchanged (the user's ruling). The case is an exact-square corner opening
+ * in millimetres: growing its run by an ulp breaks the tie that made it a
+ * notch, so it would read as a stopped dado — 6 of 8,114 seeded re-stores.
+ * Properties offers the button only when this returns a different object.
  *
  * A cut ALREADY stored with `across === run` comes back as the very same
  * object: recomputing its fields is not exact for decimals ((0.1 + 0.2) - 0.1
@@ -642,7 +648,13 @@ export function storedAsShape(board: Board, cut: Cut, solids: Region[] = boardSo
   candidate.stopMax = nearestFor(
     (m) => cutRegion(board, { ...candidate, stopMax: m })[s.run][1], s.along[1], candidate.stopMax, 'atLeast',
   );
-  return candidate;
+  // The guard: the sheet must read the re-stored cut exactly as it read the
+  // original. The numbers may differ by the ulp above, which never shows at
+  // display precision; the word, the axes and which ends are stopped may not.
+  const after = cutShape({ ...board, cuts: board.cuts.map((c) => (c.id === cut.id ? candidate : c)) }, candidate);
+  const same = after.word === s.word && after.run === s.run && after.pos === s.pos &&
+    (after.stopMin === null) === (s.stopMin === null) && (after.stopMax === null) === (s.stopMax === null);
+  return same ? candidate : cut;
 }
 
 /**

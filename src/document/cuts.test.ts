@@ -815,6 +815,18 @@ describe('storedAsShape: the same cut, stored the way it runs (cut-storage spec 
     farEnds(b, c, s);
   });
 
+  it('refuses a re-store the sheet would read differently: an exact-square mm corner opening', () => {
+    // From the sweep: an end cut on the default board whose opening is an exact
+    // square at the corner, so it reads as a notch. Its far stop cannot be
+    // stored exactly, and the run-keeping ulp breaks the tie into a stopped
+    // dado — so the cut is left as it is (user ruling).
+    const c: Cut = { id: 'n', face: 'length', from: 'min', across: 'thickness', offset: 0, width: 0.6712598425196851, depth: 9.370078740157481, stopMin: 0.03937007874015748, stopMax: 0.03937007874015741 };
+    const b = withCuts([c]);
+    expect(cutShape(b, c).word).toBe('notch');
+    expect(cutShape(b, c).run).not.toBe(c.across);
+    expect(storedAsShape(b, c)).toBe(c);
+  });
+
   it('millimetre re-stores keep the run and settle in one click (seeded sweep)', () => {
     let seed = 195; // mulberry32, deterministic
     const rnd = () => {
@@ -853,10 +865,11 @@ describe('storedAsShape: the same cut, stored the way it runs (cut-storage spec 
       const after = cutShape(b2, s);
       expect(after.run).toBe(before.run);
       expect(storedAsShape(b2, s)).toBe(s);
-      // The word too, except at an EXACT tie, where growing the run by an ulp
-      // can turn a notch into a stopped dado (the residue in the report).
-      const ext = (sp: [number, number]) => sp[1] - sp[0];
-      if (ext(before.along) !== ext(before.at)) expect(after.word).toBe(before.word);
+      // The sheet reads it the same (user ruling): word, axes, stopped ends.
+      expect(after.word).toBe(before.word);
+      expect(after.pos).toBe(before.pos);
+      expect(after.stopMin === null).toBe(before.stopMin === null);
+      expect(after.stopMax === null).toBe(before.stopMax === null);
       const { runEnd, posEnd } = farEnds(b, c, s);
       // Exact wherever the schema can say it: a far stop of 0, or a target at
       // least half the dimension (Sterbenz: `dim - x` is then exact).
