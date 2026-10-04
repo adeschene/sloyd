@@ -24,7 +24,7 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **1519/1519 tests passing across 55 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
+Static SPA, containerized, **1539/1539 tests passing across 55 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **7**.
 
 **PRODUCTION MATCHES `master` as of 2026-10-04 with the cut lines round live** — bundle `index-BPmx9i74.js`, CSS `index-DqhKBEnY.css` (unchanged), merge commit `f602a2d`, **schema 7**. Before it the same day: cut words `index-Cw_EeWuY.js` (`8c9be52`), joinery `index-Ci7lVCzJ.js` (`d2a14ac`), phantom cut `index-B2Yuq550.js` (`e7bf3bc`), stopped cuts `index-CoHIAVxf.js` (`c054ede`), which bumped the schema to 7 (rolling back past it strands v7 documents; export first). Before it, 2026-10-03: key check `index-BhhW2iNw.js` (`d0ba83b`), held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
@@ -40,6 +40,8 @@ Claude drives the dev server and the user supervises. Results are in
 `docs/browser-verification-generate.md`. 6 of 6 generations completed. It left two
 findings: 164, a batch converging on one design, now CLOSED (below); and 165, a support
 check that passes a badly supported part, still open.
+
+**The cut storage round (follow-ups 195, 196, 2026-10-04) is on branch `cutstorage`, live-checked by the user, NOT yet merged.** Joinery stores each cut the way the sheet reads it (`storedAsShape`), Properties offers **Match the cut list** for one stored the other way (guarded: offered only when the sheet would read the same), and a square opening's direction reads only its shape (`docs/browser-verification-cut-storage.md`). No schema change. Open questions: follow-ups 198, 199.
 
 **The cut lines round (follow-ups 192–194, 2026-10-04) is merged AND deployed.** `cutShape` is the one description of a cut; the setup line and the drawing both format from it, and a with-grain channel says `groove` (`docs/browser-verification-cut-lines.md`). No schema change. Its open questions are follow-ups 195–197.
 
@@ -253,6 +255,7 @@ show it. Prefer a readout where one suffices; add an image when the finding is s
 | joinery | 10-04 | — | "Add joinery…": sites found by code, one model call chooses, `pocketFor` recipes build mortise and tenon / dado / stopped dado / rabbet / half-lap into a new unactivated project (invs 38 rewritten, 41) |
 | cut words | 10-04 | — | fu 180/181/189: a cut is named from its OPENING, open meaning NO STOCK left (`openSides`), so one shape gets one word; `findTenons` prints a tenon as one line; corner notch; mortise by depth:length |
 | cut lines | 10-04 | — | fu 192/193 (194 by decision): `cutShape` is the ONE description of a cut (word, run axis, position, stops at closed ends); the setup line AND the drawing format from it, never stored fields; `groove` with the grain, solid wood and plywood |
+| cut storage | 10-04 | — | fu 195/196: `storedAsShape` — joinery stores a cut the way the sheet reads it; Properties' **Match the cut list** (one undo, same stock, guarded so the sheet never changes); the square tie reads only the shape |
 
 ### The deployment rule, stated once
 
@@ -411,6 +414,12 @@ src/
 │   │                       its word, and the setup line AND the drawing format from it,
 │   │                       never from stored fields (fu 192). `groove` when the run axis
 │   │                       is the grain on a material with grain (fu 193).
+│   │                       `storedAsShape` re-stores a sideways cut with across = its
+│   │                       run (same stock; an already-aligned cut comes back as the
+│   │                       same object, so no float noise splits rows). A far end the
+│   │                       schema cannot express exactly lands within one ulp, on the
+│   │                       side that keeps the run. The run never reads the stored
+│   │                       across, square ties included (fu 196).
 │   │                       It and `cutLabel` take an optional precomputed `solids`
 │   │                       (one `boardSolids` per board) — skip it, cut list ~3.5×
 │   │                       slower. Home of
@@ -541,7 +550,8 @@ src/
 │       ├── pocket.ts       pocketFor: the ONE world box -> Cut converter (inv 41);
 │       │                   throws on a box removing the whole board; snaps within 1e-9
 │       │                   of 0 or a board end; `across` = most boundary contact, not
-│       │                   dimension order (a stopped dado read as a "notch")
+│       │                   dimension order (a stopped dado read as a "notch"), then
+│       │                   stores it the way the sheet reads it (`storedAsShape`, fu 195)
 │       ├── sites.ts        findSites / rangesOf. Rule 3 needs a thin panel (<= 1/2in)
 │       │                   and the contact reaching the panel's edge along the
 │       │                   RECEIVING part's thickness axis (a centre partition otherwise
@@ -1402,7 +1412,16 @@ worked examples behind several of them are in `docs/history.md`.
     because a pose mistake there is a plausible cut in the wrong place. It throws on a box
     that removes the whole board, snaps within 1e-9 of 0 or a board end, and takes `across`
     as the dimension with the most boundary contact (order alone mislabelled a stopped dado
-    a "notch"). `useJoinery` writes only through `createProject(doc, { activate: false })` —
+    a "notch"). That choice is then re-stored through `storedAsShape`, against the board WITH
+    its existing cuts, so a joined cut's stored `across` is the direction the cut sheet prints
+    (fu 195). The re-stored cut removes the same stock: its boundaries are reproduced to the
+    bit wherever the schema can express them, and otherwise (millimetre values: a far stop under
+    half the board's dimension, or rarely a width's far end) land within one ulp, on the side
+    that keeps the run.
+    A re-store the sheet would read differently (word, run, position axis, which ends are
+    stopped) is refused: `storedAsShape` returns the original, and Properties offers nothing.
+    A later growth through `rebaseCuts` may still treat the two stored forms differently
+    (follow-up 199). `useJoinery` writes only through `createProject(doc, { activate: false })` —
     invariant 36 extended. And only problems the joinery INTRODUCED drive repairs:
     `runJoinery` checks the original and the joined design and compares problems by `kind`
     plus their `parts` names (the field exists for this), NEVER by message text, which
@@ -1415,7 +1434,7 @@ worked examples behind several of them are in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 1519 tests across 55 files
+npm test           # Vitest, currently 1539 tests across 55 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1425,7 +1444,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is the authoritative list** — 1-197, consciously deferred rather
+**`docs/follow-ups.md` is the authoritative list** — 1-199, consciously deferred rather
 than missed, each written up in place with its closure where it has one. Read the entries
 for the area you are about to touch before starting; several are "correct but untested",
 which is exactly what a refactor breaks silently.

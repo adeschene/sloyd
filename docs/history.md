@@ -247,6 +247,43 @@ and 79.
 
 ## What each round did
 
+**What the cut storage round did (2026-10-04)**: follow-ups 195 and 196, the cut lines round's
+open questions. There is no geometry change, no schema change and no load-time rewrite.
+
+- **What it does.**
+  1. **A square opening's direction reads only its shape (196).** On an exact tie it runs from the
+     edge with exactly one open end, otherwise along length, then width, then thickness.
+     `runAxis` no longer reads the stored `across`. It had to stop, or storing `across = run`
+     would have let storage and direction decide each other.
+  2. **Joinery stores each cut the way the sheet reads it (195).** `pocketFor` passes every cut
+     through `storedAsShape` against the board with its existing cuts, so a shelf housing beside
+     the back rabbet is stored across the width. A 248-variant joinery corpus showed no change in
+     any board, line, check or region.
+  3. **Properties offers one click (195).** A row stored the other way says *"The cut list reads
+     this cut as running across the width."* and offers **Match the cut list**: one undo step, the
+     same stock, and focus to "Runs across".
+- **Measured before it was specified.** Of 108 joinery cuts in the three live-check designs, only
+  the 4 stopped housings were stored the other way.
+- **The final review found that the format cannot always store a cut exactly.**
+  - A cut's far end is computed as `dim − stopMax`. For a far end under half the board, typed in
+    millimetres, no float `stopMax` reaches it, so re-stored mm cuts drifted by an ulp.
+  - On exactly square openings that drift flipped the direction, so the note came back and a
+    second click flipped it again.
+  - The fix searches each far end one ulp at a time and lands on the side that keeps the run.
+    That took run flips from 282 to 0 in an 8,114-cut sweep.
+  - Six exact-square corners would still read as a different word. **The user ruled: guard the
+    sheet.** The button is offered only when the re-stored cut prints the same word, direction and
+    stops. The general lesson: "the same stock" is a claim about floating point, and it needs
+    measuring before it is promised.
+- **Reviews.**
+  - One planned mutation was equivalent: `openSides` only looks outside the cut's own box, so it
+    was accepted as such, with a test covering the real intent.
+  - One plan test could not fail (a board shrink did not reach the removes-nothing guard) and was
+    replaced with a depth-0 cut.
+  - Follow-ups 198 (the note on a square tie's default) and 199 (`rebaseCuts` and the two stored
+    forms) are its residues.
+- The browser pass is `docs/browser-verification-cut-storage.md`.
+
 **What the cut lines round did (2026-10-04)**: follow-ups 192, 193 and 194, the cut words round's
 residues. It changed what the sheet prints: no geometry, no schema, no change to how rows group.
 

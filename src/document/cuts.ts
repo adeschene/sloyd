@@ -505,14 +505,21 @@ type Opening = ReturnType<typeof openSides>;
 /**
  * Which way a cut runs (spec §2.1). The axis open at both ends when exactly one
  * is; otherwise the opening's longer extent; on an EXACT tie (a square
- * opening, where either is true) the stored `across`, so the answer is stable.
+ * opening) the direction with exactly one open end, else the earlier in
+ * DIMENSION_ORDER (cut-storage spec §2). Never the stored `across`.
  */
 function runAxis(cut: Cut, ext: (d: Dimension) => number, open: Opening): Dimension {
   const [a, b] = DIMENSION_ORDER.filter((d) => d !== cut.face);
   const through = (d: Dimension) => open[d].min && open[d].max;
   if (through(a) !== through(b)) return through(a) ? a : b;
   if (ext(a) !== ext(b)) return ext(a) > ext(b) ? a : b;
-  return cut.across === b ? b : a;
+  // Cut-storage spec §2: on an EXACT tie, the direction with exactly one open
+  // end (the edge the cut enters from); otherwise the earlier dimension. Never
+  // the stored `across`: joinery stores a cut WITH across = run, so reading
+  // across here would let storage and direction decide each other.
+  const oneOpen = (d: Dimension) => open[d].min !== open[d].max;
+  if (oneOpen(a) !== oneOpen(b)) return oneOpen(a) ? a : b;
+  return a;
 }
 
 /** The cut-words table (cut-words spec §2.2–2.6), read off the opening. */
@@ -592,4 +599,105 @@ export function cutShape(board: Board, cut: Cut, solids: Region[] = boardSolids(
 /** A cut's word: `cutShape(...).word`. Kept as its own export for the readers that want only the word. */
 export function cutLabel(board: Board, cut: Cut, solids: Region[] = boardSolids(board)): CutKind {
   return cutShape(board, cut, solids).word;
+}
+
+/**
+ * The same cut, stored the way it runs (cut-storage spec §3.1): `across` is
+ * its shape's run, the position and width are its clipped opening along the
+ * other axis, and the stops are its clipped opening along the run. The promise:
+ * the re-stored cut PRINTS THE SAME word, direction and stops; its boundaries
+ * are exact where the format allows and otherwise within one ulp, on the side
+ * that keeps the run (below). Clipping only drops stored overhang that removed
+ * nothing.
+ *
+ * Where even that ulp would change what the sheet says, the cut comes back
+ * unchanged (the user's ruling). The case is an exact-square corner opening
+ * in millimetres: growing its run by an ulp breaks the tie that made it a
+ * notch, so it would read as a stopped dado — about 1 re-store in 1,400 in the
+ * round's random millimetre sweeps (6 of 8,114 in one, 14 of 20,000 in another).
+ * Properties offers the button only when this returns a different object.
+ *
+ * A cut ALREADY stored with `across === run` comes back as the very same
+ * object: recomputing its fields is not exact for decimals ((0.1 + 0.2) - 0.1
+ * is not 0.2), and float noise here would split cut-list rows (invariant 18).
+ * A cut that removes nothing has no shape to follow and is also returned as is.
+ */
+export function storedAsShape(board: Board, cut: Cut, solids: Region[] = boardSolids(board)): Cut {
+  if (cutRemovesNothing(board, cut)) return cut;
+  const s = cutShape(board, cut, solids);
+  if (s.run === cut.across) return cut;
+  // `offset` and `stopMin` are COPIES of the clipped spans' near ends, and a
+  // value already inside [0, dim] passes cutRegion's clamp unchanged, so both
+  // are exact. The far ends are not copies: cutRegion recomputes them as
+  // `offset + width` and `dim - stopMax`, and the schema cannot always express
+  // the target that way (see `nearestFor`). Where it can, the plain difference
+  // already lands on it. Where it cannot, the far end is put on the side that
+  // KEEPS THE RUN: the run's extent never shrinks and the position's never
+  // grows. Rounding to the nearer side instead flipped a square opening's run,
+  // so the note came back and the next click flipped it back (final review).
+  const candidate: Cut = {
+    ...cut,
+    across: s.run,
+    offset: s.at[0],
+    width: s.at[1] - s.at[0],
+    stopMin: s.along[0],
+    stopMax: board[s.run] - s.along[1],
+  };
+  candidate.width = nearestFor(
+    (w) => cutRegion(board, { ...candidate, width: w })[s.pos][1], s.at[1], candidate.width, 'atMost',
+  );
+  candidate.stopMax = nearestFor(
+    (m) => cutRegion(board, { ...candidate, stopMax: m })[s.run][1], s.along[1], candidate.stopMax, 'atLeast',
+  );
+  // The guard: the sheet must read the re-stored cut exactly as it read the
+  // original. The numbers may differ by the ulp above, which never shows at
+  // display precision; the word, the axes and which ends are stopped may not.
+  const after = cutShape({ ...board, cuts: board.cuts.map((c) => (c.id === cut.id ? candidate : c)) }, candidate);
+  const same = after.word === s.word && after.run === s.run && after.pos === s.pos &&
+    (after.stopMin === null) === (s.stopMin === null) && (after.stopMax === null) === (s.stopMax === null);
+  return same ? candidate : cut;
+}
+
+/**
+ * The float `x` within EXACT_STEPS ulps of `guess` whose `f(x)` is nearest to
+ * `target` without passing it (`atMost`: f(x) <= target; `atLeast`: >=), the
+ * target itself whenever some `x` reaches it.
+ *
+ * Not every target is reachable, and searching further does not help. A far
+ * stop is `dim - stopMax`: for a target under half of `dim`, every result is a
+ * multiple of ulp(stopMax), which can be coarser than the target's own bits
+ * (millimetre values do this). `offset + width` misses too, rarely, when
+ * `offset`'s low bits sit exactly half a step off the result's grid and
+ * round-half-even skips every other value. Then the far end lands within one
+ * ulp of the board's dimension of the target, on the given side. Measured on a
+ * seeded sweep of 8,114 millimetre re-stores (cut-storage spec §3.1).
+ */
+function nearestFor(f: (x: number) => number, target: number, guess: number, side: 'atMost' | 'atLeast'): number {
+  const ok = (y: number) => (side === 'atMost' ? y <= target : y >= target);
+  let best = NaN;
+  let bestErr = Infinity;
+  const consider = (x: number) => {
+    const y = f(x);
+    if (ok(y) && Math.abs(y - target) < bestErr) { best = x; bestErr = Math.abs(y - target); }
+  };
+  consider(guess);
+  for (const dir of [1, -1] as const) {
+    let x = guess;
+    for (let i = 0; i < EXACT_STEPS && bestErr > 0; i++) {
+      x = nextFloat(x, dir);
+      consider(x);
+    }
+  }
+  return Number.isNaN(best) ? guess : best;
+}
+
+const EXACT_STEPS = 8;
+
+/** The adjacent double above (`dir` 1) or below (`dir` -1) a finite `x`. */
+function nextFloat(x: number, dir: 1 | -1): number {
+  if (x === 0) return dir * Number.MIN_VALUE;
+  const f = new Float64Array([x]);
+  const bits = new BigInt64Array(f.buffer);
+  bits[0] += (x > 0) === (dir > 0) ? 1n : -1n;
+  return f[0];
 }

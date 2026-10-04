@@ -1,4 +1,4 @@
-import { nextId } from '../../document/document';
+import { nextId, storedAsShape } from '../../document/document';
 import type { Board, Cut, Dimension } from '../../document/document';
 import { DIMENSION_ORDER, axisDimensions, boardExtents } from '../../document/geometry';
 
@@ -22,6 +22,8 @@ export function boxOf(b: Board): WorldBox {
  * shallowest such, ties to the earlier in DIMENSION_ORDER. `across` carries
  * the stops: the remaining dimension with the most boundary contact (full
  * span, then one end), ties to the earlier; the last is the position axis.
+ * `across` is then re-stored as the shape's run (`storedAsShape`), so the
+ * stored form matches the cut sheet; the region is unchanged.
  *
  * A box touching no face is an enclosed void, which no cut can make. That is
  * a recipe bug, so this THROWS rather than returning something wrong.
@@ -62,7 +64,7 @@ export function pocketFor(board: Board, box: WorldBox): Cut {
   const contacts = (d: Dimension) => (atMin(d) ? 1 : 0) + (atMax(d) ? 1 : 0);
   const across = contacts(others[1]) > contacts(others[0]) ? others[1] : others[0];
   const pos = others.find((d) => d !== across)!;
-  return {
+  const cut: Cut = {
     id: nextId(),
     face, from, across,
     offset: local[pos][0],
@@ -71,4 +73,10 @@ export function pocketFor(board: Board, box: WorldBox): Cut {
     stopMin: local[across][0],
     stopMax: board[across] - local[across][1],
   };
+  // Stored the way the cut sheet reads it (cut-storage spec §3.2). The board's
+  // existing cuts matter: another cut can open one of this cut's ends (the
+  // shelf housing beside the back rabbet). Adding the new cut describes the
+  // board as it will be stored but does not change the result, since
+  // openSides only looks outside the cut's own opening. Same region.
+  return storedAsShape({ ...board, cuts: [...board.cuts, cut] }, cut);
 }

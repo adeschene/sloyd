@@ -764,4 +764,102 @@ describe('cuts', () => {
     expect(stored(id).stopMin).toBe(1);
     expect(stored(id).stopMin + stored(id).stopMax).toBeLessThan(2);
   });
+
+  describe('a cut stored the other way from the sheet (cut-storage §3.3)', () => {
+    const backRabbet = { face: 'width' as const, from: 'min' as const, across: 'length' as const, offset: 0.375, width: 0.375, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const housing = { face: 'thickness' as const, from: 'max' as const, across: 'length' as const, offset: 0.25, width: 10.25, depth: 0.25, stopMin: 24, stopMax: 47.25 };
+    const seedSide = () => {
+      const id = renderWithBoard();
+      act(() => {
+        const st = useStore.getState();
+        st.updateBoard(id, { length: 72, width: 11.25 });
+        st.addCut(id);
+        st.addCut(id);
+        const [r, h] = useStore.getState().doc.boards[0].cuts;
+        st.updateCut(id, r.id, backRabbet);
+        st.updateCut(id, h.id, housing);
+      });
+      const [r, h] = useStore.getState().doc.boards[0].cuts;
+      return { id, rabbetId: r.id, housingId: h.id };
+    };
+    const note = /The cut list reads this cut as running across the width\./;
+    const runsAcross = (cutId: string) => document.getElementById(`across-${cutId}`) as HTMLSelectElement;
+
+    it('shows the note and the button on the sideways housing only', () => {
+      const { rabbetId, housingId } = seedSide();
+      expect(screen.getAllByText(note)).toHaveLength(1);
+      expect(screen.getAllByRole('button', { name: 'Match the cut list' })).toHaveLength(1);
+      expect(runsAcross(housingId).value).toBe('length');
+      expect(runsAcross(rabbetId).value).toBe('length');
+    });
+
+    it('one click re-stores it the sheet\'s way, and one undo puts it back', async () => {
+      const { id, housingId } = seedSide();
+      const before = useStore.getState().past.length;
+      await userEvent.click(screen.getByRole('button', { name: 'Match the cut list' }));
+      expect(runsAcross(housingId).value).toBe('width');
+      expect(screen.queryByText(note)).not.toBeInTheDocument();
+      const stored = useStore.getState().doc.boards.find((b) => b.id === id)!.cuts.find((c) => c.id === housingId)!;
+      expect(stored).toMatchObject({ across: 'width', offset: 24, width: 0.75, stopMin: 0.25, stopMax: 0.75 });
+      expect(useStore.getState().past.length).toBe(before + 1);
+      act(() => { useStore.getState().undo(); });
+      expect(runsAcross(housingId).value).toBe('length');
+      expect(screen.getAllByText(note)).toHaveLength(1);
+    });
+
+    it('moves focus to the row\'s Runs across after the click, not to the body', async () => {
+      const { housingId } = seedSide();
+      await userEvent.click(screen.getByRole('button', { name: 'Match the cut list' }));
+      expect(screen.queryByRole('button', { name: 'Match the cut list' })).not.toBeInTheDocument();
+      expect(document.activeElement).toBe(runsAcross(housingId));
+    });
+
+    it('announces the note as a status, like the removes-nothing note', () => {
+      seedSide();
+      expect(screen.getByText(note).closest('[role="status"]')).not.toBeNull();
+    });
+
+    it('shows nothing for a sideways cut the sheet would read differently once re-stored', () => {
+      // The exact-square mm corner opening from cuts.test.ts: storedAsShape refuses it.
+      const id = renderWithBoard();
+      act(() => {
+        const st = useStore.getState();
+        st.addCut(id);
+        const [c] = useStore.getState().doc.boards[0].cuts;
+        st.updateCut(id, c.id, { face: 'length', from: 'min', across: 'thickness', offset: 0, width: 0.6712598425196851, depth: 9.370078740157481, stopMin: 0.03937007874015748, stopMax: 0.03937007874015741 });
+      });
+      expect(screen.getAllByText('notch')).toHaveLength(1);
+      expect(screen.queryByText(/The cut list reads this cut/)).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Match the cut list' })).not.toBeInTheDocument();
+    });
+
+    it('shows nothing for a tenon shoulder stored sideways', () => {
+      const id = renderWithBoard();
+      // Two cheeks at the length's min end, each stored across the LENGTH (stops 0 / 23)
+      // instead of across the width: the same boxes as the cheeks in the fu 180 test above.
+      const cheek = (cid: string, from: 'min' | 'max') => ({ id: cid, face: 'thickness' as const, from, across: 'length' as const, offset: 0, width: 5.5, depth: 0.25, stopMin: 0, stopMax: 23 });
+      act(() => {
+        const st = useStore.getState();
+        st.addCut(id);
+        st.addCut(id);
+        const [c1, c2] = useStore.getState().doc.boards[0].cuts;
+        st.updateCut(id, c1.id, cheek(c1.id, 'min'));
+        st.updateCut(id, c2.id, cheek(c2.id, 'max'));
+      });
+      expect(screen.getAllByText('tenon shoulder')).toHaveLength(2);
+      expect(screen.queryByText(/The cut list reads this cut/)).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Match the cut list' })).not.toBeInTheDocument();
+    });
+
+    it('shows nothing for a cut that removes nothing', () => {
+      const { id, housingId } = seedSide();
+      // The housing's own geometry at depth 0: it removes nothing, yet its shape still reads as running
+      // across the width (0.75" along the length against 10.25" across the width), so `across !== run`
+      // is true and only the removes-nothing guard hides the note (mutation 2 of the task; a cut
+      // moved out of the board runs the same way as it is stored, and does NOT exercise the guard).
+      act(() => { useStore.getState().updateCut(id, housingId, { depth: 0 }); });
+      expect(screen.getByText(/no longer fits the board/)).toBeInTheDocument();
+      expect(screen.queryByText(/The cut list reads this cut/)).not.toBeInTheDocument();
+    });
+  });
 });

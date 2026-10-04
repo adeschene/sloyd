@@ -543,6 +543,11 @@ describe('the setup line is written from the shape (cut-lines spec §2.2)', () =
       '3/4" dado, 1/4" deep — into the thickness face (min side), 6" from the length min end, running across the width');
   });
 
+  it('a square edge notch prints one line whichever way it is stored (cut-storage §2)', () => {
+    both(dado({ stopMin: 4.75 }), dado({ across: 'length', offset: 4.75, width: 0.75, stopMin: 6, stopMax: 17.25 }),
+      '3/4" notch, 1/4" deep — into the thickness face (min side), 6" from the length min end, running across the width, stopped 4-3/4" short of the min end');
+  });
+
   it('a rabbet, either storage', () => {
     both(dado({ offset: 0 }), dado({ across: 'length', offset: 0, width: 5.5, stopMin: 0, stopMax: 23.25 }),
       '3/4" rabbet, 1/4" deep — into the thickness face (min side), 0" from the length min end, running across the width');

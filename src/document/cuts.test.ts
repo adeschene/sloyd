@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
-import { boardEdges, boardSolids, cutLabel, cutShape, openSides, cutRegion, cutRemovesNothing, solidWorldBox, stockProbe, wholeBoard } from './cuts';
+import { boardEdges, boardSolids, cutLabel, cutShape, storedAsShape, openSides, cutRegion, cutRemovesNothing, solidWorldBox, stockProbe, wholeBoard } from './cuts';
 import type { Board, Cut, Dimension, Region } from './types';
 
 /** A 24 x 5-1/2 x 3/4 flat board with whatever cuts are given. */
@@ -634,11 +634,26 @@ describe('cutShape: one description, whichever way the cut is stored (cut-lines 
     same(m, cut({ across: 'width', offset: 6, width: 3, depth: 0.625, stopMin: 2, stopMax: 3 }));
   });
 
-  it('a square closed opening runs along the stored across (rule 3), so it is stable', () => {
+  it('a square closed opening runs along the length, whichever way it is stored (cut-storage §2)', () => {
     const sq = cut({ offset: 6, width: 1, stopMin: 2, stopMax: 2.5 });
-    expect(cutShape(b([sq]), sq).run).toBe('width');
     const sq2 = cut({ across: 'length', offset: 2, width: 1, stopMin: 6, stopMax: 17 });
-    expect(cutShape(b([sq2]), sq2).run).toBe('length');
+    expect(cutShape(b([sq]), sq).run).toBe('length');
+    same(sq, sq2);
+  });
+
+  it('a square edge notch runs from its open edge, whichever way it is stored (cut-storage §2)', () => {
+    // Opening length [6, 6.75] x width [4.75, 5.5]: open at the width's max edge only.
+    const n1 = cut({ stopMin: 4.75 });
+    const n2 = cut({ across: 'length', offset: 4.75, width: 0.75, stopMin: 6, stopMax: 17.25 });
+    expect(cutShape(b([n1]), n1)).toMatchObject({ word: 'notch', run: 'width', pos: 'length', stopMin: 4.75, stopMax: null });
+    same(n1, n2);
+  });
+
+  it('a square corner opening (one open end on each axis) runs along the length', () => {
+    const c1 = cut({ offset: 0, width: 1, stopMin: 0, stopMax: 4.5 });
+    const c2 = cut({ across: 'length', offset: 0, width: 1, stopMin: 0, stopMax: 23 });
+    expect(cutShape(b([c1]), c1).run).toBe('length');
+    same(c1, c2);
   });
 
   it('the axis open at both ends wins even when the other extent is longer (rule 1)', () => {
@@ -700,5 +715,170 @@ describe('groove: a channel running with the grain (cut-lines spec §3)', () => 
 
   it('a cut that removes nothing stays on the old table', () => {
     expect(word({}, along({ offset: 30 }))).not.toMatch(/groove/);
+  });
+});
+
+describe('storedAsShape: the same cut, stored the way it runs (cut-storage spec §3.1)', () => {
+  const clipped = (b: Board, c: Cut) => {
+    const r = cutRegion(b, c);
+    return (['length', 'width', 'thickness'] as const).map((d) => [Math.max(0, r[d][0]), Math.min(b[d], r[d][1])]);
+  };
+  const check = (b: Board, c: Cut, run: Dimension) => {
+    const s = storedAsShape(b, c);
+    expect(s.across).toBe(run);
+    expect(s.id).toBe(c.id);
+    expect(clipped(b, s)).toEqual(clipped(b, c));
+    expect(cutShape({ ...b, cuts: b.cuts.map((x) => (x.id === c.id ? s : x)) }, s)).toEqual(cutShape(b, c));
+    return s;
+  };
+
+  it('re-stores 192\'s housing across the width, beside the back rabbet', () => {
+    const backRabbet: Cut = { id: 'r', face: 'width', from: 'min', across: 'length', offset: 0.375, width: 0.375, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const housing: Cut = { id: 'h', face: 'thickness', from: 'max', across: 'length', offset: 0.25, width: 10.25, depth: 0.25, stopMin: 24, stopMax: 47.25 };
+    const side = createBoard({ length: 72, width: 11.25, thickness: 0.75, cuts: [backRabbet, housing] });
+    expect(check(side, housing, 'width')).toEqual({ ...housing, across: 'width', offset: 24, width: 0.75, stopMin: 0.25, stopMax: 0.75 });
+  });
+
+  it('re-stores a sideways dado, stopped dado, mortise and edge notch', () => {
+    const one = (c: Cut) => withCuts([c]);
+    const dado = { ...DADO, across: 'length' as const, offset: 0, width: 5.5, stopMin: 6, stopMax: 17.25 };
+    check(one(dado), dado, 'width');
+    const stopped = { ...DADO, across: 'length' as const, offset: 0, width: 4.5, stopMin: 6, stopMax: 17.25 };
+    check(one(stopped), stopped, 'width');
+    const mortise = { ...DADO, across: 'width' as const, offset: 6, width: 3, depth: 0.625, stopMin: 2, stopMax: 3 };
+    check(one(mortise), mortise, 'length');
+    const notch = { ...DADO, across: 'length' as const, offset: 4.75, width: 0.75, stopMin: 6, stopMax: 17.25 };
+    check(one(notch), notch, 'width');
+  });
+
+  it('returns the very same object for a cut already stored the way it runs, decimals included', () => {
+    const c = { ...DADO, across: 'length' as const, offset: 0.1, width: 0.2, stopMin: 0, stopMax: 0 };
+    const b = withCuts([c]);
+    expect(cutShape(b, c).run).toBe('length');
+    expect(storedAsShape(b, c)).toBe(c);
+    expect(storedAsShape(withCuts([DADO]), DADO)).toBe(DADO);
+  });
+
+  it('drops overhang when it re-stores', () => {
+    // The dado stored across the length, its width span hanging 1/2" past the near edge.
+    const c = { ...DADO, across: 'length' as const, offset: -0.5, width: 6, stopMin: 6, stopMax: 17.25 };
+    expect(check(withCuts([c]), c, 'width')).toMatchObject({ offset: 6, width: 0.75, stopMin: 0, stopMax: 0 });
+  });
+
+  it('leaves a cut that removes nothing alone', () => {
+    const gone = { ...DADO, across: 'length' as const, offset: 30 };
+    expect(storedAsShape(withCuts([gone]), gone)).toBe(gone);
+  });
+
+  // Final review. In millimetres, `dim - stopMax` cannot always land on the
+  // opening's far end (a target under half the board has finer bits than any
+  // `dim - x` can carry), so the re-store is exact where the schema can say it
+  // and otherwise lands within one ulp of the board's dimension, on the side
+  // that keeps the run. The bounds below come from the board, not the code.
+  const ulpOf = (x: number) => {
+    const f = new Float64Array([x]);
+    new BigInt64Array(f.buffer)[0] += 1n;
+    return f[0] - x;
+  };
+  /** Each far end exact, or on the side that keeps the run within one ulp of the board's dimension. */
+  const farEnds = (b: Board, c: Cut, s: Cut) => {
+    const before = cutShape(b, c);
+    const r = cutRegion({ ...b, cuts: b.cuts.map((x) => (x.id === c.id ? s : x)) }, s);
+    const runEnd = r[before.run][1] - before.along[1];
+    const posEnd = before.at[1] - r[before.pos][1];
+    expect(runEnd).toBeGreaterThanOrEqual(0);
+    expect(runEnd).toBeLessThanOrEqual(ulpOf(b[before.run]));
+    expect(posEnd).toBeGreaterThanOrEqual(0);
+    expect(posEnd).toBeLessThanOrEqual(ulpOf(b[before.pos]));
+    // Near ends are copies, so always exact.
+    expect(r[before.run][0]).toBe(before.along[0]);
+    expect(r[before.pos][0]).toBe(before.at[0]);
+    return { runEnd, posEnd };
+  };
+
+  it('a square millimetre pocket keeps its run, and a second click changes nothing', () => {
+    // 600 x 140 x 19 mm; a 10 mm square pocket 6 mm deep, 10 mm from the end and
+    // 20 mm in from the near edge, stored across the width. The plain
+    // differences stored a far stop that cut the run one ulp short, so the run
+    // flipped to the width and the next click flipped it back.
+    const mm = (x: number) => x / 25.4;
+    const c: Cut = { id: 'p', face: 'thickness', from: 'max', across: 'width', offset: mm(10), width: mm(10), depth: mm(6), stopMin: mm(20), stopMax: mm(110) };
+    const b = createBoard({ length: mm(600), width: mm(140), thickness: mm(19), cuts: [c] });
+    const before = cutShape(b, c);
+    expect(before.run).toBe('length');
+    const s = storedAsShape(b, c);
+    const b2 = { ...b, cuts: [s] };
+    const after = cutShape(b2, s);
+    expect(after.run).toBe('length');
+    expect(after.word).toBe(before.word);
+    expect(storedAsShape(b2, s)).toBe(s);
+    farEnds(b, c, s);
+  });
+
+  it('refuses a re-store the sheet would read differently: an exact-square mm corner opening', () => {
+    // From the sweep: an end cut on the default board whose opening is an exact
+    // square at the corner, so it reads as a notch. Its far stop cannot be
+    // stored exactly, and the run-keeping ulp breaks the tie into a stopped
+    // dado — so the cut is left as it is (user ruling).
+    const c: Cut = { id: 'n', face: 'length', from: 'min', across: 'thickness', offset: 0, width: 0.6712598425196851, depth: 9.370078740157481, stopMin: 0.03937007874015748, stopMax: 0.03937007874015741 };
+    const b = withCuts([c]);
+    expect(cutShape(b, c).word).toBe('notch');
+    expect(cutShape(b, c).run).not.toBe(c.across);
+    expect(storedAsShape(b, c)).toBe(c);
+  });
+
+  it('millimetre re-stores keep the run and settle in one click (seeded sweep)', () => {
+    let seed = 195; // mulberry32, deterministic
+    const rnd = () => {
+      seed = (seed + 0x6d2b79f5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const DIMS = ['length', 'width', 'thickness'] as const;
+    const size = { length: 24, width: 5.5, thickness: 0.75 };
+    const pick = <T,>(xs: readonly T[]) => xs[Math.floor(rnd() * xs.length)];
+    const mm = (max: number) => Math.max(1, Math.round(rnd() * max * 25.4)) / 25.4;
+    let restored = 0;
+    let exactWhereRepresentable = 0;
+    for (let i = 0; i < 600; i++) {
+      const face = pick(DIMS);
+      const across = pick(DIMS.filter((d) => d !== face));
+      const pos = DIMS.find((d) => d !== face && d !== across)!;
+      let width = mm(size[pos]);
+      let stopMin = rnd() < 0.3 ? 0 : mm(size[across]) - 1 / 25.4;
+      let stopMax = rnd() < 0.3 ? 0 : mm(size[across]) - 1 / 25.4;
+      if (rnd() < 0.5) {
+        // A near-square opening: its run extent computed to equal its width.
+        width = Math.min(width, size[across] - 2 / 25.4);
+        stopMin = Math.floor(rnd() * Math.round((size[across] - width) * 25.4)) / 25.4;
+        stopMax = size[across] - stopMin - width;
+      }
+      const c: Cut = { id: 'c', face, from: pick(['min', 'max'] as const), across, offset: mm(size[pos]) - 1 / 25.4, width, depth: mm(size[face]), stopMin, stopMax };
+      const b = createBoard({ cuts: [c] });
+      if (width <= 0 || stopMax < 0 || cutRemovesNothing(b, c)) continue;
+      const s = storedAsShape(b, c);
+      if (s === c) continue;
+      restored++;
+      const before = cutShape(b, c);
+      const b2 = { ...b, cuts: [s] };
+      const after = cutShape(b2, s);
+      expect(after.run).toBe(before.run);
+      expect(storedAsShape(b2, s)).toBe(s);
+      // The sheet reads it the same (user ruling): word, axes, stopped ends.
+      expect(after.word).toBe(before.word);
+      expect(after.pos).toBe(before.pos);
+      expect(after.stopMin === null).toBe(before.stopMin === null);
+      expect(after.stopMax === null).toBe(before.stopMax === null);
+      const { runEnd, posEnd } = farEnds(b, c, s);
+      // Exact wherever the schema can say it: a far stop of 0, or a target at
+      // least half the dimension (Sterbenz: `dim - x` is then exact).
+      if (before.along[1] === b[before.run] || before.along[1] >= b[before.run] / 2) {
+        expect(runEnd).toBe(0);
+        if (posEnd === 0) exactWhereRepresentable++;
+      }
+    }
+    expect(restored).toBeGreaterThan(200);
+    expect(exactWhereRepresentable).toBeGreaterThan(50);
   });
 });

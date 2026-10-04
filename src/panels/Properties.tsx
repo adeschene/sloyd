@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store/store';
-import { MATERIALS, uniqueName, isSheetGood, boardSolids, cutLabel, cutRemovesNothing, findTenons, positionAxisOf } from '../document/document';
+import { MATERIALS, uniqueName, isSheetGood, boardSolids, cutShape, storedAsShape, cutRemovesNothing, findTenons, positionAxisOf } from '../document/document';
 import { DimensionField } from './DimensionField';
 import { NameField } from './NameField';
 import { formatLength } from '../units/length';
@@ -24,7 +24,18 @@ function CutRow({ board, cut, precision, solids }: { board: Board; cut: Cut; pre
   const updateCut = useStore((s) => s.updateCut);
   const removeCut = useStore((s) => s.removeCut);
   const [error, setError] = useState<string | null>(null);
-  const word = findTenons(board).some((t) => t.cutIds.includes(cut.id)) ? 'tenon shoulder' : cutLabel(board, cut, solids);
+  const tenon = findTenons(board).some((t) => t.cutIds.includes(cut.id));
+  const shape = cutShape(board, cut, solids);
+  const word = tenon ? 'tenon shoulder' : shape.word;
+  // Cut-storage spec §3.3: offered only where the sheet prints THIS cut's own
+  // line (not a tenon's shoulder) and reads it running the other way.
+  // And only where the re-store is accepted: `storedAsShape` hands back the
+  // same object when the sheet would read the result differently, and a button
+  // that changes nothing would leave an undo entry that does nothing (inv 4).
+  const restored = !tenon && !cutRemovesNothing(board, cut) && cut.across !== shape.run
+    ? storedAsShape(board, cut, solids)
+    : cut;
+  const sideways = restored !== cut;
   // Bumped whenever a patch is refused. The three DimensionFields below are
   // keyed on it, so a refusal remounts them: each field's own `commit()` has
   // already optimistically set its local text to the (rejected) typed value
@@ -78,6 +89,8 @@ function CutRow({ board, cut, precision, solids }: { board: Board; cut: Cut; pre
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cut.face, cut.across, cut.offset, cut.width, cut.depth, cut.stopMin, cut.stopMax,
       board.length, board.width, board.thickness]);
+
+  const acrossRef = useRef<HTMLSelectElement>(null);
 
   const set = (patch: Partial<Cut>) => {
     if (wouldRemoveAll(patch)) {
@@ -180,6 +193,17 @@ function CutRow({ board, cut, precision, solids }: { board: Board; cut: Cut; pre
         </p>
       )}
 
+      {sideways && (
+        <div className="field-note" role="status">
+          <p>The cut list reads this cut as running across the {shape.run}.</p>
+          {/* The button unmounts once the cut matches, so focus moves to the
+              field the click just changed rather than dropping to <body>. */}
+          <button onClick={() => { set(restored); acrossRef.current?.focus(); }}>
+            Match the cut list
+          </button>
+        </div>
+      )}
+
       <div className="field">
         <label htmlFor={`face-${cut.id}`}>Cut into</label>
         <select id={`face-${cut.id}`} className="input" value={cut.face}
@@ -201,7 +225,7 @@ function CutRow({ board, cut, precision, solids }: { board: Board; cut: Cut; pre
 
       <div className="field">
         <label htmlFor={`across-${cut.id}`}>Runs across</label>
-        <select id={`across-${cut.id}`} className="input" value={cut.across}
+        <select id={`across-${cut.id}`} ref={acrossRef} className="input" value={cut.across}
           onChange={(e) => set(repositionForAxes(cut.face, e.target.value as Dimension))}>
           {(['length', 'width', 'thickness'] as Dimension[])
             .filter((d) => d !== cut.face)

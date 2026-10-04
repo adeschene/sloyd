@@ -1,6 +1,7 @@
 import workbenchRaw from '../../document/fixtures/simple-workbench.sloyd?raw';
 import { migrateDocument } from '../../document/document';
 import { designToDocument } from '../../document/generated';
+import { cutShape, cutsThatRemoveStock } from '../../document/cuts';
 import { buildCutList } from '../../document/cutlist';
 import { buildDiagrams } from '../../document/diagram';
 import type { SloydDocument } from '../../document/types';
@@ -84,5 +85,17 @@ describe('the live designs (cut-lines spec §2.2)', () => {
       stopMaxLabel: '3/4"', lengthLabel: '10-1/4"',
     });
     expect(housing.stopMinLabel).toBeUndefined();
+  });
+
+  it('joinery stores every cut the way the sheet reads it (cut-storage §3.2)', () => {
+    for (const doc of [joined(migrateDocument(JSON.parse(workbenchRaw))), joined(bookcase()), stoppedShelves()]) {
+      for (const b of doc.boards) {
+        for (const c of cutsThatRemoveStock(b)) expect(c.across, `${b.name} ${c.id}`).toBe(cutShape(b, c).run);
+      }
+    }
+    const side = stoppedShelves().boards.find((b) => b.name === 'Left side')!;
+    // The two housings are the only thickness-face cuts with a stop (the top and bottom rabbets have none).
+    const housings = side.cuts.filter((c) => c.face === 'thickness' && c.stopMax > 0);
+    expect(housings.map((c) => [c.across, c.offset, c.stopMin, c.stopMax])).toEqual([['width', 24, 0.25, 0.75], ['width', 48, 0.25, 0.75]]);
   });
 });
