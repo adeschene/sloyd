@@ -58,7 +58,8 @@ unaffected.
 | both ends of one axis, neither side of the other | `dado` |
 | one side of each axis (a corner) | `stopped rabbet` |
 | exactly one side, on axis `a`, and the opening's extent along `a` is **greater** than along `b` | `stopped dado` |
-| exactly one side, otherwise (it runs along that side, like a hinge pocket) | `notch` |
+| exactly one side, and it runs along that side **more than 4×** as far as it reaches in (a long edge rabbet stopped at both ends) | `stopped rabbet` |
+| exactly one side, otherwise (a short pocket along an edge, like a hinge pocket) | `notch` |
 | none, and `depth >= board[face]` | `through mortise` |
 | none, and `depth >` the opening's smaller extent | `mortise` |
 | none, otherwise | `blind dado` |
@@ -68,6 +69,8 @@ whatever their stored fields (181).
 
 **Ties:**
 - "greater" is strict, so a square pocket open on one side is a `notch`;
+- "more than 4×" is strict too, so a 3″ hinge pocket reaching 3/4″ in is a `notch`. The 4× rule
+  was added at the user's request when they reviewed the spec;
 - "deeper than wide" is strict too, so a pocket as deep as it is wide is a `blind dado`.
 
 **`CutKind` gains `'blind dado'`.**
@@ -88,11 +91,12 @@ stays as a private helper used for this case alone.
 - a through mortise.
 
 **The changes:**
-- **181:** an edge rabbet stopped at both ends is open on one side only, its edge. It reads
-  `notch` when it runs along that edge further than it reaches in from it, which is the usual
-  case: the joinery round's Top back rabbet (30-3/4″ long, 1/4″ in) reads `notch`. It reads
-  `stopped dado` only if it reaches in further than it runs. Either way, the stored-two-ways pair
-  agrees.
+- **181:** an edge rabbet stopped at both ends is open on one side only, its edge.
+  - Long along that edge (more than 4× its reach), it reads `stopped rabbet`. The joinery round's
+    Top back rabbet (30-3/4″ long, 1/4″ in) is this case.
+  - Short, it reads `notch`.
+  - If it reaches in further than it runs, it reads `stopped dado`.
+  - Either way, the stored-two-ways pair agrees.
 - **189:** a closed shallow housing now reads `blind dado`.
 - **The old `notch` row** (flush plus both stops) now reads `notch` or `stopped dado` according to
   its proportions.
@@ -107,7 +111,7 @@ For each end of the board's **length** dimension (`'min'`, `'max'`):
 1. **Candidates** are the cuts from `cutsThatRemoveStock(board)` whose clipped box on `length` is
    `[0, ℓ]` (min end) or `[L − ℓ, L]` (max end), with `ℓ ≤ L / 2`.
    - The cap stops a full-length edge rabbet, which reaches both ends, from ever counting.
-2. **Grouping.** Candidates are grouped by `ℓ`, compared exactly (stored values; invariant 18).
+2. **Grouping.** Candidates are grouped by `ℓ` within `FLUSH_EPSILON`. At the max end, `ℓ = L − lo` is a subtraction, so an exact comparison could split a true group.
 3. **A group is a tenon when all of these hold:**
    - it has **at least two cuts** (a single end rabbet is a lap, and stays a rabbet);
    - the cross-section `[0, width] × [0, thickness]`, minus the union of the group's in-section
