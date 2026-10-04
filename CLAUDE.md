@@ -1490,7 +1490,7 @@ The handful worth knowing without opening that file:
   Settings' Save: the free verification call saves anyway on anything but a 401/403, and
   **there is deliberately no prefix rule** (a working key does not start with `sk-ant-api`).
 - **171** — joinery is BUILT (2026-10-04, "Add joinery…"); refine by instruction is now **179**.
-  Read invariants 38 and 41, and follow-ups 180–191 (180, 181 and 189 are closed by the cut words round; the round's residues: cut-list words for a
+  Read invariants 38 and 41, and follow-ups 180–194 (180, 181 and 189 are closed by the cut words round; the round's residues: cut-list words for a
   tenon and a closed shelf housing, the default-tenon cap's edges, opposite-face tenons,
   half-lap stacks), before touching `generate/joints/`.
 - **178** — CLOSED 2026-10-04. A cut a board edit has left removing nothing is hidden from
