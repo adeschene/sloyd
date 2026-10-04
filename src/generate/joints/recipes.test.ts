@@ -483,3 +483,47 @@ describe('moving recipes first: tenons and a half-lap on the same part', () => {
     });
   }
 });
+
+describe('a cut that runs out keeps running out when its part grows', () => {
+  // Rabbets run before dados (above), so a bottom is rabbeted for the back
+  // BEFORE it grows into the sides' dados. Its rabbet ran its full length and
+  // must still: shifted by the rule alone it stops 1/4in short of each end,
+  // prints as a notch, and the back drives into the grown ends.
+  const bookcase = (backFirst: boolean) => {
+    const back: P = { name: 'Back', at: [0, 0, -0.25], size: [31.5, 72, 0.25] };
+    const rest: P[] = [
+      { name: 'Left side', at: [0, 0, 0], size: [0.75, 72, 11.25] },
+      { name: 'Right side', at: [30.75, 0, 0], size: [0.75, 72, 11.25] },
+      { name: 'Bottom', at: [0.75, 0, 0], size: [30, 0.75, 11.25] },
+      { name: 'Top', at: [0.75, 71.25, 0], size: [30, 0.75, 11.25] },
+      { name: 'Shelf 1', at: [0.75, 24, 0], size: [30, 0.75, 11.25] },
+    ];
+    return design(...(backFirst ? [back, ...rest] : [...rest, back]));
+  };
+  for (const backFirst of [false, true]) {
+    it(`a bookcase, back listed ${backFirst ? 'first' : 'last'}: the bottom and top keep full-length rabbets, no overlap`, () => {
+      const doc = bookcase(backFirst);
+      const out = withDefaults(doc);
+      expect(out.skipped).toEqual([]);
+      for (const n of ['Bottom', 'Top']) {
+        const b = board(out.doc, n);
+        expect(b.length).toBe(30.5);
+        expect(b.cuts.map((c) => cutLabel(b, c))).toEqual(['rabbet']);
+      }
+      expect(overlapsOf(out.doc)).toEqual([]);
+    });
+  }
+
+  it('a side growing up into a top it rests under keeps its back rabbet to the top', () => {
+    const doc = design(
+      { name: 'Back', at: [0, 0, -0.25], size: [31.5, 72, 0.25] },
+      { name: 'Left side', at: [0, 0, 0], size: [0.75, 71.25, 11.25] },
+      { name: 'Right side', at: [30.75, 0, 0], size: [0.75, 71.25, 11.25] },
+      { name: 'Top', at: [0, 71.25, 0], size: [31.5, 0.75, 11.25] },
+      { name: 'Bottom', at: [0.75, 0, 0], size: [30, 0.75, 11.25] },
+    );
+    const out = withDefaults(doc);
+    expect(out.skipped).toEqual([]);
+    expect(overlapsOf(out.doc)).toEqual([]);
+  });
+});

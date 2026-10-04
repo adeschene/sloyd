@@ -53,6 +53,10 @@ function resize(b: Board, k: number, side: -1 | 1, amount: number) {
  *   `d` is the position axis, `stopMin` when `d` is `across`.
  * - The MAX end moving changes only `stopMax` (when `d` is `across`); offsets
  *   are measured from min and do not move.
+ * - EXCEPT on growth, a cut that runs out at the moving end keeps running
+ *   out (its width grows, or its stop stays 0). Without this, ordering
+ *   rabbets before dados turned every bookcase bottom's rabbet into a notch
+ *   stopped 1/4in short of each end, and the back drove into it.
  * - A cut INTO `d` from the moving end has no defined answer, so it throws.
  *
  * Then the cut is CLIPPED to the board (an addition to the ruling): a shrink
@@ -68,9 +72,20 @@ function rebaseCuts(b: Board, d: Dimension, end: 'min' | 'max', amount: number) 
       return true;
     }
     const pos = positionAxisOf(c.face, c.across);
-    if (end === 'min' && pos === d) c.offset += amount;
-    if (end === 'min' && c.across === d) c.stopMin += amount;
-    if (end === 'max' && c.across === d) c.stopMax += amount;
+    // A cut that RUNS OUT at the moving end keeps running out when the part
+    // grows: a rabbet along a bottom's back edge still runs its full length
+    // once the bottom grows into its dados. Only a cut that stops short of
+    // that end stays where it is in the world.
+    const before = b[d] - amount;
+    if (pos === d) {
+      const out = end === 'min' ? c.offset <= 1e-9 : c.offset + c.width >= before - 1e-9;
+      if (amount > 0 && out) c.width += amount;
+      else if (end === 'min') c.offset += amount;
+    }
+    if (c.across === d) {
+      const stop = end === 'min' ? 'stopMin' : 'stopMax';
+      if (!(amount > 0 && c[stop] <= 1e-9)) c[stop] += amount;
+    }
     if (c.offset < 0) { c.width += c.offset; c.offset = 0; }
     c.width = Math.min(c.width, b[pos] - c.offset);
     c.stopMin = Math.max(0, c.stopMin);
