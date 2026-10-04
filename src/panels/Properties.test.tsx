@@ -807,6 +807,18 @@ describe('cuts', () => {
       expect(screen.getAllByText(note)).toHaveLength(1);
     });
 
+    it('moves focus to the row\'s Runs across after the click, not to the body', async () => {
+      const { housingId } = seedSide();
+      await userEvent.click(screen.getByRole('button', { name: 'Match the cut list' }));
+      expect(screen.queryByRole('button', { name: 'Match the cut list' })).not.toBeInTheDocument();
+      expect(document.activeElement).toBe(runsAcross(housingId));
+    });
+
+    it('announces the note as a status, like the removes-nothing note', () => {
+      seedSide();
+      expect(screen.getByText(note).closest('[role="status"]')).not.toBeNull();
+    });
+
     it('shows nothing for a tenon shoulder stored sideways', () => {
       const id = renderWithBoard();
       // Two cheeks at the length's min end, each stored across the LENGTH (stops 0 / 23)

@@ -84,6 +84,8 @@ function CutRow({ board, cut, precision, solids }: { board: Board; cut: Cut; pre
   }, [cut.face, cut.across, cut.offset, cut.width, cut.depth, cut.stopMin, cut.stopMax,
       board.length, board.width, board.thickness]);
 
+  const acrossRef = useRef<HTMLSelectElement>(null);
+
   const set = (patch: Partial<Cut>) => {
     if (wouldRemoveAll(patch)) {
       setError('That would remove the whole board.');
@@ -186,9 +188,13 @@ function CutRow({ board, cut, precision, solids }: { board: Board; cut: Cut; pre
       )}
 
       {sideways && (
-        <div className="field-note">
+        <div className="field-note" role="status">
           <p>The cut list reads this cut as running across the {shape.run}.</p>
-          <button onClick={() => set(storedAsShape(board, cut, solids))}>Match the cut list</button>
+          {/* The button unmounts once the cut matches, so focus moves to the
+              field the click just changed rather than dropping to <body>. */}
+          <button onClick={() => { set(storedAsShape(board, cut, solids)); acrossRef.current?.focus(); }}>
+            Match the cut list
+          </button>
         </div>
       )}
 
@@ -213,7 +219,7 @@ function CutRow({ board, cut, precision, solids }: { board: Board; cut: Cut; pre
 
       <div className="field">
         <label htmlFor={`across-${cut.id}`}>Runs across</label>
-        <select id={`across-${cut.id}`} className="input" value={cut.across}
+        <select id={`across-${cut.id}`} ref={acrossRef} className="input" value={cut.across}
           onChange={(e) => set(repositionForAxes(cut.face, e.target.value as Dimension))}>
           {(['length', 'width', 'thickness'] as Dimension[])
             .filter((d) => d !== cut.face)
