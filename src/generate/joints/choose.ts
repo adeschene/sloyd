@@ -18,7 +18,7 @@ You are given the design's parts and a numbered list of SITES — places where t
 
 Joints:
 - mortise-tenon: the entering part grows a tenon (a third of its thickness, with shoulders) into a stopped mortise in the receiving part. Size: tenonLength, how far the tenon reaches in. About 2/3 of the receiving part's depth is typical; leave at least 1/4in of wood behind it.
-- dado: the entering part's whole end is housed in a trench in the receiving part. Size: depth, about 1/3 of the receiving part's thickness.
+- dado: the entering part's whole end is housed in a trench in the receiving part. Size: depth, about 1/3 of the receiving part's depth along the joint (its thickness, for a panel).
 - stopped-dado: a dado that stops short of one edge so it does not show there; the entering part is notched to match. Sizes: depth, stopAt (one of the site's named ends, e.g. "+Z"), inset (how far short it stops).
 - rabbet: a thin panel (a back or bottom) sits in a rabbet along the receiving part's edge. Size: depth, how far the rabbet reaches into the receiving part's thickness — half its thickness is typical. The panel moves into the rabbet; parts butting it are shortened to make room.
 - half-lap: two crossing parts of equal thickness are each cut halfway so they lie in one plane. No sizes.
@@ -132,7 +132,8 @@ export function parseChoices(json: unknown, sites: Site[], doc: SloydDocument): 
     const fallback = defaultChoice(s, doc);
     if (!g) { if (given.size > 0) notes.push(`${label}: no answer; used ${fallback.joint}.`); return fallback; }
     const joint = g.joint as JointKind;
-    if (!s.allowed.includes(joint)) { notes.push(`${label}: ${String(g.joint)} is not possible there; used ${fallback.joint}.`); return fallback; }
+    if (typeof g.joint !== 'string') { notes.push(`${label}: no joint given; used ${fallback.joint}.`); return fallback; }
+    if (!s.allowed.includes(joint)) { notes.push(`${label}: ${g.joint} is not possible there; used ${fallback.joint}.`); return fallback; }
     const r = rangesOf(s, doc);
     const size = (key: 'tenonLength' | 'depth' | 'inset', rng: [number, number], dflt: number) => {
       const v = g[key];
@@ -146,7 +147,12 @@ export function parseChoices(json: unknown, sites: Site[], doc: SloydDocument): 
       case 'dado': return { site: s.id, joint, depth: size('depth', r.dadoDepth, defaultDado(s, doc)) };
       case 'stopped-dado': {
         let at: StopEnd | undefined = s.stopEnds.find((e) => stopLabel(e) === g.stopAt);
-        if (!at) { at = s.stopEnds[0]; notes.push(`${label}: stopAt ${String(g.stopAt)} is not one of ${s.stopEnds.map(stopLabel).join(', ')}; used ${stopLabel(at)}.`); }
+        if (!at) {
+          at = s.stopEnds[0];
+          notes.push(typeof g.stopAt === 'string'
+            ? `${label}: stopAt ${g.stopAt} is not one of ${s.stopEnds.map(stopLabel).join(', ')}; used ${stopLabel(at)}.`
+            : `${label}: no stopAt given; used ${stopLabel(at)}.`);
+        }
         const insetRange = r.inset(at);
         return { site: s.id, joint, depth: size('depth', r.dadoDepth, defaultDado(s, doc)), stopAt: at, inset: size('inset', insetRange, clamp(0.75, insetRange)) };
       }

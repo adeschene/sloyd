@@ -96,6 +96,8 @@ export function findSites(doc: SloydDocument): Site[] {
         const e = boxes[enter];
         const r = boxes[receive];
         for (const p of inPlane(axis)) {
+          // inset's range is empty when E is under 1/2in along p: no stop there.
+          if (e.max[p] - e.min[p] < 0.5 - 1e-9) continue;
           if (Math.abs(e.min[p] - r.min[p]) <= TOUCH) stopEnds.push({ axis: p, end: 'min' });
           if (Math.abs(e.max[p] - r.max[p]) <= TOUCH) stopEnds.push({ axis: p, end: 'max' });
         }

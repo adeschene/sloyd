@@ -129,6 +129,19 @@ describe('findSites', () => {
   });
 });
 
+describe('findSites — stopped dado needs room', () => {
+  it('a part under 1/2in along the stop axis, flush with the side, offers no stopped dado', () => {
+    const doc = design(
+      { name: 'Side', at: [0, 0, 0], size: [0.75, 30, 11.25] },
+      { name: 'Slat', at: [0.75, 12, 0], size: [20, 0.75, 0.4] },
+    );
+    const [s] = findSites(doc);
+    expect(s.kind).toBe('end-into-face');
+    expect(s.stopEnds).toEqual([]);
+    expect(s.allowed).not.toContain('stopped-dado');
+  });
+});
+
 describe('findSites — the real workbench', () => {
   // Fixture geometry (world boxes, inches). Legs 3.5 sq x 33.25 tall, tops at y=33.25.
   // Rails 1.5 thick, 5.5 (top, y 27.75-33.25) / 3.5 (low, y 6-9.5) wide, ends flush on leg faces.

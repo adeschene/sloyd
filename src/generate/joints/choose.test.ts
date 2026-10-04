@@ -84,6 +84,22 @@ describe('parseChoices', () => {
   it('treats an answer that is not the schema\'s shape as all-defaults', () => {
     const out = parseChoices('nonsense', sites, doc);
     expect(out.choices).toEqual(sites.map((s) => defaultChoice(s, doc)));
+    expect(out.notes).toEqual([]);
+  });
+
+  it('an empty list, or entries with no numeric site, give no notes', () => {
+    for (const j of [{ joints: [] }, { joints: [{ joint: 'dado' }, { site: '1', joint: 'dado' }] }]) {
+      const out = parseChoices(j, sites, doc);
+      expect(out.notes).toEqual([]);
+      expect(out.choices).toEqual(sites.map((s) => defaultChoice(s, doc)));
+    }
+  });
+
+  it('words a non-string joint and a missing stopAt plainly', () => {
+    const a = parseChoices({ joints: [{ site: rail.id }, { site: shelf.id, joint: 'stopped-dado', depth: 0.25, inset: 0.75 }] }, sites, doc);
+    expect(a.notes[0]).toContain('no joint given');
+    expect(a.notes[1]).toContain('no stopAt given; used');
+    expect(a.notes.join()).not.toContain('undefined');
   });
 });
 
