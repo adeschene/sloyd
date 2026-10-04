@@ -337,8 +337,15 @@ Everything else carries over unchanged for joinery:
   than `TOUCH` on all three axes. The message names the deepest overlap.
   - A design with no cuts has one solid per part, equal to its box, so **Generate's behaviour
     is unchanged**. Its existing tests pin that and must pass unedited.
-- **Support, held and tips stay box-based.** A joint keeps the contacts they read: a rail's
-  shoulders still meet the leg's face.
+- **The contacts `hangs` reads are computed between SOLIDS too** (a correction from Task 1's
+  review). A seated tenon's box interpenetrates the leg's box, so box contacts lose the joint
+  entirely and every mortise-and-tenon rail would be reported as hanging. That would be a "new"
+  problem the repair loop could never clear.
+  - Between solids, the rail's shoulders still meet the leg's face plane, covering about 76% of
+    the rail's end, so the rail is held.
+  - A cut-free design's solids are its boxes, so Generate is unchanged.
+  - Grounding (`connected`) and `tips` stay box-based: `connected` already accepts overlap.
+  - `faceContacts`, which finds sites, stays box-based (§3.1).
 - **`Violation` gains `parts: string[]`.** These are the stored names the message is about, set
   by `checkDesign` and `rejectedViolations`.
   - Existing tests that compare violations exactly may add the field.
