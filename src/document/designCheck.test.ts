@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkDesign, rejectedViolations, TOUCH } from './designCheck';
+import { checkDesign, faceContacts, rejectedViolations, TOUCH } from './designCheck';
 import type { DesignLimits } from './designCheck';
 import { createBoard, createDocument, migrateDocument } from './document';
 import workbenchRaw from './fixtures/simple-workbench.sloyd?raw';
@@ -96,8 +96,8 @@ describe('ordering and rejected parts', () => {
   it('turns rejected parts into violations naming them', () => {
     expect(rejectedViolations([{ name: 'Bad', reason: 'not-finite' }, { name: 'Thin', reason: 'too-small' }]))
       .toEqual([
-        { kind: 'too-small', message: expect.stringContaining('Bad') },
-        { kind: 'too-small', message: expect.stringContaining('Thin') },
+        { kind: 'too-small', message: expect.stringContaining('Bad'), parts: ['Bad'] },
+        { kind: 'too-small', message: expect.stringContaining('Thin'), parts: ['Thin'] },
       ]);
   });
 });
@@ -310,5 +310,60 @@ describe('tips (fu 165)', () => {
   });
   it('a floating part adds no weight (Deviation 1): unsupported only', () => {
     expect(kinds(docOf(box('Base', [0, 0, 0], [2, 1, 2]), box('Far', [40, 5, 0], [10, 1, 10])))).toEqual(['unsupported']);
+  });
+});
+
+describe('phase 2: overlap is measured between SOLIDS (invariant 38)', () => {
+  const limits = { width: null, depth: null, height: null, maxParts: 99 };
+  // A leg and a rail whose tenon sits in a mortise, built by hand: the boxes
+  // interpenetrate by 1in, the solids do not.
+  const doc = (withJoint: boolean) => ({
+    ...createDocument('T'),
+    boards: [
+      createBoard({ name: 'Leg', length: 28, width: 1.75, thickness: 1.75, posture: 'upright', position: [0, 0, 0],
+        cuts: withJoint ? [{ id: 'm', face: 'width', from: 'max', across: 'length', offset: 0.5, width: 0.75, depth: 1,
+          stopMin: 24, stopMax: 1.5, }] : [] }),
+      createBoard({ name: 'Rail', length: 19, width: 3.5, thickness: 0.75, posture: 'on-edge', position: [0.75, 23.5, 0.5],
+        cuts: withJoint ? [
+          { id: 'a', face: 'width', from: 'min', across: 'thickness', offset: 0, width: 1, depth: 0.5, stopMin: 0, stopMax: 0 },
+          { id: 'b', face: 'width', from: 'max', across: 'thickness', offset: 0, width: 1, depth: 0.5, stopMin: 0, stopMax: 0 },
+        ] : [] }),
+    ],
+  });
+
+  it('reports a tenon whose mortise is missing', () => {
+    expect(checkDesign(doc(false), limits).filter((v) => v.kind === 'overlap')).toHaveLength(1);
+  });
+
+  it('does not report a tenon seated in its mortise', () => {
+    expect(checkDesign(doc(true), limits).filter((v) => v.kind === 'overlap')).toEqual([]);
+  });
+});
+
+describe('every violation names its parts', () => {
+  const limits = { width: 10, depth: null, height: null, maxParts: 1 };
+  it('too-small, overlap, unsupported, too-large, too-many-parts', () => {
+    const d = { ...createDocument('T'), boards: [
+      createBoard({ name: 'A', length: 20, width: 4, thickness: 0.75, position: [0, 0, 0] }),
+      createBoard({ name: 'B', length: 20, width: 4, thickness: 0.75, position: [1, 0.25, 1] }),
+      createBoard({ name: 'C', length: 2, width: 2, thickness: 0.0625, position: [0, 9, 0] }),
+    ] };
+    const v = checkDesign(d, limits);
+    const of = (k: string) => v.filter((x) => x.kind === k).map((x) => [...x.parts].sort());
+    expect(of('overlap')).toEqual([['A', 'B']]);
+    expect(of('too-small')).toEqual([['C']]);
+    expect(of('unsupported')).toContainEqual(['C']);
+    expect(of('too-large')).toEqual([[]]);
+    expect(of('too-many-parts')).toEqual([[]]);
+  });
+});
+
+describe('faceContacts', () => {
+  it('lists a face contact once, with a < b and a\'s touching face', () => {
+    const d = { ...createDocument('T'), boards: [
+      createBoard({ name: 'Lower', length: 10, width: 4, thickness: 1, position: [0, 0, 0] }),
+      createBoard({ name: 'Upper', length: 10, width: 4, thickness: 1, position: [0, 1, 0] }),
+    ] };
+    expect(faceContacts(d)).toEqual([{ a: 0, b: 1, axis: 1, side: 1, area: 40 }]);
   });
 });
