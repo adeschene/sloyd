@@ -477,6 +477,15 @@ describe('tenons on the sheet (fu 180)', () => {
     ]);
   });
 
+  it('puts the tenon line where its first cut stood (spec 4.1)', () => {
+    const [a1, a2, a3, a4] = tenon('min', 'a');
+    const list = buildCutList(docWith({ cuts: [a1, a2, dado(), a3, a4] }));
+    expect(list.groups[0].rows[0].setup).toEqual([
+      '1" tenon, 1/4" thick × 4-1/2" wide — at the length min end',
+      '3/4" dado, 1/4" deep — into the thickness face (min side), 6" from the length min end, running across the width',
+    ]);
+  });
+
   it('prints a dado beside a tenon exactly as before', () => {
     const list = buildCutList(docWith({ cuts: [...tenon('min', 'a'), dado()] }));
     expect(list.groups[0].rows[0].setup).toEqual([

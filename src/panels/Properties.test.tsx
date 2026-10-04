@@ -432,6 +432,7 @@ describe('cuts', () => {
       st.updateCut(id, c2.id, cheek(c2.id, 'max'));
     });
     expect(screen.getAllByText('tenon shoulder')).toHaveLength(2);
+    expect(screen.getAllByRole('button', { name: /Remove cut \(tenon shoulder/ })).toHaveLength(2);
     act(() => { useStore.getState().removeCut(id, useStore.getState().doc.boards[0].cuts[1].id); });
     expect(screen.queryByText('tenon shoulder')).not.toBeInTheDocument();
     expect(screen.getByText('rabbet')).toBeInTheDocument();
