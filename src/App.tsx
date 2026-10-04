@@ -11,6 +11,10 @@ import { TapeReadout } from './panels/TapeReadout';
 import { GenerateDialog } from './panels/GenerateDialog';
 import { SettingsDialog } from './panels/SettingsDialog';
 import { useGenerations } from './useGenerations';
+import { useJoinery } from './useJoinery';
+import { JoineryDialog } from './panels/JoineryDialog';
+import { joineryEstimateUsd } from './generate/run';
+import { findSites, siteLabel } from './generate/joints/sites';
 import { AnthropicClient, checkAnthropicKey } from './llm/anthropic';
 import type { LlmSettings } from './storage/types';
 import type { DuplicateFailure } from './panels/ProjectMenu';
@@ -62,7 +66,7 @@ export default function App() {
   // and buttons hold focus too, and `inert` cannot reach a window listener:
   // `m`, Backspace or Ctrl+Z pressed there would arm Move, delete the
   // selected board, or undo, behind the dialog.
-  const [dialog, setDialog] = useState<'generate' | 'settings' | null>(null);
+  const [dialog, setDialog] = useState<'generate' | 'settings' | 'joinery' | null>(null);
   // THE ONE FLAG every "something covers the app" consumer reads — the inert
   // shell, the keydown effect, `shortcutsSuspended`, the focus restore. One
   // derived value rather than `cutListOpen || dialog !== null` spelled out at
@@ -92,6 +96,12 @@ export default function App() {
     onCreated: (id) => setNewIds((s) => new Set(s).add(id)),
     // The same verdict-reporting rule the four switch handlers follow: a
     // failed write must reach the banner, not only the run's row.
+    onStorageVerdict: () => setAvailable(storage.available),
+  });
+  // Joinery likewise never adopts (invariant 36): createProject with
+  // `activate: false`, opened only through `openProject`.
+  const joinery = useJoinery({
+    onCreated: (id) => setNewIds((s) => new Set(s).add(id)),
     onStorageVerdict: () => setAvailable(storage.available),
   });
   useEffect(() => {
@@ -768,6 +778,11 @@ export default function App() {
             opener.current = document.activeElement as HTMLElement | null;
             setDialog('generate');
           }}
+          onOpenJoinery={() => {
+            opener.current = document.activeElement as HTMLElement | null;
+            joinery.reset();
+            setDialog('joinery');
+          }}
           onOpenSettings={() => {
             opener.current = document.activeElement as HTMLElement | null;
             setDialog('settings');
@@ -880,6 +895,27 @@ export default function App() {
             setDialog(null);
             void openProject(id);
           }}
+          onOpenSettings={() => setDialog('settings')}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog === 'joinery' && (
+        <JoineryDialog
+          hasKey={llmSettings !== null}
+          libraryAvailable={libraryAvailable}
+          projectName={doc.name}
+          sites={findSites(doc).map((s) => siteLabel(s, doc))}
+          model={llmSettings?.model ?? null}
+          estimateUsd={llmSettings ? joineryEstimateUsd(new AnthropicClient(llmSettings.apiKey, llmSettings.model), doc) : null}
+          run={joinery.run}
+          live={joinery.live}
+          onRun={() => {
+            if (!llmSettings) return;
+            joinery.start(new AnthropicClient(llmSettings.apiKey, llmSettings.model), useStore.getState().doc);
+          }}
+          onCancel={joinery.cancel}
+          // The ONE adopting path (invariant 36): the existing openProject.
+          onOpenProject={(id) => { setDialog(null); void openProject(id); }}
           onOpenSettings={() => setDialog('settings')}
           onClose={() => setDialog(null)}
         />

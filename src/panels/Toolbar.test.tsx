@@ -38,6 +38,7 @@ function renderToolbar(overrides: Partial<Parameters<typeof Toolbar>[0]> = {}) {
       onDeleteProject={asyncNoop}
       onImportProject={noop}
       onOpenGenerate={noop}
+      onOpenJoinery={noop}
       onOpenSettings={noop}
       generating={null}
       {...overrides}

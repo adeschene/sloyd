@@ -1,6 +1,7 @@
 import type { SloydDocument } from './document';
 import type { RejectedPart } from './generated';
-import { boardExtents } from './geometry';
+import { boardSolids } from './cuts';
+import { axisDimensions, boardExtents } from './geometry';
 
 /**
  * The checks a generated design is held to (spec §4.3). Pure, against the
@@ -14,11 +15,11 @@ import { boardExtents } from './geometry';
  * `hangs` (fu 165): every part off the floor must be held: resting, between, or lapped (inv 39).
  * `tips` (fu 165): the grounded parts' volume-weighted centre of mass sits at least min(1in, s/4) inside the floor footprint's hull.
  *
- * PHASE 2 NOTE (spec §4.4): `overlap` must become "interpenetration not
- * accounted for by a cut" when joinery is generated. Relax it on purpose.
+ * Overlap is measured between SOLIDS (invariant 38): a cut explains an overlap by
+ * removing the stock. Do not raise TOUCH to make joints pass.
  */
 export type ViolationKind = 'too-small' | 'overlap' | 'unsupported' | 'too-large' | 'too-many-parts' | 'hangs' | 'tips';
-export interface Violation { kind: ViolationKind; message: string }
+export interface Violation { kind: ViolationKind; message: string; parts: string[] }
 export interface DesignLimits { width: number | null; depth: number | null; height: number | null; maxParts: number }
 
 export const TOUCH = 1 / 32;
@@ -140,17 +141,31 @@ interface Contact { other: number; axis: number; side: -1 | 1; area: number }
  * so an interpenetrating pair is never a contact here.
  */
 function contactsOf(boxes: Box[]): Contact[][] {
-  const out: Contact[][] = boxes.map(() => []);
-  boxes.forEach((a, i) => {
-    boxes.forEach((b, j) => {
+  return solidContactsOf(boxes.map((b) => [b]));
+}
+
+/**
+ * Face contacts between parts, measured between their SOLIDS (spec §6.3): a
+ * seated tenon's box interpenetrates its leg's box, but its solid does not, so
+ * only solids can say what is touching what. Aggregated per part — any solid of
+ * i against any solid of j (i !== j); solids of the SAME part are ignored.
+ * A cut-free part has one solid, equal to its box, so this is `contactsOf`'s
+ * old behaviour exactly.
+ */
+function solidContactsOf(solids: Box[][]): Contact[][] {
+  const out: Contact[][] = solids.map(() => []);
+  solids.forEach((as, i) => {
+    solids.forEach((bs, j) => {
       if (i === j) return;
-      for (const axis of [0, 1, 2]) {
-        const [p, q] = [0, 1, 2].filter((k) => k !== axis);
-        const sp = shared(a, b, p);
-        const sq = shared(a, b, q);
-        if (sp <= TOUCH || sq <= TOUCH) continue;
-        if (Math.abs(a.min[axis] - b.max[axis]) <= TOUCH) out[i].push({ other: j, axis, side: -1, area: sp * sq });
-        else if (Math.abs(a.max[axis] - b.min[axis]) <= TOUCH) out[i].push({ other: j, axis, side: 1, area: sp * sq });
+      for (const a of as) for (const b of bs) {
+        for (const axis of [0, 1, 2]) {
+          const [p, q] = [0, 1, 2].filter((k) => k !== axis);
+          const sp = shared(a, b, p);
+          const sq = shared(a, b, q);
+          if (sp <= TOUCH || sq <= TOUCH) continue;
+          if (Math.abs(a.min[axis] - b.max[axis]) <= TOUCH) out[i].push({ other: j, axis, side: -1, area: sp * sq });
+          else if (Math.abs(a.max[axis] - b.min[axis]) <= TOUCH) out[i].push({ other: j, axis, side: 1, area: sp * sq });
+        }
       }
     });
   });
@@ -212,29 +227,64 @@ function hangsMessage(i: number, boxes: Box[], contacts: Contact[][], groundedWi
   return `${b.name} is not held: nothing is under it, and its ${AXES[best.axis]} sides are covered ${pct(best.lo)}% and ${pct(best.hi)}%${by}; each needs ${pct(HELD_COVERAGE)}%. Rest it on a part below, fit it between two parts that cover its sides, or fasten its broad face to another part.`;
 }
 
+const boxesOf = (doc: SloydDocument): Box[] => doc.boards.map((b) => {
+  const e = boardExtents(b);
+  return { name: b.name, min: [...b.position], max: b.position.map((p, i) => p + e[i]) };
+});
+
+/**
+ * A part's SOLIDS in world space — invariant 2's mapping, position plus the
+ * local span on the dimension each axis shows. NOT solidWorldBox, which is
+ * centre-relative (CLAUDE.md warns about exactly this).
+ */
+const solidBoxesOf = (doc: SloydDocument): Box[][] => doc.boards.map((b) => {
+  const dims = axisDimensions(b);
+  return boardSolids(b).map((s) => ({
+    name: b.name,
+    min: [0, 1, 2].map((i) => b.position[i] + s[dims[i]][0]),
+    max: [0, 1, 2].map((i) => b.position[i] + s[dims[i]][1]),
+  }));
+});
+
+export interface FaceContact { a: number; b: number; axis: number; side: -1 | 1; area: number }
+
+/** Every face contact once, a < b; `side` is a's touching face (-1 min, +1 max). */
+export function faceContacts(doc: SloydDocument): FaceContact[] {
+  return contactsOf(boxesOf(doc)).flatMap((cs, a) =>
+    cs.filter((c) => c.other > a).map((c) => ({ a, b: c.other, axis: c.axis, side: c.side, area: c.area })));
+}
+
 export function checkDesign(doc: SloydDocument, limits: DesignLimits): Violation[] {
-  const boxes: Box[] = doc.boards.map((b) => {
-    const e = boardExtents(b);
-    return { name: b.name, min: [...b.position], max: b.position.map((p, i) => p + e[i]) };
-  });
+  const boxes = boxesOf(doc);
   const out: Violation[] = [];
 
   for (const b of boxes) {
     const i = [0, 1, 2].find((k) => b.max[k] - b.min[k] < MIN_SIDE - 1e-9);
     if (i !== undefined) {
-      out.push({ kind: 'too-small', message: `${b.name} is ${inches(b.max[i] - b.min[i])} along ${AXES[i]}; the minimum is ${inches(MIN_SIDE)}.` });
+      out.push({ kind: 'too-small', message: `${b.name} is ${inches(b.max[i] - b.min[i])} along ${AXES[i]}; the minimum is ${inches(MIN_SIDE)}.`, parts: [b.name] });
     }
   }
 
+  // Invariant 38, rewritten for phase 2: overlap is measured between SOLIDS,
+  // the stock left after cuts, so a tenon in its mortise is not overlap and a
+  // tenon with no mortise is. A design with no cuts has one solid per part,
+  // equal to its box — Generate's behaviour is unchanged by construction.
+  const solids = solidBoxesOf(doc);
   const overlapping = new Set<number>();
   for (let i = 0; i < boxes.length; i++) {
     for (let j = 0; j < i; j++) {
-      const s = [0, 1, 2].map((k) => shared(boxes[i], boxes[j], k));
-      if (s.every((v) => v > TOUCH)) {
+      let worst: number[] | null = null;
+      for (const p of solids[i]) {
+        for (const q of solids[j]) {
+          const s = [0, 1, 2].map((k) => shared(p, q, k));
+          if (s.every((v) => v > TOUCH) && (!worst || Math.min(...s) > Math.min(...worst))) worst = s;
+        }
+      }
+      if (worst) {
         overlapping.add(i);
         overlapping.add(j);
-        const axis = s.indexOf(Math.min(...s));
-        out.push({ kind: 'overlap', message: `${boxes[i].name} passes ${inches(s[axis])} into ${boxes[j].name} along ${AXES[axis]}.` });
+        const axis = worst.indexOf(Math.min(...worst));
+        out.push({ kind: 'overlap', message: `${boxes[i].name} passes ${inches(worst[axis])} into ${boxes[j].name} along ${AXES[axis]}.`, parts: [boxes[i].name, boxes[j].name] });
       }
     }
   }
@@ -244,7 +294,7 @@ export function checkDesign(doc: SloydDocument, limits: DesignLimits): Violation
     if (grounded.has(i)) return;
     const near = [...grounded].map((g) => boxes[g]).sort((p, q) => distance(b, p) - distance(b, q))[0];
     const hint = near ? `; the nearest supported part is ${near.name}, ${inches(distance(b, near))} away` : '';
-    out.push({ kind: 'unsupported', message: `${b.name} is not connected to the floor through touching parts${hint}.` });
+    out.push({ kind: 'unsupported', message: `${b.name} is not connected to the floor through touching parts${hint}.`, parts: [b.name] });
   });
 
   if (boxes.length > 0) {
@@ -256,18 +306,18 @@ export function checkDesign(doc: SloydDocument, limits: DesignLimits): Violation
     ];
     for (const [label, limit, actual] of checks) {
       if (limit !== null && actual > limit + 1e-9) {
-        out.push({ kind: 'too-large', message: `Overall ${label} ${inches(actual)} exceeds the ${inches(limit)} limit.` });
+        out.push({ kind: 'too-large', message: `Overall ${label} ${inches(actual)} exceeds the ${inches(limit)} limit.`, parts: [] });
       }
     }
   }
 
   if (boxes.length > limits.maxParts) {
-    out.push({ kind: 'too-many-parts', message: `${boxes.length} parts; the limit is ${limits.maxParts}.` });
+    out.push({ kind: 'too-many-parts', message: `${boxes.length} parts; the limit is ${limits.maxParts}.`, parts: [] });
   }
 
   // Held (fu 165). One fault, one report: a part on the floor, already
   // unsupported, or named in an overlap is never also reported as hanging.
-  const contacts = contactsOf(boxes);
+  const contacts = solidContactsOf(solids);
   const memo = new Map<number, Set<number>>();
   const groundedWithout = (skip: number) => {
     if (!memo.has(skip)) memo.set(skip, groundedSet(boxes, skip));
@@ -276,11 +326,11 @@ export function checkDesign(doc: SloydDocument, limits: DesignLimits): Violation
   boxes.forEach((b, i) => {
     if (b.min[1] <= TOUCH || !grounded.has(i) || overlapping.has(i)) return;
     const message = hangsMessage(i, boxes, contacts, groundedWithout);
-    if (message) out.push({ kind: 'hangs', message });
+    if (message) out.push({ kind: 'hangs', message, parts: [boxes[i].name] });
   });
 
   const tip = tipsMessage(boxes, grounded);
-  if (tip) out.push({ kind: 'tips', message: tip });
+  if (tip) out.push({ kind: 'tips', message: tip, parts: [] });
   return out;
 }
 
@@ -291,5 +341,6 @@ export function rejectedViolations(rejected: RejectedPart[]): Violation[] {
     message: r.reason === 'not-finite'
       ? `${r.name} has a position or size that is not a finite number.`
       : `${r.name} has a size of zero or less after rounding to 1/16in.`,
+    parts: [r.name],
   }));
 }

@@ -3858,6 +3858,9 @@ phase 2 must relax that to "overlap not accounted for by a cut", deliberately an
 place. Also wanted before it: 164, since refining one of three identical designs is less
 useful than refining one of three different ones.
 
+**2026-10-04: joinery is built (Add joinery…).** Refine by instruction is
+now follow-up 179.
+
 **2026-10-04: the stopped cuts round landed first.** A `Cut` can stop short of either end of
 its `across` dimension (`stopMin`/`stopMax`, schema v7), so mortises, through mortises and
 stopped dados exist. The "overlap not accounted for by a cut" rule can be written against a
@@ -4002,3 +4005,112 @@ growing it back is ordinary while sizing a part, and dropping would lose the joi
   last sentence is true: the loader drops every case the predicate reaches in the app. The
   row's label still names the stored shape ("Dado"), which the user saw live and passed.
 - **Live pass:** `docs/browser-verification-phantom-cut.md`.
+
+## From the joinery round — 2026-10-04
+
+**179. Refine by instruction.** Phase 2's other half: a box for change requests ("shelves 2in
+lower", "thicker legs"), the model editing the design, and the existing checks. Chosen against in
+favour of joinery first; it reuses `runRepairLoop` and `checkDesign` unchanged.
+
+**180. A tenon prints as four "rabbet" lines.** `mortiseTenon` cuts the waste around a tenon as
+up to four `pocketFor` boxes, and `cutLabel` names each by its shape, so a tenoned rail's cut list
+reads "rabbet" four times per end. The geometry is right; the word is wrong. A "tenon" label (one
+line per end, naming length and thickness) is wanted, and would need either a grouping step in the
+cut list or a cut kind the vocabulary does not yet have.
+
+**181. A rabbet stopped at both ends prints as "stopped dado".** The cut vocabulary has no word for
+an edge rabbet stopped short of both ends, so `cutLabel` falls through to the nearest shape it
+knows. Reported by the final review; not re-observed in this fix wave. Needs a word, not a
+geometry change.
+
+**182. A dado stopped at the back next to a back rabbet.** Since the final-review fix (rabbets run
+before end-into-face), the DEFAULT bookcase reaches this path: each shelf is trimmed for the back
+first, so its dado in each side stops 1/4in short of the back edge and prints as "stopped dado".
+Measured with the reviewer's void script, the default case leaves no gap — the side's rabbet
+already removes that 1/4in — so this is mostly a word: the dado effectively runs out into the
+rabbet. A stopped dado chosen to stop at the back (`-Z` in the reviewer's bookcase) still leaves
+small voids where the top and bottom meet the sides (0.023 in³ per joint, unchanged by the fix).
+
+**183. A part on the panel's OUTER face is left floating after a rabbet.** The rabbet moves the
+panel toward its receivers by its own thickness; anything fastened to the panel's outer face (a
+cleat, a French-cleat rail) stays where it was and now hangs in air. Only `butt` clears the new
+`hangs`. The recipe could carry outer-face parts with the panel; not done.
+
+**184. `moved` is misleading after a re-ground.** When a rabbeted bottom lifts the piece and
+`applyJoints` lowers everything back to the floor (§4.7), every part has moved in the world, but
+`moved` still lists only the parts a recipe moved relative to the others. The dialog's wording
+should say "moved relative to the rest", or the list should be computed after the re-ground.
+
+**185. A three-layer half-lap stack abandons or skips a lap — STILL OCCURS after the final-review
+fix.** Re-checked with A (X), B (Z) on A, C (X) on B, all 3/4in, every crossing a half-lap. Listed
+C, B, A: C laps into B, then B drops into A and leaves C's lap behind (C reports `hangs`). Listed
+A, B, C or B, C, A: B drops first and C's site is skipped ("no longer meets"), so C is
+`unsupported`. Identical before and after the fix, because crossings keep site order among
+themselves. A stack needs the drops computed together, or the upper part dropped with its partner.
+
+**186. Smaller residues from the joinery final review.**
+- **The shelf's cut-list word depended on board order — GONE after the fix.** Before, a bookcase
+  with the back listed last printed the shelf's housing as "dado" and with it listed first as
+  "stopped dado". With rabbets always first, both orders print "stopped dado" (see 182).
+- A narrow inset back leaves a 1/8in slot (reported by the final review; not re-observed here).
+- `problemKey` joins part names with commas, so a name containing a comma can collide with a pair.
+  Harmless today; worth a separator that cannot appear in a name.
+- A joinery move (a rabbet's panel, a half-lap's drop) can raise a NEW `tips`, which is then
+  blamed on the joinery. See 176/177 for the limits of `tips` itself.
+
+**187. On growth, a cut that runs out at the moving end keeps running out — an amendment to
+§4.7 that NEEDS THE USER'S RATIFICATION.** The final review ruled that `resize` rebases a part's
+existing cuts (min end: `offset`/`stopMin += amount`; max end: `stopMax += amount`). Applied
+literally together with "rabbets before end-into-face", the DEFAULT bookcase regressed: the bottom
+and top are rabbeted for the back first, then grow 1/4in into the sides' dados, and the rebase
+left their full-length rabbets stopped 1/4in short of each end — printed as "notch" — with the back
+driving 1/4in into each grown end (also Bookcase2: the sides growing up into the top). The fix
+wave added one rule in `rebaseCuts`: when a part GROWS, a cut that runs out at the moving end (a
+zero stop there, or a position span reaching that end) grows with it; a cut that stops short of
+that end still stays put in the world, which is what keeps a tenon in place. Shrinks are unchanged
+(they clip). Pinned by the bookcase tests in `recipes.test.ts`; removing the rule reds three of
+them. Physically it is the right reading of "runs out", but it is a deviation from the ruling's
+literal formula, so §4.7 should be amended or the rule reverted by decision.
+
+**CLOSED 2026-10-04.** The controller signed off the rule, and spec §4.7 is amended. The
+re-review then found that the POSITION-axis half was wrong:
+- **The case:** a housing flush with an end holds a part that sits AT that end, and that part
+  does not move when the board grows.
+- **The failure:** extending the housing made the geometry depend on document order. A footed
+  case side printed a "1-7/16″ rabbet" instead of a 3/4″ dado, and left a hidden void.
+- **The decision:** the user approved dropping that half (commit `d55f1ab`).
+- **What remains:** only the `across` half. A through cut keeps running out along its across
+  axis, and a cut positioned flush with an end stays where it is.
+- **The tests:** the footed side in both listing orders, plus a grooved-back ordering test.
+
+**188. The default tenon cap's edges.** I1 caps a default tenon 1/16in short of another default
+tenon's cross-section inside the same part. Three recorded limits: the cap rounds DOWN to 1/16in
+(so rounding cannot eat the clearance); when the cap falls below the range's 1/2in floor, the clamp
+wins and the two tenons still meet, which the check then reports; and the cap ignores how far the
+OTHER tenon actually reaches, so it can shorten a tenon whose neighbour is too short to meet it.
+
+**189. A shelf housing closed at both ends prints as "mortise".** This was seen live on a
+generated bookcase, whose back panel sat between the sides.
+- **What happens:** the model stopped each shelf's dado at the front. Each shelf also ends 1/2″
+  short of the sides' back edge, so the pocket is closed at both ends. `cutLabel`'s table (the
+  stopped-cuts round) therefore calls it a `mortise`.
+- **Geometry vs. word:** the geometry is right. A woodworker would call it a blind (stopped)
+  dado. A mortise is a pocket for a tenon, not a housing for a whole board's end.
+- **Possible discriminator:** the pocket's width along the position axis compared with its length
+  (a housing is long and shallow, a mortise narrow and deep), or the receiving part being a
+  panel.
+- **Status:** a cut-list vocabulary question for the user, in the same family as 180 and 181.
+
+**190. Rails entering one post from OPPOSITE faces collide on the defaults.** A centre post or
+long-bench middle leg has rails tenoned in from both sides at one height.
+- **The numbers:** each default tenon is 1-3/16″, so together they need 2-3/8″ in a 1-3/4″ post.
+- **Why the cap misses it:** I1's cap only looks at ADJACENT faces (`o.axis === k` is skipped
+  by construction).
+- **The fix would be** to cap each to under half the post's depth when the opposite site exists.
+- **Reach:** the model can still choose well, and the repair loop catches it. Only the
+  fallback, which builds the defaults and never repairs them, delivers the overlap.
+
+Also seen live, and not a defect: on a hand-built corner leg, the model avoided the
+adjacent-tenon collision by itself, choosing 11/16″ tenons. So no repair round ran, and the
+joinery repair path has been seen only in unit tests, the same as 177 for `hangs`/`tips`.
+

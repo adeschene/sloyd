@@ -47,6 +47,7 @@ interface Props {
    * compile, not render a button that does nothing.
    */
   onOpenGenerate: () => void;
+  onOpenJoinery: () => void;
   /** Opens the Settings dialog (the API key and model). */
   onOpenSettings: () => void;
   /**
@@ -82,6 +83,7 @@ export function Toolbar({
   onDeleteProject,
   onImportProject,
   onOpenGenerate,
+  onOpenJoinery,
   onOpenSettings,
   generating,
   newIds,
@@ -128,6 +130,7 @@ export function Toolbar({
         <button onClick={onOpenGenerate} title="Generate a prototype from a description">
           {generating ? `Generating ${generating.total - generating.live}/${generating.total}…` : 'Generate…'}
         </button>
+        <button onClick={onOpenJoinery} title="Add joints to the open design">Add joinery…</button>
         <span className="toolbar-divider" />
         <button onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
         <button onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>

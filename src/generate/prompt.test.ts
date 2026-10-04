@@ -44,7 +44,7 @@ describe('prompt', () => {
     expect(limitsOf(base)).toEqual({ width: 36, depth: null, height: 72, maxParts: DETAIL_CAPS.moderate });
   });
   it('lists every violation in the repair message', () => {
-    const m = repairMessage([{ kind: 'overlap', message: 'A passes 1in into B along X.' }, { kind: 'unsupported', message: 'C is not connected.' }]);
+    const m = repairMessage([{ kind: 'overlap', message: 'A passes 1in into B along X.', parts: ['A', 'B'] }, { kind: 'unsupported', message: 'C is not connected.', parts: ['C'] }]);
     expect(m).toContain('A passes 1in into B along X.');
     expect(m).toContain('C is not connected.');
     expect(m).toMatch(/whole/i);

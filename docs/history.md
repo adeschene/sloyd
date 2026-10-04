@@ -217,6 +217,47 @@ and 79.
 
 ## What each round did
 
+**What the joinery round did (2026-10-04).** This is phase 2, follow-up 171. The user chose
+"Add joinery" as phase 2's first job, ahead of refining a design by instruction. It ran
+straight after the stopped-cuts round, which supplied the mortise, and the phantom-cut round,
+which keeps a resized part's dead cuts off the sheet.
+
+- **What it does.**
+  1. The code finds every place two parts meet: end into face, a thin panel's face against an
+     edge, or two parts crossing.
+  2. One model call picks a joint for each of those places, from what the place allows.
+  3. Pure recipes build the joints through ONE converter, `pocketFor`, which turns a world box
+     into a cut (invariant 41).
+- **Two checks changed.**
+  - `checkDesign` measures overlap between SOLIDS, and the contacts `hangs` reads come from
+    solids too (invariant 38, rewritten).
+  - Only problems the joinery introduced drive repairs.
+- **Reviews: the plan and spec were wrong several times, and every time it was caught before it
+  shipped.** Each fix is recorded in the spec.
+  - Hanging rails: the box-based `hangs` would have reported every tenoned rail as hanging.
+  - The back panel: a centre partition would have silently lost half the back, and rule 3 was
+    corrected.
+  - Half-laps:
+    - in a grid, they moved a part once per crossing;
+    - a drop could run a part into a block;
+    - tolerances could add up and strand a part out of plane.
+  - The floor: a rabbeted bottom lifted the piece off the floor.
+  - Labels: `pocketFor` labelled a stopped dado a "notch".
+  - Default joints:
+    - an ordinary rail defaulted to a dado;
+    - legs defaulted to housings in a top that would crack.
+  - Test gaps: tests could not see the max-face recipe branch.
+  - Errors: the fallback reported our own bugs as model failures.
+  - **The worst:** a part's existing cuts did not move when the part grew. Tenons landed wrongly
+    depending on document order, and the model could never repair it. The final review found it
+    by reordering the user's workbench legs. The fix's own run-out rule then needed narrowing,
+    which the user approved.
+- **Live pass** (`docs/browser-verification-joinery.md`), four paid calls, about $0.13:
+  - **The workbench:** 16 mortise and tenons, no new problems.
+  - **A generated bookcase:** 13 dados, no new problems. Shelf housings print "mortise" (189).
+  - **A forced corner collision:** the model avoided it.
+  - **Not seen live:** a rabbet and a repair round.
+
 **What the phantom-cut round did (2026-10-04)**: follow-up 178. This was a bounded round, and
 it came straight after the stopped cuts round. It went before phase 2 for one reason: phase 2's
 "refine" step will resize boards that already carry cuts, which is exactly what produces a cut

@@ -568,6 +568,14 @@ describe('findSites', () => {
     expect(rangesOf(s, doc).rabbetDepth).toEqual([0.125, 0.375]);
   });
 
+  it('a back panel meeting a shelf\'s back edge mid-panel is NOT a site (rule 3 needs the panel\'s edge)', () => {
+    const doc = design(
+      { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 11.25] },
+      { name: 'Back', at: [0, 0, 11.25], size: [21.5, 30, 0.25] },
+    );
+    expect(findSites(doc)).toEqual([]);
+  });
+
   it('a 3/4in top on an apron\'s edge is NOT a site (rule 3 needs a thin panel)', () => {
     const doc = design(
       { name: 'Apron', at: [0, 0, 0], size: [20, 3.5, 0.75] },
@@ -759,9 +767,16 @@ export function findSites(doc: SloydDocument): Site[] {
     // Rule 2: a whole end inside the contact.
     if (da === 'length' && c.area >= endArea(c.a) - 1e-6) { push('end-into-face', c.a, c.b, c.side); continue; }
     if (db === 'length' && c.area >= endArea(c.b) - 1e-6) { push('end-into-face', c.b, c.a, (-c.side) as -1 | 1); continue; }
-    // Rule 3: a THIN panel's face against an edge.
-    if (da === 'thickness' && db === 'width' && A.thickness <= THIN_PANEL) { push('face-against-edge', c.a, c.b, c.side); continue; }
-    if (db === 'thickness' && da === 'width' && B.thickness <= THIN_PANEL) { push('face-against-edge', c.b, c.a, (-c.side) as -1 | 1); continue; }
+    // Rule 3: a THIN panel's face against an edge AT THE PANEL'S OWN EDGE —
+    // a side framing a back, never a shelf meeting the back mid-panel (that
+    // one butts, and is trimmed when the panel moves).
+    const atPanelEdge = (panel: number, other: number) => inPlane(axis).some((p) => {
+      const lo = Math.max(boxes[panel].min[p], boxes[other].min[p]);
+      const hi = Math.min(boxes[panel].max[p], boxes[other].max[p]);
+      return lo <= boxes[panel].min[p] + TOUCH || hi >= boxes[panel].max[p] - TOUCH;
+    });
+    if (da === 'thickness' && db === 'width' && A.thickness <= THIN_PANEL && atPanelEdge(c.a, c.b)) { push('face-against-edge', c.a, c.b, c.side); continue; }
+    if (db === 'thickness' && da === 'width' && B.thickness <= THIN_PANEL && atPanelEdge(c.b, c.a)) { push('face-against-edge', c.b, c.a, (-c.side) as -1 | 1); continue; }
     // Rule 4: equal-thickness parts crossing.
     if (da === 'thickness' && db === 'thickness' && Math.abs(A.thickness - B.thickness) <= TOUCH) {
       const [p, q] = inPlane(axis);
@@ -805,6 +820,7 @@ nobody explained is the shape invariant 23 warns about.
 Apply each mutation, confirm a test fails, then revert:
 1. Swap the order of rules 2 and 3.
 2. Delete `A.thickness <= THIN_PANEL`.
+2a. Delete `atPanelEdge(c.a, c.b)`.
 3. Make `crosses` require only one direction.
 4. Drop the `- 1e-6` area tolerance and use `>`.
 

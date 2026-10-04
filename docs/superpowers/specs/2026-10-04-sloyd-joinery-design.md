@@ -27,7 +27,8 @@ builds the joints from tested recipes.
 
 **Success:**
 - Your workbench export and a generated bookcase come back with believable joints.
-- Their cut lists show mortises, tenons, dados and rabbets.
+- Their cut lists show mortises, dados and rabbets. A tenon appears as its shoulder rabbets on
+  the rail's end; naming it "tenon" on the cut list is a follow-up (final review).
 - `checkDesign` finds no new problems, or the repair loop clears them.
 
 **Out of scope:**
@@ -84,7 +85,7 @@ dimensions faces the contact**: `axisDimensions(P)[k]`.
 |---|---|---|---|---|
 | 1 | Both parts show their `length` (two ends meet) | — not a site (butt) | | |
 | 2 | One part shows its `length` AND its whole end lies inside the contact | **end into face** | that part (E) | the other (R) |
-| 3 | One part shows its `thickness`, is **at most 1/2″ thick**, AND the other shows its `width` | **face against edge** | the part showing `thickness` (the panel, E) | the other (R) |
+| 3 | One part shows its `thickness`, is **at most 1/2″ thick**, the other shows its `width`, AND the contact reaches the panel's own edge | **face against edge** | the part showing `thickness` (the panel, E) | the other (R) |
 | 4 | Both show `thickness`, the thicknesses are equal within `TOUCH`, and they CROSS | **crossing** | the part on the +k side (E, the mover) | the other (R) |
 | 5 | Anything else | — not a site | | |
 
@@ -93,6 +94,15 @@ dimensions faces the contact**: `axisDimensions(P)[k]`.
   part touching.
 - **Crossing** means that on one in-plane axis E extends past R at both ends, and on the other
   in-plane axis R extends past E at both ends.
+- **Why rule 3 needs the contact at the panel's edge** (a pre-flight correction). A rabbet's
+  receiving part frames the panel: a side at the back panel's edge. A shelf whose back edge meets
+  the panel in its middle is not a rabbet site. It butts the panel and is trimmed when the panel
+  moves (§4.5). Without this condition a bookcase's shelves would be rabbeted instead of trimmed.
+  "Reaches the panel's edge" means the contact's span **along the receiving part's thickness
+  axis**, the direction the rabbet's trim acts, ends within `TOUCH` of the panel's own end on
+  that axis. This is a Task 5 review correction. "Any in-plane axis" accepted a centre partition,
+  whose contact spans the back's full height, and the trim then cut away half the back with no
+  check noticing.
 - **Why rule 3 needs a thin panel** (a correction made while writing the plan). Without the
   limit, a 3/4″ top resting on an apron's edge matches rule 3 exactly as a back panel on a
   side's edge does. Every table top would then be dropped into rabbets. Back and bottom panels
@@ -216,6 +226,21 @@ E is the panel. R is the part whose edge it covers.
 
 ### 4.6 Half-lap (crossing)
 
+**Corrections from the Task 5 review:**
+- **E drops at most once per face.** Every crossing E has on that face is notched, whatever
+  the site order. In a stretcher grid, without this rule the second crossing is skipped and
+  parts are left interpenetrating.
+- **E's partners must lie in one plane.** Before E's first drop, all of E's half-lap partners
+  must share one span along k, within `TOUCH`. Otherwise every one of E's half-lap sites is
+  skipped with the reason `<E>'s half-lap partners do not lie in one plane`.
+- **E is ALIGNED to its partner's plane, not moved by t.** Its touching face is placed on the
+  partner's opposite face exactly. Moving by t lets the 1/32″ contact gap and the 1/32″
+  thickness tolerance add up, which strands E up to 1/16″ out of plane after it has already
+  moved. This is a Task 5 re-review correction.
+- **A move that would drive E into something else is skipped.** If anything other than E's
+  half-lap partners butts the face that moves, E's half-lap sites are skipped with the reason
+  `moving <E> would drive it into <X>`. This covers a rail that also rests on a block.
+
 The parts are the same thickness `t`.
 
 - **E moves** toward R by `t` along `k`, so both lie in one plane.
@@ -234,7 +259,28 @@ There are no sizes for the model to choose.
 - `moved` and `trimmed`: the names of parts moved and trimmed;
 - `sizeChange`: the overall X/Y/Z before and after.
 
-It changes no names, and adds and removes no parts. Recipes run in site order. A site whose
+It changes no names, and adds and removes no parts.
+
+**Two corrections from the final review: cuts move with their part, and moving recipes run
+first.**
+- **`resize` re-bases the cuts a part already carries.** Cuts are measured from the board's
+  ends, so growing or shrinking at one end shifts them. **A through cut keeps running out along its
+  `across` axis** (its stop at the growing end stays 0), and **a cut positioned flush with an end
+  stays where it is when the part grows at that end**: it holds a part sitting at that end, which
+  has not moved, so it becomes a dado rather than stretching into a void. A through
+  rabbet must stay through: without this rule, a bookcase bottom rabbeted before it grows into
+  its dados ends up with notches 1/4″ short of each end, and the back collides with them. This
+  was added in the fix wave and signed off by the controller. Otherwise a rail tenoned at its far end
+  first and its near end second has its first tenon moved by the second's length. That is
+  document-order dependent geometry the model cannot repair.
+- **Recipes that MOVE parts run first.** The order is crossings (half-lap), then face-against-edge
+  (rabbet), then end-into-face, in site order within each kind. A move carries a part's
+  existing cuts with it, so building a tenon and then lapping its part would misplace the
+  tenon. **If the original design sat on the floor**
+(its lowest part's min Y ≤ `TOUCH`, the same one-sided test `checkDesign` uses for "on the floor"), **everything is lowered back onto it** after the
+recipes run. Without this, a rabbeted bottom panel moves up into its frame, the whole piece
+lifts off the floor, and every part reports as unsupported and is blamed on the joinery. This
+is a Task 5 review correction. A site whose
 parts an earlier site already moved is **recomputed from the current geometry**. It is not
 reused from the original contact.
 
@@ -276,7 +322,8 @@ rejected parts.
 
 | Kind | Default joint |
 |---|---|
-| End into face, R is post-like (R's width ≤ 2 × R's thickness) AND E is not wide (E's width ≤ 6 × E's thickness) | `mortise-tenon`, falling back to `dado`, then `butt` |
+| End into face, E is post-like AND R is not (a leg ending under a top) | `butt` — a top is fastened (buttons, figure-8s), not glued into housings, or it cracks with seasonal movement. The model may still choose `mortise-tenon` (a workbench) |
+| End into face, R is post-like (R's width ≤ 2 × R's thickness) AND E is not wide (E's width ≤ 6 × E's thickness) | `mortise-tenon`, falling back to `dado`, then `butt`. **The default tenon length is capped** so it stops 1/16″ short of another default tenon entering the same R from an adjacent face at an overlapping height (an ordinary table with set-in aprons) |
 | End into face, otherwise (a shelf into a side, anything into a panel) | `dado`, falling back to `butt` |
 
 This rule is a correction made while writing the plan. The first version, "E's width > 4 × E's
@@ -331,8 +378,15 @@ Everything else carries over unchanged for joinery:
   than `TOUCH` on all three axes. The message names the deepest overlap.
   - A design with no cuts has one solid per part, equal to its box, so **Generate's behaviour
     is unchanged**. Its existing tests pin that and must pass unedited.
-- **Support, held and tips stay box-based.** A joint keeps the contacts they read: a rail's
-  shoulders still meet the leg's face.
+- **The contacts `hangs` reads are computed between SOLIDS too** (a correction from Task 1's
+  review). A seated tenon's box interpenetrates the leg's box, so box contacts lose the joint
+  entirely and every mortise-and-tenon rail would be reported as hanging. That would be a "new"
+  problem the repair loop could never clear.
+  - Between solids, the rail's shoulders still meet the leg's face plane, covering about 76% of
+    the rail's end, so the rail is held.
+  - A cut-free design's solids are its boxes, so Generate is unchanged.
+  - Grounding (`connected`) and `tips` stay box-based: `connected` already accepts overlap.
+  - `faceContacts`, which finds sites, stays box-based (§3.1).
 - **`Violation` gains `parts: string[]`.** These are the stored names the message is about, set
   by `checkDesign` and `rejectedViolations`.
   - Existing tests that compare violations exactly may add the field.
@@ -456,7 +510,8 @@ chat. **Every paid run needs the user's OK first.**
 
 1. **The user's workbench** (`fixtures/simple-workbench.sloyd`, imported):
    - legs and rails become mortise and tenon;
-   - the shelf is housed.
+   - the lower shelf is NOT a site. It meets each leg over only 2″ of its 21″ end, so its
+     existing `hangs` is reported as "already in the original", which is correct (final review).
 2. **A generated bookcase:**
    - shelves go into dados, with stopped ones where the model chooses;
    - the back goes into rabbets, with the shelves trimmed;
