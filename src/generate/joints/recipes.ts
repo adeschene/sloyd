@@ -238,9 +238,19 @@ function halfLap(site: Site, boards: Board[], state: State): string | null {
     // Dropping E must not drive it into anything but its own lap partners.
     const blocker = buttingFace(boards, site.enter, k, side, (j) => state.halfLapPartners.has(`${site.enter}->${j}`))[0];
     if (blocker !== undefined) return `moving ${E.name} would drive it into ${boards[blocker].name}`;
+    // All of E's lap partners must share one plane, or E cannot drop into all.
+    const partners = [...state.halfLapPartners].filter((p) => p.startsWith(`${site.enter}->`)).map((p) => boxOf(boards[+p.split('->')[1]]));
+    if (partners.some((p) => Math.abs(p.min[k] - partners[0].min[k]) > TOUCH || Math.abs(p.max[k] - partners[0].max[k]) > TOUCH)) {
+      return `${E.name}'s half-lap partners do not lie in one plane`;
+    }
     E.position[k] += side * E.thickness;
     state.moved.add(E.name);
     state.movedFace.set(site.enter, faceKey);
+  }
+  // Pure guard: unreachable through applyJoints, because the pre-check above
+  // refuses non-coplanar partners before E's first drop. Kept as a defence.
+  if (Math.abs(boxOf(E).min[k] - boxOf(R).min[k]) > TOUCH || Math.abs(boxOf(E).max[k] - boxOf(R).max[k]) > TOUCH) {
+    return `${E.name} no longer lies in ${R.name}'s plane after an earlier half-lap`;
   }
   const eb = boxOf(E);
   const rb = boxOf(R);

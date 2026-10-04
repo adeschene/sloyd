@@ -334,3 +334,31 @@ describe('half-lap: a drop that would hit something else is skipped', () => {
     expect(checkDesign(out.doc, limits(out.doc)).filter((v) => v.kind === 'overlap')).toEqual([]);
   });
 });
+
+describe('half-lap: partners in different planes skip every site', () => {
+  // Lower B is 0.03in thinner (equal-thickness tolerance) and stands 0.03in
+  // proud, so it touches Upper but does not share Upper's plane once dropped.
+  const doc = design(
+    { name: 'LowA', at: [0, 5, 0], size: [20, 0.75, 2] },
+    { name: 'LowB', at: [0, 5, 10], size: [20, 0.75, 2] },
+    { name: 'Upper', at: [2, 5.75, -4], size: [2, 0.75, 20] },
+  );
+  doc.boards.find((b) => b.name === 'LowB')!.thickness = 0.72;
+  doc.boards.find((b) => b.name === 'LowB')!.position[1] = board(doc, 'LowA').position[1] + 0.06;
+  let sites: ReturnType<typeof findSites>;
+  let out: ReturnType<typeof applyJoints>;
+  beforeAll(() => {
+    sites = findSites(doc);
+    out = applyJoints(doc, sites, sites.map((s) => ({ site: s.id, joint: 'half-lap' as const })));
+  });
+
+  it('skips both sites with the reason, moves and notches nothing, no overlap', () => {
+    expect(sites.filter((s) => s.kind === 'crossing')).toHaveLength(2);
+    expect(out.applied).toHaveLength(0);
+    expect(out.skipped.map((s) => s.reason)).toEqual(Array(2).fill("Upper's half-lap partners do not lie in one plane"));
+    expect(out.moved).toEqual([]);
+    expect(board(out.doc, 'Upper').position[1]).toBe(board(doc, 'Upper').position[1]);
+    for (const n of ['LowA', 'LowB', 'Upper']) expect(board(out.doc, n).cuts).toHaveLength(0);
+    expect(checkDesign(out.doc, limits(out.doc)).filter((v) => v.kind === 'overlap')).toEqual([]);
+  });
+});
