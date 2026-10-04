@@ -27,7 +27,7 @@ tradition built around hand woodworking.
 Static SPA, containerized, **1282/1282 tests passing across 45 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **7**.
 
-**PRODUCTION MATCHES `master` as of 2026-10-03 with the key check round live** — bundle `index-BhhW2iNw.js`, CSS `index-Co3i2lF7.css` (unchanged), merge commit `d0ba83b`. Before it the same day: held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
+**PRODUCTION MATCHES `master` as of 2026-10-04 with the stopped cuts round live** — bundle `index-CoHIAVxf.js`, CSS `index-Co3i2lF7.css` (unchanged), merge commit `c054ede`, **schema 7** (rollback strands v7 documents; export first). Before it, 2026-10-03: key check `index-BhhW2iNw.js` (`d0ba83b`), held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
 bundle `index-BAsxEohe.js` with CSS `index-DEQSkZ3q.css`, from merge commit `fa834dc`. A
 person stores a Claude API key in Settings, describes a piece, and gets 1–3 prototypes built
 from boards, each saved as a **new, unactivated** library project (invariant 36). **It is
@@ -41,7 +41,7 @@ Claude drives the dev server and the user supervises. Results are in
 findings: 164, a batch converging on one design, now CLOSED (below); and 165, a support
 check that passes a badly supported part, still open.
 
-**The stopped cuts round (2026-10-04) is verified live on branch `stopped`, NOT yet merged.**
+**The stopped cuts round (2026-10-04) is merged AND deployed.**
 A `Cut` can stop short of either end (`stopMin`/`stopMax`), schema **7**, so mortises exist
 for phase 2 (171) to write its overlap rule against. Verified against the dev server with the
 user watching (`docs/browser-verification-stopped-cuts.md`). Rolling it back strands v7 files;

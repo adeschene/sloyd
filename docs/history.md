@@ -18,6 +18,20 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-04 with the stopped cuts round live.** The bundle
+went from `index-BhhW2iNw.js` to `index-CoHIAVxf.js`; the merge commit is `c054ede`. The CSS
+is unchanged (`index-Co3i2lF7.css`).
+
+Verified after the deploy:
+- `200` on `/` and on a deep route, both in-network and publicly;
+- the new bundle served at both;
+- CSP `connect-src 'self' https://api.anthropic.com` unchanged at the edge.
+
+The round was verified against the dev server first, with the user watching.
+
+**This is the first schema bump since the guide-points round: v6 → v7.** Rolling back to
+`index-BhhW2iNw.js` would refuse every document saved by this build, so export first.
+
 **Production matches `master` as of 2026-10-03 with the key check round live** (follow-up 174):
 bundle `index-B9DOKF_H.js` → `index-BhhW2iNw.js`, merge commit `d0ba83b`, the day's fourth
 deploy. The CSS is unchanged (`index-Co3i2lF7.css`). Verified after: `200` on `/` and on a
