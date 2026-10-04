@@ -239,6 +239,42 @@ and 79.
 
 ## What each round did
 
+**What the cut lines round did (2026-10-04)**: follow-ups 192, 193 and 194, the cut words round's
+residues. It changed what the sheet prints: no geometry, no schema, no change to how rows group.
+
+- **What it does.**
+  1. **One description of a cut.** `cutShape` reads the clipped opening once and gives:
+     - the word;
+     - which way the cut runs (`run`: the axis open at both ends, else the longer extent, else
+       the stored `across` on an exact tie);
+     - where it sits;
+     - its stops, at closed ends only.
+
+     `cutLabel` is its `.word`.
+  2. **The setup line and the drawing's labels are both formatted from it (192).** One pocket
+     stored two ways now prints one line and one drawing. A through word can no longer carry a
+     stop. The live case: the front-stopped shelf housing reads `3/4" stopped dado … 24" from the
+     length min end, running across the width, stopped 3/4" short of the max end`.
+  3. **`groove` (193).** A channel whose run axis is the board's grain says `groove`, `stopped
+     groove` or `blind groove`, on solid wood and plywood. MDF has no grain and keeps `dado`.
+  4. **194 was closed by decision.** Follow-up 55a's ruling covers it.
+- **The spec missed the drawing.** It said "words and lines only", but the drawing beside each line
+  printed the same stored numbers, and an existing test requires the two to agree. Planning caught
+  it, and the spec was amended before any code. The general lesson: when a printed value changes
+  its source, find every other place that prints it.
+- **Measured before it was specified.** A throwaway probe compared the old and new lines over the
+  three live-check designs. 38 lines were unchanged and 4 changed, all of them 192's own housings.
+  The tests pin the unchanged ones as literals, run once against the old code to show they pass.
+- **Reviews.**
+  - Mutation testing found one rule (the axis open at both ends wins) with no test that could fail
+    it. It now has one.
+  - The final review raised three design questions, filed for the user as follow-ups 195–197:
+    - Properties still shows each cut as stored;
+    - a square opening prints one of two lines;
+    - an overhanging cut's drawn band is unclipped while its labels are clipped.
+  - Cost was unchanged: `buildCutList` on the joined workbench took 8.1 ms before and after.
+- The browser pass is `docs/browser-verification-cut-lines.md`.
+
 **What the cut words round did (2026-10-04)**: follow-ups 180, 181 and 189, the three wording
 residues the joinery round left. It changed words only: no geometry, no schema, no change to how
 cut-list rows group.
