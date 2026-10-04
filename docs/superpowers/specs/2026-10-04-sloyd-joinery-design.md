@@ -229,6 +229,13 @@ E is the panel. R is the part whose edge it covers.
 - **E drops at most once per face.** Every crossing E has on that face is notched, whatever
   the site order. In a stretcher grid, without this rule the second crossing is skipped and
   parts are left interpenetrating.
+- **E's partners must lie in one plane.** Before E's first drop, all of E's half-lap partners
+  must share one span along k, within `TOUCH`. Otherwise every one of E's half-lap sites is
+  skipped with the reason `<E>'s half-lap partners do not lie in one plane`.
+- **E is ALIGNED to its partner's plane, not moved by t.** Its touching face is placed on the
+  partner's opposite face exactly. Moving by t lets the 1/32″ contact gap and the 1/32″
+  thickness tolerance add up, which strands E up to 1/16″ out of plane after it has already
+  moved. This is a Task 5 re-review correction.
 - **A move that would drive E into something else is skipped.** If anything other than E's
   half-lap partners butts the face that moves, E's half-lap sites are skipped with the reason
   `moving <E> would drive it into <X>`. This covers a rail that also rests on a block.
@@ -252,7 +259,7 @@ There are no sizes for the model to choose.
 - `sizeChange`: the overall X/Y/Z before and after.
 
 It changes no names, and adds and removes no parts. **If the original design sat on the floor**
-(its lowest part at y = 0 within `TOUCH`), **everything is lowered back onto it** after the
+(its lowest part's min Y ≤ `TOUCH`, the same one-sided test `checkDesign` uses for "on the floor"), **everything is lowered back onto it** after the
 recipes run. Without this, a rabbeted bottom panel moves up into its frame, the whole piece
 lifts off the floor, and every part reports as unsupported and is blamed on the joinery. This
 is a Task 5 review correction. Recipes run in site order. A site whose
