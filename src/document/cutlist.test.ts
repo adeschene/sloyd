@@ -286,6 +286,18 @@ describe('buildCutList', () => {
     expect(line).toContain(`${drawn.offsetLabel} from the`);
   });
 
+  it('agrees with the setup line for a cut stored across the other axis (spec §2.4)', () => {
+    const cut: Cut = { id: 'c1', face: 'thickness', from: 'min', across: 'length',
+                       offset: 0, width: 4.5, depth: 0.25, stopMin: 6, stopMax: 17.25 };
+    const [row] = buildCutList(docWith({ cuts: [cut] })).groups[0].rows;
+    const line = row.setup[0];
+    const drawn = row.diagrams[0].cuts[0];
+    expect(line.startsWith(`${drawn.widthLabel} ${drawn.kind},`)).toBe(true);
+    expect(line).toContain(`${drawn.offsetLabel} from the`);
+    expect(line).toContain(`stopped ${drawn.stopMaxLabel} short of the max end`);
+    expect(drawn.stopMinLabel).toBeUndefined();
+  });
+
   it('agrees with each setup line even when the drawing reorders the cuts', () => {
     // `setup` stays in board.cuts order; `diagrams[i].cuts` sorts by h[0]. With
     // only one cut (the test above) that difference is invisible — the
@@ -515,5 +527,81 @@ describe('a stop with no stock in its gap is not printed (cut-words spec §2.4)'
   it('with no rabbet, the stop still prints', () => {
     expect(setup([housing])[0]).toBe(
       '3/4" stopped dado, 1/4" deep — into the thickness face (max side), 24" from the length min end, running across the width, stopped 1/4" short of the min end');
+  });
+});
+
+describe('the setup line is written from the shape (cut-lines spec §2.2)', () => {
+  const dado = (over: Partial<Cut> = {}): Cut => ({
+    id: 'c1', face: 'thickness', from: 'min', across: 'width',
+    offset: 6, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0, ...over,
+  });
+  const line = (c: Cut) => buildCutList(docWith({ cuts: [c] })).groups[0].rows[0].setup[0];
+  const both = (a: Cut, b: Cut, expected: string) => { expect(line(a)).toBe(expected); expect(line(b)).toBe(expected); };
+
+  it('a dado prints one line whichever way it is stored', () => {
+    both(dado(), dado({ across: 'length', offset: 0, width: 5.5, stopMin: 6, stopMax: 17.25 }),
+      '3/4" dado, 1/4" deep — into the thickness face (min side), 6" from the length min end, running across the width');
+  });
+
+  it('a rabbet, either storage', () => {
+    both(dado({ offset: 0 }), dado({ across: 'length', offset: 0, width: 5.5, stopMin: 0, stopMax: 23.25 }),
+      '3/4" rabbet, 1/4" deep — into the thickness face (min side), 0" from the length min end, running across the width');
+  });
+
+  it('a stopped dado, either storage', () => {
+    both(dado({ stopMax: 1 }), dado({ across: 'length', offset: 0, width: 4.5, stopMin: 6, stopMax: 17.25 }),
+      '3/4" stopped dado, 1/4" deep — into the thickness face (min side), 6" from the length min end, running across the width, stopped 1" short of the max end');
+  });
+
+  it('a mortise, either storage', () => {
+    both(dado({ across: 'length', offset: 2, width: 0.5, depth: 0.625, stopMin: 6, stopMax: 15 }),
+      dado({ across: 'width', offset: 6, width: 3, depth: 0.625, stopMin: 2, stopMax: 3 }),
+      '1/2" mortise, 5/8" deep — into the thickness face (min side), 2" from the width min end, running across the length, stopped 6" short of the min end and 15" short of the max end');
+  });
+
+  it('a cut hanging past the end prints where it really is, never a negative distance', () => {
+    expect(line(dado({ offset: -0.25, width: 1 }))).toBe(
+      '3/4" rabbet, 1/4" deep — into the thickness face (min side), 0" from the length min end, running across the width');
+  });
+
+  it('a housing opened by another cut prints the same line with the cuts in either order', () => {
+    const backRabbet: Cut = { id: 'r', face: 'width', from: 'min', across: 'length', offset: 0.375, width: 0.375, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const housing: Cut = { id: 'h', face: 'thickness', from: 'max', across: 'length', offset: 0.25, width: 10.25, depth: 0.25, stopMin: 24, stopMax: 47.25 };
+    const setup = (cuts: Cut[]) => buildCutList(docWith({ length: 72, width: 11.25, thickness: 0.75, cuts })).groups[0].rows[0].setup;
+    const expected = '3/4" stopped dado, 1/4" deep — into the thickness face (max side), 24" from the length min end, running across the width, stopped 3/4" short of the max end';
+    expect(setup([backRabbet, housing])[1]).toBe(expected);
+    expect(setup([housing, backRabbet])[0]).toBe(expected);
+  });
+
+  it('never prints a stop after a through word (seeded search)', () => {
+    let seed = 192; // mulberry32, deterministic
+    const rnd = () => {
+      seed = (seed + 0x6d2b79f5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const DIMS = ['length', 'width', 'thickness'] as const;
+    const size = { length: 24, width: 5.5, thickness: 0.75 };
+    const pick = <T,>(xs: readonly T[]) => xs[Math.floor(rnd() * xs.length)];
+    const sixteenths = (max: number) => Math.max(1, Math.round(rnd() * max * 16)) / 16;
+    let through = 0;
+    for (let i = 0; i < 2000; i++) {
+      const face = pick(DIMS);
+      const across = pick(DIMS.filter((d) => d !== face));
+      const pos = DIMS.find((d) => d !== face && d !== across)!;
+      const c: Cut = {
+        id: 'c', face, from: pick(['min', 'max'] as const), across,
+        offset: sixteenths(size[pos]) - 1 / 16, width: sixteenths(size[pos]), depth: sixteenths(size[face]),
+        stopMin: rnd() < 0.5 ? 0 : sixteenths(size[across] / 2), stopMax: rnd() < 0.5 ? 0 : sixteenths(size[across] / 2),
+      };
+      const setup = buildCutList(docWith({ cuts: [c] })).groups[0].rows[0].setup;
+      if (setup.length === 0) continue;
+      if (/^\S+ (dado|groove|rabbet),/.test(setup[0])) {
+        through++;
+        expect(setup[0]).not.toContain('stopped');
+      }
+    }
+    expect(through).toBeGreaterThan(100);
   });
 });

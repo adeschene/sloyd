@@ -1,6 +1,6 @@
 import type { Board, CutFrom, Dimension, Span } from './types';
-import { DIMENSION_ORDER, positionAxisOf } from './geometry';
-import { boardSolids, cutLabel, cutRegion, cutRemovesNothing, type CutKind } from './cuts';
+import { DIMENSION_ORDER } from './geometry';
+import { boardSolids, cutRegion, cutShape, cutRemovesNothing, type CutKind } from './cuts';
 import { buildDepthField, type FaceCell } from './depthField';
 import { formatLength } from '../units/length';
 
@@ -18,21 +18,21 @@ export interface DiagramCut {
   h: Span;
   /** [min, max] along the view's VERTICAL axis, board inches. */
   v: Span;
-  /** Which axis this cut's offset and width are measured along. */
+  /** Which axis the cut's position is measured along (`CutShape.pos`). */
   axis: 'h' | 'v';
   /** e.g. `3/8" deep`, already formatted. */
   depthLabel: string;
-  /** e.g. `6"` — the offset from the position axis's min end. */
+  /** e.g. `6"` — where the opening starts, from the position axis's min end. */
   offsetLabel: string;
-  /** e.g. `3/4"` — the cut's own extent along the position axis. */
+  /** e.g. `3/4"` — the opening's extent along the position axis. */
   widthLabel: string;
-  /** From `cutLabel`. Representative, not consensus — see spec section 8. */
+  /** From `cutShape(...).word`. Representative, not consensus — see spec section 8. */
   kind: CutKind;
-  /** e.g. `1"` — how far short of the across axis's min end. Present only when > 0. */
+  /** e.g. `1"` — how far short of the RUN axis's min end; present only where that end is closed. */
   stopMinLabel?: string;
-  /** How far short of the across axis's max end. Present only when > 0. */
+  /** How far short of the RUN axis's max end; present only where that end is closed. */
   stopMaxLabel?: string;
-  /** The cut's own extent along `across`. Present exactly when the cut is stopped. */
+  /** The opening's extent along its run axis; present exactly when a stop is. */
   lengthLabel?: string;
 }
 
@@ -131,22 +131,24 @@ export function buildDiagrams(board: Board, precision: number): DiagramView[] {
 
     const view = ensure(cut.face, cut.from);
     const region = cutRegion(board, cut);
-    const pos = positionAxisOf(cut.face, cut.across);
+    const s = cutShape(board, cut, solids);
     view.cuts.push({
       id: cut.id,
       h: region[view.horizontal],
       v: region[view.vertical],
-      axis: pos === view.horizontal ? 'h' : 'v',
+      // Every label from the same CutShape the setup line formats (cut-lines
+      // spec §2.4), so the drawing and the prose cannot disagree.
+      axis: s.pos === view.horizontal ? 'h' : 'v',
       depthLabel: `${f(cut.depth)} deep`,
-      offsetLabel: f(cut.offset),
-      widthLabel: f(cut.width),
-      kind: cutLabel(board, cut, solids),
+      offsetLabel: f(s.at[0]),
+      widthLabel: f(s.at[1] - s.at[0]),
+      kind: s.word,
       // Assembled here, never in the panel: the measured string and the drawn
       // string must be the same string (invariant 19).
-      ...(cut.stopMin > 0 ? { stopMinLabel: f(cut.stopMin) } : {}),
-      ...(cut.stopMax > 0 ? { stopMaxLabel: f(cut.stopMax) } : {}),
-      ...(cut.stopMin > 0 || cut.stopMax > 0
-        ? { lengthLabel: f(region[cut.across][1] - region[cut.across][0]) }
+      ...(s.stopMin !== null ? { stopMinLabel: f(s.stopMin) } : {}),
+      ...(s.stopMax !== null ? { stopMaxLabel: f(s.stopMax) } : {}),
+      ...(s.stopMin !== null || s.stopMax !== null
+        ? { lengthLabel: f(s.along[1] - s.along[0]) }
         : {}),
     });
   }
