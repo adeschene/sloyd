@@ -117,6 +117,60 @@ describe('buildCutList', () => {
     expect(list.groups[0].rows[0].setup[0]).toContain('0" from the length min end');
   });
 
+  it('prints an unstopped rabbet exactly as before', () => {
+    const list = buildCutList(docWith({ cuts: [dado({ offset: 0 })] }));
+    expect(list.groups[0].rows[0].setup).toEqual([
+      '3/4" rabbet, 1/4" deep — into the thickness face (min side), ' +
+      '0" from the length min end, running across the width',
+    ]);
+  });
+
+  it('adds a clause for a stop at the max end', () => {
+    const list = buildCutList(docWith({ cuts: [dado({ stopMax: 1 })] }));
+    expect(list.groups[0].rows[0].setup).toEqual([
+      '3/4" stopped dado, 1/4" deep — into the thickness face (min side), ' +
+      '6" from the length min end, running across the width, stopped 1" short of the max end',
+    ]);
+  });
+
+  it('adds a clause for a stop at the min end', () => {
+    const list = buildCutList(docWith({ cuts: [dado({ stopMin: 0.5 })] }));
+    expect(list.groups[0].rows[0].setup[0]).toMatch(
+      /, running across the width, stopped 1\/2" short of the min end$/,
+    );
+  });
+
+  it('names both stops of a mortise', () => {
+    const list = buildCutList(docWith({ cuts: [dado({ stopMin: 1, stopMax: 1.5 })] }));
+    expect(list.groups[0].rows[0].setup).toEqual([
+      '3/4" mortise, 1/4" deep — into the thickness face (min side), ' +
+      '6" from the length min end, running across the width, ' +
+      'stopped 1" short of the min end and 1-1/2" short of the max end',
+    ]);
+  });
+
+  it('splits two parts that differ only in a stop into two rows', () => {
+    const list = buildCutList(docWith({ cuts: [dado()] }, { cuts: [dado({ stopMax: 1 })] }));
+    expect(list.groups[0].rows).toHaveLength(2);
+  });
+
+  it('splits two parts that differ only in which end is stopped', () => {
+    const list = buildCutList(docWith(
+      { cuts: [dado({ stopMin: 1 })] },
+      { cuts: [dado({ stopMax: 1 })] },
+    ));
+    expect(list.groups[0].rows).toHaveLength(2);
+  });
+
+  it('keeps two parts with identical stopped cuts in one row', () => {
+    const list = buildCutList(docWith(
+      { cuts: [dado({ stopMin: 1, stopMax: 1 })] },
+      { cuts: [dado({ stopMin: 1, stopMax: 1 })] },
+    ));
+    expect(list.groups[0].rows).toHaveLength(1);
+    expect(list.groups[0].rows[0].qty).toBe(2);
+  });
+
   it('names the position axis from face and across, not from a stored field', () => {
     // face=length, across=thickness leaves width as the position axis. The
     // offset drops to 2" because the position axis is now the board's 5-1/2"

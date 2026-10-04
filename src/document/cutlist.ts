@@ -147,14 +147,42 @@ function materialLabel(material: string): string {
  * Sorting is what makes it order-independent: the same two dados added in
  * either order produce the same signature. `id` is excluded — it is identity,
  * not geometry.
+ *
+ * Every field of `Cut` that decides "same cut": all but `id`.
+ *
+ * A TABLE CHECKED AGAINST THE TYPE, not a list in a function body (invariant
+ * 40). The signature used to be a hand-written field list, and adding
+ * `stopMin`/`stopMax` to `Cut` without adding them there would have grouped a
+ * mortised leg with a through-dadoed one: one row, one setup, half the legs
+ * cut wrong. `satisfies` makes a new `Cut` field fail `tsc` here until it is
+ * listed — invariant 15's lesson, one layer over.
  */
+const SIGNATURE_FIELDS = {
+  face: true, from: true, across: true, offset: true, width: true, depth: true,
+  stopMin: true, stopMax: true,
+} as const satisfies Record<Exclude<keyof Cut, 'id'>, true>;
+
+const SIGNATURE_KEYS = Object.keys(SIGNATURE_FIELDS) as (keyof typeof SIGNATURE_FIELDS)[];
+
 function cutSignature(cuts: Cut[]): string {
   return cuts
-    .map((c) =>
-      [c.face, c.from, c.across, String(c.offset), String(c.width), String(c.depth)].join(':'),
-    )
+    .map((c) => SIGNATURE_KEYS.map((k) => String(c[k])).join(':'))
     .sort()
     .join(';');
+}
+
+/**
+ * The setup line's tail for a stopped cut, or '' for one that runs fully
+ * across — so an unstopped cut prints byte-for-byte as it did before stops
+ * existed.
+ */
+function stopClause(cut: Cut, f: (n: number) => string): string {
+  if (cut.stopMin > 0 && cut.stopMax > 0) {
+    return `, stopped ${f(cut.stopMin)} short of the min end and ${f(cut.stopMax)} short of the max end`;
+  }
+  if (cut.stopMin > 0) return `, stopped ${f(cut.stopMin)} short of the min end`;
+  if (cut.stopMax > 0) return `, stopped ${f(cut.stopMax)} short of the max end`;
+  return '';
 }
 
 /**
@@ -171,7 +199,8 @@ function setupLine(board: Board, cut: Cut, precision: number): string {
   return (
     `${f(cut.width)} ${cutLabel(board, cut)}, ${f(cut.depth)} deep — ` +
     `into the ${cut.face} face (${cut.from} side), ` +
-    `${f(cut.offset)} from the ${pos} min end, running across the ${cut.across}`
+    `${f(cut.offset)} from the ${pos} min end, running across the ${cut.across}` +
+    stopClause(cut, f)
   );
 }
 
