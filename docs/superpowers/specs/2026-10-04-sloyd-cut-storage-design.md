@@ -87,7 +87,9 @@ exactly, 282 of those flipped a square opening's run, and the next click flipped
 re-store therefore searches each far end one ulp at a time: the exact value where one exists, and
 otherwise the nearest value on the side that KEEPS THE RUN (the run's extent never shrinks, the
 position's never grows), within one ulp of the board's dimension. After it: 0 oscillations, 0 run
-changes; 6 exact-tie notches read as stopped dados after growing by that ulp.
+changes; 6 exact-tie notches read as stopped dados after growing by that ulp. (That sweep's
+generator was not committed; the re-review re-ran the committed one at 20,000 draws and the guard
+refused 14, all the same kind of cut.)
 
 **The guard (user ruling).** If the re-stored cut's `cutShape` differs from the original's in
 `word`, `run`, `pos` or which stops are null, `storedAsShape` returns the original cut unchanged,

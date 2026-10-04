@@ -613,7 +613,8 @@ export function cutLabel(board: Board, cut: Cut, solids: Region[] = boardSolids(
  * Where even that ulp would change what the sheet says, the cut comes back
  * unchanged (the user's ruling). The case is an exact-square corner opening
  * in millimetres: growing its run by an ulp breaks the tie that made it a
- * notch, so it would read as a stopped dado — 6 of 8,114 seeded re-stores.
+ * notch, so it would read as a stopped dado — about 1 re-store in 1,400 in the
+ * round's random millimetre sweeps (6 of 8,114 in one, 14 of 20,000 in another).
  * Properties offers the button only when this returns a different object.
  *
  * A cut ALREADY stored with `across === run` comes back as the very same
