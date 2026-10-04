@@ -612,7 +612,7 @@ describe('PartDiagram — the stop leader measures its own runs', () => {
     ['row', 'x', rowBoard, ['2"', '19"', '3"'], 'x', 'width'],
     ['column', 'y', colBoard, ['1"', '3"', '1-1/2"'], 'y', 'height'],
   ] as const)('a two-stop %s leader: near run, band, far run, four ticks, labels on their runs', (_, axis, board, texts, a, size) => {
-    const c = render1(board);
+    const c = render1(board as unknown as Parameters<typeof createBoard>[0]);
     const o = outline(c);
     const lo = num(o, a);
     const hi = lo + num(o, size);
@@ -642,7 +642,7 @@ describe('PartDiagram — the stop leader measures its own runs', () => {
     ] }, ['21"', '3"'], 'x', 'width'],
     ['column', 'y', { cuts: [dado({ stopMax: 1 })] }, ['4-1/2"', '1"'], 'y', 'height'],
   ] as const)('a one-stop %s leader: no near run, far run ends at the outline', (_, axis, board, texts, a, size) => {
-    const c = render1(board);
+    const c = render1(board as unknown as Parameters<typeof createBoard>[0]);
     const o = outline(c);
     const lo = num(o, a);
     const hi = lo + num(o, size);
