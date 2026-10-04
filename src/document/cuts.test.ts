@@ -634,11 +634,26 @@ describe('cutShape: one description, whichever way the cut is stored (cut-lines 
     same(m, cut({ across: 'width', offset: 6, width: 3, depth: 0.625, stopMin: 2, stopMax: 3 }));
   });
 
-  it('a square closed opening runs along the stored across (rule 3), so it is stable', () => {
+  it('a square closed opening runs along the length, whichever way it is stored (cut-storage §2)', () => {
     const sq = cut({ offset: 6, width: 1, stopMin: 2, stopMax: 2.5 });
-    expect(cutShape(b([sq]), sq).run).toBe('width');
     const sq2 = cut({ across: 'length', offset: 2, width: 1, stopMin: 6, stopMax: 17 });
-    expect(cutShape(b([sq2]), sq2).run).toBe('length');
+    expect(cutShape(b([sq]), sq).run).toBe('length');
+    same(sq, sq2);
+  });
+
+  it('a square edge notch runs from its open edge, whichever way it is stored (cut-storage §2)', () => {
+    // Opening length [6, 6.75] x width [4.75, 5.5]: open at the width's max edge only.
+    const n1 = cut({ stopMin: 4.75 });
+    const n2 = cut({ across: 'length', offset: 4.75, width: 0.75, stopMin: 6, stopMax: 17.25 });
+    expect(cutShape(b([n1]), n1)).toMatchObject({ word: 'notch', run: 'width', pos: 'length', stopMin: 4.75, stopMax: null });
+    same(n1, n2);
+  });
+
+  it('a square corner opening (one open end on each axis) runs along the length', () => {
+    const c1 = cut({ offset: 0, width: 1, stopMin: 0, stopMax: 4.5 });
+    const c2 = cut({ across: 'length', offset: 0, width: 1, stopMin: 0, stopMax: 23 });
+    expect(cutShape(b([c1]), c1).run).toBe('length');
+    same(c1, c2);
   });
 
   it('the axis open at both ends wins even when the other extent is longer (rule 1)', () => {

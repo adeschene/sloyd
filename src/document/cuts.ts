@@ -505,14 +505,21 @@ type Opening = ReturnType<typeof openSides>;
 /**
  * Which way a cut runs (spec §2.1). The axis open at both ends when exactly one
  * is; otherwise the opening's longer extent; on an EXACT tie (a square
- * opening, where either is true) the stored `across`, so the answer is stable.
+ * opening) the direction with exactly one open end, else the earlier in
+ * DIMENSION_ORDER (cut-storage spec §2). Never the stored `across`.
  */
 function runAxis(cut: Cut, ext: (d: Dimension) => number, open: Opening): Dimension {
   const [a, b] = DIMENSION_ORDER.filter((d) => d !== cut.face);
   const through = (d: Dimension) => open[d].min && open[d].max;
   if (through(a) !== through(b)) return through(a) ? a : b;
   if (ext(a) !== ext(b)) return ext(a) > ext(b) ? a : b;
-  return cut.across === b ? b : a;
+  // Cut-storage spec §2: on an EXACT tie, the direction with exactly one open
+  // end (the edge the cut enters from); otherwise the earlier dimension. Never
+  // the stored `across`: joinery stores a cut WITH across = run, so reading
+  // across here would let storage and direction decide each other.
+  const oneOpen = (d: Dimension) => open[d].min !== open[d].max;
+  if (oneOpen(a) !== oneOpen(b)) return oneOpen(a) ? a : b;
+  return a;
 }
 
 /** The cut-words table (cut-words spec §2.2–2.6), read off the opening. */
