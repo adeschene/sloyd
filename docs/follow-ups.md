@@ -4017,11 +4017,13 @@ up to four `pocketFor` boxes, and `cutLabel` names each by its shape, so a tenon
 reads "rabbet" four times per end. The geometry is right; the word is wrong. A "tenon" label (one
 line per end, naming length and thickness) is wanted, and would need either a grouping step in the
 cut list or a cut kind the vocabulary does not yet have.
+- **Status:** CLOSED 2026-10-04 by the cut-words round. `findTenons` recognises a tenon from its end cuts; the sheet prints one line per tenon and Properties labels each shoulder `tenon shoulder`.
 
 **181. A rabbet stopped at both ends prints as "stopped dado".** The cut vocabulary has no word for
 an edge rabbet stopped short of both ends, so `cutLabel` falls through to the nearest shape it
 knows. Reported by the final review; not re-observed in this fix wave. Needs a word, not a
 geometry change.
+- **Status:** CLOSED 2026-10-04 by the cut-words round. Words now come from the clipped box's opening, so one box gets one word whatever its stored fields. The joinery Top's back rabbet, this entry's example, now reads `stopped rabbet`.
 
 **182. A dado stopped at the back next to a back rabbet.** Since the final-review fix (rabbets run
 before end-into-face), the DEFAULT bookcase reaches this path: each shelf is trimmed for the back
@@ -4100,6 +4102,7 @@ generated bookcase, whose back panel sat between the sides.
   (a housing is long and shallow, a mortise narrow and deep), or the receiving part being a
   panel.
 - **Status:** a cut-list vocabulary question for the user, in the same family as 180 and 181.
+- **Status:** CLOSED 2026-10-04 by the cut-words round. A closed pocket is named by its proportions, giving `blind dado` for a shallow housing.
 
 **190. Rails entering one post from OPPOSITE faces collide on the defaults.** A centre post or
 long-bench middle leg has rails tenoned in from both sides at one height.
@@ -4114,3 +4117,10 @@ Also seen live, and not a defect: on a hand-built corner leg, the model avoided 
 adjacent-tenon collision by itself, choosing 11/16″ tenons. So no repair round ran, and the
 joinery repair path has been seen only in unit tests, the same as 177 for `hangs`/`tips`.
 
+**191. `findTenons` compares span edges exactly.** It groups ℓ within `FLUSH_EPSILON`, but its
+remaining-rectangle split compares the cuts' span edges with `===`.
+- **What happens:** two hand-made cuts meant to abut, but a few ULP apart, leave a sliver of
+  uncovered cells. The tenon goes unrecognised and prints as shoulder lines.
+- **Reach:** recipe output is unaffected. Its spans come from one box, and its shoulders overlap
+  the cheeks rather than abut them. Not reachable through joinery.
+- **Status:** open, low.

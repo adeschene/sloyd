@@ -98,8 +98,8 @@ stays as a private helper used for this case alone.
   - If it reaches in further than it runs, it reads `stopped dado`.
   - Either way, the stored-two-ways pair agrees.
 - **189:** a closed shallow housing now reads `blind dado`.
-- **The old `notch` row** (flush plus both stops) now reads `notch` or `stopped dado` according to
-  its proportions.
+- **The old `notch` row** (flush plus both stops) now reads `notch`, `stopped dado` or `stopped rabbet`
+  according to its proportions (§2.2).
 
 ## 3. Recognising a tenon: `findTenons(board)`
 
