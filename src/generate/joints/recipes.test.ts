@@ -1,3 +1,4 @@
+import { beforeAll } from 'vitest';
 import { designToDocument } from '../../document/generated';
 import { checkDesign } from '../../document/designCheck';
 import { boardSolids, cutLabel } from '../../document/cuts';
@@ -31,7 +32,8 @@ describe('tenonSection', () => {
 describe('mortise and tenon', () => {
   const doc = LEG_RAIL();
   const sites = findSites(doc);
-  const out = applyJoints(doc, sites, [{ site: 1, joint: 'mortise-tenon', tenonLength: 1 }]);
+  let out: ReturnType<typeof applyJoints>;
+  beforeAll(() => { out = applyJoints(doc, sites, [{ site: 1, joint: 'mortise-tenon', tenonLength: 1 }]); });
 
   it('grows the rail by the tenon and keeps names and part count', () => {
     expect(out.doc.boards.map((b) => b.name)).toEqual(['Leg', 'Rail']);
@@ -120,5 +122,47 @@ describe('a site whose parts no longer meet', () => {
     expect(out.applied).toEqual([]);
     expect(out.skipped.map((s) => s.site)).toEqual([1]);
     expect(out.doc.boards.every((b) => b.cuts.length === 0)).toBe(true);
+  });
+});
+
+describe('entering from the MAX face', () => {
+  it('mortise and tenon: rail left of the leg, no overlap, stock conserved', () => {
+    const doc = design(
+      { name: 'Rail', at: [0, 23.5, 0.5], size: [18, 3.5, 0.75] },
+      { name: 'Leg', at: [18, 0, 0], size: [1.75, 28, 1.75] },
+    );
+    const sites = findSites(doc);
+    const site = sites.find((x) => doc.boards[x.enter].name === 'Rail')!;
+    expect(site.side).toBe(1);
+    const out = applyJoints(doc, sites, [{ site: site.id, joint: 'mortise-tenon', tenonLength: 1 }]);
+    expect(board(out.doc, 'Rail').length).toBe(19);
+    expect(checkDesign(out.doc, limits(out.doc)).filter((v) => v.kind === 'overlap')).toEqual([]);
+    const tenon = 1 * 0.25 * (3.5 - 2 * 0.5);
+    expect(boxVolume(out.doc, 'Leg') - volume(out.doc, 'Leg')).toBeCloseTo(tenon, 9);
+    expect(volume(out.doc, 'Rail') - 18 * 3.5 * 0.75).toBeCloseTo(tenon, 9);
+  });
+
+  it('stopped dado: shelf left of the side, no overlap, side loses the stopped groove', () => {
+    const doc = design(
+      { name: 'Shelf', at: [0, 12, 0], size: [20, 0.75, 11.25] },
+      { name: 'Side', at: [20, 0, 0], size: [0.75, 30, 11.25] },
+    );
+    const sites = findSites(doc);
+    const site = sites.find((x) => doc.boards[x.enter].name === 'Shelf')!;
+    expect(site.side).toBe(1);
+    const out = applyJoints(doc, sites, [{ site: site.id, joint: 'stopped-dado', depth: 0.25, stopAt: site.stopEnds[1], inset: 0.75 }]);
+    expect(board(out.doc, 'Shelf').length).toBe(20.25);
+    expect(board(out.doc, 'Shelf').cuts).toHaveLength(1);
+    expect(checkDesign(out.doc, limits(out.doc)).filter((v) => v.kind === 'overlap')).toEqual([]);
+    expect(boxVolume(out.doc, 'Side') - volume(out.doc, 'Side')).toBeCloseTo(0.25 * 0.75 * (11.25 - 0.75), 9);
+  });
+});
+
+describe('purity', () => {
+  it('never mutates its input', () => {
+    const doc = LEG_RAIL();
+    const before = JSON.stringify(doc);
+    applyJoints(doc, findSites(doc), [{ site: 1, joint: 'mortise-tenon', tenonLength: 1 }]);
+    expect(JSON.stringify(doc)).toBe(before);
   });
 });
