@@ -697,10 +697,16 @@ button[aria-pressed='true'] {
   line-height: 1.4;
 }
 
-/* A fact about the row, not a refusal: `.field-error`'s scale, the warning ink. */
+/* A fact about the row, not a refusal, so not `--alert`. The warn tokens are
+   used as the matched PILL they were built as (background + border + ink) —
+   `--warn-ink` alone was rejected for `.cutlist-unplaceable` for exactly that
+   reason, and on graphite it barely differs from `--ink`. */
 .field-note {
-  flex: 0 0 100%;
-  margin: 0 0 2px;
+  margin: 0 0 4px;
+  padding: 4px 6px;
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  border-radius: var(--radius);
   color: var(--warn-ink);
   font-family: var(--font-num);
   font-size: 11px;

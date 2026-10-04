@@ -436,7 +436,7 @@ describe('cutRemovesNothing (follow-up 178)', () => {
     offset: 4, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0, ...over,
   });
 
-  it.each<[string, Partial<Cut>, boolean]>([
+  const CASES: [string, Partial<Cut>, boolean][] = [
     ['an ordinary dado', {}, false],
     ['a cut running partly past the end', { offset: 9.5, width: 1 }, false],
     ['a far-side cut deeper than the face', { from: 'max', depth: 3 }, false],
@@ -445,17 +445,25 @@ describe('cutRemovesNothing (follow-up 178)', () => {
     ['stops that exactly meet', { stopMin: 1, stopMax: 1 }, true],
     ['an offset past the end', { offset: 20 }, true],
     ['an offset exactly at the end', { offset: 10 }, true],
+    ['an offset wholly before the start', { offset: -3, width: 1 }, true],
     ['zero width', { width: 0 }, true],
     ['zero depth', { depth: 0 }, true],
     ['a cut naming one dimension twice', { across: 'thickness' }, true],
-  ])('%s', (_, over, want) => {
+    // Unreachable in the app (the loader and DimensionField refuse it), but
+    // cutRegion is total over a directly-built Board, so this must be too.
+    ['a NaN offset', { offset: NaN }, true],
+  ];
+
+  it.each(CASES)('%s', (_, over, want) => {
     expect(cutRemovesNothing(b, c(over))).toBe(want);
   });
 
-  it('agrees with the solids: a cut it calls empty leaves the board whole', () => {
-    for (const over of [{ offset: 20 }, { stopMin: 1.5, stopMax: 1 }, { offset: 10 }]) {
-      const cutBoard = createBoard({ length: 10, width: 2, thickness: 1, cuts: [c(over)] });
-      expect(boardSolids(cutBoard)).toEqual(boardSolids(b));
-    }
+  // The doc comment claims agreement with boardSolids BY CONSTRUCTION, so the
+  // test asserts the agreement itself, in both directions, for every row —
+  // not merely that the solids of a few hand-picked empties are whole.
+  it.each(CASES)('agrees with boardSolids: %s', (_, over) => {
+    const cutBoard = createBoard({ length: 10, width: 2, thickness: 1, cuts: [c(over)] });
+    const whole = JSON.stringify(boardSolids(cutBoard)) === JSON.stringify(boardSolids(b));
+    expect(cutRemovesNothing(b, c(over))).toBe(whole);
   });
 });

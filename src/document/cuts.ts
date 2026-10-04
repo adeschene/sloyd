@@ -92,8 +92,10 @@ export function cutRegion(board: Board, cut: Cut): Region {
  */
 export function cutRemovesNothing(board: Board, cut: Cut): boolean {
   const region = cutRegion(board, cut);
+  // `!(x > 0)` rather than `x <= 0`, so a NaN span (a directly-built Board)
+  // counts as empty — which is what boardSolids makes of it.
   return DIMENSION_ORDER.some(
-    (d) => Math.min(region[d][1], board[d]) - Math.max(region[d][0], 0) <= 0,
+    (d) => !(Math.min(region[d][1], board[d]) - Math.max(region[d][0], 0) > 0),
   );
 }
 
