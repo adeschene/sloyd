@@ -632,13 +632,14 @@ describe('cuts', () => {
     await userEvent.tab();
   };
 
-  it('commits both stops and names the cut a mortise', async () => {
+  it('commits both stops and names the cut a blind dado', async () => {
     const id = renderWithBoard();
     await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
     await typeInto(/stop short of near end/i, '1');
     await typeInto(/stop short of far end/i, '1.5');
     expect(stored(id)).toMatchObject({ stopMin: 1, stopMax: 1.5 });
-    expect(screen.getByText('mortise')).toBeInTheDocument();
+    // Cut-words spec §2.2: closed pocket 3 x 3/4, depth 3/8 not deeper than 3/4 -> 'blind dado', formerly 'mortise'.
+    expect(screen.getByText('blind dado')).toBeInTheDocument();
   });
 
   it('names a cut stopped at one end a stopped dado', async () => {

@@ -198,12 +198,13 @@ describe('buildDiagrams — stopped cuts', () => {
     expect(c.lengthLabel).toBe('4-1/2"');
   });
 
-  it('labels both stops of a mortise', () => {
+  it('labels both stops of a blind dado', () => {
     const c = only(dado({ stopMin: 1, stopMax: 1.5 }));
     expect(c.stopMinLabel).toBe('1"');
     expect(c.stopMaxLabel).toBe('1-1/2"');
     expect(c.lengthLabel).toBe('3"');
-    expect(c.kind).toBe('mortise');
+    // Cut-words spec §2.2: closed pocket 3/4 x 3, depth 3/8 not deeper than 3/4 -> 'blind dado', formerly 'mortise'.
+    expect(c.kind).toBe('blind dado');
   });
 
   it('draws a stopped cut as its rectangle', () => {

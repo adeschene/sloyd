@@ -140,10 +140,11 @@ describe('buildCutList', () => {
     );
   });
 
-  it('names both stops of a mortise', () => {
+  it('names both stops of a blind dado', () => {
+    // Cut-words spec §2.2 (closed pocket, depth 1/4 not deeper than its 3/4 smaller extent): 'blind dado', formerly 'mortise'.
     const list = buildCutList(docWith({ cuts: [dado({ stopMin: 1, stopMax: 1.5 })] }));
     expect(list.groups[0].rows[0].setup).toEqual([
-      '3/4" mortise, 1/4" deep — into the thickness face (min side), ' +
+      '3/4" blind dado, 1/4" deep — into the thickness face (min side), ' +
       '6" from the length min end, running across the width, ' +
       'stopped 1" short of the min end and 1-1/2" short of the max end',
     ]);

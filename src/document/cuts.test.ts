@@ -410,11 +410,13 @@ describe('cutLabel with stops', () => {
     ['stopped dado', { stopMax: 1 }],
     ['stopped dado', { stopMin: 1 }],
     ['stopped rabbet', { offset: 0, stopMax: 1 }],
-    ['mortise', { stopMin: 1, stopMax: 1 }],
+    // Cut-words spec §2.2: closed pocket 3/4 x 4, depth 1/4 -> 'blind dado' (formerly 'mortise').
+    ['blind dado', { stopMin: 1, stopMax: 1 }],
     ['through mortise', { stopMin: 1, stopMax: 1, depth: 1 }],
-    ['notch', { offset: 0, stopMin: 1, stopMax: 1 }],
-    ['notch', { offset: 23.25, stopMin: 1, stopMax: 1 }],
-    ['notch', { offset: 0, stopMin: 1, stopMax: 1, depth: 1 }],
+    // Spec §2.2: one edge open, reach 3/4, run 4 > 4 x 3/4 = 3 -> 'stopped rabbet' (formerly 'notch').
+    ['stopped rabbet', { offset: 0, stopMin: 1, stopMax: 1 }],
+    ['stopped rabbet', { offset: 23.25, stopMin: 1, stopMax: 1 }],
+    ['stopped rabbet', { offset: 0, stopMin: 1, stopMax: 1, depth: 1 }],
   ])('names %s', (want, over) => {
     expect(cutLabel(b, c(over))).toBe(want);
   });
@@ -465,5 +467,50 @@ describe('cutRemovesNothing (follow-up 178)', () => {
     const cutBoard = createBoard({ length: 10, width: 2, thickness: 1, cuts: [c(over)] });
     const whole = JSON.stringify(boardSolids(cutBoard)) === JSON.stringify(boardSolids(b));
     expect(cutRemovesNothing(b, c(over))).toBe(whole);
+  });
+});
+
+describe('cutLabel names the opening (cut-words spec §2)', () => {
+  // 24 long × 6 wide × 1 thick. Every cut enters the thickness face from min.
+  const b = createBoard({ length: 24, width: 6, thickness: 1 });
+  const c = (over: Partial<Cut>): Cut => ({
+    id: 'c', face: 'thickness', from: 'min', across: 'width',
+    offset: 6, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0, ...over,
+  });
+
+  it.each<[string, Partial<Cut>, string]>([
+    ['a mid-face dado', {}, 'dado'],
+    ['an end rabbet', { offset: 0 }, 'rabbet'],
+    ['the whole face lowered', { offset: 0, width: 24 }, 'rabbet'],
+    ['a rabbet stopped at one end (a corner)', { offset: 0, stopMax: 2 }, 'stopped rabbet'],
+    ['a dado stopped at one end', { stopMax: 2 }, 'stopped dado'],
+    ['a hinge pocket on an edge (3in along, 3/4in in)',
+      { across: 'length', offset: 0, width: 0.75, stopMin: 10, stopMax: 11 }, 'notch'],
+    ['a long edge rabbet stopped at both ends (20in along, 3/4in in)',
+      { across: 'length', offset: 0, width: 0.75, stopMin: 2, stopMax: 2 }, 'stopped rabbet'],
+    ['a tenon mortise (1/2in × 2in, 3/4in deep)',
+      { across: 'length', offset: 2, width: 0.5, depth: 0.75, stopMin: 10, stopMax: 12 }, 'mortise'],
+    ['a shelf housing closed at both ends (3/4in × 4in, 1/4in deep)',
+      { stopMin: 1, stopMax: 1 }, 'blind dado'],
+    ['a through mortise', { across: 'length', offset: 2, width: 0.5, depth: 1, stopMin: 10, stopMax: 12 }, 'through mortise'],
+  ])('%s → %s', (_, over, want) => {
+    expect(cutLabel(b, c(over))).toBe(want);
+  });
+
+  it('gives one box stored two ways one word (fu 181)', () => {
+    // Box: thickness [0, 0.25], width [0, 0.75] (at the edge), length [2, 22].
+    const acrossLength = c({ across: 'length', offset: 0, width: 0.75, stopMin: 2, stopMax: 2 });
+    const acrossWidth = c({ across: 'width', offset: 2, width: 20, stopMin: 0, stopMax: 5.25 });
+    expect(cutLabel(b, acrossLength)).toBe('stopped rabbet');
+    expect(cutLabel(b, acrossWidth)).toBe('stopped rabbet');
+  });
+
+  it('ties: a square pocket on an edge is a notch; a pocket as deep as wide is a blind dado', () => {
+    expect(cutLabel(b, c({ across: 'length', offset: 0, width: 0.75, stopMin: 10, stopMax: 13.25 }))).toBe('notch');
+    expect(cutLabel(b, c({ across: 'length', offset: 2, width: 0.5, depth: 0.5, stopMin: 10, stopMax: 12 }))).toBe('blind dado');
+  });
+
+  it('a cut that removes nothing keeps its old-table word', () => {
+    expect(cutLabel(b, c({ offset: 30 }))).toBe('dado');
   });
 });

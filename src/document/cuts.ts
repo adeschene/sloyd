@@ -412,23 +412,23 @@ export function pointToLocalXYZ(board: Board, point: Point): [number, number, nu
  * that clamp can miss an exact `===` comparison by a couple of ULP. Do not
  * simplify this back to `===`.
  */
-const FLUSH_EPSILON = 1e-9;
+export const FLUSH_EPSILON = 1e-9;
 
 /** Every name a cut can have. Derived from its shape by cutLabel, never stored. */
 export type CutKind =
   | 'dado' | 'rabbet'
   | 'stopped dado' | 'stopped rabbet'
   | 'mortise' | 'through mortise'
-  | 'notch';
+  | 'notch' | 'blind dado';
 
 /**
- * What a cut is called — dado, rabbet, their stopped forms, mortise, through
- * mortise or notch (the table in the stopped-cuts spec §4.1). Derived from the
+ * The OLD table (stopped-cuts spec §4.1). Used only for a cut that removes
+ * nothing — it has no opening to read. Derived from the
  * geometry rather than stored, so the label can never disagree with the cut: a
  * rabbet is the same removal as a dado, taken flush with one end of the
  * position axis.
  */
-export function cutLabel(board: Board, cut: Cut): CutKind {
+function fieldLabel(board: Board, cut: Cut): CutKind {
   const pos = positionAxisOf(cut.face, cut.across);
   // A cut flush with both ends at once (spanning the whole position axis)
   // still satisfies this OR and reads as a rabbet — deliberate, not an
@@ -444,4 +444,35 @@ export function cutLabel(board: Board, cut: Cut): CutKind {
   if (flush) return 'notch';
   // `>=`, not `===`: a depth left past the face mid-session is still through.
   return cut.depth >= board[cut.face] ? 'through mortise' : 'mortise';
+}
+
+/**
+ * What a cut is called (cut-words spec §2): read from the OPENING its clipped
+ * box makes on the face it enters — which of the opening's four sides reach
+ * the board's edge, and its proportions. Derived only from the box, so one
+ * pocket stored two ways (either in-plane dimension as `across`) gets one
+ * word (fu 181).
+ */
+export function cutLabel(board: Board, cut: Cut): CutKind {
+  if (cutRemovesNothing(board, cut)) return fieldLabel(board, cut);
+  const r = cutRegion(board, cut);
+  const [a, b] = DIMENSION_ORDER.filter((d) => d !== cut.face);
+  const span = (d: Dimension): Span => [Math.max(0, r[d][0]), Math.min(board[d], r[d][1])];
+  const ext = (d: Dimension) => span(d)[1] - span(d)[0];
+  const opens = (d: Dimension) =>
+    (span(d)[0] <= FLUSH_EPSILON ? 1 : 0) + (span(d)[1] >= board[d] - FLUSH_EPSILON ? 1 : 0);
+  const na = opens(a);
+  const nb = opens(b);
+  if (na + nb >= 3) return 'rabbet';
+  if (na + nb === 2) return na === 2 || nb === 2 ? 'dado' : 'stopped rabbet';
+  if (na + nb === 1) {
+    const openAxis = na === 1 ? a : b;
+    const other = na === 1 ? b : a;
+    const reach = ext(openAxis);
+    const run = ext(other);
+    if (reach > run) return 'stopped dado';
+    return run > 4 * reach ? 'stopped rabbet' : 'notch';
+  }
+  if (cut.depth >= board[cut.face]) return 'through mortise';
+  return cut.depth > Math.min(ext(a), ext(b)) ? 'mortise' : 'blind dado';
 }
