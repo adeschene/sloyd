@@ -62,5 +62,8 @@ export function useJoinery(opts: { onCreated: (id: string) => void; onStorageVer
   }, []);
 
   const cancel = useCallback(() => controller.current?.abort(), []);
-  return { run, live, start, cancel };
+  // Opening the dialog clears a finished run's stale result (final review
+  // M1). The guard reads liveRef, not `live`, which can be a render behind.
+  const reset = useCallback(() => { if (!liveRef.current) setRun(null); }, []);
+  return { run, live, start, cancel, reset };
 }

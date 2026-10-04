@@ -76,4 +76,21 @@ describe('useJoinery', () => {
     await waitFor(() => expect(result.current.live).toBe(false));
     expect(createProject).toHaveBeenCalledTimes(1);
   });
+
+  it('reset clears a finished run, and leaves a live one alone (final review M1)', async () => {
+    const { result } = setup();
+    act(() => result.current.start(client(ok), doc));
+    await waitFor(() => expect(result.current.live).toBe(false));
+    expect(result.current.run?.status).toBe('ready');
+    act(() => result.current.reset());
+    expect(result.current.run).toBeNull();
+
+    let release!: () => void;
+    const slow = () => new Promise<LlmResult>((res) => { release = () => res({ json: answer, assistantTurn: {}, usage }); });
+    act(() => result.current.start(client(slow), doc));
+    act(() => result.current.reset());
+    expect(result.current.run?.status).toBe('choosing');
+    act(() => release());
+    await waitFor(() => expect(result.current.live).toBe(false));
+  });
 });

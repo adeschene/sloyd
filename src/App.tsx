@@ -780,6 +780,7 @@ export default function App() {
           }}
           onOpenJoinery={() => {
             opener.current = document.activeElement as HTMLElement | null;
+            joinery.reset();
             setDialog('joinery');
           }}
           onOpenSettings={() => {
