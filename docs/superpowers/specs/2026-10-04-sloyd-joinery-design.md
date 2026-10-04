@@ -143,8 +143,10 @@ This turns a world-space box into **one** `Cut` on `board` that removes exactly
   - If it touches on several dimensions, choose the one where the box is shallowest; on a tie,
     the earlier in `DIMENSION_ORDER`.
 - **The other two dimensions.**
-  - `across` is the one the box spans **fully** if there is one; otherwise the earlier in
-    `DIMENSION_ORDER`.
+  - `across` is the remaining dimension with the most boundary contact: one the box spans
+    fully, else one where it reaches one end, else the earlier in `DIMENSION_ORDER`. This is a
+    correction made while writing the plan. Choosing by order alone labels a stopped dado a
+    "notch", because its stopped direction then lands on the position axis.
   - `stopMin = lo` and `stopMax = dim − hi` on `across`.
   - The remaining dimension is the position axis: `offset = lo`, `width = hi − lo`.
 - **A box that touches no face** (an enclosed void) cannot be cut. That is a recipe bug, so
@@ -274,8 +276,12 @@ rejected parts.
 
 | Kind | Default joint |
 |---|---|
-| End into face, E's width > 4 × E's thickness (a shelf or panel) | `dado`, or `butt` if a dado isn't allowed |
-| End into face, otherwise | `mortise-tenon`, falling back to `dado`, then `butt` |
+| End into face, R is post-like (R's width ≤ 2 × R's thickness) AND E is not wide (E's width ≤ 6 × E's thickness) | `mortise-tenon`, falling back to `dado`, then `butt` |
+| End into face, otherwise (a shelf into a side, anything into a panel) | `dado`, falling back to `butt` |
+
+This rule is a correction made while writing the plan. The first version, "E's width > 4 × E's
+thickness", called an ordinary 3-1/2″ × 3/4″ rail "wide" and defaulted it to a dado. The
+receiving part is the better signal: legs and posts take tenons, and panels take dados.
 | Face against edge | `rabbet`, or `butt` if not allowed |
 | Crossing | `half-lap` |
 
