@@ -24,7 +24,7 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **1318/1318 tests passing across 45 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
+Static SPA, containerized, **1431/1431 tests passing across 52 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **7**.
 
 **PRODUCTION MATCHES `master` as of 2026-10-04 with the phantom-cut round live** — bundle `index-B2Yuq550.js`, CSS `index-DqhKBEnY.css`, merge commit `e7bf3bc`, **schema 7**. Before it the same day: stopped cuts `index-CoHIAVxf.js` (`c054ede`), which bumped the schema to 7 (rolling back past it strands v7 documents; export first). Before it, 2026-10-03: key check `index-BhhW2iNw.js` (`d0ba83b`), held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
@@ -448,8 +448,9 @@ src/
 │   │                       (axisDimensions, SNAP_INCHES, floor + centre, then
 │   │                       migrateDocument like any load; finiteness re-checked AFTER
 │   │                       the snap)
-│   ├── designCheck.ts      checkDesign: overlap (> TOUCH on all 3 axes; phase-1-only,
-│   │                       inv 38), unsupported (a chain of FACE contacts to the floor —
+│   ├── designCheck.ts      checkDesign: overlap between SOLIDS (> TOUCH on all 3
+│   │                       axes, inv 38; `faceContacts`; every violation carries
+│   │                       `parts`), unsupported (a chain of FACE contacts to the floor —
 │   │                       topological, unchanged), too-large, too-many, then `hangs`
 │   │                       (every part off the floor HELD, inv 39 — contactsOf /
 │   │                       coverage / isHeld; groundedSet is the ONE grounding walk,
@@ -500,8 +501,26 @@ src/
 │   │                       ALL-OR-NOTHING over the first N (never mixes planned and
 │   │                       built-in). FALLBACK_CONCEPTS: Conventional / Minimal /
 │   │                       Different support
-│   └── run.ts              runGeneration: MAX_REPAIRS = 3 (4 calls), append-only
-│                           history, keeps the fewest-violation attempt (later wins a tie)
+│   ├── run.ts              runGeneration: MAX_REPAIRS = 3 (4 calls), append-only
+│   │                       history, keeps the fewest-violation attempt (later wins a tie).
+│   │                       `runRepairLoop` is the shared loop; `runJoinery` is its second
+│   │                       adapter: falls back to defaults only for model-call failures
+│   │                       (LlmError not auth/cancelled, RunFailed), keeps spent usage
+│   │                       via `spentBefore`; blame by kind + `parts` (inv 41)
+│   └── joints/             joinery for a finished design (inv 41). Imports document
+│       ├── pocket.ts       pocketFor: the ONE world box -> Cut converter (inv 41);
+│       │                   throws on a box removing the whole board; snaps within 1e-9
+│       │                   of 0 or a board end; `across` = most boundary contact, not
+│       │                   dimension order (a stopped dado read as a "notch")
+│       ├── sites.ts        findSites / rangesOf. Rule 3 needs a thin panel (<= 1/2in)
+│       │                   and the contact reaching the panel's edge along the
+│       │                   RECEIVING part's thickness axis (a centre partition otherwise
+│       │                   lost half the back)
+│       ├── recipes.ts      applyJoints; re-grounds a floored design. A rabbet moves the
+│       │                   panel once and trims parts butting its moving face; a
+│       │                   half-lap needs coplanar partners, ALIGNS E (never moves it
+│       │                   by t) and skips a drop blocked by another part
+│       └── choose.ts       JOINERY_PROMPT / JOINT_SCHEMA / parseChoices / defaults
 ├── useGenerations.ts       the batch: one at a time, " — A/B/C" names, auth aborts all,
 │                           post-run abort guard, writes ONLY via createProject(doc,
 │                           { activate: false }) (inv 36). For N ≥ 2 it PLANS FIRST:
@@ -510,6 +529,8 @@ src/
 │                           by a check BEFORE the runs — its test asserts run CALLS,
 │                           because the post-run guard would hide started runs from a
 │                           nothing-was-written check
+├── useJoinery.ts           the joinery run beside useGenerations: writes ONLY via
+│                           createProject(doc, { activate: false }) (inv 41, 36)
 ├── viewport/               NO unit tests by design — driven in a real browser
 │   ├── Viewport.tsx        Canvas, lights, grid, camera keys; hides Gizmo outside
 │   │                       select mode, gates onPointerMissed
@@ -599,6 +620,7 @@ src/
 │   │                       401/403 refuses with the API's reason; anything else saves
 │   │                       with a note (fu 174)
 │   ├── GenerateDialog.tsx  the form, the per-run rows, Cancel. Same overlay pattern
+│   ├── JoineryDialog.tsx   Add joinery…: the sites, the run, the result. Overlay pattern
 │   ├── PartsList.tsx  FileMenu.tsx
 │   ├── Properties.tsx      board fields + Cuts; CutRow is its own component so a
 │   │                       cut's error dies with the cut. Stop short of near/far
@@ -1263,11 +1285,17 @@ worked examples behind several of them are in `docs/history.md`.
     JSON. The type is opaque so that the code outside `llm/` cannot read into a turn and
     therefore cannot rewrite one. A test pins the appended turn **by identity**.
 
-38. **`overlap` is a phase-1 rule, and phase 2 must relax it deliberately.** Phase 1 has no
-    joinery, so two parts sharing volume is always an error (more than `TOUCH` = 1/32 on
-    all three axes). Phase 2 adds `Cut`s, and a tenon inside its mortise IS overlap. It
-    must become "overlap not accounted for by a cut", **in `checkDesign`, in one place**.
-    Do not raise `TOUCH` to make joints pass, and do not drop the check.
+38. **`overlap` is measured between SOLIDS, and so are the contacts `hangs` reads.**
+    `checkDesign`'s `solidBoxesOf` maps each part's `boardSolids` to world space with
+    invariant 2's mapping, never `solidWorldBox` (centre-relative). Two parts overlap when
+    any of their solids share more than `TOUCH` = 1/32 on all three axes, so a cut explains
+    an overlap by removing the stock, and a tenon seated in its mortise is not one. A design
+    with no cuts has one solid per part, equal to its box, so Generate is unchanged.
+    **The contacts `hangs` reads are ALSO computed between solids** (`solidContactsOf`,
+    aggregated per part): a seated tenon's box interpenetrates the leg's box, so box contacts
+    would report every mortise-and-tenon rail as hanging. Grounding (`connected`), `tips`
+    and `faceContacts` (sites) stay box-based. Do not raise `TOUCH` to make joints pass, and
+    do not drop the check.
 
 39. **Support means HELD, not touching: every part off the floor must be held, and the piece
     must not tip.** `unsupported` (the old rule) only asks whether a part connects to the
@@ -1338,12 +1366,26 @@ worked examples behind several of them are in `docs/history.md`.
     because one of them really has a sliver cut and the other has none. That is invariant
     18's rule (round what is bought, never what is machined). Do not "fix" it by rounding.
 
+41. **Joinery has one converter, never adopts, and is blamed only for what it caused.**
+    `pocketFor` (`generate/joints/pocket.ts`) is the ONLY place a world box becomes a `Cut`; it
+    is tested by probing every pose against the box itself, never against hand-written cuts,
+    because a pose mistake there is a plausible cut in the wrong place. It throws on a box
+    that removes the whole board, snaps within 1e-9 of 0 or a board end, and takes `across`
+    as the dimension with the most boundary contact (order alone mislabelled a stopped dado
+    a "notch"). `useJoinery` writes only through `createProject(doc, { activate: false })` —
+    invariant 36 extended. And only problems the joinery INTRODUCED drive repairs:
+    `runJoinery` checks the original and the joined design and compares problems by `kind`
+    plus their `parts` names (the field exists for this), NEVER by message text, which
+    carries coordinates that the joinery itself changes. A hand-made design's existing
+    faults are reported once as "already in the original", not repaired at the user's
+    expense.
+
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 1318 tests across 45 files
+npm test           # Vitest, currently 1431 tests across 52 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1353,7 +1395,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is the authoritative list** — 1-178, consciously deferred rather
+**`docs/follow-ups.md` is the authoritative list** — 1-179, consciously deferred rather
 than missed, each written up in place with its closure where it has one. Read the entries
 for the area you are about to touch before starting; several are "correct but untested",
 which is exactly what a refactor breaks silently.

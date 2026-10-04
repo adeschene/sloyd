@@ -3858,6 +3858,9 @@ phase 2 must relax that to "overlap not accounted for by a cut", deliberately an
 place. Also wanted before it: 164, since refining one of three identical designs is less
 useful than refining one of three different ones.
 
+**2026-10-04: joinery is built (Add joinery…).** Refine by instruction is
+now follow-up 179.
+
 **2026-10-04: the stopped cuts round landed first.** A `Cut` can stop short of either end of
 its `across` dimension (`stopMin`/`stopMax`, schema v7), so mortises, through mortises and
 stopped dados exist. The "overlap not accounted for by a cut" rule can be written against a
@@ -4002,3 +4005,9 @@ growing it back is ordinary while sizing a part, and dropping would lose the joi
   last sentence is true: the loader drops every case the predicate reaches in the app. The
   row's label still names the stored shape ("Dado"), which the user saw live and passed.
 - **Live pass:** `docs/browser-verification-phantom-cut.md`.
+
+## From the joinery round — 2026-10-04
+
+**179. Refine by instruction.** Phase 2's other half: a box for change requests ("shelves 2in
+lower", "thicker legs"), the model editing the design, and the existing checks. Chosen against in
+favour of joinery first; it reuses `runRepairLoop` and `checkDesign` unchanged.
