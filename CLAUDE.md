@@ -41,6 +41,8 @@ Claude drives the dev server and the user supervises. Results are in
 findings: 164, a batch converging on one design, now CLOSED (below); and 165, a support
 check that passes a badly supported part, still open.
 
+**The cut words round (follow-ups 180, 181, 189, 2026-10-04) is live-checked on branch `cutwords`, not yet merged.** Words only: a cut is named from the stock actually left around its opening, a tenon prints as one line (`docs/browser-verification-cut-words.md`). No schema change.
+
 **The joinery round (phase 2, follow-up 171, 2026-10-04) is merged AND deployed.** "Add joinery…" returns the open design joined, as a new unactivated project
 (`docs/browser-verification-joinery.md`). No schema change. Read invariants 38 and 41 before
 touching `generate/joints/` or `checkDesign`.
@@ -247,6 +249,7 @@ show it. Prefer a readout where one suffices; add an image when the finding is s
 | stopped cuts | 10-04 | 7 | a `Cut` stops short of either end (`stopMin`/`stopMax`): mortises, through mortises, stopped dados, notches. One field table, two readers (inv 40) |
 | phantom cut | 10-04 | — | *no spec* — fu 178: a cut a board edit has left removing nothing is hidden from the cut list, drawings and snap points, and flagged on its row; kept, not dropped |
 | joinery | 10-04 | — | "Add joinery…": sites found by code, one model call chooses, `pocketFor` recipes build mortise and tenon / dado / stopped dado / rabbet / half-lap into a new unactivated project (invs 38 rewritten, 41) |
+| cut words | 10-04 | — | fu 180/181/189: a cut is named from its OPENING, open meaning NO STOCK left (`openSides`), so one shape gets one word; `findTenons` prints a tenon as one line; corner notch; mortise by depth:length |
 
 ### The deployment rule, stated once
 
