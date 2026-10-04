@@ -367,12 +367,20 @@ export function pointToLocalXYZ(board: Board, point: Point): [number, number, nu
  */
 const FLUSH_EPSILON = 1e-9;
 
+/** Every name a cut can have. Derived from its shape by cutLabel, never stored. */
+export type CutKind =
+  | 'dado' | 'rabbet'
+  | 'stopped dado' | 'stopped rabbet'
+  | 'mortise' | 'through mortise'
+  | 'notch';
+
 /**
- * What a cut is called. Derived from the geometry rather than stored, so the
+ * What a cut is called — dado, rabbet, their stopped forms, mortise, through
+ * mortise or notch (the table in the stopped-cuts spec §4.1). Derived from the geometry rather than stored, so the
  * label can never disagree with the cut: a rabbet is the same removal as a
  * dado, taken flush with one end of the position axis.
  */
-export function cutLabel(board: Board, cut: Cut): 'dado' | 'rabbet' {
+export function cutLabel(board: Board, cut: Cut): CutKind {
   const pos = positionAxisOf(cut.face, cut.across);
   // A cut flush with both ends at once (spanning the whole position axis)
   // still satisfies this OR and reads as a rabbet — deliberate, not an
@@ -380,5 +388,12 @@ export function cutLabel(board: Board, cut: Cut): 'dado' | 'rabbet' {
   // also full-depth, so a full-span, partial-depth cut is a legal input here.
   const flush = cut.offset === 0 ||
     Math.abs(cut.offset + cut.width - board[pos]) < FLUSH_EPSILON;
-  return flush ? 'rabbet' : 'dado';
+  // Stopped is compared exactly: a stop is a stored value the user typed, with
+  // no arithmetic on the way in (invariant 18), unlike `flush`'s far-end test.
+  const stops = (cut.stopMin > 0 ? 1 : 0) + (cut.stopMax > 0 ? 1 : 0);
+  if (stops === 0) return flush ? 'rabbet' : 'dado';
+  if (stops === 1) return flush ? 'stopped rabbet' : 'stopped dado';
+  if (flush) return 'notch';
+  // `>=`, not `===`: a depth left past the face mid-session is still through.
+  return cut.depth >= board[cut.face] ? 'through mortise' : 'mortise';
 }

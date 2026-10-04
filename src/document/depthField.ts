@@ -1,3 +1,4 @@
+import { cutRegion } from './cuts';
 import type { Board, Cut, CutFrom, Dimension, Span } from './types';
 
 /**
@@ -64,12 +65,14 @@ export function buildDepthField(
   );
   if (cuts.length === 0) return [];
 
-  // Both `across` and the position axis are in-plane, which is exactly why
-  // every cut on a face is a full-span rectangle.
+  // Read from cutRegion, the ONE place a cut becomes a box. This used to
+  // rebuild the rectangle itself with the across span hard-coded to the full
+  // dimension — true until cuts could stop short, and then a second answer to
+  // one question: a stopped cut hatched full-length while the 3D model showed
+  // it stopped. Both in-plane spans come out of the region by name.
   const rect = (cut: Cut): { h: Span; v: Span } => {
-    const spanOf = (d: Dimension): Span =>
-      d === cut.across ? [0, board[d]] : [cut.offset, cut.offset + cut.width];
-    return { h: spanOf(horizontal), v: spanOf(vertical) };
+    const region = cutRegion(board, cut);
+    return { h: region[horizontal], v: region[vertical] };
   };
 
   const rects = cuts.map((c) => ({ cut: c, ...rect(c) }));

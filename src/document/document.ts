@@ -11,7 +11,7 @@ export {
 } from './geometry';
 export { uniqueName, dedupeNames } from './names';
 export { boardEdges, boardSolids, cutLabel, cutRegion, pointToLocalXYZ, solidWorldBox, wholeBoard } from './cuts';
-export type { Point, Segment } from './cuts';
+export type { CutKind, Point, Segment } from './cuts';
 export { buildCutList } from './cutlist';
 export type { CutList, CutListGroup, CutListRow } from './cutlist';
 export { buildDiagrams } from './diagram';

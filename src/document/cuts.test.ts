@@ -395,3 +395,35 @@ describe('cutRegion with stops', () => {
     expect(probe({ length: 6.375, width: 5, thickness: 0.1 })).toBe(true);
   });
 });
+
+describe('cutLabel with stops', () => {
+  // 24 x 6 x 1. The position axis is length, so offset 0 or 23.25 (width 0.75) is flush.
+  const b = createBoard({ length: 24, width: 6, thickness: 1 });
+  const c = (over: Partial<Cut>): Cut => ({
+    id: 'c', face: 'thickness', from: 'min', across: 'width',
+    offset: 6, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0, ...over,
+  });
+
+  it.each<[string, Partial<Cut>]>([
+    ['dado', {}],
+    ['rabbet', { offset: 0 }],
+    ['stopped dado', { stopMax: 1 }],
+    ['stopped dado', { stopMin: 1 }],
+    ['stopped rabbet', { offset: 0, stopMax: 1 }],
+    ['mortise', { stopMin: 1, stopMax: 1 }],
+    ['through mortise', { stopMin: 1, stopMax: 1, depth: 1 }],
+    ['notch', { offset: 0, stopMin: 1, stopMax: 1 }],
+    ['notch', { offset: 23.25, stopMin: 1, stopMax: 1 }],
+    ['notch', { offset: 0, stopMin: 1, stopMax: 1, depth: 1 }],
+  ])('names %s', (want, over) => {
+    expect(cutLabel(b, c(over))).toBe(want);
+  });
+
+  it('calls a mortise a sixteenth short of full depth a mortise, not through', () => {
+    expect(cutLabel(b, c({ stopMin: 1, stopMax: 1, depth: 0.9375 }))).toBe('mortise');
+  });
+
+  it('calls a depth past the face (out of range mid-session) through', () => {
+    expect(cutLabel(b, c({ stopMin: 1, stopMax: 1, depth: 1.5 }))).toBe('through mortise');
+  });
+});

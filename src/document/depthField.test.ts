@@ -110,3 +110,23 @@ describe('buildDepthField', () => {
     expect(cells[0].v).toEqual([0, 12]);
   });
 });
+
+describe('stopped cuts', () => {
+  it('hatches a stopped cut only where it runs', () => {
+    const board = createBoard({ length: 24, width: 12, cuts: [{
+      id: 'a', face: 'thickness', from: 'min', across: 'width',
+      offset: 6, width: 0.75, depth: 0.25, stopMin: 2, stopMax: 3,
+    }] });
+    expect(buildDepthField(board, 'thickness', 'min', 'length', 'width')).toEqual([
+      { h: [6, 6.75], v: [2, 9], depth: 0.25, crossing: false },
+    ]);
+  });
+
+  it('hatches nothing for a cut whose stops cross', () => {
+    const board = createBoard({ length: 24, width: 12, cuts: [{
+      id: 'a', face: 'thickness', from: 'min', across: 'width',
+      offset: 6, width: 0.75, depth: 0.25, stopMin: 7, stopMax: 6,
+    }] });
+    expect(buildDepthField(board, 'thickness', 'min', 'length', 'width')).toEqual([]);
+  });
+});

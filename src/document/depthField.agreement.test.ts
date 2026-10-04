@@ -86,6 +86,15 @@ const GEOMETRIES: { name: string; cuts: Cut[] }[] = [
     cut({ id: 'd', across: 'length', offset: 11.5, width: 0.5,  depth: 0.25 }),
     cut({ id: 'e', across: 'width',  offset: 12,   width: 0.75, depth: 0.125 }),
     cut({ id: 'f', across: 'length', offset: 6,    width: 0.75, depth: 0.125 })] },
+  { name: 'a stopped dado', cuts: [
+    cut({ id: 'a', across: 'width', offset: 6, width: 0.75, stopMax: 3 })] },
+  { name: 'a blind mortise', cuts: [
+    cut({ id: 'a', across: 'width', offset: 6, width: 0.75, depth: 0.5, stopMin: 2, stopMax: 2 })] },
+  { name: 'a through mortise', cuts: [
+    cut({ id: 'a', across: 'width', offset: 6, width: 0.75, depth: 0.75, stopMin: 2, stopMax: 2 })] },
+  { name: 'a mortise crossing a dado at a different depth', cuts: [
+    cut({ id: 'a', across: 'width',  offset: 6, width: 2,    depth: 0.5,  stopMin: 3, stopMax: 3 }),
+    cut({ id: 'b', across: 'length', offset: 5, width: 0.75, depth: 0.25 })] },
 ];
 
 describe('the depth field agrees with boardSolids, by construction', () => {

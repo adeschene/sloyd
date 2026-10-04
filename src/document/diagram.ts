@@ -1,6 +1,7 @@
 import type { Board, CutFrom, Dimension, Span } from './types';
 import { DIMENSION_ORDER, positionAxisOf } from './geometry';
 import { cutLabel, cutRegion } from './cuts';
+import type { CutKind } from './cuts';
 import { buildDepthField, type FaceCell } from './depthField';
 import { formatLength } from '../units/length';
 
@@ -27,7 +28,7 @@ export interface DiagramCut {
   /** e.g. `3/4"` — the cut's own extent along the position axis. */
   widthLabel: string;
   /** From `cutLabel`. Representative, not consensus — see spec section 8. */
-  kind: 'dado' | 'rabbet';
+  kind: CutKind;
 }
 
 export interface DiagramView {
