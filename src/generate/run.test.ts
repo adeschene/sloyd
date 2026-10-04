@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { MAX_REPAIRS, RunFailed, runGeneration } from './run';
+import { MAX_REPAIRS, RunFailed, runGeneration, runRepairLoop } from './run';
 import type { GenerateSettings } from './prompt';
 import { LlmError } from '../llm/types';
+import { designToDocument } from '../document/generated';
+import { checkDesign } from '../document/designCheck';
 import type { LlmClient, LlmRequest, LlmResult } from '../llm/types';
 
 const settings: GenerateSettings = {
@@ -179,5 +181,30 @@ describe('runGeneration', () => {
     const feedback = (seen[1][2] as { text: string }).text;
     expect(feedback).toContain('Sliver has a size of zero or less after rounding to 1/16in.');
     expect(progress.mock.calls[1][0]).toEqual({ phase: 'retrying', round: 1 });
+  });
+});
+
+describe('runRepairLoop keepBestOnError', () => {
+  const adapter = {
+    system: 's', schema: {}, first: 'go',
+    evaluate: (res: { json: unknown }) => {
+      const doc = designToDocument(res.json as never)!.doc;
+      const violations = checkDesign(doc, { width: null, depth: null, height: null, maxParts: 50 });
+      return { value: { doc, violations }, feedback: 'fix' };
+    },
+  };
+  const go = (opts?: { keepBestOnError?: boolean }) => {
+    const { client } = fakeClient([ONE_ISSUE, new LlmError('overloaded', 'busy')]);
+    return runRepairLoop(client, adapter, new AbortController().signal, () => {}, opts);
+  };
+
+  it('returns the best attempt when a later call fails with a non-key error', async () => {
+    const out = await go({ keepBestOnError: true });
+    expect(out.violations.length).toBeGreaterThan(0);
+    expect(out.usage.inputTokens).toBe(10);
+  });
+
+  it('throws without the option', async () => {
+    await expect(go()).rejects.toMatchObject({ kind: 'overloaded' });
   });
 });

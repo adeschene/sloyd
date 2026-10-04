@@ -4,6 +4,10 @@ import { checkDesign, rejectedViolations } from '../document/designCheck';
 import type { Violation } from '../document/designCheck';
 import { LlmError, ZERO_USAGE, addUsage } from '../llm/types';
 import type { LlmClient, LlmMessage, LlmResult, LlmUsage } from '../llm/types';
+import { JOINERY_PROMPT, JOINT_SCHEMA, defaultChoice, jointsRepairMessage, jointsUnusableMessage, parseChoices, siteMessage } from './joints/choose';
+import { applyJoints } from './joints/recipes';
+import type { JoinResult, JointChoice } from './joints/recipes';
+import { findSites } from './joints/sites';
 import { SYSTEM_PROMPT, limitsOf, repairMessage, unusableMessage, userMessage } from './prompt';
 import type { Concept, GenerateSettings } from './prompt';
 
@@ -127,4 +131,65 @@ export async function runGeneration(
       return { value: { doc: converted.doc, violations }, feedback: repairMessage(violations) };
     },
   }, signal, onProgress);
+}
+
+const problemKey = (v: Violation) => `${v.kind}|${[...v.parts].sort().join(',')}`;
+
+export interface JoineryOutcome {
+  result: JoinResult;
+  notes: string[];
+  violations: Violation[];
+  preexisting: Violation[];
+  usage: LlmUsage;
+  fallback?: string;
+}
+
+/**
+ * Add joinery (spec §6). Sites are found first; with none, NO call is made.
+ * One choosing call, repaired through the shared loop. Only problems the
+ * joinery INTRODUCED — keyed on kind and parts, never on message text —
+ * drive repairs and count toward "fewest" (invariant 41). A first call that
+ * fails for any reason but the key builds the defaults instead.
+ */
+export async function runJoinery(
+  client: LlmClient,
+  doc: SloydDocument,
+  signal: AbortSignal,
+  onProgress: (p: RunProgress) => void,
+): Promise<JoineryOutcome | { noSites: true }> {
+  const sites = findSites(doc);
+  if (sites.length === 0) return { noSites: true };
+  const limits = { width: null, depth: null, height: null, maxParts: doc.boards.length };
+  const preexisting = checkDesign(doc, limits);
+  const old = new Set(preexisting.map(problemKey));
+  const build = (choices: JointChoice[], notes: string[]) => {
+    const result = applyJoints(doc, sites, choices);
+    const violations = checkDesign(result.doc, limits).filter((v) => !old.has(problemKey(v)));
+    return { doc: result.doc, violations, result, notes, preexisting };
+  };
+  try {
+    return await runRepairLoop(client, {
+      system: JOINERY_PROMPT,
+      schema: JOINT_SCHEMA,
+      first: siteMessage(doc, sites),
+      evaluate: (res) => {
+        if (res.json === null) return { value: null, feedback: jointsUnusableMessage(res.unusable ?? 'unparseable') };
+        const { choices, notes } = parseChoices(res.json, sites, doc);
+        const value = build(choices, notes);
+        return { value, feedback: jointsRepairMessage(value.violations) };
+      },
+    }, signal, onProgress, { keepBestOnError: true });
+  } catch (e) {
+    if (e instanceof LlmError && (e.kind === 'auth' || e.kind === 'cancelled')) throw e;
+    const reason = e instanceof RunFailed ? 'no usable answer' : e instanceof Error ? e.message : 'unknown error';
+    return { ...build(sites.map((s) => defaultChoice(s, doc)), []), usage: e instanceof RunFailed ? e.usage : ZERO_USAGE, fallback: reason };
+  }
+}
+
+/** A rough before-you-run estimate: one call, the prompt and sites in, ~2,000 tokens out. */
+export function joineryEstimateUsd(client: LlmClient, doc: SloydDocument): number | null {
+  const sites = findSites(doc);
+  if (sites.length === 0) return null;
+  const chars = JOINERY_PROMPT.length + siteMessage(doc, sites).length;
+  return client.estimateCostUsd({ inputTokens: Math.ceil(chars / 4), outputTokens: 2000, cacheReadTokens: 0, cacheWriteTokens: 0 });
 }
