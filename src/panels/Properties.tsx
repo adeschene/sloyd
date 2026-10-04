@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store/store';
-import { MATERIALS, uniqueName, isSheetGood, boardSolids, cutLabel, cutRemovesNothing, findTenons, positionAxisOf } from '../document/document';
+import { MATERIALS, uniqueName, isSheetGood, boardSolids, cutShape, storedAsShape, cutRemovesNothing, findTenons, positionAxisOf } from '../document/document';
 import { DimensionField } from './DimensionField';
 import { NameField } from './NameField';
 import { formatLength } from '../units/length';
@@ -24,7 +24,12 @@ function CutRow({ board, cut, precision, solids }: { board: Board; cut: Cut; pre
   const updateCut = useStore((s) => s.updateCut);
   const removeCut = useStore((s) => s.removeCut);
   const [error, setError] = useState<string | null>(null);
-  const word = findTenons(board).some((t) => t.cutIds.includes(cut.id)) ? 'tenon shoulder' : cutLabel(board, cut, solids);
+  const tenon = findTenons(board).some((t) => t.cutIds.includes(cut.id));
+  const shape = cutShape(board, cut, solids);
+  const word = tenon ? 'tenon shoulder' : shape.word;
+  // Cut-storage spec §3.3: offered only where the sheet prints THIS cut's own
+  // line (not a tenon's shoulder) and reads it running the other way.
+  const sideways = !tenon && !cutRemovesNothing(board, cut) && cut.across !== shape.run;
   // Bumped whenever a patch is refused. The three DimensionFields below are
   // keyed on it, so a refusal remounts them: each field's own `commit()` has
   // already optimistically set its local text to the (rejected) typed value
@@ -178,6 +183,13 @@ function CutRow({ board, cut, precision, solids }: { board: Board; cut: Cut; pre
           This cut no longer fits the board and removes nothing. It will be dropped when the
           project is reopened.
         </p>
+      )}
+
+      {sideways && (
+        <div className="field-note">
+          <p>The cut list reads this cut as running across the {shape.run}.</p>
+          <button onClick={() => set(storedAsShape(board, cut, solids))}>Match the cut list</button>
+        </div>
       )}
 
       <div className="field">
