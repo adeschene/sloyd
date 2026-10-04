@@ -1,4 +1,8 @@
+import workbenchRaw from '../../document/fixtures/simple-workbench.sloyd?raw';
 import { designToDocument } from '../../document/generated';
+import { migrateDocument } from '../../document/document';
+import { checkDesign } from '../../document/designCheck';
+import { applyJoints } from './recipes';
 import { defaultChoice, parseChoices, siteMessage, JOINT_SCHEMA } from './choose';
 import { findSites } from './sites';
 
@@ -19,10 +23,10 @@ const shelf = sites.find((s) => doc.boards[s.enter].name === 'Shelf')!;
 
 describe('defaultChoice', () => {
   it('a narrow rail gets a mortise and tenon of min(1-1/4, 2/3 of the leg)', () => {
-    expect(defaultChoice(rail, doc)).toEqual({ site: rail.id, joint: 'mortise-tenon', tenonLength: 1.1875 });
+    expect(defaultChoice(rail, doc, sites)).toEqual({ site: rail.id, joint: 'mortise-tenon', tenonLength: 1.1875 });
   });
   it('a wide shelf gets a dado a third of the side deep', () => {
-    expect(defaultChoice(shelf, doc)).toEqual({ site: shelf.id, joint: 'dado', depth: 0.25 });
+    expect(defaultChoice(shelf, doc, sites)).toEqual({ site: shelf.id, joint: 'dado', depth: 0.25 });
   });
 });
 
@@ -34,7 +38,60 @@ describe('defaultChoice (receiver shape)', () => {
     );
     const s = findSites(d)[0];
     expect(d.boards[s.receive].name).toBe('Side');
-    expect(defaultChoice(s, d).joint).toBe('dado');
+    expect(defaultChoice(s, d, findSites(d)).joint).toBe('dado');
+  });
+});
+
+describe('defaultChoice: a leg under a top is fastened, not housed (final review I2)', () => {
+  it('the workbench\'s legs into its benchtop default to butt', () => {
+    const wb = migrateDocument(JSON.parse(workbenchRaw));
+    const ws = findSites(wb);
+    const legToTop = ws.filter((s) => wb.boards[s.receive].name === 'Benchtop' && wb.boards[s.enter].name.endsWith('leg'));
+    expect(legToTop).toHaveLength(4);
+    for (const s of legToTop) expect(defaultChoice(s, wb, ws).joint).toBe('butt');
+  });
+
+  it('a bookcase side into the top resting on it still defaults to dado: a side is not post-like', () => {
+    const d = design(
+      { name: 'Left side', at: [0, 0, 0], size: [0.75, 71.25, 11.25] },
+      { name: 'Top', at: [0, 71.25, 0], size: [31.5, 0.75, 11.25] },
+    );
+    const ds = findSites(d);
+    const s = ds.find((x) => d.boards[x.enter].name === 'Left side' && d.boards[x.receive].name === 'Top')!;
+    expect(s.kind).toBe('end-into-face');
+    expect(defaultChoice(s, d, ds).joint).toBe('dado');
+  });
+});
+
+describe('defaultChoice: two default tenons sharing a leg are capped (final review I1)', () => {
+  // The reviewer's table: 1-3/4in legs, aprons set back 1/4in from the legs'
+  // outer faces, so two aprons' tenons meet inside each leg at full length.
+  const L = 1.75, H = 28.5, W = 36, D = 24;
+  const table = design(
+    { name: 'Leg FL', at: [0, 0, 0], size: [L, H, L] },
+    { name: 'Leg FR', at: [W - L, 0, 0], size: [L, H, L] },
+    { name: 'Leg BL', at: [0, 0, D - L], size: [L, H, L] },
+    { name: 'Leg BR', at: [W - L, 0, D - L], size: [L, H, L] },
+    { name: 'Apron F', at: [L, H - 3.5, 0.25], size: [W - 2 * L, 3.5, 0.75] },
+    { name: 'Apron B', at: [L, H - 3.5, D - 1], size: [W - 2 * L, 3.5, 0.75] },
+    { name: 'Apron L', at: [0.25, H - 3.5, L], size: [0.75, 3.5, D - 2 * L] },
+    { name: 'Apron R', at: [W - 1, H - 3.5, L], size: [0.75, 3.5, D - 2 * L] },
+    { name: 'Top', at: [-1, H, -1], size: [W + 2, 1, D + 2] },
+  );
+  const ts = findSites(table);
+  const choices = ts.map((s) => defaultChoice(s, table, ts));
+
+  it('every apron tenon stops 1/16in short of its neighbour\'s: 15/16in', () => {
+    const tenons = choices.filter((c) => c.joint === 'mortise-tenon');
+    expect(tenons).toHaveLength(8);
+    for (const c of tenons) expect(c.tenonLength).toBe(0.9375);
+  });
+
+  it('joined with the defaults, the table has no overlap', () => {
+    const out = applyJoints(table, ts, choices);
+    expect(out.skipped).toEqual([]);
+    expect(checkDesign(out.doc, { width: null, depth: null, height: null, maxParts: table.boards.length })
+      .filter((v) => v.kind === 'overlap').map((v) => v.message)).toEqual([]);
   });
 });
 
@@ -61,7 +118,7 @@ describe('parseChoices', () => {
       { site: rail.id, joint: 'rabbet' },
       { site: 99, joint: 'dado' },
     ] }, sites, doc);
-    expect(out.choices).toEqual([defaultChoice(rail, doc), defaultChoice(shelf, doc)]);
+    expect(out.choices).toEqual([defaultChoice(rail, doc, sites), defaultChoice(shelf, doc, sites)]);
     expect(out.notes).toHaveLength(2);
     const bad = parseChoices({ joints: [
       { site: rail.id, joint: 'butt' },
@@ -83,7 +140,7 @@ describe('parseChoices', () => {
 
   it('treats an answer that is not the schema\'s shape as all-defaults', () => {
     const out = parseChoices('nonsense', sites, doc);
-    expect(out.choices).toEqual(sites.map((s) => defaultChoice(s, doc)));
+    expect(out.choices).toEqual(sites.map((s) => defaultChoice(s, doc, sites)));
     expect(out.notes).toEqual([]);
   });
 
@@ -91,7 +148,7 @@ describe('parseChoices', () => {
     for (const j of [{ joints: [] }, { joints: [{ joint: 'dado' }, { site: '1', joint: 'dado' }] }]) {
       const out = parseChoices(j, sites, doc);
       expect(out.notes).toEqual([]);
-      expect(out.choices).toEqual(sites.map((s) => defaultChoice(s, doc)));
+      expect(out.choices).toEqual(sites.map((s) => defaultChoice(s, doc, sites)));
     }
   });
 

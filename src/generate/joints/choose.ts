@@ -1,7 +1,8 @@
 import type { SloydDocument } from '../../document/document';
 import type { Violation } from '../../document/designCheck';
-import { SNAP_INCHES } from '../../document/geometry';
+import { SNAP_INCHES, axisDimensions } from '../../document/geometry';
 import { boxOf } from './pocket';
+import { tenonSection } from './recipes';
 import type { JointChoice } from './recipes';
 import { rangesOf, siteLabel, stopLabel } from './sites';
 import type { JointKind, Site, StopEnd } from './sites';
@@ -24,7 +25,7 @@ Joints:
 - half-lap: two crossing parts of equal thickness are each cut halfway so they lie in one plane. No sizes.
 - butt: leave the site as it is. Choose it where a joint adds nothing.
 
-Rules of thumb: rails and aprons into legs take mortise and tenon; shelves and dividers into case sides take dados, stopped at the edge that shows (usually the front); backs take rabbets; crossing stretchers take half-laps. Two tenons entering one leg from adjacent faces at the same height will collide unless both are short.
+Rules of thumb: rails and aprons into legs take mortise and tenon; shelves and dividers into case sides take dados, stopped at the edge that shows (usually the front); backs take rabbets; crossing stretchers take half-laps. Two tenons entering one leg from adjacent faces at the same height will collide unless both are short. A top resting on legs or aprons is fastened, not housed — choose butt unless it is a workbench with tenons.
 
 Answer for every site, using its number. All sizes are decimal inches.`;
 
@@ -82,9 +83,70 @@ function receiveDepth(s: Site, doc: SloydDocument): number {
   return rb.max[s.axis] - rb.min[s.axis];
 }
 
-/** The ONE home of the tenon default: min(1-1/4, 2/3 of the receiving part), clamped. */
-function defaultTenon(s: Site, doc: SloydDocument): number {
-  return clamp(Math.min(1.25, snap((2 / 3) * receiveDepth(s, doc))), rangesOf(s, doc).tenonLength);
+const down = (v: number) => Math.floor(v / SNAP_INCHES + 1e-9) * SNAP_INCHES;
+const postLike = (w: number, t: number) => w <= 2 * t;
+
+/**
+ * The default JOINT for a site, before any size (spec §5.3). The cap in
+ * defaultTenon asks this of OTHER sites, so it never asks for a size and
+ * never recurses.
+ */
+function defaultJoint(s: Site, doc: SloydDocument): JointKind {
+  const E = doc.boards[s.enter];
+  const R = doc.boards[s.receive];
+  const has = (j: JointKind) => s.allowed.includes(j);
+  if (s.kind === 'end-into-face') {
+    // A leg ending under a top (final review I2): a top is fastened, not
+    // glued into housings, or it cracks with seasonal movement.
+    if (postLike(E.width, E.thickness) && !postLike(R.width, R.thickness)) return 'butt';
+    // Spec §5.3 (as corrected): legs and posts take tenons, panels take dados.
+    const wide = E.width > 6 * E.thickness;
+    if (postLike(R.width, R.thickness) && !wide && has('mortise-tenon')) return 'mortise-tenon';
+    return has('dado') ? 'dado' : 'butt';
+  }
+  if (s.kind === 'face-against-edge') return has('rabbet') ? 'rabbet' : 'butt';
+  return 'half-lap';
+}
+
+/** A site's tenon cross-section in world space, on E's thickness and width axes (as mortiseTenon builds it). */
+function tenonSpan(s: Site, doc: SloydDocument, axis: number): [number, number] | null {
+  const E = doc.boards[s.enter];
+  const eb = boxOf(E);
+  const dims = axisDimensions(E);
+  const { cheek, shoulder } = tenonSection(E.thickness, E.width);
+  if (dims[axis] === 'thickness') return [eb.min[axis] + cheek, eb.max[axis] - cheek];
+  if (dims[axis] === 'width') return [eb.min[axis] + shoulder, eb.max[axis] - shoulder];
+  return null;
+}
+
+/**
+ * The ONE home of the tenon default: min(1-1/4, 2/3 of the receiving part),
+ * CAPPED (final review I1) to stop 1/16in short of every other default tenon
+ * entering the same part from a different axis at an overlapping span — an
+ * ordinary table with set-in aprons — then clamped. The cap rounds DOWN to
+ * 1/16, so rounding can never eat the clearance. The range's 1/2in floor can
+ * still exceed the cap; then the tenons meet, and the check reports it.
+ */
+function defaultTenon(s: Site, doc: SloydDocument, sites: Site[]): number {
+  let L = Math.min(1.25, snap((2 / 3) * receiveDepth(s, doc)));
+  const eb = boxOf(doc.boards[s.enter]);
+  const k = s.axis;
+  for (const o of sites) {
+    if (o.id === s.id || o.receive !== s.receive || o.kind !== 'end-into-face' || o.axis === k) continue;
+    if (defaultJoint(o, doc) !== 'mortise-tenon') continue;
+    const p = 3 - k - o.axis;
+    const mine = tenonSpan(s, doc, p);
+    const theirs = tenonSpan(o, doc, p);
+    const footprint = tenonSpan(o, doc, k);
+    if (!mine || !theirs || !footprint) continue;
+    if (Math.min(mine[1], theirs[1]) - Math.max(mine[0], theirs[0]) <= 1e-9) continue;
+    // E's touching face sits on R's surface; the tenon runs away from E.
+    const face = s.side === 1 ? eb.max[k] : eb.min[k];
+    const room = s.side === 1 ? footprint[0] - face : face - footprint[1];
+    if (room < -1e-9) continue;
+    L = Math.min(L, down(room - SNAP_INCHES));
+  }
+  return clamp(L, rangesOf(s, doc).tenonLength);
 }
 
 function defaultDado(s: Site, doc: SloydDocument): number {
@@ -95,22 +157,14 @@ function defaultRabbet(s: Site, doc: SloydDocument): number {
   return clamp(snap(doc.boards[s.receive].thickness / 2), rangesOf(s, doc).rabbetDepth);
 }
 
-export function defaultChoice(s: Site, doc: SloydDocument): JointChoice {
-  const E = doc.boards[s.enter];
-  const R = doc.boards[s.receive];
-  const has = (j: JointKind) => s.allowed.includes(j);
-  if (s.kind === 'end-into-face') {
-    // Spec §5.3 (as corrected): legs and posts take tenons, panels take dados.
-    const postLike = R.width <= 2 * R.thickness;
-    const wide = E.width > 6 * E.thickness;
-    if (postLike && !wide && has('mortise-tenon')) return { site: s.id, joint: 'mortise-tenon', tenonLength: defaultTenon(s, doc) };
-    if (has('dado')) return { site: s.id, joint: 'dado', depth: defaultDado(s, doc) };
-    return { site: s.id, joint: 'butt' };
+export function defaultChoice(s: Site, doc: SloydDocument, sites: Site[]): JointChoice {
+  const joint = defaultJoint(s, doc);
+  switch (joint) {
+    case 'mortise-tenon': return { site: s.id, joint, tenonLength: defaultTenon(s, doc, sites) };
+    case 'dado': return { site: s.id, joint, depth: defaultDado(s, doc) };
+    case 'rabbet': return { site: s.id, joint, depth: defaultRabbet(s, doc) };
+    default: return { site: s.id, joint };
   }
-  if (s.kind === 'face-against-edge') {
-    return has('rabbet') ? { site: s.id, joint: 'rabbet', depth: defaultRabbet(s, doc) } : { site: s.id, joint: 'butt' };
-  }
-  return { site: s.id, joint: 'half-lap' };
 }
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -129,7 +183,7 @@ export function parseChoices(json: unknown, sites: Site[], doc: SloydDocument): 
   const choices = sites.map((s): JointChoice => {
     const label = `Site ${s.id} (${siteLabel(s, doc)})`;
     const g = given.get(s.id);
-    const fallback = defaultChoice(s, doc);
+    const fallback = defaultChoice(s, doc, sites);
     if (!g) { if (given.size > 0) notes.push(`${label}: no answer; used ${fallback.joint}.`); return fallback; }
     const joint = g.joint as JointKind;
     if (typeof g.joint !== 'string') { notes.push(`${label}: no joint given; used ${fallback.joint}.`); return fallback; }
@@ -143,7 +197,7 @@ export function parseChoices(json: unknown, sites: Site[], doc: SloydDocument): 
       return out;
     };
     switch (joint) {
-      case 'mortise-tenon': return { site: s.id, joint, tenonLength: size('tenonLength', r.tenonLength, defaultTenon(s, doc)) };
+      case 'mortise-tenon': return { site: s.id, joint, tenonLength: size('tenonLength', r.tenonLength, defaultTenon(s, doc, sites)) };
       case 'dado': return { site: s.id, joint, depth: size('depth', r.dadoDepth, defaultDado(s, doc)) };
       case 'stopped-dado': {
         let at: StopEnd | undefined = s.stopEnds.find((e) => stopLabel(e) === g.stopAt);

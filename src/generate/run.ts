@@ -189,7 +189,7 @@ export async function runJoinery(
     const modelFailed = e instanceof RunFailed || (e instanceof LlmError && e.kind !== 'auth' && e.kind !== 'cancelled');
     if (!modelFailed) throw e;
     const reason = e instanceof RunFailed ? 'no usable answer' : (e as Error).message;
-    return { ...build(sites.map((s) => defaultChoice(s, doc)), []), usage: e instanceof RunFailed ? e.usage : spentBefore(e), fallback: reason };
+    return { ...build(sites.map((s) => defaultChoice(s, doc, sites)), []), usage: e instanceof RunFailed ? e.usage : spentBefore(e), fallback: reason };
   }
 }
 
