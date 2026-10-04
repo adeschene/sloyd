@@ -84,7 +84,7 @@ dimensions faces the contact**: `axisDimensions(P)[k]`.
 |---|---|---|---|---|
 | 1 | Both parts show their `length` (two ends meet) | — not a site (butt) | | |
 | 2 | One part shows its `length` AND its whole end lies inside the contact | **end into face** | that part (E) | the other (R) |
-| 3 | One part shows its `thickness`, is **at most 1/2″ thick**, AND the other shows its `width` | **face against edge** | the part showing `thickness` (the panel, E) | the other (R) |
+| 3 | One part shows its `thickness`, is **at most 1/2″ thick**, the other shows its `width`, AND the contact reaches the panel's own edge | **face against edge** | the part showing `thickness` (the panel, E) | the other (R) |
 | 4 | Both show `thickness`, the thicknesses are equal within `TOUCH`, and they CROSS | **crossing** | the part on the +k side (E, the mover) | the other (R) |
 | 5 | Anything else | — not a site | | |
 
@@ -93,6 +93,12 @@ dimensions faces the contact**: `axisDimensions(P)[k]`.
   part touching.
 - **Crossing** means that on one in-plane axis E extends past R at both ends, and on the other
   in-plane axis R extends past E at both ends.
+- **Why rule 3 needs the contact at the panel's edge** (a pre-flight correction). A rabbet's
+  receiving part frames the panel: a side at the back panel's edge. A shelf whose back edge meets
+  the panel in its middle is not a rabbet site. It butts the panel and is trimmed when the panel
+  moves (§4.5). Without this condition a bookcase's shelves would be rabbeted instead of trimmed.
+  "Reaches the panel's edge" means the contact's span on one of the panel's in-plane axes ends
+  within `TOUCH` of the panel's own end.
 - **Why rule 3 needs a thin panel** (a correction made while writing the plan). Without the
   limit, a 3/4″ top resting on an apron's edge matches rule 3 exactly as a back panel on a
   side's edge does. Every table top would then be dropped into rabbets. Back and bottom panels
