@@ -101,6 +101,76 @@ stays as a private helper used for this case alone.
 - **The old `notch` row** (flush plus both stops) now reads `notch`, `stopped dado` or `stopped rabbet`
   according to its proportions (§2.2).
 
+### 2.4 Amendment from the live check: "open" means NO STOCK, not "at the board's edge" (user, option A)
+
+Seen live on a joined bookcase. A shelf housing that runs out into the back rabbet stops 1/4″ short
+of the side's back edge, because the rabbet has already removed that 1/4″. It printed `stopped dado …
+stopped 1/4″ short`, but at the bench it is a plain through dado. A housing deliberately stopped at the
+front printed `blind dado` for the same reason. The user chose to name cuts from the stock that is
+actually there.
+
+**The rule.** A side of the opening is open when **no stock remains between it and the board's edge**.
+- "Between" is the strip from that side out to the edge: as wide as the opening along the other
+  in-plane axis, and spanning the cut's depth range on the face axis.
+- "No stock" means that strip's intersection with `boardSolids(board)` has no volume. The test is that
+  no solid overlaps the strip by more than `FLUSH_EPSILON` on all three axes.
+- §2.1's rule is the special case where the strip is empty because the side already sits at the edge.
+  One rule covers both.
+- A shallower neighbouring cut leaves stock in the strip, so the side stays closed.
+
+**One helper, `openSides(board, cut)`, in `cuts.ts`.** It answers this for both ends of both opening
+axes. Both `cutLabel` and the setup line's stop clause (§4.1) read it, so the word and the stops cannot
+disagree.
+
+### 2.5 Ruling: a cut through the whole thickness at a corner is a `notch` (call 2, Claude's judgement)
+
+A shelf fitted to a stopped dado gets "a little notch at the front corner". Among woodworkers that cut
+is a notch, but the table called it `rabbet`, since it is open on three sides.
+
+**The rule:**
+- **When it applies:** the clipped box spans the board's **whole thickness**, and it reaches **exactly
+  one end** of the length and **exactly one end** of the width. That makes it a full-thickness block
+  taken from a corner.
+- **The word:** such a cut reads `notch`, whatever face it was stored as entering.
+- **Order:** this test runs before the table.
+- **Not a notch:** a full-length or full-width strip, which reaches both ends of an axis.
+- **Tenon shoulders** in Properties still read `tenon shoulder` (§4.2).
+
+### 2.6 Ruling: a mortise is a deep hole, not a long channel (call 3, Claude's judgement)
+
+A closed pocket deeper than it is wide read `mortise` even when it was a 30″ back groove 3/8″ deep.
+
+**A 4× length-to-width rule was considered and rejected.** It would have turned the workbench's real
+mortises (1/2″ × 4-1/2″, 1-1/4″ deep) into `blind dado`, because wide rails need long mortises.
+
+**What separates a mortise from a groove is depth against length.**
+- **The rule:** a closed, non-through pocket reads `mortise` only when it is deeper than its narrower
+  side AND **no longer than 8× its depth**.
+- **Otherwise** it reads `blind dado`, the vocabulary's word for a closed housing or groove.
+- **Strictness:** the comparison is strict, so exactly 8× is still a mortise.
+- **Cases:**
+
+| Case | Opening | Depth | Word |
+|---|---|---|---|
+| Workbench mortise | 4-1/2″ long | 1-1/4″ | `mortise` |
+| Table-apron mortise | 1/4 × 4″ | 1″ | `mortise` |
+| Bed-rail mortise | 1/2 × 7″ | 1″ | `mortise` |
+| 30″ back groove | 1/4″ wide, 30″ long | 3/8″ | `blind dado` |
+
+**Not done.** Grain-aware words (`groove` with the grain, `dado` across it) are a follow-up, not this
+round.
+
+### 2.7 Recorded, not done: the rest of the line still follows how a cut is stored (call 4)
+
+The word now comes from the shape, but the rest of the setup line reads stored fields: the leading
+size, "running across the …", and the stops.
+
+**An example.** A housing stored across the length reads `10-1/4" stopped dado … running across the
+length, stopped 24" short of the min end and 47-1/4" short of the max end`. Its position is printed as
+two "stops".
+
+**Deferred.** Writing the whole line from the shape is its own round, recorded as a follow-up.
+
 ## 3. Recognising a tenon: `findTenons(board)`
 
 This is a new pure function in a new file, `src/document/tenons.ts`, re-exported from
@@ -140,6 +210,8 @@ For the row's representative board:
 - its cuts print no line of their own;
 - the tenon's line goes where its **first** cut's line would have gone;
 - every other cut prints exactly as today, byte for byte, which a test pins.
+- **Amended by §2.4:** the stop clause leaves out a stop whose gap holds no stock (`openSides` at that
+  end of `across`), since there is nothing to stop at. Otherwise a cut prints as before.
 
 `formatLength` formats the numbers, as `setupLine` already does.
 
