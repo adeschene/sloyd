@@ -18,6 +18,14 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-04 with the cut storage round live** (follow-ups 195,
+196). The bundle went from `index-BPmx9i74.js` to `index-JBiJohQE.js`, and the CSS is unchanged
+(`index-DqhKBEnY.css`). The merge commit is `7fa749d`. Verified after the deploy: the new bundle on
+`/` and a deep route, both in-network and at the edge, and CSP `connect-src 'self'
+https://api.anthropic.com` unchanged at the edge. The button and the new storage were not exercised
+against production — seeing them needs a document with cuts — and were verified against the dev
+server (`docs/browser-verification-cut-storage.md`).
+
 **Production matches `master` as of 2026-10-04 with the cut lines round live** (follow-ups 192,
 193; 194 closed by decision). The bundle went from `index-Cw_EeWuY.js` to `index-BPmx9i74.js`,
 and the CSS is unchanged (`index-DqhKBEnY.css`). The merge commit is `f602a2d`. Verified after the
