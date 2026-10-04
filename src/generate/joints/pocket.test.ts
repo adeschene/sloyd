@@ -101,4 +101,18 @@ describe('pocketFor', () => {
     expect(back.face).toBe(cut.face);
     expect(back.from).toBe(cut.from);
   });
+
+  it('stores the cut by the shape it has beside the board\'s EXISTING cuts (cut-storage §3.2)', () => {
+    // A square 3/4" housing whose width-min end is opened by a back rabbet:
+    // only with the rabbet in view is the run the width.
+    const rabbet = { id: 'r', face: 'width' as const, from: 'min' as const, across: 'length' as const, offset: 0.375, width: 0.375, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const b = createBoard({ length: 72, width: 11.25, thickness: 0.75, cuts: [rabbet] });
+    const dims = axisDimensions(b);
+    const local = { length: [24, 24.75], width: [0.25, 1], thickness: [0.5, 0.75] } as const;
+    const box: WorldBox = {
+      min: [0, 1, 2].map((i) => b.position[i] + local[dims[i]][0]) as WorldBox['min'],
+      max: [0, 1, 2].map((i) => b.position[i] + local[dims[i]][1]) as WorldBox['max'],
+    };
+    expect(pocketFor(b, box).across).toBe('width');
+  });
 });

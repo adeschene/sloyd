@@ -600,3 +600,29 @@ export function cutShape(board: Board, cut: Cut, solids: Region[] = boardSolids(
 export function cutLabel(board: Board, cut: Cut, solids: Region[] = boardSolids(board)): CutKind {
   return cutShape(board, cut, solids).word;
 }
+
+/**
+ * The same cut, stored the way it runs (cut-storage spec §3.1): `across` is
+ * its shape's run, the position and width are its clipped opening along the
+ * other axis, and the stops are its clipped opening along the run. It removes
+ * exactly the same stock; clipping only drops stored overhang that removed
+ * nothing.
+ *
+ * A cut ALREADY stored with `across === run` comes back as the very same
+ * object: recomputing its fields is not exact for decimals ((0.1 + 0.2) - 0.1
+ * is not 0.2), and float noise here would split cut-list rows (invariant 18).
+ * A cut that removes nothing has no shape to follow and is also returned as is.
+ */
+export function storedAsShape(board: Board, cut: Cut, solids: Region[] = boardSolids(board)): Cut {
+  if (cutRemovesNothing(board, cut)) return cut;
+  const s = cutShape(board, cut, solids);
+  if (s.run === cut.across) return cut;
+  return {
+    ...cut,
+    across: s.run,
+    offset: s.at[0],
+    width: s.at[1] - s.at[0],
+    stopMin: s.along[0],
+    stopMax: board[s.run] - s.along[1],
+  };
+}

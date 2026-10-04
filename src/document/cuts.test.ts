@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
-import { boardEdges, boardSolids, cutLabel, cutShape, openSides, cutRegion, cutRemovesNothing, solidWorldBox, stockProbe, wholeBoard } from './cuts';
+import { boardEdges, boardSolids, cutLabel, cutShape, storedAsShape, openSides, cutRegion, cutRemovesNothing, solidWorldBox, stockProbe, wholeBoard } from './cuts';
 import type { Board, Cut, Dimension, Region } from './types';
 
 /** A 24 x 5-1/2 x 3/4 flat board with whatever cuts are given. */
@@ -715,5 +715,58 @@ describe('groove: a channel running with the grain (cut-lines spec §3)', () => 
 
   it('a cut that removes nothing stays on the old table', () => {
     expect(word({}, along({ offset: 30 }))).not.toMatch(/groove/);
+  });
+});
+
+describe('storedAsShape: the same cut, stored the way it runs (cut-storage spec §3.1)', () => {
+  const clipped = (b: Board, c: Cut) => {
+    const r = cutRegion(b, c);
+    return (['length', 'width', 'thickness'] as const).map((d) => [Math.max(0, r[d][0]), Math.min(b[d], r[d][1])]);
+  };
+  const check = (b: Board, c: Cut, run: Dimension) => {
+    const s = storedAsShape(b, c);
+    expect(s.across).toBe(run);
+    expect(s.id).toBe(c.id);
+    expect(clipped(b, s)).toEqual(clipped(b, c));
+    expect(cutShape({ ...b, cuts: b.cuts.map((x) => (x.id === c.id ? s : x)) }, s)).toEqual(cutShape(b, c));
+    return s;
+  };
+
+  it('re-stores 192\'s housing across the width, beside the back rabbet', () => {
+    const backRabbet: Cut = { id: 'r', face: 'width', from: 'min', across: 'length', offset: 0.375, width: 0.375, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const housing: Cut = { id: 'h', face: 'thickness', from: 'max', across: 'length', offset: 0.25, width: 10.25, depth: 0.25, stopMin: 24, stopMax: 47.25 };
+    const side = createBoard({ length: 72, width: 11.25, thickness: 0.75, cuts: [backRabbet, housing] });
+    expect(check(side, housing, 'width')).toEqual({ ...housing, across: 'width', offset: 24, width: 0.75, stopMin: 0.25, stopMax: 0.75 });
+  });
+
+  it('re-stores a sideways dado, stopped dado, mortise and edge notch', () => {
+    const one = (c: Cut) => withCuts([c]);
+    const dado = { ...DADO, across: 'length' as const, offset: 0, width: 5.5, stopMin: 6, stopMax: 17.25 };
+    check(one(dado), dado, 'width');
+    const stopped = { ...DADO, across: 'length' as const, offset: 0, width: 4.5, stopMin: 6, stopMax: 17.25 };
+    check(one(stopped), stopped, 'width');
+    const mortise = { ...DADO, across: 'width' as const, offset: 6, width: 3, depth: 0.625, stopMin: 2, stopMax: 3 };
+    check(one(mortise), mortise, 'length');
+    const notch = { ...DADO, across: 'length' as const, offset: 4.75, width: 0.75, stopMin: 6, stopMax: 17.25 };
+    check(one(notch), notch, 'width');
+  });
+
+  it('returns the very same object for a cut already stored the way it runs, decimals included', () => {
+    const c = { ...DADO, across: 'length' as const, offset: 0.1, width: 0.2, stopMin: 0, stopMax: 0 };
+    const b = withCuts([c]);
+    expect(cutShape(b, c).run).toBe('length');
+    expect(storedAsShape(b, c)).toBe(c);
+    expect(storedAsShape(withCuts([DADO]), DADO)).toBe(DADO);
+  });
+
+  it('drops overhang when it re-stores', () => {
+    // The dado stored across the length, its width span hanging 1/2" past the near edge.
+    const c = { ...DADO, across: 'length' as const, offset: -0.5, width: 6, stopMin: 6, stopMax: 17.25 };
+    expect(check(withCuts([c]), c, 'width')).toMatchObject({ offset: 6, width: 0.75, stopMin: 0, stopMax: 0 });
+  });
+
+  it('leaves a cut that removes nothing alone', () => {
+    const gone = { ...DADO, across: 'length' as const, offset: 30 };
+    expect(storedAsShape(withCuts([gone]), gone)).toBe(gone);
   });
 });
