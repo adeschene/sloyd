@@ -1,7 +1,7 @@
 import { CURRENT_VERSION, migrateDocument } from '../../document/document';
-import type { Board, SloydDocument } from '../../document/document';
+import type { Board, Dimension, SloydDocument } from '../../document/document';
 import { TOUCH } from '../../document/designCheck';
-import { SNAP_INCHES, axisDimensions } from '../../document/geometry';
+import { SNAP_INCHES, axisDimensions, positionAxisOf } from '../../document/geometry';
 import { boxOf, pocketFor } from './pocket';
 import type { V3, WorldBox } from './pocket';
 import type { JointKind, Site, StopEnd } from './sites';
@@ -39,6 +39,44 @@ function resize(b: Board, k: number, side: -1 | 1, amount: number) {
   const d = axisDimensions(b)[k];
   b[d] = b[d] + amount;
   if (side === -1) b.position[k] -= amount;
+  rebaseCuts(b, d, side === -1 ? 'min' : 'max', amount);
+}
+
+/**
+ * The ONE place a part's EXISTING cuts follow a resize (spec §4.7, final
+ * review C1). A cut is measured from the board's ends, so growing or shrinking
+ * dimension `d` at one end would otherwise slide every cut already on the
+ * board: a rail tenoned at its far end and then at its near end had its first
+ * tenon moved by the second's length.
+ *
+ * - The MIN end moving shifts everything measured from min: the offset when
+ *   `d` is the position axis, `stopMin` when `d` is `across`.
+ * - The MAX end moving changes only `stopMax` (when `d` is `across`); offsets
+ *   are measured from min and do not move.
+ * - A cut INTO `d` from the moving end has no defined answer, so it throws.
+ *
+ * Then the cut is CLIPPED to the board (an addition to the ruling): a shrink
+ * can leave a negative offset or stop, and validateCuts clamps a negative
+ * offset to 0 WITHOUT shortening the width, which would move the cut. A cut
+ * the shrink removes entirely is dropped.
+ */
+function rebaseCuts(b: Board, d: Dimension, end: 'min' | 'max', amount: number) {
+  b.cuts = b.cuts.filter((c) => {
+    if (c.face === d) {
+      if (c.from === end) throw new Error(`applyJoints: ${b.name} grows at an end it is already cut into`);
+      c.depth = Math.min(c.depth, b[d]);
+      return true;
+    }
+    const pos = positionAxisOf(c.face, c.across);
+    if (end === 'min' && pos === d) c.offset += amount;
+    if (end === 'min' && c.across === d) c.stopMin += amount;
+    if (end === 'max' && c.across === d) c.stopMax += amount;
+    if (c.offset < 0) { c.width += c.offset; c.offset = 0; }
+    c.width = Math.min(c.width, b[pos] - c.offset);
+    c.stopMin = Math.max(0, c.stopMin);
+    c.stopMax = Math.max(0, c.stopMax);
+    return c.width > 1e-9 && c.stopMin + c.stopMax < b[c.across] - 1e-9;
+  });
 }
 
 /** The slab E grows into, on its `side` face along k, `amount` deep. */
@@ -107,9 +145,12 @@ const overall = (boards: Board[]): V3 => {
   return [0, 1, 2].map((k) => Math.max(...boxes.map((b) => b.max[k])) - Math.min(...boxes.map((b) => b.min[k]))) as V3;
 };
 
+const RANK: Record<Site['kind'], number> = { crossing: 0, 'face-against-edge': 1, 'end-into-face': 2 };
+
 /**
- * Build the chosen joints (spec §4). Pure. Recipes run in site order on a
- * COPY of the boards, and each reads the CURRENT geometry, so a site whose
+ * Build the chosen joints (spec §4). Pure. Recipes run on a
+ * COPY of the boards — crossings, then rabbets, then end-into-face, site
+ * order within each — and each reads the CURRENT geometry, so a site whose
  * part an earlier site already moved is recomputed rather than reused —
  * and skipped, with a reason, when its parts no longer touch.
  */
@@ -129,7 +170,11 @@ export function applyJoints(doc: SloydDocument, sites: Site[], choices: JointCho
     halfLapPartners: new Set(sites.filter((s) => byId.get(s.id)?.joint === 'half-lap').map((s) => `${s.enter}->${s.receive}`)),
   };
 
-  for (const site of sites) {
+  // Recipes that MOVE parts run first (spec §4.7, final review C1): a move
+  // carries a part's cuts with it, so a tenon built before its part is lapped
+  // or trimmed would be misplaced. Stable, so site order holds within a kind.
+  const ordered = [...sites].sort((a, b) => RANK[a.kind] - RANK[b.kind]);
+  for (const site of ordered) {
     const c = byId.get(site.id);
     const joint: JointKind = c?.joint ?? 'butt';
     if (joint === 'butt') { applied.push({ site: site.id, joint }); continue; }

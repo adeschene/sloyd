@@ -1,9 +1,12 @@
 import { beforeAll } from 'vitest';
+import workbenchRaw from '../../document/fixtures/simple-workbench.sloyd?raw';
 import { designToDocument } from '../../document/generated';
+import { migrateDocument } from '../../document/document';
 import { checkDesign } from '../../document/designCheck';
 import { boardSolids, cutLabel } from '../../document/cuts';
 import type { SloydDocument } from '../../document/document';
 import { findSites } from './sites';
+import { defaultChoice } from './choose';
 import { applyJoints, tenonSection } from './recipes';
 
 type P = { name: string; at: [number, number, number]; size: [number, number, number] };
@@ -383,6 +386,100 @@ describe('half-lap: off-grid thickness and gap align E onto R', () => {
       expect(board(out.doc, 'Upper').cuts).toHaveLength(1);
       expect(board(out.doc, 'Lower').cuts).toHaveLength(1);
       expect(checkDesign(out.doc, limits(out.doc)).filter((v) => v.kind === 'overlap')).toEqual([]);
+    });
+  }
+});
+
+// Final review C1 (spec §4.7): a part's existing cuts move with it, and the
+// recipes that MOVE parts run first. Every case here was red before the fix.
+const overlapsOf = (d: SloydDocument) => checkDesign(d, limits(d)).filter((v) => v.kind === 'overlap').map((v) => v.message);
+const withDefaults = (d: SloydDocument) => {
+  const sites = findSites(d);
+  return applyJoints(d, sites, sites.map((s) => defaultChoice(s, d, sites)));
+};
+
+describe('cuts move with their part: a rail tenoned at its far end first', () => {
+  // The max-end leg is listed first, so its site comes first and the rail's
+  // min-end tenon then moves the rail's position back by L.
+  const doc = design(
+    { name: 'Right leg', at: [20, 0, 0], size: [1.75, 28, 1.75] },
+    { name: 'Left leg', at: [0, 0, 0], size: [1.75, 28, 1.75] },
+    { name: 'Rail', at: [1.75, 23.5, 0.5], size: [18.25, 3.5, 0.75] },
+  );
+  let out: ReturnType<typeof applyJoints>;
+  beforeAll(() => {
+    const sites = findSites(doc);
+    expect(doc.boards[sites[0].receive].name).toBe('Right leg');
+    out = applyJoints(doc, sites, sites.map((s) => ({ site: s.id, joint: 'mortise-tenon' as const, tenonLength: 1 })));
+  });
+
+  it('tenons both ends and mortises both legs, with no overlap', () => {
+    expect(out.skipped).toEqual([]);
+    expect(board(out.doc, 'Rail').length).toBe(20.25);
+    for (const n of ['Left leg', 'Right leg']) {
+      const b = board(out.doc, n);
+      expect(b.cuts.map((c) => cutLabel(b, c))).toEqual(['mortise']);
+    }
+    expect(overlapsOf(out.doc)).toEqual([]);
+  });
+
+  it('conserves stock: each leg loses one tenon, the rail gains two', () => {
+    const tenon = 1 * 0.25 * (3.5 - 2 * 0.5);
+    for (const n of ['Left leg', 'Right leg']) expect(boxVolume(out.doc, n) - volume(out.doc, n)).toBeCloseTo(tenon, 9);
+    expect(volume(out.doc, 'Rail') - 18.25 * 3.5 * 0.75).toBeCloseTo(2 * tenon, 9);
+  });
+});
+
+describe('cuts move with their part: the workbench with its legs listed right before left', () => {
+  it('joined with the defaults, it has no new overlap', () => {
+    const raw = JSON.parse(workbenchRaw);
+    raw.boards = [raw.boards[1], raw.boards[0], raw.boards[3], raw.boards[2], ...raw.boards.slice(4)];
+    const doc = migrateDocument(raw);
+    expect(overlapsOf(doc)).toEqual([]);
+    expect(overlapsOf(withDefaults(doc).doc)).toEqual([]);
+  });
+});
+
+describe('moving recipes first: a tenoned shelf behind a back rabbet', () => {
+  // The shelf is listed first, so in plain site order it is tenoned BEFORE
+  // the back's rabbet trims (and, on -Z, moves) it.
+  it('tenons the shelf after it is trimmed, with no overlap', () => {
+    const doc = design(
+      { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 11.25] },
+      { name: 'Left', at: [0, 0, 0], size: [0.75, 30, 11.25] },
+      { name: 'Right', at: [20.75, 0, 0], size: [0.75, 30, 11.25] },
+      { name: 'Back', at: [0, 0, -0.25], size: [21.5, 30, 0.25] },
+    );
+    const sites = findSites(doc);
+    const out = applyJoints(doc, sites, sites.map((s) => s.kind === 'end-into-face'
+      ? { site: s.id, joint: 'mortise-tenon' as const, tenonLength: 0.5 }
+      : { site: s.id, joint: 'rabbet' as const, depth: 0.375 }));
+    expect(out.skipped).toEqual([]);
+    expect(board(out.doc, 'Shelf').width).toBe(11);
+    expect(overlapsOf(out.doc)).toEqual([]);
+  });
+});
+
+describe('moving recipes first: tenons and a half-lap on the same part', () => {
+  // Rail A runs between two legs on X, Rail B between two on Z and laps
+  // down into Rail A. Rail B is tenoned AND moved by its lap.
+  const legs: P[] = [
+    { name: 'Leg XL', at: [0, 0, 13.5], size: [3, 30, 3] },
+    { name: 'Leg XR', at: [33, 0, 13.5], size: [3, 30, 3] },
+    { name: 'Leg ZF', at: [16.5, 0, -3], size: [3, 30, 3] },
+    { name: 'Leg ZB', at: [16.5, 0, 30], size: [3, 30, 3] },
+  ];
+  const rails: P[] = [
+    { name: 'Rail A', at: [3, 20, 13.5], size: [30, 1, 3] },
+    { name: 'Rail B', at: [16.5, 21, 0], size: [3, 1, 30] },
+  ];
+  for (const [label, parts] of [['legs listed first', [...legs, ...rails]], ['rails listed first', [...rails, ...legs]]] as const) {
+    it(`${label}: the lap and all four tenons, no overlap`, () => {
+      const doc = design(...parts);
+      const out = withDefaults(doc);
+      expect(out.applied.map((a) => a.joint).sort()).toEqual(['half-lap', 'mortise-tenon', 'mortise-tenon', 'mortise-tenon', 'mortise-tenon']);
+      expect(out.skipped).toEqual([]);
+      expect(overlapsOf(out.doc)).toEqual([]);
     });
   }
 });
