@@ -4181,3 +4181,20 @@ the clipped `CutShape`, e.g. `h: [-0.5, 0.5]` labelled offset `0"`, width `1/2"`
 - **Reach:** shrinking a board under an end rabbet.
 - **Remedy:** clip `h`/`v` to the board.
 - **Status:** open, low.
+
+## From the cut storage round — 2026-10-04
+
+**198. The "Match the cut list" note on a square opening decided by the default.** A hand-entered
+square closed pocket or corner opening stored across the width shows "The cut list reads this cut
+as running across the length", though both storages are equally valid; the direction there comes
+from the tie's final default (length, width, thickness), not from the geometry.
+- **Reach:** any square closed pocket or corner opening a user stores across the width.
+- **Possible remedy:** suppress the note when the run was decided by that default.
+- **Status:** open, a decision for the user.
+
+**199. `rebaseCuts` treats a cut differently by its stored form when a board grows.** In
+`src/generate/joints/recipes.ts` (`rebaseCuts`), a zero stop along `across` keeps running out to
+the new end, while a cut flush on the position axis does not move, so re-storing a cut
+(`storedAsShape`) can change how it follows a later growth.
+- **Reach:** latent: a 248-variant joinery corpus probe showed 0 differences.
+- **Status:** open, low.

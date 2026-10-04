@@ -77,6 +77,18 @@ A new export in `cuts.ts`. It returns the same cut re-stored with `across = cutS
 one's. Clipping only drops stored overhang that removed nothing. The stops are always ≥ 0
 because the spans are clipped.
 
+**To the bit where the schema allows it (final review).** `offset` and `stopMin` are copies, so
+the near ends are exact. The far ends are recomputed by `cutRegion` as `offset + width` and
+`board[run] − stopMax`, and the plain differences in the table can land an ulp off for decimal or
+millimetre values. Worse, for a far end under half of `board[run]` NO float `stopMax` reaches it
+(every `board[run] − x` is a multiple of ulp(x)), and `offset + width` misses rarely by
+round-half-even. On a seeded sweep of 8,114 millimetre re-stores, 883 far ends could not be stored
+exactly, 282 of those flipped a square opening's run, and the next click flipped it back. The
+re-store therefore searches each far end one ulp at a time: the exact value where one exists, and
+otherwise the nearest value on the side that KEEPS THE RUN (the run's extent never shrinks, the
+position's never grows), within one ulp of the board's dimension. After it: 0 oscillations, 0 run
+changes; 6 exact-tie notches read as stopped dados after growing by that ulp.
+
 **When it is the identity.** A cut already stored with `across === run` is returned UNCHANGED,
 the same object, overhang and all. Recomputing its fields would not be exact: `(offset + width) −
 offset` is not `width` for a decimal such as 0.1 + 0.2 (found while planning). Only a sideways cut is
@@ -124,7 +136,10 @@ the other axis, and the note is gone.
   no sheet direction to match.
 - **Held points.** `updateCut` already runs `dropHeldIfGone` after the edit (invariant 24, the
   "feature destroyed" clause). Since the geometry is the same, a held snap point on the cut
-  survives. That is the existing rule working; this spec adds nothing to it.
+  survives. That is the existing rule working; this spec adds nothing to it. Two exceptions, both
+  the same rule working: an OVERHANGING cut's snap points can change, because the re-store clips
+  the overhang and `pointsOfCut` reads the unclipped `cutRegion`, so a point held on the overhang
+  drops; and a far end §3.1 cannot store exactly moves by an ulp, so a point held there drops.
 
 ### 3.4 Rows
 
