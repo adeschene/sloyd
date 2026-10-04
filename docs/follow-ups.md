@@ -3858,6 +3858,12 @@ phase 2 must relax that to "overlap not accounted for by a cut", deliberately an
 place. Also wanted before it: 164, since refining one of three identical designs is less
 useful than refining one of three different ones.
 
+**2026-10-04: the stopped cuts round landed first.** A `Cut` can stop short of either end of
+its `across` dimension (`stopMin`/`stopMax`, schema v7), so mortises, through mortises and
+stopped dados exist. The "overlap not accounted for by a cut" rule can be written against a
+tenon sitting in a mortise rather than only in a through slot. Angled and round joinery are
+still out.
+
 **172. A design-quality eval set.** The live pass is three prompts judged by eye. Tuning the
 prompt, the effort level or the repair messages (164, 165, 167) needs a fixed prompt set and
 a grading rule, or every change is judged on a different sample. Costs real money per run,

@@ -25,7 +25,7 @@ tradition built around hand woodworking.
 ## Status
 
 Static SPA, containerized, **1180/1180 tests passing across 45 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
-`CURRENT_VERSION` **6**.
+`CURRENT_VERSION` **7**.
 
 **PRODUCTION MATCHES `master` as of 2026-10-03 with the key check round live** — bundle `index-BhhW2iNw.js`, CSS `index-Co3i2lF7.css` (unchanged), merge commit `d0ba83b`. Before it the same day: held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
 bundle `index-BAsxEohe.js` with CSS `index-DEQSkZ3q.css`, from merge commit `fa834dc`. A
@@ -314,7 +314,7 @@ code path.
 ### Versioning
 
 Every document carries a `version`, and every load path (open, import, autosave-restore)
-runs through `migrateDocument` before the document is trusted. `CURRENT_VERSION` is **6**
+runs through `migrateDocument` before the document is trusted. `CURRENT_VERSION` is **7**
 and migration is a real chain: each step runs on raw data, in version order, one version
 at a time, before any board reaches `validateBoard` (invariant 11).
 
@@ -323,12 +323,13 @@ at a time, before any board reaches `validateBoard` (invariant 11).
 - **Per-board** (v1→v2 `foldRotationToV2`, v2→v3 `addPostureToV3`, v3→v4 `addCutsToV4`) —
   a `rawBoards.map` running *before* `validateBoard`, because that validator's fallback
   for a missing field is a legal-but-wrong value rather than an absence.
-- **Document-level** (v4→v5 `stock`, v5→v6 `guides`) — **no `rawBoards.map` step at
+- **Document-level** (v4→v5 `stock`, v5→v6 `guides`, v6→v7 `Cut.stopMin`/`stopMax`) — **no `rawBoards.map` step at
   all**. Read defensively off the raw document and defaulted, the way `units.precision`
   already was. `stock.kerf` defaults to `0.125` when absent, non-numeric or outside
   `[0, 1)` — *defaulted, not clamped to the nearest boundary*. `guides` defaults to `[]`,
   and `validateGuides` drops a malformed guide rather than refusing the file, because a
   saved document must always open and a guide has no nearest-legal-value to clamp toward.
+  `stopMin`/`stopMax` default to `0` in `validateCuts`.
 
 **A version bump is for the refusal gate at the far end, not for upgrading old files** —
 an absent field defaults cleanly regardless of `CURRENT_VERSION`. But the two bumps were
@@ -338,6 +339,10 @@ v6's is plainer and weaker and is still what the gate is for: **silent data loss
 round-trip** — a v5 build opens a v6 file, drops every guide, autosaves, and they are gone
 with nothing indicating it. Guides produce no number; nothing on the cut list reads them.
 Read which argument applies to *your* field rather than inheriting one.
+
+v7's argument is the strongest of the three: **wrong geometry**. A v6 build opening a v7
+file ignores the stops, shows a blind mortise as a through-dado with nothing saying so, and
+autosaves that shape back.
 
 Full detail: `docs/superpowers/specs/` (design), `docs/superpowers/plans/`
 (implementation), `docs/history.md` (what shipped and why).
@@ -367,11 +372,17 @@ src/
 │   ├── cuts.ts             cutRegion / boardSolids (split, drop against the UNION,
 │   │                       merge) / boardEdges (inv 16) / solidWorldBox / cutLabel /
 │   │                       stockProbe (boardEdges' rule from a segment to a point;
-│   │                       CLOSED spans, so a point on a split plane sees both sides)
+│   │                       CLOSED spans, so a point on a split plane sees both sides).
+│   │                       cutRegion honours `stopMin`/`stopMax` (crossed stops remove
+│   │                       nothing); `cutLabel` → `CutKind`, seven words derived from the shape (stopped-cuts spec
+│   │                       §4.1)
 │   ├── cutlist.ts          buildCutList (inv 18). STOCK, NOT REMAINDER — `cuts`
 │   │                       ignored, because a dado does not reduce the board you buy;
-│   │                       accumulates EXACT stock, never qty × rounded dimensions
-│   ├── depthField.ts       buildDepthField (inv 20)
+│   │                       accumulates EXACT stock, never qty × rounded dimensions.
+│   │                       `cutSignature` is built from `SIGNATURE_FIELDS`, checked
+│   │                       against `Cut` by `satisfies` (inv 40)
+│   ├── depthField.ts       buildDepthField (inv 20). reads its rectangles from `cutRegion` — it once rebuilt
+│   │                       them with the across span hard-coded to full length
 │   ├── diagram.ts          buildDiagrams — one view per (face, from), so
 │   │                       perpendicular cuts on a face draw together
 │   ├── nesting.ts          buildNesting — shelf FFD, because guillotine cuttability
@@ -391,9 +402,9 @@ src/
 │   │                       EXCEPT a fully consumed board, a literal
 │   │                       `boardSolids(b).length === 0` check, which keeps all 26
 │   │                       because the ghost box IS drawn — inv 21) / cutSnapPoints
-│   │                       (floor rectangle 9 + the mouth's two shoulder lines 6, its
-│   │                       middle row spanning the opening; 15 for a dado, 12 for a
-│   │                       rabbet, with NO cutLabel branch) / snapPointsFor (the
+│   │                       (floor rectangle 9 +
+│   │                       the mouth's opening, every point but its centre, 8; stockProbe drops a through-cut's two
+│   │                       across-end mouth points, so 15 for a dado, 12 for a rabbet, 17 for a blind mortise) / snapPointsFor (the
 │   │                       union, called in BOTH of MoveTool's branches — a cut point
 │   │                       must be a TARGET on the unselected board or the headline
 │   │                       operation does not work) / guideSnapPoints / sameSnapPoint
@@ -572,7 +583,8 @@ src/
 │   ├── GenerateDialog.tsx  the form, the per-run rows, Cancel. Same overlay pattern
 │   ├── PartsList.tsx  FileMenu.tsx
 │   ├── Properties.tsx      board fields + Cuts; CutRow is its own component so a
-│   │                       cut's error dies with the cut
+│   │                       cut's error dies with the cut. Stop short of near/far
+│   │                       end; a stop pair leaving no cut is refused, and changing `across` RESETS the stops
 │   ├── diagramScale.ts     fitView / bandOn (ordering-guarded). MAX_ASPECT /
 │   │                       MAX_HEIGHT / MIN_WIDTH are browser-settled. Pure
 │   ├── diagramLabels.ts    LABEL_SIZE / CHAR_W / labelHeight / labelWidth / packRow
@@ -1281,6 +1293,17 @@ worked examples behind several of them are in `docs/history.md`.
 
     **Known limits are follow-up 176.** The main one is mutual lapping: two parts glued face
     to face each "hold" the other. Read it before tightening anything.
+
+40. **Anything that decides "same cut" from a list of `Cut`'s fields must be checked against
+    the type by the compiler.** `cutSignature` decides which parts share a cut-list row, and
+    it was a hand-written field list. Adding `stopMin`/`stopMax` to `Cut` without adding them
+    there would have grouped a mortised leg with a through-dadoed one: one row, one setup,
+    half the legs cut wrong, and every existing test green. So `SIGNATURE_FIELDS` is a table
+    that `satisfies Record<Exclude<keyof Cut, 'id'>, true>`, and a new `Cut` field fails `tsc`
+    until it is listed. This is invariant 15 one layer over: a hand-written list of what a
+    computation reads goes stale silently. **Do not replace the table with a list in the
+    function body**, and do not add a field to the table's exclusions without a written
+    reason.
 
 ## Commands
 
