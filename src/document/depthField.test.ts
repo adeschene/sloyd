@@ -4,7 +4,7 @@ import type { Cut } from './types';
 
 const cut = (over: Partial<Cut>): Cut => ({
   id: 'c', face: 'thickness', from: 'min', across: 'width',
-  offset: 0, width: 1, depth: 0.25, ...over,
+  offset: 0, width: 1, depth: 0.25, stopMin: 0, stopMax: 0, ...over,
 });
 
 // A 24 x 12 x 3/4 board. Thickness face, min side: horizontal = length,

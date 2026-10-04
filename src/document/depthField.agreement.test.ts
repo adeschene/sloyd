@@ -22,7 +22,7 @@ type Solids = ReturnType<typeof boardSolids>;
 
 const cut = (over: Partial<Cut>): Cut => ({
   id: 'c', face: 'thickness', from: 'min', across: 'width',
-  offset: 0, width: 1, depth: 0.25, ...over,
+  offset: 0, width: 1, depth: 0.25, stopMin: 0, stopMax: 0, ...over,
 });
 
 /**

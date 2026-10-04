@@ -42,8 +42,16 @@ export type { BoardSnapPoint, SnapKind, SnapOwner, SnapPoint, TapeAxis } from '.
  * argument here is plain silent data loss on round-trip: a v5 build opens a
  * v6 file, drops every guide the user placed, autosaves, and they are gone.
  * Weaker consequence, same class, still exactly what the gate is for.
+ *
+ * v7 added `Cut.stopMin`/`stopMax` (stopped cuts: mortises, stopped dados).
+ * Document-level in shape — no rawBoards.map step — because 0 is the correct
+ * value for every older cut, all of which run fully across; validateCuts
+ * defaults it. The bump's argument is WRONG GEOMETRY, stronger than v6's data
+ * loss: a v6 build opening a v7 file would ignore the stops, show a blind
+ * mortise as a through-dado with nothing saying so, and autosave that shape
+ * back. The gate makes it refuse the file instead.
  */
-export const CURRENT_VERSION = 6;
+export const CURRENT_VERSION = 7;
 
 export class DocumentError extends Error {
   /**
@@ -217,16 +225,29 @@ function validateCuts(raw: unknown, board: Omit<Board, 'cuts'>): Cut[] {
     const depth = clamp(c.depth as number, 0, faceDim);
     if (width <= 0 || depth <= 0) continue;
 
-    // Full depth AND the full position axis, with `across` always spanning
-    // fully, means nothing survives.
-    if (depth === faceDim && offset === 0 && width === posDim) continue;
+    // Defaulted, not refused, like stock.kerf: a missing or bogus stop is "no
+    // stop", which is what every pre-v7 cut means. A pair that leaves no length
+    // is dropped like a zero-width cut — never clamped toward each other,
+    // because no nearest legal value keeps both numbers and guessing which stop
+    // to shorten moves the mortise.
+    const acrossDim = board[across];
+    const stopOf = (v: unknown) =>
+      typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.min(v, acrossDim) : 0;
+    const stopMin = stopOf(c.stopMin);
+    const stopMax = stopOf(c.stopMax);
+    if (stopMin + stopMax >= acrossDim) continue;
+
+    // The cut's box is the whole board: full depth, the full position axis,
+    // and — only when neither end is stopped — the full across axis.
+    if (depth === faceDim && offset === 0 && width === posDim &&
+        stopMin === 0 && stopMax === 0) continue;
 
     // Scoped to THIS board's `seen`, not the document's: `Properties.tsx` keys
     // CutRow by cut id within one board and the store looks a cut up by
     // (boardId, cutId), so two boards may each carry a cut called 'c1' and
     // neither is wrong.
     const id = takeId(c.id, seen);
-    out.push({ id, face, from: c.from as CutFrom, across, offset, width, depth });
+    out.push({ id, face, from: c.from as CutFrom, across, offset, width, depth, stopMin, stopMax });
   }
   return out;
 }

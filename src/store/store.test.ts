@@ -423,6 +423,19 @@ describe('cuts', () => {
     useStore.getState().addBoard();
   });
 
+  it('adds a cut that is not stopped', () => {
+    useStore.getState().addCut(boardId());
+    expect(cuts()[0]).toMatchObject({ stopMin: 0, stopMax: 0 });
+  });
+
+  it('keeps the stops when the board is duplicated', () => {
+    useStore.getState().addCut(boardId());
+    useStore.getState().updateCut(boardId(), cuts()[0].id, { stopMin: 1, stopMax: 0.5 });
+    useStore.getState().duplicateBoard(boardId());
+    const copy = useStore.getState().doc.boards[1];
+    expect(copy.cuts[0]).toMatchObject({ stopMin: 1, stopMax: 0.5 });
+  });
+
   it('adds a cut with a default that fits the board', () => {
     useStore.getState().addCut(boardId());
     expect(cuts()).toHaveLength(1);

@@ -10,11 +10,14 @@ export function wholeBoard(board: Board): Region {
   };
 }
 
+/** A region nothing is inside: `inside`'s strict interior test can never contain a cell centre. */
+const NO_REGION = (): Region => ({ length: [0, 0], width: [0, 0], thickness: [0, 0] });
+
 /**
  * The box a cut removes, in the board's own coordinate space.
  *
- * A cut spans its `across` axis fully (that is what makes it a through-cut),
- * sits at [offset, offset + width] on the implied position axis, and reaches
+ * A cut spans its `across` axis from `stopMin` to `board[across] - stopMax` — fully, when
+ * both are 0, sits at [offset, offset + width] on the implied position axis, and reaches
  * `depth` into `face` from whichever end `from` names. This is the only place
  * `from` is consumed — everything downstream reads the region, not the cut.
  *
@@ -29,16 +32,24 @@ export function wholeBoard(board: Board): Region {
  * function from a distance — the same reasoning as `ranks()` in
  * `viewport/grainTiling.ts`. A degenerate cut removes nothing: return a
  * zero-width region, which `inside`'s strict `>`/`<` interior test can never
- * contain, whatever cell centre it is compared against.
+ * contain, whatever cell centre it is compared against. Stops that meet or
+ * cross (a board shortened under its cut) remove nothing, by the same
+ * zero-region return as the degenerate case.
  */
 export function cutRegion(board: Board, cut: Cut): Region {
-  if (cut.face === cut.across) {
-    return { length: [0, 0], width: [0, 0], thickness: [0, 0] };
-  }
+  if (cut.face === cut.across) return NO_REGION();
   const pos = positionAxisOf(cut.face, cut.across);
   const faceDim = board[cut.face];
+  const acrossDim = board[cut.across];
+  // Total, like the face === across guard: a Board built directly can carry a
+  // non-finite or out-of-range stop, and a shortened board can leave legal
+  // stops crossing. Neither may put NaN or a backwards span into the grid.
+  const stop = (s: number) => (Number.isFinite(s) ? Math.min(Math.max(s, 0), acrossDim) : 0);
+  const lo = stop(cut.stopMin);
+  const hi = acrossDim - stop(cut.stopMax);
+  if (lo >= hi) return NO_REGION();
   const region = {} as Region;
-  region[cut.across] = [0, board[cut.across]];
+  region[cut.across] = [lo, hi];
   region[pos] = [cut.offset, cut.offset + cut.width];
   region[cut.face] = cut.from === 'min'
     ? [0, cut.depth]

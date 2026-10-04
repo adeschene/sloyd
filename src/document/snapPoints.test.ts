@@ -136,8 +136,8 @@ describe('boardSnapPoints', () => {
     // set coming back empty (design §5.1) — a board could in principle have
     // every box point in removed stock while stock remains in its middle.
     const consumed = posed([
-      { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 0, width: 12, depth: 1 },
-      { id: 'b', face: 'thickness', from: 'min', across: 'width', offset: 12, width: 12, depth: 1 },
+      { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 0, width: 12, depth: 1, stopMin: 0, stopMax: 0 },
+      { id: 'b', face: 'thickness', from: 'min', across: 'width', offset: 12, width: 12, depth: 1, stopMin: 0, stopMax: 0 },
     ]);
     expect(boardSolids(consumed)).toHaveLength(0);
     expect(boardSnapPoints(consumed)).toHaveLength(26);
@@ -191,7 +191,7 @@ const posed = (cuts: Cut[]): Board =>
 /** A 3/4in-wide, 1/4in-deep dado at 6in along, across the width, from `max`. */
 const DADO: Cut = {
   id: 'c1', face: 'thickness', from: 'max', across: 'width',
-  offset: 6, width: 0.75, depth: 0.25,
+  offset: 6, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0,
 };
 
 const key = (at: readonly number[]) => at.join(',');
@@ -274,7 +274,7 @@ describe('cutSnapPoints', () => {
   it('places all 15 points correctly for from: "min" (mouth and floor swapped)', () => {
     const DADO_MIN: Cut = {
       id: 'c1min', face: 'thickness', from: 'min', across: 'width',
-      offset: 6, width: 0.75, depth: 0.25,
+      offset: 6, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0,
     };
     const points = cutSnapPoints(posed([DADO_MIN]));
     const got = new Map(points.map((p) => [key(p.at), p.kind]));
@@ -404,7 +404,7 @@ describe('cutSnapPoints', () => {
     // provider calls it a corner (no in-plane mids). Same position, same
     // owner, so the DELTA is identical either way and the move is unaffected
     // — which is the whole of the argument for not de-duplicating (design §9).
-    const rabbet: Cut = { ...DADO, offset: 0, width: 2, depth: 0.5 };
+    const rabbet: Cut = { ...DADO, offset: 0, width: 2, depth: 0.5, stopMin: 0, stopMax: 0 };
     const b = posed([rabbet]);
     const shared = [10.5, 2, -5];
     const hits = snapPointsFor(b).filter((p) => key(p.at) === key(shared));
@@ -418,7 +418,7 @@ describe('cutSnapPoints', () => {
     // removed stock. Only B's 15 survive.
     const deeper: Cut = {
       id: 'c2', face: 'thickness', from: 'max', across: 'width',
-      offset: 5, width: 3, depth: 0.5,
+      offset: 5, width: 3, depth: 0.5, stopMin: 0, stopMax: 0,
     };
     const points = cutSnapPoints(posed([DADO, deeper]));
     expect(points).toHaveLength(15);
@@ -429,8 +429,8 @@ describe('cutSnapPoints', () => {
 
   it('offers nothing on a board its own cuts consumed', () => {
     const board = posed([
-      { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 0, width: 12, depth: 1 },
-      { id: 'b', face: 'thickness', from: 'min', across: 'width', offset: 12, width: 12, depth: 1 },
+      { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 0, width: 12, depth: 1, stopMin: 0, stopMax: 0 },
+      { id: 'b', face: 'thickness', from: 'min', across: 'width', offset: 12, width: 12, depth: 1, stopMin: 0, stopMax: 0 },
     ]);
     expect(boardSolids(board)).toHaveLength(0);
     expect(cutSnapPoints(board)).toEqual([]);
@@ -458,8 +458,8 @@ describe('snapPointsFor', () => {
     // The ghost box IS drawn at the AABB (invariant 21), so the box points
     // still sit on a drawn feature; nothing draws the cut's shoulders.
     const board = posed([
-      { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 0, width: 12, depth: 1 },
-      { id: 'b', face: 'thickness', from: 'min', across: 'width', offset: 12, width: 12, depth: 1 },
+      { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 0, width: 12, depth: 1, stopMin: 0, stopMax: 0 },
+      { id: 'b', face: 'thickness', from: 'min', across: 'width', offset: 12, width: 12, depth: 1, stopMin: 0, stopMax: 0 },
     ]);
     expect(snapPointsFor(board)).toHaveLength(26);
   });

@@ -6,7 +6,7 @@ import { labelWidth, LABEL_ASCENT, LABEL_DESCENT, LABEL_BOX_H } from './diagramL
 
 const dado = (over: Partial<Cut> = {}): Cut => ({
   id: 'c1', face: 'thickness', from: 'min', across: 'width',
-  offset: 6, width: 0.75, depth: 0.375, ...over,
+  offset: 6, width: 0.75, depth: 0.375, stopMin: 0, stopMax: 0, ...over,
 });
 
 const view = (...cuts: Cut[]) => buildDiagrams(createBoard({ cuts }), 16)[0];
@@ -16,8 +16,8 @@ const view = (...cuts: Cut[]) => buildDiagrams(createBoard({ cuts }), 16)[0];
  * horizontal-axis cut and one vertical-axis cut on the same face, at
  * different depths, so they cross in exactly one cell. */
 const crossingView = () => buildDiagrams(createBoard({ length: 24, width: 12, cuts: [
-  { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 6, width: 0.75, depth: 0.125 },
-  { id: 'b', face: 'thickness', from: 'min', across: 'length', offset: 4, width: 0.75, depth: 0.375 },
+  { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 6, width: 0.75, depth: 0.125, stopMin: 0, stopMax: 0 },
+  { id: 'b', face: 'thickness', from: 'min', across: 'length', offset: 4, width: 0.75, depth: 0.375, stopMin: 0, stopMax: 0 },
 ] }), 16)[0];
 
 describe('PartDiagram', () => {
