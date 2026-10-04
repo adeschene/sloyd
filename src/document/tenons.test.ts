@@ -1,4 +1,5 @@
 import { createBoard } from './document';
+import { cutRegion } from './cuts';
 import { findTenons } from './tenons';
 import type { Cut } from './types';
 
@@ -58,5 +59,20 @@ describe('findTenons', () => {
 
   it('a full-length edge rabbet pair is not a tenon (ℓ ≤ L/2)', () => {
     expect(findTenons(rail([cheek('a', 'min', 0.25, 18), cheek('b', 'max', 0.25, 18)]))).toEqual([]);
+  });
+
+  it('an L-shaped remainder is not a tenon (bounding box smaller than the section)', () => {
+    // Full-width cheek over thickness [0,.25], plus a corner pocket width [0,.5] x thickness [.5,.75].
+    const corner: Cut = { id: 'b', face: 'thickness', from: 'max', across: 'width', offset: 0, width: 1, depth: 0.25, stopMin: 0, stopMax: 3 };
+    expect(cutRegion(rail([]), corner)).toMatchObject({ width: [0, 0.5], thickness: [0.5, 0.75], length: [0, 1] });
+    expect(findTenons(rail([cheek('a', 'min', 0.25, 1), corner]))).toEqual([]);
+  });
+
+  it('groups max-end cuts whose ℓ differs by ULPs (offset-stored vs stop-stored)', () => {
+    const L = 17.9;
+    const viaOffset: Cut = { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: L - 0.1, width: 0.1, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const viaStop: Cut = { id: 'b', face: 'thickness', from: 'max', across: 'length', offset: 0, width: 3.5, depth: 0.25, stopMin: 17.8, stopMax: 0 };
+    const board = createBoard({ length: L, width: 3.5, thickness: 0.75, cuts: [viaOffset, viaStop] });
+    expect(findTenons(board)).toHaveLength(1);
   });
 });
