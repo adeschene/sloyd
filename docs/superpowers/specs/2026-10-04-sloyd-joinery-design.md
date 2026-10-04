@@ -27,7 +27,8 @@ builds the joints from tested recipes.
 
 **Success:**
 - Your workbench export and a generated bookcase come back with believable joints.
-- Their cut lists show mortises, tenons, dados and rabbets.
+- Their cut lists show mortises, dados and rabbets. A tenon appears as its shoulder rabbets on
+  the rail's end; naming it "tenon" on the cut list is a follow-up (final review).
 - `checkDesign` finds no new problems, or the repair loop clears them.
 
 **Out of scope:**
@@ -258,7 +259,18 @@ There are no sizes for the model to choose.
 - `moved` and `trimmed`: the names of parts moved and trimmed;
 - `sizeChange`: the overall X/Y/Z before and after.
 
-It changes no names, and adds and removes no parts. **If the original design sat on the floor**
+It changes no names, and adds and removes no parts.
+
+**Two corrections from the final review: cuts move with their part, and moving recipes run
+first.**
+- **`resize` re-bases the cuts a part already carries.** Cuts are measured from the board's
+  ends, so growing or shrinking at one end shifts them. Otherwise a rail tenoned at its far end
+  first and its near end second has its first tenon moved by the second's length. That is
+  document-order dependent geometry the model cannot repair.
+- **Recipes that MOVE parts run first.** The order is crossings (half-lap), then face-against-edge
+  (rabbet), then end-into-face, in site order within each kind. A move carries a part's
+  existing cuts with it, so building a tenon and then lapping its part would misplace the
+  tenon. **If the original design sat on the floor**
 (its lowest part's min Y ≤ `TOUCH`, the same one-sided test `checkDesign` uses for "on the floor"), **everything is lowered back onto it** after the
 recipes run. Without this, a rabbeted bottom panel moves up into its frame, the whole piece
 lifts off the floor, and every part reports as unsupported and is blamed on the joinery. This
@@ -304,7 +316,8 @@ rejected parts.
 
 | Kind | Default joint |
 |---|---|
-| End into face, R is post-like (R's width ≤ 2 × R's thickness) AND E is not wide (E's width ≤ 6 × E's thickness) | `mortise-tenon`, falling back to `dado`, then `butt` |
+| End into face, E is post-like AND R is not (a leg ending under a top) | `butt` — a top is fastened (buttons, figure-8s), not glued into housings, or it cracks with seasonal movement. The model may still choose `mortise-tenon` (a workbench) |
+| End into face, R is post-like (R's width ≤ 2 × R's thickness) AND E is not wide (E's width ≤ 6 × E's thickness) | `mortise-tenon`, falling back to `dado`, then `butt`. **The default tenon length is capped** so it stops 1/16″ short of another default tenon entering the same R from an adjacent face at an overlapping height (an ordinary table with set-in aprons) |
 | End into face, otherwise (a shelf into a side, anything into a panel) | `dado`, falling back to `butt` |
 
 This rule is a correction made while writing the plan. The first version, "E's width > 4 × E's
@@ -491,7 +504,8 @@ chat. **Every paid run needs the user's OK first.**
 
 1. **The user's workbench** (`fixtures/simple-workbench.sloyd`, imported):
    - legs and rails become mortise and tenon;
-   - the shelf is housed.
+   - the lower shelf is NOT a site. It meets each leg over only 2″ of its 21″ end, so its
+     existing `hangs` is reported as "already in the original", which is correct (final review).
 2. **A generated bookcase:**
    - shelves go into dados, with stopped ones where the model chooses;
    - the back goes into rabbets, with the shelves trimmed;
