@@ -476,3 +476,42 @@ describe('PartDiagram label collisions — the seven sweep geometries', () => {
     ] }));
   });
 });
+
+describe('PartDiagram — a view with no stopped cut draws exactly as before', () => {
+  /** Every drawn element's markup, pattern ids stripped (useId varies by render order). */
+  const layout = (container: HTMLElement): string => {
+    const svg = container.querySelector('svg')!;
+    const parts = [svg.getAttribute('viewBox') ?? ''];
+    for (const el of svg.querySelectorAll('line, text, rect')) {
+      parts.push(el.outerHTML.replace(/url\(#[^)]*\)/g, 'url(#)'));
+    }
+    return parts.join('\n');
+  };
+  /** djb2 — a stable fingerprint, so the pinned values below stay one line each. */
+  const hash = (s: string): number => {
+    let h = 5381;
+    for (let i = 0; i < s.length; i += 1) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+    return h;
+  };
+  const fingerprint = (board: Parameters<typeof createBoard>[0]) => {
+    const { container } = render(<PartDiagram view={buildDiagrams(createBoard(board), 16)[0]} />);
+    return hash(layout(container));
+  };
+
+  it.each<[string, Parameters<typeof createBoard>[0], number]>([
+    ['baseline dado', { cuts: [dado()] }, 2835748402],
+    ['two close dados', { width: 24, cuts: [dado({ offset: 6 }), dado({ id: 'c2', offset: 7.5 })] }, 1738991806],
+    ['offset zero', { cuts: [dado({ offset: 0, width: 0.125 })] }, 4144905029],
+    ['flush max', { cuts: [dado({ offset: 23.25, width: 0.75 })] }, 835304667],
+    ['edge groove column', { cuts: [dado({ face: 'width', across: 'length', offset: 0.25, width: 0.25 })] }, 3531979766],
+    ['narrow drawn', { length: 24, width: 100.9375, cuts: [dado()] }, 3094106887],
+    ['five dados', { cuts: [0, 4, 8, 12, 16].map((offset, i) => dado({ id: `c${i}`, offset })) }, 3472338868],
+    ['row and column crossing', { length: 24, width: 12, cuts: [
+      dado({ id: 'a', across: 'width', offset: 6, width: 0.75, depth: 0.125 }),
+      dado({ id: 'b', across: 'length', offset: 4, width: 0.75, depth: 0.375 }),
+    ] }, 2253356282],
+    ['no cuts', {}, 527349744],
+  ])('%s', (_, board, pinned) => {
+    expect(fingerprint(board)).toBe(pinned);
+  });
+});
