@@ -32,7 +32,7 @@ describe('CutList', () => {
 
   it('renders a setup line under a row that has joinery', () => {
     load({ cuts: [{ id: 'c1', face: 'thickness', from: 'min', across: 'width',
-                    offset: 6, width: 0.75, depth: 0.25 }] });
+                    offset: 6, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 }] });
     render(<CutList onClose={() => {}} />);
     expect(screen.getByText(/3\/4" dado, 1\/4" deep/)).toBeInTheDocument();
   });
@@ -69,7 +69,7 @@ describe('CutList', () => {
     // way; the console is the only place the defect is visible.
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const cut = { face: 'thickness' as const, from: 'min' as const, across: 'width' as const,
-                  offset: 6, width: 0.75, depth: 0.25 };
+                  offset: 6, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
     load({ cuts: [{ ...cut, id: 'c1' }, { ...cut, id: 'c2' }] });
     const { container } = render(<CutList onClose={() => {}} />);
 
@@ -83,7 +83,7 @@ describe('CutList', () => {
 
   const dadoed = {
     cuts: [{ id: 'c1', face: 'thickness' as const, from: 'min' as const,
-             across: 'width' as const, offset: 6, width: 0.75, depth: 0.375 }],
+             across: 'width' as const, offset: 6, width: 0.75, depth: 0.375, stopMin: 0, stopMax: 0 }],
   };
 
   it('draws a joinery row by default and leaves a plain row undrawn', () => {

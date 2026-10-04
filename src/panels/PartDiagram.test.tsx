@@ -6,7 +6,7 @@ import { labelWidth, LABEL_ASCENT, LABEL_DESCENT, LABEL_BOX_H } from './diagramL
 
 const dado = (over: Partial<Cut> = {}): Cut => ({
   id: 'c1', face: 'thickness', from: 'min', across: 'width',
-  offset: 6, width: 0.75, depth: 0.375, ...over,
+  offset: 6, width: 0.75, depth: 0.375, stopMin: 0, stopMax: 0, ...over,
 });
 
 const view = (...cuts: Cut[]) => buildDiagrams(createBoard({ cuts }), 16)[0];
@@ -16,8 +16,8 @@ const view = (...cuts: Cut[]) => buildDiagrams(createBoard({ cuts }), 16)[0];
  * horizontal-axis cut and one vertical-axis cut on the same face, at
  * different depths, so they cross in exactly one cell. */
 const crossingView = () => buildDiagrams(createBoard({ length: 24, width: 12, cuts: [
-  { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 6, width: 0.75, depth: 0.125 },
-  { id: 'b', face: 'thickness', from: 'min', across: 'length', offset: 4, width: 0.75, depth: 0.375 },
+  { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 6, width: 0.75, depth: 0.125, stopMin: 0, stopMax: 0 },
+  { id: 'b', face: 'thickness', from: 'min', across: 'length', offset: 4, width: 0.75, depth: 0.375, stopMin: 0, stopMax: 0 },
 ] }), 16)[0];
 
 describe('PartDiagram', () => {
@@ -328,6 +328,18 @@ describe('PartDiagram', () => {
     const xs = ticks.map((l) => Number(l.getAttribute('x1'))).sort((a, b) => a - b);
     expect(xs[1]).toBeCloseTo(Number(cell.getAttribute('x')), 10);
   });
+
+  it('draws a cut whose stops cross without a NaN anywhere', () => {
+    // A Board built directly (bypassing the loader), as a shortened board
+    // reaches it mid-session: the region is empty, nothing is removed.
+    const v = buildDiagrams(createBoard({ cuts: [dado({ stopMin: 4, stopMax: 3 })] }), 16)[0];
+    const { container } = render(<PartDiagram view={v} />);
+    for (const el of container.querySelectorAll('*')) {
+      for (const attr of el.getAttributeNames()) {
+        expect(el.getAttribute(attr), `${el.tagName} ${attr}`).not.toMatch(/NaN/);
+      }
+    }
+  });
 });
 
 /**
@@ -474,5 +486,179 @@ describe('PartDiagram label collisions — the seven sweep geometries', () => {
       dado({ id: 'a', across: 'width', offset: 6, width: 0.75, depth: 0.125 }),
       dado({ id: 'b', across: 'length', offset: 4, width: 0.75, depth: 0.375 }),
     ] }));
+  });
+
+  it('9 blind mortise — a stopped horizontal-axis cut adds a stop COLUMN', () => {
+    const container = draw({ cuts: [dado({ stopMin: 1, stopMax: 1.5 })] });
+    check(container);
+    const texts = [...container.querySelectorAll('.cutlist-diagram-leader-v text')].map((t) => t.textContent);
+    expect(texts).toEqual(['1"', '3"', '1-1/2"']);
+  });
+
+  it('10 stopped dado — one stop draws one stop label and the length', () => {
+    const container = draw({ cuts: [dado({ stopMax: 1 })] });
+    check(container);
+    const texts = [...container.querySelectorAll('.cutlist-diagram-leader-v text')].map((t) => t.textContent);
+    expect(texts).toEqual(['4-1/2"', '1"']);
+  });
+
+  it('11 a stopped vertical-axis cut adds a stop ROW', () => {
+    // across: 'length' makes this cut positioned along width (a column); its
+    // stops run along length, the horizontal axis, so they are a row.
+    const container = draw({ length: 24, width: 12, cuts: [
+      dado({ across: 'length', offset: 4, width: 0.75, stopMin: 2, stopMax: 3 }),
+    ] });
+    check(container);
+    const rows = [...container.querySelectorAll('g.cutlist-diagram-leader:not(.cutlist-diagram-leader-v)')];
+    const stopRow = rows.find((g) => [...g.querySelectorAll('text')].some((t) => t.textContent === '19"'));
+    expect(stopRow, 'the stop row carries the 19" length').toBeDefined();
+    expect([...stopRow!.querySelectorAll('text')].map((t) => t.textContent)).toEqual(['2"', '19"', '3"']);
+  });
+
+  it('12 crowded stops — a mortise with sixteenth stops still never overlaps', () => {
+    check(draw({ cuts: [dado({ stopMin: 0.0625, stopMax: 0.0625 })] }));
+  });
+
+  it('13 a stopped cut on a sliver view (edge face) never overlaps or bleeds', () => {
+    check(draw({ cuts: [dado({ face: 'width', across: 'length', offset: 0.25, width: 0.25, stopMin: 2, stopMax: 2 })] }));
+  });
+
+  it('15 a stop column that runs deepest grows the figure', () => {
+    // A 1-1/2" board is short enough that the stop column's last label, not the
+    // outline, decides the figure's height.
+    check(draw({ width: 1.5, cuts: [dado({ stopMin: 0.0625, stopMax: 0.0625 })] }));
+  });
+
+  it('14 a mortise and an unstopped dado together', () => {
+    check(draw({ width: 12, cuts: [dado({ id: 'm', stopMin: 2, stopMax: 2 }), dado({ id: 'd', offset: 14 })] }));
+  });
+});
+
+describe('PartDiagram — a view with no stopped cut draws exactly as before', () => {
+  /** Every drawn element's markup, pattern ids stripped (useId varies by render order). */
+  const layout = (container: HTMLElement): string => {
+    const svg = container.querySelector('svg')!;
+    const parts = [svg.getAttribute('viewBox') ?? ''];
+    for (const el of svg.querySelectorAll('line, text, rect')) {
+      parts.push(el.outerHTML.replace(/url\(#[^)]*\)/g, 'url(#)'));
+    }
+    return parts.join('\n');
+  };
+  /** djb2 — a stable fingerprint, so the pinned values below stay one line each. */
+  const hash = (s: string): number => {
+    let h = 5381;
+    for (let i = 0; i < s.length; i += 1) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+    return h;
+  };
+  const fingerprint = (board: Parameters<typeof createBoard>[0]) => {
+    const { container } = render(<PartDiagram view={buildDiagrams(createBoard(board), 16)[0]} />);
+    return hash(layout(container));
+  };
+
+  it.each<[string, Parameters<typeof createBoard>[0], number]>([
+    ['baseline dado', { cuts: [dado()] }, 2835748402],
+    ['two close dados', { width: 24, cuts: [dado({ offset: 6 }), dado({ id: 'c2', offset: 7.5 })] }, 1738991806],
+    ['offset zero', { cuts: [dado({ offset: 0, width: 0.125 })] }, 4144905029],
+    ['flush max', { cuts: [dado({ offset: 23.25, width: 0.75 })] }, 835304667],
+    ['edge groove column', { cuts: [dado({ face: 'width', across: 'length', offset: 0.25, width: 0.25 })] }, 3531979766],
+    ['narrow drawn', { length: 24, width: 100.9375, cuts: [dado()] }, 3094106887],
+    ['five dados', { cuts: [0, 4, 8, 12, 16].map((offset, i) => dado({ id: `c${i}`, offset })) }, 3472338868],
+    ['row and column crossing', { length: 24, width: 12, cuts: [
+      dado({ id: 'a', across: 'width', offset: 6, width: 0.75, depth: 0.125 }),
+      dado({ id: 'b', across: 'length', offset: 4, width: 0.75, depth: 0.375 }),
+    ] }, 2253356282],
+    ['no cuts', {}, 527349744],
+  ])('%s', (_, board, pinned) => {
+    expect(fingerprint(board)).toBe(pinned);
+  });
+});
+
+describe('PartDiagram — the stop leader measures its own runs', () => {
+  const num = (e: Element, a: string) => Number(e.getAttribute(a));
+  const render1 = (board: Parameters<typeof createBoard>[0]) =>
+    render(<PartDiagram view={buildDiagrams(createBoard(board), 16)[0]} />).container;
+  const outline = (c: HTMLElement) => c.querySelector('.cutlist-diagram-outline')!;
+  const textsOf = (g: Element) => [...g.querySelectorAll('text')].map((t) => t.textContent);
+
+  /** The stop leader: the group whose texts are exactly `texts`. */
+  const leaderWith = (c: HTMLElement, texts: string[]) => {
+    const g = [...c.querySelectorAll('g.cutlist-diagram-leader')]
+      .find((e) => JSON.stringify(textsOf(e)) === JSON.stringify(texts));
+    expect(g, `a leader labelled ${texts.join(', ')}`).toBeDefined();
+    return g!;
+  };
+
+  /** Runs and ticks of one leader along `axis` ('x' = row, 'y' = column), as sorted numbers. */
+  const parts = (g: Element, axis: 'x' | 'y') => {
+    const other = axis === 'x' ? 'y' : 'x';
+    const lines = [...g.querySelectorAll('line')];
+    const runs = lines
+      .filter((l) => num(l, `${other}1`) === num(l, `${other}2`) && num(l, `${axis}1`) !== num(l, `${axis}2`))
+      .map((l) => [num(l, `${axis}1`), num(l, `${axis}2`)].sort((a, b) => a - b));
+    const ticks = lines
+      .filter((l) => num(l, `${axis}1`) === num(l, `${axis}2`) && num(l, `${other}1`) !== num(l, `${other}2`))
+      .map((l) => num(l, `${axis}1`)).sort((a, b) => a - b);
+    return { runs: runs.sort((a, b) => a[0] - b[0]), ticks };
+  };
+  /** The label's coordinate along the leader's axis (the centre of a middle-anchored text). */
+  const at = (g: Element, axis: 'x' | 'y') => [...g.querySelectorAll('text')].map((t) => num(t, axis));
+
+  const rowBoard = { length: 24, width: 12, cuts: [
+    dado({ across: 'length', offset: 4, width: 0.75, stopMin: 2, stopMax: 3 }),
+  ] };
+  const colBoard = { cuts: [dado({ stopMin: 1, stopMax: 1.5 })] };
+
+  it.each([
+    ['row', 'x', rowBoard, ['2"', '19"', '3"'], 'x', 'width'],
+    ['column', 'y', colBoard, ['1"', '3"', '1-1/2"'], 'y', 'height'],
+  ] as const)('a two-stop %s leader: near run, band, far run, four ticks, labels on their runs', (_, axis, board, texts, a, size) => {
+    const c = render1(board as unknown as Parameters<typeof createBoard>[0]);
+    const o = outline(c);
+    const lo = num(o, a);
+    const hi = lo + num(o, size);
+    const g = leaderWith(c, [...texts]);
+    const { runs, ticks } = parts(g, axis);
+    expect(runs).toHaveLength(3);
+    const [nearRun, bandRun, farRun] = runs;
+    expect(nearRun[0]).toBeCloseTo(lo, 6);
+    expect(nearRun[1]).toBeCloseTo(bandRun[0], 6);
+    expect(farRun[0]).toBeCloseTo(bandRun[1], 6);
+    expect(farRun[1]).toBeCloseTo(hi, 6);
+    expect(ticks).toHaveLength(4);
+    [lo, bandRun[0], bandRun[1], hi].forEach((t, i) => expect(ticks[i]).toBeCloseTo(t, 6));
+    // Label order is near stop, band, far stop; each must sit on ITS run.
+    const [nearAt, bandAt, farAt] = at(g, axis);
+    expect(nearAt).toBeGreaterThan(nearRun[0]);
+    expect(nearAt).toBeLessThan(nearRun[1]);
+    expect(bandAt).toBeGreaterThan(bandRun[0]);
+    expect(bandAt).toBeLessThan(bandRun[1]);
+    expect(farAt).toBeGreaterThan(farRun[0]);
+    expect(farAt).toBeLessThan(farRun[1]);
+  });
+
+  it.each([
+    ['row', 'x', { length: 24, width: 12, cuts: [
+      dado({ across: 'length', offset: 4, width: 0.75, stopMax: 3 }),
+    ] }, ['21"', '3"'], 'x', 'width'],
+    ['column', 'y', { cuts: [dado({ stopMax: 1 })] }, ['4-1/2"', '1"'], 'y', 'height'],
+  ] as const)('a one-stop %s leader: no near run, far run ends at the outline', (_, axis, board, texts, a, size) => {
+    const c = render1(board as unknown as Parameters<typeof createBoard>[0]);
+    const o = outline(c);
+    const lo = num(o, a);
+    const hi = lo + num(o, size);
+    const g = leaderWith(c, [...texts]);
+    const { runs, ticks } = parts(g, axis);
+    expect(runs).toHaveLength(2);
+    const [bandRun, farRun] = runs;
+    expect(bandRun[0]).toBeCloseTo(lo, 6);
+    expect(farRun[0]).toBeCloseTo(bandRun[1], 6);
+    expect(farRun[1]).toBeCloseTo(hi, 6);
+    expect(ticks).toHaveLength(3);
+    [bandRun[0], bandRun[1], hi].forEach((t, i) => expect(ticks[i]).toBeCloseTo(t, 6));
+    const [bandAt, farAt] = at(g, axis);
+    expect(bandAt).toBeGreaterThan(bandRun[0]);
+    expect(bandAt).toBeLessThan(bandRun[1]);
+    expect(farAt).toBeGreaterThan(farRun[0]);
+    expect(farAt).toBeLessThan(farRun[1]);
   });
 });

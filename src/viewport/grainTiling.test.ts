@@ -423,7 +423,7 @@ describe('boardUVSignature', () => {
     const plain = createBoard();
     const cut = { ...plain, cuts: [{
       id: 'c1', face: 'thickness' as const, from: 'max' as const,
-      across: 'width' as const, offset: 6, width: 0.75, depth: 0.25,
+      across: 'width' as const, offset: 6, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0,
     }] };
     expect(boardUVSignature(cut)).not.toBe(boardUVSignature(plain));
   });
@@ -431,9 +431,18 @@ describe('boardUVSignature', () => {
   it('changes when a cut moves', () => {
     const a = createBoard({ cuts: [{
       id: 'c1', face: 'thickness', from: 'max', across: 'width',
-      offset: 6, width: 0.75, depth: 0.25,
+      offset: 6, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0,
     }] });
     const b = { ...a, cuts: [{ ...a.cuts[0], offset: 12 }] };
+    expect(boardUVSignature(b)).not.toBe(boardUVSignature(a));
+  });
+
+  it.each(['stopMin', 'stopMax'] as const)('changes when only %s changes', (key) => {
+    const a = createBoard({ cuts: [{
+      id: 'c1', face: 'thickness', from: 'max', across: 'width',
+      offset: 6, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0,
+    }] });
+    const b = { ...a, cuts: [{ ...a.cuts[0], [key]: 1 }] };
     expect(boardUVSignature(b)).not.toBe(boardUVSignature(a));
   });
 
@@ -467,7 +476,7 @@ describe('UVs run WITH the world axis, so solids of one board agree (fu 163)', (
 
   const dado = {
     id: 'c1', face: 'thickness' as const, from: 'min' as const,
-    across: 'width' as const, offset: 10, width: 0.75, depth: 0.25,
+    across: 'width' as const, offset: 10, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0,
   };
 
   it('agrees with the signs BoxGeometry actually emits', () => {
@@ -573,7 +582,7 @@ describe('UVs run WITH the world axis, so solids of one board agree (fu 163)', (
     }),
     'oak flat, rabbet': createBoard({
       material: 'oak', length: 24, width: 5.5, thickness: 0.75,
-      cuts: [{ id: 'r1', face: 'thickness', from: 'max', across: 'width', offset: 0, width: 2, depth: 0.25 }],
+      cuts: [{ id: 'r1', face: 'thickness', from: 'max', across: 'width', offset: 0, width: 2, depth: 0.25, stopMin: 0, stopMax: 0 }],
     }),
     'plywood upright, no cut': createBoard({
       material: 'plywood', posture: 'upright', length: 24, width: 12, thickness: 0.75,

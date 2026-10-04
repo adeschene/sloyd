@@ -1,7 +1,7 @@
 import { MATERIALS, isSheetGood, sheetStockOf } from './types';
 import type { Board, Cut, Grain, SloydDocument } from './types';
 import { positionAxisOf } from './geometry';
-import { cutLabel } from './cuts';
+import { CUT_GEOMETRY_KEYS, cutLabel } from './cuts';
 import { buildDiagrams } from './diagram';
 import type { DiagramView } from './diagram';
 import { buildNesting } from './nesting';
@@ -150,11 +150,23 @@ function materialLabel(material: string): string {
  */
 function cutSignature(cuts: Cut[]): string {
   return cuts
-    .map((c) =>
-      [c.face, c.from, c.across, String(c.offset), String(c.width), String(c.depth)].join(':'),
-    )
+    .map((c) => CUT_GEOMETRY_KEYS.map((k) => String(c[k])).join(':'))
     .sort()
     .join(';');
+}
+
+/**
+ * The setup line's tail for a stopped cut, or '' for one that runs fully
+ * across — so an unstopped cut prints byte-for-byte as it did before stops
+ * existed.
+ */
+function stopClause(cut: Cut, f: (n: number) => string): string {
+  if (cut.stopMin > 0 && cut.stopMax > 0) {
+    return `, stopped ${f(cut.stopMin)} short of the min end and ${f(cut.stopMax)} short of the max end`;
+  }
+  if (cut.stopMin > 0) return `, stopped ${f(cut.stopMin)} short of the min end`;
+  if (cut.stopMax > 0) return `, stopped ${f(cut.stopMax)} short of the max end`;
+  return '';
 }
 
 /**
@@ -171,7 +183,8 @@ function setupLine(board: Board, cut: Cut, precision: number): string {
   return (
     `${f(cut.width)} ${cutLabel(board, cut)}, ${f(cut.depth)} deep — ` +
     `into the ${cut.face} face (${cut.from} side), ` +
-    `${f(cut.offset)} from the ${pos} min end, running across the ${cut.across}`
+    `${f(cut.offset)} from the ${pos} min end, running across the ${cut.across}` +
+    stopClause(cut, f)
   );
 }
 

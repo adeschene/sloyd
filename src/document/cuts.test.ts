@@ -9,7 +9,7 @@ const withCuts = (cuts: Cut[]): Board => createBoard({ cuts });
 /** The canonical case: a 3/4in dado, 1/4in deep, 6in along, across the width. */
 const DADO: Cut = {
   id: 'c1', face: 'thickness', from: 'max', across: 'width',
-  offset: 6, width: 0.75, depth: 0.25,
+  offset: 6, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0,
 };
 
 const volume = (r: Region) =>
@@ -88,7 +88,7 @@ describe('boardSolids', () => {
   });
 
   it('leaves two disconnected solids for a cut at full depth', () => {
-    const rip: Cut = { ...DADO, depth: 0.75 };
+    const rip: Cut = { ...DADO, depth: 0.75, stopMin: 0, stopMax: 0 };
     const solids = boardSolids(withCuts([rip]));
     expect(solids).toHaveLength(2);
     expect(totalVolume(solids)).toBeCloseTo(24 * 5.5 * 0.75 - 0.75 * 5.5 * 0.75, 10);
@@ -102,7 +102,7 @@ describe('boardSolids', () => {
   it('handles cuts on different faces at once', () => {
     const across: Cut = {
       id: 'c2', face: 'width', from: 'min', across: 'thickness',
-      offset: 2, width: 0.5, depth: 1,
+      offset: 2, width: 0.5, depth: 1, stopMin: 0, stopMax: 0,
     };
     const solids = boardSolids(withCuts([DADO, across]));
     expect(solids.length).toBeGreaterThan(3);
@@ -138,7 +138,7 @@ describe('boardSolids', () => {
   it('returns no solids when cuts jointly remove the entire board', () => {
     const left: Cut = {
       id: 'a', face: 'thickness', from: 'max', across: 'width',
-      offset: 0, width: 12, depth: 0.75,
+      offset: 0, width: 12, depth: 0.75, stopMin: 0, stopMax: 0,
     };
     const right: Cut = { ...left, id: 'b', offset: 12, width: 12 };
     expect(boardSolids(withCuts([left, right]))).toEqual([]);
@@ -198,7 +198,7 @@ describe('boardEdges', () => {
   // face beneath a dado'; both go red under that mutation. Do not cite this
   // one as merge coverage.
   it('gives a full-depth sever exactly two box outlines, 24 segments total', () => {
-    const rip: Cut = { ...DADO, depth: 0.75 };
+    const rip: Cut = { ...DADO, depth: 0.75, stopMin: 0, stopMax: 0 };
     const segs = boardEdges(withCuts([rip]));
     expect(segs).toHaveLength(24);
   });
@@ -212,8 +212,8 @@ describe('boardEdges', () => {
   // dado's length boundaries; if it were over-eager (bridging the gap between
   // the two dados' floors), the 36 total below would come out under instead.
   it('merges the uncut face across two unrelated dados: 4 + 8 = 12 at those planes, 36 total', () => {
-    const a: Cut = { ...DADO, id: 'a', offset: 2, width: 0.75, depth: 0.5 };
-    const b: Cut = { ...DADO, id: 'b', offset: 18, width: 0.75, depth: 0.5 };
+    const a: Cut = { ...DADO, id: 'a', offset: 2, width: 0.75, depth: 0.5, stopMin: 0, stopMax: 0 };
+    const b: Cut = { ...DADO, id: 'b', offset: 18, width: 0.75, depth: 0.5, stopMin: 0, stopMax: 0 };
     const segs = boardEdges(withCuts([a, b]));
 
     const bottom = inPlane(segs, 'thickness', 0);
@@ -315,8 +315,8 @@ describe('stockProbe', () => {
     // full-width, so validateCuts refuses neither), jointly removing all the
     // stock. boardSolids returns [] here — see its doc comment.
     const board = withCuts([
-      { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 0, width: 12, depth: 0.75 },
-      { id: 'b', face: 'thickness', from: 'min', across: 'width', offset: 12, width: 12, depth: 0.75 },
+      { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 0, width: 12, depth: 0.75, stopMin: 0, stopMax: 0 },
+      { id: 'b', face: 'thickness', from: 'min', across: 'width', offset: 12, width: 12, depth: 0.75, stopMin: 0, stopMax: 0 },
     ]);
     expect(boardSolids(board)).toHaveLength(0);
     const touches = stockProbe(board);
@@ -335,5 +335,95 @@ describe('stockProbe', () => {
     const touches = stockProbe(withCuts([]));
     expect(touches({ length: 0, width: 0, thickness: 0 })).toBe(true);
     expect(touches({ length: 24, width: 5.5, thickness: 0.75 })).toBe(true);
+  });
+});
+
+describe('cutRegion with stops', () => {
+  const b = createBoard({ length: 24, width: 6, thickness: 1 });
+  const base: Cut = {
+    id: 'c', face: 'thickness', from: 'min', across: 'width',
+    offset: 6, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0,
+  };
+  const EMPTY = { length: [0, 0], width: [0, 0], thickness: [0, 0] };
+
+  it('runs fully across when neither end is stopped', () => {
+    expect(cutRegion(b, base).width).toEqual([0, 6]);
+  });
+
+  it('stops short of the min end', () => {
+    expect(cutRegion(b, { ...base, stopMin: 1 }).width).toEqual([1, 6]);
+  });
+
+  it('stops short of the max end', () => {
+    expect(cutRegion(b, { ...base, stopMax: 2 }).width).toEqual([0, 4]);
+  });
+
+  it('stops short of both ends — a mortise — and leaves the other two spans alone', () => {
+    expect(cutRegion(b, { ...base, stopMin: 1, stopMax: 2 })).toEqual({
+      length: [6, 6.75], width: [1, 4], thickness: [0, 0.25],
+    });
+  });
+
+  it('clamps a negative stop to 0', () => {
+    expect(cutRegion(b, { ...base, stopMin: -1 }).width).toEqual([0, 6]);
+  });
+
+  it('treats a non-finite stop as no stop, so no NaN can reach the grid', () => {
+    expect(cutRegion(b, { ...base, stopMin: NaN, stopMax: Infinity }).width).toEqual([0, 6]);
+  });
+
+  it('removes nothing when the stops cross (a board shortened under its cut)', () => {
+    const crossed: Cut = { ...base, stopMin: 4, stopMax: 3 };
+    expect(cutRegion(b, crossed)).toEqual(EMPTY);
+    const cutBoard = createBoard({ length: 24, width: 6, thickness: 1, cuts: [crossed] });
+    expect(boardSolids(cutBoard)).toEqual(boardSolids(b));
+    expect(stockProbe(cutBoard)({ length: 6.375, width: 3, thickness: 0.1 })).toBe(true);
+  });
+
+  it('removes nothing when the stops exactly meet', () => {
+    expect(cutRegion(b, { ...base, stopMin: 3, stopMax: 3 })).toEqual(EMPTY);
+  });
+
+  it('leaves stock past a stopped end', () => {
+    const stopped = createBoard({
+      length: 24, width: 6, thickness: 1, cuts: [{ ...base, stopMax: 2 }],
+    });
+    const probe = stockProbe(stopped);
+    // Inside the cut's footprint, just under the surface: removed.
+    expect(probe({ length: 6.375, width: 2, thickness: 0.1 })).toBe(false);
+    // Past the stop, same depth: still wood.
+    expect(probe({ length: 6.375, width: 5, thickness: 0.1 })).toBe(true);
+  });
+});
+
+describe('cutLabel with stops', () => {
+  // 24 x 6 x 1. The position axis is length, so offset 0 or 23.25 (width 0.75) is flush.
+  const b = createBoard({ length: 24, width: 6, thickness: 1 });
+  const c = (over: Partial<Cut>): Cut => ({
+    id: 'c', face: 'thickness', from: 'min', across: 'width',
+    offset: 6, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0, ...over,
+  });
+
+  it.each<[string, Partial<Cut>]>([
+    ['dado', {}],
+    ['rabbet', { offset: 0 }],
+    ['stopped dado', { stopMax: 1 }],
+    ['stopped dado', { stopMin: 1 }],
+    ['stopped rabbet', { offset: 0, stopMax: 1 }],
+    ['mortise', { stopMin: 1, stopMax: 1 }],
+    ['through mortise', { stopMin: 1, stopMax: 1, depth: 1 }],
+    ['notch', { offset: 0, stopMin: 1, stopMax: 1 }],
+    ['notch', { offset: 23.25, stopMin: 1, stopMax: 1 }],
+    ['notch', { offset: 0, stopMin: 1, stopMax: 1, depth: 1 }],
+  ])('names %s', (want, over) => {
+    expect(cutLabel(b, c(over))).toBe(want);
+  });
+
+  it('calls a mortise a sixteenth short of full depth a mortise, not through', () => {
+    expect(cutLabel(b, c({ stopMin: 1, stopMax: 1, depth: 0.9375 }))).toBe('mortise');
+  });
+
+  it('calls a depth past the face (out of range mid-session) through', () => {
+    expect(cutLabel(b, c({ stopMin: 1, stopMax: 1, depth: 1.5 }))).toBe('through mortise');
   });
 });

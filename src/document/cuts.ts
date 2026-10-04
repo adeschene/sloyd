@@ -1,6 +1,25 @@
 import type { Board, Cut, Dimension, Region, Span } from './types';
 import { axisDimensions, boardExtents, DIMENSION_ORDER, positionAxisOf } from './geometry';
 
+/**
+ * Every field of `Cut` that decides "same cut": all but `id`.
+ *
+ * A TABLE CHECKED AGAINST THE TYPE, not a list in a function body (invariant
+ * 40). Two readers derive from it: `cutSignature` (cut-list row grouping) and
+ * `boardUVSignature` (BoardMesh's memo key). Both used to be hand-written
+ * field lists, and adding `stopMin`/`stopMax` to `Cut` without adding them
+ * there would have grouped a mortised leg with a through-dadoed one, or left
+ * the 3D view drawing a stale cut. `satisfies` makes a new `Cut` field fail
+ * `tsc` here until it is listed — invariant 15's lesson, one layer over.
+ */
+export const CUT_GEOMETRY_FIELDS = {
+  face: true, from: true, across: true, offset: true, width: true, depth: true,
+  stopMin: true, stopMax: true,
+} as const satisfies Record<Exclude<keyof Cut, 'id'>, true>;
+
+export const CUT_GEOMETRY_KEYS =
+  Object.keys(CUT_GEOMETRY_FIELDS) as (keyof typeof CUT_GEOMETRY_FIELDS)[];
+
 /** The board itself, uncut. */
 export function wholeBoard(board: Board): Region {
   return {
@@ -10,11 +29,14 @@ export function wholeBoard(board: Board): Region {
   };
 }
 
+/** A region nothing is inside: `inside`'s strict interior test can never contain a cell centre. */
+const NO_REGION = (): Region => ({ length: [0, 0], width: [0, 0], thickness: [0, 0] });
+
 /**
  * The box a cut removes, in the board's own coordinate space.
  *
- * A cut spans its `across` axis fully (that is what makes it a through-cut),
- * sits at [offset, offset + width] on the implied position axis, and reaches
+ * A cut spans its `across` axis from `stopMin` to `board[across] - stopMax` — fully, when
+ * both are 0, sits at [offset, offset + width] on the implied position axis, and reaches
  * `depth` into `face` from whichever end `from` names. This is the only place
  * `from` is consumed — everything downstream reads the region, not the cut.
  *
@@ -29,16 +51,24 @@ export function wholeBoard(board: Board): Region {
  * function from a distance — the same reasoning as `ranks()` in
  * `viewport/grainTiling.ts`. A degenerate cut removes nothing: return a
  * zero-width region, which `inside`'s strict `>`/`<` interior test can never
- * contain, whatever cell centre it is compared against.
+ * contain, whatever cell centre it is compared against. Stops that meet or
+ * cross (a board shortened under its cut) remove nothing, by the same
+ * zero-region return as the degenerate case.
  */
 export function cutRegion(board: Board, cut: Cut): Region {
-  if (cut.face === cut.across) {
-    return { length: [0, 0], width: [0, 0], thickness: [0, 0] };
-  }
+  if (cut.face === cut.across) return NO_REGION();
   const pos = positionAxisOf(cut.face, cut.across);
   const faceDim = board[cut.face];
+  const acrossDim = board[cut.across];
+  // Total, like the face === across guard: a Board built directly can carry a
+  // non-finite or out-of-range stop, and a shortened board can leave legal
+  // stops crossing. Neither may put NaN or a backwards span into the grid.
+  const stop = (s: number) => (Number.isFinite(s) ? Math.min(Math.max(s, 0), acrossDim) : 0);
+  const lo = stop(cut.stopMin);
+  const hi = acrossDim - stop(cut.stopMax);
+  if (lo >= hi) return NO_REGION();
   const region = {} as Region;
-  region[cut.across] = [0, board[cut.across]];
+  region[cut.across] = [lo, hi];
   region[pos] = [cut.offset, cut.offset + cut.width];
   region[cut.face] = cut.from === 'min'
     ? [0, cut.depth]
@@ -356,12 +386,21 @@ export function pointToLocalXYZ(board: Board, point: Point): [number, number, nu
  */
 const FLUSH_EPSILON = 1e-9;
 
+/** Every name a cut can have. Derived from its shape by cutLabel, never stored. */
+export type CutKind =
+  | 'dado' | 'rabbet'
+  | 'stopped dado' | 'stopped rabbet'
+  | 'mortise' | 'through mortise'
+  | 'notch';
+
 /**
- * What a cut is called. Derived from the geometry rather than stored, so the
- * label can never disagree with the cut: a rabbet is the same removal as a
- * dado, taken flush with one end of the position axis.
+ * What a cut is called — dado, rabbet, their stopped forms, mortise, through
+ * mortise or notch (the table in the stopped-cuts spec §4.1). Derived from the
+ * geometry rather than stored, so the label can never disagree with the cut: a
+ * rabbet is the same removal as a dado, taken flush with one end of the
+ * position axis.
  */
-export function cutLabel(board: Board, cut: Cut): 'dado' | 'rabbet' {
+export function cutLabel(board: Board, cut: Cut): CutKind {
   const pos = positionAxisOf(cut.face, cut.across);
   // A cut flush with both ends at once (spanning the whole position axis)
   // still satisfies this OR and reads as a rabbet — deliberate, not an
@@ -369,5 +408,12 @@ export function cutLabel(board: Board, cut: Cut): 'dado' | 'rabbet' {
   // also full-depth, so a full-span, partial-depth cut is a legal input here.
   const flush = cut.offset === 0 ||
     Math.abs(cut.offset + cut.width - board[pos]) < FLUSH_EPSILON;
-  return flush ? 'rabbet' : 'dado';
+  // Stopped is compared exactly: a stop is a stored value the user typed, with
+  // no arithmetic on the way in (invariant 18), unlike `flush`'s far-end test.
+  const stops = (cut.stopMin > 0 ? 1 : 0) + (cut.stopMax > 0 ? 1 : 0);
+  if (stops === 0) return flush ? 'rabbet' : 'dado';
+  if (stops === 1) return flush ? 'stopped rabbet' : 'stopped dado';
+  if (flush) return 'notch';
+  // `>=`, not `===`: a depth left past the face mid-session is still through.
+  return cut.depth >= board[cut.face] ? 'through mortise' : 'mortise';
 }

@@ -846,6 +846,8 @@ export const useStore = create<StoreState>((set, get) => {
         offset: board.length / 4,
         width: Math.min(0.75, board.length / 4),
         depth: board.thickness / 2,
+        stopMin: 0,
+        stopMax: 0,
       };
       edit((doc) => ({
         ...doc,

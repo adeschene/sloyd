@@ -1,5 +1,5 @@
 import { useStore } from './store';
-import { createBoard, createDocument, boardCenter, boardSnapPoints, cutSnapPoints } from '../document/document';
+import { createBoard, createDocument, boardCenter, boardSnapPoints, cutSnapPoints, sameSnapPoint } from '../document/document';
 
 const reset = () => useStore.getState().replaceDocument(createDocument('Test'));
 
@@ -423,6 +423,19 @@ describe('cuts', () => {
     useStore.getState().addBoard();
   });
 
+  it('adds a cut that is not stopped', () => {
+    useStore.getState().addCut(boardId());
+    expect(cuts()[0]).toMatchObject({ stopMin: 0, stopMax: 0 });
+  });
+
+  it('keeps the stops when the board is duplicated', () => {
+    useStore.getState().addCut(boardId());
+    useStore.getState().updateCut(boardId(), cuts()[0].id, { stopMin: 1, stopMax: 0.5 });
+    useStore.getState().duplicateBoard(boardId());
+    const copy = useStore.getState().doc.boards[1];
+    expect(copy.cuts[0]).toMatchObject({ stopMin: 1, stopMax: 0.5 });
+  });
+
   it('adds a cut with a default that fits the board', () => {
     useStore.getState().addCut(boardId());
     expect(cuts()).toHaveLength(1);
@@ -734,6 +747,40 @@ describe('the Move tool', () => {
     const cutId = useStore.getState().doc.boards.find((x) => x.id === a.id)!.cuts[0].id;
     useStore.getState().updateCut(a.id, cutId, { offset: 9 });
     expect(useStore.getState().grabbed).toBeNull();
+  });
+
+  /** Points of a's cut that a stopMin edit to 1 removes, and ones it keeps. */
+  const stopEditSplit = (id: string) => {
+    const board = useStore.getState().doc.boards.find((x) => x.id === id)!;
+    const before = cutSnapPoints(board);
+    const after = cutSnapPoints({ ...board, cuts: [{ ...board.cuts[0], stopMin: 1 }] });
+    const gone = before.find((p) => !after.some((q) => sameSnapPoint(p, q)));
+    const kept = before.find((p) => after.some((q) => sameSnapPoint(p, q)));
+    expect(gone, 'fixture: a stop edit must remove some point').toBeDefined();
+    expect(kept, 'fixture: a stop edit must keep some point').toBeDefined();
+    return { gone: gone!, kept: kept! };
+  };
+
+  it('drops a grab on a point a stop edit removes', () => {
+    const { a } = twoBoards();
+    useStore.getState().setTool('move');
+    useStore.getState().addCut(a.id);
+    const { gone } = stopEditSplit(a.id);
+    useStore.getState().grabSnapPoint(gone);
+    const cutId = useStore.getState().doc.boards.find((x) => x.id === a.id)!.cuts[0].id;
+    useStore.getState().updateCut(a.id, cutId, { stopMin: 1 });
+    expect(useStore.getState().grabbed).toBeNull();
+  });
+
+  it('KEEPS a grab on a point a stop edit leaves in place', () => {
+    const { a } = twoBoards();
+    useStore.getState().setTool('move');
+    useStore.getState().addCut(a.id);
+    const { kept } = stopEditSplit(a.id);
+    useStore.getState().grabSnapPoint(kept);
+    const cutId = useStore.getState().doc.boards.find((x) => x.id === a.id)!.cuts[0].id;
+    useStore.getState().updateCut(a.id, cutId, { stopMin: 1 });
+    expect(useStore.getState().grabbed).not.toBeNull();
   });
 
   it('KEEPS a grab on a box corner when a cut is added to the same board', () => {

@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import type { DiagramView } from '../document/document';
+import type { DiagramCut, DiagramView, Span } from '../document/document';
 import { bandOn, fitView, DRAW_WIDTH } from './diagramScale';
 import { labelWidth, labelHeight, packRow, LABEL_ASCENT, LABEL_SIZE } from './diagramLabels';
 
@@ -7,7 +7,7 @@ import { labelWidth, labelHeight, packRow, LABEL_ASCENT, LABEL_SIZE } from './di
 const TOP = 4;
 /** Clearance between the outline and the leader stack. */
 const GAP = 16;
-/** One stacked leader row per horizontal-axis cut. */
+/** One stacked leader row per row leader (a horizontal-axis cut's position, or a stopped vertical-axis cut's stops). */
 const ROW = 26;
 /** The overall-length run along the bottom. */
 const BOTTOM = 34;
@@ -39,6 +39,61 @@ export const LEFT_PAD = 12;
 const COL = labelHeight() + 2 * TICK + COL_GAP;
 /** The full drawable interval — the viewBox, not the outline. */
 const VIEW_W = DRAW_WIDTH + RIGHT;
+
+/**
+ * One measured run beside the outline. A cut's POSITION leader (offset run,
+ * band, then depth with no run of its own) or, for a stopped cut, its STOP
+ * leader in the other orientation (near-stop run, band, far-stop run) — the
+ * stops measure along `across`, perpendicular to the position.
+ *
+ * Every string arrives from `buildDiagrams`; this formats nothing.
+ */
+interface Leader {
+  key: string;
+  /** Board inches along this leader's own axis. */
+  span: Span;
+  /** Labels the run from the outline's near edge to the band. Absent: no run is drawn. */
+  before?: string;
+  band: string;
+  /** Labels the run from the band to the outline's far edge. Absent: no run is drawn. */
+  after?: string;
+  /** A label just past the band with no run of its own (depth). */
+  trailing?: string;
+}
+
+const positionLeader = (cut: DiagramCut, span: Span): Leader => ({
+  key: cut.id, span, before: cut.offsetLabel, band: cut.widthLabel, trailing: cut.depthLabel,
+});
+
+/** Null for a cut that is not stopped — `lengthLabel` is present exactly when it is. */
+const stopLeader = (cut: DiagramCut, span: Span): Leader | null =>
+  cut.lengthLabel === undefined
+    ? null
+    : { key: `${cut.id}-stop`, span, before: cut.stopMinLabel, band: cut.lengthLabel, after: cut.stopMaxLabel };
+
+const present = <T,>(x: T | null): x is T => x !== null;
+
+/**
+ * A leader's labels in drawing order, each centred on what it measures. `lo`
+ * and `hi` are the outline's edges on the leader's axis, `b` its band. The
+ * position leader's three centres are exactly the ones this file used before
+ * stops existed — the characterisation test pins that.
+ */
+const labelItems = (l: Leader, lo: number, hi: number, b: { start: number; size: number }) => {
+  const items: { text: string; centre: number; width: number }[] = [];
+  if (l.before !== undefined) {
+    items.push({ text: l.before, centre: (lo + b.start) / 2, width: labelWidth(l.before) });
+  }
+  items.push({ text: l.band, centre: b.start + b.size / 2, width: labelWidth(l.band) });
+  if (l.after !== undefined) {
+    items.push({ text: l.after, centre: (b.start + b.size + hi) / 2, width: labelWidth(l.after) });
+  }
+  if (l.trailing !== undefined) {
+    const w = labelWidth(l.trailing);
+    items.push({ text: l.trailing, centre: b.start + b.size + GAP_X + w / 2, width: w });
+  }
+  return items;
+};
 
 /**
  * One view of a part, as a schematic.
@@ -79,6 +134,13 @@ const VIEW_W = DRAW_WIDTH + RIGHT;
  * collision that prompted it: depth runs PERPENDICULAR to this view. It has no
  * position on the page, so centring it on its band was never spatially
  * meaningful — placing it beside the band is honest about that.
+ *
+ * A STOPPED cut adds a second leader in the OTHER orientation — its stops
+ * measure along `across`, which is perpendicular to its position — so a
+ * stopped horizontal-axis cut gets a column and a stopped vertical-axis cut a
+ * row. Leaders, not cuts, are what get a row or a column now; position leaders
+ * come first, so a diagram with no stopped cut draws exactly as it did before
+ * (pinned by the characterisation test, by layout hash).
  */
 export function PartDiagram({ view }: { view: DiagramView }) {
   // A `<pattern>` id must be unique in the document: two diagrams sharing one
@@ -99,11 +161,22 @@ export function PartDiagram({ view }: { view: DiagramView }) {
 
   const hCuts = view.cuts.filter((c) => c.axis === 'h');
   const vCuts = view.cuts.filter((c) => c.axis === 'v');
-  // The left gutter: one COL-wide column per vertical-axis cut, plus a fixed
+  // Position leaders first, in their existing order, so every unstopped
+  // diagram draws exactly as before; a stopped cut's stop leader is appended
+  // in the OTHER orientation (its stops run along `across`).
+  const rowLeaders: Leader[] = [
+    ...hCuts.map((c) => positionLeader(c, c.h)),
+    ...vCuts.map((c) => stopLeader(c, c.h)).filter(present),
+  ];
+  const colLeaders: Leader[] = [
+    ...vCuts.map((c) => positionLeader(c, c.v)),
+    ...hCuts.map((c) => stopLeader(c, c.v)).filter(present),
+  ];
+  // The left gutter: one COL-wide column per vertical leader, plus a fixed
   // pad separating the last column's tick marks from the outline. Zero when
-  // there are none, so a board with no vertical-axis cuts draws exactly as it
+  // there are none, so a board with no vertical leaders draws exactly as it
   // did before this round.
-  const left = COL * vCuts.length + (vCuts.length ? LEFT_PAD : 0);
+  const left = COL * colLeaders.length + (colLeaders.length ? LEFT_PAD : 0);
 
   const top = TOP;
   const bottom = top + fit.drawnV;
@@ -112,19 +185,12 @@ export function PartDiagram({ view }: { view: DiagramView }) {
   // Column labels, packed UNBOUNDED (see the module doc comment for why no
   // upper bound is assumed here). Computed before `height` because `height`
   // has to grow to fit whichever column runs deepest.
-  const columns = vCuts.map((cut, i) => {
-    const b = bandOn(cut.v, fit.sy, top, fit.drawnV);
-    const depthW = labelWidth(cut.depthLabel);
-    const [oy, wy, dy] = packRow(
-      [
-        { centre: (top + b.start) / 2, width: labelWidth(cut.offsetLabel) },
-        { centre: b.start + b.size / 2, width: labelWidth(cut.widthLabel) },
-        { centre: b.start + b.size + GAP_X + depthW / 2, width: depthW },
-      ],
-      top, Infinity, GAP_X,
-    );
+  const columns = colLeaders.map((l, i) => {
+    const b = bandOn(l.span, fit.sy, top, fit.drawnV);
+    const items = labelItems(l, top, bottom, b);
+    const ys = packRow(items, top, Infinity, GAP_X);
     return {
-      cut, b, oy, wy, dy, depthW,
+      l, b, items, ys,
       // Anchored at `fit.offsetX`, not 0 — under the shrink branch (a tall
       // narrow board) `offsetX` can be several hundred units, and the gutter
       // has to sit immediately left of the OUTLINE, not left of the viewBox's
@@ -135,11 +201,13 @@ export function PartDiagram({ view }: { view: DiagramView }) {
       labelX: fit.offsetX + COL * i + LABEL_ASCENT,
     };
   });
+  // The figure grows to fit whichever column's LAST label runs deepest — the
+  // depth label for a position column, the far stop (or band) for a stop column.
   const maxColumnBottom = columns.length
-    ? Math.max(...columns.map((c) => c.dy + c.depthW / 2))
+    ? Math.max(...columns.map((c) => c.ys[c.ys.length - 1] + c.items[c.items.length - 1].width / 2))
     : 0;
 
-  const height = Math.max(leaders + ROW * hCuts.length + BOTTOM, maxColumnBottom + BOTTOM);
+  const height = Math.max(leaders + ROW * rowLeaders.length + BOTTOM, maxColumnBottom + BOTTOM);
   const baseline = height - BOTTOM / 2;
 
   // The overall-width label always sits BESIDE the outline, never pulled back
@@ -220,58 +288,54 @@ export function PartDiagram({ view }: { view: DiagramView }) {
           );
         })}
 
-        {hCuts.map((cut, i) => {
-          const b = bandOn(cut.h, fit.sx, left + fit.offsetX, fit.drawnH);
+        {rowLeaders.map((l, i) => {
+          const lo = left + fit.offsetX;
+          const hi = lo + fit.drawnH;
+          const b = bandOn(l.span, fit.sx, lo, fit.drawnH);
+          const end = b.start + b.size;
           const y = leaders + ROW * i + ROW / 2;
-          const depthW = labelWidth(cut.depthLabel);
-          // In board order, left to right: the offset run, the band, then depth
-          // just clear of the band. `packRow` preserves that order.
-          //
+          const items = labelItems(l, lo, hi, b);
           // Bound at the board's left edge, not the viewBox's. A label centred
           // on a run shorter than itself would otherwise start left of the
           // board — harmless in isolation, but the row's leader LINE already
           // starts at `left + fit.offsetX`, so a label drifting left of its own
           // line's origin reads as belonging to nothing.
-          const [ox, wx, dx] = packRow(
-            [
-              { centre: (left + fit.offsetX + b.start) / 2, width: labelWidth(cut.offsetLabel) },
-              { centre: b.start + b.size / 2, width: labelWidth(cut.widthLabel) },
-              { centre: b.start + b.size + GAP_X + depthW / 2, width: depthW },
-            ],
-            left + fit.offsetX, viewW, GAP_X,
-          );
+          const xs = packRow(items, lo, viewW, GAP_X);
           return (
-            <g className="cutlist-diagram-leader" key={cut.id}>
-              <line x1={left + fit.offsetX} y1={y} x2={b.start} y2={y} />
-              <line x1={b.start} y1={y} x2={b.start + b.size} y2={y} />
-              <line x1={left + fit.offsetX} y1={y - TICK} x2={left + fit.offsetX} y2={y + TICK} />
+            <g className="cutlist-diagram-leader" key={l.key}>
+              {l.before !== undefined && <line x1={lo} y1={y} x2={b.start} y2={y} />}
+              <line x1={b.start} y1={y} x2={end} y2={y} />
+              {l.before !== undefined && <line x1={lo} y1={y - TICK} x2={lo} y2={y + TICK} />}
               <line x1={b.start} y1={y - TICK} x2={b.start} y2={y + TICK} />
-              <line x1={b.start + b.size} y1={y - TICK} x2={b.start + b.size} y2={y + TICK} />
-              <text x={ox} y={y - 6} textAnchor="middle">{cut.offsetLabel}</text>
-              <text x={wx} y={y - 6} textAnchor="middle">{cut.widthLabel}</text>
-              <text x={dx} y={y - 6} textAnchor="middle">{cut.depthLabel}</text>
+              <line x1={end} y1={y - TICK} x2={end} y2={y + TICK} />
+              {l.after !== undefined && <line x1={end} y1={y} x2={hi} y2={y} />}
+              {l.after !== undefined && <line x1={hi} y1={y - TICK} x2={hi} y2={y + TICK} />}
+              {items.map((it, k) => (
+                <text key={k} x={xs[k]} y={y - 6} textAnchor="middle">{it.text}</text>
+              ))}
             </g>
           );
         })}
 
-        {columns.map(({ cut, b, oy, wy, dy, x, labelX }) => (
-          <g className="cutlist-diagram-leader cutlist-diagram-leader-v" key={cut.id}>
-            <line x1={x} y1={top} x2={x} y2={b.start} />
-            <line x1={x} y1={b.start} x2={x} y2={b.start + b.size} />
-            <line x1={x - TICK} y1={top} x2={x + TICK} y2={top} />
-            <line x1={x - TICK} y1={b.start} x2={x + TICK} y2={b.start} />
-            <line x1={x - TICK} y1={b.start + b.size} x2={x + TICK} y2={b.start + b.size} />
-            <text x={labelX} y={oy} textAnchor="middle" transform={`rotate(-90 ${labelX} ${oy})`}>
-              {cut.offsetLabel}
-            </text>
-            <text x={labelX} y={wy} textAnchor="middle" transform={`rotate(-90 ${labelX} ${wy})`}>
-              {cut.widthLabel}
-            </text>
-            <text x={labelX} y={dy} textAnchor="middle" transform={`rotate(-90 ${labelX} ${dy})`}>
-              {cut.depthLabel}
-            </text>
-          </g>
-        ))}
+        {columns.map(({ l, b, items, ys, x, labelX }) => {
+          const end = b.start + b.size;
+          return (
+            <g className="cutlist-diagram-leader cutlist-diagram-leader-v" key={l.key}>
+              {l.before !== undefined && <line x1={x} y1={top} x2={x} y2={b.start} />}
+              <line x1={x} y1={b.start} x2={x} y2={end} />
+              {l.before !== undefined && <line x1={x - TICK} y1={top} x2={x + TICK} y2={top} />}
+              <line x1={x - TICK} y1={b.start} x2={x + TICK} y2={b.start} />
+              <line x1={x - TICK} y1={end} x2={x + TICK} y2={end} />
+              {l.after !== undefined && <line x1={x} y1={end} x2={x} y2={bottom} />}
+              {l.after !== undefined && <line x1={x - TICK} y1={bottom} x2={x + TICK} y2={bottom} />}
+              {items.map((it, k) => (
+                <text key={k} x={labelX} y={ys[k]} textAnchor="middle" transform={`rotate(-90 ${labelX} ${ys[k]})`}>
+                  {it.text}
+                </text>
+              ))}
+            </g>
+          );
+        })}
 
         <g className="cutlist-diagram-leader">
           <line x1={left + fit.offsetX} y1={baseline} x2={left + fit.offsetX + fit.drawnH} y2={baseline} />

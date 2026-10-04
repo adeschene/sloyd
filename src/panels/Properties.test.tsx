@@ -604,4 +604,125 @@ describe('cuts', () => {
 
     expect(screen.queryByText(/would remove the whole board/i)).not.toBeInTheDocument();
   });
+
+  const stored = (id: string) => useStore.getState().doc.boards.find((b) => b.id === id)!.cuts[0];
+  const typeInto = async (label: RegExp, text: string) => {
+    const field = screen.getByLabelText(label);
+    await userEvent.clear(field);
+    await userEvent.type(field, text);
+    await userEvent.tab();
+  };
+
+  it('commits both stops and names the cut a mortise', async () => {
+    const id = renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    await typeInto(/stop short of near end/i, '1');
+    await typeInto(/stop short of far end/i, '1.5');
+    expect(stored(id)).toMatchObject({ stopMin: 1, stopMax: 1.5 });
+    expect(screen.getByText('mortise')).toBeInTheDocument();
+  });
+
+  it('names a cut stopped at one end a stopped dado', async () => {
+    renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    await typeInto(/stop short of far end/i, '1');
+    expect(screen.getByText('stopped dado')).toBeInTheDocument();
+  });
+
+  it('refuses stops that exactly use up the across dimension', async () => {
+    const id = renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    await typeInto(/stop short of near end/i, '3');
+    // 3 + 2.5 = 5.5, the board's width: no cut left. The field's max allows
+    // equality, so this is the row's refusal, not DimensionField's.
+    await typeInto(/stop short of far end/i, '2.5');
+    expect(screen.getByText(/would leave no cut/i)).toBeInTheDocument();
+    expect(stored(id).stopMax).toBe(0);
+  });
+
+  it('clears the leave-no-cut error after an undo resolves it', async () => {
+    renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    await typeInto(/stop short of near end/i, '3');
+    await typeInto(/stop short of far end/i, '2.5');
+    expect(screen.getByText(/would leave no cut/i)).toBeInTheDocument();
+    // Undoes stopMin = 3 (the refused stopMax never reached the stack). With
+    // stopMin back at 0 nothing is wrong, so the error must not outlive it.
+    act(() => { useStore.getState().undo(); });
+    expect(screen.queryByText(/would leave no cut/i)).not.toBeInTheDocument();
+  });
+
+  it('resets both stops when Runs across changes', async () => {
+    const id = renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    await typeInto(/stop short of near end/i, '1');
+    await typeInto(/stop short of far end/i, '1');
+    const across = screen.getByLabelText(/runs across/i) as HTMLSelectElement;
+    const other = [...across.options].map((o) => o.value).find((v) => v !== across.value)!;
+    await userEvent.selectOptions(across, other);
+    expect(stored(id)).toMatchObject({ stopMin: 0, stopMax: 0 });
+  });
+
+  it('keeps the stops when Cut into changes and across does not', async () => {
+    const id = renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    await typeInto(/stop short of near end/i, '1');
+    // Face -> End (length). across stays width, so the stops still mean what they said.
+    await userEvent.selectOptions(screen.getByLabelText(/cut into/i), 'length');
+    expect(stored(id).across).toBe('width');
+    expect(stored(id).stopMin).toBe(1);
+  });
+
+  it('resets the stops when Cut into takes the across dimension', async () => {
+    const id = renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    await typeInto(/stop short of near end/i, '1');
+    // Face -> Edge (width) moves across off width.
+    await userEvent.selectOptions(screen.getByLabelText(/cut into/i), 'width');
+    expect(stored(id).across).not.toBe('width');
+    expect(stored(id)).toMatchObject({ stopMin: 0, stopMax: 0 });
+  });
+
+  it('allows a full-depth, full-width cut that stops short', async () => {
+    const id = renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    await typeInto(/stop short of far end/i, '1');
+    await typeInto(/from the end/i, '0');
+    await typeInto(/cut width/i, '24');
+    await typeInto(/^depth$/i, '3/4');
+    expect(screen.queryByText(/would remove the whole board/i)).not.toBeInTheDocument();
+    expect(stored(id)).toMatchObject({ offset: 0, width: 24, depth: 0.75, stopMax: 1 });
+  });
+
+  it('allows a full-depth, full-width cut that stops short at the near end', async () => {
+    const id = renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    await typeInto(/stop short of near end/i, '1');
+    await typeInto(/from the end/i, '0');
+    await typeInto(/cut width/i, '24');
+    await typeInto(/^depth$/i, '3/4');
+    expect(screen.queryByText(/would remove the whole board/i)).not.toBeInTheDocument();
+    expect(stored(id)).toMatchObject({ offset: 0, width: 24, depth: 0.75, stopMin: 1 });
+  });
+
+  it('keeps a cut editable after a board shrink leaves its stops crossing', async () => {
+    const id = renderWithBoard();
+    await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
+    await typeInto(/stop short of near end/i, '3');
+    await typeInto(/stop short of far end/i, '2');
+    expect(stored(id)).toMatchObject({ stopMin: 3, stopMax: 2 });
+    // Width 5.5 -> 2: 3 + 2 >= 2, so the cut now has no length across.
+    act(() => { useStore.getState().updateBoard(id, { width: 2 }); });
+
+    await typeInto(/from the end/i, '1');
+    expect(screen.queryByText(/would leave no cut/i)).not.toBeInTheDocument();
+    expect(stored(id).offset).toBe(1);
+
+    await typeInto(/stop short of far end/i, '0');
+    expect(stored(id).stopMax).toBe(0);
+
+    await typeInto(/stop short of near end/i, '1');
+    expect(stored(id).stopMin).toBe(1);
+    expect(stored(id).stopMin + stored(id).stopMax).toBeLessThan(2);
+  });
 });

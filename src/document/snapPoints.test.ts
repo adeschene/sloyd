@@ -136,8 +136,8 @@ describe('boardSnapPoints', () => {
     // set coming back empty (design §5.1) — a board could in principle have
     // every box point in removed stock while stock remains in its middle.
     const consumed = posed([
-      { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 0, width: 12, depth: 1 },
-      { id: 'b', face: 'thickness', from: 'min', across: 'width', offset: 12, width: 12, depth: 1 },
+      { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 0, width: 12, depth: 1, stopMin: 0, stopMax: 0 },
+      { id: 'b', face: 'thickness', from: 'min', across: 'width', offset: 12, width: 12, depth: 1, stopMin: 0, stopMax: 0 },
     ]);
     expect(boardSolids(consumed)).toHaveLength(0);
     expect(boardSnapPoints(consumed)).toHaveLength(26);
@@ -191,7 +191,7 @@ const posed = (cuts: Cut[]): Board =>
 /** A 3/4in-wide, 1/4in-deep dado at 6in along, across the width, from `max`. */
 const DADO: Cut = {
   id: 'c1', face: 'thickness', from: 'max', across: 'width',
-  offset: 6, width: 0.75, depth: 0.25,
+  offset: 6, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0,
 };
 
 const key = (at: readonly number[]) => at.join(',');
@@ -274,7 +274,7 @@ describe('cutSnapPoints', () => {
   it('places all 15 points correctly for from: "min" (mouth and floor swapped)', () => {
     const DADO_MIN: Cut = {
       id: 'c1min', face: 'thickness', from: 'min', across: 'width',
-      offset: 6, width: 0.75, depth: 0.25,
+      offset: 6, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0,
     };
     const points = cutSnapPoints(posed([DADO_MIN]));
     const got = new Map(points.map((p) => [key(p.at), p.kind]));
@@ -404,7 +404,7 @@ describe('cutSnapPoints', () => {
     // provider calls it a corner (no in-plane mids). Same position, same
     // owner, so the DELTA is identical either way and the move is unaffected
     // — which is the whole of the argument for not de-duplicating (design §9).
-    const rabbet: Cut = { ...DADO, offset: 0, width: 2, depth: 0.5 };
+    const rabbet: Cut = { ...DADO, offset: 0, width: 2, depth: 0.5, stopMin: 0, stopMax: 0 };
     const b = posed([rabbet]);
     const shared = [10.5, 2, -5];
     const hits = snapPointsFor(b).filter((p) => key(p.at) === key(shared));
@@ -418,7 +418,7 @@ describe('cutSnapPoints', () => {
     // removed stock. Only B's 15 survive.
     const deeper: Cut = {
       id: 'c2', face: 'thickness', from: 'max', across: 'width',
-      offset: 5, width: 3, depth: 0.5,
+      offset: 5, width: 3, depth: 0.5, stopMin: 0, stopMax: 0,
     };
     const points = cutSnapPoints(posed([DADO, deeper]));
     expect(points).toHaveLength(15);
@@ -429,8 +429,8 @@ describe('cutSnapPoints', () => {
 
   it('offers nothing on a board its own cuts consumed', () => {
     const board = posed([
-      { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 0, width: 12, depth: 1 },
-      { id: 'b', face: 'thickness', from: 'min', across: 'width', offset: 12, width: 12, depth: 1 },
+      { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 0, width: 12, depth: 1, stopMin: 0, stopMax: 0 },
+      { id: 'b', face: 'thickness', from: 'min', across: 'width', offset: 12, width: 12, depth: 1, stopMin: 0, stopMax: 0 },
     ]);
     expect(boardSolids(board)).toHaveLength(0);
     expect(cutSnapPoints(board)).toEqual([]);
@@ -439,6 +439,61 @@ describe('cutSnapPoints', () => {
   it('offers nothing for a degenerate cut naming one dimension twice', () => {
     const degenerate: Cut = { ...DADO, face: 'width', across: 'width' };
     expect(cutSnapPoints(posed([degenerate]))).toEqual([]);
+  });
+});
+
+describe('cutSnapPoints — every through-cut offers exactly what it did before stops', () => {
+  const counts = (cuts: Cut[]) => {
+    const pts = cutSnapPoints(posed(cuts));
+    return [
+      pts.filter((p) => p.kind === 'corner').length,
+      pts.filter((p) => p.kind === 'edge-mid').length,
+      pts.filter((p) => p.kind === 'face-center').length,
+    ];
+  };
+
+  it.each<[string, Cut[], number[]]>([
+    ['dado', [DADO], [8, 6, 1]],
+    ['rabbet at the min end', [{ ...DADO, offset: 0, width: 2 }], [6, 5, 1]],
+    ['rabbet at the max end', [{ ...DADO, offset: 22, width: 2 }], [6, 5, 1]],
+    ['dado from the min side', [{ ...DADO, from: 'min' }], [8, 6, 1]],
+    ['edge groove', [{ ...DADO, face: 'width', across: 'length', offset: 0.25, width: 0.5, depth: 0.5 }], [8, 6, 1]],
+    ['end slot', [{ ...DADO, face: 'length', across: 'thickness', offset: 2, width: 1, depth: 3 }], [8, 6, 1]],
+    ['full-depth dado', [{ ...DADO, depth: 1 }], [8, 4, 0]],
+    ['two overlapping dados', [DADO, { ...DADO, id: 'c2', offset: 6.5, depth: 0.5 }], [10, 9, 2]],
+    ['crossing dado and groove', [DADO, { ...DADO, id: 'c2', across: 'length', offset: 2, width: 0.5 }], [16, 12, 2]],
+  ])('%s', (_, cuts, pinned) => {
+    expect(counts(cuts)).toEqual(pinned);
+  });
+});
+
+describe('cutSnapPoints — stopped cuts', () => {
+  it('offers 17 for a blind mortise: the mouth\'s whole opening plus the floor', () => {
+    expect(cutSnapPoints(posed([{ ...DADO, stopMin: 1, stopMax: 2 }]))).toHaveLength(17);
+  });
+
+  it('offers the midpoints of a mortise\'s stopped ends at the mouth', () => {
+    // across (width) runs 1..4 -> Y 3..6; its mid 2.5 -> Y 4.5.
+    const keys = cutSnapPoints(posed([{ ...DADO, stopMin: 1, stopMax: 2 }])).map((p) => key(p.at));
+    expect(keys).toContain(key([11, 3, 1.375]));
+    expect(keys).toContain(key([11, 6, 1.375]));
+    // The mouth's own centre sits in the hole — never offered.
+    expect(keys).not.toContain(key([11, 4.5, 1.375]));
+  });
+
+  it('offers a stopped dado\'s stopped end at the mouth, and not its open end', () => {
+    // stopMax 2: across runs 0..4 -> Y 2..6. The open end (Y 2) is the board's own edge.
+    const keys = cutSnapPoints(posed([{ ...DADO, stopMax: 2 }])).map((p) => key(p.at));
+    expect(keys).toContain(key([11, 6, 1.375]));
+    expect(keys).not.toContain(key([11, 2, 1.375]));
+  });
+
+  it('puts a through mortise\'s floor on the far surface, minus its centre (no stock there)', () => {
+    const pts = cutSnapPoints(posed([{ ...DADO, depth: 1, stopMin: 1, stopMax: 2 }]));
+    const floor = pts.filter((p) => p.at[0] === 10);
+    expect(floor).toHaveLength(8);
+    expect(floor.map((p) => key(p.at))).not.toContain(key([10, 4.5, 1.375]));
+    expect(pts).toHaveLength(16);
   });
 });
 
@@ -458,8 +513,8 @@ describe('snapPointsFor', () => {
     // The ghost box IS drawn at the AABB (invariant 21), so the box points
     // still sit on a drawn feature; nothing draws the cut's shoulders.
     const board = posed([
-      { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 0, width: 12, depth: 1 },
-      { id: 'b', face: 'thickness', from: 'min', across: 'width', offset: 12, width: 12, depth: 1 },
+      { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 0, width: 12, depth: 1, stopMin: 0, stopMax: 0 },
+      { id: 'b', face: 'thickness', from: 'min', across: 'width', offset: 12, width: 12, depth: 1, stopMin: 0, stopMax: 0 },
     ]);
     expect(snapPointsFor(board)).toHaveLength(26);
   });

@@ -96,7 +96,7 @@ describe('buildCutList', () => {
 
   const dado = (over: Partial<Cut> = {}): Cut => ({
     id: 'c1', face: 'thickness', from: 'min', across: 'width',
-    offset: 6, width: 0.75, depth: 0.25, ...over,
+    offset: 6, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0, ...over,
   });
 
   it('has no setup lines for a board with no cuts', () => {
@@ -115,6 +115,60 @@ describe('buildCutList', () => {
     const list = buildCutList(docWith({ cuts: [dado({ offset: 0 })] }));
     expect(list.groups[0].rows[0].setup[0]).toContain('3/4" rabbet');
     expect(list.groups[0].rows[0].setup[0]).toContain('0" from the length min end');
+  });
+
+  it('prints an unstopped rabbet exactly as before', () => {
+    const list = buildCutList(docWith({ cuts: [dado({ offset: 0 })] }));
+    expect(list.groups[0].rows[0].setup).toEqual([
+      '3/4" rabbet, 1/4" deep — into the thickness face (min side), ' +
+      '0" from the length min end, running across the width',
+    ]);
+  });
+
+  it('adds a clause for a stop at the max end', () => {
+    const list = buildCutList(docWith({ cuts: [dado({ stopMax: 1 })] }));
+    expect(list.groups[0].rows[0].setup).toEqual([
+      '3/4" stopped dado, 1/4" deep — into the thickness face (min side), ' +
+      '6" from the length min end, running across the width, stopped 1" short of the max end',
+    ]);
+  });
+
+  it('adds a clause for a stop at the min end', () => {
+    const list = buildCutList(docWith({ cuts: [dado({ stopMin: 0.5 })] }));
+    expect(list.groups[0].rows[0].setup[0]).toMatch(
+      /, running across the width, stopped 1\/2" short of the min end$/,
+    );
+  });
+
+  it('names both stops of a mortise', () => {
+    const list = buildCutList(docWith({ cuts: [dado({ stopMin: 1, stopMax: 1.5 })] }));
+    expect(list.groups[0].rows[0].setup).toEqual([
+      '3/4" mortise, 1/4" deep — into the thickness face (min side), ' +
+      '6" from the length min end, running across the width, ' +
+      'stopped 1" short of the min end and 1-1/2" short of the max end',
+    ]);
+  });
+
+  it('splits two parts that differ only in a stop into two rows', () => {
+    const list = buildCutList(docWith({ cuts: [dado()] }, { cuts: [dado({ stopMax: 1 })] }));
+    expect(list.groups[0].rows).toHaveLength(2);
+  });
+
+  it('splits two parts that differ only in which end is stopped', () => {
+    const list = buildCutList(docWith(
+      { cuts: [dado({ stopMin: 1 })] },
+      { cuts: [dado({ stopMax: 1 })] },
+    ));
+    expect(list.groups[0].rows).toHaveLength(2);
+  });
+
+  it('keeps two parts with identical stopped cuts in one row', () => {
+    const list = buildCutList(docWith(
+      { cuts: [dado({ stopMin: 1, stopMax: 1 })] },
+      { cuts: [dado({ stopMin: 1, stopMax: 1 })] },
+    ));
+    expect(list.groups[0].rows).toHaveLength(1);
+    expect(list.groups[0].rows[0].qty).toBe(2);
   });
 
   it('names the position axis from face and across, not from a stored field', () => {
@@ -190,7 +244,7 @@ describe('buildCutList', () => {
 
   it('draws the row representative\'s cuts', () => {
     const cut: Cut = { id: 'c1', face: 'thickness', from: 'min', across: 'width',
-                       offset: 6, width: 0.75, depth: 0.375 };
+                       offset: 6, width: 0.75, depth: 0.375, stopMin: 0, stopMax: 0 };
     const [row] = buildCutList(docWith({ cuts: [cut] })).groups[0].rows;
     expect(row.diagrams[0].cuts[0].h).toEqual([6, 6.75]);
   });
@@ -201,7 +255,7 @@ describe('buildCutList', () => {
     // skipped buildDiagrams would leave a sheet contradicting itself in print.
     // Assert on the STRINGS, not the numbers.
     const cut: Cut = { id: 'c1', face: 'thickness', from: 'min', across: 'width',
-                       offset: 6, width: 0.75, depth: 0.375 };
+                       offset: 6, width: 0.75, depth: 0.375, stopMin: 0, stopMax: 0 };
     const [row] = buildCutList(docWith({ cuts: [cut] })).groups[0].rows;
     const line = row.setup[0];
     const drawn = row.diagrams[0].cuts[0];
@@ -220,9 +274,9 @@ describe('buildCutList', () => {
     // relative to `setup`, and match each setup line to its cut by `id`
     // rather than by array position.
     const far: Cut = { id: 'far', face: 'thickness', from: 'min', across: 'width',
-                       offset: 12, width: 0.75, depth: 0.375 };
+                       offset: 12, width: 0.75, depth: 0.375, stopMin: 0, stopMax: 0 };
     const near: Cut = { id: 'near', face: 'thickness', from: 'min', across: 'width',
-                        offset: 6, width: 0.5, depth: 0.25 };
+                        offset: 6, width: 0.5, depth: 0.25, stopMin: 0, stopMax: 0 };
     const board = createBoard({ name: 'P0', cuts: [far, near] });
     const [row] = buildCutList({ ...createDocument('Test'), boards: [board] }).groups[0].rows;
 
@@ -242,7 +296,7 @@ describe('buildCutList', () => {
 
   it('keeps that agreement at a different precision', () => {
     const cut: Cut = { id: 'c1', face: 'thickness', from: 'min', across: 'width',
-                       offset: 6.03, width: 0.75, depth: 0.375 };
+                       offset: 6.03, width: 0.75, depth: 0.375, stopMin: 0, stopMax: 0 };
     const doc = docWith({ cuts: [cut] });
     doc.units = { display: 'imperial-fractional', precision: 32 };
     const [row] = buildCutList(doc).groups[0].rows;
@@ -283,7 +337,7 @@ describe('buildCutList', () => {
     // "fixes" this by subtracting removed stock, this test is what stops them.
     const dado: Cut = {
       id: 'c1', face: 'thickness', from: 'max', across: 'width',
-      offset: 6, width: 0.75, depth: 0.25,
+      offset: 6, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0,
     };
     const plain = buildCutList(docWith({ length: 24, width: 5.5, thickness: 0.75 }));
     const dadoed = buildCutList(docWith({ length: 24, width: 5.5, thickness: 0.75, cuts: [dado] }));

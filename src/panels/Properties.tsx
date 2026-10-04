@@ -38,6 +38,7 @@ function CutRow({ board, cut, precision }: { board: Board; cut: Cut; precision: 
   const pos = positionAxisOf(cut.face, cut.across);
   const posDim = board[pos];
   const faceDim = board[cut.face];
+  const acrossDim = board[cut.across];
 
   // Computed from the POST-patch cut, not the loader's clamped values —
   // nothing here has been clamped, so a cut can reach an out-of-range state
@@ -49,7 +50,18 @@ function CutRow({ board, cut, precision }: { board: Board; cut: Cut; precision: 
     const p = positionAxisOf(next.face, next.across);
     return next.depth >= board[next.face] &&
            next.offset <= 0 &&
-           next.width >= board[p];
+           next.width >= board[p] &&
+           next.stopMin <= 0 &&
+           next.stopMax <= 0;
+  };
+
+  // A stop pair meeting or passing across the whole `across` dimension leaves
+  // no cut. Each stop field's max refuses a sum OVER the length, but equality
+  // is a value DimensionField allows — so this is needed beside it, not
+  // instead of it. Post-patch, like wouldRemoveAll, and for the same reason.
+  const wouldLeaveNoCut = (patch: Partial<Cut>) => {
+    const next = { ...cut, ...patch };
+    return next.stopMin + next.stopMax >= board[next.across];
   };
 
   // The error is cleared eagerly on any accepted patch (below), but that only
@@ -58,16 +70,25 @@ function CutRow({ board, cut, precision }: { board: Board; cut: Cut; precision: 
   // or `board` without ever calling `set()` here — with no invalidation path
   // of its own, a stale error would otherwise outlive the condition it
   // describes indefinitely, survivable only by unmounting (removing the cut,
-  // or switching boards and back). Keyed on exactly what `wouldRemoveAll`
-  // reads, so it re-checks whenever any of that changes.
+  // or switching boards and back). Keyed on exactly what `wouldRemoveAll` and
+  // `wouldLeaveNoCut` read, so it re-checks whenever any of that changes.
   useEffect(() => {
-    if (error && !wouldRemoveAll({})) setError(null);
+    if (error && !wouldRemoveAll({}) && !wouldLeaveNoCut({})) setError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cut.face, cut.across, cut.offset, cut.width, cut.depth, board.length, board.width, board.thickness]);
+  }, [cut.face, cut.across, cut.offset, cut.width, cut.depth, cut.stopMin, cut.stopMax,
+      board.length, board.width, board.thickness]);
 
   const set = (patch: Partial<Cut>) => {
     if (wouldRemoveAll(patch)) {
       setError('That would remove the whole board.');
+      setAttempt((n) => n + 1);
+      return;
+    }
+    // Only a transition INTO the no-cut state is refused. A board shrink can
+    // leave a cut with no length already; refusing every edit then would lock
+    // the row, since even stopMax -> 0 still leaves the pair crossing.
+    if (wouldLeaveNoCut(patch) && !wouldLeaveNoCut({})) {
+      setError('That would leave no cut.');
       setAttempt((n) => n + 1);
       return;
     }
@@ -102,6 +123,8 @@ function CutRow({ board, cut, precision }: { board: Board; cut: Cut; precision: 
    * the position axis from 24" down to 0.75", and the old offset of 6" has
    * nowhere left to go). Falling back to addCut's own quarter-of-the-axis
    * formula there is deliberate and narrow, not the general rule.
+   *
+   * The stops are the exception that resets rather than clamps (see the return).
    */
   const repositionForAxes = (face: Dimension, across: Dimension): Partial<Cut> => {
     const newPosDim = board[positionAxisOf(face, across)];
@@ -115,7 +138,14 @@ function CutRow({ board, cut, precision }: { board: Board; cut: Cut; precision: 
     }
     const depth = Math.min(cut.depth, newFaceDim);
 
-    return { face, across, offset, width, depth };
+    // The stops measure along `across`. A new `across` makes them numbers
+    // along a different dimension that describe nothing, so they RESET —
+    // unlike offset/width/depth, which keep meaning on their own axes and are
+    // clamped. Same `across`: kept, and still legal.
+    return {
+      face, across, offset, width, depth,
+      ...(across === cut.across ? {} : { stopMin: 0, stopMax: 0 }),
+    };
   };
 
   // Changing `face` to whatever `across` currently holds would leave
@@ -169,6 +199,13 @@ function CutRow({ board, cut, precision }: { board: Board; cut: Cut; precision: 
             ))}
         </select>
       </div>
+
+      <DimensionField key={`stopMin-${attempt}`} label="Stop short of near end" precision={precision}
+        value={cut.stopMin} min={0} max={Math.max(0, acrossDim - cut.stopMax)}
+        onCommit={(v) => set({ stopMin: v })} />
+      <DimensionField key={`stopMax-${attempt}`} label="Stop short of far end" precision={precision}
+        value={cut.stopMax} min={0} max={Math.max(0, acrossDim - cut.stopMin)}
+        onCommit={(v) => set({ stopMax: v })} />
 
       <DimensionField key={`offset-${attempt}`} label="From the end" precision={precision} value={cut.offset}
         min={0} max={posDim} onCommit={(v) => set({ offset: v })} />

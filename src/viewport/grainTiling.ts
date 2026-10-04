@@ -1,4 +1,4 @@
-import { boardExtents, DIMENSION_ORDER, isSheetGood, wholeBoard } from '../document/document';
+import { boardExtents, CUT_GEOMETRY_KEYS, DIMENSION_ORDER, isSheetGood, wholeBoard } from '../document/document';
 import type { Board, Region, Span } from '../document/document';
 import { axisDimensions, faceGrainKinds, grainFamily } from './grainFaces';
 import type { Dimension, GrainFamily, GrainKind } from './grainFaces';
@@ -262,8 +262,11 @@ export function boardUVSignature(board: Board): string {
     // asked for. v3 shipped a bug of exactly this shape — `grain` was added
     // to what boardUVs reads without updating BoardMesh's memo, so grain
     // silently stopped turning on screen while the document stayed correct.
+    // The cut part is read from the shared CUT_GEOMETRY_KEYS table (cuts.ts),
+    // not a hand-written list: this list once omitted stopMin/stopMax, and the
+    // 3D view kept drawing the old cut after a stop edit (invariant 40).
     board.cuts
-      .map((c) => [c.face, c.from, c.across, c.offset, c.width, c.depth].join(','))
+      .map((c) => CUT_GEOMETRY_KEYS.map((k) => c[k]).join(','))
       .join(';'),
   ].join('|');
 }

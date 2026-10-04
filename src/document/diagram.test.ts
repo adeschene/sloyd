@@ -4,7 +4,7 @@ import type { Board, Cut } from './document';
 /** The canonical cut from the joinery work: 3/4" wide, 3/8" deep, 6" along. */
 const dado = (over: Partial<Cut> = {}): Cut => ({
   id: 'c1', face: 'thickness', from: 'min', across: 'width',
-  offset: 6, width: 0.75, depth: 0.375, ...over,
+  offset: 6, width: 0.75, depth: 0.375, stopMin: 0, stopMax: 0, ...over,
 });
 
 /** A default board is 24" x 5-1/2" x 3/4". */
@@ -45,8 +45,8 @@ describe('buildDiagrams', () => {
     // face used to produce two diagrams, each showing one cut and neither
     // showing where they cross.
     const board = createBoard({ length: 24, width: 12, cuts: [
-      { id: 'a', face: 'thickness', from: 'min', across: 'width',  offset: 6, width: 0.75, depth: 0.375 },
-      { id: 'b', face: 'thickness', from: 'min', across: 'length', offset: 4, width: 0.75, depth: 0.125 },
+      { id: 'a', face: 'thickness', from: 'min', across: 'width',  offset: 6, width: 0.75, depth: 0.375, stopMin: 0, stopMax: 0 },
+      { id: 'b', face: 'thickness', from: 'min', across: 'length', offset: 4, width: 0.75, depth: 0.125, stopMin: 0, stopMax: 0 },
     ]});
     const views = buildDiagrams(board, 16);
     expect(views).toHaveLength(1);
@@ -55,8 +55,8 @@ describe('buildDiagrams', () => {
 
   it('splits the two sides of one face into separate views', () => {
     const board = createBoard({ cuts: [
-      { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 6, width: 0.75, depth: 0.375 },
-      { id: 'b', face: 'thickness', from: 'max', across: 'width', offset: 6, width: 0.75, depth: 0.375 },
+      { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 6, width: 0.75, depth: 0.375, stopMin: 0, stopMax: 0 },
+      { id: 'b', face: 'thickness', from: 'max', across: 'width', offset: 6, width: 0.75, depth: 0.375, stopMin: 0, stopMax: 0 },
     ]});
     const views = buildDiagrams(board, 16);
     expect(views).toHaveLength(2);
@@ -68,8 +68,8 @@ describe('buildDiagrams', () => {
 
   it('tags each cut with the axis its offset is measured along', () => {
     const views = buildDiagrams(createBoard({ length: 24, width: 12, cuts: [
-      { id: 'a', face: 'thickness', from: 'min', across: 'width',  offset: 6, width: 0.75, depth: 0.375 },
-      { id: 'b', face: 'thickness', from: 'min', across: 'length', offset: 4, width: 0.75, depth: 0.125 },
+      { id: 'a', face: 'thickness', from: 'min', across: 'width',  offset: 6, width: 0.75, depth: 0.375, stopMin: 0, stopMax: 0 },
+      { id: 'b', face: 'thickness', from: 'min', across: 'length', offset: 4, width: 0.75, depth: 0.125, stopMin: 0, stopMax: 0 },
     ]}), 16);
     const byId = Object.fromEntries(views[0].cuts.map((c) => [c.id, c]));
     expect(byId.a.axis).toBe('h');   // across the width -> positioned along the length
@@ -78,8 +78,8 @@ describe('buildDiagrams', () => {
 
   it('reports one legend line per distinct crossing depth', () => {
     const views = buildDiagrams(createBoard({ length: 24, width: 12, cuts: [
-      { id: 'a', face: 'thickness', from: 'min', across: 'width',  offset: 6, width: 0.75, depth: 0.125 },
-      { id: 'b', face: 'thickness', from: 'min', across: 'length', offset: 4, width: 0.75, depth: 0.375 },
+      { id: 'a', face: 'thickness', from: 'min', across: 'width',  offset: 6, width: 0.75, depth: 0.125, stopMin: 0, stopMax: 0 },
+      { id: 'b', face: 'thickness', from: 'min', across: 'length', offset: 4, width: 0.75, depth: 0.375, stopMin: 0, stopMax: 0 },
     ]}), 16);
     expect(views[0].crossings).toEqual(['overlap: 3/8" deep governs']);
   });
@@ -94,10 +94,10 @@ describe('buildDiagrams', () => {
     // dedup step would print it once per crossing CELL instead of once per
     // distinct depth.
     const views = buildDiagrams(createBoard({ length: 24, width: 12, cuts: [
-      { id: 'a', face: 'thickness', from: 'min', across: 'width',  offset: 2,  width: 1, depth: 0.5 },
-      { id: 'c', face: 'thickness', from: 'min', across: 'width',  offset: 16, width: 1, depth: 0.5 },
-      { id: 'b', face: 'thickness', from: 'min', across: 'length', offset: 2,  width: 1, depth: 0.25 },
-      { id: 'd', face: 'thickness', from: 'min', across: 'length', offset: 8,  width: 1, depth: 0.1 },
+      { id: 'a', face: 'thickness', from: 'min', across: 'width',  offset: 2,  width: 1, depth: 0.5, stopMin: 0, stopMax: 0 },
+      { id: 'c', face: 'thickness', from: 'min', across: 'width',  offset: 16, width: 1, depth: 0.5, stopMin: 0, stopMax: 0 },
+      { id: 'b', face: 'thickness', from: 'min', across: 'length', offset: 2,  width: 1, depth: 0.25, stopMin: 0, stopMax: 0 },
+      { id: 'd', face: 'thickness', from: 'min', across: 'length', offset: 8,  width: 1, depth: 0.1, stopMin: 0, stopMax: 0 },
     ]}), 16);
     expect(views[0].cells.filter((c) => c.crossing).length).toBeGreaterThan(1);
     expect(views[0].crossings).toEqual(['overlap: 1/2" deep governs']);
@@ -105,8 +105,8 @@ describe('buildDiagrams', () => {
 
   it('reports NO legend line when crossing cuts share a depth', () => {
     const views = buildDiagrams(createBoard({ length: 24, width: 12, cuts: [
-      { id: 'a', face: 'thickness', from: 'min', across: 'width',  offset: 6, width: 0.75, depth: 0.375 },
-      { id: 'b', face: 'thickness', from: 'min', across: 'length', offset: 4, width: 0.75, depth: 0.375 },
+      { id: 'a', face: 'thickness', from: 'min', across: 'width',  offset: 6, width: 0.75, depth: 0.375, stopMin: 0, stopMax: 0 },
+      { id: 'b', face: 'thickness', from: 'min', across: 'length', offset: 4, width: 0.75, depth: 0.375, stopMin: 0, stopMax: 0 },
     ]}), 16);
     expect(views[0].crossings).toEqual([]);
   });
@@ -178,5 +178,38 @@ describe('buildDiagrams', () => {
     expect(views).toHaveLength(1);
     expect(views[0].face).toBe('thickness');
     expect(views[0].cuts).toEqual([]);
+  });
+});
+
+describe('buildDiagrams — stopped cuts', () => {
+  const only = (cut: Cut) => buildDiagrams(board(cut), 16)[0].cuts[0];
+
+  it('adds no stop labels to a cut that is not stopped', () => {
+    const c = only(dado());
+    expect(c.stopMinLabel).toBeUndefined();
+    expect(c.stopMaxLabel).toBeUndefined();
+    expect(c.lengthLabel).toBeUndefined();
+  });
+
+  it('labels one stop and the cut\'s own length', () => {
+    const c = only(dado({ stopMax: 1 }));
+    expect(c.stopMinLabel).toBeUndefined();
+    expect(c.stopMaxLabel).toBe('1"');
+    expect(c.lengthLabel).toBe('4-1/2"');
+  });
+
+  it('labels both stops of a mortise', () => {
+    const c = only(dado({ stopMin: 1, stopMax: 1.5 }));
+    expect(c.stopMinLabel).toBe('1"');
+    expect(c.stopMaxLabel).toBe('1-1/2"');
+    expect(c.lengthLabel).toBe('3"');
+    expect(c.kind).toBe('mortise');
+  });
+
+  it('draws a stopped cut as its rectangle', () => {
+    // Broad face: horizontal = length, vertical = width (the across axis here).
+    const c = only(dado({ stopMin: 1, stopMax: 1.5 }));
+    expect(c.h).toEqual([6, 6.75]);
+    expect(c.v).toEqual([1, 4]);
   });
 });

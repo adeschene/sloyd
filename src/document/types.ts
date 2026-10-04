@@ -22,9 +22,11 @@ export type Grain = Dimension;
 export type CutFrom = 'min' | 'max';
 
 /**
- * A rectangular through-cut: stock removed from a board, running fully across
- * one of its dimensions. A dado is this cut taken in the middle of a face; a
- * rabbet is the same cut taken at an edge, so the distinction is derived from
+ * A rectangular cut: stock removed from a board. It runs across one of the
+ * board's dimensions — fully, unless `stopMin`/`stopMax` stop it short of an
+ * end. A dado is this cut taken in the middle of a face and a rabbet the same
+ * cut taken at an edge; stopped at one end it is a stopped dado or rabbet, and
+ * stopped at both a mortise (or a notch at an edge). The name is derived from
  * the geometry (see cutLabel) rather than stored.
  *
  * Every field is part-local — named in length/width/thickness, never in world
@@ -42,7 +44,10 @@ export interface Cut {
   face: Dimension;
   /** Which end of `face` it enters from. */
   from: CutFrom;
-  /** The dimension it runs fully across. Always differs from `face`. */
+  /**
+   * The dimension the cut runs across, fully unless `stopMin`/`stopMax` stop it
+   * short. Always differs from `face`.
+   */
   across: Dimension;
   /** Where the cut starts along the implied position axis, in inches. */
   offset: number;
@@ -50,6 +55,13 @@ export interface Cut {
   width: number;
   /** How far into `face` it goes, in inches. */
   depth: number;
+  /**
+   * How far short of the `across` dimension's MIN end the cut stops, in
+   * inches. 0 means it runs out at that end. Same min/max words as `from`.
+   */
+  stopMin: number;
+  /** How far short of the `across` dimension's MAX end the cut stops. 0 = runs out. */
+  stopMax: number;
 }
 
 /** An inclusive [min, max] interval, in inches. */
