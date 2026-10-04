@@ -200,8 +200,15 @@ describe('runRepairLoop keepBestOnError', () => {
 
   it('returns the best attempt when a later call fails with a non-key error', async () => {
     const out = await go({ keepBestOnError: true });
-    expect(out.violations.length).toBeGreaterThan(0);
+    expect(out.violations.map((v) => v.parts)).toEqual([['B']]);
+    expect(out.doc.boards.map((b) => b.name)).toEqual(['A', 'B']);
     expect(out.usage.inputTokens).toBe(10);
+  });
+
+  it.each(['cancelled', 'auth'] as const)('still rejects on %s', async (kind) => {
+    const { client } = fakeClient([ONE_ISSUE, new LlmError(kind, 'x')]);
+    await expect(runRepairLoop(client, adapter, new AbortController().signal, () => {}, { keepBestOnError: true }))
+      .rejects.toMatchObject({ kind });
   });
 
   it('throws without the option', async () => {

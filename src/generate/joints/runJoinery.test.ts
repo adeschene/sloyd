@@ -3,7 +3,13 @@ import { designToDocument } from '../../document/generated';
 import { LlmError } from '../../llm/types';
 import type { LlmClient, LlmResult } from '../../llm/types';
 import { runJoinery } from '../run';
+import { applyJoints } from './recipes';
 import { findSites } from './sites';
+
+vi.mock('./recipes', async (orig) => {
+  const a = await orig<typeof import('./recipes')>();
+  return { ...a, applyJoints: vi.fn(a.applyJoints) };
+});
 
 type P = { name: string; at: [number, number, number]; size: [number, number, number] };
 const design = (...parts: P[]) => designToDocument({
@@ -74,5 +80,21 @@ describe('runJoinery', () => {
     expect(c.complete).toHaveBeenCalledTimes(1);
     expect(out.violations).toEqual([]);
     expect(out.preexisting.map((v) => v.parts)).toContainEqual(['Float']);
+  });
+
+  it.each(['cancelled', 'auth'] as const)('%s after a usable attempt still rejects', async (kind) => {
+    await expect(run(client(long, new LlmError(kind, 'x')))).rejects.toMatchObject({ kind });
+  });
+
+  it('our own bug is not reported as a model failure', async () => {
+    vi.mocked(applyJoints).mockImplementationOnce(() => { throw new Error('boom'); });
+    await expect(run(client(long))).rejects.toThrow('boom');
+  });
+
+  it('keeps the usage spent before the failure when it falls back', async () => {
+    const out = await run(client(null, new LlmError('overloaded', 'busy')));
+    if ('noSites' in out) throw new Error('expected sites');
+    expect(out.fallback).toBe('busy');
+    expect(out.usage.inputTokens).toBe(10);
   });
 });

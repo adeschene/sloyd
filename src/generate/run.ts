@@ -40,6 +40,10 @@ export class RunFailed extends Error {
   }
 }
 
+/** Usage spent before a loop rethrew an error, so a caller that recovers can still report it. */
+const spent = new WeakMap<object, LlmUsage>();
+export const spentBefore = (e: unknown): LlmUsage => (typeof e === 'object' && e !== null ? spent.get(e) : undefined) ?? ZERO_USAGE;
+
 export interface LoopAdapter<T extends { doc: SloydDocument; violations: Violation[] }> {
   system: string;
   schema: Record<string, unknown>;
@@ -87,6 +91,7 @@ export async function runRepairLoop<T extends { doc: SloydDocument; violations: 
       res = await client.complete({ system: adapter.system, messages: [...messages], schema: adapter.schema }, signal);
     } catch (e) {
       if (opts.keepBestOnError && best && e instanceof LlmError && e.kind !== 'auth' && e.kind !== 'cancelled') break;
+      if (typeof e === 'object' && e !== null) spent.set(e, usage);
       throw e;
     }
     usage = addUsage(usage, res.usage);
@@ -149,7 +154,7 @@ export interface JoineryOutcome {
  * One choosing call, repaired through the shared loop. Only problems the
  * joinery INTRODUCED — keyed on kind and parts, never on message text —
  * drive repairs and count toward "fewest" (invariant 41). A first call that
- * fails for any reason but the key builds the defaults instead.
+ * fails for any reason but the key or a cancel builds the defaults instead.
  */
 export async function runJoinery(
   client: LlmClient,
@@ -180,9 +185,11 @@ export async function runJoinery(
       },
     }, signal, onProgress, { keepBestOnError: true });
   } catch (e) {
-    if (e instanceof LlmError && (e.kind === 'auth' || e.kind === 'cancelled')) throw e;
-    const reason = e instanceof RunFailed ? 'no usable answer' : e instanceof Error ? e.message : 'unknown error';
-    return { ...build(sites.map((s) => defaultChoice(s, doc)), []), usage: e instanceof RunFailed ? e.usage : ZERO_USAGE, fallback: reason };
+    // Only the model call failing falls back. Anything else is OUR bug and must surface.
+    const modelFailed = e instanceof RunFailed || (e instanceof LlmError && e.kind !== 'auth' && e.kind !== 'cancelled');
+    if (!modelFailed) throw e;
+    const reason = e instanceof RunFailed ? 'no usable answer' : (e as Error).message;
+    return { ...build(sites.map((s) => defaultChoice(s, doc)), []), usage: e instanceof RunFailed ? e.usage : spentBefore(e), fallback: reason };
   }
 }
 
