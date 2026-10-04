@@ -4130,10 +4130,14 @@ remaining-rectangle split compares the cuts' span edges with `===`.
 **192. The setup line is written from the cut's stored fields, not its shape.** The cut-list
 setup line (`setupLines`) still describes a cut by its stored `stopMin`/`stopMax`, while the
 word (`cutLabel`) now comes from the clipped box's opening (spec §2.7).
-- **Example:** a dado stopped at the front, whose far end runs into a back rabbet, has a stored
-  stop and a word that agrees only because both read `openSides`. A stopped housing whose stop
-  lands where the stock is already gone is named `dado` but could still carry a stop in a
-  hand-edited document.
+- **Example, seen live:** joinery stores a front-stopped shelf housing across the side's LENGTH, so
+  it prints `10-1/4" stopped dado … 1/4" from the width min end, running across the length, stopped
+  24" short of the min end and 47-1/4" short of the max end`. Its position up the side is printed as
+  two "stops", and its real 3/4" stop at the front never appears.
+- **The other face of it:** a through word can still carry a stop clause. A housing stored across
+  the length that spans the full width prints `11-1/4" dado … stopped 24" short of …`. A random
+  search by the Task 5 reviewer found this in 4 of 1,389 `dado` labels. It happens because the
+  stops sit on `across` while the open pair is the position axis.
 - **Status:** open, low. Writing the line from the shape would remove the class.
 
 **193. Grain-aware words: `groove` with the grain, `dado` across it.** Woodworking usage names a
