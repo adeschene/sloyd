@@ -3,8 +3,8 @@ import workbenchRaw from '../../document/fixtures/simple-workbench.sloyd?raw';
 import { designToDocument } from '../../document/generated';
 import { migrateDocument } from '../../document/document';
 import { checkDesign } from '../../document/designCheck';
-import { boardSolids, cutLabel } from '../../document/cuts';
-import type { SloydDocument } from '../../document/document';
+import { boardSolids, cutLabel, cutRegion } from '../../document/cuts';
+import type { Cut, SloydDocument } from '../../document/document';
 import { findSites } from './sites';
 import { defaultChoice } from './choose';
 import { applyJoints, tenonSection } from './recipes';
@@ -89,6 +89,25 @@ describe('dado and stopped dado', () => {
     expect(board(out.doc, 'Shelf').cuts).toHaveLength(1);
     expect(checkDesign(out.doc, limits(out.doc)).filter((v) => v.kind === 'overlap')).toEqual([]);
     expect(boxVolume(out.doc, 'Side') - volume(out.doc, 'Side')).toBeCloseTo(0.25 * 0.75 * (11.25 - 0.75), 9);
+  });
+
+  it('a full-length groove on the growing shelf keeps running through, whichever way it is stored (fu 199)', () => {
+    // The shelf's length runs along world X (size 20 x 0.75 x 11.25 at x 0.75) and the dado grows it at the
+    // length's MIN end (the Side is at x < 0.75).
+    const withGroove = (groove: Cut) => {
+      const d = structuredClone(doc);
+      board(d, 'Shelf').cuts = [groove];
+      return applyJoints(d, findSites(d), [{ site: 1, joint: 'dado', depth: 0.25 }]).doc;
+    };
+    const base = { id: 'g', face: 'thickness' as const, from: 'max' as const, depth: 0.25 };
+    // A groove along the whole length, 1/2" wide, 5" in from the width's min edge.
+    const along: Cut = { ...base, across: 'length', offset: 5, width: 0.5, stopMin: 0, stopMax: 0 };
+    const sideways: Cut = { ...base, across: 'width', offset: 0, width: 20, stopMin: 5, stopMax: 5.75 };
+    const regionOf = (out: SloydDocument) => { const s = board(out, 'Shelf'); return cutRegion(s, s.cuts[0]); };
+    const a = regionOf(withGroove(along));
+    const b2 = regionOf(withGroove(sideways));
+    expect(b2).toEqual(a);
+    expect(a.length).toEqual([0, 20.25]);
   });
 
   it('butt leaves the site alone', () => {
