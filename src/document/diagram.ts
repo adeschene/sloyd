@@ -1,7 +1,6 @@
 import type { Board, CutFrom, Dimension, Span } from './types';
 import { DIMENSION_ORDER, positionAxisOf } from './geometry';
-import { cutLabel, cutRegion } from './cuts';
-import type { CutKind } from './cuts';
+import { cutLabel, cutRegion, type CutKind } from './cuts';
 import { buildDepthField, type FaceCell } from './depthField';
 import { formatLength } from '../units/length';
 

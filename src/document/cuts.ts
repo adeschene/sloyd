@@ -376,9 +376,10 @@ export type CutKind =
 
 /**
  * What a cut is called — dado, rabbet, their stopped forms, mortise, through
- * mortise or notch (the table in the stopped-cuts spec §4.1). Derived from the geometry rather than stored, so the
- * label can never disagree with the cut: a rabbet is the same removal as a
- * dado, taken flush with one end of the position axis.
+ * mortise or notch (the table in the stopped-cuts spec §4.1). Derived from the
+ * geometry rather than stored, so the label can never disagree with the cut: a
+ * rabbet is the same removal as a dado, taken flush with one end of the
+ * position axis.
  */
 export function cutLabel(board: Board, cut: Cut): CutKind {
   const pos = positionAxisOf(cut.face, cut.across);

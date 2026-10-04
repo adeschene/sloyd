@@ -129,6 +129,11 @@ describe('the depth field agrees with boardSolids, by construction', () => {
         if (!stockAtMinFace(solids, x, y)) {
           expect(covered(x, y), `boardSolids removed stock at ${x},${y}; field has no cell`).toBe(true);
         }
+        // The other direction: a cell wider than the cut centres inside it and
+        // passes the cell-centre probe above, so check the grid for over-hatching.
+        if (stockAtMinFace(solids, x, y)) {
+          expect(covered(x, y), `field hatches ${x},${y}; boardSolids still has stock there`).toBe(false);
+        }
       }
     }
   });
