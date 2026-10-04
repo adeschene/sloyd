@@ -467,6 +467,36 @@ describe('cutSnapPoints — every through-cut offers exactly what it did before 
   });
 });
 
+describe('cutSnapPoints — stopped cuts', () => {
+  it('offers 17 for a blind mortise: the mouth\'s whole opening plus the floor', () => {
+    expect(cutSnapPoints(posed([{ ...DADO, stopMin: 1, stopMax: 2 }]))).toHaveLength(17);
+  });
+
+  it('offers the midpoints of a mortise\'s stopped ends at the mouth', () => {
+    // across (width) runs 1..4 -> Y 3..6; its mid 2.5 -> Y 4.5.
+    const keys = cutSnapPoints(posed([{ ...DADO, stopMin: 1, stopMax: 2 }])).map((p) => key(p.at));
+    expect(keys).toContain(key([11, 3, 1.375]));
+    expect(keys).toContain(key([11, 6, 1.375]));
+    // The mouth's own centre sits in the hole — never offered.
+    expect(keys).not.toContain(key([11, 4.5, 1.375]));
+  });
+
+  it('offers a stopped dado\'s stopped end at the mouth, and not its open end', () => {
+    // stopMax 2: across runs 0..4 -> Y 2..6. The open end (Y 2) is the board's own edge.
+    const keys = cutSnapPoints(posed([{ ...DADO, stopMax: 2 }])).map((p) => key(p.at));
+    expect(keys).toContain(key([11, 6, 1.375]));
+    expect(keys).not.toContain(key([11, 2, 1.375]));
+  });
+
+  it('puts a through mortise\'s floor on the far surface, minus its centre (no stock there)', () => {
+    const pts = cutSnapPoints(posed([{ ...DADO, depth: 1, stopMin: 1, stopMax: 2 }]));
+    const floor = pts.filter((p) => p.at[0] === 10);
+    expect(floor).toHaveLength(8);
+    expect(floor.map((p) => key(p.at))).not.toContain(key([10, 4.5, 1.375]));
+    expect(pts).toHaveLength(16);
+  });
+});
+
 describe('snapPointsFor', () => {
   it('is exactly boardSnapPoints for a board with no cuts', () => {
     const b = posed([]);
