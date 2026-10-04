@@ -472,25 +472,55 @@ function fieldLabel(board: Board, cut: Cut): CutKind {
 }
 
 /**
- * What a cut is called (cut-words spec §2): read from the OPENING its clipped
- * box makes on the face it enters — which of the opening's four sides reach
- * the board's edge, and its proportions. Derived only from the box, so one
- * pocket stored two ways (either in-plane dimension as `across`) gets one
- * word (fu 181). Open sides count stock-free strips, not only edges (§2.4);
- * a full-thickness corner cut is a notch (§2.5); mortise vs groove is depth
- * against length (§2.6).
+ * A cut described by its OPENING (cut-lines spec §2.1): the one source for its
+ * word, which way it runs, where it sits and its stops. The setup line and the
+ * drawing both format from this, so neither can disagree with the other or with
+ * the word, whichever way the cut happens to be stored.
+ *
+ * Numbers, never strings: this module takes no `→ units` edge.
+ *
+ * Meaningful only for a cut that removes stock. For one that removes nothing,
+ * `word` is the old table and the other fields are not read by anything (the
+ * cut list and the drawings skip such cuts; Properties reads only the word).
  */
-export function cutLabel(board: Board, cut: Cut, solids: Region[] = boardSolids(board)): CutKind {
-  if (cutRemovesNothing(board, cut)) return fieldLabel(board, cut);
-  const r = cutRegion(board, cut);
+export interface CutShape {
+  word: CutKind;
+  /** The dimension the cut runs along (spec §2.1). */
+  run: Dimension;
+  /** The other in-plane dimension: where the cut sits. */
+  pos: Dimension;
+  /** The opening along `pos`, clipped to the board. */
+  at: Span;
+  /** The opening along `run`, clipped to the board. */
+  along: Span;
+  /** Gap from the run's min end to the board's edge, or null where that end is open. */
+  stopMin: number | null;
+  /** Gap from the run's max end to the board's edge, or null where that end is open. */
+  stopMax: number | null;
+}
+
+type Opening = ReturnType<typeof openSides>;
+
+/**
+ * Which way a cut runs (spec §2.1). The axis open at both ends when exactly one
+ * is; otherwise the opening's longer extent; on an EXACT tie (a square
+ * opening, where either is true) the stored `across`, so the answer is stable.
+ */
+function runAxis(cut: Cut, ext: (d: Dimension) => number, open: Opening): Dimension {
   const [a, b] = DIMENSION_ORDER.filter((d) => d !== cut.face);
-  const span = (d: Dimension): Span => [Math.max(0, r[d][0]), Math.min(board[d], r[d][1])];
-  const ext = (d: Dimension) => span(d)[1] - span(d)[0];
+  const through = (d: Dimension) => open[d].min && open[d].max;
+  if (through(a) !== through(b)) return through(a) ? a : b;
+  if (ext(a) !== ext(b)) return ext(a) > ext(b) ? a : b;
+  return cut.across === b ? b : a;
+}
+
+/** The cut-words table (cut-words spec §2.2–2.6), read off the opening. */
+function tableWord(board: Board, cut: Cut, span: (d: Dimension) => Span, ext: (d: Dimension) => number, open: Opening): CutKind {
+  const [a, b] = DIMENSION_ORDER.filter((d) => d !== cut.face);
   const ends = (d: Dimension) =>
     (span(d)[0] <= FLUSH_EPSILON ? 1 : 0) + (span(d)[1] >= board[d] - FLUSH_EPSILON ? 1 : 0);
   // Spec §2.5: a full-thickness cut at a corner of the broad face.
   if (ends('thickness') === 2 && ends('length') === 1 && ends('width') === 1) return 'notch';
-  const open = openSides(board, cut, solids);
   const na = (open[a].min ? 1 : 0) + (open[a].max ? 1 : 0);
   const nb = (open[b].min ? 1 : 0) + (open[b].max ? 1 : 0);
   if (na + nb >= 3) return 'rabbet';
@@ -508,4 +538,28 @@ export function cutLabel(board: Board, cut: Cut, solids: Region[] = boardSolids(
   const narrow = Math.min(ext(a), ext(b));
   const long = Math.max(ext(a), ext(b));
   return cut.depth > narrow && long <= 8 * cut.depth ? 'mortise' : 'blind dado';
+}
+
+export function cutShape(board: Board, cut: Cut, solids: Region[] = boardSolids(board)): CutShape {
+  const r = cutRegion(board, cut);
+  const span = (d: Dimension): Span => [Math.max(0, r[d][0]), Math.min(board[d], r[d][1])];
+  const ext = (d: Dimension) => span(d)[1] - span(d)[0];
+  const open = openSides(board, cut, solids);
+  const run = runAxis(cut, ext, open);
+  const pos = DIMENSION_ORDER.find((d) => d !== cut.face && d !== run)!;
+  const along = span(run);
+  return {
+    word: cutRemovesNothing(board, cut) ? fieldLabel(board, cut) : tableWord(board, cut, span, ext, open),
+    run,
+    pos,
+    at: span(pos),
+    along,
+    stopMin: open[run].min ? null : along[0],
+    stopMax: open[run].max ? null : board[run] - along[1],
+  };
+}
+
+/** A cut's word: `cutShape(...).word`. Kept as its own export for the readers that want only the word. */
+export function cutLabel(board: Board, cut: Cut, solids: Region[] = boardSolids(board)): CutKind {
+  return cutShape(board, cut, solids).word;
 }
