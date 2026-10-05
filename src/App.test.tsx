@@ -1059,8 +1059,9 @@ describe('App select all, and Delete on the whole selection', () => {
   });
 
   it("Alt+H shows all, matched by the physical key (a Mac's Option+H types ˙)", async () => {
-    const { user } = await mountWithThreeBoards();
+    const { user, ids } = await mountWithThreeBoards();
     await user.keyboard('h');
+    expect(useStore.getState().hiddenIds).toEqual([ids[0]]);
     fireEvent.keyDown(document.body, { key: '˙', code: 'KeyH', altKey: true });
     expect(useStore.getState().hiddenIds).toEqual([]);
   });
@@ -1068,6 +1069,12 @@ describe('App select all, and Delete on the whole selection', () => {
   it('Ctrl+H does nothing', async () => {
     await mountWithThreeBoards();
     fireEvent.keyDown(document.body, { key: 'h', code: 'KeyH', ctrlKey: true });
+    expect(useStore.getState().hiddenIds).toEqual([]);
+  });
+
+  it('the key that types d on Dvorak (code KeyH) hides nothing', async () => {
+    await mountWithThreeBoards();
+    fireEvent.keyDown(document.body, { key: 'd', code: 'KeyH' });
     expect(useStore.getState().hiddenIds).toEqual([]);
   });
 
@@ -1088,8 +1095,9 @@ describe('App select all, and Delete on the whole selection', () => {
   });
 
   it('H then Ctrl+Z shows the part again', async () => {
-    const { user } = await mountWithThreeBoards();
+    const { user, ids } = await mountWithThreeBoards();
     await user.keyboard('h');
+    expect(useStore.getState().hiddenIds).toEqual([ids[0]]);
     await user.keyboard('{Control>}z{/Control}');
     expect(useStore.getState().hiddenIds).toEqual([]);
   });
