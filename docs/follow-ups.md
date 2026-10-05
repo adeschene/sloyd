@@ -4032,6 +4032,9 @@ Measured with the reviewer's void script, the default case leaves no gap — the
 already removes that 1/4in — so this is mostly a word: the dado effectively runs out into the
 rabbet. A stopped dado chosen to stop at the back (`-Z` in the reviewer's bookcase) still leaves
 small voids where the top and bottom meet the sides (0.023 in³ per joint, unchanged by the fix).
+- **Update 2026-10-04 (cut words round):** the WORD half is gone. "Open" now means no stock left
+  (`openSides`), so the default housing that runs out into the back rabbet prints as a plain
+  `dado`. The voids in the back-stopped case remain; **status: open, low** for that half.
 
 **183. A part on the panel's OUTER face is left floating after a rabbet.** The rabbet moves the
 panel toward its receivers by its own thickness; anything fastened to the panel's outer face (a
@@ -4053,7 +4056,8 @@ themselves. A stack needs the drops computed together, or the upper part dropped
 **186. Smaller residues from the joinery final review.**
 - **The shelf's cut-list word depended on board order — GONE after the fix.** Before, a bookcase
   with the back listed last printed the shelf's housing as "dado" and with it listed first as
-  "stopped dado". With rabbets always first, both orders print "stopped dado" (see 182).
+  "stopped dado". With rabbets always first, both orders print "stopped dado" (see 182); since the cut words
+     round both print `dado`.
 - A narrow inset back leaves a 1/8in slot (reported by the final review; not re-observed here).
 - `problemKey` joins part names with commas, so a name containing a comma can collide with a pair.
   Harmless today; worth a separator that cannot appear in a name.
@@ -4084,6 +4088,9 @@ re-review then found that the POSITION-axis half was wrong:
 - **What remains:** only the `across` half. A through cut keeps running out along its across
   axis, and a cut positioned flush with an end stays where it is.
 - **The tests:** the footed side in both listing orders, plus a grooved-back ordering test.
+- **Later (follow-up 199, 2026-10-05):** the rule now reads the cut's SHAPE, not its stored
+  form: `rebaseCuts` re-stores each cut via `storedAsShape` (judged before the growth) before
+  applying it, so "runs along the growth" and "positioned at the end" no longer depend on storage.
 
 **188. The default tenon cap's edges.** I1 caps a default tenon 1/16in short of another default
 tenon's cross-section inside the same part. Three recorded limits: the cap rounds DOWN to 1/16in

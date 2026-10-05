@@ -38,8 +38,8 @@ only because generation never writes into an existing project. The better route 
 known: the user can **watch** the Playwright browser this session drives, so next time
 Claude drives the dev server and the user supervises. Results are in
 `docs/browser-verification-generate.md`. 6 of 6 generations completed. It left two
-findings: 164, a batch converging on one design, now CLOSED (below); and 165, a support
-check that passes a badly supported part, still open.
+findings: 164, a batch converging on one design, and 165, a support check that passed a
+badly supported part; both are now CLOSED (below).
 
 **The fu 197 round (2026-10-05) is merged AND deployed.** `clippedRegion` is the cut's box clipped to the board, and the drawing's leader spans, the snap points, `cutShape`, `openSides` and `findTenons` all read it (`docs/browser-verification-fu197.md`). No schema change; a cut inside the board shows exactly as before.
 
@@ -47,9 +47,9 @@ check that passes a badly supported part, still open.
 
 **The 198/199 round (2026-10-05) is merged AND deployed.** No Match note when only the square tie's default decides a cut's direction (`runByDefault`), and a growing part's cuts follow their shape in `rebaseCuts` (`docs/browser-verification-fu198-199.md`). No schema change. Follow-up 200 followed.
 
-**The cut storage round (follow-ups 195, 196, 2026-10-04) is merged AND deployed.** Joinery stores each cut the way the sheet reads it (`storedAsShape`), Properties offers **Match the cut list** for one stored the other way (guarded: offered only when the sheet would read the same), and a square opening's direction reads only its shape (`docs/browser-verification-cut-storage.md`). No schema change. Open questions: follow-ups 198, 199.
+**The cut storage round (follow-ups 195, 196, 2026-10-04) is merged AND deployed.** Joinery stores each cut the way the sheet reads it (`storedAsShape`), Properties offers **Match the cut list** for one stored the other way (guarded: offered only when the sheet would read the same), and a square opening's direction reads only its shape (`docs/browser-verification-cut-storage.md`). No schema change. Its open questions, 198 and 199, are closed by the 198/199 round.
 
-**The cut lines round (follow-ups 192–194, 2026-10-04) is merged AND deployed.** `cutShape` is the one description of a cut; the setup line and the drawing both format from it, and a with-grain channel says `groove` (`docs/browser-verification-cut-lines.md`). No schema change. Its open questions are follow-ups 195–197.
+**The cut lines round (follow-ups 192–194, 2026-10-04) is merged AND deployed.** `cutShape` is the one description of a cut; the setup line and the drawing both format from it, and a with-grain channel says `groove` (`docs/browser-verification-cut-lines.md`). No schema change. Its open questions, 195–197, are closed by later rounds.
 
 **The cut words round (follow-ups 180, 181, 189, 2026-10-04) is merged AND deployed.** Words only: a cut is named from the stock actually left around its opening, a tenon prints as one line (`docs/browser-verification-cut-words.md`). No schema change.
 
@@ -176,7 +176,13 @@ load-bearing.
 slate. **Batch variety (164) and held and stable (165) followed it and are done.** The
 planned follow-on is **phase 2, refine and joinery (follow-up 171)**; read invariants 38
 and 39 first, because joinery is exactly where "overlap" and "held" both change meaning.
-174 (the key check) is done too. Ask before starting anything.
+174 (the key check) is done too. Phase 2's joinery half (171) shipped on 2026-10-04.
+
+**As of 2026-10-05: the cut-list line of work that followed joinery (follow-ups 180–200) is
+COMPLETE and live**, across seven rounds: cut words, cut lines, cut storage, 198/199, 200 and
+197. Every follow-up it raised is closed. **No successor is chosen.** What remains open on the
+ledger near this code is joinery's own residue (182's voids, 183–186, 188, 190, 191) and
+**179, refine by instruction**, phase 2's other half. Ask before starting anything.
 The paragraphs below are the 2026-08-31 state, kept for its reasoning.
 
 **As of 2026-08-31: NO SUCCESSOR FEATURE ROUND HAD BEEN CHOSEN, and 130 is no longer the presumed one** — it
@@ -476,7 +482,8 @@ src/
 │   │                       EXCEPT a fully consumed board, a literal
 │   │                       `boardSolids(b).length === 0` check, which keeps all 26
 │   │                       because the ghost box IS drawn — inv 21) / cutSnapPoints
-│   │                       (floor rectangle 9 + the mouth's opening, every point
+│   │                       (over the cut's CLIPPED box, `clippedRegion` — fu 197;
+│   │                       floor rectangle 9 + the mouth's opening, every point
 │   │                       but its centre, 8; stockProbe drops a through-cut's two
 │   │                       across-end mouth points, so 15 for a dado, 12 for a
 │   │                       rabbet, 17 for a blind mortise) / snapPointsFor (the
@@ -685,7 +692,11 @@ src/
 │   │                       cut's error dies with the cut. Stop short of near/far
 │   │                       end; a stop pair leaving no cut is refused (only on a transition INTO
 │   │                       it, so a board shrink cannot lock the row), and changing
-│   │                       `across` RESETS the stops
+│   │                       `across` RESETS the stops. A cut stored sideways to how the
+│   │                       sheet reads it shows a note + **Match the cut list** (one
+│   │                       undo, `storedAsShape`; not for a tenon shoulder, a cut
+│   │                       removing nothing, a default tie, or a refused re-store —
+│   │                       fu 195, 198). The word comes from `cutShape`
 │   ├── diagramScale.ts     fitView / bandOn (ordering-guarded). MAX_ASPECT /
 │   │                       MAX_HEIGHT / MIN_WIDTH are browser-settled. Pure
 │   ├── diagramLabels.ts    LABEL_SIZE / CHAR_W / labelHeight / labelWidth / packRow
@@ -1540,9 +1551,11 @@ The handful worth knowing without opening that file:
   Settings' Save: the free verification call saves anyway on anything but a 401/403, and
   **there is deliberately no prefix rule** (a working key does not start with `sk-ant-api`).
 - **171** — joinery is BUILT (2026-10-04, "Add joinery…"); refine by instruction is now **179**.
-  Read invariants 38 and 41, and follow-ups 180–194 (180, 181 and 189 are closed by the cut words round, 192–194 by the cut lines round; the round's residues: cut-list words for a
-  tenon and a closed shelf housing, the default-tenon cap's edges, opposite-face tenons,
-  half-lap stacks), before touching `generate/joints/`.
+  Read invariants 38 and 41 and follow-ups 180–200 before touching `generate/joints/`. 180, 181,
+  189 and 192–200 are CLOSED by the cut-list rounds of 2026-10-04/05; joinery's own residues are
+  still open: 182 (small voids beside a back-stopped dado), 183 (outer-face parts after a rabbet),
+  184 (`moved` after a re-ground), 185 (half-lap stacks), 186, 188 (the default-tenon cap's
+  edges), 190 (opposite-face tenons on the defaults) and 191 (`findTenons`' exact span edges).
 - **178** — CLOSED 2026-10-04. A cut a board edit has left removing nothing is hidden from
   the cut list, its drawings and the snap points, and flagged on its Properties row; it is
   KEPT, so growing the board back restores it. Read the closure before adding a reader of
