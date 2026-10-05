@@ -138,7 +138,7 @@ export async function runGeneration(
   }, signal, onProgress);
 }
 
-const problemKey = (v: Violation) => `${v.kind}|${[...v.parts].sort().join(',')}`;
+export const problemKey = (v: Violation) => JSON.stringify([v.kind, [...v.parts].sort()]);
 
 export interface JoineryOutcome {
   result: JoinResult;

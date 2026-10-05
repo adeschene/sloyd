@@ -18,6 +18,22 @@ const four = (end: 'min' | 'max', p: string) => [
 ];
 
 describe('findTenons', () => {
+  it('two cheek halves a few ulp apart still leave a tenon (fu 191)', () => {
+    const half = (id: string, stopMin: number, stopMax: number): Cut => ({ ...cheek(id, 'min', 0.25, 1), stopMin, stopMax });
+    const t = findTenons(rail([half('a1', 0, 1.75), half('a2', 1.75 + 1e-12, 0), cheek('b', 'max', 0.25, 1)]));
+    expect(t.map((x) => [x.thickness, x.width, x.cutIds])).toEqual([[0.25, 3.5, ['a1', 'a2', 'b']]]);
+  });
+
+  it('a breakpoint an ulp short of the far edge merges INTO the edge, so the width is exact (fu 191)', () => {
+    const t = findTenons(rail([{ ...cheek('a', 'min', 0.25, 1), stopMax: 1e-12 }, cheek('b', 'max', 0.25, 1)]));
+    expect(t.map((x) => [x.thickness, x.width])).toEqual([[0.25, 3.5]]);
+  });
+
+  it('a real gap between cheek halves is not a tenon', () => {
+    const half = (id: string, stopMin: number, stopMax: number): Cut => ({ ...cheek(id, 'min', 0.25, 1), stopMin, stopMax });
+    expect(findTenons(rail([half('a1', 0, 1.75), half('a2', 1.75 + 0.01, 0), cheek('b', 'max', 0.25, 1)]))).toEqual([]);
+  });
+
   it('a four-shoulder tenon', () => {
     expect(findTenons(rail(four('min', 'a')))).toEqual([
       { end: 'min', length: 1, thickness: 0.25, width: 2.5, cutIds: ['a1', 'a2', 'a3', 'a4'] },

@@ -24,7 +24,7 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **1577/1577 tests passing across 55 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
+Static SPA, containerized, **1628/1628 tests passing across 55 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **7**.
 
 **PRODUCTION MATCHES `master` as of 2026-10-05 with the joinery fixes round live** — bundle `index-BzWa2ZGT.js`, CSS `index-DqhKBEnY.css` (unchanged), merge commit `c31dd82`, **schema 7**. Before it: fu 197 `index-Ci3NLhVT.js` (`658dfcc`, 2026-10-05), fu 200 `index-DjL6FbOz.js` (`f37734b`, 2026-10-05), 198/199 `index-BvsB1zA6.js` (`fb8a094`, 2026-10-05), cut storage `index-JBiJohQE.js` (`7fa749d`, 2026-10-04), cut lines `index-BPmx9i74.js` (`f602a2d`), cut words `index-Cw_EeWuY.js` (`8c9be52`), joinery `index-Ci7lVCzJ.js` (`d2a14ac`), phantom cut `index-B2Yuq550.js` (`e7bf3bc`), stopped cuts `index-CoHIAVxf.js` (`c054ede`), which bumped the schema to 7 (rolling back past it strands v7 documents; export first). Before it, 2026-10-03: key check `index-BhhW2iNw.js` (`d0ba83b`), held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
@@ -40,6 +40,8 @@ Claude drives the dev server and the user supervises. Results are in
 `docs/browser-verification-generate.md`. 6 of 6 generations completed. It left two
 findings: 164, a batch converging on one design, and 165, a support check that passed a
 badly supported part; both are now CLOSED (below).
+
+**The joinery residues round (follow-ups 182, 186, 188, 191, 201–203, 2026-10-05) is on branch `joinery-residues`, NOT yet merged or deployed; a live check is pending.** A rabbeted panel is resolved as one unit from its final box, so its pockets leave no voids and parts in its path are trimmed (182, 201); default tenons shrink to 1/4in, else butt (188); joinery blockers judge solids (203); every `resize` is pre-checked, so an end already cut is a skip, never a throw. No schema change. Residues are 205–206.
 
 **The joinery fixes round (follow-ups 183, 184, 185, 190, 2026-10-05) is merged AND deployed.** Verified against the dev server with the user watching, three paid runs (`docs/browser-verification-joinery-fixes.md`). Default tenons from opposite faces are capped under half the post (190), crossings run bottom-up with a swept-volume blocker (185), a rabbeted panel carries its outer-face chain or refuses before any mutation (183), and the dialog reports the re-ground (184). No schema change. Residues are 201-204.
 
@@ -147,7 +149,7 @@ different things make `git log` look ahead when it is not, and both are normal h
   built a byte-identical bundle: the agreement-test round (follow-up 140), 159's focus test,
   and the whole delete-token round (follow-up 160).
 
-**Nothing is pending.** `DEPLOYMENT.local.md` carries every runbook entry and bundle hash.
+**Nothing is pending on `master`** (the joinery residues round is on its branch, above). `DEPLOYMENT.local.md` carries every runbook entry and bundle hash.
 
 **The 2026-08-15 project-library deploy was the first that ACTS on a user's stored data at
 page load**, which
@@ -183,7 +185,8 @@ and 39 first, because joinery is exactly where "overlap" and "held" both change 
 **As of 2026-10-05: the cut-list line of work that followed joinery (follow-ups 180–200) is
 COMPLETE and live**, across seven rounds: cut words, cut lines, cut storage, 198/199, 200 and
 197. Every follow-up it raised is closed. **No successor is chosen.** What remains open on the
-ledger near this code is joinery's own residue (182's voids, 183–186, 188, 190, 191) and
+ledger near this code is joinery's own residue (205, 206; 182–191 and 201–203 are closed, the
+residues round on its branch) and
 **179, refine by instruction**, phase 2's other half. Ask before starting anything.
 The paragraphs below are the 2026-08-31 state, kept for its reasoning.
 
@@ -274,6 +277,7 @@ show it. Prefer a readout where one suffices; add an image when the finding is s
 | fu 200 | 10-05 | — | *no spec* — computed opening extents compare within `FLUSH_EPSILON` in `runAxis` and the word table (invariant 22's rule), so a millimetre square reads like its fractional twin; stored values stay exact |
 | fu 197 | 10-05 | — | *no spec* — `clippedRegion`: the cut's box clipped to the board is the one clip read by everything that shows a cut (drawing spans, snap points, cutShape, openSides, findTenons); an in-session overhang draws as what remains |
 | joinery fixes | 10-05 | — | *no spec* — fu 190/185/183/184: opposite-face tenon cap, bottom-up crossings with a swept-volume blocker, outer-face carry (refuses before any mutation), `lowered` reported |
+| joinery residues | 10-05 | — | *no spec, on branch* — fu 182/201/188/203/191/186: rabbet unit from the panel's final box (no voids, path parts trimmed), 1/4in default tenons else butt, blockers on solids, `resize` pre-checked |
 
 ### The deployment rule, stated once
 
@@ -453,7 +457,8 @@ src/
 │   │                       `CUT_GEOMETRY_FIELDS` / `CUT_GEOMETRY_KEYS` (inv 40)
 │   ├── tenons.ts           findTenons: a tenon from the end cuts leaving one tongue
 │   │                       (ℓ ≤ L/2, ≥ 2 cuts, exactly one remaining rectangle).
-│   │                       The sheet prints one line per tenon
+│   │                       The sheet prints one line per tenon. Section breakpoints
+│   │                       merge within FLUSH_EPSILON (fu 191)
 │   ├── cutlist.ts          buildCutList (inv 18). STOCK, NOT REMAINDER — `cuts`
 │   │                       ignored, because a dado does not reduce the board you buy;
 │   │                       accumulates EXACT stock, never qty × rounded dimensions.
@@ -524,7 +529,9 @@ src/
 │   │                       with an optional skip) and `tips` (grounded parts' volume-
 │   │                       weighted centre of mass >= min(1in, s/4) inside the floor
 │   │                       hull). Messages are FOR THE MODEL. Pure. The user's real
-│   │                       workbench is `fixtures/simple-workbench.sloyd`
+│   │                       workbench is `fixtures/simple-workbench.sloyd`.
+│   │                       `worldSolids` (exported) is the ONE home of the world-solid
+│   │                       mapping; joinery's blockers import it (fu 203)
 │   └── document.ts         create / validate / migrate (inv 11); validateGuides;
 │                           createGuide; `takeId`, the ONE home of the
 │                           id-uniqueness rule for boards, guides and cuts
@@ -587,17 +594,24 @@ src/
 │       ├── recipes.ts      applyJoints; re-grounds a floored design and reports it
 │       │                   (`JoinResult.lowered`, fu 184). Crossings run BOTTOM-UP by
 │       │                   the entering part's original min, grouped by axis, so each
-│       │                   part moves once (fu 185). A rabbet moves the panel once,
-│       │                   trims parts butting its moving face and CARRIES its outer-
-│       │                   face chain (never its receivers; fu 183); a carry that would
-│       │                   collide is a skip decided BEFORE any mutation. A half-lap
-│       │                   needs only to still cross in plan with R wholly below E,
-│       │                   ALIGNS E (never moves it by t) and skips on a SWEPT-VOLUME
-│       │                   overlap (`overlapsBeyondTouch`; boxes, not solids). A growing
-│       │                   part's cuts are re-stored by SHAPE first (fu 199)
+│       │                   part moves once (fu 185). A rabbet's sites on one panel
+│       │                   face are ONE unit, resolved from the panel's FINAL box
+│       │                   (moved, then trimmed to every rabbet line; fu 182): pockets
+│       │                   are cut against it, any other part in its path is trimmed
+│       │                   by the intrusion (fu 201), and it CARRIES its outer-face
+│       │                   chain (never its receivers; fu 183). A half-lap needs only
+│       │                   to still cross in plan with R wholly below E, ALIGNS E
+│       │                   (never moves it by t) and skips on a SWEPT-VOLUME overlap.
+│       │                   Every blocker and trim judges SOLIDS via `worldSolids`
+│       │                   (fu 203). Every refusal is decided BEFORE any mutation, and
+│       │                   every `resize` is pre-checked by `cutIntoEnd` (rebaseCuts'
+│       │                   throw), so an end already cut is a skip, never a throw.
+│       │                   A growing part's cuts are re-stored by SHAPE first (fu 199)
 │       └── choose.ts       JOINERY_PROMPT / JOINT_SCHEMA / parseChoices / defaults;
 │                           `defaultTenon` caps opposite-face tenons at down(depth/2
-│                           − 1/32) (fu 190; fallback only, the prompt is unchanged)
+│                           − 1/32) (fu 190; fallback only, the prompt is unchanged);
+│                           a cap under 1/2in shortens the default to >= 1/4in, else
+│                           butt (fu 188). The model's range is unchanged
 ├── useGenerations.ts       the batch: one at a time, " — A/B/C" names, auth aborts all,
 │                           post-run abort guard, writes ONLY via createProject(doc,
 │                           { activate: false }) (inv 36). For N ≥ 2 it PLANS FIRST:
@@ -1367,16 +1381,19 @@ worked examples behind several of them are in `docs/history.md`.
     therefore cannot rewrite one. A test pins the appended turn **by identity**.
 
 38. **`overlap` is measured between SOLIDS, and so are the contacts `hangs` reads.**
-    `checkDesign`'s `solidBoxesOf` maps each part's `boardSolids` to world space with
-    invariant 2's mapping, never `solidWorldBox` (centre-relative). Two parts overlap when
+    `worldSolids` (designCheck.ts, exported, the ONE home of this mapping) maps each part's
+    `boardSolids` to world space with invariant 2's mapping, never `solidWorldBox`
+    (centre-relative). Two parts overlap when
     any of their solids share more than `TOUCH` = 1/32 on all three axes, so a cut explains
     an overlap by removing the stock, and a tenon seated in its mortise is not one. A design
     with no cuts has one solid per part, equal to its box, so Generate is unchanged.
     **The contacts `hangs` reads are ALSO computed between solids** (`solidContactsOf`,
     aggregated per part): a seated tenon's box interpenetrates the leg's box, so box contacts
-    would report every mortise-and-tenon rail as hanging. Grounding (`connected`), `tips`
-    and `faceContacts` (sites) stay box-based. Do not raise `TOUCH` to make joints pass, and
-    do not drop the check.
+    would report every mortise-and-tenon rail as hanging. **So do joinery's blockers, trims
+    and pass-through test** (`recipes.ts`, via `worldSolids`; fu 203): a pre-cut design is
+    never refused for stock a cut removed. Only `checkDesign`'s grounding (`connected`),
+    `tips` and `faceContacts` (sites) stay box-based. Do not raise `TOUCH` to make joints
+    pass, and do not drop the check.
 
 39. **Support means HELD, not touching: every part off the floor must be held, and the piece
     must not tip.** `unsupported` (the old rule) only asks whether a part connects to the
@@ -1470,14 +1487,15 @@ worked examples behind several of them are in `docs/history.md`.
     faults are reported once as "already in the original", not repaired at the user's
     expense. **A recipe's refusal is decided before ANY mutation** (trim, move, carry, cut):
     a site skipped after it had started leaves a half-joined part that the sheet and the
-    checks then misreport (fu 183, 185).
+    checks then misreport (fu 183, 185). A throw is not a refusal either: every `resize`
+    asks `cutIntoEnd` (rebaseCuts' throwing condition) first (fu 203).
 
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 1577 tests across 55 files
+npm test           # Vitest, currently 1628 tests across 55 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1487,7 +1505,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is the authoritative list** — 1-200, consciously deferred rather
+**`docs/follow-ups.md` is the authoritative list** — 1-206, consciously deferred rather
 than missed, each written up in place with its closure where it has one. Read the entries
 for the area you are about to touch before starting; several are "correct but untested",
 which is exactly what a refactor breaks silently.
@@ -1564,12 +1582,10 @@ The handful worth knowing without opening that file:
   Settings' Save: the free verification call saves anyway on anything but a 401/403, and
   **there is deliberately no prefix rule** (a working key does not start with `sk-ant-api`).
 - **171** — joinery is BUILT (2026-10-04, "Add joinery…"); refine by instruction is now **179**.
-  Read invariants 38 and 41 and follow-ups 180–204 before touching `generate/joints/`. 180, 181,
-  183, 184, 185, 189, 190 and 192–200 are CLOSED by the cut-list and joinery-fixes rounds of
-  2026-10-04/05; joinery's own residues are still open: 182 (small voids beside a back-stopped
-  dado), 186, 188 (the default-tenon cap's edges), 191 (`findTenons`' exact span edges) and
-  201–204 (the panel's own move unchecked, a lift reports `lowered` 0, box-vs-solid blockers,
-  recorded surviving mutations).
+  Read invariants 38 and 41 and follow-ups 180–206 before touching `generate/joints/`. 180–204
+  are CLOSED (182, 186, 188, 191 and 201–203 by the joinery residues round, on its branch; 202
+  and 204 by decision). Open: 205 (an end-cut refusal reads the cut's STORED form) and 206 (the
+  half-lap coplanar check ignores axis), both safe refusals.
 - **178** — CLOSED 2026-10-04. A cut a board edit has left removing nothing is hidden from
   the cut list, its drawings and the snap points, and flagged on its Properties row; it is
   KEPT, so growing the board back restores it. Read the closure before adding a reader of

@@ -1,4 +1,4 @@
-import type { SloydDocument } from './document';
+import type { Board, SloydDocument } from './document';
 import type { RejectedPart } from './generated';
 import { boardSolids } from './cuts';
 import { axisDimensions, boardExtents } from './geometry';
@@ -28,7 +28,7 @@ export const MIN_SIDE = 1 / 8;
 const AXES = ['X', 'Y', 'Z'] as const;
 const inches = (v: number) => `${+v.toFixed(3)}in`;
 
-interface Box { name: string; min: number[]; max: number[] }
+export interface Box { name: string; min: number[]; max: number[] }
 
 /** Length of the shared span on one axis; negative is a gap. */
 const shared = (a: Box, b: Box, i: number) => Math.min(a.max[i], b.max[i]) - Math.max(a.min[i], b.min[i]);
@@ -235,16 +235,18 @@ const boxesOf = (doc: SloydDocument): Box[] => doc.boards.map((b) => {
 /**
  * A part's SOLIDS in world space — invariant 2's mapping, position plus the
  * local span on the dimension each axis shows. NOT solidWorldBox, which is
- * centre-relative (CLAUDE.md warns about exactly this).
+ * centre-relative (CLAUDE.md warns about exactly this). Exported as the ONE
+ * home of this mapping: joinery's blockers judge the same solids (fu 203).
  */
-const solidBoxesOf = (doc: SloydDocument): Box[][] => doc.boards.map((b) => {
+export function worldSolids(b: Board): Box[] {
   const dims = axisDimensions(b);
   return boardSolids(b).map((s) => ({
     name: b.name,
     min: [0, 1, 2].map((i) => b.position[i] + s[dims[i]][0]),
     max: [0, 1, 2].map((i) => b.position[i] + s[dims[i]][1]),
   }));
-});
+}
+const solidBoxesOf = (doc: SloydDocument): Box[][] => doc.boards.map(worldSolids);
 
 export interface FaceContact { a: number; b: number; axis: number; side: -1 | 1; area: number }
 

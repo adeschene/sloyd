@@ -274,6 +274,42 @@ and 79.
 
 ## What each round did
 
+**What the joinery residues round did (2026-10-05)**: follow-ups 182, 186, 188, 191 and 201–203,
+no spec (the user ruled the design in chat: 201 = trim, 188 = shorter default tenons down to 1/4in
+and butt below, 182's `stopped rabbet` accepted; 202, 204 and 186's blamed `tips` closed by
+decision). No schema change. **On branch `joinery-residues`, not yet merged or deployed. Live check passed** with the user
+watching (`docs/browser-verification-joinery-residues.md`).
+
+- **182 / 201:** a rabbeted panel's sites on one face are one unit, resolved from its FINAL box;
+  every pocket is cut against it, and any other part in the panel's path is trimmed by the
+  intrusion (a pass-through refuses the unit).
+- **188:** default tenons shrink to 1/4in where the collision cap is under 1/2in, else the site
+  butts. The model's range and the prompt are unchanged.
+- **203:** every blocker, trim and pass-through test judges solids through the one exported
+  `worldSolids`; the half-lap plane guard refuses before E moves; `movedFace` is per (part, axis).
+  Every `resize` caller asks rebaseCuts' throwing condition first (`cutIntoEnd`).
+- **191 / 186:** `findTenons` merges breakpoints within `FLUSH_EPSILON`; `problemKey` is a JSON key.
+- **Probe first, and it found more than the ledger said.** 182's voids were not a back-stopped-dado
+  oddity but one ORDER root cause: each rabbet site cut its pocket against the panel as it stood
+  then, so a side's rabbet ran full height and a later top rabbet trimmed the back off its end. The
+  unfilled corner pockets were present in the cabinet live-checked the round before (0.0117 in³ a
+  corner), the drawer (0.0078 a side) and the 72in bookcase (0.0234 a side), and `checkDesign` reported nothing, because it cannot see a void. A void
+  metric (pocket volume minus what other parts' solids fill, no `filled > 0` filter) now asserts
+  the geometry. 188's first probe sat exactly on the 1in boundary; the advisor caught it before it
+  was trusted. 201 reproduced with a
+  shelf 1/8in short of the back, which the back drove 1/8in into.
+- **The reviews' catches.**
+  - Trimming a part already cut into its trimmed end threw inside `rebaseCuts`, and the new gap
+    trim had WIDENED that from butting parts to gap parts. The task report first called it
+    pre-existing; it is now a refusal decided before any change.
+  - A surviving mutation (the panel's solids not clipped to its final box) was recorded as
+    unobservable; the review built the overhang that kills it.
+  - After blockers moved to solids, the rabbet trim loop still judged boxes; it was moved too.
+  - The final review found tenon and dado growth could still throw on a hand-made part already cut
+    at its growing end (on master too); it is now a skip with a reason.
+- **Rulings:** a model tenon with no length at a site whose default is butt takes the butt, with a
+  note, rather than the 1/2in floor and a certain collision. Residues are follow-ups 205 and 206.
+
 **What the joinery fixes round did (2026-10-05)**: follow-ups 190, 185, 183 and 184, no spec (the
 user ruled the design in chat: 183 = outer-face chain, 190 = defaults only, no prompt change). No
 schema change. Merged as `c31dd82` and deployed 2026-10-05 (`index-BzWa2ZGT.js`).

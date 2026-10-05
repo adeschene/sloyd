@@ -31,8 +31,11 @@ const bookcase = () => design(
   { name: 'Shelf 2', at: [0.75, 48, 0], size: [30, 0.75, 11.25] },
 );
 
+// The back rabbet stops 3/8in short of each end since follow-up 182: the back
+// is trimmed to the top's and bottom's rabbet lines BEFORE the sides' rabbets
+// are cut, so they end where the back does (a word change the user accepted).
 const SIDE_TOP = [
-  '3/8" rabbet, 1/4" deep — into the width face (min side), 3/8" from the thickness min end, running across the length',
+  '3/8" stopped rabbet, 1/4" deep — into the width face (min side), 3/8" from the thickness min end, running across the length, stopped 3/8" short of the min end and 3/8" short of the max end',
   '3/4" rabbet, 1/4" deep — into the thickness face (max side), 0" from the length min end, running across the width',
   '3/4" rabbet, 1/4" deep — into the thickness face (max side), 71-1/4" from the length min end, running across the width',
 ];
@@ -48,7 +51,7 @@ describe('the live designs (cut-lines spec §2.2)', () => {
     ]);
   });
 
-  it('the joined bookcase\'s side prints exactly as before', () => {
+  it('the joined bookcase\'s side prints its stopped back rabbet (fu 182)', () => {
     expect(setupOf(joined(bookcase()), 'Left side')).toEqual([
       ...SIDE_TOP,
       '3/4" dado, 1/4" deep — into the thickness face (max side), 24" from the length min end, running across the width',

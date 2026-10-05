@@ -42,8 +42,16 @@ export function findTenons(board: Board): Tenon[] {
 
 /** The section [0,W]×[0,T] minus the rectangles, when what remains is exactly one rectangle; else null. */
 function remainingRectangle(W: number, T: number, rects: { w: Span; t: Span }[]): { w: Span; t: Span } | null {
-  const cuts = (max: number, spans: Span[]) =>
-    [...new Set([0, max, ...spans.flat().filter((v) => v > 0 && v < max)])].sort((a, b) => a - b);
+  // Breakpoints within FLUSH_EPSILON are one (fu 191): two hand-made cuts meant to abut but an ulp apart
+  // would otherwise leave a sliver cell that reads as free stock. Stored values stay exact (inv 18).
+  const cuts = (max: number, spans: Span[]) => {
+    const out: number[] = [];
+    for (const v of [0, max, ...spans.flat().filter((v) => v > 0 && v < max)].sort((a, b) => a - b)) {
+      if (out.length === 0 || v - out[out.length - 1] > FLUSH_EPSILON) out.push(v);
+    }
+    out[out.length - 1] = max; // a breakpoint merged into the far end is the end itself
+    return out;
+  };
   const ws = cuts(W, rects.map((r) => r.w));
   const ts = cuts(T, rects.map((r) => r.t));
   const free: [number, number][] = [];
