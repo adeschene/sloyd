@@ -4323,3 +4323,35 @@ being per (part, axis), which exists so a part lapped on two axes is tracked on 
 - **Reach:** no reaching path found; crossings sort by axis, and a part lapped on two axes with
   partners in different planes is refused, which is safe.
 - **Status:** open, low.
+
+## From the multi-select round — 2026-10-05
+
+**207. After a selection change ends a gizmo drag, the gizmo follows the pointer near the OLD
+selection until mouse-up.** Ctrl/Cmd+A or Delete landing mid-drag ends the gesture and abandons the
+rest of the drag (the controller's ruling), but three-stdlib keeps its own internal drag state, so the
+handle keeps tracking the pointer around the old centre until the button is released. Nothing is
+committed meanwhile; `commit` and `onMouseUp` ignore the abandoned drag.
+- **Possible remedy:** end the control's internal drag on abandon. Not attempted: unverified against
+  three-stdlib, and the viewport has no unit tests.
+- **Status:** open, low, no data harm. Pending the live check's view of it (item 9).
+
+**208. Undo/redo pressed mid-drag can change a selected part's size without changing the selection
+key.** The mid-drag abandon effect keys on the selection, so an undo that alters a selected part's
+dimensions while the control is dragging leaves `commit` reading the new size against a proxy
+positioned for the old one. Pre-existing on the single-part path.
+- **Status:** open, low.
+
+**209. A Delete pressed mid-drag merges into the drag's undo entry.** The gesture's lazy snapshot is
+already taken, so the deletion shares the drag's single entry. Pre-existing on the single path.
+- **Status:** open, low.
+
+**210. A mixed group field typed into, then cleared, shows a parse error on blur until Escape.** The
+blank draft in a field whose stored value is mixed reads as an unparseable entry. The single panel
+behaves the same way.
+- **Status:** open, low, cosmetic.
+
+**211. Small coverage gaps the round judged fine to leave.** Record-only.
+- `duplicateBoards` collapsing a repeated id, and dropping a grab that is not a copy, has no test.
+- GroupProperties' Through-thickness test is absence-only; mutation 12 covers the behaviour.
+- "1 parts selected" is unreachable (selection filtering in the store), so no singular form exists.
+- **Status:** record-only.

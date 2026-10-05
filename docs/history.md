@@ -274,6 +274,36 @@ and 79.
 
 ## What each round did
 
+**What the multi-select round did (2026-10-05)**: selecting and editing several parts at once, with a
+spec and plan (`docs/superpowers/specs/2026-10-05-sloyd-multi-select-design.md`). No schema change.
+**On branch `multi-select`, not yet merged or deployed; the live check is pending.**
+
+- **Decomposition.** The user's wish, hide/unhide and repeated parts, was split into three rounds in
+  the user's order: multi-select, then hide/unhide, then repeated parts. Only the first is built.
+- **Scope rulings.** Operations: move together, delete/duplicate, shared properties. Gestures:
+  Shift/Ctrl-click and Ctrl/Cmd+A. Group fields: length, width, thickness, grain and material.
+- **The change.** `selectedIds` in the store with one writer for user selection changes (undo, redo
+  and `replaceDocument` reconcile it); `commitSnapMove` and `moveGroupTo` move the group by one
+  delta; `updateBoards`, `deleteBoards` and `duplicateBoards` are one undo entry each; the gizmo
+  drags the group; `DimensionField` takes `value: null` for mixed; Properties has a group mode.
+  Invariant 42 states the writer rule, and invariants 5 and 24 were widened.
+- **Spec corrections found while planning.** `f` with nothing selected is a no-op, and
+  `replaceDocument` clears the selection.
+- **Controller ruling (found by the Task 5 implementer).** A selection change mid-drag ENDS the
+  gesture. A group keeps a gizmo target across the change, so unlike the single part (which got this
+  by unmounting) the drag would otherwise commit the new group's size against the old proxy and the
+  parts would jump. Cost if wrong: a drag interrupted by Ctrl+A must be restarted.
+- **The reviews' catches.**
+  - A grab whose owner is toggled out of the selection could become a target; the selection patch
+    now drops the grab (tested).
+  - MoveTool had to withhold every selected part's points, not only the grabbed one's; carried from
+    Task 2 to Task 4.
+  - The invariant 42 wording was corrected to one writer for user changes.
+  - The final review asked for two stale comments fixed (`commitSnapMove`'s duplicated self-snap
+    paragraph, `isBoardOwned`'s reason) and a test that a grab owned by a non-first group member
+    is dropped; mutating the clause to `ids[0]` alone turns it red.
+- **Residues** are follow-ups 207-211.
+
 **What the joinery residues round did (2026-10-05)**: follow-ups 182, 186, 188, 191 and 201–203,
 no spec (the user ruled the design in chat: 201 = trim, 188 = shorter default tenons down to 1/4in
 and butt below, 182's `stopped rabbet` accepted; 202, 204 and 186's blamed `tips` closed by
