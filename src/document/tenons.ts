@@ -1,5 +1,5 @@
 import type { Board, Span } from './types';
-import { FLUSH_EPSILON, cutRegion, cutsThatRemoveStock } from './cuts';
+import { FLUSH_EPSILON, clippedRegion, cutsThatRemoveStock } from './cuts';
 
 export interface Tenon { end: 'min' | 'max'; length: number; thickness: number; width: number; cutIds: string[] }
 
@@ -14,17 +14,16 @@ export interface Tenon { end: 'min' | 'max'; length: number; thickness: number; 
 export function findTenons(board: Board): Tenon[] {
   const L = board.length;
   const out: Tenon[] = [];
-  const clip = (s: Span, max: number): Span => [Math.max(0, s[0]), Math.min(max, s[1])];
   for (const end of ['min', 'max'] as const) {
     const groups: { ell: number; ids: string[]; rects: { w: Span; t: Span }[] }[] = [];
     for (const cut of cutsThatRemoveStock(board)) {
-      const r = cutRegion(board, cut);
-      const [lo, hi] = clip(r.length, L);
+      const r = clippedRegion(board, cut);
+      const [lo, hi] = r.length;
       const atEnd = end === 'min' ? lo <= FLUSH_EPSILON : hi >= L - FLUSH_EPSILON;
       if (!atEnd) continue;
       const ell = end === 'min' ? hi : L - lo;
       if (ell > L / 2 + FLUSH_EPSILON) continue;
-      const rect = { w: clip(r.width, board.width), t: clip(r.thickness, board.thickness) };
+      const rect = { w: r.width, t: r.thickness };
       const g = groups.find((x) => Math.abs(x.ell - ell) <= FLUSH_EPSILON);
       if (g) { g.ids.push(cut.id); g.rects.push(rect); } else groups.push({ ell, ids: [cut.id], rects: [rect] });
     }

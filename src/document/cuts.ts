@@ -430,12 +430,10 @@ export const FLUSH_EPSILON = 1e-9;
  * with no stock. The `face` entry is always closed (it is the depth axis).
  */
 export function openSides(board: Board, cut: Cut, solids: Region[] = boardSolids(board)): Record<Dimension, { min: boolean; max: boolean }> {
-  const r = cutRegion(board, cut);
-  const span = (d: Dimension): Span => [Math.max(0, r[d][0]), Math.min(board[d], r[d][1])];
+  const box = clippedRegion(board, cut);
   const noStock = (strip: Region) =>
     DIMENSION_ORDER.some((d) => strip[d][1] - strip[d][0] <= FLUSH_EPSILON) ||
     !solids.some((s) => DIMENSION_ORDER.every((d) => Math.min(s[d][1], strip[d][1]) - Math.max(s[d][0], strip[d][0]) > FLUSH_EPSILON));
-  const box = { length: span('length'), width: span('width'), thickness: span('thickness') };
   const out = {} as Record<Dimension, { min: boolean; max: boolean }>;
   for (const d of DIMENSION_ORDER) {
     if (d === cut.face) { out[d] = { min: false, max: false }; continue; }
