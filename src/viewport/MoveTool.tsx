@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { guideSnapPoints, sameSnapPoint, snapPointsFor } from '../document/document';
+import { sameSnapPoint } from '../document/document';
 import type { BoardSnapPoint, SnapPoint } from '../document/document';
 import { useStore } from '../store/store';
+import { moveCandidates } from './moveCandidates';
 import { CLICK_DRAG_SLOP_PX } from './pointer';
 import { PICK_RADIUS_PX, pickSnapPoint } from './snapPick';
 import type { ProjectedPoint } from './snapPick';
@@ -69,57 +70,16 @@ export function MoveTool({ showGuides = true }: { showGuides?: boolean }) {
   // reachable only on a future platform.
   const downAt = useRef<{ x: number; y: number; pointerId: number } | null>(null);
 
-  /**
-   * The points on offer, which are two different sets rather than one set
-   * with a filter.
-   *
-   * BEFORE a grab: only the SELECTED board's points. Boards in a real project
-   * touch — that is what the tool is for — so two of them routinely share a
-   * corner, and offering both meant pickSnapPoint's depth tie-break silently
-   * decided which board was about to move. The marker sits at a position both
-   * boards share, so nothing on screen said which one it named. With nothing
-   * selected this is empty, and nothing is grabbable at all — which is what
-   * the toolbar's "Select a part to move" hint exists to explain.
-   *
-   * AFTER a grab: every board's points minus the grabbed board's own.
-   * Deliberately NOT restricted the same way — two coincident TARGET points
-   * produce the identical delta, so which one wins is unobservable, and the
-   * board being moved is by definition the selected one, so a selected-only
-   * target set would leave nothing to snap to. See design §3.
-   *
-   * Withholding the grabbed board's own candidates is what makes the
-   * self-snap exclusion legible: an ineligible point draws no marker, so the
-   * case is never offered rather than being offered and then silently ignored
-   * on click. (commitSnapMove guards it too — that guard makes the rule true
-   * of the action, this makes it true of the UI.)
-   *
-   * Both branches go through snapPointsFor, which is the box lattice plus the
-   * cut-owned points. BOTH is load-bearing, not symmetry: the operation cut
-   * points exist for grabs a corner on the shelf and clicks the shoulder on
-   * the side panel, so a cut point is most often a TARGET, on the board that
-   * is not selected. One function rather than two concatenations so the
-   * branches cannot drift (follow-up 113).
-   *
-   * GUIDES ARE TARGETS, NEVER GRAB SOURCES, so they appear in the post-grab
-   * branch only — you snap a board onto a guide, never a guide onto a board.
-   * The pre-grab branch needs no filter to make that true: it is one selected
-   * board's points, which are board-owned by construction. Stacking a
-   * board-owned filter on a rule that is already narrower would be two
-   * predicates that agree today and two places for a future rule to disagree
-   * (follow-ups 113 and 125). Hidden guides offer no candidates either — a
-   * marker over an invisible point is an indicator with nothing under it
-   * (design §6).
-   */
-  const candidates = useMemo(() => {
-    if (grabbed) {
-      return [
-        ...boards.flatMap(snapPointsFor).filter((p) => p.owner.id !== grabbed.owner.id),
-        ...(showGuides ? guideSnapPoints(guides) : []),
-      ];
-    }
-    const selected = selectedIds.length === 1 ? boards.find((b) => b.id === selectedIds[0]) : undefined;
-    return selected ? snapPointsFor(selected) : [];
-  }, [boards, grabbed, selectedIds, guides, showGuides]);
+  // The two candidate sets — selected parts' points before a grab, every
+  // unselected part's (plus guides) after — are moveCandidates' rule; see its
+  // comment. `grabbing` rather than `grabbed` in the deps: the sets depend on
+  // whether a grab is held, not on which point (invariant 15 — the deps are
+  // exactly what moveCandidates reads).
+  const grabbing = grabbed !== null;
+  const candidates = useMemo(
+    () => moveCandidates(boards, guides, selectedIds, grabbing, showGuides),
+    [boards, guides, selectedIds, grabbing, showGuides],
+  );
 
   useEffect(() => {
     if (tool !== 'move') {
@@ -218,7 +178,7 @@ export function MoveTool({ showGuides = true }: { showGuides?: boolean }) {
       el.removeEventListener('pointerleave', onPointerLeave);
     };
     // `candidates` is in the list because the handlers close over it, and it
-    // already depends on `boards`, `grabbed`, `selectedIds`, `guides` and
+    // already depends on `boards`, `grabbing`, `selectedIds`, `guides` and
     // `showGuides` — so none of those belongs here again. `size.width`/
     // `.height` rather than `size` so a re-created size object does not
     // resubscribe.
