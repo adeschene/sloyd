@@ -90,8 +90,8 @@ describe('boardSnapPoints', () => {
     // below: offset 0 makes the cut flush with the length-min end, so its
     // mouth row sits exactly on three of the board's own 26 lattice points —
     // (length=0, thickness=max, width={0,3,6}) — rather than a quarter-inch
-    // above them. dims = [thickness, width, length], so those are world
-    // X=11 (thickness max), Z=-5 (length min), Y in {2,5,8}.
+    // above them. dims = [thickness, width, length], Z reversed, so those are
+    // world X=11 (thickness max), Z=19 (length min: 19 - 0), Y in {2,5,8}.
     const rabbet: Cut = { ...DADO, offset: 0, width: 2 };
     const b = posed([rabbet]);
     const points = boardSnapPoints(b);
@@ -102,9 +102,9 @@ describe('boardSnapPoints', () => {
     expect(points.filter((p) => p.kind === 'face-center')).toHaveLength(6);
 
     const withheld: [number, number, number][] = [
-      [11, 2, -5],
-      [11, 5, -5],
-      [11, 8, -5],
+      [11, 2, 19],
+      [11, 5, 19],
+      [11, 8, 19],
     ];
     for (const at of withheld) {
       expect(
@@ -172,8 +172,10 @@ describe('boardSnapPoints', () => {
  * A POSED board: 24 x 6 x 1 at [10, 2, -5], standing on edge and turned 90.
  *
  * The posing is the test. axisDimensions for posture 'on-edge' puts `width`
- * up, leaving [length, thickness] horizontal, and rotation 90 swaps them — so
- * X = thickness, Y = width, Z = length. A flat, unrotated board at the origin
+ * up, leaving [length, thickness] horizontal, and turn 90 (a true
+ * counter-clockwise quarter turn, quarter-turns spec §2) puts thickness on X
+ * and length on Z REVERSED — so X = 10 + thickness, Y = 2 + width,
+ * Z = -5 + (24 - length) = 19 - length. A flat, unrotated board at the origin
  * passes with a COMPLETELY WRONG local->world mapping, because every axis is
  * the identity there.
  */
@@ -214,12 +216,12 @@ describe('cutSnapPoints', () => {
    *
    *   dims       = [thickness, width, length]  (X, Y, Z)
    *   position   = [10, 2, -5]
-   *   X = 10 + thickness, Y = 2 + width, Z = -5 + length
+   *   X = 10 + thickness, Y = 2 + width, Z = 19 - length  (Z reversed)
    *
    *   cutRegion  = { length: [6, 6.75], width: [0, 6], thickness: [0.75, 1] }
    *   mouth      = thickness 1    -> X = 11      (from: 'max')
    *   floor      = thickness 0.75 -> X = 10.75
-   *   pos (length) {6, 6.375, 6.75}  -> Z {1, 1.375, 1.75}
+   *   pos (length) {6, 6.375, 6.75}  -> Z {13, 12.625, 12.25}
    *   across (width) {0, 3, 6}       -> Y {2, 5, 8}
    *
    * Every value is a dyadic rational and therefore exact in IEEE 754. Compare
@@ -231,22 +233,22 @@ describe('cutSnapPoints', () => {
 
     const expected: [number[], string][] = [
       // Floor rectangle, X = 10.75.
-      [[10.75, 2, 1], 'corner'],
-      [[10.75, 2, 1.375], 'edge-mid'],
-      [[10.75, 2, 1.75], 'corner'],
-      [[10.75, 5, 1], 'edge-mid'],
-      [[10.75, 5, 1.375], 'face-center'],
-      [[10.75, 5, 1.75], 'edge-mid'],
-      [[10.75, 8, 1], 'corner'],
-      [[10.75, 8, 1.375], 'edge-mid'],
-      [[10.75, 8, 1.75], 'corner'],
+      [[10.75, 2, 13], 'corner'],
+      [[10.75, 2, 12.625], 'edge-mid'],
+      [[10.75, 2, 12.25], 'corner'],
+      [[10.75, 5, 13], 'edge-mid'],
+      [[10.75, 5, 12.625], 'face-center'],
+      [[10.75, 5, 12.25], 'edge-mid'],
+      [[10.75, 8, 13], 'corner'],
+      [[10.75, 8, 12.625], 'edge-mid'],
+      [[10.75, 8, 12.25], 'corner'],
       // Mouth: the two shoulder lines only, X = 11.
-      [[11, 2, 1], 'corner'],
-      [[11, 5, 1], 'edge-mid'],
-      [[11, 8, 1], 'corner'],
-      [[11, 2, 1.75], 'corner'],
-      [[11, 5, 1.75], 'edge-mid'],
-      [[11, 8, 1.75], 'corner'],
+      [[11, 2, 13], 'corner'],
+      [[11, 5, 13], 'edge-mid'],
+      [[11, 8, 13], 'corner'],
+      [[11, 2, 12.25], 'corner'],
+      [[11, 5, 12.25], 'edge-mid'],
+      [[11, 8, 12.25], 'corner'],
     ];
 
     for (const [at, kind] of expected) {
@@ -268,7 +270,7 @@ describe('cutSnapPoints', () => {
    *   region.thickness = [0, 0.25]   (from: 'min', depth 0.25)
    *   mouth = thickness 0    -> X = 10 + 0    = 10
    *   floor = thickness 0.25 -> X = 10 + 0.25 = 10.25
-   *   pos (length) {6, 6.375, 6.75}  -> Z {1, 1.375, 1.75}   (unchanged)
+   *   pos (length) {6, 6.375, 6.75}  -> Z {13, 12.625, 12.25}   (unchanged)
    *   across (width) {0, 3, 6}       -> Y {2, 5, 8}          (unchanged)
    */
   it('places all 15 points correctly for from: "min" (mouth and floor swapped)', () => {
@@ -281,22 +283,22 @@ describe('cutSnapPoints', () => {
 
     const expected: [number[], string][] = [
       // Floor rectangle, X = 10.25.
-      [[10.25, 2, 1], 'corner'],
-      [[10.25, 2, 1.375], 'edge-mid'],
-      [[10.25, 2, 1.75], 'corner'],
-      [[10.25, 5, 1], 'edge-mid'],
-      [[10.25, 5, 1.375], 'face-center'],
-      [[10.25, 5, 1.75], 'edge-mid'],
-      [[10.25, 8, 1], 'corner'],
-      [[10.25, 8, 1.375], 'edge-mid'],
-      [[10.25, 8, 1.75], 'corner'],
+      [[10.25, 2, 13], 'corner'],
+      [[10.25, 2, 12.625], 'edge-mid'],
+      [[10.25, 2, 12.25], 'corner'],
+      [[10.25, 5, 13], 'edge-mid'],
+      [[10.25, 5, 12.625], 'face-center'],
+      [[10.25, 5, 12.25], 'edge-mid'],
+      [[10.25, 8, 13], 'corner'],
+      [[10.25, 8, 12.625], 'edge-mid'],
+      [[10.25, 8, 12.25], 'corner'],
       // Mouth: the two shoulder lines only, X = 10.
-      [[10, 2, 1], 'corner'],
-      [[10, 5, 1], 'edge-mid'],
-      [[10, 8, 1], 'corner'],
-      [[10, 2, 1.75], 'corner'],
-      [[10, 5, 1.75], 'edge-mid'],
-      [[10, 8, 1.75], 'corner'],
+      [[10, 2, 13], 'corner'],
+      [[10, 5, 13], 'edge-mid'],
+      [[10, 8, 13], 'corner'],
+      [[10, 2, 12.25], 'corner'],
+      [[10, 5, 12.25], 'edge-mid'],
+      [[10, 8, 12.25], 'corner'],
     ];
 
     for (const [at, kind] of expected) {
@@ -368,9 +370,9 @@ describe('cutSnapPoints', () => {
 
   it('offers nothing at the mouth\'s middle row, which spans the opening', () => {
     const points = cutSnapPoints(posed([DADO]));
-    // X = 11 (mouth plane), Z = 1.375 (pos mid). All three would hang in the
-    // hole rather than sitting on wood — design §3.
-    expect(points.some((p) => p.at[0] === 11 && p.at[2] === 1.375)).toBe(false);
+    // X = 11 (mouth plane), Z = 12.625 (pos mid: 19 - 6.375). All three would
+    // hang in the hole rather than sitting on wood — design §3.
+    expect(points.some((p) => p.at[0] === 11 && p.at[2] === 12.625)).toBe(false);
   });
 
   it('carries the owning board\'s id on every point', () => {
@@ -389,10 +391,11 @@ describe('cutSnapPoints', () => {
     const rabbet: Cut = { ...DADO, offset: 0, width: 2 };
     const points = cutSnapPoints(posed([rabbet]));
     expect(points).toHaveLength(12);
-    // Mouth plane is thickness 1 -> X = 11. The flush end is length 0 -> Z = -5.
-    // Exactly that row is gone; the other shoulder (length 2 -> Z = -3) is not.
-    expect(points.some((p) => p.at[0] === 11 && p.at[2] === -5)).toBe(false);
-    expect(points.filter((p) => p.at[0] === 11 && p.at[2] === -3)).toHaveLength(3);
+    // Mouth plane is thickness 1 -> X = 11. The flush end is length 0 -> Z = 19
+    // (Z reversed). Exactly that row is gone; the other shoulder (length 2 ->
+    // Z = 17) is not.
+    expect(points.some((p) => p.at[0] === 11 && p.at[2] === 19)).toBe(false);
+    expect(points.filter((p) => p.at[0] === 11 && p.at[2] === 17)).toHaveLength(3);
     // The 9 floor points all survive: the stock beneath the floor is intact.
     expect(points.filter((p) => p.at[0] === 10.75)).toHaveLength(9);
   });
@@ -406,7 +409,7 @@ describe('cutSnapPoints', () => {
     // — which is the whole of the argument for not de-duplicating (design §9).
     const rabbet: Cut = { ...DADO, offset: 0, width: 2, depth: 0.5, stopMin: 0, stopMax: 0 };
     const b = posed([rabbet]);
-    const shared = [10.5, 2, -5];
+    const shared = [10.5, 2, 19]; // length 0 -> Z = 19 (Z reversed)
     const hits = snapPointsFor(b).filter((p) => key(p.at) === key(shared));
     expect(hits).toHaveLength(2);
     expect(new Set(hits.map((p) => p.kind))).toEqual(new Set(['corner', 'edge-mid']));
@@ -475,24 +478,25 @@ describe('cutSnapPoints — stopped cuts', () => {
   it('offers the midpoints of a mortise\'s stopped ends at the mouth', () => {
     // across (width) runs 1..4 -> Y 3..6; its mid 2.5 -> Y 4.5.
     const keys = cutSnapPoints(posed([{ ...DADO, stopMin: 1, stopMax: 2 }])).map((p) => key(p.at));
-    expect(keys).toContain(key([11, 3, 1.375]));
-    expect(keys).toContain(key([11, 6, 1.375]));
+    // pos mid length 6.375 -> Z 12.625 (Z reversed).
+    expect(keys).toContain(key([11, 3, 12.625]));
+    expect(keys).toContain(key([11, 6, 12.625]));
     // The mouth's own centre sits in the hole — never offered.
-    expect(keys).not.toContain(key([11, 4.5, 1.375]));
+    expect(keys).not.toContain(key([11, 4.5, 12.625]));
   });
 
   it('offers a stopped dado\'s stopped end at the mouth, and not its open end', () => {
     // stopMax 2: across runs 0..4 -> Y 2..6. The open end (Y 2) is the board's own edge.
     const keys = cutSnapPoints(posed([{ ...DADO, stopMax: 2 }])).map((p) => key(p.at));
-    expect(keys).toContain(key([11, 6, 1.375]));
-    expect(keys).not.toContain(key([11, 2, 1.375]));
+    expect(keys).toContain(key([11, 6, 12.625]));
+    expect(keys).not.toContain(key([11, 2, 12.625]));
   });
 
   it('puts a through mortise\'s floor on the far surface, minus its centre (no stock there)', () => {
     const pts = cutSnapPoints(posed([{ ...DADO, depth: 1, stopMin: 1, stopMax: 2 }]));
     const floor = pts.filter((p) => p.at[0] === 10);
     expect(floor).toHaveLength(8);
-    expect(floor.map((p) => key(p.at))).not.toContain(key([10, 4.5, 1.375]));
+    expect(floor.map((p) => key(p.at))).not.toContain(key([10, 4.5, 12.625]));
     expect(pts).toHaveLength(16);
   });
 });

@@ -4,7 +4,8 @@ import { boardExtents } from './geometry';
 
 /**
  * A part whose cuts have a HAND: a stopped dado stopped at one end only, and
- * an off-centre mortise stopped unequally. A mirror of it is a different part,
+ * an off-centre mortise stopped unequally, and a stopped rabbet that takes
+ * one box corner. A mirror of it is a different part,
  * so a reflection anywhere in the part↔world mapping shows up. Used only by
  * tests (quarter-turns plan, Tasks 2-4).
  */
@@ -14,6 +15,10 @@ export function chiralPart(posture: Posture): Board {
     cuts: [
       { id: 'c1', face: 'thickness', from: 'max', across: 'width', offset: 4, width: 0.75, depth: 0.5, stopMin: 0, stopMax: 1.5 },
       { id: 'c2', face: 'width', from: 'min', across: 'length', offset: 0.375, width: 0.5, depth: 1, stopMin: 2, stopMax: 12 },
+      // A stopped rabbet flush at width 0, running out at length 0 only: it
+      // removes a box corner, so boardSnapPoints' filter withholds lattice
+      // points and its equivariance test has something to see.
+      { id: 'c3', face: 'thickness', from: 'max', across: 'length', offset: 0, width: 1, depth: 0.5, stopMin: 0, stopMax: 5 },
     ],
   });
 }
