@@ -24,7 +24,7 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **1539/1539 tests passing across 55 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
+Static SPA, containerized, **1543/1543 tests passing across 55 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **7**.
 
 **PRODUCTION MATCHES `master` as of 2026-10-04 with the cut storage round live** — bundle `index-JBiJohQE.js`, CSS `index-DqhKBEnY.css` (unchanged), merge commit `7fa749d`, **schema 7**. Before it the same day: cut lines `index-BPmx9i74.js` (`f602a2d`), cut words `index-Cw_EeWuY.js` (`8c9be52`), joinery `index-Ci7lVCzJ.js` (`d2a14ac`), phantom cut `index-B2Yuq550.js` (`e7bf3bc`), stopped cuts `index-CoHIAVxf.js` (`c054ede`), which bumped the schema to 7 (rolling back past it strands v7 documents; export first). Before it, 2026-10-03: key check `index-BhhW2iNw.js` (`d0ba83b`), held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
@@ -40,6 +40,8 @@ Claude drives the dev server and the user supervises. Results are in
 `docs/browser-verification-generate.md`. 6 of 6 generations completed. It left two
 findings: 164, a batch converging on one design, now CLOSED (below); and 165, a support
 check that passes a badly supported part, still open.
+
+**The 198/199 round (2026-10-05) is on branch `fu198-199`, live-checked by the user, NOT yet merged.** No Match note when only the square tie's default decides a cut's direction (`runByDefault`), and a growing part's cuts follow their shape in `rebaseCuts` (`docs/browser-verification-fu198-199.md`). No schema change. Open: follow-up 200.
 
 **The cut storage round (follow-ups 195, 196, 2026-10-04) is merged AND deployed.** Joinery stores each cut the way the sheet reads it (`storedAsShape`), Properties offers **Match the cut list** for one stored the other way (guarded: offered only when the sheet would read the same), and a square opening's direction reads only its shape (`docs/browser-verification-cut-storage.md`). No schema change. Open questions: follow-ups 198, 199.
 
@@ -256,6 +258,7 @@ show it. Prefer a readout where one suffices; add an image when the finding is s
 | cut words | 10-04 | — | fu 180/181/189: a cut is named from its OPENING, open meaning NO STOCK left (`openSides`), so one shape gets one word; `findTenons` prints a tenon as one line; corner notch; mortise by depth:length |
 | cut lines | 10-04 | — | fu 192/193 (194 by decision): `cutShape` is the ONE description of a cut (word, run axis, position, stops at closed ends); the setup line AND the drawing format from it, never stored fields; `groove` with the grain, solid wood and plywood |
 | cut storage | 10-04 | — | fu 195/196: `storedAsShape` — joinery stores a cut the way the sheet reads it; Properties' **Match the cut list** (one undo, same stock, guarded so the sheet never changes); the square tie reads only the shape |
+| 198/199 | 10-05 | — | *no spec* — fu 198: `CutShape.runByDefault`, no Match note when only the tie's default decides; fu 199: `rebaseCuts` re-stores by shape (judged before the growth), so growth never depends on storage |
 
 ### The deployment rule, stated once
 
@@ -1437,7 +1440,7 @@ worked examples behind several of them are in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 1539 tests across 55 files
+npm test           # Vitest, currently 1543 tests across 55 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

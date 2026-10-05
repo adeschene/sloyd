@@ -4197,7 +4197,7 @@ from the tie's final default (length, width, thickness), not from the geometry.
 the new end, while a cut flush on the position axis does not move, so re-storing a cut
 (`storedAsShape`) can change how it follows a later growth.
 - **Reach:** latent: a 248-variant joinery corpus probe showed 0 differences.
-- **Status:** CLOSED 2026-10-04: `rebaseCuts` re-stores each cut via `storedAsShape`, judged on the part before it grows, so a cut that runs along the growth keeps running out and one positioned at the moving end stays, whichever way it was stored (a 648-case probe: 0 storage-dependent differences). A square corner opening at the moving end follows the length default and so extends; a cut the guard refuses keeps its stored form and the old rule; only grown parts are re-stored.
+- **Status:** CLOSED 2026-10-04: `rebaseCuts` re-stores each cut via `storedAsShape`, judged on the part before it grows, so a cut that runs along the growth keeps running out and one positioned at the moving end stays, whichever way it was stored (a 648-case probe: 0 storage-dependent differences). A square corner opening at the moving end follows the length default and so extends; a cut the guard refuses keeps its stored form and the old rule; only resized parts (grown or shrunk) are re-stored.
 
 **200. A square typed in millimetres is not a tie.** `runAxis` compares extents exactly (cut-storage spec §2), so a 20 mm × 20 mm opening measures 0.78740157480315 against 0.7874015748031495 and is decided by the longer extent, not the tie: it keeps the Match note that 198 hides for a fractional square, and its sheet direction can depend on the last bit. An epsilon tie would change the sheet's rule as well as the note.
 - **Status:** open, low.
