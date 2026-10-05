@@ -21,7 +21,7 @@ const outcome = (over: Partial<JoineryOutcome> = {}, result: Partial<JoineryOutc
     applied: [
       { site: 0, joint: 'mortise-tenon' }, { site: 1, joint: 'dado' }, { site: 2, joint: 'butt' },
     ],
-    skipped: [], moved: [], trimmed: [], sizeBefore: [21.5, 30, 11.5], sizeAfter: [21.5, 30, 11.5], ...result,
+    skipped: [], moved: [], trimmed: [], lowered: 0, sizeBefore: [21.5, 30, 11.5], sizeAfter: [21.5, 30, 11.5], ...result,
   },
   notes: [], violations: [], preexisting: [], usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
   ...over,
@@ -81,10 +81,20 @@ describe('JoineryDialog', () => {
       preexisting: [{ kind: 'unsupported', message: 'Lid floats.', parts: ['Lid'] }],
       violations: [{ kind: 'overlap', message: 'Rail overlaps Leg.', parts: ['Rail', 'Leg'] }],
     }, { moved: ['Back'], trimmed: ['Back', 'Shelf'] })) });
-    expect(screen.getByText('Moved: Back. Trimmed: Back, Shelf.')).toBeInTheDocument();
+    expect(screen.getByText('Moved relative to the rest: Back. Trimmed: Back, Shelf.')).toBeInTheDocument();
     expect(screen.getByText('Shelf got a rabbet.')).toBeInTheDocument();
     expect(screen.getByText('Already in the original: Lid floats.')).toBeInTheDocument();
     expect(screen.getByText('Rail overlaps Leg.')).toBeInTheDocument();
+  });
+
+  it('says the whole piece was lowered, only when it was', () => {
+    draw({ run: ready(outcome({}, { lowered: 0.25 })) });
+    expect(screen.getByText('The whole piece was lowered 1/4" to sit on the floor again.')).toBeInTheDocument();
+  });
+
+  it('says nothing about lowering when it was not', () => {
+    draw({ run: ready(outcome()) });
+    expect(screen.queryByText(/was lowered/)).not.toBeInTheDocument();
   });
 
   it('a fallback names the model failure, with no doubled period', () => {

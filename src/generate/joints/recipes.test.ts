@@ -312,6 +312,16 @@ describe('rabbet: the piece stays on the floor', () => {
     expect(Math.min(...out.doc.boards.map((b) => b.position[1]))).toBeCloseTo(0, 9);
     expect(checkDesign(out.doc, limits(out.doc)).filter((v) => v.kind === 'unsupported')).toEqual([]);
   });
+
+  it('reports the drop: the Bottom rose by 1/4in and everything came down by it', () => {
+    expect(out.lowered).toBe(0.25);
+    expect(board(out.doc, 'SideL').position[1]).toBeCloseTo(0, 9);
+  });
+
+  it('reports 0 when nothing was re-grounded', () => {
+    const none = applyJoints(doc, findSites(doc), findSites(doc).map((s) => ({ site: s.id, joint: 'butt' as const })));
+    expect(none.lowered).toBe(0);
+  });
 });
 
 describe('half-lap', () => {

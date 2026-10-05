@@ -14,6 +14,8 @@ export interface JoinResult {
   skipped: { site: number; reason: string }[];
   moved: string[];
   trimmed: string[];
+  /** How far the re-ground dropped the whole piece; 0 when it did not run or dropped nothing. */
+  lowered: number;
   sizeBefore: V3;
   sizeAfter: V3;
 }
@@ -267,14 +269,16 @@ export function applyJoints(doc: SloydDocument, sites: Site[], choices: JointCho
   // A rabbeted bottom moves up into its frame; if the design stood on the
   // floor, lower everything back onto it (spec §4.7).
   const lowest = (bs: Board[]) => Math.min(...bs.map((b) => boxOf(b).min[1]));
+  let lowered = 0;
   if (doc.boards.length > 0 && lowest(doc.boards) <= TOUCH) {
     const drop = lowest(boards);
     for (const b of boards) b.position[1] -= drop;
+    if (Math.abs(drop) > 1e-9) lowered = Math.max(0, drop);
   }
   const out = migrateDocument({ ...doc, version: CURRENT_VERSION, boards });
   return {
     doc: out, applied, skipped,
-    moved: [...moved], trimmed: [...trimmed],
+    moved: [...moved], trimmed: [...trimmed], lowered,
     sizeBefore: overall(doc.boards), sizeAfter: overall(out.boards),
   };
 }

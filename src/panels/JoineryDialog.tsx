@@ -105,10 +105,11 @@ export function JoineryDialog(p: Props) {
             {sizeLines.map((l) => <p key={l}>{l}</p>)}
             {(out.result.moved.length > 0 || out.result.trimmed.length > 0) && (
               <p>{[
-                out.result.moved.length > 0 && `Moved: ${out.result.moved.join(', ')}.`,
+                out.result.moved.length > 0 && `Moved relative to the rest: ${out.result.moved.join(', ')}.`,
                 out.result.trimmed.length > 0 && `Trimmed: ${out.result.trimmed.join(', ')}.`,
               ].filter(Boolean).join(' ')}</p>
             )}
+            {out.result.lowered > 0 && <p>{`The whole piece was lowered ${formatLength(out.result.lowered)} to sit on the floor again.`}</p>}
             {out.notes.map((n, i) => <p key={`n${i}`}>{n}</p>)}
             {out.preexisting.map((v, i) => <p key={`p${i}`}>{`Already in the original: ${v.message}`}</p>)}
             {out.violations.map((v, i) => <p key={`v${i}`} className="field-error">{v.message}</p>)}
