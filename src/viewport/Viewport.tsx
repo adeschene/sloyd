@@ -1,9 +1,10 @@
 import { clearOnMiss, selectByClick } from '../store/selectionGesture';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Grid, OrbitControls, OrthographicCamera, PerspectiveCamera } from '@react-three/drei';
 import * as THREE from 'three';
 import { useStore } from '../store/store';
+import { visibleBoards } from '../store/visibility';
 import { boardExtents } from '../document/document';
 import type { Board } from '../document/document';
 import { BoardMesh } from './BoardMesh';
@@ -59,13 +60,14 @@ interface OrbitLike {
  */
 function CameraKeys({ suspended }: { suspended: boolean }) {
   const boards = useStore((s) => s.doc.boards);
+  const hiddenIds = useStore((s) => s.hiddenIds);
   const selectedIds = useStore((s) => s.selectedIds);
   const camera = useThree((s) => s.camera);
   const controls = useThree((s) => s.controls) as OrbitLike | null;
   const size = useThree((s) => s.size);
 
   const frame = useCallback(
-    (subset: Board[]) => {
+    (subset: readonly Board[]) => {
       if (subset.length === 0) return;
 
       const box = new THREE.Box3();
@@ -118,14 +120,14 @@ function CameraKeys({ suspended }: { suspended: boolean }) {
       if (target.tagName === 'INPUT' || target.tagName === 'SELECT') return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
 
-      let subset: Board[];
+      let subset: readonly Board[];
       if (e.key === 'f' || e.key === 'F') {
         // The whole selection. With nothing selected this is empty and `f`
         // does nothing, exactly as before multi-select — `Home` is the key
         // that frames everything (multi-select plan, spec clarification 1).
         subset = boards.filter((b) => selectedIds.includes(b.id));
       } else if (e.key === 'Home') {
-        subset = boards;
+        subset = visibleBoards(boards, hiddenIds);
       } else {
         return;
       }
@@ -138,7 +140,7 @@ function CameraKeys({ suspended }: { suspended: boolean }) {
     // `suspended` belongs in the dependency list, not just in the body: an
     // effect that reads a flag it does not depend on keeps the first value it
     // saw, which is invariant 15's failure shape in a listener.
-  }, [boards, selectedIds, frame, suspended]);
+  }, [boards, hiddenIds, selectedIds, frame, suspended]);
 
   // Swapping projection hands OrbitControls a fresh camera whose target is the
   // origin, which would throw the view away. Re-frame the model instead. The
@@ -149,9 +151,10 @@ function CameraKeys({ suspended }: { suspended: boolean }) {
       mounted.current = true;
       return;
     }
-    // Read the boards imperatively: only the projection swap should re-frame,
+    // Read the boards and hiddenIds imperatively: only the projection swap should re-frame,
     // and depending on `boards` here would re-frame on every board edit.
-    frame(useStore.getState().doc.boards);
+    const s = useStore.getState();
+    frame(visibleBoards(s.doc.boards, s.hiddenIds));
   }, [camera]);
 
   return null;
@@ -258,6 +261,8 @@ export function Viewport({
   shortcutsSuspended = false,
 }: ViewportProps) {
   const boards = useStore((s) => s.doc.boards);
+  const hiddenIds = useStore((s) => s.hiddenIds);
+  const shown = useMemo(() => visibleBoards(boards, hiddenIds), [boards, hiddenIds]);
   const selectedIds = useStore((s) => s.selectedIds);
   const tool = useStore((s) => s.tool);
 
@@ -355,7 +360,7 @@ export function Viewport({
       {showAxes && <OriginAxes />}
       {showGuides && <GuideMarkers />}
 
-      {boards.map((board) => (
+      {shown.map((board) => (
         <BoardMesh
           key={board.id}
           board={board}

@@ -14,6 +14,7 @@ import type { SnapPoint } from '../document/document';
 // `document -> units` edges were each opened to avoid.
 import { parseLength } from '../units/length';
 import { useStore } from '../store/store';
+import { visibleBoards } from '../store/visibility';
 import { CLICK_DRAG_SLOP_PX } from './pointer';
 import { PICK_RADIUS_PX, pickSnapPoint } from './snapPick';
 import type { ProjectedPoint } from './snapPick';
@@ -46,6 +47,7 @@ const TAPE_COLOR = SNAP_COLORS.guide;
 export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
   const tool = useStore((s) => s.tool);
   const boards = useStore((s) => s.doc.boards);
+  const hiddenIds = useStore((s) => s.hiddenIds);
   const guides = useStore((s) => s.doc.guides);
   const anchor = useStore((s) => s.tapeAnchor);
   // The raw text from the readout's box, parsed below. Subscribed here rather
@@ -111,8 +113,8 @@ export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
    * dado shoulder — half of what this round and the last one unlock together.
    */
   const candidates = useMemo(
-    () => [...boards.flatMap(snapPointsFor), ...(showGuides ? guideSnapPoints(guides) : [])],
-    [boards, guides, showGuides],
+    () => [...visibleBoards(boards, hiddenIds).flatMap(snapPointsFor), ...(showGuides ? guideSnapPoints(guides) : [])],
+    [boards, hiddenIds, guides, showGuides],
   );
 
   useEffect(() => {
@@ -247,7 +249,7 @@ export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
       el.removeEventListener('pointerleave', onPointerLeave);
     };
     // `candidates` is in the list because the handlers close over it, and it
-    // already depends on `boards`, `guides` and `showGuides` — so none of
+    // already depends on `boards`, `hiddenIds`, `guides` and `showGuides` — so none of
     // those belongs here again. `size.width`/`.height` rather than `size` so a
     // re-created size object does not resubscribe. `setHovered` is listed
     // because the handlers close over it; it is a zustand action and so stable
