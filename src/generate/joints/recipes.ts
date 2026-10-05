@@ -50,6 +50,17 @@ function resize(b: Board, k: number, side: -1 | 1, amount: number) {
 }
 
 /**
+ * rebaseCuts' throwing condition, asked BEFORE anything changes (fu 203): a
+ * cut INTO `b` from the end a resize along world axis k would move. Every
+ * `resize` caller asks it first, so a design that arrives already cut there is
+ * skipped with a reason instead of failing the whole run after a paid call.
+ * `face` and `from` are what the throw reads and `storedAsShape` changes
+ * neither, so the stored form answers it.
+ */
+const cutIntoEnd = (b: Board, k: number, end: 'min' | 'max') =>
+  b.cuts.some((c) => c.face === axisDimensions(b)[k] && c.from === end);
+
+/**
  * The ONE place a part's EXISTING cuts follow a resize (spec §4.7, final
  * review C1). A cut is measured from the board's ends, so growing or shrinking
  * dimension `d` at one end would otherwise slide every cut already on the
@@ -289,6 +300,12 @@ export function applyJoints(doc: SloydDocument, sites: Site[], choices: JointCho
       skipped.push({ site: site.id, reason: `${E.name} no longer meets ${R.name} after an earlier joint` });
       continue;
     }
+    // Tenons and dados grow E at its `side` end: a cut already into that end
+    // would throw inside rebaseCuts, so the site is skipped first.
+    if ((joint === 'mortise-tenon' || joint === 'dado' || joint === 'stopped-dado') && cutIntoEnd(E, k, side === 1 ? 'max' : 'min')) {
+      skipped.push({ site: site.id, reason: `${E.name} is already cut at the end that would grow into ${R.name}` });
+      continue;
+    }
     switch (joint) {
       case 'mortise-tenon': mortiseTenon(E, R, k, side, c!.tenonLength!); break;
       case 'dado': dado(E, R, k, side, c!.depth!); break;
@@ -417,10 +434,9 @@ function rabbet(unit: { site: Site; r: number }[], boards: Board[], state: State
   const panel = clipped(shifted(worldSolids(E), k, side * t), fin);
   // The panel's own trims to its rabbet lines, asked before anything moves:
   // rebaseCuts throws on a cut INTO an end being trimmed (fu 203 review).
-  const eDims = axisDimensions(E);
   for (let a = 0; a < 3; a++) {
     for (const [end, trimmedHere] of [['min', fin.min[a] > movedBox.min[a]], ['max', fin.max[a] < movedBox.max[a]]] as const) {
-      if (trimmedHere && E.cuts.some((c) => c.face === eDims[a] && c.from === end)) {
+      if (trimmedHere && cutIntoEnd(E, a, end)) {
         return refuse(`moving ${E.name} would trim it at an end it is already cut into`);
       }
     }
@@ -441,9 +457,7 @@ function rabbet(unit: { site: Site; r: number }[], boards: Board[], state: State
     if (depth >= b.max[k] - b.min[k] - 1e-9) return refuse(`moving ${E.name} would pass through ${boards[j].name}`);
     // rebaseCuts' throwing condition, asked first: a cut INTO the end being
     // trimmed has no defined answer, and a throw would fail the whole run.
-    const d = axisDimensions(boards[j])[k];
-    const end = side === 1 ? 'min' : 'max';
-    if (boards[j].cuts.some((c) => c.face === d && c.from === end)) {
+    if (cutIntoEnd(boards[j], k, side === 1 ? 'min' : 'max')) {
       return refuse(`moving ${E.name} would trim ${boards[j].name} at an end it is already cut into`);
     }
     trims.set(j, depth);

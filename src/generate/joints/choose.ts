@@ -126,9 +126,11 @@ function tenonSpan(s: Site, doc: SloydDocument, axis: number): [number, number] 
  * entering the same part from a different axis at an overlapping span — an
  * ordinary table with set-in aprons — and, from the OPPOSITE face on the same
  * axis at an overlapping cross-section (fu 190), to stop 1/32in short of the
- * part's centre; then clamped. The cap rounds DOWN to
- * 1/16, so rounding can never eat the clearance. The range's 1/2in floor can
- * still exceed the cap; then the tenons meet, and the check reports it.
+ * part's centre; then clamped. The cap rounds DOWN to 1/16, so rounding can
+ * never eat the clearance. A cap under the model's 1/2in range floor no longer
+ * loses to it (fu 188): the default's floor drops to 1/4in, and a cap under
+ * 1/4in returns null, which `defaultChoice` makes a butt. So default tenons
+ * never meet. The model's range is unchanged.
  */
 function defaultTenon(s: Site, doc: SloydDocument, sites: Site[]): number | null {
   const L = Math.min(1.25, snap((2 / 3) * receiveDepth(s, doc)));
@@ -227,7 +229,17 @@ export function parseChoices(json: unknown, sites: Site[], doc: SloydDocument): 
       return out;
     };
     switch (joint) {
-      case 'mortise-tenon': return { site: s.id, joint, tenonLength: size('tenonLength', r.tenonLength, defaultTenon(s, doc, sites) ?? r.tenonLength[0]) };
+      case 'mortise-tenon': {
+        // No length where even the default's 1/4in floor will not fit (fu 188):
+        // the range floor would collide for certain and spend a repair round,
+        // so the site takes the default CHOICE, a butt, with a note.
+        const dflt = defaultTenon(s, doc, sites);
+        if (dflt === null && (typeof g.tenonLength !== 'number' || !Number.isFinite(g.tenonLength))) {
+          notes.push(`${label}: no tenonLength, and no default tenon fits; used ${fallback.joint}.`);
+          return fallback;
+        }
+        return { site: s.id, joint, tenonLength: size('tenonLength', r.tenonLength, dflt ?? r.tenonLength[0]) };
+      }
       case 'dado': return { site: s.id, joint, depth: size('depth', r.dadoDepth, defaultDado(s, doc)) };
       case 'stopped-dado': {
         let at: StopEnd | undefined = s.stopEnds.find((e) => stopLabel(e) === g.stopAt);

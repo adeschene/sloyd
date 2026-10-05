@@ -1299,3 +1299,58 @@ describe('blockers judge solids, not boxes (fu 203)', () => {
     expect(out.doc.boards).toEqual(doc.boards);
   });
 });
+
+// Final review: tenons and dados GROW the entering part at its touching end,
+// and rebaseCuts throws on a cut already INTO that end. A sound hand-made
+// design reached it (on master too) and failed the whole run. It is skipped
+// with a reason now, before anything changes.
+describe('a part already cut into the end a tenon or dado would grow is skipped (final review)', () => {
+  const notch = (d: SloydDocument, name: string, min: [number, number, number], max: [number, number, number]) => {
+    const b = board(d, name);
+    const at = (v: number[]) => v.map((x, k) => b.position[k] + x) as [number, number, number];
+    b.cuts.push(pocketFor(b, { min: at(min), max: at(max) }));
+    return b.cuts[b.cuts.length - 1];
+  };
+
+  it('a shelf notched 1/2 x 1/2in at its far end: the default dado into that side is skipped, nothing changes', () => {
+    const doc = design(
+      { name: 'Left side', at: [0, 0, 0], size: [0.75, 30, 11.25] },
+      { name: 'Right side', at: [20.75, 0, 0], size: [0.75, 30, 11.25] },
+      { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 11.25] },
+    );
+    const cut = notch(doc, 'Shelf', [19.5, 0, 0], [20, 0.75, 0.5]);
+    expect(cut).toMatchObject({ face: 'length', from: 'max' });
+    expect(checkDesign(doc, limits(doc))).toEqual([]);
+    const sites = findSites(doc);
+    const choices = sites.map((s) => defaultChoice(s, doc, sites));
+    const far = sites.find((s) => doc.boards[s.receive].name === 'Right side')!;
+    expect(choices.find((c) => c.site === far.id)!.joint).toBe('dado');
+    const out = applyJoints(doc, sites, choices);
+    expect(out.skipped).toEqual([{ site: far.id, reason: 'Shelf is already cut at the end that would grow into Right side' }]);
+    // The near site still joins; only the far site's growth is refused.
+    expect(out.applied.map((a) => a.joint)).toEqual(['dado']);
+    expect(board(out.doc, 'Right side')).toEqual(board(doc, 'Right side'));
+    expect(board(out.doc, 'Shelf').length).toBe(20 + choices.find((c) => c.site !== far.id)!.depth!);
+    // A stopped dado grows the shelf the same way, and is skipped the same way.
+    const stopped = applyJoints(doc, sites, [{ site: far.id, joint: 'stopped-dado', depth: 0.25, stopAt: far.stopEnds[0], inset: 0.75 }]);
+    expect(stopped.skipped).toEqual([{ site: far.id, reason: 'Shelf is already cut at the end that would grow into Right side' }]);
+    expect(stopped.doc.boards).toEqual(doc.boards);
+  });
+
+  it('a rail notched at the end entering its leg: the tenon is skipped, NOTHING changes', () => {
+    const doc = design(
+      { name: 'Leg', at: [0, 0, 0], size: [1.75, 28, 1.75] },
+      { name: 'Rail', at: [1.75, 23.5, 0.5], size: [18, 3.5, 0.75] },
+      { name: 'Far leg', at: [19.75, 0, 0], size: [1.75, 28, 1.75] },
+    );
+    const cut = notch(doc, 'Rail', [0, 0, 0], [0.5, 0.5, 0.75]);
+    expect(cut).toMatchObject({ face: 'length', from: 'min' });
+    expect(checkDesign(doc, limits(doc))).toEqual([]);
+    const sites = findSites(doc);
+    const near = sites.find((s) => doc.boards[s.receive].name === 'Leg')!;
+    const out = applyJoints(doc, sites, [{ site: near.id, joint: 'mortise-tenon', tenonLength: 1 }]);
+    expect(out.skipped).toEqual([{ site: near.id, reason: 'Rail is already cut at the end that would grow into Leg' }]);
+    expect(out.applied.every((a) => a.joint === 'butt')).toBe(true);
+    expect(out.doc.boards).toEqual(doc.boards);
+  });
+});

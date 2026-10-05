@@ -258,9 +258,11 @@ describe('defaultTenon: a thin receiver shortens the default below 1/2in (fu 188
     expect(defaults(d, 'Leg').overlaps).toEqual([]);
   });
 
-  it('adjacent rails into a 7/8in leg: exact lengths', () => {
-    const { lens } = defaults(adj(0.875), 'Leg');
-    expect(lens.map((c) => [c.joint, c.tenonLength])).toEqual([['mortise-tenon', 0.25], ['mortise-tenon', 0.25]]);
+  // Each stops 1/16in short of the other's tenon, which starts at the rail's
+  // inset (d - 3/4) / 2 plus its 1/4in cheek: 1/4in at 7/8, 5/16 at 1, 3/8 at 1-1/8.
+  it.each([[0.875, 0.25], [1, 0.3125], [1.125, 0.375]])('adjacent rails into a %sin leg: exact lengths, %sin', (depth, len) => {
+    const { lens } = defaults(adj(depth), 'Leg');
+    expect(lens.map((c) => [c.joint, c.tenonLength])).toEqual([['mortise-tenon', len], ['mortise-tenon', len]]);
   });
 
   it('when even 1/4in will not fit the default is a butt', () => {
@@ -288,11 +290,29 @@ describe('defaultTenon: a thin receiver shortens the default below 1/2in (fu 188
     expect(choices.find((c) => c.site === s.id)).toMatchObject({ tenonLength: 0.5 });
   });
 
-  it('a model tenon with no length at a site whose default is butt falls back to the range floor', () => {
+  it('a model tenon with no length at a site whose default is butt falls back to the default choice, a butt, with a note', () => {
     const d = adj(0.75);
     const ss = findSites(d);
     const s = ss.find((x) => d.boards[x.receive].name === 'Leg')!;
-    const { choices } = parseChoices({ joints: [{ site: s.id, joint: 'mortise-tenon' }] }, ss, d);
-    expect(choices.find((c) => c.site === s.id)).toMatchObject({ joint: 'mortise-tenon', tenonLength: 0.5 });
+    const { choices, notes } = parseChoices({ joints: [{ site: s.id, joint: 'mortise-tenon' }] }, ss, d);
+    expect(choices.find((c) => c.site === s.id)).toEqual({ site: s.id, joint: 'butt' });
+    expect(notes).toContainEqual(expect.stringMatching(new RegExp(`^Site ${s.id} .*: no tenonLength, and no default tenon fits; used butt\\.$`)));
+  });
+
+  it('a model tenon WITH a length at that site is kept, as before', () => {
+    const d = adj(0.75);
+    const ss = findSites(d);
+    const s = ss.find((x) => d.boards[x.receive].name === 'Leg')!;
+    const { choices } = parseChoices({ joints: [{ site: s.id, joint: 'mortise-tenon', tenonLength: 0.5 }] }, ss, d);
+    expect(choices.find((c) => c.site === s.id)).toEqual({ site: s.id, joint: 'mortise-tenon', tenonLength: 0.5 });
+  });
+
+  it('a model tenon with no length where a default fits still takes the default length', () => {
+    const d = adj(0.875);
+    const ss = findSites(d);
+    const s = ss.find((x) => d.boards[x.receive].name === 'Leg')!;
+    const { choices, notes } = parseChoices({ joints: [{ site: s.id, joint: 'mortise-tenon' }] }, ss, d);
+    expect(choices.find((c) => c.site === s.id)).toEqual({ site: s.id, joint: 'mortise-tenon', tenonLength: 0.25 });
+    expect(notes).toContainEqual(expect.stringMatching(/^Site \d+ \(RailX → Leg: end into face\): no tenonLength; used 0\.25\.$/));
   });
 });

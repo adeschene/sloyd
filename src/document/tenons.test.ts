@@ -24,6 +24,11 @@ describe('findTenons', () => {
     expect(t.map((x) => [x.thickness, x.width, x.cutIds])).toEqual([[0.25, 3.5, ['a1', 'a2', 'b']]]);
   });
 
+  it('a breakpoint an ulp short of the far edge merges INTO the edge, so the width is exact (fu 191)', () => {
+    const t = findTenons(rail([{ ...cheek('a', 'min', 0.25, 1), stopMax: 1e-12 }, cheek('b', 'max', 0.25, 1)]));
+    expect(t.map((x) => [x.thickness, x.width])).toEqual([[0.25, 3.5]]);
+  });
+
   it('a real gap between cheek halves is not a tenon', () => {
     const half = (id: string, stopMin: number, stopMax: number): Cut => ({ ...cheek(id, 'min', 0.25, 1), stopMin, stopMax });
     expect(findTenons(rail([half('a1', 0, 1.75), half('a2', 1.75 + 0.01, 0), cheek('b', 'max', 0.25, 1)]))).toEqual([]);
