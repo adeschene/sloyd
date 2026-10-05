@@ -5,7 +5,7 @@ import { migrateDocument } from '../../document/document';
 import { checkDesign } from '../../document/designCheck';
 import { boardSolids, clippedRegion, cutLabel, cutRegion, cutsThatRemoveStock } from '../../document/cuts';
 import { buildCutList } from '../../document/cutlist';
-import { axisDimensions } from '../../document/geometry';
+import { axisDimensions, spanToWorldOffset } from '../../document/geometry';
 import type { Board, Cut, SloydDocument } from '../../document/document';
 import { findSites } from './sites';
 import { defaultChoice } from './choose';
@@ -261,11 +261,13 @@ describe('rabbet: the back panel moves into rabbets, and is trimmed back to the 
   });
 
   it('puts each rabbet 3/8in in from its side\'s INNER face, 1/4in from the back edge', () => {
-    // Left's inner face is its max-X face; Right's is its min-X face.
+    // Left's inner face is its max-X face; Right's is its min-X face. Both
+    // sides sit at turn 90, which reverses Z (their width), so the back edge
+    // at world Z max is the width MIN end: the rabbet enters from 'min'.
     const l = board(out.doc, 'Left').cuts[0];
-    expect([l.from, l.offset, l.width, l.depth]).toEqual(['max', 0.375, 0.375, 0.25]);
+    expect([l.from, l.offset, l.width, l.depth]).toEqual(['min', 0.375, 0.375, 0.25]);
     const r = board(out.doc, 'Right').cuts[0];
-    expect([r.from, r.offset, r.width, r.depth]).toEqual(['max', 0, 0.375, 0.25]);
+    expect([r.from, r.offset, r.width, r.depth]).toEqual(['min', 0, 0.375, 0.25]);
   });
 });
 
@@ -836,8 +838,10 @@ describe('rabbet: parts on the panel\'s OUTER face are carried with it (fu 183)'
 type WB = { min: number[]; max: number[] };
 type Span3 = Record<'length' | 'width' | 'thickness', [number, number]>;
 const worldOf = (b: Board, r: Span3): WB => {
+  // spanToWorldOffset: a turn may reverse an axis (quarter-turns spec §2).
   const d = axisDimensions(b);
-  return { min: [0, 1, 2].map((k) => b.position[k] + r[d[k]][0]), max: [0, 1, 2].map((k) => b.position[k] + r[d[k]][1]) };
+  const s = [0, 1, 2].map((k) => spanToWorldOffset(b, k, r[d[k]]));
+  return { min: [0, 1, 2].map((k) => b.position[k] + s[k][0]), max: [0, 1, 2].map((k) => b.position[k] + s[k][1]) };
 };
 const vol = (a: WB) => [0, 1, 2].reduce((v, k) => v * Math.max(0, a.max[k] - a.min[k]), 1);
 const meet = (a: WB, b: WB): WB => ({ min: [0, 1, 2].map((k) => Math.max(a.min[k], b.min[k])), max: [0, 1, 2].map((k) => Math.min(a.max[k], b.max[k])) });
