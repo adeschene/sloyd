@@ -1,4 +1,4 @@
-import { boardSolids, cutRegion, cutRemovesNothing, stockProbe } from './cuts';
+import { boardSolids, clippedRegion, cutRemovesNothing, stockProbe } from './cuts';
 import type { Point } from './cuts';
 import { axisDimensions, boardExtents, positionAxisOf } from './geometry';
 import type { Board, Cut, GuidePoint } from './types';
@@ -203,7 +203,8 @@ function pointsOfCut(board: Board, cut: Cut): { at: Point; kind: SnapKind }[] {
   if (cut.face === cut.across) return [];
 
   const pos = positionAxisOf(cut.face, cut.across);
-  const region = cutRegion(board, cut);
+  // The CLIPPED box: a marker must sit on a feature that is drawn (invariant 16, fu 197).
+  const region = clippedRegion(board, cut);
   const [faceLo, faceHi] = region[cut.face];
   // `from` names the surface the cut enters, so the floor is the far side.
   const mouth = cut.from === 'min' ? faceLo : faceHi;

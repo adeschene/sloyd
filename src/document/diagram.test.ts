@@ -228,3 +228,25 @@ describe('buildDiagrams — a cut that removes nothing (follow-up 178)', () => {
     expect(views[0].cuts).toEqual([]);
   });
 });
+
+describe('an overhanging cut is drawn by its clipped box (fu 197)', () => {
+  const rabbet = (over: Partial<Cut>): Cut => dado({ across: 'width', offset: 0, width: 0.5, depth: 0.25, ...over });
+  const shown = (c: Cut) => {
+    const cuts = buildDiagrams(board(c), 16).flatMap((v) => v.cuts);
+    expect(cuts).toHaveLength(1);
+    const { h, v, axis, offsetLabel, widthLabel, kind } = cuts[0];
+    return { h, v, axis, offsetLabel, widthLabel, kind };
+  };
+
+  it('past the MIN end draws the same as its flush twin', () => {
+    const over = shown(rabbet({ offset: -0.5, width: 1 }));
+    expect(over).toEqual(shown(rabbet({ offset: 0, width: 0.5 })));
+    expect([over.h, over.v]).toContainEqual([0, 0.5]);
+  });
+
+  it('past the MAX end draws the same as its flush twin', () => {
+    const over = shown(rabbet({ offset: 23.75, width: 1 }));
+    expect(over).toEqual(shown(rabbet({ offset: 23.75, width: 0.25 })));
+    expect([over.h, over.v]).toContainEqual([23.75, 24]);
+  });
+});

@@ -76,6 +76,14 @@ export function cutRegion(board: Board, cut: Cut): Region {
   return region;
 }
 
+/** The cut's box clipped to the board: what it actually removes (fu 197). `cutRegion` stays
+ *  unclipped for building solids; everything that SHOWS a cut reads this. */
+export function clippedRegion(board: Board, cut: Cut): Region {
+  const r = cutRegion(board, cut);
+  const span = (d: Dimension): Span => [Math.max(0, r[d][0]), Math.min(board[d], r[d][1])];
+  return { length: span('length'), width: span('width'), thickness: span('thickness') };
+}
+
 /**
  * True when a cut takes no stock out of its board (follow-up 178).
  *
@@ -586,8 +594,8 @@ function hasGrain(material: string): boolean {
  * and stops that the cut-list line and drawing print (cut-lines spec §2.1).
  */
 export function cutShape(board: Board, cut: Cut, solids: Region[] = boardSolids(board)): CutShape {
-  const r = cutRegion(board, cut);
-  const span = (d: Dimension): Span => [Math.max(0, r[d][0]), Math.min(board[d], r[d][1])];
+  const r = clippedRegion(board, cut);
+  const span = (d: Dimension): Span => r[d];
   const ext = (d: Dimension) => span(d)[1] - span(d)[0];
   const open = openSides(board, cut, solids);
   const { axis: run, byDefault: runByDefault } = runAxis(cut, ext, open);
