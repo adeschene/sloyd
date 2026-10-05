@@ -125,6 +125,31 @@ function touching(E: Board, R: Board, k: number, side: -1 | 1): boolean {
     [0, 1, 2].filter((i) => i !== k).every((i) => Math.min(e.max[i], r.max[i]) - Math.max(e.min[i], r.min[i]) > TOUCH);
 }
 
+/** Two world boxes share more than TOUCH on all three axes: one would drive into the other. */
+const overlapsBeyondTouch = (a: WorldBox, b: WorldBox) =>
+  [0, 1, 2].every((i) => Math.min(a.max[i], b.max[i]) - Math.max(a.min[i], b.min[i]) > TOUCH);
+
+/** Each runs past the other on one in-plane axis of k: `findSites` rule 4's crossing test. */
+function crossesInPlan(e: WorldBox, r: WorldBox, k: number): boolean {
+  const [p, q] = [0, 1, 2].filter((i) => i !== k);
+  const beyond = (x: WorldBox, y: WorldBox, i: number) => x.min[i] < y.min[i] - TOUCH && x.max[i] > y.max[i] + TOUCH;
+  return (beyond(e, r, p) && beyond(r, e, q)) || (beyond(e, r, q) && beyond(r, e, p));
+}
+
+/**
+ * A half-lap still has a site when E and R cross in plan and, unless E is
+ * already in its lap plane, R lies wholly on E's `side` along k. Contact is
+ * NOT required (follow-up 185): bottom-up, a part's partner may already have
+ * dropped into the plane below it, so the drop can be longer than t.
+ */
+function lapStillMeets(E: Board, R: Board, k: number, side: -1 | 1, alreadyIn: boolean): boolean {
+  const e = boxOf(E);
+  const r = boxOf(R);
+  if (!crossesInPlan(e, r, k)) return false;
+  if (alreadyIn) return true;
+  return side === -1 ? r.max[k] <= e.min[k] + TOUCH : r.min[k] >= e.max[k] - TOUCH;
+}
+
 function mortiseTenon(E: Board, R: Board, k: number, side: -1 | 1, L: number) {
   const before = boxOf(E);
   resize(E, k, side, L);
@@ -181,8 +206,9 @@ const RANK: Record<Site['kind'], number> = { crossing: 0, 'face-against-edge': 1
 
 /**
  * Build the chosen joints (spec §4). Pure. Recipes run on a
- * COPY of the boards — crossings, then rabbets, then end-into-face, site
- * order within each — and each reads the CURRENT geometry, so a site whose
+ * COPY of the boards — crossings (bottom-up, below), then rabbets, then
+ * end-into-face, otherwise in site order — and each reads the CURRENT
+ * geometry, so a site whose
  * part an earlier site already moved is recomputed rather than reused —
  * and skipped, with a reason, when its parts no longer touch.
  */
@@ -205,7 +231,13 @@ export function applyJoints(doc: SloydDocument, sites: Site[], choices: JointCho
   // Recipes that MOVE parts run first (spec §4.7, final review C1): a move
   // carries a part's cuts with it, so a tenon built before its part is lapped
   // or trimmed would be misplaced. Stable, so site order holds within a kind.
-  const ordered = [...sites].sort((a, b) => RANK[a.kind] - RANK[b.kind]);
+  // Crossings run BOTTOM-UP by the entering part's ORIGINAL position (follow-up
+  // 185), grouped by axis: a part is then in its final plane before anything
+  // drops onto it, so each part moves once. Carrying riders down with their
+  // partner was rejected: a part with two lap partners would be carried twice.
+  const lapFloor = (s: Site) => boxOf(doc.boards[s.enter]).min[s.axis];
+  const ordered = [...sites].sort((a, b) => RANK[a.kind] - RANK[b.kind] ||
+    (a.kind === 'crossing' && b.kind === 'crossing' ? a.axis - b.axis || lapFloor(a) - lapFloor(b) : 0));
   for (const site of ordered) {
     const c = byId.get(site.id);
     const joint: JointKind = c?.joint ?? 'butt';
@@ -215,7 +247,8 @@ export function applyJoints(doc: SloydDocument, sites: Site[], choices: JointCho
     const k = site.axis;
     const side = site.side;
     const panelAlreadyIn = (joint === 'rabbet' || joint === 'half-lap') && state.movedFace.get(site.enter) === `${k}|${side}`;
-    if (!panelAlreadyIn && !touching(E, R, k, side)) {
+    const meets = joint === 'half-lap' ? lapStillMeets(E, R, k, side, panelAlreadyIn) : panelAlreadyIn || touching(E, R, k, side);
+    if (!meets) {
       skipped.push({ site: site.id, reason: `${E.name} no longer meets ${R.name} after an earlier joint` });
       continue;
     }
@@ -302,8 +335,9 @@ function rabbet(site: Site, boards: Board[], state: State, r: number) {
 }
 
 /**
- * Half-lap (spec §4.6). E — the part on the +axis side — drops by t into R's
- * plane; each is notched by half where they cross, E on R's original side.
+ * Half-lap (spec §4.6). E — the part on the +axis side — drops into R's
+ * plane (by t, or further when R has already dropped: follow-up 185); each is
+ * notched by half where they cross, E on R's original side.
  */
 function halfLap(site: Site, boards: Board[], state: State): string | null {
   const E = boards[site.enter];
@@ -312,20 +346,24 @@ function halfLap(site: Site, boards: Board[], state: State): string | null {
   const side = site.side;
   const faceKey = `${k}|${side}`;
   if (state.movedFace.get(site.enter) !== faceKey) {
-    // Dropping E must not drive it into anything but its own lap partners.
-    const blocker = buttingFace(boards, site.enter, k, side, (j) => state.halfLapPartners.has(`${site.enter}->${j}`))[0];
-    if (blocker !== undefined) return `moving ${E.name} would drive it into ${boards[blocker].name}`;
+    // ALIGN rather than move by t: E's touching face lands exactly on R's
+    // opposite face, so a TOUCH-sized gap or thickness difference cannot
+    // leave E out of R's plane. One delta serves the check and the move.
+    const eNow = boxOf(E);
+    const rNow = boxOf(R);
+    const delta = side === -1 ? rNow.min[k] - eNow.min[k] : rNow.max[k] - eNow.max[k];
+    // Dropping E must not drive it into anything but its own lap partners
+    // ANYWHERE along the drop, which can be longer than t: the whole swept
+    // volume is checked, not just what butts E's moving face.
+    const swept = withSpans(eNow, { [k]: [Math.min(eNow.min[k], eNow.min[k] + delta), Math.max(eNow.max[k], eNow.max[k] + delta)] });
+    const blocker = boards.findIndex((b, j) => j !== site.enter && !state.halfLapPartners.has(`${site.enter}->${j}`) && overlapsBeyondTouch(swept, boxOf(b)));
+    if (blocker !== -1) return `moving ${E.name} would drive it into ${boards[blocker].name}`;
     // All of E's lap partners must share one plane, or E cannot drop into all.
     const partners = [...state.halfLapPartners].filter((p) => p.startsWith(`${site.enter}->`)).map((p) => boxOf(boards[+p.split('->')[1]]));
     if (partners.some((p) => Math.abs(p.min[k] - partners[0].min[k]) > TOUCH || Math.abs(p.max[k] - partners[0].max[k]) > TOUCH)) {
       return `${E.name}'s half-lap partners do not lie in one plane`;
     }
-    // ALIGN rather than move by t: E's touching face lands exactly on R's
-    // opposite face, so a TOUCH-sized gap or thickness difference cannot
-    // leave E out of R's plane.
-    const eNow = boxOf(E);
-    const rNow = boxOf(R);
-    E.position[k] += side === -1 ? rNow.min[k] - eNow.min[k] : rNow.max[k] - eNow.max[k];
+    E.position[k] += delta;
     state.moved.add(E.name);
     state.movedFace.set(site.enter, faceKey);
   }

@@ -8,6 +8,7 @@ import type { Cut, SloydDocument } from '../../document/document';
 import { findSites } from './sites';
 import { defaultChoice } from './choose';
 import { applyJoints, tenonSection } from './recipes';
+import { boxOf } from './pocket';
 
 type P = { name: string; at: [number, number, number]; size: [number, number, number] };
 const design = (...parts: P[]) => designToDocument({
@@ -436,6 +437,118 @@ const withDefaults = (d: SloydDocument) => {
   const sites = findSites(d);
   return applyJoints(d, sites, sites.map((s) => defaultChoice(s, d, sites)));
 };
+
+// Follow-up 185: a stack of laps runs bottom-up, so every part is in its
+// final plane before anything drops onto it and each part moves once.
+const orders = <T,>(xs: T[]): T[][] => xs.length <= 1 ? [xs] : xs.flatMap((x, i) => orders([...xs.slice(0, i), ...xs.slice(i + 1)]).map((r) => [x, ...r]));
+const allLaps = (d: SloydDocument) => {
+  const sites = findSites(d);
+  return { sites, out: applyJoints(d, sites, sites.map((s) => ({ site: s.id, joint: 'half-lap' as const }))) };
+};
+const shapeOf = (d: SloydDocument) => Object.fromEntries(d.boards.map((b) => [b.name, {
+  box: boxOf(b), cuts: b.cuts.map((c) => ({ ...c, id: undefined })),
+}]));
+
+describe('half-lap: a three-layer stack, any listing order (fu 185)', () => {
+  // B is long and reaches back past A so the piece stands on A without
+  // tipping; C crosses B clear of A's footprint.
+  const parts: Record<string, P> = {
+    A: { name: 'A', at: [0, 0, 9], size: [20, 0.75, 3] },
+    B: { name: 'B', at: [9, 0.75, -10], size: [3, 0.75, 30] },
+    C: { name: 'C', at: [0, 1.5, 16], size: [20, 0.75, 3] },
+  };
+  const runs = orders(['A', 'B', 'C']).map((o) => {
+    const doc = design(...o.map((n) => parts[n]));
+    return { o: o.join(''), doc, ...allLaps(doc) };
+  });
+
+  it('every order: the input is sound, both laps applied, nothing skipped, all three in one plane', () => {
+    for (const { o, doc, sites, out } of runs) {
+      expect(checkDesign(doc, limits(doc)), o).toEqual([]);
+      expect(sites.filter((s) => s.kind === 'crossing'), o).toHaveLength(2);
+      expect(out.skipped, o).toEqual([]);
+      expect(out.applied, o).toHaveLength(2);
+      const ys = ['A', 'B', 'C'].map((n) => boxOf(board(out.doc, n)));
+      for (const y of ys) { expect(y.min[1], o).toBe(ys[0].min[1]); expect(y.max[1], o).toBe(ys[0].max[1]); }
+      expect(overlapsOf(out.doc), o).toEqual([]);
+    }
+  });
+
+  it('every order ends with the same boxes and the same cuts, part by part', () => {
+    for (const { o, out } of runs) expect(shapeOf(out.doc), o).toEqual(shapeOf(runs[0].out.doc));
+  });
+});
+
+describe('half-lap: a stack whose top part shares the bottom part\'s footprint (fu 185)', () => {
+  const parts: Record<string, P> = {
+    A: { name: 'A', at: [0, 0, 9], size: [20, 0.75, 3] },
+    B: { name: 'B', at: [9, 0.75, 0], size: [3, 0.75, 20] },
+    C: { name: 'C', at: [0, 1.5, 9], size: [20, 0.75, 3] },
+  };
+
+  it('every order: C\'s drop is refused for A before C moves, and leaves no empty notch', () => {
+    for (const o of orders(['A', 'B', 'C'])) {
+      const label = o.join('');
+      const doc = design(...o.map((n) => parts[n]));
+      expect(checkDesign(doc, limits(doc)), label).toEqual([]);
+      const { out } = allLaps(doc);
+      expect(out.skipped.map((s) => s.reason), label).toEqual(['moving C would drive it into A']);
+      expect(out.applied, label).toHaveLength(1);
+      expect(board(out.doc, 'C').cuts, label).toHaveLength(0);
+      expect(boxOf(board(out.doc, 'C')), label).toEqual(boxOf(board(doc, 'C')));
+      expect(board(out.doc, 'B').cuts, label).toHaveLength(1);
+      expect(board(out.doc, 'A').cuts, label).toHaveLength(1);
+      expect(boxOf(board(out.doc, 'B')).min[1], label).toBe(boxOf(board(out.doc, 'A')).min[1]);
+    }
+  });
+});
+
+describe('half-lap: a part partway down a deep drop blocks it (fu 185)', () => {
+  // D hangs off its stand at a height between C's start and C's lap plane:
+  // it neither butts C's moving face nor reaches the plane C lands in, so
+  // only the volume C sweeps on the way down meets it.
+  const doc = design(
+    { name: 'A', at: [0, 0, 9], size: [20, 0.75, 3] },
+    { name: 'B', at: [9, 0.75, -10], size: [3, 0.75, 30] },
+    { name: 'C', at: [0, 1.5, 16], size: [20, 0.75, 3] },
+    { name: 'Stand', at: [-3, 0, 16], size: [2.5, 0.75, 3] },
+    { name: 'D', at: [-3, 0.75, 16], size: [5, 0.65, 3] },
+  );
+
+  it('the input is sound; C\'s lap is refused for D before C moves, B\'s lap still lands', () => {
+    expect(checkDesign(doc, limits(doc))).toEqual([]);
+    const { out } = allLaps(doc);
+    expect(out.skipped.map((s) => s.reason)).toEqual(['moving C would drive it into D']);
+    expect(out.applied).toHaveLength(1);
+    expect(boxOf(board(out.doc, 'C'))).toEqual(boxOf(board(doc, 'C')));
+    expect(board(out.doc, 'C').cuts).toHaveLength(0);
+    expect(board(out.doc, 'B').cuts).toHaveLength(1);
+  });
+});
+
+describe('half-lap: a five-part grid, the top part lapping two partners (fu 185)', () => {
+  const doc = design(
+    { name: 'A1', at: [0, 0, 2], size: [20, 0.75, 3] },
+    { name: 'A2', at: [0, 0, 15], size: [20, 0.75, 3] },
+    { name: 'B1', at: [3, 0.75, 0], size: [3, 0.75, 20] },
+    { name: 'B2', at: [14, 0.75, 0], size: [3, 0.75, 20] },
+    { name: 'C', at: [0, 1.5, 8.5], size: [20, 0.75, 3] },
+  );
+  let out: ReturnType<typeof applyJoints>;
+  beforeAll(() => { out = allLaps(doc).out; });
+
+  it('the input is sound; all six laps applied, every part on the floor plane, C moved once', () => {
+    expect(checkDesign(doc, limits(doc))).toEqual([]);
+    expect(out.skipped).toEqual([]);
+    expect(out.applied).toHaveLength(6);
+    // All five in ONE plane AT the floor: a part dropped twice would sit
+    // below it, and the final re-lowering would then lift the rest off it.
+    for (const n of ['A1', 'A2', 'B1', 'B2', 'C']) expect(board(out.doc, n).position[1]).toBe(0);
+    expect(board(out.doc, 'C').cuts).toHaveLength(2);
+    for (const n of ['B1', 'B2']) expect(board(out.doc, n).cuts).toHaveLength(3);
+    expect(overlapsOf(out.doc)).toEqual([]);
+  });
+});
 
 describe('cuts move with their part: a rail tenoned at its far end first', () => {
   // The max-end leg is listed first, so its site comes first and the rail's
