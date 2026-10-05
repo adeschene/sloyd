@@ -352,6 +352,8 @@ function rabbet(unit: { site: Site; r: number }[], boards: Board[], state: State
     if (!meets) outcome.set(site.id, `${E.name} no longer meets ${boards[site.receive].name} after an earlier joint`);
     return meets;
   });
+  // Nothing left to rabbet: move nothing.
+  if (members.length === 0) return outcome;
   const refuse = (reason: string) => { for (const { site } of members) outcome.set(site.id, reason); return outcome; };
   const inUnit = (j: number) => members.some(({ site }) => site.receive === j);
   // Any rabbet receiver of this panel, on either face: never trimmed, never carried.
@@ -394,6 +396,13 @@ function rabbet(unit: { site: Site; r: number }[], boards: Board[], state: State
     if (!overlapsBeyondTouch(fin, b)) continue;
     const depth = side === 1 ? fin.max[k] - b.min[k] : b.max[k] - fin.min[k];
     if (depth >= b.max[k] - b.min[k] - 1e-9) return refuse(`moving ${E.name} would pass through ${boards[j].name}`);
+    // rebaseCuts' throwing condition, asked first: a cut INTO the end being
+    // trimmed has no defined answer, and a throw would fail the whole run.
+    const d = axisDimensions(boards[j])[k];
+    const end = side === 1 ? 'min' : 'max';
+    if (boards[j].cuts.some((c) => c.face === d && c.from === end)) {
+      return refuse(`moving ${E.name} would trim ${boards[j].name} at an end it is already cut into`);
+    }
     trims.set(j, depth);
   }
   // A part is judged where it will be: a trimmed one at its trimmed size.

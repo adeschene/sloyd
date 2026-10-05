@@ -51,7 +51,7 @@ describe('the live designs (cut-lines spec §2.2)', () => {
     ]);
   });
 
-  it('the joined bookcase\'s side prints exactly as before', () => {
+  it('the joined bookcase\'s side prints its stopped back rabbet (fu 182)', () => {
     expect(setupOf(joined(bookcase()), 'Left side')).toEqual([
       ...SIDE_TOP,
       '3/4" dado, 1/4" deep — into the thickness face (max side), 24" from the length min end, running across the width',

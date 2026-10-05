@@ -320,6 +320,16 @@ describe('rabbet: the piece stays on the floor', () => {
     expect(board(out.doc, 'SideL').position[1]).toBeCloseTo(0, 9);
   });
 
+  it('every pocket is completely filled, in either listing order (fu 182)', () => {
+    for (const d of [doc, migrateDocument({ ...doc, boards: [...doc.boards].reverse() })]) {
+      const sites = findSites(d);
+      const o = applyJoints(d, sites, sites.map((s) => s.kind === 'face-against-edge'
+        ? { site: s.id, joint: 'rabbet' as const, depth: 0.25 } : { site: s.id, joint: 'butt' as const }));
+      expect(o.skipped).toEqual([]);
+      expect(voids(o.doc)).toEqual([]);
+    }
+  });
+
   it('reports 0 when nothing was re-grounded', () => {
     const none = applyJoints(doc, findSites(doc), findSites(doc).map((s) => ({ site: s.id, joint: 'butt' as const })));
     expect(none.lowered).toBe(0);
@@ -675,6 +685,7 @@ describe('a cut that runs out keeps running out when its part grows', () => {
         expect(b.cuts.map((c) => cutLabel(b, c))).toEqual(['rabbet']);
       }
       expect(overlapsOf(out.doc)).toEqual([]);
+      expect(voids(out.doc)).toEqual([]);
     });
   }
 
@@ -977,6 +988,24 @@ describe('a part in the rabbeted panel\'s path is trimmed by its intrusion (fu 2
     expect(overlapsOf(out.doc)).toEqual([]);
     expect(voids(out.doc)).toEqual([]);
   });
+
+  // A shelf already grooved into its back edge cannot be trimmed there: the
+  // trim would throw inside rebaseCuts and fail the whole run. It refuses.
+  for (const [label, at, depthZ] of [['butting the back', 0, 11.25], ['1/8in short of the back', 0.125, 11.125]] as const) {
+    it(`refuses a shelf ${label} that is already cut into its back edge, changing NOTHING`, () => {
+      const doc = design(...CASE, { name: 'Shelf', at: [0.75, 15, at], size: [22.5, 0.75, depthZ] });
+      board(doc, 'Shelf').cuts.push({ id: 'g1', face: 'width', from: 'min', across: 'length', offset: 0.25, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 });
+      expect(checkDesign(doc, limits(doc))).toEqual([]);
+      const sites = findSites(doc);
+      const out = applyJoints(doc, sites, sites.map(rabbetPick(0.375)));
+      const backSites = sites.filter((s) => s.kind === 'face-against-edge' && doc.boards[s.enter].name === 'Back');
+      expect(backSites).toHaveLength(4);
+      expect(out.skipped).toEqual(backSites.map((s) => ({ site: s.id, reason: 'moving Back would trim Shelf at an end it is already cut into' })));
+      expect(out.doc.boards).toEqual(doc.boards);
+      expect(out.trimmed).toEqual([]);
+      expect(out.moved).toEqual([]);
+    });
+  }
 
   it('refuses a part the back would pass through: every back site skipped, NOTHING changed', () => {
     // A 1/8in strip lying on the back's inner face: the back's 1/4in move would
