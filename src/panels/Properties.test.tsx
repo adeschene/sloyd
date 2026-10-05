@@ -832,8 +832,9 @@ describe('cuts', () => {
       expect(screen.getByText(note).closest('[role="status"]')).not.toBeNull();
     });
 
-    it('shows nothing for a sideways cut the sheet would read differently once re-stored', () => {
-      // The exact-square mm corner opening from cuts.test.ts: storedAsShape refuses it.
+    it('offers the re-store for the millimetre corner opening that fu 200 un-refused', () => {
+      // Once refused by storedAsShape (its extents differed by an ulp); within FLUSH_EPSILON it re-stores
+      // to the same word, so it is offered like any sideways cut. No input is left that the guard refuses.
       const id = renderWithBoard();
       act(() => {
         const st = useStore.getState();
@@ -842,8 +843,8 @@ describe('cuts', () => {
         st.updateCut(id, c.id, { face: 'length', from: 'min', across: 'thickness', offset: 0, width: 0.6712598425196851, depth: 9.370078740157481, stopMin: 0.03937007874015748, stopMax: 0.03937007874015741 });
       });
       expect(screen.getAllByText('notch')).toHaveLength(1);
-      expect(screen.queryByText(/The cut list reads this cut/)).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'Match the cut list' })).not.toBeInTheDocument();
+      expect(screen.getByText(/The cut list reads this cut as running across the width\./)).toBeInTheDocument();
+      expect(screen.getAllByRole('button', { name: 'Match the cut list' })).toHaveLength(1);
     });
 
     it('shows nothing for a tenon shoulder stored sideways', () => {

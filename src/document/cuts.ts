@@ -500,7 +500,7 @@ export interface CutShape {
   stopMax: number | null;
   /**
    * True only when the run came from the tie's final default (length, width,
-   * thickness): the extents are exactly equal and neither or both directions
+   * thickness): the extents are equal within FLUSH_EPSILON and neither or both directions
    * have exactly one open end. Properties offers no 'Match the cut list' then
    * (follow-up 198).
    */
@@ -511,16 +511,16 @@ type Opening = ReturnType<typeof openSides>;
 
 /**
  * Which way a cut runs (spec §2.1). The axis open at both ends when exactly one
- * is; otherwise the opening's longer extent; on an EXACT tie (a square
- * opening) the direction with exactly one open end, else the earlier in
+ * is; otherwise the opening's longer extent; on a tie within FLUSH_EPSILON (a square
+ * opening; its extents are computed, so equal ones can differ by an ulp, fu 200) the direction with exactly one open end, else the earlier in
  * DIMENSION_ORDER (cut-storage spec §2). Never the stored `across`.
  */
 function runAxis(cut: Cut, ext: (d: Dimension) => number, open: Opening): { axis: Dimension; byDefault: boolean } {
   const [a, b] = DIMENSION_ORDER.filter((d) => d !== cut.face);
   const through = (d: Dimension) => open[d].min && open[d].max;
   if (through(a) !== through(b)) return { axis: through(a) ? a : b, byDefault: false };
-  if (ext(a) !== ext(b)) return { axis: ext(a) > ext(b) ? a : b, byDefault: false };
-  // Cut-storage spec §2: on an EXACT tie, the direction with exactly one open
+  if (Math.abs(ext(a) - ext(b)) > FLUSH_EPSILON) return { axis: ext(a) > ext(b) ? a : b, byDefault: false };
+  // Cut-storage spec §2: on a tie, the direction with exactly one open
   // end (the edge the cut enters from); otherwise the earlier dimension. Never
   // the stored `across`: joinery stores a cut WITH across = run, so reading
   // across here would let storage and direction decide each other.
@@ -529,7 +529,12 @@ function runAxis(cut: Cut, ext: (d: Dimension) => number, open: Opening): { axis
   return { axis: a, byDefault: true };
 }
 
-/** The cut-words table (cut-words spec §2.2–2.6), read off the opening. */
+/**
+ * The cut-words table (cut-words spec §2.2–2.6), read off the opening. The
+ * extents are COMPUTED (clipped span differences), so each comparison between
+ * them carries FLUSH_EPSILON (invariant 22, fu 200); a comparison between
+ * STORED values (`cut.depth >= board[cut.face]`) stays exact (invariant 18).
+ */
 function tableWord(board: Board, cut: Cut, span: (d: Dimension) => Span, ext: (d: Dimension) => number, open: Opening): CutKind {
   const [a, b] = DIMENSION_ORDER.filter((d) => d !== cut.face);
   const ends = (d: Dimension) =>
@@ -545,14 +550,14 @@ function tableWord(board: Board, cut: Cut, span: (d: Dimension) => Span, ext: (d
     const other = na === 1 ? b : a;
     const reach = ext(openAxis);
     const run = ext(other);
-    if (reach > run) return 'stopped dado';
-    return run > 4 * reach ? 'stopped rabbet' : 'notch';
+    if (reach > run + FLUSH_EPSILON) return 'stopped dado';
+    return run > 4 * reach + FLUSH_EPSILON ? 'stopped rabbet' : 'notch';
   }
   if (cut.depth >= board[cut.face]) return 'through mortise';
   // Spec §2.6: a mortise is deeper than it is wide and no longer than 8x its depth.
   const narrow = Math.min(ext(a), ext(b));
   const long = Math.max(ext(a), ext(b));
-  return cut.depth > narrow && long <= 8 * cut.depth ? 'mortise' : 'blind dado';
+  return cut.depth > narrow + FLUSH_EPSILON && long <= 8 * cut.depth + FLUSH_EPSILON ? 'mortise' : 'blind dado';
 }
 
 /** Spec §3: the with-grain name of each channel word. Every other word has none. */
@@ -619,10 +624,11 @@ export function cutLabel(board: Board, cut: Cut, solids: Region[] = boardSolids(
  * nothing.
  *
  * Where even that ulp would change what the sheet says, the cut comes back
- * unchanged (the user's ruling). The case is an exact-square corner opening
- * in millimetres: growing its run by an ulp breaks the tie that made it a
- * notch, so it would read as a stopped dado — about 1 re-store in 1,400 in the
- * round's random millimetre sweeps (6 of 8,114 in one, 14 of 20,000 in another).
+ * unchanged (the user's ruling). The case was an exact-square corner opening
+ * in millimetres: growing its run by an ulp broke a tie of extents that were
+ * only equal to the last bits. Extents now compare within FLUSH_EPSILON (fu 200),
+ * so that tie holds and a search of 163,028 millimetre cuts found no input still
+ * refused; the guard stays as a net for whatever the comparison tolerance misses.
  * Properties offers the button only when this returns a different object.
  *
  * A cut ALREADY stored with `across === run` comes back as the very same

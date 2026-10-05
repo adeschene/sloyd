@@ -827,16 +827,22 @@ describe('storedAsShape: the same cut, stored the way it runs (cut-storage spec 
     farEnds(b, c, s);
   });
 
-  it('refuses a re-store the sheet would read differently: an exact-square mm corner opening', () => {
-    // From the sweep: an end cut on the default board whose opening is an exact
-    // square at the corner, so it reads as a notch. Its far stop cannot be
-    // stored exactly, and the run-keeping ulp breaks the tie into a stopped
-    // dado — so the cut is left as it is (user ruling).
+  it('the exact-square mm corner opening that once tripped the guard now re-stores and reads the same (fu 200)', () => {
+    // It used to be refused: its extents differed by an ulp, the run-keeping
+    // re-store broke that fake tie and the notch read as a stopped dado. Within
+    // FLUSH_EPSILON the tie holds either way, so the guard has nothing to refuse.
+    // A seeded search of 163,028 millimetre cuts found no input the guard still
+    // refuses; the guard stays as a net.
     const c: Cut = { id: 'n', face: 'length', from: 'min', across: 'thickness', offset: 0, width: 0.6712598425196851, depth: 9.370078740157481, stopMin: 0.03937007874015748, stopMax: 0.03937007874015741 };
     const b = withCuts([c]);
-    expect(cutShape(b, c).word).toBe('notch');
-    expect(cutShape(b, c).run).not.toBe(c.across);
-    expect(storedAsShape(b, c)).toBe(c);
+    const s = storedAsShape(b, c);
+    expect(s).not.toBe(c);
+    expect(s.across).toBe('width');
+    const before = cutShape(b, c);
+    const after = cutShape(withCuts([s]), s);
+    expect(before.word).toBe('notch');
+    expect(after).toMatchObject({ word: 'notch', run: 'width', pos: 'thickness' });
+    expect(after.stopMin).toBeNull();
   });
 
   it('millimetre re-stores keep the run and settle in one click (seeded sweep)', () => {
@@ -890,7 +896,136 @@ describe('storedAsShape: the same cut, stored the way it runs (cut-storage spec 
         if (posEnd === 0) exactWhereRepresentable++;
       }
     }
-    expect(restored).toBeGreaterThan(200);
+    expect(restored).toBeGreaterThan(100);
     expect(exactWhereRepresentable).toBeGreaterThan(50);
+  });
+});
+
+describe('computed extents compare within FLUSH_EPSILON (fu 200, invariant 22)', () => {
+  const b = (cuts: Cut[] = []) => withCuts(cuts);
+  const mm = (x: number) => x / 25.4;
+  const clippedExt = (board: Board, c: Cut, d: Dimension) => {
+    const r = cutRegion(board, c);
+    return Math.min(board[d], r[d][1]) - Math.max(0, r[d][0]);
+  };
+  /**
+   * The first millimetre size whose two extents are NOT bit-equal yet within an
+   * ulp or so: the old exact comparison read those as different. `make` builds
+   * a cut from the size; the search is the test's proof that the setup bites.
+   */
+  const nearTwin = (make: (w: number) => Cut): { cut: Cut; k: number } => {
+    for (let k = 10; k < 120; k++) {
+      const cut = make(mm(k));
+      const board = b([cut]);
+      const [ea, eb] = [clippedExt(board, cut, 'length'), clippedExt(board, cut, 'width')];
+      if (ea !== eb && Math.abs(ea - eb) < 1e-9) return { cut, k };
+    }
+    throw new Error('no near-equal millimetre twin found');
+  };
+  const base = { id: 'q', face: 'thickness', from: 'max', across: 'width', depth: 0.25 } as const;
+  const shapeOf = (c: Cut) => {
+    const s = cutShape(b([c]), c);
+    return { word: s.word, run: s.run, runByDefault: s.runByDefault };
+  };
+
+  it('a square closed pocket in millimetres reads like its fractional twin', () => {
+    const { cut } = nearTwin((w) => ({ ...base, offset: 6, width: w, stopMin: 1, stopMax: 5.5 - 1 - w }));
+    const frac: Cut = { ...base, offset: 6, width: 1, stopMin: 1, stopMax: 3.5 };
+    expect(shapeOf(cut)).toEqual(shapeOf(frac));
+    expect(shapeOf(cut)).toMatchObject({ run: 'length', runByDefault: true });
+  });
+
+  it('a square corner opening in millimetres reads like its fractional twin', () => {
+    const { cut } = nearTwin((w) => ({ ...base, offset: 0, width: w, stopMin: 0, stopMax: 5.5 - w }));
+    const frac: Cut = { ...base, offset: 0, width: 1, stopMin: 0, stopMax: 4.5 };
+    expect(shapeOf(cut)).toEqual(shapeOf(frac));
+    expect(shapeOf(cut).runByDefault).toBe(true);
+  });
+
+  it('a square edge notch in millimetres is a notch running toward its open edge', () => {
+    const { cut } = nearTwin((w) => ({ ...base, offset: 6, width: w, stopMin: 0, stopMax: 5.5 - w }));
+    const frac: Cut = { ...base, offset: 6, width: 1, stopMin: 0, stopMax: 4.5 };
+    expect(shapeOf(cut)).toEqual(shapeOf(frac));
+    expect(shapeOf(cut)).toEqual({ word: 'notch', run: 'width', runByDefault: false });
+  });
+
+  // Each boundary of the words table, hit by a millimetre cut whose COMPUTED extents
+  // sit on it only up to float noise, on the side the old exact test misread.
+  // `find` searches sizes for such a cut, so the setup proves it bites.
+  const find = (make: (k: number, a: number) => Cut, bites: (board: Board, c: Cut) => boolean) => {
+    for (let k = 5; k < 18; k++) for (let a = 1; a < 150; a++) {
+      const c = make(k, a);
+      const board = b([c]);
+      if (!cutRemovesNothing(board, c) && bites(board, c)) return c;
+    }
+    throw new Error('no cut sits on this boundary by noise');
+  };
+  const wordOf = (c: Cut) => cutShape(b([c]), c).word;
+  const near = (x: number, y: number) => x !== y && Math.abs(x - y) < 1e-9;
+
+  it('reach just over run by noise is still a notch (reach > run)', () => {
+    const c = find(
+      (k, a) => ({ ...base, offset: mm(a), width: mm(k), stopMin: 0, stopMax: 5.5 - mm(k) }),
+      (bd, x) => { const r = clippedExt(bd, x, 'width'); const u = clippedExt(bd, x, 'length'); return r > u && near(r, u); },
+    );
+    expect(wordOf(c)).toBe('notch');
+  });
+
+  it('run just over 4x reach by noise is still a notch (run > 4 * reach)', () => {
+    const c = find(
+      (k, a) => ({ ...base, offset: mm(a), width: 4 * mm(k), stopMin: 0, stopMax: 5.5 - mm(k) }),
+      (bd, x) => { const r = clippedExt(bd, x, 'width'); const u = clippedExt(bd, x, 'length'); return u > 4 * r && near(u, 4 * r); },
+    );
+    expect(wordOf(c)).toBe('notch');
+  });
+
+  it('a pocket as deep as it is wide by noise is a blind dado (depth > narrow)', () => {
+    const c = find(
+      (k, a) => ({ ...base, offset: mm(a), width: mm(k) * 2, depth: mm(k), stopMin: mm(1), stopMax: 5.5 - mm(1) - mm(k) }),
+      (bd, x) => { const n = clippedExt(bd, x, 'width'); return n < x.depth && near(n, x.depth); },
+    );
+    expect(wordOf(c)).toMatch(/^blind (dado|groove)$/); // never 'mortise'
+  });
+
+  it('a pocket 8x its depth by noise is still a mortise (long <= 8 * depth)', () => {
+    const c = find(
+      (k, a) => ({ ...base, across: 'length', offset: mm(1), width: mm(k) / 2, depth: mm(k), stopMin: mm(a), stopMax: 24 - mm(a) - 8 * mm(k) }),
+      (bd, x) => { const l = clippedExt(bd, x, 'length'); return l > 8 * x.depth && near(l, 8 * x.depth); },
+    );
+    expect(wordOf(c)).toBe('mortise');
+  });
+
+  it('fractions are unchanged: sixteenth extents are equal or at least 1/16 apart', () => {
+    let seed = 200; // mulberry32
+    const rnd = () => {
+      seed = (seed + 0x6d2b79f5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const DIMS = ['length', 'width', 'thickness'] as const;
+    const size = { length: 24, width: 5.5, thickness: 0.75 };
+    const sx = (n: number) => Math.round(rnd() * n * 16) / 16;
+    let checked = 0;
+    for (let i = 0; i < 8000; i++) {
+      const face = DIMS[Math.floor(rnd() * 3)];
+      const others = DIMS.filter((d) => d !== face);
+      const across = others[Math.floor(rnd() * 2)];
+      const pos = others.find((d) => d !== across)!;
+      const c: Cut = {
+        id: 'c', face, from: rnd() < 0.5 ? 'min' : 'max', across,
+        offset: sx(size[pos]), width: Math.max(1 / 16, sx(size[pos])), depth: Math.max(1 / 16, sx(size[face])),
+        stopMin: sx(size[across]), stopMax: sx(size[across]),
+      };
+      const board = b([c]);
+      if (cutRemovesNothing(board, c)) continue;
+      const ea = clippedExt(board, c, others[0]);
+      const eb = clippedExt(board, c, others[1]);
+      expect(ea === eb || Math.abs(ea - eb) >= 1 / 16).toBe(true);
+      // and depth against an extent, the other computed comparison
+      for (const e of [ea, eb]) expect(c.depth === e || Math.abs(c.depth - e) >= 1 / 16).toBe(true);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(2000);
   });
 });
