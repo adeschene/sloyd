@@ -143,6 +143,10 @@ type Solids = { min: number[]; max: number[] }[];
 const shifted = (ss: Solids, k: number, d: number): Solids => ss.map((s) => ({
   min: s.min.map((v, i) => (i === k ? v + d : v)), max: s.max.map((v, i) => (i === k ? v + d : v)),
 }));
+/** The volume each solid passes through moving d along k. */
+const swept = (ss: Solids, k: number, d: number): Solids => ss.map((s) => ({
+  min: s.min.map((v, i) => (i === k ? Math.min(v, v + d) : v)), max: s.max.map((v, i) => (i === k ? Math.max(v, v + d) : v)),
+}));
 /** What is left of a part's solids once it is trimmed back to `b`. */
 const clipped = (ss: Solids, b: WorldBox): Solids => ss.map((s) => ({
   min: s.min.map((v, i) => Math.max(v, b.min[i])), max: s.max.map((v, i) => Math.min(v, b.max[i])),
@@ -409,13 +413,31 @@ function rabbet(unit: { site: Site; r: number }[], boards: Board[], state: State
     return { R: boards[site.receive], box: withSpans(rb, { [k]: kSpan, [nAx]: nSpan, [q]: qSpan }) };
   });
 
-  // The trims: whatever else the final box drives into, by the intrusion on k.
+  // The panel where it will be: its solids moved, then clipped to the final box.
+  const panel = clipped(shifted(worldSolids(E), k, side * t), fin);
+  // The panel's own trims to its rabbet lines, asked before anything moves:
+  // rebaseCuts throws on a cut INTO an end being trimmed (fu 203 review).
+  const eDims = axisDimensions(E);
+  for (let a = 0; a < 3; a++) {
+    for (const [end, trimmedHere] of [['min', fin.min[a] > movedBox.min[a]], ['max', fin.max[a] < movedBox.max[a]]] as const) {
+      if (trimmedHere && E.cuts.some((c) => c.face === eDims[a] && c.from === end)) {
+        return refuse(`moving ${E.name} would trim it at an end it is already cut into`);
+      }
+    }
+  }
+
+  // The trims: whatever else the panel's solids drive into, by the intrusion
+  // on k, judged solid against solid (fu 203): an existing cut that already
+  // makes room is honoured. A trim shortens the part from its box face, so
+  // the depth runs from that face to the deepest solid the panel meets.
   const trims = new Map<number, number>();
   for (let j = 0; j < boards.length; j++) {
     if (j === e || receiver(j) || carried.includes(j)) continue;
     const b = boxOf(boards[j]);
-    if (!overlapsBeyondTouch(fin, b)) continue;
-    const depth = side === 1 ? fin.max[k] - b.min[k] : b.max[k] - fin.min[k];
+    const theirs = worldSolids(boards[j]);
+    const meeting = panel.filter((p) => theirs.some((q) => overlapsBeyondTouch(p, q)));
+    if (meeting.length === 0) continue;
+    const depth = Math.max(...meeting.map((p) => (side === 1 ? p.max[k] - b.min[k] : b.max[k] - p.min[k])));
     if (depth >= b.max[k] - b.min[k] - 1e-9) return refuse(`moving ${E.name} would pass through ${boards[j].name}`);
     // rebaseCuts' throwing condition, asked first: a cut INTO the end being
     // trimmed has no defined answer, and a throw would fail the whole run.
@@ -445,7 +467,7 @@ function rabbet(unit: { site: Site; r: number }[], boards: Board[], state: State
   // that dropped out of the unit (it is never trimmed), so this is where one
   // left in the gap is caught. The panel is judged as its solids moved and
   // clipped to the final box.
-  const other = hit(clipped(shifted(worldSolids(E), k, side * t), fin), (j) => j === e || inUnit(j) || carried.includes(j));
+  const other = hit(panel, (j) => j === e || inUnit(j) || carried.includes(j));
   if (other !== -1) return refuse(`moving ${E.name} would drive it into ${boards[other].name}`);
   const cuts = pockets.map(({ R, box }) => pocketFor(R, box));
 
@@ -488,11 +510,8 @@ function halfLap(site: Site, boards: Board[], state: State): string | null {
     // Dropping E must not drive it into anything but its own lap partners
     // ANYWHERE along the drop, which can be longer than t: the volume each of
     // E's solids sweeps is checked against every other part's solids.
-    const swept = worldSolids(E).map((s) => ({
-      min: s.min.map((v, i) => (i === k ? Math.min(v, v + delta) : v)),
-      max: s.max.map((v, i) => (i === k ? Math.max(v, v + delta) : v)),
-    }));
-    const blocker = boards.findIndex((b, j) => j !== site.enter && !state.halfLapPartners.has(`${site.enter}->${j}`) && solidsMeet(swept, worldSolids(b)));
+    const path = swept(worldSolids(E), k, delta);
+    const blocker = boards.findIndex((b, j) => j !== site.enter && !state.halfLapPartners.has(`${site.enter}->${j}`) && solidsMeet(path, worldSolids(b)));
     if (blocker !== -1) return `moving ${E.name} would drive it into ${boards[blocker].name}`;
     // All of E's lap partners must share one plane, or E cannot drop into all.
     const partners = [...state.halfLapPartners].filter((p) => p.startsWith(`${site.enter}->`)).map((p) => boxOf(boards[+p.split('->')[1]]));

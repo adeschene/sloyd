@@ -1196,6 +1196,95 @@ describe('blockers judge solids, not boxes (fu 203)', () => {
     });
   });
 
+  it('the panel is judged CLIPPED to its rabbet lines: an overhang trimmed off cannot reach a part beyond the receiver', () => {
+    // The back overhangs LeftSide's OUTER face; X stands in that overhang.
+    // The final box is trimmed back to LeftSide's rabbet line, clear of X.
+    const doc = design(
+      { name: 'LeftSide', at: [0.5, 0, 0], size: [0.75, 30, 12] },
+      { name: 'Back', at: [0, 0, -0.25], size: [21.5, 30, 0.25] },
+      { name: 'X', at: [0, 0, 0], size: [0.5, 30, 0.25] },
+    );
+    expect(problems(doc)).toEqual([]);
+    const site: Site = { id: 1, kind: 'face-against-edge', enter: 1, receive: 0, axis: 2, side: 1, allowed: ['rabbet'], stopEnds: [] };
+    const out = applyJoints(doc, [site], [{ site: 1, joint: 'rabbet', depth: 0.375 }]);
+    expect(out.applied).toEqual([{ site: 1, joint: 'rabbet' }]);
+    expect(out.trimmed).not.toContain('X');
+    expect(overlaps(out.doc)).toEqual([]);
+  });
+
+  describe('the trims judge solids', () => {
+    // RightSide is not a rabbet receiver here, so the back's final box meets
+    // it as a part to trim; its existing rabbet is exactly where the back lands.
+    const build = () => design(
+      { name: 'LeftSide', at: [0, 0, 0], size: [0.75, 30, 12] },
+      { name: 'RightSide', at: [20.75, 0, 0.125], size: [0.75, 30, 12] },
+      { name: 'Back', at: [0, 0, -0.25], size: [21, 30, 0.25] },
+    );
+    const site: Site = { id: 1, kind: 'face-against-edge', enter: 2, receive: 0, axis: 2, side: 1, allowed: ['rabbet'], stopEnds: [] };
+    const join = (d: SloydDocument) => applyJoints(d, [site], [{ site: 1, joint: 'rabbet', depth: 0.375 }]);
+
+    it('a part whose existing cut already makes room is not trimmed, and nothing overlaps', () => {
+      const doc = build();
+      cutAt(doc, 'RightSide', [0, 0, 0], [0.25, 30, 0.125]);
+      expect(problems(doc)).toEqual([]);
+      const out = join(doc);
+      expect(out.skipped).toEqual([]);
+      expect(out.trimmed).not.toContain('RightSide');
+      expect(board(out.doc, 'RightSide')).toEqual(board(doc, 'RightSide'));
+      expect(overlaps(out.doc)).toEqual([]);
+    });
+
+    it('a cut making only PART of the room: its solids still meet the back, so the cut-into-end refusal stands, changing NOTHING', () => {
+      const doc = build();
+      // Room for 1/16in of the back's 1/8in intrusion; trimming the rest would
+      // cut into the end that rabbet already runs from.
+      cutAt(doc, 'RightSide', [0, 0, 0], [0.25, 30, 0.0625]);
+      expect(problems(doc)).toEqual([]);
+      const out = join(doc);
+      expect(out.skipped).toEqual([{ site: 1, reason: 'moving Back would trim RightSide at an end it is already cut into' }]);
+      expect(out.doc.boards).toEqual(doc.boards);
+    });
+
+    it('the back\'s OWN rabbet already makes room: RightSide is not trimmed, and nothing overlaps', () => {
+      const doc = build();
+      cutAt(doc, 'Back', [20.75, 0, 0.125], [21, 30, 0.25]);
+      expect(problems(doc)).toEqual([]);
+      const out = join(doc);
+      expect(out.skipped).toEqual([]);
+      expect(out.trimmed).not.toContain('RightSide');
+      expect(board(out.doc, 'RightSide')).toEqual(board(doc, 'RightSide'));
+      expect(overlaps(out.doc)).toEqual([]);
+    });
+
+    it('with no room cut, the 1/8in intrusion is trimmed as before', () => {
+      const doc = build();
+      const out = join(doc);
+      expect(out.skipped).toEqual([]);
+      expect(board(out.doc, 'RightSide').width).toBeCloseTo(11.875, 9);
+      expect(overlaps(out.doc)).toEqual([]);
+    });
+  });
+
+  for (const [label, min, max] of [['left', [0, 10, 0], [0.125, 12, 0.25]], ['right', [21.375, 10, 0], [21.5, 12, 0.25]]] as const) {
+  it(`a panel already cut into its ${label} end, which its rabbet line trims, refuses the unit, changing NOTHING`, () => {
+    const doc = design(
+      { name: 'LeftSide', at: [0, 0, 0], size: [0.75, 30, 12] },
+      { name: 'RightSide', at: [20.75, 0, 0], size: [0.75, 30, 12] },
+      { name: 'Back', at: [0, 0, -0.25], size: [21.5, 30, 0.25] },
+    );
+    // A notch into the back's end, inside the strip its rabbet line trims off.
+    cutAt(doc, 'Back', [...min], [...max]);
+    expect(problems(doc)).toEqual([]);
+    const sites = findSites(doc);
+    const backSites = sites.filter((s) => s.kind === 'face-against-edge' && doc.boards[s.enter].name === 'Back');
+    expect(backSites).toHaveLength(2);
+    const out = applyJoints(doc, sites, sites.map(rabbetPick(0.375)));
+    expect(out.skipped).toEqual(backSites.map((s) => ({ site: s.id, reason: 'moving Back would trim it at an end it is already cut into' })));
+    expect(out.doc.boards).toEqual(doc.boards);
+    expect(out.moved).toEqual([]);
+  });
+  }
+
   it('a half-lap that would leave E out of R\'s plane is refused BEFORE E moves', () => {
     // Hand-built: rule 4 forbids a thickness difference beyond TOUCH, so only
     // a site findSites would never offer reaches the guard.
