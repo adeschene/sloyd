@@ -981,7 +981,10 @@ describe('a part in the rabbeted panel\'s path is trimmed by its intrusion (fu 2
   it('refuses a part the back would pass through: every back site skipped, NOTHING changed', () => {
     // A 1/8in strip lying on the back's inner face: the back's 1/4in move would
     // swallow it whole, so there is nothing left to trim it to.
-    const doc = design(...CASE, { name: 'Strip', at: [6, 10, 0], size: [4, 3, 0.125] });
+    // The shelf butting the back would be trimmed; it proves the refusal comes
+    // before ANY trim, not only before the strip's own.
+    const doc = design(...CASE, { name: 'Shelf', at: [0.75, 15, 0], size: [22.5, 0.75, 11.25] },
+      { name: 'Strip', at: [6, 10, 0], size: [4, 3, 0.125] });
     expect(checkDesign(doc, limits(doc))).toEqual([]);
     const sites = findSites(doc);
     const out = applyJoints(doc, sites, sites.map(rabbetPick(0.375)));
