@@ -1045,6 +1045,54 @@ describe('App select all, and Delete on the whole selection', () => {
     expect(useStore.getState().doc.boards).toHaveLength(3);
     act(() => useStore.getState().setTool('select'));
   });
+
+  it('H hides the selection', async () => {
+    const { user, ids } = await mountWithThreeBoards();
+    await user.keyboard('h');
+    expect(useStore.getState().hiddenIds).toEqual([ids[0]]);
+  });
+
+  it('Shift+H hides everything else', async () => {
+    const { user, ids } = await mountWithThreeBoards();
+    await user.keyboard('{Shift>}H{/Shift}');
+    expect(useStore.getState().hiddenIds).toEqual([ids[1], ids[2]]);
+  });
+
+  it("Alt+H shows all, matched by the physical key (a Mac's Option+H types ˙)", async () => {
+    const { user } = await mountWithThreeBoards();
+    await user.keyboard('h');
+    fireEvent.keyDown(document.body, { key: '˙', code: 'KeyH', altKey: true });
+    expect(useStore.getState().hiddenIds).toEqual([]);
+  });
+
+  it('Ctrl+H does nothing', async () => {
+    await mountWithThreeBoards();
+    fireEvent.keyDown(document.body, { key: 'h', code: 'KeyH', ctrlKey: true });
+    expect(useStore.getState().hiddenIds).toEqual([]);
+  });
+
+  it('H does nothing in a text field', async () => {
+    await mountWithThreeBoards();
+    const projectName = screen.getByLabelText('Project name');
+    act(() => projectName.focus());
+    fireEvent.keyDown(projectName, { key: 'h', code: 'KeyH' });
+    expect(useStore.getState().hiddenIds).toEqual([]);
+    act(() => projectName.blur());
+  });
+
+  it('H does nothing while the cut list is open', async () => {
+    const { user } = await mountWithThreeBoards();
+    await user.click(screen.getByRole('button', { name: 'Cut list' }));
+    await user.keyboard('h');
+    expect(useStore.getState().hiddenIds).toEqual([]);
+  });
+
+  it('H then Ctrl+Z shows the part again', async () => {
+    const { user } = await mountWithThreeBoards();
+    await user.keyboard('h');
+    await user.keyboard('{Control>}z{/Control}');
+    expect(useStore.getState().hiddenIds).toEqual([]);
+  });
 });
 
 // The Tape tool's type-anywhere capture. The MARKER and the preview are r3f and
