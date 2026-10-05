@@ -98,7 +98,8 @@ export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
   /**
    * Every candidate: boards and guides alike, with no exclusions.
    *
-   * Unlike MoveTool this withholds nothing, in EITHER direction. There is no
+   * Unlike MoveTool this withholds nothing, in EITHER direction, except hidden parts, which are
+   * not drawn (hide/unhide spec §3). There is no
    * self-snap case to exclude — measuring from one corner of a board to
    * another corner of the SAME board is an ordinary thing to want, and placing
    * a guide there is exactly what the tool is for — and there is no
