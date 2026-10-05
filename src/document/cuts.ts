@@ -1,5 +1,5 @@
 import { MATERIALS, type Board, type Cut, type Dimension, type Region, type Span } from './types';
-import { axisDimensions, boardExtents, DIMENSION_ORDER, positionAxisOf } from './geometry';
+import { axisFrame, boardExtents, DIMENSION_ORDER, positionAxisOf, spanToWorldOffset, toWorldOffset } from './geometry';
 
 /**
  * Every field of `Cut` that decides "same cut": all but `id`.
@@ -383,29 +383,34 @@ export function boardEdges(board: Board): Segment[] {
  * expressed RELATIVE TO THE BOARD'S OWN CENTRE, because BoardMesh puts a
  * <group> at boardCenter(board) and hangs every solid inside it.
  *
- * The board→world mapping is axisDimensions and nothing else. A board's own
- * coordinate space runs from 0 to its dimension on each axis, and `position`
- * is the min-corner, so a local coordinate maps to the world by adding the
- * corner — which relative to the centre is just "minus half the extent".
+ * The board→world mapping is axisFrame and nothing else: which dimension each
+ * world axis carries AND in which direction. A board's own coordinate space
+ * runs from 0 to its dimension on each axis; on a reversed axis that 0 sits on
+ * the world max side, so a span is reflected (spanToWorldOffset) before it is
+ * placed. `position` is the min-corner, so relative to the centre a world
+ * offset is just "minus half the extent".
  */
 export function solidWorldBox(
   board: Board,
   solid: Region,
 ): { center: [number, number, number]; size: [number, number, number] } {
-  const dims = axisDimensions(board);
+  const frame = axisFrame(board);
   const extents = boardExtents(board);
-  const size = dims.map((d) => solid[d][1] - solid[d][0]) as [number, number, number];
-  const center = dims.map(
-    (d, axis) => (solid[d][0] + solid[d][1]) / 2 - extents[axis] / 2,
-  ) as [number, number, number];
+  const size = frame.map(({ dim }) => solid[dim][1] - solid[dim][0]) as [number, number, number];
+  const center = frame.map(({ dim }, axis) => {
+    const [lo, hi] = spanToWorldOffset(board, axis, solid[dim]);
+    return (lo + hi) / 2 - extents[axis]! / 2;
+  }) as [number, number, number];
   return { center, size };
 }
 
-/** A point in the board's space, in the same board-centred frame. */
+/** A point in the board's space, in the same board-centred frame, reflected
+ *  on any axis the turn reverses (toWorldOffset). */
 export function pointToLocalXYZ(board: Board, point: Point): [number, number, number] {
-  const dims = axisDimensions(board);
   const extents = boardExtents(board);
-  return dims.map((d, axis) => point[d] - extents[axis] / 2) as [number, number, number];
+  return axisFrame(board).map(
+    ({ dim }, axis) => toWorldOffset(board, axis, point[dim]) - extents[axis]! / 2,
+  ) as [number, number, number];
 }
 
 /**
