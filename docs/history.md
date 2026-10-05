@@ -274,6 +274,47 @@ and 79.
 
 ## What each round did
 
+**What the hide/unhide round did (2026-10-05)**: hiding parts from the 3D view and bringing them
+back, with a spec and plan (`docs/superpowers/specs/2026-10-05-sloyd-hide-unhide-design.md`). No
+schema change. **On branch `hide-unhide`, not merged or deployed; the live check is pending.**
+
+- **Decomposition and order.** The second of the three rounds the user asked for: multi-select
+  (shipped), hide/unhide, then repeated parts. Five tasks: the store (hidden set, history
+  entries, `selectionPatch` filter), the viewport readers, the panels, the keys, the docs.
+- **The user's rulings.** Hidden-ness is view state, not saved. All four controls offered: an
+  eye per row, H, Show all (Alt+H and a button), hide others (Shift+H and a Properties button).
+  A hidden part cannot be selected. Undo was asked for after the first draft, so a history
+  entry became `{ doc, hiddenIds }`; the accepted cost is that a hide after an undo discards
+  the redo list.
+- **The change.** `hiddenIds` in the store with four user writers through `applyHidden`
+  (invariant 43), which never runs `edit()` and pushes an entry holding the same document.
+  `undo`/`redo` share one `restore`. `visibleBoards` is the one filter the viewport reads:
+  hidden parts are not drawn, not snap points in either tool, and not framed by Home.
+  `moveCandidates` takes `hiddenIds`. PartsList has the eye and Show all (N), Properties has
+  Hide others in both panels, and App's keydown effect has H / Shift+H / Alt+H. Invariants 24,
+  34 and 42 were amended to match.
+- **Two spec corrections found while planning.**
+  - The selection is filtered STRUCTURALLY, inside `selectionPatch`, rather than by each
+    caller remembering to skip hidden parts.
+  - Undo and redo used to clear every held point unconditionally. The undo of a hide restores
+    the SAME document, so they now keep held points then; otherwise Ctrl+Z after hiding a part
+    would drop a tape measurement the hide itself was forbidden to drop.
+- **Placement ruling.** Show all (N) renders inside PartsList directly under the Parts heading,
+  not on the heading line.
+- **Rulings made during execution.**
+  - Task 1: a plan-supplied test of invariant 24's prohibition was vacuous — `hideUnselected`
+    ran with an empty selection, so it did nothing and the tape fields survived trivially. It
+    now re-selects first and asserts the set at each step. A mutation (`restore` using the
+    entry's set unfiltered) survived the plan's tests, so a ghost-id test was added.
+  - Task 4: two plan-supplied tests (Alt+H, and H then Ctrl+Z) passed with the whole H block
+    deleted; both now assert the hide happened first. The text-field test was masked by the
+    gesture refusal (focusing the project-name field opens a gesture, so the hide was refused
+    for the wrong reason); found by controller mutation, it now uses a bare input and asserts
+    `gesturing` is false. The plan matched H by `e.code` for all three keys, which made the key
+    that types `d` on Dvorak/Colemak hide parts; plain and Shift+H now match by `e.key`, and
+    only Alt+H by code (Option+H types `˙` on a Mac).
+- **Residues** are follow-ups 213-214.
+
 **What the multi-select round did (2026-10-05)**: selecting and editing several parts at once, with a
 spec and plan (`docs/superpowers/specs/2026-10-05-sloyd-multi-select-design.md`). No schema change.
 **Merged (`232917f`) and deployed** (`index-D7ySMvky.js`). **Live check passed** with the user watching and doing the drags (`docs/browser-verification-multi-select.md`).

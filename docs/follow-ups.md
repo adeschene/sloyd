@@ -4372,3 +4372,20 @@ group ones.
   - Mutations: 4 of 5 go red. The one that survives is dropping the flag in NameField: the adopt
     effect corrects the text, so only a one-frame flicker of the old name differs. Recorded, not
     tested.
+
+## From the hide/unhide round — 2026-10-05
+
+**213. `deleteBoards` reconciles `hiddenIds` in a second `set()` after `edit()`.** The entry
+`edit()` pushes already records the set as it was, so undo is right; but for one moment the
+document lacks the deleted parts while `hiddenIds` still names them. Harmless: every reader
+filters by id against the boards. Folding it into `edit()` would need an API change. The
+`hiddenIds` declaration comment in `store.ts` ("written ONLY by the four actions below") is
+loose for the same reason; invariant 43 states the writer rule precisely.
+- **Status:** open, low, no data harm.
+
+**214. Small gaps the round judged fine to leave.** Record-only.
+- No PartsList test that the "Show <name>" eye restores a part; the store tests cover `setHidden`.
+- `.part-row.hidden .part { cursor: default }` may duplicate the existing `button:disabled` rule.
+  Unchecked.
+- TapeTool's candidates memo is a ~120-character one-liner. Cosmetic.
+- **Status:** record-only.
