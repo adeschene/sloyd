@@ -1126,3 +1126,29 @@ describe('Properties with two or more parts selected', () => {
     expect(screen.getByLabelText('Part name')).toHaveValue('Board');
   });
 });
+
+describe('Hide others', () => {
+  it('in the single-part panel, hides every other part', async () => {
+    const s = useStore.getState();
+    s.addBoard();
+    s.addBoard();
+    const [a, b] = useStore.getState().doc.boards.map((x) => x.id);
+    useStore.getState().selectBoard(a!);
+    render(<Properties />);
+    await userEvent.click(screen.getByRole('button', { name: 'Hide others' }));
+    expect(useStore.getState().hiddenIds).toEqual([b]);
+  });
+
+  it('in the group panel, hides every unselected part', async () => {
+    const s = useStore.getState();
+    s.addBoard();
+    s.addBoard();
+    s.addBoard();
+    const [a, b, c] = useStore.getState().doc.boards.map((x) => x.id);
+    useStore.getState().selectBoard(a!);
+    useStore.getState().toggleSelected(b!);
+    render(<Properties />);
+    await userEvent.click(screen.getByRole('button', { name: 'Hide others' }));
+    expect(useStore.getState().hiddenIds).toEqual([c]);
+  });
+});

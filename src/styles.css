@@ -588,6 +588,42 @@ button[aria-pressed='true'] {
   font-weight: 600;
 }
 
+.part-row {
+  display: flex;
+  align-items: stretch;
+}
+
+.part-row .part {
+  flex: 1;
+  min-width: 0;
+}
+
+.part-eye {
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+
+.part-eye:hover {
+  color: var(--ink);
+}
+
+.part-row.hidden .part {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.parts-show-all {
+  margin: 0 0 6px;
+  align-self: flex-start;
+}
+
 /* ---------------------------------------------------------------- guides list */
 
 .guides {
