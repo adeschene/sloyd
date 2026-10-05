@@ -1,5 +1,6 @@
 import { CURRENT_VERSION, migrateDocument, storedAsShape } from '../../document/document';
 import type { Board, Dimension, SloydDocument } from '../../document/document';
+import { boardSolids } from '../../document/cuts';
 import { TOUCH } from '../../document/designCheck';
 import { SNAP_INCHES, axisDimensions, positionAxisOf } from '../../document/geometry';
 import { boxOf, pocketFor } from './pocket';
@@ -37,9 +38,12 @@ const span = (b: WorldBox, k: number): [number, number] => [b.min[k], b.max[k]];
 /** Grow (or, negative, shrink) a part along world axis k on its `side` face. */
 function resize(b: Board, k: number, side: -1 | 1, amount: number) {
   const d = axisDimensions(b)[k];
-  b[d] = b[d] + amount;
+  // The old dimension is passed on rather than recovered as `b[d] - amount`,
+  // which can be an ulp off for decimal sizes.
+  const was = b[d];
+  b[d] = was + amount;
   if (side === -1) b.position[k] -= amount;
-  rebaseCuts(b, d, side === -1 ? 'min' : 'max', amount);
+  rebaseCuts(b, d, side === -1 ? 'min' : 'max', amount, was);
 }
 
 /**
@@ -60,8 +64,9 @@ function resize(b: Board, k: number, side: -1 | 1, amount: number) {
  *   POSITIONED flush with the end is NOT extended: it stays where it is.
  * - A cut INTO `d` from the moving end has no defined answer, so it throws.
  *
- * Each cut is first re-stored the way it runs (`storedAsShape`), so the rule
- * above reads the cut's shape: a cut that RUNS along `d` to the moving end keeps
+ * Each cut is first re-stored the way it runs where the sheet accepts it
+ * (`storedAsShape`'s guard; a refused cut keeps its stored form and the old
+ * rule), so the rule above reads the cut's shape: a cut that RUNS along `d` to the moving end keeps
  * running out; one POSITIONED at that end stays (follow-up 199).
  *
  * Then the cut is CLIPPED to the board (an addition to the ruling): a shrink
@@ -69,7 +74,7 @@ function resize(b: Board, k: number, side: -1 | 1, amount: number) {
  * offset to 0 WITHOUT shortening the width, which would move the cut. A cut
  * the shrink removes entirely is dropped.
  */
-function rebaseCuts(b: Board, d: Dimension, end: 'min' | 'max', amount: number) {
+function rebaseCuts(b: Board, d: Dimension, end: 'min' | 'max', amount: number, was: number) {
   // Follow-up 199: decide by the cut's SHAPE, not by which of two equivalent
   // forms it happens to be stored in. storedAsShape keeps the same stock, returns
   // an already-aligned cut as the same object, and refuses a re-store the sheet
@@ -77,8 +82,9 @@ function rebaseCuts(b: Board, d: Dimension, end: 'min' | 'max', amount: number) 
   // shape is read against the board it was cut IN, so the board is put back
   // for the read (a cut spanning all of the old length is not full-length on
   // the grown one).
-  const before: Board = { ...b, [d]: b[d] - amount };
-  b.cuts = b.cuts.map((c) => storedAsShape(before, c));
+  const before: Board = { ...b, [d]: was };
+  const solids = boardSolids(before);
+  b.cuts = b.cuts.map((c) => storedAsShape(before, c, solids));
   b.cuts = b.cuts.filter((c) => {
     if (c.face === d) {
       if (c.from === end) throw new Error(`applyJoints: ${b.name} grows at an end it is already cut into`);

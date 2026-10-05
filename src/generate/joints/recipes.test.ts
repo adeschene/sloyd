@@ -110,6 +110,24 @@ describe('dado and stopped dado', () => {
     expect(a.length).toEqual([0, 20.25]);
   });
 
+  it('a rabbet positioned at the growing end stays there, whichever way it is stored (fu 199)', () => {
+    // Same shelf; the rabbet is the length's first 3/4in, full width, 1/4in deep from the top face. It is
+    // POSITIONED at the end the dado grows, so it keeps its place relative to the old end: [0.25, 1.0].
+    const withRabbet = (rabbet: Cut) => {
+      const d = structuredClone(doc);
+      board(d, 'Shelf').cuts = [rabbet];
+      return applyJoints(d, findSites(d), [{ site: 1, joint: 'dado', depth: 0.25 }]).doc;
+    };
+    const base = { id: 'r', face: 'thickness' as const, from: 'max' as const, depth: 0.25 };
+    const positioned: Cut = { ...base, across: 'width', offset: 0, width: 0.75, stopMin: 0, stopMax: 0 };
+    const alongD: Cut = { ...base, across: 'length', offset: 0, width: 11.25, stopMin: 0, stopMax: 19.25 };
+    const regionOf = (out: SloydDocument) => { const s = board(out, 'Shelf'); return cutRegion(s, s.cuts[0]); };
+    const a = regionOf(withRabbet(positioned));
+    const b2 = regionOf(withRabbet(alongD));
+    expect(b2).toEqual(a);
+    expect(a.length).toEqual([0.25, 1.0]);
+  });
+
   it('butt leaves the site alone', () => {
     const out = applyJoints(doc, sites, [{ site: 1, joint: 'butt' }]);
     expect(out.doc.boards.every((b) => b.cuts.length === 0)).toBe(true);

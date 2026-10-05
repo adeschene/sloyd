@@ -4190,11 +4190,14 @@ as running across the length", though both storages are equally valid; the direc
 from the tie's final default (length, width, thickness), not from the geometry.
 - **Reach:** any square closed pocket or corner opening a user stores across the width.
 - **Possible remedy:** suppress the note when the run was decided by that default.
-- **Status:** open, a decision for the user.
+- **Status:** CLOSED 2026-10-04, the user's ruling: `CutShape.runByDefault` marks a run decided only by the tie's final default, and Properties shows no note and no button then; the sheet still prints the default direction. A square typed in millimetres is usually not float-exact, so it is decided by rule 2 and keeps the note (follow-up 200).
 
 **199. `rebaseCuts` treats a cut differently by its stored form when a board grows.** In
 `src/generate/joints/recipes.ts` (`rebaseCuts`), a zero stop along `across` keeps running out to
 the new end, while a cut flush on the position axis does not move, so re-storing a cut
 (`storedAsShape`) can change how it follows a later growth.
 - **Reach:** latent: a 248-variant joinery corpus probe showed 0 differences.
+- **Status:** CLOSED 2026-10-04: `rebaseCuts` re-stores each cut via `storedAsShape`, judged on the part before it grows, so a cut that runs along the growth keeps running out and one positioned at the moving end stays, whichever way it was stored (a 648-case probe: 0 storage-dependent differences). A square corner opening at the moving end follows the length default and so extends; a cut the guard refuses keeps its stored form and the old rule; only grown parts are re-stored.
+
+**200. A square typed in millimetres is not a tie.** `runAxis` compares extents exactly (cut-storage spec §2), so a 20 mm × 20 mm opening measures 0.78740157480315 against 0.7874015748031495 and is decided by the longer extent, not the tie: it keeps the Match note that 198 hides for a fractional square, and its sheet direction can depend on the last bit. An epsilon tie would change the sheet's rule as well as the note.
 - **Status:** open, low.

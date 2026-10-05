@@ -414,6 +414,8 @@ src/
 │   │                       its word, and the setup line AND the drawing format from it,
 │   │                       never from stored fields (fu 192). `groove` when the run axis
 │   │                       is the grain on a material with grain (fu 193).
+│   │                       `CutShape.runByDefault` marks a run decided only by the tie's
+│   │                       final default; it exists for Properties' note (fu 198).
 │   │                       `storedAsShape` re-stores a sideways cut with across = its
 │   │                       run (same stock; an already-aligned cut comes back as the
 │   │                       same object, so no float noise splits rows). A far end the
@@ -559,7 +561,8 @@ src/
 │       ├── recipes.ts      applyJoints; re-grounds a floored design. A rabbet moves the
 │       │                   panel once and trims parts butting its moving face; a
 │       │                   half-lap needs coplanar partners, ALIGNS E (never moves it
-│       │                   by t) and skips a drop blocked by another part
+│       │                   by t) and skips a drop blocked by another part. A growing
+│       │                   part's cuts are re-stored by SHAPE first (fu 199)
 │       └── choose.ts       JOINERY_PROMPT / JOINT_SCHEMA / parseChoices / defaults
 ├── useGenerations.ts       the batch: one at a time, " — A/B/C" names, auth aborts all,
 │                           post-run abort guard, writes ONLY via createProject(doc,
@@ -1420,8 +1423,8 @@ worked examples behind several of them are in `docs/history.md`.
     that keeps the run.
     A re-store the sheet would read differently (word, run, position axis, which ends are
     stopped) is refused: `storedAsShape` returns the original, and Properties offers nothing.
-    A later growth through `rebaseCuts` may still treat the two stored forms differently
-    (follow-up 199). `useJoinery` writes only through `createProject(doc, { activate: false })` —
+    A later growth through `rebaseCuts` now follows the shape, not the stored form
+    (follow-up 199, closed). `useJoinery` writes only through `createProject(doc, { activate: false })` —
     invariant 36 extended. And only problems the joinery INTRODUCED drive repairs:
     `runJoinery` checks the original and the joined design and compares problems by `kind`
     plus their `parts` names (the field exists for this), NEVER by message text, which
@@ -1444,7 +1447,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is the authoritative list** — 1-199, consciously deferred rather
+**`docs/follow-ups.md` is the authoritative list** — 1-200, consciously deferred rather
 than missed, each written up in place with its closure where it has one. Read the entries
 for the area you are about to touch before starting; several are "correct but untested",
 which is exactly what a refactor breaks silently.
