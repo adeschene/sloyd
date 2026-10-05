@@ -276,7 +276,7 @@ and 79.
 
 **What the hide/unhide round did (2026-10-05)**: hiding parts from the 3D view and bringing them
 back, with a spec and plan (`docs/superpowers/specs/2026-10-05-sloyd-hide-unhide-design.md`). No
-schema change. **Live check passed** with the user watching (`docs/browser-verification-hide-unhide.md`).
+schema change. **Merged (`366eb37`) and deployed** (`index-BpdcUlXf.js`). **Live check passed** with the user watching (`docs/browser-verification-hide-unhide.md`).
 
 - **Decomposition and order.** The second of the three rounds the user asked for: multi-select
   (shipped), hide/unhide, then repeated parts. Five tasks: the store (hidden set, history
