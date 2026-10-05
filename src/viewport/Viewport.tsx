@@ -58,7 +58,7 @@ interface OrbitLike {
  */
 function CameraKeys({ suspended }: { suspended: boolean }) {
   const boards = useStore((s) => s.doc.boards);
-  const selectedId = useStore((s) => s.selectedId);
+  const selectedIds = useStore((s) => s.selectedIds);
   const camera = useThree((s) => s.camera);
   const controls = useThree((s) => s.controls) as OrbitLike | null;
   const size = useThree((s) => s.size);
@@ -119,7 +119,10 @@ function CameraKeys({ suspended }: { suspended: boolean }) {
 
       let subset: Board[];
       if (e.key === 'f' || e.key === 'F') {
-        subset = boards.filter((b) => b.id === selectedId);
+        // The whole selection. With nothing selected this is empty and `f`
+        // does nothing, exactly as before multi-select — `Home` is the key
+        // that frames everything (multi-select plan, spec clarification 1).
+        subset = boards.filter((b) => selectedIds.includes(b.id));
       } else if (e.key === 'Home') {
         subset = boards;
       } else {
@@ -134,7 +137,7 @@ function CameraKeys({ suspended }: { suspended: boolean }) {
     // `suspended` belongs in the dependency list, not just in the body: an
     // effect that reads a flag it does not depend on keeps the first value it
     // saw, which is invariant 15's failure shape in a listener.
-  }, [boards, selectedId, frame, suspended]);
+  }, [boards, selectedIds, frame, suspended]);
 
   // Swapping projection hands OrbitControls a fresh camera whose target is the
   // origin, which would throw the view away. Re-frame the model instead. The
@@ -254,7 +257,7 @@ export function Viewport({
   shortcutsSuspended = false,
 }: ViewportProps) {
   const boards = useStore((s) => s.doc.boards);
-  const selectedId = useStore((s) => s.selectedId);
+  const selectedIds = useStore((s) => s.selectedIds);
   const selectBoard = useStore((s) => s.selectBoard);
   const tool = useStore((s) => s.tool);
 
@@ -356,7 +359,7 @@ export function Viewport({
         <BoardMesh
           key={board.id}
           board={board}
-          selected={board.id === selectedId}
+          selected={selectedIds.includes(board.id)}
           onSelect={selectBoard}
           selectable={tool === 'select'}
         />

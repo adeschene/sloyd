@@ -8,9 +8,9 @@ beforeEach(reset);
 describe('addBoard', () => {
   it('appends a board and selects it', () => {
     useStore.getState().addBoard();
-    const { doc, selectedId } = useStore.getState();
+    const { doc, selectedIds } = useStore.getState();
     expect(doc.boards).toHaveLength(1);
-    expect(selectedId).toBe(doc.boards[0].id);
+    expect(selectedIds).toEqual([doc.boards[0].id]);
   });
 
   it('reuses the dimensions of the most recently added board', () => {
@@ -211,7 +211,7 @@ describe('deleteBoard', () => {
     const id = useStore.getState().doc.boards[0].id;
     useStore.getState().deleteBoard(id);
     expect(useStore.getState().doc.boards).toHaveLength(0);
-    expect(useStore.getState().selectedId).toBeNull();
+    expect(useStore.getState().selectedIds).toEqual([]);
   });
 });
 
@@ -221,11 +221,11 @@ describe('duplicateBoard', () => {
     const orig = useStore.getState().doc.boards[0];
     useStore.getState().updateBoard(orig.id, { name: 'Shelf' });
     useStore.getState().duplicateBoard(orig.id);
-    const { doc, selectedId } = useStore.getState();
+    const { doc, selectedIds } = useStore.getState();
     expect(doc.boards).toHaveLength(2);
     expect(doc.boards[1].id).not.toBe(orig.id);
     expect(doc.boards[1].name).toBe('Shelf (1)');
-    expect(selectedId).toBe(doc.boards[1].id);
+    expect(selectedIds).toEqual([doc.boards[1].id]);
   });
 
   it('names the copy with a numeric suffix, not "copy"', () => {
@@ -330,7 +330,7 @@ describe('replaceDocument', () => {
     useStore.getState().replaceDocument(incoming);
     const s = useStore.getState();
     expect(s.doc.name).toBe('Imported');
-    expect(s.selectedId).toBeNull();
+    expect(s.selectedIds).toEqual([]);
     expect(s.canUndo()).toBe(false);
   });
 });
@@ -419,7 +419,7 @@ describe('cuts', () => {
   const cuts = () => useStore.getState().doc.boards[0].cuts;
 
   beforeEach(() => {
-    useStore.setState({ doc: createDocument(), selectedId: null, past: [], future: [] });
+    useStore.setState({ doc: createDocument(), selectedIds: [], past: [], future: [] });
     useStore.getState().addBoard();
   });
 
@@ -533,7 +533,7 @@ describe('the Move tool', () => {
   const twoBoards = () => {
     useStore.setState({
       doc: createDocument(),
-      selectedId: null,
+      selectedIds: [],
       past: [],
       future: [],
       tool: 'select',
@@ -599,13 +599,13 @@ describe('the Move tool', () => {
     // so without this the delta is exactly zero and the commit correctly takes
     // the no-op path instead of the one under test.
     useStore.getState().updateBoard(b.id, { position: [40, 0, 0] });
-    // Grab from b, not a: the fixture selects a, so asserting selectedId === a
+    // Grab from b, not a: the fixture selects a, so asserting selectedIds equals [a]
     // after moving a would pass without commitSnapMove writing anything.
     useStore.getState().selectBoard(b.id);
     useStore.getState().grabSnapPoint(cornerOf(b.id));
     useStore.getState().commitSnapMove(cornerOf(a.id));
     expect(useStore.getState().grabbed).toBeNull();
-    expect(useStore.getState().selectedId).toBe(b.id);
+    expect(useStore.getState().selectedIds).toEqual([b.id]);
   });
 
   it('reverts a whole snap move with one undo', () => {
@@ -683,7 +683,7 @@ describe('the Move tool', () => {
     const { a, b } = twoBoards();
     useStore.getState().grabSnapPoint(cornerOf(a.id));
     useStore.getState().deleteBoard(b.id);
-    expect(useStore.getState().selectedId).toBe(a.id);
+    expect(useStore.getState().selectedIds).toEqual([a.id]);
     expect(useStore.getState().grabbed?.owner.id).toBe(a.id);
   });
 
@@ -899,7 +899,7 @@ describe('the Move tool', () => {
 
   it('drops a grab when Add board selects the new board', () => {
     // addBoard selects its new board through edit()'s `selection` callback,
-    // not through selectBoard — a second writer of selectedId that nothing
+    // not through selectBoard — a second writer of the selection that nothing
     // gates in Move mode. Without the clear inside edit(), the toolbar button
     // reaches exactly the mismatched state the tests above rule out.
     const { a } = twoBoards();
@@ -929,7 +929,7 @@ describe('the Move tool', () => {
 
     useStore.getState().grabSnapPoint(cornerOf(a.id));
     // Reach past the store's own clearing to build the state under test.
-    useStore.setState({ selectedId: b.id });
+    useStore.setState({ selectedIds: [b.id] });
     useStore.getState().commitSnapMove(cornerOf(b.id));
 
     expect(useStore.getState().doc.boards.find((x) => x.id === a.id)!.position)
@@ -1026,9 +1026,9 @@ describe('guide actions', () => {
 
   it('does not touch the board selection', () => {
     useStore.getState().addBoard();
-    const selected = useStore.getState().selectedId;
+    const selected = useStore.getState().selectedIds;
     useStore.getState().addGuide([1, 2, 3]);
-    expect(useStore.getState().selectedId).toBe(selected);
+    expect(useStore.getState().selectedIds).toEqual(selected);
   });
 });
 
@@ -1656,5 +1656,220 @@ describe('tapeAxis — a lock, deliberately NOT invariant 24', () => {
     const other = useStore.getState().doc.boards.find((b) => b.id !== board.id)!;
     useStore.getState().deleteBoard(other.id);
     expect(useStore.getState().tapeAxis).toBe('y');
+  });
+});
+
+describe('multi-select — the selection set', () => {
+  /** Three boards, nothing selected. */
+  const threeBoards = () => {
+    const s = useStore.getState();
+    s.addBoard();
+    s.addBoard();
+    s.addBoard();
+    useStore.getState().selectBoard(null);
+    const [a, b, c] = useStore.getState().doc.boards;
+    return { a: a!, b: b!, c: c! };
+  };
+  const ids = () => useStore.getState().selectedIds;
+  const cornerOf = (id: string) =>
+    boardSnapPoints(useStore.getState().doc.boards.find((x) => x.id === id)!)
+      .find((p) => p.kind === 'corner')!;
+
+  it('selectBoard replaces the selection with one part, or clears it', () => {
+    const { a, b } = threeBoards();
+    useStore.getState().toggleSelected(a.id);
+    useStore.getState().selectBoard(b.id);
+    expect(ids()).toEqual([b.id]);
+    useStore.getState().selectBoard(null);
+    expect(ids()).toEqual([]);
+  });
+
+  it('toggleSelected adds a part in the order selected, and removes it again', () => {
+    const { a, c } = threeBoards();
+    useStore.getState().toggleSelected(c.id);
+    useStore.getState().toggleSelected(a.id);
+    // Insertion order, not document order (spec §2).
+    expect(ids()).toEqual([c.id, a.id]);
+    useStore.getState().toggleSelected(c.id);
+    expect(ids()).toEqual([a.id]);
+  });
+
+  it('never holds an id twice', () => {
+    const { a, b } = threeBoards();
+    useStore.getState().toggleSelected(a.id);
+    useStore.getState().toggleSelected(b.id);
+    useStore.getState().toggleSelected(a.id);
+    useStore.getState().toggleSelected(a.id);
+    expect(ids()).toEqual([b.id, a.id]);
+  });
+
+  it('selectAll selects every part, in document order', () => {
+    const { a, b, c } = threeBoards();
+    useStore.getState().toggleSelected(c.id);
+    useStore.getState().selectAll();
+    expect(ids()).toEqual([a.id, b.id, c.id]);
+  });
+
+  it('is view state: no selection change leaves an undo entry', () => {
+    const { a, b } = threeBoards();
+    const before = useStore.getState().past.length;
+    useStore.getState().toggleSelected(a.id);
+    useStore.getState().selectAll();
+    useStore.getState().selectBoard(b.id);
+    expect(useStore.getState().past.length).toBe(before);
+  });
+
+  it('undo keeps only the selected parts that still exist', () => {
+    const { a, b } = threeBoards();
+    useStore.getState().selectAll();
+    useStore.getState().undo(); // un-adds c
+    expect(ids()).toEqual([a.id, b.id]);
+  });
+
+  it('undo keeps the whole selection when every selected part survives', () => {
+    const { a, b } = threeBoards();
+    useStore.getState().updateBoard(a.id, { length: 30 });
+    useStore.getState().toggleSelected(a.id);
+    useStore.getState().toggleSelected(b.id);
+    useStore.getState().undo(); // un-does the length edit; nothing is removed
+    expect(ids()).toEqual([a.id, b.id]);
+  });
+
+  it('redo keeps only the selected parts that still exist', () => {
+    const { a, b } = threeBoards();
+    useStore.getState().deleteBoards([b.id]);
+    useStore.getState().undo(); // b is back
+    useStore.getState().toggleSelected(a.id);
+    useStore.getState().toggleSelected(b.id);
+    useStore.getState().redo(); // b is gone again
+    expect(ids()).toEqual([a.id]);
+  });
+
+  it('deleteBoards removes every named part as ONE undo entry', () => {
+    const { a, b, c } = threeBoards();
+    useStore.getState().selectAll();
+    const before = useStore.getState().past.length;
+    useStore.getState().deleteBoards([a.id, c.id]);
+    expect(useStore.getState().doc.boards.map((x) => x.id)).toEqual([b.id]);
+    expect(useStore.getState().past.length).toBe(before + 1);
+    expect(ids()).toEqual([b.id]);
+    useStore.getState().undo();
+    expect(useStore.getState().doc.boards.map((x) => x.id)).toEqual([a.id, b.id, c.id]);
+  });
+
+  it('deleteBoards with no existing id leaves no undo entry', () => {
+    threeBoards();
+    const before = useStore.getState().past.length;
+    useStore.getState().deleteBoards(['nope']);
+    useStore.getState().deleteBoards([]);
+    expect(useStore.getState().past.length).toBe(before);
+  });
+
+  it('duplicateBoards copies every named part in place as ONE undo entry, names unique, copies selected', () => {
+    const { a, b } = threeBoards();
+    useStore.getState().updateBoard(a.id, { name: 'Leg', position: [1, 0, 2] });
+    useStore.getState().updateBoard(b.id, { name: 'Leg (1)', position: [10, 0, 2] });
+    useStore.getState().addCut(a.id);
+    const before = useStore.getState().past.length;
+    useStore.getState().duplicateBoards([a.id, b.id]);
+    const boards = useStore.getState().doc.boards;
+    const copies = boards.slice(3);
+    expect(useStore.getState().past.length).toBe(before + 1);
+    // Named against the document AS IT GROWS (invariant 8): naming both
+    // against the original boards would give two "Leg (2)".
+    expect(copies.map((x) => x.name)).toEqual(['Leg (2)', 'Leg (3)']);
+    expect(copies.map((x) => x.position)).toEqual([[1, 0, 2], [10, 0, 2]]);
+    expect(ids()).toEqual(copies.map((x) => x.id));
+    const sourceCut = boards.find((x) => x.id === a.id)!.cuts[0]!;
+    expect(copies[0]!.cuts[0]!.id).not.toBe(sourceCut.id);
+    expect({ ...copies[0]!.cuts[0]!, id: '' }).toEqual({ ...sourceCut, id: '' });
+  });
+
+  // Review Focus 5, store half.
+  it('keeps a held grab when a DIFFERENT selected part is toggled out', () => {
+    const { a, b } = threeBoards();
+    useStore.getState().toggleSelected(a.id);
+    useStore.getState().toggleSelected(b.id);
+    useStore.getState().grabSnapPoint(cornerOf(a.id));
+    useStore.getState().toggleSelected(b.id);
+    expect(useStore.getState().grabbed?.owner.id).toBe(a.id);
+  });
+
+  it('drops a held grab when its OWNER is toggled out', () => {
+    const { a, b } = threeBoards();
+    useStore.getState().toggleSelected(a.id);
+    useStore.getState().toggleSelected(b.id);
+    useStore.getState().grabSnapPoint(cornerOf(a.id));
+    useStore.getState().toggleSelected(a.id);
+    expect(useStore.getState().grabbed).toBeNull();
+  });
+
+  it('keeps a held grab when another part is toggled IN, or everything is selected', () => {
+    const { a, c } = threeBoards();
+    useStore.getState().toggleSelected(a.id);
+    useStore.getState().grabSnapPoint(cornerOf(a.id));
+    useStore.getState().toggleSelected(c.id);
+    expect(useStore.getState().grabbed?.owner.id).toBe(a.id);
+    useStore.getState().selectAll();
+    expect(useStore.getState().grabbed?.owner.id).toBe(a.id);
+  });
+
+  it('deleteBoards keeps a grab whose owner survives, and drops one whose owner is deleted', () => {
+    const { a, b, c } = threeBoards();
+    useStore.getState().selectAll();
+    useStore.getState().grabSnapPoint(cornerOf(a.id));
+    useStore.getState().deleteBoards([b.id, c.id]);
+    expect(useStore.getState().grabbed?.owner.id).toBe(a.id);
+    expect(ids()).toEqual([a.id]);
+    useStore.getState().deleteBoards([a.id]);
+    expect(useStore.getState().grabbed).toBeNull();
+  });
+
+  it('refuses a snap move when the grabbed board is not among the selected', () => {
+    const { a, b, c } = threeBoards();
+    useStore.getState().updateBoard(c.id, { position: [40, 0, 0] });
+    useStore.getState().toggleSelected(a.id);
+    useStore.getState().grabSnapPoint(cornerOf(a.id));
+    // Reach past the store's own clearing to build the state under test.
+    useStore.setState({ selectedIds: [b.id] });
+    const before = useStore.getState().past.length;
+    useStore.getState().commitSnapMove(cornerOf(c.id));
+    expect(useStore.getState().past.length).toBe(before);
+    expect(useStore.getState().grabbed).not.toBeNull();
+  });
+});
+
+// Invariant 24's prohibition, extended to the two new actions (spec §3). The
+// fixture makes the selection really MOVE in each case: a test whose selection
+// never changes claims more than its fixture does (follow-up 126's shape).
+describe('tape held points are NOT cleared by the new selection actions', () => {
+  const anchoredAndLatched = () => {
+    const s = useStore.getState();
+    s.addBoard();
+    s.addBoard();
+    s.addBoard();
+    useStore.getState().selectBoard(null);
+    const [a, b, c] = useStore.getState().doc.boards;
+    const far = boardSnapPoints(b!).find((p) => p.at[0] > 0);
+    if (!far) throw new Error('fixture: expected a snap point off the min corner');
+    useStore.getState().setTapeAnchor(boardSnapPoints(a!)[0]!);
+    useStore.getState().setTapeHover(far);
+    return { a: a!, b: b!, c: c! };
+  };
+
+  it('toggleSelected, in and out, leaves the anchor and the latched hover alone', () => {
+    const { a, c } = anchoredAndLatched();
+    useStore.getState().toggleSelected(c.id); // [] -> [c]
+    useStore.getState().toggleSelected(a.id); // [c] -> [c, a]
+    useStore.getState().toggleSelected(a.id); // [c, a] -> [c]
+    expect(useStore.getState().tapeAnchor).not.toBeNull();
+    expect(useStore.getState().tapeHover).not.toBeNull();
+  });
+
+  it('selectAll leaves the anchor and the latched hover alone', () => {
+    anchoredAndLatched();
+    useStore.getState().selectAll(); // [] -> [a, b, c]
+    expect(useStore.getState().tapeAnchor).not.toBeNull();
+    expect(useStore.getState().tapeHover).not.toBeNull();
   });
 });

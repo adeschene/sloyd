@@ -97,7 +97,7 @@ export function Toolbar({
   const canRedo = useStore((s) => s.future.length > 0);
   const tool = useStore((s) => s.tool);
   const setTool = useStore((s) => s.setTool);
-  const selectedId = useStore((s) => s.selectedId);
+  const hasSelection = useStore((s) => s.selectedIds.length > 0);
 
   return (
     <header className="toolbar">
@@ -149,7 +149,7 @@ export function Toolbar({
         >
           Move
         </button>
-        {tool === 'move' && !selectedId && (
+        {tool === 'move' && !hasSelection && (
           // The Move tool grabs points on the selected board only, so with
           // nothing selected no marker ever appears and the tool reads as
           // broken rather than as waiting. The button stays enabled: disabling

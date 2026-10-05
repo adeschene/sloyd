@@ -256,7 +256,8 @@ function CutRow({ board, cut, precision, solids }: { board: Board; cut: Cut; pre
 }
 
 export function Properties() {
-  const board = useStore((s) => s.doc.boards.find((b) => b.id === s.selectedId));
+  const board = useStore((s) =>
+    s.selectedIds.length === 1 ? s.doc.boards.find((b) => b.id === s.selectedIds[0]) : undefined);
   const precision = useStore((s) => s.doc.units.precision);
   const updateBoard = useStore((s) => s.updateBoard);
   const deleteBoard = useStore((s) => s.deleteBoard);

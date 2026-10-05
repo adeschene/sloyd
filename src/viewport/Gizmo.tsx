@@ -227,8 +227,9 @@ function stabilizeTranslateGizmo(
 // -------------------------------------------------------------------------
 
 export function Gizmo() {
-  const selectedId = useStore((s) => s.selectedId);
-  const board = useStore((s) => s.doc.boards.find((b) => b.id === s.selectedId));
+  const selectedId = useStore((s) => (s.selectedIds.length === 1 ? s.selectedIds[0]! : null));
+  const board = useStore((s) =>
+    s.selectedIds.length === 1 ? s.doc.boards.find((b) => b.id === s.selectedIds[0]) : undefined);
   const updateBoard = useStore((s) => s.updateBoard);
   const proxy = useRef<THREE.Object3D>(new THREE.Object3D());
   const dragging = useRef(false);

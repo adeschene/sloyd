@@ -2,7 +2,7 @@ import { useStore } from '../store/store';
 
 export function PartsList() {
   const boards = useStore((s) => s.doc.boards);
-  const selectedId = useStore((s) => s.selectedId);
+  const selectedIds = useStore((s) => s.selectedIds);
   const selectBoard = useStore((s) => s.selectBoard);
 
   if (boards.length === 0) {
@@ -14,7 +14,7 @@ export function PartsList() {
       {boards.map((b) => (
         <li key={b.id}>
           <button
-            className={b.id === selectedId ? 'part selected' : 'part'}
+            className={selectedIds.includes(b.id) ? 'part selected' : 'part'}
             onClick={() => selectBoard(b.id)}
           >
             {b.name}

@@ -45,7 +45,7 @@ export function MoveTool({ showGuides = true }: { showGuides?: boolean }) {
   const boards = useStore((s) => s.doc.boards);
   const guides = useStore((s) => s.doc.guides);
   const grabbed = useStore((s) => s.grabbed);
-  const selectedId = useStore((s) => s.selectedId);
+  const selectedIds = useStore((s) => s.selectedIds);
 
   const gl = useThree((s) => s.gl);
   const camera = useThree((s) => s.camera);
@@ -117,9 +117,9 @@ export function MoveTool({ showGuides = true }: { showGuides?: boolean }) {
         ...(showGuides ? guideSnapPoints(guides) : []),
       ];
     }
-    const selected = boards.find((b) => b.id === selectedId);
+    const selected = selectedIds.length === 1 ? boards.find((b) => b.id === selectedIds[0]) : undefined;
     return selected ? snapPointsFor(selected) : [];
-  }, [boards, grabbed, selectedId, guides, showGuides]);
+  }, [boards, grabbed, selectedIds, guides, showGuides]);
 
   useEffect(() => {
     if (tool !== 'move') {
@@ -218,7 +218,7 @@ export function MoveTool({ showGuides = true }: { showGuides?: boolean }) {
       el.removeEventListener('pointerleave', onPointerLeave);
     };
     // `candidates` is in the list because the handlers close over it, and it
-    // already depends on `boards`, `grabbed`, `selectedId`, `guides` and
+    // already depends on `boards`, `grabbed`, `selectedIds`, `guides` and
     // `showGuides` — so none of those belongs here again. `size.width`/
     // `.height` rather than `size` so a re-created size object does not
     // resubscribe.

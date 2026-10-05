@@ -833,13 +833,13 @@ const mountWithOneBoard = async () => {
 describe('App keyboard delete', () => {
   it('deletes the selected board on Delete', async () => {
     const id = await mountWithOneBoard();
-    expect(useStore.getState().selectedId).toBe(id);
+    expect(useStore.getState().selectedIds).toEqual([id]);
 
     const user = userEvent.setup();
     await user.keyboard('{Delete}');
 
     expect(useStore.getState().doc.boards).toHaveLength(0);
-    expect(useStore.getState().selectedId).toBeNull();
+    expect(useStore.getState().selectedIds).toEqual([]);
   });
 
   it('deletes the selected board on Backspace — the Mac "delete" key', async () => {
@@ -912,7 +912,7 @@ describe('App keyboard delete', () => {
     await user.keyboard('{Delete}');
 
     expect(useStore.getState().doc.boards).toHaveLength(1);
-    expect(useStore.getState().selectedId).toBe(id);
+    expect(useStore.getState().selectedIds).toEqual([id]);
   });
 
   it('makes the rest of the app inert while the cut list is open', async () => {

@@ -726,7 +726,7 @@ export default function App() {
         // exists. The store drops both defensively; this stops the delete
         // happening at all.
         if (useStore.getState().grabbed || useStore.getState().tapeAnchor) return;
-        const id = useStore.getState().selectedId;
+        const id = useStore.getState().selectedIds[0];
         if (!id) return;
         e.preventDefault();
         deleteBoard(id);
