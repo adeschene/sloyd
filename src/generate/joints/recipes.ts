@@ -1,7 +1,7 @@
 import { CURRENT_VERSION, migrateDocument, storedAsShape } from '../../document/document';
 import type { Board, Dimension, SloydDocument } from '../../document/document';
 import { boardSolids } from '../../document/cuts';
-import { TOUCH } from '../../document/designCheck';
+import { TOUCH, worldSolids } from '../../document/designCheck';
 import { SNAP_INCHES, axisDimensions, positionAxisOf } from '../../document/geometry';
 import { boxOf, pocketFor } from './pocket';
 import type { V3, WorldBox } from './pocket';
@@ -34,7 +34,8 @@ const withSpans = (base: WorldBox, spans: Partial<Record<number, [number, number
   for (const [k, s] of Object.entries(spans)) { min[+k] = s![0]; max[+k] = s![1]; }
   return { min, max };
 };
-const positive = (b: WorldBox) => [0, 1, 2].every((k) => b.max[k] - b.min[k] > 1e-9);
+type Span = { min: readonly number[]; max: readonly number[] };
+const positive = (b: Span) => [0, 1, 2].every((k) => b.max[k] - b.min[k] > 1e-9);
 const span = (b: WorldBox, k: number): [number, number] => [b.min[k], b.max[k]];
 
 /** Grow (or, negative, shrink) a part along world axis k on its `side` face. */
@@ -128,8 +129,25 @@ function touching(E: Board, R: Board, k: number, side: -1 | 1): boolean {
 }
 
 /** Two world boxes share more than TOUCH on all three axes: one would drive into the other. */
-const overlapsBeyondTouch = (a: WorldBox, b: WorldBox) =>
+const overlapsBeyondTouch = (a: Span, b: Span) =>
   [0, 1, 2].every((i) => Math.min(a.max[i], b.max[i]) - Math.max(a.min[i], b.min[i]) > TOUCH);
+
+/*
+ * The blockers judge SOLIDS, not part boxes (invariant 38, follow-up 203), on
+ * both sides: a design that arrives already cut (hand-made, or Add joinery run
+ * on a joined project) has a seated tenon interpenetrating its neighbour's box.
+ * A part that will have moved or been trimmed is judged as its solids moved or
+ * clipped the same way, never as a box again.
+ */
+type Solids = { min: number[]; max: number[] }[];
+const shifted = (ss: Solids, k: number, d: number): Solids => ss.map((s) => ({
+  min: s.min.map((v, i) => (i === k ? v + d : v)), max: s.max.map((v, i) => (i === k ? v + d : v)),
+}));
+/** What is left of a part's solids once it is trimmed back to `b`. */
+const clipped = (ss: Solids, b: WorldBox): Solids => ss.map((s) => ({
+  min: s.min.map((v, i) => Math.max(v, b.min[i])), max: s.max.map((v, i) => Math.min(v, b.max[i])),
+})).filter(positive);
+const solidsMeet = (a: Solids, b: Solids) => a.some((p) => b.some((q) => overlapsBeyondTouch(p, q)));
 
 /** Each runs past the other on one in-plane axis of k: `findSites` rule 4's crossing test. */
 function crossesInPlan(e: WorldBox, r: WorldBox, k: number): boolean {
@@ -261,7 +279,7 @@ export function applyJoints(doc: SloydDocument, sites: Site[], choices: JointCho
       else skipped.push({ site: site.id, reason: resolved });
       continue;
     }
-    const panelAlreadyIn = (joint === 'rabbet' || joint === 'half-lap') && state.movedFace.get(site.enter) === `${k}|${side}`;
+    const panelAlreadyIn = (joint === 'rabbet' || joint === 'half-lap') && state.movedFace.get(`${site.enter}|${k}`) === side;
     const meets = joint === 'half-lap' ? lapStillMeets(E, R, k, side, panelAlreadyIn) : panelAlreadyIn || touching(E, R, k, side);
     if (!meets) {
       skipped.push({ site: site.id, reason: `${E.name} no longer meets ${R.name} after an earlier joint` });
@@ -306,7 +324,10 @@ export function applyJoints(doc: SloydDocument, sites: Site[], choices: JointCho
 }
 
 type State = {
-  moved: Set<string>; trimmed: Set<string>; movedFace: Map<number, string>; rabbetReceivers: Set<string>; halfLapPartners: Set<string>;
+  moved: Set<string>; trimmed: Set<string>;
+  /** "<part>|<axis>" -> the face it last moved toward on that axis, so a part moved on two axes is tracked per axis (fu 203). */
+  movedFace: Map<string, -1 | 1>;
+  rabbetReceivers: Set<string>; halfLapPartners: Set<string>;
   /** "<panel>|<axis>|<side>" -> each of that unit's sites: null when applied, else why it was skipped. */
   rabbetUnits: Map<string, Map<number, string | null>>;
 };
@@ -405,24 +426,26 @@ function rabbet(unit: { site: Site; r: number }[], boards: Board[], state: State
     }
     trims.set(j, depth);
   }
-  // A part is judged where it will be: a trimmed one at its trimmed size.
-  const judged = (j: number): WorldBox => {
-    const b = boxOf(boards[j]);
+  // A part is judged where it will be, by its solids: a trimmed one clipped to its trimmed size.
+  const judged = (j: number): Solids => {
+    const ss = worldSolids(boards[j]);
     const d = trims.get(j);
-    if (d === undefined) return b;
-    return side === 1 ? withSpans(b, { [k]: [b.min[k] + d, b.max[k]] }) : withSpans(b, { [k]: [b.min[k], b.max[k] - d] });
+    if (d === undefined) return ss;
+    const b = boxOf(boards[j]);
+    return clipped(ss, side === 1 ? withSpans(b, { [k]: [b.min[k] + d, b.max[k]] }) : withSpans(b, { [k]: [b.min[k], b.max[k] - d] }));
   };
-  const hit = (box: WorldBox, skip: (j: number) => boolean) =>
-    boards.findIndex((_, j) => !skip(j) && overlapsBeyondTouch(box, judged(j)));
+  const hit = (solids: Solids, skip: (j: number) => boolean) =>
+    boards.findIndex((_, j) => !skip(j) && solidsMeet(solids, judged(j)));
   for (const i of carried) {
-    const b = boxOf(boards[i]);
-    const other = hit(withSpans(b, { [k]: [b.min[k] + side * t, b.max[k] + side * t] }), (j) => j === e || carried.includes(j));
+    const other = hit(shifted(worldSolids(boards[i]), k, side * t), (j) => j === e || carried.includes(j));
     if (other !== -1) return refuse(`moving ${E.name} would drive ${boards[i].name} into ${boards[other].name}`);
   }
   // The panel moves into its receivers' rabbets on purpose; nothing else may
-  // be left in its way. With the trims above this cannot fire on boxes; it is
-  // the backstop if trim detection and the judged geometry ever disagree.
-  const other = hit(fin, (j) => j === e || inUnit(j) || carried.includes(j));
+  // be left in its way. The trims above clear every part except a receiver
+  // that dropped out of the unit (it is never trimmed), so this is where one
+  // left in the gap is caught. The panel is judged as its solids moved and
+  // clipped to the final box.
+  const other = hit(clipped(shifted(worldSolids(E), k, side * t), fin), (j) => j === e || inUnit(j) || carried.includes(j));
   if (other !== -1) return refuse(`moving ${E.name} would drive it into ${boards[other].name}`);
   const cuts = pockets.map(({ R, box }) => pocketFor(R, box));
 
@@ -439,7 +462,7 @@ function rabbet(unit: { site: Site; r: number }[], boards: Board[], state: State
     if (fin.max[a] < movedBox.max[a]) { resize(E, a, 1, -(movedBox.max[a] - fin.max[a])); state.trimmed.add(E.name); }
   }
   pockets.forEach(({ R }, n) => R.cuts.push(cuts[n]));
-  state.movedFace.set(e, `${k}|${side}`);
+  state.movedFace.set(`${e}|${k}`, side);
   for (const { site } of members) outcome.set(site.id, null);
   return outcome;
 }
@@ -454,34 +477,40 @@ function halfLap(site: Site, boards: Board[], state: State): string | null {
   const R = boards[site.receive];
   const k = site.axis;
   const side = site.side;
-  const faceKey = `${k}|${side}`;
-  if (state.movedFace.get(site.enter) !== faceKey) {
-    // ALIGN rather than move by t: E's touching face lands exactly on R's
-    // opposite face, so a TOUCH-sized gap or thickness difference cannot
-    // leave E out of R's plane. One delta serves the check and the move.
-    const eNow = boxOf(E);
-    const rNow = boxOf(R);
-    const delta = side === -1 ? rNow.min[k] - eNow.min[k] : rNow.max[k] - eNow.max[k];
+  const alreadyIn = state.movedFace.get(`${site.enter}|${k}`) === side;
+  // ALIGN rather than move by t: E's touching face lands exactly on R's
+  // opposite face, so a TOUCH-sized gap or thickness difference cannot
+  // leave E out of R's plane. One delta serves the checks and the move.
+  const eNow = boxOf(E);
+  const rNow = boxOf(R);
+  const delta = alreadyIn ? 0 : side === -1 ? rNow.min[k] - eNow.min[k] : rNow.max[k] - eNow.max[k];
+  if (!alreadyIn) {
     // Dropping E must not drive it into anything but its own lap partners
-    // ANYWHERE along the drop, which can be longer than t: the whole swept
-    // volume is checked, not just what butts E's moving face.
-    const swept = withSpans(eNow, { [k]: [Math.min(eNow.min[k], eNow.min[k] + delta), Math.max(eNow.max[k], eNow.max[k] + delta)] });
-    const blocker = boards.findIndex((b, j) => j !== site.enter && !state.halfLapPartners.has(`${site.enter}->${j}`) && overlapsBeyondTouch(swept, boxOf(b)));
+    // ANYWHERE along the drop, which can be longer than t: the volume each of
+    // E's solids sweeps is checked against every other part's solids.
+    const swept = worldSolids(E).map((s) => ({
+      min: s.min.map((v, i) => (i === k ? Math.min(v, v + delta) : v)),
+      max: s.max.map((v, i) => (i === k ? Math.max(v, v + delta) : v)),
+    }));
+    const blocker = boards.findIndex((b, j) => j !== site.enter && !state.halfLapPartners.has(`${site.enter}->${j}`) && solidsMeet(swept, worldSolids(b)));
     if (blocker !== -1) return `moving ${E.name} would drive it into ${boards[blocker].name}`;
     // All of E's lap partners must share one plane, or E cannot drop into all.
     const partners = [...state.halfLapPartners].filter((p) => p.startsWith(`${site.enter}->`)).map((p) => boxOf(boards[+p.split('->')[1]]));
     if (partners.some((p) => Math.abs(p.min[k] - partners[0].min[k]) > TOUCH || Math.abs(p.max[k] - partners[0].max[k]) > TOUCH)) {
       return `${E.name}'s half-lap partners do not lie in one plane`;
     }
+  }
+  // Defensive guard, judged on E where it WOULD land, so it refuses before
+  // anything moves (invariant 41). Through findSites E aligns onto the first
+  // partner and the pre-check proves the rest coplanar within TOUCH, so only
+  // a thickness difference beyond TOUCH (which rule 4 forbids) can trip it.
+  if (Math.abs(eNow.min[k] + delta - rNow.min[k]) > TOUCH || Math.abs(eNow.max[k] + delta - rNow.max[k]) > TOUCH) {
+    return `${E.name} no longer lies in ${R.name}'s plane after an earlier half-lap`;
+  }
+  if (!alreadyIn) {
     E.position[k] += delta;
     state.moved.add(E.name);
-    state.movedFace.set(site.enter, faceKey);
-  }
-  // Defensive guard: through applyJoints E was just aligned onto the first
-  // partner and the pre-check proved the rest coplanar within TOUCH, so only
-  // a thickness difference beyond TOUCH (which rule 4 forbids) could trip it.
-  if (Math.abs(boxOf(E).min[k] - boxOf(R).min[k]) > TOUCH || Math.abs(boxOf(E).max[k] - boxOf(R).max[k]) > TOUCH) {
-    return `${E.name} no longer lies in ${R.name}'s plane after an earlier half-lap`;
+    state.movedFace.set(`${site.enter}|${k}`, side);
   }
   const eb = boxOf(E);
   const rb = boxOf(R);
