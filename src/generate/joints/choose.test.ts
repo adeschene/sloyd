@@ -6,6 +6,8 @@ import { applyJoints } from './recipes';
 import { defaultChoice, parseChoices, siteMessage, JOINT_SCHEMA } from './choose';
 import { findSites } from './sites';
 
+const limits = (d: { boards: unknown[] }) => ({ width: null, depth: null, height: null, maxParts: d.boards.length });
+
 type P = { name: string; at: [number, number, number]; size: [number, number, number] };
 const design = (...parts: P[]) => designToDocument({
   name: 'T',
@@ -172,4 +174,47 @@ describe('siteMessage', () => {
 
 it('JOINT_SCHEMA enumerates the six joints', () => {
   expect(JSON.stringify(JOINT_SCHEMA)).toContain('"half-lap"');
+});
+
+describe('defaultTenon: opposite-face tenons share the post (fu 190)', () => {
+  const centrePost = (rightY: number) => design(
+    { name: 'LegA', at: [0, 0, 0], size: [1.75, 28, 1.75] },
+    { name: 'LeftRail', at: [1.75, 23.5, 0.5], size: [8.25, 3.5, 0.75] },
+    { name: 'Post', at: [10, 0, 0], size: [1.75, 28, 1.75] },
+    { name: 'RightRail', at: [11.75, rightY, 0.5], size: [8.25, 3.5, 0.75] },
+    { name: 'LegB', at: [20, 0, 0], size: [1.75, 28, 1.75] },
+  );
+  const intoPost = (d: ReturnType<typeof design>) => {
+    const ss = findSites(d);
+    const pick = (n: string) => ss.find((s) => d.boards[s.enter].name === n && d.boards[s.receive].name === 'Post')!;
+    return { ss, l: pick('LeftRail'), r: pick('RightRail') };
+  };
+
+  it('two rails entering one post from opposite faces at the same height stop short of its centre', () => {
+    const d = centrePost(23.5);
+    expect(checkDesign(d, limits(d))).toEqual([]);
+    const { ss, l, r } = intoPost(d);
+    expect(defaultChoice(l, d, ss)).toEqual({ site: l.id, joint: 'mortise-tenon', tenonLength: 0.8125 });
+    expect(defaultChoice(r, d, ss)).toEqual({ site: r.id, joint: 'mortise-tenon', tenonLength: 0.8125 });
+    const joined = applyJoints(d, ss, ss.map((s) => defaultChoice(s, d, ss))).doc;
+    expect(checkDesign(joined, limits(joined)).filter((v) => v.kind === 'overlap')).toEqual([]);
+  });
+
+  it('rails at different heights do not share the mortise zone and keep the uncapped default', () => {
+    const d = centrePost(10);
+    expect(checkDesign(d, limits(d))).toEqual([]);
+    const { ss, l, r } = intoPost(d);
+    expect(defaultChoice(l, d, ss)).toMatchObject({ tenonLength: 1.1875 });
+    expect(defaultChoice(r, d, ss)).toMatchObject({ tenonLength: 1.1875 });
+  });
+
+  it('a same-side site is not a collision: only the OPPOSITE face caps', () => {
+    const d = centrePost(23.5);
+    const { ss, l, r } = intoPost(d);
+    // A synthetic twin entering from the SAME face at the same cross-section.
+    const twin = { ...l, id: 999 };
+    expect(defaultChoice(l, d, [...ss, twin])).toMatchObject({ tenonLength: 0.8125 }); // the real opposite site still caps
+    const alone = ss.filter((s) => s.id !== r.id);
+    expect(defaultChoice(l, d, [...alone, twin])).toMatchObject({ tenonLength: 1.1875 });
+  });
 });
