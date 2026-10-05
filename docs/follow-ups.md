@@ -4180,7 +4180,7 @@ still draws `cutRegion` unclipped (`h`/`v`, unchanged by spec §2.4) while the l
 the clipped `CutShape`, e.g. `h: [-0.5, 0.5]` labelled offset `0"`, width `1/2"`.
 - **Reach:** shrinking a board under an end rabbet.
 - **Remedy:** clip `h`/`v` to the board.
-- **Status:** open, low.
+- **Status:** CLOSED 2026-10-05: `clippedRegion(board, cut)` (cuts.ts) is the cut's box clipped to the board — exactly what it removes — and everything that SHOWS a cut reads it: the drawing's `h`/`v` leader spans, `pointsOfCut`'s snap points, and (one home for the rule) `cutShape`, `openSides` and `findTenons`. An overhang arises only in-session (shrinking a board under an end cut); the loader's `validateCuts` clamps it on the next open. Live-checked: a 3/4" end rabbet on a rail shrunk 1/2" draws, labels and prints as the 1/4" that remains. `cutRegion` stays unclipped for building solids.
 
 ## From the cut storage round — 2026-10-04
 
