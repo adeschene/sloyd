@@ -32,9 +32,9 @@ function assertCarves(board: Board, box: WorldBox) {
   expect(removed, 'the box must actually remove something').toBeGreaterThan(0);
 }
 
-const POSES: [Posture, Rotation][] = [
-  ['flat', 0], ['flat', 90], ['on-edge', 0], ['on-edge', 90], ['upright', 0], ['upright', 90],
-];
+const POSES: [Posture, Rotation][] = (['flat', 'on-edge', 'upright'] as const).flatMap(
+  (posture) => ([0, 90, 180, 270] as const).map((r): [Posture, Rotation] => [posture, r]),
+);
 
 describe('pocketFor', () => {
   const board = (posture: Posture, rotation: Rotation) =>

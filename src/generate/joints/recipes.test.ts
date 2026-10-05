@@ -2,7 +2,8 @@ import { beforeAll } from 'vitest';
 import workbenchRaw from '../../document/fixtures/simple-workbench.sloyd?raw';
 import { designToDocument } from '../../document/generated';
 import { migrateDocument } from '../../document/document';
-import { checkDesign } from '../../document/designCheck';
+import { checkDesign, worldSolids } from '../../document/designCheck';
+import { sameSet } from '../../document/turnFixtures';
 import { boardSolids, clippedRegion, cutLabel, cutRegion, cutsThatRemoveStock } from '../../document/cuts';
 import { buildCutList } from '../../document/cutlist';
 import { axisDimensions, spanToWorldOffset } from '../../document/geometry';
@@ -1356,5 +1357,77 @@ describe('a part already cut into the end a tenon or dado would grow is skipped 
     expect(out.skipped).toEqual([{ site: near.id, reason: 'Rail is already cut at the end that would grow into Leg' }]);
     expect(out.applied.every((a) => a.joint === 'butt')).toBe(true);
     expect(out.doc.boards).toEqual(doc.boards);
+  });
+});
+
+// Quarter-turns round, Task 3: joinery follows the part's turn. A 180 turn
+// keeps every part's world box, so the same design turned 180 must join to the
+// same world solids, with the same moved, trimmed and skipped. The cuts of a
+// fixture are built AFTER the turn, from world boxes, so both copies carry the
+// same world cut.
+describe('joinery is equivariant under a 180 turn of every part', () => {
+  type Notch = [string, [number, number, number], [number, number, number]];
+  const turnedDesign = (parts: P[], notches: Notch[], extra: number) => {
+    const doc = design(...parts);
+    for (const b of doc.boards) b.rotation = (((b.rotation + extra) % 360) as Board['rotation']);
+    for (const [name, min, max] of notches) {
+      const b = board(doc, name);
+      const at = (v: number[]) => v.map((x, k) => b.position[k] + x) as [number, number, number];
+      b.cuts.push(pocketFor(b, { min: at(min), max: at(max) }));
+    }
+    return doc;
+  };
+  const FIXTURES: { label: string; parts: P[]; notches: Notch[]; want: 'applied' | 'skipped' }[] = [
+    { label: 'a mortise-and-tenon rail between legs', want: 'applied', notches: [], parts: [
+      { name: 'Leg', at: [0, 0, 0], size: [1.75, 28, 1.75] },
+      { name: 'Rail', at: [1.75, 23.5, 0.5], size: [18, 3.5, 0.75] },
+      { name: 'Far leg', at: [19.75, 0, 0], size: [1.75, 28, 1.75] },
+    ] },
+    { label: 'a dado\'d shelf between sides', want: 'applied', notches: [], parts: [
+      { name: 'Left side', at: [0, 0, 0], size: [0.75, 30, 11.25] },
+      { name: 'Right side', at: [20.75, 0, 0], size: [0.75, 30, 11.25] },
+      { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 11.25] },
+    ] },
+    { label: 'the rabbeted cabinet back', want: 'applied', notches: [], parts: [
+      { name: 'Left', at: [0, 0, 0], size: [0.75, 30, 11.25] },
+      { name: 'Right', at: [20.75, 0, 0], size: [0.75, 30, 11.25] },
+      { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 11.25] },
+      { name: 'Back', at: [0, 0, 11.25], size: [21.5, 30, 0.25] },
+    ] },
+    { label: 'a shelf already cut at the end a dado would grow (skip)', want: 'skipped', notches: [['Shelf', [19.5, 0, 0], [20, 0.75, 0.5]]], parts: [
+      { name: 'Left side', at: [0, 0, 0], size: [0.75, 30, 11.25] },
+      { name: 'Right side', at: [20.75, 0, 0], size: [0.75, 30, 11.25] },
+      { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 11.25] },
+    ] },
+    { label: 'a rail already cut at the end entering its leg (skip)', want: 'skipped', notches: [['Rail', [0, 0, 0], [0.5, 0.5, 0.75]]], parts: [
+      { name: 'Leg', at: [0, 0, 0], size: [1.75, 28, 1.75] },
+      { name: 'Rail', at: [1.75, 23.5, 0.5], size: [18, 3.5, 0.75] },
+      { name: 'Far leg', at: [19.75, 0, 0], size: [1.75, 28, 1.75] },
+    ] },
+  ];
+
+  it.each(FIXTURES)('$label', ({ parts, notches, want }) => {
+    const run = (extra: number) => {
+      const doc = turnedDesign(parts, notches, extra);
+      const sites = findSites(doc);
+      return { doc, out: applyJoints(doc, sites, sites.map((s) => defaultChoice(s, doc, sites))) };
+    };
+    const a = run(0);
+    const b = run(180);
+    // Not vacuous: the 180 copy really is turned, and the fixture really joins or skips.
+    expect(b.doc.boards.every((x, i) => x.rotation === (a.doc.boards[i].rotation + 180) % 360)).toBe(true);
+    if (want === 'applied') expect(a.out.applied.some((x) => x.joint !== 'butt')).toBe(true);
+    else expect(a.out.skipped.length).toBeGreaterThan(0);
+    expect(b.out.applied.map((x) => x.joint)).toEqual(a.out.applied.map((x) => x.joint));
+    expect(b.out.skipped.map((x) => x.reason)).toEqual(a.out.skipped.map((x) => x.reason));
+    expect([...b.out.moved].sort()).toEqual([...a.out.moved].sort());
+    expect([...b.out.trimmed].sort()).toEqual([...a.out.trimmed].sort());
+    expect(b.out.lowered).toBe(a.out.lowered);
+    expect(b.out.doc.boards.map((x) => x.name)).toEqual(a.out.doc.boards.map((x) => x.name));
+    for (const x of a.out.doc.boards) {
+      const y = board(b.out.doc, x.name);
+      const corners = (bd: Board) => worldSolids(bd).flatMap((w) => [w.min, w.max]);
+      expect(sameSet(corners(y), corners(x)), `${x.name} world solids`).toBe(true);
+    }
   });
 });
