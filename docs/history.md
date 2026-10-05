@@ -262,6 +262,26 @@ and 79.
 
 ## What each round did
 
+**What the fu 200 round did (2026-10-05)**: a bounded round, with the design approved in chat.
+
+- **The change:** `runAxis` and the word table compared the opening's computed extents EXACTLY, so a
+  square typed in millimetres went by its last bits. They now compare within `FLUSH_EPSILON`, which
+  is invariant 22's rule (tolerance for computed values), and the same tolerance the open-end tests
+  already used. Stored values stay exact.
+- **Measured before it was designed.** A reverted probe compared exact against tolerant over 6,000
+  random mm cuts, 6,000 sixteenth cuts and the joined workbench and bookcase. Every change was an mm
+  opening equal to the last bits; the sixteenth cuts and both designs had none. Putting the tolerance
+  in the word table too was what fixed the six mm corners that had tipped from notch to stopped dado.
+- **Two things the review got right.**
+  - The implementer reported a "hang". It was the implementer's own unbounded search loop, not the
+    app: `storedAsShape` is bounded at 17 evaluations, measured at about 0.1 ms per call.
+  - The implementer concluded the Match guard was now unreachable. The reviewer showed it fires at the
+    tolerance boundary itself, 186 of 20,000 constructed cases, and the guard is now pinned there.
+    Deleting it had kept the whole suite green.
+  - The general lesson: a random search that finds nothing has sampled where it looked, not where the
+    rule bends. Search at the boundary.
+- The browser pass is `docs/browser-verification-fu200.md`.
+
 **What the 198/199 round did (2026-10-05)**: a bounded round with the design approved in chat and no
 spec, closing the cut storage round's two open questions.
 
