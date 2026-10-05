@@ -98,8 +98,9 @@ object, so autosave does not fire for a hide.
 - `undo` and `redo` restore the entry's set, keeping only ids that still exist;
 - `replaceDocument` (open, import, switch, autosave restore) clears the set, because a replaced
   document is a different project;
-- `deleteBoard`/`deleteBoards` remove the deleted ids. An undo that brings a deleted part back
-  therefore brings it back visible;
+- `deleteBoard`/`deleteBoards` remove the deleted ids. An undo restores the set its entry recorded
+  (§2.1), so a part deleted while visible (the only kind the UI can delete, since Delete acts on the
+  selection) comes back visible;
 - a new part (`addBoard`) and a copy (`duplicateBoards`) are visible. A copy is made from the
   selection, and the selection is always visible.
 
