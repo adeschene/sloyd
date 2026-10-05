@@ -44,7 +44,7 @@ export default function App() {
   const redo = useStore((s) => s.redo);
   const doc = useStore((s) => s.doc);
   const replaceDocument = useStore((s) => s.replaceDocument);
-  const deleteBoard = useStore((s) => s.deleteBoard);
+  const deleteBoards = useStore((s) => s.deleteBoards);
   const [saving, setSaving] = useState(false);
   const [available, setAvailable] = useState(true);
   const [orthographic, setOrthographic] = useState(false);
@@ -710,6 +710,20 @@ export default function App() {
         }
       }
 
+      // Ctrl/Cmd+A selects every part (multi-select spec §3). In this ONE
+      // listener (invariant 27), so it inherits both guards above:
+      // isTextEntry (in a field, Ctrl+A must select the field's text — and
+      // that early return is why it is not preventDefaulted there) and
+      // modalOpen (nothing is selected behind a sheet or a dialog). Below
+      // the axis and capture blocks, which both require no modifier, so
+      // neither can swallow it. preventDefault so the browser does not
+      // select the page's text.
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        useStore.getState().selectAll();
+        return;
+      }
+
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         e.shiftKey ? redo() : undo();
@@ -726,15 +740,16 @@ export default function App() {
         // exists. The store drops both defensively; this stops the delete
         // happening at all.
         if (useStore.getState().grabbed || useStore.getState().tapeAnchor) return;
-        const id = useStore.getState().selectedId;
-        if (!id) return;
+        const ids = useStore.getState().selectedIds;
+        if (ids.length === 0) return;
         e.preventDefault();
-        deleteBoard(id);
+        // Every selected part, as one undo entry (spec §4.3).
+        deleteBoards(ids);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [undo, redo, deleteBoard, modalOpen]);
+  }, [undo, redo, deleteBoards, modalOpen]);
 
   return (
     <div className="app">

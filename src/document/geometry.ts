@@ -102,3 +102,32 @@ export function reorientedPosition(
     board.position[2] + (before[2] - after[2]) / 2,
   ];
 }
+
+/** An axis-aligned box in world space, inches. */
+export interface Bounds {
+  min: [number, number, number];
+  max: [number, number, number];
+}
+
+/**
+ * The world box around a set of boards, from the least min corner to the
+ * greatest far corner, or null for no boards. `position` is the min corner
+ * (invariant 2) and `boardExtents` already honours posture and rotation, so
+ * this is one pass of min/max — no centre arithmetic to get wrong.
+ *
+ * The group gizmo is placed at its centre and the store's group move rounds
+ * its `min` (multi-select spec §4.1).
+ */
+export function boardsBounds(boards: readonly Board[]): Bounds | null {
+  if (boards.length === 0) return null;
+  const min: [number, number, number] = [Infinity, Infinity, Infinity];
+  const max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
+  for (const b of boards) {
+    const extents = boardExtents(b);
+    for (const axis of [0, 1, 2] as const) {
+      min[axis] = Math.min(min[axis], b.position[axis]);
+      max[axis] = Math.max(max[axis], b.position[axis] + extents[axis]);
+    }
+  }
+  return { min, max };
+}

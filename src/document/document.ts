@@ -7,8 +7,9 @@ import { positionAxisOf } from './geometry';
 
 export * from './types';
 export {
-  boardExtents, boardCenter, reorientedPosition, axisDimensions, DIMENSION_ORDER, positionAxisOf,
+  boardExtents, boardCenter, boardsBounds, reorientedPosition, axisDimensions, DIMENSION_ORDER, positionAxisOf,
 } from './geometry';
+export type { Bounds } from './geometry';
 export { uniqueName, dedupeNames } from './names';
 export { boardEdges, boardSolids, CUT_GEOMETRY_FIELDS, CUT_GEOMETRY_KEYS, cutLabel, cutRegion, clippedRegion, cutShape, storedAsShape, cutRemovesNothing, cutsThatRemoveStock, pointToLocalXYZ, solidWorldBox, wholeBoard } from './cuts';
 export type { CutKind, CutShape, Point, Segment } from './cuts';
@@ -105,7 +106,7 @@ export { nextId };
  *
  * Re-minting a duplicate is safe precisely because nothing INSIDE a document
  * references a board or guide id: `Board.cuts` is inline and `GuidePoint` is
- * `{ id, at }`. Every id lookup in the app (`selectedId`, `grabbed.owner.id`,
+ * `{ id, at }`. Every id lookup in the app (`selectedIds`, `grabbed.owner.id`,
  * the `find` calls in the store and the viewport) reads runtime state that is
  * set after a load, so a re-mint cannot leave a dangling reference. A future
  * field that points at a board BY ID would break that and would need this to

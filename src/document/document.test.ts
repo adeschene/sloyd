@@ -1,7 +1,7 @@
 import {
   createBoard, createDocument, createGuide, migrateDocument, DocumentError, CURRENT_VERSION,
 } from './document';
-import { boardExtents, boardCenter, reorientedPosition, axisDimensions } from './geometry';
+import { boardExtents, boardCenter, reorientedPosition, axisDimensions, boardsBounds } from './geometry';
 import type { Board, Posture, Rotation } from './types';
 import type { Cut } from './document';
 
@@ -953,5 +953,20 @@ describe('stopped cuts (v7)', () => {
     const again = migrateDocument(JSON.parse(JSON.stringify(doc)));
     expect(again.version).toBe(7);
     expect(again.boards[0].cuts[0]).toMatchObject({ stopMin: 1, stopMax: 2 });
+  });
+});
+
+describe('boardsBounds', () => {
+  it('is null for no boards', () => {
+    expect(boardsBounds([])).toBeNull();
+  });
+
+  it('spans every board from its min corner to its far corner, honouring orientation', () => {
+    const flat = createBoard({ position: [2, 0, 1] }); // extents [24, 0.75, 5.5]
+    const upright = createBoard({ position: [-3, 0, 10], posture: 'upright' }); // extents [5.5, 24, 0.75]
+    expect(boardsBounds([flat, upright])).toEqual({
+      min: [-3, 0, 1],
+      max: [26, 24, 10.75],
+    });
   });
 });

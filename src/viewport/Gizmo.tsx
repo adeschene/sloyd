@@ -1,10 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { TransformControls } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { TransformControls as TransformControlsImpl } from 'three-stdlib';
 import { useStore } from '../store/store';
-import { boardCenter, boardExtents } from '../document/document';
+import { boardCenter, boardExtents, boardsBounds } from '../document/document';
 import { SNAP_INCHES } from '../document/geometry';
 import { gizmoDistanceFactor, gizmoSizeForExtent } from './gizmoScale';
 
@@ -120,7 +120,9 @@ function hasExpectedShape(controls: ControlsInternals | null | undefined): contr
 
 interface StabilizeOptions {
   /**
-   * The selected board's longest edge, read fresh on every frame. A ref rather
+   * The longest edge of what the gizmo moves — the selected board, or with two
+   * or more selected the selection's bounding box (invariant 10, multi-select
+   * spec §4.1) — read fresh on every frame. A ref rather
    * than a captured value because the patch is installed per selection (and per
    * camera), not per dimension change — closing over a number would leave the
    * ceiling stale the moment the board is resized in the Properties panel while
@@ -227,11 +229,40 @@ function stabilizeTranslateGizmo(
 // -------------------------------------------------------------------------
 
 export function Gizmo() {
-  const selectedId = useStore((s) => s.selectedId);
-  const board = useStore((s) => s.doc.boards.find((b) => b.id === s.selectedId));
+  // Bare fields, derived below — a selector returning a fresh array would
+  // re-render on every set() (invariant 34's selector rule).
+  const boards = useStore((s) => s.doc.boards);
+  const selectedIds = useStore((s) => s.selectedIds);
   const updateBoard = useStore((s) => s.updateBoard);
+  const moveGroupTo = useStore((s) => s.moveGroupTo);
+  const selected = useMemo(
+    () => boards.filter((b) => selectedIds.includes(b.id)),
+    [boards, selectedIds],
+  );
+  // ONE part selected: the original single-board path, byte for byte. It is
+  // deliberately NOT routed through moveGroupTo — `old + (snap(t) - old)` is
+  // not bit-identical to `snap(t)` for a non-dyadic `old`, and the spec says
+  // one selected part changes nothing.
+  const board = selected.length === 1 ? selected[0] : undefined;
+  const bounds = selected.length >= 2 ? boardsBounds(selected) : null;
+  const size: [number, number, number] | null = board
+    ? boardExtents(board)
+    : bounds
+      ? [bounds.max[0] - bounds.min[0], bounds.max[1] - bounds.min[1], bounds.max[2] - bounds.min[2]]
+      : null;
+  const center: [number, number, number] | null = board
+    ? boardCenter(board)
+    : bounds
+      ? [(bounds.min[0] + bounds.max[0]) / 2, (bounds.min[1] + bounds.max[1]) / 2, (bounds.min[2] + bounds.max[2]) / 2]
+      : null;
+  // A string, so the effects below re-run on a real selection change and not
+  // on every render (an array dep is a new identity each time — invariant 15).
+  const selectionKey = selected.map((b) => b.id).join('|');
   const proxy = useRef<THREE.Object3D>(new THREE.Object3D());
   const dragging = useRef(false);
+  // True from a mid-drag selection change until the mouse comes up. See the
+  // effect that sets it.
+  const abandoned = useRef(false);
   // Typed as the real drei ref target so it satisfies <TransformControls ref>;
   // narrowed to ControlsInternals only at the point stabilizeTranslateGizmo
   // touches it, since that's the only internal surface this file relies on.
@@ -244,18 +275,40 @@ export function Gizmo() {
   // change — or a projection toggle silently drops the fix.
   const camera = useThree((s) => s.camera);
 
-  // The board's longest edge, kept current every render so the size ceiling
+  // The longest edge of what the gizmo moves, kept current every render so the size ceiling
   // tracks edits made in the Properties panel while the board stays selected.
   // The effect below deliberately does not depend on it — reinstalling the
   // whole patch on every keystroke in a dimension field would be absurd.
   const boardMaxExtent = useRef(0);
-  boardMaxExtent.current = board ? Math.max(...boardExtents(board)) : 0;
+  boardMaxExtent.current = size ? Math.max(...size) : 0;
 
   useEffect(() => {
     const controls = controlsRef.current;
     if (!controls) return;
     return stabilizeTranslateGizmo(controls as unknown as ControlsInternals, { boardMaxExtent });
-  }, [board?.id, camera]);
+  }, [selectionKey, camera]);
+
+  // A selection change mid-drag ENDS the drag. Ctrl/Cmd+A or Delete can land
+  // while an arrow is held. With one part selected the old code got this by
+  // unmounting (`board` became undefined), but a group keeps a target, so the
+  // controls stay mounted and would keep dragging a proxy positioned for the
+  // OLD selection while `commit` read the NEW selection's size and ids. The
+  // parts would jump by the difference between the two centres. So: end the
+  // gesture here, the same endGesture path as Routes 1 and 2 below (invariant
+  // 4), and mark the drag abandoned so `commit` and `onMouseUp` ignore the rest
+  // of it. Declared BEFORE the proxy sync so `dragging` is already false when
+  // that effect runs for the same selection change and moves the proxy to the
+  // new centre. That does NOT stop three-stdlib's own drag state: the control
+  // keeps dragging until mouse-up, so the gizmo follows the pointer near the
+  // OLD selection for the rest of the gesture. Nothing is committed meanwhile
+  // (follow-up 207).
+  // Runs only when the key changes; on mount `dragging` is false.
+  useEffect(() => {
+    if (!dragging.current) return;
+    dragging.current = false;
+    abandoned.current = true;
+    useStore.getState().endGesture();
+  }, [selectionKey]);
 
   // Keep the invisible proxy object in step with the document. The gizmo drags
   // the proxy; the document is what the drag ultimately writes to.
@@ -266,9 +319,8 @@ export function Gizmo() {
   // is jitter or drift rather than clean stepping. During a drag the control owns
   // the proxy; the document only reads back from it on release.
   useEffect(() => {
-    if (board && !dragging.current) proxy.current.position.set(...boardCenter(board));
-  }, [board?.id, board?.position[0], board?.position[1], board?.position[2],
-      board?.length, board?.width, board?.thickness, board?.rotation, board?.posture]);
+    if (center && !dragging.current) proxy.current.position.set(...center);
+  }, [selectionKey, center?.[0], center?.[1], center?.[2]]);
 
   // Invariant 4's gesture-leak guard, closing both routes by which
   // TransformControls can go away mid-drag without ever firing onMouseUp.
@@ -283,17 +335,18 @@ export function Gizmo() {
   // document is about to be replaced. Unmounting mid-drag skips `onMouseUp`: both effects below exist
   // because unmount runs cleanup, never the mouse handlers.
   //
-  // Route 1 (pre-existing): the board is deleted or deselected, which trips
+  // Route 1 (pre-existing): the selection empties (a delete, an undo, a deselect), which trips
   // the early `return null` below and unmounts <TransformControls> while
   // Gizmo itself stays mounted. Runs on every render so it catches the
   // transition the render after it happens.
+  const hasTarget = center !== null;
   useEffect(() => {
-    if (board && selectedId) return;
+    if (hasTarget) return;
     if (dragging.current) {
       dragging.current = false;
       useStore.getState().endGesture();
     }
-  }, [board, selectedId]);
+  }, [hasTarget]);
 
   // Route 2 (this branch): Gizmo itself unmounts, e.g. pressing M while
   // holding a gizmo arrow switches tools and tears the whole component down.
@@ -306,23 +359,35 @@ export function Gizmo() {
     }
   }, []);
 
-  if (!board || !selectedId) return null;
+  if (!center || !size) return null;
 
   const commit = () => {
-    const extents = boardExtents(board);
+    if (abandoned.current) return;
     const p = proxy.current.position;
-    // Gizmo works in centers; the document stores min-corners. Convert back,
-    // then snap — snapping the corner, not the center, is what makes a board
-    // land flush on a 1/16" boundary. `translationSnap` already steps the
-    // control itself; this second snap keeps the stored corner exact after the
-    // center-to-corner conversion.
-    updateBoard(selectedId, {
-      position: [
-        snap(p.x - extents[0] / 2),
-        snap(p.y - extents[1] / 2),
-        snap(p.z - extents[2] / 2),
-      ],
-    });
+    if (board) {
+      const extents = boardExtents(board);
+      // Gizmo works in centers; the document stores min-corners. Convert back,
+      // then snap — snapping the corner, not the center, is what makes a board
+      // land flush on a 1/16" boundary. `translationSnap` already steps the
+      // control itself; this second snap keeps the stored corner exact after the
+      // center-to-corner conversion.
+      updateBoard(board.id, {
+        position: [
+          snap(p.x - extents[0] / 2),
+          snap(p.y - extents[1] / 2),
+          snap(p.z - extents[2] / 2),
+        ],
+      });
+      return;
+    }
+    // Two or more: hand the store the group's wanted min corner, UNROUNDED.
+    // moveGroupTo rounds it once and moves every part by one delta, so the
+    // layout survives exactly even for an off-grid part (invariant 25).
+    moveGroupTo(selected.map((b) => b.id), [
+      p.x - size[0] / 2,
+      p.y - size[1] / 2,
+      p.z - size[2] / 2,
+    ]);
   };
 
   return (
@@ -333,9 +398,18 @@ export function Gizmo() {
         object={proxy.current}
         mode="translate"
         translationSnap={SNAP_INCHES}
-        onMouseDown={() => { dragging.current = true; useStore.getState().beginGesture(); }}
+        onMouseDown={() => { abandoned.current = false; dragging.current = true; useStore.getState().beginGesture(); }}
         onObjectChange={commit}
-        onMouseUp={() => { dragging.current = false; commit(); useStore.getState().endGesture(); }}
+        onMouseUp={() => {
+          if (abandoned.current) {
+            // The gesture already ended at the selection change. Commit nothing,
+            // and put back the proxy the controls kept moving after that.
+            abandoned.current = false;
+            proxy.current.position.set(...center);
+            return;
+          }
+          dragging.current = false; commit(); useStore.getState().endGesture();
+        }}
       />
     </>
   );

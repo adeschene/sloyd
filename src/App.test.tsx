@@ -833,13 +833,13 @@ const mountWithOneBoard = async () => {
 describe('App keyboard delete', () => {
   it('deletes the selected board on Delete', async () => {
     const id = await mountWithOneBoard();
-    expect(useStore.getState().selectedId).toBe(id);
+    expect(useStore.getState().selectedIds).toEqual([id]);
 
     const user = userEvent.setup();
     await user.keyboard('{Delete}');
 
     expect(useStore.getState().doc.boards).toHaveLength(0);
-    expect(useStore.getState().selectedId).toBeNull();
+    expect(useStore.getState().selectedIds).toEqual([]);
   });
 
   it('deletes the selected board on Backspace — the Mac "delete" key', async () => {
@@ -912,7 +912,7 @@ describe('App keyboard delete', () => {
     await user.keyboard('{Delete}');
 
     expect(useStore.getState().doc.boards).toHaveLength(1);
-    expect(useStore.getState().selectedId).toBe(id);
+    expect(useStore.getState().selectedIds).toEqual([id]);
   });
 
   it('makes the rest of the app inert while the cut list is open', async () => {
@@ -976,6 +976,74 @@ describe('App keyboard delete', () => {
     await user.keyboard('{Backspace}');
 
     expect(useStore.getState().doc.boards).toHaveLength(1);
+  });
+});
+
+describe('App select all, and Delete on the whole selection', () => {
+  /** Three boards; 'Board' clicked in the parts list so focus is on a button. */
+  const mountWithThreeBoards = async () => {
+    render(<App />);
+    await act(async () => { await Promise.resolve(); });
+    act(() => useStore.getState().setTool('select'));
+    await act(async () => {
+      useStore.getState().addBoard();
+      useStore.getState().addBoard();
+      useStore.getState().addBoard();
+    });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Board' }));
+    return { user, ids: useStore.getState().doc.boards.map((b) => b.id) };
+  };
+
+  it('Ctrl+A selects every part', async () => {
+    const { user, ids } = await mountWithThreeBoards();
+    await user.keyboard('{Control>}a{/Control}');
+    expect(useStore.getState().selectedIds).toEqual(ids);
+  });
+
+  it('Cmd+A selects every part', async () => {
+    const { user, ids } = await mountWithThreeBoards();
+    await user.keyboard('{Meta>}a{/Meta}');
+    expect(useStore.getState().selectedIds).toEqual(ids);
+  });
+
+  // Review Focus 2.
+  it('Ctrl+A in a text field selects TEXT: the parts selection is unchanged and the event is not prevented', async () => {
+    const { ids } = await mountWithThreeBoards();
+    const projectName = screen.getByLabelText('Project name');
+    act(() => projectName.focus());
+    // fireEvent returns false iff a handler called preventDefault.
+    expect(fireEvent.keyDown(projectName, { key: 'a', ctrlKey: true })).toBe(true);
+    expect(useStore.getState().selectedIds).toEqual([ids[0]]);
+    act(() => projectName.blur());
+  });
+
+  it('Ctrl+A does nothing while the cut list is open', async () => {
+    const { user, ids } = await mountWithThreeBoards();
+    await user.click(screen.getByRole('button', { name: 'Cut list' }));
+    await user.keyboard('{Control>}a{/Control}');
+    expect(useStore.getState().selectedIds).toEqual([ids[0]]);
+  });
+
+  it('Delete removes every selected part, as ONE undo entry', async () => {
+    const { user, ids } = await mountWithThreeBoards();
+    act(() => useStore.getState().toggleSelected(ids[2]!));
+    const before = useStore.getState().past.length;
+    await user.keyboard('{Delete}');
+    expect(useStore.getState().doc.boards.map((b) => b.id)).toEqual([ids[1]]);
+    expect(useStore.getState().past.length).toBe(before + 1);
+  });
+
+  it('Delete deletes nothing while a part is grabbed, however many are selected', async () => {
+    const { user, ids } = await mountWithThreeBoards();
+    act(() => {
+      useStore.getState().toggleSelected(ids[1]!);
+      useStore.getState().setTool('move');
+      useStore.getState().grabSnapPoint(boardSnapPoints(useStore.getState().doc.boards[0]!)[0]!);
+    });
+    await user.keyboard('{Delete}');
+    expect(useStore.getState().doc.boards).toHaveLength(3);
+    act(() => useStore.getState().setTool('select'));
   });
 });
 

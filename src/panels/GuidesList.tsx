@@ -5,7 +5,7 @@ import { formatLength } from '../units/length';
  * The guides a project carries, and the only way to remove one.
  *
  * DELIBERATELY NO SELECTION MODEL — no selectedGuideId, no Delete-key path,
- * nothing touching selectedId. The list exists to remove guides; adding
+ * nothing touching selectedIds. The list exists to remove guides; adding
  * selection would mean deciding what a selected guide shows in the properties
  * panel, which is a panel for boards.
  *
