@@ -1,3 +1,4 @@
+import { clearOnMiss, selectByClick } from '../store/selectionGesture';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Grid, OrbitControls, OrthographicCamera, PerspectiveCamera } from '@react-three/drei';
@@ -258,7 +259,6 @@ export function Viewport({
 }: ViewportProps) {
   const boards = useStore((s) => s.doc.boards);
   const selectedIds = useStore((s) => s.selectedIds);
-  const selectBoard = useStore((s) => s.selectBoard);
   const tool = useStore((s) => s.tool);
 
   // The dpr floor of 2 is an anti-aliasing measure, not a sharpness
@@ -275,10 +275,10 @@ export function Viewport({
     <Canvas
       shadows
       dpr={[2, 3]}
-      // A modal tool must not change the selection as a side effect. Without
-      // this, cancelling a grab by clicking empty space would also clear the
-      // selection, and the Properties panel would empty for no stated reason.
-      onPointerMissed={() => { if (tool === 'select') selectBoard(null); }}
+      // A modal tool must not change the selection as a side effect, and a
+      // modified miss must not wipe a built-up selection — both rules live
+      // in clearOnMiss.
+      onPointerMissed={(e) => clearOnMiss(e, tool)}
       // R3F puts `style` on the wrapping div; the canvas inherits the cursor.
       // This is the only signal, other than the toolbar, that a tool is armed.
       // Any non-select tool, not `=== 'move'`: the Tape tool arms the same
@@ -360,7 +360,7 @@ export function Viewport({
           key={board.id}
           board={board}
           selected={selectedIds.includes(board.id)}
-          onSelect={selectBoard}
+          onSelect={selectByClick}
           selectable={tool === 'select'}
         />
       ))}

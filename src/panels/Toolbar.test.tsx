@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
 import { createDocument } from '../document/document';
@@ -194,5 +194,24 @@ describe('Toolbar Generate button', () => {
     renderToolbar({ onOpenSettings });
     await userEvent.click(screen.getByRole('button', { name: 'Settings' }));
     expect(onOpenSettings).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the Move tool hint', () => {
+  afterEach(() => { act(() => useStore.getState().setTool('select')); });
+
+  it('shows "Select a part to move" in the Move tool exactly while nothing is selected', () => {
+    renderToolbar();
+    act(() => useStore.getState().setTool('move'));
+    expect(screen.getByText('Select a part to move')).toBeInTheDocument();
+    act(() => useStore.getState().addBoard());
+    expect(screen.queryByText('Select a part to move')).not.toBeInTheDocument();
+    act(() => {
+      useStore.getState().addBoard();
+      useStore.getState().selectAll();
+    });
+    expect(screen.queryByText('Select a part to move')).not.toBeInTheDocument();
+    act(() => useStore.getState().selectBoard(null));
+    expect(screen.getByText('Select a part to move')).toBeInTheDocument();
   });
 });

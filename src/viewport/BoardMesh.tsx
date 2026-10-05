@@ -1,3 +1,4 @@
+import type { ToggleModifiers } from '../store/selectionGesture';
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import {
@@ -39,7 +40,8 @@ const GHOST_OPACITY = 0.22;
 interface Props {
   board: Board;
   selected: boolean;
-  onSelect: (id: string) => void;
+  /** Called with the click's modifiers: plain selects, Shift/Ctrl/Cmd toggles. */
+  onSelect: (id: string, modifiers: ToggleModifiers) => void;
   /**
    * False while a viewport tool other than Select owns the pointer.
    *
@@ -170,8 +172,11 @@ export function BoardMesh({ board, selected, onSelect, selectable }: Props) {
             // is exactly the drag-versus-click distinction, and 2px matches the
             // threshold R3F itself uses for its miss handling.
             if (e.delta > CLICK_DRAG_SLOP_PX) return;
+            // stopPropagation is LOAD-BEARING since multi-select: a ray through
+            // a board split by a dado hits two of its solids, R3F would deliver
+            // onClick to each, and a toggle delivered twice is a no-op.
             e.stopPropagation();
-            onSelect(board.id);
+            onSelect(board.id, e.nativeEvent);
           }}
         >
           {/* The ghost takes ONE plain material rather than the six grain
