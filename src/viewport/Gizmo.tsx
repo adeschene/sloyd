@@ -297,7 +297,11 @@ export function Gizmo() {
   // gesture here, the same endGesture path as Routes 1 and 2 below (invariant
   // 4), and mark the drag abandoned so `commit` and `onMouseUp` ignore the rest
   // of it. Declared BEFORE the proxy sync so `dragging` is already false when
-  // that effect runs for the same selection change and re-centres the proxy.
+  // that effect runs for the same selection change and moves the proxy to the
+  // new centre. That does NOT stop three-stdlib's own drag state: the control
+  // keeps dragging until mouse-up, so the gizmo follows the pointer near the
+  // OLD selection for the rest of the gesture. Nothing is committed meanwhile
+  // (follow-up 207).
   // Runs only when the key changes; on mount `dragging` is false.
   useEffect(() => {
     if (!dragging.current) return;

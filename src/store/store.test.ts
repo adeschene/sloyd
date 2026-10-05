@@ -1929,6 +1929,15 @@ describe('multi-select — group edits', () => {
     expect(board(a).length).toBe(30);
   });
 
+  it('updateBoards drops a grab owned by a NON-FIRST member (board-precise clause)', () => {
+    const { a, b } = threeForMove();
+    useStore.getState().setTool('move');
+    useStore.getState().grabSnapPoint(minCornerOf(b));
+    expect(useStore.getState().grabbed).not.toBeNull();
+    useStore.getState().updateBoards([a, b], { material: 'plywood' });
+    expect(useStore.getState().grabbed).toBeNull();
+  });
+
   it('updateBoards drops a latched hover on ANY edited member whose point moved', () => {
     const { a, b, c } = threeForMove();
     const far = boardSnapPoints(board(b)).find((p) => p.at[0] > 0)!;

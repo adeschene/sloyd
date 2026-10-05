@@ -624,11 +624,6 @@ export const useStore = create<StoreState>((set, get) => {
       // means. MoveTool also withholds these candidates so the case cannot be
       // clicked; this guard is what makes the rule true of the action itself.
       //
-      // Compares OWNERS, not bare ids, since the guide-points round: a guide is
-      // a legal target, both union members carry `id: string`, and a guide
-      // whose id collided with the grabbed board's would otherwise read as a
-      // self-snap and silently refuse a move the user asked for.
-      //
       // A selected part moves WITH the grab, so it can never be a target
       // (spec §4.2) — snapping a group onto one of its own members is a legal
       // subtraction and never what anyone means. The grabbed board itself is

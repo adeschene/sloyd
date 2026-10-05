@@ -26,12 +26,12 @@ const projected = new THREE.Vector3();
  * the compiler to narrow `hit` TO without being told, which is what this is.
  *
  * So the ownership test here is REQUIRED, not a redundant echo of the candidate
- * memo: the memo's two branches have different element types (BoardSnapPoint[]
- * pre-grab, a mixed array post-grab), the memo's inferred type is their union,
- * and the pre-grab branch's board-ownership does not survive that. This is the
- * one place a picked point becomes the store's BoardSnapPoint. Contrast
- * commitSnapMove's self-snap guard, which IS deliberately redundant with the
- * memo.
+ * memo: `moveCandidates` returns `SnapPoint[]` from both branches (post-grab it
+ * includes guides), and `grabSnapPoint` takes the narrow `BoardSnapPoint`
+ * (invariant 26), so nothing in the types says a picked point is board-owned.
+ * This is the one place a picked point becomes the store's BoardSnapPoint.
+ * Contrast commitSnapMove's self-snap guard, which IS deliberately redundant
+ * with the candidate filter.
  */
 const isBoardOwned = (p: SnapPoint): p is BoardSnapPoint => p.owner.type === 'board';
 
