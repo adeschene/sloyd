@@ -276,7 +276,7 @@ and 79.
 
 **What the multi-select round did (2026-10-05)**: selecting and editing several parts at once, with a
 spec and plan (`docs/superpowers/specs/2026-10-05-sloyd-multi-select-design.md`). No schema change.
-**Live check passed** with the user watching and doing the drags (`docs/browser-verification-multi-select.md`).
+**Merged (`232917f`) and deployed** (`index-D7ySMvky.js`). **Live check passed** with the user watching and doing the drags (`docs/browser-verification-multi-select.md`).
 - **One change came out of it (follow-up 212).** The user found clicking away to commit a field
   awkward. Enter already committed but showed nothing, so by the user's ruling Enter now commits and
   blurs, in `DimensionField` and `NameField` alike. A refused entry keeps focus.
