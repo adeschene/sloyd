@@ -413,7 +413,9 @@ src/
 │   ├── types.ts            Board, GuidePoint, SloydDocument, Rotation, Posture,
 │   │                       Grain, MATERIALS, SheetStock, isSheetGood, sheetStockOf
 │   ├── geometry.ts         axisDimensions (SINGLE SOURCE, inv 13) / boardExtents /
-│   │                       boardCenter / reorientedPosition (inv 2)
+│   │                       boardCenter / reorientedPosition (inv 2) / `boardsBounds` — the
+│                       box around a set of boards; the group gizmo sits at its centre
+│                       and `moveGroupTo` rounds its `min`
 │   ├── names.ts            uniqueName / dedupeNames (inv 8). Imports only Board.
 │   │                       NAMES ONLY — id uniqueness is `takeId` in
 │   │                       document.ts (inv 33), for the reason stated there
@@ -548,6 +550,20 @@ src/
 │                           can hold a guide) — plus `tapeAxis`, which is NOT a fourth
 │                           held point (it holds an enum, so it cannot go stale and
 │                           must not be given clearing rules by analogy). Inv 24
+│                           `selectedIds` — insertion order, no duplicates, view state,
+│                           NO primary part — written ONLY through `selectionPatch`,
+│                           which also carries invariant 24's retargeting rule for a
+│                           set. Group actions are each one `edit()`: `deleteBoards`,
+│                           `duplicateBoards` (names against the growing list, inv 8)
+│                           and `updateBoards` (each part through `patchBoard`, the one
+│                           per-board rule set). The singular actions delegate.
+│                           `moveGroupTo` takes an ABSOLUTE min corner and rounds the
+│                           group's, once (inv 42). `commitSnapMove` translates every
+│                           selected part through `translateBoards`
+│   └── selectionGesture.ts `isToggleModifier` (Shift/Ctrl/Cmd), `selectByClick`,
+│                           `clearOnMiss` (no clear on a MODIFIED miss, nor outside the
+│                           Select tool). In the store layer because the viewport AND
+│                           the parts list share it
 ├── storage/                types.ts (StorageAdapter), browser.ts (the singleton).
 │                           Inv 7; and invs 29, 30, 31 for the library
 │   └── libraryIndex.ts     LAYOUT_VERSION + parseIndex / sortEntries / touchEntry /
@@ -624,15 +640,21 @@ src/
 │                           createProject(doc, { activate: false }) (inv 41, 36)
 ├── viewport/               NO unit tests by design — driven in a real browser
 │   ├── Viewport.tsx        Canvas, lights, grid, camera keys; hides Gizmo outside
-│   │                       select mode, gates onPointerMissed
+│   │                       select mode, gates onPointerMissed. Plain click selects, a
+│   │                       modified click toggles (`selectByClick`); a modified miss keeps
+│   │                       the selection (`clearOnMiss`); `f` frames the whole selection
+│   │                       and stays a no-op with none
 │   ├── BoardMesh.tsx       one board per render; ghost box when boardSolids is empty
 │   │                       (inv 21). Required `selectable` prop, so the Move tool's
-│   │                       commit click cannot select the board it drops onto
-│   ├── MoveTool.tsx        raw pointer events on gl.domElement. Candidates are TWO
-│   │                       SETS, not one set with a filter: pre-grab the SELECTED
-│   │                       board's points only, post-grab every board's minus the
-│   │                       grabbed board's own. Guides are POST-GRAB only — targets,
+│   │                       commit click cannot select the board it drops onto.
+│   │                       `onSelect(id, modifiers)`. Its `stopPropagation` is load-bearing:
+│   │                       a toggle delivered to two solids of one board is a no-op
+│   ├── MoveTool.tsx        raw pointer events on gl.domElement. Candidates are
+│   │                       `moveCandidates` (pure, tested): pre-grab every SELECTED part's
+│   │                       points, post-grab every UNSELECTED part's. A selected part moves
+│   │                       with the grab and is never a target. Guides are POST-GRAB only — targets,
 │   │                       never grab sources. Dep list is inv 15's failure mode
+│   ├── moveCandidates.ts   the Move tool's two candidate sets. Pure
 │   ├── TapeTool.tsx        MoveTool's sibling; withholds NOTHING either way. LATCHES
 │   │                       the hover while anchored (why inv 24 covers it).
 │   │                       SUBSCRIBES to tapeAxis — a dep entry over a value nothing
@@ -659,6 +681,10 @@ src/
 │   ├── gridDensity.ts      grid tier ladder (1in → 1ft → 12ft). Pure
 │   ├── screenScale.ts      px-per-inch + screen-stable dash scale. Pure
 │   ├── Gizmo.tsx           TransformControls, 1/16" snapping. Invs 3, 10, 25
+│   │                       With 2+ selected: one proxy at the selection box's centre,
+│   │                       committing through `moveGroupTo`. The single-part commit is
+│   │                       untouched ON PURPOSE (inv 42). A selection change mid-drag ENDS
+│   │                       the gesture and commits nothing
 │   ├── gizmoScale.ts       size ceiling + grabbable floor. Pure
 │   ├── extent.ts           SCENE_EXTENT, shared by Viewport and OriginAxes
 │   ├── grainFaces.ts       faceGrainKinds + grainFamily; re-exports axisDimensions
@@ -671,7 +697,9 @@ src/
 ├── panels/
 │   ├── DimensionField.tsx  min/max REFUSE out-of-range entry rather than clamping,
 │   │                       because silently correcting a number the user just typed
-│   │                       loses a measurement. Inv 5
+│   │                       loses a measurement. Inv 5. `value: null` is MIXED: an empty
+│   │                       box with a `mixed` placeholder. Every resync path formats
+│   │                       through `display`
 │   ├── NameField.tsx       commits on blur/Enter only, empty reverts. Invs 5, 9
 │   ├── Toolbar.tsx         project name, Add board, Cut list, undo/redo, the Select /
 │   │                       Move / Tape trio, view toggles, and the "Select a part to
@@ -712,8 +740,12 @@ src/
 │   │                       with a note (fu 174)
 │   ├── GenerateDialog.tsx  the form, the per-run rows, Cancel. Same overlay pattern
 │   ├── JoineryDialog.tsx   Add joinery…: the sites, the run, the result. Overlay pattern
-│   ├── PartsList.tsx  FileMenu.tsx
-│   ├── Properties.tsx      board fields + Cuts; CutRow is its own component so a
+│   ├── PartsList.tsx  FileMenu.tsx   PartsList: plain click selects, a modified click
+│   │                       toggles; `aria-pressed` per row
+│   ├── Properties.tsx      2+ selected: `GroupProperties` — Length/Width/Thickness/Grain/
+│   │                       Material + Duplicate/Delete, each edit one `updateBoards`;
+│   │                       `shared` compares EXACT stored values; the root is keyed on the
+│   │                       selection so a change resyncs. Otherwise board fields + Cuts; CutRow is its own component so a
 │   │                       cut's error dies with the cut. Stop short of near/far
 │   │                       end; a stop pair leaving no cut is refused (only on a transition INTO
 │   │                       it, so a board shrink cannot lock the row), and changing
@@ -751,8 +783,9 @@ src/
                             dialog !== null`, inv 27), the `newIds` badge set, the `.viewport-stack`
                             TapeReadout positions against, `showGuides` as local
                             prop-drilled view state (it joins `shortcutsSuspended`,
-                            NOT the store's `tool`). M, T, X/Y/Z, Escape and undo/redo
+                            NOT the store's `tool`). M, T, X/Y/Z, Ctrl/Cmd+A, Escape, Delete and undo/redo
                             all live in the ONE existing keydown effect — inv 27.
+                            Delete removes every selected part.
                             Escape's ladder: grabbed → tapeAxis → tapeAnchor → tool.
                             Also owns `pending` (the autosave write, held as a
                             CAPTURED-PAIR THUNK — inv 29) and `switchToken`, the
@@ -799,6 +832,12 @@ worked examples behind several of them are in `docs/history.md`.
    change (a reorient, an undo, a gizmo drag) lands while it has focus: the effect is keyed
    on the value, so nothing re-runs it just because focus later leaves — only a remount.
    **Stored values are exact; display rounds.**
+
+   **A MIXED field is the sharpest case (multi-select).** `DimensionField`'s `value: null`
+   shows an empty box; an untouched blur there must write nothing, because a commit would set
+   every selected part to one value with no sign on screen. The test for it asserts the ERROR
+   state as well as the absence of a write: with the dirty guard deleted, blur commits `''`,
+   which `parseLength` refuses, so "nothing written" alone survives the mutation.
 6. **`add_header` does not merge across nginx levels.** A `location` block containing any
    `add_header` discards everything inherited — which is why `security-headers.conf` is
    `include`d in every block rather than set once on the server.
@@ -988,17 +1027,19 @@ worked examples behind several of them are in `docs/history.md`.
       makes that corner stop being offered and the grab drops, by the same rule. Two things
       are easy to undo by "tidying": the comparison is exact `===` (invariant 18's reason),
       and the call must sit **after** `edit()`.
-    - **The user retargeted the tool.** Only `grabbed`, because Move's grab candidates are
-      the selected board's points. `edit()`'s optional `selection` callback clears it when
-      it resolves elsewhere (so `addBoard`/`duplicateBoard` inherit it), as does
-      `selectBoard`. `commitSnapMove` also refuses outright when
-      `grabbed.owner.id !== selectedId`, before any `edit()`, deliberately leaving
-      `grabbed` in hand — the state should be unreachable, and discarding it quietly would
-      hide that.
+    - **The user retargeted the tool.** Only `grabbed`, because Move's grab candidates are the
+      SELECTED parts' points. Every selection write — `selectBoard`, `toggleSelected`,
+      `selectAll`, and `edit()`'s `selection` callback (so `addBoard`/`duplicateBoards` inherit
+      it) — goes through `selectionPatch`, which drops the grab exactly when its owner leaves
+      `selectedIds`. Toggling out a selected part that is NOT the owner keeps the grab, and
+      that part becomes a target. `commitSnapMove` also refuses outright when
+      `grabbed.owner.id` is not in `selectedIds`, before any `edit()`, deliberately leaving
+      `grabbed` in hand.
 
     Four further rules, each load-bearing:
 
-    - **A PROHIBITION: `edit()`'s selection callback and `selectBoard` must NOT clear
+    - **A PROHIBITION: no selection write — `selectionPatch`, and so `selectBoard`,
+      `toggleSelected`, `selectAll` and `edit()`'s selection callback — may clear
       `tapeAnchor` or `tapeHover`.** No part of the retargeting reason reaches the tape,
       which has no selected-board restriction — measuring from one board to another is most
       of what it exists for, and "measure from this board to the one I am about to add" is
@@ -1489,6 +1530,22 @@ worked examples behind several of them are in `docs/history.md`.
     a site skipped after it had started leaves a half-joined part that the sheet and the
     checks then misreport (fu 183, 185). A throw is not a refusal either: every `resize`
     asks `cutIntoEnd` (rebaseCuts' throwing condition) first (fu 203).
+
+42. **A group move rounds the GROUP's min corner once and adds ONE delta to every part; the
+    single-part gizmo path stays separate.** `moveGroupTo` takes the ABSOLUTE wanted min
+    corner (TransformControls fires every frame, so a delta would accumulate), rounds it to
+    `SNAP_INCHES`, subtracts the group's current min, and hands that one delta to
+    `translateBoards` — the same helper `commitSnapMove` uses, unrounded there. Rounding each
+    part's corner instead pulls an off-grid part onto the grid and breaks the layout by up to
+    a sixteenth, with the display rounding to the same string (invariant 25's argument, one
+    level up). And one selected part does NOT go through `moveGroupTo`: `old + (snap(t) - old)`
+    is not bit-identical to `snap(t)` for a non-dyadic `old`, so routing it there would change
+    shipped single-part behaviour invisibly. **Do not "unify" the two paths**, and do not
+    round inside `translateBoards`.
+
+    The selection itself has ONE writer, `selectionPatch`. A second place that assigns
+    `selectedIds` is a second decider for invariant 24's grab rule. A selection change
+    mid-drag ends the gizmo's gesture and abandons the rest of that drag (`Gizmo.tsx`).
 
 ## Commands
 
