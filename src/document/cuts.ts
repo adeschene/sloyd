@@ -624,11 +624,11 @@ export function cutLabel(board: Board, cut: Cut, solids: Region[] = boardSolids(
  * nothing.
  *
  * Where even that ulp would change what the sheet says, the cut comes back
- * unchanged (the user's ruling). The case was an exact-square corner opening
- * in millimetres: growing its run by an ulp broke a tie of extents that were
- * only equal to the last bits. Extents now compare within FLUSH_EPSILON (fu 200),
- * so that tie holds and a search of 163,028 millimetre cuts found no input still
- * refused; the guard stays as a net for whatever the comparison tolerance misses.
+ * unchanged (the user's ruling). Extents compare within FLUSH_EPSILON (fu 200),
+ * so far from that boundary an ulp is invisible; AT it, a word decided by the
+ * tolerance can flip, because a 1-ulp re-store can carry an extent difference
+ * across FLUSH_EPSILON (a near-tie read as a notch becomes a stopped dado).
+ * The guard covers exactly those cuts.
  * Properties offers the button only when this returns a different object.
  *
  * A cut ALREADY stored with `across === run` comes back as the very same

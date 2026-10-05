@@ -831,8 +831,7 @@ describe('storedAsShape: the same cut, stored the way it runs (cut-storage spec 
     // It used to be refused: its extents differed by an ulp, the run-keeping
     // re-store broke that fake tie and the notch read as a stopped dado. Within
     // FLUSH_EPSILON the tie holds either way, so the guard has nothing to refuse.
-    // A seeded search of 163,028 millimetre cuts found no input the guard still
-    // refuses; the guard stays as a net.
+    // The guard still covers words decided AT the tolerance boundary (next test).
     const c: Cut = { id: 'n', face: 'length', from: 'min', across: 'thickness', offset: 0, width: 0.6712598425196851, depth: 9.370078740157481, stopMin: 0.03937007874015748, stopMax: 0.03937007874015741 };
     const b = withCuts([c]);
     const s = storedAsShape(b, c);
@@ -843,6 +842,17 @@ describe('storedAsShape: the same cut, stored the way it runs (cut-storage spec 
     expect(before.word).toBe('notch');
     expect(after).toMatchObject({ word: 'notch', run: 'width', pos: 'thickness' });
     expect(after.stopMin).toBeNull();
+  });
+
+  it('refuses a re-store when the word is decided at the FLUSH_EPSILON boundary (fu 200 review)', () => {
+    // The width extent exceeds the length extent by just under 1e-9: a tie, so a notch
+    // running across the width. Re-storing moves each extent by an ulp and the difference
+    // crosses FLUSH_EPSILON, which would make the word 'stopped dado'. So the cut is kept.
+    const c: Cut = { id: 'n', face: 'thickness', from: 'max', across: 'length', offset: 0, width: 0.8661417332834628, depth: 0.25, stopMin: 3.062992125984252, stopMax: 20.070866141732285 };
+    const b = withCuts([c]);
+    expect(cutShape(b, c).word).toBe('notch');
+    expect(cutShape(b, c).run).not.toBe(c.across);
+    expect(storedAsShape(b, c)).toBe(c);
   });
 
   it('millimetre re-stores keep the run and settle in one click (seeded sweep)', () => {
@@ -896,7 +906,7 @@ describe('storedAsShape: the same cut, stored the way it runs (cut-storage spec 
         if (posEnd === 0) exactWhereRepresentable++;
       }
     }
-    expect(restored).toBeGreaterThan(100);
+    expect(restored).toBeGreaterThan(150);
     expect(exactWhereRepresentable).toBeGreaterThan(50);
   });
 });
