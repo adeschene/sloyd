@@ -4362,6 +4362,13 @@ alternative. Enter already commits (`DimensionField` and `NameField`, both teste
 live on a group field: both legs were saved. But focus stays in the box and only the text
 reformats, so nothing says the value was taken. Pre-existing; it affects every field, not only
 group ones.
-- **Possible remedies, not chosen:** blur on a successful Enter (that also moves Ctrl+Z from the
-  input's own undo to the app's), or a brief confirmation on the field.
-- **Status:** open, awaiting the user's ruling.
+- **CLOSED 2026-10-05, on the multi-select branch, by the user's ruling: blur on Enter.**
+  - Enter on a changed field commits and then blurs, so the next Ctrl+Z reaches the app's undo.
+    Checked live: one Ctrl+Z put both legs back.
+  - An entry DimensionField refuses keeps focus, so it can be fixed.
+  - An untouched Enter just blurs, through the ordinary untouched path (no commit).
+  - The Escape flag is renamed `blurHandled` and set by Enter too, so the blur does not resync from
+    the render's stale `value`.
+  - Mutations: 4 of 5 go red. The one that survives is dropping the flag in NameField: the adopt
+    effect corrects the text, so only a one-frame flicker of the old name differs. Recorded, not
+    tested.

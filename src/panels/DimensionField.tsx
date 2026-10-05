@@ -36,7 +36,10 @@ export const DimensionField = forwardRef<HTMLInputElement, Props>(function Dimen
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const editing = useRef(false);
-  const reverting = useRef(false);
+  // Set by a keydown that has already settled the edit (Escape reverted it,
+  // Enter committed it) just before it blurs the input, so onBlur does not
+  // settle it a second time from this render's stale `value`.
+  const blurHandled = useRef(false);
   useImperativeHandle(forwardedRef, () => inputRef.current as HTMLInputElement);
   // True only once the user has actually changed the text. Guards against
   // committing (and pushing an undo entry) when a field is merely focused
@@ -58,24 +61,25 @@ export const DimensionField = forwardRef<HTMLInputElement, Props>(function Dimen
 
   // Parses/validates/normalises the text unconditionally. Callers decide
   // whether a commit should happen at all (see the `dirty` guard on blur).
-  const commit = () => {
+  // False when the entry was refused.
+  const commit = (): boolean => {
     const parsed = parseLength(text);
     if (parsed === null) {
       setError('Enter a measurement, e.g. 3/4 or 1-1/2');
-      return;
+      return false;
     }
     if (min !== undefined) {
       if (parsed < min) {
         setError(`Must be at least ${formatLength(min, precision)}`);
-        return;
+        return false;
       }
     } else if (!allowNegative && parsed <= 0) {
       setError('Must be greater than zero');
-      return;
+      return false;
     }
     if (max !== undefined && parsed > max) {
       setError(`Must be at most ${formatLength(max, precision)}`);
-      return;
+      return false;
     }
     setError(null);
     setText(formatLength(parsed, precision));
@@ -83,8 +87,9 @@ export const DimensionField = forwardRef<HTMLInputElement, Props>(function Dimen
     // Nothing actually changed (e.g. re-entering the same value, or the
     // display-rounded text still parses back to the stored value) — skip
     // the no-op onCommit/history entry.
-    if (parsed === value) return;
+    if (parsed === value) return true;
     onCommit(parsed);
+    return true;
   };
 
   return (
@@ -101,11 +106,13 @@ export const DimensionField = forwardRef<HTMLInputElement, Props>(function Dimen
         onChange={(e) => { dirty.current = true; setText(e.target.value); }}
         onBlur={() => {
           editing.current = false;
-          // A blur triggered by the Escape handler below should not re-run
-          // commit() against the stale (invalid) text still held in this
-          // closure's `text` — that would immediately re-set the error we
-          // just cleared. Escape already restored the last good value.
-          if (reverting.current) { reverting.current = false; return; }
+          // A blur triggered by the Escape or Enter handler below: the edit
+          // is already settled. Escape restored the last good value, and
+          // re-running commit() against the stale text in this closure would
+          // re-set the error it just cleared. Enter committed; resyncing from
+          // this render's `value`, which predates the commit, would show the
+          // old number until the adopt effect caught up.
+          if (blurHandled.current) { blurHandled.current = false; return; }
           // Untouched field: nothing to commit, and committing here would
           // silently rewrite the document with the display-rounded value
           // (e.g. 0.7" -> 11/16") and push a no-op undo entry. But an
@@ -122,9 +129,20 @@ export const DimensionField = forwardRef<HTMLInputElement, Props>(function Dimen
           commit();
         }}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') { if (dirty.current) commit(); return; }
+          // Enter commits and leaves the field (follow-up 212): the commit is
+          // visible, and the next Ctrl+Z reaches the app's undo, not the
+          // input's. A refused entry keeps focus so it can be fixed. An
+          // untouched Enter just blurs, through the ordinary untouched path.
+          if (e.key === 'Enter') {
+            if (dirty.current) {
+              if (!commit()) return;
+              blurHandled.current = true;
+            }
+            (e.target as HTMLInputElement).blur();
+            return;
+          }
           if (e.key === 'Escape') {
-            reverting.current = true;
+            blurHandled.current = true;
             dirty.current = false;
             setError(null);
             setText(display(value));

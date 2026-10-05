@@ -90,6 +90,21 @@ describe('the part name field', () => {
       .toBe('Stretcher');
   });
 
+  // Follow-up 212: a committed name leaves the field, as a dimension does.
+  it('leaves the name field after Enter, showing the stored name', async () => {
+    const id = selectFirstBoard();
+    render(<Properties />);
+
+    const name = screen.getByLabelText('Part name') as HTMLInputElement;
+    await userEvent.clear(name);
+    await userEvent.type(name, 'Stretcher{Enter}');
+
+    expect(name).not.toHaveFocus();
+    expect(name.value).toBe('Stretcher');
+    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.name)
+      .toBe('Stretcher');
+  });
+
   it('does not write to the document while typing', async () => {
     const id = selectFirstBoard();
     render(<Properties />);

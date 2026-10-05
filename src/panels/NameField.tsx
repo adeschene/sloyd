@@ -29,7 +29,9 @@ interface Props {
 export function NameField({ value, onCommit }: Props) {
   const [text, setText] = useState(value);
   const editing = useRef(false);
-  const reverting = useRef(false);
+  // Set by a keydown that has already settled the edit (Escape reverted it,
+  // Enter committed it) just before it blurs — same as DimensionField.
+  const blurHandled = useRef(false);
   // True only once the user has actually changed the text. Guards against
   // committing (and pushing an undo entry) when a field is merely focused
   // and blurred without being edited — see DimensionField's `dirty` ref for
@@ -71,9 +73,10 @@ export function NameField({ value, onCommit }: Props) {
         // is live when the store update lands — same ordering as
         // DimensionField.
         editing.current = false;
-        // A blur triggered by the Escape handler must not commit the text
-        // Escape just discarded.
-        if (reverting.current) { reverting.current = false; return; }
+        // A blur triggered by the Escape or Enter handler: the edit is
+        // settled. Escape's text must not be committed, and Enter's stored
+        // name must not be overwritten from this render's stale `value`.
+        if (blurHandled.current) { blurHandled.current = false; return; }
         // Untouched field: nothing to commit, and committing here would
         // write the stale local `text` back over any external rename that
         // landed while this field was focused (the adopt-external-changes
@@ -87,9 +90,18 @@ export function NameField({ value, onCommit }: Props) {
         commit();
       }}
       onKeyDown={(e) => {
-        if (e.key === 'Enter') { if (dirty.current) commit(); return; }
+        // Enter commits and leaves the field (follow-up 212). A name is
+        // never refused (an emptied one reverts), so it always leaves.
+        if (e.key === 'Enter') {
+          if (dirty.current) {
+            commit();
+            blurHandled.current = true;
+          }
+          (e.target as HTMLInputElement).blur();
+          return;
+        }
         if (e.key === 'Escape') {
-          reverting.current = true;
+          blurHandled.current = true;
           dirty.current = false;
           editing.current = false;
           setText(value);

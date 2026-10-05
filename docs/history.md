@@ -276,7 +276,10 @@ and 79.
 
 **What the multi-select round did (2026-10-05)**: selecting and editing several parts at once, with a
 spec and plan (`docs/superpowers/specs/2026-10-05-sloyd-multi-select-design.md`). No schema change.
-**On branch `multi-select`, not yet merged or deployed; the live check is pending.**
+**Live check passed** with the user watching and doing the drags (`docs/browser-verification-multi-select.md`).
+- **One change came out of it (follow-up 212).** The user found clicking away to commit a field
+  awkward. Enter already committed but showed nothing, so by the user's ruling Enter now commits and
+  blurs, in `DimensionField` and `NameField` alike. A refused entry keeps focus.
 
 - **Decomposition.** The user's wish, hide/unhide and repeated parts, was split into three rounds in
   the user's order: multi-select, then hide/unhide, then repeated parts. Only the first is built.

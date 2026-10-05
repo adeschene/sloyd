@@ -70,3 +70,7 @@ alternative. **Enter already commits** (`DimensionField`'s `onKeyDown`, covered 
 `DimensionField.test.tsx`), and it was confirmed live above. What it does not do is show
 anything: focus stays in the box and the text reformats. That is the likely reason it was not
 discovered. See follow-up 212.
+
+**Ruled and fixed:** the user chose blur on Enter. Re-checked live on the same group of legs:
+- after Enter, both legs were saved at 30in and focus was on the page body;
+- one Ctrl+Z, now the app's undo, put both back at 28in.

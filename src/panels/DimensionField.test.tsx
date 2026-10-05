@@ -40,6 +40,43 @@ describe('DimensionField', () => {
     expect(onCommit).toHaveBeenCalledWith(2);
   });
 
+  // Follow-up 212: Enter commits AND leaves the field, so the commit is seen
+  // and the next Ctrl+Z reaches the app's undo rather than the input's.
+  it('leaves the field after a successful Enter', async () => {
+    const { onCommit, input } = setup();
+    await userEvent.clear(input);
+    await userEvent.type(input, '2{Enter}');
+    expect(onCommit).toHaveBeenCalledWith(2);
+    expect(input).not.toHaveFocus();
+  });
+
+  // The blur must not resync from the render's stale `value` (1.5 here,
+  // since this harness never stores): the field shows what was committed.
+  it('shows the committed value, not the stale one, after the Enter blur', async () => {
+    const { input } = setup();
+    await userEvent.clear(input);
+    await userEvent.type(input, '2{Enter}');
+    expect(input.value).toBe('2"');
+    expect(input).toHaveAttribute('aria-invalid', 'false');
+  });
+
+  it('keeps focus when Enter is refused, so the entry can be fixed', async () => {
+    const { onCommit, input } = setup();
+    await userEvent.clear(input);
+    await userEvent.type(input, 'banana{Enter}');
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(input).toHaveFocus();
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+  });
+
+  it('leaves an untouched field on Enter without committing', async () => {
+    const { onCommit, input } = setup();
+    await userEvent.click(input);
+    await userEvent.keyboard('{Enter}');
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(input).not.toHaveFocus();
+  });
+
   it('normalises the display after committing', async () => {
     const { input } = setup();
     await userEvent.clear(input);
