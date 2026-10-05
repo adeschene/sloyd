@@ -1543,8 +1543,10 @@ worked examples behind several of them are in `docs/history.md`.
     shipped single-part behaviour invisibly. **Do not "unify" the two paths**, and do not
     round inside `translateBoards`.
 
-    The selection itself has ONE writer, `selectionPatch`. A second place that assigns
-    `selectedIds` is a second decider for invariant 24's grab rule. A selection change
+    The selection has ONE writer for a user's selection change, `selectionPatch`; a second
+    place that assigns `selectedIds` there is a second decider for invariant 24's grab rule.
+    (`replaceDocument`, `undo` and `redo` only reconcile it with a document that replaced the
+    boards.) A selection change
     mid-drag ends the gizmo's gesture and abandons the rest of that drag (`Gizmo.tsx`).
 
 ## Commands
