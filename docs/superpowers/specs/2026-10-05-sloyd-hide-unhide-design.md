@@ -16,8 +16,10 @@ orbits around the parts in the way, or moves them and has to move them back.
 changes only what is seen and touched in the 3D view. Nothing about the design itself changes.
 
 **The user's rulings, made in conversation:**
-- **View state only.** Hidden-ness is not saved and not undone, and there is no schema change. It
+- **View state, not saved.** Hidden-ness is not in the document and there is no schema change. It
   clears on reload or project switch.
+- **Undoable** (asked for after the first draft). Ctrl+Z and redo step through hides and shows like
+  any edit (§2.1).
 - **Controls: all four offered.**
   - an eye toggle on each parts-list row;
   - **H** hides the selection;
@@ -30,8 +32,9 @@ changes only what is seen and touched in the 3D view. Nothing about the design i
 ## 2. The hidden set
 
 **`hiddenIds: string[]`** is store state beside `selectedIds`.
-- **View state only**, like the selection: not in the document, not saved, not in undo snapshots.
-  **There is no schema change.** Rolling back costs nothing but the round.
+- **View state**, like the selection: not in the document and not saved. **There is no schema
+  change.** Rolling back costs nothing but the round. Unlike the selection, it IS in the undo
+  history (§2.1).
 - **Order is insertion order**, and there are **no duplicates**.
 
 **Actions** (the store). These are the ONLY writers of `hiddenIds`:
@@ -48,11 +51,39 @@ the one writer of the selection (invariant 42). That carries invariant 24's reta
 it: a held Move grab whose owner is hidden is dropped. A grab whose owner stays visible and selected
 is kept.
 
-**Hiding never touches the document.** No `edit()` runs, and no undo entry is pushed. Otherwise a
-Ctrl+Z right after H would undo some unrelated earlier edit, which reads as a lost edit.
+**Hiding never changes the document.** No `edit()` runs, and the document object stays the same
+object, so autosave does not fire for a hide.
+
+### 2.1 Undo
+
+**A history entry becomes `{ doc, hiddenIds }`** (today `past`/`future` hold bare documents).
+- `edit()`'s snapshot records both. It is still the one place an edit's snapshot is taken.
+- **Every hide or show that changes the set pushes exactly one entry**, holding the current
+  document (the same object, no copy) and the set as it was before. It clears `future`, as any edit
+  does. The cost, accepted by the user: a hide after an undo discards the redo list.
+- **A hide or show that changes nothing pushes nothing**: H or Shift+H with nothing selected, Alt+H
+  or Show all with nothing hidden, an eye that already matches. That is invariant 4's rule: no undo
+  entry that undoes to nothing.
+- **`undo` and `redo` restore both** the entry's document and its set. The set is filtered to the
+  restored document's parts. A Ctrl+Z after H shows the parts again; after an edit it restores the
+  set as it was when that edit was made. Because the set otherwise changes only through entries (and
+  through a delete, which is itself an entry), that set is always what the person saw at the time.
+  Undo never unexpectedly hides or shows anything.
+- **The selection is still not undone.** H deselects, and Ctrl+Z brings the parts back unselected.
+  Making the selection part of undo would change every undo, not only hides.
+- **A hide is refused while a gesture is open** (`gesturing`, read inside the store action, never
+  by a component: invariant 34). A hide pushes its own entry, so inside a gesture it would land
+  between a drag's lazy snapshot (invariant 4) and the drag's later frames. The drag's tail would
+  then belong to the hide's entry, and one Ctrl+Z would undo part of the drag with the hide (the
+  shape of follow-up 209). In practice only a gizmo drag can be open when a hide arrives:
+  - the keys are blocked in a text field;
+  - pressing the eye or Hide others blurs any focused field first, which ends its gesture.
+
+  So H or Shift+H pressed during a gizmo drag does nothing. Release, then press it.
+- `replaceDocument` clears the history as it does today, the set with it.
 
 **Reconciling with the document** follows the selection's rules (multi-select spec §2):
-- `undo` and `redo` keep only ids that still exist;
+- `undo` and `redo` restore the entry's set, keeping only ids that still exist;
 - `replaceDocument` (open, import, switch, autosave restore) clears the set, because a replaced
   document is a different project;
 - `deleteBoard`/`deleteBoards` remove the deleted ids. An undo that brings a deleted part back
@@ -122,8 +153,8 @@ nothing happens while focus is in a text field (`isTextEntry`) or a modal is ope
 - **Ctrl/Cmd+H is left unbound.** On a Mac, Cmd+H hides the browser.
 
 **During a gesture:**
-- **H during a gizmo drag** changes the selection, so the drag ends and commits nothing beyond what
-  already landed (invariant 42's mid-drag rule).
+- **H or Shift+H during a gizmo drag does nothing** (§2.1: a hide is refused while a gesture is
+  open).
 - **H while a Move grab is held** deselects the grabbed part, so the grab drops. It is not blocked
   the way Delete is (Delete refuses while a grab or a tape anchor is held), because dropping a grab
   loses nothing and moves nothing.
@@ -146,12 +177,20 @@ nothing happens while focus is in a text field (`isTextEntry`) or a modal is ope
 - **invariant 24's prohibition:** for each hide and show action, `tapeAnchor` and `tapeHover`
   survive;
 - `selectAll` skips hidden parts;
+- **undo (§2.1):**
+  - H then Ctrl+Z shows the parts again, and redo hides them again;
+  - each hide or show is exactly one entry, holding the same `doc` object;
+  - a hide that changes nothing pushes nothing;
+  - undoing an edit restores the set recorded with it;
+  - the selection is not restored;
+  - a hide during an open gesture is refused: nothing changes and no entry is pushed;
+  - a hide clears `future`;
 - reconciliation:
-  - undo and redo filter to surviving ids;
+  - undo and redo filter the restored set to surviving ids;
   - `replaceDocument` clears the set;
   - a delete removes the id;
   - a new part and a copy are visible;
-- **hiding never touches the document:** the same `doc` object afterwards and `past` unchanged.
+- **hiding never changes the document:** the same `doc` object afterwards.
 
 **The filter and the candidate sets (unit):** `visibleBoards`, and `moveCandidates` never offering a
 hidden part as a target.
@@ -171,7 +210,9 @@ hidden part as a target.
 - skip the deselect in a hide (the grab test must go red);
 - drop the target filter (the candidates test must go red);
 - let `hideUnselected` hide everything when nothing is selected;
-- make a hide push an undo entry.
+- drop the set from an undo or redo restore;
+- push an entry for a hide that changes nothing;
+- let a hide through while a gesture is open.
 
 **Browser:** the r3f viewport has no unit tests by design. The live check is on the dev server, with
 the user watching:
@@ -179,6 +220,7 @@ the user watching:
 - H on a selection, then confirm Ctrl+A skips the hidden parts;
 - Shift+H and the Hide others button;
 - Alt+H and Show all;
+- H then Ctrl+Z brings the parts back, and Ctrl+Shift+Z hides them again;
 - the cut list still lists hidden parts;
 - a tape anchored on a part survives hiding that part.
 
