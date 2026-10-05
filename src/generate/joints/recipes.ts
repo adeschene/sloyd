@@ -212,7 +212,8 @@ const RANK: Record<Site['kind'], number> = { crossing: 0, 'face-against-edge': 1
  * end-into-face, otherwise in site order — and each reads the CURRENT
  * geometry, so a site whose
  * part an earlier site already moved is recomputed rather than reused —
- * and skipped, with a reason, when its parts no longer touch.
+ * and skipped, with a reason, when its parts no longer touch (a half-lap
+ * needs only that they still cross in plan with the receiver wholly below).
  */
 export function applyJoints(doc: SloydDocument, sites: Site[], choices: JointChoice[]): JoinResult {
   const boards: Board[] = structuredClone(doc.boards);

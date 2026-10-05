@@ -274,6 +274,29 @@ and 79.
 
 ## What each round did
 
+**What the joinery fixes round did (2026-10-05)**: follow-ups 190, 185, 183 and 184, no spec (the
+user ruled the design in chat: 183 = outer-face chain, 190 = defaults only, no prompt change). No
+schema change. On branch `joinery-fixes`, not yet merged or deployed.
+
+- **190:** default tenons from opposite faces of one receiver are capped at down(depth/2 − 1/32)
+  (13/16″ each in a 1-3/4″ post), combined with the adjacent cap by `min`. Unit-verified only: the
+  collision is reachable solely through the fallback defaults.
+- **185:** crossings run bottom-up, grouped by axis, so each part is final before anything lands on
+  it and moves once. Half-laps need only to still cross in plan with R wholly below E, and a
+  swept-volume check replaces the butting-face blocker. The "carry riders" design was rejected: a
+  part with two lap partners would be carried twice.
+- **183:** a rabbeted panel carries its outer-face chain; a carried part that would collide makes the
+  site a skip, decided before any trim, move or cut.
+- **184:** `JoinResult.lowered`, and the dialog's "Moved relative to the rest" wording.
+- **Probe first, and the ledger was partly off:** 183's floating part measured as `unsupported`, not
+  `hangs`; 185 had a silent-void variant (a stack whose top and bottom parts share a footprint
+  finished with no violation and two empty notches), now a skip with a reason.
+- **Review catch on 183:** the task report argued the receiver exclusion in the carry walk was
+  unreachable (a surviving mutation). The review showed it reachable through a panel rabbeted on
+  both faces, which would carry its own receivers; a test now pins it.
+- **Not found:** nothing was exercised live; the fallback-only and re-ground paths are unit-verified.
+  Residues are follow-ups 201-204.
+
 **What the fu 197 round did (2026-10-05)**: a bounded round, with the design approved in chat.
 
 - **The change:** `clippedRegion` (the cut's box ∩ the board, which is exactly what it removes) is
