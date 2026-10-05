@@ -255,6 +255,23 @@ and 79.
 
 ## What each round did
 
+**What the 198/199 round did (2026-10-05)**: a bounded round with the design approved in chat and no
+spec, closing the cut storage round's two open questions.
+
+- **198:** `CutShape.runByDefault` marks a run decided only by the square tie's length-first
+  default. Properties shows no Match note then, by the user's ruling.
+- **199:** `rebaseCuts` re-stores a growing part's cuts by shape before applying its rule, so how a
+  cut follows a growth no longer depends on how it was stored.
+  - My brief had it judge the shape on the already-grown board. The implementer showed that was
+    wrong, since `resize()` changes the dimension first, so the shape is read on the part as it was
+    before growing.
+  - The final review's 648-case probe went from 72–144 storage-dependent cut-list differences per
+    design to none.
+  - It also found that the "stays put" half had no test and that a mutation survived; that test now
+    exists.
+- **Follow-up 200** is filed: a square typed in millimetres is not a float-exact tie.
+- The browser pass is `docs/browser-verification-fu198-199.md`.
+
 **What the cut storage round did (2026-10-04)**: follow-ups 195 and 196, the cut lines round's
 open questions. There is no geometry change, no schema change and no load-time rewrite.
 

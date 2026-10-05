@@ -612,7 +612,7 @@ describe('cutShape: one description, whichever way the cut is stored (cut-lines 
 
   it('a dado: runs along the axis it passes through, either storage', () => {
     const s = cutShape(b([DADO]), DADO);
-    expect(s).toEqual({ word: 'dado', run: 'width', pos: 'length', at: [6, 6.75], along: [0, 5.5], stopMin: null, stopMax: null });
+    expect(s).toEqual({ word: 'dado', run: 'width', pos: 'length', at: [6, 6.75], along: [0, 5.5], stopMin: null, stopMax: null, runByDefault: false });
     same(DADO, cut({ across: 'length', offset: 0, width: 5.5, stopMin: 6, stopMax: 17.25 }));
   });
 
@@ -624,13 +624,13 @@ describe('cutShape: one description, whichever way the cut is stored (cut-lines 
 
   it('a stopped dado runs toward its open edge and stops at the closed one', () => {
     const s = cut({ stopMax: 1 });
-    expect(cutShape(b([s]), s)).toEqual({ word: 'stopped dado', run: 'width', pos: 'length', at: [6, 6.75], along: [0, 4.5], stopMin: null, stopMax: 1 });
+    expect(cutShape(b([s]), s)).toEqual({ word: 'stopped dado', run: 'width', pos: 'length', at: [6, 6.75], along: [0, 4.5], stopMin: null, stopMax: 1, runByDefault: false });
     same(s, cut({ across: 'length', offset: 0, width: 4.5, stopMin: 6, stopMax: 17.25 }));
   });
 
   it('a mortise runs along its long side, with both stops', () => {
     const m = cut({ across: 'length', offset: 2, width: 0.5, depth: 0.625, stopMin: 6, stopMax: 15 });
-    expect(cutShape(b([m]), m)).toEqual({ word: 'mortise', run: 'length', pos: 'width', at: [2, 2.5], along: [6, 9], stopMin: 6, stopMax: 15 });
+    expect(cutShape(b([m]), m)).toEqual({ word: 'mortise', run: 'length', pos: 'width', at: [2, 2.5], along: [6, 9], stopMin: 6, stopMax: 15, runByDefault: false });
     same(m, cut({ across: 'width', offset: 6, width: 3, depth: 0.625, stopMin: 2, stopMax: 3 }));
   });
 
@@ -661,12 +661,24 @@ describe('cutShape: one description, whichever way the cut is stored (cut-lines 
     expect(cutShape(b([wide]), wide)).toMatchObject({ run: 'width', pos: 'length', at: [2, 22], along: [0, 5.5], stopMin: null, stopMax: null });
   });
 
+  it('runByDefault: true only when the tie\'s final default decided the run (fu 198)', () => {
+    const square = cut({ offset: 6, width: 1, stopMin: 2, stopMax: 2.5 });          // closed square
+    const corner = cut({ offset: 0, width: 1, stopMin: 0, stopMax: 4.5 });          // one open end on each axis
+    const edgeNotch = cut({ stopMin: 4.75 });                                        // square, one open end on width only
+    const stopped = cut({ stopMax: 1 });
+    expect(cutShape(b([square]), square).runByDefault).toBe(true);
+    expect(cutShape(b([corner]), corner).runByDefault).toBe(true);
+    expect(cutShape(b([edgeNotch]), edgeNotch).runByDefault).toBe(false);
+    expect(cutShape(b([DADO]), DADO).runByDefault).toBe(false);
+    expect(cutShape(b([stopped]), stopped).runByDefault).toBe(false);
+  });
+
   it('an end opened by another cut is open: no stop there', () => {
     const backRabbet: Cut = { id: 'r', face: 'width', from: 'min', across: 'length', offset: 0.375, width: 0.375, depth: 0.25, stopMin: 0, stopMax: 0 };
     const housing: Cut = { id: 'h', face: 'thickness', from: 'max', across: 'length', offset: 0.25, width: 10.25, depth: 0.25, stopMin: 24, stopMax: 47.25 };
     const side = createBoard({ length: 72, width: 11.25, thickness: 0.75, cuts: [backRabbet, housing] });
     expect(cutShape(side, housing)).toEqual({
-      word: 'stopped dado', run: 'width', pos: 'length', at: [24, 24.75], along: [0.25, 10.5], stopMin: null, stopMax: 0.75,
+      word: 'stopped dado', run: 'width', pos: 'length', at: [24, 24.75], along: [0.25, 10.5], stopMin: null, stopMax: 0.75, runByDefault: false,
     });
   });
 
