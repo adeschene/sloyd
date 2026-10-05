@@ -268,6 +268,26 @@ and 79.
 
 ## What each round did
 
+**What the fu 197 round did (2026-10-05)**: a bounded round, with the design approved in chat.
+
+- **The change:** `clippedRegion` (the cut's box ∩ the board, which is exactly what it removes) is
+  now the one clip that everything showing a cut reads:
+  - the drawing's leader spans;
+  - the snap points;
+  - and, because the review asked for one home for the rule, `cutShape`, `openSides` and
+    `findTenons`, whose inline copies did the same arithmetic.
+
+  `cutRegion` stays unclipped for building solids. A cut inside the board is provably unchanged
+  (a sweep shows the two boxes are equal there).
+- **Found while exploring:** the issue had a second instance the follow-up did not name. The snap
+  points were spread over the stored box, so the same cut offered different points depending on how
+  far it overhung. The review then found a third case: an over-deep dado's floor points sat outside
+  the board, and that is now pinned by a test.
+- **A live-check false start:** an overhang written into a file is clamped by `validateCuts` on load,
+  so the first test file showed an honest 1-1/4″ rabbet. The real path is in-session: shrinking a
+  board under an end cut.
+- The browser pass is `docs/browser-verification-fu197.md`.
+
 **What the fu 200 round did (2026-10-05)**: a bounded round, with the design approved in chat.
 
 - **The change:** `runAxis` and the word table compared the opening's computed extents EXACTLY, so a

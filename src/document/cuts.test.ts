@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
-import { boardEdges, boardSolids, cutLabel, cutShape, storedAsShape, openSides, cutRegion, cutRemovesNothing, solidWorldBox, stockProbe, wholeBoard } from './cuts';
+import { boardEdges, boardSolids, cutLabel, cutShape, storedAsShape, openSides, cutRegion, clippedRegion, cutRemovesNothing, solidWorldBox, stockProbe, wholeBoard } from './cuts';
 import type { Board, Cut, Dimension, Region } from './types';
 
 /** A 24 x 5-1/2 x 3/4 flat board with whatever cuts are given. */
@@ -1037,5 +1037,51 @@ describe('computed extents compare within FLUSH_EPSILON (fu 200, invariant 22)',
       checked++;
     }
     expect(checked).toBeGreaterThan(2000);
+  });
+});
+
+describe('clippedRegion (fu 197)', () => {
+  it('equals cutRegion for a cut inside the board (seeded sweep)', () => {
+    let seed = 197; // mulberry32
+    const rnd = () => {
+      seed = (seed + 0x6d2b79f5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const DIMS = ['length', 'width', 'thickness'] as const;
+    const b = createBoard({});
+    const sixteenth = (max: number) => Math.floor(rnd() * max * 16) / 16;
+    let checked = 0;
+    for (let i = 0; i < 2500; i++) {
+      const face = DIMS[Math.floor(rnd() * 3)];
+      const others = DIMS.filter((d) => d !== face);
+      const across = others[Math.floor(rnd() * 2)];
+      const pos = others.find((d) => d !== across)!;
+      const offset = sixteenth(b[pos]);
+      const width = Math.max(1 / 16, sixteenth(b[pos] - offset));
+      if (offset + width > b[pos]) continue;
+      const stopMin = sixteenth(b[across] / 2);
+      const stopMax = sixteenth(b[across] / 2);
+      const cut: Cut = {
+        id: 'c', face, from: rnd() < 0.5 ? 'min' : 'max', across,
+        offset, width, depth: Math.max(1 / 16, sixteenth(b[face])), stopMin, stopMax,
+      };
+      expect(clippedRegion(b, cut)).toEqual(cutRegion(b, cut));
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(2000);
+  });
+
+  it('clips an overhang on each axis', () => {
+    const b = createBoard({});
+    const base: Cut = { id: 'c', face: 'thickness', from: 'min', across: 'width', offset: 0, width: 1, depth: 0.25, stopMin: 0, stopMax: 0 };
+    expect(clippedRegion(b, { ...base, offset: -0.5 }).length).toEqual([0, 0.5]);
+    expect(clippedRegion(b, { ...base, offset: 23.5 }).length).toEqual([23.5, 24]);
+    const w = { ...base, across: 'length' as const, offset: -0.5 };
+    expect(clippedRegion(b, w).length).toEqual([0, 24]);
+    expect(clippedRegion(b, { ...base, depth: 5 }).thickness).toEqual([0, 0.75]);
+    expect(clippedRegion(b, { ...base, face: 'length', across: 'thickness', depth: 3, from: 'max' }).length).toEqual([21, 24]);
+    expect(clippedRegion(b, { ...base, across: 'width', stopMin: 0 }).width).toEqual([0, 5.5]);
   });
 });

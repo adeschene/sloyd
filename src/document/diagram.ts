@@ -1,6 +1,6 @@
 import type { Board, CutFrom, Dimension, Span } from './types';
 import { DIMENSION_ORDER } from './geometry';
-import { boardSolids, cutRegion, cutShape, cutRemovesNothing, type CutKind } from './cuts';
+import { boardSolids, clippedRegion, cutShape, cutRemovesNothing, type CutKind } from './cuts';
 import { buildDepthField, type FaceCell } from './depthField';
 import { formatLength } from '../units/length';
 
@@ -14,9 +14,9 @@ import { formatLength } from '../units/length';
 export interface DiagramCut {
   /** `Cut.id` verbatim. Stable within the view; the React key. */
   id: string;
-  /** [min, max] along the view's HORIZONTAL axis, board inches. */
+  /** [min, max] along the view's HORIZONTAL axis, board inches: the cut's box clipped to the board (fu 197). */
   h: Span;
-  /** [min, max] along the view's VERTICAL axis, board inches. */
+  /** [min, max] along the view's VERTICAL axis, board inches: the cut's box clipped to the board (fu 197). */
   v: Span;
   /** Which axis the cut's position is measured along (`CutShape.pos`). */
   axis: 'h' | 'v';
@@ -133,7 +133,7 @@ export function buildDiagrams(board: Board, precision: number): DiagramView[] {
     if (cut.face === cut.across) continue;
 
     const view = ensure(cut.face, cut.from);
-    const region = cutRegion(board, cut);
+    const region = clippedRegion(board, cut);
     const s = cutShape(board, cut, solids);
     view.cuts.push({
       id: cut.id,

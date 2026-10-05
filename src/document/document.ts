@@ -10,7 +10,7 @@ export {
   boardExtents, boardCenter, reorientedPosition, axisDimensions, DIMENSION_ORDER, positionAxisOf,
 } from './geometry';
 export { uniqueName, dedupeNames } from './names';
-export { boardEdges, boardSolids, CUT_GEOMETRY_FIELDS, CUT_GEOMETRY_KEYS, cutLabel, cutRegion, cutShape, storedAsShape, cutRemovesNothing, cutsThatRemoveStock, pointToLocalXYZ, solidWorldBox, wholeBoard } from './cuts';
+export { boardEdges, boardSolids, CUT_GEOMETRY_FIELDS, CUT_GEOMETRY_KEYS, cutLabel, cutRegion, clippedRegion, cutShape, storedAsShape, cutRemovesNothing, cutsThatRemoveStock, pointToLocalXYZ, solidWorldBox, wholeBoard } from './cuts';
 export type { CutKind, CutShape, Point, Segment } from './cuts';
 export { buildCutList } from './cutlist';
 export { findTenons } from './tenons';

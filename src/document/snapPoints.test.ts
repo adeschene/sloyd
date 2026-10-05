@@ -737,3 +737,43 @@ describe('cutSnapPoints — a cut that removes nothing offers nothing (follow-up
     expect(both).toEqual(live);
   });
 });
+
+describe('an overhanging cut offers the snap points of its clipped box (fu 197)', () => {
+  const rabbet = (over: Partial<Cut>): Cut => ({
+    id: 'c1', face: 'thickness', from: 'min', across: 'width',
+    offset: 0, width: 0.5, depth: 0.25, stopMin: 0, stopMax: 0, ...over,
+  });
+  const pts = (c: Cut) => {
+    const b = createBoard({ cuts: [c] });
+    return cutSnapPoints(b)
+      .map((p) => JSON.stringify({ kind: p.kind, at: p.at }))
+      .sort();
+  };
+
+  it('past the MIN end matches its flush twin', () => {
+    const over = pts(rabbet({ offset: -0.5, width: 1 }));
+    expect(over.length).toBeGreaterThan(0);
+    expect(over).toEqual(pts(rabbet({ offset: 0, width: 0.5 })));
+  });
+
+  it('past the MAX end matches its flush twin', () => {
+    const over = pts(rabbet({ offset: 23.75, width: 1 }));
+    expect(over.length).toBeGreaterThan(0);
+    expect(over).toEqual(pts(rabbet({ offset: 23.75, width: 0.25 })));
+  });
+});
+
+describe('an over-deep cut offers the snap points of the depth it removes (fu 197)', () => {
+  const dado = (depth: number): Cut => ({
+    id: 'c1', face: 'thickness', from: 'min', across: 'width',
+    offset: 6, width: 0.75, depth, stopMin: 0, stopMax: 0,
+  });
+  const pts = (c: Cut) => cutSnapPoints(createBoard({ cuts: [c] }))
+    .map((p) => JSON.stringify({ kind: p.kind, at: p.at })).sort();
+
+  it('depth 5 on a 3/4 board matches depth 3/4', () => {
+    const over = pts(dado(5));
+    expect(over.length).toBeGreaterThan(0);
+    expect(over).toEqual(pts(dado(0.75)));
+  });
+});

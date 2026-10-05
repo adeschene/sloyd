@@ -24,7 +24,7 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **1553/1553 tests passing across 55 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
+Static SPA, containerized, **1560/1560 tests passing across 55 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **7**.
 
 **PRODUCTION MATCHES `master` as of 2026-10-05 with the fu 200 round live** — bundle `index-DjL6FbOz.js`, CSS `index-DqhKBEnY.css` (unchanged), merge commit `f37734b`, **schema 7**. Before it: 198/199 `index-BvsB1zA6.js` (`fb8a094`, 2026-10-05), cut storage `index-JBiJohQE.js` (`7fa749d`, 2026-10-04), cut lines `index-BPmx9i74.js` (`f602a2d`), cut words `index-Cw_EeWuY.js` (`8c9be52`), joinery `index-Ci7lVCzJ.js` (`d2a14ac`), phantom cut `index-B2Yuq550.js` (`e7bf3bc`), stopped cuts `index-CoHIAVxf.js` (`c054ede`), which bumped the schema to 7 (rolling back past it strands v7 documents; export first). Before it, 2026-10-03: key check `index-BhhW2iNw.js` (`d0ba83b`), held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
@@ -40,6 +40,8 @@ Claude drives the dev server and the user supervises. Results are in
 `docs/browser-verification-generate.md`. 6 of 6 generations completed. It left two
 findings: 164, a batch converging on one design, now CLOSED (below); and 165, a support
 check that passes a badly supported part, still open.
+
+**The fu 197 round (2026-10-05) is on branch `fu197`, live-checked by the user, NOT yet merged.** `clippedRegion` is the cut's box clipped to the board, and the drawing's leader spans, the snap points, `cutShape`, `openSides` and `findTenons` all read it (`docs/browser-verification-fu197.md`). No schema change; a cut inside the board shows exactly as before.
 
 **The fu 200 round (2026-10-05) is merged AND deployed.** `runAxis` and the word table compare computed extents within `FLUSH_EPSILON`, so a square typed in millimetres reads exactly like its fractional twin (`docs/browser-verification-fu200.md`). No schema change; fractions provably unchanged.
 
@@ -262,6 +264,7 @@ show it. Prefer a readout where one suffices; add an image when the finding is s
 | cut storage | 10-04 | — | fu 195/196: `storedAsShape` — joinery stores a cut the way the sheet reads it; Properties' **Match the cut list** (one undo, same stock, guarded so the sheet never changes); the square tie reads only the shape |
 | 198/199 | 10-05 | — | *no spec* — fu 198: `CutShape.runByDefault`, no Match note when only the tie's default decides; fu 199: `rebaseCuts` re-stores by shape (judged before the growth), so growth never depends on storage |
 | fu 200 | 10-05 | — | *no spec* — computed opening extents compare within `FLUSH_EPSILON` in `runAxis` and the word table (invariant 22's rule), so a millimetre square reads like its fractional twin; stored values stay exact |
+| fu 197 | 10-05 | — | *no spec* — `clippedRegion`: the cut's box clipped to the board is the one clip read by everything that shows a cut (drawing spans, snap points, cutShape, openSides, findTenons); an in-session overhang draws as what remains |
 
 ### The deployment rule, stated once
 
@@ -415,6 +418,10 @@ src/
 │   │                       old table. `openSides`: open = no stock between a side
 │   │                       and the edge; called only inside `cutShape`, which the
 │   │                       word, the setup line and the drawing all read.
+│   │                       `clippedRegion` = the cut's box ∩ the board, what it removes:
+│   │                       the ONE clip, read by everything that SHOWS a cut (drawing
+│   │                       spans, snap points, cutShape, openSides, findTenons; fu 197).
+│   │                       `cutRegion` stays unclipped for building solids.
 │   │                       `cutShape` is the ONE description of a cut (word, run axis,
 │   │                       position, stops at closed ends, as numbers); `cutLabel` is
 │   │                       its word, and the setup line AND the drawing format from it,
@@ -1446,7 +1453,7 @@ worked examples behind several of them are in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 1553 tests across 55 files
+npm test           # Vitest, currently 1560 tests across 55 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
