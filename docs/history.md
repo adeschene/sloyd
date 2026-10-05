@@ -294,7 +294,7 @@ schema change. On branch `joinery-fixes`, not yet merged or deployed.
 - **Review catch on 183:** the task report argued the receiver exclusion in the carry walk was
   unreachable (a surviving mutation). The review showed it reachable through a panel rabbeted on
   both faces, which would carry its own receivers; a test now pins it.
-- **Not found:** nothing was exercised live; the fallback-only and re-ground paths are unit-verified.
+- **Live check:** passed on the dev server with the user watching, three paid runs (≈ $0.05 in all): a cabinet whose cleat rode with the rabbeted back (183), a lap stack ending in one plane with every notch filled (185), and a drawer box whose dialog reported the 1/4in lowering (184). 190 is fallback-only and unit-verified. See `docs/browser-verification-joinery-fixes.md`.
   Residues are follow-ups 201-204.
 
 **What the fu 197 round did (2026-10-05)**: a bounded round, with the design approved in chat.
