@@ -4040,11 +4040,13 @@ small voids where the top and bottom meet the sides (0.023 in³ per joint, uncha
 panel toward its receivers by its own thickness; anything fastened to the panel's outer face (a
 cleat, a French-cleat rail) stays where it was and now hangs in air. Only `butt` clears the new
 `hangs`. The recipe could carry outer-face parts with the panel; not done.
+- **Status:** CLOSED 2026-10-05 by the joinery fixes round, the user's ruling (outer-face chain): when a rabbeted panel moves, the parts butting its OUTER face move with it, transitively outward (never the panel's own receivers; reachable with a panel rabbeted on both faces, now tested). Carried parts are listed in `moved`. A carried part that would hit something makes the site a skip, decided BEFORE any trim, move or cut. Also seen by the final review: a drawer bottom on skids now carries the skids and the re-ground runs. The ledger's description was partly off: the symptom measured as `unsupported`, not `hangs`.
 
 **184. `moved` is misleading after a re-ground.** When a rabbeted bottom lifts the piece and
 `applyJoints` lowers everything back to the floor (§4.7), every part has moved in the world, but
 `moved` still lists only the parts a recipe moved relative to the others. The dialog's wording
 should say "moved relative to the rest", or the list should be computed after the re-ground.
+- **Status:** CLOSED 2026-10-05 by the joinery fixes round: `JoinResult.lowered` carries how far the re-ground lowered the piece; the dialog says "Moved relative to the rest: …" and, when it happened, "The whole piece was lowered <len> to sit on the floor again." A lift reports 0 (see 202).
 
 **185. A three-layer half-lap stack abandons or skips a lap — STILL OCCURS after the final-review
 fix.** Re-checked with A (X), B (Z) on A, C (X) on B, all 3/4in, every crossing a half-lap. Listed
@@ -4052,6 +4054,7 @@ C, B, A: C laps into B, then B drops into A and leaves C's lap behind (C reports
 A, B, C or B, C, A: B drops first and C's site is skipped ("no longer meets"), so C is
 `unsupported`. Identical before and after the fix, because crossings keep site order among
 themselves. A stack needs the drops computed together, or the upper part dropped with its partner.
+- **Status:** CLOSED 2026-10-05 by the joinery fixes round. Crossings now run BOTTOM-UP (sorted by the entering part's original min on its axis, grouped by axis), so a part is final before anything drops onto it and every part moves once; identical across all six listing orders (also probed on X). Half-laps no longer need contact: they need to still cross in plan with R wholly below E, and a swept-volume check (`overlapsBeyondTouch`) over the whole drop replaces the butting-face blocker. A "carry riders" design was rejected because a part with two lap partners would be carried twice. Found while probing: a stack whose top and bottom parts share one footprint used to finish with NO violation and two empty notches; it is now a skip with a reason.
 
 **186. Smaller residues from the joinery final review.**
 - **The shelf's cut-list word depended on board order — GONE after the fix.** Before, a bookcase
@@ -4123,6 +4126,7 @@ long-bench middle leg has rails tenoned in from both sides at one height.
 Also seen live, and not a defect: on a hand-built corner leg, the model avoided the
 adjacent-tenon collision by itself, choosing 11/16″ tenons. So no repair round ran, and the
 joinery repair path has been seen only in unit tests, the same as 177 for `hangs`/`tips`.
+- **Status:** CLOSED 2026-10-05 by the joinery fixes round, defaults only (prompt unchanged by user ruling): default tenons from OPPOSITE faces of one receiver, with cross-sections overlapping on both in-plane axes, are capped at down(depth/2 − 1/32), 13/16″ each in a 1-3/4″ post, combined with the adjacent cap by min. The 1/2″ floor still wins under about 1-1/16″ (188's limit). Reachable only through the fallback defaults, so unit-verified only.
 
 **191. `findTenons` compares span edges exactly.** It groups ℓ within `FLUSH_EPSILON`, but its
 remaining-rectangle split compares the cuts' span edges with `===`.
@@ -4208,3 +4212,33 @@ the new end, while a cut flush on the position axis does not move, so re-storing
 
 **200. A square typed in millimetres is not a tie.** `runAxis` compares extents exactly (cut-storage spec §2), so a 20 mm × 20 mm opening measures 0.78740157480315 against 0.7874015748031495 and is decided by the longer extent, not the tie: it keeps the Match note that 198 hides for a fractional square, and its sheet direction can depend on the last bit. An epsilon tie would change the sheet's rule as well as the note.
 - **Status:** CLOSED 2026-10-05: every comparison between COMPUTED opening extents in `runAxis` and `tableWord` is made within `FLUSH_EPSILON` (invariant 22's rule; stored values such as depth against the face stay exact). An mm square now reads exactly like its fractional twin (word, direction, `runByDefault`); fractions cannot change, because sixteenth extents are equal or at least 1/16 apart (a reverted probe: 0 of 6,000 sixteenth cuts and the live designs unchanged). `storedAsShape`'s guard is still reachable at the tolerance boundary itself (186 of 20,000 constructed cases) and is pinned by a test.
+
+## From the joinery fixes round — 2026-10-05
+
+**201. The rabbeted panel's own move is still not collision-checked.** The 183 carry judges the
+parts it carries, but the panel's own shift toward its receivers is not tested against other parts,
+and a carry can raise a new `tips` that is then blamed on joinery (compare 186).
+- **Status:** open, low. Needs a design call on what a refusal of the panel's own move should say.
+
+**202. A re-ground that LIFTS reports `lowered` 0.** `JoinResult.lowered` is the distance dropped;
+a negative re-ground (a lift) reports 0 and the dialog says nothing.
+- **Reach:** no path found that reaches it (a rabbet only ever lowers the piece). Recorded so it is
+  not rediscovered as a silent dialog.
+
+**203. The two new blockers compare BOXES, not solids (invariant 38).** The 183 carry blocker and the
+185 half-lap sweep use `overlapsBeyondTouch` on boxes. A design that arrives already cut (hand-made,
+or Add joinery run on a joined project) can be refused falsely.
+- **Reach:** not reachable within one run (nothing is cut yet when the blockers judge). A false
+  refusal is safe and reported as a skip with its reason.
+- **Pre-existing, recorded only:** `halfLap`'s defensive guard still returns after E has moved (argued
+  unreachable), and `movedFace` holds one face per part, so a mixed-axis lap set is not tracked per axis.
+
+**204. Surviving mutations from the round, recorded rather than chased.** Each is unobservable by
+construction, not untested by oversight.
+- **Axis grouping in the crossing sort:** every crossing fixture is on Y (X probed once by the final review).
+- **`crossesInPlan` in the half-lap precheck:** crossings run first and laps move only along their own axis, so a crossing pair cannot stop crossing in plan.
+- **"R wholly below E":** R only ever drops, so it stays below E.
+- **`halfLap`'s `movedFace` guard:** alignment is idempotent, so on E's second partner the delta is 0 and nothing changes.
+- **M6, judging carried parts at their PRE-trim box:** differs from the post-trim box only at TOUCH-scale interpenetration, which `design()`'s 1/16 snap cannot produce.
+- **The `lowered` epsilon (1e-9):** a zero drop yields 0 either way; the guard matters only for float noise.
+(M7, the receiver exclusion in the carry walk, does NOT survive: the final review showed it reachable through a two-faced panel and a test now pins it.)

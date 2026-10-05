@@ -123,7 +123,9 @@ function tenonSpan(s: Site, doc: SloydDocument, axis: number): [number, number] 
  * The ONE home of the tenon default: min(1-1/4, 2/3 of the receiving part),
  * CAPPED (final review I1) to stop 1/16in short of every other default tenon
  * entering the same part from a different axis at an overlapping span — an
- * ordinary table with set-in aprons — then clamped. The cap rounds DOWN to
+ * ordinary table with set-in aprons — and, from the OPPOSITE face on the same
+ * axis at an overlapping cross-section (fu 190), to stop 1/32in short of the
+ * part's centre; then clamped. The cap rounds DOWN to
  * 1/16, so rounding can never eat the clearance. The range's 1/2in floor can
  * still exceed the cap; then the tenons meet, and the check reports it.
  */
@@ -132,7 +134,20 @@ function defaultTenon(s: Site, doc: SloydDocument, sites: Site[]): number {
   const eb = boxOf(doc.boards[s.enter]);
   const k = s.axis;
   for (const o of sites) {
-    if (o.id === s.id || o.receive !== s.receive || o.kind !== 'end-into-face' || o.axis === k) continue;
+    if (o.id === s.id || o.receive !== s.receive || o.kind !== 'end-into-face') continue;
+    if (o.axis === k) {
+      // Opposite face, same axis (fu 190): both tenons would pass the post's
+      // centre, so each stops 1/32in short of it. A same-side site is not a
+      // collision (both start on one face and the check owns that).
+      if (o.side !== -s.side || defaultJoint(o, doc) !== 'mortise-tenon') continue;
+      const shared = [0, 1, 2].filter((a) => a !== k).every((a) => {
+        const m = tenonSpan(s, doc, a);
+        const t = tenonSpan(o, doc, a);
+        return !!m && !!t && Math.min(m[1], t[1]) - Math.max(m[0], t[0]) > 1e-9;
+      });
+      if (shared) L = Math.min(L, down(receiveDepth(s, doc) / 2 - SNAP_INCHES / 2));
+      continue;
+    }
     if (defaultJoint(o, doc) !== 'mortise-tenon') continue;
     const p = 3 - k - o.axis;
     const mine = tenonSpan(s, doc, p);

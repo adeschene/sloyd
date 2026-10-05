@@ -8,6 +8,7 @@ import type { Cut, SloydDocument } from '../../document/document';
 import { findSites } from './sites';
 import { defaultChoice } from './choose';
 import { applyJoints, tenonSection } from './recipes';
+import { boxOf } from './pocket';
 
 type P = { name: string; at: [number, number, number]; size: [number, number, number] };
 const design = (...parts: P[]) => designToDocument({
@@ -311,6 +312,16 @@ describe('rabbet: the piece stays on the floor', () => {
     expect(Math.min(...out.doc.boards.map((b) => b.position[1]))).toBeCloseTo(0, 9);
     expect(checkDesign(out.doc, limits(out.doc)).filter((v) => v.kind === 'unsupported')).toEqual([]);
   });
+
+  it('reports the drop: the Bottom rose by 1/4in and everything came down by it', () => {
+    expect(out.lowered).toBe(0.25);
+    expect(board(out.doc, 'SideL').position[1]).toBeCloseTo(0, 9);
+  });
+
+  it('reports 0 when nothing was re-grounded', () => {
+    const none = applyJoints(doc, findSites(doc), findSites(doc).map((s) => ({ site: s.id, joint: 'butt' as const })));
+    expect(none.lowered).toBe(0);
+  });
 });
 
 describe('half-lap', () => {
@@ -436,6 +447,118 @@ const withDefaults = (d: SloydDocument) => {
   const sites = findSites(d);
   return applyJoints(d, sites, sites.map((s) => defaultChoice(s, d, sites)));
 };
+
+// Follow-up 185: a stack of laps runs bottom-up, so every part is in its
+// final plane before anything drops onto it and each part moves once.
+const orders = <T,>(xs: T[]): T[][] => xs.length <= 1 ? [xs] : xs.flatMap((x, i) => orders([...xs.slice(0, i), ...xs.slice(i + 1)]).map((r) => [x, ...r]));
+const allLaps = (d: SloydDocument) => {
+  const sites = findSites(d);
+  return { sites, out: applyJoints(d, sites, sites.map((s) => ({ site: s.id, joint: 'half-lap' as const }))) };
+};
+const shapeOf = (d: SloydDocument) => Object.fromEntries(d.boards.map((b) => [b.name, {
+  box: boxOf(b), cuts: b.cuts.map((c) => ({ ...c, id: undefined })),
+}]));
+
+describe('half-lap: a three-layer stack, any listing order (fu 185)', () => {
+  // B is long and reaches back past A so the piece stands on A without
+  // tipping; C crosses B clear of A's footprint.
+  const parts: Record<string, P> = {
+    A: { name: 'A', at: [0, 0, 9], size: [20, 0.75, 3] },
+    B: { name: 'B', at: [9, 0.75, -10], size: [3, 0.75, 30] },
+    C: { name: 'C', at: [0, 1.5, 16], size: [20, 0.75, 3] },
+  };
+  const runs = orders(['A', 'B', 'C']).map((o) => {
+    const doc = design(...o.map((n) => parts[n]));
+    return { o: o.join(''), doc, ...allLaps(doc) };
+  });
+
+  it('every order: the input is sound, both laps applied, nothing skipped, all three in one plane', () => {
+    for (const { o, doc, sites, out } of runs) {
+      expect(checkDesign(doc, limits(doc)), o).toEqual([]);
+      expect(sites.filter((s) => s.kind === 'crossing'), o).toHaveLength(2);
+      expect(out.skipped, o).toEqual([]);
+      expect(out.applied, o).toHaveLength(2);
+      const ys = ['A', 'B', 'C'].map((n) => boxOf(board(out.doc, n)));
+      for (const y of ys) { expect(y.min[1], o).toBe(ys[0].min[1]); expect(y.max[1], o).toBe(ys[0].max[1]); }
+      expect(overlapsOf(out.doc), o).toEqual([]);
+    }
+  });
+
+  it('every order ends with the same boxes and the same cuts, part by part', () => {
+    for (const { o, out } of runs) expect(shapeOf(out.doc), o).toEqual(shapeOf(runs[0].out.doc));
+  });
+});
+
+describe('half-lap: a stack whose top part shares the bottom part\'s footprint (fu 185)', () => {
+  const parts: Record<string, P> = {
+    A: { name: 'A', at: [0, 0, 9], size: [20, 0.75, 3] },
+    B: { name: 'B', at: [9, 0.75, 0], size: [3, 0.75, 20] },
+    C: { name: 'C', at: [0, 1.5, 9], size: [20, 0.75, 3] },
+  };
+
+  it('every order: C\'s drop is refused for A before C moves, and leaves no empty notch', () => {
+    for (const o of orders(['A', 'B', 'C'])) {
+      const label = o.join('');
+      const doc = design(...o.map((n) => parts[n]));
+      expect(checkDesign(doc, limits(doc)), label).toEqual([]);
+      const { out } = allLaps(doc);
+      expect(out.skipped.map((s) => s.reason), label).toEqual(['moving C would drive it into A']);
+      expect(out.applied, label).toHaveLength(1);
+      expect(board(out.doc, 'C').cuts, label).toHaveLength(0);
+      expect(boxOf(board(out.doc, 'C')), label).toEqual(boxOf(board(doc, 'C')));
+      expect(board(out.doc, 'B').cuts, label).toHaveLength(1);
+      expect(board(out.doc, 'A').cuts, label).toHaveLength(1);
+      expect(boxOf(board(out.doc, 'B')).min[1], label).toBe(boxOf(board(out.doc, 'A')).min[1]);
+    }
+  });
+});
+
+describe('half-lap: a part partway down a deep drop blocks it (fu 185)', () => {
+  // D hangs off its stand at a height between C's start and C's lap plane:
+  // it neither butts C's moving face nor reaches the plane C lands in, so
+  // only the volume C sweeps on the way down meets it.
+  const doc = design(
+    { name: 'A', at: [0, 0, 9], size: [20, 0.75, 3] },
+    { name: 'B', at: [9, 0.75, -10], size: [3, 0.75, 30] },
+    { name: 'C', at: [0, 1.5, 16], size: [20, 0.75, 3] },
+    { name: 'Stand', at: [-3, 0, 16], size: [2.5, 0.75, 3] },
+    { name: 'D', at: [-3, 0.75, 16], size: [5, 0.65, 3] },
+  );
+
+  it('the input is sound; C\'s lap is refused for D before C moves, B\'s lap still lands', () => {
+    expect(checkDesign(doc, limits(doc))).toEqual([]);
+    const { out } = allLaps(doc);
+    expect(out.skipped.map((s) => s.reason)).toEqual(['moving C would drive it into D']);
+    expect(out.applied).toHaveLength(1);
+    expect(boxOf(board(out.doc, 'C'))).toEqual(boxOf(board(doc, 'C')));
+    expect(board(out.doc, 'C').cuts).toHaveLength(0);
+    expect(board(out.doc, 'B').cuts).toHaveLength(1);
+  });
+});
+
+describe('half-lap: a five-part grid, the top part lapping two partners (fu 185)', () => {
+  const doc = design(
+    { name: 'A1', at: [0, 0, 2], size: [20, 0.75, 3] },
+    { name: 'A2', at: [0, 0, 15], size: [20, 0.75, 3] },
+    { name: 'B1', at: [3, 0.75, 0], size: [3, 0.75, 20] },
+    { name: 'B2', at: [14, 0.75, 0], size: [3, 0.75, 20] },
+    { name: 'C', at: [0, 1.5, 8.5], size: [20, 0.75, 3] },
+  );
+  let out: ReturnType<typeof applyJoints>;
+  beforeAll(() => { out = allLaps(doc).out; });
+
+  it('the input is sound; all six laps applied, every part on the floor plane, C moved once', () => {
+    expect(checkDesign(doc, limits(doc))).toEqual([]);
+    expect(out.skipped).toEqual([]);
+    expect(out.applied).toHaveLength(6);
+    // All five in ONE plane AT the floor: a part dropped twice would sit
+    // below it, and the final re-lowering would then lift the rest off it.
+    for (const n of ['A1', 'A2', 'B1', 'B2', 'C']) expect(board(out.doc, n).position[1]).toBe(0);
+    expect(board(out.doc, 'C').cuts).toHaveLength(2);
+    for (const n of ['B1', 'B2']) expect(board(out.doc, n).cuts).toHaveLength(3);
+    expect(overlapsOf(out.doc)).toEqual([]);
+  });
+});
 
 describe('cuts move with their part: a rail tenoned at its far end first', () => {
   // The max-end leg is listed first, so its site comes first and the rail's
@@ -604,5 +727,89 @@ describe('run-out rule (joinery residual fix)', () => {
       { name: 'Right side', at: [30.75, 0, 0], size: [0.75, 71.25, 11.25] },
     );
     expect(overlapsOf(run(doc).doc)).toEqual([]);
+  });
+});
+
+describe('rabbet: parts on the panel\'s OUTER face are carried with it (fu 183)', () => {
+  // A 1/4in back behind two sides, entering on +Z. Whatever is fastened to its
+  // outer (-Z) face rides along by the same 1/4in, or it is left in the air.
+  const CASE: P[] = [
+    { name: 'LeftSide', at: [0, 0, 0], size: [0.75, 30, 12] },
+    { name: 'RightSide', at: [20.75, 0, 0], size: [0.75, 30, 12] },
+    { name: 'Back', at: [0, 0, -0.25], size: [21.5, 30, 0.25] },
+  ];
+  const run = (doc: SloydDocument) => { const sites = findSites(doc); return { sites, out: applyJoints(doc, sites, sites.map(rabbetPick(0.375))) }; };
+  const dz = (out: ReturnType<typeof applyJoints>, doc: SloydDocument, name: string) => board(out.doc, name).position[2] - board(doc, name).position[2];
+  const problemsFor = (d: SloydDocument, name: string) => checkDesign(d, limits(d)).filter((v) => v.parts?.includes(name)).map((v) => v.kind);
+
+  it('carries a cleat on the back exactly once, by t, still touching it', () => {
+    const doc = design(...CASE, { name: 'Cleat', at: [0.75, 26, -1], size: [20, 3, 0.75] });
+    expect(checkDesign(doc, limits(doc))).toEqual([]);
+    const { sites, out } = run(doc);
+    expect(sites.filter((s) => s.kind === 'face-against-edge')).toHaveLength(2);
+    expect(out.skipped).toEqual([]);
+    expect(dz(out, doc, 'Back')).toBe(0.25);
+    expect(dz(out, doc, 'Cleat')).toBe(0.25);
+    expect(boxOf(board(out.doc, 'Cleat')).max[2]).toBe(boxOf(board(out.doc, 'Back')).min[2]);
+    expect([...out.moved].sort()).toEqual(['Back', 'Cleat']);
+    expect(problemsFor(out.doc, 'Cleat')).toEqual([]);
+    expect(checkDesign(out.doc, limits(out.doc))).toEqual([]);
+  });
+
+  it('carries a two-deep chain: a spacer on the back, a rail on the spacer', () => {
+    const doc = design(...CASE,
+      { name: 'Spacer', at: [0.75, 26, -1], size: [20, 3, 0.75] },
+      { name: 'Rail', at: [0.75, 26, -1.75], size: [20, 3, 0.75] });
+    expect(checkDesign(doc, limits(doc))).toEqual([]);
+    const { out } = run(doc);
+    expect(out.skipped).toEqual([]);
+    expect(['Back', 'Spacer', 'Rail'].map((n) => dz(out, doc, n))).toEqual([0.25, 0.25, 0.25]);
+    expect([...out.moved].sort()).toEqual(['Back', 'Rail', 'Spacer']);
+    expect(checkDesign(out.doc, limits(out.doc))).toEqual([]);
+  });
+
+  // The cleat overhangs the back's top edge; a top flush with the back's outer
+  // face sits in the 1/4in the cleat would move through.
+  const SHELF: P = { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 12] };
+  const TOP: P = { name: 'Top', at: [0, 30, -0.25], size: [21.5, 0.75, 12.25] };
+  const HIGH_CLEAT: P = { name: 'Cleat', at: [0.75, 28, -1], size: [20, 3, 0.75] };
+
+  it('control: without the top in the way, the high cleat is carried and the shelf trimmed', () => {
+    const doc = design(...CASE, SHELF, HIGH_CLEAT);
+    expect(checkDesign(doc, limits(doc))).toEqual([]);
+    const { out } = run(doc);
+    expect(out.skipped).toEqual([]);
+    expect(dz(out, doc, 'Cleat')).toBe(0.25);
+    expect(board(out.doc, 'Shelf').width).toBe(11.75);
+  });
+
+  it('refuses a carry that would drive the cleat into the top, changing NOTHING', () => {
+    const doc = design(...CASE, SHELF, TOP, HIGH_CLEAT);
+    expect(checkDesign(doc, limits(doc))).toEqual([]);
+    const { sites, out } = run(doc);
+    const backSites = sites.filter((s) => s.kind === 'face-against-edge' && doc.boards[s.enter].name === 'Back');
+    expect(backSites.length).toBeGreaterThanOrEqual(2);
+    expect(out.skipped).toEqual(backSites.map((s) => ({ site: s.id, reason: 'moving Back would drive Cleat into Top' })));
+    expect(out.doc.boards).toEqual(doc.boards);
+    expect(out.trimmed).toEqual([]);
+    expect(out.moved).toEqual([]);
+  });
+
+  it('never carries the panel\'s OWN receivers on its other face', () => {
+    // A panel rabbeted into sides on BOTH faces: the +Z pair runs first and
+    // moves it away from the -Z pair, which butt its outer face but are its
+    // receivers, not parts fastened to it.
+    const doc = design(
+      { name: 'Panel', at: [0, 0, 0], size: [21.5, 30, 0.25] },
+      { name: 'LF', at: [0, 0, 0.25], size: [0.75, 30, 11.75] },
+      { name: 'RF', at: [20.75, 0, 0.25], size: [0.75, 30, 11.75] },
+      { name: 'LB', at: [0, 0, -12], size: [0.75, 30, 12] },
+      { name: 'RB', at: [20.75, 0, -12], size: [0.75, 30, 12] },
+    );
+    expect(checkDesign(doc, limits(doc))).toEqual([]);
+    const { sites, out } = run(doc);
+    expect(sites.filter((s) => s.kind === 'face-against-edge').map((s) => s.side).sort()).toEqual([-1, -1, 1, 1]);
+    expect(['Panel', 'LB', 'RB'].map((n) => dz(out, doc, n))).toEqual([0.25, 0, 0]);
+    expect(out.moved).toEqual(['Panel']);
   });
 });
