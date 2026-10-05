@@ -317,12 +317,14 @@ function rabbet(site: Site, boards: Board[], state: State, r: number): string | 
     // The outer-face chain, on the same axis and direction as the panel.
     const carried: number[] = [];
     const outer = (i: number) => buttingFace(boards, i, k, (-side) as -1 | 1, (j) => j === site.enter || receiver(j) || carried.includes(j));
-    for (const seed of outer(site.enter)) if (!carried.includes(seed)) carried.push(seed);
+    carried.push(...outer(site.enter));
     for (let n = 0; n < carried.length; n++) {
       for (const j of outer(carried[n])) if (!carried.includes(j)) carried.push(j);
     }
     // Refuse BEFORE any mutation. A part about to be trimmed counts at its
-    // trimmed size: it loses t on the face toward the panel.
+    // trimmed size: it loses t on the face toward the panel. (A carried part
+    // reaches at most the panel's old inner plane, so this differs from the
+    // untrimmed box only at TOUCH-scale interpenetration.)
     const afterTrim = (j: number): WorldBox => {
       const b = boxOf(boards[j]);
       if (!trims.includes(j)) return b;

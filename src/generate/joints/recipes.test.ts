@@ -784,4 +784,22 @@ describe('rabbet: parts on the panel\'s OUTER face are carried with it (fu 183)'
     expect(out.trimmed).toEqual([]);
     expect(out.moved).toEqual([]);
   });
+
+  it('never carries the panel\'s OWN receivers on its other face', () => {
+    // A panel rabbeted into sides on BOTH faces: the +Z pair runs first and
+    // moves it away from the -Z pair, which butt its outer face but are its
+    // receivers, not parts fastened to it.
+    const doc = design(
+      { name: 'Panel', at: [0, 0, 0], size: [21.5, 30, 0.25] },
+      { name: 'LF', at: [0, 0, 0.25], size: [0.75, 30, 11.75] },
+      { name: 'RF', at: [20.75, 0, 0.25], size: [0.75, 30, 11.75] },
+      { name: 'LB', at: [0, 0, -12], size: [0.75, 30, 12] },
+      { name: 'RB', at: [20.75, 0, -12], size: [0.75, 30, 12] },
+    );
+    expect(checkDesign(doc, limits(doc))).toEqual([]);
+    const { sites, out } = run(doc);
+    expect(sites.filter((s) => s.kind === 'face-against-edge').map((s) => s.side).sort()).toEqual([-1, -1, 1, 1]);
+    expect(['Panel', 'LB', 'RB'].map((n) => dz(out, doc, n))).toEqual([0.25, 0, 0]);
+    expect(out.moved).toEqual(['Panel']);
+  });
 });
