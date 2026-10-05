@@ -126,12 +126,13 @@ interface StoreState {
    *  - `addCut`/`updateCut`/`removeCut` reach the same survival test.
    *  - `deleteBoard` and `removeGuide` are owner-conditional, which is exactly
    *    point-precise there: neither owner offers any point afterward.
-   *  - `setTool`, `clearGuides`, `undo`, `redo` and `replaceDocument` clear it
-   *    blanket, and all five are defensible only because each nulls the ANCHOR
-   *    in the same statement. No anchor, no latch: TapeReadout renders nothing
-   *    without one and every commit path returns on it, so there is nothing
-   *    left to preserve. That is a property of those five statements, not a
-   *    licence to add a sixth.
+   *  - `setTool`, `clearGuides` and `replaceDocument` clear it blanket.
+   *    `undo` and `redo` do too, through `restore`, but only when the restored
+   *    document is a different object (invariant 43). Each is defensible only
+   *    because it nulls the ANCHOR in the same statement. No anchor, no latch:
+   *    TapeReadout renders nothing without one and every commit path returns
+   *    on it, so there is nothing left to preserve. That is a property of those
+   *    statements, not a licence to add another.
    */
   tapeHover: SnapPoint | null;
   setTapeHover: (point: SnapPoint | null) => void;
@@ -238,7 +239,8 @@ interface StoreState {
   /**
    * The hidden parts, insertion order, no duplicates (hide/unhide spec §2). View
    * state: never in the document, never saved, but in the undo history. Written
-   * ONLY by the four actions below, through `applyHidden`. A hidden part is
+   * by the four user actions below ONLY through `applyHidden`; `restore`,
+   * `replaceDocument` and `deleteBoards` merely reconcile it (invariant 43). A hidden part is
    * never selected: selectionPatch filters it out.
    */
   hiddenIds: string[];

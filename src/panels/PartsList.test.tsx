@@ -70,6 +70,15 @@ describe('PartsList hiding', () => {
     expect(screen.getByRole('button', { name: 'Show Board' })).toBeInTheDocument();
   });
 
+  it('the Show eye restores a hidden part', async () => {
+    threeParts();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Hide Board' }));
+    await user.click(screen.getByRole('button', { name: 'Show Board' }));
+    expect(useStore.getState().hiddenIds).toEqual([]);
+    expect(screen.getByRole('button', { name: 'Hide Board' })).toBeInTheDocument();
+  });
+
   it("a hidden row's name is disabled, and only its eye works", async () => {
     threeParts();
     const user = userEvent.setup();

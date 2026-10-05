@@ -2063,6 +2063,18 @@ describe('hide and unhide', () => {
     expect(st().past.length).toBe(before);
   });
 
+  it('redo keeps the hidden set in the entry it pushes to past', () => {
+    const { a, b } = three();
+    st().setHidden(a, true);
+    st().setHidden(b, true);
+    st().undo();
+    st().undo();
+    st().redo();
+    st().redo();
+    st().undo();
+    expect(st().hiddenIds).toEqual([a]);
+  });
+
   it('showAll empties the set; setHidden toggles one part; no duplicates', () => {
     const { a, c } = three();
     st().setHidden(c, true);

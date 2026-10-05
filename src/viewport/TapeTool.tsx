@@ -96,11 +96,11 @@ export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
   const downAt = useRef<{ x: number; y: number; pointerId: number } | null>(null);
 
   /**
-   * Every candidate: boards and guides alike, with no exclusions.
+   * Every candidate: boards and guides alike, except the points of hidden
+   * parts, which are not drawn (hide/unhide spec §3).
    *
-   * Unlike MoveTool this withholds nothing, in EITHER direction, except hidden parts, which are
-   * not drawn (hide/unhide spec §3). There is no
-   * self-snap case to exclude — measuring from one corner of a board to
+   * Unlike MoveTool this withholds nothing else, in EITHER direction. There is
+   * no self-snap case to exclude — measuring from one corner of a board to
    * another corner of the SAME board is an ordinary thing to want, and placing
    * a guide there is exactly what the tool is for — and there is no
    * selected-board restriction either, because the tape measures BETWEEN
@@ -114,7 +114,10 @@ export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
    * dado shoulder — half of what this round and the last one unlock together.
    */
   const candidates = useMemo(
-    () => [...visibleBoards(boards, hiddenIds).flatMap(snapPointsFor), ...(showGuides ? guideSnapPoints(guides) : [])],
+    () => [
+      ...visibleBoards(boards, hiddenIds).flatMap(snapPointsFor),
+      ...(showGuides ? guideSnapPoints(guides) : []),
+    ],
     [boards, hiddenIds, guides, showGuides],
   );
 

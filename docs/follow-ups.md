@@ -4378,13 +4378,12 @@ group ones.
 **213. `deleteBoards` reconciles `hiddenIds` in a second `set()` after `edit()`.** The entry
 `edit()` pushes already records the set as it was, so undo is right; but for one moment the
 document lacks the deleted parts while `hiddenIds` still names them. Harmless: every reader
-filters by id against the boards. Folding it into `edit()` would need an API change. The
-`hiddenIds` declaration comment in `store.ts` ("written ONLY by the four actions below") is
-loose for the same reason; invariant 43 states the writer rule precisely.
+filters by id against the boards. Folding it into `edit()` would need an API change.
 - **Status:** open, low, no data harm.
 
 **214. Small gaps the round judged fine to leave.** Record-only.
-- No PartsList test that the "Show <name>" eye restores a part; the store tests cover `setHidden`.
+- `HISTORY_LIMIT` (50) is shared: many eye toggles each push an undo entry and can push real
+  edits out of the history. Recorded, not changed.
 - `.part-row.hidden .part { cursor: default }` may duplicate the existing `button:disabled` rule.
   Unchecked.
 - TapeTool's candidates memo is a ~120-character one-liner. Cosmetic.
