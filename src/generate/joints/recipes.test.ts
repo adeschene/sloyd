@@ -3,17 +3,19 @@ import workbenchRaw from '../../document/fixtures/simple-workbench.sloyd?raw';
 import { designToDocument } from '../../document/generated';
 import { migrateDocument } from '../../document/document';
 import { checkDesign } from '../../document/designCheck';
-import { boardSolids, cutLabel, cutRegion } from '../../document/cuts';
-import type { Cut, SloydDocument } from '../../document/document';
+import { boardSolids, clippedRegion, cutLabel, cutRegion, cutsThatRemoveStock } from '../../document/cuts';
+import { buildCutList } from '../../document/cutlist';
+import { axisDimensions } from '../../document/geometry';
+import type { Board, Cut, SloydDocument } from '../../document/document';
 import { findSites } from './sites';
 import { defaultChoice } from './choose';
 import { applyJoints, tenonSection } from './recipes';
 import { boxOf } from './pocket';
 
-type P = { name: string; at: [number, number, number]; size: [number, number, number] };
+type P = { name: string; at: [number, number, number]; size: [number, number, number]; material?: string };
 const design = (...parts: P[]) => designToDocument({
   name: 'T',
-  parts: parts.map((p) => ({ name: p.name, material: 'oak', at: { x: p.at[0], y: p.at[1], z: p.at[2] }, size: { x: p.size[0], y: p.size[1], z: p.size[2] } })),
+  parts: parts.map((p) => ({ name: p.name, material: p.material ?? 'oak', at: { x: p.at[0], y: p.at[1], z: p.at[2] }, size: { x: p.size[0], y: p.size[1], z: p.size[2] } })),
 }).doc;
 const limits = (doc: SloydDocument) => ({ width: null, depth: null, height: null, maxParts: doc.boards.length });
 const board = (doc: SloydDocument, name: string) => doc.boards.find((b) => b.name === name)!;
@@ -811,5 +813,183 @@ describe('rabbet: parts on the panel\'s OUTER face are carried with it (fu 183)'
     expect(sites.filter((s) => s.kind === 'face-against-edge').map((s) => s.side).sort()).toEqual([-1, -1, 1, 1]);
     expect(['Panel', 'LB', 'RB'].map((n) => dz(out, doc, n))).toEqual([0.25, 0, 0]);
     expect(out.moved).toEqual(['Panel']);
+  });
+});
+
+// The void metric (follow-ups 182, 201). For every stock-removing cut, the
+// pocket it clips out of its board, in world space (invariant 2's min-corner
+// mapping, never solidWorldBox), less what every OTHER board's solids fill of
+// it. Every pocket is reported, including one that nothing fills at all, and a
+// negative remainder (two parts filling the same stock) is reported too.
+type WB = { min: number[]; max: number[] };
+type Span3 = Record<'length' | 'width' | 'thickness', [number, number]>;
+const worldOf = (b: Board, r: Span3): WB => {
+  const d = axisDimensions(b);
+  return { min: [0, 1, 2].map((k) => b.position[k] + r[d[k]][0]), max: [0, 1, 2].map((k) => b.position[k] + r[d[k]][1]) };
+};
+const vol = (a: WB) => [0, 1, 2].reduce((v, k) => v * Math.max(0, a.max[k] - a.min[k]), 1);
+const meet = (a: WB, b: WB): WB => ({ min: [0, 1, 2].map((k) => Math.max(a.min[k], b.min[k])), max: [0, 1, 2].map((k) => Math.min(a.max[k], b.max[k])) });
+const pocketsOf = (doc: SloydDocument) => doc.boards.flatMap((b, i) => cutsThatRemoveStock(b).map((c) => ({ i, b, c, at: worldOf(b, clippedRegion(b, c)) })));
+const voids = (doc: SloydDocument) => {
+  const solids = doc.boards.map((b) => boardSolids(b).map((s) => worldOf(b, s)));
+  return pocketsOf(doc).flatMap(({ i, b, c, at }) => {
+    let filled = 0;
+    solids.forEach((ss, j) => { if (j !== i) for (const s of ss) filled += vol(meet(at, s)); });
+    const empty = vol(at) - filled;
+    return Math.abs(empty) > 1e-9 ? [`${b.name} ${cutLabel(b, c)}: ${empty.toFixed(4)} in3 empty`] : [];
+  });
+};
+
+describe('the void metric', () => {
+  it('reports a pocket that nothing fills at all', () => {
+    const doc = design({ name: 'Side', at: [0, 0, 0], size: [0.75, 30, 11.25] });
+    const side = doc.boards[0];
+    side.cuts.push({ id: 'c1', face: 'thickness', from: 'max', across: 'width', offset: 10, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 });
+    expect(pocketsOf(doc)).toHaveLength(1);
+    expect(voids(doc)).toEqual([`Side dado: ${(0.75 * 0.25 * 11.25).toFixed(4)} in3 empty`]);
+  });
+});
+
+describe('a rabbeted panel is resolved as one unit, its final box first (fu 182)', () => {
+  // A cabinet: sides, a top and a bottom between them, a 1/4in back behind.
+  // Every back site is a rabbet. Cut per site against the back as it stood at
+  // that site, each side's rabbet ran the full height and the later top and
+  // bottom rabbets trimmed the back off its ends, leaving a 1/8in x 1/4in x
+  // 3/8in notch nothing filled at each corner, in some listing orders.
+  const CAB: P[] = [
+    { name: 'Left side', at: [0, 0, 0], size: [0.75, 30, 11.25] },
+    { name: 'Right side', at: [23.25, 0, 0], size: [0.75, 30, 11.25] },
+    { name: 'Top', at: [0.75, 29.25, 0], size: [22.5, 0.75, 11.25] },
+    { name: 'Bottom', at: [0.75, 0, 0], size: [22.5, 0.75, 11.25] },
+    { name: 'Back', at: [0, 0, -0.25], size: [24, 30, 0.25], material: 'plywood' },
+  ];
+  const listings = orders(CAB);
+  let runs: { doc: SloydDocument; sites: ReturnType<typeof findSites>; out: ReturnType<typeof applyJoints> }[];
+  beforeAll(() => {
+    runs = listings.map((parts) => { const doc = design(...parts); const sites = findSites(doc); return { doc, sites, out: withDefaults(doc) }; });
+  });
+
+  it('the input is sound, and the back is rabbeted into all four in every listing order', () => {
+    expect(listings).toHaveLength(120);
+    for (const { doc, sites } of runs) {
+      expect(checkDesign(doc, limits(doc))).toEqual([]);
+      const back = sites.filter((s) => doc.boards[s.enter].name === 'Back');
+      expect(back.map((s) => defaultChoice(s, doc, sites).joint)).toEqual(['rabbet', 'rabbet', 'rabbet', 'rabbet']);
+    }
+    // Both relative orders of Back->Top and Back->Left occur among the 120.
+    const topFirst = runs.map(({ doc, sites }) => {
+      const at = (n: string) => sites.findIndex((s) => doc.boards[s.enter].name === 'Back' && doc.boards[s.receive].name === n);
+      return at('Top') < at('Left side');
+    });
+    expect(new Set(topFirst)).toEqual(new Set([true, false]));
+  });
+
+  it('every order: nothing skipped, no overlap, and every pocket is completely filled', () => {
+    for (const { out } of runs) {
+      expect(out.skipped).toEqual([]);
+      expect(overlapsOf(out.doc)).toEqual([]);
+      expect(pocketsOf(out.doc).length).toBeGreaterThan(0);
+      expect(voids(out.doc)).toEqual([]);
+    }
+  });
+
+  it('every order ends with the same boxes and the same cuts, part by part', () => {
+    // A part's cuts land in site order, which follows the listing, so they are
+    // compared as a set; every number must still match exactly.
+    const settled = (d: SloydDocument) => Object.fromEntries(Object.entries(shapeOf(d))
+      .map(([n, { box, cuts }]) => [n, { box, cuts: cuts.map((c) => JSON.stringify(c)).sort() }]));
+    const first = settled(runs[0].out.doc);
+    for (const { out } of runs) expect(settled(out.doc)).toEqual(first);
+  });
+
+  it('the back moves 1/4in and is trimmed to all four rabbet lines at once', () => {
+    // Measured from the left side's min corner: designToDocument centres the piece.
+    const o = boxOf(board(runs[0].doc, 'Left side')).min;
+    const b = boxOf(board(runs[0].out.doc, 'Back'));
+    expect([b.min.map((v, k) => v - o[k]), b.max.map((v, k) => v - o[k])]).toEqual([[0.375, 0.375, 0], [23.625, 29.625, 0.25]]);
+  });
+
+  it('each side\'s back rabbet stops where the back ends, and prints as a stopped rabbet', () => {
+    const { doc, out } = runs[0];
+    const o = boxOf(board(doc, 'Left side')).min;
+    for (const name of ['Left side', 'Right side']) {
+      const side = board(out.doc, name);
+      const rabbets = side.cuts.filter((c) => cutLabel(side, c) === 'stopped rabbet');
+      expect(rabbets).toHaveLength(1);
+      const at = worldOf(side, clippedRegion(side, rabbets[0]));
+      expect([at.min[1] - o[1], at.max[1] - o[1], at.min[2] - o[2], at.max[2] - o[2]]).toEqual([0.375, 29.625, 0, 0.25]);
+    }
+    expect(buildCutList(out.doc).groups.flatMap((g) => g.rows).length).toBeGreaterThan(0);
+  });
+});
+
+describe('a bookcase with a raised bottom and a shelf leaves no voids (fu 182)', () => {
+  const BOOK: P[] = [
+    { name: 'Left side', at: [0, 0, 0], size: [0.75, 36, 11.25] },
+    { name: 'Right side', at: [23.25, 0, 0], size: [0.75, 36, 11.25] },
+    { name: 'Top', at: [0.75, 35.25, 0], size: [22.5, 0.75, 11.25] },
+    { name: 'Bottom', at: [0.75, 2, 0], size: [22.5, 0.75, 11.25] },
+    { name: 'Shelf', at: [0.75, 18, 0], size: [22.5, 0.75, 11.25] },
+    { name: 'Back', at: [0, 0, -0.25], size: [24, 36, 0.25], material: 'plywood' },
+  ];
+  const stoppedAt = (end: 'min' | 'max') => (d: SloydDocument) => {
+    const sites = findSites(d);
+    return applyJoints(d, sites, sites.map((s) => {
+      const at = s.kind === 'end-into-face' ? s.stopEnds.find((e) => e.axis === 2 && e.end === end) : undefined;
+      return at ? { site: s.id, joint: 'stopped-dado' as const, depth: 0.25, stopAt: at, inset: 0.75 } : defaultChoice(s, d, sites);
+    }));
+  };
+  const variants: [string, (d: SloydDocument) => ReturnType<typeof applyJoints>, number][] = [
+    ['the defaults', withDefaults, 0],
+    ['every housing a dado stopped at the back (-Z)', stoppedAt('min'), 6],
+    ['every housing a dado stopped at the front (+Z)', stoppedAt('max'), 6],
+  ];
+  for (const [label, join, stopped] of variants) {
+    it(`${label}: no skip, no overlap, every pocket completely filled`, () => {
+      const doc = design(...BOOK);
+      expect(checkDesign(doc, limits(doc))).toEqual([]);
+      const out = join(doc);
+      expect(out.applied.filter((a) => a.joint === 'stopped-dado')).toHaveLength(stopped);
+      expect(out.skipped).toEqual([]);
+      expect(overlapsOf(out.doc)).toEqual([]);
+      expect(voids(out.doc)).toEqual([]);
+    });
+  }
+});
+
+describe('a part in the rabbeted panel\'s path is trimmed by its intrusion (fu 201)', () => {
+  const CASE: P[] = [
+    { name: 'Left side', at: [0, 0, 0], size: [0.75, 30, 11.25] },
+    { name: 'Right side', at: [23.25, 0, 0], size: [0.75, 30, 11.25] },
+    { name: 'Top', at: [0.75, 29.25, 0], size: [22.5, 0.75, 11.25] },
+    { name: 'Bottom', at: [0.75, 0, 0], size: [22.5, 0.75, 11.25] },
+    { name: 'Back', at: [0, 0, -0.25], size: [24, 30, 0.25], material: 'plywood' },
+  ];
+
+  it('a shelf 1/8in short of the back loses exactly 1/8in, and nothing overlaps', () => {
+    const doc = design(...CASE, { name: 'Shelf', at: [0.75, 15, 0.125], size: [22.5, 0.75, 11.125] });
+    expect(checkDesign(doc, limits(doc))).toEqual([]);
+    const out = withDefaults(doc);
+    expect(out.skipped).toEqual([]);
+    expect(board(out.doc, 'Shelf').width).toBe(11);
+    expect(boxOf(board(out.doc, 'Shelf')).min[2] - boxOf(board(doc, 'Left side')).min[2]).toBe(0.25);
+    expect(out.trimmed).toContain('Shelf');
+    expect(overlapsOf(out.doc)).toEqual([]);
+    expect(voids(out.doc)).toEqual([]);
+  });
+
+  it('refuses a part the back would pass through: every back site skipped, NOTHING changed', () => {
+    // A 1/8in strip lying on the back's inner face: the back's 1/4in move would
+    // swallow it whole, so there is nothing left to trim it to.
+    const doc = design(...CASE, { name: 'Strip', at: [6, 10, 0], size: [4, 3, 0.125] });
+    expect(checkDesign(doc, limits(doc))).toEqual([]);
+    const sites = findSites(doc);
+    const out = applyJoints(doc, sites, sites.map(rabbetPick(0.375)));
+    const backSites = sites.filter((s) => s.kind === 'face-against-edge' && doc.boards[s.enter].name === 'Back');
+    expect(backSites).toHaveLength(4);
+    expect(out.skipped).toEqual(backSites.map((s) => ({ site: s.id, reason: 'moving Back would pass through Strip' })));
+    expect(out.doc.boards).toEqual(doc.boards);
+    expect(out.trimmed).toEqual([]);
+    expect(out.moved).toEqual([]);
   });
 });

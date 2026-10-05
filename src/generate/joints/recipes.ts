@@ -229,6 +229,7 @@ export function applyJoints(doc: SloydDocument, sites: Site[], choices: JointCho
     // is trimmed (Task 5).
     rabbetReceivers: new Set(sites.filter((s) => byId.get(s.id)?.joint === 'rabbet').map((s) => `${s.enter}->${s.receive}`)),
     halfLapPartners: new Set(sites.filter((s) => byId.get(s.id)?.joint === 'half-lap').map((s) => `${s.enter}->${s.receive}`)),
+    rabbetUnits: new Map(),
   };
 
   // Recipes that MOVE parts run first (spec §4.7, final review C1): a move
@@ -241,7 +242,9 @@ export function applyJoints(doc: SloydDocument, sites: Site[], choices: JointCho
   const lapFloor = (s: Site) => boxOf(doc.boards[s.enter]).min[s.axis];
   const ordered = [...sites].sort((a, b) => RANK[a.kind] - RANK[b.kind] ||
     (a.kind === 'crossing' && b.kind === 'crossing' ? a.axis - b.axis || lapFloor(a) - lapFloor(b) : 0));
+  const done = new Set<number>();
   for (const site of ordered) {
+    done.add(site.id);
     const c = byId.get(site.id);
     const joint: JointKind = c?.joint ?? 'butt';
     if (joint === 'butt') { applied.push({ site: site.id, joint }); continue; }
@@ -249,6 +252,15 @@ export function applyJoints(doc: SloydDocument, sites: Site[], choices: JointCho
     const R = boards[site.receive];
     const k = site.axis;
     const side = site.side;
+    // A panel's rabbet sites on one face were resolved together, at the first
+    // of them (follow-up 182): report each one's outcome when it comes up.
+    const unitKey = `${site.enter}|${k}|${side}`;
+    const resolved = joint === 'rabbet' ? state.rabbetUnits.get(unitKey)?.get(site.id) : undefined;
+    if (resolved !== undefined) {
+      if (resolved === null) applied.push({ site: site.id, joint });
+      else skipped.push({ site: site.id, reason: resolved });
+      continue;
+    }
     const panelAlreadyIn = (joint === 'rabbet' || joint === 'half-lap') && state.movedFace.get(site.enter) === `${k}|${side}`;
     const meets = joint === 'half-lap' ? lapStillMeets(E, R, k, side, panelAlreadyIn) : panelAlreadyIn || touching(E, R, k, side);
     if (!meets) {
@@ -259,8 +271,17 @@ export function applyJoints(doc: SloydDocument, sites: Site[], choices: JointCho
       case 'mortise-tenon': mortiseTenon(E, R, k, side, c!.tenonLength!); break;
       case 'dado': dado(E, R, k, side, c!.depth!); break;
       case 'stopped-dado': dado(E, R, k, side, c!.depth!, { at: c!.stopAt!, inset: c!.inset! }); break;
+      case 'rabbet': {
+        const unit = sites.filter((s) => s.id === site.id || (!done.has(s.id) && byId.get(s.id)?.joint === 'rabbet' &&
+          s.enter === site.enter && s.axis === k && s.side === side));
+        const outcome = rabbet(unit.map((s) => ({ site: s, r: byId.get(s.id)!.depth! })), boards, state);
+        state.rabbetUnits.set(unitKey, outcome);
+        const reason = outcome.get(site.id)!;
+        if (reason) { skipped.push({ site: site.id, reason }); continue; }
+        break;
+      }
       default: {
-        const blocked = rest(joint, site, boards, state, c!);
+        const blocked = rest(joint, site, boards, state);
         if (blocked) { skipped.push({ site: site.id, reason: blocked }); continue; }
       }
     }
@@ -284,92 +305,134 @@ export function applyJoints(doc: SloydDocument, sites: Site[], choices: JointCho
   };
 }
 
-type State = { moved: Set<string>; trimmed: Set<string>; movedFace: Map<number, string>; rabbetReceivers: Set<string>; halfLapPartners: Set<string> };
+type State = {
+  moved: Set<string>; trimmed: Set<string>; movedFace: Map<number, string>; rabbetReceivers: Set<string>; halfLapPartners: Set<string>;
+  /** "<panel>|<axis>|<side>" -> each of that unit's sites: null when applied, else why it was skipped. */
+  rabbetUnits: Map<string, Map<number, string | null>>;
+};
 
-function rest(joint: JointKind, site: Site, boards: Board[], state: State, c: JointChoice): string | null {
-  if (joint === 'rabbet') return rabbet(site, boards, state, c.depth!);
+function rest(joint: JointKind, site: Site, boards: Board[], state: State): string | null {
   if (joint === 'half-lap') return halfLap(site, boards, state);
   throw new Error(`applyJoints: unknown joint ${joint}`);
 }
 
 /**
  * Rabbet (spec §4.5). The panel moves ONCE toward its receivers by its own
- * thickness, and every OTHER part butting the face that moves is shortened by
- * the same amount first — otherwise the back drives into the shelves. Each
- * receiver gets a rabbet t deep from its edge and r in from its inner face,
- * and the panel is trimmed back to the rabbet line.
+ * thickness t; each receiver gets a rabbet t deep from its edge and r in from
+ * its inner face, and the panel is trimmed back to the rabbet line.
+ *
+ * All of one panel's rabbet sites on one face are ONE unit (follow-up 182),
+ * resolved from the panel's FINAL box: moved, then trimmed to EVERY
+ * receiver's rabbet line. Each pocket is cut against that box, so no pocket
+ * runs past where the panel ends. Cut site by site against the panel as it
+ * stood at that site, a side's rabbet ran the full height and a later top's
+ * rabbet trimmed the back off its end, leaving a notch nothing filled, in
+ * some listing orders and not others.
+ *
+ * Every OTHER part the final box would drive into is shortened on its face
+ * toward the panel by exactly the intrusion (follow-up 201): a part butting
+ * the panel loses t, one in the gap loses t minus the gap. One the panel would
+ * pass through, with nothing beyond the panel left to keep, refuses the unit.
  *
  * Parts on the panel's OUTER face ride along (follow-up 183): every part
  * butting it, then every part butting a carried part's outer face, moves by
- * the same t, or a cleat on the back is left in the air. A carry that would
- * drive a part into anything else refuses the site, and the refusal is decided
- * before anything is trimmed, moved or cut.
+ * the same t, or a cleat on the back is left in the air.
+ *
+ * Every refusal is decided before anything is trimmed, moved or cut, and
+ * skips every site of the unit.
  */
-function rabbet(site: Site, boards: Board[], state: State, r: number): string | null {
-  const E = boards[site.enter];
-  const R = boards[site.receive];
-  const k = site.axis;
-  const side = site.side;
+function rabbet(unit: { site: Site; r: number }[], boards: Board[], state: State): Map<number, string | null> {
+  const { enter: e, axis: k, side } = unit[0].site;
+  const E = boards[e];
   const t = E.thickness;
-  const faceKey = `${k}|${side}`;
-  const rb = boxOf(R);
+  const outcome = new Map<number, string | null>();
+  // A receiver an earlier joint moved away is no longer this unit's.
+  const members = unit.filter(({ site }) => {
+    const meets = touching(E, boards[site.receive], k, side);
+    if (!meets) outcome.set(site.id, `${E.name} no longer meets ${boards[site.receive].name} after an earlier joint`);
+    return meets;
+  });
+  const refuse = (reason: string) => { for (const { site } of members) outcome.set(site.id, reason); return outcome; };
+  const inUnit = (j: number) => members.some(({ site }) => site.receive === j);
+  // Any rabbet receiver of this panel, on either face: never trimmed, never carried.
+  const receiver = (j: number) => state.rabbetReceivers.has(`${e}->${j}`);
 
-  if (state.movedFace.get(site.enter) !== faceKey) {
-    const receiver = (j: number) => j === site.receive || state.rabbetReceivers.has(`${site.enter}->${j}`);
-    // Rabbet receivers of this panel keep their length; everyone else
-    // butting the moving face is shortened on that face.
-    const trims = buttingFace(boards, site.enter, k, side, receiver);
-    // The outer-face chain, on the same axis and direction as the panel.
-    const carried: number[] = [];
-    const outer = (i: number) => buttingFace(boards, i, k, (-side) as -1 | 1, (j) => j === site.enter || receiver(j) || carried.includes(j));
-    carried.push(...outer(site.enter));
-    for (let n = 0; n < carried.length; n++) {
-      for (const j of outer(carried[n])) if (!carried.includes(j)) carried.push(j);
-    }
-    // Refuse BEFORE any mutation. A part about to be trimmed counts at its
-    // trimmed size: it loses t on the face toward the panel. (A carried part
-    // reaches at most the panel's old inner plane, so this differs from the
-    // untrimmed box only at TOUCH-scale interpenetration.)
-    const afterTrim = (j: number): WorldBox => {
-      const b = boxOf(boards[j]);
-      if (!trims.includes(j)) return b;
-      return side === 1 ? withSpans(b, { [k]: [b.min[k] + t, b.max[k]] }) : withSpans(b, { [k]: [b.min[k], b.max[k] - t] });
-    };
-    for (const i of carried) {
-      const b = boxOf(boards[i]);
-      const there = withSpans(b, { [k]: [b.min[k] + side * t, b.max[k] + side * t] });
-      const other = boards.findIndex((_, j) => j !== site.enter && !carried.includes(j) && overlapsBeyondTouch(there, afterTrim(j)));
-      if (other !== -1) return `moving ${E.name} would drive ${boards[i].name} into ${boards[other].name}`;
-    }
-    for (const i of trims) {
-      resize(boards[i], k, (side === 1 ? -1 : 1) as -1 | 1, -t);
-      state.trimmed.add(boards[i].name);
-    }
-    for (const i of [site.enter, ...carried]) {
-      boards[i].position[k] += side * t;
-      state.moved.add(boards[i].name);
-    }
-    state.movedFace.set(site.enter, faceKey);
+  // The outer-face chain, on the same axis and direction as the panel.
+  const carried: number[] = [];
+  const outer = (i: number) => buttingFace(boards, i, k, (-side) as -1 | 1, (j) => j === e || receiver(j) || carried.includes(j));
+  carried.push(...outer(e));
+  for (let n = 0; n < carried.length; n++) {
+    for (const j of outer(carried[n])) if (!carried.includes(j)) carried.push(j);
   }
 
-  const P = side === -1 ? rb.max[k] : rb.min[k];
-  const kSpan: [number, number] = side === -1 ? [P - t, P] : [P, P + t];
-  const nAx = axisDimensions(R).indexOf('thickness');
-  const q = [0, 1, 2].find((a) => a !== k && a !== nAx)!;
-  const eb = boxOf(E);
-  const inner = (eb.min[nAx] + eb.max[nAx]) / 2 >= (rb.min[nAx] + rb.max[nAx]) / 2 ? 'max' : 'min';
-  const nSpan: [number, number] = inner === 'max' ? [rb.max[nAx] - r, rb.max[nAx]] : [rb.min[nAx], rb.min[nAx] + r];
-  const qSpan: [number, number] = [Math.max(eb.min[q], rb.min[q]), Math.min(eb.max[q], rb.max[q])];
-  R.cuts.push(pocketFor(R, withSpans(rb, { [k]: kSpan, [nAx]: nSpan, [q]: qSpan })));
+  // The panel's final box, and each receiver's pocket against it.
+  const start = boxOf(E);
+  const movedBox = withSpans(start, { [k]: [start.min[k] + side * t, start.max[k] + side * t] });
+  const fin: WorldBox = { min: [...movedBox.min] as V3, max: [...movedBox.max] as V3 };
+  const lines = members.map(({ site, r }) => {
+    const rb = boxOf(boards[site.receive]);
+    const nAx = axisDimensions(boards[site.receive]).indexOf('thickness');
+    const inner = (movedBox.min[nAx] + movedBox.max[nAx]) / 2 >= (rb.min[nAx] + rb.max[nAx]) / 2 ? 'max' : 'min';
+    const nSpan: [number, number] = inner === 'max' ? [rb.max[nAx] - r, rb.max[nAx]] : [rb.min[nAx], rb.min[nAx] + r];
+    if (inner === 'max' && movedBox.min[nAx] < nSpan[0] - 1e-9) fin.min[nAx] = Math.max(fin.min[nAx], nSpan[0]);
+    if (inner === 'min' && movedBox.max[nAx] > nSpan[1] + 1e-9) fin.max[nAx] = Math.min(fin.max[nAx], nSpan[1]);
+    return { site, rb, nAx, nSpan };
+  });
+  const pockets = lines.map(({ site, rb, nAx, nSpan }) => {
+    const P = side === -1 ? rb.max[k] : rb.min[k];
+    const kSpan: [number, number] = side === -1 ? [P - t, P] : [P, P + t];
+    const q = [0, 1, 2].find((a) => a !== k && a !== nAx)!;
+    const qSpan: [number, number] = [Math.max(fin.min[q], rb.min[q]), Math.min(fin.max[q], rb.max[q])];
+    return { R: boards[site.receive], box: withSpans(rb, { [k]: kSpan, [nAx]: nSpan, [q]: qSpan }) };
+  });
 
-  if (inner === 'max' && eb.min[nAx] < nSpan[0] - 1e-9) {
-    resize(E, nAx, -1, -(nSpan[0] - eb.min[nAx]));
-    state.trimmed.add(E.name);
-  } else if (inner === 'min' && eb.max[nAx] > nSpan[1] + 1e-9) {
-    resize(E, nAx, 1, -(eb.max[nAx] - nSpan[1]));
-    state.trimmed.add(E.name);
+  // The trims: whatever else the final box drives into, by the intrusion on k.
+  const trims = new Map<number, number>();
+  for (let j = 0; j < boards.length; j++) {
+    if (j === e || receiver(j) || carried.includes(j)) continue;
+    const b = boxOf(boards[j]);
+    if (!overlapsBeyondTouch(fin, b)) continue;
+    const depth = side === 1 ? fin.max[k] - b.min[k] : b.max[k] - fin.min[k];
+    if (depth >= b.max[k] - b.min[k] - 1e-9) return refuse(`moving ${E.name} would pass through ${boards[j].name}`);
+    trims.set(j, depth);
   }
-  return null;
+  // A part is judged where it will be: a trimmed one at its trimmed size.
+  const judged = (j: number): WorldBox => {
+    const b = boxOf(boards[j]);
+    const d = trims.get(j);
+    if (d === undefined) return b;
+    return side === 1 ? withSpans(b, { [k]: [b.min[k] + d, b.max[k]] }) : withSpans(b, { [k]: [b.min[k], b.max[k] - d] });
+  };
+  const hit = (box: WorldBox, skip: (j: number) => boolean) =>
+    boards.findIndex((_, j) => !skip(j) && overlapsBeyondTouch(box, judged(j)));
+  for (const i of carried) {
+    const b = boxOf(boards[i]);
+    const other = hit(withSpans(b, { [k]: [b.min[k] + side * t, b.max[k] + side * t] }), (j) => j === e || carried.includes(j));
+    if (other !== -1) return refuse(`moving ${E.name} would drive ${boards[i].name} into ${boards[other].name}`);
+  }
+  // The panel moves into its receivers' rabbets on purpose; nothing else may
+  // be left in its way. With the trims above this cannot fire on boxes; it is
+  // the backstop if trim detection and the judged geometry ever disagree.
+  const other = hit(fin, (j) => j === e || inUnit(j) || carried.includes(j));
+  if (other !== -1) return refuse(`moving ${E.name} would drive it into ${boards[other].name}`);
+  const cuts = pockets.map(({ R, box }) => pocketFor(R, box));
+
+  for (const [j, d] of trims) {
+    resize(boards[j], k, (side === 1 ? -1 : 1) as -1 | 1, -d);
+    state.trimmed.add(boards[j].name);
+  }
+  for (const i of [e, ...carried]) {
+    boards[i].position[k] += side * t;
+    state.moved.add(boards[i].name);
+  }
+  for (let a = 0; a < 3; a++) {
+    if (fin.min[a] > movedBox.min[a]) { resize(E, a, -1, -(fin.min[a] - movedBox.min[a])); state.trimmed.add(E.name); }
+    if (fin.max[a] < movedBox.max[a]) { resize(E, a, 1, -(movedBox.max[a] - fin.max[a])); state.trimmed.add(E.name); }
+  }
+  pockets.forEach(({ R }, n) => R.cuts.push(cuts[n]));
+  state.movedFace.set(e, `${k}|${side}`);
+  for (const { site } of members) outcome.set(site.id, null);
+  return outcome;
 }
 
 /**
