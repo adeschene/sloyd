@@ -260,6 +260,9 @@ export function Gizmo() {
   const selectionKey = selected.map((b) => b.id).join('|');
   const proxy = useRef<THREE.Object3D>(new THREE.Object3D());
   const dragging = useRef(false);
+  // True from a mid-drag selection change until the mouse comes up. See the
+  // effect that sets it.
+  const abandoned = useRef(false);
   // Typed as the real drei ref target so it satisfies <TransformControls ref>;
   // narrowed to ControlsInternals only at the point stabilizeTranslateGizmo
   // touches it, since that's the only internal surface this file relies on.
@@ -284,6 +287,24 @@ export function Gizmo() {
     if (!controls) return;
     return stabilizeTranslateGizmo(controls as unknown as ControlsInternals, { boardMaxExtent });
   }, [selectionKey, camera]);
+
+  // A selection change mid-drag ENDS the drag. Ctrl/Cmd+A or Delete can land
+  // while an arrow is held. With one part selected the old code got this by
+  // unmounting (`board` became undefined), but a group keeps a target, so the
+  // controls stay mounted and would keep dragging a proxy positioned for the
+  // OLD selection while `commit` read the NEW selection's size and ids. The
+  // parts would jump by the difference between the two centres. So: end the
+  // gesture here, the same endGesture path as Routes 1 and 2 below (invariant
+  // 4), and mark the drag abandoned so `commit` and `onMouseUp` ignore the rest
+  // of it. Declared BEFORE the proxy sync so `dragging` is already false when
+  // that effect runs for the same selection change and re-centres the proxy.
+  // Runs only when the key changes; on mount `dragging` is false.
+  useEffect(() => {
+    if (!dragging.current) return;
+    dragging.current = false;
+    abandoned.current = true;
+    useStore.getState().endGesture();
+  }, [selectionKey]);
 
   // Keep the invisible proxy object in step with the document. The gizmo drags
   // the proxy; the document is what the drag ultimately writes to.
@@ -337,6 +358,7 @@ export function Gizmo() {
   if (!center || !size) return null;
 
   const commit = () => {
+    if (abandoned.current) return;
     const p = proxy.current.position;
     if (board) {
       const extents = boardExtents(board);
@@ -372,9 +394,18 @@ export function Gizmo() {
         object={proxy.current}
         mode="translate"
         translationSnap={SNAP_INCHES}
-        onMouseDown={() => { dragging.current = true; useStore.getState().beginGesture(); }}
+        onMouseDown={() => { abandoned.current = false; dragging.current = true; useStore.getState().beginGesture(); }}
         onObjectChange={commit}
-        onMouseUp={() => { dragging.current = false; commit(); useStore.getState().endGesture(); }}
+        onMouseUp={() => {
+          if (abandoned.current) {
+            // The gesture already ended at the selection change. Commit nothing,
+            // and put back the proxy the controls kept moving after that.
+            abandoned.current = false;
+            proxy.current.position.set(...center);
+            return;
+          }
+          dragging.current = false; commit(); useStore.getState().endGesture();
+        }}
       />
     </>
   );
