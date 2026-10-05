@@ -159,3 +159,79 @@ describe('DimensionField', () => {
     expect(input.value).toBe('19-1/4"');
   });
 });
+
+describe('DimensionField — mixed (value null)', () => {
+  it('shows an empty box with a "mixed" placeholder', () => {
+    const { input } = setup({ value: null });
+    expect(input.value).toBe('');
+    expect(input).toHaveAttribute('placeholder', 'mixed');
+  });
+
+  it('a field with a value has no placeholder', () => {
+    const { input } = setup();
+    expect(input).not.toHaveAttribute('placeholder');
+  });
+
+  // Review Focus 3. THE TRAP (invariant 5): committing here would set every
+  // selected part to one value, silently. Asserts the error state too: with
+  // the dirty guard deleted, blur commits '' — parseLength('') is null — so
+  // "no onCommit" alone would survive that mutation.
+  it('writes NOTHING when focused and blurred untouched, and shows no error', async () => {
+    const { onCommit, input } = setup({ value: null });
+    await userEvent.click(input);
+    await userEvent.tab();
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(input.value).toBe('');
+    expect(input).toHaveAttribute('aria-invalid', 'false');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  // The case where a deleted dirty guard really WRITES: a shared field is
+  // focused, an external change makes the parts differ while it holds focus
+  // (the adopt effect skips while editing), and it blurs untouched. Without
+  // the guard, blur commits the stale "1-1/2" text, 1.5 !== null, and every
+  // part is set to 1.5. This is invariant 5's original failure mode, arriving
+  // through the mixed state.
+  it('writes nothing when a focused field turns mixed under it and then blurs untouched', async () => {
+    const onCommit = vi.fn();
+    const { rerender } = render(<DimensionField label="Length" value={1.5} onCommit={onCommit} />);
+    const input = screen.getByLabelText('Length') as HTMLInputElement;
+    await userEvent.click(input);
+    rerender(<DimensionField label="Length" value={null} onCommit={onCommit} />);
+    await userEvent.tab();
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(input.value).toBe('');
+  });
+
+  it('writes nothing on Enter when untouched', async () => {
+    const { onCommit, input } = setup({ value: null });
+    await userEvent.click(input);
+    await userEvent.keyboard('{Enter}');
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('commits a typed value', async () => {
+    const { onCommit, input } = setup({ value: null });
+    await userEvent.type(input, '3/4');
+    await userEvent.tab();
+    expect(onCommit).toHaveBeenCalledWith(0.75);
+  });
+
+  it('Escape reverts a draft to the empty mixed box', async () => {
+    const { onCommit, input } = setup({ value: null });
+    await userEvent.type(input, '3/4{Escape}');
+    expect(input.value).toBe('');
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it('adopts an external change from mixed to a value and back', () => {
+    const onCommit = vi.fn();
+    const { rerender } = render(<DimensionField label="Length" value={null} onCommit={onCommit} />);
+    const input = screen.getByLabelText('Length') as HTMLInputElement;
+    rerender(<DimensionField label="Length" value={2} onCommit={onCommit} />);
+    expect(input.value).toBe('2"');
+    rerender(<DimensionField label="Length" value={null} onCommit={onCommit} />);
+    expect(input.value).toBe('');
+  });
+});

@@ -3,7 +3,14 @@ import { formatLength, parseLength } from '../units/length';
 
 interface Props {
   label: string;
-  value: number;
+  /**
+   * The stored value, or null for MIXED: several parts are being edited and
+   * they differ (multi-select spec §4.4). Mixed shows an empty box with a
+   * `mixed` placeholder. The untouched-blur guard below is what makes it
+   * safe — committing a mixed field nobody typed in would set every part to
+   * one value, silently (invariant 5).
+   */
+  value: number | null;
   onCommit: (inches: number) => void;
   /** Positions may be negative; dimensions may not. */
   allowNegative?: boolean;
@@ -22,7 +29,10 @@ export const DimensionField = forwardRef<HTMLInputElement, Props>(function Dimen
   label, value, onCommit, allowNegative = false, min, max, precision = 16,
 }: Props, forwardedRef) {
   const id = useId();
-  const [text, setText] = useState(() => formatLength(value, precision));
+  // The one formatter for `value`, so every resync path — initial state, the
+  // adopt effect, the untouched-blur resync, Escape — handles mixed alike.
+  const display = (v: number | null) => (v === null ? '' : formatLength(v, precision));
+  const [text, setText] = useState(() => display(value));
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const editing = useRef(false);
@@ -36,7 +46,7 @@ export const DimensionField = forwardRef<HTMLInputElement, Props>(function Dimen
   // Adopt external changes (gizmo drags, undo) unless the user is mid-edit.
   useEffect(() => {
     if (!editing.current) {
-      setText(formatLength(value, precision));
+      setText(display(value));
       dirty.current = false;
       // An external change (gizmo drag, undo) supersedes whatever the user
       // was looking at, including a stale validation error from a previous
@@ -84,6 +94,7 @@ export const DimensionField = forwardRef<HTMLInputElement, Props>(function Dimen
         id={id}
         ref={inputRef}
         value={text}
+        placeholder={value === null ? 'mixed' : undefined}
         aria-invalid={error ? 'true' : 'false'}
         className={error ? 'input invalid' : 'input'}
         onFocus={() => { editing.current = true; }}
@@ -104,7 +115,7 @@ export const DimensionField = forwardRef<HTMLInputElement, Props>(function Dimen
           // editing.current goes false, so nothing else will ever resync
           // the display. Do that here, without committing.
           if (!dirty.current) {
-            setText(formatLength(value, precision));
+            setText(display(value));
             setError(null);
             return;
           }
@@ -116,7 +127,7 @@ export const DimensionField = forwardRef<HTMLInputElement, Props>(function Dimen
             reverting.current = true;
             dirty.current = false;
             setError(null);
-            setText(formatLength(value, precision));
+            setText(display(value));
             editing.current = false;
             (e.target as HTMLInputElement).blur();
           }
