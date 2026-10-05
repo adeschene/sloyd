@@ -276,7 +276,7 @@ and 79.
 
 **What the joinery fixes round did (2026-10-05)**: follow-ups 190, 185, 183 and 184, no spec (the
 user ruled the design in chat: 183 = outer-face chain, 190 = defaults only, no prompt change). No
-schema change. On branch `joinery-fixes`, not yet merged or deployed.
+schema change. Merged as `c31dd82` and deployed 2026-10-05 (`index-BzWa2ZGT.js`).
 
 - **190:** default tenons from opposite faces of one receiver are capped at down(depth/2 − 1/32)
   (13/16″ each in a 1-3/4″ post), combined with the adjacent cap by `min`. Unit-verified only: the
