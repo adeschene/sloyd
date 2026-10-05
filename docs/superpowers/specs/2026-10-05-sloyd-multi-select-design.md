@@ -50,8 +50,9 @@ Every existing writer of `selectedId` becomes a writer of `selectedIds` with the
   and a group duplicate selects the copies);
 - `deleteBoard` removes the deleted ids from the list;
 - `commitSnapMove` keeps the moved parts selected;
-- `undo`, `redo` and `replaceDocument` keep only the ids that still exist (today they keep
-  `selectedId` only when it still exists).
+- `undo` and `redo` keep only the ids that still exist (today they keep `selectedId` only when it
+  still exists). `replaceDocument` keeps clearing the selection, as it does today: a replaced
+  document is a different project. *(Corrected 2026-10-05 from the code while planning.)*
 
 ## 3. Selecting
 
@@ -64,7 +65,8 @@ Every existing writer of `selectedId` becomes a writer of `selectedIds` with the
   missed Shift-click does not wipe a selection built up over many clicks. This is still gated to
   the Select tool, as `onPointerMissed` is today.
 - Every selected part draws as selected.
-- `f` frames the whole selection; with nothing selected it frames everything, as today.
+- `f` frames the whole selection; with nothing selected it does nothing, as today (`Home` frames
+  everything). *(Corrected 2026-10-05 from the code while planning.)*
 
 **Parts list** (`PartsList.tsx`): the same rules (plain click selects one; Shift or Ctrl/Cmd toggles),
 and every selected row is marked selected.
