@@ -4035,6 +4035,16 @@ small voids where the top and bottom meet the sides (0.023 in³ per joint, uncha
 - **Update 2026-10-04 (cut words round):** the WORD half is gone. "Open" now means no stock left
   (`openSides`), so the default housing that runs out into the back rabbet prints as a plain
   `dado`. The voids in the back-stopped case remain; **status: open, low** for that half.
+- **Status:** CLOSED 2026-10-05 by the joinery residues round (branch `joinery-residues`). The voids
+  were one root cause, ORDER: each rabbet site cut its receiver's pocket against the panel as it
+  stood at that site, so a side's rabbet ran full height and a later top/bottom rabbet trimmed the
+  back off its end, leaving an unfilled pocket (in the cabinet 1/8 × 1/4 × 3/8in, 0.0117 in³ a
+  corner). It also hit the cabinet live-checked in the joinery fixes round, the drawer (0.0078 in³
+  a side) and the 72in bookcase (0.0234 in³ a side), and
+  `checkDesign` cannot see it. A panel's rabbet sites on one face are now ONE unit, resolved from
+  its FINAL box (moved, then trimmed to every receiver's rabbet line), and every pocket is cut
+  against that box: zero voids in all 120 listing orders of the cabinet and in the bookcase with
+  default, −Z and +Z stopped housings. The sides now print `stopped rabbet` (user-accepted).
 
 **183. A part on the panel's OUTER face is left floating after a rabbet.** The rabbet moves the
 panel toward its receivers by its own thickness; anything fastened to the panel's outer face (a
@@ -4066,6 +4076,12 @@ themselves. A stack needs the drops computed together, or the upper part dropped
   Harmless today; worth a separator that cannot appear in a name.
 - A joinery move (a rabbet's panel, a half-lap's drop) can raise a NEW `tips`, which is then
   blamed on the joinery. See 176/177 for the limits of `tips` itself.
+- **Status:** CLOSED 2026-10-05 by the joinery residues round (branch `joinery-residues`).
+  `problemKey` is now `JSON.stringify([kind, sortedParts])`, so no part name can collide with a
+  pair. The 1/8in slot was NOT reproduced: the inset-back fixture was clean on master and still is.
+  Its description matches the shape of 182's 1/8in-wide pocket, which is gone, but that is not
+  evidence it was the same thing. The blamed `tips` is closed by decision, the user's ruling: the
+  joinery caused it, so blaming the joinery is correct.
 
 **187. On growth, a cut that runs out at the moving end keeps running out — an amendment to
 §4.7 that NEEDS THE USER'S RATIFICATION.** The final review ruled that `resize` rebases a part's
@@ -4100,6 +4116,15 @@ tenon's cross-section inside the same part. Three recorded limits: the cap round
 (so rounding cannot eat the clearance); when the cap falls below the range's 1/2in floor, the clamp
 wins and the two tenons still meet, which the check then reports; and the cap ignores how far the
 OTHER tenon actually reaches, so it can shorten a tenon whose neighbour is too short to meet it.
+- **Status:** CLOSED 2026-10-05 by the joinery residues round (branch `joinery-residues`), the
+  user's ruling, defaults only: a cap under the 1/2in range floor no longer loses to it. The
+  default's floor drops to 1/4in, and a cap under 1/4in makes the site a butt. Measured overlaps
+  that motivated it, on the old defaults: opposite rails into a 3/4in post 1/4in, a 7/8in post
+  1/8in; adjacent corner legs 7/8in 3/16in, 1in 1/8in, 1-1/8in 1/16in. Now each gets 5/16, 3/8
+  (opposite) and 1/4, 5/16, 3/8 (adjacent), pinned exactly; a 3/4in corner leg butts. The model's
+  range and the prompt are unchanged; a model tenon with NO length at a butt-default site takes
+  the default choice (butt) with a note rather than the 1/2in floor. The third limit (the cap
+  ignores how far the other tenon reaches) stands: it only shortens.
 
 **189. A shelf housing closed at both ends prints as "mortise".** This was seen live on a
 generated bookcase, whose back panel sat between the sides.
@@ -4134,7 +4159,10 @@ remaining-rectangle split compares the cuts' span edges with `===`.
   uncovered cells. The tenon goes unrecognised and prints as shoulder lines.
 - **Reach:** recipe output is unaffected. Its spans come from one box, and its shoulders overlap
   the cheeks rather than abut them. Not reachable through joinery.
-- **Status:** open, low.
+- **Status:** CLOSED 2026-10-05 by the joinery residues round (branch `joinery-residues`):
+  `remainingRectangle` merges breakpoints within `FLUSH_EPSILON` (invariant 22's rule; stored
+  values stay exact), and one merged into the far end is the end itself. Cheek halves 1e-12 apart
+  now read as a tenon; a real 0.01in gap still does not.
 
 ## From the cut words amendment — 2026-10-04
 
@@ -4219,11 +4247,18 @@ the new end, while a cut flush on the position axis does not move, so re-storing
 parts it carries, but the panel's own shift toward its receivers is not tested against other parts,
 and a carry can raise a new `tips` that is then blamed on joinery (compare 186).
 - **Status:** open, low. Needs a design call on what a refusal of the panel's own move should say.
+- **Status:** CLOSED 2026-10-05 by the joinery residues round (branch `joinery-residues`), the
+  user's ruling: a part in the panel's path is TRIMMED by the intrusion (a part butting the panel
+  loses t, one in the gap loses t minus the gap; reproduced with a shelf 1/8in short of the back,
+  which the back drove 1/8in into). One the panel would pass through refuses the unit, and the
+  panel's own final box is checked against everything else before anything changes. A carry
+  raising `tips` is closed by decision with 186's: joinery caused it.
 
 **202. A re-ground that LIFTS reports `lowered` 0.** `JoinResult.lowered` is the distance dropped;
 a negative re-ground (a lift) reports 0 and the dialog says nothing.
 - **Reach:** no path found that reaches it (a rabbet only ever lowers the piece). Recorded so it is
   not rediscovered as a silent dialog.
+- **Status:** CLOSED 2026-10-05 by decision, the user's ruling, with no code: unreachable.
 
 **203. The two new blockers compare BOXES, not solids (invariant 38).** The 183 carry blocker and the
 185 half-lap sweep use `overlapsBeyondTouch` on boxes. A design that arrives already cut (hand-made,
@@ -4232,6 +4267,14 @@ or Add joinery run on a joined project) can be refused falsely.
   refusal is safe and reported as a skip with its reason.
 - **Pre-existing, recorded only:** `halfLap`'s defensive guard still returns after E has moved (argued
   unreachable), and `movedFace` holds one face per part, so a mixed-axis lap set is not tracked per axis.
+- **Status:** CLOSED 2026-10-05 by the joinery residues round (branch `joinery-residues`). Every
+  blocker, trim and the pass-through test judge SOLIDS on both sides, through the one exported
+  `worldSolids` (designCheck.ts); a moved or trimmed part is its solids shifted or clipped, never a
+  box again. The half-lap plane guard is judged on E where it would land, before it moves.
+  `movedFace` is keyed per (part, axis). Compute-phase pre-checks (`cutIntoEnd`, rebaseCuts' own
+  throwing condition) replace rebaseCuts throws for the trims, the panel's own trim and, from the
+  final review, tenon and dado growth into an end already cut (a skip with a reason; it threw on
+  master too, after a paid call).
 
 **204. Surviving mutations from the round, recorded rather than chased.** Each is unobservable by
 construction, not untested by oversight.
@@ -4242,3 +4285,40 @@ construction, not untested by oversight.
 - **M6, judging carried parts at their PRE-trim box:** differs from the post-trim box only at TOUCH-scale interpenetration, which `design()`'s 1/16 snap cannot produce.
 - **The `lowered` epsilon (1e-9):** a zero drop yields 0 either way; the guard matters only for float noise.
 (M7, the receiver exclusion in the carry walk, does NOT survive: the final review showed it reachable through a two-faced panel and a test now pins it.)
+- **Update 2026-10-05 (joinery residues round):** closed by decision as a record. Two lines above
+  are now killed: judging trimmed parts at their PRE-trim box (the `M6` line) fails 12 rabbet tests
+  through the solids final-box check, and the rabbet panel's solids NOT clipped to its final box
+  (that round's `M7`, a different mutation from the carry-walk one above) fails the overhang probe.
+  Current survivors, re-run against the round's head:
+  - **The rabbet unit's no-longer-touching member filter:** only a crossing moving a receiver off
+    the panel's face reaches it, and no sound fixture does.
+  - **The empty-members guard:** needs a half-lap and a rabbet on the same panel, axis and side.
+  - **`delta` recomputed when E is already in its lap plane:** alignment is idempotent (the
+    `movedFace` guard line above).
+  - **`clipped` keeping zero-volume solids:** a zero-volume box never overlaps beyond TOUCH.
+  - **`movedFace` reverted to one key per part:** crossings sort by axis and rabbets run after
+    them, so a lap on another axis never sits between two lookups on one axis (full suite green).
+  (The final-box check moved below the mutations, a survivor when trims judged boxes, is now
+  killed by the receiver-standing-off control.)
+
+## From the joinery residues round — 2026-10-05
+
+**205. A refusal to cut into an end depends on how the existing cut is STORED.** `cutIntoEnd`
+(recipes.ts) asks rebaseCuts' throwing condition, `face === d && from === end`, which reads the
+stored form, not the shape that follow-up 199 made the rest of `rebaseCuts` read. It gates the
+rabbet trims (a receiving cut that makes only part of the room), the panel's own trim, and tenon
+and dado growth.
+- **Probed:** a shelf's 1/2 × 1/2in corner notch at its far end, stored with its depth along the
+  length (`face: 'length', from: 'max'`), skips the far dado. The same notch stored with its depth
+  on the width face joins: rebaseCuts treats it as positioned at the end, so it stays put in the
+  world, the shelf grows past it and it reads `dado`, with no overlap.
+- **Reach:** hand-made cuts at the end of a part that a joint grows or trims. Conservative either
+  way: a refusal is a skip with a reason, never wrong geometry.
+- **Status:** open, low. A shape-based rule would need to say what growing into an end-notch means.
+
+**206. The half-lap partners-coplanar check ignores axis.** `halfLap` gathers all of E's half-lap
+partners, on any axis, and requires them to share one plane on k. That partly undercuts `movedFace`
+being per (part, axis), which exists so a part lapped on two axes is tracked on each.
+- **Reach:** no reaching path found; crossings sort by axis, and a part lapped on two axes with
+  partners in different planes is refused, which is safe.
+- **Status:** open, low.
