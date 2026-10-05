@@ -291,6 +291,7 @@ function GroupProperties() {
   const updateBoards = useStore((s) => s.updateBoards);
   const deleteBoards = useStore((s) => s.deleteBoards);
   const duplicateBoards = useStore((s) => s.duplicateBoards);
+  const hideUnselected = useStore((s) => s.hideUnselected);
   const boards = useMemo(
     () => selectedIds.flatMap((id) => allBoards.filter((b) => b.id === id)),
     [allBoards, selectedIds],
@@ -341,6 +342,7 @@ function GroupProperties() {
 
       <div className="row">
         <button onClick={() => duplicateBoards(selectedIds)}>Duplicate</button>
+        <button onClick={hideUnselected}>Hide others</button>
         <button className="danger" onClick={() => deleteBoards(selectedIds)}>Delete</button>
       </div>
     </div>
@@ -355,6 +357,7 @@ export function Properties() {
   const updateBoard = useStore((s) => s.updateBoard);
   const deleteBoard = useStore((s) => s.deleteBoard);
   const duplicateBoard = useStore((s) => s.duplicateBoard);
+  const hideUnselected = useStore((s) => s.hideUnselected);
   const addCut = useStore((s) => s.addCut);
   const lengthRef = useRef<HTMLInputElement>(null);
 
@@ -476,6 +479,7 @@ export function Properties() {
 
       <div className="row">
         <button onClick={() => duplicateBoard(board.id)}>Duplicate</button>
+        <button onClick={hideUnselected}>Hide others</button>
         <button className="danger" onClick={() => deleteBoard(board.id)}>Delete</button>
       </div>
     </div>

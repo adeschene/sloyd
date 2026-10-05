@@ -11,6 +11,14 @@ const HISTORY_LIMIT = 50;
  */
 export type ToolMode = 'select' | 'move' | 'tape';
 
+/**
+ * One undo step: the document AND the hidden set as they were (hide/unhide
+ * spec §2.1). Hidden-ness is view state, never saved, but it IS undone, so a
+ * Ctrl+Z after H shows the parts again. A hide's entry holds the SAME document
+ * object, so nothing is copied and autosave does not fire.
+ */
+export interface HistoryEntry { doc: SloydDocument; hiddenIds: string[] }
+
 interface StoreState {
   doc: SloydDocument;
   /**
@@ -22,8 +30,8 @@ interface StoreState {
    * `selectionPatch` below.
    */
   selectedIds: string[];
-  past: SloydDocument[];
-  future: SloydDocument[];
+  past: HistoryEntry[];
+  future: HistoryEntry[];
   /**
    * One-shot signal: the Length field should take focus the next time the
    * Properties panel mounts for the selected board. Set by addBoard() only —
@@ -118,12 +126,13 @@ interface StoreState {
    *  - `addCut`/`updateCut`/`removeCut` reach the same survival test.
    *  - `deleteBoard` and `removeGuide` are owner-conditional, which is exactly
    *    point-precise there: neither owner offers any point afterward.
-   *  - `setTool`, `clearGuides`, `undo`, `redo` and `replaceDocument` clear it
-   *    blanket, and all five are defensible only because each nulls the ANCHOR
-   *    in the same statement. No anchor, no latch: TapeReadout renders nothing
-   *    without one and every commit path returns on it, so there is nothing
-   *    left to preserve. That is a property of those five statements, not a
-   *    licence to add a sixth.
+   *  - `setTool`, `clearGuides` and `replaceDocument` clear it blanket.
+   *    `undo` and `redo` do too, through `restore`, but only when the restored
+   *    document is a different object (invariant 43). Each is defensible only
+   *    because it nulls the ANCHOR in the same statement. No anchor, no latch:
+   *    TapeReadout renders nothing without one and every commit path returns
+   *    on it, so there is nothing left to preserve. That is a property of those
+   *    statements, not a licence to add another.
    */
   tapeHover: SnapPoint | null;
   setTapeHover: (point: SnapPoint | null) => void;
@@ -227,6 +236,18 @@ interface StoreState {
   deleteBoard: (id: string) => void;
   /** Delete every named part, as ONE undo entry. Unknown ids are ignored. */
   deleteBoards: (ids: string[]) => void;
+  /**
+   * The hidden parts, insertion order, no duplicates (hide/unhide spec §2). View
+   * state: never in the document, never saved, but in the undo history. Written
+   * by the four user actions below ONLY through `applyHidden`; `restore`,
+   * `replaceDocument` and `deleteBoards` merely reconcile it (invariant 43). A hidden part is
+   * never selected: selectionPatch filters it out.
+   */
+  hiddenIds: string[];
+  hideSelected: () => void;
+  hideUnselected: () => void;
+  showAll: () => void;
+  setHidden: (id: string, hidden: boolean) => void;
   duplicateBoard: (id: string) => void;
   /**
    * Copy every named part in place, as ONE undo entry, and select the copies.
@@ -288,12 +309,24 @@ export const useStore = create<StoreState>((set, get) => {
    *
    * It does NOT touch `tapeAnchor` or `tapeHover`, and that is a PROHIBITION
    * (see edit()'s comment): the tape has no selected-board restriction.
+   *
+   * It also drops hidden ids: a hidden part is never selected. `hidden` is
+   * passed explicitly only by callers about to write a NEW hidden set in the
+   * same `set()`; otherwise the current set is read.
    */
-  const selectionPatch = (ids: string[]): { selectedIds: string[]; grabbed?: null } => {
+  const selectionPatch = (
+    ids: string[],
+    hidden: readonly string[] = get().hiddenIds,
+  ): { selectedIds: string[]; grabbed?: null } => {
     const held = get().grabbed;
+    // Filtered HERE, in the one writer, so no caller has to remember it. The
+    // same array is kept when nothing is dropped, so a subscriber re-renders
+    // only on a real change.
+    const kept = hidden.length === 0 ? ids : ids.filter((id) => !hidden.includes(id));
+    const selectedIds = kept.length === ids.length ? ids : kept;
     return {
-      selectedIds: ids,
-      ...(held && !ids.includes(held.owner.id) ? { grabbed: null } : {}),
+      selectedIds,
+      ...(held && !selectedIds.includes(held.owner.id) ? { grabbed: null } : {}),
     };
   };
 
@@ -313,7 +346,7 @@ export const useStore = create<StoreState>((set, get) => {
     let nextFuture = future;
     let takeSnapshot = false;
     if (!gesturing || !gestureSnapshotTaken) {
-      nextPast = [...past, doc].slice(-HISTORY_LIMIT);
+      nextPast = [...past, { doc, hiddenIds: get().hiddenIds }].slice(-HISTORY_LIMIT);
       nextFuture = [];
       takeSnapshot = gesturing;
     }
@@ -346,6 +379,70 @@ export const useStore = create<StoreState>((set, get) => {
       ...(takeSnapshot ? { gestureSnapshotTaken: true } : {}),
       ...(selection ? selectionPatch(selection(next)) : {}),
     });
+  };
+
+  /**
+   * The ONE writer of `hiddenIds` (hide/unhide spec §2.1). Never runs edit() and
+   * never replaces `doc`: the entry it pushes holds the SAME document object.
+   *
+   * Refused while a gesture is open. A hide pushes its own entry, so inside a
+   * gesture it would land between the gesture's lazy snapshot (invariant 4) and
+   * its later frames, and the drag's tail would undo with the hide. Reading
+   * `gesturing` inside an action is allowed; subscribing to it is not
+   * (invariant 34).
+   *
+   * Pushes nothing when the set does not change (invariant 4: no entry that
+   * undoes to nothing). Never touches tapeAnchor/tapeHover (invariant 24's
+   * prohibition): hiding moves nothing.
+   */
+  const applyHidden = (next: string[]) => {
+    const { doc, hiddenIds, past, selectedIds, gesturing } = get();
+    if (gesturing) return;
+    const exists = new Set(doc.boards.map((b) => b.id));
+    const clean = [...new Set(next)].filter((id) => exists.has(id));
+    if (clean.length === hiddenIds.length && clean.every((id) => hiddenIds.includes(id))) return;
+    set({
+      hiddenIds: clean,
+      past: [...past, { doc, hiddenIds }].slice(-HISTORY_LIMIT),
+      future: [],
+      ...selectionPatch(selectedIds, clean),
+    });
+  };
+
+  /**
+   * What undo and redo both restore from an entry: its document, its hidden set
+   * (filtered to that document's parts), and a selection reconciled with both
+   * through selectionPatch, so a redo that re-hides a selected part deselects it
+   * and drops a grab it owned.
+   *
+   * Held points: an entry whose document is a DIFFERENT object is a wholesale
+   * rewrite, so grabbed / tapeAnchor / tapeHover / tapeAxis clear unconditionally
+   * (invariant 24, the reasoning at replaceDocument). An entry holding the SAME
+   * object, the undo of a hide or show, moved nothing, so they are kept.
+   * Otherwise Ctrl+Z after a hide would drop a measurement the hide itself was
+   * forbidden to drop.
+   *
+   * A grab captured a world position; an undo can move the board out from under
+   * it, and committing would then apply a wrong delta. The tape anchor captured
+   * one for the same reason and goes with it, and so does the latched hover,
+   * whose owner an undo can equally remove. See replaceDocument for why blanket
+   * is right for these and not elsewhere.
+   *
+   * INVARIANT 34: `gesturing`/`gestureSnapshotTaken` deliberately do NOT join
+   * this list. A gesture belongs to the component that opened it and an undo
+   * does not end it; clearing them here would split one focused field's gesture
+   * in half after a Ctrl+Z. Their reset lives in replaceDocument only.
+   */
+  const restore = (entry: HistoryEntry, current: SloydDocument, selectedIds: string[]) => {
+    const exists = new Set(entry.doc.boards.map((b) => b.id));
+    const hidden = entry.hiddenIds.filter((id) => exists.has(id));
+    const surviving = selectedIds.filter((id) => exists.has(id));
+    return {
+      doc: entry.doc,
+      hiddenIds: hidden,
+      ...selectionPatch(surviving.length === selectedIds.length ? selectedIds : surviving, hidden),
+      ...(entry.doc === current ? {} : { grabbed: null, tapeAnchor: null, tapeHover: null, tapeAxis: null }),
+    };
   };
 
   /**
@@ -522,6 +619,7 @@ export const useStore = create<StoreState>((set, get) => {
     selectedIds: [],
     past: [],
     future: [],
+    hiddenIds: [],
 
     // Coalesce every edit within a gesture (a gizmo drag, a focused text
     // field) into a single undo entry. The snapshot is taken lazily — on the
@@ -778,6 +876,9 @@ export const useStore = create<StoreState>((set, get) => {
         (doc) => ({ ...doc, boards: doc.boards.filter((b) => !doomed.has(b.id)) }),
         () => get().selectedIds.filter((id) => !doomed.has(id)),
       );
+      // The entry edit() pushed already recorded the set as it was.
+      const hiddenAfter = get().hiddenIds.filter((id) => !doomed.has(id));
+      if (hiddenAfter.length !== get().hiddenIds.length) set({ hiddenIds: hiddenAfter });
     },
 
     duplicateBoard: (id) => get().duplicateBoards([id]),
@@ -836,7 +937,27 @@ export const useStore = create<StoreState>((set, get) => {
       set(selectionPatch(ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
     },
 
+    // Visible parts only: selectionPatch drops hidden ids.
     selectAll: () => set(selectionPatch(get().doc.boards.map((b) => b.id))),
+
+    hideSelected: () => {
+      const { hiddenIds, selectedIds } = get();
+      applyHidden([...hiddenIds, ...selectedIds]);
+    },
+
+    // With nothing selected this would hide every part, so it does nothing.
+    hideUnselected: () => {
+      const { hiddenIds, selectedIds, doc } = get();
+      if (selectedIds.length === 0) return;
+      applyHidden([...hiddenIds, ...doc.boards.map((b) => b.id).filter((id) => !selectedIds.includes(id))]);
+    },
+
+    showAll: () => applyHidden([]),
+
+    setHidden: (id, hidden) => {
+      const { hiddenIds } = get();
+      applyHidden(hidden ? [...hiddenIds, id] : hiddenIds.filter((x) => x !== id));
+    },
 
     setDocumentName: (name) => edit((doc) => ({ ...doc, name })),
 
@@ -855,6 +976,7 @@ export const useStore = create<StoreState>((set, get) => {
       set({
         doc,
         selectedIds: [],
+        hiddenIds: [],
         past: [],
         future: [],
         grabbed: null,
@@ -873,56 +995,24 @@ export const useStore = create<StoreState>((set, get) => {
       }),
 
     undo: () => {
-      const { past, future, doc, selectedIds } = get();
+      const { past, future, doc, hiddenIds, selectedIds } = get();
       if (past.length === 0) return;
-      const previous = past[past.length - 1];
-      const surviving = selectedIds.filter((id) => previous.boards.some((b) => b.id === id));
+      const previous = past[past.length - 1]!;
       set({
-        doc: previous,
         past: past.slice(0, -1),
-        future: [doc, ...future].slice(0, HISTORY_LIMIT),
-        // Only the parts that still exist stay selected. The same array is
-        // kept when nothing was lost, so a subscriber re-renders only on a
-        // real change.
-        selectedIds: surviving.length === selectedIds.length ? selectedIds : surviving,
-        // A grab captured a world position; an undo can move the board out
-        // from under it, and committing would then apply a wrong delta. The
-        // tape anchor captured one for the same reason and goes with it —
-        // an undo can also take away the guide it is anchored on — and so
-        // does the latched hover, which is a captured position too and whose
-        // owner an undo can equally remove. See replaceDocument for why
-        // blanket is right for all three of these and not elsewhere.
-        //
-        // INVARIANT 34: `gesturing`/`gestureSnapshotTaken` deliberately do
-        // NOT join this list, here or in redo. A gesture belongs to the
-        // component that opened it and an undo does not end it; clearing
-        // them here would split one focused field's gesture in half after a
-        // Ctrl+Z. Their reset lives in replaceDocument only.
-        grabbed: null,
-        tapeAnchor: null,
-        tapeHover: null,
-        tapeAxis: null,
+        future: [{ doc, hiddenIds }, ...future].slice(0, HISTORY_LIMIT),
+        ...restore(previous, doc, selectedIds),
       });
     },
 
     redo: () => {
-      const { past, future, doc, selectedIds } = get();
+      const { past, future, doc, hiddenIds, selectedIds } = get();
       if (future.length === 0) return;
-      const next = future[0];
-      const surviving = selectedIds.filter((id) => next.boards.some((b) => b.id === id));
+      const next = future[0]!;
       set({
-        doc: next,
-        past: [...past, doc].slice(-HISTORY_LIMIT),
+        past: [...past, { doc, hiddenIds }].slice(-HISTORY_LIMIT),
         future: future.slice(1),
-        // Only the parts that still exist stay selected. The same array is
-        // kept when nothing was lost, so a subscriber re-renders only on a
-        // real change.
-        selectedIds: surviving.length === selectedIds.length ? selectedIds : surviving,
-        // Invariant 34 applies here identically — see undo.
-        grabbed: null,
-        tapeAnchor: null,
-        tapeHover: null,
-        tapeAxis: null,
+        ...restore(next, doc, selectedIds),
       });
     },
 

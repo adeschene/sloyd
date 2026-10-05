@@ -60,3 +60,43 @@ describe('PartsList selection', () => {
     expect(screen.getByRole('button', { name: 'Board (2)' })).toHaveAttribute('aria-pressed', 'true');
   });
 });
+
+describe('PartsList hiding', () => {
+  it('each row has an eye whose label carries the state', async () => {
+    const [a] = threeParts();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Hide Board' }));
+    expect(useStore.getState().hiddenIds).toEqual([a]);
+    expect(screen.getByRole('button', { name: 'Show Board' })).toBeInTheDocument();
+  });
+
+  it('the Show eye restores a hidden part', async () => {
+    threeParts();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Hide Board' }));
+    await user.click(screen.getByRole('button', { name: 'Show Board' }));
+    expect(useStore.getState().hiddenIds).toEqual([]);
+    expect(screen.getByRole('button', { name: 'Hide Board' })).toBeInTheDocument();
+  });
+
+  it("a hidden row's name is disabled, and only its eye works", async () => {
+    threeParts();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Hide Board' }));
+    const name = screen.getByRole('button', { name: 'Board' });
+    expect(name).toBeDisabled();
+    await user.click(name);
+    expect(useStore.getState().selectedIds).toEqual([]);
+  });
+
+  it('Show all (N) appears only while something is hidden, and shows everything', async () => {
+    threeParts();
+    const user = userEvent.setup();
+    expect(screen.queryByRole('button', { name: /^Show all/ })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Hide Board' }));
+    await user.click(screen.getByRole('button', { name: 'Hide Board (2)' }));
+    await user.click(screen.getByRole('button', { name: 'Show all (2)' }));
+    expect(useStore.getState().hiddenIds).toEqual([]);
+    expect(screen.queryByRole('button', { name: /^Show all/ })).toBeNull();
+  });
+});

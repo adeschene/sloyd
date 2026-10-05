@@ -605,6 +605,23 @@ export default function App() {
         return;
       }
 
+      // H hides the selection, Shift+H everything else, Alt+H shows all
+      // (hide/unhide spec §4.3). Alt+H matches the PHYSICAL key: on a Mac,
+      // Option+H types '˙', so matching e.key would make it dead there (the
+      // same reason Backspace counts as Delete). Plain and Shift+H match by
+      // e.key only: matching the code there would make the key that types 'd'
+      // on Dvorak/Colemak hide parts. Ctrl/Cmd+H is left alone: Cmd+H hides
+      // the browser on a Mac.
+      if ((e.altKey && e.code === 'KeyH') || e.key === 'h' || e.key === 'H') {
+        if (e.ctrlKey || e.metaKey) return;
+        const { hideSelected, hideUnselected, showAll } = useStore.getState();
+        e.preventDefault();
+        if (e.altKey) showAll();
+        else if (e.shiftKey) hideUnselected();
+        else hideSelected();
+        return;
+      }
+
       // X / Y / Z lock a world axis, so a typed distance can run somewhere no
       // second snap point happens to lie. In this EXISTING listener with M and
       // T rather than in one of its own, which is CLAUDE.md's standing rule for

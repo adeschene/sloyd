@@ -14,6 +14,7 @@ import type { SnapPoint } from '../document/document';
 // `document -> units` edges were each opened to avoid.
 import { parseLength } from '../units/length';
 import { useStore } from '../store/store';
+import { visibleBoards } from '../store/visibility';
 import { CLICK_DRAG_SLOP_PX } from './pointer';
 import { PICK_RADIUS_PX, pickSnapPoint } from './snapPick';
 import type { ProjectedPoint } from './snapPick';
@@ -46,6 +47,7 @@ const TAPE_COLOR = SNAP_COLORS.guide;
 export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
   const tool = useStore((s) => s.tool);
   const boards = useStore((s) => s.doc.boards);
+  const hiddenIds = useStore((s) => s.hiddenIds);
   const guides = useStore((s) => s.doc.guides);
   const anchor = useStore((s) => s.tapeAnchor);
   // The raw text from the readout's box, parsed below. Subscribed here rather
@@ -94,10 +96,11 @@ export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
   const downAt = useRef<{ x: number; y: number; pointerId: number } | null>(null);
 
   /**
-   * Every candidate: boards and guides alike, with no exclusions.
+   * Every candidate: boards and guides alike, except the points of hidden
+   * parts, which are not drawn (hide/unhide spec §3).
    *
-   * Unlike MoveTool this withholds nothing, in EITHER direction. There is no
-   * self-snap case to exclude — measuring from one corner of a board to
+   * Unlike MoveTool this withholds nothing else, in EITHER direction. There is
+   * no self-snap case to exclude — measuring from one corner of a board to
    * another corner of the SAME board is an ordinary thing to want, and placing
    * a guide there is exactly what the tool is for — and there is no
    * selected-board restriction either, because the tape measures BETWEEN
@@ -111,8 +114,11 @@ export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
    * dado shoulder — half of what this round and the last one unlock together.
    */
   const candidates = useMemo(
-    () => [...boards.flatMap(snapPointsFor), ...(showGuides ? guideSnapPoints(guides) : [])],
-    [boards, guides, showGuides],
+    () => [
+      ...visibleBoards(boards, hiddenIds).flatMap(snapPointsFor),
+      ...(showGuides ? guideSnapPoints(guides) : []),
+    ],
+    [boards, hiddenIds, guides, showGuides],
   );
 
   useEffect(() => {
@@ -247,7 +253,7 @@ export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
       el.removeEventListener('pointerleave', onPointerLeave);
     };
     // `candidates` is in the list because the handlers close over it, and it
-    // already depends on `boards`, `guides` and `showGuides` — so none of
+    // already depends on `boards`, `hiddenIds`, `guides` and `showGuides` — so none of
     // those belongs here again. `size.width`/`.height` rather than `size` so a
     // re-created size object does not resubscribe. `setHovered` is listed
     // because the handlers close over it; it is a zustand action and so stable

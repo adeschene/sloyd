@@ -24,7 +24,7 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **1710/1710 tests passing across 58 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
+Static SPA, containerized, **1749/1749 tests passing across 59 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **7**.
 
 **PRODUCTION MATCHES `master` as of 2026-10-05 with the multi-select round live** — bundle `index-D7ySMvky.js`, CSS `index-DqhKBEnY.css` (unchanged), merge commit `232917f`, **schema 7**. Before it: joinery residues `index-D_wzi7Bx.js` (`2b96eb2`, 2026-10-05), joinery fixes `index-BzWa2ZGT.js` (`c31dd82`, 2026-10-05), fu 197 `index-Ci3NLhVT.js` (`658dfcc`, 2026-10-05), fu 200 `index-DjL6FbOz.js` (`f37734b`, 2026-10-05), 198/199 `index-BvsB1zA6.js` (`fb8a094`, 2026-10-05), cut storage `index-JBiJohQE.js` (`7fa749d`, 2026-10-04), cut lines `index-BPmx9i74.js` (`f602a2d`), cut words `index-Cw_EeWuY.js` (`8c9be52`), joinery `index-Ci7lVCzJ.js` (`d2a14ac`), phantom cut `index-B2Yuq550.js` (`e7bf3bc`), stopped cuts `index-CoHIAVxf.js` (`c054ede`), which bumped the schema to 7 (rolling back past it strands v7 documents; export first). Before it, 2026-10-03: key check `index-BhhW2iNw.js` (`d0ba83b`), held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
@@ -44,6 +44,8 @@ badly supported part; both are now CLOSED (below).
 **The joinery residues round (follow-ups 182, 186, 188, 191, 201–203, 2026-10-05) is merged AND deployed.** Verified against the dev server with the user watching, one paid run (`docs/browser-verification-joinery-residues.md`). A rabbeted panel is resolved as one unit from its final box, so its pockets leave no voids and parts in its path are trimmed (182, 201); default tenons shrink to 1/4in, else butt (188); joinery blockers judge solids (203); every `resize` is pre-checked, so an end already cut is a skip, never a throw. No schema change. Residues are 205–206.
 
 **The joinery fixes round (follow-ups 183, 184, 185, 190, 2026-10-05) is merged AND deployed.** Verified against the dev server with the user watching, three paid runs (`docs/browser-verification-joinery-fixes.md`). Default tenons from opposite faces are capped under half the post (190), crossings run bottom-up with a swept-volume blocker (185), a rabbeted panel carries its outer-face chain or refuses before any mutation (183), and the dialog reports the re-ground (184). No schema change. Residues are 201-204.
+
+**The hide/unhide round (2026-10-05) is merged; its live check passed with the user watching** (`docs/browser-verification-hide-unhide.md`), and it fixed a pre-existing projection-swap framing bug. Each part-list row has an eye; H hides the selection, Shift+H (and **Hide others** in Properties) hides the rest, Alt+H (and **Show all (N)**) shows everything (invariant 43; spec `docs/superpowers/specs/2026-10-05-sloyd-hide-unhide-design.md`). A hidden part is not drawn, not a snap point, not framed by Home and never selected; it is still in the cut list, joinery, Generate, the checks and the saved file. Hidden-ness is view state, not saved, so no schema change, but it is undoable. Repeated parts is the next round, in the user's order. Residues are follow-ups 213-214.
 
 **The multi-select round (2026-10-05) is merged AND deployed; its live check passed with the user watching** (`docs/browser-verification-multi-select.md`). Shift/Ctrl-click and Ctrl/Cmd+A build a selection; move together, delete, duplicate and shared Properties fields (length, width, thickness, grain, material) act on all of it (invariant 42; spec `docs/superpowers/specs/2026-10-05-sloyd-multi-select-design.md`). No schema change. A selection change mid-drag ends the gizmo drag. Hide/unhide and repeated parts are the next two rounds, in the user's order. Residues are follow-ups 207-211. From the live check, Enter in a field now commits AND blurs (fu 212, every field).
 
@@ -279,6 +281,7 @@ show it. Prefer a readout where one suffices; add an image when the finding is s
 | fu 200 | 10-05 | — | *no spec* — computed opening extents compare within `FLUSH_EPSILON` in `runAxis` and the word table (invariant 22's rule), so a millimetre square reads like its fractional twin; stored values stay exact |
 | fu 197 | 10-05 | — | *no spec* — `clippedRegion`: the cut's box clipped to the board is the one clip read by everything that shows a cut (drawing spans, snap points, cutShape, openSides, findTenons); an in-session overhang draws as what remains |
 | multi-select | 10-05 | — | `selectedIds`: Shift/Ctrl-click, Ctrl/Cmd+A, group move/delete/duplicate, shared Properties fields; one writer for user selection changes (inv 42); a selection change mid-drag ends the gizmo drag; Enter commits and blurs a field (fu 212) |
+| hide/unhide | 10-05 | — | `hiddenIds`: an eye per row, H / Shift+H / Alt+H, Show all (N), Hide others; view state, not saved, but undoable (history entries are `{ doc, hiddenIds }`); a hidden part is not drawn, snapped to, framed or selected (inv 43) |
 | joinery fixes | 10-05 | — | *no spec* — fu 190/185/183/184: opposite-face tenon cap, bottom-up crossings with a swept-volume blocker, outer-face carry (refuses before any mutation), `lowered` reported |
 | joinery residues | 10-05 | — | *no spec* — fu 182/201/188/203/191/186: rabbet unit from the panel's final box (no voids, path parts trimmed), 1/4in default tenons else butt, blockers on solids, `resize` pre-checked |
 
@@ -562,11 +565,25 @@ src/
 │                           per-board rule set). The singular actions delegate.
 │                           `moveGroupTo` takes an ABSOLUTE min corner and rounds the
 │                           group's, once (inv 42). `commitSnapMove` translates every
-│                           selected part through `translateBoards`
+│                           selected part through `translateBoards`.
+│                           `hiddenIds` — insertion order, no duplicates, view state,
+│                           NOT saved but undone: `past`/`future` hold `HistoryEntry`
+│                           = `{ doc, hiddenIds }`. The four user actions
+│                           (`hideSelected`, `hideUnselected`, `showAll`, `setHidden`)
+│                           all go through `applyHidden`, which never runs `edit()` and
+│                           pushes an entry holding the SAME `doc`. `undo`/`redo` share
+│                           `restore`, which keeps the held points when the entry's doc
+│                           is the current object. `selectionPatch` drops hidden ids
+│                           (inv 43)
 │   └── selectionGesture.ts `isToggleModifier` (Shift/Ctrl/Cmd), `selectByClick`,
 │                           `clearOnMiss` (no clear on a MODIFIED miss, nor outside the
 │                           Select tool). In the store layer because the viewport AND
 │                           the parts list share it
+│   └── visibility.ts       `visibleBoards(boards, hiddenIds)`, the ONE filter for which
+│                           parts are drawn and offered as points; the viewport's
+│                           readers (Viewport, CameraKeys, TapeTool, moveCandidates) all
+│                           use it. Returns the SAME array when nothing is hidden. Call
+│                           it in a memo or handler, never a selector (inv 43). Pure
 ├── storage/                types.ts (StorageAdapter), browser.ts (the singleton).
 │                           Inv 7; and invs 29, 30, 31 for the library
 │   └── libraryIndex.ts     LAYOUT_VERSION + parseIndex / sortEntries / touchEntry /
@@ -646,7 +663,12 @@ src/
 │   │                       select mode, gates onPointerMissed. Plain click selects, a
 │   │                       modified click toggles (`selectByClick`); a modified miss keeps
 │   │                       the selection (`clearOnMiss`); `f` frames the whole selection
-│   │                       and stays a no-op with none
+│   │                       and stays a no-op with none. Draws only visible parts; Home
+│   │                       and the projection swap frame visible parts, and Home with
+│   │                       every part hidden does nothing. The swap re-frames only once
+│   │                       `controls.object === camera`: drei rebinds OrbitControls a
+│   │                       render after the camera changes, and framing earlier aims the
+│   │                       new camera at the origin
 │   ├── BoardMesh.tsx       one board per render; ghost box when boardSolids is empty
 │   │                       (inv 21). Required `selectable` prop, so the Move tool's
 │   │                       commit click cannot select the board it drops onto.
@@ -657,8 +679,11 @@ src/
 │   │                       points, post-grab every UNSELECTED part's. A selected part moves
 │   │                       with the grab and is never a target. Guides are POST-GRAB only — targets,
 │   │                       never grab sources. Dep list is inv 15's failure mode
-│   ├── moveCandidates.ts   the Move tool's two candidate sets. Pure
-│   ├── TapeTool.tsx        MoveTool's sibling; withholds NOTHING either way. LATCHES
+│   ├── moveCandidates.ts   the Move tool's two candidate sets. Pure. Takes `hiddenIds`
+│   │                       (4th parameter): a hidden part offers no points in EITHER
+│   │                       branch (inv 16's rule: a marker sits on something drawn)
+│   ├── TapeTool.tsx        MoveTool's sibling; withholds nothing either way EXCEPT
+│   │                       hidden parts, which are not drawn. LATCHES
 │   │                       the hover while anchored (why inv 24 covers it).
 │   │                       SUBSCRIBES to tapeAxis — a dep entry over a value nothing
 │   │                       subscribes to is inv 15 in disguise. Locked with nothing
@@ -747,11 +772,17 @@ src/
 │   ├── GenerateDialog.tsx  the form, the per-run rows, Cancel. Same overlay pattern
 │   ├── JoineryDialog.tsx   Add joinery…: the sites, the run, the result. Overlay pattern
 │   ├── PartsList.tsx  FileMenu.tsx   PartsList: plain click selects, a modified click
-│   │                       toggles; `aria-pressed` per row
+│   │                       toggles; `aria-pressed` per row. Each row is [eye][name]: the
+│   │                       eye's label is "Hide <name>" / "Show <name>" (`setHidden`); a
+│   │                       hidden row's name button is `disabled`. **Show all (N)**
+│   │                       renders inside PartsList, under the Parts heading, only
+│   │                       while something is hidden
 │   ├── Properties.tsx      2+ selected: `GroupProperties` — Length/Width/Thickness/Grain/
-│   │                       Material + Duplicate/Delete, each edit one `updateBoards`;
+│   │                       Material + Duplicate/Hide others/Delete, each edit one `updateBoards`;
 │   │                       `shared` compares EXACT stored values; the root is keyed on the
-│   │                       selection so a change resyncs. Otherwise board fields + Cuts; CutRow is its own component so a
+│   │                       selection so a change resyncs. Otherwise board fields + Cuts,
+│   │                       and **Hide others** (`hideUnselected`) beside Duplicate in
+│   │                       both panels; CutRow is its own component so a
 │   │                       cut's error dies with the cut. Stop short of near/far
 │   │                       end; a stop pair leaving no cut is refused (only on a transition INTO
 │   │                       it, so a board shrink cannot lock the row), and changing
@@ -789,8 +820,12 @@ src/
                             dialog !== null`, inv 27), the `newIds` badge set, the `.viewport-stack`
                             TapeReadout positions against, `showGuides` as local
                             prop-drilled view state (it joins `shortcutsSuspended`,
-                            NOT the store's `tool`). M, T, X/Y/Z, Ctrl/Cmd+A, Escape, Delete and undo/redo
-                            all live in the ONE existing keydown effect — inv 27.
+                            NOT the store's `tool`). M, T, X/Y/Z, Ctrl/Cmd+A, H / Shift+H / Alt+H,
+                            Escape, Delete and undo/redo all live in the ONE existing
+                            keydown effect — inv 27. Plain and Shift+H match by `e.key`
+                            (a code match would make Dvorak's `d` hide); only Alt+H
+                            matches `e.code === 'KeyH'` (Option+H types `˙`). Ctrl/Cmd+H
+                            is unbound (Cmd+H hides the browser on a Mac).
                             Delete removes every selected part.
                             Escape's ladder: grabbed → tapeAxis → tapeAnchor → tool.
                             Also owns `pending` (the autosave write, held as a
@@ -1023,7 +1058,10 @@ worked examples behind several of them are in `docs/history.md`.
       undoable, but not obviously wrong. **A future action that rewrites `doc.boards`
       wholesale joins this list** — that is the test, not "does it touch positions",
       because a wholesale rewrite invalidates a grab by removing its owner as easily as by
-      moving it.
+      moving it. **`undo` and `redo` clear only when the restored document is a DIFFERENT
+      object** (`restore` in `store.ts`): the undo of a hide or show restores the same
+      object, nothing moved, and clearing there would drop a measurement the hide itself was
+      forbidden to drop. See invariant 43.
     - **The feature underneath was destroyed.** `addCut`/`updateCut`/`removeCut` — routed
       *around* `updateBoard` by invariant 2, which is why they needed their own clear and
       could be given a better one. It is **point-precise, not board-precise**:
@@ -1055,9 +1093,9 @@ worked examples behind several of them are in `docs/history.md`.
     - **`clearGuides` clears both tape fields unconditionally**, which is right: every guide
       is going, so a guide-owned anchor is invalid and a board-owned one is cheap to drop.
       The *hover* going unconditionally is defensible **only** because the anchor is nulled
-      in the same statement — no anchor, no latch. That is a property of the five statements
-      that do it (`setTool`, `clearGuides`, `undo`, `redo`, `replaceDocument`), not a
-      licence to add a sixth.
+      in the same statement — no anchor, no latch. That is a property of the statements
+      that do it (`setTool`, `clearGuides`, `replaceDocument`, and `undo`/`redo` through
+      `restore` when the document changes), not a licence to add another.
     - **THE ASYMMETRY, a trap in both directions.** At `updateBoard` the tape fields are
       point-precise while **`grabbed` keeps a board-precise clause**, so renaming the
       grabbed board cancels the grab — deferred because it is shipped Move-tool behaviour,
@@ -1344,12 +1382,13 @@ worked examples behind several of them are in `docs/history.md`.
       can be enumerated at all is that they are in the state. `Gizmo.tsx`'s two mid-drag
       `endGesture` effects stay the primary guard regardless — nothing about a mid-drag
       unmount implies a document is about to be replaced.
-    - **A PROHIBITION: they must NOT join the `grabbed: null` list in `undo`/`redo`.**
+    - **A PROHIBITION: they must NOT join the `grabbed: null` list in `undo`/`redo`** (one
+      list now, in `restore`, which both share).
       Invariant 24's own trap, one field over: it is exactly what a tidying pass does and it
       looks like consistency. A gesture belongs to the component that opened it and an undo
       does not end it, so clearing them there splits one focused field's gesture in half
-      after a Ctrl+Z — a behaviour change with no defect behind it. Pointers sit at both
-      sites.
+      after a Ctrl+Z — a behaviour change with no defect behind it. A pointer sits on
+      `restore`.
     - **A PROHIBITION: no component may read either field.** They are public by necessity
       and private by intent. The whole cost argument for the move is that every `useStore`
       call site passes a selector returning a bare field or a single element reference — no
@@ -1552,15 +1591,52 @@ worked examples behind several of them are in `docs/history.md`.
     The selection has ONE writer for a user's selection change, `selectionPatch`; a second
     place that assigns `selectedIds` there is a second decider for invariant 24's grab rule.
     (`replaceDocument`, `undo` and `redo` only reconcile it with a document that replaced the
-    boards.) A selection change
+    boards; `undo`/`redo` and the hide actions still write it THROUGH `selectionPatch`, with
+    the new hidden set, so a hidden part never stays selected — invariant 43.) A selection change
     mid-drag ends the gizmo's gesture and abandons the rest of that drag (`Gizmo.tsx`).
+
+43. **Hidden-ness is view state with one gate, and a hide moves nothing.** `hiddenIds` is not in
+    the document and not saved (no schema change), but it is undone: a history entry is
+    `{ doc, hiddenIds }`.
+
+    - **The writer rule.** The four user actions — `hideSelected`, `hideUnselected`, `showAll`,
+      `setHidden` — all go through `applyHidden`, which never runs `edit()` and never replaces
+      `doc`. Everything else only RECONCILES the set with a document: `restore` (undo/redo,
+      filtered to the restored parts), `replaceDocument` (clears it) and `deleteBoards`
+      (drops the deleted ids, fu 213). A fifth user action that writes `hiddenIds` directly
+      is a second decider.
+    - **One entry, the SAME document.** A hide that changes the set pushes exactly one entry
+      holding the current `doc` object, no copy, and clears `future`; autosave does not fire.
+      A hide that changes nothing pushes nothing (invariant 4).
+    - **Hidden parts are never selected, structurally.** `selectionPatch` drops hidden ids from
+      every selection it writes, so `selectBoard`, `toggleSelected` and `selectAll` cannot
+      select one, every hide re-runs it, and a grab owned by a part being hidden drops
+      (invariant 24's retargeting rule). Do not move this filter out to the callers.
+    - **A hide is refused while `gesturing`.** It pushes its own entry, so inside a gesture it
+      would land between the lazy snapshot (invariant 4) and the drag's later frames, and one
+      Ctrl+Z would undo part of the drag with the hide. `applyHidden` reads the flag; no
+      component may (invariant 34). In practice only a gizmo drag can be open: the keys are
+      blocked in text fields, and the eye or Hide others blurs a field first.
+    - **Undo and redo keep the held points when the restored document is the same object.**
+      Only then; a different object still clears all four (invariant 24).
+    - **A PROHIBITION: no hide or show may clear `tapeAnchor` or `tapeHover`.** Each holds a
+      real position on a real part, and hiding moves nothing. Measuring from a part and then
+      hiding it is legitimate. Tests assert both survive each action.
+    - **The selector rule.** `visibleBoards` returns a new array whenever anything is hidden, so
+      inside a `useStore` selector it would re-render on every `set()` (invariant 34's cost
+      argument). Select `boards` and `hiddenIds` as bare fields and filter in a `useMemo` or a
+      handler. Every viewport reader goes through `visibleBoards`; a hand-written filter is a
+      second decider.
+
+    A hidden part is still entirely part of the design: the cut list, nesting, diagrams,
+    joinery, Generate, `checkDesign`, export and autosave read `doc.boards` unchanged.
 
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 1710 tests across 58 files
+npm test           # Vitest, currently 1749 tests across 59 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1570,7 +1646,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is the authoritative list** — 1-212, consciously deferred rather
+**`docs/follow-ups.md` is the authoritative list** — 1-214, consciously deferred rather
 than missed, each written up in place with its closure where it has one. Read the entries
 for the area you are about to touch before starting; several are "correct but untested",
 which is exactly what a refactor breaks silently.

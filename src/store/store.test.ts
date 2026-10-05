@@ -2024,3 +2024,253 @@ describe('multi-select — group edits', () => {
     expect(useStore.getState().past.length).toBe(before + 1);
   });
 });
+
+describe('hide and unhide', () => {
+  const three = () => {
+    const s = useStore.getState();
+    s.addBoard();
+    s.addBoard();
+    s.addBoard();
+    const [a, b, c] = useStore.getState().doc.boards.map((x) => x.id);
+    useStore.getState().selectBoard(a!);
+    useStore.getState().toggleSelected(b!);
+    return { a: a!, b: b!, c: c! };
+  };
+  const st = () => useStore.getState();
+  const corner = (id: string) =>
+    boardSnapPoints(st().doc.boards.find((x) => x.id === id)!).find((p) => p.kind === 'corner')!;
+
+  it('hideSelected hides the selection and deselects it', () => {
+    const { a, b } = three();
+    st().hideSelected();
+    expect(st().hiddenIds).toEqual([a, b]);
+    expect(st().selectedIds).toEqual([]);
+  });
+
+  it('hideUnselected hides every part not selected, and keeps the selection', () => {
+    const { a, b, c } = three();
+    st().hideUnselected();
+    expect(st().hiddenIds).toEqual([c]);
+    expect(st().selectedIds).toEqual([a, b]);
+  });
+
+  it('hideUnselected with nothing selected does nothing (it would hide everything)', () => {
+    three();
+    st().selectBoard(null);
+    const before = st().past.length;
+    st().hideUnselected();
+    expect(st().hiddenIds).toEqual([]);
+    expect(st().past.length).toBe(before);
+  });
+
+  it('redo keeps the hidden set in the entry it pushes to past', () => {
+    const { a, b } = three();
+    st().setHidden(a, true);
+    st().setHidden(b, true);
+    st().undo();
+    st().undo();
+    st().redo();
+    st().redo();
+    st().undo();
+    expect(st().hiddenIds).toEqual([a]);
+  });
+
+  it('showAll empties the set; setHidden toggles one part; no duplicates', () => {
+    const { a, c } = three();
+    st().setHidden(c, true);
+    st().setHidden(c, true);
+    expect(st().hiddenIds).toEqual([c]);
+    st().setHidden(c, false);
+    expect(st().hiddenIds).toEqual([]);
+    st().hideSelected();
+    st().showAll();
+    expect(st().hiddenIds).toEqual([]);
+    expect(st().doc.boards.some((x) => x.id === a)).toBe(true);
+  });
+
+  it('a hidden part can never be selected', () => {
+    const { a, b, c } = three();
+    st().setHidden(c, true);
+    st().selectBoard(c);
+    expect(st().selectedIds).toEqual([]);
+    st().toggleSelected(c);
+    expect(st().selectedIds).toEqual([]);
+    st().selectAll();
+    expect(st().selectedIds).toEqual([a, b]);
+  });
+
+  it('hiding the owner of a held Move grab drops it; hiding another part keeps it', () => {
+    const { a, b } = three();
+    st().setTool('move');
+    st().grabSnapPoint(corner(a));
+    st().setHidden(b, true);
+    expect(st().grabbed).not.toBeNull();
+    st().setHidden(a, true);
+    expect(st().grabbed).toBeNull();
+  });
+
+  it('never clears the tape anchor or hover (invariant 24 prohibition), for every hide and show', () => {
+    const { a, b, c } = three();
+    st().setTapeAnchor(corner(a));
+    st().setTapeHover(corner(a));
+    const held = () => {
+      expect(st().tapeAnchor).not.toBeNull();
+      expect(st().tapeHover).not.toBeNull();
+    };
+    st().hideSelected();
+    expect(st().hiddenIds).toEqual([a, b]);
+    held();
+    st().showAll();
+    expect(st().hiddenIds).toEqual([]);
+    held();
+    st().selectBoard(b);
+    st().hideUnselected();
+    expect(st().hiddenIds).toEqual([a, c]);
+    held();
+    st().setHidden(a, false);
+    expect(st().hiddenIds).toEqual([c]);
+    held();
+    st().setHidden(a, true);
+    expect(st().hiddenIds).toEqual([c, a]);
+    held();
+  });
+
+  it('never changes the document: same object, one undo entry, redo cleared', () => {
+    const { b } = three();
+    st().updateBoard(b, { length: 30 });
+    st().undo();
+    expect(st().future.length).toBe(1);
+    const doc = st().doc;
+    const before = st().past.length;
+    st().hideSelected();
+    expect(st().doc).toBe(doc);
+    expect(st().past.length).toBe(before + 1);
+    expect(st().past.at(-1)!.doc).toBe(doc);
+    expect(st().future).toEqual([]);
+  });
+
+  it('a hide or show that changes nothing pushes nothing', () => {
+    three();
+    const before = st().past.length;
+    st().showAll();
+    st().selectBoard(null);
+    st().hideSelected();
+    expect(st().past.length).toBe(before);
+  });
+
+  it('an eye that already matches pushes nothing', () => {
+    const { c } = three();
+    const before = st().past.length;
+    st().setHidden(c, true);
+    st().setHidden(c, true);
+    expect(st().past.length).toBe(before + 1);
+    st().setHidden(c, false);
+    const mid = st().past.length;
+    st().setHidden(c, false);
+    expect(st().past.length).toBe(mid);
+  });
+
+  it('undo shows the parts again, redo hides them again', () => {
+    const { a, b } = three();
+    st().hideSelected();
+    st().undo();
+    expect(st().hiddenIds).toEqual([]);
+    expect(st().selectedIds).toEqual([]); // the selection is not undone
+    st().redo();
+    expect(st().hiddenIds).toEqual([a, b]);
+  });
+
+  it('a redo that re-hides a selected part deselects it and drops its grab', () => {
+    const { a } = three();
+    st().setHidden(a, true);
+    st().undo();
+    st().selectBoard(a);
+    st().setTool('move');
+    st().grabSnapPoint(corner(a));
+    st().redo();
+    expect(st().hiddenIds).toEqual([a]);
+    expect(st().selectedIds).toEqual([]);
+    expect(st().grabbed).toBeNull();
+  });
+
+  it('undoing a hide keeps held points; undoing an edit still clears them', () => {
+    const { a, c } = three();
+    st().setTapeAnchor(corner(a));
+    st().setTapeHover(corner(a));
+    st().setHidden(c, true);
+    st().undo();
+    expect(st().tapeAnchor).not.toBeNull();
+    expect(st().tapeHover).not.toBeNull();
+    st().updateBoard(c, { length: 30 });
+    st().undo();
+    expect(st().tapeAnchor).toBeNull();
+  });
+
+  it('undoing an edit restores the set recorded with it', () => {
+    const { b, c } = three();
+    st().setHidden(c, true);
+    st().updateBoard(b, { length: 30 });
+    st().showAll();
+    st().undo(); // the show
+    expect(st().hiddenIds).toEqual([c]);
+    st().undo(); // the edit: hidden as it was when the edit was made
+    expect(st().hiddenIds).toEqual([c]);
+    st().undo(); // the hide
+    expect(st().hiddenIds).toEqual([]);
+  });
+
+  it('is refused while a gesture is open: nothing changes and no entry is pushed', () => {
+    const { a, b } = three();
+    const before = st().past.length;
+    st().beginGesture();
+    st().hideSelected();
+    st().hideUnselected();
+    st().setHidden(a, true);
+    st().endGesture();
+    expect(st().hiddenIds).toEqual([]);
+    expect(st().selectedIds).toEqual([a, b]);
+    expect(st().past.length).toBe(before);
+  });
+
+  it('deleting a hidden part removes its id; an undo brings it back visible', () => {
+    const { c } = three();
+    st().setHidden(c, true);
+    st().deleteBoards([c]);
+    expect(st().hiddenIds).toEqual([]);
+    st().undo();
+    expect(st().doc.boards.some((x) => x.id === c)).toBe(true);
+    expect(st().hiddenIds).toEqual([c]); // the entry recorded it hidden at deletion time
+  });
+
+  it('replaceDocument clears the set', () => {
+    const { c } = three();
+    st().setHidden(c, true);
+    st().replaceDocument(createDocument('Other'));
+    expect(st().hiddenIds).toEqual([]);
+  });
+
+  it('a new part and a copy are visible', () => {
+    const { a, b } = three();
+    st().setHidden(b, true);
+    st().selectBoard(a);
+    st().duplicateBoards([a]);
+    st().addBoard();
+    expect(st().hiddenIds).toEqual([b]);
+  });
+
+  it('a part deleted while visible comes back visible on undo', () => {
+    const { a } = three();
+    st().deleteBoards([a]);
+    st().undo();
+    expect(st().hiddenIds).toEqual([]);
+  });
+
+  it('an entry naming a part its document lacks does not leak that id into the set', () => {
+    const { a } = three();
+    st().updateBoard(a, { length: 30 });
+    const entry = st().past.at(-1)!;
+    useStore.setState({ past: [...st().past.slice(0, -1), { ...entry, hiddenIds: ['ghost'] }] });
+    st().undo();
+    expect(st().hiddenIds).toEqual([]);
+  });
+});

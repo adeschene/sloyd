@@ -1045,6 +1045,68 @@ describe('App select all, and Delete on the whole selection', () => {
     expect(useStore.getState().doc.boards).toHaveLength(3);
     act(() => useStore.getState().setTool('select'));
   });
+
+  it('H hides the selection', async () => {
+    const { user, ids } = await mountWithThreeBoards();
+    await user.keyboard('h');
+    expect(useStore.getState().hiddenIds).toEqual([ids[0]]);
+  });
+
+  it('Shift+H hides everything else', async () => {
+    const { user, ids } = await mountWithThreeBoards();
+    await user.keyboard('{Shift>}H{/Shift}');
+    expect(useStore.getState().hiddenIds).toEqual([ids[1], ids[2]]);
+  });
+
+  it("Alt+H shows all, matched by the physical key (a Mac's Option+H types ˙)", async () => {
+    const { user, ids } = await mountWithThreeBoards();
+    await user.keyboard('h');
+    expect(useStore.getState().hiddenIds).toEqual([ids[0]]);
+    fireEvent.keyDown(document.body, { key: '˙', code: 'KeyH', altKey: true });
+    expect(useStore.getState().hiddenIds).toEqual([]);
+  });
+
+  it('Ctrl+H does nothing', async () => {
+    await mountWithThreeBoards();
+    fireEvent.keyDown(document.body, { key: 'h', code: 'KeyH', ctrlKey: true });
+    expect(useStore.getState().hiddenIds).toEqual([]);
+  });
+
+  it('the key that types d on Dvorak (code KeyH) hides nothing', async () => {
+    await mountWithThreeBoards();
+    fireEvent.keyDown(document.body, { key: 'd', code: 'KeyH' });
+    expect(useStore.getState().hiddenIds).toEqual([]);
+  });
+
+  it('H does nothing in a text field', async () => {
+    await mountWithThreeBoards();
+    // A bare input, NOT the project-name field: focusing that one opens a store
+    // gesture, and hiding is refused mid-gesture, which would pass this test
+    // with the isTextEntry guard deleted.
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    act(() => input.focus());
+    expect(useStore.getState().gesturing).toBe(false);
+    fireEvent.keyDown(input, { key: 'h', code: 'KeyH' });
+    expect(useStore.getState().hiddenIds).toEqual([]);
+    act(() => input.blur());
+    input.remove();
+  });
+
+  it('H does nothing while the cut list is open', async () => {
+    const { user } = await mountWithThreeBoards();
+    await user.click(screen.getByRole('button', { name: 'Cut list' }));
+    await user.keyboard('h');
+    expect(useStore.getState().hiddenIds).toEqual([]);
+  });
+
+  it('H then Ctrl+Z shows the part again', async () => {
+    const { user, ids } = await mountWithThreeBoards();
+    await user.keyboard('h');
+    expect(useStore.getState().hiddenIds).toEqual([ids[0]]);
+    await user.keyboard('{Control>}z{/Control}');
+    expect(useStore.getState().hiddenIds).toEqual([]);
+  });
 });
 
 // The Tape tool's type-anywhere capture. The MARKER and the preview are r3f and

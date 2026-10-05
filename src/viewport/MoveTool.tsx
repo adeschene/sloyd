@@ -47,6 +47,7 @@ export function MoveTool({ showGuides = true }: { showGuides?: boolean }) {
   const guides = useStore((s) => s.doc.guides);
   const grabbed = useStore((s) => s.grabbed);
   const selectedIds = useStore((s) => s.selectedIds);
+  const hiddenIds = useStore((s) => s.hiddenIds);
 
   const gl = useThree((s) => s.gl);
   const camera = useThree((s) => s.camera);
@@ -77,8 +78,8 @@ export function MoveTool({ showGuides = true }: { showGuides?: boolean }) {
   // exactly what moveCandidates reads).
   const grabbing = grabbed !== null;
   const candidates = useMemo(
-    () => moveCandidates(boards, guides, selectedIds, grabbing, showGuides),
-    [boards, guides, selectedIds, grabbing, showGuides],
+    () => moveCandidates(boards, guides, selectedIds, hiddenIds, grabbing, showGuides),
+    [boards, guides, selectedIds, hiddenIds, grabbing, showGuides],
   );
 
   useEffect(() => {
@@ -178,8 +179,8 @@ export function MoveTool({ showGuides = true }: { showGuides?: boolean }) {
       el.removeEventListener('pointerleave', onPointerLeave);
     };
     // `candidates` is in the list because the handlers close over it, and it
-    // already depends on `boards`, `grabbing`, `selectedIds`, `guides` and
-    // `showGuides` — so none of those belongs here again. `size.width`/
+    // already depends on `boards`, `grabbing`, `selectedIds`, `hiddenIds`,
+    // `guides` and `showGuides` — so none of those belongs here again. `size.width`/
     // `.height` rather than `size` so a re-created size object does not
     // resubscribe.
   }, [tool, candidates, gl, camera, size.width, size.height]);
