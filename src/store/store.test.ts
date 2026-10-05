@@ -2098,15 +2098,29 @@ describe('hide and unhide', () => {
   });
 
   it('never clears the tape anchor or hover (invariant 24 prohibition), for every hide and show', () => {
-    const { a } = three();
+    const { a, b, c } = three();
     st().setTapeAnchor(corner(a));
     st().setTapeHover(corner(a));
+    const held = () => {
+      expect(st().tapeAnchor).not.toBeNull();
+      expect(st().tapeHover).not.toBeNull();
+    };
     st().hideSelected();
+    expect(st().hiddenIds).toEqual([a, b]);
+    held();
     st().showAll();
+    expect(st().hiddenIds).toEqual([]);
+    held();
+    st().selectBoard(b);
     st().hideUnselected();
+    expect(st().hiddenIds).toEqual([a, c]);
+    held();
+    st().setHidden(a, false);
+    expect(st().hiddenIds).toEqual([c]);
+    held();
     st().setHidden(a, true);
-    expect(st().tapeAnchor).not.toBeNull();
-    expect(st().tapeHover).not.toBeNull();
+    expect(st().hiddenIds).toEqual([c, a]);
+    held();
   });
 
   it('never changes the document: same object, one undo entry, redo cleared', () => {
@@ -2130,6 +2144,18 @@ describe('hide and unhide', () => {
     st().selectBoard(null);
     st().hideSelected();
     expect(st().past.length).toBe(before);
+  });
+
+  it('an eye that already matches pushes nothing', () => {
+    const { c } = three();
+    const before = st().past.length;
+    st().setHidden(c, true);
+    st().setHidden(c, true);
+    expect(st().past.length).toBe(before + 1);
+    st().setHidden(c, false);
+    const mid = st().past.length;
+    st().setHidden(c, false);
+    expect(st().past.length).toBe(mid);
   });
 
   it('undo shows the parts again, redo hides them again', () => {
