@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { MAX_REPAIRS, RunFailed, runGeneration, runRepairLoop } from './run';
+import { MAX_REPAIRS, RunFailed, problemKey, runGeneration, runRepairLoop } from './run';
 import type { GenerateSettings } from './prompt';
 import { LlmError } from '../llm/types';
 import { designToDocument } from '../document/generated';
@@ -213,5 +213,13 @@ describe('runRepairLoop keepBestOnError', () => {
 
   it('throws without the option', async () => {
     await expect(go()).rejects.toMatchObject({ kind: 'overloaded' });
+  });
+});
+
+describe('problemKey (fu 186)', () => {
+  it('a part named "A,B" is not the pair A and B', () => {
+    const v = (parts: string[]) => ({ kind: 'overlap' as const, message: '', parts });
+    expect(problemKey(v(['A,B']))).not.toBe(problemKey(v(['A', 'B'])));
+    expect(problemKey(v(['B', 'A']))).toBe(problemKey(v(['A', 'B'])));
   });
 });
