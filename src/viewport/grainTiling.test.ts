@@ -3,6 +3,7 @@ import {
   axisDimensions, boardExtents, boardSolids, createBoard, solidWorldBox, wholeBoard,
 } from '../document/document';
 import type { Region } from '../document/document';
+import { chiralPart, turnedAbout } from '../document/turnFixtures';
 import { boardUVOffset, boardUVs, boardUVSignature, facePlans } from './grainTiling';
 
 const flat = createBoard({ length: 24, width: 5.5, thickness: 0.75, material: 'oak' });
@@ -597,6 +598,23 @@ describe('UVs run WITH the world axis, so solids of one board agree (fu 163)', (
         for (const r of v) expect(r).toBeCloseTo(v[0], 6);
       }
     });
+  }
+
+  // Quarter-turns: the same one-mapping rule on a one-handed part at every
+  // posture x turn. Vertex positions come from the drawn geometry (solidWorldBox),
+  // so a span left in the part frame, or a reversal applied after the swap,
+  // shows as a residual that varies within a face or between solids.
+  for (const posture of ['flat', 'on-edge', 'upright'] as const) {
+    for (const turn of [0, 90, 180, 270] as const) {
+      it(`reads one mapping from position to texture coordinate — chiral ${posture} turn ${turn}`, () => {
+        const board = turnedAbout(chiralPart(posture), turn, [30, 0, 17]);
+        for (let face = 0; face < 6; face += 1) {
+          const { u, v } = residuals(board, face);
+          for (const r of u) expect(r).toBeCloseTo(u[0], 6);
+          for (const r of v) expect(r).toBeCloseTo(v[0], 6);
+        }
+      });
+    }
   }
 
   it('puts the outermost ply against the face of a dadoed plywood panel', () => {
