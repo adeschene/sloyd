@@ -276,7 +276,8 @@ and 79.
 
 **What the quarter turns round did (2026-10-05)**: four true quarter turns about the vertical, with a
 spec and plan (`docs/superpowers/specs/2026-10-05-sloyd-quarter-turns-design.md`). **Schema 8.** On
-branch `repeated-parts`, **not merged or deployed**; the live check is pending. Rolling back past it
+branch `repeated-parts`, **not merged or deployed**. Live check passed with the user watching, one
+paid joinery run on four legs at 0/90/180/270 (`docs/browser-verification-quarter-turns.md`). Rolling back past it
 strands v8 documents; export first.
 
 - **Decomposition.** "Repeated parts", the third round the user asked for after multi-select and
