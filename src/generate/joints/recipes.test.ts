@@ -719,3 +719,69 @@ describe('run-out rule (joinery residual fix)', () => {
     expect(overlapsOf(run(doc).doc)).toEqual([]);
   });
 });
+
+describe('rabbet: parts on the panel\'s OUTER face are carried with it (fu 183)', () => {
+  // A 1/4in back behind two sides, entering on +Z. Whatever is fastened to its
+  // outer (-Z) face rides along by the same 1/4in, or it is left in the air.
+  const CASE: P[] = [
+    { name: 'LeftSide', at: [0, 0, 0], size: [0.75, 30, 12] },
+    { name: 'RightSide', at: [20.75, 0, 0], size: [0.75, 30, 12] },
+    { name: 'Back', at: [0, 0, -0.25], size: [21.5, 30, 0.25] },
+  ];
+  const run = (doc: SloydDocument) => { const sites = findSites(doc); return { sites, out: applyJoints(doc, sites, sites.map(rabbetPick(0.375))) }; };
+  const dz = (out: ReturnType<typeof applyJoints>, doc: SloydDocument, name: string) => board(out.doc, name).position[2] - board(doc, name).position[2];
+  const problemsFor = (d: SloydDocument, name: string) => checkDesign(d, limits(d)).filter((v) => v.parts?.includes(name)).map((v) => v.kind);
+
+  it('carries a cleat on the back exactly once, by t, still touching it', () => {
+    const doc = design(...CASE, { name: 'Cleat', at: [0.75, 26, -1], size: [20, 3, 0.75] });
+    expect(checkDesign(doc, limits(doc))).toEqual([]);
+    const { sites, out } = run(doc);
+    expect(sites.filter((s) => s.kind === 'face-against-edge')).toHaveLength(2);
+    expect(out.skipped).toEqual([]);
+    expect(dz(out, doc, 'Back')).toBe(0.25);
+    expect(dz(out, doc, 'Cleat')).toBe(0.25);
+    expect(boxOf(board(out.doc, 'Cleat')).max[2]).toBe(boxOf(board(out.doc, 'Back')).min[2]);
+    expect([...out.moved].sort()).toEqual(['Back', 'Cleat']);
+    expect(problemsFor(out.doc, 'Cleat')).toEqual([]);
+    expect(checkDesign(out.doc, limits(out.doc))).toEqual([]);
+  });
+
+  it('carries a two-deep chain: a spacer on the back, a rail on the spacer', () => {
+    const doc = design(...CASE,
+      { name: 'Spacer', at: [0.75, 26, -1], size: [20, 3, 0.75] },
+      { name: 'Rail', at: [0.75, 26, -1.75], size: [20, 3, 0.75] });
+    expect(checkDesign(doc, limits(doc))).toEqual([]);
+    const { out } = run(doc);
+    expect(out.skipped).toEqual([]);
+    expect(['Back', 'Spacer', 'Rail'].map((n) => dz(out, doc, n))).toEqual([0.25, 0.25, 0.25]);
+    expect([...out.moved].sort()).toEqual(['Back', 'Rail', 'Spacer']);
+    expect(checkDesign(out.doc, limits(out.doc))).toEqual([]);
+  });
+
+  // The cleat overhangs the back's top edge; a top flush with the back's outer
+  // face sits in the 1/4in the cleat would move through.
+  const SHELF: P = { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 12] };
+  const TOP: P = { name: 'Top', at: [0, 30, -0.25], size: [21.5, 0.75, 12.25] };
+  const HIGH_CLEAT: P = { name: 'Cleat', at: [0.75, 28, -1], size: [20, 3, 0.75] };
+
+  it('control: without the top in the way, the high cleat is carried and the shelf trimmed', () => {
+    const doc = design(...CASE, SHELF, HIGH_CLEAT);
+    expect(checkDesign(doc, limits(doc))).toEqual([]);
+    const { out } = run(doc);
+    expect(out.skipped).toEqual([]);
+    expect(dz(out, doc, 'Cleat')).toBe(0.25);
+    expect(board(out.doc, 'Shelf').width).toBe(11.75);
+  });
+
+  it('refuses a carry that would drive the cleat into the top, changing NOTHING', () => {
+    const doc = design(...CASE, SHELF, TOP, HIGH_CLEAT);
+    expect(checkDesign(doc, limits(doc))).toEqual([]);
+    const { sites, out } = run(doc);
+    const backSites = sites.filter((s) => s.kind === 'face-against-edge' && doc.boards[s.enter].name === 'Back');
+    expect(backSites.length).toBeGreaterThanOrEqual(2);
+    expect(out.skipped).toEqual(backSites.map((s) => ({ site: s.id, reason: 'moving Back would drive Cleat into Top' })));
+    expect(out.doc.boards).toEqual(doc.boards);
+    expect(out.trimmed).toEqual([]);
+    expect(out.moved).toEqual([]);
+  });
+});

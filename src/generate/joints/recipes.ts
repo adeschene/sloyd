@@ -282,7 +282,7 @@ export function applyJoints(doc: SloydDocument, sites: Site[], choices: JointCho
 type State = { moved: Set<string>; trimmed: Set<string>; movedFace: Map<number, string>; rabbetReceivers: Set<string>; halfLapPartners: Set<string> };
 
 function rest(joint: JointKind, site: Site, boards: Board[], state: State, c: JointChoice): string | null {
-  if (joint === 'rabbet') { rabbet(site, boards, state, c.depth!); return null; }
+  if (joint === 'rabbet') return rabbet(site, boards, state, c.depth!);
   if (joint === 'half-lap') return halfLap(site, boards, state);
   throw new Error(`applyJoints: unknown joint ${joint}`);
 }
@@ -293,8 +293,14 @@ function rest(joint: JointKind, site: Site, boards: Board[], state: State, c: Jo
  * the same amount first — otherwise the back drives into the shelves. Each
  * receiver gets a rabbet t deep from its edge and r in from its inner face,
  * and the panel is trimmed back to the rabbet line.
+ *
+ * Parts on the panel's OUTER face ride along (follow-up 183): every part
+ * butting it, then every part butting a carried part's outer face, moves by
+ * the same t, or a cleat on the back is left in the air. A carry that would
+ * drive a part into anything else refuses the site, and the refusal is decided
+ * before anything is trimmed, moved or cut.
  */
-function rabbet(site: Site, boards: Board[], state: State, r: number) {
+function rabbet(site: Site, boards: Board[], state: State, r: number): string | null {
   const E = boards[site.enter];
   const R = boards[site.receive];
   const k = site.axis;
@@ -304,14 +310,38 @@ function rabbet(site: Site, boards: Board[], state: State, r: number) {
   const rb = boxOf(R);
 
   if (state.movedFace.get(site.enter) !== faceKey) {
+    const receiver = (j: number) => j === site.receive || state.rabbetReceivers.has(`${site.enter}->${j}`);
     // Rabbet receivers of this panel keep their length; everyone else
     // butting the moving face is shortened on that face.
-    for (const i of buttingFace(boards, site.enter, k, side, (j) => j === site.receive || state.rabbetReceivers.has(`${site.enter}->${j}`))) {
+    const trims = buttingFace(boards, site.enter, k, side, receiver);
+    // The outer-face chain, on the same axis and direction as the panel.
+    const carried: number[] = [];
+    const outer = (i: number) => buttingFace(boards, i, k, (-side) as -1 | 1, (j) => j === site.enter || receiver(j) || carried.includes(j));
+    for (const seed of outer(site.enter)) if (!carried.includes(seed)) carried.push(seed);
+    for (let n = 0; n < carried.length; n++) {
+      for (const j of outer(carried[n])) if (!carried.includes(j)) carried.push(j);
+    }
+    // Refuse BEFORE any mutation. A part about to be trimmed counts at its
+    // trimmed size: it loses t on the face toward the panel.
+    const afterTrim = (j: number): WorldBox => {
+      const b = boxOf(boards[j]);
+      if (!trims.includes(j)) return b;
+      return side === 1 ? withSpans(b, { [k]: [b.min[k] + t, b.max[k]] }) : withSpans(b, { [k]: [b.min[k], b.max[k] - t] });
+    };
+    for (const i of carried) {
+      const b = boxOf(boards[i]);
+      const there = withSpans(b, { [k]: [b.min[k] + side * t, b.max[k] + side * t] });
+      const other = boards.findIndex((_, j) => j !== site.enter && !carried.includes(j) && overlapsBeyondTouch(there, afterTrim(j)));
+      if (other !== -1) return `moving ${E.name} would drive ${boards[i].name} into ${boards[other].name}`;
+    }
+    for (const i of trims) {
       resize(boards[i], k, (side === 1 ? -1 : 1) as -1 | 1, -t);
       state.trimmed.add(boards[i].name);
     }
-    E.position[k] += side * t;
-    state.moved.add(E.name);
+    for (const i of [site.enter, ...carried]) {
+      boards[i].position[k] += side * t;
+      state.moved.add(boards[i].name);
+    }
     state.movedFace.set(site.enter, faceKey);
   }
 
@@ -332,6 +362,7 @@ function rabbet(site: Site, boards: Board[], state: State, r: number) {
     resize(E, nAx, 1, -(eb.max[nAx] - nSpan[1]));
     state.trimmed.add(E.name);
   }
+  return null;
 }
 
 /**
