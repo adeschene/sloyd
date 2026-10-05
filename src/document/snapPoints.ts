@@ -1,6 +1,6 @@
 import { boardSolids, clippedRegion, cutRemovesNothing, stockProbe } from './cuts';
 import type { Point } from './cuts';
-import { axisDimensions, boardExtents, positionAxisOf } from './geometry';
+import { axisFrame, boardExtents, fromWorldOffset, positionAxisOf, toWorldOffset } from './geometry';
 import type { Board, Cut, GuidePoint } from './types';
 
 /**
@@ -77,8 +77,9 @@ export function sameSnapPoint(a: SnapPoint | null, b: SnapPoint | null): boolean
 /**
  * A board's 26 snap candidates: 8 corners, 12 edge midpoints, 6 face centres.
  *
- * A board is always an axis-aligned box (rotation is 0 or 90 about Y, posture
- * only names which dimension points up), so the candidates are the 3x3x3
+ * A board is always an axis-aligned box (rotation is one of four quarter turns
+ * about Y, posture only names which dimension points up), so the candidates
+ * are the 3x3x3
  * lattice of {min, mid, max} on each world axis. The number of axes sitting at
  * `mid` is exactly what names the kind: none is a corner, one is an edge
  * midpoint, two is a face centre — and three is the volume centre, which is
@@ -138,13 +139,15 @@ export function boardSnapPoints(board: Board): BoardSnapPoint[] {
   if (board.cuts.length === 0) return points;
   if (boardSolids(board).length === 0) return points;
 
-  const dims = axisDimensions(board);
+  // World → part goes through fromWorldOffset: a turn may reverse any
+  // horizontal axis, so a world offset is not the part coordinate there.
+  const frame = axisFrame(board);
   const touchesStock = stockProbe(board);
   return points.filter((p) => {
     const local = {} as Point;
-    local[dims[0]] = p.at[0] - px;
-    local[dims[1]] = p.at[1] - py;
-    local[dims[2]] = p.at[2] - pz;
+    for (let i = 0; i < 3; i += 1) {
+      local[frame[i]!.dim] = fromWorldOffset(board, i, p.at[i]! - board.position[i]!);
+    }
     return touchesStock(local);
   });
 }
@@ -152,8 +155,10 @@ export function boardSnapPoints(board: Board): BoardSnapPoint[] {
 /**
  * A point in the board's own space, in world inches.
  *
- * `position` is the min-corner (invariant 2) and axisDimensions says which
- * board dimension runs along each world axis, so this is a bare addition.
+ * `position` is the min-corner (invariant 2) and axisFrame says which board
+ * dimension runs along each world axis and in which direction, so this is the
+ * corner plus toWorldOffset — a bare addition only on an axis the turn does
+ * not reverse.
  *
  * Deliberately NOT pointToLocalXYZ or solidWorldBox: both of those return
  * coordinates relative to the board's CENTRE, because BoardMesh hangs solids
@@ -161,17 +166,15 @@ export function boardSnapPoints(board: Board): BoardSnapPoint[] {
  * by half the board — which looks entirely plausible in a screenshot, and is
  * why the tests pose the fixture rather than sitting it flat at the origin.
  * Two distinct poses are exercised with hand-derived coordinates (not just
- * one): a second pose with a different axisDimensions mapping on all three
+ * one): a second pose with a different axisFrame mapping on all three
  * axes is what actually proves this reads the mapping rather than
  * hard-coding one board's arrangement of it.
  */
 function toWorld(board: Board, p: Point): [number, number, number] {
-  const dims = axisDimensions(board);
-  return [
-    board.position[0] + p[dims[0]],
-    board.position[1] + p[dims[1]],
-    board.position[2] + p[dims[2]],
-  ];
+  const frame = axisFrame(board);
+  return [0, 1, 2].map(
+    (i) => board.position[i]! + toWorldOffset(board, i, p[frame[i]!.dim]),
+  ) as [number, number, number];
 }
 
 /**
@@ -344,8 +347,10 @@ export function offsetPoint(
  * WORLD, not board-local, and that is the round's central decision rather than
  * a default. `axisDimensions` maps a board's length/width/thickness onto the
  * world axes, and by construction it is always a PERMUTATION of [X, Y, Z] —
- * `posture` names which dimension is up and `rotation` is only 0 or 90 about Y,
- * so each dimension lands on exactly one axis and no two share one. There is no
+ * `posture` names which dimension is up and `rotation` is one of four quarter
+ * turns about Y (any horizontal axis possibly reversed, which flips a
+ * direction but never makes one oblique), so each dimension lands on exactly
+ * one axis and no two share one. There is no
  * oblique case the document can express. So board-local axes would reach the
  * same six directions and buy a LABEL, not a capability — and they would be
  * unreachable from a guide-owned anchor, which owns no board. See design §2.

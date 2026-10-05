@@ -34,8 +34,10 @@ const bookcase = () => design(
 // The back rabbet stops 3/8in short of each end since follow-up 182: the back
 // is trimmed to the top's and bottom's rabbet lines BEFORE the sides' rabbets
 // are cut, so they end where the back does (a word change the user accepted).
+// The sides sit at turn 90, which reverses Z (their width): the back, at world
+// Z min, is the width MAX side, and the front is the width MIN end.
 const SIDE_TOP = [
-  '3/8" stopped rabbet, 1/4" deep — into the width face (min side), 3/8" from the thickness min end, running across the length, stopped 3/8" short of the min end and 3/8" short of the max end',
+  '3/8" stopped rabbet, 1/4" deep — into the width face (max side), 3/8" from the thickness min end, running across the length, stopped 3/8" short of the min end and 3/8" short of the max end',
   '3/4" rabbet, 1/4" deep — into the thickness face (max side), 0" from the length min end, running across the width',
   '3/4" rabbet, 1/4" deep — into the thickness face (max side), 71-1/4" from the length min end, running across the width',
 ];
@@ -74,8 +76,8 @@ describe('the live designs (cut-lines spec §2.2)', () => {
   it('a stopped shelf housing prints its height as the position and its front stop as the only stop (fu 192)', () => {
     expect(setupOf(stoppedShelves(), 'Left side')).toEqual([
       ...SIDE_TOP,
-      '3/4" stopped dado, 1/4" deep — into the thickness face (max side), 24" from the length min end, running across the width, stopped 3/4" short of the max end',
-      '3/4" stopped dado, 1/4" deep — into the thickness face (max side), 48" from the length min end, running across the width, stopped 3/4" short of the max end',
+      '3/4" stopped dado, 1/4" deep — into the thickness face (max side), 24" from the length min end, running across the width, stopped 3/4" short of the min end',
+      '3/4" stopped dado, 1/4" deep — into the thickness face (max side), 48" from the length min end, running across the width, stopped 3/4" short of the min end',
     ]);
   });
 
@@ -85,9 +87,9 @@ describe('the live designs (cut-lines spec §2.2)', () => {
     const housing = view.cuts.find((c) => c.offsetLabel === '24"')!;
     expect(housing).toMatchObject({
       axis: 'h', offsetLabel: '24"', widthLabel: '3/4"', kind: 'stopped dado',
-      stopMaxLabel: '3/4"', lengthLabel: '10-1/4"',
+      stopMinLabel: '3/4"', lengthLabel: '10-1/4"',
     });
-    expect(housing.stopMinLabel).toBeUndefined();
+    expect(housing.stopMaxLabel).toBeUndefined();
   });
 
   it('joinery stores every cut the way the sheet reads it (cut-storage §3.2)', () => {
@@ -99,6 +101,6 @@ describe('the live designs (cut-lines spec §2.2)', () => {
     const side = stoppedShelves().boards.find((b) => b.name === 'Left side')!;
     // The two housings are the only thickness-face cuts with a stop (the top and bottom rabbets have none).
     const housings = side.cuts.filter((c) => c.face === 'thickness' && c.stopMax > 0);
-    expect(housings.map((c) => [c.across, c.offset, c.stopMin, c.stopMax])).toEqual([['width', 24, 0.25, 0.75], ['width', 48, 0.25, 0.75]]);
+    expect(housings.map((c) => [c.across, c.offset, c.stopMin, c.stopMax])).toEqual([['width', 24, 0.75, 0.25], ['width', 48, 0.75, 0.25]]);
   });
 });

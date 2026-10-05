@@ -1,6 +1,6 @@
 import { createBoard, createDocument, migrateDocument } from '../../document/document';
 import { stockProbe } from '../../document/cuts';
-import { axisDimensions } from '../../document/geometry';
+import { axisDimensions, toWorldOffset } from '../../document/geometry';
 import type { Board, Posture, Rotation } from '../../document/types';
 import { boxOf, pocketFor } from './pocket';
 import type { WorldBox } from './pocket';
@@ -21,7 +21,8 @@ function assertCarves(board: Board, box: WorldBox) {
     for (let w = 1 / 16; w < board.width; w += 1 / 8) {
       for (let t = 1 / 16; t < board.thickness; t += 1 / 8) {
         const local = { length: l, width: w, thickness: t };
-        const world = [0, 1, 2].map((i) => board.position[i] + local[dims[i]]);
+        // toWorldOffset: a turn may reverse an axis (quarter-turns spec §2).
+        const world = [0, 1, 2].map((i) => board.position[i] + toWorldOffset(board, i, local[dims[i]]));
         const inside = world.every((v, i) => v > box.min[i] && v < box.max[i]);
         if (inside) removed++;
         expect(probe(local), `${JSON.stringify(local)} inside=${inside}`).toBe(!inside);
@@ -31,9 +32,9 @@ function assertCarves(board: Board, box: WorldBox) {
   expect(removed, 'the box must actually remove something').toBeGreaterThan(0);
 }
 
-const POSES: [Posture, Rotation][] = [
-  ['flat', 0], ['flat', 90], ['on-edge', 0], ['on-edge', 90], ['upright', 0], ['upright', 90],
-];
+const POSES: [Posture, Rotation][] = (['flat', 'on-edge', 'upright'] as const).flatMap(
+  (posture) => ([0, 90, 180, 270] as const).map((r): [Posture, Rotation] => [posture, r]),
+);
 
 describe('pocketFor', () => {
   const board = (posture: Posture, rotation: Rotation) =>

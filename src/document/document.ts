@@ -3,13 +3,14 @@ import type {
   Board, Cut, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, GuidePoint,
 } from './types';
 import { dedupeNames } from './names';
-import { positionAxisOf } from './geometry';
+import { positionAxisOf, horizontalOf, DIMENSION_ORDER } from './geometry';
 
 export * from './types';
 export {
   boardExtents, boardCenter, boardsBounds, reorientedPosition, axisDimensions, DIMENSION_ORDER, positionAxisOf,
+  horizontalOf, axisFrame, toWorldOffset, fromWorldOffset, spanToWorldOffset, spanFromWorldOffset, endFacing,
 } from './geometry';
-export type { Bounds } from './geometry';
+export type { Bounds, AxisMap } from './geometry';
 export { uniqueName, dedupeNames } from './names';
 export { boardEdges, boardSolids, CUT_GEOMETRY_FIELDS, CUT_GEOMETRY_KEYS, cutLabel, cutRegion, clippedRegion, cutShape, storedAsShape, cutRemovesNothing, cutsThatRemoveStock, pointToLocalXYZ, solidWorldBox, wholeBoard } from './cuts';
 export type { CutKind, CutShape, Point, Segment } from './cuts';
@@ -53,8 +54,13 @@ export type { BoardSnapPoint, SnapKind, SnapOwner, SnapPoint, TapeAxis } from '.
  * loss: a v6 build opening a v7 file would ignore the stops, show a blind
  * mortise as a through-dado with nothing saying so, and autosave that shape
  * back. The gate makes it refuse the file instead.
+ *
+ * v8 made rotation 90 a TRUE quarter turn and legalised 180 and 270 (quarter-turns
+ * spec §4). `trueTurnsToV8` mirrors the cuts of 90° parts so they look exactly as
+ * before. The bump's argument is WRONG GEOMETRY: a v7 build reads 180 and 270 as
+ * invalid, falls back to 0, shows a different part and autosaves it.
  */
-export const CURRENT_VERSION = 7;
+export const CURRENT_VERSION = 8;
 
 export class DocumentError extends Error {
   /**
@@ -169,7 +175,7 @@ export function createGuide(at: [number, number, number]): GuidePoint {
   return { id: nextId(), at: [at[0], at[1], at[2]] };
 }
 
-const VALID_ROTATIONS = [0, 90];
+const VALID_ROTATIONS = [0, 90, 180, 270];
 const VALID_POSTURES: Posture[] = ['flat', 'on-edge', 'upright'];
 const VALID_GRAINS: Grain[] = ['length', 'width', 'thickness'];
 
@@ -353,10 +359,13 @@ function validateBoard(raw: unknown, index: number, seen: Set<string>): Board {
  *
  * This runs on the RAW board data, before validateBoard. That ordering is
  * load-bearing: validateBoard falls back to 0 for any rotation outside
- * VALID_ROTATIONS, which is now [0, 90], so a stored 270 validated first would
+ * VALID_ROTATIONS, which was then [0, 90], so a stored 270 validated first would
  * come out as 0 rather than 90 — and unlike 0-vs-180, that is a different shape
  * on screen. Folding first leaves validateBoard's fallback as what it was meant
  * to be: last-resort handling for garbage.
+ *
+ * v1 had no cuts, so this fold is still right now that 180 and 270 exist again
+ * (v8 restored them as true turns; migrating a v1 file never meets one).
  *
  * The fold is extent-neutral — boardExtents already treated 180 like 0 and 270
  * like 90 — so it must not adjust any position.
@@ -410,6 +419,70 @@ function addCutsToV4(raw: unknown): unknown {
 }
 
 /**
+ * v7 -> v8: rotation 90 became a TRUE quarter turn (quarter-turns spec §4).
+ * Before v8 it carried h0 on Z forward; now h0 runs reversed. So a 90° part's
+ * cuts are mirrored along h0 and its world geometry is exactly what it was.
+ * Only 90° parts WITH cuts change; everything else passes through untouched.
+ * RAW data, before validateBoard (invariant 11): a malformed field is left for
+ * validateCuts to judge, never thrown on here.
+ */
+function trueTurnsToV8(raw: unknown): unknown {
+  if (typeof raw !== 'object' || raw === null) return raw;
+  const b = raw as Record<string, unknown>;
+  if (b.rotation !== 90 || !Array.isArray(b.cuts) || b.cuts.length === 0) return raw;
+  const posture = VALID_POSTURES.includes(b.posture as Posture) ? (b.posture as Posture) : 'flat';
+  const [h0] = horizontalOf(posture);
+  const size = b[h0];
+  if (typeof size !== 'number' || !Number.isFinite(size)) return raw;
+  return { ...b, cuts: b.cuts.map((c) => mirrorCutAlong(c, h0, size)) };
+}
+
+/** One cut mirrored along dimension d (u -> size - u). face, across and the
+ *  position axis are three different dimensions, so exactly one case applies.
+ *
+ *  The position-axis case CLIPS BEFORE IT REFLECTS. validateCuts clamps offset
+ *  into [0, size] and then width into [0, size - offset], so what a v7 build
+ *  removed is the raw interval clipped to the board; reflecting the RAW
+ *  interval and letting validateCuts clamp afterwards is a different cut
+ *  whenever it runs past an end (an overhang migrates wider, a cut the loader
+ *  dropped comes back as a real one). So the clip here is validateCuts' clamp,
+ *  in its order, and a cut it would drop is returned raw for it to drop.
+ *
+ *  The far end is reflected as ONE sum, `size - (lo + width)`: the clipped far
+ *  end `lo + width` is exactly what validateCuts' cut reached, so a decimal cut
+ *  flush with the far end lands at exactly 0 instead of a float residue away
+ *  from it (`size - lo - width` leaves ~7e-16, a sliver solid). Nothing is
+ *  snapped: a cut that stopped 1e-10 short of an end in v7 left a real sliver
+ *  there, and the migration keeps it (spec §4, identical world solids).
+ *
+ *  The mirror case, a cut flush with the NEAR end, needs the width instead:
+ *  on a non-dyadic board `(size - w) + w` can fall an ulp short of `size`,
+ *  leaving a ~1e-15 sliver at the far end. So that cut stores
+ *  `width = size - offset`, which is exact (Sterbenz: offset >= size/2, or
+ *  offset is already exactly size - w), and offset + width === size. Exact
+ *  arithmetic, not a tolerance, so the no-snap rule above still holds. */
+function mirrorCutAlong(raw: unknown, d: Dimension, size: number): unknown {
+  if (typeof raw !== 'object' || raw === null) return raw;
+  const c = raw as Record<string, unknown>;
+  if (c.face === d) {
+    return c.from === 'min' ? { ...c, from: 'max' } : c.from === 'max' ? { ...c, from: 'min' } : raw;
+  }
+  if (c.across === d) return { ...c, stopMin: c.stopMax, stopMax: c.stopMin };
+  const dims = DIMENSION_ORDER as string[];
+  if (!dims.includes(c.face as string) || !dims.includes(c.across as string)) return raw;
+  if (typeof c.offset !== 'number' || !Number.isFinite(c.offset)) return raw;
+  if (typeof c.width !== 'number' || !Number.isFinite(c.width)) return raw;
+  const lo = clamp(c.offset, 0, size);
+  const width = clamp(c.width, 0, size - lo);
+  if (width <= 0) return raw;
+  const offset = size - (lo + width);
+  // Flush with the near end: store the width that reaches the far end
+  // EXACTLY. offset is then >= size/2 (Sterbenz) or already size - width
+  // exactly, so size - offset is exact and offset + width === size.
+  return { ...c, offset, width: lo === 0 ? size - offset : width };
+}
+
+/**
  * Validate and upgrade a parsed document to the current schema.
  * Throws DocumentError with a human-readable reason. Never partially loads:
  * either the whole document validates or nothing is returned.
@@ -444,6 +517,7 @@ export function migrateDocument(raw: unknown): SloydDocument {
   if (d.version < 2) rawBoards = rawBoards.map(foldRotationToV2);
   if (d.version < 3) rawBoards = rawBoards.map(addPostureToV3);
   if (d.version < 4) rawBoards = rawBoards.map(addCutsToV4);
+  if (d.version < 8) rawBoards = rawBoards.map(trueTurnsToV8);
 
   const units = d.units as SloydDocument['units'] | undefined;
   const precision =

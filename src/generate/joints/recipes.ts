@@ -2,7 +2,7 @@ import { CURRENT_VERSION, migrateDocument, storedAsShape } from '../../document/
 import type { Board, Dimension, SloydDocument } from '../../document/document';
 import { boardSolids } from '../../document/cuts';
 import { TOUCH, worldSolids } from '../../document/designCheck';
-import { SNAP_INCHES, axisDimensions, positionAxisOf } from '../../document/geometry';
+import { SNAP_INCHES, axisDimensions, endFacing, positionAxisOf } from '../../document/geometry';
 import { boxOf, pocketFor } from './pocket';
 import type { V3, WorldBox } from './pocket';
 import type { JointKind, Site, StopEnd } from './sites';
@@ -46,7 +46,8 @@ function resize(b: Board, k: number, side: -1 | 1, amount: number) {
   const was = b[d];
   b[d] = was + amount;
   if (side === -1) b.position[k] -= amount;
-  rebaseCuts(b, d, side === -1 ? 'min' : 'max', amount, was);
+  // The part end facing the world `side`: a turn may reverse axis k.
+  rebaseCuts(b, d, endFacing(b, k, side), amount, was);
 }
 
 /**
@@ -55,10 +56,13 @@ function resize(b: Board, k: number, side: -1 | 1, amount: number) {
  * `resize` caller asks it first, so a design that arrives already cut there is
  * skipped with a reason instead of failing the whole run after a paid call.
  * `face` and `from` are what the throw reads and `storedAsShape` changes
- * neither, so the stored form answers it.
+ * neither, so the stored form answers it. `end` is a WORLD end; it is mapped
+ * to the part's own end with endFacing, since a turn may reverse axis k.
  */
-const cutIntoEnd = (b: Board, k: number, end: 'min' | 'max') =>
-  b.cuts.some((c) => c.face === axisDimensions(b)[k] && c.from === end);
+const cutIntoEnd = (b: Board, k: number, end: 'min' | 'max') => {
+  const local = endFacing(b, k, end === 'min' ? -1 : 1);
+  return b.cuts.some((c) => c.face === axisDimensions(b)[k] && c.from === local);
+};
 
 /**
  * The ONE place a part's EXISTING cuts follow a resize (spec §4.7, final

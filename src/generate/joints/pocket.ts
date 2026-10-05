@@ -1,6 +1,6 @@
 import { nextId, storedAsShape } from '../../document/document';
 import type { Board, Cut, Dimension } from '../../document/document';
-import { DIMENSION_ORDER, axisDimensions, boardExtents } from '../../document/geometry';
+import { DIMENSION_ORDER, axisFrame, boardExtents, spanFromWorldOffset } from '../../document/geometry';
 
 export type V3 = [number, number, number];
 export interface WorldBox { min: V3; max: V3 }
@@ -17,7 +17,8 @@ export function boxOf(b: Board): WorldBox {
  * The ONE place a world box becomes a Cut (invariant 41). The cut removes
  * exactly `box ∩ board`.
  *
- * The box is mapped to the board's own dimensions, then clipped. `face` is a
+ * The box is mapped into the board's own frame (`axisFrame`, with direction),
+ * then clipped. `face` is a
  * dimension where the clipped box reaches the board's boundary — the
  * shallowest such, ties to the earlier in DIMENSION_ORDER. `across` carries
  * the stops: the remaining dimension with the most boundary contact (full
@@ -29,16 +30,17 @@ export function boxOf(b: Board): WorldBox {
  * a recipe bug, so this THROWS rather than returning something wrong.
  */
 export function pocketFor(board: Board, box: WorldBox): Cut {
-  const dims = axisDimensions(board);
   const local = {} as Record<Dimension, [number, number]>;
-  dims.forEach((d, i) => {
+  // Clamp in world-offset space, then convert: a turn may reverse an axis, so
+  // the box's world span maps to the part's span reflected there.
+  axisFrame(board).forEach(({ dim: d }, i) => {
     // Snap within EPS to the exact ends, so a non-dyadic coordinate cannot
     // leave a 1e-16 stop that validateCuts keeps and cutLabel calls a notch.
     const snap = (v: number) => (Math.abs(v) <= EPS ? 0 : Math.abs(v - board[d]) <= EPS ? board[d] : v);
-    local[d] = [
-      snap(Math.max(0, box.min[i] - board.position[i])),
-      snap(Math.min(board[d], box.max[i] - board.position[i])),
-    ];
+    const lo = Math.max(0, box.min[i] - board.position[i]);
+    const hi = Math.min(board[d], box.max[i] - board.position[i]);
+    const [a, b] = spanFromWorldOffset(board, i, [lo, hi]);
+    local[d] = [snap(a), snap(b)];
   });
   if (DIMENSION_ORDER.some((d) => local[d][1] - local[d][0] <= EPS)) {
     throw new Error(`pocketFor: the box misses ${board.name}`);

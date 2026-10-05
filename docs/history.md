@@ -274,6 +274,77 @@ and 79.
 
 ## What each round did
 
+**What the quarter turns round did (2026-10-05)**: four true quarter turns about the vertical, with a
+spec and plan (`docs/superpowers/specs/2026-10-05-sloyd-quarter-turns-design.md`). **Schema 8.** On
+branch `repeated-parts`, **not merged or deployed**. Live check passed with the user watching, one
+paid joinery run on four legs at 0/90/180/270 (`docs/browser-verification-quarter-turns.md`). Rolling back past it
+strands v8 documents; export first.
+
+- **Decomposition.** "Repeated parts", the third round the user asked for after multi-select and
+  hide/unhide, was split into three rounds of its own, in the user's order: **quarter turns**, then
+  **copy in a row**, then **linking**. Copy and link are separate actions; a link will share
+  dimensions, material, grain and cuts, while each linked part keeps its own position and its own
+  turn (the user's example: four table legs with the same mortises, each turned to face its rails).
+  This round is the turn that example needs.
+- **The finding: 90° was a mirror.** `rotation` was `0 | 90`, and `axisDimensions` only said WHICH
+  dimension ran along each world axis, never in which direction. So 90° swapped the two
+  horizontals, a reflection across the X=Z diagonal, not a rotation. Two parts with identical cuts
+  could face them toward (+X, +Z) or (−X, −Z) but never (−X, +Z): one corner of a frame was
+  unreachable.
+- **The user's rulings.** Three rounds, quarter turns first. **True rotations, and migrate**:
+  existing 90° parts with cuts are rewritten on load so they look exactly as before; a separate
+  mirror flag was rejected.
+- **The change.**
+  - `axisFrame` in `geometry.ts` is the one turn table (spec §2): per world axis an `AxisMap`
+    `{ dim, reversed }`. `axisDimensions` derives from it. Four helpers plus `endFacing` are the
+    only part↔world crossings (invariant 44).
+  - Every crossing a search found now uses them: `solidWorldBox`, `pointToLocalXYZ`, the
+    `boardSnapPoints` filter, `toWorld` (cut snap points), `worldSolids`, `pocketFor`, `resize`,
+    `cutIntoEnd` and `boardUVs` (per geometry axis, before invariant 35's sign and swap).
+  - `trueTurnsToV8` (v7→v8, per board, raw data) mirrors each cut of a 90° part with cuts along
+    h0: exactly one of `from` flipping, the stops swapping, or `offset → size − (offset + width)`
+    (on the interval clipped first as `validateCuts` clamps it; final review C1) applies, because face, across and position axis are three different dimensions. Everything
+    else passes through byte-identical. The bump's argument is wrong geometry, as v7's was.
+  - Properties' Turn offers 0/90/180/270. Generate still emits only 0 and 90.
+- **Rulings made while planning.** `faceGrainKinds` needed **no code change**: both faces of an
+  axis pair share one grain kind, so swapping the ± slots on a reversed axis is a no-op. It got a
+  comment instead; the UV test covers what is drawn.
+- **Rulings made during execution.**
+  - **The plan split one mapping change across Tasks 2-4 and left the tree red between them.**
+    Once `worldSolids` and `solidWorldBox` carried direction, `pocketFor` (Task 3) and `boardUVs`
+    (Task 4) still did not, so the checks and the cuts disagreed: 34 failures. The joinery and
+    texture CODE moved into Task 2; Tasks 3 and 4 became tests plus mutation evidence against code
+    already present, with no RED-first run possible. **Two intermediate commits on the branch are
+    red** (`bc42990`, `73e0e65`); HEAD is green. Accepted rather than squashed, because the ledger
+    cites the reviewed SHAs and the `--no-ff` merge keeps master's first-parent history green; the
+    cost is that a bisect inside the branch can land on a red commit.
+  - **Existing tests that pinned the old mirrored 90° were updated to the true-turn values**, each
+    proved to differ only by the mirror before it was changed:
+    - 7 `snapPoints.test.ts` pins on the `posed` fixture (world Z = 14 − old Z), plus 2 negative
+      assertions that had become vacuous at the old Z (proved by wrapping the real functions in a
+      Z reflection: the old file then passed 80/80);
+    - 2 oracles that reimplemented the mirror: `assertCarves` in `pocket.test.ts` and `worldOf` in
+      `recipes.test.ts`, now on `toWorldOffset` / `spanToWorldOffset` with no assertion changed;
+    - 5 part-frame tests carrying 6 assertions on the turn-90 bookcase sides (`recipes.test.ts`
+      and `cutlines.recipe.test.ts`): the back rabbet's `from` max → min on both sides (Right's
+      was masked by Left's), the sheet's "(min side)" → "(max side)", the housings' "short of the
+      max end" → "min end", `stopMaxLabel` → `stopMinLabel`, and the housings' stops swapped. The
+      world cut is the same in every case. **So joinery on a 90° part now names the opposite end
+      on the sheet for the same world cut**; spec §4's stated cost, reaching new joinery runs too,
+      because Generate's sides arrive at 90°.
+  - **A plan-supplied `boardSnapPoints` equivariance test could not fail** — green before the
+    implementation and green under the filter mutation — because no lattice point of `chiralPart`
+    sat in removed stock. `chiralPart` gained `c3`, a stopped rabbet that takes a box corner; the
+    test then went red under the mutation. All three cuts are off-centre on every axis, so each alone is one-handed.
+- **Test evidence.** 1806 tests across 61 files (from 1749 across 59), build clean. Mutations, each
+  red: every site's helper dropped (worldSolids, solidWorldBox, edges, cut and box snap points,
+  pocketFor, resize, cutIntoEnd, boardUVs part-frame spans and reflection after the swap), the
+  migration's chain line, each of its three per-field cases, mirroring h1 instead of h0, touching
+  0° parts, and the 270° option. The store anchor tests (a box-corner anchor kept on a 180° turn,
+  a cut-point anchor dropped) were not separately mutated.
+- **Residues** are follow-ups 215-217: 215 the handedness-across-postures question, 216 the
+  millimetre ulp finding, 217 the record-only gaps.
+
 **What the hide/unhide round did (2026-10-05)**: hiding parts from the 3D view and bringing them
 back, with a spec and plan (`docs/superpowers/specs/2026-10-05-sloyd-hide-unhide-design.md`). No
 schema change. **Merged (`366eb37`) and deployed** (`index-BpdcUlXf.js`). **Live check passed** with the user watching (`docs/browser-verification-hide-unhide.md`).

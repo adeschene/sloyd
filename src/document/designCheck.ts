@@ -1,7 +1,7 @@
 import type { Board, SloydDocument } from './document';
 import type { RejectedPart } from './generated';
 import { boardSolids } from './cuts';
-import { axisDimensions, boardExtents } from './geometry';
+import { axisFrame, boardExtents, spanToWorldOffset } from './geometry';
 
 /**
  * The checks a generated design is held to (spec §4.3). Pure, against the
@@ -234,17 +234,21 @@ const boxesOf = (doc: SloydDocument): Box[] => doc.boards.map((b) => {
 
 /**
  * A part's SOLIDS in world space — invariant 2's mapping, position plus the
- * local span on the dimension each axis shows. NOT solidWorldBox, which is
+ * local span on the dimension each axis shows, reflected on any axis the turn
+ * reverses (spanToWorldOffset). NOT solidWorldBox, which is
  * centre-relative (CLAUDE.md warns about exactly this). Exported as the ONE
  * home of this mapping: joinery's blockers judge the same solids (fu 203).
  */
 export function worldSolids(b: Board): Box[] {
-  const dims = axisDimensions(b);
-  return boardSolids(b).map((s) => ({
-    name: b.name,
-    min: [0, 1, 2].map((i) => b.position[i] + s[dims[i]][0]),
-    max: [0, 1, 2].map((i) => b.position[i] + s[dims[i]][1]),
-  }));
+  const frame = axisFrame(b);
+  return boardSolids(b).map((s) => {
+    const spans = [0, 1, 2].map((i) => spanToWorldOffset(b, i, s[frame[i]!.dim]));
+    return {
+      name: b.name,
+      min: spans.map(([lo], i) => b.position[i]! + lo),
+      max: spans.map(([, hi], i) => b.position[i]! + hi),
+    };
+  });
 }
 const solidBoxesOf = (doc: SloydDocument): Box[][] => doc.boards.map(worldSolids);
 

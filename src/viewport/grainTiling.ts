@@ -1,4 +1,4 @@
-import { boardExtents, CUT_GEOMETRY_KEYS, DIMENSION_ORDER, isSheetGood, wholeBoard } from '../document/document';
+import { axisFrame, boardExtents, CUT_GEOMETRY_KEYS, DIMENSION_ORDER, isSheetGood, spanToWorldOffset, wholeBoard } from '../document/document';
 import type { Board, Region, Span } from '../document/document';
 import { axisDimensions, faceGrainKinds, grainFamily } from './grainFaces';
 import type { Dimension, GrainFamily, GrainKind } from './grainFaces';
@@ -190,18 +190,19 @@ const CORNERS: Array<[number, number]> = [[0, 1], [1, 1], [0, 0], [1, 0]];
  */
 export function boardUVs(board: Board, solid: Region = wholeBoard(board)): Float32Array {
   const plans = facePlans(board);
-  const dims = axisDimensions(board);
+  const frame = axisFrame(board);
   const [ou, ov] = boardUVOffset(board.id);
   const uv = new Float32Array(48);
   let i = 0;
   for (let face = 0; face < plans.length; face += 1) {
     const plan = plans[face];
     const [[, su], [, sv]] = FACE_AXES[face];
-    const spans = plan.axes.map((axis) => solid[dims[axis]]) as [Span, Span];
+    const spans = plan.axes.map((axis) => spanToWorldOffset(board, axis, solid[frame[axis]!.dim])) as [Span, Span];
     for (const [cu, cv] of CORNERS) {
       // Resolve each geometry corner into a fraction that runs WITH its world
-      // axis, so that 0 means the span's min and 1 means its max. `at` below
-      // reads the fraction that way, and three of the box's twelve UV axes run
+      // axis, so that 0 means the span's min and 1 means its max. The span is
+      // in world-offset space (spanToWorldOffset), so that holds on every
+      // turn. `at` below reads the fraction that way, and three of the box's twelve UV axes run
       // the other way (see FACE_AXES).
       //
       // THIS MUST HAPPEN BEFORE THE SWAP, and that is the half a tidying pass
