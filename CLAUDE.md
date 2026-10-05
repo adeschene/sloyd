@@ -25,7 +25,7 @@ tradition built around hand woodworking.
 ## Status
 
 Static SPA, containerized, **1814/1814 tests passing across 61 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
-`CURRENT_VERSION` **8** on branch `repeated-parts` (production and `master` are still at **7** — see below).
+`CURRENT_VERSION` **8**, on `master` and in production.
 
 **PRODUCTION MATCHES `master` as of 2026-10-05 with the quarter turns round live** — bundle `index-bSuJPbkx.js`, CSS `index-CgHZGep2.css` (unchanged), merge commit `a24287f`, **schema 8** (rolling back past it strands v8 documents; export first). Before it: hide/unhide `index-BpdcUlXf.js` (`366eb37`, 2026-10-05), multi-select `index-D7ySMvky.js` (`232917f`, 2026-10-05), joinery residues `index-D_wzi7Bx.js` (`2b96eb2`, 2026-10-05), joinery fixes `index-BzWa2ZGT.js` (`c31dd82`, 2026-10-05), fu 197 `index-Ci3NLhVT.js` (`658dfcc`, 2026-10-05), fu 200 `index-DjL6FbOz.js` (`f37734b`, 2026-10-05), 198/199 `index-BvsB1zA6.js` (`fb8a094`, 2026-10-05), cut storage `index-JBiJohQE.js` (`7fa749d`, 2026-10-04), cut lines `index-BPmx9i74.js` (`f602a2d`), cut words `index-Cw_EeWuY.js` (`8c9be52`), joinery `index-Ci7lVCzJ.js` (`d2a14ac`), phantom cut `index-B2Yuq550.js` (`e7bf3bc`), stopped cuts `index-CoHIAVxf.js` (`c054ede`), which bumped the schema to 7 (rolling back past it strands v7 documents; export first). Before it, 2026-10-03: key check `index-BhhW2iNw.js` (`d0ba83b`), held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
 bundle `index-BAsxEohe.js` with CSS `index-DEQSkZ3q.css`, from merge commit `fa834dc`. A
