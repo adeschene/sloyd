@@ -24,8 +24,8 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **1749/1749 tests passing across 59 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
-`CURRENT_VERSION` **7**.
+Static SPA, containerized, **1806/1806 tests passing across 61 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
+`CURRENT_VERSION` **8** on branch `repeated-parts` (production and `master` are still at **7** — see below).
 
 **PRODUCTION MATCHES `master` as of 2026-10-05 with the hide/unhide round live** — bundle `index-BpdcUlXf.js`, CSS `index-CgHZGep2.css` (moved: parts-list eye styles), merge commit `366eb37`, **schema 7**. Before it: multi-select `index-D7ySMvky.js` (`232917f`, 2026-10-05), joinery residues `index-D_wzi7Bx.js` (`2b96eb2`, 2026-10-05), joinery fixes `index-BzWa2ZGT.js` (`c31dd82`, 2026-10-05), fu 197 `index-Ci3NLhVT.js` (`658dfcc`, 2026-10-05), fu 200 `index-DjL6FbOz.js` (`f37734b`, 2026-10-05), 198/199 `index-BvsB1zA6.js` (`fb8a094`, 2026-10-05), cut storage `index-JBiJohQE.js` (`7fa749d`, 2026-10-04), cut lines `index-BPmx9i74.js` (`f602a2d`), cut words `index-Cw_EeWuY.js` (`8c9be52`), joinery `index-Ci7lVCzJ.js` (`d2a14ac`), phantom cut `index-B2Yuq550.js` (`e7bf3bc`), stopped cuts `index-CoHIAVxf.js` (`c054ede`), which bumped the schema to 7 (rolling back past it strands v7 documents; export first). Before it, 2026-10-03: key check `index-BhhW2iNw.js` (`d0ba83b`), held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
 bundle `index-BAsxEohe.js` with CSS `index-DEQSkZ3q.css`, from merge commit `fa834dc`. A
@@ -44,6 +44,8 @@ badly supported part; both are now CLOSED (below).
 **The joinery residues round (follow-ups 182, 186, 188, 191, 201–203, 2026-10-05) is merged AND deployed.** Verified against the dev server with the user watching, one paid run (`docs/browser-verification-joinery-residues.md`). A rabbeted panel is resolved as one unit from its final box, so its pockets leave no voids and parts in its path are trimmed (182, 201); default tenons shrink to 1/4in, else butt (188); joinery blockers judge solids (203); every `resize` is pre-checked, so an end already cut is a skip, never a throw. No schema change. Residues are 205–206.
 
 **The joinery fixes round (follow-ups 183, 184, 185, 190, 2026-10-05) is merged AND deployed.** Verified against the dev server with the user watching, three paid runs (`docs/browser-verification-joinery-fixes.md`). Default tenons from opposite faces are capped under half the post (190), crossings run bottom-up with a swept-volume blocker (185), a rabbeted panel carries its outer-face chain or refuses before any mutation (183), and the dialog reports the re-ground (184). No schema change. Residues are 201-204.
+
+**The quarter turns round (2026-10-05) is on branch `repeated-parts`, NOT yet merged or deployed; the live check is pending.** The first of the three repeated-parts rounds, in the user's order: quarter turns, then copy in a row, then linking. `rotation` is now `0 | 90 | 180 | 270`, all TRUE rotations about the vertical, counter-clockwise from above; before it, 90° was a mirror across the X=Z diagonal, so identical parts could never face their cuts toward (−X, +Z). `axisFrame` is the one home of the turn table and every part↔world crossing goes through its helpers (invariant 44; spec `docs/superpowers/specs/2026-10-05-sloyd-quarter-turns-design.md`). Properties' Turn offers all four. **Schema 8**: `trueTurnsToV8` mirrors the cuts of every existing 90° part with cuts so it looks exactly as before. **Rolling back past it strands v8 documents; export first.** The visible cost: a migrated 90° part may measure its cuts from the other end on the sheet, and joinery on Generate's 90° parts now names the opposite end of the part for the same world cut. Generate still produces only 0° and 90°. Residues are follow-ups 215-217 (215 is the open handedness-across-postures question).
 
 **The hide/unhide round (2026-10-05) is merged AND deployed; its live check passed with the user watching** (`docs/browser-verification-hide-unhide.md`), and it fixed a pre-existing projection-swap framing bug. Each part-list row has an eye; H hides the selection, Shift+H (and **Hide others** in Properties) hides the rest, Alt+H (and **Show all (N)**) shows everything (invariant 43; spec `docs/superpowers/specs/2026-10-05-sloyd-hide-unhide-design.md`). A hidden part is not drawn, not a snap point, not framed by Home and never selected; it is still in the cut list, joinery, Generate, the checks and the saved file. Hidden-ness is view state, not saved, so no schema change, but it is undoable. Repeated parts is the next round, in the user's order. Residues are follow-ups 213-214.
 
@@ -281,6 +283,7 @@ show it. Prefer a readout where one suffices; add an image when the finding is s
 | fu 200 | 10-05 | — | *no spec* — computed opening extents compare within `FLUSH_EPSILON` in `runAxis` and the word table (invariant 22's rule), so a millimetre square reads like its fractional twin; stored values stay exact |
 | fu 197 | 10-05 | — | *no spec* — `clippedRegion`: the cut's box clipped to the board is the one clip read by everything that shows a cut (drawing spans, snap points, cutShape, openSides, findTenons); an in-session overhang draws as what remains |
 | multi-select | 10-05 | — | `selectedIds`: Shift/Ctrl-click, Ctrl/Cmd+A, group move/delete/duplicate, shared Properties fields; one writer for user selection changes (inv 42); a selection change mid-drag ends the gizmo drag; Enter commits and blurs a field (fu 212) |
+| quarter turns | 10-05 | 8 | *branch, not merged* — `rotation: 0 \| 90 \| 180 \| 270`, true rotations; `axisFrame` is the one turn table and every part↔world crossing goes through its helpers (inv 44); `trueTurnsToV8` mirrors old 90° parts' cuts so they look unchanged |
 | hide/unhide | 10-05 | — | `hiddenIds`: an eye per row, H / Shift+H / Alt+H, Show all (N), Hide others; view state, not saved, but undoable (history entries are `{ doc, hiddenIds }`); a hidden part is not drawn, snapped to, framed or selected (inv 43) |
 | joinery fixes | 10-05 | — | *no spec* — fu 190/185/183/184: opposite-face tenon cap, bottom-up crossings with a swept-volume blocker, outer-face carry (refuses before any mutation), `lowered` reported |
 | joinery residues | 10-05 | — | *no spec* — fu 182/201/188/203/191/186: rabbet unit from the panel's final box (no voids, path parts trimmed), 1/4in default tenons else butt, blockers on solids, `resize` pre-checked |
@@ -368,15 +371,20 @@ code path.
 ### Versioning
 
 Every document carries a `version`, and every load path (open, import, autosave-restore)
-runs through `migrateDocument` before the document is trusted. `CURRENT_VERSION` is **7**
+runs through `migrateDocument` before the document is trusted. `CURRENT_VERSION` is **8**
 and migration is a real chain: each step runs on raw data, in version order, one version
 at a time, before any board reaches `validateBoard` (invariant 11).
 
 **Two shapes of step, and picking the wrong one is the trap.**
 
-- **Per-board** (v1→v2 `foldRotationToV2`, v2→v3 `addPostureToV3`, v3→v4 `addCutsToV4`) —
-  a `rawBoards.map` running *before* `validateBoard`, because that validator's fallback
-  for a missing field is a legal-but-wrong value rather than an absence.
+- **Per-board** (v1→v2 `foldRotationToV2`, v2→v3 `addPostureToV3`, v3→v4 `addCutsToV4`,
+  v7→v8 `trueTurnsToV8`) — a `rawBoards.map` running *before* `validateBoard`, because that
+  validator's fallback for a missing field is a legal-but-wrong value rather than an absence.
+  v8 is per-board for its own reason, not that one: it rewrites existing cuts as a function
+  of the RAW `rotation`, `posture` and the size of the part's h0 dimension, so it must see
+  them before anything defaults them. It touches only a board with `rotation === 90` and at
+  least one cut, and leaves a malformed cut field for `validateCuts` to judge rather than
+  throwing.
 - **Document-level** (v4→v5 `stock`, v5→v6 `guides`, v6→v7 `Cut.stopMin`/`stopMax`) — **no `rawBoards.map` step at
   all**. Read defensively off the raw document and defaulted, the way `units.precision`
   already was. `stock.kerf` defaults to `0.125` when absent, non-numeric or outside
@@ -398,6 +406,13 @@ v7's argument is the strongest of the three: **wrong geometry**. A v6 build open
 file ignores the stops, shows a blind mortise as a through-dado with nothing saying so, and
 autosaves that shape back.
 
+v8's argument is the same as v7's, **wrong geometry**, twice over. A v7 build opening a v8
+file reads 180 and 270 as invalid and falls back to 0, and it reads a v8 90° part with cuts
+through the old mirror, so those cuts land mirrored along the part's h0. Either way it shows
+a different part and autosaves it. **v8's step is NOT idempotent**: it
+mirrors, so running it twice undoes it. The `d.version < 8` guard is the only thing keeping a
+v8 file from being re-mirrored on every load.
+
 Full detail: `docs/superpowers/specs/` (design), `docs/superpowers/plans/`
 (implementation), `docs/history.md` (what shipped and why).
 
@@ -418,15 +433,28 @@ src/
 ├── document/
 │   ├── types.ts            Board, GuidePoint, SloydDocument, Rotation, Posture,
 │   │                       Grain, MATERIALS, SheetStock, isSheetGood, sheetStockOf
-│   ├── geometry.ts         axisDimensions (SINGLE SOURCE, inv 13) / boardExtents /
+│   ├── geometry.ts         `axisFrame` — the ONE turn table (inv 44): per world axis an
+│   │                       `AxisMap` `{ dim, reversed }`; `horizontalOf(posture)` gives
+│   │                       [h0, h1]. `axisDimensions` (inv 13) is `axisFrame` without
+│   │                       direction. The ONLY part↔world crossings: `toWorldOffset` /
+│   │                       `fromWorldOffset` (a value), `spanToWorldOffset` /
+│   │                       `spanFromWorldOffset` (a span, still [min, max]) and
+│   │                       `endFacing` (which part end faces a world side). Never
+│   │                       `board[dim] - u` at a call site. Also boardExtents /
 │   │                       boardCenter / reorientedPosition (inv 2) / `boardsBounds` — the
 │                       box around a set of boards; the group gizmo sits at its centre
 │                       and `moveGroupTo` rounds its `min`
+│   ├── turnFixtures.ts     TEST-ONLY: `chiralPart(posture)` — three cuts with a HAND (c2
+│   │                       alone carries it; c3 takes a box corner so boardSnapPoints'
+│   │                       filter has something to see) — plus `turnedAbout`,
+│   │                       `rotateQuarter` and `sameSet`, the equivariance kit (inv 44)
 │   ├── names.ts            uniqueName / dedupeNames (inv 8). Imports only Board.
 │   │                       NAMES ONLY — id uniqueness is `takeId` in
 │   │                       document.ts (inv 33), for the reason stated there
 │   ├── cuts.ts             cutRegion / boardSolids (split, drop against the UNION,
-│   │                       merge) / boardEdges (inv 16) / solidWorldBox / cutLabel /
+│   │                       merge) / boardEdges (inv 16) / solidWorldBox and
+│   │                       pointToLocalXYZ (centre-relative, through axisFrame's
+│   │                       helpers, inv 44) / cutLabel /
 │   │                       stockProbe (boardEdges' rule from a segment to a point;
 │   │                       CLOSED spans, so a point on a split plane sees both sides).
 │   │                       `cutRemovesNothing` / `cutsThatRemoveStock`: a cut whose box,
@@ -515,8 +543,9 @@ src/
 │   │                       marker and placement agreeing; THE AXIS WINS OVER A HOVER,
 │   │                       never falls back to it) / tapeAxisFromKey. Exports
 │   │                       SnapKind / SnapOwner / SnapPoint / BoardSnapPoint (inv 26).
-│   │                       LOCAL→WORLD IS `position[axis] +
-│   │                       local[axisDimensions(board)[axis]]` — neither
+│   │                       LOCAL→WORLD IS `position[axis] + toWorldOffset(board,
+│   │                       axis, local[axisFrame(board)[axis].dim])` (inv 44; the
+│   │                       filter's world→part step is `fromWorldOffset`) — neither
 │   │                       pointToLocalXYZ nor solidWorldBox does this and BOTH look
 │   │                       like they do (centre-relative), so either puts every point
 │   │                       off by half the board, plausibly, in any screenshot; pin
@@ -539,11 +568,13 @@ src/
 │   │                       hull). Messages are FOR THE MODEL. Pure. The user's real
 │   │                       workbench is `fixtures/simple-workbench.sloyd`.
 │   │                       `worldSolids` (exported) is the ONE home of the world-solid
-│   │                       mapping; joinery's blockers import it (fu 203)
+│   │                       mapping, spans through `spanToWorldOffset` (inv 44);
+│   │                       joinery's blockers import it (fu 203)
 │   └── document.ts         create / validate / migrate (inv 11); validateGuides;
 │                           createGuide; `takeId`, the ONE home of the
 │                           id-uniqueness rule for boards, guides and cuts
-│                           (inv 33); re-exports the rest
+│                           (inv 33); `trueTurnsToV8` / `mirrorCutAlong`, the v7→v8
+│                           step (inv 44); re-exports the rest
 ├── store/store.ts          Zustand, snapshot undo/redo (inv 4), gesture coalescing.
 │                           `gesturing`/`gestureSnapshotTaken` are STATE, not closure
 │                           variables, so `replaceDocument` clears a gesture whose
@@ -622,7 +653,9 @@ src/
 │       │                   throws on a box removing the whole board; snaps within 1e-9
 │       │                   of 0 or a board end; `across` = most boundary contact, not
 │       │                   dimension order (a stopped dado read as a "notch"), then
-│       │                   stores it the way the sheet reads it (`storedAsShape`, fu 195)
+│       │                   stores it the way the sheet reads it (`storedAsShape`, fu 195).
+│       │                   Clamps in world-offset space, then `spanFromWorldOffset`
+│       │                   per axis (inv 44); its pose test covers all 12 poses
 │       ├── sites.ts        findSites / rangesOf. Rule 3 needs a thin panel (<= 1/2in)
 │       │                   and the contact reaching the panel's edge along the
 │       │                   RECEIVING part's thickness axis (a centre partition otherwise
@@ -642,7 +675,9 @@ src/
 │       │                   (fu 203). Every refusal is decided BEFORE any mutation, and
 │       │                   every `resize` is pre-checked by `cutIntoEnd` (rebaseCuts'
 │       │                   throw), so an end already cut is a skip, never a throw.
-│       │                   A growing part's cuts are re-stored by SHAPE first (fu 199)
+│       │                   A growing part's cuts are re-stored by SHAPE first (fu 199).
+│       │                   `resize` and `cutIntoEnd` take WORLD ends and map them to the
+│       │                   part's own end with `endFacing` (inv 44)
 │       └── choose.ts       JOINERY_PROMPT / JOINT_SCHEMA / parseChoices / defaults;
 │                           `defaultTenon` caps opposite-face tenons at down(depth/2
 │                           − 1/32) (fu 190; fallback only, the prompt is unchanged);
@@ -719,7 +754,9 @@ src/
 │   ├── grainTiling.ts      per-face UVs, boardUVSignature. FACE_AXES carries each UV
 │   │                      axis's world axis AND ITS SIGN, and boardUVs applies the
 │   │                      sign BEFORE the swap (inv 35) — a whole board hides a
-│   │                      reversed axis, a SOLID does not. Invs 12, 15, 17, 35. Pure
+│   │                      reversed axis, a SOLID does not. Each span is first put in
+│   │                      world-offset space by `spanToWorldOffset` per GEOMETRY axis,
+│   │                      before the sign and the swap (inv 44). Invs 12, 15, 17, 35. Pure
 │   ├── grainLog.ts         bandRadius (inv 14), wobble, seededRandom / hash. Pure
 │   └── grainTexture.ts     seeded canvas textures, cached, never disposed
 ├── panels/
@@ -790,7 +827,8 @@ src/
 │   │                       sheet reads it shows a note + **Match the cut list** (one
 │   │                       undo, `storedAsShape`; not for a tenon shoulder, a cut
 │   │                       removing nothing, a default tie, or a refused re-store —
-│   │                       fu 195, 198). The word comes from `cutShape`
+│   │                       fu 195, 198). The word comes from `cutShape`. Turn offers
+│   │                       0/90/180/270 through `updateBoard` (single-part panel only)
 │   ├── diagramScale.ts     fitView / bandOn (ordering-guarded). MAX_ASPECT /
 │   │                       MAX_HEIGHT / MIN_WIDTH are browser-settled. Pure
 │   ├── diagramLabels.ts    LABEL_SIZE / CHAR_W / labelHeight / labelWidth / packRow
@@ -919,6 +957,7 @@ worked examples behind several of them are in `docs/history.md`.
 13. **~~`axisDimensions` had a second copy in the viewport.~~ RETIRED in v3** — now
     single-sourced in `document/geometry.ts`; the drift test was deleted, not forgotten,
     because the two things it compared are one thing. *(Number kept deliberately.)*
+    Since v8 `axisDimensions` is derived from `axisFrame`, which adds direction: invariant 44.
 14. **`bandRadius` is `hypot(d, k·delta)`, and the tile is seamless by two different
     mechanisms.** Because `r = hypot(d, k·delta)`, the in-plane offset `sqrt(r² − d²)` is
     exactly `k·delta` — evenly spaced whatever the cut distance `d`; a "simpler" radius
@@ -1631,12 +1670,52 @@ worked examples behind several of them are in `docs/history.md`.
     A hidden part is still entirely part of the design: the cut list, nesting, diagrams,
     joinery, Generate, `checkDesign`, export and autosave read `doc.boards` unchanged.
 
+44. **`axisFrame` is the ONE home of the turn table, and every crossing between a part's frame
+    and the world goes through its helpers.** `rotation` is `0 | 90 | 180 | 270`, each a TRUE
+    rotation about the vertical, counter-clockwise seen from above; `axisFrame(board)` gives,
+    per world axis, the dimension it carries and whether it is `reversed` (the part's 0 on the
+    world MAX side). The crossings are `toWorldOffset` / `fromWorldOffset`,
+    `spanToWorldOffset` / `spanFromWorldOffset` and `endFacing`, all in `geometry.ts`. Before
+    v8 there was no direction: `axisDimensions` only said WHICH dimension, so 90° was a mirror
+    across the X=Z diagonal and identical parts could never face their cuts toward (−X, +Z).
+    Invariant 13 is this rule's ancestor: one mapping, one file.
+
+    - **Never `board[dim] - u` at a call site.** That is a second copy of the table, and it is
+      invariant 13's failure mode with a sign in it. No file branches on `rotation`'s value
+      except `axisFrame` itself, the migration (`foldRotationToV2`, `trueTurnsToV8`),
+      `generated.ts`'s `orient` and Properties' Turn select. **The one legitimate hand-written
+      reflection is `mirrorCutAlong`** (`size - offset - width`): it maps a part's frame to
+      the same part's frame inside the migration, not a part to the world. Do not "tidy" it
+      onto the helpers.
+    - **Turn 0 is the pre-v8 mapping for every posture**, so a 0° part means exactly what it
+      always did. Within a posture the four turns are proper rotations of turn 0: no turn
+      changes handedness. Postures still differ in handedness among themselves (follow-up
+      215); this round did not touch that.
+    - **The proof is equivariance: turn r+90 is turn r rotated a quarter about the part's
+      centre**, for `worldSolids`, `solidWorldBox`, `pointToLocalXYZ` (edges),
+      `boardSnapPoints` and `cutSnapPoints` (`turns.test.ts`), `pocketFor` (all 12 poses),
+      joinery (180°), and `boardUVs`' interior constant (invariant 35's number). **The fixture
+      is `chiralPart` because a symmetric fixture passes a mirror** — the bug this round
+      removed is exactly one a symmetric part cannot see. `c2` alone carries the hand. And
+      the plan-supplied `boardSnapPoints` equivariance test could not fail until `c3` took a
+      box corner, because no lattice point sat in removed stock: invariant 23's shape (a
+      test whose fixture cannot reach the guarded branch). Mutate any new equivariance test.
+    - **In `boardUVs` the reflection is per GEOMETRY axis, before invariant 35's sign and
+      swap.** Reflecting the swapped axis is the plausible wrong version; Task 4's mutation
+      reds 9 tests (flat at 180° alone is blind to it, since both horizontals reverse).
+    - **`trueTurnsToV8` is NOT idempotent.** It mirrors the cuts of a 90° part along h0, so
+      running it twice undoes it. The `d.version < 8` guard in `migrateDocument` is the only
+      thing that stops a v8 file being re-mirrored on every load.
+    - **Generate stays at 0° and 90°.** `orient` loops `[0, 90]` on purpose: its parts start
+      uncut, so a true 90° and the old one look identical, and joinery then cuts through the
+      new mapping. A turn is not a group field (multi-select spec §1).
+
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 1749 tests across 59 files
+npm test           # Vitest, currently 1806 tests across 61 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1646,7 +1725,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is the authoritative list** — 1-214, consciously deferred rather
+**`docs/follow-ups.md` is the authoritative list** — 1-217, consciously deferred rather
 than missed, each written up in place with its closure where it has one. Read the entries
 for the area you are about to touch before starting; several are "correct but untested",
 which is exactly what a refactor breaks silently.
@@ -1722,6 +1801,11 @@ The handful worth knowing without opening that file:
 - **174** — CLOSED 2026-10-03 by the key check round. Read its closure before touching
   Settings' Save: the free verification call saves anyway on anything but a 401/403, and
   **there is deliberately no prefix rule** (a working key does not start with `sk-ant-api`).
+- **215** — OPEN, a question rather than a bug: postures differ in handedness (flat and
+  upright one way, on-edge the other), so a posture change mirrors a one-handed part's cuts,
+  and which hand the cut sheet's drawings assume is not established. The quarter turns round
+  kept turn 0 equal to each posture's old frame so nothing got worse. Read it before touching
+  posture or linking parts across postures.
 - **171** — joinery is BUILT (2026-10-04, "Add joinery…"); refine by instruction is now **179**.
   Read invariants 38 and 41 and follow-ups 180–206 before touching `generate/joints/`. 180–204
   are CLOSED (182, 186, 188, 191 and 201–203 by the joinery residues round; 202

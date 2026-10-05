@@ -4388,3 +4388,51 @@ filters by id against the boards. Folding it into `edit()` would need an API cha
   Unchecked.
 - TapeTool's candidates memo is a ~120-character one-liner. Cosmetic.
 - **Status:** record-only.
+
+## From the quarter turns round — 2026-10-05
+
+**215. Postures differ in handedness, and the cut sheet's handedness is not established.** Flat
+and upright map `(length, width, thickness)` onto the world one way; on-edge maps it the other way.
+So changing a part's posture mirrors a one-handed part's cuts in the 3D view (a stopped dado stopped
+at one end only swaps ends). Separately, it is not established which hand the printed cut sheet's
+drawings assume, so some orientations may show a one-handed part as the mirror of its sheet.
+- **What the round did about it:** nothing, on purpose. Turn 0 keeps each posture's pre-v8 frame
+  exactly, and the four turns within a posture are proper rotations of it, so nothing got worse.
+  Linking does not need it: linked parts share a posture.
+- **The question to settle:** whether postures should become proper rotations of ONE frame, and
+  first, which hand the cut sheet's drawings read in. A change here would move existing parts' cuts
+  on screen, so it would likely need a migration like `trueTurnsToV8`, not a quiet fix.
+- **Status:** open, a question for the user.
+
+**216. A millimetre box cut on a reversed axis can store a width an ulp away from the same cut at
+turn 0.** `pocketFor` clamps in world-offset space and then reflects through
+`spanFromWorldOffset`, so on a reversed axis the stored span carries one extra subtraction. For a
+non-dyadic box the stored widths then differ in the last digits: measured
+`0.5999999999999996` at turn 0 against `0.5999999999999979` at 180° (the offsets differ
+legitimately, 3.3 against 20.4). The cut list's row key compares stored cuts EXACTLY
+(invariant 18), so two parts cut alike but turned differently can split into two rows that print
+the same.
+- **Reach:** not reachable from Generate's designs, whose coordinates snap to sixteenths (dyadic,
+  exact). It needs millimetre or decimal coordinates reaching `pocketFor`.
+- **Do not "fix" it by rounding the row key**: that is invariant 18's prohibition. A remedy, if
+  wanted, belongs where the cut is stored.
+- **Status:** open, low, recorded.
+
+**217. Small test gaps the round judged fine to leave.** Record-only.
+- Joinery equivariance covers a 180° turn only. `pocketFor`'s pose test covers all four turns in
+  every posture, and the resize and end-cut paths have their own mutation evidence.
+- The equivariance test's non-vacuity guard is "some joint not butt"; it does not pin each
+  fixture's joint kind (that the rabbeted back actually got a rabbet).
+- The UV turn sweep uses a solid-wood chiral part only. A plywood chiral variant would exercise the
+  fit axes under reversal; the existing "plywood on-edge rotated, dado" case covers part of it.
+  Flat at 180° is blind to the reflect-after-swap mutation by symmetry (both horizontals reverse).
+- The oracles in `pocket.test.ts` (`assertCarves`) and `recipes.test.ts` (`worldOf`) now use the
+  geometry helpers, so they catch a site that skips a helper, not a wrong table. The table itself
+  is pinned by `geometry.test.ts` and `turns.test.ts`' `rotateQuarter` checks.
+- The turn-0 test in `geometry.test.ts` is partly circular (`horizontalOf` against `axisFrame`);
+  literal pins exist in `document.test.ts`.
+- No millimetre (non-dyadic) migration case: spec §4 says a migrated part's solids match within
+  `FLUSH_EPSILON` there, and only dyadic cases are tested.
+- The store tests (a box-corner tape anchor kept across a 180° turn, a cut-point anchor dropped)
+  were not mutation-tested; they exercise `updateBoard`'s existing point-precise rule.
+- **Status:** record-only.
