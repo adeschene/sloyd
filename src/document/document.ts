@@ -3,7 +3,7 @@ import type {
   Board, Cut, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, GuidePoint,
 } from './types';
 import { dedupeNames } from './names';
-import { positionAxisOf } from './geometry';
+import { positionAxisOf, horizontalOf, DIMENSION_ORDER } from './geometry';
 
 export * from './types';
 export {
@@ -54,8 +54,13 @@ export type { BoardSnapPoint, SnapKind, SnapOwner, SnapPoint, TapeAxis } from '.
  * loss: a v6 build opening a v7 file would ignore the stops, show a blind
  * mortise as a through-dado with nothing saying so, and autosave that shape
  * back. The gate makes it refuse the file instead.
+ *
+ * v8 made rotation 90 a TRUE quarter turn and legalised 180 and 270 (quarter-turns
+ * spec §4). `trueTurnsToV8` mirrors the cuts of 90° parts so they look exactly as
+ * before. The bump's argument is WRONG GEOMETRY: a v7 build reads 180 and 270 as
+ * invalid, falls back to 0, shows a different part and autosaves it.
  */
-export const CURRENT_VERSION = 7;
+export const CURRENT_VERSION = 8;
 
 export class DocumentError extends Error {
   /**
@@ -414,6 +419,40 @@ function addCutsToV4(raw: unknown): unknown {
 }
 
 /**
+ * v7 -> v8: rotation 90 became a TRUE quarter turn (quarter-turns spec §4).
+ * Before v8 it carried h0 on Z forward; now h0 runs reversed. So a 90° part's
+ * cuts are mirrored along h0 and its world geometry is exactly what it was.
+ * Only 90° parts WITH cuts change; everything else passes through untouched.
+ * RAW data, before validateBoard (invariant 11): a malformed field is left for
+ * validateCuts to judge, never thrown on here.
+ */
+function trueTurnsToV8(raw: unknown): unknown {
+  if (typeof raw !== 'object' || raw === null) return raw;
+  const b = raw as Record<string, unknown>;
+  if (b.rotation !== 90 || !Array.isArray(b.cuts) || b.cuts.length === 0) return raw;
+  const posture = VALID_POSTURES.includes(b.posture as Posture) ? (b.posture as Posture) : 'flat';
+  const [h0] = horizontalOf(posture);
+  const size = b[h0];
+  if (typeof size !== 'number' || !Number.isFinite(size)) return raw;
+  return { ...b, cuts: b.cuts.map((c) => mirrorCutAlong(c, h0, size)) };
+}
+
+/** One cut mirrored along dimension d (u -> size - u). face, across and the
+ *  position axis are three different dimensions, so exactly one case applies. */
+function mirrorCutAlong(raw: unknown, d: Dimension, size: number): unknown {
+  if (typeof raw !== 'object' || raw === null) return raw;
+  const c = raw as Record<string, unknown>;
+  if (c.face === d) {
+    return c.from === 'min' ? { ...c, from: 'max' } : c.from === 'max' ? { ...c, from: 'min' } : raw;
+  }
+  if (c.across === d) return { ...c, stopMin: c.stopMax, stopMax: c.stopMin };
+  const dims = DIMENSION_ORDER as string[];
+  if (!dims.includes(c.face as string) || !dims.includes(c.across as string)) return raw;
+  if (typeof c.offset !== 'number' || typeof c.width !== 'number') return raw;
+  return { ...c, offset: size - c.offset - c.width };
+}
+
+/**
  * Validate and upgrade a parsed document to the current schema.
  * Throws DocumentError with a human-readable reason. Never partially loads:
  * either the whole document validates or nothing is returned.
@@ -448,6 +487,7 @@ export function migrateDocument(raw: unknown): SloydDocument {
   if (d.version < 2) rawBoards = rawBoards.map(foldRotationToV2);
   if (d.version < 3) rawBoards = rawBoards.map(addPostureToV3);
   if (d.version < 4) rawBoards = rawBoards.map(addCutsToV4);
+  if (d.version < 8) rawBoards = rawBoards.map(trueTurnsToV8);
 
   const units = d.units as SloydDocument['units'] | undefined;
   const precision =

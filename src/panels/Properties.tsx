@@ -437,6 +437,8 @@ export function Properties() {
           onChange={(e) => updateBoard(board.id, { rotation: Number(e.target.value) as Rotation })}>
           <option value={0}>0°</option>
           <option value={90}>90°</option>
+          <option value={180}>180°</option>
+          <option value={270}>270°</option>
         </select>
       </div>
 

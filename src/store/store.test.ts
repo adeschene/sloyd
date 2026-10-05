@@ -1032,6 +1032,32 @@ describe('guide actions', () => {
   });
 });
 
+describe('a turn and the tape anchor (quarter-turns Review Focus 2)', () => {
+  const cutBoard = () => {
+    useStore.getState().addBoard();
+    const id = useStore.getState().doc.boards[0]!.id;
+    useStore.getState().addCut(id);
+    return id;
+  };
+
+  it('a 180 keeps an anchor on a box corner', () => {
+    const id = cutBoard();
+    const board = useStore.getState().doc.boards[0]!;
+    const corner = boardSnapPoints(board).find((p) => p.kind === 'corner')!;
+    useStore.getState().setTapeAnchor(corner);
+    useStore.getState().updateBoard(id, { rotation: 180 });
+    expect(useStore.getState().tapeAnchor).not.toBeNull();
+  });
+
+  it('a 180 drops an anchor on a cut snap point', () => {
+    const id = cutBoard();
+    const board = useStore.getState().doc.boards[0]!;
+    useStore.getState().setTapeAnchor(cutSnapPoints(board)[0]!);
+    useStore.getState().updateBoard(id, { rotation: 180 });
+    expect(useStore.getState().tapeAnchor).toBeNull();
+  });
+});
+
 describe('tapeAnchor — invariant 24, second instance', () => {
   const anchorOn = () => {
     useStore.getState().addBoard();

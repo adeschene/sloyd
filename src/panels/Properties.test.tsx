@@ -331,6 +331,26 @@ describe('the orientation controls', () => {
     expect(useStore.getState().doc.boards.find((b) => b.id === id)!.posture).toBe('upright');
   });
 
+  it('the Turn select offers the four quarter turns', () => {
+    selectFirstBoard();
+    render(<Properties />);
+    const opts = Array.from((screen.getByLabelText('Turn') as HTMLSelectElement).options).map((o) => o.textContent);
+    expect(opts).toEqual(['0°', '90°', '180°', '270°']);
+  });
+
+  it('a 180 on a part at 0 keeps position exactly; so does a 270 on a part at 90', async () => {
+    const id = selectFirstBoard();
+    useStore.getState().updateBoard(id, { position: [3.3, 0, 4.7] });
+    render(<Properties />);
+    const pos = () => useStore.getState().doc.boards.find((b) => b.id === id)!.position;
+    await userEvent.selectOptions(screen.getByLabelText('Turn'), '180');
+    expect(pos()).toEqual([3.3, 0, 4.7]);
+    await userEvent.selectOptions(screen.getByLabelText('Turn'), '90');
+    const at90 = [...pos()];
+    await userEvent.selectOptions(screen.getByLabelText('Turn'), '270');
+    expect(pos()).toEqual(at90);
+  });
+
   it('commits a turn', async () => {
     const id = selectFirstBoard();
     render(<Properties />);
