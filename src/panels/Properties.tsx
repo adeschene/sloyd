@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store/store';
 import { MATERIALS, uniqueName, isSheetGood, boardSolids, cutShape, storedAsShape, cutRemovesNothing, findTenons, positionAxisOf } from '../document/document';
 import { DimensionField } from './DimensionField';
@@ -255,9 +255,102 @@ function CutRow({ board, cut, precision, solids }: { board: Board; cut: Cut; pre
   );
 }
 
+/**
+ * The value every part holds, or null when they differ. EXACT comparison of
+ * stored values: two thicknesses that both display 11/16" but are stored as
+ * 0.7 and 0.6875 are mixed, because showing "11/16" would claim they agree
+ * when they do not (stored values are exact; display rounds — invariant 5).
+ */
+function shared<T>(boards: Board[], read: (b: Board) => T): T | null {
+  const first = read(boards[0]!);
+  return boards.every((b) => read(b) === first) ? first : null;
+}
+
+/**
+ * Properties for two or more selected parts (multi-select spec §4.4): Length,
+ * Width, Thickness, Grain and Material, plus Duplicate and Delete. No name,
+ * position, posture, turn or cuts.
+ *
+ * Every edit is ONE `updateBoards` call — one undo entry, each part through
+ * the same per-board rules a single edit uses (its own min corner, its own
+ * sheet-good grain reset).
+ *
+ * THE TRAP is invariant 5's: a mixed field (null value) must never write on an
+ * untouched blur. DimensionField's dirty guard holds that for the text fields;
+ * the selects write only from onChange, never on blur.
+ *
+ * The root is keyed on the selection, so ANY selection change remounts the
+ * fields and they resync from the new parts — the rule invariant 5 states for
+ * an external change. Without it a mixed field (null -> null) would keep a
+ * stale draft across a selection change, since its value never changed.
+ */
+function GroupProperties() {
+  const allBoards = useStore((s) => s.doc.boards);
+  const selectedIds = useStore((s) => s.selectedIds);
+  const precision = useStore((s) => s.doc.units.precision);
+  const updateBoards = useStore((s) => s.updateBoards);
+  const deleteBoards = useStore((s) => s.deleteBoards);
+  const duplicateBoards = useStore((s) => s.duplicateBoards);
+  const boards = useMemo(
+    () => selectedIds.flatMap((id) => allBoards.filter((b) => b.id === id)),
+    [allBoards, selectedIds],
+  );
+  if (boards.length === 0) return null;
+
+  const set = (patch: Partial<Board>) => updateBoards(selectedIds, patch);
+  const grain = shared(boards, (b) => b.grain);
+  const material = shared(boards, (b) => b.material);
+  // A sheet good has no 'thickness' grain (isSheetGood's comment), so the
+  // option is offered only when it would be legal for EVERY selected part.
+  const anySheetGood = boards.some((b) => isSheetGood(b.material));
+
+  return (
+    <div className="properties" key={selectedIds.join('|')}>
+      <h3>{boards.length} parts selected</h3>
+
+      <h3>Dimensions</h3>
+      <DimensionField label="Length" precision={precision} value={shared(boards, (b) => b.length)}
+        onCommit={(v) => set({ length: v })} />
+      <DimensionField label="Width" precision={precision} value={shared(boards, (b) => b.width)}
+        onCommit={(v) => set({ width: v })} />
+      <DimensionField label="Thickness" precision={precision} value={shared(boards, (b) => b.thickness)}
+        onCommit={(v) => set({ thickness: v })} />
+
+      <h3>Grain</h3>
+      <div className="field field-wide">
+        <label htmlFor="grain">Runs</label>
+        <select id="grain" className="input" value={grain ?? ''}
+          onChange={(e) => set({ grain: e.target.value as Grain })}>
+          {grain === null && <option value="" disabled>mixed</option>}
+          <option value="length">Along length</option>
+          <option value="width">Across width</option>
+          {!anySheetGood && <option value="thickness">Through thickness</option>}
+        </select>
+      </div>
+
+      <h3 id="material-heading">Material</h3>
+      <div className="field field-wide">
+        <select aria-labelledby="material-heading" className="input" value={material ?? ''}
+          onChange={(e) => set({ material: e.target.value })}>
+          {material === null && <option value="" disabled>mixed</option>}
+          {Object.entries(MATERIALS).map(([key, m]) => (
+            <option key={key} value={key}>{m.label}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="row">
+        <button onClick={() => duplicateBoards(selectedIds)}>Duplicate</button>
+        <button className="danger" onClick={() => deleteBoards(selectedIds)}>Delete</button>
+      </div>
+    </div>
+  );
+}
+
 export function Properties() {
   const board = useStore((s) =>
     s.selectedIds.length === 1 ? s.doc.boards.find((b) => b.id === s.selectedIds[0]) : undefined);
+  const groupSize = useStore((s) => s.selectedIds.length);
   const precision = useStore((s) => s.doc.units.precision);
   const updateBoard = useStore((s) => s.updateBoard);
   const deleteBoard = useStore((s) => s.deleteBoard);
@@ -276,6 +369,7 @@ export function Properties() {
     }
   }, [board?.id]);
 
+  if (groupSize >= 2) return <GroupProperties />;
   if (!board) return <p className="empty">Select a part to edit it.</p>;
 
   // Once per render, shared by every CutRow's label (no memo key to go stale — inv 15).

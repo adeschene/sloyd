@@ -891,3 +891,223 @@ describe('cuts', () => {
     });
   });
 });
+
+describe('Properties with two or more parts selected', () => {
+  const board = (id: string) => useStore.getState().doc.boards.find((x) => x.id === id)!;
+  const past = () => useStore.getState().past.length;
+
+  /** a at the origin, b 3-1/2 wide at [30, 0, 8]; both selected. */
+  const group = () => {
+    const s = useStore.getState();
+    s.addBoard();
+    s.addBoard();
+    const [a, b] = useStore.getState().doc.boards;
+    useStore.getState().updateBoard(b!.id, { width: 3.5, position: [30, 0, 8] });
+    useStore.getState().selectBoard(a!.id);
+    useStore.getState().toggleSelected(b!.id);
+    return { a: a!.id, b: b!.id };
+  };
+
+  it('reads "N parts selected" and offers only the group fields', () => {
+    group();
+    render(<Properties />);
+    expect(screen.getByRole('heading', { name: '2 parts selected' })).toBeInTheDocument();
+    for (const label of ['Length', 'Width', 'Thickness', 'Runs']) {
+      expect(screen.getByLabelText(label)).toBeInTheDocument();
+    }
+    expect(screen.getByRole('combobox', { name: 'Material' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Duplicate' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument();
+    for (const label of ['Part name', 'X', 'Y', 'Z', 'Posture', 'Turn']) {
+      expect(screen.queryByLabelText(label)).not.toBeInTheDocument();
+    }
+    expect(screen.queryByRole('button', { name: /add cut/i })).not.toBeInTheDocument();
+  });
+
+  it('shows a shared value, and an empty "mixed" box where the parts differ', () => {
+    group();
+    render(<Properties />);
+    expect((screen.getByLabelText('Length') as HTMLInputElement).value).toBe('24"');
+    const width = screen.getByLabelText('Width') as HTMLInputElement;
+    expect(width.value).toBe('');
+    expect(width).toHaveAttribute('placeholder', 'mixed');
+  });
+
+  it('shows a disabled "mixed" option on a select whose parts differ', () => {
+    const { b } = group();
+    useStore.getState().updateBoard(b, { grain: 'width' });
+    render(<Properties />);
+    expect((screen.getByLabelText('Runs') as HTMLSelectElement).value).toBe('');
+    expect(screen.getByRole('option', { name: 'mixed' })).toBeDisabled();
+  });
+
+  it('treats values that DISPLAY alike but are stored differently as mixed; a typed value lands exactly on both', async () => {
+    const { a, b } = group();
+    useStore.getState().updateBoards([a, b], { thickness: 0.7 });
+    useStore.getState().updateBoard(b, { thickness: 0.6875 }); // both read 11/16"
+    render(<Properties />);
+    const t = screen.getByLabelText('Thickness') as HTMLInputElement;
+    expect(t.value).toBe('');
+    await userEvent.type(t, '3/4');
+    await userEvent.tab();
+    expect(board(a).thickness).toBe(0.75);
+    expect(board(b).thickness).toBe(0.75);
+  });
+
+  it('an edit applies to every selected part as ONE undo entry, each on its own corner', async () => {
+    const { a, b } = group();
+    render(<Properties />);
+    const before = past();
+    const len = screen.getByLabelText('Length');
+    await userEvent.clear(len);
+    await userEvent.type(len, '30');
+    await userEvent.tab();
+    expect([board(a).length, board(b).length]).toEqual([30, 30]);
+    expect(board(a).position).toEqual([0, 0, 0]);
+    expect(board(b).position).toEqual([30, 0, 8]);
+    expect(past()).toBe(before + 1);
+  });
+
+  it('refuses a value out of range and writes to no part', async () => {
+    const { a, b } = group();
+    render(<Properties />);
+    const before = past();
+    const len = screen.getByLabelText('Length');
+    await userEvent.clear(len);
+    await userEvent.type(len, '0');
+    await userEvent.tab();
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect([board(a).length, board(b).length]).toEqual([24, 24]);
+    expect(past()).toBe(before);
+  });
+
+  // Review Focus 3. THE TRAP, at the panel: spec §4.4 asks for this test by name.
+  it('THE TRAP: a mixed field focused and blurred untouched writes NOTHING (invariant 5)', async () => {
+    group();
+    render(<Properties />);
+    const before = past();
+    const doc = useStore.getState().doc;
+    const width = screen.getByLabelText('Width') as HTMLInputElement;
+    await userEvent.click(width);
+    await userEvent.tab();
+    expect(useStore.getState().doc).toBe(doc);
+    expect(past()).toBe(before);
+    expect(width.value).toBe('');
+    expect(width).toHaveAttribute('placeholder', 'mixed');
+    expect(width).toHaveAttribute('aria-invalid', 'false');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  // The panel half of Task 6's write case: the trap test above starts mixed,
+  // so a deleted guard commits '' and is refused. Here the field holds real
+  // text when the parts start to differ under it, so a deleted guard WRITES.
+  it('a shared field that turns mixed while focused writes nothing on an untouched blur', async () => {
+    const { a, b } = group();
+    render(<Properties />);
+    const len = screen.getByLabelText('Length') as HTMLInputElement; // shared: 24"
+    await userEvent.click(len);
+    act(() => { useStore.getState().updateBoard(b, { length: 30 }); }); // now 24 / 30
+    const before = past();
+    const doc = useStore.getState().doc;
+    await userEvent.tab();
+    expect(useStore.getState().doc).toBe(doc);
+    expect(past()).toBe(before);
+    expect([board(a).length, board(b).length]).toEqual([24, 30]);
+    expect(len.value).toBe('');
+  });
+
+  it('a mixed select focused and blurred without a change writes nothing', async () => {
+    const { b } = group();
+    useStore.getState().updateBoard(b, { grain: 'width' });
+    render(<Properties />);
+    const before = past();
+    const doc = useStore.getState().doc;
+    await userEvent.click(screen.getByLabelText('Runs'));
+    await userEvent.tab();
+    expect(useStore.getState().doc).toBe(doc);
+    expect(past()).toBe(before);
+  });
+
+  it('a grain change applies to every part', async () => {
+    const { a, b } = group();
+    render(<Properties />);
+    await userEvent.selectOptions(screen.getByLabelText('Runs'), 'width');
+    expect([board(a).grain, board(b).grain]).toEqual(['width', 'width']);
+  });
+
+  it('a material change resets grain per part, the way a single edit does', async () => {
+    const { a, b } = group();
+    useStore.getState().updateBoard(a, { grain: 'thickness' });
+    useStore.getState().updateBoard(b, { grain: 'width' });
+    render(<Properties />);
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Material' }), 'plywood');
+    expect([board(a).material, board(b).material]).toEqual(['plywood', 'plywood']);
+    expect([board(a).grain, board(b).grain]).toEqual(['length', 'width']);
+  });
+
+  it('offers "Through thickness" only when no selected part is a sheet good', () => {
+    const { b } = group();
+    useStore.getState().updateBoard(b, { material: 'plywood' });
+    render(<Properties />);
+    expect(screen.queryByRole('option', { name: 'Through thickness' })).not.toBeInTheDocument();
+  });
+
+  it('Duplicate copies every selected part as one undo entry and selects the copies', async () => {
+    const { a, b } = group();
+    render(<Properties />);
+    const before = past();
+    await userEvent.click(screen.getByRole('button', { name: 'Duplicate' }));
+    const boards = useStore.getState().doc.boards;
+    expect(boards).toHaveLength(4);
+    expect(past()).toBe(before + 1);
+    expect(useStore.getState().selectedIds).toEqual([boards[2]!.id, boards[3]!.id]);
+    expect(useStore.getState().selectedIds).not.toContain(a);
+    expect(useStore.getState().selectedIds).not.toContain(b);
+  });
+
+  it('Delete removes every selected part as one undo entry', async () => {
+    group();
+    render(<Properties />);
+    const before = past();
+    await userEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    expect(useStore.getState().doc.boards).toHaveLength(0);
+    expect(past()).toBe(before + 1);
+  });
+
+  it('resyncs from the new selection when it changes under a draft, writing nothing', async () => {
+    const s = useStore.getState();
+    s.addBoard();
+    s.addBoard();
+    s.addBoard();
+    const [a, b, c] = useStore.getState().doc.boards.map((x) => x.id);
+    useStore.getState().updateBoard(c!, { length: 30 });
+    useStore.getState().selectBoard(a!);
+    useStore.getState().toggleSelected(b!);
+    render(<Properties />);
+    const before = past();
+    const len = screen.getByLabelText('Length') as HTMLInputElement;
+    await userEvent.clear(len);
+    await userEvent.type(len, '12'); // a draft: typed, not committed
+    act(() => { useStore.getState().toggleSelected(c!); });
+    const after = screen.getByLabelText('Length') as HTMLInputElement;
+    expect(after.value).toBe(''); // 24, 24, 30: mixed
+    expect(after).toHaveAttribute('placeholder', 'mixed');
+    expect(past()).toBe(before);
+    expect([board(a!).length, board(b!).length, board(c!).length]).toEqual([24, 24, 30]);
+  });
+
+  // Review Focus 1, panel half.
+  it('drops to the single-part panel when an undo removes a member of the group', () => {
+    const s = useStore.getState();
+    s.addBoard();
+    s.addBoard();
+    const [a, b] = useStore.getState().doc.boards.map((x) => x.id);
+    useStore.getState().selectBoard(a!);
+    useStore.getState().toggleSelected(b!);
+    render(<Properties />);
+    expect(screen.getByRole('heading', { name: '2 parts selected' })).toBeInTheDocument();
+    act(() => { useStore.getState().undo(); }); // un-adds b
+    expect(screen.queryByRole('heading', { name: /parts selected/ })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Part name')).toHaveValue('Board');
+  });
+});
