@@ -4355,3 +4355,13 @@ behaves the same way.
 - GroupProperties' Through-thickness test is absence-only; mutation 12 covers the behaviour.
 - "1 parts selected" is unreachable (selection filtering in the store), so no singular form exists.
 - **Status:** record-only.
+
+**212. A field's Enter commit shows nothing, so it goes undiscovered.** Raised in the multi-select
+live check. The user found clicking away to commit a group Length awkward and asked for Enter as an
+alternative. Enter already commits (`DimensionField` and `NameField`, both tested). It was confirmed
+live on a group field: both legs were saved. But focus stays in the box and only the text
+reformats, so nothing says the value was taken. Pre-existing; it affects every field, not only
+group ones.
+- **Possible remedies, not chosen:** blur on a successful Enter (that also moves Ctrl+Z from the
+  input's own undo to the app's), or a brief confirmation on the field.
+- **Status:** open, awaiting the user's ruling.
