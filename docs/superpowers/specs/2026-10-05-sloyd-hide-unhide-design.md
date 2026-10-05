@@ -46,8 +46,11 @@ changes only what is seen and touched in the 3D view. Nothing about the design i
 | `showAll()` | Alt+H | empties the set | does nothing |
 | `setHidden(id, hidden)` | — (the eye) | hides or shows one part | — |
 
-**Hiding deselects.** A hide removes the hidden ids from `selectedIds` **through `selectionPatch`**,
-the one writer of the selection (invariant 42). That carries invariant 24's retargeting rule with
+**Hiding deselects, and a hidden part can never be selected.** `selectionPatch`, the one writer of
+the selection (invariant 42), drops every hidden id from any selection it writes. That makes the rule
+structural rather than a convention at each caller: `selectBoard` or `toggleSelected` on a hidden id
+selects nothing, `selectAll` selects visible parts, and every hide re-runs `selectionPatch` on the
+current selection. That carries invariant 24's retargeting rule with
 it: a held Move grab whose owner is hidden is dropped. A grab whose owner stays visible and selected
 is kept.
 
@@ -69,6 +72,15 @@ object, so autosave does not fire for a hide.
   set as it was when that edit was made. Because the set otherwise changes only through entries (and
   through a delete, which is itself an entry), that set is always what the person saw at the time.
   Undo never unexpectedly hides or shows anything.
+- **The selection stays consistent.** After an undo or redo it keeps only parts that exist AND are
+  visible in the restored entry, through `selectionPatch`. A redo that re-hides a selected part
+  deselects it, and drops a Move grab it owned, exactly as the hide did.
+- **Held points survive an undo or redo that moves nothing.** Today `undo` and `redo` clear
+  `grabbed`, `tapeAnchor`, `tapeHover` and `tapeAxis` unconditionally, because a wholesale document
+  rewrite can move any point (invariant 24). When the restored entry's document is the SAME object
+  as the current one (the undo of a hide or show), nothing moved, so they are kept. Otherwise a
+  Ctrl+Z after hiding a part would drop a tape measurement that the hide itself was forbidden to
+  drop. A grab whose owner the restored set hides is still dropped, through `selectionPatch`.
 - **The selection is still not undone.** H deselects, and Ctrl+Z brings the parts back unselected.
   Making the selection part of undo would change every undo, not only hides.
 - **A hide is refused while a gesture is open** (`gesturing`, read inside the store action, never
@@ -185,6 +197,10 @@ nothing happens while focus is in a text field (`isTextEntry`) or a modal is ope
   - the selection is not restored;
   - a hide during an open gesture is refused: nothing changes and no entry is pushed;
   - a hide clears `future`;
+  - a redo that re-hides a selected part deselects it;
+  - undoing a hide keeps `tapeAnchor`, `tapeHover`, `tapeAxis` and `grabbed`, while undoing an edit
+    still clears them;
+- `selectBoard` and `toggleSelected` on a hidden id select nothing;
 - reconciliation:
   - undo and redo filter the restored set to surviving ids;
   - `replaceDocument` clears the set;
