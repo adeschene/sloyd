@@ -1873,3 +1873,145 @@ describe('tape held points are NOT cleared by the new selection actions', () => 
     expect(useStore.getState().tapeHover).not.toBeNull();
   });
 });
+
+describe('multi-select — group edits', () => {
+  const board = (id: string) => useStore.getState().doc.boards.find((x) => x.id === id)!;
+
+  /** a at the origin, b at [0, 0, 10], c at [40, 0, 0]; a and b selected. */
+  const threeForMove = () => {
+    useStore.setState({ tool: 'select', grabbed: null });
+    const s = useStore.getState();
+    s.addBoard();
+    s.addBoard();
+    s.addBoard();
+    const [a, b, c] = useStore.getState().doc.boards;
+    useStore.getState().updateBoard(b!.id, { position: [0, 0, 10] });
+    useStore.getState().updateBoard(c!.id, { position: [40, 0, 0] });
+    useStore.getState().selectBoard(a!.id);
+    useStore.getState().toggleSelected(b!.id);
+    return { a: a!.id, b: b!.id, c: c!.id };
+  };
+  /** The min corner — boardSnapPoints' first point IS `position`. */
+  const minCornerOf = (id: string) => boardSnapPoints(board(id))[0]!;
+
+  it('updateBoards applies one patch to every named part as ONE undo entry', () => {
+    const { a, b } = threeForMove();
+    const before = useStore.getState().past.length;
+    useStore.getState().updateBoards([a, b], { thickness: 1.5 });
+    expect([board(a).thickness, board(b).thickness]).toEqual([1.5, 1.5]);
+    expect(useStore.getState().past.length).toBe(before + 1);
+    useStore.getState().undo();
+    expect([board(a).thickness, board(b).thickness]).toEqual([0.75, 0.75]);
+  });
+
+  it('updateBoards leaves each part on its own min corner', () => {
+    const { a, b } = threeForMove();
+    useStore.getState().updateBoards([a, b], { length: 36 });
+    expect(board(a).position).toEqual([0, 0, 0]);
+    expect(board(b).position).toEqual([0, 0, 10]);
+  });
+
+  it('updateBoards resets grain PER PART when a group switches to a sheet good', () => {
+    const { a, b } = threeForMove();
+    useStore.getState().updateBoard(a, { grain: 'thickness' });
+    useStore.getState().updateBoard(b, { grain: 'width' });
+    useStore.getState().updateBoards([a, b], { material: 'plywood' });
+    expect(board(a).grain).toBe('length');
+    expect(board(b).grain).toBe('width');
+  });
+
+  it('updateBoards ignores unknown ids, and leaves no undo entry when none exist', () => {
+    const { a } = threeForMove();
+    const before = useStore.getState().past.length;
+    useStore.getState().updateBoards(['nope'], { length: 30 });
+    expect(useStore.getState().past.length).toBe(before);
+    useStore.getState().updateBoards([a, 'nope'], { length: 30 });
+    expect(board(a).length).toBe(30);
+  });
+
+  it('updateBoards drops a latched hover on ANY edited member whose point moved', () => {
+    const { a, b, c } = threeForMove();
+    const far = boardSnapPoints(board(b)).find((p) => p.at[0] > 0)!;
+    useStore.getState().setTapeAnchor(minCornerOf(c));
+    useStore.getState().setTapeHover(far);
+    useStore.getState().updateBoards([a, b], { length: 36 });
+    expect(useStore.getState().tapeHover).toBeNull();
+    expect(useStore.getState().tapeAnchor).not.toBeNull();
+  });
+
+  it('a group snap move translates every selected part by the exact delta, as ONE undo entry', () => {
+    const { a, b, c } = threeForMove();
+    const before = useStore.getState().past.length;
+    useStore.getState().grabSnapPoint(minCornerOf(a)); // [0, 0, 0]
+    useStore.getState().commitSnapMove(minCornerOf(c)); // [40, 0, 0]
+    expect(board(a).position).toEqual([40, 0, 0]);
+    expect(board(b).position).toEqual([40, 0, 10]);
+    expect(board(c).position).toEqual([40, 0, 0]);
+    expect(useStore.getState().past.length).toBe(before + 1);
+    expect(useStore.getState().selectedIds).toEqual([a, b]);
+    expect(useStore.getState().grabbed).toBeNull();
+    useStore.getState().undo();
+    expect(board(a).position).toEqual([0, 0, 0]);
+    expect(board(b).position).toEqual([0, 0, 10]);
+  });
+
+  it('does not round a group snap move (invariant 25)', () => {
+    const { a, b, c } = threeForMove();
+    useStore.getState().updateBoard(c, { position: [40.01, 0, 0] });
+    useStore.getState().grabSnapPoint(minCornerOf(a));
+    useStore.getState().commitSnapMove(minCornerOf(c));
+    expect(board(a).position[0]).toBe(40.01);
+    expect(board(b).position[0]).toBe(40.01);
+  });
+
+  it('refuses a target on ANY selected part, keeping the grab and leaving no undo entry', () => {
+    const { a, b } = threeForMove();
+    const before = useStore.getState().past.length;
+    useStore.getState().grabSnapPoint(minCornerOf(a));
+    useStore.getState().commitSnapMove(minCornerOf(b)); // b moves with the grab: never a target
+    expect(board(a).position).toEqual([0, 0, 0]);
+    expect(board(b).position).toEqual([0, 0, 10]);
+    expect(useStore.getState().past.length).toBe(before);
+    expect(useStore.getState().grabbed).not.toBeNull();
+  });
+
+  it('moveGroupTo lands the group min corner on the 1/16in grid', () => {
+    const { a, b } = threeForMove(); // group min [0, 0, 0]
+    useStore.getState().moveGroupTo([a, b], [3.03, 0, 0]); // rounds to 3
+    expect(board(a).position).toEqual([3, 0, 0]);
+    expect(board(b).position).toEqual([3, 0, 10]);
+  });
+
+  it('moveGroupTo measures from the GROUP min corner, not from the first part', () => {
+    const { a, b } = threeForMove();
+    useStore.getState().updateBoard(a, { position: [5, 0, 0] }); // b (x = 0) is now the min on x
+    useStore.getState().moveGroupTo([a, b], [2, 0, 0]);
+    expect(board(b).position[0]).toBe(2);
+    expect(board(a).position[0]).toBe(7);
+  });
+
+  // Review Focus 4.
+  it('moveGroupTo moves an off-grid part by exactly the group delta, leaving it off-grid', () => {
+    const { a, b } = threeForMove();
+    useStore.getState().updateBoard(b, { position: [5.01, 0, 10] }); // off-grid, NOT the min
+    useStore.getState().moveGroupTo([a, b], [2.5, 0, 0]); // group min 0 -> 2.5, so the delta is 2.5
+    expect(board(a).position[0]).toBe(2.5);
+    expect(board(b).position[0]).toBe(5.01 + 2.5);
+    expect(Number.isInteger(board(b).position[0] / (1 / 16))).toBe(false);
+  });
+
+  it('one gizmo drag is one undo entry; the target is absolute; a zero move leaves none', () => {
+    const { a, b } = threeForMove();
+    const before = useStore.getState().past.length;
+    useStore.getState().moveGroupTo([a, b], [0, 0, 0]); // already there
+    expect(useStore.getState().past.length).toBe(before);
+    useStore.getState().beginGesture();
+    useStore.getState().moveGroupTo([a, b], [1, 0, 0]);
+    useStore.getState().moveGroupTo([a, b], [2, 0, 0]);
+    useStore.getState().moveGroupTo([a, b], [2, 0, 0]); // same target again: no further move
+    useStore.getState().endGesture();
+    expect(board(a).position).toEqual([2, 0, 0]);
+    expect(board(b).position).toEqual([2, 0, 10]);
+    expect(useStore.getState().past.length).toBe(before + 1);
+  });
+});

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import { createBoard, createDocument, createGuide, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor } from '../document/document';
+import { boardsBounds, createBoard, createDocument, createGuide, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor } from '../document/document';
 import type { Board, BoardSnapPoint, Cut, SloydDocument, SnapPoint, TapeAxis } from '../document/document';
+import { SNAP_INCHES } from '../document/geometry';
 
 const HISTORY_LIMIT = 50;
 
@@ -205,6 +206,24 @@ interface StoreState {
 
   addBoard: () => void;
   updateBoard: (id: string, patch: Partial<Board>) => void;
+  /**
+   * One patch to every named part, as ONE undo entry. Each part goes through
+   * the same per-board rules a single edit does — its own min corner, its own
+   * reorient pivot, its own sheet-good grain reset — so a group edit is N
+   * single edits sharing one snapshot. Unknown ids are ignored.
+   */
+  updateBoards: (ids: string[], patch: Partial<Board>) => void;
+  /**
+   * The group gizmo's path (multi-select spec §4.1). `minCorner` is the
+   * ABSOLUTE place the group's min corner should go — not a delta, because
+   * TransformControls fires onObjectChange every frame and a delta would
+   * accumulate. It is rounded to SNAP_INCHES ONCE, and the one resulting delta
+   * is added to every part, so parts keep their exact relative layout even
+   * off the grid (invariant 25: round what a free drag produced, never an
+   * exact position). Position only — a group move translates, never turns
+   * (invariant 2). A zero delta writes nothing (invariant 4).
+   */
+  moveGroupTo: (ids: string[], minCorner: [number, number, number]) => void;
   deleteBoard: (id: string) => void;
   /** Delete every named part, as ONE undo entry. Unknown ids are ignored. */
   deleteBoards: (ids: string[]) => void;
@@ -418,6 +437,86 @@ export const useStore = create<StoreState>((set, get) => {
     }
   };
 
+  /**
+   * One board with one patch applied, by the rules every board edit follows.
+   * Shared by updateBoard (via updateBoards) so a group edit is exactly N
+   * single edits — never a second copy of the reorient or grain rule.
+   */
+  const patchBoard = (current: Board, patch: Partial<Board>): Board => {
+    // Reorienting turns the board in place. `position` is the min-corner, so
+    // changing rotation or posture swaps the extents underneath a pinned
+    // corner — which is what made a 24 x 5-1/2 board jump sideways when it
+    // turned. The arithmetic lives in document/geometry.ts; doing it here,
+    // once, is what stops every future call site having to remember it. An
+    // explicit position in the same patch wins.
+    // `patch` is passed straight through as reorientedPosition's `changes`,
+    // not reconstructed into a narrower object. `changes` used to be limited
+    // to `{ rotation, posture }` because an earlier version built it with
+    // both keys always present, and an explicit `key: undefined` overwrites
+    // in a spread rather than falling through — but reconstructing it that
+    // way also silently dropped any dimension change (length/width/thickness)
+    // bundled into the same patch, so the pivot got computed from the
+    // board's stale extents. `patch` itself is just as safe from the
+    // undefined-overwrite trap: it only ever carries keys its caller
+    // actually set, same as the old reconstruction did, but it also carries
+    // the dimension keys reorientedPosition now needs.
+    // Grain is deliberately absent: it changes which faces show which cut,
+    // not the board's extents, so it needs no pivot.
+    const reorienting =
+      (patch.rotation !== undefined && patch.rotation !== current.rotation) ||
+      (patch.posture !== undefined && patch.posture !== current.posture);
+    const position =
+      reorienting && !patch.position
+        ? reorientedPosition(current, patch)
+        : patch.position;
+
+    // Sheet goods have no 'thickness' grain — see isSheetGood's comment.
+    // Switching a board's material to plywood/MDF while its grain is
+    // 'thickness' resets grain in this same edit, following the reorient
+    // pattern above: doing the derivation once, here, keeps it to one undo
+    // entry instead of two (change material, then a second edit to fix
+    // grain up) and means no other call site has to remember the rule.
+    // Equally important: applying both changes in the same edit means the
+    // panel never renders a frame with material: 'plywood' and grain: 'thickness'
+    // — it never tries to display a controlled <select value="thickness"> with
+    // no matching <option>. A future refactor that decouples the material and
+    // grain changes would need to handle this display state explicitly.
+    const switchingToSheetGoodWithThicknessGrain =
+      patch.material !== undefined &&
+      patch.material !== current.material &&
+      isSheetGood(patch.material) &&
+      (patch.grain ?? current.grain) === 'thickness';
+
+    return {
+      ...current,
+      ...patch,
+      ...(position ? { position: [...position] as [number, number, number] } : {}),
+      ...(switchingToSheetGoodWithThicknessGrain ? { grain: 'length' as const } : {}),
+    };
+  };
+
+  /**
+   * Add one delta to every named board's position, as one edit, then run
+   * invariant 24's point-precise survival test for each of them. The ONE
+   * translate both group moves use (the Move tool's commit and the gizmo).
+   * The delta is computed once by the caller; nothing here rounds.
+   */
+  const translateBoards = (ids: ReadonlySet<string>, delta: readonly [number, number, number]) => {
+    edit((doc) => ({
+      ...doc,
+      boards: doc.boards.map((b) => {
+        if (!ids.has(b.id)) return b;
+        const position: [number, number, number] = [
+          b.position[0] + delta[0],
+          b.position[1] + delta[1],
+          b.position[2] + delta[2],
+        ];
+        return { ...b, position };
+      }),
+    }));
+    for (const id of ids) dropHeldIfGone(id);
+  };
+
   return {
     doc: createDocument(),
     selectedIds: [],
@@ -493,7 +592,7 @@ export const useStore = create<StoreState>((set, get) => {
     /**
      * Move the grabbed board so its grabbed point lands exactly on `target`.
      *
-     * One subtraction, applied through updateBoard — which is what earns undo,
+     * One subtraction, applied to every selected part through translateBoards — which is what earns undo,
      * autosave and gesture coalescing without a line of new bookkeeping.
      *
      * Deliberately NOT snapped to SNAP_INCHES. Gizmo.tsx snaps because a free
@@ -504,24 +603,11 @@ export const useStore = create<StoreState>((set, get) => {
      * exact anyway and a snap would be a no-op — the only case where it does
      * anything is the case where it does damage.
      *
-     * The patch carries `position` only, so updateBoard's reorient predicate
-     * is never reached. Correct: a snap move translates, it never turns.
+     * Position only — a snap move translates, it never turns (invariant 2).
      */
     commitSnapMove: (target) => {
       const grabbed = get().grabbed;
       if (!grabbed) return;
-      // A board cannot be snapped onto itself. It is a legal subtraction — it
-      // would translate the board by its own length — but never what anyone
-      // means. MoveTool also withholds these candidates so the case cannot be
-      // clicked; this guard is what makes the rule true of the action itself.
-      //
-      // Compares OWNERS, not bare ids, since the guide-points round: a guide is
-      // a legal target, both union members carry `id: string`, and a guide
-      // whose id collided with the grabbed board's would otherwise read as a
-      // self-snap and silently refuse a move the user asked for. This is the
-      // ONLY runtime ownership test left in the file — everything else is the
-      // BoardSnapPoint type. See design §3.0.
-      if (target.owner.type === 'board' && target.owner.id === grabbed.owner.id) return;
       // MoveTool's candidate memo offers only the selected parts' points,
       // and every writer of the selection (selectionPatch) drops a grab that stops matching (see
       // edit() and selectBoard). This guard is deliberately redundant with
@@ -531,10 +617,30 @@ export const useStore = create<StoreState>((set, get) => {
       // without the user knowing which one it was. `grabbed` is deliberately
       // left in hand — this state is unreachable through the UI, and
       // discarding it quietly would hide that it had become reachable.
-      if (!get().selectedIds.includes(grabbed.owner.id)) return;
+      const selected = new Set(get().selectedIds);
+      if (!selected.has(grabbed.owner.id)) return;
+      // No selected part can be a target. It is a legal subtraction — it
+      // would translate the group by a member's own offset — but never what anyone
+      // means. MoveTool also withholds these candidates so the case cannot be
+      // clicked; this guard is what makes the rule true of the action itself.
+      //
+      // Compares OWNERS, not bare ids, since the guide-points round: a guide is
+      // a legal target, both union members carry `id: string`, and a guide
+      // whose id collided with the grabbed board's would otherwise read as a
+      // self-snap and silently refuse a move the user asked for.
+      //
+      // A selected part moves WITH the grab, so it can never be a target
+      // (spec §4.2) — snapping a group onto one of its own members is a legal
+      // subtraction and never what anyone means. The grabbed board itself is
+      // one such part, so this is the self-snap rule widened, not a second
+      // rule beside it. MoveTool withholds these candidates (moveCandidates),
+      // so the case cannot be clicked; this makes the rule true of the action.
+      // OWNERS are compared, not bare ids: a guide is a legal target, and a
+      // guide whose id collided with a selected board's must not read as one.
+      if (target.owner.type === 'board' && selected.has(target.owner.id)) return;
 
-      const board = get().doc.boards.find((b) => b.id === grabbed.owner.id);
-      if (!board) {
+      const moving = new Set(get().doc.boards.filter((b) => selected.has(b.id)).map((b) => b.id));
+      if (!moving.has(grabbed.owner.id)) {
         set({ grabbed: null });
         return;
       }
@@ -545,23 +651,36 @@ export const useStore = create<StoreState>((set, get) => {
         target.at[2] - grabbed.at[2],
       ] as const;
 
-      // Guarded before the edit, the same rule updateCut and removeCut follow:
-      // edit() unconditionally pushes an undo snapshot and clears redo, so a
-      // no-op move would leave a no-op undo entry (invariant 4) and silently
-      // wipe the redo stack.
+      // Guarded before the edit (invariant 4): a no-op move would leave a
+      // no-op undo entry and silently wipe the redo stack.
       if (delta[0] === 0 && delta[1] === 0 && delta[2] === 0) {
         set({ grabbed: null });
         return;
       }
 
-      get().updateBoard(board.id, {
-        position: [
-          board.position[0] + delta[0],
-          board.position[1] + delta[1],
-          board.position[2] + delta[2],
-        ],
-      });
+      // Every selected part by the SAME exact delta, unrounded (invariant 25),
+      // as one edit. The selection is unchanged: the moved parts are exactly
+      // the selected ones.
+      translateBoards(moving, delta);
       set({ grabbed: null });
+    },
+
+    moveGroupTo: (ids, minCorner) => {
+      const wanted = new Set(ids);
+      const moving = get().doc.boards.filter((b) => wanted.has(b.id));
+      const bounds = boardsBounds(moving);
+      if (!bounds) return;
+      // Round the GROUP's min corner, once. Rounding each part's corner
+      // instead would pull an off-grid part onto the grid and break the
+      // layout by up to a sixteenth, invisibly (invariant 25).
+      const snap = (v: number) => Math.round(v / SNAP_INCHES) * SNAP_INCHES;
+      const delta = [
+        snap(minCorner[0]) - bounds.min[0],
+        snap(minCorner[1]) - bounds.min[1],
+        snap(minCorner[2]) - bounds.min[2],
+      ] as const;
+      if (delta[0] === 0 && delta[1] === 0 && delta[2] === 0) return;
+      translateBoards(new Set(moving.map((b) => b.id)), delta);
     },
 
     addBoard: () => {
@@ -582,24 +701,24 @@ export const useStore = create<StoreState>((set, get) => {
       set({ pendingLengthFocus: true });
     },
 
-    updateBoard: (id, patch) => {
-      const current = get().doc.boards.find((b) => b.id === id);
-      if (!current) return;
+    updateBoard: (id, patch) => get().updateBoards([id], patch),
+
+    updateBoards: (ids, patch) => {
+      const targets = new Set(ids.filter((id) => get().doc.boards.some((b) => b.id === id)));
+      if (targets.size === 0) return;
 
       // Invariant 24: a grab holds a world position captured at grab time, not
       // a reference to the board. Properties stays fully live in Move mode
-      // (App renders it unconditionally, and commitSnapMove leaves the board it
-      // just moved selected), so a Length or Posture edit reachable from the
+      // (App renders it unconditionally, and commitSnapMove leaves the moved
+      // parts selected), so a Length or Posture edit reachable from the
       // panel can relocate the grabbed board out from under its own captured
-      // point. Clearing here — conditionally, only when this is the grabbed
-      // board, the same shape as deleteBoards' guard just below — is what
+      // point. Clearing here — conditionally, only when the grabbed board is
+      // among the targets, the same shape as deleteBoards' guard just below — is what
       // keeps that invariant's enumeration true; committing afterward would
       // otherwise apply a delta derived from a position that no longer
-      // describes anything. Safe for commitSnapMove's own call into
-      // updateBoard: it computes `delta` from `grabbed.at` before calling
-      // this, and unconditionally nulls `grabbed` right after — so clearing
-      // it here a moment early is a no-op there, not a race.
-      if (get().grabbed?.owner.id === id) set({ grabbed: null });
+      // describes anything.
+      const grabbed = get().grabbed;
+      if (grabbed && targets.has(grabbed.owner.id)) set({ grabbed: null });
 
       // BOTH TAPE FIELDS ARE DELIBERATELY ABSENT HERE, and their absence is the
       // rule rather than an omission: they are governed by the
@@ -621,62 +740,9 @@ export const useStore = create<StoreState>((set, get) => {
       // change to a shipped tool rather than a fix to this one. Recorded in
       // the round's follow-ups rather than changed in passing.
 
-      // Reorienting turns the board in place. `position` is the min-corner, so
-      // changing rotation or posture swaps the extents underneath a pinned
-      // corner — which is what made a 24 x 5-1/2 board jump sideways when it
-      // turned. The arithmetic lives in document/geometry.ts; doing it here,
-      // once, is what stops every future call site having to remember it. An
-      // explicit position in the same patch wins.
-      // `patch` is passed straight through as reorientedPosition's `changes`,
-      // not reconstructed into a narrower object. `changes` used to be limited
-      // to `{ rotation, posture }` because an earlier version built it with
-      // both keys always present, and an explicit `key: undefined` overwrites
-      // in a spread rather than falling through — but reconstructing it that
-      // way also silently dropped any dimension change (length/width/thickness)
-      // bundled into the same patch, so the pivot got computed from the
-      // board's stale extents. `patch` itself is just as safe from the
-      // undefined-overwrite trap: it only ever carries keys its caller
-      // actually set, same as the old reconstruction did, but it also carries
-      // the dimension keys reorientedPosition now needs.
-      // Grain is deliberately absent: it changes which faces show which cut,
-      // not the board's extents, so it needs no pivot.
-      const reorienting =
-        (patch.rotation !== undefined && patch.rotation !== current.rotation) ||
-        (patch.posture !== undefined && patch.posture !== current.posture);
-      const position =
-        reorienting && !patch.position
-          ? reorientedPosition(current, patch)
-          : patch.position;
-
-      // Sheet goods have no 'thickness' grain — see isSheetGood's comment.
-      // Switching a board's material to plywood/MDF while its grain is
-      // 'thickness' resets grain in this same edit, following the reorient
-      // pattern above: doing the derivation once, here, keeps it to one undo
-      // entry instead of two (change material, then a second edit to fix
-      // grain up) and means no other call site has to remember the rule.
-      // Equally important: applying both changes in the same edit means the
-      // panel never renders a frame with material: 'plywood' and grain: 'thickness'
-      // — it never tries to display a controlled <select value="thickness"> with
-      // no matching <option>. A future refactor that decouples the material and
-      // grain changes would need to handle this display state explicitly.
-      const switchingToSheetGoodWithThicknessGrain =
-        patch.material !== undefined &&
-        patch.material !== current.material &&
-        isSheetGood(patch.material) &&
-        (patch.grain ?? current.grain) === 'thickness';
-
       edit((doc) => ({
         ...doc,
-        boards: doc.boards.map((b) =>
-          b.id === id
-            ? {
-                ...b,
-                ...patch,
-                ...(position ? { position: [...position] } : {}),
-                ...(switchingToSheetGoodWithThicknessGrain ? { grain: 'length' as const } : {}),
-              }
-            : b,
-        ),
+        boards: doc.boards.map((b) => (targets.has(b.id) ? patchBoard(b, patch) : b)),
       }));
 
       // Point-precise, and AFTER the edit for the reason dropHeldIfGone's own
@@ -688,7 +754,7 @@ export const useStore = create<StoreState>((set, get) => {
       // which is the same behaviour the deleted clause had. `grabbed` was
       // already nulled above if it named this board, so reaching it here is a
       // no-op rather than a second opinion.
-      dropHeldIfGone(id);
+      for (const id of targets) dropHeldIfGone(id);
     },
 
     deleteBoard: (id) => get().deleteBoards([id]),
