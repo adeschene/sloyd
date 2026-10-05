@@ -84,6 +84,7 @@ function receiveDepth(s: Site, doc: SloydDocument): number {
 }
 
 const down = (v: number) => Math.floor(v / SNAP_INCHES + 1e-9) * SNAP_INCHES;
+const DEFAULT_MIN_TENON = 0.25;
 const postLike = (w: number, t: number) => w <= 2 * t;
 
 /**
@@ -129,8 +130,9 @@ function tenonSpan(s: Site, doc: SloydDocument, axis: number): [number, number] 
  * 1/16, so rounding can never eat the clearance. The range's 1/2in floor can
  * still exceed the cap; then the tenons meet, and the check reports it.
  */
-function defaultTenon(s: Site, doc: SloydDocument, sites: Site[]): number {
-  let L = Math.min(1.25, snap((2 / 3) * receiveDepth(s, doc)));
+function defaultTenon(s: Site, doc: SloydDocument, sites: Site[]): number | null {
+  const L = Math.min(1.25, snap((2 / 3) * receiveDepth(s, doc)));
+  let cap = Infinity;
   const eb = boxOf(doc.boards[s.enter]);
   const k = s.axis;
   for (const o of sites) {
@@ -145,7 +147,7 @@ function defaultTenon(s: Site, doc: SloydDocument, sites: Site[]): number {
         const t = tenonSpan(o, doc, a);
         return !!m && !!t && Math.min(m[1], t[1]) - Math.max(m[0], t[0]) > 1e-9;
       });
-      if (shared) L = Math.min(L, down(receiveDepth(s, doc) / 2 - SNAP_INCHES / 2));
+      if (shared) cap = Math.min(cap, down(receiveDepth(s, doc) / 2 - SNAP_INCHES / 2));
       continue;
     }
     if (defaultJoint(o, doc) !== 'mortise-tenon') continue;
@@ -159,9 +161,17 @@ function defaultTenon(s: Site, doc: SloydDocument, sites: Site[]): number {
     const face = s.side === 1 ? eb.max[k] : eb.min[k];
     const room = s.side === 1 ? footprint[0] - face : face - footprint[1];
     if (room < -1e-9) continue;
-    L = Math.min(L, down(room - SNAP_INCHES));
+    cap = Math.min(cap, down(room - SNAP_INCHES));
   }
-  return clamp(L, rangesOf(s, doc).tenonLength);
+  const range = rangesOf(s, doc).tenonLength;
+  // A cap under the range's floor (a thin post) used to lose to the clamp, and
+  // the tenons met (fu 188). For the DEFAULTS the floor drops to 1/4in; under
+  // that the site is a butt. The model's range and parseChoices are unchanged.
+  if (cap < range[0]) {
+    if (cap < DEFAULT_MIN_TENON - 1e-9) return null;
+    return clamp(Math.min(L, cap), [DEFAULT_MIN_TENON, range[1]]);
+  }
+  return clamp(Math.min(L, cap), range);
 }
 
 function defaultDado(s: Site, doc: SloydDocument): number {
@@ -175,7 +185,12 @@ function defaultRabbet(s: Site, doc: SloydDocument): number {
 export function defaultChoice(s: Site, doc: SloydDocument, sites: Site[]): JointChoice {
   const joint = defaultJoint(s, doc);
   switch (joint) {
-    case 'mortise-tenon': return { site: s.id, joint, tenonLength: defaultTenon(s, doc, sites) };
+    case 'mortise-tenon': {
+      // Another site's cap asks defaultJoint, which stays mortise-tenon even
+      // when this site ends up butt: conservative (it only shortens a tenon).
+      const tenonLength = defaultTenon(s, doc, sites);
+      return tenonLength === null ? { site: s.id, joint: 'butt' } : { site: s.id, joint, tenonLength };
+    }
     case 'dado': return { site: s.id, joint, depth: defaultDado(s, doc) };
     case 'rabbet': return { site: s.id, joint, depth: defaultRabbet(s, doc) };
     default: return { site: s.id, joint };
@@ -212,7 +227,7 @@ export function parseChoices(json: unknown, sites: Site[], doc: SloydDocument): 
       return out;
     };
     switch (joint) {
-      case 'mortise-tenon': return { site: s.id, joint, tenonLength: size('tenonLength', r.tenonLength, defaultTenon(s, doc, sites)) };
+      case 'mortise-tenon': return { site: s.id, joint, tenonLength: size('tenonLength', r.tenonLength, defaultTenon(s, doc, sites) ?? r.tenonLength[0]) };
       case 'dado': return { site: s.id, joint, depth: size('depth', r.dadoDepth, defaultDado(s, doc)) };
       case 'stopped-dado': {
         let at: StopEnd | undefined = s.stopEnds.find((e) => stopLabel(e) === g.stopAt);
