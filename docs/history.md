@@ -293,6 +293,18 @@ schema change. **On branch `hide-unhide`, not merged or deployed; the live check
   `moveCandidates` takes `hiddenIds`. PartsList has the eye and Show all (N), Properties has
   Hide others in both panels, and App's keydown effect has H / Shift+H / Alt+H. Invariants 24,
   34 and 42 were amended to match.
+- **A pre-existing bug the live check surfaced: the projection swap framed beside the model.**
+  The user saw the ortho/perspective toggle zoom in and look off to the side of the visible parts.
+  Diagnostic logs showed the cause, and it reproduced with nothing hidden:
+  - the swap effect ran when the camera changed, while drei's OrbitControls were still bound to
+    the OUTGOING camera, so the framed target went into the old controls;
+  - the rebuilt controls came up targeting [0, 0, 0] and turned the new camera to face the
+    origin.
+
+  It hid until now because the whole model's centre usually sits near the origin; a few visible
+  parts far from it made it obvious. The effect now waits for `controls.object === camera` and
+  frames once per swap. Re-measured with one leg visible: both directions frame on the leg's
+  centre, and the live controls keep it.
 - **Two spec corrections found while planning.**
   - The selection is filtered STRUCTURALLY, inside `selectionPatch`, rather than by each
     caller remembering to skip hidden parts.

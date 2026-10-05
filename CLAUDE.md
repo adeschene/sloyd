@@ -665,7 +665,10 @@ src/
 │   │                       the selection (`clearOnMiss`); `f` frames the whole selection
 │   │                       and stays a no-op with none. Draws only visible parts; Home
 │   │                       and the projection swap frame visible parts, and Home with
-│   │                       every part hidden does nothing
+│   │                       every part hidden does nothing. The swap re-frames only once
+│   │                       `controls.object === camera`: drei rebinds OrbitControls a
+│   │                       render after the camera changes, and framing earlier aims the
+│   │                       new camera at the origin
 │   ├── BoardMesh.tsx       one board per render; ghost box when boardSolids is empty
 │   │                       (inv 21). Required `selectable` prop, so the Move tool's
 │   │                       commit click cannot select the board it drops onto.

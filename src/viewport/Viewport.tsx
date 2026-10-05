@@ -46,6 +46,8 @@ const GRID_EXTENT = SCENE_EXTENT * 2;
 interface OrbitLike {
   target: THREE.Vector3;
   update: () => void;
+  /** The camera these controls drive. */
+  object: THREE.Camera;
 }
 
 /**
@@ -143,19 +145,31 @@ function CameraKeys({ suspended }: { suspended: boolean }) {
   }, [boards, hiddenIds, selectedIds, frame, suspended]);
 
   // Swapping projection hands OrbitControls a fresh camera whose target is the
-  // origin, which would throw the view away. Re-frame the model instead. The
-  // first run is skipped so a restored document is not re-framed on load.
-  const mounted = useRef(false);
+  // origin, which would throw the view away. Re-frame the model instead, once
+  // per swap. The first camera is skipped so a restored document is not
+  // re-framed on load.
+  //
+  // Wait for `controls.object === camera`. drei rebuilds OrbitControls for the
+  // new camera a render AFTER the camera changes, so framing on the camera
+  // alone writes the target into the OUTGOING controls, and the fresh ones,
+  // targeting the origin, then turn the new camera to face it: zoomed for the
+  // model but looking beside it. Measured live: the old controls took the
+  // framed target and the new ones came up at [0, 0, 0].
+  const framedCamera = useRef<THREE.Camera | null>(null);
   useEffect(() => {
-    if (!mounted.current) {
-      mounted.current = true;
+    if (framedCamera.current === null) {
+      framedCamera.current = camera;
       return;
     }
-    // Read the boards and hiddenIds imperatively: only the projection swap should re-frame,
-    // and depending on `boards` here would re-frame on every board edit.
+    if (framedCamera.current === camera) return;
+    if (!controls || controls.object !== camera) return;
+    framedCamera.current = camera;
+    // Read the boards and hiddenIds imperatively: only the projection swap
+    // should re-frame, and depending on `boards` here would re-frame on every
+    // board edit.
     const s = useStore.getState();
     frame(visibleBoards(s.doc.boards, s.hiddenIds));
-  }, [camera]);
+  }, [camera, controls, frame]);
 
   return null;
 }
