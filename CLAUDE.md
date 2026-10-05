@@ -27,7 +27,7 @@ tradition built around hand woodworking.
 Static SPA, containerized, **1628/1628 tests passing across 55 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **7**.
 
-**PRODUCTION MATCHES `master` as of 2026-10-05 with the joinery fixes round live** — bundle `index-BzWa2ZGT.js`, CSS `index-DqhKBEnY.css` (unchanged), merge commit `c31dd82`, **schema 7**. Before it: fu 197 `index-Ci3NLhVT.js` (`658dfcc`, 2026-10-05), fu 200 `index-DjL6FbOz.js` (`f37734b`, 2026-10-05), 198/199 `index-BvsB1zA6.js` (`fb8a094`, 2026-10-05), cut storage `index-JBiJohQE.js` (`7fa749d`, 2026-10-04), cut lines `index-BPmx9i74.js` (`f602a2d`), cut words `index-Cw_EeWuY.js` (`8c9be52`), joinery `index-Ci7lVCzJ.js` (`d2a14ac`), phantom cut `index-B2Yuq550.js` (`e7bf3bc`), stopped cuts `index-CoHIAVxf.js` (`c054ede`), which bumped the schema to 7 (rolling back past it strands v7 documents; export first). Before it, 2026-10-03: key check `index-BhhW2iNw.js` (`d0ba83b`), held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
+**PRODUCTION MATCHES `master` as of 2026-10-05 with the joinery residues round live** — bundle `index-D_wzi7Bx.js`, CSS `index-DqhKBEnY.css` (unchanged), merge commit `2b96eb2`, **schema 7**. Before it: joinery fixes `index-BzWa2ZGT.js` (`c31dd82`, 2026-10-05), fu 197 `index-Ci3NLhVT.js` (`658dfcc`, 2026-10-05), fu 200 `index-DjL6FbOz.js` (`f37734b`, 2026-10-05), 198/199 `index-BvsB1zA6.js` (`fb8a094`, 2026-10-05), cut storage `index-JBiJohQE.js` (`7fa749d`, 2026-10-04), cut lines `index-BPmx9i74.js` (`f602a2d`), cut words `index-Cw_EeWuY.js` (`8c9be52`), joinery `index-Ci7lVCzJ.js` (`d2a14ac`), phantom cut `index-B2Yuq550.js` (`e7bf3bc`), stopped cuts `index-CoHIAVxf.js` (`c054ede`), which bumped the schema to 7 (rolling back past it strands v7 documents; export first). Before it, 2026-10-03: key check `index-BhhW2iNw.js` (`d0ba83b`), held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
 bundle `index-BAsxEohe.js` with CSS `index-DEQSkZ3q.css`, from merge commit `fa834dc`. A
 person stores a Claude API key in Settings, describes a piece, and gets 1–3 prototypes built
 from boards, each saved as a **new, unactivated** library project (invariant 36). **It is
@@ -41,7 +41,7 @@ Claude drives the dev server and the user supervises. Results are in
 findings: 164, a batch converging on one design, and 165, a support check that passed a
 badly supported part; both are now CLOSED (below).
 
-**The joinery residues round (follow-ups 182, 186, 188, 191, 201–203, 2026-10-05) is on branch `joinery-residues`, NOT yet merged or deployed; a live check is pending.** A rabbeted panel is resolved as one unit from its final box, so its pockets leave no voids and parts in its path are trimmed (182, 201); default tenons shrink to 1/4in, else butt (188); joinery blockers judge solids (203); every `resize` is pre-checked, so an end already cut is a skip, never a throw. No schema change. Residues are 205–206.
+**The joinery residues round (follow-ups 182, 186, 188, 191, 201–203, 2026-10-05) is merged AND deployed.** Verified against the dev server with the user watching, one paid run (`docs/browser-verification-joinery-residues.md`). A rabbeted panel is resolved as one unit from its final box, so its pockets leave no voids and parts in its path are trimmed (182, 201); default tenons shrink to 1/4in, else butt (188); joinery blockers judge solids (203); every `resize` is pre-checked, so an end already cut is a skip, never a throw. No schema change. Residues are 205–206.
 
 **The joinery fixes round (follow-ups 183, 184, 185, 190, 2026-10-05) is merged AND deployed.** Verified against the dev server with the user watching, three paid runs (`docs/browser-verification-joinery-fixes.md`). Default tenons from opposite faces are capped under half the post (190), crossings run bottom-up with a swept-volume blocker (185), a rabbeted panel carries its outer-face chain or refuses before any mutation (183), and the dialog reports the re-ground (184). No schema change. Residues are 201-204.
 
@@ -149,7 +149,7 @@ different things make `git log` look ahead when it is not, and both are normal h
   built a byte-identical bundle: the agreement-test round (follow-up 140), 159's focus test,
   and the whole delete-token round (follow-up 160).
 
-**Nothing is pending on `master`** (the joinery residues round is on its branch, above). `DEPLOYMENT.local.md` carries every runbook entry and bundle hash.
+**Nothing is pending.** `DEPLOYMENT.local.md` carries every runbook entry and bundle hash.
 
 **The 2026-08-15 project-library deploy was the first that ACTS on a user's stored data at
 page load**, which
@@ -277,7 +277,7 @@ show it. Prefer a readout where one suffices; add an image when the finding is s
 | fu 200 | 10-05 | — | *no spec* — computed opening extents compare within `FLUSH_EPSILON` in `runAxis` and the word table (invariant 22's rule), so a millimetre square reads like its fractional twin; stored values stay exact |
 | fu 197 | 10-05 | — | *no spec* — `clippedRegion`: the cut's box clipped to the board is the one clip read by everything that shows a cut (drawing spans, snap points, cutShape, openSides, findTenons); an in-session overhang draws as what remains |
 | joinery fixes | 10-05 | — | *no spec* — fu 190/185/183/184: opposite-face tenon cap, bottom-up crossings with a swept-volume blocker, outer-face carry (refuses before any mutation), `lowered` reported |
-| joinery residues | 10-05 | — | *no spec, on branch* — fu 182/201/188/203/191/186: rabbet unit from the panel's final box (no voids, path parts trimmed), 1/4in default tenons else butt, blockers on solids, `resize` pre-checked |
+| joinery residues | 10-05 | — | *no spec* — fu 182/201/188/203/191/186: rabbet unit from the panel's final box (no voids, path parts trimmed), 1/4in default tenons else butt, blockers on solids, `resize` pre-checked |
 
 ### The deployment rule, stated once
 
@@ -1583,7 +1583,7 @@ The handful worth knowing without opening that file:
   **there is deliberately no prefix rule** (a working key does not start with `sk-ant-api`).
 - **171** — joinery is BUILT (2026-10-04, "Add joinery…"); refine by instruction is now **179**.
   Read invariants 38 and 41 and follow-ups 180–206 before touching `generate/joints/`. 180–204
-  are CLOSED (182, 186, 188, 191 and 201–203 by the joinery residues round, on its branch; 202
+  are CLOSED (182, 186, 188, 191 and 201–203 by the joinery residues round; 202
   and 204 by decision). Open: 205 (an end-cut refusal reads the cut's STORED form) and 206 (the
   half-lap coplanar check ignores axis), both safe refusals.
 - **178** — CLOSED 2026-10-04. A cut a board edit has left removing nothing is hidden from

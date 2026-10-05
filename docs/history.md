@@ -277,7 +277,7 @@ and 79.
 **What the joinery residues round did (2026-10-05)**: follow-ups 182, 186, 188, 191 and 201–203,
 no spec (the user ruled the design in chat: 201 = trim, 188 = shorter default tenons down to 1/4in
 and butt below, 182's `stopped rabbet` accepted; 202, 204 and 186's blamed `tips` closed by
-decision). No schema change. **On branch `joinery-residues`, not yet merged or deployed. Live check passed** with the user
+decision). No schema change. **Merged as `2b96eb2` and deployed 2026-10-05 (`index-D_wzi7Bx.js`). Live check passed** with the user
 watching (`docs/browser-verification-joinery-residues.md`).
 
 - **182 / 201:** a rabbeted panel's sites on one face are one unit, resolved from its FINAL box;
