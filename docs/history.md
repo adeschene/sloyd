@@ -334,7 +334,7 @@ strands v8 documents; export first.
   - **A plan-supplied `boardSnapPoints` equivariance test could not fail** — green before the
     implementation and green under the filter mutation — because no lattice point of `chiralPart`
     sat in removed stock. `chiralPart` gained `c3`, a stopped rabbet that takes a box corner; the
-    test then went red under the mutation. `c2` alone carries the fixture's handedness.
+    test then went red under the mutation. All three cuts are off-centre on every axis, so each alone is one-handed.
 - **Test evidence.** 1806 tests across 61 files (from 1749 across 59), build clean. Mutations, each
   red: every site's helper dropped (worldSolids, solidWorldBox, edges, cut and box snap points,
   pocketFor, resize, cutIntoEnd, boardUVs part-frame spans and reflection after the swap), the

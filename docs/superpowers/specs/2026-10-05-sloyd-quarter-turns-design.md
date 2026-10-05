@@ -116,6 +116,8 @@ order (invariant 11).
     (offset into `[0, board[h0]]`, then width into `[0, board[h0] − offset]`; a cut the clamp drops
     is left raw for it to drop), and then `offset` becomes `board[h0] − (offset + width)`, one sum.
     Reflecting the raw interval is a different cut whenever it runs past an end (final-review C1).
+    A cut flush with the near end stores `width = board[h0] − offset` (exact), so it lands exactly
+    flush with the far end on a non-dyadic board too.
 - **What it proves:** every migrated part's world solids are identical to before. That is tested
   (§6). For values that are not dyadic (millimetre entry), "identical" means within `FLUSH_EPSILON`,
   invariant 22's rule for computed values.

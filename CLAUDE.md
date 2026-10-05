@@ -24,7 +24,7 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **1812/1812 tests passing across 61 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
+Static SPA, containerized, **1814/1814 tests passing across 61 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **8** on branch `repeated-parts` (production and `master` are still at **7** — see below).
 
 **PRODUCTION MATCHES `master` as of 2026-10-05 with the hide/unhide round live** — bundle `index-BpdcUlXf.js`, CSS `index-CgHZGep2.css` (moved: parts-list eye styles), merge commit `366eb37`, **schema 7**. Before it: multi-select `index-D7ySMvky.js` (`232917f`, 2026-10-05), joinery residues `index-D_wzi7Bx.js` (`2b96eb2`, 2026-10-05), joinery fixes `index-BzWa2ZGT.js` (`c31dd82`, 2026-10-05), fu 197 `index-Ci3NLhVT.js` (`658dfcc`, 2026-10-05), fu 200 `index-DjL6FbOz.js` (`f37734b`, 2026-10-05), 198/199 `index-BvsB1zA6.js` (`fb8a094`, 2026-10-05), cut storage `index-JBiJohQE.js` (`7fa749d`, 2026-10-04), cut lines `index-BPmx9i74.js` (`f602a2d`), cut words `index-Cw_EeWuY.js` (`8c9be52`), joinery `index-Ci7lVCzJ.js` (`d2a14ac`), phantom cut `index-B2Yuq550.js` (`e7bf3bc`), stopped cuts `index-CoHIAVxf.js` (`c054ede`), which bumped the schema to 7 (rolling back past it strands v7 documents; export first). Before it, 2026-10-03: key check `index-BhhW2iNw.js` (`d0ba83b`), held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
@@ -444,8 +444,9 @@ src/
 │   │                       boardCenter / reorientedPosition (inv 2) / `boardsBounds` — the
 │                       box around a set of boards; the group gizmo sits at its centre
 │                       and `moveGroupTo` rounds its `min`
-│   ├── turnFixtures.ts     TEST-ONLY: `chiralPart(posture)` — three cuts with a HAND (c2
-│   │                       alone carries it; c3 takes a box corner so boardSnapPoints'
+│   ├── turnFixtures.ts     TEST-ONLY: `chiralPart(posture)` — three cuts with a HAND (all
+│   │                       three are off-centre on every axis, so each alone is
+│   │                       one-handed; c3 takes a box corner so boardSnapPoints'
 │   │                       filter has something to see) — plus `turnedAbout`,
 │   │                       `rotateQuarter` and `sameSet`, the equivariance kit (inv 44)
 │   ├── names.ts            uniqueName / dedupeNames (inv 8). Imports only Board.
@@ -1692,8 +1693,12 @@ worked examples behind several of them are in `docs/history.md`.
       `validateCuts` to drop. Reflecting the raw interval first migrated an overhang wider,
       resurrected a cut the loader had dropped, and left a ~7e-16 sliver solid on a decimal cut
       flush with the far end (`size − offset − width`). **Nothing is snapped**: a v7 cut 1e-10
-      short of an end left a real sliver, and §4 keeps it. Each of the three (clip, one sum, no
-      snap) is pinned by its own test.
+      short of an end left a real sliver, and §4 keeps it. A cut flush with the NEAR end
+      stores `width = size − offset`, exact by Sterbenz, so it lands exactly flush with the far
+      end (on a millimetre board `(size − w) + w` can fall an ulp short: a ~1e-15 sliver).
+      Each of the four (clip, one sum, no snap, near-end exact width) is pinned by its own
+      test; the last by a millimetre board and a near/far millimetre sweep that assert solid
+      COUNTS, because `sameSet` rounds at 1e-9 and cannot see a sliver.
     - **Turn 0 is the pre-v8 mapping for every posture**, so a 0° part means exactly what it
       always did. Within a posture the four turns are proper rotations of turn 0: no turn
       changes handedness. Postures still differ in handedness among themselves (follow-up
@@ -1703,7 +1708,8 @@ worked examples behind several of them are in `docs/history.md`.
       `boardSnapPoints` and `cutSnapPoints` (`turns.test.ts`), `pocketFor` (all 12 poses),
       joinery (180°), and `boardUVs`' interior constant (invariant 35's number). **The fixture
       is `chiralPart` because a symmetric fixture passes a mirror** — the bug this round
-      removed is exactly one a symmetric part cannot see. `c2` alone carries the hand. And
+      removed is exactly one a symmetric part cannot see. All three cuts are off-centre on every
+      axis, so each alone is one-handed. And
       the plan-supplied `boardSnapPoints` equivariance test could not fail until `c3` took a
       box corner, because no lattice point sat in removed stock: invariant 23's shape (a
       test whose fixture cannot reach the guarded branch). Mutate any new equivariance test.
@@ -1722,7 +1728,7 @@ worked examples behind several of them are in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 1812 tests across 61 files
+npm test           # Vitest, currently 1814 tests across 61 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

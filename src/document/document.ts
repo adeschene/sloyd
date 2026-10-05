@@ -453,7 +453,14 @@ function trueTurnsToV8(raw: unknown): unknown {
  *  flush with the far end lands at exactly 0 instead of a float residue away
  *  from it (`size - lo - width` leaves ~7e-16, a sliver solid). Nothing is
  *  snapped: a cut that stopped 1e-10 short of an end in v7 left a real sliver
- *  there, and the migration keeps it (spec §4, identical world solids). */
+ *  there, and the migration keeps it (spec §4, identical world solids).
+ *
+ *  The mirror case, a cut flush with the NEAR end, needs the width instead:
+ *  on a non-dyadic board `(size - w) + w` can fall an ulp short of `size`,
+ *  leaving a ~1e-15 sliver at the far end. So that cut stores
+ *  `width = size - offset`, which is exact (Sterbenz: offset >= size/2, or
+ *  offset is already exactly size - w), and offset + width === size. Exact
+ *  arithmetic, not a tolerance, so the no-snap rule above still holds. */
 function mirrorCutAlong(raw: unknown, d: Dimension, size: number): unknown {
   if (typeof raw !== 'object' || raw === null) return raw;
   const c = raw as Record<string, unknown>;
@@ -468,7 +475,11 @@ function mirrorCutAlong(raw: unknown, d: Dimension, size: number): unknown {
   const lo = clamp(c.offset, 0, size);
   const width = clamp(c.width, 0, size - lo);
   if (width <= 0) return raw;
-  return { ...c, offset: size - (lo + width), width };
+  const offset = size - (lo + width);
+  // Flush with the near end: store the width that reaches the far end
+  // EXACTLY. offset is then >= size/2 (Sterbenz) or already size - width
+  // exactly, so size - offset is exact and offset + width === size.
+  return { ...c, offset, width: lo === 0 ? size - offset : width };
 }
 
 /**

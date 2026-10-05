@@ -1051,6 +1051,43 @@ describe('v7 -> v8: true quarter turns', () => {
     }
   });
 
+  // Non-dyadic boards (millimetre entry). A cut flush with one end must migrate
+  // flush with the other: offset + width EXACTLY the board's size, or the
+  // remainder is a ~1e-15 sliver solid. sameSet rounds at 1e-9 and cannot see a
+  // sliver, so these assert the solid COUNT against the v8-loaded "before".
+  const flushPart = (length: number, offset: number, width: number) => ({
+    ...createBoard({ name: 'Mm', length, width: 4, thickness: 0.75 }),
+    rotation: 90 as const,
+    cuts: [{ id: 'r', face: 'thickness', from: 'max', across: 'width', offset, width, depth: 0.25, stopMin: 0, stopMax: 0 }],
+  });
+  const beforeAfter = (raw: unknown) => ({
+    before: migrateDocument({ ...v7([raw]), version: 8 }).boards[0]!,
+    after: migrateDocument(v7([raw])).boards[0]!,
+  });
+
+  it('a cut flush with the near end of a millimetre board migrates exactly flush with the far end', () => {
+    const { before, after } = beforeAfter(flushPart(216 / 25.4, 0, 12 / 25.4));
+    expect(oldWorld(before).length).toBe(2);
+    expect(newWorld(after).length).toBe(2);
+    expect(after.cuts[0]!.offset + after.cuts[0]!.width).toBe(after.length);
+    expect(sameSet(flatten(newWorld(after)), flatten(oldWorld(before)))).toBe(true);
+  });
+
+  it('millimetre sweep: a cut flush with either end keeps its solid count', () => {
+    const misses: string[] = [];
+    for (let L = 150; L <= 400; L += 7) {
+      for (let w = 3; w < L; w += 11) {
+        const S = L / 25.4;
+        const W = w / 25.4;
+        for (const [end, offset] of [['near', 0], ['far', S - W]] as const) {
+          const { before, after } = beforeAfter(flushPart(S, offset, W));
+          if (newWorld(after).length !== oldWorld(before).length) misses.push(`${end} L=${L}mm w=${w}mm`);
+        }
+      }
+    }
+    expect(misses).toEqual([]);
+  });
+
   it('a malformed cut on a 90° part does not throw; validateCuts still decides (Review Focus 3)', () => {
     const good = { id: 'p', face: 'thickness', from: 'max', across: 'width', offset: 4, width: 0.75, depth: 0.5, stopMin: 0, stopMax: 0 };
     const bad = {
