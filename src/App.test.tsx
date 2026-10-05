@@ -1080,11 +1080,17 @@ describe('App select all, and Delete on the whole selection', () => {
 
   it('H does nothing in a text field', async () => {
     await mountWithThreeBoards();
-    const projectName = screen.getByLabelText('Project name');
-    act(() => projectName.focus());
-    fireEvent.keyDown(projectName, { key: 'h', code: 'KeyH' });
+    // A bare input, NOT the project-name field: focusing that one opens a store
+    // gesture, and hiding is refused mid-gesture, which would pass this test
+    // with the isTextEntry guard deleted.
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    act(() => input.focus());
+    expect(useStore.getState().gesturing).toBe(false);
+    fireEvent.keyDown(input, { key: 'h', code: 'KeyH' });
     expect(useStore.getState().hiddenIds).toEqual([]);
-    act(() => projectName.blur());
+    act(() => input.blur());
+    input.remove();
   });
 
   it('H does nothing while the cut list is open', async () => {
