@@ -112,7 +112,10 @@ order (invariant 11).
   since `face`, `across` and the position axis are three different dimensions:
   - **`face === h0`:** `from` swaps `'min'` ↔ `'max'`;
   - **`across === h0`:** `stopMin` and `stopMax` swap;
-  - **position axis === h0:** `offset` becomes `board[h0] − offset − width`.
+  - **position axis === h0:** the interval is first CLIPPED exactly as `validateCuts` clamps it
+    (offset into `[0, board[h0]]`, then width into `[0, board[h0] − offset]`; a cut the clamp drops
+    is left raw for it to drop), and then `offset` becomes `board[h0] − (offset + width)`, one sum.
+    Reflecting the raw interval is a different cut whenever it runs past an end (final-review C1).
 - **What it proves:** every migrated part's world solids are identical to before. That is tested
   (§6). For values that are not dyadic (millimetre entry), "identical" means within `FLUSH_EPSILON`,
   invariant 22's rule for computed values.

@@ -493,9 +493,9 @@ describe('schema 4 — cuts', () => {
     expect(doc.boards[0].cuts).toEqual([]);
   });
 
-  // The chain is the point: a v1 file must walk 1 -> 2 -> 3 -> 4 -> 5 -> 6,
+  // The chain is the point: a v1 file must walk 1 -> 2 -> ... -> 8,
   // folding 270 to 90 BEFORE it gains a posture, and gaining cuts before guides.
-  it('walks a v1 file all the way to 7', () => {
+  it('walks a v1 file all the way to 8', () => {
     const doc = migrateDocument({
       version: 1,
       name: 'Ancient',
@@ -647,7 +647,7 @@ describe('schema v5 — stock.kerf', () => {
     expect(() => migrateDocument({ version: 9, name: 'X', boards: [] })).toThrow(DocumentError);
   });
 
-  it('walks a v1 file all the way to v7', () => {
+  it('walks a v1 file all the way to v8', () => {
     const doc = migrateDocument({
       version: 1,
       name: 'Ancient',
@@ -665,7 +665,7 @@ describe('schema v5 — stock.kerf', () => {
 });
 
 describe('guides — schema v6', () => {
-  it('a fresh document has an empty guides array at version 6', () => {
+  it('a fresh document has an empty guides array at the current version', () => {
     const doc = createDocument('Test');
     expect(doc.version).toBe(8);
     expect(doc.guides).toEqual([]);
@@ -740,8 +740,8 @@ describe('guides — schema v6', () => {
       .toThrow(DocumentError);
   });
 
-  // A v1 file must still walk the whole chain, gaining guides at the end.
-  it('a v1 file walks 1 -> 7', () => {
+  // A v1 file must still walk the whole chain, gaining guides on the way.
+  it('a v1 file walks 1 -> 8', () => {
     const doc = migrateDocument({
       version: 1,
       name: 'Ancient',
@@ -1014,9 +1014,64 @@ describe('v7 -> v8: true quarter turns', () => {
     expect(got.find((c) => c.id === 'p')).toMatchObject({ from: 'max', offset: 15.25, stopMin: 0, stopMax: 0 });
   });
 
+  // The mirror must reflect what validateCuts would have KEPT, not the raw
+  // interval: reflect-then-clamp differs from clamp-then-reflect whenever the
+  // cut runs past an end. "Before" is loaded as a v8 file so the mirror is
+  // skipped and validateCuts clamps it exactly as a v7 build did; oldWorld is
+  // the independent pre-v8 mapping. Each case is written against S, the size of
+  // h0 (length for flat and on-edge, width for upright), and the cut's
+  // position axis is h0, so it is the branch that rewrites `offset`.
+  const h0Cut = (posture: 'flat' | 'on-edge' | 'upright', offset: number, width: number) => ({
+    id: 'r', face: 'thickness', from: 'max', across: posture === 'upright' ? 'length' : 'width',
+    offset, width, depth: 0.5, stopMin: 0, stopMax: 0,
+  });
+  it.each([
+    // [label, offset(S), width(S)]
+    ['an overhanging cut keeps only what it removed', (S: number) => S - 2, () => 5],
+    ['a cut wholly past the far end is still dropped', (S: number) => S + 2, () => 2],
+    ['a cut hanging off the near end keeps only what it removed', () => -2, () => 3],
+    // Decimal widths whose S - offset - width is a POSITIVE float residue
+    // (7.2e-16 at S = 20, 2.2e-16 at S = 6): reflected raw, they leave a sliver
+    // solid at the near end.
+    ['a decimal cut flush with the far end migrates flush, with no sliver',
+      (S: number) => S - (S === 20 ? 0.3 : 0.7), (S: number) => (S === 20 ? 0.3 : 0.7)],
+    // A cut that stopped 3e-10 short of the far end left a real sliver in v7;
+    // the migration keeps it at the near end rather than snapping it away.
+    ['a cut stopping just short of the far end keeps its sliver', (S: number) => S - 3 - 3e-10, () => 3],
+  ] as const)('the position-axis mirror clips before it reflects: %s', (_label, off, wid) => {
+    for (const posture of ['flat', 'on-edge', 'upright'] as const) {
+      const part = { ...chiralPart(posture), rotation: 90 as const, position: [3, 0, 4] as [number, number, number] };
+      const S = posture === 'upright' ? part.width : part.length;
+      const raw = { ...part, cuts: [...part.cuts, h0Cut(posture, off(S), wid(S))] };
+      const before = migrateDocument({ ...v7([raw]), version: 8 }).boards[0]!;
+      const after = migrateDocument(v7([raw])).boards[0]!;
+      expect(after.cuts.map((c) => c.id)).toEqual(before.cuts.map((c) => c.id));
+      expect(newWorld(after).length).toBe(oldWorld(before).length);
+      expect(sameSet(flatten(newWorld(after)), flatten(oldWorld(before)))).toBe(true);
+    }
+  });
+
   it('a malformed cut on a 90° part does not throw; validateCuts still decides (Review Focus 3)', () => {
-    const bad = { ...chiralPart('flat'), rotation: 90, cuts: [{ id: 'x', face: 'nonsense', from: 'min' }, { id: 'y', face: 'thickness', from: 'max', across: 'width' }] };
-    expect(() => migrateDocument(v7([bad]))).not.toThrow();
+    const good = { id: 'p', face: 'thickness', from: 'max', across: 'width', offset: 4, width: 0.75, depth: 0.5, stopMin: 0, stopMax: 0 };
+    const bad = {
+      ...chiralPart('flat'), rotation: 90,
+      cuts: [{ id: 'x', face: 'nonsense', from: 'min' }, { id: 'y', face: 'thickness', from: 'max', across: 'width' }, good],
+    };
+    let cuts: Board['cuts'] = [];
+    expect(() => { cuts = migrateDocument(v7([bad])).boards[0]!.cuts; }).not.toThrow();
+    // Both malformed cuts dropped; the well-formed sibling kept AND mirrored
+    // along h0 = length (20): 20 - 4 - 0.75.
+    expect(cuts.map((c) => c.id)).toEqual(['p']);
+    expect(cuts[0]).toMatchObject({ offset: 15.25, width: 0.75 });
+  });
+
+  it('a version-8 file is never mirrored: a 90° part comes back exactly as saved', () => {
+    for (const posture of ['flat', 'on-edge', 'upright'] as const) {
+      const saved = { ...chiralPart(posture), rotation: 90 as const, position: [3, 0, 4] as [number, number, number] };
+      const loaded = migrateDocument({ ...v7([saved]), version: 8 }).boards[0]!;
+      expect(loaded.cuts).toEqual(saved.cuts);
+      expect(sameSet(flatten(newWorld(loaded)), flatten(newWorld(saved)))).toBe(true);
+    }
   });
 
   it('a v8 file opens; a version above CURRENT_VERSION is still refused', () => {

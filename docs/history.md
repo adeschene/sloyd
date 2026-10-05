@@ -301,8 +301,8 @@ strands v8 documents; export first.
     `boardSnapPoints` filter, `toWorld` (cut snap points), `worldSolids`, `pocketFor`, `resize`,
     `cutIntoEnd` and `boardUVs` (per geometry axis, before invariant 35's sign and swap).
   - `trueTurnsToV8` (v7→v8, per board, raw data) mirrors each cut of a 90° part with cuts along
-    h0: exactly one of `from` flipping, the stops swapping, or `offset → size − offset − width`
-    applies, because face, across and position axis are three different dimensions. Everything
+    h0: exactly one of `from` flipping, the stops swapping, or `offset → size − (offset + width)`
+    (on the interval clipped first as `validateCuts` clamps it; final review C1) applies, because face, across and position axis are three different dimensions. Everything
     else passes through byte-identical. The bump's argument is wrong geometry, as v7's was.
   - Properties' Turn offers 0/90/180/270. Generate still emits only 0 and 90.
 - **Rulings made while planning.** `faceGrainKinds` needed **no code change**: both faces of an

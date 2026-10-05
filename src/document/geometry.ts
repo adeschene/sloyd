@@ -30,23 +30,6 @@ const UP: Record<Posture, Dimension> = {
   upright: 'length',
 };
 
-/**
- * Which board dimension runs along each world axis, as [X, Y, Z].
- *
- * Posture names the dimension that points up; the other two take X and Z, and
- * rotation picks which is which and in which direction — at 0 the earlier of
- * [length, width, thickness] goes on X; each further quarter turn is a true
- * counter-clockwise rotation seen from above (see axisFrame).
- *
- * That single rule reproduces all four orientations v2 could reach and adds the
- * two it could not. The four v2 rows are asserted explicitly in the tests,
- * because agreeing with the old table is what makes this a generalisation
- * rather than a rewrite of every document ever saved.
- *
- * This is the ONE place the mapping lives. boardExtents derives from it, and so
- * does the viewport's grain code — before v3 the mapping was implicit in a
- * boolean and had to be restated in two files that could drift apart.
- */
 /** One world axis of a part: the dimension it carries, and whether that
  *  dimension's coordinate 0 sits on the world MAX side. */
 export interface AxisMap { dim: Dimension; reversed: boolean }
@@ -60,12 +43,25 @@ export function horizontalOf(posture: Posture): [Dimension, Dimension] {
 }
 
 /**
- * The ONE home of the turn table (quarter-turns spec §2): for world [X, Y, Z],
- * the part dimension each carries and its direction. Every turn is a TRUE
+ * The ONE home of the turn table (quarter-turns spec §2): which board
+ * dimension runs along each world axis, as [X, Y, Z], and in which direction.
+ *
+ * Posture names the dimension that points up; the other two take X and Z, and
+ * rotation picks which is which and in which direction — at 0 the earlier of
+ * [length, width, thickness] goes on X; each further quarter turn is a TRUE
  * rotation counter-clockwise seen from above. Turn 0 is the pre-v8 mapping
  * for every posture. Before v8, 90 was a mirror across the X=Z diagonal (no
  * direction existed), so a part's cuts could never face (-X, +Z): one corner
  * of a frame was unreachable for identical parts.
+ *
+ * At turn 0 this reproduces all four orientations v2 could reach and adds the
+ * two it could not. The four v2 rows are asserted explicitly in the tests,
+ * because agreeing with the old table is what makes this a generalisation
+ * rather than a rewrite of every document ever saved.
+ *
+ * Nothing else restates the mapping: axisDimensions, boardExtents and the
+ * viewport's grain code all derive from it — before v3 it was implicit in a
+ * boolean and had to be restated in two files that could drift apart.
  */
 export function axisFrame(board: Board): [AxisMap, AxisMap, AxisMap] {
   const [h0, h1] = horizontalOf(board.posture);

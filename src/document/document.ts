@@ -438,7 +438,22 @@ function trueTurnsToV8(raw: unknown): unknown {
 }
 
 /** One cut mirrored along dimension d (u -> size - u). face, across and the
- *  position axis are three different dimensions, so exactly one case applies. */
+ *  position axis are three different dimensions, so exactly one case applies.
+ *
+ *  The position-axis case CLIPS BEFORE IT REFLECTS. validateCuts clamps offset
+ *  into [0, size] and then width into [0, size - offset], so what a v7 build
+ *  removed is the raw interval clipped to the board; reflecting the RAW
+ *  interval and letting validateCuts clamp afterwards is a different cut
+ *  whenever it runs past an end (an overhang migrates wider, a cut the loader
+ *  dropped comes back as a real one). So the clip here is validateCuts' clamp,
+ *  in its order, and a cut it would drop is returned raw for it to drop.
+ *
+ *  The far end is reflected as ONE sum, `size - (lo + width)`: the clipped far
+ *  end `lo + width` is exactly what validateCuts' cut reached, so a decimal cut
+ *  flush with the far end lands at exactly 0 instead of a float residue away
+ *  from it (`size - lo - width` leaves ~7e-16, a sliver solid). Nothing is
+ *  snapped: a cut that stopped 1e-10 short of an end in v7 left a real sliver
+ *  there, and the migration keeps it (spec §4, identical world solids). */
 function mirrorCutAlong(raw: unknown, d: Dimension, size: number): unknown {
   if (typeof raw !== 'object' || raw === null) return raw;
   const c = raw as Record<string, unknown>;
@@ -448,8 +463,12 @@ function mirrorCutAlong(raw: unknown, d: Dimension, size: number): unknown {
   if (c.across === d) return { ...c, stopMin: c.stopMax, stopMax: c.stopMin };
   const dims = DIMENSION_ORDER as string[];
   if (!dims.includes(c.face as string) || !dims.includes(c.across as string)) return raw;
-  if (typeof c.offset !== 'number' || typeof c.width !== 'number') return raw;
-  return { ...c, offset: size - c.offset - c.width };
+  if (typeof c.offset !== 'number' || !Number.isFinite(c.offset)) return raw;
+  if (typeof c.width !== 'number' || !Number.isFinite(c.width)) return raw;
+  const lo = clamp(c.offset, 0, size);
+  const width = clamp(c.width, 0, size - lo);
+  if (width <= 0) return raw;
+  return { ...c, offset: size - (lo + width), width };
 }
 
 /**

@@ -24,7 +24,7 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **1806/1806 tests passing across 61 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
+Static SPA, containerized, **1812/1812 tests passing across 61 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **8** on branch `repeated-parts` (production and `master` are still at **7** — see below).
 
 **PRODUCTION MATCHES `master` as of 2026-10-05 with the hide/unhide round live** — bundle `index-BpdcUlXf.js`, CSS `index-CgHZGep2.css` (moved: parts-list eye styles), merge commit `366eb37`, **schema 7**. Before it: multi-select `index-D7ySMvky.js` (`232917f`, 2026-10-05), joinery residues `index-D_wzi7Bx.js` (`2b96eb2`, 2026-10-05), joinery fixes `index-BzWa2ZGT.js` (`c31dd82`, 2026-10-05), fu 197 `index-Ci3NLhVT.js` (`658dfcc`, 2026-10-05), fu 200 `index-DjL6FbOz.js` (`f37734b`, 2026-10-05), 198/199 `index-BvsB1zA6.js` (`fb8a094`, 2026-10-05), cut storage `index-JBiJohQE.js` (`7fa749d`, 2026-10-04), cut lines `index-BPmx9i74.js` (`f602a2d`), cut words `index-Cw_EeWuY.js` (`8c9be52`), joinery `index-Ci7lVCzJ.js` (`d2a14ac`), phantom cut `index-B2Yuq550.js` (`e7bf3bc`), stopped cuts `index-CoHIAVxf.js` (`c054ede`), which bumped the schema to 7 (rolling back past it strands v7 documents; export first). Before it, 2026-10-03: key check `index-BhhW2iNw.js` (`d0ba83b`), held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
@@ -1684,9 +1684,16 @@ worked examples behind several of them are in `docs/history.md`.
       invariant 13's failure mode with a sign in it. No file branches on `rotation`'s value
       except `axisFrame` itself, the migration (`foldRotationToV2`, `trueTurnsToV8`),
       `generated.ts`'s `orient` and Properties' Turn select. **The one legitimate hand-written
-      reflection is `mirrorCutAlong`** (`size - offset - width`): it maps a part's frame to
-      the same part's frame inside the migration, not a part to the world. Do not "tidy" it
-      onto the helpers.
+      reflection is `mirrorCutAlong`**: it maps a part's frame to the same part's frame
+      inside the migration, not a part to the world. Do not "tidy" it onto the helpers. **It
+      CLIPS BEFORE IT REFLECTS** on the position axis: `validateCuts`' clamp, in its order
+      (offset into `[0, size]`, then width into `[0, size − offset]`), then
+      `offset = size − (lo + width)` as ONE sum; a cut the clamp would drop goes back raw for
+      `validateCuts` to drop. Reflecting the raw interval first migrated an overhang wider,
+      resurrected a cut the loader had dropped, and left a ~7e-16 sliver solid on a decimal cut
+      flush with the far end (`size − offset − width`). **Nothing is snapped**: a v7 cut 1e-10
+      short of an end left a real sliver, and §4 keeps it. Each of the three (clip, one sum, no
+      snap) is pinned by its own test.
     - **Turn 0 is the pre-v8 mapping for every posture**, so a 0° part means exactly what it
       always did. Within a posture the four turns are proper rotations of turn 0: no turn
       changes handedness. Postures still differ in handedness among themselves (follow-up
@@ -1715,7 +1722,7 @@ worked examples behind several of them are in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 1806 tests across 61 files
+npm test           # Vitest, currently 1812 tests across 61 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

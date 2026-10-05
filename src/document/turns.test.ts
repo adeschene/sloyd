@@ -45,8 +45,10 @@ describe('quarter turns: every site rotates with the part (spec §7.1)', () => {
   }
 
   it('the fixture really is one-handed: its mirror is a different shape', () => {
-    // Guards the fixture: if both cuts were symmetric, a reflection would
-    // pass every test above.
+    // Guards the fixture: the tests above can only see a reflection if the
+    // part's mirror image differs from the part. With three cuts that is not
+    // automatic (a symmetric set would reflect onto itself), so it is checked
+    // here, on the whole part, rather than claimed of any one cut.
     const a = turnedAbout(chiralPart('flat'), 0, C);
     const mirrored = sites.worldSolids(a).map(([x, y, z]) => [2 * C[0] - x!, y!, z!]);
     expect(sameSet(mirrored, sites.worldSolids(a))).toBe(false);
