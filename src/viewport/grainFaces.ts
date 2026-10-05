@@ -33,6 +33,8 @@ export function faceGrainKinds(board: Board): GrainKind[] {
   const faceDim = FACE_PRECEDENCE.find((d) => d !== board.grain)!;
   const kindOf = (d: Dimension): GrainKind =>
     d === board.grain ? 'end' : d === faceDim ? 'face' : 'edge';
+  // Both faces of an axis pair share one kind, so a turn that reverses an axis
+  // needs no slot swap here (quarter-turns plan ruling).
   const [x, y, z] = axisDimensions(board);
   return [kindOf(x), kindOf(x), kindOf(y), kindOf(y), kindOf(z), kindOf(z)];
 }
