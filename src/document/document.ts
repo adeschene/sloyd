@@ -8,8 +8,9 @@ import { positionAxisOf } from './geometry';
 export * from './types';
 export {
   boardExtents, boardCenter, boardsBounds, reorientedPosition, axisDimensions, DIMENSION_ORDER, positionAxisOf,
+  horizontalOf, axisFrame, toWorldOffset, fromWorldOffset, spanToWorldOffset, spanFromWorldOffset, endFacing,
 } from './geometry';
-export type { Bounds } from './geometry';
+export type { Bounds, AxisMap } from './geometry';
 export { uniqueName, dedupeNames } from './names';
 export { boardEdges, boardSolids, CUT_GEOMETRY_FIELDS, CUT_GEOMETRY_KEYS, cutLabel, cutRegion, clippedRegion, cutShape, storedAsShape, cutRemovesNothing, cutsThatRemoveStock, pointToLocalXYZ, solidWorldBox, wholeBoard } from './cuts';
 export type { CutKind, CutShape, Point, Segment } from './cuts';
@@ -169,7 +170,7 @@ export function createGuide(at: [number, number, number]): GuidePoint {
   return { id: nextId(), at: [at[0], at[1], at[2]] };
 }
 
-const VALID_ROTATIONS = [0, 90];
+const VALID_ROTATIONS = [0, 90, 180, 270];
 const VALID_POSTURES: Posture[] = ['flat', 'on-edge', 'upright'];
 const VALID_GRAINS: Grain[] = ['length', 'width', 'thickness'];
 
@@ -353,10 +354,13 @@ function validateBoard(raw: unknown, index: number, seen: Set<string>): Board {
  *
  * This runs on the RAW board data, before validateBoard. That ordering is
  * load-bearing: validateBoard falls back to 0 for any rotation outside
- * VALID_ROTATIONS, which is now [0, 90], so a stored 270 validated first would
+ * VALID_ROTATIONS, which was then [0, 90], so a stored 270 validated first would
  * come out as 0 rather than 90 — and unlike 0-vs-180, that is a different shape
  * on screen. Folding first leaves validateBoard's fallback as what it was meant
  * to be: last-resort handling for garbage.
+ *
+ * v1 had no cuts, so this fold is still right now that 180 and 270 exist again
+ * (v8 restored them as true turns; migrating a v1 file never meets one).
  *
  * The fold is extent-neutral — boardExtents already treated 180 like 0 and 270
  * like 90 — so it must not adjust any position.

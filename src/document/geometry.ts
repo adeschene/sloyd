@@ -1,4 +1,4 @@
-import type { Board, Dimension, Posture } from './types';
+import type { Board, Dimension, Posture, Span } from './types';
 
 /** The order two dimensions are considered in when they share the floor. */
 export const DIMENSION_ORDER: Dimension[] = ['length', 'width', 'thickness'];
@@ -34,8 +34,9 @@ const UP: Record<Posture, Dimension> = {
  * Which board dimension runs along each world axis, as [X, Y, Z].
  *
  * Posture names the dimension that points up; the other two take X and Z, and
- * rotation picks which is which — at 0 the earlier of [length, width, thickness]
- * goes on X, at 90 they swap.
+ * rotation picks which is which and in which direction — at 0 the earlier of
+ * [length, width, thickness] goes on X; each further quarter turn is a true
+ * counter-clockwise rotation seen from above (see axisFrame).
  *
  * That single rule reproduces all four orientations v2 could reach and adds the
  * two it could not. The four v2 rows are asserted explicitly in the tests,
@@ -46,13 +47,75 @@ const UP: Record<Posture, Dimension> = {
  * does the viewport's grain code — before v3 the mapping was implicit in a
  * boolean and had to be restated in two files that could drift apart.
  */
+/** One world axis of a part: the dimension it carries, and whether that
+ *  dimension's coordinate 0 sits on the world MAX side. */
+export interface AxisMap { dim: Dimension; reversed: boolean }
+
+/** The two dimensions that lie horizontal in a posture, [h0, h1], in
+ *  DIMENSION_ORDER. Turn 0 puts h0 on X and h1 on Z. */
+export function horizontalOf(posture: Posture): [Dimension, Dimension] {
+  const up = UP[posture];
+  const [h0, h1] = DIMENSION_ORDER.filter((d) => d !== up);
+  return [h0!, h1!];
+}
+
+/**
+ * The ONE home of the turn table (quarter-turns spec §2): for world [X, Y, Z],
+ * the part dimension each carries and its direction. Every turn is a TRUE
+ * rotation counter-clockwise seen from above. Turn 0 is the pre-v8 mapping
+ * for every posture. Before v8, 90 was a mirror across the X=Z diagonal (no
+ * direction existed), so a part's cuts could never face (-X, +Z): one corner
+ * of a frame was unreachable for identical parts.
+ */
+export function axisFrame(board: Board): [AxisMap, AxisMap, AxisMap] {
+  const [h0, h1] = horizontalOf(board.posture);
+  const y: AxisMap = { dim: UP[board.posture], reversed: false };
+  switch (board.rotation) {
+    case 90: return [{ dim: h1, reversed: false }, y, { dim: h0, reversed: true }];
+    case 180: return [{ dim: h0, reversed: true }, y, { dim: h1, reversed: true }];
+    case 270: return [{ dim: h1, reversed: true }, y, { dim: h0, reversed: false }];
+    default: return [{ dim: h0, reversed: false }, y, { dim: h1, reversed: false }];
+  }
+}
+
+/** Which dimension runs along each world axis, as [X, Y, Z], without direction. */
 export function axisDimensions(board: Board): [Dimension, Dimension, Dimension] {
-  const up = UP[board.posture];
-  const horizontal = DIMENSION_ORDER.filter((d) => d !== up);
-  const [x, z] = board.rotation === 90
-    ? [horizontal[1], horizontal[0]]
-    : horizontal;
-  return [x, up, z];
+  return axisFrame(board).map((a) => a.dim) as [Dimension, Dimension, Dimension];
+}
+
+/**
+ * Part coordinate u, on the dimension world `axis` carries, as a distance from
+ * `position[axis]` (the world min corner, invariant 2). On a reversed axis the
+ * part's 0 is at the far side. Every crossing between a part's frame and the
+ * world goes through these four helpers; never write `board[dim] - u` at a
+ * call site.
+ */
+export function toWorldOffset(board: Board, axis: number, u: number): number {
+  const a = axisFrame(board)[axis]!;
+  return a.reversed ? board[a.dim] - u : u;
+}
+
+/** The inverse of toWorldOffset (the same reflection). */
+export function fromWorldOffset(board: Board, axis: number, w: number): number {
+  return toWorldOffset(board, axis, w);
+}
+
+/** A part span → a world-offset span, still [min, max]. */
+export function spanToWorldOffset(board: Board, axis: number, s: Span): Span {
+  const a = axisFrame(board)[axis]!;
+  return a.reversed ? [board[a.dim] - s[1], board[a.dim] - s[0]] : [s[0], s[1]];
+}
+
+/** A world-offset span → a part span, still [min, max]. */
+export function spanFromWorldOffset(board: Board, axis: number, s: Span): Span {
+  return spanToWorldOffset(board, axis, s);
+}
+
+/** Which end of the part's dimension on `axis` faces the world min (-1) or
+ *  max (+1) side. Joinery maps a world side to a cut's `from` with this. */
+export function endFacing(board: Board, axis: number, side: -1 | 1): 'min' | 'max' {
+  const worldMin = side === -1;
+  return worldMin !== axisFrame(board)[axis]!.reversed ? 'min' : 'max';
 }
 
 /** World-space size of a board along [X, Y, Z], in inches. */

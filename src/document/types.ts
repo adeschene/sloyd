@@ -1,5 +1,5 @@
-/** Degrees about the vertical axis, applied after posture. */
-export type Rotation = 0 | 90;
+/** Degrees about the vertical axis, counter-clockwise seen from above, applied after posture. */
+export type Rotation = 0 | 90 | 180 | 270;
 
 /** One of a board's three dimensions. */
 export type Dimension = 'length' | 'width' | 'thickness';
