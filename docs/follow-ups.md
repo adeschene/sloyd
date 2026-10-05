@@ -4300,6 +4300,7 @@ construction, not untested by oversight.
     them, so a lap on another axis never sits between two lookups on one axis (full suite green).
   (The final-box check moved below the mutations, a survivor when trims judged boxes, is now
   killed by the receiver-standing-off control.)
+- **Status:** CLOSED 2026-10-05 by decision, as a record (not work).
 
 ## From the joinery residues round — 2026-10-05
 

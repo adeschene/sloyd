@@ -168,7 +168,7 @@ function defaultTenon(s: Site, doc: SloydDocument, sites: Site[]): number | null
   const range = rangesOf(s, doc).tenonLength;
   // A cap under the range's floor (a thin post) used to lose to the clamp, and
   // the tenons met (fu 188). For the DEFAULTS the floor drops to 1/4in; under
-  // that the site is a butt. The model's range and parseChoices are unchanged.
+  // that the site is a butt. The model's range is unchanged; parseChoices clamps a model answer to it.
   if (cap < range[0]) {
     if (cap < DEFAULT_MIN_TENON - 1e-9) return null;
     return clamp(Math.min(L, cap), [DEFAULT_MIN_TENON, range[1]]);
