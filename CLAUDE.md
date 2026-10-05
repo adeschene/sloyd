@@ -27,7 +27,7 @@ tradition built around hand woodworking.
 Static SPA, containerized, **1543/1543 tests passing across 55 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **7**.
 
-**PRODUCTION MATCHES `master` as of 2026-10-04 with the cut storage round live** — bundle `index-JBiJohQE.js`, CSS `index-DqhKBEnY.css` (unchanged), merge commit `7fa749d`, **schema 7**. Before it the same day: cut lines `index-BPmx9i74.js` (`f602a2d`), cut words `index-Cw_EeWuY.js` (`8c9be52`), joinery `index-Ci7lVCzJ.js` (`d2a14ac`), phantom cut `index-B2Yuq550.js` (`e7bf3bc`), stopped cuts `index-CoHIAVxf.js` (`c054ede`), which bumped the schema to 7 (rolling back past it strands v7 documents; export first). Before it, 2026-10-03: key check `index-BhhW2iNw.js` (`d0ba83b`), held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
+**PRODUCTION MATCHES `master` as of 2026-10-05 with the 198/199 round live** — bundle `index-BvsB1zA6.js`, CSS `index-DqhKBEnY.css` (unchanged), merge commit `fb8a094`, **schema 7**. Before it: cut storage `index-JBiJohQE.js` (`7fa749d`, 2026-10-04), cut lines `index-BPmx9i74.js` (`f602a2d`), cut words `index-Cw_EeWuY.js` (`8c9be52`), joinery `index-Ci7lVCzJ.js` (`d2a14ac`), phantom cut `index-B2Yuq550.js` (`e7bf3bc`), stopped cuts `index-CoHIAVxf.js` (`c054ede`), which bumped the schema to 7 (rolling back past it strands v7 documents; export first). Before it, 2026-10-03: key check `index-BhhW2iNw.js` (`d0ba83b`), held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
 bundle `index-BAsxEohe.js` with CSS `index-DEQSkZ3q.css`, from merge commit `fa834dc`. A
 person stores a Claude API key in Settings, describes a piece, and gets 1–3 prototypes built
 from boards, each saved as a **new, unactivated** library project (invariant 36). **It is
@@ -41,7 +41,7 @@ Claude drives the dev server and the user supervises. Results are in
 findings: 164, a batch converging on one design, now CLOSED (below); and 165, a support
 check that passes a badly supported part, still open.
 
-**The 198/199 round (2026-10-05) is on branch `fu198-199`, live-checked by the user, NOT yet merged.** No Match note when only the square tie's default decides a cut's direction (`runByDefault`), and a growing part's cuts follow their shape in `rebaseCuts` (`docs/browser-verification-fu198-199.md`). No schema change. Open: follow-up 200.
+**The 198/199 round (2026-10-05) is merged AND deployed.** No Match note when only the square tie's default decides a cut's direction (`runByDefault`), and a growing part's cuts follow their shape in `rebaseCuts` (`docs/browser-verification-fu198-199.md`). No schema change. Open: follow-up 200.
 
 **The cut storage round (follow-ups 195, 196, 2026-10-04) is merged AND deployed.** Joinery stores each cut the way the sheet reads it (`storedAsShape`), Properties offers **Match the cut list** for one stored the other way (guarded: offered only when the sheet would read the same), and a square opening's direction reads only its shape (`docs/browser-verification-cut-storage.md`). No schema change. Open questions: follow-ups 198, 199.
 

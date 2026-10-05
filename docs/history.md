@@ -18,6 +18,13 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-05 with the 198/199 round live.** The bundle went from
+`index-JBiJohQE.js` to `index-BvsB1zA6.js`, and the CSS is unchanged (`index-DqhKBEnY.css`). The
+merge commit is `fb8a094`. Verified after the deploy: the new bundle on `/` and a deep route, both
+in-network and at the edge, and CSP `connect-src 'self' https://api.anthropic.com` unchanged at the
+edge. The changes were verified against the dev server (`docs/browser-verification-fu198-199.md`),
+not exercised on production.
+
 **Production matches `master` as of 2026-10-04 with the cut storage round live** (follow-ups 195,
 196). The bundle went from `index-BPmx9i74.js` to `index-JBiJohQE.js`, and the CSS is unchanged
 (`index-DqhKBEnY.css`). The merge commit is `7fa749d`. Verified after the deploy: the new bundle on
