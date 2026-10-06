@@ -809,6 +809,9 @@ button[aria-pressed='true'] {
 
 .row {
   display: flex;
+  /* An assembly's row carries five actions (Duplicate, Ungroup, Group, Hide
+     others, Delete), wider than the panel; wrap rather than clip Delete. */
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 10px;
   padding-top: 9px;
