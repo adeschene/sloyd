@@ -276,8 +276,8 @@ and 79.
 
 **What the copy-in-a-row round did (2026-10-05)**: N ordinary copies of the selection along an
 axis, with a spec and plan (`docs/superpowers/specs/2026-10-05-sloyd-copy-in-a-row-design.md`).
-No schema change. On branch `copy-in-a-row`; **not merged, not deployed; the live check is
-pending.** The second of the three repeated-parts rounds (quarter turns, copy in a row, linking).
+No schema change. **Live check passed** with the user watching
+(`docs/browser-verification-copy-in-a-row.md`). The second of the three repeated-parts rounds (quarter turns, copy in a row, linking).
 
 - **The user's rulings.** Copy and link are separate actions; copies are ordinary and
   independent. All three spacing modes (gap, centre-to-centre pitch, fit N across a distance).
