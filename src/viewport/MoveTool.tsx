@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { sameSnapPoint, worldParts } from '../document/document';
+import { itemKey, sameSnapPoint, worldParts } from '../document/document';
 import type { BoardSnapPoint, SnapPoint } from '../document/document';
 import { useStore } from '../store/store';
 import { moveCandidates } from './moveCandidates';
@@ -43,6 +43,7 @@ const isBoardOwned = (p: SnapPoint): p is BoardSnapPoint => p.owner.type === 'bo
  */
 export function MoveTool({ showGuides = true }: { showGuides?: boolean }) {
   const tool = useStore((s) => s.tool);
+  const doc = useStore((s) => s.doc);
   const boards = useStore((s) => worldParts(s.doc));
   const guides = useStore((s) => s.doc.guides);
   const grabbed = useStore((s) => s.grabbed);
@@ -77,9 +78,11 @@ export function MoveTool({ showGuides = true }: { showGuides?: boolean }) {
   // whether a grab is held, not on which point (invariant 15 — the deps are
   // exactly what moveCandidates reads).
   const grabbing = grabbed !== null;
+  // Another placement of a selected item moves with it (components spec §4.1).
+  const keyOf = useMemo(() => (p: string) => itemKey(doc, p), [doc]);
   const candidates = useMemo(
-    () => moveCandidates(boards, guides, selectedIds, hiddenIds, grabbing, showGuides),
-    [boards, guides, selectedIds, hiddenIds, grabbing, showGuides],
+    () => moveCandidates(boards, guides, selectedIds, hiddenIds, grabbing, showGuides, keyOf),
+    [boards, guides, selectedIds, hiddenIds, grabbing, showGuides, keyOf],
   );
 
   useEffect(() => {

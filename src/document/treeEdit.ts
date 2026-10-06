@@ -60,6 +60,15 @@ export function storageKey(doc: SloydDocument, occ: string): string | null {
   return `${def}:${lastSegment(occ)}`;
 }
 
+/** Where an ITEM (a part or an assembly) is stored: storageKey's rule, for
+ *  instances too. Every placement of one stored item shares the key, so an
+ *  edit to one occurrence reaches them all. Null when the path does not resolve. */
+export function itemKey(doc: SloydDocument, path: string): string | null {
+  const def = definitionIdOf(doc, parentPath(path));
+  if (def === null || (!partAt(doc, path) && !instanceAt(doc, path))) return null;
+  return `${def}:${lastSegment(path)}`;
+}
+
 /** Replace one definition's (or the root's) parts by id. */
 function updateDefinition(doc: SloydDocument, defId: string, fn: (boards: StoredBoard[]) => StoredBoard[]): SloydDocument {
   if (defId === ROOT) return { ...doc, boards: fn(doc.boards) };
