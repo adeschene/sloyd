@@ -1,4 +1,4 @@
-import type { Board, Definition, Instance, Rotation, SloydDocument, StoredBoard } from './types';
+import type { Definition, Instance, Rotation, SloydDocument, StoredBoard } from './types';
 import { dissolveShapes, isShaped, pruneShapes, resolveBoard, shapeMap } from './shapes';
 import { nextId } from './ids';
 import { uniqueName } from './names';
@@ -26,7 +26,7 @@ export function nextAssemblyName(siblings: readonly Named[]): string {
 
 export function insertItems(
   doc: SloydDocument, path: string | null,
-  add: { boards?: Board[]; instances?: Instance[]; definitions?: Definition[] },
+  add: { boards?: StoredBoard[]; instances?: Instance[]; definitions?: Definition[] },
 ): SloydDocument {
   const withDefs = add.definitions?.length ? { ...doc, definitions: [...doc.definitions, ...add.definitions] } : doc;
   return updateContainer(withDefs, path, (c) => ({

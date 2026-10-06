@@ -65,16 +65,6 @@ describe('loading assemblies (assemblies spec §2.4)', () => {
     expect(childrenOf(doc, 'i1')).toHaveLength(3);
   });
 
-  it('step 7: a linked pair across containers that differs is unlinked', () => {
-    const r = raw();
-    r.boards[0].link = 'L1';
-    const d = defs();
-    d[0].boards[1].link = 'L1';
-    const doc = migrateDocument({ ...r, definitions: d });
-    expect('link' in doc.boards[0]!).toBe(false);
-    expect('link' in partAt(doc, 'i1/b2')!).toBe(false);
-  });
-
   it('drops a malformed instance instead of refusing the file', () => {
     const r = raw();
     r.instances.push({ id: 'bad', definition: 'd1', position: [0, 'x', 0] });

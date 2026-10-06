@@ -1,6 +1,6 @@
 import { createBoard } from './document';
 import type { Board } from './document';
-import { LINK_FIELDS, SHARED_KEYS, dissolveSingletons, linkPlan, repairLinks, sameShared, sharedOf, sharedPatch, withoutLink } from './links';
+import { LINK_FIELDS, SHARED_KEYS, linkPlan, sameShared, sharedOf, sharedPatch } from './links';
 
 const leg = (over: Partial<Board> = {}): Board =>
   ({ ...createBoard({ name: 'Leg', length: 28, width: 1.75, thickness: 1.75, posture: 'upright' }), ...over });
@@ -11,13 +11,15 @@ describe('LINK_FIELDS', () => {
     expect([...SHARED_KEYS].sort()).toEqual(['cuts', 'grain', 'length', 'material', 'posture', 'thickness', 'width']);
     expect(LINK_FIELDS.rotation).toBe('own');
     expect(LINK_FIELDS.position).toBe('own');
+    expect(LINK_FIELDS.shape).toBe('own');
+    expect('link' in LINK_FIELDS).toBe(false);
   });
 });
 
 describe('sameShared', () => {
   it('is false when any shared field differs, true when only own fields differ', () => {
     const a = leg({ cuts: [cut] });
-    expect(sameShared(a, { ...a, id: 'x', name: 'Other', position: [9, 9, 9], rotation: 180, link: 'L' })).toBe(true);
+    expect(sameShared(a, { ...a, id: 'x', name: 'Other', position: [9, 9, 9], rotation: 180, shape: 's1' })).toBe(true);
     for (const patch of [{ length: 29 }, { width: 2 }, { thickness: 2 }, { material: 'walnut' }, { grain: 'width' as const }, { posture: 'flat' as const }]) {
       expect(sameShared(a, { ...a, ...patch })).toBe(false);
     }
@@ -31,7 +33,7 @@ describe('sharedPatch', () => {
   it('drops own keys, passes shared ones, and copies cuts so no Cut object is shared', () => {
     const cuts = [cut];
     const out = sharedPatch({
-      id: 'x', name: 'N', position: [1, 2, 3], rotation: 90, link: 'L',
+      id: 'x', name: 'N', position: [1, 2, 3], rotation: 90, shape: 's1',
       length: 30, material: 'walnut', cuts,
     });
     expect(Object.keys(out).sort()).toEqual(['cuts', 'length', 'material']);
@@ -43,44 +45,12 @@ describe('sharedPatch', () => {
   });
 });
 
-describe('sharedOf / withoutLink', () => {
+describe('sharedOf', () => {
   it('copies cuts with the same ids, never the same objects', () => {
     const a = leg({ cuts: [cut] });
     const s = sharedOf(a);
     expect(s.cuts).toEqual(a.cuts);
     expect(s.cuts[0]).not.toBe(a.cuts[0]);
-  });
-  it('withoutLink removes the key entirely', () => {
-    expect('link' in withoutLink(leg({ link: 'L' }))).toBe(false);
-  });
-});
-
-describe('repairLinks', () => {
-  it('unlinks members that differ from the FIRST member, never changing their geometry', () => {
-    const a = leg({ id: 'a', link: 'L' });
-    const b = leg({ id: 'b', link: 'L' });
-    const c = leg({ id: 'c', link: 'L', length: 30 });
-    const out = repairLinks([a, b, c]);
-    expect(out.map((x) => x.link)).toEqual(['L', 'L', undefined]);
-    expect('link' in out[2]!).toBe(false);
-    expect(out[2]!.length).toBe(30);
-  });
-  it('compares against the FIRST member, not the previous one', () => {
-    const out = repairLinks([leg({ id: 'a', link: 'L' }), leg({ id: 'b', length: 30, link: 'L' }), leg({ id: 'c', length: 30, link: 'L' })]);
-    expect(out.every((x) => !('link' in x))).toBe(true);
-  });
-  it('clears a label left on one part', () => {
-    const out = repairLinks([leg({ id: 'a', link: 'L' }), leg({ id: 'b', length: 30, link: 'L' })]);
-    expect(out.every((x) => !('link' in x))).toBe(true);
-  });
-  it('never merges two labels, even on identical parts (Review Focus 4)', () => {
-    const out = repairLinks([leg({ id: 'a', link: 'L1' }), leg({ id: 'b', link: 'L1' }), leg({ id: 'c', link: 'L2' }), leg({ id: 'd', link: 'L2' })]);
-    expect(out.map((x) => x.link)).toEqual(['L1', 'L1', 'L2', 'L2']);
-  });
-  it('returns the same array when nothing changes', () => {
-    const boards = [leg({ id: 'a' }), leg({ id: 'b', link: 'L' }), leg({ id: 'c', link: 'L' })];
-    expect(repairLinks(boards)).toBe(boards);
-    expect(dissolveSingletons(boards)).toBe(boards);
   });
 });
 
@@ -93,25 +63,35 @@ describe('linkPlan', () => {
     expect(plan.source.id).toBe('c');
     expect(plan.members).toEqual(['a', 'b', 'c']);
     expect(plan.changing).toEqual(['b']);
-    expect(plan.label).toBeNull();
+    expect(plan.shape).toBeNull();
   });
-  it('brings the WHOLE link of an already-linked part, unselected members included', () => {
+  it('brings the WHOLE shape of an already-linked part, unselected members included', () => {
     const a = leg({ id: 'a', length: 30 });
-    const b = leg({ id: 'b', link: 'L' });
-    const c = leg({ id: 'c', link: 'L' });
+    const b = leg({ id: 'b', shape: 'L' });
+    const c = leg({ id: 'c', shape: 'L' });
     const plan = linkPlan([a, b, c], ['a', 'b'])!;
     expect(plan.members).toEqual(['a', 'b', 'c']);
     expect(plan.changing).toEqual(['b', 'c']);
-    expect(plan.label).toBe('L');
+    expect(plan.shape).toBe('L');
   });
-  it('is not a no-op when one label is shared but a member differs', () => {
-    const plan = linkPlan([leg({ id: 'b', link: 'L' }), leg({ id: 'c', link: 'L', length: 30 })], ['b', 'c'])!;
+  it('is not a no-op when one shape is shared but a member differs', () => {
+    const plan = linkPlan([leg({ id: 'b', shape: 'L' }), leg({ id: 'c', shape: 'L', length: 30 })], ['b', 'c'])!;
     expect(plan.changing).toEqual(['c']);
   });
   it('is null for fewer than two parts, or when nothing would change', () => {
-    const b = leg({ id: 'b', link: 'L' });
-    const c = leg({ id: 'c', link: 'L' });
+    const b = leg({ id: 'b', shape: 'L' });
+    const c = leg({ id: 'c', shape: 'L' });
     expect(linkPlan([b, c], ['b'])).toBeNull();
     expect(linkPlan([b, c], ['b', 'c'])).toBeNull();
+  });
+  it('reuses the SOURCE\'s shape over a selected member\'s, and a member\'s when the source has none', () => {
+    const a = leg({ id: 'a', shape: 'S1' });
+    const b = leg({ id: 'b', shape: 'S1' });
+    const c = leg({ id: 'c', shape: 'S2' });
+    const d = leg({ id: 'd', shape: 'S2' });
+    const e = leg({ id: 'e' });
+    expect(linkPlan([a, b, c, d, e], ['c', 'a'])!.shape).toBe('S2');
+    expect(linkPlan([a, b, c, d, e], ['c', 'a'])!.members).toEqual(['a', 'b', 'c', 'd']);
+    expect(linkPlan([a, b, c, d, e], ['e', 'a'])!.shape).toBe('S1');
   });
 });

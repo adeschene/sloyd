@@ -1194,7 +1194,8 @@ describe('linking controls', () => {
     render(<Properties />);
     expect(screen.getByText(/Linking makes 1 part match Board:/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Link' }));
-    expect(new Set(worldParts(st().doc).map((b) => b.link)).size).toBe(1);
+    expect(new Set(worldParts(st().doc).map((b) => b.shape)).size).toBe(1);
+    expect(worldParts(st().doc)[0]!.shape).toBeDefined();
     expect(worldParts(st().doc)[1]!.length).toBe(28);
   });
 
@@ -1221,7 +1222,8 @@ describe('linking controls', () => {
     act(() => { st().linkBoards([a!, b!]); st().selectBoard(a!); });
     render(<Properties />);
     await userEvent.click(screen.getByRole('button', { name: 'Unlink' }));
-    expect(worldParts(st().doc).every((x) => !('link' in x))).toBe(true);
+    expect(worldParts(st().doc).every((x) => !('shape' in x))).toBe(true);
+    expect(st().doc.shapes).toEqual([]);
   });
 });
 

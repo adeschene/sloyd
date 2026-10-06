@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useStore } from './store';
-import { createDocument, worldParts, snapPointsFor } from '../document/document';
+import { boardExtents, createDocument, worldParts, snapPointsFor } from '../document/document';
 import type { SloydDocument } from '../document/document';
 
 const drawerDoc = (): SloydDocument => ({
@@ -153,5 +153,188 @@ describe('components in the store', () => {
     s().openAssembly('c1');
     s().turnAssembly('c1/i1', 90);
     expect(s().tapeAnchor).toBeNull();
+  });
+});
+
+describe('links are shapes', () => {
+  const legs = (): SloydDocument => ({
+    ...createDocument(),
+    boards: [0, 1, 2, 3].map((k) => ({ id: `l${k}`, name: `Leg ${k}`, length: 28, width: 1.75, thickness: 1.75,
+      position: [k * 10, 0, 0] as [number, number, number], rotation: ([0, 90, 180, 270] as const)[k]!, posture: 'upright' as const,
+      grain: 'length' as const, material: 'oak', cuts: [] })),
+  });
+
+  it('Link stores one shape and makes every member a shaped part', () => {
+    s().replaceDocument(legs());
+    s().linkBoards(['l0', 'l1', 'l2', 'l3']);
+    const doc = s().doc;
+    expect(doc.shapes).toHaveLength(1);
+    expect(doc.boards.every((b) => 'shape' in b && !('length' in b))).toBe(true);
+    expect(worldParts(doc).map((b) => [b.position, b.rotation])).toEqual(legs().boards.map((b) => [b.position, b.rotation]));
+  });
+
+  it('a cut added on one leg appears, with one id, on every leg', () => {
+    s().replaceDocument(legs());
+    s().linkBoards(['l0', 'l1', 'l2', 'l3']);
+    s().addCut('l2');
+    const ids = worldParts(s().doc).map((b) => b.cuts.map((c) => c.id).join());
+    expect(new Set(ids).size).toBe(1);
+    expect(s().doc.shapes[0]!.cuts).toHaveLength(1);
+  });
+
+  it('a posture change re-pivots every user about its own centre, exactly', () => {
+    s().replaceDocument(legs());
+    s().linkBoards(['l0', 'l1', 'l2', 'l3']);
+    const centre = (b: ReturnType<typeof worldParts>[number]) => {
+      const e = boardExtents(b);
+      return [b.position[0] + e[0] / 2, b.position[2] + e[2] / 2];
+    };
+    const before = worldParts(s().doc).map(centre);
+    s().updateBoards(['l0'], { posture: 'flat' });
+    expect(worldParts(s().doc).map(centre)).toEqual(before);
+  });
+
+  it('Unlink of one of two dissolves the shape: both are plain parts again', () => {
+    s().replaceDocument(legs());
+    s().linkBoards(['l0', 'l1']);
+    s().unlinkBoards(['l0']);
+    expect(s().doc.shapes).toEqual([]);
+    expect(s().doc.boards.every((b) => 'length' in b)).toBe(true);
+  });
+
+  it('Duplicate of a linked leg shares its shape; of a plain leg stays plain', () => {
+    s().replaceDocument(legs());
+    s().linkBoards(['l0', 'l1']);
+    s().duplicateBoards(['l0', 'l2']);
+    const copies = s().doc.boards.slice(4);
+    expect('shape' in copies[0]!).toBe(true);
+    expect('length' in copies[1]!).toBe(true);
+  });
+
+  // Added (Task 5): the brief's tests above do not pin these.
+  const centreOf = (b: ReturnType<typeof worldParts>[number]) => {
+    const e = boardExtents(b);
+    // Plan centre: a reorient keeps the min-corner's Y (the part stays on what it sat on).
+    return [b.position[0] + e[0] / 2, b.position[2] + e[2] / 2];
+  };
+
+  it('Link re-pivots a member whose posture differs about its own centre', () => {
+    const doc = legs();
+    doc.boards[3] = { ...doc.boards[3]!, posture: 'flat' } as (typeof doc.boards)[number];
+    s().replaceDocument(doc);
+    const before = centreOf(worldParts(s().doc)[3]!);
+    s().linkBoards(['l0', 'l1', 'l2', 'l3']);
+    const after = worldParts(s().doc)[3]!;
+    expect(after.posture).toBe('upright');
+    expect(centreOf(after)).toEqual(before);
+  });
+
+  it('a copy of a shaped part names the same shape and holds no shared field; a plain copy has no shape key', () => {
+    s().replaceDocument(legs());
+    s().linkBoards(['l0', 'l1']);
+    const shape = s().doc.shapes[0]!.id;
+    s().duplicateBoards(['l0', 'l2']);
+    const [shaped, plain] = s().doc.boards.slice(4);
+    expect(shaped).toEqual({ id: shaped!.id, name: 'Leg 0 (1)', position: [0, 0, 0], rotation: 0, shape });
+    expect('shape' in plain!).toBe(false);
+    expect(s().doc.shapes).toHaveLength(1);
+  });
+
+  it('Copy in a row of a shaped part shares its shape; of a plain part stays plain', () => {
+    s().replaceDocument(legs());
+    s().linkBoards(['l0', 'l1']);
+    const shape = s().doc.shapes[0]!.id;
+    s().copyInRow(['l0'], 3, 2, 1, 5);
+    const row = s().doc.boards.slice(4);
+    expect(row.map((b) => ('shape' in b ? b.shape : null))).toEqual([shape, shape]);
+    expect(row.every((b) => !('length' in b))).toBe(true);
+    s().copyInRow(['l2'], 2, 2, 1, 5);
+    const plain = s().doc.boards[6]!;
+    expect('length' in plain && !('shape' in plain)).toBe(true);
+  });
+
+  it('Select linked selects every user of the shape', () => {
+    s().replaceDocument(legs());
+    s().linkBoards(['l0', 'l2']);
+    s().selectBoard(null);
+    s().selectLinked('l2');
+    expect(s().selectedIds).toEqual(['l0', 'l2']);
+  });
+
+  it('Link, Unlink and a cut on a linked part are one undo entry each; a no-op Link pushes none', () => {
+    s().replaceDocument(legs());
+    const n = () => s().past.length;
+    s().linkBoards(['l0', 'l1']);
+    expect(n()).toBe(1);
+    s().linkBoards(['l1', 'l0']);
+    expect(n()).toBe(1);
+    s().addCut('l1');
+    expect(n()).toBe(2);
+    s().unlinkBoards(['l1']);
+    expect(n()).toBe(3);
+    s().unlinkBoards(['l1']);
+    expect(n()).toBe(3);
+    s().undo();
+    expect(s().doc.shapes).toHaveLength(1);
+    expect(worldParts(s().doc).slice(0, 2).map((b) => b.cuts.length)).toEqual([1, 1]);
+  });
+
+  it('Link of a selected member brings its whole shape; the unselected user follows the source', () => {
+    s().replaceDocument(legs());
+    s().linkBoards(['l0', 'l1']);
+    s().updateBoards(['l2'], { length: 30 });
+    s().linkBoards(['l2', 'l0']);
+    const w = worldParts(s().doc);
+    expect(s().doc.shapes).toHaveLength(1);
+    expect(w.map((b) => b.length)).toEqual([30, 30, 30, 28]);
+    expect(new Set(w.slice(0, 3).map((b) => b.shape)).size).toBe(1);
+    expect(w[3]!.shape).toBeUndefined();
+  });
+
+  it('a posture change on a linked part inside a turned assembly re-pivots every user about its own centre', () => {
+    const doc: SloydDocument = {
+      ...legs(),
+      boards: legs().boards.slice(0, 1),
+      instances: [{ id: 'i1', name: 'Frame', definition: 'd1', position: [40, 0, 3], rotation: 90 }],
+      definitions: [{ id: 'd1', boards: [{ ...legs().boards[1]!, id: 'p1', name: 'Post' }], instances: [] }],
+    };
+    s().replaceDocument(doc);
+    const placed = worldParts(s().doc).map((b) => [b.position, b.rotation]);
+    s().linkBoards(['l0', 'i1/p1']);
+    // Link writes each member's STORED own fields: nothing moves or turns.
+    expect(worldParts(s().doc).map((b) => [b.position, b.rotation])).toEqual(placed);
+    expect(s().doc.definitions[0]!.boards[0]).toEqual({ id: 'p1', name: 'Post', position: [10, 0, 0], rotation: 90, shape: s().doc.shapes[0]!.id });
+    const before = worldParts(s().doc).map(centreOf);
+    s().updateBoards(['l0'], { posture: 'on-edge' });
+    const after = worldParts(s().doc);
+    expect(after.map((b) => b.posture)).toEqual(['on-edge', 'on-edge']);
+    expect(after.map(centreOf)).toEqual(before);
+  });
+
+  it('Link of users of two shapes leaves ONE shape; the other is pruned', () => {
+    s().replaceDocument(legs());
+    s().linkBoards(['l0', 'l1']);
+    s().linkBoards(['l2', 'l3']);
+    expect(s().doc.shapes).toHaveLength(2);
+    s().linkBoards(['l0', 'l2']);
+    expect(s().doc.shapes).toHaveLength(1);
+    expect(new Set(worldParts(s().doc).map((b) => b.shape))).toEqual(new Set([s().doc.shapes[0]!.id]));
+  });
+
+  it('Unlink of a part in a turned assembly keeps its stored own fields: nothing moves or turns', () => {
+    const doc: SloydDocument = {
+      ...legs(),
+      boards: legs().boards.slice(0, 2),
+      instances: [{ id: 'i1', name: 'Frame', definition: 'd1', position: [40, 0, 3], rotation: 90 }],
+      definitions: [{ id: 'd1', boards: [{ ...legs().boards[1]!, id: 'p1', name: 'Post' }], instances: [] }],
+    };
+    s().replaceDocument(doc);
+    s().linkBoards(['l0', 'l1', 'i1/p1']);
+    const placed = worldParts(s().doc).map((b) => [b.position, b.rotation]);
+    s().unlinkBoards(['i1/p1']);
+    expect(s().doc.definitions[0]!.boards[0]).toMatchObject({ id: 'p1', position: [10, 0, 0], rotation: 90 });
+    expect('shape' in s().doc.definitions[0]!.boards[0]!).toBe(false);
+    expect(worldParts(s().doc).map((b) => [b.position, b.rotation])).toEqual(placed);
+    expect(s().doc.shapes).toHaveLength(1);
   });
 });

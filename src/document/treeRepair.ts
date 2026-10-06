@@ -1,9 +1,7 @@
 import type { Definition, Instance, SloydDocument, StoredBoard } from './types';
 import { nextId } from './ids';
 import { dedupeNames } from './names';
-import { repairLinks } from './links';
 import type { Container } from './tree';
-import { mapWorld } from './treeEdit';
 
 /** One container's names deduped across its parts AND assemblies (invariant 8, restated). */
 function dedupeContainer(c: Container): Container {
@@ -45,9 +43,4 @@ export function repairTree(doc: SloydDocument): SloydDocument {
   const kept = doc.definitions.filter((d) => fixed.has(d.id)).map((d) => fixed.get(d.id)!);
   const copies = [...fixed.values()].filter((d) => !defs.has(d.id));
   return { ...doc, boards: root.boards, instances: root.instances, definitions: [...kept, ...copies] };
-}
-
-/** Load step 7: repairLinks decides on the world parts; its unlinks are written back. */
-export function repairLinksTree(doc: SloydDocument): SloydDocument {
-  return mapWorld(doc, repairLinks);
 }

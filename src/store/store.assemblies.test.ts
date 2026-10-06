@@ -144,12 +144,18 @@ describe('part edits inside assemblies (assemblies spec §5)', () => {
   it('a link across containers propagates in one undo entry', () => {
     s().linkBoards(['r1', 'i1/b2']);
     expect(resolvedPartAt(s().doc, 'i1/b2')!.length).toBe(worldParts(s().doc)[0]!.length);
+    // One shape across the root and the assembly: both stored parts name it.
+    expect(s().doc.shapes).toHaveLength(1);
+    expect(resolvedPartAt(s().doc, 'i1/b2')!.shape).toBe(s().doc.shapes[0]!.id);
+    expect(resolvedPartAt(s().doc, 'r1')!.shape).toBe(s().doc.shapes[0]!.id);
     const past = s().past.length;
     s().updateBoard('r1', { thickness: 1.25 });
     expect(resolvedPartAt(s().doc, 'i1/b2')!.thickness).toBe(1.25);
     expect(s().past.length).toBe(past + 1);
     s().unlinkBoards(['r1']);
-    expect('link' in resolvedPartAt(s().doc, 'i1/b2')!).toBe(false);
+    expect('shape' in resolvedPartAt(s().doc, 'i1/b2')!).toBe(false);
+    expect(s().doc.shapes).toEqual([]);
+    expect(resolvedPartAt(s().doc, 'i1/b2')!.thickness).toBe(1.25);
   });
 
   it('a tape anchor on a nested part drops when that part moves and is kept otherwise', () => {

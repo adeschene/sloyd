@@ -1,7 +1,7 @@
 import { worldParts } from '../document/tree';
 import { useStore } from './store';
 import type { Board } from '../document/document';
-import { createBoard, createDocument, boardCenter, boardExtents, repairLinks, boardSnapPoints, cutSnapPoints, sameSnapPoint } from '../document/document';
+import { createBoard, createDocument, boardCenter, boardExtents, boardSnapPoints, cutSnapPoints, sameSnapPoint } from '../document/document';
 
 const reset = () => useStore.getState().replaceDocument(createDocument('Test'));
 
@@ -2415,8 +2415,8 @@ describe('linked parts', () => {
     expect(board(b).cuts[0]).not.toBe(board(a).cuts[0]);
     expect(board(b).position).toEqual([10, 0, 0]);
     expect(board(b).rotation).toBe(90);
-    expect(board(a).link).toBeDefined();
-    expect(board(b).link).toBe(board(a).link);
+    expect(board(a).shape).toBeDefined();
+    expect(board(b).shape).toBe(board(a).shape);
   });
 
   it('Link brings a selected part\'s WHOLE link, unselected members included (Review Focus 1)', () => {
@@ -2426,7 +2426,8 @@ describe('linked parts', () => {
     st().linkBoards([b, c]);
     st().linkBoards([a, b]);
     expect([a, b, c].map((id) => board(id).length)).toEqual([30, 30, 30]);
-    expect(new Set([a, b, c].map((id) => board(id).link)).size).toBe(1);
+    expect(new Set([a, b, c].map((id) => board(id).shape)).size).toBe(1);
+    expect(board(a).shape).toBeDefined();
   });
 
   it('a propagated posture change pivots each member about its OWN centre (Review Focus 2)', () => {
@@ -2502,13 +2503,14 @@ describe('linked parts', () => {
     const b = leg();
     st().linkBoards([a, b]);
     st().unlinkBoards([b]);
-    expect('link' in board(b)).toBe(false);
-    expect('link' in board(a)).toBe(false);
+    expect('shape' in board(b)).toBe(false);
+    expect('shape' in board(a)).toBe(false);
     expect(board(b).length).toBe(30);
     const c = leg();
     st().linkBoards([a, c]);
     st().deleteBoards([c]);
-    expect('link' in board(a)).toBe(false);
+    expect('shape' in board(a)).toBe(false);
+    expect(st().doc.shapes).toEqual([]);
   });
 
   it('Duplicate and Copy in a row copies join the link', () => {
@@ -2517,23 +2519,26 @@ describe('linked parts', () => {
     st().linkBoards([a, b]);
     st().duplicateBoards([a]);
     st().copyInRow([a], 3, 0, 1, 5);
-    const label = board(a).link;
-    expect(worldParts(st().doc).filter((x) => x.link === label)).toHaveLength(5);
+    const label = board(a).shape;
+    expect(label).toBeDefined();
+    expect(worldParts(st().doc).filter((x) => x.shape === label)).toHaveLength(5);
   });
 
-  // Added beyond the brief (Task 1 review): copyBoard's spread must never
-  // introduce `link: undefined` on a copy of an unlinked part.
-  it('a Duplicate or Copy in a row copy of an UNLINKED part has no link key', () => {
+  // Added beyond the brief (Task 1 review): copyBoard must never introduce a
+  // `shape` (or legacy `link`) key on a copy of an unlinked part.
+  it('a Duplicate or Copy in a row copy of an UNLINKED part has no shape key', () => {
     const a = leg();
     st().duplicateBoards([a]);
     st().copyInRow([a], 2, 0, 1, 5);
     const copies = worldParts(st().doc).filter((x) => x.id !== a);
     expect(copies).toHaveLength(2);
-    for (const copy of copies) expect('link' in copy).toBe(false);
+    for (const copy of copies) expect('shape' in copy || 'link' in copy).toBe(false);
+    for (const stored of st().doc.boards) expect('shape' in stored || 'link' in stored).toBe(false);
   });
 
   // Review fix: a copy of a linked part joins the link, so it must keep the
-  // source's cut ids, or cut edits skip it and the load repair unlinks it.
+  // source's cut ids, or cut edits skip it. Since links are shapes, a copy
+  // names the shape and the cuts live there once.
   it('copies of a linked part WITH CUTS keep its cut ids, so cut edits reach them and nothing needs repair', () => {
     const a = leg();
     const b = leg();
@@ -2542,11 +2547,14 @@ describe('linked parts', () => {
     const id = board(a).cuts[0]!.id;
     st().duplicateBoards([a]);
     st().copyInRow([b], 3, 0, 1, 5);
-    const label = board(a).link;
-    const members = () => worldParts(st().doc).filter((x) => x.link === label);
+    const label = board(a).shape;
+    expect(label).toBeDefined();
+    const members = () => worldParts(st().doc).filter((x) => x.shape === label);
     expect(members()).toHaveLength(5);
     for (const m of members()) expect(m.cuts.map((c) => c.id)).toEqual([id]);
-    expect(repairLinks(worldParts(st().doc))).toBe(worldParts(st().doc));
+    // Every member is one storage of the cut: one shape holding it, every stored part naming it.
+    expect(st().doc.shapes.map((x) => [x.id, x.cuts.map((c) => c.id)])).toEqual([[label, [id]]]);
+    expect(st().doc.boards.every((x) => 'shape' in x && x.shape === label)).toBe(true);
     st().updateCut(a, id, { depth: 0.5 });
     for (const m of members()) expect(m.cuts[0]!.depth).toBe(0.5);
     const copy = members().at(-1)!.id;
@@ -2575,13 +2583,14 @@ describe('linked parts', () => {
     expect(st().selectedIds).toEqual([a, b]);
   });
 
-  it('undo after Link restores values AND the absent links (Review Focus 3)', () => {
+  it('undo after Link restores values AND the absent shapes (Review Focus 3)', () => {
     const a = leg({ length: 30 });
     const b = leg();
     st().linkBoards([a, b]);
     st().undo();
     expect(board(b).length).toBe(28);
-    expect('link' in board(b)).toBe(false);
+    expect('shape' in board(b)).toBe(false);
+    expect(st().doc.shapes).toEqual([]);
   });
 
   it('invariant 24: a tape anchor on another member\'s cut drops when a propagated cut edit moves it', () => {

@@ -356,7 +356,7 @@ function GroupProperties() {
       )}
       <div className="row">
         {plan && <button onClick={() => linkBoards(selectedIds)}>Link</button>}
-        {allParts && boards.some((b) => b.link) && <button onClick={() => unlinkBoards(selectedIds)}>Unlink</button>}
+        {allParts && boards.some((b) => b.shape) && <button onClick={() => unlinkBoards(selectedIds)}>Unlink</button>}
         <button onClick={() => duplicateBoards(selectedIds)}>Duplicate</button>
         <button onClick={() => useStore.getState().groupSelected()}>Group</button>
         {anyAssembly && <button onClick={() => useStore.getState().ungroupSelected()}>Ungroup</button>}
@@ -416,17 +416,17 @@ export function Properties() {
   const addCut = useStore((s) => s.addCut);
   const unlinkBoards = useStore((s) => s.unlinkBoards);
   const selectLinked = useStore((s) => s.selectLinked);
-  // OTHER boards sharing this one's link; a number, so it re-renders only when the count moves.
+  // OTHER parts using this one's shape (its link); a number, so it re-renders only when the count moves.
   const linkedCount = useStore((s) => {
     const sel = s.selectedIds.length === 1 ? worldParts(s.doc).find((b) => b.id === s.selectedIds[0]) : undefined;
-    return sel?.link ? worldParts(s.doc).filter((b) => b.link === sel.link).length - 1 : 0;
+    return sel?.shape ? worldParts(s.doc).filter((b) => b.shape === sel.shape).length - 1 : 0;
   });
   // Whether any OTHER member of this part's link is a direct child of the open
   // level: Select linked can only select those (selectionPatch), so the button is
   // shown only then. A boolean, so it re-renders only when it flips (inv 43).
   const linkedHere = useStore((s) => {
     const sel = s.selectedIds.length === 1 ? worldParts(s.doc).find((b) => b.id === s.selectedIds[0]) : undefined;
-    return !!sel?.link && worldParts(s.doc).some((b) => b.link === sel.link && b.id !== sel.id && parentPath(b.id) === s.openPath);
+    return !!sel?.shape && worldParts(s.doc).some((b) => b.shape === sel.shape && b.id !== sel.id && parentPath(b.id) === s.openPath);
   });
   const lengthRef = useRef<HTMLInputElement>(null);
 

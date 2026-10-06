@@ -41,14 +41,6 @@ describe('mapWorld write-back (assemblies spec §5.2)', () => {
     }
   });
 
-  it('a removed key is removed from the stored part', () => {
-    const doc = assemblyDoc();
-    const linked = edit(doc, 'i1/b2', (b) => ({ ...b, link: 'L1' }));
-    expect(resolvedPartAt(linked, 'i1/b2')!.link).toBe('L1');
-    const unlinked = edit(linked, 'i1/b2', ({ link: _l, ...rest }) => rest);
-    expect('link' in resolvedPartAt(unlinked, 'i1/b2')!).toBe(false);
-  });
-
   it('a world move lands where it was asked, and an axis that did not move gains exactly zero', () => {
     const doc = assemblyDoc();
     const before = resolvedPartAt(doc, 'i1/b2')!;

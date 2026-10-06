@@ -164,14 +164,14 @@ export function flatDocument(doc: SloydDocument): FlatDocument {
   };
 }
 
-export interface TreeRow { path: string; name: string; kind: 'part' | 'assembly'; depth: number; link?: string }
+export interface TreeRow { path: string; name: string; kind: 'part' | 'assembly'; depth: number; shape?: string }
 
 /** The parts list's rows: depth first, a container's parts before its assemblies. */
 export function treeRows(doc: SloydDocument): TreeRow[] {
   const out: TreeRow[] = [];
   const defs = defsOf(doc);
   const walk = (c: Container, path: string | null, depth: number, onPath: Set<string>) => {
-    for (const b of c.boards) out.push({ path: joinPath(path, b.id), name: b.name, kind: 'part', depth, ...(!isShaped(b) && b.link ? { link: b.link } : {}) });
+    for (const b of c.boards) out.push({ path: joinPath(path, b.id), name: b.name, kind: 'part', depth, ...(isShaped(b) ? { shape: b.shape } : {}) });
     for (const inst of c.instances) {
       const p = joinPath(path, inst.id);
       out.push({ path: p, name: inst.name, kind: 'assembly', depth });

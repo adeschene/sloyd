@@ -2,12 +2,13 @@ import type { Board, Shape } from './types';
 import { CUT_GEOMETRY_KEYS } from './cuts';
 
 /**
- * Which Board fields a link shares (linking spec §2). The ONE table: linking,
- * propagation and the load repair all read it, and `satisfies` makes a new
+ * Which Board fields a link shares (linking spec §2): the shared ones live in
+ * a Shape, the own ones on each part (components spec §2). The ONE table:
+ * Shape, ShapedBoard, Link and the write-back all read it, and `satisfies` makes a new
  * Board field fail tsc until it is classified (invariant 40's argument).
  */
 export const LINK_FIELDS = {
-  id: 'own', name: 'own', position: 'own', rotation: 'own', link: 'own', shape: 'own',
+  id: 'own', name: 'own', position: 'own', rotation: 'own', shape: 'own',
   length: 'shared', width: 'shared', thickness: 'shared', material: 'shared',
   grain: 'shared', posture: 'shared', cuts: 'shared',
 } as const satisfies Record<keyof Board, 'shared' | 'own'>;
@@ -71,58 +72,27 @@ export function sameShared(a: Board, b: Board): boolean {
   return true;
 }
 
-export function withoutLink(b: Board): Board {
-  const { link: _link, ...rest } = b;
-  return rest;
-}
-
-/** A label held by one part is not a link: drop it. Same array when unchanged. */
-export function dissolveSingletons(boards: Board[]): Board[] {
-  const count = new Map<string, number>();
-  for (const b of boards) if (b.link) count.set(b.link, (count.get(b.link) ?? 0) + 1);
-  if (![...count.values()].some((n) => n < 2)) return boards;
-  return boards.map((b) => (b.link && count.get(b.link)! < 2 ? withoutLink(b) : b));
-}
-
-/**
- * Make every link consistent WITHOUT moving any geometry (linking spec §3.5):
- * a member whose shared fields differ from its label's FIRST member, in
- * document order, is unlinked; then singletons are dropped. Never merges two
- * labels. Same array when unchanged.
- */
-export function repairLinks(boards: Board[]): Board[] {
-  const first = new Map<string, Board>();
-  let changed = false;
-  const out = boards.map((b) => {
-    if (!b.link) return b;
-    const ref = first.get(b.link);
-    if (!ref) { first.set(b.link, b); return b; }
-    if (sameShared(ref, b)) return b;
-    changed = true;
-    return withoutLink(b);
-  });
-  return dissolveSingletons(changed ? out : boards);
-}
-
-export interface LinkPlan { source: Board; members: string[]; changing: string[]; label: string | null }
+/** `shape`: the shape Link will reuse (the source's, else a selected member's), or null to mint one. */
+export interface LinkPlan { source: Board; members: string[]; changing: string[]; shape: string | null }
 
 /**
  * What Link will do (linking spec §3.1). The ONE decider, used by the store's
  * linkBoards AND the panel's "will match" line, so the two cannot disagree.
  * The source is the FIRST selected part; any selected part that is already
- * linked brings its whole link. Null for fewer than two parts, or when the
- * members already share one label and match (a no-op, invariant 4).
+ * linked brings its whole link. Reads WORLD parts, whose `shape` names the
+ * shape each uses (components spec §3.2). Null for fewer than two parts, or
+ * when the members already use one shape and match (a no-op, invariant 4).
  */
 export function linkPlan(boards: readonly Board[], ids: readonly string[]): LinkPlan | null {
   const chosen = [...new Set(ids)].flatMap((id) => boards.filter((b) => b.id === id));
   if (chosen.length < 2) return null;
   const source = chosen[0]!;
-  const labels = new Set(chosen.flatMap((b) => (b.link ? [b.link] : [])));
+  const shapes = new Set(chosen.flatMap((b) => (b.shape ? [b.shape] : [])));
   const picked = new Set(chosen.map((b) => b.id));
-  const members = boards.filter((b) => picked.has(b.id) || (b.link !== undefined && labels.has(b.link)));
+  const members = boards.filter((b) => picked.has(b.id) || (b.shape !== undefined && shapes.has(b.shape)));
   const changing = members.filter((b) => b.id !== source.id && !sameShared(source, b)).map((b) => b.id);
-  const label = source.link ?? [...labels][0] ?? null;
-  const oneLabel = members.every((b) => b.link !== undefined && b.link === members[0]!.link);
-  if (oneLabel && changing.length === 0) return null;
-  return { source, members: members.map((b) => b.id), changing, label };
+  const shape = source.shape ?? [...shapes][0] ?? null;
+  const oneShape = members.every((b) => b.shape !== undefined && b.shape === members[0]!.shape);
+  if (oneShape && changing.length === 0) return null;
+  return { source, members: members.map((b) => b.id), changing, shape };
 }

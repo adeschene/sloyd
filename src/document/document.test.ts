@@ -1130,16 +1130,13 @@ describe('v9: linked parts', () => {
     expect(() => migrateDocument(doc(11, []))).toThrow();
   });
 
-  it('keeps a valid link, drops a non-string or empty one', () => {
+  // `Board.link` is retired (components spec §3.2): links load as shapes
+  // through their own migration step. Whatever that step does, the raw key
+  // must never reach a stored or world part.
+  it('a v9 `link` key never reaches a stored or world part', () => {
     const d = migrateDocument(doc(9, [raw({ id: 'a', link: 'L' }), raw({ id: 'b', link: 'L' }), raw({ id: 'c', link: 7 }), raw({ id: 'd', link: '' })]));
-    expect(worldParts(d).map((b) => b.link)).toEqual(['L', 'L', undefined, undefined]);
-    expect('link' in worldParts(d)[2]!).toBe(false);
-  });
-
-  it('repairs on load: a differing member is unlinked, unchanged', () => {
-    const d = migrateDocument(doc(9, [raw({ id: 'a', link: 'L' }), raw({ id: 'b', link: 'L' }), raw({ id: 'c', link: 'L', length: 11 })]));
-    expect(worldParts(d).map((b) => b.link)).toEqual(['L', 'L', undefined]);
-    expect(worldParts(d)[2]!.length).toBe(11);
+    expect(d.boards.some((b) => 'link' in b)).toBe(false);
+    expect(worldParts(d).some((b) => 'link' in b)).toBe(false);
   });
 });
 

@@ -3,7 +3,7 @@ import type {
   Board, Instance, Definition, Cut, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, FlatDocument, GuidePoint,
 } from './types';
 import { nextId } from './ids';
-import { repairTree, repairLinksTree } from './treeRepair';
+import { repairTree } from './treeRepair';
 import { positionAxisOf, horizontalOf, DIMENSION_ORDER } from './geometry';
 
 export * from './types';
@@ -72,14 +72,13 @@ export type { BoardSnapPoint, SnapKind, SnapOwner, SnapPoint, TapeAxis } from '.
  * Document-level: no per-board step, an absent label is an unlinked part. The
  * bump's argument is SILENT DATA LOSS on round-trip: a v8 build drops every
  * `link` on open and autosaves, and the links are gone with nothing saying so.
- * `repairLinks` runs after validation on every load.
+ * (Links are now shapes: components spec §2.)
  *
  * v10 added assemblies: `instances` and `definitions` (assemblies spec §2.5).
  * Document-level: both default to `[]`, so no file needs upgrading. The bump's
  * argument is SILENT DATA LOSS on round-trip, stronger than v9's: a v9 build
  * drops both fields, so every part inside an assembly vanishes, and it
- * autosaves. `repairTree` and `repairLinksTree` run after validation on every
- * load (invariant 46).
+ * autosaves. `repairTree` runs after validation on every load (invariant 46).
  */
 export const CURRENT_VERSION = 10;
 
@@ -370,7 +369,6 @@ function validateBoard(raw: unknown, index: number, seen: Set<string>): Board {
       : 'flat',
     grain: normalizedGrain,
     material,
-    ...(typeof b.link === 'string' && b.link.trim() ? { link: b.link } : {}),
   };
   return { ...board, cuts: validateCuts(b.cuts, board) };
 }
@@ -626,8 +624,9 @@ export function migrateDocument(raw: unknown): SloydDocument {
   const instances = validateInstances(d.instances, boardIds);
   const definitions = validateDefinitions(d.definitions);
   // Steps 2–7 of the load repair (assemblies spec §2.4): the tree, the names
-  // per container (invariant 8, restated), then the links over the world parts.
-  return repairLinksTree(repairTree({
+  // per container (invariant 8, restated). `Board.link` is retired (links are
+  // shapes, components spec §3.2); its migration is a separate load step.
+  return repairTree({
     version: CURRENT_VERSION,
     name: typeof d.name === 'string' && d.name ? d.name : 'Untitled',
     units: { display: 'imperial-fractional', precision },
@@ -637,5 +636,5 @@ export function migrateDocument(raw: unknown): SloydDocument {
     instances,
     definitions,
     shapes: [],
-  }));
+  });
 }
