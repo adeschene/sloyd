@@ -1,10 +1,9 @@
 import { MATERIALS, DEFAULT_MATERIAL, DEFAULT_KERF, isSheetGood } from './types';
 import type {
-  Board, Cut, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, GuidePoint,
+  Board, Instance, Definition, Cut, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, GuidePoint,
 } from './types';
-import { dedupeNames } from './names';
 import { nextId } from './ids';
-import { repairLinks } from './links';
+import { repairTree, repairLinksTree } from './treeRepair';
 import { positionAxisOf, horizontalOf, DIMENSION_ORDER } from './geometry';
 
 export * from './types';
@@ -126,6 +125,9 @@ export { nextId };
  * field that points at a board BY ID would break that and would need this to
  * become a two-pass rewrite instead.
  *
+ * An id containing '/', the occurrence-path separator, is treated as taken
+ * (assemblies spec §2.2).
+ *
  * `seen.add` happens HERE rather than at the call sites. A caller that forgets
  * it turns the whole rule into a no-op — every id looks unseen — and no test
  * of the caller's own behaviour would notice.
@@ -136,7 +138,7 @@ export { nextId };
  * two ids can collide.
  */
 function takeId(raw: unknown, seen: Set<string>): string {
-  const id = typeof raw === 'string' && raw && !seen.has(raw) ? raw : nextId();
+  const id = typeof raw === 'string' && raw && !raw.includes('/') && !seen.has(raw) ? raw : nextId();
   seen.add(id);
   return id;
 }
@@ -364,6 +366,48 @@ function validateBoard(raw: unknown, index: number, seen: Set<string>): Board {
   return { ...board, cuts: validateCuts(b.cuts, board) };
 }
 
+/** An assembly placement, or null for one that cannot be placed (spec §2.5).
+ *  Shares the container's `seen` set with its parts (ids unique per container). */
+function validateInstance(raw: unknown, seen: Set<string>): Instance | null {
+  if (typeof raw !== 'object' || raw === null) return null;
+  const i = raw as Record<string, unknown>;
+  if (typeof i.id !== 'string' || !i.id) return null;
+  if (typeof i.definition !== 'string' || !i.definition) return null;
+  const pos = i.position;
+  if (!Array.isArray(pos) || pos.length !== 3 || !pos.every((n) => typeof n === 'number' && Number.isFinite(n))) return null;
+  const name = typeof i.name === 'string' && i.name.trim() ? i.name.trim() : 'Assembly';
+  return {
+    id: takeId(i.id, seen), name, definition: i.definition,
+    position: [pos[0], pos[1], pos[2]] as [number, number, number],
+    rotation: VALID_ROTATIONS.includes(i.rotation as number) ? (i.rotation as Rotation) : 0,
+  };
+}
+
+const validateInstances = (raw: unknown, seen: Set<string>): Instance[] =>
+  Array.isArray(raw) ? raw.flatMap((x) => validateInstance(x, seen) ?? []) : [];
+
+/**
+ * Definitions (spec §2.4 step 1): not an object, no string id, or no boards
+ * list is dropped; a duplicate id keeps the FIRST. A board inside goes through
+ * validateBoard, which refuses the file on a bad board exactly as it does at
+ * the root.
+ */
+function validateDefinitions(raw: unknown): Definition[] {
+  if (!Array.isArray(raw)) return [];
+  const ids = new Set<string>();
+  const out: Definition[] = [];
+  for (const item of raw) {
+    if (typeof item !== 'object' || item === null) continue;
+    const d = item as Record<string, unknown>;
+    if (typeof d.id !== 'string' || !d.id || ids.has(d.id) || !Array.isArray(d.boards)) continue;
+    ids.add(d.id);
+    const seen = new Set<string>();
+    const boards = d.boards.map((b, i) => validateBoard(b, i, seen));
+    out.push({ id: d.id, boards, instances: validateInstances(d.instances, seen) });
+  }
+  return out;
+}
+
 /**
  * v1 -> v2: the rotation select collapsed from four values to two, so 180 and
  * 270 fold onto 0 and 90.
@@ -563,22 +607,25 @@ export function migrateDocument(raw: unknown): SloydDocument {
   const guides = validateGuides(d.guides);
   const boardIds = new Set<string>();
 
-  return {
+  // ONE `seen` set threaded across the whole list, which is why this is not
+  // a `dedupeIds` pass beside `dedupeNames`. A name needs a replacement
+  // computed FROM its siblings, so it cannot be decided one board at a time;
+  // an id needs nothing from them but "is this taken", which a set answers as
+  // it goes. A second pass would leave two deciders for one field — the
+  // validator minting an id that the pass may then overwrite.
+  const boards = rawBoards.map((b, i) => validateBoard(b, i, boardIds));
+  const instances = validateInstances(d.instances, boardIds);
+  const definitions = validateDefinitions(d.definitions);
+  // Steps 2–7 of the load repair (assemblies spec §2.4): the tree, the names
+  // per container (invariant 8, restated), then the links over the world parts.
+  return repairLinksTree(repairTree({
     version: CURRENT_VERSION,
     name: typeof d.name === 'string' && d.name ? d.name : 'Untitled',
     units: { display: 'imperial-fractional', precision },
     stock: { kerf },
     guides,
-    instances: [],
-    definitions: [],
-    // ONE `seen` set threaded across the whole list, which is why this is not
-    // a `dedupeIds` pass beside `dedupeNames`. A name needs a replacement
-    // computed FROM its siblings, so it cannot be decided one board at a time;
-    // an id needs nothing from them but "is this taken", which a set answers as
-    // it goes. A second pass would leave two deciders for one field — the
-    // validator minting an id that the pass may then overwrite.
-    boards: repairLinks(dedupeNames(
-      rawBoards.map((b, i) => validateBoard(b, i, boardIds)),
-    )),
-  };
+    boards,
+    instances,
+    definitions,
+  }));
 }
