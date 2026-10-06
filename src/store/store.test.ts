@@ -1,4 +1,5 @@
 import { useStore } from './store';
+import type { Board } from '../document/document';
 import { createBoard, createDocument, boardCenter, boardSnapPoints, cutSnapPoints, sameSnapPoint } from '../document/document';
 
 const reset = () => useStore.getState().replaceDocument(createDocument('Test'));
@@ -2298,5 +2299,86 @@ describe('hide and unhide', () => {
     useStore.setState({ past: [...st().past.slice(0, -1), { ...entry, hiddenIds: ['ghost'] }] });
     st().undo();
     expect(st().hiddenIds).toEqual([]);
+  });
+});
+
+describe('copyInRow', () => {
+  const st = () => useStore.getState();
+  const part = (patch: Partial<Board>) => {
+    st().addBoard();
+    const id = st().doc.boards.at(-1)!.id;
+    st().updateBoard(id, patch);
+    return id;
+  };
+
+  it('places copy k at original + k·step·sign on the axis, per copy, never cumulative', () => {
+    const a = part({ length: 24, width: 0.1, thickness: 0.75, position: [0, 0, 0] });
+    st().copyInRow([a], 11, 2, 1, 0.1);
+    const zs = st().doc.boards.map((b) => b.position[2]);
+    // A cumulative sum of 0.1 ten times is 0.9999999999999999; k·0.1 is 1.
+    expect(zs).toEqual([0, ...Array.from({ length: 10 }, (_, i) => 0 + (i + 1) * 0.1 * 1)]);
+    expect(st().doc.boards.every((b) => b.position[0] === 0 && b.position[1] === 0)).toBe(true);
+  });
+
+  it('copies a group as a unit, keeping its exact relative layout', () => {
+    const leg = part({ length: 28, width: 1.75, thickness: 1.75, posture: 'upright', position: [0, 0, 0] });
+    const rail = part({ length: 16.5, width: 4, thickness: 0.75, posture: 'on-edge', position: [1.75, 22, 0.5] });
+    st().copyInRow([leg, rail], 3, 2, -1, 20);
+    const byName = (n: string) => st().doc.boards.filter((b) => b.name.startsWith(n));
+    expect(st().doc.boards).toHaveLength(6);
+    const [l0, l1, l2] = st().doc.boards.filter((b) => b.posture === 'upright');
+    const [r0, r1, r2] = st().doc.boards.filter((b) => b.posture === 'on-edge');
+    for (const [l, r, k] of [[l0, r0, 0], [l1, r1, 1], [l2, r2, 2]] as const) {
+      expect(l!.position).toEqual([0, 0, 0 - k * 20]);
+      expect(r!.position).toEqual([1.75, 22, 0.5 - k * 20]);
+    }
+    expect(byName('Board').length).toBe(6);
+  });
+
+  it('runs along Y, keeps turn, posture, material and cuts, and gives fresh ids', () => {
+    const a = part({ length: 20, width: 6, thickness: 0.75, rotation: 180, material: 'walnut', position: [0, 5, 0] });
+    st().addCut(a);
+    st().copyInRow([a], 3, 1, 1, 10);
+    const [o, c1, c2] = st().doc.boards;
+    expect([o!.position[1], c1!.position[1], c2!.position[1]]).toEqual([5, 15, 25]);
+    for (const c of [c1!, c2!]) {
+      expect(c.rotation).toBe(180);
+      expect(c.material).toBe('walnut');
+      expect(c.cuts).toHaveLength(1);
+      expect(c.cuts[0]!.id).not.toBe(o!.cuts[0]!.id);
+      expect(c.id).not.toBe(o!.id);
+    }
+    expect(new Set(st().doc.boards.map((b) => b.name)).size).toBe(3);
+  });
+
+  it('is one undo entry and selects the originals then the copies', () => {
+    const a = part({ position: [0, 0, 0] });
+    const before = st().past.length;
+    st().copyInRow([a], 4, 0, 1, 30);
+    expect(st().past.length).toBe(before + 1);
+    const ids = st().doc.boards.map((b) => b.id);
+    expect(st().selectedIds).toEqual(ids);
+    st().undo();
+    expect(st().doc.boards.map((b) => b.id)).toEqual([a]);
+  });
+
+  it('refuses a bad count, a bad step or no parts, writing nothing', () => {
+    const a = part({ position: [0, 0, 0] });
+    const doc = st().doc;
+    const past = st().past.length;
+    st().copyInRow([a], 1, 0, 1, 5);
+    st().copyInRow([a], 101, 0, 1, 5);
+    st().copyInRow([a], 3, 0, 1, 0);
+    st().copyInRow([a], 3, 0, 1, Number.NaN);
+    st().copyInRow(['nope'], 3, 0, 1, 5);
+    expect(st().doc).toBe(doc);
+    expect(st().past.length).toBe(past);
+  });
+
+  it('never clears the tape anchor (invariant 24)', () => {
+    const a = part({ position: [0, 0, 0] });
+    st().setTapeAnchor(boardSnapPoints(st().doc.boards[0]!)[0]!);
+    st().copyInRow([a], 3, 0, 1, 30);
+    expect(st().tapeAnchor).not.toBeNull();
   });
 });
