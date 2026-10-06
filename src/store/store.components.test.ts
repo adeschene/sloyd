@@ -64,6 +64,13 @@ describe('components in the store', () => {
     s().openAssembly('c1'); s().openAssembly('c1/i1');
     expect(() => s().updateBoards(['c1/i1/b1', 'c2/i1/b1'], { position: [3, 1, 2] })).not.toThrow();
     expect(s().past.length).toBeGreaterThan(0);
+    const sides = worldParts(s().doc).filter((b) => b.name === 'Side');
+    expect(sides).toHaveLength(2);
+    expect(sides[0]!.posture).toBe(sides[1]!.posture);
+    expect(sides[0]!.length).toBe(sides[1]!.length);
+    // the part moved in its stored frame once: each placement shows it moved by the same local delta
+    expect(sides[0]!.position).not.toEqual([0, 0, 0]);
+    expect(sides[1]!.position).not.toEqual([40, 0, 0]);
   });
 
   it('Make Unique splits one copy off, and one Ctrl+Z shares it again', () => {
@@ -102,6 +109,49 @@ describe('components in the store', () => {
     expect(s().tapeAnchor).not.toBeNull();
     s().openAssembly('i1');
     s().updateBoards(['i1/b1'], { length: 10 });
+    expect(s().tapeAnchor).toBeNull();
+  });
+
+  const anchorOn = (path: string, pick: 'maxX' = 'maxX') => {
+    const part = worldParts(s().doc).find((b) => b.id === path)!;
+    void pick;
+    const far = snapPointsFor(part).reduce((a, p) => (p.at[0] > a.at[0] ? p : a));
+    s().setTool('tape');
+    useStore.setState({ tapeAnchor: far });
+    expect(s().tapeAnchor).not.toBeNull();
+  };
+
+  it('deleting a part in a shared definition drops an anchor on the OTHER copy', () => {
+    s().duplicateBoards(['i1']);
+    const other = s().doc.instances[1]!.id;
+    anchorOn(`${other}/b1`);
+    s().openAssembly('i1');
+    s().deleteBoards(['i1/b1']);
+    expect(worldParts(s().doc).some((b) => b.id === `${other}/b1`)).toBe(false);
+    expect(s().tapeAnchor).toBeNull();
+  });
+
+  it('moving a part in a shared definition drops an anchor on the OTHER copy', () => {
+    s().duplicateBoards(['i1']);
+    const other = s().doc.instances[1]!.id;
+    anchorOn(`${other}/b1`);
+    s().openAssembly('i1');
+    s().moveGroupTo(['i1/b1'], [5, 0, 0]);
+    expect(s().tapeAnchor).toBeNull();
+  });
+
+  it('turning a nested shared assembly drops a held point on the OTHER cabinet', () => {
+    s().replaceDocument({
+      ...drawerDoc(),
+      instances: [
+        { id: 'c1', name: 'Cabinet', definition: 'dc', position: [0, 0, 0], rotation: 0 },
+        { id: 'c2', name: 'Cabinet (1)', definition: 'dc', position: [40, 0, 0], rotation: 0 },
+      ],
+      definitions: [...drawerDoc().definitions, { id: 'dc', boards: [], instances: [{ id: 'i1', name: 'Drawer', definition: 'd1', position: [0, 0, 0], rotation: 0 }] }],
+    });
+    anchorOn('c2/i1/b1');
+    s().openAssembly('c1');
+    s().turnAssembly('c1/i1', 90);
     expect(s().tapeAnchor).toBeNull();
   });
 });

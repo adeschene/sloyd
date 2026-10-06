@@ -708,7 +708,9 @@ export const useStore = create<StoreState>((set, get) => {
     // A world delta, rotated into each item's container frame and added
     // (assemblies spec §4.2). A root item gains it exactly, as before.
     edit((doc) => translateItems(doc, [...ids], delta));
-    for (const b of worldParts(get().doc)) if (isCovered(b.id, ids)) dropHeldIfGone(b.id);
+    // Every held point, not only the moved occurrence's: a shared definition
+    // moves the same part in every copy (components spec §4.2).
+    judgeHeld();
   };
 
   /**
@@ -1045,6 +1047,9 @@ export const useStore = create<StoreState>((set, get) => {
         (doc) => mapWorld(removeItems(doc, [...doomed]), dissolveSingletons),
         () => get().selectedIds.filter((id) => !isCovered(id, doomed)),
       );
+      // A deleted part in a shared definition vanishes from every copy; a missing
+      // part offers no points, so judgeHeld drops what was held on the others.
+      judgeHeld();
       // The entry edit() pushed already recorded the set as it was.
       const hiddenAfter = get().hiddenIds.filter((id) => !isCovered(id, doomed));
       if (hiddenAfter.length !== get().hiddenIds.length) set({ hiddenIds: hiddenAfter });
@@ -1184,8 +1189,8 @@ export const useStore = create<StoreState>((set, get) => {
       const inst = instanceAt(get().doc, path);
       if (!inst || inst.rotation === rotation) return;
       edit((doc) => turnInstanceOp(doc, path, rotation));
-      const under = new Set([path]);
-      for (const b of worldParts(get().doc)) if (isCovered(b.id, under)) dropHeldIfGone(b.id);
+      // A turn inside a shared definition moves parts under the other copies too.
+      judgeHeld();
     },
 
     makeUnique: (path) => {
