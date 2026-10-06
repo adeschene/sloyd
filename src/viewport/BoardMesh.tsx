@@ -37,6 +37,25 @@ const EDGE_DARKEN = 0.3;
  */
 const GHOST_OPACITY = 0.22;
 
+/**
+ * A part outside the open assembly (assemblies spec §3.3). Plain and nearly
+ * grey (the material's hue at FADED_SATURATION of its saturation, no grain
+ * map) so it reads as context, not as stock. Its edges stay a little stronger
+ * than its faces so the shape still reads.
+ *
+ * It WRITES depth and draws at FADED_RENDER_ORDER, before the grid (also a
+ * transparent object, at 0). Without both, three.js sorts transparent objects
+ * by distance and, wherever the grid sorted later, painted grid lines over
+ * the faded part. Drawn first with depth, the grid behind it is hidden, while
+ * opaque parts (drawn in the earlier opaque pass) still show through.
+ * Faded parts cast no shadow: a near-invisible ghost with a solid shadow
+ * reads wrong.
+ */
+const FADED_OPACITY = 0.15;
+const FADED_EDGE_OPACITY = 0.3;
+const FADED_SATURATION = 0.15;
+const FADED_RENDER_ORDER = -1;
+
 interface Props {
   board: Board;
   selected: boolean;
@@ -71,6 +90,16 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
   const edgeColor = useMemo(
     () => new THREE.Color(color).multiplyScalar(EDGE_DARKEN),
     [color],
+  );
+  const fadedColor = useMemo(() => {
+    const c = new THREE.Color(color);
+    const hsl = { h: 0, s: 0, l: 0 };
+    c.getHSL(hsl);
+    return c.setHSL(hsl.h, hsl.s * FADED_SATURATION, hsl.l);
+  }, [color]);
+  const fadedEdgeColor = useMemo(
+    () => fadedColor.clone().multiplyScalar(EDGE_DARKEN),
+    [fadedColor],
   );
 
   // One geometry per solid. Keyed on boardUVSignature — see its doc comment —
@@ -160,8 +189,9 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
           position={offset}
           // A ghost casts no shadow and receives none — there is no stock here
           // to do either, and a shadow would assert the part is solid.
-          castShadow={!geometries.placeholder}
+          castShadow={!geometries.placeholder && !faded}
           receiveShadow={!geometries.placeholder}
+          renderOrder={faded ? FADED_RENDER_ORDER : 0}
           onClick={(e) => {
             if (!selectable) return;
             // Only a click that didn't travel selects. R3F fires onClick for any
@@ -207,18 +237,20 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
               depthWrite={false}
             />
           ) : kinds.map((kind, i) => (
+            // Keyed on `faded` so the material remounts when the grain map
+            // comes or goes: three.js compiles map use into the shader and
+            // a prop change alone would not recompile it.
             <meshStandardMaterial
-              key={`${i}-${kind}`}
+              key={`${i}-${kind}-${faded}`}
               attach={`material-${i}`}
-              map={grainTexture(family, kind)}
-              color={color}
+              map={faded ? null : grainTexture(family, kind)}
+              color={faded ? fadedColor : color}
               roughness={0.72}
               metalness={0}
               emissive={selected ? SELECTED : '#000000'}
               emissiveIntensity={selected ? 0.16 : 0}
               transparent={faded}
-              opacity={faded ? 0.35 : 1}
-              depthWrite={!faded}
+              opacity={faded ? FADED_OPACITY : 1}
               polygonOffset
               polygonOffsetFactor={1}
               polygonOffsetUnits={1}
@@ -231,9 +263,9 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
           the edge's softness lives on the material, not in the colour string. */}
       <lineSegments geometry={edges}>
         <lineBasicMaterial
-          color={selected ? SELECTED : edgeColor}
+          color={selected ? SELECTED : faded ? fadedEdgeColor : edgeColor}
           transparent
-          opacity={faded ? 0.3 : selected ? 1 : 0.8}
+          opacity={faded ? FADED_EDGE_OPACITY : selected ? 1 : 0.8}
         />
       </lineSegments>
     </group>

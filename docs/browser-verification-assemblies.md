@@ -137,6 +137,24 @@ drawn node, never by appending a fresh one.**
     - A plain double-click: opens.
     - A double-click with a 1px twitch: opens.
     - An orbit, a pause, then a double-click: opens.
+## After the deploy: the fade, reported by the user on production
+
+- **The report.** The grid showed over faded parts in some spots, and the fade was too solid
+  and too close to the open assembly's colour.
+- **The cause.** Faded parts were transparent without writing depth. The grid is a transparent
+  object too, and three.js sorts transparent objects by distance. Wherever the grid sorted
+  after a faded part, its lines were painted over it.
+- **The fix.**
+  - Faded parts draw at render order -1, before the grid, and write depth, so the grid behind
+    them is hidden. Opaque parts behind still show through, because they draw in the earlier
+    opaque pass.
+  - Opacity drops from 0.35 to 0.15.
+  - No grain map, and the colour is the material's hue at 15% of its saturation.
+  - Faded parts cast no shadow.
+- **Checked on the dev server** with each drawer open in turn: no grid lines through the
+  ghost, and the open drawer shows through the ghost's walls. Screenshot:
+  `docs/img/assemblies-fade-v2.png`.
+
 ## Found, filed, not fixed
 
 - **The eye on a row covered by a hidden ancestor** draws struck through and is disabled, but
