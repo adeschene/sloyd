@@ -1,0 +1,158 @@
+import type { Board, Definition, Instance, Rotation, SloydDocument } from './types';
+import { addTurns, placeBoard } from './frames';
+
+/** A container's contents: the root (the document itself) or a definition. */
+export interface Container { boards: Board[]; instances: Instance[] }
+
+export const PATH_SEPARATOR = '/';
+export const NAME_SEPARATOR = ' › ';
+
+export function joinPath(parent: string | null, id: string): string {
+  return parent === null ? id : `${parent}${PATH_SEPARATOR}${id}`;
+}
+export function parentPath(path: string): string | null {
+  const i = path.lastIndexOf(PATH_SEPARATOR);
+  return i < 0 ? null : path.slice(0, i);
+}
+export function lastSegment(path: string): string {
+  return path.slice(path.lastIndexOf(PATH_SEPARATOR) + 1);
+}
+
+/**
+ * True when `path` or one of its ancestor paths is in `ids`: THE membership
+ * test for "selected", "hidden" and "grabbed under the selection" since
+ * assemblies (spec §3). Walks whole segments, so `i3` covers `i3/b1` and never
+ * `i30/b1`. A bare startsWith is the plausible wrong version.
+ */
+export function isCovered(path: string, ids: ReadonlySet<string>): boolean {
+  for (let p: string | null = path; p !== null; p = parentPath(p)) if (ids.has(p)) return true;
+  return false;
+}
+
+const defsOf = (doc: SloydDocument) => new Map(doc.definitions.map((d) => [d.id, d]));
+
+/** The instances from the root down to the one `path` names, or null. */
+export function instancesOn(doc: SloydDocument, path: string): Instance[] | null {
+  const defs = defsOf(doc);
+  const out: Instance[] = [];
+  let c: Container = doc;
+  for (const seg of path.split(PATH_SEPARATOR)) {
+    const inst = c.instances.find((i) => i.id === seg);
+    if (!inst) return null;
+    out.push(inst);
+    const d = defs.get(inst.definition);
+    if (!d) return null;
+    c = d;
+  }
+  return out;
+}
+
+export function instanceAt(doc: SloydDocument, path: string): Instance | null {
+  return instancesOn(doc, path)?.at(-1) ?? null;
+}
+export function definitionAt(doc: SloydDocument, path: string): Definition | null {
+  const inst = instanceAt(doc, path);
+  return inst ? doc.definitions.find((d) => d.id === inst.definition) ?? null : null;
+}
+export function containerAt(doc: SloydDocument, path: string | null): Container | null {
+  return path === null ? doc : definitionAt(doc, path);
+}
+export function partAt(doc: SloydDocument, occ: string): Board | null {
+  const parent = parentPath(occ);
+  return containerAt(doc, parent)?.boards.find((b) => b.id === lastSegment(occ)) ?? null;
+}
+/** The sum of the turns of the instances on `path`: how the container's frame is turned in the world. */
+export function containerTurn(doc: SloydDocument, path: string | null): Rotation {
+  if (path === null) return 0;
+  return (instancesOn(doc, path) ?? []).reduce<Rotation>((r, i) => addTurns(r, i.rotation), 0);
+}
+
+/**
+ * Every part below `c`, in `c`'s frame, ids relative to `c`: c's parts in
+ * order, then each instance depth first, placed innermost first, one
+ * placeBoard per level (spec §2.1). A definition already on the current path is
+ * skipped, so a cycle the load repair missed cannot hang the app.
+ */
+export function partsBelow(doc: SloydDocument, c: Container, defs = defsOf(doc), onPath = new Set<string>()): Board[] {
+  const out: Board[] = [...c.boards];
+  for (const inst of c.instances) {
+    const d = defs.get(inst.definition);
+    if (!d || onPath.has(d.id)) continue;
+    const inner = partsBelow(doc, d, defs, new Set([...onPath, d.id]));
+    for (const b of inner) out.push(placeBoard(inst, { ...b, id: joinPath(inst.id, b.id) }));
+  }
+  return out;
+}
+
+const worldCache = new WeakMap<SloydDocument, Board[]>();
+
+/**
+ * The placed parts, each a self-contained world Board with its occurrence id
+ * and its OWN name (spec §2.1, §10). THE flattening: every reader of placed
+ * parts reads this or flatDocument, never the tree. Cached per document
+ * object, so a useStore selector over it is stable (invariant 43's selector
+ * rule), and the document's own `boards` when it has no instances.
+ */
+export function worldParts(doc: SloydDocument): Board[] {
+  if (doc.instances.length === 0) return doc.boards;
+  const hit = worldCache.get(doc);
+  if (hit) return hit;
+  const out = partsBelow(doc, doc);
+  worldCache.set(doc, out);
+  return out;
+}
+
+/** The item paths directly in a container: its parts, then its instances. */
+export function childrenOf(doc: SloydDocument, path: string | null): string[] {
+  const c = containerAt(doc, path);
+  if (!c) return [];
+  return [...c.boards.map((b) => joinPath(path, b.id)), ...c.instances.map((i) => joinPath(path, i.id))];
+}
+
+/** Every instance path and every part occurrence id. */
+export function itemPaths(doc: SloydDocument): Set<string> {
+  const out = new Set<string>();
+  const defs = defsOf(doc);
+  const walk = (c: Container, path: string | null, onPath: Set<string>) => {
+    for (const b of c.boards) out.add(joinPath(path, b.id));
+    for (const inst of c.instances) {
+      const p = joinPath(path, inst.id);
+      out.add(p);
+      const d = defs.get(inst.definition);
+      if (d && !onPath.has(d.id)) walk(d, p, new Set([...onPath, d.id]));
+    }
+  };
+  walk(doc, null, new Set());
+  return out;
+}
+
+/** Occurrence id -> display path (`Drawer 2 › Side`). */
+export function displayNames(doc: SloydDocument): Map<string, string> {
+  const out = new Map<string, string>();
+  const defs = defsOf(doc);
+  const walk = (c: Container, path: string | null, prefix: string, onPath: Set<string>) => {
+    for (const b of c.boards) out.set(joinPath(path, b.id), prefix + b.name);
+    for (const inst of c.instances) {
+      const d = defs.get(inst.definition);
+      if (d && !onPath.has(d.id)) walk(d, joinPath(path, inst.id), `${prefix}${inst.name}${NAME_SEPARATOR}`, new Set([...onPath, d.id]));
+    }
+  };
+  walk(doc, null, '', new Set());
+  return out;
+}
+
+/**
+ * The document as flat parts named by their display paths, with no tree
+ * (spec §2.1). What the cut list and joinery read. The names are built HERE so
+ * the string the cut list measures is the string it draws (invariant 19).
+ */
+export function flatDocument(doc: SloydDocument): SloydDocument {
+  if (doc.instances.length === 0) return doc;
+  const names = displayNames(doc);
+  return {
+    ...doc,
+    boards: worldParts(doc).map((b) => ({ ...b, name: names.get(b.id) ?? b.name })),
+    instances: [],
+    definitions: [],
+  };
+}

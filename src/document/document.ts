@@ -9,6 +9,8 @@ import { positionAxisOf, horizontalOf, DIMENSION_ORDER } from './geometry';
 
 export * from './types';
 export * from './links';
+export * from './frames';
+export * from './tree';
 export {
   boardExtents, boardCenter, boardsBounds, reorientedPosition, axisDimensions, DIMENSION_ORDER, positionAxisOf,
   horizontalOf, axisFrame, toWorldOffset, fromWorldOffset, spanToWorldOffset, spanFromWorldOffset, endFacing,
