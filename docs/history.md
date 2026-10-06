@@ -18,6 +18,13 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-06 with the assemblies round live** (`index-hmc0odAl.js`,
+CSS `index-BYFkbcnj.css`, deployed commit `f8f76e8`, merge `699cc45`, **schema 10**). Verified: `200`
+on `/` and a deep route in-network and at the edge, the new bundle at both, CSP `connect-src 'self'
+https://api.anthropic.com` at the edge, and a real-browser load (0 page errors) with that browser's
+`localStorage` cleared afterwards. The old bundle 404s in-network; at the edge it answered `200` from
+Cloudflare's cache, which is harmless for a hashed asset the HTML no longer names.
+
 **Production matches `master` as of 2026-10-06 with the linking round live** (`index-BwdHsyEM.js`,
 CSS `index-C7v9uwho.css`, merge `d3120cf`, **schema 9**). This entry also stands in for the seven
 deploys of 2026-10-05/06, which are recorded in their round sections below rather than here:
@@ -290,7 +297,9 @@ duplicated, moved, turned, opened and edited in place, with a spec and plan
 two in the user's order: assemblies first, so Duplicate makes an independent copy; components, with
 shared definitions, second. Claude drove its live check on the dev server
 (`docs/browser-verification-assemblies.md`); the user approved the merge without reporting
-hands-on results. Merged (`699cc45`). **Not deployed** (deploying is the user's separate decision). Rolling back past it strands v10 documents; export first.
+hands-on results. Merged (`699cc45`) and deployed 2026-10-06 as `index-hmc0odAl.js` (deployed commit
+`f8f76e8`), confirmed by page load, bundle hash and the CSP at the edge and in-network. **Deployed at
+the user's request.** Rolling back past it strands v10 documents; export first.
 
 - **Why it exists.** The user found linking (v9) too narrow. A drawer's five parts could not be
   duplicated or moved as one. They asked for SketchUp's component system, researched first.
