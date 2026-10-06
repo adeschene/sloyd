@@ -18,6 +18,16 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-06 with the linking round live** (`index-BwdHsyEM.js`,
+CSS `index-C7v9uwho.css`, merge `d3120cf`, **schema 9**). This entry also stands in for the seven
+deploys of 2026-10-05/06, which are recorded in their round sections below rather than here:
+joinery fixes `index-BzWa2ZGT.js` (`c31dd82`), joinery residues `index-D_wzi7Bx.js` (`2b96eb2`),
+multi-select `index-D7ySMvky.js` (`232917f`), hide/unhide `index-BpdcUlXf.js` (`366eb37`), quarter
+turns `index-bSuJPbkx.js` (`a24287f`, schema 8), copy in a row `index-B8i7dotN.js` (`7487aca`) and
+linking. Each was verified the same way: `200` on `/` and a deep route in-network and at the edge,
+the new bundle at both, the old bundle 404, CSP `connect-src 'self' https://api.anthropic.com` at
+the edge, and a real-browser load with that browser's `localStorage` cleared afterwards.
+
 **Production matches `master` as of 2026-10-05 with the fu 197 round live.** The bundle went from
 `index-DjL6FbOz.js` to `index-Ci3NLhVT.js`, and the CSS is unchanged (`index-DqhKBEnY.css`). The
 merge commit is `658dfcc`. Verified after the deploy: the new bundle on `/` and a deep route, both
