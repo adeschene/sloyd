@@ -19,10 +19,14 @@ describe('rowLayout', () => {
     expect(rowLayout('fit', 7.9, 2, 4)).toEqual({ ok: false, reason: 'no-room' });
   });
 
-  it('fit does not round: 7 parts of 3/4in across 30in', () => {
-    const r = rowLayout('fit', 30, 0.75, 7);
-    expect(r.ok && r.step).toBe((30 - 0.75) / 6);
-    expect(r.ok && r.gap).toBe((30 - 7 * 0.75) / 6);
+  it('fit does not round: 8 parts of 3/4in across 30in', () => {
+    const r = rowLayout('fit', 30, 0.75, 8);
+    const step = r.ok ? r.step : NaN;
+    const gap = r.ok ? r.gap : NaN;
+    expect(step).toBe((30 - 0.75) / 7);
+    expect(gap).toBe((30 - 8 * 0.75) / 7);
+    // Guard: step must not already be on the 1/16 grid, or rounding mutation becomes vacuous
+    expect(Math.round(step * 16) / 16).not.toBe(step);
   });
 
   it('refuses a count outside 2..MAX_ROW or not whole, and a non-finite value', () => {
