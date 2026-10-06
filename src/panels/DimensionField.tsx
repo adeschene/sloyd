@@ -23,10 +23,20 @@ interface Props {
    *  saying so. */
   max?: number;
   precision?: number;
+  /** Call `onCommit` for a typed entry even when it parses to `value`. For a
+   *  caller whose `value` is a live DEFAULT (copy in a row): typing the
+   *  default is still the person's choice, and must be recorded so it stops
+   *  following the default. Untouched blur and Enter still commit nothing. */
+  commitUnchanged?: boolean;
+  /** Told whether the field currently shows a refusal, every time that
+   *  changes (including false on mount), so a caller can refuse to act on a
+   *  value other than the one on screen (copy in a row's Apply, fu 218). */
+  onErrorChange?: (refused: boolean) => void;
 }
 
 export const DimensionField = forwardRef<HTMLInputElement, Props>(function DimensionField({
   label, value, onCommit, allowNegative = false, min, max, precision = 16,
+  commitUnchanged = false, onErrorChange,
 }: Props, forwardedRef) {
   const id = useId();
   // The one formatter for `value`, so every resync path — initial state, the
@@ -59,6 +69,14 @@ export const DimensionField = forwardRef<HTMLInputElement, Props>(function Dimen
     }
   }, [value, precision]);
 
+  // ONE reporter for every path that sets or clears `error` — commit, the
+  // adopt effect, the untouched blur, Escape, and a remount — rather than a
+  // call beside each, which a new path would forget. Keyed on `error` alone:
+  // a caller's inline callback is a new function every render.
+  useEffect(() => {
+    onErrorChange?.(error !== null);
+  }, [error]);
+
   // Parses/validates/normalises the text unconditionally. Callers decide
   // whether a commit should happen at all (see the `dirty` guard on blur).
   // False when the entry was refused.
@@ -87,7 +105,9 @@ export const DimensionField = forwardRef<HTMLInputElement, Props>(function Dimen
     // Nothing actually changed (e.g. re-entering the same value, or the
     // display-rounded text still parses back to the stored value) — skip
     // the no-op onCommit/history entry.
-    if (parsed === value) return true;
+    // `commitUnchanged` opts out: the caller's value is a default, and the
+    // person typing it is a choice to record.
+    if (parsed === value && !commitUnchanged) return true;
     onCommit(parsed);
     return true;
   };

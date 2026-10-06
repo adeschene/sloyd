@@ -274,6 +274,46 @@ and 79.
 
 ## What each round did
 
+**What the copy-in-a-row round did (2026-10-05)**: N ordinary copies of the selection along an
+axis, with a spec and plan (`docs/superpowers/specs/2026-10-05-sloyd-copy-in-a-row-design.md`).
+No schema change. **Live check passed** with the user watching
+(`docs/browser-verification-copy-in-a-row.md`). The second of the three repeated-parts rounds (quarter turns, copy in a row, linking).
+
+- **The user's rulings.** Copy and link are separate actions; copies are ordinary and
+  independent. All three spacing modes (gap, centre-to-centre pitch, fit N across a distance).
+  Direction is +/-X, +/-Y or +/-Z. The count is the TOTAL in the row, the original included.
+  Controls are an inline form in Properties; a dialog and dragging in the viewport were rejected.
+- **Shape.** `rowLayout` (`document/row.ts`) is pure and returns step, gap and row length, or a
+  refusal CODE (no `units` import; the panel words it). `copyInRow` (store) makes N-1 copies, copy
+  k at `original + k*step*sign`, as one `edit()` so one undo entry; it shares `copyBoard` with
+  `duplicateBoards`. `CopyInRow.tsx` holds its values locally until Apply and sits inside each
+  Properties panel's selection-keyed root.
+- **Placement ruling (planning).** The "Copy in a row..." button sits on its own line under the
+  Duplicate row, not inside it, because the component owns its open state. Cost if wrong: a
+  one-line move.
+- **Execution rulings.**
+  - The plan's exactness test used 7 parts, whose step (30 - 0.75)/6 = 4.875 is on the 1/16 grid,
+    so rounding the step could not fail it. Changed to 8 parts ((30 - 0.75)/7, not on the grid),
+    with a guard asserting the step is not a multiple of 1/16. The rounding mutation is now red.
+  - `key={mode}` on the measurement field was first recorded as an unobservable mutation (the field
+    adopts a changed `value` when not editing). A reviewer then showed it is observable: a refused
+    draft survives a mode switch when the new mode's value equals the old one. The final-review fix
+    wave added that test (Gap 7, a refused `abc`, then Fit across, whose default is also 7); removing
+    the key turns it red.
+  - `--danger` does not exist in the stylesheet; the invalid summary uses `--alert`, as
+    `.field-error` does.
+- **Final review fixes.** Apply took the last GOOD value while the field showed a refusal; it is
+  now disabled then (fu 218), through `DimensionField`'s new optional `onErrorChange`. A typed
+  Pitch/Across equal to the live default was not recorded (the field skips a commit equal to its
+  value), so a direction change replaced it; the user's ruling was that defaults follow the
+  direction only until the person types, through the new optional `commitUnchanged`. Also: the
+  count is marked `aria-invalid` when refused, the closed form no longer computes the selection,
+  and `rowLayout`'s `s > 0` guard (fu 219), the group copy's selection order and a −X row are
+  pinned. 1843 tests.
+- **Evidence.** 1831 tests across 63 files before the final review, 1843 after, build clean. Mutations run on rowLayout (rounding,
+  guards) and copyInRow (drift, one undo entry, refusals), each shown red.
+- **Residues:** follow-ups 218-220 (218 and 219 closed by the final review).
+
 **What the quarter turns round did (2026-10-05)**: four true quarter turns about the vertical, with a
 spec and plan (`docs/superpowers/specs/2026-10-05-sloyd-quarter-turns-design.md`). **Schema 8.** On
 branch `repeated-parts`; **merged (`a24287f`) and deployed** (`index-bSuJPbkx.js`). Live check passed with the user watching, one

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { boardsBounds, createBoard, createDocument, createGuide, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor } from '../document/document';
 import type { Board, BoardSnapPoint, Cut, SloydDocument, SnapPoint, TapeAxis } from '../document/document';
 import { SNAP_INCHES } from '../document/geometry';
+import { MAX_ROW } from '../document/row';
 
 const HISTORY_LIMIT = 50;
 
@@ -255,6 +256,13 @@ interface StoreState {
    * GROWS, so copies cannot collide with each other (invariant 8).
    */
   duplicateBoards: (ids: string[]) => void;
+  /**
+   * N - 1 copies of the selection, each shifted k * step * sign along `axis`
+   * from the ORIGINAL. ONE undo entry; selects the originals then the copies.
+   * Refuses (writes nothing) a count outside 2..MAX_ROW, a non-positive or
+   * non-finite step, or no known ids.
+   */
+  copyInRow: (ids: string[], count: number, axis: 0 | 1 | 2, sign: 1 | -1, step: number) => void;
   selectBoard: (id: string | null) => void;
   toggleSelected: (id: string) => void;
   selectAll: () => void;
@@ -614,6 +622,34 @@ export const useStore = create<StoreState>((set, get) => {
     for (const id of ids) dropHeldIfGone(id);
   };
 
+  /**
+   * One copy of `source` at `position`, exactly as Duplicate makes it: a fresh
+   * id, fresh cut ids (nextId), copied arrays so no snapshot shares them, and
+   * a name unique against `taken`, which the caller GROWS as it copies
+   * (invariant 8). Shared by duplicateBoards and copyInRow so the two cannot
+   * drift.
+   */
+  const copyBoard = (source: Board, position: readonly [number, number, number], taken: Board[]): Board => {
+    // Drop the id so createBoard generates a fresh one, and copy the position
+    // array rather than sharing the reference with the source and with every
+    // undo snapshot that holds it. `cuts` needs the same treatment: `rest`
+    // still carries the source's `cuts` array (and its `Cut` objects) by
+    // reference, and createBoard's `cuts: []` default is overwritten by
+    // `...partial` rather than applied — copying the array and minting a
+    // fresh id per cut (via the same nextId() addCut uses) means a future
+    // in-place Cut mutation can't corrupt the source board and every undo
+    // snapshot holding it simultaneously.
+    const { id: _sourceId, ...rest } = source;
+    const fresh = createBoard({
+      ...rest,
+      position: [...position],
+      cuts: source.cuts.map((cut) => ({ ...cut, id: nextId() })),
+    });
+    // Against the list AS IT GROWS: copies of "Leg" and "Leg (1)" would
+    // otherwise both be named "Leg (2)" (invariant 8).
+    return { ...fresh, name: uniqueName(source.name, taken) };
+  };
+
   return {
     doc: createDocument(),
     selectedIds: [],
@@ -891,28 +927,36 @@ export const useStore = create<StoreState>((set, get) => {
       if (sources.length === 0) return;
       const copies: Board[] = [];
       for (const source of sources) {
-        // Drop the id so createBoard generates a fresh one, and copy the position
-        // array rather than sharing the reference with the source and with every
-        // undo snapshot that holds it. `cuts` needs the same treatment: `rest`
-        // still carries the source's `cuts` array (and its `Cut` objects) by
-        // reference, and createBoard's `cuts: []` default is overwritten by
-        // `...partial` rather than applied — copying the array and minting a
-        // fresh id per cut (via the same nextId() addCut uses) means a future
-        // in-place Cut mutation can't corrupt the source board and every undo
-        // snapshot holding it simultaneously.
-        const { id: _sourceId, ...rest } = source;
-        const fresh = createBoard({
-          ...rest,
-          position: [...source.position],
-          cuts: source.cuts.map((cut) => ({ ...cut, id: nextId() })),
-        });
-        // Against the document AS IT GROWS: copies of "Leg" and "Leg (1)"
-        // would otherwise both be named "Leg (2)" (invariant 8).
-        copies.push({ ...fresh, name: uniqueName(source.name, [...boards, ...copies]) });
+        copies.push(copyBoard(source, source.position, [...boards, ...copies]));
       }
       edit(
         (doc) => ({ ...doc, boards: [...doc.boards, ...copies] }),
         () => copies.map((c) => c.id),
+      );
+    },
+
+    copyInRow: (ids, count, axis, sign, step) => {
+      // Guarded before edit(): a refusal writes nothing (invariant 4). The
+      // caller has run rowLayout; this re-checks only what would make a bad row.
+      if (!Number.isInteger(count) || count < 2 || count > MAX_ROW) return;
+      if (!Number.isFinite(step) || step <= 0) return;
+      const boards = get().doc.boards;
+      const sources = [...new Set(ids)].flatMap((id) => boards.filter((b) => b.id === id));
+      if (sources.length === 0) return;
+      const copies: Board[] = [];
+      for (let k = 1; k < count; k += 1) {
+        // From the ORIGINAL every time, never the previous copy: a running sum
+        // drifts by an ulp per copy. Never rounded (invariant 25).
+        const shift = k * step * sign;
+        for (const source of sources) {
+          const position = [...source.position] as [number, number, number];
+          position[axis] = source.position[axis] + shift;
+          copies.push(copyBoard(source, position, [...boards, ...copies]));
+        }
+      }
+      edit(
+        (doc) => ({ ...doc, boards: [...doc.boards, ...copies] }),
+        () => [...sources.map((s) => s.id), ...copies.map((c) => c.id)],
       );
     },
 

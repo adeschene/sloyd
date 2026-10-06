@@ -24,7 +24,7 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **1814/1814 tests passing across 61 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
+Static SPA, containerized, **1843/1843 tests passing across 63 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **8**, on `master` and in production.
 
 **PRODUCTION MATCHES `master` as of 2026-10-05 with the quarter turns round live** — bundle `index-bSuJPbkx.js`, CSS `index-CgHZGep2.css` (unchanged), merge commit `a24287f`, **schema 8** (rolling back past it strands v8 documents; export first). Before it: hide/unhide `index-BpdcUlXf.js` (`366eb37`, 2026-10-05), multi-select `index-D7ySMvky.js` (`232917f`, 2026-10-05), joinery residues `index-D_wzi7Bx.js` (`2b96eb2`, 2026-10-05), joinery fixes `index-BzWa2ZGT.js` (`c31dd82`, 2026-10-05), fu 197 `index-Ci3NLhVT.js` (`658dfcc`, 2026-10-05), fu 200 `index-DjL6FbOz.js` (`f37734b`, 2026-10-05), 198/199 `index-BvsB1zA6.js` (`fb8a094`, 2026-10-05), cut storage `index-JBiJohQE.js` (`7fa749d`, 2026-10-04), cut lines `index-BPmx9i74.js` (`f602a2d`), cut words `index-Cw_EeWuY.js` (`8c9be52`), joinery `index-Ci7lVCzJ.js` (`d2a14ac`), phantom cut `index-B2Yuq550.js` (`e7bf3bc`), stopped cuts `index-CoHIAVxf.js` (`c054ede`), which bumped the schema to 7 (rolling back past it strands v7 documents; export first). Before it, 2026-10-03: key check `index-BhhW2iNw.js` (`d0ba83b`), held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
@@ -44,6 +44,8 @@ badly supported part; both are now CLOSED (below).
 **The joinery residues round (follow-ups 182, 186, 188, 191, 201–203, 2026-10-05) is merged AND deployed.** Verified against the dev server with the user watching, one paid run (`docs/browser-verification-joinery-residues.md`). A rabbeted panel is resolved as one unit from its final box, so its pockets leave no voids and parts in its path are trimmed (182, 201); default tenons shrink to 1/4in, else butt (188); joinery blockers judge solids (203); every `resize` is pre-checked, so an end already cut is a skip, never a throw. No schema change. Residues are 205–206.
 
 **The joinery fixes round (follow-ups 183, 184, 185, 190, 2026-10-05) is merged AND deployed.** Verified against the dev server with the user watching, three paid runs (`docs/browser-verification-joinery-fixes.md`). Default tenons from opposite faces are capped under half the post (190), crossings run bottom-up with a swept-volume blocker (185), a rabbeted panel carries its outer-face chain or refuses before any mutation (183), and the dialog reports the re-ground (184). No schema change. Residues are 201-204.
+
+**The copy-in-a-row round (2026-10-05) is merged; its live check passed with the user watching** (`docs/browser-verification-copy-in-a-row.md`). Round 2 of the three repeated-parts rounds, in the user's order: quarter turns, then copy in a row, then **linking, the next and last** (a link will share a part's definition; copies made here stay ordinary and independent). Properties' **Copy in a row…** (under the Duplicate row, in both panels) opens an inline form: count (the TOTAL in the row, original included), a direction (±X, ±Y, ±Z) and one of three spacings, gap, centre-to-centre pitch, or fit N across a distance, with a live summary and one Apply that is one undo entry (spec `docs/superpowers/specs/2026-10-05-sloyd-copy-in-a-row-design.md`; invariant 25 extended). No schema change. Residues are follow-ups 218-220; 218 and 219 are closed by the final review, 220 keeps one record-only item.
 
 **The quarter turns round (2026-10-05) is merged AND deployed; its live check passed with the user watching, one paid joinery run** (`docs/browser-verification-quarter-turns.md`). The first of the three repeated-parts rounds, in the user's order: quarter turns, then copy in a row, then linking. `rotation` is now `0 | 90 | 180 | 270`, all TRUE rotations about the vertical, counter-clockwise from above; before it, 90° was a mirror across the X=Z diagonal, so identical parts could never face their cuts toward (−X, +Z). `axisFrame` is the one home of the turn table and every part↔world crossing goes through its helpers (invariant 44; spec `docs/superpowers/specs/2026-10-05-sloyd-quarter-turns-design.md`). Properties' Turn offers all four. **Schema 8**: `trueTurnsToV8` mirrors the cuts of every existing 90° part with cuts so it looks exactly as before. **Rolling back past it strands v8 documents; export first.** The visible cost: a migrated 90° part may measure its cuts from the other end on the sheet, and joinery on Generate's 90° parts now names the opposite end of the part for the same world cut. Generate still produces only 0° and 90°. Residues are follow-ups 215-217 (215 is the open handedness-across-postures question).
 
@@ -284,6 +286,7 @@ show it. Prefer a readout where one suffices; add an image when the finding is s
 | fu 197 | 10-05 | — | *no spec* — `clippedRegion`: the cut's box clipped to the board is the one clip read by everything that shows a cut (drawing spans, snap points, cutShape, openSides, findTenons); an in-session overhang draws as what remains |
 | multi-select | 10-05 | — | `selectedIds`: Shift/Ctrl-click, Ctrl/Cmd+A, group move/delete/duplicate, shared Properties fields; one writer for user selection changes (inv 42); a selection change mid-drag ends the gizmo drag; Enter commits and blurs a field (fu 212) |
 | quarter turns | 10-05 | 8 | `rotation: 0 \| 90 \| 180 \| 270`, true rotations; `axisFrame` is the one turn table and every part↔world crossing goes through its helpers (inv 44); `trueTurnsToV8` mirrors old 90° parts' cuts so they look unchanged |
+| copy in a row | 10-05 | — | `rowLayout` (gap / pitch / fit-across, no rounding) and `copyInRow`: N−1 ordinary copies of the selection along ±X/Y/Z, each shifted k·step from the ORIGINAL, one undo entry; Properties' inline **Copy in a row…** form (inv 25) |
 | hide/unhide | 10-05 | — | `hiddenIds`: an eye per row, H / Shift+H / Alt+H, Show all (N), Hide others; view state, not saved, but undoable (history entries are `{ doc, hiddenIds }`); a hidden part is not drawn, snapped to, framed or selected (inv 43) |
 | joinery fixes | 10-05 | — | *no spec* — fu 190/185/183/184: opposite-face tenon cap, bottom-up crossings with a swept-volume blocker, outer-face carry (refuses before any mutation), `lowered` reported |
 | joinery residues | 10-05 | — | *no spec* — fu 182/201/188/203/191/186: rabbet unit from the panel's final box (no voids, path parts trimmed), 1/4in default tenons else butt, blockers on solids, `resize` pre-checked |
@@ -431,6 +434,11 @@ src/
 │   └── quantity.ts         formatBoardFeet / formatSquareFeet — two decimals fixed,
 │                           NOT units.precision (meaningless on a decimal volume)
 ├── document/
+│   ├── row.ts              `rowLayout(mode, value, s, count)`: step, gap and row length for gap /
+│   │                       pitch / fit-across, `MAX_ROW` = 100. Refusals are CODES (`count`,
+│   │                       `value`, `negative-gap`, `pitch-short`, `no-room`), not sentences, and
+│   │                       it imports no `units` (the edge rule: it produces no string). Nothing
+│   │                       rounds (inv 25). The panel's summary AND Apply both read it
 │   ├── types.ts            Board, GuidePoint, SloydDocument, Rotation, Posture,
 │   │                       Grain, MATERIALS, SheetStock, isSheetGood, sheetStockOf
 │   ├── geometry.ts         `axisFrame` — the ONE turn table (inv 44): per world axis an
@@ -607,6 +615,12 @@ src/
 │                           `restore`, which keeps the held points when the entry's doc
 │                           is the current object. `selectionPatch` drops hidden ids
 │                           (inv 43)
+│                           `copyInRow(ids, count, axis, sign, step)`: N−1 copies, copy k at
+│                           `original + k·step·sign` (from the ORIGINAL, never the previous
+│                           copy), ONE `edit()`, selects originals then copies; refuses before
+│                           `edit()` on a bad count or step. It and `duplicateBoards` share
+│                           the `copyBoard` helper (fresh ids, copied cuts, a name unique
+│                           against the growing list), so the two cannot drift
 │   └── selectionGesture.ts `isToggleModifier` (Shift/Ctrl/Cmd), `selectByClick`,
 │                           `clearOnMiss` (no clear on a MODIFIED miss, nor outside the
 │                           Select tool). In the store layer because the viewport AND
@@ -767,7 +781,11 @@ src/
 │   │                       box with a `mixed` placeholder. Every resync path formats
 │   │                       through `display`. Enter commits and BLURS (fu 212); a
 │   │                       refused entry keeps focus. `blurHandled` stops the blur
-│   │                       re-settling an edit Escape or Enter already settled
+│   │                       re-settling an edit Escape or Enter already settled.
+│   │                       Two OPTIONAL props (copy in a row): `onErrorChange`, from ONE
+│   │                       effect keyed on the error, so every path that sets or clears
+│   │                       it reports; `commitUnchanged`, a dirty commit calls onCommit
+│   │                       even when it parses to `value` (for a value that is a default)
 │   ├── NameField.tsx       commits on blur/Enter only, empty reverts; Enter blurs
 │   │                       too (fu 212). Invs 5, 9
 │   ├── Toolbar.tsx         project name, Add board, Cut list, undo/redo, the Select /
@@ -815,6 +833,13 @@ src/
 │   │                       hidden row's name button is `disabled`. **Show all (N)**
 │   │                       renders inside PartsList, under the Parts heading, only
 │   │                       while something is hidden
+│   ├── CopyInRow.tsx       Copy in a row…: the inline form, local state only until Apply.
+│   │                       Rendered INSIDE each Properties panel's selection-keyed root, so a
+│   │                       selection change remounts it closed and reset. `rowLayout` is the one
+│   │                       source of the summary, so the line shows what Apply will do; the
+│   │                       measurement field is keyed on the mode. Apply is disabled while
+│   │                       the field shows a refusal (`onErrorChange`, fu 218), and a typed
+│   │                       Pitch/Across equal to the default sticks (`commitUnchanged`)
 │   ├── Properties.tsx      2+ selected: `GroupProperties` — Length/Width/Thickness/Grain/
 │   │                       Material + Duplicate/Hide others/Delete, each edit one `updateBoards`;
 │   │                       `shared` compares EXACT stored values; the root is keyed on the
@@ -1161,6 +1186,10 @@ worked examples behind several of them are in `docs/history.md`.
     satisfied — an **axis-placed** guide, which *looks* like it should land on the grid
     because a person typing `3` along Y from an on-grid corner does. Verified rather than
     argued: `0.01` along X from `x = 5` reads back out of `localStorage` as exactly `5.01`.
+    **A row of copies is a fifth** (`copyInRow`): the step comes from typed values (gap,
+    pitch, or span) and is never rounded, and copy k is computed from the ORIGINAL as
+    `position + k·step·sign`, never from the previous copy, because a running sum drifts by an
+    ulp per copy.
 26. **`grabbed` is a `BoardSnapPoint`, and that is what makes eight reads correct.** The
     guide-points round widened `SnapOwner` with a `{ type: 'guide' }` member, and that edit
     is silent by construction: both members carry an `id: string`, so every `owner.id` read
@@ -1728,7 +1757,7 @@ worked examples behind several of them are in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 1814 tests across 61 files
+npm test           # Vitest, currently 1843 tests across 63 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1738,7 +1767,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is the authoritative list** — 1-217, consciously deferred rather
+**`docs/follow-ups.md` is the authoritative list** — 1-220, consciously deferred rather
 than missed, each written up in place with its closure where it has one. Read the entries
 for the area you are about to touch before starting; several are "correct but untested",
 which is exactly what a refactor breaks silently.

@@ -3,6 +3,7 @@ import { useStore } from '../store/store';
 import { MATERIALS, uniqueName, isSheetGood, boardSolids, cutShape, storedAsShape, cutRemovesNothing, findTenons, positionAxisOf } from '../document/document';
 import { DimensionField } from './DimensionField';
 import { NameField } from './NameField';
+import { CopyInRow } from './CopyInRow';
 import { formatLength } from '../units/length';
 import type { Rotation, Posture, Grain, Board, Cut, Dimension, Region } from '../document/document';
 
@@ -345,6 +346,7 @@ function GroupProperties() {
         <button onClick={hideUnselected}>Hide others</button>
         <button className="danger" onClick={() => deleteBoards(selectedIds)}>Delete</button>
       </div>
+      <CopyInRow />
     </div>
   );
 }
@@ -484,6 +486,7 @@ export function Properties() {
         <button onClick={hideUnselected}>Hide others</button>
         <button className="danger" onClick={() => deleteBoard(board.id)}>Delete</button>
       </div>
+      <CopyInRow />
     </div>
   );
 }
