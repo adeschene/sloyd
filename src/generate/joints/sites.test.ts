@@ -1,5 +1,6 @@
+import { worldParts } from '../../document/tree';
 import { designToDocument } from '../../document/generated';
-import { migrateDocument } from '../../document/document';
+import { flatDocument, migrateDocument } from '../../document/document';
 import workbenchRaw from '../../document/fixtures/simple-workbench.sloyd?raw';
 import { findSites, rangesOf, siteLabel, stopLabel } from './sites';
 
@@ -8,7 +9,7 @@ const design = (...parts: P[]) => designToDocument({
   name: 'T',
   parts: parts.map((p) => ({ name: p.name, material: 'oak', at: { x: p.at[0], y: p.at[1], z: p.at[2] }, size: { x: p.size[0], y: p.size[1], z: p.size[2] } })),
 }).doc;
-const named = (doc: ReturnType<typeof design>) => (i: number) => doc.boards[i].name;
+const named = (doc: ReturnType<typeof design>) => (i: number) => worldParts(doc)[i].name;
 
 describe('findSites', () => {
   it('a rail end against a leg is end-into-face, rail entering', () => {
@@ -147,7 +148,7 @@ describe('findSites — the real workbench', () => {
   // Rails 1.5 thick, 5.5 (top, y 27.75-33.25) / 3.5 (low, y 6-9.5) wide, ends flush on leg faces.
   // Lower shelf 0.75 thick at y 5.25-6, x -26.5..26.5, z -10.5..10.5. Benchtop 1.5 thick, y 33.25-34.75.
   const labels = () => {
-    const doc = migrateDocument(JSON.parse(workbenchRaw));
+    const doc = flatDocument(migrateDocument(JSON.parse(workbenchRaw)));
     return findSites(doc).map((s) => siteLabel(s, doc));
   };
   it('lists every joint site, each explained', () => {

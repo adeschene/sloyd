@@ -102,6 +102,12 @@ export interface Board {
    * part has NO key, not `link: undefined`.
    */
   link?: string;
+  /**
+   * The Shape this part uses (components spec §2). Set ONLY on a RESOLVED part
+   * (`resolveBoard`, `worldParts`); a stored plain part never has it, and a
+   * stored shaped part is a `ShapedBoard`.
+   */
+  shape?: string;
 }
 
 /**
@@ -141,9 +147,21 @@ export interface Instance {
  */
 export interface Definition {
   id: string;
-  boards: Board[];
+  boards: StoredBoard[];
   instances: Instance[];
 }
+
+/** A part's shared fields, stored once and used by every part naming it
+ *  (components spec §2). Its cut ids are its own (invariant 33). */
+export interface Shape extends Pick<Board, 'length' | 'width' | 'thickness' | 'material' | 'grain' | 'posture' | 'cuts'> {
+  id: string;
+}
+
+/** A stored part that uses a Shape: its OWN fields and the shape's id, nothing else. */
+export type ShapedBoard = Pick<Board, 'id' | 'name' | 'position' | 'rotation'> & { shape: string };
+
+/** What a container stores: a plain part, or a shaped one. */
+export type StoredBoard = Board | ShapedBoard;
 
 export interface SloydDocument {
   version: number;
@@ -161,11 +179,21 @@ export interface SloydDocument {
    * migration step has no rawBoards.map — see document.ts.
    */
   guides: GuidePoint[];
-  boards: Board[];
+  boards: StoredBoard[];
   /** The root's assemblies. The root is an implicit definition (spec §2). */
   instances: Instance[];
   /** Document-wide, referenced by Instance.definition. */
   definitions: Definition[];
+  /** Document-wide shared part fields (components spec §2). */
+  shapes: Shape[];
+}
+
+/**
+ * A document whose parts are all resolved, plain Boards: what `flatDocument`
+ * returns and what the cut list, `checkDesign` and joinery read.
+ */
+export interface FlatDocument extends SloydDocument {
+  boards: Board[];
 }
 
 /**

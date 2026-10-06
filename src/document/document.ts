@@ -1,6 +1,6 @@
 import { MATERIALS, DEFAULT_MATERIAL, DEFAULT_KERF, isSheetGood } from './types';
 import type {
-  Board, Instance, Definition, Cut, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, GuidePoint,
+  Board, Instance, Definition, Cut, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, FlatDocument, GuidePoint,
 } from './types';
 import { nextId } from './ids';
 import { repairTree, repairLinksTree } from './treeRepair';
@@ -8,6 +8,7 @@ import { positionAxisOf, horizontalOf, DIMENSION_ORDER } from './geometry';
 
 export * from './types';
 export * from './links';
+export * from './shapes';
 export * from './frames';
 export * from './tree';
 export * from './treeEdit';
@@ -173,7 +174,7 @@ export function createBoard(partial: Partial<Board> = {}): Board {
   };
 }
 
-export function createDocument(name = 'Untitled'): SloydDocument {
+export function createDocument(name = 'Untitled'): FlatDocument {
   return {
     version: CURRENT_VERSION,
     name,
@@ -183,6 +184,7 @@ export function createDocument(name = 'Untitled'): SloydDocument {
     boards: [],
     instances: [],
     definitions: [],
+    shapes: [],
   };
 }
 
@@ -634,5 +636,6 @@ export function migrateDocument(raw: unknown): SloydDocument {
     boards,
     instances,
     definitions,
+    shapes: [],
   }));
 }

@@ -1,5 +1,5 @@
 import { MATERIALS, isSheetGood, sheetStockOf } from './types';
-import type { Board, Cut, Grain, Region, SloydDocument } from './types';
+import type { Board, Cut, Grain, Region, FlatDocument } from './types';
 import { CUT_GEOMETRY_KEYS, boardSolids, cutShape, cutsThatRemoveStock } from './cuts';
 import type { CutShape } from './cuts';
 import { findTenons } from './tenons';
@@ -268,7 +268,7 @@ function stockInchesOf(board: Board): number {
     : board.length * board.width * board.thickness;
 }
 
-export function buildCutList(doc: SloydDocument): CutList {
+export function buildCutList(doc: FlatDocument): CutList {
   const precision = doc.units.precision;
   const groups = new Map<string, CutListGroup>();
   const rows = new Map<string, CutListRow>();

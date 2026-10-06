@@ -1,3 +1,4 @@
+import { worldParts } from './document';
 import {
   createBoard, createDocument, createGuide, migrateDocument, DocumentError, CURRENT_VERSION,
 } from './document';
@@ -153,7 +154,7 @@ describe('migrateDocument', () => {
     };
     const doc = migrateDocument(raw);
     expect(doc.name).toBe('Untitled');
-    expect(doc.boards[0].material).toBe('pine');
+    expect(worldParts(doc)[0].material).toBe('pine');
   });
 
   it.each(['toString', 'constructor', '__proto__'])(
@@ -164,7 +165,7 @@ describe('migrateDocument', () => {
         units: { display: 'imperial-fractional', precision: 16 },
         boards: [{ ...createBoard(), material }],
       };
-      expect(migrateDocument(raw).boards[0].material).toBe('pine');
+      expect(worldParts(migrateDocument(raw))[0].material).toBe('pine');
     },
   );
 
@@ -179,7 +180,7 @@ describe('migrateDocument', () => {
         { name: 'Leg', length: 24, width: 3, thickness: 3, position: [0, 0, 12] },
       ],
     };
-    expect(migrateDocument(raw).boards.map((b) => b.name))
+    expect(worldParts(migrateDocument(raw)).map((b) => b.name))
       .toEqual(['Leg', 'Leg (1)', 'Leg (2)']);
   });
 
@@ -193,7 +194,7 @@ describe('migrateDocument', () => {
         { name: 'Apron', length: 40, width: 4, thickness: 0.75, position: [0, 0, 6] },
       ],
     };
-    expect(migrateDocument(raw).boards.map((b) => b.name)).toEqual(['Leg', 'Apron']);
+    expect(worldParts(migrateDocument(raw)).map((b) => b.name)).toEqual(['Leg', 'Apron']);
   });
 
   it('deduplicates the names it substitutes for blank ones', () => {
@@ -208,7 +209,7 @@ describe('migrateDocument', () => {
         { length: 24, width: 3, thickness: 3, position: [0, 0, 6] },
       ],
     };
-    expect(migrateDocument(raw).boards.map((b) => b.name)).toEqual(['Board', 'Board (1)']);
+    expect(worldParts(migrateDocument(raw)).map((b) => b.name)).toEqual(['Board', 'Board (1)']);
   });
 
   it('deduplicates the names it substitutes for whitespace-only ones', () => {
@@ -224,7 +225,7 @@ describe('migrateDocument', () => {
         { name: '  ', length: 24, width: 3, thickness: 3, position: [0, 0, 6] },
       ],
     };
-    expect(migrateDocument(raw).boards.map((b) => b.name)).toEqual(['Board', 'Board (1)']);
+    expect(worldParts(migrateDocument(raw)).map((b) => b.name)).toEqual(['Board', 'Board (1)']);
   });
 });
 
@@ -246,24 +247,24 @@ describe('validateBoard posture and grain fallbacks', () => {
 
   it('falls back an unrecognised posture to flat', () => {
     const doc = migrateDocument(rawBoard({ posture: 'sideways' }));
-    expect(doc.boards[0].posture).toBe('flat');
+    expect(worldParts(doc)[0].posture).toBe('flat');
   });
 
   it('falls back a missing posture to flat', () => {
     const raw = rawBoard({});
     delete (raw.boards[0] as Record<string, unknown>).posture;
-    expect(migrateDocument(raw).boards[0].posture).toBe('flat');
+    expect(worldParts(migrateDocument(raw))[0].posture).toBe('flat');
   });
 
   it('falls back an unrecognised grain to length', () => {
     const doc = migrateDocument(rawBoard({ grain: 'sideways' }));
-    expect(doc.boards[0].grain).toBe('length');
+    expect(worldParts(doc)[0].grain).toBe('length');
   });
 
   it('falls back a missing grain to length', () => {
     const raw = rawBoard({});
     delete (raw.boards[0] as Record<string, unknown>).grain;
-    expect(migrateDocument(raw).boards[0].grain).toBe('length');
+    expect(worldParts(migrateDocument(raw))[0].grain).toBe('length');
   });
 
   // 'Through thickness' is meaningless for a sheet good — plywood's grain is
@@ -274,17 +275,17 @@ describe('validateBoard posture and grain fallbacks', () => {
   // above, not a migration — CURRENT_VERSION does not change for it.
   it('normalises a sheet good carrying grain: thickness to length', () => {
     const doc = migrateDocument(rawBoard({ material: 'plywood', grain: 'thickness' }));
-    expect(doc.boards[0].grain).toBe('length');
+    expect(worldParts(doc)[0].grain).toBe('length');
   });
 
   it('normalises MDF carrying grain: thickness to length too', () => {
     const doc = migrateDocument(rawBoard({ material: 'mdf', grain: 'thickness' }));
-    expect(doc.boards[0].grain).toBe('length');
+    expect(worldParts(doc)[0].grain).toBe('length');
   });
 
   it('leaves solid wood carrying grain: thickness alone', () => {
     const doc = migrateDocument(rawBoard({ material: 'oak', grain: 'thickness' }));
-    expect(doc.boards[0].grain).toBe('thickness');
+    expect(worldParts(doc)[0].grain).toBe('thickness');
   });
 });
 
@@ -300,7 +301,7 @@ describe('migrateDocument, v1 to v2', () => {
   });
 
   it('folds 180 to 0', () => {
-    expect(migrateDocument(v1(180)).boards[0].rotation).toBe(0);
+    expect(worldParts(migrateDocument(v1(180)))[0].rotation).toBe(0);
   });
 
   it('folds 270 to 90, not to 0', () => {
@@ -308,11 +309,11 @@ describe('migrateDocument, v1 to v2', () => {
     // 0 for any rotation outside VALID_ROTATIONS, which is now [0, 90] — so a
     // fold that ran after validation would turn every saved 270 board a quarter
     // turn the wrong way, and unlike 0-vs-180 that is a different shape.
-    expect(migrateDocument(v1(270)).boards[0].rotation).toBe(90);
+    expect(worldParts(migrateDocument(v1(270)))[0].rotation).toBe(90);
   });
 
   it('does not move the boards it folds', () => {
-    const folded = migrateDocument(v1(270)).boards[0];
+    const folded = worldParts(migrateDocument(v1(270)))[0];
     expect(folded.position).toEqual([1, 2, 3]);
     expect(boardExtents(folded)).toEqual([5.5, 0.75, 24]);
   });
@@ -322,7 +323,7 @@ describe('migrateDocument, v1 to v2', () => {
   });
 
   it('leaves an unrecognised rotation to validateBoard, which falls back to 0', () => {
-    expect(migrateDocument(v1(45)).boards[0].rotation).toBe(0);
+    expect(worldParts(migrateDocument(v1(45)))[0].rotation).toBe(0);
   });
 
   it('rejects a junk board entry rather than crashing inside the fold', () => {
@@ -331,7 +332,7 @@ describe('migrateDocument, v1 to v2', () => {
 
   it('passes a v2 document through untouched', () => {
     const v2 = { ...v1(90), version: 2 };
-    expect(migrateDocument(v2).boards[0].rotation).toBe(90);
+    expect(worldParts(migrateDocument(v2))[0].rotation).toBe(90);
   });
 });
 
@@ -347,27 +348,27 @@ describe('migrateDocument, v2 to v3', () => {
   });
 
   it('maps a flat board to the flat posture', () => {
-    expect(migrateDocument(v2(false)).boards[0].posture).toBe('flat');
+    expect(worldParts(migrateDocument(v2(false)))[0].posture).toBe('flat');
   });
 
   it('maps a standing board to on-edge, not flat', () => {
     // validateBoard's posture fallback is 'flat', so a board that reached it
     // without this step would lie down — a different shape on screen.
-    expect(migrateDocument(v2(true)).boards[0].posture).toBe('on-edge');
+    expect(worldParts(migrateDocument(v2(true)))[0].posture).toBe('on-edge');
   });
 
   it('gives every migrated board grain along its length', () => {
-    expect(migrateDocument(v2(true)).boards[0].grain).toBe('length');
+    expect(worldParts(migrateDocument(v2(true)))[0].grain).toBe('length');
   });
 
   it('moves nothing and changes no extents', () => {
-    const board = migrateDocument(v2(true)).boards[0];
+    const board = worldParts(migrateDocument(v2(true)))[0];
     expect(board.position).toEqual([1, 2, 3]);
     expect(boardExtents(board)).toEqual([24, 5.5, 0.75]);
   });
 
   it('drops the old field', () => {
-    expect('standing' in migrateDocument(v2(true)).boards[0]).toBe(false);
+    expect('standing' in worldParts(migrateDocument(v2(true)))[0]).toBe(false);
   });
 
   it('stamps the current version', () => {
@@ -390,7 +391,7 @@ describe('migrateDocument chains v1 all the way to v3', () => {
   };
 
   it('folds the rotation and then adds the posture', () => {
-    const board = migrateDocument(v1chain).boards[0];
+    const board = worldParts(migrateDocument(v1chain))[0];
     expect(board.rotation).toBe(90);
     expect(board.posture).toBe('on-edge');
     expect(board.grain).toBe('length');
@@ -398,7 +399,7 @@ describe('migrateDocument chains v1 all the way to v3', () => {
 
   it('lands on the shape v1 drew', () => {
     // v1 drew a 270-rotated standing board as [thickness, width, length].
-    expect(boardExtents(migrateDocument(v1chain).boards[0])).toEqual([0.75, 5.5, 24]);
+    expect(boardExtents(worldParts(migrateDocument(v1chain))[0])).toEqual([0.75, 5.5, 24]);
   });
 });
 
@@ -490,7 +491,7 @@ describe('schema 4 — cuts', () => {
       }],
     });
     expect(doc.version).toBe(10);
-    expect(doc.boards[0].cuts).toEqual([]);
+    expect(worldParts(doc)[0].cuts).toEqual([]);
   });
 
   // The chain is the point: a v1 file must walk 1 -> 2 -> ... -> 9,
@@ -506,10 +507,10 @@ describe('schema 4 — cuts', () => {
       }],
     });
     expect(doc.version).toBe(10);
-    expect(doc.boards[0].rotation).toBe(90);
-    expect(doc.boards[0].posture).toBe('on-edge');
-    expect(doc.boards[0].grain).toBe('length');
-    expect(doc.boards[0].cuts).toEqual([]);
+    expect(worldParts(doc)[0].rotation).toBe(90);
+    expect(worldParts(doc)[0].posture).toBe('on-edge');
+    expect(worldParts(doc)[0].grain).toBe('length');
+    expect(worldParts(doc)[0].cuts).toEqual([]);
   });
 
   it('preserves cuts already present in a v4 file', () => {
@@ -525,8 +526,8 @@ describe('schema 4 — cuts', () => {
                  offset: 6, width: 0.75, depth: 0.25 }],
       }],
     });
-    expect(doc.boards[0].cuts).toHaveLength(1);
-    expect(doc.boards[0].cuts[0]).toMatchObject({ offset: 6, width: 0.75, depth: 0.25 });
+    expect(worldParts(doc)[0].cuts).toHaveLength(1);
+    expect(worldParts(doc)[0].cuts[0]).toMatchObject({ offset: 6, width: 0.75, depth: 0.25 });
   });
 
   it('rejects a file from a newer schema', () => {
@@ -536,7 +537,7 @@ describe('schema 4 — cuts', () => {
 });
 
 describe('cut validation', () => {
-  const load = (cuts: unknown[]) => migrateDocument({
+  const load = (cuts: unknown[]) => worldParts(migrateDocument({
     version: 4,
     name: 'x',
     units: { display: 'imperial-fractional', precision: 16 },
@@ -545,7 +546,7 @@ describe('cut validation', () => {
       position: [0, 0, 0], rotation: 0, posture: 'flat', grain: 'length',
       material: 'pine', cuts,
     }],
-  }).boards[0].cuts;
+  }))[0].cuts;
 
   const dado = (over: Partial<Cut> = {}): Cut => ({
     id: 'c1', face: 'thickness', from: 'max', across: 'width',
@@ -657,10 +658,10 @@ describe('schema v5 — stock.kerf', () => {
     expect(doc.version).toBe(10);
     expect(doc.guides).toEqual([]);
     expect(doc.stock).toEqual({ kerf: 0.125 });
-    expect(doc.boards[0].rotation).toBe(90);
-    expect(doc.boards[0].posture).toBe('on-edge');
-    expect(doc.boards[0].grain).toBe('length');
-    expect(doc.boards[0].cuts).toEqual([]);
+    expect(worldParts(doc)[0].rotation).toBe(90);
+    expect(worldParts(doc)[0].posture).toBe('on-edge');
+    expect(worldParts(doc)[0].grain).toBe('length');
+    expect(worldParts(doc)[0].cuts).toEqual([]);
   });
 });
 
@@ -754,9 +755,9 @@ describe('guides — schema v6', () => {
     expect(doc.version).toBe(10);
     expect(doc.guides).toEqual([]);
     expect(doc.stock.kerf).toBe(0.125);
-    expect(doc.boards[0].rotation).toBe(90);
-    expect(doc.boards[0].posture).toBe('on-edge');
-    expect(doc.boards[0].cuts).toEqual([]);
+    expect(worldParts(doc)[0].rotation).toBe(90);
+    expect(worldParts(doc)[0].posture).toBe('on-edge');
+    expect(worldParts(doc)[0].cuts).toEqual([]);
   });
 });
 
@@ -856,8 +857,8 @@ describe('id uniqueness on load — follow-ups 97 and 131', () => {
         }],
       })),
     });
-    expect(doc.boards[0].cuts[0].id).toBe('c1');
-    expect(doc.boards[1].cuts[0].id).toBe('c1');
+    expect(worldParts(doc)[0].cuts[0].id).toBe('c1');
+    expect(worldParts(doc)[1].cuts[0].id).toBe('c1');
   });
 
   // The pre-existing half of the rule, pinned here beside the two new ones so
@@ -879,7 +880,7 @@ describe('id uniqueness on load — follow-ups 97 and 131', () => {
         ],
       }],
     });
-    const cuts = doc.boards[0].cuts;
+    const cuts = worldParts(doc)[0].cuts;
     expect(cuts[0].id).toBe('c1');
     expect(cuts[1].id).not.toBe('c1');
   });
@@ -907,7 +908,7 @@ describe('stopped cuts (v7)', () => {
     }],
   });
   const loaded = (cut: Record<string, unknown>, version = 7) =>
-    migrateDocument(rawDoc(cut, version)).boards[0].cuts;
+    worldParts(migrateDocument(rawDoc(cut, version)))[0].cuts;
 
   it('is version 10', () => {
     expect(CURRENT_VERSION).toBe(10);
@@ -955,7 +956,7 @@ describe('stopped cuts (v7)', () => {
     const doc = migrateDocument(rawDoc({ stopMin: 1, stopMax: 2 }));
     const again = migrateDocument(JSON.parse(JSON.stringify(doc)));
     expect(again.version).toBe(10);
-    expect(again.boards[0].cuts[0]).toMatchObject({ stopMin: 1, stopMax: 2 });
+    expect(worldParts(again)[0].cuts[0]).toMatchObject({ stopMin: 1, stopMax: 2 });
   });
 });
 
@@ -988,7 +989,7 @@ describe('v7 -> v8: true quarter turns', () => {
   it('a 90° part with cuts keeps its exact world geometry, in every posture', () => {
     for (const posture of ['flat', 'on-edge', 'upright'] as const) {
       const before = { ...chiralPart(posture), rotation: 90 as const, position: [3, 0, 4] as [number, number, number] };
-      const after = migrateDocument(v7([before])).boards[0]!;
+      const after = worldParts(migrateDocument(v7([before])))[0]!;
       expect(sameSet(flatten(newWorld(after)), flatten(oldWorld(before)))).toBe(true);
     }
   });
@@ -997,8 +998,8 @@ describe('v7 -> v8: true quarter turns', () => {
     const flat0 = { ...chiralPart('flat'), rotation: 0 as const };
     const uncut90 = { ...chiralPart('flat'), rotation: 90 as const, cuts: [] };
     const doc = migrateDocument(v7([flat0, uncut90]));
-    expect(doc.boards[0]!.cuts).toEqual(flat0.cuts);
-    expect(doc.boards[1]!.cuts).toEqual([]);
+    expect(worldParts(doc)[0]!.cuts).toEqual(flat0.cuts);
+    expect(worldParts(doc)[1]!.cuts).toEqual([]);
   });
 
   it('mirrors each cut on exactly its own field', () => {
@@ -1008,7 +1009,7 @@ describe('v7 -> v8: true quarter turns', () => {
       { id: 'a', face: 'thickness', from: 'max', across: 'length', offset: 1, width: 1, depth: 0.5, stopMin: 3, stopMax: 5 },
       { id: 'p', face: 'thickness', from: 'max', across: 'width', offset: 4, width: 0.75, depth: 0.5, stopMin: 0, stopMax: 0 },
     ];
-    const got = migrateDocument(v7([{ ...base, cuts }])).boards[0]!.cuts;
+    const got = worldParts(migrateDocument(v7([{ ...base, cuts }])))[0]!.cuts;
     expect(got.find((c) => c.id === 'f')).toMatchObject({ from: 'max', offset: 0, stopMin: 0, stopMax: 0 });
     expect(got.find((c) => c.id === 'a')).toMatchObject({ from: 'max', offset: 1, stopMin: 5, stopMax: 3 });
     expect(got.find((c) => c.id === 'p')).toMatchObject({ from: 'max', offset: 15.25, stopMin: 0, stopMax: 0 });
@@ -1043,8 +1044,8 @@ describe('v7 -> v8: true quarter turns', () => {
       const part = { ...chiralPart(posture), rotation: 90 as const, position: [3, 0, 4] as [number, number, number] };
       const S = posture === 'upright' ? part.width : part.length;
       const raw = { ...part, cuts: [...part.cuts, h0Cut(posture, off(S), wid(S))] };
-      const before = migrateDocument({ ...v7([raw]), version: 8 }).boards[0]!;
-      const after = migrateDocument(v7([raw])).boards[0]!;
+      const before = worldParts(migrateDocument({ ...v7([raw]), version: 8 }))[0]!;
+      const after = worldParts(migrateDocument(v7([raw])))[0]!;
       expect(after.cuts.map((c) => c.id)).toEqual(before.cuts.map((c) => c.id));
       expect(newWorld(after).length).toBe(oldWorld(before).length);
       expect(sameSet(flatten(newWorld(after)), flatten(oldWorld(before)))).toBe(true);
@@ -1061,8 +1062,8 @@ describe('v7 -> v8: true quarter turns', () => {
     cuts: [{ id: 'r', face: 'thickness', from: 'max', across: 'width', offset, width, depth: 0.25, stopMin: 0, stopMax: 0 }],
   });
   const beforeAfter = (raw: unknown) => ({
-    before: migrateDocument({ ...v7([raw]), version: 8 }).boards[0]!,
-    after: migrateDocument(v7([raw])).boards[0]!,
+    before: worldParts(migrateDocument({ ...v7([raw]), version: 8 }))[0]!,
+    after: worldParts(migrateDocument(v7([raw])))[0]!,
   });
 
   it('a cut flush with the near end of a millimetre board migrates exactly flush with the far end', () => {
@@ -1095,7 +1096,7 @@ describe('v7 -> v8: true quarter turns', () => {
       cuts: [{ id: 'x', face: 'nonsense', from: 'min' }, { id: 'y', face: 'thickness', from: 'max', across: 'width' }, good],
     };
     let cuts: Board['cuts'] = [];
-    expect(() => { cuts = migrateDocument(v7([bad])).boards[0]!.cuts; }).not.toThrow();
+    expect(() => { cuts = worldParts(migrateDocument(v7([bad])))[0]!.cuts; }).not.toThrow();
     // Both malformed cuts dropped; the well-formed sibling kept AND mirrored
     // along h0 = length (20): 20 - 4 - 0.75.
     expect(cuts.map((c) => c.id)).toEqual(['p']);
@@ -1105,7 +1106,7 @@ describe('v7 -> v8: true quarter turns', () => {
   it('a version-8 file is never mirrored: a 90° part comes back exactly as saved', () => {
     for (const posture of ['flat', 'on-edge', 'upright'] as const) {
       const saved = { ...chiralPart(posture), rotation: 90 as const, position: [3, 0, 4] as [number, number, number] };
-      const loaded = migrateDocument({ ...v7([saved]), version: 8 }).boards[0]!;
+      const loaded = worldParts(migrateDocument({ ...v7([saved]), version: 8 }))[0]!;
       expect(loaded.cuts).toEqual(saved.cuts);
       expect(sameSet(flatten(newWorld(loaded)), flatten(newWorld(saved)))).toBe(true);
     }
@@ -1125,20 +1126,20 @@ describe('v9: linked parts', () => {
   it('CURRENT_VERSION is 10; a v8 file loads with no links; a version above 10 is refused', () => {
     expect(CURRENT_VERSION).toBe(10);
     const d = migrateDocument(doc(8, [raw({ id: 'a' }), raw({ id: 'b' })]));
-    expect(d.boards.every((b) => !('link' in b))).toBe(true);
+    expect(worldParts(d).every((b) => !('link' in b))).toBe(true);
     expect(() => migrateDocument(doc(11, []))).toThrow();
   });
 
   it('keeps a valid link, drops a non-string or empty one', () => {
     const d = migrateDocument(doc(9, [raw({ id: 'a', link: 'L' }), raw({ id: 'b', link: 'L' }), raw({ id: 'c', link: 7 }), raw({ id: 'd', link: '' })]));
-    expect(d.boards.map((b) => b.link)).toEqual(['L', 'L', undefined, undefined]);
-    expect('link' in d.boards[2]!).toBe(false);
+    expect(worldParts(d).map((b) => b.link)).toEqual(['L', 'L', undefined, undefined]);
+    expect('link' in worldParts(d)[2]!).toBe(false);
   });
 
   it('repairs on load: a differing member is unlinked, unchanged', () => {
     const d = migrateDocument(doc(9, [raw({ id: 'a', link: 'L' }), raw({ id: 'b', link: 'L' }), raw({ id: 'c', link: 'L', length: 11 })]));
-    expect(d.boards.map((b) => b.link)).toEqual(['L', 'L', undefined]);
-    expect(d.boards[2]!.length).toBe(11);
+    expect(worldParts(d).map((b) => b.link)).toEqual(['L', 'L', undefined]);
+    expect(worldParts(d)[2]!.length).toBe(11);
   });
 });
 

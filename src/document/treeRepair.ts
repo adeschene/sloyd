@@ -1,4 +1,4 @@
-import type { Board, Definition, Instance, SloydDocument } from './types';
+import type { Definition, Instance, SloydDocument, StoredBoard } from './types';
 import { nextId } from './ids';
 import { dedupeNames } from './names';
 import { repairLinks } from './links';
@@ -7,8 +7,8 @@ import { mapWorld } from './treeEdit';
 
 /** One container's names deduped across its parts AND assemblies (invariant 8, restated). */
 function dedupeContainer(c: Container): Container {
-  const items = dedupeNames<Board | Instance>([...c.boards, ...c.instances]);
-  return { boards: items.slice(0, c.boards.length) as Board[], instances: items.slice(c.boards.length) as Instance[] };
+  const items = dedupeNames<StoredBoard | Instance>([...c.boards, ...c.instances]);
+  return { boards: items.slice(0, c.boards.length) as StoredBoard[], instances: items.slice(c.boards.length) as Instance[] };
 }
 
 /**

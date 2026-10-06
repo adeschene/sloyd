@@ -1,3 +1,4 @@
+import { worldParts } from '../document/tree';
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
@@ -14,7 +15,7 @@ beforeEach(reset);
 describe('Properties', () => {
   it('adds no undo history entry for a field that is focused and blurred untouched', async () => {
     useStore.getState().addBoard();
-    const id = useStore.getState().doc.boards[0].id;
+    const id = worldParts(useStore.getState().doc)[0].id;
     useStore.getState().selectBoard(id);
     render(<Properties />);
 
@@ -28,14 +29,14 @@ describe('Properties', () => {
 
   it('resets an invalid field when the selected board changes, even if the value is identical', async () => {
     useStore.getState().addBoard();
-    const boardA = useStore.getState().doc.boards[0].id;
+    const boardA = worldParts(useStore.getState().doc)[0].id;
     useStore.getState().addBoard();
-    const boardB = useStore.getState().doc.boards[1].id;
+    const boardB = worldParts(useStore.getState().doc)[1].id;
     // Both boards get the default length (24") since addBoard reuses the
     // previous board's dimensions — the effect's [value, precision] deps
     // will not change when switching between them.
-    expect(useStore.getState().doc.boards[0].length).toBe(
-      useStore.getState().doc.boards[1].length,
+    expect(worldParts(useStore.getState().doc)[0].length).toBe(
+      worldParts(useStore.getState().doc)[1].length,
     );
 
     useStore.getState().selectBoard(boardA);
@@ -62,7 +63,7 @@ describe('Properties', () => {
 describe('the part name field', () => {
   const selectFirstBoard = () => {
     useStore.getState().addBoard();
-    const id = useStore.getState().doc.boards[0].id;
+    const id = worldParts(useStore.getState().doc)[0].id;
     useStore.getState().selectBoard(id);
     return id;
   };
@@ -76,7 +77,7 @@ describe('the part name field', () => {
     await userEvent.type(name, 'Front apron');
     await userEvent.tab();
 
-    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.name)
+    expect(worldParts(useStore.getState().doc).find((b) => b.id === id)!.name)
       .toBe('Front apron');
   });
 
@@ -88,7 +89,7 @@ describe('the part name field', () => {
     await userEvent.clear(name);
     await userEvent.type(name, 'Stretcher{Enter}');
 
-    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.name)
+    expect(worldParts(useStore.getState().doc).find((b) => b.id === id)!.name)
       .toBe('Stretcher');
   });
 
@@ -103,7 +104,7 @@ describe('the part name field', () => {
 
     expect(name).not.toHaveFocus();
     expect(name.value).toBe('Stretcher');
-    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.name)
+    expect(worldParts(useStore.getState().doc).find((b) => b.id === id)!.name)
       .toBe('Stretcher');
   });
 
@@ -116,7 +117,7 @@ describe('the part name field', () => {
     await userEvent.type(name, 'Leg');
 
     // Still the old name: nothing is committed until blur or Enter.
-    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.name)
+    expect(worldParts(useStore.getState().doc).find((b) => b.id === id)!.name)
       .toBe('Board');
   });
 
@@ -130,7 +131,7 @@ describe('the part name field', () => {
     await userEvent.tab();
 
     expect(name.value).toBe('Board');
-    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.name).toBe('Board');
+    expect(worldParts(useStore.getState().doc).find((b) => b.id === id)!.name).toBe('Board');
     // Untouched means the same object, not merely an equal one.
     expect(useStore.getState().doc).toBe(before);
   });
@@ -192,14 +193,14 @@ describe('the part name field', () => {
     await userEvent.type(name, 'Discarded{Escape}');
 
     expect(name.value).toBe('Board');
-    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.name).toBe('Board');
+    expect(worldParts(useStore.getState().doc).find((b) => b.id === id)!.name).toBe('Board');
   });
 
   it('shows the deduplicated name when renaming onto an existing one', async () => {
     useStore.getState().addBoard();               // 'Board'
     useStore.getState().addBoard();               // 'Board (1)'
-    const second = useStore.getState().doc.boards[1].id;
-    useStore.getState().updateBoard(useStore.getState().doc.boards[0].id, { name: 'Leg' });
+    const second = worldParts(useStore.getState().doc)[1].id;
+    useStore.getState().updateBoard(worldParts(useStore.getState().doc)[0].id, { name: 'Leg' });
     useStore.getState().selectBoard(second);
     render(<Properties />);
 
@@ -208,7 +209,7 @@ describe('the part name field', () => {
     await userEvent.type(name, 'Leg');
     await userEvent.tab();
 
-    expect(useStore.getState().doc.boards.find((b) => b.id === second)!.name).toBe('Leg (1)');
+    expect(worldParts(useStore.getState().doc).find((b) => b.id === second)!.name).toBe('Leg (1)');
     // The field must show what was stored, not what was typed.
     expect(name.value).toBe('Leg (1)');
   });
@@ -216,8 +217,8 @@ describe('the part name field', () => {
   it('re-shows the same deduplicated name with no document write when the dedup result is already the stored name', async () => {
     useStore.getState().addBoard();               // 'Board'
     useStore.getState().addBoard();               // 'Board (1)'
-    const second = useStore.getState().doc.boards[1].id;
-    useStore.getState().updateBoard(useStore.getState().doc.boards[0].id, { name: 'Leg' });
+    const second = worldParts(useStore.getState().doc)[1].id;
+    useStore.getState().updateBoard(worldParts(useStore.getState().doc)[0].id, { name: 'Leg' });
     useStore.getState().selectBoard(second);
     render(<Properties />);
 
@@ -258,7 +259,7 @@ describe('the part name field', () => {
 
     act(() => { useStore.getState().undo(); });
 
-    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.name).toBe('Board');
+    expect(worldParts(useStore.getState().doc).find((b) => b.id === id)!.name).toBe('Board');
     expect((screen.getByLabelText('Part name') as HTMLInputElement).value).toBe('Board');
   });
 
@@ -275,7 +276,7 @@ describe('the part name field', () => {
 
     await userEvent.tab(); // blur, untouched
 
-    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.name)
+    expect(worldParts(useStore.getState().doc).find((b) => b.id === id)!.name)
       .toBe('Renamed elsewhere');
     expect(name.value).toBe('Renamed elsewhere');
   });
@@ -293,7 +294,7 @@ describe('the part name field', () => {
 
     await userEvent.keyboard('{Enter}'); // untouched Enter
 
-    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.name)
+    expect(worldParts(useStore.getState().doc).find((b) => b.id === id)!.name)
       .toBe('Renamed elsewhere');
   });
 
@@ -313,7 +314,7 @@ describe('the part name field', () => {
 describe('the orientation controls', () => {
   const selectFirstBoard = () => {
     useStore.getState().addBoard();
-    const id = useStore.getState().doc.boards[0].id;
+    const id = worldParts(useStore.getState().doc)[0].id;
     useStore.getState().selectBoard(id);
     return id;
   };
@@ -330,7 +331,7 @@ describe('the orientation controls', () => {
     const id = selectFirstBoard();
     render(<Properties />);
     await userEvent.selectOptions(screen.getByLabelText('Posture'), 'upright');
-    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.posture).toBe('upright');
+    expect(worldParts(useStore.getState().doc).find((b) => b.id === id)!.posture).toBe('upright');
   });
 
   it('the Turn select offers the four quarter turns', () => {
@@ -344,7 +345,7 @@ describe('the orientation controls', () => {
     const id = selectFirstBoard();
     useStore.getState().updateBoard(id, { position: [3.3, 0, 4.7] });
     render(<Properties />);
-    const pos = () => useStore.getState().doc.boards.find((b) => b.id === id)!.position;
+    const pos = () => worldParts(useStore.getState().doc).find((b) => b.id === id)!.position;
     await userEvent.selectOptions(screen.getByLabelText('Turn'), '180');
     expect(pos()).toEqual([3.3, 0, 4.7]);
     await userEvent.selectOptions(screen.getByLabelText('Turn'), '90');
@@ -357,7 +358,7 @@ describe('the orientation controls', () => {
     const id = selectFirstBoard();
     render(<Properties />);
     await userEvent.selectOptions(screen.getByLabelText('Turn'), '90');
-    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.rotation).toBe(90);
+    expect(worldParts(useStore.getState().doc).find((b) => b.id === id)!.rotation).toBe(90);
   });
 
   it('offers three grain directions', () => {
@@ -372,15 +373,15 @@ describe('the orientation controls', () => {
     const id = selectFirstBoard();
     render(<Properties />);
     await userEvent.selectOptions(screen.getByLabelText('Runs'), 'width');
-    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.grain).toBe('width');
+    expect(worldParts(useStore.getState().doc).find((b) => b.id === id)!.grain).toBe('width');
   });
 
   it('does not move the board when only the grain changes', async () => {
     const id = selectFirstBoard();
-    const before = useStore.getState().doc.boards[0].position;
+    const before = worldParts(useStore.getState().doc)[0].position;
     render(<Properties />);
     await userEvent.selectOptions(screen.getByLabelText('Runs'), 'width');
-    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.position).toEqual(before);
+    expect(worldParts(useStore.getState().doc).find((b) => b.id === id)!.position).toEqual(before);
   });
 
   // Every "commits a change" test above starts from the default orientation
@@ -441,7 +442,7 @@ describe('the orientation controls', () => {
     const materialSelect = document.querySelector('select[aria-labelledby="material-heading"]')!;
     await userEvent.selectOptions(materialSelect, 'plywood');
 
-    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.material).toBe('plywood');
+    expect(worldParts(useStore.getState().doc).find((b) => b.id === id)!.material).toBe('plywood');
     expect([...(screen.getByLabelText('Runs') as HTMLSelectElement).options].map((o) => o.textContent))
       .toEqual(['Along length', 'Across width']);
   });
@@ -450,7 +451,7 @@ describe('the orientation controls', () => {
 describe('cuts', () => {
   const renderWithBoard = () => {
     useStore.getState().addBoard();
-    const id = useStore.getState().doc.boards[0].id;
+    const id = worldParts(useStore.getState().doc)[0].id;
     useStore.getState().selectBoard(id);
     render(<Properties />);
     return id;
@@ -464,13 +465,13 @@ describe('cuts', () => {
       const st = useStore.getState();
       st.addCut(id);
       st.addCut(id);
-      const [c1, c2] = useStore.getState().doc.boards[0].cuts;
+      const [c1, c2] = worldParts(useStore.getState().doc)[0].cuts;
       st.updateCut(id, c1.id, cheek(c1.id, 'min'));
       st.updateCut(id, c2.id, cheek(c2.id, 'max'));
     });
     expect(screen.getAllByText('tenon shoulder')).toHaveLength(2);
     expect(screen.getAllByRole('button', { name: /Remove cut \(tenon shoulder/ })).toHaveLength(2);
-    act(() => { useStore.getState().removeCut(id, useStore.getState().doc.boards[0].cuts[1].id); });
+    act(() => { useStore.getState().removeCut(id, worldParts(useStore.getState().doc)[0].cuts[1].id); });
     expect(screen.queryByText('tenon shoulder')).not.toBeInTheDocument();
     expect(screen.getByText('rabbet')).toBeInTheDocument();
   });
@@ -482,7 +483,7 @@ describe('cuts', () => {
     act(() => { useStore.getState().updateBoard(id, { length: 5 }); });
     expect(screen.getByText(/no longer fits the board and removes nothing/i)).toBeInTheDocument();
     // Kept, not dropped: its fields are still there to edit.
-    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.cuts).toHaveLength(1);
+    expect(worldParts(useStore.getState().doc).find((b) => b.id === id)!.cuts).toHaveLength(1);
     expect(screen.getByLabelText(/from the end/i)).toBeInTheDocument();
     act(() => { useStore.getState().updateBoard(id, { length: 24 }); });
     expect(screen.queryByText(/no longer fits the board/i)).not.toBeInTheDocument();
@@ -525,13 +526,13 @@ describe('cuts', () => {
   it('refuses a depth past the board and does not commit it', async () => {
     const id = renderWithBoard();
     await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
-    const before = useStore.getState().doc.boards.find((b) => b.id === id)!.cuts[0].depth;
+    const before = worldParts(useStore.getState().doc).find((b) => b.id === id)!.cuts[0].depth;
     const depth = screen.getByLabelText(/depth/i);
     await userEvent.clear(depth);
     await userEvent.type(depth, '4');
     await userEvent.tab();
     expect(screen.getByText(/must be at most/i)).toBeInTheDocument();
-    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.cuts[0].depth).toBe(before);
+    expect(worldParts(useStore.getState().doc).find((b) => b.id === id)!.cuts[0].depth).toBe(before);
   });
 
   it('refuses a cut that would remove all the stock', async () => {
@@ -568,9 +569,9 @@ describe('cuts', () => {
 
   it('does not leak a whole-board-removal error across a selection change and back', async () => {
     useStore.getState().addBoard();
-    const id = useStore.getState().doc.boards[0].id;
+    const id = worldParts(useStore.getState().doc)[0].id;
     useStore.getState().addBoard();
-    const otherId = useStore.getState().doc.boards[1].id;
+    const otherId = worldParts(useStore.getState().doc)[1].id;
     useStore.getState().selectBoard(id);
     render(<Properties />);
 
@@ -607,7 +608,7 @@ describe('cuts', () => {
     await userEvent.tab();
 
     expect(screen.queryByText(/must be at most/i)).not.toBeInTheDocument();
-    expect(useStore.getState().doc.boards.find((b) => b.id === id)!.cuts[0].width).toBe(0.5);
+    expect(worldParts(useStore.getState().doc).find((b) => b.id === id)!.cuts[0].width).toBe(0.5);
   });
 
   it('preserves a legal offset and width when Runs across only moves the position axis', async () => {
@@ -626,7 +627,7 @@ describe('cuts', () => {
     const other = [...across.options].map((o) => o.value).find((v) => v !== across.value)!;
     await userEvent.selectOptions(across, other);
 
-    const cut = useStore.getState().doc.boards.find((b) => b.id === id)!.cuts[0];
+    const cut = worldParts(useStore.getState().doc).find((b) => b.id === id)!.cuts[0];
     expect(cut.offset).toBe(0.125);
     expect(cut.width).toBe(0.25);
   });
@@ -653,7 +654,7 @@ describe('cuts', () => {
     expect(screen.queryByText(/would remove the whole board/i)).not.toBeInTheDocument();
     // The rejected depth commit must never have landed, and the depth field
     // must display that real stored value, not the rejected "3/4" text.
-    const stored = useStore.getState().doc.boards.find((b) => b.id === id)!.cuts[0].depth;
+    const stored = worldParts(useStore.getState().doc).find((b) => b.id === id)!.cuts[0].depth;
     expect(stored).not.toBe(0.75);
     expect((screen.getByLabelText(/depth/i) as HTMLInputElement).value)
       .toBe(formatLength(stored, 16));
@@ -680,7 +681,7 @@ describe('cuts', () => {
     expect(screen.queryByText(/would remove the whole board/i)).not.toBeInTheDocument();
   });
 
-  const stored = (id: string) => useStore.getState().doc.boards.find((b) => b.id === id)!.cuts[0];
+  const stored = (id: string) => worldParts(useStore.getState().doc).find((b) => b.id === id)!.cuts[0];
   const typeInto = async (label: RegExp, text: string) => {
     const field = screen.getByLabelText(label);
     await userEvent.clear(field);
@@ -812,11 +813,11 @@ describe('cuts', () => {
         st.updateBoard(id, { length: 72, width: 11.25 });
         st.addCut(id);
         st.addCut(id);
-        const [r, h] = useStore.getState().doc.boards[0].cuts;
+        const [r, h] = worldParts(useStore.getState().doc)[0].cuts;
         st.updateCut(id, r.id, backRabbet);
         st.updateCut(id, h.id, housing);
       });
-      const [r, h] = useStore.getState().doc.boards[0].cuts;
+      const [r, h] = worldParts(useStore.getState().doc)[0].cuts;
       return { id, rabbetId: r.id, housingId: h.id };
     };
     const note = /The cut list reads this cut as running across the width\./;
@@ -828,7 +829,7 @@ describe('cuts', () => {
       act(() => {
         const st = useStore.getState();
         st.addCut(id);
-        const [c] = useStore.getState().doc.boards[0].cuts;
+        const [c] = worldParts(useStore.getState().doc)[0].cuts;
         st.updateCut(id, c.id, { face: 'thickness', from: 'max', across: 'width', offset: 6, width: 0.75, depth: 1 / 2, stopMin: 2, stopMax: 2.75 });
       });
       expect(screen.queryByText(/The cut list reads this cut/)).not.toBeInTheDocument();
@@ -849,7 +850,7 @@ describe('cuts', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Match the cut list' }));
       expect(runsAcross(housingId).value).toBe('width');
       expect(screen.queryByText(note)).not.toBeInTheDocument();
-      const stored = useStore.getState().doc.boards.find((b) => b.id === id)!.cuts.find((c) => c.id === housingId)!;
+      const stored = worldParts(useStore.getState().doc).find((b) => b.id === id)!.cuts.find((c) => c.id === housingId)!;
       expect(stored).toMatchObject({ across: 'width', offset: 24, width: 0.75, stopMin: 0.25, stopMax: 0.75 });
       expect(useStore.getState().past.length).toBe(before + 1);
       act(() => { useStore.getState().undo(); });
@@ -876,7 +877,7 @@ describe('cuts', () => {
       act(() => {
         const st = useStore.getState();
         st.addCut(id);
-        const [c] = useStore.getState().doc.boards[0].cuts;
+        const [c] = worldParts(useStore.getState().doc)[0].cuts;
         st.updateCut(id, c.id, { face: 'length', from: 'min', across: 'thickness', offset: 0, width: 0.6712598425196851, depth: 9.370078740157481, stopMin: 0.03937007874015748, stopMax: 0.03937007874015741 });
       });
       expect(screen.getAllByText('notch')).toHaveLength(1);
@@ -890,7 +891,7 @@ describe('cuts', () => {
       act(() => {
         const st = useStore.getState();
         st.addCut(id);
-        const [c] = useStore.getState().doc.boards[0].cuts;
+        const [c] = worldParts(useStore.getState().doc)[0].cuts;
         st.updateCut(id, c.id, { face: 'thickness', from: 'max', across: 'length', offset: 0, width: 0.8661417332834628, depth: 0.25, stopMin: 3.062992125984252, stopMax: 20.070866141732285 });
       });
       expect(screen.getAllByText('notch')).toHaveLength(1);
@@ -907,7 +908,7 @@ describe('cuts', () => {
         const st = useStore.getState();
         st.addCut(id);
         st.addCut(id);
-        const [c1, c2] = useStore.getState().doc.boards[0].cuts;
+        const [c1, c2] = worldParts(useStore.getState().doc)[0].cuts;
         st.updateCut(id, c1.id, cheek(c1.id, 'min'));
         st.updateCut(id, c2.id, cheek(c2.id, 'max'));
       });
@@ -930,7 +931,7 @@ describe('cuts', () => {
 });
 
 describe('Properties with two or more parts selected', () => {
-  const board = (id: string) => useStore.getState().doc.boards.find((x) => x.id === id)!;
+  const board = (id: string) => worldParts(useStore.getState().doc).find((x) => x.id === id)!;
   const past = () => useStore.getState().past.length;
 
   /** a at the origin, b 3-1/2 wide at [30, 0, 8]; both selected. */
@@ -1116,7 +1117,7 @@ describe('Properties with two or more parts selected', () => {
     s.addBoard();
     s.addBoard();
     s.addBoard();
-    const [a, b, c] = useStore.getState().doc.boards.map((x) => x.id);
+    const [a, b, c] = worldParts(useStore.getState().doc).map((x) => x.id);
     useStore.getState().updateBoard(c!, { length: 30 });
     useStore.getState().selectBoard(a!);
     useStore.getState().toggleSelected(b!);
@@ -1138,7 +1139,7 @@ describe('Properties with two or more parts selected', () => {
     const s = useStore.getState();
     s.addBoard();
     s.addBoard();
-    const [a, b] = useStore.getState().doc.boards.map((x) => x.id);
+    const [a, b] = worldParts(useStore.getState().doc).map((x) => x.id);
     useStore.getState().selectBoard(a!);
     useStore.getState().toggleSelected(b!);
     render(<Properties />);
@@ -1154,7 +1155,7 @@ describe('Hide others', () => {
     const s = useStore.getState();
     s.addBoard();
     s.addBoard();
-    const [a, b] = useStore.getState().doc.boards.map((x) => x.id);
+    const [a, b] = worldParts(useStore.getState().doc).map((x) => x.id);
     useStore.getState().selectBoard(a!);
     render(<Properties />);
     await userEvent.click(screen.getByRole('button', { name: 'Hide others' }));
@@ -1166,7 +1167,7 @@ describe('Hide others', () => {
     s.addBoard();
     s.addBoard();
     s.addBoard();
-    const [a, b, c] = useStore.getState().doc.boards.map((x) => x.id);
+    const [a, b, c] = worldParts(useStore.getState().doc).map((x) => x.id);
     useStore.getState().selectBoard(a!);
     useStore.getState().toggleSelected(b!);
     render(<Properties />);
@@ -1180,12 +1181,12 @@ describe('linking controls', () => {
   const two = (lenB = 28) => {
     act(() => {
       st().addBoard(); st().addBoard();
-      const [a, b] = st().doc.boards.map((x) => x.id);
+      const [a, b] = worldParts(st().doc).map((x) => x.id);
       st().updateBoard(a!, { length: 28 });
       st().updateBoard(b!, { length: lenB });
       st().selectBoard(a!); st().toggleSelected(b!);
     });
-    return st().doc.boards.map((x) => x.id);
+    return worldParts(st().doc).map((x) => x.id);
   };
 
   it('offers Link with a "will match" line only when the parts differ', async () => {
@@ -1193,8 +1194,8 @@ describe('linking controls', () => {
     render(<Properties />);
     expect(screen.getByText(/Linking makes 1 part match Board:/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Link' }));
-    expect(new Set(st().doc.boards.map((b) => b.link)).size).toBe(1);
-    expect(st().doc.boards[1]!.length).toBe(28);
+    expect(new Set(worldParts(st().doc).map((b) => b.link)).size).toBe(1);
+    expect(worldParts(st().doc)[1]!.length).toBe(28);
   });
 
   it('no "will match" line for identical parts; Link hidden once they are one link; Unlink shown', async () => {
@@ -1220,7 +1221,7 @@ describe('linking controls', () => {
     act(() => { st().linkBoards([a!, b!]); st().selectBoard(a!); });
     render(<Properties />);
     await userEvent.click(screen.getByRole('button', { name: 'Unlink' }));
-    expect(st().doc.boards.every((x) => !('link' in x))).toBe(true);
+    expect(worldParts(st().doc).every((x) => !('link' in x))).toBe(true);
   });
 });
 

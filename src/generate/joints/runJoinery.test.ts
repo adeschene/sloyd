@@ -1,5 +1,7 @@
+import { worldParts } from '../../document/tree';
 import { describe, expect, it, vi } from 'vitest';
 import { designToDocument } from '../../document/generated';
+import type { SloydDocument } from '../../document/document';
 import { groupItems } from '../../document/document';
 import { LlmError } from '../../llm/types';
 import type { LlmClient, LlmResult } from '../../llm/types';
@@ -42,7 +44,7 @@ const RAILED = design(
   { name: 'Spare', at: [1.75, 23.5, 10], size: [18, 3, 0.75] },
   { name: 'Spare 2', at: [1.75, 23.5, 20], size: [18, 3, 0.75] },
 );
-const run = (c: LlmClient, d = CORNER) => runJoinery(c, d, new AbortController().signal, () => {});
+const run = (c: LlmClient, d: SloydDocument = CORNER) => runJoinery(c, d, new AbortController().signal, () => {});
 const ids = findSites(CORNER).map((s) => s.id);
 const long = { joints: ids.map((site) => ({ site, joint: 'mortise-tenon', tenonLength: 1.25 })) };
 const short = { joints: ids.map((site) => ({ site, joint: 'mortise-tenon', tenonLength: 0.5 })) };
@@ -107,7 +109,7 @@ describe('runJoinery', () => {
   });
 
   describe('links (linking spec 3.5)', () => {
-    const linked = (names: string[], d = RAILED) => ({ ...d, boards: d.boards.map((b) => (names.includes(b.name) ? { ...b, link: 'L' } : b)) });
+    const linked = (names: string[], d = RAILED) => ({ ...d, boards: worldParts(d).map((b) => (names.includes(b.name) ? { ...b, link: 'L' } : b)) });
     const railedIds = findSites(RAILED).map((s) => s.id);
     const railed = { joints: railedIds.map((site) => ({ site, joint: 'mortise-tenon', tenonLength: 0.5 })) };
 
@@ -116,7 +118,7 @@ describe('runJoinery', () => {
     it('two linked legs joinery cuts on different faces come out unlinked', async () => {
       const out = await run(client(railed), linked(['Leg A', 'Leg B']));
       if ('noSites' in out) throw new Error('expected sites');
-      const legs = out.result.doc.boards.filter((b) => b.name.startsWith('Leg'));
+      const legs = worldParts(out.result.doc).filter((b) => b.name.startsWith('Leg'));
       expect(legs.length).toBe(2);
       for (const l of legs) expect('link' in l).toBe(false);
     });
@@ -125,13 +127,13 @@ describe('runJoinery', () => {
       const d = linked(['Spare', 'Spare 2']);
       const out = await run(client(railed), d);
       if ('noSites' in out) throw new Error('expected sites');
-      const kept = out.result.doc.boards.filter((b) => b.link === 'L').map((b) => b.name);
+      const kept = worldParts(out.result.doc).filter((b) => b.link === 'L').map((b) => b.name);
       expect(kept.sort()).toEqual(['Spare', 'Spare 2']);
     });
   });
 
   it('returns the TREE: a grouped design comes back with its instance (assemblies spec §6.1)', async () => {
-    const grouped = groupItems(CORNER, null, CORNER.boards.map((b) => b.id))!.doc;
+    const grouped = groupItems(CORNER, null, worldParts(CORNER).map((b) => b.id))!.doc;
     const out = await run(client(long), grouped);
     if ('noSites' in out) throw new Error('expected sites');
     expect(out.result.doc.instances).toHaveLength(1);

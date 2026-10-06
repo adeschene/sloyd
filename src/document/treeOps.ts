@@ -1,4 +1,5 @@
-import type { Board, Definition, Instance, Rotation, SloydDocument } from './types';
+import type { Board, Definition, Instance, Rotation, SloydDocument, StoredBoard } from './types';
+import { isShaped, resolveBoard, shapeMap } from './shapes';
 import { nextId } from './ids';
 import { uniqueName } from './names';
 import type { Named } from './names';
@@ -128,11 +129,18 @@ export function ungroupItem(doc: SloydDocument, path: string):
     pairs.push([joinPath(path, id), joinPath(container, out)]);
     return out;
   };
-  const boards = def.boards.map((b) => {
-    const placed = { ...placeBoard(inst, b), id: fresh(b.id) };
-    const named = { ...placed, name: uniqueName(b.name, taken) };
+  const shapes = shapeMap(doc);
+  const boards = def.boards.flatMap((b): StoredBoard[] => {
+    const r = resolveBoard(shapes, b);
+    if (!r) return [];
+    const placed = { ...placeBoard(inst, r), id: fresh(b.id) };
+    const name = uniqueName(b.name, taken);
+    // A shaped part stays shaped: own fields from the placed result, the rest from storage.
+    const named: StoredBoard = isShaped(b)
+      ? { ...b, position: placed.position, rotation: placed.rotation, id: placed.id, name }
+      : { ...placed, name };
     taken.push(named);
-    return named;
+    return [named];
   });
   const instances = def.instances.map((j) => {
     const placed = { ...placeInstance(inst, j), id: fresh(j.id) };
@@ -159,7 +167,9 @@ export function copyInstanceTree(doc: SloydDocument, inst: Instance): { instance
     const instances = d.instances.map((j) => ({ ...j, position: [...j.position] as [number, number, number], definition: copyDef(j.definition) }));
     out.push({
       id: nid,
-      boards: d.boards.map((b) => ({ ...b, position: [...b.position] as [number, number, number], cuts: b.cuts.map((k) => ({ ...k })) })),
+      boards: d.boards.map((b) => (isShaped(b)
+        ? { ...b, position: [...b.position] as [number, number, number] }
+        : { ...b, position: [...b.position] as [number, number, number], cuts: b.cuts.map((k) => ({ ...k })) })),
       instances,
     });
     return nid;

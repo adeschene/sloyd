@@ -1,4 +1,4 @@
-import { flatDocument, migrateDocument, writeBackFlat } from '../document/document';
+import { flatDocument, migrateDocument, worldParts, writeBackFlat } from '../document/document';
 import type { SloydDocument } from '../document/document';
 import { DESIGN_SCHEMA, designToDocument, parseDesign } from '../document/generated';
 import { checkDesign, rejectedViolations } from '../document/designCheck';
@@ -142,7 +142,7 @@ export async function runGeneration(
 export const problemKey = (v: Violation) => JSON.stringify([v.kind, [...v.parts].sort()]);
 
 export interface JoineryOutcome {
-  result: JoinResult;
+  result: JoinResult<SloydDocument>;
   notes: string[];
   violations: Violation[];
   preexisting: Violation[];
@@ -173,9 +173,9 @@ export async function runJoinery(
   const old = new Set(preexisting.map(problemKey));
   const build = (choices: JointChoice[], notes: string[]) => {
     const joined = applyJoints(flat, sites, choices);
-    const violations = checkDesign(joined.doc, limits).filter((v) => !old.has(problemKey(v)));
+    const violations = checkDesign(flatDocument(joined.doc), limits).filter((v) => !old.has(problemKey(v)));
     // The tree-shaped document is what useJoinery saves (out.result.doc).
-    const tree = migrateDocument(writeBackFlat(doc, flat.boards, joined.doc.boards));
+    const tree = migrateDocument(writeBackFlat(doc, flat.boards, worldParts(joined.doc)));
     const result = { ...joined, doc: tree };
     return { doc: tree, violations, result, notes, preexisting };
   };

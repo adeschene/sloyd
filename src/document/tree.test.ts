@@ -1,10 +1,11 @@
 import {
   childrenOf, containerTurn, displayNames, flatDocument, instanceAt, isCovered, itemPaths,
-  parentPath, partAt, worldParts,
+  parentPath, resolvedPartAt, worldParts,
 } from './tree';
 import { placeBoard } from './frames';
 import { assemblyDoc } from './treeFixtures';
 import { createDocument, createBoard } from './document';
+import type { Shape, SloydDocument } from './document';
 
 describe('paths', () => {
   it('isCovered matches an ancestor, never a prefix of an id', () => {
@@ -29,7 +30,7 @@ describe('worldParts (assemblies spec §2.1)', () => {
     const doc = assemblyDoc();
     const [i1] = doc.instances;
     const i2 = instanceAt(doc, 'i1/i2')!;
-    const b3 = partAt(doc, 'i1/i2/b3')!;
+    const b3 = resolvedPartAt(doc, 'i1/i2/b3')!;
     const world = worldParts(doc).find((b) => b.id === 'i1/i2/b3')!;
     const expected = placeBoard(i1!, placeBoard(i2, b3));
     expect(world.position).toEqual(expected.position);
@@ -52,6 +53,18 @@ describe('worldParts (assemblies spec §2.1)', () => {
       ? { ...d, instances: [{ id: 'ix', name: 'Loop', definition: 'd2', position: [0, 0, 0] as [number, number, number], rotation: 0 as const }] }
       : d) };
     expect(worldParts(looped).map((b) => b.id)).toEqual(['r1', 'i1/b1', 'i1/b2', 'i1/i2/b3']);
+  });
+
+  it('worldParts resolves a shaped part inside a turned assembly', () => {
+    const shape: Shape = { id: 's1', length: 10, width: 2, thickness: 1, material: 'pine', grain: 'length', posture: 'flat', cuts: [] };
+    const doc: SloydDocument = {
+      ...createDocument(),
+      instances: [{ id: 'i1', name: 'A', definition: 'd1', position: [0, 0, 0], rotation: 90 }],
+      definitions: [{ id: 'd1', boards: [{ id: 'b1', name: 'P', position: [0, 0, 0], rotation: 0, shape: 's1' }], instances: [] }],
+      shapes: [shape],
+    };
+    const [p] = worldParts(doc);
+    expect(p).toMatchObject({ id: 'i1/b1', length: 10, rotation: 90, shape: 's1' });
   });
 });
 
@@ -76,7 +89,7 @@ describe('item sets', () => {
 describe('flatDocument', () => {
   it('names each part by its display path and has no tree', () => {
     const flat = flatDocument(assemblyDoc());
-    expect(flat.boards.map((b) => b.name)).toEqual(['Top', 'Drawer › Side', 'Drawer › Front', 'Drawer › Peg › Pin']);
+    expect(worldParts(flat).map((b) => b.name)).toEqual(['Top', 'Drawer › Side', 'Drawer › Front', 'Drawer › Peg › Pin']);
     expect(flat.instances).toEqual([]);
     expect(flat.definitions).toEqual([]);
     expect(displayNames(assemblyDoc()).get('i1/i2/b3')).toBe('Drawer › Peg › Pin');

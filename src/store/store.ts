@@ -3,7 +3,7 @@ import {
   boardsBounds, createBoard, createDocument, createGuide, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
   dissolveSingletons, linkPlan, sharedOf, sharedPatch, withoutLink,
   childrenOf, instanceAt, isCovered, itemPaths, parentPath, worldParts, mapWorld,
-  translateItems, insertItems, removeItems, copyInstanceTree, siblingsOf, containerAt, containerTurn, partAt, joinPath,
+  translateItems, insertItems, removeItems, copyInstanceTree, siblingsOf, containerAt, containerTurn, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
   rotateVec, inverseTurn, groupItems, ungroupItem, turnInstance as turnInstanceOp, updateContainer, lastSegment,
 } from '../document/document';
 import type { Board, BoardSnapPoint, Cut, Definition, Instance, Named, Rekey, Rotation, SloydDocument, SnapPoint, TapeAxis } from '../document/document';
@@ -903,7 +903,8 @@ export const useStore = create<StoreState>((set, get) => {
       const open = get().openPath;
       const c = containerAt(get().doc, open) ?? get().doc;
       // The template is the open level's last part, falling back to the root's last board when the open assembly has none.
-      const last = c.boards[c.boards.length - 1] ?? get().doc.boards[get().doc.boards.length - 1];
+      const lastStored = c.boards[c.boards.length - 1] ?? get().doc.boards[get().doc.boards.length - 1];
+      const last = lastStored ? resolveBoard(shapeMap(get().doc), lastStored) : null;
       const fresh = createBoard(
         last
           ? { length: last.length, width: last.width, thickness: last.thickness, material: last.material }
@@ -1038,7 +1039,7 @@ export const useStore = create<StoreState>((set, get) => {
       const instances: Instance[] = [];
       const definitions: Definition[] = [];
       for (const id of sameContainer) {
-        const part = partAt(doc, id);
+        const part = resolvedPartAt(doc, id);
         if (part) {
           const c = copyBoard(part, part.position, taken);
           taken.push(c);
@@ -1085,7 +1086,7 @@ export const useStore = create<StoreState>((set, get) => {
         const at = (p: readonly number[]) =>
           p.map((v, a) => (local[a] === 0 ? v : v + local[a]!)) as [number, number, number];
         for (const id of sources) {
-          const part = partAt(doc, id);
+          const part = resolvedPartAt(doc, id);
           if (part) {
             const c = copyBoard(part, at(part.position), taken);
             taken.push(c);

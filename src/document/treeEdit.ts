@@ -1,5 +1,6 @@
 import { boardExtents } from './geometry';
-import type { Board, Instance, SloydDocument } from './types';
+import type { Board, Instance, SloydDocument, StoredBoard } from './types';
+import { isShaped, resolveBoard, shapeMap } from './shapes';
 import { addTurns, cornerShift, inverseTurn, placeBoard, rotateVec } from './frames';
 import type { Container } from './tree';
 import { containerTurn, definitionAt, instancesOn, lastSegment, parentPath, partAt, worldParts } from './tree';
@@ -49,7 +50,8 @@ function lower(inst: Instance, upperBefore: Board, lowerBefore: Board, upperAfte
  * stored local position instead (spec §5.2) and must not pass it.
  */
 export function applyWorldEdits(doc: SloydDocument, edits: readonly WorldEdit[], opts?: { keepWorld?: boolean }): SloydDocument {
-  const byContainer = new Map<string | null, Map<string, Board>>();
+  const byContainer = new Map<string | null, Map<string, StoredBoard>>();
+  const shapes = shapeMap(doc);
   for (const { before, after } of edits) {
     const occ = before.id;
     const cPath = parentPath(occ);
@@ -57,7 +59,9 @@ export function applyWorldEdits(doc: SloydDocument, edits: readonly WorldEdit[],
     if (!stored) continue;
     const chain = cPath === null ? [] : instancesOn(doc, cPath) ?? [];
     const reps: Board[] = [];
-    reps[chain.length] = stored;
+    const resolved = resolveBoard(shapes, stored);
+    if (!resolved) continue;
+    reps[chain.length] = resolved;
     for (let j = chain.length - 1; j >= 0; j -= 1) reps[j] = placeBoard(chain[j]!, reps[j + 1]!);
     let cur = after;
     for (let j = 0; j < chain.length; j += 1) cur = lower(chain[j]!, reps[j]!, reps[j + 1]!, cur);
@@ -69,6 +73,8 @@ export function applyWorldEdits(doc: SloydDocument, edits: readonly WorldEdit[],
     const rec = (b: Board) => b as unknown as Record<string, unknown>;
     for (const k of new Set([...Object.keys(before), ...Object.keys(after)])) {
       if (k === 'id') continue;
+      // A shaped part stores only its own fields; writing a shared one back into a shape is Task 2.
+      if (isShaped(stored) && k !== 'position' && k !== 'rotation' && k !== 'name') continue;
       if (k === 'position' || k === 'rotation') {
         if (moved) next[k] = k === 'position' ? [...cur.position] : cur.rotation;
         continue;
@@ -79,7 +85,7 @@ export function applyWorldEdits(doc: SloydDocument, edits: readonly WorldEdit[],
       else delete next[k];
     }
     if (!byContainer.has(cPath)) byContainer.set(cPath, new Map());
-    byContainer.get(cPath)!.set(stored.id, next as unknown as Board);
+    byContainer.get(cPath)!.set(stored.id, next as unknown as StoredBoard);
   }
   let out = doc;
   for (const [cPath, parts] of byContainer) {

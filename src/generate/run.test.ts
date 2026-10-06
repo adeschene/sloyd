@@ -1,3 +1,4 @@
+import { worldParts } from '../document/tree';
 import { describe, expect, it, vi } from 'vitest';
 import { MAX_REPAIRS, RunFailed, problemKey, runGeneration, runRepairLoop } from './run';
 import type { GenerateSettings } from './prompt';
@@ -201,7 +202,7 @@ describe('runRepairLoop keepBestOnError', () => {
   it('returns the best attempt when a later call fails with a non-key error', async () => {
     const out = await go({ keepBestOnError: true });
     expect(out.violations.map((v) => v.parts)).toEqual([['B']]);
-    expect(out.doc.boards.map((b) => b.name)).toEqual(['A', 'B']);
+    expect(worldParts(out.doc).map((b) => b.name)).toEqual(['A', 'B']);
     expect(out.usage.inputTokens).toBe(10);
   });
 

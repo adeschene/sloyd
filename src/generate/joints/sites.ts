@@ -1,4 +1,4 @@
-import type { SloydDocument } from '../../document/document';
+import type { FlatDocument } from '../../document/document';
 import { TOUCH, faceContacts } from '../../document/designCheck';
 import { SNAP_INCHES, axisDimensions } from '../../document/geometry';
 import { boxOf } from './pocket';
@@ -29,7 +29,7 @@ const KIND_TEXT: Record<SiteKind, string> = {
 };
 
 export const stopLabel = (s: StopEnd) => `${s.end === 'max' ? '+' : '-'}${AXES[s.axis]}`;
-export const siteLabel = (s: Site, doc: SloydDocument) =>
+export const siteLabel = (s: Site, doc: FlatDocument) =>
   `${doc.boards[s.enter].name} → ${doc.boards[s.receive].name}: ${KIND_TEXT[s.kind]}`;
 
 const up = (v: number) => Math.ceil(v / SNAP_INCHES - 1e-9) * SNAP_INCHES;
@@ -37,12 +37,12 @@ const down = (v: number) => Math.floor(v / SNAP_INCHES + 1e-9) * SNAP_INCHES;
 const range = (lo: number, hi: number): [number, number] => [up(lo), down(hi)];
 
 /** R's extent along the contact axis — how far a joint can reach into it. */
-const depthOf = (doc: SloydDocument, s: Site) => {
+const depthOf = (doc: FlatDocument, s: Site) => {
   const r = boxOf(doc.boards[s.receive]);
   return r.max[s.axis] - r.min[s.axis];
 };
 
-export function rangesOf(s: Site, doc: SloydDocument): Ranges {
+export function rangesOf(s: Site, doc: FlatDocument): Ranges {
   const rDepth = depthOf(doc, s);
   const e = boxOf(doc.boards[s.enter]);
   return {
@@ -53,7 +53,7 @@ export function rangesOf(s: Site, doc: SloydDocument): Ranges {
   };
 }
 
-function allowedFor(kind: SiteKind, s: Omit<Site, 'id' | 'allowed'>, doc: SloydDocument): JointKind[] {
+function allowedFor(kind: SiteKind, s: Omit<Site, 'id' | 'allowed'>, doc: FlatDocument): JointKind[] {
   const E = doc.boards[s.enter];
   const R = doc.boards[s.receive];
   const rDepth = depthOf(doc, s as Site);
@@ -78,7 +78,7 @@ const inPlane = (axis: number) => [0, 1, 2].filter((k) => k !== axis) as (0 | 1 
  * come from BOX face contacts, so a pair already joined — interpenetrating —
  * is never a contact and is never joined twice.
  */
-export function findSites(doc: SloydDocument): Site[] {
+export function findSites(doc: FlatDocument): Site[] {
   const boxes = doc.boards.map(boxOf);
   const found: Omit<Site, 'id' | 'allowed'>[] = [];
   const kinds: SiteKind[] = [];

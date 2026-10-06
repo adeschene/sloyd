@@ -1,4 +1,4 @@
-import type { Board } from './types';
+import type { Board, Shape } from './types';
 import { CUT_GEOMETRY_KEYS } from './cuts';
 
 /**
@@ -7,7 +7,7 @@ import { CUT_GEOMETRY_KEYS } from './cuts';
  * Board field fail tsc until it is classified (invariant 40's argument).
  */
 export const LINK_FIELDS = {
-  id: 'own', name: 'own', position: 'own', rotation: 'own', link: 'own',
+  id: 'own', name: 'own', position: 'own', rotation: 'own', link: 'own', shape: 'own',
   length: 'shared', width: 'shared', thickness: 'shared', material: 'shared',
   grain: 'shared', posture: 'shared', cuts: 'shared',
 } as const satisfies Record<keyof Board, 'shared' | 'own'>;
@@ -18,6 +18,12 @@ export type SharedField = {
 
 export const SHARED_KEYS = (Object.keys(LINK_FIELDS) as (keyof typeof LINK_FIELDS)[])
   .filter((k): k is SharedField => LINK_FIELDS[k] === 'shared');
+
+export type OwnField = Exclude<keyof typeof LINK_FIELDS, SharedField>;
+
+/** Fails tsc when Shape's fields and LINK_FIELDS' shared set drift apart. */
+const _shapeMatchesTable: [Exclude<keyof Shape, 'id'>] extends [SharedField] ? ([SharedField] extends [Exclude<keyof Shape, 'id'>] ? true : never) : never = true;
+void _shapeMatchesTable;
 
 /**
  * `sameShared` compares every shared field except `cuts` with `!==`, which is

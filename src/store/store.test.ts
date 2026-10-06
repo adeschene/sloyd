@@ -1,3 +1,4 @@
+import { worldParts } from '../document/tree';
 import { useStore } from './store';
 import type { Board } from '../document/document';
 import { createBoard, createDocument, boardCenter, boardExtents, repairLinks, boardSnapPoints, cutSnapPoints, sameSnapPoint } from '../document/document';
@@ -11,15 +12,15 @@ describe('addBoard', () => {
     useStore.getState().addBoard();
     const { doc, selectedIds } = useStore.getState();
     expect(doc.boards).toHaveLength(1);
-    expect(selectedIds).toEqual([doc.boards[0].id]);
+    expect(selectedIds).toEqual([worldParts(doc)[0].id]);
   });
 
   it('reuses the dimensions of the most recently added board', () => {
     useStore.getState().addBoard();
-    const first = useStore.getState().doc.boards[0];
+    const first = worldParts(useStore.getState().doc)[0];
     useStore.getState().updateBoard(first.id, { length: 48, width: 11.25, thickness: 1.5 });
     useStore.getState().addBoard();
-    const second = useStore.getState().doc.boards[1];
+    const second = worldParts(useStore.getState().doc)[1];
     expect([second.length, second.width, second.thickness]).toEqual([48, 11.25, 1.5]);
   });
 
@@ -27,7 +28,7 @@ describe('addBoard', () => {
     useStore.getState().addBoard();
     useStore.getState().addBoard();
     useStore.getState().addBoard();
-    expect(useStore.getState().doc.boards.map((b) => b.name))
+    expect(worldParts(useStore.getState().doc).map((b) => b.name))
       .toEqual(['Board', 'Board (1)', 'Board (2)']);
   });
 
@@ -35,10 +36,10 @@ describe('addBoard', () => {
     useStore.getState().addBoard();
     useStore.getState().addBoard();
     useStore.getState().addBoard();
-    const middle = useStore.getState().doc.boards[1].id;
+    const middle = worldParts(useStore.getState().doc)[1].id;
     useStore.getState().deleteBoard(middle);
     useStore.getState().addBoard();
-    expect(useStore.getState().doc.boards.map((b) => b.name))
+    expect(worldParts(useStore.getState().doc).map((b) => b.name))
       .toEqual(['Board', 'Board (2)', 'Board (1)']);
   });
 });
@@ -46,9 +47,9 @@ describe('addBoard', () => {
 describe('updateBoard', () => {
   it('patches only the named fields', () => {
     useStore.getState().addBoard();
-    const id = useStore.getState().doc.boards[0].id;
+    const id = worldParts(useStore.getState().doc)[0].id;
     useStore.getState().updateBoard(id, { length: 30 });
-    const b = useStore.getState().doc.boards[0];
+    const b = worldParts(useStore.getState().doc)[0];
     expect(b.length).toBe(30);
     expect(b.width).toBe(5.5);
   });
@@ -59,16 +60,16 @@ describe('updateBoard', () => {
 
   it('copies an incoming position array so later caller mutation cannot corrupt history', () => {
     useStore.getState().addBoard();
-    const id = useStore.getState().doc.boards[0].id;
+    const id = worldParts(useStore.getState().doc)[0].id;
     const caller: [number, number, number] = [1, 2, 3];
     useStore.getState().updateBoard(id, { position: caller });
     caller[0] = 999;
-    expect(useStore.getState().doc.boards[0].position).toEqual([1, 2, 3]);
+    expect(worldParts(useStore.getState().doc)[0].position).toEqual([1, 2, 3]);
   });
 });
 
 describe('updateBoard reorients a board in place', () => {
-  const board = () => useStore.getState().doc.boards[0];
+  const board = () => worldParts(useStore.getState().doc)[0];
 
   const aBoard = () => {
     useStore.getState().addBoard();
@@ -157,7 +158,7 @@ describe('updateBoard reorients a board in place', () => {
     // not the board's stale ones — otherwise a length change bundled with a
     // rotation change lands the board off its true footprint centre.
     const id = aBoard();
-    const before = useStore.getState().doc.boards.find((b) => b.id === id)!;
+    const before = worldParts(useStore.getState().doc).find((b) => b.id === id)!;
     const preCentre = boardCenter(before);
     useStore.getState().updateBoard(id, { rotation: 90, length: 48 });
     const after = board();
@@ -174,7 +175,7 @@ describe('updateBoard resets grain when switching to a sheet good', () => {
   // keeps it to one undo entry rather than two (change material, then a
   // second edit to fix grain) — the same pattern the reorient logic above
   // follows for rotation/posture.
-  const board = () => useStore.getState().doc.boards[0];
+  const board = () => worldParts(useStore.getState().doc)[0];
 
   it('resets grain to length when switching to plywood while grain is thickness', () => {
     useStore.getState().addBoard();
@@ -209,9 +210,9 @@ describe('updateBoard resets grain when switching to a sheet good', () => {
 describe('deleteBoard', () => {
   it('removes the board and clears the selection if it was selected', () => {
     useStore.getState().addBoard();
-    const id = useStore.getState().doc.boards[0].id;
+    const id = worldParts(useStore.getState().doc)[0].id;
     useStore.getState().deleteBoard(id);
-    expect(useStore.getState().doc.boards).toHaveLength(0);
+    expect(worldParts(useStore.getState().doc)).toHaveLength(0);
     expect(useStore.getState().selectedIds).toEqual([]);
   });
 });
@@ -219,43 +220,43 @@ describe('deleteBoard', () => {
 describe('duplicateBoard', () => {
   it('copies the board with a new id, offset name, and selects the copy', () => {
     useStore.getState().addBoard();
-    const orig = useStore.getState().doc.boards[0];
+    const orig = worldParts(useStore.getState().doc)[0];
     useStore.getState().updateBoard(orig.id, { name: 'Shelf' });
     useStore.getState().duplicateBoard(orig.id);
     const { doc, selectedIds } = useStore.getState();
     expect(doc.boards).toHaveLength(2);
-    expect(doc.boards[1].id).not.toBe(orig.id);
-    expect(doc.boards[1].name).toBe('Shelf (1)');
-    expect(selectedIds).toEqual([doc.boards[1].id]);
+    expect(worldParts(doc)[1].id).not.toBe(orig.id);
+    expect(worldParts(doc)[1].name).toBe('Shelf (1)');
+    expect(selectedIds).toEqual([worldParts(doc)[1].id]);
   });
 
   it('names the copy with a numeric suffix, not "copy"', () => {
     useStore.getState().addBoard();
-    const source = useStore.getState().doc.boards[0];
+    const source = worldParts(useStore.getState().doc)[0];
     useStore.getState().updateBoard(source.id, { name: 'Leg' });
     useStore.getState().duplicateBoard(source.id);
-    expect(useStore.getState().doc.boards.map((b) => b.name)).toEqual(['Leg', 'Leg (1)']);
+    expect(worldParts(useStore.getState().doc).map((b) => b.name)).toEqual(['Leg', 'Leg (1)']);
   });
 
   it('duplicating a duplicate does not nest suffixes', () => {
     useStore.getState().addBoard();
-    const source = useStore.getState().doc.boards[0];
+    const source = worldParts(useStore.getState().doc)[0];
     useStore.getState().updateBoard(source.id, { name: 'Leg' });
     useStore.getState().duplicateBoard(source.id);
-    const copy = useStore.getState().doc.boards[1];
+    const copy = worldParts(useStore.getState().doc)[1];
     expect(copy.name).toBe('Leg (1)');
     useStore.getState().duplicateBoard(copy.id);
-    expect(useStore.getState().doc.boards[2].name).toBe('Leg (2)');
+    expect(worldParts(useStore.getState().doc)[2].name).toBe('Leg (2)');
   });
 
   it('copies cuts by value, not by reference, with fresh ids', () => {
     useStore.getState().addBoard();
-    const source = useStore.getState().doc.boards[0];
+    const source = worldParts(useStore.getState().doc)[0];
     useStore.getState().addCut(source.id);
     useStore.getState().duplicateBoard(source.id);
     const { doc } = useStore.getState();
-    const src = doc.boards[0];
-    const copy = doc.boards[1];
+    const src = worldParts(doc)[0];
+    const copy = worldParts(doc)[1];
 
     expect(src.cuts).not.toBe(copy.cuts);
     expect(src.cuts[0]).not.toBe(copy.cuts[0]);
@@ -263,7 +264,7 @@ describe('duplicateBoard', () => {
 
     const sourceDepth = src.cuts[0].depth;
     useStore.getState().updateCut(copy.id, copy.cuts[0].id, { depth: 0.5 });
-    const after = useStore.getState().doc.boards;
+    const after = worldParts(useStore.getState().doc);
     expect(sourceDepth).not.toBe(0.5);
     expect(after[1].cuts[0].depth).toBe(0.5);
     expect(after[0].cuts[0].depth).toBe(sourceDepth);
@@ -279,7 +280,7 @@ describe('undo / redo', () => {
   it('undoes an add', () => {
     useStore.getState().addBoard();
     useStore.getState().undo();
-    expect(useStore.getState().doc.boards).toHaveLength(0);
+    expect(worldParts(useStore.getState().doc)).toHaveLength(0);
     expect(useStore.getState().canRedo()).toBe(true);
   });
 
@@ -287,7 +288,7 @@ describe('undo / redo', () => {
     useStore.getState().addBoard();
     useStore.getState().undo();
     useStore.getState().redo();
-    expect(useStore.getState().doc.boards).toHaveLength(1);
+    expect(worldParts(useStore.getState().doc)).toHaveLength(1);
   });
 
   it('drops the redo stack once a new edit lands', () => {
@@ -299,15 +300,15 @@ describe('undo / redo', () => {
 
   it('undoes an update back to the previous value', () => {
     useStore.getState().addBoard();
-    const id = useStore.getState().doc.boards[0].id;
+    const id = worldParts(useStore.getState().doc)[0].id;
     useStore.getState().updateBoard(id, { length: 30 });
     useStore.getState().undo();
-    expect(useStore.getState().doc.boards[0].length).toBe(24);
+    expect(worldParts(useStore.getState().doc)[0].length).toBe(24);
   });
 
   it('is a no-op when there is nothing to undo', () => {
     expect(() => useStore.getState().undo()).not.toThrow();
-    expect(useStore.getState().doc.boards).toHaveLength(0);
+    expect(worldParts(useStore.getState().doc)).toHaveLength(0);
   });
 
   it('caps history at 50 entries', () => {
@@ -339,7 +340,7 @@ describe('replaceDocument', () => {
 describe('gesture coalescing', () => {
   it('records one undo entry for a whole gesture', () => {
     useStore.getState().addBoard();
-    const id = useStore.getState().doc.boards[0].id;
+    const id = worldParts(useStore.getState().doc)[0].id;
     const before = useStore.getState().past.length;
 
     useStore.getState().beginGesture();
@@ -350,7 +351,7 @@ describe('gesture coalescing', () => {
 
     expect(useStore.getState().past.length).toBe(before + 1);
     useStore.getState().undo();
-    expect(useStore.getState().doc.boards[0].position).toEqual([0, 0, 0]);
+    expect(worldParts(useStore.getState().doc)[0].position).toEqual([0, 0, 0]);
   });
 
   it('records nothing for a gesture that made no edit', () => {
@@ -363,7 +364,7 @@ describe('gesture coalescing', () => {
 
   it('records separately for two consecutive gestures', () => {
     useStore.getState().addBoard();
-    const id = useStore.getState().doc.boards[0].id;
+    const id = worldParts(useStore.getState().doc)[0].id;
     const before = useStore.getState().past.length;
 
     useStore.getState().beginGesture();
@@ -376,7 +377,7 @@ describe('gesture coalescing', () => {
 
     expect(useStore.getState().past.length).toBe(before + 2);
     useStore.getState().undo();
-    expect(useStore.getState().doc.boards[0].position).toEqual([1, 0, 0]);
+    expect(worldParts(useStore.getState().doc)[0].position).toEqual([1, 0, 0]);
   });
 
   /**
@@ -397,7 +398,7 @@ describe('gesture coalescing', () => {
    */
   it('a gesture left open does not survive replaceDocument', () => {
     useStore.getState().addBoard();
-    const id = useStore.getState().doc.boards[0].id;
+    const id = worldParts(useStore.getState().doc)[0].id;
     useStore.getState().beginGesture();
     useStore.getState().updateBoard(id, { position: [1, 0, 0] });
     // No endGesture() — the component went away mid-gesture.
@@ -406,18 +407,18 @@ describe('gesture coalescing', () => {
     expect(useStore.getState().past).toHaveLength(0);
 
     useStore.getState().addBoard();
-    const next = useStore.getState().doc.boards[0].id;
+    const next = worldParts(useStore.getState().doc)[0].id;
     useStore.getState().updateBoard(next, { position: [2, 0, 0] });
 
     expect(useStore.getState().past).toHaveLength(2);
     useStore.getState().undo();
-    expect(useStore.getState().doc.boards[0].position).toEqual([0, 0, 0]);
+    expect(worldParts(useStore.getState().doc)[0].position).toEqual([0, 0, 0]);
   });
 });
 
 describe('cuts', () => {
-  const boardId = () => useStore.getState().doc.boards[0].id;
-  const cuts = () => useStore.getState().doc.boards[0].cuts;
+  const boardId = () => worldParts(useStore.getState().doc)[0].id;
+  const cuts = () => worldParts(useStore.getState().doc)[0].cuts;
 
   beforeEach(() => {
     useStore.setState({ doc: createDocument(), selectedIds: [], past: [], future: [] });
@@ -433,7 +434,7 @@ describe('cuts', () => {
     useStore.getState().addCut(boardId());
     useStore.getState().updateCut(boardId(), cuts()[0].id, { stopMin: 1, stopMax: 0.5 });
     useStore.getState().duplicateBoard(boardId());
-    const copy = useStore.getState().doc.boards[1];
+    const copy = worldParts(useStore.getState().doc)[1];
     expect(copy.cuts[0]).toMatchObject({ stopMin: 1, stopMax: 0.5 });
   });
 
@@ -476,10 +477,10 @@ describe('cuts', () => {
   // extents and never moves the board, so reorienting on a cut change would
   // be a no-op pivot. Same reasoning that keeps `grain` out of the predicate.
   it('never moves the board', () => {
-    const before = useStore.getState().doc.boards[0].position;
+    const before = worldParts(useStore.getState().doc)[0].position;
     useStore.getState().addCut(boardId());
     useStore.getState().updateCut(boardId(), cuts()[0].id, { depth: 0.5 });
-    expect(useStore.getState().doc.boards[0].position).toEqual(before);
+    expect(worldParts(useStore.getState().doc)[0].position).toEqual(before);
   });
 
   it('ignores an unknown board or cut', () => {
@@ -543,13 +544,13 @@ describe('the Move tool', () => {
     const s = useStore.getState();
     s.addBoard();
     s.addBoard();
-    const [a, b] = useStore.getState().doc.boards;
+    const [a, b] = worldParts(useStore.getState().doc);
     useStore.getState().selectBoard(a!.id);
     return { a, b };
   };
 
   const cornerOf = (id: string) => {
-    const board = useStore.getState().doc.boards.find((x) => x.id === id)!;
+    const board = worldParts(useStore.getState().doc).find((x) => x.id === id)!;
     return boardSnapPoints(board).find((p) => p.kind === 'corner')!;
   };
 
@@ -577,7 +578,7 @@ describe('the Move tool', () => {
     useStore.getState().grabSnapPoint(grab);
     useStore.getState().commitSnapMove(target);
 
-    const moved = useStore.getState().doc.boards.find((x) => x.id === a.id)!;
+    const moved = worldParts(useStore.getState().doc).find((x) => x.id === a.id)!;
     const landed = boardSnapPoints(moved).find(
       (p) => p.kind === grab.kind && p.at.every((v, i) => v === target.at[i]),
     );
@@ -590,7 +591,7 @@ describe('the Move tool', () => {
     useStore.getState().updateBoard(b.id, { position: [0.01, 0, 0] });
     useStore.getState().grabSnapPoint(cornerOf(a.id));
     useStore.getState().commitSnapMove(cornerOf(b.id));
-    const moved = useStore.getState().doc.boards.find((x) => x.id === a.id)!;
+    const moved = worldParts(useStore.getState().doc).find((x) => x.id === a.id)!;
     expect(moved.position[0]).toBeCloseTo(0.01, 10);
   });
 
@@ -612,22 +613,22 @@ describe('the Move tool', () => {
   it('reverts a whole snap move with one undo', () => {
     const { a, b } = twoBoards();
     useStore.getState().updateBoard(b.id, { position: [40, 0, 0] });
-    const before = [...useStore.getState().doc.boards.find((x) => x.id === a.id)!.position];
+    const before = [...worldParts(useStore.getState().doc).find((x) => x.id === a.id)!.position];
     useStore.getState().grabSnapPoint(cornerOf(a.id));
     useStore.getState().commitSnapMove(cornerOf(b.id));
     useStore.getState().undo();
-    expect(useStore.getState().doc.boards.find((x) => x.id === a.id)!.position)
+    expect(worldParts(useStore.getState().doc).find((x) => x.id === a.id)!.position)
       .toEqual(before);
   });
 
   it('ignores a target on the grabbed board itself', () => {
     const { a } = twoBoards();
-    const corners = boardSnapPoints(useStore.getState().doc.boards[0]!)
+    const corners = boardSnapPoints(worldParts(useStore.getState().doc)[0]!)
       .filter((p) => p.kind === 'corner');
-    const before = [...useStore.getState().doc.boards.find((x) => x.id === a.id)!.position];
+    const before = [...worldParts(useStore.getState().doc).find((x) => x.id === a.id)!.position];
     useStore.getState().grabSnapPoint(corners[0]!);
     useStore.getState().commitSnapMove(corners[7]!);
-    expect(useStore.getState().doc.boards.find((x) => x.id === a.id)!.position)
+    expect(worldParts(useStore.getState().doc).find((x) => x.id === a.id)!.position)
       .toEqual(before);
     expect(useStore.getState().grabbed).not.toBeNull();
   });
@@ -637,7 +638,7 @@ describe('the Move tool', () => {
     const undoDepth = useStore.getState().past.length;
     useStore.getState().commitSnapMove(cornerOf(b.id));
     expect(useStore.getState().past.length).toBe(undoDepth);
-    expect(useStore.getState().doc.boards.find((x) => x.id === a.id)).toBeDefined();
+    expect(worldParts(useStore.getState().doc).find((x) => x.id === a.id)).toBeDefined();
   });
 
   it('leaves no undo entry when the two points already coincide', () => {
@@ -645,7 +646,7 @@ describe('the Move tool', () => {
     const grab = cornerOf(a.id);
     // Move b so its grabbed-kind corner is already where a's is.
     const target = cornerOf(b.id);
-    const board = useStore.getState().doc.boards.find((x) => x.id === b.id)!;
+    const board = worldParts(useStore.getState().doc).find((x) => x.id === b.id)!;
     useStore.getState().updateBoard(b.id, {
       position: [
         board.position[0] + (grab.at[0] - target.at[0]),
@@ -715,13 +716,13 @@ describe('the Move tool', () => {
     useStore.getState().undo();
     expect(useStore.getState().grabbed).toBeNull();
 
-    useStore.getState().grabSnapPoint(cornerOf(useStore.getState().doc.boards[0]!.id));
+    useStore.getState().grabSnapPoint(cornerOf(worldParts(useStore.getState().doc)[0]!.id));
     useStore.getState().redo();
     expect(useStore.getState().grabbed).toBeNull();
   });
 
   const shoulderOf = (id: string) => {
-    const board = useStore.getState().doc.boards.find((x) => x.id === id)!;
+    const board = worldParts(useStore.getState().doc).find((x) => x.id === id)!;
     const point = cutSnapPoints(board)[0];
     expect(point, 'fixture must have a cut with offerable points').toBeDefined();
     return point;
@@ -734,7 +735,7 @@ describe('the Move tool', () => {
     useStore.getState().grabSnapPoint(shoulderOf(a.id));
     expect(useStore.getState().grabbed).not.toBeNull();
 
-    const cutId = useStore.getState().doc.boards.find((x) => x.id === a.id)!.cuts[0].id;
+    const cutId = worldParts(useStore.getState().doc).find((x) => x.id === a.id)!.cuts[0].id;
     useStore.getState().removeCut(a.id, cutId);
     expect(useStore.getState().grabbed).toBeNull();
   });
@@ -745,14 +746,14 @@ describe('the Move tool', () => {
     useStore.getState().addCut(a.id);
     useStore.getState().grabSnapPoint(shoulderOf(a.id));
 
-    const cutId = useStore.getState().doc.boards.find((x) => x.id === a.id)!.cuts[0].id;
+    const cutId = worldParts(useStore.getState().doc).find((x) => x.id === a.id)!.cuts[0].id;
     useStore.getState().updateCut(a.id, cutId, { offset: 9 });
     expect(useStore.getState().grabbed).toBeNull();
   });
 
   /** Points of a's cut that a stopMin edit to 1 removes, and ones it keeps. */
   const stopEditSplit = (id: string) => {
-    const board = useStore.getState().doc.boards.find((x) => x.id === id)!;
+    const board = worldParts(useStore.getState().doc).find((x) => x.id === id)!;
     const before = cutSnapPoints(board);
     const after = cutSnapPoints({ ...board, cuts: [{ ...board.cuts[0], stopMin: 1 }] });
     const gone = before.find((p) => !after.some((q) => sameSnapPoint(p, q)));
@@ -768,7 +769,7 @@ describe('the Move tool', () => {
     useStore.getState().addCut(a.id);
     const { gone } = stopEditSplit(a.id);
     useStore.getState().grabSnapPoint(gone);
-    const cutId = useStore.getState().doc.boards.find((x) => x.id === a.id)!.cuts[0].id;
+    const cutId = worldParts(useStore.getState().doc).find((x) => x.id === a.id)!.cuts[0].id;
     useStore.getState().updateCut(a.id, cutId, { stopMin: 1 });
     expect(useStore.getState().grabbed).toBeNull();
   });
@@ -779,7 +780,7 @@ describe('the Move tool', () => {
     useStore.getState().addCut(a.id);
     const { kept } = stopEditSplit(a.id);
     useStore.getState().grabSnapPoint(kept);
-    const cutId = useStore.getState().doc.boards.find((x) => x.id === a.id)!.cuts[0].id;
+    const cutId = worldParts(useStore.getState().doc).find((x) => x.id === a.id)!.cuts[0].id;
     useStore.getState().updateCut(a.id, cutId, { stopMin: 1 });
     expect(useStore.getState().grabbed).not.toBeNull();
   });
@@ -806,7 +807,7 @@ describe('the Move tool', () => {
     // The corner at length === 0, thickness === board.thickness (the `max`
     // face a default cut enters) — as opposed to cornerOf's all-mins corner,
     // which no cut on this board's `thickness`/`max` face can ever reach.
-    const board = useStore.getState().doc.boards.find((x) => x.id === id)!;
+    const board = worldParts(useStore.getState().doc).find((x) => x.id === id)!;
     const corner = boardSnapPoints(board).find(
       (p) =>
         p.kind === 'corner' &&
@@ -836,7 +837,7 @@ describe('the Move tool', () => {
     // still held before the edit under test.
     expect(useStore.getState().grabbed).toEqual(corner);
 
-    const cutId = useStore.getState().doc.boards.find((x) => x.id === a.id)!.cuts[0].id;
+    const cutId = worldParts(useStore.getState().doc).find((x) => x.id === a.id)!.cuts[0].id;
     // Pull the cut flush with the board's own end. cutRegion spans the
     // FULL `across` dimension (width) regardless of offset, so with
     // offset === 0 and the default width (0.75) the removed region is
@@ -865,11 +866,11 @@ describe('the Move tool', () => {
 
   it('cancelGrab clears the grab and moves nothing', () => {
     const { a } = twoBoards();
-    const before = [...useStore.getState().doc.boards.find((x) => x.id === a.id)!.position];
+    const before = [...worldParts(useStore.getState().doc).find((x) => x.id === a.id)!.position];
     useStore.getState().grabSnapPoint(cornerOf(a.id));
     useStore.getState().cancelGrab();
     expect(useStore.getState().grabbed).toBeNull();
-    expect(useStore.getState().doc.boards.find((x) => x.id === a.id)!.position)
+    expect(worldParts(useStore.getState().doc).find((x) => x.id === a.id)!.position)
       .toEqual(before);
   });
 
@@ -925,7 +926,7 @@ describe('the Move tool', () => {
     // already uses.
     const { a, b } = twoBoards();
     useStore.getState().updateBoard(b.id, { position: [40, 0, 0] });
-    const before = [...useStore.getState().doc.boards.find((x) => x.id === a.id)!.position];
+    const before = [...worldParts(useStore.getState().doc).find((x) => x.id === a.id)!.position];
     const undoDepth = useStore.getState().past.length;
 
     useStore.getState().grabSnapPoint(cornerOf(a.id));
@@ -933,7 +934,7 @@ describe('the Move tool', () => {
     useStore.setState({ selectedIds: [b.id] });
     useStore.getState().commitSnapMove(cornerOf(b.id));
 
-    expect(useStore.getState().doc.boards.find((x) => x.id === a.id)!.position)
+    expect(worldParts(useStore.getState().doc).find((x) => x.id === a.id)!.position)
       .toEqual(before);
     // No edit() ran, so no undo snapshot was pushed and redo was not wiped.
     expect(useStore.getState().past.length).toBe(undoDepth);
@@ -949,13 +950,13 @@ describe('SnapOwner widening — a guide is a legal target', () => {
 
   it('a board can be snapped onto a guide point', () => {
     useStore.getState().addBoard();
-    const board = useStore.getState().doc.boards[0];
+    const board = worldParts(useStore.getState().doc)[0];
     const corner = boardSnapPoints(board)[0];
     useStore.getState().grabSnapPoint(corner);
     useStore.getState().commitSnapMove(guidePoint('g1', [
       corner.at[0] + 5, corner.at[1] + 6, corner.at[2] + 7,
     ]));
-    const moved = useStore.getState().doc.boards[0];
+    const moved = worldParts(useStore.getState().doc)[0];
     expect(moved.position).toEqual([
       board.position[0] + 5, board.position[1] + 6, board.position[2] + 7,
     ]);
@@ -969,13 +970,13 @@ describe('SnapOwner widening — a guide is a legal target', () => {
   // would be silently refused. See the design's §3.0.
   it('does not mistake a guide for the grabbed board when their ids collide', () => {
     useStore.getState().addBoard();
-    const board = useStore.getState().doc.boards[0];
+    const board = worldParts(useStore.getState().doc)[0];
     const corner = boardSnapPoints(board)[0];
     useStore.getState().grabSnapPoint(corner);
     useStore.getState().commitSnapMove(guidePoint(board.id, [
       corner.at[0] + 3, corner.at[1], corner.at[2],
     ]));
-    expect(useStore.getState().doc.boards[0].position[0]).toBe(board.position[0] + 3);
+    expect(worldParts(useStore.getState().doc)[0].position[0]).toBe(board.position[0] + 3);
   });
 });
 
@@ -1036,14 +1037,14 @@ describe('guide actions', () => {
 describe('a turn and the tape anchor (quarter-turns Review Focus 2)', () => {
   const cutBoard = () => {
     useStore.getState().addBoard();
-    const id = useStore.getState().doc.boards[0]!.id;
+    const id = worldParts(useStore.getState().doc)[0]!.id;
     useStore.getState().addCut(id);
     return id;
   };
 
   it('a 180 keeps an anchor on a box corner', () => {
     const id = cutBoard();
-    const board = useStore.getState().doc.boards[0]!;
+    const board = worldParts(useStore.getState().doc)[0]!;
     const corner = boardSnapPoints(board).find((p) => p.kind === 'corner')!;
     useStore.getState().setTapeAnchor(corner);
     useStore.getState().updateBoard(id, { rotation: 180 });
@@ -1052,7 +1053,7 @@ describe('a turn and the tape anchor (quarter-turns Review Focus 2)', () => {
 
   it('a 180 drops an anchor on a cut snap point', () => {
     const id = cutBoard();
-    const board = useStore.getState().doc.boards[0]!;
+    const board = worldParts(useStore.getState().doc)[0]!;
     useStore.getState().setTapeAnchor(cutSnapPoints(board)[0]!);
     useStore.getState().updateBoard(id, { rotation: 180 });
     expect(useStore.getState().tapeAnchor).toBeNull();
@@ -1062,7 +1063,7 @@ describe('a turn and the tape anchor (quarter-turns Review Focus 2)', () => {
 describe('tapeAnchor — invariant 24, second instance', () => {
   const anchorOn = () => {
     useStore.getState().addBoard();
-    const board = useStore.getState().doc.boards[0];
+    const board = worldParts(useStore.getState().doc)[0];
     const point = boardSnapPoints(board)[0];
     useStore.getState().setTapeAnchor(point);
     return board;
@@ -1085,7 +1086,7 @@ describe('tapeAnchor — invariant 24, second instance', () => {
   it('drops the anchor on undo and on redo', () => {
     useStore.getState().addBoard();
     useStore.getState().addBoard();
-    const first = useStore.getState().doc.boards[0];
+    const first = worldParts(useStore.getState().doc)[0];
     useStore.getState().setTapeAnchor(boardSnapPoints(first)[0]);
     useStore.getState().undo();
     expect(useStore.getState().tapeAnchor).toBeNull();
@@ -1095,7 +1096,7 @@ describe('tapeAnchor — invariant 24, second instance', () => {
     // without running its body and the assertion below would say nothing
     // about redo at all. Exactly why the grab test above re-arms with
     // grabSnapPoint rather than with an edit.
-    useStore.getState().setTapeAnchor(boardSnapPoints(useStore.getState().doc.boards[0])[0]);
+    useStore.getState().setTapeAnchor(boardSnapPoints(worldParts(useStore.getState().doc)[0])[0]);
     useStore.getState().redo();
     expect(useStore.getState().tapeAnchor).toBeNull();
   });
@@ -1122,7 +1123,7 @@ describe('tapeAnchor — invariant 24, second instance', () => {
   // of this shape in this round.
   it('drops the anchor when its own board moves', () => {
     useStore.getState().addBoard();
-    const board = useStore.getState().doc.boards[0];
+    const board = worldParts(useStore.getState().doc)[0];
     const far = boardSnapPoints(board).find((p) => p.at[0] > 0);
     if (!far) throw new Error('fixture: expected a snap point off the min corner');
     useStore.getState().setTapeAnchor(far);
@@ -1144,7 +1145,7 @@ describe('tapeAnchor — invariant 24, second instance', () => {
   it('keeps the anchor when a DIFFERENT board changes', () => {
     const board = anchorOn();
     useStore.getState().addBoard();
-    const other = useStore.getState().doc.boards.find((b) => b.id !== board.id)!;
+    const other = worldParts(useStore.getState().doc).find((b) => b.id !== board.id)!;
     useStore.getState().updateBoard(other.id, { length: 48 });
     expect(useStore.getState().tapeAnchor).not.toBeNull();
   });
@@ -1186,10 +1187,10 @@ describe('tapeAnchor — invariant 24, second instance', () => {
   // on a shoulder needs the same point-precise clear a grab on one gets.
   it('drops an anchor on a cut shoulder when that cut is removed', () => {
     useStore.getState().addBoard();
-    const board = useStore.getState().doc.boards[0];
+    const board = worldParts(useStore.getState().doc)[0];
     useStore.getState().addCut(board.id);
-    const cut = useStore.getState().doc.boards[0].cuts[0];
-    const shoulder = cutSnapPoints(useStore.getState().doc.boards[0])[0];
+    const cut = worldParts(useStore.getState().doc)[0].cuts[0];
+    const shoulder = cutSnapPoints(worldParts(useStore.getState().doc)[0])[0];
     useStore.getState().setTapeAnchor(shoulder);
     useStore.getState().removeCut(board.id, cut.id);
     expect(useStore.getState().tapeAnchor).toBeNull();
@@ -1200,7 +1201,7 @@ describe('tapeAnchor — invariant 24, second instance', () => {
   // same asymmetry dropHeldIfGone already has for grabs — see invariant 24.
   it('keeps an anchor on a box corner when a mid-face cut is added', () => {
     useStore.getState().addBoard();
-    const board = useStore.getState().doc.boards[0];
+    const board = worldParts(useStore.getState().doc)[0];
     useStore.getState().setTapeAnchor(boardSnapPoints(board)[0]);
     useStore.getState().addCut(board.id);
     expect(useStore.getState().tapeAnchor).not.toBeNull();
@@ -1212,7 +1213,7 @@ describe('tapeAnchor — invariant 24, second instance', () => {
   // shape of dropHeldIfGone is verified by reading it, not by this test.
   it('leaves both held points alone when a cut is edited with nothing held', () => {
     useStore.getState().addBoard();
-    const board = useStore.getState().doc.boards[0];
+    const board = worldParts(useStore.getState().doc)[0];
     useStore.getState().addCut(board.id);
     expect(useStore.getState().grabbed).toBeNull();
     expect(useStore.getState().tapeAnchor).toBeNull();
@@ -1246,7 +1247,7 @@ describe('tapeHover — invariant 24, third instance', () => {
   const anchorAndHover = () => {
     useStore.getState().addBoard();
     useStore.getState().addBoard();
-    const [from, to] = useStore.getState().doc.boards;
+    const [from, to] = worldParts(useStore.getState().doc);
     const far = boardSnapPoints(to).find((p) => p.at[0] > 0);
     if (!far) throw new Error('fixture: expected a snap point off the min corner');
     useStore.getState().setTapeAnchor(boardSnapPoints(from)[0]);
@@ -1256,7 +1257,7 @@ describe('tapeHover — invariant 24, third instance', () => {
 
   it('holds and clears a hover', () => {
     useStore.getState().addBoard();
-    const point = boardSnapPoints(useStore.getState().doc.boards[0])[0];
+    const point = boardSnapPoints(worldParts(useStore.getState().doc)[0])[0];
     useStore.getState().setTapeHover(point);
     expect(useStore.getState().tapeHover).toEqual(point);
     useStore.getState().setTapeHover(null);
@@ -1284,7 +1285,7 @@ describe('tapeHover — invariant 24, third instance', () => {
   it('keeps a latched hover when a THIRD board is edited', () => {
     anchorAndHover();
     useStore.getState().addBoard();
-    const third = useStore.getState().doc.boards[2];
+    const third = worldParts(useStore.getState().doc)[2];
     useStore.getState().updateBoard(third.id, { length: 48 });
     expect(useStore.getState().tapeHover).not.toBeNull();
   });
@@ -1306,7 +1307,7 @@ describe('tapeHover — invariant 24, third instance', () => {
   it('keeps a latched hover on a corner the edit does not move', () => {
     useStore.getState().addBoard();
     useStore.getState().addBoard();
-    const [from, to] = useStore.getState().doc.boards;
+    const [from, to] = worldParts(useStore.getState().doc);
     useStore.getState().setTapeAnchor(boardSnapPoints(from)[0]);
     const min = boardSnapPoints(to).find((p) => p.at[0] === 0 && p.at[1] === 0 && p.at[2] === 0);
     if (!min) throw new Error('fixture: expected a min-corner snap point');
@@ -1328,7 +1329,7 @@ describe('tapeHover — invariant 24, third instance', () => {
   it('keeps a latched hover when a THIRD board is deleted', () => {
     anchorAndHover();
     useStore.getState().addBoard();
-    const third = useStore.getState().doc.boards[2];
+    const third = worldParts(useStore.getState().doc)[2];
     useStore.getState().deleteBoard(third.id);
     expect(useStore.getState().tapeHover).not.toBeNull();
   });
@@ -1337,10 +1338,10 @@ describe('tapeHover — invariant 24, third instance', () => {
   // move the board, it destroys the FEATURE under the point.
   it('drops a hover on a cut shoulder when that cut is removed', () => {
     useStore.getState().addBoard();
-    const board = useStore.getState().doc.boards[0];
+    const board = worldParts(useStore.getState().doc)[0];
     useStore.getState().addCut(board.id);
-    const cut = useStore.getState().doc.boards[0].cuts[0];
-    useStore.getState().setTapeHover(cutSnapPoints(useStore.getState().doc.boards[0])[0]);
+    const cut = worldParts(useStore.getState().doc)[0].cuts[0];
+    useStore.getState().setTapeHover(cutSnapPoints(worldParts(useStore.getState().doc)[0])[0]);
     useStore.getState().removeCut(board.id, cut.id);
     expect(useStore.getState().tapeHover).toBeNull();
   });
@@ -1350,7 +1351,7 @@ describe('tapeHover — invariant 24, third instance', () => {
   // a box corner of the very board being cut survives.
   it('keeps a hover on a box corner when a mid-face cut is added to that board', () => {
     useStore.getState().addBoard();
-    const board = useStore.getState().doc.boards[0];
+    const board = worldParts(useStore.getState().doc)[0];
     useStore.getState().setTapeHover(boardSnapPoints(board)[0]);
     useStore.getState().addCut(board.id);
     expect(useStore.getState().tapeHover).not.toBeNull();
@@ -1397,7 +1398,7 @@ describe('tapeHover — invariant 24, third instance', () => {
     // `future`, so redo() would early-return without running its body and the
     // assertion would say nothing about redo at all. Same trap the anchor's
     // own undo/redo test records.
-    useStore.getState().setTapeHover(boardSnapPoints(useStore.getState().doc.boards[0])[0]);
+    useStore.getState().setTapeHover(boardSnapPoints(worldParts(useStore.getState().doc)[0])[0]);
     useStore.getState().redo();
     expect(useStore.getState().tapeHover).toBeNull();
   });
@@ -1422,7 +1423,7 @@ describe('tapeHover — invariant 24, third instance', () => {
   // guard-first shape of dropHeldIfGone is verified by reading it.
   it('leaves all three held points alone when a cut is edited with nothing held', () => {
     useStore.getState().addBoard();
-    const board = useStore.getState().doc.boards[0];
+    const board = worldParts(useStore.getState().doc)[0];
     useStore.getState().addCut(board.id);
     expect(useStore.getState().grabbed).toBeNull();
     expect(useStore.getState().tapeAnchor).toBeNull();
@@ -1437,10 +1438,10 @@ describe('tapeHover — invariant 24, third instance', () => {
 describe('tapeAnchor is NOT cleared by selection changes', () => {
   it('survives selecting a different board', () => {
     useStore.getState().addBoard();
-    const first = useStore.getState().doc.boards[0];
+    const first = worldParts(useStore.getState().doc)[0];
     useStore.getState().setTapeAnchor(boardSnapPoints(first)[0]);
     useStore.getState().addBoard();
-    const second = useStore.getState().doc.boards[1];
+    const second = worldParts(useStore.getState().doc)[1];
     // addBoard already selected `second`, so select the anchored board first —
     // otherwise the selection never actually moves and the test's title claims
     // more than its fixture does (follow-up 126's shape).
@@ -1454,7 +1455,7 @@ describe('tapeAnchor is NOT cleared by selection changes', () => {
   // brand-new one is an ordinary thing to want.
   it('survives an edit whose selection callback moves the selection', () => {
     useStore.getState().addBoard();
-    const first = useStore.getState().doc.boards[0];
+    const first = worldParts(useStore.getState().doc)[0];
     useStore.getState().setTapeAnchor(boardSnapPoints(first)[0]);
     useStore.getState().addBoard();
     expect(useStore.getState().tapeAnchor).not.toBeNull();
@@ -1470,7 +1471,7 @@ describe('tapeAnchor is NOT cleared by selection changes', () => {
 describe('tapeTyped — a string, deliberately NOT invariant 24', () => {
   const anchored = () => {
     useStore.getState().addBoard();
-    const board = useStore.getState().doc.boards[0];
+    const board = worldParts(useStore.getState().doc)[0];
     useStore.getState().setTool('tape');
     // A corner AWAY from the origin, not `boardSnapPoints(board)[0]` — that
     // first point IS the board's position (the min corner), so growing the
@@ -1525,7 +1526,7 @@ describe('tapeTyped — a string, deliberately NOT invariant 24', () => {
 describe('tapeAxis — a lock, deliberately NOT invariant 24', () => {
   const anchorOn = () => {
     useStore.getState().addBoard();
-    const board = useStore.getState().doc.boards[0];
+    const board = worldParts(useStore.getState().doc)[0];
     useStore.getState().setTapeAnchor(boardSnapPoints(board)[0]);
     return board;
   };
@@ -1594,7 +1595,7 @@ describe('tapeAxis — a lock, deliberately NOT invariant 24', () => {
   it('drops with the anchor on undo and on redo', () => {
     useStore.getState().addBoard();
     useStore.getState().addBoard();
-    useStore.getState().setTapeAnchor(boardSnapPoints(useStore.getState().doc.boards[0])[0]);
+    useStore.getState().setTapeAnchor(boardSnapPoints(worldParts(useStore.getState().doc)[0])[0]);
     useStore.getState().setTapeAxis('x');
     useStore.getState().undo();
     expect(useStore.getState().tapeAxis).toBeNull();
@@ -1603,7 +1604,7 @@ describe('tapeAxis — a lock, deliberately NOT invariant 24', () => {
     // edit() wipes `future`, so redo() would early-return without running its
     // body and the assertion below would say nothing about redo. Same reason the
     // tapeAnchor block above re-arms this way.
-    useStore.getState().setTapeAnchor(boardSnapPoints(useStore.getState().doc.boards[0])[0]);
+    useStore.getState().setTapeAnchor(boardSnapPoints(worldParts(useStore.getState().doc)[0])[0]);
     useStore.getState().setTapeAxis('x');
     useStore.getState().redo();
     expect(useStore.getState().tapeAxis).toBeNull();
@@ -1680,7 +1681,7 @@ describe('tapeAxis — a lock, deliberately NOT invariant 24', () => {
     const board = anchorOn();
     useStore.getState().setTapeAxis('y');
     useStore.getState().addBoard();
-    const other = useStore.getState().doc.boards.find((b) => b.id !== board.id)!;
+    const other = worldParts(useStore.getState().doc).find((b) => b.id !== board.id)!;
     useStore.getState().deleteBoard(other.id);
     expect(useStore.getState().tapeAxis).toBe('y');
   });
@@ -1694,12 +1695,12 @@ describe('multi-select — the selection set', () => {
     s.addBoard();
     s.addBoard();
     useStore.getState().selectBoard(null);
-    const [a, b, c] = useStore.getState().doc.boards;
+    const [a, b, c] = worldParts(useStore.getState().doc);
     return { a: a!, b: b!, c: c! };
   };
   const ids = () => useStore.getState().selectedIds;
   const cornerOf = (id: string) =>
-    boardSnapPoints(useStore.getState().doc.boards.find((x) => x.id === id)!)
+    boardSnapPoints(worldParts(useStore.getState().doc).find((x) => x.id === id)!)
       .find((p) => p.kind === 'corner')!;
 
   it('selectBoard replaces the selection with one part, or clears it', () => {
@@ -1777,11 +1778,11 @@ describe('multi-select — the selection set', () => {
     useStore.getState().selectAll();
     const before = useStore.getState().past.length;
     useStore.getState().deleteBoards([a.id, c.id]);
-    expect(useStore.getState().doc.boards.map((x) => x.id)).toEqual([b.id]);
+    expect(worldParts(useStore.getState().doc).map((x) => x.id)).toEqual([b.id]);
     expect(useStore.getState().past.length).toBe(before + 1);
     expect(ids()).toEqual([b.id]);
     useStore.getState().undo();
-    expect(useStore.getState().doc.boards.map((x) => x.id)).toEqual([a.id, b.id, c.id]);
+    expect(worldParts(useStore.getState().doc).map((x) => x.id)).toEqual([a.id, b.id, c.id]);
   });
 
   it('deleteBoards with no existing id leaves no undo entry', () => {
@@ -1799,7 +1800,7 @@ describe('multi-select — the selection set', () => {
     useStore.getState().addCut(a.id);
     const before = useStore.getState().past.length;
     useStore.getState().duplicateBoards([a.id, b.id]);
-    const boards = useStore.getState().doc.boards;
+    const boards = worldParts(useStore.getState().doc);
     const copies = boards.slice(3);
     expect(useStore.getState().past.length).toBe(before + 1);
     // Named against the document AS IT GROWS (invariant 8): naming both
@@ -1876,7 +1877,7 @@ describe('tape held points are NOT cleared by the new selection actions', () => 
     s.addBoard();
     s.addBoard();
     useStore.getState().selectBoard(null);
-    const [a, b, c] = useStore.getState().doc.boards;
+    const [a, b, c] = worldParts(useStore.getState().doc);
     const far = boardSnapPoints(b!).find((p) => p.at[0] > 0);
     if (!far) throw new Error('fixture: expected a snap point off the min corner');
     useStore.getState().setTapeAnchor(boardSnapPoints(a!)[0]!);
@@ -1902,7 +1903,7 @@ describe('tape held points are NOT cleared by the new selection actions', () => 
 });
 
 describe('multi-select — group edits', () => {
-  const board = (id: string) => useStore.getState().doc.boards.find((x) => x.id === id)!;
+  const board = (id: string) => worldParts(useStore.getState().doc).find((x) => x.id === id)!;
 
   /** a at the origin, b at [0, 0, 10], c at [40, 0, 0]; a and b selected. */
   const threeForMove = () => {
@@ -1911,7 +1912,7 @@ describe('multi-select — group edits', () => {
     s.addBoard();
     s.addBoard();
     s.addBoard();
-    const [a, b, c] = useStore.getState().doc.boards;
+    const [a, b, c] = worldParts(useStore.getState().doc);
     useStore.getState().updateBoard(b!.id, { position: [0, 0, 10] });
     useStore.getState().updateBoard(c!.id, { position: [40, 0, 0] });
     useStore.getState().selectBoard(a!.id);
@@ -2058,14 +2059,14 @@ describe('hide and unhide', () => {
     s.addBoard();
     s.addBoard();
     s.addBoard();
-    const [a, b, c] = useStore.getState().doc.boards.map((x) => x.id);
+    const [a, b, c] = worldParts(useStore.getState().doc).map((x) => x.id);
     useStore.getState().selectBoard(a!);
     useStore.getState().toggleSelected(b!);
     return { a: a!, b: b!, c: c! };
   };
   const st = () => useStore.getState();
   const corner = (id: string) =>
-    boardSnapPoints(st().doc.boards.find((x) => x.id === id)!).find((p) => p.kind === 'corner')!;
+    boardSnapPoints(worldParts(st().doc).find((x) => x.id === id)!).find((p) => p.kind === 'corner')!;
 
   it('hideSelected hides the selection and deselects it', () => {
     const { a, b } = three();
@@ -2112,7 +2113,7 @@ describe('hide and unhide', () => {
     st().hideSelected();
     st().showAll();
     expect(st().hiddenIds).toEqual([]);
-    expect(st().doc.boards.some((x) => x.id === a)).toBe(true);
+    expect(worldParts(st().doc).some((x) => x.id === a)).toBe(true);
   });
 
   it('a hidden part can never be selected', () => {
@@ -2265,7 +2266,7 @@ describe('hide and unhide', () => {
     st().deleteBoards([c]);
     expect(st().hiddenIds).toEqual([]);
     st().undo();
-    expect(st().doc.boards.some((x) => x.id === c)).toBe(true);
+    expect(worldParts(st().doc).some((x) => x.id === c)).toBe(true);
     expect(st().hiddenIds).toEqual([c]); // the entry recorded it hidden at deletion time
   });
 
@@ -2306,7 +2307,7 @@ describe('copyInRow', () => {
   const st = () => useStore.getState();
   const part = (patch: Partial<Board>) => {
     st().addBoard();
-    const id = st().doc.boards.at(-1)!.id;
+    const id = worldParts(st().doc).at(-1)!.id;
     st().updateBoard(id, patch);
     return id;
   };
@@ -2314,20 +2315,20 @@ describe('copyInRow', () => {
   it('places copy k at original + k·step·sign on the axis, per copy, never cumulative', () => {
     const a = part({ length: 24, width: 0.1, thickness: 0.75, position: [0, 0, 0] });
     st().copyInRow([a], 11, 2, 1, 0.1);
-    const zs = st().doc.boards.map((b) => b.position[2]);
+    const zs = worldParts(st().doc).map((b) => b.position[2]);
     // A cumulative sum of 0.1 ten times is 0.9999999999999999; k·0.1 is 1.
     expect(zs).toEqual([0, ...Array.from({ length: 10 }, (_, i) => 0 + (i + 1) * 0.1 * 1)]);
-    expect(st().doc.boards.every((b) => b.position[0] === 0 && b.position[1] === 0)).toBe(true);
+    expect(worldParts(st().doc).every((b) => b.position[0] === 0 && b.position[1] === 0)).toBe(true);
   });
 
   it('copies a group as a unit, keeping its exact relative layout', () => {
     const leg = part({ length: 28, width: 1.75, thickness: 1.75, posture: 'upright', position: [0, 0, 0] });
     const rail = part({ length: 16.5, width: 4, thickness: 0.75, posture: 'on-edge', position: [1.75, 22, 0.5] });
     st().copyInRow([leg, rail], 3, 2, -1, 20);
-    const byName = (n: string) => st().doc.boards.filter((b) => b.name.startsWith(n));
-    expect(st().doc.boards).toHaveLength(6);
-    const [l0, l1, l2] = st().doc.boards.filter((b) => b.posture === 'upright');
-    const [r0, r1, r2] = st().doc.boards.filter((b) => b.posture === 'on-edge');
+    const byName = (n: string) => worldParts(st().doc).filter((b) => b.name.startsWith(n));
+    expect(worldParts(st().doc)).toHaveLength(6);
+    const [l0, l1, l2] = worldParts(st().doc).filter((b) => b.posture === 'upright');
+    const [r0, r1, r2] = worldParts(st().doc).filter((b) => b.posture === 'on-edge');
     for (const [l, r, k] of [[l0, r0, 0], [l1, r1, 1], [l2, r2, 2]] as const) {
       expect(l!.position).toEqual([0, 0, 0 - k * 20]);
       expect(r!.position).toEqual([1.75, 22, 0.5 - k * 20]);
@@ -2335,20 +2336,20 @@ describe('copyInRow', () => {
     expect(byName('Board').length).toBe(6);
     // Originals, then the copies k-major (fu 220): copy 1 of each part, then copy 2.
     expect(st().selectedIds).toEqual([leg, rail, l1!.id, r1!.id, l2!.id, r2!.id]);
-    expect(new Set(st().doc.boards.map((b) => b.name)).size).toBe(6);
+    expect(new Set(worldParts(st().doc).map((b) => b.name)).size).toBe(6);
   });
 
   it('runs along -X', () => {
     const a = part({ length: 24, width: 3.5, thickness: 0.75, position: [10, 2, 3] });
     st().copyInRow([a], 3, 0, -1, 30);
-    expect(st().doc.boards.map((b) => b.position)).toEqual([[10, 2, 3], [-20, 2, 3], [-50, 2, 3]]);
+    expect(worldParts(st().doc).map((b) => b.position)).toEqual([[10, 2, 3], [-20, 2, 3], [-50, 2, 3]]);
   });
 
   it('runs along Y, keeps turn, posture, material and cuts, and gives fresh ids', () => {
     const a = part({ length: 20, width: 6, thickness: 0.75, rotation: 180, material: 'walnut', position: [0, 5, 0] });
     st().addCut(a);
     st().copyInRow([a], 3, 1, 1, 10);
-    const [o, c1, c2] = st().doc.boards;
+    const [o, c1, c2] = worldParts(st().doc);
     expect([o!.position[1], c1!.position[1], c2!.position[1]]).toEqual([5, 15, 25]);
     for (const c of [c1!, c2!]) {
       expect(c.rotation).toBe(180);
@@ -2357,7 +2358,7 @@ describe('copyInRow', () => {
       expect(c.cuts[0]!.id).not.toBe(o!.cuts[0]!.id);
       expect(c.id).not.toBe(o!.id);
     }
-    expect(new Set(st().doc.boards.map((b) => b.name)).size).toBe(3);
+    expect(new Set(worldParts(st().doc).map((b) => b.name)).size).toBe(3);
   });
 
   it('is one undo entry and selects the originals then the copies', () => {
@@ -2365,10 +2366,10 @@ describe('copyInRow', () => {
     const before = st().past.length;
     st().copyInRow([a], 4, 0, 1, 30);
     expect(st().past.length).toBe(before + 1);
-    const ids = st().doc.boards.map((b) => b.id);
+    const ids = worldParts(st().doc).map((b) => b.id);
     expect(st().selectedIds).toEqual(ids);
     st().undo();
-    expect(st().doc.boards.map((b) => b.id)).toEqual([a]);
+    expect(worldParts(st().doc).map((b) => b.id)).toEqual([a]);
   });
 
   it('refuses a bad count, a bad step or no parts, writing nothing', () => {
@@ -2386,7 +2387,7 @@ describe('copyInRow', () => {
 
   it('never clears the tape anchor (invariant 24)', () => {
     const a = part({ position: [0, 0, 0] });
-    st().setTapeAnchor(boardSnapPoints(st().doc.boards[0]!)[0]!);
+    st().setTapeAnchor(boardSnapPoints(worldParts(st().doc)[0]!)[0]!);
     st().copyInRow([a], 3, 0, 1, 30);
     expect(st().tapeAnchor).not.toBeNull();
   });
@@ -2394,10 +2395,10 @@ describe('copyInRow', () => {
 
 describe('linked parts', () => {
   const st = () => useStore.getState();
-  const board = (id: string) => st().doc.boards.find((b) => b.id === id)!;
+  const board = (id: string) => worldParts(st().doc).find((b) => b.id === id)!;
   const leg = (patch: Partial<Board> = {}) => {
     st().addBoard();
-    const id = st().doc.boards.at(-1)!.id;
+    const id = worldParts(st().doc).at(-1)!.id;
     st().updateBoard(id, { length: 28, width: 1.75, thickness: 1.75, posture: 'upright', ...patch });
     return id;
   };
@@ -2517,7 +2518,7 @@ describe('linked parts', () => {
     st().duplicateBoards([a]);
     st().copyInRow([a], 3, 0, 1, 5);
     const label = board(a).link;
-    expect(st().doc.boards.filter((x) => x.link === label)).toHaveLength(5);
+    expect(worldParts(st().doc).filter((x) => x.link === label)).toHaveLength(5);
   });
 
   // Added beyond the brief (Task 1 review): copyBoard's spread must never
@@ -2526,7 +2527,7 @@ describe('linked parts', () => {
     const a = leg();
     st().duplicateBoards([a]);
     st().copyInRow([a], 2, 0, 1, 5);
-    const copies = st().doc.boards.filter((x) => x.id !== a);
+    const copies = worldParts(st().doc).filter((x) => x.id !== a);
     expect(copies).toHaveLength(2);
     for (const copy of copies) expect('link' in copy).toBe(false);
   });
@@ -2542,10 +2543,10 @@ describe('linked parts', () => {
     st().duplicateBoards([a]);
     st().copyInRow([b], 3, 0, 1, 5);
     const label = board(a).link;
-    const members = () => st().doc.boards.filter((x) => x.link === label);
+    const members = () => worldParts(st().doc).filter((x) => x.link === label);
     expect(members()).toHaveLength(5);
     for (const m of members()) expect(m.cuts.map((c) => c.id)).toEqual([id]);
-    expect(repairLinks(st().doc.boards)).toBe(st().doc.boards);
+    expect(repairLinks(worldParts(st().doc))).toBe(worldParts(st().doc));
     st().updateCut(a, id, { depth: 0.5 });
     for (const m of members()) expect(m.cuts[0]!.depth).toBe(0.5);
     const copy = members().at(-1)!.id;
@@ -2559,7 +2560,7 @@ describe('linked parts', () => {
     const id = board(a).cuts[0]!.id;
     st().duplicateBoards([a]);
     st().copyInRow([a], 2, 0, 1, 5);
-    const copies = st().doc.boards.filter((x) => x.id !== a);
+    const copies = worldParts(st().doc).filter((x) => x.id !== a);
     expect(copies).toHaveLength(2);
     for (const c of copies) expect(c.cuts[0]!.id).not.toBe(id);
   });

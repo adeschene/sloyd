@@ -1,4 +1,4 @@
-import { createBoard, createDocument, migrateDocument } from '../../document/document';
+import { createBoard, createDocument, migrateDocument, worldParts } from '../../document/document';
 import { stockProbe } from '../../document/cuts';
 import { axisDimensions, toWorldOffset } from '../../document/geometry';
 import type { Board, Posture, Rotation } from '../../document/types';
@@ -96,7 +96,7 @@ describe('pocketFor', () => {
     expect(Math.min(cut.stopMin, cut.stopMax)).toBe(0);
     expect(Math.max(cut.stopMin, cut.stopMax)).toBeGreaterThan(0);
     const doc = { ...createDocument(), boards: [{ ...b, cuts: [cut] }] };
-    const back = migrateDocument(JSON.parse(JSON.stringify(doc))).boards[0].cuts[0];
+    const back = worldParts(migrateDocument(JSON.parse(JSON.stringify(doc))))[0].cuts[0];
     for (const k of ['offset', 'width', 'depth', 'stopMin', 'stopMax'] as const) expect(back[k]).toBe(cut[k]);
     expect(back.across).toBe(cut.across);
     expect(back.face).toBe(cut.face);
