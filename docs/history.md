@@ -289,8 +289,8 @@ duplicated, moved, turned, opened and edited in place, with a spec and plan
 (`docs/superpowers/specs/2026-10-06-sloyd-assemblies-design.md`). **Schema 10.** It is round 1 of
 two in the user's order: assemblies first, so Duplicate makes an independent copy; components, with
 shared definitions, second. Claude drove its live check on the dev server
-(`docs/browser-verification-assemblies.md`); the user's hands-on pass and the merge were still
-pending when this was written. **Not deployed** (deploying is the user's separate decision). Rolling back past it strands v10 documents; export first.
+(`docs/browser-verification-assemblies.md`); the user approved the merge without reporting
+hands-on results. Merged (`699cc45`). **Not deployed** (deploying is the user's separate decision). Rolling back past it strands v10 documents; export first.
 
 - **Why it exists.** The user found linking (v9) too narrow. A drawer's five parts could not be
   duplicated or moved as one. They asked for SketchUp's component system, researched first.

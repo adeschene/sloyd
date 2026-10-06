@@ -144,6 +144,8 @@ drawn node, never by appending a fresh one.**
 
 ## For the user (pending)
 
+The user approved the merge (`699cc45`) without reporting results for these.
+
 - **The fade, on real hardware.** Software GL can lie about blending (follow-up 26a), so the open
   assembly's fade has only been seen on llvmpipe.
 - **Double-click and orbit with a real mouse,** after the fix: two quick short orbits on a
