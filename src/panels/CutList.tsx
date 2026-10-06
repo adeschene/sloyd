@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store/store';
-import { buildCutList, sheetStockOf } from '../document/document';
+import { buildCutList, flatDocument, sheetStockOf } from '../document/document';
 import { PartDiagram } from './PartDiagram';
 import { SheetLayout } from './SheetLayout';
 
@@ -29,7 +29,9 @@ type DiagramMode = 'none' | 'joinery' | 'all';
  */
 export function CutList({ onClose }: { onClose: () => void }) {
   const doc = useStore((s) => s.doc);
-  const list = buildCutList(doc);
+  // The flat document: placed parts named by their display paths (assemblies spec §6).
+  const flat = flatDocument(doc);
+  const list = buildCutList(flat);
   const sheet = useRef<HTMLDivElement>(null);
   const [diagrams, setDiagrams] = useState<DiagramMode>('joinery');
   /**

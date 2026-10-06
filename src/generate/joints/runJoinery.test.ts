@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { designToDocument } from '../../document/generated';
+import { groupItems } from '../../document/document';
 import { LlmError } from '../../llm/types';
 import type { LlmClient, LlmResult } from '../../llm/types';
 import { runJoinery } from '../run';
@@ -127,5 +128,12 @@ describe('runJoinery', () => {
       const kept = out.result.doc.boards.filter((b) => b.link === 'L').map((b) => b.name);
       expect(kept.sort()).toEqual(['Spare', 'Spare 2']);
     });
+  });
+
+  it('returns the TREE: a grouped design comes back with its instance (assemblies spec §6.1)', async () => {
+    const grouped = groupItems(CORNER, null, CORNER.boards.map((b) => b.id))!.doc;
+    const out = await run(client(long), grouped);
+    if ('noSites' in out) throw new Error('expected sites');
+    expect(out.result.doc.instances).toHaveLength(1);
   });
 });

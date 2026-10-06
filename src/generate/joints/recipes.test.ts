@@ -1,7 +1,7 @@
 import { beforeAll } from 'vitest';
 import workbenchRaw from '../../document/fixtures/simple-workbench.sloyd?raw';
 import { designToDocument } from '../../document/generated';
-import { migrateDocument } from '../../document/document';
+import { flatDocument, groupItems, migrateDocument, writeBackFlat } from '../../document/document';
 import { checkDesign, worldSolids } from '../../document/designCheck';
 import { sameSet } from '../../document/turnFixtures';
 import { boardSolids, clippedRegion, cutLabel, cutRegion, cutsThatRemoveStock } from '../../document/cuts';
@@ -1429,5 +1429,21 @@ describe('joinery is equivariant under a 180 turn of every part', () => {
       const corners = (bd: Board) => worldSolids(bd).flatMap((w) => [w.min, w.max]);
       expect(sameSet(corners(y), corners(x)), `${x.name} world solids`).toBe(true);
     }
+  });
+});
+
+describe('joinery on assemblies (assemblies spec §6.1)', () => {
+  it('joins a grouped design exactly as its flat twin, and returns the tree', () => {
+    const flat = LEG_RAIL();
+    const ids = flat.boards.map((b) => b.id);
+    const grouped = groupItems(flat, null, ids)!.doc;
+    const plainJoin = applyJoints(flat, findSites(flat), findSites(flat).map((s) => defaultChoice(s, flat, findSites(flat))));
+    const f = flatDocument(grouped);
+    const sites = findSites(f);
+    const joined = applyJoints(f, sites, sites.map((s) => defaultChoice(s, f, sites)));
+    const tree = writeBackFlat(grouped, f.boards, joined.doc.boards);
+    expect(tree.instances).toHaveLength(1);
+    const cuts = (d: SloydDocument) => flatDocument(d).boards.map((b) => b.cuts.map(({ id: _i, ...c }) => c));
+    expect(cuts(tree)).toEqual(cuts(plainJoin.doc));
   });
 });
