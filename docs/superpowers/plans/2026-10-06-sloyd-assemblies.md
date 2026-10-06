@@ -1059,11 +1059,9 @@ export function writeBackFlat(doc: SloydDocument, flatBefore: readonly Board[], 
   const edits = flatBefore.map((before, i) => ({ before, after: { ...flatAfter[i]!, id: before.id } }));
   return applyWorldEdits(doc, edits);
 }
-
-export { joinPath };
 ```
 
-Remove the trailing `export { joinPath };` if the build reports a duplicate export through `document.ts`. Add `export * from './treeEdit';` to `document.ts`.
+Do NOT re-export `joinPath` from this file: `document.ts` star-exports both `tree.ts` and `treeEdit.ts`, and a name exported by both is a tsc ambiguity error (TS2308). Add `export * from './treeEdit';` to `document.ts`.
 
 `boardExtents` is not needed in this file if the build flags it unused; delete the import.
 
@@ -2665,6 +2663,13 @@ describe('joinery on assemblies (assemblies spec §6.1)', () => {
   });
 });
 ```
+
+- [ ] **Step 1b: Measure the separator before trusting it (invariant 19)**
+
+Display paths reach measured sheet labels: `SheetLayout.tsx:71` passes `p.name` to `fitLabel`, whose arithmetic assumes every glyph advances `CHAR_W` (12.4) in the `--font-num` monospace stack. ` › ` (U+203A) is not ASCII, and invariant 19 says a non-ASCII mark must be measured in a browser first. Follow-up 92 rejected a symbol for exactly this.
+1. On the dev server, measure the advance of `›` at the applied 20px in `--font-num`, the way `docs/browser-verification-turned-label.md` measured `×`.
+2. If it is at or below 12.4 and renders from the monospace face (not a fallback), record the number in the verification doc and continue.
+3. If not, STOP and ask the user: the approved spec shows `›`. ` > ` and ` / ` are the ASCII alternatives, and the change is one constant, `NAME_SEPARATOR` in `tree.ts`, plus the test strings.
 
 - [ ] **Step 2: Run them to see them fail**
 
