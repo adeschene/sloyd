@@ -276,7 +276,9 @@ and 79.
 
 **What the linking round did (2026-10-06)**: linked parts, which stay identical, with a spec and
 plan (`docs/superpowers/specs/2026-10-06-sloyd-linking-design.md`). **Schema 9.** Its live check
-passed on the dev server with the user watching (`docs/browser-verification-linking.md`). The LAST of the three repeated-parts rounds (quarter turns, copy in a row, linking).
+passed on the dev server with the user watching (`docs/browser-verification-linking.md`). Merged
+(`d3120cf`) and deployed 2026-10-06 as `index-BwdHsyEM.js`, confirmed by page load, bundle hash and
+the CSP at the edge and in-network. The LAST of the three repeated-parts rounds (quarter turns, copy in a row, linking).
 Rolling back past it strands v9 documents; export first.
 
 - **The user's rulings.** Copy and link are separate actions; a link is made on existing parts.
