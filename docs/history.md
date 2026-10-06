@@ -297,13 +297,22 @@ pending.** The second of the three repeated-parts rounds (quarter turns, copy in
     with a guard asserting the step is not a multiple of 1/16. The rounding mutation is now red.
   - `key={mode}` on the measurement field was first recorded as an unobservable mutation (the field
     adopts a changed `value` when not editing). A reviewer then showed it is observable: a refused
-    draft survives a mode switch when the new mode's value equals the old one. A test for it comes
-    in the final-review fix wave.
+    draft survives a mode switch when the new mode's value equals the old one. The final-review fix
+    wave added that test (Gap 7, a refused `abc`, then Fit across, whose default is also 7); removing
+    the key turns it red.
   - `--danger` does not exist in the stylesheet; the invalid summary uses `--alert`, as
     `.field-error` does.
-- **Evidence.** 1831 tests across 63 files, build clean. Mutations run on rowLayout (rounding,
+- **Final review fixes.** Apply took the last GOOD value while the field showed a refusal; it is
+  now disabled then (fu 218), through `DimensionField`'s new optional `onErrorChange`. A typed
+  Pitch/Across equal to the live default was not recorded (the field skips a commit equal to its
+  value), so a direction change replaced it; the user's ruling was that defaults follow the
+  direction only until the person types, through the new optional `commitUnchanged`. Also: the
+  count is marked `aria-invalid` when refused, the closed form no longer computes the selection,
+  and `rowLayout`'s `s > 0` guard (fu 219), the group copy's selection order and a −X row are
+  pinned. 1843 tests.
+- **Evidence.** 1831 tests across 63 files before the final review, 1843 after, build clean. Mutations run on rowLayout (rounding,
   guards) and copyInRow (drift, one undo entry, refusals), each shown red.
-- **Residues:** follow-ups 218-220.
+- **Residues:** follow-ups 218-220 (218 and 219 closed by the final review).
 
 **What the quarter turns round did (2026-10-05)**: four true quarter turns about the vertical, with a
 spec and plan (`docs/superpowers/specs/2026-10-05-sloyd-quarter-turns-design.md`). **Schema 8.** On

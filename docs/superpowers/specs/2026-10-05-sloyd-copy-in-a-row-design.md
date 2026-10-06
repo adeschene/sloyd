@@ -85,13 +85,18 @@ one and the group one. It opens an inline form under the buttons.
    and blurs (follow-up 212).
    - **Gap** accepts 0 (`min={0}`).
    - **Pitch** and **Across** must be positive.
-   - **Default value:** 0 for Gap, `s` for Pitch, `2·s` for Fit across.
+   - **Default value:** 0 for Gap, `s` for Pitch, `2·s` for Fit across. A default follows the
+     direction until the person types a value; a typed value then sticks, **even one equal to the
+     default** (`DimensionField`'s `commitUnchanged` prop, added in the final review).
 5. **The summary line,** updated as the values change.
    - **When the layout works:** for example `4 in the row: 3 copies, gap 1/2", row 22-1/2" long`.
    - **When it is refused:** the reason. For example `Not enough room: 8 parts need 24", the span is
      20"`.
 6. **Apply and Cancel.**
-   - Apply is disabled while the summary shows a refusal.
+   - Apply is disabled while the summary shows a refusal, **and while the measurement field shows
+     a refusal** (follow-up 218): the field reports it through `DimensionField`'s `onErrorChange`
+     prop, so Apply never uses a value other than the one on screen.
+   - A refused count marks the Count input `aria-invalid`.
    - Apply runs `copyInRow` and closes the form.
    - Cancel closes it.
 
@@ -113,6 +118,10 @@ one and the group one. It opens an inline form under the buttons.
   - **Returns:** `{ ok: true, step, gap, length }` or `{ ok: false, reason }`.
   - **One source:** the summary line and the store both use it, so the numbers shown are the numbers
     applied.
+- **`DimensionField`'s two optional props** (final review; every existing caller passes neither):
+  - `onErrorChange(refused)` — called from ONE effect keyed on the field's error, so commit, the
+    adopt effect, the untouched blur, Escape and a remount all report.
+  - `commitUnchanged` — a typed (dirty) commit calls `onCommit` even when it parses to `value`.
 - **`copyInRow(ids, count, axis, sign, step)`.**
   - **Where:** a store action.
   - **It refuses without writing** (no `edit()`, no undo entry) when:
@@ -137,8 +146,9 @@ one and the group one. It opens an inline form under the buttons.
     - pitch `= s` is accepted and `< s` refused;
     - fit `D = N·s` gives gap 0 and is accepted, and `D < N·s` is refused;
     - count 1, count 101 and count 2.5 are refused.
-  - **Exactness:** `fit` with `D = 30`, `s = 0.75`, `N = 7` returns step `(30 − 0.75) / 6` exactly,
-    not rounded.
+  - **Exactness:** `fit` with `D = 30`, `s = 0.75`, `N = 8` returns step `(30 − 0.75) / 7` exactly,
+    not rounded, with a guard that the step is off the 1/16 grid. (`N = 7` gives 4.875, on the grid,
+    so a rounding mutation could not fail it.)
 - **`copyInRow`.**
   - **Placement.** Each copy's `position[axis]` equals `original + k × step × sign`, computed per
     copy. Pin it with a step like 0.1, where a cumulative sum drifts. Other axes are unchanged.
@@ -151,7 +161,9 @@ one and the group one. It opens an inline form under the buttons.
   - **Invariant 24.** A tape anchor survives.
 - **Properties (RTL).**
   - **The form.** The button opens it; the summary updates as values change; Apply is disabled on a
-    refusal; Apply makes the row and closes the form.
+    refusal, including a refusal in the measurement field when Apply is clicked straight from it;
+    Apply makes the row and closes the form; a typed default survives a direction change; a mode
+    switch clears a refused draft (`key={mode}`).
   - **Cancel** adds no undo entry.
   - **Selection change.** It closes and resets the form.
   - **The group panel** has the button too.

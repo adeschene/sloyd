@@ -24,7 +24,7 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **1831/1831 tests passing across 63 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
+Static SPA, containerized, **1843/1843 tests passing across 63 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **8**, on `master` and in production.
 
 **PRODUCTION MATCHES `master` as of 2026-10-05 with the quarter turns round live** — bundle `index-bSuJPbkx.js`, CSS `index-CgHZGep2.css` (unchanged), merge commit `a24287f`, **schema 8** (rolling back past it strands v8 documents; export first). Before it: hide/unhide `index-BpdcUlXf.js` (`366eb37`, 2026-10-05), multi-select `index-D7ySMvky.js` (`232917f`, 2026-10-05), joinery residues `index-D_wzi7Bx.js` (`2b96eb2`, 2026-10-05), joinery fixes `index-BzWa2ZGT.js` (`c31dd82`, 2026-10-05), fu 197 `index-Ci3NLhVT.js` (`658dfcc`, 2026-10-05), fu 200 `index-DjL6FbOz.js` (`f37734b`, 2026-10-05), 198/199 `index-BvsB1zA6.js` (`fb8a094`, 2026-10-05), cut storage `index-JBiJohQE.js` (`7fa749d`, 2026-10-04), cut lines `index-BPmx9i74.js` (`f602a2d`), cut words `index-Cw_EeWuY.js` (`8c9be52`), joinery `index-Ci7lVCzJ.js` (`d2a14ac`), phantom cut `index-B2Yuq550.js` (`e7bf3bc`), stopped cuts `index-CoHIAVxf.js` (`c054ede`), which bumped the schema to 7 (rolling back past it strands v7 documents; export first). Before it, 2026-10-03: key check `index-BhhW2iNw.js` (`d0ba83b`), held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
@@ -45,7 +45,7 @@ badly supported part; both are now CLOSED (below).
 
 **The joinery fixes round (follow-ups 183, 184, 185, 190, 2026-10-05) is merged AND deployed.** Verified against the dev server with the user watching, three paid runs (`docs/browser-verification-joinery-fixes.md`). Default tenons from opposite faces are capped under half the post (190), crossings run bottom-up with a swept-volume blocker (185), a rabbeted panel carries its outer-face chain or refuses before any mutation (183), and the dialog reports the re-ground (184). No schema change. Residues are 201-204.
 
-**The copy-in-a-row round (2026-10-05) is on branch `copy-in-a-row`, NOT yet merged or deployed; the live check is pending.** Round 2 of the three repeated-parts rounds, in the user's order: quarter turns, then copy in a row, then **linking, the next and last** (a link will share a part's definition; copies made here stay ordinary and independent). Properties' **Copy in a row…** (under the Duplicate row, in both panels) opens an inline form: count (the TOTAL in the row, original included), a direction (±X, ±Y, ±Z) and one of three spacings, gap, centre-to-centre pitch, or fit N across a distance, with a live summary and one Apply that is one undo entry (spec `docs/superpowers/specs/2026-10-05-sloyd-copy-in-a-row-design.md`; invariant 25 extended). No schema change. Residues are follow-ups 218-220.
+**The copy-in-a-row round (2026-10-05) is on branch `copy-in-a-row`, NOT yet merged or deployed; the live check is pending.** Round 2 of the three repeated-parts rounds, in the user's order: quarter turns, then copy in a row, then **linking, the next and last** (a link will share a part's definition; copies made here stay ordinary and independent). Properties' **Copy in a row…** (under the Duplicate row, in both panels) opens an inline form: count (the TOTAL in the row, original included), a direction (±X, ±Y, ±Z) and one of three spacings, gap, centre-to-centre pitch, or fit N across a distance, with a live summary and one Apply that is one undo entry (spec `docs/superpowers/specs/2026-10-05-sloyd-copy-in-a-row-design.md`; invariant 25 extended). No schema change. Residues are follow-ups 218-220; 218 and 219 are closed by the final review, 220 keeps one record-only item.
 
 **The quarter turns round (2026-10-05) is merged AND deployed; its live check passed with the user watching, one paid joinery run** (`docs/browser-verification-quarter-turns.md`). The first of the three repeated-parts rounds, in the user's order: quarter turns, then copy in a row, then linking. `rotation` is now `0 | 90 | 180 | 270`, all TRUE rotations about the vertical, counter-clockwise from above; before it, 90° was a mirror across the X=Z diagonal, so identical parts could never face their cuts toward (−X, +Z). `axisFrame` is the one home of the turn table and every part↔world crossing goes through its helpers (invariant 44; spec `docs/superpowers/specs/2026-10-05-sloyd-quarter-turns-design.md`). Properties' Turn offers all four. **Schema 8**: `trueTurnsToV8` mirrors the cuts of every existing 90° part with cuts so it looks exactly as before. **Rolling back past it strands v8 documents; export first.** The visible cost: a migrated 90° part may measure its cuts from the other end on the sheet, and joinery on Generate's 90° parts now names the opposite end of the part for the same world cut. Generate still produces only 0° and 90°. Residues are follow-ups 215-217 (215 is the open handedness-across-postures question).
 
@@ -781,7 +781,11 @@ src/
 │   │                       box with a `mixed` placeholder. Every resync path formats
 │   │                       through `display`. Enter commits and BLURS (fu 212); a
 │   │                       refused entry keeps focus. `blurHandled` stops the blur
-│   │                       re-settling an edit Escape or Enter already settled
+│   │                       re-settling an edit Escape or Enter already settled.
+│   │                       Two OPTIONAL props (copy in a row): `onErrorChange`, from ONE
+│   │                       effect keyed on the error, so every path that sets or clears
+│   │                       it reports; `commitUnchanged`, a dirty commit calls onCommit
+│   │                       even when it parses to `value` (for a value that is a default)
 │   ├── NameField.tsx       commits on blur/Enter only, empty reverts; Enter blurs
 │   │                       too (fu 212). Invs 5, 9
 │   ├── Toolbar.tsx         project name, Add board, Cut list, undo/redo, the Select /
@@ -833,7 +837,9 @@ src/
 │   │                       Rendered INSIDE each Properties panel's selection-keyed root, so a
 │   │                       selection change remounts it closed and reset. `rowLayout` is the one
 │   │                       source of the summary, so the line shows what Apply will do; the
-│   │                       measurement field is keyed on the mode
+│   │                       measurement field is keyed on the mode. Apply is disabled while
+│   │                       the field shows a refusal (`onErrorChange`, fu 218), and a typed
+│   │                       Pitch/Across equal to the default sticks (`commitUnchanged`)
 │   ├── Properties.tsx      2+ selected: `GroupProperties` — Length/Width/Thickness/Grain/
 │   │                       Material + Duplicate/Hide others/Delete, each edit one `updateBoards`;
 │   │                       `shared` compares EXACT stored values; the root is keyed on the
@@ -1751,7 +1757,7 @@ worked examples behind several of them are in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 1831 tests across 63 files
+npm test           # Vitest, currently 1843 tests across 63 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1761,7 +1767,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is the authoritative list** — 1-217, consciously deferred rather
+**`docs/follow-ups.md` is the authoritative list** — 1-220, consciously deferred rather
 than missed, each written up in place with its closure where it has one. Read the entries
 for the area you are about to touch before starting; several are "correct but untested",
 which is exactly what a refactor breaks silently.

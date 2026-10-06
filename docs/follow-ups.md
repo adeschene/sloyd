@@ -4441,17 +4441,26 @@ the same.
 copy-in-a-row round. Type `abc` into Gap and press Apply: the field refused the draft, so the form
 still holds the previous value, and Apply uses it. The summary line describes that value, so the
 screen is consistent, but a person may expect Apply to be disabled while the field shows an error.
-- **Status:** open, awaiting the user's view in the live check. Not a defect by the spec.
+- **Status:** CLOSED 2026-10-05 by the round's final review, ruled a defect: Apply is disabled
+  while the field shows a refusal. `DimensionField` gained an optional `onErrorChange`, called from
+  ONE effect keyed on its error (so commit, the adopt effect, the untouched blur, Escape and the
+  `key={mode}` remount all report), and `CopyInRow` disables Apply on `!layout.ok || fieldRefused`.
+  The probe (+Z, type `-1/2` in Gap, click Apply without Enter) now makes nothing: the blur commit
+  is refused before the click lands. Tests click Apply straight from a refused draft and from a
+  valid one, and switch modes away from a refused draft; dropping the effect or ignoring the flag
+  turns them red.
 
 **219. `rowLayout`'s `!(s > 0)` guard is unpinned.** Raised in the copy-in-a-row round. No test
 reaches `s = 0` or `NaN`, so the guard (which returns `value`) can be deleted without a red test.
 `s = Infinity` passes it; unreachable from real boards.
-- **Status:** record-only.
+- **Status:** CLOSED 2026-10-05 by the round's final review: `rowLayout('gap', 0, 0, 2)` is pinned
+  to `{ ok: false, reason: 'value' }`, and deleting the guard turns it red. `s = Infinity` stays
+  unpinned and unreachable.
 
 **220. Small gaps the round judged fine to leave.** Record-only.
 - `copyInRow`'s `sign` is not validated at runtime: `0` would stack every copy on its original.
   The panel is the only caller and always passes +/-1.
-- The order of the selection after a multi-part group is copied (originals, then copies) is not
-  pinned by a test for a group of more than one part, and the group test's name check asserts the
-  `startsWith` of each name, not that the names are distinct.
-- **Status:** record-only.
+- ~~The order of the selection after a multi-part group is copied, and distinct names in the group
+  test.~~ Closed by the final review: the group test asserts the selection is the originals then
+  the copies k-major, and that all six names are distinct.
+- **Status:** record-only (the `sign` item).
