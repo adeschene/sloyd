@@ -1,6 +1,6 @@
 import { useStore } from './store';
 import { assemblyDoc } from '../document/treeFixtures';
-import { worldParts } from '../document/tree';
+import { partAt, worldParts } from '../document/tree';
 import { visibleBoards } from './visibility';
 import type { BoardSnapPoint, SloydDocument } from '../document/document';
 import { removeItems, snapPointsFor } from '../document/document';
@@ -10,7 +10,7 @@ const s = () => useStore.getState();
 const point = (owner: string, at: [number, number, number] = [0, 0, 0]): BoardSnapPoint =>
   ({ at, kind: 'corner', owner: { type: 'board', id: owner } } as BoardSnapPoint);
 /** A REAL snap point of a world part, so dropHeldIfGone's survival test can keep it. */
-export const heldOn = (id: string): BoardSnapPoint =>
+const heldOn = (id: string): BoardSnapPoint =>
   snapPointsFor(worldParts(s().doc).find((b) => b.id === id)!)[0] as BoardSnapPoint;
 
 beforeEach(() => load());
@@ -119,5 +119,45 @@ describe('undo reconciles the open assembly (assemblies spec §3.1)', () => {
     s().openAssembly('i1');
     load();
     expect(s().openPath).toBeNull();
+  });
+});
+
+describe('part edits inside assemblies (assemblies spec §5)', () => {
+  it('a Length edit on a part inside a turned assembly keeps its stored position bit for bit', () => {
+    const before = partAt(s().doc, 'i1/b2')!;
+    s().updateBoard('i1/b2', { length: 13 });
+    const after = partAt(s().doc, 'i1/b2')!;
+    expect(after.length).toBe(13);
+    after.position.forEach((v, i) => expect(v).toBe(before.position[i]));
+    expect(s().past).toHaveLength(1);
+  });
+
+  it('a cut added, edited and removed on a nested part lands on the stored part', () => {
+    s().addCut('i1/i2/b3');
+    const cut = partAt(s().doc, 'i1/i2/b3')!.cuts[0]!;
+    s().updateCut('i1/i2/b3', cut.id, { depth: 0.1 });
+    expect(partAt(s().doc, 'i1/i2/b3')!.cuts[0]!.depth).toBe(0.1);
+    s().removeCut('i1/i2/b3', cut.id);
+    expect(partAt(s().doc, 'i1/i2/b3')!.cuts).toEqual([]);
+  });
+
+  it('a link across containers propagates in one undo entry', () => {
+    s().linkBoards(['r1', 'i1/b2']);
+    expect(partAt(s().doc, 'i1/b2')!.length).toBe(s().doc.boards[0]!.length);
+    const past = s().past.length;
+    s().updateBoard('r1', { thickness: 1.25 });
+    expect(partAt(s().doc, 'i1/b2')!.thickness).toBe(1.25);
+    expect(s().past.length).toBe(past + 1);
+    s().unlinkBoards(['r1']);
+    expect('link' in partAt(s().doc, 'i1/b2')!).toBe(false);
+  });
+
+  it('a tape anchor on a nested part drops when that part moves and is kept otherwise', () => {
+    const w = worldParts(s().doc).find((b) => b.id === 'i1/b2')!;
+    s().setTapeAnchor(heldOn('i1/b2'));
+    s().updateBoard('i1/b2', { name: 'Renamed' });
+    expect(s().tapeAnchor).not.toBeNull();
+    s().updateBoard('i1/b2', { position: [w.position[0] + 1, w.position[1], w.position[2]] });
+    expect(s().tapeAnchor).toBeNull();
   });
 });

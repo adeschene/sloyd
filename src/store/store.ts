@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import {
   boardsBounds, createBoard, createDocument, createGuide, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
   dissolveSingletons, linkPlan, sharedOf, sharedPatch, withoutLink,
-  childrenOf, instanceAt, isCovered, itemPaths, parentPath,
+  childrenOf, instanceAt, isCovered, itemPaths, parentPath, worldParts, mapWorld,
 } from '../document/document';
 import type { Board, BoardSnapPoint, Cut, SloydDocument, SnapPoint, TapeAxis } from '../document/document';
 import { SNAP_INCHES } from '../document/geometry';
@@ -549,7 +549,7 @@ export const useStore = create<StoreState>((set, get) => {
     // this shape exists, and adding a field is exactly how it would be lost.
     if (!grabbed && !anchor && !hover) return;
 
-    const board = get().doc.boards.find((b) => b.id === boardId);
+    const board = worldParts(get().doc).find((b) => b.id === boardId);
     const points = board ? snapPointsFor(board) : [];
     const survives = (held: SnapPoint) => points.some((p) => sameSnapPoint(p, held));
 
@@ -882,7 +882,8 @@ export const useStore = create<StoreState>((set, get) => {
     updateBoard: (id, patch) => get().updateBoards([id], patch),
 
     updateBoards: (ids, patch) => {
-      const targets = new Set(ids.filter((id) => get().doc.boards.some((b) => b.id === id)));
+      const world = worldParts(get().doc);
+      const targets = new Set(ids.filter((id) => world.some((b) => b.id === id)));
       if (targets.size === 0) return;
 
       // Invariant 24: a grab holds a world position captured at grab time, not
@@ -925,12 +926,11 @@ export const useStore = create<StoreState>((set, get) => {
       // The board-precise `grabbed` clause above is for the TARGETS only; a
       // mate's held points go through the point-precise test below.
       const shared = sharedPatch(patch);
-      const others = Object.keys(shared).length === 0 ? new Set<string>() : mates(get().doc.boards, targets);
-      edit((doc) => ({
-        ...doc,
-        boards: doc.boards.map((b) =>
-          targets.has(b.id) ? patchBoard(b, patch) : others.has(b.id) ? patchBoard(b, shared) : b),
-      }));
+      const others = Object.keys(shared).length === 0 ? new Set<string>() : mates(world, targets);
+      // Through mapWorld (assemblies spec §5.1): patchBoard runs on WORLD parts,
+      // and only what it changed is written back, position as a delta.
+      edit((doc) => mapWorld(doc, (w) => w.map((b) =>
+        targets.has(b.id) ? patchBoard(b, patch) : others.has(b.id) ? patchBoard(b, shared) : b)));
 
       // Point-precise, and AFTER the edit for the reason dropHeldIfGone's own
       // comment gives: the question is what the board offers once the edit has
@@ -1171,7 +1171,8 @@ export const useStore = create<StoreState>((set, get) => {
      * fraction of the board's own dimensions, so it fits whatever it lands on.
      */
     addCut: (boardId) => {
-      const board = get().doc.boards.find((b) => b.id === boardId);
+      const world = worldParts(get().doc);
+      const board = world.find((b) => b.id === boardId);
       if (!board) return;
       const cut: Cut = {
         id: nextId(),
@@ -1187,11 +1188,9 @@ export const useStore = create<StoreState>((set, get) => {
       // ONE cut, ONE id, on the board and every mate (linking spec §3.2); cut
       // ids are per board (invariant 33), so sharing one is legal. Each mate
       // gets its own object so no two boards hold one Cut.
-      const all = new Set([boardId, ...mates(get().doc.boards, new Set([boardId]))]);
-      edit((doc) => ({
-        ...doc,
-        boards: doc.boards.map((b) => (all.has(b.id) ? { ...b, cuts: [...b.cuts, { ...cut }] } : b)),
-      }));
+      const all = new Set([boardId, ...mates(world, new Set([boardId]))]);
+      // Through mapWorld (assemblies spec §5.1).
+      edit((doc) => mapWorld(doc, (w) => w.map((b) => (all.has(b.id) ? { ...b, cuts: [...b.cuts, { ...cut }] } : b))));
       for (const id of all) dropHeldIfGone(id);
     },
 
@@ -1207,71 +1206,64 @@ export const useStore = create<StoreState>((set, get) => {
     // stack, so calling it on a no-op patch would leave a no-op undo entry
     // (invariant 4) and silently wipe redo.
     updateCut: (boardId, cutId, patch) => {
-      const board = get().doc.boards.find((b) => b.id === boardId);
+      const world = worldParts(get().doc);
+      const board = world.find((b) => b.id === boardId);
       if (!board || !board.cuts.some((c) => c.id === cutId)) return;
       // The same cut id on every mate (linking spec §3.2). Every writer keeps
       // members' cut ids equal (Link copies them, addCut mints one, copyBoard
       // keeps them for a linked source), and repairLinks unlinks a member
       // whose ids differ on load. A mate lacking the id would mean a writer
       // broke that rule; the map leaves it unchanged rather than guessing.
-      const all = new Set([boardId, ...mates(get().doc.boards, new Set([boardId]))]);
-      edit((doc) => ({
-        ...doc,
-        boards: doc.boards.map((b) =>
-          all.has(b.id)
-            ? { ...b, cuts: b.cuts.map((c) => (c.id === cutId ? { ...c, ...patch } : c)) }
-            : b,
-        ),
-      }));
+      const all = new Set([boardId, ...mates(world, new Set([boardId]))]);
+      // Through mapWorld (assemblies spec §5.1).
+      edit((doc) => mapWorld(doc, (w) => w.map((b) =>
+        all.has(b.id)
+          ? { ...b, cuts: b.cuts.map((c) => (c.id === cutId ? { ...c, ...patch } : c)) }
+          : b)));
       for (const id of all) dropHeldIfGone(id);
     },
 
     removeCut: (boardId, cutId) => {
-      const board = get().doc.boards.find((b) => b.id === boardId);
+      const world = worldParts(get().doc);
+      const board = world.find((b) => b.id === boardId);
       if (!board || !board.cuts.some((c) => c.id === cutId)) return;
-      const all = new Set([boardId, ...mates(get().doc.boards, new Set([boardId]))]);
-      edit((doc) => ({
-        ...doc,
-        boards: doc.boards.map((b) =>
-          all.has(b.id) ? { ...b, cuts: b.cuts.filter((c) => c.id !== cutId) } : b,
-        ),
-      }));
+      const all = new Set([boardId, ...mates(world, new Set([boardId]))]);
+      // Through mapWorld (assemblies spec §5.1).
+      edit((doc) => mapWorld(doc, (w) => w.map((b) =>
+        all.has(b.id) ? { ...b, cuts: b.cuts.filter((c) => c.id !== cutId) } : b)));
       for (const id of all) dropHeldIfGone(id);
     },
 
     linkBoards: (ids) => {
-      const plan = linkPlan(get().doc.boards, ids);
+      const plan = linkPlan(worldParts(get().doc), ids);
       if (!plan) return; // fewer than two, or nothing would change (invariant 4)
       const label = plan.label ?? `link_${nextId()}`;
       const members = new Set(plan.members);
-      edit((doc) => ({
-        ...doc,
-        boards: doc.boards.map((b) => {
-          if (!members.has(b.id)) return b;
-          // The source keeps its values; every other member takes them through
-          // patchBoard, so a posture change pivots it about its own centre.
-          const next = b.id === plan.source.id ? b : patchBoard(b, sharedOf(plan.source));
-          return { ...next, link: label };
-        }),
-      }));
+      // Through mapWorld (assemblies spec §5.1).
+      edit((doc) => mapWorld(doc, (w) => w.map((b) => {
+        if (!members.has(b.id)) return b;
+        // The source keeps its values; every other member takes them through
+        // patchBoard, so a posture change pivots it about its own centre.
+        const next = b.id === plan.source.id ? b : patchBoard(b, sharedOf(plan.source));
+        return { ...next, link: label };
+      })));
       for (const id of members) dropHeldIfGone(id);
     },
 
     unlinkBoards: (ids) => {
-      const drop = new Set(ids.filter((id) => get().doc.boards.some((b) => b.id === id && b.link)));
+      const drop = new Set(ids.filter((id) => worldParts(get().doc).some((b) => b.id === id && b.link)));
       if (drop.size === 0) return; // invariant 4
-      edit((doc) => ({
-        ...doc,
-        boards: dissolveSingletons(doc.boards.map((b) => (drop.has(b.id) ? withoutLink(b) : b))),
-      }));
+      // Through mapWorld (assemblies spec §5.1).
+      edit((doc) => mapWorld(doc, (w) => dissolveSingletons(w.map((b) => (drop.has(b.id) ? withoutLink(b) : b)))));
     },
 
     // Through selectionPatch, which drops hidden ids and carries invariant
     // 24's retargeting rule.
     selectLinked: (id) => {
-      const b = get().doc.boards.find((x) => x.id === id);
+      const world = worldParts(get().doc);
+      const b = world.find((x) => x.id === id);
       if (!b?.link) return;
-      set(selectionPatch(get().doc.boards.filter((x) => x.link === b.link).map((x) => x.id)));
+      set(selectionPatch(world.filter((x) => x.link === b.link).map((x) => x.id)));
     },
 
     /**
