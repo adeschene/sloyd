@@ -30,7 +30,6 @@ const sub = (a: readonly number[], b: readonly number[]) => [a[0]! - b[0]!, a[1]
 function lower(inst: Instance, upperBefore: Board, lowerBefore: Board, upperAfter: Board): Board {
   const rotation = addTurns(upperAfter.rotation, inverseTurn(inst.rotation));
   const draft: Board = { ...upperAfter, rotation, position: lowerBefore.position };
-  if (samePosition(upperAfter.position, upperBefore.position) && upperAfter.rotation === upperBefore.rotation) return draft;
   const dW = sub(upperAfter.position, upperBefore.position);
   const dS = sub(cornerShift(inst.rotation, draft), cornerShift(inst.rotation, lowerBefore));
   const d = rotateVec(inverseTurn(inst.rotation), sub(dW, dS));

@@ -16,6 +16,7 @@ describe('mapWorld write-back (assemblies spec §5.2)', () => {
     expect(after.length).toBe(13);
     after.position.forEach((v, i) => expect(v).toBe(before.position[i]));
     expect(after.rotation).toBe(before.rotation);
+    expect(after.position).toBe(before.position);
   });
 
   it('a cut edit, a material edit and a rename write only themselves', () => {
@@ -25,13 +26,16 @@ describe('mapWorld write-back (assemblies spec §5.2)', () => {
     const after = partAt(out, 'i1/i2/b3')!;
     expect([after.name, after.material, after.cuts]).toEqual(['Dowel', 'oak', []]);
     after.position.forEach((v, i) => expect(v).toBe(before.position[i]));
+    expect(after.position).toBe(before.position);
   });
 
-  it('a fresh but equal position array is not a change', () => {
-    const doc = assemblyDoc();
-    const before = partAt(doc, 'i1/b2')!;
-    const out = edit(doc, 'i1/b2', (b) => ({ ...b, position: [...b.position] as [number, number, number] }));
-    partAt(out, 'i1/b2')!.position.forEach((v, i) => expect(v).toBe(before.position[i]));
+  it('a fresh but equal position array is not a change (same stored array)', () => {
+    for (const id of ['r1', 'i1/b2', 'i1/i2/b3']) {
+      const doc = assemblyDoc();
+      const before = partAt(doc, id)!;
+      const out = edit(doc, id, (b) => ({ ...b, position: [...b.position] as [number, number, number] }));
+      expect(partAt(out, id)!.position).toBe(before.position);
+    }
   });
 
   it('a removed key is removed from the stored part', () => {
