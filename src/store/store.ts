@@ -3,10 +3,10 @@ import {
   boardsBounds, createBoard, createDocument, createGuide, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
   dissolveSingletons, linkPlan, sharedOf, sharedPatch, withoutLink,
   childrenOf, instanceAt, isCovered, itemPaths, parentPath, worldParts, mapWorld,
-  translateItems, insertItems, removeItems, copyInstanceTree, siblingsOf, containerAt, containerTurn, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
+  translateItems, insertItems, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerTurn, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
   rotateVec, inverseTurn, groupItems, ungroupItem, turnInstance as turnInstanceOp, updateContainer, lastSegment,
 } from '../document/document';
-import type { Board, BoardSnapPoint, Cut, Definition, Instance, Named, Rekey, Rotation, SloydDocument, SnapPoint, TapeAxis } from '../document/document';
+import type { Board, BoardSnapPoint, Cut, Instance, Named, Rekey, Rotation, SloydDocument, SnapPoint, TapeAxis } from '../document/document';
 import { SNAP_INCHES } from '../document/geometry';
 import { MAX_ROW } from '../document/row';
 import { clickTarget } from './assemblyPick';
@@ -291,6 +291,10 @@ interface StoreState {
   ungroupSelected: () => void;
   /** Turn an assembly about its box centre (spec §4.2). */
   turnAssembly: (path: string, rotation: Rotation) => void;
+  /** Give the instance its own copy of its definition (components spec §3.1). */
+  makeUnique: (path: string) => void;
+  /** Select the instances at the open level naming the same definition. */
+  selectCopies: (path: string) => void;
   /** Rename a part or an assembly, unique among its siblings; returns the stored name. */
   renameItem: (path: string, typed: string) => string;
   setDocumentName: (name: string) => void;
@@ -571,6 +575,29 @@ export const useStore = create<StoreState>((set, get) => {
     edit(fn, selection);
     const past = get().past;
     set({ past: [...past.slice(0, -1), { ...past[past.length - 1]!, hiddenIds: hiddenBefore }] });
+  };
+
+  /** The FIRST occurrence per storage target (components spec §4.1): two
+   *  placements of one stored part must not both send an edit. */
+  const oneEditPerTarget = (doc: SloydDocument, ids: Iterable<string>): Set<string> => {
+    const seen = new Set<string>();
+    const out = new Set<string>();
+    for (const id of ids) {
+      const k = storageKey(doc, id) ?? id;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.add(id);
+    }
+    return out;
+  };
+
+  /** Every board-owned held point, judged point-precisely (components spec §4.2):
+   *  an edit inside a definition moves parts in EVERY copy, so judging only the
+   *  edited occurrence would miss held points under the other copies. */
+  const judgeHeld = () => {
+    const owners = new Set<string>();
+    for (const h of [get().grabbed, get().tapeAnchor, get().tapeHover]) if (h && h.owner.type === 'board') owners.add(h.owner.id);
+    for (const id of owners) dropHeldIfGone(id);
   };
 
   const dropHeldIfGone = (boardId: string) => {
@@ -970,8 +997,10 @@ export const useStore = create<StoreState>((set, get) => {
       const others = Object.keys(shared).length === 0 ? new Set<string>() : mates(world, targets);
       // Through mapWorld (assemblies spec §5.1): patchBoard runs on WORLD parts,
       // and only what it changed is written back, position as a delta.
+      const t = oneEditPerTarget(get().doc, targets);
+      const o = new Set([...oneEditPerTarget(get().doc, [...t, ...others])].filter((id) => !t.has(id)));
       edit((doc) => mapWorld(doc, (w) => w.map((b) =>
-        targets.has(b.id) ? patchBoard(b, patch) : others.has(b.id) ? patchBoard(b, shared) : b)));
+        t.has(b.id) ? patchBoard(b, patch) : o.has(b.id) ? patchBoard(b, shared) : b)));
 
       // Point-precise, and AFTER the edit for the reason dropHeldIfGone's own
       // comment gives: the question is what the board offers once the edit has
@@ -983,7 +1012,7 @@ export const useStore = create<StoreState>((set, get) => {
       // already nulled above if it named this board, so reaching it here is a
       // no-op rather than a second opinion. Mates too: a propagated Length
       // moves their points exactly as it moves the targets'.
-      for (const id of [...targets, ...others]) dropHeldIfGone(id);
+      judgeHeld();
     },
 
     deleteBoard: (id) => get().deleteBoards([id]),
@@ -1037,7 +1066,6 @@ export const useStore = create<StoreState>((set, get) => {
       const taken: Named[] = [...siblingsOf(doc, container)];
       const boards: Board[] = [];
       const instances: Instance[] = [];
-      const definitions: Definition[] = [];
       for (const id of sameContainer) {
         const part = resolvedPartAt(doc, id);
         if (part) {
@@ -1048,14 +1076,12 @@ export const useStore = create<StoreState>((set, get) => {
         }
         const inst = instanceAt(doc, id);
         if (!inst) continue;
-        const copy = copyInstanceTree(doc, inst);
-        const named = { ...copy.instance, name: uniqueName(inst.name, taken) };
+        const named = { ...shareInstance(inst), name: uniqueName(inst.name, taken) };
         taken.push(named);
         instances.push(named);
-        definitions.push(...copy.definitions);
       }
       edit(
-        (d) => insertItems(d, container, { boards, instances, definitions }),
+        (d) => insertItems(d, container, { boards, instances }),
         () => [...boards.map((b) => joinPath(container, b.id)), ...instances.map((i) => joinPath(container, i.id))],
       );
     },
@@ -1074,7 +1100,6 @@ export const useStore = create<StoreState>((set, get) => {
       const taken: Named[] = [...siblingsOf(doc, container)];
       const boards: Board[] = [];
       const instances: Instance[] = [];
-      const definitions: Definition[] = [];
       const turn = containerTurn(doc, container);
       for (let k = 1; k < count; k += 1) {
         // From the ORIGINAL every time, never the previous copy: a running sum
@@ -1095,15 +1120,13 @@ export const useStore = create<StoreState>((set, get) => {
           }
           const inst = instanceAt(doc, id);
           if (!inst) continue;
-          const copy = copyInstanceTree(doc, inst);
-          const named = { ...copy.instance, position: at(inst.position), name: uniqueName(inst.name, taken) };
+          const named = { ...shareInstance(inst), position: at(inst.position), name: uniqueName(inst.name, taken) };
           taken.push(named);
           instances.push(named);
-          definitions.push(...copy.definitions);
         }
       }
       edit(
-        (d) => insertItems(d, container, { boards, instances, definitions }),
+        (d) => insertItems(d, container, { boards, instances }),
         () => [...sources, ...boards.map((b) => joinPath(container, b.id)), ...instances.map((i) => joinPath(container, i.id))],
       );
     },
@@ -1163,6 +1186,22 @@ export const useStore = create<StoreState>((set, get) => {
       edit((doc) => turnInstanceOp(doc, path, rotation));
       const under = new Set([path]);
       for (const b of worldParts(get().doc)) if (isCovered(b.id, under)) dropHeldIfGone(b.id);
+    },
+
+    makeUnique: (path) => {
+      const next = makeUniqueItem(get().doc, path);
+      if (!next) return; // invariant 4
+      edit(() => next);
+    },
+
+    selectCopies: (path) => {
+      const doc = get().doc;
+      const inst = instanceAt(doc, path);
+      if (!inst) return;
+      const container = parentPath(path);
+      const c = containerAt(doc, container);
+      if (!c) return;
+      set(selectionPatch(c.instances.filter((i) => i.definition === inst.definition).map((i) => joinPath(container, i.id))));
     },
 
     renameItem: (path, typed) => {
@@ -1330,7 +1369,7 @@ export const useStore = create<StoreState>((set, get) => {
       const all = new Set([boardId, ...mates(world, new Set([boardId]))]);
       // Through mapWorld (assemblies spec §5.1).
       edit((doc) => mapWorld(doc, (w) => w.map((b) => (all.has(b.id) ? { ...b, cuts: [...b.cuts, { ...cut }] } : b))));
-      for (const id of all) dropHeldIfGone(id);
+      judgeHeld();
     },
 
     // Cuts are patched here rather than through updateBoard on purpose:
@@ -1359,7 +1398,7 @@ export const useStore = create<StoreState>((set, get) => {
         all.has(b.id)
           ? { ...b, cuts: b.cuts.map((c) => (c.id === cutId ? { ...c, ...patch } : c)) }
           : b)));
-      for (const id of all) dropHeldIfGone(id);
+      judgeHeld();
     },
 
     removeCut: (boardId, cutId) => {
@@ -1370,7 +1409,7 @@ export const useStore = create<StoreState>((set, get) => {
       // Through mapWorld (assemblies spec §5.1).
       edit((doc) => mapWorld(doc, (w) => w.map((b) =>
         all.has(b.id) ? { ...b, cuts: b.cuts.filter((c) => c.id !== cutId) } : b)));
-      for (const id of all) dropHeldIfGone(id);
+      judgeHeld();
     },
 
     linkBoards: (ids) => {
@@ -1386,7 +1425,7 @@ export const useStore = create<StoreState>((set, get) => {
         const next = b.id === plan.source.id ? b : patchBoard(b, sharedOf(plan.source));
         return { ...next, link: label };
       })));
-      for (const id of members) dropHeldIfGone(id);
+      judgeHeld();
     },
 
     unlinkBoards: (ids) => {

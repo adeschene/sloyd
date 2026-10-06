@@ -1,6 +1,6 @@
 import { useStore } from './store';
 import { assemblyDoc } from '../document/treeFixtures';
-import { childrenOf, instanceAt, isCovered, partsBelow, resolvedPartAt, worldParts } from '../document/tree';
+import { childrenOf, instanceAt, isCovered, resolvedPartAt, worldParts } from '../document/tree';
 import { visibleBoards } from './visibility';
 import type { BoardSnapPoint, SloydDocument } from '../document/document';
 import { removeItems, snapPointsFor } from '../document/document';
@@ -195,23 +195,15 @@ describe('moving and copying assemblies (assemblies spec §4.2)', () => {
     expect(after.position[2]).toBe(before.position[2] + 1);
   });
 
-  it('Duplicate of an assembly makes an independent copy with its own definitions', () => {
+  it('Duplicate of an assembly shares its definition (components spec §3.1)', () => {
     s().duplicateBoards(['i1']);
     const roots = childrenOf(s().doc, null);
     expect(roots).toHaveLength(3);
     const copy = instanceAt(s().doc, roots[2]!)!;
     expect(copy.name).toBe('Drawer (1)');
-    expect(copy.definition).not.toBe('d1');
+    expect(copy.definition).toBe('d1');
     expect(worldParts(s().doc)).toHaveLength(7);
     expect(s().selectedIds).toEqual([roots[2]]);
-    // Independent below the top level too (Task 5 review).
-    const def = s().doc.definitions.find((d) => d.id === copy.definition)!;
-    expect(def.instances).toHaveLength(1);
-    expect(def.instances[0]!.definition).not.toBe('d2');
-    const nested = s().doc.definitions.find((d) => d.id === def.instances[0]!.definition)!;
-    expect(partsBelow(s().doc, nested).map((b) => b.name)).toEqual(['Pin']);
-    expect(def.boards.map((b) => b.name)).toEqual(['Side', 'Front']);
-    expect(partsBelow(s().doc, def)[0]!.cuts).toHaveLength(3);
   });
 
   it('Copy in a row of an assembly shifts each copy from the ORIGINAL', () => {

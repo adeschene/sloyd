@@ -1,4 +1,4 @@
-import { copyInstanceTree, groupItems, makeUniqueItem, nextAssemblyName, pruneDefinitions, removeItems, shareInstance, turnInstance, ungroupItem } from './treeOps';
+import { groupItems, makeUniqueItem, nextAssemblyName, pruneDefinitions, removeItems, shareInstance, turnInstance, ungroupItem } from './treeOps';
 import { dissolveShapes, isShaped } from './shapes';
 import type { SloydDocument } from './types';
 import { childrenOf, instanceAt, partAt, worldParts } from './tree';
@@ -74,13 +74,6 @@ describe('ungroupItem (assemblies spec §4.1, §10)', () => {
 });
 
 describe('copies, removal, pruning', () => {
-  it('copyInstanceTree copies every definition below with fresh ids', () => {
-    const doc = assemblyDoc();
-    const { instance, definitions } = copyInstanceTree(doc, doc.instances[0]!);
-    expect(instance.id).not.toBe('i1');
-    expect(definitions).toHaveLength(2);
-    for (const d of definitions) expect(['d1', 'd2']).not.toContain(d.id);
-  });
   it('removeItems prunes everything below', () => {
     const out = removeItems(assemblyDoc(), ['i1']);
     expect(out.instances).toEqual([]);

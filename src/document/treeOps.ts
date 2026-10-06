@@ -155,29 +155,6 @@ export function ungroupItem(doc: SloydDocument, path: string):
   return { doc: out, children: pairs.map(([, to]) => to), rekey: rekeyer(pairs) };
 }
 
-/** An independent copy of an instance and every definition below it (spec §4.2). Part ids
- *  are per definition, so they are kept; cut ids too (invariant 45's "copies join"). */
-export function copyInstanceTree(doc: SloydDocument, inst: Instance): { instance: Instance; definitions: Definition[] } {
-  const defs = new Map(doc.definitions.map((d) => [d.id, d]));
-  const out: Definition[] = [];
-  const copyDef = (id: string): string => {
-    const d = defs.get(id);
-    const nid = nextId();
-    if (!d) return nid;
-    const instances = d.instances.map((j) => ({ ...j, position: [...j.position] as [number, number, number], definition: copyDef(j.definition) }));
-    out.push({
-      id: nid,
-      boards: d.boards.map((b) => (isShaped(b)
-        ? { ...b, position: [...b.position] as [number, number, number] }
-        : { ...b, position: [...b.position] as [number, number, number], cuts: b.cuts.map((k) => ({ ...k })) })),
-      instances,
-    });
-    return nid;
-  };
-  const definition = copyDef(inst.definition);
-  return { instance: { ...inst, id: nextId(), position: [...inst.position] as [number, number, number], definition }, definitions: out };
-}
-
 /**
  * Turn an instance to `rotation` about its box centre in the parent's frame,
  * keeping the box's min height: reorientedPosition's rule for a part
