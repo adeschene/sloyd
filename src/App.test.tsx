@@ -6,6 +6,7 @@ import { createDocument, createBoard, boardSnapPoints } from './document/documen
 import type { SloydDocument } from './document/document';
 import type { ProjectEntry } from './storage/types';
 import { storage } from './storage/browser';
+import { assemblyDoc } from './document/treeFixtures';
 
 // The 3D viewport needs a real ResizeObserver and a WebGL-capable canvas,
 // neither of which jsdom provides. App's restore/autosave wiring doesn't
@@ -1663,5 +1664,20 @@ describe('Generate', () => {
     expect(clearLlmSettings).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('dialog', { name: 'Settings' })).toBeNull();
     expect(viewportProps.current?.shortcutsSuspended).toBe(false);
+  });
+});
+
+describe('App assemblies', () => {
+  it('Ctrl+G groups the selection, Ctrl+Shift+G ungroups it, Escape closes an open assembly last', async () => {
+    render(<App />);
+    await act(async () => { await Promise.resolve(); });
+    act(() => { useStore.getState().replaceDocument(assemblyDoc()); useStore.getState().selectAll(); });
+    fireEvent.keyDown(window, { key: 'g', ctrlKey: true });
+    expect(useStore.getState().doc.instances).toHaveLength(1);
+    fireEvent.keyDown(window, { key: 'G', ctrlKey: true, shiftKey: true });
+    expect(useStore.getState().doc.instances.map((i) => i.id)).toEqual(['i1']);
+    act(() => useStore.getState().openAssembly('i1'));
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(useStore.getState().openPath).toBeNull();
   });
 });

@@ -564,7 +564,7 @@ export default function App() {
       // dialogs own Escape while open, and a grab or anchor behind them must
       // survive it.
       if (e.key === 'Escape') {
-        const { grabbed, tapeAxis, tapeAnchor, tool, cancelGrab, setTapeAxis, clearTapeAnchor, setTool } =
+        const { grabbed, tapeAxis, tapeAnchor, tool, cancelGrab, setTapeAxis, clearTapeAnchor, setTool, openPath, closeAssembly } =
           useStore.getState();
         if (grabbed) {
           e.preventDefault();
@@ -581,6 +581,10 @@ export default function App() {
         } else if (tool !== 'select') {
           e.preventDefault();
           setTool('select');
+        } else if (openPath !== null) {
+          // The last rung (assemblies spec §3.3): close one assembly level.
+          e.preventDefault();
+          closeAssembly();
         }
         return;
       }
@@ -725,6 +729,15 @@ export default function App() {
           // tool that is not even armed.
           return;
         }
+      }
+
+      // Ctrl/Cmd+G groups, Ctrl/Cmd+Shift+G ungroups (assemblies spec §4.1).
+      // preventDefault: Ctrl+G is the browser's find-next.
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'g') {
+        e.preventDefault();
+        if (e.shiftKey) useStore.getState().ungroupSelected();
+        else useStore.getState().groupSelected();
+        return;
       }
 
       // Ctrl/Cmd+A selects every part (multi-select spec §3). In this ONE
