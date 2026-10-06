@@ -1,5 +1,6 @@
 import { boardExtents } from './geometry';
-import type { Board, Instance, SloydDocument, StoredBoard } from './types';
+import type { Board, Instance, Shape, SloydDocument, StoredBoard } from './types';
+import { LINK_FIELDS } from './links';
 import { isShaped, resolveBoard, shapeMap } from './shapes';
 import { addTurns, cornerShift, inverseTurn, placeBoard, rotateVec } from './frames';
 import type { Container } from './tree';
@@ -38,6 +39,31 @@ function lower(inst: Instance, upperBefore: Board, lowerBefore: Board, upperAfte
   return { ...draft, position: [lowerBefore.position[0] + d[0], lowerBefore.position[1] + d[1], lowerBefore.position[2] + d[2]] };
 }
 
+const ROOT = 'ROOT';
+
+/** The id of the definition holding `container`'s parts, or ROOT. */
+function definitionIdOf(doc: SloydDocument, container: string | null): string | null {
+  if (container === null) return ROOT;
+  return definitionAt(doc, container)?.id ?? null;
+}
+
+/** Where an occurrence is STORED: the same key for every placement of one
+ *  stored part (components spec 4.1). Null when the occurrence does not resolve. */
+export function storageKey(doc: SloydDocument, occ: string): string | null {
+  const def = definitionIdOf(doc, parentPath(occ));
+  if (def === null || !partAt(doc, occ)) return null;
+  return `${def}:${lastSegment(occ)}`;
+}
+
+/** Replace one definition's (or the root's) parts by id. */
+function updateDefinition(doc: SloydDocument, defId: string, fn: (boards: StoredBoard[]) => StoredBoard[]): SloydDocument {
+  if (defId === ROOT) return { ...doc, boards: fn(doc.boards) };
+  return { ...doc, definitions: doc.definitions.map((d) => (d.id === defId ? { ...d, boards: fn(d.boards) } : d)) };
+}
+
+/** Deep equality for written records (plain data). */
+const sameRecord = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
 /**
  * Write world-space edits back into the tree (spec §5.1, §5.2). Only changed
  * fields are written: `position` compared element by element, `cuts` by
@@ -48,19 +74,25 @@ function lower(inst: Instance, upperBefore: Board, lowerBefore: Board, upperAfte
  * `keepWorld` (joinery only): a part whose extents or posture changed also
  * counts as moved, so the world box is kept; a Properties edit keeps the
  * stored local position instead (spec §5.2) and must not pass it.
+ * Components (spec 4.1): edits are keyed by STORAGE target (definition id +
+ * part id), so every placement of one stored part is one write; a shared
+ * field of a shaped part is written into its Shape. Two edits reaching one
+ * target with different results throw.
  */
 export function applyWorldEdits(doc: SloydDocument, edits: readonly WorldEdit[], opts?: { keepWorld?: boolean }): SloydDocument {
-  const byContainer = new Map<string | null, Map<string, StoredBoard>>();
   const shapes = shapeMap(doc);
+  const parts = new Map<string, { defId: string; next: StoredBoard }>();   // by storage key
+  const shapeWrites = new Map<string, Shape>();                               // by shape id
   for (const { before, after } of edits) {
     const occ = before.id;
     const cPath = parentPath(occ);
     const stored = partAt(doc, occ);
-    if (!stored) continue;
-    const chain = cPath === null ? [] : instancesOn(doc, cPath) ?? [];
-    const reps: Board[] = [];
+    const defId = definitionIdOf(doc, cPath);
+    if (!stored || defId === null) continue;
     const resolved = resolveBoard(shapes, stored);
     if (!resolved) continue;
+    const chain = cPath === null ? [] : instancesOn(doc, cPath) ?? [];
+    const reps: Board[] = [];
     reps[chain.length] = resolved;
     for (let j = chain.length - 1; j >= 0; j -= 1) reps[j] = placeBoard(chain[j]!, reps[j + 1]!);
     let cur = after;
@@ -69,28 +101,46 @@ export function applyWorldEdits(doc: SloydDocument, edits: readonly WorldEdit[],
     const resized = opts?.keepWorld === true
       && (before.posture !== after.posture || boardExtents(before).some((e, a) => e !== boardExtents(after)[a]));
     const moved = resized || !samePosition(before.position, after.position) || before.rotation !== after.rotation;
-    const next: Record<string, unknown> = { ...stored };
     const rec = (b: Board) => b as unknown as Record<string, unknown>;
-    for (const k of new Set([...Object.keys(before), ...Object.keys(after)])) {
-      if (k === 'id') continue;
-      // A shaped part stores only its own fields; writing a shared one back into a shape is Task 2.
-      if (isShaped(stored) && k !== 'position' && k !== 'rotation' && k !== 'name') continue;
-      if (k === 'position' || k === 'rotation') {
-        if (moved) next[k] = k === 'position' ? [...cur.position] : cur.rotation;
-        continue;
+    const changedKeys = [...new Set([...Object.keys(before), ...Object.keys(after)])].filter((k) => {
+      if (k === 'id' || k === 'shape') return false;            // never written through here
+      if (k === 'position' || k === 'rotation') return moved;
+      return k === 'cuts' ? before.cuts !== after.cuts : rec(before)[k] !== rec(after)[k];
+    });
+    const valueOf = (k: string) => (k === 'position' ? [...cur.position] : k === 'rotation' ? cur.rotation : rec(after)[k]);
+
+    const key = `${defId}:${stored.id}`;
+    const base = parts.get(key)?.next ?? stored;
+    const next: Record<string, unknown> = { ...base };
+    let shapeNext: Record<string, unknown> | null = null;
+    for (const k of changedKeys) {
+      const shared = (LINK_FIELDS as Record<string, string>)[k] === 'shared';
+      if (isShaped(stored) && shared) {
+        shapeNext ??= { ...(shapeWrites.get(stored.shape) ?? shapes.get(stored.shape)!) };
+        shapeNext[k] = valueOf(k);
+      } else if (k in after || k === 'position' || k === 'rotation') {
+        next[k] = valueOf(k);
+      } else {
+        delete next[k];
       }
-      const changed = k === 'cuts' ? before.cuts !== after.cuts : rec(before)[k] !== rec(after)[k];
-      if (!changed) continue;
-      if (k in after) next[k] = rec(after)[k];
-      else delete next[k];
     }
-    if (!byContainer.has(cPath)) byContainer.set(cPath, new Map());
-    byContainer.get(cPath)!.set(stored.id, next as unknown as StoredBoard);
+    const prior = parts.get(key);
+    if (prior && !sameRecord(prior.next, next)) throw new Error(`applyWorldEdits: disagreeing edits to ${key}`);
+    parts.set(key, { defId, next: next as unknown as StoredBoard });
+    if (shapeNext && isShaped(stored)) {
+      const priorShape = shapeWrites.get(stored.shape);
+      if (priorShape && !sameRecord(priorShape, shapeNext)) throw new Error(`applyWorldEdits: disagreeing edits to shape ${stored.shape}`);
+      shapeWrites.set(stored.shape, shapeNext as unknown as Shape);
+    }
   }
   let out = doc;
-  for (const [cPath, parts] of byContainer) {
-    out = updateContainer(out, cPath, (c) => ({ ...c, boards: c.boards.map((b) => parts.get(b.id) ?? b) }));
+  const byDef = new Map<string, Map<string, StoredBoard>>();
+  for (const { defId, next } of parts.values()) {
+    if (!byDef.has(defId)) byDef.set(defId, new Map());
+    byDef.get(defId)!.set(next.id, next);
   }
+  for (const [defId, m] of byDef) out = updateDefinition(out, defId, (bs) => bs.map((b) => m.get(b.id) ?? b));
+  if (shapeWrites.size) out = { ...out, shapes: out.shapes.map((s) => shapeWrites.get(s.id) ?? s) };
   return out;
 }
 
