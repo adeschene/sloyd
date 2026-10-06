@@ -86,3 +86,13 @@ describe('dedupeNames', () => {
     expect(result[1].length).toBe(boards[1].length);
   });
 });
+
+describe('names over any { id, name } (assemblies spec §2.3)', () => {
+  it('uniqueName counts instances as siblings', () => {
+    expect(uniqueName('Drawer', [{ id: 'i1', name: 'Drawer' }])).toBe('Drawer (1)');
+  });
+  it('dedupeNames keeps the item type', () => {
+    const out = dedupeNames([{ id: 'a', name: 'X', extra: 1 }, { id: 'b', name: 'X', extra: 2 }]);
+    expect(out.map((o) => [o.name, o.extra])).toEqual([['X', 1], ['X (1)', 2]]);
+  });
+});

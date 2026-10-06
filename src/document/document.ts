@@ -3,6 +3,7 @@ import type {
   Board, Cut, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, GuidePoint,
 } from './types';
 import { dedupeNames } from './names';
+import { nextId } from './ids';
 import { repairLinks } from './links';
 import { positionAxisOf, horizontalOf, DIMENSION_ORDER } from './geometry';
 
@@ -14,6 +15,7 @@ export {
 } from './geometry';
 export type { Bounds, AxisMap } from './geometry';
 export { uniqueName, dedupeNames } from './names';
+export type { Named } from './names';
 export { boardEdges, boardSolids, CUT_GEOMETRY_FIELDS, CUT_GEOMETRY_KEYS, cutLabel, cutRegion, clippedRegion, cutShape, storedAsShape, cutRemovesNothing, cutsThatRemoveStock, pointToLocalXYZ, solidWorldBox, wholeBoard } from './cuts';
 export type { CutKind, CutShape, Point, Segment } from './cuts';
 export { buildCutList } from './cutlist';
@@ -68,7 +70,7 @@ export type { BoardSnapPoint, SnapKind, SnapOwner, SnapPoint, TapeAxis } from '.
  * `link` on open and autosaves, and the links are gone with nothing saying so.
  * `repairLinks` runs after validation on every load.
  */
-export const CURRENT_VERSION = 9;
+export const CURRENT_VERSION = 10;
 
 export class DocumentError extends Error {
   /**
@@ -84,12 +86,6 @@ export class DocumentError extends Error {
     this.name = 'DocumentError';
     this.cancelled = options.cancelled ?? false;
   }
-}
-
-let idCounter = 0;
-function nextId(): string {
-  idCounter += 1;
-  return `b_${Date.now().toString(36)}_${idCounter.toString(36)}`;
 }
 
 // Exported so store.ts can mint a cut id the same way validateCuts re-mints
@@ -172,6 +168,8 @@ export function createDocument(name = 'Untitled'): SloydDocument {
     stock: { kerf: DEFAULT_KERF },
     guides: [],
     boards: [],
+    instances: [],
+    definitions: [],
   };
 }
 
@@ -567,6 +565,8 @@ export function migrateDocument(raw: unknown): SloydDocument {
     units: { display: 'imperial-fractional', precision },
     stock: { kerf },
     guides,
+    instances: [],
+    definitions: [],
     // ONE `seen` set threaded across the whole list, which is why this is not
     // a `dedupeIds` pass beside `dedupeNames`. A name needs a replacement
     // computed FROM its siblings, so it cannot be decided one board at a time;

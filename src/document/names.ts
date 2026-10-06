@@ -1,4 +1,5 @@
-import type { Board } from './types';
+/** Anything that carries a sibling-unique name: a part or an assembly. */
+export interface Named { id: string; name: string }
 
 /**
  * A trailing " (n)" disambiguation suffix, e.g. "Leg (2)". The stem is
@@ -12,15 +13,18 @@ const SUFFIX_RE = /^(.*?)\s\((\d+)\)$/;
  * needed. `excludeId` is the board being renamed, so it does not collide
  * with itself.
  *
+ * Since the assemblies round, the items are one container's parts AND
+ * assemblies together (invariant 8, restated: unique among siblings).
+ *
  * Precondition: `base` is non-empty after trimming. Both call sites
  * guarantee it — the name field reverts an emptied value before committing,
  * and validateBoard trims and substitutes 'Board' for a blank (including
  * whitespace-only) name on load.
  */
-export function uniqueName(base: string, boards: Board[], excludeId?: string): string {
+export function uniqueName(base: string, items: readonly Named[], excludeId?: string): string {
   const wanted = base.trim();
   const taken = new Set(
-    boards.filter((b) => b.id !== excludeId).map((b) => b.name),
+    items.filter((b) => b.id !== excludeId).map((b) => b.name),
   );
 
   // Free as typed — including a name that already ends in " (n)". The user
@@ -43,12 +47,12 @@ export function uniqueName(base: string, boards: Board[], excludeId?: string): s
  * This is the load-time half of the uniqueness invariant. It cannot live in
  * validateBoard, which sees one board at a time and cannot know its siblings.
  */
-export function dedupeNames(boards: Board[]): Board[] {
-  const out: Board[] = [];
-  for (const board of boards) {
-    // Only the boards already placed are candidates for collision, so no
-    // exclusion is needed: `board` itself is never in `out` yet.
-    out.push({ ...board, name: uniqueName(board.name, out) });
+export function dedupeNames<T extends Named>(items: readonly T[]): T[] {
+  const out: T[] = [];
+  for (const item of items) {
+    // Only the items already placed are candidates for collision, so no
+    // exclusion is needed: `item` itself is never in `out` yet.
+    out.push({ ...item, name: uniqueName(item.name, out) });
   }
   return out;
 }

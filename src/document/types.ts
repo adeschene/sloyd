@@ -119,6 +119,32 @@ export interface GuidePoint {
   at: [number, number, number];
 }
 
+/**
+ * An assembly placed in its parent (assemblies spec §2). `position` is the
+ * frame's ORIGIN in the parent's frame, NOT a min corner: invariant 2 is a
+ * rule about parts. The frame is turned about the vertical through the
+ * origin, then translated. Never constructed by hand outside treeOps.ts and
+ * document.ts.
+ */
+export interface Instance {
+  id: string;
+  name: string;
+  /** A Definition id. */
+  definition: string;
+  position: [number, number, number];
+  rotation: Rotation;
+}
+
+/**
+ * The parts and nested assemblies of one assembly, in its own frame. Referenced
+ * by id; in round 1 every definition has exactly one instance.
+ */
+export interface Definition {
+  id: string;
+  boards: Board[];
+  instances: Instance[];
+}
+
 export interface SloydDocument {
   version: number;
   name: string;
@@ -136,6 +162,10 @@ export interface SloydDocument {
    */
   guides: GuidePoint[];
   boards: Board[];
+  /** The root's assemblies. The root is an implicit definition (spec §2). */
+  instances: Instance[];
+  /** Document-wide, referenced by Instance.definition. */
+  definitions: Definition[];
 }
 
 /**
