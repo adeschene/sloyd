@@ -94,13 +94,23 @@ interface Instance {
 - **`worldParts(doc): Board[]`** walks the tree from the root, applying `composeStep` down each path.
   Each result is a self-contained world `Board`:
   - `id`: the occurrence id (§2.2);
-  - `name`: the display path, for example `Drawer 2 › Side` (§2.3);
+  - `name`: the part's OWN name, never the display path. Properties' name field and its dedupe read
+    it, so a path name there would be typed back into storage (amended 2026-10-06, see §10);
   - `rotation`: the sum of the turns on the path plus the part's own, mod 360;
   - `position`: the world min corner of the turned box;
   - every other field copied, cuts included.
-- **`worldParts` is pure, and it returns the SAME `boards` array when there are no instances.** A
-  flat document then costs nothing, and every memo keyed on the array still works.
-- **Every reader of a placed part reads `worldParts`** (§6). None of them walks the tree itself.
+- **Order:** root parts in document order, then each root instance in order, depth first; inside a
+  definition, its parts before its nested instances. `repairLinks`' "first member" and nesting's
+  tiebreak both read this order.
+- **`worldParts` is pure, and it returns the SAME array for the same document object** (a `WeakMap`
+  cache keyed on the document), and the document's own `boards` array when there are no instances.
+  So a `useStore` selector over it returns a stable value (invariant 43's selector rule).
+- **`flatDocument(doc)`** is the document with `boards: worldParts(doc)`, every name replaced by its
+  display path, and empty `instances` and `definitions`. It is what the cut list and joinery read.
+  The path names are built HERE, in the document layer, so the string the cut list measures is the
+  string it draws (invariant 19's third clause).
+- **Every reader of a placed part reads `worldParts` or `flatDocument`** (§6). None of them walks the
+  tree itself.
 
 ### 2.2 Ids
 
@@ -226,20 +236,27 @@ reference ever has to be rewritten.
   Grouping assemblies is how nesting happens. One undo entry.
 - **Ungroup** (Ctrl/Cmd+Shift+G, or **Ungroup** in Properties) works on each selected instance:
   1. it maps the children into the parent's frame with `composeStep`, the same arithmetic
-     `worldParts` uses, so world values come out BIT-IDENTICAL;
+     `worldParts` uses. The instance's direct child PARTS come out BIT-IDENTICAL. A nested instance's
+     frame is folded into one step, so the parts below it are placed as `o1 + (o2 + p)` instead of
+     `(o1 + o2) + p`: exact when the ungrouped frame is the identity or the values are dyadic, and
+     otherwise within float rounding (amended 2026-10-06, see §10);
   2. it dedupes their names against their new siblings;
   3. it prunes the now-unreferenced definition;
   4. it selects the children;
   5. it re-keys hidden ids and held points.
   One undo entry.
-- **Neither moves anything in the world.** That is the headline property, and §8 tests it against the
-  document BEFORE the action.
+- **Neither moves anything in the world.** Group is exact, bit for bit. Ungroup is exact for direct
+  child parts and within float rounding below them. §8 tests both against the document BEFORE the
+  action.
 
 ### 4.2 An assembly selected
 
 - **Move.** The gizmo and group moves follow invariant 42 unchanged: the selection's world box min is
-  rounded once, and ONE delta is added to each selected instance's `position` (and to each selected
-  part's position). Snap Move translates the same way, unrounded (invariant 25). While an assembly is
+  rounded once, and ONE world delta results. **Every move carries a delta, never an absolute
+  position:** the world delta is rotated into each item's CONTAINER frame (a quarter turn only swaps
+  and negates axes, so this is exact) and added to the item's stored `position` (a part) or origin (an
+  instance). For a root item that is today's arithmetic exactly. Snap Move translates the same way,
+  unrounded (invariant 25), and so does Copy in a row's step (amended 2026-10-06, see §10). While an assembly is
   selected, the Move tool's grab candidates are all the points of the parts under it.
 - **Turn** 0/90/180/270 in Properties, about the instance's world-box centre, through one new helper,
   `turnInstance`, the instance counterpart of `reorientedPosition` (invariant 2). It works on a single
@@ -277,8 +294,12 @@ exactly today's arithmetic. Round 2 changes only `editParts`.
 ### 5.2 Only changed fields go back
 
 - **Mapping a value into the world and back is not bit-exact:** `(t + a) − t ≠ a` for a non-dyadic `a`.
-  So `editParts` writes back ONLY fields `fn` changed, compared by `!==` against the world values it
-  handed in.
+  So `editParts` writes back ONLY fields `fn` changed. Primitives compare by `!==`; `position`
+  compares ELEMENT BY ELEMENT, because a fresh array with equal values is not a change; `cuts` by
+  reference (every cut writer builds a new array) (amended 2026-10-06, see §10).
+- **A changed position goes back as a DELTA, level by level,** never as an absolute round trip: at each
+  instance on the path, the stored value gains the inverse-rotated world change, less the change in the
+  turned box's min-corner offset. An axis that did not move gains exactly zero.
 - **Example:** a Length edit on a part inside a turned assembly leaves the stored local position
   untouched, unless the patch also pivoted it. This is invariant 25's rule: touch nothing that is
   already an exact position.
@@ -314,13 +335,14 @@ exactly today's arithmetic. Round 2 changes only `editParts`.
 
 ## 6. Readers of parts
 
-- **They read `worldParts(doc)`, and that is their whole change:** the cut list, nesting, the
-  diagrams, board feet, `checkDesign`, snap points, the viewport (`BoardMesh`, `MoveTool`,
+- **They read `worldParts(doc)` or `flatDocument(doc)`, and that is their whole change:** the cut
+  list, nesting, the diagrams and board feet through `flatDocument`; `checkDesign`, snap points and
+  the viewport (`BoardMesh`, `MoveTool`,
   `TapeTool`, `moveCandidates`, Home and `f`).
 - **The cut list.** Identical parts still collapse into one row, so three drawers' sides make one row
-  of 6, listing `Drawer 1 › Side`, `Drawer 2 › Side`, …. Invariant 18 is unchanged. A world part's name
-  is its display path, so nothing in the cut list concatenates names (invariant 19's third clause:
-  the string that is measured is the string that is drawn).
+  of 6, listing `Drawer 1 › Side`, `Drawer 2 › Side`, …. Invariant 18 is unchanged. `flatDocument`
+  builds the display paths, so nothing in the cut list concatenates names (invariant 19's third
+  clause: the string that is measured is the string that is drawn).
 - **Nesting's tiebreak** (`a.id.localeCompare(b.id)`) still has a total order, because occurrence ids
   are unique.
 - **Generate** still produces flat designs. `designToDocument` is unchanged apart from writing the
@@ -328,10 +350,15 @@ exactly today's arithmetic. Round 2 changes only `editParts`.
 
 ### 6.1 Joinery keeps the tree
 
-- **Input:** `worldParts`. Every recipe (move, resize, trim, cut, carry) already works in world space.
-- **Output:** a TREE-SHAPED document with the same instances. Each joined world part is written back
-  to its definition part through §5.1's mapping, and §5.2's changed-fields rule applies. The mapping
-  is 1:1 because every definition has one instance in round 1.
+- **Input:** `flatDocument`, with path names. Every recipe (move, resize, trim, cut, carry) already
+  works in world space.
+- **Output:** a TREE-SHAPED document with the same instances. `applyJoints` ends in `migrateDocument`,
+  which re-mints ids containing `/`, so joined parts are matched back to occurrences BY INDEX: every
+  recipe preserves the count and order of parts, and a length mismatch THROWS (our bug, not a model
+  failure). Each joined part is written back through §5.1's mapping, compared against the same
+  flattened "before", so the path names compare equal and are never written back as renames. The
+  mapping is 1:1 because every definition has one instance in round 1. The tree-shaped document is
+  what lands on `result.doc`, the field `useJoinery` saves.
 - **Why not flatten the output:** it would throw away the structure the user built.
 - **Unchanged:** the output still ends in `migrateDocument`, and joinery still writes only through
   `createProject(doc, { activate: false })` (invariants 36, 41).
@@ -355,10 +382,15 @@ exactly today's arithmetic. Round 2 changes only `editParts`.
 **Unit tests, every new one mutation-tested.**
 
 - **Group and Ungroup move nothing.**
-  - `worldParts` before equals `worldParts` after, ids aside and EXACT, using `chiralPart`, nested
-    turned instances and millimetre values.
+  - Group: `worldParts` before equals `worldParts` after, ids aside and EXACT, using `chiralPart`,
+    nested turned instances and millimetre values.
+  - Ungroup of a moved and turned instance: its direct child parts are EXACT; parts below a nested
+    instance agree within 1e-9.
   - The bound comes from the document BEFORE the action, which the action cannot change (invariant 23).
-  - Ungroup of a moved and turned instance is exact too, because it shares `composeStep`.
+- **Every store test runs against a part inside a turned, translated assembly AND against an instance
+  path**, not only root parts: a lookup through `doc.boards` silently ignores both, and a root-only
+  fixture passes with that bug live.
+- **Ancestor membership:** `i3` covers `i3/b1` and does NOT cover `i30/b1`.
 - **Equivariance (invariant 44).** An instance at turn r+90 gives the parts of the same instance at r,
   turned a quarter about the instance's world-box centre, with `chiralPart` inside, for `worldParts`,
   the snap points and `worldSolids`.
@@ -399,3 +431,19 @@ edit goes through `editParts`.**
 - a reader that walks the tree itself is a second decider;
 - `editParts` writes back only changed fields;
 - a new frame starts at origin `[0, 0, 0]`, turn 0, so Group moves nothing, bit for bit.
+
+## 10. Amendments (2026-10-06, while writing the plan)
+
+The plan's code reading contradicted three claims, and fixed two more details. No approved behaviour
+changes.
+1. **`worldParts` carries each part's OWN name** (§2.1). Path names come from `flatDocument`, for the
+   cut list and joinery. Properties' name field reads `board.name`, so a path there would be stored.
+2. **Ungroup is exact for direct child parts only** (§4.1). Folding a nested frame changes the order of
+   additions. Group stays exact.
+3. **`position` is compared element by element** (§5.2); a fresh equal array is not a change. A changed
+   position goes back as a delta, level by level.
+4. **Every move is a delta rotated into the item's container frame** (§4.2), never an absolute position
+   through world space.
+5. **Joinery maps parts back by index** (§6.1), throws on a count mismatch, and the tree document is
+   what `useJoinery` saves.
+
