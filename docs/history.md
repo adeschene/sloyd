@@ -316,13 +316,13 @@ Rolling back past it strands v9 documents; export first.
   - **The planning ruling was superseded.** `applyJoints` already ends in `migrateDocument`,
     whose load path runs `repairLinks`, so `runJoinery`'s result was already consistent and
     `run.ts` needed no change. Task 3 added two tests that pin it (two linked legs cut
-    differently come out unlinked; a linked pair joinery does not cut keeps its link); making
+    by joinery come out unlinked, even with identical mortises, because `pocketFor` mints fresh cut ids per board; a linked pair joinery does not cut keeps its link); making
     `repairLinks` the identity turns the first red.
   - **The single panel's linked count is a selector returning a number**, not a `useMemo` over
     the boards: cheaper, and it re-renders only when the count moves (invariant 43's selector
     rule).
 - **Evidence.** 1843 tests across 63 files before the round; 1859 across 64 after Task 1, 1873
-  after Task 2, 1875 after its fix, 1877 after Task 3, 1882 after Task 4; build clean. Mutations,
+  after Task 2, 1875 after its fix, 1877 after Task 3, 1882 after Task 4, 1883 after the final-review fix wave (sharedPatch copies cuts; a compile-time guard that a shared field other than cuts is a primitive); build clean. Mutations,
   each shown red: rotation marked shared, the cut-id compare dropped, delete instead of unlink,
   `linkPlan` ignoring unselected members, an empty `link` kept, the full patch to mates, mates
   skipped, a cut id per member, no `dissolveSingletons` in Unlink and in Delete, `copyBoard`

@@ -108,8 +108,8 @@ helper). So copies of a linked part are members of its link.
     differ from it (`!sameShared`) is UNLINKED;
   - **one member left:** a label with one member is cleared;
   - **no geometry moves on load.**
-- **Joinery's output.** Joinery cuts parts individually, so linked parts it cuts differently come out
-  unlinked in the new joined project, through this same repair when that project is loaded. The
+- **Joinery's output.** Joinery cuts parts individually, so any linked part it cuts at all comes out
+  unlinked (`pocketFor` mints fresh cut ids per board, so even identical mortises differ by id) in the new joined project, through this same repair when that project is loaded. The
   original project is untouched.
   - The joined document is passed through `repairLinks` before it is saved, so the saved project is
     already consistent.

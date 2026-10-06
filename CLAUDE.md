@@ -24,7 +24,7 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **1882/1882 tests passing across 64 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
+Static SPA, containerized, **1883/1883 tests passing across 64 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **9** on branch `linking` (production and `master` are still at **8** — see below).
 
 **PRODUCTION MATCHES `master` as of 2026-10-06 with the copy-in-a-row round live** — bundle `index-B8i7dotN.js`, CSS `index-Bj5KGEIA.css` (moved: the form's styles), merge commit `7487aca`, **schema 8** (rolling back past quarter turns strands v8 documents; export first). Before it: quarter turns `index-bSuJPbkx.js` (`a24287f`, 2026-10-05), hide/unhide `index-BpdcUlXf.js` (`366eb37`, 2026-10-05), multi-select `index-D7ySMvky.js` (`232917f`, 2026-10-05), joinery residues `index-D_wzi7Bx.js` (`2b96eb2`, 2026-10-05), joinery fixes `index-BzWa2ZGT.js` (`c31dd82`, 2026-10-05), fu 197 `index-Ci3NLhVT.js` (`658dfcc`, 2026-10-05), fu 200 `index-DjL6FbOz.js` (`f37734b`, 2026-10-05), 198/199 `index-BvsB1zA6.js` (`fb8a094`, 2026-10-05), cut storage `index-JBiJohQE.js` (`7fa749d`, 2026-10-04), cut lines `index-BPmx9i74.js` (`f602a2d`), cut words `index-Cw_EeWuY.js` (`8c9be52`), joinery `index-Ci7lVCzJ.js` (`d2a14ac`), phantom cut `index-B2Yuq550.js` (`e7bf3bc`), stopped cuts `index-CoHIAVxf.js` (`c054ede`), which bumped the schema to 7 (rolling back past it strands v7 documents; export first). Before it, 2026-10-03: key check `index-BhhW2iNw.js` (`d0ba83b`), held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
@@ -733,7 +733,7 @@ src/
 │       │                   throw), so an end already cut is a skip, never a throw.
 │       │                   A growing part's cuts are re-stored by SHAPE first (fu 199).
 │       │                   It ENDS in `migrateDocument`, so `repairLinks` unlinks
-│       │                   linked parts joinery cut differently; `run.ts` has no
+│       │                   linked parts joinery cut at all (unlinked); `run.ts` has no
 │       │                   link code of its own, and `runJoinery.test.ts` pins it
 │       │                   (inv 45)
 │       │                   `resize` and `cutIntoEnd` take WORLD ends and map them to the
@@ -1849,8 +1849,8 @@ worked examples behind several of them are in `docs/history.md`.
       (`dissolveSingletons`, which `unlinkBoards` and `deleteBoards` also run). **Its one home
       is `migrateDocument`**, so open, import, autosave-restore, `designToDocument` and
       joinery's output (`applyJoints` ends in `migrateDocument`) all pass it. Joinery cuts
-      parts one at a time, so linked parts it cuts differently come out unlinked in the new
-      project; the original is untouched. Do not add a second call in `run.ts`.
+      parts one at a time, so any linked part it cuts at all comes out unlinked in the new
+      project (`pocketFor` mints fresh cut ids per board, so even identical mortises differ by id); the original is untouched. Do not add a second call in `run.ts`.
     - **An unlinked part has NO `link` key**, never `link: undefined`: `withoutLink`
       destructures it away, and a copy of an unlinked part gains none. `validateBoard` keeps a
       non-blank string and drops anything else, never refusing the file.
@@ -1869,7 +1869,7 @@ worked examples behind several of them are in `docs/history.md`.
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 1882 tests across 64 files
+npm test           # Vitest, currently 1883 tests across 64 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
