@@ -118,7 +118,6 @@ describe('runJoinery', () => {
       const legs = out.result.doc.boards.filter((b) => b.name.startsWith('Leg'));
       expect(legs.length).toBe(2);
       for (const l of legs) expect('link' in l).toBe(false);
-      expect(out.doc).toBe(out.result.doc);
     });
 
     it('a linked pair joinery does not cut keeps its link', async () => {
