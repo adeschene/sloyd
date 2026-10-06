@@ -18,8 +18,11 @@
 
 ## Deployment record
 
-**Production matches `master` as of 2026-10-06 with the assemblies round live** (`index-hmc0odAl.js`,
-CSS `index-BYFkbcnj.css`, deployed commit `f8f76e8`, merge `699cc45`, **schema 10**). Verified: `200`
+**Production matches `master` as of 2026-10-06 with the assemblies round and its two same-day follow-ups live**
+(`index-DVAS8FuS.js`, deployed commit `029becf`: the fade hides the grid and reads as a grey ghost,
+and a click on empty space inside an assembly moves up one level; both at the user's request after
+looking at production). Before those: `index-hmc0odAl.js`, CSS `index-BYFkbcnj.css`, deployed commit
+`f8f76e8`, merge `699cc45`, **schema 10**. Verified: `200`
 on `/` and a deep route in-network and at the edge, the new bundle at both, CSP `connect-src 'self'
 https://api.anthropic.com` at the edge, and a real-browser load (0 page errors) with that browser's
 `localStorage` cleared afterwards. The old bundle 404s in-network; at the edge it answered `200` from
