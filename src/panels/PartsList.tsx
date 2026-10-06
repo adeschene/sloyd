@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useStore } from '../store/store';
-import { selectByClick } from '../store/selectionGesture';
+import { selectRowByClick } from '../store/selectionGesture';
 
 /** An eye, or a struck-through eye. Inline because the app has no icon set. */
 function EyeIcon({ hidden }: { hidden: boolean }) {
@@ -57,7 +57,7 @@ export function PartsList() {
                 className={selected ? 'part selected' : 'part'}
                 aria-pressed={selected}
                 disabled={hidden}
-                onClick={(e) => selectByClick(b.id, e)}
+                onClick={(e) => selectRowByClick(b.id, e)}
               >
                 {b.name}
               </button>

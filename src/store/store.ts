@@ -2,10 +2,12 @@ import { create } from 'zustand';
 import {
   boardsBounds, createBoard, createDocument, createGuide, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
   dissolveSingletons, linkPlan, sharedOf, sharedPatch, withoutLink,
+  childrenOf, instanceAt, isCovered, itemPaths, parentPath,
 } from '../document/document';
 import type { Board, BoardSnapPoint, Cut, SloydDocument, SnapPoint, TapeAxis } from '../document/document';
 import { SNAP_INCHES } from '../document/geometry';
 import { MAX_ROW } from '../document/row';
+import { clickTarget } from './assemblyPick';
 
 const HISTORY_LIMIT = 50;
 
@@ -269,6 +271,18 @@ interface StoreState {
   selectBoard: (id: string | null) => void;
   toggleSelected: (id: string) => void;
   selectAll: () => void;
+  /**
+   * The instance path being edited inside, or null at the top level
+   * (assemblies spec §3.1). View state: not saved and NOT undoable. Selection
+   * is limited to its direct children (selectionPatch). restore and
+   * replaceDocument reconcile it.
+   */
+  openPath: string | null;
+  openAssembly: (path: string) => void;
+  closeAssembly: () => void;
+  selectItem: (path: string, toggle: boolean) => void;
+  clickPart: (occ: string, toggle: boolean) => void;
+  openPart: (occ: string) => void;
   setDocumentName: (name: string) => void;
   replaceDocument: (doc: SloydDocument) => void;
   undo: () => void;
@@ -335,16 +349,19 @@ export const useStore = create<StoreState>((set, get) => {
   const selectionPatch = (
     ids: string[],
     hidden: readonly string[] = get().hiddenIds,
+    open: string | null = get().openPath,
   ): { selectedIds: string[]; grabbed?: null } => {
     const held = get().grabbed;
-    // Filtered HERE, in the one writer, so no caller has to remember it. The
-    // same array is kept when nothing is dropped, so a subscriber re-renders
-    // only on a real change.
-    const kept = hidden.length === 0 ? ids : ids.filter((id) => !hidden.includes(id));
+    // Filtered HERE, in the one writer (invariants 42, 43): only direct
+    // children of the open assembly (assemblies spec §3.2), never anything
+    // hidden or under a hidden assembly. Same array when nothing is dropped.
+    const hiddenSet = new Set(hidden);
+    const kept = ids.filter((id) => parentPath(id) === open && !isCovered(id, hiddenSet));
     const selectedIds = kept.length === ids.length ? ids : kept;
+    // A grab survives while its owner is selected OR under a selected assembly.
     return {
       selectedIds,
-      ...(held && !selectedIds.includes(held.owner.id) ? { grabbed: null } : {}),
+      ...(held && !isCovered(held.owner.id, new Set(selectedIds)) ? { grabbed: null } : {}),
     };
   };
 
@@ -416,7 +433,7 @@ export const useStore = create<StoreState>((set, get) => {
   const applyHidden = (next: string[]) => {
     const { doc, hiddenIds, past, selectedIds, gesturing } = get();
     if (gesturing) return;
-    const exists = new Set(doc.boards.map((b) => b.id));
+    const exists = itemPaths(doc);
     const clean = [...new Set(next)].filter((id) => exists.has(id));
     if (clean.length === hiddenIds.length && clean.every((id) => hiddenIds.includes(id))) return;
     set({
@@ -452,13 +469,17 @@ export const useStore = create<StoreState>((set, get) => {
    * in half after a Ctrl+Z. Their reset lives in replaceDocument only.
    */
   const restore = (entry: HistoryEntry, current: SloydDocument, selectedIds: string[]) => {
-    const exists = new Set(entry.doc.boards.map((b) => b.id));
+    const exists = itemPaths(entry.doc);
     const hidden = entry.hiddenIds.filter((id) => exists.has(id));
     const surviving = selectedIds.filter((id) => exists.has(id));
+    // The deepest open level that still exists (assemblies spec §3.1).
+    let open = get().openPath;
+    while (open !== null && !instanceAt(entry.doc, open)) open = parentPath(open);
     return {
       doc: entry.doc,
       hiddenIds: hidden,
-      ...selectionPatch(surviving.length === selectedIds.length ? selectedIds : surviving, hidden),
+      openPath: open,
+      ...selectionPatch(surviving.length === selectedIds.length ? selectedIds : surviving, hidden, open),
       ...(entry.doc === current ? {} : { grabbed: null, tapeAnchor: null, tapeHover: null, tapeAxis: null }),
     };
   };
@@ -683,6 +704,7 @@ export const useStore = create<StoreState>((set, get) => {
     past: [],
     future: [],
     hiddenIds: [],
+    openPath: null,
 
     // Coalesce every edit within a gesture (a gizmo drag, a focused text
     // field) into a single undo entry. The snapshot is taken lazily — on the
@@ -1020,7 +1042,44 @@ export const useStore = create<StoreState>((set, get) => {
     },
 
     // Visible parts only: selectionPatch drops hidden ids.
-    selectAll: () => set(selectionPatch(get().doc.boards.map((b) => b.id))),
+    selectAll: () => set(selectionPatch(childrenOf(get().doc, get().openPath))),
+
+    openAssembly: (path) => {
+      if (!instanceAt(get().doc, path)) return;
+      set({ openPath: path, ...selectionPatch([], get().hiddenIds, path) });
+    },
+
+    closeAssembly: () => {
+      const open = get().openPath;
+      if (open === null) return;
+      const up = parentPath(open);
+      set({ openPath: up, ...selectionPatch([open], get().hiddenIds, up) });
+    },
+
+    selectItem: (path, toggle) => {
+      const open = parentPath(path);
+      if (open !== get().openPath) {
+        set({ openPath: open, ...selectionPatch([path], get().hiddenIds, open) });
+        return;
+      }
+      if (toggle) get().toggleSelected(path);
+      else get().selectBoard(path);
+    },
+
+    clickPart: (occ, toggle) => {
+      const { open, target } = clickTarget(occ, get().openPath);
+      if (open !== get().openPath) {
+        set({ openPath: open, ...selectionPatch([target], get().hiddenIds, open) });
+        return;
+      }
+      if (toggle) get().toggleSelected(target);
+      else get().selectBoard(target);
+    },
+
+    openPart: (occ) => {
+      const { target } = clickTarget(occ, get().openPath);
+      if (instanceAt(get().doc, target)) get().openAssembly(target);
+    },
 
     hideSelected: () => {
       const { hiddenIds, selectedIds } = get();
@@ -1031,7 +1090,7 @@ export const useStore = create<StoreState>((set, get) => {
     hideUnselected: () => {
       const { hiddenIds, selectedIds, doc } = get();
       if (selectedIds.length === 0) return;
-      applyHidden([...hiddenIds, ...doc.boards.map((b) => b.id).filter((id) => !selectedIds.includes(id))]);
+      applyHidden([...hiddenIds, ...childrenOf(doc, get().openPath).filter((id) => !selectedIds.includes(id))]);
     },
 
     showAll: () => applyHidden([]),
@@ -1059,6 +1118,7 @@ export const useStore = create<StoreState>((set, get) => {
         doc,
         selectedIds: [],
         hiddenIds: [],
+        openPath: null,
         past: [],
         future: [],
         grabbed: null,
