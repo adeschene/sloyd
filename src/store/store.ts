@@ -562,6 +562,9 @@ export const useStore = create<StoreState>((set, get) => {
     fn: (doc: SloydDocument) => SloydDocument,
     selection: (doc: SloydDocument) => string[],
   ) => {
+    // Refused inside a gesture: edit() may push nothing there, and the patch
+    // below would then rewrite the gesture's own snapshot (invariant 43's argument).
+    if (get().gesturing) return;
     const hiddenBefore = get().hiddenIds;
     rekeyHeld(rekey);
     edit(fn, selection);

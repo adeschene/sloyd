@@ -321,6 +321,30 @@ describe('Turn and Rename an assembly', () => {
     expect(s().renameItem('i1', 'Top')).toBe('Top (1)');
     expect(instanceAt(s().doc, 'i1')!.name).toBe('Top (1)');
     expect(s().renameItem('i1/b1', 'Front')).toBe('Front (1)');
+    expect(partAt(s().doc, 'i1/b1')!.name).toBe('Front (1)');
     expect(s().renameItem('i1/b1', 'Front (1)')).toBe('Front (1)');
+  });
+});
+
+describe('renameItem and gestures', () => {
+  it('a renamed part leaves its linked mate alone', () => {
+    s().linkBoards(['i1/b1', 'r1']);
+    s().renameItem('i1/b1', 'Front');
+    expect(partAt(s().doc, 'i1/b1')!.name).toBe('Front (1)');
+    expect(partAt(s().doc, 'r1')!.name).toBe('Top');
+  });
+
+  it('Group and Ungroup are refused inside a gesture', () => {
+    s().beginGesture();
+    s().updateBoard('r1', { thickness: 1.25 });
+    s().selectAll();
+    const { doc, hiddenIds } = s();
+    const past = s().past.length;
+    s().groupSelected();
+    expect([s().doc, s().hiddenIds, s().past.length]).toEqual([doc, hiddenIds, past]);
+    s().selectBoard('i1');
+    s().ungroupSelected();
+    expect([s().doc, s().hiddenIds, s().past.length]).toEqual([doc, hiddenIds, past]);
+    s().endGesture();
   });
 });
