@@ -2333,6 +2333,15 @@ describe('copyInRow', () => {
       expect(r!.position).toEqual([1.75, 22, 0.5 - k * 20]);
     }
     expect(byName('Board').length).toBe(6);
+    // Originals, then the copies k-major (fu 220): copy 1 of each part, then copy 2.
+    expect(st().selectedIds).toEqual([leg, rail, l1!.id, r1!.id, l2!.id, r2!.id]);
+    expect(new Set(st().doc.boards.map((b) => b.name)).size).toBe(6);
+  });
+
+  it('runs along -X', () => {
+    const a = part({ length: 24, width: 3.5, thickness: 0.75, position: [10, 2, 3] });
+    st().copyInRow([a], 3, 0, -1, 30);
+    expect(st().doc.boards.map((b) => b.position)).toEqual([[10, 2, 3], [-20, 2, 3], [-50, 2, 3]]);
   });
 
   it('runs along Y, keeps turn, posture, material and cuts, and gives fresh ids', () => {

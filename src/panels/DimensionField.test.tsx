@@ -272,3 +272,58 @@ describe('DimensionField — mixed (value null)', () => {
     expect(input.value).toBe('');
   });
 });
+
+describe('DimensionField — commitUnchanged', () => {
+  // Off by default: re-entering the stored value is a no-op (no history entry).
+  it('without it, a dirty commit of the same value calls nothing', async () => {
+    const { onCommit, input } = setup();
+    await userEvent.clear(input);
+    await userEvent.type(input, '1-1/2{Enter}');
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  // On: a typed value equal to the shown one is still the person's value, for
+  // a caller whose shown value is a live default (copy in a row).
+  it('with it, a dirty commit of the same value still calls onCommit', async () => {
+    const { onCommit, input } = setup({ commitUnchanged: true });
+    await userEvent.clear(input);
+    await userEvent.type(input, '1-1/2{Enter}');
+    expect(onCommit).toHaveBeenCalledWith(1.5);
+  });
+
+  it('with it, an untouched blur or Enter still commits nothing', async () => {
+    const { onCommit, input } = setup({ commitUnchanged: true });
+    await userEvent.click(input);
+    await userEvent.keyboard('{Enter}');
+    await userEvent.click(input);
+    await userEvent.tab();
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+});
+
+describe('DimensionField — onErrorChange', () => {
+  it('reports false on mount, true on a refusal, false once the error clears', async () => {
+    const onErrorChange = vi.fn();
+    const { input } = setup({ onErrorChange });
+    expect(onErrorChange).toHaveBeenLastCalledWith(false);
+    await userEvent.clear(input);
+    await userEvent.type(input, 'banana');
+    await userEvent.tab();
+    expect(onErrorChange).toHaveBeenLastCalledWith(true);
+    await userEvent.click(input);
+    await userEvent.keyboard('{Escape}');
+    expect(onErrorChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it('reports false when an external change clears the error', async () => {
+    const onErrorChange = vi.fn();
+    const { rerender } = render(<DimensionField label="Length" value={1.5} onCommit={vi.fn()} onErrorChange={onErrorChange} />);
+    const input = screen.getByLabelText('Length') as HTMLInputElement;
+    await userEvent.clear(input);
+    await userEvent.type(input, '0');
+    await userEvent.tab();
+    expect(onErrorChange).toHaveBeenLastCalledWith(true);
+    rerender(<DimensionField label="Length" value={3} onCommit={vi.fn()} onErrorChange={onErrorChange} />);
+    expect(onErrorChange).toHaveBeenLastCalledWith(false);
+  });
+});

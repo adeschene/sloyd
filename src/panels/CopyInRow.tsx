@@ -34,15 +34,23 @@ export function CopyInRow() {
   const [dir, setDir] = useState(0);
   const [mode, setMode] = useState<RowMode>('gap');
   const [typed, setTyped] = useState<Partial<Record<RowMode, number>>>({ gap: 0 });
+  // The measurement field is showing a refusal (fu 218): Apply would otherwise
+  // use the last GOOD value while the field shows another. Reported by the
+  // field itself, so every path that sets or clears its error is covered.
+  const [fieldRefused, setFieldRefused] = useState(false);
 
-  const selected = useMemo(
-    () => selectedIds.flatMap((id) => allBoards.filter((b) => b.id === id)),
-    [allBoards, selectedIds],
-  );
-  if (selected.length === 0) return null;
+  // Only while open: closed, the button needs nothing but whether anything is
+  // selected, and this runs on every boards change (every drag frame).
+  const selected = useMemo(() => {
+    if (!open) return [];
+    const byId = new Map(allBoards.map((b) => [b.id, b]));
+    return selectedIds.flatMap((id) => byId.get(id) ?? []);
+  }, [open, allBoards, selectedIds]);
+  if (selectedIds.length === 0) return null;
   if (!open) {
     return <button className="copy-row-open" onClick={() => setOpen(true)}>Copy in a row…</button>;
   }
+  if (selected.length === 0) return null;
 
   const { axis, sign } = DIRECTIONS[dir]!;
   const bounds = boardsBounds(selected)!;
@@ -58,6 +66,8 @@ export function CopyInRow() {
     'pitch-short': `The pitch must be at least the part's ${fmt(s)}: the copies would overlap.`,
     'no-room': `Not enough room: ${count} parts need ${fmt(count * s)}, the span is ${fmt(value)}.`,
   };
+  // rowLayout checks the count first, so this is exactly "the count is refused".
+  const countRefused = !layout.ok && layout.reason === 'count';
   const summary = layout.ok
     ? `${count} in the row: ${count - 1} ${count - 1 === 1 ? 'copy' : 'copies'}, gap ${fmt(layout.gap)}, row ${fmt(layout.length)} long`
     : why[layout.reason];
@@ -67,7 +77,8 @@ export function CopyInRow() {
       <legend>Copy in a row</legend>
       <div className="field">
         <label htmlFor="row-count">Count</label>
-        <input id="row-count" className="input" type="number" min={2} max={MAX_ROW} step={1}
+        <input id="row-count" type="number" min={2} max={MAX_ROW} step={1}
+          className={countRefused ? 'input invalid' : 'input'} aria-invalid={countRefused ? 'true' : 'false'}
           value={countText} onChange={(e) => setCountText(e.target.value)} />
       </div>
       <div className="field">
@@ -85,14 +96,18 @@ export function CopyInRow() {
         ))}
       </div>
       {/* Keyed on the mode so switching modes shows that mode's value, not the
-          last field's draft (invariant 5's resync, by remount). */}
+          last field's draft (invariant 5's resync, by remount). The remount
+          also clears a refusal, which reports false through onErrorChange.
+          commitUnchanged: Pitch's and Across's shown value is a default that
+          follows the direction until the person types; typing a value equal
+          to the default must still pin it. */}
       <DimensionField key={mode} label={FIELD_LABEL[mode]} precision={precision} value={value}
-        min={mode === 'gap' ? 0 : undefined}
+        min={mode === 'gap' ? 0 : undefined} commitUnchanged onErrorChange={setFieldRefused}
         onCommit={(v) => setTyped((t) => ({ ...t, [mode]: v }))} />
       <p className={layout.ok ? 'copy-row-summary' : 'copy-row-summary invalid'} role="status">{summary}</p>
       <div className="row">
-        <button disabled={!layout.ok}
-          onClick={() => { if (layout.ok) { copyInRow(selectedIds, count, axis, sign, layout.step); setOpen(false); } }}>
+        <button disabled={!layout.ok || fieldRefused}
+          onClick={() => { if (layout.ok && !fieldRefused) { copyInRow(selectedIds, count, axis, sign, layout.step); setOpen(false); } }}>
           Apply
         </button>
         <button onClick={() => setOpen(false)}>Cancel</button>

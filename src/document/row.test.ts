@@ -35,5 +35,7 @@ describe('rowLayout', () => {
     expect(rowLayout('gap', 0, 1, 2.5)).toEqual({ ok: false, reason: 'count' });
     expect(rowLayout('gap', 0, 1, MAX_ROW).ok).toBe(true);
     expect(rowLayout('gap', Number.NaN, 1, 2)).toEqual({ ok: false, reason: 'value' });
+    // Follow-up 219: a unit with no extent on the axis makes no row.
+    expect(rowLayout('gap', 0, 0, 2)).toEqual({ ok: false, reason: 'value' });
   });
 });

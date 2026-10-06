@@ -70,6 +70,102 @@ describe('Copy in a row', () => {
     expect(screen.getByRole('textbox', { name: 'Gap' })).toHaveValue('1/2"');
   });
 
+  // Follow-up 218 (I1): Apply must not use a value other than the field shows.
+  // Apply is clicked DIRECTLY, without Enter: the blur commit (refused here)
+  // lands before the click, and a refusal disables Apply.
+  it('a refused entry clicked straight to Apply makes nothing, and Apply stays disabled', async () => {
+    onePart();
+    const user = userEvent.setup();
+    await open(user);
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Direction' }), '+Z');
+    const gap = screen.getByRole('textbox', { name: 'Gap' });
+    await user.clear(gap);
+    await user.type(gap, '-1/2');
+    await user.click(screen.getByRole('button', { name: 'Apply' }));
+    expect(useStore.getState().doc.boards).toHaveLength(1);
+    expect(gap).toHaveValue('-1/2');
+    expect(gap).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled();
+  });
+
+  it('a valid entry clicked straight to Apply makes the row with the typed value', async () => {
+    onePart();
+    const user = userEvent.setup();
+    await open(user);
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Direction' }), '+Z');
+    const gap = screen.getByRole('textbox', { name: 'Gap' });
+    await user.clear(gap);
+    await user.type(gap, '1/2');
+    await user.click(screen.getByRole('button', { name: 'Apply' }));
+    expect(useStore.getState().doc.boards.map((b) => b.position[2])).toEqual([0, 4]);
+  });
+
+  it('a mode switch away from a refused draft re-enables Apply', async () => {
+    onePart();
+    const user = userEvent.setup();
+    await open(user);
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Direction' }), '+Z');
+    const gap = screen.getByRole('textbox', { name: 'Gap' });
+    await user.clear(gap);
+    await user.type(gap, 'abc{Enter}');
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled();
+    await user.click(screen.getByRole('radio', { name: 'Pitch' }));
+    expect(screen.getByRole('button', { name: 'Apply' })).toBeEnabled();
+  });
+
+  // I2: a typed value equal to the live default is still the person's value.
+  // 24 is the +X default pitch (s = 24); typing it must pin it, so turning the
+  // row to +Z (s = 3-1/2) keeps pitch 24 rather than following the default.
+  it('a typed pitch equal to the default sticks across a direction change', async () => {
+    onePart();
+    const user = userEvent.setup();
+    await open(user);
+    await user.click(screen.getByRole('radio', { name: 'Pitch' }));
+    const pitch = screen.getByRole('textbox', { name: 'Pitch' });
+    await user.clear(pitch);
+    await user.type(pitch, '24{Enter}');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Direction' }), '+Z');
+    expect(screen.getByRole('textbox', { name: 'Pitch' })).toHaveValue('24"');
+    expect(screen.getByText(/2 in the row: 1 copy, gap 20-1\/2", row 27-1\/2" long/)).toBeInTheDocument();
+  });
+
+  // I3: key={mode}. The new mode's value (Fit across's default 2·s = 7) equals
+  // the old mode's committed value (Gap 7), so without the remount the value
+  // prop never changes and the refused 'abc' draft and its error survive.
+  it('a refused draft does not survive a mode switch to an equal value', async () => {
+    onePart();
+    const user = userEvent.setup();
+    await open(user);
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Direction' }), '+Z');
+    const gap = screen.getByRole('textbox', { name: 'Gap' });
+    await user.clear(gap);
+    await user.type(gap, '7{Enter}');
+    await user.clear(gap);
+    await user.type(gap, 'abc');
+    await user.tab();
+    expect(gap).toHaveAttribute('aria-invalid', 'true');
+    await user.click(screen.getByRole('radio', { name: 'Fit across' }));
+    const across = screen.getByRole('textbox', { name: 'Across' });
+    expect(across).toHaveValue('7"');
+    expect(across).toHaveAttribute('aria-invalid', 'false');
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  // M4: spec §3, the count's inline error.
+  it('marks the count invalid while it is refused', async () => {
+    onePart();
+    const user = userEvent.setup();
+    await open(user);
+    const count = screen.getByRole('spinbutton', { name: 'Count' });
+    expect(count).toHaveAttribute('aria-invalid', 'false');
+    await user.clear(count);
+    await user.type(count, '1');
+    expect(count).toHaveAttribute('aria-invalid', 'true');
+    await user.clear(count);
+    await user.type(count, '3');
+    expect(count).toHaveAttribute('aria-invalid', 'false');
+  });
+
   it('Cancel adds no undo entry and makes nothing', async () => {
     onePart();
     const user = userEvent.setup();
