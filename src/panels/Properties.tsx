@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store/store';
-import { MATERIALS, isSheetGood, boardSolids, cutShape, storedAsShape, cutRemovesNothing, findTenons, positionAxisOf, linkPlan, worldParts, instanceAt, parentPath } from '../document/document';
+import { MATERIALS, isSheetGood, boardSolids, cutShape, storedAsShape, cutRemovesNothing, findTenons, positionAxisOf, linkPlan, worldParts, instanceAt, parentPath, placementsOf, instanceRefs, containerAt } from '../document/document';
 import { DimensionField } from './DimensionField';
 import { NameField } from './NameField';
 import { CopyInRow } from './CopyInRow';
@@ -375,11 +375,22 @@ function InstanceProperties({ path }: { path: string }) {
   const deleteBoards = useStore((s) => s.deleteBoards);
   const hideUnselected = useStore((s) => s.hideUnselected);
   const turnAssembly = useStore((s) => s.turnAssembly);
+  // Numbers and a boolean only (inv 43): a Map or array here would re-render on every set().
+  const copies = useStore((s) => { const d = instanceAt(s.doc, path); return d ? placementsOf(s.doc).get(d.definition) ?? 0 : 0; });
+  const refs = useStore((s) => { const d = instanceAt(s.doc, path); return d ? instanceRefs(s.doc).get(d.definition) ?? 0 : 0; });
+  const copyHere = useStore((s) => {
+    const me = instanceAt(s.doc, path);
+    const c = containerAt(s.doc, parentPath(path));
+    return !!me && !!c && c.instances.some((i) => i.definition === me.definition && i.id !== me.id);
+  });
+  const selectCopies = useStore((s) => s.selectCopies);
+  const makeUnique = useStore((s) => s.makeUnique);
   if (!inst) return null;
   return (
     <div className="properties" key={path}>
       <NameField value={inst.name} onCommit={(typed) => useStore.getState().renameItem(path, typed)} />
       <p className="assembly-note">Assembly — double-click it in the view to edit its parts.</p>
+      {copies >= 2 && <p className="link-note">Shared by {copies} copies: edits inside change all of them.</p>}
       <h3>Orientation</h3>
       <div className="field">
         <label htmlFor="turn">Turn</label>
@@ -393,6 +404,8 @@ function InstanceProperties({ path }: { path: string }) {
       </div>
       <div className="row">
         <button onClick={() => duplicateBoards([path])}>Duplicate</button>
+        {copies >= 2 && copyHere && <button onClick={() => selectCopies(path)}>Select copies</button>}
+        {refs >= 2 && <button onClick={() => makeUnique(path)}>Make Unique</button>}
         <button onClick={() => useStore.getState().ungroupSelected()}>Ungroup</button>
         <button onClick={() => useStore.getState().groupSelected()}>Group</button>
         <button onClick={hideUnselected}>Hide others</button>

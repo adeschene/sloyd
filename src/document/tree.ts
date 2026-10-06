@@ -115,6 +115,21 @@ export function childrenOf(doc: SloydDocument, path: string | null): string[] {
   return [...c.boards.map((b) => joinPath(path, b.id)), ...c.instances.map((i) => joinPath(path, i.id))];
 }
 
+/** Definition id -> how many instance PATHS name it (a nested instance counts once per placement of its parent). */
+export function placementsOf(doc: SloydDocument): Map<string, number> {
+  const out = new Map<string, number>();
+  const defs = defsOf(doc);
+  const walk = (c: Container, onPath: Set<string>) => {
+    for (const inst of c.instances) {
+      out.set(inst.definition, (out.get(inst.definition) ?? 0) + 1);
+      const d = defs.get(inst.definition);
+      if (d && !onPath.has(d.id)) walk(d, new Set([...onPath, d.id]));
+    }
+  };
+  walk(doc, new Set());
+  return out;
+}
+
 /** Every instance path and every part occurrence id. */
 export function itemPaths(doc: SloydDocument): Set<string> {
   const out = new Set<string>();
@@ -164,17 +179,19 @@ export function flatDocument(doc: SloydDocument): FlatDocument {
   };
 }
 
-export interface TreeRow { path: string; name: string; kind: 'part' | 'assembly'; depth: number; shape?: string }
+export interface TreeRow { path: string; name: string; kind: 'part' | 'assembly'; depth: number; shape?: string; copies?: number }
 
 /** The parts list's rows: depth first, a container's parts before its assemblies. */
 export function treeRows(doc: SloydDocument): TreeRow[] {
   const out: TreeRow[] = [];
   const defs = defsOf(doc);
+  const placed = placementsOf(doc);
   const walk = (c: Container, path: string | null, depth: number, onPath: Set<string>) => {
     for (const b of c.boards) out.push({ path: joinPath(path, b.id), name: b.name, kind: 'part', depth, ...(isShaped(b) ? { shape: b.shape } : {}) });
     for (const inst of c.instances) {
       const p = joinPath(path, inst.id);
-      out.push({ path: p, name: inst.name, kind: 'assembly', depth });
+      const n = placed.get(inst.definition) ?? 0;
+      out.push({ path: p, name: inst.name, kind: 'assembly', depth, ...(n >= 2 ? { copies: n } : {}) });
       const d = defs.get(inst.definition);
       if (d && !onPath.has(d.id)) walk(d, p, depth + 1, new Set([...onPath, d.id]));
     }

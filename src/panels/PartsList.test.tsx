@@ -140,3 +140,15 @@ describe('PartsList tree', () => {
     expect(screen.getByRole('button', { name: 'Hide Top' })).toBeEnabled();
   });
 });
+
+describe('PartsList shared copies', () => {
+  it('badges each of two instances of one definition', () => {
+    const d = assemblyDoc();
+    // No nested peg: its definition would be placed twice as well and badge too.
+    const flat = { ...d, definitions: d.definitions.map((x) => (x.id === 'd1' ? { ...x, instances: [] } : x)) };
+    const i3 = { ...d.instances[0]!, id: 'i3', name: 'Drawer 2', position: [20, 0, 0] as [number, number, number] };
+    useStore.getState().replaceDocument({ ...flat, instances: [...d.instances, i3] });
+    render(<PartsList />);
+    expect(screen.getAllByRole('img', { name: 'Shared, 2 copies' })).toHaveLength(2);
+  });
+});

@@ -1278,3 +1278,48 @@ describe('Properties assemblies', () => {
     expect(useStore.getState().selectedIds).toEqual(['i1/b1', 'i1/b2']);
   });
 });
+
+describe('Properties shared copies', () => {
+  const twoCopies = () => {
+    const d = assemblyDoc();
+    const i3 = { ...d.instances[0]!, id: 'i3', name: 'Drawer 2', position: [20, 0, 0] as [number, number, number] };
+    return { ...d, instances: [...d.instances, i3] };
+  };
+
+  it('names the copy count and Make Unique gives the instance its own definition', async () => {
+    useStore.getState().replaceDocument(twoCopies());
+    useStore.getState().selectBoard('i1');
+    render(<Properties />);
+    expect(screen.getByText(/Shared by 2 copies/)).toBeInTheDocument();
+    expect(useStore.getState().doc.definitions).toHaveLength(2);
+    await userEvent.click(screen.getByRole('button', { name: 'Make Unique' }));
+    expect(screen.queryByText(/Shared by/)).toBeNull();
+    expect(useStore.getState().doc.definitions).toHaveLength(3);
+  });
+
+  it('Select copies selects the other copy at the open level', async () => {
+    useStore.getState().replaceDocument(twoCopies());
+    useStore.getState().selectBoard('i1');
+    render(<Properties />);
+    await userEvent.click(screen.getByRole('button', { name: 'Select copies' }));
+    expect(useStore.getState().selectedIds.sort()).toEqual(['i1', 'i3']);
+  });
+
+  it('offers no Make Unique for a drawer inside a cabinet placed twice (2 placements, 1 reference)', () => {
+    const d = assemblyDoc();
+    const cab = { id: 'dc', boards: [], instances: [{ ...d.instances[0]!, id: 'k1', name: 'Drawer' }] };
+    const doc = {
+      ...d, boards: [], definitions: [...d.definitions, cab],
+      instances: [
+        { id: 'c1', name: 'Cab', definition: 'dc', position: [0, 0, 0] as [number, number, number], rotation: 0 as const },
+        { id: 'c2', name: 'Cab 2', definition: 'dc', position: [30, 0, 0] as [number, number, number], rotation: 0 as const },
+      ],
+    };
+    useStore.getState().replaceDocument(doc);
+    act(() => { useStore.getState().openAssembly('c1'); });
+    useStore.getState().selectBoard('c1/k1');
+    render(<Properties />);
+    expect(screen.getByText(/Shared by 2 copies/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Make Unique' })).toBeNull();
+  });
+});
