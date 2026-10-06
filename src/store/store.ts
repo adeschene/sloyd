@@ -3,8 +3,10 @@ import {
   boardsBounds, createBoard, createDocument, createGuide, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
   dissolveSingletons, linkPlan, sharedOf, sharedPatch, withoutLink,
   childrenOf, instanceAt, isCovered, itemPaths, parentPath, worldParts, mapWorld,
+  translateItems, insertItems, removeItems, copyInstanceTree, siblingsOf, containerAt, containerTurn, partAt, joinPath,
+  rotateVec, inverseTurn,
 } from '../document/document';
-import type { Board, BoardSnapPoint, Cut, SloydDocument, SnapPoint, TapeAxis } from '../document/document';
+import type { Board, BoardSnapPoint, Cut, Definition, Instance, Named, SloydDocument, SnapPoint, TapeAxis } from '../document/document';
 import { SNAP_INCHES } from '../document/geometry';
 import { MAX_ROW } from '../document/row';
 import { clickTarget } from './assemblyPick';
@@ -638,19 +640,10 @@ export const useStore = create<StoreState>((set, get) => {
    * The delta is computed once by the caller; nothing here rounds.
    */
   const translateBoards = (ids: ReadonlySet<string>, delta: readonly [number, number, number]) => {
-    edit((doc) => ({
-      ...doc,
-      boards: doc.boards.map((b) => {
-        if (!ids.has(b.id)) return b;
-        const position: [number, number, number] = [
-          b.position[0] + delta[0],
-          b.position[1] + delta[1],
-          b.position[2] + delta[2],
-        ];
-        return { ...b, position };
-      }),
-    }));
-    for (const id of ids) dropHeldIfGone(id);
+    // A world delta, rotated into each item's container frame and added
+    // (assemblies spec §4.2). A root item gains it exactly, as before.
+    edit((doc) => translateItems(doc, [...ids], delta));
+    for (const b of worldParts(get().doc)) if (isCovered(b.id, ids)) dropHeldIfGone(b.id);
   };
 
   /**
@@ -660,7 +653,7 @@ export const useStore = create<StoreState>((set, get) => {
    * (invariant 8). Shared by duplicateBoards and copyInRow so the two cannot
    * drift.
    */
-  const copyBoard = (source: Board, position: readonly [number, number, number], taken: Board[]): Board => {
+  const copyBoard = (source: Board, position: readonly [number, number, number], taken: Named[]): Board => {
     // Drop the id so createBoard generates a fresh one, and copy the position
     // array rather than sharing the reference with the source and with every
     // undo snapshot that holds it. `cuts` needs the same treatment: `rest`
@@ -801,7 +794,8 @@ export const useStore = create<StoreState>((set, get) => {
       // left in hand — this state is unreachable through the UI, and
       // discarding it quietly would hide that it had become reachable.
       const selected = new Set(get().selectedIds);
-      if (!selected.has(grabbed.owner.id)) return;
+      // A part under a selected assembly counts as selected (assemblies spec §4.2).
+      if (!isCovered(grabbed.owner.id, selected)) return;
       // No selected part can be a target. It is a legal subtraction — it
       // would translate the group by a member's own offset — but never what anyone
       // means. MoveTool also withholds these candidates so the case cannot be
@@ -815,10 +809,13 @@ export const useStore = create<StoreState>((set, get) => {
       // so the case cannot be clicked; this makes the rule true of the action.
       // OWNERS are compared, not bare ids: a guide is a legal target, and a
       // guide whose id collided with a selected board's must not read as one.
-      if (target.owner.type === 'board' && selected.has(target.owner.id)) return;
+      if (target.owner.type === 'board' && isCovered(target.owner.id, selected)) return;
 
-      const moving = new Set(get().doc.boards.filter((b) => selected.has(b.id)).map((b) => b.id));
-      if (!moving.has(grabbed.owner.id)) {
+      // The moving set is the selected items (parts or assemblies); the grab's
+      // owner must be a world part under one of them (assemblies spec §4.2).
+      const paths = itemPaths(get().doc);
+      const moving = new Set([...selected].filter((id) => paths.has(id)));
+      if (!worldParts(get().doc).some((b) => b.id === grabbed.owner.id) || !isCovered(grabbed.owner.id, moving)) {
         set({ grabbed: null });
         return;
       }
@@ -845,7 +842,9 @@ export const useStore = create<StoreState>((set, get) => {
 
     moveGroupTo: (ids, minCorner) => {
       const wanted = new Set(ids);
-      const moving = get().doc.boards.filter((b) => wanted.has(b.id));
+      // Bounds over the WORLD parts under the named items (assemblies spec §4.2).
+      const paths = itemPaths(get().doc);
+      const moving = worldParts(get().doc).filter((b) => isCovered(b.id, wanted));
       const bounds = boardsBounds(moving);
       if (!bounds) return;
       // Round the GROUP's min corner, once. Rounding each part's corner
@@ -858,23 +857,26 @@ export const useStore = create<StoreState>((set, get) => {
         snap(minCorner[2]) - bounds.min[2],
       ] as const;
       if (delta[0] === 0 && delta[1] === 0 && delta[2] === 0) return;
-      translateBoards(new Set(moving.map((b) => b.id)), delta);
+      translateBoards(new Set([...wanted].filter((id) => paths.has(id))), delta);
     },
 
     addBoard: () => {
-      const boards = get().doc.boards;
-      const last = boards[boards.length - 1];
+      // Into the open assembly when one is open, else the root (assemblies spec §3).
+      const open = get().openPath;
+      const c = containerAt(get().doc, open) ?? get().doc;
+      // Root-only on purpose: the template falls back to the root's last board when the open assembly has none.
+      const last = c.boards[c.boards.length - 1] ?? get().doc.boards[get().doc.boards.length - 1];
       const fresh = createBoard(
         last
           ? { length: last.length, width: last.width, thickness: last.thickness, material: last.material }
           : {},
       );
       // createBoard has no view of the document and cannot dedupe — that is
-      // the caller's job. See the note on createBoard.
-      const board = { ...fresh, name: uniqueName(fresh.name, boards) };
+      // the caller's job. See the note on createBoard. Names are unique among siblings.
+      const board = { ...fresh, name: uniqueName(fresh.name, siblingsOf(get().doc, open)) };
       edit(
-        (doc) => ({ ...doc, boards: [...doc.boards, board] }),
-        () => [board.id],
+        (doc) => insertItems(doc, open, { boards: [board] }),
+        () => [joinPath(open, board.id)],
       );
       set({ pendingLengthFocus: true });
     },
@@ -948,7 +950,9 @@ export const useStore = create<StoreState>((set, get) => {
     deleteBoard: (id) => get().deleteBoards([id]),
 
     deleteBoards: (ids) => {
-      const doomed = new Set(ids.filter((id) => get().doc.boards.some((b) => b.id === id)));
+      // Ids are item paths: a part or an assembly, at any depth (assemblies spec §4.2).
+      const paths = itemPaths(get().doc);
+      const doomed = new Set(ids.filter((id) => paths.has(id)));
       // Guarded before edit(): a no-op would push an undo entry (invariant 4).
       if (doomed.size === 0) return;
       // A grab on a board being deleted has nothing left to move, an anchor
@@ -960,20 +964,21 @@ export const useStore = create<StoreState>((set, get) => {
       // and "is this a deleted board" are the same question with the same
       // answer for every point on it.
       const { grabbed, tapeAnchor, tapeHover } = get();
-      if (grabbed && doomed.has(grabbed.owner.id)) set({ grabbed: null });
-      if (tapeAnchor?.owner.type === 'board' && doomed.has(tapeAnchor.owner.id)) {
+      if (grabbed && isCovered(grabbed.owner.id, doomed)) set({ grabbed: null });
+      if (tapeAnchor?.owner.type === 'board' && isCovered(tapeAnchor.owner.id, doomed)) {
         set({ tapeAnchor: null, tapeAxis: null });
       }
-      if (tapeHover?.owner.type === 'board' && doomed.has(tapeHover.owner.id)) {
+      if (tapeHover?.owner.type === 'board' && isCovered(tapeHover.owner.id, doomed)) {
         set({ tapeHover: null });
       }
       edit(
         // A link left with one member dissolves (linking spec §3.3).
-        (doc) => ({ ...doc, boards: dissolveSingletons(doc.boards.filter((b) => !doomed.has(b.id))) }),
-        () => get().selectedIds.filter((id) => !doomed.has(id)),
+        // Pruning unused definitions rides in removeItems (assemblies spec §4.2).
+        (doc) => mapWorld(removeItems(doc, [...doomed]), dissolveSingletons),
+        () => get().selectedIds.filter((id) => !isCovered(id, doomed)),
       );
       // The entry edit() pushed already recorded the set as it was.
-      const hiddenAfter = get().hiddenIds.filter((id) => !doomed.has(id));
+      const hiddenAfter = get().hiddenIds.filter((id) => !isCovered(id, doomed));
       if (hiddenAfter.length !== get().hiddenIds.length) set({ hiddenIds: hiddenAfter });
     },
 
@@ -982,16 +987,36 @@ export const useStore = create<StoreState>((set, get) => {
     duplicateBoards: (ids) => {
       // Walk the ids in the order given — the selection's insertion order —
       // so the copies, and the new selection, come out in that order too.
-      const boards = get().doc.boards;
-      const sources = [...new Set(ids)].flatMap((id) => boards.filter((b) => b.id === id));
+      // Ids are item paths; every copy lands in its source's container, and
+      // an assembly copies with its own definitions (assemblies spec §4.2).
+      const doc = get().doc;
+      const sources = [...new Set(ids)].filter((id) => itemPaths(doc).has(id));
       if (sources.length === 0) return;
-      const copies: Board[] = [];
-      for (const source of sources) {
-        copies.push(copyBoard(source, source.position, [...boards, ...copies]));
+      const container = parentPath(sources[0]!);
+      const sameContainer = sources.filter((id) => parentPath(id) === container);
+      const taken: Named[] = [...siblingsOf(doc, container)];
+      const boards: Board[] = [];
+      const instances: Instance[] = [];
+      const definitions: Definition[] = [];
+      for (const id of sameContainer) {
+        const part = partAt(doc, id);
+        if (part) {
+          const c = copyBoard(part, part.position, taken);
+          taken.push(c);
+          boards.push(c);
+          continue;
+        }
+        const inst = instanceAt(doc, id);
+        if (!inst) continue;
+        const copy = copyInstanceTree(doc, inst);
+        const named = { ...copy.instance, name: uniqueName(inst.name, taken) };
+        taken.push(named);
+        instances.push(named);
+        definitions.push(...copy.definitions);
       }
       edit(
-        (doc) => ({ ...doc, boards: [...doc.boards, ...copies] }),
-        () => copies.map((c) => c.id),
+        (d) => insertItems(d, container, { boards, instances, definitions }),
+        () => [...boards.map((b) => joinPath(container, b.id)), ...instances.map((i) => joinPath(container, i.id))],
       );
     },
 
@@ -1000,23 +1025,46 @@ export const useStore = create<StoreState>((set, get) => {
       // caller has run rowLayout; this re-checks only what would make a bad row.
       if (!Number.isInteger(count) || count < 2 || count > MAX_ROW) return;
       if (!Number.isFinite(step) || step <= 0) return;
-      const boards = get().doc.boards;
-      const sources = [...new Set(ids)].flatMap((id) => boards.filter((b) => b.id === id));
-      if (sources.length === 0) return;
-      const copies: Board[] = [];
+      const doc = get().doc;
+      const all = [...new Set(ids)].filter((id) => itemPaths(doc).has(id));
+      if (all.length === 0) return;
+      // One container per row: the selection's (selectionPatch keeps it to one level).
+      const container = parentPath(all[0]!);
+      const sources = all.filter((id) => parentPath(id) === container);
+      const taken: Named[] = [...siblingsOf(doc, container)];
+      const boards: Board[] = [];
+      const instances: Instance[] = [];
+      const definitions: Definition[] = [];
+      const turn = containerTurn(doc, container);
       for (let k = 1; k < count; k += 1) {
         // From the ORIGINAL every time, never the previous copy: a running sum
-        // drifts by an ulp per copy. Never rounded (invariant 25).
-        const shift = k * step * sign;
-        for (const source of sources) {
-          const position = [...source.position] as [number, number, number];
-          position[axis] = source.position[axis] + shift;
-          copies.push(copyBoard(source, position, [...boards, ...copies]));
+        // drifts by an ulp per copy. Never rounded (invariant 25). The step is
+        // a WORLD shift, turned into the container's frame, exactly (spec §4.2).
+        const w: [number, number, number] = [0, 0, 0];
+        w[axis] = k * step * sign;
+        const local = rotateVec(inverseTurn(turn), w);
+        const at = (p: readonly number[]) =>
+          p.map((v, a) => (local[a] === 0 ? v : v + local[a]!)) as [number, number, number];
+        for (const id of sources) {
+          const part = partAt(doc, id);
+          if (part) {
+            const c = copyBoard(part, at(part.position), taken);
+            taken.push(c);
+            boards.push(c);
+            continue;
+          }
+          const inst = instanceAt(doc, id);
+          if (!inst) continue;
+          const copy = copyInstanceTree(doc, inst);
+          const named = { ...copy.instance, position: at(inst.position), name: uniqueName(inst.name, taken) };
+          taken.push(named);
+          instances.push(named);
+          definitions.push(...copy.definitions);
         }
       }
       edit(
-        (doc) => ({ ...doc, boards: [...doc.boards, ...copies] }),
-        () => [...sources.map((s) => s.id), ...copies.map((c) => c.id)],
+        (d) => insertItems(d, container, { boards, instances, definitions }),
+        () => [...sources, ...boards.map((b) => joinPath(container, b.id)), ...instances.map((i) => joinPath(container, i.id))],
       );
     },
 

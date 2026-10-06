@@ -1,6 +1,6 @@
 import { useStore } from './store';
 import { assemblyDoc } from '../document/treeFixtures';
-import { partAt, worldParts } from '../document/tree';
+import { childrenOf, instanceAt, isCovered, partAt, worldParts } from '../document/tree';
 import { visibleBoards } from './visibility';
 import type { BoardSnapPoint, SloydDocument } from '../document/document';
 import { removeItems, snapPointsFor } from '../document/document';
@@ -159,5 +159,91 @@ describe('part edits inside assemblies (assemblies spec §5)', () => {
     expect(s().tapeAnchor).not.toBeNull();
     s().updateBoard('i1/b2', { position: [w.position[0] + 1, w.position[1], w.position[2]] });
     expect(s().tapeAnchor).toBeNull();
+  });
+});
+
+describe('moving and copying assemblies (assemblies spec §4.2)', () => {
+  it('a snap move with an assembly selected moves its origin by the exact delta', () => {
+    s().selectBoard('i1');
+    const w = worldParts(s().doc).find((b) => b.id === 'i1/b1')!;
+    s().setTool('move');
+    s().grabSnapPoint(point('i1/b1', [w.position[0], w.position[1], w.position[2]]));
+    s().commitSnapMove({ at: [w.position[0] + 0.3, w.position[1], w.position[2]], kind: 'corner', owner: { type: 'board', id: 'r1' } } as never);
+    expect(instanceAt(s().doc, 'i1')!.position).toEqual([10.1 + 0.3, 0.3 + 0, 3.3 + 0]);
+  });
+
+  it('moveGroupTo rounds the selection box min once, for an assembly', () => {
+    s().selectBoard('i1');
+    s().moveGroupTo(['i1'], [20.01, 0, 5]);
+    const parts = worldParts(s().doc).filter((b) => isCovered(b.id, new Set(['i1'])));
+    const minX = Math.min(...parts.map((b) => b.position[0]));
+    expect(minX).toBeCloseTo(20, 9);
+  });
+
+  it('a snap move inside a turned assembly goes into the frame; the axes it does not reach stay bit-identical', () => {
+    s().openAssembly('i1');
+    const before = partAt(s().doc, 'i1/b2')!;
+    const w = worldParts(s().doc).find((b) => b.id === 'i1/b2')!;
+    s().setTool('move');
+    s().selectItem('i1/b2', false);
+    s().grabSnapPoint(point('i1/b2', [w.position[0], w.position[1], w.position[2]]));
+    s().commitSnapMove({ at: [w.position[0] + 1, w.position[1], w.position[2]], kind: 'corner', owner: { type: 'board', id: 'r1' } } as never);
+    const after = partAt(s().doc, 'i1/b2')!;
+    // world +X is the frame's +Z under i1's 90° turn
+    expect(after.position[0]).toBe(before.position[0]);
+    expect(after.position[1]).toBe(before.position[1]);
+    expect(after.position[2]).toBe(before.position[2] + 1);
+  });
+
+  it('Duplicate of an assembly makes an independent copy with its own definitions', () => {
+    s().duplicateBoards(['i1']);
+    const roots = childrenOf(s().doc, null);
+    expect(roots).toHaveLength(3);
+    const copy = instanceAt(s().doc, roots[2]!)!;
+    expect(copy.name).toBe('Drawer (1)');
+    expect(copy.definition).not.toBe('d1');
+    expect(worldParts(s().doc)).toHaveLength(7);
+    expect(s().selectedIds).toEqual([roots[2]]);
+    // Independent below the top level too (Task 5 review).
+    const def = s().doc.definitions.find((d) => d.id === copy.definition)!;
+    expect(def.instances).toHaveLength(1);
+    expect(def.instances[0]!.definition).not.toBe('d2');
+    const nested = s().doc.definitions.find((d) => d.id === def.instances[0]!.definition)!;
+    expect(nested.boards.map((b) => b.name)).toEqual(['Pin']);
+    expect(def.boards.map((b) => b.name)).toEqual(['Side', 'Front']);
+    expect(def.boards[0]!.cuts).toHaveLength(3);
+  });
+
+  it('Copy in a row of an assembly shifts each copy from the ORIGINAL', () => {
+    s().copyInRow(['i1'], 3, 0, 1, 10);
+    const roots = childrenOf(s().doc, null);
+    expect(roots).toHaveLength(4);
+    expect(instanceAt(s().doc, roots[3]!)!.position).toEqual([10.1 + 2 * 10, 0.3, 3.3]);
+  });
+
+  it('Copy in a row inside a turned assembly steps along the WORLD axis', () => {
+    s().openAssembly('i1');
+    s().copyInRow(['i1/b2'], 2, 0, 1, 5);
+    const parts = worldParts(s().doc).filter((b) => b.id.startsWith('i1/') && b.name.startsWith('Front'));
+    expect(parts).toHaveLength(2);
+    expect(parts[1]!.position[0] - parts[0]!.position[0]).toBeCloseTo(5, 9);
+    expect(parts[1]!.position[2]).toBeCloseTo(parts[0]!.position[2], 9);
+  });
+
+  it('Delete of an assembly prunes its definitions and drops what it held', () => {
+    s().setHidden('i1/b1', true);
+    s().setTapeAnchor(point('i1/b2'));
+    s().deleteBoards(['i1']);
+    expect(s().doc.definitions).toEqual([]);
+    expect(s().hiddenIds).toEqual([]);
+    expect(s().tapeAnchor).toBeNull();
+  });
+
+  it('Add board while an assembly is open adds inside it', () => {
+    s().openAssembly('i1');
+    s().addBoard();
+    const kids = childrenOf(s().doc, 'i1');
+    expect(kids).toHaveLength(4);
+    expect(s().selectedIds).toEqual([kids[2]]);
   });
 });
