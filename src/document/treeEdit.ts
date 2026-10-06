@@ -1,3 +1,4 @@
+import { boardExtents } from './geometry';
 import type { Board, Instance, SloydDocument } from './types';
 import { addTurns, cornerShift, inverseTurn, placeBoard, rotateVec } from './frames';
 import type { Container } from './tree';
@@ -43,8 +44,11 @@ function lower(inst: Instance, upperBefore: Board, lowerBefore: Board, upperAfte
  * level by level through `lower`; every other field is part-local and goes
  * back as it is. A key present before and absent after is deleted (an unlink).
  * A root part's write is plain assignment, exactly as before assemblies.
+ * `keepWorld` (joinery only): a part whose extents or posture changed also
+ * counts as moved, so the world box is kept; a Properties edit keeps the
+ * stored local position instead (spec §5.2) and must not pass it.
  */
-export function applyWorldEdits(doc: SloydDocument, edits: readonly WorldEdit[]): SloydDocument {
+export function applyWorldEdits(doc: SloydDocument, edits: readonly WorldEdit[], opts?: { keepWorld?: boolean }): SloydDocument {
   const byContainer = new Map<string | null, Map<string, Board>>();
   for (const { before, after } of edits) {
     const occ = before.id;
@@ -58,7 +62,9 @@ export function applyWorldEdits(doc: SloydDocument, edits: readonly WorldEdit[])
     let cur = after;
     for (let j = 0; j < chain.length; j += 1) cur = lower(chain[j]!, reps[j]!, reps[j + 1]!, cur);
 
-    const moved = !samePosition(before.position, after.position) || before.rotation !== after.rotation;
+    const resized = opts?.keepWorld === true
+      && (before.posture !== after.posture || boardExtents(before).some((e, a) => e !== boardExtents(after)[a]));
+    const moved = resized || !samePosition(before.position, after.position) || before.rotation !== after.rotation;
     const next: Record<string, unknown> = { ...stored };
     const rec = (b: Board) => b as unknown as Record<string, unknown>;
     for (const k of new Set([...Object.keys(before), ...Object.keys(after)])) {
@@ -126,12 +132,14 @@ export function translateItems(doc: SloydDocument, ids: readonly string[], world
  * contain '/'), so its parts are paired with the flattened "before" BY INDEX.
  * Every recipe keeps the count and order of parts; a mismatch is our bug, so
  * it throws. Compared against the same flattened before, the path names are
- * equal and never written back as renames.
+ * equal and never written back as renames. It passes `keepWorld`: joinery's
+ * output is world geometry, so a grown part keeps its world box, whereas a
+ * Properties edit keeps the stored position.
  */
 export function writeBackFlat(doc: SloydDocument, flatBefore: readonly Board[], flatAfter: readonly Board[]): SloydDocument {
   if (flatBefore.length !== flatAfter.length) {
     throw new Error(`writeBackFlat: part count changed (${flatBefore.length} -> ${flatAfter.length})`);
   }
   const edits = flatBefore.map((before, i) => ({ before, after: { ...flatAfter[i]!, id: before.id } }));
-  return applyWorldEdits(doc, edits);
+  return applyWorldEdits(doc, edits, { keepWorld: true });
 }

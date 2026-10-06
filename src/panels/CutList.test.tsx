@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
 import { createBoard, createDocument } from '../document/document';
 import type { Board } from '../document/document';
+import { assemblyDoc } from '../document/treeFixtures';
 import { CutList } from './CutList';
 
 const load = (...boards: Partial<Board>[]) =>
@@ -14,6 +15,12 @@ const load = (...boards: Partial<Board>[]) =>
 beforeEach(() => useStore.getState().replaceDocument(createDocument('Test')));
 
 describe('CutList', () => {
+  it('names parts inside assemblies by their display path (assemblies spec §6)', () => {
+    useStore.getState().replaceDocument(assemblyDoc());
+    render(<CutList onClose={() => {}} />);
+    expect(screen.getByText(/Drawer › Peg › Pin/)).toBeInTheDocument();
+  });
+
   it('says so when there are no parts', () => {
     render(<CutList onClose={() => {}} />);
     expect(screen.getByText('No parts yet.')).toBeInTheDocument();
