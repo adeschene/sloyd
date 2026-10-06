@@ -12,6 +12,7 @@ export * from './links';
 export * from './frames';
 export * from './tree';
 export * from './treeEdit';
+export * from './treeOps';
 export {
   boardExtents, boardCenter, boardsBounds, reorientedPosition, axisDimensions, DIMENSION_ORDER, positionAxisOf,
   horizontalOf, axisFrame, toWorldOffset, fromWorldOffset, spanToWorldOffset, spanFromWorldOffset, endFacing,
