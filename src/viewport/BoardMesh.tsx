@@ -9,7 +9,7 @@ import type { Board } from '../document/document';
 import { faceGrainKinds, grainFamily } from './grainFaces';
 import { boardUVs, boardUVSignature } from './grainTiling';
 import { grainTexture } from './grainTexture';
-import { CLICK_DRAG_SLOP_PX } from './pointer';
+import { CLICK_DRAG_SLOP_PX, clickPairStartedWithDrag } from './pointer';
 
 /** Brass — the one live colour in the app. */
 const SELECTED = '#c99a4e';
@@ -40,6 +40,10 @@ const GHOST_OPACITY = 0.22;
 interface Props {
   board: Board;
   selected: boolean;
+  // outside the open assembly: drawn faded, still clickable (a click closes the assembly), still a snap target
+  faded: boolean;
+  /** Double-click: open the assembly the part belongs to. */
+  onOpen: (id: string) => void;
   /** Called with the click's modifiers: plain selects, Shift/Ctrl/Cmd toggles. */
   onSelect: (id: string, modifiers: ToggleModifiers) => void;
   /**
@@ -57,7 +61,7 @@ interface Props {
   selectable: boolean;
 }
 
-export function BoardMesh({ board, selected, onSelect, selectable }: Props) {
+export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable }: Props) {
   // Geometry is derived from the document on every render — the mesh is never
   // the source of truth. Extents already account for rotation and posture,
   // so the mesh itself is axis-aligned and never carries a rotation.
@@ -178,6 +182,14 @@ export function BoardMesh({ board, selected, onSelect, selectable }: Props) {
             e.stopPropagation();
             onSelect(board.id, e.nativeEvent);
           }}
+          onDoubleClick={(e) => {
+            if (!selectable) return;
+            // An orbit and then a click is not a double-click (see
+            // clickPairStartedWithDrag); the click already ran as a select.
+            if (clickPairStartedWithDrag()) return;
+            e.stopPropagation();
+            onOpen(board.id);
+          }}
         >
           {/* The ghost takes ONE plain material rather than the six grain
               materials: per-face grain describes how stock was sawn, and this
@@ -204,6 +216,9 @@ export function BoardMesh({ board, selected, onSelect, selectable }: Props) {
               metalness={0}
               emissive={selected ? SELECTED : '#000000'}
               emissiveIntensity={selected ? 0.16 : 0}
+              transparent={faded}
+              opacity={faded ? 0.35 : 1}
+              depthWrite={!faded}
               polygonOffset
               polygonOffsetFactor={1}
               polygonOffsetUnits={1}
@@ -218,7 +233,7 @@ export function BoardMesh({ board, selected, onSelect, selectable }: Props) {
         <lineBasicMaterial
           color={selected ? SELECTED : edgeColor}
           transparent
-          opacity={selected ? 1 : 0.8}
+          opacity={faded ? 0.3 : selected ? 1 : 0.8}
         />
       </lineSegments>
     </group>

@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
 import { createDocument } from '../document/document';
 import { PartsList } from './PartsList';
+import { assemblyDoc } from '../document/treeFixtures';
 
 beforeEach(() => useStore.getState().replaceDocument(createDocument('Test')));
 
@@ -105,5 +106,37 @@ describe('PartsList hiding', () => {
     act(() => useStore.getState().linkBoards([a!, b!]));
     expect(screen.getAllByRole('img', { name: 'Linked, 2 parts' })).toHaveLength(2);
     expect(screen.getByRole('button', { name: 'Board' })).toBeInTheDocument();
+  });
+});
+
+describe('PartsList tree', () => {
+  it('shows assemblies as collapsible rows and opens the parent of a nested row', async () => {
+    useStore.getState().replaceDocument(assemblyDoc());
+    render(<PartsList />);
+    expect(screen.getByRole('button', { name: 'Drawer' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Collapse Drawer' }));
+    expect(screen.queryByRole('button', { name: 'Side' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Expand Drawer' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Pin' }));
+    expect(useStore.getState().openPath).toBe('i1/i2');
+    expect(useStore.getState().selectedIds).toEqual(['i1/i2/b3']);
+  });
+
+  it('the eye is disabled under a hidden ancestor, not on the hidden ancestor itself', () => {
+    useStore.getState().replaceDocument(assemblyDoc());
+    act(() => useStore.getState().setHidden('i1', true));
+    render(<PartsList />);
+    expect(screen.getByRole('button', { name: 'Hide Side' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Show Drawer' })).toBeEnabled();
+  });
+
+  it('the eye is disabled on the open assembly and its ancestors, not on its children', () => {
+    useStore.getState().replaceDocument(assemblyDoc());
+    act(() => { useStore.getState().openAssembly('i1/i2'); });
+    render(<PartsList />);
+    expect(screen.getByRole('button', { name: 'Hide Drawer' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Hide Peg' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Hide Pin' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Hide Top' })).toBeEnabled();
   });
 });

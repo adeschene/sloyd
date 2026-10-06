@@ -614,6 +614,22 @@ button[aria-pressed='true'] {
   color: var(--ink);
 }
 
+.part-caret {
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+
+.part-caret:hover {
+  color: var(--ink);
+}
+
 .part-row.hidden .part {
   opacity: 0.45;
   cursor: default;
@@ -793,6 +809,9 @@ button[aria-pressed='true'] {
 
 .row {
   display: flex;
+  /* An assembly's row carries five actions (Duplicate, Ungroup, Group, Hide
+     others, Delete), wider than the panel; wrap rather than clip Delete. */
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 10px;
   padding-top: 9px;

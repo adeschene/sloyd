@@ -1,7 +1,7 @@
 import { beforeAll } from 'vitest';
 import workbenchRaw from '../../document/fixtures/simple-workbench.sloyd?raw';
 import { designToDocument } from '../../document/generated';
-import { migrateDocument } from '../../document/document';
+import { flatDocument, groupItems, migrateDocument, writeBackFlat } from '../../document/document';
 import { checkDesign, worldSolids } from '../../document/designCheck';
 import { sameSet } from '../../document/turnFixtures';
 import { boardSolids, clippedRegion, cutLabel, cutRegion, cutsThatRemoveStock } from '../../document/cuts';
@@ -1430,4 +1430,39 @@ describe('joinery is equivariant under a 180 turn of every part', () => {
       expect(sameSet(corners(y), corners(x)), `${x.name} world solids`).toBe(true);
     }
   });
+});
+
+describe('joinery on assemblies (assemblies spec §6.1)', () => {
+  it('joins a grouped design exactly as its flat twin, and returns the tree', () => {
+    const flat = LEG_RAIL();
+    const ids = flat.boards.map((b) => b.id);
+    const grouped = groupItems(flat, null, ids)!.doc;
+    const plainSites = findSites(flat);
+    const plainJoin = applyJoints(flat, plainSites, plainSites.map((s) => defaultChoice(s, flat, plainSites)));
+    const f = flatDocument(grouped);
+    const sites = findSites(f);
+    const joined = applyJoints(f, sites, sites.map((s) => defaultChoice(s, f, sites)));
+    const tree = writeBackFlat(grouped, f.boards, joined.doc.boards);
+    expect(tree.instances).toHaveLength(1);
+    const cuts = (d: SloydDocument) => flatDocument(d).boards.map((b) => b.cuts.map(({ id: _i, ...c }) => c));
+    expect(cuts(tree)).toEqual(cuts(plainJoin.doc));
+  });
+
+  for (const rot of [0, 90, 180, 270] as const) {
+    it(`keeps the joined world geometry inside an assembly translated and turned ${rot}`, () => {
+      const flat = LEG_RAIL();
+      const g = groupItems(flat, null, flat.boards.map((b) => b.id))!.doc;
+      const grouped: SloydDocument = { ...g, instances: g.instances.map((i) => ({ ...i, rotation: rot, position: [5.3, 0, 2.1] as [number, number, number] })) };
+      const f = flatDocument(grouped);
+      const sites = findSites(f);
+      const joined = applyJoints(f, sites, sites.map((s) => defaultChoice(s, f, sites)));
+      const back = flatDocument(migrateDocument(writeBackFlat(grouped, f.boards, joined.doc.boards)));
+      expect(back.boards).toHaveLength(joined.doc.boards.length);
+      const corners = (b: Board) => worldSolids(b).flatMap((w) => [[...w.min], [...w.max]] as number[][]);
+      joined.doc.boards.forEach((j, k) => {
+        expect(sameSet(corners(back.boards[k]!), corners(j)), j.name).toBe(true);
+        expect(back.boards[k]!.cuts.map(({ id: _i, ...c }) => c), j.name).toEqual(j.cuts.map(({ id: _i, ...c }) => c));
+      });
+    });
+  }
 });

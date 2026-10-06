@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store/store';
-import { MATERIALS, uniqueName, isSheetGood, boardSolids, cutShape, storedAsShape, cutRemovesNothing, findTenons, positionAxisOf, linkPlan } from '../document/document';
+import { MATERIALS, isSheetGood, boardSolids, cutShape, storedAsShape, cutRemovesNothing, findTenons, positionAxisOf, linkPlan, worldParts, instanceAt, parentPath } from '../document/document';
 import { DimensionField } from './DimensionField';
 import { NameField } from './NameField';
 import { CopyInRow } from './CopyInRow';
@@ -286,7 +286,7 @@ function shared<T>(boards: Board[], read: (b: Board) => T): T | null {
  * stale draft across a selection change, since its value never changed.
  */
 function GroupProperties() {
-  const allBoards = useStore((s) => s.doc.boards);
+  const allBoards = useStore((s) => worldParts(s.doc));
   const selectedIds = useStore((s) => s.selectedIds);
   const precision = useStore((s) => s.doc.units.precision);
   const updateBoards = useStore((s) => s.updateBoards);
@@ -299,20 +299,24 @@ function GroupProperties() {
     () => selectedIds.flatMap((id) => allBoards.filter((b) => b.id === id)),
     [allBoards, selectedIds],
   );
-  const plan = useMemo(() => linkPlan(allBoards, selectedIds), [allBoards, selectedIds]);
-  if (boards.length === 0) return null;
+  // A selection that includes an assembly is mixed: no shared size fields, no Link.
+  const allParts = boards.length === selectedIds.length;
+  const plan = useMemo(() => (allParts ? linkPlan(allBoards, selectedIds) : null), [allParts, allBoards, selectedIds]);
+  const anyAssembly = useStore((s) => selectedIds.some((id) => instanceAt(s.doc, id) !== null));
+  if (selectedIds.length === 0) return null;
 
   const set = (patch: Partial<Board>) => updateBoards(selectedIds, patch);
-  const grain = shared(boards, (b) => b.grain);
-  const material = shared(boards, (b) => b.material);
+  const grain = allParts ? shared(boards, (b) => b.grain) : null;
+  const material = allParts ? shared(boards, (b) => b.material) : null;
   // A sheet good has no 'thickness' grain (isSheetGood's comment), so the
   // option is offered only when it would be legal for EVERY selected part.
   const anySheetGood = boards.some((b) => isSheetGood(b.material));
 
   return (
     <div className="properties" key={selectedIds.join('|')}>
-      <h3>{boards.length} parts selected</h3>
+      <h3>{allParts ? `${boards.length} parts selected` : `${selectedIds.length} items selected`}</h3>
 
+      {allParts && <>
       <h3>Dimensions</h3>
       <DimensionField label="Length" precision={precision} value={shared(boards, (b) => b.length)}
         onCommit={(v) => set({ length: v })} />
@@ -343,6 +347,7 @@ function GroupProperties() {
           ))}
         </select>
       </div>
+      </>}
 
       {plan && plan.changing.length > 0 && (
         <p className="link-note">
@@ -351,8 +356,10 @@ function GroupProperties() {
       )}
       <div className="row">
         {plan && <button onClick={() => linkBoards(selectedIds)}>Link</button>}
-        {boards.some((b) => b.link) && <button onClick={() => unlinkBoards(selectedIds)}>Unlink</button>}
+        {allParts && boards.some((b) => b.link) && <button onClick={() => unlinkBoards(selectedIds)}>Unlink</button>}
         <button onClick={() => duplicateBoards(selectedIds)}>Duplicate</button>
+        <button onClick={() => useStore.getState().groupSelected()}>Group</button>
+        {anyAssembly && <button onClick={() => useStore.getState().ungroupSelected()}>Ungroup</button>}
         <button onClick={hideUnselected}>Hide others</button>
         <button className="danger" onClick={() => deleteBoards(selectedIds)}>Delete</button>
       </div>
@@ -361,9 +368,45 @@ function GroupProperties() {
   );
 }
 
+/** The panel for one selected assembly (assemblies spec §10): name, turn and the item actions. */
+function InstanceProperties({ path }: { path: string }) {
+  const inst = useStore((s) => instanceAt(s.doc, path));
+  const duplicateBoards = useStore((s) => s.duplicateBoards);
+  const deleteBoards = useStore((s) => s.deleteBoards);
+  const hideUnselected = useStore((s) => s.hideUnselected);
+  const turnAssembly = useStore((s) => s.turnAssembly);
+  if (!inst) return null;
+  return (
+    <div className="properties" key={path}>
+      <NameField value={inst.name} onCommit={(typed) => useStore.getState().renameItem(path, typed)} />
+      <p className="assembly-note">Assembly — double-click it in the view to edit its parts.</p>
+      <h3>Orientation</h3>
+      <div className="field">
+        <label htmlFor="turn">Turn</label>
+        <select id="turn" className="input" value={inst.rotation}
+          onChange={(e) => turnAssembly(path, Number(e.target.value) as Rotation)}>
+          <option value={0}>0°</option>
+          <option value={90}>90°</option>
+          <option value={180}>180°</option>
+          <option value={270}>270°</option>
+        </select>
+      </div>
+      <div className="row">
+        <button onClick={() => duplicateBoards([path])}>Duplicate</button>
+        <button onClick={() => useStore.getState().ungroupSelected()}>Ungroup</button>
+        <button onClick={() => useStore.getState().groupSelected()}>Group</button>
+        <button onClick={hideUnselected}>Hide others</button>
+        <button className="danger" onClick={() => deleteBoards([path])}>Delete</button>
+      </div>
+      <CopyInRow />
+    </div>
+  );
+}
+
 export function Properties() {
   const board = useStore((s) =>
-    s.selectedIds.length === 1 ? s.doc.boards.find((b) => b.id === s.selectedIds[0]) : undefined);
+    s.selectedIds.length === 1 ? worldParts(s.doc).find((b) => b.id === s.selectedIds[0]) : undefined);
+  const instPath = useStore((s) => (s.selectedIds.length === 1 && instanceAt(s.doc, s.selectedIds[0]!) ? s.selectedIds[0]! : null));
   const groupSize = useStore((s) => s.selectedIds.length);
   const precision = useStore((s) => s.doc.units.precision);
   const updateBoard = useStore((s) => s.updateBoard);
@@ -375,8 +418,15 @@ export function Properties() {
   const selectLinked = useStore((s) => s.selectLinked);
   // OTHER boards sharing this one's link; a number, so it re-renders only when the count moves.
   const linkedCount = useStore((s) => {
-    const sel = s.selectedIds.length === 1 ? s.doc.boards.find((b) => b.id === s.selectedIds[0]) : undefined;
-    return sel?.link ? s.doc.boards.filter((b) => b.link === sel.link).length - 1 : 0;
+    const sel = s.selectedIds.length === 1 ? worldParts(s.doc).find((b) => b.id === s.selectedIds[0]) : undefined;
+    return sel?.link ? worldParts(s.doc).filter((b) => b.link === sel.link).length - 1 : 0;
+  });
+  // Whether any OTHER member of this part's link is a direct child of the open
+  // level: Select linked can only select those (selectionPatch), so the button is
+  // shown only then. A boolean, so it re-renders only when it flips (inv 43).
+  const linkedHere = useStore((s) => {
+    const sel = s.selectedIds.length === 1 ? worldParts(s.doc).find((b) => b.id === s.selectedIds[0]) : undefined;
+    return !!sel?.link && worldParts(s.doc).some((b) => b.link === sel.link && b.id !== sel.id && parentPath(b.id) === s.openPath);
   });
   const lengthRef = useRef<HTMLInputElement>(null);
 
@@ -392,6 +442,7 @@ export function Properties() {
   }, [board?.id]);
 
   if (groupSize >= 2) return <GroupProperties />;
+  if (instPath) return <InstanceProperties path={instPath} />;
   if (!board) return <p className="empty">Select a part to edit it.</p>;
 
   // Once per render, shared by every CutRow's label (no memo key to go stale — inv 15).
@@ -404,19 +455,12 @@ export function Properties() {
   };
 
   /**
-   * Store a renamed board, deduplicated against its siblings, and report the
-   * name that was actually stored so the field can show it.
-   *
-   * The equality check is not an optimization: without it, a rename that
-   * dedups straight back onto the current name (typing "Leg" on the board
-   * already called "Leg (1)") would push an undo entry that changes nothing.
-   * Read the boards imperatively so the check sees the live document.
+   * Store a renamed part and report the name that was actually stored, so the
+   * field can show it. `renameItem` is the one home of the rule: it dedupes
+   * among the part's siblings and writes nothing (no undo entry) when the
+   * deduplicated name is the current one.
    */
-  const commitName = (typed: string) => {
-    const name = uniqueName(typed, useStore.getState().doc.boards, board.id);
-    if (name !== board.name) updateBoard(board.id, { name });
-    return name;
-  };
+  const commitName = (typed: string) => useStore.getState().renameItem(board.id, typed);
 
   return (
     <div className="properties" key={board.id}>
@@ -425,7 +469,7 @@ export function Properties() {
         <div className="link-block">
           <p>Linked with {linkedCount} other {linkedCount === 1 ? 'part' : 'parts'}: edits to size, material, grain, posture or cuts change all {linkedCount + 1}.</p>
           <div className="row">
-            <button onClick={() => selectLinked(board.id)}>Select linked</button>
+            {linkedHere && <button onClick={() => selectLinked(board.id)}>Select linked</button>}
             <button onClick={() => unlinkBoards([board.id])}>Unlink</button>
           </div>
         </div>
@@ -509,6 +553,7 @@ export function Properties() {
 
       <div className="row">
         <button onClick={() => duplicateBoard(board.id)}>Duplicate</button>
+        <button onClick={() => useStore.getState().groupSelected()}>Group</button>
         <button onClick={hideUnselected}>Hide others</button>
         <button className="danger" onClick={() => deleteBoard(board.id)}>Delete</button>
       </div>

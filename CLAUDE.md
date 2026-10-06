@@ -24,10 +24,14 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **1883/1883 tests passing across 64 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
-`CURRENT_VERSION` **9**.
+Static SPA, containerized, **2003/2003 tests passing across 72 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
+`CURRENT_VERSION` **10**.
 
-**PRODUCTION MATCHES `master` as of 2026-10-06 with the linking round live** — bundle `index-BwdHsyEM.js`, CSS `index-C7v9uwho.css`, merge commit `d3120cf`, **schema 9** (rolling back past it strands v9 documents; export first). Before it: copy in a row `index-B8i7dotN.js` (`7487aca`, 2026-10-06, schema 8), quarter turns `index-bSuJPbkx.js` (`a24287f`, 2026-10-05), hide/unhide `index-BpdcUlXf.js` (`366eb37`, 2026-10-05), multi-select `index-D7ySMvky.js` (`232917f`, 2026-10-05), joinery residues `index-D_wzi7Bx.js` (`2b96eb2`, 2026-10-05), joinery fixes `index-BzWa2ZGT.js` (`c31dd82`, 2026-10-05), fu 197 `index-Ci3NLhVT.js` (`658dfcc`, 2026-10-05), fu 200 `index-DjL6FbOz.js` (`f37734b`, 2026-10-05), 198/199 `index-BvsB1zA6.js` (`fb8a094`, 2026-10-05), cut storage `index-JBiJohQE.js` (`7fa749d`, 2026-10-04), cut lines `index-BPmx9i74.js` (`f602a2d`), cut words `index-Cw_EeWuY.js` (`8c9be52`), joinery `index-Ci7lVCzJ.js` (`d2a14ac`), phantom cut `index-B2Yuq550.js` (`e7bf3bc`), stopped cuts `index-CoHIAVxf.js` (`c054ede`), which bumped the schema to 7 (rolling back past it strands v7 documents; export first). Before it, 2026-10-03: key check `index-BhhW2iNw.js` (`d0ba83b`), held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
+**`master` IS AHEAD OF PRODUCTION once the assemblies round is merged (2026-10-06); it is NOT deployed** (schema **10**; deploying is the user's separate decision, and rolling back past it would strand v10 documents, so export first). Production is still the linking round, described next.
+
+**The assemblies round (2026-10-06) is NOT deployed.** Claude drove its live check on the dev server (`docs/browser-verification-assemblies.md`), and the user's hands-on pass follows it. It is round 1 of two, in the user's order: assemblies, then components (shared definitions). Select parts and **Group** (Ctrl/Cmd+G). The parts become an assembly, a real definition/instance tree that nests, duplicates (an INDEPENDENT copy in round 1), moves and turns as one. SketchUp's click model: a click selects the outermost assembly, a double-click opens it (everything outside fades but stays clickable), and Escape closes it. **Ungroup** is Ctrl/Cmd+Shift+G. Names are unique per level, and the cut list and joinery name parts by path (`Cabinet › Drawer › Side`). Invariant 46; invariants 8 and 33 are restated per level (spec `docs/superpowers/specs/2026-10-06-sloyd-assemblies-design.md`). **Schema 10**: `instances` and `definitions`. Residues are follow-ups 224-228; 224 holds round 2's design questions.
+
+**PRODUCTION WAS LAST DEPLOYED 2026-10-06 with the linking round live** — bundle `index-BwdHsyEM.js`, CSS `index-C7v9uwho.css`, merge commit `d3120cf`, **schema 9** (rolling back past it strands v9 documents; export first). Before it: copy in a row `index-B8i7dotN.js` (`7487aca`, 2026-10-06, schema 8), quarter turns `index-bSuJPbkx.js` (`a24287f`, 2026-10-05), hide/unhide `index-BpdcUlXf.js` (`366eb37`, 2026-10-05), multi-select `index-D7ySMvky.js` (`232917f`, 2026-10-05), joinery residues `index-D_wzi7Bx.js` (`2b96eb2`, 2026-10-05), joinery fixes `index-BzWa2ZGT.js` (`c31dd82`, 2026-10-05), fu 197 `index-Ci3NLhVT.js` (`658dfcc`, 2026-10-05), fu 200 `index-DjL6FbOz.js` (`f37734b`, 2026-10-05), 198/199 `index-BvsB1zA6.js` (`fb8a094`, 2026-10-05), cut storage `index-JBiJohQE.js` (`7fa749d`, 2026-10-04), cut lines `index-BPmx9i74.js` (`f602a2d`), cut words `index-Cw_EeWuY.js` (`8c9be52`), joinery `index-Ci7lVCzJ.js` (`d2a14ac`), phantom cut `index-B2Yuq550.js` (`e7bf3bc`), stopped cuts `index-CoHIAVxf.js` (`c054ede`), which bumped the schema to 7 (rolling back past it strands v7 documents; export first). Before it, 2026-10-03: key check `index-BhhW2iNw.js` (`d0ba83b`), held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
 bundle `index-BAsxEohe.js` with CSS `index-DEQSkZ3q.css`, from merge commit `fa834dc`. A
 person stores a Claude API key in Settings, describes a piece, and gets 1–3 prototypes built
 from boards, each saved as a **new, unactivated** library project (invariant 36). **It is
@@ -159,7 +163,7 @@ different things make `git log` look ahead when it is not, and both are normal h
   built a byte-identical bundle: the agreement-test round (follow-up 140), 159's focus test,
   and the whole delete-token round (follow-up 160).
 
-**Nothing is pending.** `DEPLOYMENT.local.md` carries every runbook entry and bundle hash.
+**The assemblies round is not deployed** (above). `DEPLOYMENT.local.md` carries every runbook entry and bundle hash.
 
 **The 2026-08-15 project-library deploy was the first that ACTS on a user's stored data at
 page load**, which
@@ -192,7 +196,9 @@ planned follow-on is **phase 2, refine and joinery (follow-up 171)**; read invar
 and 39 first, because joinery is exactly where "overlap" and "held" both change meaning.
 174 (the key check) is done too. Phase 2's joinery half (171) shipped on 2026-10-04.
 
-**As of 2026-10-06, the end of the session: NOTHING IS PENDING and NO SUCCESSOR IS CHOSEN.**
+**As of 2026-10-06, after the assemblies round: NOT deployed; deploying is the user's call.** The planned successor is **round 2, components** (shared definitions, Make Unique, what links become): read follow-up 224 before designing it. Do not start it without asking.
+
+**Earlier on 2026-10-06, before the assemblies round: NOTHING WAS PENDING and NO SUCCESSOR WAS CHOSEN.**
 The user asked on 2026-10-05 for three features, in order, and all three are live: multi-select,
 hide/unhide, and repeated parts (split by the user into quarter turns, copy in a row and linking).
 Production matches `master` (`index-BwdHsyEM.js`, schema 9). The docs-only commits past the merge
@@ -300,6 +306,7 @@ show it. Prefer a readout where one suffices; add an image when the finding is s
 | quarter turns | 10-05 | 8 | `rotation: 0 \| 90 \| 180 \| 270`, true rotations; `axisFrame` is the one turn table and every part↔world crossing goes through its helpers (inv 44); `trueTurnsToV8` mirrors old 90° parts' cuts so they look unchanged |
 | copy in a row | 10-05 | — | `rowLayout` (gap / pitch / fit-across, no rounding) and `copyInRow`: N−1 ordinary copies of the selection along ±X/Y/Z, each shifted k·step from the ORIGINAL, one undo entry; Properties' inline **Copy in a row…** form (inv 25) |
 | linking | 10-06 | 9 | `Board.link`, a label; `LINK_FIELDS` is the one shared/own table; `linkPlan` decides Link for store and panel; shared edits and cut edits reach every member in one undo entry; Unlink, Select linked, linked copies; `repairLinks` in `migrateDocument` unlinks a differing member (inv 45) |
+| assemblies | 10-06 | 10 | `instances` + `definitions`: a definition/instance tree; Group / Ungroup (Ctrl/Cmd+G, +Shift), double-click opens, Escape closes, the rest fades; `worldParts` the one walk, `placeBoard`/`placeInstance` the one composition, every edit written back through `treeEdit.ts` (inv 46); names unique per level, ids unique per container (invs 8, 33 restated); cut list and joinery read `flatDocument` (path names) |
 | hide/unhide | 10-05 | — | `hiddenIds`: an eye per row, H / Shift+H / Alt+H, Show all (N), Hide others; view state, not saved, but undoable (history entries are `{ doc, hiddenIds }`); a hidden part is not drawn, snapped to, framed or selected (inv 43) |
 | joinery fixes | 10-05 | — | *no spec* — fu 190/185/183/184: opposite-face tenon cap, bottom-up crossings with a swept-volume blocker, outer-face carry (refuses before any mutation), `lowered` reported |
 | joinery residues | 10-05 | — | *no spec* — fu 182/201/188/203/191/186: rabbet unit from the panel's final box (no voids, path parts trimmed), 1/4in default tenons else butt, blockers on solids, `resize` pre-checked |
@@ -387,7 +394,7 @@ code path.
 ### Versioning
 
 Every document carries a `version`, and every load path (open, import, autosave-restore)
-runs through `migrateDocument` before the document is trusted. `CURRENT_VERSION` is **9**
+runs through `migrateDocument` before the document is trusted. `CURRENT_VERSION` is **10**
 and migration is a real chain: each step runs on raw data, in version order, one version
 at a time, before any board reaches `validateBoard` (invariant 11).
 
@@ -405,7 +412,8 @@ at a time, before any board reaches `validateBoard` (invariant 11).
   v8→v9 `Board.link`) — **no `rawBoards.map` step at
   all**. Read defensively off the raw document and defaulted, the way `units.precision`
   already was. `stock.kerf` defaults to `0.125` when absent, non-numeric or outside
-  `[0, 1)` — *defaulted, not clamped to the nearest boundary*. `guides` defaults to `[]`,
+  `[0, 1)` — *defaulted, not clamped to the nearest boundary*. v9→v10 (`instances`,
+  `definitions`) is document-level too: both default to `[]`. `guides` defaults to `[]`,
   and `validateGuides` drops a malformed guide rather than refusing the file, because a
   saved document must always open and a guide has no nearest-legal-value to clamp toward.
   `stopMin`/`stopMax` default to `0` in `validateCuts`. An absent `link` is an unlinked
@@ -435,7 +443,11 @@ v8 file from being re-mirrored on every load.
 v9's argument is v6's, **silent data loss on round-trip**: a v8 build opens a v9 file, drops
 every `link`, autosaves, and the links are gone. It is silent precisely because every linked
 part is self-contained (its own size and cuts), so the v8 build shows exactly the same
-parts. **`repairLinks` is not a migration step and is not version-guarded**, unlike v8's: it
+parts. v10's argument is v9's, made stronger: a v9 build opening a v10 file drops `instances` and
+`definitions`, so EVERY PART INSIDE AN ASSEMBLY VANISHES, and it autosaves. `repairTree` and
+`repairLinksTree` run after validation on every load, like `repairLinks` (invariant 46).
+
+**`repairLinks` is not a migration step and is not version-guarded**, unlike v8's: it
 runs after validation on EVERY load, it is idempotent (consistent links come back as the same
 array), and it moves no geometry (invariant 45).
 
@@ -465,7 +477,36 @@ src/
 │   ├── types.ts            Board, GuidePoint, SloydDocument, Rotation, Posture,
 │   │                       Grain, MATERIALS, SheetStock, isSheetGood, sheetStockOf.
 │   │                       `Board.link?: string` — a label, never an id; an
-│   │                       unlinked part has NO key (inv 45)
+│   │                       unlinked part has NO key (inv 45). `Instance` (`position` is its
+│   │                       frame's ORIGIN, not a min corner) and `Definition`
+│   │                       `{ id, boards, instances }`; `SloydDocument.instances` is the
+│   │                       root's (inv 46)
+│   ├── ids.ts              `nextId`, the one id minter
+│   ├── frames.ts           the ONE composition step (inv 46): `rotateVec` (90 maps (x,y,z) to
+│   │                       (z,y,−x)), `cornerShift`, `placeBoard(frame, board)` = (origin +
+│   │                       R(p)) + shift, `placeInstance`, `inverseTurn`, `addTurns`. Pure
+│   ├── tree.ts             occurrence paths (`i1/i2/b3`; `/` reserved), `isCovered` (THE
+│   │                       ancestor test: `i3` covers `i3/b1`, not `i30/b1`), lookups,
+│   │                       `worldParts` (THE walk to placed parts, cached per document
+│   │                       object in a WeakMap; each part keeps its OWN name), `flatDocument`
+│   │                       (path names joined by `NAME_SEPARATOR` ` › `, for the cut list and
+│   │                       joinery), `childrenOf`, `itemPaths`, `containerTurn`, `treeRows`
+│   ├── treeEdit.ts         every write-back (inv 46): `applyWorldEdits` (changed fields only;
+│   │                       a moved position goes down as a delta level by level; `keepWorld`
+│   │                       for joinery only), `mapWorld`, `translateItems` (a WORLD delta
+│   │                       rotated into each container's frame), `writeBackFlat`,
+│   │                       `updateContainer`
+│   ├── treeOps.ts          `groupItems` (identity frame, so bit-exact), `ungroupItem` (exact
+│   │                       for direct child parts), `copyInstanceTree` (round 1: an
+│   │                       independent copy), `removeItems` + `pruneDefinitions`,
+│   │                       `turnInstance` (about the assembly's centre), `insertItems`,
+│   │                       `siblingsOf`, `nextAssemblyName`
+│   ├── treeRepair.ts       `repairTree` (duplicate definition ids, missing definitions,
+│   │                       cycles, a definition referenced twice gets a copy, unreferenced
+│   │                       dropped, ids and names per container) and `repairLinksTree`;
+│   │                       both run in `migrateDocument` on every load
+│   ├── treeFixtures.ts     TEST-ONLY `assemblyDoc()`: `r1`, `i1/b1`, `i1/b2`, `i1/i2/b3`; i1
+│   │                       "Drawer" turned 90, i2 "Peg" turned 270
 │   ├── links.ts            `LINK_FIELDS` — the ONE shared/own table, `satisfies
 │   │                       Record<keyof Board, …>` (inv 45); `SHARED_KEYS` / `sharedOf`
 │   │                       (cuts copied, ids kept) / `sharedPatch` / `sameShared`
@@ -492,7 +533,8 @@ src/
 │   │                       one-handed; c3 takes a box corner so boardSnapPoints'
 │   │                       filter has something to see) — plus `turnedAbout`,
 │   │                       `rotateQuarter` and `sameSet`, the equivariance kit (inv 44)
-│   ├── names.ts            uniqueName / dedupeNames (inv 8). Imports only Board.
+│   ├── names.ts            uniqueName / dedupeNames over `Named` (parts AND assemblies,
+│   │                       one container's siblings; inv 8).
 │   │                       NAMES ONLY — id uniqueness is `takeId` in
 │   │                       document.ts (inv 33), for the reason stated there
 │   ├── cuts.ts             cutRegion / boardSolids (split, drop against the UNION,
@@ -672,6 +714,16 @@ src/
 │                           applies), `unlinkBoards` keeps values, and both it and
 │                           `deleteBoards` run `dissolveSingletons`. `selectLinked`
 │                           writes through `selectionPatch`, so hidden members drop
+│   └── assemblyPick.ts     `clickTarget`: which item a viewport click on a part selects
+│                           (the outermost item below the open level; inv 46)
+│                           `openPath` (the open assembly, null at the root) is view state.
+│                           `selectionPatch` keeps only DIRECT CHILDREN of the open level, so
+│                           a selection is always one level. Edits go through `worldParts`
+│                           and `treeEdit.ts`, never a hand walk. `groupSelected` /
+│                           `ungroupSelected` re-key hidden ids and the tape's held points
+│                           (`rekeyHeld`), and are refused while `gesturing` (inv 43's
+│                           argument). Also `openAssembly`, `closeAssembly`, `selectItem`,
+│                           `clickPart`, `openPart`, `turnAssembly`, `renameItem`
 │   └── selectionGesture.ts `isToggleModifier` (Shift/Ctrl/Cmd), `selectByClick`,
 │                           `clearOnMiss` (no clear on a MODIFIED miss, nor outside the
 │                           Select tool). In the store layer because the viewport AND
@@ -1018,6 +1070,12 @@ worked examples behind several of them are in `docs/history.md`.
    the document), so any new call site that adds a board must pass its name through
    `uniqueName` itself. `validateBoard` trims before the blank check, so `dedupeNames`
    never receives something that trims to `''`.
+
+   **Restated for assemblies (inv 46): a name is unique among its SIBLINGS**, the parts AND
+   assemblies of one container (a definition, or the root), checked together. Two drawers may
+   each have a "Front". The enforcement points gain Group and Ungroup, and a new assembly is
+   `Assembly N`, unique among its siblings. Paths are therefore unique too. That is what makes
+   `flatDocument`'s display names (`Cabinet › Drawer › Front`) unique.
 9. **`NameField` commits once, on blur or Enter — never per keystroke.** An emptied name
    reverts, which is only possible with a single commit: writing per keystroke and
    correcting on blur takes the gesture's undo snapshot before the correction lands,
@@ -1500,6 +1558,18 @@ worked examples behind several of them are in `docs/history.md`.
     enforcement, this needs no creation-time half: `nextId` is a monotonic counter and Import
     replaces a document rather than merging into one, so load is the only place ids collide.
 
+    **Restated for assemblies (inv 46).**
+    - **Part and instance ids are unique WITHIN their container** (a definition, or the root),
+      checked together in one `seen` set.
+    - **Definition ids are unique across the document.**
+    - **Cut ids stay per board.**
+    - So every occurrence path (`i1/i2/b3`) is unique.
+    - **`/` is reserved:** `takeId` re-mints a part or instance id containing it.
+    - **The one thing in a document that points at an id is `Instance.definition`.** A
+      duplicate DEFINITION id is resolved by DROPPING the later definition, never by re-minting
+      it, so no reference ever needs rewriting. The single-pass repair above still holds.
+      Round 2 (shared definitions) needs exactly this scope.
+
 
 34. **The gesture flags are STATE so that `replaceDocument` can reach them, and that is the
     ONLY place they are reset — and NOTHING may subscribe to them.** `gesturing` and
@@ -1874,12 +1944,54 @@ worked examples behind several of them are in `docs/history.md`.
     - **`sameShared` compares exactly**, stored values (invariant 18), cuts in order by id and
       every `CUT_GEOMETRY_KEYS` field. Generated designs carry no links.
 
+46. **The tree has ONE composition step and ONE walk, and every edit is written back through
+    `treeEdit.ts`.** A document is a definition/instance tree (v10): the root's `boards` and
+    `instances`, plus `definitions`. A part's stored `position`, `rotation` and min-corner rule
+    (invariant 2) are in its CONTAINER's frame. An instance's `position` is its frame's ORIGIN.
+
+    - **`placeBoard` / `placeInstance` (`frames.ts`) are the only places a frame is applied**:
+      (origin + R(p)) + `cornerShift`, with R a quarter turn about the vertical (90 maps (x,y,z)
+      to (z,y,−x)). A second hand-written composition is invariant 44's failure mode, one level
+      up.
+    - **`worldParts` (`tree.ts`) is the only walk that produces placed parts.** The viewport,
+      the gizmo, the Move and Tape tools, the store and the panels read it. A reader that walks
+      `definitions` itself is a second decider. It is cached per document object (a WeakMap),
+      and each part keeps its OWN name. Path names come only from `flatDocument`, which the cut
+      list, nesting, joinery and joinery's `checkDesign` read, so Properties never stores a path as a name.
+    - **Every edit is written back through `treeEdit.ts`, changed fields only.** `position` is
+      compared element by element, and a changed one goes down as a DELTA, level by level.
+      Every move is a world delta rotated into the container's frame (`translateItems`), never
+      an absolute position through world space.
+    - **TWO write-back rules, on purpose.**
+      - **A Properties edit keeps the STORED local position** on a dimension change: it is an
+        edit of the part in its own frame (spec §5.2).
+      - **Joinery keeps WORLD geometry.** `applyWorldEdits(..., { keepWorld: true })` is passed
+        only by `writeBackFlat`, because joinery's output IS world geometry and the checks ran
+        on it.
+      - Without `keepWorld`, a rail lengthened inside an assembly turned 90° or 180° grows the
+        wrong way and pulls its tenons out (the Task 11 critical, tested at all four turns).
+      - **Do not unify them, and a new caller must pick one.**
+    - **A new frame starts at origin `[0, 0, 0]`, turn 0, so Group moves nothing, bit for bit.**
+      Ungroup is exact for direct child parts only, because folding a nested frame reorders the
+      additions.
+    - **Joinery runs on `flatDocument` and maps back by index.** It throws on a part-count
+      mismatch. The tree is what `useJoinery` saves. Anything that reads sites or joints off
+      the document must use the flat one: `App.tsx`'s joinery dialog read the tree, found 0
+      sites on a grouped design, and no per-task review could see it.
+    - **A selection is one level.** `selectionPatch` keeps only direct children of `openPath`,
+      and `isCovered` is the one ancestor test (`i3` covers `i3/b1`, not `i30/b1`). Hidden ids
+      and the tape's held points are re-keyed on Group and Ungroup, which are refused while
+      `gesturing` (invariant 43's argument).
+    - **Load repair** (`repairTree`, `repairLinksTree`) runs in `migrateDocument` on every load.
+      Its order is in spec §2.4. Step 4 (a definition referenced twice gets a copy) is round
+      1's stand-in for sharing, and round 2 removes it (follow-up 224).
+
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 1883 tests across 64 files
+npm test           # Vitest, currently 2003 tests across 72 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1889,7 +2001,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is the authoritative list** — 1-223, consciously deferred rather
+**`docs/follow-ups.md` is the authoritative list** — 1-228, consciously deferred rather
 than missed, each written up in place with its closure where it has one. Read the entries
 for the area you are about to touch before starting; several are "correct but untested",
 which is exactly what a refactor breaks silently.
@@ -1974,6 +2086,11 @@ The handful worth knowing without opening that file:
   part it cuts UNLINKED (fresh cut ids per board), open by the user's decision; the original
   keeps its links. 221: a hand-edited linked file whose cuts have no ids unlinks on load, failing
   safe. Read invariant 45 before touching either.
+- **224-228** — the assemblies round's residues. **224 is round 2's design input** (a joint cut
+  into one instance of a shared definition; what links become; `applyWorldEdits`' per-container
+  keys; load-repair step 4 must go). 225 is out of scope by decision (mirrored instances, a cut
+  list by assembly). 226 (an emptied assembly lingers) and 227 (a covered row's eye label; ` › `
+  inside a part name) are low.
 - **171** — joinery is BUILT (2026-10-04, "Add joinery…"); refine by instruction is now **179**.
   Read invariants 38 and 41 and follow-ups 180–206 before touching `generate/joints/`. 180–204
   are CLOSED (182, 186, 188, 191 and 201–203 by the joinery residues round; 202

@@ -6,6 +6,9 @@ import { createDocument, createBoard, boardSnapPoints } from './document/documen
 import type { SloydDocument } from './document/document';
 import type { ProjectEntry } from './storage/types';
 import { storage } from './storage/browser';
+import { assemblyDoc } from './document/treeFixtures';
+import { designToDocument } from './document/generated';
+import { groupItems } from './document/document';
 
 // The 3D viewport needs a real ResizeObserver and a WebGL-capable canvas,
 // neither of which jsdom provides. App's restore/autosave wiring doesn't
@@ -1663,5 +1666,41 @@ describe('Generate', () => {
     expect(clearLlmSettings).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('dialog', { name: 'Settings' })).toBeNull();
     expect(viewportProps.current?.shortcutsSuspended).toBe(false);
+  });
+});
+
+describe('App assemblies', () => {
+  it('Ctrl+G groups the selection, Ctrl+Shift+G ungroups it, Escape closes an open assembly last', async () => {
+    render(<App />);
+    await act(async () => { await Promise.resolve(); });
+    act(() => { useStore.getState().replaceDocument(assemblyDoc()); useStore.getState().selectAll(); });
+    fireEvent.keyDown(window, { key: 'g', ctrlKey: true });
+    expect(useStore.getState().doc.instances).toHaveLength(1);
+    fireEvent.keyDown(window, { key: 'G', ctrlKey: true, shiftKey: true });
+    expect(useStore.getState().doc.instances.map((i) => i.id)).toEqual(['i1']);
+    act(() => useStore.getState().openAssembly('i1'));
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(useStore.getState().openPath).toBeNull();
+  });
+
+  it('Add joinery lists the sites of a design whose parts are all inside one assembly', async () => {
+    llmSettings = { provider: 'anthropic', apiKey: 'k', model: 'claude-opus-5-5' };
+    render(<App />);
+    await act(async () => { await Promise.resolve(); });
+    const flat = designToDocument({
+      name: 'T',
+      parts: [
+        { name: 'Leg', material: 'oak', at: { x: 0, y: 0, z: 0 }, size: { x: 1.75, y: 28, z: 1.75 } },
+        { name: 'Rail', material: 'oak', at: { x: 1.75, y: 23.5, z: 0.5 }, size: { x: 18, y: 3.5, z: 0.75 } },
+      ],
+    }).doc;
+    const grouped = groupItems(flat, null, flat.boards.map((b) => b.id))!.doc;
+    expect(grouped.boards).toHaveLength(0);
+    act(() => { useStore.getState().replaceDocument(grouped); });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /add joinery/i }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add joinery' });
+    expect(dialog.querySelectorAll('li').length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByText(/No joints to add/)).toBeNull();
   });
 });

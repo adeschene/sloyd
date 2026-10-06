@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Viewport } from './viewport/Viewport';
 import { Toolbar } from './panels/Toolbar';
 import { PartsList } from './panels/PartsList';
@@ -19,7 +19,7 @@ import { AnthropicClient, checkAnthropicKey } from './llm/anthropic';
 import type { LlmSettings } from './storage/types';
 import type { DuplicateFailure } from './panels/ProjectMenu';
 import { canBeginLength } from './units/length';
-import { tapeAxisFromKey, createDocument, DocumentError } from './document/document';
+import { tapeAxisFromKey, createDocument, DocumentError, flatDocument } from './document/document';
 import type { SloydDocument } from './document/document';
 import { storage } from './storage/browser';
 import { useStore } from './store/store';
@@ -67,6 +67,13 @@ export default function App() {
   // `m`, Backspace or Ctrl+Z pressed there would arm Move, delete the
   // selected board, or undo, behind the dialog.
   const [dialog, setDialog] = useState<'generate' | 'settings' | 'joinery' | null>(null);
+  // Joinery reads the FLAT design (assemblies spec §10): the tree document's own
+  // `boards` hold only the root parts, so a grouped design would show no sites.
+  const joinerySites = useMemo(() => {
+    if (dialog !== 'joinery') return [];
+    const flat = flatDocument(doc);
+    return findSites(flat).map((s) => siteLabel(s, flat));
+  }, [dialog, doc]);
   // THE ONE FLAG every "something covers the app" consumer reads — the inert
   // shell, the keydown effect, `shortcutsSuspended`, the focus restore. One
   // derived value rather than `cutListOpen || dialog !== null` spelled out at
@@ -564,7 +571,7 @@ export default function App() {
       // dialogs own Escape while open, and a grab or anchor behind them must
       // survive it.
       if (e.key === 'Escape') {
-        const { grabbed, tapeAxis, tapeAnchor, tool, cancelGrab, setTapeAxis, clearTapeAnchor, setTool } =
+        const { grabbed, tapeAxis, tapeAnchor, tool, cancelGrab, setTapeAxis, clearTapeAnchor, setTool, openPath, closeAssembly } =
           useStore.getState();
         if (grabbed) {
           e.preventDefault();
@@ -581,6 +588,10 @@ export default function App() {
         } else if (tool !== 'select') {
           e.preventDefault();
           setTool('select');
+        } else if (openPath !== null) {
+          // The last rung (assemblies spec §3.3): close one assembly level.
+          e.preventDefault();
+          closeAssembly();
         }
         return;
       }
@@ -725,6 +736,15 @@ export default function App() {
           // tool that is not even armed.
           return;
         }
+      }
+
+      // Ctrl/Cmd+G groups, Ctrl/Cmd+Shift+G ungroups (assemblies spec §4.1).
+      // preventDefault: Ctrl+G is the browser's find-next.
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'g') {
+        e.preventDefault();
+        if (e.shiftKey) useStore.getState().ungroupSelected();
+        else useStore.getState().groupSelected();
+        return;
       }
 
       // Ctrl/Cmd+A selects every part (multi-select spec §3). In this ONE
@@ -936,7 +956,7 @@ export default function App() {
           hasKey={llmSettings !== null}
           libraryAvailable={libraryAvailable}
           projectName={doc.name}
-          sites={findSites(doc).map((s) => siteLabel(s, doc))}
+          sites={joinerySites}
           model={llmSettings?.model ?? null}
           estimateUsd={llmSettings ? joineryEstimateUsd(new AnthropicClient(llmSettings.apiKey, llmSettings.model), doc) : null}
           run={joinery.run}

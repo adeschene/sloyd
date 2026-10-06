@@ -1,3 +1,4 @@
+import { flatDocument, migrateDocument, writeBackFlat } from '../document/document';
 import type { SloydDocument } from '../document/document';
 import { DESIGN_SCHEMA, designToDocument, parseDesign } from '../document/generated';
 import { checkDesign, rejectedViolations } from '../document/designCheck';
@@ -162,24 +163,30 @@ export async function runJoinery(
   signal: AbortSignal,
   onProgress: (p: RunProgress) => void,
 ): Promise<JoineryOutcome | { noSites: true }> {
-  const sites = findSites(doc);
+  // Joinery reads the FLAT document (assemblies spec §6.1): placed parts named by
+  // their display paths. Its result is written back into the tree by index.
+  const flat = flatDocument(doc);
+  const sites = findSites(flat);
   if (sites.length === 0) return { noSites: true };
-  const limits = { width: null, depth: null, height: null, maxParts: doc.boards.length };
-  const preexisting = checkDesign(doc, limits);
+  const limits = { width: null, depth: null, height: null, maxParts: flat.boards.length };
+  const preexisting = checkDesign(flat, limits);
   const old = new Set(preexisting.map(problemKey));
   const build = (choices: JointChoice[], notes: string[]) => {
-    const result = applyJoints(doc, sites, choices);
-    const violations = checkDesign(result.doc, limits).filter((v) => !old.has(problemKey(v)));
-    return { doc: result.doc, violations, result, notes, preexisting };
+    const joined = applyJoints(flat, sites, choices);
+    const violations = checkDesign(joined.doc, limits).filter((v) => !old.has(problemKey(v)));
+    // The tree-shaped document is what useJoinery saves (out.result.doc).
+    const tree = migrateDocument(writeBackFlat(doc, flat.boards, joined.doc.boards));
+    const result = { ...joined, doc: tree };
+    return { doc: tree, violations, result, notes, preexisting };
   };
   try {
     return await runRepairLoop(client, {
       system: JOINERY_PROMPT,
       schema: JOINT_SCHEMA,
-      first: siteMessage(doc, sites),
+      first: siteMessage(flat, sites),
       evaluate: (res) => {
         if (res.json === null) return { value: null, feedback: jointsUnusableMessage(res.unusable ?? 'unparseable') };
-        const { choices, notes } = parseChoices(res.json, sites, doc);
+        const { choices, notes } = parseChoices(res.json, sites, flat);
         const value = build(choices, notes);
         return { value, feedback: jointsRepairMessage(value.violations) };
       },
@@ -189,14 +196,15 @@ export async function runJoinery(
     const modelFailed = e instanceof RunFailed || (e instanceof LlmError && e.kind !== 'auth' && e.kind !== 'cancelled');
     if (!modelFailed) throw e;
     const reason = e instanceof RunFailed ? 'no usable answer' : (e as Error).message;
-    return { ...build(sites.map((s) => defaultChoice(s, doc, sites)), []), usage: e instanceof RunFailed ? e.usage : spentBefore(e), fallback: reason };
+    return { ...build(sites.map((s) => defaultChoice(s, flat, sites)), []), usage: e instanceof RunFailed ? e.usage : spentBefore(e), fallback: reason };
   }
 }
 
 /** A rough before-you-run estimate: one call, the prompt and sites in, ~2,000 tokens out. */
 export function joineryEstimateUsd(client: LlmClient, doc: SloydDocument): number | null {
-  const sites = findSites(doc);
+  const flat = flatDocument(doc);
+  const sites = findSites(flat);
   if (sites.length === 0) return null;
-  const chars = JOINERY_PROMPT.length + siteMessage(doc, sites).length;
+  const chars = JOINERY_PROMPT.length + siteMessage(flat, sites).length;
   return client.estimateCostUsd({ inputTokens: Math.ceil(chars / 4), outputTokens: 2000, cacheReadTokens: 0, cacheWriteTokens: 0 });
 }

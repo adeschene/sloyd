@@ -4496,3 +4496,80 @@ NOW (2026-10-06): the joined project is a new copy and the original keeps its li
 - **Possible remedies, not chosen:** have joinery reuse one cut id across members whose cuts are
   identical in shape, or offer a one-click re-link of parts that match.
 - **Status:** open, by decision.
+
+## From the assemblies round — 2026-10-06
+
+**224. Round 2 (components): the questions this round left for it.** Round 1 gives every
+definition exactly one instance, so none of these could arise yet.
+- **A joint cut into ONE instance of a shared definition.** Does it make that instance unique, or
+  cut every instance? Spec §6.1 left it open. Joinery maps parts back by index today, and it throws
+  on a part-count mismatch. A shared definition breaks the 1:1 mapping that relies on.
+- **What links become.** Should a link stay a label on parts, or become a shared definition?
+  Spec §7.
+- **`applyWorldEdits` keys its edits by stored part id per container.** Two occurrences of one
+  shared definition would collide there. Round 2 changes only this write-back.
+- **Load repair step 4** copies a definition referenced twice. It is round 1's stand-in for
+  sharing, and round 2 must remove it.
+- **Status:** open, the next round's design input.
+
+**225. Out of scope by decision, recorded so they are not re-proposed as oversights.**
+- **Mirrored instances** (left and right cabinet halves). Blocked on follow-up 215, which hand
+  each posture has.
+- **A cut list organised by assembly** ("Drawer ×3"). Today's cut list groups parts by identity
+  across assemblies and names each by its path.
+- **Scaled instances.** They make a cut list lie.
+- **Free rotation.**
+- **Dragging items between assemblies** in the parts list. Ungroup and regroup does that job.
+- **Status:** open by decision (spec §1).
+
+**226. An assembly emptied by deleting its last part lingers.** It stays as an empty row with no
+geometry. Delete prunes only definitions that are no longer referenced, and an empty one still is.
+No data is lost, and the row can be deleted.
+- **A remedy, if wanted:** `removeItems` could drop an instance whose definition it leaves empty,
+  recursively up the open path. The open path would then have to close the levels it removed.
+- **Status:** open, low.
+
+**227. Two small parts-list and display-name gaps.**
+- **The eye on a covered row.** On a row covered by a hidden ancestor, the eye draws struck
+  through and is disabled, but its accessible name still reads "Hide <name>". Found in the live
+  check. A label like "<name> is hidden with <ancestor>" would match what is drawn.
+- **A part name containing ` › `.** `NAME_SEPARATOR` is not reserved in a typed name, so "A › B"
+  inside assembly "X" prints like part "B" inside assembly "X › A". Only the cut list's and
+  joinery's DISPLAY names can collide. Joinery maps back by index, never by name, so no edit
+  lands on the wrong part. Renaming resolves it.
+- **Status:** open, low.
+
+**228. Small gaps the round judged fine to leave.** Record-only. These are the per-task reviews'
+deferred minors, condensed.
+- **Untested refusal and null paths.**
+  - `groupItems`' nonexistent-id refusal and `ungroupItem`'s non-instance null.
+  - `joinPath`, `lastSegment`, `instancesOn` and `definitionAt` on null paths.
+  - `renameItem` on a nonexistent path returns a name.
+  - Ctrl+G under a modal or in a text field, and the order of Escape's ladder.
+- **Untested store paths.**
+  - Toggle-click across levels.
+  - The tape surviving a level change.
+  - `openPart` on a root part.
+  - `restore` dropping a closed level's selection.
+  - Self-snap refusal for a target inside the selected assembly.
+  - Cut-action mates across containers.
+  - `selectLinked` across containers.
+- **Weak assertions.**
+  - `flatDocument` is compared against `worldParts`, its own source.
+  - `writeBackFlat` is tested on a cut change only, not a moved part.
+  - The `moveGroupTo` and turned-copy tests.
+  - The "Group inside an open assembly" test.
+  - The repair step-7 test cannot tell per-container from world-wide link repair.
+- **Unreachable or cosmetic.**
+  - `translateItems` double-moves an ancestor given with its descendant. A selection is one
+    level, so the UI cannot reach it.
+  - A diamond-shaped hand-edited file copies a definition 2^k times on load.
+  - The identity-frame shortcut can turn a -0 into +0.
+  - `rekeyHeld` with `edit()` is three `set()` calls, a transient state no subscriber reads.
+  - `linkedHere` counts a hidden mate at the open level, so Select linked shows and selects
+    only the part itself.
+  - `instancesOn` rebuilds its definitions map per call. It is not on a per-frame path.
+- **Stale comments** named in the reviews: `duplicateBoards`' "same order", `addBoard`'s
+  "root-only", `selectAll`/`hideUnselected`, `uniqueName`'s "board", and the "Two or more" comment
+  at the Gizmo's commit.
+- **Status:** record-only.

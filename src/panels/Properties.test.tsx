@@ -4,6 +4,8 @@ import { useStore } from '../store/store';
 import { createDocument } from '../document/document';
 import { formatLength } from '../units/length';
 import { Properties } from './Properties';
+import { assemblyDoc } from '../document/treeFixtures';
+import { instanceAt, partAt } from '../document/document';
 
 const reset = () => useStore.getState().replaceDocument(createDocument('Test'));
 
@@ -1219,5 +1221,57 @@ describe('linking controls', () => {
     render(<Properties />);
     await userEvent.click(screen.getByRole('button', { name: 'Unlink' }));
     expect(st().doc.boards.every((x) => !('link' in x))).toBe(true);
+  });
+});
+
+describe('Properties assemblies', () => {
+  it('an assembly gets its own panel: name, turn, Ungroup', async () => {
+    useStore.getState().replaceDocument(assemblyDoc());
+    useStore.getState().selectBoard('i1');
+    render(<Properties />);
+    expect(screen.getByDisplayValue('Drawer')).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText('Turn'), '180');
+    expect(instanceAt(useStore.getState().doc, 'i1')!.rotation).toBe(180);
+    await userEvent.click(screen.getByRole('button', { name: 'Ungroup' }));
+    expect(useStore.getState().doc.instances.map((i) => i.id)).toEqual(['i2']);
+  });
+
+  it('a mixed selection hides the size fields and Link, and offers Group', async () => {
+    useStore.getState().replaceDocument(assemblyDoc());
+    useStore.getState().selectAll();
+    render(<Properties />);
+    expect(screen.queryByLabelText('Length')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Link' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Group' }));
+    expect(useStore.getState().doc.instances).toHaveLength(1);
+    expect(useStore.getState().doc.boards).toHaveLength(0);
+  });
+
+  it('a part inside an assembly is renamed among its siblings', async () => {
+    useStore.getState().replaceDocument(assemblyDoc());
+    useStore.getState().selectItem('i1/b1', false);
+    render(<Properties />);
+    const field = screen.getByDisplayValue('Side');
+    await userEvent.clear(field);
+    await userEvent.type(field, 'Front{Enter}');
+    expect(partAt(useStore.getState().doc, 'i1/b1')!.name).toBe('Front (1)');
+  });
+
+  it('Select linked shows only when another member sits at the open level', async () => {
+    useStore.getState().replaceDocument(assemblyDoc());
+    act(() => { useStore.getState().linkBoards(['r1', 'i1/b1']); useStore.getState().selectBoard('r1'); });
+    const { unmount } = render(<Properties />);
+    expect(screen.getByText(/Linked with 1 other part/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Select linked' })).toBeNull();
+    unmount();
+    act(() => {
+      useStore.getState().replaceDocument(assemblyDoc());
+      useStore.getState().linkBoards(['i1/b1', 'i1/b2']);
+      useStore.getState().openAssembly('i1');
+      useStore.getState().selectItem('i1/b1', false);
+    });
+    render(<Properties />);
+    await userEvent.click(screen.getByRole('button', { name: 'Select linked' }));
+    expect(useStore.getState().selectedIds).toEqual(['i1/b1', 'i1/b2']);
   });
 });

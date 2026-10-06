@@ -17,11 +17,14 @@ export interface ToggleModifiers {
 export const isToggleModifier = (e: ToggleModifiers): boolean =>
   e.shiftKey || e.ctrlKey || e.metaKey;
 
-/** A click on a part: plain replaces the selection, modified toggles the part. */
+/** A click on a part in the viewport: what it selects depends on the open assembly (assemblies spec §3.2). */
 export function selectByClick(id: string, e: ToggleModifiers): void {
-  const s = useStore.getState();
-  if (isToggleModifier(e)) s.toggleSelected(id);
-  else s.selectBoard(id);
+  useStore.getState().clickPart(id, isToggleModifier(e));
+}
+
+/** A click on a parts-list row: the row's own item, opening its parent if needed. */
+export function selectRowByClick(path: string, e: ToggleModifiers): void {
+  useStore.getState().selectItem(path, isToggleModifier(e));
 }
 
 /**
