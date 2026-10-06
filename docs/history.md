@@ -275,9 +275,8 @@ and 79.
 ## What each round did
 
 **What the linking round did (2026-10-06)**: linked parts, which stay identical, with a spec and
-plan (`docs/superpowers/specs/2026-10-06-sloyd-linking-design.md`). **Schema 9.** On branch
-`linking`, **not yet merged or deployed**; the live check (dev server, the user watching) is
-pending. The LAST of the three repeated-parts rounds (quarter turns, copy in a row, linking).
+plan (`docs/superpowers/specs/2026-10-06-sloyd-linking-design.md`). **Schema 9.** Its live check
+passed on the dev server with the user watching (`docs/browser-verification-linking.md`). The LAST of the three repeated-parts rounds (quarter turns, copy in a row, linking).
 Rolling back past it strands v9 documents; export first.
 
 - **The user's rulings.** Copy and link are separate actions; a link is made on existing parts.
@@ -330,7 +329,7 @@ Rolling back past it strands v9 documents; export first.
   points for the edited part only, `linkBoards` by plain spread, identity `repairLinks` on
   joinery output, and in the panels the note shown whenever a plan exists, Link always shown,
   Select linked as a plain select, and the icon inside the name button.
-- **Residues:** follow-ups 221-222.
+- **Residues:** follow-ups 221-223.
 
 **What the copy-in-a-row round did (2026-10-05)**: N ordinary copies of the selection along an
 axis, with a spec and plan (`docs/superpowers/specs/2026-10-05-sloyd-copy-in-a-row-design.md`).

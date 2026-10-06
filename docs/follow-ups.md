@@ -4478,8 +4478,8 @@ reaches it.
 - **Status:** open, low, fails safe.
 
 **222. Small gaps the round judged fine to leave.** Record-only.
-- `sharedPatch` has no direct test. The store's "own fields do not propagate" test (a patch with
-  `length` beside name, position and rotation) covers its filter indirectly.
+- ~~`sharedPatch` has no direct test.~~ It has one since the final-review fix wave (which also
+  made it copy `cuts`), in `links.test.ts`.
 - Properties' plural wording branches ("N parts" in the will-match line, "N other parts" in the
   linked block) are untested; the tests link two parts, so they reach only the singular.
 - `runJoinery`'s link tests run on the mocked-answer path only. The fallback-to-defaults path
