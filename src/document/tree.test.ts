@@ -86,3 +86,11 @@ describe('flatDocument', () => {
     expect(flatDocument(doc).boards.map((b) => b.position)).toEqual(worldParts(doc).map((b) => b.position));
   });
 });
+
+import { treeRows } from './tree';
+it('treeRows lists the tree depth first', () => {
+  expect(treeRows(assemblyDoc()).map((r) => [r.path, r.kind, r.depth])).toEqual([
+    ['r1', 'part', 0], ['i1', 'assembly', 0], ['i1/b1', 'part', 1], ['i1/b2', 'part', 1],
+    ['i1/i2', 'assembly', 1], ['i1/i2/b3', 'part', 2],
+  ]);
+});

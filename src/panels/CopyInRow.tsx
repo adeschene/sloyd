@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useStore } from '../store/store';
-import { boardsBounds } from '../document/document';
+import { boardsBounds, worldParts, isCovered } from '../document/document';
 import { MAX_ROW, rowLayout } from '../document/row';
 import type { RowMode, RowRefusal } from '../document/row';
 import { formatLength } from '../units/length';
@@ -25,7 +25,7 @@ const FIELD_LABEL: Record<RowMode, string> = { gap: 'Gap', pitch: 'Pitch', fit: 
  * shows exactly what Apply will do.
  */
 export function CopyInRow() {
-  const allBoards = useStore((s) => s.doc.boards);
+  const allBoards = useStore((s) => worldParts(s.doc));
   const selectedIds = useStore((s) => s.selectedIds);
   const precision = useStore((s) => s.doc.units.precision);
   const copyInRow = useStore((s) => s.copyInRow);
@@ -43,8 +43,9 @@ export function CopyInRow() {
   // selected, and this runs on every boards change (every drag frame).
   const selected = useMemo(() => {
     if (!open) return [];
-    const byId = new Map(allBoards.map((b) => [b.id, b]));
-    return selectedIds.flatMap((id) => byId.get(id) ?? []);
+    // World parts covered by the selection, so an assembly's bounds are its parts'.
+    const ids = new Set(selectedIds);
+    return allBoards.filter((b) => isCovered(b.id, ids));
   }, [open, allBoards, selectedIds]);
   if (selectedIds.length === 0) return null;
   if (!open) {

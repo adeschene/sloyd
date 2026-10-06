@@ -1,6 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useStore } from '../store/store';
 import { selectRowByClick } from '../store/selectionGesture';
+import { treeRows, worldParts, isCovered, parentPath } from '../document/document';
 
 /** An eye, or a struck-through eye. Inline because the app has no icon set. */
 function EyeIcon({ hidden }: { hidden: boolean }) {
@@ -14,19 +15,30 @@ function EyeIcon({ hidden }: { hidden: boolean }) {
 }
 
 export function PartsList() {
-  const boards = useStore((s) => s.doc.boards);
+  const doc = useStore((s) => s.doc);
+  const openPath = useStore((s) => s.openPath);
   const selectedIds = useStore((s) => s.selectedIds);
   const hiddenIds = useStore((s) => s.hiddenIds);
   const setHidden = useStore((s) => s.setHidden);
   const showAll = useStore((s) => s.showAll);
 
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
+  const toggleCollapsed = (path: string) =>
+    setCollapsed((c) => {
+      const next = new Set(c);
+      if (!next.delete(path)) next.add(path);
+      return next;
+    });
+
+  const rows = useMemo(() => treeRows(doc), [doc]);
+  const hiddenSet = useMemo(() => new Set(hiddenIds), [hiddenIds]);
   const linkCount = useMemo(() => {
     const m = new Map<string, number>();
-    for (const b of boards) if (b.link) m.set(b.link, (m.get(b.link) ?? 0) + 1);
+    for (const b of worldParts(doc)) if (b.link) m.set(b.link, (m.get(b.link) ?? 0) + 1);
     return m;
-  }, [boards]);
+  }, [doc]);
 
-  if (boards.length === 0) {
+  if (doc.boards.length === 0 && doc.instances.length === 0) {
     return <p className="empty">No parts yet. Add a board to begin.</p>;
   }
 
@@ -38,32 +50,47 @@ export function PartsList() {
         <button className="parts-show-all" onClick={showAll}>Show all ({hiddenIds.length})</button>
       )}
       <ul className="parts">
-        {boards.map((b) => {
-          const selected = selectedIds.includes(b.id);
-          const hidden = hiddenIds.includes(b.id);
+        {rows.map((r) => {
+          // A row is skipped when any ancestor assembly is collapsed.
+          for (let p = parentPath(r.path); p !== null; p = parentPath(p)) if (collapsed.has(p)) return null;
+          const selected = selectedIds.includes(r.path);
+          const hiddenSelf = hiddenIds.includes(r.path);
+          const hiddenRow = isCovered(r.path, hiddenSet);
+          const isCollapsed = collapsed.has(r.path);
           return (
-            <li key={b.id} className={hidden ? 'part-row hidden' : 'part-row'}>
+            <li key={r.path} className={hiddenRow ? 'part-row hidden' : 'part-row'} style={{ paddingLeft: `${r.depth * 14}px` }}>
               <button
                 className="part-eye"
-                aria-label={`${hidden ? 'Show' : 'Hide'} ${b.name}`}
-                onClick={() => setHidden(b.id, !hidden)}
+                aria-label={`${hiddenSelf ? 'Show' : 'Hide'} ${r.name}`}
+                onClick={() => setHidden(r.path, !hiddenSelf)}
               >
-                <EyeIcon hidden={hidden} />
+                <EyeIcon hidden={hiddenRow} />
               </button>
+              {r.kind === 'assembly' && (
+                <button
+                  className="part-caret"
+                  aria-label={`${isCollapsed ? 'Expand' : 'Collapse'} ${r.name}`}
+                  aria-expanded={!isCollapsed}
+                  onClick={() => toggleCollapsed(r.path)}
+                >
+                  {isCollapsed ? '▸' : '▾'}
+                </button>
+              )}
               {/* aria-pressed: with several parts selectable, each row is a
                   toggle. A hidden part cannot be selected (spec §1), so its
                   name is disabled and only the eye works. */}
               <button
                 className={selected ? 'part selected' : 'part'}
                 aria-pressed={selected}
-                disabled={hidden}
-                onClick={(e) => selectRowByClick(b.id, e)}
+                aria-current={r.path === openPath ? 'true' : undefined}
+                disabled={hiddenRow}
+                onClick={(e) => selectRowByClick(r.path, e)}
               >
-                {b.name}
+                {r.name}
               </button>
               {/* Outside the name button so its accessible name stays the part's name. */}
-              {b.link && (
-                <span className="part-link" role="img" aria-label={`Linked, ${linkCount.get(b.link)} parts`}>
+              {r.link && (
+                <span className="part-link" role="img" aria-label={`Linked, ${linkCount.get(r.link)} parts`}>
                   <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false">
                     <path d="M6.5 9.5l3-3M7 4.5l1-1a2.5 2.5 0 013.5 3.5l-1 1M9 11.5l-1 1A2.5 2.5 0 014.5 9l1-1" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
                   </svg>

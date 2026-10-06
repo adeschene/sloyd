@@ -156,3 +156,22 @@ export function flatDocument(doc: SloydDocument): SloydDocument {
     definitions: [],
   };
 }
+
+export interface TreeRow { path: string; name: string; kind: 'part' | 'assembly'; depth: number; link?: string }
+
+/** The parts list's rows: depth first, a container's parts before its assemblies. */
+export function treeRows(doc: SloydDocument): TreeRow[] {
+  const out: TreeRow[] = [];
+  const defs = defsOf(doc);
+  const walk = (c: Container, path: string | null, depth: number, onPath: Set<string>) => {
+    for (const b of c.boards) out.push({ path: joinPath(path, b.id), name: b.name, kind: 'part', depth, ...(b.link ? { link: b.link } : {}) });
+    for (const inst of c.instances) {
+      const p = joinPath(path, inst.id);
+      out.push({ path: p, name: inst.name, kind: 'assembly', depth });
+      const d = defs.get(inst.definition);
+      if (d && !onPath.has(d.id)) walk(d, p, depth + 1, new Set([...onPath, d.id]));
+    }
+  };
+  walk(doc, null, 0, new Set());
+  return out;
+}
