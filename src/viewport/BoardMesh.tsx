@@ -9,7 +9,7 @@ import type { Board } from '../document/document';
 import { faceGrainKinds, grainFamily } from './grainFaces';
 import { boardUVs, boardUVSignature } from './grainTiling';
 import { grainTexture } from './grainTexture';
-import { CLICK_DRAG_SLOP_PX } from './pointer';
+import { CLICK_DRAG_SLOP_PX, clickPairStartedWithDrag } from './pointer';
 
 /** Brass — the one live colour in the app. */
 const SELECTED = '#c99a4e';
@@ -184,6 +184,9 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
           }}
           onDoubleClick={(e) => {
             if (!selectable) return;
+            // An orbit and then a click is not a double-click (see
+            // clickPairStartedWithDrag); the click already ran as a select.
+            if (clickPairStartedWithDrag()) return;
             e.stopPropagation();
             onOpen(board.id);
           }}

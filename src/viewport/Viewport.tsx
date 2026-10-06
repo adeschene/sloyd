@@ -17,6 +17,7 @@ import { SCENE_EXTENT } from './extent';
 import { gridDensity } from './gridDensity';
 import type { GridTier } from './gridDensity';
 import { screenPixelsPerInch } from './screenScale';
+import { watchClickPairs } from './pointer';
 
 /** The bench top the model sits on. Light, so wood tones and shadows read. */
 const GROUND = '#e6e3dd';
@@ -48,6 +49,13 @@ interface OrbitLike {
   update: () => void;
   /** The camera these controls drive. */
   object: THREE.Camera;
+}
+
+/** Tracks click pairs on the canvas element, for BoardMesh's double-click guard. */
+function ClickPairs() {
+  const el = useThree((s) => s.gl.domElement);
+  useEffect(() => watchClickPairs(el), [el]);
+  return null;
 }
 
 /**
@@ -398,6 +406,7 @@ export function Viewport({
       <MoveTool showGuides={showGuides} />
       <TapeTool showGuides={showGuides} />
       <CameraKeys suspended={shortcutsSuspended} />
+      <ClickPairs />
       {/*
         Damping is OFF, and that is the fix for the grid shimmer — not a
         tuning preference.
