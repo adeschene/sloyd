@@ -5,7 +5,7 @@ import { Grid, OrbitControls, OrthographicCamera, PerspectiveCamera } from '@rea
 import * as THREE from 'three';
 import { useStore } from '../store/store';
 import { visibleBoards } from '../store/visibility';
-import { boardExtents } from '../document/document';
+import { boardExtents, isCovered, worldParts } from '../document/document';
 import type { Board } from '../document/document';
 import { BoardMesh } from './BoardMesh';
 import { Gizmo } from './Gizmo';
@@ -61,7 +61,7 @@ interface OrbitLike {
  * hand the user back a moved view when they close it.
  */
 function CameraKeys({ suspended }: { suspended: boolean }) {
-  const boards = useStore((s) => s.doc.boards);
+  const boards = useStore((s) => worldParts(s.doc));
   const hiddenIds = useStore((s) => s.hiddenIds);
   const selectedIds = useStore((s) => s.selectedIds);
   const camera = useThree((s) => s.camera);
@@ -127,7 +127,8 @@ function CameraKeys({ suspended }: { suspended: boolean }) {
         // The whole selection. With nothing selected this is empty and `f`
         // does nothing, exactly as before multi-select — `Home` is the key
         // that frames everything (multi-select plan, spec clarification 1).
-        subset = boards.filter((b) => selectedIds.includes(b.id));
+        const set = new Set(selectedIds);
+        subset = boards.filter((b) => isCovered(b.id, set));
       } else if (e.key === 'Home') {
         subset = visibleBoards(boards, hiddenIds);
       } else {
@@ -168,7 +169,7 @@ function CameraKeys({ suspended }: { suspended: boolean }) {
     // should re-frame, and depending on `boards` here would re-frame on every
     // board edit.
     const s = useStore.getState();
-    frame(visibleBoards(s.doc.boards, s.hiddenIds));
+    frame(visibleBoards(worldParts(s.doc), s.hiddenIds));
   }, [camera, controls, frame]);
 
   return null;
@@ -274,10 +275,12 @@ export function Viewport({
   showGuides = true,
   shortcutsSuspended = false,
 }: ViewportProps) {
-  const boards = useStore((s) => s.doc.boards);
+  const boards = useStore((s) => worldParts(s.doc));
+  const openPath = useStore((s) => s.openPath);
   const hiddenIds = useStore((s) => s.hiddenIds);
   const shown = useMemo(() => visibleBoards(boards, hiddenIds), [boards, hiddenIds]);
   const selectedIds = useStore((s) => s.selectedIds);
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const tool = useStore((s) => s.tool);
 
   // The dpr floor of 2 is an anti-aliasing measure, not a sharpness
@@ -378,7 +381,11 @@ export function Viewport({
         <BoardMesh
           key={board.id}
           board={board}
-          selected={selectedIds.includes(board.id)}
+          selected={isCovered(board.id, selectedSet)}
+          // Faded, but still clickable: a click outside the open assembly
+          // closes it (assemblies spec §3.3). Never pass selectable={false} for this.
+          faded={openPath !== null && !board.id.startsWith(`${openPath}/`)}
+          onOpen={(id) => useStore.getState().openPart(id)}
           onSelect={selectByClick}
           selectable={tool === 'select'}
         />

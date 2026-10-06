@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { Line } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { guideSnapPoints, offsetPoint, sameSnapPoint, snapPointsFor, towardFor } from '../document/document';
+import { guideSnapPoints, offsetPoint, sameSnapPoint, snapPointsFor, towardFor, worldParts } from '../document/document';
 import type { SnapPoint } from '../document/document';
 // THE FIRST `viewport -> units` IMPORT in the repo. Legal under CLAUDE.md's
 // layer order — `units` is the bottom layer, `viewport` sits well above it —
@@ -46,7 +46,7 @@ const TAPE_COLOR = SNAP_COLORS.guide;
  */
 export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
   const tool = useStore((s) => s.tool);
-  const boards = useStore((s) => s.doc.boards);
+  const boards = useStore((s) => worldParts(s.doc));
   const hiddenIds = useStore((s) => s.hiddenIds);
   const guides = useStore((s) => s.doc.guides);
   const anchor = useStore((s) => s.tapeAnchor);

@@ -4,7 +4,7 @@ import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { TransformControls as TransformControlsImpl } from 'three-stdlib';
 import { useStore } from '../store/store';
-import { boardCenter, boardExtents, boardsBounds } from '../document/document';
+import { boardCenter, boardExtents, boardsBounds, isCovered, partAt, worldParts } from '../document/document';
 import { SNAP_INCHES } from '../document/geometry';
 import { gizmoDistanceFactor, gizmoSizeForExtent } from './gizmoScale';
 
@@ -231,20 +231,25 @@ function stabilizeTranslateGizmo(
 export function Gizmo() {
   // Bare fields, derived below — a selector returning a fresh array would
   // re-render on every set() (invariant 34's selector rule).
-  const boards = useStore((s) => s.doc.boards);
+  const boards = useStore((s) => worldParts(s.doc));
   const selectedIds = useStore((s) => s.selectedIds);
+  const doc = useStore((s) => s.doc);
   const updateBoard = useStore((s) => s.updateBoard);
   const moveGroupTo = useStore((s) => s.moveGroupTo);
-  const selected = useMemo(
-    () => boards.filter((b) => selectedIds.includes(b.id)),
-    [boards, selectedIds],
-  );
+  const selected = useMemo(() => {
+    const set = new Set(selectedIds);
+    return boards.filter((b) => isCovered(b.id, set));
+  }, [boards, selectedIds]);
   // ONE part selected: the original single-board path, byte for byte. It is
   // deliberately NOT routed through moveGroupTo — `old + (snap(t) - old)` is
   // not bit-identical to `snap(t)` for a non-dyadic `old`, and the spec says
   // one selected part changes nothing.
-  const board = selected.length === 1 ? selected[0] : undefined;
-  const bounds = selected.length >= 2 ? boardsBounds(selected) : null;
+  // The single-part path ONLY when exactly one selected id is a PART (assemblies
+  // plan, Review Focus): an assembly holding one part must move its origin,
+  // through moveGroupTo, never the part.
+  const singlePart = selectedIds.length === 1 && partAt(doc, selectedIds[0]!) !== null;
+  const board = singlePart ? selected[0] : undefined;
+  const bounds = !singlePart && selected.length >= 1 ? boardsBounds(selected) : null;
   const size: [number, number, number] | null = board
     ? boardExtents(board)
     : bounds
@@ -257,7 +262,7 @@ export function Gizmo() {
       : null;
   // A string, so the effects below re-run on a real selection change and not
   // on every render (an array dep is a new identity each time — invariant 15).
-  const selectionKey = selected.map((b) => b.id).join('|');
+  const selectionKey = selectedIds.join('|');
   const proxy = useRef<THREE.Object3D>(new THREE.Object3D());
   const dragging = useRef(false);
   // True from a mid-drag selection change until the mouse comes up. See the
@@ -383,7 +388,7 @@ export function Gizmo() {
     // Two or more: hand the store the group's wanted min corner, UNROUNDED.
     // moveGroupTo rounds it once and moves every part by one delta, so the
     // layout survives exactly even for an off-grid part (invariant 25).
-    moveGroupTo(selected.map((b) => b.id), [
+    moveGroupTo(selectedIds, [
       p.x - size[0] / 2,
       p.y - size[1] / 2,
       p.z - size[2] / 2,

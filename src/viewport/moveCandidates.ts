@@ -1,4 +1,4 @@
-import { guideSnapPoints, snapPointsFor } from '../document/document';
+import { guideSnapPoints, isCovered, snapPointsFor } from '../document/document';
 import type { Board, GuidePoint, SnapPoint } from '../document/document';
 import { visibleBoards } from '../store/visibility';
 
@@ -35,14 +35,16 @@ export function moveCandidates(
   showGuides: boolean,
 ): SnapPoint[] {
   const selected = new Set(selectedIds);
+  // A part is selected when it or any ancestor assembly is (assemblies spec).
+  const covered = (b: Board) => isCovered(b.id, selected);
   // A hidden part offers no points at all: a marker must sit on something
   // drawn (invariant 16; hide/unhide spec §3).
   const shown = visibleBoards(boards, hiddenIds);
   if (grabbing) {
     return [
-      ...shown.filter((b) => !selected.has(b.id)).flatMap(snapPointsFor),
+      ...shown.filter((b) => !covered(b)).flatMap(snapPointsFor),
       ...(showGuides ? guideSnapPoints(guides) : []),
     ];
   }
-  return shown.filter((b) => selected.has(b.id)).flatMap(snapPointsFor);
+  return shown.filter(covered).flatMap(snapPointsFor);
 }

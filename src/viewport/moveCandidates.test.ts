@@ -1,5 +1,7 @@
 import { createBoard, createGuide, snapPointsFor } from '../document/document';
 import { moveCandidates } from './moveCandidates';
+import { assemblyDoc } from '../document/treeFixtures';
+import { worldParts } from '../document/tree';
 
 const a = createBoard({ position: [0, 0, 0] });
 const b = createBoard({ position: [0, 0, 10] });
@@ -40,5 +42,16 @@ describe('moveCandidates', () => {
     // never produces this state; the filter is one rule, not two).
     const before = moveCandidates(boards, guides, [a.id], [a.id], false, true);
     expect(before).toEqual([]);
+  });
+});
+
+describe('moveCandidates with assemblies', () => {
+  it('a selected assembly offers its parts’ points before a grab and none after', () => {
+    const doc = assemblyDoc();
+    const world = worldParts(doc);
+    const pre = moveCandidates(world, [], ['i1'], [], false, false);
+    expect(new Set(pre.map((p) => p.owner.id))).toEqual(new Set(['i1/b1', 'i1/b2', 'i1/i2/b3']));
+    const post = moveCandidates(world, [], ['i1'], [], true, false);
+    expect(new Set(post.map((p) => p.owner.id))).toEqual(new Set(['r1']));
   });
 });
