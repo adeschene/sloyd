@@ -1,6 +1,6 @@
 import { useStore } from './store';
 import type { Board } from '../document/document';
-import { createBoard, createDocument, boardCenter, boardExtents, boardSnapPoints, cutSnapPoints, sameSnapPoint } from '../document/document';
+import { createBoard, createDocument, boardCenter, boardExtents, repairLinks, boardSnapPoints, cutSnapPoints, sameSnapPoint } from '../document/document';
 
 const reset = () => useStore.getState().replaceDocument(createDocument('Test'));
 
@@ -2529,6 +2529,39 @@ describe('linked parts', () => {
     const copies = st().doc.boards.filter((x) => x.id !== a);
     expect(copies).toHaveLength(2);
     for (const copy of copies) expect('link' in copy).toBe(false);
+  });
+
+  // Review fix: a copy of a linked part joins the link, so it must keep the
+  // source's cut ids, or cut edits skip it and the load repair unlinks it.
+  it('copies of a linked part WITH CUTS keep its cut ids, so cut edits reach them and nothing needs repair', () => {
+    const a = leg();
+    const b = leg();
+    st().linkBoards([a, b]);
+    st().addCut(a);
+    const id = board(a).cuts[0]!.id;
+    st().duplicateBoards([a]);
+    st().copyInRow([b], 3, 0, 1, 5);
+    const label = board(a).link;
+    const members = () => st().doc.boards.filter((x) => x.link === label);
+    expect(members()).toHaveLength(5);
+    for (const m of members()) expect(m.cuts.map((c) => c.id)).toEqual([id]);
+    expect(repairLinks(st().doc.boards)).toBe(st().doc.boards);
+    st().updateCut(a, id, { depth: 0.5 });
+    for (const m of members()) expect(m.cuts[0]!.depth).toBe(0.5);
+    const copy = members().at(-1)!.id;
+    st().removeCut(copy, id);
+    for (const m of members()) expect(m.cuts).toEqual([]);
+  });
+
+  it('copies of an UNLINKED part with cuts still get fresh cut ids', () => {
+    const a = leg();
+    st().addCut(a);
+    const id = board(a).cuts[0]!.id;
+    st().duplicateBoards([a]);
+    st().copyInRow([a], 2, 0, 1, 5);
+    const copies = st().doc.boards.filter((x) => x.id !== a);
+    expect(copies).toHaveLength(2);
+    for (const c of copies) expect(c.cuts[0]!.id).not.toBe(id);
   });
 
   it('selectLinked selects every visible member', () => {

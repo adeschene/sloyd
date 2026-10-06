@@ -634,7 +634,7 @@ export const useStore = create<StoreState>((set, get) => {
 
   /**
    * One copy of `source` at `position`, exactly as Duplicate makes it: a fresh
-   * id, fresh cut ids (nextId), copied arrays so no snapshot shares them, and
+   * id, fresh cut ids (nextId) unless the source is linked, copied arrays so no snapshot shares them, and
    * a name unique against `taken`, which the caller GROWS as it copies
    * (invariant 8). Shared by duplicateBoards and copyInRow so the two cannot
    * drift.
@@ -653,11 +653,17 @@ export const useStore = create<StoreState>((set, get) => {
     // `link` rides along in `rest` on purpose: a copy of a linked part is a
     // member of its link (linking spec §3.4). A copy of an unlinked part gets
     // no `link` key, because its source had none and the spread adds none.
+    //
+    // So a LINKED source's cut ids are KEPT, not re-minted: members share cut
+    // ids (cut actions act on one id across the link, and repairLinks compares
+    // ids), so a copy with fresh ids would join the link while every cut edit
+    // skipped it, and the next load would unlink it. Cut ids are per board
+    // (invariant 33), so repeating them is legal. The objects are still copied.
     const { id: _sourceId, ...rest } = source;
     const fresh = createBoard({
       ...rest,
       position: [...position],
-      cuts: source.cuts.map((cut) => ({ ...cut, id: nextId() })),
+      cuts: source.cuts.map((cut) => (source.link ? { ...cut } : { ...cut, id: nextId() })),
     });
     // Against the list AS IT GROWS: copies of "Leg" and "Leg (1)" would
     // otherwise both be named "Leg (2)" (invariant 8).
@@ -1143,8 +1149,11 @@ export const useStore = create<StoreState>((set, get) => {
     updateCut: (boardId, cutId, patch) => {
       const board = get().doc.boards.find((b) => b.id === boardId);
       if (!board || !board.cuts.some((c) => c.id === cutId)) return;
-      // The same cut id on every mate (linking spec §3.2). A mate lacking it is
-      // left unchanged by the map; the repair rules make that unreachable.
+      // The same cut id on every mate (linking spec §3.2). Every writer keeps
+      // members' cut ids equal (Link copies them, addCut mints one, copyBoard
+      // keeps them for a linked source), and repairLinks unlinks a member
+      // whose ids differ on load. A mate lacking the id would mean a writer
+      // broke that rule; the map leaves it unchanged rather than guessing.
       const all = new Set([boardId, ...mates(get().doc.boards, new Set([boardId]))]);
       edit((doc) => ({
         ...doc,
