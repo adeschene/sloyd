@@ -24,8 +24,8 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **1843/1843 tests passing across 63 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
-`CURRENT_VERSION` **8**, on `master` and in production.
+Static SPA, containerized, **1883/1883 tests passing across 64 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
+`CURRENT_VERSION` **9** on branch `linking` (production and `master` are still at **8** — see below).
 
 **PRODUCTION MATCHES `master` as of 2026-10-06 with the copy-in-a-row round live** — bundle `index-B8i7dotN.js`, CSS `index-Bj5KGEIA.css` (moved: the form's styles), merge commit `7487aca`, **schema 8** (rolling back past quarter turns strands v8 documents; export first). Before it: quarter turns `index-bSuJPbkx.js` (`a24287f`, 2026-10-05), hide/unhide `index-BpdcUlXf.js` (`366eb37`, 2026-10-05), multi-select `index-D7ySMvky.js` (`232917f`, 2026-10-05), joinery residues `index-D_wzi7Bx.js` (`2b96eb2`, 2026-10-05), joinery fixes `index-BzWa2ZGT.js` (`c31dd82`, 2026-10-05), fu 197 `index-Ci3NLhVT.js` (`658dfcc`, 2026-10-05), fu 200 `index-DjL6FbOz.js` (`f37734b`, 2026-10-05), 198/199 `index-BvsB1zA6.js` (`fb8a094`, 2026-10-05), cut storage `index-JBiJohQE.js` (`7fa749d`, 2026-10-04), cut lines `index-BPmx9i74.js` (`f602a2d`), cut words `index-Cw_EeWuY.js` (`8c9be52`), joinery `index-Ci7lVCzJ.js` (`d2a14ac`), phantom cut `index-B2Yuq550.js` (`e7bf3bc`), stopped cuts `index-CoHIAVxf.js` (`c054ede`), which bumped the schema to 7 (rolling back past it strands v7 documents; export first). Before it, 2026-10-03: key check `index-BhhW2iNw.js` (`d0ba83b`), held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
 bundle `index-BAsxEohe.js` with CSS `index-DEQSkZ3q.css`, from merge commit `fa834dc`. A
@@ -44,6 +44,8 @@ badly supported part; both are now CLOSED (below).
 **The joinery residues round (follow-ups 182, 186, 188, 191, 201–203, 2026-10-05) is merged AND deployed.** Verified against the dev server with the user watching, one paid run (`docs/browser-verification-joinery-residues.md`). A rabbeted panel is resolved as one unit from its final box, so its pockets leave no voids and parts in its path are trimmed (182, 201); default tenons shrink to 1/4in, else butt (188); joinery blockers judge solids (203); every `resize` is pre-checked, so an end already cut is a skip, never a throw. No schema change. Residues are 205–206.
 
 **The joinery fixes round (follow-ups 183, 184, 185, 190, 2026-10-05) is merged AND deployed.** Verified against the dev server with the user watching, three paid runs (`docs/browser-verification-joinery-fixes.md`). Default tenons from opposite faces are capped under half the post (190), crossings run bottom-up with a swept-volume blocker (185), a rabbeted panel carries its outer-face chain or refuses before any mutation (183), and the dialog reports the re-ground (184). No schema change. Residues are 201-204.
+
+**The linking round (2026-10-06) passed its live check with the user watching** (`docs/browser-verification-linking.md`). The LAST of the three repeated-parts rounds (quarter turns, copy in a row, linking). Select 2+ parts and **Link**: the FIRST selected part's size, material, grain, posture and cuts (cut ids included) go to the others, and each keeps its own name, position and turn. An edit to a shared field of a linked part, a cut edit included, then reaches every member in the same undo entry, hidden members too. **Unlink** keeps the values; a link left with one member dissolves. Duplicate and Copy in a row copies join the source's link. The group panel shows a "will match" line when Link would change parts; a linked part's single panel shows a block with **Select linked** and **Unlink**; a linked row in the parts list carries a chain icon (invariant 45; spec `docs/superpowers/specs/2026-10-06-sloyd-linking-design.md`). **Schema 9**: `Board.link`, a label. **Rolling back past it strands v9 documents; export first.** Residues are follow-ups 221-223 (223, joinery unlinking the linked parts it cuts, is open by decision).
 
 **The copy-in-a-row round (2026-10-05) is merged AND deployed; its live check passed with the user watching** (`docs/browser-verification-copy-in-a-row.md`). Round 2 of the three repeated-parts rounds, in the user's order: quarter turns, then copy in a row, then **linking, the next and last** (a link will share a part's definition; copies made here stay ordinary and independent). Properties' **Copy in a row…** (under the Duplicate row, in both panels) opens an inline form: count (the TOTAL in the row, original included), a direction (±X, ±Y, ±Z) and one of three spacings, gap, centre-to-centre pitch, or fit N across a distance, with a live summary and one Apply that is one undo entry (spec `docs/superpowers/specs/2026-10-05-sloyd-copy-in-a-row-design.md`; invariant 25 extended). No schema change. Residues are follow-ups 218-220; 218 and 219 are closed by the final review, 220 keeps one record-only item.
 
@@ -287,6 +289,7 @@ show it. Prefer a readout where one suffices; add an image when the finding is s
 | multi-select | 10-05 | — | `selectedIds`: Shift/Ctrl-click, Ctrl/Cmd+A, group move/delete/duplicate, shared Properties fields; one writer for user selection changes (inv 42); a selection change mid-drag ends the gizmo drag; Enter commits and blurs a field (fu 212) |
 | quarter turns | 10-05 | 8 | `rotation: 0 \| 90 \| 180 \| 270`, true rotations; `axisFrame` is the one turn table and every part↔world crossing goes through its helpers (inv 44); `trueTurnsToV8` mirrors old 90° parts' cuts so they look unchanged |
 | copy in a row | 10-05 | — | `rowLayout` (gap / pitch / fit-across, no rounding) and `copyInRow`: N−1 ordinary copies of the selection along ±X/Y/Z, each shifted k·step from the ORIGINAL, one undo entry; Properties' inline **Copy in a row…** form (inv 25) |
+| linking | 10-06 | 9 | `Board.link`, a label; `LINK_FIELDS` is the one shared/own table; `linkPlan` decides Link for store and panel; shared edits and cut edits reach every member in one undo entry; Unlink, Select linked, linked copies; `repairLinks` in `migrateDocument` unlinks a differing member (inv 45) |
 | hide/unhide | 10-05 | — | `hiddenIds`: an eye per row, H / Shift+H / Alt+H, Show all (N), Hide others; view state, not saved, but undoable (history entries are `{ doc, hiddenIds }`); a hidden part is not drawn, snapped to, framed or selected (inv 43) |
 | joinery fixes | 10-05 | — | *no spec* — fu 190/185/183/184: opposite-face tenon cap, bottom-up crossings with a swept-volume blocker, outer-face carry (refuses before any mutation), `lowered` reported |
 | joinery residues | 10-05 | — | *no spec* — fu 182/201/188/203/191/186: rabbet unit from the panel's final box (no voids, path parts trimmed), 1/4in default tenons else butt, blockers on solids, `resize` pre-checked |
@@ -374,7 +377,7 @@ code path.
 ### Versioning
 
 Every document carries a `version`, and every load path (open, import, autosave-restore)
-runs through `migrateDocument` before the document is trusted. `CURRENT_VERSION` is **8**
+runs through `migrateDocument` before the document is trusted. `CURRENT_VERSION` is **9**
 and migration is a real chain: each step runs on raw data, in version order, one version
 at a time, before any board reaches `validateBoard` (invariant 11).
 
@@ -388,13 +391,16 @@ at a time, before any board reaches `validateBoard` (invariant 11).
   them before anything defaults them. It touches only a board with `rotation === 90` and at
   least one cut, and leaves a malformed cut field for `validateCuts` to judge rather than
   throwing.
-- **Document-level** (v4→v5 `stock`, v5→v6 `guides`, v6→v7 `Cut.stopMin`/`stopMax`) — **no `rawBoards.map` step at
+- **Document-level** (v4→v5 `stock`, v5→v6 `guides`, v6→v7 `Cut.stopMin`/`stopMax`,
+  v8→v9 `Board.link`) — **no `rawBoards.map` step at
   all**. Read defensively off the raw document and defaulted, the way `units.precision`
   already was. `stock.kerf` defaults to `0.125` when absent, non-numeric or outside
   `[0, 1)` — *defaulted, not clamped to the nearest boundary*. `guides` defaults to `[]`,
   and `validateGuides` drops a malformed guide rather than refusing the file, because a
   saved document must always open and a guide has no nearest-legal-value to clamp toward.
-  `stopMin`/`stopMax` default to `0` in `validateCuts`.
+  `stopMin`/`stopMax` default to `0` in `validateCuts`. An absent `link` is an unlinked
+  part; `validateBoard` keeps `link` only when it is a non-blank string (stored as given,
+  not trimmed) and drops anything else rather than refusing the file.
 
 **A version bump is for the refusal gate at the far end, not for upgrading old files** —
 an absent field defaults cleanly regardless of `CURRENT_VERSION`. But the two bumps were
@@ -415,6 +421,13 @@ through the old mirror, so those cuts land mirrored along the part's h0. Either 
 a different part and autosaves it. **v8's step is NOT idempotent**: it
 mirrors, so running it twice undoes it. The `d.version < 8` guard is the only thing keeping a
 v8 file from being re-mirrored on every load.
+
+v9's argument is v6's, **silent data loss on round-trip**: a v8 build opens a v9 file, drops
+every `link`, autosaves, and the links are gone. It is silent precisely because every linked
+part is self-contained (its own size and cuts), so the v8 build shows exactly the same
+parts. **`repairLinks` is not a migration step and is not version-guarded**, unlike v8's: it
+runs after validation on EVERY load, it is idempotent (consistent links come back as the same
+array), and it moves no geometry (invariant 45).
 
 Full detail: `docs/superpowers/specs/` (design), `docs/superpowers/plans/`
 (implementation), `docs/history.md` (what shipped and why).
@@ -440,7 +453,19 @@ src/
 │   │                       it imports no `units` (the edge rule: it produces no string). Nothing
 │   │                       rounds (inv 25). The panel's summary AND Apply both read it
 │   ├── types.ts            Board, GuidePoint, SloydDocument, Rotation, Posture,
-│   │                       Grain, MATERIALS, SheetStock, isSheetGood, sheetStockOf
+│   │                       Grain, MATERIALS, SheetStock, isSheetGood, sheetStockOf.
+│   │                       `Board.link?: string` — a label, never an id; an
+│   │                       unlinked part has NO key (inv 45)
+│   ├── links.ts            `LINK_FIELDS` — the ONE shared/own table, `satisfies
+│   │                       Record<keyof Board, …>` (inv 45); `SHARED_KEYS` / `sharedOf`
+│   │                       (cuts copied, ids kept) / `sharedPatch` / `sameShared`
+│   │                       (cuts in order, by id and `CUT_GEOMETRY_KEYS`, exact) /
+│   │                       `withoutLink` / `dissolveSingletons` / `repairLinks`
+│   │                       (unlinks a member differing from its label's FIRST member;
+│   │                       never moves geometry, never merges labels) / `linkPlan`
+│   │                       (the ONE decider for Link: source, members, changing,
+│   │                       label; null for a no-op). Imports only ./types and ./cuts.
+│   │                       Pure
 │   ├── geometry.ts         `axisFrame` — the ONE turn table (inv 44): per world axis an
 │   │                       `AxisMap` `{ dim, reversed }`; `horizontalOf(posture)` gives
 │   │                       [h0, h1]. `axisDimensions` (inv 13) is `axisFrame` without
@@ -583,7 +608,11 @@ src/
 │                           createGuide; `takeId`, the ONE home of the
 │                           id-uniqueness rule for boards, guides and cuts
 │                           (inv 33); `trueTurnsToV8` / `mirrorCutAlong`, the v7→v8
-│                           step (inv 44); re-exports the rest
+│                           step (inv 44); `validateBoard` keeps a non-blank
+│                           `link`; `repairLinks` runs inside `migrateDocument`
+│                           after `dedupeNames`, so EVERY load and every
+│                           generated or joined design passes it (inv 45);
+│                           re-exports the rest, `links.ts` included
 ├── store/store.ts          Zustand, snapshot undo/redo (inv 4), gesture coalescing.
 │                           `gesturing`/`gestureSnapshotTaken` are STATE, not closure
 │                           variables, so `replaceDocument` clears a gesture whose
@@ -619,8 +648,20 @@ src/
 │                           `original + k·step·sign` (from the ORIGINAL, never the previous
 │                           copy), ONE `edit()`, selects originals then copies; refuses before
 │                           `edit()` on a bad count or step. It and `duplicateBoards` share
-│                           the `copyBoard` helper (fresh ids, copied cuts, a name unique
-│                           against the growing list), so the two cannot drift
+│                           the `copyBoard` helper (a fresh id, copied cuts, a name unique
+│                           against the growing list), so the two cannot drift. A copy
+│                           carries `link`, so it JOINS a linked source's link and KEEPS
+│                           its cut ids; a copy of an unlinked source gets fresh cut ids
+│                           and no `link` key (inv 45).
+│                           Links (inv 45): `mates(boards, ids)` — the OTHER members of
+│                           the given parts' links. `updateBoards` sends `sharedPatch`
+│                           to the mates through `patchBoard` in the SAME `edit()`;
+│                           `addCut` mints ONE id onto every member, `updateCut` /
+│                           `removeCut` act on that id on every member. `linkBoards`
+│                           follows `linkPlan` (label `link_<nextId>` when none
+│                           applies), `unlinkBoards` keeps values, and both it and
+│                           `deleteBoards` run `dissolveSingletons`. `selectLinked`
+│                           writes through `selectionPatch`, so hidden members drop
 │   └── selectionGesture.ts `isToggleModifier` (Shift/Ctrl/Cmd), `selectByClick`,
 │                           `clearOnMiss` (no clear on a MODIFIED miss, nor outside the
 │                           Select tool). In the store layer because the viewport AND
@@ -691,6 +732,10 @@ src/
 │       │                   every `resize` is pre-checked by `cutIntoEnd` (rebaseCuts'
 │       │                   throw), so an end already cut is a skip, never a throw.
 │       │                   A growing part's cuts are re-stored by SHAPE first (fu 199).
+│       │                   It ENDS in `migrateDocument`, so `repairLinks` unlinks
+│       │                   linked parts joinery cut at all (unlinked); `run.ts` has no
+│       │                   link code of its own, and `runJoinery.test.ts` pins it
+│       │                   (inv 45)
 │       │                   `resize` and `cutIntoEnd` take WORLD ends and map them to the
 │       │                   part's own end with `endFacing` (inv 44)
 │       └── choose.ts       JOINERY_PROMPT / JOINT_SCHEMA / parseChoices / defaults;
@@ -832,7 +877,9 @@ src/
 │   │                       eye's label is "Hide <name>" / "Show <name>" (`setHidden`); a
 │   │                       hidden row's name button is `disabled`. **Show all (N)**
 │   │                       renders inside PartsList, under the Parts heading, only
-│   │                       while something is hidden
+│   │                       while something is hidden. A linked row adds a chain icon
+│   │                       AFTER the name button (so the button's name stays the
+│   │                       part's), `role="img"`, `aria-label="Linked, N parts"`
 │   ├── CopyInRow.tsx       Copy in a row…: the inline form, local state only until Apply.
 │   │                       Rendered INSIDE each Properties panel's selection-keyed root, so a
 │   │                       selection change remounts it closed and reset. `rowLayout` is the one
@@ -854,7 +901,14 @@ src/
 │   │                       undo, `storedAsShape`; not for a tenon shoulder, a cut
 │   │                       removing nothing, a default tie, or a refused re-store —
 │   │                       fu 195, 198). The word comes from `cutShape`. Turn offers
-│   │                       0/90/180/270 through `updateBoard` (single-part panel only)
+│   │                       0/90/180/270 through `updateBoard` (single-part panel only).
+│   │                       Links (inv 45): the group panel shows **Link** whenever
+│   │                       `linkPlan` is non-null, the "will match" line when its
+│   │                       `changing` is non-empty, and **Unlink** when any selected
+│   │                       part is linked. A linked part's single panel shows a block
+│   │                       under the name: the count, **Select linked**, **Unlink**;
+│   │                       the count is a selector returning a NUMBER, not a memo
+│   │                       over the boards (inv 43's selector rule)
 │   ├── diagramScale.ts     fitView / bandOn (ordering-guarded). MAX_ASPECT /
 │   │                       MAX_HEIGHT / MIN_WIDTH are browser-settled. Pure
 │   ├── diagramLabels.ts    LABEL_SIZE / CHAR_W / labelHeight / labelWidth / packRow
@@ -1414,7 +1468,10 @@ worked examples behind several of them are in `docs/history.md`.
     - **Cut ids are scoped PER BOARD, board and guide ids per document.** `Properties.tsx`
       keys `CutRow` by cut id within one board and the store looks a cut up by
       `(boardId, cutId)`, so two boards may each carry a cut called `c1` and neither is wrong.
-      Widening cut ids to one document-wide set is a silent behaviour change.
+      Widening cut ids to one document-wide set is a silent behaviour change. **Since the
+      linking round it is also load-bearing:** linked members SHARE cut ids (invariant 45), so
+      a document-wide set would re-mint every later member's cut ids on load, and
+      `repairLinks` would then unlink every link that has cuts.
     - **A guide with NO id is still dropped, not minted.** `validateGuides`' existing rule is
       untouched: missing is malformed data, a duplicate is a good guide wearing a taken label.
 
@@ -1423,7 +1480,8 @@ worked examples behind several of them are in `docs/history.md`.
     `{ id, at }`, and every id lookup in the app reads runtime state set after a load
     (`selectedId`, `grabbed.owner.id`, the `find` calls in the store and viewport). **A future
     field that points at a board BY ID breaks this**, and would make the repair a two-pass
-    rewrite rather than a single expression.
+    rewrite rather than a single expression. `Board.link` does not: it is a label shared by
+    the members, never a board id (invariant 45).
 
     Threaded as one `seen` set through `rawBoards.map`, **not** a `dedupeIds` pass beside
     `dedupeNames` — a name needs a replacement computed *from* its siblings and so cannot be
@@ -1596,12 +1654,14 @@ worked examples behind several of them are in `docs/history.md`.
     to face each "hold" the other. Read it before tightening anything.
 
 40. **Anything that decides "same cut" from a list of `Cut`'s fields must be checked against
-    the type by the compiler.** Two readers do: `cutSignature`, which groups cut-list rows,
-    and `boardUVSignature`, which is BoardMesh's memo key. Both were hand-written field lists.
+    the type by the compiler.** Two readers did when this was written: `cutSignature`, which
+    groups cut-list rows, and `boardUVSignature`, which is BoardMesh's memo key. The linking
+    round added a third, `sameShared` (`links.ts`, invariant 45), which compares cuts through
+    `CUT_GEOMETRY_KEYS` plus the id. Both were hand-written field lists.
     Adding `stopMin`/`stopMax` to `Cut` without adding them to the first would have grouped a
     mortised leg with a through-dadoed one: one row, one setup, half the legs cut wrong, and
     every existing test green. So `CUT_GEOMETRY_FIELDS` (in `cuts.ts`) is a table that
-    `satisfies Record<Exclude<keyof Cut, 'id'>, true>`, both readers derive from it, and a new
+    `satisfies Record<Exclude<keyof Cut, 'id'>, true>`, every reader derives from it, and a new
     `Cut` field fails `tsc` until it is listed. This is invariant 15 one layer over: a
     hand-written list of what a computation reads goes stale silently. The second reader was
     missed when the table was first written, and the 3D view kept drawing a through-dado after
@@ -1752,12 +1812,64 @@ worked examples behind several of them are in `docs/history.md`.
       uncut, so a true 90° and the old one look identical, and joinery then cuts through the
       new mapping. A turn is not a group field (multi-select spec §1).
 
+45. **A link is a LABEL on self-contained parts, and one table, one decider and one repair keep
+    its members identical.** `Board.link` is a minted label (`link_<nextId>`); parts carrying
+    the same label are one link. Every member keeps its own full copy of the shared fields, so
+    the cut list, nesting, diagrams, the viewport, snapping, joinery and `checkDesign` read
+    parts exactly as before and know nothing about links.
+
+    - **`LINK_FIELDS` (`links.ts`) is the ONE shared-versus-own table**, `satisfies
+      Record<keyof Board, 'shared' | 'own'>`, so a new `Board` field fails `tsc` until it is
+      classified (invariant 40's argument). Shared: `length`, `width`, `thickness`,
+      `material`, `grain`, `posture`, `cuts`. Own: `id`, `name`, `position`, `rotation`,
+      `link`. Linking, propagation and the repair all read it through `SHARED_KEYS`,
+      `sharedOf`, `sharedPatch` and `sameShared`; none keeps its own list.
+    - **`linkPlan` is the ONE decider for Link**, read by the store's `linkBoards` AND the
+      group panel's Link button and "will match" line, so what the panel promises is what
+      Link does. The FIRST selected part is the source; any selected part already linked brings
+      its WHOLE link, unselected and hidden members included. It returns null for fewer than
+      two parts or when the members already share one label and match, so a no-op Link pushes
+      no entry (invariant 4); so does an Unlink of parts that are not linked.
+    - **Propagation runs inside the SAME `edit()`**: one undo entry, every member, hidden ones
+      included. `updateBoards` sends only `sharedPatch(patch)` to the mates, each through
+      `patchBoard`, so each pivots about its own centre (invariant 2) and gets the sheet-good
+      grain reset. `addCut` mints ONE cut id and adds a copy of the cut to every member;
+      `updateCut` and `removeCut` act on that id on every member.
+    - **`name`, `position` and `rotation` never propagate**: no rename, gizmo move, snap move,
+      group move or turn reaches a mate. A shared-field patch that also carries an own field
+      sends only the shared part.
+    - **`dropHeldIfGone` runs for every member touched**, after the edit: link, a propagated
+      board edit and every cut action. **The asymmetry from invariant 24 extends one step:**
+      `updateBoards`' board-precise `grabbed` clause covers the TARGETS only, and a mate's
+      held points are judged point-precisely. Do not add the board-precise clause for mates,
+      and do not drop the mates from the loop.
+    - **The repair UNLINKS and never moves geometry, and never merges labels.** `repairLinks`
+      compares each member against its label's FIRST member in document order and unlinks one
+      whose shared fields differ; then a label left on one part is cleared
+      (`dissolveSingletons`, which `unlinkBoards` and `deleteBoards` also run). **Its one home
+      is `migrateDocument`**, so open, import, autosave-restore, `designToDocument` and
+      joinery's output (`applyJoints` ends in `migrateDocument`) all pass it. Joinery cuts
+      parts one at a time, so any linked part it cuts at all comes out unlinked in the new
+      project (`pocketFor` mints fresh cut ids per board, so even identical mortises differ by id); the original is untouched (open by decision, follow-up 223). Do not add a second call in `run.ts`.
+    - **An unlinked part has NO `link` key**, never `link: undefined`: `withoutLink`
+      destructures it away, and a copy of an unlinked part gains none. `validateBoard` keeps a
+      non-blank string and drops anything else, never refusing the file.
+    - **Copies join.** `copyBoard` carries `link`, so Duplicate and Copy in a row add members,
+      and a LINKED source's copies KEEP its cut ids (an unlinked source's copies still get
+      fresh ones). A copy with fresh cut ids would join the link while every cut edit skipped
+      it, and the next load would unlink it. Repeating cut ids across members is legal
+      because cut ids are per board (invariant 33).
+    - **A link is a label, not an id.** Nothing in the document references a board by id, so
+      invariant 33's single-pass id repair still holds.
+    - **`sameShared` compares exactly**, stored values (invariant 18), cuts in order by id and
+      every `CUT_GEOMETRY_KEYS` field. Generated designs carry no links.
+
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 1843 tests across 63 files
+npm test           # Vitest, currently 1883 tests across 64 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -1767,7 +1879,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is the authoritative list** — 1-220, consciously deferred rather
+**`docs/follow-ups.md` is the authoritative list** — 1-223, consciously deferred rather
 than missed, each written up in place with its closure where it has one. Read the entries
 for the area you are about to touch before starting; several are "correct but untested",
 which is exactly what a refactor breaks silently.

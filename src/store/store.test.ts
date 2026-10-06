@@ -1,6 +1,6 @@
 import { useStore } from './store';
 import type { Board } from '../document/document';
-import { createBoard, createDocument, boardCenter, boardSnapPoints, cutSnapPoints, sameSnapPoint } from '../document/document';
+import { createBoard, createDocument, boardCenter, boardExtents, repairLinks, boardSnapPoints, cutSnapPoints, sameSnapPoint } from '../document/document';
 
 const reset = () => useStore.getState().replaceDocument(createDocument('Test'));
 
@@ -2389,5 +2389,227 @@ describe('copyInRow', () => {
     st().setTapeAnchor(boardSnapPoints(st().doc.boards[0]!)[0]!);
     st().copyInRow([a], 3, 0, 1, 30);
     expect(st().tapeAnchor).not.toBeNull();
+  });
+});
+
+describe('linked parts', () => {
+  const st = () => useStore.getState();
+  const board = (id: string) => st().doc.boards.find((b) => b.id === id)!;
+  const leg = (patch: Partial<Board> = {}) => {
+    st().addBoard();
+    const id = st().doc.boards.at(-1)!.id;
+    st().updateBoard(id, { length: 28, width: 1.75, thickness: 1.75, posture: 'upright', ...patch });
+    return id;
+  };
+
+  it('Link: the first selected part wins; position and turn stay each part\'s own; one undo entry', () => {
+    const a = leg({ length: 30, position: [0, 0, 0] });
+    const b = leg({ position: [10, 0, 0], rotation: 90 });
+    st().addCut(a);
+    const past = st().past.length;
+    st().linkBoards([a, b]);
+    expect(st().past.length).toBe(past + 1);
+    expect(board(b).length).toBe(30);
+    expect(board(b).cuts.map((c) => c.id)).toEqual(board(a).cuts.map((c) => c.id));
+    expect(board(b).cuts[0]).not.toBe(board(a).cuts[0]);
+    expect(board(b).position).toEqual([10, 0, 0]);
+    expect(board(b).rotation).toBe(90);
+    expect(board(a).link).toBeDefined();
+    expect(board(b).link).toBe(board(a).link);
+  });
+
+  it('Link brings a selected part\'s WHOLE link, unselected members included (Review Focus 1)', () => {
+    const a = leg({ length: 30 });
+    const b = leg();
+    const c = leg();
+    st().linkBoards([b, c]);
+    st().linkBoards([a, b]);
+    expect([a, b, c].map((id) => board(id).length)).toEqual([30, 30, 30]);
+    expect(new Set([a, b, c].map((id) => board(id).link)).size).toBe(1);
+  });
+
+  it('a propagated posture change pivots each member about its OWN centre (Review Focus 2)', () => {
+    const a = leg({ position: [0, 0, 0] });
+    const b = leg({ position: [20, 0, 5], rotation: 90 });
+    st().linkBoards([a, b]);
+    const centre = (id: string) => { const x = board(id); const e = boardExtents(x); return [x.position[0] + e[0] / 2, x.position[2] + e[2] / 2]; };
+    const before = [centre(a), centre(b)];
+    st().updateBoard(a, { posture: 'flat' });
+    expect(board(b).posture).toBe('flat');
+    expect([centre(a), centre(b)]).toEqual(before);
+  });
+
+  // Added beyond the brief: the test above links two parts that already share a
+  // posture, so it never sees linkBoards itself change one. This one does, so
+  // linkBoards taking the source's values by plain spread (no pivot) goes red.
+  it('Link pivots a member whose posture it changes about that member\'s OWN centre', () => {
+    const a = leg({ position: [0, 0, 0], posture: 'flat' });
+    const b = leg({ position: [20, 0, 5], rotation: 90 });
+    const centre = (id: string) => { const x = board(id); const e = boardExtents(x); return [x.position[0] + e[0] / 2, x.position[2] + e[2] / 2]; };
+    const before = centre(b);
+    st().linkBoards([a, b]);
+    expect(board(b).posture).toBe('flat');
+    expect(centre(b)).toEqual(before);
+  });
+
+  it('propagates shared edits to every member — hidden too — as one undo entry; own fields do not', () => {
+    const a = leg();
+    const b = leg();
+    const c = leg();
+    st().linkBoards([a, b, c]);
+    st().setHidden(c, true);
+    const past = st().past.length;
+    st().updateBoard(a, { length: 33, material: 'walnut' });
+    expect(st().past.length).toBe(past + 1);
+    expect([a, b, c].map((id) => board(id).length)).toEqual([33, 33, 33]);
+    expect(board(c).material).toBe('walnut');
+    // A shared field rides along so propagation actually fires: with own fields
+    // alone the mates are never touched, and the full-patch mutation survives.
+    st().updateBoard(a, { name: 'Only A', position: [99, 0, 0], rotation: 180, length: 34 });
+    expect(board(b).length).toBe(34);
+    expect(board(b).name).not.toBe('Only A');
+    expect(board(b).position[0]).not.toBe(99);
+    expect(board(b).rotation).not.toBe(180);
+  });
+
+  it('cut add / edit / remove reach every member with the same cut id', () => {
+    const a = leg();
+    const b = leg();
+    st().linkBoards([a, b]);
+    st().addCut(b);
+    const id = board(b).cuts[0]!.id;
+    expect(board(a).cuts.map((c) => c.id)).toEqual([id]);
+    st().updateCut(a, id, { depth: 0.5 });
+    expect(board(b).cuts[0]!.depth).toBe(0.5);
+    st().removeCut(b, id);
+    expect(board(a).cuts).toEqual([]);
+  });
+
+  it('a group edit reaches unselected members of the selected parts\' links', () => {
+    const a = leg();
+    const b = leg();
+    const x = leg();
+    const y = leg();
+    st().linkBoards([a, b]);
+    st().updateBoards([a, x], { thickness: 2 });
+    expect(board(b).thickness).toBe(2);
+    expect(board(y).thickness).toBe(1.75);
+  });
+
+  it('Unlink keeps values; unlinking or deleting one of two dissolves the other', () => {
+    const a = leg({ length: 30 });
+    const b = leg();
+    st().linkBoards([a, b]);
+    st().unlinkBoards([b]);
+    expect('link' in board(b)).toBe(false);
+    expect('link' in board(a)).toBe(false);
+    expect(board(b).length).toBe(30);
+    const c = leg();
+    st().linkBoards([a, c]);
+    st().deleteBoards([c]);
+    expect('link' in board(a)).toBe(false);
+  });
+
+  it('Duplicate and Copy in a row copies join the link', () => {
+    const a = leg();
+    const b = leg();
+    st().linkBoards([a, b]);
+    st().duplicateBoards([a]);
+    st().copyInRow([a], 3, 0, 1, 5);
+    const label = board(a).link;
+    expect(st().doc.boards.filter((x) => x.link === label)).toHaveLength(5);
+  });
+
+  // Added beyond the brief (Task 1 review): copyBoard's spread must never
+  // introduce `link: undefined` on a copy of an unlinked part.
+  it('a Duplicate or Copy in a row copy of an UNLINKED part has no link key', () => {
+    const a = leg();
+    st().duplicateBoards([a]);
+    st().copyInRow([a], 2, 0, 1, 5);
+    const copies = st().doc.boards.filter((x) => x.id !== a);
+    expect(copies).toHaveLength(2);
+    for (const copy of copies) expect('link' in copy).toBe(false);
+  });
+
+  // Review fix: a copy of a linked part joins the link, so it must keep the
+  // source's cut ids, or cut edits skip it and the load repair unlinks it.
+  it('copies of a linked part WITH CUTS keep its cut ids, so cut edits reach them and nothing needs repair', () => {
+    const a = leg();
+    const b = leg();
+    st().linkBoards([a, b]);
+    st().addCut(a);
+    const id = board(a).cuts[0]!.id;
+    st().duplicateBoards([a]);
+    st().copyInRow([b], 3, 0, 1, 5);
+    const label = board(a).link;
+    const members = () => st().doc.boards.filter((x) => x.link === label);
+    expect(members()).toHaveLength(5);
+    for (const m of members()) expect(m.cuts.map((c) => c.id)).toEqual([id]);
+    expect(repairLinks(st().doc.boards)).toBe(st().doc.boards);
+    st().updateCut(a, id, { depth: 0.5 });
+    for (const m of members()) expect(m.cuts[0]!.depth).toBe(0.5);
+    const copy = members().at(-1)!.id;
+    st().removeCut(copy, id);
+    for (const m of members()) expect(m.cuts).toEqual([]);
+  });
+
+  it('copies of an UNLINKED part with cuts still get fresh cut ids', () => {
+    const a = leg();
+    st().addCut(a);
+    const id = board(a).cuts[0]!.id;
+    st().duplicateBoards([a]);
+    st().copyInRow([a], 2, 0, 1, 5);
+    const copies = st().doc.boards.filter((x) => x.id !== a);
+    expect(copies).toHaveLength(2);
+    for (const c of copies) expect(c.cuts[0]!.id).not.toBe(id);
+  });
+
+  it('selectLinked selects every visible member', () => {
+    const a = leg();
+    const b = leg();
+    const c = leg();
+    st().linkBoards([a, b, c]);
+    st().setHidden(c, true);
+    st().selectLinked(a);
+    expect(st().selectedIds).toEqual([a, b]);
+  });
+
+  it('undo after Link restores values AND the absent links (Review Focus 3)', () => {
+    const a = leg({ length: 30 });
+    const b = leg();
+    st().linkBoards([a, b]);
+    st().undo();
+    expect(board(b).length).toBe(28);
+    expect('link' in board(b)).toBe(false);
+  });
+
+  it('invariant 24: a tape anchor on another member\'s cut drops when a propagated cut edit moves it', () => {
+    const a = leg();
+    const b = leg();
+    st().linkBoards([a, b]);
+    st().addCut(a);
+    const cutPt = cutSnapPoints(board(b))[0]!;
+    st().setTapeAnchor(cutPt);
+    st().updateCut(a, board(a).cuts[0]!.id, { offset: 3 });
+    expect(st().tapeAnchor).toBeNull();
+    const corner = boardSnapPoints(board(b)).find((p) => p.kind === 'corner')!;
+    st().setTapeAnchor(corner);
+    st().updateCut(a, board(a).cuts[0]!.id, { offset: 4 });
+    expect(st().tapeAnchor).not.toBeNull();
+  });
+
+  // Added beyond the brief: the cut test above never reaches updateBoards' own
+  // dropHeldIfGone loop over the mates. An upright leg's length is vertical, so
+  // a TOP corner of the other member moves when a propagated Length lands.
+  it('invariant 24: a tape anchor on another member\'s top corner drops when a propagated Length moves it', () => {
+    const a = leg();
+    const b = leg({ position: [10, 0, 0] });
+    st().linkBoards([a, b]);
+    const top = Math.max(...boardSnapPoints(board(b)).map((p) => p.at[1]));
+    const corner = boardSnapPoints(board(b)).find((p) => p.kind === 'corner' && p.at[1] === top)!;
+    st().setTapeAnchor(corner);
+    st().updateBoard(a, { length: 40 });
+    expect(board(b).length).toBe(40);
+    expect(st().tapeAnchor).toBeNull();
   });
 });

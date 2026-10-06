@@ -4464,3 +4464,35 @@ reaches `s = 0` or `NaN`, so the guard (which returns `value`) can be deleted wi
   test.~~ Closed by the final review: the group test asserts the selection is the originals then
   the copies k-major, and that all six names are distinct.
 - **Status:** record-only (the `sign` item).
+
+## From the linking round — 2026-10-06
+
+**221. A linked file whose cuts have no ids unlinks its members on load.** `validateCuts` mints a
+missing cut id through `takeId`, one board at a time, so two members carrying the same cut without
+an id come out with DIFFERENT minted ids. `sameShared` compares cut ids, so `repairLinks` then sees
+them differ and unlinks every member after the first. It fails safe: no geometry moves, only the
+link is lost. Every writer in the app stores cut ids, so only a hand-edited or hand-merged file
+reaches it.
+- **A remedy, if wanted,** would have to mint one id per (label, cut position) rather than per
+  board, which is a second decider beside `takeId` (invariant 33). Not worth it for this reach.
+- **Status:** open, low, fails safe.
+
+**222. Small gaps the round judged fine to leave.** Record-only.
+- ~~`sharedPatch` has no direct test.~~ It has one since the final-review fix wave (which also
+  made it copy `cuts`), in `links.test.ts`.
+- Properties' plural wording branches ("N parts" in the will-match line, "N other parts" in the
+  linked block) are untested; the tests link two parts, so they reach only the singular.
+- `runJoinery`'s link tests run on the mocked-answer path only. The fallback-to-defaults path
+  builds through the same `applyJoints` and `migrateDocument`.
+- `linkBoards` runs `dropHeldIfGone` on every member, including the source and members that did
+  not change. A superset of "changed", and harmless: the test is point-precise, so an unchanged
+  part keeps its points.
+- **Status:** record-only.
+
+**223. Joinery returns linked parts it cuts UNLINKED, even when their cuts are identical.**
+"Add joinery…" leaves any linked part it cuts unlinked in the joined project, because `pocketFor`
+mints a fresh cut id per board and `sameShared` compares ids. The user ruled this ACCEPTABLE FOR
+NOW (2026-10-06): the joined project is a new copy and the original keeps its links.
+- **Possible remedies, not chosen:** have joinery reuse one cut id across members whose cuts are
+  identical in shape, or offer a one-click re-link of parts that match.
+- **Status:** open, by decision.

@@ -274,6 +274,63 @@ and 79.
 
 ## What each round did
 
+**What the linking round did (2026-10-06)**: linked parts, which stay identical, with a spec and
+plan (`docs/superpowers/specs/2026-10-06-sloyd-linking-design.md`). **Schema 9.** Its live check
+passed on the dev server with the user watching (`docs/browser-verification-linking.md`). The LAST of the three repeated-parts rounds (quarter turns, copy in a row, linking).
+Rolling back past it strands v9 documents; export first.
+
+- **The user's rulings.** Copy and link are separate actions; a link is made on existing parts.
+  Shared: length, width, thickness, material, grain, **posture** and cuts. Per part: name,
+  position and turn (four legs share their mortises, each turned to face its own rails). Linking
+  parts that differ: the **FIRST SELECTED part wins** and the others take its values. **Copies
+  join**: Duplicate and Copy in a row produce members of the source's link.
+- **Shape.** `Board.link` is a label, not a separate definition, so every part stays
+  self-contained and no reader of a part changed. `links.ts` holds `LINK_FIELDS` (the one
+  shared/own table, `satisfies`), `sameShared`, `repairLinks` and `linkPlan` (the one decider,
+  read by the store and the panel). The store gained `linkBoards`, `unlinkBoards`,
+  `selectLinked` and the private `mates`; `updateBoards` and the three cut actions reach every
+  member in the same `edit()`. The group panel has Link, Unlink and the "will match" line; the
+  single panel a linked block with Select linked and Unlink; the parts list a chain icon.
+  Invariant 45; invariants 33 and 40 were amended to match.
+- **Schema.** v8→v9 is document-level: an absent `link` is an unlinked part. The bump's argument
+  is v6's, silent data loss on round-trip. `repairLinks` runs after validation on every load and
+  unlinks, never moves.
+- **Planning ruling.** Joinery's output would be repaired at `runJoinery`'s result, not at save,
+  so any caller gets a consistent document. Cost if wrong: none (the load repair).
+- **Execution rulings.**
+  - **Four plan-supplied tests could not fail** and were strengthened. Task 1: the `repairLinks`
+    reference test passed with the member compared against the PREVIOUS member instead of the
+    first, and the `linkPlan` no-op test passed with the no-op check ignoring `changing`; a test
+    was added for each. Task 2: the "own fields do not propagate" patch carried no shared field,
+    so `sharedPatch` came back empty and sending the FULL patch to the mates survived (`length`
+    was added to the patch); and the pivot test's parts were already upright, so it only
+    exercised `updateBoards` and a plain spread in `linkBoards` survived (a Link-pivot test was
+    added).
+  - **The plan told Task 2 to leave `copyBoard` alone, and that was wrong.** `copyBoard` minted
+    fresh cut ids, so a copy of a linked part with cuts joined the link with DIFFERENT cut ids:
+    every cut edit skipped it, `linkPlan` reported it changing, and the next load unlinked it.
+    The review caught it. Fixed (`bccf663`): a linked source's copies keep its cut ids (legal,
+    cut ids are per board, invariant 33); an unlinked source's copies still get fresh ones. Both
+    directions were mutated red, including the over-fix of keeping ids for every copy.
+  - **The planning ruling was superseded.** `applyJoints` already ends in `migrateDocument`,
+    whose load path runs `repairLinks`, so `runJoinery`'s result was already consistent and
+    `run.ts` needed no change. Task 3 added two tests that pin it (two linked legs cut
+    by joinery come out unlinked, even with identical mortises, because `pocketFor` mints fresh cut ids per board; a linked pair joinery does not cut keeps its link); making
+    `repairLinks` the identity turns the first red.
+  - **The single panel's linked count is a selector returning a number**, not a `useMemo` over
+    the boards: cheaper, and it re-renders only when the count moves (invariant 43's selector
+    rule).
+- **Evidence.** 1843 tests across 63 files before the round; 1859 across 64 after Task 1, 1873
+  after Task 2, 1875 after its fix, 1877 after Task 3, 1882 after Task 4, 1883 after the final-review fix wave (sharedPatch copies cuts; a compile-time guard that a shared field other than cuts is a primitive); build clean. Mutations,
+  each shown red: rotation marked shared, the cut-id compare dropped, delete instead of unlink,
+  `linkPlan` ignoring unselected members, an empty `link` kept, the full patch to mates, mates
+  skipped, a cut id per member, no `dissolveSingletons` in Unlink and in Delete, `copyBoard`
+  stripping `link` or adding `link: undefined`, the cut actions and `updateBoards` dropping held
+  points for the edited part only, `linkBoards` by plain spread, identity `repairLinks` on
+  joinery output, and in the panels the note shown whenever a plan exists, Link always shown,
+  Select linked as a plain select, and the icon inside the name button.
+- **Residues:** follow-ups 221-223.
+
 **What the copy-in-a-row round did (2026-10-05)**: N ordinary copies of the selection along an
 axis, with a spec and plan (`docs/superpowers/specs/2026-10-05-sloyd-copy-in-a-row-design.md`).
 No schema change. **Merged (`7487aca`) and deployed** (`index-B8i7dotN.js`). **Live check passed**

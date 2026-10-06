@@ -1255,3 +1255,17 @@ button[aria-pressed='true'] {
 .copy-row-open {
   margin-top: 6px;
 }
+
+.part-link {
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  color: var(--ink-dim);
+}
+
+.link-note,
+.link-block p {
+  margin: 6px 0;
+  color: var(--ink-dim);
+}

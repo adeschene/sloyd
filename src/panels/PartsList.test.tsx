@@ -99,4 +99,11 @@ describe('PartsList hiding', () => {
     expect(useStore.getState().hiddenIds).toEqual([]);
     expect(screen.queryByRole('button', { name: /^Show all/ })).toBeNull();
   });
+
+  it('a linked row shows a labelled chain icon outside its name button', () => {
+    const [a, b] = threeParts();
+    act(() => useStore.getState().linkBoards([a!, b!]));
+    expect(screen.getAllByRole('img', { name: 'Linked, 2 parts' })).toHaveLength(2);
+    expect(screen.getByRole('button', { name: 'Board' })).toBeInTheDocument();
+  });
 });

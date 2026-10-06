@@ -489,13 +489,13 @@ describe('schema 4 — cuts', () => {
         material: 'pine',
       }],
     });
-    expect(doc.version).toBe(8);
+    expect(doc.version).toBe(9);
     expect(doc.boards[0].cuts).toEqual([]);
   });
 
-  // The chain is the point: a v1 file must walk 1 -> 2 -> ... -> 8,
+  // The chain is the point: a v1 file must walk 1 -> 2 -> ... -> 9,
   // folding 270 to 90 BEFORE it gains a posture, and gaining cuts before guides.
-  it('walks a v1 file all the way to 8', () => {
+  it('walks a v1 file all the way to 9', () => {
     const doc = migrateDocument({
       version: 1,
       name: 'Ancient',
@@ -505,7 +505,7 @@ describe('schema 4 — cuts', () => {
         position: [0, 0, 0], rotation: 270, standing: true, material: 'oak',
       }],
     });
-    expect(doc.version).toBe(8);
+    expect(doc.version).toBe(9);
     expect(doc.boards[0].rotation).toBe(90);
     expect(doc.boards[0].posture).toBe('on-edge');
     expect(doc.boards[0].grain).toBe('length');
@@ -530,7 +530,7 @@ describe('schema 4 — cuts', () => {
   });
 
   it('rejects a file from a newer schema', () => {
-    expect(() => migrateDocument({ version: 9, name: 'x', boards: [] }))
+    expect(() => migrateDocument({ version: 10, name: 'x', boards: [] }))
       .toThrow(/newer version/);
   });
 });
@@ -607,13 +607,13 @@ describe('cut validation', () => {
 describe('schema v5 — stock.kerf', () => {
   it('gives a new document the default kerf', () => {
     expect(createDocument('Test').stock).toEqual({ kerf: 0.125 });
-    expect(createDocument('Test').version).toBe(8);
+    expect(createDocument('Test').version).toBe(9);
   });
 
   it('defaults kerf on a v4 file that has none', () => {
     const doc = migrateDocument({ version: 4, name: 'Old', boards: [] });
     expect(doc.stock).toEqual({ kerf: 0.125 });
-    expect(doc.version).toBe(8);
+    expect(doc.version).toBe(9);
   });
 
   it('keeps a kerf the user set', () => {
@@ -644,17 +644,17 @@ describe('schema v5 — stock.kerf', () => {
   // a file carrying a 1/4" kerf, silently drop it, and print a different sheet
   // count than the build that saved it.
   it('refuses a file from a newer build', () => {
-    expect(() => migrateDocument({ version: 9, name: 'X', boards: [] })).toThrow(DocumentError);
+    expect(() => migrateDocument({ version: 10, name: 'X', boards: [] })).toThrow(DocumentError);
   });
 
-  it('walks a v1 file all the way to v8', () => {
+  it('walks a v1 file all the way to v9', () => {
     const doc = migrateDocument({
       version: 1,
       name: 'Ancient',
       boards: [{ name: 'A', length: 24, width: 4, thickness: 0.75, position: [0, 0, 0],
                  rotation: 270, standing: true, material: 'pine' }],
     });
-    expect(doc.version).toBe(8);
+    expect(doc.version).toBe(9);
     expect(doc.guides).toEqual([]);
     expect(doc.stock).toEqual({ kerf: 0.125 });
     expect(doc.boards[0].rotation).toBe(90);
@@ -667,7 +667,7 @@ describe('schema v5 — stock.kerf', () => {
 describe('guides — schema v6', () => {
   it('a fresh document has an empty guides array at the current version', () => {
     const doc = createDocument('Test');
-    expect(doc.version).toBe(8);
+    expect(doc.version).toBe(9);
     expect(doc.guides).toEqual([]);
   });
 
@@ -680,7 +680,7 @@ describe('guides — schema v6', () => {
       boards: [],
     });
     expect(doc.guides).toEqual([]);
-    expect(doc.version).toBe(8);
+    expect(doc.version).toBe(9);
   });
 
   it('keeps well-formed guides', () => {
@@ -736,12 +736,12 @@ describe('guides — schema v6', () => {
   // argument is NOT v5's (a wrong purchasing number); it is silent data loss
   // on round-trip.
   it('still refuses a version above CURRENT_VERSION', () => {
-    expect(() => migrateDocument({ version: 9, name: 'x', boards: [] }))
+    expect(() => migrateDocument({ version: 10, name: 'x', boards: [] }))
       .toThrow(DocumentError);
   });
 
   // A v1 file must still walk the whole chain, gaining guides on the way.
-  it('a v1 file walks 1 -> 8', () => {
+  it('a v1 file walks 1 -> 9', () => {
     const doc = migrateDocument({
       version: 1,
       name: 'Ancient',
@@ -751,7 +751,7 @@ describe('guides — schema v6', () => {
         position: [0, 0, 0], rotation: 270, standing: true, material: 'pine',
       }],
     });
-    expect(doc.version).toBe(8);
+    expect(doc.version).toBe(9);
     expect(doc.guides).toEqual([]);
     expect(doc.stock.kerf).toBe(0.125);
     expect(doc.boards[0].rotation).toBe(90);
@@ -909,8 +909,8 @@ describe('stopped cuts (v7)', () => {
   const loaded = (cut: Record<string, unknown>, version = 7) =>
     migrateDocument(rawDoc(cut, version)).boards[0].cuts;
 
-  it('is version 8', () => {
-    expect(CURRENT_VERSION).toBe(8);
+  it('is version 9', () => {
+    expect(CURRENT_VERSION).toBe(9);
   });
 
   it('defaults missing stops to 0', () => {
@@ -954,7 +954,7 @@ describe('stopped cuts (v7)', () => {
   it('round-trips both stops through a save', () => {
     const doc = migrateDocument(rawDoc({ stopMin: 1, stopMax: 2 }));
     const again = migrateDocument(JSON.parse(JSON.stringify(doc)));
-    expect(again.version).toBe(8);
+    expect(again.version).toBe(9);
     expect(again.boards[0].cuts[0]).toMatchObject({ stopMin: 1, stopMax: 2 });
   });
 });
@@ -1112,8 +1112,32 @@ describe('v7 -> v8: true quarter turns', () => {
   });
 
   it('a v8 file opens; a version above CURRENT_VERSION is still refused', () => {
-    expect(CURRENT_VERSION).toBe(8);
+    expect(CURRENT_VERSION).toBe(9);
     expect(() => migrateDocument({ ...v7([]), version: 8 })).not.toThrow();
-    expect(() => migrateDocument({ ...v7([]), version: 9 })).toThrow();
+    expect(() => migrateDocument({ ...v7([]), version: 10 })).toThrow();
+  });
+});
+
+describe('v9: linked parts', () => {
+  const doc = (version: number, boards: unknown[]) => ({ version, name: 'D', units: { display: 'imperial-fractional', precision: 16 }, stock: { kerf: 0.125 }, guides: [], boards });
+  const raw = (over: Record<string, unknown>) => ({ ...createBoard({ length: 10, width: 2, thickness: 1 }), ...over });
+
+  it('CURRENT_VERSION is 9; a v8 file loads with no links; a version above 9 is refused', () => {
+    expect(CURRENT_VERSION).toBe(9);
+    const d = migrateDocument(doc(8, [raw({ id: 'a' }), raw({ id: 'b' })]));
+    expect(d.boards.every((b) => !('link' in b))).toBe(true);
+    expect(() => migrateDocument(doc(10, []))).toThrow();
+  });
+
+  it('keeps a valid link, drops a non-string or empty one', () => {
+    const d = migrateDocument(doc(9, [raw({ id: 'a', link: 'L' }), raw({ id: 'b', link: 'L' }), raw({ id: 'c', link: 7 }), raw({ id: 'd', link: '' })]));
+    expect(d.boards.map((b) => b.link)).toEqual(['L', 'L', undefined, undefined]);
+    expect('link' in d.boards[2]!).toBe(false);
+  });
+
+  it('repairs on load: a differing member is unlinked, unchanged', () => {
+    const d = migrateDocument(doc(9, [raw({ id: 'a', link: 'L' }), raw({ id: 'b', link: 'L' }), raw({ id: 'c', link: 'L', length: 11 })]));
+    expect(d.boards.map((b) => b.link)).toEqual(['L', 'L', undefined]);
+    expect(d.boards[2]!.length).toBe(11);
   });
 });

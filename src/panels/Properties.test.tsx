@@ -1172,3 +1172,52 @@ describe('Hide others', () => {
     expect(useStore.getState().hiddenIds).toEqual([c]);
   });
 });
+
+describe('linking controls', () => {
+  const st = () => useStore.getState();
+  const two = (lenB = 28) => {
+    act(() => {
+      st().addBoard(); st().addBoard();
+      const [a, b] = st().doc.boards.map((x) => x.id);
+      st().updateBoard(a!, { length: 28 });
+      st().updateBoard(b!, { length: lenB });
+      st().selectBoard(a!); st().toggleSelected(b!);
+    });
+    return st().doc.boards.map((x) => x.id);
+  };
+
+  it('offers Link with a "will match" line only when the parts differ', async () => {
+    two(30);
+    render(<Properties />);
+    expect(screen.getByText(/Linking makes 1 part match Board:/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Link' }));
+    expect(new Set(st().doc.boards.map((b) => b.link)).size).toBe(1);
+    expect(st().doc.boards[1]!.length).toBe(28);
+  });
+
+  it('no "will match" line for identical parts; Link hidden once they are one link; Unlink shown', async () => {
+    two();
+    render(<Properties />);
+    expect(screen.queryByText(/Linking makes/)).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Link' }));
+    expect(screen.queryByRole('button', { name: 'Link' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Unlink' })).toBeInTheDocument();
+  });
+
+  it('single panel for a linked part: the block, Select linked, Unlink', async () => {
+    const [a, b] = two();
+    act(() => { st().linkBoards([a!, b!]); st().selectBoard(a!); });
+    render(<Properties />);
+    expect(screen.getByText(/Linked with 1 other part/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Select linked' }));
+    expect(st().selectedIds).toEqual([a, b]);
+  });
+
+  it('single panel Unlink makes the part independent', async () => {
+    const [a, b] = two();
+    act(() => { st().linkBoards([a!, b!]); st().selectBoard(a!); });
+    render(<Properties />);
+    await userEvent.click(screen.getByRole('button', { name: 'Unlink' }));
+    expect(st().doc.boards.every((x) => !('link' in x))).toBe(true);
+  });
+});

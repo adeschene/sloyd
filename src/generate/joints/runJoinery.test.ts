@@ -34,6 +34,13 @@ const CORNER = design(
   { name: 'Rail X', at: [1.75, 23.5, 0.5], size: [18, 3, 0.75] },
   { name: 'Rail Z', at: [0.5, 23.5, 1.75], size: [0.75, 3, 18] },
 );
+const RAILED = design(
+  { name: 'Leg A', at: [0, 0, 0], size: [1.75, 28, 1.75] },
+  { name: 'Leg B', at: [19.75, 0, 0], size: [1.75, 28, 1.75] },
+  { name: 'Rail', at: [1.75, 23.5, 0.5], size: [18, 3, 0.75] },
+  { name: 'Spare', at: [1.75, 23.5, 10], size: [18, 3, 0.75] },
+  { name: 'Spare 2', at: [1.75, 23.5, 20], size: [18, 3, 0.75] },
+);
 const run = (c: LlmClient, d = CORNER) => runJoinery(c, d, new AbortController().signal, () => {});
 const ids = findSites(CORNER).map((s) => s.id);
 const long = { joints: ids.map((site) => ({ site, joint: 'mortise-tenon', tenonLength: 1.25 })) };
@@ -96,5 +103,29 @@ describe('runJoinery', () => {
     if ('noSites' in out) throw new Error('expected sites');
     expect(out.fallback).toBe('busy');
     expect(out.usage.inputTokens).toBe(10);
+  });
+
+  describe('links (linking spec 3.5)', () => {
+    const linked = (names: string[], d = RAILED) => ({ ...d, boards: d.boards.map((b) => (names.includes(b.name) ? { ...b, link: 'L' } : b)) });
+    const railedIds = findSites(RAILED).map((s) => s.id);
+    const railed = { joints: railedIds.map((site) => ({ site, joint: 'mortise-tenon', tenonLength: 0.5 })) };
+
+    // applyJoints ends in migrateDocument, whose load repair (repairLinks) already unlinks
+    // parts it cut differently, so runJoinery needs no call of its own; these pin that.
+    it('two linked legs joinery cuts on different faces come out unlinked', async () => {
+      const out = await run(client(railed), linked(['Leg A', 'Leg B']));
+      if ('noSites' in out) throw new Error('expected sites');
+      const legs = out.result.doc.boards.filter((b) => b.name.startsWith('Leg'));
+      expect(legs.length).toBe(2);
+      for (const l of legs) expect('link' in l).toBe(false);
+    });
+
+    it('a linked pair joinery does not cut keeps its link', async () => {
+      const d = linked(['Spare', 'Spare 2']);
+      const out = await run(client(railed), d);
+      if ('noSites' in out) throw new Error('expected sites');
+      const kept = out.result.doc.boards.filter((b) => b.link === 'L').map((b) => b.name);
+      expect(kept.sort()).toEqual(['Spare', 'Spare 2']);
+    });
   });
 });
