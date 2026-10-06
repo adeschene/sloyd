@@ -493,9 +493,9 @@ describe('schema 4 — cuts', () => {
     expect(doc.boards[0].cuts).toEqual([]);
   });
 
-  // The chain is the point: a v1 file must walk 1 -> 2 -> ... -> 8,
+  // The chain is the point: a v1 file must walk 1 -> 2 -> ... -> 9,
   // folding 270 to 90 BEFORE it gains a posture, and gaining cuts before guides.
-  it('walks a v1 file all the way to 8', () => {
+  it('walks a v1 file all the way to 9', () => {
     const doc = migrateDocument({
       version: 1,
       name: 'Ancient',
@@ -647,7 +647,7 @@ describe('schema v5 — stock.kerf', () => {
     expect(() => migrateDocument({ version: 10, name: 'X', boards: [] })).toThrow(DocumentError);
   });
 
-  it('walks a v1 file all the way to v8', () => {
+  it('walks a v1 file all the way to v9', () => {
     const doc = migrateDocument({
       version: 1,
       name: 'Ancient',
@@ -741,7 +741,7 @@ describe('guides — schema v6', () => {
   });
 
   // A v1 file must still walk the whole chain, gaining guides on the way.
-  it('a v1 file walks 1 -> 8', () => {
+  it('a v1 file walks 1 -> 9', () => {
     const doc = migrateDocument({
       version: 1,
       name: 'Ancient',
@@ -909,7 +909,7 @@ describe('stopped cuts (v7)', () => {
   const loaded = (cut: Record<string, unknown>, version = 7) =>
     migrateDocument(rawDoc(cut, version)).boards[0].cuts;
 
-  it('is version 8', () => {
+  it('is version 9', () => {
     expect(CURRENT_VERSION).toBe(9);
   });
 

@@ -1,6 +1,6 @@
 import { createBoard } from './document';
 import type { Board } from './document';
-import { LINK_FIELDS, SHARED_KEYS, dissolveSingletons, linkPlan, repairLinks, sameShared, sharedOf, withoutLink } from './links';
+import { LINK_FIELDS, SHARED_KEYS, dissolveSingletons, linkPlan, repairLinks, sameShared, sharedOf, sharedPatch, withoutLink } from './links';
 
 const leg = (over: Partial<Board> = {}): Board =>
   ({ ...createBoard({ name: 'Leg', length: 28, width: 1.75, thickness: 1.75, posture: 'upright' }), ...over });
@@ -24,6 +24,22 @@ describe('sameShared', () => {
     expect(sameShared(a, { ...a, cuts: [] })).toBe(false);
     expect(sameShared(a, { ...a, cuts: [{ ...cut, id: 'c2' }] })).toBe(false);
     expect(sameShared(a, { ...a, cuts: [{ ...cut, stopMax: 3 }] })).toBe(false);
+  });
+});
+
+describe('sharedPatch', () => {
+  it('drops own keys, passes shared ones, and copies cuts so no Cut object is shared', () => {
+    const cuts = [cut];
+    const out = sharedPatch({
+      id: 'x', name: 'N', position: [1, 2, 3], rotation: 90, link: 'L',
+      length: 30, material: 'walnut', cuts,
+    });
+    expect(Object.keys(out).sort()).toEqual(['cuts', 'length', 'material']);
+    expect(out.length).toBe(30);
+    expect(out.material).toBe('walnut');
+    expect(out.cuts).toEqual(cuts);
+    expect(out.cuts).not.toBe(cuts);
+    expect(out.cuts![0]).not.toBe(cuts[0]);
   });
 });
 

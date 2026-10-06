@@ -19,6 +19,15 @@ export type SharedField = {
 export const SHARED_KEYS = (Object.keys(LINK_FIELDS) as (keyof typeof LINK_FIELDS)[])
   .filter((k): k is SharedField => LINK_FIELDS[k] === 'shared');
 
+/**
+ * `sameShared` compares every shared field except `cuts` with `!==`, which is
+ * only right for primitives. This fails tsc if a non-cuts shared field is ever
+ * not a string or number (invariant 40's argument, one table over): such a
+ * field needs its own comparison in `sameShared` before it can be classified.
+ */
+const _sharedPrimitives: Board[Exclude<SharedField, 'cuts'>] extends string | number ? true : never = true;
+void _sharedPrimitives;
+
 /** A board's shared fields, cuts copied (same ids, new objects) so no two
  *  members ever hold one Cut object. */
 export function sharedOf(b: Board): Pick<Board, SharedField> {
@@ -33,6 +42,8 @@ export function sharedOf(b: Board): Pick<Board, SharedField> {
 export function sharedPatch(patch: Partial<Board>): Partial<Pick<Board, SharedField>> {
   const out: Partial<Pick<Board, SharedField>> = {};
   for (const k of SHARED_KEYS) if (patch[k] !== undefined) (out as Record<string, unknown>)[k] = patch[k];
+  // Copy cuts, as sharedOf does, so no two members ever hold one Cut object.
+  if (patch.cuts) out.cuts = patch.cuts.map((c) => ({ ...c }));
   return out;
 }
 
