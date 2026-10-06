@@ -6,7 +6,7 @@ import type { Named } from './names';
 import { boardsBounds } from './geometry';
 import { placeBoard, placeInstance } from './frames';
 import type { Container } from './tree';
-import { containerAt, definitionAt, instanceAt, joinPath, lastSegment, parentPath, partsBelow } from './tree';
+import { containerAt, definitionAt, instanceAt, itemPaths, joinPath, lastSegment, parentPath, partsBelow } from './tree';
 import { updateContainer } from './treeEdit';
 
 export type Rekey = (path: string) => string;
@@ -79,6 +79,30 @@ const rekeyer = (pairs: ReadonlyArray<readonly [string, string]>): Rekey => (p) 
 };
 
 /**
+ * Every occurrence path of `container` (components spec §4.2): the root has
+ * one, null; an assembly's container is its DEFINITION, so every instance path
+ * naming that definition, anywhere in the document, places it. A definition
+ * cannot contain itself, so no placement is a prefix of another.
+ */
+export function containerPlacements(doc: SloydDocument, container: string | null): Array<string | null> {
+  if (container === null) return [null];
+  const def = instanceAt(doc, container)?.definition;
+  if (def === undefined) return [container];
+  return [...itemPaths(doc)].filter((p) => instanceAt(doc, p)?.definition === def);
+}
+
+/**
+ * A re-key for an edit inside `container`, from pairs RELATIVE to it, applied
+ * under EVERY placement of the container: an edit inside a shared definition
+ * changes the paths under every copy, not only the one the user opened.
+ */
+const rekeyEverywhere = (
+  doc: SloydDocument, container: string | null,
+  rel: ReadonlyArray<readonly [string, string]>,
+): Rekey => rekeyer(containerPlacements(doc, container).flatMap((at) =>
+  rel.map(([from, to]) => [joinPath(at, from), joinPath(at, to)] as const)));
+
+/**
  * Group direct children of `container` into a new assembly (spec §4.1). The
  * new frame is the identity, so every stored value is untouched and nothing
  * moves, bit for bit. Null for nothing to group, or a path that is not a
@@ -102,7 +126,10 @@ export function groupItems(doc: SloydDocument, container: string | null, paths: 
   const withDef = { ...doc, definitions: [...doc.definitions, def] };
   const out = updateContainer(withDef, container, () => ({ boards: keptBoards, instances: [...keptInstances, inst] }));
   const path = joinPath(container, inst.id);
-  return { doc: out, path, rekey: rekeyer(paths.map((p) => [p, joinPath(path, lastSegment(p))] as const)) };
+  return {
+    doc: out, path,
+    rekey: rekeyEverywhere(doc, container, paths.map((p) => [lastSegment(p), joinPath(inst.id, lastSegment(p))] as const)),
+  };
 }
 
 /**
@@ -126,7 +153,7 @@ export function ungroupItem(doc: SloydDocument, path: string):
   const fresh = (id: string) => {
     const out = seen.has(id) ? nextId() : id;
     seen.add(out);
-    pairs.push([joinPath(path, id), joinPath(container, out)]);
+    pairs.push([joinPath(inst.id, id), out]);
     return out;
   };
   const shapes = shapeMap(doc);
@@ -152,7 +179,7 @@ export function ungroupItem(doc: SloydDocument, path: string):
     boards: [...k.boards, ...boards],
     instances: [...keptInstances, ...instances],
   })))));
-  return { doc: out, children: pairs.map(([, to]) => to), rekey: rekeyer(pairs) };
+  return { doc: out, children: pairs.map(([, to]) => joinPath(container, to)), rekey: rekeyEverywhere(doc, container, pairs) };
 }
 
 /**

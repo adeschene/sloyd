@@ -338,3 +338,87 @@ describe('links are shapes', () => {
     expect(s().doc.shapes).toHaveLength(1);
   });
 });
+
+describe('other copies after Delete, Group and Ungroup in a shared definition (components spec §4.2)', () => {
+  const part = (id: string, x: number) => ({ id, name: `Part ${id}`, length: 10, width: 4, thickness: 0.75,
+    position: [x, 0, 0] as [number, number, number], rotation: 0 as const, posture: 'flat' as const,
+    grain: 'length' as const, material: 'oak', cuts: [] });
+  const shared = (): SloydDocument => ({
+    ...createDocument(),
+    instances: [
+      { id: 'i1', name: 'Box', definition: 'd1', position: [0, 0, 0], rotation: 0 },
+      { id: 'i2', name: 'Box (1)', definition: 'd1', position: [50, 0, 20], rotation: 90 },
+    ],
+    definitions: [
+      { id: 'd1', boards: [part('b1', 0), part('b2', 12)], instances: [{ id: 'g', name: 'Inner', definition: 'dg', position: [0, 5, 0], rotation: 0 }] },
+      { id: 'dg', boards: [part('b3', 0)], instances: [] },
+    ],
+  });
+  const realPoint = (id: string) => snapPointsFor(worldParts(s().doc).find((b) => b.id === id)!)[0]!;
+  beforeEach(() => s().replaceDocument(shared()));
+
+  it('(a) Delete in one copy leaves no stale hidden id for the other copy; undo restores it', () => {
+    s().setHidden('i2/b2', true);
+    s().openAssembly('i1');
+    s().deleteBoards(['i1/b2']);
+    expect(s().hiddenIds).toEqual([]);
+    s().undo();
+    expect(s().hiddenIds).toEqual(['i2/b2']);
+  });
+
+  it('(b) Group in one copy keeps the other copy\'s part hidden under its new path; undo restores', () => {
+    s().setHidden('i2/b2', true);
+    s().openAssembly('i1');
+    s().selectItem('i1/b1', false);
+    s().selectItem('i1/b2', true);
+    s().groupSelected();
+    const g = s().selectedIds[0]!.split('/')[1]!;
+    expect(s().hiddenIds).toEqual([`i2/${g}/b2`]);
+    expect(worldParts(s().doc).some((b) => b.id === `i2/${g}/b2`)).toBe(true);
+    s().undo();
+    expect(s().hiddenIds).toEqual(['i2/b2']);
+  });
+
+  it('(c) Ungroup of a nested group in one copy keeps the other copy\'s hidden part hidden; undo restores', () => {
+    s().setHidden('i2/g/b3', true);
+    s().openAssembly('i1');
+    s().selectItem('i1/g', false);
+    s().ungroupSelected();
+    expect(s().hiddenIds).toEqual(['i2/b3']);
+    expect(worldParts(s().doc).some((b) => b.id === 'i2/b3')).toBe(true);
+    s().undo();
+    expect(s().hiddenIds).toEqual(['i2/g/b3']);
+  });
+
+  it('(c2) Ungroup drops a hidden id naming the other copy\'s ungrouped assembly; undo restores', () => {
+    s().setHidden('i2/g', true);
+    s().openAssembly('i1');
+    s().selectItem('i1/g', false);
+    s().ungroupSelected();
+    expect(s().hiddenIds).toEqual([]);
+    s().undo();
+    expect(s().hiddenIds).toEqual(['i2/g']);
+  });
+
+  it('(d) a tape anchor on the other copy survives a Group, re-keyed, at the same world point', () => {
+    const anchor = realPoint('i2/b2');
+    useStore.setState({ tapeAnchor: anchor });
+    s().openAssembly('i1');
+    s().selectItem('i1/b1', false);
+    s().selectItem('i1/b2', true);
+    s().groupSelected();
+    const g = s().selectedIds[0]!.split('/')[1]!;
+    expect(s().tapeAnchor?.owner.id).toBe(`i2/${g}/b2`);
+    expect(s().tapeAnchor?.at).toEqual(anchor.at);
+  });
+
+  it('(d2) a tape anchor on the other copy survives an Ungroup, re-keyed, at the same world point', () => {
+    const anchor = realPoint('i2/g/b3');
+    useStore.setState({ tapeAnchor: anchor });
+    s().openAssembly('i1');
+    s().selectItem('i1/g', false);
+    s().ungroupSelected();
+    expect(s().tapeAnchor?.owner.id).toBe('i2/b3');
+    expect(s().tapeAnchor?.at).toEqual(anchor.at);
+  });
+});

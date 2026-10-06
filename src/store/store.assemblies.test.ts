@@ -250,7 +250,8 @@ describe('Group and Ungroup (assemblies spec §4.1)', () => {
   it('Group moves nothing, selects the new assembly, and re-keys hidden ids and the tape', () => {
     const before = worldParts(s().doc);
     s().setHidden('i1/b1', true);
-    s().setTapeAnchor(point('i1/b2'));
+    // A REAL point: Group judges every held point after the re-key (components spec §4.2).
+    s().setTapeAnchor(heldOn('i1/b2'));
     s().selectAll();
     s().groupSelected();
     const [path] = s().selectedIds;

@@ -575,6 +575,19 @@ export const useStore = create<StoreState>((set, get) => {
     edit(fn, selection);
     const past = get().past;
     set({ past: [...past.slice(0, -1), { ...past[past.length - 1]!, hiddenIds: hiddenBefore }] });
+    // The re-key covers every placement of the edited container; anything it
+    // could not map (an ungrouped assembly's own path) names nothing now, and
+    // every held point is judged against the new document (components spec §4.2).
+    reconcileHidden();
+    judgeHeld();
+  };
+
+  /** Drop hidden ids naming no item of the current document. The entry an
+   *  edit pushed already recorded the set as it was (invariant 43). */
+  const reconcileHidden = () => {
+    const paths = itemPaths(get().doc);
+    const kept = get().hiddenIds.filter((id) => paths.has(id));
+    if (kept.length !== get().hiddenIds.length) set({ hiddenIds: kept });
   };
 
   /** The FIRST occurrence per storage target (components spec §4.1): two
@@ -1060,9 +1073,10 @@ export const useStore = create<StoreState>((set, get) => {
       // A deleted part in a shared definition vanishes from every copy; a missing
       // part offers no points, so judgeHeld drops what was held on the others.
       judgeHeld();
-      // The entry edit() pushed already recorded the set as it was.
-      const hiddenAfter = get().hiddenIds.filter((id) => !isCovered(id, doomed));
-      if (hiddenAfter.length !== get().hiddenIds.length) set({ hiddenIds: hiddenAfter });
+      // The entry edit() pushed already recorded the set as it was. Filtered
+      // against the NEW document, not only the doomed paths: a part deleted in
+      // a shared definition is gone from every copy (fu 213, components §4.2).
+      reconcileHidden();
     },
 
     duplicateBoard: (id) => get().duplicateBoards([id]),
