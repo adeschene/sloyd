@@ -4488,3 +4488,11 @@ reaches it.
   not change. A superset of "changed", and harmless: the test is point-precise, so an unchanged
   part keeps its points.
 - **Status:** record-only.
+
+**223. Joinery returns linked parts it cuts UNLINKED, even when their cuts are identical.**
+"Add joinery…" leaves any linked part it cuts unlinked in the joined project, because `pocketFor`
+mints a fresh cut id per board and `sameShared` compares ids. The user ruled this ACCEPTABLE FOR
+NOW (2026-10-06): the joined project is a new copy and the original keeps its links.
+- **Possible remedies, not chosen:** have joinery reuse one cut id across members whose cuts are
+  identical in shape, or offer a one-click re-link of parts that match.
+- **Status:** open, by decision.

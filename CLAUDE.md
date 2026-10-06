@@ -1850,7 +1850,7 @@ worked examples behind several of them are in `docs/history.md`.
       is `migrateDocument`**, so open, import, autosave-restore, `designToDocument` and
       joinery's output (`applyJoints` ends in `migrateDocument`) all pass it. Joinery cuts
       parts one at a time, so any linked part it cuts at all comes out unlinked in the new
-      project (`pocketFor` mints fresh cut ids per board, so even identical mortises differ by id); the original is untouched. Do not add a second call in `run.ts`.
+      project (`pocketFor` mints fresh cut ids per board, so even identical mortises differ by id); the original is untouched (open by decision, follow-up 223). Do not add a second call in `run.ts`.
     - **An unlinked part has NO `link` key**, never `link: undefined`: `withoutLink`
       destructures it away, and a copy of an unlinked part gains none. `validateBoard` keeps a
       non-blank string and drops anything else, never refusing the file.
@@ -1879,7 +1879,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is the authoritative list** — 1-222, consciously deferred rather
+**`docs/follow-ups.md` is the authoritative list** — 1-223, consciously deferred rather
 than missed, each written up in place with its closure where it has one. Read the entries
 for the area you are about to touch before starting; several are "correct but untested",
 which is exactly what a refactor breaks silently.
