@@ -247,3 +247,80 @@ describe('moving and copying assemblies (assemblies spec §4.2)', () => {
     expect(s().selectedIds).toEqual([kids[2]]);
   });
 });
+
+describe('Group and Ungroup (assemblies spec §4.1)', () => {
+  it('Group moves nothing, selects the new assembly, and re-keys hidden ids and the tape', () => {
+    const before = worldParts(s().doc);
+    s().setHidden('i1/b1', true);
+    s().setTapeAnchor(point('i1/b2'));
+    s().selectAll();
+    s().groupSelected();
+    const [path] = s().selectedIds;
+    expect(childrenOf(s().doc, null)).toEqual([path]);
+    const after = new Map(worldParts(s().doc).map((b) => [b.id, b]));
+    for (const b of before) expect({ ...after.get(`${path}/${b.id}`)!, id: '' }).toEqual({ ...b, id: '' });
+    expect(s().hiddenIds).toEqual([`${path}/i1/b1`]);
+    expect(s().tapeAnchor?.owner.id).toBe(`${path}/i1/b2`);
+  });
+
+  it('one undo entry, and undo restores the parts', () => {
+    s().selectAll();
+    const past = s().past.length;
+    s().groupSelected();
+    expect(s().past.length).toBe(past + 1);
+    s().undo();
+    expect(childrenOf(s().doc, null)).toEqual(['r1', 'i1']);
+  });
+
+  it('undo of a Group restores the old hidden ids', () => {
+    s().setHidden('i1/b1', true);
+    s().selectAll();
+    s().groupSelected();
+    s().undo();
+    expect(s().hiddenIds).toEqual(['i1/b1']);
+  });
+
+  it('Ungroup selects the children and re-keys hidden ids', () => {
+    s().setHidden('i1/b2', true);
+    s().selectBoard('i1');
+    s().ungroupSelected();
+    expect(s().doc.instances.map((i) => i.id)).toEqual(['i2']);
+    expect(s().selectedIds).toEqual(['b1', 'i2']);
+    expect(s().hiddenIds).toEqual(['b2']);
+  });
+
+  it('undo of an Ungroup restores the old hidden ids', () => {
+    s().setHidden('i1/b2', true);
+    s().selectBoard('i1');
+    s().ungroupSelected();
+    s().undo();
+    expect(s().hiddenIds).toEqual(['i1/b2']);
+  });
+
+  it('Group inside an open assembly groups at that level', () => {
+    s().openAssembly('i1');
+    s().selectItem('i1/b1', false);
+    s().groupSelected();
+    expect(s().selectedIds[0]!.startsWith('i1/')).toBe(true);
+  });
+});
+
+describe('Turn and Rename an assembly', () => {
+  it('turnAssembly drops a tape anchor under the assembly', () => {
+    s().setTapeAnchor(heldOn('i1/b2'));
+    s().turnAssembly('i1', 180);
+    expect(instanceAt(s().doc, 'i1')!.rotation).toBe(180);
+    expect(s().tapeAnchor).toBeNull();
+  });
+  it('turnAssembly keeps a tape anchor elsewhere', () => {
+    s().setTapeAnchor(heldOn('r1'));
+    s().turnAssembly('i1', 180);
+    expect(s().tapeAnchor?.owner.id).toBe('r1');
+  });
+  it('renameItem dedupes across parts and assemblies of one level', () => {
+    expect(s().renameItem('i1', 'Top')).toBe('Top (1)');
+    expect(instanceAt(s().doc, 'i1')!.name).toBe('Top (1)');
+    expect(s().renameItem('i1/b1', 'Front')).toBe('Front (1)');
+    expect(s().renameItem('i1/b1', 'Front (1)')).toBe('Front (1)');
+  });
+});

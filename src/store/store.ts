@@ -4,9 +4,9 @@ import {
   dissolveSingletons, linkPlan, sharedOf, sharedPatch, withoutLink,
   childrenOf, instanceAt, isCovered, itemPaths, parentPath, worldParts, mapWorld,
   translateItems, insertItems, removeItems, copyInstanceTree, siblingsOf, containerAt, containerTurn, partAt, joinPath,
-  rotateVec, inverseTurn,
+  rotateVec, inverseTurn, groupItems, ungroupItem, turnInstance as turnInstanceOp, updateContainer, lastSegment,
 } from '../document/document';
-import type { Board, BoardSnapPoint, Cut, Definition, Instance, Named, SloydDocument, SnapPoint, TapeAxis } from '../document/document';
+import type { Board, BoardSnapPoint, Cut, Definition, Instance, Named, Rekey, Rotation, SloydDocument, SnapPoint, TapeAxis } from '../document/document';
 import { SNAP_INCHES } from '../document/geometry';
 import { MAX_ROW } from '../document/row';
 import { clickTarget } from './assemblyPick';
@@ -285,6 +285,14 @@ interface StoreState {
   selectItem: (path: string, toggle: boolean) => void;
   clickPart: (occ: string, toggle: boolean) => void;
   openPart: (occ: string) => void;
+  /** Group the selection into a new assembly at the open level (spec §4.1). One undo entry. */
+  groupSelected: () => void;
+  /** Move each selected assembly's children up a level (spec §4.1). One undo entry. */
+  ungroupSelected: () => void;
+  /** Turn an assembly about its box centre (spec §4.2). */
+  turnAssembly: (path: string, rotation: Rotation) => void;
+  /** Rename a part or an assembly, unique among its siblings; returns the stored name. */
+  renameItem: (path: string, typed: string) => string;
   setDocumentName: (name: string) => void;
   replaceDocument: (doc: SloydDocument) => void;
   undo: () => void;
@@ -535,6 +543,32 @@ export const useStore = create<StoreState>((set, get) => {
    * the Cuts panel — so the overwhelmingly common case (nothing held at all)
    * must return before any of that runs, exactly as dropGrabIfGone did.
    */
+  /**
+   * Group and Ungroup change ids but move nothing, so the hidden set and the
+   * tape's held points are RE-KEYED, never dropped (assemblies spec §5.4,
+   * invariant 43's argument). `grabbed` is not re-keyed: the selection changes,
+   * and selectionPatch drops it by the retargeting rule.
+   */
+  const rekeyHeld = (rekey: Rekey) => {
+    const { hiddenIds, tapeAnchor, tapeHover } = get();
+    const move = (p: SnapPoint | null) =>
+      p && p.owner.type === 'board' ? { ...p, owner: { ...p.owner, id: rekey(p.owner.id) } } : p;
+    set({ hiddenIds: hiddenIds.map(rekey), tapeAnchor: move(tapeAnchor), tapeHover: move(tapeHover) });
+  };
+
+  /** Run `edit` after a re-key, but leave the PRE-re-key hidden ids in the undo entry. */
+  const editRekeyed = (
+    rekey: Rekey,
+    fn: (doc: SloydDocument) => SloydDocument,
+    selection: (doc: SloydDocument) => string[],
+  ) => {
+    const hiddenBefore = get().hiddenIds;
+    rekeyHeld(rekey);
+    edit(fn, selection);
+    const past = get().past;
+    set({ past: [...past.slice(0, -1), { ...past[past.length - 1]!, hiddenIds: hiddenBefore }] });
+  };
+
   const dropHeldIfGone = (boardId: string) => {
     // `type === 'board'` is redundant for `grabbed` (its type says so) and
     // load-bearing for `tapeAnchor` (its type does not) — design §3.0 showing
@@ -1091,6 +1125,53 @@ export const useStore = create<StoreState>((set, get) => {
 
     // Visible parts only: selectionPatch drops hidden ids.
     selectAll: () => set(selectionPatch(childrenOf(get().doc, get().openPath))),
+
+    groupSelected: () => {
+      const { doc, selectedIds, openPath } = get();
+      const r = groupItems(doc, openPath, selectedIds);
+      if (!r) return;
+      editRekeyed(r.rekey, () => r.doc, () => [r.path]);
+    },
+
+    ungroupSelected: () => {
+      let doc = get().doc;
+      const children: string[] = [];
+      const rekeys: Rekey[] = [];
+      for (const id of get().selectedIds) {
+        const r = ungroupItem(doc, id);
+        if (!r) continue;
+        doc = r.doc;
+        children.push(...r.children);
+        rekeys.push(r.rekey);
+      }
+      if (rekeys.length === 0) return;
+      editRekeyed((p) => rekeys.reduce((q, f) => f(q), p), () => doc, () => children);
+    },
+
+    turnAssembly: (path, rotation) => {
+      const inst = instanceAt(get().doc, path);
+      if (!inst || inst.rotation === rotation) return;
+      edit((doc) => turnInstanceOp(doc, path, rotation));
+      const under = new Set([path]);
+      for (const b of worldParts(get().doc)) if (isCovered(b.id, under)) dropHeldIfGone(b.id);
+    },
+
+    renameItem: (path, typed) => {
+      const doc = get().doc;
+      const name = uniqueName(typed, siblingsOf(doc, parentPath(path)), lastSegment(path));
+      const inst = instanceAt(doc, path);
+      if (inst) {
+        if (name !== inst.name) {
+          edit((d) => updateContainer(d, parentPath(path), (c) => ({
+            ...c, instances: c.instances.map((i) => (i.id === inst.id ? { ...i, name } : i)),
+          })));
+        }
+        return name;
+      }
+      const part = partAt(doc, path);
+      if (part && name !== part.name) get().updateBoards([path], { name });
+      return name;
+    },
 
     openAssembly: (path) => {
       if (!instanceAt(get().doc, path)) return;
