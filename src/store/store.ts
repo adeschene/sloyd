@@ -330,11 +330,11 @@ interface StoreState {
   updateCut: (boardId: string, cutId: string, patch: Partial<Cut>) => void;
   removeCut: (boardId: string, cutId: string) => void;
 
-  /** Link the named parts (linking spec §3.1): the first wins, each named part's whole link joins; one undo entry. */
+  /** Link the named parts (linking spec §3.1): the first wins, each named part's whole link joins; every member then names ONE shape (components spec §3.2). One undo entry. */
   linkBoards: (ids: string[]) => void;
-  /** Clear the named parts' links, keeping their values; a link left with one member dissolves (§3.3). */
+  /** Make the named shaped parts plain again, keeping their values and cut ids; a shape left with one user dissolves (components spec §3.2). */
   unlinkBoards: (ids: string[]) => void;
-  /** Select every visible member of the part's link; a no-op for an unlinked part. */
+  /** Select every visible user of the part's shape (its link); a no-op for an unlinked part. */
   selectLinked: (id: string) => void;
 
   addGuide: (at: [number, number, number]) => void;
@@ -1022,8 +1022,8 @@ export const useStore = create<StoreState>((set, get) => {
       // through untouched — heldOnBoard requires `owner.type === 'board'` —
       // which is the same behaviour the deleted clause had. `grabbed` was
       // already nulled above if it named this board, so reaching it here is a
-      // no-op rather than a second opinion. Mates too: a propagated Length
-      // moves their points exactly as it moves the targets'.
+      // no-op rather than a second opinion. Every held point is judged: a
+      // shape's Length moves every user's points, not only the targets'.
       judgeHeld();
     },
 
