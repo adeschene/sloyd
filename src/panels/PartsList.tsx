@@ -57,10 +57,17 @@ export function PartsList() {
           const hiddenSelf = hiddenIds.includes(r.path);
           const hiddenRow = isCovered(r.path, hiddenSet);
           const isCollapsed = collapsed.has(r.path);
+          // The eye is dead where a toggle could not show: under a hidden
+          // ANCESTOR (the ancestor's eye decides), and on the open assembly and
+          // its ancestors (the open level is never hidden).
+          const ancestor = parentPath(r.path);
+          const eyeDisabled = (ancestor !== null && isCovered(ancestor, hiddenSet))
+            || (openPath !== null && isCovered(openPath, new Set([r.path])));
           return (
             <li key={r.path} className={hiddenRow ? 'part-row hidden' : 'part-row'} style={{ paddingLeft: `${r.depth * 14}px` }}>
               <button
                 className="part-eye"
+                disabled={eyeDisabled}
                 aria-label={`${hiddenSelf ? 'Show' : 'Hide'} ${r.name}`}
                 onClick={() => setHidden(r.path, !hiddenSelf)}
               >

@@ -1256,4 +1256,22 @@ describe('Properties assemblies', () => {
     await userEvent.type(field, 'Front{Enter}');
     expect(partAt(useStore.getState().doc, 'i1/b1')!.name).toBe('Front (1)');
   });
+
+  it('Select linked shows only when another member sits at the open level', async () => {
+    useStore.getState().replaceDocument(assemblyDoc());
+    act(() => { useStore.getState().linkBoards(['r1', 'i1/b1']); useStore.getState().selectBoard('r1'); });
+    const { unmount } = render(<Properties />);
+    expect(screen.getByText(/Linked with 1 other part/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Select linked' })).toBeNull();
+    unmount();
+    act(() => {
+      useStore.getState().replaceDocument(assemblyDoc());
+      useStore.getState().linkBoards(['i1/b1', 'i1/b2']);
+      useStore.getState().openAssembly('i1');
+      useStore.getState().selectItem('i1/b1', false);
+    });
+    render(<Properties />);
+    await userEvent.click(screen.getByRole('button', { name: 'Select linked' }));
+    expect(useStore.getState().selectedIds).toEqual(['i1/b1', 'i1/b2']);
+  });
 });

@@ -121,4 +121,22 @@ describe('PartsList tree', () => {
     expect(useStore.getState().openPath).toBe('i1/i2');
     expect(useStore.getState().selectedIds).toEqual(['i1/i2/b3']);
   });
+
+  it('the eye is disabled under a hidden ancestor, not on the hidden ancestor itself', () => {
+    useStore.getState().replaceDocument(assemblyDoc());
+    act(() => useStore.getState().setHidden('i1', true));
+    render(<PartsList />);
+    expect(screen.getByRole('button', { name: 'Hide Side' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Show Drawer' })).toBeEnabled();
+  });
+
+  it('the eye is disabled on the open assembly and its ancestors, not on its children', () => {
+    useStore.getState().replaceDocument(assemblyDoc());
+    act(() => { useStore.getState().openAssembly('i1/i2'); });
+    render(<PartsList />);
+    expect(screen.getByRole('button', { name: 'Hide Drawer' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Hide Peg' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Hide Pin' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Hide Top' })).toBeEnabled();
+  });
 });

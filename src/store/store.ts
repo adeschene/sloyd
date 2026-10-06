@@ -352,7 +352,8 @@ export const useStore = create<StoreState>((set, get) => {
    * It does NOT touch `tapeAnchor` or `tapeHover`, and that is a PROHIBITION
    * (see edit()'s comment): the tape has no selected-board restriction.
    *
-   * It also drops hidden ids: a hidden part is never selected. `hidden` is
+   * It also keeps only direct children of the open assembly (`open`, default the
+   * store's `openPath`) and drops hidden ids: a hidden part is never selected. `hidden` is
    * passed explicitly only by callers about to write a NEW hidden set in the
    * same `set()`; otherwise the current set is read.
    */
@@ -901,7 +902,7 @@ export const useStore = create<StoreState>((set, get) => {
       // Into the open assembly when one is open, else the root (assemblies spec §3).
       const open = get().openPath;
       const c = containerAt(get().doc, open) ?? get().doc;
-      // Root-only on purpose: the template falls back to the root's last board when the open assembly has none.
+      // The template is the open level's last part, falling back to the root's last board when the open assembly has none.
       const last = c.boards[c.boards.length - 1] ?? get().doc.boards[get().doc.boards.length - 1];
       const fresh = createBoard(
         last
@@ -1023,7 +1024,8 @@ export const useStore = create<StoreState>((set, get) => {
 
     duplicateBoards: (ids) => {
       // Walk the ids in the order given — the selection's insertion order —
-      // so the copies, and the new selection, come out in that order too.
+      // so the copies come out in that order within each kind: parts first, then
+      // assemblies (the new selection lists the new parts, then the new assemblies).
       // Ids are item paths; every copy lands in its source's container, and
       // an assembly copies with its own definitions (assemblies spec §4.2).
       const doc = get().doc;
@@ -1126,7 +1128,7 @@ export const useStore = create<StoreState>((set, get) => {
       set(selectionPatch(ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
     },
 
-    // Visible parts only: selectionPatch drops hidden ids.
+    // The open level's visible items: selectionPatch drops hidden ids and anything off that level.
     selectAll: () => set(selectionPatch(childrenOf(get().doc, get().openPath))),
 
     groupSelected: () => {
@@ -1139,16 +1141,19 @@ export const useStore = create<StoreState>((set, get) => {
     ungroupSelected: () => {
       let doc = get().doc;
       const children: string[] = [];
+      const kept: string[] = [];
       const rekeys: Rekey[] = [];
       for (const id of get().selectedIds) {
         const r = ungroupItem(doc, id);
-        if (!r) continue;
+        // A selected plain part stays selected where it was; the ungrouped
+        // children follow it.
+        if (!r) { kept.push(id); continue; }
         doc = r.doc;
         children.push(...r.children);
         rekeys.push(r.rekey);
       }
       if (rekeys.length === 0) return;
-      editRekeyed((p) => rekeys.reduce((q, f) => f(q), p), () => doc, () => children);
+      editRekeyed((p) => rekeys.reduce((q, f) => f(q), p), () => doc, () => [...kept, ...children]);
     },
 
     turnAssembly: (path, rotation) => {
@@ -1218,7 +1223,8 @@ export const useStore = create<StoreState>((set, get) => {
       applyHidden([...hiddenIds, ...selectedIds]);
     },
 
-    // With nothing selected this would hide every part, so it does nothing.
+    // Hides every item at the open level that is not selected. With nothing
+    // selected this would hide them all, so it does nothing.
     hideUnselected: () => {
       const { hiddenIds, selectedIds, doc } = get();
       if (selectedIds.length === 0) return;

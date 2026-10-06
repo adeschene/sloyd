@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store/store';
-import { MATERIALS, isSheetGood, boardSolids, cutShape, storedAsShape, cutRemovesNothing, findTenons, positionAxisOf, linkPlan, worldParts, instanceAt } from '../document/document';
+import { MATERIALS, isSheetGood, boardSolids, cutShape, storedAsShape, cutRemovesNothing, findTenons, positionAxisOf, linkPlan, worldParts, instanceAt, parentPath } from '../document/document';
 import { DimensionField } from './DimensionField';
 import { NameField } from './NameField';
 import { CopyInRow } from './CopyInRow';
@@ -421,6 +421,13 @@ export function Properties() {
     const sel = s.selectedIds.length === 1 ? worldParts(s.doc).find((b) => b.id === s.selectedIds[0]) : undefined;
     return sel?.link ? worldParts(s.doc).filter((b) => b.link === sel.link).length - 1 : 0;
   });
+  // Whether any OTHER member of this part's link is a direct child of the open
+  // level: Select linked can only select those (selectionPatch), so the button is
+  // shown only then. A boolean, so it re-renders only when it flips (inv 43).
+  const linkedHere = useStore((s) => {
+    const sel = s.selectedIds.length === 1 ? worldParts(s.doc).find((b) => b.id === s.selectedIds[0]) : undefined;
+    return !!sel?.link && worldParts(s.doc).some((b) => b.link === sel.link && b.id !== sel.id && parentPath(b.id) === s.openPath);
+  });
   const lengthRef = useRef<HTMLInputElement>(null);
 
   // This component remounts (`key={board.id}` below) on every selection
@@ -448,13 +455,10 @@ export function Properties() {
   };
 
   /**
-   * Store a renamed board, deduplicated against its siblings, and report the
-   * name that was actually stored so the field can show it.
-   *
-   * The equality check is not an optimization: without it, a rename that
-   * dedups straight back onto the current name (typing "Leg" on the board
-   * already called "Leg (1)") would push an undo entry that changes nothing.
-   * Read the boards imperatively so the check sees the live document.
+   * Store a renamed part and report the name that was actually stored, so the
+   * field can show it. `renameItem` is the one home of the rule: it dedupes
+   * among the part's siblings and writes nothing (no undo entry) when the
+   * deduplicated name is the current one.
    */
   const commitName = (typed: string) => useStore.getState().renameItem(board.id, typed);
 
@@ -465,7 +469,7 @@ export function Properties() {
         <div className="link-block">
           <p>Linked with {linkedCount} other {linkedCount === 1 ? 'part' : 'parts'}: edits to size, material, grain, posture or cuts change all {linkedCount + 1}.</p>
           <div className="row">
-            <button onClick={() => selectLinked(board.id)}>Select linked</button>
+            {linkedHere && <button onClick={() => selectLinked(board.id)}>Select linked</button>}
             <button onClick={() => unlinkBoards([board.id])}>Unlink</button>
           </div>
         </div>

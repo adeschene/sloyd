@@ -347,4 +347,32 @@ describe('renameItem and gestures', () => {
     expect([s().doc, s().hiddenIds, s().past.length]).toEqual([doc, hiddenIds, past]);
     s().endGesture();
   });
+
+  it('Ungroup keeps a selected plain part selected, children after it', () => {
+    s().selectAll();
+    expect(s().selectedIds).toEqual(['r1', 'i1']);
+    s().ungroupSelected();
+    expect(s().selectedIds).toEqual(['r1', 'b1', 'b2', 'i2']);
+  });
+
+  it('a snap move cannot land on a part of the assembly being moved', () => {
+    s().selectBoard('i1');
+    const w = worldParts(s().doc).find((b) => b.id === 'i1/b1')!;
+    s().setTool('move');
+    s().grabSnapPoint(point('i1/b1', [w.position[0], w.position[1], w.position[2]]));
+    const doc = s().doc;
+    s().commitSnapMove({ at: [w.position[0] + 0.3, w.position[1], w.position[2]], kind: 'corner', owner: { type: 'board', id: 'i1/b2' } } as never);
+    expect(instanceAt(s().doc, 'i1')!.position).toEqual(instanceAt(doc, 'i1')!.position);
+  });
+
+  it('a cut action reaches a linked mate in another container', () => {
+    s().linkBoards(['r1', 'i1/b2']);
+    s().addCut('r1');
+    const id = s().doc.boards[0]!.cuts[0]!.id;
+    expect(partAt(s().doc, 'i1/b2')!.cuts.map((c) => c.id)).toEqual([id]);
+    s().updateCut('r1', id, { depth: 0.1 });
+    expect(partAt(s().doc, 'i1/b2')!.cuts[0]!.depth).toBe(0.1);
+    s().removeCut('r1', id);
+    expect(partAt(s().doc, 'i1/b2')!.cuts).toEqual([]);
+  });
 });

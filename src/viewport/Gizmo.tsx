@@ -385,7 +385,7 @@ export function Gizmo() {
       });
       return;
     }
-    // Two or more: hand the store the group's wanted min corner, UNROUNDED.
+    // Two or more parts, or any assembly: hand the store the group's wanted min corner, UNROUNDED.
     // moveGroupTo rounds it once and moves every part by one delta, so the
     // layout survives exactly even for an off-grid part (invariant 25).
     moveGroupTo(selectedIds, [

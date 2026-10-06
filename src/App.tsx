@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Viewport } from './viewport/Viewport';
 import { Toolbar } from './panels/Toolbar';
 import { PartsList } from './panels/PartsList';
@@ -19,7 +19,7 @@ import { AnthropicClient, checkAnthropicKey } from './llm/anthropic';
 import type { LlmSettings } from './storage/types';
 import type { DuplicateFailure } from './panels/ProjectMenu';
 import { canBeginLength } from './units/length';
-import { tapeAxisFromKey, createDocument, DocumentError } from './document/document';
+import { tapeAxisFromKey, createDocument, DocumentError, flatDocument } from './document/document';
 import type { SloydDocument } from './document/document';
 import { storage } from './storage/browser';
 import { useStore } from './store/store';
@@ -67,6 +67,13 @@ export default function App() {
   // `m`, Backspace or Ctrl+Z pressed there would arm Move, delete the
   // selected board, or undo, behind the dialog.
   const [dialog, setDialog] = useState<'generate' | 'settings' | 'joinery' | null>(null);
+  // Joinery reads the FLAT design (assemblies spec §10): the tree document's own
+  // `boards` hold only the root parts, so a grouped design would show no sites.
+  const joinerySites = useMemo(() => {
+    if (dialog !== 'joinery') return [];
+    const flat = flatDocument(doc);
+    return findSites(flat).map((s) => siteLabel(s, flat));
+  }, [dialog, doc]);
   // THE ONE FLAG every "something covers the app" consumer reads — the inert
   // shell, the keydown effect, `shortcutsSuspended`, the focus restore. One
   // derived value rather than `cutListOpen || dialog !== null` spelled out at
@@ -949,7 +956,7 @@ export default function App() {
           hasKey={llmSettings !== null}
           libraryAvailable={libraryAvailable}
           projectName={doc.name}
-          sites={findSites(doc).map((s) => siteLabel(s, doc))}
+          sites={joinerySites}
           model={llmSettings?.model ?? null}
           estimateUsd={llmSettings ? joineryEstimateUsd(new AnthropicClient(llmSettings.apiKey, llmSettings.model), doc) : null}
           run={joinery.run}
