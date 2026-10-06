@@ -72,6 +72,13 @@ export type { BoardSnapPoint, SnapKind, SnapOwner, SnapPoint, TapeAxis } from '.
  * bump's argument is SILENT DATA LOSS on round-trip: a v8 build drops every
  * `link` on open and autosaves, and the links are gone with nothing saying so.
  * `repairLinks` runs after validation on every load.
+ *
+ * v10 added assemblies: `instances` and `definitions` (assemblies spec §2.5).
+ * Document-level: both default to `[]`, so no file needs upgrading. The bump's
+ * argument is SILENT DATA LOSS on round-trip, stronger than v9's: a v9 build
+ * drops both fields, so every part inside an assembly vanishes, and it
+ * autosaves. `repairTree` and `repairLinksTree` run after validation on every
+ * load (invariant 46).
  */
 export const CURRENT_VERSION = 10;
 

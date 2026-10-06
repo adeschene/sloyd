@@ -284,6 +284,97 @@ and 79.
 
 ## What each round did
 
+**What the assemblies round did (2026-10-06)**: parts grouped into assemblies, which can be nested,
+duplicated, moved, turned, opened and edited in place, with a spec and plan
+(`docs/superpowers/specs/2026-10-06-sloyd-assemblies-design.md`). **Schema 10.** It is round 1 of
+two in the user's order: assemblies first, so Duplicate makes an independent copy; components, with
+shared definitions, second. Its live check passed on the dev server with the user watching
+(`docs/browser-verification-assemblies.md`). Merged locally; **not deployed** (deploying is the
+user's separate decision). Rolling back past it strands v10 documents; export first.
+
+- **Why it exists.** The user found linking (v9) too narrow. A drawer's five parts could not be
+  duplicated or moved as one. They asked for SketchUp's component system, researched first.
+- **The user's rulings.**
+  - **Model A:** a real definition/instance tree, rather than group tags on flat parts.
+  - **Two rounds**, assemblies first.
+  - **SketchUp's click model:** a click selects the outermost assembly, a double-click opens it,
+    Escape closes it.
+  - **Names unique per level.**
+- **Shape.**
+  - `SloydDocument` gained `instances` (the root's) and `definitions`. A `Definition` is
+    `{ id, boards, instances }`. An `Instance` is `{ id, name, definition, position, rotation }`;
+    `position` is its frame's ORIGIN, not a min corner.
+  - Occurrence ids are paths (`i1/i2/b3`), and root parts keep plain ids.
+  - `frames.ts` holds the one composition step: `placeBoard` and `placeInstance`, with `rotateVec`
+    and `cornerShift`.
+  - `tree.ts` holds `worldParts`, the one walk to placed parts, cached per document object, plus
+    the path helpers, `isCovered`, `flatDocument` (path names for the cut list and joinery) and
+    `treeRows`.
+  - `treeEdit.ts` writes edits back: `applyWorldEdits`, `mapWorld`, `translateItems`,
+    `writeBackFlat`.
+  - `treeOps.ts` holds the structural operations: group, ungroup, copy, remove, turn and prune.
+  - `treeRepair.ts` holds the load repair.
+  - The store gained `openPath`, plus `openAssembly` / `closeAssembly`, `selectItem` /
+    `clickPart` / `openPart`, `groupSelected` / `ungroupSelected` (Ctrl/Cmd+G, Ctrl/Cmd+Shift+G),
+    `turnAssembly` and `renameItem`.
+  - The viewport fades what is outside the open assembly and keeps it clickable, and a
+    double-click opens an assembly.
+  - The parts list became a tree, and Properties gained an assembly panel.
+  - Invariant 46 is new; invariants 8 and 33 were restated per level.
+- **Schema.** v9→v10 is document-level: absent `instances` and `definitions` default to `[]`. The
+  bump's argument is silent data loss, stronger than v9's: a v9 build drops both, so every part
+  inside an assembly vanishes and is autosaved away.
+- **Plan-time amendments** (spec §10):
+  - `worldParts` keeps each part's own name;
+  - Ungroup is exact for direct child parts only;
+  - `position` is compared element by element;
+  - every move is a world delta rotated into the container's frame;
+  - joinery maps parts back by index and throws on a count mismatch.
+- **Execution rulings** (the ledger's, each with its cost if wrong):
+  - **Joinery keeps world geometry; Properties keeps the stored local position.**
+    `applyWorldEdits` gained `keepWorld`, and only `writeBackFlat` passes it. Cost: two
+    write-back rules side by side, so a future caller must pick the right one.
+  - **A malformed board inside a definition refuses the file**, as at the root, rather than
+    dropping the assembly. Cost: a hand-edited file with one bad nested board will not open.
+  - **Group and Ungroup are refused while `gesturing`** (invariant 43's argument). Cost: Ctrl+G
+    mid-drag does nothing.
+  - **Select linked selects the members at the open level**, and is shown only when another
+    member is there. Cost: linked parts in different drawers cannot be selected together until
+    round 2.
+  - **The eye is disabled** under a hidden ancestor, and on the open assembly and its ancestors.
+    Cost: one more click to reveal.
+  - **Ungroup keeps selected plain parts selected.** Cost: none.
+  - **The empty-assembly and ` › `-in-a-name gaps ship as follow-ups 226 and 227.** Cost: a
+    lingering row; a rare rename.
+  - **The plan's `turnInstance` test was wrong** (it compared min/max corners, which swap
+    diagonals under a turn). The implementer's all-8-corners version stands.
+  - **`lower()`'s duplicate early return was deleted**, and the `moved` guard is pinned by an
+    identity assertion.
+- **What the reviews caught.**
+  - **Task 11, critical.** Joinery inside an assembly turned 90° or 180° wrote a lengthened rail
+    back keeping its LOCAL position, so the growth went to the wrong side and pulled the tenons
+    out of their mortises. The tests used identity frames only. Fixed with `keepWorld`, and now
+    tested at all four turns.
+  - **Task 10.** The hidden-ids patch on the past entry could overwrite a gesture's lazy
+    snapshot. Fixed by refusing Group and Ungroup while `gesturing`.
+  - **Final review, critical.** `App.tsx` computed the joinery dialog's sites on the TREE
+    document, so a grouped design showed none. No task touched that file, so no per-task review
+    could see it. It is now computed on `flatDocument`, and the live check saw 12 sites.
+- **Live check.**
+  - A v9 drawer was imported, grouped bit-exactly, duplicated independently, moved, turned in
+    place and opened (with the fade).
+  - A Properties edit inside the turned copy behaved as predicted, and a gizmo drag there moved
+    world X only. Escape closed.
+  - The drawers were nested in a cabinet and the cut list read by path. Hiding the cabinet hid
+    everything below it.
+  - The joinery dialog found 12 sites. A reload was byte-identical, and Ungroup was exact.
+  - **` › ` measured 12.03px**, the same as ASCII in `--font-num`, under `CHAR_W` 12.4, so it
+    stays.
+  - **One layout fix:** the five-button action row clipped Delete, so `.row` now wraps
+    (`1cb478f`).
+- **Evidence.** 1883 tests across 64 files before the round, 2003 across 72 after; build clean.
+- **Residues:** follow-ups 224-228.
+
 **What the linking round did (2026-10-06)**: linked parts, which stay identical, with a spec and
 plan (`docs/superpowers/specs/2026-10-06-sloyd-linking-design.md`). **Schema 9.** Its live check
 passed on the dev server with the user watching (`docs/browser-verification-linking.md`). Merged
