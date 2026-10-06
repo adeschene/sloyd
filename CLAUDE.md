@@ -27,9 +27,9 @@ tradition built around hand woodworking.
 Static SPA, containerized, **2003/2003 tests passing across 72 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **10**.
 
-**`master` IS AHEAD OF PRODUCTION as of 2026-10-06: the assemblies round is merged and NOT deployed** (schema **10**; deploying is the user's separate decision, and rolling back past it would strand v10 documents, so export first). Production is still the linking round, described next.
+**`master` IS AHEAD OF PRODUCTION once the assemblies round is merged (2026-10-06); it is NOT deployed** (schema **10**; deploying is the user's separate decision, and rolling back past it would strand v10 documents, so export first). Production is still the linking round, described next.
 
-**The assemblies round (2026-10-06) is merged, NOT deployed; its live check passed with the user watching** (`docs/browser-verification-assemblies.md`). It is round 1 of two, in the user's order: assemblies, then components (shared definitions). Select parts and **Group** (Ctrl/Cmd+G). The parts become an assembly, a real definition/instance tree that nests, duplicates (an INDEPENDENT copy in round 1), moves and turns as one. SketchUp's click model: a click selects the outermost assembly, a double-click opens it (everything outside fades but stays clickable), and Escape closes it. **Ungroup** is Ctrl/Cmd+Shift+G. Names are unique per level, and the cut list and joinery name parts by path (`Cabinet › Drawer › Side`). Invariant 46; invariants 8 and 33 are restated per level (spec `docs/superpowers/specs/2026-10-06-sloyd-assemblies-design.md`). **Schema 10**: `instances` and `definitions`. Residues are follow-ups 224-228; 224 holds round 2's design questions.
+**The assemblies round (2026-10-06) is NOT deployed.** Claude drove its live check on the dev server (`docs/browser-verification-assemblies.md`), and the user's hands-on pass follows it. It is round 1 of two, in the user's order: assemblies, then components (shared definitions). Select parts and **Group** (Ctrl/Cmd+G). The parts become an assembly, a real definition/instance tree that nests, duplicates (an INDEPENDENT copy in round 1), moves and turns as one. SketchUp's click model: a click selects the outermost assembly, a double-click opens it (everything outside fades but stays clickable), and Escape closes it. **Ungroup** is Ctrl/Cmd+Shift+G. Names are unique per level, and the cut list and joinery name parts by path (`Cabinet › Drawer › Side`). Invariant 46; invariants 8 and 33 are restated per level (spec `docs/superpowers/specs/2026-10-06-sloyd-assemblies-design.md`). **Schema 10**: `instances` and `definitions`. Residues are follow-ups 224-228; 224 holds round 2's design questions.
 
 **PRODUCTION WAS LAST DEPLOYED 2026-10-06 with the linking round live** — bundle `index-BwdHsyEM.js`, CSS `index-C7v9uwho.css`, merge commit `d3120cf`, **schema 9** (rolling back past it strands v9 documents; export first). Before it: copy in a row `index-B8i7dotN.js` (`7487aca`, 2026-10-06, schema 8), quarter turns `index-bSuJPbkx.js` (`a24287f`, 2026-10-05), hide/unhide `index-BpdcUlXf.js` (`366eb37`, 2026-10-05), multi-select `index-D7ySMvky.js` (`232917f`, 2026-10-05), joinery residues `index-D_wzi7Bx.js` (`2b96eb2`, 2026-10-05), joinery fixes `index-BzWa2ZGT.js` (`c31dd82`, 2026-10-05), fu 197 `index-Ci3NLhVT.js` (`658dfcc`, 2026-10-05), fu 200 `index-DjL6FbOz.js` (`f37734b`, 2026-10-05), 198/199 `index-BvsB1zA6.js` (`fb8a094`, 2026-10-05), cut storage `index-JBiJohQE.js` (`7fa749d`, 2026-10-04), cut lines `index-BPmx9i74.js` (`f602a2d`), cut words `index-Cw_EeWuY.js` (`8c9be52`), joinery `index-Ci7lVCzJ.js` (`d2a14ac`), phantom cut `index-B2Yuq550.js` (`e7bf3bc`), stopped cuts `index-CoHIAVxf.js` (`c054ede`), which bumped the schema to 7 (rolling back past it strands v7 documents; export first). Before it, 2026-10-03: key check `index-BhhW2iNw.js` (`d0ba83b`), held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
 bundle `index-BAsxEohe.js` with CSS `index-DEQSkZ3q.css`, from merge commit `fa834dc`. A
@@ -163,7 +163,7 @@ different things make `git log` look ahead when it is not, and both are normal h
   built a byte-identical bundle: the agreement-test round (follow-up 140), 159's focus test,
   and the whole delete-token round (follow-up 160).
 
-**The assemblies round is merged and not deployed** (above). `DEPLOYMENT.local.md` carries every runbook entry and bundle hash.
+**The assemblies round is not deployed** (above). `DEPLOYMENT.local.md` carries every runbook entry and bundle hash.
 
 **The 2026-08-15 project-library deploy was the first that ACTS on a user's stored data at
 page load**, which
@@ -196,7 +196,7 @@ planned follow-on is **phase 2, refine and joinery (follow-up 171)**; read invar
 and 39 first, because joinery is exactly where "overlap" and "held" both change meaning.
 174 (the key check) is done too. Phase 2's joinery half (171) shipped on 2026-10-04.
 
-**As of 2026-10-06, after the assemblies round: the round is merged and NOT deployed; deploying is the user's call.** The planned successor is **round 2, components** (shared definitions, Make Unique, what links become): read follow-up 224 before designing it. Do not start it without asking.
+**As of 2026-10-06, after the assemblies round: NOT deployed; deploying is the user's call.** The planned successor is **round 2, components** (shared definitions, Make Unique, what links become): read follow-up 224 before designing it. Do not start it without asking.
 
 **Earlier on 2026-10-06, before the assemblies round: NOTHING WAS PENDING and NO SUCCESSOR WAS CHOSEN.**
 The user asked on 2026-10-05 for three features, in order, and all three are live: multi-select,

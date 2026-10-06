@@ -288,9 +288,9 @@ and 79.
 duplicated, moved, turned, opened and edited in place, with a spec and plan
 (`docs/superpowers/specs/2026-10-06-sloyd-assemblies-design.md`). **Schema 10.** It is round 1 of
 two in the user's order: assemblies first, so Duplicate makes an independent copy; components, with
-shared definitions, second. Its live check passed on the dev server with the user watching
-(`docs/browser-verification-assemblies.md`). Merged locally; **not deployed** (deploying is the
-user's separate decision). Rolling back past it strands v10 documents; export first.
+shared definitions, second. Claude drove its live check on the dev server
+(`docs/browser-verification-assemblies.md`); the user's hands-on pass and the merge were still
+pending when this was written. **Not deployed** (deploying is the user's separate decision). Rolling back past it strands v10 documents; export first.
 
 - **Why it exists.** The user found linking (v9) too narrow. A drawer's five parts could not be
   duplicated or moved as one. They asked for SketchUp's component system, researched first.
@@ -372,6 +372,10 @@ user's separate decision). Rolling back past it strands v10 documents; export fi
     stays.
   - **One layout fix:** the five-button action row clipped Delete, so `.row` now wraps
     (`1cb478f`).
+  - **One input fix** (`4814900`). An orbit followed by a click opened the assembly under the
+    cursor, because a dblclick's travel is measured from its second press. Click pairs are now
+    tracked on the canvas element. The first check of this used Playwright's default
+    `clickCount: 1` and could not have failed.
 - **Evidence.** 1883 tests across 64 files before the round, 2003 across 72 after; build clean.
 - **Residues:** follow-ups 224-228.
 

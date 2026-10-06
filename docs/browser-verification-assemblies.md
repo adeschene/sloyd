@@ -5,7 +5,15 @@
 ## How this was driven
 
 Claude drove the dev server on branch `assemblies` (`npm run dev -- --port 5180`, Chromium) with
-the Playwright MCP, and **the user watched the same browser**. No paid calls were made.
+the Playwright MCP, in a browser the user could watch. **The user's own hands-on pass is still to
+come** (see "For the user" below). No paid calls were made.
+
+**Where this departs from the plan's script** (Task 15 Step 2, Task 12 Step 6):
+- the drawer was imported as a v9 file rather than built from five added boards, which also
+  covers the script's "import a v9 project";
+- it was duplicated once, not twice;
+- the cabinet was hidden, not one drawer;
+- the plan's `assemblyDoc()` import was not used, because the drawer gave the same tree.
 
 - **Input.** Real mouse clicks, double-clicks and drags (`page.mouse`) and real key presses
   (`page.keyboard`), so focus, blur and the gizmo's pointer handling are a real browser's.
@@ -81,6 +89,12 @@ the Playwright MCP, and **the user watched the same browser**. No paid calls wer
   - Both drawers returned to the root at exactly their positions and turns.
   - Cabinet's definition was pruned (2 definitions left).
   - Both drawers were selected.
+- **Click selection.**
+  - A single click on a drawer selects the whole drawer: all five parts take the brass tint,
+    and the gizmo sits at its centre.
+  - With Drawer (1) open, a click on the faded other drawer closed Drawer (1) and selected that
+    drawer. That is SketchUp's behaviour: the click selects at the new level, so the drawer
+    rather than its part.
 
 ## The separator, measured (Task 11 Step 1b)
 
@@ -104,25 +118,44 @@ drawn node, never by appending a fresh one.**
 - **The fix.** `.row` now has `flex-wrap: wrap` (`1cb478f`). The assembly row wraps 3 + 2, and a
   part's row wraps 3 + Delete. Screenshot: `docs/img/assemblies-panel-row.png`.
 
-## Checked and closed without a change
-
-- **Double-click after a short orbit (deferred from Task 12's review).** A browser reports a
-  double-click only when both presses land within a few pixels of each other. A press that
-  travelled further than the 2px `CLICK_DRAG_SLOP_PX` orbited, and it is not counted as the
-  first click of a pair. Two 30px orbit drags in a row raised no `dblclick` at all. A
-  double-click with a twitch smaller than that is still a double-click, and opening is what was
-  meant. A guard on `e.delta` would not help anyway, since a dblclick's delta is measured from
-  its own second press.
-
+- **An orbit followed by a click opened an assembly** (deferred from Task 12's review).
+  - **The first check proved nothing.** Two 30px drags raised no `dblclick`, but only because
+    Playwright's `mouse.down()` sends `clickCount: 1` unless told otherwise.
+  - **The real check.** A 20px orbit, then a press with `clickCount: 2`. That is what a browser
+    sends when the second press falls inside its double-click time and distance. It **opened
+    the drawer** (its eye went disabled). With a real mouse this needs a short orbit, a few
+    pixels, but it is reachable.
+  - **A dblclick cannot guard itself.** Its `e.delta` is measured from its SECOND press.
+  - **The first fix failed live.** It recorded the drag in a mesh's `onClick`, but an orbit
+    usually releases over another mesh, or none, so no handler ran.
+  - **The fix** (`4814900`). `pointer.ts` tracks click pairs on the canvas element itself
+    (`watchClickPairs`, mounted by Viewport's `ClickPairs`). `BoardMesh` ignores a
+    double-click whose first click travelled more than `CLICK_DRAG_SLOP_PX`.
+  - **Verified live, read from the disabled eye.**
+    - Orbit then click: stays closed.
+    - Orbit then a click somewhere else: stays closed.
+    - A plain double-click: opens.
+    - A double-click with a 1px twitch: opens.
+    - An orbit, a pause, then a double-click: opens.
 ## Found, filed, not fixed
 
 - **The eye on a row covered by a hidden ancestor** draws struck through and is disabled, but
   its accessible name still reads "Hide Drawer". Follow-up 227.
+
+## For the user (pending)
+
+- **The fade, on real hardware.** Software GL can lie about blending (follow-up 26a), so the open
+  assembly's fade has only been seen on llvmpipe.
+- **Double-click and orbit with a real mouse,** after the fix: two quick short orbits on a
+  drawer should not open it, and a double-click should.
+- **Anything else in this list,** by hand.
 
 ## Not exercised
 
 - **A paid joinery run on an assembled design.** This browser has no API key, and a run is the
   user's call. The write-back is pinned by `writeBackFlat`'s tests at all four turns (the
   Task 11 critical fix), and the dialog's site list was checked above.
-- **Tape, Move tool and snap points inside an open assembly.** They read `worldParts`, which is
-  unit-tested. Nothing in this pass armed them.
+- **The Move tool's snap move and the Tape inside an open assembly.** Both read `worldParts`,
+  and the store's snap move is unit-tested through `translateItems`. Nothing in this pass armed
+  them.
+- **Copy in a row of an assembly.** It is offered, and unit-tested; it was not driven here.
