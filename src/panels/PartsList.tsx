@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useStore } from '../store/store';
 import { selectByClick } from '../store/selectionGesture';
 
@@ -18,6 +19,12 @@ export function PartsList() {
   const hiddenIds = useStore((s) => s.hiddenIds);
   const setHidden = useStore((s) => s.setHidden);
   const showAll = useStore((s) => s.showAll);
+
+  const linkCount = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const b of boards) if (b.link) m.set(b.link, (m.get(b.link) ?? 0) + 1);
+    return m;
+  }, [boards]);
 
   if (boards.length === 0) {
     return <p className="empty">No parts yet. Add a board to begin.</p>;
@@ -54,6 +61,14 @@ export function PartsList() {
               >
                 {b.name}
               </button>
+              {/* Outside the name button so its accessible name stays the part's name. */}
+              {b.link && (
+                <span className="part-link" role="img" aria-label={`Linked, ${linkCount.get(b.link)} parts`}>
+                  <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false">
+                    <path d="M6.5 9.5l3-3M7 4.5l1-1a2.5 2.5 0 013.5 3.5l-1 1M9 11.5l-1 1A2.5 2.5 0 014.5 9l1-1" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                  </svg>
+                </span>
+              )}
             </li>
           );
         })}

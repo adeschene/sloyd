@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store/store';
-import { MATERIALS, uniqueName, isSheetGood, boardSolids, cutShape, storedAsShape, cutRemovesNothing, findTenons, positionAxisOf } from '../document/document';
+import { MATERIALS, uniqueName, isSheetGood, boardSolids, cutShape, storedAsShape, cutRemovesNothing, findTenons, positionAxisOf, linkPlan } from '../document/document';
 import { DimensionField } from './DimensionField';
 import { NameField } from './NameField';
 import { CopyInRow } from './CopyInRow';
@@ -293,10 +293,13 @@ function GroupProperties() {
   const deleteBoards = useStore((s) => s.deleteBoards);
   const duplicateBoards = useStore((s) => s.duplicateBoards);
   const hideUnselected = useStore((s) => s.hideUnselected);
+  const linkBoards = useStore((s) => s.linkBoards);
+  const unlinkBoards = useStore((s) => s.unlinkBoards);
   const boards = useMemo(
     () => selectedIds.flatMap((id) => allBoards.filter((b) => b.id === id)),
     [allBoards, selectedIds],
   );
+  const plan = useMemo(() => linkPlan(allBoards, selectedIds), [allBoards, selectedIds]);
   if (boards.length === 0) return null;
 
   const set = (patch: Partial<Board>) => updateBoards(selectedIds, patch);
@@ -341,7 +344,14 @@ function GroupProperties() {
         </select>
       </div>
 
+      {plan && plan.changing.length > 0 && (
+        <p className="link-note">
+          Linking makes {plan.changing.length} {plan.changing.length === 1 ? 'part' : 'parts'} match {plan.source.name}: size, material, grain, posture and cuts.
+        </p>
+      )}
       <div className="row">
+        {plan && <button onClick={() => linkBoards(selectedIds)}>Link</button>}
+        {boards.some((b) => b.link) && <button onClick={() => unlinkBoards(selectedIds)}>Unlink</button>}
         <button onClick={() => duplicateBoards(selectedIds)}>Duplicate</button>
         <button onClick={hideUnselected}>Hide others</button>
         <button className="danger" onClick={() => deleteBoards(selectedIds)}>Delete</button>
@@ -361,6 +371,13 @@ export function Properties() {
   const duplicateBoard = useStore((s) => s.duplicateBoard);
   const hideUnselected = useStore((s) => s.hideUnselected);
   const addCut = useStore((s) => s.addCut);
+  const unlinkBoards = useStore((s) => s.unlinkBoards);
+  const selectLinked = useStore((s) => s.selectLinked);
+  // OTHER boards sharing this one's link; a number, so it re-renders only when the count moves.
+  const linkedCount = useStore((s) => {
+    const sel = s.selectedIds.length === 1 ? s.doc.boards.find((b) => b.id === s.selectedIds[0]) : undefined;
+    return sel?.link ? s.doc.boards.filter((b) => b.link === sel.link).length - 1 : 0;
+  });
   const lengthRef = useRef<HTMLInputElement>(null);
 
   // This component remounts (`key={board.id}` below) on every selection
@@ -404,6 +421,15 @@ export function Properties() {
   return (
     <div className="properties" key={board.id}>
       <NameField value={board.name} onCommit={commitName} />
+      {linkedCount > 0 && (
+        <div className="link-block">
+          <p>Linked with {linkedCount} other {linkedCount === 1 ? 'part' : 'parts'}: edits to size, material, grain, posture or cuts change all {linkedCount + 1}.</p>
+          <div className="row">
+            <button onClick={() => selectLinked(board.id)}>Select linked</button>
+            <button onClick={() => unlinkBoards([board.id])}>Unlink</button>
+          </div>
+        </div>
+      )}
 
       <h3>Dimensions</h3>
       <DimensionField ref={lengthRef} label="Length" precision={precision} value={board.length}
