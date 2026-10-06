@@ -184,3 +184,107 @@ describe('applyWorldEdits with shared definitions and shapes', () => {
       .toThrow(/disagreeing edits to shape s1/);
   });
 });
+
+describe('writeBackFlat shares where identical', () => {
+  const drawers = (n: number): SloydDocument => ({
+    ...createDocument(),
+    instances: Array.from({ length: n }, (_, k) => ({ id: `i${k}`, name: `D${k}`, definition: 'd1', position: [k * 30, 0, 0] as [number, number, number], rotation: 0 as const })),
+    definitions: [{ id: 'd1', boards: [
+      { id: 'b1', name: 'Side', length: 16, width: 6, thickness: 0.5, position: [0, 0, 0], rotation: 0, posture: 'on-edge', grain: 'length', material: 'maple', cuts: [] },
+    ], instances: [] }],
+  });
+  const cut = { face: 'thickness' as const, from: 'max' as const, across: 'width' as const, offset: 1, width: 0.5, depth: 0.25, stopMin: 0, stopMax: 0 };
+  const flat = (doc: SloydDocument) => flatDocument(doc).boards;
+
+  it('identical results keep one definition (cut ids from the first)', () => {
+    const doc = drawers(3);
+    const before = flat(doc);
+    const after = before.map((b, k) => ({ ...b, cuts: [{ id: `x${k}`, ...cut }] }));
+    const out = writeBackFlat(doc, before, after);
+    expect(new Set(out.instances.map((i) => i.definition)).size).toBe(1);
+    expect(worldParts(out).map((b) => b.cuts[0]!.id)).toEqual(['x0', 'x0', 'x0']);
+  });
+
+  it('a copy whose result differs splits off; the others stay shared', () => {
+    const doc = drawers(3);
+    const before = flat(doc);
+    const after = before.map((b, k) => ({ ...b, cuts: [{ id: `x${k}`, ...cut, offset: k === 2 ? 3 : 1 }] }));
+    const out = writeBackFlat(doc, before, after);
+    expect(out.instances.map((i) => i.definition).slice(0, 2)).toEqual(['d1', 'd1']);
+    expect(out.instances[2]!.definition).not.toBe('d1');
+    expect(worldParts(out).map((b) => b.cuts[0]!.offset)).toEqual([1, 1, 3]);
+  });
+
+  it('four shaped legs with identical mortises stay one shape (follow-up 223)', () => {
+    const shape = { id: 's1', length: 28, width: 1.75, thickness: 1.75, material: 'oak', grain: 'length' as const, posture: 'upright' as const, cuts: [] };
+    const doc: SloydDocument = { ...createDocument(), shapes: [shape],
+      boards: [0, 1, 2, 3].map((k) => ({ id: `l${k}`, name: `Leg ${k}`, position: [k * 10, 0, 0] as [number, number, number], rotation: 0 as const, shape: 's1' })) };
+    const before = flat(doc);
+    const after = before.map((b, k) => ({ ...b, cuts: [{ id: `m${k}`, ...cut }] }));
+    const out = writeBackFlat(doc, before, after);
+    expect(out.shapes).toHaveLength(1);
+    expect(out.shapes[0]!.cuts.map((c) => c.id)).toEqual(['m0']);
+    expect(out.boards.every((b) => 'shape' in b)).toBe(true);
+  });
+
+  it('a leg whose mortise differs gets its own shape', () => {
+    const shape = { id: 's1', length: 28, width: 1.75, thickness: 1.75, material: 'oak', grain: 'length' as const, posture: 'upright' as const, cuts: [] };
+    const doc: SloydDocument = { ...createDocument(), shapes: [shape],
+      boards: [0, 1, 2].map((k) => ({ id: `l${k}`, name: `Leg ${k}`, position: [k * 10, 0, 0] as [number, number, number], rotation: 0 as const, shape: 's1' })) };
+    const before = flat(doc);
+    const after = before.map((b, k) => ({ ...b, cuts: [{ id: `m${k}`, ...cut, offset: k === 1 ? 5 : 1 }] }));
+    const out = writeBackFlat(doc, before, after);
+    expect(out.shapes).toHaveLength(2);
+    expect(worldParts(out).map((b) => b.cuts[0]!.offset)).toEqual([1, 5, 1]);
+  });
+
+  // Nested: two cabinets share c1, which holds ONE drawer instance of d1. The
+  // drawer's two placements sit in the SAME stored instance (c1's iD), so the
+  // drawer can only split after the cabinet has (top-down). Bottom-up would
+  // repoint c1's iD for both cabinets at once.
+  it('nested: cabinets split first, then the drawer inside each', () => {
+    const base = drawers(1);
+    const doc: SloydDocument = {
+      ...base,
+      instances: [0, 1].map((k) => ({ id: `C${k}`, name: `Cab ${k}`, definition: 'c1', position: [k * 40, 0, 0] as [number, number, number], rotation: 0 as const })),
+      definitions: [
+        { id: 'c1', boards: [], instances: [{ id: 'iD', name: 'Drawer', definition: 'd1', position: [1, 2, 3], rotation: 0 }] },
+        ...base.definitions,
+      ],
+    };
+    const before = flat(doc);
+    expect(before.map((b) => b.id)).toEqual(['C0/iD/b1', 'C1/iD/b1']);
+    const after = before.map((b, k) => ({ ...b, cuts: [{ id: `x${k}`, ...cut, offset: k === 1 ? 3 : 1 }] }));
+    const out = writeBackFlat(doc, before, after);
+    expect(worldParts(out).map((b) => b.cuts[0]!.offset)).toEqual([1, 3]);
+    expect(out.instances[0]!.definition).toBe('c1');
+    expect(out.instances[1]!.definition).not.toBe('c1');
+    const drawerOf = (cab: string) => out.definitions.find((d) => d.id === cab)!.instances[0]!.definition;
+    expect(drawerOf(out.instances[0]!.definition)).toBe('d1');
+    expect(drawerOf(out.instances[1]!.definition)).not.toBe('d1');
+  });
+
+  // The drawer is ALSO placed at the root, ahead of the cabinets: ordered by
+  // first appearance it would be split before c1 and repoint c1's iD for both.
+  it('nested + root placement: the cabinet still splits before the drawer', () => {
+    const base = drawers(1);
+    const doc: SloydDocument = {
+      ...base,
+      instances: [
+        { id: 'i0', name: 'Loose', definition: 'd1', position: [-40, 0, 0], rotation: 0 },
+        ...[0, 1].map((k) => ({ id: `C${k}`, name: `Cab ${k}`, definition: 'c1', position: [k * 40, 0, 0] as [number, number, number], rotation: 0 as const })),
+      ],
+      definitions: [
+        { id: 'c1', boards: [], instances: [{ id: 'iD', name: 'Drawer', definition: 'd1', position: [1, 2, 3], rotation: 0 }] },
+        ...base.definitions,
+      ],
+    };
+    const before = flat(doc);
+    expect(before.map((b) => b.id)).toEqual(['i0/b1', 'C0/iD/b1', 'C1/iD/b1']);
+    const after = before.map((b, k) => ({ ...b, cuts: [{ id: `x${k}`, ...cut, offset: k === 2 ? 3 : 1 }] }));
+    const out = writeBackFlat(doc, before, after);
+    expect(worldParts(out).map((b) => b.cuts[0]!.offset)).toEqual([1, 1, 3]);
+    expect(out.instances.map((i) => i.definition).slice(0, 2)).toEqual(['d1', 'c1']);
+    expect(out.instances[2]!.definition).not.toBe('c1');
+  });
+});

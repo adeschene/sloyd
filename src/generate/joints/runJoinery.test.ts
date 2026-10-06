@@ -122,13 +122,29 @@ describe('runJoinery', () => {
     const railedIds = findSites(RAILED).map((s) => s.id);
     const railed = { joints: railedIds.map((site) => ({ site, joint: 'mortise-tenon', tenonLength: 0.5 })) };
 
-    // SKIPPED between Task 5 and Tasks 6/7 of the components round, NOT retired:
-    // joinery over shaped parts needs migrateDocument to load shapes (Task 6) and
-    // writeBackFlat to split a shape whose users' results differ (Task 7). Today the
-    // first throws "disagreeing edits to shape L" in applyWorldEdits and the second
-    // is refused by validateBoard (a ShapedBoard has no length). Task 7 flips the
-    // first assertion's meaning (follow-up 223) and un-skips both.
-    it.skip('two linked legs joinery cuts on different faces come out unlinked', async () => {
+    // Follow-up 223 CLOSED (components spec §5): linked legs whose mortises come
+    // out identical stay ONE shape. Each leg here has its rail on the same side,
+    // at the same height, so the two mortises are the same cut in each leg's frame.
+    const TWIN = design(
+      { name: 'Leg A', at: [0, 0, 0], size: [1.75, 28, 1.75] },
+      { name: 'Rail A', at: [1.75, 23.5, 0.5], size: [18, 3, 0.75] },
+      { name: 'Leg B', at: [30, 0, 0], size: [1.75, 28, 1.75] },
+      { name: 'Rail B', at: [31.75, 23.5, 0.5], size: [18, 3, 0.75] },
+    );
+    it('two linked legs joinery cuts identically stay ONE shape, sharing cut ids (follow-up 223)', async () => {
+      const twinned = { joints: findSites(TWIN).map((site) => ({ site: site.id, joint: 'mortise-tenon', tenonLength: 0.5 })) };
+      const out = await run(client(twinned), linked(['Leg A', 'Leg B'], TWIN));
+      if ('noSites' in out) throw new Error('expected sites');
+      const legs = worldParts(out.result.doc).filter((b) => b.name.startsWith('Leg'));
+      expect(legs.length).toBe(2);
+      expect(legs[0]!.cuts.length).toBeGreaterThan(0);
+      expect(legs[0]!.shape).toBeDefined();
+      expect(legs[1]!.shape).toBe(legs[0]!.shape);
+      expect(legs[1]!.cuts.map((c) => c.id)).toEqual(legs[0]!.cuts.map((c) => c.id));
+      expect(out.result.doc.shapes).toHaveLength(1);
+    });
+
+    it('two linked legs joinery cuts on different faces come out unlinked', async () => {
       const out = await run(client(railed), linked(['Leg A', 'Leg B']));
       if ('noSites' in out) throw new Error('expected sites');
       const legs = worldParts(out.result.doc).filter((b) => b.name.startsWith('Leg'));
@@ -136,7 +152,7 @@ describe('runJoinery', () => {
       for (const l of legs) expect('shape' in l).toBe(false);
     });
 
-    it.skip('a linked pair joinery does not cut keeps its link', async () => {
+    it('a linked pair joinery does not cut keeps its link', async () => {
       const d = linked(['Spare', 'Spare 2']);
       const out = await run(client(railed), d);
       if ('noSites' in out) throw new Error('expected sites');
