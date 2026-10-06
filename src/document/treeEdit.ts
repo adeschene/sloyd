@@ -39,7 +39,10 @@ function lower(inst: Instance, upperBefore: Board, lowerBefore: Board, upperAfte
   return { ...draft, position: [lowerBefore.position[0] + d[0], lowerBefore.position[1] + d[1], lowerBefore.position[2] + d[2]] };
 }
 
-const ROOT = 'ROOT';
+/** The storage id of the root container. A definition may never carry it:
+ *  validateDefinitions drops one that does, or its edits would land here. */
+export const ROOT_STORAGE_ID = 'ROOT';
+const ROOT = ROOT_STORAGE_ID;
 
 /** The id of the definition holding `container`'s parts, or ROOT. */
 function definitionIdOf(doc: SloydDocument, container: string | null): string | null {
