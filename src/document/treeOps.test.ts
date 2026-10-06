@@ -1,10 +1,12 @@
-import { copyInstanceTree, groupItems, nextAssemblyName, pruneDefinitions, removeItems, turnInstance, ungroupItem } from './treeOps';
+import { copyInstanceTree, groupItems, makeUniqueItem, nextAssemblyName, pruneDefinitions, removeItems, shareInstance, turnInstance, ungroupItem } from './treeOps';
+import { dissolveShapes, isShaped } from './shapes';
+import type { SloydDocument } from './types';
 import { childrenOf, instanceAt, partAt, worldParts } from './tree';
 import { assemblyDoc } from './treeFixtures';
 import { boardsBounds } from './geometry';
 import { worldSolids } from './designCheck';
 import { rotateQuarter, sameSet } from './turnFixtures';
-import { createBoard } from './document';
+import { createBoard, createDocument } from './document';
 
 const strip = (b: { id: string }) => ({ ...b, id: '' });
 
@@ -102,5 +104,80 @@ describe('turnInstance (assemblies spec §4.2)', () => {
     const want = corners(parts(doc)).map((p) => rotateQuarter(p as [number, number, number], c));
     // all 8 corners of each solid: a turned box's min/max diagonal is not the old diagonal turned
     expect(sameSet(corners(parts(out)) as number[][], want)).toBe(true);
+  });
+});
+
+describe('shared definitions', () => {
+  const base = (): SloydDocument => ({
+    ...createDocument(),
+    instances: [
+      { id: 'i1', name: 'Drawer', definition: 'd1', position: [0, 0, 0], rotation: 0 },
+      { id: 'i2', name: 'Drawer (1)', definition: 'd1', position: [20, 0, 0], rotation: 0 },
+    ],
+    definitions: [
+      { id: 'd1', boards: [createBoard({ id: 'b1', name: 'Side' }), { id: 'b2', name: 'Leg', position: [1, 0, 1], rotation: 0, shape: 's1' }],
+        instances: [{ id: 'k1', name: 'Knob', definition: 'd2', position: [0, 0, 0], rotation: 0 }] },
+      { id: 'd2', boards: [createBoard({ id: 'n1', name: 'Knob' })], instances: [] },
+    ],
+    shapes: [{ id: 's1', length: 6, width: 1, thickness: 1, material: 'oak', grain: 'length', posture: 'upright', cuts: [] }],
+  });
+
+  it('shareInstance names the same definition with a fresh id', () => {
+    const inst = base().instances[0]!;
+    const c = shareInstance(inst);
+    expect(c.definition).toBe('d1');
+    expect(c.id).not.toBe(inst.id);
+    expect(c.position).not.toBe(inst.position);
+  });
+
+  it('makeUniqueItem copies ONE level: plain parts copied with their ids, shaped parts and nested instances still shared', () => {
+    const doc = base();
+    const out = makeUniqueItem(doc, 'i2')!;
+    const i2 = out.instances.find((i) => i.id === 'i2')!;
+    expect(i2.definition).not.toBe('d1');
+    const copy = out.definitions.find((d) => d.id === i2.definition)!;
+    expect(copy.boards.map((b) => b.id)).toEqual(['b1', 'b2']);
+    expect(copy.boards[0]).not.toBe(doc.definitions[0]!.boards[0]);
+    expect(copy.boards[1]).toMatchObject({ shape: 's1' });
+    expect(copy.instances[0]!.definition).toBe('d2');
+    expect(out.instances.find((i) => i.id === 'i1')!.definition).toBe('d1');
+    // occurrence paths are unchanged
+    expect(worldParts(out).map((b) => b.id)).toEqual(worldParts(doc).map((b) => b.id));
+  });
+
+  it('makeUniqueItem refuses an instance that is not shared', () => {
+    const doc = base();
+    const single = { ...doc, instances: [doc.instances[0]!] };
+    expect(makeUniqueItem(single, 'i1')).toBeNull();
+  });
+
+  it('ungroupItem on a shared copy leaves the other copy and the definition alone', () => {
+    const doc = base();
+    const out = ungroupItem(doc, 'i2')!.doc;
+    expect(out.instances.map((i) => i.id)).toEqual(['i1', 'k1']);
+    expect(out.instances.find((i) => i.id === 'k1')!.definition).toBe('d2');
+    expect(out.definitions.map((d) => d.id)).toEqual(['d1', 'd2']);
+    expect(worldParts(out).filter((b) => b.id.startsWith('i1/')).map((b) => b.id)).toEqual(['i1/b1', 'i1/b2', 'i1/k1/n1']);
+    // the ungrouped leg keeps its shape; with i1's leg that is two stored users, so it is not dissolved
+    expect(out.shapes).toHaveLength(1);
+  });
+
+  it('removeItems keeps a definition another copy still names, and prunes the last', () => {
+    const one = removeItems(base(), ['i2']);
+    expect(one.definitions.map((d) => d.id)).toEqual(['d1', 'd2']);
+    const none = removeItems(one, ['i1']);
+    expect(none.definitions).toEqual([]);
+    expect(none.shapes).toEqual([]);
+  });
+
+  it('dissolveShapes turns a one-user shape back into a plain part', () => {
+    const doc = base();
+    const out = dissolveShapes(doc);
+    const b2 = out.definitions[0]!.boards[1]!;
+    expect(isShaped(b2)).toBe(false);
+    expect(b2).toMatchObject({ id: 'b2', name: 'Leg', position: [1, 0, 1], length: 6, posture: 'upright' });
+    expect(out.shapes).toEqual([]);
+    const two = { ...doc, boards: [{ id: 'r1', name: 'Leg R', position: [9, 0, 0] as [number, number, number], rotation: 0 as const, shape: 's1' }] };
+    expect(dissolveShapes(two)).toBe(two);
   });
 });

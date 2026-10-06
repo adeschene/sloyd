@@ -1,5 +1,5 @@
 import type { Board, Definition, Instance, Rotation, SloydDocument, StoredBoard } from './types';
-import { isShaped, resolveBoard, shapeMap } from './shapes';
+import { dissolveShapes, isShaped, pruneShapes, resolveBoard, shapeMap } from './shapes';
 import { nextId } from './ids';
 import { uniqueName } from './names';
 import type { Named } from './names';
@@ -67,7 +67,7 @@ export function removeItems(doc: SloydDocument, paths: readonly string[]): Sloyd
       instances: k.instances.filter((i) => !ids.has(i.id)),
     }));
   }
-  return pruneDefinitions(out);
+  return dissolveShapes(pruneShapes(pruneDefinitions(out)));
 }
 
 const rekeyer = (pairs: ReadonlyArray<readonly [string, string]>): Rekey => (p) => {
@@ -148,10 +148,10 @@ export function ungroupItem(doc: SloydDocument, path: string):
     taken.push(named);
     return named;
   });
-  const out = pruneDefinitions(updateContainer(doc, container, (k) => ({
+  const out = dissolveShapes(pruneShapes(pruneDefinitions(updateContainer(doc, container, (k) => ({
     boards: [...k.boards, ...boards],
     instances: [...keptInstances, ...instances],
-  })));
+  })))));
   return { doc: out, children: pairs.map(([, to]) => to), rekey: rekeyer(pairs) };
 }
 
@@ -201,5 +201,40 @@ export function turnInstance(doc: SloydDocument, path: string, rotation: Rotatio
   return updateContainer(doc, parentPath(path), (c) => ({
     ...c,
     instances: c.instances.map((i) => (i.id === inst.id ? { ...i, rotation, position } : i)),
+  }));
+}
+
+export function shareInstance(inst: Instance): Instance {
+  return { ...inst, id: nextId(), position: [...inst.position] as [number, number, number] };
+}
+
+/** Definition id -> how many instances name it, anywhere in the document. */
+export function instanceRefs(doc: SloydDocument): Map<string, number> {
+  const n = new Map<string, number>();
+  for (const i of [...doc.instances, ...doc.definitions.flatMap((d) => d.instances)]) n.set(i.definition, (n.get(i.definition) ?? 0) + 1);
+  return n;
+}
+
+/**
+ * Make Unique (components spec §3.1): the instance at `path` gets its own copy
+ * of its definition, ONE level deep. Plain parts are copied keeping their ids
+ * (ids are per container), so occurrence paths, hidden ids and held points are
+ * unchanged; shaped parts keep their shape; nested instances keep their
+ * definitions. Null when the definition is named by fewer than two instances.
+ */
+export function makeUniqueItem(doc: SloydDocument, path: string): SloydDocument | null {
+  const inst = instanceAt(doc, path);
+  const def = definitionAt(doc, path);
+  if (!inst || !def || (instanceRefs(doc).get(def.id) ?? 0) < 2) return null;
+  const copy: Definition = {
+    id: nextId(),
+    boards: def.boards.map((b) => (isShaped(b)
+      ? { ...b, position: [...b.position] as [number, number, number] }
+      : { ...b, position: [...b.position] as [number, number, number], cuts: b.cuts.map((c) => ({ ...c })) })),
+    instances: def.instances.map((j) => ({ ...j, position: [...j.position] as [number, number, number] })),
+  };
+  const withDef = { ...doc, definitions: [...doc.definitions, copy] };
+  return updateContainer(withDef, parentPath(path), (c) => ({
+    ...c, instances: c.instances.map((i) => (i.id === inst.id ? { ...i, definition: copy.id } : i)),
   }));
 }
