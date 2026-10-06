@@ -1224,3 +1224,34 @@ button[aria-pressed='true'] {
   background: var(--brass);
   color: var(--graphite-800);
 }
+
+.copy-row {
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin: 8px 0 0;
+}
+
+.copy-row legend {
+  padding: 0 4px;
+  color: var(--ink-dim);
+}
+
+.copy-row-modes {
+  display: flex;
+  gap: 12px;
+  margin: 6px 0;
+}
+
+.copy-row-summary {
+  margin: 6px 0;
+  color: var(--ink-dim);
+}
+
+.copy-row-summary.invalid {
+  color: var(--alert);
+}
+
+.copy-row-open {
+  margin-top: 6px;
+}
