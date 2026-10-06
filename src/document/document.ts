@@ -3,9 +3,11 @@ import type {
   Board, Cut, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, GuidePoint,
 } from './types';
 import { dedupeNames } from './names';
+import { repairLinks } from './links';
 import { positionAxisOf, horizontalOf, DIMENSION_ORDER } from './geometry';
 
 export * from './types';
+export * from './links';
 export {
   boardExtents, boardCenter, boardsBounds, reorientedPosition, axisDimensions, DIMENSION_ORDER, positionAxisOf,
   horizontalOf, axisFrame, toWorldOffset, fromWorldOffset, spanToWorldOffset, spanFromWorldOffset, endFacing,
@@ -59,8 +61,14 @@ export type { BoardSnapPoint, SnapKind, SnapOwner, SnapPoint, TapeAxis } from '.
  * spec §4). `trueTurnsToV8` mirrors the cuts of 90° parts so they look exactly as
  * before. The bump's argument is WRONG GEOMETRY: a v7 build reads 180 and 270 as
  * invalid, falls back to 0, shows a different part and autosaves it.
+ *
+ * v9 added `Board.link`, the label of a linked-parts group (linking spec §2).
+ * Document-level: no per-board step, an absent label is an unlinked part. The
+ * bump's argument is SILENT DATA LOSS on round-trip: a v8 build drops every
+ * `link` on open and autosaves, and the links are gone with nothing saying so.
+ * `repairLinks` runs after validation on every load.
  */
-export const CURRENT_VERSION = 8;
+export const CURRENT_VERSION = 9;
 
 export class DocumentError extends Error {
   /**
@@ -349,6 +357,7 @@ function validateBoard(raw: unknown, index: number, seen: Set<string>): Board {
       : 'flat',
     grain: normalizedGrain,
     material,
+    ...(typeof b.link === 'string' && b.link.trim() ? { link: b.link } : {}),
   };
   return { ...board, cuts: validateCuts(b.cuts, board) };
 }
@@ -564,8 +573,8 @@ export function migrateDocument(raw: unknown): SloydDocument {
     // an id needs nothing from them but "is this taken", which a set answers as
     // it goes. A second pass would leave two deciders for one field — the
     // validator minting an id that the pass may then overwrite.
-    boards: dedupeNames(
+    boards: repairLinks(dedupeNames(
       rawBoards.map((b, i) => validateBoard(b, i, boardIds)),
-    ),
+    )),
   };
 }

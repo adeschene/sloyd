@@ -95,6 +95,13 @@ export interface Board {
   material: string;
   /** Stock removed from this board. Empty for a board with no joinery. */
   cuts: Cut[];
+  /**
+   * The label of the link this part belongs to, or absent (linking spec §2).
+   * Parts sharing a label share LINK_FIELDS' 'shared' fields; the store keeps
+   * them equal. A label, never a board id, so invariant 33 holds. An unlinked
+   * part has NO key, not `link: undefined`.
+   */
+  link?: string;
 }
 
 /**
