@@ -28,13 +28,19 @@ export function selectRowByClick(path: string, e: ToggleModifiers): void {
 }
 
 /**
- * A click that hit no part. Clears the selection only in the Select tool —
- * a modal tool must not change the selection as a side effect (cancelling a
- * grab by clicking empty space would otherwise empty the Properties panel) —
- * and only with NO modifier held, so a slightly missed Shift-click does not
- * wipe a selection built up over many clicks.
+ * A click that hit no part. Acts only in the Select tool — a modal tool must
+ * not change the selection as a side effect (cancelling a grab by clicking
+ * empty space would otherwise empty the Properties panel) — and only with NO
+ * modifier held, so a slightly missed Shift-click does not wipe a selection
+ * built up over many clicks.
+ *
+ * Inside an open assembly it moves up one level, exactly as Escape's last
+ * rung does (`closeAssembly`, which selects the assembly it left), the user's
+ * ruling; only at the root does it clear the selection.
  */
 export function clearOnMiss(e: ToggleModifiers, tool: ToolMode): void {
   if (tool !== 'select' || isToggleModifier(e)) return;
-  useStore.getState().selectBoard(null);
+  const s = useStore.getState();
+  if (s.openPath !== null) s.closeAssembly();
+  else s.selectBoard(null);
 }

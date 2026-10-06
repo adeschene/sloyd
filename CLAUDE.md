@@ -726,7 +726,8 @@ src/
 │                           `clickPart`, `openPart`, `turnAssembly`, `renameItem`
 │   └── selectionGesture.ts `isToggleModifier` (Shift/Ctrl/Cmd), `selectByClick`,
 │                           `clearOnMiss` (no clear on a MODIFIED miss, nor outside the
-│                           Select tool). In the store layer because the viewport AND
+│                           Select tool; inside an open assembly a plain miss moves up one
+│                           level, `closeAssembly`, as Escape does — the user's ruling). In the store layer because the viewport AND
 │                           the parts list share it
 │   └── visibility.ts       `visibleBoards(boards, hiddenIds)`, the ONE filter for which
 │                           parts are drawn and offered as points; the viewport's

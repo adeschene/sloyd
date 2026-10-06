@@ -1,5 +1,6 @@
 import { useStore } from './store';
 import { createDocument } from '../document/document';
+import { assemblyDoc } from '../document/treeFixtures';
 import { clearOnMiss, isToggleModifier, selectByClick } from './selectionGesture';
 
 const none = { shiftKey: false, ctrlKey: false, metaKey: false };
@@ -63,5 +64,35 @@ describe('clearOnMiss', () => {
     clearOnMiss(none, 'move');
     clearOnMiss(none, 'tape');
     expect(useStore.getState().selectedIds).toEqual([a]);
+  });
+});
+
+describe('clearOnMiss inside an assembly', () => {
+  // i1 "Drawer" holds b1, b2 and i2 "Peg", which holds b3.
+  const openPeg = () => {
+    useStore.getState().replaceDocument(assemblyDoc());
+    useStore.getState().setTool('select');
+    useStore.getState().openAssembly('i1');
+    useStore.getState().openAssembly('i1/i2');
+    useStore.getState().selectItem('i1/i2/b3', false);
+  };
+
+  it('a plain miss moves up one level, like Escape, selecting the assembly it left', () => {
+    openPeg();
+    clearOnMiss(none, 'select');
+    expect(useStore.getState().openPath).toBe('i1');
+    expect(useStore.getState().selectedIds).toEqual(['i1/i2']);
+    clearOnMiss(none, 'select');
+    expect(useStore.getState().openPath).toBeNull();
+    expect(useStore.getState().selectedIds).toEqual(['i1']);
+  });
+
+  it('a modified miss, or a miss in another tool, stays in the assembly', () => {
+    openPeg();
+    clearOnMiss({ ...none, shiftKey: true }, 'select');
+    clearOnMiss(none, 'move');
+    clearOnMiss(none, 'tape');
+    expect(useStore.getState().openPath).toBe('i1/i2');
+    expect(useStore.getState().selectedIds).toEqual(['i1/i2/b3']);
   });
 });

@@ -155,6 +155,13 @@ drawn node, never by appending a fresh one.**
   ghost, and the open drawer shows through the ghost's walls. Screenshot:
   `docs/img/assemblies-fade-v2.png`.
 
+**A click on empty space inside an assembly moves up a level** (the user's request, same day).
+`clearOnMiss` calls `closeAssembly` when an assembly is open, so it does exactly what Escape's last
+rung does: it closes one level and selects the assembly it left. At the root it still clears the
+selection. Checked live: an orbit drag starting on the floor stays inside (R3F's 2px miss
+threshold). One floor click closes the drawer and selects it, and a second click clears the
+selection. A double-click on empty floor therefore climbs two levels, like Escape pressed twice.
+
 ## Found, filed, not fixed
 
 - **The eye on a row covered by a hidden ancestor** draws struck through and is disabled, but
