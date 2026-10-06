@@ -4436,3 +4436,22 @@ the same.
 - The store tests (a box-corner tape anchor kept across a 180° turn, a cut-point anchor dropped)
   were not mutation-tested; they exercise `updateBoard`'s existing point-precise rule.
 - **Status:** record-only.
+
+**218. Apply with a refused entry still in the field applies the last GOOD value.** Raised in the
+copy-in-a-row round. Type `abc` into Gap and press Apply: the field refused the draft, so the form
+still holds the previous value, and Apply uses it. The summary line describes that value, so the
+screen is consistent, but a person may expect Apply to be disabled while the field shows an error.
+- **Status:** open, awaiting the user's view in the live check. Not a defect by the spec.
+
+**219. `rowLayout`'s `!(s > 0)` guard is unpinned.** Raised in the copy-in-a-row round. No test
+reaches `s = 0` or `NaN`, so the guard (which returns `value`) can be deleted without a red test.
+`s = Infinity` passes it; unreachable from real boards.
+- **Status:** record-only.
+
+**220. Small gaps the round judged fine to leave.** Record-only.
+- `copyInRow`'s `sign` is not validated at runtime: `0` would stack every copy on its original.
+  The panel is the only caller and always passes +/-1.
+- The order of the selection after a multi-part group is copied (originals, then copies) is not
+  pinned by a test for a group of more than one part, and the group test's name check asserts the
+  `startsWith` of each name, not that the names are distinct.
+- **Status:** record-only.
