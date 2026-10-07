@@ -1,4 +1,5 @@
 import type { Board, Shape, ShapedBoard, SloydDocument, StoredBoard } from './types';
+import { SHARED_KEYS } from './links';
 
 /** A stored part that uses a Shape. A plain part always has `length`; a shaped one never does. */
 export function isShaped(b: StoredBoard): b is ShapedBoard {
@@ -19,13 +20,15 @@ export function resolveBoard(shapes: ReadonlyMap<string, Shape>, b: StoredBoard)
   if (!isShaped(b)) return b;
   const s = shapes.get(b.shape);
   if (!s) return null;
-  return {
-    id: b.id, name: b.name, position: b.position, rotation: b.rotation,
-    length: s.length, width: s.width, thickness: s.thickness,
-    material: s.material, grain: s.grain, posture: s.posture,
-    cuts: s.cuts.map((c) => ({ ...c })),
-    shape: b.shape,
-  };
+  // The shared part from THE table (invariant 45's LINK_FIELDS), never a hand
+  // list: a future shared field reaches every user without an edit here. An
+  // optional field the shape lacks stays absent rather than `undefined`.
+  const shared: Record<string, unknown> = {};
+  for (const k of SHARED_KEYS) {
+    if (!(k in s)) continue;
+    shared[k] = k === 'cuts' ? s.cuts.map((c) => ({ ...c })) : s[k];
+  }
+  return { id: b.id, name: b.name, position: b.position, rotation: b.rotation, ...shared, shape: b.shape } as Board;
 }
 
 /** Stored users per shape id (a part placed by several copies counts once). */

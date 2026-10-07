@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createBoard, createDocument, isShaped, resolveBoard, shapeMap, worldParts } from './document';
+import { SHARED_KEYS, createBoard, createDocument, isShaped, resolveBoard, shapeMap, worldParts } from './document';
 import type { Shape, ShapedBoard, SloydDocument } from './document';
 
 const leg: Shape = { id: 's1', length: 28, width: 1.75, thickness: 1.75, material: 'oak', grain: 'length', posture: 'upright',
@@ -18,6 +18,12 @@ describe('shapes', () => {
     expect(b).toMatchObject({ id: 'a', name: 'Leg a', position: [5, 0, 0], rotation: 90, shape: 's1', length: 28, posture: 'upright' });
     expect(b.cuts).toEqual(leg.cuts);
     expect(b.cuts[0]).not.toBe(leg.cuts[0]); // copies: no two parts hold one Cut object
+  });
+
+  it('resolveBoard reads EVERY shared field of the table from the shape, and only own fields from the part', () => {
+    const b = resolveBoard(new Map([['s1', leg]]), user('a', 5, 90))!;
+    for (const k of SHARED_KEYS) expect(b[k]).toEqual(leg[k]);
+    expect(Object.keys(b).sort()).toEqual(['id', 'name', 'position', 'rotation', 'shape', ...SHARED_KEYS].sort());
   });
 
   it('resolveBoard returns a plain part as the SAME object, and null for a missing shape', () => {
