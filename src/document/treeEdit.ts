@@ -124,11 +124,31 @@ function lowerEdit(doc: SloydDocument, shapes: ReadonlyMap<string, Shape>, befor
   return { stored, defId, key: `${defId}:${stored.id}`, changedKeys, valueOf, after };
 }
 
-/** Write one lowered field onto a stored record: set it, or delete a key the
- *  after-state no longer has (an unlink). */
-function writeKey(next: Record<string, unknown>, l: Lowered, k: string): void {
-  if (k in l.after || k === 'position' || k === 'rotation') next[k] = l.valueOf(k);
-  else delete next[k];
+/** A lowered field's written value; ABSENT marks a key to delete. */
+const ABSENT = Symbol('absent');
+
+/** One lowered field's value for a stored record: its value, or ABSENT for a
+ *  key the after-state no longer has. Every Board key but `shape` (excluded
+ *  from changedKeys) is required since Board.link retired, so a typed caller
+ *  never reaches ABSENT today; it stays so a future OPTIONAL field can be
+ *  cleared rather than left stale. */
+function storedValue(l: Lowered, k: string): unknown {
+  return k in l.after || k === 'position' || k === 'rotation' ? l.valueOf(k) : ABSENT;
+}
+
+/** Field-by-field merge of every edit into one record: a field written twice
+ *  must agree, a field written once is kept, so the result does not depend on
+ *  the order of the edits. */
+function mergeField(rec0: Record<string, unknown>, wrote: Map<string, unknown>, k: string, v: unknown, what: string): void {
+  if (wrote.has(k)) {
+    const prior = wrote.get(k);
+    const same = prior === ABSENT || v === ABSENT ? prior === v : sameRecord(prior, v);
+    if (!same) throw new Error(`applyWorldEdits: disagreeing edits to ${what}`);
+    return;
+  }
+  wrote.set(k, v);
+  if (v === ABSENT) delete rec0[k];
+  else rec0[k] = v;
 }
 
 /**
@@ -136,53 +156,50 @@ function writeKey(next: Record<string, unknown>, l: Lowered, k: string): void {
  * fields are written: `position` compared element by element, `cuts` by
  * reference, everything else by `!==`. `position` and `rotation` go down
  * level by level through `lower`; every other field is part-local and goes
- * back as it is. A key present before and absent after is deleted (an unlink).
+ * back as it is. A key present before and absent after is deleted (storedValue).
  * A root part's write is plain assignment, exactly as before assemblies.
  * `keepWorld` (joinery only): a part whose extents or posture changed also
  * counts as moved, so the world box is kept; a Properties edit keeps the
  * stored local position instead (spec §5.2) and must not pass it.
  * Components (spec 4.1): edits are keyed by STORAGE target (definition id +
  * part id), so every placement of one stored part is one write; a shared
- * field of a shaped part is written into its Shape. Two edits reaching one
- * target with different results throw.
+ * field of a shaped part is written into its Shape. Edits are merged FIELD BY
+ * FIELD (mergeField): two edits writing one field of one target must agree or
+ * this throws; fields each writes alone are both kept, in any order. The
+ * store's callers still send at most one edit per storage key
+ * (oneEditPerTarget), and writeBackFlat does too.
  */
 export function applyWorldEdits(doc: SloydDocument, edits: readonly WorldEdit[], opts?: { keepWorld?: boolean }): SloydDocument {
   const shapes = shapeMap(doc);
-  const parts = new Map<string, { defId: string; next: StoredBoard }>();   // by storage key
-  const shapeWrites = new Map<string, Shape>();                               // by shape id
+  // By storage key / shape id: the merged record and the fields written into it.
+  const parts = new Map<string, { defId: string; next: Record<string, unknown>; wrote: Map<string, unknown> }>();
+  const shapeWrites = new Map<string, { next: Record<string, unknown>; wrote: Map<string, unknown> }>();
   for (const { before, after } of edits) {
     const l = lowerEdit(doc, shapes, before, after, opts?.keepWorld === true);
     if (!l) continue;
     const { stored, defId, key } = l;
-    const base = parts.get(key)?.next ?? stored;
-    const next: Record<string, unknown> = { ...base };
-    let shapeNext: Record<string, unknown> | null = null;
+    let part = parts.get(key);
+    if (!part) parts.set(key, part = { defId, next: { ...stored }, wrote: new Map() });
     for (const k of l.changedKeys) {
       const shared = (LINK_FIELDS as Record<string, string>)[k] === 'shared';
       if (isShaped(stored) && shared) {
-        shapeNext ??= { ...(shapeWrites.get(stored.shape) ?? shapes.get(stored.shape)!) };
-        shapeNext[k] = l.valueOf(k);
+        let sh = shapeWrites.get(stored.shape);
+        if (!sh) shapeWrites.set(stored.shape, sh = { next: { ...shapes.get(stored.shape)! }, wrote: new Map() });
+        mergeField(sh.next, sh.wrote, k, l.valueOf(k), `shape ${stored.shape}`);
       } else {
-        writeKey(next, l, k);
+        mergeField(part.next, part.wrote, k, storedValue(l, k), key);
       }
-    }
-    const prior = parts.get(key);
-    if (prior && !sameRecord(prior.next, next)) throw new Error(`applyWorldEdits: disagreeing edits to ${key}`);
-    parts.set(key, { defId, next: next as unknown as StoredBoard });
-    if (shapeNext && isShaped(stored)) {
-      const priorShape = shapeWrites.get(stored.shape);
-      if (priorShape && !sameRecord(priorShape, shapeNext)) throw new Error(`applyWorldEdits: disagreeing edits to shape ${stored.shape}`);
-      shapeWrites.set(stored.shape, shapeNext as unknown as Shape);
     }
   }
   let out = doc;
   const byDef = new Map<string, Map<string, StoredBoard>>();
-  for (const { defId, next } of parts.values()) {
+  for (const { defId, next, wrote } of parts.values()) {
+    if (wrote.size === 0) continue;   // nothing changed: the stored object stays
     if (!byDef.has(defId)) byDef.set(defId, new Map());
-    byDef.get(defId)!.set(next.id, next);
+    byDef.get(defId)!.set(next.id as string, next as unknown as StoredBoard);
   }
   for (const [defId, m] of byDef) out = updateDefinition(out, defId, (bs) => bs.map((b) => m.get(b.id) ?? b));
-  if (shapeWrites.size) out = { ...out, shapes: out.shapes.map((s) => shapeWrites.get(s.id) ?? s) };
+  if (shapeWrites.size) out = { ...out, shapes: out.shapes.map((s) => (shapeWrites.get(s.id)?.next as Shape | undefined) ?? s) };
   return out;
 }
 
@@ -401,7 +418,7 @@ function regroupShapes(doc: SloydDocument): SloydDocument {
  *    edit per storage key goes to applyWorldEdits, from that key's first
  *    occurrence: its other occurrences have the same subtree signature (step 1
  *    split on it), so they lowered to the same record, and with one edit per
- *    key applyWorldEdits merges nothing (its merge is order-dependent).
+ *    key applyWorldEdits has nothing to merge.
  * 3. shapes (`regroupShapes`): users grouped by shared fields with cuts
  *    compared by GEOMETRY; the first user's group keeps the shape, others get
  *    new shapes; a group takes its first member's cut ids. migrateDocument
@@ -420,7 +437,11 @@ export function writeBackFlat(doc: SloydDocument, flatBefore: readonly Board[], 
     const l = lowerEdit(plain, shapes, before, after, true);
     if (!l) continue;
     const next: Record<string, unknown> = { ...l.stored };
-    for (const k of l.changedKeys) writeKey(next, l, k);
+    for (const k of l.changedKeys) {
+      const v = storedValue(l, k);
+      if (v === ABSENT) delete next[k];
+      else next[k] = v;
+    }
     results.set(before.id, next as unknown as Board);
   }
   const split = splitAssemblies(plain, results);

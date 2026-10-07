@@ -175,6 +175,44 @@ describe('applyWorldEdits with shared definitions and shapes', () => {
       .toThrow(/disagreeing edits to d1:b1/);
   });
 
+  it('the merge is field by field, so the order of edits to one target does not matter', () => {
+    const doc = shared();
+    const w = worldParts(doc);
+    const a = w.find((b) => b.id === 'i1/b1')!;
+    const b = w.find((x) => x.id === 'i2/b1')!;
+    const both = { before: a, after: { ...a, length: 18, width: 7 } };
+    const one = { before: b, after: { ...b, width: 7 } };
+    const ab = applyWorldEdits(doc, [both, one]).definitions[0]!.boards[0];
+    const ba = applyWorldEdits(doc, [one, both]).definitions[0]!.boards[0];
+    expect(ab).toMatchObject({ length: 18, width: 7 });
+    expect(ba).toEqual(ab);
+    // Different fields through two placements are both kept.
+    const split = applyWorldEdits(doc, [{ before: a, after: { ...a, length: 18 } }, { before: b, after: { ...b, width: 7 } }]);
+    expect(split.definitions[0]!.boards[0]).toMatchObject({ length: 18, width: 7 });
+  });
+
+  it('an edit that changes no field leaves the stored part as the same object', () => {
+    const doc = shared();
+    const a = worldParts(doc).find((b) => b.id === 'i1/b1')!;
+    const out = applyWorldEdits(doc, [{ before: a, after: { ...a } }]);
+    expect(out.definitions[0]!.boards[0]).toBe(doc.definitions[0]!.boards[0]);
+  });
+
+  it('a key one edit deletes and another sets is a disagreement; two deletes agree', () => {
+    const doc = shared();
+    const w = worldParts(doc);
+    const a = w.find((b) => b.id === 'i1/b1')!;
+    const b = w.find((x) => x.id === 'i2/b1')!;
+    const drop = (x: typeof a) => { const { name: _n, ...rest } = x; return rest as unknown as typeof a; };
+    const out = applyWorldEdits(doc, [{ before: a, after: drop(a) }, { before: b, after: drop(b) }]);
+    expect('name' in out.definitions[0]!.boards[0]!).toBe(false);
+    expect(() => applyWorldEdits(doc, [{ before: a, after: drop(a) }, { before: b, after: { ...b, name: 'Other' } }]))
+      .toThrow(/disagreeing edits to d1:b1/);
+    // A key set to undefined is not a deleted key (JSON alone would call them equal).
+    expect(() => applyWorldEdits(doc, [{ before: a, after: drop(a) }, { before: b, after: { ...b, name: undefined as unknown as string } }]))
+      .toThrow(/disagreeing edits to d1:b1/);
+  });
+
   it('two different stored parts using one shape must agree on the shape', () => {
     const doc: SloydDocument = { ...shared(), boards: [{ id: 'r1', name: 'Leg R', position: [50, 0, 0], rotation: 0, shape: 's1' }] };
     const w = worldParts(doc);
