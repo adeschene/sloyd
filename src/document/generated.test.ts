@@ -1,3 +1,4 @@
+import { worldParts } from './tree';
 import { describe, expect, it } from 'vitest';
 import { designToDocument, orient, parseDesign, DESIGN_SCHEMA } from './generated';
 import type { GeneratedDesign, GeneratedPart } from './generated';
@@ -39,7 +40,7 @@ describe('orient', () => {
 describe('designToDocument', () => {
   it('rounds every at and size component to 1/16"', () => {
     const { doc } = designToDocument(design(part('A', [0, 0, 0], [10.03, 0.74, 3.97])));
-    expect(boardExtents(doc.boards[0])).toEqual([10, 0.75, 4]);
+    expect(boardExtents(worldParts(doc)[0])).toEqual([10, 0.75, 4]);
   });
 
   it('puts the design on the floor and centres its footprint on the origin', () => {
@@ -55,7 +56,7 @@ describe('designToDocument', () => {
   it('keeps every translated position on the 1/16" grid', () => {
     // footprint 1/16 wide: centring by half of it would land on 1/32
     const { doc } = designToDocument(design(part('A', [0, 0, 0], [1 / 16, 1, 1])));
-    const x = doc.boards[0].position[0];
+    const x = worldParts(doc)[0].position[0];
     expect(Math.round(x * 16)).toBe(x * 16);
   });
 
@@ -65,8 +66,8 @@ describe('designToDocument', () => {
       part('Good', [0, 0, 0], [10, 1, 1]),
     ));
     expect(rejected).toEqual([{ name: 'Bad', reason: 'not-finite' }]);
-    expect(doc.boards.map((b) => b.name)).toEqual(['Good']);
-    expect(doc.boards.flatMap((b) => b.position).every(Number.isFinite)).toBe(true);
+    expect(worldParts(doc).map((b) => b.name)).toEqual(['Good']);
+    expect(worldParts(doc).flatMap((b) => b.position).every(Number.isFinite)).toBe(true);
   });
 
   it.each([
@@ -78,7 +79,7 @@ describe('designToDocument', () => {
       part('Good', [0, 0, 0], [10, 1, 1]),
     ));
     expect(rejected).toEqual([{ name: 'Huge', reason: 'not-finite' }]);
-    expect(doc.boards.map((b) => b.name)).toEqual(['Good']);
+    expect(worldParts(doc).map((b) => b.name)).toEqual(['Good']);
   });
 
   it.each([[0], [-2], [0.01]])('rejects a part whose size rounds to %s or below zero as too-small', (s) => {
@@ -91,10 +92,10 @@ describe('designToDocument', () => {
       part('Shelf', [0, 0, 0], [10, 1, 1]),
       part('Shelf', [0, 1, 0], [10, 1, 1]),
     ));
-    const names = doc.boards.map((b) => b.name);
+    const names = worldParts(doc).map((b) => b.name);
     expect(new Set(names).size).toBe(2);
     expect(names[0]).toBe('Shelf');
-    expect(new Set(doc.boards.map((b) => b.id)).size).toBe(2);
+    expect(new Set(worldParts(doc).map((b) => b.id)).size).toBe(2);
   });
 
   it('falls back to a default name when the design name is blank', () => {
@@ -103,8 +104,8 @@ describe('designToDocument', () => {
 
   it('generates no cuts and grain along length', () => {
     const { doc } = designToDocument(design(part('A', [0, 0, 0], [10, 1, 1])));
-    expect(doc.boards[0].cuts).toEqual([]);
-    expect(doc.boards[0].grain).toBe('length');
+    expect(worldParts(doc)[0].cuts).toEqual([]);
+    expect(worldParts(doc)[0].grain).toBe('length');
   });
 });
 

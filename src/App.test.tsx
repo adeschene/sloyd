@@ -1,3 +1,4 @@
+import { worldParts } from './document/tree';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from './App';
@@ -325,7 +326,7 @@ describe('App restore-on-mount', () => {
     });
     const editedDoc = useStore.getState().doc;
     expect(editedDoc.boards).toHaveLength(1);
-    const editedBoardId = editedDoc.boards[0].id;
+    const editedBoardId = worldParts(editedDoc)[0].id;
 
     // The restore now resolves with an unrelated saved document.
     const saved = { ...createDocument('Saved'), boards: [createBoard(), createBoard()] };
@@ -338,7 +339,7 @@ describe('App restore-on-mount', () => {
     const finalDoc = useStore.getState().doc;
     expect(finalDoc).toBe(editedDoc);
     expect(finalDoc.boards).toHaveLength(1);
-    expect(finalDoc.boards[0].id).toBe(editedBoardId);
+    expect(worldParts(finalDoc)[0].id).toBe(editedBoardId);
   });
 
   it('does not replace the document after the component has unmounted', async () => {
@@ -830,7 +831,7 @@ const mountWithOneBoard = async () => {
   // auto-focused Length input. This reflects the real path: the user clicks a
   // part, then presses Delete/Backspace from the button, not while editing.
   await user.click(screen.getByRole('button', { name: 'Board' }));
-  return useStore.getState().doc.boards[0].id;
+  return worldParts(useStore.getState().doc)[0].id;
 };
 
 describe('App keyboard delete', () => {
@@ -861,7 +862,7 @@ describe('App keyboard delete', () => {
     await user.keyboard('{Delete}');
     act(() => { useStore.getState().undo(); });
 
-    expect(useStore.getState().doc.boards.map((b) => b.id)).toEqual([id]);
+    expect(worldParts(useStore.getState().doc).map((b) => b.id)).toEqual([id]);
   });
 
   it('does nothing when no board is selected', async () => {
@@ -995,7 +996,7 @@ describe('App select all, and Delete on the whole selection', () => {
     });
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Board' }));
-    return { user, ids: useStore.getState().doc.boards.map((b) => b.id) };
+    return { user, ids: worldParts(useStore.getState().doc).map((b) => b.id) };
   };
 
   it('Ctrl+A selects every part', async () => {
@@ -1033,7 +1034,7 @@ describe('App select all, and Delete on the whole selection', () => {
     act(() => useStore.getState().toggleSelected(ids[2]!));
     const before = useStore.getState().past.length;
     await user.keyboard('{Delete}');
-    expect(useStore.getState().doc.boards.map((b) => b.id)).toEqual([ids[1]]);
+    expect(worldParts(useStore.getState().doc).map((b) => b.id)).toEqual([ids[1]]);
     expect(useStore.getState().past.length).toBe(before + 1);
   });
 
@@ -1042,7 +1043,7 @@ describe('App select all, and Delete on the whole selection', () => {
     act(() => {
       useStore.getState().toggleSelected(ids[1]!);
       useStore.getState().setTool('move');
-      useStore.getState().grabSnapPoint(boardSnapPoints(useStore.getState().doc.boards[0]!)[0]!);
+      useStore.getState().grabSnapPoint(boardSnapPoints(worldParts(useStore.getState().doc)[0]!)[0]!);
     });
     await user.keyboard('{Delete}');
     expect(useStore.getState().doc.boards).toHaveLength(3);
@@ -1121,7 +1122,7 @@ describe('App type-anywhere tape capture', () => {
     render(<App />);
     await act(async () => { await Promise.resolve(); });
     await act(async () => { useStore.getState().addBoard(); });
-    const board = useStore.getState().doc.boards[0];
+    const board = worldParts(useStore.getState().doc)[0];
     await act(async () => {
       useStore.getState().setTool('tape');
       useStore.getState().setTapeAnchor(boardSnapPoints(board)[0]);
@@ -1221,7 +1222,7 @@ describe('App type-anywhere tape capture', () => {
     expect(useStore.getState().doc.guides).toHaveLength(0);
     expect(useStore.getState().tapeAnchor).not.toBeNull();
 
-    const board = useStore.getState().doc.boards[0];
+    const board = worldParts(useStore.getState().doc)[0];
     await act(async () => {
       useStore.getState().setTapeHover(boardSnapPoints(board)[1]);
     });
@@ -1301,7 +1302,7 @@ describe('App type-anywhere tape capture', () => {
 
   it('names the cause when the number cannot be read', async () => {
     const user = await anchoredTape();
-    const board = useStore.getState().doc.boards[0];
+    const board = worldParts(useStore.getState().doc)[0];
     await act(async () => { useStore.getState().setTapeHover(boardSnapPoints(board)[25]); });
     await user.keyboard('.{Enter}');
     expect(box().className).toContain('invalid');
@@ -1312,7 +1313,7 @@ describe('App type-anywhere tape capture', () => {
   // "can this be read as a length", so it must not clear that error.
   it('does not let a new hover clear an unparseable number', async () => {
     const user = await anchoredTape();
-    const board = useStore.getState().doc.boards[0];
+    const board = worldParts(useStore.getState().doc)[0];
     await act(async () => { useStore.getState().setTapeHover(boardSnapPoints(board)[25]); });
     await user.keyboard('.{Enter}');
     expect(box().className).toContain('invalid');
@@ -1323,7 +1324,7 @@ describe('App type-anywhere tape capture', () => {
 
   it('lets a new character clear an unparseable number', async () => {
     const user = await anchoredTape();
-    const board = useStore.getState().doc.boards[0];
+    const board = worldParts(useStore.getState().doc)[0];
     await act(async () => { useStore.getState().setTapeHover(boardSnapPoints(board)[25]); });
     await user.keyboard('.{Enter}');
     expect(box().className).toContain('invalid');
@@ -1372,7 +1373,7 @@ describe('App type-anywhere tape capture', () => {
   // not supply the direction.
   it('ignores a latched hover while an axis is locked', async () => {
     const user = await anchoredTape();
-    const board = useStore.getState().doc.boards[0];
+    const board = worldParts(useStore.getState().doc)[0];
     const anchorAt = useStore.getState().tapeAnchor!.at;
     await act(async () => {
       useStore.getState().setTapeHover(boardSnapPoints(board)[25]);
@@ -1447,7 +1448,7 @@ describe('project library: new, duplicate, delete, import', () => {
     await screen.findByLabelText('Project name');
 
     act(() => { useStore.getState().addBoard(); });
-    const first = useStore.getState().doc.boards[0].id;
+    const first = worldParts(useStore.getState().doc)[0].id;
 
     // Autosave is debounced 600ms. Switching now FLUSHES the pending write
     // rather than cancelling it (see "flushes the outgoing project's pending
@@ -1473,7 +1474,7 @@ describe('project library: new, duplicate, delete, import', () => {
     // loadProject/replaceDocument round trip needs its own wait rather than
     // being assumed complete the instant the click resolves.
     expect(await screen.findByLabelText('Project name')).toHaveValue('Test');
-    expect(useStore.getState().doc.boards[0].id).toBe(first);
+    expect(worldParts(useStore.getState().doc)[0].id).toBe(first);
   });
 
   it('deleting the last project leaves a usable app', async () => {
@@ -1532,7 +1533,7 @@ describe('Generate', () => {
     // tape anchor or grab, either of which would make the Backspace assertion
     // pass for the wrong reason (the delete branch refuses while one is held).
     act(() => useStore.getState().setTool('select'));
-    const boardId = useStore.getState().doc.boards[0].id;
+    const boardId = worldParts(useStore.getState().doc)[0].id;
     useStore.getState().selectBoard(boardId);
     const pastBefore = useStore.getState().past.length;
     const user = userEvent.setup();
@@ -1694,7 +1695,7 @@ describe('App assemblies', () => {
         { name: 'Rail', material: 'oak', at: { x: 1.75, y: 23.5, z: 0.5 }, size: { x: 18, y: 3.5, z: 0.75 } },
       ],
     }).doc;
-    const grouped = groupItems(flat, null, flat.boards.map((b) => b.id))!.doc;
+    const grouped = groupItems(flat, null, worldParts(flat).map((b) => b.id))!.doc;
     expect(grouped.boards).toHaveLength(0);
     act(() => { useStore.getState().replaceDocument(grouped); });
     const user = userEvent.setup();

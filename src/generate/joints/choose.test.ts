@@ -1,6 +1,7 @@
+import { worldParts } from '../../document/tree';
 import workbenchRaw from '../../document/fixtures/simple-workbench.sloyd?raw';
 import { designToDocument } from '../../document/generated';
-import { migrateDocument } from '../../document/document';
+import { flatDocument, migrateDocument } from '../../document/document';
 import { checkDesign } from '../../document/designCheck';
 import { applyJoints } from './recipes';
 import { defaultChoice, parseChoices, siteMessage, JOINT_SCHEMA } from './choose';
@@ -20,8 +21,8 @@ const doc = design(
   { name: 'Shelf', at: [40.75, 12, 0], size: [20, 0.75, 11.25] },
 );
 const sites = findSites(doc);
-const rail = sites.find((s) => doc.boards[s.enter].name === 'Rail')!;
-const shelf = sites.find((s) => doc.boards[s.enter].name === 'Shelf')!;
+const rail = sites.find((s) => worldParts(doc)[s.enter].name === 'Rail')!;
+const shelf = sites.find((s) => worldParts(doc)[s.enter].name === 'Shelf')!;
 
 describe('defaultChoice', () => {
   it('a narrow rail gets a mortise and tenon of min(1-1/4, 2/3 of the leg)', () => {
@@ -39,16 +40,16 @@ describe('defaultChoice (receiver shape)', () => {
       { name: 'Rail', at: [40.75, 10, 3], size: [10, 3.5, 0.75] },
     );
     const s = findSites(d)[0];
-    expect(d.boards[s.receive].name).toBe('Side');
+    expect(worldParts(d)[s.receive].name).toBe('Side');
     expect(defaultChoice(s, d, findSites(d)).joint).toBe('dado');
   });
 });
 
 describe('defaultChoice: a leg under a top is fastened, not housed (final review I2)', () => {
   it('the workbench\'s legs into its benchtop default to butt', () => {
-    const wb = migrateDocument(JSON.parse(workbenchRaw));
+    const wb = flatDocument(migrateDocument(JSON.parse(workbenchRaw)));
     const ws = findSites(wb);
-    const legToTop = ws.filter((s) => wb.boards[s.receive].name === 'Benchtop' && wb.boards[s.enter].name.endsWith('leg'));
+    const legToTop = ws.filter((s) => worldParts(wb)[s.receive].name === 'Benchtop' && worldParts(wb)[s.enter].name.endsWith('leg'));
     expect(legToTop).toHaveLength(4);
     for (const s of legToTop) expect(defaultChoice(s, wb, ws).joint).toBe('butt');
   });
@@ -59,7 +60,7 @@ describe('defaultChoice: a leg under a top is fastened, not housed (final review
       { name: 'Top', at: [0, 71.25, 0], size: [31.5, 0.75, 11.25] },
     );
     const ds = findSites(d);
-    const s = ds.find((x) => d.boards[x.enter].name === 'Left side' && d.boards[x.receive].name === 'Top')!;
+    const s = ds.find((x) => worldParts(d)[x.enter].name === 'Left side' && worldParts(d)[x.receive].name === 'Top')!;
     expect(s.kind).toBe('end-into-face');
     expect(defaultChoice(s, d, ds).joint).toBe('dado');
   });
@@ -186,7 +187,7 @@ describe('defaultTenon: opposite-face tenons share the post (fu 190)', () => {
   );
   const intoPost = (d: ReturnType<typeof design>) => {
     const ss = findSites(d);
-    const pick = (n: string) => ss.find((s) => d.boards[s.enter].name === n && d.boards[s.receive].name === 'Post')!;
+    const pick = (n: string) => ss.find((s) => worldParts(d)[s.enter].name === n && worldParts(d)[s.receive].name === 'Post')!;
     return { ss, l: pick('LeftRail'), r: pick('RightRail') };
   };
 
@@ -237,7 +238,7 @@ describe('defaultTenon: a thin receiver shortens the default below 1/2in (fu 188
   const defaults = (d: ReturnType<typeof design>, receiver: string) => {
     const ss = findSites(d);
     const choices = ss.map((s) => defaultChoice(s, d, ss));
-    const into = ss.filter((s) => d.boards[s.receive].name === receiver);
+    const into = ss.filter((s) => worldParts(d)[s.receive].name === receiver);
     const lens = into.map((s) => choices[ss.indexOf(s)]);
     const joined = applyJoints(d, ss, choices);
     return { lens, overlaps: checkDesign(joined.doc, limits(joined.doc)).filter((v) => v.kind === 'overlap').map((v) => v.message) };
@@ -285,7 +286,7 @@ describe('defaultTenon: a thin receiver shortens the default below 1/2in (fu 188
   it('the model range is unchanged: an answer under 1/2in still clamps up', () => {
     const d = opp(0.75);
     const ss = findSites(d);
-    const s = ss.find((x) => d.boards[x.receive].name === 'Post')!;
+    const s = ss.find((x) => worldParts(d)[x.receive].name === 'Post')!;
     const { choices } = parseChoices({ joints: [{ site: s.id, joint: 'mortise-tenon', tenonLength: 0.3125 }] }, ss, d);
     expect(choices.find((c) => c.site === s.id)).toMatchObject({ tenonLength: 0.5 });
   });
@@ -293,7 +294,7 @@ describe('defaultTenon: a thin receiver shortens the default below 1/2in (fu 188
   it('a model tenon with no length at a site whose default is butt falls back to the default choice, a butt, with a note', () => {
     const d = adj(0.75);
     const ss = findSites(d);
-    const s = ss.find((x) => d.boards[x.receive].name === 'Leg')!;
+    const s = ss.find((x) => worldParts(d)[x.receive].name === 'Leg')!;
     const { choices, notes } = parseChoices({ joints: [{ site: s.id, joint: 'mortise-tenon' }] }, ss, d);
     expect(choices.find((c) => c.site === s.id)).toEqual({ site: s.id, joint: 'butt' });
     expect(notes).toContainEqual(expect.stringMatching(new RegExp(`^Site ${s.id} .*: no tenonLength, and no default tenon fits; used butt\\.$`)));
@@ -302,7 +303,7 @@ describe('defaultTenon: a thin receiver shortens the default below 1/2in (fu 188
   it('a model tenon WITH a length at that site is kept, as before', () => {
     const d = adj(0.75);
     const ss = findSites(d);
-    const s = ss.find((x) => d.boards[x.receive].name === 'Leg')!;
+    const s = ss.find((x) => worldParts(d)[x.receive].name === 'Leg')!;
     const { choices } = parseChoices({ joints: [{ site: s.id, joint: 'mortise-tenon', tenonLength: 0.5 }] }, ss, d);
     expect(choices.find((c) => c.site === s.id)).toEqual({ site: s.id, joint: 'mortise-tenon', tenonLength: 0.5 });
   });
@@ -310,7 +311,7 @@ describe('defaultTenon: a thin receiver shortens the default below 1/2in (fu 188
   it('a model tenon with no length where a default fits still takes the default length', () => {
     const d = adj(0.875);
     const ss = findSites(d);
-    const s = ss.find((x) => d.boards[x.receive].name === 'Leg')!;
+    const s = ss.find((x) => worldParts(d)[x.receive].name === 'Leg')!;
     const { choices, notes } = parseChoices({ joints: [{ site: s.id, joint: 'mortise-tenon' }] }, ss, d);
     expect(choices.find((c) => c.site === s.id)).toEqual({ site: s.id, joint: 'mortise-tenon', tenonLength: 0.25 });
     expect(notes).toContainEqual(expect.stringMatching(/^Site \d+ \(RailX → Leg: end into face\): no tenonLength; used 0\.25\.$/));

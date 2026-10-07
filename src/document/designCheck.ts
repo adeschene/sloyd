@@ -1,4 +1,4 @@
-import type { Board, SloydDocument } from './document';
+import type { Board, FlatDocument } from './document';
 import type { RejectedPart } from './generated';
 import { boardSolids } from './cuts';
 import { axisFrame, boardExtents, spanToWorldOffset } from './geometry';
@@ -227,7 +227,7 @@ function hangsMessage(i: number, boxes: Box[], contacts: Contact[][], groundedWi
   return `${b.name} is not held: nothing is under it, and its ${AXES[best.axis]} sides are covered ${pct(best.lo)}% and ${pct(best.hi)}%${by}; each needs ${pct(HELD_COVERAGE)}%. Rest it on a part below, fit it between two parts that cover its sides, or fasten its broad face to another part.`;
 }
 
-const boxesOf = (doc: SloydDocument): Box[] => doc.boards.map((b) => {
+const boxesOf = (doc: FlatDocument): Box[] => doc.boards.map((b) => {
   const e = boardExtents(b);
   return { name: b.name, min: [...b.position], max: b.position.map((p, i) => p + e[i]) };
 });
@@ -250,17 +250,17 @@ export function worldSolids(b: Board): Box[] {
     };
   });
 }
-const solidBoxesOf = (doc: SloydDocument): Box[][] => doc.boards.map(worldSolids);
+const solidBoxesOf = (doc: FlatDocument): Box[][] => doc.boards.map(worldSolids);
 
 export interface FaceContact { a: number; b: number; axis: number; side: -1 | 1; area: number }
 
 /** Every face contact once, a < b; `side` is a's touching face (-1 min, +1 max). */
-export function faceContacts(doc: SloydDocument): FaceContact[] {
+export function faceContacts(doc: FlatDocument): FaceContact[] {
   return contactsOf(boxesOf(doc)).flatMap((cs, a) =>
     cs.filter((c) => c.other > a).map((c) => ({ a, b: c.other, axis: c.axis, side: c.side, area: c.area })));
 }
 
-export function checkDesign(doc: SloydDocument, limits: DesignLimits): Violation[] {
+export function checkDesign(doc: FlatDocument, limits: DesignLimits): Violation[] {
   const boxes = boxesOf(doc);
   const out: Violation[] = [];
 

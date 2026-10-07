@@ -1,5 +1,5 @@
-import { createDocument, migrateDocument } from './document';
-import type { SloydDocument } from './document';
+import { createDocument, flatDocument, migrateDocument } from './document';
+import type { FlatDocument } from './document';
 import { DIMENSION_ORDER, SNAP_INCHES, axisDimensions } from './geometry';
 import { MATERIALS } from './types';
 import type { Board, Dimension, Posture, Rotation } from './types';
@@ -112,7 +112,7 @@ export function orient(size: [number, number, number]): Pick<Board, 'length' | '
  * migrateDocument, the same gate an imported file passes, which dedupes
  * names (inv 8) and mints ids (inv 33).
  */
-export function designToDocument(design: GeneratedDesign): { doc: SloydDocument; rejected: RejectedPart[] } {
+export function designToDocument(design: GeneratedDesign): { doc: FlatDocument; rejected: RejectedPart[] } {
   const rejected: RejectedPart[] = [];
   const boards: Omit<Board, 'id'>[] = [];
   for (const p of design.parts) {
@@ -149,7 +149,7 @@ export function designToDocument(design: GeneratedDesign): { doc: SloydDocument;
   }
 
   const name = design.name.trim() || 'Generated design';
-  const doc = migrateDocument({ ...createDocument(name), boards });
+  const doc = flatDocument(migrateDocument({ ...createDocument(name), boards }));
   return { doc, rejected };
 }
 

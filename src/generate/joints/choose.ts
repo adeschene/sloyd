@@ -1,4 +1,4 @@
-import type { SloydDocument } from '../../document/document';
+import type { FlatDocument } from '../../document/document';
 import type { Violation } from '../../document/designCheck';
 import { SNAP_INCHES, axisDimensions } from '../../document/geometry';
 import { boxOf } from './pocket';
@@ -55,7 +55,7 @@ export const JOINT_SCHEMA: Record<string, unknown> = {
 
 const SIDE = (s: Site) => `${s.side === 1 ? '+' : '-'}${AXES[s.axis]}`;
 
-export function siteMessage(doc: SloydDocument, sites: Site[]): string {
+export function siteMessage(doc: FlatDocument, sites: Site[]): string {
   const parts = doc.boards.map((b) => {
     const x = boxOf(b);
     return `- ${b.name} (${b.material}): ${n(x.max[0] - x.min[0])} x ${n(x.max[1] - x.min[1])} x ${n(x.max[2] - x.min[2])} in, ` +
@@ -78,7 +78,7 @@ export function siteMessage(doc: SloydDocument, sites: Site[]): string {
 }
 
 /** Depth of the receiving part along the site's axis. */
-function receiveDepth(s: Site, doc: SloydDocument): number {
+function receiveDepth(s: Site, doc: FlatDocument): number {
   const rb = boxOf(doc.boards[s.receive]);
   return rb.max[s.axis] - rb.min[s.axis];
 }
@@ -92,7 +92,7 @@ const postLike = (w: number, t: number) => w <= 2 * t;
  * defaultTenon asks this of OTHER sites, so it never asks for a size and
  * never recurses.
  */
-function defaultJoint(s: Site, doc: SloydDocument): JointKind {
+function defaultJoint(s: Site, doc: FlatDocument): JointKind {
   const E = doc.boards[s.enter];
   const R = doc.boards[s.receive];
   const has = (j: JointKind) => s.allowed.includes(j);
@@ -110,7 +110,7 @@ function defaultJoint(s: Site, doc: SloydDocument): JointKind {
 }
 
 /** A site's tenon cross-section in world space, on E's thickness and width axes (as mortiseTenon builds it). */
-function tenonSpan(s: Site, doc: SloydDocument, axis: number): [number, number] | null {
+function tenonSpan(s: Site, doc: FlatDocument, axis: number): [number, number] | null {
   const E = doc.boards[s.enter];
   const eb = boxOf(E);
   const dims = axisDimensions(E);
@@ -132,7 +132,7 @@ function tenonSpan(s: Site, doc: SloydDocument, axis: number): [number, number] 
  * 1/4in returns null, which `defaultChoice` makes a butt. So default tenons
  * never meet. The model's range is unchanged.
  */
-function defaultTenon(s: Site, doc: SloydDocument, sites: Site[]): number | null {
+function defaultTenon(s: Site, doc: FlatDocument, sites: Site[]): number | null {
   const L = Math.min(1.25, snap((2 / 3) * receiveDepth(s, doc)));
   let cap = Infinity;
   const eb = boxOf(doc.boards[s.enter]);
@@ -176,15 +176,15 @@ function defaultTenon(s: Site, doc: SloydDocument, sites: Site[]): number | null
   return clamp(Math.min(L, cap), range);
 }
 
-function defaultDado(s: Site, doc: SloydDocument): number {
+function defaultDado(s: Site, doc: FlatDocument): number {
   return clamp(Math.max(0.125, snap(receiveDepth(s, doc) / 3)), rangesOf(s, doc).dadoDepth);
 }
 
-function defaultRabbet(s: Site, doc: SloydDocument): number {
+function defaultRabbet(s: Site, doc: FlatDocument): number {
   return clamp(snap(doc.boards[s.receive].thickness / 2), rangesOf(s, doc).rabbetDepth);
 }
 
-export function defaultChoice(s: Site, doc: SloydDocument, sites: Site[]): JointChoice {
+export function defaultChoice(s: Site, doc: FlatDocument, sites: Site[]): JointChoice {
   const joint = defaultJoint(s, doc);
   switch (joint) {
     case 'mortise-tenon': {
@@ -206,7 +206,7 @@ const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object
  * — a missing site, a disallowed joint, a missing or out-of-range size, a bad
  * stopAt — falls back per site and leaves a NOTE for the person.
  */
-export function parseChoices(json: unknown, sites: Site[], doc: SloydDocument): { choices: JointChoice[]; notes: string[] } {
+export function parseChoices(json: unknown, sites: Site[], doc: FlatDocument): { choices: JointChoice[]; notes: string[] } {
   const given = new Map<number, Record<string, unknown>>();
   if (isObj(json) && Array.isArray(json.joints)) {
     for (const j of json.joints) if (isObj(j) && typeof j.site === 'number') given.set(j.site, j);

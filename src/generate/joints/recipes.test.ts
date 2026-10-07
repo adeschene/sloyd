@@ -1,3 +1,4 @@
+import { worldParts } from '../../document/tree';
 import { beforeAll } from 'vitest';
 import workbenchRaw from '../../document/fixtures/simple-workbench.sloyd?raw';
 import { designToDocument } from '../../document/generated';
@@ -7,7 +8,7 @@ import { sameSet } from '../../document/turnFixtures';
 import { boardSolids, clippedRegion, cutLabel, cutRegion, cutsThatRemoveStock } from '../../document/cuts';
 import { buildCutList } from '../../document/cutlist';
 import { axisDimensions, spanToWorldOffset } from '../../document/geometry';
-import type { Board, Cut, SloydDocument } from '../../document/document';
+import type { Board, Cut, FlatDocument, SloydDocument } from '../../document/document';
 import { findSites } from './sites';
 import { defaultChoice } from './choose';
 import { applyJoints, tenonSection } from './recipes';
@@ -19,11 +20,11 @@ const design = (...parts: P[]) => designToDocument({
   name: 'T',
   parts: parts.map((p) => ({ name: p.name, material: p.material ?? 'oak', at: { x: p.at[0], y: p.at[1], z: p.at[2] }, size: { x: p.size[0], y: p.size[1], z: p.size[2] } })),
 }).doc;
-const limits = (doc: SloydDocument) => ({ width: null, depth: null, height: null, maxParts: doc.boards.length });
-const board = (doc: SloydDocument, name: string) => doc.boards.find((b) => b.name === name)!;
-const volume = (doc: SloydDocument, name: string) => boardSolids(board(doc, name)).reduce(
+const limits = (doc: FlatDocument) => ({ width: null, depth: null, height: null, maxParts: doc.boards.length });
+const board = (doc: FlatDocument, name: string) => worldParts(doc).find((b) => b.name === name)!;
+const volume = (doc: FlatDocument, name: string) => boardSolids(board(doc, name)).reduce(
   (v, s) => v + (s.length[1] - s.length[0]) * (s.width[1] - s.width[0]) * (s.thickness[1] - s.thickness[0]), 0);
-const boxVolume = (doc: SloydDocument, name: string) => { const b = board(doc, name); return b.length * b.width * b.thickness; };
+const boxVolume = (doc: FlatDocument, name: string) => { const b = board(doc, name); return b.length * b.width * b.thickness; };
 
 const LEG_RAIL = () => design(
   { name: 'Leg', at: [0, 0, 0], size: [1.75, 28, 1.75] },
@@ -44,7 +45,7 @@ describe('mortise and tenon', () => {
   beforeAll(() => { out = applyJoints(doc, sites, [{ site: 1, joint: 'mortise-tenon', tenonLength: 1 }]); });
 
   it('grows the rail by the tenon and keeps names and part count', () => {
-    expect(out.doc.boards.map((b) => b.name)).toEqual(['Leg', 'Rail']);
+    expect(worldParts(out.doc).map((b) => b.name)).toEqual(['Leg', 'Rail']);
     expect(board(out.doc, 'Rail').length).toBe(19);
   });
 
@@ -108,7 +109,7 @@ describe('dado and stopped dado', () => {
     // A groove along the whole length, 1/2" wide, 5" in from the width's min edge.
     const along: Cut = { ...base, across: 'length', offset: 5, width: 0.5, stopMin: 0, stopMax: 0 };
     const sideways: Cut = { ...base, across: 'width', offset: 0, width: 20, stopMin: 5, stopMax: 5.75 };
-    const regionOf = (out: SloydDocument) => { const s = board(out, 'Shelf'); return cutRegion(s, s.cuts[0]); };
+    const regionOf = (out: FlatDocument) => { const s = board(out, 'Shelf'); return cutRegion(s, s.cuts[0]); };
     const a = regionOf(withGroove(along));
     const b2 = regionOf(withGroove(sideways));
     expect(b2).toEqual(a);
@@ -126,7 +127,7 @@ describe('dado and stopped dado', () => {
     const base = { id: 'r', face: 'thickness' as const, from: 'max' as const, depth: 0.25 };
     const positioned: Cut = { ...base, across: 'width', offset: 0, width: 0.75, stopMin: 0, stopMax: 0 };
     const alongD: Cut = { ...base, across: 'length', offset: 0, width: 11.25, stopMin: 0, stopMax: 19.25 };
-    const regionOf = (out: SloydDocument) => { const s = board(out, 'Shelf'); return cutRegion(s, s.cuts[0]); };
+    const regionOf = (out: FlatDocument) => { const s = board(out, 'Shelf'); return cutRegion(s, s.cuts[0]); };
     const a = regionOf(withRabbet(positioned));
     const b2 = regionOf(withRabbet(alongD));
     expect(b2).toEqual(a);
@@ -135,7 +136,7 @@ describe('dado and stopped dado', () => {
 
   it('butt leaves the site alone', () => {
     const out = applyJoints(doc, sites, [{ site: 1, joint: 'butt' }]);
-    expect(out.doc.boards.every((b) => b.cuts.length === 0)).toBe(true);
+    expect(worldParts(out.doc).every((b) => b.cuts.length === 0)).toBe(true);
     expect(out.applied).toEqual([{ site: 1, joint: 'butt' }]);
   });
 });
@@ -168,7 +169,7 @@ describe('a site whose parts no longer meet', () => {
     const out = applyJoints(moved, sites, [{ site: 1, joint: 'mortise-tenon', tenonLength: 1 }]);
     expect(out.applied).toEqual([]);
     expect(out.skipped.map((s) => s.site)).toEqual([1]);
-    expect(out.doc.boards.every((b) => b.cuts.length === 0)).toBe(true);
+    expect(worldParts(out.doc).every((b) => b.cuts.length === 0)).toBe(true);
   });
 });
 
@@ -179,7 +180,7 @@ describe('entering from the MAX face', () => {
       { name: 'Leg', at: [18, 0, 0], size: [1.75, 28, 1.75] },
     );
     const sites = findSites(doc);
-    const site = sites.find((x) => doc.boards[x.enter].name === 'Rail')!;
+    const site = sites.find((x) => worldParts(doc)[x.enter].name === 'Rail')!;
     expect(site.side).toBe(1);
     const out = applyJoints(doc, sites, [{ site: site.id, joint: 'mortise-tenon', tenonLength: 1 }]);
     expect(board(out.doc, 'Rail').length).toBe(19);
@@ -195,7 +196,7 @@ describe('entering from the MAX face', () => {
       { name: 'Side', at: [20, 0, 0], size: [0.75, 30, 11.25] },
     );
     const sites = findSites(doc);
-    const site = sites.find((x) => doc.boards[x.enter].name === 'Shelf')!;
+    const site = sites.find((x) => worldParts(doc)[x.enter].name === 'Shelf')!;
     expect(site.side).toBe(1);
     const out = applyJoints(doc, sites, [{ site: site.id, joint: 'stopped-dado', depth: 0.25, stopAt: site.stopEnds[1], inset: 0.75 }]);
     expect(board(out.doc, 'Shelf').length).toBe(20.25);
@@ -288,7 +289,7 @@ describe('rabbet: a centre partition is not a rabbet site', () => {
 
   it('gives exactly Left and Right', () => {
     const fae = sites.filter((s) => s.kind === 'face-against-edge');
-    expect(fae.map((s) => doc.boards[s.receive].name).sort()).toEqual(['Left', 'Right']);
+    expect(fae.map((s) => worldParts(doc)[s.receive].name).sort()).toEqual(['Left', 'Right']);
   });
 
   it('keeps the back full width, trims the partition, no overlap', () => {
@@ -315,7 +316,7 @@ describe('rabbet: the piece stays on the floor', () => {
   });
 
   it('lowers everything back to y = 0 and reports nothing unsupported', () => {
-    expect(Math.min(...out.doc.boards.map((b) => b.position[1]))).toBeCloseTo(0, 9);
+    expect(Math.min(...worldParts(out.doc).map((b) => b.position[1]))).toBeCloseTo(0, 9);
     expect(checkDesign(out.doc, limits(out.doc)).filter((v) => v.kind === 'unsupported')).toEqual([]);
   });
 
@@ -325,7 +326,7 @@ describe('rabbet: the piece stays on the floor', () => {
   });
 
   it('every pocket is completely filled, in either listing order (fu 182)', () => {
-    for (const d of [doc, migrateDocument({ ...doc, boards: [...doc.boards].reverse() })]) {
+    for (const d of [doc, flatDocument(migrateDocument({ ...doc, boards: [...doc.boards].reverse() }))]) {
       const sites = findSites(d);
       const o = applyJoints(d, sites, sites.map((s) => s.kind === 'face-against-edge'
         ? { site: s.id, joint: 'rabbet' as const, depth: 0.25 } : { site: s.id, joint: 'butt' as const }));
@@ -412,8 +413,8 @@ describe('half-lap: partners in different planes skip every site', () => {
     { name: 'LowB', at: [0, 5, 10], size: [20, 0.75, 2] },
     { name: 'Upper', at: [2, 5.75, -4], size: [2, 0.75, 20] },
   );
-  doc.boards.find((b) => b.name === 'LowB')!.thickness = 0.72;
-  doc.boards.find((b) => b.name === 'LowB')!.position[1] = board(doc, 'LowA').position[1] + 0.06;
+  worldParts(doc).find((b) => b.name === 'LowB')!.thickness = 0.72;
+  worldParts(doc).find((b) => b.name === 'LowB')!.position[1] = board(doc, 'LowA').position[1] + 0.06;
   let sites: ReturnType<typeof findSites>;
   let out: ReturnType<typeof applyJoints>;
   beforeAll(() => {
@@ -458,8 +459,8 @@ describe('half-lap: off-grid thickness and gap align E onto R', () => {
 
 // Final review C1 (spec §4.7): a part's existing cuts move with it, and the
 // recipes that MOVE parts run first. Every case here was red before the fix.
-const overlapsOf = (d: SloydDocument) => checkDesign(d, limits(d)).filter((v) => v.kind === 'overlap').map((v) => v.message);
-const withDefaults = (d: SloydDocument) => {
+const overlapsOf = (d: FlatDocument) => checkDesign(d, limits(d)).filter((v) => v.kind === 'overlap').map((v) => v.message);
+const withDefaults = (d: FlatDocument) => {
   const sites = findSites(d);
   return applyJoints(d, sites, sites.map((s) => defaultChoice(s, d, sites)));
 };
@@ -467,11 +468,11 @@ const withDefaults = (d: SloydDocument) => {
 // Follow-up 185: a stack of laps runs bottom-up, so every part is in its
 // final plane before anything drops onto it and each part moves once.
 const orders = <T,>(xs: T[]): T[][] => xs.length <= 1 ? [xs] : xs.flatMap((x, i) => orders([...xs.slice(0, i), ...xs.slice(i + 1)]).map((r) => [x, ...r]));
-const allLaps = (d: SloydDocument) => {
+const allLaps = (d: FlatDocument) => {
   const sites = findSites(d);
   return { sites, out: applyJoints(d, sites, sites.map((s) => ({ site: s.id, joint: 'half-lap' as const }))) };
 };
-const shapeOf = (d: SloydDocument) => Object.fromEntries(d.boards.map((b) => [b.name, {
+const shapeOf = (d: FlatDocument) => Object.fromEntries(worldParts(d).map((b) => [b.name, {
   box: boxOf(b), cuts: b.cuts.map((c) => ({ ...c, id: undefined })),
 }]));
 
@@ -587,7 +588,7 @@ describe('cuts move with their part: a rail tenoned at its far end first', () =>
   let out: ReturnType<typeof applyJoints>;
   beforeAll(() => {
     const sites = findSites(doc);
-    expect(doc.boards[sites[0].receive].name).toBe('Right leg');
+    expect(worldParts(doc)[sites[0].receive].name).toBe('Right leg');
     out = applyJoints(doc, sites, sites.map((s) => ({ site: s.id, joint: 'mortise-tenon' as const, tenonLength: 1 })));
   });
 
@@ -612,7 +613,7 @@ describe('cuts move with their part: the workbench with its legs listed right be
   it('joined with the defaults, it has no new overlap', () => {
     const raw = JSON.parse(workbenchRaw);
     raw.boards = [raw.boards[1], raw.boards[0], raw.boards[3], raw.boards[2], ...raw.boards.slice(4)];
-    const doc = migrateDocument(raw);
+    const doc = flatDocument(migrateDocument(raw));
     expect(overlapsOf(doc)).toEqual([]);
     expect(overlapsOf(withDefaults(doc).doc)).toEqual([]);
   });
@@ -717,11 +718,11 @@ describe('run-out rule (joinery residual fix)', () => {
     bottom: { name: 'Bottom', at: [0.75, 2, 0], size: [29.25, 0.75, 11.25] },
     top: { name: 'Top', at: [0.75, 41.25, 0], size: [29.25, 0.75, 11.25] },
   };
-  const run = (doc: SloydDocument) => {
+  const run = (doc: FlatDocument) => {
     const sites = findSites(doc);
     return applyJoints(doc, sites, sites.map((s) => defaultChoice(s, doc, sites)));
   };
-  const cutsOf = (doc: SloydDocument, name: string) => board(doc, name).cuts.map((c) => ({ ...c, id: undefined }));
+  const cutsOf = (doc: FlatDocument, name: string) => board(doc, name).cuts.map((c) => ({ ...c, id: undefined }));
 
   it('a housing flush with a growing end stays a 3/4in dado above the end, in either listing order', () => {
     const outs = [['bottom', 'top', 'sideL', 'sideR', 'footL', 'footR'], ['footL', 'footR', 'sideL', 'sideR', 'bottom', 'top']]
@@ -755,9 +756,9 @@ describe('rabbet: parts on the panel\'s OUTER face are carried with it (fu 183)'
     { name: 'RightSide', at: [20.75, 0, 0], size: [0.75, 30, 12] },
     { name: 'Back', at: [0, 0, -0.25], size: [21.5, 30, 0.25] },
   ];
-  const run = (doc: SloydDocument) => { const sites = findSites(doc); return { sites, out: applyJoints(doc, sites, sites.map(rabbetPick(0.375))) }; };
-  const dz = (out: ReturnType<typeof applyJoints>, doc: SloydDocument, name: string) => board(out.doc, name).position[2] - board(doc, name).position[2];
-  const problemsFor = (d: SloydDocument, name: string) => checkDesign(d, limits(d)).filter((v) => v.parts?.includes(name)).map((v) => v.kind);
+  const run = (doc: FlatDocument) => { const sites = findSites(doc); return { sites, out: applyJoints(doc, sites, sites.map(rabbetPick(0.375))) }; };
+  const dz = (out: ReturnType<typeof applyJoints>, doc: FlatDocument, name: string) => board(out.doc, name).position[2] - board(doc, name).position[2];
+  const problemsFor = (d: FlatDocument, name: string) => checkDesign(d, limits(d)).filter((v) => v.parts?.includes(name)).map((v) => v.kind);
 
   it('carries a cleat on the back exactly once, by t, still touching it', () => {
     const doc = design(...CASE, { name: 'Cleat', at: [0.75, 26, -1], size: [20, 3, 0.75] });
@@ -804,7 +805,7 @@ describe('rabbet: parts on the panel\'s OUTER face are carried with it (fu 183)'
     const doc = design(...CASE, SHELF, TOP, HIGH_CLEAT);
     expect(checkDesign(doc, limits(doc))).toEqual([]);
     const { sites, out } = run(doc);
-    const backSites = sites.filter((s) => s.kind === 'face-against-edge' && doc.boards[s.enter].name === 'Back');
+    const backSites = sites.filter((s) => s.kind === 'face-against-edge' && worldParts(doc)[s.enter].name === 'Back');
     expect(backSites.length).toBeGreaterThanOrEqual(2);
     expect(out.skipped).toEqual(backSites.map((s) => ({ site: s.id, reason: 'moving Back would drive Cleat into Top' })));
     expect(out.doc.boards).toEqual(doc.boards);
@@ -846,9 +847,9 @@ const worldOf = (b: Board, r: Span3): WB => {
 };
 const vol = (a: WB) => [0, 1, 2].reduce((v, k) => v * Math.max(0, a.max[k] - a.min[k]), 1);
 const meet = (a: WB, b: WB): WB => ({ min: [0, 1, 2].map((k) => Math.max(a.min[k], b.min[k])), max: [0, 1, 2].map((k) => Math.min(a.max[k], b.max[k])) });
-const pocketsOf = (doc: SloydDocument) => doc.boards.flatMap((b, i) => cutsThatRemoveStock(b).map((c) => ({ i, b, c, at: worldOf(b, clippedRegion(b, c)) })));
-const voids = (doc: SloydDocument) => {
-  const solids = doc.boards.map((b) => boardSolids(b).map((s) => worldOf(b, s)));
+const pocketsOf = (doc: FlatDocument) => worldParts(doc).flatMap((b, i) => cutsThatRemoveStock(b).map((c) => ({ i, b, c, at: worldOf(b, clippedRegion(b, c)) })));
+const voids = (doc: FlatDocument) => {
+  const solids = worldParts(doc).map((b) => boardSolids(b).map((s) => worldOf(b, s)));
   return pocketsOf(doc).flatMap(({ i, b, c, at }) => {
     let filled = 0;
     solids.forEach((ss, j) => { if (j !== i) for (const s of ss) filled += vol(meet(at, s)); });
@@ -860,7 +861,7 @@ const voids = (doc: SloydDocument) => {
 describe('the void metric', () => {
   it('reports a pocket that nothing fills at all', () => {
     const doc = design({ name: 'Side', at: [0, 0, 0], size: [0.75, 30, 11.25] });
-    const side = doc.boards[0];
+    const side = worldParts(doc)[0];
     side.cuts.push({ id: 'c1', face: 'thickness', from: 'max', across: 'width', offset: 10, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 });
     expect(pocketsOf(doc)).toHaveLength(1);
     expect(voids(doc)).toEqual([`Side dado: ${(0.75 * 0.25 * 11.25).toFixed(4)} in3 empty`]);
@@ -881,7 +882,7 @@ describe('a rabbeted panel is resolved as one unit, its final box first (fu 182)
     { name: 'Back', at: [0, 0, -0.25], size: [24, 30, 0.25], material: 'plywood' },
   ];
   const listings = orders(CAB);
-  let runs: { doc: SloydDocument; sites: ReturnType<typeof findSites>; out: ReturnType<typeof applyJoints> }[];
+  let runs: { doc: FlatDocument; sites: ReturnType<typeof findSites>; out: ReturnType<typeof applyJoints> }[];
   beforeAll(() => {
     runs = listings.map((parts) => { const doc = design(...parts); const sites = findSites(doc); return { doc, sites, out: withDefaults(doc) }; });
   });
@@ -890,12 +891,12 @@ describe('a rabbeted panel is resolved as one unit, its final box first (fu 182)
     expect(listings).toHaveLength(120);
     for (const { doc, sites } of runs) {
       expect(checkDesign(doc, limits(doc))).toEqual([]);
-      const back = sites.filter((s) => doc.boards[s.enter].name === 'Back');
+      const back = sites.filter((s) => worldParts(doc)[s.enter].name === 'Back');
       expect(back.map((s) => defaultChoice(s, doc, sites).joint)).toEqual(['rabbet', 'rabbet', 'rabbet', 'rabbet']);
     }
     // Both relative orders of Back->Top and Back->Left occur among the 120.
     const topFirst = runs.map(({ doc, sites }) => {
-      const at = (n: string) => sites.findIndex((s) => doc.boards[s.enter].name === 'Back' && doc.boards[s.receive].name === n);
+      const at = (n: string) => sites.findIndex((s) => worldParts(doc)[s.enter].name === 'Back' && worldParts(doc)[s.receive].name === n);
       return at('Top') < at('Left side');
     });
     expect(new Set(topFirst)).toEqual(new Set([true, false]));
@@ -913,7 +914,7 @@ describe('a rabbeted panel is resolved as one unit, its final box first (fu 182)
   it('every order ends with the same boxes and the same cuts, part by part', () => {
     // A part's cuts land in site order, which follows the listing, so they are
     // compared as a set; every number must still match exactly.
-    const settled = (d: SloydDocument) => Object.fromEntries(Object.entries(shapeOf(d))
+    const settled = (d: FlatDocument) => Object.fromEntries(Object.entries(shapeOf(d))
       .map(([n, { box, cuts }]) => [n, { box, cuts: cuts.map((c) => JSON.stringify(c)).sort() }]));
     const first = settled(runs[0].out.doc);
     for (const { out } of runs) expect(settled(out.doc)).toEqual(first);
@@ -949,14 +950,14 @@ describe('a bookcase with a raised bottom and a shelf leaves no voids (fu 182)',
     { name: 'Shelf', at: [0.75, 18, 0], size: [22.5, 0.75, 11.25] },
     { name: 'Back', at: [0, 0, -0.25], size: [24, 36, 0.25], material: 'plywood' },
   ];
-  const stoppedAt = (end: 'min' | 'max') => (d: SloydDocument) => {
+  const stoppedAt = (end: 'min' | 'max') => (d: FlatDocument) => {
     const sites = findSites(d);
     return applyJoints(d, sites, sites.map((s) => {
       const at = s.kind === 'end-into-face' ? s.stopEnds.find((e) => e.axis === 2 && e.end === end) : undefined;
       return at ? { site: s.id, joint: 'stopped-dado' as const, depth: 0.25, stopAt: at, inset: 0.75 } : defaultChoice(s, d, sites);
     }));
   };
-  const variants: [string, (d: SloydDocument) => ReturnType<typeof applyJoints>, number][] = [
+  const variants: [string, (d: FlatDocument) => ReturnType<typeof applyJoints>, number][] = [
     ['the defaults', withDefaults, 0],
     ['every housing a dado stopped at the back (-Z)', stoppedAt('min'), 6],
     ['every housing a dado stopped at the front (+Z)', stoppedAt('max'), 6],
@@ -1004,7 +1005,7 @@ describe('a part in the rabbeted panel\'s path is trimmed by its intrusion (fu 2
       expect(checkDesign(doc, limits(doc))).toEqual([]);
       const sites = findSites(doc);
       const out = applyJoints(doc, sites, sites.map(rabbetPick(0.375)));
-      const backSites = sites.filter((s) => s.kind === 'face-against-edge' && doc.boards[s.enter].name === 'Back');
+      const backSites = sites.filter((s) => s.kind === 'face-against-edge' && worldParts(doc)[s.enter].name === 'Back');
       expect(backSites).toHaveLength(4);
       expect(out.skipped).toEqual(backSites.map((s) => ({ site: s.id, reason: 'moving Back would trim Shelf at an end it is already cut into' })));
       expect(out.doc.boards).toEqual(doc.boards);
@@ -1023,7 +1024,7 @@ describe('a part in the rabbeted panel\'s path is trimmed by its intrusion (fu 2
     expect(checkDesign(doc, limits(doc))).toEqual([]);
     const sites = findSites(doc);
     const out = applyJoints(doc, sites, sites.map(rabbetPick(0.375)));
-    const backSites = sites.filter((s) => s.kind === 'face-against-edge' && doc.boards[s.enter].name === 'Back');
+    const backSites = sites.filter((s) => s.kind === 'face-against-edge' && worldParts(doc)[s.enter].name === 'Back');
     expect(backSites).toHaveLength(4);
     expect(out.skipped).toEqual(backSites.map((s) => ({ site: s.id, reason: 'moving Back would pass through Strip' })));
     expect(out.doc.boards).toEqual(doc.boards);
@@ -1038,13 +1039,13 @@ describe('a part in the rabbeted panel\'s path is trimmed by its intrusion (fu 2
 // really block, so the switch is not a licence to pass anything.
 describe('blockers judge solids, not boxes (fu 203)', () => {
   // A pocket given relative to the board's min corner (designToDocument centres the design).
-  const cutAt = (d: SloydDocument, name: string, min: [number, number, number], max: [number, number, number]) => {
+  const cutAt = (d: FlatDocument, name: string, min: [number, number, number], max: [number, number, number]) => {
     const b = board(d, name);
     const at = (v: number[]) => v.map((x, k) => b.position[k] + x) as [number, number, number];
     b.cuts.push(pocketFor(b, { min: at(min), max: at(max) }));
   };
-  const problems = (d: SloydDocument) => checkDesign(d, limits(d));
-  const overlaps = (d: SloydDocument) => problems(d).filter((v) => v.kind === 'overlap');
+  const problems = (d: FlatDocument) => checkDesign(d, limits(d));
+  const overlaps = (d: FlatDocument) => problems(d).filter((v) => v.kind === 'overlap');
 
   describe('a half-lap whose drop passes a seated tenon\'s box', () => {
     // Stage 1 tenons two legs up into R. Stage 2 is Add joinery run again on
@@ -1059,7 +1060,7 @@ describe('blockers judge solids, not boxes (fu 203)', () => {
       );
       expect(problems(doc)).toEqual([]);
       const sites = findSites(doc);
-      const tenons = sites.filter((s) => s.kind === 'end-into-face' && doc.boards[s.enter].name.startsWith('Leg') && doc.boards[s.receive].name === 'R');
+      const tenons = sites.filter((s) => s.kind === 'end-into-face' && worldParts(doc)[s.enter].name.startsWith('Leg') && worldParts(doc)[s.receive].name === 'R');
       expect(tenons).toHaveLength(2);
       const out = applyJoints(doc, sites, sites.map((s) => tenons.includes(s)
         ? { site: s.id, joint: 'mortise-tenon' as const, tenonLength: 0.5 }
@@ -1068,9 +1069,9 @@ describe('blockers judge solids, not boxes (fu 203)', () => {
       expect(problems(out.doc)).toEqual([]);
       return out.doc;
     };
-    const lap = (d: SloydDocument) => {
+    const lap = (d: FlatDocument) => {
       const sites = findSites(d);
-      const crossing = sites.filter((s) => s.kind === 'crossing' && d.boards[s.enter].name === 'E' && d.boards[s.receive].name === 'R');
+      const crossing = sites.filter((s) => s.kind === 'crossing' && worldParts(d)[s.enter].name === 'E' && worldParts(d)[s.receive].name === 'R');
       expect(crossing).toHaveLength(1);
       return applyJoints(d, sites, sites.map((s) => ({ site: s.id, joint: s === crossing[0] ? 'half-lap' as const : 'butt' as const })));
     };
@@ -1123,7 +1124,7 @@ describe('blockers judge solids, not boxes (fu 203)', () => {
       { name: 'Back', at: [0, 0, -0.25], size: [21.5, 30, 0.25] },
       { name: 'Top', at: [0, 30, -0.25], size: [21.5, 0.75, 12.25] },
     ];
-    const run = (doc: SloydDocument) => { const sites = findSites(doc); return applyJoints(doc, sites, sites.map(rabbetPick(0.375))); };
+    const run = (doc: FlatDocument) => { const sites = findSites(doc); return applyJoints(doc, sites, sites.map(rabbetPick(0.375))); };
 
     it('a cleat carried into the top\'s box, but into a rabbet already cut there: applied, no overlap', () => {
       const doc = design(...CASE, { name: 'Cleat', at: [0.75, 28, -1], size: [20, 2.5, 0.75] });
@@ -1226,7 +1227,7 @@ describe('blockers judge solids, not boxes (fu 203)', () => {
       { name: 'Back', at: [0, 0, -0.25], size: [21, 30, 0.25] },
     );
     const site: Site = { id: 1, kind: 'face-against-edge', enter: 2, receive: 0, axis: 2, side: 1, allowed: ['rabbet'], stopEnds: [] };
-    const join = (d: SloydDocument) => applyJoints(d, [site], [{ site: 1, joint: 'rabbet', depth: 0.375 }]);
+    const join = (d: FlatDocument) => applyJoints(d, [site], [{ site: 1, joint: 'rabbet', depth: 0.375 }]);
 
     it('a part whose existing cut already makes room is not trimmed, and nothing overlaps', () => {
       const doc = build();
@@ -1281,7 +1282,7 @@ describe('blockers judge solids, not boxes (fu 203)', () => {
     cutAt(doc, 'Back', [...min], [...max]);
     expect(problems(doc)).toEqual([]);
     const sites = findSites(doc);
-    const backSites = sites.filter((s) => s.kind === 'face-against-edge' && doc.boards[s.enter].name === 'Back');
+    const backSites = sites.filter((s) => s.kind === 'face-against-edge' && worldParts(doc)[s.enter].name === 'Back');
     expect(backSites).toHaveLength(2);
     const out = applyJoints(doc, sites, sites.map(rabbetPick(0.375)));
     expect(out.skipped).toEqual(backSites.map((s) => ({ site: s.id, reason: 'moving Back would trim it at an end it is already cut into' })));
@@ -1310,7 +1311,7 @@ describe('blockers judge solids, not boxes (fu 203)', () => {
 // design reached it (on master too) and failed the whole run. It is skipped
 // with a reason now, before anything changes.
 describe('a part already cut into the end a tenon or dado would grow is skipped (final review)', () => {
-  const notch = (d: SloydDocument, name: string, min: [number, number, number], max: [number, number, number]) => {
+  const notch = (d: FlatDocument, name: string, min: [number, number, number], max: [number, number, number]) => {
     const b = board(d, name);
     const at = (v: number[]) => v.map((x, k) => b.position[k] + x) as [number, number, number];
     b.cuts.push(pocketFor(b, { min: at(min), max: at(max) }));
@@ -1328,7 +1329,7 @@ describe('a part already cut into the end a tenon or dado would grow is skipped 
     expect(checkDesign(doc, limits(doc))).toEqual([]);
     const sites = findSites(doc);
     const choices = sites.map((s) => defaultChoice(s, doc, sites));
-    const far = sites.find((s) => doc.boards[s.receive].name === 'Right side')!;
+    const far = sites.find((s) => worldParts(doc)[s.receive].name === 'Right side')!;
     expect(choices.find((c) => c.site === far.id)!.joint).toBe('dado');
     const out = applyJoints(doc, sites, choices);
     expect(out.skipped).toEqual([{ site: far.id, reason: 'Shelf is already cut at the end that would grow into Right side' }]);
@@ -1352,7 +1353,7 @@ describe('a part already cut into the end a tenon or dado would grow is skipped 
     expect(cut).toMatchObject({ face: 'length', from: 'min' });
     expect(checkDesign(doc, limits(doc))).toEqual([]);
     const sites = findSites(doc);
-    const near = sites.find((s) => doc.boards[s.receive].name === 'Leg')!;
+    const near = sites.find((s) => worldParts(doc)[s.receive].name === 'Leg')!;
     const out = applyJoints(doc, sites, [{ site: near.id, joint: 'mortise-tenon', tenonLength: 1 }]);
     expect(out.skipped).toEqual([{ site: near.id, reason: 'Rail is already cut at the end that would grow into Leg' }]);
     expect(out.applied.every((a) => a.joint === 'butt')).toBe(true);
@@ -1415,7 +1416,7 @@ describe('joinery is equivariant under a 180 turn of every part', () => {
     const a = run(0);
     const b = run(180);
     // Not vacuous: the 180 copy really is turned, and the fixture really joins or skips.
-    expect(b.doc.boards.every((x, i) => x.rotation === (a.doc.boards[i].rotation + 180) % 360)).toBe(true);
+    expect(worldParts(b.doc).every((x, i) => x.rotation === (worldParts(a.doc)[i].rotation + 180) % 360)).toBe(true);
     if (want === 'applied') expect(a.out.applied.some((x) => x.joint !== 'butt')).toBe(true);
     else expect(a.out.skipped.length).toBeGreaterThan(0);
     expect(b.out.applied.map((x) => x.joint)).toEqual(a.out.applied.map((x) => x.joint));
@@ -1423,7 +1424,7 @@ describe('joinery is equivariant under a 180 turn of every part', () => {
     expect([...b.out.moved].sort()).toEqual([...a.out.moved].sort());
     expect([...b.out.trimmed].sort()).toEqual([...a.out.trimmed].sort());
     expect(b.out.lowered).toBe(a.out.lowered);
-    expect(b.out.doc.boards.map((x) => x.name)).toEqual(a.out.doc.boards.map((x) => x.name));
+    expect(worldParts(b.out.doc).map((x) => x.name)).toEqual(worldParts(a.out.doc).map((x) => x.name));
     for (const x of a.out.doc.boards) {
       const y = board(b.out.doc, x.name);
       const corners = (bd: Board) => worldSolids(bd).flatMap((w) => [w.min, w.max]);
@@ -1435,7 +1436,7 @@ describe('joinery is equivariant under a 180 turn of every part', () => {
 describe('joinery on assemblies (assemblies spec §6.1)', () => {
   it('joins a grouped design exactly as its flat twin, and returns the tree', () => {
     const flat = LEG_RAIL();
-    const ids = flat.boards.map((b) => b.id);
+    const ids = worldParts(flat).map((b) => b.id);
     const grouped = groupItems(flat, null, ids)!.doc;
     const plainSites = findSites(flat);
     const plainJoin = applyJoints(flat, plainSites, plainSites.map((s) => defaultChoice(s, flat, plainSites)));
@@ -1451,7 +1452,7 @@ describe('joinery on assemblies (assemblies spec §6.1)', () => {
   for (const rot of [0, 90, 180, 270] as const) {
     it(`keeps the joined world geometry inside an assembly translated and turned ${rot}`, () => {
       const flat = LEG_RAIL();
-      const g = groupItems(flat, null, flat.boards.map((b) => b.id))!.doc;
+      const g = groupItems(flat, null, worldParts(flat).map((b) => b.id))!.doc;
       const grouped: SloydDocument = { ...g, instances: g.instances.map((i) => ({ ...i, rotation: rot, position: [5.3, 0, 2.1] as [number, number, number] })) };
       const f = flatDocument(grouped);
       const sites = findSites(f);
@@ -1459,9 +1460,9 @@ describe('joinery on assemblies (assemblies spec §6.1)', () => {
       const back = flatDocument(migrateDocument(writeBackFlat(grouped, f.boards, joined.doc.boards)));
       expect(back.boards).toHaveLength(joined.doc.boards.length);
       const corners = (b: Board) => worldSolids(b).flatMap((w) => [[...w.min], [...w.max]] as number[][]);
-      joined.doc.boards.forEach((j, k) => {
-        expect(sameSet(corners(back.boards[k]!), corners(j)), j.name).toBe(true);
-        expect(back.boards[k]!.cuts.map(({ id: _i, ...c }) => c), j.name).toEqual(j.cuts.map(({ id: _i, ...c }) => c));
+      worldParts(joined.doc).forEach((j, k) => {
+        expect(sameSet(corners(worldParts(back)[k]!), corners(j)), j.name).toBe(true);
+        expect(worldParts(back)[k]!.cuts.map(({ id: _i, ...c }) => c), j.name).toEqual(j.cuts.map(({ id: _i, ...c }) => c));
       });
     });
   }

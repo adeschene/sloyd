@@ -1,4 +1,5 @@
-import { createBoard, createGuide, snapPointsFor } from '../document/document';
+import { createBoard, createDocument, createGuide, itemKey, snapPointsFor } from '../document/document';
+import type { SloydDocument } from '../document/document';
 import { moveCandidates } from './moveCandidates';
 import { assemblyDoc } from '../document/treeFixtures';
 import { worldParts } from '../document/tree';
@@ -53,5 +54,39 @@ describe('moveCandidates with assemblies', () => {
     expect(new Set(pre.map((p) => p.owner.id))).toEqual(new Set(['i1/b1', 'i1/b2', 'i1/i2/b3']));
     const post = moveCandidates(world, [], ['i1'], [], true, false);
     expect(new Set(post.map((p) => p.owner.id))).toEqual(new Set(['r1']));
+  });
+});
+
+describe('moveCandidates with shared definitions (components spec §4.1)', () => {
+  const part = (id: string, x: number) => ({ id, name: `P ${id}`, length: 10, width: 4, thickness: 0.75,
+    position: [x, 0, 0] as [number, number, number], rotation: 0 as const, posture: 'flat' as const,
+    grain: 'length' as const, material: 'oak', cuts: [] });
+  const doc: SloydDocument = {
+    ...createDocument(),
+    instances: [
+      { id: 'i1', name: 'Box', definition: 'd1', position: [0, 0, 0], rotation: 0 },
+      { id: 'i2', name: 'Box (1)', definition: 'd1', position: [50, 0, 0], rotation: 0 },
+    ],
+    definitions: [
+      { id: 'd1', boards: [part('b1', 0), part('b2', 12)], instances: [{ id: 'g', name: 'Inner', definition: 'dg', position: [0, 5, 0], rotation: 0 }] },
+      { id: 'dg', boards: [part('b3', 0)], instances: [] },
+    ],
+  };
+  const world = worldParts(doc);
+  const keyOf = (p: string) => itemKey(doc, p);
+
+  it('after a grab, another occurrence of the selected part is no target', () => {
+    const post = moveCandidates(world, [], ['i1/b1'], [], true, false, keyOf);
+    expect(owners(post)).toEqual(new Set(['i1/b2', 'i1/g/b3', 'i2/b2', 'i2/g/b3']));
+  });
+
+  it('after a grab, every part under another occurrence of a selected nested assembly is no target', () => {
+    const post = moveCandidates(world, [], ['i1/g'], [], true, false, keyOf);
+    expect(owners(post)).toEqual(new Set(['i1/b1', 'i1/b2', 'i2/b1', 'i2/b2']));
+  });
+
+  it('a selected ROOT assembly moves alone: the other copy stays a target', () => {
+    const post = moveCandidates(world, [], ['i1'], [], true, false, keyOf);
+    expect(owners(post)).toEqual(new Set(['i2/b1', 'i2/b2', 'i2/g/b3']));
   });
 });

@@ -278,3 +278,30 @@ Unit tests, each guard mutation-tested (the ledger's rule: a test that cannot fa
 - Link and Unlink four legs; Select linked; add a cut to one leg;
 - the cut list (one row per part across copies) and the joinery dialog's sites;
 - reload; import a v10 file with links and assemblies, and a v9 file.
+
+## 8. Amendments (2026-10-06/07, during implementation)
+
+Rulings made while building, each recorded with its cost in the round's ledger. None changes
+behaviour the user approved.
+1. **A RESOLVED part carries `shape`** (§2). "A `Board` never carries `shape`" means a STORED
+   plain part. The parts list, Select linked and the linked count need the shape id on world parts,
+   as they needed `link`.
+2. **`FlatDocument`** is a document whose boards are resolved `Board`s. The cut list,
+   `checkDesign`, joinery and Generate take it, so nothing casts a stored part to a `Board`.
+3. **The v10→v11 link migration runs AFTER validation, before `repairTree`** (§2.4 said "on raw
+   data"). It needs validated values and world order to judge equality. Its map is keyed by the
+   validated objects, which is why it runs before the name dedupe.
+4. **A shape with an invalid size does not claim its id**, as a malformed definition does not.
+   **A definition whose id is literally `ROOT` is dropped**, because `ROOT` is the write-back's
+   root storage id.
+5. **Joinery splits definitions shallowest-first by their deepest placement,** not root-first
+   breadth-first. A drawer placed at the root AND inside shared cabinets fails under BFS. Results
+   compare exactly (§5), so a last-bit difference can split a copy off, which is the safe
+   direction.
+6. **Make Unique is offered by instance REFERENCES, not placements** (§3.1). A drawer placed once
+   inside a cabinet that is placed twice reads "Shared by 2 copies" but has nothing to split at
+   its own level.
+7. **Delete, Group and Ungroup inside a shared definition re-key hidden ids and tape points under
+   EVERY placement** of the edited container, then reconcile `hiddenIds` and judge every held point
+   (§4.2, found by the whole-branch review). A twin occurrence of a selected part is never a Move
+   target.

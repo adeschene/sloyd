@@ -32,14 +32,43 @@ describe('loading assemblies (assemblies spec §2.4)', () => {
     expect(childrenOf(doc, 'i1/i2')).toEqual(['i1/i2/b3']);
   });
 
-  it('step 4: a second reference to one definition gets its own copy', () => {
-    const r = raw();
+  it('step 4: below v11, a second reference to one definition gets its own copy', () => {
+    const r = raw({ version: 10 });
     r.instances.push({ id: 'i7', name: 'Drawer 2', definition: 'd1', position: [30, 0, 0], rotation: 0 });
     const doc = migrateDocument(r);
     expect(instanceAt(doc, 'i1')!.definition).toBe('d1');
     expect(instanceAt(doc, 'i7')!.definition).not.toBe('d1');
     expect(worldParts(doc)).toHaveLength(7);
     expect(new Set(doc.definitions.map((x) => x.id)).size).toBe(doc.definitions.length);
+  });
+
+  it('step 4: from v11, a second reference keeps sharing the definition, fixed once', () => {
+    const r = raw();
+    r.instances.push({ id: 'i7', name: 'Drawer 2', definition: 'd1', position: [30, 0, 0], rotation: 0 });
+    const doc = migrateDocument(r);
+    expect(instanceAt(doc, 'i7')!.definition).toBe('d1');
+    expect(doc.definitions.map((x) => x.id)).toEqual(['d1', 'd2']);
+    expect(worldParts(doc)).toHaveLength(7);
+  });
+
+  it('step 4: a shared definition that would contain itself is still dropped as a cycle', () => {
+    const d = defs();
+    d[1].instances.push({ id: 'loop', name: 'Loop', definition: 'd1', position: [0, 0, 0], rotation: 0 });
+    const r = raw({ definitions: d });
+    r.instances.push({ id: 'i7', name: 'Drawer 2', definition: 'd1', position: [30, 0, 0], rotation: 0 });
+    const doc = migrateDocument(r);
+    expect(childrenOf(doc, 'i1/i2')).toEqual(['i1/i2/b3']);
+    expect(childrenOf(doc, 'i7/i2')).toEqual(['i7/i2/b3']);
+    expect(doc.definitions.find((x) => x.id === 'd2')!.instances).toEqual([]);
+  });
+
+  it("step 1: a definition whose id is the root's storage id ('ROOT') is dropped with its instances; the file opens", () => {
+    const r = raw({ definitions: [...defs(), { id: 'ROOT', boards: [{ id: 'q', name: 'Q', length: 2, width: 1, thickness: 1, position: [0, 0, 0] }], instances: [] }] });
+    r.instances.push({ id: 'i9', name: 'Rooted', definition: 'ROOT', position: [0, 0, 0], rotation: 0 });
+    const doc = migrateDocument(r);
+    expect(childrenOf(doc, null)).toEqual(['r1', 'i1']);
+    expect(doc.definitions.some((x) => x.id === 'ROOT')).toBe(false);
+    expect(doc.boards.map((b) => b.id)).toEqual(['r1']);
   });
 
   it('step 5: an unreferenced definition is dropped', () => {
@@ -63,16 +92,6 @@ describe('loading assemblies (assemblies spec §2.4)', () => {
     const doc = migrateDocument(raw({ definitions: d }));
     expect(partAt(doc, 'i1/b1')!.name).toBe('Side');
     expect(childrenOf(doc, 'i1')).toHaveLength(3);
-  });
-
-  it('step 7: a linked pair across containers that differs is unlinked', () => {
-    const r = raw();
-    r.boards[0].link = 'L1';
-    const d = defs();
-    d[0].boards[1].link = 'L1';
-    const doc = migrateDocument({ ...r, definitions: d });
-    expect('link' in doc.boards[0]!).toBe(false);
-    expect('link' in partAt(doc, 'i1/b2')!).toBe(false);
   });
 
   it('drops a malformed instance instead of refusing the file', () => {

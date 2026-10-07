@@ -1,6 +1,8 @@
+import { worldParts } from '../../document/tree';
 import { describe, expect, it, vi } from 'vitest';
 import { designToDocument } from '../../document/generated';
-import { groupItems } from '../../document/document';
+import type { SloydDocument } from '../../document/document';
+import { groupItems, sharedOf } from '../../document/document';
 import { LlmError } from '../../llm/types';
 import type { LlmClient, LlmResult } from '../../llm/types';
 import { runJoinery } from '../run';
@@ -42,7 +44,7 @@ const RAILED = design(
   { name: 'Spare', at: [1.75, 23.5, 10], size: [18, 3, 0.75] },
   { name: 'Spare 2', at: [1.75, 23.5, 20], size: [18, 3, 0.75] },
 );
-const run = (c: LlmClient, d = CORNER) => runJoinery(c, d, new AbortController().signal, () => {});
+const run = (c: LlmClient, d: SloydDocument = CORNER) => runJoinery(c, d, new AbortController().signal, () => {});
 const ids = findSites(CORNER).map((s) => s.id);
 const long = { joints: ids.map((site) => ({ site, joint: 'mortise-tenon', tenonLength: 1.25 })) };
 const short = { joints: ids.map((site) => ({ site, joint: 'mortise-tenon', tenonLength: 0.5 })) };
@@ -107,31 +109,60 @@ describe('runJoinery', () => {
   });
 
   describe('links (linking spec 3.5)', () => {
-    const linked = (names: string[], d = RAILED) => ({ ...d, boards: d.boards.map((b) => (names.includes(b.name) ? { ...b, link: 'L' } : b)) });
+    // Links are shapes (components spec §3.2): the named parts become users of one shape 'L'.
+    const linked = (names: string[], d = RAILED): SloydDocument => {
+      const first = worldParts(d).find((b) => names.includes(b.name))!;
+      return {
+        ...d,
+        shapes: [{ id: 'L', ...sharedOf(first) }],
+        boards: worldParts(d).map((b) => (names.includes(b.name)
+          ? { id: b.id, name: b.name, position: b.position, rotation: b.rotation, shape: 'L' } : b)),
+      };
+    };
     const railedIds = findSites(RAILED).map((s) => s.id);
     const railed = { joints: railedIds.map((site) => ({ site, joint: 'mortise-tenon', tenonLength: 0.5 })) };
 
-    // applyJoints ends in migrateDocument, whose load repair (repairLinks) already unlinks
-    // parts it cut differently, so runJoinery needs no call of its own; these pin that.
+    // Follow-up 223 CLOSED (components spec §5): linked legs whose mortises come
+    // out identical stay ONE shape. Each leg here has its rail on the same side,
+    // at the same height, so the two mortises are the same cut in each leg's frame.
+    const TWIN = design(
+      { name: 'Leg A', at: [0, 0, 0], size: [1.75, 28, 1.75] },
+      { name: 'Rail A', at: [1.75, 23.5, 0.5], size: [18, 3, 0.75] },
+      { name: 'Leg B', at: [30, 0, 0], size: [1.75, 28, 1.75] },
+      { name: 'Rail B', at: [31.75, 23.5, 0.5], size: [18, 3, 0.75] },
+    );
+    it('two linked legs joinery cuts identically stay ONE shape, sharing cut ids (follow-up 223)', async () => {
+      const twinned = { joints: findSites(TWIN).map((site) => ({ site: site.id, joint: 'mortise-tenon', tenonLength: 0.5 })) };
+      const out = await run(client(twinned), linked(['Leg A', 'Leg B'], TWIN));
+      if ('noSites' in out) throw new Error('expected sites');
+      const legs = worldParts(out.result.doc).filter((b) => b.name.startsWith('Leg'));
+      expect(legs.length).toBe(2);
+      expect(legs[0]!.cuts.length).toBeGreaterThan(0);
+      expect(legs[0]!.shape).toBeDefined();
+      expect(legs[1]!.shape).toBe(legs[0]!.shape);
+      expect(legs[1]!.cuts.map((c) => c.id)).toEqual(legs[0]!.cuts.map((c) => c.id));
+      expect(out.result.doc.shapes).toHaveLength(1);
+    });
+
     it('two linked legs joinery cuts on different faces come out unlinked', async () => {
       const out = await run(client(railed), linked(['Leg A', 'Leg B']));
       if ('noSites' in out) throw new Error('expected sites');
-      const legs = out.result.doc.boards.filter((b) => b.name.startsWith('Leg'));
+      const legs = worldParts(out.result.doc).filter((b) => b.name.startsWith('Leg'));
       expect(legs.length).toBe(2);
-      for (const l of legs) expect('link' in l).toBe(false);
+      for (const l of legs) expect('shape' in l).toBe(false);
     });
 
     it('a linked pair joinery does not cut keeps its link', async () => {
       const d = linked(['Spare', 'Spare 2']);
       const out = await run(client(railed), d);
       if ('noSites' in out) throw new Error('expected sites');
-      const kept = out.result.doc.boards.filter((b) => b.link === 'L').map((b) => b.name);
+      const kept = worldParts(out.result.doc).filter((b) => b.shape !== undefined && b.shape === worldParts(out.result.doc).find((x) => x.name === 'Spare')!.shape).map((b) => b.name);
       expect(kept.sort()).toEqual(['Spare', 'Spare 2']);
     });
   });
 
   it('returns the TREE: a grouped design comes back with its instance (assemblies spec §6.1)', async () => {
-    const grouped = groupItems(CORNER, null, CORNER.boards.map((b) => b.id))!.doc;
+    const grouped = groupItems(CORNER, null, worldParts(CORNER).map((b) => b.id))!.doc;
     const out = await run(client(long), grouped);
     if ('noSites' in out) throw new Error('expected sites');
     expect(out.result.doc.instances).toHaveLength(1);

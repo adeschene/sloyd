@@ -1,9 +1,10 @@
+import { worldParts } from './tree';
 import { describe, expect, it } from 'vitest';
 import { checkDesign, faceContacts, rejectedViolations, TOUCH } from './designCheck';
 import type { DesignLimits } from './designCheck';
-import { createBoard, createDocument, migrateDocument } from './document';
+import { createBoard, createDocument, flatDocument, migrateDocument } from './document';
 import workbenchRaw from './fixtures/simple-workbench.sloyd?raw';
-import type { SloydDocument } from './document';
+import type { FlatDocument } from './document';
 import type { Board } from './types';
 
 const NO_LIMITS: DesignLimits = { width: null, depth: null, height: null, maxParts: 100 };
@@ -11,8 +12,8 @@ const NO_LIMITS: DesignLimits = { width: null, depth: null, height: null, maxPar
 // A flat board: length on X, thickness on Y, width on Z.
 const box = (name: string, at: [number, number, number], size: [number, number, number]): Board =>
   createBoard({ name, position: at, length: size[0], thickness: size[1], width: size[2], posture: 'flat', rotation: 0 });
-const docOf = (...boards: Board[]): SloydDocument => ({ ...createDocument('T'), boards });
-const kinds = (doc: SloydDocument, limits = NO_LIMITS) => checkDesign(doc, limits).map((v) => v.kind);
+const docOf = (...boards: Board[]): FlatDocument => ({ ...createDocument('T'), boards });
+const kinds = (doc: FlatDocument, limits = NO_LIMITS) => checkDesign(doc, limits).map((v) => v.kind);
 
 describe('overlap', () => {
   it('passes two boxes whose faces touch', () => {
@@ -105,10 +106,10 @@ describe('ordering and rejected parts', () => {
 /** A box from its min and max corners, as a flat board (length X, thickness Y, width Z). */
 const span = (name: string, min: [number, number, number], max: [number, number, number]): Board =>
   box(name, min, [max[0] - min[0], max[1] - min[1], max[2] - min[2]]);
-const hangs = (doc: SloydDocument) => checkDesign(doc, NO_LIMITS).filter((v) => v.kind === 'hangs');
+const hangs = (doc: FlatDocument) => checkDesign(doc, NO_LIMITS).filter((v) => v.kind === 'hangs');
 
 describe('hangs — the real workbench (fu 165)', () => {
-  const workbench = () => migrateDocument(JSON.parse(workbenchRaw));
+  const workbench = () => flatDocument(migrateDocument(JSON.parse(workbenchRaw)));
 
   it('flags ONLY the lower shelf, which hangs by its corners below the low rails', () => {
     const v = checkDesign(workbench(), NO_LIMITS);
@@ -121,18 +122,17 @@ describe('hangs — the real workbench (fu 165)', () => {
 
   it('passes once the shelf rests ON the low rails — the fix the message suggests', () => {
     const doc = workbench();
-    const shelf = doc.boards.find((b) => b.name === 'Lower shelf')!;
+    const shelf = worldParts(doc).find((b) => b.name === 'Lower shelf')!;
     // Between the legs on X, over the front and back low rails on Z, on top of them on Y.
     const fixed = { ...shelf, width: 24, position: [-26.5, 9.5, -12] as [number, number, number] };
-    expect(checkDesign({ ...doc, boards: doc.boards.map((b) => (b === shelf ? fixed : b)) }, NO_LIMITS)).toEqual([]);
+    expect(checkDesign({ ...doc, boards: worldParts(doc).map((b) => (b === shelf ? fixed : b)) }, NO_LIMITS)).toEqual([]);
   });
 });
 
 describe('hangs — a load on top', () => {
   it('a crate set ON the hanging shelf does not hold it up', () => {
-    const doc = migrateDocument(JSON.parse(workbenchRaw));
-    const withCrate = { ...doc, boards: [...doc.boards, span('Crate', [-5, 6, -4], [5, 12, 4])] };
-    const v = hangs(withCrate);
+    const doc = flatDocument(migrateDocument(JSON.parse(workbenchRaw)));
+    const v = hangs({ ...doc, boards: [...worldParts(doc), span('Crate', [-5, 6, -4], [5, 12, 4])] });
     expect(v.map((x) => x.message.split(' ')[0] + ' ' + x.message.split(' ')[1])).toEqual(['Lower shelf']);
   });
 });
@@ -149,10 +149,10 @@ describe('hangs — a contact on the top face (user ruling)', () => {
     ))).toEqual([]);
   });
   it('a shelf screwed up under rails that the legs hold is held', () => {
-    const doc = migrateDocument(JSON.parse(workbenchRaw));
-    const shelf = doc.boards.find((b) => b.name === 'Lower shelf')!;
+    const doc = flatDocument(migrateDocument(JSON.parse(workbenchRaw)));
+    const shelf = worldParts(doc).find((b) => b.name === 'Lower shelf')!;
     const fixed = { ...shelf, width: 24, position: [-26.5, 5.25, -12] as [number, number, number] };
-    expect(hangs({ ...doc, boards: doc.boards.map((b) => (b === shelf ? fixed : b)) })).toEqual([]);
+    expect(hangs({ ...doc, boards: worldParts(doc).map((b) => (b === shelf ? fixed : b)) })).toEqual([]);
   });
 });
 
@@ -175,7 +175,7 @@ describe('hangs — parts standing on a hanging shelf', () => {
     span('Post B', [22, 0, 0], [24, 30, 2]),
     span('Shelf', [2, 10, 0], [22, 10.75, 20]),
   ];
-  const names = (d: SloydDocument) => hangs(d).map((x) => x.message.split(' ')[0] + ' ' + x.message.split(' ')[1]);
+  const names = (d: FlatDocument) => hangs(d).map((x) => x.message.split(' ')[0] + ' ' + x.message.split(' ')[1]);
   it('the bare shelf hangs', () => {
     expect(names(docOf(...base()))).toEqual(['Shelf is']);
   });
@@ -250,7 +250,7 @@ describe('hangs — one fault, one report', () => {
   });
 });
 
-const tips = (doc: SloydDocument) => checkDesign(doc, NO_LIMITS).filter((v) => v.kind === 'tips');
+const tips = (doc: FlatDocument) => checkDesign(doc, NO_LIMITS).filter((v) => v.kind === 'tips');
 /** A 10x1x10 base on the floor with a 10in-deep, 1in-thick beam of length L resting on it from x = 0. */
 const cantilever = (L: number) => docOf(span('Base', [0, 0, 0], [10, 1, 10]), span('Beam', [0, 1, 0], [L, 2, 10]));
 

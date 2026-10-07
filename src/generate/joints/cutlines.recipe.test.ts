@@ -1,19 +1,20 @@
+import { worldParts } from '../../document/tree';
 import workbenchRaw from '../../document/fixtures/simple-workbench.sloyd?raw';
-import { migrateDocument } from '../../document/document';
+import { flatDocument, migrateDocument } from '../../document/document';
 import { designToDocument } from '../../document/generated';
 import { cutShape, cutsThatRemoveStock } from '../../document/cuts';
 import { buildCutList } from '../../document/cutlist';
 import { buildDiagrams } from '../../document/diagram';
-import type { SloydDocument } from '../../document/types';
+import type { FlatDocument } from '../../document/types';
 import { findSites } from './sites';
 import { applyJoints, type JointChoice } from './recipes';
 import { defaultChoice } from './choose';
 
-const joined = (doc: SloydDocument) => {
+const joined = (doc: FlatDocument) => {
   const sites = findSites(doc);
   return applyJoints(doc, sites, sites.map((s) => defaultChoice(s, doc, sites))).doc;
 };
-const setupOf = (doc: SloydDocument, name: string) =>
+const setupOf = (doc: FlatDocument, name: string) =>
   buildCutList(doc).groups.flatMap((g) => g.rows).find((r) => r.names.includes(name))!.setup;
 
 type P = { name: string; at: [number, number, number]; size: [number, number, number] };
@@ -44,7 +45,7 @@ const SIDE_TOP = [
 
 describe('the live designs (cut-lines spec §2.2)', () => {
   it('the joined workbench\'s leg prints exactly as before', () => {
-    const doc = joined(migrateDocument(JSON.parse(workbenchRaw)));
+    const doc = joined(flatDocument(migrateDocument(JSON.parse(workbenchRaw))));
     expect(setupOf(doc, 'Front left leg')).toEqual([
       '1/2" mortise, 1-1/4" deep — into the width face (max side), 1/2" from the thickness min end, running across the length, stopped 28-1/4" short of the min end and 1/2" short of the max end',
       '1/2" mortise, 1-1/4" deep — into the thickness face (max side), 1/2" from the width min end, running across the length, stopped 28-1/4" short of the min end and 1/2" short of the max end',
@@ -67,7 +68,7 @@ describe('the live designs (cut-lines spec §2.2)', () => {
     const sites = findSites(doc);
     return applyJoints(doc, sites, sites.map((s): JointChoice => {
       const d = defaultChoice(s, doc, sites);
-      if (!doc.boards[s.enter].name.startsWith('Shelf') || d.joint !== 'dado') return d;
+      if (!worldParts(doc)[s.enter].name.startsWith('Shelf') || d.joint !== 'dado') return d;
       const at = s.stopEnds.find((e) => e.axis === 2 && e.end === 'max') ?? s.stopEnds[0];
       return { site: s.id, joint: 'stopped-dado', depth: d.depth, stopAt: at, inset: 0.75 };
     })).doc;
@@ -82,7 +83,7 @@ describe('the live designs (cut-lines spec §2.2)', () => {
   });
 
   it('and its drawing carries the same numbers (spec §2.4)', () => {
-    const side = stoppedShelves().boards.find((b) => b.name === 'Left side')!;
+    const side = worldParts(stoppedShelves()).find((b) => b.name === 'Left side')!;
     const view = buildDiagrams(side, 16).find((v) => v.key === 'thickness|max')!;
     const housing = view.cuts.find((c) => c.offsetLabel === '24"')!;
     expect(housing).toMatchObject({
@@ -93,12 +94,12 @@ describe('the live designs (cut-lines spec §2.2)', () => {
   });
 
   it('joinery stores every cut the way the sheet reads it (cut-storage §3.2)', () => {
-    for (const doc of [joined(migrateDocument(JSON.parse(workbenchRaw))), joined(bookcase()), stoppedShelves()]) {
+    for (const doc of [joined(flatDocument(migrateDocument(JSON.parse(workbenchRaw)))), joined(bookcase()), stoppedShelves()]) {
       for (const b of doc.boards) {
         for (const c of cutsThatRemoveStock(b)) expect(c.across, `${b.name} ${c.id}`).toBe(cutShape(b, c).run);
       }
     }
-    const side = stoppedShelves().boards.find((b) => b.name === 'Left side')!;
+    const side = worldParts(stoppedShelves()).find((b) => b.name === 'Left side')!;
     // The two housings are the only thickness-face cuts with a stop (the top and bottom rabbets have none).
     const housings = side.cuts.filter((c) => c.face === 'thickness' && c.stopMax > 0);
     expect(housings.map((c) => [c.across, c.offset, c.stopMin, c.stopMax])).toEqual([['width', 24, 0.75, 0.25], ['width', 48, 0.75, 0.25]]);

@@ -1,9 +1,9 @@
 import { buildCutList, createBoard, createDocument } from './document';
-import type { Board, SloydDocument } from './document';
+import type { Board, FlatDocument } from './document';
 import type { Cut } from './types';
 
 /** A document containing exactly these boards, with unique default names. */
-const docWith = (...boards: Partial<Board>[]): SloydDocument => ({
+const docWith = (...boards: Partial<Board>[]): FlatDocument => ({
   ...createDocument('Test'),
   boards: boards.map((b, i) => createBoard({ name: `P${i}`, ...b })),
 });

@@ -294,6 +294,72 @@ and 79.
 
 ## What each round did
 
+**What the components round did (2026-10-06/07)**: round 2 of 2. Copies of an assembly share one
+definition, and part links became shared shapes, with a spec and plan
+(`docs/superpowers/specs/2026-10-06-sloyd-components-design.md`). **Schema 11.** Claude drove its
+live check headless, because the SSH display the user watches from had gone; the user did not watch
+(`docs/browser-verification-components.md`). Rolling back past it strands v11 documents; export
+first.
+
+- **The user's rulings.**
+  - **Duplicate shares; Make Unique splits.** One kind of assembly, not SketchUp's
+    group/component split.
+  - **Links fold into components.**
+  - **Joinery shares where identical.**
+  - **Storage is shared shapes** (approach A): a linked part stays a part, and its shared fields
+    are stored once in a `Shape`.
+- **Shape.**
+  - `SloydDocument.shapes`.
+  - A stored part is a `StoredBoard`: a plain `Board`, or a `ShapedBoard` holding only id, name,
+    position and turn plus `shape`. Both types derive from `LINK_FIELDS`.
+  - `resolveBoard` is the one place a shape is read into a part, and `worldParts` resolves before
+    it places.
+  - `applyWorldEdits` keys on the storage target (`<definition or ROOT>:<part>`). It writes shared
+    fields of a shaped part into its shape, merges agreeing edits field by field, and throws on
+    disagreeing ones.
+  - The store sends one edit per storage target (`oneEditPerTarget`) and judges every held point
+    after an edit (`judgeHeld`).
+  - Duplicate and Copy in a row share the definition (`shareInstance`); Make Unique copies one
+    level deep, keeping ids (`makeUniqueItem`); Select copies.
+  - Link, Unlink, cut actions and copies of a linked part work on shapes. `Board.link`,
+    `repairLinks` and `dissolveSingletons` are retired; `dissolveShapes` turns a one-user shape
+    back into a plain part.
+  - `linksToShapes` migrates v10 links on load; `repairTree` copies a definition placed twice only
+    below v11.
+  - `writeBackFlat` splits definitions and shapes by identical results.
+  - Panels show `×N` on a shared copy, "Shared by N copies", Select copies and Make Unique.
+- **Rulings during execution** (the spec's §8 amendments, each with its cost in the ledger):
+  - a resolved part carries `shape`;
+  - `FlatDocument`;
+  - the migration runs after validation;
+  - a malformed shape claims no id, and a `ROOT` definition id is dropped;
+  - joinery splits shallowest-first;
+  - exact comparison may split by a last bit;
+  - Make Unique is offered by references;
+  - hidden ids and tape points are re-keyed under every placement.
+- **What the reviews caught.**
+  - **Task 3:** the plan's ungroup test expected the wrong root instances.
+  - **Task 4:**
+    - the plan's shared-parent test could not fail, so a position-patch test that can was added;
+    - Move, Delete and Turn still judged held points only on the edited copy (fixed);
+    - a plan step listed five actions where the spec meant every edit.
+  - **Task 7:** BFS split order broke on a drawer placed at the root and inside cabinets, so the
+    order changed.
+  - **Final review:** hidden ids and tape points in OTHER copies were not reconciled after Delete,
+    Group or Ungroup inside a shared definition. That gave a false "Show all (1)" and made a hidden
+    part reappear. It is fixed with an all-placements re-key, plus six small fixes. One mutation
+    survives by ruling: `judgeHeld` after a re-key is a fail-safe.
+- **Live check (headless).**
+  - A v10 file with four linked legs and a drawer loaded as one shape, with nothing moved.
+  - Duplicate shared; an edit and a cut inside one copy reached all three; two undos restored.
+  - Make Unique split the third copy off.
+  - The legs: a cut on one reached all; a posture change re-pivoted each about its own centre.
+  - Unlink, Link and Select linked behaved as before.
+  - The joinery dialog listed its sites.
+  - A reload was byte-identical; a v9 file imported unchanged.
+- **Evidence.** 2005 tests across 72 files before the round, 2080 across 75 after; build clean.
+- **Residues:** follow-ups 229-231; 223 and 224 are closed.
+
 **What the assemblies round did (2026-10-06)**: parts grouped into assemblies, which can be nested,
 duplicated, moved, turned, opened and edited in place, with a spec and plan
 (`docs/superpowers/specs/2026-10-06-sloyd-assemblies-design.md`). **Schema 10.** It is round 1 of

@@ -1275,13 +1275,16 @@ button[aria-pressed='true'] {
   margin-top: 6px;
 }
 
-.part-link {
+.part-link,
+.part-copies {
   flex: none;
   display: flex;
   align-items: center;
   padding: 0 6px;
   color: var(--ink-dim);
 }
+
+.part-copies { font-size: 11px; }
 
 .link-note,
 .link-block p {

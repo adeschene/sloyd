@@ -1,5 +1,5 @@
-import { CURRENT_VERSION, migrateDocument, storedAsShape } from '../../document/document';
-import type { Board, Dimension, SloydDocument } from '../../document/document';
+import { CURRENT_VERSION, migrateDocument, storedAsShape, flatDocument, worldParts } from '../../document/document';
+import type { Board, Dimension, FlatDocument, SloydDocument } from '../../document/document';
 import { boardSolids } from '../../document/cuts';
 import { TOUCH, worldSolids } from '../../document/designCheck';
 import { SNAP_INCHES, axisDimensions, endFacing, positionAxisOf } from '../../document/geometry';
@@ -8,8 +8,8 @@ import type { V3, WorldBox } from './pocket';
 import type { JointKind, Site, StopEnd } from './sites';
 
 export interface JointChoice { site: number; joint: JointKind; tenonLength?: number; depth?: number; stopAt?: StopEnd; inset?: number }
-export interface JoinResult {
-  doc: SloydDocument;
+export interface JoinResult<D extends SloydDocument = FlatDocument> {
+  doc: D;
   applied: { site: number; joint: JointKind }[];
   skipped: { site: number; reason: string }[];
   moved: string[];
@@ -252,7 +252,7 @@ const RANK: Record<Site['kind'], number> = { crossing: 0, 'face-against-edge': 1
  * and skipped, with a reason, when its parts no longer touch (a half-lap
  * needs only that they still cross in plan with the receiver wholly below).
  */
-export function applyJoints(doc: SloydDocument, sites: Site[], choices: JointChoice[]): JoinResult {
+export function applyJoints(doc: FlatDocument, sites: Site[], choices: JointChoice[]): JoinResult {
   const boards: Board[] = structuredClone(doc.boards);
   const byId = new Map(choices.map((c) => [c.site, c]));
   const applied: JoinResult['applied'] = [];
@@ -342,9 +342,9 @@ export function applyJoints(doc: SloydDocument, sites: Site[], choices: JointCho
   }
   const out = migrateDocument({ ...doc, version: CURRENT_VERSION, boards });
   return {
-    doc: out, applied, skipped,
+    doc: flatDocument(out), applied, skipped,
     moved: [...moved], trimmed: [...trimmed], lowered,
-    sizeBefore: overall(doc.boards), sizeAfter: overall(out.boards),
+    sizeBefore: overall(doc.boards), sizeAfter: overall(worldParts(out)),
   };
 }
 

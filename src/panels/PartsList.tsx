@@ -34,7 +34,7 @@ export function PartsList() {
   const hiddenSet = useMemo(() => new Set(hiddenIds), [hiddenIds]);
   const linkCount = useMemo(() => {
     const m = new Map<string, number>();
-    for (const b of worldParts(doc)) if (b.link) m.set(b.link, (m.get(b.link) ?? 0) + 1);
+    for (const b of worldParts(doc)) if (b.shape) m.set(b.shape, (m.get(b.shape) ?? 0) + 1);
     return m;
   }, [doc]);
 
@@ -96,8 +96,11 @@ export function PartsList() {
                 {r.name}
               </button>
               {/* Outside the name button so its accessible name stays the part's name. */}
-              {r.link && (
-                <span className="part-link" role="img" aria-label={`Linked, ${linkCount.get(r.link)} parts`}>
+              {r.copies && (
+                <span className="part-copies" role="img" aria-label={`Shared, ${r.copies} copies`}>×{r.copies}</span>
+              )}
+              {r.shape && (
+                <span className="part-link" role="img" aria-label={`Linked, ${linkCount.get(r.shape)} parts`}>
                   <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false">
                     <path d="M6.5 9.5l3-3M7 4.5l1-1a2.5 2.5 0 013.5 3.5l-1 1M9 11.5l-1 1A2.5 2.5 0 014.5 9l1-1" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
                   </svg>

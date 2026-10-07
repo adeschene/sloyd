@@ -1,13 +1,19 @@
 import { MATERIALS, DEFAULT_MATERIAL, DEFAULT_KERF, isSheetGood } from './types';
 import type {
-  Board, Instance, Definition, Cut, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, GuidePoint,
+  Board, Instance, Definition, Cut, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, FlatDocument, GuidePoint,
+  Shape, StoredBoard,
 } from './types';
+import type { SharedField } from './links';
+import { dissolveShapes, pruneShapes } from './shapes';
+import { linksToShapes } from './linksToShapes';
+import { ROOT_STORAGE_ID } from './treeEdit';
 import { nextId } from './ids';
-import { repairTree, repairLinksTree } from './treeRepair';
+import { dropUnresolved, repairTree } from './treeRepair';
 import { positionAxisOf, horizontalOf, DIMENSION_ORDER } from './geometry';
 
 export * from './types';
 export * from './links';
+export * from './shapes';
 export * from './frames';
 export * from './tree';
 export * from './treeEdit';
@@ -71,16 +77,30 @@ export type { BoardSnapPoint, SnapKind, SnapOwner, SnapPoint, TapeAxis } from '.
  * Document-level: no per-board step, an absent label is an unlinked part. The
  * bump's argument is SILENT DATA LOSS on round-trip: a v8 build drops every
  * `link` on open and autosaves, and the links are gone with nothing saying so.
- * `repairLinks` runs after validation on every load.
+ * (Links are now shapes: components spec §2.)
  *
  * v10 added assemblies: `instances` and `definitions` (assemblies spec §2.5).
  * Document-level: both default to `[]`, so no file needs upgrading. The bump's
  * argument is SILENT DATA LOSS on round-trip, stronger than v9's: a v9 build
  * drops both fields, so every part inside an assembly vanishes, and it
- * autosaves. `repairTree` and `repairLinksTree` run after validation on every
- * load (invariant 46).
+ * autosaves. `repairTree` runs after validation on every load (invariant 46).
+ *
+ * v11 added `shapes` and shared definitions (components spec §2.4): a shaped
+ * part stores only its own fields and names a Shape, and several instances may
+ * name one definition. The bump's argument is SILENT DATA LOSS, the strongest
+ * yet: a v10 build would see shaped parts with no size and copy every shared
+ * definition, silently un-sharing every component, then autosave. The v10 ->
+ * v11 step turns each `link` label into one Shape (`linksToShapes`): members
+ * equal to the label's first member in worldParts order use it, a differing
+ * member stays plain and unlinked, and nothing moves. It runs AFTER validation
+ * but BEFORE repairTree, because its input map is keyed by the stored objects
+ * validateBoard returned and repairTree's name dedupe replaces renamed ones.
+ * Guarded by `version < 11` (a v11 file's `link` is ignored), but unlike v8's
+ * mirror it is not idempotence-sensitive: a v11 file carries no links, so
+ * there is nothing a second run could change. Below v11, repairTree still
+ * copies a definition placed twice (step 4); from v11 it keeps the sharing.
  */
-export const CURRENT_VERSION = 10;
+export const CURRENT_VERSION = 11;
 
 export class DocumentError extends Error {
   /**
@@ -173,7 +193,7 @@ export function createBoard(partial: Partial<Board> = {}): Board {
   };
 }
 
-export function createDocument(name = 'Untitled'): SloydDocument {
+export function createDocument(name = 'Untitled'): FlatDocument {
   return {
     version: CURRENT_VERSION,
     name,
@@ -183,6 +203,7 @@ export function createDocument(name = 'Untitled'): SloydDocument {
     boards: [],
     instances: [],
     definitions: [],
+    shapes: [],
   };
 }
 
@@ -227,7 +248,7 @@ function clamp(v: number, lo: number, hi: number): number {
  * the stock — there is no nearest legal cut for that one, and a board coming
  * back whole is unmistakable where a board coming back invisible is not.
  */
-function validateCuts(raw: unknown, board: Omit<Board, 'cuts'>): Cut[] {
+function validateCuts(raw: unknown, board: Pick<Board, Dimension>): Cut[] {
   if (!Array.isArray(raw)) return [];
   const out: Cut[] = [];
   const seen = new Set<string>();
@@ -312,38 +333,29 @@ export function validateGuides(raw: unknown): GuidePoint[] {
   return guides;
 }
 
-function validateBoard(raw: unknown, index: number, seen: Set<string>): Board {
-  const where = `board ${index + 1}`;
-  if (typeof raw !== 'object' || raw === null) {
-    throw new DocumentError(`${where} is not an object`);
-  }
-  const b = raw as Record<string, unknown>;
+/** A raw position, or null when it is not three finite numbers. */
+function validPosition(pos: unknown): [number, number, number] | null {
+  if (!Array.isArray(pos) || pos.length !== 3 || !pos.every((n) => typeof n === 'number' && Number.isFinite(n))) return null;
+  return [pos[0], pos[1], pos[2]];
+}
 
+const validRotation = (r: unknown): Rotation => (VALID_ROTATIONS.includes(r as number) ? (r as Rotation) : 0);
+
+/**
+ * A part's SHARED fields (LINK_FIELDS), defaulted, with cuts validated against
+ * them. The one rule set for a plain part's fields and a Shape's (components
+ * spec §2.2), so the two cannot drift. Null when a dimension is not a positive
+ * number: the caller decides whether that refuses the file (a part) or drops
+ * the thing (a shape). `bad` names the first bad dimension.
+ */
+function validateSharedFields(b: Record<string, unknown>): { fields: Pick<Board, SharedField> } | { bad: Dimension } {
   for (const key of ['length', 'width', 'thickness'] as const) {
-    if (!isPositiveFinite(b[key])) {
-      throw new DocumentError(`${where} has an invalid ${key} — must be a positive number`);
-    }
+    if (!isPositiveFinite(b[key])) return { bad: key };
   }
-
-  const pos = b.position;
-  if (
-    !Array.isArray(pos) || pos.length !== 3 ||
-    !pos.every((n) => typeof n === 'number' && Number.isFinite(n))
-  ) {
-    throw new DocumentError(`${where} has an invalid position — expected three numbers`);
-  }
-
-  const rotation = VALID_ROTATIONS.includes(b.rotation as number)
-    ? (b.rotation as Rotation)
-    : 0;
-
   const material =
     typeof b.material === 'string' && Object.hasOwn(MATERIALS, b.material)
       ? b.material
       : DEFAULT_MATERIAL;
-
-  const name = typeof b.name === 'string' ? b.name.trim() : '';
-
   const grain = VALID_GRAINS.includes(b.grain as Grain)
     ? (b.grain as Grain)
     : 'length';
@@ -354,23 +366,82 @@ function validateBoard(raw: unknown, index: number, seen: Set<string>): Board {
   // name and material fallbacks above, not a migration — it does not bump
   // CURRENT_VERSION.
   const normalizedGrain = isSheetGood(material) && grain === 'thickness' ? 'length' : grain;
-
-  const board: Omit<Board, 'cuts'> = {
-    id: takeId(b.id, seen),
-    name: name || 'Board',
+  const fields = {
     length: b.length as number,
     width: b.width as number,
     thickness: b.thickness as number,
-    position: [pos[0], pos[1], pos[2]] as [number, number, number],
-    rotation,
     posture: VALID_POSTURES.includes(b.posture as Posture)
       ? (b.posture as Posture)
       : 'flat',
     grain: normalizedGrain,
     material,
-    ...(typeof b.link === 'string' && b.link.trim() ? { link: b.link } : {}),
   };
-  return { ...board, cuts: validateCuts(b.cuts, board) };
+  // validateCuts reads only the dimensions; its `seen` set is its own, so a
+  // shape's cut ids are scoped to the shape (invariant 33's per-board rule).
+  return { fields: { ...fields, cuts: validateCuts(b.cuts, fields) } };
+}
+
+/**
+ * A stored part. An object with a string `shape` and NO `length` key is a
+ * shaped part (components spec §2): only its own fields are read, validated
+ * exactly as a plain part's are. Anything else is a plain part, which refuses
+ * the file on a bad dimension or position.
+ *
+ * `legacy` is passed only for a file below v11: a plain part carrying a
+ * non-blank string `link` is recorded under the object returned, which is
+ * what `linksToShapes` keys on. The key itself never reaches a stored part.
+ */
+function validateBoard(raw: unknown, index: number, seen: Set<string>, legacy?: Map<StoredBoard, string>): StoredBoard {
+  const where = `board ${index + 1}`;
+  if (typeof raw !== 'object' || raw === null) {
+    throw new DocumentError(`${where} is not an object`);
+  }
+  const b = raw as Record<string, unknown>;
+  const shaped = typeof b.shape === 'string' && b.shape !== '' && !('length' in b);
+
+  const shared = shaped ? null : validateSharedFields(b);
+  if (shared && 'bad' in shared) {
+    throw new DocumentError(`${where} has an invalid ${shared.bad} — must be a positive number`);
+  }
+
+  const position = validPosition(b.position);
+  if (!position) {
+    throw new DocumentError(`${where} has an invalid position — expected three numbers`);
+  }
+
+  const name = typeof b.name === 'string' ? b.name.trim() : '';
+  const own = { id: takeId(b.id, seen), name: name || 'Board', position, rotation: validRotation(b.rotation) };
+  if (!shared) return { ...own, shape: b.shape as string };
+
+  const board: Board = { ...own, ...shared.fields };
+  if (legacy && typeof b.link === 'string' && b.link.trim() !== '') legacy.set(board, b.link);
+  return board;
+}
+
+/**
+ * Shapes (components spec §2.2, §2.3 step 1): not an object, no string id, a
+ * duplicate id (the FIRST keeps it) or an invalid size is dropped, never
+ * refusing the file. Fields are validated by the same rule set as a plain
+ * part's. Nothing but a shaped part's `shape` references a shape id, so a
+ * dropped duplicate leaves no reference to rewrite; a part naming a dropped
+ * shape is dropped later (`dropUnresolved`, step 5).
+ */
+export function validateShapes(raw: unknown): Shape[] {
+  if (!Array.isArray(raw)) return [];
+  const ids = new Set<string>();
+  const out: Shape[] = [];
+  for (const item of raw) {
+    if (typeof item !== 'object' || item === null) continue;
+    const s = item as Record<string, unknown>;
+    if (typeof s.id !== 'string' || !s.id || ids.has(s.id)) continue;
+    // A shape with a bad size claims no id, so a later good one may keep it:
+    // validateDefinitions' rule for a definition with no boards list.
+    const shared = validateSharedFields(s);
+    if ('bad' in shared) continue;
+    ids.add(s.id);
+    out.push({ id: s.id, ...shared.fields });
+  }
+  return out;
 }
 
 /** An assembly placement, or null for one that cannot be placed (spec §2.5).
@@ -398,18 +469,23 @@ const validateInstances = (raw: unknown, seen: Set<string>): Instance[] =>
  * list is dropped; a duplicate id keeps the FIRST. A board inside goes through
  * validateBoard, which refuses the file on a bad board exactly as it does at
  * the root.
+ *
+ * A definition whose id is `ROOT_STORAGE_ID` is dropped like a malformed one
+ * (its instances then name a missing definition and are dropped by
+ * repairTree): treeEdit routes that id to the root container, so keeping it
+ * would send every edit inside it to the root's parts.
  */
-function validateDefinitions(raw: unknown): Definition[] {
+function validateDefinitions(raw: unknown, legacy?: Map<StoredBoard, string>): Definition[] {
   if (!Array.isArray(raw)) return [];
   const ids = new Set<string>();
   const out: Definition[] = [];
   for (const item of raw) {
     if (typeof item !== 'object' || item === null) continue;
     const d = item as Record<string, unknown>;
-    if (typeof d.id !== 'string' || !d.id || ids.has(d.id) || !Array.isArray(d.boards)) continue;
+    if (typeof d.id !== 'string' || !d.id || d.id === ROOT_STORAGE_ID || ids.has(d.id) || !Array.isArray(d.boards)) continue;
     ids.add(d.id);
     const seen = new Set<string>();
-    const boards = d.boards.map((b, i) => validateBoard(b, i, seen));
+    const boards = d.boards.map((b, i) => validateBoard(b, i, seen, legacy));
     out.push({ id: d.id, boards, instances: validateInstances(d.instances, seen) });
   }
   return out;
@@ -620,12 +696,14 @@ export function migrateDocument(raw: unknown): SloydDocument {
   // an id needs nothing from them but "is this taken", which a set answers as
   // it goes. A second pass would leave two deciders for one field — the
   // validator minting an id that the pass may then overwrite.
-  const boards = rawBoards.map((b, i) => validateBoard(b, i, boardIds));
+  // v10 -> v11: a file below v11 may carry `link` labels. validateBoard
+  // records each plain part's label under the object it returns; a v11 file's
+  // stray `link` is ignored (no map is passed).
+  const legacy = d.version < 11 ? new Map<StoredBoard, string>() : undefined;
+  const boards = rawBoards.map((b, i) => validateBoard(b, i, boardIds, legacy));
   const instances = validateInstances(d.instances, boardIds);
-  const definitions = validateDefinitions(d.definitions);
-  // Steps 2–7 of the load repair (assemblies spec §2.4): the tree, the names
-  // per container (invariant 8, restated), then the links over the world parts.
-  return repairLinksTree(repairTree({
+  const definitions = validateDefinitions(d.definitions, legacy);
+  let doc: SloydDocument = {
     version: CURRENT_VERSION,
     name: typeof d.name === 'string' && d.name ? d.name : 'Untitled',
     units: { display: 'imperial-fractional', precision },
@@ -634,5 +712,17 @@ export function migrateDocument(raw: unknown): SloydDocument {
     boards,
     instances,
     definitions,
-  }));
+    shapes: validateShapes(d.shapes),
+  };
+  // Links first, while each stored part is still the object validateBoard
+  // built (the `legacy` map is keyed by object). worldParts tolerates missing
+  // definitions and cycles, so it is safe before repairTree; a v10 definition
+  // placed twice is visited twice but converted once (same stored object).
+  if (legacy) doc = linksToShapes(doc, legacy);
+  // The load repair (components spec §2.3): the tree, sharing kept from v11
+  // (step 4 copies only below it), names per container (invariant 8,
+  // restated); then a part naming a missing shape is dropped (5), unused
+  // shapes go (6) and a one-user shape dissolves (7).
+  doc = repairTree(doc, { copyShared: d.version < 11 });
+  return dissolveShapes(pruneShapes(dropUnresolved(doc)));
 }

@@ -1,12 +1,12 @@
 import { create } from 'zustand';
 import {
   boardsBounds, createBoard, createDocument, createGuide, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
-  dissolveSingletons, linkPlan, sharedOf, sharedPatch, withoutLink,
+  linkPlan, sharedOf, sharedPatch, isShaped, plainOf, pruneShapes, dissolveShapes,
   childrenOf, instanceAt, isCovered, itemPaths, parentPath, worldParts, mapWorld,
-  translateItems, insertItems, removeItems, copyInstanceTree, siblingsOf, containerAt, containerTurn, partAt, joinPath,
+  translateItems, insertItems, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerTurn, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
   rotateVec, inverseTurn, groupItems, ungroupItem, turnInstance as turnInstanceOp, updateContainer, lastSegment,
 } from '../document/document';
-import type { Board, BoardSnapPoint, Cut, Definition, Instance, Named, Rekey, Rotation, SloydDocument, SnapPoint, TapeAxis } from '../document/document';
+import type { Board, BoardSnapPoint, Cut, Instance, Named, Rekey, Rotation, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
 import { SNAP_INCHES } from '../document/geometry';
 import { MAX_ROW } from '../document/row';
 import { clickTarget } from './assemblyPick';
@@ -291,6 +291,10 @@ interface StoreState {
   ungroupSelected: () => void;
   /** Turn an assembly about its box centre (spec §4.2). */
   turnAssembly: (path: string, rotation: Rotation) => void;
+  /** Give the instance its own copy of its definition (components spec §3.1). */
+  makeUnique: (path: string) => void;
+  /** Select the instances at the open level naming the same definition. */
+  selectCopies: (path: string) => void;
   /** Rename a part or an assembly, unique among its siblings; returns the stored name. */
   renameItem: (path: string, typed: string) => string;
   setDocumentName: (name: string) => void;
@@ -326,11 +330,11 @@ interface StoreState {
   updateCut: (boardId: string, cutId: string, patch: Partial<Cut>) => void;
   removeCut: (boardId: string, cutId: string) => void;
 
-  /** Link the named parts (linking spec §3.1): the first wins, each named part's whole link joins; one undo entry. */
+  /** Link the named parts (linking spec §3.1): the first wins, each named part's whole link joins; every member then names ONE shape (components spec §3.2). One undo entry. */
   linkBoards: (ids: string[]) => void;
-  /** Clear the named parts' links, keeping their values; a link left with one member dissolves (§3.3). */
+  /** Make the named shaped parts plain again, keeping their values and cut ids; a shape left with one user dissolves (components spec §3.2). */
   unlinkBoards: (ids: string[]) => void;
-  /** Select every visible member of the part's link; a no-op for an unlinked part. */
+  /** Select every visible user of the part's shape (its link); a no-op for an unlinked part. */
   selectLinked: (id: string) => void;
 
   addGuide: (at: [number, number, number]) => void;
@@ -571,6 +575,42 @@ export const useStore = create<StoreState>((set, get) => {
     edit(fn, selection);
     const past = get().past;
     set({ past: [...past.slice(0, -1), { ...past[past.length - 1]!, hiddenIds: hiddenBefore }] });
+    // The re-key covers every placement of the edited container; anything it
+    // could not map (an ungrouped assembly's own path) names nothing now, and
+    // every held point is judged against the new document (components spec §4.2).
+    reconcileHidden();
+    judgeHeld();
+  };
+
+  /** Drop hidden ids naming no item of the current document. The entry an
+   *  edit pushed already recorded the set as it was (invariant 43). */
+  const reconcileHidden = () => {
+    const paths = itemPaths(get().doc);
+    const kept = get().hiddenIds.filter((id) => paths.has(id));
+    if (kept.length !== get().hiddenIds.length) set({ hiddenIds: kept });
+  };
+
+  /** The FIRST occurrence per storage target (components spec §4.1): two
+   *  placements of one stored part must not both send an edit. */
+  const oneEditPerTarget = (doc: SloydDocument, ids: Iterable<string>): Set<string> => {
+    const seen = new Set<string>();
+    const out = new Set<string>();
+    for (const id of ids) {
+      const k = storageKey(doc, id) ?? id;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.add(id);
+    }
+    return out;
+  };
+
+  /** Every board-owned held point, judged point-precisely (components spec §4.2):
+   *  an edit inside a definition moves parts in EVERY copy, so judging only the
+   *  edited occurrence would miss held points under the other copies. */
+  const judgeHeld = () => {
+    const owners = new Set<string>();
+    for (const h of [get().grabbed, get().tapeAnchor, get().tapeHover]) if (h && h.owner.type === 'board') owners.add(h.owner.id);
+    for (const id of owners) dropHeldIfGone(id);
   };
 
   const dropHeldIfGone = (boardId: string) => {
@@ -681,17 +721,30 @@ export const useStore = create<StoreState>((set, get) => {
     // A world delta, rotated into each item's container frame and added
     // (assemblies spec §4.2). A root item gains it exactly, as before.
     edit((doc) => translateItems(doc, [...ids], delta));
-    for (const b of worldParts(get().doc)) if (isCovered(b.id, ids)) dropHeldIfGone(b.id);
+    // Every held point, not only the moved occurrence's: a shared definition
+    // moves the same part in every copy (components spec §4.2).
+    judgeHeld();
   };
 
   /**
-   * One copy of `source` at `position`, exactly as Duplicate makes it: a fresh
-   * id, fresh cut ids (nextId) unless the source is linked, copied arrays so no snapshot shares them, and
-   * a name unique against `taken`, which the caller GROWS as it copies
-   * (invariant 8). Shared by duplicateBoards and copyInRow so the two cannot
-   * drift.
+   * One copy of the STORED part `source` at `position`, exactly as Duplicate
+   * makes it, named unique against `taken`, which the caller GROWS as it
+   * copies (invariant 8). Shared by duplicateBoards and copyInRow so the two
+   * cannot drift.
+   *
+   * A SHAPED source's copy is a ShapedBoard naming the same shape: copies of a
+   * linked part join its link (components spec §3.2), and the shape holds the
+   * cuts, so there is nothing to re-mint. A PLAIN source's copy is a plain
+   * Board with NO `shape` key, a fresh id and fresh cut ids (nextId), its
+   * arrays copied so no snapshot shares them.
    */
-  const copyBoard = (source: Board, position: readonly [number, number, number], taken: Named[]): Board => {
+  const copyBoard = (source: StoredBoard, position: readonly [number, number, number], taken: Named[]): StoredBoard => {
+    // Against the list AS IT GROWS: copies of "Leg" and "Leg (1)" would
+    // otherwise both be named "Leg (2)" (invariant 8).
+    const name = uniqueName(source.name, taken);
+    if (isShaped(source)) {
+      return { id: nextId(), name, position: [...position], rotation: source.rotation, shape: source.shape };
+    }
     // Drop the id so createBoard generates a fresh one, and copy the position
     // array rather than sharing the reference with the source and with every
     // undo snapshot that holds it. `cuts` needs the same treatment: `rest`
@@ -701,33 +754,29 @@ export const useStore = create<StoreState>((set, get) => {
     // fresh id per cut (via the same nextId() addCut uses) means a future
     // in-place Cut mutation can't corrupt the source board and every undo
     // snapshot holding it simultaneously.
-    //
-    // `link` rides along in `rest` on purpose: a copy of a linked part is a
-    // member of its link (linking spec §3.4). A copy of an unlinked part gets
-    // no `link` key, because its source had none and the spread adds none.
-    //
-    // So a LINKED source's cut ids are KEPT, not re-minted: members share cut
-    // ids (cut actions act on one id across the link, and repairLinks compares
-    // ids), so a copy with fresh ids would join the link while every cut edit
-    // skipped it, and the next load would unlink it. Cut ids are per board
-    // (invariant 33), so repeating them is legal. The objects are still copied.
     const { id: _sourceId, ...rest } = source;
     const fresh = createBoard({
       ...rest,
       position: [...position],
-      cuts: source.cuts.map((cut) => (source.link ? { ...cut } : { ...cut, id: nextId() })),
+      cuts: source.cuts.map((cut) => ({ ...cut, id: nextId() })),
     });
-    // Against the list AS IT GROWS: copies of "Leg" and "Leg (1)" would
-    // otherwise both be named "Leg (2)" (invariant 8).
-    return { ...fresh, name: uniqueName(source.name, taken) };
+    return { ...fresh, name };
   };
 
-  /** Every OTHER member of the links the given boards belong to (linking spec
-   *  §3.2). Empty for unlinked boards. */
-  const mates = (boards: Board[], ids: ReadonlySet<string>): Set<string> => {
-    const labels = new Set(boards.flatMap((b) => (ids.has(b.id) && b.link ? [b.link] : [])));
-    return new Set(boards.filter((b) => !ids.has(b.id) && b.link !== undefined && labels.has(b.link)).map((b) => b.id));
+  /** Every OTHER world part using a shape one of the given parts uses. Read
+   *  ONLY by updateBoards, so each other user is re-pivoted about its own
+   *  centre when the shape's posture changes (components spec §4.1). */
+  const shapeMates = (boards: Board[], ids: ReadonlySet<string>): Set<string> => {
+    const shapes = new Set(boards.flatMap((b) => (ids.has(b.id) && b.shape ? [b.shape] : [])));
+    return new Set(boards.filter((b) => !ids.has(b.id) && b.shape !== undefined && shapes.has(b.shape)).map((b) => b.id));
   };
+
+  /** Replace the STORED part at an occurrence path (its container's copy, so
+   *  every placement of a shared definition sees it). */
+  const setStored = (doc: SloydDocument, occ: string, next: StoredBoard): SloydDocument =>
+    updateContainer(doc, parentPath(occ), (c) => ({
+      ...c, boards: c.boards.map((b) => (b.id === lastSegment(occ) ? next : b)),
+    }));
 
   return {
     doc: createDocument(),
@@ -903,7 +952,8 @@ export const useStore = create<StoreState>((set, get) => {
       const open = get().openPath;
       const c = containerAt(get().doc, open) ?? get().doc;
       // The template is the open level's last part, falling back to the root's last board when the open assembly has none.
-      const last = c.boards[c.boards.length - 1] ?? get().doc.boards[get().doc.boards.length - 1];
+      const lastStored = c.boards[c.boards.length - 1] ?? get().doc.boards[get().doc.boards.length - 1];
+      const last = lastStored ? resolveBoard(shapeMap(get().doc), lastStored) : null;
       const fresh = createBoard(
         last
           ? { length: last.length, width: last.width, thickness: last.thickness, material: last.material }
@@ -959,18 +1009,23 @@ export const useStore = create<StoreState>((set, get) => {
       // change to a shipped tool rather than a fix to this one. Recorded in
       // the round's follow-ups rather than changed in passing.
 
-      // Propagation (linking spec §3.2): the shared part of the patch reaches
-      // every other member of the targets' links, in the SAME edit — one undo
-      // entry — hidden members included. Name, position and rotation never do.
-      // Each mate goes through patchBoard, so it pivots about its own centre.
-      // The board-precise `grabbed` clause above is for the TARGETS only; a
-      // mate's held points go through the point-precise test below.
+      // A shaped target's shared fields are written ONCE, into its shape, so
+      // every user sees them without propagation (components spec §4.1). The
+      // other users are still patched, with only the shared part of the patch,
+      // for ONE reason: a posture change must re-pivot each about its own
+      // centre (invariant 2), since posture is shared and a min corner is not.
+      // Their shape writes agree with the targets', so applyWorldEdits merges
+      // them. Name, position and rotation never reach them. The board-precise
+      // `grabbed` clause above is for the TARGETS only; the other users' held
+      // points go through the point-precise test below.
       const shared = sharedPatch(patch);
-      const others = Object.keys(shared).length === 0 ? new Set<string>() : mates(world, targets);
+      const others = Object.keys(shared).length === 0 ? new Set<string>() : shapeMates(world, targets);
       // Through mapWorld (assemblies spec §5.1): patchBoard runs on WORLD parts,
       // and only what it changed is written back, position as a delta.
+      const t = oneEditPerTarget(get().doc, targets);
+      const o = new Set([...oneEditPerTarget(get().doc, [...t, ...others])].filter((id) => !t.has(id)));
       edit((doc) => mapWorld(doc, (w) => w.map((b) =>
-        targets.has(b.id) ? patchBoard(b, patch) : others.has(b.id) ? patchBoard(b, shared) : b)));
+        t.has(b.id) ? patchBoard(b, patch) : o.has(b.id) ? patchBoard(b, shared) : b)));
 
       // Point-precise, and AFTER the edit for the reason dropHeldIfGone's own
       // comment gives: the question is what the board offers once the edit has
@@ -980,9 +1035,9 @@ export const useStore = create<StoreState>((set, get) => {
       // through untouched — heldOnBoard requires `owner.type === 'board'` —
       // which is the same behaviour the deleted clause had. `grabbed` was
       // already nulled above if it named this board, so reaching it here is a
-      // no-op rather than a second opinion. Mates too: a propagated Length
-      // moves their points exactly as it moves the targets'.
-      for (const id of [...targets, ...others]) dropHeldIfGone(id);
+      // no-op rather than a second opinion. Every held point is judged: a
+      // shape's Length moves every user's points, not only the targets'.
+      judgeHeld();
     },
 
     deleteBoard: (id) => get().deleteBoards([id]),
@@ -1010,14 +1065,18 @@ export const useStore = create<StoreState>((set, get) => {
         set({ tapeHover: null });
       }
       edit(
-        // A link left with one member dissolves (linking spec §3.3).
-        // Pruning unused definitions rides in removeItems (assemblies spec §4.2).
-        (doc) => mapWorld(removeItems(doc, [...doomed]), dissolveSingletons),
+        // Pruning unused definitions and shapes, and dissolving a shape left
+        // with one user, ride in removeItems (assemblies spec §4.2, components §3.2).
+        (doc) => removeItems(doc, [...doomed]),
         () => get().selectedIds.filter((id) => !isCovered(id, doomed)),
       );
-      // The entry edit() pushed already recorded the set as it was.
-      const hiddenAfter = get().hiddenIds.filter((id) => !isCovered(id, doomed));
-      if (hiddenAfter.length !== get().hiddenIds.length) set({ hiddenIds: hiddenAfter });
+      // A deleted part in a shared definition vanishes from every copy; a missing
+      // part offers no points, so judgeHeld drops what was held on the others.
+      judgeHeld();
+      // The entry edit() pushed already recorded the set as it was. Filtered
+      // against the NEW document, not only the doomed paths: a part deleted in
+      // a shared definition is gone from every copy (fu 213, components §4.2).
+      reconcileHidden();
     },
 
     duplicateBoard: (id) => get().duplicateBoards([id]),
@@ -1034,9 +1093,8 @@ export const useStore = create<StoreState>((set, get) => {
       const container = parentPath(sources[0]!);
       const sameContainer = sources.filter((id) => parentPath(id) === container);
       const taken: Named[] = [...siblingsOf(doc, container)];
-      const boards: Board[] = [];
+      const boards: StoredBoard[] = [];
       const instances: Instance[] = [];
-      const definitions: Definition[] = [];
       for (const id of sameContainer) {
         const part = partAt(doc, id);
         if (part) {
@@ -1047,14 +1105,12 @@ export const useStore = create<StoreState>((set, get) => {
         }
         const inst = instanceAt(doc, id);
         if (!inst) continue;
-        const copy = copyInstanceTree(doc, inst);
-        const named = { ...copy.instance, name: uniqueName(inst.name, taken) };
+        const named = { ...shareInstance(inst), name: uniqueName(inst.name, taken) };
         taken.push(named);
         instances.push(named);
-        definitions.push(...copy.definitions);
       }
       edit(
-        (d) => insertItems(d, container, { boards, instances, definitions }),
+        (d) => insertItems(d, container, { boards, instances }),
         () => [...boards.map((b) => joinPath(container, b.id)), ...instances.map((i) => joinPath(container, i.id))],
       );
     },
@@ -1071,9 +1127,8 @@ export const useStore = create<StoreState>((set, get) => {
       const container = parentPath(all[0]!);
       const sources = all.filter((id) => parentPath(id) === container);
       const taken: Named[] = [...siblingsOf(doc, container)];
-      const boards: Board[] = [];
+      const boards: StoredBoard[] = [];
       const instances: Instance[] = [];
-      const definitions: Definition[] = [];
       const turn = containerTurn(doc, container);
       for (let k = 1; k < count; k += 1) {
         // From the ORIGINAL every time, never the previous copy: a running sum
@@ -1094,15 +1149,13 @@ export const useStore = create<StoreState>((set, get) => {
           }
           const inst = instanceAt(doc, id);
           if (!inst) continue;
-          const copy = copyInstanceTree(doc, inst);
-          const named = { ...copy.instance, position: at(inst.position), name: uniqueName(inst.name, taken) };
+          const named = { ...shareInstance(inst), position: at(inst.position), name: uniqueName(inst.name, taken) };
           taken.push(named);
           instances.push(named);
-          definitions.push(...copy.definitions);
         }
       }
       edit(
-        (d) => insertItems(d, container, { boards, instances, definitions }),
+        (d) => insertItems(d, container, { boards, instances }),
         () => [...sources, ...boards.map((b) => joinPath(container, b.id)), ...instances.map((i) => joinPath(container, i.id))],
       );
     },
@@ -1160,8 +1213,24 @@ export const useStore = create<StoreState>((set, get) => {
       const inst = instanceAt(get().doc, path);
       if (!inst || inst.rotation === rotation) return;
       edit((doc) => turnInstanceOp(doc, path, rotation));
-      const under = new Set([path]);
-      for (const b of worldParts(get().doc)) if (isCovered(b.id, under)) dropHeldIfGone(b.id);
+      // A turn inside a shared definition moves parts under the other copies too.
+      judgeHeld();
+    },
+
+    makeUnique: (path) => {
+      const next = makeUniqueItem(get().doc, path);
+      if (!next) return; // invariant 4
+      edit(() => next);
+    },
+
+    selectCopies: (path) => {
+      const doc = get().doc;
+      const inst = instanceAt(doc, path);
+      if (!inst) return;
+      const container = parentPath(path);
+      const c = containerAt(doc, container);
+      if (!c) return;
+      set(selectionPatch(c.instances.filter((i) => i.definition === inst.definition).map((i) => joinPath(container, i.id))));
     },
 
     renameItem: (path, typed) => {
@@ -1323,13 +1392,11 @@ export const useStore = create<StoreState>((set, get) => {
         stopMin: 0,
         stopMax: 0,
       };
-      // ONE cut, ONE id, on the board and every mate (linking spec §3.2); cut
-      // ids are per board (invariant 33), so sharing one is legal. Each mate
-      // gets its own object so no two boards hold one Cut.
-      const all = new Set([boardId, ...mates(world, new Set([boardId]))]);
-      // Through mapWorld (assemblies spec §5.1).
-      edit((doc) => mapWorld(doc, (w) => w.map((b) => (all.has(b.id) ? { ...b, cuts: [...b.cuts, { ...cut }] } : b))));
-      for (const id of all) dropHeldIfGone(id);
+      // Through mapWorld (assemblies spec §5.1). On a shaped part the cuts are
+      // the shape's, so ONE cut with ONE id reaches every user (components
+      // spec §4.1); no other part is touched.
+      edit((doc) => mapWorld(doc, (w) => w.map((b) => (b.id === boardId ? { ...b, cuts: [...b.cuts, cut] } : b))));
+      judgeHeld();
     },
 
     // Cuts are patched here rather than through updateBoard on purpose:
@@ -1347,52 +1414,72 @@ export const useStore = create<StoreState>((set, get) => {
       const world = worldParts(get().doc);
       const board = world.find((b) => b.id === boardId);
       if (!board || !board.cuts.some((c) => c.id === cutId)) return;
-      // The same cut id on every mate (linking spec §3.2). Every writer keeps
-      // members' cut ids equal (Link copies them, addCut mints one, copyBoard
-      // keeps them for a linked source), and repairLinks unlinks a member
-      // whose ids differ on load. A mate lacking the id would mean a writer
-      // broke that rule; the map leaves it unchanged rather than guessing.
-      const all = new Set([boardId, ...mates(world, new Set([boardId]))]);
-      // Through mapWorld (assemblies spec §5.1).
+      // Through mapWorld (assemblies spec §5.1); a shaped part's cuts are its
+      // shape's, so every user sees the edit (components spec §4.1).
       edit((doc) => mapWorld(doc, (w) => w.map((b) =>
-        all.has(b.id)
+        b.id === boardId
           ? { ...b, cuts: b.cuts.map((c) => (c.id === cutId ? { ...c, ...patch } : c)) }
           : b)));
-      for (const id of all) dropHeldIfGone(id);
+      judgeHeld();
     },
 
     removeCut: (boardId, cutId) => {
       const world = worldParts(get().doc);
       const board = world.find((b) => b.id === boardId);
       if (!board || !board.cuts.some((c) => c.id === cutId)) return;
-      const all = new Set([boardId, ...mates(world, new Set([boardId]))]);
-      // Through mapWorld (assemblies spec §5.1).
+      // Through mapWorld (assemblies spec §5.1); see updateCut.
       edit((doc) => mapWorld(doc, (w) => w.map((b) =>
-        all.has(b.id) ? { ...b, cuts: b.cuts.filter((c) => c.id !== cutId) } : b)));
-      for (const id of all) dropHeldIfGone(id);
+        b.id === boardId ? { ...b, cuts: b.cuts.filter((c) => c.id !== cutId) } : b)));
+      judgeHeld();
     },
 
     linkBoards: (ids) => {
-      const plan = linkPlan(worldParts(get().doc), ids);
+      const doc0 = get().doc;
+      const plan = linkPlan(worldParts(doc0), ids);
       if (!plan) return; // fewer than two, or nothing would change (invariant 4)
-      const label = plan.label ?? `link_${nextId()}`;
-      const members = new Set(plan.members);
-      // Through mapWorld (assemblies spec §5.1).
-      edit((doc) => mapWorld(doc, (w) => w.map((b) => {
-        if (!members.has(b.id)) return b;
-        // The source keeps its values; every other member takes them through
-        // patchBoard, so a posture change pivots it about its own centre.
-        const next = b.id === plan.source.id ? b : patchBoard(b, sharedOf(plan.source));
-        return { ...next, link: label };
-      })));
-      for (const id of members) dropHeldIfGone(id);
+      // Every member but the source takes the source's shared fields through
+      // patchBoard, so a posture change pivots it about its own centre
+      // (invariant 2). One edit per storage target, the source's FIRST, so
+      // another placement of the source's own stored part is never patched.
+      const patched = oneEditPerTarget(doc0, [plan.source.id, ...plan.members]);
+      patched.delete(plan.source.id);
+      const shapeId = plan.shape ?? nextId();
+      edit((doc) => {
+        let out = mapWorld(doc, (w) => w.map((b) => (patched.has(b.id) ? patchBoard(b, sharedOf(plan.source)) : b)));
+        // The shape takes the source's shared fields, cut ids kept: the
+        // source's existing shape (or a selected member's), else a new one.
+        const shape = { id: shapeId, ...sharedOf(plan.source) };
+        out = { ...out, shapes: out.shapes.some((x) => x.id === shapeId)
+          ? out.shapes.map((x) => (x.id === shapeId ? shape : x))
+          : [...out.shapes, shape] };
+        // Every member's STORED part becomes a shaped part: its own fields as
+        // stored (never the world ones, which a turned assembly changes),
+        // after the pivot above.
+        for (const occ of plan.members) {
+          const p = partAt(out, occ);
+          if (p) out = setStored(out, occ, { id: p.id, name: p.name, position: p.position, rotation: p.rotation, shape: shapeId });
+        }
+        // A member's old shape, all of whose users are members, is now unused.
+        return pruneShapes(out);
+      });
+      judgeHeld();
     },
 
     unlinkBoards: (ids) => {
-      const drop = new Set(ids.filter((id) => worldParts(get().doc).some((b) => b.id === id && b.link)));
-      if (drop.size === 0) return; // invariant 4
-      // Through mapWorld (assemblies spec §5.1).
-      edit((doc) => mapWorld(doc, (w) => dissolveSingletons(w.map((b) => (drop.has(b.id) ? withoutLink(b) : b)))));
+      const doc0 = get().doc;
+      const drop = [...new Set(ids)].filter((id) => { const p = partAt(doc0, id); return p !== null && isShaped(p); });
+      if (drop.length === 0) return; // invariant 4
+      edit((doc) => {
+        // Each selected shaped part becomes a plain part carrying a copy of
+        // its shape's fields, cut ids kept; a shape left with one user
+        // dissolves the same way (components spec §3.2). Nothing moves.
+        let out = doc;
+        for (const occ of drop) {
+          const p = resolvedPartAt(out, occ);
+          if (p) out = setStored(out, occ, plainOf(p));
+        }
+        return dissolveShapes(out);
+      });
     },
 
     // Through selectionPatch, which drops hidden ids and carries invariant
@@ -1400,8 +1487,8 @@ export const useStore = create<StoreState>((set, get) => {
     selectLinked: (id) => {
       const world = worldParts(get().doc);
       const b = world.find((x) => x.id === id);
-      if (!b?.link) return;
-      set(selectionPatch(world.filter((x) => x.link === b.link).map((x) => x.id)));
+      if (!b?.shape) return;
+      set(selectionPatch(world.filter((x) => x.shape === b.shape).map((x) => x.id)));
     },
 
     /**

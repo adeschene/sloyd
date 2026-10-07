@@ -1,8 +1,9 @@
-import type { Board, Definition, Instance, Rotation, SloydDocument } from './types';
+import type { Board, Definition, Instance, Rotation, SloydDocument, StoredBoard, FlatDocument } from './types';
+import { isShaped, resolveBoard, shapeMap } from './shapes';
 import { addTurns, placeBoard } from './frames';
 
 /** A container's contents: the root (the document itself) or a definition. */
-export interface Container { boards: Board[]; instances: Instance[] }
+export interface Container { boards: StoredBoard[]; instances: Instance[] }
 
 export const PATH_SEPARATOR = '/';
 export const NAME_SEPARATOR = ' › ';
@@ -57,9 +58,14 @@ export function definitionAt(doc: SloydDocument, path: string): Definition | nul
 export function containerAt(doc: SloydDocument, path: string | null): Container | null {
   return path === null ? doc : definitionAt(doc, path);
 }
-export function partAt(doc: SloydDocument, occ: string): Board | null {
+export function partAt(doc: SloydDocument, occ: string): StoredBoard | null {
   const parent = parentPath(occ);
   return containerAt(doc, parent)?.boards.find((b) => b.id === lastSegment(occ)) ?? null;
+}
+/** The stored part at `occ`, resolved (its shape read in), in its container's frame. */
+export function resolvedPartAt(doc: SloydDocument, occ: string): Board | null {
+  const p = partAt(doc, occ);
+  return p ? resolveBoard(shapeMap(doc), p) : null;
 }
 /** The sum of the turns of the instances on `path`: how the container's frame is turned in the world. */
 export function containerTurn(doc: SloydDocument, path: string | null): Rotation {
@@ -73,12 +79,12 @@ export function containerTurn(doc: SloydDocument, path: string | null): Rotation
  * placeBoard per level (spec §2.1). A definition already on the current path is
  * skipped, so a cycle the load repair missed cannot hang the app.
  */
-export function partsBelow(doc: SloydDocument, c: Container, defs = defsOf(doc), onPath = new Set<string>()): Board[] {
-  const out: Board[] = [...c.boards];
+export function partsBelow(doc: SloydDocument, c: Container, defs = defsOf(doc), onPath = new Set<string>(), shapes = shapeMap(doc)): Board[] {
+  const out: Board[] = c.boards.flatMap((b) => resolveBoard(shapes, b) ?? []);
   for (const inst of c.instances) {
     const d = defs.get(inst.definition);
     if (!d || onPath.has(d.id)) continue;
-    const inner = partsBelow(doc, d, defs, new Set([...onPath, d.id]));
+    const inner = partsBelow(doc, d, defs, new Set([...onPath, d.id]), shapes);
     for (const b of inner) out.push(placeBoard(inst, { ...b, id: joinPath(inst.id, b.id) }));
   }
   return out;
@@ -94,7 +100,7 @@ const worldCache = new WeakMap<SloydDocument, Board[]>();
  * rule), and the document's own `boards` when it has no instances.
  */
 export function worldParts(doc: SloydDocument): Board[] {
-  if (doc.instances.length === 0) return doc.boards;
+  if (doc.instances.length === 0 && doc.shapes.length === 0) return doc.boards as Board[];
   const hit = worldCache.get(doc);
   if (hit) return hit;
   const out = partsBelow(doc, doc);
@@ -107,6 +113,21 @@ export function childrenOf(doc: SloydDocument, path: string | null): string[] {
   const c = containerAt(doc, path);
   if (!c) return [];
   return [...c.boards.map((b) => joinPath(path, b.id)), ...c.instances.map((i) => joinPath(path, i.id))];
+}
+
+/** Definition id -> how many instance PATHS name it (a nested instance counts once per placement of its parent). */
+export function placementsOf(doc: SloydDocument): Map<string, number> {
+  const out = new Map<string, number>();
+  const defs = defsOf(doc);
+  const walk = (c: Container, onPath: Set<string>) => {
+    for (const inst of c.instances) {
+      out.set(inst.definition, (out.get(inst.definition) ?? 0) + 1);
+      const d = defs.get(inst.definition);
+      if (d && !onPath.has(d.id)) walk(d, new Set([...onPath, d.id]));
+    }
+  };
+  walk(doc, new Set());
+  return out;
 }
 
 /** Every instance path and every part occurrence id. */
@@ -146,28 +167,31 @@ export function displayNames(doc: SloydDocument): Map<string, string> {
  * (spec §2.1). What the cut list and joinery read. The names are built HERE so
  * the string the cut list measures is the string it draws (invariant 19).
  */
-export function flatDocument(doc: SloydDocument): SloydDocument {
-  if (doc.instances.length === 0) return doc;
+export function flatDocument(doc: SloydDocument): FlatDocument {
+  if (doc.instances.length === 0 && doc.shapes.length === 0) return doc as FlatDocument;
   const names = displayNames(doc);
   return {
     ...doc,
     boards: worldParts(doc).map((b) => ({ ...b, name: names.get(b.id) ?? b.name })),
     instances: [],
     definitions: [],
+    shapes: [],
   };
 }
 
-export interface TreeRow { path: string; name: string; kind: 'part' | 'assembly'; depth: number; link?: string }
+export interface TreeRow { path: string; name: string; kind: 'part' | 'assembly'; depth: number; shape?: string; copies?: number }
 
 /** The parts list's rows: depth first, a container's parts before its assemblies. */
 export function treeRows(doc: SloydDocument): TreeRow[] {
   const out: TreeRow[] = [];
   const defs = defsOf(doc);
+  const placed = placementsOf(doc);
   const walk = (c: Container, path: string | null, depth: number, onPath: Set<string>) => {
-    for (const b of c.boards) out.push({ path: joinPath(path, b.id), name: b.name, kind: 'part', depth, ...(b.link ? { link: b.link } : {}) });
+    for (const b of c.boards) out.push({ path: joinPath(path, b.id), name: b.name, kind: 'part', depth, ...(isShaped(b) ? { shape: b.shape } : {}) });
     for (const inst of c.instances) {
       const p = joinPath(path, inst.id);
-      out.push({ path: p, name: inst.name, kind: 'assembly', depth });
+      const n = placed.get(inst.definition) ?? 0;
+      out.push({ path: p, name: inst.name, kind: 'assembly', depth, ...(n >= 2 ? { copies: n } : {}) });
       const d = defs.get(inst.definition);
       if (d && !onPath.has(d.id)) walk(d, p, depth + 1, new Set([...onPath, d.id]));
     }

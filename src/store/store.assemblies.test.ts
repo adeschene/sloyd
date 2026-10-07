@@ -1,6 +1,6 @@
 import { useStore } from './store';
 import { assemblyDoc } from '../document/treeFixtures';
-import { childrenOf, instanceAt, isCovered, partAt, worldParts } from '../document/tree';
+import { childrenOf, instanceAt, isCovered, resolvedPartAt, worldParts } from '../document/tree';
 import { visibleBoards } from './visibility';
 import type { BoardSnapPoint, SloydDocument } from '../document/document';
 import { removeItems, snapPointsFor } from '../document/document';
@@ -124,9 +124,9 @@ describe('undo reconciles the open assembly (assemblies spec §3.1)', () => {
 
 describe('part edits inside assemblies (assemblies spec §5)', () => {
   it('a Length edit on a part inside a turned assembly keeps its stored position bit for bit', () => {
-    const before = partAt(s().doc, 'i1/b2')!;
+    const before = resolvedPartAt(s().doc, 'i1/b2')!;
     s().updateBoard('i1/b2', { length: 13 });
-    const after = partAt(s().doc, 'i1/b2')!;
+    const after = resolvedPartAt(s().doc, 'i1/b2')!;
     expect(after.length).toBe(13);
     after.position.forEach((v, i) => expect(v).toBe(before.position[i]));
     expect(s().past).toHaveLength(1);
@@ -134,22 +134,28 @@ describe('part edits inside assemblies (assemblies spec §5)', () => {
 
   it('a cut added, edited and removed on a nested part lands on the stored part', () => {
     s().addCut('i1/i2/b3');
-    const cut = partAt(s().doc, 'i1/i2/b3')!.cuts[0]!;
+    const cut = resolvedPartAt(s().doc, 'i1/i2/b3')!.cuts[0]!;
     s().updateCut('i1/i2/b3', cut.id, { depth: 0.1 });
-    expect(partAt(s().doc, 'i1/i2/b3')!.cuts[0]!.depth).toBe(0.1);
+    expect(resolvedPartAt(s().doc, 'i1/i2/b3')!.cuts[0]!.depth).toBe(0.1);
     s().removeCut('i1/i2/b3', cut.id);
-    expect(partAt(s().doc, 'i1/i2/b3')!.cuts).toEqual([]);
+    expect(resolvedPartAt(s().doc, 'i1/i2/b3')!.cuts).toEqual([]);
   });
 
   it('a link across containers propagates in one undo entry', () => {
     s().linkBoards(['r1', 'i1/b2']);
-    expect(partAt(s().doc, 'i1/b2')!.length).toBe(s().doc.boards[0]!.length);
+    expect(resolvedPartAt(s().doc, 'i1/b2')!.length).toBe(worldParts(s().doc)[0]!.length);
+    // One shape across the root and the assembly: both stored parts name it.
+    expect(s().doc.shapes).toHaveLength(1);
+    expect(resolvedPartAt(s().doc, 'i1/b2')!.shape).toBe(s().doc.shapes[0]!.id);
+    expect(resolvedPartAt(s().doc, 'r1')!.shape).toBe(s().doc.shapes[0]!.id);
     const past = s().past.length;
     s().updateBoard('r1', { thickness: 1.25 });
-    expect(partAt(s().doc, 'i1/b2')!.thickness).toBe(1.25);
+    expect(resolvedPartAt(s().doc, 'i1/b2')!.thickness).toBe(1.25);
     expect(s().past.length).toBe(past + 1);
     s().unlinkBoards(['r1']);
-    expect('link' in partAt(s().doc, 'i1/b2')!).toBe(false);
+    expect('shape' in resolvedPartAt(s().doc, 'i1/b2')!).toBe(false);
+    expect(s().doc.shapes).toEqual([]);
+    expect(resolvedPartAt(s().doc, 'i1/b2')!.thickness).toBe(1.25);
   });
 
   it('a tape anchor on a nested part drops when that part moves and is kept otherwise', () => {
@@ -182,36 +188,28 @@ describe('moving and copying assemblies (assemblies spec §4.2)', () => {
 
   it('a snap move inside a turned assembly goes into the frame; the axes it does not reach stay bit-identical', () => {
     s().openAssembly('i1');
-    const before = partAt(s().doc, 'i1/b2')!;
+    const before = resolvedPartAt(s().doc, 'i1/b2')!;
     const w = worldParts(s().doc).find((b) => b.id === 'i1/b2')!;
     s().setTool('move');
     s().selectItem('i1/b2', false);
     s().grabSnapPoint(point('i1/b2', [w.position[0], w.position[1], w.position[2]]));
     s().commitSnapMove({ at: [w.position[0] + 1, w.position[1], w.position[2]], kind: 'corner', owner: { type: 'board', id: 'r1' } } as never);
-    const after = partAt(s().doc, 'i1/b2')!;
+    const after = resolvedPartAt(s().doc, 'i1/b2')!;
     // world +X is the frame's +Z under i1's 90° turn
     expect(after.position[0]).toBe(before.position[0]);
     expect(after.position[1]).toBe(before.position[1]);
     expect(after.position[2]).toBe(before.position[2] + 1);
   });
 
-  it('Duplicate of an assembly makes an independent copy with its own definitions', () => {
+  it('Duplicate of an assembly shares its definition (components spec §3.1)', () => {
     s().duplicateBoards(['i1']);
     const roots = childrenOf(s().doc, null);
     expect(roots).toHaveLength(3);
     const copy = instanceAt(s().doc, roots[2]!)!;
     expect(copy.name).toBe('Drawer (1)');
-    expect(copy.definition).not.toBe('d1');
+    expect(copy.definition).toBe('d1');
     expect(worldParts(s().doc)).toHaveLength(7);
     expect(s().selectedIds).toEqual([roots[2]]);
-    // Independent below the top level too (Task 5 review).
-    const def = s().doc.definitions.find((d) => d.id === copy.definition)!;
-    expect(def.instances).toHaveLength(1);
-    expect(def.instances[0]!.definition).not.toBe('d2');
-    const nested = s().doc.definitions.find((d) => d.id === def.instances[0]!.definition)!;
-    expect(nested.boards.map((b) => b.name)).toEqual(['Pin']);
-    expect(def.boards.map((b) => b.name)).toEqual(['Side', 'Front']);
-    expect(def.boards[0]!.cuts).toHaveLength(3);
   });
 
   it('Copy in a row of an assembly shifts each copy from the ORIGINAL', () => {
@@ -252,7 +250,8 @@ describe('Group and Ungroup (assemblies spec §4.1)', () => {
   it('Group moves nothing, selects the new assembly, and re-keys hidden ids and the tape', () => {
     const before = worldParts(s().doc);
     s().setHidden('i1/b1', true);
-    s().setTapeAnchor(point('i1/b2'));
+    // A REAL point: Group judges every held point after the re-key (components spec §4.2).
+    s().setTapeAnchor(heldOn('i1/b2'));
     s().selectAll();
     s().groupSelected();
     const [path] = s().selectedIds;
@@ -321,7 +320,7 @@ describe('Turn and Rename an assembly', () => {
     expect(s().renameItem('i1', 'Top')).toBe('Top (1)');
     expect(instanceAt(s().doc, 'i1')!.name).toBe('Top (1)');
     expect(s().renameItem('i1/b1', 'Front')).toBe('Front (1)');
-    expect(partAt(s().doc, 'i1/b1')!.name).toBe('Front (1)');
+    expect(resolvedPartAt(s().doc, 'i1/b1')!.name).toBe('Front (1)');
     expect(s().renameItem('i1/b1', 'Front (1)')).toBe('Front (1)');
   });
 });
@@ -330,8 +329,8 @@ describe('renameItem and gestures', () => {
   it('a renamed part leaves its linked mate alone', () => {
     s().linkBoards(['i1/b1', 'r1']);
     s().renameItem('i1/b1', 'Front');
-    expect(partAt(s().doc, 'i1/b1')!.name).toBe('Front (1)');
-    expect(partAt(s().doc, 'r1')!.name).toBe('Top');
+    expect(resolvedPartAt(s().doc, 'i1/b1')!.name).toBe('Front (1)');
+    expect(resolvedPartAt(s().doc, 'r1')!.name).toBe('Top');
   });
 
   it('Group and Ungroup are refused inside a gesture', () => {
@@ -368,11 +367,11 @@ describe('renameItem and gestures', () => {
   it('a cut action reaches a linked mate in another container', () => {
     s().linkBoards(['r1', 'i1/b2']);
     s().addCut('r1');
-    const id = s().doc.boards[0]!.cuts[0]!.id;
-    expect(partAt(s().doc, 'i1/b2')!.cuts.map((c) => c.id)).toEqual([id]);
+    const id = worldParts(s().doc)[0]!.cuts[0]!.id;
+    expect(resolvedPartAt(s().doc, 'i1/b2')!.cuts.map((c) => c.id)).toEqual([id]);
     s().updateCut('r1', id, { depth: 0.1 });
-    expect(partAt(s().doc, 'i1/b2')!.cuts[0]!.depth).toBe(0.1);
+    expect(resolvedPartAt(s().doc, 'i1/b2')!.cuts[0]!.depth).toBe(0.1);
     s().removeCut('r1', id);
-    expect(partAt(s().doc, 'i1/b2')!.cuts).toEqual([]);
+    expect(resolvedPartAt(s().doc, 'i1/b2')!.cuts).toEqual([]);
   });
 });
