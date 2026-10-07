@@ -24,10 +24,12 @@ tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **2005/2005 tests passing across 72 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
-`CURRENT_VERSION` **10**.
+Static SPA, containerized, **2080/2080 tests passing across 75 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
+`CURRENT_VERSION` **11**.
 
-**PRODUCTION MATCHES `master` as of 2026-10-06 with the assemblies round live** — bundle `index-DVAS8FuS.js`, CSS `index-BYFkbcnj.css`, deployed commit `029becf` (merge `699cc45`, then the grey fade and click-empty-to-close-a-level, both at the user's request), **schema 10**; before those two, `index-hmc0odAl.js` (`f8f76e8`) (rolling back past it strands v10 documents; export first).
+**The components round (2026-10-07) is built on branch `components`, merge pending the user, NOT deployed** (schema **11**; rolling back past it would strand v11 documents, so export first). It is round 2 of 2. **Duplicate and Copy in a row of an assembly SHARE its definition**: an edit inside any copy changes them all, in one undo entry, and **Make Unique** splits a copy off one level deep. **Links became shared `Shape`s**: a linked part stores only its own fields plus a `shape` id, so the shared fields are stored once. Shared copies show `×N`, "Shared by N copies", **Select copies** and **Make Unique**. Joinery keeps sharing where results come out identical (closes follow-up 223). Its live check was driven HEADLESS, because the SSH-forwarded display the user watches from had gone; the user did not watch (`docs/browser-verification-components.md`). Invariants 45 (rewritten) and 46 (amended); spec `docs/superpowers/specs/2026-10-06-sloyd-components-design.md` (§8 records the implementation amendments). Residues are follow-ups 229-231.
+
+**PRODUCTION MATCHES the assemblies round as of 2026-10-06** — bundle `index-DVAS8FuS.js`, CSS `index-BYFkbcnj.css`, deployed commit `029becf` (merge `699cc45`, then the grey fade and click-empty-to-close-a-level, both at the user's request), **schema 10**; before those two, `index-hmc0odAl.js` (`f8f76e8`) (rolling back past it strands v10 documents; export first).
 
 **The assemblies round (2026-10-06) is merged (`699cc45`) AND deployed (`index-hmc0odAl.js`).** Claude drove its live check on the dev server (`docs/browser-verification-assemblies.md`); the user approved the merge and the deploy without reporting hands-on results, so the fade on real hardware is still unconfirmed. It is round 1 of two, in the user's order: assemblies, then components (shared definitions). Select parts and **Group** (Ctrl/Cmd+G). The parts become an assembly, a real definition/instance tree that nests, duplicates (an INDEPENDENT copy in round 1), moves and turns as one. SketchUp's click model: a click selects the outermost assembly, a double-click opens it (everything outside fades but stays clickable), and Escape closes it. **Ungroup** is Ctrl/Cmd+Shift+G. Names are unique per level, and the cut list and joinery name parts by path (`Cabinet › Drawer › Side`). Invariant 46; invariants 8 and 33 are restated per level (spec `docs/superpowers/specs/2026-10-06-sloyd-assemblies-design.md`). **Schema 10**: `instances` and `definitions`. Residues are follow-ups 224-228; 224 holds round 2's design questions.
 
@@ -196,7 +198,7 @@ planned follow-on is **phase 2, refine and joinery (follow-up 171)**; read invar
 and 39 first, because joinery is exactly where "overlap" and "held" both change meaning.
 174 (the key check) is done too. Phase 2's joinery half (171) shipped on 2026-10-04.
 
-**As of 2026-10-06, after the assemblies round: merged AND deployed; nothing is pending.** The planned successor is **round 2, components** (shared definitions, Make Unique, what links become): read follow-up 224 before designing it. Do not start it without asking.
+**As of 2026-10-07: the components round is built and live-checked on its branch; merging and deploying are the user's calls.** After it, NO SUCCESSOR IS CHOSEN: ask what to work on.
 
 **Earlier on 2026-10-06, before the assemblies round: NOTHING WAS PENDING and NO SUCCESSOR WAS CHOSEN.**
 The user asked on 2026-10-05 for three features, in order, and all three are live: multi-select,
@@ -307,6 +309,7 @@ show it. Prefer a readout where one suffices; add an image when the finding is s
 | copy in a row | 10-05 | — | `rowLayout` (gap / pitch / fit-across, no rounding) and `copyInRow`: N−1 ordinary copies of the selection along ±X/Y/Z, each shifted k·step from the ORIGINAL, one undo entry; Properties' inline **Copy in a row…** form (inv 25) |
 | linking | 10-06 | 9 | `Board.link`, a label; `LINK_FIELDS` is the one shared/own table; `linkPlan` decides Link for store and panel; shared edits and cut edits reach every member in one undo entry; Unlink, Select linked, linked copies; `repairLinks` in `migrateDocument` unlinks a differing member (inv 45) |
 | assemblies | 10-06 | 10 | `instances` + `definitions`: a definition/instance tree; Group / Ungroup (Ctrl/Cmd+G, +Shift), double-click opens, Escape closes, the rest fades; `worldParts` the one walk, `placeBoard`/`placeInstance` the one composition, every edit written back through `treeEdit.ts` (inv 46); names unique per level, ids unique per container (invs 8, 33 restated); cut list and joinery read `flatDocument` (path names) |
+| components | 10-07 | 11 | shared definitions (Duplicate shares; Make Unique one level deep; Select copies; `×N`); links are `Shape`s (`ShapedBoard` = own fields + `shape`; `resolveBoard` the one reader; `Board.link`/`repairLinks` retired); write-back keyed on the storage target, disagreeing edits throw; v10 links migrate to shapes on load; joinery shares where identical (fu 223) (invs 45, 46) |
 | hide/unhide | 10-05 | — | `hiddenIds`: an eye per row, H / Shift+H / Alt+H, Show all (N), Hide others; view state, not saved, but undoable (history entries are `{ doc, hiddenIds }`); a hidden part is not drawn, snapped to, framed or selected (inv 43) |
 | joinery fixes | 10-05 | — | *no spec* — fu 190/185/183/184: opposite-face tenon cap, bottom-up crossings with a swept-volume blocker, outer-face carry (refuses before any mutation), `lowered` reported |
 | joinery residues | 10-05 | — | *no spec* — fu 182/201/188/203/191/186: rabbet unit from the panel's final box (no voids, path parts trimmed), 1/4in default tenons else butt, blockers on solids, `resize` pre-checked |
@@ -394,7 +397,7 @@ code path.
 ### Versioning
 
 Every document carries a `version`, and every load path (open, import, autosave-restore)
-runs through `migrateDocument` before the document is trusted. `CURRENT_VERSION` is **10**
+runs through `migrateDocument` before the document is trusted. `CURRENT_VERSION` is **11**
 and migration is a real chain: each step runs on raw data, in version order, one version
 at a time, before any board reaches `validateBoard` (invariant 11).
 
@@ -416,9 +419,11 @@ at a time, before any board reaches `validateBoard` (invariant 11).
   `definitions`) is document-level too: both default to `[]`. `guides` defaults to `[]`,
   and `validateGuides` drops a malformed guide rather than refusing the file, because a
   saved document must always open and a guide has no nearest-legal-value to clamp toward.
-  `stopMin`/`stopMax` default to `0` in `validateCuts`. An absent `link` is an unlinked
-  part; `validateBoard` keeps `link` only when it is a non-blank string (stored as given,
-  not trimmed) and drops anything else rather than refusing the file.
+  `stopMin`/`stopMax` default to `0` in `validateCuts`. An absent `link` was an unlinked
+  part; since v11 `link` is read ONLY from a file below v11, into the migration's legacy map, and
+  a v11 file's stray `link` is ignored. v10→v11 adds `shapes` (default `[]`): `validateShapes`
+  drops a malformed shape (claiming no id) and a duplicate id (the first wins), and a definition
+  whose id is literally `ROOT` is dropped (the write-back's root storage id).
 
 **A version bump is for the refusal gate at the far end, not for upgrading old files** —
 an absent field defaults cleanly regardless of `CURRENT_VERSION`. But the two bumps were
@@ -444,12 +449,18 @@ v9's argument is v6's, **silent data loss on round-trip**: a v8 build opens a v9
 every `link`, autosaves, and the links are gone. It is silent precisely because every linked
 part is self-contained (its own size and cuts), so the v8 build shows exactly the same
 parts. v10's argument is v9's, made stronger: a v9 build opening a v10 file drops `instances` and
-`definitions`, so EVERY PART INSIDE AN ASSEMBLY VANISHES, and it autosaves. `repairTree` and
-`repairLinksTree` run after validation on every load, like `repairLinks` (invariant 46).
+`definitions`, so EVERY PART INSIDE AN ASSEMBLY VANISHES, and it autosaves. `repairTree` runs
+after validation on every load (invariant 46).
 
-**`repairLinks` is not a migration step and is not version-guarded**, unlike v8's: it
-runs after validation on EVERY load, it is idempotent (consistent links come back as the same
-array), and it moves no geometry (invariant 45).
+v11's argument is the strongest yet, **silent data loss**: a v10 build would see shaped parts
+with no size, and its load repair would copy every shared definition, un-sharing every component,
+then autosave. **The v10→v11 step (`linksToShapes`) runs AFTER validation**, guarded by
+`d.version < 11`, before `repairTree`. It is the one step not run on raw data, because it needs
+validated values and world order to judge which members are equal (spec §8.3). Each link becomes
+one `Shape` built from its first member; equal members become shaped parts with nothing moved; a
+differing member stays plain. `repairTree(doc, { copyShared: version < 11 })` copies a definition
+placed twice only for an older file, and a v11 file's stray `link` is ignored. `repairLinks` is
+retired: users of one shape cannot differ, by construction.
 
 Full detail: `docs/superpowers/specs/` (design), `docs/superpowers/plans/`
 (implementation), `docs/history.md` (what shipped and why).
@@ -476,12 +487,24 @@ src/
 │   │                       rounds (inv 25). The panel's summary AND Apply both read it
 │   ├── types.ts            Board, GuidePoint, SloydDocument, Rotation, Posture,
 │   │                       Grain, MATERIALS, SheetStock, isSheetGood, sheetStockOf.
-│   │                       `Board.link?: string` — a label, never an id; an
-│   │                       unlinked part has NO key (inv 45). `Instance` (`position` is its
+│   │                       `Board.shape?: string` — set ONLY on a RESOLVED part; `Shape`
+│   │                       (the shared fields + id), `ShapedBoard` (own fields + `shape`),
+│   │                       `StoredBoard` = Board | ShapedBoard, `FlatDocument` (resolved
+│   │                       boards), `SloydDocument.shapes` — all derived from LINK_FIELDS
+│   │                       (inv 45). `Instance` (`position` is its
 │   │                       frame's ORIGIN, not a min corner) and `Definition`
 │   │                       `{ id, boards, instances }`; `SloydDocument.instances` is the
 │   │                       root's (inv 46)
 │   ├── ids.ts              `nextId`, the one id minter
+│   ├── shapes.ts           `isShaped` (no `length` key), `shapeMap`, `resolveBoard` (THE
+│   │                       place a shape is read into a part; a plain part comes back as the
+│   │                       SAME object; shared fields from SHARED_KEYS, cuts copied),
+│   │                       `shapeUsers` (STORED users, not placements), `pruneShapes`,
+│   │                       `dissolveShapes` (a one-user shape: its user turns plain, cut ids
+│   │                       kept), `plainOf` (strips `shape`)
+│   ├── linksToShapes.ts    the v10→v11 step: each link label → one Shape from its FIRST member
+│   │                       in worldParts order; equal members (`sameShared`, exact, cut ids
+│   │                       included) become shaped parts; nothing moves
 │   ├── frames.ts           the ONE composition step (inv 46): `rotateVec` (90 maps (x,y,z) to
 │   │                       (z,y,−x)), `cornerShift`, `placeBoard(frame, board)` = (origin +
 │   │                       R(p)) + shift, `placeInstance`, `inverseTurn`, `addTurns`. Pure
@@ -491,32 +514,38 @@ src/
 │   │                       object in a WeakMap; each part keeps its OWN name), `flatDocument`
 │   │                       (path names joined by `NAME_SEPARATOR` ` › `, for the cut list and
 │   │                       joinery), `childrenOf`, `itemPaths`, `containerTurn`, `treeRows`
-│   ├── treeEdit.ts         every write-back (inv 46): `applyWorldEdits` (changed fields only;
-│   │                       a moved position goes down as a delta level by level; `keepWorld`
-│   │                       for joinery only), `mapWorld`, `translateItems` (a WORLD delta
-│   │                       rotated into each container's frame), `writeBackFlat`,
-│   │                       `updateContainer`
+│   ├── treeEdit.ts         every write-back (inv 46): `applyWorldEdits` keys on the STORAGE
+│   │                       target (`storageKey` = `<definition id or ROOT>:<part id>`, the same
+│   │                       for every placement); changed fields only, merged field by field;
+│   │                       DISAGREEING edits throw; shared fields of a shaped part go to its
+│   │                       Shape. `lowerEdit` is the ONE lowering (a moved position goes down
+│   │                       as a delta level by level; `keepWorld` for joinery only). `mapWorld`,
+│   │                       `translateItems` (a WORLD delta rotated into each container's
+│   │                       frame), `updateContainer`. `writeBackFlat` (joinery) splits
+│   │                       definitions shallowest-first and then shapes by IDENTICAL results
+│   │                       (cuts by geometry), one edit per storage key
 │   ├── treeOps.ts          `groupItems` (identity frame, so bit-exact), `ungroupItem` (exact
-│   │                       for direct child parts), `copyInstanceTree` (round 1: an
-│   │                       independent copy), `removeItems` + `pruneDefinitions`,
+│   │                       for direct child parts; shaped parts stay shaped, cuts copied).
+│   │                       Both return a `Rekey` built for EVERY placement of the edited
+│   │                       container (`containerPlacements`, `rekeyEverywhere`).
+│   │                       `shareInstance` (Duplicate: same definition), `instanceRefs`,
+│   │                       `makeUniqueItem` (one level deep, ids kept, so paths survive),
+│   │                       `removeItems` + `pruneDefinitions` (+ prune/dissolve shapes),
 │   │                       `turnInstance` (about the assembly's centre), `insertItems`,
 │   │                       `siblingsOf`, `nextAssemblyName`
-│   ├── treeRepair.ts       `repairTree` (duplicate definition ids, missing definitions,
-│   │                       cycles, a definition referenced twice gets a copy, unreferenced
-│   │                       dropped, ids and names per container) and `repairLinksTree`;
-│   │                       both run in `migrateDocument` on every load
+│   ├── treeRepair.ts       `repairTree(doc, { copyShared })` (duplicate definition ids,
+│   │                       missing definitions, cycles, a definition placed twice copied ONLY
+│   │                       below v11, unreferenced dropped, ids and names per container) and
+│   │                       `dropUnresolved` (a shaped part naming a missing shape); run in
+│   │                       `migrateDocument` on every load
 │   ├── treeFixtures.ts     TEST-ONLY `assemblyDoc()`: `r1`, `i1/b1`, `i1/b2`, `i1/i2/b3`; i1
 │   │                       "Drawer" turned 90, i2 "Peg" turned 270
 │   ├── links.ts            `LINK_FIELDS` — the ONE shared/own table, `satisfies
-│   │                       Record<keyof Board, …>` (inv 45); `SHARED_KEYS` / `sharedOf`
-│   │                       (cuts copied, ids kept) / `sharedPatch` / `sameShared`
-│   │                       (cuts in order, by id and `CUT_GEOMETRY_KEYS`, exact) /
-│   │                       `withoutLink` / `dissolveSingletons` / `repairLinks`
-│   │                       (unlinks a member differing from its label's FIRST member;
-│   │                       never moves geometry, never merges labels) / `linkPlan`
-│   │                       (the ONE decider for Link: source, members, changing,
-│   │                       label; null for a no-op). Imports only ./types and ./cuts.
-│   │                       Pure
+│   │                       Record<keyof Board, …>` (inv 45); `SHARED_KEYS` / `OwnField` /
+│   │                       `sharedOf` (cuts copied, ids kept) / `sharedPatch` /
+│   │                       `sameShared` (cuts in order, by id and `CUT_GEOMETRY_KEYS`,
+│   │                       exact) / `linkPlan` (the ONE decider for Link: source, members,
+│   │                       changing, the shape to reuse; null for a no-op). Pure
 │   ├── geometry.ts         `axisFrame` — the ONE turn table (inv 44): per world axis an
 │   │                       `AxisMap` `{ dim, reversed }`; `horizontalOf(posture)` gives
 │   │                       [h0, h1]. `axisDimensions` (inv 13) is `axisFrame` without
@@ -661,10 +690,10 @@ src/
 │                           id-uniqueness rule for boards, guides and cuts
 │                           (inv 33); `trueTurnsToV8` / `mirrorCutAlong`, the v7→v8
 │                           step (inv 44); `validateBoard` keeps a non-blank
-│                           `link`; `repairLinks` runs inside `migrateDocument`
-│                           after `dedupeNames`, so EVERY load and every
-│                           generated or joined design passes it (inv 45);
-│                           re-exports the rest, `links.ts` included
+│                           `link` from a file below v11 only (the legacy map
+│                           `linksToShapes` consumes); `validateShapes`; a
+│                           ShapedBoard validated by its own fields; re-exports
+│                           the rest
 ├── store/store.ts          Zustand, snapshot undo/redo (inv 4), gesture coalescing.
 │                           `gesturing`/`gestureSnapshotTaken` are STATE, not closure
 │                           variables, so `replaceDocument` clears a gesture whose
@@ -702,18 +731,21 @@ src/
 │                           `edit()` on a bad count or step. It and `duplicateBoards` share
 │                           the `copyBoard` helper (a fresh id, copied cuts, a name unique
 │                           against the growing list), so the two cannot drift. A copy
-│                           carries `link`, so it JOINS a linked source's link and KEEPS
-│                           its cut ids; a copy of an unlinked source gets fresh cut ids
-│                           and no `link` key (inv 45).
-│                           Links (inv 45): `mates(boards, ids)` — the OTHER members of
-│                           the given parts' links. `updateBoards` sends `sharedPatch`
-│                           to the mates through `patchBoard` in the SAME `edit()`;
-│                           `addCut` mints ONE id onto every member, `updateCut` /
-│                           `removeCut` act on that id on every member. `linkBoards`
-│                           follows `linkPlan` (label `link_<nextId>` when none
-│                           applies), `unlinkBoards` keeps values, and both it and
-│                           `deleteBoards` run `dissolveSingletons`. `selectLinked`
-│                           writes through `selectionPatch`, so hidden members drop
+│                           of a SHAPED part is a ShapedBoard on the same shape; a copy
+│                           of a plain part is plain with fresh cut ids (inv 45). An
+│                           ASSEMBLY's copy shares its definition (`shareInstance`).
+│                           Components: `oneEditPerTarget` (ONE edit per storage key —
+│                           two placements of one stored part must not both send one,
+│                           or `applyWorldEdits` throws), `judgeHeld()` (every held
+│                           point judged point-precisely after any part edit, because an
+│                           edit inside a definition moves parts in EVERY copy),
+│                           `makeUnique`, `selectCopies`, `reconcileHidden`.
+│                           Links (inv 45): `shapeMates` exist ONLY so a posture change
+│                           re-pivots every other user about its own centre; cut actions
+│                           write the shape once. `linkBoards` follows `linkPlan` and
+│                           points every member at one shape; `unlinkBoards` turns the
+│                           selected users plain and dissolves a one-user shape.
+│                           `selectLinked` writes through `selectionPatch`
 │   └── assemblyPick.ts     `clickTarget`: which item a viewport click on a part selects
 │                           (the outermost item below the open level; inv 46)
 │                           `openPath` (the open assembly, null at the root) is view state.
@@ -1570,6 +1602,13 @@ worked examples behind several of them are in `docs/history.md`.
       duplicate DEFINITION id is resolved by DROPPING the later definition, never by re-minting
       it, so no reference ever needs rewriting. The single-pass repair above still holds.
       Round 2 (shared definitions) needs exactly this scope.
+    - **Since v11: shape ids are unique document-wide**, and the first keeps its id. A malformed
+      shape claims no id. A shaped part's `shape` is the second thing in a document that points
+      at an id, and it too is resolved by DROPPING: a duplicate shape is dropped, and a part
+      naming a missing shape is dropped (`dropUnresolved`). Nothing is ever re-minted, so no
+      reference is rewritten. A shape's cut ids are scoped to the shape, which is why its users
+      share them. A definition id of literally `ROOT` is dropped, because that is the
+      write-back's root storage id.
 
 
 34. **The gesture flags are STATE so that `replaceDocument` can reach them, and that is the
@@ -1751,6 +1790,10 @@ worked examples behind several of them are in `docs/history.md`.
     with a list in a function body**, and do not add a field to the table's exclusions without
     a written reason.
 
+    **Since the components round**, `sameShared` decides which v10 link members become one shape
+    (cut ids included), and joinery's write-back compares cuts by geometry through
+    `CUT_GEOMETRY_KEYS` (ids excluded). Both derive from the table.
+
     **The table decides which FIELDS make two cuts the same; `cutsThatRemoveStock` decides
     which CUTS are compared at all** (follow-up 178). A cut a board edit has left removing
     nothing is left out of `cutSignature`, so it cannot split a row. The consequence that
@@ -1893,57 +1936,55 @@ worked examples behind several of them are in `docs/history.md`.
       uncut, so a true 90° and the old one look identical, and joinery then cuts through the
       new mapping. A turn is not a group field (multi-select spec §1).
 
-45. **A link is a LABEL on self-contained parts, and one table, one decider and one repair keep
-    its members identical.** `Board.link` is a minted label (`link_<nextId>`); parts carrying
-    the same label are one link. Every member keeps its own full copy of the shared fields, so
-    the cut list, nesting, diagrams, the viewport, snapping, joinery and `checkDesign` read
-    parts exactly as before and know nothing about links.
+45. **A link is a SHAPE its users point to: the shared fields are stored once, so its users cannot
+    differ** (components round, schema 11; before it a link was a label on self-contained parts,
+    kept equal by propagation and a load repair). A linked part is a `ShapedBoard`, storing only
+    `id`, `name`, `position`, `rotation` and `shape`. The `Shape` holds `length`, `width`,
+    `thickness`, `material`, `grain`, `posture` and `cuts`. Every reader of placed parts reads
+    resolved `Board`s and knows nothing about shapes.
 
-    - **`LINK_FIELDS` (`links.ts`) is the ONE shared-versus-own table**, `satisfies
-      Record<keyof Board, 'shared' | 'own'>`, so a new `Board` field fails `tsc` until it is
-      classified (invariant 40's argument). Shared: `length`, `width`, `thickness`,
-      `material`, `grain`, `posture`, `cuts`. Own: `id`, `name`, `position`, `rotation`,
-      `link`. Linking, propagation and the repair all read it through `SHARED_KEYS`,
-      `sharedOf`, `sharedPatch` and `sameShared`; none keeps its own list.
-    - **`linkPlan` is the ONE decider for Link**, read by the store's `linkBoards` AND the
-      group panel's Link button and "will match" line, so what the panel promises is what
-      Link does. The FIRST selected part is the source; any selected part already linked brings
-      its WHOLE link, unselected and hidden members included. It returns null for fewer than
-      two parts or when the members already share one label and match, so a no-op Link pushes
-      no entry (invariant 4); so does an Unlink of parts that are not linked.
-    - **Propagation runs inside the SAME `edit()`**: one undo entry, every member, hidden ones
-      included. `updateBoards` sends only `sharedPatch(patch)` to the mates, each through
-      `patchBoard`, so each pivots about its own centre (invariant 2) and gets the sheet-good
-      grain reset. `addCut` mints ONE cut id and adds a copy of the cut to every member;
-      `updateCut` and `removeCut` act on that id on every member.
-    - **`name`, `position` and `rotation` never propagate**: no rename, gizmo move, snap move,
-      group move or turn reaches a mate. A shared-field patch that also carries an own field
-      sends only the shared part.
-    - **`dropHeldIfGone` runs for every member touched**, after the edit: link, a propagated
-      board edit and every cut action. **The asymmetry from invariant 24 extends one step:**
-      `updateBoards`' board-precise `grabbed` clause covers the TARGETS only, and a mate's
-      held points are judged point-precisely. Do not add the board-precise clause for mates,
-      and do not drop the mates from the loop.
-    - **The repair UNLINKS and never moves geometry, and never merges labels.** `repairLinks`
-      compares each member against its label's FIRST member in document order and unlinks one
-      whose shared fields differ; then a label left on one part is cleared
-      (`dissolveSingletons`, which `unlinkBoards` and `deleteBoards` also run). **Its one home
-      is `migrateDocument`**, so open, import, autosave-restore, `designToDocument` and
-      joinery's output (`applyJoints` ends in `migrateDocument`) all pass it. Joinery cuts
-      parts one at a time, so any linked part it cuts at all comes out unlinked in the new
-      project (`pocketFor` mints fresh cut ids per board, so even identical mortises differ by id); the original is untouched (open by decision, follow-up 223). Do not add a second call in `run.ts`.
-    - **An unlinked part has NO `link` key**, never `link: undefined`: `withoutLink`
-      destructures it away, and a copy of an unlinked part gains none. `validateBoard` keeps a
-      non-blank string and drops anything else, never refusing the file.
-    - **Copies join.** `copyBoard` carries `link`, so Duplicate and Copy in a row add members,
-      and a LINKED source's copies KEEP its cut ids (an unlinked source's copies still get
-      fresh ones). A copy with fresh cut ids would join the link while every cut edit skipped
-      it, and the next load would unlink it. Repeating cut ids across members is legal
-      because cut ids are per board (invariant 33).
-    - **A link is a label, not an id.** Nothing in the document references a board by id, so
-      invariant 33's single-pass id repair still holds.
-    - **`sameShared` compares exactly**, stored values (invariant 18), cuts in order by id and
-      every `CUT_GEOMETRY_KEYS` field. Generated designs carry no links.
+    - **`LINK_FIELDS` (`links.ts`) is still the ONE shared-versus-own table**, `satisfies
+      Record<keyof Board, …>`.
+      - `Shape` and `ShapedBoard` are derived from it, so a new REQUIRED `Board` field fails
+        `tsc` until it is classified (invariant 40's argument).
+      - An OPTIONAL own field would be dropped silently by `copyBoard`'s shaped literal
+        (follow-up 231): classify it with care.
+    - **`resolveBoard` (`shapes.ts`) is the ONE place a shape is read into a part.**
+      - It returns a plain part as the same object.
+      - It builds the shared part from `SHARED_KEYS` and copies cuts per cut, so no two parts
+        hold one Cut object.
+      - `worldParts` resolves before it places.
+      - A resolved part carries `shape` (the id) for the UI; a STORED plain part never does.
+    - **Write-back sends shared fields of a shaped part to its Shape** (`applyWorldEdits`,
+      invariant 46). So an edit, a cut added, changed or removed, or a posture change reaches
+      every user in ONE `edit()`, with no propagation code.
+      - The one surviving propagation is `shapeMates` in `updateBoards`: posture is shared,
+        a min corner is not, so every other user is re-pivoted about its OWN centre
+        (invariant 2).
+      - The board-precise `grabbed` clause still covers the targets only; every held point is
+        judged after the edit (`judgeHeld`).
+    - **`linkPlan` is still the ONE decider for Link**, read by the store and the group panel.
+      - The FIRST selected part is the source.
+      - A selected linked part brings every user of its shape.
+      - A no-op Link or Unlink pushes no entry (invariant 4).
+      - Link points every member at one shape: the source's own shape if it has one, else a
+        new one.
+    - **A shape with one stored user dissolves**: that user becomes a plain part carrying the
+      fields, cut ids kept (`dissolveShapes`). This runs on load, after Unlink, and after
+      Delete. Users are counted as STORED parts: one part placed by three copies of a drawer
+      is one user.
+    - **Copies:**
+      - a copy of a SHAPED part is a ShapedBoard on the same shape;
+      - a copy of a plain part is plain, with fresh cut ids and no `shape` key;
+      - cut ids are scoped to the shape (invariant 33).
+    - **Joinery keeps sharing where identical** (follow-up 223 closed). `writeBackFlat` groups a
+      shape's users by their new shared fields, comparing cuts by GEOMETRY (`CUT_GEOMETRY_KEYS`,
+      not ids, since `pocketFor` mints ids per board). The first user's group keeps the shape,
+      and each group takes its first member's cut ids. Comparison is exact: a last-bit
+      difference splits, which is the safe direction.
+    - **Retired, and must not come back as a second mechanism:** `Board.link` (read only from a
+      file below v11 by `linksToShapes`), `repairLinks`, `dissolveSingletons` and `mates`
+      propagation.
 
 46. **The tree has ONE composition step and ONE walk, and every edit is written back through
     `treeEdit.ts`.** A document is a definition/instance tree (v10): the root's `boards` and
@@ -1983,16 +2024,35 @@ worked examples behind several of them are in `docs/history.md`.
       and `isCovered` is the one ancestor test (`i3` covers `i3/b1`, not `i30/b1`). Hidden ids
       and the tape's held points are re-keyed on Group and Ungroup, which are refused while
       `gesturing` (invariant 43's argument).
-    - **Load repair** (`repairTree`, `repairLinksTree`) runs in `migrateDocument` on every load.
-      Its order is in spec §2.4. Step 4 (a definition referenced twice gets a copy) is round
-      1's stand-in for sharing, and round 2 removes it (follow-up 224).
+    - **Load repair** (`repairTree`, `dropUnresolved`, `pruneShapes`, `dissolveShapes`) runs in
+      `migrateDocument` on every load. Its order is in the components spec §2.3. The copy of a
+      definition placed twice runs ONLY below v11 (`copyShared`).
+    - **A definition may be placed many times** (components round). So:
+      - **Write-back keys on the STORAGE target, not the path.** `storageKey` is
+        `<definition id or ROOT>:<part id>`, the same for every placement of one stored part.
+        Edits to one target merge field by field, and DISAGREEING edits THROW.
+      - **The store sends at most ONE edit per storage target** (`oneEditPerTarget`). That is
+        why no user action reaches the throw. A new store caller of `mapWorld` that can reach
+        two placements of one part must dedupe the same way.
+      - **An edit inside a definition moves parts in EVERY copy,** so every held point is judged
+        after it (`judgeHeld`). Group, Ungroup and Delete inside a shared definition re-key
+        hidden ids and tape points under EVERY placement of the edited container
+        (`rekeyEverywhere`), then reconcile `hiddenIds` against `itemPaths`.
+      - **Make Unique** (`makeUniqueItem`) copies ONE level and KEEPS ids, so occurrence paths,
+        hidden ids and held points survive it unchanged. It is offered by instance REFERENCES,
+        not placements.
+      - **A twin placement of a selected stored part is never a Move target**
+        (`moveCandidates`).
+      - **Joinery's `writeBackFlat` splits definitions whose placements' results differ,**
+        shallowest-first by deepest placement (root-first BFS breaks on a drawer placed both at
+        the root and in shared cabinets). Then it sends one edit per storage key.
 
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 2005 tests across 72 files
+npm test           # Vitest, currently 2080 tests across 75 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -2002,7 +2062,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is the authoritative list** — 1-228, consciously deferred rather
+**`docs/follow-ups.md` is the authoritative list** — 1-231, consciously deferred rather
 than missed, each written up in place with its closure where it has one. Read the entries
 for the area you are about to touch before starting; several are "correct but untested",
 which is exactly what a refactor breaks silently.
@@ -2083,15 +2143,17 @@ The handful worth knowing without opening that file:
   and which hand the cut sheet's drawings assume is not established. The quarter turns round
   kept turn 0 equal to each posture's old frame so nothing got worse. Read it before touching
   posture or linking parts across postures.
-- **221 / 223** — the linking round's two open items. 223: "Add joinery…" returns any linked
-  part it cuts UNLINKED (fresh cut ids per board), open by the user's decision; the original
-  keeps its links. 221: a hand-edited linked file whose cuts have no ids unlinks on load, failing
-  safe. Read invariant 45 before touching either.
-- **224-228** — the assemblies round's residues. **224 is round 2's design input** (a joint cut
-  into one instance of a shared definition; what links become; `applyWorldEdits`' per-container
-  keys; load-repair step 4 must go). 225 is out of scope by decision (mirrored instances, a cut
-  list by assembly). 226 (an emptied assembly lingers) and 227 (a covered row's eye label; ` › `
-  inside a part name) are low.
+- **221** — a hand-edited linked file whose cuts have no ids unlinks on load, failing safe
+  (since v11: those members stay plain parts instead of joining the shape). **223** is CLOSED by
+  the components round: joinery keeps linked parts with identical cuts on one shape.
+- **224-231** — the assemblies and components rounds' residues. 224 is CLOSED by the
+  components round. 225 is out of scope by decision (mirrored instances, a cut list by assembly).
+  The rest are low:
+  - 226: an emptied assembly lingers;
+  - 227: a covered row's eye label, and ` › ` inside a part name;
+  - 229: ungrouping in one copy can un-hide another copy's lifted parts;
+  - 230: no store-side twin-target guard;
+  - 231: record-only.
 - **171** — joinery is BUILT (2026-10-04, "Add joinery…"); refine by instruction is now **179**.
   Read invariants 38 and 41 and follow-ups 180–206 before touching `generate/joints/`. 180–204
   are CLOSED (182, 186, 188, 191 and 201–203 by the joinery residues round; 202

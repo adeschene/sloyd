@@ -4495,7 +4495,7 @@ mints a fresh cut id per board and `sameShared` compares ids. The user ruled thi
 NOW (2026-10-06): the joined project is a new copy and the original keeps its links.
 - **Possible remedies, not chosen:** have joinery reuse one cut id across members whose cuts are
   identical in shape, or offer a one-click re-link of parts that match.
-- **Status:** open, by decision.
+- **Status:** CLOSED 2026-10-07 by the components round (`c3cf381`). Links are now shared `Shape`s, and joinery's write-back groups users whose results are identical by GEOMETRY (cut ids ignored), so four legs with identical mortises stay one shape with one set of cut ids. Pinned by `runJoinery.test.ts` (a TWIN fixture; the old fixture's mortises genuinely differ, so its "comes out unlinked" test still stands) and `writeBackFlat`'s tests.
 
 ## From the assemblies round — 2026-10-06
 
@@ -4510,7 +4510,11 @@ definition exactly one instance, so none of these could arise yet.
   shared definition would collide there. Round 2 changes only this write-back.
 - **Load repair step 4** copies a definition referenced twice. It is round 1's stand-in for
   sharing, and round 2 must remove it.
-- **Status:** open, the next round's design input.
+- **Status:** CLOSED 2026-10-07 by the components round. Each question was answered by the user or the spec (`docs/superpowers/specs/2026-10-06-sloyd-components-design.md`):
+  - joinery on a shared definition: copies whose results are identical stay shared, differing ones split (one level deep, shallowest first);
+  - links became shared `Shape`s;
+  - `applyWorldEdits` keys on the storage target and refuses disagreeing edits;
+  - load-repair step 4 runs only below v11.
 
 **225. Out of scope by decision, recorded so they are not re-proposed as oversights.**
 - **Mirrored instances** (left and right cabinet halves). Blocked on follow-up 215, which hand
@@ -4572,4 +4576,46 @@ deferred minors, condensed.
 - **Stale comments** named in the reviews: `duplicateBoards`' "same order", `addBoard`'s
   "root-only", `selectAll`/`hideUnselected`, `uniqueName`'s "board", and the "Two or more" comment
   at the Gizmo's commit.
+- **Status:** record-only.
+
+## From the components round — 2026-10-06/07
+
+**229. Ungrouping in one copy can bring hidden parts back in another.** Ungrouping a nested group
+inside copy A also rewrites copy B, which shares the definition. If B's nested group was hidden,
+its stale hidden id is dropped (`reconcileHidden`), but "hidden" does not pass to B's lifted
+children, so they reappear. No data is lost; hiding them again is one click.
+- **A remedy, if wanted:** in the all-placements re-key, map a hidden group path to its lifted
+  children's paths.
+- **Status:** open, low.
+
+**230. `commitSnapMove` has no store-side guard against a twin target.** `moveCandidates` no
+longer offers another placement of a selected stored part as a target (the final fix wave), and it
+is the only source of targets. A programmatic caller could still snap a part to its own twin, which
+then moves with it.
+- **Status:** record-only, unreachable from the UI.
+
+**231. Small gaps the round judged fine to leave.** Record-only; the per-task reviews' deferred
+minors, condensed.
+- **Behaviour edges.**
+  - `edit()` pushes an undo entry even when its function returns the same document (pre-existing,
+    invariant 4's shape).
+  - A Link whose members are all placements of ONE stored part mints a one-user shape. The UI cannot
+    reach it, because a selection is one container.
+  - An OPTIONAL own field added to `Board` would be dropped silently by `copyBoard`'s shaped
+    literal; only required fields fail `tsc`.
+  - Joinery's grouping compares exactly, so a part moved or grown inside a turned placement may
+    split off by a last-bit difference. That is the safe direction: less sharing, never wrong
+    geometry.
+  - `subtreeSignature` is roughly quadratic in the number of parts (fine at furniture scale).
+- **Untested.**
+  - Make Unique on an instance inside a shared container.
+  - `selectCopies` dropping hidden copies or a held grab.
+  - A nested definition's own `×N` badge, and `treeRows.copies` directly.
+  - `writeBackFlat` leaving its input unchanged.
+- **Wording and cosmetics.**
+  - `treeRepair`'s doc comment numbers `dropUnresolved` as step 5 though it runs last.
+  - Test titles still say "9" and "schema 10" (document.test.ts).
+  - A plain part's key order in exported JSON changed (no behavioural effect).
+  - A test sorts `selectedIds` in place.
+  - The `anchorOn` test helper has an unused `pick` parameter.
 - **Status:** record-only.
