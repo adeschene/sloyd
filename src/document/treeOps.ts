@@ -165,7 +165,9 @@ export function ungroupItem(doc: SloydDocument, path: string):
     // A shaped part stays shaped: own fields from the placed result, the rest from storage.
     const named: StoredBoard = isShaped(b)
       ? { ...b, position: placed.position, rotation: placed.rotation, id: placed.id, name }
-      : { ...placed, name };
+      // A plain part gets its own Cut objects: the definition's part, which
+      // the other copies still use, keeps its own (makeUniqueItem's rule).
+      : { ...placed, name, cuts: placed.cuts.map((c) => ({ ...c })) };
     taken.push(named);
     return [named];
   });

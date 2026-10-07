@@ -1,6 +1,6 @@
 import { groupItems, makeUniqueItem, nextAssemblyName, pruneDefinitions, removeItems, shareInstance, turnInstance, ungroupItem } from './treeOps';
 import { dissolveShapes, isShaped } from './shapes';
-import type { SloydDocument } from './types';
+import type { Board, SloydDocument } from './types';
 import { childrenOf, instanceAt, partAt, worldParts } from './tree';
 import { assemblyDoc } from './treeFixtures';
 import { boardsBounds } from './geometry';
@@ -153,6 +153,18 @@ describe('shared definitions', () => {
     expect(worldParts(out).filter((b) => b.id.startsWith('i1/')).map((b) => b.id)).toEqual(['i1/b1', 'i1/b2', 'i1/k1/n1']);
     // the ungrouped leg keeps its shape; with i1's leg that is two stored users, so it is not dissolved
     expect(out.shapes).toHaveLength(1);
+  });
+
+  it('ungroupItem gives a lifted plain part its own Cut objects; the other copy keeps the definition\'s', () => {
+    const doc = base();
+    const cut = { id: 'c1', face: 'thickness' as const, from: 'max' as const, across: 'width' as const, offset: 2, width: 1, depth: 0.25, stopMin: 0, stopMax: 0 };
+    doc.definitions[0]!.boards[0] = { ...(doc.definitions[0]!.boards[0] as Board), cuts: [cut] };
+    const out = ungroupItem(doc, 'i2')!.doc;
+    const lifted = out.boards.find((b) => b.name === 'Side') as Board;
+    const kept = out.definitions.find((d) => d.id === 'd1')!.boards[0] as Board;
+    expect(lifted.cuts).toEqual([cut]);
+    expect(lifted.cuts).not.toBe(kept.cuts);
+    expect(lifted.cuts[0]).not.toBe(kept.cuts[0]);
   });
 
   it('removeItems keeps a definition another copy still names, and prunes the last', () => {
