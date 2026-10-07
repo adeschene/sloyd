@@ -31,7 +31,8 @@ import { visibleBoards } from '../store/visibility';
  * moves the other. `keyOf` (itemKey over the document) names where an item is
  * stored; after a grab, any part that is, or lies under, ANOTHER occurrence of
  * a selected item moves with the grab and is no target. Without `keyOf` every
- * path is its own item.
+ * path is its own item. commitSnapMove's guard covers only the SELECTED
+ * paths, not their other occurrences: this filter alone withholds those.
  */
 export function moveCandidates(
   boards: readonly Board[],

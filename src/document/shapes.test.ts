@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SHARED_KEYS, createBoard, createDocument, isShaped, resolveBoard, shapeMap, worldParts } from './document';
+import { LINK_FIELDS, SHARED_KEYS, createBoard, createDocument, isShaped, resolveBoard, shapeMap, worldParts } from './document';
 import type { Shape, ShapedBoard, SloydDocument } from './document';
 
 const leg: Shape = { id: 's1', length: 28, width: 1.75, thickness: 1.75, material: 'oak', grain: 'length', posture: 'upright',
@@ -23,7 +23,14 @@ describe('shapes', () => {
   it('resolveBoard reads EVERY shared field of the table from the shape, and only own fields from the part', () => {
     const b = resolveBoard(new Map([['s1', leg]]), user('a', 5, 90))!;
     for (const k of SHARED_KEYS) expect(b[k]).toEqual(leg[k]);
-    expect(Object.keys(b).sort()).toEqual(['id', 'name', 'position', 'rotation', 'shape', ...SHARED_KEYS].sort());
+    const own = Object.entries(LINK_FIELDS).filter(([, v]) => v === 'own').map(([k]) => k);
+    expect(Object.keys(b).sort()).toEqual([...own, ...SHARED_KEYS].sort());
+  });
+
+  it('resolveBoard leaves a shared field the shape lacks ABSENT, not undefined', () => {
+    const { grain: _g, ...noGrain } = leg;
+    const b = resolveBoard(new Map([['s1', noGrain as unknown as Shape]]), user('a', 0))!;
+    expect('grain' in b).toBe(false);
   });
 
   it('resolveBoard returns a plain part as the SAME object, and null for a missing shape', () => {
