@@ -4,2064 +4,463 @@
 > using SketchUp for shop projects.
 > Deployment specifics for this host live in `DEPLOYMENT.local.md` (gitignored).
 >
-> **This file holds the rules that govern new work.** The reasoning behind each round —
-> what it did, why, what its browser pass could and could not confirm — lives in
-> `docs/history.md`, split out on 2026-08-14 when this file passed 195KB. Prohibitions
-> that were embedded in those narratives have been promoted into the Invariants section
-> below; where the two disagree, this file wins.
+> **This file holds the rules that govern new work, condensed.** The record — what each
+> round did, why, what its browser pass could and could not confirm, and the full text of
+> every section as it stood before the 2026-10-07 trim — is `docs/history.md`. Where the
+> two disagree, this file wins.
 
 ---
 
 ## What Sloyd is
 
-Modelling and planning for woodworking projects: lay out the parts of a build in 3D,
-see how they fit, and get the numbers you need at the bench (dimensions, cut list).
-Not a general-purpose CAD tool — the domain assumptions (boards, stock thickness,
-fractional inches) are the point.
-
-The name is from *sloyd* (Swedish *slöjd*), the Scandinavian handicraft education
-tradition built around hand woodworking.
+Modelling and planning for woodworking projects: lay out the parts of a build in 3D, see
+how they fit, and get the numbers you need at the bench (dimensions, cut list). Not a
+general-purpose CAD tool — the domain assumptions (boards, stock thickness, fractional
+inches) are the point. The name is from *sloyd* (Swedish *slöjd*), the Scandinavian
+handicraft education tradition built around hand woodworking.
 
 ## Status
 
-Static SPA, containerized, **2080/2080 tests passing across 75 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
-`CURRENT_VERSION` **11**.
-
-**PRODUCTION MATCHES `master` as of 2026-10-07 with the components round live** — bundle `index-3fpWh8yo.js`, CSS `index-QQ-rJZea.css`, merge `9012e1e`, **schema 11** (rolling back past it strands v11 documents; export first).
-
-**The components round (2026-10-07) is merged (`9012e1e`) AND deployed.** It is round 2 of 2. **Duplicate and Copy in a row of an assembly SHARE its definition**: an edit inside any copy changes them all, in one undo entry, and **Make Unique** splits a copy off one level deep. **Links became shared `Shape`s**: a linked part stores only its own fields plus a `shape` id, so the shared fields are stored once. Shared copies show `×N`, "Shared by N copies", **Select copies** and **Make Unique**. Joinery keeps sharing where results come out identical (closes follow-up 223). Its live check was driven HEADLESS, because the SSH-forwarded display the user watches from had gone; the user did not watch (`docs/browser-verification-components.md`). Invariants 45 (rewritten) and 46 (amended); spec `docs/superpowers/specs/2026-10-06-sloyd-components-design.md` (§8 records the implementation amendments). Residues are follow-ups 229-231.
-
-**Before it, the assemblies round was live (2026-10-06)** — bundle `index-DVAS8FuS.js`, CSS `index-BYFkbcnj.css`, deployed commit `029becf` (merge `699cc45`, then the grey fade and click-empty-to-close-a-level, both at the user's request), **schema 10**; before those two, `index-hmc0odAl.js` (`f8f76e8`) (rolling back past it strands v10 documents; export first).
-
-**The assemblies round (2026-10-06) is merged (`699cc45`) AND deployed (`index-hmc0odAl.js`).** Claude drove its live check on the dev server (`docs/browser-verification-assemblies.md`); the user approved the merge and the deploy without reporting hands-on results, so the fade on real hardware is still unconfirmed. It is round 1 of two, in the user's order: assemblies, then components (shared definitions). Select parts and **Group** (Ctrl/Cmd+G). The parts become an assembly, a real definition/instance tree that nests, duplicates (an INDEPENDENT copy in round 1), moves and turns as one. SketchUp's click model: a click selects the outermost assembly, a double-click opens it (everything outside fades but stays clickable), and Escape closes it. **Ungroup** is Ctrl/Cmd+Shift+G. Names are unique per level, and the cut list and joinery name parts by path (`Cabinet › Drawer › Side`). Invariant 46; invariants 8 and 33 are restated per level (spec `docs/superpowers/specs/2026-10-06-sloyd-assemblies-design.md`). **Schema 10**: `instances` and `definitions`. Residues are follow-ups 224-228; 224 holds round 2's design questions.
-
-**Before it, the linking round was live** — bundle `index-BwdHsyEM.js`, CSS `index-C7v9uwho.css`, merge commit `d3120cf`, **schema 9** (rolling back past it strands v9 documents; export first). Before it: copy in a row `index-B8i7dotN.js` (`7487aca`, 2026-10-06, schema 8), quarter turns `index-bSuJPbkx.js` (`a24287f`, 2026-10-05), hide/unhide `index-BpdcUlXf.js` (`366eb37`, 2026-10-05), multi-select `index-D7ySMvky.js` (`232917f`, 2026-10-05), joinery residues `index-D_wzi7Bx.js` (`2b96eb2`, 2026-10-05), joinery fixes `index-BzWa2ZGT.js` (`c31dd82`, 2026-10-05), fu 197 `index-Ci3NLhVT.js` (`658dfcc`, 2026-10-05), fu 200 `index-DjL6FbOz.js` (`f37734b`, 2026-10-05), 198/199 `index-BvsB1zA6.js` (`fb8a094`, 2026-10-05), cut storage `index-JBiJohQE.js` (`7fa749d`, 2026-10-04), cut lines `index-BPmx9i74.js` (`f602a2d`), cut words `index-Cw_EeWuY.js` (`8c9be52`), joinery `index-Ci7lVCzJ.js` (`d2a14ac`), phantom cut `index-B2Yuq550.js` (`e7bf3bc`), stopped cuts `index-CoHIAVxf.js` (`c054ede`), which bumped the schema to 7 (rolling back past it strands v7 documents; export first). Before it, 2026-10-03: key check `index-BhhW2iNw.js` (`d0ba83b`), held and stable `index-B9DOKF_H.js` (`a0f452f`), batch variety `index-CHx6ZAo-.js` (`b46b28d`). The Generate round's own deploy, earlier the same day, is described next. It served
-bundle `index-BAsxEohe.js` with CSS `index-DEQSkZ3q.css`, from merge commit `fa834dc`. A
-person stores a Claude API key in Settings, describes a piece, and gets 1–3 prototypes built
-from boards, each saved as a **new, unactivated** library project (invariant 36). **It is
-the first round with a network dependency**: the browser calls `api.anthropic.com`
-directly, and the CSP's `connect-src` names it. **It was deployed before its live test, at
-the user's request, and the user then drove real generations on production.** That was safe
-only because generation never writes into an existing project. The better route is now
-known: the user can **watch** the Playwright browser this session drives, so next time
-Claude drives the dev server and the user supervises. Results are in
-`docs/browser-verification-generate.md`. 6 of 6 generations completed. It left two
-findings: 164, a batch converging on one design, and 165, a support check that passed a
-badly supported part; both are now CLOSED (below).
-
-**The joinery residues round (follow-ups 182, 186, 188, 191, 201–203, 2026-10-05) is merged AND deployed.** Verified against the dev server with the user watching, one paid run (`docs/browser-verification-joinery-residues.md`). A rabbeted panel is resolved as one unit from its final box, so its pockets leave no voids and parts in its path are trimmed (182, 201); default tenons shrink to 1/4in, else butt (188); joinery blockers judge solids (203); every `resize` is pre-checked, so an end already cut is a skip, never a throw. No schema change. Residues are 205–206.
-
-**The joinery fixes round (follow-ups 183, 184, 185, 190, 2026-10-05) is merged AND deployed.** Verified against the dev server with the user watching, three paid runs (`docs/browser-verification-joinery-fixes.md`). Default tenons from opposite faces are capped under half the post (190), crossings run bottom-up with a swept-volume blocker (185), a rabbeted panel carries its outer-face chain or refuses before any mutation (183), and the dialog reports the re-ground (184). No schema change. Residues are 201-204.
-
-**The linking round (2026-10-06) is merged AND deployed; its live check passed with the user watching** (`docs/browser-verification-linking.md`). The LAST of the three repeated-parts rounds (quarter turns, copy in a row, linking). Select 2+ parts and **Link**: the FIRST selected part's size, material, grain, posture and cuts (cut ids included) go to the others, and each keeps its own name, position and turn. An edit to a shared field of a linked part, a cut edit included, then reaches every member in the same undo entry, hidden members too. **Unlink** keeps the values; a link left with one member dissolves. Duplicate and Copy in a row copies join the source's link. The group panel shows a "will match" line when Link would change parts; a linked part's single panel shows a block with **Select linked** and **Unlink**; a linked row in the parts list carries a chain icon (invariant 45; spec `docs/superpowers/specs/2026-10-06-sloyd-linking-design.md`). **Schema 9**: `Board.link`, a label. **Rolling back past it strands v9 documents; export first.** Residues are follow-ups 221-223 (223, joinery unlinking the linked parts it cuts, is open by decision).
-
-**The copy-in-a-row round (2026-10-05) is merged AND deployed; its live check passed with the user watching** (`docs/browser-verification-copy-in-a-row.md`). Round 2 of the three repeated-parts rounds, in the user's order: quarter turns, then copy in a row, then **linking** (shipped 2026-10-06; copies made here are ordinary, and a copy of a LINKED part joins its link). Properties' **Copy in a row…** (under the Duplicate row, in both panels) opens an inline form: count (the TOTAL in the row, original included), a direction (±X, ±Y, ±Z) and one of three spacings, gap, centre-to-centre pitch, or fit N across a distance, with a live summary and one Apply that is one undo entry (spec `docs/superpowers/specs/2026-10-05-sloyd-copy-in-a-row-design.md`; invariant 25 extended). No schema change. Residues are follow-ups 218-220; 218 and 219 are closed by the final review, 220 keeps one record-only item.
-
-**The quarter turns round (2026-10-05) is merged AND deployed; its live check passed with the user watching, one paid joinery run** (`docs/browser-verification-quarter-turns.md`). The first of the three repeated-parts rounds, in the user's order: quarter turns, then copy in a row, then linking. `rotation` is now `0 | 90 | 180 | 270`, all TRUE rotations about the vertical, counter-clockwise from above; before it, 90° was a mirror across the X=Z diagonal, so identical parts could never face their cuts toward (−X, +Z). `axisFrame` is the one home of the turn table and every part↔world crossing goes through its helpers (invariant 44; spec `docs/superpowers/specs/2026-10-05-sloyd-quarter-turns-design.md`). Properties' Turn offers all four. **Schema 8**: `trueTurnsToV8` mirrors the cuts of every existing 90° part with cuts so it looks exactly as before. **Rolling back past it strands v8 documents; export first.** The visible cost: a migrated 90° part may measure its cuts from the other end on the sheet, and joinery on Generate's 90° parts now names the opposite end of the part for the same world cut. Generate still produces only 0° and 90°. Residues are follow-ups 215-217 (215 is the open handedness-across-postures question).
-
-**The hide/unhide round (2026-10-05) is merged AND deployed; its live check passed with the user watching** (`docs/browser-verification-hide-unhide.md`), and it fixed a pre-existing projection-swap framing bug. Each part-list row has an eye; H hides the selection, Shift+H (and **Hide others** in Properties) hides the rest, Alt+H (and **Show all (N)**) shows everything (invariant 43; spec `docs/superpowers/specs/2026-10-05-sloyd-hide-unhide-design.md`). A hidden part is not drawn, not a snap point, not framed by Home and never selected; it is still in the cut list, joinery, Generate, the checks and the saved file. Hidden-ness is view state, not saved, so no schema change, but it is undoable. Repeated parts followed (all three rounds live 2026-10-06). Residues are follow-ups 213-214.
-
-**The multi-select round (2026-10-05) is merged AND deployed; its live check passed with the user watching** (`docs/browser-verification-multi-select.md`). Shift/Ctrl-click and Ctrl/Cmd+A build a selection; move together, delete, duplicate and shared Properties fields (length, width, thickness, grain, material) act on all of it (invariant 42; spec `docs/superpowers/specs/2026-10-05-sloyd-multi-select-design.md`). No schema change. A selection change mid-drag ends the gizmo drag. Hide/unhide and repeated parts followed it, in the user's order; all are live. Residues are follow-ups 207-211. From the live check, Enter in a field now commits AND blurs (fu 212, every field).
-
-**The fu 197 round (2026-10-05) is merged AND deployed.** `clippedRegion` is the cut's box clipped to the board, and the drawing's leader spans, the snap points, `cutShape`, `openSides` and `findTenons` all read it (`docs/browser-verification-fu197.md`). No schema change; a cut inside the board shows exactly as before.
-
-**The fu 200 round (2026-10-05) is merged AND deployed.** `runAxis` and the word table compare computed extents within `FLUSH_EPSILON`, so a square typed in millimetres reads exactly like its fractional twin (`docs/browser-verification-fu200.md`). No schema change; fractions provably unchanged.
-
-**The 198/199 round (2026-10-05) is merged AND deployed.** No Match note when only the square tie's default decides a cut's direction (`runByDefault`), and a growing part's cuts follow their shape in `rebaseCuts` (`docs/browser-verification-fu198-199.md`). No schema change. Follow-up 200 followed.
-
-**The cut storage round (follow-ups 195, 196, 2026-10-04) is merged AND deployed.** Joinery stores each cut the way the sheet reads it (`storedAsShape`), Properties offers **Match the cut list** for one stored the other way (guarded: offered only when the sheet would read the same), and a square opening's direction reads only its shape (`docs/browser-verification-cut-storage.md`). No schema change. Its open questions, 198 and 199, are closed by the 198/199 round.
-
-**The cut lines round (follow-ups 192–194, 2026-10-04) is merged AND deployed.** `cutShape` is the one description of a cut; the setup line and the drawing both format from it, and a with-grain channel says `groove` (`docs/browser-verification-cut-lines.md`). No schema change. Its open questions, 195–197, are closed by later rounds.
-
-**The cut words round (follow-ups 180, 181, 189, 2026-10-04) is merged AND deployed.** Words only: a cut is named from the stock actually left around its opening, a tenon prints as one line (`docs/browser-verification-cut-words.md`). No schema change.
-
-**The joinery round (phase 2, follow-up 171, 2026-10-04) is merged AND deployed.** "Add joinery…" returns the open design joined, as a new unactivated project
-(`docs/browser-verification-joinery.md`). No schema change. Read invariants 38 and 41 before
-touching `generate/joints/` or `checkDesign`.
-
-**The phantom-cut round (follow-up 178, 2026-10-04) is merged AND deployed.** A cut a board edit has left removing nothing is hidden from the cut list, its
-drawings and the snap points, and flagged on its Properties row; it is kept, so growing the
-board back restores it (`docs/browser-verification-phantom-cut.md`). No schema change.
-
-**The stopped cuts round (2026-10-04) is merged AND deployed.**
-A `Cut` can stop short of either end (`stopMin`/`stopMax`), schema **7**, so mortises exist
-for phase 2 (171) to write its overlap rule against. Verified against the dev server with the
-user watching (`docs/browser-verification-stopped-cuts.md`). Rolling it back strands v7 files;
-export first.
-
-**The key check round (follow-up 174, 2026-10-03) is merged AND deployed.** Settings refuses a key with whitespace or non-ASCII inside it,
-verifies a newly typed key with one free `GET /v1/models` before storing it, and an auth
-error now carries the API's own reason. There is **no prefix rule**, on purpose
-(`docs/browser-verification-key-check.md`).
-
-**The held and stable round (follow-up 165, 2026-10-03) is merged AND deployed.** `checkDesign` now reports a part that is not *held* (`hangs`) and a
-piece that would *tip* (`tips`), and the model is told both rules up front (invariant 39).
-Verified against the dev server with the user watching
-(`docs/browser-verification-held-and-stable.md`). There is no schema change.
-
-**The batch variety round (follow-up 164, 2026-10-03) is merged AND deployed**, confirmed by
-page load, bundle hash and the CSP header at the edge and in-network. A batch of 2–3 now makes one planning call
-(`generate/concepts.ts`) for N structurally contrasting concepts, and each run designs its
-own; a batch of 1 is unchanged. It was the first live pass **driven by Claude with the
-user watching**. The user judged both batches (a side table on Sonnet, a bench on Opus)
-structurally different, which closed 164. Results are in
-`docs/browser-verification-batch-variety.md`. There is no schema change, so rolling it
-back costs nothing but the round.
-
-**The previous production build, 2026-08-31.** It served bundle
-`index-CZu96cak.js` with CSS `index-CtYur9k3.css`, which is `eb6a632` — the ply-sign round
-(follow-up 163), the day's **fifth** deploy and the only one of the ten rounds that came from
-a user bug report rather than the ledger. It fixes a real rendering defect that had been live
-since v3: `FACE_AXES` discarded the *direction* of each of `BoxGeometry`'s UV axes, so on a
-board with a **cut** each solid's sub-range landed on the wrong side of its face and the two
-solids meeting at a split plane disagreed about the coordinate there. Visible only on
-**plywood with a cut** — invariant 35 says why that combination and no other. **Note the
-mirror of the CSS/JS-hash note below: this round moved the JS hash and left the CSS hash
-alone**, being TypeScript-only. **163 was not exercised against production either**, and its
-reason is the strongest of the series: seeing it needs a plywood board *with a cut*, so
-exercising it would write a document. Its correct appearance on a healthy empty load is no
-appearance, and that was checked; the change itself was measured against the dev server with
-`gl.readPixels` (`docs/browser-verification-ply-cut-uv.md`).
-
-The day's fourth deploy served `index-DU8uasNy.js` with CSS `index-CtYur9k3.css`, which was
-`c50a138` — the key-list round (follow-up 162), the smallest round yet shipped: one CSS rule,
-dropping the default disc the sheet's key list drew in front of a line that already numbers
-itself. **Note that a CSS-only change still moves the JS hash** — the entry chunk
-references the CSS asset by name — so a moved JS hash is not by itself evidence that
-behaviour changed.
-
-The day's third deploy served `index-CePWNaxg.js`, which was `5985ee2` — the turned-index
-round (follow-up 161), a rendering change to the printable cut list: a turned part whose
-rectangle fits its name but not its dimension line now demotes to a numbered box whose key
-entry carries name, dimensions and the word, instead of printing a bare name that says
-nothing. Neither 161 nor 162 was exercised against production — both need parts nested on a
-sheet, so exercising either would write a document — and both were verified against the dev
-server instead (`docs/browser-verification-turned-index.md`), which is the deployment rule
-working rather than a gap. Both confirmed live by page load and asset hashes at the edge and
-in-network, with `localStorage` cleared in the verifying browser afterward.
-
-The day's second deploy served `index-8v7-ukbU.js`, which was `59d531b` — the
-duplicate-error round (follow-up 159). Its one shipped change could **not** be exercised
-live either: reaching it means manufacturing a corrupt library state in a production browser,
-so it was driven against the dev server on that seeded state
-(`docs/browser-verification-duplicate-error.md`). Its correct appearance on a healthy
-production load is no appearance, and that was checked. The first deploy that day served
-`index-Bt74Y3lR.js`, which was `4484f92`. That build shipped three rounds at once: the
-id-uniqueness round (follow-ups 97 and 131), which had been unreleased by decision; the
-gesture-flags round (follow-up 148); and the turned-label round (follow-up 92), **the only
-user-facing change of the three** and the one that prompted the deploy. Confirmed live by
-page load and bundle hash at both the edge and in-network, with `localStorage` cleared in the
-verifying browser afterward. The turned label itself was **not** exercised against
-production — it needs boards, so exercising it would write a document — and was verified
-against the dev server instead (`docs/browser-verification-turned-label.md`), which is the
-deployment rule working rather than a gap.
-
-**Check what a later commit touches before reading `git log` as a pending release.** Two
-different things make `git log` look ahead when it is not, and both are normal here:
-
-- **The deployed commit ALWAYS trails `HEAD`, by construction.** A deploy's own record — this
-  Status block, the runbook entry, the history note — is written *after* the deploy it
-  describes, so the commit naming a bundle can never be the last commit. Expect at least one
-  docs-only commit past whatever hash Status names, and do not read it as unreleased work.
-- **Some rounds ship nothing at all.** Three inside the current build are edit-tests-only and
-  built a byte-identical bundle: the agreement-test round (follow-up 140), 159's focus test,
-  and the whole delete-token round (follow-up 160).
-
-**Nothing is pending** (the components round is live, above). `DEPLOYMENT.local.md` carries every runbook entry and bundle hash.
-
-**The 2026-08-15 project-library deploy was the first that ACTS on a user's stored data at
-page load**, which
-changes what "verified by loading the page" buys — see the deployment rule below. Every
-earlier round's feature was inert until exercised; adoption is not. Read
-`DEPLOYMENT.local.md`'s entry for the safety argument and the asymmetric rollback cost
-before assuming a future round can be reverted as cheaply.
-
-**The project library changed the storage layout, and NOT the schema.** There are now two
-things carrying a version: the document's `version` (still **6**) and the library index's
-`layout` (**1**), and they change for unrelated reasons. The consequence to hold on to:
-**rolling back past this round costs nothing at the document level** — a `.sloyd` file this
-build writes is byte-identical to one written before the library existed, and a pre-round
-build finds `sloyd.autosave.v1` exactly as it left it. The one thing a rollback loses is any
-project created *after* adoption, which lives in `sloyd.project.<id>` keys the old build
-cannot see. Export first. This is not true of the two rounds before it — see the rollback
-paragraph below.
-
-**The tape line of work is complete for now** — three rounds landed on that surface on 08-04
-and all three are live. **The project library (08-14) was the successor**, chosen from the
-user's own critique that there was no clear way to store, switch or create projects; it is
-merged and live as of 2026-08-15. Its two loose ends were closed on 2026-08-31 by the
-switch-token round (follow-ups 157 and 158), which is live, and the same day's id-uniqueness
-round (97 and 131) closed a pre-existing gap that the sheet-nesting round had made
-load-bearing.
-
-**The Generate round (2026-10-03) was the successor**, chosen by the user from a blank
-slate. **Batch variety (164) and held and stable (165) followed it and are done.** The
-planned follow-on is **phase 2, refine and joinery (follow-up 171)**; read invariants 38
-and 39 first, because joinery is exactly where "overlap" and "held" both change meaning.
-174 (the key check) is done too. Phase 2's joinery half (171) shipped on 2026-10-04.
-
-**As of 2026-10-07: the components round is merged AND deployed; nothing is pending. NO SUCCESSOR IS CHOSEN: ask what to work on.**
-
-**Earlier on 2026-10-06, before the assemblies round: NOTHING WAS PENDING and NO SUCCESSOR WAS CHOSEN.**
-The user asked on 2026-10-05 for three features, in order, and all three are live: multi-select,
-hide/unhide, and repeated parts (split by the user into quarter turns, copy in a row and linking).
-Production matches `master` (`index-BwdHsyEM.js`, schema 9). The docs-only commits past the merge
-`d3120cf` are its own record. **Ask what to work on; do not pick.** Open near the recent code:
-223 (joinery unlinks the linked parts it cuts, open by decision), 221 (a hand-edited linked file
-without cut ids unlinks on load, fails safe), 215 (posture handedness, a question), 205/206
-(joinery's safe refusals) and **179, refine by instruction**. The paragraphs below are earlier
-states, kept for their reasoning.
-
-**As of 2026-10-05: the cut-list line of work that followed joinery (follow-ups 180–200) is
-COMPLETE and live**, across seven rounds: cut words, cut lines, cut storage, 198/199, 200 and
-197. Every follow-up it raised is closed. **No successor is chosen.** What remains open on the
-ledger near this code is joinery's own residue (205, 206; 182–191 and 201–203 are closed, the
-residues round on its branch) and
-**179, refine by instruction**, phase 2's other half. Ask before starting anything.
-The paragraphs below are the 2026-08-31 state, kept for its reasoning.
-
-**As of 2026-08-31: NO SUCCESSOR FEATURE ROUND HAD BEEN CHOSEN, and 130 is no longer the presumed one** — it
-was picked on 2026-08-31 and set aside a moment later without a stated reason, so treat it
-as available rather than as either chosen or rejected.
-
-**The 08-31 session ran TEN rounds instead, across FIVE deploys, and every one of them is now
-live** — 157/158, 97/131, 148, 92, 140, 159, 160, 161, 162 and 163, all listed in the table
-below. Three ship nothing on their own (140, 159's focus test, and all of 160: test files
-only, byte-identical bundles).
-
-**NINE of the ten were small already-diagnosed items off the ledger. 163 is the exception and
-is a different kind of thing, which is the part worth carrying forward:** it started from a
-user bug report, it was a live rendering defect dating to v3 rather than a known residue, and
-the first investigation measured the wrong layer clean and said so before the user's second
-message ("only when I add a cut") narrowed it. Read its follow-up entry before writing any UV
-assertion — a 48-case sweep written *during* that diagnosis passed with the bug live.
-
-**NO CANDIDATE IS STANDING and nothing is pending.** The standing-candidate list is empty for
-the first time since the tape rounds: 160, 161, 162 and 163 all closed on 08-31, and 161's own
-residue (162) closed the same day. 163 left a residue of its own and it is **open by
-decision, not by oversight** — the measured legibility of a plywood edge at 3/4in (sub-pixel
-ply rules, a 7% light/dark step, the mesh outline covering the outer plies only). The user was
-shown the measurements and ruled that the layers read as even. Do not re-open it without
-asking. 130 remains available-but-unasked — read its bullet below
-before proposing it, especially 26a's cost. **So the next conversation starts from a blank
-slate on feature direction**, and the honest first move is to ask rather than to pick from
-`docs/follow-ups.md`, whose remaining open entries are deferred-by-decision or
-recorded-negative findings rather than queued work.
-
-**The cut list line of work is CLOSED as of 2026-08-01.** Cut list, diagrams, label
-layout, per-face views, board feet and sheet nesting are all shipped and merged. Do not
-treat any of them as in-flight, and do not re-propose the two items declined on purpose:
-CSV/clipboard export and name run-collapsing (`Leg 1..4`).
+- **Production matches `master`** as of 2026-10-07: the components round, bundle
+  `index-3fpWh8yo.js`, CSS `index-QQ-rJZea.css`, merge `9012e1e`, **schema 11**.
+  Test count is under Commands.
+- **Nothing is pending. NO SUCCESSOR IS CHOSEN: ask what to work on; do not pick.** Open
+  near the recent code: 179 (refine by instruction), 215 (posture handedness, a question),
+  205/206 (joinery's safe refusals), 221, 225–231. See Open follow-ups below.
+- **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
+  it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
+  byte-identical bundles (test-only). Check what a later commit touches before reading
+  `git log` as a pending release.
+- Every runbook entry and bundle hash: `DEPLOYMENT.local.md`. Per-round narrative and the
+  deployment record: `docs/history.md`. Design specs:
+  `docs/superpowers/specs/<date>-sloyd-<slug>-design.md`; live checks:
+  `docs/browser-verification-<slug>.md`; screenshots: `docs/img/` (prefer a DOM readout,
+  add an image when the finding is spatial).
+- **Do not re-propose** two items declined on purpose: CSV/clipboard export and name
+  run-collapsing (`Leg 1..4`).
 
 ### Rounds shipped
 
-Each row's design spec is `docs/superpowers/specs/<date>-sloyd-<slug>-design.md` and, for
-the later ones, a browser pass at `docs/browser-verification-<slug>.md`. The full
-narrative for every row is in `docs/history.md`. **Screenshots from a browser pass live in
-`docs/img/`** — new as of the turned-index round (161), which is the first pass where the
-thing under test was a layout decision rather than a value, so a DOM readout alone did not
-show it. Prefer a readout where one suffices; add an image when the finding is spatial.
+One line each; the full narrative per round is in `docs/history.md`.
 
 | Round | Date | Schema | What it added |
 |---|---|---|---|
-| v1 + polish | 07-29/30 | 1 | boards, gizmo, unique names, origin axes, grid |
-| v2 | 07-30 | 2 | two-state grain orientation, reorient-pivot fix, wood textures |
-| v3 | 07-31 | 3 | posture, part-local grain, log-derived grain textures |
-| post-v3 fixes | 07-31 | — | `DimensionField`/`NameField` staleness (invariant 5), plywood grain |
-| joinery | 07-31 | 4 | `Cut` — stock removed from a board, by sub-box decomposition |
-| cut list | 08-01 | — | the printable bench sheet, derived not stored |
-| cut list diagrams | 08-01 | — | each part's joinery drawn on the sheet |
-| label layout | 08-01 | — | measured labels; nothing overlaps or bleeds (invariant 19) |
-| per-face diagrams | 08-01 | — | re-key on `(face, from)`; perpendicular cuts draw together |
-| board feet | 08-01 | — | the purchasing number beside the bench numbers |
-| empty-solids placeholder | 08-01 | — | *no spec* — ghost box for a fully-consumed board (invariant 21) |
-| sheet nesting | 08-02 | 5 | sheet count + guillotine-cuttable layout; `stock: { kerf }` |
-| snap-move | 08-02 | — | the Move tool: point-to-point board placement |
-| selected-board grabs | 08-03 | — | grab candidates narrowed to the selected board |
-| cut-aware snap points | 08-03 | — | every `Cut` contributes snap points; fixed an older rabbet defect |
-| guide points + tape | 08-04 | 6 | the Tape tool, `guides: GuidePoint[]` |
-| type-anywhere entry | 08-04 | — | *no spec* — typing a digit anywhere routes into the readout |
-| cardinal guides | 08-04 | — | `X`/`Y`/`Z` lock a world axis for a typed distance |
-| project library | 08-14 | — | multiple projects in the browser; `sloyd.library.v1` |
-| switch-token fixes | 08-31 | — | *no spec* — one in-flight token for the four adopting handlers (invariant 32); the pending write becomes a captured-pair thunk |
-| id uniqueness | 08-31 | — | *no spec* — `takeId` closes follow-ups 97 and 131; duplicate board and guide ids are repaired on load (invariant 33) |
-| gesture flags | 08-31 | — | *no spec* — follow-up 148: `gesturing`/`gestureSnapshotTaken` move into the store's state, so `replaceDocument` ends a leaked gesture |
-| turned label | 08-31 | — | *no spec* — follow-up 92: `formatDims` is the one home of `length × width`, and a turned part's label says so in words |
-| agreement-test cost | 08-31 | — | *no spec* — follow-up 140: the agreement test hoists `boardSolids` out of its probe loops; no source change |
-| duplicate error | 08-31 | — | *no spec* — follow-up 159: a failed duplicate reports its cause inline on the failing row |
-| delete token | 08-31 | — | *no spec* — follow-up 160: `deleteProject`'s index write is pinned synchronous with its read; no source change |
-| turned index | 08-31 | — | *no spec* — follow-up 161: `fitLabel`'s `requireDetail` removes the `name` rung, so a turned part demotes to `index` rather than printing a bare name |
-| key list | 08-31 | — | *no spec* — follow-up 162: `.cutlist-layout-key` gets the `list-style: none` reset every other list in the app already had. CSS only |
-| ply sign | 08-31 | — | *no spec* — follow-up 163: `FACE_AXES` carries each UV axis's SIGN, so a solid's sub-range lands on the right side of its face (invariant 35). The one round of the day that came from a bug report |
-| generate | 10-03 | — | prototypes from a description via Claude; each generation is a new, unactivated project (invariant 36) |
-| batch variety | 10-03 | — | one planning call gives each run in a batch of 2–3 a contrasting concept (fu 164); a batch of 1 is unchanged |
-| held and stable | 10-03 | — | checkDesign reports a part that is not held and a piece that would tip (fu 165, inv 39) |
-| key check | 10-03 | — | *no spec* — fu 174: Settings shape-checks a key and verifies it with a free call before storing it; the auth error carries the API's reason. No prefix rule |
-| stopped cuts | 10-04 | 7 | a `Cut` stops short of either end (`stopMin`/`stopMax`): mortises, through mortises, stopped dados, notches. One field table, two readers (inv 40) |
-| phantom cut | 10-04 | — | *no spec* — fu 178: a cut a board edit has left removing nothing is hidden from the cut list, drawings and snap points, and flagged on its row; kept, not dropped |
-| joinery | 10-04 | — | "Add joinery…": sites found by code, one model call chooses, `pocketFor` recipes build mortise and tenon / dado / stopped dado / rabbet / half-lap into a new unactivated project (invs 38 rewritten, 41) |
-| cut words | 10-04 | — | fu 180/181/189: a cut is named from its OPENING, open meaning NO STOCK left (`openSides`), so one shape gets one word; `findTenons` prints a tenon as one line; corner notch; mortise by depth:length |
-| cut lines | 10-04 | — | fu 192/193 (194 by decision): `cutShape` is the ONE description of a cut (word, run axis, position, stops at closed ends); the setup line AND the drawing format from it, never stored fields; `groove` with the grain, solid wood and plywood |
-| cut storage | 10-04 | — | fu 195/196: `storedAsShape` — joinery stores a cut the way the sheet reads it; Properties' **Match the cut list** (one undo, same stock, guarded so the sheet never changes); the square tie reads only the shape |
-| 198/199 | 10-05 | — | *no spec* — fu 198: `CutShape.runByDefault`, no Match note when only the tie's default decides; fu 199: `rebaseCuts` re-stores by shape (judged before the growth), so growth never depends on storage |
-| fu 200 | 10-05 | — | *no spec* — computed opening extents compare within `FLUSH_EPSILON` in `runAxis` and the word table (invariant 22's rule), so a millimetre square reads like its fractional twin; stored values stay exact |
-| fu 197 | 10-05 | — | *no spec* — `clippedRegion`: the cut's box clipped to the board is the one clip read by everything that shows a cut (drawing spans, snap points, cutShape, openSides, findTenons); an in-session overhang draws as what remains |
-| multi-select | 10-05 | — | `selectedIds`: Shift/Ctrl-click, Ctrl/Cmd+A, group move/delete/duplicate, shared Properties fields; one writer for user selection changes (inv 42); a selection change mid-drag ends the gizmo drag; Enter commits and blurs a field (fu 212) |
-| quarter turns | 10-05 | 8 | `rotation: 0 \| 90 \| 180 \| 270`, true rotations; `axisFrame` is the one turn table and every part↔world crossing goes through its helpers (inv 44); `trueTurnsToV8` mirrors old 90° parts' cuts so they look unchanged |
-| copy in a row | 10-05 | — | `rowLayout` (gap / pitch / fit-across, no rounding) and `copyInRow`: N−1 ordinary copies of the selection along ±X/Y/Z, each shifted k·step from the ORIGINAL, one undo entry; Properties' inline **Copy in a row…** form (inv 25) |
-| linking | 10-06 | 9 | `Board.link`, a label; `LINK_FIELDS` is the one shared/own table; `linkPlan` decides Link for store and panel; shared edits and cut edits reach every member in one undo entry; Unlink, Select linked, linked copies; `repairLinks` in `migrateDocument` unlinks a differing member (inv 45) |
-| assemblies | 10-06 | 10 | `instances` + `definitions`: a definition/instance tree; Group / Ungroup (Ctrl/Cmd+G, +Shift), double-click opens, Escape closes, the rest fades; `worldParts` the one walk, `placeBoard`/`placeInstance` the one composition, every edit written back through `treeEdit.ts` (inv 46); names unique per level, ids unique per container (invs 8, 33 restated); cut list and joinery read `flatDocument` (path names) |
-| components | 10-07 | 11 | shared definitions (Duplicate shares; Make Unique one level deep; Select copies; `×N`); links are `Shape`s (`ShapedBoard` = own fields + `shape`; `resolveBoard` the one reader; `Board.link`/`repairLinks` retired); write-back keyed on the storage target, disagreeing edits throw; v10 links migrate to shapes on load; joinery shares where identical (fu 223) (invs 45, 46) |
-| hide/unhide | 10-05 | — | `hiddenIds`: an eye per row, H / Shift+H / Alt+H, Show all (N), Hide others; view state, not saved, but undoable (history entries are `{ doc, hiddenIds }`); a hidden part is not drawn, snapped to, framed or selected (inv 43) |
-| joinery fixes | 10-05 | — | *no spec* — fu 190/185/183/184: opposite-face tenon cap, bottom-up crossings with a swept-volume blocker, outer-face carry (refuses before any mutation), `lowered` reported |
-| joinery residues | 10-05 | — | *no spec* — fu 182/201/188/203/191/186: rabbet unit from the panel's final box (no voids, path parts trimmed), 1/4in default tenons else butt, blockers on solids, `resize` pre-checked |
+| v1–v3 | 07-29/31 | 1–3 | boards, gizmo, names, grid; grain orientation, textures; posture, part-local grain |
+| joinery (cuts) | 07-31 | 4 | `Cut`: stock removed by sub-box decomposition |
+| cut list line | 08-01 | — | printable sheet, diagrams, label layout, per-face views, board feet, ghost box |
+| sheet nesting | 08-02 | 5 | guillotine-cuttable layout; `stock: { kerf }` |
+| snap-move, grabs, cut points | 08-02/03 | — | the Move tool; snap points on cuts |
+| guides + tape, type-anywhere, cardinal guides | 08-04 | 6 | the Tape tool, `guides` |
+| project library | 08-14 | — | multiple projects; `sloyd.library.v1` (layout 1) |
+| 08-31 batch | 08-31 | — | fu 157/158, 97/131, 148, 92, 140, 159–163 (163 from a bug report: ply UV sign) |
+| generate, batch variety, held and stable, key check | 10-03 | — | prototypes via Claude (inv 36, 39) |
+| stopped cuts, phantom cut, joinery | 10-04 | 7 | `stopMin`/`stopMax`; "Add joinery…" (inv 40, 41) |
+| cut words / lines / storage, 198–200, 197 | 10-04/05 | — | `cutShape`, `storedAsShape`, `clippedRegion` |
+| joinery fixes, joinery residues | 10-05 | — | fu 182–191, 201–203 |
+| multi-select, hide/unhide | 10-05 | — | `selectedIds` (inv 42), `hiddenIds` (inv 43) |
+| quarter turns | 10-05 | 8 | true 0/90/180/270 turns, `axisFrame` (inv 44) |
+| copy in a row | 10-05 | — | `rowLayout`, `copyInRow` (inv 25) |
+| linking | 10-06 | 9 | `Board.link` (retired in 11) |
+| assemblies | 10-06 | 10 | `instances` + `definitions`, Group/Ungroup (inv 46) |
+| components | 10-07 | 11 | shared definitions, links as `Shape`s (inv 45, 46) |
 
-### The deployment rule, stated once
+### The deployment rule
 
-**Production is verified by loading the page only.** Sloyd has no server-side state, so
-`sloyd.autosave.v1` in the user's browser *is* their project; exercising a new feature
-against production would overwrite it with a demo document and there is nothing to
-restore from. So: **new rendering is verified against the dev server** (that is what
-every `docs/browser-verification-*.md` is), and **the deploy itself is confirmed by
-bundle hash**. Whether a round's own change is confirmable live depends on whether
-exercising it writes a document — arming a tool writes nothing and was confirmed live;
-anything needing a board was not. `sloyd.autosave.v1` is confirmed **absent** in the
-verifying browser afterward, checked rather than assumed.
+**Production is verified by loading the page only.** Sloyd has no server-side state:
+`localStorage` in the user's browser *is* their project, and exercising a feature against
+production would overwrite it with nothing to restore from. So new behaviour is verified
+against the **dev server** (Claude drives the Playwright browser; the user can watch), and
+the deploy is confirmed by **bundle hash** at the edge and in-network, plus the edge's
+**CSP header** (`connect-src 'self' https://api.anthropic.com`), which the dev server does
+not send. `localStorage` is confirmed cleared in the verifying browser afterward, checked
+rather than assumed. A paid Generate/joinery run needs the user's approval each time; the
+key never goes into chat or a committed file. (Generate was once exercised on production
+because it only ever adds unactivated projects, inv 36. That is not a precedent.)
 
-**The Generate round is the one exception, and the reason it holds is narrow.** Generation
-was exercised against production by the user, because it only ever ADDS library projects
-with `activate: false` and never writes into the open one (invariant 36). That makes it a
-different kind of thing from every earlier feature, not a precedent for them. Even so, the
-preferred route is the dev server with the user watching the Playwright browser Claude
-drives. A paid run needs the user's approval each time, and the key never goes into chat
-or a committed file. A Generate deploy is verified by page load, bundle hash, **and the
-edge's CSP header** (`connect-src 'self' https://api.anthropic.com`), which the dev server
-does not send.
-
-**Rollback cost is a schema question.** A document saved by the current build carries
-`version: 11`, and any build understanding less **refuses** it rather than silently dropping
-what it cannot read. That is the gate working as designed. Each bump's own argument is in
-Versioning below. Autosave lives in the browser, so rolling back past a schema bump strands
-every project saved since; export first. Rolling back a round that changed no schema costs
-nothing but the round itself.
+**Rollback cost is a schema question.** A build understanding less than `version: 11`
+refuses the document. Rolling back past a schema bump strands every project saved since;
+export first. A round with no schema change costs nothing to roll back. The library
+round changed the storage *layout*, not the schema: rolling past it loses only projects
+created after adoption (inv 30).
 
 ## Architecture
 
 Static single-page app. No server, no database, no backend API, no env vars. **One
-outbound call exists**: Generate calls `api.anthropic.com` straight from the browser with
-the user's own key (`dangerouslyAllowBrowser`). The key lives only in `sloyd.llm.v1` and the
-CSP's `connect-src` allows only that origin. There is still no server-side state.
+outbound call**: Generate/joinery call `api.anthropic.com` from the browser with the
+user's own key (`dangerouslyAllowBrowser`), stored only in `sloyd.llm.v1`; the CSP's
+`connect-src` allows only that origin.
 
-**Governing rule: the plain-JSON document is the source of truth; the Three.js scene is
-derived from it and is never authoritative.** A document is
-`{ version, name, units, stock, guides, boards, instances, definitions, shapes }`: the root's
-parts and assemblies, the assembly definitions they place, and the shared part shapes
-(invariants 45, 46). Dragging a board in the
-viewport computes a number, writes it to the document, and the scene re-renders from the
-updated document — never the reverse. This is what keeps undo, save/load and export
-simple: they only ever serialize or restore the document.
-
-**A board's `position` is the min-corner** of its world bounding box, not its centre.
-This matters anywhere geometry or the gizmo touches position math (invariant 2).
+**The plain-JSON document is the source of truth; the Three.js scene is derived from it
+and is never authoritative.** A document is
+`{ version, name, units, stock, guides, boards, instances, definitions, shapes }`.
+Dragging computes a number, writes it to the document, and the scene re-renders — never
+the reverse. That keeps undo, save/load and export simple. **A board's `position` is its
+min corner**, not its centre (inv 2).
 
 ### Layer order
 
 Each layer depends only on the ones before it:
 
-1. **`units`** — the bottom layer, imports nothing. `length.ts` (fractional inches),
-   `quantity.ts` (decimal board/square feet).
-2. **`document`** — schema, geometry, validation, versioned migration.
-3. **`store`** (Zustand + snapshot undo/redo) and **`storage`** (the `StorageAdapter`
-   seam).
-4. **`llm`** — the provider seam (`LlmClient`, `LlmMessage` opaque). Imports NOTHING from
-   the app, so a second provider is a second implementation and nothing else.
-5. **`generate`** — the prompt and the run loop. Imports only `document` and `llm`.
-   `useGenerations.ts` sits beside `App.tsx`, not in here, because it owns React state and
-   the storage writes.
-6. **`viewport`** (react-three-fiber) and **`panels`** (React forms) — both read/write
-   through the store and both import `document` directly for types and constants.
-   `panels` also imports the `storage` singleton. These are legitimate downward imports.
+1. **`units`** — imports nothing. `length.ts` (fractional inches), `quantity.ts`.
+2. **`document`** — schema, geometry, tree, validation, versioned migration.
+3. **`store`** (Zustand + snapshot undo/redo) and **`storage`** (the `StorageAdapter` seam).
+4. **`llm`** — the provider seam (`LlmClient`, opaque `LlmMessage`). Imports NOTHING from
+   the app.
+5. **`generate`** — prompt and run loop; imports only `document` and `llm`.
+   `useGenerations.ts` / `useJoinery.ts` sit beside `App.tsx` because they own React state
+   and storage writes.
+6. **`viewport`** (react-three-fiber) and **`panels`** (React) — read/write through the
+   store, import `document` directly; `panels` also imports the `storage` singleton.
 
-**The `→ units` edges are settled, and the rule is one sentence: a module takes the edge
-when it produces a string a person reads off the page, and not otherwise.** Four do —
-`document/cutlist.ts` (a row's grouping key *is* formatted strings, because part identity
-is defined as "prints identically"), `document/diagram.ts`, `document/nesting.ts` (all
-three importing `formatLength`, so one dimension cannot read differently in two places on
-one sheet) and `viewport/TapeTool.tsx` (`parseLength`, because the live preview must know
-what the typed text *means* before it can place a marker). One deliberately does **not**:
-`document/snapPoints.ts` — a snap point is three numbers, a kind and an owner, and nothing
-about it is ever printed. Do not generalise to "everything under `document` imports
-`formatLength` now." The per-file arguments are in `docs/history.md`.
+**The `→ units` edge rule: a module imports `units` when it produces a string a person
+reads off the page, and not otherwise.** `cutlist.ts`, `diagram.ts`, `nesting.ts`
+(`formatLength`, so one dimension never reads two ways on one sheet) and
+`viewport/TapeTool.tsx` (`parseLength`, for the live preview) take it.
+`snapPoints.ts` and `row.ts` deliberately do not. Do not generalise to "everything under
+`document` imports `formatLength`".
 
 **Storage seam:** all persistence — autosave, export, import — goes through
-`StorageAdapter`. Nothing else touches `localStorage` or the filesystem directly. A
-future desktop build would be a second implementation of that interface, not a parallel
-code path.
+`StorageAdapter`. Nothing else touches `localStorage` or the filesystem. A desktop build
+would be a second implementation, not a parallel path.
 
 ### Versioning
 
-Every document carries a `version`, and every load path (open, import, autosave-restore)
-runs through `migrateDocument` before the document is trusted. `CURRENT_VERSION` is **11**
-and migration is a real chain: each step runs on raw data, in version order, one version
-at a time, before any board reaches `validateBoard` (invariant 11).
+Every load path (open, import, autosave-restore) runs `migrateDocument` before the
+document is trusted. `CURRENT_VERSION` is **11**. Steps run one version at a time, in
+order, on RAW data before `validateBoard` (inv 11) — except v10→v11.
 
-**Two shapes of step, and picking the wrong one is the trap.**
+| Step | Adds | Shape | Harm a build one version back would do |
+|---|---|---|---|
+| 1→2 `foldRotationToV2` | rotation fold | per-board, raw | — |
+| 2→3 `addPostureToV3` | `posture` | per-board, raw | — |
+| 3→4 `addCutsToV4` | `cuts` | per-board, raw | — |
+| 4→5 | `stock.kerf` (default 0.125 if absent/non-numeric/outside [0,1) — defaulted, not clamped) | document-level | wrong number (sheet count) |
+| 5→6 | `guides` (default `[]`; malformed guide dropped) | document-level | silent loss on round-trip |
+| 6→7 | `Cut.stopMin`/`stopMax` (default 0) | document-level | wrong geometry |
+| 7→8 `trueTurnsToV8` | true turns; mirrors cuts of 90° parts | per-board, raw | wrong geometry |
+| 8→9 | `Board.link` | document-level | silent loss |
+| 9→10 | `instances`, `definitions` (default `[]`) | document-level | every part in an assembly vanishes |
+| 10→11 `linksToShapes` | `shapes` (default `[]`) | **after validation** | un-shares every component |
 
-- **Per-board** (v1→v2 `foldRotationToV2`, v2→v3 `addPostureToV3`, v3→v4 `addCutsToV4`,
-  v7→v8 `trueTurnsToV8`) — a `rawBoards.map` running *before* `validateBoard`, because that
-  validator's fallback for a missing field is a legal-but-wrong value rather than an absence.
-  v8 is per-board for its own reason, not that one: it rewrites existing cuts as a function
-  of the RAW `rotation`, `posture` and the size of the part's h0 dimension, so it must see
-  them before anything defaults them. It touches only a board with `rotation === 90` and at
-  least one cut, and leaves a malformed cut field for `validateCuts` to judge rather than
-  throwing.
-- **Document-level** (v4→v5 `stock`, v5→v6 `guides`, v6→v7 `Cut.stopMin`/`stopMax`,
-  v8→v9 `Board.link`) — **no `rawBoards.map` step at
-  all**. Read defensively off the raw document and defaulted, the way `units.precision`
-  already was. `stock.kerf` defaults to `0.125` when absent, non-numeric or outside
-  `[0, 1)` — *defaulted, not clamped to the nearest boundary*. v9→v10 (`instances`,
-  `definitions`) is document-level too: both default to `[]`. `guides` defaults to `[]`,
-  and `validateGuides` drops a malformed guide rather than refusing the file, because a
-  saved document must always open and a guide has no nearest-legal-value to clamp toward.
-  `stopMin`/`stopMax` default to `0` in `validateCuts`. An absent `link` was an unlinked
-  part; since v11 `link` is read ONLY from a file below v11, into the migration's legacy map, and
-  a v11 file's stray `link` is ignored. v10→v11 adds `shapes` (default `[]`): `validateShapes`
-  drops a malformed shape (claiming no id) and a duplicate id (the first wins), and a definition
-  whose id is literally `ROOT` is dropped (the write-back's root storage id).
-
-**A version bump is for the refusal gate at the far end, not for upgrading old files** —
-an absent field defaults cleanly regardless of `CURRENT_VERSION`. But the two bumps were
-argued differently and copying the wrong argument would be a mistake. v5's harm is a
-**wrong number**: a v4 build drops a user-set kerf and prints a different sheet count.
-v6's is plainer and weaker and is still what the gate is for: **silent data loss on
-round-trip** — a v5 build opens a v6 file, drops every guide, autosaves, and they are gone
-with nothing indicating it. Guides produce no number; nothing on the cut list reads them.
-Read which argument applies to *your* field rather than inheriting one.
-
-v7's argument is the strongest of the three: **wrong geometry**. A v6 build opening a v7
-file ignores the stops, shows a blind mortise as a through-dado with nothing saying so, and
-autosaves that shape back.
-
-v8's argument is the same as v7's, **wrong geometry**, twice over. A v7 build opening a v8
-file reads 180 and 270 as invalid and falls back to 0, and it reads a v8 90° part with cuts
-through the old mirror, so those cuts land mirrored along the part's h0. Either way it shows
-a different part and autosaves it. **v8's step is NOT idempotent**: it
-mirrors, so running it twice undoes it. The `d.version < 8` guard is the only thing keeping a
-v8 file from being re-mirrored on every load.
-
-v9's argument is v6's, **silent data loss on round-trip**: a v8 build opens a v9 file, drops
-every `link`, autosaves, and the links are gone. It is silent precisely because every linked
-part is self-contained (its own size and cuts), so the v8 build shows exactly the same
-parts. v10's argument is v9's, made stronger: a v9 build opening a v10 file drops `instances` and
-`definitions`, so EVERY PART INSIDE AN ASSEMBLY VANISHES, and it autosaves. `repairTree` runs
-after validation on every load (invariant 46).
-
-v11's argument is the strongest yet, **silent data loss**: a v10 build would see shaped parts
-with no size, and its load repair would copy every shared definition, un-sharing every component,
-then autosave. **The v10→v11 step (`linksToShapes`) runs AFTER validation**, guarded by
-`d.version < 11`, before `repairTree`. It is the one step not run on raw data, because it needs
-validated values and world order to judge which members are equal (spec §8.3). Each link becomes
-one `Shape` built from its first member; equal members become shaped parts with nothing moved; a
-differing member stays plain. `repairTree(doc, { copyShared: version < 11 })` copies a definition
-placed twice only for an older file, and a v11 file's stray `link` is ignored. `repairLinks` is
-retired: users of one shape cannot differ, by construction.
-
-Full detail: `docs/superpowers/specs/` (design), `docs/superpowers/plans/`
-(implementation), `docs/history.md` (what shipped and why).
+- **A bump exists for the refusal gate, not for upgrading** — absent fields default
+  regardless. Argue *your* field's harm; don't inherit another bump's argument.
+- **v8's step is NOT idempotent** (it mirrors): the `d.version < 8` guard is all that stops
+  a v8 file being re-mirrored on every load.
+- **v10→v11 runs after validation**, guarded by `d.version < 11`, before `repairTree`,
+  because it needs validated values and world order to judge equal link members (spec
+  §8.3). Each link becomes one `Shape` from its first member; equal members become shaped
+  parts; a differing member stays plain. `link` is read only from a file below v11.
+- `validateShapes` drops a malformed shape (claiming no id) and a duplicate id (first
+  wins); a definition whose id is literally `ROOT` is dropped (the write-back's root id).
+  `repairTree(doc, { copyShared: version < 11 })` runs on every load (inv 46).
 
 ## Where things live
 
-An index. Layer rationale is in Architecture; the rules are in Invariants (`inv N`).
-Where a file's own doc comment is the stated single source of truth for something —
-`tapeHover`'s clearing enumeration, `tapeAxis`'s structural rule, `TapeAxis`'s
-world-vs-board-local argument, `woodCut`'s seam argument — **read it there.**
+An index; the rules are in Invariants (`inv N`). The fully annotated tree as of
+2026-10-07 is in `docs/history.md`. Where a file's own doc comment is the stated single
+source of truth — `tapeHover`'s clearing enumeration, `tapeAxis`'s structural rule,
+`TapeAxis`'s world-vs-board-local argument, `woodCut`'s seam argument, `App.tsx`'s
+`pending` — **read it there.**
 
 ```
 src/
-├── units/                  bottom layer, imports nothing
-│   ├── length.ts           parseLength / formatLength / canBeginLength (capture set
-│   │                       {0-9, ., -} — NOT '/', nothing here starts with a slash)
-│   └── quantity.ts         formatBoardFeet / formatSquareFeet — two decimals fixed,
-│                           NOT units.precision (meaningless on a decimal volume)
+├── units/            length.ts (parseLength/formatLength/canBeginLength; capture set {0-9 . -}),
+│                     quantity.ts (board/square feet, two decimals fixed)
 ├── document/
-│   ├── row.ts              `rowLayout(mode, value, s, count)`: step, gap and row length for gap /
-│   │                       pitch / fit-across, `MAX_ROW` = 100. Refusals are CODES (`count`,
-│   │                       `value`, `negative-gap`, `pitch-short`, `no-room`), not sentences, and
-│   │                       it imports no `units` (the edge rule: it produces no string). Nothing
-│   │                       rounds (inv 25). The panel's summary AND Apply both read it
-│   ├── types.ts            Board, GuidePoint, SloydDocument, Rotation, Posture,
-│   │                       Grain, MATERIALS, SheetStock, isSheetGood, sheetStockOf.
-│   │                       `Board.shape?: string` — set ONLY on a RESOLVED part; `Shape`
-│   │                       (the shared fields + id), `ShapedBoard` (own fields + `shape`),
-│   │                       `StoredBoard` = Board | ShapedBoard, `FlatDocument` (resolved
-│   │                       boards), `SloydDocument.shapes` — all derived from LINK_FIELDS
-│   │                       (inv 45). `Instance` (`position` is its
-│   │                       frame's ORIGIN, not a min corner) and `Definition`
-│   │                       `{ id, boards, instances }`; `SloydDocument.instances` is the
-│   │                       root's (inv 46)
-│   ├── ids.ts              `nextId`, the one id minter
-│   ├── shapes.ts           `isShaped` (no `length` key), `shapeMap`, `resolveBoard` (THE
-│   │                       place a shape is read into a part; a plain part comes back as the
-│   │                       SAME object; shared fields from SHARED_KEYS, cuts copied),
-│   │                       `shapeUsers` (STORED users, not placements), `pruneShapes`,
-│   │                       `dissolveShapes` (a one-user shape: its user turns plain, cut ids
-│   │                       kept), `plainOf` (strips `shape`)
-│   ├── linksToShapes.ts    the v10→v11 step: each link label → one Shape from its FIRST member
-│   │                       in worldParts order; equal members (`sameShared`, exact, cut ids
-│   │                       included) become shaped parts; nothing moves
-│   ├── frames.ts           the ONE composition step (inv 46): `rotateVec` (90 maps (x,y,z) to
-│   │                       (z,y,−x)), `cornerShift`, `placeBoard(frame, board)` = (origin +
-│   │                       R(p)) + shift, `placeInstance`, `inverseTurn`, `addTurns`. Pure
-│   ├── tree.ts             occurrence paths (`i1/i2/b3`; `/` reserved), `isCovered` (THE
-│   │                       ancestor test: `i3` covers `i3/b1`, not `i30/b1`), lookups,
-│   │                       `worldParts` (THE walk to placed parts, cached per document
-│   │                       object in a WeakMap; each part keeps its OWN name), `flatDocument`
-│   │                       (path names joined by `NAME_SEPARATOR` ` › `, for the cut list and
-│   │                       joinery), `childrenOf`, `itemPaths`, `containerTurn`, `treeRows`
-│   ├── treeEdit.ts         every write-back (inv 46): `applyWorldEdits` keys on the STORAGE
-│   │                       target (`storageKey` = `<definition id or ROOT>:<part id>`, the same
-│   │                       for every placement); changed fields only, merged field by field;
-│   │                       DISAGREEING edits throw; shared fields of a shaped part go to its
-│   │                       Shape. `lowerEdit` is the ONE lowering (a moved position goes down
-│   │                       as a delta level by level; `keepWorld` for joinery only). `mapWorld`,
-│   │                       `translateItems` (a WORLD delta rotated into each container's
-│   │                       frame), `updateContainer`. `writeBackFlat` (joinery) splits
-│   │                       definitions shallowest-first and then shapes by IDENTICAL results
-│   │                       (cuts by geometry), one edit per storage key
-│   ├── treeOps.ts          `groupItems` (identity frame, so bit-exact), `ungroupItem` (exact
-│   │                       for direct child parts; shaped parts stay shaped, cuts copied).
-│   │                       Both return a `Rekey` built for EVERY placement of the edited
-│   │                       container (`containerPlacements`, `rekeyEverywhere`).
-│   │                       `shareInstance` (Duplicate: same definition), `instanceRefs`,
-│   │                       `makeUniqueItem` (one level deep, ids kept, so paths survive),
-│   │                       `removeItems` + `pruneDefinitions` (+ prune/dissolve shapes),
-│   │                       `turnInstance` (about the assembly's centre), `insertItems`,
-│   │                       `siblingsOf`, `nextAssemblyName`
-│   ├── treeRepair.ts       `repairTree(doc, { copyShared })` (duplicate definition ids,
-│   │                       missing definitions, cycles, a definition placed twice copied ONLY
-│   │                       below v11, unreferenced dropped, ids and names per container) and
-│   │                       `dropUnresolved` (a shaped part naming a missing shape); run in
-│   │                       `migrateDocument` on every load
-│   ├── treeFixtures.ts     TEST-ONLY `assemblyDoc()`: `r1`, `i1/b1`, `i1/b2`, `i1/i2/b3`; i1
-│   │                       "Drawer" turned 90, i2 "Peg" turned 270
-│   ├── links.ts            `LINK_FIELDS` — the ONE shared/own table, `satisfies
-│   │                       Record<keyof Board, …>` (inv 45); `SHARED_KEYS` / `OwnField` /
-│   │                       `sharedOf` (cuts copied, ids kept) / `sharedPatch` /
-│   │                       `sameShared` (cuts in order, by id and `CUT_GEOMETRY_KEYS`,
-│   │                       exact) / `linkPlan` (the ONE decider for Link: source, members,
-│   │                       changing, the shape to reuse; null for a no-op). Pure
-│   ├── geometry.ts         `axisFrame` — the ONE turn table (inv 44): per world axis an
-│   │                       `AxisMap` `{ dim, reversed }`; `horizontalOf(posture)` gives
-│   │                       [h0, h1]. `axisDimensions` (inv 13) is `axisFrame` without
-│   │                       direction. The ONLY part↔world crossings: `toWorldOffset` /
-│   │                       `fromWorldOffset` (a value), `spanToWorldOffset` /
-│   │                       `spanFromWorldOffset` (a span, still [min, max]) and
-│   │                       `endFacing` (which part end faces a world side). Never
-│   │                       `board[dim] - u` at a call site. Also boardExtents /
-│   │                       boardCenter / reorientedPosition (inv 2) / `boardsBounds` — the
-│                       box around a set of boards; the group gizmo sits at its centre
-│                       and `moveGroupTo` rounds its `min`
-│   ├── turnFixtures.ts     TEST-ONLY: `chiralPart(posture)` — three cuts with a HAND (all
-│   │                       three are off-centre on every axis, so each alone is
-│   │                       one-handed; c3 takes a box corner so boardSnapPoints'
-│   │                       filter has something to see) — plus `turnedAbout`,
-│   │                       `rotateQuarter` and `sameSet`, the equivariance kit (inv 44)
-│   ├── names.ts            uniqueName / dedupeNames over `Named` (parts AND assemblies,
-│   │                       one container's siblings; inv 8).
-│   │                       NAMES ONLY — id uniqueness is `takeId` in
-│   │                       document.ts (inv 33), for the reason stated there
-│   ├── cuts.ts             cutRegion / boardSolids (split, drop against the UNION,
-│   │                       merge) / boardEdges (inv 16) / solidWorldBox and
-│   │                       pointToLocalXYZ (centre-relative, through axisFrame's
-│   │                       helpers, inv 44) / cutLabel /
-│   │                       stockProbe (boardEdges' rule from a segment to a point;
-│   │                       CLOSED spans, so a point on a split plane sees both sides).
-│   │                       `cutRemovesNothing` / `cutsThatRemoveStock`: a cut whose box,
-│   │                       CLIPPED to the board, has no volume (fu 178) — skipped by the
-│   │                       cut list, the diagrams and the snap points, kept in the document.
-│   │                       cutRegion honours `stopMin`/`stopMax` (crossed stops remove
-│   │                       nothing); `cutLabel` names a cut from its OPENING (sides
-│   │                       reaching the edge + proportions; cut-words spec §2).
-│   │                       One box, one word; a cut removing nothing keeps the
-│   │                       old table. `openSides`: open = no stock between a side
-│   │                       and the edge; called only inside `cutShape`, which the
-│   │                       word, the setup line and the drawing all read.
-│   │                       `clippedRegion` = the cut's box ∩ the board, what it removes:
-│   │                       the ONE clip, read by everything that SHOWS a cut (drawing
-│   │                       spans, snap points, cutShape, openSides, findTenons; fu 197).
-│   │                       `cutRegion` stays unclipped for building solids.
-│   │                       `cutShape` is the ONE description of a cut (word, run axis,
-│   │                       position, stops at closed ends, as numbers); `cutLabel` is
-│   │                       its word, and the setup line AND the drawing format from it,
-│   │                       never from stored fields (fu 192). `groove` when the run axis
-│   │                       is the grain on a material with grain (fu 193).
-│   │                       `CutShape.runByDefault` marks a run decided only by the tie's
-│   │                       final default; it exists for Properties' note (fu 198).
-│   │                       Extents are COMPUTED, so `runAxis` and the word table compare
-│   │                       them within FLUSH_EPSILON (inv 22; fu 200) — an mm square is
-│   │                       a tie like a fractional one. Stored values stay exact (inv 18).
-│   │                       `storedAsShape` re-stores a sideways cut with across = its
-│   │                       run (same stock; an already-aligned cut comes back as the
-│   │                       same object, so no float noise splits rows). A far end the
-│   │                       schema cannot express exactly lands within one ulp, on the
-│   │                       side that keeps the run. The run never reads the stored
-│   │                       across, square ties included (fu 196).
-│   │                       It and `cutLabel` take an optional precomputed `solids`
-│   │                       (one `boardSolids` per board) — skip it, cut list ~3.5×
-│   │                       slower. Home of
-│   │                       `CUT_GEOMETRY_FIELDS` / `CUT_GEOMETRY_KEYS` (inv 40)
-│   ├── tenons.ts           findTenons: a tenon from the end cuts leaving one tongue
-│   │                       (ℓ ≤ L/2, ≥ 2 cuts, exactly one remaining rectangle).
-│   │                       The sheet prints one line per tenon. Section breakpoints
-│   │                       merge within FLUSH_EPSILON (fu 191)
-│   ├── cutlist.ts          buildCutList (inv 18). STOCK, NOT REMAINDER — `cuts`
-│   │                       ignored, because a dado does not reduce the board you buy;
-│   │                       accumulates EXACT stock, never qty × rounded dimensions.
-│   │                       The setup line is formatted from `cutShape`, never from
-│   │                       stored `across`/`offset`/`width`/stops (fu 192).
-│   │                       `cutSignature` is derived from `CUT_GEOMETRY_FIELDS`
-│   │                       in cuts.ts, checked against `Cut` by `satisfies` (inv 40)
-│   ├── depthField.ts       buildDepthField (inv 20). Reads its rectangles
-│   │                       from `cutRegion` — it once rebuilt them with the across
-│   │                       span hard-coded to full length
-│   ├── diagram.ts          buildDiagrams — one view per (face, from), so
-│   │                       perpendicular cuts on a face draw together. Its labels
-│   │                       are formatted from `cutShape`, never from stored
-│   │                       `across`/`offset`/`width`/stops (fu 192)
-│   ├── nesting.ts          buildNesting — shelf FFD, because guillotine cuttability
-│   │                       is a DOMAIN FACT, not a quality tier. `formatDims` is
-│   │                       the ONE home of `length × width` here, shared by the
-│   │                       placed part, the unplaceable part and the sheet label
-│   │                       (fu 92); a turned part's `dims` carries the WORD
-│   │                       `turned`, on the string rather than in the panel so
-│   │                       fitLabel measures what SheetLayout draws (inv 19).
-│   │                       Takes doc.boards,
-│   │                       NEVER CutListRows (rounded row dimensions can overflow a
-│   │                       real sheet). Stock, not remainder. Too-big parts go in
-│   │                       `unplaceable`, never dropped. Invs 22, 23
-│   ├── snapPoints.ts       boardSnapPoints (the 3x3x3 lattice minus the volume
-│   │                       centre; axes at `mid` name the kind — 0 corner, 1
-│   │                       edge-mid, 2 face-centre; filtered through stockProbe
-│   │                       EXCEPT a fully consumed board, a literal
-│   │                       `boardSolids(b).length === 0` check, which keeps all 26
-│   │                       because the ghost box IS drawn — inv 21) / cutSnapPoints
-│   │                       (over the cut's CLIPPED box, `clippedRegion` — fu 197;
-│   │                       floor rectangle 9 + the mouth's opening, every point
-│   │                       but its centre, 8; stockProbe drops a through-cut's two
-│   │                       across-end mouth points, so 15 for a dado, 12 for a
-│   │                       rabbet, 17 for a blind mortise) / snapPointsFor (the
-│   │                       union, called in BOTH of MoveTool's branches — a cut point
-│   │                       must be a TARGET on the unselected board or the headline
-│   │                       operation does not work) / guideSnapPoints / sameSnapPoint
-│   │                       (HERE, not in viewport, because the store needs it and
-│   │                       cannot import viewport — one home, not a re-export) /
-│   │                       offsetPoint (null on a zero-length direction or non-finite
-│   │                       distance, rather than letting NaN into the document) /
-│   │                       towardFor (the tape's ONE direction source, called from
-│   │                       BOTH the preview memo and commit(), which is what keeps
-│   │                       marker and placement agreeing; THE AXIS WINS OVER A HOVER,
-│   │                       never falls back to it) / tapeAxisFromKey. Exports
-│   │                       SnapKind / SnapOwner / SnapPoint / BoardSnapPoint (inv 26).
-│   │                       LOCAL→WORLD IS `position[axis] + toWorldOffset(board,
-│   │                       axis, local[axisFrame(board)[axis].dim])` (inv 44; the
-│   │                       filter's world→part step is `fromWorldOffset`) — neither
-│   │                       pointToLocalXYZ nor solidWorldBox does this and BOTH look
-│   │                       like they do (centre-relative), so either puts every point
-│   │                       off by half the board, plausibly, in any screenshot; pin
-│   │                       it with a rotated, non-flat pose. Imports ./types,
-│   │                       ./geometry, ./cuts — notably NOT ../units
-│   ├── generated.ts        the LLM's design shape: DESIGN_SCHEMA ({x,y,z} objects, not
-│   │                       tuples — structured outputs cannot enforce an array length),
-│   │                       parseDesign (Object.hasOwn on MATERIALS), designToDocument
-│   │                       (axisDimensions, SNAP_INCHES, floor + centre, then
-│   │                       migrateDocument like any load; finiteness re-checked AFTER
-│   │                       the snap)
-│   ├── designCheck.ts      checkDesign: overlap between SOLIDS (> TOUCH on all 3
-│   │                       axes, inv 38; `faceContacts`; every violation carries
-│   │                       `parts`), unsupported (a chain of FACE contacts to the floor —
-│   │                       topological, unchanged), too-large, too-many, then `hangs`
-│   │                       (every part off the floor HELD, inv 39 — contactsOf /
-│   │                       coverage / isHeld; groundedSet is the ONE grounding walk,
-│   │                       with an optional skip) and `tips` (grounded parts' volume-
-│   │                       weighted centre of mass >= min(1in, s/4) inside the floor
-│   │                       hull). Messages are FOR THE MODEL. Pure. The user's real
-│   │                       workbench is `fixtures/simple-workbench.sloyd`.
-│   │                       `worldSolids` (exported) is the ONE home of the world-solid
-│   │                       mapping, spans through `spanToWorldOffset` (inv 44);
-│   │                       joinery's blockers import it (fu 203)
-│   └── document.ts         create / validate / migrate (inv 11); validateGuides;
-│                           createGuide; `takeId`, the ONE home of the
-│                           id-uniqueness rule for boards, guides and cuts
-│                           (inv 33); `trueTurnsToV8` / `mirrorCutAlong`, the v7→v8
-│                           step (inv 44); `validateBoard` keeps a non-blank
-│                           `link` from a file below v11 only (the legacy map
-│                           `linksToShapes` consumes); `validateShapes`; a
-│                           ShapedBoard validated by its own fields; re-exports
-│                           the rest
-├── store/store.ts          Zustand, snapshot undo/redo (inv 4), gesture coalescing.
-│                           `gesturing`/`gestureSnapshotTaken` are STATE, not closure
-│                           variables, so `replaceDocument` clears a gesture whose
-│                           component went away without closing it (fu 148) — public
-│                           by necessity, private by intent: nothing subscribes, and
-│                           subscribing would re-render on every gesture boundary.
-│                           `tool` and the three HELD POINTS — `grabbed`
-│                           (BoardSnapPoint, narrow on purpose — inv 26),
-│                           `tapeAnchor`, `tapeHover` (SnapPoint, wide because either
-│                           can hold a guide) — plus `tapeAxis`, which is NOT a fourth
-│                           held point (it holds an enum, so it cannot go stale and
-│                           must not be given clearing rules by analogy). Inv 24
-│                           `selectedIds` — insertion order, no duplicates, view state,
-│                           NO primary part — written ONLY through `selectionPatch`,
-│                           which also carries invariant 24's retargeting rule for a
-│                           set. Group actions are each one `edit()`: `deleteBoards`,
-│                           `duplicateBoards` (names against the growing list, inv 8)
-│                           and `updateBoards` (each part through `patchBoard`, the one
-│                           per-board rule set). The singular actions delegate.
-│                           `moveGroupTo` takes an ABSOLUTE min corner and rounds the
-│                           group's, once (inv 42). `commitSnapMove` translates every
-│                           selected part through `translateBoards`.
-│                           `hiddenIds` — insertion order, no duplicates, view state,
-│                           NOT saved but undone: `past`/`future` hold `HistoryEntry`
-│                           = `{ doc, hiddenIds }`. The four user actions
-│                           (`hideSelected`, `hideUnselected`, `showAll`, `setHidden`)
-│                           all go through `applyHidden`, which never runs `edit()` and
-│                           pushes an entry holding the SAME `doc`. `undo`/`redo` share
-│                           `restore`, which keeps the held points when the entry's doc
-│                           is the current object. `selectionPatch` drops hidden ids
-│                           (inv 43)
-│                           `copyInRow(ids, count, axis, sign, step)`: N−1 copies, copy k at
-│                           `original + k·step·sign` (from the ORIGINAL, never the previous
-│                           copy), ONE `edit()`, selects originals then copies; refuses before
-│                           `edit()` on a bad count or step. It and `duplicateBoards` share
-│                           the `copyBoard` helper (a fresh id, copied cuts, a name unique
-│                           against the growing list), so the two cannot drift. A copy
-│                           of a SHAPED part is a ShapedBoard on the same shape; a copy
-│                           of a plain part is plain with fresh cut ids (inv 45). An
-│                           ASSEMBLY's copy shares its definition (`shareInstance`).
-│                           Components: `oneEditPerTarget` (ONE edit per storage key —
-│                           two placements of one stored part must not both send one,
-│                           or `applyWorldEdits` throws), `judgeHeld()` (every held
-│                           point judged point-precisely after any part edit, because an
-│                           edit inside a definition moves parts in EVERY copy),
-│                           `makeUnique`, `selectCopies`, `reconcileHidden`.
-│                           Links (inv 45): `shapeMates` exist ONLY so a posture change
-│                           re-pivots every other user about its own centre; cut actions
-│                           write the shape once. `linkBoards` follows `linkPlan` and
-│                           points every member at one shape; `unlinkBoards` turns the
-│                           selected users plain and dissolves a one-user shape.
-│                           `selectLinked` writes through `selectionPatch`
-│   └── assemblyPick.ts     `clickTarget`: which item a viewport click on a part selects
-│                           (the outermost item below the open level; inv 46)
-│                           `openPath` (the open assembly, null at the root) is view state.
-│                           `selectionPatch` keeps only DIRECT CHILDREN of the open level, so
-│                           a selection is always one level. Edits go through `worldParts`
-│                           and `treeEdit.ts`, never a hand walk. `groupSelected` /
-│                           `ungroupSelected` re-key hidden ids and the tape's held points
-│                           (`rekeyHeld`), and are refused while `gesturing` (inv 43's
-│                           argument). Also `openAssembly`, `closeAssembly`, `selectItem`,
-│                           `clickPart`, `openPart`, `turnAssembly`, `renameItem`
-│   └── selectionGesture.ts `isToggleModifier` (Shift/Ctrl/Cmd), `selectByClick`,
-│                           `clearOnMiss` (no clear on a MODIFIED miss, nor outside the
-│                           Select tool; inside an open assembly a plain miss moves up one
-│                           level, `closeAssembly`, as Escape does — the user's ruling). In the store layer because the viewport AND
-│                           the parts list share it
-│   └── visibility.ts       `visibleBoards(boards, hiddenIds)`, the ONE filter for which
-│                           parts are drawn and offered as points; the viewport's
-│                           readers (Viewport, CameraKeys, TapeTool, moveCandidates) all
-│                           use it. Returns the SAME array when nothing is hidden. Call
-│                           it in a memo or handler, never a selector (inv 43). Pure
-├── storage/                types.ts (StorageAdapter), browser.ts (the singleton).
-│                           Inv 7; and invs 29, 30, 31 for the library
-│   └── libraryIndex.ts     LAYOUT_VERSION + parseIndex / sortEntries / touchEntry /
-│                           removeEntry. Versions the ARRANGEMENT OF KEYS, never a
-│                           document — which is why it is separate from
-│                           CURRENT_VERSION and why `parseIndex` returning null is a
-│                           REFUSAL (inv 30), while a single malformed ENTRY is
-│                           dropped (validateGuides' argument verbatim). Pure;
-│                           imports only ./types
-├── llm/                    imports nothing from the app
-│   ├── types.ts            LlmClient / LlmMessage (OPAQUE, inv 37) / LlmUsage / LlmError
-│   └── anthropic.ts        the Claude client: beta.messages.stream + finalMessage,
-│                           structured output, adaptive thinking, effort medium,
-│                           server-side fallback. JSON is parsed from text AFTER the last
-│                           fallback block; the turn goes back verbatim. toLlmError
-├── generate/               imports only document + llm
-│   ├── prompt.ts           SYSTEM_PROMPT, STYLES, DETAIL_CAPS, user/repair messages;
-│   │                       `Concept` lives HERE so prompt.ts never imports concepts.ts.
-│   │                       The concept rides in the USER turn (one `Design this
-│   │                       version:` line), NEVER in SYSTEM_PROMPT, which must stay a
-│   │                       fixed prefix
-│   ├── concepts.ts         the batch planning call (fu 164): one call sees all N, which
-│   │                       is the point — a run designing alone cannot contrast with
-│   │                       siblings it cannot see. Reuses userMessage. Parse is
-│   │                       ALL-OR-NOTHING over the first N (never mixes planned and
-│   │                       built-in). FALLBACK_CONCEPTS: Conventional / Minimal /
-│   │                       Different support
-│   ├── run.ts              runGeneration: MAX_REPAIRS = 3 (4 calls), append-only
-│   │                       history, keeps the fewest-violation attempt (later wins a tie).
-│   │                       `runRepairLoop` is the shared loop; `runJoinery` is its second
-│   │                       adapter: falls back to defaults only for model-call failures
-│   │                       (LlmError not auth/cancelled, RunFailed), keeps spent usage
-│   │                       via `spentBefore`; blame by kind + `parts` (inv 41)
-│   └── joints/             joinery for a finished design (inv 41). Imports document
-│       ├── pocket.ts       pocketFor: the ONE world box -> Cut converter (inv 41);
-│       │                   throws on a box removing the whole board; snaps within 1e-9
-│       │                   of 0 or a board end; `across` = most boundary contact, not
-│       │                   dimension order (a stopped dado read as a "notch"), then
-│       │                   stores it the way the sheet reads it (`storedAsShape`, fu 195).
-│       │                   Clamps in world-offset space, then `spanFromWorldOffset`
-│       │                   per axis (inv 44); its pose test covers all 12 poses
-│       ├── sites.ts        findSites / rangesOf. Rule 3 needs a thin panel (<= 1/2in)
-│       │                   and the contact reaching the panel's edge along the
-│       │                   RECEIVING part's thickness axis (a centre partition otherwise
-│       │                   lost half the back)
-│       ├── recipes.ts      applyJoints; re-grounds a floored design and reports it
-│       │                   (`JoinResult.lowered`, fu 184). Crossings run BOTTOM-UP by
-│       │                   the entering part's original min, grouped by axis, so each
-│       │                   part moves once (fu 185). A rabbet's sites on one panel
-│       │                   face are ONE unit, resolved from the panel's FINAL box
-│       │                   (moved, then trimmed to every rabbet line; fu 182): pockets
-│       │                   are cut against it, any other part in its path is trimmed
-│       │                   by the intrusion (fu 201), and it CARRIES its outer-face
-│       │                   chain (never its receivers; fu 183). A half-lap needs only
-│       │                   to still cross in plan with R wholly below E, ALIGNS E
-│       │                   (never moves it by t) and skips on a SWEPT-VOLUME overlap.
-│       │                   Every blocker and trim judges SOLIDS via `worldSolids`
-│       │                   (fu 203). Every refusal is decided BEFORE any mutation, and
-│       │                   every `resize` is pre-checked by `cutIntoEnd` (rebaseCuts'
-│       │                   throw), so an end already cut is a skip, never a throw.
-│       │                   A growing part's cuts are re-stored by SHAPE first (fu 199).
-│       │                   It runs on `flatDocument`; `writeBackFlat` writes the result into
-│       │                   the tree, splitting definitions and shapes whose results differ
-│       │                   and keeping the rest shared (inv 45, 46), and `run.ts` then runs
-│       │                   `migrateDocument` on it. `runJoinery.test.ts` pins the linked case
-│       │                   (identical mortises stay one shape, fu 223)
-│       │                   `resize` and `cutIntoEnd` take WORLD ends and map them to the
-│       │                   part's own end with `endFacing` (inv 44)
-│       └── choose.ts       JOINERY_PROMPT / JOINT_SCHEMA / parseChoices / defaults;
-│                           `defaultTenon` caps opposite-face tenons at down(depth/2
-│                           − 1/32) (fu 190; fallback only, the prompt is unchanged);
-│                           a cap under 1/2in shortens the default to >= 1/4in, else
-│                           butt (fu 188). The model's range is unchanged
-├── useGenerations.ts       the batch: one at a time, " — A/B/C" names, auth aborts all,
-│                           post-run abort guard, writes ONLY via createProject(doc,
-│                           { activate: false }) (inv 36). For N ≥ 2 it PLANS FIRST:
-│                           auth or cancel during planning start no run, anything else
-│                           falls back; a cancel landing AS planning resolves is caught
-│                           by a check BEFORE the runs — its test asserts run CALLS,
-│                           because the post-run guard would hide started runs from a
-│                           nothing-was-written check
-├── useJoinery.ts           the joinery run beside useGenerations: writes ONLY via
-│                           createProject(doc, { activate: false }) (inv 41, 36)
-├── viewport/               NO unit tests by design — driven in a real browser
-│   ├── Viewport.tsx        Canvas, lights, grid, camera keys; hides Gizmo outside
-│   │                       select mode, gates onPointerMissed. Plain click selects, a
-│   │                       modified click toggles (`selectByClick`); a modified miss keeps
-│   │                       the selection (`clearOnMiss`); `f` frames the whole selection
-│   │                       and stays a no-op with none. Draws only visible parts; Home
-│   │                       and the projection swap frame visible parts, and Home with
-│   │                       every part hidden does nothing. The swap re-frames only once
-│   │                       `controls.object === camera`: drei rebinds OrbitControls a
-│   │                       render after the camera changes, and framing earlier aims the
-│   │                       new camera at the origin
-│   ├── BoardMesh.tsx       one board per render; ghost box when boardSolids is empty
-│   │                       (inv 21). Required `selectable` prop, so the Move tool's
-│   │                       commit click cannot select the board it drops onto.
-│   │                       `onSelect(id, modifiers)`. Its `stopPropagation` is load-bearing:
-│   │                       a toggle delivered to two solids of one board is a no-op
-│   ├── MoveTool.tsx        raw pointer events on gl.domElement. Candidates are
-│   │                       `moveCandidates` (pure, tested): pre-grab every SELECTED part's
-│   │                       points, post-grab every UNSELECTED part's. A selected part moves
-│   │                       with the grab and is never a target. Guides are POST-GRAB only — targets,
-│   │                       never grab sources. Dep list is inv 15's failure mode
-│   ├── moveCandidates.ts   the Move tool's two candidate sets. Pure. Takes `hiddenIds`
-│   │                       (4th parameter): a hidden part offers no points in EITHER
-│   │                       branch (inv 16's rule: a marker sits on something drawn)
-│   ├── TapeTool.tsx        MoveTool's sibling; withholds nothing either way EXCEPT
-│   │                       hidden parts, which are not drawn. LATCHES
-│   │                       the hover while anchored (why inv 24 covers it).
-│   │                       SUBSCRIBES to tapeAxis — a dep entry over a value nothing
-│   │                       subscribes to is inv 15 in disguise. Locked with nothing
-│   │                       typed draws NO line (a decision; the honest alternative is
-│   │                       fu 130). A click while locked RE-ANCHORS and keeps the lock
-│   ├── GuideMarkers.tsx    every guide whenever guides are shown, independent of any
-│   │                       tool — a guide is document data
-│   ├── SnapMarker.tsx      screen-constant, always-on-top (depthTest off). Owns the
-│   │                       four off-palette colours and MARKER_PX / RING_PX /
-│   │                       RESTING_PX, all browser-settled (fu 60). RESTING_PX is the
-│   │                       guide-only ringless variant: guides are the only points
-│   │                       drawn when nothing hovers them, so GROWTH replaces "the
-│   │                       marker appeared" as the pick confirmation
-│   ├── snapPick.ts         pickSnapPoint — nearest in SCREEN space, ties by depth,
-│   │                       exact tie keeps first-found. Screen space rather than
-│   │                       raycast-first ON PURPOSE: a corner silhouetted against
-│   │                       empty space has no board under the cursor, so
-│   │                       raycast-first would make the easiest corners to see the
-│   │                       hardest to hit. `project` is a CALLBACK, not a camera —
-│   │                       what keeps THREE out and makes it unit-testable. Pure
-│   ├── pointer.ts          CLICK_DRAG_SLOP_PX, shared not copied (the fu 64 shape)
-│   ├── OriginAxes.tsx      R=X G=Y(up) B=Z; dashed = negative
-│   ├── gridDensity.ts      grid tier ladder (1in → 1ft → 12ft). Pure
-│   ├── screenScale.ts      px-per-inch + screen-stable dash scale. Pure
-│   ├── Gizmo.tsx           TransformControls, 1/16" snapping. Invs 3, 10, 25
-│   │                       With 2+ selected: one proxy at the selection box's centre,
-│   │                       committing through `moveGroupTo`. The single-part commit is
-│   │                       untouched ON PURPOSE (inv 42). A selection change mid-drag ENDS
-│   │                       the gesture and commits nothing
-│   ├── gizmoScale.ts       size ceiling + grabbable floor. Pure
-│   ├── extent.ts           SCENE_EXTENT, shared by Viewport and OriginAxes
-│   ├── grainFaces.ts       faceGrainKinds + grainFamily; re-exports axisDimensions
-│   ├── grainTiling.ts      per-face UVs, boardUVSignature. FACE_AXES carries each UV
-│   │                      axis's world axis AND ITS SIGN, and boardUVs applies the
-│   │                      sign BEFORE the swap (inv 35) — a whole board hides a
-│   │                      reversed axis, a SOLID does not. Each span is first put in
-│   │                      world-offset space by `spanToWorldOffset` per GEOMETRY axis,
-│   │                      before the sign and the swap (inv 44). Invs 12, 15, 17, 35. Pure
-│   ├── grainLog.ts         bandRadius (inv 14), wobble, seededRandom / hash. Pure
-│   └── grainTexture.ts     seeded canvas textures, cached, never disposed
-├── panels/
-│   ├── DimensionField.tsx  min/max REFUSE out-of-range entry rather than clamping,
-│   │                       because silently correcting a number the user just typed
-│   │                       loses a measurement. Inv 5. `value: null` is MIXED: an empty
-│   │                       box with a `mixed` placeholder. Every resync path formats
-│   │                       through `display`. Enter commits and BLURS (fu 212); a
-│   │                       refused entry keeps focus. `blurHandled` stops the blur
-│   │                       re-settling an edit Escape or Enter already settled.
-│   │                       Two OPTIONAL props (copy in a row): `onErrorChange`, from ONE
-│   │                       effect keyed on the error, so every path that sets or clears
-│   │                       it reports; `commitUnchanged`, a dirty commit calls onCommit
-│   │                       even when it parses to `value` (for a value that is a default)
-│   ├── NameField.tsx       commits on blur/Enter only, empty reverts; Enter blurs
-│   │                       too (fu 212). Invs 5, 9
-│   ├── Toolbar.tsx         project name, Add board, Cut list, undo/redo, the Select /
-│   │                       Move / Tape trio, view toggles, and the "Select a part to
-│   │                       move" hint. The Move button stays ENABLED — the hint
-│   │                       explains the state instead of removing the control
-│   ├── TapeReadout.tsx     the tape's DOM overlay. A real <input> outside the Canvas
-│   │                       (not drei Html), inside `.app-shell` so the cut list's
-│   │                       `inert` covers it. Owns the axis chip (the app's existing
-│   │                       brass-on-graphite idiom, NOT a fifth off-palette hue) and
-│   │                       the cause-carrying TapeError ('no-direction' |
-│   │                       'unparseable' | 'degenerate' | null) with TWO clearing
-│   │                       effects rather than one over-wide one. Invs 27, 28
-│   ├── GuidesList.tsx      one row per guide, an x per row, Clear all. NO selection
-│   │                       model, deliberately: a guide's marker is a known-bad hit
-│   │                       target, so there is no click-the-guide path to get wrong
-│   ├── ProjectMenu.tsx     the caret-triggered project list: switch, duplicate, the
-│   │                       inline duplicate error (fu 159) — cause-carrying like
-│   │                       TapeError, per-ROW so two rows cannot be confused, and
-│   │                       cleared by ONE effect keyed on `open` rather than beside
-│   │                       each of six close paths (inv 34's argument),
-│   │                       two-step inline delete, + New project, Import. NOT an ARIA
-│   │                       menu, decided rather than omitted — a row is a name plus
-│   │                       two independent actions, which is grid-shaped, so plain
-│   │                       buttons in DOM (Tab) order are the interaction and
-│   │                       `aria-current` marks the open project. Its Escape and
-│   │                       outside-click are bound to the menu's OWN subtree and are
-│   │                       NOT inv 27's business (see design §4.1). The arm/disarm
-│   │                       swap renders a <button> at the same sibling index in both
-│   │                       branches, which is the only reason focus survives it —
-│   │                       giving either branch a `key` silently breaks that. Rendered
-│   │                       ONLY when libraryAvailable (inv 30)
-│   ├── SettingsDialog.tsx  key (password field, Forget key) + model. Cut-list overlay
-│   │                       pattern, not <dialog> (spec §6.2 as-built note). A NEWLY
-│   │                       TYPED key is shape-checked (one run of printable ASCII, NO
-│   │                       prefix rule) and then verified via the `checkKey` prop
-│   │                       (App passes `checkAnthropicKey`, one free GET /v1/models):
-│   │                       401/403 refuses with the API's reason; anything else saves
-│   │                       with a note (fu 174)
-│   ├── GenerateDialog.tsx  the form, the per-run rows, Cancel. Same overlay pattern
-│   ├── JoineryDialog.tsx   Add joinery…: the sites, the run, the result. Overlay pattern
-│   ├── PartsList.tsx  FileMenu.tsx   PartsList: plain click selects, a modified click
-│   │                       toggles; `aria-pressed` per row. Each row is [eye][name]: the
-│   │                       eye's label is "Hide <name>" / "Show <name>" (`setHidden`); a
-│   │                       hidden row's name button is `disabled`. **Show all (N)**
-│   │                       renders inside PartsList, under the Parts heading, only
-│   │                       while something is hidden. A linked row (a shaped part) adds
-│   │                       a chain icon AFTER the name button (so the button's name stays
-│   │                       the part's), `role="img"`, `aria-label="Linked, N parts"`; an
-│   │                       assembly row whose definition has 2+ placements adds `×N`
-│   │                       (`aria-label="Shared, N copies"`, from `TreeRow.copies`). The list
-│   │                       is a tree (`treeRows`); an eye is disabled under a hidden
-│   │                       ancestor and on the open assembly
-│   ├── CopyInRow.tsx       Copy in a row…: the inline form, local state only until Apply.
-│   │                       Rendered INSIDE each Properties panel's selection-keyed root, so a
-│   │                       selection change remounts it closed and reset. `rowLayout` is the one
-│   │                       source of the summary, so the line shows what Apply will do; the
-│   │                       measurement field is keyed on the mode. Apply is disabled while
-│   │                       the field shows a refusal (`onErrorChange`, fu 218), and a typed
-│   │                       Pitch/Across equal to the default sticks (`commitUnchanged`)
-│   ├── Properties.tsx      2+ selected: `GroupProperties` — Length/Width/Thickness/Grain/
-│   │                       Material + Duplicate/Hide others/Delete, each edit one `updateBoards`;
-│   │                       `shared` compares EXACT stored values; the root is keyed on the
-│   │                       selection so a change resyncs. Otherwise board fields + Cuts,
-│   │                       and **Hide others** (`hideUnselected`) beside Duplicate in
-│   │                       both panels; CutRow is its own component so a
-│   │                       cut's error dies with the cut. Stop short of near/far
-│   │                       end; a stop pair leaving no cut is refused (only on a transition INTO
-│   │                       it, so a board shrink cannot lock the row), and changing
-│   │                       `across` RESETS the stops. A cut stored sideways to how the
-│   │                       sheet reads it shows a note + **Match the cut list** (one
-│   │                       undo, `storedAsShape`; not for a tenon shoulder, a cut
-│   │                       removing nothing, a default tie, or a refused re-store —
-│   │                       fu 195, 198). The word comes from `cutShape`. Turn offers
-│   │                       0/90/180/270 through `updateBoard` (single-part panel only).
-│   │                       Links (inv 45): the group panel shows **Link** whenever
-│   │                       `linkPlan` is non-null, the "will match" line when its
-│   │                       `changing` is non-empty, and **Unlink** when any selected
-│   │                       part is linked. A linked part's single panel shows a block
-│   │                       under the name: the count, **Select linked**, **Unlink**;
-│   │                       the count is a selector returning a NUMBER, not a memo
-│   │                       over the boards (inv 43's selector rule)
-│   │                       One assembly selected: `InstanceProperties` — name, Turn,
-│   │                       Duplicate / Ungroup / Group / Hide others / Delete, Copy in a row;
-│   │                       when its definition has 2+ placements, "Shared by N copies", **Select
-│   │                       copies** (another copy at the open level) and **Make Unique** (by
-│   │                       instance REFERENCES, inv 46). A mixed selection shows no size fields
-│   ├── diagramScale.ts     fitView / bandOn (ordering-guarded). MAX_ASPECT /
-│   │                       MAX_HEIGHT / MIN_WIDTH are browser-settled. Pure
-│   ├── diagramLabels.ts    LABEL_SIZE / CHAR_W / labelHeight / labelWidth / packRow
-│   │                       (axis-agnostic, reused verbatim for rotated columns) /
-│   │                       fitLabel, whose `requireDetail` option REMOVES THE
-│   │                       MIDDLE RUNG — full or index, never a bare name — for
-│   │                       a caller whose detail lines carry a FACT rather than
-│   │                       only numbers (fu 161). An ARGUMENT, never a search of
-│   │                       the strings for the word. The arithmetic substitute
-│   │                       for getComputedTextLength(), 0 under jsdom. Inv 19.
-│   │                       Pure
-│   ├── PartDiagram.tsx     one view as SVG. Formats NOTHING. The hatch is an SVG
-│   │                       <pattern> fill — foreground content, so it survives print
-│   │                       with background graphics off
-│   ├── SheetLayout.tsx     one SVG per sheet; labels via fitLabel, never packRow
-│   │                       (rects are already disjoint). Formats nothing. THE
-│   │                       ONLY CALLER passing fitLabel's `requireDetail`, as
-│   │                       `p.turned` (fu 161) — the tier decision stays in
-│   │                       fitLabel, NOT as an override here, or the ladder has
-│   │                       two deciders. Exports PAD so its tests size parts
-│   │                       from labelWidth rather than keeping a second copy
-│   └── CutList.tsx         the printable sheet, derived every render — no cached
-│                           copy, so nothing can go stale. Owns Escape-to-close, takes
-│                           focus on mount, owns both toggles as local view state
-└── App.tsx                 layout, autosave/restore, the `.app-shell` that goes
-                            `inert` behind ANY modal (`modalOpen = cutListOpen ||
-                            dialog !== null`, inv 27), the `newIds` badge set, the `.viewport-stack`
-                            TapeReadout positions against, `showGuides` as local
-                            prop-drilled view state (it joins `shortcutsSuspended`,
-                            NOT the store's `tool`). M, T, X/Y/Z, Ctrl/Cmd+A, H / Shift+H / Alt+H,
-                            Escape, Delete and undo/redo all live in the ONE existing
-                            keydown effect — inv 27. Plain and Shift+H match by `e.key`
-                            (a code match would make Dvorak's `d` hide); only Alt+H
-                            matches `e.code === 'KeyH'` (Option+H types `˙`). Ctrl/Cmd+H
-                            is unbound (Cmd+H hides the browser on a Mac).
-                            Delete removes every selected part.
-                            Escape's ladder: grabbed → tapeAxis → tapeAnchor → tool.
-                            Also owns `pending` (the autosave write, held as a
-                            CAPTURED-PAIR THUNK — inv 29) and `switchToken`, the
-                            one in-flight token every adopting handler bumps
-                            (inv 32)
+│   ├── types.ts          Board, Cut, Shape, ShapedBoard, StoredBoard, Instance, Definition,
+│   │                     SloydDocument, FlatDocument, MATERIALS, sheet stock
+│   ├── document.ts       create/validate/migrate (inv 11); takeId (inv 33); trueTurnsToV8 /
+│   │                     mirrorCutAlong (inv 44); validateGuides, validateShapes
+│   ├── ids.ts            nextId, the one id minter
+│   ├── names.ts          uniqueName / dedupeNames among siblings (inv 8)
+│   ├── geometry.ts       axisFrame, the ONE turn table, and its crossings (inv 44);
+│   │                     boardExtents/boardCenter/reorientedPosition (inv 2), boardsBounds
+│   ├── frames.ts         placeBoard / placeInstance, the ONE composition (inv 46)
+│   ├── tree.ts           occurrence paths, isCovered, worldParts (THE walk), flatDocument
+│   ├── treeEdit.ts       every write-back: applyWorldEdits (storageKey), lowerEdit,
+│   │                     translateItems, writeBackFlat (inv 46)
+│   ├── treeOps.ts        group/ungroup, shareInstance, makeUniqueItem, removeItems, turnInstance
+│   ├── treeRepair.ts     repairTree, dropUnresolved (load repair)
+│   ├── shapes.ts         resolveBoard (THE shape reader), shapeUsers, prune/dissolveShapes (inv 45)
+│   ├── links.ts          LINK_FIELDS (the ONE shared/own table), sameShared, linkPlan (inv 45)
+│   ├── linksToShapes.ts  the v10→v11 step
+│   ├── cuts.ts           cutRegion, boardSolids, boardEdges (inv 16), clippedRegion (THE clip),
+│   │                     cutShape (THE description of a cut), cutLabel, openSides,
+│   │                     storedAsShape, cutsThatRemoveStock, CUT_GEOMETRY_FIELDS (inv 40)
+│   ├── tenons.ts         findTenons
+│   ├── cutlist.ts        buildCutList (inv 18) — stock, not remainder
+│   ├── depthField.ts     buildDepthField (inv 20)
+│   ├── diagram.ts        buildDiagrams, one view per (face, from)
+│   ├── nesting.ts        buildNesting, shelf FFD; formatDims (invs 19, 22, 23)
+│   ├── snapPoints.ts     board/cut/guide snap points, towardFor, offsetPoint (inv 26)
+│   ├── row.ts            rowLayout (gap/pitch/fit-across; refusal CODES; no rounding, inv 25)
+│   ├── generated.ts      DESIGN_SCHEMA, parseDesign, designToDocument
+│   ├── designCheck.ts    checkDesign; worldSolids, the ONE world-solid mapping (invs 38, 39)
+│   └── treeFixtures.ts, turnFixtures.ts   TEST-ONLY (assemblyDoc; chiralPart, inv 44)
+├── store/
+│   ├── store.ts          state, edit(), undo/redo/restore, selectionPatch, held points,
+│   │                     hiddenIds, copyInRow, group/link/unique actions (invs 4, 24, 34, 42–46)
+│   ├── assemblyPick.ts   clickTarget (inv 46)
+│   ├── selectionGesture.ts  selectByClick, clearOnMiss (shared by viewport and parts list)
+│   └── visibility.ts     visibleBoards, the ONE visibility filter (inv 43)
+├── storage/          types.ts (StorageAdapter), browser.ts, libraryIndex.ts (invs 7, 29–31)
+├── llm/              types.ts (LlmClient, opaque LlmMessage, inv 37), anthropic.ts
+├── generate/         prompt.ts, concepts.ts (batch planning), run.ts (runRepairLoop,
+│                     runJoinery), joints/{pocket,sites,recipes,choose}.ts (inv 41)
+├── useGenerations.ts, useJoinery.ts   write only via createProject(…, {activate:false}) (inv 36)
+├── viewport/         NO unit tests by design. Viewport, BoardMesh (inv 21), MoveTool +
+│                     moveCandidates, TapeTool, Gizmo (invs 3, 10, 42), GuideMarkers,
+│                     SnapMarker, snapPick (screen-space nearest, on purpose), grain*.ts
+│                     (invs 12, 14, 15, 17, 35), pointer.ts, gridDensity, screenScale, extent
+├── panels/           DimensionField/NameField (invs 5, 9), Properties, CopyInRow, PartsList,
+│                     Toolbar, TapeReadout (invs 27, 28), GuidesList, ProjectMenu,
+│                     SettingsDialog, GenerateDialog, JoineryDialog, CutList, PartDiagram,
+│                     SheetLayout, diagramScale, diagramLabels (inv 19)
+└── App.tsx           layout, autosave/restore, the ONE keydown effect (inv 27), `pending`
+                      (inv 29), switchToken (inv 32), `.app-shell` inert behind any modal
 ```
 
 Deployment scaffolding: `Dockerfile`, `docker-compose.yml`, `nginx.conf`,
 `security-headers.conf`.
 
+### Per-file rules not covered by an invariant
+
+- **`snapPoints.ts`**: local→world is `position[axis] + toWorldOffset(board, axis,
+  local[axisFrame(board)[axis].dim])`. `pointToLocalXYZ` and `solidWorldBox` are
+  CENTRE-relative and both look like they do this — using either puts every point off by
+  half the board, plausibly. Pin with a rotated, non-flat pose. `towardFor` is the tape's
+  ONE direction source (preview and commit); a locked axis wins over a hover, never falls
+  back to it. `sameSnapPoint` lives here because the store needs it.
+- **`cutlist.ts` / `diagram.ts`**: format from `cutShape`, never from stored
+  `across`/`offset`/`width`/stops (fu 192). The cut list accumulates EXACT stock, never
+  qty × rounded dimensions, and ignores cuts (stock, not remainder). `storedAsShape`
+  returns an already-aligned cut as the same object.
+- **`nesting.ts`** takes `doc.boards`, NEVER `CutListRows`; too-big parts go in
+  `unplaceable`, never dropped. The word `turned` rides on `dims` (inv 19).
+- **`SheetLayout.tsx`** is the only caller of `fitLabel`'s `requireDetail`; the tier
+  decision stays in `fitLabel`, not as a panel override. The sheet key list is NOT an
+  `<ol>` (the number comes from `nextIndex`, not DOM position; fu 162).
+- **`prompt.ts`**: a batch concept rides in the USER turn, never in `SYSTEM_PROMPT`, which
+  must stay a fixed prefix. `Concept` lives in `prompt.ts` so it never imports
+  `concepts.ts`. **`concepts.ts`**' parse is all-or-nothing (never mixes planned and
+  built-in concepts).
+- **`SettingsDialog.tsx`**: a new key is shape-checked and verified with one free
+  `GET /v1/models`; 401/403 refuses, anything else saves with a note. **There is
+  deliberately no prefix rule.**
+- **`useGenerations.ts`**: auth or cancel during planning starts no run; a cancel landing
+  as planning resolves is caught before the runs (its test asserts run CALLS).
+- **`store.ts`**: `copyInRow` and `duplicateBoards` share `copyBoard` so they cannot drift.
+  `tapeAxis` is NOT a held point (an enum cannot go stale; do not give it clearing rules).
+- **`MoveTool` / `moveCandidates`**: pre-grab candidates are the SELECTED parts' points,
+  post-grab the UNSELECTED parts'; a selected part is never a target; guides are targets
+  only, never grab sources. Its dep list is inv 15's failure mode.
+- **`TapeTool.tsx`** subscribes to `tapeAxis`; locked with nothing typed draws NO line (a
+  decision; fu 130 is the alternative). A click while locked re-anchors and keeps the lock.
+- **`BoardMesh.tsx`**: its `stopPropagation` is load-bearing (a toggle reaching two solids
+  is a no-op); `selectable` is required so Move's commit click cannot select its target.
+- **`Viewport.tsx`**: the projection swap re-frames only once `controls.object === camera`,
+  or it aims the new camera at the origin.
+- **`DimensionField.tsx`**: min/max REFUSE out-of-range input, never clamp. Enter commits
+  and blurs (fu 212); a refused entry keeps focus.
+- **`ProjectMenu.tsx`**: deliberately not an ARIA menu. The arm/disarm swap renders a
+  `<button>` at the same sibling index in both branches — giving either a `key` breaks
+  focus. Rendered only when `libraryAvailable`. A duplicate error's cause is read off
+  `storage.available` (the ADAPTER flag, never React's `available`; fu 159).
+- **`GuidesList.tsx`** has no selection model, deliberately.
+- **`App.tsx` keys**: plain and Shift+H match by `e.key`; only Alt+H by `e.code === 'KeyH'`;
+  Ctrl/Cmd+H is unbound. Escape's ladder: grabbed → tapeAxis → tapeAnchor → tool.
 
 ## Invariants — break these and things fail in confusing ways
 
-Each cost real debugging. They are load-bearing, not style. **Do not renumber them** —
-these numbers are cited from code comments, the specs and `docs/follow-ups.md`. The
-worked examples behind several of them are in `docs/history.md`.
-
-1. **The document is the source of truth.** No component may hold geometry state not
-   derived from it, and nothing may write to a Three.js object's transform as a way of
-   recording a change.
-2. **`position` is the min-corner**, not the centre; `boardCenter` exists because
-   Three.js meshes are centre-origin and the document is not. `reorientedPosition` is the
-   only home for the reorient pivot and takes the whole patch (`Partial<Board>`), because
-   a patch that also changes a dimension needs the pivot computed from *post-patch*
-   extents. `grain` and `cuts` are deliberately absent from the reorient predicate —
-   neither changes a board's extents, which is also why cut edits get their own store
-   actions instead of going through `updateBoard`. **A snap move reaches the predicate and
-   correctly fails it**: `commitSnapMove` patches `position` only, and a snap move
-   translates, never turns. A future tool that both moves *and* turns in one gesture must
-   carry its own `position` in the same patch, or it will be pivoted on top of its own
-   translation.
-3. **The `dragging` ref guard in `Gizmo.tsx`.** `TransformControls` computes motion from
-   state captured at drag start; syncing the document into the proxy mid-drag makes it
-   fight itself. The symptom is jitter or drift, not a crash.
-4. **Gesture snapshots are lazy** — taken on the first `edit()` inside a gesture, not in
-   `beginGesture()`. Eager snapshotting leaves no-op undo entries, so `Ctrl+Z` appears to
-   do nothing.
-5. **A field holding a local draft — `DimensionField` and `NameField` both — skips its
-   adopt-external-changes effect while focused, and that effect never re-fires afterward,
-   so blur must resync the display from the stored value and must not commit when the
-   field was untouched.** Two failure modes if either half is missing. Commit an untouched
-   field and it rewrites exact stored values with display-rounded ones (0.7" → 11/16").
-   Skip the resync and the field shows a stale number *indefinitely* once an external
-   change (a reorient, an undo, a gizmo drag) lands while it has focus: the effect is keyed
-   on the value, so nothing re-runs it just because focus later leaves — only a remount.
-   **Stored values are exact; display rounds.**
-
-   **A MIXED field is the sharpest case (multi-select).** `DimensionField`'s `value: null`
-   shows an empty box; an untouched blur there must write nothing, because a commit would set
-   every selected part to one value with no sign on screen. The test for it asserts the ERROR
-   state as well as the absence of a write: with the dirty guard deleted, blur commits `''`,
-   which `parseLength` refuses, so "nothing written" alone survives the mutation.
-6. **`add_header` does not merge across nginx levels.** A `location` block containing any
-   `add_header` discards everything inherited — which is why `security-headers.conf` is
-   `include`d in every block rather than set once on the server.
-7. **`autoSave` must never throw.** It reports failure via `storage.available`, which
-   drives the warning banner.
-8. **Board names are unique, enforced in four places** — `addBoard`, `duplicateBoard`, the
-   name-field commit, and `migrateDocument`. Creation-only enforcement is not enough: an
-   imported or hand-edited file would violate it. `createBoard` cannot dedupe (no view of
-   the document), so any new call site that adds a board must pass its name through
-   `uniqueName` itself. `validateBoard` trims before the blank check, so `dedupeNames`
-   never receives something that trims to `''`.
-
-   **Restated for assemblies (inv 46): a name is unique among its SIBLINGS**, the parts AND
-   assemblies of one container (a definition, or the root), checked together. Two drawers may
-   each have a "Front". The enforcement points gain Group and Ungroup, and a new assembly is
-   `Assembly N`, unique among its siblings. Paths are therefore unique too. That is what makes
-   `flatDocument`'s display names (`Cabinet › Drawer › Front`) unique.
-9. **`NameField` commits once, on blur or Enter — never per keystroke.** An emptied name
-   reverts, which is only possible with a single commit: writing per keystroke and
-   correcting on blur takes the gesture's undo snapshot before the correction lands,
-   leaving an entry that undoes to nothing. Its `onCommit` returns the *stored* name,
-   because dedup can store something other than what was typed. Without invariant 5's
-   `dirty` guard, an untouched field blurring after an external rename writes stale local
-   text back over it — a silent write, worse for being invisible until something reads it.
-10. **The gizmo size clamp writes `size` *before* the library's `updateMatrixWorld`, never
-    `handle.scale` after it.** `size` is an input to three-stdlib's scale computation, so
-    the library bakes the correction itself; correcting the output lands in the re-bake
-    trap invariant 3's neighbouring comment documents. The clamp is two-sided *and* has a
-    floor on the cap itself (`GIZMO_MIN_CAP_INCHES`) — a board-relative ceiling alone
-    shrinks the gizmo for small parts the moment they are selected.
-11. **Migration steps run on raw data, before `validateBoard`, in version order.**
-    `validateBoard` falls back to `0` for an unknown rotation, so a fold running after it
-    turns every saved 270° board a quarter turn the wrong way — a different shape on
-    screen, not a redundant one. `addPostureToV3` has the same failure mode: the posture
-    fallback is `'flat'`, a perfectly legal value, so a `standing: true` board reaching the
-    validator first comes out lying down — silently, and only for files that already exist.
-    **Upgrade first, validate second, one version at a time.**
-12. **Grain textures are cached at module level and never disposed; per-board variation
-    lives in the `uv` attribute, never on the texture.** `texture.repeat`/`offset`/
-    `rotation` are per-texture state on an object every board shares — writing them per
-    board makes every board on screen fight over one mapping. The per-board offset is
-    zeroed on any axis a `FacePlan` marks `fit`: the whole tile shows either way there, so
-    an offset only shifts the seam into the middle of the face.
-13. **~~`axisDimensions` had a second copy in the viewport.~~ RETIRED in v3** — now
-    single-sourced in `document/geometry.ts`; the drift test was deleted, not forgotten,
-    because the two things it compared are one thing. *(Number kept deliberately.)*
-    Since v8 `axisDimensions` is derived from `axisFrame`, which adds direction: invariant 44.
-14. **`bandRadius` is `hypot(d, k·delta)`, and the tile is seamless by two different
-    mechanisms.** Because `r = hypot(d, k·delta)`, the in-plane offset `sqrt(r² − d²)` is
-    exactly `k·delta` — evenly spaced whatever the cut distance `d`; a "simpler" radius
-    reintroduces a seam that only shows on a wide board. That covers *u* only. *v* is
-    seamless because `bandRadius` is even in `k` and the seed bucket is
-    `Math.abs(k) % half`, so the pattern **folds about the pith line** rather than
-    repeating. `grainTexture.ts`'s `woodCut` comment states this precisely — agree with it,
-    don't restate a looser version.
-15. **Anything memoising on what `boardUVs` reads must key on `boardUVSignature`, not a
-    hand-written field list.** v3 added `grain` without updating `BoardMesh`'s dep array,
-    so grain silently stopped turning on screen while the document stayed correct — which
-    is what made it look like it worked, and no per-task review could see it (added in one
-    task, consumed by the stale memo in another). Joinery added `cuts` for the same reason.
-    The signature excludes `position`/`name` so dragging doesn't rebuild geometry every
-    frame, and it is **identical for every solid of a board** — anything caching per solid
-    must not key on it alone (`BoardMesh` builds all geometries in one memo). **A dep entry
-    over a value nothing subscribes to is this same failure mode in disguise.**
-16. **Edge lines come from the cell grid, not from the solids.** The remainder around a
-    dado is L-shaped in section, so the canonical case leaves three abutting solids across
-    a *continuous* uncut face and per-solid `EdgesGeometry` draws lines corresponding to no
-    real edge. Merging cannot fix this and is not meant to. `boardEdges` tests the up-to-
-    four cells around each candidate segment and draws unless the configuration is flat;
-    cells outside the board count as empty, which makes the silhouette, the convex corners
-    and the concave shoulders fall out of **one rule**. Contiguous drawn cells merge into
-    one segment — without that, a cut anywhere fragments lines on faces it never touches.
-    **The general rule: a marker or a line must sit on a feature that is actually drawn** —
-    also why the volume centre is not a snap point, and why `boardSnapPoints` is filtered
-    through `stockProbe`.
-17. **UVs are parent-relative, and `FIT` resolves against the board, not the solid.**
-    `boardUVs(board, solid)` looks a sub-box up in the *board's* tiling, so the figure runs
-    continuously across a dado instead of restarting — which is what makes a cut read as
-    stock removed from one board rather than two boards pushed together. `FIT` means "show
-    the whole tile on this axis", and the tile belongs to the board; fitting it to the
-    solid would squeeze plywood's whole ply stack into the stock a ¼" dado left.
-    `FacePlan` carries `tileInches` (size, not count) precisely so `FIT` and fixed tiling
-    are one division.
-18. **On the cut list, dimensions collapse at display precision and cuts must match
-    exactly**, and neither may be relaxed to match the other. A stock dimension rounded to
-    1/16" costs nothing — two boards 0.02" apart are one board to anyone cutting them, and
-    splitting the row makes the sheet lie about how much stock to buy. A *cut* rounded the
-    same way costs the joint: two dados 0.02" apart are two setups, and collapsing them
-    tells the user to run one. **Round what is bought, never what is machined.** This is
-    not the float-`===` hazard `cutLabel` had — that compared a *subtraction result*
-    against a bound, where the arithmetic introduces the error; here both sides are stored
-    values, and exact comparison is correct precisely because nothing computes them on the
-    way in.
-19. **`LABEL_SIZE` has exactly one home, and `--font-num` on diagram text is
-    load-bearing.** `LABEL_SIZE` is applied to the `<svg>` as a `fontSize` attribute;
-    `styles.css` must **never** set a `font-size` on diagram text. `labelWidth`'s
-    arithmetic (character count × `CHAR_W`) is only true of the size the browser actually
-    renders, so a second `font-size` in CSS is a value a future edit drifts out of step
-    with silently. The font-family matters identically: `--font-num` is a **monospace**
-    stack, which is what makes a fixed per-glyph advance true at all. Swap it for a
-    proportional face and `labelWidth` returns a number unrelated to what's drawn,
-    `packRow` starts stacking labels, and **every unit test still passes** — because the
-    tests assert the arithmetic, not the render.
-
-    **The third clause, and the one a panel edit reaches first: THE MEASURED STRING AND
-    THE DRAWN STRING MUST BE THE SAME STRING.** A label's full text has to be assembled
-    *before* it reaches `fitLabel`/`packRow`, which means in the module that builds it —
-    `nesting.ts` for a sheet part, `diagram.ts` for a view — never in the component. This
-    is why `PlacedPart.dims` carries the word `turned` itself rather than `SheetLayout`
-    writing `{p.turned && ' turned'}` beside it (follow-up 92): a panel-side concatenation
-    measures one string and draws a longer one, which is this invariant's stated failure
-    mode arriving by a different door, with the same green suite. A panel putting a bare
-    literal next to measured text looks like exactly the sort of thing panels do, so the
-    prohibition is worth stating rather than inferring — and it is the rule any second
-    mark on a sheet label must land against, follow-up **161**'s remedy included.
-
-    The other half of the clause is what makes it checkable: **a glyph outside the
-    monospace stack breaks the advance and nothing on screen says so**, so a non-ASCII
-    mark must be measured in a browser before it is trusted. Done once, and it is the
-    reason a symbol was rejected for 92 — in Chromium at the applied 20px, ASCII letters,
-    digits, `"` and the already-present `×` all advance 12.0345 against `CHAR_W`'s 12.4,
-    an over-estimate in the safe direction (too wide costs a tier; too narrow overflows
-    the box). `docs/browser-verification-turned-label.md` carries the table.
-20. **`depthField.ts` shares `cuts.ts`'s split/cover skeleton but not its operation, and
-    `boardSolids` is not reusable here.** `boardSolids` **drops** each cell whose centre
-    falls inside any cut — a bit, in 3D. `buildDepthField` **assigns** each cell the
-    maximum depth among covering cuts — a number, in 2D. It has no merge step, correctly:
-    the hatch is a `patternUnits="userSpaceOnUse"` pattern, so equal-depth neighbours
-    already render indistinguishably, and the one place a *count* matters is `diagram.ts`'s
-    crossing-depth `Set`. Agreement is asserted by `depthField.agreement.test.ts`, not
-    assumed — and that test's first version passed with the cover step broken, because it
-    asserted only *coverage*. **Any future agreement test between a 2D derivation and its
-    3D source must assert the value the derivation claims to compute, not just where it
-    claims to differ from zero.**
-21. **The empty-solids placeholder must stay a mesh, not a wireframe.** When `boardSolids`
-    returns `[]`, `BoardMesh` draws a translucent ghost box at the AABB. Dropping the fill
-    for just the outline silently breaks selection: `THREE.Line` raycasting registers a hit
-    only within ~1" of a drawn line, leaving the whole interior dead to the pointer — the
-    part looks right in every screenshot and is unclickable except near an edge. That is a
-    viewport-parity rule: **a part you can see is a part you can click.** The fill is the
-    hit target, the outline the legibility; keep both, and test a change here by clicking
-    the **middle** of a ghost face, never its edge. `depthWrite` is off so a part with no
-    stock never occludes one that has some, and the placeholder rides in the existing
-    `geometries` memo — a second memo would need its own hand-written dep list, which is
-    invariant 15 exactly.
-22. **`nesting.ts`'s fits-test carries an epsilon, the deliberate OPPOSITE of invariant 18,
-    not a relaxation.** There, both sides are stored values a user typed. Here one side *is
-    computed*: `shelf.used` accumulates by addition, so the test compares a running sum
-    against a bound — the shape that made `cutLabel` wrong 2.8% of the time. **Apply the
-    tolerance that matches the arithmetic you actually have.** What reaches the tolerance
-    is narrower than it looks, and the round's own plan got this wrong: sixteenths and
-    sixty-fourths are dyadic rationals and sum exactly in IEEE 754, so a 15,298-case sweep
-    came back bit-identical with and without `EPS`. It earns its keep only because
-    `parseLength` also accepts decimals and millimetres (÷25.4).
-23. **The shelf-height guard (`placeOn`'s `fits(f.h, shelf.h)`) is the SOLE enforcer of
-    guillotine cuttability, and a self-derived test bound cannot catch its removal.** The
-    whole justification for shelf packing is that every shop cut runs edge to edge, which
-    holds only if a shelf never takes a part taller than the one that opened it — nothing
-    in the sort order guarantees it. The obvious test (derive each shelf's band from the
-    parts inside it) silently **cannot fail**, because a spilling part just grows its own
-    recorded band; deleting the guard passed 19/19. The fix bounds each part against the
-    **next** shelf's start, a bound the parts under test cannot move. **Any future test of
-    a "cannot exceed its container" property must bound against a value the thing under
-    test does not itself produce.**
-24. **A held point holds a world position, so anything that moves the boards under it must
-    drop it.** `grabbed.at` is a captured `[x, y, z]`, not a live reference — it is what
-    `commitSnapMove` subtracts. `tapeAnchor` is the second instance (the distance and the
-    typed-offset direction both derive from it) and `tapeHover` the third, which it earned
-    the hard way: a hover would normally be too transient, except `TapeTool` **latches** it
-    while anchored, so it can sit unreplaced across arbitrarily many edits. All three clear
-    through one helper, `dropHeldIfGone`, which keeps its **guard-first shape** (return
-    before any grid arithmetic when no field is relevant) — adding a field is exactly how
-    that gets lost.
-
-    Three distinct reasons a field is cleared, not interchangeable:
-
-    - **The world moved.** `undo`, `redo`, `replaceDocument` (open/import/autosave-restore
-      all route through it, and the named board may not exist in the new document at all),
-      and `deleteBoard`/`updateBoard` — the last two **conditionally**, since an edit to
-      another board changes nothing. `updateBoard` is live: nothing disables Properties in
-      Move mode and `commitSnapMove` even selects the board it moved, so a Length edit
-      typed right after a grab can relocate it out from under its own point. Committing
-      after any of these applies a delta derived from a position that describes nothing —
-      undoable, but not obviously wrong. **A future action that rewrites `doc.boards`
-      wholesale joins this list** — that is the test, not "does it touch positions",
-      because a wholesale rewrite invalidates a grab by removing its owner as easily as by
-      moving it. **`undo` and `redo` clear only when the restored document is a DIFFERENT
-      object** (`restore` in `store.ts`): the undo of a hide or show restores the same
-      object, nothing moved, and clearing there would drop a measurement the hide itself was
-      forbidden to drop. See invariant 43.
-    - **The feature underneath was destroyed.** `addCut`/`updateCut`/`removeCut` — routed
-      *around* `updateBoard` by invariant 2, which is why they needed their own clear and
-      could be given a better one. It is **point-precise, not board-precise**:
-      `dropHeldIfGone(boardId)` runs **after** the `edit()` and keeps the point iff it is
-      still among that board's `snapPointsFor` output. Holding a box corner while editing a
-      mid-face dado usually keeps the grab; a rabbet pulled flush with the board's end
-      makes that corner stop being offered and the grab drops, by the same rule. Two things
-      are easy to undo by "tidying": the comparison is exact `===` (invariant 18's reason),
-      and the call must sit **after** `edit()`.
-    - **The user retargeted the tool.** Only `grabbed`, because Move's grab candidates are the
-      SELECTED parts' points. Every selection write — `selectBoard`, `toggleSelected`,
-      `selectAll`, and `edit()`'s `selection` callback (so `addBoard`/`duplicateBoards` inherit
-      it) — goes through `selectionPatch`, which drops the grab exactly when its owner leaves
-      `selectedIds`. Toggling out a selected part that is NOT the owner keeps the grab, and
-      that part becomes a target. `commitSnapMove` also refuses outright when
-      `grabbed.owner.id` is not in `selectedIds`, before any `edit()`, deliberately leaving
-      `grabbed` in hand.
-
-    Four further rules, each load-bearing:
-
-    - **A PROHIBITION: no selection write — `selectionPatch`, and so `selectBoard`,
-      `toggleSelected`, `selectAll` and `edit()`'s selection callback — may clear
-      `tapeAnchor` or `tapeHover`.** No part of the retargeting reason reaches the tape,
-      which has no selected-board restriction — measuring from one board to another is most
-      of what it exists for, and "measure from this board to the one I am about to add" is
-      a live path through `addBoard`. Stated as a prohibition because *"add
-      `tapeAnchor: null` beside every `grabbed: null`"* is exactly what a tidying pass would
-      do and would look like consistency. Store tests exist to catch it.
-    - **`clearGuides` clears both tape fields unconditionally**, which is right: every guide
-      is going, so a guide-owned anchor is invalid and a board-owned one is cheap to drop.
-      The *hover* going unconditionally is defensible **only** because the anchor is nulled
-      in the same statement — no anchor, no latch. That is a property of the statements
-      that do it (`setTool`, `clearGuides`, `replaceDocument`, and `undo`/`redo` through
-      `restore` when the document changes), not a licence to add another.
-    - **THE ASYMMETRY, a trap in both directions.** At `updateBoard` the tape fields are
-      point-precise while **`grabbed` keeps a board-precise clause**, so renaming the
-      grabbed board cancels the grab — deferred because it is shipped Move-tool behaviour,
-      not because the argument fails to reach it. The board-precise clause fires **first**
-      and pre-empts the survival test below it, so **deleting it silently converts
-      `grabbed` to point-precise**, and **adding one for either tape field silently
-      re-breaks the rename case** — caught only by the "keeps" tests, never the "drops"
-      ones.
-    - **The enumeration lives in ONE place** — `tapeHover`'s declaration in `store.ts`.
-      Point at it; do not restate a count anywhere else, which is how a comment went stale
-      once already.
-25. **The snap move is deliberately NOT rounded to `SNAP_INCHES`, the exact opposite of
-    what `Gizmo.tsx` does — both correct.** The gizmo snaps because a free drag lands on
-    arbitrary numbers. A snap move's entire purpose is the *exact* coincidence of two
-    points: if both boards already sit on 1/16" boundaries the delta is exact and a snap is
-    a no-op, so the only case where rounding does anything is the case where it silently
-    breaks the result the user just asked for — by a sixteenth, with the display rounding
-    to the same string either way (invariant 5) so nothing on screen shows it. **The rule:
-    round what a free drag produced; touch nothing that is already an exact position or a
-    difference of two of them.** Compare invariant 22, the same argument in the other
-    direction. This covers three more operations: a click-placed guide (`hit.at`), a
-    ray-typed guide (`offsetPoint`), and — the one easiest to think you've already
-    satisfied — an **axis-placed** guide, which *looks* like it should land on the grid
-    because a person typing `3` along Y from an on-grid corner does. Verified rather than
-    argued: `0.01` along X from `x = 5` reads back out of `localStorage` as exactly `5.01`.
-    **A row of copies is a fifth** (`copyInRow`): the step comes from typed values (gap,
-    pitch, or span) and is never rounded, and copy k is computed from the ORIGINAL as
-    `position + k·step·sign`, never from the previous copy, because a running sum drifts by an
-    ulp per copy.
-26. **`grabbed` is a `BoardSnapPoint`, and that is what makes eight reads correct.** The
-    guide-points round widened `SnapOwner` with a `{ type: 'guide' }` member, and that edit
-    is silent by construction: both members carry an `id: string`, so every `owner.id` read
-    keeps typechecking while quietly meaning something else. Eight reads in `store.ts`
-    assume it names a **board** (enumerated in the guide-points design §3 and pointed at
-    from `grabbed`'s declaration — do not restate the list). Seven are correct only *by
-    accident*, because a guide can never reach `grabbed` — an accident holding solely via a
-    filter two modules away in `MoveTool`. **A comment cannot enforce that; a type can.**
-    So the three providers are annotated `BoardSnapPoint[]`, `pickSnapPoint` is generic in
-    the candidate type, and `grabbed`/`grabSnapPoint` take the narrow type.
-
-    The consequence that reads as a gap and is the win: **the "a guide-owned grab must be
-    declined" store test was deleted, because that state cannot be constructed in
-    TypeScript at all.** Do **not** add a runtime `if (grabbed.owner.type !== 'board')`
-    guard to `commitSnapMove` to make it writable again. One runtime narrowing on that path
-    *does* survive and is not vestigial: the self-snap guard tests
-    `target.owner.type === 'board'` before comparing ids, because the *target* genuinely
-    can be a guide, and without it a guide whose id collided with the grabbed board's would
-    read as a self-snap.
-
-    The price of the wide type, before adding a fourth held field: `tapeAnchor`/`tapeHover`
-    are `SnapPoint` on purpose — **the difference between them and `grabbed` IS the
-    documentation of which can hold a guide** — and they pay in five runtime `owner.type`
-    tests. `pickSnapPoint`'s generic is currently **unrealized** (both call sites pass a
-    union), and `MoveTool` still narrows at entry via `isBoardOwned`, a written-out type
-    predicate — narrowing the *property* inline does not narrow the *value*.
-27. **Every window-level shortcut goes into `App`'s ONE existing keydown effect, and any
-    new `window` listener must take the modal-open flag explicitly.** *(Since the Generate
-    round the flag is `modalOpen = cutListOpen || dialog !== null`. Read every
-    `cutListOpen` below as `modalOpen`; the reasoning is unchanged. A dialog's real
-    exposure is focus on the sheet or a button, not typing, which `isTextEntry` already
-    covers. That is spec §6.4 as corrected.)* While the cut list
-    is open the rest of the app carries `inert`, removing the subtree from the tab order,
-    hit-testing and the a11y tree in one attribute — the failure mode being *silently
-    editing the document while reading a sheet that shows no selection*, since `NameField`,
-    the project-name field and every `DimensionField` commit on change or blur. But `inert`
-    **cannot touch a `window` listener**, which never sees which subtree an event came
-    from. So `App`'s effect early-returns on `cutListOpen`, and `Viewport` takes it as the
-    `shortcutsSuspended` prop for `f`/`Home` — without which `f` re-frames the camera
-    invisibly and hands back a moved view.
-
-    The effect's guards are the reason to join it rather than mere tidiness. `cutListOpen`
-    means nothing arms a tool or seeds a distance box behind a sheet, and Escape closes the
-    sheet while leaving a grab behind it untouched — behaviour a second listener would have
-    to re-derive and could drift from. `isTextEntry` at the top is *why only the first
-    character of a typed length needs capturing*: once the input has focus, every later
-    keystroke matches that guard and reaches the field directly. **That same guard is why
-    `TapeReadout` needs its own X/Y/Z branch beside Escape's — forced, not redundant, since
-    `App`'s listener never sees another key once the box has focus.** One spelling detail
-    is load-bearing there: the modifier test is part of the *condition*, not an early
-    `return` like `M`'s and `T`'s, because `Ctrl+Z` is `e.key === 'z'` and a returning
-    guard would swallow undo.
-
-    `shortcutsSuspended` and `showGuides` are prop-drilled local view state while
-    `tool`/`grabbed` are in the store — one rule applied to three fan-outs, not a
-    contradiction. `tool` has four consumers at three depths; a single flag with one
-    consumer does not earn shared state.
-28. **`TapeReadout` must stay unconditionally mounted.** `tapeTyped`'s anchor-loss clear is
-    owned by an effect inside it — the right home, and a coupling. It renders nothing
-    without an anchor, so hiding it behind `tool === 'tape'` looks free; it is not. Since
-    the typed capture **appends** rather than replaces, breaking the mount turns the
-    consequence from a cosmetic flicker into a silently wrong placement. The append is
-    load-bearing too: a pointerdown on the canvas blurs the input while the anchor lives,
-    so the tool's central gesture is *type `1`, orbit to see the face, type `2`* — and
-    replacing would answer `2` while the box read `1` the whole way round. **The displayed
-    text and the next keystroke's effect must not disagree.**
-29. **The active project id is an EXPLICIT ARGUMENT to `autoSave(id, doc)`, never adapter
-    state — and the mechanism is not the one the plan claimed.** If the id lived inside the
-    adapter, a debounce armed while project A was open would fire after a switch and write
-    **A's document into B's slot**: no error, no visual difference, B's work gone on the next
-    read. The signature is what stops it, because a future edit that drops the id has to
-    delete an argument rather than merely forget an ordering.
-
-    **State the protection precisely; the plan got this wrong and mutation testing corrected
-    it.** What makes the race unreachable is the id being **captured in the same effect
-    closure as `doc`**, plus **`doc` changing on every switch** — so the effect's existing
-    cleanup clears the pending timer before the new one arms. With `[doc]` alone the race
-    test still passes; the dep entry is belt-and-braces *for the race*.
-
-    **But `activeId`'s dep-array entry is genuinely load-bearing for a different reason, and
-    a reader who deletes it because "the race doesn't need it" will break autosave
-    silently.** There is exactly one path where `activeId` changes and `doc` does **not** —
-    the restore effect's edit-wins branch, which adopts `activeId` while keeping the user's
-    in-progress document. Drop the entry and that adoption never re-runs the effect: the
-    `!activeId` guard then kills **every save for the rest of the session**, while
-    `SaveIndicator` goes on reading *Saved locally*. **Do not remove it, and do not
-    re-justify it with the race.**
-
-    **A third thing, and the one a tidying pass reaches for: the cleanup CANCELS the
-    outgoing write, so every switch must FLUSH it first.** Cancelling closed the race and
-    nobody asked whether the write ever happened — it did not, and the outgoing project's
-    last ≤600 ms of edits were discarded on every switch, the central gesture of the
-    library. So `App` holds the pending write as **ONE record** and every switch handler
-    awaits `flushAutoSave()` before `setActiveId`/`replaceDocument`.
-    **A PROHIBITION: do not split that record into separate refs, and do not read `activeId`
-    back off state inside the flush** — holding the pair together is what makes the crossing
-    race *structural* rather than timed, since every flush path then writes a matched pair
-    whatever it reads. Two refs can be updated a render apart, and the failure is A's
-    document in B's slot, silently. The detail lives in `App.tsx`'s comment on `pending`;
-    point at it rather than restating it.
-
-    **The record is `{ write, timer }`, NOT `{ id, doc, timer }`, and that is the prohibition
-    being enforced rather than restated (follow-up 158).** `write` is a thunk built inside the
-    autosave effect — the one scope where `activeId` and `doc` are each other's counterpart,
-    because the effect reran for exactly those two values, so there is no argument to pass and
-    none to swap. The flush holds no id and no document, so the forbidden line
-    `storage.autoSave(activeId, p.doc)` does not compile. Before this it did, and passed all 51
-    `App.test.tsx` tests. **Do not "restore inspectability" by putting the id or the document
-    back on the record** — reading either one back is exactly how the mismatch becomes writable
-    again.
-30. **`sloyd.autosave.v1` is never deleted and never written after adoption, and adoption
-    fires on exactly ONE condition: the index key is ABSENT.** That key *is* the user's
-    project on a pre-library build, Sloyd has no server-side state, and there is nothing to
-    restore from — so it costs a few kilobytes and it is this round's entire rollback story.
-    Deleting it to be tidy converts a free rollback into an unrecoverable one, which is why
-    `browser.ts` carries a comment saying so at the point where deleting it would be natural.
-
-    **Absence is tested on the RAW `getItem` result, before any `JSON.parse`.** A
-    present-but-unusable index — corrupt JSON, an empty string, or an unrecognised `layout`,
-    in particular a **newer** one — must never be treated as an absent one. Treating it as
-    absent silently clobbers real project data with a fresh single-entry index built from the
-    now-stale legacy document. So it **refuses and writes nothing**, degrading to a genuinely
-    read-only legacy session with `available === false` and the storage banner showing (not a
-    session that claims to save and doesn't, and not one that resumes writing to the stale
-    legacy key). **The reasoning, which is the part to carry forward: the document layer
-    already refuses a `version` it does not understand rather than guessing at it — that is
-    what the v6 bump bought — and the storage layer owes exactly the same refusal to a
-    `layout` it does not understand.** Adoption is retried on the next boot for free, since
-    the absent index is the only thing that triggers it.
-
-    Two neighbouring branches are **not** adoption and must not become it: an index that
-    parses but whose `activeId` names a missing project falls back to another loadable
-    project, and one with `projects: []` creates a fresh `Untitled`. Both refuse to re-adopt,
-    for one reason — an index exists, so adoption already happened, and the legacy document
-    is stale **by definition**.
-31. **Write the project key, verify it reads back, THEN commit the index — and that ordering
-    lives in exactly ONE private primitive (`writeVerifiedProject`) that every writer which
-    commits a NEW index row calls.** An index row pointing at a key that never landed is a
-    project the list offers and cannot open. The narrowing is exact, not hedging: `autoSave`
-    is a writer and does **not** call it, because it overwrites a key an existing row already
-    names and adds no row at all. What it owes instead is the mirror rule — **`autoSave`
-    REFUSES an id with no index row**, since `touchEntry` only ever updates a row that already
-    exists, so writing would leave a project key nothing lists while the succeeding index
-    write flipped `available` back to `true` and the indicator went on reading *Saved locally*.
-    That is the same gap as this invariant's, seen from the other side: a row without a key
-    versus a key without a row. Refusing is not throwing, so invariant 7 is intact. The ordering had grown **two** homes (`adopt`, `addUntitledProject`) and was on its
-    way to a third (`createProject`) before it was collapsed: a safety rule written out three
-    times is a rule that holds in two places after the next edit.
-
-    **A passing test cannot prove this one, and the round has the receipt:** a reviewer
-    rewrote `adopt` to commit the index *first* and deleted the round-trip check, and 22/22
-    still passed. What covers it is a storage double that **accepts writes but drops
-    `sloyd.project.*` on read**, asserting the index key stays null — the bound comes from
-    outside the code under test, invariant 23's rule applied to an ordering instead of a
-    container.
-
-    The same seam carries the other half: **every mutating operation reads the index through
-    `readIndexForWrite` and refuses when it is unusable**, writing nothing and reporting
-    `available = false`. Reads may keep degrading gracefully (`listProjects` returns `[]`);
-    mutations may not. This is enforced **at the seam**, not by a convention that every caller
-    checks `libraryAvailable` first — a convention that has to hold in `App.tsx` to protect
-    `localStorage` is not a seam. `deleteProject` refuses **before touching the project key
-    itself**: a partial delete (key gone, corrupt index left alone) is worse than no delete.
-32. **Every handler that adopts a new active project bumps ONE shared in-flight token, and
-    the rule is: THE LAST HANDLER TO START OWNS THE OUTCOME.** All four — `openProject`,
-    `onNewProject`, `onDeleteProject`, `importIntoLibrary` — are async before they mutate, so
-    two can be out at once (click a row, reopen the caret, pick another; or pick New while the
-    first load is still in flight). No wrong-slot write is possible, because every write is a
-    matched pair by invariant 29; the casualty is quieter, which is why it shipped — the
-    **persisted** `activeId` ends on the project the user did not finish on, and the next boot
-    opens it.
-
-    Three parts, none of them optional:
-
-    - **One token, not four guards.** Each handler bumps `switchToken` on entry and re-reads it
-      after its awaits; one that finds it moved abandons its adoption. Four separate guards
-      would each have to re-derive the sentence above, and the one that shipped got it wrong —
-      `openProject`'s boolean re-entry guard **declined** the second click, which ends the
-      session on the row the user did *not* click last. Do not reintroduce a decline.
-    - **The token check must sit on the same side as the write that moves the persisted id.**
-      This is why `onNewProject` and `importIntoLibrary` pass
-      `createProject(doc, { activate: false })` and call `setActiveProject` themselves *after*
-      the check. Letting the adapter activate what it writes puts the persisted move **before**
-      the check, so a superseded handler leaves the persisted id on a document nobody is
-      looking at — this invariant's own casualty, surviving its own fix. `browser.ts` had
-      already ruled this way for `duplicateProject`; these are the next callers it warned about.
-    - **`onDeleteProject` is the documented exception, not an oversight.** Its index write is
-      intrinsic — the project is gone and the adapter must name a replacement in the same write
-      — so its token check covers adoption only. Bounded by the replacement always being
-      loadable and by `autoSave` refusing an id the index does not name. Follow-up 160 filed
-      that residue and **closed it without a source change**: the id-argument it named cannot
-      work (the handler captures `activeId` before its awaits, so it names the project being
-      deleted), and the residue is unreachable here anyway because **every index write in
-      `deleteProject` lands in the same synchronous run as its index read** — now a stated
-      prohibition on the method plus two tests that call it WITHOUT awaiting it. The general
-      form: an adapter with real async I/O owes atomic read-modify-write on the index, which
-      every index writer needs, not just this one.
-
-    The bump sits **before** `openProject`'s `id === activeId` early return, so last-click-wins
-    holds uniformly: clicking the open row while a switch is out means "stay here". **Mutate
-    any test of this** — a supersede guard is a refusal, the shape invariants 23 and 31 and
-    follow-up 155 all say admits a test that observes the end state and cannot see the skipped
-    step.
-
-33. **A duplicate id is repaired on LOAD, by one helper, and the FIRST occurrence keeps its
-    id.** `takeId(raw, seen)` in `document.ts` is the only place that decides what id a
-    board, guide or cut gets. Before it, `validateBoard` minted an id only when one was
-    **missing**, so two boards both arriving as `id: 'a'` both kept it — and that is not
-    cosmetic: `buildNesting`'s tiebreak (`a.id.localeCompare(b.id)`) needs a total order or
-    the sheet layout can reorder between renders, `SheetLayout` keys its groups by board id,
-    and a duplicate guide id makes `removeGuide` delete two rows at once. Reachable through
-    Import, which is the only door a hand-edited or badly-merged file comes through.
-
-    Four things about it, each of which a reasonable edit gets wrong:
-
-    - **Re-mint the LATER one, never all of them.** Re-minting every id satisfies every
-      distinctness assertion equally well and quietly rewrites the ids in every file that was
-      already correct. The tests pin the survivor by its literal fixture value for this
-      reason, not just the set's size.
-    - **`seen.add` lives inside `takeId`.** A call site that forgets it turns the rule into a
-      no-op — every id looks unseen — and no test of that call site's own behaviour notices.
-    - **Cut ids are scoped PER BOARD, board and guide ids per document.** `Properties.tsx`
-      keys `CutRow` by cut id within one board and the store looks a cut up by
-      `(boardId, cutId)`, so two boards may each carry a cut called `c1` and neither is wrong.
-      Widening cut ids to one document-wide set is a silent behaviour change. **Since v11 a
-      Shape's cut ids are scoped to the shape** (its users read one set), and the v10→v11
-      migration compares link members' cuts BY ID: a document-wide set would have re-minted
-      later members' cut ids and left them unlinked.
-    - **A guide with NO id is still dropped, not minted.** `validateGuides`' existing rule is
-      untouched: missing is malformed data, a duplicate is a good guide wearing a taken label.
-
-    **What makes re-minting safe is a property of the schema, not a coincidence:** nothing
-    inside a document references a board or guide id. `Board.cuts` is inline, `GuidePoint` is
-    `{ id, at }`, and every id lookup in the app reads runtime state set after a load
-    (`selectedId`, `grabbed.owner.id`, the `find` calls in the store and viewport). **A future
-    field that points at a board BY ID breaks this**, and would make the repair a two-pass
-    rewrite rather than a single expression. `Instance.definition` and `ShapedBoard.shape` do
-    point at ids, but at DEFINITION and SHAPE ids, which are resolved by dropping, never
-    re-minting (the assemblies and v11 bullets below), so no reference is ever rewritten.
-
-    Threaded as one `seen` set through `rawBoards.map`, **not** a `dedupeIds` pass beside
-    `dedupeNames` — a name needs a replacement computed *from* its siblings and so cannot be
-    decided one at a time, while an id needs nothing from them but "is this taken". A second
-    pass would leave two deciders for one field. And unlike invariant 8's four-place
-    enforcement, this needs no creation-time half: `nextId` is a monotonic counter and Import
-    replaces a document rather than merging into one, so load is the only place ids collide.
-
-    **Restated for assemblies (inv 46).**
-    - **Part and instance ids are unique WITHIN their container** (a definition, or the root),
-      checked together in one `seen` set.
-    - **Definition ids are unique across the document.**
-    - **Cut ids stay per board.**
-    - So every occurrence path (`i1/i2/b3`) is unique.
-    - **`/` is reserved:** `takeId` re-mints a part or instance id containing it.
-    - **The one thing in a document that points at an id is `Instance.definition`.** A
-      duplicate DEFINITION id is resolved by DROPPING the later definition, never by re-minting
-      it, so no reference ever needs rewriting. The single-pass repair above still holds.
-      Round 2 (shared definitions) needs exactly this scope.
-    - **Since v11: shape ids are unique document-wide**, and the first keeps its id. A malformed
-      shape claims no id. A shaped part's `shape` is the second thing in a document that points
-      at an id, and it too is resolved by DROPPING: a duplicate shape is dropped, and a part
-      naming a missing shape is dropped (`dropUnresolved`). Nothing is ever re-minted, so no
-      reference is rewritten. A shape's cut ids are scoped to the shape, which is why its users
-      share them. A definition id of literally `ROOT` is dropped, because that is the
-      write-back's root storage id.
-
-
-34. **The gesture flags are STATE so that `replaceDocument` can reach them, and that is the
-    ONLY place they are reset — and NOTHING may subscribe to them.** `gesturing` and
-    `gestureSnapshotTaken` were `let` bindings in the store factory's closure, which meant a
-    component unmounting **while a gesture was open** (ordinary in RTL, where `cleanup()`
-    tears the tree down and jsdom fires no blur; reachable in the browser wherever a focused
-    field is removed rather than blurred) left `gesturing` true for the rest of the session.
-    Invariant 4's lazy snapshot then skips every undo snapshot from that point on — no error,
-    just missing undo entries in code that never opened a gesture, which reads as a defect in
-    whatever runs next. They are fields now, so the one action that already rewrites
-    everything which must not outlive a document clears them too.
-
-    Three parts, and the last two are prohibitions:
-
-    - **In the state is what makes a clearing rule enumerable.** A flag reset by convention
-      at every call site is the shape invariant 24 had to write out; the reason those rules
-      can be enumerated at all is that they are in the state. `Gizmo.tsx`'s two mid-drag
-      `endGesture` effects stay the primary guard regardless — nothing about a mid-drag
-      unmount implies a document is about to be replaced.
-    - **A PROHIBITION: they must NOT join the `grabbed: null` list in `undo`/`redo`** (one
-      list now, in `restore`, which both share).
-      Invariant 24's own trap, one field over: it is exactly what a tidying pass does and it
-      looks like consistency. A gesture belongs to the component that opened it and an undo
-      does not end it, so clearing them there splits one focused field's gesture in half
-      after a Ctrl+Z — a behaviour change with no defect behind it. A pointer sits on
-      `restore`.
-    - **A PROHIBITION: no component may read either field.** They are public by necessity
-      and private by intent. The whole cost argument for the move is that every `useStore`
-      call site passes a selector returning a bare field or a single element reference — no
-      object or array literals, which re-render on every `set()` regardless — so the one
-      `set()` per gesture boundary (focus, blur, gizmo mousedown and mouseup, never per
-      frame) re-renders nothing. A single `useStore((s) => s.gesturing)` for an "editing…"
-      indicator puts a re-render on every gesture boundary and quietly costs what the check
-      bought.
-
-    **The test for any of this asserts an UNDO ENTRY, never a flag value.**
-    `expect(gesturing).toBe(false)` after `replaceDocument` cannot fail — the field
-    initialises false, so it passes with the reset deleted (follow-up 155's shape). Leave a
-    gesture open, replace the document, edit, assert `past` grew. Two related mutations
-    survive and are recorded rather than chased: `gestureSnapshotTaken: false` in
-    `replaceDocument` is symmetry with `endGesture`, not coverage, and `takeSnapshot =
-    gesturing` could be `= true` — both unobservable because `!gesturing` short-circuits the
-    snapshot test and `beginGesture` clears the flag anyway.
-
-
-35. **`FACE_AXES` carries each UV axis's SIGN, and the flip is applied BEFORE the swap.** The
-    table records which world axis each of `BoxGeometry`'s default UV axes runs along; it used
-    to discard which *way*, on a stated argument — *"signs are irrelevant, grain is
-    mirror-symmetric"* — that is true of a whole board and false of a solid. `boardUVs` looks
-    a **solid** up in the **board's** tiling (invariant 17), so a solid's span is a sub-range,
-    and reversing the axis puts that sub-range on the wrong side of the face. Two solids
-    meeting at a split plane then disagree about the coordinate there: a 3/4" plywood panel
-    with a 1/4" dado handed **v = 0 from one side and v = 1 from the other**, butting the
-    outermost ply against the innermost — one double-width light band mid-stack and a part-ply
-    at each edge.
-
-    Four parts, each of which a reasonable edit gets wrong:
-
-    - **THE FLIP MUST HAPPEN BEFORE THE SWAP.** A sign belongs to the pair (face, *geometry*
-      axis), which is the same thing as the drawn u/v **only when `swap` is false**. Flipping
-      after the swap applies `+X`'s u sign to the drawn v — precisely the upright faces the
-      defect showed on. It is the plausible wrong version, it is what a tidying pass reaches
-      for, and no uv-range assertion notices it (mutated: it reds four tests, all of them
-      new).
-    - **The sign lives IN `FACE_AXES`, not in a parallel table.** A second thing indexed by
-      face that has to agree with the first is invariant 13's shape, promoted before it can
-      drift.
-    - **THREE OF TWELVE AXES RUN BACKWARDS** — `+X`'s u, `+Y`'s v, `-Z`'s u — and that table
-      belongs to three.js, not to us. It is read back off a real `BoxGeometry` by a test, so a
-      library bump fails there rather than silently un-fixing this. Do not hardcode it from
-      memory.
-    - **Why it hid for so long, which is the test lesson:** an uncut board shows the whole tile
-      either way, solid wood's figure is near-random so a mirror reads as a different board,
-      MDF has no structure, and plywood's edge is the ONE texture where position within the
-      tile means something. **Every uv assertion in `grainTiling.test.ts` was blind to it, and
-      so was a 48-case sweep written during the diagnosis**, because all of them assert a
-      *scale* (`tileInches`, min, max) and the defect was a *direction* — `[0,1]` reversed has
-      the same span. **A test that reads only the extremes of a mapping cannot see the
-      mapping.** What catches it is one interior number: `uv - position / tileInches` is
-      `boardUVs`' additive constant, so it must be identical for every vertex of every solid of
-      a board. Varying *within* a face means a reversed axis; differing *between* solids means
-      a misplaced sub-range.
-
-
-36. **Generation never adopts a project.** `useGenerations` writes through
-    `createProject(doc, { activate: false })` and NOTHING else: no `switchToken` bump, no
-    `replaceDocument`, no store action. Opening a generated design goes through
-    `openProject` like any other row. Two things depend on it. The user is never pulled out
-    of the project they are editing by a run that finishes in the background. And
-    invariant 32's race stays closed, because a handler that does not adopt cannot be
-    superseded. It is also **the whole reason Generate could be exercised against
-    production**: it adds rows and writes into nothing that exists. A future "open it when
-    done" convenience must call `openProject`, not adopt inline.
-
-37. **The generation history is append-only, and `LlmMessage` is `unknown` so it stays
-    that way.** A repair round sends every earlier turn back **verbatim**, including the
-    assistant turn exactly as the API returned it: thinking blocks, fallback blocks and
-    all. Editing a past turn breaks thinking-block validation and any prompt-cache prefix.
-    The client parses the design from text after the last fallback block but **returns
-    the untouched turn** for the history. Do not "clean up" the stored turn to just the
-    JSON. The type is opaque so that the code outside `llm/` cannot read into a turn and
-    therefore cannot rewrite one. A test pins the appended turn **by identity**.
-
-38. **`overlap` is measured between SOLIDS, and so are the contacts `hangs` reads.**
-    `worldSolids` (designCheck.ts, exported, the ONE home of this mapping) maps each part's
-    `boardSolids` to world space with invariant 2's mapping, never `solidWorldBox`
-    (centre-relative). Two parts overlap when
-    any of their solids share more than `TOUCH` = 1/32 on all three axes, so a cut explains
-    an overlap by removing the stock, and a tenon seated in its mortise is not one. A design
-    with no cuts has one solid per part, equal to its box, so Generate is unchanged.
-    **The contacts `hangs` reads are ALSO computed between solids** (`solidContactsOf`,
-    aggregated per part): a seated tenon's box interpenetrates the leg's box, so box contacts
-    would report every mortise-and-tenon rail as hanging. **So do joinery's blockers, trims
-    and pass-through test** (`recipes.ts`, via `worldSolids`; fu 203): a pre-cut design is
-    never refused for stock a cut removed. Only `checkDesign`'s grounding (`connected`),
-    `tips` and `faceContacts` (sites) stay box-based. Do not raise `TOUCH` to make joints
-    pass, and do not drop the check.
-
-39. **Support means HELD, not touching: every part off the floor must be held, and the piece
-    must not tip.** `unsupported` (the old rule) only asks whether a part connects to the
-    floor through face contacts, in any direction, so a shelf hanging by four corner patches
-    under its rails passed it. That is the user's real workbench, now a test fixture.
-    `hangs` asks whether each part is held, in one of three ways:
-
-    - **(a) Resting:** a face contact on its bottom.
-    - **(b) Between:** both faces of the X or the Z pair covered **≥ 50%**.
-    - **(c) Lapped:** a face contact on a broad face (normal to its smallest extent; ties
-      all count). A contact on its **top** counts only when the part above is on the floor,
-      or **still reaches the floor with this part removed** AND is held by its other
-      contacts (one level; inside that test a top contact never counts).
-
-    `tips` requires the **grounded** parts' volume-weighted centre of mass to sit at least
-    min(1in, s/4) inside the convex hull of what touches the floor.
-
-    Five things a reasonable edit gets wrong, each from a measured case:
-
-    - **COVERAGE, not two-sidedness, is what catches the workbench shelf.** Legs touch BOTH
-      of its ends, so "held between two parts" passes it; it fails because each end is only
-      19% covered.
-    - **(c) exists so face-mounted parts pass.** A backrest or an apron screwed to a post's
-      face has nothing under it and nothing opposite it. Without (c), ordinary designs fail
-      and spend the user's money on repair rounds for nothing.
-    - **The top-face clause is three user rulings deep, and each closed a hole a reviewer
-      PROVED by probe:**
-      1. A crate set on the hanging shelf "held" it, so the top face was excluded.
-      2. That failed cleats under a seat, so it counts again when the part above is held
-         without this part.
-      3. A box, or two lapped uprights, standing on the shelf then held each other, so the
-         part above must also still reach the floor without this part.
-
-      **A PROHIBITION: do not drop (c), the coverage threshold, or either half of the
-      top-face clause to "simplify".** Each one exists because removing it was shown, by
-      construction, to pass a hanging part or fail a sound one.
-    - **One fault, one report.** A part on the floor, already `unsupported`, or named in an
-      `overlap` is never also `hangs`; a floating part adds no weight to `tips`. Contact and
-      overlap are disjoint **by definition** (coincident face planes mean a shared span ≤
-      TOUCH on that axis), so overlap can never hold anything.
-    - **`groundedSet` is the ONE grounding walk**, shared by `unsupported` and the top-face
-      clause, with an optional skip. A second walk is two deciders for one question.
-
-    **Known limits are follow-up 176.** The main one is mutual lapping: two parts glued face
-    to face each "hold" the other. Read it before tightening anything.
-
-40. **Anything that decides "same cut" from a list of `Cut`'s fields must be checked against
-    the type by the compiler.** Two readers did when this was written: `cutSignature`, which
-    groups cut-list rows, and `boardUVSignature`, which is BoardMesh's memo key. The linking
-    round added a third, `sameShared` (`links.ts`, invariant 45), which compares cuts through
-    `CUT_GEOMETRY_KEYS` plus the id. Both were hand-written field lists.
-    Adding `stopMin`/`stopMax` to `Cut` without adding them to the first would have grouped a
-    mortised leg with a through-dadoed one: one row, one setup, half the legs cut wrong, and
-    every existing test green. So `CUT_GEOMETRY_FIELDS` (in `cuts.ts`) is a table that
-    `satisfies Record<Exclude<keyof Cut, 'id'>, true>`, every reader derives from it, and a new
-    `Cut` field fails `tsc` until it is listed. This is invariant 15 one layer over: a
-    hand-written list of what a computation reads goes stale silently. The second reader was
-    missed when the table was first written, and the 3D view kept drawing a through-dado after
-    a stop edit — found by the whole-branch review, which is why the table now lives in
-    `cuts.ts` beside `Cut`'s geometry rather than in the cut list. **Do not replace the table
-    with a list in a function body**, and do not add a field to the table's exclusions without
-    a written reason.
-
-    **Since the components round**, `sameShared` decides which v10 link members become one shape
-    (cut ids included), and joinery's write-back compares cuts by geometry through
-    `CUT_GEOMETRY_KEYS` (ids excluded). Both derive from the table.
-
-    **The table decides which FIELDS make two cuts the same; `cutsThatRemoveStock` decides
-    which CUTS are compared at all** (follow-up 178). A cut a board edit has left removing
-    nothing is left out of `cutSignature`, so it cannot split a row. The consequence that
-    reads like a bug and is not: the row key now depends on each board's EXACT dimensions
-    through that test, not only the display-rounded ones. A 10" board and a 10.02" board each
-    carrying a dado at offset 10.01 split into two rows that print the same size — correctly,
-    because one of them really has a sliver cut and the other has none. That is invariant
-    18's rule (round what is bought, never what is machined). Do not "fix" it by rounding.
-
-41. **Joinery has one converter, never adopts, and is blamed only for what it caused.**
-    `pocketFor` (`generate/joints/pocket.ts`) is the ONLY place a world box becomes a `Cut`; it
-    is tested by probing every pose against the box itself, never against hand-written cuts,
-    because a pose mistake there is a plausible cut in the wrong place. It throws on a box
-    that removes the whole board, snaps within 1e-9 of 0 or a board end, and takes `across`
-    as the dimension with the most boundary contact (order alone mislabelled a stopped dado
-    a "notch"). That choice is then re-stored through `storedAsShape`, against the board WITH
-    its existing cuts, so a joined cut's stored `across` is the direction the cut sheet prints
-    (fu 195). The re-stored cut removes the same stock: its boundaries are reproduced to the
-    bit wherever the schema can express them, and otherwise (millimetre values: a far stop under
-    half the board's dimension, or rarely a width's far end) land within one ulp, on the side
-    that keeps the run.
-    A re-store the sheet would read differently (word, run, position axis, which ends are
-    stopped) is refused: `storedAsShape` returns the original, and Properties offers nothing.
-    A later growth through `rebaseCuts` now follows the shape, not the stored form
-    (follow-up 199, closed). `useJoinery` writes only through `createProject(doc, { activate: false })` —
-    invariant 36 extended. And only problems the joinery INTRODUCED drive repairs:
-    `runJoinery` checks the original and the joined design and compares problems by `kind`
-    plus their `parts` names (the field exists for this), NEVER by message text, which
-    carries coordinates that the joinery itself changes. A hand-made design's existing
-    faults are reported once as "already in the original", not repaired at the user's
-    expense. **A recipe's refusal is decided before ANY mutation** (trim, move, carry, cut):
-    a site skipped after it had started leaves a half-joined part that the sheet and the
-    checks then misreport (fu 183, 185). A throw is not a refusal either: every `resize`
-    asks `cutIntoEnd` (rebaseCuts' throwing condition) first (fu 203).
-
-42. **A group move rounds the GROUP's min corner once and adds ONE delta to every part; the
-    single-part gizmo path stays separate.** `moveGroupTo` takes the ABSOLUTE wanted min
-    corner (TransformControls fires every frame, so a delta would accumulate), rounds it to
-    `SNAP_INCHES`, subtracts the group's current min, and hands that one delta to
-    `translateBoards` — the same helper `commitSnapMove` uses, unrounded there. Rounding each
-    part's corner instead pulls an off-grid part onto the grid and breaks the layout by up to
-    a sixteenth, with the display rounding to the same string (invariant 25's argument, one
-    level up). And one selected part does NOT go through `moveGroupTo`: `old + (snap(t) - old)`
-    is not bit-identical to `snap(t)` for a non-dyadic `old`, so routing it there would change
-    shipped single-part behaviour invisibly. **Do not "unify" the two paths**, and do not
-    round inside `translateBoards`.
-
-    The selection has ONE writer for a user's selection change, `selectionPatch`; a second
-    place that assigns `selectedIds` there is a second decider for invariant 24's grab rule.
-    (`replaceDocument`, `undo` and `redo` only reconcile it with a document that replaced the
-    boards; `undo`/`redo` and the hide actions still write it THROUGH `selectionPatch`, with
-    the new hidden set, so a hidden part never stays selected — invariant 43.) A selection change
-    mid-drag ends the gizmo's gesture and abandons the rest of that drag (`Gizmo.tsx`).
-
-43. **Hidden-ness is view state with one gate, and a hide moves nothing.** `hiddenIds` is not in
-    the document and not saved (no schema change), but it is undone: a history entry is
-    `{ doc, hiddenIds }`.
-
-    - **The writer rule.** The four user actions — `hideSelected`, `hideUnselected`, `showAll`,
-      `setHidden` — all go through `applyHidden`, which never runs `edit()` and never replaces
-      `doc`. Everything else only RECONCILES the set with a document: `restore` (undo/redo,
-      filtered to the restored parts), `replaceDocument` (clears it) and `deleteBoards`
-      (drops the deleted ids, fu 213; since components, `reconcileHidden` filters against
-      `itemPaths` after Delete, Group and Ungroup, so other copies' ids are reconciled too). A fifth user action that writes `hiddenIds` directly
-      is a second decider.
-    - **One entry, the SAME document.** A hide that changes the set pushes exactly one entry
-      holding the current `doc` object, no copy, and clears `future`; autosave does not fire.
-      A hide that changes nothing pushes nothing (invariant 4).
-    - **Hidden parts are never selected, structurally.** `selectionPatch` drops hidden ids from
-      every selection it writes, so `selectBoard`, `toggleSelected` and `selectAll` cannot
-      select one, every hide re-runs it, and a grab owned by a part being hidden drops
-      (invariant 24's retargeting rule). Do not move this filter out to the callers.
-    - **A hide is refused while `gesturing`.** It pushes its own entry, so inside a gesture it
-      would land between the lazy snapshot (invariant 4) and the drag's later frames, and one
-      Ctrl+Z would undo part of the drag with the hide. `applyHidden` reads the flag; no
-      component may (invariant 34). In practice only a gizmo drag can be open: the keys are
-      blocked in text fields, and the eye or Hide others blurs a field first.
-    - **Undo and redo keep the held points when the restored document is the same object.**
-      Only then; a different object still clears all four (invariant 24).
-    - **A PROHIBITION: no hide or show may clear `tapeAnchor` or `tapeHover`.** Each holds a
-      real position on a real part, and hiding moves nothing. Measuring from a part and then
-      hiding it is legitimate. Tests assert both survive each action.
-    - **The selector rule.** `visibleBoards` returns a new array whenever anything is hidden, so
-      inside a `useStore` selector it would re-render on every `set()` (invariant 34's cost
-      argument). Select `boards` and `hiddenIds` as bare fields and filter in a `useMemo` or a
-      handler. Every viewport reader goes through `visibleBoards`; a hand-written filter is a
-      second decider.
-
-    A hidden part is still entirely part of the design: the cut list, nesting, diagrams,
-    joinery, Generate, `checkDesign`, export and autosave read `doc.boards` unchanged.
-
-44. **`axisFrame` is the ONE home of the turn table, and every crossing between a part's frame
-    and the world goes through its helpers.** `rotation` is `0 | 90 | 180 | 270`, each a TRUE
-    rotation about the vertical, counter-clockwise seen from above; `axisFrame(board)` gives,
-    per world axis, the dimension it carries and whether it is `reversed` (the part's 0 on the
-    world MAX side). The crossings are `toWorldOffset` / `fromWorldOffset`,
-    `spanToWorldOffset` / `spanFromWorldOffset` and `endFacing`, all in `geometry.ts`. Before
-    v8 there was no direction: `axisDimensions` only said WHICH dimension, so 90° was a mirror
-    across the X=Z diagonal and identical parts could never face their cuts toward (−X, +Z).
-    Invariant 13 is this rule's ancestor: one mapping, one file.
-
-    - **Never `board[dim] - u` at a call site.** That is a second copy of the table, and it is
-      invariant 13's failure mode with a sign in it. No file branches on `rotation`'s value
-      except `axisFrame` itself, the migration (`foldRotationToV2`, `trueTurnsToV8`),
-      `generated.ts`'s `orient` and Properties' Turn select. **The one legitimate hand-written
-      reflection is `mirrorCutAlong`**: it maps a part's frame to the same part's frame
-      inside the migration, not a part to the world. Do not "tidy" it onto the helpers. **It
-      CLIPS BEFORE IT REFLECTS** on the position axis: `validateCuts`' clamp, in its order
-      (offset into `[0, size]`, then width into `[0, size − offset]`), then
-      `offset = size − (lo + width)` as ONE sum; a cut the clamp would drop goes back raw for
-      `validateCuts` to drop. Reflecting the raw interval first migrated an overhang wider,
-      resurrected a cut the loader had dropped, and left a ~7e-16 sliver solid on a decimal cut
-      flush with the far end (`size − offset − width`). **Nothing is snapped**: a v7 cut 1e-10
-      short of an end left a real sliver, and §4 keeps it. A cut flush with the NEAR end
-      stores `width = size − offset`, exact by Sterbenz, so it lands exactly flush with the far
-      end (on a millimetre board `(size − w) + w` can fall an ulp short: a ~1e-15 sliver).
-      Each of the four (clip, one sum, no snap, near-end exact width) is pinned by its own
-      test; the last by a millimetre board and a near/far millimetre sweep that assert solid
-      COUNTS, because `sameSet` rounds at 1e-9 and cannot see a sliver.
-    - **Turn 0 is the pre-v8 mapping for every posture**, so a 0° part means exactly what it
-      always did. Within a posture the four turns are proper rotations of turn 0: no turn
-      changes handedness. Postures still differ in handedness among themselves (follow-up
-      215); this round did not touch that.
-    - **The proof is equivariance: turn r+90 is turn r rotated a quarter about the part's
-      centre**, for `worldSolids`, `solidWorldBox`, `pointToLocalXYZ` (edges),
-      `boardSnapPoints` and `cutSnapPoints` (`turns.test.ts`), `pocketFor` (all 12 poses),
-      joinery (180°), and `boardUVs`' interior constant (invariant 35's number). **The fixture
-      is `chiralPart` because a symmetric fixture passes a mirror** — the bug this round
-      removed is exactly one a symmetric part cannot see. All three cuts are off-centre on every
-      axis, so each alone is one-handed. And
-      the plan-supplied `boardSnapPoints` equivariance test could not fail until `c3` took a
-      box corner, because no lattice point sat in removed stock: invariant 23's shape (a
-      test whose fixture cannot reach the guarded branch). Mutate any new equivariance test.
-    - **In `boardUVs` the reflection is per GEOMETRY axis, before invariant 35's sign and
-      swap.** Reflecting the swapped axis is the plausible wrong version; Task 4's mutation
-      reds 9 tests (flat at 180° alone is blind to it, since both horizontals reverse).
-    - **`trueTurnsToV8` is NOT idempotent.** It mirrors the cuts of a 90° part along h0, so
-      running it twice undoes it. The `d.version < 8` guard in `migrateDocument` is the only
-      thing that stops a v8 file being re-mirrored on every load.
-    - **Generate stays at 0° and 90°.** `orient` loops `[0, 90]` on purpose: its parts start
-      uncut, so a true 90° and the old one look identical, and joinery then cuts through the
-      new mapping. A turn is not a group field (multi-select spec §1).
-
-45. **A link is a SHAPE its users point to: the shared fields are stored once, so its users cannot
-    differ** (components round, schema 11; before it a link was a label on self-contained parts,
-    kept equal by propagation and a load repair). A linked part is a `ShapedBoard`, storing only
-    `id`, `name`, `position`, `rotation` and `shape`. The `Shape` holds `length`, `width`,
-    `thickness`, `material`, `grain`, `posture` and `cuts`. Every reader of placed parts reads
-    resolved `Board`s and knows nothing about shapes.
-
-    - **`LINK_FIELDS` (`links.ts`) is still the ONE shared-versus-own table**, `satisfies
-      Record<keyof Board, …>`.
-      - `Shape` and `ShapedBoard` are derived from it, so a new REQUIRED `Board` field fails
-        `tsc` until it is classified (invariant 40's argument).
-      - An OPTIONAL own field would be dropped silently by `copyBoard`'s shaped literal
-        (follow-up 231): classify it with care.
-    - **`resolveBoard` (`shapes.ts`) is the ONE place a shape is read into a part.**
-      - It returns a plain part as the same object.
-      - It builds the shared part from `SHARED_KEYS` and copies cuts per cut, so no two parts
-        hold one Cut object.
-      - `worldParts` resolves before it places.
-      - A resolved part carries `shape` (the id) for the UI; a STORED plain part never does.
-    - **Write-back sends shared fields of a shaped part to its Shape** (`applyWorldEdits`,
-      invariant 46). So an edit, a cut added, changed or removed, or a posture change reaches
-      every user in ONE `edit()`, with no propagation code.
-      - The one surviving propagation is `shapeMates` in `updateBoards`: posture is shared,
-        a min corner is not, so every other user is re-pivoted about its OWN centre
-        (invariant 2).
-      - The board-precise `grabbed` clause still covers the targets only; every held point is
-        judged after the edit (`judgeHeld`).
-    - **`linkPlan` is still the ONE decider for Link**, read by the store and the group panel.
-      - The FIRST selected part is the source.
-      - A selected linked part brings every user of its shape.
-      - A no-op Link or Unlink pushes no entry (invariant 4).
-      - Link points every member at one shape: the source's own shape if it has one, else a
-        new one.
-    - **A shape with one stored user dissolves**: that user becomes a plain part carrying the
-      fields, cut ids kept (`dissolveShapes`). This runs on load, after Unlink, and after
-      Delete. Users are counted as STORED parts: one part placed by three copies of a drawer
-      is one user.
-    - **Copies:**
-      - a copy of a SHAPED part is a ShapedBoard on the same shape;
-      - a copy of a plain part is plain, with fresh cut ids and no `shape` key;
-      - cut ids are scoped to the shape (invariant 33).
-    - **Joinery keeps sharing where identical** (follow-up 223 closed). `writeBackFlat` groups a
-      shape's users by their new shared fields, comparing cuts by GEOMETRY (`CUT_GEOMETRY_KEYS`,
-      not ids, since `pocketFor` mints ids per board). The first user's group keeps the shape,
-      and each group takes its first member's cut ids. Comparison is exact: a last-bit
-      difference splits, which is the safe direction.
-    - **Retired, and must not come back as a second mechanism:** `Board.link` (read only from a
-      file below v11 by `linksToShapes`), `repairLinks`, `dissolveSingletons` and `mates`
-      propagation.
-
-46. **The tree has ONE composition step and ONE walk, and every edit is written back through
-    `treeEdit.ts`.** A document is a definition/instance tree (v10): the root's `boards` and
-    `instances`, plus `definitions`. A part's stored `position`, `rotation` and min-corner rule
-    (invariant 2) are in its CONTAINER's frame. An instance's `position` is its frame's ORIGIN.
-
-    - **`placeBoard` / `placeInstance` (`frames.ts`) are the only places a frame is applied**:
-      (origin + R(p)) + `cornerShift`, with R a quarter turn about the vertical (90 maps (x,y,z)
-      to (z,y,−x)). A second hand-written composition is invariant 44's failure mode, one level
-      up.
-    - **`worldParts` (`tree.ts`) is the only walk that produces placed parts.** The viewport,
-      the gizmo, the Move and Tape tools, the store and the panels read it. A reader that walks
-      `definitions` itself is a second decider. It is cached per document object (a WeakMap),
-      and each part keeps its OWN name. Path names come only from `flatDocument`, which the cut
-      list, nesting, joinery and joinery's `checkDesign` read, so Properties never stores a path as a name.
-    - **Every edit is written back through `treeEdit.ts`, changed fields only.** `position` is
-      compared element by element, and a changed one goes down as a DELTA, level by level.
-      Every move is a world delta rotated into the container's frame (`translateItems`), never
-      an absolute position through world space.
-    - **TWO write-back rules, on purpose.**
-      - **A Properties edit keeps the STORED local position** on a dimension change: it is an
-        edit of the part in its own frame (spec §5.2).
-      - **Joinery keeps WORLD geometry.** `applyWorldEdits(..., { keepWorld: true })` is passed
-        only by `writeBackFlat`, because joinery's output IS world geometry and the checks ran
-        on it.
-      - Without `keepWorld`, a rail lengthened inside an assembly turned 90° or 180° grows the
-        wrong way and pulls its tenons out (the Task 11 critical, tested at all four turns).
-      - **Do not unify them, and a new caller must pick one.**
-    - **A new frame starts at origin `[0, 0, 0]`, turn 0, so Group moves nothing, bit for bit.**
-      Ungroup is exact for direct child parts only, because folding a nested frame reorders the
-      additions.
-    - **Joinery runs on `flatDocument` and maps back by index.** It throws on a part-count
-      mismatch. The tree is what `useJoinery` saves. Anything that reads sites or joints off
-      the document must use the flat one: `App.tsx`'s joinery dialog read the tree, found 0
-      sites on a grouped design, and no per-task review could see it.
-    - **A selection is one level.** `selectionPatch` keeps only direct children of `openPath`,
-      and `isCovered` is the one ancestor test (`i3` covers `i3/b1`, not `i30/b1`). Hidden ids
-      and the tape's held points are re-keyed on Group and Ungroup, which are refused while
-      `gesturing` (invariant 43's argument).
-    - **Load repair** (`repairTree`, `dropUnresolved`, `pruneShapes`, `dissolveShapes`) runs in
-      `migrateDocument` on every load. Its order is in the components spec §2.3. The copy of a
-      definition placed twice runs ONLY below v11 (`copyShared`).
-    - **A definition may be placed many times** (components round). So:
-      - **Write-back keys on the STORAGE target, not the path.** `storageKey` is
-        `<definition id or ROOT>:<part id>`, the same for every placement of one stored part.
-        Edits to one target merge field by field, and DISAGREEING edits THROW.
-      - **The store sends at most ONE edit per storage target** (`oneEditPerTarget`). That is
-        why no user action reaches the throw. A new store caller of `mapWorld` that can reach
-        two placements of one part must dedupe the same way.
-      - **An edit inside a definition moves parts in EVERY copy,** so every held point is judged
-        after it (`judgeHeld`). Group, Ungroup and Delete inside a shared definition re-key
-        hidden ids and tape points under EVERY placement of the edited container
-        (`rekeyEverywhere`), then reconcile `hiddenIds` against `itemPaths`.
-      - **Make Unique** (`makeUniqueItem`) copies ONE level and KEEPS ids, so occurrence paths,
-        hidden ids and held points survive it unchanged. It is offered by instance REFERENCES,
-        not placements.
-      - **A twin placement of a selected stored part is never a Move target**
-        (`moveCandidates`).
-      - **Joinery's `writeBackFlat` splits definitions whose placements' results differ,**
-        shallowest-first by deepest placement (root-first BFS breaks on a drawer placed both at
-        the root and in shared cabinets). Then it sends one edit per storage key.
+Each cost real debugging. **Do not renumber them** — the numbers are cited from code
+comments, specs and `docs/follow-ups.md`. These are condensed; the full text with its
+worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
+
+1. **The document is the source of truth.** No component holds geometry state not derived
+   from it; nothing writes a Three.js transform as a way of recording a change.
+2. **`position` is the min corner.** `boardCenter` bridges to centre-origin meshes.
+   `reorientedPosition` is the only home of the reorient pivot and takes the whole patch
+   (post-patch extents). `grain` and `cuts` are absent from the reorient predicate, so cut
+   edits have their own store actions. A future tool that moves *and* turns in one gesture
+   must carry its own `position` in the same patch.
+3. **The `dragging` ref guard in `Gizmo.tsx`**: never sync the document into the proxy
+   mid-drag (jitter/drift).
+4. **Gesture snapshots are lazy** — taken on the first `edit()` in a gesture, never in
+   `beginGesture()`, or undo gets no-op entries.
+5. **A field with a local draft (`DimensionField`, `NameField`) skips adopting external
+   changes while focused, so blur must resync from the stored value and must not commit
+   when untouched.** Stored values are exact; display rounds. A MIXED field (`value: null`)
+   must write nothing on an untouched blur; its test asserts the error state too.
+6. **`add_header` does not merge across nginx levels** — `security-headers.conf` is
+   `include`d in every block.
+7. **`autoSave` must never throw**; it reports via `storage.available`.
+8. **Names are unique among SIBLINGS** (the parts and assemblies of one container),
+   enforced at add, duplicate, the name commit, Group, Ungroup and `migrateDocument`. Any
+   new call site adding a part passes its name through `uniqueName`. New assemblies are
+   `Assembly N`. So paths, and `flatDocument`'s names, are unique.
+9. **`NameField` commits once, on blur or Enter — never per keystroke**; an emptied name
+   reverts; `onCommit` returns the *stored* name.
+10. **The gizmo clamp writes `size` before `updateMatrixWorld`, never `handle.scale`
+    after**; two-sided, with a floor (`GIZMO_MIN_CAP_INCHES`).
+11. **Migration steps run on raw data, before `validateBoard`, in version order**, because
+    the validator's fallbacks are legal-but-wrong values. Upgrade first, validate second
+    (the one exception, v10→v11, is in Versioning).
+12. **Grain textures are cached and never disposed; per-board variation lives in the `uv`
+    attribute, never on the texture.** Offset is zeroed on a `fit` axis.
+13. *Retired in v3* (`axisDimensions` is single-sourced; since v8 derived from `axisFrame`,
+    inv 44). Number kept.
+14. **`bandRadius` is `hypot(d, k·delta)`**; u is seamless by that, v by folding about the
+    pith line. `grainTexture.ts`'s `woodCut` comment is the statement — agree with it.
+15. **Anything memoising on what `boardUVs` reads keys on `boardUVSignature`, never a
+    hand-written field list.** The signature is the same for every solid of a board, so
+    don't cache per solid on it alone. A dep entry over a value nothing subscribes to is
+    the same failure.
+16. **Edge lines come from the cell grid (`boardEdges`), not from the solids.** General
+    rule: a marker or line must sit on a feature that is actually drawn.
+17. **UVs are parent-relative and `FIT` resolves against the board, not the solid**, so
+    figure runs continuously across a cut.
+18. **On the cut list, stock dimensions collapse at display precision; cuts match
+    EXACTLY.** Round what is bought, never what is machined.
+19. **`LABEL_SIZE` has one home (the `<svg>` attribute); CSS never sets a font-size on
+    diagram text, and `--font-num` must stay monospace.** The measured string and the drawn
+    string must be the same string: assemble it in the module that builds it
+    (`nesting.ts`, `diagram.ts`), never in the component. A non-ASCII glyph must be
+    measured in a browser before it is trusted.
+20. **`depthField.ts` is not `boardSolids`**: it assigns max depth per cell in 2D; it does
+    not drop cells. An agreement test must assert the value the derivation computes, not
+    just where it is non-zero.
+21. **The empty-solids placeholder stays a mesh, not a wireframe** — a part you can see is
+    a part you can click. Test by clicking the middle of a ghost face.
+22. **`nesting.ts`'s fits-test carries an epsilon** because one side is computed (a running
+    sum). Apply the tolerance that matches the arithmetic you actually have.
+23. **The shelf-height guard is the SOLE enforcer of guillotine cuttability.** A test of a
+    "cannot exceed its container" property must bound against a value the code under test
+    does not produce.
+24. **A held point (`grabbed`, `tapeAnchor`, `tapeHover`) holds a world position, so
+    anything that moves the boards under it must drop it**, through `dropHeldIfGone`
+    (guard-first shape). Three reasons to clear: the world moved (undo/redo when the
+    restored doc is a DIFFERENT object, `replaceDocument`, delete/update); the feature
+    underneath went (point-precise, `===`, called AFTER `edit()`); the user retargeted
+    (`grabbed` only, via `selectionPatch`).
+    - **PROHIBITION: no selection write may clear `tapeAnchor` or `tapeHover`.**
+    - `clearGuides` clears both tape fields; that licence is not to be extended.
+    - At `updateBoard`, `grabbed` keeps a board-precise clause and the tape fields are
+      point-precise. Deleting the former or adding one for the latter breaks behaviour that
+      only the "keeps" tests catch.
+    - The enumeration lives only at `tapeHover`'s declaration in `store.ts`; never restate it.
+25. **Exact moves are never rounded to `SNAP_INCHES`**: snap move, click-placed guide,
+    ray-typed guide, axis-placed guide and copy in a row (copy k = original + k·step·sign,
+    never from the previous copy). Round what a free drag produced, nothing else.
+26. **`grabbed` is a `BoardSnapPoint`**, so a guide-owned grab cannot be constructed. Do
+    not add a runtime owner-type guard to `commitSnapMove`; the self-snap guard's
+    `target.owner.type === 'board'` check is real and stays. `tapeAnchor`/`tapeHover` are
+    wide `SnapPoint`s on purpose.
+27. **Every window-level shortcut lives in `App`'s ONE keydown effect; any new `window`
+    listener takes the modal flag (`modalOpen`) explicitly**, because `inert` cannot reach
+    a window listener. `Viewport` gets it as `shortcutsSuspended`. The modifier test is
+    part of the condition, not an early return, or Ctrl+Z is swallowed. `TapeReadout`'s own
+    X/Y/Z branch is forced, not redundant.
+28. **`TapeReadout` stays unconditionally mounted** (it owns `tapeTyped`'s anchor-loss
+    clear), and typed capture APPENDS. The displayed text and the next keystroke's effect
+    must not disagree.
+29. **`autoSave(id, doc)` takes the id as an argument, never adapter state.** The
+    `activeId` dep entry is load-bearing (the edit-wins restore path); do not remove it.
+    Every switch FLUSHES the pending write first. The pending record is `{ write, timer }`
+    with `write` a thunk capturing the matched pair. **PROHIBITION: do not split it into
+    refs, read `activeId` back in the flush, or put the id or doc back on the record.**
+30. **`sloyd.autosave.v1` is never deleted and never written after adoption; adoption fires
+    only when the index key is ABSENT** (raw `getItem`, before parsing). An unusable or
+    newer index refuses and writes nothing (read-only, banner shown). A missing `activeId`
+    or empty `projects` is not adoption.
+31. **Write the project key, verify it reads back, THEN commit the index — in one
+    primitive, `writeVerifiedProject`.** `autoSave` refuses an id with no index row. Every
+    mutation reads through `readIndexForWrite` and refuses on an unusable index;
+    `deleteProject` refuses before touching the project key.
+32. **Every adopting handler bumps ONE `switchToken`; the last to start owns the
+    outcome.** Never decline a second click. The token check sits on the same side as the
+    persisted-id write (hence `createProject(…, { activate: false })` then
+    `setActiveProject`). `onDeleteProject` is the documented exception; `deleteProject`'s
+    index writes stay synchronous with its read.
+33. **Duplicate ids are repaired on LOAD by `takeId`; the FIRST keeps its id**, the later
+    is re-minted (never all of them), and `seen.add` lives inside `takeId`. Scopes: part and instance ids per
+    container; definition and shape ids per document; cut ids per board (per shape for a
+    shape). `/` in an id is re-minted. A guide with no id is dropped. References
+    (`Instance.definition`, `ShapedBoard.shape`) are resolved by DROPPING the duplicate or
+    the dangling part, never by re-minting, so nothing is rewritten. A future field pointing
+    at a board by id breaks the single-pass repair.
+34. **`gesturing`/`gestureSnapshotTaken` are store state so `replaceDocument` can reset
+    them — the only reset.** **PROHIBITION: they must not join `restore`'s clear list, and
+    no component may read either.** A test of this asserts an undo entry, never a flag.
+35. **`FACE_AXES` carries each UV axis's SIGN, applied BEFORE the swap**, in the table
+    itself, read back off a real `BoxGeometry` (three of twelve axes run backwards). A UV
+    test must check an interior number (`uv − position/tileInches` constant per board), not
+    only extremes.
+36. **Generation never adopts a project**: `createProject(doc, { activate: false })` and
+    nothing else. "Open when done" must call `openProject`.
+37. **The generation history is append-only; `LlmMessage` is opaque so it stays that way.**
+    Assistant turns go back verbatim (thinking and fallback blocks included); do not
+    "clean" them.
+38. **`overlap`, `hangs`' contacts and joinery's blockers/trims are measured between SOLIDS
+    via `worldSolids`**, never `solidWorldBox`. Only grounding, `tips` and `faceContacts`
+    stay box-based. Do not raise `TOUCH` to make joints pass; do not drop the check.
+39. **Support means HELD: every part off the floor is resting, between (≥ 50% coverage of
+    both faces of X or Z) or lapped (a broad face; a top contact only under the stated
+    one-level conditions), and the piece must not tip.** **PROHIBITION: do not drop (c),
+    the coverage threshold, or either half of the top-face clause.** One fault, one report.
+    `groundedSet` is the ONE grounding walk. Known limits: follow-up 176.
+40. **Anything deciding "same cut" derives from `CUT_GEOMETRY_FIELDS` (`cuts.ts`), checked
+    against `Cut` by `satisfies`.** Do not replace the table with a list in a function body
+    or add an exclusion without a written reason. `cutsThatRemoveStock` decides which cuts
+    are compared; the resulting row split on exact dimensions is correct — do not round.
+41. **Joinery has one converter (`pocketFor`), never adopts, and is blamed only for what it
+    caused.** `pocketFor` is tested against the box in every pose, stores via
+    `storedAsShape`. Problems compare by `kind` + `parts`, never message text. Every
+    refusal is decided before ANY mutation, and every `resize` is pre-checked by
+    `cutIntoEnd`.
+42. **A group move rounds the GROUP's min corner once and adds one delta
+    (`moveGroupTo` → `translateBoards`); one selected part keeps the separate single-part
+    path.** Do not unify them; do not round inside `translateBoards`. `selectionPatch` is
+    the ONE writer of a user's selection change. A selection change mid-drag ends the
+    gizmo's gesture and commits nothing.
+43. **Hidden-ness is view state with one gate, and a hide moves nothing.** The four user
+    actions go through `applyHidden` (one entry, the SAME `doc`, no autosave); others only
+    reconcile. `selectionPatch` drops hidden ids — do not move that to callers. A hide is
+    refused while `gesturing`. **PROHIBITION: no hide or show may clear `tapeAnchor` or
+    `tapeHover`.** Never call `visibleBoards` in a selector; filter in a memo or handler.
+    Hidden parts are still in the cut list, joinery, checks, export and autosave.
+44. **`axisFrame` is the ONE turn table; every part↔world crossing goes through its helpers**
+    (`toWorldOffset`, `fromWorldOffset`, `spanToWorldOffset`, `spanFromWorldOffset`,
+    `endFacing`). **Never `board[dim] - u` at a call site.** Nothing branches on
+    `rotation`'s value except `axisFrame`, the migrations, `generated.ts`'s `orient` and
+    Properties' Turn select. The one legitimate hand
+    reflection is `mirrorCutAlong` (clip first, one sum, no snap); do not tidy it onto the
+    helpers. Turn 0 is the pre-v8 mapping. Equivariance tests use `chiralPart`, never a
+    symmetric fixture; mutate any new one. In `boardUVs` the reflection is per geometry
+    axis, before inv 35's sign and swap. Generate stays at 0° and 90°.
+45. **A link is a SHAPE its users point to; shared fields are stored once.** `LINK_FIELDS`
+    is the ONE shared/own table (classify an optional own field with care, fu 231).
+    `resolveBoard` is the ONE place a shape is read into a part. Shared-field edits are
+    written to the Shape (`applyWorldEdits`); the only propagation left is `shapeMates`
+    re-pivoting posture. `linkPlan` is the ONE Link decider. A one-user shape dissolves
+    (users counted as STORED parts). Joinery keeps sharing where cuts are identical by
+    geometry. **`Board.link`, `repairLinks`, `dissolveSingletons` and `mates` propagation
+    must not come back.**
+46. **The tree has ONE composition (`placeBoard`/`placeInstance`), ONE walk
+    (`worldParts`), and every edit is written back through `treeEdit.ts`**, changed fields
+    only, a moved position lowered as a delta. Path names come only from `flatDocument`.
+    - **Two write-back rules: a Properties edit keeps the stored local position; joinery
+      passes `keepWorld`.** Do not unify; a new caller picks one.
+    - Group moves nothing (identity frame); Ungroup is exact for direct child parts only.
+    - Joinery runs on `flatDocument`, maps back by index; anything reading sites/joints uses
+      the flat document.
+    - A selection is one level (`isCovered` is the ancestor test).
+    - Write-back keys on the STORAGE target (`storageKey`); disagreeing edits throw, so the
+      store sends one edit per target (`oneEditPerTarget`). An edit in a definition moves
+      every copy, so held points are re-judged (`judgeHeld`) and hidden ids/held points are
+      re-keyed under every placement (`rekeyEverywhere`).
+    - Make Unique copies one level and keeps ids. A twin placement of a selected part is
+      never a Move target. `writeBackFlat` splits definitions shallowest-first by deepest
+      placement.
 
 ## Commands
 
@@ -2073,195 +472,57 @@ npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
 
-`npm test` does **not** typecheck. A green suite proves nothing about `tsc`; run
-`npm run build` before claiming anything compiles.
+`npm test` does **not** typecheck; run `npm run build` before claiming anything compiles.
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is the authoritative list** — 1-231, consciously deferred rather
-than missed, each written up in place with its closure where it has one. Read the entries
-for the area you are about to touch before starting; several are "correct but untested",
-which is exactly what a refactor breaks silently.
+**`docs/follow-ups.md` is authoritative** (1–231, each with its closure). Read the entries
+for the area you are about to touch; several are "correct but untested". Open items worth
+knowing without opening it:
 
-The handful worth knowing without opening that file:
-
-- **130** — semi-infinite construction lines, the one genuinely open item on the tape
-  surface. Narrowed but not closed by cardinal guides: typed offsets are enough as a
-  *mechanism*; what is still wanted is the line as a *visual*. **It was chosen and then
-  immediately set aside on 2026-08-31, with no reason given** — so it is neither fresh
-  ground nor argued against, and this bullet no longer calls it "the most likely next
-  round". Ask before assuming it is wanted. Note the cost 26a puts on it: axis lines bounded
-  to `SCENE_EXTENT` with dash scaling are exactly the extent- and precision-sensitive class
-  that software GL hid a shipped grid bug inside, so it needs a human on real hardware.
-- **147** — should a locked axis outlive a commit? A §3.1 amendment and a human decision,
-  not a bug fix. **The user was asked and ruled SHIP AS-IS**, so it is open by decision:
-  one keystroke per guide is worth the single-sentence rule, revisit only with real use.
-- **148** — CLOSED 2026-08-31. `store.ts` held `gesturing` and `gestureSnapshotTaken` as
-  module-level closure variables `replaceDocument` could not reach, so a component
-  unmounting mid-gesture leaked them into every later test in the file and silently broke
-  undo bookkeeping. Both are store state now. Read its closure before writing a test whose
-  subject is a reset: the obvious assertion (`gesturing === false`) cannot fail, and the
-  one that works asserts an undo entry.
-- **140** — CLOSED 2026-08-31, and worth reading for how rather than what: it was closed by
-  neither remedy it named. The heavy case was not expensive geometry, it was a test calling
-  a pure function 4,650 times for one unchanging board. 1,549 ms → 11 ms inside a full-suite
-  run, no `testTimeout`, no source change.
-- **159** — CLOSED 2026-08-31. A failed duplicate now names its cause inline on the failing
-  row. Read its closure before touching that handler: the cause is read off
-  `storage.available` (the ADAPTER flag, never the React `available`, which is a render
-  behind), and the read's position relative to `setAvailable` is deliberately documented as
-  NOT mattering — a surviving mutation, recorded so nobody preserves an ordering that means
-  nothing.
-- **92** — CLOSED 2026-08-31. Both halves: `formatDims` is now the single home of
-  `length × width` in `nesting.ts`, and a turned part's label says `turned` in words. Read
-  its closure before adding anything to a sheet label — the word rides on
-  `PlacedPart.dims` rather than the panel because `fitLabel` must measure the string it
-  draws, and a non-ASCII symbol was rejected for invariant 19's reason, measured in a
-  browser rather than argued.
-- **160** — CLOSED 2026-08-31, and the second entry in two rounds closed by rejecting the
-  remedy it named. `deleteProject` taking the caller's intended active id cannot work — the
-  handler captures `activeId` before its awaits — and the residue is unreachable on this
-  adapter because every index write in `deleteProject` is synchronous with its index read.
-  Read its closure before making any storage method genuinely async: the reachability of both
-  160 and 157 rests on `BrowserStorageAdapter` being synchronous-bodied throughout, which is
-  why those races can only be built by hanging a mock.
-- **161** — CLOSED 2026-08-31 by the remedy it named, after the design question was put to
-  the user with the affected band measured (~12" to ~20" of part width on a 96" sheet). The
-  rule lives in `fitLabel` as `requireDetail`, NOT as a panel-side override of the tier —
-  read the closure before adding a fourth tier or a second caller. `SheetLayout` got its
-  first tests in the same round, and the wiring mutation is caught only by them.
-- **162** — CLOSED 2026-08-31. The bullet is gone, but read the closure before touching
-  that list: the `<ol>`-with-no-prefix version is REJECTED at the rule itself, because the
-  number in the part's rectangle comes from `nextIndex` and a list marker would come from DOM
-  position — one value, two deciders. Also records what it really was: the one list in the
-  app that never got the `list-style: none; padding: 0` reset the other four all have.
-- **163** — CLOSED 2026-08-31, and the one entry of the day that came from a bug report. Read
-  its closure before adding a UV assertion of any kind: the sweep written while diagnosing it
-  passed with the bug live, because it asserted a scale and the defect was a direction. Also
-  read it before touching a plywood edge for a *different* reason — it carries a measured,
-  deliberately-unfixed finding about ply legibility at 3/4" that the user was shown and ruled
-  on.
-- **164** — CLOSED 2026-10-03 by the batch variety round. Read its closure before touching
-  the planner: it records why per-run hints were rejected, and the one residue seen live
-  (two benches distinct in structure but alike from above).
-- **165** — CLOSED 2026-10-03 by the held and stable round; invariant 39 is the rule. Read
-  its closure for the workbench evidence and the three rulings on (c).
-- **176 / 177** — the held rules' known limits (mutual lapping, edge-attached trim hangs by
-  design, corner-region `tips` distance) and the one thing not seen live: the model
-  REPAIRING a `hangs` or `tips` violation, since nothing triggered one.
-- **167** — prompt caching DOES work (1,271 cached tokens per run, measured); the entry's
-  original premise was wrong. The real gap is a batch's cold parallel start. Still low value.
-- **174** — CLOSED 2026-10-03 by the key check round. Read its closure before touching
-  Settings' Save: the free verification call saves anyway on anything but a 401/403, and
-  **there is deliberately no prefix rule** (a working key does not start with `sk-ant-api`).
-- **215** — OPEN, a question rather than a bug: postures differ in handedness (flat and
-  upright one way, on-edge the other), so a posture change mirrors a one-handed part's cuts,
-  and which hand the cut sheet's drawings assume is not established. The quarter turns round
-  kept turn 0 equal to each posture's old frame so nothing got worse. Read it before touching
-  posture or linking parts across postures.
-- **221** — a hand-edited linked file whose cuts have no ids unlinks on load, failing safe
-  (since v11: those members stay plain parts instead of joining the shape). **223** is CLOSED by
-  the components round: joinery keeps linked parts with identical cuts on one shape.
-- **224-231** — the assemblies and components rounds' residues. 224 is CLOSED by the
-  components round. 225 is out of scope by decision (mirrored instances, a cut list by assembly).
-  The rest are low:
-  - 226: an emptied assembly lingers;
-  - 227: a covered row's eye label, and ` › ` inside a part name;
-  - 229: ungrouping in one copy can un-hide another copy's lifted parts;
-  - 230: no store-side twin-target guard;
-  - 231: record-only.
-- **171** — joinery is BUILT (2026-10-04, "Add joinery…"); refine by instruction is now **179**.
-  Read invariants 38 and 41 and follow-ups 180–206 before touching `generate/joints/`. 180–204
-  are CLOSED (182, 186, 188, 191 and 201–203 by the joinery residues round; 202
-  and 204 by decision). Open: 205 (an end-cut refusal reads the cut's STORED form) and 206 (the
-  half-lap coplanar check ignores axis), both safe refusals.
-- **178** — CLOSED 2026-10-04. A cut a board edit has left removing nothing is hidden from
-  the cut list, its drawings and the snap points, and flagged on its Properties row; it is
-  KEPT, so growing the board back restores it. Read the closure before adding a reader of
-  `board.cuts` that prints or counts cuts: it should probably read `cutsThatRemoveStock`.
-- **26a** — **read this before touching anything in the viewport.** Browser verification on
-  this host runs on software GL (llvmpipe, no GPU), which returns 1.0 for `pow(0.0, 0.0)`
-  where real hardware returns NaN. That difference hid a grid bug completely — it looked
-  correct in every screenshot and shipped as a camera-following disc. Anything resting on
-  undefined or precision-sensitive shader behaviour needs a human looking at real hardware.
-- **70 / 79 / 84** — an actual print-to-PDF render is still unverified; this host's
-  Playwright exposes no `pdf()`. Every print check to date used `emulateMedia`.
-- **76** — a recorded *negative* finding: hatch versus cross-hatch is not reliably
-  distinguishable at screen size on its own. The legend line carries the distinction.
-
-**One chain runs through the whole ledger and is the single most useful thing to know
-before executing a plan: code and justifications supplied verbatim by a plan, spec, brief
-or reviewer have been wrong at least ten times** (64, 68 ×2, 80, 87, 88, 107, 118, 126,
-141 ×4-5, and 155 for the project-library round's own six). The recurring shapes: a fixture
-that passes for the wrong reason, a test bound derived from the thing under test, a constant
-whose stated justification doesn't reproduce, and a claim copied into several documents
-before any code existed. They were caught because implementers were told to fix the *code*
-rather than the *expectation*, and to stop and escalate when they believed an expectation was
-itself wrong.
-
-**A FIFTH SHAPE — and note it is NOT a fifth instance: 140 does not join the count or the
-list above, because the wrong text was this ledger's own rather than a plan's, and the count
-is taken from 155's derivation.** The shape: **a remedy an entry NAMES is a hypothesis
-recorded at diagnosis time, not a prescription.** Follow-up **140** is the worked example. It
-called its heavy test case irreducible geometry and named two fixes — raise `testTimeout`, or
-split the case — and both would have turned the suite green while leaving the actual cause in
-place: the test was calling a pure function **4,650 times** for one unchanging board.
-**Measure before adopting the remedy an entry names**, on any entry whose diagnosis rests on
-something being inherently expensive, inherently racy, or otherwise not worth looking at
-again. Done once and worth repeating cheaply: after 140 was closed, every other test file was
-checked for the same shape and none had it — the slowest remaining test in the suite is 831 ms
-and is jsdom-bound, not a probe loop.
-
-**Follow-up 160 is the second worked example, and it extends the shape in two directions —
-read it before acting on any entry's named remedy.** 140's named remedies were merely
-wasteful; 160's was **impossible**, and the entry could not have known: `onDeleteProject`
-captures `activeId` before its awaits, so the "intended active id" it proposed passing would
-have named the project being deleted. Adopting it on the entry's authority would have written
-a dangling id and made things worse. Second, and the part 140 does not teach: **check
-REACHABILITY, not only cost.** 160 described a race that cannot occur on this adapter at all,
-because every `BrowserStorageAdapter` method is synchronous-bodied and no two of `App`'s four
-adopting handlers can overlap in production. The round that closed it changed no source and
-shipped a prohibition plus two tests instead. **So the question to ask of a named remedy is
-three-part: is it possible, is the problem reachable, and does the remedy address the actual
-cause** — and the entry's own text is evidence for none of the three.
-
-**The project library round is the sharpest single data point in that chain and is worth
-knowing as a number: SIX DISTINCT plan-supplied tests were shown, by mutation, to be
-incapable of failing** — and one of them was hiding a real shipped bug rather than merely
-being weak. Follow-up **155** enumerates all six and derives the count (the round's own ledger
-reaches six one entry earlier, having logged the same observation twice); take the number from
-there rather than restating it. **Mutate the test, don't just run it**, on anything
-whose whole justification is an ordering, a refusal, or a "cannot exceed" property.
-
-Host-level open items (proxy auth, Cloudflare, monitoring) are in `DEPLOYMENT.local.md`.
+- **179** — refine by instruction (phase 2's other half). Read invs 38, 41 and fu 180–206
+  before touching `generate/joints/`. **205/206** are open safe refusals.
+- **215** — postures differ in handedness; a question, not a bug. Read before touching
+  posture or shapes across postures.
+- **221** — a hand-edited linked file whose cuts lack ids stays plain on load (fails safe).
+- **225–231** — assemblies/components residues (225 out of scope by decision; the rest low).
+- **176/177** — the held rules' known limits (mutual lapping) and an unseen live repair.
+- **130** — semi-infinite construction lines; picked and set aside 2026-08-31 without a
+  reason. Ask before assuming it's wanted; it needs real hardware (26a).
+- **147** — open by decision (the user ruled ship as-is).
+- **163's residue** — ply legibility at 3/4in, open by decision; do not re-open unasked.
+- **26a** — **read before touching the viewport.** Browser checks here run on software GL
+  (llvmpipe), which hides undefined/precision-sensitive shader behaviour; such changes need
+  a human on real hardware.
+- **70/79/84** — real print-to-PDF is unverified (only `emulateMedia`). **76**: hatch vs
+  cross-hatch is not distinguishable at screen size; the legend carries it.
 
 ## Deployment
 
-Sloyd builds to static files served by nginx from a multi-stage image
-(`docker compose up -d --build`). No bind mounts, no named volumes, no `.env` — there is
-deliberately no server-side state to persist, because the document lives entirely in the
-browser behind `StorageAdapter`. The nginx config does SPA-fallback routing so a refresh
-on a deep route resolves to `index.html` rather than 404ing.
-
-**Everything host-specific — hostname, container name, network, proxy setup, and the
-manual steps only a human can do — is in `DEPLOYMENT.local.md` (gitignored).** Read it
-before deploying or touching anything on the host. See also the deployment rule stated
-once in the Status section: production is verified by page load, features against the dev
-server.
+Static files served by nginx from a multi-stage image (`docker compose up -d --build`).
+No bind mounts, volumes or `.env` — there is no server-side state. nginx does SPA
+fallback. **Everything host-specific is in `DEPLOYMENT.local.md` (gitignored); read it
+before deploying.** Verify per the deployment rule above.
 
 ## Working agreements
 
 - Build incrementally: small v1, then widen. Prefer shipping a narrow thing that works.
-- Design docs live in `docs/superpowers/specs/`; read the latest before changing behavior.
-- **No pull requests.** Solo repo — commit to `master`, or branch and merge locally
-  (`git merge --no-ff`, verify the merged tree, then delete the branch). Don't open PRs.
-- TDD where it pays. `units` is tested hardest on purpose: a quiet bug there produces wrong
-  measurements, and wrong measurements waste lumber. **The r3f viewport has no unit tests
-  by design — verify it by driving a real browser, not by asserting on mocks.**
-- When a review finding conflicts with what a plan or spec says, that's a human decision,
-  not one to resolve silently either way.
-- Prefer closing latent bugs over deferring them, including ones only reachable on a future
-  platform — the storage seam exists precisely so a desktop build stays cheap.
-- **This file is the rules; `docs/history.md` is the record.** When a round ships, add a
-  table row and promote any new prohibition into an invariant — do not paste the narrative
-  back in here.
+- Design docs live in `docs/superpowers/specs/`; read the latest before changing behaviour.
+- **No pull requests.** Commit to `master`, or branch and merge locally
+  (`git merge --no-ff`, verify the merged tree, delete the branch).
+- TDD where it pays; `units` is tested hardest (wrong measurements waste lumber). **The r3f
+  viewport has no unit tests by design — verify it in a real browser.**
+- A review finding that conflicts with a plan or spec is a human decision; don't resolve it
+  silently either way.
+- Prefer closing latent bugs over deferring them, including future-platform ones.
+- **Plan-, spec-, brief- and reviewer-supplied code and justifications have been wrong
+  more than ten times** (fixtures passing for the wrong reason, bounds derived from the code
+  under test, constants whose justification doesn't reproduce). Fix the code, not the
+  expectation; escalate when an expectation itself looks wrong.
+- **Mutate the test, don't just run it**, for anything justified by an ordering, a refusal
+  or a "cannot exceed" property (six plan-supplied tests in one round could not fail, fu 155).
+- **A remedy a follow-up NAMES is a hypothesis.** Ask: is it possible, is the problem
+  reachable, does it address the actual cause? Measure before adopting (fu 140, 160).
+- **This file is the rules; `docs/history.md` is the record.** When a round ships, update
+  Status, add one table row, and promote any new prohibition into a condensed invariant.
+  Put the narrative in `docs/history.md`, not here.
