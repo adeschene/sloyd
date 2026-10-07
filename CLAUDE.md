@@ -27,9 +27,11 @@ tradition built around hand woodworking.
 Static SPA, containerized, **2080/2080 tests passing across 75 files** (the ~1-in-4 `depthField.agreement.test.ts` flake is closed — follow-up 140), schema
 `CURRENT_VERSION` **11**.
 
-**The components round (2026-10-07) is built on branch `components`, merge pending the user, NOT deployed** (schema **11**; rolling back past it would strand v11 documents, so export first). It is round 2 of 2. **Duplicate and Copy in a row of an assembly SHARE its definition**: an edit inside any copy changes them all, in one undo entry, and **Make Unique** splits a copy off one level deep. **Links became shared `Shape`s**: a linked part stores only its own fields plus a `shape` id, so the shared fields are stored once. Shared copies show `×N`, "Shared by N copies", **Select copies** and **Make Unique**. Joinery keeps sharing where results come out identical (closes follow-up 223). Its live check was driven HEADLESS, because the SSH-forwarded display the user watches from had gone; the user did not watch (`docs/browser-verification-components.md`). Invariants 45 (rewritten) and 46 (amended); spec `docs/superpowers/specs/2026-10-06-sloyd-components-design.md` (§8 records the implementation amendments). Residues are follow-ups 229-231.
+**PRODUCTION MATCHES `master` as of 2026-10-07 with the components round live** — bundle `index-3fpWh8yo.js`, CSS `index-QQ-rJZea.css`, merge `9012e1e`, **schema 11** (rolling back past it strands v11 documents; export first).
 
-**PRODUCTION MATCHES the assemblies round as of 2026-10-06** — bundle `index-DVAS8FuS.js`, CSS `index-BYFkbcnj.css`, deployed commit `029becf` (merge `699cc45`, then the grey fade and click-empty-to-close-a-level, both at the user's request), **schema 10**; before those two, `index-hmc0odAl.js` (`f8f76e8`) (rolling back past it strands v10 documents; export first).
+**The components round (2026-10-07) is merged (`9012e1e`) AND deployed.** It is round 2 of 2. **Duplicate and Copy in a row of an assembly SHARE its definition**: an edit inside any copy changes them all, in one undo entry, and **Make Unique** splits a copy off one level deep. **Links became shared `Shape`s**: a linked part stores only its own fields plus a `shape` id, so the shared fields are stored once. Shared copies show `×N`, "Shared by N copies", **Select copies** and **Make Unique**. Joinery keeps sharing where results come out identical (closes follow-up 223). Its live check was driven HEADLESS, because the SSH-forwarded display the user watches from had gone; the user did not watch (`docs/browser-verification-components.md`). Invariants 45 (rewritten) and 46 (amended); spec `docs/superpowers/specs/2026-10-06-sloyd-components-design.md` (§8 records the implementation amendments). Residues are follow-ups 229-231.
+
+**Before it, the assemblies round was live (2026-10-06)** — bundle `index-DVAS8FuS.js`, CSS `index-BYFkbcnj.css`, deployed commit `029becf` (merge `699cc45`, then the grey fade and click-empty-to-close-a-level, both at the user's request), **schema 10**; before those two, `index-hmc0odAl.js` (`f8f76e8`) (rolling back past it strands v10 documents; export first).
 
 **The assemblies round (2026-10-06) is merged (`699cc45`) AND deployed (`index-hmc0odAl.js`).** Claude drove its live check on the dev server (`docs/browser-verification-assemblies.md`); the user approved the merge and the deploy without reporting hands-on results, so the fade on real hardware is still unconfirmed. It is round 1 of two, in the user's order: assemblies, then components (shared definitions). Select parts and **Group** (Ctrl/Cmd+G). The parts become an assembly, a real definition/instance tree that nests, duplicates (an INDEPENDENT copy in round 1), moves and turns as one. SketchUp's click model: a click selects the outermost assembly, a double-click opens it (everything outside fades but stays clickable), and Escape closes it. **Ungroup** is Ctrl/Cmd+Shift+G. Names are unique per level, and the cut list and joinery name parts by path (`Cabinet › Drawer › Side`). Invariant 46; invariants 8 and 33 are restated per level (spec `docs/superpowers/specs/2026-10-06-sloyd-assemblies-design.md`). **Schema 10**: `instances` and `definitions`. Residues are follow-ups 224-228; 224 holds round 2's design questions.
 
@@ -165,7 +167,7 @@ different things make `git log` look ahead when it is not, and both are normal h
   built a byte-identical bundle: the agreement-test round (follow-up 140), 159's focus test,
   and the whole delete-token round (follow-up 160).
 
-**Nothing is pending** (the assemblies round is live, above). `DEPLOYMENT.local.md` carries every runbook entry and bundle hash.
+**Nothing is pending** (the components round is live, above). `DEPLOYMENT.local.md` carries every runbook entry and bundle hash.
 
 **The 2026-08-15 project-library deploy was the first that ACTS on a user's stored data at
 page load**, which
@@ -198,7 +200,7 @@ planned follow-on is **phase 2, refine and joinery (follow-up 171)**; read invar
 and 39 first, because joinery is exactly where "overlap" and "held" both change meaning.
 174 (the key check) is done too. Phase 2's joinery half (171) shipped on 2026-10-04.
 
-**As of 2026-10-07: the components round is built and live-checked on its branch; merging and deploying are the user's calls.** After it, NO SUCCESSOR IS CHOSEN: ask what to work on.
+**As of 2026-10-07: the components round is merged AND deployed; nothing is pending. NO SUCCESSOR IS CHOSEN: ask what to work on.**
 
 **Earlier on 2026-10-06, before the assemblies round: NOTHING WAS PENDING and NO SUCCESSOR WAS CHOSEN.**
 The user asked on 2026-10-05 for three features, in order, and all three are live: multi-select,

@@ -18,6 +18,14 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-07 with the components round live** (`index-3fpWh8yo.js`,
+CSS `index-QQ-rJZea.css`, merge `9012e1e`, **schema 11**). Verified:
+- `200` on `/` and on a deep route, in-network and at the edge;
+- the new bundle served at both;
+- the old bundle 404s in-network;
+- CSP `connect-src 'self' https://api.anthropic.com` at the edge;
+- a headless real-browser load with 0 page errors, its `localStorage` cleared afterwards.
+
 **Production matches `master` as of 2026-10-06 with the assemblies round and its two same-day follow-ups live**
 (`index-DVAS8FuS.js`, deployed commit `029becf`: the fade hides the grid and reads as a grey ghost,
 and a click on empty space inside an assembly moves up one level; both at the user's request after
@@ -298,8 +306,9 @@ and 79.
 definition, and part links became shared shapes, with a spec and plan
 (`docs/superpowers/specs/2026-10-06-sloyd-components-design.md`). **Schema 11.** Claude drove its
 live check headless, because the SSH display the user watches from had gone; the user did not watch
-(`docs/browser-verification-components.md`). Rolling back past it strands v11 documents; export
-first.
+(`docs/browser-verification-components.md`). Merged (`9012e1e`) and deployed 2026-10-07 at the
+user's request as `index-3fpWh8yo.js`, confirmed by page load, bundle hash and the CSP at the edge
+and in-network. Rolling back past it strands v11 documents; export first.
 
 - **The user's rulings.**
   - **Duplicate shares; Make Unique splits.** One kind of assembly, not SketchUp's
