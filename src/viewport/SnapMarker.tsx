@@ -7,7 +7,7 @@ import { screenPixelsPerInch } from './screenScale';
 /**
  * Marker colour by kind. These are OFF-PALETTE on purpose, with the user's
  * explicit approval, and that is worth defending rather than quietly fixing:
- * CLAUDE.md records brass (#c99a4e) as "the one live colour in the app."
+ * brass (#c99a4e) is the one live colour in the app (snap-move design §6.1).
  *
  * An inference marker is transient chrome, not part of the model, and it has
  * exactly one job — telling you which KIND of point you are about to snap to,

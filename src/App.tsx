@@ -714,9 +714,8 @@ export default function App() {
           //
           // A drag past CLICK_DRAG_SLOP_PX is an orbit, not a click — that is
           // exactly why OrbitControls is left ungated between anchoring and
-          // placing, and CLAUDE.md sells it as the payoff ("the camera stays
-          // fully usable mid-move, so you can orbit around to find the face you
-          // are aiming at"). But a pointerdown on the canvas BLURS this input
+          // placing, and the snap-move design (§1) sells it as the payoff ("the
+          // camera stays fully usable mid-move"). But a pointerdown on the canvas BLURS this input
           // while leaving the anchor alive. So the encouraged gesture is: type
           // `1`, orbit to see the face, type `2` — and replacing gives you `2`
           // while the box read `1` the whole way round. The displayed text and
