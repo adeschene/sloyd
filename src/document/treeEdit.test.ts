@@ -1,5 +1,5 @@
 import { mapWorld, translateItems, writeBackFlat } from './treeEdit';
-import { flatDocument, instanceAt, resolvedPartAt, worldParts } from './tree';
+import { flatDocument, instanceAt, partAt, resolvedPartAt, worldParts } from './tree';
 import { assemblyDoc } from './treeFixtures';
 import { boardCenter, reorientedPosition } from './geometry';
 import type { Board } from './types';
@@ -274,6 +274,63 @@ describe('writeBackFlat shares where identical', () => {
     const out = writeBackFlat(doc, before, after);
     expect(out.shapes).toHaveLength(2);
     expect(worldParts(out).map((b) => b.cuts[0]!.offset)).toEqual([1, 5, 1]);
+  });
+
+  // A shape used at the ROOT and by a part inside a definition placed twice:
+  // the definition splits (step 1), then the shape regroups across the root
+  // part and both stored copies of the definition's part (step 3).
+  const rootAndDef = (): SloydDocument => ({
+    ...createDocument(),
+    shapes: [{ id: 's1', length: 28, width: 1.75, thickness: 1.75, material: 'oak', grain: 'length', posture: 'upright', cuts: [] }],
+    boards: [{ id: 'r1', name: 'Leg', position: [-20, 0, 0], rotation: 0, shape: 's1' }],
+    instances: [0, 1].map((k) => ({ id: `i${k}`, name: `F${k}`, definition: 'd1', position: [k * 30, 0, 0] as [number, number, number], rotation: 0 as const })),
+    definitions: [{ id: 'd1', boards: [
+      { id: 'b1', name: 'Rail', length: 16, width: 3, thickness: 0.75, position: [2, 10, 0], rotation: 0, posture: 'flat', grain: 'length', material: 'oak', cuts: [] },
+      { id: 'b2', name: 'Post', position: [0, 0, 0], rotation: 0, shape: 's1' },
+    ], instances: [] }],
+  });
+  const legCut = (b: Board, offset: number, k: number) => (b.shape ? { ...b, cuts: [{ id: `m${k}`, ...cut, offset }] } : b);
+  const shapeOfAt = (doc: SloydDocument, occ: string) => {
+    const p = partAt(doc, occ)!;
+    return 'shape' in p ? p.shape : null;
+  };
+
+  it('a shape at the root and in a split definition regroups by result; every user resolves its own cuts', () => {
+    const doc = rootAndDef();
+    const before = flat(doc);
+    expect(before.map((b) => b.id)).toEqual(['r1', 'i0/b1', 'i0/b2', 'i1/b1', 'i1/b2']);
+    const offsets: Record<string, number> = { r1: 1, 'i0/b2': 1, 'i1/b2': 3 };
+    const after = before.map((b, k) => legCut(b, offsets[b.id] ?? 0, k));
+    const out = writeBackFlat(doc, before, after);
+    // The definition split: i1 has its own copy, i0 keeps d1.
+    expect(out.instances.map((i) => i.definition)[0]).toBe('d1');
+    expect(out.instances[1]!.definition).not.toBe('d1');
+    // Root leg and i0's post agree: one shape. i1's post differs: its own.
+    expect(out.shapes).toHaveLength(2);
+    expect(shapeOfAt(out, 'r1')).toBe(shapeOfAt(out, 'i0/b2'));
+    expect(shapeOfAt(out, 'i1/b2')).not.toBe(shapeOfAt(out, 'r1'));
+    expect(shapeOfAt(out, 'i1/b2')).not.toBeNull();
+    const w = new Map(worldParts(out).map((b) => [b.id, b]));
+    expect([...w.keys()].sort()).toEqual(before.map((b) => b.id).sort());
+    for (const [id, off] of Object.entries(offsets)) expect(w.get(id)!.cuts.map((c) => c.offset)).toEqual([off]);
+    expect(w.get('r1')!.cuts[0]!.id).toBe(w.get('i0/b2')!.cuts[0]!.id);
+    expect(w.get('i0/b1')!.cuts).toEqual([]);
+    expect(w.get('i1/b1')!.cuts).toEqual([]);
+    // Nothing moved.
+    for (const b of before) expect(w.get(b.id)!.position).toEqual(b.position);
+  });
+
+  it('a shape at the root and in a shared definition: root differs, the definition stays shared', () => {
+    const doc = rootAndDef();
+    const before = flat(doc);
+    const offsets: Record<string, number> = { r1: 5, 'i0/b2': 1, 'i1/b2': 1 };
+    const out = writeBackFlat(doc, before, before.map((b, k) => legCut(b, offsets[b.id] ?? 0, k)));
+    expect(out.instances.map((i) => i.definition)).toEqual(['d1', 'd1']);
+    expect(out.shapes).toHaveLength(2);
+    expect(shapeOfAt(out, 'r1')).not.toBe(shapeOfAt(out, 'i0/b2'));
+    const w = new Map(worldParts(out).map((b) => [b.id, b]));
+    for (const [id, off] of Object.entries(offsets)) expect(w.get(id)!.cuts.map((c) => c.offset)).toEqual([off]);
+    expect(w.get('i0/b2')!.cuts[0]!.id).toBe(w.get('i1/b2')!.cuts[0]!.id);
   });
 
   // Nested: two cabinets share c1, which holds ONE drawer instance of d1. The
