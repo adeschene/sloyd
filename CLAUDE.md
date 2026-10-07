@@ -339,11 +339,11 @@ edge's CSP header** (`connect-src 'self' https://api.anthropic.com`), which the 
 does not send.
 
 **Rollback cost is a schema question.** A document saved by the current build carries
-`version: 6`, and any image understanding less **refuses** it rather than silently
-dropping the guides — the gate working as designed, and the silent-data-loss case the
-bump was argued from. Autosave lives in the browser, so rolling back past the
-guide-points deploy would strand any project saved since; export first. Rolling back a
-round that changed no schema costs nothing but the round itself.
+`version: 11`, and any build understanding less **refuses** it rather than silently dropping
+what it cannot read. That is the gate working as designed. Each bump's own argument is in
+Versioning below. Autosave lives in the browser, so rolling back past a schema bump strands
+every project saved since; export first. Rolling back a round that changed no schema costs
+nothing but the round itself.
 
 ## Architecture
 
@@ -354,7 +354,9 @@ CSP's `connect-src` allows only that origin. There is still no server-side state
 
 **Governing rule: the plain-JSON document is the source of truth; the Three.js scene is
 derived from it and is never authoritative.** A document is
-`{ version, name, units, stock, guides: [...], boards: [...] }`. Dragging a board in the
+`{ version, name, units, stock, guides, boards, instances, definitions, shapes }`: the root's
+parts and assemblies, the assembly definitions they place, and the shared part shapes
+(invariants 45, 46). Dragging a board in the
 viewport computes a number, writes it to the document, and the scene re-renders from the
 updated document — never the reverse. This is what keeps undo, save/load and export
 simple: they only ever serialize or restore the document.
@@ -829,10 +831,11 @@ src/
 │       │                   every `resize` is pre-checked by `cutIntoEnd` (rebaseCuts'
 │       │                   throw), so an end already cut is a skip, never a throw.
 │       │                   A growing part's cuts are re-stored by SHAPE first (fu 199).
-│       │                   It ENDS in `migrateDocument`, so `repairLinks` unlinks
-│       │                   linked parts joinery cut at all (unlinked); `run.ts` has no
-│       │                   link code of its own, and `runJoinery.test.ts` pins it
-│       │                   (inv 45)
+│       │                   It runs on `flatDocument`; `writeBackFlat` writes the result into
+│       │                   the tree, splitting definitions and shapes whose results differ
+│       │                   and keeping the rest shared (inv 45, 46), and `run.ts` then runs
+│       │                   `migrateDocument` on it. `runJoinery.test.ts` pins the linked case
+│       │                   (identical mortises stay one shape, fu 223)
 │       │                   `resize` and `cutIntoEnd` take WORLD ends and map them to the
 │       │                   part's own end with `endFacing` (inv 44)
 │       └── choose.ts       JOINERY_PROMPT / JOINT_SCHEMA / parseChoices / defaults;
@@ -974,9 +977,13 @@ src/
 │   │                       eye's label is "Hide <name>" / "Show <name>" (`setHidden`); a
 │   │                       hidden row's name button is `disabled`. **Show all (N)**
 │   │                       renders inside PartsList, under the Parts heading, only
-│   │                       while something is hidden. A linked row adds a chain icon
-│   │                       AFTER the name button (so the button's name stays the
-│   │                       part's), `role="img"`, `aria-label="Linked, N parts"`
+│   │                       while something is hidden. A linked row (a shaped part) adds
+│   │                       a chain icon AFTER the name button (so the button's name stays
+│   │                       the part's), `role="img"`, `aria-label="Linked, N parts"`; an
+│   │                       assembly row whose definition has 2+ placements adds `×N`
+│   │                       (`aria-label="Shared, N copies"`, from `TreeRow.copies`). The list
+│   │                       is a tree (`treeRows`); an eye is disabled under a hidden
+│   │                       ancestor and on the open assembly
 │   ├── CopyInRow.tsx       Copy in a row…: the inline form, local state only until Apply.
 │   │                       Rendered INSIDE each Properties panel's selection-keyed root, so a
 │   │                       selection change remounts it closed and reset. `rowLayout` is the one
@@ -1006,6 +1013,11 @@ src/
 │   │                       under the name: the count, **Select linked**, **Unlink**;
 │   │                       the count is a selector returning a NUMBER, not a memo
 │   │                       over the boards (inv 43's selector rule)
+│   │                       One assembly selected: `InstanceProperties` — name, Turn,
+│   │                       Duplicate / Ungroup / Group / Hide others / Delete, Copy in a row;
+│   │                       when its definition has 2+ placements, "Shared by N copies", **Select
+│   │                       copies** (another copy at the open level) and **Make Unique** (by
+│   │                       instance REFERENCES, inv 46). A mixed selection shows no size fields
 │   ├── diagramScale.ts     fitView / bandOn (ordering-guarded). MAX_ASPECT /
 │   │                       MAX_HEIGHT / MIN_WIDTH are browser-settled. Pure
 │   ├── diagramLabels.ts    LABEL_SIZE / CHAR_W / labelHeight / labelWidth / packRow
@@ -1571,10 +1583,10 @@ worked examples behind several of them are in `docs/history.md`.
     - **Cut ids are scoped PER BOARD, board and guide ids per document.** `Properties.tsx`
       keys `CutRow` by cut id within one board and the store looks a cut up by
       `(boardId, cutId)`, so two boards may each carry a cut called `c1` and neither is wrong.
-      Widening cut ids to one document-wide set is a silent behaviour change. **Since the
-      linking round it is also load-bearing:** linked members SHARE cut ids (invariant 45), so
-      a document-wide set would re-mint every later member's cut ids on load, and
-      `repairLinks` would then unlink every link that has cuts.
+      Widening cut ids to one document-wide set is a silent behaviour change. **Since v11 a
+      Shape's cut ids are scoped to the shape** (its users read one set), and the v10→v11
+      migration compares link members' cuts BY ID: a document-wide set would have re-minted
+      later members' cut ids and left them unlinked.
     - **A guide with NO id is still dropped, not minted.** `validateGuides`' existing rule is
       untouched: missing is malformed data, a duplicate is a good guide wearing a taken label.
 
@@ -1583,8 +1595,9 @@ worked examples behind several of them are in `docs/history.md`.
     `{ id, at }`, and every id lookup in the app reads runtime state set after a load
     (`selectedId`, `grabbed.owner.id`, the `find` calls in the store and viewport). **A future
     field that points at a board BY ID breaks this**, and would make the repair a two-pass
-    rewrite rather than a single expression. `Board.link` does not: it is a label shared by
-    the members, never a board id (invariant 45).
+    rewrite rather than a single expression. `Instance.definition` and `ShapedBoard.shape` do
+    point at ids, but at DEFINITION and SHAPE ids, which are resolved by dropping, never
+    re-minting (the assemblies and v11 bullets below), so no reference is ever rewritten.
 
     Threaded as one `seen` set through `rawBoards.map`, **not** a `dedupeIds` pass beside
     `dedupeNames` — a name needs a replacement computed *from* its siblings and so cannot be
@@ -1858,7 +1871,8 @@ worked examples behind several of them are in `docs/history.md`.
       `setHidden` — all go through `applyHidden`, which never runs `edit()` and never replaces
       `doc`. Everything else only RECONCILES the set with a document: `restore` (undo/redo,
       filtered to the restored parts), `replaceDocument` (clears it) and `deleteBoards`
-      (drops the deleted ids, fu 213). A fifth user action that writes `hiddenIds` directly
+      (drops the deleted ids, fu 213; since components, `reconcileHidden` filters against
+      `itemPaths` after Delete, Group and Ungroup, so other copies' ids are reconciled too). A fifth user action that writes `hiddenIds` directly
       is a second decider.
     - **One entry, the SAME document.** A hide that changes the set pushes exactly one entry
       holding the current `doc` object, no copy, and clears `future`; autosave does not fire.

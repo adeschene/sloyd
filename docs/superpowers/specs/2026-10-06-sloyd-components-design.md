@@ -1,6 +1,6 @@
 # Sloyd — components (round 2 of components)
 
-**Date:** 2026-10-06 · **Status:** approved in conversation, section by section; this document awaits review
+**Date:** 2026-10-06 · **Status:** approved; shipped 2026-10-07 (merge `9012e1e`, schema 11). Implementation amendments are in the last section.
 **Builds on:**
 - **Round 1:** assemblies (`docs/superpowers/specs/2026-10-06-sloyd-assemblies-design.md`, schema 10,
   invariant 46), and the linking round (schema 9, invariant 45).

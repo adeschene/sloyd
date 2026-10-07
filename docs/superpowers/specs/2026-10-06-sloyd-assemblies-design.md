@@ -1,6 +1,6 @@
 # Sloyd — assemblies (round 1 of components)
 
-**Date:** 2026-10-06 · **Status:** approved in conversation, section by section; this document awaits review
+**Date:** 2026-10-06 · **Status:** approved; shipped 2026-10-06 (merge `699cc45`, schema 10). Implementation amendments are in the last section.
 **Builds on:**
 - **Earlier rounds:** linking (`Board.link`, schema 9), quarter turns (`axisFrame`, invariant 44),
   copy in a row, hide/unhide, multi-select (`selectionPatch`).
