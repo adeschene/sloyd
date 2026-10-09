@@ -21,10 +21,10 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-09: the refine-joined round, bundle
-  `index-CJdGZH0r.js`, CSS `index-QQ-rJZea.css`, merge `bb238f9`, **schema 11** (unchanged).
+- **Production matches `master`** as of 2026-10-09: the repair-joints round, bundle
+  `index--GNPV7mV.js`, CSS `index-QQ-rJZea.css`, merge `619130a`, **schema 11** (unchanged).
   Test count is under Commands.
-- **Pending deploy: the repair-joints round (fu 240) is on `master`, not deployed.** NO SUCCESSOR IS
+- **Nothing is pending. NO SUCCESSOR IS
   CHOSEN: ask what to work on; do not pick. Open near the recent code: 236 (estimate under-reads),
   237 (refined-name compounding), 241–243, 215 (posture handedness, a question),
   205/206 (joinery's safe refusals), 221, 225–235. See Open follow-ups below.
