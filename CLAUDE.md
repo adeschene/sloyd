@@ -24,8 +24,9 @@ handicraft education tradition built around hand woodworking.
 - **Production matches `master`** as of 2026-10-09: the refine-joined round, bundle
   `index-CJdGZH0r.js`, CSS `index-QQ-rJZea.css`, merge `bb238f9`, **schema 11** (unchanged).
   Test count is under Commands.
-- **Nothing is pending. NO SUCCESSOR IS CHOSEN: ask what to work on; do not pick.** Open
-  near the recent code: 240 (pre-fix duplicated/phantom mortises), 215 (posture handedness, a question),
+- **Pending deploy: the repair-joints round (fu 240) is merged, not deployed.** NO SUCCESSOR IS
+  CHOSEN: ask what to work on; do not pick. Open near the recent code: 236 (estimate under-reads),
+  237 (refined-name compounding), 241–243, 215 (posture handedness, a question),
   205/206 (joinery's safe refusals), 221, 225–235. See Open follow-ups below.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
@@ -66,6 +67,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | generate assemblies | 10-09 | — | generated assemblies + role-linked components, distinct-part cap |
 | refine | 10-09 | — | refine by instruction: new project + change list (fu 179) |
 | refine joined | 10-09 | — | refine keeps joints: unjoin + exact gate, fixed choices (fu 238) |
+| repair joints | 10-09 | — | Repair joints: prune pre-a899b51 strays, prove by the gate (fu 240) |
 
 ### The deployment rule
 
@@ -218,17 +220,19 @@ src/
 ├── generate/         prompt.ts (limitLines), concepts.ts (batch planning), refine.ts (refineMessage,
 │                     detailFor), run.ts (runRepairLoop, evaluateDesign — THE design evaluation
 │                     shared by Generate and Refine, runRefine, runJoinery),
-│                     joints/{pocket,sites,recipes,choose,unjoin}.ts (inv 41); unjoin + gateUnjoin
-│                     read joints back, proved by an exact (1e-9in) re-join; runJoinery's `fixed`
-│                     keeps recorded joints passing validChoice, `alsoPresent` = original's problems
-├── useGenerations.ts, useJoinery.ts, useRefine.ts   write only via createProject(…, {activate:false}) (inv 36)
+│                     joints/{pocket,sites,recipes,choose,unjoin,repair}.ts (inv 41); unjoin + gateUnjoin
+│                     read joints back, proved by an exact (1e-9in) re-join (readJoints = the lenient
+│                     body); runJoinery's `fixed` keeps recorded joints passing validChoice, `alsoPresent`
+│                     = original's problems; repair.ts = fu 240's prune-and-prove (twin strays must be
+│                     empty; evidence rule); joints/fixtures/ = damaged docs made by the buggy 4a340f7
+├── useGenerations.ts, useJoinery.ts, useRefine.ts, useRepair.ts   write only via createProject(…, {activate:false}) (inv 36)
 ├── viewport/         NO unit tests by design. Viewport, BoardMesh (inv 21), MoveTool +
 │                     moveCandidates, TapeTool, Gizmo (invs 3, 10, 42), GuideMarkers,
 │                     SnapMarker, snapPick (screen-space nearest, on purpose), grain*.ts
 │                     (invs 12, 14, 15, 17, 35), pointer.ts, gridDensity, screenScale, extent
 ├── panels/           DimensionField/NameField (invs 5, 9), Properties, CopyInRow, PartsList,
 │                     Toolbar, TapeReadout (invs 27, 28), GuidesList, ProjectMenu,
-│                     SettingsDialog, GenerateDialog, JoineryDialog, RefineDialog, CutList, PartDiagram,
+│                     SettingsDialog, GenerateDialog, JoineryDialog, RefineDialog, RepairNotice, CutList, PartDiagram,
 │                     SheetLayout, diagramScale, diagramLabels (inv 19)
 └── App.tsx           layout, autosave/restore, the ONE keydown effect (inv 27), `pending`
                       (inv 29), switchToken (inv 32), `.app-shell` inert behind any modal
@@ -482,7 +486,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 2486 tests across 84 files
+npm test           # Vitest, currently 2555 tests across 87 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

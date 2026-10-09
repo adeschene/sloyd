@@ -66,9 +66,10 @@ own pockets from their own world positions, so an exact compare would miss last-
 4. **Twin strays only.** Every unexplained cut must equal (part-local) a cut that the reader DID
    explain on a twin of the same part, AND be empty: no other part's solid (`worldSolids`,
    invariant 38) overlaps its world box by more than `TOUCH` on every axis — a phantom is a pocket
-   nothing enters (amended while planning: without this, a joined part resized by hand leaves its
+   nothing enters (amended while planning: without this, a joined part SHORTENED by hand leaves its
    own pocket unexplained, its twin's identical pocket explained, and the repair would delete a
-   pocket the part still fills). Any other unexplained cut → refuse.
+   pocket the part still fills; measured during execution, a LENGTHENED one is refused by step 5's
+   re-join match instead). Any other unexplained cut → refuse.
 5. **Prune and reorder.** Remove the duplicates and strays. Re-join `plain` with `joints` exactly as
    `gateUnjoin` does; reorder each part's surviving cuts to that re-join's order, matching by cut
    equality, keeping the STORED cut objects (values and ids). Nothing else changes: positions,

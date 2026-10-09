@@ -302,6 +302,22 @@ and 79.
 
 ## What each round did
 
+**What the repair-joints round did (2026-10-09)**: follow-up 240, repairing projects whose joints
+the pre-`a899b51` joinery doubled, with a spec and plan
+(`docs/superpowers/specs/2026-10-09-sloyd-repair-joints-design.md`). **No schema change.** The user
+chose a repair action over a warning, prune-and-prove over rebuilding, and recreated fixtures (no real
+affected projects exist). The fixtures were made by running the buggy commit (`4a340f7`) in a scratch
+worktree, and they corrected the spec before any code: only receiving pockets were doubled (no
+stray tenon shoulders), so the undamaged fixture became the null case; an exact compare misses a
+metric twin's last-bit difference; the stored order already matched the re-join (reorder pinned
+synthetically). Self-review added the evidence rule (designs not damaged this way get no message)
+and the emptiness rule (a stray must be a pocket nothing occupies). Found during execution:
+`applyJoints`' own `migrateDocument` re-mints `/` ids, so tests of "today's joinery" must go through
+`writeBackFlat` as the app does, or they pass at the pre-check for the wrong reason; and only a
+SHORTENED hand-resized part needs the emptiness rule (a lengthened one fails the re-join match). Live
+check (`docs/browser-verification-repair-joints.md`): fixture 2 imported, repaired from Refine (3
+stray cuts, Front/Back split), the repaired project passes the gate. Tests 2486 → 2555.
+
 **What the refine-joined round did (2026-10-09)**: follow-up 238, refining designs with joints, with a
 spec and plan (`docs/superpowers/specs/2026-10-09-sloyd-refine-joined-design.md`). **No schema
 change.** A throwaway spike first measured that joinery can be read back from the joined design

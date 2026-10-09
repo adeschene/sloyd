@@ -4693,7 +4693,14 @@ the assemblies round (2026-10-06) may show these on its cut list. Fixed going fo
 Refine's gate refuses such projects (safe; its message blames a hand edit). A load repair could drop
 exact duplicates but not phantoms; the real remedy is re-running Add joinery from the unjoined
 original.
-- **Status:** open — tell affected users; consider a repair or a cut-list warning.
+- **Status:** closed 2026-10-09 (repair-joints round). A "Repair joints" action in the Refine and
+  Joinery dialogs (`src/generate/joints/repair.ts`) de-duplicates cuts on twin parts (same last id
+  segment and own name), reads the joints back leniently, accepts only twin strays (equal to a
+  twin's explained cut AND empty — nothing occupies it), prunes, keeps stored values in the re-join's
+  order, proves the result with `gateUnjoin`, and saves `<name> — repaired` without adopting it.
+  Fixtures made by the buggy code (`src/generate/joints/fixtures/`) measured the damage: only
+  RECEIVING pockets were doubled (a lengthened part's waste cuts got their own array). Projects not
+  damaged this way get no message (evidence rule); damage it cannot account for is refused.
 
 **241. A design that tips gets repair rounds on every refine.** Part-less problems (`tips`, size
 limits) are always new by the user's limits ruling, so a refine of a design that already tipped
