@@ -226,9 +226,14 @@ export async function runRefine(
   let usage = out.usage;
   let joints: JointsSummary | null = null;
   if (base.joints) {
-    const fixed: FixedJoints = new Map(base.joints.map((j) => [jointKey(j.enter, j.receive, j.axis, j.side), j.choice]));
+    // A meeting the ORIGINAL plain design had but no record covers was left butt (butt leaves
+    // no cut; the gate's round trip proved it): a fixed butt, never re-opened (spec §4).
+    const origFlat = flatDocument(base.plain);
+    const fixed = new Map<string, Omit<JointChoice, 'site'>>(findSites(origFlat).map((s) =>
+      [jointKey(origFlat.boards[s.enter]!.name, origFlat.boards[s.receive]!.name, s.axis, s.side), { joint: 'butt' as const }]));
+    for (const j of base.joints) fixed.set(jointKey(j.enter, j.receive, j.axis, j.side), j.choice);
     // DROPPED = a record whose meeting no longer exists on the refined plain design;
-    // a record whose meeting exists but whose choice no longer fits is re-chosen (counted in `chosen`).
+    // a record whose meeting exists but whose choice no longer fits is open (counted in `chosen`).
     const plainFlat = flatDocument(refined);
     const siteKeys = new Set(findSites(plainFlat).map((s) => jointKey(plainFlat.boards[s.enter]!.name, plainFlat.boards[s.receive]!.name, s.axis, s.side)));
     const dropped = base.joints.filter((j) => !siteKeys.has(jointKey(j.enter, j.receive, j.axis, j.side))).length;
@@ -239,8 +244,7 @@ export async function runRefine(
       refined = { ...jo.result.doc, stock: doc.stock, units: doc.units, guides: doc.guides };
       violations = [...violations, ...jo.violations];
       usage = addUsage(usage, jo.usage);
-      const applied = jo.result.applied.filter((a) => a.joint !== 'butt').length;
-      joints = { kept: jo.kept, chosen: Math.max(0, applied - jo.kept), dropped, skipped: jo.result.skipped.map((s) => s.reason) };
+      joints = { kept: jo.kept, chosen: jo.chosen, dropped, skipped: jo.result.skipped.map((s) => s.reason) };
     }
   }
   // Changes are judged against the ORIGINAL joined design (refine-joined spec §4).
@@ -266,8 +270,10 @@ export interface JoineryOutcome {
   preexisting: Violation[];
   usage: LlmUsage;
   fallback?: string;
-  /** Fixed choices applied without asking the model; 0 without `fixed`. */
+  /** Fixed NON-butt choices that applyJoints actually applied (a skipped one is not kept); 0 without `fixed`. */
   kept: number;
+  /** Open sites sent to the chooser, whatever it chose (butt included): every site without `fixed`, 0 when no call is made. */
+  chosen: number;
 }
 
 /** Recorded joints by `jointKey`, re-applied when `validChoice` still passes (refine-joined spec §4). */
@@ -312,7 +318,8 @@ export async function runJoinery(
     // The tree-shaped document is what useJoinery saves (out.result.doc).
     const tree = migrateDocument(writeBackFlat(doc, flat.boards, worldParts(joined.doc)));
     const result = { ...joined, doc: tree };
-    return { doc: tree, violations, result, notes, preexisting, kept: fixed.size };
+    const kept = joined.applied.filter((a) => a.joint !== 'butt' && fixed.has(a.site)).length;
+    return { doc: tree, violations, result, notes, preexisting, kept, chosen: open.length };
   };
   if (open.length === 0) return { ...build(merge([]), []), usage: ZERO_USAGE };
   try {

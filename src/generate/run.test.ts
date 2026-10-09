@@ -500,17 +500,33 @@ describe('runRefine — joined designs', () => {
     expect(out.joints!.chosen).toBe(listed.length);
   });
 
-  it('a new meeting answered butt is not counted as chosen', async () => {
+  it('a new meeting answered butt still counts as chosen (spec §4 counts)', async () => {
     const echo = plainEcho(joined);
     const s1 = echo.parts.find((p) => p.name === 'Shelf 1')!;
     const withShelf = { ...echo, parts: [...echo.parts, { ...s1, name: 'Shelf 3', at: { ...s1.at, y: 60 } }] };
     // butt for every site id the message could list; parseChoices ignores ids that are not open
     const allButt = { joints: Array.from({ length: 40 }, (_, i) => ({ site: i, joint: 'butt' })) };
-    const { client } = fakeClient([withShelf, allButt]);
+    const { client, seen } = fakeClient([withShelf, allButt]);
     const out = await go(client, joined);
     if ('refused' in out) throw new Error(out.refused.message);
     expect(client.complete).toHaveBeenCalledTimes(2);
-    expect(out.joints).toEqual({ kept: 12, chosen: 0, dropped: 0, skipped: [] });
+    const joinMsg = String((seen[1][0] as { text: string }).text);
+    const listed = joinMsg.split('Sites:\n')[1]!.split('\n').filter((l) => /^\d+\. /.test(l));
+    expect(listed).toHaveLength(2);   // Shelf 3 into each side
+    expect(out.joints).toEqual({ kept: 12, chosen: 2, dropped: 0, skipped: [] });
+  });
+
+  it('a meeting the original left butt stays butt: refined unchanged, ONE call, the same joined design back', async () => {
+    const sh = bookSites.find((s) => bookFlat.boards[s.enter].name === 'Shelf 1' && bookFlat.boards[s.receive].name === 'Left side')!;
+    const withButt: SloydDocument = migrateDocument(applyJoints(bookFlat, bookSites,
+      bookSites.map((s) => (s.id === sh.id ? { site: s.id, joint: 'butt' as const } : defaultChoice(s, bookFlat, bookSites)))).doc);
+    const { client } = fakeClient([plainEcho(withButt), { joints: [] }]);
+    const out = await go(client, withButt);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(client.complete).toHaveBeenCalledTimes(1);
+    expect(sameJoined(flatDocument(out.doc), flatDocument(withButt))).toBe(true);
+    expect(out.joints).toEqual({ kept: bookSites.length - 1, chosen: 0, dropped: 0, skipped: [] });
+    expect(out.changes).toEqual([]);
   });
 
   it('removes a shelf: its joints are dropped, no joinery call', async () => {

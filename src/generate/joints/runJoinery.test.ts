@@ -228,6 +228,55 @@ describe('runJoinery — fixed choices', () => {
     expect(out.kept).toBeLessThan(sites.length);
   });
 
+  it('chosen counts the OPEN sites sent to the chooser: all without fixed, the rest with some fixed, 0 with none open', async () => {
+    const none = await run(client(long));
+    const one = await go(client(long), new Map([...fixedAll].slice(0, 1)));
+    const all = await go(client(long), fixedAll);
+    if ('noSites' in none || 'noSites' in one || 'noSites' in all) throw new Error('sites');
+    expect([none.chosen, one.chosen, all.chosen]).toEqual([sites.length, sites.length - 1, 0]);
+  });
+
+  it('a chosen butt still counts as chosen', async () => {
+    const butts = { joints: ids.map((site) => ({ site, joint: 'butt' })) };
+    const out = await run(client(butts));
+    if ('noSites' in out) throw new Error('sites');
+    expect(out.result.applied.every((a) => a.joint === 'butt')).toBe(true);
+    expect(out.chosen).toBe(sites.length);
+  });
+
+  it('fixed butts are applied without a call but are not counted as kept', async () => {
+    const butts = new Map([...fixedAll].map(([k]) => [k, { joint: 'butt' }]));
+    const c = client(long);
+    const out = await go(c, butts);
+    if ('noSites' in out) throw new Error('sites');
+    expect(c.complete).not.toHaveBeenCalled();
+    expect(out.kept).toBe(0);
+    expect(out.chosen).toBe(0);
+  });
+
+  it('a fixed choice applyJoints skips is not kept', async () => {
+    // recipes.test's half-lap fixture: lapping Upper into Lower would drive it into Block, so it is skipped.
+    const LAP = design(
+      { name: 'Lower', at: [0, 5, 9], size: [20, 0.75, 2] },
+      { name: 'Upper', at: [9, 5.75, 0], size: [2, 0.75, 20] },
+      { name: 'Block', at: [9, 5, 0], size: [2, 0.75, 2] },
+    );
+    const ls = findSites(LAP);
+    const key = (s: (typeof ls)[number]) => jointKey(LAP.boards[s.enter].name, LAP.boards[s.receive].name, s.axis, s.side);
+    const fixed = new Map(ls.map((s) => {
+      const { site: _s, ...c } = s.kind === 'crossing' ? { site: s.id, joint: 'half-lap' as const } : defaultChoice(s, LAP, ls);
+      return [key(s), c] as const;
+    }));
+    const c = client(long);
+    const out = await runJoinery(c, LAP, new AbortController().signal, () => {}, { fixed: fixed as never });
+    if ('noSites' in out) throw new Error('sites');
+    expect(c.complete).not.toHaveBeenCalled();
+    expect(out.result.skipped.map((s) => s.reason)).toEqual(['moving Upper would drive it into Block']);
+    const nonButt = [...fixed.values()].filter((f) => f.joint !== 'butt').length;
+    expect(nonButt).toBeGreaterThan(0);
+    expect(out.kept).toBe(nonButt - 1);
+  });
+
   it('without fixed, kept is 0 and behaviour is unchanged', async () => {
     const out = await run(client(long, short));
     if ('noSites' in out) throw new Error('sites');
