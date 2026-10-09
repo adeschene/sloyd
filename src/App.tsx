@@ -14,7 +14,7 @@ import { useGenerations } from './useGenerations';
 import { useJoinery } from './useJoinery';
 import { JoineryDialog } from './panels/JoineryDialog';
 import { joineryEstimateUsd, refineEstimateUsd } from './generate/run';
-import { detailFor, refineRefusal } from './generate/refine';
+import { refineDialogInfo } from './generate/refine';
 import { useRefine } from './useRefine';
 import { RefineDialog } from './panels/RefineDialog';
 import { findSites, siteLabel } from './generate/joints/sites';
@@ -22,7 +22,7 @@ import { AnthropicClient, checkAnthropicKey } from './llm/anthropic';
 import type { LlmSettings } from './storage/types';
 import type { DuplicateFailure } from './panels/ProjectMenu';
 import { canBeginLength } from './units/length';
-import { tapeAxisFromKey, createDocument, DocumentError, flatDocument, worldParts } from './document/document';
+import { tapeAxisFromKey, createDocument, DocumentError, flatDocument } from './document/document';
 import type { SloydDocument } from './document/document';
 import { storage } from './storage/browser';
 import { useStore } from './store/store';
@@ -120,7 +120,8 @@ export default function App() {
     onStorageVerdict: () => setAvailable(storage.available),
   });
   const refineInfo = useMemo(
-    () => (dialog === 'refine' ? { refusal: refineRefusal(doc), detail: detailFor(doc), joined: worldParts(doc).some((b) => b.cuts.length > 0) } : null),
+    // ONE plainForRefine (one joint-gate run) per document; its base goes back to the estimate.
+    () => (dialog === 'refine' ? refineDialogInfo(doc) : null),
     [dialog, doc],
   );
   useEffect(() => {
@@ -997,7 +998,7 @@ export default function App() {
           joined={refineInfo.joined}
           initialDetail={refineInfo.detail}
           model={llmSettings?.model ?? null}
-          estimate={(s) => (llmSettings ? refineEstimateUsd(new AnthropicClient(llmSettings.apiKey, llmSettings.model), doc, s) : null)}
+          estimate={(s) => (llmSettings ? refineEstimateUsd(new AnthropicClient(llmSettings.apiKey, llmSettings.model), doc, s, refineInfo.base) : null)}
           run={refine.run}
           live={refine.live}
           onRun={(s) => {

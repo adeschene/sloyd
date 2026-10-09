@@ -35,13 +35,15 @@ export function detailFor(doc: SloydDocument): Detail {
   return (['simple', 'moderate', 'detailed'] as const).find((d) => DETAIL_CAPS[d] >= distinct + DETAIL_HEADROOM && placedCeiling(d) >= placed) ?? 'detailed';
 }
 
+export type RefineBase = { plain: SloydDocument; joints: RecordedJoint[] | null } | { refused: RefineRefusal };
+
 /**
  * The design Refine works on (refine-joined spec §2): unchanged when nothing is
  * cut; otherwise its joints are read back (gateUnjoin) and the plain parts are
  * written into the tree the way runJoinery writes its result back
  * (invariant 46), so copies that come out identical stay shared.
  */
-export function plainForRefine(doc: SloydDocument): { plain: SloydDocument; joints: RecordedJoint[] | null } | { refused: RefineRefusal } {
+export function plainForRefine(doc: SloydDocument): RefineBase {
   const flat = flatDocument(doc);
   if (!flat.boards.some((b) => b.cuts.length > 0)) return { plain: doc, joints: null };
   const g = gateUnjoin(flat);
@@ -49,9 +51,20 @@ export function plainForRefine(doc: SloydDocument): { plain: SloydDocument; join
   return { plain: migrateDocument(writeBackFlat(doc, flat.boards, g.plain)), joints: g.joints };
 }
 
-export function refineRefusal(doc: SloydDocument): string | null {
-  const p = plainForRefine(doc);
-  if ('refused' in p) return p.refused.message;
-  const r = documentToDesign(p.plain, REFINE_MAX);
+/** `base`: plainForRefine(doc), when the caller already has it (the dialog computes it once per document). */
+export function refineRefusal(doc: SloydDocument, base: RefineBase = plainForRefine(doc)): string | null {
+  if ('refused' in base) return base.refused.message;
+  const r = documentToDesign(base.plain, REFINE_MAX);
   return 'refused' in r ? r.refused.message : null;
+}
+
+/**
+ * What the Refine dialog shows, from ONE plainForRefine (one gate run) per document; `base` goes
+ * back to refineEstimateUsd so the estimate does not run the gate again on every render.
+ */
+export function refineDialogInfo(doc: SloydDocument): { base: RefineBase; refusal: string | null; detail: Detail; joined: boolean } {
+  const base = plainForRefine(doc);
+  // Joined = some placed part is cut: the gate either explained it (joints) or refused it.
+  const joined = 'refused' in base ? base.refused.reason === 'joints' : base.joints !== null;
+  return { base, refusal: refineRefusal(doc, base), detail: detailFor(doc), joined };
 }

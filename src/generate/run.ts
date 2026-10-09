@@ -15,7 +15,7 @@ import type { Site } from './joints/sites';
 import { DETAIL_CAPS, SYSTEM_PROMPT, limitsOf, repairMessage, unusableMessage, userMessage } from './prompt';
 import type { Concept, GenerateSettings, LimitSettings } from './prompt';
 import { REFINE_MAX, plainForRefine, refineMessage } from './refine';
-import type { RefineSettings } from './refine';
+import type { RefineBase, RefineSettings } from './refine';
 import { carryGrain, designValues, documentToDesign } from '../document/refineDesign';
 import type { RefineRefusal } from '../document/refineDesign';
 import { diffDesigns } from '../document/designDiff';
@@ -259,9 +259,8 @@ export async function runRefine(
   return { doc: refined, violations, present, changes: diffDesigns(doc, refined), usage, joints };
 }
 
-/** A rough before-you-run estimate: the prompt and design in, about the design's own size out. */
-export function refineEstimateUsd(client: LlmClient, doc: SloydDocument, settings: RefineSettings): number | null {
-  const base = plainForRefine(doc);
+/** A rough before-you-run estimate: the prompt and design in, about the design's own size out. `base`: plainForRefine(doc), when the caller has it. */
+export function refineEstimateUsd(client: LlmClient, doc: SloydDocument, settings: RefineSettings, base: RefineBase = plainForRefine(doc)): number | null {
   if ('refused' in base) return null;
   const from = documentToDesign(base.plain, REFINE_MAX);
   if ('refused' in from) return null;
