@@ -6,12 +6,13 @@ import { boardExtents } from './geometry';
 import { MATERIALS } from './types';
 import type { Board } from './types';
 
-const part = (name: string, at: [number, number, number], size: [number, number, number], material = 'pine'): GeneratedPart => ({
-  name, material,
+const part = (name: string, at: [number, number, number], size: [number, number, number], material = 'pine', role = ''): GeneratedPart => ({
+  name, role, material,
   at: { x: at[0], y: at[1], z: at[2] },
   size: { x: size[0], y: size[1], z: size[2] },
 });
-const design = (...parts: GeneratedPart[]): GeneratedDesign => ({ name: 'Test', parts });
+const design = (...parts: GeneratedPart[]): GeneratedDesign => ({ name: 'Test', parts, assemblies: [] });
+const v = (x: number, y: number, z: number) => ({ x, y, z });
 
 // Bound from OUTSIDE the converter: the expected extents come from the
 // existing boardExtents, never from orient's own arithmetic (invariant 23).
@@ -110,15 +111,34 @@ describe('designToDocument', () => {
 });
 
 describe('parseDesign', () => {
+  const asm = (over: Record<string, unknown> = {}) => ({
+    name: 'Drawer', parts: [part('Front', [0, 0, 0], [10, 4, 0.75])], placements: [{ name: 'Drawer 1', at: v(0, 0, 0) }], ...over,
+  });
   it('accepts a well-formed design', () => {
     const d = design(part('A', [0, 0, 0], [1, 2, 3]));
     expect(parseDesign(JSON.parse(JSON.stringify(d)))).toEqual(d);
   });
+  it('accepts a design with assemblies', () => {
+    const d = { ...design(part('A', [0, 0, 0], [1, 2, 3])), assemblies: [asm()] };
+    expect(parseDesign(JSON.parse(JSON.stringify(d)))).toEqual(d);
+  });
+  it('accepts a design whose only parts are in assemblies', () => {
+    const d = { name: 'x', parts: [], assemblies: [asm()] };
+    expect(parseDesign(d)).toEqual(d);
+  });
+  const okPart = { name: 'A', role: '', material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1) };
   it.each([
-    null, 42, {}, { name: 'x' }, { name: 'x', parts: [] },
-    { name: 'x', parts: [{ name: 'A', material: 'pine', at: { x: 0, y: 0 }, size: { x: 1, y: 1, z: 1 } }] },
-    { name: 'x', parts: [{ name: 'A', material: 'constructor', at: { x: 0, y: 0, z: 0 }, size: { x: 1, y: 1, z: 1 } }] },
-    { name: 'x', parts: [{ name: 'A', material: 'unobtanium', at: { x: 0, y: 0, z: 0 }, size: { x: 1, y: 1, z: 1 } }] },
+    null, 42, {}, { name: 'x' },
+    { name: 'x', parts: [], assemblies: [] },                                   // no parts at all
+    { name: 'x', parts: [okPart] },                                             // assemblies missing
+    { name: 'x', parts: [{ ...okPart, role: undefined }], assemblies: [] },     // role missing
+    { name: 'x', parts: [{ ...okPart, at: { x: 0, y: 0 } }], assemblies: [] },
+    { name: 'x', parts: [{ ...okPart, material: 'constructor' }], assemblies: [] },
+    { name: 'x', parts: [{ ...okPart, material: 'unobtanium' }], assemblies: [] },
+    { name: 'x', parts: [okPart], assemblies: [{ name: 'D', parts: [{ ...okPart, material: 'unobtanium' }], placements: [] }] },
+    { name: 'x', parts: [okPart], assemblies: [{ name: 'D', parts: [okPart], placements: [{ name: 'P', at: { x: 0, y: 0 } }] }] },
+    { name: 'x', parts: [okPart], assemblies: [{ name: 'D', parts: [okPart] }] },  // placements missing
+    { name: 'x', parts: [okPart], assemblies: [{ parts: [okPart], placements: [] }] }, // name missing
   ])('rejects %j', (bad) => {
     expect(parseDesign(bad)).toBeNull();
   });
@@ -131,8 +151,17 @@ describe('DESIGN_SCHEMA', () => {
   });
   it('sets additionalProperties: false on every object', () => {
     const walk = (s: any): boolean =>
-      s.type !== 'object' || (s.additionalProperties === false && Object.values(s.properties).every(walk));
-    const root = DESIGN_SCHEMA as any;
-    expect(walk(root) && walk(root.properties.parts.items)).toBe(true);
+      s.type === 'array' ? walk(s.items)
+        : s.type !== 'object' || (s.additionalProperties === false && Object.values(s.properties).every(walk));
+    expect(walk(DESIGN_SCHEMA)).toBe(true);
+  });
+  it('requires role, assemblies and placements', () => {
+    const s = DESIGN_SCHEMA as any;
+    expect(s.required).toEqual(['name', 'parts', 'assemblies']);
+    expect(s.properties.parts.items.required).toEqual(['name', 'role', 'material', 'at', 'size']);
+    const a = s.properties.assemblies.items;
+    expect(a.required).toEqual(['name', 'parts', 'placements']);
+    expect(a.properties.parts.items).toBe(s.properties.parts.items);
+    expect(a.properties.placements.items.required).toEqual(['name', 'at']);
   });
 });

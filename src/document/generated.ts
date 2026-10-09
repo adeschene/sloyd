@@ -13,9 +13,16 @@ import type { Board, Dimension, Posture, Rotation } from './types';
  */
 export interface Vec3 { x: number; y: number; z: number }
 export type MaterialKey = string;
-export interface GeneratedPart { name: string; material: MaterialKey; at: Vec3; size: Vec3 }
-export interface GeneratedDesign { name: string; parts: GeneratedPart[] }
-export interface RejectedPart { name: string; reason: 'not-finite' | 'too-small' }
+/** `role` is REQUIRED from the model (parseDesign checks it); optional here so
+ *  hand-built fixtures stay terse. Conversion input only — never stored. */
+export interface GeneratedPart { name: string; role?: string; material: MaterialKey; at: Vec3; size: Vec3 }
+/** Where an assembly's local origin goes in the world. No turn (spec §2). */
+export interface GeneratedPlacement { name: string; at: Vec3 }
+/** Parts in the assembly's OWN frame, placed by translation; one level, parts only. */
+export interface GeneratedAssembly { name: string; parts: GeneratedPart[]; placements: GeneratedPlacement[] }
+/** `assemblies` is REQUIRED from the model; optional here for the same reason as `role`. */
+export interface GeneratedDesign { name: string; parts: GeneratedPart[]; assemblies?: GeneratedAssembly[] }
+export interface RejectedPart { name: string; reason: 'not-finite' | 'too-small' | 'unplaced' | 'empty' }
 
 const vec3Schema = {
   type: 'object',
@@ -25,26 +32,47 @@ const vec3Schema = {
 };
 
 /** Built from MATERIALS at load, so a new material reaches the model with no second edit. */
+const partSchema = {
+  type: 'object',
+  properties: {
+    name: { type: 'string' },
+    role: { type: 'string' },
+    material: { type: 'string', enum: Object.keys(MATERIALS) },
+    at: vec3Schema,
+    size: vec3Schema,
+  },
+  required: ['name', 'role', 'material', 'at', 'size'],
+  additionalProperties: false,
+};
+
 export const DESIGN_SCHEMA: Record<string, unknown> = {
   type: 'object',
   properties: {
     name: { type: 'string' },
-    parts: {
+    parts: { type: 'array', items: partSchema },
+    assemblies: {
       type: 'array',
       items: {
         type: 'object',
         properties: {
           name: { type: 'string' },
-          material: { type: 'string', enum: Object.keys(MATERIALS) },
-          at: vec3Schema,
-          size: vec3Schema,
+          parts: { type: 'array', items: partSchema },
+          placements: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: { name: { type: 'string' }, at: vec3Schema },
+              required: ['name', 'at'],
+              additionalProperties: false,
+            },
+          },
         },
-        required: ['name', 'material', 'at', 'size'],
+        required: ['name', 'parts', 'placements'],
         additionalProperties: false,
       },
     },
   },
-  required: ['name', 'parts'],
+  required: ['name', 'parts', 'assemblies'],
   additionalProperties: false,
 };
 
@@ -53,20 +81,26 @@ const isObj = (v: unknown): v is Record<string, unknown> =>
 const isVec3 = (v: unknown): v is Vec3 =>
   isObj(v) && (['x', 'y', 'z'] as const).every((k) => typeof v[k] === 'number');
 
+const isPart = (p: unknown): boolean =>
+  isObj(p) && typeof p.name === 'string' && typeof p.role === 'string' && typeof p.material === 'string' &&
+  Object.hasOwn(MATERIALS, p.material) && isVec3(p.at) && isVec3(p.size);
+const isPlacement = (p: unknown): boolean => isObj(p) && typeof p.name === 'string' && isVec3(p.at);
+const isAssembly = (a: unknown): boolean =>
+  isObj(a) && typeof a.name === 'string' && Array.isArray(a.parts) && a.parts.every(isPart) &&
+  Array.isArray(a.placements) && a.placements.every(isPlacement);
+
 /**
  * Shape check on the parsed output. The API enforces the schema, but this is
  * the client's own gate — a provider without structured outputs, or a
  * truncated stream, must not reach the converter. Numbers are only checked
  * for TYPE here; non-finite values are the converter's to reject per part.
- * An empty parts list is unusable, not a design.
+ * A design with no parts anywhere (loose or in an assembly) is unusable.
  */
 export function parseDesign(json: unknown): GeneratedDesign | null {
-  if (!isObj(json) || typeof json.name !== 'string' || !Array.isArray(json.parts)) return null;
-  if (json.parts.length === 0) return null;
-  for (const p of json.parts) {
-    if (!isObj(p) || typeof p.name !== 'string' || typeof p.material !== 'string') return null;
-    if (!Object.hasOwn(MATERIALS, p.material) || !isVec3(p.at) || !isVec3(p.size)) return null;
-  }
+  if (!isObj(json) || typeof json.name !== 'string' || !Array.isArray(json.parts) || !Array.isArray(json.assemblies)) return null;
+  if (!json.parts.every(isPart) || !json.assemblies.every(isAssembly)) return null;
+  const total = json.parts.length + (json.assemblies as { parts: unknown[] }[]).reduce((n, a) => n + a.parts.length, 0);
+  if (total === 0) return null;
   return json as unknown as GeneratedDesign;
 }
 

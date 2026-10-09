@@ -12,13 +12,13 @@ const settings: GenerateSettings = {
 };
 const usage = { inputTokens: 10, outputTokens: 5, cacheReadTokens: 0, cacheWriteTokens: 0 };
 const p = (name: string, y: number) => ({
-  name, material: 'pine', at: { x: 0, y, z: 0 }, size: { x: 10, y: 1, z: 10 },
+  name, role: '', material: 'pine', at: { x: 0, y, z: 0 }, size: { x: 10, y: 1, z: 10 },
 });
-const GOOD = { name: 'Stack', parts: [p('A', 0), p('B', 1)] };
-const ONE_ISSUE = { name: 'One', parts: [p('A', 0), p('B', 5)] };                 // B floats
-const TWO_ISSUES = { name: 'Two', parts: [p('A', 0), p('B', 5), p('C', 9)] };     // B, C float
+const GOOD = { name: 'Stack', parts: [p('A', 0), p('B', 1)], assemblies: [] };
+const ONE_ISSUE = { name: 'One', parts: [p('A', 0), p('B', 5)], assemblies: [] };                 // B floats
+const TWO_ISSUES = { name: 'Two', parts: [p('A', 0), p('B', 5), p('C', 9)], assemblies: [] };     // B, C float
 /** Parses, but every part is rejected (size rounds to zero) — zero boards. */
-const ALL_REJECTED = { name: 'Gone', parts: [{ ...p('Sliver', 0), size: { x: 10, y: 0.01, z: 10 } }] };
+const ALL_REJECTED = { name: 'Gone', parts: [{ ...p('Sliver', 0), size: { x: 10, y: 0.01, z: 10 } }], assemblies: [] };
 
 type Step = unknown | 'truncated' | 'unparseable' | LlmError;
 
@@ -125,7 +125,7 @@ describe('runGeneration', () => {
   });
 
   it('tells the model about DEDUPED names — the ones it can find in its next answer', async () => {
-    const dup = { name: 'Dup', parts: [p('Shelf', 0), p('Shelf', 5)] };
+    const dup = { name: 'Dup', parts: [p('Shelf', 0), p('Shelf', 5)], assemblies: [] };
     const { client, seen } = fakeClient([dup, GOOD]);
     await run(client);
     // dedupeNames keeps the first "Shelf" and renames the second "Shelf (1)"

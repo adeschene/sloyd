@@ -340,13 +340,13 @@ export function checkDesign(doc: FlatDocument, limits: DesignLimits): Violation[
   return out;
 }
 
-/** Parts the converter could not turn into boards, reported in the same voice. */
+/** Parts (and assemblies) the converter could not build, reported in the same voice. */
 export function rejectedViolations(rejected: RejectedPart[]): Violation[] {
-  return rejected.map((r) => ({
-    kind: 'too-small' as const,
-    message: r.reason === 'not-finite'
-      ? `${r.name} has a position or size that is not a finite number.`
-      : `${r.name} has a size of zero or less after rounding to 1/16in.`,
-    parts: [r.name],
-  }));
+  const say: Record<RejectedPart['reason'], (n: string) => string> = {
+    'not-finite': (n) => `${n} has a position or size that is not a finite number.`,
+    'too-small': (n) => `${n} has a size of zero or less after rounding to 1/16in.`,
+    unplaced: (n) => `${n} is an assembly with no usable placement, so none of its parts were built.`,
+    empty: (n) => `${n} is an assembly with no usable parts.`,
+  };
+  return rejected.map((r) => ({ kind: 'too-small' as const, message: say[r.reason](r.name), parts: [r.name] }));
 }

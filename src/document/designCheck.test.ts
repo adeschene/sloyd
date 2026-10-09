@@ -414,3 +414,12 @@ describe('hangs reads SOLID contacts (spec §6.3)', () => {
     expect(v.filter((x) => x.kind === 'hangs')).toEqual([]);
   });
 });
+
+describe('rejectedViolations — assemblies', () => {
+  it('reports an unplaced and an empty assembly by name', () => {
+    const out = rejectedViolations([{ name: 'Drawer', reason: 'unplaced' }, { name: 'Door', reason: 'empty' }]);
+    expect(out.map((x) => x.parts)).toEqual([['Drawer'], ['Door']]);
+    expect(out[0].message).toBe('Drawer is an assembly with no usable placement, so none of its parts were built.');
+    expect(out[1].message).toBe('Door is an assembly with no usable parts.');
+  });
+});
