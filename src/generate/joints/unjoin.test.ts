@@ -4,7 +4,7 @@ import { designToDocument } from '../../document/generated';
 import { flatDocument, migrateDocument } from '../../document/document';
 import type { FlatDocument } from '../../document/document';
 import { SNAP_INCHES } from '../../document/geometry';
-import { GATE_REFUSAL, gateUnjoin, sameJoined, unjoin } from './unjoin';
+import { GATE_REFUSAL, GATE_TOLERANCE, gateUnjoin, sameJoined, unjoin } from './unjoin';
 import { applyJoints } from './recipes';
 import type { JointChoice } from './recipes';
 import { findSites, jointKey, rangesOf } from './sites';
@@ -237,5 +237,83 @@ describe('sameJoined', () => {
     expect(sameJoined(a, J)).toBe(false);
     const b = structuredClone(J); b.boards[0].cuts[0].depth += 1 / 16;
     expect(sameJoined(b, J)).toBe(false);
+  });
+});
+
+describe('the gate compares numbers within GATE_TOLERANCE (refine-joined spec §3.2, final-review ruling)', () => {
+  // Metric stock: none of these numbers is a binary fraction, so cut fields recomputed from world
+  // coordinates come back off in the last bit. `exact` keeps designToDocument from snapping them.
+  const mm = (v: number) => v / 25.4;
+  const exactDesign = (...parts: P[]) => {
+    const nums = new Set(parts.flatMap((p) => [...p.at, ...p.size]));
+    return flatDocument(designToDocument({
+      name: 'M', assemblies: [],
+      parts: parts.map((p) => ({ name: p.name, role: '', material: p.material ?? 'oak', at: { x: p.at[0], y: p.at[1], z: p.at[2] }, size: { x: p.size[0], y: p.size[1], z: p.size[2] } })),
+    }, { exact: nums }).doc);
+  };
+  const t = mm(18), H = mm(720), D = mm(300), W = mm(600), b = mm(6);
+  const metric = () => exactDesign(
+    { name: 'Left side', at: [0, 0, 0], size: [t, H, D] },
+    { name: 'Right side', at: [W - t, 0, 0], size: [t, H, D] },
+    { name: 'Top', at: [t, H - t, 0], size: [W - 2 * t, t, D] },
+    { name: 'Bottom', at: [t, 0, 0], size: [W - 2 * t, t, D] },
+    { name: 'Shelf', at: [t, 3.3 + mm(250), 0], size: [W - 2 * t, t, D] },
+    { name: 'Back', at: [0, 0, -b], size: [W, H, b], material: 'plywood' },
+  );
+  const joinDefaults = (P: FlatDocument) => { const s = findSites(P); return applyJoints(P, s, s.map((x) => defaultChoice(x, P, s))).doc; };
+
+  it('GATE_TOLERANCE is 1e-9in', () => {
+    expect(GATE_TOLERANCE).toBe(1e-9);
+  });
+
+  it('the metric fixture really is metric, and joins something', () => {
+    const P = metric();
+    expect(P.boards.find((x) => x.name === 'Left side')!.thickness).toBe(18 / 25.4);
+    expect(P.boards.find((x) => x.name === 'Back')!.thickness).toBe(6 / 25.4);
+    expect(joinDefaults(P).boards.some((x) => x.cuts.length > 0)).toBe(true);
+  });
+
+  it('accepts a metric cabinet joined with the defaults', () => {
+    const g = gateUnjoin(joinDefaults(metric()));
+    expect('refused' in g ? g.refused : null).toBeNull();
+    if (!('refused' in g)) expect(g.joints.length).toBeGreaterThan(0);
+  });
+
+  it('accepts a defaults-joined design moved +3.3in in y after joining', () => {
+    for (const [name, f] of FIXTURES.filter(([n]) => n === 'bookcase (cutlines)' || n === 'corner leg, 2 rails' || n === 'rabbet: back on +Z, shelf')) {
+      const J = structuredClone(joinDefaults(f()));
+      for (const x of J.boards) x.position[1] += 3.3;
+      const g = gateUnjoin(J);
+      expect('refused' in g ? g.refused : null, name).toBeNull();
+    }
+  });
+
+  it('accepts the metric cabinet moved +3.3in in y after joining', () => {
+    const J = structuredClone(joinDefaults(metric()));
+    for (const x of J.boards) x.position[1] += 3.3;
+    const g = gateUnjoin(J);
+    expect('refused' in g ? g.refused : null).toBeNull();
+  });
+
+  it('sameJoined passes a 1e-12 difference in a position, a size and a cut depth, and fails 1e-6 and 1/16', () => {
+    const J = joinDefaults(FIXTURES[0][1]());
+    const tweak = (f: (d: FlatDocument) => void) => { const d = structuredClone(J); f(d); return d; };
+    const cutPart = J.boards.findIndex((x) => x.cuts.length > 0);
+    // The expectations are written out, not derived from GATE_TOLERANCE, so a changed tolerance goes red.
+    for (const [e, ok] of [[1e-12, true], [1e-6, false], [1 / 16, false]] as const) {
+      expect(sameJoined(tweak((d) => { d.boards[1].position[0] += e; }), J), `position ${e}`).toBe(ok);
+      expect(sameJoined(tweak((d) => { d.boards[1].length += e; }), J), `length ${e}`).toBe(ok);
+      expect(sameJoined(tweak((d) => { d.boards[cutPart].cuts[0].depth += e; }), J), `cut depth ${e}`).toBe(ok);
+      expect(sameJoined(tweak((d) => { d.boards[cutPart].cuts[0].offset += e; }), J), `cut offset ${e}`).toBe(ok);
+    }
+  });
+
+  it('sameJoined stays exact on names and non-numeric cut fields', () => {
+    const J = joinDefaults(FIXTURES[0][1]());
+    const cutPart = J.boards.findIndex((x) => x.cuts.length > 0);
+    const a = structuredClone(J); a.boards[0].name += ' ';
+    expect(sameJoined(a, J)).toBe(false);
+    const c = structuredClone(J); c.boards[cutPart].cuts[0].from = c.boards[cutPart].cuts[0].from === 'min' ? 'max' : 'min';
+    expect(sameJoined(c, J)).toBe(false);
   });
 });

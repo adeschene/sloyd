@@ -232,23 +232,37 @@ export function unjoin(flat: FlatDocument): Unjoined {
 
 export const GATE_REFUSAL = "Refine cannot account for this design's joints — for example, joinery was run twice, or a joined part or cut was edited by hand.";
 
-const cutSig = (c: Cut) => JSON.stringify(CUT_GEOMETRY_KEYS.map((k) => c[k]));
+/**
+ * How far apart two numbers may be and still be the same in the gate (refine-joined spec §3.2,
+ * amended after the final review by the user's ruling). Cut fields are recomputed from world
+ * coordinates, so a design whose numbers are not binary fractions (metric stock, a typed move)
+ * comes back off in the last bit; a genuinely wrong read-back is off by at least 1/16in.
+ */
+export const GATE_TOLERANCE = 1e-9;
 
-/** Exact, ids ignored (refine-joined spec §3.2). Nothing tolerant: the gate is only as good as this. */
+const same = (a: unknown, b: unknown) =>
+  typeof a === 'number' && typeof b === 'number' ? Math.abs(a - b) <= GATE_TOLERANCE : a === b;
+const sameCut = (c: Cut, d: Cut) => CUT_GEOMETRY_KEYS.every((k) => same(c[k], d[k]));
+
+/**
+ * Ids ignored (refine-joined spec §3.2). Names, posture, rotation, material and grain compare
+ * EXACTLY; every number (position, length/width/thickness, each numeric cut field) within
+ * GATE_TOLERANCE; non-numeric cut fields (face, from, across) exactly. The gate is only as good as this.
+ */
 export function sameJoined(a: FlatDocument, b: FlatDocument): boolean {
   if (a.boards.length !== b.boards.length) return false;
   return a.boards.every((p, i) => {
     const q = b.boards[i]!;
-    return p.name === q.name && p.position.every((v, k) => v === q.position[k]) &&
-      p.length === q.length && p.width === q.width && p.thickness === q.thickness &&
+    return p.name === q.name && p.position.every((v, k) => same(v, q.position[k])) &&
+      same(p.length, q.length) && same(p.width, q.width) && same(p.thickness, q.thickness) &&
       p.posture === q.posture && p.rotation === q.rotation && p.material === q.material && p.grain === q.grain &&
-      p.cuts.length === q.cuts.length && p.cuts.every((c, k) => cutSig(c) === cutSig(q.cuts[k]!));
+      p.cuts.length === q.cuts.length && p.cuts.every((c, k) => sameCut(c, q.cuts[k]!));
   });
 }
 
 /**
  * unjoin, then prove it: re-join the plain parts with the recorded joints and
- * require the joined design back EXACTLY. Anything else refuses, before any
+ * require the joined design back (sameJoined: exact, numbers within GATE_TOLERANCE). Anything else refuses, before any
  * model call (refine-joined spec §3.2).
  */
 export function gateUnjoin(flat: FlatDocument): { plain: Board[]; joints: RecordedJoint[] } | { refused: string } {
