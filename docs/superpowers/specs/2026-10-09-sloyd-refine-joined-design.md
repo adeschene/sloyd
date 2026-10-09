@@ -1,6 +1,6 @@
 # Sloyd — refine designs with joints (follow-up 238)
 
-**Date:** 2026-10-09 · **Status:** approved in conversation; spec awaiting review.
+**Date:** 2026-10-09 · **Status:** approved 2026-10-09; amended while planning (RecordedJoint carries axis/side; `validChoice` strict; plain re-floored to the joined floor).
 **Builds on:**
 - **Refine** (`2026-10-09-sloyd-refine-design.md`): `documentToDesign`, `runRefine`, the change list,
   the dialog. Every rule there holds unless this document says otherwise.
@@ -67,6 +67,7 @@ names.
 export interface RecordedJoint {
   enter: string;    // flat display name of the entering part
   receive: string;  // flat display name of the receiving part
+  axis: 0 | 1 | 2; side: -1 | 1;       // the meeting, so two sites between one pair stay apart
   choice: Omit<JointChoice, 'site'>;   // joint kind + tenonLength / depth / stopAt / inset
 }
 ```
@@ -78,8 +79,9 @@ Per kind, built from the spike's inverses:
 - **Half-lap:** the stack's layers are rebuilt from the notches (any listing order).
 - **Rabbet:** the panel moves back out by its thickness and is untrimmed; parts it trimmed (fu 201)
   regain their length; its outer-face rider chain (fu 183) moves back with it.
-- **Lowering** is not undone: re-joining lowers again (the spike: removing the re-floor step still
-  gave 126/126).
+- **Lowering** is not undone: re-joining lowers again. The plain design is re-floored only to match
+  the joined design's floor (the spike's step; removing it still gave 126/126, kept so the plain
+  design the model sees stands where the joined one does).
 
 ### 3.1 Ambiguities (stated, not fixed)
 
@@ -109,13 +111,15 @@ refusals (turned, nested, too large) are judged on the PLAIN tree.
 
 ## 4. Re-joining
 
-**`runJoinery` gains `opts.fixed?: ReadonlyMap<string, Omit<JointChoice, 'site'>>`**, keyed
-`"<enter>→<receive>"` by flat display names:
+**`runJoinery` gains `opts.fixed?: ReadonlyMap<string, Omit<JointChoice, 'site'>>`**, keyed by
+`jointKey(enter, receive, axis, side)` over flat display names:
 - A site whose key is in `fixed` and whose fixed choice is **valid** for it takes that choice and is
   never sent to the model.
-- **Valid** = the joint kind is in `site.allowed` and its numbers are inside `rangesOf(site, doc)` —
-  the SAME validation `parseChoices` applies to the model's answers, extracted into one
-  `validChoice(choice, site, doc)` used by both, so "still fits" means what joinery already means.
+- **Valid** = the joint kind is in `site.allowed`, its numbers are inside `rangesOf(site, doc)`, and a
+  stopped dado's `stopAt` is one of `site.stopEnds` — the same sources `parseChoices` validates the
+  model's answers against. `validChoice(choice, site, doc)` sits beside `parseChoices` in
+  `choose.ts`. It is STRICT where `parseChoices` clamps (amended while planning): clamping a kept
+  joint would silently change its geometry, so an out-of-range recorded joint is re-chosen instead.
 - The other sites (new, or recorded but no longer valid) go to the ONE chooser call
   (`siteMessage` lists only them); its failure falls back to `defaultChoice` as today.
 - **No open sites → no call.** `applyJoints` runs once over all sites with fixed + chosen choices.
@@ -152,7 +156,7 @@ TDD; mutate every equality, ordering and boundary test.
   except the §3.1 cases, which are asserted as their documented assumption. Mutate each inverse →
   the gate refuses.
 - **Refusals:** a hand-added cut; dados-then-rabbets (two runs); a joined part resized by hand.
-- **`validChoice`** extracted from `parseChoices`: `parseChoices`' tests unchanged and green.
+- **`validChoice`**: in range / out of range per size, disallowed kind, bad stopAt; `parseChoices`' tests unchanged and green.
 - **`runJoinery` with `fixed`:** fixed valid sites never appear in the model's message; all fixed →
   zero calls; an invalid fixed choice is sent to the model; defaults fallback still works; without
   `fixed`, unchanged.
