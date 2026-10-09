@@ -94,6 +94,10 @@ describe('ordering and rejected parts', () => {
     expect(kinds(d, { ...NO_LIMITS, maxParts: 1 })).toEqual(['too-small', 'unsupported', 'too-many-parts']);
     expect(checkDesign(d, NO_LIMITS)).toEqual(checkDesign(d, NO_LIMITS));
   });
+  it('says what the not-finite limit is', () => {
+    expect(rejectedViolations([{ name: 'Bad', reason: 'not-finite' }])[0].message)
+      .toBe('Bad has a position or size that is not a finite number or is beyond 10,000in.');
+  });
   it('turns rejected parts into violations naming them', () => {
     expect(rejectedViolations([{ name: 'Bad', reason: 'not-finite' }, { name: 'Thin', reason: 'too-small' }]))
       .toEqual([
@@ -412,5 +416,14 @@ describe('hangs reads SOLID contacts (spec §6.3)', () => {
     const v = checkDesign(doc(), { width: null, depth: null, height: null, maxParts: 99 });
     expect(v.filter((x) => x.kind === 'overlap')).toEqual([]);
     expect(v.filter((x) => x.kind === 'hangs')).toEqual([]);
+  });
+});
+
+describe('rejectedViolations — assemblies', () => {
+  it('reports an unplaced and an empty assembly by name', () => {
+    const out = rejectedViolations([{ name: 'Drawer', reason: 'unplaced' }, { name: 'Door', reason: 'empty' }]);
+    expect(out.map((x) => x.parts)).toEqual([['Drawer'], ['Door']]);
+    expect(out[0].message).toBe('Drawer is an assembly with no usable placement, so none of its parts were built.');
+    expect(out[1].message).toBe('Door is an assembly with no usable parts.');
   });
 });

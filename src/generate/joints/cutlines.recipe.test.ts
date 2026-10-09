@@ -18,10 +18,10 @@ const setupOf = (doc: FlatDocument, name: string) =>
   buildCutList(doc).groups.flatMap((g) => g.rows).find((r) => r.names.includes(name))!.setup;
 
 type P = { name: string; at: [number, number, number]; size: [number, number, number] };
-const design = (...ps: P[]) => designToDocument({ name: 'B', parts: ps.map((p) => ({
+const design = (...ps: P[]) => flatDocument(designToDocument({ name: 'B', parts: ps.map((p) => ({
   name: p.name, material: 'pine',
   at: { x: p.at[0], y: p.at[1], z: p.at[2] }, size: { x: p.size[0], y: p.size[1], z: p.size[2] },
-})) }).doc;
+})) }).doc);
 const bookcase = () => design(
   { name: 'Back', at: [0, 0, -0.25], size: [31.5, 72, 0.25] },
   { name: 'Left side', at: [0, 0, 0], size: [0.75, 72, 11.25] },

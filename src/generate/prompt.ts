@@ -65,15 +65,27 @@ Rules every design must follow:
 - Keep the piece stable: its weight must sit well inside the outline of what touches the floor, so it cannot tip over.
 - Use real stock: 3/4in and 1-1/2in solid wood; 3/4in and 1/2in plywood or MDF from 96 x 48in sheets. Typical solid board widths are 3-1/2, 5-1/2, 7-1/4, 9-1/4 and 11-1/4in.
 - Give every part a short, distinct, human name (e.g. "Left side", "Shelf 2", "Front apron").
+- Give every part a "role": one short lowercase word for what it is ("leg", "side", "shelf"). Give the same role only to parts that are the same part, such as four identical legs. Use "" for a part with no twin.
 - Stay within any limits given. If the request cannot fit, make the closest design that does.
+
+Assemblies:
+- When a unit of several parts repeats (drawers, doors, identical frames) or forms a natural unit (a base), describe it ONCE under "assemblies" and place it with "placements". Everything else goes under "parts".
+- An assembly's parts use the assembly's own coordinates, with its minimum corner at (0, 0, 0). A placement's "at" is where that corner goes. Placements are never turned or mirrored, and an assembly never contains another assembly.
+- Give each placement its own name (e.g. "Top drawer", "Drawer 2"). Part names need only be distinct within their assembly.
+- An assembly's parts count once toward the part limit, however many times it is placed.
+- In feedback, a part inside a placement is named "Placement › Part". A report ending "fix the assembly" means change the assembly's parts, which changes every placement.
 
 Style notes, used when a style is requested:
 ${Object.values(STYLE_NOTES).map((n) => `- ${n}`).join('\n')}
 
 When told about problems with your design, return the WHOLE corrected design, not just the changed parts.`;
 
+/** Placed parts may reach this many times the detail cap (spec §5.2); an assembly's parts count once toward the cap itself. */
+export const PLACED_CEILING = 4;
+export const placedCeiling = (d: Detail) => PLACED_CEILING * DETAIL_CAPS[d];
+
 export function limitsOf(s: GenerateSettings): DesignLimits {
-  return { width: s.width, depth: s.depth, height: s.height, maxParts: DETAIL_CAPS[s.detail] };
+  return { width: s.width, depth: s.depth, height: s.height, maxParts: placedCeiling(s.detail) };
 }
 
 export function userMessage(s: GenerateSettings, concept?: Concept): string {
@@ -81,7 +93,7 @@ export function userMessage(s: GenerateSettings, concept?: Concept): string {
   if (s.width !== null) lines.push(`- Overall width (X) at most ${s.width}in.`);
   if (s.depth !== null) lines.push(`- Overall depth (Z) at most ${s.depth}in.`);
   if (s.height !== null) lines.push(`- Overall height (Y) at most ${s.height}in.`);
-  lines.push(`- At most ${DETAIL_CAPS[s.detail]} parts (${s.detail} detail).`);
+  lines.push(`- At most ${DETAIL_CAPS[s.detail]} different parts (an assembly's parts count once) and ${placedCeiling(s.detail)} placed parts (${s.detail} detail).`);
   if (s.material !== 'any' || s.style !== 'any') lines.push('', 'Preferences:');
   if (s.material !== 'any') {
     lines.push(`- Prefer ${MATERIALS[s.material]?.label ?? s.material} (material key "${s.material}") for most parts.`);

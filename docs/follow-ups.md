@@ -4619,3 +4619,36 @@ minors, condensed.
   - A test sorts `selectedIds` in place.
   - The `anchorOn` test helper has an unused `pick` parameter.
 - **Status:** record-only.
+
+## From the generate-assemblies round — 2026-10-09
+
+**232. Generated assemblies are one level, unturned, and never mirrored.** By decision (spec §1):
+nested assemblies (drawers inside a case assembly) and turned placements are out of scope; a
+left/right pair of mirror-image assemblies cannot be expressed in schema 11 anyway. Generate still
+emits only 0° and 90° parts (invariant 44).
+- **Status:** open by decision; revisit if prototypes need them.
+
+**233. A flat Simple design of 49+ parts gets two cap reports for one fault.** It fails both the
+distinct cap (`N distinct parts; the limit is 12…`) and checkDesign's placed ceiling
+(`N parts; the limit is 48.`), which counts one extra in the repair loop's "fewest". Spec-conformant;
+a fix would drop the ceiling report when distinct equals placed.
+- **Status:** open, low.
+
+**234. The batch concept planner sees assembly wording it is not taught.** `conceptsMessage` builds
+on `userMessage`, so the planner reads "an assembly's parts count once", but `CONCEPTS_SYSTEM` never
+explains assemblies. Cosmetic: the planner only proposes directions.
+- **Status:** open, low.
+
+**235. Small gaps the round judged fine to leave.** Record-only; the reviews' deferred minors.
+- **Untested.** A part named in a violation but missing from the authored index; a violation
+  spanning two assemblies (the `assemblies.size === 1` guard has no red test of its own); the
+  class-split guard in `linkByRole` is load-bearing in one test only (`linksToShapes` re-checks
+  equality, so a second test cannot see it); the run-level collapse test asserts loosely (the unit
+  test pins exact text).
+- **Cosmetic.** `'first' in x` tells a group from a violation in `collapseViolations`; merged
+  `parts` may repeat a label for an overlap between placements (not shown to the model);
+  `isShaped(b)` in `linkByRole` is dead on generated documents; one `extentsOf(b as Board)` cast
+  stays because tsc needs it.
+- **Not confirmed live.** The collapsed repair wording: the live run came back clean on its first
+  call.
+- **Status:** record-only.

@@ -5,10 +5,10 @@ import workbenchRaw from '../../document/fixtures/simple-workbench.sloyd?raw';
 import { findSites, rangesOf, siteLabel, stopLabel } from './sites';
 
 type P = { name: string; at: [number, number, number]; size: [number, number, number] };
-const design = (...parts: P[]) => designToDocument({
+const design = (...parts: P[]) => flatDocument(designToDocument({
   name: 'T',
   parts: parts.map((p) => ({ name: p.name, material: 'oak', at: { x: p.at[0], y: p.at[1], z: p.at[2] }, size: { x: p.size[0], y: p.size[1], z: p.size[2] } })),
-}).doc;
+}).doc);
 const named = (doc: ReturnType<typeof design>) => (i: number) => worldParts(doc)[i].name;
 
 describe('findSites', () => {

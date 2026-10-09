@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { MAX_REPAIRS, RunFailed, problemKey, runGeneration, runRepairLoop } from './run';
 import type { GenerateSettings } from './prompt';
 import { LlmError } from '../llm/types';
+import { flatDocument } from '../document/document';
 import { designToDocument } from '../document/generated';
 import { checkDesign } from '../document/designCheck';
 import type { LlmClient, LlmRequest, LlmResult } from '../llm/types';
@@ -12,13 +13,13 @@ const settings: GenerateSettings = {
 };
 const usage = { inputTokens: 10, outputTokens: 5, cacheReadTokens: 0, cacheWriteTokens: 0 };
 const p = (name: string, y: number) => ({
-  name, material: 'pine', at: { x: 0, y, z: 0 }, size: { x: 10, y: 1, z: 10 },
+  name, role: '', material: 'pine', at: { x: 0, y, z: 0 }, size: { x: 10, y: 1, z: 10 },
 });
-const GOOD = { name: 'Stack', parts: [p('A', 0), p('B', 1)] };
-const ONE_ISSUE = { name: 'One', parts: [p('A', 0), p('B', 5)] };                 // B floats
-const TWO_ISSUES = { name: 'Two', parts: [p('A', 0), p('B', 5), p('C', 9)] };     // B, C float
+const GOOD = { name: 'Stack', parts: [p('A', 0), p('B', 1)], assemblies: [] };
+const ONE_ISSUE = { name: 'One', parts: [p('A', 0), p('B', 5)], assemblies: [] };                 // B floats
+const TWO_ISSUES = { name: 'Two', parts: [p('A', 0), p('B', 5), p('C', 9)], assemblies: [] };     // B, C float
 /** Parses, but every part is rejected (size rounds to zero) — zero boards. */
-const ALL_REJECTED = { name: 'Gone', parts: [{ ...p('Sliver', 0), size: { x: 10, y: 0.01, z: 10 } }] };
+const ALL_REJECTED = { name: 'Gone', parts: [{ ...p('Sliver', 0), size: { x: 10, y: 0.01, z: 10 } }], assemblies: [] };
 
 type Step = unknown | 'truncated' | 'unparseable' | LlmError;
 
@@ -55,6 +56,15 @@ describe('runGeneration', () => {
     expect(out.violations).toEqual([]);
     expect(out.doc.boards).toHaveLength(2);
     expect(client.complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('accepts a design whose only parts are in an assembly', async () => {
+    const { client } = fakeClient([{ name: 'Only', parts: [], assemblies: [{
+      name: 'Shelf', parts: [{ ...p('Board', 0), role: '' }], placements: [{ name: 'S1', at: { x: 0, y: 0, z: 0 } }],
+    }] }]);
+    const out = await run(client);
+    expect(out.doc.name).toBe('Only');
+    expect(out.doc.instances).toHaveLength(1);
   });
 
   it(`stops at ${MAX_REPAIRS + 1} calls and still returns the best attempt`, async () => {
@@ -125,7 +135,7 @@ describe('runGeneration', () => {
   });
 
   it('tells the model about DEDUPED names — the ones it can find in its next answer', async () => {
-    const dup = { name: 'Dup', parts: [p('Shelf', 0), p('Shelf', 5)] };
+    const dup = { name: 'Dup', parts: [p('Shelf', 0), p('Shelf', 5)], assemblies: [] };
     const { client, seen } = fakeClient([dup, GOOD]);
     await run(client);
     // dedupeNames keeps the first "Shelf" and renames the second "Shelf (1)"
@@ -190,7 +200,7 @@ describe('runRepairLoop keepBestOnError', () => {
     system: 's', schema: {}, first: 'go',
     evaluate: (res: { json: unknown }) => {
       const doc = designToDocument(res.json as never)!.doc;
-      const violations = checkDesign(doc, { width: null, depth: null, height: null, maxParts: 50 });
+      const violations = checkDesign(flatDocument(doc), { width: null, depth: null, height: null, maxParts: 50 });
       return { value: { doc, violations }, feedback: 'fix' };
     },
   };
@@ -222,5 +232,80 @@ describe('problemKey (fu 186)', () => {
     const v = (parts: string[]) => ({ kind: 'overlap' as const, message: '', parts });
     expect(problemKey(v(['A,B']))).not.toBe(problemKey(v(['A', 'B'])));
     expect(problemKey(v(['B', 'A']))).toBe(problemKey(v(['A', 'B'])));
+  });
+});
+
+const v3 = (x: number, y: number, z: number) => ({ x, y, z });
+const bp = (name: string, at: [number, number, number], size: [number, number, number]) =>
+  ({ name, role: '', material: 'pine', at: v3(...at), size: v3(...size) });
+/** A drawer whose Front and Side overlap, placed three times on the floor: one fault, three raw reports. */
+const BAD_DRAWERS = {
+  name: 'Drawers', parts: [],
+  assemblies: [{
+    name: 'Drawer',
+    parts: [bp('Front', [0, 0, 0], [10, 4, 0.75]), bp('Side', [0, 0, 0], [0.75, 4, 10])],
+    placements: [{ name: 'D1', at: v3(0, 0, 0) }, { name: 'D2', at: v3(20, 0, 0) }, { name: 'D3', at: v3(40, 0, 0) }],
+  }],
+};
+
+describe('runGeneration — assemblies', () => {
+  it('returns the tree, with the assembly shared', async () => {
+    const { client } = fakeClient([{ ...GOOD, assemblies: BAD_DRAWERS.assemblies }]);
+    const out = await run(client);
+    expect(out.doc.definitions).toHaveLength(1);
+    expect(out.doc.instances).toHaveLength(3);
+  });
+
+  it('reports a definition fault once, telling the model to fix the assembly', async () => {
+    const { client } = fakeClient([BAD_DRAWERS]);
+    const out = await run(client);
+    const overlaps = out.violations.filter((x) => x.kind === 'overlap');
+    expect(overlaps).toHaveLength(1);
+    expect(overlaps[0].message).toContain('fix the assembly');
+  });
+
+  it('puts "fix the assembly" in the repair message the model receives (F7)', async () => {
+    const { client, seen } = fakeClient([BAD_DRAWERS, GOOD]);
+    await run(client);
+    const last = seen[1][seen[1].length - 1] as { role: string; text: string };
+    expect(last.role).toBe('user');
+    expect(last.text).toContain('fix the assembly');
+  });
+
+  it('reports a drawer fault inside every placement and the spacing faults between neighbours separately (F1)', async () => {
+    const SPACED = { ...BAD_DRAWERS, assemblies: [{ ...BAD_DRAWERS.assemblies[0], placements: [
+      { name: 'D1', at: v3(0, 0, 0) }, { name: 'D2', at: v3(9.5, 0, 0) }, { name: 'D3', at: v3(19, 0, 0) },
+    ] }] };
+    const out = await run(fakeClient([SPACED]).client);
+    const msgs = out.violations.filter((x) => x.kind === 'overlap').map((x) => x.message);
+    expect(msgs.filter((m) => m.includes('fix the assembly'))).toHaveLength(1);
+    expect(msgs.filter((m) => !m.includes('fix the assembly') && /\(in D\d/.test(m)).length).toBeGreaterThan(0);
+  });
+
+  it('does not throw on a loose part at 1.1e307 (F3)', async () => {
+    const FAR = { name: 'Far', parts: [{ ...p('Far', 0), at: { x: 1.1e307, y: 0, z: 0 } }, p('Near', 0)], assemblies: [] };
+    const out = await run(fakeClient([FAR]).client);
+    expect(out.doc.boards.map((b) => b.name)).toEqual(['Near']);
+    expect(out.violations.some((x) => x.message.includes('beyond 10,000in'))).toBe(true);
+  });
+
+  it('scores "fewest" on merged violations', async () => {
+    // BAD_DRAWERS: 1 merged (3 raw). TWO_ISSUES: 2. Merged counting keeps BAD_DRAWERS.
+    const { client } = fakeClient([BAD_DRAWERS, TWO_ISSUES]);
+    const out = await run(client);
+    expect(out.doc.name).toBe('Drawers');
+  });
+
+  it('counts an assembly once against the detail cap, and placed parts against the ceiling', async () => {
+    const parts = Array.from({ length: 12 }, (_, i) => bp(`P${i}`, [0, i, 0], [10, 1, 10]));
+    const placements = (n: number) => Array.from({ length: n }, (_, i) => ({ name: `C${i}`, at: v3(i * 20, 0, 0) }));
+    const kinds = async (design: unknown) => (await run(fakeClient([design]).client)).violations.filter((x) => x.kind === 'too-many-parts').map((x) => x.message);
+    // 12 distinct x 4 placements = 48 placed: inside both limits (simple: 12 / 48).
+    expect(await kinds({ name: 'A', parts: [], assemblies: [{ name: 'Stack', parts, placements: placements(4) }] })).toEqual([]);
+    // 12 distinct x 5 = 60 placed: over the ceiling only.
+    expect(await kinds({ name: 'B', parts: [], assemblies: [{ name: 'Stack', parts, placements: placements(5) }] })).toEqual(['60 parts; the limit is 48.']);
+    // 13 distinct x 1: over the distinct cap only.
+    expect(await kinds({ name: 'C', parts: [bp('Extra', [0, 20, 0], [10, 1, 10])], assemblies: [{ name: 'Stack', parts, placements: placements(1) }] }))
+      .toEqual(["13 distinct parts; the limit is 12 (an assembly's parts count once)."]);
   });
 });

@@ -10,10 +10,10 @@ import { findSites } from './sites';
 const limits = (d: { boards: unknown[] }) => ({ width: null, depth: null, height: null, maxParts: d.boards.length });
 
 type P = { name: string; at: [number, number, number]; size: [number, number, number] };
-const design = (...parts: P[]) => designToDocument({
+const design = (...parts: P[]) => flatDocument(designToDocument({
   name: 'T',
   parts: parts.map((p) => ({ name: p.name, material: 'oak', at: { x: p.at[0], y: p.at[1], z: p.at[2] }, size: { x: p.size[0], y: p.size[1], z: p.size[2] } })),
-}).doc;
+}).doc);
 const doc = design(
   { name: 'Leg', at: [0, 0, 0], size: [1.75, 28, 1.75] },
   { name: 'Rail', at: [1.75, 23.5, 0.5], size: [18, 3.5, 0.75] },

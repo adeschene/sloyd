@@ -133,4 +133,9 @@ describe('GenerateDialog', () => {
     render(<GenerateDialog {...props({ rows })} />);
     expect(screen.queryByText(/Planning|Concepts/)).not.toBeInTheDocument();
   });
+
+  it('labels detail caps as different parts', () => {
+    render(<GenerateDialog {...props()} />);
+    expect(screen.getByRole('option', { name: 'Simple (up to 12 different parts)' })).toBeTruthy();
+  });
 });

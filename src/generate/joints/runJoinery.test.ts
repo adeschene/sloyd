@@ -2,7 +2,7 @@ import { worldParts } from '../../document/tree';
 import { describe, expect, it, vi } from 'vitest';
 import { designToDocument } from '../../document/generated';
 import type { SloydDocument } from '../../document/document';
-import { groupItems, sharedOf } from '../../document/document';
+import { flatDocument, groupItems, sharedOf } from '../../document/document';
 import { LlmError } from '../../llm/types';
 import type { LlmClient, LlmResult } from '../../llm/types';
 import { runJoinery } from '../run';
@@ -15,10 +15,10 @@ vi.mock('./recipes', async (orig) => {
 });
 
 type P = { name: string; at: [number, number, number]; size: [number, number, number] };
-const design = (...parts: P[]) => designToDocument({
+const design = (...parts: P[]) => flatDocument(designToDocument({
   name: 'T',
   parts: parts.map((p) => ({ name: p.name, material: 'oak', at: { x: p.at[0], y: p.at[1], z: p.at[2] }, size: { x: p.size[0], y: p.size[1], z: p.size[2] } })),
-}).doc;
+}).doc);
 const usage = { inputTokens: 10, outputTokens: 5, cacheReadTokens: 0, cacheWriteTokens: 0 };
 const client = (...answers: (unknown | Error)[]): LlmClient => {
   let i = 0;
@@ -166,5 +166,24 @@ describe('runJoinery', () => {
     const out = await run(client(long), grouped);
     if ('noSites' in out) throw new Error('expected sites');
     expect(out.result.doc.instances).toHaveLength(1);
+  });
+});
+
+describe('runJoinery on a generated assembly', () => {
+  it('keeps the definition shared when every copy gets identical joints', async () => {
+    const tree = designToDocument({ name: 'Frames', parts: [], assemblies: [{
+      name: 'Frame',
+      parts: [
+        { name: 'Leg', role: '', material: 'oak', at: { x: 0, y: 0, z: 0 }, size: { x: 1.75, y: 28, z: 1.75 } },
+        { name: 'Rail', role: '', material: 'oak', at: { x: 1.75, y: 23.5, z: 0.5 }, size: { x: 18, y: 3, z: 0.75 } },
+      ],
+      placements: [{ name: 'Front', at: { x: 0, y: 0, z: 0 } }, { name: 'Back', at: { x: 0, y: 0, z: 30 } }],
+    }] }).doc;
+    const out = await run(client(new LlmError('overloaded', 'Overloaded.')), tree);
+    if ('noSites' in out) throw new Error('expected sites');
+    const doc = out.result.doc;
+    expect(doc.definitions).toHaveLength(1);
+    expect(doc.instances.map((i) => i.definition)).toEqual([doc.definitions[0].id, doc.definitions[0].id]);
+    expect(worldParts(doc).some((b) => b.cuts.length > 0)).toBe(true);
   });
 });

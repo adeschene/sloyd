@@ -133,7 +133,7 @@ export function GenerateDialog(p: Props) {
           <label htmlFor="gen-detail">Detail</label>
           <select id="gen-detail" className="input" value={detail} onChange={(e) => setDetail(e.target.value as Detail)}>
             {(Object.keys(DETAIL_CAPS) as Detail[]).map((d) => (
-              <option key={d} value={d}>{`${d[0].toUpperCase()}${d.slice(1)} (up to ${DETAIL_CAPS[d]} parts)`}</option>
+              <option key={d} value={d}>{`${d[0].toUpperCase()}${d.slice(1)} (up to ${DETAIL_CAPS[d]} different parts)`}</option>
             ))}
           </select>
         </div>
