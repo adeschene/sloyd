@@ -161,8 +161,10 @@ cuts reversed.
 - **`null`:** a plain design; fixture 5; a design joined with TODAY's joinery including a shared
   assembly; the same with a hand-added cut (evidence rule); an unrelated part sharing a twin's id
   but not its name, carrying a copy of the twin's mortise (name condition).
-- **Refuses:** a damaged fixture plus a hand-added cut; a damaged fixture joined again with
-  rabbets over its dados; a damaged fixture with a joined part resized by hand.
+- **Refuses:** a damaged fixture plus a hand-added cut; a damaged fixture whose phantom is moved
+  1/16in (a near-miss is not a twin stray — the tolerance has teeth); a damaged fixture with a
+  joined part resized by hand. (A design "joined twice" cannot be built from a damaged one: measured,
+  `findSites` finds no site on a joined design.)
 - **Mutations:** no de-duplication → the oracle fails (a doubled pocket hides its joint from the
   reader); accept any unexplained cut → the hand-cut refusal fails; no reorder → the reversed-cuts
   test fails; exact cut equality everywhere → fixture 3 fails; no name condition → the
