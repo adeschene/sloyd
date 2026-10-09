@@ -24,8 +24,8 @@ handicraft education tradition built around hand woodworking.
 - **Production matches `master`** as of 2026-10-09: the repair-joints round, bundle
   `index--GNPV7mV.js`, CSS `index-QQ-rJZea.css`, merge `619130a`, **schema 11** (unchanged).
   Test count is under Commands.
-- **Nothing is pending. NO SUCCESSOR IS
-  CHOSEN: ask what to work on; do not pick. Open near the recent code: 236 (estimate under-reads),
+- **Pending deploy: the estimate-range round (fu 236) is on `master`, not deployed. NO SUCCESSOR IS
+  CHOSEN: ask what to work on; do not pick.** Open near the recent code:
   237 (refined-name compounding), 241–243, 215 (posture handedness, a question),
   205/206 (joinery's safe refusals), 221, 225–235. See Open follow-ups below.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
@@ -68,6 +68,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | refine | 10-09 | — | refine by instruction: new project + change list (fu 179) |
 | refine joined | 10-09 | — | refine keeps joints: unjoin + exact gate, fixed choices (fu 238) |
 | repair joints | 10-09 | — | Repair joints: prune pre-a899b51 strays, prove by the gate (fu 240) |
+| estimate range | 10-09 | — | Refine/joinery cost shown as a measured range (fu 236) |
 
 ### The deployment rule
 
@@ -217,7 +218,8 @@ src/
 │   └── visibility.ts     visibleBoards, the ONE visibility filter (inv 43)
 ├── storage/          types.ts (StorageAdapter), browser.ts, libraryIndex.ts (invs 7, 29–31)
 ├── llm/              types.ts (LlmClient, opaque LlmMessage, inv 37), anthropic.ts
-├── generate/         prompt.ts (limitLines), concepts.ts (batch planning), refine.ts (refineMessage,
+├── generate/         prompt.ts (limitLines), concepts.ts (batch planning), estimate.ts (cost ranges: measured
+│                     chars/token, cached prefix, every repair round high; fu 236), refine.ts (refineMessage,
 │                     detailFor), run.ts (runRepairLoop, evaluateDesign — THE design evaluation
 │                     shared by Generate and Refine, runRefine, runJoinery),
 │                     joints/{pocket,sites,recipes,choose,unjoin,repair}.ts (inv 41); unjoin + gateUnjoin
@@ -486,7 +488,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 2558 tests across 87 files
+npm test           # Vitest, currently 2573 tests across 88 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

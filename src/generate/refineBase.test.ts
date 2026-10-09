@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { refineDialogInfo, refineRefusal, plainForRefine } from './refine';
 import type { RefineSettings } from './refine';
-import { refineEstimateUsd } from './run';
+import { JOINERY_OUTPUT_PER_SITE, joineryEstimateUsd, refineEstimateUsd } from './run';
+import { CHARS_PER_TOKEN } from './estimate';
+import { JOINERY_PROMPT, JOINT_SCHEMA } from './joints/choose';
 import { designToDocument } from '../document/generated';
 import { flatDocument, migrateDocument, worldParts, writeBackFlat } from '../document/document';
 import type { Board, SloydDocument } from '../document/document';
@@ -11,7 +13,7 @@ import { defaultChoice } from './joints/choose';
 import { gateUnjoin } from './joints/unjoin';
 import f2 from './joints/fixtures/2-frames-phantom.json?raw';
 import { findSites as findSites2, jointKey } from './joints/sites';
-import type { LlmClient } from '../llm/types';
+import type { LlmClient, LlmUsage } from '../llm/types';
 
 // A passthrough spy: the gate runs for real, and every call is counted (F4: once per document in the dialog).
 vi.mock('./joints/unjoin', async (orig) => {
@@ -59,11 +61,37 @@ describe('the Refine dialog reads a document once (F4)', () => {
       const estimate = refineEstimateUsd(client, doc, S, base);
       expect(gate).not.toHaveBeenCalled();
       expect(refusal).toBe(refineRefusal(doc));
-      expect(estimate).toBe(refineEstimateUsd(client, doc, S));
+      expect(estimate).toEqual(refineEstimateUsd(client, doc, S));
       expect(gate).toHaveBeenCalledTimes(2);   // the two uncached calls each ran it
     }
     expect(refineEstimateUsd(client, joined, S)).not.toBeNull();
     expect(refineEstimateUsd(client, handCut, S)).toBeNull();
+  });
+});
+
+describe('estimate ranges (fu 236)', () => {
+  it('a joined design: the low end is the refine call alone; the high end adds joinery over every meeting', () => {
+    const base = plainForRefine(joined);
+    if ('refused' in base) throw new Error('refused');
+    const r = refineEstimateUsd(client, joined, S)!;
+    const alone = refineEstimateUsd(client, base.plain, S)!;   // the plain design: no joints, so refine only
+    const join = joineryEstimateUsd(client, base.plain)!;
+    expect(r.low).toBe(alone.low);
+    expect(r.high).toBeCloseTo(alone.high + join.high, 12);
+    expect(join.high).toBeGreaterThan(0);
+  });
+
+  it('joinery: the joint prompt and schema are the cached prefix; output is per site', () => {
+    const spy = vi.fn((u: LlmUsage) => u.inputTokens);
+    joineryEstimateUsd({ ...client, estimateCostUsd: spy }, plain);
+    const first = spy.mock.calls[0]![0];
+    expect(first.cacheWriteTokens).toBe(Math.ceil((JOINERY_PROMPT.length + JSON.stringify(JOINT_SCHEMA).length) / CHARS_PER_TOKEN));
+    expect(first.outputTokens).toBe(findSites(flatDocument(plain)).length * JOINERY_OUTPUT_PER_SITE);
+  });
+
+  it('joinery: null with no sites', () => {
+    const lone = designToDocument({ name: 'L', parts: [{ name: 'A', role: '', material: 'oak', at: { x: 0, y: 0, z: 0 }, size: { x: 10, y: 1, z: 10 } }], assemblies: [] }).doc;
+    expect(joineryEstimateUsd(client, lone)).toBeNull();
   });
 });
 

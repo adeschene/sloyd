@@ -4660,7 +4660,15 @@ explains assemblies. Cosmetic: the planner only proposes directions.
 cost `≈ $0.07`: the estimate counts one call's input and the design's size as output, but adaptive
 thinking is on and repair rounds resend the history. Options: label it "from ≈ $X", or scale the
 output estimate by a measured factor. Generate's and joinery's estimates may share the gap.
-- **Status:** open, low (cosmetic, but it is money).
+- **Status:** closed 2026-10-09 (estimate-range round). Measured with one paid Refine (14 parts) and
+  one paid Add joinery (8 sites) on the dev server: the miss was not mainly thinking. Prompts and
+  design JSON tokenise at ~2 characters per token (not 4), the cached prefix (system prompt AND
+  output schema) is billed as a cache write, and Refine's output runs ~1 token per design character.
+  Joinery's flat 2,000 output tokens over-read (~34 per site). Both dialogs now show a range
+  (`src/generate/estimate.ts`): one call low (Refine $0.05 vs $0.048 actual; joinery $0.02 vs
+  $0.016), every repair round high with the history resent and output doubled for thinking
+  variance; a joined design's high end includes joinery over every meeting. Generate still has no
+  before-you-run estimate (out of scope by decision).
 
 **237. Refining a refined project names it "X — refined — refined".** The spec is silent; "— refined
 2" or stripping a trailing "— refined" would read better.
@@ -4711,7 +4719,8 @@ spends repair calls on it each time.
 
 **242. The join stage's repair text isn't labelled as joinery,** and the estimate note understates
 the possible joinery calls (up to 1 + MAX_REPAIRS). Cosmetic, but it is money (see fu 236).
-- **Status:** open, low.
+- **Status:** the money half closed 2026-10-09 with fu 236 (a joined Refine's high end includes
+  joinery's every round); the unlabelled repair text stays open, low.
 
 **243. Small gaps the round judged fine to leave.** Record-only.
 - `gateUnjoin`'s unmapped-joint refusal is redundant with the compare; the named-part filter on

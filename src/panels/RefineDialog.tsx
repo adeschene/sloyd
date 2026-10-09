@@ -5,6 +5,8 @@ import type { Detail } from '../generate/prompt';
 import { MAX_REPAIRS } from '../generate/run';
 import type { RefineSettings } from '../generate/refine';
 import type { RefineRun } from '../useRefine';
+import { formatCostRange } from '../generate/estimate';
+import type { CostRange } from '../generate/estimate';
 import { parseLimit } from './GenerateDialog';
 
 interface Props {
@@ -16,7 +18,8 @@ interface Props {
   /** The open design has joinery cuts, so a joinery call may follow the model call. */
   joined: boolean;
   initialDetail: Detail; model: string | null;
-  estimate: (s: RefineSettings) => number | null;
+  /** Before-you-run range (fu 236): one call low, every repair round (and any joinery) high. */
+  estimate: (s: RefineSettings) => CostRange | null;
   run: RefineRun | null; live: boolean;
   onRun: (s: RefineSettings) => void; onCancel: () => void; onOpenProject: (id: string) => void;
   onOpenSettings: () => void; onClose: () => void;
@@ -100,7 +103,7 @@ export function RefineDialog(p: Props) {
         {p.hasKey && p.refusal === null && (
           <p className="generate-plan">
             {p.model && <span>{`Model: ${p.model}`}</span>}
-            {estimate !== null && <span className="generate-run-cost">{`≈ $${estimate.toFixed(2)}`}</span>}
+            {estimate !== null && <span className="generate-run-cost">{formatCostRange(estimate)}</span>}
             {p.joined && <span>plus a joinery call if new meetings appear</span>}
           </p>
         )}

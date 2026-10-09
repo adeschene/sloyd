@@ -302,6 +302,14 @@ and 79.
 
 ## What each round did
 
+**What the estimate-range round did (2026-10-09)**: follow-up 236, a bounded change (design in chat,
+no spec). **No schema change.** The user chose a range over a typical figure or a labelled floor,
+and approved two small paid runs to calibrate. They showed the old Refine estimate under-read for
+reasons other than thinking — ~2 characters per token rather than 4, the cached prefix (system
+prompt plus output schema) missing, output ~1 token per design character — while joinery's flat
+2,000-token output over-read. `src/generate/estimate.ts` now prices one call low and every repair
+round high; both dialogs show `≈ $low–$high`. Tests 2558 → 2573.
+
 **What the repair-joints round did (2026-10-09)**: follow-up 240, repairing projects whose joints
 the pre-`a899b51` joinery doubled, with a spec and plan
 (`docs/superpowers/specs/2026-10-09-sloyd-repair-joints-design.md`). **No schema change.** The user

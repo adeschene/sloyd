@@ -12,9 +12,10 @@ import { applyJoints } from './joints/recipes';
 import { findSites, jointKey, rangesOf } from './joints/sites';
 import { defaultChoice } from './joints/choose';
 import { GATE_REFUSAL, sameJoined } from './joints/unjoin';
-import { designToDocument } from '../document/generated';
+import { DESIGN_SCHEMA, designToDocument } from '../document/generated';
 import { checkDesign } from '../document/designCheck';
-import type { LlmClient, LlmRequest, LlmResult } from '../llm/types';
+import type { LlmClient, LlmRequest, LlmResult, LlmUsage } from '../llm/types';
+import { CHARS_PER_TOKEN } from './estimate';
 
 const settings: GenerateSettings = {
   description: 'a box', width: null, depth: null, height: null, material: 'any', style: 'any', detail: 'simple',
@@ -446,13 +447,19 @@ describe('runRefine', () => {
     expect(out.violations).toEqual([]);                 // the second attempt has no NEW problem
   });
 
-  it('estimates cost, or null when refused', () => {
-    const estimate = vi.fn(() => 0.05);
+  it('estimates a range (fu 236), or null when refused', () => {
+    const estimate = vi.fn((u: LlmUsage) => u.inputTokens + u.outputTokens + u.cacheReadTokens + u.cacheWriteTokens);
     const c = { ...fakeClient([GOOD]).client, estimateCostUsd: estimate };
     expect(refineEstimateUsd(c, createDocumentForTest(), RS)).toBeNull();
     const doc = orig([bp('A', [0, 0, 0], [10, 1, 10])]);
-    expect(refineEstimateUsd(c, doc, RS)).toBe(0.05);
-    expect((estimate.mock.calls[0] as unknown[])[0]).toMatchObject({ cacheReadTokens: 0, cacheWriteTokens: 0 });
+    const r = refineEstimateUsd(c, doc, RS)!;
+    // One low call, then one per round the loop allows.
+    expect(estimate).toHaveBeenCalledTimes(1 + (1 + MAX_REPAIRS));
+    const first = (estimate.mock.calls[0] as unknown[])[0] as LlmUsage;
+    // The system prompt AND the design schema are the cached prefix, written on the first call.
+    expect(first.cacheWriteTokens).toBe(Math.ceil((SYSTEM_PROMPT.length + JSON.stringify(DESIGN_SCHEMA).length) / CHARS_PER_TOKEN));
+    expect(first.cacheReadTokens).toBe(0);
+    expect(r.high).toBeGreaterThan(r.low);
   });
 });
 

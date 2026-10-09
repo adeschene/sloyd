@@ -4,10 +4,14 @@ import { formatLength } from '../units/length';
 import { MAX_REPAIRS } from '../generate/run';
 import type { JointKind } from '../generate/joints/sites';
 import type { JoineryRun } from '../useJoinery';
+import { formatCostRange } from '../generate/estimate';
+import type { CostRange } from '../generate/estimate';
 
 interface Props {
   hasKey: boolean; libraryAvailable: boolean;
-  projectName: string; sites: string[]; model: string | null; estimateUsd: number | null;
+  projectName: string; sites: string[]; model: string | null;
+  /** Before-you-run range (fu 236): one call low, every repair round high. */
+  estimate: CostRange | null;
   run: JoineryRun | null; live: boolean;
   /** The repair note, shown above Run when the project's joints are damaged (repair-joints). */
   repairNotice?: ReactNode;
@@ -91,7 +95,7 @@ export function JoineryDialog(p: Props) {
         {p.hasKey && !noSites && (
           <p className="generate-plan">
             {p.model && <span>{`Model: ${p.model}`}</span>}
-            {p.estimateUsd !== null && <span className="generate-run-cost">{`≈ $${p.estimateUsd.toFixed(2)}`}</span>}
+            {p.estimate !== null && <span className="generate-run-cost">{formatCostRange(p.estimate)}</span>}
           </p>
         )}
 

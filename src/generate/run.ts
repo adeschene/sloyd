@@ -19,6 +19,8 @@ import type { RefineBase, RefineSettings } from './refine';
 import { carryGrain, designValues, documentToDesign } from '../document/refineDesign';
 import type { RefineRefusal } from '../document/refineDesign';
 import { diffDesigns } from '../document/designDiff';
+import { costRange, withOptional } from './estimate';
+import type { CallShape, CostRange } from './estimate';
 import type { Change } from '../document/designDiff';
 
 /** Repair rounds after the first call — 4 calls at most (spec §4.5). */
@@ -259,14 +261,27 @@ export async function runRefine(
   return { doc: refined, violations, present, changes: diffDesigns(doc, refined), usage, joints };
 }
 
-/** A rough before-you-run estimate: the prompt and design in, about the design's own size out. `base`: plainForRefine(doc), when the caller has it. */
-export function refineEstimateUsd(client: LlmClient, doc: SloydDocument, settings: RefineSettings, base: RefineBase = plainForRefine(doc)): number | null {
+/** Refine's output tokens per character of the design it is given, thinking included (measured 0.9, fu 236). */
+export const REFINE_OUTPUT_PER_CHAR = 1;
+/** Joinery's output tokens per site (measured ~34, fu 236). */
+export const JOINERY_OUTPUT_PER_SITE = 40;
+
+/**
+ * Before-you-run range (fu 236): one call low, every repair round high. A joined design's high end
+ * also holds a joinery run over every meeting (new meetings may need one). `base`: plainForRefine(doc),
+ * when the caller has it.
+ */
+export function refineEstimateUsd(client: LlmClient, doc: SloydDocument, settings: RefineSettings, base: RefineBase = plainForRefine(doc)): CostRange | null {
   if ('refused' in base) return null;
   const from = documentToDesign(base.plain, REFINE_MAX);
   if ('refused' in from) return null;
-  const input = SYSTEM_PROMPT.length + refineMessage(from.design, settings).length;
-  const output = JSON.stringify(from.design).length * 1.25;
-  return client.estimateCostUsd({ inputTokens: Math.ceil(input / 4), outputTokens: Math.ceil(output / 4), cacheReadTokens: 0, cacheWriteTokens: 0 });
+  const refine = costRange(client, {
+    prefixChars: SYSTEM_PROMPT.length + JSON.stringify(DESIGN_SCHEMA).length,
+    messageChars: refineMessage(from.design, settings).length,
+    outputTokens: Math.ceil(JSON.stringify(from.design).length * REFINE_OUTPUT_PER_CHAR),
+  }, 1 + MAX_REPAIRS);
+  const join = base.joints === null ? null : joineryShape(base.plain);
+  return join ? withOptional(refine, costRange(client, join, 1 + MAX_REPAIRS)) : refine;
 }
 
 
@@ -372,11 +387,20 @@ export async function runJoinery(
   }
 }
 
-/** A rough before-you-run estimate: one call, the prompt and sites in, ~2,000 tokens out. */
-export function joineryEstimateUsd(client: LlmClient, doc: SloydDocument): number | null {
+/** One joinery call over every site of `doc`, as the estimate sees it; null when there is none. */
+function joineryShape(doc: SloydDocument): CallShape | null {
   const flat = flatDocument(doc);
   const sites = findSites(flat);
   if (sites.length === 0) return null;
-  const chars = JOINERY_PROMPT.length + siteMessage(flat, sites).length;
-  return client.estimateCostUsd({ inputTokens: Math.ceil(chars / 4), outputTokens: 2000, cacheReadTokens: 0, cacheWriteTokens: 0 });
+  return {
+    prefixChars: JOINERY_PROMPT.length + JSON.stringify(JOINT_SCHEMA).length,
+    messageChars: siteMessage(flat, sites).length,
+    outputTokens: sites.length * JOINERY_OUTPUT_PER_SITE,
+  };
+}
+
+/** Before-you-run range (fu 236): one call low, every repair round high; null with no sites. */
+export function joineryEstimateUsd(client: LlmClient, doc: SloydDocument): CostRange | null {
+  const shape = joineryShape(doc);
+  return shape ? costRange(client, shape, 1 + MAX_REPAIRS) : null;
 }

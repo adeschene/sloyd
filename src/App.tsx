@@ -994,7 +994,7 @@ export default function App() {
           projectName={doc.name}
           sites={joinerySites}
           model={llmSettings?.model ?? null}
-          estimateUsd={llmSettings ? joineryEstimateUsd(new AnthropicClient(llmSettings.apiKey, llmSettings.model), doc) : null}
+          estimate={llmSettings ? joineryEstimateUsd(new AnthropicClient(llmSettings.apiKey, llmSettings.model), doc) : null}
           run={joinery.run}
           repairNotice={repairNotice(joineryRepair, 'joinery')}
           live={joinery.live}

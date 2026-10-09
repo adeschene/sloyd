@@ -2,10 +2,11 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { CHANGES_SHOWN, RefineDialog } from './RefineDialog';
 import type { RefineRun } from '../useRefine';
+import type { CostRange } from '../generate/estimate';
 
 const base = {
   hasKey: true, libraryAvailable: true, projectName: 'Box', refusal: null as string | null, initialDetail: 'moderate' as const,
-  model: 'claude-opus-5-5', estimate: () => 0.05, joined: false, run: null as RefineRun | null, live: false,
+  model: 'claude-opus-5-5', estimate: (): CostRange | null => ({ low: 0.05, high: 0.4 }), joined: false, run: null as RefineRun | null, live: false,
   onRun: vi.fn(), onCancel: vi.fn(), onOpenProject: vi.fn(), onOpenSettings: vi.fn(), onClose: vi.fn(),
 };
 const refineButton = () => screen.getByRole('button', { name: 'Refine' });
@@ -58,6 +59,12 @@ describe('RefineDialog', () => {
     expect(screen.getByText('Shelf is not held.')).toBeTruthy();
     expect(screen.getAllByRole('listitem').filter((li) => li.textContent?.startsWith('Added P'))).toHaveLength(CHANGES_SHOWN);
     expect(screen.getByText('and 3 more')).toBeTruthy();
+  });
+
+  it('shows the estimate as a range (fu 236)', () => {
+    render(<RefineDialog {...base} />);
+    fireEvent.change(screen.getByLabelText('Instruction'), { target: { value: 'taller' } });
+    expect(screen.getByText('≈ $0.05–$0.40')).toBeTruthy();
   });
 
   it('shows the joinery-call note in the estimate for a joined design', () => {
