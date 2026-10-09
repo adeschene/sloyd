@@ -64,7 +64,11 @@ own pockets from their own world positions, so an exact compare would miss last-
    could not attribute. `unjoin` keeps its exact behaviour (refuse when `unexplained` is non-empty);
    Refine is unaffected.
 4. **Twin strays only.** Every unexplained cut must equal (part-local) a cut that the reader DID
-   explain on a twin of the same part. Any other unexplained cut → refuse.
+   explain on a twin of the same part, AND be empty: no other part's solid (`worldSolids`,
+   invariant 38) overlaps its world box by more than `TOUCH` on every axis — a phantom is a pocket
+   nothing enters (amended while planning: without this, a joined part resized by hand leaves its
+   own pocket unexplained, its twin's identical pocket explained, and the repair would delete a
+   pocket the part still fills). Any other unexplained cut → refuse.
 5. **Prune and reorder.** Remove the duplicates and strays. Re-join `plain` with `joints` exactly as
    `gateUnjoin` does; reorder each part's surviving cuts to that re-join's order, matching by cut
    equality, keeping the STORED cut objects (values and ids). Nothing else changes: positions,
@@ -164,12 +168,14 @@ cuts reversed.
   but not its name, carrying a copy of the twin's mortise (name condition).
 - **Refuses:** a damaged fixture plus a hand-added cut; a damaged fixture whose phantom is moved
   1/16in (a near-miss is not a twin stray — the tolerance has teeth); a damaged fixture with a
-  joined part resized by hand. (A design "joined twice" cannot be built from a damaged one: measured,
-  `findSites` finds no site on a joined design.)
+  joined part resized by hand; a damaged fixture with a part placed inside its phantom (occupied,
+  so not a stray). (A design "joined twice" cannot be built from these fixtures: measured,
+  `findSites` finds no site left on them.)
 - **Mutations:** no de-duplication → the oracle fails (a doubled pocket hides its joint from the
   reader); accept any unexplained cut → the hand-cut refusal fails; no reorder → the reversed-cuts
   test fails; exact cut equality everywhere → fixture 3 fails; no name condition → the
-  same-id test fails; drop the evidence rule → the today's-joinery-plus-hand-cut test fails.
+  same-id test fails; drop the evidence rule → the today's-joinery-plus-hand-cut test fails; drop
+  the emptiness condition → the occupied-phantom test fails.
 - `unjoin`'s and `gateUnjoin`'s existing tests stay green unmodified.
 
 **UI:** Refine shows the note in place of the gate message; Joinery shows the warning; a refused
