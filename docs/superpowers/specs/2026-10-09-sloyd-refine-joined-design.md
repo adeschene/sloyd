@@ -141,7 +141,9 @@ whose only difference is its cuts produces no line.
 
 **Issues.** "N new issues" = the refine's new problems (against the original plain design's raw
 violations, refine spec §3.2) plus the joining's new problems (against the refined plain design,
-invariant 41). Already-present problems are listed as today.
+invariant 41) — **excluding any named-part problem the ORIGINAL JOINED design already had**, which is
+listed as already present and never drives a joinery repair (amended after the Task 3 review: the
+user's refine ruling, applied to the second stage; part-less problems stay new).
 
 ## 5. The dialog
 
