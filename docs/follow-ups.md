@@ -4720,3 +4720,16 @@ the possible joinery calls (up to 1 + MAX_REPAIRS). Cosmetic, but it is money (s
 - Re-opening a colliding kept joint re-opens every non-butt kept joint touching the named parts,
   not only the culprit (may over-open a few).
 - **Status:** record-only.
+
+## From the repair-joints round — 2026-10-09
+
+**244. Small gaps the round judged fine to leave.** Record-only.
+- A cut duplicated by hand on a part with a twin earns the repair note (de-duplication counts as
+  evidence); building one exactly takes deliberate hand-editing.
+- `repairDocument` runs unguarded in the dialogs' memos (as `plainForRefine` does); a throw there
+  would break the dialog render.
+- A finished repair is cleared only when the dialog closes.
+- Untested: the App wiring (covered live), `repairDocument` passing a refusal through, `unjoin`'s
+  internal refusal text after the `readJoints` split. A test guard matches twins by id only.
+- Not driven live: the refused-repair text, a storage failure, the nested and turned fixtures.
+- **Status:** record-only.
