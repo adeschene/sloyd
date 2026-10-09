@@ -48,6 +48,8 @@ interface Props {
    */
   onOpenGenerate: () => void;
   onOpenJoinery: () => void;
+  /** Opens the Refine dialog (change the open prototype by instruction). */
+  onOpenRefine: () => void;
   /** Opens the Settings dialog (the API key and model). */
   onOpenSettings: () => void;
   /**
@@ -84,6 +86,7 @@ export function Toolbar({
   onImportProject,
   onOpenGenerate,
   onOpenJoinery,
+  onOpenRefine,
   onOpenSettings,
   generating,
   newIds,
@@ -131,6 +134,7 @@ export function Toolbar({
           {generating ? `Generating ${generating.total - generating.live}/${generating.total}…` : 'Generate…'}
         </button>
         <button onClick={onOpenJoinery} title="Add joints to the open design">Add joinery…</button>
+        <button onClick={onOpenRefine} title="Change the open prototype by instruction">Refine…</button>
         <span className="toolbar-divider" />
         <button onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
         <button onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>

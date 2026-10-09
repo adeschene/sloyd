@@ -310,3 +310,52 @@ describe('DESIGN_SCHEMA', () => {
     expect(a.properties.placements.items.required).toEqual(['name', 'at']);
   });
 });
+
+describe('parseDesign — normalised copy', () => {
+  it('drops keys the schema does not have, at every level', () => {
+    const raw = {
+      name: 'x', extra: 1,
+      parts: [{ name: 'A', role: '', material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1), grain: 'width', junk: true }],
+      assemblies: [{ name: 'D', note: 'n', parts: [{ name: 'F', role: '', material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1), grain: 'width' }],
+        placements: [{ name: 'P', at: { x: 0, y: 0, z: 0, w: 9 }, extra: 2 }] }],
+    };
+    const d = parseDesign(raw)!;
+    expect(d).toEqual({
+      name: 'x',
+      parts: [{ name: 'A', role: '', material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1) }],
+      assemblies: [{ name: 'D', parts: [{ name: 'F', role: '', material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1) }], placements: [{ name: 'P', at: v(0, 0, 0) }] }],
+    });
+    expect(d).not.toBe(raw);
+  });
+});
+
+describe('designToDocument — options', () => {
+  it('uses a valid grain on the part, and ignores an invalid one', () => {
+    const { doc } = designToDocument(design(
+      { ...part('A', [0, 0, 0], [10, 1, 4]), grain: 'width' },
+      { ...part('B', [0, 1, 0], [10, 1, 4]), grain: 'diagonal' as never },
+    ));
+    expect(worldParts(doc).map((b) => b.grain)).toEqual(['width', 'length']);
+  });
+
+  it('with centre: false keeps X and Z, and still puts the lowest part on the floor', () => {
+    const { doc } = designToDocument(design(
+      part('A', [10, 5, 20], [4, 1, 2]),
+      part('B', [14, 5, 20], [4, 1, 2]),
+    ), { centre: false });
+    expect(doc.boards.map((b) => b.position)).toEqual([[10, 0, 20], [14, 0, 20]]);
+  });
+
+  it('with centre: false a design the model lowered stays lowered (review focus 1)', () => {
+    // The model removed a 4in toe kick and lowered the case onto the floor.
+    const { doc } = designToDocument(design(part('Case', [0, 0, 0], [20, 30, 12])), { centre: false });
+    expect(doc.boards[0].position).toEqual([0, 0, 0]);
+  });
+
+  it('shifts instance origins, never definition-local coordinates, with centre: false', () => {
+    const { doc } = designToDocument({ name: 'T', parts: [], assemblies: [{ name: 'D', parts: [part('F', [0, 0, 0], [10, 4, 0.75])],
+      placements: [{ name: 'P', at: v(7, 3, 9) }] }] }, { centre: false });
+    expect(doc.instances[0].position).toEqual([7, 0, 9]);
+    expect(doc.definitions[0].boards[0].position).toEqual([0, 0, 0]);
+  });
+});

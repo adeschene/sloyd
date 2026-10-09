@@ -1,0 +1,110 @@
+import { describe, expect, it } from 'vitest';
+import { diffDesigns } from './designDiff';
+import { designToDocument } from './generated';
+import type { GeneratedAssembly, GeneratedPart } from './generated';
+import { formatLength } from '../units/length';
+
+const v = (x: number, y: number, z: number) => ({ x, y, z });
+const part = (name: string, at: [number, number, number], size: [number, number, number], material = 'oak', role = ''): GeneratedPart =>
+  ({ name, role, material, at: v(...at), size: v(...size) });
+const doc = (parts: GeneratedPart[], assemblies: GeneratedAssembly[] = []) =>
+  designToDocument({ name: 'T', parts, assemblies }, { centre: false }).doc;
+const f = (n: number) => formatLength(n, 16);
+const drawer = (name: string, placements: [string, number][], front: [number, number, number] = [10, 4, 0.75]): GeneratedAssembly =>
+  ({ name, parts: [part('Front', [0, 0, 0], front), part('Side', [0, 0, 0.75], [0.75, 4, 10])],
+    placements: placements.map(([n, x]) => ({ name: n, at: v(x, 0, 0) })) });
+const BASE = [part('Top', [0, 10, 0], [40, 1, 12]), part('Shelf', [0, 0, 0], [40, 1, 12])];
+
+describe('diffDesigns', () => {
+  it('reports nothing for identical designs', () => {
+    expect(diffDesigns(doc(BASE), doc(BASE))).toEqual([]);
+  });
+
+  it('reports a resize with old and new sizes, longest first', () => {
+    const out = diffDesigns(doc(BASE), doc([BASE[0], part('Shelf', [0, 0, 0], [40, 1, 14])]));
+    expect(out).toEqual([{ kind: 'resized', subject: 'part', name: 'Shelf', copies: 1,
+      text: `Shelf: ${f(40)} × ${f(12)} × ${f(1)} → ${f(40)} × ${f(14)} × ${f(1)}` }]);
+  });
+
+  it('reports a part turned onto another face, though its sorted dimensions are equal', () => {
+    // L/W/T are stored sorted; the orientation lives in posture/rotation, so only world extents tell.
+    const out = diffDesigns(doc(BASE), doc([BASE[0], part('Shelf', [0, 0, 0], [40, 12, 1])]));
+    expect(out).toEqual([{ kind: 'resized', subject: 'part', name: 'Shelf', copies: 1, text: 'Shelf turned' }]);
+  });
+
+  it('reports a move by axis with signs', () => {
+    const out = diffDesigns(doc(BASE), doc([part('Top', [2, 10, -0.5], [40, 1, 12]), BASE[1]]));
+    expect(out.map((c) => c.text)).toEqual([`Top moved X +${f(2)}, Z ${f(-0.5)}`]);
+  });
+
+  it('reports added and removed parts; a rename is both', () => {
+    const out = diffDesigns(doc(BASE), doc([BASE[0], part('Lower shelf', [0, 0, 0], [40, 1, 12])]));
+    expect(out.map((c) => [c.kind, c.name])).toEqual([['added', 'Lower shelf'], ['removed', 'Shelf']]);
+    expect(out[0].text).toBe(`Added Lower shelf (${f(40)} × ${f(12)} × ${f(1)})`);
+    expect(out[1].text).toBe('Removed Shelf');
+  });
+
+  it('reports a material change by label', () => {
+    const out = diffDesigns(doc(BASE), doc([BASE[0], part('Shelf', [0, 0, 0], [40, 1, 12], 'walnut')]));
+    expect(out.map((c) => c.text)).toEqual(['Shelf: Oak → Walnut']);
+  });
+
+  it('reports linking gained and lost', () => {
+    const legs = (role: string) => [part('Leg 1', [0, 0, 0], [2, 20, 2], 'oak', role), part('Leg 2', [10, 0, 0], [2, 20, 2], 'oak', role)];
+    expect(diffDesigns(doc(legs('')), doc(legs('leg'))).map((c) => c.text)).toEqual(['Leg 1 is now linked', 'Leg 2 is now linked']);
+    expect(diffDesigns(doc(legs('leg')), doc(legs(''))).map((c) => c.kind)).toEqual(['unlinked', 'unlinked']);
+  });
+
+  it('merges one assembly-part change across placements into one entry (×N)', () => {
+    const before = doc(BASE, [drawer('Drawer', [['D1', 0], ['D2', 12], ['D3', 24]])]);
+    const after = doc(BASE, [drawer('Drawer', [['D1', 0], ['D2', 12], ['D3', 24]], [10, 5, 0.75])]);
+    const out = diffDesigns(before, after);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ kind: 'resized', name: `D1 › Front`, copies: 3 });
+    expect(out[0].text.endsWith(' (×3)')).toBe(true);
+  });
+
+  it('reports a moved placement once, not each of its parts', () => {
+    const out = diffDesigns(doc(BASE, [drawer('Drawer', [['D1', 0]])]), doc(BASE, [drawer('Drawer', [['D1', 3]])]));
+    expect(out.map((c) => [c.kind, c.subject, c.text])).toEqual([['moved', 'placement', `Placement D1 moved X +${f(3)}`]]);
+  });
+
+  it('reports a renamed placement as removed + added, without listing its parts (review focus 4)', () => {
+    const out = diffDesigns(doc(BASE, [drawer('Drawer', [['D1', 0]])]), doc(BASE, [drawer('Drawer', [['Top drawer', 0]])]));
+    expect(out.map((c) => [c.kind, c.subject, c.name])).toEqual([['added', 'placement', 'Top drawer'], ['removed', 'placement', 'D1']]);
+  });
+
+  it('ignores an assembly rename when placement and part names are kept (review focus 2)', () => {
+    expect(diffDesigns(doc(BASE, [drawer('Drawer', [['D1', 0]])]), doc(BASE, [drawer('Box', [['D1', 0]])]))).toEqual([]);
+  });
+
+  it('orders placements before parts', () => {
+    const out = diffDesigns(doc(BASE), doc([BASE[0], part('Shelf', [0, 0, 0], [40, 1, 14])], [drawer('Drawer', [['D1', 0]])]));
+    expect(out.map((c) => c.subject)).toEqual(['placement', 'part']);
+  });
+
+  it('compares placements by world geometry, not by how origin and local coordinates split (F3)', () => {
+    const asm = (partAt: [number, number, number], origin: [number, number, number]) =>
+      doc([], [{ name: 'Rails', parts: [part('Rail', partAt, [20, 2, 3]), part('Rail 2', [partAt[0], partAt[1] + 6, partAt[2]], [20, 2, 3])], placements: [{ name: 'P1', at: v(...origin) }] }]);
+    expect(diffDesigns(asm([10, 0, 5], [0, 0, 0]), asm([0, 0, 0], [10, 0, 5]))).toEqual([]);
+    // ...and a real move of the whole placement is still reported, once.
+    const moved = diffDesigns(asm([10, 0, 5], [0, 0, 0]), asm([0, 0, 0], [12, 0, 5]));
+    expect(moved.map((c) => c.text)).toEqual([`Placement P1 moved X +${f(2)}`]);
+  });
+
+  // designToDocument snaps to 1/16in, so sub-precision differences are made by editing stored values.
+  const nudge = (d: ReturnType<typeof doc>, name: string, patch: { length?: number; position?: [number, number, number]; material?: string }) =>
+    ({ ...d, boards: d.boards.map((b) => (b.name === name ? { ...b, ...patch } : b)) }) as ReturnType<typeof doc>;
+
+  it('prints no line for a change below display precision (F2)', () => {
+    const a = doc(BASE);
+    expect(diffDesigns(a, nudge(a, 'Shelf', { length: 40.001 }))).toEqual([]);
+    expect(diffDesigns(a, nudge(a, 'Shelf', { position: [0.001, 0, 0] }))).toEqual([]);
+  });
+
+  it('omits a zero component from a move', () => {
+    const a = doc(BASE);
+    const out = diffDesigns(a, nudge(a, 'Top', { position: [2, 10.001, -0.5] }));
+    expect(out.map((c) => c.text)).toEqual([`Top moved X +${f(2)}, Z ${f(-0.5)}`]);
+  });
+});

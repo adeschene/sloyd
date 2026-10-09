@@ -25,7 +25,7 @@ handicraft education tradition built around hand woodworking.
   `index-B2b_spG9.js`, CSS `index-QQ-rJZea.css`, merge `a3ab5c3`, **schema 11** (unchanged).
   Test count is under Commands.
 - **Nothing is pending. NO SUCCESSOR IS CHOSEN: ask what to work on; do not pick.** Open
-  near the recent code: 179 (refine by instruction), 215 (posture handedness, a question),
+  near the recent code: 238 (refine designs with joints), 215 (posture handedness, a question),
   205/206 (joinery's safe refusals), 221, 225–235. See Open follow-ups below.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
@@ -200,6 +200,9 @@ src/
 │   ├── roleLinks.ts      linkByRole: role + sameShared classes → linksToShapes (inv 45)
 │   ├── assemblyChecks.ts distinctParts, distinctPartsViolation, collapseViolations (one report
 │   │                     per authored fault; "fix the assembly" only for overlaps)
+│   ├── refineDesign.ts   documentToDesign (Refine's input + refusals; definitions normalised),
+│   │                     carryGrain, designValues (exact values kept), definitionCorner
+│   ├── designDiff.ts     diffDesigns — what a refine changed, by flat display name (→ units)
 │   ├── designCheck.ts    checkDesign; worldSolids, the ONE world-solid mapping (invs 38, 39)
 │   └── treeFixtures.ts, turnFixtures.ts   TEST-ONLY (assemblyDoc; chiralPart, inv 44)
 ├── store/
@@ -210,16 +213,18 @@ src/
 │   └── visibility.ts     visibleBoards, the ONE visibility filter (inv 43)
 ├── storage/          types.ts (StorageAdapter), browser.ts, libraryIndex.ts (invs 7, 29–31)
 ├── llm/              types.ts (LlmClient, opaque LlmMessage, inv 37), anthropic.ts
-├── generate/         prompt.ts, concepts.ts (batch planning), run.ts (runRepairLoop,
-│                     runJoinery), joints/{pocket,sites,recipes,choose}.ts (inv 41)
-├── useGenerations.ts, useJoinery.ts   write only via createProject(…, {activate:false}) (inv 36)
+├── generate/         prompt.ts (limitLines), concepts.ts (batch planning), refine.ts (refineMessage,
+│                     detailFor), run.ts (runRepairLoop, evaluateDesign — THE design evaluation
+│                     shared by Generate and Refine, runRefine, runJoinery),
+│                     joints/{pocket,sites,recipes,choose}.ts (inv 41)
+├── useGenerations.ts, useJoinery.ts, useRefine.ts   write only via createProject(…, {activate:false}) (inv 36)
 ├── viewport/         NO unit tests by design. Viewport, BoardMesh (inv 21), MoveTool +
 │                     moveCandidates, TapeTool, Gizmo (invs 3, 10, 42), GuideMarkers,
 │                     SnapMarker, snapPick (screen-space nearest, on purpose), grain*.ts
 │                     (invs 12, 14, 15, 17, 35), pointer.ts, gridDensity, screenScale, extent
 ├── panels/           DimensionField/NameField (invs 5, 9), Properties, CopyInRow, PartsList,
 │                     Toolbar, TapeReadout (invs 27, 28), GuidesList, ProjectMenu,
-│                     SettingsDialog, GenerateDialog, JoineryDialog, CutList, PartDiagram,
+│                     SettingsDialog, GenerateDialog, JoineryDialog, RefineDialog, CutList, PartDiagram,
 │                     SheetLayout, diagramScale, diagramLabels (inv 19)
 └── App.tsx           layout, autosave/restore, the ONE keydown effect (inv 27), `pending`
                       (inv 29), switchToken (inv 32), `.app-shell` inert behind any modal
@@ -473,7 +478,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 2147 tests across 77 files
+npm test           # Vitest, currently 2207 tests across 82 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

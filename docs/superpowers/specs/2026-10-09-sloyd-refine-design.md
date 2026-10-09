@@ -1,6 +1,6 @@
 # Sloyd — refine by instruction (follow-up 179)
 
-**Date:** 2026-10-09 · **Status:** approved 2026-10-09; amended while planning (§4 keeping parts in place replaces the offset realignment).
+**Date:** 2026-10-09 · **Status:** approved 2026-10-09; amended while planning (§4 keeping parts in place replaces the offset realignment; final review: limits judged on the result, exact values kept, definitions normalised, detail headroom).
 **Builds on:**
 - **Generate** (`2026-10-03-sloyd-generate-design.md`) and **generate assemblies**
   (`2026-10-09-sloyd-generate-assemblies-design.md`): the schema, `designToDocument`, the checks,
@@ -95,8 +95,10 @@ names, never message text) matches one in `preexisting`; flat display names are 
 remaining raw violations are collapsed (`collapseViolations`) and are the run's `violations`: they
 alone count toward "fewest" and go back as repair feedback. The already-present ones are collapsed
 separately for display. A renamed part's old problem reads as new — honest, since a rename is
-drift. The filter applies to `checkDesign`'s raw violations only; rejected-part and distinct-cap
-violations are always new.
+drift. The filter applies to `checkDesign`'s raw violations that NAME parts; part-less violations
+(`too-large`, `too-many-parts`, `tips`) and rejected-part and distinct-cap violations are always new,
+so a size limit typed in the dialog is judged on the result (the user's ruling after the final
+review: kind alone matched every overrun to any other).
 
 ### 3.3 The prompt
 
@@ -131,7 +133,12 @@ section.
 coordinates and asked to keep untouched parts as they are, so Refine converts with
 `designToDocument(design, { centre: false })`: the horizontal re-centring is skipped and only the
 floor rule stays (the lowest part lands on y = 0, by a multiple of 1/16in). Untouched parts then sit
-exactly where they were. *Replaced:* the approved "most common offset" realignment, which would undo
+exactly where they were. **Exact values are kept (the user's ruling after the final review):** a
+returned value equal to one of the original's own values is not snapped, so a part typed off the
+1/16in grid and left untouched does not move. **Definitions are normalised:** `documentToDesign`
+translates each definition so its local minimum corner is (0, 0, 0), adding the offset to its
+placements' origins (exact), because Group stores parts in world coordinates with the origin at 0
+and the prompt tells the model an assembly's minimum corner is the origin. *Replaced:* the approved "most common offset" realignment, which would undo
 a real whole-design move — remove the toe kick and the model correctly lowers the case, but every
 part's offset is then −4in, and realigning by it would lift the case back into the air.
 
@@ -147,9 +154,10 @@ values.
 - `added` / `removed` — a part or a placement (a placement whose instance name appears on one side
   only; its parts are not listed separately).
 - `resized` — the old and new sizes (sorted extents, as the cut list reads them).
-- `moved` — a placement whose origin changed is one `moved` entry; a part inside a placement is
-  compared by its position relative to the placement's origin, so a moved placement does not list
-  its parts; a loose part is compared by its world position.
+- `moved` — a placement is compared by its WORLD minimum corner (origin plus its definition's local
+  minimum), so re-originating an assembly is invisible; a part inside a placement is compared
+  relative to that corner; a loose part by its world position. A line whose before and after text
+  read the same (display rounding) is dropped, and a zero delta is never printed.
 - `material` — old and new.
 - `linked` / `unlinked` — a part that gained or lost a shared shape.
 - Identical changes to the same definition part across placements merge into one entry with
@@ -171,8 +179,9 @@ answers writes nothing; `reset` clears a finished run when the dialog opens.
 **`RefineDialog.tsx`**, opened by a toolbar **"Refine…"** button beside "Add joinery…":
 - Refused: the refusal message only; Refine disabled.
 - Otherwise: **Instruction** (textarea), Max width / depth / height (blank = no limit), **Detail**
-  preselected to the smallest level whose cap ≥ the design's distinct parts and whose ceiling ≥ its
-  placed parts (labels as Generate's), the cost estimate, **Refine** (disabled while the
+  preselected to the smallest level whose cap ≥ the design's distinct parts + 3 (headroom to add
+  parts — the user's ruling after the final review) and whose ceiling ≥ its placed parts (labels as
+  Generate's), the cost estimate, **Refine** (disabled while the
   instruction is blank, while storage is unavailable, or with no key — same rules as joinery).
 - Running: the status line, Cancel.
 - Done: `Saved as '<name> — refined'`; `N new issues · M already present` and the new issues'

@@ -13,7 +13,10 @@ import { SettingsDialog } from './panels/SettingsDialog';
 import { useGenerations } from './useGenerations';
 import { useJoinery } from './useJoinery';
 import { JoineryDialog } from './panels/JoineryDialog';
-import { joineryEstimateUsd } from './generate/run';
+import { joineryEstimateUsd, refineEstimateUsd } from './generate/run';
+import { detailFor, refineRefusal } from './generate/refine';
+import { useRefine } from './useRefine';
+import { RefineDialog } from './panels/RefineDialog';
 import { findSites, siteLabel } from './generate/joints/sites';
 import { AnthropicClient, checkAnthropicKey } from './llm/anthropic';
 import type { LlmSettings } from './storage/types';
@@ -66,7 +69,7 @@ export default function App() {
   // and buttons hold focus too, and `inert` cannot reach a window listener:
   // `m`, Backspace or Ctrl+Z pressed there would arm Move, delete the
   // selected board, or undo, behind the dialog.
-  const [dialog, setDialog] = useState<'generate' | 'settings' | 'joinery' | null>(null);
+  const [dialog, setDialog] = useState<'generate' | 'settings' | 'joinery' | 'refine' | null>(null);
   // Joinery reads the FLAT design (assemblies spec §10): the tree document's own
   // `boards` hold only the root parts, so a grouped design would show no sites.
   const joinerySites = useMemo(() => {
@@ -111,6 +114,15 @@ export default function App() {
     onCreated: (id) => setNewIds((s) => new Set(s).add(id)),
     onStorageVerdict: () => setAvailable(storage.available),
   });
+  // Refine likewise never adopts (invariant 36).
+  const refine = useRefine({
+    onCreated: (id) => setNewIds((s) => new Set(s).add(id)),
+    onStorageVerdict: () => setAvailable(storage.available),
+  });
+  const refineInfo = useMemo(
+    () => (dialog === 'refine' ? { refusal: refineRefusal(doc), detail: detailFor(doc) } : null),
+    [dialog, doc],
+  );
   useEffect(() => {
     void storage.getLlmSettings().then(setLlmSettingsState);
   }, []);
@@ -834,6 +846,11 @@ export default function App() {
             joinery.reset();
             setDialog('joinery');
           }}
+          onOpenRefine={() => {
+            opener.current = document.activeElement as HTMLElement | null;
+            refine.reset();
+            setDialog('refine');
+          }}
           onOpenSettings={() => {
             opener.current = document.activeElement as HTMLElement | null;
             setDialog('settings');
@@ -965,6 +982,28 @@ export default function App() {
             joinery.start(new AnthropicClient(llmSettings.apiKey, llmSettings.model), useStore.getState().doc);
           }}
           onCancel={joinery.cancel}
+          // The ONE adopting path (invariant 36): the existing openProject.
+          onOpenProject={(id) => { setDialog(null); void openProject(id); }}
+          onOpenSettings={() => setDialog('settings')}
+          onClose={() => setDialog(null)}
+        />
+      )}
+      {dialog === 'refine' && refineInfo && (
+        <RefineDialog
+          hasKey={llmSettings !== null}
+          libraryAvailable={libraryAvailable}
+          projectName={doc.name}
+          refusal={refineInfo.refusal}
+          initialDetail={refineInfo.detail}
+          model={llmSettings?.model ?? null}
+          estimate={(s) => (llmSettings ? refineEstimateUsd(new AnthropicClient(llmSettings.apiKey, llmSettings.model), doc, s) : null)}
+          run={refine.run}
+          live={refine.live}
+          onRun={(s) => {
+            if (!llmSettings) return;
+            refine.start(new AnthropicClient(llmSettings.apiKey, llmSettings.model), useStore.getState().doc, s);
+          }}
+          onCancel={refine.cancel}
           // The ONE adopting path (invariant 36): the existing openProject.
           onOpenProject={(id) => { setDialog(null); void openProject(id); }}
           onOpenSettings={() => setDialog('settings')}

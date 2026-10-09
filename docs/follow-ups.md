@@ -4011,6 +4011,7 @@ growing it back is ordinary while sizing a part, and dropping would lose the joi
 **179. Refine by instruction.** Phase 2's other half: a box for change requests ("shelves 2in
 lower", "thicker legs"), the model editing the design, and the existing checks. Chosen against in
 favour of joinery first; it reuses `runRepairLoop` and `checkDesign` unchanged.
+- **Status:** CLOSED 2026-10-09 by the refine round (`docs/superpowers/specs/2026-10-09-sloyd-refine-design.md`): fresh prototypes only; designs with joints are refused (a later round could lift that).
 
 **180. A tenon prints as four "rabbet" lines.** `mortiseTenon` cuts the waste around a tenon as
 up to four `pocketFor` boxes, and `cutLabel` names each by its shape, so a tenoned rail's cut list
@@ -4651,4 +4652,33 @@ explains assemblies. Cosmetic: the planner only proposes directions.
   stays because tsc needs it.
 - **Not confirmed live.** The collapsed repair wording: the live run came back clean on its first
   call.
+- **Status:** record-only.
+
+## From the refine round — 2026-10-09
+
+**236. Refine's cost estimate is a first-call lower bound.** The live run showed `≈ $0.02` before and
+cost `≈ $0.07`: the estimate counts one call's input and the design's size as output, but adaptive
+thinking is on and repair rounds resend the history. Options: label it "from ≈ $X", or scale the
+output estimate by a measured factor. Generate's and joinery's estimates may share the gap.
+- **Status:** open, low (cosmetic, but it is money).
+
+**237. Refining a refined project names it "X — refined — refined".** The spec is silent; "— refined
+2" or stripping a trailing "— refined" would read better.
+- **Status:** open, low.
+
+**238. Refining designs with joints.** The user chose fresh prototypes first (option 1 of 3). A
+joined design is refused before any call. Lifting that needs cuts to survive (or be re-derived)
+through the model's box format.
+- **Status:** open by decision; the natural next round for refine.
+
+**239. Small gaps the round judged fine to leave.** Record-only; the reviews' deferred minors.
+- **Untested.** The material-label-identical guard in `diffDesigns` (cannot fire: labels are unique);
+  added/removed parts inside a kept placement merging ×N; material/link merges ×N; the dialog's
+  storage-unavailable branches and repairing/retrying text; the 240-placed boundary was not mutated.
+- **Edges.** An off-grid value inside an assembly may land an ulp off after normalisation (no
+  phantom change line: zero deltas are not printed); an unplaced definition counts toward distinct
+  parts but is dropped from the design (load repair should prune it).
+- **Cosmetic.** The estimate recomputes per keystroke; two `role="status"` elements can render
+  together; the `' turned'` detail string is duplicated in its merge key; the change list lives in
+  hook state, so closing the dialog mid-run and reopening clears it (joinery's pattern).
 - **Status:** record-only.
