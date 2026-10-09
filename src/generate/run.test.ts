@@ -9,7 +9,7 @@ import { LlmError } from '../llm/types';
 import { createDocument, flatDocument, migrateDocument } from '../document/document';
 import type { Board, SloydDocument } from '../document/document';
 import { applyJoints } from './joints/recipes';
-import { findSites } from './joints/sites';
+import { findSites, jointKey } from './joints/sites';
 import { defaultChoice } from './joints/choose';
 import { GATE_REFUSAL, sameJoined } from './joints/unjoin';
 import { designToDocument } from '../document/generated';
@@ -551,6 +551,12 @@ describe('runRefine — joined designs', () => {
     // rabbets into Top and Bottom kept; its rabbets into the two sides dropped. A re-chosen record is
     // never counted as dropped.
     expect(out.joints).toEqual({ kept: 2, chosen: 8, dropped: 2, skipped: [] });
+    // The 2 dropped, grounded outside runRefine: the thinned plain design has no Back→side meetings.
+    const thinFlat = flatDocument(designToDocument(thin).doc);
+    const thinKeys = findSites(thinFlat).map((s) => jointKey(thinFlat.boards[s.enter]!.name, thinFlat.boards[s.receive]!.name, s.axis, s.side));
+    expect(thinKeys).not.toContain('Back→Left side|2|1');
+    expect(thinKeys).not.toContain('Back→Right side|2|1');
+    expect(thinKeys).toHaveLength(10);
   });
 
   it('keeps a shared assembly shared after refining (review focus 4)', async () => {
