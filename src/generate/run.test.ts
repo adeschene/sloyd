@@ -578,7 +578,10 @@ describe('runRefine — joined designs', () => {
   it('keeps a shared assembly shared after refining (review focus 4)', async () => {
     const v3 = (x: number, y: number, z: number) => ({ x, y, z });
     const tree = designToDocument({ name: 'Frames', parts: [], assemblies: [{ name: 'Frame',
+      // Two legs per frame so the piece does not tip: a tipping fixture makes the REFINE stage repair
+      // (part-less problems are always new, refine spec §3.2), which is not what this test is about.
       parts: [{ name: 'Leg', role: '', material: 'oak', at: v3(0, 0, 0), size: v3(1.75, 28, 1.75) },
+        { name: 'Leg 2', role: '', material: 'oak', at: v3(19.75, 0, 0), size: v3(1.75, 28, 1.75) },
         { name: 'Rail', role: '', material: 'oak', at: v3(1.75, 23.5, 0.5), size: v3(18, 3, 0.75) }],
       placements: [{ name: 'Front', at: v3(0, 0, 0) }, { name: 'Back', at: v3(0, 0, 30) }] }] }).doc;
     const jo = await runJoinery(fakeClient([new LlmError('overloaded', 'Overloaded.')]).client, tree, new AbortController().signal, () => {});
@@ -590,5 +593,77 @@ describe('runRefine — joined designs', () => {
     if ('refused' in out) throw new Error(out.refused.message);
     expect(out.doc.definitions).toHaveLength(1);
     expect(out.doc.instances.map((i) => i.definition)).toEqual([out.doc.definitions[0].id, out.doc.definitions[0].id]);
+    expect(client.complete).toHaveBeenCalledTimes(1);
+    expect(sameJoined(flatDocument(out.doc), flatDocument(joinedTree))).toBe(true);
+    expect(out.joints).toMatchObject({ chosen: 0, dropped: 0 });
+    expect(out.changes).toEqual([]);
+  });
+
+  describe('a problem the ORIGINAL joined design already had (spec §4 Issues)', () => {
+    // Two rails tenoned 1.25in into one leg: the tenons collide (Rail Z passes into Rail X). The base
+    // plate keeps the piece from tipping, so the only part-less check (tips) stays quiet. Leg→Base is
+    // left butt. The plain design's rails hang (already present in the refine stage).
+    const cf = flatDocument(designToDocument({ name: 'Corner', assemblies: [], parts: [
+      bp('Base', [-2, 0, -2], [24, 0.75, 24]), bp('Leg', [0, 0.75, 0], [1.75, 28, 1.75]),
+      bp('Rail X', [1.75, 24.25, 0.5], [18, 3, 0.75]), bp('Rail Z', [0.5, 24.25, 1.75], [0.75, 3, 18]),
+    ] }).doc);
+    const cs = findSites(cf);
+    const collided: SloydDocument = migrateDocument(applyJoints(cf, cs, cs.map((s) => (cf.boards[s.receive].name === 'Leg'
+      ? { site: s.id, joint: 'mortise-tenon' as const, tenonLength: 1.25 } : { site: s.id, joint: 'butt' as const }))).doc);
+    const isOverlap = (v: { kind: string; parts: string[] }) => v.kind === 'overlap' && [...v.parts].sort().join() === 'Rail X,Rail Z';
+
+    it('the fixture: the joined original has exactly that overlap, the plain one does not', () => {
+      const lim = (f: { boards: unknown[] }) => ({ width: null, depth: null, height: null, maxParts: f.boards.length });
+      const jf = flatDocument(collided);
+      expect(checkDesign(jf, lim(jf)).filter((v) => v.parts.length > 0).map((v) => v.kind)).toEqual(['overlap']);
+      expect(checkDesign(cf, lim(cf)).some(isOverlap)).toBe(false);
+    });
+
+    it('refined unchanged: not new, listed as present, ONE call', async () => {
+      const { client } = fakeClient([plainEcho(collided), { joints: [] }]);
+      const out = await go(client, collided);
+      if ('refused' in out) throw new Error(out.refused.message);
+      expect(client.complete).toHaveBeenCalledTimes(1);
+      expect(out.violations).toEqual([]);
+      expect(out.present.filter(isOverlap)).toHaveLength(1);
+      expect(out.present.filter((v) => v.kind === 'hangs').map((v) => v.parts)).toEqual([['Rail X'], ['Rail Z']]);   // the refine stage's
+    });
+
+    it('with an open site, it drives no joinery repair: exactly TWO calls', async () => {
+      const echo = plainEcho(collided);
+      const base = echo.parts.find((p) => p.name === 'Base')!;   // design coordinates, not the fixture's
+      const block = { ...bp('Post', [base.at.x + 17, base.at.y + base.size.y, base.at.z + 17], [1.75, 10, 1.75]), material: 'oak' };
+      const { client } = fakeClient([{ ...echo, parts: [...echo.parts, block] }, { joints: [] }]);
+      const out = await go(client, collided);
+      if ('refused' in out) throw new Error(out.refused.message);
+      expect(client.complete).toHaveBeenCalledTimes(2);
+      expect(out.violations).toEqual([]);
+      expect(out.present.filter(isOverlap)).toHaveLength(1);
+      expect(out.joints).toEqual({ kept: 2, chosen: 1, dropped: 0, skipped: [] });
+    });
+  });
+
+  it('the join stage\'s NEW problems are still reported, beside the refine stage\'s', async () => {
+    // Reuses the collided corner: a NEW rail entering the leg from -X, answered with a 1.25in tenon,
+    // collides with Rail X's and Rail Z's tenons (measured: both). Those overlaps are new to both
+    // originals, so they must come back in `violations`; the original Rail X / Rail Z one stays present.
+    const cf = flatDocument(designToDocument({ name: 'Corner', assemblies: [], parts: [
+      bp('Base', [-2, 0, -2], [24, 0.75, 24]), bp('Leg', [0, 0.75, 0], [1.75, 28, 1.75]),
+      bp('Rail X', [1.75, 24.25, 0.5], [18, 3, 0.75]), bp('Rail Z', [0.5, 24.25, 1.75], [0.75, 3, 18]),
+    ] }).doc);
+    const cs = findSites(cf);
+    const collided: SloydDocument = migrateDocument(applyJoints(cf, cs, cs.map((s) => (cf.boards[s.receive].name === 'Leg'
+      ? { site: s.id, joint: 'mortise-tenon' as const, tenonLength: 1.25 } : { site: s.id, joint: 'butt' as const }))).doc);
+    const echo = plainEcho(collided);
+    const railX = echo.parts.find((p) => p.name === 'Rail X')!, leg = echo.parts.find((p) => p.name === 'Leg')!;   // design coordinates
+    const railN = { ...railX, name: 'Rail N', at: { ...railX.at, x: leg.at.x - railX.size.x } };
+    const long = { joints: Array.from({ length: 40 }, (_, i) => ({ site: i, joint: 'mortise-tenon', tenonLength: 1.25 })) };
+    const { client } = fakeClient([{ ...echo, parts: [...echo.parts, railN] }, long]);
+    const out = await go(client, collided);
+    if ('refused' in out) throw new Error(out.refused.message);
+    const pair = (v: { parts: string[] }) => [...v.parts].sort().join();
+    expect(out.violations.filter((v) => v.kind === 'overlap').map(pair)).toEqual(['Rail N,Rail X', 'Rail N,Rail Z']);
+    expect(out.violations.some((v) => v.kind === 'hangs' && v.parts.includes('Rail N'))).toBe(true);   // the refine stage's
+    expect(out.present.filter((v) => v.kind === 'overlap').map(pair)).toEqual(['Rail X,Rail Z']);
   });
 });

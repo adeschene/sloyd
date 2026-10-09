@@ -194,6 +194,42 @@ describe('runJoinery on a generated assembly', () => {
   });
 });
 
+describe('runJoinery — twins that get DIFFERENT joints', () => {
+  it('split the definition: each copy keeps only its own mortises (a899b51)', async () => {
+    const tree = designToDocument({ name: 'Frames', parts: [
+      // A loose stretcher entering the FRONT leg only, from -X.
+      { name: 'Stretcher', role: '', material: 'oak', at: { x: -10, y: 10, z: 0.5 }, size: { x: 10, y: 3, z: 0.75 } },
+    ], assemblies: [{
+      name: 'Frame',
+      parts: [
+        { name: 'Leg', role: '', material: 'oak', at: { x: 0, y: 0, z: 0 }, size: { x: 1.75, y: 28, z: 1.75 } },
+        { name: 'Rail', role: '', material: 'oak', at: { x: 1.75, y: 23.5, z: 0.5 }, size: { x: 18, y: 3, z: 0.75 } },
+      ],
+      placements: [{ name: 'Front', at: { x: 0, y: 0, z: 0 } }, { name: 'Back', at: { x: 0, y: 0, z: 30 } }],
+    }] }).doc;
+    const out = await run(client(new LlmError('overloaded', 'Overloaded.')), tree);
+    if ('noSites' in out) throw new Error('expected sites');
+    expect(out.result.applied.map((a) => a.joint)).toEqual(['mortise-tenon', 'mortise-tenon', 'mortise-tenon']);
+    const doc = out.result.doc;
+    const legCuts = (name: string) => flatDocument(doc).boards.find((b) => b.name === name)!.cuts.length;
+    expect([legCuts('Front › Leg'), legCuts('Back › Leg')]).toEqual([2, 1]);
+    expect(doc.definitions).toHaveLength(2);
+    expect(new Set(doc.instances.map((i) => i.definition)).size).toBe(2);
+  });
+});
+
+describe('runJoinery — alsoPresent', () => {
+  it('a problem in alsoPresent is preexisting: not new, no repair call', async () => {
+    const collide = JSON.stringify(['overlap', ['Rail X', 'Rail Z']]);
+    const c = client(long, short);
+    const out = await runJoinery(c, CORNER, new AbortController().signal, () => {}, { alsoPresent: new Set([collide]) });
+    if ('noSites' in out) throw new Error('sites');
+    expect(c.complete).toHaveBeenCalledTimes(1);
+    expect(out.violations).toEqual([]);
+    expect(out.preexisting.filter((v) => v.kind === 'overlap').map((v) => [...v.parts].sort())).toEqual([['Rail X', 'Rail Z']]);
+  });
+});
+
 describe('runJoinery — fixed choices', () => {
   const sites = findSites(CORNER);
   const keyOf = (s: (typeof sites)[number]) => jointKey(CORNER.boards[s.enter].name, CORNER.boards[s.receive].name, s.axis, s.side);

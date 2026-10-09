@@ -223,6 +223,7 @@ export async function runRefine(
   // Document-level facts the model never sees travel with the result.
   let refined: SloydDocument = { ...out.doc, stock: doc.stock, units: doc.units, guides: doc.guides };
   let violations = out.violations;
+  let present = out.present;
   let usage = out.usage;
   let joints: JointsSummary | null = null;
   if (base.joints) {
@@ -237,18 +238,25 @@ export async function runRefine(
     const plainFlat = flatDocument(refined);
     const siteKeys = new Set(findSites(plainFlat).map((s) => jointKey(plainFlat.boards[s.enter]!.name, plainFlat.boards[s.receive]!.name, s.axis, s.side)));
     const dropped = base.joints.filter((j) => !siteKeys.has(jointKey(j.enter, j.receive, j.axis, j.side))).length;
-    const jo = await runJoinery(client, refined, signal, (p) => onProgress({ ...p, stage: 'join' }), { fixed });
+    // The ORIGINAL joined design's named-part problems are already present (spec §4 Issues), judged
+    // with the limits runJoinery uses.
+    const joinedFlat = flatDocument(doc);
+    const alsoPresent = new Set(checkDesign(joinedFlat, { width: null, depth: null, height: null, maxParts: joinedFlat.boards.length })
+      .filter((v) => v.parts.length > 0).map(problemKey));
+    const jo = await runJoinery(client, refined, signal, (p) => onProgress({ ...p, stage: 'join' }), { fixed, alsoPresent });
     if ('noSites' in jo) {
       joints = { kept: 0, chosen: 0, dropped, skipped: [] };
     } else {
       refined = { ...jo.result.doc, stock: doc.stock, units: doc.units, guides: doc.guides };
       violations = [...violations, ...jo.violations];
+      const shown = new Set(present.map(problemKey));
+      present = [...present, ...jo.preexisting.filter((v) => alsoPresent.has(problemKey(v)) && !shown.has(problemKey(v)))];
       usage = addUsage(usage, jo.usage);
       joints = { kept: jo.kept, chosen: jo.chosen, dropped, skipped: jo.result.skipped.map((s) => s.reason) };
     }
   }
   // Changes are judged against the ORIGINAL joined design (refine-joined spec §4).
-  return { doc: refined, violations, present: out.present, changes: diffDesigns(doc, refined), usage, joints };
+  return { doc: refined, violations, present, changes: diffDesigns(doc, refined), usage, joints };
 }
 
 /** A rough before-you-run estimate: the prompt and design in, about the design's own size out. */
@@ -293,7 +301,7 @@ export async function runJoinery(
   doc: SloydDocument,
   signal: AbortSignal,
   onProgress: (p: RunProgress) => void,
-  opts: { fixed?: FixedJoints } = {},
+  opts: { fixed?: FixedJoints; alsoPresent?: ReadonlySet<string> } = {},
 ): Promise<JoineryOutcome | { noSites: true }> {
   // Joinery reads the FLAT document (assemblies spec §6.1): placed parts named by
   // their display paths. Its result is written back into the tree by index.
@@ -314,12 +322,16 @@ export async function runJoinery(
   const old = new Set(preexisting.map(problemKey));
   const build = (choices: JointChoice[], notes: string[]) => {
     const joined = applyJoints(flat, sites, choices);
-    const violations = checkDesign(flatDocument(joined.doc), limits).filter((v) => !old.has(problemKey(v)));
+    const raw = checkDesign(flatDocument(joined.doc), limits);
+    // `alsoPresent` (Refine): a named-part problem the caller's ORIGINAL already had counts as
+    // preexisting too — never new, never repair feedback (refine-joined spec §4 Issues).
+    const also = (v: Violation) => v.parts.length > 0 && !old.has(problemKey(v)) && opts.alsoPresent?.has(problemKey(v)) === true;
+    const violations = raw.filter((v) => !old.has(problemKey(v)) && !also(v));
     // The tree-shaped document is what useJoinery saves (out.result.doc).
     const tree = migrateDocument(writeBackFlat(doc, flat.boards, worldParts(joined.doc)));
     const result = { ...joined, doc: tree };
     const kept = joined.applied.filter((a) => a.joint !== 'butt' && fixed.has(a.site)).length;
-    return { doc: tree, violations, result, notes, preexisting, kept, chosen: open.length };
+    return { doc: tree, violations, result, notes, preexisting: [...preexisting, ...raw.filter(also)], kept, chosen: open.length };
   };
   if (open.length === 0) return { ...build(merge([]), []), usage: ZERO_USAGE };
   try {
