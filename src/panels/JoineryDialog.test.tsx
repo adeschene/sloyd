@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { JoineryDialog } from './JoineryDialog';
+import type { CostRange } from '../generate/estimate';
 import type { JoineryRun } from '../useJoinery';
 import type { JoineryOutcome } from '../generate/run';
 
@@ -9,7 +10,7 @@ const noop = () => {};
 const base = {
   hasKey: true, libraryAvailable: true, projectName: 'Bench',
   sites: ['Rail → Leg: end into face', 'Shelf → Leg: face against edge'],
-  model: 'claude-sonnet-5-5', estimateUsd: 0.02 as number | null,
+  model: 'claude-sonnet-5-5', estimate: { low: 0.02, high: 0.11 } as CostRange | null,
   run: null as JoineryRun | null, live: false,
   onRun: noop, onCancel: noop, onOpenProject: noop, onOpenSettings: noop, onClose: noop,
 };
@@ -45,7 +46,7 @@ describe('JoineryDialog', () => {
   });
 
   it('with no sites it says so and cannot run', () => {
-    draw({ sites: [], estimateUsd: null });
+    draw({ sites: [], estimate: null });
     expect(screen.getByText('No joints to add — no parts meet end-to-face, face-to-edge, or crossing.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add joinery' })).toBeDisabled();
   });
@@ -55,7 +56,7 @@ describe('JoineryDialog', () => {
     draw({ onRun });
     expect(screen.getByText('Rail → Leg: end into face')).toBeInTheDocument();
     expect(screen.getByText('Shelf → Leg: face against edge')).toBeInTheDocument();
-    expect(screen.getByText(/≈ \$0\.02/)).toBeInTheDocument();
+    expect(screen.getByText('≈ $0.02–$0.11')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Add joinery' }));
     expect(onRun).toHaveBeenCalled();
   });
