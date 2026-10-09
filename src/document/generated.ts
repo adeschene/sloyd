@@ -110,6 +110,17 @@ export function parseDesign(json: unknown): GeneratedDesign | null {
 
 const snap = (v: number) => Math.round(v / SNAP_INCHES) * SNAP_INCHES;
 
+/**
+ * Largest |coordinate| or |size| (inches) a model number may have after
+ * snapping. Finite but astronomical values overflow the centring shift below
+ * (`min + max`), which would crash validation or silently drop an instance.
+ */
+export const MAX_MAGNITUDE = 10_000;
+const usable = (v: number) => Number.isFinite(v) && Math.abs(v) <= MAX_MAGNITUDE;
+
+/** The model's names never carry the path separator, so a flat name is unambiguous. */
+const clean = (name: string) => name.replaceAll('›', '>');
+
 const POSTURE_FOR_UP: Record<Dimension, Posture> = {
   thickness: 'flat',
   width: 'on-edge',
@@ -156,9 +167,10 @@ type Vec = [number, number, number];
 /** Snap, check, encode one part; null (and a rejection) when unusable. */
 function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[]): Omit<Board, 'id'> | null {
   // Checked AFTER the snap: a finite value near Number.MAX_VALUE overflows
-  // to Infinity on the division by SNAP_INCHES. Covers NaN/±Infinity too.
+  // to Infinity on the division by SNAP_INCHES. Covers NaN/±Infinity too,
+  // and anything beyond MAX_MAGNITUDE.
   const snapped = [p.at.x, p.at.y, p.at.z, p.size.x, p.size.y, p.size.z].map(snap);
-  if (!snapped.every(Number.isFinite)) {
+  if (!snapped.every(usable)) {
     rejected.push({ name: label, reason: 'not-finite' });
     return null;
   }
@@ -167,7 +179,7 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[]):
     rejected.push({ name: label, reason: 'too-small' });
     return null;
   }
-  return { name: p.name, material: p.material, grain: 'length', cuts: [], position: [ax, ay, az], ...orient([sx, sy, sz]) };
+  return { name: clean(p.name), material: p.material, grain: 'length', cuts: [], position: [ax, ay, az], ...orient([sx, sy, sz]) };
 }
 
 /**
@@ -195,7 +207,7 @@ export function designToDocument(design: GeneratedDesign): {
   };
 
   const loose: Board[] = design.parts.flatMap((p) => {
-    const b = convertPart(p, p.name, rejected);
+    const b = convertPart(p, clean(p.name), rejected);
     return b ? [mint(p, b)] : [];
   });
 
@@ -206,16 +218,17 @@ export function designToDocument(design: GeneratedDesign): {
   for (const a of design.assemblies ?? []) {
     // Assembly names are the model's handle in feedback, so they are unique
     // among themselves (they are not stored: a Definition has no name).
-    const label = uniqueName(a.name.trim() || 'Assembly', taken);
+    const label = uniqueName(clean(a.name).trim() || 'Assembly', taken);
     taken.push({ id: label, name: label });
     const parts = a.parts.flatMap((p) => {
-      const b = convertPart(p, `${p.name} (in assembly ${label})`, rejected);
+      const b = convertPart(p, `${clean(p.name)} (in assembly ${label})`, rejected);
       return b ? [mint(p, b)] : [];
     });
     const origins = a.placements.flatMap((pl) => {
       const at = [pl.at.x, pl.at.y, pl.at.z].map(snap) as Vec;
-      if (at.every(Number.isFinite)) return [{ name: pl.name, at }];
-      rejected.push({ name: `${pl.name} (placement of ${label})`, reason: 'not-finite' });
+      const plName = clean(pl.name);
+      if (at.every(usable)) return [{ name: plName, at }];
+      rejected.push({ name: `${plName} (placement of ${label})`, reason: 'not-finite' });
       return [];
     });
     if (parts.length === 0) { rejected.push({ name: label, reason: 'empty' }); continue; }
@@ -230,7 +243,7 @@ export function designToDocument(design: GeneratedDesign): {
   const placed: [Vec, Vec][] = [
     ...loose.map((b) => [b.position, extentsOf(b)] as [Vec, Vec]),
     ...instances.flatMap((i) => definitions.find((d) => d.id === i.definition)!.boards.map((b) => {
-      const p = (b as Board).position;
+      const p = b.position;
       return [[i.position[0] + p[0], i.position[1] + p[1], i.position[2] + p[2]], extentsOf(b as Board)] as [Vec, Vec];
     })),
   ];

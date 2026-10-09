@@ -264,6 +264,31 @@ describe('runGeneration — assemblies', () => {
     expect(overlaps[0].message).toContain('fix the assembly');
   });
 
+  it('puts "fix the assembly" in the repair message the model receives (F7)', async () => {
+    const { client, seen } = fakeClient([BAD_DRAWERS, GOOD]);
+    await run(client);
+    const last = seen[1][seen[1].length - 1] as { role: string; text: string };
+    expect(last.role).toBe('user');
+    expect(last.text).toContain('fix the assembly');
+  });
+
+  it('reports a drawer fault inside every placement and the spacing faults between neighbours separately (F1)', async () => {
+    const SPACED = { ...BAD_DRAWERS, assemblies: [{ ...BAD_DRAWERS.assemblies[0], placements: [
+      { name: 'D1', at: v3(0, 0, 0) }, { name: 'D2', at: v3(9.5, 0, 0) }, { name: 'D3', at: v3(19, 0, 0) },
+    ] }] };
+    const out = await run(fakeClient([SPACED]).client);
+    const msgs = out.violations.filter((x) => x.kind === 'overlap').map((x) => x.message);
+    expect(msgs.filter((m) => m.includes('fix the assembly'))).toHaveLength(1);
+    expect(msgs.filter((m) => !m.includes('fix the assembly') && /\(in D\d/.test(m)).length).toBeGreaterThan(0);
+  });
+
+  it('does not throw on a loose part at 1.1e307 (F3)', async () => {
+    const FAR = { name: 'Far', parts: [{ ...p('Far', 0), at: { x: 1.1e307, y: 0, z: 0 } }, p('Near', 0)], assemblies: [] };
+    const out = await run(fakeClient([FAR]).client);
+    expect(out.doc.boards.map((b) => b.name)).toEqual(['Near']);
+    expect(out.violations.some((x) => x.message.includes('beyond 10,000in'))).toBe(true);
+  });
+
   it('scores "fewest" on merged violations', async () => {
     // BAD_DRAWERS: 1 merged (3 raw). TWO_ISSUES: 2. Merged counting keeps BAD_DRAWERS.
     const { client } = fakeClient([BAD_DRAWERS, TWO_ISSUES]);

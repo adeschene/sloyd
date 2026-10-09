@@ -343,7 +343,7 @@ export function checkDesign(doc: FlatDocument, limits: DesignLimits): Violation[
 /** Parts (and assemblies) the converter could not build, reported in the same voice. */
 export function rejectedViolations(rejected: RejectedPart[]): Violation[] {
   const say: Record<RejectedPart['reason'], (n: string) => string> = {
-    'not-finite': (n) => `${n} has a position or size that is not a finite number.`,
+    'not-finite': (n) => `${n} has a position or size that is not a finite number or is beyond 10,000in.`,
     'too-small': (n) => `${n} has a size of zero or less after rounding to 1/16in.`,
     unplaced: (n) => `${n} is an assembly with no usable placement, so none of its parts were built.`,
     empty: (n) => `${n} is an assembly with no usable parts.`,

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { NAME_SEPARATOR } from '../document/tree';
 import { SYSTEM_PROMPT, limitsOf, placedCeiling, repairMessage, userMessage } from './prompt';
 import type { GenerateSettings } from './prompt';
 
@@ -68,5 +69,10 @@ describe('prompt', () => {
     expect(SYSTEM_PROMPT).toContain('"assemblies"');
     expect(SYSTEM_PROMPT).toContain('"role"');
     expect(SYSTEM_PROMPT).toContain('fix the assembly');
+  });
+
+  it('teaches the feedback path format and ends the rules before the assemblies block (F5)', () => {
+    expect(SYSTEM_PROMPT).toContain(`Placement${NAME_SEPARATOR}Part`);
+    expect(SYSTEM_PROMPT.indexOf('Stay within any limits')).toBeLessThan(SYSTEM_PROMPT.indexOf('Assemblies:'));
   });
 });

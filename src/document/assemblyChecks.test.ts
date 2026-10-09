@@ -95,4 +95,39 @@ describe('collapseViolations', () => {
     const out = collapseViolations([overlap(`D1${S}Front`, `D1${S}Side`), loose, overlap(`D2${S}Front`, `D2${S}Side`)], index(['D1', 'D2'], ['Top', 'Shelf']));
     expect(out.map((x) => x.parts[0])).toEqual([`Drawer${S}Front`, 'Top']);
   });
+
+  it('keeps an inside-placement fault apart from between-placement faults (F1)', () => {
+    const pls = ['D1', 'D2', 'D3'];
+    const inside = pls.map((p) => overlap(`${p}${S}Front`, `${p}${S}Side`));
+    const between = [overlap(`D2${S}Side`, `D1${S}Front`), overlap(`D3${S}Side`, `D2${S}Front`)];
+    const out = collapseViolations([...inside, ...between], index(pls));
+    expect(out).toHaveLength(2);
+    expect(out[0].message.endsWith(' (in every placement of Drawer — fix the assembly)')).toBe(true);
+    expect(out[1].message.endsWith(' (in D1, D2, D3)')).toBe(true);
+  });
+
+  it('lists placements in authored order whatever the arrival order (F1)', () => {
+    const out = collapseViolations(
+      [overlap(`D3${S}Front`, `D1${S}Front`), overlap(`D2${S}Front`, `D3${S}Front`)],
+      index(['D1', 'D2', 'D3']),
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0].message.endsWith(' (in D1, D2, D3)')).toBe(true);
+  });
+
+  it.each(['unsupported', 'hangs'] as const)('lists placements for a repeated %s fault, never "fix the assembly" (F2)', (kind) => {
+    const pls = ['D1', 'D2'];
+    const fault = (p: string): Violation => ({ kind, message: `${p}${S}Side is not held.`, parts: [`${p}${S}Side`] });
+    const out = collapseViolations(pls.map(fault), index(pls));
+    expect(out).toHaveLength(1);
+    expect(out[0].message).not.toContain('fix the assembly');
+    expect(out[0].message.endsWith(' (in D1, D2)')).toBe(true);
+  });
+
+  it('lists the placement for a violation mixing a loose part and an assembly part (F7)', () => {
+    const out = collapseViolations([overlap('Top', `D1${S}Front`), overlap('Top', `D2${S}Front`)], index(['D1', 'D2'], ['Top']));
+    expect(out).toHaveLength(1);
+    expect(out[0].message).not.toContain('fix the assembly');
+    expect(out[0].message.endsWith(' (in D1, D2)')).toBe(true);
+  });
 });

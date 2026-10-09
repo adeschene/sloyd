@@ -131,10 +131,10 @@ export async function runGeneration(
       const design = res.json === null ? null : parseDesign(res.json);
       const converted = design && designToDocument(design);
       if (!converted) return { value: null, feedback: unusableMessage(res.unusable ?? 'unparseable') };
-      // Every part rejected: unusable, and never a `best` — a zero-board
-      // document is not a prototype.
       // Checks read the placed world (generate-assemblies spec §5.1); the TREE is what is kept.
       const flat = flatDocument(converted.doc);
+      // Every part rejected: unusable, and never a `best` — a zero-board
+      // document is not a prototype.
       if (flat.boards.length === 0) return { value: null, feedback: repairMessage(rejectedViolations(converted.rejected)) };
       const distinct = distinctPartsViolation(converted.doc, DETAIL_CAPS[settings.detail]);
       // Merged per authored part, so "fewest" is not biased by placement count (spec §5.3).

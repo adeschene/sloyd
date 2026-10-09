@@ -13,8 +13,9 @@ import { worldParts, partAt } from './tree';
  * id, name, position and turn; a differing member stays plain, unlinked, which
  * is what repairLinks did. Nothing moves: no position or turn is recomputed.
  *
- * `legacy` maps each STORED part object to its label (validateBoard filled it),
- * so this must run before anything replaces those objects (repairTree's name
+ * `legacy` maps each STORED part object to its label (the v10 step passes the
+ * map validateBoard filled from `link`; linkByRole builds its own from role
+ * classes), so this must run before anything replaces those objects (repairTree's name
  * dedupe does). A v10 definition placed twice is visited once per placement
  * but converted once: `convert` is keyed by the stored object.
  */

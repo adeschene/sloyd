@@ -25,12 +25,15 @@ export function distinctPartsViolation(doc: SloydDocument, cap: number): Violati
  * One fault, one report (invariant 39's rule, across placements): violations
  * whose parts map to the same AUTHORED parts (`Drawer › Front`, not
  * `Drawer 3 › Front`) and share a kind merge into one, keeping the first
- * message and the first-appearance order. The suffix says where:
- * "every placement … fix the assembly" only when EVERY merged violation lies
- * inside a single placement (no loose part, no second placement) and the group
- * covers all of the assembly's placements, of which there are at least two;
- * otherwise the placements involved are listed. A violation with no assembly
- * part, or no parts, passes through as the same object.
+ * message and the first-appearance order. A fault INSIDE one placement (all its
+ * parts share one placement) never merges with one BETWEEN placements or with a
+ * loose part, even when the authored labels coincide. The suffix says where:
+ * "every placement … fix the assembly" only for an 'overlap' whose merged
+ * violations all lie inside a single placement and whose group covers all of the
+ * assembly's placements, of which there are at least two; every other kind, and
+ * every other shape of fault, lists the placements involved in AUTHORED order
+ * (by assembly first appearance, then the order the model wrote them). A
+ * violation with no assembly part, or no parts, passes through as the same object.
  */
 export function collapseViolations(violations: readonly Violation[], authored: Authored): Violation[] {
   interface Group { first: Violation; labels: string[]; placements: Set<string>; assemblies: Set<string>; internal: boolean }
@@ -40,23 +43,24 @@ export function collapseViolations(violations: readonly Violation[], authored: A
     const who = v.parts.map((n) => authored.parts.get(n));
     if (!who.some((a) => a?.assembly)) { out.push(v); continue; }
     const labels = v.parts.map((n, i) => who[i]?.label ?? n);
-    const key = JSON.stringify([v.kind, [...labels].sort()]);
+    const pls = new Set(who.map((a) => a?.placement ?? null));
+    const internal = pls.size === 1 && !pls.has(null);
+    const key = JSON.stringify([v.kind, internal, [...labels].sort()]);
     let g = groups.get(key);
     if (!g) {
-      g = { first: v, labels, placements: new Set(), assemblies: new Set(), internal: true };
+      g = { first: v, labels, placements: new Set(), assemblies: new Set(), internal };
       groups.set(key, g);
       out.push(g);
     }
-    const pls = new Set(who.map((a) => a?.placement ?? null));
-    if (pls.size !== 1 || pls.has(null)) g.internal = false;
     for (const a of who) if (a?.placement && a.assembly) { g.placements.add(a.placement); g.assemblies.add(a.assembly); }
   }
   return out.map((x) => {
     if (!('first' in x)) return x;
     const [asm] = x.assemblies;
     const all = x.assemblies.size === 1 ? authored.placements.get(asm!) ?? [] : [];
-    const every = x.internal && all.length > 1 && all.every((p) => x.placements.has(p));
-    const where = every ? ` (in every placement of ${asm} — fix the assembly)` : ` (in ${[...x.placements].join(', ')})`;
+    const every = x.first.kind === 'overlap' && x.internal && all.length > 1 && all.every((p) => x.placements.has(p));
+    const ordered = [...x.assemblies].flatMap((a) => (authored.placements.get(a) ?? []).filter((p) => x.placements.has(p)));
+    const where = every ? ` (in every placement of ${asm} — fix the assembly)` : ` (in ${ordered.join(', ')})`;
     return { kind: x.first.kind, message: `${x.first.message}${where}`, parts: x.labels };
   });
 }

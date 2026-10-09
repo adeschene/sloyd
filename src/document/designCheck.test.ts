@@ -94,6 +94,10 @@ describe('ordering and rejected parts', () => {
     expect(kinds(d, { ...NO_LIMITS, maxParts: 1 })).toEqual(['too-small', 'unsupported', 'too-many-parts']);
     expect(checkDesign(d, NO_LIMITS)).toEqual(checkDesign(d, NO_LIMITS));
   });
+  it('says what the not-finite limit is', () => {
+    expect(rejectedViolations([{ name: 'Bad', reason: 'not-finite' }])[0].message)
+      .toBe('Bad has a position or size that is not a finite number or is beyond 10,000in.');
+  });
   it('turns rejected parts into violations naming them', () => {
     expect(rejectedViolations([{ name: 'Bad', reason: 'not-finite' }, { name: 'Thin', reason: 'too-small' }]))
       .toEqual([

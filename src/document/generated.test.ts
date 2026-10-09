@@ -1,7 +1,7 @@
 import { NAME_SEPARATOR, worldParts } from './tree';
 import { flatDocument, migrateDocument } from './document';
 import { describe, expect, it } from 'vitest';
-import { designToDocument, orient, parseDesign, DESIGN_SCHEMA } from './generated';
+import { designToDocument, orient, parseDesign, DESIGN_SCHEMA, MAX_MAGNITUDE } from './generated';
 import type { GeneratedAssembly, GeneratedDesign, GeneratedPart } from './generated';
 import { boardExtents } from './geometry';
 import { MATERIALS } from './types';
@@ -198,6 +198,54 @@ describe('designToDocument — assemblies', () => {
     expect(doc.instances.map((i) => i.name)).toEqual(['Good']);
   });
 
+  it('reports an assembly whose placements are all non-finite as unplaced (F7)', () => {
+    const { doc, rejected } = designToDocument(withAsm([part('Top', [0, 0, 0], [20, 1, 20])], asm('Drawer', [FRONT], ['A', [Number.NaN, 0, 0]], ['B', [0, Infinity, 0]])));
+    expect(rejected).toEqual([
+      { name: 'A (placement of Drawer)', reason: 'not-finite' },
+      { name: 'B (placement of Drawer)', reason: 'not-finite' },
+      { name: 'Drawer', reason: 'unplaced' },
+    ]);
+    expect(doc.instances).toHaveLength(0);
+  });
+
+  it('rejects a loose part at 1.1e307 (centring overflow) and keeps the rest (F3)', () => {
+    const { doc, rejected } = designToDocument(design(part('Far', [1.1e307, 0, 0], [10, 1, 1]), part('Good', [0, 0, 0], [10, 1, 1])));
+    expect(rejected).toEqual([{ name: 'Far', reason: 'not-finite' }]);
+    expect(worldParts(doc).map((b) => b.name)).toEqual(['Good']);
+  });
+
+  it('rejects the only placement at 1.1e307 and reports the assembly unplaced (F3)', () => {
+    const { doc, rejected } = designToDocument(withAsm([], asm('Drawer', [FRONT], ['Far', [1.1e307, 0, 0]])));
+    expect(rejected).toEqual([
+      { name: 'Far (placement of Drawer)', reason: 'not-finite' },
+      { name: 'Drawer', reason: 'unplaced' },
+    ]);
+    expect(doc.boards).toHaveLength(0);
+    expect(doc.instances).toHaveLength(0);
+  });
+
+  it('accepts exactly MAX_MAGNITUDE and rejects one grid step beyond it (F3)', () => {
+    expect(MAX_MAGNITUDE).toBe(10_000);
+    const ok = designToDocument(design(part('Edge', [10000, 0, 0], [10, 1, 1]), part('Big', [0, 0, 0], [10000, 1, 1])));
+    expect(ok.rejected).toEqual([]);
+    const bad = designToDocument(design(part('Edge', [10000.0625, 0, 0], [10, 1, 1]), part('Big', [0, 0, 0], [10000.0625, 1, 1]), part('Ok', [0, 0, 0], [1, 1, 1])));
+    expect(bad.rejected.map((r) => r.name)).toEqual(['Edge', 'Big']);
+    const pl = designToDocument(withAsm([], asm('Drawer', [FRONT], ['In', [10000, 0, 0]], ['Out', [0, 10000.0625, 0]])));
+    expect(pl.rejected).toEqual([{ name: 'Out (placement of Drawer)', reason: 'not-finite' }]);
+  });
+
+  it('replaces the name separator in model names so flat names stay unambiguous (F4)', () => {
+    const { doc, authored } = designToDocument(withAsm(
+      [part(`D1${NAME_SEPARATOR}Front`, [30, 0, 0], [4, 1, 4])],
+      asm('Drawer', [FRONT], ['D1', [0, 0, 0]]),
+    ));
+    const names = flatDocument(doc).boards.map((b) => b.name);
+    expect(new Set(names).size).toBe(names.length);
+    expect(names).toContain('D1 > Front');
+    expect(authored.parts.get('D1 > Front')).toEqual({ label: 'D1 > Front', assembly: null, placement: null });
+    expect(authored.parts.get(`D1${NAME_SEPARATOR}Front`)).toMatchObject({ assembly: 'Drawer' });
+  });
+
   it('survives another migrateDocument unchanged', () => {
     const { doc } = designToDocument(withAsm([part('Top', [0, 10, 0], [20, 1, 20])], asm('Drawer', [FRONT], ['A', [0, 0, 0]], ['B', [0, 5, 0]])));
     expect(migrateDocument(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
@@ -207,6 +255,9 @@ describe('designToDocument — assemblies', () => {
 describe('parseDesign', () => {
   const asm = (over: Record<string, unknown> = {}) => ({
     name: 'Drawer', parts: [part('Front', [0, 0, 0], [10, 4, 0.75])], placements: [{ name: 'Drawer 1', at: v(0, 0, 0) }], ...over,
+  });
+  it('rejects a design with no parts anywhere, even with an assembly (F7)', () => {
+    expect(parseDesign({ name: 'T', parts: [], assemblies: [{ name: 'A', parts: [], placements: [{ name: 'P', at: v(0, 0, 0) }] }] })).toBeNull();
   });
   it('accepts a well-formed design', () => {
     const d = design(part('A', [0, 0, 0], [1, 2, 3]));

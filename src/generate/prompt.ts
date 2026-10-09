@@ -66,6 +66,7 @@ Rules every design must follow:
 - Use real stock: 3/4in and 1-1/2in solid wood; 3/4in and 1/2in plywood or MDF from 96 x 48in sheets. Typical solid board widths are 3-1/2, 5-1/2, 7-1/4, 9-1/4 and 11-1/4in.
 - Give every part a short, distinct, human name (e.g. "Left side", "Shelf 2", "Front apron").
 - Give every part a "role": one short lowercase word for what it is ("leg", "side", "shelf"). Give the same role only to parts that are the same part, such as four identical legs. Use "" for a part with no twin.
+- Stay within any limits given. If the request cannot fit, make the closest design that does.
 
 Assemblies:
 - When a unit of several parts repeats (drawers, doors, identical frames) or forms a natural unit (a base), describe it ONCE under "assemblies" and place it with "placements". Everything else goes under "parts".
@@ -73,8 +74,6 @@ Assemblies:
 - Give each placement its own name (e.g. "Top drawer", "Drawer 2"). Part names need only be distinct within their assembly.
 - An assembly's parts count once toward the part limit, however many times it is placed.
 - In feedback, a part inside a placement is named "Placement › Part". A report ending "fix the assembly" means change the assembly's parts, which changes every placement.
-
-- Stay within any limits given. If the request cannot fit, make the closest design that does.
 
 Style notes, used when a style is requested:
 ${Object.values(STYLE_NOTES).map((n) => `- ${n}`).join('\n')}
