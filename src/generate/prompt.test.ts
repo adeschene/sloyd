@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DETAIL_CAPS, SYSTEM_PROMPT, limitsOf, repairMessage, userMessage } from './prompt';
+import { SYSTEM_PROMPT, limitsOf, placedCeiling, repairMessage, userMessage } from './prompt';
 import type { GenerateSettings } from './prompt';
 
 const base: GenerateSettings = {
@@ -8,10 +8,10 @@ const base: GenerateSettings = {
 };
 
 describe('prompt', () => {
-  it('without a concept, the message is byte-identical to the pre-variety output', () => {
+  it('without a concept, the message matches its pinned literal', () => {
     expect(userMessage(base)).toBe(
       'Design this: A bookcase with five shelves\n\nHard limits:\n- Overall width (X) at most 36in.\n' +
-      '- Overall height (Y) at most 72in.\n- At most 30 parts (moderate detail).\n\nPreferences:\n' +
+      '- Overall height (Y) at most 72in.\n- At most 30 different parts (an assembly\'s parts count once) and 120 placed parts (moderate detail).\n\nPreferences:\n' +
       '- Prefer Plywood (material key "plywood") for most parts.\n' +
       '- Style: Shaker: plain, light, well-proportioned; tapered or square legs; no ornament.',
     );
@@ -26,7 +26,7 @@ describe('prompt', () => {
     expect(m).toMatch(/width.*36in/i);
     expect(m).toMatch(/height.*72in/i);
     expect(m).not.toMatch(/depth.*in/i);
-    expect(m).toMatch(/at most 30 parts/i);
+    expect(m).toMatch(/at most 30 different parts/i);
     expect(m).toMatch(/prefer.*plywood/i);
     expect(m).toMatch(/shaker/i);
   });
@@ -41,7 +41,7 @@ describe('prompt', () => {
     expect(m.endsWith('\n\nDesign this version: Trestle base — Two slab ends and a stretcher.')).toBe(true);
   });
   it('maps settings to limits — width X, depth Z, height Y, the detail cap', () => {
-    expect(limitsOf(base)).toEqual({ width: 36, depth: null, height: 72, maxParts: DETAIL_CAPS.moderate });
+    expect(limitsOf(base)).toEqual({ width: 36, depth: null, height: 72, maxParts: 120 });
   });
   it('lists every violation in the repair message', () => {
     const m = repairMessage([{ kind: 'overlap', message: 'A passes 1in into B along X.', parts: ['A', 'B'] }, { kind: 'unsupported', message: 'C is not connected.', parts: ['C'] }]);
@@ -60,5 +60,13 @@ describe('prompt', () => {
     const floor = lines.findIndex((l) => l.startsWith('- Every part must connect to the floor'));
     expect(lines[floor + 1].startsWith('- Every part off the floor must be held')).toBe(true);
     expect(lines[floor + 2].startsWith('- Keep the piece stable')).toBe(true);
+  });
+  it('caps placed parts at four times the detail cap', () => {
+    expect([placedCeiling('simple'), placedCeiling('moderate'), placedCeiling('detailed')]).toEqual([48, 120, 240]);
+  });
+  it('teaches assemblies and roles in the fixed system prompt', () => {
+    expect(SYSTEM_PROMPT).toContain('"assemblies"');
+    expect(SYSTEM_PROMPT).toContain('"role"');
+    expect(SYSTEM_PROMPT).toContain('fix the assembly');
   });
 });

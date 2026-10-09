@@ -1,6 +1,7 @@
 import { flatDocument, migrateDocument, worldParts, writeBackFlat } from '../document/document';
 import type { SloydDocument } from '../document/document';
 import { DESIGN_SCHEMA, designToDocument, parseDesign } from '../document/generated';
+import { collapseViolations, distinctPartsViolation } from '../document/assemblyChecks';
 import { checkDesign, rejectedViolations } from '../document/designCheck';
 import type { Violation } from '../document/designCheck';
 import { LlmError, ZERO_USAGE, addUsage } from '../llm/types';
@@ -9,7 +10,7 @@ import { JOINERY_PROMPT, JOINT_SCHEMA, defaultChoice, jointsRepairMessage, joint
 import { applyJoints } from './joints/recipes';
 import type { JoinResult, JointChoice } from './joints/recipes';
 import { findSites } from './joints/sites';
-import { SYSTEM_PROMPT, limitsOf, repairMessage, unusableMessage, userMessage } from './prompt';
+import { DETAIL_CAPS, SYSTEM_PROMPT, limitsOf, repairMessage, unusableMessage, userMessage } from './prompt';
 import type { Concept, GenerateSettings } from './prompt';
 
 /** Repair rounds after the first call — 4 calls at most (spec §4.5). */
@@ -113,7 +114,7 @@ export async function runRepairLoop<T extends { doc: SloydDocument; violations: 
   return { ...best, usage };
 }
 
-/** One generation: design → check → feedback, via the shared loop (spec §4.5). */
+/** One generation: design → tree → check the placed world → feedback, via the shared loop (spec §4.5; generate-assemblies spec §5). */
 export async function runGeneration(
   client: LlmClient,
   settings: GenerateSettings,
@@ -135,7 +136,13 @@ export async function runGeneration(
       // Checks read the placed world (generate-assemblies spec §5.1); the TREE is what is kept.
       const flat = flatDocument(converted.doc);
       if (flat.boards.length === 0) return { value: null, feedback: repairMessage(rejectedViolations(converted.rejected)) };
-      const violations = [...rejectedViolations(converted.rejected), ...checkDesign(flat, limits)];
+      const distinct = distinctPartsViolation(converted.doc, DETAIL_CAPS[settings.detail]);
+      // Merged per authored part, so "fewest" is not biased by placement count (spec §5.3).
+      const violations = [
+        ...rejectedViolations(converted.rejected),
+        ...(distinct ? [distinct] : []),
+        ...collapseViolations(checkDesign(flat, limits), converted.authored),
+      ];
       return { value: { doc: converted.doc, violations }, feedback: repairMessage(violations) };
     },
   }, signal, onProgress);
