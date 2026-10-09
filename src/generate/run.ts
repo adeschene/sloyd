@@ -1,6 +1,7 @@
 import { flatDocument, migrateDocument, worldParts, writeBackFlat } from '../document/document';
 import type { SloydDocument } from '../document/document';
 import { DESIGN_SCHEMA, designToDocument, parseDesign } from '../document/generated';
+import type { GeneratedDesign } from '../document/generated';
 import { collapseViolations, distinctPartsViolation } from '../document/assemblyChecks';
 import { checkDesign, rejectedViolations } from '../document/designCheck';
 import type { Violation } from '../document/designCheck';
@@ -11,7 +12,13 @@ import { applyJoints } from './joints/recipes';
 import type { JoinResult, JointChoice } from './joints/recipes';
 import { findSites } from './joints/sites';
 import { DETAIL_CAPS, SYSTEM_PROMPT, limitsOf, repairMessage, unusableMessage, userMessage } from './prompt';
-import type { Concept, GenerateSettings } from './prompt';
+import type { Concept, GenerateSettings, LimitSettings } from './prompt';
+import { REFINE_MAX, refineMessage } from './refine';
+import type { RefineSettings } from './refine';
+import { carryGrain, documentToDesign } from '../document/refineDesign';
+import type { RefineRefusal } from '../document/refineDesign';
+import { diffDesigns } from '../document/designDiff';
+import type { Change } from '../document/designDiff';
 
 /** Repair rounds after the first call — 4 calls at most (spec §4.5). */
 export const MAX_REPAIRS = 3;
@@ -114,6 +121,50 @@ export async function runRepairLoop<T extends { doc: SloydDocument; violations: 
   return { ...best, usage };
 }
 
+export const problemKey = (v: Violation) => JSON.stringify([v.kind, [...v.parts].sort()]);
+
+/** What one usable attempt is worth: the tree kept, its NEW problems, and (Refine) the old ones. */
+export interface DesignValue { doc: SloydDocument; violations: Violation[]; present: Violation[] }
+interface EvaluateOpts {
+  /** Refine's grain carry-over, applied to the parsed design before conversion. */
+  prepare?: (d: GeneratedDesign) => GeneratedDesign;
+  /** False keeps the model's X/Z (Refine); the floor rule holds either way. */
+  centre?: boolean;
+  /** problemKeys of the original's raw violations (Refine; invariant 41's rule). */
+  preexisting?: ReadonlySet<string>;
+}
+
+/**
+ * THE design evaluation, shared by Generate and Refine so they cannot drift
+ * (refine spec §3.1): parse → tree → flatten → zero-board guard → distinct cap
+ * → checkDesign → collapse. With `preexisting`, a raw violation whose
+ * problemKey the original already had is set aside as `present` and neither
+ * counts toward "fewest" nor goes back as feedback.
+ */
+function evaluateDesign(res: LlmResult, s: LimitSettings, opts: EvaluateOpts = {}): { value: DesignValue | null; feedback: string } {
+  const parsed = res.json === null ? null : parseDesign(res.json);
+  const design = parsed && (opts.prepare ? opts.prepare(parsed) : parsed);
+  const converted = design && designToDocument(design, { centre: opts.centre ?? true });
+  if (!converted) return { value: null, feedback: unusableMessage(res.unusable ?? 'unparseable') };
+  // Checks read the placed world (generate-assemblies spec §5.1); the TREE is what is kept.
+  const flat = flatDocument(converted.doc);
+  // Every part rejected: unusable, and never a `best` — a zero-board
+  // document is not a prototype.
+  if (flat.boards.length === 0) return { value: null, feedback: repairMessage(rejectedViolations(converted.rejected)) };
+  const distinct = distinctPartsViolation(converted.doc, DETAIL_CAPS[s.detail]);
+  const raw = checkDesign(flat, limitsOf(s));
+  const old = opts.preexisting;
+  const fresh = old ? raw.filter((v) => !old.has(problemKey(v))) : raw;
+  // Merged per authored part, so "fewest" is not biased by placement count (generate-assemblies spec §5.3).
+  const violations = [
+    ...rejectedViolations(converted.rejected),
+    ...(distinct ? [distinct] : []),
+    ...collapseViolations(fresh, converted.authored),
+  ];
+  const present = old ? collapseViolations(raw.filter((v) => old.has(problemKey(v))), converted.authored) : [];
+  return { value: { doc: converted.doc, violations, present }, feedback: repairMessage(violations) };
+}
+
 /** One generation: design → tree → check the placed world → feedback, via the shared loop (spec §4.5; generate-assemblies spec §5). */
 export async function runGeneration(
   client: LlmClient,
@@ -122,33 +173,53 @@ export async function runGeneration(
   onProgress: (p: RunProgress) => void,
   concept?: Concept,
 ): Promise<RunOutcome> {
-  const limits = limitsOf(settings);
-  return runRepairLoop(client, {
+  const out = await runRepairLoop(client, {
     system: SYSTEM_PROMPT,
     schema: DESIGN_SCHEMA,
     first: userMessage(settings, concept),
-    evaluate: (res) => {
-      const design = res.json === null ? null : parseDesign(res.json);
-      const converted = design && designToDocument(design);
-      if (!converted) return { value: null, feedback: unusableMessage(res.unusable ?? 'unparseable') };
-      // Checks read the placed world (generate-assemblies spec §5.1); the TREE is what is kept.
-      const flat = flatDocument(converted.doc);
-      // Every part rejected: unusable, and never a `best` — a zero-board
-      // document is not a prototype.
-      if (flat.boards.length === 0) return { value: null, feedback: repairMessage(rejectedViolations(converted.rejected)) };
-      const distinct = distinctPartsViolation(converted.doc, DETAIL_CAPS[settings.detail]);
-      // Merged per authored part, so "fewest" is not biased by placement count (spec §5.3).
-      const violations = [
-        ...rejectedViolations(converted.rejected),
-        ...(distinct ? [distinct] : []),
-        ...collapseViolations(checkDesign(flat, limits), converted.authored),
-      ];
-      return { value: { doc: converted.doc, violations }, feedback: repairMessage(violations) };
-    },
+    evaluate: (res) => evaluateDesign(res, settings),
   }, signal, onProgress);
+  return { doc: out.doc, violations: out.violations, usage: out.usage };
 }
 
-export const problemKey = (v: Violation) => JSON.stringify([v.kind, [...v.parts].sort()]);
+export interface RefineOutcome { doc: SloydDocument; violations: Violation[]; present: Violation[]; changes: Change[]; usage: LlmUsage }
+
+/**
+ * Refine by instruction (refine spec §3): the open design in Generate's format
+ * plus the instruction, through the shared loop and evaluation. Refusals are
+ * decided before any call. Converted with centre: false so untouched parts keep
+ * their coordinates; grain carried by name; only NEW problems drive repairs.
+ */
+export async function runRefine(
+  client: LlmClient,
+  doc: SloydDocument,
+  settings: RefineSettings,
+  signal: AbortSignal,
+  onProgress: (p: RunProgress) => void,
+): Promise<RefineOutcome | { refused: RefineRefusal }> {
+  const from = documentToDesign(doc, REFINE_MAX);
+  if ('refused' in from) return { refused: from.refused };
+  const preexisting = new Set(checkDesign(flatDocument(doc), limitsOf(settings)).map(problemKey));
+  const out = await runRepairLoop(client, {
+    system: SYSTEM_PROMPT,
+    schema: DESIGN_SCHEMA,
+    first: refineMessage(from.design, settings),
+    evaluate: (res) => evaluateDesign(res, settings, { prepare: (d) => carryGrain(d, doc), centre: false, preexisting }),
+  }, signal, onProgress);
+  // Document-level facts the model never sees travel with the result.
+  const kept: SloydDocument = { ...out.doc, stock: doc.stock, units: doc.units, guides: doc.guides };
+  return { doc: kept, violations: out.violations, present: out.present, changes: diffDesigns(doc, kept), usage: out.usage };
+}
+
+/** A rough before-you-run estimate: the prompt and design in, about the design's own size out. */
+export function refineEstimateUsd(client: LlmClient, doc: SloydDocument, settings: RefineSettings): number | null {
+  const from = documentToDesign(doc, REFINE_MAX);
+  if ('refused' in from) return null;
+  const input = SYSTEM_PROMPT.length + refineMessage(from.design, settings).length;
+  const output = JSON.stringify(from.design).length * 1.25;
+  return client.estimateCostUsd({ inputTokens: Math.ceil(input / 4), outputTokens: Math.ceil(output / 4), cacheReadTokens: 0, cacheWriteTokens: 0 });
+}
+
 
 export interface JoineryOutcome {
   result: JoinResult<SloydDocument>;

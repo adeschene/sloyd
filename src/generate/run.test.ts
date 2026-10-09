@@ -1,9 +1,12 @@
 import { worldParts } from '../document/tree';
 import { describe, expect, it, vi } from 'vitest';
-import { MAX_REPAIRS, RunFailed, problemKey, runGeneration, runRepairLoop } from './run';
+import { MAX_REPAIRS, RunFailed, problemKey, refineEstimateUsd, runGeneration, runRefine, runRepairLoop } from './run';
+import { SYSTEM_PROMPT } from './prompt';
 import type { GenerateSettings } from './prompt';
+import { REFINE_MAX, refineMessage } from './refine';
+import { documentToDesign } from '../document/refineDesign';
 import { LlmError } from '../llm/types';
-import { flatDocument } from '../document/document';
+import { createDocument, flatDocument } from '../document/document';
 import { designToDocument } from '../document/generated';
 import { checkDesign } from '../document/designCheck';
 import type { LlmClient, LlmRequest, LlmResult } from '../llm/types';
@@ -307,5 +310,87 @@ describe('runGeneration — assemblies', () => {
     // 13 distinct x 1: over the distinct cap only.
     expect(await kinds({ name: 'C', parts: [bp('Extra', [0, 20, 0], [10, 1, 10])], assemblies: [{ name: 'Stack', parts, placements: placements(1) }] }))
       .toEqual(["13 distinct parts; the limit is 12 (an assembly's parts count once)."]);
+  });
+});
+
+const createDocumentForTest = () => createDocument('Empty');
+
+describe('runRefine', () => {
+  const RS = { instruction: 'make the top thicker', width: null, depth: null, height: null, detail: 'simple' as const };
+  const v3 = (x: number, y: number, z: number) => ({ x, y, z });
+  const bp = (name: string, at: [number, number, number], size: [number, number, number]) => ({ name, role: '', material: 'pine', at: v3(...at), size: v3(...size) });
+  const orig = (parts: ReturnType<typeof bp>[]) => designToDocument({ name: 'Box', parts, assemblies: [] }).doc;
+  const echo = (doc: Parameters<typeof documentToDesign>[0]) => { const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error('refused'); return r.design; };
+  const go = (client: LlmClient, doc: Parameters<typeof runRefine>[1]) => runRefine(client, doc, RS, new AbortController().signal, () => {});
+
+  it('refuses with no call', async () => {
+    const { client } = fakeClient([GOOD]);
+    const out = await go(client, createDocumentForTest());
+    expect(out).toEqual({ refused: { reason: 'empty', message: 'There is nothing to refine yet.' } });
+    expect(client.complete).not.toHaveBeenCalled();
+  });
+
+  it('sends the unchanged SYSTEM_PROMPT and the refine user turn', async () => {
+    const doc = orig([bp('Base', [0, 0, 0], [10, 1, 10]), bp('Top', [0, 1, 0], [10, 1, 10])]);
+    const { client, seen } = fakeClient([echo(doc)]);
+    await go(client, doc);
+    expect((client.complete as ReturnType<typeof vi.fn>).mock.calls[0][0].system).toBe(SYSTEM_PROMPT);
+    expect(seen[0]).toEqual([client.userTurn(refineMessage(echo(doc), RS))]);
+  });
+
+  it('keeps untouched parts exactly where they were, and carries settings over', async () => {
+    const base = orig([bp('Base', [0, 0, 0], [10, 1, 10]), bp('Top', [0, 1, 0], [10, 1, 10])]);
+    const doc = { ...base, stock: { kerf: 0.1 }, guides: [{ id: 'g1', at: [1, 2, 3] as [number, number, number] }] };
+    const d = echo(doc);
+    const wider = { ...d, parts: [d.parts[0]!, { ...d.parts[1]!, size: { ...d.parts[1]!.size, x: 14 } }] };
+    const { client } = fakeClient([wider]);
+    const out = await go(client, doc);
+    if ('refused' in out) throw new Error('refused');
+    const pos = (x: typeof doc) => flatDocument(x).boards.map((b) => [b.name, b.position]);
+    expect(pos(out.doc)).toEqual(pos(doc));          // Top grew to the right; nothing moved
+    expect(out.doc.stock.kerf).toBe(0.1);
+    expect(out.doc.guides).toEqual(doc.guides);
+    expect(out.changes.map((c) => c.kind)).toEqual(['resized']);
+  });
+
+  it('carries grain over by name', async () => {
+    const doc = designToDocument({ name: 'G', parts: [{ ...bp('Shelf', [0, 0, 0], [30, 0.75, 11]), grain: 'width' }], assemblies: [] }).doc;
+    const { client } = fakeClient([echo(doc)]);
+    const out = await go(client, doc);
+    if ('refused' in out) throw new Error('refused');
+    expect(flatDocument(out.doc).boards[0].grain).toBe('width');
+  });
+
+  it('a problem the original had is already present, even when its numbers change (review focus 3)', async () => {
+    // A and B overlap 0.5in in the original; the refine leaves them overlapping 0.25in.
+    const doc = orig([bp('A', [0, 0, 0], [10, 1, 10]), bp('B', [9.5, 0, 0], [10, 1, 10])]);
+    const d = echo(doc);
+    const shifted = { ...d, parts: [d.parts[0]!, { ...d.parts[1]!, at: { ...d.parts[1]!.at, x: d.parts[1]!.at.x + 0.25 } }] };
+    const { client } = fakeClient([shifted]);
+    const out = await go(client, doc);
+    if ('refused' in out) throw new Error('refused');
+    expect(out.violations).toEqual([]);
+    expect(out.present.map((v) => v.kind)).toEqual(['overlap']);
+    expect(client.complete).toHaveBeenCalledTimes(1);   // nothing new: no repair round
+  });
+
+  it('a new problem drives repair; "fewest" ignores already-present ones', async () => {
+    const doc = orig([bp('A', [0, 0, 0], [10, 1, 10]), bp('B', [9.5, 0, 0], [10, 1, 10])]);   // one old overlap
+    const d = echo(doc);
+    const floating = { ...d, parts: [...d.parts, bp('C', [0, 5, 0], [10, 1, 10])] };          // + one new problem
+    const { client } = fakeClient([floating, d]);
+    const out = await go(client, doc);
+    if ('refused' in out) throw new Error('refused');
+    expect(client.complete).toHaveBeenCalledTimes(2);
+    expect(out.violations).toEqual([]);                 // the second attempt has no NEW problem
+  });
+
+  it('estimates cost, or null when refused', () => {
+    const estimate = vi.fn(() => 0.05);
+    const c = { ...fakeClient([GOOD]).client, estimateCostUsd: estimate };
+    expect(refineEstimateUsd(c, createDocumentForTest(), RS)).toBeNull();
+    const doc = orig([bp('A', [0, 0, 0], [10, 1, 10])]);
+    expect(refineEstimateUsd(c, doc, RS)).toBe(0.05);
+    expect((estimate.mock.calls[0] as unknown[])[0]).toMatchObject({ cacheReadTokens: 0, cacheWriteTokens: 0 });
   });
 });

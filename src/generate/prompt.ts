@@ -84,16 +84,24 @@ When told about problems with your design, return the WHOLE corrected design, no
 export const PLACED_CEILING = 4;
 export const placedCeiling = (d: Detail) => PLACED_CEILING * DETAIL_CAPS[d];
 
-export function limitsOf(s: GenerateSettings): DesignLimits {
+export type LimitSettings = Pick<GenerateSettings, 'width' | 'depth' | 'height' | 'detail'>;
+
+export function limitsOf(s: LimitSettings): DesignLimits {
   return { width: s.width, depth: s.depth, height: s.height, maxParts: placedCeiling(s.detail) };
 }
 
-export function userMessage(s: GenerateSettings, concept?: Concept): string {
-  const lines = [`Design this: ${s.description.trim()}`, '', 'Hard limits:'];
+/** The hard-limit lines Generate and Refine both send — one source. */
+export function limitLines(s: LimitSettings): string[] {
+  const lines: string[] = [];
   if (s.width !== null) lines.push(`- Overall width (X) at most ${s.width}in.`);
   if (s.depth !== null) lines.push(`- Overall depth (Z) at most ${s.depth}in.`);
   if (s.height !== null) lines.push(`- Overall height (Y) at most ${s.height}in.`);
   lines.push(`- At most ${DETAIL_CAPS[s.detail]} different parts (an assembly's parts count once) and ${placedCeiling(s.detail)} placed parts (${s.detail} detail).`);
+  return lines;
+}
+
+export function userMessage(s: GenerateSettings, concept?: Concept): string {
+  const lines = [`Design this: ${s.description.trim()}`, '', 'Hard limits:', ...limitLines(s)];
   if (s.material !== 'any' || s.style !== 'any') lines.push('', 'Preferences:');
   if (s.material !== 'any') {
     lines.push(`- Prefer ${MATERIALS[s.material]?.label ?? s.material} (material key "${s.material}") for most parts.`);
