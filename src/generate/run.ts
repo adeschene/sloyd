@@ -283,7 +283,7 @@ export interface JoineryOutcome {
   chosen: number;
 }
 
-/** Recorded joints by `jointKey`, re-applied when `validChoice` still passes (refine-joined spec §4). */
+/** Recorded joints by `jointKey`, re-applied when `validChoice` still passes and they do not collide (refine-joined spec §4). */
 export type FixedJoints = ReadonlyMap<string, Omit<JointChoice, 'site'>>;
 
 /**
@@ -293,7 +293,8 @@ export type FixedJoints = ReadonlyMap<string, Omit<JointChoice, 'site'>>;
  * drive repairs and count toward "fewest" (invariant 41). A first call that
  * fails for any reason but the key or a cancel builds the defaults instead.
  * `opts.fixed` re-applies recorded choices that are still strictly valid and
- * asks only about the rest; with none open, NO call is made.
+ * asks only about the rest — plus any kept non-butt joint one trial shows
+ * colliding (re-opened, refine-joined spec §4); with none open, NO call is made.
  */
 export async function runJoinery(
   client: LlmClient,
