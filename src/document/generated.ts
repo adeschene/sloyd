@@ -6,7 +6,7 @@ import { nextId } from './ids';
 import { uniqueName } from './names';
 import { NAME_SEPARATOR } from './tree';
 import { MATERIALS } from './types';
-import type { Board, Definition, Dimension, Instance, Posture, Rotation } from './types';
+import type { Board, Definition, Dimension, Grain, Instance, Posture, Rotation } from './types';
 
 /**
  * What the model sends back (spec §4.1). The model thinks in WORLD BOXES —
@@ -19,7 +19,11 @@ export interface Vec3 { x: number; y: number; z: number }
 export type MaterialKey = string;
 /** `role` is REQUIRED from the model (parseDesign checks it); optional here so
  *  hand-built fixtures stay terse. Conversion input only — never stored. */
-export interface GeneratedPart { name: string; role?: string; material: MaterialKey; at: Vec3; size: Vec3 }
+export interface GeneratedPart {
+  name: string; role?: string; material: MaterialKey; at: Vec3; size: Vec3;
+  /** TS-only, never in the schema: set by Refine's carryGrain from the original part of the same name. parseDesign drops it. */
+  grain?: Grain;
+}
 /** Where an assembly's local origin goes in the world. No turn (spec §2). */
 export interface GeneratedPlacement { name: string; at: Vec3 }
 /** Parts in the assembly's OWN frame, placed by translation; one level, parts only. */
@@ -100,12 +104,28 @@ const isAssembly = (a: unknown): boolean =>
  * for TYPE here; non-finite values are the converter's to reject per part.
  * A design with no parts anywhere (loose or in an assembly) is unusable.
  */
+const vec = (o: unknown): Vec3 => { const v = o as Vec3; return { x: v.x, y: v.y, z: v.z }; };
+const partOf = (o: unknown): GeneratedPart => {
+  const p = o as GeneratedPart;
+  return { name: p.name, role: p.role, material: p.material, at: vec(p.at), size: vec(p.size) };
+};
+
 export function parseDesign(json: unknown): GeneratedDesign | null {
   if (!isObj(json) || typeof json.name !== 'string' || !Array.isArray(json.parts) || !Array.isArray(json.assemblies)) return null;
   if (!json.parts.every(isPart) || !json.assemblies.every(isAssembly)) return null;
   const total = json.parts.length + (json.assemblies as { parts: unknown[] }[]).reduce((n, a) => n + a.parts.length, 0);
   if (total === 0) return null;
-  return json as unknown as GeneratedDesign;
+  // A fresh object with ONLY the schema's fields, so nothing the model adds
+  // (a `grain`, say) reaches the converter.
+  return {
+    name: json.name,
+    parts: json.parts.map(partOf),
+    assemblies: (json.assemblies as { name: string; parts: unknown[]; placements: { name: string; at: unknown }[] }[]).map((a) => ({
+      name: a.name,
+      parts: a.parts.map(partOf),
+      placements: a.placements.map((pl) => ({ name: pl.name, at: vec(pl.at) })),
+    })),
+  };
 }
 
 const snap = (v: number) => Math.round(v / SNAP_INCHES) * SNAP_INCHES;
@@ -165,6 +185,8 @@ export interface Authored {
 type Vec = [number, number, number];
 
 /** Snap, check, encode one part; null (and a rejection) when unusable. */
+const isGrain = (g: unknown): g is Grain => (DIMENSION_ORDER as readonly unknown[]).includes(g);
+
 function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[]): Omit<Board, 'id'> | null {
   // Checked AFTER the snap: a finite value near Number.MAX_VALUE overflows
   // to Infinity on the division by SNAP_INCHES. Covers NaN/±Infinity too,
@@ -179,7 +201,7 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[]):
     rejected.push({ name: label, reason: 'too-small' });
     return null;
   }
-  return { name: clean(p.name), material: p.material, grain: 'length', cuts: [], position: [ax, ay, az], ...orient([sx, sy, sz]) };
+  return { name: clean(p.name), material: p.material, grain: isGrain(p.grain) ? p.grain : 'length', cuts: [], position: [ax, ay, az], ...orient([sx, sy, sz]) };
 }
 
 /**
@@ -188,13 +210,14 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[]):
  * Definition per assembly and one unturned Instance per placement, then
  * translate the whole design onto the floor with its footprint centred — by a
  * multiple of SNAP_INCHES, shifting loose parts and instance ORIGINS only,
- * never definition-local coordinates — then migrateDocument, the same gate an
+ * never definition-local coordinates (`opts.centre === false` skips the
+ * horizontal centring and keeps only the floor rule) — then migrateDocument, the same gate an
  * imported file passes, which dedupes names (inv 8) and checks ids (inv 33).
  *
  * Every id is minted here with nextId so `roles` (stored part id → role) and
  * the definition → assembly label map survive the load gate.
  */
-export function designToDocument(design: GeneratedDesign): {
+export function designToDocument(design: GeneratedDesign, opts: { centre?: boolean } = {}): {
   doc: SloydDocument; rejected: RejectedPart[]; authored: Authored;
 } {
   const rejected: RejectedPart[] = [];
@@ -250,7 +273,11 @@ export function designToDocument(design: GeneratedDesign): {
   if (placed.length > 0) {
     const min = [0, 1, 2].map((k) => Math.min(...placed.map(([p]) => p[k])));
     const max = [0, 1, 2].map((k) => Math.max(...placed.map(([p, e]) => p[k] + e[k])));
-    const shift = [snap(-(min[0] + max[0]) / 2), -min[1], snap(-(min[2] + max[2]) / 2)];
+    // Refine passes centre: false, so untouched parts keep the original's
+    // coordinates (refine spec §4); the floor rule holds either way.
+    const shift = opts.centre === false
+      ? [0, -min[1], 0]
+      : [snap(-(min[0] + max[0]) / 2), -min[1], snap(-(min[2] + max[2]) / 2)];
     const move = (p: Vec): Vec => [p[0] + shift[0], p[1] + shift[1], p[2] + shift[2]];
     for (const b of loose) b.position = move(b.position);
     for (const i of instances) i.position = move(i.position);
