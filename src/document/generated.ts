@@ -1,3 +1,4 @@
+import { linkByRole } from './roleLinks';
 import { createDocument, migrateDocument } from './document';
 import type { SloydDocument } from './document';
 import { DIMENSION_ORDER, SNAP_INCHES, axisDimensions } from './geometry';
@@ -182,7 +183,7 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[]):
  * the definition → assembly label map survive the load gate.
  */
 export function designToDocument(design: GeneratedDesign): {
-  doc: SloydDocument; rejected: RejectedPart[]; authored: Authored; roles: Map<string, string>;
+  doc: SloydDocument; rejected: RejectedPart[]; authored: Authored;
 } {
   const rejected: RejectedPart[] = [];
   const roles = new Map<string, string>();
@@ -243,8 +244,8 @@ export function designToDocument(design: GeneratedDesign): {
   }
 
   const name = design.name.trim() || 'Generated design';
-  const doc = migrateDocument({ ...createDocument(name), boards: loose, instances, definitions });
-  return { doc, rejected, authored: authoredIndex(doc, labelOf), roles };
+  const doc = linkByRole(migrateDocument({ ...createDocument(name), boards: loose, instances, definitions }), roles);
+  return { doc, rejected, authored: authoredIndex(doc, labelOf) };
 }
 
 /**

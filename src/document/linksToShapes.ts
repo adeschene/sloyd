@@ -4,7 +4,10 @@ import { sameShared, sharedOf } from './links';
 import { worldParts, partAt } from './tree';
 
 /**
- * v10 -> v11 (components spec §2.4): each link label becomes ONE Shape built
+ * The ONE label→shape builder (invariant 45), with two callers: the v10 -> v11
+ * step (components spec §2.4), whose labels are `link` values, and generation's
+ * `linkByRole` (generate-assemblies spec §4), whose labels are role classes.
+ * Each label becomes ONE Shape built
  * from its FIRST member in worldParts order; a member equal to it (exactly,
  * cuts in order by id and geometry, invariant 18) becomes a shaped part keeping
  * id, name, position and turn; a differing member stays plain, unlinked, which
