@@ -21,12 +21,12 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-07: the components round, bundle
-  `index-3fpWh8yo.js`, CSS `index-QQ-rJZea.css`, merge `9012e1e`, **schema 11**.
+- **Production matches `master`** as of 2026-10-09: the generate-assemblies round, bundle
+  `index-B2b_spG9.js`, CSS `index-QQ-rJZea.css`, merge `a3ab5c3`, **schema 11** (unchanged).
   Test count is under Commands.
 - **Nothing is pending. NO SUCCESSOR IS CHOSEN: ask what to work on; do not pick.** Open
   near the recent code: 179 (refine by instruction), 215 (posture handedness, a question),
-  205/206 (joinery's safe refusals), 221, 225–231. See Open follow-ups below.
+  205/206 (joinery's safe refusals), 221, 225–235. See Open follow-ups below.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
   byte-identical bundles (test-only). Check what a later commit touches before reading
@@ -63,6 +63,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | linking | 10-06 | 9 | `Board.link` (retired in 11) |
 | assemblies | 10-06 | 10 | `instances` + `definitions`, Group/Ungroup (inv 46) |
 | components | 10-07 | 11 | shared definitions, links as `Shape`s (inv 45, 46) |
+| generate assemblies | 10-09 | — | generated assemblies + role-linked components, distinct-part cap |
 
 ### The deployment rule
 
