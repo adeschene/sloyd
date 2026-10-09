@@ -21,8 +21,8 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-09: the refine round, bundle
-  `index-riRFmZGv.js`, CSS `index-QQ-rJZea.css`, merge `4a340f7`, **schema 11** (unchanged).
+- **Production matches `master`** as of 2026-10-09: the refine-joined round, bundle
+  `index-CJdGZH0r.js`, CSS `index-QQ-rJZea.css`, merge `bb238f9`, **schema 11** (unchanged).
   Test count is under Commands.
 - **Nothing is pending. NO SUCCESSOR IS CHOSEN: ask what to work on; do not pick.** Open
   near the recent code: 240 (pre-fix duplicated/phantom mortises), 215 (posture handedness, a question),
@@ -65,6 +65,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | components | 10-07 | 11 | shared definitions, links as `Shape`s (inv 45, 46) |
 | generate assemblies | 10-09 | — | generated assemblies + role-linked components, distinct-part cap |
 | refine | 10-09 | — | refine by instruction: new project + change list (fu 179) |
+| refine joined | 10-09 | — | refine keeps joints: unjoin + exact gate, fixed choices (fu 238) |
 
 ### The deployment rule
 
