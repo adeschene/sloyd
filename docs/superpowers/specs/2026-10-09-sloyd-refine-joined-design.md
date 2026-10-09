@@ -120,14 +120,14 @@ refusals (turned, nested, too large) are judged on the PLAIN tree.
 - A site whose key is in `fixed` and whose fixed choice is **valid** for it takes that choice and is
   never sent to the model.
 - **Kept joints that collide are re-opened (the user's ruling after the final review).** Before the
-  chooser call, the fixed choices are applied with the open sites' defaults; any fixed site whose
+  chooser call, the fixed choices are applied with the open sites' defaults; any fixed NON-butt site whose
   entering or receiving part is named in a problem that application introduced is re-opened, once,
   and goes to the model with the open sites (counted in `chosen`, not `kept`). A part made slimmer can
   leave a recorded tenon "in range" yet colliding with its neighbour; without this the model was asked
   to fix tenons it was never shown.
 - **Valid** = the joint kind is in `site.allowed`, its numbers are inside `rangesOf(site, doc)` (a
   tenon's lower bound is the smaller of that floor and joinery's own `DEFAULT_MIN_TENON`, since
-  joinery's defaults go down to 1/4in, fu 188), and a
+  joinery's defaults go down to 1/4in, fu 188; bounds compared within the gate's 1e-9in), and a
   stopped dado's `stopAt` is one of `site.stopEnds` — the same sources `parseChoices` validates the
   model's answers against. `validChoice(choice, site, doc)` sits beside `parseChoices` in
   `choose.ts`. It is STRICT where `parseChoices` clamps (amended while planning): clamping a kept
