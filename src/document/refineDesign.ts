@@ -12,7 +12,7 @@ import { NAME_SEPARATOR, flatDocument, worldParts } from './tree';
  * designs that format can express; everything else is REFUSED here, on the
  * document alone, before any model call.
  */
-export type RefusalReason = 'empty' | 'cuts' | 'turned' | 'nested' | 'too-large';
+export type RefusalReason = 'empty' | 'cuts' | 'turned' | 'nested' | 'too-large' | 'joints';
 export interface RefineRefusal { reason: RefusalReason; message: string }
 export interface RefineMax { distinct: number; placed: number }
 

@@ -41,7 +41,7 @@ describe('RefineDialog', () => {
   it('shows the result: counts, new issues, at most CHANGES_SHOWN changes and "and N more"', () => {
     const changes = Array.from({ length: CHANGES_SHOWN + 3 }, (_, i) => ({ kind: 'added' as const, subject: 'part' as const, name: `P${i}`, copies: 1, text: `Added P${i}` }));
     const run: RefineRun = { status: 'ready', projectId: 'p1', projectName: 'Box — refined', costUsd: 0.07, outcome: {
-      doc: {} as never, usage: {} as never, changes,
+      doc: {} as never, usage: {} as never, changes, joints: null,
       violations: [{ kind: 'hangs', message: 'Shelf is not held.', parts: ['Shelf'] }],
       present: [{ kind: 'overlap', message: 'A passes 0.5in into B along X.', parts: ['A', 'B'] }, { kind: 'tips', message: 't', parts: [] }],
     } };

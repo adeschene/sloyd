@@ -1,12 +1,17 @@
 import { worldParts } from '../document/tree';
 import { describe, expect, it, vi } from 'vitest';
-import { MAX_REPAIRS, RunFailed, problemKey, refineEstimateUsd, runGeneration, runRefine, runRepairLoop } from './run';
+import { MAX_REPAIRS, RunFailed, problemKey, refineEstimateUsd, runGeneration, runJoinery, runRefine, runRepairLoop } from './run';
 import { SYSTEM_PROMPT } from './prompt';
 import type { GenerateSettings } from './prompt';
-import { REFINE_MAX, refineMessage } from './refine';
+import { REFINE_MAX, plainForRefine, refineMessage } from './refine';
 import { documentToDesign } from '../document/refineDesign';
 import { LlmError } from '../llm/types';
-import { createDocument, flatDocument } from '../document/document';
+import { createDocument, flatDocument, migrateDocument } from '../document/document';
+import type { Board, SloydDocument } from '../document/document';
+import { applyJoints } from './joints/recipes';
+import { findSites } from './joints/sites';
+import { defaultChoice } from './joints/choose';
+import { GATE_REFUSAL, sameJoined } from './joints/unjoin';
 import { designToDocument } from '../document/generated';
 import { checkDesign } from '../document/designCheck';
 import type { LlmClient, LlmRequest, LlmResult } from '../llm/types';
@@ -448,5 +453,120 @@ describe('runRefine', () => {
     const doc = orig([bp('A', [0, 0, 0], [10, 1, 10])]);
     expect(refineEstimateUsd(c, doc, RS)).toBe(0.05);
     expect((estimate.mock.calls[0] as unknown[])[0]).toMatchObject({ cacheReadTokens: 0, cacheWriteTokens: 0 });
+  });
+});
+
+describe('runRefine — joined designs', () => {
+  const RS = { instruction: 'change it', width: null, depth: null, height: null, detail: 'moderate' as const };
+  const go = (client: LlmClient, doc: SloydDocument) => runRefine(client, doc, RS, new AbortController().signal, () => {});
+  const plainEcho = (d: SloydDocument) => {
+    const p = plainForRefine(d); if ('refused' in p) throw new Error(p.refused.message);
+    const r = documentToDesign(p.plain, REFINE_MAX); if ('refused' in r) throw new Error(r.refused.message);
+    return r.design;
+  };
+  const bp = (name: string, at: [number, number, number], size: [number, number, number]) =>
+    ({ name, role: '', material: 'pine', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] } });
+  const bookFlat = flatDocument(designToDocument({ name: 'Bookcase', assemblies: [], parts: [
+    bp('Back', [0, 0, -0.25], [31.5, 72, 0.25]), bp('Left side', [0, 0, 0], [0.75, 72, 11.25]), bp('Right side', [30.75, 0, 0], [0.75, 72, 11.25]),
+    bp('Bottom', [0.75, 0, 0], [30, 0.75, 11.25]), bp('Top', [0.75, 71.25, 0], [30, 0.75, 11.25]),
+    bp('Shelf 1', [0.75, 24, 0], [30, 0.75, 11.25]), bp('Shelf 2', [0.75, 48, 0], [30, 0.75, 11.25]),
+  ] }).doc);
+  const bookSites = findSites(bookFlat);
+  const joined: SloydDocument = migrateDocument(applyJoints(bookFlat, bookSites, bookSites.map((s) => defaultChoice(s, bookFlat, bookSites))).doc);
+
+  it('refines a joined design unchanged: one call, no joinery call, the same joined design back (review focus 1)', async () => {
+    const echo = plainEcho(joined);
+    const { client } = fakeClient([echo]);
+    const out = await go(client, joined);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(client.complete).toHaveBeenCalledTimes(1);
+    expect(sameJoined(flatDocument(out.doc), flatDocument(joined))).toBe(true);
+    expect(out.joints).toMatchObject({ chosen: 0, dropped: 0 });
+    expect(out.joints!.kept).toBeGreaterThan(0);
+    expect(out.changes).toEqual([]);
+  });
+
+  it('adds a shelf: two calls, and the joinery message lists only the new sites', async () => {
+    const echo = plainEcho(joined);
+    const withShelf = { ...echo, parts: [...echo.parts, { ...echo.parts.find((p) => p.name === 'Shelf 1')!, name: 'Shelf 3', at: { ...echo.parts.find((p) => p.name === 'Shelf 1')!.at, y: 60 } }] };
+    const { client, seen } = fakeClient([withShelf, { joints: [] }]);
+    const out = await go(client, joined);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(client.complete).toHaveBeenCalledTimes(2);
+    const joinMsg = String(seen[1][0] && (seen[1][0] as { text: string }).text);
+    const listed = joinMsg.split('Sites:\n')[1]!.split('\n').filter((l) => /^\d+\. /.test(l));
+    expect(listed.length).toBeGreaterThan(0);
+    expect(listed.every((l) => l.includes('Shelf 3'))).toBe(true);
+    expect(out.joints!.chosen).toBe(listed.length);
+  });
+
+  it('a new meeting answered butt is not counted as chosen', async () => {
+    const echo = plainEcho(joined);
+    const s1 = echo.parts.find((p) => p.name === 'Shelf 1')!;
+    const withShelf = { ...echo, parts: [...echo.parts, { ...s1, name: 'Shelf 3', at: { ...s1.at, y: 60 } }] };
+    // butt for every site id the message could list; parseChoices ignores ids that are not open
+    const allButt = { joints: Array.from({ length: 40 }, (_, i) => ({ site: i, joint: 'butt' })) };
+    const { client } = fakeClient([withShelf, allButt]);
+    const out = await go(client, joined);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(client.complete).toHaveBeenCalledTimes(2);
+    expect(out.joints).toEqual({ kept: 12, chosen: 0, dropped: 0, skipped: [] });
+  });
+
+  it('removes a shelf: its joints are dropped, no joinery call', async () => {
+    const echo = plainEcho(joined);
+    const without = { ...echo, parts: echo.parts.filter((p) => p.name !== 'Shelf 2') };
+    const { client } = fakeClient([without]);
+    const out = await go(client, joined);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(client.complete).toHaveBeenCalledTimes(1);
+    expect(out.joints!.dropped).toBeGreaterThan(0);
+    expect(out.joints).toEqual({ kept: 10, chosen: 0, dropped: 2, skipped: [] });   // Shelf 2's dado into each side
+  });
+
+  it('a joined design the gate cannot explain is refused with no call (review focus 2)', async () => {
+    const bad = structuredClone(joined);
+    (bad.boards.find((b) => b.name === 'Top') as Board).cuts.push({ id: 'h', face: 'thickness', from: 'min', across: 'width', offset: 3, width: 0.5, depth: 0.25, stopMin: 0, stopMax: 0 });
+    const { client } = fakeClient([GOOD]);
+    const out = await go(client, bad);
+    expect(out).toEqual({ refused: { reason: 'joints', message: GATE_REFUSAL } });
+    expect(client.complete).not.toHaveBeenCalled();
+  });
+
+  it('a side made thinner re-chooses the joints into it instead of clamping (review focus 3)', async () => {
+    // Thin both sides from their OUTER faces to 3/8in, so every shelf still touches them but the recorded
+    // dado depths no longer fit their ranges. (The brief expected the back's rabbets into the sides to be
+    // re-chosen too; measured, the plain back now overhangs the thinned sides and findSites no longer
+    // sees those two meetings, so they are DROPPED, not re-chosen.)
+    const echo = plainEcho(joined);
+    const thin = { ...echo, parts: echo.parts.map((p) =>
+      p.name === 'Left side' ? { ...p, at: { ...p.at, x: p.at.x + 0.375 }, size: { ...p.size, x: 0.375 } }
+        : p.name === 'Right side' ? { ...p, size: { ...p.size, x: 0.375 } } : p) };
+    const { client } = fakeClient([thin, { joints: [] }]);   // joinery's empty answer -> its defaults, no notes
+    const out = await go(client, joined);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(client.complete).toHaveBeenCalledTimes(2);
+    expect(out.joints!.chosen).toBeGreaterThanOrEqual(1);
+    // 12 records: 8 dados into the sides (Top, Bottom, Shelf 1, Shelf 2, each side) re-chosen; the back's
+    // rabbets into Top and Bottom kept; its rabbets into the two sides dropped. A re-chosen record is
+    // never counted as dropped.
+    expect(out.joints).toEqual({ kept: 2, chosen: 8, dropped: 2, skipped: [] });
+  });
+
+  it('keeps a shared assembly shared after refining (review focus 4)', async () => {
+    const v3 = (x: number, y: number, z: number) => ({ x, y, z });
+    const tree = designToDocument({ name: 'Frames', parts: [], assemblies: [{ name: 'Frame',
+      parts: [{ name: 'Leg', role: '', material: 'oak', at: v3(0, 0, 0), size: v3(1.75, 28, 1.75) },
+        { name: 'Rail', role: '', material: 'oak', at: v3(1.75, 23.5, 0.5), size: v3(18, 3, 0.75) }],
+      placements: [{ name: 'Front', at: v3(0, 0, 0) }, { name: 'Back', at: v3(0, 0, 30) }] }] }).doc;
+    const jo = await runJoinery(fakeClient([new LlmError('overloaded', 'Overloaded.')]).client, tree, new AbortController().signal, () => {});
+    if ('noSites' in jo) throw new Error('sites');
+    const joinedTree = jo.result.doc;
+    expect(joinedTree.definitions).toHaveLength(1);
+    const { client } = fakeClient([plainEcho(joinedTree)]);
+    const out = await go(client, joinedTree);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(out.doc.definitions).toHaveLength(1);
+    expect(out.doc.instances.map((i) => i.definition)).toEqual([out.doc.definitions[0].id, out.doc.definitions[0].id]);
   });
 });

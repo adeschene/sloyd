@@ -1,11 +1,14 @@
 import { distinctParts } from '../document/assemblyChecks';
 import type { GeneratedDesign } from '../document/generated';
 import { documentToDesign } from '../document/refineDesign';
-import type { RefineMax } from '../document/refineDesign';
+import type { RefineMax, RefineRefusal } from '../document/refineDesign';
+import { flatDocument, migrateDocument, writeBackFlat } from '../document/document';
 import { worldParts } from '../document/tree';
 import type { SloydDocument } from '../document/types';
 import { DETAIL_CAPS, limitLines, placedCeiling } from './prompt';
 import type { Detail } from './prompt';
+import { gateUnjoin } from './joints/unjoin';
+import type { RecordedJoint } from './joints/unjoin';
 
 /** Refine by instruction (refine spec §3). The refine text rides in the USER turn; SYSTEM_PROMPT is Generate's, unchanged. */
 export interface RefineSettings { instruction: string; width: number | null; depth: number | null; height: number | null; detail: Detail }
@@ -32,7 +35,23 @@ export function detailFor(doc: SloydDocument): Detail {
   return (['simple', 'moderate', 'detailed'] as const).find((d) => DETAIL_CAPS[d] >= distinct + DETAIL_HEADROOM && placedCeiling(d) >= placed) ?? 'detailed';
 }
 
+/**
+ * The design Refine works on (refine-joined spec §2): unchanged when nothing is
+ * cut; otherwise its joints are read back (gateUnjoin) and the plain parts are
+ * written into the tree the way runJoinery writes its result back
+ * (invariant 46), so copies that come out identical stay shared.
+ */
+export function plainForRefine(doc: SloydDocument): { plain: SloydDocument; joints: RecordedJoint[] | null } | { refused: RefineRefusal } {
+  const flat = flatDocument(doc);
+  if (!flat.boards.some((b) => b.cuts.length > 0)) return { plain: doc, joints: null };
+  const g = gateUnjoin(flat);
+  if ('refused' in g) return { refused: { reason: 'joints', message: g.refused } };
+  return { plain: migrateDocument(writeBackFlat(doc, flat.boards, g.plain)), joints: g.joints };
+}
+
 export function refineRefusal(doc: SloydDocument): string | null {
-  const r = documentToDesign(doc, REFINE_MAX);
+  const p = plainForRefine(doc);
+  if ('refused' in p) return p.refused.message;
+  const r = documentToDesign(p.plain, REFINE_MAX);
   return 'refused' in r ? r.refused.message : null;
 }

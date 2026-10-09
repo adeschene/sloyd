@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { KEEP_LINE, REFINE_MAX, detailFor, refineMessage, refineRefusal } from './refine';
+import { KEEP_LINE, REFINE_MAX, detailFor, plainForRefine, refineMessage, refineRefusal } from './refine';
 import type { RefineSettings } from './refine';
 import { limitLines } from './prompt';
 import { designToDocument } from '../document/generated';
 import type { GeneratedDesign } from '../document/generated';
-import { createDocument } from '../document/document';
+import { createDocument, flatDocument, migrateDocument } from '../document/document';
+import type { Board, SloydDocument } from '../document/document';
+import { applyJoints } from './joints/recipes';
+import { findSites } from './joints/sites';
+import { defaultChoice } from './joints/choose';
+import { GATE_REFUSAL } from './joints/unjoin';
 
 const v = (x: number, y: number, z: number) => ({ x, y, z });
 const p = (name: string, i: number) => ({ name, role: '', material: 'pine', at: v(i * 2, 0, 0), size: v(1, 1, 1) });
@@ -36,5 +41,35 @@ describe('refine', () => {
   it('says why a design is refused, or null', () => {
     expect(refineRefusal(createDocument('E'))).toBe('There is nothing to refine yet.');
     expect(refineRefusal(designToDocument(D).doc)).toBeNull();
+  });
+});
+
+describe('refine — joined designs', () => {
+  const bp = (name: string, at: [number, number, number], size: [number, number, number]) =>
+    ({ name, role: '', material: 'pine', at: v(...at), size: v(...size) });
+  const bookFlat = flatDocument(designToDocument({ name: 'Bookcase', assemblies: [], parts: [
+    bp('Back', [0, 0, -0.25], [31.5, 72, 0.25]), bp('Left side', [0, 0, 0], [0.75, 72, 11.25]), bp('Right side', [30.75, 0, 0], [0.75, 72, 11.25]),
+    bp('Bottom', [0.75, 0, 0], [30, 0.75, 11.25]), bp('Top', [0.75, 71.25, 0], [30, 0.75, 11.25]),
+    bp('Shelf 1', [0.75, 24, 0], [30, 0.75, 11.25]), bp('Shelf 2', [0.75, 48, 0], [30, 0.75, 11.25]),
+  ] }).doc);
+  const sites = findSites(bookFlat);
+  const joined: SloydDocument = migrateDocument(applyJoints(bookFlat, sites, sites.map((s) => defaultChoice(s, bookFlat, sites))).doc);
+
+  it('a joined design is refinable', () => {
+    expect((joined.boards as Board[]).some((b) => b.cuts.length > 0)).toBe(true);
+    expect(refineRefusal(joined)).toBeNull();
+  });
+
+  it('a hand-added cut on a joined design gives the gate message', () => {
+    const bad = structuredClone(joined);
+    (bad.boards.find((b) => b.name === 'Top') as Board).cuts.push({ id: 'h', face: 'thickness', from: 'min', across: 'width', offset: 3, width: 0.5, depth: 0.25, stopMin: 0, stopMax: 0 });
+    expect(refineRefusal(bad)).toBe(GATE_REFUSAL);
+  });
+
+  it('an unjoined design is returned as it is, with no joints', () => {
+    const doc = designToDocument(D).doc;
+    const p = plainForRefine(doc);
+    expect(p).toEqual({ plain: doc, joints: null });
+    expect('plain' in p && p.plain).toBe(doc);
   });
 });
