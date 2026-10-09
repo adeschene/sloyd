@@ -4,8 +4,8 @@ import { designToDocument } from '../../document/generated';
 import { flatDocument, migrateDocument } from '../../document/document';
 import { checkDesign } from '../../document/designCheck';
 import { applyJoints } from './recipes';
-import { defaultChoice, parseChoices, siteMessage, JOINT_SCHEMA } from './choose';
-import { findSites } from './sites';
+import { defaultChoice, parseChoices, siteMessage, validChoice, JOINT_SCHEMA } from './choose';
+import { findSites, rangesOf } from './sites';
 
 const limits = (d: { boards: unknown[] }) => ({ width: null, depth: null, height: null, maxParts: d.boards.length });
 
@@ -315,5 +315,39 @@ describe('defaultTenon: a thin receiver shortens the default below 1/2in (fu 188
     const { choices, notes } = parseChoices({ joints: [{ site: s.id, joint: 'mortise-tenon' }] }, ss, d);
     expect(choices.find((c) => c.site === s.id)).toEqual({ site: s.id, joint: 'mortise-tenon', tenonLength: 0.25 });
     expect(notes).toContainEqual(expect.stringMatching(/^Site \d+ \(RailX → Leg: end into face\): no tenonLength; used 0\.25\.$/));
+  });
+});
+
+const flatOf = (parts: [string, [number, number, number], [number, number, number]][]) => flatDocument(designToDocument({
+  name: 'V', assemblies: [],
+  parts: parts.map(([name, at, size]) => ({ name, role: '', material: 'oak', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] } })),
+}).doc);
+const LEG_RAIL = flatOf([['Leg', [0, 0, 0], [1.75, 28, 1.75]], ['Rail', [1.75, 23.5, 0.5], [18, 3.5, 0.75]]]);
+const SIDE_SHELF = flatOf([['Side', [0, 0, 0], [0.75, 30, 11.25]], ['Shelf', [0.75, 12, 0], [20, 0.75, 11.25]]]);
+
+describe('validChoice (strict — review focus 3)', () => {
+  it('accepts a tenon inside its range, at both ends, and rejects one outside without clamping', () => {
+    const [s] = findSites(LEG_RAIL);
+    const r = rangesOf(s, LEG_RAIL);
+    expect(validChoice({ site: s.id, joint: 'mortise-tenon', tenonLength: r.tenonLength[0] }, s, LEG_RAIL)).toBe(true);
+    expect(validChoice({ site: s.id, joint: 'mortise-tenon', tenonLength: r.tenonLength[1] }, s, LEG_RAIL)).toBe(true);
+    expect(validChoice({ site: s.id, joint: 'mortise-tenon', tenonLength: r.tenonLength[1] + 1 / 16 }, s, LEG_RAIL)).toBe(false);
+    expect(validChoice({ site: s.id, joint: 'mortise-tenon' }, s, LEG_RAIL)).toBe(false);
+  });
+  it('rejects a kind the site does not allow, and accepts butt', () => {
+    const [s] = findSites(LEG_RAIL);
+    expect(s.allowed.includes('half-lap')).toBe(false);
+    expect(validChoice({ site: s.id, joint: 'half-lap' }, s, LEG_RAIL)).toBe(false);
+    expect(validChoice({ site: s.id, joint: 'butt' }, s, LEG_RAIL)).toBe(true);
+  });
+  it('checks a stopped dado’s stop end and inset', () => {
+    const [s] = findSites(SIDE_SHELF);
+    expect(s.stopEnds.length).toBeGreaterThan(0);
+    const at = s.stopEnds[0];
+    const r = rangesOf(s, SIDE_SHELF);
+    const ok = { site: s.id, joint: 'stopped-dado' as const, depth: r.dadoDepth[0], stopAt: at, inset: r.inset(at)[0] };
+    expect(validChoice(ok, s, SIDE_SHELF)).toBe(true);
+    expect(validChoice({ ...ok, stopAt: { axis: s.axis, end: 'min' as const } }, s, SIDE_SHELF)).toBe(false);
+    expect(validChoice({ ...ok, inset: r.inset(at)[1] + 1 / 16 }, s, SIDE_SHELF)).toBe(false);
   });
 });

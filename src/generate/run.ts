@@ -7,10 +7,11 @@ import { checkDesign, rejectedViolations } from '../document/designCheck';
 import type { Violation } from '../document/designCheck';
 import { LlmError, ZERO_USAGE, addUsage } from '../llm/types';
 import type { LlmClient, LlmMessage, LlmResult, LlmUsage } from '../llm/types';
-import { JOINERY_PROMPT, JOINT_SCHEMA, defaultChoice, jointsRepairMessage, jointsUnusableMessage, parseChoices, siteMessage } from './joints/choose';
+import { JOINERY_PROMPT, JOINT_SCHEMA, defaultChoice, jointsRepairMessage, jointsUnusableMessage, parseChoices, siteMessage, validChoice } from './joints/choose';
 import { applyJoints } from './joints/recipes';
 import type { JoinResult, JointChoice } from './joints/recipes';
-import { findSites } from './joints/sites';
+import { findSites, jointKey } from './joints/sites';
+import type { Site } from './joints/sites';
 import { DETAIL_CAPS, SYSTEM_PROMPT, limitsOf, repairMessage, unusableMessage, userMessage } from './prompt';
 import type { Concept, GenerateSettings, LimitSettings } from './prompt';
 import { REFINE_MAX, refineMessage } from './refine';
@@ -233,7 +234,12 @@ export interface JoineryOutcome {
   preexisting: Violation[];
   usage: LlmUsage;
   fallback?: string;
+  /** Fixed choices applied without asking the model; 0 without `fixed`. */
+  kept: number;
 }
+
+/** Recorded joints by `jointKey`, re-applied when `validChoice` still passes (refine-joined spec §4). */
+export type FixedJoints = ReadonlyMap<string, Omit<JointChoice, 'site'>>;
 
 /**
  * Add joinery (spec §6). Sites are found first; with none, NO call is made.
@@ -241,18 +247,30 @@ export interface JoineryOutcome {
  * joinery INTRODUCED — keyed on kind and parts, never on message text —
  * drive repairs and count toward "fewest" (invariant 41). A first call that
  * fails for any reason but the key or a cancel builds the defaults instead.
+ * `opts.fixed` re-applies recorded choices that are still strictly valid and
+ * asks only about the rest; with none open, NO call is made.
  */
 export async function runJoinery(
   client: LlmClient,
   doc: SloydDocument,
   signal: AbortSignal,
   onProgress: (p: RunProgress) => void,
+  opts: { fixed?: FixedJoints } = {},
 ): Promise<JoineryOutcome | { noSites: true }> {
   // Joinery reads the FLAT document (assemblies spec §6.1): placed parts named by
   // their display paths. Its result is written back into the tree by index.
   const flat = flatDocument(doc);
   const sites = findSites(flat);
   if (sites.length === 0) return { noSites: true };
+  const keyOf = (s: Site) => jointKey(flat.boards[s.enter]!.name, flat.boards[s.receive]!.name, s.axis, s.side);
+  const fixed = new Map<number, JointChoice>();
+  for (const s of sites) {
+    const f = opts.fixed?.get(keyOf(s));
+    const c = f && { site: s.id, ...f };
+    if (c && validChoice(c, s, flat)) fixed.set(s.id, c);
+  }
+  const open = sites.filter((s) => !fixed.has(s.id));
+  const merge = (chosen: JointChoice[]) => sites.map((s) => fixed.get(s.id) ?? chosen.find((c) => c.site === s.id) ?? { site: s.id, joint: 'butt' as const });
   const limits = { width: null, depth: null, height: null, maxParts: flat.boards.length };
   const preexisting = checkDesign(flat, limits);
   const old = new Set(preexisting.map(problemKey));
@@ -262,17 +280,18 @@ export async function runJoinery(
     // The tree-shaped document is what useJoinery saves (out.result.doc).
     const tree = migrateDocument(writeBackFlat(doc, flat.boards, worldParts(joined.doc)));
     const result = { ...joined, doc: tree };
-    return { doc: tree, violations, result, notes, preexisting };
+    return { doc: tree, violations, result, notes, preexisting, kept: fixed.size };
   };
+  if (open.length === 0) return { ...build(merge([]), []), usage: ZERO_USAGE };
   try {
     return await runRepairLoop(client, {
       system: JOINERY_PROMPT,
       schema: JOINT_SCHEMA,
-      first: siteMessage(flat, sites),
+      first: siteMessage(flat, open),
       evaluate: (res) => {
         if (res.json === null) return { value: null, feedback: jointsUnusableMessage(res.unusable ?? 'unparseable') };
-        const { choices, notes } = parseChoices(res.json, sites, flat);
-        const value = build(choices, notes);
+        const { choices, notes } = parseChoices(res.json, open, flat);
+        const value = build(merge(choices), notes);
         return { value, feedback: jointsRepairMessage(value.violations) };
       },
     }, signal, onProgress, { keepBestOnError: true });
@@ -281,7 +300,7 @@ export async function runJoinery(
     const modelFailed = e instanceof RunFailed || (e instanceof LlmError && e.kind !== 'auth' && e.kind !== 'cancelled');
     if (!modelFailed) throw e;
     const reason = e instanceof RunFailed ? 'no usable answer' : (e as Error).message;
-    return { ...build(sites.map((s) => defaultChoice(s, flat, sites)), []), usage: e instanceof RunFailed ? e.usage : spentBefore(e), fallback: reason };
+    return { ...build(merge(open.map((s) => defaultChoice(s, flat, sites))), []), usage: e instanceof RunFailed ? e.usage : spentBefore(e), fallback: reason };
   }
 }
 

@@ -7,7 +7,8 @@ import { LlmError } from '../../llm/types';
 import type { LlmClient, LlmResult } from '../../llm/types';
 import { runJoinery } from '../run';
 import { applyJoints } from './recipes';
-import { findSites } from './sites';
+import { findSites, jointKey } from './sites';
+import { defaultChoice } from './choose';
 
 vi.mock('./recipes', async (orig) => {
   const a = await orig<typeof import('./recipes')>();
@@ -185,5 +186,46 @@ describe('runJoinery on a generated assembly', () => {
     expect(doc.definitions).toHaveLength(1);
     expect(doc.instances.map((i) => i.definition)).toEqual([doc.definitions[0].id, doc.definitions[0].id]);
     expect(worldParts(doc).some((b) => b.cuts.length > 0)).toBe(true);
+  });
+});
+
+describe('runJoinery — fixed choices', () => {
+  const sites = findSites(CORNER);
+  const keyOf = (s: (typeof sites)[number]) => jointKey(CORNER.boards[s.enter].name, CORNER.boards[s.receive].name, s.axis, s.side);
+  const fixedAll = new Map(sites.map((s) => { const { site: _s, ...c } = defaultChoice(s, CORNER, sites); return [keyOf(s), c] as const; }));
+  const go = (c: LlmClient, fixed: Map<string, unknown>) =>
+    runJoinery(c, CORNER, new AbortController().signal, () => {}, { fixed: fixed as never });
+
+  it('makes NO call when every site is fixed and valid, and reports them kept', async () => {
+    const c = client(long);
+    const out = await go(c, fixedAll);
+    if ('noSites' in out) throw new Error('sites');
+    expect(c.complete).not.toHaveBeenCalled();
+    expect(out.kept).toBe(sites.length);
+    expect(out.usage.inputTokens).toBe(0);
+  });
+
+  it('sends only the open sites to the model', async () => {
+    const one = new Map([...fixedAll].slice(0, 1));
+    const c = client(long);
+    await go(c, one);
+    const msg = String((c.complete as ReturnType<typeof vi.fn>).mock.calls[0][0].messages[0]);
+    const listed = msg.split('Sites:\n')[1]!.split('\n').filter((l) => /^\d+\. /.test(l));
+    expect(listed).toHaveLength(sites.length - 1);
+  });
+
+  it('re-chooses a fixed choice that is no longer valid (review focus 3)', async () => {
+    const bad = new Map([...fixedAll].map(([k, c]) => [k, c.joint === 'mortise-tenon' ? { ...c, tenonLength: 99 } : c]));
+    const c = client(long);
+    const out = await go(c, bad);
+    if ('noSites' in out) throw new Error('sites');
+    expect(c.complete).toHaveBeenCalled();
+    expect(out.kept).toBeLessThan(sites.length);
+  });
+
+  it('without fixed, kept is 0 and behaviour is unchanged', async () => {
+    const out = await run(client(long, short));
+    if ('noSites' in out) throw new Error('sites');
+    expect(out.kept).toBe(0);
   });
 });

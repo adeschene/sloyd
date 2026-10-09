@@ -259,6 +259,30 @@ export function parseChoices(json: unknown, sites: Site[], doc: FlatDocument): {
   return { choices, notes };
 }
 
+/**
+ * Is a choice valid for a site as it stands — the kind allowed, every size
+ * inside rangesOf, a stopped dado's end one of the site's stop ends? The same
+ * sources parseChoices validates against, but STRICT: parseChoices clamps a
+ * model's answer; a KEPT joint must reproduce its geometry exactly, so an
+ * out-of-range one is re-chosen instead (refine-joined spec §4). An empty
+ * range (lo > hi, where nothing fits) admits no value.
+ */
+export function validChoice(c: JointChoice, s: Site, doc: FlatDocument): boolean {
+  if (!s.allowed.includes(c.joint)) return false;
+  const r = rangesOf(s, doc);
+  const within = (v: number | undefined, [lo, hi]: [number, number]) => typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;
+  switch (c.joint) {
+    case 'mortise-tenon': return within(c.tenonLength, r.tenonLength);
+    case 'dado': return within(c.depth, r.dadoDepth);
+    case 'stopped-dado': {
+      const at = c.stopAt && s.stopEnds.find((e) => e.axis === c.stopAt!.axis && e.end === c.stopAt!.end);
+      return !!at && within(c.depth, r.dadoDepth) && within(c.inset, r.inset(at));
+    }
+    case 'rabbet': return within(c.depth, r.rabbetDepth);
+    default: return true;
+  }
+}
+
 export function jointsRepairMessage(v: Violation[]): string {
   return `The joints you chose cause ${v.length} new problem${v.length === 1 ? '' : 's'}:\n${v.map((x) => `- ${x.message}`).join('\n')}\n\nReturn the whole joint list again, changed to avoid them (for example, shorter tenons where two meet).`;
 }
