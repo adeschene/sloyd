@@ -253,7 +253,10 @@ const RANK: Record<Site['kind'], number> = { crossing: 0, 'face-against-edge': 1
  * needs only that they still cross in plan with the receiver wholly below).
  */
 export function applyJoints(doc: FlatDocument, sites: Site[], choices: JointChoice[]): JoinResult {
-  const boards: Board[] = structuredClone(doc.boards);
+  // Per board: one structuredClone of the whole array keeps aliasing, and
+  // twin placements of a shared definition share one `cuts` array in the
+  // flat document, so a pocket pushed into one would land in both.
+  const boards: Board[] = doc.boards.map((b) => structuredClone(b));
   const byId = new Map(choices.map((c) => [c.site, c]));
   const applied: JoinResult['applied'] = [];
   const skipped: JoinResult['skipped'] = [];

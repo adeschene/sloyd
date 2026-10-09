@@ -75,7 +75,8 @@ const sameSpan = (a: WorldBox, b: WorldBox, i: number) => near(a.min[i], b.min[i
  * `gateUnjoin`, which replaces it with `GATE_REFUSAL`.
  */
 export function unjoin(flat: FlatDocument): Unjoined {
-  const boards: Board[] = structuredClone(flat.boards);
+  // Per board, as in applyJoints: a whole-array clone keeps any aliasing between flat parts.
+  const boards: Board[] = flat.boards.map((b) => structuredClone(b));
   // Every cut, as a world box, computed ONCE from the joined document; afterwards part-local cuts are never read.
   const cuts = boards.map((b) => b.cuts.map((c) => ({ box: cutBox(b, c), used: false })));
   const joints: RecordedJoint[] = [];

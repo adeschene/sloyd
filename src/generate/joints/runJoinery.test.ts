@@ -1,7 +1,7 @@
 import { worldParts } from '../../document/tree';
 import { describe, expect, it, vi } from 'vitest';
 import { designToDocument } from '../../document/generated';
-import type { SloydDocument } from '../../document/document';
+import type { Board, SloydDocument } from '../../document/document';
 import { flatDocument, groupItems, sharedOf } from '../../document/document';
 import { LlmError } from '../../llm/types';
 import type { LlmClient, LlmResult } from '../../llm/types';
@@ -186,6 +186,11 @@ describe('runJoinery on a generated assembly', () => {
     expect(doc.definitions).toHaveLength(1);
     expect(doc.instances.map((i) => i.definition)).toEqual([doc.definitions[0].id, doc.definitions[0].id]);
     expect(worldParts(doc).some((b) => b.cuts.length > 0)).toBe(true);
+    // Each copy's mortise is cut once: the flat twins share one `cuts` array, and a
+    // whole-array clone in applyJoints kept that aliasing, so the stored Leg got both.
+    const leg = doc.definitions[0].boards.find((b) => b.name === 'Leg') as Board;
+    expect(leg.cuts).toHaveLength(1);
+    expect(worldParts(doc).map((b) => b.cuts.length)).toEqual([1, 4, 1, 4]);
   });
 });
 
