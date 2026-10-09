@@ -82,4 +82,29 @@ describe('diffDesigns', () => {
     const out = diffDesigns(doc(BASE), doc([BASE[0], part('Shelf', [0, 0, 0], [40, 1, 14])], [drawer('Drawer', [['D1', 0]])]));
     expect(out.map((c) => c.subject)).toEqual(['placement', 'part']);
   });
+
+  it('compares placements by world geometry, not by how origin and local coordinates split (F3)', () => {
+    const asm = (partAt: [number, number, number], origin: [number, number, number]) =>
+      doc([], [{ name: 'Rails', parts: [part('Rail', partAt, [20, 2, 3]), part('Rail 2', [partAt[0], partAt[1] + 6, partAt[2]], [20, 2, 3])], placements: [{ name: 'P1', at: v(...origin) }] }]);
+    expect(diffDesigns(asm([10, 0, 5], [0, 0, 0]), asm([0, 0, 0], [10, 0, 5]))).toEqual([]);
+    // ...and a real move of the whole placement is still reported, once.
+    const moved = diffDesigns(asm([10, 0, 5], [0, 0, 0]), asm([0, 0, 0], [12, 0, 5]));
+    expect(moved.map((c) => c.text)).toEqual([`Placement P1 moved X +${f(2)}`]);
+  });
+
+  // designToDocument snaps to 1/16in, so sub-precision differences are made by editing stored values.
+  const nudge = (d: ReturnType<typeof doc>, name: string, patch: { length?: number; position?: [number, number, number]; material?: string }) =>
+    ({ ...d, boards: d.boards.map((b) => (b.name === name ? { ...b, ...patch } : b)) }) as ReturnType<typeof doc>;
+
+  it('prints no line for a change below display precision (F2)', () => {
+    const a = doc(BASE);
+    expect(diffDesigns(a, nudge(a, 'Shelf', { length: 40.001 }))).toEqual([]);
+    expect(diffDesigns(a, nudge(a, 'Shelf', { position: [0.001, 0, 0] }))).toEqual([]);
+  });
+
+  it('omits a zero component from a move', () => {
+    const a = doc(BASE);
+    const out = diffDesigns(a, nudge(a, 'Top', { position: [2, 10.001, -0.5] }));
+    expect(out.map((c) => c.text)).toEqual([`Top moved X +${f(2)}, Z ${f(-0.5)}`]);
+  });
 });

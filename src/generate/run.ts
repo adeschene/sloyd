@@ -15,7 +15,7 @@ import { DETAIL_CAPS, SYSTEM_PROMPT, limitsOf, repairMessage, unusableMessage, u
 import type { Concept, GenerateSettings, LimitSettings } from './prompt';
 import { REFINE_MAX, refineMessage } from './refine';
 import type { RefineSettings } from './refine';
-import { carryGrain, documentToDesign } from '../document/refineDesign';
+import { carryGrain, designValues, documentToDesign } from '../document/refineDesign';
 import type { RefineRefusal } from '../document/refineDesign';
 import { diffDesigns } from '../document/designDiff';
 import type { Change } from '../document/designDiff';
@@ -132,19 +132,21 @@ interface EvaluateOpts {
   centre?: boolean;
   /** problemKeys of the original's raw violations (Refine; invariant 41's rule). */
   preexisting?: ReadonlySet<string>;
+  /** Values the converter keeps unsnapped (Refine: the original's own numbers). */
+  exact?: ReadonlySet<number>;
 }
 
 /**
  * THE design evaluation, shared by Generate and Refine so they cannot drift
  * (refine spec §3.1): parse → tree → flatten → zero-board guard → distinct cap
  * → checkDesign → collapse. With `preexisting`, a raw violation whose
- * problemKey the original already had is set aside as `present` and neither
+ * problemKey the original already had (and which names parts) is set aside as `present` and neither
  * counts toward "fewest" nor goes back as feedback.
  */
 function evaluateDesign(res: LlmResult, s: LimitSettings, opts: EvaluateOpts = {}): { value: DesignValue | null; feedback: string } {
   const parsed = res.json === null ? null : parseDesign(res.json);
   const design = parsed && (opts.prepare ? opts.prepare(parsed) : parsed);
-  const converted = design && designToDocument(design, { centre: opts.centre ?? true });
+  const converted = design && designToDocument(design, { centre: opts.centre ?? true, exact: opts.exact });
   if (!converted) return { value: null, feedback: unusableMessage(res.unusable ?? 'unparseable') };
   // Checks read the placed world (generate-assemblies spec §5.1); the TREE is what is kept.
   const flat = flatDocument(converted.doc);
@@ -154,14 +156,17 @@ function evaluateDesign(res: LlmResult, s: LimitSettings, opts: EvaluateOpts = {
   const distinct = distinctPartsViolation(converted.doc, DETAIL_CAPS[s.detail]);
   const raw = checkDesign(flat, limitsOf(s));
   const old = opts.preexisting;
-  const fresh = old ? raw.filter((v) => !old.has(problemKey(v))) : raw;
+  // Only a fault naming parts can be "already there"; limits (too-large,
+  // too-many-parts, tips) are judged on the result (refine spec §3.2).
+  const already = (v: Violation) => old !== undefined && v.parts.length > 0 && old.has(problemKey(v));
+  const fresh = raw.filter((v) => !already(v));
   // Merged per authored part, so "fewest" is not biased by placement count (generate-assemblies spec §5.3).
   const violations = [
     ...rejectedViolations(converted.rejected),
     ...(distinct ? [distinct] : []),
     ...collapseViolations(fresh, converted.authored),
   ];
-  const present = old ? collapseViolations(raw.filter((v) => old.has(problemKey(v))), converted.authored) : [];
+  const present = old ? collapseViolations(raw.filter(already), converted.authored) : [];
   return { value: { doc: converted.doc, violations, present }, feedback: repairMessage(violations) };
 }
 
@@ -204,7 +209,7 @@ export async function runRefine(
     system: SYSTEM_PROMPT,
     schema: DESIGN_SCHEMA,
     first: refineMessage(from.design, settings),
-    evaluate: (res) => evaluateDesign(res, settings, { prepare: (d) => carryGrain(d, doc), centre: false, preexisting }),
+    evaluate: (res) => evaluateDesign(res, settings, { prepare: (d) => carryGrain(d, doc), centre: false, preexisting, exact: designValues(from.design) }),
   }, signal, onProgress);
   // Document-level facts the model never sees travel with the result.
   const kept: SloydDocument = { ...out.doc, stock: doc.stock, units: doc.units, guides: doc.guides };

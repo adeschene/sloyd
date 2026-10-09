@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { carryGrain, documentToDesign } from './refineDesign';
+import { carryGrain, designValues, documentToDesign } from './refineDesign';
+import { diffDesigns } from './designDiff';
+import { groupItems } from './treeOps';
 import { designToDocument } from './generated';
 import type { GeneratedDesign, GeneratedPart } from './generated';
 import { createDocument } from './document';
@@ -95,6 +97,42 @@ describe('documentToDesign', () => {
     const both = { ...doc, boards: doc.boards.map((b, i) => (i === 0 ? { ...b, cuts: [CUT] } : b)),
       instances: doc.instances.map((i) => ({ ...i, rotation: 90 as const })) } as SloydDocument;
     expect(refused(both)?.reason).toBe('cuts');
+  });
+});
+
+describe('documentToDesign — shapes and normalised assemblies', () => {
+  it('refuses a cut held on a Shape (F5)', () => {
+    const doc = table();
+    expect(doc.shapes.length).toBeGreaterThan(0);
+    const withCut = { ...doc, shapes: doc.shapes.map((s, i) => (i === 0 ? { ...s, cuts: [CUT] } : s)) } as SloydDocument;
+    expect(refused(withCut)?.reason).toBe('cuts');
+  });
+
+  // Two loose rails away from the origin, grouped: instance origin [0,0,0], parts in world coordinates.
+  const grouped = () => {
+    const base = designToDocument({ name: 'G', parts: [part('Rail A', [10, 0, 5], [20, 2, 3]), part('Rail B', [10, 6, 5], [20, 2, 3])], assemblies: [] }, { centre: false }).doc;
+    const g = groupItems(base, null, base.boards.map((b) => b.id));
+    if (!g) throw new Error('group failed');
+    return g.doc;
+  };
+
+  it('emits an assembly whose parts start at 0 and whose placement sits at the world corner (F3)', () => {
+    const doc = grouped();
+    expect(doc.instances[0]!.position).toEqual([0, 0, 0]);
+    const r = documentToDesign(doc, MAX);
+    if ('refused' in r) throw new Error(r.refused.message);
+    const a = r.design.assemblies![0]!;
+    expect(a.placements[0]!.at).toEqual(v(10, 0, 5));
+    expect(a.parts.map((p) => p.at)).toEqual([v(0, 0, 0), v(0, 6, 0)]);
+  });
+
+  it('echoed back unchanged, the grouped design has no changes and no part moves (F3)', () => {
+    const doc = grouped();
+    const r = documentToDesign(doc, MAX);
+    if ('refused' in r) throw new Error(r.refused.message);
+    const back = designToDocument(r.design, { centre: false, exact: designValues(r.design) }).doc;
+    expect(snapshot(back)).toEqual(snapshot(doc));
+    expect(diffDesigns(doc, back)).toEqual([]);
   });
 });
 

@@ -97,6 +97,12 @@ const isAssembly = (a: unknown): boolean =>
   isObj(a) && typeof a.name === 'string' && Array.isArray(a.parts) && a.parts.every(isPart) &&
   Array.isArray(a.placements) && a.placements.every(isPlacement);
 
+const vec = (o: unknown): Vec3 => { const v = o as Vec3; return { x: v.x, y: v.y, z: v.z }; };
+const partOf = (o: unknown): GeneratedPart => {
+  const p = o as GeneratedPart;
+  return { name: p.name, role: p.role, material: p.material, at: vec(p.at), size: vec(p.size) };
+};
+
 /**
  * Shape check on the parsed output. The API enforces the schema, but this is
  * the client's own gate — a provider without structured outputs, or a
@@ -104,12 +110,6 @@ const isAssembly = (a: unknown): boolean =>
  * for TYPE here; non-finite values are the converter's to reject per part.
  * A design with no parts anywhere (loose or in an assembly) is unusable.
  */
-const vec = (o: unknown): Vec3 => { const v = o as Vec3; return { x: v.x, y: v.y, z: v.z }; };
-const partOf = (o: unknown): GeneratedPart => {
-  const p = o as GeneratedPart;
-  return { name: p.name, role: p.role, material: p.material, at: vec(p.at), size: vec(p.size) };
-};
-
 export function parseDesign(json: unknown): GeneratedDesign | null {
   if (!isObj(json) || typeof json.name !== 'string' || !Array.isArray(json.parts) || !Array.isArray(json.assemblies)) return null;
   if (!json.parts.every(isPart) || !json.assemblies.every(isAssembly)) return null;
@@ -184,14 +184,18 @@ export interface Authored {
 
 type Vec = [number, number, number];
 
-/** Snap, check, encode one part; null (and a rejection) when unusable. */
+/** migrateDocument also coerces grain, so this guard is belt-and-braces. */
 const isGrain = (g: unknown): g is Grain => (DIMENSION_ORDER as readonly unknown[]).includes(g);
 
-function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[]): Omit<Board, 'id'> | null {
+/**
+ * Snap, check, encode one part; null (and a rejection) when unusable. A value in
+ * `exact` (Refine: the original's own numbers) is kept as it is (refine spec §4).
+ */
+function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], exact?: ReadonlySet<number>): Omit<Board, 'id'> | null {
   // Checked AFTER the snap: a finite value near Number.MAX_VALUE overflows
   // to Infinity on the division by SNAP_INCHES. Covers NaN/±Infinity too,
   // and anything beyond MAX_MAGNITUDE.
-  const snapped = [p.at.x, p.at.y, p.at.z, p.size.x, p.size.y, p.size.z].map(snap);
+  const snapped = [p.at.x, p.at.y, p.at.z, p.size.x, p.size.y, p.size.z].map((v) => (exact?.has(v) ? v : snap(v)));
   if (!snapped.every(usable)) {
     rejected.push({ name: label, reason: 'not-finite' });
     return null;
@@ -211,13 +215,13 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[]):
  * translate the whole design onto the floor with its footprint centred — by a
  * multiple of SNAP_INCHES, shifting loose parts and instance ORIGINS only,
  * never definition-local coordinates (`opts.centre === false` skips the
- * horizontal centring and keeps only the floor rule) — then migrateDocument, the same gate an
+ * horizontal centring and keeps only the floor rule; `opts.exact` lists values to keep unsnapped) — then migrateDocument, the same gate an
  * imported file passes, which dedupes names (inv 8) and checks ids (inv 33).
  *
  * Every id is minted here with nextId so `roles` (stored part id → role) and
  * the definition → assembly label map survive the load gate.
  */
-export function designToDocument(design: GeneratedDesign, opts: { centre?: boolean } = {}): {
+export function designToDocument(design: GeneratedDesign, opts: { centre?: boolean; exact?: ReadonlySet<number> } = {}): {
   doc: SloydDocument; rejected: RejectedPart[]; authored: Authored;
 } {
   const rejected: RejectedPart[] = [];
@@ -230,7 +234,7 @@ export function designToDocument(design: GeneratedDesign, opts: { centre?: boole
   };
 
   const loose: Board[] = design.parts.flatMap((p) => {
-    const b = convertPart(p, clean(p.name), rejected);
+    const b = convertPart(p, clean(p.name), rejected, opts.exact);
     return b ? [mint(p, b)] : [];
   });
 
@@ -244,11 +248,11 @@ export function designToDocument(design: GeneratedDesign, opts: { centre?: boole
     const label = uniqueName(clean(a.name).trim() || 'Assembly', taken);
     taken.push({ id: label, name: label });
     const parts = a.parts.flatMap((p) => {
-      const b = convertPart(p, `${clean(p.name)} (in assembly ${label})`, rejected);
+      const b = convertPart(p, `${clean(p.name)} (in assembly ${label})`, rejected, opts.exact);
       return b ? [mint(p, b)] : [];
     });
     const origins = a.placements.flatMap((pl) => {
-      const at = [pl.at.x, pl.at.y, pl.at.z].map(snap) as Vec;
+      const at = [pl.at.x, pl.at.y, pl.at.z].map((v) => (opts.exact?.has(v) ? v : snap(v))) as Vec;
       const plName = clean(pl.name);
       if (at.every(usable)) return [{ name: plName, at }];
       rejected.push({ name: `${plName} (placement of ${label})`, reason: 'not-finite' });

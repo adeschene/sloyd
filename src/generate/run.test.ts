@@ -374,6 +374,62 @@ describe('runRefine', () => {
     expect(client.complete).toHaveBeenCalledTimes(1);   // nothing new: no repair round
   });
 
+  it('keeps a typed off-grid position and size exactly, with no change reported (F2)', async () => {
+    const base = orig([bp('A', [0, 0, 0], [10, 1, 8])]);
+    const doc = { ...base, boards: base.boards.map((b) => ({ ...b, position: [0.03, 0, 0] as [number, number, number], length: 10.01 })) };
+    const { client } = fakeClient([echo(doc)]);
+    const out = await go(client, doc);
+    if ('refused' in out) throw new Error('refused');
+    const b = flatDocument(out.doc).boards[0]!;
+    expect(b.position).toEqual([0.03, 0, 0]);
+    expect(b.length).toBe(10.01);
+    expect(out.changes).toEqual([]);
+  });
+
+  it('keeps a typed off-grid placement origin exactly (F2)', async () => {
+    const base = designToDocument({ name: 'D', parts: [], assemblies: [{ name: 'Drawer', parts: [bp('Front', [0, 0, 0], [10, 4, 1])], placements: [{ name: 'D1', at: v3(0, 0, 0) }] }] }, { centre: false }).doc;
+    const doc = { ...base, instances: base.instances.map((i) => ({ ...i, position: [0.03, 0, 0] as [number, number, number] })) };
+    const { client } = fakeClient([echo(doc)]);
+    const out = await go(client, doc);
+    if ('refused' in out) throw new Error('refused');
+    expect(out.doc.instances[0]!.position).toEqual([0.03, 0, 0]);
+    expect(out.changes).toEqual([]);
+  });
+
+  it('re-links equal parts with the original grain (F5)', async () => {
+    const leg = (n: string, x: number) => ({ ...bp(n, [x, 0, 0], [2, 28, 2]), role: 'leg', grain: 'width' as const });
+    const doc = designToDocument({ name: 'L', parts: [leg('Leg 1', 0), leg('Leg 2', 10)], assemblies: [] }, { centre: false }).doc;
+    expect(doc.shapes).toHaveLength(1);
+    const { client } = fakeClient([echo(doc)]);
+    const out = await go(client, doc);
+    if ('refused' in out) throw new Error('refused');
+    expect(out.doc.shapes).toHaveLength(1);
+    expect(out.doc.shapes[0]!.grain).toBe('width');
+  });
+
+  it('limits are judged on the result: a limit the original already broke is still a violation (F1, probe A)', async () => {
+    const doc = orig([bp('Post', [0, 0, 0], [10, 40, 10])]);           // 40in tall already
+    const wide = { ...echo(doc), parts: [bp('Post', [0, 0, 0], [40, 40, 10])] };
+    const { client } = fakeClient([wide]);
+    const out = await runRefine(client, doc, { ...RS, width: 30, height: 30 }, new AbortController().signal, () => {});
+    if ('refused' in out) throw new Error('refused');
+    const msgs = out.violations.filter((x) => x.kind === 'too-large').map((x) => x.message);
+    expect(msgs).toHaveLength(2);
+    expect(msgs.some((m) => /width/i.test(m))).toBe(true);
+    expect(msgs.some((m) => /height/i.test(m))).toBe(true);
+    expect(out.present.filter((x) => x.kind === 'too-large')).toEqual([]);
+    expect((client.complete as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(1);   // a repair call
+  });
+
+  it('an unchanged design over the limit it was already over is a too-large violation, not present (F1, probe B)', async () => {
+    const doc = orig([bp('Slab', [0, 0, 0], [36, 1, 10])]);
+    const { client } = fakeClient([echo(doc)]);
+    const out = await runRefine(client, doc, { ...RS, width: 30 }, new AbortController().signal, () => {});
+    if ('refused' in out) throw new Error('refused');
+    expect(out.violations.map((x) => x.kind)).toEqual(['too-large']);
+    expect(out.present).toEqual([]);
+  });
+
   it('a new problem drives repair; "fewest" ignores already-present ones', async () => {
     const doc = orig([bp('A', [0, 0, 0], [10, 1, 10]), bp('B', [9.5, 0, 0], [10, 1, 10])]);   // one old overlap
     const d = echo(doc);

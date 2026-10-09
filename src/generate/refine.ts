@@ -22,11 +22,14 @@ export function refineMessage(design: GeneratedDesign, s: RefineSettings): strin
   ].join('\n');
 }
 
-/** The smallest detail level whose cap and ceiling the design already fits. */
+/** Distinct parts of headroom a preselected detail level leaves over the design (refine spec §5). */
+export const DETAIL_HEADROOM = 3;
+
+/** The smallest detail level whose cap leaves DETAIL_HEADROOM over the design's distinct parts and whose ceiling covers its placed parts. */
 export function detailFor(doc: SloydDocument): Detail {
   const distinct = distinctParts(doc);
   const placed = worldParts(doc).length;
-  return (['simple', 'moderate', 'detailed'] as const).find((d) => DETAIL_CAPS[d] >= distinct && placedCeiling(d) >= placed) ?? 'detailed';
+  return (['simple', 'moderate', 'detailed'] as const).find((d) => DETAIL_CAPS[d] >= distinct + DETAIL_HEADROOM && placedCeiling(d) >= placed) ?? 'detailed';
 }
 
 export function refineRefusal(doc: SloydDocument): string | null {

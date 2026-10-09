@@ -18,10 +18,27 @@ export interface RefineMax { distinct: number; placed: number }
 
 const refuse = (reason: RefusalReason, message: string) => ({ refused: { reason, message } });
 
-const box = (b: Board, name: string, role: string): GeneratedPart => {
+type V3 = [number, number, number];
+const box = (b: Board, name: string, role: string, shift: V3 = [0, 0, 0]): GeneratedPart => {
   const [x, y, z] = boardExtents(b);
-  return { name, role, material: b.material, at: { x: b.position[0], y: b.position[1], z: b.position[2] }, size: { x, y, z } };
+  return { name, role, material: b.material, at: { x: b.position[0] - shift[0], y: b.position[1] - shift[1], z: b.position[2] - shift[2] }, size: { x, y, z } };
 };
+
+/** The smallest local corner of a definition's parts, per axis (a position is an own field, so the stored one). */
+export const definitionCorner = (boards: readonly StoredBoard[]): V3 =>
+  [0, 1, 2].map((k) => Math.min(...boards.map((b) => b.position[k]!))) as V3;
+
+/** Every number the design carries: positions, sizes and placement origins (refine spec §4, "exact values"). */
+export function designValues(design: GeneratedDesign): Set<number> {
+  const out = new Set<number>();
+  const add = (v: { x: number; y: number; z: number }) => { out.add(v.x); out.add(v.y); out.add(v.z); };
+  for (const p of design.parts) { add(p.at); add(p.size); }
+  for (const a of design.assemblies ?? []) {
+    for (const p of a.parts) { add(p.at); add(p.size); }
+    for (const pl of a.placements) add(pl.at);
+  }
+  return out;
+}
 
 export function documentToDesign(doc: SloydDocument, max: RefineMax): { design: GeneratedDesign } | { refused: RefineRefusal } {
   const shapes = shapeMap(doc);
@@ -50,16 +67,20 @@ export function documentToDesign(doc: SloydDocument, max: RefineMax): { design: 
     if (!r) { r = `linked-${roles.size + 1}`; roles.set(b.shape, r); }
     return r;
   };
-  const boxes = (bs: StoredBoard[]) => bs.flatMap((b) => {
+  const boxes = (bs: StoredBoard[], shift?: V3) => bs.flatMap((b) => {
     const r = resolveBoard(shapes, b);
-    return r ? [box(r, b.name, roleOf(b))] : [];
+    return r ? [box(r, b.name, roleOf(b), shift)] : [];
   });
   const parts = boxes(doc.boards);
   const assemblies: GeneratedAssembly[] = doc.definitions.flatMap((d) => {
+    // Normalised: the assembly's parts start at 0 and each placement is the
+    // world position of that corner (origin + corner), so what the model sees
+    // does not depend on how Group happened to split origin from local (spec §4).
+    const corner = d.boards.length === 0 ? ([0, 0, 0] as V3) : definitionCorner(d.boards);
     const placements = doc.instances.filter((i) => i.definition === d.id)
-      .map((i) => ({ name: i.name, at: { x: i.position[0], y: i.position[1], z: i.position[2] } }));
+      .map((i) => ({ name: i.name, at: { x: i.position[0] + corner[0], y: i.position[1] + corner[1], z: i.position[2] + corner[2] } }));
     // A Definition has no name; matching never depends on this one (spec §4).
-    return placements.length === 0 ? [] : [{ name: placements[0]!.name, parts: boxes(d.boards), placements }];
+    return placements.length === 0 ? [] : [{ name: placements[0]!.name, parts: boxes(d.boards, corner), placements }];
   });
   return { design: { name: doc.name, parts, assemblies } };
 }

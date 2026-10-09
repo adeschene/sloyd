@@ -2,6 +2,7 @@ import { formatLength } from '../units/length';
 import { MATERIALS } from './types';
 import { boardExtents } from './geometry';
 import type { Board, Instance, SloydDocument } from './types';
+import { definitionCorner } from './refineDesign';
 import { NAME_SEPARATOR, PATH_SEPARATOR, flatDocument } from './tree';
 
 /**
@@ -13,7 +14,7 @@ export type ChangeKind = 'added' | 'removed' | 'resized' | 'moved' | 'material' 
 export interface Change { kind: ChangeKind; subject: 'part' | 'placement'; name: string; copies: number; text: string }
 
 interface Entry { b: Board; inst: Instance | null }
-interface Side { parts: Map<string, Entry>; insts: Map<string, Instance> }
+interface Side { parts: Map<string, Entry>; insts: Map<string, Instance>; corner: (i: Instance) => number[] }
 
 function sideOf(doc: SloydDocument): Side {
   const byId = new Map(doc.instances.map((i) => [i.id, i]));
@@ -22,19 +23,27 @@ function sideOf(doc: SloydDocument): Side {
     const seg = b.id.split(PATH_SEPARATOR);
     parts.set(b.name, { b, inst: seg.length > 1 ? byId.get(seg[0]!) ?? null : null });
   }
-  return { parts, insts: new Map(doc.instances.map((i) => [i.name, i])) };
+  // A placement is compared by where its definition's min corner lands: origin + that corner.
+  const defs = new Map(doc.definitions.map((d) => [d.id, d]));
+  const corner = (i: Instance) => {
+    const d = defs.get(i.definition);
+    const c = d && d.boards.length > 0 ? definitionCorner(d.boards) : [0, 0, 0];
+    return i.position.map((v, k) => v + c[k]!);
+  };
+  return { parts, insts: new Map(doc.instances.map((i) => [i.name, i])), corner };
 }
 
 const sizeOf = (b: Board) => [b.length, b.width, b.thickness].sort((x, y) => y - x);
-/** A part inside a placement is compared relative to the placement's origin. */
-const localOf = (e: Entry) => (e.inst ? e.b.position.map((v, k) => v - e.inst!.position[k]!) : [...e.b.position]);
+/** A part inside a placement is compared relative to its placement's corner (origin + the definition's min corner). */
+const localOf = (side: Side, e: Entry) => (e.inst ? e.b.position.map((v, k) => v - side.corner(e.inst!)[k]!) : [...e.b.position]);
 const same = (a: readonly number[], b: readonly number[]) => a.length === b.length && a.every((v, k) => v === b[k]);
 const label = (m: string) => MATERIALS[m]?.label ?? m;
 
 export function diffDesigns(before: SloydDocument, after: SloydDocument): Change[] {
   const len = (n: number) => formatLength(n, after.units.precision);
   const dims = (b: Board) => sizeOf(b).map(len).join(' × ');
-  const delta = (d: number[]) => d.flatMap((n, k) => (n === 0 ? [] : [`${'XYZ'[k]} ${n > 0 ? '+' : ''}${len(n)}`])).join(', ');
+  // A component that displays as zero is omitted, so no line reads "X +0".
+  const delta = (d: number[]) => d.flatMap((n, k) => (len(Math.abs(n)) === len(0) ? [] : [`${'XYZ'[k]} ${n > 0 ? '+' : ''}${len(n)}`])).join(', ');
   const A = sideOf(before);
   const B = sideOf(after);
   const out: Change[] = [];
@@ -50,7 +59,11 @@ export function diffDesigns(before: SloydDocument, after: SloydDocument): Change
   for (const [n, i] of B.insts) {
     const old = A.insts.get(n);
     if (!old) push('added', 'placement', n, `Added placement ${n}`, null);
-    else if (!same(old.position, i.position)) push('moved', 'placement', n, `Placement ${n} moved ${delta(i.position.map((p, k) => p - old.position[k]!))}`, null);
+    else {
+      const oc = A.corner(old);
+      const d = delta(B.corner(i).map((p, k) => p - oc[k]!));
+      if (d) push('moved', 'placement', n, `Placement ${n} moved ${d}`, null);
+    }
   }
   for (const n of A.insts.keys()) if (!B.insts.has(n)) push('removed', 'placement', n, `Removed placement ${n}`, null);
 
@@ -64,12 +77,16 @@ export function diffDesigns(before: SloydDocument, after: SloydDocument): Change
     const key = keyOf(n, e);
     const o = A.parts.get(n);
     if (!o) { const d = ` (${dims(e.b)})`; push('added', 'part', n, `Added ${n}${d}`, key('added', d)); continue; }
-    if (!same(sizeOf(o.b), sizeOf(e.b))) { const d = `: ${dims(o.b)} → ${dims(e.b)}`; push('resized', 'part', n, `${n}${d}`, key('resized', d)); }
+    if (!same(sizeOf(o.b), sizeOf(e.b))) {
+      // A change below display precision reads as no change at all.
+      if (dims(o.b) !== dims(e.b)) { const d = `: ${dims(o.b)} → ${dims(e.b)}`; push('resized', 'part', n, `${n}${d}`, key('resized', d)); }
+    }
     // L/W/T are stored sorted, so the same dimensions can sit on other faces: only world extents tell.
     else if (!same(boardExtents(o.b), boardExtents(e.b))) push('resized', 'part', n, `${n} turned`, key('resized', ' turned'));
-    const moved = localOf(e).map((p, k) => p - localOf(o)[k]!);
-    if (moved.some((m) => m !== 0)) { const d = ` moved ${delta(moved)}`; push('moved', 'part', n, `${n}${d}`, key('moved', d)); }
-    if (o.b.material !== e.b.material) { const d = `: ${label(o.b.material)} → ${label(e.b.material)}`; push('material', 'part', n, `${n}${d}`, key('material', d)); }
+    const lo = localOf(A, o);
+    const d = delta(localOf(B, e).map((p, k) => p - lo[k]!));
+    if (d) { const t = ` moved ${d}`; push('moved', 'part', n, `${n}${t}`, key('moved', t)); }
+    if (o.b.material !== e.b.material && label(o.b.material) !== label(e.b.material)) { const d = `: ${label(o.b.material)} → ${label(e.b.material)}`; push('material', 'part', n, `${n}${d}`, key('material', d)); }
     if (!o.b.shape !== !e.b.shape) {
       const kind = e.b.shape ? 'linked' : 'unlinked';
       push(kind, 'part', n, e.b.shape ? `${n} is now linked` : `${n} is no longer linked`, key(kind, ''));
