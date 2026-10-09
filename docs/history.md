@@ -302,6 +302,25 @@ and 79.
 
 ## What each round did
 
+**What the refine round did (2026-10-09)**: follow-up 179, refine by instruction, with a spec and plan
+(`docs/superpowers/specs/2026-10-09-sloyd-refine-design.md`). **No schema change.** "Refine…" sends
+the open prototype, in Generate's own format, plus an instruction through the same repair loop and
+evaluation step (now one shared `evaluateDesign`); the result is a new unopened project with a list
+of what changed. The user's rulings: fresh prototypes only (a design with a cut is refused before
+any call; also turned or nested assemblies and > 60 distinct parts), a new project, the whole design
+back plus a change list, one result per run, and only new problems drive repairs. Amended while
+planning: the spec's "most common offset" realignment would have lifted a lowered case back into
+the air, so Refine keeps the model's coordinates (`centre: false`, floor rule only). The final review
+(probes) found the already-present filter swallowed every size limit (part-less problems all keyed
+alike) — the user ruled limits are judged on the result; also exact values are kept for untouched
+off-grid parts, detail is preselected with 3 parts of headroom, and definitions are normalised so a
+Group'd assembly does not read as moved. Executed subagent-driven (five tasks, one final review on
+the most capable model, one fix wave). Live check with the user watching
+(`docs/browser-verification-refine.md`): a side table refined with "legs 2in longer, add a drawer"
+came back clean, untouched parts exactly in place, the change list matching storage; a project with
+a cut was refused before any call. The estimate read $0.02 against $0.07 actual (fu 236). Tests
+2147 → 2207.
+
 **What the generate-assemblies round did (2026-10-09)**: Generate can describe a multi-part unit
 once and place it several times, and links same-role identical parts, with a spec and plan
 (`docs/superpowers/specs/2026-10-09-sloyd-generate-assemblies-design.md`). **No schema change**
