@@ -1,6 +1,6 @@
 # Sloyd — assemblies and components in generated prototypes
 
-**Date:** 2026-10-09 · **Status:** approved 2026-10-09; amended while planning (§2 role normalisation and optional TS fields, §3 step 1 placement rejection, §5.3 the "fix the assembly" conditions).
+**Date:** 2026-10-09 · **Status:** approved 2026-10-09; amended while planning (§2 role normalisation and optional TS fields, §3 step 1 placement rejection, §5.3 the "fix the assembly" conditions; final review: §3 magnitude bound and separator, §5.3 overlap-only and the inside/between key).
 **Builds on:**
 - **Generate** (`docs/superpowers/specs/2026-10-03-sloyd-generate-design.md`): the schema, the
   converter, `checkDesign`, the repair loop.
@@ -82,6 +82,11 @@ literals stay terse. A value `parseDesign` returns always has both.
    checked after the snap, per part, as today. World = origin + local, so every world coordinate
    stays on the grid. A placement whose origin is not finite after the snap is rejected on its own
    (`"<placement> (placement of <assembly>)"`, `'not-finite'`); the other placements stay.
+   Any snapped value whose magnitude exceeds 10,000in (part `at`/`size`, placement origin) is
+   rejected the same way (`'not-finite'`): a huge but finite value otherwise overflows the centring
+   shift, which crashed the run or silently dropped a placement (final review). Every "›" in a
+   model-supplied name is replaced with ">", because the separator in a name breaks flat-name
+   uniqueness and the authored index.
 2. **Encode** each part with `orient`, unchanged. A placement has no turn, so a local box has the
    same extents in the world.
 3. **Drop** an assembly with no placements, or whose every part was rejected, reporting it as a
@@ -173,7 +178,7 @@ toward fewer placements and tells the model six times about a one-place fix.
 `collapseViolations(violations, authored)`: violations with the same `kind` and the
 same sorted set of authored labels merge into one, which keeps the first message, takes the
 authored labels as `parts`, and appends:
-- `" (in every placement of <A> — fix the assembly)"` only when (a) every merged violation lies
+- `" (in every placement of <A> — fix the assembly)"` only when the kind is `overlap` and (a) every merged violation lies
   inside ONE placement (no loose part, no second placement), (b) the group covers all of assembly
   A's placements, and (c) A has at least two placements; otherwise
 - `" (in <P1>, <P2>)"` listing the placements involved.
@@ -181,6 +186,12 @@ authored labels as `parts`, and appends:
 (a) is an amendment made while planning: without it, drawers placed too close together (Drawer 1
 overlapping Drawer 2, Drawer 2 overlapping Drawer 3) would be told to "fix the assembly" when the
 fix is the spacing. (c) keeps a once-placed assembly's report naming its placement.
+
+The `overlap`-only rule and the key's inside/between flag are amendments from the final review:
+`unsupported` and `hangs` are usually a placement's position (a drawer 1/16in off its runner), so
+"fix the assembly" would be wrong advice; and a key without the flag merged a drawer's own overlap
+with a spacing overlap between drawers. The merge key is `[kind, inside-one-placement?, sorted
+authored labels]`, and placements are listed in authored order.
 
 A violation with no assembly part passes through unchanged. Violations without parts
 (`too-many-parts`) pass through unchanged. This lives in the generate path only; joinery's
