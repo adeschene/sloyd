@@ -115,8 +115,9 @@ load, never per edit.
 3. The dialog shows `Saved as '<name> — repaired' — <N> stray cuts removed.` (the other dialogs'
    quoting) with **[Open]**, which
    goes through the existing `openProject` (invariant 32). The original is untouched.
-4. When the write-back split an assembly: `Copies of <assembly> no longer match, so they are no longer shared.`
-   (one line per split definition, by its first placement's name).
+4. When the write-back split an assembly: `<A> and <B> no longer match, so they are no longer shared.`
+   — one line per split definition, naming its placements by display path (`A, B and C` for three);
+   definitions have no name of their own (amended while planning).
 5. The new id joins `newIds`, as Refine's results do.
 6. A failed write shows the storage error as the other create paths do.
 
