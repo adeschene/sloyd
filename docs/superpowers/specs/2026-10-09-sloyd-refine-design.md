@@ -1,6 +1,6 @@
 # Sloyd — refine by instruction (follow-up 179)
 
-**Date:** 2026-10-09 · **Status:** approved in conversation; spec awaiting review.
+**Date:** 2026-10-09 · **Status:** approved 2026-10-09; amended while planning (§4 keeping parts in place replaces the offset realignment).
 **Builds on:**
 - **Generate** (`2026-10-03-sloyd-generate-design.md`) and **generate assemblies**
   (`2026-10-09-sloyd-generate-assemblies-design.md`): the schema, `designToDocument`, the checks,
@@ -74,7 +74,7 @@ nested or turned assemblies.
    original, named by flat display names.
 3. `runRepairLoop` with `SYSTEM_PROMPT`, `DESIGN_SCHEMA` and `first = refineMessage(design,
    settings)`. Its `evaluate` is the **shared** design evaluation (§3.1) with two refine-only
-   steps: realignment and grain carry-over (§4), and the already-present filter (§3.2).
+   steps: no horizontal re-centring and grain carry-over (§4), and the already-present filter (§3.2).
 4. Copies the original's document-level settings onto the result: `stock` (kerf), `units`,
    `guides`.
 5. Returns `{ doc, violations, preexisting: Violation[], changes: Change[], usage }`.
@@ -122,17 +122,18 @@ byte-identical).
 **Cost estimate** (`refineEstimateUsd(client, doc, settings)`): input = `SYSTEM_PROMPT` + the user
 turn, at 4 characters per token; output = the design JSON's length / 4 × 1.25; no cache.
 
-## 4. The result: realignment, grain, the change list
+## 4. The result: keeping parts in place, grain, the change list
 
 **Identity is the flat display name** (`Placement › Part` or the loose name) throughout this
 section.
 
-**Realignment.** `designToDocument` re-centres every design, so a 2in-wider case would shift every
-part by 1in. After conversion, for every flat name present in both the original and the refined
-design, take `new.position − old.position`. The **most common** offset (ties: the one with the
-smallest |dx|+|dy|+|dz|, then lexicographic) is snapped to 1/16in and subtracted from the refined
-design's loose parts and instance origins (never definition-local coordinates). With no matched
-part, nothing is shifted. Untouched parts then sit exactly where they were.
+**Keeping parts in place (amended while planning).** The model is given the original's own
+coordinates and asked to keep untouched parts as they are, so Refine converts with
+`designToDocument(design, { centre: false })`: the horizontal re-centring is skipped and only the
+floor rule stays (the lowest part lands on y = 0, by a multiple of 1/16in). Untouched parts then sit
+exactly where they were. *Replaced:* the approved "most common offset" realignment, which would undo
+a real whole-design move — remove the toe kick and the model correctly lowers the case, but every
+part's offset is then −4in, and realigning by it would lift the case back into the air.
 
 **Grain carry-over.** The model never sees grain. Before conversion, each part of the returned
 design whose flat name matches an original part takes that part's `grain` (an assembly part takes
@@ -142,12 +143,13 @@ only when it is a valid `Grain`. This runs before role linking, so `sameShared` 
 values.
 
 **The change list.** `diffDesigns(before: SloydDocument, after: SloydDocument): Change[]` in
-`src/document/designDiff.ts`, on flat parts by display name, after realignment:
+`src/document/designDiff.ts`, on flat parts by display name:
 - `added` / `removed` — a part or a placement (a placement whose instance name appears on one side
   only; its parts are not listed separately).
 - `resized` — the old and new sizes (sorted extents, as the cut list reads them).
-- `moved` — the old and new min corner; when every part of a placement moved by one delta, one
-  `moved` for the placement instead.
+- `moved` — a placement whose origin changed is one `moved` entry; a part inside a placement is
+  compared by its position relative to the placement's origin, so a moved placement does not list
+  its parts; a loose part is compared by its world position.
 - `material` — old and new.
 - `linked` / `unlinked` — a part that gained or lost a shared shape.
 - Identical changes to the same definition part across placements merge into one entry with
@@ -185,9 +187,8 @@ TDD; mutate every equality, ordering and boundary test.
   (`designToDocument(documentToDesign(doc))`) reproduces the original's flat parts (names, sizes,
   materials) and definitions/placements, up to one translation; `linked-<k>` per shape; values
   exact.
-- **Realignment:** a design widened on one side keeps every untouched part's position exactly;
-  ties broken as specified; no matches → no shift; the shift is on the 1/16in grid; definition-local
-  positions untouched.
+- **Keeping parts in place:** with `centre: false`, a design widened on one side keeps every
+  untouched part's position exactly; the floor rule still applies; Generate's default still centres.
 - **Grain:** a matched part keeps its grain; an added part gets `'length'`; an invalid injected
   grain is ignored; carry-over precedes linking (two legs with the original's equal grains link).
 - **`diffDesigns`:** each change kind; a placement move reported once; `copies` merging; a rename
