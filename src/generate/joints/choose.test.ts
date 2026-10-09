@@ -369,6 +369,19 @@ describe('validChoice (strict — review focus 3)', () => {
     expect(validChoice({ site: s.id, joint: 'dado', depth: 0.125 - 1 / 16 }, s, SIDE_SHELF)).toBe(false);
     expect(validChoice({ site: s.id, joint: 'dado' }, s, SIDE_SHELF)).toBe(false);
   });
+  it('compares bounds within GATE_TOLERANCE: a last-bit read-back passes, 1e-6 or 1/16 past does not, non-finite never', () => {
+    const [s] = findSites(SIDE_SHELF);
+    const [lo, hi] = rangesOf(s, SIDE_SHELF).dadoDepth;
+    const ok = (depth: number) => validChoice({ site: s.id, joint: 'dado', depth }, s, SIDE_SHELF);
+    expect([ok(hi + 1e-12), ok(lo - 1e-12), ok(hi + 1.8e-15)]).toEqual([true, true, true]);
+    expect([ok(hi + 1e-6), ok(lo - 1e-6), ok(hi + 1 / 16), ok(lo - 1 / 16)]).toEqual([false, false, false, false]);
+    expect([ok(NaN), ok(Infinity), ok(-Infinity)]).toEqual([false, false, false]);
+    const [t] = findSites(LEG_RAIL);
+    const top = rangesOf(t, LEG_RAIL).tenonLength[1];
+    expect(validChoice({ site: t.id, joint: 'mortise-tenon', tenonLength: top + 1e-12 }, t, LEG_RAIL)).toBe(true);
+    expect(validChoice({ site: t.id, joint: 'mortise-tenon', tenonLength: DEFAULT_MIN_TENON - 1e-12 }, t, LEG_RAIL)).toBe(true);
+    expect(validChoice({ site: t.id, joint: 'mortise-tenon', tenonLength: DEFAULT_MIN_TENON - 1e-6 }, t, LEG_RAIL)).toBe(false);
+  });
   it('checks a rabbet’s depth against its range', () => {
     const CASE_BACK = flatOf([['Side', [0, 0, 0], [0.75, 30, 12]], ['Back', [0, 0, -0.25], [12, 30, 0.25]]]);
     const s = findSites(CASE_BACK).find((x) => x.allowed.includes('rabbet'))!;

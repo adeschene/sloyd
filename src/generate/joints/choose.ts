@@ -5,6 +5,7 @@ import { boxOf } from './pocket';
 import { tenonSection } from './recipes';
 import type { JointChoice } from './recipes';
 import { rangesOf, siteLabel, stopLabel } from './sites';
+import { GATE_TOLERANCE } from './unjoin';
 import type { JointKind, Site, StopEnd } from './sites';
 
 const JOINTS: JointKind[] = ['mortise-tenon', 'dado', 'stopped-dado', 'rabbet', 'half-lap', 'butt'];
@@ -265,13 +266,17 @@ export function parseChoices(json: unknown, sites: Site[], doc: FlatDocument): {
  * inside rangesOf (a tenon's floor lowered to DEFAULT_MIN_TENON), a stopped dado's end one of the site's stop ends? The same
  * sources parseChoices validates against, but STRICT: parseChoices clamps a
  * model's answer; a KEPT joint must reproduce its geometry exactly, so an
- * out-of-range one is re-chosen instead (refine-joined spec §4). An empty
- * range (lo > hi, where nothing fits) admits no value.
+ * out-of-range one is re-chosen instead (refine-joined spec §4). Bounds hold
+ * within GATE_TOLERANCE. An empty range (lo > hi, where nothing fits) admits no value.
  */
 export function validChoice(c: JointChoice, s: Site, doc: FlatDocument): boolean {
   if (!s.allowed.includes(c.joint)) return false;
   const r = rangesOf(s, doc);
-  const within = (v: number | undefined, [lo, hi]: [number, number]) => typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;
+  // Bounds within the gate's tolerance (refine-joined spec §4): a recorded size is read back from
+  // world coordinates, so one at a range end can come back off in the last bit (a metric dado at its
+  // maximum read back as 0.3125000000000018). A real difference is 1/16in. Missing or non-finite is never valid.
+  const within = (v: number | undefined, [lo, hi]: [number, number]) =>
+    typeof v === 'number' && Number.isFinite(v) && v >= lo - GATE_TOLERANCE && v <= hi + GATE_TOLERANCE;
   switch (c.joint) {
     // Joinery's own defaults go down to DEFAULT_MIN_TENON under the model's floor (fu 188), so a
     // kept default is valid there too (refine-joined spec §4). The upper bound is the range's.

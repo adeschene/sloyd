@@ -624,6 +624,30 @@ describe('runRefine — joined designs', () => {
     expect(sameJoined(flatDocument(out.doc), flatDocument(thinJoined))).toBe(true);
   });
 
+  it('keeps a metric dado at its range maximum whose read-back is off in the last bit: ONE call (validChoice within GATE_TOLERANCE)', async () => {
+    const mm = (v: number) => v / 25.4;
+    const parts = [bp('Side', [3.3, 0, 0], [mm(18), mm(720), mm(300)]), bp('Shelf', [3.3 + mm(18), 3.3 + mm(250), 0], [mm(564), mm(18), mm(300)]),
+      bp('Right side', [3.3 + mm(582), 0, 0], [mm(18), mm(720), mm(300)])];   // two sides, so the piece does not tip (part-less problems are always new)
+    const nums = new Set(parts.flatMap((q) => [q.at.x, q.at.y, q.at.z, q.size.x, q.size.y, q.size.z]));
+    const mf = flatDocument(designToDocument({ name: 'Metric', assemblies: [], parts }, { exact: nums }).doc);
+    const ms = findSites(mf);
+    const dado = ms.find((s) => mf.boards[s.enter].name === 'Shelf' && mf.boards[s.receive].name === 'Side')!;
+    const max = rangesOf(dado, mf).dadoDepth[1];
+    const mj: SloydDocument = migrateDocument(applyJoints(mf, ms, ms.map((s) => (s.id === dado.id ? { site: s.id, joint: 'dado' as const, depth: max } : { site: s.id, joint: 'butt' as const }))).doc);
+    // The fixture: the recorded depth reads back just past the range maximum.
+    const base = plainForRefine(mj);
+    if ('refused' in base) throw new Error(base.refused.message);
+    const rec = base.joints!.find((j) => j.enter === 'Shelf')!;
+    expect(rec.choice.depth! > max).toBe(true);
+    expect(rec.choice.depth! - max).toBeLessThan(1e-9);
+    const { client } = fakeClient([plainEcho(mj), { joints: [] }]);
+    const out = await go(client, mj);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(client.complete).toHaveBeenCalledTimes(1);
+    expect(out.joints).toMatchObject({ kept: 1, chosen: 0, dropped: 0 });
+    expect(sameJoined(flatDocument(out.doc), flatDocument(mj))).toBe(true);
+  });
+
   describe('a problem the ORIGINAL joined design already had (spec §4 Issues)', () => {
     // Two rails tenoned 1.25in into one leg: the tenons collide (Rail Z passes into Rail X). The base
     // plate keeps the piece from tipping, so the only part-less check (tips) stays quiet. Leg→Base is
