@@ -1,6 +1,6 @@
 # Sloyd — repair doubled joints (follow-up 240)
 
-**Date:** 2026-10-09 · **Status:** approved 2026-10-09; amended while planning, from fixtures made
+**Date:** 2026-10-09 · **Status:** approved 2026-10-09; amended after the final review (§2 step 4: strays share storage); amended while planning, from fixtures made
 with the buggy code (§1 damage shape, §2 evidence rule, §3 wording, §4 fixtures 3 and 5).
 **Builds on:**
 - **Refine joined** (`2026-10-09-sloyd-refine-joined-design.md`): `unjoin`, `gateUnjoin`,
@@ -69,7 +69,13 @@ own pockets from their own world positions, so an exact compare would miss last-
    nothing enters (amended while planning: without this, a joined part SHORTENED by hand leaves its
    own pocket unexplained, its twin's identical pocket explained, and the repair would delete a
    pocket the part still fills; measured during execution, a LENGTHENED one is refused by step 5's
-   re-join match instead). Any other unexplained cut → refuse.
+   re-join match instead). AND the twin must be the SAME STORED part — its placements resolve to the
+   same definition (amended after the final review, the user's ruling): the bug's phantom sits in
+   the part its twin's joint was written into, so a matching empty pocket on a part stored apart
+   (a copy Made Unique and then edited by hand) is not the bug's and gets no note. Duplicates
+   (step 2) still count on any twin, stored together or not (fixture 3). Cost, accepted: a phantom
+   in an assembly the buggy write-back had ALSO split for another reason is refused, not repaired.
+   Any other unexplained cut → refuse.
 5. **Prune and reorder.** Remove the duplicates and strays. Re-join `plain` with `joints` exactly as
    `gateUnjoin` does; reorder each part's surviving cuts to that re-join's order, matching by cut
    equality, keeping the STORED cut objects (values and ids). Nothing else changes: positions,
