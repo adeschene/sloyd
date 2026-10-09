@@ -1,6 +1,7 @@
 # Sloyd — repair doubled joints (follow-up 240)
 
-**Date:** 2026-10-09 · **Status:** draft for review.
+**Date:** 2026-10-09 · **Status:** approved 2026-10-09; amended while planning, from fixtures made
+with the buggy code (§1 damage shape, §2 evidence rule, §3 wording, §4 fixtures 3 and 5).
 **Builds on:**
 - **Refine joined** (`2026-10-09-sloyd-refine-joined-design.md`): `unjoin`, `gateUnjoin`,
   `GATE_TOLERANCE`, `sameJoined`. Every rule there holds unless this document says otherwise.
@@ -15,8 +16,11 @@
 definition placed two or more times) pushed every joint's cuts into ONE array shared by all
 copies of a part. After write-back each copy carries the joint cuts of every copy:
 - a joint every copy has appears **twice** (a duplicated mortise, dado or waste strip);
-- a joint only one copy has appears in the others as a **phantom** — a pocket nothing enters, or
-  waste cuts on a part that was never lengthened.
+- a joint only one copy has appears in the others as a **phantom** — a pocket nothing enters.
+
+*Measured while planning:* only RECEIVING parts' pockets were doubled. The entering part's waste
+cuts were never aliased (a lengthened part got its own cuts array), so no copy carries another's
+tenon shoulders.
 
 Affected: projects joined between the assemblies deploy (2026-10-06) and the refine-joined deploy
 (2026-10-09) that have shared assemblies. Linked parts (Shapes) were never affected: `resolveBoard`
@@ -68,7 +72,10 @@ own pockets from their own world positions, so an exact compare would miss last-
    ruling; a re-emitted number could split a cut-list row, invariant 18). A surviving cut with no
    match in the re-join → refuse.
 6. **Prove.** The repaired flat document must pass `gateUnjoin` unchanged. Otherwise refuse.
-7. Steps 2 and 4 removed nothing → `null`.
+7. **Evidence first** (amended while planning): steps 4–6 apply only when step 2 removed a cut or
+   step 4 found at least one twin stray. With neither, return `null` even if other cuts are
+   unexplained: that design was not damaged by this bug (a joined design with a hand-added cut is
+   Refine's gate refusal, not a repair refusal), and the dialogs say nothing about repair.
 
 `dropped` = cuts removed in steps 2 and 4, counted per flat part (a stray shared by two flat copies
 of one stored part counts twice; the count is what the user would see on the cut list).
@@ -84,8 +91,9 @@ A repaired project passes Refine's gate (step 6), so Refine works on it afterwar
 ## 3. The dialogs
 
 **Detection** runs only when the Refine or Joinery dialog opens, once per document (memoised like
-`refineInfo`): when `plainForRefine` refuses for joints, `repairJoints(flatDocument(doc))` runs.
-Never at load, never per edit.
+`refineInfo`). Refine: when `plainForRefine` refuses for joints, the repair runs. Joinery: the repair
+runs directly (its pre-check and evidence rule make it `null` for every undamaged design). Never at
+load, never per edit.
 
 **Repair note**, in both dialogs whenever `repairJoints` returns a repair:
 
@@ -104,7 +112,8 @@ Never at load, never per edit.
 2. `storage.createProject(repaired, { activate: false })` (invariant 36), named
    `<name> — repaired`. A repaired project is no longer damaged, so the button cannot appear on it
    and the suffix cannot compound (unlike fu 237).
-3. The dialog shows `Saved "<name> — repaired" — <N> stray cuts removed.` with **[Open]**, which
+3. The dialog shows `Saved as '<name> — repaired' — <N> stray cuts removed.` (the other dialogs'
+   quoting) with **[Open]**, which
    goes through the existing `openProject` (invariant 32). The original is untouched.
 4. When the write-back split an assembly: `Copies of <assembly> no longer match, so they are no longer shared.`
    (one line per split definition, by its first placement's name).
@@ -124,13 +133,22 @@ fix), a throwaway test builds plain designs with shared assemblies, runs THAT co
 Committed under `src/generate/joints/fixtures/` with a README naming the commit and the script
 (the script itself is kept beside the fixtures, not run by `npm test`). The worktree is deleted.
 
-1. Two shared frames joined by mortise-tenon — duplicates only.
-2. A shelf meeting only one copy — phantom pockets in the other copy, definition still shared.
-3. A copy placed at a 90° turn — last-bit differences between twins.
-4. Dados, a stopped dado and a rabbeted back inside a shared assembly — every kind.
-5. An entering part entering in only one copy — stray waste cuts on the un-lengthened twin; the
-   definition was split by the original write-back.
-6. A nested shared assembly (a copy inside a copy).
+1. Two shared frames joined by mortise-tenon — duplicates only. `dropped` 2.
+2. A stretcher entering only the Front copy's leg — a phantom mortise in the Back leg, definition
+   still shared. `dropped` 3.
+3. Two shared METRIC frames (values restored by hand after `designToDocument`'s 1/16in snap) at
+   off-grid spots, the second turned 90° — the twins' pockets differ in the last bit, so an exact
+   compare keeps both; the buggy write-back had already split the definition (on last-bit rail
+   differences) yet each copy still carries both mortises. `dropped` 2.
+4. Dados, a stopped dado and a rabbeted back inside a shared case — every kind. `dropped` 12.
+5. A shared rail entering a loose post in one copy only — joined by the buggy code yet UNDAMAGED
+   (waste cuts were never aliased): `repairJoints` returns `null`.
+6. A shared bench (two shared frames inside) placed twice — four copies through two levels.
+   `dropped` 12.
+
+Measured: every damaged fixture's stored cut order already matches the re-join after pruning, so
+the reorder (§2 step 5) is pinned by a synthetic input: a damaged fixture with one part's stored
+cuts reversed.
 
 **`repairJoints`:**
 - **Independent oracle:** each repaired fixture equals today's `applyJoints` over the saved plain
@@ -138,19 +156,23 @@ Committed under `src/generate/joints/fixtures/` with a README naming the commit 
 - **Subtractive:** each repaired part equals its damaged part except cuts; every surviving cut is a
   stored cut object's values and id, unchanged.
 - `gateUnjoin` passes on every repaired result; `dropped` is exact per fixture.
-- **Write-back:** fixtures 1, 3, 4, 6 stay shared where the oracle's copies are identical; 2 splits.
-- **`null`:** a plain design; a design joined with TODAY's joinery including a shared assembly; a
-  joined design with no twins.
-- **Refuses:** a damaged fixture plus a hand-added cut; a design joined twice (dados, then
-  rabbets); a damaged fixture with a joined part resized by hand.
-- **Mutations:** no de-duplication → the oracle fails; accept any unexplained cut → the hand-cut
-  refusal fails; no reorder → the gate test fails; exact cut equality → fixture 3 fails; no
-  name condition → a test with two unrelated same-id parts fails.
+- **Write-back:** fixtures 1, 4 and 6 keep their definitions shared; 2 splits (its copies now
+  differ); 3 stays split as it was stored.
+- **`null`:** a plain design; fixture 5; a design joined with TODAY's joinery including a shared
+  assembly; the same with a hand-added cut (evidence rule); an unrelated part sharing a twin's id
+  but not its name, carrying a copy of the twin's mortise (name condition).
+- **Refuses:** a damaged fixture plus a hand-added cut; a damaged fixture joined again with
+  rabbets over its dados; a damaged fixture with a joined part resized by hand.
+- **Mutations:** no de-duplication → the oracle fails (a doubled pocket hides its joint from the
+  reader); accept any unexplained cut → the hand-cut refusal fails; no reorder → the reversed-cuts
+  test fails; exact cut equality everywhere → fixture 3 fails; no name condition → the
+  same-id test fails; drop the evidence rule → the today's-joinery-plus-hand-cut test fails.
 - `unjoin`'s and `gateUnjoin`'s existing tests stay green unmodified.
 
 **UI:** Refine shows the note in place of the gate message; Joinery shows the warning; a refused
 repair shows its text; `onRepair` calls `createProject` with `activate: false`, then the done line
-and Open; the split line for fixture 2; the button works without a key.
+and Open; the split line for fixture 2; the button works without a key; Joinery shows nothing for
+an undamaged design.
 
 **Live check (dev server, no paid runs):** import fixture 2 into the dev profile, open Refine,
 confirm the note, click Repair joints; confirm in storage that the new project lacks the phantom
