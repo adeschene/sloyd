@@ -314,9 +314,12 @@ synthetically). Self-review added the evidence rule (designs not damaged this wa
 and the emptiness rule (a stray must be a pocket nothing occupies). Found during execution:
 `applyJoints`' own `migrateDocument` re-mints `/` ids, so tests of "today's joinery" must go through
 `writeBackFlat` as the app does, or they pass at the pre-check for the wrong reason; and only a
-SHORTENED hand-resized part needs the emptiness rule (a lengthened one fails the re-join match). Live
+SHORTENED hand-resized part needs the emptiness rule (a lengthened one fails the re-join match). The
+final review found an undamaged design that still got the note (a copy Made Unique, then its rail
+deleted, leaves an empty mortise matching the other copy's); the user ruled that a stray's twin must
+be the same stored part (`storedKeys`). Live
 check (`docs/browser-verification-repair-joints.md`): fixture 2 imported, repaired from Refine (3
-stray cuts, Front/Back split), the repaired project passes the gate. Tests 2486 → 2555.
+stray cuts, Front/Back split), the repaired project passes the gate. Tests 2486 → 2558.
 
 **What the refine-joined round did (2026-10-09)**: follow-up 238, refining designs with joints, with a
 spec and plan (`docs/superpowers/specs/2026-10-09-sloyd-refine-joined-design.md`). **No schema

@@ -24,7 +24,7 @@ handicraft education tradition built around hand woodworking.
 - **Production matches `master`** as of 2026-10-09: the refine-joined round, bundle
   `index-CJdGZH0r.js`, CSS `index-QQ-rJZea.css`, merge `bb238f9`, **schema 11** (unchanged).
   Test count is under Commands.
-- **Pending deploy: the repair-joints round (fu 240) is merged, not deployed.** NO SUCCESSOR IS
+- **Pending deploy: the repair-joints round (fu 240) is on `master`, not deployed.** NO SUCCESSOR IS
   CHOSEN: ask what to work on; do not pick. Open near the recent code: 236 (estimate under-reads),
   237 (refined-name compounding), 241–243, 215 (posture handedness, a question),
   205/206 (joinery's safe refusals), 221, 225–235. See Open follow-ups below.
@@ -223,8 +223,8 @@ src/
 │                     joints/{pocket,sites,recipes,choose,unjoin,repair}.ts (inv 41); unjoin + gateUnjoin
 │                     read joints back, proved by an exact (1e-9in) re-join (readJoints = the lenient
 │                     body); runJoinery's `fixed` keeps recorded joints passing validChoice, `alsoPresent`
-│                     = original's problems; repair.ts = fu 240's prune-and-prove (twin strays must be
-│                     empty; evidence rule); joints/fixtures/ = damaged docs made by the buggy 4a340f7
+│                     = original's problems; repair.ts = fu 240's prune-and-prove (a stray must be empty
+│                     and its twin the same stored part; evidence rule); joints/fixtures/ = damaged docs made by the buggy 4a340f7
 ├── useGenerations.ts, useJoinery.ts, useRefine.ts, useRepair.ts   write only via createProject(…, {activate:false}) (inv 36)
 ├── viewport/         NO unit tests by design. Viewport, BoardMesh (inv 21), MoveTool +
 │                     moveCandidates, TapeTool, Gizmo (invs 3, 10, 42), GuideMarkers,
@@ -486,7 +486,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 2555 tests across 87 files
+npm test           # Vitest, currently 2558 tests across 87 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -495,7 +495,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–231, each with its closure). Read the entries
+**`docs/follow-ups.md` is authoritative** (1–243, each with its closure). Read the entries
 for the area you are about to touch; several are "correct but untested". Open items worth
 knowing without opening it:
 

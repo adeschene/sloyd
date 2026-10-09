@@ -46,3 +46,9 @@ re-opened; the profile's 16 older projects and its key are untouched (read back)
 ## Not confirmed live
 
 The refused-repair text, a storage failure, nested and turned fixtures (unit tests only).
+
+## After the final review
+
+The storage rule (a stray's twin must be the same stored part, `04a795d`) landed after this check.
+Fixture 2's phantom is in the same stored part as its twin, and its unit tests (same 3 cuts, same
+split) pass unchanged, so the check was not repeated.
