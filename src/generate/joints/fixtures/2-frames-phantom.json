@@ -1,0 +1,355 @@
+{
+ "about": "Two shared frames plus a loose stretcher entering the Front leg only: phantom mortise in the Back leg.",
+ "plain": {
+  "version": 11,
+  "name": "Frames",
+  "units": {
+   "display": "imperial-fractional",
+   "precision": 16
+  },
+  "stock": {
+   "kerf": 0.125
+  },
+  "guides": [],
+  "boards": [
+   {
+    "id": "b_mv1gdpk7_k",
+    "name": "Stretcher",
+    "position": [
+     -14.875,
+     10,
+     -15.375
+    ],
+    "rotation": 0,
+    "length": 10,
+    "width": 3,
+    "thickness": 0.75,
+    "posture": "on-edge",
+    "grain": "length",
+    "material": "oak",
+    "cuts": []
+   }
+  ],
+  "instances": [
+   {
+    "id": "b_mv1gdpk7_o",
+    "name": "Front",
+    "definition": "b_mv1gdpk7_n",
+    "position": [
+     -4.875,
+     0,
+     -15.875
+    ],
+    "rotation": 0
+   },
+   {
+    "id": "b_mv1gdpk7_p",
+    "name": "Back",
+    "definition": "b_mv1gdpk7_n",
+    "position": [
+     -4.875,
+     0,
+     14.125
+    ],
+    "rotation": 0
+   }
+  ],
+  "definitions": [
+   {
+    "id": "b_mv1gdpk7_n",
+    "boards": [
+     {
+      "id": "b_mv1gdpk7_l",
+      "name": "Leg",
+      "position": [
+       0,
+       0,
+       0
+      ],
+      "rotation": 0,
+      "length": 28,
+      "width": 1.75,
+      "thickness": 1.75,
+      "posture": "upright",
+      "grain": "length",
+      "material": "oak",
+      "cuts": []
+     },
+     {
+      "id": "b_mv1gdpk7_m",
+      "name": "Rail",
+      "position": [
+       1.75,
+       23.5,
+       0.5
+      ],
+      "rotation": 0,
+      "length": 18,
+      "width": 3,
+      "thickness": 0.75,
+      "posture": "on-edge",
+      "grain": "length",
+      "material": "oak",
+      "cuts": []
+     }
+    ],
+    "instances": []
+   }
+  ],
+  "shapes": []
+ },
+ "choices": [
+  {
+   "enter": "Stretcher",
+   "receive": "Front › Leg",
+   "axis": 0,
+   "side": 1,
+   "choice": {
+    "joint": "mortise-tenon",
+    "tenonLength": 1.1875
+   }
+  },
+  {
+   "enter": "Front › Rail",
+   "receive": "Front › Leg",
+   "axis": 0,
+   "side": -1,
+   "choice": {
+    "joint": "mortise-tenon",
+    "tenonLength": 1.1875
+   }
+  },
+  {
+   "enter": "Back › Rail",
+   "receive": "Back › Leg",
+   "axis": 0,
+   "side": -1,
+   "choice": {
+    "joint": "mortise-tenon",
+    "tenonLength": 1.1875
+   }
+  }
+ ],
+ "damaged": {
+  "version": 11,
+  "name": "Frames",
+  "units": {
+   "display": "imperial-fractional",
+   "precision": 16
+  },
+  "stock": {
+   "kerf": 0.125
+  },
+  "guides": [],
+  "boards": [
+   {
+    "id": "b_mv1gdpk7_k",
+    "name": "Stretcher",
+    "position": [
+     -14.875,
+     10,
+     -15.375
+    ],
+    "rotation": 0,
+    "length": 11.1875,
+    "width": 3,
+    "thickness": 0.75,
+    "posture": "on-edge",
+    "grain": "length",
+    "material": "oak",
+    "cuts": [
+     {
+      "id": "b_mv1gdpk9_q",
+      "face": "thickness",
+      "from": "min",
+      "across": "width",
+      "offset": 10,
+      "width": 1.1875,
+      "depth": 0.25,
+      "stopMin": 0,
+      "stopMax": 0
+     },
+     {
+      "id": "b_mv1gdpk9_r",
+      "face": "thickness",
+      "from": "max",
+      "across": "width",
+      "offset": 10,
+      "width": 1.1875,
+      "depth": 0.25,
+      "stopMin": 0,
+      "stopMax": 0
+     },
+     {
+      "id": "b_mv1gdpk9_s",
+      "face": "width",
+      "from": "min",
+      "across": "thickness",
+      "offset": 10,
+      "width": 1.1875,
+      "depth": 0.5,
+      "stopMin": 0,
+      "stopMax": 0
+     },
+     {
+      "id": "b_mv1gdpk9_t",
+      "face": "width",
+      "from": "max",
+      "across": "thickness",
+      "offset": 10,
+      "width": 1.1875,
+      "depth": 0.5,
+      "stopMin": 0,
+      "stopMax": 0
+     }
+    ]
+   }
+  ],
+  "instances": [
+   {
+    "id": "b_mv1gdpk7_o",
+    "name": "Front",
+    "definition": "b_mv1gdpk7_n",
+    "position": [
+     -4.875,
+     0,
+     -15.875
+    ],
+    "rotation": 0
+   },
+   {
+    "id": "b_mv1gdpk7_p",
+    "name": "Back",
+    "definition": "b_mv1gdpk7_n",
+    "position": [
+     -4.875,
+     0,
+     14.125
+    ],
+    "rotation": 0
+   }
+  ],
+  "definitions": [
+   {
+    "id": "b_mv1gdpk7_n",
+    "boards": [
+     {
+      "id": "b_mv1gdpk7_l",
+      "name": "Leg",
+      "position": [
+       0,
+       0,
+       0
+      ],
+      "rotation": 0,
+      "length": 28,
+      "width": 1.75,
+      "thickness": 1.75,
+      "posture": "upright",
+      "grain": "length",
+      "material": "oak",
+      "cuts": [
+       {
+        "id": "b_mv1gdpk9_u",
+        "face": "width",
+        "from": "min",
+        "across": "length",
+        "offset": 0.75,
+        "width": 0.25,
+        "depth": 1.1875,
+        "stopMin": 10.5,
+        "stopMax": 15.5
+       },
+       {
+        "id": "b_mv1gdpkb_z",
+        "face": "width",
+        "from": "max",
+        "across": "length",
+        "offset": 0.75,
+        "width": 0.25,
+        "depth": 1.1875,
+        "stopMin": 24,
+        "stopMax": 2
+       },
+       {
+        "id": "b_mv1gdpkd_14",
+        "face": "width",
+        "from": "max",
+        "across": "length",
+        "offset": 0.75,
+        "width": 0.25,
+        "depth": 1.1875,
+        "stopMin": 24,
+        "stopMax": 2
+       }
+      ]
+     },
+     {
+      "id": "b_mv1gdpk7_m",
+      "name": "Rail",
+      "position": [
+       0.5625,
+       23.5,
+       0.5
+      ],
+      "rotation": 0,
+      "length": 19.1875,
+      "width": 3,
+      "thickness": 0.75,
+      "posture": "on-edge",
+      "grain": "length",
+      "material": "oak",
+      "cuts": [
+       {
+        "id": "b_mv1gdpka_v",
+        "face": "thickness",
+        "from": "min",
+        "across": "width",
+        "offset": 0,
+        "width": 1.1875,
+        "depth": 0.25,
+        "stopMin": 0,
+        "stopMax": 0
+       },
+       {
+        "id": "b_mv1gdpka_w",
+        "face": "thickness",
+        "from": "max",
+        "across": "width",
+        "offset": 0,
+        "width": 1.1875,
+        "depth": 0.25,
+        "stopMin": 0,
+        "stopMax": 0
+       },
+       {
+        "id": "b_mv1gdpka_x",
+        "face": "width",
+        "from": "min",
+        "across": "thickness",
+        "offset": 0,
+        "width": 1.1875,
+        "depth": 0.5,
+        "stopMin": 0,
+        "stopMax": 0
+       },
+       {
+        "id": "b_mv1gdpkb_y",
+        "face": "width",
+        "from": "max",
+        "across": "thickness",
+        "offset": 0,
+        "width": 1.1875,
+        "depth": 0.5,
+        "stopMin": 0,
+        "stopMax": 0
+       }
+      ]
+     }
+    ],
+    "instances": []
+   }
+  ],
+  "shapes": []
+ }
+}
