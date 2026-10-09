@@ -1,7 +1,8 @@
-import { worldParts } from './tree';
+import { NAME_SEPARATOR, worldParts } from './tree';
+import { flatDocument, migrateDocument } from './document';
 import { describe, expect, it } from 'vitest';
 import { designToDocument, orient, parseDesign, DESIGN_SCHEMA } from './generated';
-import type { GeneratedDesign, GeneratedPart } from './generated';
+import type { GeneratedAssembly, GeneratedDesign, GeneratedPart } from './generated';
 import { boardExtents } from './geometry';
 import { MATERIALS } from './types';
 import type { Board } from './types';
@@ -107,6 +108,99 @@ describe('designToDocument', () => {
     const { doc } = designToDocument(design(part('A', [0, 0, 0], [10, 1, 1])));
     expect(worldParts(doc)[0].cuts).toEqual([]);
     expect(worldParts(doc)[0].grain).toBe('length');
+  });
+});
+
+const asm = (name: string, parts: GeneratedPart[], ...placements: [string, [number, number, number]][]): GeneratedAssembly => ({
+  name, parts, placements: placements.map(([n, at]) => ({ name: n, at: v(...at) })),
+});
+const withAsm = (parts: GeneratedPart[], ...assemblies: GeneratedAssembly[]): GeneratedDesign => ({ name: 'Test', parts, assemblies });
+const FRONT = part('Front', [0, 0, 0], [10, 4, 0.75]);
+
+describe('designToDocument — assemblies', () => {
+  it('places every copy at origin + local, after snap and centre', () => {
+    const { doc } = designToDocument(withAsm([], asm('Drawer', [FRONT], ['Drawer 1', [0, 0, 0]], ['Drawer 2', [0, 5.01, 0]])));
+    // x 0..10 → shift -5; z 0..0.75 → shift -0.375 (6/16, on the grid); y min 0.
+    expect(worldParts(doc).map((b) => b.position)).toEqual([[-5, 0, -0.375], [-5, 5, -0.375]]);
+  });
+
+  it('never shifts definition-local coordinates', () => {
+    const { doc } = designToDocument(withAsm([part('Base', [40, 0, 40], [4, 1, 4])], asm('Drawer', [FRONT], ['D', [0, 3, 0]])));
+    expect(doc.definitions[0].boards[0].position).toEqual([0, 0, 0]);
+  });
+
+  it('works when the local min corner is not at the origin (review focus 1)', () => {
+    const local = part('Front', [5, 0, 5], [10, 4, 0.75]);
+    const { doc } = designToDocument(withAsm([], asm('Drawer', [local], ['A', [0, 0, 0]], ['B', [20, 0, 0]])));
+    const xs = worldParts(doc).map((b) => b.position[0]);
+    // world x spans 5..35 → centred → -15..15
+    expect(xs).toEqual([-15, 5]);
+    expect(Math.min(...worldParts(doc).map((b) => b.position[1]))).toBe(0);
+  });
+
+  it('shares one definition across placements, unturned', () => {
+    const { doc } = designToDocument(withAsm([], asm('Drawer', [FRONT], ['A', [0, 0, 0]], ['B', [0, 5, 0]], ['C', [0, 10, 0]])));
+    expect(doc.definitions).toHaveLength(1);
+    expect(doc.instances.map((i) => i.definition)).toEqual(Array(3).fill(doc.definitions[0].id));
+    expect(doc.instances.every((i) => i.rotation === 0)).toBe(true);
+  });
+
+  it('dedupes a placement name against a loose part (review focus 2)', () => {
+    const { doc, authored } = designToDocument(withAsm([part('Drawer', [30, 0, 0], [4, 1, 4])], asm('Drawer', [FRONT], ['Drawer', [0, 0, 0]])));
+    const flatNames = flatDocument(doc).boards.map((b) => b.name);
+    expect(new Set(flatNames).size).toBe(flatNames.length);
+    for (const n of flatNames) expect(authored.parts.has(n)).toBe(true);
+  });
+
+  it('dedupes three placements all named "Drawer", and the index follows (review focus 2)', () => {
+    const { doc, authored } = designToDocument(withAsm([], asm('Drawer', [FRONT], ['Drawer', [0, 0, 0]], ['Drawer', [0, 5, 0]], ['Drawer', [0, 10, 0]])));
+    const stored = doc.instances.map((i) => i.name);
+    expect(new Set(stored).size).toBe(3);
+    expect(authored.placements.get('Drawer')).toEqual(stored);
+    expect([...authored.parts.keys()].sort()).toEqual(flatDocument(doc).boards.map((b) => b.name).sort());
+  });
+
+  it('indexes every flat display name back to what the model wrote', () => {
+    const { doc, authored } = designToDocument(withAsm(
+      [part('Top', [0, 10, 0], [20, 1, 20])],
+      asm('Drawer', [FRONT, part('Side', [0, 0, 0.75], [0.75, 4, 10])], ['Upper', [0, 5, 0]], ['Lower', [0, 0, 0]]),
+    ));
+    const flat = flatDocument(doc).boards.map((b) => b.name).sort();
+    expect([...authored.parts.keys()].sort()).toEqual(flat);
+    expect(authored.parts.get(`Upper${NAME_SEPARATOR}Side`)).toEqual({ label: `Drawer${NAME_SEPARATOR}Side`, assembly: 'Drawer', placement: 'Upper' });
+    expect(authored.parts.get('Top')).toEqual({ label: 'Top', assembly: null, placement: null });
+    expect(authored.placements.get('Drawer')).toEqual(['Upper', 'Lower']);
+  });
+
+  it('keeps two same-named assemblies apart in the index (review focus 2)', () => {
+    const { authored } = designToDocument(withAsm([], asm('Box', [FRONT], ['A', [0, 0, 0]]), asm('Box', [FRONT], ['B', [20, 0, 0]])));
+    expect([...authored.placements.keys()]).toHaveLength(2);
+  });
+
+  it('drops an unplaced assembly and an all-rejected one, and says so', () => {
+    const { doc, rejected } = designToDocument(withAsm(
+      [part('Top', [0, 0, 0], [20, 1, 20])],
+      asm('Ghost', [FRONT]),
+      asm('Thin', [part('Sliver', [0, 0, 0], [10, 0.01, 1])], ['T', [0, 0, 0]]),
+    ));
+    expect(rejected).toEqual([
+      { name: 'Ghost', reason: 'unplaced' },
+      { name: `Sliver (in assembly Thin)`, reason: 'too-small' },
+      { name: 'Thin', reason: 'empty' },
+    ]);
+    expect(doc.definitions).toHaveLength(0);
+    expect(doc.instances).toHaveLength(0);
+  });
+
+  it('rejects a placement with a non-finite origin and keeps the others', () => {
+    const { doc, rejected } = designToDocument(withAsm([], asm('Drawer', [FRONT], ['Bad', [Number.NaN, 0, 0]], ['Good', [0, 0, 0]])));
+    expect(rejected).toEqual([{ name: 'Bad (placement of Drawer)', reason: 'not-finite' }]);
+    expect(doc.instances.map((i) => i.name)).toEqual(['Good']);
+  });
+
+  it('survives another migrateDocument unchanged', () => {
+    const { doc } = designToDocument(withAsm([part('Top', [0, 10, 0], [20, 1, 20])], asm('Drawer', [FRONT], ['A', [0, 0, 0]], ['B', [0, 5, 0]])));
+    expect(migrateDocument(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
   });
 });
 

@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useJoinery } from './useJoinery';
+import { flatDocument } from './document/document';
 import { designToDocument } from './document/generated';
 import { findSites } from './generate/joints/sites';
 import { LlmError } from './llm/types';
@@ -10,10 +11,10 @@ import { storage } from './storage/browser';
 vi.mock('./storage/browser', () => ({ storage: { available: true, createProject: vi.fn() } }));
 const createProject = storage.createProject as unknown as ReturnType<typeof vi.fn>;
 const usage = { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0 };
-const doc = designToDocument({ name: 'Bench', parts: [
+const doc = flatDocument(designToDocument({ name: 'Bench', parts: [
   { name: 'Leg', material: 'oak', at: { x: 0, y: 0, z: 0 }, size: { x: 1.75, y: 28, z: 1.75 } },
   { name: 'Rail', material: 'oak', at: { x: 1.75, y: 23.5, z: 0.5 }, size: { x: 18, y: 3, z: 0.75 } },
-] }).doc;
+] }).doc);
 const answer = { joints: findSites(doc).map((s) => ({ site: s.id, joint: 'mortise-tenon', tenonLength: 1 })) };
 const client = (complete: LlmClient['complete']): LlmClient => ({ complete: vi.fn(complete), userTurn: (t) => t, estimateCostUsd: () => 0.02 });
 const ok = async (): Promise<LlmResult> => ({ json: answer, assistantTurn: {}, usage });

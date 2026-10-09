@@ -2,7 +2,7 @@ import { worldParts } from '../../document/tree';
 import { describe, expect, it, vi } from 'vitest';
 import { designToDocument } from '../../document/generated';
 import type { SloydDocument } from '../../document/document';
-import { groupItems, sharedOf } from '../../document/document';
+import { flatDocument, groupItems, sharedOf } from '../../document/document';
 import { LlmError } from '../../llm/types';
 import type { LlmClient, LlmResult } from '../../llm/types';
 import { runJoinery } from '../run';
@@ -15,10 +15,10 @@ vi.mock('./recipes', async (orig) => {
 });
 
 type P = { name: string; at: [number, number, number]; size: [number, number, number] };
-const design = (...parts: P[]) => designToDocument({
+const design = (...parts: P[]) => flatDocument(designToDocument({
   name: 'T',
   parts: parts.map((p) => ({ name: p.name, material: 'oak', at: { x: p.at[0], y: p.at[1], z: p.at[2] }, size: { x: p.size[0], y: p.size[1], z: p.size[2] } })),
-}).doc;
+}).doc);
 const usage = { inputTokens: 10, outputTokens: 5, cacheReadTokens: 0, cacheWriteTokens: 0 };
 const client = (...answers: (unknown | Error)[]): LlmClient => {
   let i = 0;

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { MAX_REPAIRS, RunFailed, problemKey, runGeneration, runRepairLoop } from './run';
 import type { GenerateSettings } from './prompt';
 import { LlmError } from '../llm/types';
+import { flatDocument } from '../document/document';
 import { designToDocument } from '../document/generated';
 import { checkDesign } from '../document/designCheck';
 import type { LlmClient, LlmRequest, LlmResult } from '../llm/types';
@@ -55,6 +56,15 @@ describe('runGeneration', () => {
     expect(out.violations).toEqual([]);
     expect(out.doc.boards).toHaveLength(2);
     expect(client.complete).toHaveBeenCalledTimes(1);
+  });
+
+  it('accepts a design whose only parts are in an assembly', async () => {
+    const { client } = fakeClient([{ name: 'Only', parts: [], assemblies: [{
+      name: 'Shelf', parts: [{ ...p('Board', 0), role: '' }], placements: [{ name: 'S1', at: { x: 0, y: 0, z: 0 } }],
+    }] }]);
+    const out = await run(client);
+    expect(out.doc.name).toBe('Only');
+    expect(out.doc.instances).toHaveLength(1);
   });
 
   it(`stops at ${MAX_REPAIRS + 1} calls and still returns the best attempt`, async () => {
@@ -190,7 +200,7 @@ describe('runRepairLoop keepBestOnError', () => {
     system: 's', schema: {}, first: 'go',
     evaluate: (res: { json: unknown }) => {
       const doc = designToDocument(res.json as never)!.doc;
-      const violations = checkDesign(doc, { width: null, depth: null, height: null, maxParts: 50 });
+      const violations = checkDesign(flatDocument(doc), { width: null, depth: null, height: null, maxParts: 50 });
       return { value: { doc, violations }, feedback: 'fix' };
     },
   };

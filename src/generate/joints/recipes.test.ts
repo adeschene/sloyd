@@ -16,10 +16,10 @@ import { boxOf, pocketFor } from './pocket';
 import type { Site } from './sites';
 
 type P = { name: string; at: [number, number, number]; size: [number, number, number]; material?: string };
-const design = (...parts: P[]) => designToDocument({
+const design = (...parts: P[]) => flatDocument(designToDocument({
   name: 'T',
   parts: parts.map((p) => ({ name: p.name, material: p.material ?? 'oak', at: { x: p.at[0], y: p.at[1], z: p.at[2] }, size: { x: p.size[0], y: p.size[1], z: p.size[2] } })),
-}).doc;
+}).doc);
 const limits = (doc: FlatDocument) => ({ width: null, depth: null, height: null, maxParts: doc.boards.length });
 const board = (doc: FlatDocument, name: string) => worldParts(doc).find((b) => b.name === name)!;
 const volume = (doc: FlatDocument, name: string) => boardSolids(board(doc, name)).reduce(

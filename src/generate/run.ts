@@ -132,8 +132,10 @@ export async function runGeneration(
       if (!converted) return { value: null, feedback: unusableMessage(res.unusable ?? 'unparseable') };
       // Every part rejected: unusable, and never a `best` — a zero-board
       // document is not a prototype.
-      if (converted.doc.boards.length === 0) return { value: null, feedback: repairMessage(rejectedViolations(converted.rejected)) };
-      const violations = [...rejectedViolations(converted.rejected), ...checkDesign(converted.doc, limits)];
+      // Checks read the placed world (generate-assemblies spec §5.1); the TREE is what is kept.
+      const flat = flatDocument(converted.doc);
+      if (flat.boards.length === 0) return { value: null, feedback: repairMessage(rejectedViolations(converted.rejected)) };
+      const violations = [...rejectedViolations(converted.rejected), ...checkDesign(flat, limits)];
       return { value: { doc: converted.doc, violations }, feedback: repairMessage(violations) };
     },
   }, signal, onProgress);
