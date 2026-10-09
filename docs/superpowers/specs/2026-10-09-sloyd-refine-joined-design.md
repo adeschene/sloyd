@@ -120,14 +120,20 @@ refusals (turned, nested, too large) are judged on the PLAIN tree.
   model's answers against. `validChoice(choice, site, doc)` sits beside `parseChoices` in
   `choose.ts`. It is STRICT where `parseChoices` clamps (amended while planning): clamping a kept
   joint would silently change its geometry, so an out-of-range recorded joint is re-chosen instead.
-- The other sites (new, or recorded but no longer valid) go to the ONE chooser call
+- A site whose key existed on the ORIGINAL plain design but has no recorded joint was left butt (or
+  skipped) by joinery — butt leaves no cut, so nothing records it. It is a **fixed butt**: refining
+  never re-opens a meeting the user already had joined as butt (amended after Task 3 found an
+  unchanged refine turning a butt into a dado).
+- The other sites (genuinely new — absent from the original plain design — or recorded but no longer
+  valid) go to the ONE chooser call
   (`siteMessage` lists only them); its failure falls back to `defaultChoice` as today.
 - **No open sites → no call.** `applyJoints` runs once over all sites with fixed + chosen choices.
 - The repair loop is unchanged: only problems the JOINING introduced (invariant 41) drive repairs.
 - Without `fixed`, `runJoinery` behaves exactly as today (its tests stay green unmodified).
 
-**Counts** reported: `kept` (fixed and valid), `chosen` (sent to the model or defaulted), `dropped`
-(recorded joints with no site on the refined design), and joinery's own `skipped` with reasons.
+**Counts** reported: `kept` (recorded, non-butt joints re-applied and actually applied), `chosen`
+(open sites sent to the chooser, whatever it chose), `dropped` (recorded joints with no site on the
+refined design), and joinery's own `skipped` with reasons.
 
 **Change list.** `diffDesigns(originalJoined, refinedJoined)` — the user sees what changed between
 the projects they will compare. Cut changes are not itemised (joinery's summary covers them); a part
