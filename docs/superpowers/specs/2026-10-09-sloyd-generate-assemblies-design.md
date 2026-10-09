@@ -1,6 +1,6 @@
 # Sloyd — assemblies and components in generated prototypes
 
-**Date:** 2026-10-09 · **Status:** approved in conversation; spec awaiting review.
+**Date:** 2026-10-09 · **Status:** approved 2026-10-09; amended while planning (§2 role normalisation and optional TS fields, §3 step 1 placement rejection, §5.3 the "fix the assembly" conditions).
 **Builds on:**
 - **Generate** (`docs/superpowers/specs/2026-10-03-sloyd-generate-design.md`): the schema, the
   converter, `checkDesign`, the repair loop.
@@ -67,6 +67,11 @@ Part = { name, role, material, at, size }   // role: a short word ("leg", "side"
   still unusable. A design whose loose parts are empty but has assembly parts is usable.
 
 **`role` is conversion input only.** It never reaches a stored part, a shape, or the document.
+Roles are normalised (`trim().toLowerCase()`) before comparison, so "Leg" and " leg" are one role.
+
+`role` and `assemblies` are required of the MODEL (schema and `parseDesign`), but optional in the
+TypeScript input type of `designToDocument`, so the hand-built test fixtures that call it with flat
+literals stay terse. A value `parseDesign` returns always has both.
 
 ## 3. Converting to a document
 
@@ -75,7 +80,8 @@ Part = { name, role, material, at, size }   // role: a short word ("leg", "side"
 1. **Snap** every loose part, every assembly part and every placement origin to `SNAP_INCHES`
    (invariant 25: model output is a free value, like a drag). Finiteness and positive size are
    checked after the snap, per part, as today. World = origin + local, so every world coordinate
-   stays on the grid.
+   stays on the grid. A placement whose origin is not finite after the snap is rejected on its own
+   (`"<placement> (placement of <assembly>)"`, `'not-finite'`); the other placements stay.
 2. **Encode** each part with `orient`, unchanged. A placement has no turn, so a local box has the
    same extents in the world.
 3. **Drop** an assembly with no placements, or whose every part was rejected, reporting it as a
@@ -164,12 +170,17 @@ toward fewer placements and tells the model six times about a one-place fix.
 - an assembly part → `{ label: "<assembly> › <part>", placement: <instance's stored name> }`.
   Assembly names are deduped among themselves for this purpose.
 
-`collapseViolations(violations, authored, placementsOf)`: violations with the same `kind` and the
+`collapseViolations(violations, authored)`: violations with the same `kind` and the
 same sorted set of authored labels merge into one, which keeps the first message, takes the
 authored labels as `parts`, and appends:
-- `" (in every placement of <A> — fix the assembly)"` when the merged group's placements are all
-  of assembly A's placements; otherwise
+- `" (in every placement of <A> — fix the assembly)"` only when (a) every merged violation lies
+  inside ONE placement (no loose part, no second placement), (b) the group covers all of assembly
+  A's placements, and (c) A has at least two placements; otherwise
 - `" (in <P1>, <P2>)"` listing the placements involved.
+
+(a) is an amendment made while planning: without it, drawers placed too close together (Drawer 1
+overlapping Drawer 2, Drawer 2 overlapping Drawer 3) would be told to "fix the assembly" when the
+fix is the spacing. (c) keeps a once-placed assembly's report naming its placement.
 
 A violation with no assembly part passes through unchanged. Violations without parts
 (`too-many-parts`) pass through unchanged. This lives in the generate path only; joinery's

@@ -304,7 +304,8 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 **Files:**
 - Modify: `src/document/generated.ts` (`designToDocument`, new `Authored` types)
-- Test: `src/document/generated.test.ts`
+- Modify: `src/generate/run.ts` (`runGeneration` checks the flattened tree)
+- Test: `src/document/generated.test.ts`, `src/generate/run.test.ts`
 - Fixture updates (typing only): `src/generate/joints/{choose,cutlines.recipe,sites,runJoinery,recipes,tenons.recipe}.test.ts`, `src/useJoinery.test.tsx`, `src/App.test.tsx` (~line 1691)
 
 **Interfaces:**
@@ -364,6 +365,14 @@ describe('designToDocument — assemblies', () => {
     const flatNames = flatDocument(doc).boards.map((b) => b.name);
     expect(new Set(flatNames).size).toBe(flatNames.length);
     for (const n of flatNames) expect(authored.parts.has(n)).toBe(true);
+  });
+
+  it('dedupes three placements all named "Drawer", and the index follows (review focus 2)', () => {
+    const { doc, authored } = designToDocument(withAsm([], asm('Drawer', [FRONT], ['Drawer', [0, 0, 0]], ['Drawer', [0, 5, 0]], ['Drawer', [0, 10, 0]])));
+    const stored = doc.instances.map((i) => i.name);
+    expect(new Set(stored).size).toBe(3);
+    expect(authored.placements.get('Drawer')).toEqual(stored);
+    expect([...authored.parts.keys()].sort()).toEqual(flatDocument(doc).boards.map((b) => b.name).sort());
   });
 
   it('indexes every flat display name back to what the model wrote', () => {
@@ -562,11 +571,38 @@ Remove the now-unused `flatDocument`/`FlatDocument` imports. If `migrateDocument
 
 - [ ] **Step 4: Fix fixture typing.** `doc` is now `SloydDocument`; joinery takes `FlatDocument`. In each joinery test helper that returns `designToDocument(...).doc`, wrap it: `flatDocument(designToDocument({...}).doc)` (import `flatDocument` from the document module the file already imports from, e.g. `'../../document/document'`). Files: `src/generate/joints/choose.test.ts`, `cutlines.recipe.test.ts`, `sites.test.ts`, `runJoinery.test.ts`, `recipes.test.ts`, `tenons.recipe.test.ts`, `src/useJoinery.test.tsx`, and `src/App.test.tsx` ~1691 only if `tsc` complains. These fixtures have no roles and no assemblies, so `flatDocument` is an identity on them — behaviour is unchanged. Let `npm run build` find any site this list missed.
 
-- [ ] **Step 5: Run, expect PASS:** `npm test 2>&1 | tail -5 && npm run build 2>&1 | tail -5`
+- [ ] **Step 5: `runGeneration` checks the flattened tree.** `checkDesign` takes a `FlatDocument` and `doc` is now a tree, so `run.ts` must flatten. Add a failing test to `src/generate/run.test.ts`:
 
-- [ ] **Step 6: Mutate:** apply `move` to definition-local positions too → "never shifts definition-local coordinates" goes red; restore. Change `authoredIndex`'s key to use the placement's raw model name instead of `inst.name` → the dedupe test goes red; restore.
+```ts
+it('accepts a design whose only parts are in an assembly', async () => {
+  const { client } = fakeClient([{ name: 'Only', parts: [], assemblies: [{
+    name: 'Shelf', parts: [{ ...p('Board', 0), role: '' }], placements: [{ name: 'S1', at: { x: 0, y: 0, z: 0 } }],
+  }] }]);
+  const out = await run(client);
+  expect(out.doc.name).toBe('Only');
+  expect(out.doc.instances).toHaveLength(1);
+});
+```
 
-- [ ] **Step 7: Commit** — `git commit -am "feat(generate): designToDocument builds shared assemblies from placements" ` (with the Co-Authored-By trailer).
+Then in `src/generate/run.ts` add `flatDocument` to the `../document/document` import and change `evaluate`'s tail to:
+
+```ts
+      // Checks read the placed world (generate-assemblies spec §5.1); the TREE is what is kept.
+      const flat = flatDocument(converted.doc);
+      // Every part rejected: unusable, and never a `best` — a zero-board
+      // document is not a prototype.
+      if (flat.boards.length === 0) return { value: null, feedback: repairMessage(rejectedViolations(converted.rejected)) };
+      const violations = [...rejectedViolations(converted.rejected), ...checkDesign(flat, limits)];
+      return { value: { doc: converted.doc, violations }, feedback: repairMessage(violations) };
+```
+
+(Mutation: guard on `converted.doc.boards.length` instead → the new test goes red; restore.)
+
+- [ ] **Step 6: Run, expect PASS:** `npm test 2>&1 | tail -5 && npm run build 2>&1 | tail -5`
+
+- [ ] **Step 7: Mutate:** apply `move` to definition-local positions too → "never shifts definition-local coordinates" goes red; restore. Change `authoredIndex`'s key to use the placement's raw model name instead of `inst.name` → the dedupe test goes red; restore.
+
+- [ ] **Step 8: Commit** — `git add -A src && git commit -m "feat(generate): designToDocument builds shared assemblies from placements"` (with the Co-Authored-By trailer).
 
 ---
 
@@ -676,7 +712,13 @@ describe('linkByRole (through designToDocument)', () => {
       name: 'Drawer', parts: [part('Side', 'side', [0, 0, 0], [0.5, 4, 10]), part('Side 2', 'side', [5, 0, 0], [0.5, 4, 10])],
       placements: [{ name: 'A', at: v(0, 30, 0) }],
     }]));
-    expect(JSON.stringify(doc)).not.toContain('role');
+    const keys = new Set<string>();
+    const walk = (x: unknown): void => {
+      if (Array.isArray(x)) x.forEach(walk);
+      else if (typeof x === 'object' && x !== null) for (const [k, val] of Object.entries(x)) { keys.add(k); walk(val); }
+    };
+    walk(doc);
+    expect(keys.has('role')).toBe(false);
     expect(JSON.stringify(doc)).not.toMatch(/#\d/); // no class label leaked into a name or id
   });
 });
@@ -1114,7 +1156,7 @@ Assemblies:
 - In feedback, a part inside a placement is named "Placement › Part". A report ending "fix the assembly" means change the assembly's parts, which changes every placement.
 ```
 
-`src/generate/run.ts` — imports: add `flatDocument` to the `../document/document` import; add `import { collapseViolations, distinctPartsViolation } from '../document/assemblyChecks';`; add `DETAIL_CAPS` to the `./prompt` import. Replace `runGeneration`'s `evaluate`:
+`src/generate/run.ts` — imports: add `import { collapseViolations, distinctPartsViolation } from '../document/assemblyChecks';`; add `DETAIL_CAPS` to the `./prompt` import (`flatDocument` was imported in Task 2). Replace `runGeneration`'s `evaluate` — this adds the distinct check and the collapse to Task 2's version:
 
 ```ts
     evaluate: (res) => {
