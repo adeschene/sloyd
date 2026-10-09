@@ -21,8 +21,8 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-09: the generate-assemblies round, bundle
-  `index-B2b_spG9.js`, CSS `index-QQ-rJZea.css`, merge `a3ab5c3`, **schema 11** (unchanged).
+- **Production matches `master`** as of 2026-10-09: the refine round, bundle
+  `index-riRFmZGv.js`, CSS `index-QQ-rJZea.css`, merge `4a340f7`, **schema 11** (unchanged).
   Test count is under Commands.
 - **Nothing is pending. NO SUCCESSOR IS CHOSEN: ask what to work on; do not pick.** Open
   near the recent code: 238 (refine designs with joints), 215 (posture handedness, a question),
@@ -64,6 +64,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | assemblies | 10-06 | 10 | `instances` + `definitions`, Group/Ungroup (inv 46) |
 | components | 10-07 | 11 | shared definitions, links as `Shape`s (inv 45, 46) |
 | generate assemblies | 10-09 | — | generated assemblies + role-linked components, distinct-part cap |
+| refine | 10-09 | — | refine by instruction: new project + change list (fu 179) |
 
 ### The deployment rule
 
