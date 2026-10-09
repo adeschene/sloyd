@@ -10,6 +10,8 @@ interface Props {
   hasKey: boolean; libraryAvailable: boolean; projectName: string;
   /** Why the open design cannot be refined, or null (decided before any call). */
   refusal: string | null;
+  /** The open design has joinery cuts, so a joinery call may follow the model call. */
+  joined: boolean;
   initialDetail: Detail; model: string | null;
   estimate: (s: RefineSettings) => number | null;
   run: RefineRun | null; live: boolean;
@@ -22,6 +24,7 @@ export const CHANGES_SHOWN = 12;
 function statusText(r: RefineRun): string {
   switch (r.status) {
     case 'designing': return 'Refining…';
+    case 'joining': return 'Choosing joints…';
     case 'repairing': return `Fixing ${r.issues} issue${r.issues === 1 ? '' : 's'} (round ${r.round}/${MAX_REPAIRS})…`;
     case 'retrying': return `Retrying (round ${r.round}/${MAX_REPAIRS})…`;
     case 'ready': return 'Done';
@@ -95,6 +98,7 @@ export function RefineDialog(p: Props) {
           <p className="generate-plan">
             {p.model && <span>{`Model: ${p.model}`}</span>}
             {estimate !== null && <span className="generate-run-cost">{`≈ $${estimate.toFixed(2)}`}</span>}
+            {p.joined && <span>plus a joinery call if new meetings appear</span>}
           </p>
         )}
 
@@ -108,6 +112,8 @@ export function RefineDialog(p: Props) {
           <div className="joinery-result">
             <p>{`Saved as '${p.run.projectName}'`}</p>
             <p>{`${out.violations.length} new issue${out.violations.length === 1 ? '' : 's'} · ${out.present.length} already present`}</p>
+            {out.joints && <p>{`${out.joints.kept} joints kept · ${out.joints.chosen} chosen · ${out.joints.dropped} dropped`}</p>}
+            {out.joints?.skipped.map((s, i) => <p key={`s${i}`}>{s}</p>)}
             {out.violations.map((v, i) => <p key={`v${i}`} className="field-error">{v.message}</p>)}
             {out.changes.length === 0 ? <p>No changes.</p> : (
               <ul className="generate-runs">

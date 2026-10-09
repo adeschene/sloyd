@@ -1,21 +1,21 @@
 import { useCallback, useRef, useState } from 'react';
 import { RunFailed, runRefine } from './generate/run';
-import type { RefineOutcome, RunProgress } from './generate/run';
+import type { RefineOutcome, RefineProgress } from './generate/run';
 import type { RefineSettings } from './generate/refine';
 import type { SloydDocument } from './document/document';
 import { LlmError } from './llm/types';
 import type { LlmClient } from './llm/types';
 import { storage } from './storage/browser';
 
-export type RefineStatus = 'designing' | 'repairing' | 'retrying' | 'ready' | 'failed' | 'cancelled';
+export type RefineStatus = 'designing' | 'joining' | 'repairing' | 'retrying' | 'ready' | 'failed' | 'cancelled';
 export interface RefineRun {
   status: RefineStatus; round?: number; issues?: number;
   projectId?: string; projectName?: string; outcome?: RefineOutcome;
   error?: string; costUsd: number | null;
 }
 
-const progressPatch = (p: RunProgress): Partial<RefineRun> =>
-  p.phase === 'designing' ? { status: 'designing' }
+export const progressPatch = (p: RefineProgress): Partial<RefineRun> =>
+  p.phase === 'designing' ? { status: p.stage === 'join' ? 'joining' : 'designing' }
     : p.phase === 'repairing' ? { status: 'repairing', round: p.round, issues: p.issues }
       : { status: 'retrying', round: p.round };
 

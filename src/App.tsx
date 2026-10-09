@@ -22,7 +22,7 @@ import { AnthropicClient, checkAnthropicKey } from './llm/anthropic';
 import type { LlmSettings } from './storage/types';
 import type { DuplicateFailure } from './panels/ProjectMenu';
 import { canBeginLength } from './units/length';
-import { tapeAxisFromKey, createDocument, DocumentError, flatDocument } from './document/document';
+import { tapeAxisFromKey, createDocument, DocumentError, flatDocument, worldParts } from './document/document';
 import type { SloydDocument } from './document/document';
 import { storage } from './storage/browser';
 import { useStore } from './store/store';
@@ -120,7 +120,7 @@ export default function App() {
     onStorageVerdict: () => setAvailable(storage.available),
   });
   const refineInfo = useMemo(
-    () => (dialog === 'refine' ? { refusal: refineRefusal(doc), detail: detailFor(doc) } : null),
+    () => (dialog === 'refine' ? { refusal: refineRefusal(doc), detail: detailFor(doc), joined: worldParts(doc).some((b) => b.cuts.length > 0) } : null),
     [dialog, doc],
   );
   useEffect(() => {
@@ -994,6 +994,7 @@ export default function App() {
           libraryAvailable={libraryAvailable}
           projectName={doc.name}
           refusal={refineInfo.refusal}
+          joined={refineInfo.joined}
           initialDetail={refineInfo.detail}
           model={llmSettings?.model ?? null}
           estimate={(s) => (llmSettings ? refineEstimateUsd(new AnthropicClient(llmSettings.apiKey, llmSettings.model), doc, s) : null)}
