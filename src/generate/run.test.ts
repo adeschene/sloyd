@@ -1,12 +1,17 @@
 import { worldParts } from '../document/tree';
 import { describe, expect, it, vi } from 'vitest';
-import { MAX_REPAIRS, RunFailed, problemKey, refineEstimateUsd, runGeneration, runRefine, runRepairLoop } from './run';
+import { MAX_REPAIRS, RunFailed, problemKey, refineEstimateUsd, runGeneration, runJoinery, runRefine, runRepairLoop } from './run';
 import { SYSTEM_PROMPT } from './prompt';
 import type { GenerateSettings } from './prompt';
-import { REFINE_MAX, refineMessage } from './refine';
+import { REFINE_MAX, plainForRefine, refineMessage } from './refine';
 import { documentToDesign } from '../document/refineDesign';
 import { LlmError } from '../llm/types';
-import { createDocument, flatDocument } from '../document/document';
+import { createDocument, flatDocument, migrateDocument } from '../document/document';
+import type { Board, SloydDocument } from '../document/document';
+import { applyJoints } from './joints/recipes';
+import { findSites, jointKey, rangesOf } from './joints/sites';
+import { defaultChoice } from './joints/choose';
+import { GATE_REFUSAL, sameJoined } from './joints/unjoin';
 import { designToDocument } from '../document/generated';
 import { checkDesign } from '../document/designCheck';
 import type { LlmClient, LlmRequest, LlmResult } from '../llm/types';
@@ -448,5 +453,266 @@ describe('runRefine', () => {
     const doc = orig([bp('A', [0, 0, 0], [10, 1, 10])]);
     expect(refineEstimateUsd(c, doc, RS)).toBe(0.05);
     expect((estimate.mock.calls[0] as unknown[])[0]).toMatchObject({ cacheReadTokens: 0, cacheWriteTokens: 0 });
+  });
+});
+
+describe('runRefine — joined designs', () => {
+  const RS = { instruction: 'change it', width: null, depth: null, height: null, detail: 'moderate' as const };
+  const go = (client: LlmClient, doc: SloydDocument) => runRefine(client, doc, RS, new AbortController().signal, () => {});
+  const plainEcho = (d: SloydDocument) => {
+    const p = plainForRefine(d); if ('refused' in p) throw new Error(p.refused.message);
+    const r = documentToDesign(p.plain, REFINE_MAX); if ('refused' in r) throw new Error(r.refused.message);
+    return r.design;
+  };
+  const bp = (name: string, at: [number, number, number], size: [number, number, number]) =>
+    ({ name, role: '', material: 'pine', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] } });
+  const bookFlat = flatDocument(designToDocument({ name: 'Bookcase', assemblies: [], parts: [
+    bp('Back', [0, 0, -0.25], [31.5, 72, 0.25]), bp('Left side', [0, 0, 0], [0.75, 72, 11.25]), bp('Right side', [30.75, 0, 0], [0.75, 72, 11.25]),
+    bp('Bottom', [0.75, 0, 0], [30, 0.75, 11.25]), bp('Top', [0.75, 71.25, 0], [30, 0.75, 11.25]),
+    bp('Shelf 1', [0.75, 24, 0], [30, 0.75, 11.25]), bp('Shelf 2', [0.75, 48, 0], [30, 0.75, 11.25]),
+  ] }).doc);
+  const bookSites = findSites(bookFlat);
+  const joined: SloydDocument = migrateDocument(applyJoints(bookFlat, bookSites, bookSites.map((s) => defaultChoice(s, bookFlat, bookSites))).doc);
+
+  it('refines a joined design unchanged: one call, no joinery call, the same joined design back (review focus 1)', async () => {
+    const echo = plainEcho(joined);
+    const { client } = fakeClient([echo]);
+    const out = await go(client, joined);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(client.complete).toHaveBeenCalledTimes(1);
+    expect(sameJoined(flatDocument(out.doc), flatDocument(joined))).toBe(true);
+    expect(out.joints).toMatchObject({ chosen: 0, dropped: 0 });
+    expect(out.joints!.kept).toBeGreaterThan(0);
+    expect(out.changes).toEqual([]);
+  });
+
+  it('adds a shelf: two calls, and the joinery message lists only the new sites', async () => {
+    const echo = plainEcho(joined);
+    const withShelf = { ...echo, parts: [...echo.parts, { ...echo.parts.find((p) => p.name === 'Shelf 1')!, name: 'Shelf 3', at: { ...echo.parts.find((p) => p.name === 'Shelf 1')!.at, y: 60 } }] };
+    const { client, seen } = fakeClient([withShelf, { joints: [] }]);
+    const out = await go(client, joined);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(client.complete).toHaveBeenCalledTimes(2);
+    const joinMsg = String(seen[1][0] && (seen[1][0] as { text: string }).text);
+    const listed = joinMsg.split('Sites:\n')[1]!.split('\n').filter((l) => /^\d+\. /.test(l));
+    expect(listed.length).toBeGreaterThan(0);
+    expect(listed.every((l) => l.includes('Shelf 3'))).toBe(true);
+    expect(out.joints!.chosen).toBe(listed.length);
+  });
+
+  it('a new meeting answered butt still counts as chosen (spec §4 counts)', async () => {
+    const echo = plainEcho(joined);
+    const s1 = echo.parts.find((p) => p.name === 'Shelf 1')!;
+    const withShelf = { ...echo, parts: [...echo.parts, { ...s1, name: 'Shelf 3', at: { ...s1.at, y: 60 } }] };
+    // butt for every site id the message could list; parseChoices ignores ids that are not open
+    const allButt = { joints: Array.from({ length: 40 }, (_, i) => ({ site: i, joint: 'butt' })) };
+    const { client, seen } = fakeClient([withShelf, allButt]);
+    const out = await go(client, joined);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(client.complete).toHaveBeenCalledTimes(2);
+    const joinMsg = String((seen[1][0] as { text: string }).text);
+    const listed = joinMsg.split('Sites:\n')[1]!.split('\n').filter((l) => /^\d+\. /.test(l));
+    expect(listed).toHaveLength(2);   // Shelf 3 into each side
+    expect(out.joints).toEqual({ kept: 12, chosen: 2, dropped: 0, skipped: [] });
+  });
+
+  it('a meeting the original left butt stays butt: refined unchanged, ONE call, the same joined design back', async () => {
+    const sh = bookSites.find((s) => bookFlat.boards[s.enter].name === 'Shelf 1' && bookFlat.boards[s.receive].name === 'Left side')!;
+    const withButt: SloydDocument = migrateDocument(applyJoints(bookFlat, bookSites,
+      bookSites.map((s) => (s.id === sh.id ? { site: s.id, joint: 'butt' as const } : defaultChoice(s, bookFlat, bookSites)))).doc);
+    const { client } = fakeClient([plainEcho(withButt), { joints: [] }]);
+    const out = await go(client, withButt);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(client.complete).toHaveBeenCalledTimes(1);
+    expect(sameJoined(flatDocument(out.doc), flatDocument(withButt))).toBe(true);
+    expect(out.joints).toEqual({ kept: bookSites.length - 1, chosen: 0, dropped: 0, skipped: [] });
+    expect(out.changes).toEqual([]);
+  });
+
+  it('removes a shelf: its joints are dropped, no joinery call', async () => {
+    const echo = plainEcho(joined);
+    const without = { ...echo, parts: echo.parts.filter((p) => p.name !== 'Shelf 2') };
+    const { client } = fakeClient([without]);
+    const out = await go(client, joined);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(client.complete).toHaveBeenCalledTimes(1);
+    expect(out.joints!.dropped).toBeGreaterThan(0);
+    expect(out.joints).toEqual({ kept: 10, chosen: 0, dropped: 2, skipped: [] });   // Shelf 2's dado into each side
+  });
+
+  it('a joined design the gate cannot explain is refused with no call (review focus 2)', async () => {
+    const bad = structuredClone(joined);
+    (bad.boards.find((b) => b.name === 'Top') as Board).cuts.push({ id: 'h', face: 'thickness', from: 'min', across: 'width', offset: 3, width: 0.5, depth: 0.25, stopMin: 0, stopMax: 0 });
+    const { client } = fakeClient([GOOD]);
+    const out = await go(client, bad);
+    expect(out).toEqual({ refused: { reason: 'joints', message: GATE_REFUSAL } });
+    expect(client.complete).not.toHaveBeenCalled();
+  });
+
+  it('a side made thinner re-chooses the joints into it instead of clamping (review focus 3)', async () => {
+    // Thin both sides from their OUTER faces to 3/8in, so every shelf still touches them but the recorded
+    // dado depths no longer fit their ranges. (The brief expected the back's rabbets into the sides to be
+    // re-chosen too; measured, the plain back now overhangs the thinned sides and findSites no longer
+    // sees those two meetings, so they are DROPPED, not re-chosen.)
+    const echo = plainEcho(joined);
+    const thin = { ...echo, parts: echo.parts.map((p) =>
+      p.name === 'Left side' ? { ...p, at: { ...p.at, x: p.at.x + 0.375 }, size: { ...p.size, x: 0.375 } }
+        : p.name === 'Right side' ? { ...p, size: { ...p.size, x: 0.375 } } : p) };
+    const { client } = fakeClient([thin, { joints: [] }]);   // joinery's empty answer -> its defaults, no notes
+    const out = await go(client, joined);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(client.complete).toHaveBeenCalledTimes(2);
+    expect(out.joints!.chosen).toBeGreaterThanOrEqual(1);
+    // 12 records: 8 dados into the sides (Top, Bottom, Shelf 1, Shelf 2, each side) re-chosen; the back's
+    // rabbets into Top and Bottom kept; its rabbets into the two sides dropped. A re-chosen record is
+    // never counted as dropped.
+    expect(out.joints).toEqual({ kept: 2, chosen: 8, dropped: 2, skipped: [] });
+    // The 2 dropped, grounded outside runRefine: the thinned plain design has no Back→side meetings.
+    const thinFlat = flatDocument(designToDocument(thin).doc);
+    const thinKeys = findSites(thinFlat).map((s) => jointKey(thinFlat.boards[s.enter]!.name, thinFlat.boards[s.receive]!.name, s.axis, s.side));
+    expect(thinKeys).not.toContain('Back→Left side|2|1');
+    expect(thinKeys).not.toContain('Back→Right side|2|1');
+    expect(thinKeys).toHaveLength(10);
+  });
+
+  it('keeps a shared assembly shared after refining (review focus 4)', async () => {
+    const v3 = (x: number, y: number, z: number) => ({ x, y, z });
+    const tree = designToDocument({ name: 'Frames', parts: [], assemblies: [{ name: 'Frame',
+      // Two legs per frame so the piece does not tip: a tipping fixture makes the REFINE stage repair
+      // (part-less problems are always new, refine spec §3.2), which is not what this test is about.
+      parts: [{ name: 'Leg', role: '', material: 'oak', at: v3(0, 0, 0), size: v3(1.75, 28, 1.75) },
+        { name: 'Leg 2', role: '', material: 'oak', at: v3(19.75, 0, 0), size: v3(1.75, 28, 1.75) },
+        { name: 'Rail', role: '', material: 'oak', at: v3(1.75, 23.5, 0.5), size: v3(18, 3, 0.75) }],
+      placements: [{ name: 'Front', at: v3(0, 0, 0) }, { name: 'Back', at: v3(0, 0, 30) }] }] }).doc;
+    const jo = await runJoinery(fakeClient([new LlmError('overloaded', 'Overloaded.')]).client, tree, new AbortController().signal, () => {});
+    if ('noSites' in jo) throw new Error('sites');
+    const joinedTree = jo.result.doc;
+    expect(joinedTree.definitions).toHaveLength(1);
+    const { client } = fakeClient([plainEcho(joinedTree)]);
+    const out = await go(client, joinedTree);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(out.doc.definitions).toHaveLength(1);
+    expect(out.doc.instances.map((i) => i.definition)).toEqual([out.doc.definitions[0].id, out.doc.definitions[0].id]);
+    expect(client.complete).toHaveBeenCalledTimes(1);
+    expect(sameJoined(flatDocument(out.doc), flatDocument(joinedTree))).toBe(true);
+    expect(out.joints).toMatchObject({ chosen: 0, dropped: 0 });
+    expect(out.changes).toEqual([]);
+  });
+
+  it('keeps joinery’s own default tenons below the model’s range floor: refined unchanged, ONE call (F2)', async () => {
+    // A 1in leg: the model's tenon range is [1/2, 3/4], but the defaults cap the two rails' tenons
+    // under it (fu 188). A base plate keeps the piece standing.
+    const lf = flatDocument(designToDocument({ name: 'Thin corner', assemblies: [], parts: [
+      bp('Base', [-2, 0, -2], [24, 0.75, 24]), bp('Leg', [0, 0.75, 0], [1, 28, 1]),
+      bp('Rail X', [1, 24.25, 0.125], [18, 3, 0.75]), bp('Rail Z', [0.125, 24.25, 1], [0.75, 3, 18]),
+    ] }).doc);
+    const ls = findSites(lf);
+    const choices = ls.map((s) => defaultChoice(s, lf, ls));
+    const tenons = ls.filter((s) => lf.boards[s.receive].name === 'Leg');
+    expect(tenons).toHaveLength(2);
+    for (const s of tenons) {
+      const c = choices.find((x) => x.site === s.id)!;
+      expect(c.joint).toBe('mortise-tenon');
+      expect(c.tenonLength!).toBeLessThan(rangesOf(s, lf).tenonLength[0]);
+    }
+    const thinJoined: SloydDocument = migrateDocument(applyJoints(lf, ls, choices).doc);
+    const { client } = fakeClient([plainEcho(thinJoined), { joints: [] }]);
+    const out = await go(client, thinJoined);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(client.complete).toHaveBeenCalledTimes(1);
+    expect(out.joints).toMatchObject({ chosen: 0, dropped: 0 });
+    expect(sameJoined(flatDocument(out.doc), flatDocument(thinJoined))).toBe(true);
+  });
+
+  it('keeps a metric dado at its range maximum whose read-back is off in the last bit: ONE call (validChoice within GATE_TOLERANCE)', async () => {
+    const mm = (v: number) => v / 25.4;
+    const parts = [bp('Side', [3.3, 0, 0], [mm(18), mm(720), mm(300)]), bp('Shelf', [3.3 + mm(18), 3.3 + mm(250), 0], [mm(564), mm(18), mm(300)]),
+      bp('Right side', [3.3 + mm(582), 0, 0], [mm(18), mm(720), mm(300)])];   // two sides, so the piece does not tip (part-less problems are always new)
+    const nums = new Set(parts.flatMap((q) => [q.at.x, q.at.y, q.at.z, q.size.x, q.size.y, q.size.z]));
+    const mf = flatDocument(designToDocument({ name: 'Metric', assemblies: [], parts }, { exact: nums }).doc);
+    const ms = findSites(mf);
+    const dado = ms.find((s) => mf.boards[s.enter].name === 'Shelf' && mf.boards[s.receive].name === 'Side')!;
+    const max = rangesOf(dado, mf).dadoDepth[1];
+    const mj: SloydDocument = migrateDocument(applyJoints(mf, ms, ms.map((s) => (s.id === dado.id ? { site: s.id, joint: 'dado' as const, depth: max } : { site: s.id, joint: 'butt' as const }))).doc);
+    // The fixture: the recorded depth reads back just past the range maximum.
+    const base = plainForRefine(mj);
+    if ('refused' in base) throw new Error(base.refused.message);
+    const rec = base.joints!.find((j) => j.enter === 'Shelf')!;
+    expect(rec.choice.depth! > max).toBe(true);
+    expect(rec.choice.depth! - max).toBeLessThan(1e-9);
+    const { client } = fakeClient([plainEcho(mj), { joints: [] }]);
+    const out = await go(client, mj);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(client.complete).toHaveBeenCalledTimes(1);
+    expect(out.joints).toMatchObject({ kept: 1, chosen: 0, dropped: 0 });
+    expect(sameJoined(flatDocument(out.doc), flatDocument(mj))).toBe(true);
+  });
+
+  describe('a problem the ORIGINAL joined design already had (spec §4 Issues)', () => {
+    // Two rails tenoned 1.25in into one leg: the tenons collide (Rail Z passes into Rail X). The base
+    // plate keeps the piece from tipping, so the only part-less check (tips) stays quiet. Leg→Base is
+    // left butt. The plain design's rails hang (already present in the refine stage).
+    const cf = flatDocument(designToDocument({ name: 'Corner', assemblies: [], parts: [
+      bp('Base', [-2, 0, -2], [24, 0.75, 24]), bp('Leg', [0, 0.75, 0], [1.75, 28, 1.75]),
+      bp('Rail X', [1.75, 24.25, 0.5], [18, 3, 0.75]), bp('Rail Z', [0.5, 24.25, 1.75], [0.75, 3, 18]),
+    ] }).doc);
+    const cs = findSites(cf);
+    const collided: SloydDocument = migrateDocument(applyJoints(cf, cs, cs.map((s) => (cf.boards[s.receive].name === 'Leg'
+      ? { site: s.id, joint: 'mortise-tenon' as const, tenonLength: 1.25 } : { site: s.id, joint: 'butt' as const }))).doc);
+    const isOverlap = (v: { kind: string; parts: string[] }) => v.kind === 'overlap' && [...v.parts].sort().join() === 'Rail X,Rail Z';
+
+    it('the fixture: the joined original has exactly that overlap, the plain one does not', () => {
+      const lim = (f: { boards: unknown[] }) => ({ width: null, depth: null, height: null, maxParts: f.boards.length });
+      const jf = flatDocument(collided);
+      expect(checkDesign(jf, lim(jf)).filter((v) => v.parts.length > 0).map((v) => v.kind)).toEqual(['overlap']);
+      expect(checkDesign(cf, lim(cf)).some(isOverlap)).toBe(false);
+    });
+
+    it('refined unchanged: not new, listed as present, ONE call', async () => {
+      const { client } = fakeClient([plainEcho(collided), { joints: [] }]);
+      const out = await go(client, collided);
+      if ('refused' in out) throw new Error(out.refused.message);
+      expect(client.complete).toHaveBeenCalledTimes(1);
+      expect(out.violations).toEqual([]);
+      expect(out.present.filter(isOverlap)).toHaveLength(1);
+      expect(out.present.filter((v) => v.kind === 'hangs').map((v) => v.parts)).toEqual([['Rail X'], ['Rail Z']]);   // the refine stage's
+    });
+
+    it('with an open site, it drives no joinery repair: exactly TWO calls', async () => {
+      const echo = plainEcho(collided);
+      const base = echo.parts.find((p) => p.name === 'Base')!;   // design coordinates, not the fixture's
+      const block = { ...bp('Post', [base.at.x + 17, base.at.y + base.size.y, base.at.z + 17], [1.75, 10, 1.75]), material: 'oak' };
+      const { client } = fakeClient([{ ...echo, parts: [...echo.parts, block] }, { joints: [] }]);
+      const out = await go(client, collided);
+      if ('refused' in out) throw new Error(out.refused.message);
+      expect(client.complete).toHaveBeenCalledTimes(2);
+      expect(out.violations).toEqual([]);
+      expect(out.present.filter(isOverlap)).toHaveLength(1);
+      expect(out.joints).toEqual({ kept: 2, chosen: 1, dropped: 0, skipped: [] });
+    });
+  });
+
+  it('the join stage\'s NEW problems are still reported, beside the refine stage\'s', async () => {
+    // Reuses the collided corner: a NEW rail entering the leg from -X, answered with a 1.25in tenon,
+    // collides with Rail X's and Rail Z's tenons (measured: both). Those overlaps are new to both
+    // originals, so they must come back in `violations`; the original Rail X / Rail Z one stays present.
+    const cf = flatDocument(designToDocument({ name: 'Corner', assemblies: [], parts: [
+      bp('Base', [-2, 0, -2], [24, 0.75, 24]), bp('Leg', [0, 0.75, 0], [1.75, 28, 1.75]),
+      bp('Rail X', [1.75, 24.25, 0.5], [18, 3, 0.75]), bp('Rail Z', [0.5, 24.25, 1.75], [0.75, 3, 18]),
+    ] }).doc);
+    const cs = findSites(cf);
+    const collided: SloydDocument = migrateDocument(applyJoints(cf, cs, cs.map((s) => (cf.boards[s.receive].name === 'Leg'
+      ? { site: s.id, joint: 'mortise-tenon' as const, tenonLength: 1.25 } : { site: s.id, joint: 'butt' as const }))).doc);
+    const echo = plainEcho(collided);
+    const railX = echo.parts.find((p) => p.name === 'Rail X')!, leg = echo.parts.find((p) => p.name === 'Leg')!;   // design coordinates
+    const railN = { ...railX, name: 'Rail N', at: { ...railX.at, x: leg.at.x - railX.size.x } };
+    const long = { joints: Array.from({ length: 40 }, (_, i) => ({ site: i, joint: 'mortise-tenon', tenonLength: 1.25 })) };
+    const { client } = fakeClient([{ ...echo, parts: [...echo.parts, railN] }, long]);
+    const out = await go(client, collided);
+    if ('refused' in out) throw new Error(out.refused.message);
+    const pair = (v: { parts: string[] }) => [...v.parts].sort().join();
+    expect(out.violations.filter((v) => v.kind === 'overlap').map(pair)).toEqual(['Rail N,Rail X', 'Rail N,Rail Z']);
+    expect(out.violations.some((v) => v.kind === 'hangs' && v.parts.includes('Rail N'))).toBe(true);   // the refine stage's
+    expect(out.present.filter((v) => v.kind === 'overlap').map(pair)).toEqual(['Rail X,Rail Z']);
   });
 });

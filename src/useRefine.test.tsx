@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { useRefine } from './useRefine';
+import { progressPatch, useRefine } from './useRefine';
 import { designToDocument } from './document/generated';
 import { documentToDesign } from './document/refineDesign';
 import { REFINE_MAX } from './generate/refine';
@@ -64,5 +64,14 @@ describe('useRefine', () => {
     await waitFor(() => expect(result.current.live).toBe(false));
     expect(createProject).not.toHaveBeenCalled();
     expect(result.current.run).toMatchObject({ status: 'failed', error: 'API key was rejected — check Settings.' });
+  });
+});
+
+describe('progressPatch', () => {
+  it('maps the joinery stage designing phase to joining', () => {
+    expect(progressPatch({ phase: 'designing', stage: 'join' } as never)).toEqual({ status: 'joining' });
+  });
+  it('keeps a plain designing phase as designing', () => {
+    expect(progressPatch({ phase: 'designing' } as never)).toEqual({ status: 'designing' });
   });
 });

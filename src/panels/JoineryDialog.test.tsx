@@ -23,7 +23,7 @@ const outcome = (over: Partial<JoineryOutcome> = {}, result: Partial<JoineryOutc
     ],
     skipped: [], moved: [], trimmed: [], lowered: 0, sizeBefore: [21.5, 30, 11.5], sizeAfter: [21.5, 30, 11.5], ...result,
   },
-  notes: [], violations: [], preexisting: [], usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
+  notes: [], violations: [], preexisting: [], kept: 0, chosen: 0, usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
   ...over,
 });
 const ready = (o: JoineryOutcome): JoineryRun => ({ status: 'ready', projectId: 'p1', projectName: 'Bench — joined', outcome: o, costUsd: 0.02 });

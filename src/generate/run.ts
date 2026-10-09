@@ -7,14 +7,15 @@ import { checkDesign, rejectedViolations } from '../document/designCheck';
 import type { Violation } from '../document/designCheck';
 import { LlmError, ZERO_USAGE, addUsage } from '../llm/types';
 import type { LlmClient, LlmMessage, LlmResult, LlmUsage } from '../llm/types';
-import { JOINERY_PROMPT, JOINT_SCHEMA, defaultChoice, jointsRepairMessage, jointsUnusableMessage, parseChoices, siteMessage } from './joints/choose';
+import { JOINERY_PROMPT, JOINT_SCHEMA, defaultChoice, jointsRepairMessage, jointsUnusableMessage, parseChoices, siteMessage, validChoice } from './joints/choose';
 import { applyJoints } from './joints/recipes';
 import type { JoinResult, JointChoice } from './joints/recipes';
-import { findSites } from './joints/sites';
+import { findSites, jointKey } from './joints/sites';
+import type { Site } from './joints/sites';
 import { DETAIL_CAPS, SYSTEM_PROMPT, limitsOf, repairMessage, unusableMessage, userMessage } from './prompt';
 import type { Concept, GenerateSettings, LimitSettings } from './prompt';
-import { REFINE_MAX, refineMessage } from './refine';
-import type { RefineSettings } from './refine';
+import { REFINE_MAX, plainForRefine, refineMessage } from './refine';
+import type { RefineBase, RefineSettings } from './refine';
 import { carryGrain, designValues, documentToDesign } from '../document/refineDesign';
 import type { RefineRefusal } from '../document/refineDesign';
 import { diffDesigns } from '../document/designDiff';
@@ -187,38 +188,81 @@ export async function runGeneration(
   return { doc: out.doc, violations: out.violations, usage: out.usage };
 }
 
-export interface RefineOutcome { doc: SloydDocument; violations: Violation[]; present: Violation[]; changes: Change[]; usage: LlmUsage }
+/** What re-joining a refined joined design did (refine-joined spec §4). */
+export interface JointsSummary { kept: number; chosen: number; dropped: number; skipped: string[] }
+export interface RefineOutcome { doc: SloydDocument; violations: Violation[]; present: Violation[]; changes: Change[]; usage: LlmUsage; joints: JointsSummary | null }
+export type RefineProgress = RunProgress & { stage?: 'join' };
 
 /**
  * Refine by instruction (refine spec §3): the open design in Generate's format
  * plus the instruction, through the shared loop and evaluation. Refusals are
  * decided before any call. Converted with centre: false so untouched parts keep
  * their coordinates; grain carried by name; only NEW problems drive repairs.
+ * A joined design (refine-joined spec §2–4) is refined as its plain parts, then
+ * re-joined with its recorded joints as `fixed` choices: only meetings that are
+ * new, or whose recorded joint no longer fits, go to one joinery call.
  */
 export async function runRefine(
   client: LlmClient,
   doc: SloydDocument,
   settings: RefineSettings,
   signal: AbortSignal,
-  onProgress: (p: RunProgress) => void,
+  onProgress: (p: RefineProgress) => void,
 ): Promise<RefineOutcome | { refused: RefineRefusal }> {
-  const from = documentToDesign(doc, REFINE_MAX);
+  const base = plainForRefine(doc);
+  if ('refused' in base) return { refused: base.refused };
+  const from = documentToDesign(base.plain, REFINE_MAX);
   if ('refused' in from) return { refused: from.refused };
-  const preexisting = new Set(checkDesign(flatDocument(doc), limitsOf(settings)).map(problemKey));
+  const preexisting = new Set(checkDesign(flatDocument(base.plain), limitsOf(settings)).map(problemKey));
   const out = await runRepairLoop(client, {
     system: SYSTEM_PROMPT,
     schema: DESIGN_SCHEMA,
     first: refineMessage(from.design, settings),
-    evaluate: (res) => evaluateDesign(res, settings, { prepare: (d) => carryGrain(d, doc), centre: false, preexisting, exact: designValues(from.design) }),
+    evaluate: (res) => evaluateDesign(res, settings, { prepare: (d) => carryGrain(d, base.plain), centre: false, preexisting, exact: designValues(from.design) }),
   }, signal, onProgress);
   // Document-level facts the model never sees travel with the result.
-  const kept: SloydDocument = { ...out.doc, stock: doc.stock, units: doc.units, guides: doc.guides };
-  return { doc: kept, violations: out.violations, present: out.present, changes: diffDesigns(doc, kept), usage: out.usage };
+  let refined: SloydDocument = { ...out.doc, stock: doc.stock, units: doc.units, guides: doc.guides };
+  let violations = out.violations;
+  let present = out.present;
+  let usage = out.usage;
+  let joints: JointsSummary | null = null;
+  if (base.joints) {
+    // A meeting the ORIGINAL plain design had but no record covers was left butt (butt leaves
+    // no cut; the gate's round trip proved it): a fixed butt, never re-opened (spec §4).
+    const origFlat = flatDocument(base.plain);
+    const fixed = new Map<string, Omit<JointChoice, 'site'>>(findSites(origFlat).map((s) =>
+      [jointKey(origFlat.boards[s.enter]!.name, origFlat.boards[s.receive]!.name, s.axis, s.side), { joint: 'butt' as const }]));
+    for (const j of base.joints) fixed.set(jointKey(j.enter, j.receive, j.axis, j.side), j.choice);
+    // DROPPED = a record whose meeting no longer exists on the refined plain design;
+    // a record whose meeting exists but whose choice no longer fits is open (counted in `chosen`).
+    const plainFlat = flatDocument(refined);
+    const siteKeys = new Set(findSites(plainFlat).map((s) => jointKey(plainFlat.boards[s.enter]!.name, plainFlat.boards[s.receive]!.name, s.axis, s.side)));
+    const dropped = base.joints.filter((j) => !siteKeys.has(jointKey(j.enter, j.receive, j.axis, j.side))).length;
+    // The ORIGINAL joined design's named-part problems are already present (spec §4 Issues), judged
+    // with the limits runJoinery uses.
+    const joinedFlat = flatDocument(doc);
+    const alsoPresent = new Set(checkDesign(joinedFlat, { width: null, depth: null, height: null, maxParts: joinedFlat.boards.length })
+      .filter((v) => v.parts.length > 0).map(problemKey));
+    const jo = await runJoinery(client, refined, signal, (p) => onProgress({ ...p, stage: 'join' }), { fixed, alsoPresent });
+    if ('noSites' in jo) {
+      joints = { kept: 0, chosen: 0, dropped, skipped: [] };
+    } else {
+      refined = { ...jo.result.doc, stock: doc.stock, units: doc.units, guides: doc.guides };
+      violations = [...violations, ...jo.violations];
+      const shown = new Set(present.map(problemKey));
+      present = [...present, ...jo.preexisting.filter((v) => alsoPresent.has(problemKey(v)) && !shown.has(problemKey(v)))];
+      usage = addUsage(usage, jo.usage);
+      joints = { kept: jo.kept, chosen: jo.chosen, dropped, skipped: jo.result.skipped.map((s) => s.reason) };
+    }
+  }
+  // Changes are judged against the ORIGINAL joined design (refine-joined spec §4).
+  return { doc: refined, violations, present, changes: diffDesigns(doc, refined), usage, joints };
 }
 
-/** A rough before-you-run estimate: the prompt and design in, about the design's own size out. */
-export function refineEstimateUsd(client: LlmClient, doc: SloydDocument, settings: RefineSettings): number | null {
-  const from = documentToDesign(doc, REFINE_MAX);
+/** A rough before-you-run estimate: the prompt and design in, about the design's own size out. `base`: plainForRefine(doc), when the caller has it. */
+export function refineEstimateUsd(client: LlmClient, doc: SloydDocument, settings: RefineSettings, base: RefineBase = plainForRefine(doc)): number | null {
+  if ('refused' in base) return null;
+  const from = documentToDesign(base.plain, REFINE_MAX);
   if ('refused' in from) return null;
   const input = SYSTEM_PROMPT.length + refineMessage(from.design, settings).length;
   const output = JSON.stringify(from.design).length * 1.25;
@@ -233,7 +277,14 @@ export interface JoineryOutcome {
   preexisting: Violation[];
   usage: LlmUsage;
   fallback?: string;
+  /** Fixed NON-butt choices that applyJoints actually applied (a skipped one is not kept); 0 without `fixed`. */
+  kept: number;
+  /** Open sites sent to the chooser, whatever it chose (butt included): every site without `fixed`, 0 when no call is made. */
+  chosen: number;
 }
+
+/** Recorded joints by `jointKey`, re-applied when `validChoice` still passes and they do not collide (refine-joined spec §4). */
+export type FixedJoints = ReadonlyMap<string, Omit<JointChoice, 'site'>>;
 
 /**
  * Add joinery (spec §6). Sites are found first; with none, NO call is made.
@@ -241,38 +292,74 @@ export interface JoineryOutcome {
  * joinery INTRODUCED — keyed on kind and parts, never on message text —
  * drive repairs and count toward "fewest" (invariant 41). A first call that
  * fails for any reason but the key or a cancel builds the defaults instead.
+ * `opts.fixed` re-applies recorded choices that are still strictly valid and
+ * asks only about the rest — plus any kept non-butt joint one trial shows
+ * colliding (re-opened, refine-joined spec §4); with none open, NO call is made.
  */
 export async function runJoinery(
   client: LlmClient,
   doc: SloydDocument,
   signal: AbortSignal,
   onProgress: (p: RunProgress) => void,
+  opts: { fixed?: FixedJoints; alsoPresent?: ReadonlySet<string> } = {},
 ): Promise<JoineryOutcome | { noSites: true }> {
   // Joinery reads the FLAT document (assemblies spec §6.1): placed parts named by
   // their display paths. Its result is written back into the tree by index.
   const flat = flatDocument(doc);
   const sites = findSites(flat);
   if (sites.length === 0) return { noSites: true };
+  const keyOf = (s: Site) => jointKey(flat.boards[s.enter]!.name, flat.boards[s.receive]!.name, s.axis, s.side);
+  const fixed = new Map<number, JointChoice>();
+  for (const s of sites) {
+    const f = opts.fixed?.get(keyOf(s));
+    const c = f && { site: s.id, ...f };
+    if (c && validChoice(c, s, flat)) fixed.set(s.id, c);
+  }
   const limits = { width: null, depth: null, height: null, maxParts: flat.boards.length };
   const preexisting = checkDesign(flat, limits);
   const old = new Set(preexisting.map(problemKey));
+  // `alsoPresent` (Refine): a named-part problem the caller's ORIGINAL already had counts as
+  // preexisting too — never new, never repair feedback (refine-joined spec §4 Issues).
+  const also = (v: Violation) => v.parts.length > 0 && !old.has(problemKey(v)) && opts.alsoPresent?.has(problemKey(v)) === true;
+  // The problems a joining INTRODUCED (invariant 41): the ONE filter, for the trial and for build.
+  const introduced = (raw: Violation[]) => raw.filter((v) => !old.has(problemKey(v)) && !also(v));
+  if (opts.fixed && fixed.size > 0) {
+    // Kept joints that collide are re-opened, once (refine-joined spec §4, the user's ruling): a
+    // part made slimmer can leave a recorded tenon "in range" yet meeting its neighbour's. One trial
+    // with the open sites' defaults; every fixed site whose entering or receiving part a problem it
+    // introduced names goes to the chooser with the open ones. A fixed BUTT is never re-opened: it
+    // cuts and moves nothing, so it cannot be the cause, and §4 keeps a meeting left butt as butt.
+    const trial = applyJoints(flat, sites, sites.map((s) => fixed.get(s.id) ?? defaultChoice(s, flat, sites)));
+    const named = new Set(introduced(checkDesign(flatDocument(trial.doc), limits)).flatMap((v) => v.parts));
+    if (named.size > 0) {
+      for (const s of sites) {
+        const f = fixed.get(s.id);
+        if (f && f.joint !== 'butt' && (named.has(flat.boards[s.enter]!.name) || named.has(flat.boards[s.receive]!.name))) fixed.delete(s.id);
+      }
+    }
+  }
+  const open = sites.filter((s) => !fixed.has(s.id));
+  const merge = (chosen: JointChoice[]) => sites.map((s) => fixed.get(s.id) ?? chosen.find((c) => c.site === s.id) ?? { site: s.id, joint: 'butt' as const });
   const build = (choices: JointChoice[], notes: string[]) => {
     const joined = applyJoints(flat, sites, choices);
-    const violations = checkDesign(flatDocument(joined.doc), limits).filter((v) => !old.has(problemKey(v)));
+    const raw = checkDesign(flatDocument(joined.doc), limits);
+    const violations = introduced(raw);
     // The tree-shaped document is what useJoinery saves (out.result.doc).
     const tree = migrateDocument(writeBackFlat(doc, flat.boards, worldParts(joined.doc)));
     const result = { ...joined, doc: tree };
-    return { doc: tree, violations, result, notes, preexisting };
+    const kept = joined.applied.filter((a) => a.joint !== 'butt' && fixed.has(a.site)).length;
+    return { doc: tree, violations, result, notes, preexisting: [...preexisting, ...raw.filter(also)], kept, chosen: open.length };
   };
+  if (open.length === 0) return { ...build(merge([]), []), usage: ZERO_USAGE };
   try {
     return await runRepairLoop(client, {
       system: JOINERY_PROMPT,
       schema: JOINT_SCHEMA,
-      first: siteMessage(flat, sites),
+      first: siteMessage(flat, open),
       evaluate: (res) => {
         if (res.json === null) return { value: null, feedback: jointsUnusableMessage(res.unusable ?? 'unparseable') };
-        const { choices, notes } = parseChoices(res.json, sites, flat);
-        const value = build(choices, notes);
+        const { choices, notes } = parseChoices(res.json, open, flat);
+        const value = build(merge(choices), notes);
         return { value, feedback: jointsRepairMessage(value.violations) };
       },
     }, signal, onProgress, { keepBestOnError: true });
@@ -281,7 +368,7 @@ export async function runJoinery(
     const modelFailed = e instanceof RunFailed || (e instanceof LlmError && e.kind !== 'auth' && e.kind !== 'cancelled');
     if (!modelFailed) throw e;
     const reason = e instanceof RunFailed ? 'no usable answer' : (e as Error).message;
-    return { ...build(sites.map((s) => defaultChoice(s, flat, sites)), []), usage: e instanceof RunFailed ? e.usage : spentBefore(e), fallback: reason };
+    return { ...build(merge(open.map((s) => defaultChoice(s, flat, sites))), []), usage: e instanceof RunFailed ? e.usage : spentBefore(e), fallback: reason };
   }
 }
 

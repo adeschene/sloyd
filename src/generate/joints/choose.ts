@@ -5,6 +5,7 @@ import { boxOf } from './pocket';
 import { tenonSection } from './recipes';
 import type { JointChoice } from './recipes';
 import { rangesOf, siteLabel, stopLabel } from './sites';
+import { GATE_TOLERANCE } from './unjoin';
 import type { JointKind, Site, StopEnd } from './sites';
 
 const JOINTS: JointKind[] = ['mortise-tenon', 'dado', 'stopped-dado', 'rabbet', 'half-lap', 'butt'];
@@ -84,7 +85,8 @@ function receiveDepth(s: Site, doc: FlatDocument): number {
 }
 
 const down = (v: number) => Math.floor(v / SNAP_INCHES + 1e-9) * SNAP_INCHES;
-const DEFAULT_MIN_TENON = 0.25;
+/** The floor of joinery's own default tenons (fu 188); also the floor `validChoice` keeps a recorded tenon to. */
+export const DEFAULT_MIN_TENON = 0.25;
 const postLike = (w: number, t: number) => w <= 2 * t;
 
 /**
@@ -257,6 +259,36 @@ export function parseChoices(json: unknown, sites: Site[], doc: FlatDocument): {
     }
   });
   return { choices, notes };
+}
+
+/**
+ * Is a choice valid for a site as it stands — the kind allowed, every size
+ * inside rangesOf (a tenon's floor lowered to DEFAULT_MIN_TENON), a stopped dado's end one of the site's stop ends? The same
+ * sources parseChoices validates against, but STRICT: parseChoices clamps a
+ * model's answer; a KEPT joint must reproduce its geometry exactly, so an
+ * out-of-range one is re-chosen instead (refine-joined spec §4). Bounds hold
+ * within GATE_TOLERANCE. An empty range (lo > hi, where nothing fits) admits no value.
+ */
+export function validChoice(c: JointChoice, s: Site, doc: FlatDocument): boolean {
+  if (!s.allowed.includes(c.joint)) return false;
+  const r = rangesOf(s, doc);
+  // Bounds within the gate's tolerance (refine-joined spec §4): a recorded size is read back from
+  // world coordinates, so one at a range end can come back off in the last bit (a metric dado at its
+  // maximum read back as 0.3125000000000018). A real difference is 1/16in. Missing or non-finite is never valid.
+  const within = (v: number | undefined, [lo, hi]: [number, number]) =>
+    typeof v === 'number' && Number.isFinite(v) && v >= lo - GATE_TOLERANCE && v <= hi + GATE_TOLERANCE;
+  switch (c.joint) {
+    // Joinery's own defaults go down to DEFAULT_MIN_TENON under the model's floor (fu 188), so a
+    // kept default is valid there too (refine-joined spec §4). The upper bound is the range's.
+    case 'mortise-tenon': return within(c.tenonLength, [Math.min(r.tenonLength[0], DEFAULT_MIN_TENON), r.tenonLength[1]]);
+    case 'dado': return within(c.depth, r.dadoDepth);
+    case 'stopped-dado': {
+      const at = c.stopAt && s.stopEnds.find((e) => e.axis === c.stopAt!.axis && e.end === c.stopAt!.end);
+      return !!at && within(c.depth, r.dadoDepth) && within(c.inset, r.inset(at));
+    }
+    case 'rabbet': return within(c.depth, r.rabbetDepth);
+    default: return true;
+  }
 }
 
 export function jointsRepairMessage(v: Violation[]): string {

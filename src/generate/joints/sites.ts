@@ -28,6 +28,8 @@ const KIND_TEXT: Record<SiteKind, string> = {
   'end-into-face': 'end into face', 'face-against-edge': 'face against edge', crossing: 'crossing',
 };
 
+/** The identity of a joint across refines: flat display names plus the meeting's axis and side. */
+export const jointKey = (enter: string, receive: string, axis: number, side: number) => `${enter}→${receive}|${axis}|${side}`;
 export const stopLabel = (s: StopEnd) => `${s.end === 'max' ? '+' : '-'}${AXES[s.axis]}`;
 export const siteLabel = (s: Site, doc: FlatDocument) =>
   `${doc.boards[s.enter].name} → ${doc.boards[s.receive].name}: ${KIND_TEXT[s.kind]}`;
