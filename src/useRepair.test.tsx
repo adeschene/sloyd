@@ -43,6 +43,21 @@ describe('useRepair', () => {
     await act(() => result.current.repair(damaged2));
     expect(result.current.run).toEqual({ status: 'failed', error: 'Could not save the project — storage is unavailable.' });
   });
+  it('a write that throws says so, and a later click runs again', async () => {
+    createProject.mockRejectedValueOnce(new Error('quota exceeded'));
+    const { result } = setup();
+    await act(() => result.current.repair(damaged2));
+    expect(result.current.run).toEqual({ status: 'failed', error: 'quota exceeded' });
+    createProject.mockResolvedValueOnce('p2');
+    await act(() => result.current.repair(damaged2));
+    expect(result.current.run).toMatchObject({ status: 'ready', projectId: 'p2' });
+  });
+  it('a throw that is not an Error still fails the run', async () => {
+    createProject.mockRejectedValueOnce('nope');
+    const { result } = setup();
+    await act(() => result.current.repair(damaged2));
+    expect(result.current.run).toEqual({ status: 'failed', error: 'Unexpected error.' });
+  });
   it('an undamaged document writes nothing', async () => {
     const { result } = setup();
     await act(() => result.current.repair(plain2));

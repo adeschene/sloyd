@@ -140,7 +140,7 @@ const joinAllDefaults = (P: FlatDocument, pick: (s: Site) => boolean = () => tru
   const s = findSites(P);
   return applyJoints(P, s, s.map((x) => (pick(x) ? defaultChoice(x, P, s) : { site: x.id, joint: 'butt' as const }))).doc;
 };
-/** The bookcase joined with defaults plus one hand-added cut on Top; says where the cut went. */
+/** The bookcase joined with defaults plus one hand-added cut on Shelf 1; says where the cut went. */
 function withHandCut() {
   const flat = structuredClone(joinAllDefaults(bookcaseFixture()));
   const part = flat.boards.findIndex((b) => b.name === 'Shelf 1');

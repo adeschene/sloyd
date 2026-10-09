@@ -30,6 +30,10 @@ export function useRepair(opts: { onCreated: (id: string) => void; onStorageVerd
       if (!id) { setRun({ status: 'failed', error: 'Could not save the project — storage is unavailable.' }); return; }
       optsRef.current.onCreated(id);
       setRun({ status: 'ready', projectId: id, projectName: name, dropped: r.dropped, splits: r.splits });
+    } catch (e) {
+      // repairDocument's write-back or the storage write threw: say so, as useRefine does, rather than
+      // leave the run on 'saving' (its button disabled) for the session.
+      setRun({ status: 'failed', error: e instanceof Error ? e.message : 'Unexpected error.' });
     } finally {
       busy.current = false;
     }
