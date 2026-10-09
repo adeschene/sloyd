@@ -20,7 +20,7 @@ interface Props {
 }
 
 /** '' → null (no limit); a positive length → inches; anything else → 'bad'. */
-function parseLimit(text: string): number | null | 'bad' {
+export function parseLimit(text: string): number | null | 'bad' {
   if (!text.trim()) return null;
   const v = parseLength(text);
   return v !== null && v > 0 ? v : 'bad';

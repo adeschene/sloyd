@@ -39,12 +39,22 @@ function renderToolbar(overrides: Partial<Parameters<typeof Toolbar>[0]> = {}) {
       onImportProject={noop}
       onOpenGenerate={noop}
       onOpenJoinery={noop}
+      onOpenRefine={noop}
       onOpenSettings={noop}
       generating={null}
       {...overrides}
     />,
   );
 }
+
+describe('Toolbar Refine button', () => {
+  it('asks its parent to open Refine', async () => {
+    const onOpenRefine = vi.fn();
+    renderToolbar({ onOpenRefine });
+    await userEvent.click(screen.getByRole('button', { name: 'Refine…' }));
+    expect(onOpenRefine).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe('Toolbar view toggles', () => {
   it('reflects the grid state in the checkbox', () => {
