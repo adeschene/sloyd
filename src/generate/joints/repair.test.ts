@@ -110,8 +110,9 @@ describe('repairJoints refuses damage it cannot account for', () => {
   });
   it('a damaged fixture with a joined part resized by hand', () => {
     // The shelf is dadoed at both ends, so a longer shelf cannot round-trip (a rail's free end could).
-    // Its own pocket goes unexplained while the twin case's identical pocket is explained: only the
-    // emptiness condition stops the repair deleting a pocket the shelf still fills.
+    // Measured: the deeper overlap reads back as a deeper dado, so the pocket IS explained and the
+    // step-5 re-join match refuses (a stored cut on `Left case › Right` has no match). The emptiness
+    // condition is pinned by the shortened-shelf test below, not by this one.
     const flat = tweak(f4, 'Left case › Shelf', (b) => ({ ...b, length: b.length + 0.5 }));
     expect(repairJoints(flat)).toEqual({ refused: REPAIR_REFUSAL });
   });
