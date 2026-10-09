@@ -9,7 +9,7 @@ import { LlmError } from '../llm/types';
 import { createDocument, flatDocument, migrateDocument } from '../document/document';
 import type { Board, SloydDocument } from '../document/document';
 import { applyJoints } from './joints/recipes';
-import { findSites, jointKey } from './joints/sites';
+import { findSites, jointKey, rangesOf } from './joints/sites';
 import { defaultChoice } from './joints/choose';
 import { GATE_REFUSAL, sameJoined } from './joints/unjoin';
 import { designToDocument } from '../document/generated';
@@ -597,6 +597,31 @@ describe('runRefine — joined designs', () => {
     expect(sameJoined(flatDocument(out.doc), flatDocument(joinedTree))).toBe(true);
     expect(out.joints).toMatchObject({ chosen: 0, dropped: 0 });
     expect(out.changes).toEqual([]);
+  });
+
+  it('keeps joinery’s own default tenons below the model’s range floor: refined unchanged, ONE call (F2)', async () => {
+    // A 1in leg: the model's tenon range is [1/2, 3/4], but the defaults cap the two rails' tenons
+    // under it (fu 188). A base plate keeps the piece standing.
+    const lf = flatDocument(designToDocument({ name: 'Thin corner', assemblies: [], parts: [
+      bp('Base', [-2, 0, -2], [24, 0.75, 24]), bp('Leg', [0, 0.75, 0], [1, 28, 1]),
+      bp('Rail X', [1, 24.25, 0.125], [18, 3, 0.75]), bp('Rail Z', [0.125, 24.25, 1], [0.75, 3, 18]),
+    ] }).doc);
+    const ls = findSites(lf);
+    const choices = ls.map((s) => defaultChoice(s, lf, ls));
+    const tenons = ls.filter((s) => lf.boards[s.receive].name === 'Leg');
+    expect(tenons).toHaveLength(2);
+    for (const s of tenons) {
+      const c = choices.find((x) => x.site === s.id)!;
+      expect(c.joint).toBe('mortise-tenon');
+      expect(c.tenonLength!).toBeLessThan(rangesOf(s, lf).tenonLength[0]);
+    }
+    const thinJoined: SloydDocument = migrateDocument(applyJoints(lf, ls, choices).doc);
+    const { client } = fakeClient([plainEcho(thinJoined), { joints: [] }]);
+    const out = await go(client, thinJoined);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(client.complete).toHaveBeenCalledTimes(1);
+    expect(out.joints).toMatchObject({ chosen: 0, dropped: 0 });
+    expect(sameJoined(flatDocument(out.doc), flatDocument(thinJoined))).toBe(true);
   });
 
   describe('a problem the ORIGINAL joined design already had (spec §4 Issues)', () => {

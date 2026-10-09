@@ -4,7 +4,7 @@ import { designToDocument } from '../../document/generated';
 import { flatDocument, migrateDocument } from '../../document/document';
 import { checkDesign } from '../../document/designCheck';
 import { applyJoints } from './recipes';
-import { defaultChoice, parseChoices, siteMessage, validChoice, JOINT_SCHEMA } from './choose';
+import { DEFAULT_MIN_TENON, defaultChoice, parseChoices, siteMessage, validChoice, JOINT_SCHEMA } from './choose';
 import { findSites, rangesOf } from './sites';
 
 const limits = (d: { boards: unknown[] }) => ({ width: null, depth: null, height: null, maxParts: d.boards.length });
@@ -349,5 +349,35 @@ describe('validChoice (strict — review focus 3)', () => {
     expect(validChoice(ok, s, SIDE_SHELF)).toBe(true);
     expect(validChoice({ ...ok, stopAt: { axis: s.axis, end: 'min' as const } }, s, SIDE_SHELF)).toBe(false);
     expect(validChoice({ ...ok, inset: r.inset(at)[1] + 1 / 16 }, s, SIDE_SHELF)).toBe(false);
+  });
+  it('accepts joinery’s own default tenon floor below the model’s range floor (fu 188), and nothing below it', () => {
+    const [s] = findSites(LEG_RAIL);
+    const r = rangesOf(s, LEG_RAIL);
+    expect(r.tenonLength[0]).toBe(0.5);
+    expect(DEFAULT_MIN_TENON).toBe(0.25);
+    expect(validChoice({ site: s.id, joint: 'mortise-tenon', tenonLength: 0.25 }, s, LEG_RAIL)).toBe(true);
+    expect(validChoice({ site: s.id, joint: 'mortise-tenon', tenonLength: 0.3125 }, s, LEG_RAIL)).toBe(true);
+    expect(validChoice({ site: s.id, joint: 'mortise-tenon', tenonLength: 0.25 - 1 / 16 }, s, LEG_RAIL)).toBe(false);
+  });
+  it('checks a dado’s depth against its range', () => {
+    const [s] = findSites(SIDE_SHELF);
+    const r = rangesOf(s, SIDE_SHELF);
+    expect(r.dadoDepth).toEqual([0.125, 0.375]);
+    expect(validChoice({ site: s.id, joint: 'dado', depth: 0.125 }, s, SIDE_SHELF)).toBe(true);
+    expect(validChoice({ site: s.id, joint: 'dado', depth: 0.375 }, s, SIDE_SHELF)).toBe(true);
+    expect(validChoice({ site: s.id, joint: 'dado', depth: 0.375 + 1 / 16 }, s, SIDE_SHELF)).toBe(false);
+    expect(validChoice({ site: s.id, joint: 'dado', depth: 0.125 - 1 / 16 }, s, SIDE_SHELF)).toBe(false);
+    expect(validChoice({ site: s.id, joint: 'dado' }, s, SIDE_SHELF)).toBe(false);
+  });
+  it('checks a rabbet’s depth against its range', () => {
+    const CASE_BACK = flatOf([['Side', [0, 0, 0], [0.75, 30, 12]], ['Back', [0, 0, -0.25], [12, 30, 0.25]]]);
+    const s = findSites(CASE_BACK).find((x) => x.allowed.includes('rabbet'))!;
+    expect(s).toBeDefined();
+    const r = rangesOf(s, CASE_BACK);
+    expect(r.rabbetDepth).toEqual([0.125, 0.375]);
+    expect(validChoice({ site: s.id, joint: 'rabbet', depth: 0.125 }, s, CASE_BACK)).toBe(true);
+    expect(validChoice({ site: s.id, joint: 'rabbet', depth: 0.375 }, s, CASE_BACK)).toBe(true);
+    expect(validChoice({ site: s.id, joint: 'rabbet', depth: 0.375 + 1 / 16 }, s, CASE_BACK)).toBe(false);
+    expect(validChoice({ site: s.id, joint: 'rabbet', depth: 0.125 - 1 / 16 }, s, CASE_BACK)).toBe(false);
   });
 });

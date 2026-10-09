@@ -45,6 +45,8 @@ export function documentToDesign(doc: SloydDocument, max: RefineMax): { design: 
   const placed = worldParts(doc).length;
   if (placed === 0) return refuse('empty', 'There is nothing to refine yet.');
   const stored: StoredBoard[] = [...doc.boards, ...doc.definitions.flatMap((d) => d.boards)];
+  // Defence in depth: Refine's own path never reaches this with cuts (plainForRefine's joint gate
+  // runs first and hands over the plain parts), but documentToDesign can still be called directly.
   if (stored.some((b) => (resolveBoard(shapes, b)?.cuts.length ?? 0) > 0)) {
     return refuse('cuts', 'Refine works on prototypes without joints. Refine first, then add joinery.');
   }
