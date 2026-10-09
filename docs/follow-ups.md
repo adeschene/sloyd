@@ -4669,7 +4669,7 @@ output estimate by a measured factor. Generate's and joinery's estimates may sha
 **238. Refining designs with joints.** The user chose fresh prototypes first (option 1 of 3). A
 joined design is refused before any call. Lifting that needs cuts to survive (or be re-derived)
 through the model's box format.
-- **Status:** open by decision; the natural next round for refine.
+- **Status:** CLOSED 2026-10-09 by the refine-joined round (`docs/superpowers/specs/2026-10-09-sloyd-refine-joined-design.md`).
 
 **239. Small gaps the round judged fine to leave.** Record-only; the reviews' deferred minors.
 - **Untested.** The material-label-identical guard in `diffDesigns` (cannot fire: labels are unique);
@@ -4681,4 +4681,33 @@ through the model's box format.
 - **Cosmetic.** The estimate recomputes per keystroke; two `role="status"` elements can render
   together; the `' turned'` detail string is duplicated in its merge key; the change list lives in
   hook state, so closing the dialog mid-run and reopening clears it (joinery's pattern).
+- **Status:** record-only.
+
+## From the refine-joined round — 2026-10-09
+
+**240. Saved projects joined before `a899b51` may carry duplicated AND phantom mortises.** Joinery's
+`applyJoints` cloned the flat board list as a whole, so twin placements of one definition shared one
+`cuts` array: every joint landed in both copies — a duplicated mortise for joints both copies had,
+and a phantom mortise in one copy for a joint only the other had. Any shared assembly joined since
+the assemblies round (2026-10-06) may show these on its cut list. Fixed going forward in `a899b51`.
+Refine's gate refuses such projects (safe; its message blames a hand edit). A load repair could drop
+exact duplicates but not phantoms; the real remedy is re-running Add joinery from the unjoined
+original.
+- **Status:** open — tell affected users; consider a repair or a cut-list warning.
+
+**241. A design that tips gets repair rounds on every refine.** Part-less problems (`tips`, size
+limits) are always new by the user's limits ruling, so a refine of a design that already tipped
+spends repair calls on it each time.
+- **Status:** open by decision (a tipping design is a defect); revisit if it proves costly.
+
+**242. The join stage's repair text isn't labelled as joinery,** and the estimate note understates
+the possible joinery calls (up to 1 + MAX_REPAIRS). Cosmetic, but it is money (see fu 236).
+- **Status:** open, low.
+
+**243. Small gaps the round judged fine to leave.** Record-only.
+- `gateUnjoin`'s unmapped-joint refusal is redundant with the compare; the named-part filter on
+  `alsoPresent` is unpinned; half-lap records always carry `side: -1` (consistent with `findSites`).
+- `refineDesign`'s `'cuts'` refusal is defence-in-depth (Refine's gate runs first).
+- Re-opening a colliding kept joint re-opens every non-butt kept joint touching the named parts,
+  not only the culprit (may over-open a few).
 - **Status:** record-only.

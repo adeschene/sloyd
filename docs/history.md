@@ -302,6 +302,25 @@ and 79.
 
 ## What each round did
 
+**What the refine-joined round did (2026-10-09)**: follow-up 238, refining designs with joints, with a
+spec and plan (`docs/superpowers/specs/2026-10-09-sloyd-refine-joined-design.md`). **No schema
+change.** A throwaway spike first measured that joinery can be read back from the joined design
+alone: 126/126 joined designs (all five joint kinds, mixed designs, the lowered drawer) re-joined
+exactly. `unjoin` turns a joined design into plain boxes plus joint records; `gateUnjoin` proves it
+by re-joining (refusing anything it can't reproduce, before any call); Refine refines the plain
+design and re-joins with the records as `fixed` choices, so only genuinely new or no-longer-fitting
+meetings reach one joinery call. The user's rulings: keep joints where possible, infer them (not
+record them at joinery time), the model chooses only new meetings, all five kinds; after the final
+review, the gate compares within 1e-9in (metric/typed designs were refused over float noise) and
+kept joints that collide are re-opened. Found during execution: meetings the original left butt had
+no record and were re-chosen on every refine (now fixed butts), the original joined design's
+problems re-reported as new (now already present), joinery's own thin-post tenons failing the
+strict check, and an older joinery bug — shared assembly copies storing every joint twice, with
+phantom mortises (`a899b51`, fu 240). Live check with the user watching
+(`docs/browser-verification-refine-joined.md`): a model-joined bookcase (10 stopped dados, 3
+rabbets) refined "2in taller" kept all 13 joints in one call; "add a third shelf" kept 13 and asked
+about 2. Tests 2207 → 2486.
+
 **What the refine round did (2026-10-09)**: follow-up 179, refine by instruction, with a spec and plan
 (`docs/superpowers/specs/2026-10-09-sloyd-refine-design.md`). **No schema change.** "Refine…" sends
 the open prototype, in Generate's own format, plus an instruction through the same repair loop and
