@@ -315,18 +315,35 @@ export async function runJoinery(
     const c = f && { site: s.id, ...f };
     if (c && validChoice(c, s, flat)) fixed.set(s.id, c);
   }
-  const open = sites.filter((s) => !fixed.has(s.id));
-  const merge = (chosen: JointChoice[]) => sites.map((s) => fixed.get(s.id) ?? chosen.find((c) => c.site === s.id) ?? { site: s.id, joint: 'butt' as const });
   const limits = { width: null, depth: null, height: null, maxParts: flat.boards.length };
   const preexisting = checkDesign(flat, limits);
   const old = new Set(preexisting.map(problemKey));
+  // `alsoPresent` (Refine): a named-part problem the caller's ORIGINAL already had counts as
+  // preexisting too — never new, never repair feedback (refine-joined spec §4 Issues).
+  const also = (v: Violation) => v.parts.length > 0 && !old.has(problemKey(v)) && opts.alsoPresent?.has(problemKey(v)) === true;
+  // The problems a joining INTRODUCED (invariant 41): the ONE filter, for the trial and for build.
+  const introduced = (raw: Violation[]) => raw.filter((v) => !old.has(problemKey(v)) && !also(v));
+  if (opts.fixed && fixed.size > 0) {
+    // Kept joints that collide are re-opened, once (refine-joined spec §4, the user's ruling): a
+    // part made slimmer can leave a recorded tenon "in range" yet meeting its neighbour's. One trial
+    // with the open sites' defaults; every fixed site whose entering or receiving part a problem it
+    // introduced names goes to the chooser with the open ones. A fixed BUTT is never re-opened: it
+    // cuts and moves nothing, so it cannot be the cause, and §4 keeps a meeting left butt as butt.
+    const trial = applyJoints(flat, sites, sites.map((s) => fixed.get(s.id) ?? defaultChoice(s, flat, sites)));
+    const named = new Set(introduced(checkDesign(flatDocument(trial.doc), limits)).flatMap((v) => v.parts));
+    if (named.size > 0) {
+      for (const s of sites) {
+        const f = fixed.get(s.id);
+        if (f && f.joint !== 'butt' && (named.has(flat.boards[s.enter]!.name) || named.has(flat.boards[s.receive]!.name))) fixed.delete(s.id);
+      }
+    }
+  }
+  const open = sites.filter((s) => !fixed.has(s.id));
+  const merge = (chosen: JointChoice[]) => sites.map((s) => fixed.get(s.id) ?? chosen.find((c) => c.site === s.id) ?? { site: s.id, joint: 'butt' as const });
   const build = (choices: JointChoice[], notes: string[]) => {
     const joined = applyJoints(flat, sites, choices);
     const raw = checkDesign(flatDocument(joined.doc), limits);
-    // `alsoPresent` (Refine): a named-part problem the caller's ORIGINAL already had counts as
-    // preexisting too — never new, never repair feedback (refine-joined spec §4 Issues).
-    const also = (v: Violation) => v.parts.length > 0 && !old.has(problemKey(v)) && opts.alsoPresent?.has(problemKey(v)) === true;
-    const violations = raw.filter((v) => !old.has(problemKey(v)) && !also(v));
+    const violations = introduced(raw);
     // The tree-shaped document is what useJoinery saves (out.result.doc).
     const tree = migrateDocument(writeBackFlat(doc, flat.boards, worldParts(joined.doc)));
     const result = { ...joined, doc: tree };

@@ -8,7 +8,8 @@ import type { LlmClient, LlmResult } from '../../llm/types';
 import { runJoinery } from '../run';
 import { applyJoints } from './recipes';
 import { findSites, jointKey } from './sites';
-import { defaultChoice } from './choose';
+import { defaultChoice, validChoice } from './choose';
+import { checkDesign } from '../../document/designCheck';
 
 vi.mock('./recipes', async (orig) => {
   const a = await orig<typeof import('./recipes')>();
@@ -317,5 +318,80 @@ describe('runJoinery — fixed choices', () => {
     const out = await run(client(long, short));
     if ('noSites' in out) throw new Error('sites');
     expect(out.kept).toBe(0);
+  });
+});
+
+describe('runJoinery — kept joints that collide are re-opened (refine-joined spec §4, F3)', () => {
+  // A corner leg thinned to 1-1/2in: both recorded 7/8in tenons are still inside the tenon range
+  // [1/2, 1-1/4], but on this leg they pass through each other.
+  const THIN = design(
+    { name: 'Leg', at: [0, 0, 0], size: [1.5, 28, 1.5] },
+    { name: 'Rail X', at: [1.5, 23.5, 0.375], size: [18, 3, 0.75] },
+    { name: 'Rail Z', at: [0.375, 23.5, 1.5], size: [0.75, 3, 18] },
+  );
+  const ts = findSites(THIN);
+  const tkey = (s: (typeof ts)[number]) => jointKey(THIN.boards[s.enter].name, THIN.boards[s.receive].name, s.axis, s.side);
+  const tenons = ts.filter((s) => THIN.boards[s.receive].name === 'Leg');
+  const recorded = new Map(tenons.map((s) => [tkey(s), { joint: 'mortise-tenon' as const, tenonLength: 0.875 }]));
+  const shortAnswer = { joints: tenons.map((s) => ({ site: s.id, joint: 'mortise-tenon', tenonLength: 0.5 })) };
+  const overlapXZ = (v: { kind: string; parts: string[] }) => v.kind === 'overlap' && [...v.parts].sort().join() === 'Rail X,Rail Z';
+  const listedIn = (c: LlmClient) => String((c.complete as ReturnType<typeof vi.fn>).mock.calls[0][0].messages[0])
+    .split('Sites:\n')[1]!.split('\n').filter((l) => /^\d+\. /.test(l));
+
+  it('the fixture: both 7/8in tenons are valid on the thin leg, and applied together they overlap', () => {
+    expect(tenons).toHaveLength(2);
+    for (const s of tenons) expect(validChoice({ site: s.id, ...recorded.get(tkey(s))! }, s, THIN)).toBe(true);
+    const j = applyJoints(THIN, ts, ts.map((s) => ({ site: s.id, ...(recorded.get(tkey(s)) ?? { joint: 'butt' as const }) })));
+    expect(checkDesign(flatDocument(j.doc), { width: null, depth: null, height: null, maxParts: 3 }).some(overlapXZ)).toBe(true);
+    expect(checkDesign(THIN, { width: null, depth: null, height: null, maxParts: 3 }).some(overlapXZ)).toBe(false);
+  });
+
+  it('re-opens both: they go to the chooser, are not kept, and the shorter answer leaves no new overlap', async () => {
+    const c = client(shortAnswer);
+    const out = await runJoinery(c, THIN, new AbortController().signal, () => {}, { fixed: recorded });
+    if ('noSites' in out) throw new Error('sites');
+    expect(c.complete).toHaveBeenCalledTimes(1);
+    const listed = listedIn(c);
+    expect(listed).toHaveLength(2);
+    expect(listed.some((l) => l.includes('Rail X'))).toBe(true);
+    expect(listed.some((l) => l.includes('Rail Z'))).toBe(true);
+    expect(out.kept).toBe(0);
+    expect(out.chosen).toBe(2);
+    expect(out.violations).toEqual([]);
+    expect(out.result.applied.filter((a) => a.joint === 'mortise-tenon')).toHaveLength(2);
+  });
+
+  it('a problem the caller already had (alsoPresent) re-opens nothing: no call', async () => {
+    const c = client(shortAnswer);
+    const out = await runJoinery(c, THIN, new AbortController().signal, () => {}, {
+      fixed: recorded, alsoPresent: new Set([JSON.stringify(['overlap', ['Rail X', 'Rail Z']])]),
+    });
+    if ('noSites' in out) throw new Error('sites');
+    expect(c.complete).not.toHaveBeenCalled();
+    expect(out.kept).toBe(2);
+  });
+
+  it('a fixed BUTT whose part a collision names stays butt and is not sent (spec §4 fixed butts)', async () => {
+    // A cleat under Rail X meets it; that meeting was left butt. The tenon collision names Rail X.
+    const CLEATED = design(
+      { name: 'Leg', at: [0, 0, 0], size: [1.5, 28, 1.5] },
+      { name: 'Rail X', at: [1.5, 23.5, 0.375], size: [18, 3, 0.75] },
+      { name: 'Rail Z', at: [0.375, 23.5, 1.5], size: [0.75, 3, 18] },
+      { name: 'Cleat', at: [8, 20.5, 0.375], size: [2, 3, 0.75] },
+    );
+    const cs = findSites(CLEATED);
+    const ck = (s: (typeof cs)[number]) => jointKey(CLEATED.boards[s.enter].name, CLEATED.boards[s.receive].name, s.axis, s.side);
+    const cleatSite = cs.find((s) => [CLEATED.boards[s.enter].name, CLEATED.boards[s.receive].name].includes('Cleat'));
+    expect(cleatSite).toBeDefined();
+    expect([CLEATED.boards[cleatSite!.enter].name, CLEATED.boards[cleatSite!.receive].name]).toContain('Rail X');
+    const fixed = new Map<string, { joint: 'mortise-tenon'; tenonLength: number } | { joint: 'butt' }>(
+      cs.map((s) => [ck(s), CLEATED.boards[s.receive].name === 'Leg' ? { joint: 'mortise-tenon', tenonLength: 0.875 } : { joint: 'butt' }]));
+    const c = client(shortAnswer);
+    const out = await runJoinery(c, CLEATED, new AbortController().signal, () => {}, { fixed });
+    if ('noSites' in out) throw new Error('sites');
+    const listed = listedIn(c);
+    expect(listed).toHaveLength(2);
+    expect(listed.some((l) => l.includes('Cleat'))).toBe(false);
+    expect(out.result.applied.find((a) => a.site === cleatSite!.id)?.joint ?? 'butt').toBe('butt');
   });
 });
