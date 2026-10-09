@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { DETAIL_CAPS } from '../generate/prompt';
 import type { Detail } from '../generate/prompt';
 import { MAX_REPAIRS } from '../generate/run';
@@ -10,6 +11,8 @@ interface Props {
   hasKey: boolean; libraryAvailable: boolean; projectName: string;
   /** Why the open design cannot be refined, or null (decided before any call). */
   refusal: string | null;
+  /** Replaces the refusal text when the refusal is repairable (repair-joints). */
+  repairNotice?: ReactNode;
   /** The open design has joinery cuts, so a joinery call may follow the model call. */
   joined: boolean;
   initialDetail: Detail; model: string | null;
@@ -70,7 +73,7 @@ export function RefineDialog(p: Props) {
       <div className="modal-sheet" ref={sheet} tabIndex={-1}>
         <h2>Refine</h2>
         <p>{`Describe a change to ${p.projectName}. The result is saved as a new project; this one is not changed.`}</p>
-        {p.refusal !== null ? <p className="field-error" role="status">{p.refusal}</p> : (
+        {p.refusal !== null ? (p.repairNotice ?? <p className="field-error" role="status">{p.refusal}</p>) : (
           <>
             <div className="field">
               <label htmlFor="refine-instruction">Instruction</label>

@@ -19,12 +19,15 @@ export interface RecordedJoint {
   choice: Omit<JointChoice, 'site'>;
 }
 
+/** A cut no joint accounts for: indices into `flat.boards[part].cuts`. */
+export interface Unexplained { part: number; cut: number }
+
 type Unjoined = { plain: Board[]; joints: RecordedJoint[] } | { refused: string };
 
 const EPS = 1e-9;
 const near = (a: number, b: number) => Math.abs(a - b) <= EPS;
 
-const cutBox = (b: Board, c: Cut): WorldBox => {
+export const cutBox = (b: Board, c: Cut): WorldBox => {
   const r = clippedRegion(b, c);
   const f = axisFrame(b);
   const min = [0, 0, 0] as V3; const max = [0, 0, 0] as V3;
@@ -71,10 +74,12 @@ const sameSpan = (a: WorldBox, b: WorldBox, i: number) => near(a.min[i], b.min[i
  * then changes those parts; untouched parts re-join exactly (`gateUnjoin`
  * guarantees it).
  *
- * The `refused` reason is internal (it names the cut); callers go through
- * `gateUnjoin`, which replaces it with `GATE_REFUSAL`.
+ * `readJoints` is this body: it returns the cuts no joint explains (`unexplained`)
+ * instead of refusing. `unjoin` refuses on any; its reason is internal (it names
+ * the cut), and callers go through `gateUnjoin`, which replaces it with `GATE_REFUSAL`.
  */
-export function unjoin(flat: FlatDocument): Unjoined {
+export function readJoints(flat: FlatDocument):
+  { plain: Board[]; joints: RecordedJoint[]; unexplained: Unexplained[] } | { refused: string } {
   // Per board, as in applyJoints: a whole-array clone keeps aliasing, and flat twins of one
   // definition share one `cuts` array (positions are computed per placement).
   const boards: Board[] = flat.boards.map((b) => structuredClone(b));
@@ -224,10 +229,34 @@ export function unjoin(flat: FlatDocument): Unjoined {
     if (!near(drop, 0)) for (const b of boards) b.position[1] -= drop;
   }
 
-  const left = cuts.flatMap((cs, i) => cs.filter((c) => !c.used).map((c) => `${boards[i].name}[${c.box.min.join(',')}->${c.box.max.join(',')}]`));
-  if (left.length) return { refused: `unexplained cuts on ${[...new Set(left)].join(', ')}` };
+  const unexplained: Unexplained[] = cuts.flatMap((cs, part) => cs.flatMap((c, cut) => (c.used ? [] : [{ part, cut }])));
   for (const b of boards) b.cuts = [];
-  return { plain: boards, joints };
+  return { plain: boards, joints, unexplained };
+}
+
+/** `readJoints`, refusing when any cut is unexplained. The reason names the cuts (internal; callers go through `gateUnjoin`). */
+export function unjoin(flat: FlatDocument): Unjoined {
+  const r = readJoints(flat);
+  if ('refused' in r) return r;
+  if (r.unexplained.length) {
+    const left = r.unexplained.map(({ part, cut }) => { const b = flat.boards[part]!; const x = cutBox(b, b.cuts[cut]!); return `${b.name}[${x.min.join(',')}->${x.max.join(',')}]`; });
+    return { refused: `unexplained cuts on ${[...new Set(left)].join(', ')}` };
+  }
+  return { plain: r.plain, joints: r.joints };
+}
+
+/** Re-join plain parts with recorded joints, every other site butt — the gate's re-join. */
+export function rejoin(plain: FlatDocument, joints: readonly RecordedJoint[]): FlatDocument | null {
+  const sites = findSites(plain);
+  const key = (s: Site) => jointKey(plain.boards[s.enter]!.name, plain.boards[s.receive]!.name, s.axis, s.side);
+  const bySite = new Map(sites.map((s) => [key(s), s]));
+  const choices: JointChoice[] = sites.map((s) => ({ site: s.id, joint: 'butt' }));
+  for (const j of joints) {
+    const s = bySite.get(jointKey(j.enter, j.receive, j.axis, j.side));
+    if (!s) return null;
+    choices[sites.indexOf(s)] = { site: s.id, ...j.choice };
+  }
+  return applyJoints(plain, sites, choices).doc;
 }
 
 export const GATE_REFUSAL = "Refine cannot account for this design's joints — for example, joinery was run twice, or a joined part or cut was edited by hand.";
@@ -242,7 +271,7 @@ export const GATE_TOLERANCE = 1e-9;
 
 const same = (a: unknown, b: unknown) =>
   typeof a === 'number' && typeof b === 'number' ? Math.abs(a - b) <= GATE_TOLERANCE : a === b;
-const sameCut = (c: Cut, d: Cut) => CUT_GEOMETRY_KEYS.every((k) => same(c[k], d[k]));
+export const sameCut = (c: Cut, d: Cut) => CUT_GEOMETRY_KEYS.every((k) => same(c[k], d[k]));
 
 /**
  * Ids ignored (refine-joined spec §3.2). Names, posture, rotation, material and grain compare
@@ -268,15 +297,6 @@ export function sameJoined(a: FlatDocument, b: FlatDocument): boolean {
 export function gateUnjoin(flat: FlatDocument): { plain: Board[]; joints: RecordedJoint[] } | { refused: string } {
   const u = unjoin(flat);
   if ('refused' in u) return { refused: GATE_REFUSAL };
-  const plain: FlatDocument = { ...flat, boards: u.plain };
-  const sites = findSites(plain);
-  const key = (s: Site) => jointKey(plain.boards[s.enter]!.name, plain.boards[s.receive]!.name, s.axis, s.side);
-  const bySite = new Map(sites.map((s) => [key(s), s]));
-  const choices: JointChoice[] = sites.map((s) => ({ site: s.id, joint: 'butt' }));
-  for (const j of u.joints) {
-    const s = bySite.get(jointKey(j.enter, j.receive, j.axis, j.side));
-    if (!s) return { refused: GATE_REFUSAL };
-    choices[sites.indexOf(s)] = { site: s.id, ...j.choice };
-  }
-  return sameJoined(applyJoints(plain, sites, choices).doc, flat) ? u : { refused: GATE_REFUSAL };
+  const again = rejoin({ ...flat, boards: u.plain }, u.joints);
+  return again && sameJoined(again, flat) ? u : { refused: GATE_REFUSAL };
 }

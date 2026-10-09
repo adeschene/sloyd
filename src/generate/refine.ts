@@ -1,4 +1,6 @@
 import { distinctParts } from '../document/assemblyChecks';
+import { repairDocument } from './joints/repair';
+import type { RepairCheck } from './joints/repair';
 import type { GeneratedDesign } from '../document/generated';
 import { documentToDesign } from '../document/refineDesign';
 import type { RefineMax, RefineRefusal } from '../document/refineDesign';
@@ -62,9 +64,11 @@ export function refineRefusal(doc: SloydDocument, base: RefineBase = plainForRef
  * What the Refine dialog shows, from ONE plainForRefine (one gate run) per document; `base` goes
  * back to refineEstimateUsd so the estimate does not run the gate again on every render.
  */
-export function refineDialogInfo(doc: SloydDocument): { base: RefineBase; refusal: string | null; detail: Detail; joined: boolean } {
+export function refineDialogInfo(doc: SloydDocument): { base: RefineBase; refusal: string | null; detail: Detail; joined: boolean; repair: RepairCheck } {
   const base = plainForRefine(doc);
   // Joined = some placed part is cut: the gate either explained it (joints) or refused it.
   const joined = 'refused' in base ? base.refused.reason === 'joints' : base.joints !== null;
-  return { base, refusal: refineRefusal(doc, base), detail: detailFor(doc), joined };
+  return { base, refusal: refineRefusal(doc, base), detail: detailFor(doc), joined,
+    // Only when the gate refused for joints: the repair is the way out of that refusal (repair-joints spec §3).
+    repair: 'refused' in base && base.refused.reason === 'joints' ? repairDocument(doc) : null };
 }

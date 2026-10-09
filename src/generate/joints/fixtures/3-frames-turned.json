@@ -1,0 +1,361 @@
+{
+ "about": "Two shared metric frames at off-grid spots, the second turned 90°: twins computed from different poses.",
+ "plain": {
+  "version": 11,
+  "name": "Frames",
+  "units": {
+   "display": "imperial-fractional",
+   "precision": 16
+  },
+  "stock": {
+   "kerf": 0.125
+  },
+  "guides": [],
+  "boards": [],
+  "instances": [
+   {
+    "id": "b_mv1gdpkg_1c",
+    "name": "Front",
+    "definition": "b_mv1gdpkg_1b",
+    "position": [
+     0.5393700787401575,
+     0,
+     0.12992125984251968
+    ],
+    "rotation": 0
+   },
+   {
+    "id": "b_mv1gdpkg_1d",
+    "name": "Side",
+    "definition": "b_mv1gdpkg_1b",
+    "position": [
+     49.04724409448819,
+     0,
+     11.078740157480317
+    ],
+    "rotation": 90
+   }
+  ],
+  "definitions": [
+   {
+    "id": "b_mv1gdpkg_1b",
+    "boards": [
+     {
+      "id": "b_mv1gdpkg_19",
+      "name": "Leg",
+      "position": [
+       0,
+       0,
+       0
+      ],
+      "rotation": 0,
+      "length": 27.95275590551181,
+      "width": 1.7716535433070868,
+      "thickness": 1.7716535433070868,
+      "posture": "upright",
+      "grain": "length",
+      "material": "oak",
+      "cuts": []
+     },
+     {
+      "id": "b_mv1gdpkg_1a",
+      "name": "Rail",
+      "position": [
+       1.7716535433070868,
+       23.50393700787402,
+       0.5118110236220472
+      ],
+      "rotation": 0,
+      "length": 17.99212598425197,
+      "width": 2.9921259842519685,
+      "thickness": 0.7480314960629921,
+      "posture": "on-edge",
+      "grain": "length",
+      "material": "oak",
+      "cuts": []
+     }
+    ],
+    "instances": []
+   }
+  ],
+  "shapes": []
+ },
+ "choices": [
+  {
+   "enter": "Front › Rail",
+   "receive": "Front › Leg",
+   "axis": 0,
+   "side": -1,
+   "choice": {
+    "joint": "mortise-tenon",
+    "tenonLength": 1.1875
+   }
+  },
+  {
+   "enter": "Side › Rail",
+   "receive": "Side › Leg",
+   "axis": 2,
+   "side": 1,
+   "choice": {
+    "joint": "mortise-tenon",
+    "tenonLength": 1.1875
+   }
+  }
+ ],
+ "damaged": {
+  "version": 11,
+  "name": "Frames",
+  "units": {
+   "display": "imperial-fractional",
+   "precision": 16
+  },
+  "stock": {
+   "kerf": 0.125
+  },
+  "guides": [],
+  "boards": [],
+  "instances": [
+   {
+    "id": "b_mv1gdpkg_1c",
+    "name": "Front",
+    "definition": "b_mv1gdpkg_1b",
+    "position": [
+     0.5393700787401575,
+     0,
+     0.12992125984251968
+    ],
+    "rotation": 0
+   },
+   {
+    "id": "b_mv1gdpkg_1d",
+    "name": "Side",
+    "definition": "b_mv1gdpkl_1s",
+    "position": [
+     49.04724409448819,
+     0,
+     11.078740157480317
+    ],
+    "rotation": 90
+   }
+  ],
+  "definitions": [
+   {
+    "id": "b_mv1gdpkg_1b",
+    "boards": [
+     {
+      "id": "b_mv1gdpkg_19",
+      "name": "Leg",
+      "position": [
+       0,
+       0,
+       0
+      ],
+      "rotation": 0,
+      "length": 27.95275590551181,
+      "width": 1.7716535433070868,
+      "thickness": 1.7716535433070868,
+      "posture": "upright",
+      "grain": "length",
+      "material": "oak",
+      "cuts": [
+       {
+        "id": "b_mv1gdpki_1i",
+        "face": "width",
+        "from": "max",
+        "across": "length",
+        "offset": 0.7608267716535433,
+        "width": 0.25,
+        "depth": 1.1875,
+        "stopMin": 24.00393700787402,
+        "stopMax": 1.956692913385826
+       },
+       {
+        "id": "b_mv1gdpkj_1n",
+        "face": "width",
+        "from": "max",
+        "across": "length",
+        "offset": 0.7608267716535408,
+        "width": 0.25,
+        "depth": 1.1875,
+        "stopMin": 24.00393700787402,
+        "stopMax": 1.956692913385826
+       }
+      ]
+     },
+     {
+      "id": "b_mv1gdpkg_1a",
+      "name": "Rail",
+      "position": [
+       0.5841535433070868,
+       23.50393700787402,
+       0.5118110236220472
+      ],
+      "rotation": 0,
+      "length": 19.17962598425197,
+      "width": 2.9921259842519685,
+      "thickness": 0.7480314960629921,
+      "posture": "on-edge",
+      "grain": "length",
+      "material": "oak",
+      "cuts": [
+       {
+        "id": "b_mv1gdpkh_1e",
+        "face": "thickness",
+        "from": "min",
+        "across": "width",
+        "offset": 0,
+        "width": 1.1875,
+        "depth": 0.24901574803149606,
+        "stopMin": 0,
+        "stopMax": 0
+       },
+       {
+        "id": "b_mv1gdpki_1f",
+        "face": "thickness",
+        "from": "max",
+        "across": "width",
+        "offset": 0,
+        "width": 1.1875,
+        "depth": 0.24901574803149606,
+        "stopMin": 0,
+        "stopMax": 0
+       },
+       {
+        "id": "b_mv1gdpki_1g",
+        "face": "width",
+        "from": "min",
+        "across": "thickness",
+        "offset": 0,
+        "width": 1.1875,
+        "depth": 0.5,
+        "stopMin": 0,
+        "stopMax": 0
+       },
+       {
+        "id": "b_mv1gdpki_1h",
+        "face": "width",
+        "from": "max",
+        "across": "thickness",
+        "offset": 0,
+        "width": 1.1875,
+        "depth": 0.5000000000000018,
+        "stopMin": 0,
+        "stopMax": 0
+       }
+      ]
+     }
+    ],
+    "instances": []
+   },
+   {
+    "id": "b_mv1gdpkl_1s",
+    "boards": [
+     {
+      "id": "b_mv1gdpkg_19",
+      "name": "Leg",
+      "position": [
+       0,
+       0,
+       0
+      ],
+      "rotation": 0,
+      "length": 27.95275590551181,
+      "width": 1.7716535433070868,
+      "thickness": 1.7716535433070868,
+      "posture": "upright",
+      "grain": "length",
+      "material": "oak",
+      "cuts": [
+       {
+        "id": "b_mv1gdpki_1i",
+        "face": "width",
+        "from": "max",
+        "across": "length",
+        "offset": 0.7608267716535433,
+        "width": 0.25,
+        "depth": 1.1875,
+        "stopMin": 24.00393700787402,
+        "stopMax": 1.956692913385826
+       },
+       {
+        "id": "b_mv1gdpkj_1n",
+        "face": "width",
+        "from": "max",
+        "across": "length",
+        "offset": 0.7608267716535408,
+        "width": 0.25,
+        "depth": 1.1875,
+        "stopMin": 24.00393700787402,
+        "stopMax": 1.956692913385826
+       }
+      ]
+     },
+     {
+      "id": "b_mv1gdpkg_1a",
+      "name": "Rail",
+      "position": [
+       0.5841535433070868,
+       23.50393700787402,
+       0.5118110236220472
+      ],
+      "rotation": 0,
+      "length": 19.17962598425197,
+      "width": 2.9921259842519685,
+      "thickness": 0.7480314960629921,
+      "posture": "on-edge",
+      "grain": "length",
+      "material": "oak",
+      "cuts": [
+       {
+        "id": "b_mv1gdpki_1j",
+        "face": "thickness",
+        "from": "min",
+        "across": "width",
+        "offset": 0,
+        "width": 1.1875,
+        "depth": 0.2490157480314963,
+        "stopMin": 0,
+        "stopMax": 0
+       },
+       {
+        "id": "b_mv1gdpkj_1k",
+        "face": "thickness",
+        "from": "max",
+        "across": "width",
+        "offset": 0,
+        "width": 1.1875,
+        "depth": 0.24901574803149584,
+        "stopMin": 0,
+        "stopMax": 0
+       },
+       {
+        "id": "b_mv1gdpkj_1l",
+        "face": "width",
+        "from": "min",
+        "across": "thickness",
+        "offset": 0,
+        "width": 1.1875,
+        "depth": 0.5,
+        "stopMin": 0,
+        "stopMax": 0
+       },
+       {
+        "id": "b_mv1gdpkj_1m",
+        "face": "width",
+        "from": "max",
+        "across": "thickness",
+        "offset": 0,
+        "width": 1.1875,
+        "depth": 0.5000000000000018,
+        "stopMin": 0,
+        "stopMax": 0
+       }
+      ]
+     }
+    ],
+    "instances": []
+   }
+  ],
+  "shapes": []
+ }
+}

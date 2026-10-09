@@ -1,0 +1,101 @@
+// Throwaway generator, run ONLY in a worktree at 4a340f7 (before a899b51): builds plain
+// designs with shared assemblies, joins them with THAT commit's applyJoints (which aliases
+// twin placements' cuts), writes back as its runJoinery did, and saves the stored documents.
+import { it } from 'vitest';
+import { writeFileSync, mkdirSync } from 'node:fs';
+import { designToDocument } from '../document/generated';
+import type { GeneratedDesign } from '../document/generated';
+import { flatDocument, migrateDocument, worldParts, writeBackFlat } from '../document/document';
+import type { FlatDocument, SloydDocument } from '../document/document';
+import { groupItems, shareInstance, turnInstance } from '../document/treeOps';
+import { findSites, rangesOf } from '../generate/joints/sites';
+import type { Site } from '../generate/joints/sites';
+import { applyJoints } from '../generate/joints/recipes';
+import type { JointChoice } from '../generate/joints/recipes';
+import { defaultChoice } from '../generate/joints/choose';
+
+const OUT = process.env.FIXTURE_OUT!;
+type Pick = (s: Site, flat: FlatDocument, sites: Site[], i: number) => JointChoice;
+const defaults: Pick = (s, flat, sites) => defaultChoice(s, flat, sites);
+const part = (name: string, at: [number, number, number], size: [number, number, number], material = 'oak') =>
+  ({ name, role: '', material, at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] } });
+const FRAME = { name: 'Frame', parts: [part('Leg', [0, 0, 0], [1.75, 28, 1.75]), part('Rail', [1.75, 23.5, 0.5], [18, 3, 0.75])] };
+
+function save(name: string, about: string, plain: SloydDocument, pick: Pick) {
+  const flat = flatDocument(plain);
+  const sites = findSites(flat);
+  const choices = sites.map((s, i) => pick(s, flat, sites, i));
+  const joined = applyJoints(flat, sites, choices);
+  const damaged = migrateDocument(writeBackFlat(plain, flat.boards, worldParts(joined.doc)));
+  const records = sites.flatMap((s, i) => {
+    const { site: _s, ...choice } = choices[i]!;
+    return choice.joint === 'butt' ? [] : [{ enter: flat.boards[s.enter]!.name, receive: flat.boards[s.receive]!.name, axis: s.axis, side: s.side, choice }];
+  });
+  mkdirSync(OUT, { recursive: true });
+  writeFileSync(`${OUT}/${name}.json`, JSON.stringify({ about, plain, choices: records, damaged }, null, 1) + '\n');
+  console.log(name, 'sites', sites.length, 'applied', joined.applied.map((a) => a.joint).join(','), 'skipped', joined.skipped.length,
+    'defs', damaged.definitions.length, 'cuts', flatDocument(damaged).boards.map((b) => `${b.name}:${b.cuts.length}`).join(' '));
+}
+const gen = (d: GeneratedDesign) => designToDocument(d).doc;
+
+it('makes the damaged fixtures', () => {
+  save('1-frames-duplicates', 'Two shared frames, mortise-tenon in each: every joint duplicated.',
+    gen({ name: 'Frames', parts: [], assemblies: [{ ...FRAME, placements: [{ name: 'Front', at: { x: 0, y: 0, z: 0 } }, { name: 'Back', at: { x: 0, y: 0, z: 30 } }] }] }), defaults);
+
+  save('2-frames-phantom', 'Two shared frames plus a loose stretcher entering the Front leg only: phantom mortise in the Back leg.',
+    gen({ name: 'Frames', parts: [part('Stretcher', [-10, 10, 0.5], [10, 3, 0.75])],
+      assemblies: [{ ...FRAME, placements: [{ name: 'Front', at: { x: 0, y: 0, z: 0 } }, { name: 'Back', at: { x: 0, y: 0, z: 30 } }] }] }), defaults);
+
+  {
+    // Metric (mm / 25.4) sizes and off-grid placements, so each twin's pocket, computed from its own
+    // world position, can differ from the other's in the last bit.
+    const mm = (v: number) => v / 25.4;
+    const METRIC = { name: 'Frame', parts: [part('Leg', [0, 0, 0], [mm(45), mm(710), mm(45)]), part('Rail', [mm(45), mm(597), mm(13)], [mm(457), mm(76), mm(19)])] };
+    let d = gen({ name: 'Frames', parts: [], assemblies: [{ ...METRIC, placements: [{ name: 'Front', at: { x: mm(13.7), y: 0, z: mm(3.3) } }, { name: 'Side', at: { x: mm(1017.3), y: 0, z: mm(7.9) } }] }] });
+    // designToDocument snaps to 1/16in: put the metric values back by hand.
+    const def = d.definitions[0]!;
+    const leg = def.boards.find((b) => b.name === 'Leg')! as { length: number; width: number; thickness: number; position: number[] };
+    const rail = def.boards.find((b) => b.name === 'Rail')! as { length: number; width: number; thickness: number; position: number[] };
+    Object.assign(leg, { length: mm(710), width: mm(45), thickness: mm(45) });
+    Object.assign(rail, { length: mm(457), width: mm(76), thickness: mm(19), position: [mm(45), mm(597), mm(13)] });
+    d.instances[0]!.position = [mm(13.7), 0, mm(3.3)];
+    d.instances[1]!.position = [mm(1017.3), 0, mm(7.9)];
+    d = turnInstance(d, d.instances[1]!.id, 90);
+    save('3-frames-turned', 'Two shared metric frames at off-grid spots, the second turned 90°: twins computed from different poses.', d, defaults);
+  }
+
+  {
+    const CASE = { name: 'Case', parts: [
+      part('Left', [0, 0, 0], [0.75, 30, 11.25]), part('Right', [23.25, 0, 0], [0.75, 30, 11.25]),
+      part('Shelf', [0.75, 10, 0], [22.5, 0.75, 11.25]), part('Upper', [0.75, 20, 0], [22.5, 0.75, 11.25]),
+      part('Back', [0, 0, -0.25], [24, 30, 0.25], 'plywood'),
+    ] };
+    const kinds: Pick = (s, flat, sites) => {
+      const r = rangesOf(s, flat);
+      const enter = flat.boards[s.enter]!.name;
+      if (s.kind === 'face-against-edge' && s.allowed.includes('rabbet')) return { site: s.id, joint: 'rabbet', depth: Math.min(r.rabbetDepth[1], 0.375) };
+      if (s.kind === 'end-into-face' && enter.endsWith('Shelf') && s.allowed.includes('dado')) return { site: s.id, joint: 'dado', depth: 0.25 };
+      if (s.kind === 'end-into-face' && enter.endsWith('Upper') && s.allowed.includes('stopped-dado')) {
+        const at = s.stopEnds[0]!;
+        return { site: s.id, joint: 'stopped-dado', depth: 0.25, stopAt: at, inset: 0.75 };
+      }
+      return defaultChoice(s, flat, sites);
+    };
+    save('4-cases-every-kind', 'Two shared cases: dados, stopped dados and a rabbeted back in each.',
+      gen({ name: 'Cases', parts: [], assemblies: [{ ...CASE, placements: [{ name: 'Left case', at: { x: 0, y: 0, z: 0 } }, { name: 'Right case', at: { x: 40, y: 0, z: 0 } }] }] }), kinds);
+  }
+
+  save('5-rail-enters-once', 'A shared rail placed twice; a loose post receives the Front rail only: stray waste cuts on the Back rail; the write-back split the definition.',
+    gen({ name: 'Rails', parts: [part('Post', [0, 0, 0], [1.75, 28, 1.75])],
+      assemblies: [{ name: 'Arm', parts: [part('Rail', [0, 0, 0], [18, 3, 0.75])], placements: [{ name: 'Front', at: { x: 1.75, y: 20, z: 0.5 } }, { name: 'Back', at: { x: 1.75, y: 20, z: 30 } }] }] }), defaults);
+
+  {
+    let d = gen({ name: 'Bench', parts: [], assemblies: [{ ...FRAME, placements: [{ name: 'Front', at: { x: 0, y: 0, z: 0 } }, { name: 'Back', at: { x: 0, y: 0, z: 30 } }] }] });
+    const g = groupItems(d, null, d.instances.map((i) => i.id))!;
+    d = g.doc;
+    const outer = d.instances[0]!;
+    const copy = { ...shareInstance(outer), name: 'Bench 2', position: [outer.position[0] + 60, outer.position[1], outer.position[2]] as [number, number, number] };
+    d = { ...d, instances: [...d.instances, copy] };
+    save('6-nested', 'A shared bench (two shared frames inside) placed twice: duplicates through two levels.', d, defaults);
+  }
+});

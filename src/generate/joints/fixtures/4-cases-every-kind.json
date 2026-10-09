@@ -1,0 +1,564 @@
+{
+ "about": "Two shared cases: dados, stopped dados and a rabbeted back in each.",
+ "plain": {
+  "version": 11,
+  "name": "Cases",
+  "units": {
+   "display": "imperial-fractional",
+   "precision": 16
+  },
+  "stock": {
+   "kerf": 0.125
+  },
+  "guides": [],
+  "boards": [],
+  "instances": [
+   {
+    "id": "b_mv1gdpkm_1z",
+    "name": "Left case",
+    "definition": "b_mv1gdpkm_1y",
+    "position": [
+     -32,
+     0,
+     -5.5
+    ],
+    "rotation": 0
+   },
+   {
+    "id": "b_mv1gdpkm_20",
+    "name": "Right case",
+    "definition": "b_mv1gdpkm_1y",
+    "position": [
+     8,
+     0,
+     -5.5
+    ],
+    "rotation": 0
+   }
+  ],
+  "definitions": [
+   {
+    "id": "b_mv1gdpkm_1y",
+    "boards": [
+     {
+      "id": "b_mv1gdpkm_1t",
+      "name": "Left",
+      "position": [
+       0,
+       0,
+       0
+      ],
+      "rotation": 90,
+      "length": 30,
+      "width": 11.25,
+      "thickness": 0.75,
+      "posture": "upright",
+      "grain": "length",
+      "material": "oak",
+      "cuts": []
+     },
+     {
+      "id": "b_mv1gdpkm_1u",
+      "name": "Right",
+      "position": [
+       23.25,
+       0,
+       0
+      ],
+      "rotation": 90,
+      "length": 30,
+      "width": 11.25,
+      "thickness": 0.75,
+      "posture": "upright",
+      "grain": "length",
+      "material": "oak",
+      "cuts": []
+     },
+     {
+      "id": "b_mv1gdpkm_1v",
+      "name": "Shelf",
+      "position": [
+       0.75,
+       10,
+       0
+      ],
+      "rotation": 0,
+      "length": 22.5,
+      "width": 11.25,
+      "thickness": 0.75,
+      "posture": "flat",
+      "grain": "length",
+      "material": "oak",
+      "cuts": []
+     },
+     {
+      "id": "b_mv1gdpkm_1w",
+      "name": "Upper",
+      "position": [
+       0.75,
+       20,
+       0
+      ],
+      "rotation": 0,
+      "length": 22.5,
+      "width": 11.25,
+      "thickness": 0.75,
+      "posture": "flat",
+      "grain": "length",
+      "material": "oak",
+      "cuts": []
+     },
+     {
+      "id": "b_mv1gdpkm_1x",
+      "name": "Back",
+      "position": [
+       0,
+       0,
+       -0.25
+      ],
+      "rotation": 0,
+      "length": 30,
+      "width": 24,
+      "thickness": 0.25,
+      "posture": "upright",
+      "grain": "length",
+      "material": "plywood",
+      "cuts": []
+     }
+    ],
+    "instances": []
+   }
+  ],
+  "shapes": []
+ },
+ "choices": [
+  {
+   "enter": "Left case › Shelf",
+   "receive": "Left case › Left",
+   "axis": 0,
+   "side": -1,
+   "choice": {
+    "joint": "dado",
+    "depth": 0.25
+   }
+  },
+  {
+   "enter": "Left case › Shelf",
+   "receive": "Left case › Right",
+   "axis": 0,
+   "side": 1,
+   "choice": {
+    "joint": "dado",
+    "depth": 0.25
+   }
+  },
+  {
+   "enter": "Left case › Upper",
+   "receive": "Left case › Left",
+   "axis": 0,
+   "side": -1,
+   "choice": {
+    "joint": "stopped-dado",
+    "depth": 0.25,
+    "stopAt": {
+     "axis": 2,
+     "end": "min"
+    },
+    "inset": 0.75
+   }
+  },
+  {
+   "enter": "Left case › Upper",
+   "receive": "Left case › Right",
+   "axis": 0,
+   "side": 1,
+   "choice": {
+    "joint": "stopped-dado",
+    "depth": 0.25,
+    "stopAt": {
+     "axis": 2,
+     "end": "min"
+    },
+    "inset": 0.75
+   }
+  },
+  {
+   "enter": "Left case › Back",
+   "receive": "Left case › Left",
+   "axis": 2,
+   "side": 1,
+   "choice": {
+    "joint": "rabbet",
+    "depth": 0.375
+   }
+  },
+  {
+   "enter": "Left case › Back",
+   "receive": "Left case › Right",
+   "axis": 2,
+   "side": 1,
+   "choice": {
+    "joint": "rabbet",
+    "depth": 0.375
+   }
+  },
+  {
+   "enter": "Right case › Shelf",
+   "receive": "Right case › Left",
+   "axis": 0,
+   "side": -1,
+   "choice": {
+    "joint": "dado",
+    "depth": 0.25
+   }
+  },
+  {
+   "enter": "Right case › Shelf",
+   "receive": "Right case › Right",
+   "axis": 0,
+   "side": 1,
+   "choice": {
+    "joint": "dado",
+    "depth": 0.25
+   }
+  },
+  {
+   "enter": "Right case › Upper",
+   "receive": "Right case › Left",
+   "axis": 0,
+   "side": -1,
+   "choice": {
+    "joint": "stopped-dado",
+    "depth": 0.25,
+    "stopAt": {
+     "axis": 2,
+     "end": "min"
+    },
+    "inset": 0.75
+   }
+  },
+  {
+   "enter": "Right case › Upper",
+   "receive": "Right case › Right",
+   "axis": 0,
+   "side": 1,
+   "choice": {
+    "joint": "stopped-dado",
+    "depth": 0.25,
+    "stopAt": {
+     "axis": 2,
+     "end": "min"
+    },
+    "inset": 0.75
+   }
+  },
+  {
+   "enter": "Right case › Back",
+   "receive": "Right case › Left",
+   "axis": 2,
+   "side": 1,
+   "choice": {
+    "joint": "rabbet",
+    "depth": 0.375
+   }
+  },
+  {
+   "enter": "Right case › Back",
+   "receive": "Right case › Right",
+   "axis": 2,
+   "side": 1,
+   "choice": {
+    "joint": "rabbet",
+    "depth": 0.375
+   }
+  }
+ ],
+ "damaged": {
+  "version": 11,
+  "name": "Cases",
+  "units": {
+   "display": "imperial-fractional",
+   "precision": 16
+  },
+  "stock": {
+   "kerf": 0.125
+  },
+  "guides": [],
+  "boards": [],
+  "instances": [
+   {
+    "id": "b_mv1gdpkm_1z",
+    "name": "Left case",
+    "definition": "b_mv1gdpkm_1y",
+    "position": [
+     -32,
+     0,
+     -5.5
+    ],
+    "rotation": 0
+   },
+   {
+    "id": "b_mv1gdpkm_20",
+    "name": "Right case",
+    "definition": "b_mv1gdpkm_1y",
+    "position": [
+     8,
+     0,
+     -5.5
+    ],
+    "rotation": 0
+   }
+  ],
+  "definitions": [
+   {
+    "id": "b_mv1gdpkm_1y",
+    "boards": [
+     {
+      "id": "b_mv1gdpkm_1t",
+      "name": "Left",
+      "position": [
+       0,
+       0,
+       0
+      ],
+      "rotation": 90,
+      "length": 30,
+      "width": 11.25,
+      "thickness": 0.75,
+      "posture": "upright",
+      "grain": "length",
+      "material": "oak",
+      "cuts": [
+       {
+        "id": "b_mv1gdpkq_21",
+        "face": "width",
+        "from": "max",
+        "across": "length",
+        "offset": 0.375,
+        "width": 0.375,
+        "depth": 0.25,
+        "stopMin": 0,
+        "stopMax": 0
+       },
+       {
+        "id": "b_mv1gdpks_23",
+        "face": "width",
+        "from": "max",
+        "across": "length",
+        "offset": 0.375,
+        "width": 0.375,
+        "depth": 0.25,
+        "stopMin": 0,
+        "stopMax": 0
+       },
+       {
+        "id": "b_mv1gdpks_25",
+        "face": "thickness",
+        "from": "max",
+        "across": "width",
+        "offset": 10,
+        "width": 0.75,
+        "depth": 0.25,
+        "stopMin": 0,
+        "stopMax": 0.25
+       },
+       {
+        "id": "b_mv1gdpkt_28",
+        "face": "thickness",
+        "from": "max",
+        "across": "width",
+        "offset": 20,
+        "width": 0.75,
+        "depth": 0.25,
+        "stopMin": 0,
+        "stopMax": 1
+       },
+       {
+        "id": "b_mv1gdpkv_2b",
+        "face": "thickness",
+        "from": "max",
+        "across": "width",
+        "offset": 10,
+        "width": 0.75,
+        "depth": 0.25,
+        "stopMin": 0,
+        "stopMax": 0.25
+       },
+       {
+        "id": "b_mv1gdpkw_2e",
+        "face": "thickness",
+        "from": "max",
+        "across": "width",
+        "offset": 20,
+        "width": 0.75,
+        "depth": 0.25,
+        "stopMin": 0,
+        "stopMax": 1
+       }
+      ]
+     },
+     {
+      "id": "b_mv1gdpkm_1u",
+      "name": "Right",
+      "position": [
+       23.25,
+       0,
+       0
+      ],
+      "rotation": 90,
+      "length": 30,
+      "width": 11.25,
+      "thickness": 0.75,
+      "posture": "upright",
+      "grain": "length",
+      "material": "oak",
+      "cuts": [
+       {
+        "id": "b_mv1gdpkq_22",
+        "face": "width",
+        "from": "max",
+        "across": "length",
+        "offset": 0,
+        "width": 0.375,
+        "depth": 0.25,
+        "stopMin": 0,
+        "stopMax": 0
+       },
+       {
+        "id": "b_mv1gdpks_24",
+        "face": "width",
+        "from": "max",
+        "across": "length",
+        "offset": 0,
+        "width": 0.375,
+        "depth": 0.25,
+        "stopMin": 0,
+        "stopMax": 0
+       },
+       {
+        "id": "b_mv1gdpks_26",
+        "face": "thickness",
+        "from": "min",
+        "across": "width",
+        "offset": 10,
+        "width": 0.75,
+        "depth": 0.25,
+        "stopMin": 0,
+        "stopMax": 0.25
+       },
+       {
+        "id": "b_mv1gdpku_2a",
+        "face": "thickness",
+        "from": "min",
+        "across": "width",
+        "offset": 20,
+        "width": 0.75,
+        "depth": 0.25,
+        "stopMin": 0,
+        "stopMax": 1
+       },
+       {
+        "id": "b_mv1gdpkv_2c",
+        "face": "thickness",
+        "from": "min",
+        "across": "width",
+        "offset": 10,
+        "width": 0.75,
+        "depth": 0.25,
+        "stopMin": 0,
+        "stopMax": 0.25
+       },
+       {
+        "id": "b_mv1gdpkx_2g",
+        "face": "thickness",
+        "from": "min",
+        "across": "width",
+        "offset": 20,
+        "width": 0.75,
+        "depth": 0.25,
+        "stopMin": 0,
+        "stopMax": 1
+       }
+      ]
+     },
+     {
+      "id": "b_mv1gdpkm_1v",
+      "name": "Shelf",
+      "position": [
+       0.5,
+       10,
+       0.25
+      ],
+      "rotation": 0,
+      "length": 23,
+      "width": 11,
+      "thickness": 0.75,
+      "posture": "flat",
+      "grain": "length",
+      "material": "oak",
+      "cuts": []
+     },
+     {
+      "id": "b_mv1gdpkm_1w",
+      "name": "Upper",
+      "position": [
+       0.5,
+       20,
+       0.25
+      ],
+      "rotation": 0,
+      "length": 23,
+      "width": 11,
+      "thickness": 0.75,
+      "posture": "flat",
+      "grain": "length",
+      "material": "oak",
+      "cuts": [
+       {
+        "id": "b_mv1gdpkt_27",
+        "face": "length",
+        "from": "min",
+        "across": "thickness",
+        "offset": 0,
+        "width": 0.75,
+        "depth": 0.25,
+        "stopMin": 0,
+        "stopMax": 0
+       },
+       {
+        "id": "b_mv1gdpku_29",
+        "face": "length",
+        "from": "max",
+        "across": "thickness",
+        "offset": 0,
+        "width": 0.75,
+        "depth": 0.25,
+        "stopMin": 0,
+        "stopMax": 0
+       }
+      ]
+     },
+     {
+      "id": "b_mv1gdpkm_1x",
+      "name": "Back",
+      "position": [
+       0.375,
+       0,
+       0
+      ],
+      "rotation": 0,
+      "length": 30,
+      "width": 23.25,
+      "thickness": 0.25,
+      "posture": "upright",
+      "grain": "length",
+      "material": "plywood",
+      "cuts": []
+     }
+    ],
+    "instances": []
+   }
+  ],
+  "shapes": []
+ }
+}

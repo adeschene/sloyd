@@ -1,0 +1,257 @@
+{
+ "about": "A shared rail placed twice; a loose post receives the Front rail only: stray waste cuts on the Back rail; the write-back split the definition.",
+ "plain": {
+  "version": 11,
+  "name": "Rails",
+  "units": {
+   "display": "imperial-fractional",
+   "precision": 16
+  },
+  "stock": {
+   "kerf": 0.125
+  },
+  "guides": [],
+  "boards": [
+   {
+    "id": "b_mv1gdple_2r",
+    "name": "Post",
+    "position": [
+     -9.875,
+     0,
+     -15.375
+    ],
+    "rotation": 0,
+    "length": 28,
+    "width": 1.75,
+    "thickness": 1.75,
+    "posture": "upright",
+    "grain": "length",
+    "material": "oak",
+    "cuts": []
+   }
+  ],
+  "instances": [
+   {
+    "id": "b_mv1gdple_2u",
+    "name": "Front",
+    "definition": "b_mv1gdple_2t",
+    "position": [
+     -8.125,
+     20,
+     -14.875
+    ],
+    "rotation": 0
+   },
+   {
+    "id": "b_mv1gdple_2v",
+    "name": "Back",
+    "definition": "b_mv1gdple_2t",
+    "position": [
+     -8.125,
+     20,
+     14.625
+    ],
+    "rotation": 0
+   }
+  ],
+  "definitions": [
+   {
+    "id": "b_mv1gdple_2t",
+    "boards": [
+     {
+      "id": "b_mv1gdple_2s",
+      "name": "Rail",
+      "position": [
+       0,
+       0,
+       0
+      ],
+      "rotation": 0,
+      "length": 18,
+      "width": 3,
+      "thickness": 0.75,
+      "posture": "on-edge",
+      "grain": "length",
+      "material": "oak",
+      "cuts": []
+     }
+    ],
+    "instances": []
+   }
+  ],
+  "shapes": []
+ },
+ "choices": [
+  {
+   "enter": "Front › Rail",
+   "receive": "Post",
+   "axis": 0,
+   "side": -1,
+   "choice": {
+    "joint": "mortise-tenon",
+    "tenonLength": 1.1875
+   }
+  }
+ ],
+ "damaged": {
+  "version": 11,
+  "name": "Rails",
+  "units": {
+   "display": "imperial-fractional",
+   "precision": 16
+  },
+  "stock": {
+   "kerf": 0.125
+  },
+  "guides": [],
+  "boards": [
+   {
+    "id": "b_mv1gdple_2r",
+    "name": "Post",
+    "position": [
+     -9.875,
+     0,
+     -15.375
+    ],
+    "rotation": 0,
+    "length": 28,
+    "width": 1.75,
+    "thickness": 1.75,
+    "posture": "upright",
+    "grain": "length",
+    "material": "oak",
+    "cuts": [
+     {
+      "id": "b_mv1gdplg_30",
+      "face": "width",
+      "from": "max",
+      "across": "length",
+      "offset": 0.75,
+      "width": 0.25,
+      "depth": 1.1875,
+      "stopMin": 20.5,
+      "stopMax": 5.5
+     }
+    ]
+   }
+  ],
+  "instances": [
+   {
+    "id": "b_mv1gdple_2u",
+    "name": "Front",
+    "definition": "b_mv1gdple_2t",
+    "position": [
+     -8.125,
+     20,
+     -14.875
+    ],
+    "rotation": 0
+   },
+   {
+    "id": "b_mv1gdple_2v",
+    "name": "Back",
+    "definition": "b_mv1gdplg_33",
+    "position": [
+     -8.125,
+     20,
+     14.625
+    ],
+    "rotation": 0
+   }
+  ],
+  "definitions": [
+   {
+    "id": "b_mv1gdple_2t",
+    "boards": [
+     {
+      "id": "b_mv1gdple_2s",
+      "name": "Rail",
+      "position": [
+       -1.1875,
+       0,
+       0
+      ],
+      "rotation": 0,
+      "length": 19.1875,
+      "width": 3,
+      "thickness": 0.75,
+      "posture": "on-edge",
+      "grain": "length",
+      "material": "oak",
+      "cuts": [
+       {
+        "id": "b_mv1gdplf_2w",
+        "face": "thickness",
+        "from": "min",
+        "across": "width",
+        "offset": 0,
+        "width": 1.1875,
+        "depth": 0.25,
+        "stopMin": 0,
+        "stopMax": 0
+       },
+       {
+        "id": "b_mv1gdplf_2x",
+        "face": "thickness",
+        "from": "max",
+        "across": "width",
+        "offset": 0,
+        "width": 1.1875,
+        "depth": 0.25,
+        "stopMin": 0,
+        "stopMax": 0
+       },
+       {
+        "id": "b_mv1gdplf_2y",
+        "face": "width",
+        "from": "min",
+        "across": "thickness",
+        "offset": 0,
+        "width": 1.1875,
+        "depth": 0.5,
+        "stopMin": 0,
+        "stopMax": 0
+       },
+       {
+        "id": "b_mv1gdplf_2z",
+        "face": "width",
+        "from": "max",
+        "across": "thickness",
+        "offset": 0,
+        "width": 1.1875,
+        "depth": 0.5,
+        "stopMin": 0,
+        "stopMax": 0
+       }
+      ]
+     }
+    ],
+    "instances": []
+   },
+   {
+    "id": "b_mv1gdplg_33",
+    "boards": [
+     {
+      "id": "b_mv1gdple_2s",
+      "name": "Rail",
+      "position": [
+       0,
+       0,
+       0
+      ],
+      "rotation": 0,
+      "length": 18,
+      "width": 3,
+      "thickness": 0.75,
+      "posture": "on-edge",
+      "grain": "length",
+      "material": "oak",
+      "cuts": []
+     }
+    ],
+    "instances": []
+   }
+  ],
+  "shapes": []
+ }
+}

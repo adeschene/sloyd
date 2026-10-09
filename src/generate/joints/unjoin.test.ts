@@ -4,7 +4,7 @@ import { designToDocument } from '../../document/generated';
 import { flatDocument, migrateDocument } from '../../document/document';
 import type { FlatDocument } from '../../document/document';
 import { SNAP_INCHES } from '../../document/geometry';
-import { GATE_REFUSAL, GATE_TOLERANCE, gateUnjoin, sameJoined, unjoin } from './unjoin';
+import { GATE_REFUSAL, GATE_TOLERANCE, gateUnjoin, readJoints, rejoin, sameJoined, unjoin } from './unjoin';
 import { applyJoints } from './recipes';
 import type { JointChoice } from './recipes';
 import { findSites, jointKey, rangesOf } from './sites';
@@ -129,6 +129,23 @@ function roundTrip(P: FlatDocument, mode: Mode) {
   const J = applyJoints(P, sites, choices).doc;
   const g = gateUnjoin(J);
   return { J, g, P };
+}
+
+/** Every fixture x mode that joins something and survives the gate (so unjoin succeeds on it). */
+function allJoinedCases(): FlatDocument[] {
+  return FIXTURES.flatMap(([, f]) => MODES.map((m) => roundTrip(f(), m))).filter((r): r is NonNullable<typeof r> => !!r && !('refused' in r.g)).map((r) => r.J);
+}
+const bookcaseFixture = () => FIXTURES.find(([n]) => n === 'bookcase (cutlines)')![1]();
+const joinAllDefaults = (P: FlatDocument, pick: (s: Site) => boolean = () => true) => {
+  const s = findSites(P);
+  return applyJoints(P, s, s.map((x) => (pick(x) ? defaultChoice(x, P, s) : { site: x.id, joint: 'butt' as const }))).doc;
+};
+/** The bookcase joined with defaults plus one hand-added cut on Shelf 1; says where the cut went. */
+function withHandCut() {
+  const flat = structuredClone(joinAllDefaults(bookcaseFixture()));
+  const part = flat.boards.findIndex((b) => b.name === 'Shelf 1');
+  flat.boards[part]!.cuts.push({ id: 'hand', face: 'thickness', from: 'min', across: 'width', offset: 8, width: 0.5, depth: 0.25, stopMin: 0, stopMax: 0 });
+  return { flat, part, cut: flat.boards[part]!.cuts.length - 1 };
 }
 
 describe('unjoin — every fixture × mode re-joins exactly (the spike, made permanent)', () => {
@@ -315,5 +332,41 @@ describe('the gate compares numbers within GATE_TOLERANCE (refine-joined spec §
     expect(sameJoined(a, J)).toBe(false);
     const c = structuredClone(J); c.boards[cutPart].cuts[0].from = c.boards[cutPart].cuts[0].from === 'min' ? 'max' : 'min';
     expect(sameJoined(c, J)).toBe(false);
+  });
+});
+
+describe('readJoints (repair-joints spec §2 step 3)', () => {
+  it('agrees with unjoin wherever unjoin succeeds, with nothing unexplained', () => {
+    const cases = allJoinedCases();
+    expect(cases.length).toBeGreaterThan(0);
+    for (const joined of cases) {
+      const u = unjoin(joined); const r = readJoints(joined);
+      if ('refused' in u || 'refused' in r) throw new Error('expected success');
+      expect(r.unexplained).toEqual([]);
+      expect(r.plain).toEqual(u.plain);
+      expect(r.joints).toEqual(u.joints);
+    }
+  });
+  it('names the hand-added cut by part and cut index instead of refusing', () => {
+    const { flat, part, cut } = withHandCut();
+    const r = readJoints(flat);
+    if ('refused' in r) throw new Error('expected a read');
+    expect(r.unexplained).toEqual([{ part, cut }]);
+    expect(unjoin(flat)).toHaveProperty('refused');
+  });
+});
+
+describe('rejoin', () => {
+  const joinedWithJoints = () => joinAllDefaults(bookcaseFixture());
+  it('reproduces a joined design from its read-back', () => {
+    const joined = joinedWithJoints();
+    const r = readJoints(joined); if ('refused' in r) throw new Error('read');
+    expect(r.joints.length).toBeGreaterThan(0);
+    expect(sameJoined(rejoin({ ...joined, boards: r.plain }, r.joints)!, joined)).toBe(true);
+  });
+  it('is null when a recorded joint has no site', () => {
+    const joined = joinedWithJoints();
+    const r = readJoints(joined); if ('refused' in r) throw new Error('read');
+    expect(rejoin({ ...joined, boards: r.plain }, [{ ...r.joints[0]!, enter: 'Nobody' }])).toBeNull();
   });
 });
