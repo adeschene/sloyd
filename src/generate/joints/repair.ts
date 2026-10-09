@@ -1,4 +1,4 @@
-import { definitionAt, flatDocument, instanceAt, itemPaths, lastSegment, migrateDocument, NAME_SEPARATOR, PATH_SEPARATOR, writeBackFlat } from '../../document/document';
+import { definitionAt, flatDocument, instanceAt, itemPaths, lastSegment, migrateDocument, NAME_SEPARATOR, parentPath, PATH_SEPARATOR, worldParts, writeBackFlat } from '../../document/document';
 import type { Board, Cut, FlatDocument, SloydDocument } from '../../document/document';
 import { TOUCH, worldSolids } from '../../document/designCheck';
 import { cutBox, gateUnjoin, readJoints, rejoin, sameCut } from './unjoin';
@@ -15,7 +15,24 @@ export const REPAIR_REFUSAL = "Sloyd can't repair this project's joints automati
 const ownName = (b: Board) => b.name.split(NAME_SEPARATOR).pop()!;
 const refused = { refused: REPAIR_REFUSAL } as const;
 
-export function repairJoints(flat: FlatDocument): null | { boards: Board[]; dropped: number } | { refused: string } {
+/**
+ * One storage key per part of `flatDocument(doc).boards`, in that order: the container's definition id
+ * (empty for the root) and the part's leaf id. Two flat parts with equal keys are the SAME stored part
+ * under different placements (ids are unique per container, invariant 33); a root part has no twin.
+ */
+export function storedKeys(doc: SloydDocument): string[] {
+  return worldParts(doc).map((b) => {
+    const parent = parentPath(b.id);
+    return `${parent === null ? '' : definitionAt(doc, parent)?.id ?? `?${parent}`}\u0000${lastSegment(b.id)}`;
+  });
+}
+
+/**
+ * `stored` is `storedKeys` of the document `flat` came from, aligned with `flat.boards`: the flat list
+ * alone cannot tell copies stored together from copies stored apart (spec §2 step 4).
+ */
+export function repairJoints(flat: FlatDocument, stored: readonly string[]): null | { boards: Board[]; dropped: number } | { refused: string } {
+  if (stored.length !== flat.boards.length) throw new Error('repairJoints: one storage key per part');
   // Twins: the same stored part under different placements (ids kept through splits); the name
   // guards against unrelated parts sharing an id (ids are unique per container only).
   const key = (b: Board) => `${lastSegment(b.id)}\u0000${ownName(b)}`;
@@ -36,8 +53,10 @@ export function repairJoints(flat: FlatDocument): null | { boards: Board[]; drop
   const read = readJoints({ ...flat, boards: deduped });
   if ('refused' in read) return dropped > 0 ? refused : null;
   const isUnexplained = (i: number, k: number) => read.unexplained.some((u) => u.part === i && u.cut === k);
-  // 4. Twin strays: equal to a cut the reader explained on a twin, AND empty — a phantom is a
-  // pocket nothing enters (a hand-resized part's own pocket is filled, and must not be deleted).
+  // 4. Twin strays: equal to a cut the reader explained on a twin that is the SAME STORED part (the
+  // bug wrote the phantom into the part its twin's joint went into; a copy stored apart — Made Unique,
+  // then edited — is not the bug's), AND empty — a phantom is a pocket nothing enters (a
+  // hand-resized part's own pocket is filled, and must not be deleted).
   const solids = deduped.map(worldSolids);
   const empty = (part: number, c: Cut) => {
     const box = cutBox(deduped[part]!, c);
@@ -45,7 +64,7 @@ export function repairJoints(flat: FlatDocument): null | { boards: Board[]; drop
   };
   const strays = read.unexplained.filter(({ part, cut }) => {
     const c = deduped[part]!.cuts[cut]!;
-    return twins[part]!.some((t) => deduped[t]!.cuts.some((d, k) => !isUnexplained(t, k) && sameCut(c, d))) && empty(part, c);
+    return twins[part]!.some((t) => stored[t] === stored[part] && deduped[t]!.cuts.some((d, k) => !isUnexplained(t, k) && sameCut(c, d))) && empty(part, c);
   });
   // 7. Evidence first: no duplicate and no twin stray → not this bug's damage.
   if (dropped === 0 && strays.length === 0) return null;
@@ -77,7 +96,7 @@ export type RepairCheck = null | { refused: string } | { doc: SloydDocument; dro
 /** The repair written back into the tree (invariant 46), with the placements it un-shared. */
 export function repairDocument(doc: SloydDocument): RepairCheck {
   const flat = flatDocument(doc);
-  const r = repairJoints(flat);
+  const r = repairJoints(flat, storedKeys(doc));
   if (r === null || 'refused' in r) return r;
   const out = migrateDocument(writeBackFlat(doc, flat.boards, r.boards));
   return { doc: out, dropped: r.dropped, splits: splitCopies(doc, out) };
