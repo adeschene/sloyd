@@ -194,7 +194,11 @@ src/
 │   ├── nesting.ts        buildNesting, shelf FFD; formatDims (invs 19, 22, 23)
 │   ├── snapPoints.ts     board/cut/guide snap points, towardFor, offsetPoint (inv 26)
 │   ├── row.ts            rowLayout (gap/pitch/fit-across; refusal CODES; no rounding, inv 25)
-│   ├── generated.ts      DESIGN_SCHEMA, parseDesign, designToDocument
+│   ├── generated.ts      DESIGN_SCHEMA, parseDesign, designToDocument (assemblies → a TREE;
+│   │                     `Authored` maps flat names back to what the model wrote; MAX_MAGNITUDE)
+│   ├── roleLinks.ts      linkByRole: role + sameShared classes → linksToShapes (inv 45)
+│   ├── assemblyChecks.ts distinctParts, distinctPartsViolation, collapseViolations (one report
+│   │                     per authored fault; "fix the assembly" only for overlaps)
 │   ├── designCheck.ts    checkDesign; worldSolids, the ONE world-solid mapping (invs 38, 39)
 │   └── treeFixtures.ts, turnFixtures.ts   TEST-ONLY (assemblyDoc; chiralPart, inv 44)
 ├── store/
@@ -439,8 +443,9 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     axis, before inv 35's sign and swap. Generate stays at 0° and 90°.
 45. **A link is a SHAPE its users point to; shared fields are stored once.** `LINK_FIELDS`
     is the ONE shared/own table (classify an optional own field with care, fu 231).
-    `resolveBoard` is the ONE place a shape is read into a part. Shared-field edits are
-    written to the Shape (`applyWorldEdits`); the only propagation left is `shapeMates`
+    `resolveBoard` is the ONE place a shape is read into a part. `linksToShapes` is the ONE
+    label→shape builder, with two callers (the v10→v11 step and generation's `linkByRole`);
+    both judge equality by `sameShared` only. Shared-field edits are written to the Shape (`applyWorldEdits`); the only propagation left is `shapeMates`
     re-pivoting posture. `linkPlan` is the ONE Link decider. A one-user shape dissolves
     (users counted as STORED parts). Joinery keeps sharing where cuts are identical by
     geometry. **`Board.link`, `repairLinks`, `dissolveSingletons` and `mates` propagation
@@ -467,7 +472,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 2080 tests across 75 files
+npm test           # Vitest, currently 2147 tests across 77 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

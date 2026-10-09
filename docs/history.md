@@ -302,6 +302,24 @@ and 79.
 
 ## What each round did
 
+**What the generate-assemblies round did (2026-10-09)**: Generate can describe a multi-part unit
+once and place it several times, and links same-role identical parts, with a spec and plan
+(`docs/superpowers/specs/2026-10-09-sloyd-generate-assemblies-design.md`). **No schema change**
+(v11 structures only), so rolling back costs nothing. The user's rulings: approach B (the model
+authors assemblies — local frame, translation only, one level; Sloyd decides components), the cap
+counts DISTINCT parts with a 4× placed ceiling, components need a shared `role` AND exact equality,
+reuse `linksToShapes` (invariant 45 amended to name it the ONE label→shape builder), and collapse
+repeated violations by authored part. Amended while planning and after the final review: roles
+normalised; a non-finite placement rejected alone; magnitudes beyond 10,000in rejected (a huge
+value overflowed the centring shift — crashed the run, or silently dropped a placement); "›" in
+model names replaced with ">"; "fix the assembly" said only for overlaps inside every placement,
+with an inside/between flag in the merge key (without it a drawer's own overlap merged with a
+spacing overlap between drawers). Executed subagent-driven (five tasks, each reviewed; one final
+review on the most capable model and one fix wave). Live check on the dev server with the user
+watching (`docs/browser-verification-generate-assemblies.md`): "A three-drawer chest" came back
+clean with one drawer definition placed three times and three linked pairs; an edit inside one
+drawer changed all three; joinery kept the drawer definition shared. Tests 2080 → 2147.
+
 **What the components round did (2026-10-06/07)**: round 2 of 2. Copies of an assembly share one
 definition, and part links became shared shapes, with a spec and plan
 (`docs/superpowers/specs/2026-10-06-sloyd-components-design.md`). **Schema 11.** Claude drove its
