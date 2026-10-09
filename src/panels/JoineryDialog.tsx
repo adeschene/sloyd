@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import type { ReactNode } from 'react';
 import { formatLength } from '../units/length';
 import { MAX_REPAIRS } from '../generate/run';
 import type { JointKind } from '../generate/joints/sites';
@@ -8,6 +9,8 @@ interface Props {
   hasKey: boolean; libraryAvailable: boolean;
   projectName: string; sites: string[]; model: string | null; estimateUsd: number | null;
   run: JoineryRun | null; live: boolean;
+  /** The repair note, shown above Run when the project's joints are damaged (repair-joints). */
+  repairNotice?: ReactNode;
   onRun: () => void; onCancel: () => void; onOpenProject: (id: string) => void;
   onOpenSettings: () => void; onClose: () => void;
 }
@@ -83,6 +86,7 @@ export function JoineryDialog(p: Props) {
             {p.sites.map((s, i) => <li key={i}>{s}</li>)}
           </ul>
         )}
+        {p.repairNotice}
         {!p.libraryAvailable && <p className="field-error" role="status">Add joinery is unavailable — storage is unavailable, so the result would have nowhere to go.</p>}
         {p.hasKey && !noSites && (
           <p className="generate-plan">

@@ -29,6 +29,14 @@ const outcome = (over: Partial<JoineryOutcome> = {}, result: Partial<JoineryOutc
 const ready = (o: JoineryOutcome): JoineryRun => ({ status: 'ready', projectId: 'p1', projectName: 'Bench — joined', outcome: o, costUsd: 0.02 });
 
 describe('JoineryDialog', () => {
+  it('renders a repair notice when given one, and nothing extra otherwise', () => {
+    const { unmount } = draw({ repairNotice: <p>NOTICE</p> });
+    screen.getByText('NOTICE');
+    unmount();
+    draw();
+    expect(screen.queryByText('NOTICE')).toBeNull();
+  });
+
   it('without a key the primary button sets one up', async () => {
     const onOpenSettings = vi.fn();
     draw({ hasKey: false, onOpenSettings });

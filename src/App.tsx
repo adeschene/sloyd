@@ -16,6 +16,10 @@ import { JoineryDialog } from './panels/JoineryDialog';
 import { joineryEstimateUsd, refineEstimateUsd } from './generate/run';
 import { refineDialogInfo } from './generate/refine';
 import { useRefine } from './useRefine';
+import { useRepair } from './useRepair';
+import { repairDocument } from './generate/joints/repair';
+import type { RepairCheck } from './generate/joints/repair';
+import { RepairNotice } from './panels/RepairNotice';
 import { RefineDialog } from './panels/RefineDialog';
 import { findSites, siteLabel } from './generate/joints/sites';
 import { AnthropicClient, checkAnthropicKey } from './llm/anthropic';
@@ -77,6 +81,8 @@ export default function App() {
     const flat = flatDocument(doc);
     return findSites(flat).map((s) => siteLabel(s, flat));
   }, [dialog, doc]);
+  // Once per document while the dialog is open; the pre-check and evidence rule make it null for undamaged designs.
+  const joineryRepair = useMemo(() => (dialog === 'joinery' ? repairDocument(doc) : null), [dialog, doc]);
   // THE ONE FLAG every "something covers the app" consumer reads — the inert
   // shell, the keydown effect, `shortcutsSuspended`, the focus restore. One
   // derived value rather than `cutListOpen || dialog !== null` spelled out at
@@ -119,10 +125,23 @@ export default function App() {
     onCreated: (id) => setNewIds((s) => new Set(s).add(id)),
     onStorageVerdict: () => setAvailable(storage.available),
   });
+  // Repair likewise never adopts (invariant 36).
+  const repair = useRepair({
+    onCreated: (id) => setNewIds((s) => new Set(s).add(id)),
+    onStorageVerdict: () => setAvailable(storage.available),
+  });
+  // Closing a dialog clears a finished repair, so it does not show in the next one.
+  useEffect(() => { if (dialog === null) repair.reset(); }, [dialog, repair.reset]);
   const refineInfo = useMemo(
     // ONE plainForRefine (one joint-gate run) per document; its base goes back to the estimate.
     () => (dialog === 'refine' ? refineDialogInfo(doc) : null),
     [dialog, doc],
+  );
+  const repairNotice = (check: RepairCheck, context: 'refine' | 'joinery') => check && (
+    <RepairNotice check={check} context={context} libraryAvailable={libraryAvailable} run={repair.run}
+      onRepair={() => void repair.repair(useStore.getState().doc)}
+      // The ONE adopting path (invariant 36): the existing openProject.
+      onOpenProject={(id) => { setDialog(null); void openProject(id); }} />
   );
   useEffect(() => {
     void storage.getLlmSettings().then(setLlmSettingsState);
@@ -977,6 +996,7 @@ export default function App() {
           model={llmSettings?.model ?? null}
           estimateUsd={llmSettings ? joineryEstimateUsd(new AnthropicClient(llmSettings.apiKey, llmSettings.model), doc) : null}
           run={joinery.run}
+          repairNotice={repairNotice(joineryRepair, 'joinery')}
           live={joinery.live}
           onRun={() => {
             if (!llmSettings) return;
@@ -995,6 +1015,7 @@ export default function App() {
           libraryAvailable={libraryAvailable}
           projectName={doc.name}
           refusal={refineInfo.refusal}
+          repairNotice={repairNotice(refineInfo.repair, 'refine')}
           joined={refineInfo.joined}
           initialDetail={refineInfo.detail}
           model={llmSettings?.model ?? null}

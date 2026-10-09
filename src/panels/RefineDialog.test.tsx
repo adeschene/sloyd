@@ -17,6 +17,13 @@ describe('RefineDialog', () => {
     expect(refineButton()).toHaveProperty('disabled', true);
   });
 
+  it('a repair notice replaces the refusal text and Refine stays disabled', () => {
+    render(<RefineDialog {...base} refusal="gate message" repairNotice={<p>NOTICE</p>} />);
+    screen.getByText('NOTICE');
+    expect(screen.queryByText('gate message')).toBeNull();
+    expect(refineButton()).toHaveProperty('disabled', true);
+  });
+
   it('disables Refine for a blank instruction or a bad limit (review focus 5)', () => {
     render(<RefineDialog {...base} />);
     expect(refineButton()).toHaveProperty('disabled', true);
