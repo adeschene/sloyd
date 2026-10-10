@@ -64,6 +64,8 @@ export function refaceFromEnd(b: Board, c: Cut, d: Dimension): Cut | null {
   const r = cutRegion(b, c);
   const order: Dimension[] = ['thickness', 'width', 'length'];
   type Option = { f: Dimension; from: 'min' | 'max'; span: number };
+  // Tie-break: thickness, width, length. pocketFor (pocket.ts) breaks ties differently ON PURPOSE: both
+  // remove the same box, so do not unify them.
   const options = order.filter((f) => f !== d).flatMap((f): Option[] => {
     const span = r[f][1] - r[f][0];
     if (r[f][0] <= EPS) return [{ f, from: 'min' as const, span }];
@@ -120,7 +122,9 @@ const cutIntoEnd = (b: Board, k: number, end: 'min' | 'max') => {
  * - A cut INTO `d` from the moving end is re-faced from another face its box
  *   reaches (fu 205) and then stays put; only one that cannot be throws.
  *
- * Each cut is first re-stored the way it runs where the sheet accepts it
+ * A cut stored INTO the moving end is first re-faced (above), BEFORE the shape pass
+ * below, so a re-faced cut that spans all of `d` can still be re-stored as running.
+ * Each cut is then re-stored the way it runs where the sheet accepts it
  * (`storedAsShape`'s guard; a refused cut keeps its stored form and the old
  * rule), so the rule above reads the cut's shape: a cut that RUNS along `d` to the moving end keeps
  * running out; one POSITIONED at that end stays (follow-up 199).
@@ -139,12 +143,15 @@ function rebaseCuts(b: Board, d: Dimension, end: 'min' | 'max', amount: number, 
   // for the read (a cut spanning all of the old length is not full-length on
   // the grown one).
   const before: Board = { ...b, [d]: was };
-  const solids = boardSolids(before);
-  b.cuts = b.cuts.map((c) => storedAsShape(before, c, solids));
   // Follow-up 205: a cut stored INTO the moving end is re-faced first when its box
   // reaches another face; it then stays put (positioned along d). Only a cut that
   // cannot be re-faced still reaches the throw below (cutIntoEnd refuses it first).
+  // This runs BEFORE the shape pass: a re-faced full-length cut has d as its position
+  // axis, and only storedAsShape can re-store it as RUNNING along d (so it runs out on
+  // growth). Afterwards it would be left positioned and stop short of the grown end.
   b.cuts = b.cuts.map((c) => (c.face === d && c.from === end ? refaceFromEnd(before, c, d) ?? c : c));
+  const solids = boardSolids(before);
+  b.cuts = b.cuts.map((c) => storedAsShape(before, c, solids));
   b.cuts = b.cuts.filter((c) => {
     if (c.face === d) {
       if (c.from === end) throw new Error(`applyJoints: ${b.name} grows at an end it is already cut into`);

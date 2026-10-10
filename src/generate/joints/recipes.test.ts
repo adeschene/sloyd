@@ -140,6 +140,37 @@ describe('dado and stopped dado', () => {
     expect(a.length).toEqual([0.25, 1.0]);
   });
 
+  it('a full-length back-edge rabbet stored INTO the growing end runs out the grown length, like its run form (fu 205 final review)', () => {
+    // Shelf 20 long between two sides: default dados grow it 1/4in at each end, to 20.5, x [0.5, 21.0].
+    // The rabbet, in the part's frame: length [0, 20], width [0, 1/4] (the back edge), thickness [3/8, 3/4].
+    // Form A: stored INTO the min end (face length, from min, depth 20: the whole length), 1/4in across the
+    // width position, thickness [3/8, 3/4] by stops (3/8 from min, 0 from max).
+    // Form B: the run form (face width from min 1/4 deep, across length, positioned on thickness 3/8, 3/8 wide).
+    // Both are the same stock, and a rabbet that RUNS along the length keeps running out: length [0, 20.5].
+    // World (shelf at x 0.5, y 12, z 0): x [0.5, 21.0], y [12.375, 12.75], z [0, 0.25].
+    const two = design(
+      { name: 'Left side', at: [0, 0, 0], size: [0.75, 30, 11.25] },
+      { name: 'Right side', at: [20.75, 0, 0], size: [0.75, 30, 11.25] },
+      { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 11.25] },
+    );
+    const withRabbet = (rabbet: Cut) => {
+      const d = structuredClone(two);
+      board(d, 'Shelf').cuts = [rabbet];
+      const sites = findSites(d);
+      return applyJoints(d, sites, sites.map((s) => defaultChoice(s, d, sites))).doc;
+    };
+    const stored: Cut = { id: 'r', face: 'length', from: 'min', across: 'thickness', offset: 0, width: 0.25, depth: 20, stopMin: 0.375, stopMax: 0 };
+    const run: Cut = { id: 'r', face: 'width', from: 'min', across: 'length', offset: 0.375, width: 0.375, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const shelfOf = (out: FlatDocument) => board(out, 'Shelf');
+    const a = withRabbet(stored);
+    const b2 = withRabbet(run);
+    expect(shelfOf(a).length).toBe(20.5);
+    expect(shelfOf(a).cuts).toHaveLength(1);
+    expect(cutRegion(shelfOf(a), shelfOf(a).cuts[0]!)).toEqual({ length: [0, 20.5], width: [0, 0.25], thickness: [0.375, 0.75] });
+    expect(cutRegion(shelfOf(b2), shelfOf(b2).cuts[0]!)).toEqual({ length: [0, 20.5], width: [0, 0.25], thickness: [0.375, 0.75] });
+    expect(worldSolids(shelfOf(a)).flatMap((w) => [w.min, w.max])).toEqual(worldSolids(shelfOf(b2)).flatMap((w) => [w.min, w.max]));
+  });
+
   it('butt leaves the site alone', () => {
     const out = applyJoints(doc, sites, [{ site: 1, joint: 'butt' }]);
     expect(worldParts(out.doc).every((b) => b.cuts.length === 0)).toBe(true);
@@ -1629,7 +1660,8 @@ describe('joinery is equivariant under a 180 turn of every part', () => {
     expect(worldParts(b.doc).every((x, i) => x.rotation === (worldParts(a.doc)[i].rotation + 180) % 360)).toBe(true);
     if (want === 'applied') { expect(a.out.applied.some((x) => x.joint !== 'butt')).toBe(true); expect(a.out.skipped).toEqual([]); }
     else expect(a.out.skipped.length).toBeGreaterThan(0);
-    // fu 205: neither notch fixture skips any more; both are 'applied' (the skip branch is kept for a future refusal fixture).
+    // fu 205: the two notch fixtures that follow the part are 'applied'; the skip branch is exercised by the
+    // end-grain-mortise fixture above (want: 'skipped'), the one cut that cannot be re-faced.
     // Pin the kind too (fu 217): "some joint is not butt" would pass a fixture
     // that quietly stopped getting the joint it exists to exercise.
     expect(a.out.applied.map((x) => x.joint).sort()).toEqual(kinds);
@@ -1705,6 +1737,13 @@ describe('joinery is equivariant under a rigid quarter turn of the whole design 
       { name: 'Left side', at: [0, 0, 0], size: [0.75, 30, 11.25] },
       { name: 'Right side', at: [20.75, 0, 0], size: [0.75, 30, 11.25] },
       { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 11.25] },
+    ] },
+    // The refusal under 90/270 too (every other entry follows the part): an end-grain mortise in the Rail's
+    // entering end cannot be re-faced, so one tenon is skipped and the other applies, as in the 180 describe.
+    { label: 'an end-grain mortise at the end entering its leg (still skipped)', kinds: ['mortise-tenon'], skips: true, notches: [['Rail', [0, 1, 0.125], [0.5, 1.5, 0.625]]], parts: [
+      { name: 'Leg', at: [0, 0, 0], size: [1.75, 28, 1.75] },
+      { name: 'Rail', at: [1.75, 23.5, 0.5], size: [18, 3.5, 0.75] },
+      { name: 'Far leg', at: [19.75, 0, 0], size: [1.75, 28, 1.75] },
     ] },
   ];
   const run = (parts: P[], notches: Notch[], k: number) => {

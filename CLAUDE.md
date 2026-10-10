@@ -24,11 +24,11 @@ handicraft education tradition built around hand woodworking.
 - **Production matches `master`** as of 2026-10-10: the older-record-only round, bundle
   `index-amBYj9wK.js`, CSS `index-NXp0eTQP.css`, deployed from `3596345`, **schema 11** (unchanged).
   Test count is under Commands.
-- **Pending deploy: the joinery-end-cuts round** (fu 205/206; branch `joinery-end-cuts`, unmerged, no schema
-  change, so rollback costs nothing). **NO SUCCESSOR IS
+- **Pending deploy: the joinery-end-cuts round** (fu 205/206, merged 2026-10-10, no schema change);
+  `master` is ahead of production until it ships. **NO SUCCESSOR IS
   CHOSEN: ask what to work on; do not pick.** Open near the recent code:
   241 (open by decision), 215 (posture handedness, a question),
-  221, 225–235. See Open follow-ups below.
+  221, 225–235, 245. See Open follow-ups below.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
   byte-identical bundles (test-only). Check what a later commit touches before reading
@@ -70,11 +70,11 @@ One line each; the full narrative per round is in `docs/history.md`.
 | refine joined | 10-09 | — | refine keeps joints: unjoin + exact gate, fixed choices (fu 238) |
 | repair joints | 10-09 | — | Repair joints: prune pre-a899b51 strays, prove by the gate (fu 240) |
 | estimate range | 10-09 | — | Refine/joinery cost shown as a measured range (fu 236) |
-| joinery end cuts | 10-10 | — | A cut at a resized end follows the part in any storage form (fu 205); 206 pinned |
 | refined name | 10-10 | — | Derived project names count a repeat ("— refined 2", "copy 2"; fu 237) |
 | join repair text | 10-10 | — | A joined Refine labels joinery's repair rounds "Choosing joints — …" (fu 242) |
 | record-only 243/244 | 10-10 | — | Dialog memos refuse instead of throwing; residue tests; live pass (fu 243, 244) |
 | older record-only | 10-10 | — | Fu 211–239 triaged and closed: eye toggles share one undo entry, no-op edits push none, guards, ~140 tests |
+| joinery end cuts | 10-10 | — | A cut at a resized end follows the part in any storage form (fu 205); 206 pinned; residue fu 245 |
 
 ### The deployment rule
 
@@ -497,7 +497,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 2754 tests across 91 files
+npm test           # Vitest, currently 2758 tests across 91 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

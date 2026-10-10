@@ -320,7 +320,11 @@ turned shelves at 90 and 180, end-grain cuts pinning both trim-path refusals, an
 180-degree equivariance set. Follow-up 206 closed by the user's decision: the two-axis half-lap refusal is
 pinned by a test with hand-built sites (`findSites` cannot reach it: a crossing needs E's thickness axis to be
 the contact axis, and a part has one), mutation-tested by restricting the coplanar filter to the site's axis.
-Tests 2732 → 2754.
+A whole-branch review then moved the re-facing AHEAD of the `storedAsShape` pass in `rebaseCuts`, so a
+re-faced cut spanning all of `d` (a full-length back-edge rabbet stored into the end) is re-stored as running
+and runs out on growth like its run form, instead of stopping 1/4in short; the end-grain mortise was added to
+the rigid quarter-turn describe so the refusal is exercised under 90/270. One residue recorded as fu 245.
+Tests 2732 → 2758.
 
 **What the older-record-only round did (2026-10-10)**: follow-ups 211, 214, 217, 220, 222, 228, 230,
 231, 235 and 239 — every item triaged FIX / TEST / CLOSE in
