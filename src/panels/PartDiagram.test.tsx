@@ -517,6 +517,16 @@ describe('PartDiagram label collisions — the seven sweep geometries', () => {
     expect([...stopRow!.querySelectorAll('text')].map((t) => t.textContent)).toEqual(['2"', '19"', '3"']);
   });
 
+  it('12b vUp pressure — a cut at the vertical MAX end (the TOP of a vUp view) packs its labels inside the figure', () => {
+    // v [5.25, 5.5] of 5.5 is drawn at the very top, so the leading depth label
+    // is clamped at `top` and the band and offset labels cascade below it.
+    const c = draw({ cuts: [dado({ across: 'length', offset: 5.25, width: 0.25 })] });
+    check(c);
+    const ys = [...c.querySelectorAll('.cutlist-diagram-leader-v text')]
+      .map((t) => [t.textContent, Number(t.getAttribute('y'))] as const).sort((a, b) => a[1] - b[1]);
+    expect(ys.map(([t]) => t)).toEqual(['3/8" deep', '1/4"', '5-1/4"']);
+  });
+
   it('12 crowded stops — a mortise with sixteenth stops still never overlaps', () => {
     check(draw({ cuts: [dado({ stopMin: 0.0625, stopMax: 0.0625 })] }));
   });
@@ -571,6 +581,13 @@ describe('PartDiagram — a view with no stopped cut draws exactly as before', (
       dado({ id: 'a', from: 'max', across: 'width', offset: 6, width: 0.75, depth: 0.125 }),
       dado({ id: 'b', from: 'max', across: 'length', offset: 4, width: 0.75, depth: 0.375 }),
     ] }, 2253356282],
+    // The FLIPPED twin of the board above (thickness|min is vUp): the pin is a
+    // regression fingerprint of the flipped layout, not a hand derivation; the
+    // hand-derived geometry is in the vUp stop-leader tests below.
+    ['row and column crossing, vUp', { length: 24, width: 12, cuts: [
+      dado({ id: 'a', across: 'width', offset: 6, width: 0.75, depth: 0.125 }),
+      dado({ id: 'b', across: 'length', offset: 4, width: 0.75, depth: 0.375 }),
+    ] }, 2157391699],
     ['no cuts', {}, 527349744],
   ])('%s', (_, board, pinned) => {
     expect(fingerprint(board)).toBe(pinned);
@@ -750,5 +767,66 @@ describe('PartDiagram on a vUp view (fu 215)', () => {
     const n = (e: Element, a: string) => Number(e.getAttribute(a));
     expect(n(x, 'y') + n(x, 'height')).toBeCloseTo(n(o, 'y') + n(o, 'height'), 9);
     expect(n(x, 'x')).toBeCloseTo(n(o, 'x'), 9);
+  });
+});
+
+describe('PartDiagram — vUp stop columns mirror the unflipped geometry (fu 215)', () => {
+  const num = (e: Element, a: string) => Number(e.getAttribute(a));
+  const colOf = (cuts: Cut[]) => {
+    const { container } = render(<PartDiagram view={buildDiagrams(createBoard({ cuts }), 16)[0]!} />);
+    const o = container.querySelector('.cutlist-diagram-outline')!;
+    const g = container.querySelector('.cutlist-diagram-leader-v')!;
+    const lines = [...g.querySelectorAll('line')];
+    const runs = lines.filter((l) => num(l, 'x1') === num(l, 'x2') && num(l, 'y1') !== num(l, 'y2'))
+      .map((l) => [num(l, 'y1'), num(l, 'y2')].sort((a, b) => a - b)).sort((a, b) => a[0]! - b[0]!);
+    const ticks = lines.filter((l) => num(l, 'y1') === num(l, 'y2')).map((l) => num(l, 'y1')).sort((a, b) => a - b);
+    const texts = [...g.querySelectorAll('text')].map((t) => [t.textContent, num(t, 'y')] as const);
+    const lo = num(o, 'y');
+    return { runs, ticks, texts, lo, hi: lo + num(o, 'height') };
+  };
+  const base: Cut = { id: 'c1', face: 'thickness', from: 'min', across: 'width', offset: 6, width: 0.75, depth: 0.375, stopMin: 0, stopMax: 0 };
+
+  it('a two-stop vUp column: far run on top, band, near run at the bottom; labels strictly on their runs', () => {
+    // stopMin 1, run 3, stopMax 1.5 of V = 5.5. Min is the BOTTOM end, so
+    // top to bottom: [stopMax 1.5in][band 3in][stopMin 1in]; at s = height/5.5
+    // the runs are [lo, lo+1.5s], [lo+1.5s, lo+4.5s], [lo+4.5s, hi]; four ticks.
+    const { runs, ticks, texts, lo, hi } = colOf([{ ...base, stopMin: 1, stopMax: 1.5 }]);
+    const s = (hi - lo) / 5.5;
+    const want = [[lo, lo + 1.5 * s], [lo + 1.5 * s, lo + 4.5 * s], [lo + 4.5 * s, hi]];
+    expect(runs).toHaveLength(3);
+    want.forEach((w, i) => { expect(runs[i]![0]).toBeCloseTo(w[0]!, 6); expect(runs[i]![1]).toBeCloseTo(w[1]!, 6); });
+    expect(ticks).toHaveLength(4);
+    [lo, lo + 1.5 * s, lo + 4.5 * s, hi].forEach((t, i) => expect(ticks[i]).toBeCloseTo(t, 6));
+    expect(texts.map(([t]) => t)).toEqual(['1-1/2"', '3"', '1"']);
+    texts.forEach(([, y], i) => { expect(y).toBeGreaterThan(runs[i]![0]!); expect(y).toBeLessThan(runs[i]![1]!); });
+  });
+
+  it('a one-stop (max) vUp column: the stop run is on TOP from the outline edge; the band runs to the bottom edge', () => {
+    // stopMax 1, run 4.5 of 5.5, no min stop. Top to bottom: [stopMax 1in][band 4.5in].
+    // Runs [lo, lo+1s], [lo+1s, hi]; three ticks lo, lo+1s, hi; no run below the band.
+    const { runs, ticks, texts, lo, hi } = colOf([{ ...base, stopMax: 1 }]);
+    const s = (hi - lo) / 5.5;
+    expect(runs).toHaveLength(2);
+    expect(runs[0]![0]).toBeCloseTo(lo, 6);
+    expect(runs[0]![1]).toBeCloseTo(lo + s, 6);
+    expect(runs[1]![0]).toBeCloseTo(lo + s, 6);
+    expect(runs[1]![1]).toBeCloseTo(hi, 6);
+    expect(ticks).toHaveLength(3);
+    [lo, lo + s, hi].forEach((t, i) => expect(ticks[i]).toBeCloseTo(t, 6));
+    expect(texts.map(([t]) => t)).toEqual(['1"', '4-1/2"']);
+    texts.forEach(([, y], i) => { expect(y).toBeGreaterThan(runs[i]![0]!); expect(y).toBeLessThan(runs[i]![1]!); });
+  });
+
+  it('a one-stop (min) vUp column: the band starts at the outline top and the stop run is at the BOTTOM', () => {
+    // stopMin 1, run 4.5: top to bottom [band 4.5in][stopMin 1in]; ticks lo, lo+4.5s, hi.
+    const { runs, ticks, texts, lo, hi } = colOf([{ ...base, stopMin: 1 }]);
+    const s = (hi - lo) / 5.5;
+    expect(runs).toHaveLength(2);
+    expect(runs[0]![0]).toBeCloseTo(lo, 6);
+    expect(runs[0]![1]).toBeCloseTo(lo + 4.5 * s, 6);
+    expect(runs[1]![1]).toBeCloseTo(hi, 6);
+    expect(ticks).toHaveLength(3);
+    [lo, lo + 4.5 * s, hi].forEach((t, i) => expect(ticks[i]).toBeCloseTo(t, 6));
+    expect(texts.map(([t]) => t)).toEqual(['4-1/2"', '1"']);
   });
 });
