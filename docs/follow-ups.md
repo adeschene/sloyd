@@ -4316,14 +4316,14 @@ and dado growth.
   world, the shelf grows past it and it reads `dado`, with no overlap.
 - **Reach:** hand-made cuts at the end of a part that a joint grows or trims. Conservative either
   way: a refusal is a skip with a reason, never wrong geometry.
-- **Status:** open, low. A shape-based rule would need to say what growing into an end-notch means.
+- **Status:** CLOSED 2026-10-10 by the joinery-end-cuts round: refaceFromEnd re-stores a cut stored into the resized end from another face its box reaches, in rebaseCuts and cutIntoEnd; the cause was two equally valid storage forms that storedAsShape keeps as given (spec docs/superpowers/specs/2026-10-10-sloyd-joinery-end-cuts-design.md). An end-grain mortise still refuses.
 
 **206. The half-lap partners-coplanar check ignores axis.** `halfLap` gathers all of E's half-lap
 partners, on any axis, and requires them to share one plane on k. That partly undercuts `movedFace`
 being per (part, axis), which exists so a part lapped on two axes is tracked on each.
 - **Reach:** no reaching path found; crossings sort by axis, and a part lapped on two axes with
   partners in different planes is refused, which is safe.
-- **Status:** open, low.
+- **Status:** CLOSED 2026-10-10 by decision (the user's): the refusal is pinned by a test; per-axis would also need the drop's collision sweep keyed by axis, for a path no real design reaches.
 
 ## From the multi-select round — 2026-10-05
 

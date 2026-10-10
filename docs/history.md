@@ -302,6 +302,26 @@ and 79.
 
 ## What each round did
 
+**What the joinery end cuts round did (2026-10-10)**: follow-ups 205 and 206, from
+`docs/superpowers/specs/2026-10-10-sloyd-joinery-end-cuts-design.md`. **No schema change.** Follow-up 205:
+`cutIntoEnd` asked `rebaseCuts`' throwing condition (`face === d && from === end`), which reads how a cut is
+STORED, so a corner notch stored with its depth along the length skipped the far dado while the same notch
+stored on the width face joined. The cause is two equally valid storage forms that `storedAsShape` keeps as
+given. The new `refaceFromEnd(b, c, d)` (recipes.ts) re-stores a cut stored into the resized end from another
+face its box reaches, guarded by the exact same box within 1e-9 per axis; it returns null for a cut reaching no
+other face or extending outside the board (shallower span first, ties thickness, width, length; a full span
+enters `from: 'min'`; the cut keeps its id). Both `rebaseCuts` and `cutIntoEnd` use it. A cut that runs along
+`d` to the moving end (a bookcase bottom's rabbet) is not stored into the end and is never touched; an
+end-grain mortise still refuses. Skips that became joins or clips: the shelf-notch and rail-notch tenon and
+dado tests, the rigid-turn shelf and rail fixtures, both "shelf grooved into its back edge" trim tests, the
+back-panel end-notch trim tests, and "blockers judge solids > a cut making only PART of the room". New tests
+cover both storage forms of the probe, the end-grain mortise (also at 90/180/270), a trim through a notch,
+turned shelves at 90 and 180, end-grain cuts pinning both trim-path refusals, and an end-grain fixture in the
+180-degree equivariance set. Follow-up 206 closed by the user's decision: the two-axis half-lap refusal is
+pinned by a test with hand-built sites (`findSites` cannot reach it: a crossing needs E's thickness axis to be
+the contact axis, and a part has one), mutation-tested by restricting the coplanar filter to the site's axis.
+Tests 2573 -> 2754 across 91 files (the count includes the older-record-only round's additions).
+
 **What the older-record-only round did (2026-10-10)**: follow-ups 211, 214, 217, 220, 222, 228, 230,
 231, 235 and 239 — every item triaged FIX / TEST / CLOSE in
 `docs/superpowers/plans/2026-10-10-sloyd-older-record-only.md` (approved by the user), then run as four

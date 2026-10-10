@@ -439,6 +439,42 @@ describe('half-lap: partners in different planes skip every site', () => {
   });
 });
 
+describe('half-lap: partners on two axes (fu 206)', () => {
+  // findSites cannot produce this: a crossing needs E's THICKNESS axis to be the
+  // contact axis (rule 4), and a part has one thickness axis, so E enters
+  // crossings on one axis only. The sites are hand-built, which is how the
+  // refusal is reached at all. The refusal is DELIBERATE: the coplanar check
+  // spans every partner of E whatever its axis, because a per-axis check would
+  // also need the drop's collision sweep keyed by axis, for a path no real
+  // design reaches (fu 206, closed by decision).
+  //
+  // E is a 1x1x20 stick at x[0,1] y[5,6] z[0,20]. R1 lies under it (y[4,5],
+  // x[-5,6], z[8,10]): axis 1. R2 stands against its -x side (x[-1,0], y[3,8],
+  // z[8,10]): axis 0. Along y the partners' planes differ (R1 [4,5], R2 [3,8]),
+  // and along x they differ too (R1 [-5,6], R2 [-1,0]), so either site refuses.
+  const doc = design(
+    { name: 'E', at: [0, 5, 0], size: [1, 1, 20] },
+    { name: 'R1', at: [-5, 4, 8], size: [11, 1, 2] },
+    { name: 'R2', at: [-1, 3, 8], size: [1, 5, 2] },
+  );
+  const sites: Site[] = [
+    { id: 1, kind: 'crossing', enter: 0, receive: 1, axis: 1, side: -1, allowed: ['half-lap'], stopEnds: [] },
+    { id: 2, kind: 'crossing', enter: 0, receive: 2, axis: 0, side: -1, allowed: ['half-lap'], stopEnds: [] },
+  ];
+  let out: ReturnType<typeof applyJoints>;
+  beforeAll(() => { out = applyJoints(doc, sites, sites.map((s) => ({ site: s.id, joint: 'half-lap' as const }))); });
+
+  it('refuses both sites with the plane reason; nothing moves or is notched', () => {
+    expect(out.applied).toHaveLength(0);
+    expect(out.skipped.map((s) => s.reason)).toEqual(Array(2).fill("E's half-lap partners do not lie in one plane"));
+    expect(out.moved).toEqual([]);
+    for (const n of ['E', 'R1', 'R2']) {
+      expect(board(out.doc, n).position).toEqual(board(doc, n).position);
+      expect(board(out.doc, n).cuts).toHaveLength(0);
+    }
+  });
+});
+
 describe('half-lap: off-grid thickness and gap align E onto R', () => {
   // Rule 4 allows a thickness difference, and contact a gap, of up to TOUCH.
   const cases: [string, number, number][] = [['thinner, 0.02 gap', 0.73, 0.02], ['thicker, 0.02 overlap', 0.77, -0.02]];
