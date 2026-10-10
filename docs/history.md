@@ -302,6 +302,17 @@ and 79.
 
 ## What each round did
 
+**What the record-only round did (2026-10-10)**: follow-ups 243 and 244, a bounded change (design in
+chat, no spec). **No schema change.** The user chose these two of the twelve record-only entries.
+One latent fix: `repairDocument` and `plainForRefine` run inside the dialogs' memos, so a throw there
+would have broken the dialog's render; both now catch, log the cause, and return their usual
+refusal (the user asked for `plainForRefine` too). New tests: the guards (the write-back made to
+throw through `vi.mock`), `runJoinery`'s `alsoPresent` excusing only problems that name parts (a
+faked `checkDesign`: joinery can hardly cause a tip), `repairDocument` passing a refusal through,
+and `unjoin`'s whole internal reason — which showed a hand cut crossing the back rabbet makes the
+rabbet read as unexplained too (refused either way). The rest closed with reasons (follow-ups 243/244).
+A live pass drove the refused text, a storage failure and the turned/nested fixtures. Tests 2589 → 2594.
+
 **What the join-repair-text round did (2026-10-10)**: follow-up 242's remaining half, a bounded change
 (design in chat, no spec). **No schema change.** A joined Refine's joinery call has repair rounds of
 its own, but `progressPatch` kept the `stage: 'join'` marker only for the first joinery call, so its
