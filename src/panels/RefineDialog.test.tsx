@@ -25,6 +25,32 @@ describe('RefineDialog', () => {
     expect(refineButton()).toHaveProperty('disabled', true);
   });
 
+  it('says storage is unavailable and disables Refine however well the form is filled (fu 239)', () => {
+    render(<RefineDialog {...base} libraryAvailable={false} />);
+    fireEvent.change(screen.getByLabelText('Instruction'), { target: { value: 'taller' } });
+    expect(screen.getByRole('status').textContent).toBe('Refine is unavailable — storage is unavailable, so the result would have nowhere to go.');
+    expect(refineButton()).toHaveProperty('disabled', true);
+  });
+
+  it('keeps every message in ONE status region when several hold (fu 239)', () => {
+    const { rerender } = render(<RefineDialog {...base} refusal="There is nothing to refine yet." libraryAvailable={false} />);
+    expect(screen.getAllByRole('status')).toHaveLength(1);
+    expect(screen.getByRole('status').textContent).toBe('There is nothing to refine yet.Refine is unavailable — storage is unavailable, so the result would have nowhere to go.');
+    rerender(<RefineDialog {...base} libraryAvailable={false} />);
+    fireEvent.change(screen.getByLabelText('Max width'), { target: { value: 'wide' } });
+    expect(screen.getAllByRole('status')).toHaveLength(1);
+    expect(screen.getByRole('status').textContent).toBe("A max size is not a length — try 36, 3', or 914mm.Refine is unavailable — storage is unavailable, so the result would have nowhere to go.");
+    // A repair notice replaces the refusal text, but storage is still said.
+    rerender(<RefineDialog {...base} refusal="gate" repairNotice={<p>NOTICE</p>} libraryAvailable={false} />);
+    screen.getByText('NOTICE');
+    expect(screen.getByRole('status').textContent).toMatch(/^Refine is unavailable/);
+  });
+
+  it('renders no status region when nothing needs saying (fu 239)', () => {
+    render(<RefineDialog {...base} />);
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
   it('disables Refine for a blank instruction or a bad limit (review focus 5)', () => {
     render(<RefineDialog {...base} />);
     expect(refineButton()).toHaveProperty('disabled', true);

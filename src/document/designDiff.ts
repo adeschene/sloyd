@@ -37,6 +37,8 @@ const sizeOf = (b: Board) => [b.length, b.width, b.thickness].sort((x, y) => y -
 /** A part inside a placement is compared relative to its placement's corner (origin + the definition's min corner). */
 const localOf = (side: Side, e: Entry) => (e.inst ? e.b.position.map((v, k) => v - side.corner(e.inst!)[k]!) : [...e.b.position]);
 const same = (a: readonly number[], b: readonly number[]) => a.length === b.length && a.every((v, k) => v === b[k]);
+/** The detail of a turned part's line, shared by its text and its merge key. */
+const TURNED = ' turned';
 const label = (m: string) => MATERIALS[m]?.label ?? m;
 
 export function diffDesigns(before: SloydDocument, after: SloydDocument): Change[] {
@@ -82,7 +84,7 @@ export function diffDesigns(before: SloydDocument, after: SloydDocument): Change
       if (dims(o.b) !== dims(e.b)) { const d = `: ${dims(o.b)} → ${dims(e.b)}`; push('resized', 'part', n, `${n}${d}`, key('resized', d)); }
     }
     // L/W/T are stored sorted, so the same dimensions can sit on other faces: only world extents tell.
-    else if (!same(boardExtents(o.b), boardExtents(e.b))) push('resized', 'part', n, `${n} turned`, key('resized', ' turned'));
+    else if (!same(boardExtents(o.b), boardExtents(e.b))) push('resized', 'part', n, `${n}${TURNED}`, key('resized', TURNED));
     const lo = localOf(A, o);
     const d = delta(localOf(B, e).map((p, k) => p - lo[k]!));
     if (d) { const t = ` moved ${d}`; push('moved', 'part', n, `${n}${t}`, key('moved', t)); }

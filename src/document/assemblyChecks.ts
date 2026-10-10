@@ -9,9 +9,27 @@ import type { Authored } from './generated';
  * parts, which joinery relies on.
  */
 
-/** Parts the model had to describe: loose parts plus each definition's parts once. */
+/**
+ * Parts the model had to describe: loose parts plus the parts of each
+ * definition a placement reaches, once (root instances, then recursively
+ * through definitions' own instances). An unplaced definition is not counted:
+ * it is dropped from the design Refine hands the model (fu 239).
+ */
 export function distinctParts(doc: SloydDocument): number {
-  return doc.boards.length + doc.definitions.reduce((n, d) => n + d.boards.length, 0);
+  const defs = new Map(doc.definitions.map((d) => [d.id, d]));
+  const seen = new Set<string>();
+  const reach = (instances: readonly { definition: string }[]) => {
+    for (const i of instances) {
+      const d = defs.get(i.definition);
+      if (!d || seen.has(d.id)) continue;
+      seen.add(d.id);
+      reach(d.instances);
+    }
+  };
+  reach(doc.instances);
+  let n = doc.boards.length;
+  for (const id of seen) n += defs.get(id)!.boards.length;
+  return n;
 }
 
 export function distinctPartsViolation(doc: SloydDocument, cap: number): Violation | null {

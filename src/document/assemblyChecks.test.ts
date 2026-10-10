@@ -28,6 +28,27 @@ describe('distinctParts', () => {
     ] });
     expect(distinctParts(doc)).toBe(3);
   });
+  it('does not count a definition no placement reaches (fu 239)', () => {
+    const { doc } = designToDocument({ name: 'T', parts: [P('Top')], assemblies: [
+      { name: 'Drawer', parts: [P('Front'), P('Side')], placements: [{ name: 'A', at: v3(0, 0, 0) }] },
+    ] });
+    const orphan = { id: 'orphan', boards: doc.definitions[0]!.boards.map((b) => ({ ...b, id: `o-${b.id}` })), instances: [] };
+    expect(distinctParts({ ...doc, definitions: [...doc.definitions, orphan] })).toBe(3);
+    expect(distinctParts({ ...doc, instances: [] })).toBe(1);
+  });
+  it('counts a definition reached only through another definition, once (fu 239)', () => {
+    const { doc } = designToDocument({ name: 'T', parts: [P('Top')], assemblies: [
+      { name: 'Drawer', parts: [P('Front'), P('Side')], placements: [{ name: 'A', at: v3(0, 0, 0) }] },
+    ] });
+    const inner = doc.definitions[0]!;
+    const outer = { id: 'outer', boards: [{ ...inner.boards[0]!, id: 'ob' }], instances: [{ id: 'oi', name: 'In', definition: inner.id, position: [0, 0, 0] as [number, number, number], rotation: 0 as const }] };
+    const root = { id: 'ri', name: 'Out', definition: 'outer', position: [0, 0, 0] as [number, number, number], rotation: 0 as const };
+    // inner is no longer placed at the root; only outer is, and it reaches inner. A cycle must not loop.
+    const nested = { ...doc, instances: [root], definitions: [inner, outer] };
+    expect(distinctParts(nested)).toBe(1 + 1 + 2);
+    const cyc = { ...nested, definitions: [inner, { ...outer, instances: [...outer.instances, { ...root, id: 'self' }] }] };
+    expect(distinctParts(cyc)).toBe(4);
+  });
   it('reports at cap + 1 and not at cap', () => {
     const parts = Array.from({ length: 12 }, (_, i) => P(`P${i}`));
     const at = designToDocument({ name: 'T', parts, assemblies: [] }).doc;
@@ -129,5 +150,23 @@ describe('collapseViolations', () => {
     expect(out).toHaveLength(1);
     expect(out[0].message).not.toContain('fix the assembly');
     expect(out[0].message.endsWith(' (in D1, D2)')).toBe(true);
+  });
+
+  it('keeps a part missing from the authored index under its own name, as a between-placement fault (fu 235)', () => {
+    const out = collapseViolations([overlap(`D1${S}Front`, 'Ghost'), overlap(`D2${S}Front`, 'Ghost')], index(['D1', 'D2']));
+    expect(out).toEqual([{
+      kind: 'overlap',
+      message: `D1${S}Front passes 0.5in into Ghost along X. (in D1, D2)`,
+      parts: [`Drawer${S}Front`, 'Ghost'],
+    }]);
+  });
+
+  it('a violation spanning two assemblies lists both assemblies\' placements and never says "fix the assembly" (fu 235)', () => {
+    // Two placements make the fault "between", so `internal` is already false here.
+    const idx = index(['D1'], [], [['Door', ['E1']]]);
+    const out = collapseViolations([overlap(`D1${S}Front`, `E1${S}Front`)], idx);
+    expect(out).toHaveLength(1);
+    expect(out[0].message).toBe(`D1${S}Front passes 0.5in into E1${S}Front along X. (in D1, E1)`);
+    expect(out[0].parts).toEqual([`Drawer${S}Front`, `Door${S}Front`]);
   });
 });

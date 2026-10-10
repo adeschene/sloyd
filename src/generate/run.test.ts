@@ -271,7 +271,8 @@ describe('runGeneration — assemblies', () => {
     const out = await run(client);
     const overlaps = out.violations.filter((x) => x.kind === 'overlap');
     expect(overlaps).toHaveLength(1);
-    expect(overlaps[0].message).toContain('fix the assembly');
+    expect(overlaps[0].message).toBe('D1 › Side passes 0.75in into D1 › Front along X. (in every placement of Drawer — fix the assembly)');
+    expect(overlaps[0].parts).toEqual(['Drawer › Side', 'Drawer › Front']);
   });
 
   it('puts "fix the assembly" in the repair message the model receives (F7)', async () => {
@@ -279,7 +280,7 @@ describe('runGeneration — assemblies', () => {
     await run(client);
     const last = seen[1][seen[1].length - 1] as { role: string; text: string };
     expect(last.role).toBe('user');
-    expect(last.text).toContain('fix the assembly');
+    expect(last.text).toBe('Your design has 1 problem:\n- D1 › Side passes 0.75in into D1 › Front along X. (in every placement of Drawer — fix the assembly)\n\nReturn the whole corrected design.');
   });
 
   it('reports a drawer fault inside every placement and the spacing faults between neighbours separately (F1)', async () => {

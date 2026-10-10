@@ -64,6 +64,45 @@ describe('diffDesigns', () => {
     expect(out[0].text.endsWith(' (×3)')).toBe(true);
   });
 
+  const PL: [string, number][] = [['D1', 0], ['D2', 12], ['D3', 24]];
+  const withParts = (extra: GeneratedPart[], front: GeneratedPart | null = null): GeneratedAssembly => {
+    const d = drawer('Drawer', PL);
+    return { ...d, parts: [...(front ? [front, d.parts[1]!] : d.parts), ...extra] };
+  };
+
+  it('merges a part added to, or removed from, an assembly kept in place (x N, fu 239)', () => {
+    const back = part('Back', [0, 0, 9.25], [10, 4, 0.75]);
+    const a = diffDesigns(doc(BASE, [withParts([])]), doc(BASE, [withParts([back])]));
+    expect(a.map((c) => [c.kind, c.subject, c.copies, c.text])).toEqual([
+      ['added', 'part', 3, `Added D1 › Back (${f(10)} × ${f(4)} × ${f(0.75)}) (×3)`],
+    ]);
+    const r = diffDesigns(doc(BASE, [withParts([back])]), doc(BASE, [withParts([])]));
+    expect(r.map((c) => [c.kind, c.copies, c.text])).toEqual([['removed', 3, 'Removed D1 › Back (×3)']]);
+  });
+
+  it('merges a material change across placements (x N, fu 239)', () => {
+    const out = diffDesigns(doc(BASE, [withParts([])]), doc(BASE, [withParts([], part('Front', [0, 0, 0], [10, 4, 0.75], 'walnut'))]));
+    expect(out.map((c) => [c.kind, c.copies, c.text])).toEqual([['material', 3, 'D1 › Front: Oak → Walnut (×3)']]);
+  });
+
+  it('merges gaining and losing a link across placements (x N, fu 239)', () => {
+    const pegs = (role: string) => [part('Peg 1', [0, 0, 0], [1, 1, 4], 'oak', role), part('Peg 2', [3, 0, 0], [1, 1, 4], 'oak', role)];
+    const asm = (role: string): GeneratedAssembly => ({ name: 'Rack', parts: pegs(role), placements: PL.map(([n, x]) => ({ name: n, at: v(x, 0, 0) })) });
+    const gain = diffDesigns(doc([], [asm('')]), doc([], [asm('peg')]));
+    expect(gain.map((c) => [c.kind, c.copies, c.text])).toEqual([
+      ['linked', 3, 'D1 › Peg 1 is now linked (×3)'], ['linked', 3, 'D1 › Peg 2 is now linked (×3)'],
+    ]);
+    const lose = diffDesigns(doc([], [asm('peg')]), doc([], [asm('')]));
+    expect(lose.map((c) => [c.kind, c.copies, c.text])).toEqual([
+      ['unlinked', 3, 'D1 › Peg 1 is no longer linked (×3)'], ['unlinked', 3, 'D1 › Peg 2 is no longer linked (×3)'],
+    ]);
+  });
+
+  it('merges a turned part across placements (x N) (fu 239)', () => {
+    const out = diffDesigns(doc(BASE, [withParts([])]), doc(BASE, [withParts([], part('Front', [0, 0, 0], [10, 0.75, 4]))]));
+    expect(out.map((c) => [c.kind, c.copies, c.text])).toEqual([['resized', 3, 'D1 › Front turned (×3)']]);
+  });
+
   it('reports a moved placement once, not each of its parts', () => {
     const out = diffDesigns(doc(BASE, [drawer('Drawer', [['D1', 0]])]), doc(BASE, [drawer('Drawer', [['D1', 3]])]));
     expect(out.map((c) => [c.kind, c.subject, c.text])).toEqual([['moved', 'placement', `Placement D1 moved X +${f(3)}`]]);
