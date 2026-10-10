@@ -50,7 +50,8 @@ export function horizontalOf(posture: Posture): [Dimension, Dimension] {
  * rotation picks which is which and in which direction — at 0 the earlier of
  * [length, width, thickness] goes on X; each further quarter turn is a TRUE
  * rotation counter-clockwise seen from above. Turn 0 is the pre-v8 mapping
- * for every posture. Before v8, 90 was a mirror across the X=Z diagonal (no
+ * for flat and upright; on-edge's turn 0 reverses thickness (schema 12, fu 215:
+ * every posture has ONE hand). Before v8, 90 was a mirror across the X=Z diagonal (no
  * direction existed), so a part's cuts could never face (-X, +Z): one corner
  * of a frame was unreachable for identical parts.
  *
@@ -64,6 +65,18 @@ export function horizontalOf(posture: Posture): [Dimension, Dimension] {
  * boolean and had to be restated in two files that could drift apart.
  */
 export function axisFrame(board: Board): [AxisMap, AxisMap, AxisMap] {
+  const frame = turnFrame(board);
+  // Follow-up 215: on-edge's turn-0 frame (L→X, W→Y, T→Z) was a proper rotation of the part's own
+  // (length, width, thickness) basis while flat and upright were mirrors, so a posture change mirrored a
+  // one-handed part. Reversing thickness gives every posture ONE hand. A quarter turn about Y carries
+  // thickness's world direction with it, so toggling the flag at every turn equals turning the new turn 0.
+  return board.posture === 'on-edge'
+    ? frame.map((a) => (a.dim === 'thickness' ? { ...a, reversed: !a.reversed } : a)) as [AxisMap, AxisMap, AxisMap]
+    : frame;
+}
+
+/** The turn table proper (quarter-turns spec §2), before the on-edge hand fix. */
+function turnFrame(board: Board): [AxisMap, AxisMap, AxisMap] {
   const [h0, h1] = horizontalOf(board.posture);
   const y: AxisMap = { dim: UP[board.posture], reversed: false };
   switch (board.rotation) {
