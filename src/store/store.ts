@@ -465,9 +465,10 @@ export const useStore = create<StoreState>((set, get) => {
     if (clean.length === hiddenIds.length && clean.every((id) => hiddenIds.includes(id))) return;
     // Consecutive toggles share ONE entry (fu 214, ruled): while the top of
     // `past` is still the entry this run pushed, a further toggle only moves
-    // `hiddenIds`; the entry keeps the set from before the run. The run's end
-    // needs no flag: anything else that pushes (an edit, a gesture snapshot) or
-    // pops (undo) changes the top, and a redo pushes a fresh object. A run that
+    // `hiddenIds`; the entry keeps the set from before the run. An edit or a
+    // gesture snapshot pushes, so the top changes; undo and redo clear
+    // `hideRunEntry` outright (a later entry's undo would otherwise leave the
+    // run's entry on top again and wrongly continue it). A run that
     // lands back on its starting set leaves nothing to undo, so its entry goes
     // (invariant 4).
     const top = past[past.length - 1];
@@ -604,8 +605,12 @@ export const useStore = create<StoreState>((set, get) => {
     if (get().gesturing) return;
     const hiddenBefore = get().hiddenIds;
     rekeyHeld(rekey);
+    const pastBefore = get().past;
     edit(fn, selection);
     const past = get().past;
+    // A no-op edit pushes nothing (fu 231); rewriting the top then would clobber
+    // an OLDER entry (perhaps a hide run's) or invent one on an empty history.
+    if (past === pastBefore) { reconcileHidden(); judgeHeld(); return; }
     set({ past: [...past.slice(0, -1), { ...past[past.length - 1]!, hiddenIds: hiddenBefore }] });
     // The re-key covers every placement of the edited container; anything it
     // could not map (an ungrouped assembly's own path) names nothing now, and
@@ -1388,6 +1393,9 @@ export const useStore = create<StoreState>((set, get) => {
       const { past, future, doc, hiddenIds, selectedIds } = get();
       if (past.length === 0) return;
       const previous = past[past.length - 1]!;
+      // Undo ends a run of eye toggles: popping a LATER entry can leave the run's
+      // entry on top again, and the identity check would wrongly continue it.
+      hideRunEntry = null;
       set({
         past: past.slice(0, -1),
         future: [{ doc, hiddenIds }, ...future].slice(0, HISTORY_LIMIT),
@@ -1399,6 +1407,7 @@ export const useStore = create<StoreState>((set, get) => {
       const { past, future, doc, hiddenIds, selectedIds } = get();
       if (future.length === 0) return;
       const next = future[0]!;
+      hideRunEntry = null; // a redo ends a run, like undo
       set({
         past: [...past, { doc, hiddenIds }].slice(-HISTORY_LIMIT),
         future: future.slice(1),

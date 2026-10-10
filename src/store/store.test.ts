@@ -2731,6 +2731,43 @@ describe('a run of eye toggles is one undo entry (fu 214)', () => {
     expect(st().hiddenIds).toEqual([b, a]); // the post-redo toggle is its own entry
   });
 
+  it('an undo of a LATER entry ends the run: hide A, edit B, undo, hide B, undo leaves A hidden', () => {
+    const [a, b] = ids();
+    st().setHidden(a, true);
+    st().updateBoard(b, { length: 30 });
+    st().undo(); // the edit: the hide's entry is on top of `past` again
+    st().setHidden(b, true);
+    st().undo();
+    expect(st().hiddenIds).toEqual([a]);
+    st().undo();
+    expect(st().hiddenIds).toEqual([]);
+  });
+
+  it('an undo of a Group ends the run too (the editRekeyed path)', () => {
+    const [a, b, c] = ids();
+    st().setHidden(a, true);
+    st().toggleSelected(b);
+    st().toggleSelected(c);
+    st().groupSelected();
+    st().undo(); // the group
+    st().setHidden(b, true);
+    st().undo();
+    expect(st().hiddenIds).toEqual([a]);
+  });
+
+  it('a redo of a later entry ends the run: the toggle after it is its own entry', () => {
+    const [a, b] = ids();
+    st().setHidden(a, true);
+    st().updateBoard(b, { length: 30 });
+    st().undo();
+    st().redo(); // the edit again; its entry is on top, the run entry beneath
+    st().undo(); // back under the hide's entry
+    st().redo();
+    st().setHidden(b, true);
+    st().undo();
+    expect(st().hiddenIds).toEqual([a]);
+  });
+
   it('a run that ends where it began leaves no entry', () => {
     const [a] = ids();
     const base = st().past.length;

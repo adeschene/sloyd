@@ -4456,7 +4456,7 @@ the same.
   7. Tape-anchor-across-turn store tests: MUTATED. They caught every point-precise mutation
      tried; strengthened to assert the same point survives, and that the axis lock is cleared
      with a dropped anchor (the one mutation the old assertions missed).
-  Mutation evidence is in the batch C report. Known limit: a joinery equivariance test cannot
+  Mutated and caught: the store tests (item 7), a reflect-after-swap UV mutation (item 3), a wrong turn in the rigid-turn joinery comparison (item 1). Known limit: a joinery equivariance test cannot
   see a table consistently wrong on both sides of a crossing; the table pins in 4 do.
 
 **218. Apply with a refused entry still in the field applies the last GOOD value.** Raised in the

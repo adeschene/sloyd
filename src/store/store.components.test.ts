@@ -478,7 +478,12 @@ describe('commitSnapMove refuses a twin target (fu 230)', () => {
     s().commitSnapMove(t as never);
     expect(s().grabbed).toBeNull();
     const moved = worldParts(s().doc).find((b) => b.id === 'i1/b1')!;
-    expect(moved.position[1] - g.at[1]).not.toBe(0);
+    // The grabbed corner lands exactly on the target's: the part moved by (target - grab).
+    const before = worldParts(twinDoc()).find((b) => b.id === 'i1/b1')!;
+    const delta = [t.at[0] - g.at[0], t.at[1] - g.at[1], t.at[2] - g.at[2]];
+    expect(delta.some((d) => d !== 0)).toBe(true);
+    expect(moved.position).toEqual(before.position.map((v, i) => v + delta[i]!));
+    expect(cornerOf('i1/b1').at).toEqual(t.at);
   });
 });
 
