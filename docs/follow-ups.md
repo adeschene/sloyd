@@ -4403,7 +4403,19 @@ drawings assume, so some orientations may show a one-handed part as the mirror o
 - **The question to settle:** whether postures should become proper rotations of ONE frame, and
   first, which hand the cut sheet's drawings read in. A change here would move existing parts' cuts
   on screen, so it would likely need a migration like `trueTurnsToV8`, not a quiet fix.
-- **Status:** open, a question for the user.
+- **Probed 2026-10-10 (spike, no code kept).** (1) Turn-0 frames: flat (L→X, T→Y, W→Z) and upright
+  (W→X, L→Y, T→Z) are MIRRORS of the part's own (length, width, thickness) basis (determinant −1);
+  on-edge (L→X, W→Y, T→Z) is a proper rotation (+1). Turns within a posture are proper. (2) The sheet
+  draws every view with the earlier dimension running right and the later running DOWN, for BOTH sides
+  of a face, so one side of every face is a mirror image of the face seen from outside. Measured against
+  `axisFrame` for every posture × turn × face × side: flat/upright draw T max, W min, L max true and
+  T min, W max, L min MIRRORED; on-edge the reverse. (3) Not in the entry before: the cut list's row key
+  omits posture (cutlist.ts, "where a part sits, not how it is cut"), which holds only if postures share
+  handedness — a flat and an on-edge part with the same stored one-handed cuts are mirror images yet
+  share one row.
+- **The user's decision (2026-10-10):** both steps as a round — unify posture handedness in the model
+  (schema 12 migration of on-edge parts, nothing moving on screen), then draw every sheet view true.
+- **Status:** open — the posture-handedness round is in design.
 
 **216. A millimetre box cut on a reversed axis can store a width an ulp away from the same cut at
 turn 0.** `pocketFor` clamps in world-offset space and then reflects through
