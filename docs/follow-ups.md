@@ -4415,7 +4415,7 @@ drawings assume, so some orientations may show a one-handed part as the mirror o
   share one row.
 - **The user's decision (2026-10-10):** both steps as a round — unify posture handedness in the model
   (schema 12 migration of on-edge parts, nothing moving on screen), then draw every sheet view true.
-- **Status:** open — the posture-handedness round is in design.
+- **Status:** CLOSED 2026-10-10 by the posture-handedness round (schema 12): on-edge reverses thickness (axisFrame), v12 mirrors on-edge cuts so nothing moves; sheet views thickness/min, width/max, length/min draw vertical upward, so every view is true; the cut-list grouping is now correct.
 
 **216. A millimetre box cut on a reversed axis can store a width an ulp away from the same cut at
 turn 0.** `pocketFor` clamps in world-offset space and then reflects through

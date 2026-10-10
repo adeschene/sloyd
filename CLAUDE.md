@@ -24,9 +24,11 @@ handicraft education tradition built around hand woodworking.
 - **Production matches `master`** as of 2026-10-10: the opposite-end-cut round, bundle
   `index-BGlCmsgG.js`, CSS `index-NXp0eTQP.css`, merge `b953fdd`, **schema 11** (unchanged).
   Test count is under Commands.
-- **Nothing is pending.** **NO SUCCESSOR IS
+- **Pending deploy: the posture-handedness round (fu 215), on branch `posture-handedness`, NOT yet on
+  `master` or deployed. It bumps to SCHEMA 12: after the deploy, rolling back to a build below 12
+  refuses every project saved since (export first).** **NO SUCCESSOR IS
   CHOSEN: ask what to work on; do not pick.** Open near the recent code:
-  241 (open by decision), 215 (posture handedness, a question),
+  241 (open by decision),
   221, 225–227, 229, 232–234. See Open follow-ups below.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
@@ -74,6 +76,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | record-only 243/244 | 10-10 | — | Dialog memos refuse instead of throwing; residue tests; live pass (fu 243, 244) |
 | older record-only | 10-10 | — | Fu 211–239 triaged and closed: eye toggles share one undo entry, no-op edits push none, guards, ~140 tests |
 | joinery end cuts | 10-10 | — | A cut at a resized end follows the part in any storage form (fu 205); 206 pinned; residue fu 245 |
+| posture handedness | 10-10 | 12 | On-edge reverses thickness so all postures share one hand; v12 mirrors on-edge cuts; every sheet view true (fu 215) |
 | opposite-end cut | 10-10 | — | A full-span cut stored into the far end runs out the grown length too (fu 245) |
 
 ### The deployment rule
@@ -89,7 +92,7 @@ rather than assumed. A paid Generate/joinery run needs the user's approval each 
 key never goes into chat or a committed file. (Generate was once exercised on production
 because it only ever adds unactivated projects, inv 36. That is not a precedent.)
 
-**Rollback cost is a schema question.** A build understanding less than `version: 11`
+**Rollback cost is a schema question.** A build understanding less than `version: 12`
 refuses the document. Rolling back past a schema bump strands every project saved since;
 export first. A round with no schema change costs nothing to roll back. The library
 round changed the storage *layout*, not the schema: rolling past it loses only projects
@@ -138,7 +141,7 @@ would be a second implementation, not a parallel path.
 ### Versioning
 
 Every load path (open, import, autosave-restore) runs `migrateDocument` before the
-document is trusted. `CURRENT_VERSION` is **11**. Steps run one version at a time, in
+document is trusted. `CURRENT_VERSION` is **12**. Steps run one version at a time, in
 order, on RAW data before `validateBoard` (inv 11) — except v10→v11.
 
 | Step | Adds | Shape | Harm a build one version back would do |
@@ -153,6 +156,7 @@ order, on RAW data before `validateBoard` (inv 11) — except v10→v11.
 | 8→9 | `Board.link` | document-level | silent loss |
 | 9→10 | `instances`, `definitions` (default `[]`) | document-level | every part in an assembly vanishes |
 | 10→11 `linksToShapes` | `shapes` (default `[]`) | **after validation** | un-shares every component |
+| 11→12 `onEdgeToV12` | on-edge cuts mirrored along thickness | **after validation** | refuses the file (rollback strands projects saved since) |
 
 - **A bump exists for the refusal gate, not for upgrading** — absent fields default
   regardless. Argue *your* field's harm; don't inherit another bump's argument.
@@ -463,7 +467,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     `rotation`'s value except `axisFrame`, the migrations, `generated.ts`'s `orient` and
     Properties' Turn select. The one legitimate hand
     reflection is `mirrorCutAlong` (clip first, one sum, no snap); do not tidy it onto the
-    helpers. Turn 0 is the pre-v8 mapping. Equivariance tests use `chiralPart`, never a
+    helpers. Flat and upright keep the pre-v8 mapping at turn 0; on-edge reverses thickness
+    (fu 215, v12), so every posture shares ONE hand and a posture change no longer mirrors cuts. Equivariance tests use `chiralPart`, never a
     symmetric fixture; mutate any new one. In `boardUVs` the reflection is per geometry
     axis, before inv 35's sign and swap. Generate stays at 0° and 90°.
 45. **A link is a SHAPE its users point to; shared fields are stored once.** `LINK_FIELDS`
@@ -497,7 +502,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 2763 tests across 91 files
+npm test           # Vitest, currently 2789 tests across 91 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -512,8 +517,6 @@ knowing without opening it:
 
 - **179** — refine by instruction (phase 2's other half). Read invs 38, 41 and fu 180–206
   before touching `generate/joints/`.
-- **215** — postures differ in handedness; a question, not a bug. Read before touching
-  posture or shapes across postures.
 - **221** — a hand-edited linked file whose cuts lack ids stays plain on load (fails safe).
 - **225–231** — assemblies/components residues (225 out of scope by decision; the rest low).
 - **176/177** — the held rules' known limits (mutual lapping) and an unseen live repair.

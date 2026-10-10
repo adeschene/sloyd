@@ -302,6 +302,25 @@ and 79.
 
 ## What each round did
 
+**What the posture-handedness round did (2026-10-10)**: follow-up 215, by the user's decision to do both
+steps as one round. **Schema 12.** The probe: flat and upright mapped (length, width, thickness) onto the
+world as mirrors, on-edge as a proper rotation, so a posture change mirrored a one-handed part's cuts; the
+sheet drew every face with the earlier dimension right and the later DOWN, so one side of each face was a
+mirror image; and the cut list's row key omitted posture, grouping flat and on-edge parts that were mirror
+images. Decisions: `axisFrame` reverses thickness for on-edge (all postures det -1, flat and upright
+byte-identical); `onEdgeToV12` mirrors on-edge parts' stored cuts along thickness with `mirrorCutAlong`
+(root parts, definition parts and Shapes; after validation and `linksToShapes`, before `repairTree`, guarded
+by `version < 12`, not idempotent) so nothing moves on screen; sheet views thickness/min, width/max and
+length/min draw vertical upward (`DiagramView.vUp`, cells and leaders via `drawnSpan`/`orientColumn`), so
+every view is a true view, pinned for every posture x turn x face x side. Task 4 added the cut-list test (a
+flat and an on-edge part with one stopped dado share a row AND are congruent by a proper rotation, derived by
+hand; mutating `axisFrame`'s toggle fails it) and recorded the docs. What the reviews caught: without the
+migration a joined on-edge design (repair-joints fixture 5) fails the joint gate (`gateUnjoin` refuses), and
+passes with it, so the unjoin gate test is a real pin, not decoration. Test count 2763 -> 2789 across the
+round. The live browser check (an on-edge part with a stopped dado saved under v11 reloads unchanged, six
+sheet views read true) is the controller's, run on the dev server after the final review. Rollback cost:
+a build below 12 refuses every project saved since the deploy; export first.
+
 **What the opposite-end-cut round did (2026-10-10)**: follow-up 245, a bounded change (design in chat;
 spec §2 of the joinery-end-cuts design amended). **No schema change.** A full-span cut stored into the
 OPPOSITE end (a full-length back-edge rabbet as `face: 'length', from: 'max'`) also reaches the moving end, so
