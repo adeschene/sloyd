@@ -302,6 +302,15 @@ and 79.
 
 ## What each round did
 
+**What the opposite-end-cut round did (2026-10-10)**: follow-up 245, a bounded change (design in chat;
+spec §2 of the joinery-end-cuts design amended). **No schema change.** A full-span cut stored into the
+OPPOSITE end (a full-length back-edge rabbet as `face: 'length', from: 'max'`) also reaches the moving end, so
+`rebaseCuts` now re-faces it too (`reachesMovingEnd`: stored from the moving end, or depth ≥ the whole of `d`);
+it then runs out the grown length like its other two forms. A partial far-end cut is left as stored — the
+"re-face every cut" mutation lands it in the same place, so its STORED form is what the test pins (no
+cut-list churn). The trim case was already right and is kept as a non-regression test; a 180°-turned shelf
+gives the unturned answer. Tests 2758 → 2763.
+
 **What the joinery end cuts round did (2026-10-10)**: follow-ups 205 and 206, from
 `docs/superpowers/specs/2026-10-10-sloyd-joinery-end-cuts-design.md`. **No schema change.** Follow-up 205:
 `cutIntoEnd` asked `rebaseCuts`' throwing condition (`face === d && from === end`), which reads how a cut is

@@ -178,6 +178,90 @@ describe('dado and stopped dado', () => {
   });
 });
 
+describe('a full-span cut stored into the OPPOSITE end follows the grown part (fu 245)', () => {
+  // Shelf 20 long (part length along world X) between two sides at x 0 and x 20.75; default dados are 1/4in
+  // deep, so the shelf grows 1/4in at EACH end, to 20.5. The rabbet, in the part's frame: length [0, 20],
+  // width [0, 1/4] (the back edge), thickness [3/8, 3/4]. Stored three ways: into the min end (fu 205's form),
+  // into the MAX end (this follow-up's form), and as the run form. All are the same stock, and a rabbet that
+  // RUNS the whole length keeps running out: length [0, 20.5] whichever end grows first.
+  const parts: P[] = [
+    { name: 'Left side', at: [0, 0, 0], size: [0.75, 30, 11.25] },
+    { name: 'Right side', at: [20.75, 0, 0], size: [0.75, 30, 11.25] },
+    { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 11.25] },
+  ];
+  const intoMin: Cut = { id: 'r', face: 'length', from: 'min', across: 'thickness', offset: 0, width: 0.25, depth: 20, stopMin: 0.375, stopMax: 0 };
+  const intoMax: Cut = { ...intoMin, from: 'max' };
+  const run: Cut = { id: 'r', face: 'width', from: 'min', across: 'length', offset: 0.375, width: 0.375, depth: 0.25, stopMin: 0, stopMax: 0 };
+  const shelfOf = (out: FlatDocument) => board(out, 'Shelf');
+  const joined = (d: FlatDocument, cut: Cut) => {
+    board(d, 'Shelf').cuts = [cut];
+    const sites = findSites(d);
+    return applyJoints(d, sites, sites.map((s) => defaultChoice(s, d, sites))).doc;
+  };
+
+  it('stored into the max end, both dados grow it: the rabbet runs out [0, 20.5], the same box as the other forms', () => {
+    const want = { length: [0, 20.5], width: [0, 0.25], thickness: [0.375, 0.75] };
+    for (const cut of [intoMax, intoMin, run]) {
+      const out = joined(design(...parts), cut);
+      expect(shelfOf(out).length).toBe(20.5);
+      expect(shelfOf(out).cuts).toHaveLength(1);
+      expect(cutRegion(shelfOf(out), shelfOf(out).cuts[0]!)).toEqual(want);
+    }
+  });
+
+  it('only the min end grows (one side): the max-stored rabbet still runs out the grown length [0, 20.25]', () => {
+    // Only the left side meets the shelf: one dado, 1/4in, at the length's MIN end -> 20.25 long.
+    const d = design(parts[0]!, { ...parts[2]!, size: [20, 0.75, 11.25] });
+    const out = joined(d, intoMax);
+    expect(shelfOf(out).length).toBe(20.25);
+    expect(cutRegion(shelfOf(out), shelfOf(out).cuts[0]!)).toEqual({ length: [0, 20.25], width: [0, 0.25], thickness: [0.375, 0.75] });
+  });
+
+  it('a PARTIAL-depth cut at the far end stays at the far end when the min end grows', () => {
+    // A 2in-deep cut into the max end: length [18, 20]. The min end grows 1/4in, so in the part's frame the cut
+    // sits at [18.25, 20.25] — the same place in the world (the far end did not move).
+    const d = design(parts[0]!, parts[2]!);
+    const far: Cut = { ...intoMax, depth: 2 };
+    const out = joined(d, far);
+    expect(shelfOf(out).length).toBe(20.25);
+    expect(cutRegion(shelfOf(out), shelfOf(out).cuts[0]!).length).toEqual([18.25, 20.25]);
+    // Not re-stored: only a cut that REACHES the moving end is, so its cut-list wording does not churn.
+    expect(shelfOf(out).cuts[0]).toMatchObject({ face: 'length', from: 'max', depth: 2 });
+  });
+
+  it('a TRIM through a full-span groove stored into the far end: it still runs the whole trimmed width', () => {
+    // A back panel 21.5 wide (part width along world X) between two sides; 3/8in rabbets trim it 3/8in at EACH
+    // end, to 20.75. A groove across its whole width, in the part's frame: width [0, 21.5], length [10, 12],
+    // thickness [0, 1/8], stored INTO the width's max end (depth 21.5). After the trims it runs the whole
+    // trimmed width: width [0, 20.75], length and thickness unchanged.
+    const d = design(
+      { name: 'LeftSide', at: [0, 0, 0], size: [0.75, 30, 12] },
+      { name: 'RightSide', at: [20.75, 0, 0], size: [0.75, 30, 12] },
+      { name: 'Back', at: [0, 0, -0.25], size: [21.5, 30, 0.25] },
+    );
+    const back = board(d, 'Back');
+    expect([back.width, back.length, back.thickness]).toEqual([21.5, 30, 0.25]);
+    back.cuts = [{ id: 'g', face: 'width', from: 'max', across: 'thickness', offset: 10, width: 2, depth: 21.5, stopMin: 0, stopMax: 0.125 }];
+    expect(cutRegion(back, back.cuts[0]!)).toEqual({ width: [0, 21.5], length: [10, 12], thickness: [0, 0.125] });
+    const sites = findSites(d);
+    const out = applyJoints(d, sites, sites.map(rabbetPick(0.375)));
+    const b = board(out.doc, 'Back');
+    expect(b.width).toBe(20.75);
+    expect(b.cuts).toHaveLength(1);
+    expect(cutRegion(b, b.cuts[0]!)).toEqual({ width: [0, 20.75], length: [10, 12], thickness: [0, 0.125] });
+  });
+
+  it('a shelf turned 180°: the max-stored rabbet runs out the grown length, as unturned', () => {
+    // Turned 180° about Y the part's length runs the other way in the world, so its stored 'max' end is the
+    // world's LEFT end; both ends still grow 1/4in. In the part's frame the answer is the unturned one.
+    const d = quarterTurned(parts, [], 2);
+    expect(board(d, 'Shelf').rotation % 360).not.toBe(board(design(...parts), 'Shelf').rotation % 360);
+    const out = joined(d, intoMax);
+    expect(shelfOf(out).length).toBe(20.5);
+    expect(cutRegion(shelfOf(out), shelfOf(out).cuts[0]!)).toEqual({ length: [0, 20.5], width: [0, 0.25], thickness: [0.375, 0.75] });
+  });
+});
+
 describe('two tenons into one corner leg collide, and shorter ones do not', () => {
   const doc = design(
     { name: 'Leg', at: [0, 0, 0], size: [1.75, 28, 1.75] },
