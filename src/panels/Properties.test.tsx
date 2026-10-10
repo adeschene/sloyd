@@ -1217,6 +1217,24 @@ describe('linking controls', () => {
     expect(st().selectedIds).toEqual([a, b]);
   });
 
+  it('plural wording: three parts link, "Linking makes 2 parts match" and "Linked with 2 other parts" (fu 222)', async () => {
+    act(() => {
+      st().addBoard(); st().addBoard(); st().addBoard();
+      const [a, b, c] = worldParts(st().doc).map((x) => x.id);
+      st().updateBoard(a!, { length: 28 });
+      st().updateBoard(b!, { length: 30 });
+      st().updateBoard(c!, { length: 32 });
+      st().selectBoard(a!); st().toggleSelected(b!); st().toggleSelected(c!);
+    });
+    const { unmount } = render(<Properties />);
+    expect(screen.getByText(/Linking makes 2 parts match Board:/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Link' }));
+    unmount();
+    act(() => { st().selectBoard(worldParts(st().doc)[0]!.id); });
+    render(<Properties />);
+    expect(screen.getByText(/Linked with 2 other parts: edits .* change all 3\./)).toBeInTheDocument();
+  });
+
   it('single panel Unlink makes the part independent', async () => {
     const [a, b] = two();
     act(() => { st().linkBoards([a!, b!]); st().selectBoard(a!); });

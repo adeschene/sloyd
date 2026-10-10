@@ -632,7 +632,6 @@ button[aria-pressed='true'] {
 
 .part-row.hidden .part {
   opacity: 0.45;
-  cursor: default;
 }
 
 .parts-show-all {

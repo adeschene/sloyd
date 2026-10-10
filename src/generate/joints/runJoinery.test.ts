@@ -163,6 +163,57 @@ describe('runJoinery', () => {
     });
   });
 
+  // Follow-up 222: the same three link outcomes on the FALLBACK path (the model failed, so the
+  // defaults are built), which goes through the same applyJoints and migrateDocument.
+  describe('links on the fallback path (fu 222)', () => {
+    const linkedOn = (names: string[], d: SloydDocument): SloydDocument => {
+      const first = worldParts(d).find((b) => names.includes(b.name))!;
+      return {
+        ...d,
+        shapes: [{ id: 'L', ...sharedOf(first) }],
+        boards: worldParts(d).map((b) => (names.includes(b.name)
+          ? { id: b.id, name: b.name, position: b.position, rotation: b.rotation, shape: 'L' } : b)),
+      };
+    };
+    const busy = () => client(new LlmError('overloaded', 'busy'));
+    const TWIN = design(
+      { name: 'Leg A', at: [0, 0, 0], size: [1.75, 28, 1.75] },
+      { name: 'Rail A', at: [1.75, 23.5, 0.5], size: [18, 3, 0.75] },
+      { name: 'Leg B', at: [30, 0, 0], size: [1.75, 28, 1.75] },
+      { name: 'Rail B', at: [31.75, 23.5, 0.5], size: [18, 3, 0.75] },
+    );
+
+    it('linked legs the defaults cut identically stay ONE shape', async () => {
+      const out = await run(busy(), linkedOn(['Leg A', 'Leg B'], TWIN));
+      if ('noSites' in out) throw new Error('expected sites');
+      expect(out.fallback).toBe('busy');
+      const legs = worldParts(out.result.doc).filter((b) => b.name.startsWith('Leg'));
+      expect(legs[0]!.cuts.length).toBeGreaterThan(0);
+      expect(legs[0]!.shape).toBeDefined();
+      expect(legs[1]!.shape).toBe(legs[0]!.shape);
+      expect(out.result.doc.shapes).toHaveLength(1);
+    });
+
+    it('linked legs the defaults cut on different faces come out unlinked', async () => {
+      const out = await run(busy(), linkedOn(['Leg A', 'Leg B'], RAILED));
+      if ('noSites' in out) throw new Error('expected sites');
+      expect(out.fallback).toBe('busy');
+      const legs = worldParts(out.result.doc).filter((b) => b.name.startsWith('Leg'));
+      expect(legs.some((l) => l.cuts.length > 0)).toBe(true);
+      for (const l of legs) expect('shape' in l).toBe(false);
+    });
+
+    it('a linked pair the defaults do not cut keeps its link', async () => {
+      const out = await run(busy(), linkedOn(['Spare', 'Spare 2'], RAILED));
+      if ('noSites' in out) throw new Error('expected sites');
+      expect(out.fallback).toBe('busy');
+      const parts = worldParts(out.result.doc);
+      const shape = parts.find((b) => b.name === 'Spare')!.shape;
+      expect(shape).toBeDefined();
+      expect(parts.filter((b) => b.shape === shape).map((b) => b.name).sort()).toEqual(['Spare', 'Spare 2']);
+    });
+  });
+
   it('returns the TREE: a grouped design comes back with its instance (assemblies spec §6.1)', async () => {
     const grouped = groupItems(CORNER, null, worldParts(CORNER).map((b) => b.id))!.doc;
     const out = await run(client(long), grouped);

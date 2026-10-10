@@ -1,4 +1,4 @@
-import { guideSnapPoints, isCovered, parentPath, snapPointsFor } from '../document/document';
+import { guideSnapPoints, isCovered, sharesStorageWith, snapPointsFor } from '../document/document';
 import type { Board, GuidePoint, SnapPoint } from '../document/document';
 import { visibleBoards } from '../store/visibility';
 
@@ -31,8 +31,8 @@ import { visibleBoards } from '../store/visibility';
  * moves the other. `keyOf` (itemKey over the document) names where an item is
  * stored; after a grab, any part that is, or lies under, ANOTHER occurrence of
  * a selected item moves with the grab and is no target. Without `keyOf` every
- * path is its own item. commitSnapMove's guard covers only the SELECTED
- * paths, not their other occurrences: this filter alone withholds those.
+ * path is its own item. commitSnapMove enforces the same twin rule (via
+ * `sharesStorageWith`, the one predicate) on the action itself.
  */
 export function moveCandidates(
   boards: readonly Board[],
@@ -46,16 +46,9 @@ export function moveCandidates(
   const selected = new Set(selectedIds);
   // A part is selected when it or any ancestor assembly is (assemblies spec).
   const covered = (b: Board) => isCovered(b.id, selected);
-  const selectedKeys = new Set(keyOf ? selectedIds.map(keyOf).filter((k): k is string => k !== null) : []);
   // It, or an ancestor, is another occurrence of a selected item: it moves too.
-  const sharesStorage = (b: Board) => {
-    if (selectedKeys.size === 0) return false;
-    for (let p: string | null = b.id; p !== null; p = parentPath(p)) {
-      const k = keyOf!(p);
-      if (k !== null && selectedKeys.has(k)) return true;
-    }
-    return false;
-  };
+  const sharesStorageOf = keyOf ? sharesStorageWith(selectedIds, keyOf) : () => false;
+  const sharesStorage = (b: Board) => sharesStorageOf(b.id);
   // A hidden part offers no points at all: a marker must sit on something
   // drawn (invariant 16; hide/unhide spec §3).
   const shown = visibleBoards(boards, hiddenIds);

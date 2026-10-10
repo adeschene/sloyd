@@ -2093,10 +2093,14 @@ describe('hide and unhide', () => {
 
   it('redo keeps the hidden set in the entry it pushes to past', () => {
     const { a, b } = three();
+    // An edit between the toggles keeps them two entries (a run is one, fu 214).
     st().setHidden(a, true);
+    st().updateBoard(b, { length: 30 });
     st().setHidden(b, true);
     st().undo();
     st().undo();
+    st().undo();
+    st().redo();
     st().redo();
     st().redo();
     st().undo();
@@ -2621,5 +2625,131 @@ describe('linked parts', () => {
     st().updateBoard(a, { length: 40 });
     expect(board(b).length).toBe(40);
     expect(st().tapeAnchor).toBeNull();
+  });
+});
+
+describe('duplicateBoards edges (fu 211)', () => {
+  const st = () => useStore.getState();
+  const two = () => {
+    st().addBoard(); st().addBoard();
+    return worldParts(st().doc).map((b) => b.id) as [string, string];
+  };
+
+  it('a repeated id is copied once', () => {
+    const [a] = two();
+    const before = worldParts(st().doc).length;
+    st().duplicateBoards([a, a, a]);
+    expect(worldParts(st().doc)).toHaveLength(before + 1);
+    expect(st().selectedIds).toHaveLength(1);
+  });
+
+  it('drops a grab owned by an original: the selection moves to the copies', () => {
+    const [a] = two();
+    st().selectBoard(a);
+    st().setTool('move');
+    st().grabSnapPoint(boardSnapPoints(worldParts(st().doc).find((b) => b.id === a)!)[0]!);
+    expect(st().grabbed).not.toBeNull();
+    st().duplicateBoards([a]);
+    expect(st().selectedIds).not.toContain(a);
+    expect(st().grabbed).toBeNull();
+  });
+});
+
+describe('copyInRow sign (fu 220)', () => {
+  const st = () => useStore.getState();
+  it.each([0, 2, -2, 0.5, Number.NaN])('refuses sign %s: no copies, no undo entry', (sign) => {
+    st().addBoard();
+    const a = worldParts(st().doc)[0]!.id;
+    const doc = st().doc;
+    const entries = st().past.length;
+    st().copyInRow([a], 3, 0, sign as never, 5);
+    expect(st().doc).toBe(doc);
+    expect(st().past.length).toBe(entries);
+  });
+  it('still accepts -1', () => {
+    st().addBoard();
+    const a = worldParts(st().doc)[0]!;
+    st().copyInRow([a.id], 2, 0, -1, 5);
+    expect(worldParts(st().doc)[1]!.position[0]).toBe(a.position[0] - 5);
+  });
+});
+
+describe('a run of eye toggles is one undo entry (fu 214)', () => {
+  const st = () => useStore.getState();
+  const ids = () => {
+    st().addBoard(); st().addBoard(); st().addBoard();
+    return worldParts(st().doc).map((b) => b.id) as [string, string, string];
+  };
+
+  it('consecutive hides and shows share one entry; one undo restores the set before the run', () => {
+    const [a, b, c] = ids();
+    const base = st().past.length;
+    st().setHidden(a, true);
+    st().setHidden(b, true);
+    st().setHidden(c, true);
+    st().setHidden(b, false);
+    expect(st().hiddenIds).toEqual([a, c]);
+    expect(st().past.length).toBe(base + 1);
+    st().undo();
+    expect(st().hiddenIds).toEqual([]);
+    expect(st().past.length).toBe(base);
+    st().redo();
+    expect(st().hiddenIds).toEqual([a, c]);
+  });
+
+  it('an edit between two toggles ends the run', () => {
+    const [a, b] = ids();
+    st().setHidden(a, true);
+    st().updateBoard(b, { length: 30 });
+    st().setHidden(b, true);
+    st().undo();
+    expect(st().hiddenIds).toEqual([a]);
+    st().undo(); // the edit
+    st().undo(); // the first hide
+    expect(st().hiddenIds).toEqual([]);
+  });
+
+  it('an undo and a redo each end the run', () => {
+    const [a, b] = ids();
+    st().setHidden(a, true);
+    st().undo();
+    st().setHidden(b, true);
+    st().setHidden(a, true);
+    st().undo();
+    expect(st().hiddenIds).toEqual([]);
+    st().redo();
+    expect(st().hiddenIds).toEqual([b, a]);
+    st().setHidden(b, false);
+    st().undo();
+    expect(st().hiddenIds).toEqual([b, a]); // the post-redo toggle is its own entry
+  });
+
+  it('a run that ends where it began leaves no entry', () => {
+    const [a] = ids();
+    const base = st().past.length;
+    st().setHidden(a, true);
+    st().setHidden(a, false);
+    expect(st().past.length).toBe(base);
+  });
+
+  it('a toggle during a gesture is still refused and does not end or join the run', () => {
+    const [a, b, c] = ids();
+    st().setHidden(a, true);
+    st().beginGesture();
+    st().setHidden(b, true);
+    st().endGesture();
+    st().setHidden(c, true);
+    expect(st().hiddenIds).toEqual([a, c]);
+    st().undo();
+    expect(st().hiddenIds).toEqual([]);
+  });
+
+  it('does not push real edits out of history: 59 toggles cost one entry', () => {
+    const [a] = ids();
+    st().updateBoard(a, { length: 30 });
+    const base = st().past.length;
+    for (let i = 0; i < 59; i += 1) st().setHidden(a, i % 2 === 0);
+    expect(st().hiddenIds).toEqual([a]);
+    expect(st().past.length).toBe(base + 1);
   });
 });
