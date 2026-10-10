@@ -1,9 +1,9 @@
 import { useStore } from './store';
-import { assemblyDoc } from '../document/treeFixtures';
-import { childrenOf, instanceAt, isCovered, resolvedPartAt, worldParts } from '../document/tree';
+import { assemblyDoc, cabinetsDoc } from '../document/treeFixtures';
+import { childrenOf, instanceAt, isCovered, parentPath, resolvedPartAt, worldParts } from '../document/tree';
 import { visibleBoards } from './visibility';
 import type { BoardSnapPoint, SloydDocument } from '../document/document';
-import { removeItems, snapPointsFor } from '../document/document';
+import { boardsBounds, removeItems, snapPointsFor } from '../document/document';
 
 const load = (doc: SloydDocument = assemblyDoc()) => useStore.getState().replaceDocument(doc);
 const s = () => useStore.getState();
@@ -373,5 +373,432 @@ describe('renameItem and gestures', () => {
     expect(resolvedPartAt(s().doc, 'i1/b2')!.cuts[0]!.depth).toBe(0.1);
     s().removeCut('r1', id);
     expect(resolvedPartAt(s().doc, 'i1/b2')!.cuts).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Follow-ups 228 and 231: store paths the rounds left untested, and weak
+// assertions made exact. Literals are derived by hand in the comments.
+// ---------------------------------------------------------------------------
+
+describe('clicks across levels (fu 228)', () => {
+  it('a toggle-click at one level toggles; across levels it re-targets and never toggles', () => {
+    s().clickPart('r1', false);
+    s().clickPart('i1/b1', true);                 // from the root the target is the outermost assembly, i1
+    expect(s().selectedIds).toEqual(['r1', 'i1']);
+    s().clickPart('r1', true);
+    expect(s().selectedIds).toEqual(['i1']);
+    s().openAssembly('i1');
+    s().clickPart('i1/b1', false);
+    s().clickPart('i1/b2', true);
+    expect(s().selectedIds).toEqual(['i1/b1', 'i1/b2']);
+    // Across levels: a toggle-click on a root part closes i1 and selects ONLY it. It
+    // neither adds to the level it left nor toggles anything off.
+    s().clickPart('r1', true);
+    expect([s().openPath, s().selectedIds]).toEqual([null, ['r1']]);
+  });
+
+  it('a toggle-click up one level of two leaves that level with only the target selected', () => {
+    s().openAssembly('i1');
+    s().openAssembly('i1/i2');
+    s().clickPart('i1/i2/b3', false);
+    expect(s().selectedIds).toEqual(['i1/i2/b3']);
+    s().clickPart('i1/b1', true);
+    expect([s().openPath, s().selectedIds]).toEqual(['i1', ['i1/b1']]);
+  });
+
+  it('the parts list (selectItem) behaves the same: a toggle that changes level replaces the selection', () => {
+    s().selectItem('r1', false);
+    s().selectItem('i1/b1', true);                // opens i1, selects just i1/b1
+    expect([s().openPath, s().selectedIds]).toEqual(['i1', ['i1/b1']]);
+    s().selectItem('i1/b2', true);
+    expect(s().selectedIds).toEqual(['i1/b1', 'i1/b2']);
+    s().selectItem('i1/b1', true);
+    expect(s().selectedIds).toEqual(['i1/b2']);
+  });
+});
+
+describe('the tape survives a level change (fu 228, inv 24)', () => {
+  it('opening, closing, clicking across levels and picking from the parts list leave anchor and hover alone', () => {
+    const anchor = heldOn('i1/b2');
+    const hover = heldOn('i1/b1');
+    s().setTapeAnchor(anchor);
+    s().setTapeHover(hover);
+    const past = s().past.length;
+    const same = () => {
+      expect(s().tapeAnchor).toBe(anchor);
+      expect(s().tapeHover).toBe(hover);
+      expect(s().past.length).toBe(past);
+    };
+    s().clickPart('i1/i2/b3', false); same();     // selects i1 at the root
+    s().openAssembly('i1'); same();
+    s().clickPart('i1/i2/b3', false); same();     // selects i1/i2 inside
+    s().openPart('i1/i2/b3'); same();             // opens i1/i2
+    s().clickPart('r1', false); same();           // closes to the root
+    expect(s().openPath).toBeNull();
+    s().selectItem('i1/i2/b3', false); same();    // opens i1/i2 again, from the list
+    expect(s().openPath).toBe('i1/i2');
+    s().closeAssembly(); same();
+    s().selectAll(); same();
+  });
+});
+
+describe('openPart on a part that is not in an assembly (fu 228)', () => {
+  it('a root part opens nothing and changes neither selection nor history', () => {
+    s().selectBoard('r1');
+    const past = s().past.length;
+    s().openPart('r1');
+    expect([s().openPath, s().selectedIds, s().past.length]).toEqual([null, ['r1'], past]);
+  });
+
+  it('inside an open assembly, a root part does not close it, and a part of this level opens nothing', () => {
+    s().openAssembly('i1');
+    s().selectBoard('i1/b1');
+    s().openPart('r1');
+    expect([s().openPath, s().selectedIds]).toEqual(['i1', ['i1/b1']]);
+    s().openPart('i1/b2');
+    expect([s().openPath, s().selectedIds]).toEqual(['i1', ['i1/b1']]);
+  });
+
+  it('a path that names no item at all opens nothing', () => {
+    const past = s().past.length;
+    s().openPart('nope');
+    expect([s().openPath, s().past.length]).toEqual([null, past]);
+  });
+});
+
+describe('undo and redo drop what a closed level held (fu 228)', () => {
+  it('undo to a document without the open level closes to the survivor, deselects, and drops held points', () => {
+    s().openAssembly('i1');
+    s().openAssembly('i1/i2');
+    s().selectBoard('i1/i2/b3');
+    s().setTapeAnchor(heldOn('i1/i2/b3'));
+    const without = removeItems(s().doc, ['i1/i2']);
+    useStore.setState({ past: [{ doc: without, hiddenIds: [] }] });
+    s().undo();
+    expect(s().openPath).toBe('i1');
+    expect(s().selectedIds).toEqual([]);
+    expect(s().tapeAnchor).toBeNull();
+    // redo brings i1/i2 back but is view state: the open level is not reopened
+    s().redo();
+    expect(worldParts(s().doc).map((b) => b.id)).toContain('i1/i2/b3');
+    expect([s().openPath, s().selectedIds]).toEqual(['i1', []]);
+  });
+
+  it('undo that removes the outer assembly closes all the way to the root', () => {
+    s().openAssembly('i1');
+    s().openAssembly('i1/i2');
+    s().selectBoard('i1/i2/b3');
+    useStore.setState({ past: [{ doc: removeItems(s().doc, ['i1']), hiddenIds: [] }] });
+    s().undo();
+    expect([s().openPath, s().selectedIds]).toEqual([null, []]);
+  });
+
+  it('a selected item that survives the undo stays selected', () => {
+    s().openAssembly('i1');
+    s().selectBoard('i1/b1');
+    useStore.setState({ past: [{ doc: removeItems(s().doc, ['i1/i2']), hiddenIds: [] }] });
+    s().undo();
+    expect([s().openPath, s().selectedIds]).toEqual(['i1', ['i1/b1']]);
+  });
+});
+
+describe('Select linked across containers (fu 228)', () => {
+  it('selects only the mates at the open level: a mate in another container is linked but not selectable', () => {
+    s().linkBoards(['r1', 'i1/b1', 'i1/b2']);
+    const shape = (id: string) => worldParts(s().doc).find((b) => b.id === id)!.shape;
+    expect(new Set([shape('r1'), shape('i1/b1'), shape('i1/b2')]).size).toBe(1);
+    expect(shape('r1')).toBeDefined();
+    s().selectBoard(null);
+    s().selectLinked('r1');
+    expect(s().selectedIds).toEqual(['r1']);
+    s().openAssembly('i1');
+    s().selectLinked('i1/b2');
+    expect(s().selectedIds).toEqual(['i1/b1', 'i1/b2']);
+  });
+
+  it('is a no-op for a part that is not linked, and for a path that names nothing', () => {
+    s().selectBoard('r1');
+    s().selectLinked('r1');
+    s().selectLinked('nope');
+    expect(s().selectedIds).toEqual(['r1']);
+  });
+});
+
+describe('renameItem on a path that names nothing (fu 228)', () => {
+  it('returns the sibling-unique name, writes nothing, pushes no entry', () => {
+    const doc = s().doc;
+    const past = s().past.length;
+    expect(s().renameItem('nope', 'Top')).toBe('Top (1)');          // 'Top' is taken at the root
+    expect(s().renameItem('nope', 'Spare')).toBe('Spare');
+    expect(s().renameItem('i1/nope', 'Front')).toBe('Front (1)');   // 'Front' is taken inside i1
+    expect(s().renameItem('nope/x', 'Whatever')).toBe('Whatever');  // no such container: no siblings
+    expect(s().doc).toBe(doc);
+    expect(s().past.length).toBe(past);
+  });
+});
+
+describe('moveGroupTo, exact (fu 228, inv 42)', () => {
+  // i1 (origin (10.1, 0.3, 3.3), turned 90) holds parts whose world box is
+  // min (10.4, 0.3, -16.8). Target (20.01, 0.04, 5.03) rounds ONCE to the
+  // sixteenth: (20, 0.0625, 5). So i1's origin gains (9.6, -0.2375, 21.8)
+  // and lands at (19.7, 0.0625, 25.1).
+  it('an assembly: the group min corner is rounded once, and the origin gains that one delta', () => {
+    s().selectBoard('i1');
+    const min0 = boardsBounds(worldParts(s().doc).filter((b) => isCovered(b.id, new Set(['i1']))))!.min;
+    expect(min0[0]).toBeCloseTo(10.4, 12);
+    expect(min0[1]).toBeCloseTo(0.3, 12);
+    expect(min0[2]).toBeCloseTo(-16.8, 12);
+    s().moveGroupTo(['i1'], [20.01, 0.04, 5.03]);
+    const p = instanceAt(s().doc, 'i1')!.position;
+    expect(p[0]).toBeCloseTo(19.7, 12);
+    expect(p[1]).toBeCloseTo(0.0625, 12);
+    expect(p[2]).toBeCloseTo(25.1, 12);
+    const min1 = boardsBounds(worldParts(s().doc).filter((b) => isCovered(b.id, new Set(['i1']))))!.min;
+    expect(min1[0]).toBeCloseTo(20, 12);
+    expect(min1[1]).toBeCloseTo(0.0625, 12);
+    expect(min1[2]).toBeCloseTo(5, 12);
+    expect(s().past.length).toBe(1);
+  });
+
+  // r1 (-5.3, 0, 0.1) and i1 together: group min (-5.3, 0, -16.8). Target
+  // (-6.01, 0.04, 0.03) rounds to (-6, 0.0625, 0): delta (-0.7, 0.0625, 16.8).
+  // i1 -> (9.4, 0.3625, 20.1); r1 -> (-6, 0.0625, 16.9). Both gain the SAME delta,
+  // so their offset is kept although neither sits on the grid.
+  it('a mixed selection: one delta for every item, the layout between them untouched', () => {
+    s().moveGroupTo(['r1', 'i1'], [-6.01, 0.04, 0.03]);
+    const i1 = instanceAt(s().doc, 'i1')!.position;
+    const r1 = s().doc.boards[0]!.position;
+    [9.4, 0.3625, 20.1].forEach((v, k) => expect(i1[k]).toBeCloseTo(v, 12));
+    [-6, 0.0625, 16.9].forEach((v, k) => expect(r1[k]).toBeCloseTo(v, 12));
+    // the offset between the two origins is exactly what it was, to rounding
+    expect(i1[0] - r1[0]).toBeCloseTo(10.1 - -5.3, 12);
+    expect(i1[2] - r1[2]).toBeCloseTo(3.3 - 0.1, 12);
+  });
+
+  // Even a target equal to the current min is rounded: min (10.4, 0.3, -16.8)
+  // goes to (166/16, 5/16, -269/16) = (10.375, 0.3125, -16.8125). A second call at
+  // that on-grid min has a zero delta and writes nothing (inv 4).
+  it('rounds a target that equals the current off-grid min; a zero delta then pushes no entry', () => {
+    const minOf = () => boardsBounds(worldParts(s().doc).filter((b) => isCovered(b.id, new Set(['i1']))))!.min;
+    const m = minOf();
+    s().moveGroupTo(['i1'], [m[0], m[1], m[2]]);
+    const after = minOf();
+    [10.375, 0.3125, -16.8125].forEach((v, k) => expect(after[k]).toBeCloseTo(v, 12));
+    const doc = s().doc;
+    const past = s().past.length;
+    s().moveGroupTo(['i1'], [after[0], after[1], after[2]]);
+    expect([s().doc, s().past.length]).toEqual([doc, past]);
+  });
+});
+
+describe('Copy in a row inside a turned assembly, exact (fu 228)', () => {
+  // i1 is turned 90: world +X is the frame's +Z (rotateVec 90 maps (x,y,z) to
+  // (z,y,-x), so the frame step is the inverse, (0,0,+5) for a +5 world step).
+  // i1/b2 is stored at (1.1, 0, 2.7), so the copy is stored at (1.1, 0, 2.7 + 5).
+  it('the copy is the original shifted 5in along world X, written on the frame\'s Z only', () => {
+    s().openAssembly('i1');
+    const before = resolvedPartAt(s().doc, 'i1/b2')!;
+    const wBefore = worldParts(s().doc).find((b) => b.id === 'i1/b2')!;
+    const past = s().past.length;
+    s().copyInRow(['i1/b2'], 2, 0, 1, 5);
+    const kids = childrenOf(s().doc, 'i1');
+    expect(kids.slice(0, 2)).toEqual(['i1/b1', 'i1/b2']);
+    expect(kids[3]).toBe('i1/i2');                                // parts first, then assemblies
+    const copyId = kids[2]!;
+    const copy = resolvedPartAt(s().doc, copyId)!;
+    expect(copy.position).toEqual([1.1, 0, 2.7 + 5]);
+    expect([copy.name, copy.rotation, copy.posture, copy.length, copy.width, copy.thickness])
+      .toEqual(['Front (1)', before.rotation, before.posture, before.length, before.width, before.thickness]);
+    expect(resolvedPartAt(s().doc, 'i1/b2')).toEqual(before);     // the original is untouched
+    const w = worldParts(s().doc).find((b) => b.id === copyId)!;
+    expect(w.position[0]).toBeCloseTo(wBefore.position[0] + 5, 12);
+    expect(w.position[1]).toBe(wBefore.position[1]);
+    expect(w.position[2]).toBeCloseTo(wBefore.position[2], 12);
+    expect(s().past.length).toBe(past + 1);
+    expect(s().selectedIds).toEqual(['i1/b2', copyId]);
+  });
+});
+
+describe('Group inside an open assembly, exact (fu 228)', () => {
+  it('groups one level down: the new assembly sits in the open one, selected, and nothing moves by a bit', () => {
+    const before = worldParts(s().doc);
+    const doc0 = s().doc;
+    s().openAssembly('i1');
+    s().selectItem('i1/b1', false);
+    const past = s().past.length;
+    s().groupSelected();
+    const [path] = s().selectedIds;
+    expect(s().selectedIds).toHaveLength(1);
+    expect(path!.startsWith('i1/')).toBe(true);
+    expect(parentPath(path!)).toBe('i1');
+    expect(s().openPath).toBe('i1');
+    // the open level now lists the remaining part, the old assembly, then the new one
+    expect(childrenOf(s().doc, 'i1')).toEqual(['i1/b2', 'i1/i2', path]);
+    expect(childrenOf(s().doc, path!)).toEqual([`${path}/b1`]);
+    const inst = instanceAt(s().doc, path!)!;
+    expect([inst.name, inst.position, inst.rotation]).toEqual(['Assembly 1', [0, 0, 0], 0]);
+    // the document: d1 lost b1 and gained the instance; the root and d2 are untouched
+    const d1 = s().doc.definitions.find((d) => d.id === 'd1')!;
+    expect(d1.boards.map((b) => b.id)).toEqual(['b2']);
+    expect(d1.instances.map((i) => i.id)).toEqual(['i2', inst.id]);
+    expect(s().doc.boards).toBe(doc0.boards);
+    expect(s().doc.definitions.find((d) => d.id === 'd2')).toBe(doc0.definitions.find((d) => d.id === 'd2'));
+    // every world part is bit-identical under its new path
+    const after = new Map(worldParts(s().doc).map((b) => [b.id, b]));
+    for (const b of before) {
+      const id = b.id === 'i1/b1' ? `${path}/b1` : b.id;
+      expect({ ...after.get(id)!, id: '' }).toEqual({ ...b, id: '' });
+    }
+    expect(after.size).toBe(before.length);
+    expect(s().past.length).toBe(past + 1);
+    s().undo();
+    expect(s().doc).toBe(doc0);
+  });
+
+  it('with nothing selected it writes nothing', () => {
+    s().openAssembly('i1');
+    const doc = s().doc;
+    s().groupSelected();
+    expect(s().doc).toBe(doc);
+  });
+});
+
+describe('Make Unique inside a shared container (fu 231)', () => {
+  // cabinetsDoc: the cabinet definition dc is placed three times and holds ONE
+  // stored drawer instance, whose definition dd is also placed loose at the root.
+  const heldOnCab = (id: string) => snapPointsFor(worldParts(s().doc).find((b) => b.id === id)!)[0] as BoardSnapPoint;
+  beforeEach(() => load(cabinetsDoc()));
+
+  it('re-points the one stored drawer for every cabinet, in one undo entry; hidden ids, held points and world positions are unchanged', () => {
+    s().setHidden('c2/dr/front', true);
+    s().setTapeAnchor(heldOnCab('c3/dr/front'));
+    const anchor = s().tapeAnchor;
+    const doc0 = s().doc;
+    const world0 = worldParts(doc0).map((b) => [b.id, b.position]);
+    const past = s().past.length;
+    s().makeUnique('c1/dr');
+    expect(s().past.length).toBe(past + 1);
+    const copyId = s().doc.definitions.find((d) => d.id === 'dc')!.instances[0]!.definition;
+    expect(copyId).not.toBe('dd');
+    for (const p of ['c1/dr', 'c2/dr', 'c3/dr']) expect(instanceAt(s().doc, p)!.definition).toBe(copyId);
+    expect(instanceAt(s().doc, 'x')!.definition).toBe('dd');
+    expect(worldParts(s().doc).map((b) => [b.id, b.position])).toEqual(world0);
+    expect(s().hiddenIds).toEqual(['c2/dr/front']);
+    expect(s().tapeAnchor).toBe(anchor);
+    s().undo();
+    expect(s().doc).toBe(doc0);
+  });
+
+  it('pushes no entry when the shared container holds the only stored instance of the drawer', () => {
+    load({ ...cabinetsDoc(), instances: cabinetsDoc().instances.filter((i) => i.id !== 'x') });
+    const doc = s().doc;
+    const past = s().past.length;
+    s().makeUnique('c1/dr');
+    expect([s().doc, s().past.length]).toEqual([doc, past]);
+  });
+});
+
+describe('selectCopies drops hidden copies and a held grab that no longer belongs (fu 231)', () => {
+  beforeEach(() => load(cabinetsDoc()));
+  const heldOnCab = (id: string) => snapPointsFor(worldParts(s().doc).find((b) => b.id === id)!)[0] as BoardSnapPoint;
+
+  it('selects every placement at this level, in document order', () => {
+    s().selectCopies('c2');
+    expect(s().selectedIds).toEqual(['c1', 'c2', 'c3']);
+    s().selectCopies('x');                               // the nested drawers are at another level
+    expect(s().selectedIds).toEqual(['x']);
+  });
+
+  it('a hidden copy is not selected; shown again, it is', () => {
+    s().setHidden('c2', true);
+    s().selectCopies('c1');
+    expect(s().selectedIds).toEqual(['c1', 'c3']);
+    s().setHidden('c2', false);
+    s().selectCopies('c1');
+    expect(s().selectedIds).toEqual(['c1', 'c2', 'c3']);
+  });
+
+  // inv 24: a grab survives exactly when its owner is under the new selection.
+  it('a held grab survives while its owner is under any selected copy', () => {
+    s().selectBoard('c1');
+    s().grabSnapPoint(heldOnCab('c1/side'));
+    s().selectCopies('c1');
+    expect(s().grabbed?.owner.id).toBe('c1/side');
+    s().selectBoard('c3');                               // retargeted away from c1
+    expect(s().grabbed).toBeNull();
+    s().selectBoard('c1');
+    s().grabSnapPoint(heldOnCab('c3/side'));             // owned by another copy; grabSnapPoint itself checks nothing
+    expect(s().grabbed).not.toBeNull();
+    s().selectCopies('c1');
+    expect(s().grabbed?.owner.id).toBe('c3/side');       // c3 is now selected, so the grab is covered
+  });
+
+  it('a held grab outside the copies goes', () => {
+    s().selectBoard('x');
+    s().grabSnapPoint(heldOnCab('x/front'));
+    s().selectCopies('c1');
+    expect(s().selectedIds).toEqual(['c1', 'c2', 'c3']);
+    expect(s().grabbed).toBeNull();
+  });
+
+  it('a grab under a copy that is hidden goes with it', () => {
+    s().selectBoard('c1');
+    s().grabSnapPoint(heldOnCab('c3/side'));
+    s().setHidden('c3', true);
+    s().selectCopies('c1');
+    expect(s().selectedIds).toEqual(['c1', 'c2']);
+    expect(s().grabbed).toBeNull();
+  });
+});
+
+describe('self-snap into the selected assembly, and cut actions on mates (fu 228; strengthened)', () => {
+  const grabOn = (id: string) => {
+    const w = worldParts(s().doc).find((b) => b.id === id)!;
+    s().grabSnapPoint(point(id, [w.position[0], w.position[1], w.position[2]]));
+    return w;
+  };
+
+  it.each(['i1/b2', 'i1/i2/b3'])('a target on %s, inside the selected assembly, is refused: nothing moves, no entry, the grab stays', (target) => {
+    s().selectBoard('i1');
+    s().setTool('move');
+    const w = grabOn('i1/b1');
+    const doc = s().doc;
+    const past = s().past.length;
+    const grab = s().grabbed;
+    s().commitSnapMove({ at: [w.position[0] + 0.3, w.position[1] + 0.2, w.position[2] + 0.1], kind: 'corner', owner: { type: 'board', id: target } } as never);
+    expect([s().doc, s().past.length, s().grabbed]).toEqual([doc, past, grab]);
+  });
+
+  it('the same move onto a part OUTSIDE the assembly is carried out, by the exact delta', () => {
+    s().selectBoard('i1');
+    s().setTool('move');
+    const w = grabOn('i1/b1');
+    s().commitSnapMove({ at: [w.position[0] + 0.3, w.position[1], w.position[2]], kind: 'corner', owner: { type: 'board', id: 'r1' } } as never);
+    // i1 is turned 90: its origin moves by the world delta (0.3, 0, 0)
+    expect(instanceAt(s().doc, 'i1')!.position).toEqual([10.1 + 0.3, 0.3 + 0, 3.3 + 0]);
+    expect(s().grabbed).toBeNull();
+  });
+
+  it('a cut added, edited and removed from a part INSIDE an assembly reaches its mate at the root, one undo entry each', () => {
+    s().linkBoards(['i1/b2', 'r1']);
+    const b1Cuts = resolvedPartAt(s().doc, 'i1/b1')!.cuts;       // the chiral fixture part has cuts of its own
+    const past = () => s().past.length;
+    const n0 = past();
+    s().addCut('i1/b2');
+    expect(past()).toBe(n0 + 1);
+    const id = resolvedPartAt(s().doc, 'i1/b2')!.cuts[0]!.id;
+    expect(resolvedPartAt(s().doc, 'r1')!.cuts.map((c) => c.id)).toEqual([id]);
+    s().updateCut('i1/b2', id, { depth: 0.1 });
+    expect(past()).toBe(n0 + 2);
+    expect(resolvedPartAt(s().doc, 'r1')!.cuts[0]!.depth).toBe(0.1);
+    s().removeCut('i1/b2', id);
+    expect(past()).toBe(n0 + 3);
+    expect(resolvedPartAt(s().doc, 'r1')!.cuts).toEqual([]);
+    // an unlinked part is untouched by all of it
+    expect(resolvedPartAt(s().doc, 'i1/b1')!.cuts).toEqual(b1Cuts);
+    s().undo(); s().undo();
+    expect(resolvedPartAt(s().doc, 'r1')!.cuts.map((c) => c.id)).toEqual([id]);
+    expect(resolvedPartAt(s().doc, 'i1/b2')!.cuts.map((c) => c.id)).toEqual([id]);
   });
 });

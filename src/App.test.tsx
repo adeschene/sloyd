@@ -1685,6 +1685,148 @@ describe('App assemblies', () => {
     expect(useStore.getState().openPath).toBeNull();
   });
 
+  // Fu 228: Ctrl+G is one of the window shortcuts, so it inherits both guards
+  // (inv 27): never behind a modal, never from a text field. A blocked chord
+  // is also NOT preventDefault-ed (the browser keeps its find-next).
+  describe('Ctrl+G and Ctrl+Shift+G (fu 228)', () => {
+    const mountGrouped = async () => {
+      render(<App />);
+      await act(async () => { await Promise.resolve(); });
+      act(() => { useStore.getState().setTool('select'); useStore.getState().replaceDocument(assemblyDoc()); useStore.getState().selectAll(); });
+      return userEvent.setup();
+    };
+    const ids = () => useStore.getState().doc.instances.map((i) => i.id);
+
+    it('positive control: from the page body it groups, then ungroups, and prevents the browser default', async () => {
+      await mountGrouped();
+      expect(fireEvent.keyDown(document.body, { key: 'g', ctrlKey: true })).toBe(false);
+      expect(ids()).toHaveLength(1);
+      expect(ids()).not.toEqual(['i1']);
+      expect(fireEvent.keyDown(document.body, { key: 'G', ctrlKey: true, shiftKey: true })).toBe(false);
+      expect(ids()).toEqual(['i1']);
+    });
+
+    it('Cmd+G (metaKey) groups the same way; Alt+Ctrl+G does not', async () => {
+      await mountGrouped();
+      expect(fireEvent.keyDown(document.body, { key: 'g', ctrlKey: true, altKey: true })).toBe(true);
+      expect(ids()).toEqual(['i1']);
+      expect(fireEvent.keyDown(document.body, { key: 'g', metaKey: true })).toBe(false);
+      expect(ids()).toHaveLength(1);
+      expect(ids()).not.toEqual(['i1']);
+    });
+
+    it('does nothing in a text field: no group, no ungroup, not prevented', async () => {
+      await mountGrouped();
+      const field = screen.getByLabelText('Project name');
+      act(() => field.focus());
+      const past = useStore.getState().past.length;
+      expect(fireEvent.keyDown(field, { key: 'g', ctrlKey: true })).toBe(true);
+      expect(ids()).toEqual(['i1']);
+      expect(fireEvent.keyDown(field, { key: 'G', ctrlKey: true, shiftKey: true })).toBe(true);
+      expect(ids()).toEqual(['i1']);
+      expect(useStore.getState().past.length).toBe(past);
+      act(() => field.blur());
+    });
+
+    it.each([['the cut list', /cut list/i], ['a dialog (Generate)', /generate/i]])('does nothing behind %s: no group, no ungroup, not prevented', async (_name, button) => {
+      const user = await mountGrouped();
+      const past = useStore.getState().past.length;
+      await user.click(screen.getByRole('button', { name: button }));
+      expect(document.querySelector('.app-shell')!.hasAttribute('inert')).toBe(true);
+      expect(fireEvent.keyDown(window, { key: 'g', ctrlKey: true })).toBe(true);
+      expect(ids()).toEqual(['i1']);
+      // and the ungroup half, with an assembly selected
+      act(() => useStore.getState().selectBoard('i1'));
+      expect(fireEvent.keyDown(window, { key: 'G', ctrlKey: true, shiftKey: true })).toBe(true);
+      expect(ids()).toEqual(['i1']);
+      expect(useStore.getState().doc.boards.map((b) => b.id)).toEqual(['r1']);
+      expect(useStore.getState().past.length).toBe(past);
+    });
+  });
+
+  // Fu 228 / CLAUDE.md "App.tsx keys": Escape's ladder is grabbed, tapeAxis,
+  // tapeAnchor, tool, and last the open assembly. One rung per press, and a
+  // press with nothing left to back out of is not prevented.
+  describe('Escape backs out one rung at a time (fu 228)', () => {
+    const mount = async () => {
+      render(<App />);
+      await act(async () => { await Promise.resolve(); });
+      act(() => { useStore.getState().setTool('select'); useStore.getState().replaceDocument(assemblyDoc()); });
+    };
+    const hold = (id: string) => boardSnapPoints(worldParts(useStore.getState().doc).find((b) => b.id === id)!)[0]!;
+    const esc = (target: Window | Element = window) => fireEvent.keyDown(target, { key: 'Escape' });
+    const state = () => {
+      const t = useStore.getState();
+      return [t.grabbed ? 'grabbed' : null, t.tapeAxis, t.tapeAnchor ? 'anchor' : null, t.tool, t.openPath];
+    };
+
+    it('runs grabbed, axis, anchor, tool, then each open level, and then does nothing (not prevented)', async () => {
+      await mount();
+      act(() => {
+        useStore.getState().openAssembly('i1');
+        useStore.getState().openAssembly('i1/i2');
+        useStore.getState().setTool('tape');
+        // setTool clears held points, so they are set after it
+        useStore.setState({ grabbed: hold('r1') as never, tapeAxis: 'x', tapeAnchor: hold('r1') });
+      });
+      expect(state()).toEqual(['grabbed', 'x', 'anchor', 'tape', 'i1/i2']);
+      const steps = [
+        [null, 'x', 'anchor', 'tape', 'i1/i2'],
+        [null, null, 'anchor', 'tape', 'i1/i2'],
+        [null, null, null, 'tape', 'i1/i2'],
+        [null, null, null, 'select', 'i1/i2'],
+        [null, null, null, 'select', 'i1'],
+        [null, null, null, 'select', null],
+      ];
+      for (const want of steps) {
+        expect(esc()).toBe(false);                         // every rung that acts prevents the default
+        expect(state()).toEqual(want);
+      }
+      expect(esc()).toBe(true);                            // nothing left: the event is not claimed
+      expect(state()).toEqual([null, null, null, 'select', null]);
+    });
+
+    it('a grab goes before the tool even when only those two are held', async () => {
+      await mount();
+      act(() => { useStore.getState().setTool('move'); useStore.setState({ grabbed: hold('r1') as never }); });
+      esc();
+      expect(state()).toEqual([null, null, null, 'move', null]);
+      esc();
+      expect(state()).toEqual([null, null, null, 'select', null]);
+    });
+
+    it('the tool goes before an open assembly closes', async () => {
+      await mount();
+      act(() => { useStore.getState().openAssembly('i1'); useStore.getState().setTool('move'); });
+      esc();
+      expect(state()).toEqual([null, null, null, 'select', 'i1']);
+      esc();
+      expect(state()).toEqual([null, null, null, 'select', null]);
+    });
+
+    it('behind the cut list the held points survive: the sheet takes the first Escape, the ladder the second', async () => {
+      await mount();
+      const user = userEvent.setup();
+      act(() => { useStore.getState().setTool('move'); useStore.setState({ grabbed: hold('r1') as never }); });
+      await user.click(screen.getByRole('button', { name: /cut list/i }));
+      await user.keyboard('{Escape}');
+      expect(document.querySelector('.app-shell')!.hasAttribute('inert')).toBe(false);
+      expect(state()).toEqual(['grabbed', null, null, 'move', null]);
+      await user.keyboard('{Escape}');
+      expect(state()).toEqual([null, null, null, 'move', null]);
+    });
+
+    it('in a text field Escape leaves the ladder alone', async () => {
+      await mount();
+      act(() => { useStore.getState().openAssembly('i1'); useStore.setState({ grabbed: hold('r1') as never }); });
+      const field = screen.getByLabelText('Project name');
+      act(() => field.focus());
+      expect(esc(field)).toBe(true);
+      expect(state()).toEqual(['grabbed', null, null, 'select', 'i1']);
+      act(() => field.blur());
+    });
+  });
+
   it('Add joinery lists the sites of a design whose parts are all inside one assembly', async () => {
     llmSettings = { provider: 'anthropic', apiKey: 'k', model: 'claude-opus-5-5' };
     render(<App />);

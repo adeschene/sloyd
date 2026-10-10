@@ -20,3 +20,28 @@ export function assemblyDoc(): SloydDocument {
   const i1: Instance = { id: 'i1', name: 'Drawer', definition: 'd1', position: [10.1, 0.3, 3.3], rotation: 90 };
   return { ...createDocument('Fixture'), boards: [r1], instances: [i1], definitions: [d1, d2] };
 }
+
+/**
+ * TEST-ONLY (fu 231). Three placements of a cabinet definition, each holding a
+ * drawer instance, plus the drawer's definition placed on its own at the root
+ * and an unshared assembly. A nested instance counts once per placement of its
+ * parent, so the drawer is shared four ways and the cabinet three. Occurrences:
+ * r, c{1,2,3}/side, c{1,2,3}/dr/front, x/front, solo/only.
+ */
+export const cabinetsDoc = (): SloydDocument => ({
+  ...createDocument('Cabinets'),
+  boards: [createBoard({ id: 'r', name: 'Top' })],
+  instances: [
+    { id: 'c1', name: 'Cabinet', definition: 'dc', position: [0, 0, 0], rotation: 0 },
+    { id: 'c2', name: 'Cabinet (1)', definition: 'dc', position: [30, 0, 0], rotation: 0 },
+    { id: 'c3', name: 'Cabinet (2)', definition: 'dc', position: [60, 0, 0], rotation: 0 },
+    { id: 'x', name: 'Loose drawer', definition: 'dd', position: [90, 0, 0], rotation: 0 },
+    { id: 'solo', name: 'Solo', definition: 'ds', position: [120, 0, 0], rotation: 0 },
+  ],
+  definitions: [
+    { id: 'dc', boards: [createBoard({ id: 'side', name: 'Side' })],
+      instances: [{ id: 'dr', name: 'Drawer', definition: 'dd', position: [1, 0, 1], rotation: 0 }] },
+    { id: 'dd', boards: [createBoard({ id: 'front', name: 'Front' })], instances: [] },
+    { id: 'ds', boards: [createBoard({ id: 'only', name: 'Only' })], instances: [] },
+  ],
+});

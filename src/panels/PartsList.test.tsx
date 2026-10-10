@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
 import { createDocument } from '../document/document';
 import { PartsList } from './PartsList';
-import { assemblyDoc } from '../document/treeFixtures';
+import { assemblyDoc, cabinetsDoc } from '../document/treeFixtures';
 
 beforeEach(() => useStore.getState().replaceDocument(createDocument('Test')));
 
@@ -150,5 +150,17 @@ describe('PartsList shared copies', () => {
     useStore.getState().replaceDocument({ ...flat, instances: [...d.instances, i3] });
     render(<PartsList />);
     expect(screen.getAllByRole('img', { name: 'Shared, 2 copies' })).toHaveLength(2);
+  });
+
+  // Fu 231: a nested definition's own badge. The drawer inside the cabinet is
+  // placed once per cabinet (3) plus once at the root (1); the cabinet is 3.
+  it('badges a nested assembly by its own placements, not its parent\'s', () => {
+    useStore.getState().replaceDocument(cabinetsDoc());
+    render(<PartsList />);
+    expect(screen.getAllByRole('img', { name: 'Shared, 3 copies' })).toHaveLength(3);
+    // 3 nested drawers + the loose one; the unshared 'Solo' has no badge.
+    expect(screen.getAllByRole('img', { name: 'Shared, 4 copies' })).toHaveLength(4);
+    expect(screen.getAllByRole('img', { name: /^Shared/ })).toHaveLength(7);
+    expect(screen.getByRole('button', { name: 'Solo' }).closest('li')?.textContent).not.toMatch(/×/);
   });
 });

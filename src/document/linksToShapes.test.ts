@@ -145,3 +145,51 @@ describe('carried-over link load tests (v10 input)', () => {
     expect('shape' in doc.boards[1]! || 'link' in doc.boards[1]!).toBe(false);
   });
 });
+
+// Fu 228, "repair step 7 cannot tell per-container from world-wide". The repair
+// that matters here is the load's last step (dissolveShapes, components spec
+// §2.3 step 7): a shape with ONE stored user becomes plain. The count is
+// world-wide over STORED parts, which a per-container count and a
+// per-placement count each get wrong in a different direction.
+describe('load: a one-user shape dissolves, counted world-wide over stored parts (fu 228)', () => {
+  const shape = { id: 's1', length: 5, width: 1, thickness: 1, material: 'oak', grain: 'length', posture: 'flat', cuts: [] };
+  const part = (id: string, x: number) => ({ id, name: `P ${id}`, position: [x, 0, 0], rotation: 0, shape: 's1' });
+  const inst = (id: string, x: number) => ({ id, name: `A ${id}`, definition: 'd1', position: [x, 0, 0], rotation: 0 });
+
+  it('users in two different containers are TWO users: the shape stays (a per-container count would dissolve it)', () => {
+    const doc = migrateDocument({
+      version: 11, name: 'x', shapes: [shape],
+      boards: [part('a', 0)], instances: [inst('i1', 20)],
+      definitions: [{ id: 'd1', boards: [part('b', 0)], instances: [] }],
+    });
+    expect(doc.shapes.map((x) => x.id)).toEqual(['s1']);
+    expect(doc.boards[0]).toEqual({ id: 'a', name: 'P a', position: [0, 0, 0], rotation: 0, shape: 's1' });
+    expect(doc.definitions[0]!.boards[0]).toEqual({ id: 'b', name: 'P b', position: [0, 0, 0], rotation: 0, shape: 's1' });
+  });
+
+  it('ONE stored part placed twice is ONE user: the shape dissolves (a per-placement count would keep it)', () => {
+    const doc = migrateDocument({
+      version: 11, name: 'x', shapes: [shape],
+      boards: [], instances: [inst('i1', 0), inst('i2', 20)],
+      definitions: [{ id: 'd1', boards: [part('b', 0)], instances: [] }],
+    });
+    expect(doc.shapes).toEqual([]);
+    expect(worldParts(doc)).toHaveLength(2);
+    expect('shape' in doc.definitions[0]!.boards[0]!).toBe(false);
+    expect(doc.definitions[0]!.boards[0]).toMatchObject({ id: 'b', length: 5, material: 'oak' });
+  });
+
+  // Below v11 the load COPIES a definition referenced twice (repairTree), after
+  // the link step converted the one stored part: the copies are two stored
+  // users of the one shape, so it stays. Contrast the v11 case above.
+  it('a v10 link on one part of a definition placed twice: the copy makes a second stored user, so the shape stays', () => {
+    const l = { id: 'b', name: 'L', length: 5, width: 1, thickness: 1, position: [0, 0, 0], rotation: 0, material: 'oak', grain: 'length', posture: 'flat', cuts: [], link: 'K' };
+    const doc = migrateDocument({
+      version: 10, name: 'x', boards: [], instances: [inst('i1', 0), inst('i2', 20)],
+      definitions: [{ id: 'd1', boards: [l], instances: [] }],
+    });
+    expect(doc.shapes).toHaveLength(1);
+    expect(doc.definitions).toHaveLength(2);
+    expect(doc.definitions.map((d) => (d.boards[0] as { shape: string }).shape)).toEqual([doc.shapes[0]!.id, doc.shapes[0]!.id]);
+  });
+});

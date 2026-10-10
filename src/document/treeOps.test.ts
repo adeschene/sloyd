@@ -2,7 +2,7 @@ import { groupItems, makeUniqueItem, nextAssemblyName, pruneDefinitions, removeI
 import { dissolveShapes, isShaped } from './shapes';
 import type { Board, SloydDocument } from './types';
 import { childrenOf, instanceAt, partAt, worldParts } from './tree';
-import { assemblyDoc } from './treeFixtures';
+import { assemblyDoc, cabinetsDoc } from './treeFixtures';
 import { boardsBounds } from './geometry';
 import { worldSolids } from './designCheck';
 import { rotateQuarter, sameSet } from './turnFixtures';
@@ -44,6 +44,34 @@ describe('groupItems (assemblies spec §4.1)', () => {
     expect(groupItems(doc, null, [])).toBeNull();
     expect(groupItems(doc, null, ['i1/b1'])).toBeNull();
   });
+
+  // Fu 228: an id that names nothing refuses the WHOLE group, even beside a real one.
+  it('refuses an id that names nothing, alone or beside real ones, and a container that does not exist', () => {
+    const doc = assemblyDoc();
+    expect(groupItems(doc, null, ['nope'])).toBeNull();
+    expect(groupItems(doc, null, ['r1', 'nope'])).toBeNull();
+    expect(groupItems(doc, 'i1', ['i1/b1', 'i1/nope'])).toBeNull();
+    expect(groupItems(doc, 'nope', ['nope/b1'])).toBeNull();
+    // The bare id of a part that lives inside an assembly is not a root child either.
+    expect(groupItems(doc, null, ['b1'])).toBeNull();
+    // The document was not touched by the refusals.
+    expect(doc).toEqual(assemblyDoc());
+  });
+
+  // Ids are unique per CONTAINER, so a deep path whose last segment matches a
+  // root part's id must not group that root part (the count check alone passes it).
+  it('refuses a path that is not a direct child even when its last segment matches a direct child\'s id', () => {
+    const doc = { ...assemblyDoc(), boards: [...assemblyDoc().boards, createBoard({ id: 'b1', name: 'Shelf' })] };
+    expect(groupItems(doc, null, ['i1/b1'])).toBeNull();
+    expect(groupItems(doc, null, ['b1'])).not.toBeNull();
+  });
+
+  it('a duplicate path in the list is one item, not a refusal', () => {
+    const r = groupItems(assemblyDoc(), null, ['r1', 'r1'])!;
+    expect(r.doc.boards).toEqual([]);
+    expect(instanceAt(r.doc, r.path)!.name).toBe('Assembly 1');
+    expect(childrenOf(r.doc, r.path)).toEqual([`${r.path}/r1`]);
+  });
 });
 
 describe('ungroupItem (assemblies spec §4.1, §10)', () => {
@@ -70,6 +98,19 @@ describe('ungroupItem (assemblies spec §4.1, §10)', () => {
     const names = r.children.map((p) => partAt(r.doc, p)?.name ?? instanceAt(r.doc, p)!.name);
     expect(names).toContain('Side (1)');
     expect(r.doc.definitions.map((d) => d.id)).toEqual(['d2']);
+  });
+});
+
+describe('ungroupItem refusals (fu 228)', () => {
+  it('is null for a part, a part inside an assembly, a path that names nothing, and an instance with a missing definition', () => {
+    const doc = assemblyDoc();
+    expect(ungroupItem(doc, 'r1')).toBeNull();
+    expect(ungroupItem(doc, 'i1/b1')).toBeNull();
+    expect(ungroupItem(doc, 'nope')).toBeNull();
+    expect(ungroupItem(doc, 'i1/nope')).toBeNull();
+    const orphan = { ...doc, definitions: doc.definitions.filter((d) => d.id !== 'd1') };
+    expect(ungroupItem(orphan, 'i1')).toBeNull();
+    expect(doc).toEqual(assemblyDoc());
   });
 });
 
@@ -136,6 +177,35 @@ describe('shared definitions', () => {
     expect(out.instances.find((i) => i.id === 'i1')!.definition).toBe('d1');
     // occurrence paths are unchanged
     expect(worldParts(out).map((b) => b.id)).toEqual(worldParts(doc).map((b) => b.id));
+  });
+
+  // Fu 231. An instance INSIDE a shared container is one stored record whatever
+  // the number of placements: the copy is made on that record, so every
+  // placement of the container follows it, and the count that matters is how
+  // many stored instances name the drawer's definition.
+  describe('inside a shared container (cabinetsDoc: dc placed 3 times, its drawer dd also loose at the root)', () => {
+    it('re-points the one stored drawer, so every cabinet follows; the loose drawer keeps dd', () => {
+      const doc = cabinetsDoc();
+      const out = makeUniqueItem(doc, 'c1/dr')!;
+      const dc = out.definitions.find((d) => d.id === 'dc')!;
+      const copyId = dc.instances[0]!.definition;
+      expect(copyId).not.toBe('dd');
+      expect(out.definitions.map((d) => d.id)).toEqual(['dc', 'dd', 'ds', copyId]);
+      expect(out.instances.find((i) => i.id === 'x')!.definition).toBe('dd');
+      for (const p of ['c1/dr', 'c2/dr', 'c3/dr']) expect(instanceAt(out, p)!.definition).toBe(copyId);
+      // plain parts copied keeping ids: every occurrence path, and every world position, is unchanged
+      expect(worldParts(out).map((b) => [b.id, b.position])).toEqual(worldParts(doc).map((b) => [b.id, b.position]));
+      expect(out.definitions.find((d) => d.id === copyId)!.boards[0]).not.toBe(doc.definitions[1]!.boards[0]);
+      expect(out.definitions.find((d) => d.id === 'dd')).toBe(doc.definitions[1]);
+    });
+
+    it('refuses when the shared container holds the only stored instance of the drawer (the Make Unique button is gated the same way)', () => {
+      const doc = cabinetsDoc();
+      const noLoose = { ...doc, instances: doc.instances.filter((i) => i.id !== 'x') };
+      expect(makeUniqueItem(noLoose, 'c1/dr')).toBeNull();
+      // while the cabinet itself, named by three instances, can be split off
+      expect(makeUniqueItem(noLoose, 'c2')).not.toBeNull();
+    });
   });
 
   it('makeUniqueItem refuses an instance that is not shared', () => {
