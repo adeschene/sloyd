@@ -3,6 +3,7 @@ import { RunFailed, runRefine } from './generate/run';
 import type { RefineOutcome, RefineProgress } from './generate/run';
 import type { RefineSettings } from './generate/refine';
 import type { SloydDocument } from './document/document';
+import { derivedName } from './document/names';
 import { LlmError } from './llm/types';
 import type { LlmClient } from './llm/types';
 import { storage } from './storage/browser';
@@ -47,7 +48,7 @@ export function useRefine(opts: { onCreated: (id: string) => void; onStorageVerd
         const costUsd = client.estimateCostUsd(out.usage);
         // A cancel that lands after the model answered still means "write nothing".
         if (ctl.signal.aborted) { setRun({ status: 'cancelled', costUsd }); return; }
-        const name = `${doc.name} — refined`;
+        const name = derivedName(doc.name, ' — refined');
         const id = await storage.createProject({ ...out.doc, name }, { activate: false });
         optsRef.current.onStorageVerdict();
         if (!id) { setRun({ status: 'failed', error: 'Could not save the project — storage is unavailable.', costUsd }); return; }

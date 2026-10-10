@@ -1,5 +1,6 @@
 import { DocumentError, createDocument, migrateDocument, nextId } from '../document/document';
 import type { SloydDocument } from '../document/document';
+import { derivedName } from '../document/names';
 import type { LibraryIndex, ProjectEntry } from './types';
 import type { LlmSettings, RecentEntry, StorageAdapter, StorageCapabilities } from './types';
 import { LAYOUT_VERSION, parseIndex, removeEntry, sortEntries, touchEntry } from './libraryIndex';
@@ -364,6 +365,7 @@ export class BrowserStorageAdapter implements StorageAdapter {
   async duplicateProject(id: string): Promise<string | null> {
     const doc = await this.loadProject(id);
     if (!doc) return null;
+    // " copy", then " copy 2", " copy 3" — counted from the source name (`derivedName`, fu 237).
     // No uniqueness enforced across the library: projects are keyed by id,
     // and invariant 8 governs BOARD names inside a document, not project
     // names. A library that renamed your projects at you would be worse
@@ -375,7 +377,7 @@ export class BrowserStorageAdapter implements StorageAdapter {
     // it) while the on-screen document, React's `activeId` and the menu's
     // `aria-current` all stay on the original — no data loss, but the next
     // boot opens the wrong project (fix round 1, Finding 1).
-    return this.createProject({ ...doc, name: `${doc.name} copy` }, { activate: false });
+    return this.createProject({ ...doc, name: derivedName(doc.name, ' copy') }, { activate: false });
   }
 
   /**

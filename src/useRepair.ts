@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import type { SloydDocument } from './document/document';
+import { derivedName } from './document/names';
 import { repairDocument } from './generate/joints/repair';
 import { storage } from './storage/browser';
 
@@ -24,7 +25,7 @@ export function useRepair(opts: { onCreated: (id: string) => void; onStorageVerd
     try {
       const r = repairDocument(doc);
       if (r === null || 'refused' in r) { setRun({ status: 'failed', error: r === null ? 'Nothing to repair.' : r.refused }); return; }
-      const name = `${doc.name} — repaired`;
+      const name = derivedName(doc.name, ' — repaired');
       const id = await storage.createProject({ ...r.doc, name }, { activate: false });
       optsRef.current.onStorageVerdict();
       if (!id) { setRun({ status: 'failed', error: 'Could not save the project — storage is unavailable.' }); return; }

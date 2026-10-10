@@ -38,6 +38,14 @@ describe('useJoinery', () => {
     expect(onCreated).toHaveBeenCalledWith('p1');
   });
 
+  it('joining a project named "— joined" counts instead of stacking (fu 237)', async () => {
+    const { result } = setup();
+    act(() => result.current.start(client(ok), { ...doc, name: 'Bench — joined' }));
+    await waitFor(() => expect(result.current.live).toBe(false));
+    expect(createProject.mock.calls[0][0].name).toBe('Bench — joined 2');
+    expect(result.current.run).toMatchObject({ projectName: 'Bench — joined 2' });
+  });
+
   it('a rejected key writes nothing and says why', async () => {
     const { result } = setup();
     act(() => result.current.start(client(async () => { throw new LlmError('auth', 'API key was rejected — check Settings.'); }), doc));
