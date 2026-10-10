@@ -119,7 +119,7 @@ describe('buildCutList', () => {
     expect(re).toEqual(rf);
 
     // World boxes relative to each part's own min corner, per world axis [x, y, z].
-    const worldBox = (b: typeof flat) => axisFrame(b).map((a, i) => spanToWorldOffset(b, i, rf[a.dim]));
+    const worldBox = (b: Board) => axisFrame(b).map((a, i) => spanToWorldOffset(b, i, rf[a.dim]));
     const [fx, fy, fz] = worldBox(flat);
     const [ex, ey, ez] = worldBox(edge);
     // By hand (turn 0, L=24 W=6 T=0.75; dado: thickness [0,0.25], width [1.5,6], length [6,6.75]):

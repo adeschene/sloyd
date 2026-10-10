@@ -76,8 +76,8 @@ One line each; the full narrative per round is in `docs/history.md`.
 | record-only 243/244 | 10-10 | — | Dialog memos refuse instead of throwing; residue tests; live pass (fu 243, 244) |
 | older record-only | 10-10 | — | Fu 211–239 triaged and closed: eye toggles share one undo entry, no-op edits push none, guards, ~140 tests |
 | joinery end cuts | 10-10 | — | A cut at a resized end follows the part in any storage form (fu 205); 206 pinned; residue fu 245 |
-| posture handedness | 10-10 | 12 | On-edge reverses thickness so all postures share one hand; v12 mirrors on-edge cuts; every sheet view true (fu 215) |
 | opposite-end cut | 10-10 | — | A full-span cut stored into the far end runs out the grown length too (fu 245) |
+| posture handedness | 10-10 | 12 | On-edge reverses thickness so all postures share one hand; v12 mirrors on-edge cuts; every sheet view true (fu 215) |
 
 ### The deployment rule
 
@@ -468,9 +468,10 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     Properties' Turn select. The one legitimate hand
     reflection is `mirrorCutAlong` (clip first, one sum, no snap); do not tidy it onto the
     helpers. Flat and upright keep the pre-v8 mapping at turn 0; on-edge reverses thickness
-    (fu 215, v12), so every posture shares ONE hand and a posture change no longer mirrors cuts. Equivariance tests use `chiralPart`, never a
-    symmetric fixture; mutate any new one. In `boardUVs` the reflection is per geometry
-    axis, before inv 35's sign and swap. Generate stays at 0° and 90°.
+    (fu 215, v12), so every posture shares ONE hand and a posture change no longer mirrors
+    cuts. Equivariance tests use `chiralPart`, never a symmetric fixture; mutate any new one.
+    In `boardUVs` the reflection is per geometry axis, before inv 35's sign and swap. Generate
+    stays at 0° and 90°.
 45. **A link is a SHAPE its users point to; shared fields are stored once.** `LINK_FIELDS`
     is the ONE shared/own table (classify an optional own field with care, fu 231).
     `resolveBoard` is the ONE place a shape is read into a part. `linksToShapes` is the ONE
