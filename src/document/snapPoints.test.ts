@@ -506,6 +506,20 @@ describe('cutSnapPoints — stopped cuts', () => {
     expect(floor.map((p) => key(p.at))).not.toContain(key([11, 4.5, 12.625]));
     expect(pts).toHaveLength(16);
   });
+
+  // The through mortise above is symmetric under a thickness mirror (mouth and floor are both full planes with
+  // the same 8 points), so by itself it cannot tell the frame's hand. Beside it a one-sided dado does: the frame
+  // (on-edge, 90: X = thickness REVERSED since schema 12) puts thickness u at X = 10 + (1 - u).
+  //   mortise mouth thickness 1 -> X = 10; floor thickness 0 -> X = 11 (8 points, centre excluded).
+  //   dado (depth 1/4 from max): mouth X = 10; floor thickness .75 -> X = 10.25 (9 points, as the 15-point test).
+  // A wrong (unreversed) frame would put the dado's floor at X = 10 + .75 = 10.75 and its mouth at X = 11.
+  it('pins the frame beside a through mortise: the dado\'s floor is at X = 10.25 and its mouth at X = 10', () => {
+    const pts = cutSnapPoints(posed([{ ...DADO, id: 'm', depth: 1, offset: 12, stopMin: 1, stopMax: 2 }, DADO]));
+    expect(pts.filter((p) => p.at[0] === 11)).toHaveLength(8);
+    expect(pts.filter((p) => p.at[0] === 10.25)).toHaveLength(9);
+    expect(pts.filter((p) => p.at[0] === 10.75)).toHaveLength(0);
+    expect(pts.filter((p) => p.at[0] === 10).length).toBeGreaterThan(8);
+  });
 });
 
 describe('snapPointsFor', () => {

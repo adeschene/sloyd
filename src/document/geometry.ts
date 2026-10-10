@@ -56,9 +56,13 @@ export function horizontalOf(posture: Posture): [Dimension, Dimension] {
  * of a frame was unreachable for identical parts.
  *
  * At turn 0 this reproduces all four orientations v2 could reach and adds the
- * two it could not. The four v2 rows are asserted explicitly in the tests,
- * because agreeing with the old table is what makes this a generalisation
- * rather than a rewrite of every document ever saved.
+ * two it could not, EXCEPT that on-edge's thickness axis is now reversed
+ * (schema 12, fu 215): flat and upright agree with the v2 rows exactly, and an
+ * on-edge part's stored cuts are mirrored along thickness by the v11 -> v12
+ * migration (`onEdgeToV12`) so nothing moves on screen. The v2 rows are
+ * asserted explicitly in the tests, because agreeing with the old table is
+ * what makes this a generalisation rather than a rewrite of every document
+ * ever saved.
  *
  * Nothing else restates the mapping: axisDimensions, boardExtents and the
  * viewport's grain code all derive from it — before v3 it was implicit in a

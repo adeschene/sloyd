@@ -1,11 +1,12 @@
-import { worldParts } from './document';
+import { worldParts, flatDocument, onEdgeToV12 } from './document';
 import {
   createBoard, createDocument, createGuide, migrateDocument, DocumentError, CURRENT_VERSION,
 } from './document';
-import { boardExtents, boardCenter, reorientedPosition, axisDimensions, boardsBounds } from './geometry';
+import { boardExtents, boardCenter, reorientedPosition, axisDimensions, boardsBounds, spanToWorldOffset } from './geometry';
+import { buildCutList } from './cutlist';
 import type { Board, Posture, Rotation } from './types';
 import type { Cut } from './document';
-import { boardSolids, FLUSH_EPSILON } from './cuts';
+import { boardSolids, FLUSH_EPSILON, cutRegion } from './cuts';
 import { worldSolids } from './designCheck';
 import { chiralPart, sameSet } from './turnFixtures';
 
@@ -490,13 +491,13 @@ describe('schema 4 — cuts', () => {
         material: 'pine',
       }],
     });
-    expect(doc.version).toBe(11);
+    expect(doc.version).toBe(12);
     expect(worldParts(doc)[0].cuts).toEqual([]);
   });
 
   // The chain is the point: a v1 file must walk 1 -> 2 -> ... -> 9,
   // folding 270 to 90 BEFORE it gains a posture, and gaining cuts before guides.
-  it('walks a v1 file all the way to 11', () => {
+  it('walks a v1 file all the way to 12', () => {
     const doc = migrateDocument({
       version: 1,
       name: 'Ancient',
@@ -506,7 +507,7 @@ describe('schema 4 — cuts', () => {
         position: [0, 0, 0], rotation: 270, standing: true, material: 'oak',
       }],
     });
-    expect(doc.version).toBe(11);
+    expect(doc.version).toBe(12);
     expect(worldParts(doc)[0].rotation).toBe(90);
     expect(worldParts(doc)[0].posture).toBe('on-edge');
     expect(worldParts(doc)[0].grain).toBe('length');
@@ -531,7 +532,7 @@ describe('schema 4 — cuts', () => {
   });
 
   it('rejects a file from a newer schema', () => {
-    expect(() => migrateDocument({ version: 12, name: 'x', boards: [] }))
+    expect(() => migrateDocument({ version: 13, name: 'x', boards: [] }))
       .toThrow(/newer version/);
   });
 });
@@ -608,13 +609,13 @@ describe('cut validation', () => {
 describe('schema v5 — stock.kerf', () => {
   it('gives a new document the default kerf', () => {
     expect(createDocument('Test').stock).toEqual({ kerf: 0.125 });
-    expect(createDocument('Test').version).toBe(11);
+    expect(createDocument('Test').version).toBe(12);
   });
 
   it('defaults kerf on a v4 file that has none', () => {
     const doc = migrateDocument({ version: 4, name: 'Old', boards: [] });
     expect(doc.stock).toEqual({ kerf: 0.125 });
-    expect(doc.version).toBe(11);
+    expect(doc.version).toBe(12);
   });
 
   it('keeps a kerf the user set', () => {
@@ -645,17 +646,17 @@ describe('schema v5 — stock.kerf', () => {
   // a file carrying a 1/4" kerf, silently drop it, and print a different sheet
   // count than the build that saved it.
   it('refuses a file from a newer build', () => {
-    expect(() => migrateDocument({ version: 12, name: 'X', boards: [] })).toThrow(DocumentError);
+    expect(() => migrateDocument({ version: 13, name: 'X', boards: [] })).toThrow(DocumentError);
   });
 
-  it('walks a v1 file all the way to v11', () => {
+  it('walks a v1 file all the way to v12', () => {
     const doc = migrateDocument({
       version: 1,
       name: 'Ancient',
       boards: [{ name: 'A', length: 24, width: 4, thickness: 0.75, position: [0, 0, 0],
                  rotation: 270, standing: true, material: 'pine' }],
     });
-    expect(doc.version).toBe(11);
+    expect(doc.version).toBe(12);
     expect(doc.guides).toEqual([]);
     expect(doc.stock).toEqual({ kerf: 0.125 });
     expect(worldParts(doc)[0].rotation).toBe(90);
@@ -668,7 +669,7 @@ describe('schema v5 — stock.kerf', () => {
 describe('guides — schema v6', () => {
   it('a fresh document has an empty guides array at the current version', () => {
     const doc = createDocument('Test');
-    expect(doc.version).toBe(11);
+    expect(doc.version).toBe(12);
     expect(doc.guides).toEqual([]);
   });
 
@@ -681,7 +682,7 @@ describe('guides — schema v6', () => {
       boards: [],
     });
     expect(doc.guides).toEqual([]);
-    expect(doc.version).toBe(11);
+    expect(doc.version).toBe(12);
   });
 
   it('keeps well-formed guides', () => {
@@ -737,12 +738,12 @@ describe('guides — schema v6', () => {
   // argument is NOT v5's (a wrong purchasing number); it is silent data loss
   // on round-trip.
   it('still refuses a version above CURRENT_VERSION', () => {
-    expect(() => migrateDocument({ version: 12, name: 'x', boards: [] }))
+    expect(() => migrateDocument({ version: 13, name: 'x', boards: [] }))
       .toThrow(DocumentError);
   });
 
   // A v1 file must still walk the whole chain, gaining guides on the way.
-  it('a v1 file walks 1 -> 11', () => {
+  it('a v1 file walks 1 -> 12', () => {
     const doc = migrateDocument({
       version: 1,
       name: 'Ancient',
@@ -752,7 +753,7 @@ describe('guides — schema v6', () => {
         position: [0, 0, 0], rotation: 270, standing: true, material: 'pine',
       }],
     });
-    expect(doc.version).toBe(11);
+    expect(doc.version).toBe(12);
     expect(doc.guides).toEqual([]);
     expect(doc.stock.kerf).toBe(0.125);
     expect(worldParts(doc)[0].rotation).toBe(90);
@@ -910,8 +911,8 @@ describe('stopped cuts (v7)', () => {
   const loaded = (cut: Record<string, unknown>, version = 7) =>
     worldParts(migrateDocument(rawDoc(cut, version)))[0].cuts;
 
-  it('is version 11', () => {
-    expect(CURRENT_VERSION).toBe(11);
+  it('is version 12', () => {
+    expect(CURRENT_VERSION).toBe(12);
   });
 
   it('defaults missing stops to 0', () => {
@@ -955,7 +956,7 @@ describe('stopped cuts (v7)', () => {
   it('round-trips both stops through a save', () => {
     const doc = migrateDocument(rawDoc({ stopMin: 1, stopMax: 2 }));
     const again = migrateDocument(JSON.parse(JSON.stringify(doc)));
-    expect(again.version).toBe(11);
+    expect(again.version).toBe(12);
     expect(worldParts(again)[0].cuts[0]).toMatchObject({ stopMin: 1, stopMax: 2 });
   });
 });
@@ -1017,8 +1018,10 @@ describe('v7 -> v8: true quarter turns', () => {
 
   // The mirror must reflect what validateCuts would have KEPT, not the raw
   // interval: reflect-then-clamp differs from clamp-then-reflect whenever the
-  // cut runs past an end. "Before" is loaded as a v8 file so the mirror is
-  // skipped and validateCuts clamps it exactly as a v7 build did; oldWorld is
+  // cut runs past an end. "Before" is loaded AT CURRENT_VERSION so NO mirror
+  // runs (neither v8's nor v12's, which would also mirror an on-edge part along
+  // thickness) while validateCuts still clamps it exactly as a v7 build did;
+  // oldWorld, the pre-v8 mapping with the old UNREVERSED on-edge thickness, is
   // the independent pre-v8 mapping. Each case is written against S, the size of
   // h0 (length for flat and on-edge, width for upright), and the cut's
   // position axis is h0, so it is the branch that rewrites `offset`.
@@ -1044,7 +1047,7 @@ describe('v7 -> v8: true quarter turns', () => {
       const part = { ...chiralPart(posture), rotation: 90 as const, position: [3, 0, 4] as [number, number, number] };
       const S = posture === 'upright' ? part.width : part.length;
       const raw = { ...part, cuts: [...part.cuts, h0Cut(posture, off(S), wid(S))] };
-      const before = worldParts(migrateDocument({ ...v7([raw]), version: 8 }))[0]!;
+      const before = worldParts(migrateDocument({ ...v7([raw]), version: CURRENT_VERSION }))[0]!;
       const after = worldParts(migrateDocument(v7([raw])))[0]!;
       expect(after.cuts.map((c) => c.id)).toEqual(before.cuts.map((c) => c.id));
       expect(newWorld(after).length).toBe(oldWorld(before).length);
@@ -1062,7 +1065,7 @@ describe('v7 -> v8: true quarter turns', () => {
     cuts: [{ id: 'r', face: 'thickness', from: 'max', across: 'width', offset, width, depth: 0.25, stopMin: 0, stopMax: 0 }],
   });
   const beforeAfter = (raw: unknown) => ({
-    before: worldParts(migrateDocument({ ...v7([raw]), version: 8 }))[0]!,
+    before: worldParts(migrateDocument({ ...v7([raw]), version: CURRENT_VERSION }))[0]!,
     after: worldParts(migrateDocument(v7([raw])))[0]!,
   });
 
@@ -1114,7 +1117,7 @@ describe('v7 -> v8: true quarter turns', () => {
           { id: 'f', face: h0, from: 'min', across: other === 'width' ? 'width' : 'length', offset: mm(17), width: mm(9), depth: mm(23), stopMin: 0, stopMax: 0 },
         ],
       };
-      const before = worldParts(migrateDocument({ ...v7([raw]), version: 8 }))[0]!;
+      const before = worldParts(migrateDocument({ ...v7([raw]), version: CURRENT_VERSION }))[0]!;
       const after = worldParts(migrateDocument(v7([raw])))[0]!;
       expect(after.cuts.map((c) => c.id)).toEqual(before.cuts.map((c) => c.id));
       // The migration really did mirror something (it is not vacuously a v8 load).
@@ -1144,19 +1147,35 @@ describe('v7 -> v8: true quarter turns', () => {
     expect(cuts[0]).toMatchObject({ offset: 15.25, width: 0.75 });
   });
 
-  it('a version-8 file is never mirrored: a 90° part comes back exactly as saved', () => {
+  // Review Focus 3 of fu 215: v8's guard (`version < 8`) still stops a v8 file
+  // being re-mirrored ALONG LENGTH. Since schema 12 an on-edge part's cuts are
+  // mirrored along THICKNESS on load, so "exactly as saved" holds only for flat
+  // and upright. chiralPart's cuts, T = 1.5, by hand for on-edge:
+  //   c1 face thickness max -> min (offset/width/stops untouched: across is width)
+  //   c3 face thickness max -> min (across length: stops untouched)
+  //   c2 face width, across length: thickness is its position axis, so
+  //      offset' = T - (offset + width) = 1.5 - (0.375 + 0.5) = 0.625, width 0.5.
+  // Length is NOT mirrored (a v8 file): c2's stops stay 2 / 12.
+  it('a version-8 file is never re-mirrored by v8: flat and upright come back as saved, on-edge only along thickness', () => {
     for (const posture of ['flat', 'on-edge', 'upright'] as const) {
       const saved = { ...chiralPart(posture), rotation: 90 as const, position: [3, 0, 4] as [number, number, number] };
       const loaded = worldParts(migrateDocument({ ...v7([saved]), version: 8 }))[0]!;
-      expect(loaded.cuts).toEqual(saved.cuts);
-      expect(sameSet(flatten(newWorld(loaded)), flatten(newWorld(saved)))).toBe(true);
+      if (posture !== 'on-edge') {
+        expect(loaded.cuts).toEqual(saved.cuts);
+        expect(sameSet(flatten(newWorld(loaded)), flatten(newWorld(saved)))).toBe(true);
+        continue;
+      }
+      const byId = (id: string) => loaded.cuts.find((c) => c.id === id);
+      expect(byId('c1')).toMatchObject({ face: 'thickness', from: 'min', across: 'width', offset: 4, width: 0.75, stopMin: 0, stopMax: 1.5 });
+      expect(byId('c3')).toMatchObject({ face: 'thickness', from: 'min', across: 'length', offset: 0, width: 1, stopMin: 0, stopMax: 5 });
+      expect(byId('c2')).toMatchObject({ face: 'width', from: 'min', across: 'length', offset: 0.625, width: 0.5, stopMin: 2, stopMax: 12 });
     }
   });
 
   it('a v8 file opens; a version above CURRENT_VERSION is still refused', () => {
-    expect(CURRENT_VERSION).toBe(11);
+    expect(CURRENT_VERSION).toBe(12);
     expect(() => migrateDocument({ ...v7([]), version: 8 })).not.toThrow();
-    expect(() => migrateDocument({ ...v7([]), version: 12 })).toThrow();
+    expect(() => migrateDocument({ ...v7([]), version: 13 })).toThrow();
   });
 });
 
@@ -1164,11 +1183,11 @@ describe('v9: linked parts', () => {
   const doc = (version: number, boards: unknown[]) => ({ version, name: 'D', units: { display: 'imperial-fractional', precision: 16 }, stock: { kerf: 0.125 }, guides: [], boards });
   const raw = (over: Record<string, unknown>) => ({ ...createBoard({ length: 10, width: 2, thickness: 1 }), ...over });
 
-  it('CURRENT_VERSION is 11; a v8 file loads with no links; a version above 11 is refused', () => {
-    expect(CURRENT_VERSION).toBe(11);
+  it('CURRENT_VERSION is 12; a v8 file loads with no links; a version above 12 is refused', () => {
+    expect(CURRENT_VERSION).toBe(12);
     const d = migrateDocument(doc(8, [raw({ id: 'a' }), raw({ id: 'b' })]));
     expect(worldParts(d).every((b) => !('link' in b))).toBe(true);
-    expect(() => migrateDocument(doc(12, []))).toThrow();
+    expect(() => migrateDocument(doc(13, []))).toThrow();
   });
 
   // `Board.link` is retired (components spec §3.2): links load as shapes
@@ -1193,12 +1212,143 @@ describe('the v10 step: instances and definitions (assemblies spec §2.5)', () =
   it('a v9 file loads with empty instance and definition lists', () => {
     const v9 = { version: 9, name: 'Old', units: { display: 'imperial-fractional', precision: 16 }, stock: { kerf: 0.125 }, guides: [], boards: [] };
     const d = migrateDocument(v9);
-    expect(d.version).toBe(11);
+    expect(d.version).toBe(12);
     expect(d.instances).toEqual([]);
     expect(d.definitions).toEqual([]);
   });
 
-  it('refuses a version above 11', () => {
-    expect(() => migrateDocument({ version: 12, boards: [] })).toThrow(/newer version/);
+  it('refuses a version above 12', () => {
+    expect(() => migrateDocument({ version: 13, boards: [] })).toThrow(/newer version/);
+  });
+});
+
+describe('v11 -> v12: on-edge cuts mirrored along thickness (fu 215)', () => {
+  // Schema 12 reverses an on-edge part's thickness axis (axisFrame). Every expectation below is a world box
+  // worked out BY HAND in the OLD (v11) frame, where on-edge's thickness runs unreversed, then read back
+  // through the NEW frame from the migrated, stored cut.
+  //
+  // OLD on-edge frame: turn 0 is X = length, Y = width, Z = thickness (all unreversed); turn 90 is
+  // X = thickness (unreversed), Y = width, Z = length REVERSED.
+  const v11Doc = (boards: unknown[], extra: Record<string, unknown> = {}) => ({
+    version: 11, name: 'D', units: { display: 'imperial-fractional', precision: 16 }, stock: { kerf: 0.125 },
+    guides: [], boards, instances: [], definitions: [], shapes: [], ...extra,
+  });
+  const part = (over: Record<string, unknown> = {}) => ({
+    id: 'p', name: 'P', posture: 'on-edge', rotation: 0, length: 20, width: 4, thickness: 0.75, position: [0, 0, 0],
+    material: 'oak', grain: 'length', ...over,
+  });
+  // The worked-example groove: thickness MAX face, 1/4 deep, running the length (across length), on width [1, 1.5].
+  const groove = { id: 'c', face: 'thickness', from: 'max', across: 'length', offset: 1, width: 0.5, depth: 0.25, stopMin: 0, stopMax: 0 };
+  const worldBox = (b: Board, cut: Cut) => {
+    const r = cutRegion(b, cut);
+    return axisDimensions(b).map((dim, axis) => spanToWorldOffset(b, axis, r[dim]).map((x) => x + b.position[axis]!));
+  };
+
+  it('1. an on-edge groove keeps its world box: stored from max under v11, from min under v12', () => {
+    // Old: thickness -> +Z, max face at z = 0.75, depth .25: z [0.5, 0.75]; x = length [0, 20]; y = width [1, 1.5].
+    // New: thickness -> Z reversed, so the same box is the thickness MIN side: z = 0.75 - [0, .25] = [0.5, 0.75].
+    const doc = migrateDocument(v11Doc([part({ cuts: [groove] })]));
+    expect(doc.version).toBe(12);
+    expect((doc.boards[0] as Board).cuts[0]).toMatchObject({ face: 'thickness', from: 'min', offset: 1, width: 0.5, depth: 0.25 });
+    const b = doc.boards[0] as Board;
+    expect(worldBox(b, b.cuts[0]!)).toEqual([[0, 20], [1, 1.5], [0.5, 0.75]]);
+  });
+
+  it('2. a 90-degree on-edge part with a cut positioned along thickness: offset\' = T - offset - width', () => {
+    // Cut: face width min, 1 deep, across length (full), position axis = THICKNESS: offset .125, width .25.
+    // OLD turn 90: X = thickness unreversed: [.125, .375]; Y = width [0, 1]; Z = length reversed, full [0, 20].
+    // Stored: offset' = .75 - (.125 + .25) = .375 -> thickness [.375, .625]. NEW X = thickness reversed:
+    // [.75 - .625, .75 - .375] = [.125, .375]. Same box.
+    const cut = { id: 'c', face: 'width', from: 'min', across: 'length', offset: 0.125, width: 0.25, depth: 1, stopMin: 0, stopMax: 0 };
+    const doc = migrateDocument(v11Doc([part({ rotation: 90, cuts: [cut] })]));
+    const b = doc.boards[0] as Board;
+    expect(b.cuts[0]).toMatchObject({ face: 'width', from: 'min', offset: 0.375, width: 0.25 });
+    expect(worldBox(b, b.cuts[0]!)).toEqual([[0.125, 0.375], [0, 1], [0, 20]]);
+  });
+
+  it('3. an on-edge part inside a definition (placed once) is mirrored', () => {
+    // Case 1's groove in a definition; the instance sits at x = 10, turn 0, so the old box shifts by 10 in x:
+    // x [10, 30], y [1, 1.5], z [.5, .75].
+    const raw = v11Doc([], {
+      instances: [{ id: 'i', name: 'A', definition: 'd', position: [10, 0, 0], rotation: 0 }],
+      definitions: [{ id: 'd', boards: [part({ cuts: [groove] })], instances: [] }],
+    });
+    const doc = migrateDocument(raw);
+    expect((doc.definitions[0]!.boards[0] as Board).cuts[0]).toMatchObject({ from: 'min' });
+    const b = worldParts(doc)[0]!;
+    expect(worldBox(b, b.cuts[0]!)).toEqual([[10, 30], [1, 1.5], [0.5, 0.75]]);
+  });
+
+  it('4. a Shape with two users, one turned 90: mirrored ONCE on the Shape; both users\' boxes as by hand; one cut-list row', () => {
+    // Shape: case 1's part. After one mirror: from min. (Mirrored twice it would be back to max.)
+    // User A, turn 0 at x = 0: box [[0, 20], [1, 1.5], [.5, .75]] (case 1).
+    // User B, turn 90 at x = 50. OLD: X = thickness [.5, .75] + 50 = [50.5, 50.75]; Y = width [1, 1.5];
+    // Z = length reversed, full [0, 20].
+    const shape = { id: 's', length: 20, width: 4, thickness: 0.75, material: 'oak', grain: 'length', posture: 'on-edge', cuts: [groove] };
+    const users = [
+      { id: 'a', name: 'A', shape: 's', position: [0, 0, 0], rotation: 0 },
+      { id: 'b', name: 'B', shape: 's', position: [50, 0, 0], rotation: 90 },
+    ];
+    const doc = migrateDocument(v11Doc(users, { shapes: [shape] }));
+    expect(doc.shapes).toHaveLength(1);
+    expect(doc.shapes[0]!.cuts[0]).toMatchObject({ face: 'thickness', from: 'min' });
+    const [a, b] = worldParts(doc);
+    expect(worldBox(a!, a!.cuts[0]!)).toEqual([[0, 20], [1, 1.5], [0.5, 0.75]]);
+    expect(worldBox(b!, b!.cuts[0]!)).toEqual([[50.5, 50.75], [1, 1.5], [0, 20]]);
+    const rows = buildCutList(flatDocument(doc)).groups.flatMap((g) => g.rows);
+    expect(rows.map((r) => r.qty)).toEqual([2]);
+  });
+
+  it('5. flat and upright parts with the same cuts come through byte-identical', () => {
+    // Loading the same file stamped v12 runs no step; the v11 load must equal it exactly.
+    const flatCut = { id: 'c', face: 'thickness', from: 'max', across: 'length', offset: 1, width: 0.5, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const boards = [
+      part({ id: 'f', name: 'F', posture: 'flat', cuts: [flatCut] }),
+      part({ id: 'u', name: 'U', posture: 'upright', cuts: [flatCut] }),
+    ];
+    expect(migrateDocument(v11Doc(boards))).toEqual(migrateDocument({ ...v11Doc(boards), version: 12 }));
+    expect(migrateDocument(v11Doc(boards)).boards.map((b) => (b as Board).cuts[0])).toEqual([flatCut, flatCut]);
+  });
+
+  it('6. the load path is idempotent: a v11 file loaded, saved (v12) and reloaded is mirrored once', () => {
+    const first = migrateDocument(v11Doc([part({ cuts: [groove] })]));
+    const second = migrateDocument(JSON.parse(JSON.stringify(first)));
+    expect(second).toEqual(first);
+    expect((second.boards[0] as Board).cuts[0]).toMatchObject({ from: 'min' });
+    // The step itself is not idempotent (as v8's), which is why the guard matters:
+    expect((onEdgeToV12(first).boards[0] as Board).cuts[0]).toMatchObject({ from: 'max' });
+  });
+
+  it('7. a pre-v8 file: v8 mirrors along length, THEN v12 along thickness; the world box is the pre-v8 build\'s', () => {
+    // v7 on-edge 90-degree part, cut: face thickness max, across LENGTH, offset 1 (width axis), width .5, depth .25,
+    // stops 2 (min) / 5 (max).
+    // PRE-v8 build (90 = mirror across X=Z: X = thickness, Y = width, Z = length, all unreversed):
+    //   X thickness max face depth .25 = [.5, .75]; Y [1, 1.5]; Z length from stopMin 2 to 20 - 5 = [2, 15].
+    // v8 (along length, h0): across === length, so the stops swap: stopMin 5, stopMax 2; from stays max.
+    // v12 (along thickness): face === thickness, so from -> min.
+    // Final: from min, stopMin 5, stopMax 2.
+    // NEW frame check, turn 90: X = thickness reversed: [0, .25] -> [.5, .75]; Z = length reversed: stops 5 / 2 give
+    // [5, 18] -> [20 - 18, 20 - 5] = [2, 15].
+    const cut = { ...groove, stopMin: 2, stopMax: 5 };
+    const raw = { ...v11Doc([part({ rotation: 90, cuts: [cut] })]), version: 7 };
+    const doc = migrateDocument(raw);
+    const b = doc.boards[0] as Board;
+    expect(b.cuts[0]).toMatchObject({ face: 'thickness', from: 'min', across: 'length', stopMin: 5, stopMax: 2, offset: 1, width: 0.5 });
+    expect(worldBox(b, b.cuts[0]!)).toEqual([[0.5, 0.75], [1, 1.5], [2, 15]]);
+  });
+
+  it('8. a link label on two on-edge parts (file below v11): the Shape is mirrored once; both users\' boxes as by hand', () => {
+    // v10 members, equal, with the OLD-frame groove; A turn 0 at x = 0, B turn 90 at x = 50.
+    // linksToShapes builds ONE shape from A; the step mirrors it once: from min. Boxes as in case 4.
+    const members = [
+      part({ id: 'a', name: 'A', link: 'L', cuts: [groove] }),
+      part({ id: 'b', name: 'B', link: 'L', rotation: 90, position: [50, 0, 0], cuts: [groove] }),
+    ];
+    const doc = migrateDocument({ ...v11Doc(members), version: 10 });
+    expect(doc.shapes).toHaveLength(1);
+    expect(doc.shapes[0]!.cuts[0]).toMatchObject({ face: 'thickness', from: 'min' });
+    const [a, b] = worldParts(doc);
+    expect(worldBox(a!, a!.cuts[0]!)).toEqual([[0, 20], [1, 1.5], [0.5, 0.75]]);
+    expect(worldBox(b!, b!.cuts[0]!)).toEqual([[50.5, 50.75], [1, 1.5], [0, 20]]);
   });
 });

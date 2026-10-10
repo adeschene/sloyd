@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import workbenchRaw from '../../document/fixtures/simple-workbench.sloyd?raw';
 import { designToDocument } from '../../document/generated';
 import { flatDocument, migrateDocument } from '../../document/document';
-import type { FlatDocument } from '../../document/document';
+import type { FlatDocument, Cut } from '../../document/document';
 import { SNAP_INCHES } from '../../document/geometry';
 import { GATE_REFUSAL, cutBox, GATE_TOLERANCE, gateUnjoin, readJoints, rejoin, sameJoined, unjoin } from './unjoin';
 import { applyJoints } from './recipes';
@@ -178,6 +178,38 @@ describe('unjoin — every fixture × mode re-joins exactly (the spike, made per
     if ('refused' in r.g) throw new Error(r.g.refused);
     const shelf = r.g.plain.find((b) => b.name === 'Shelf')!;
     expect(shelf.width).toBe(11.25); // butting: the full depth, not 11.125
+  });
+});
+
+// Follow-up 215, review focus 4. Schema 12 mirrors an on-edge part's stored cuts along thickness. A file saved
+// under v11 stores them the OLD way; it must come through migrateDocument and still pass the exact gate.
+// Built by joining under the current code, then hand-converting the on-edge parts' cuts back to v11 storage
+// (this `v11Mirror` is its own statement of the mirror along T, not mirrorCutAlong):
+//   face 'thickness'                  -> from min <-> max
+//   across 'thickness'                -> stopMin <-> stopMax
+//   position axis is thickness (face, across = length/width) -> offset' = T - offset - width
+describe('a v11 file with a joined on-edge rail migrates and passes the gate (fu 215, review focus 4)', () => {
+  const v11Mirror = (T: number) => (c: Cut): Cut => {
+    if (c.face === 'thickness') return { ...c, from: c.from === 'min' ? 'max' : 'min' };
+    if (c.across === 'thickness') return { ...c, stopMin: c.stopMax, stopMax: c.stopMin };
+    return { ...c, offset: T - c.offset - c.width };
+  };
+  const joinedLegRail = () => joinAllDefaults(design(
+    { name: 'Leg', at: [0, 0, 0], size: [1.75, 28, 1.75] },
+    { name: 'Rail', at: [1.75, 23.5, 0.5], size: [18, 3.5, 0.75] }));
+
+  it('the rail is on-edge and cut; the v11 storage differs from today\'s; migrating restores it and the gate passes', () => {
+    const J = joinedLegRail();
+    const rail = J.boards.find((b) => b.name === 'Rail')!;
+    expect(rail.posture).toBe('on-edge');
+    expect(rail.cuts.length).toBe(4);
+    const v11Boards = J.boards.map((b) => (b.posture === 'on-edge' ? { ...b, cuts: b.cuts.map(v11Mirror(b.thickness)) } : b));
+    // The v11 file really stores something different (not a vacuous round trip).
+    expect(v11Boards.find((b) => b.name === 'Rail')!.cuts).not.toEqual(rail.cuts);
+    const migrated = migrateDocument({ ...J, version: 11, boards: v11Boards, instances: [], definitions: [], shapes: [] });
+    const flat = flatDocument(migrated);
+    expect(flat.boards.find((b) => b.name === 'Rail')!.cuts).toEqual(rail.cuts);
+    expect('refused' in gateUnjoin(flat)).toBe(false);
   });
 });
 

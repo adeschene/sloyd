@@ -4,7 +4,7 @@ import type {
   Shape, StoredBoard,
 } from './types';
 import type { SharedField } from './links';
-import { dissolveShapes, pruneShapes } from './shapes';
+import { dissolveShapes, pruneShapes, isShaped } from './shapes';
 import { linksToShapes } from './linksToShapes';
 import { ROOT_STORAGE_ID } from './treeEdit';
 import { nextId } from './ids';
@@ -99,8 +99,16 @@ export type { BoardSnapPoint, SnapKind, SnapOwner, SnapPoint, TapeAxis } from '.
  * mirror it is not idempotence-sensitive: a v11 file carries no links, so
  * there is nothing a second run could change. Below v11, repairTree still
  * copies a definition placed twice (step 4); from v11 it keeps the sharing.
+ *
+ * v12 (follow-up 215): `axisFrame` reverses an on-edge part's thickness axis so
+ * every posture has one hand. Same shape of harm as v8: a v11 build reads the
+ * mirrored cuts in the old frame and silently shows wrong geometry. The v11 ->
+ * v12 step (`onEdgeToV12`) mirrors each on-edge part's, definition's and
+ * Shape's stored cuts along thickness, so world solids do not move. It runs
+ * AFTER validation and `linksToShapes`, BEFORE repairTree, guarded by
+ * `version < 12`, and like v8's mirror it is NOT idempotent.
  */
-export const CURRENT_VERSION = 11;
+export const CURRENT_VERSION = 12;
 
 export class DocumentError extends Error {
   /**
@@ -575,6 +583,27 @@ function trueTurnsToV8(raw: unknown): unknown {
   return { ...b, cuts: b.cuts.map((c) => mirrorCutAlong(c, h0, size)) };
 }
 
+/**
+ * v11 -> v12 (follow-up 215): on-edge's frame now reverses thickness (axisFrame), so every posture has
+ * one hand. An on-edge part's stored cuts are mirrored along thickness so its world solids are unchanged.
+ * Runs AFTER validation and linksToShapes (posture, thickness and cuts are validated, and a file below
+ * v11 has its Shapes by now) and BEFORE repairTree. NOT idempotent: the `d.version < 12` guard is all
+ * that stops a v12 file being mirrored again on every load (as v8's).
+ */
+export function onEdgeToV12(doc: SloydDocument): SloydDocument {
+  const mirror = <T extends { posture: Posture; thickness: number; cuts: Cut[] }>(b: T): T =>
+    b.posture === 'on-edge' && b.cuts.length > 0
+      ? { ...b, cuts: b.cuts.map((c) => mirrorCutAlong(c, 'thickness', b.thickness) as Cut) }
+      : b;
+  const part = (b: StoredBoard): StoredBoard => (isShaped(b) ? b : mirror(b));
+  return {
+    ...doc,
+    boards: doc.boards.map(part),
+    definitions: doc.definitions.map((d) => ({ ...d, boards: d.boards.map(part) })),
+    shapes: doc.shapes.map(mirror),
+  };
+}
+
 /** One cut mirrored along dimension d (u -> size - u). face, across and the
  *  position axis are three different dimensions, so exactly one case applies.
  *
@@ -719,6 +748,8 @@ export function migrateDocument(raw: unknown): SloydDocument {
   // definitions and cycles, so it is safe before repairTree; a v10 definition
   // placed twice is visited twice but converted once (same stored object).
   if (legacy) doc = linksToShapes(doc, legacy);
+  // v11 -> v12 (fu 215): after linksToShapes (a file below v11 gets its Shapes first), before repairTree.
+  if (d.version < 12) doc = onEdgeToV12(doc);
   // The load repair (components spec §2.3): the tree, sharing kept from v11
   // (step 4 copies only below it), names per container (invariant 8,
   // restated); then a part naming a missing shape is dropped (5), unused
