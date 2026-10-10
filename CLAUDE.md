@@ -24,12 +24,12 @@ handicraft education tradition built around hand woodworking.
 - **Production matches `master`** as of 2026-10-10: the opposite-end-cut round, bundle
   `index-BGlCmsgG.js`, CSS `index-NXp0eTQP.css`, merge `b953fdd`, **schema 11** (unchanged).
   Test count is under Commands.
-- **Pending deploy: the posture-handedness round (fu 215), on branch `posture-handedness`, NOT yet on
-  `master` or deployed. It bumps to SCHEMA 12: after the deploy, rolling back to a build below 12
+- **Pending deploy: the posture-handedness round (fu 215), merged 2026-10-10 (`1a52fec`); `master` is
+  ahead of production until it ships. It bumps to SCHEMA 12: after the deploy, rolling back to a build below 12
   refuses every project saved since (export first).** **NO SUCCESSOR IS
   CHOSEN: ask what to work on; do not pick.** Open near the recent code:
   241 (open by decision),
-  221, 225–227, 229, 232–234. See Open follow-ups below.
+  221, 225–227, 229, 232–234, 246. See Open follow-ups below.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
   byte-identical bundles (test-only). Check what a later commit touches before reading
