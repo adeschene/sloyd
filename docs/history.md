@@ -302,6 +302,15 @@ and 79.
 
 ## What each round did
 
+**What the join-repair-text round did (2026-10-10)**: follow-up 242's remaining half, a bounded change
+(design in chat, no spec). **No schema change.** A joined Refine's joinery call has repair rounds of
+its own, but `progressPatch` kept the `stage: 'join'` marker only for the first joinery call, so its
+rounds read exactly like the design's. `RefineRun` now carries `join` on EVERY patch (false included —
+patches merge into the run, so an omitted field would carry over), and the dialog says "Choosing
+joints — fixing N issues (round r/3)…" / "Choosing joints — retrying (round r/3)…". A new run test
+pins that `runRefine` tags joinery's retry with the stage. Generate and Joinery dialogs unchanged
+(one kind of call each). Tests 2585 → 2589.
+
 **What the refined-name round did (2026-10-10)**: follow-up 237, a bounded change (design in chat,
 no spec). **No schema change.** The user chose counting over stripping or numbering against the
 library, and widened it to Duplicate. `derivedName` (`src/document/names.ts`) names every derived

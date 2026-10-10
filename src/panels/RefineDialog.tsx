@@ -31,8 +31,9 @@ function statusText(r: RefineRun): string {
   switch (r.status) {
     case 'designing': return 'Refining…';
     case 'joining': return 'Choosing joints…';
-    case 'repairing': return `Fixing ${r.issues} issue${r.issues === 1 ? '' : 's'} (round ${r.round}/${MAX_REPAIRS})…`;
-    case 'retrying': return `Retrying (round ${r.round}/${MAX_REPAIRS})…`;
+    // A joined refine's joinery call has repair rounds of its own; label them as joinery (fu 242).
+    case 'repairing': return `${r.join ? 'Choosing joints — fixing' : 'Fixing'} ${r.issues} issue${r.issues === 1 ? '' : 's'} (round ${r.round}/${MAX_REPAIRS})…`;
+    case 'retrying': return `${r.join ? 'Choosing joints — retrying' : 'Retrying'} (round ${r.round}/${MAX_REPAIRS})…`;
     case 'ready': return 'Done';
     case 'cancelled': return 'Cancelled';
     case 'failed': return `Failed: ${r.error}`;

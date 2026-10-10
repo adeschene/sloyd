@@ -81,6 +81,20 @@ describe('RefineDialog', () => {
     expect(screen.getByText('Shelf 3 no longer meets Left after an earlier joint')).toBeTruthy();
   });
 
+  it('labels joinery\'s repair and retry rounds; the design\'s stay unlabelled (fu 242)', () => {
+    const cases: [RefineRun, string][] = [
+      [{ status: 'repairing', round: 1, issues: 2, join: false, costUsd: null }, 'Fixing 2 issues (round 1/3)…'],
+      [{ status: 'retrying', round: 2, join: false, costUsd: null }, 'Retrying (round 2/3)…'],
+      [{ status: 'repairing', round: 1, issues: 1, join: true, costUsd: null }, 'Choosing joints — fixing 1 issue (round 1/3)…'],
+      [{ status: 'retrying', round: 3, join: true, costUsd: null }, 'Choosing joints — retrying (round 3/3)…'],
+    ];
+    for (const [run, text] of cases) {
+      const { unmount } = render(<RefineDialog {...base} joined run={run} live />);
+      expect(screen.getByText(text)).toBeTruthy();
+      unmount();
+    }
+  });
+
   it('says "Choosing joints…" while joining', () => {
     render(<RefineDialog {...base} joined run={{ status: 'joining', costUsd: null }} live />);
     expect(screen.getByText('Choosing joints…')).toBeTruthy();
