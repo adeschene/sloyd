@@ -302,6 +302,16 @@ and 79.
 
 ## What each round did
 
+**What the refined-name round did (2026-10-10)**: follow-up 237, a bounded change (design in chat,
+no spec). **No schema change.** The user chose counting over stripping or numbering against the
+library, and widened it to Duplicate. `derivedName` (`src/document/names.ts`) names every derived
+project: Refine, joinery, repair and Duplicate. "Box — refined" → "Box — refined 2" → "… 3"; "Bench copy" →
+"Bench copy 2". The count reads only the source's name, so refining one project twice still gives
+two rows alike (project names are not unique, by `duplicateProject`'s stated reasoning); a different
+suffix underneath stacks ("— joined — refined"); "— refined 1" and "— refined 02" are not ours. The
+mutation pass found a real gap: without the stem check, "Shelf unit 2" refined became "Shelf unit 3"
+— now pinned. No browser check: the dialogs show the name they are given. Tests 2573 → 2585.
+
 **What the estimate-range round did (2026-10-09)**: follow-up 236, a bounded change (design in chat,
 no spec). **No schema change.** The user chose a range over a typical figure or a labelled floor,
 and approved two small paid runs to calibrate. They showed the old Refine estimate under-read for

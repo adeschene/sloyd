@@ -24,9 +24,10 @@ handicraft education tradition built around hand woodworking.
 - **Production matches `master`** as of 2026-10-09: the estimate-range round, bundle
   `index-BBubEnWG.js`, CSS `index-QQ-rJZea.css`, merge `f694f0c`, **schema 11** (unchanged).
   Test count is under Commands.
-- **Nothing is pending. NO SUCCESSOR IS
+- **Pending deploy: the refined-name round** (fu 237, merged 2026-10-10, no schema change);
+  `master` is ahead of production until it ships. **NO SUCCESSOR IS
   CHOSEN: ask what to work on; do not pick.** Open near the recent code:
-  237 (refined-name compounding), 241–243, 215 (posture handedness, a question),
+  241–244, 215 (posture handedness, a question),
   205/206 (joinery's safe refusals), 221, 225–235. See Open follow-ups below.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
@@ -69,6 +70,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | refine joined | 10-09 | — | refine keeps joints: unjoin + exact gate, fixed choices (fu 238) |
 | repair joints | 10-09 | — | Repair joints: prune pre-a899b51 strays, prove by the gate (fu 240) |
 | estimate range | 10-09 | — | Refine/joinery cost shown as a measured range (fu 236) |
+| refined name | 10-10 | — | Derived project names count a repeat ("— refined 2", "copy 2"; fu 237) |
 
 ### The deployment rule
 
@@ -178,7 +180,8 @@ src/
 │   ├── document.ts       create/validate/migrate (inv 11); takeId (inv 33); trueTurnsToV8 /
 │   │                     mirrorCutAlong (inv 44); validateGuides, validateShapes
 │   ├── ids.ts            nextId, the one id minter
-│   ├── names.ts          uniqueName / dedupeNames among siblings (inv 8)
+│   ├── names.ts          uniqueName / dedupeNames among siblings (inv 8); derivedName,
+│   │                     the derived-PROJECT name ("— refined 2", fu 237)
 │   ├── geometry.ts       axisFrame, the ONE turn table, and its crossings (inv 44);
 │   │                     boardExtents/boardCenter/reorientedPosition (inv 2), boardsBounds
 │   ├── frames.ts         placeBoard / placeInstance, the ONE composition (inv 46)
@@ -488,7 +491,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 2573 tests across 88 files
+npm test           # Vitest, currently 2585 tests across 88 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
