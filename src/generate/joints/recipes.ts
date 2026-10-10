@@ -149,7 +149,10 @@ function rebaseCuts(b: Board, d: Dimension, end: 'min' | 'max', amount: number, 
   // This runs BEFORE the shape pass: a re-faced full-length cut has d as its position
   // axis, and only storedAsShape can re-store it as RUNNING along d (so it runs out on
   // growth). Afterwards it would be left positioned and stop short of the grown end.
-  b.cuts = b.cuts.map((c) => (c.face === d && c.from === end ? refaceFromEnd(before, c, d) ?? c : c));
+  // Follow-up 245: a cut stored into the OTHER end reaches the moving end too when its depth spans all
+  // of d, so it is re-faced the same way (a partial one sits at the far end and stays there).
+  const reachesMovingEnd = (c: Cut) => c.face === d && (c.from === end || c.depth >= was - 1e-9);
+  b.cuts = b.cuts.map((c) => (reachesMovingEnd(c) ? refaceFromEnd(before, c, d) ?? c : c));
   const solids = boardSolids(before);
   b.cuts = b.cuts.map((c) => storedAsShape(before, c, solids));
   b.cuts = b.cuts.filter((c) => {
