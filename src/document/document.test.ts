@@ -496,7 +496,7 @@ describe('schema 4 — cuts', () => {
 
   // The chain is the point: a v1 file must walk 1 -> 2 -> ... -> 9,
   // folding 270 to 90 BEFORE it gains a posture, and gaining cuts before guides.
-  it('walks a v1 file all the way to 9', () => {
+  it('walks a v1 file all the way to 11', () => {
     const doc = migrateDocument({
       version: 1,
       name: 'Ancient',
@@ -648,7 +648,7 @@ describe('schema v5 — stock.kerf', () => {
     expect(() => migrateDocument({ version: 12, name: 'X', boards: [] })).toThrow(DocumentError);
   });
 
-  it('walks a v1 file all the way to v9', () => {
+  it('walks a v1 file all the way to v11', () => {
     const doc = migrateDocument({
       version: 1,
       name: 'Ancient',
@@ -742,7 +742,7 @@ describe('guides — schema v6', () => {
   });
 
   // A v1 file must still walk the whole chain, gaining guides on the way.
-  it('a v1 file walks 1 -> 9', () => {
+  it('a v1 file walks 1 -> 11', () => {
     const doc = migrateDocument({
       version: 1,
       name: 'Ancient',
@@ -1142,7 +1142,7 @@ describe('v9: linked parts', () => {
   });
 });
 
-describe('schema 10 (assemblies spec §2.5)', () => {
+describe('the v10 step: instances and definitions (assemblies spec §2.5)', () => {
   it('createDocument has no assemblies', () => {
     const d = createDocument('X');
     expect(d.instances).toEqual([]);

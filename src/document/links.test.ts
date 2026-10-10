@@ -55,6 +55,15 @@ describe('sharedOf', () => {
 });
 
 describe('linkPlan', () => {
+  it('refuses members that are all placements of ONE stored part (fu 231), and still plans distinct ones', () => {
+    const a = leg({ id: 'i1/b1' });
+    const b = leg({ id: 'i2/b1', length: 30 });
+    const c = leg({ id: 'i2/b2', length: 30 });
+    const keyOf = (p: string) => `d1:${p.split('/')[1]}`;
+    expect(linkPlan([a, b], ['i1/b1', 'i2/b1'], keyOf)).toBeNull();
+    expect(linkPlan([a, c], ['i1/b1', 'i2/b2'], keyOf)).not.toBeNull();
+    expect(linkPlan([a, b], ['i1/b1', 'i2/b1'])).not.toBeNull(); // no keyOf: ids are distinct parts
+  });
   it('first selected is the source; changing lists the members that differ', () => {
     const a = leg({ id: 'a', length: 30 });
     const b = leg({ id: 'b' });

@@ -6,7 +6,7 @@ import { LINK_FIELDS, SHARED_KEYS, sharedOf } from './links';
 import { isShaped, resolveBoard, shapeMap } from './shapes';
 import { addTurns, cornerShift, inverseTurn, placeBoard, rotateVec } from './frames';
 import type { Container } from './tree';
-import { PATH_SEPARATOR, containerTurn, definitionAt, instanceAt, instancesOn, itemPaths, lastSegment, parentPath, partAt, worldParts } from './tree';
+import { PATH_SEPARATOR, containerTurn, definitionAt, instanceAt, instancesOn, isCovered, itemPaths, lastSegment, parentPath, partAt, worldParts } from './tree';
 
 /** Replace one container's contents: the root's, or a definition's. */
 export function updateContainer(doc: SloydDocument, path: string | null, fn: (c: Container) => Container): SloydDocument {
@@ -240,11 +240,18 @@ export function mapWorld(doc: SloydDocument, fn: (world: Board[]) => Board[]): S
  * Move items (parts or instances) by one WORLD delta (spec §4.2): rotated into
  * each item's container frame (exact, a quarter turn only swaps and negates)
  * and added to its stored position or origin. A root item gains the delta
- * exactly, as translateBoards did. Nothing rounds (invariant 25).
+ * exactly, as translateBoards did. Nothing rounds (invariant 25). An item
+ * listed together with one of its ancestors is not moved separately.
  */
 export function translateItems(doc: SloydDocument, ids: readonly string[], worldDelta: readonly number[]): SloydDocument {
+  // An item whose ancestor is also listed moves with that ancestor; moving it
+  // too would shift it twice (spec §4.2: a selection is one level, so the UI
+  // never sends both, but the function must not rely on that).
+  const listed = new Set(ids);
   const byContainer = new Map<string | null, Set<string>>();
   for (const id of ids) {
+    const above = parentPath(id);
+    if (above !== null && isCovered(above, listed)) continue;
     const c = parentPath(id);
     if (!byContainer.has(c)) byContainer.set(c, new Set());
     byContainer.get(c)!.add(lastSegment(id));

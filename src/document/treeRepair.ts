@@ -24,8 +24,9 @@ function dedupeContainer(c: Container): Container {
  * - names are deduped per container (8).
  * References point only at definition ids and a duplicate definition id is
  * dropped, never re-minted, so no reference is ever rewritten (invariant 33's
- * two-pass rewrite is not needed). Step 5 (a part naming a missing shape) and
- * step 7 (dissolving) are `dropUnresolved` and `dissolveShapes`, after this.
+ * two-pass rewrite is not needed). The numbers are the spec's, not the run
+ * order: after this come `dropUnresolved` (5, a part naming a missing shape),
+ * `pruneShapes` (6, for shapes) and `dissolveShapes` (7), in that order.
  */
 export function repairTree(doc: SloydDocument, opts: { copyShared: boolean }): SloydDocument {
   const defs = new Map(doc.definitions.map((d) => [d.id, d]));

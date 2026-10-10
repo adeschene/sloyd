@@ -82,14 +82,24 @@ export interface LinkPlan { source: Board; members: string[]; changing: string[]
  * linked brings its whole link. Reads WORLD parts, whose `shape` names the
  * shape each uses (components spec §3.2). Null for fewer than two parts, or
  * when the members already use one shape and match (a no-op, invariant 4).
+ *
+ * `keyOf` maps a world part's id to where it is STORED (treeEdit's storageKey,
+ * which this layer cannot import). When given, members that are all placements
+ * of ONE stored part are refused too: linking them would mint a one-user shape
+ * (fu 231). Without it, ids are taken to be distinct stored parts.
  */
-export function linkPlan(boards: readonly Board[], ids: readonly string[]): LinkPlan | null {
+export function linkPlan(
+  boards: readonly Board[],
+  ids: readonly string[],
+  keyOf?: (path: string) => string | null,
+): LinkPlan | null {
   const chosen = [...new Set(ids)].flatMap((id) => boards.filter((b) => b.id === id));
   if (chosen.length < 2) return null;
   const source = chosen[0]!;
   const shapes = new Set(chosen.flatMap((b) => (b.shape ? [b.shape] : [])));
   const picked = new Set(chosen.map((b) => b.id));
   const members = boards.filter((b) => picked.has(b.id) || (b.shape !== undefined && shapes.has(b.shape)));
+  if (keyOf && new Set(members.map((b) => keyOf(b.id) ?? b.id)).size < 2) return null;
   const changing = members.filter((b) => b.id !== source.id && !sameShared(source, b)).map((b) => b.id);
   const shape = source.shape ?? [...shapes][0] ?? null;
   const oneShape = members.every((b) => b.shape !== undefined && b.shape === members[0]!.shape);

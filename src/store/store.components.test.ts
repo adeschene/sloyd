@@ -112,9 +112,8 @@ describe('components in the store', () => {
     expect(s().tapeAnchor).toBeNull();
   });
 
-  const anchorOn = (path: string, pick: 'maxX' = 'maxX') => {
+  const anchorOn = (path: string) => {
     const part = worldParts(s().doc).find((b) => b.id === path)!;
-    void pick;
     const far = snapPointsFor(part).reduce((a, p) => (p.at[0] > a.at[0] ? p : a));
     s().setTool('tape');
     useStore.setState({ tapeAnchor: far });
@@ -209,6 +208,23 @@ describe('links are shapes', () => {
     const copies = s().doc.boards.slice(4);
     expect('shape' in copies[0]!).toBe(true);
     expect('length' in copies[1]!).toBe(true);
+  });
+
+  it('an optional own field on a shaped part survives Duplicate, with a fresh id, name and position array', () => {
+    const doc = legs();
+    s().replaceDocument(doc);
+    s().linkBoards(['l0', 'l1']);
+    // A stand-in for an optional own field a later Board gains: stored on the shaped part.
+    const shaped = { ...s().doc.boards[0]!, note: 'keep me' } as unknown as (typeof doc.boards)[number];
+    s().replaceDocument({ ...s().doc, boards: [shaped, ...s().doc.boards.slice(1)] });
+    s().duplicateBoards(['l0']);
+    const copy = s().doc.boards[s().doc.boards.length - 1]! as unknown as Record<string, unknown>;
+    expect(copy.note).toBe('keep me');
+    expect(copy.shape).toBe((shaped as unknown as Record<string, unknown>).shape);
+    expect(copy.id).not.toBe(shaped.id);
+    expect(copy.name).toBe('Leg 0 (1)');
+    expect(copy.position).toEqual(shaped.position);
+    expect(copy.position).not.toBe(shaped.position);
   });
 
   // Added (Task 5): the brief's tests above do not pin these.
@@ -463,5 +479,18 @@ describe('commitSnapMove refuses a twin target (fu 230)', () => {
     expect(s().grabbed).toBeNull();
     const moved = worldParts(s().doc).find((b) => b.id === 'i1/b1')!;
     expect(moved.position[1] - g.at[1]).not.toBe(0);
+  });
+});
+
+describe('Link over placements of one stored part (fu 231)', () => {
+  it('writes nothing: no shape, no undo entry', () => {
+    s().duplicateBoards(['i1']);
+    const other = s().doc.instances[1]!.id;
+    const doc = s().doc;
+    const past = s().past.length;
+    s().linkBoards(['i1/b1', `${other}/b1`]);
+    expect(s().doc).toBe(doc);
+    expect(s().doc.shapes).toEqual([]);
+    expect(s().past).toHaveLength(past);
   });
 });

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store/store';
-import { MATERIALS, isSheetGood, boardSolids, cutShape, storedAsShape, cutRemovesNothing, findTenons, positionAxisOf, linkPlan, worldParts, instanceAt, parentPath, placementsOf, instanceRefs, containerAt } from '../document/document';
+import { MATERIALS, isSheetGood, boardSolids, cutShape, storedAsShape, cutRemovesNothing, findTenons, positionAxisOf, linkPlan, storageKey, worldParts, instanceAt, parentPath, placementsOf, instanceRefs, containerAt } from '../document/document';
 import { DimensionField } from './DimensionField';
 import { NameField } from './NameField';
 import { CopyInRow } from './CopyInRow';
@@ -286,6 +286,7 @@ function shared<T>(boards: Board[], read: (b: Board) => T): T | null {
  * stale draft across a selection change, since its value never changed.
  */
 function GroupProperties() {
+  const doc = useStore((s) => s.doc);
   const allBoards = useStore((s) => worldParts(s.doc));
   const selectedIds = useStore((s) => s.selectedIds);
   const precision = useStore((s) => s.doc.units.precision);
@@ -301,7 +302,7 @@ function GroupProperties() {
   );
   // A selection that includes an assembly is mixed: no shared size fields, no Link.
   const allParts = boards.length === selectedIds.length;
-  const plan = useMemo(() => (allParts ? linkPlan(allBoards, selectedIds) : null), [allParts, allBoards, selectedIds]);
+  const plan = useMemo(() => (allParts ? linkPlan(allBoards, selectedIds, (p) => storageKey(doc, p)) : null), [allParts, allBoards, selectedIds, doc]);
   const anyAssembly = useStore((s) => selectedIds.some((id) => instanceAt(s.doc, id) !== null));
   if (selectedIds.length === 0) return null;
 
@@ -434,12 +435,13 @@ export function Properties() {
     const sel = s.selectedIds.length === 1 ? worldParts(s.doc).find((b) => b.id === s.selectedIds[0]) : undefined;
     return sel?.shape ? worldParts(s.doc).filter((b) => b.shape === sel.shape).length - 1 : 0;
   });
-  // Whether any OTHER member of this part's link is a direct child of the open
-  // level: Select linked can only select those (selectionPatch), so the button is
-  // shown only then. A boolean, so it re-renders only when it flips (inv 43).
+  // Whether any OTHER member of this part's link is a VISIBLE direct child of the
+  // open level: Select linked can only select those (selectionPatch drops hidden
+  // ids and other levels), so the button is shown only then. A boolean, so it
+  // re-renders only when it flips (inv 43).
   const linkedHere = useStore((s) => {
     const sel = s.selectedIds.length === 1 ? worldParts(s.doc).find((b) => b.id === s.selectedIds[0]) : undefined;
-    return !!sel?.shape && worldParts(s.doc).some((b) => b.shape === sel.shape && b.id !== sel.id && parentPath(b.id) === s.openPath);
+    return !!sel?.shape && worldParts(s.doc).some((b) => b.shape === sel.shape && b.id !== sel.id && parentPath(b.id) === s.openPath && !s.hiddenIds.includes(b.id));
   });
   const lengthRef = useRef<HTMLInputElement>(null);
 
