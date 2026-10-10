@@ -91,7 +91,8 @@ describe('boardSnapPoints', () => {
     // mouth row sits exactly on three of the board's own 26 lattice points —
     // (length=0, thickness=max, width={0,3,6}) — rather than a quarter-inch
     // above them. dims = [thickness, width, length], Z reversed, so those are
-    // world X=11 (thickness max), Z=19 (length min: 19 - 0), Y in {2,5,8}.
+    // world X=10 (thickness max, X = 11 - 1; thickness runs reversed
+    // since schema 12), Z=19 (length min: 19 - 0), Y in {2,5,8}.
     const rabbet: Cut = { ...DADO, offset: 0, width: 2 };
     const b = posed([rabbet]);
     const points = boardSnapPoints(b);
@@ -102,9 +103,9 @@ describe('boardSnapPoints', () => {
     expect(points.filter((p) => p.kind === 'face-center')).toHaveLength(6);
 
     const withheld: [number, number, number][] = [
-      [11, 2, 19],
-      [11, 5, 19],
-      [11, 8, 19],
+      [10, 2, 19],
+      [10, 5, 19],
+      [10, 8, 19],
     ];
     for (const at of withheld) {
       expect(
@@ -174,8 +175,9 @@ describe('boardSnapPoints', () => {
  * The posing is the test. axisDimensions for posture 'on-edge' puts `width`
  * up, leaving [length, thickness] horizontal, and turn 90 (a true
  * counter-clockwise quarter turn, quarter-turns spec §2) puts thickness on X
- * and length on Z REVERSED — so X = 10 + thickness, Y = 2 + width,
- * Z = -5 + (24 - length) = 19 - length. A flat, unrotated board at the origin
+ * and length on Z REVERSED. Since schema 12 (fu 215) on-edge also reverses
+ * thickness, so thickness runs on X REVERSED too — X = 10 + (1 - thickness)
+ * = 11 - thickness, Y = 2 + width, Z = -5 + (24 - length) = 19 - length. A flat, unrotated board at the origin
  * passes with a COMPLETELY WRONG local->world mapping, because every axis is
  * the identity there.
  */
@@ -216,11 +218,12 @@ describe('cutSnapPoints', () => {
    *
    *   dims       = [thickness, width, length]  (X, Y, Z)
    *   position   = [10, 2, -5]
-   *   X = 10 + thickness, Y = 2 + width, Z = 19 - length  (Z reversed)
+   *   X = 11 - thickness (reversed since schema 12), Y = 2 + width, Z = 19 - length  (Z reversed)
    *
    *   cutRegion  = { length: [6, 6.75], width: [0, 6], thickness: [0.75, 1] }
-   *   mouth      = thickness 1    -> X = 11      (from: 'max')
-   *   floor      = thickness 0.75 -> X = 10.75
+   *   (thickness runs REVERSED on X since schema 12: X = 10 + (1 - thickness))
+   *   mouth      = thickness 1    -> X = 10      (from: 'max')
+   *   floor      = thickness 0.75 -> X = 10.25
    *   pos (length) {6, 6.375, 6.75}  -> Z {13, 12.625, 12.25}
    *   across (width) {0, 3, 6}       -> Y {2, 5, 8}
    *
@@ -229,56 +232,6 @@ describe('cutSnapPoints', () => {
    */
   it('places all 15 points at exactly the right world coordinates', () => {
     const points = cutSnapPoints(posed([DADO]));
-    const got = new Map(points.map((p) => [key(p.at), p.kind]));
-
-    const expected: [number[], string][] = [
-      // Floor rectangle, X = 10.75.
-      [[10.75, 2, 13], 'corner'],
-      [[10.75, 2, 12.625], 'edge-mid'],
-      [[10.75, 2, 12.25], 'corner'],
-      [[10.75, 5, 13], 'edge-mid'],
-      [[10.75, 5, 12.625], 'face-center'],
-      [[10.75, 5, 12.25], 'edge-mid'],
-      [[10.75, 8, 13], 'corner'],
-      [[10.75, 8, 12.625], 'edge-mid'],
-      [[10.75, 8, 12.25], 'corner'],
-      // Mouth: the two shoulder lines only, X = 11.
-      [[11, 2, 13], 'corner'],
-      [[11, 5, 13], 'edge-mid'],
-      [[11, 8, 13], 'corner'],
-      [[11, 2, 12.25], 'corner'],
-      [[11, 5, 12.25], 'edge-mid'],
-      [[11, 8, 12.25], 'corner'],
-    ];
-
-    for (const [at, kind] of expected) {
-      expect(got.get(key(at)), `missing ${key(at)}`).toBe(kind);
-    }
-    expect(got.size).toBe(15);
-  });
-
-  /**
-   * Same board and same offset/width as DADO, but `from: 'min'` — closes the
-   * gap where every coordinate-bearing test above used 'max'. A mutation that
-   * swaps the min branch's mouth/floor assignment (`mouth = faceHi, floor =
-   * faceLo` for 'min') must fail this test.
-   *
-   * cutRegion for from:'min' enters at the board's own thickness-0 surface, so
-   * the entered surface (mouth) is the LOW end and the floor is the far
-   * (deeper) end — the opposite pairing from DADO's from:'max':
-   *
-   *   region.thickness = [0, 0.25]   (from: 'min', depth 0.25)
-   *   mouth = thickness 0    -> X = 10 + 0    = 10
-   *   floor = thickness 0.25 -> X = 10 + 0.25 = 10.25
-   *   pos (length) {6, 6.375, 6.75}  -> Z {13, 12.625, 12.25}   (unchanged)
-   *   across (width) {0, 3, 6}       -> Y {2, 5, 8}          (unchanged)
-   */
-  it('places all 15 points correctly for from: "min" (mouth and floor swapped)', () => {
-    const DADO_MIN: Cut = {
-      id: 'c1min', face: 'thickness', from: 'min', across: 'width',
-      offset: 6, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0,
-    };
-    const points = cutSnapPoints(posed([DADO_MIN]));
     const got = new Map(points.map((p) => [key(p.at), p.kind]));
 
     const expected: [number[], string][] = [
@@ -299,6 +252,57 @@ describe('cutSnapPoints', () => {
       [[10, 2, 12.25], 'corner'],
       [[10, 5, 12.25], 'edge-mid'],
       [[10, 8, 12.25], 'corner'],
+    ];
+
+    for (const [at, kind] of expected) {
+      expect(got.get(key(at)), `missing ${key(at)}`).toBe(kind);
+    }
+    expect(got.size).toBe(15);
+  });
+
+  /**
+   * Same board and same offset/width as DADO, but `from: 'min'` — closes the
+   * gap where every coordinate-bearing test above used 'max'. A mutation that
+   * swaps the min branch's mouth/floor assignment (`mouth = faceHi, floor =
+   * faceLo` for 'min') must fail this test.
+   *
+   * cutRegion for from:'min' enters at the board's own thickness-0 surface, so
+   * the entered surface (mouth) is the LOW end and the floor is the far
+   * (deeper) end — the opposite pairing from DADO's from:'max':
+   *
+   *   region.thickness = [0, 0.25]   (from: 'min', depth 0.25)
+   *   (thickness runs REVERSED on X since schema 12: X = 10 + (1 - thickness))
+   *   mouth = thickness 0    -> X = 10 + 1    = 11
+   *   floor = thickness 0.25 -> X = 10 + 0.75 = 10.75
+   *   pos (length) {6, 6.375, 6.75}  -> Z {13, 12.625, 12.25}   (unchanged)
+   *   across (width) {0, 3, 6}       -> Y {2, 5, 8}          (unchanged)
+   */
+  it('places all 15 points correctly for from: "min" (mouth and floor swapped)', () => {
+    const DADO_MIN: Cut = {
+      id: 'c1min', face: 'thickness', from: 'min', across: 'width',
+      offset: 6, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0,
+    };
+    const points = cutSnapPoints(posed([DADO_MIN]));
+    const got = new Map(points.map((p) => [key(p.at), p.kind]));
+
+    const expected: [number[], string][] = [
+      // Floor rectangle, X = 10.75.
+      [[10.75, 2, 13], 'corner'],
+      [[10.75, 2, 12.625], 'edge-mid'],
+      [[10.75, 2, 12.25], 'corner'],
+      [[10.75, 5, 13], 'edge-mid'],
+      [[10.75, 5, 12.625], 'face-center'],
+      [[10.75, 5, 12.25], 'edge-mid'],
+      [[10.75, 8, 13], 'corner'],
+      [[10.75, 8, 12.625], 'edge-mid'],
+      [[10.75, 8, 12.25], 'corner'],
+      // Mouth: the two shoulder lines only, X = 11.
+      [[11, 2, 13], 'corner'],
+      [[11, 5, 13], 'edge-mid'],
+      [[11, 8, 13], 'corner'],
+      [[11, 2, 12.25], 'corner'],
+      [[11, 5, 12.25], 'edge-mid'],
+      [[11, 8, 12.25], 'corner'],
     ];
 
     for (const [at, kind] of expected) {
@@ -370,9 +374,9 @@ describe('cutSnapPoints', () => {
 
   it('offers nothing at the mouth\'s middle row, which spans the opening', () => {
     const points = cutSnapPoints(posed([DADO]));
-    // X = 11 (mouth plane), Z = 12.625 (pos mid: 19 - 6.375). All three would
+    // X = 10 (mouth plane: 11 - 1), Z = 12.625 (pos mid: 19 - 6.375). All three would
     // hang in the hole rather than sitting on wood — design §3.
-    expect(points.some((p) => p.at[0] === 11 && p.at[2] === 12.625)).toBe(false);
+    expect(points.some((p) => p.at[0] === 10 && p.at[2] === 12.625)).toBe(false);
   });
 
   it('carries the owning board\'s id on every point', () => {
@@ -391,18 +395,19 @@ describe('cutSnapPoints', () => {
     const rabbet: Cut = { ...DADO, offset: 0, width: 2 };
     const points = cutSnapPoints(posed([rabbet]));
     expect(points).toHaveLength(12);
-    // Mouth plane is thickness 1 -> X = 11. The flush end is length 0 -> Z = 19
+    // Mouth plane is thickness 1 -> X = 11 - 1 = 10. The flush end is length 0 -> Z = 19
     // (Z reversed). Exactly that row is gone; the other shoulder (length 2 ->
     // Z = 17) is not.
-    expect(points.some((p) => p.at[0] === 11 && p.at[2] === 19)).toBe(false);
-    expect(points.filter((p) => p.at[0] === 11 && p.at[2] === 17)).toHaveLength(3);
+    expect(points.some((p) => p.at[0] === 10 && p.at[2] === 19)).toBe(false);
+    expect(points.filter((p) => p.at[0] === 10 && p.at[2] === 17)).toHaveLength(3);
+    // (floor thickness 0.75 -> X = 11 - 0.75 = 10.25.)
     // The 9 floor points all survive: the stock beneath the floor is intact.
-    expect(points.filter((p) => p.at[0] === 10.75)).toHaveLength(9);
+    expect(points.filter((p) => p.at[0] === 10.25)).toHaveLength(9);
   });
 
   it('does not de-duplicate a cut point that lands on a board lattice point', () => {
     // depth = thickness/2 puts the rabbet's flush floor corner at thickness
-    // 0.5 -> X = 10.5, which is also the board's own X midpoint. The board
+    // 0.5 -> X = 11 - 0.5 = 10.5 (the same either way up), which is also the board's own X midpoint. The board
     // lattice calls that position an edge-mid (thickness at mid); the cut
     // provider calls it a corner (no in-plane mids). Same position, same
     // owner, so the DELTA is identical either way and the move is unaffected
@@ -425,8 +430,8 @@ describe('cutSnapPoints', () => {
     };
     const points = cutSnapPoints(posed([DADO, deeper]));
     expect(points).toHaveLength(15);
-    // A's floor plane is thickness 0.75 -> X = 10.75. B's is 0.5 -> X = 10.5.
-    expect(points.some((p) => p.at[0] === 10.75)).toBe(false);
+    // A's floor plane is thickness 0.75 -> X = 11 - 0.75 = 10.25. B's is 0.5 -> X = 10.5.
+    expect(points.some((p) => p.at[0] === 10.25)).toBe(false);
     expect(points.some((p) => p.at[0] === 10.5)).toBe(true);
   });
 
@@ -479,25 +484,42 @@ describe('cutSnapPoints — stopped cuts', () => {
     // across (width) runs 1..4 -> Y 3..6; its mid 2.5 -> Y 4.5.
     const keys = cutSnapPoints(posed([{ ...DADO, stopMin: 1, stopMax: 2 }])).map((p) => key(p.at));
     // pos mid length 6.375 -> Z 12.625 (Z reversed).
-    expect(keys).toContain(key([11, 3, 12.625]));
-    expect(keys).toContain(key([11, 6, 12.625]));
+    // Mouth plane thickness 1 -> X = 11 - 1 = 10 (thickness reversed since schema 12).
+    expect(keys).toContain(key([10, 3, 12.625]));
+    expect(keys).toContain(key([10, 6, 12.625]));
     // The mouth's own centre sits in the hole — never offered.
-    expect(keys).not.toContain(key([11, 4.5, 12.625]));
+    expect(keys).not.toContain(key([10, 4.5, 12.625]));
   });
 
   it('offers a stopped dado\'s stopped end at the mouth, and not its open end', () => {
     // stopMax 2: across runs 0..4 -> Y 2..6. The open end (Y 2) is the board's own edge.
     const keys = cutSnapPoints(posed([{ ...DADO, stopMax: 2 }])).map((p) => key(p.at));
-    expect(keys).toContain(key([11, 6, 12.625]));
-    expect(keys).not.toContain(key([11, 2, 12.625]));
+    expect(keys).toContain(key([10, 6, 12.625])); // mouth: thickness 1 -> X = 10
+    expect(keys).not.toContain(key([10, 2, 12.625]));
   });
 
   it('puts a through mortise\'s floor on the far surface, minus its centre (no stock there)', () => {
     const pts = cutSnapPoints(posed([{ ...DADO, depth: 1, stopMin: 1, stopMax: 2 }]));
-    const floor = pts.filter((p) => p.at[0] === 10);
+    // Depth 1 floors at thickness 0 -> X = 11 - 0 = 11 (the far surface now at +X).
+    const floor = pts.filter((p) => p.at[0] === 11);
     expect(floor).toHaveLength(8);
-    expect(floor.map((p) => key(p.at))).not.toContain(key([10, 4.5, 12.625]));
+    expect(floor.map((p) => key(p.at))).not.toContain(key([11, 4.5, 12.625]));
     expect(pts).toHaveLength(16);
+  });
+
+  // The through mortise above is symmetric under a thickness mirror (mouth and floor are both full planes with
+  // the same 8 points), so by itself it cannot tell the frame's hand. Beside it a one-sided dado does: the frame
+  // (on-edge, 90: X = thickness REVERSED since schema 12) puts thickness u at X = 10 + (1 - u).
+  //   mortise mouth thickness 1 -> X = 10; floor thickness 0 -> X = 11 (8 points, centre excluded).
+  //   dado (depth 1/4 from max): mouth X = 10; floor thickness .75 -> X = 10.25 (9 points, as the 15-point test).
+  // A wrong (unreversed) frame would put the dado's floor at X = 10 + .75 = 10.75 and its mouth at X = 11.
+  it('pins the frame beside a through mortise: the dado\'s floor is at X = 10.25 and its mouth at X = 10', () => {
+    const pts = cutSnapPoints(posed([{ ...DADO, id: 'm', depth: 1, offset: 12, stopMin: 1, stopMax: 2 }, DADO]));
+    expect(pts.filter((p) => p.at[0] === 11)).toHaveLength(8);
+    expect(pts.filter((p) => p.at[0] === 10.25)).toHaveLength(9);
+    expect(pts.filter((p) => p.at[0] === 10.75)).toHaveLength(0);
+    // X = 10 holds both mouths: the mortise's 8 points plus the dado's 6 (15 = 9 floor + 6 mouth, line 208) = 14.
+    expect(pts.filter((p) => p.at[0] === 10)).toHaveLength(14);
   });
 });
 

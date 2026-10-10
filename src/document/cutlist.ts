@@ -231,7 +231,9 @@ function setupLines(board: Board, precision: number): string[] {
  * noun is the representative board's.
  *
  * `position`, `rotation` and `posture` are absent deliberately: they say where
- * a part sits in the model, not how it is cut from stock. `grain` IS present —
+ * a part sits in the model, not how it is cut from stock. Posture may be omitted
+ * because every posture has one hand since v12 (fu 215): the same stored cut is
+ * the same physical cut in any posture. `grain` IS present —
  * a part whose fibres run along its width is laid out on the board differently
  * from one running along its length, so collapsing those would produce a row
  * you cannot cut as a batch.

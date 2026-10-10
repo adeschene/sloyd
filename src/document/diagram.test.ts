@@ -1,5 +1,7 @@
 import { buildDiagrams, createBoard } from './document';
 import type { Board, Cut } from './document';
+import { axisFrame } from './geometry';
+import type { Dimension } from './types';
 
 /** The canonical cut from the joinery work: 3/4" wide, 3/8" deep, 6" along. */
 const dado = (over: Partial<Cut> = {}): Cut => ({
@@ -248,5 +250,44 @@ describe('an overhanging cut is drawn by its clipped box (fu 197)', () => {
     const over = shown(rabbet({ offset: 23.75, width: 1 }));
     expect(over).toEqual(shown(rabbet({ offset: 23.75, width: 0.25 })));
     expect([over.h, over.v]).toContainEqual([23.75, 24]);
+  });
+});
+
+describe('true views (fu 215)', () => {
+  const dirOf = (b: Board, d: Dimension): [number, number, number] => {
+    const v: [number, number, number] = [0, 0, 0];
+    axisFrame(b).forEach((a, i) => { if (a.dim === d) v[i] = a.reversed ? -1 : 1; });
+    return v;
+  };
+  const det3 = (a: number[], b: number[], c: number[]) =>
+    a[0]! * (b[1]! * c[2]! - b[2]! * c[1]!) - a[1]! * (b[0]! * c[2]! - b[2]! * c[0]!) + a[2]! * (b[0]! * c[1]! - b[1]! * c[0]!);
+
+  it('every view is a TRUE view of its face seen from outside, in every posture and turn', () => {
+    for (const posture of ['flat', 'on-edge', 'upright'] as const) for (const rotation of [0, 90, 180, 270] as const)
+      for (const face of ['thickness', 'width', 'length'] as const) for (const from of ['min', 'max'] as const) {
+        const other = (['length', 'width', 'thickness'] as const).filter((x) => x !== face);
+        const b: Board = { ...createBoard({ length: 20, width: 6, thickness: 0.75, posture, rotation }),
+          cuts: [{ id: 'c', face, from, across: other[0]!, offset: 0.1, width: 0.1, depth: 0.1, stopMin: 0, stopMax: 0 }] };
+        const v = buildDiagrams(b, 16).find((x) => x.face === face && x.from === from)!;
+        const right = dirOf(b, v.horizontal);
+        const up = dirOf(b, v.vertical).map((x) => (v.vUp ? x : -x)); // page v grows DOWN unless vUp
+        const toward = dirOf(b, face).map((x) => (from === 'max' ? x : -x)); // outward normal
+        expect(det3(right, up, toward)).toBe(1);
+      }
+  });
+
+  it('vUp exactly on thickness|min, width|max, length|min', () => {
+    const cuts: Cut[] = [];
+    for (const face of ['thickness', 'width', 'length'] as const) for (const from of ['min', 'max'] as const) {
+      const other = (['length', 'width', 'thickness'] as const).filter((x) => x !== face);
+      cuts.push({ id: `${face}${from}`, face, from, across: other[0]!, offset: 0.1, width: 0.1, depth: 0.1, stopMin: 0, stopMax: 0 });
+    }
+    const views = buildDiagrams(createBoard({ length: 20, width: 6, thickness: 0.75, cuts }), 16);
+    expect(views).toHaveLength(6);
+    expect(Object.fromEntries(views.map((v) => [v.key, v.vUp]))).toEqual({
+      'thickness|min': true, 'thickness|max': false,
+      'width|min': false, 'width|max': true,
+      'length|min': true, 'length|max': false,
+    });
   });
 });

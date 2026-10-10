@@ -18,12 +18,32 @@ const rel = (b: Board, p: Record<Dimension, number>): [number, number, number] =
 };
 
 describe('axisFrame', () => {
-  it('turn 0 is today\'s mapping, nothing reversed, for every posture', () => {
+  it('turn 0: flat and upright unchanged and unreversed; on-edge reverses only thickness', () => {
+    for (const posture of ['flat', 'upright'] as const) expect(axisFrame(createBoard({ posture, rotation: 0 })).every((a) => !a.reversed)).toBe(true);
+    expect(axisFrame(createBoard({ posture: 'on-edge', rotation: 0 }))).toEqual([
+      { dim: 'length', reversed: false }, { dim: 'width', reversed: false }, { dim: 'thickness', reversed: true },
+    ]);
+  });
+
+  it('every posture has ONE hand at every turn: (length, width, thickness) maps with determinant -1 (fu 215)', () => {
+    const dirOf = (b: Board, d: Dimension): [number, number, number] => {
+      const v: [number, number, number] = [0, 0, 0];
+      axisFrame(b).forEach((a, i) => { if (a.dim === d) v[i] = a.reversed ? -1 : 1; });
+      return v;
+    };
+    const det3 = (a: number[], b: number[], c: number[]) =>
+      a[0]! * (b[1]! * c[2]! - b[2]! * c[1]!) - a[1]! * (b[0]! * c[2]! - b[2]! * c[0]!) + a[2]! * (b[0]! * c[1]! - b[1]! * c[0]!);
+    for (const posture of POSTURES) for (const rotation of TURNS) {
+      const b = createBoard({ posture, rotation });
+      expect(det3(dirOf(b, 'length'), dirOf(b, 'width'), dirOf(b, 'thickness'))).toBe(-1);
+    }
+  });
+
+  it('turn 0 puts the same dimensions on the same axes in every posture (only direction changed)', () => {
     for (const posture of POSTURES) {
       const [h0, h1] = horizontalOf(posture);
       const f = axisFrame(part(posture, 0));
       expect(f.map((a) => a.dim)).toEqual([h0, f[1]!.dim, h1]);
-      expect(f.every((a) => !a.reversed)).toBe(true);
     }
   });
 

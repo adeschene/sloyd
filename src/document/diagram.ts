@@ -57,6 +57,15 @@ export interface DiagramView {
   vLabel: string;
   /** In `h[0]`, `v[0]`, `id` order. Empty for a cut-free board. */
   cuts: DiagramCut[];
+  /**
+   * The vertical is drawn UPWARD (page v grows up from the bottom edge) rather
+   * than down. Geometry (`v`, cells) stays in board inches; only the drawing
+   * flips. One hand in the model since schema 12, so under "later dimension
+   * runs down" exactly these three sides are mirror images; flipping them makes
+   * every view a true view of its face from outside. Derived in the fu 215
+   * probe and pinned by the true-view test in diagram.test.ts.
+   */
+  vUp: boolean;
   /** This face's depth field, from `buildDepthField`. */
   cells: FaceCell[];
   /** One line per distinct crossing depth, already formatted. Empty when none. */
@@ -112,6 +121,7 @@ export function buildDiagrams(board: Board, precision: number): DiagramView[] {
         v: board[vertical],
         hLabel: f(board[horizontal]),
         vLabel: f(board[vertical]),
+        vUp: (face === 'thickness' && from === 'min') || (face === 'width' && from === 'max') || (face === 'length' && from === 'min'),
         cuts: [],
         cells: [],
         crossings: [],

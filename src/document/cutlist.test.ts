@@ -1,6 +1,8 @@
 import { buildCutList, createBoard, createDocument } from './document';
 import type { Board, FlatDocument } from './document';
 import type { Cut } from './types';
+import { cutRegion } from './cuts';
+import { axisFrame, spanToWorldOffset } from './geometry';
 
 /** A document containing exactly these boards, with unique default names. */
 const docWith = (...boards: Partial<Board>[]): FlatDocument => ({
@@ -97,6 +99,41 @@ describe('buildCutList', () => {
   const dado = (over: Partial<Cut> = {}): Cut => ({
     id: 'c1', face: 'thickness', from: 'min', across: 'width',
     offset: 6, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0, ...over,
+  });
+
+  // Follow-up 215. Before v12 a flat and an on-edge part with the SAME stored stopped dado shared a
+  // row but were mirror images in the world (on-edge's frame had the other hand), so the row was a
+  // lie for a one-handed cut. Since v12 every posture has one hand, so the same stored cut IS the
+  // same physical cut.
+  it('groups a flat and an on-edge part with one stopped dado, and they are the same physical part', () => {
+    const stopped = [dado({ stopMin: 1.5 })]; // runs across the width, stopped at its min end only
+    const flat = createBoard({ name: 'F', posture: 'flat', length: 24, width: 6, thickness: 0.75, cuts: stopped });
+    const edge = createBoard({ name: 'E', posture: 'on-edge', length: 24, width: 6, thickness: 0.75, cuts: stopped });
+    const list = buildCutList({ ...createDocument('T'), boards: [flat, edge] });
+    expect(list.groups.flatMap((g) => g.rows)).toHaveLength(1);
+    expect(list.groups[0].rows[0].qty).toBe(2);
+
+    // Part-local removed boxes (min-corner relative) are equal.
+    const rf = cutRegion(flat, stopped[0]);
+    const re = cutRegion(edge, stopped[0]);
+    expect(re).toEqual(rf);
+
+    // World boxes relative to each part's own min corner, per world axis [x, y, z].
+    const worldBox = (b: Board) => axisFrame(b).map((a, i) => spanToWorldOffset(b, i, rf[a.dim]));
+    const [fx, fy, fz] = worldBox(flat);
+    const [ex, ey, ez] = worldBox(edge);
+    // By hand (turn 0, L=24 W=6 T=0.75; dado: thickness [0,0.25], width [1.5,6], length [6,6.75]):
+    //   flat:    X=length, Y=thickness,           Z=width
+    //   on-edge: X=length, Y=width, Z=thickness REVERSED (v12).
+    expect(fx).toEqual([6, 6.75]);
+    expect(fy).toEqual([0, 0.25]);
+    expect(fz).toEqual([1.5, 6]);
+    expect(ex).toEqual([6, 6.75]);
+    expect(ey).toEqual([1.5, 6]);
+    expect(ez).toEqual([0.5, 0.75]);
+    // The proper rotation about X taking flat to on-edge: (x, y, z) -> (x, z, T - y). Applied to
+    // the flat box it gives exactly the on-edge box; a mirror could not (the pre-v12 Z was [0, 0.25]).
+    expect([fx, fz, [0.75 - fy[1], 0.75 - fy[0]]]).toEqual([ex, ey, ez]);
   });
 
   it('has no setup lines for a board with no cuts', () => {
