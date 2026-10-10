@@ -5,7 +5,7 @@ import {
 import { boardExtents, boardCenter, reorientedPosition, axisDimensions, boardsBounds } from './geometry';
 import type { Board, Posture, Rotation } from './types';
 import type { Cut } from './document';
-import { boardSolids } from './cuts';
+import { boardSolids, FLUSH_EPSILON } from './cuts';
 import { worldSolids } from './designCheck';
 import { chiralPart, sameSet } from './turnFixtures';
 
@@ -1087,6 +1087,47 @@ describe('v7 -> v8: true quarter turns', () => {
       }
     }
     expect(misses).toEqual([]);
+  });
+
+  // fu 217: spec section 4 says a migrated part's solids match within
+  // FLUSH_EPSILON where the values are not dyadic. A one-handed part built in
+  // millimetres, with one cut on each branch of the mirror (face, across and
+  // the position axis all on h0), checked at every posture. Compared by sorted
+  // coordinates with an explicit tolerance rather than sameSet, whose 1e-9
+  // rounding can split two equal values that straddle a rounding boundary.
+  it('a millimetre one-handed 90° part keeps its world solids within FLUSH_EPSILON, in every posture', () => {
+    const mm = (v: number) => v / 25.4;
+    for (const posture of ['flat', 'on-edge', 'upright'] as const) {
+      const upright = posture === 'upright';
+      // h0 is width for upright, length otherwise; the cuts name it by role.
+      const h0 = upright ? 'width' : 'length';
+      const other = upright ? 'length' : 'width';
+      const raw = {
+        ...createBoard({ name: 'Metric', length: mm(517), width: mm(143), thickness: mm(19), posture }),
+        rotation: 90 as const, position: [3, 0, 4] as [number, number, number],
+        cuts: [
+          // position axis on h0: the clip-then-reflect branch
+          { id: 'p', face: 'thickness', from: 'max', across: h0 === 'length' ? 'width' : 'length', offset: mm(61), width: mm(13), depth: mm(7), stopMin: 0, stopMax: mm(41) },
+          // across on h0: stops swap
+          { id: 'a', face: 'thickness', from: 'max', across: h0, offset: mm(5), width: mm(11), depth: mm(5), stopMin: mm(3), stopMax: mm(29) },
+          // face on h0: from swaps
+          { id: 'f', face: h0, from: 'min', across: other === 'width' ? 'width' : 'length', offset: mm(17), width: mm(9), depth: mm(23), stopMin: 0, stopMax: 0 },
+        ],
+      };
+      const before = worldParts(migrateDocument({ ...v7([raw]), version: 8 }))[0]!;
+      const after = worldParts(migrateDocument(v7([raw])))[0]!;
+      expect(after.cuts.map((c) => c.id)).toEqual(before.cuts.map((c) => c.id));
+      // The migration really did mirror something (it is not vacuously a v8 load).
+      expect(after.cuts).not.toEqual(before.cuts);
+      const a = flatten(newWorld(after)).map((b) => [...b]);
+      const b = flatten(oldWorld(before)).map((x) => [...x]);
+      expect(a.length).toBe(b.length);
+      const order = (w: number[][]) => [...w].sort((x, y) => {
+        for (let i = 0; i < x.length; i += 1) if (Math.abs(x[i]! - y[i]!) > 1e-6) return x[i]! - y[i]!;
+        return 0;
+      });
+      order(a).forEach((box, i) => box.forEach((v, j) => expect(Math.abs(v - order(b)[i]![j]!), `${posture} solid ${i} coord ${j}`).toBeLessThanOrEqual(FLUSH_EPSILON)));
+    }
   });
 
   it('a malformed cut on a 90° part does not throw; validateCuts still decides (Review Focus 3)', () => {

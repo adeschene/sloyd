@@ -4436,7 +4436,28 @@ the same.
   `FLUSH_EPSILON` there, and only dyadic cases are tested.
 - The store tests (a box-corner tape anchor kept across a 180° turn, a cut-point anchor dropped)
   were not mutation-tested; they exercise `updateBoard`'s existing point-precise rule.
-- **Status:** record-only.
+- **Status:** CLOSED 2026-10-10 by the older-record-only round (batch C), item by item:
+  1. 90/270 joinery equivariance: TESTED. A 90 or 270 turn about each part's own centre moves the
+     world box, so it is not the same design; the test instead turns the WHOLE design rigidly
+     (`rotateQuarter` k times about one pivot, rotation + 90k, notches rebuilt from the carried
+     world box) and asserts joint kinds, skips, moved and trimmed equal and the joined world
+     solids equal the unturned result carried by the same rotation (recipes.test.ts).
+  2. Joint kind per fixture: TESTED. Each fixture now pins its sorted applied kinds (the back
+     gets `rabbet`) and the skip fixtures pin the "already cut" reason.
+  3. Plywood chiral UV part: TESTED, grain length and width, three postures, four turns. Grain
+     width makes broad faces swap, so flat 180 sees the reflect-after-swap mutation there (the
+     solid-wood flat 180 stays blind to it, as recorded).
+  4. Oracles use the helpers: CLOSED, not a gap to test. The table is pinned by
+     `geometry.test.ts` (spec section 2 table) and `turns.test.ts` (`rotateQuarter`).
+  5. Turn-0 circularity: CLOSED. Literal pins exist in `document.test.ts` (`axisDimensions`
+     for every posture at 0 and 90) and `geometry.test.ts`' turn-0 case is secondary.
+  6. Millimetre migration: TESTED. A one-handed metric 90 part with one cut on each mirror branch
+     keeps its world solids within `FLUSH_EPSILON` in every posture (document.test.ts).
+  7. Tape-anchor-across-turn store tests: MUTATED. They caught every point-precise mutation
+     tried; strengthened to assert the same point survives, and that the axis lock is cleared
+     with a dropped anchor (the one mutation the old assertions missed).
+  Mutation evidence is in the batch C report. Known limit: a joinery equivariance test cannot
+  see a table consistently wrong on both sides of a crossing; the table pins in 4 do.
 
 **218. Apply with a refused entry still in the field applies the last GOOD value.** Raised in the
 copy-in-a-row round. Type `abc` into Gap and press Apply: the field refused the draft, so the form

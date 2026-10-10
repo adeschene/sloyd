@@ -1047,16 +1047,23 @@ describe('a turn and the tape anchor (quarter-turns Review Focus 2)', () => {
     const board = worldParts(useStore.getState().doc)[0]!;
     const corner = boardSnapPoints(board).find((p) => p.kind === 'corner')!;
     useStore.getState().setTapeAnchor(corner);
+    useStore.getState().setTapeAxis('y');
     useStore.getState().updateBoard(id, { rotation: 180 });
-    expect(useStore.getState().tapeAnchor).not.toBeNull();
+    // The SAME point, not merely some anchor (fu 217), and its axis lock rides with it.
+    expect(useStore.getState().tapeAnchor).toEqual(corner);
+    expect(useStore.getState().tapeAxis).toBe('y');
+    expect(worldParts(useStore.getState().doc)[0]!.rotation).toBe(180);
   });
 
   it('a 180 drops an anchor on a cut snap point', () => {
     const id = cutBoard();
     const board = worldParts(useStore.getState().doc)[0]!;
     useStore.getState().setTapeAnchor(cutSnapPoints(board)[0]!);
+    useStore.getState().setTapeAxis('y');
     useStore.getState().updateBoard(id, { rotation: 180 });
+    expect(worldParts(useStore.getState().doc)[0]!.rotation).toBe(180);
     expect(useStore.getState().tapeAnchor).toBeNull();
+    expect(useStore.getState().tapeAxis).toBeNull();
   });
 });
 
