@@ -1579,6 +1579,26 @@ describe('refaceFromEnd (fu 205)', () => {
     expect(cutRegion(b, c)).toEqual({ length: [0, 0.5], width: [10.75, 11.25], thickness: [0, 0.75] });
     expect(refaceFromEnd(b, c, 'length')).toEqual({ id: 'n', face: 'width', from: 'max', across: 'thickness', offset: 0, width: 0.5, depth: 0.5, stopMin: 0, stopMax: 0 });
   });
+  it('a cut that extends past the board on its position axis is refused, not widened (before the near edge)', () => {
+    const b = shelf();
+    // Hand: cutRegion does not clip the position axis: length [19.5, 20], width [-0.2, 0.3], thickness [0, 0.75].
+    // Options by span: width (r0 <= EPS -> from min, span 0.5), then thickness (full -> from min, span 0.75).
+    // Width candidate would remove width [0, 0.5], MORE than the original's [-0.2, 0.3] -> guard rejects.
+    // Thickness candidate has across=width with stopMin -0.2, clamped to 0 -> width [0, 0.3] != [-0.2, 0.3] -> rejects.
+    // So the result is null.
+    const c: Cut = { id: 'o', face: 'length', from: 'max', across: 'thickness', offset: -0.2, width: 0.5, depth: 0.5, stopMin: 0, stopMax: 0 };
+    expect(cutRegion(b, c).width).toEqual([-0.2, 0.3]);
+    expect(refaceFromEnd(b, c, 'length')).toBeNull();
+  });
+  it('a cut that extends past the board on its position axis is refused, not widened (past the far edge)', () => {
+    const b = shelf();
+    // Hand: width [10.95, 11.45] vs board width 11.25. Width option: r1 >= 11.25 -> from max, span 0.5; its
+    // candidate removes width [10.75, 11.25] != [10.95, 11.45] -> rejected. Thickness option (across width,
+    // stopMax = 11.25 - 11.45 = -0.2 clamped) removes width [10.95, 11.25] != original -> rejected. Null.
+    const c: Cut = { id: 'o', face: 'length', from: 'max', across: 'thickness', offset: 10.95, width: 0.5, depth: 0.5, stopMin: 0, stopMax: 0 };
+    expect(cutRegion(b, c).width).toEqual([10.95, 11.45]);
+    expect(refaceFromEnd(b, c, 'length')).toBeNull();
+  });
   it('an end-grain mortise (interior on both other axes) cannot be re-faced', () => {
     const b = shelf();
     const c: Cut = { id: 'm', face: 'length', from: 'max', across: 'thickness', offset: 3, width: 1, depth: 1, stopMin: 0.25, stopMax: 0.25 };
@@ -1591,11 +1611,6 @@ describe('refaceFromEnd (fu 205)', () => {
     // (full span -> from min, depth 20); across = thickness with stops 0.25 / 0.25; position = width.
     const c: Cut = { id: 'g', face: 'width', from: 'min', across: 'length', offset: 0.25, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 };
     expect(refaceFromEnd(b, c, 'width')).toEqual({ id: 'g', face: 'length', from: 'min', across: 'thickness', offset: 0, width: 0.25, depth: 20, stopMin: 0.25, stopMax: 0.25 });
-  });
-  it('the re-faced cut removes exactly the same box', () => {
-    const b = shelf();
-    const c: Cut = { id: 'n', face: 'length', from: 'max', across: 'thickness', offset: 0, width: 0.5, depth: 0.5, stopMin: 0, stopMax: 0 };
-    expect(cutRegion(b, refaceFromEnd(b, c, 'length')!)).toEqual(cutRegion(b, c));
   });
   it('a metric (non-dyadic) corner notch still re-faces exactly', () => {
     const b = { ...shelf(), length: 508 / 25.4 };
