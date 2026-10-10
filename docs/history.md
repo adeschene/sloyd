@@ -302,6 +302,24 @@ and 79.
 
 ## What each round did
 
+**What the older-record-only round did (2026-10-10)**: follow-ups 211, 214, 217, 220, 222, 228, 230,
+231, 235 and 239 — every item triaged FIX / TEST / CLOSE in
+`docs/superpowers/plans/2026-10-10-sloyd-older-record-only.md` (approved by the user), then run as four
+subagent batches (A store/panels, B1 tree fixes, B2 tree tests, C turn/joinery tests, D generate/refine),
+each task-reviewed and merged, then a whole-branch review and one fix wave. **No schema change.**
+The user ruled on 214: consecutive hide/show toggles share ONE undo entry (inv 43 updated), so visibility
+toggling can no longer push real edits out of the 50-entry history. Behaviour fixes: no-op `edit()`s push
+no undo entry; `copyInRow` refuses a sign other than ±1; `commitSnapMove` refuses a twin target
+(`sharesStorageWith`, now the one twin predicate, shared with `moveCandidates`); `linkPlan` refuses fewer
+than two distinct stored parts; `copyBoard` keeps a shaped part's own fields; `translateItems` drops
+covered descendants; Select linked counts visible mates only; `distinctParts` counts only definitions a
+placement reaches; Refine has one status region (the bad-limit message now sits below Detail). The final
+review caught a cross-batch bug the per-batch reviews could not see: undoing a LATER edit re-exposed a
+hide run's entry, so one undo then removed two hides — fixed (undo/redo end a run) and pinned, along with a
+latent `editRekeyed` overwrite once no-op edits push nothing. Closures are item by item in
+`docs/follow-ups.md`; some items proved already covered or untestable (equivalent mutations) and say so.
+Tests 2594 → 2732.
+
 **What the record-only round did (2026-10-10)**: follow-ups 243 and 244, a bounded change (design in
 chat, no spec). **No schema change.** The user chose these two of the twelve record-only entries.
 One latent fix: `repairDocument` and `plainForRefine` run inside the dialogs' memos, so a throw there
