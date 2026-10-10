@@ -1,6 +1,6 @@
 import { CURRENT_VERSION, migrateDocument, storedAsShape, flatDocument, worldParts } from '../../document/document';
-import type { Board, Dimension, FlatDocument, SloydDocument } from '../../document/document';
-import { boardSolids } from '../../document/cuts';
+import type { Board, Cut, Dimension, FlatDocument, SloydDocument } from '../../document/document';
+import { boardSolids, cutRegion } from '../../document/cuts';
 import { TOUCH, worldSolids } from '../../document/designCheck';
 import { SNAP_INCHES, axisDimensions, endFacing, positionAxisOf } from '../../document/geometry';
 import { boxOf, pocketFor } from './pocket';
@@ -48,6 +48,39 @@ function resize(b: Board, k: number, side: -1 | 1, amount: number) {
   if (side === -1) b.position[k] -= amount;
   // The part end facing the world `side`: a turn may reverse axis k.
   rebaseCuts(b, d, endFacing(b, k, side), amount, was);
+}
+
+/**
+ * Follow-up 205: a cut STORED into `d` from one end (`face === d`) re-stored to
+ * enter from another face its box reaches, with `d` as its POSITION axis, so
+ * rebaseCuts' rule keeps it in place while the part grows past it or a trim clips
+ * it. A corner notch can be stored either way and storedAsShape keeps whichever
+ * form it was given, so without this the answer depended on storage. Null when
+ * the box reaches no other face (an end-grain mortise) or the re-store would not
+ * remove exactly the same box (within 1e-9, rebaseCuts' tolerance).
+ */
+export function refaceFromEnd(b: Board, c: Cut, d: Dimension): Cut | null {
+  const EPS = 1e-9;
+  const r = cutRegion(b, c);
+  const order: Dimension[] = ['thickness', 'width', 'length'];
+  type Option = { f: Dimension; from: 'min' | 'max'; span: number };
+  const options = order.filter((f) => f !== d).flatMap((f): Option[] => {
+    const span = r[f][1] - r[f][0];
+    if (r[f][0] <= EPS) return [{ f, from: 'min' as const, span }];
+    if (r[f][1] >= b[f] - EPS) return [{ f, from: 'max' as const, span }];
+    return [];
+  }).sort((x, y) => x.span - y.span); // stable: ties keep thickness, width, length
+  for (const { f, from, span } of options) {
+    const g = order.find((x) => x !== d && x !== f)!;
+    const candidate: Cut = {
+      id: c.id, face: f, from, across: g,
+      offset: r[d][0], width: r[d][1] - r[d][0], depth: span,
+      stopMin: r[g][0], stopMax: b[g] - r[g][1],
+    };
+    const a = cutRegion(b, candidate);
+    if (order.every((k) => Math.abs(a[k][0] - r[k][0]) <= EPS && Math.abs(a[k][1] - r[k][1]) <= EPS)) return candidate;
+  }
+  return null;
 }
 
 /**

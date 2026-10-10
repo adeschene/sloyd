@@ -11,7 +11,7 @@ import { axisDimensions, boardExtents, spanToWorldOffset } from '../../document/
 import type { Board, Cut, FlatDocument, SloydDocument } from '../../document/document';
 import { findSites } from './sites';
 import { defaultChoice } from './choose';
-import { applyJoints, tenonSection } from './recipes';
+import { applyJoints, refaceFromEnd, tenonSection } from './recipes';
 import { boxOf, pocketFor } from './pocket';
 import type { Site } from './sites';
 
@@ -1554,4 +1554,55 @@ describe('joinery on assemblies (assemblies spec §6.1)', () => {
       });
     });
   }
+});
+
+describe('refaceFromEnd (fu 205)', () => {
+  // A 20 x 11.25 x 0.75 shelf (length x width x thickness), unturned.
+  const shelf = (): Board => ({ ...design({ name: 'S', at: [0, 0, 0], size: [20, 0.75, 11.25] }).boards[0]!, cuts: [] });
+  it('fixture dimension mapping', () => {
+    const b = shelf();
+    expect([b.length, b.width, b.thickness]).toEqual([20, 11.25, 0.75]);
+  });
+  it('a corner notch stored into the far end re-stores to enter from the width face it reaches, positioned along length', () => {
+    const b = shelf();
+    // Hand: box length [19.5, 20], width [0, 0.5], thickness [0, 0.75]. Faces reached besides length:
+    // width (from min, span 0.5) and thickness (full, span 0.75) -> the shallower, width.
+    const c: Cut = { id: 'n', face: 'length', from: 'max', across: 'thickness', offset: 0, width: 0.5, depth: 0.5, stopMin: 0, stopMax: 0 };
+    expect(cutRegion(b, c)).toEqual({ length: [19.5, 20], width: [0, 0.5], thickness: [0, 0.75] });
+    expect(refaceFromEnd(b, c, 'length')).toEqual({ id: 'n', face: 'width', from: 'min', across: 'thickness', offset: 19.5, width: 0.5, depth: 0.5, stopMin: 0, stopMax: 0 });
+  });
+  it('a corner notch at the near end and far width edge re-faces from max', () => {
+    const b = shelf();
+    // Hand: box length [0, 0.5], width [10.75, 11.25], thickness [0, 0.75]. Reached besides length: width
+    // (from max, span 0.5) and thickness (full -> min, span 0.75). Shallower: width, entering from max.
+    const c: Cut = { id: 'n', face: 'length', from: 'min', across: 'thickness', offset: 10.75, width: 0.5, depth: 0.5, stopMin: 0, stopMax: 0 };
+    expect(cutRegion(b, c)).toEqual({ length: [0, 0.5], width: [10.75, 11.25], thickness: [0, 0.75] });
+    expect(refaceFromEnd(b, c, 'length')).toEqual({ id: 'n', face: 'width', from: 'max', across: 'thickness', offset: 0, width: 0.5, depth: 0.5, stopMin: 0, stopMax: 0 });
+  });
+  it('an end-grain mortise (interior on both other axes) cannot be re-faced', () => {
+    const b = shelf();
+    const c: Cut = { id: 'm', face: 'length', from: 'max', across: 'thickness', offset: 3, width: 1, depth: 1, stopMin: 0.25, stopMax: 0.25 };
+    expect(refaceFromEnd(b, c, 'length')).toBeNull();
+  });
+  it('a groove along the back edge, stored into the width end, re-faces to enter from the length end (the only face it reaches)', () => {
+    const b = shelf();
+    // Hand: face width from min, across length, offset/width on thickness [0.25, 0.5], depth 0.25:
+    // box width [0, 0.25], length [0, 20] (full), thickness [0.25, 0.5] (interior). Only length is reached
+    // (full span -> from min, depth 20); across = thickness with stops 0.25 / 0.25; position = width.
+    const c: Cut = { id: 'g', face: 'width', from: 'min', across: 'length', offset: 0.25, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 };
+    expect(refaceFromEnd(b, c, 'width')).toEqual({ id: 'g', face: 'length', from: 'min', across: 'thickness', offset: 0, width: 0.25, depth: 20, stopMin: 0.25, stopMax: 0.25 });
+  });
+  it('the re-faced cut removes exactly the same box', () => {
+    const b = shelf();
+    const c: Cut = { id: 'n', face: 'length', from: 'max', across: 'thickness', offset: 0, width: 0.5, depth: 0.5, stopMin: 0, stopMax: 0 };
+    expect(cutRegion(b, refaceFromEnd(b, c, 'length')!)).toEqual(cutRegion(b, c));
+  });
+  it('a metric (non-dyadic) corner notch still re-faces exactly', () => {
+    const b = { ...shelf(), length: 508 / 25.4 };
+    const c: Cut = { id: 'n', face: 'length', from: 'max', across: 'thickness', offset: 0, width: 12 / 25.4, depth: 12 / 25.4, stopMin: 0, stopMax: 0 };
+    const r = refaceFromEnd(b, c, 'length');
+    expect(r).not.toBeNull();
+    const a = cutRegion(b, r!); const e = cutRegion(b, c);
+    for (const k of ['length', 'width', 'thickness'] as const) for (const i of [0, 1]) expect(Math.abs(a[k][i] - e[k][i])).toBeLessThanOrEqual(1e-9);
+  });
 });
