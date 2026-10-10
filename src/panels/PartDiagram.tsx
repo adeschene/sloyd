@@ -59,7 +59,30 @@ interface Leader {
   after?: string;
   /** A label just past the band with no run of its own (depth). */
   trailing?: string;
+  /** The same label placed just BEFORE the band instead (a vUp column; see `orientColumn`). */
+  leading?: string;
 }
+
+/**
+ * The ONE place a vUp view's vertical flip lives (fu 215). Geometry stays in
+ * board inches with v growing from the min end; a vUp view draws that end at
+ * the BOTTOM, so a vertical span [a, b] is drawn at [V - b, V - a] and a column
+ * leader reads bottom-to-top: the label measured from the min end becomes the
+ * one after the band, and the depth label (just past the band in reading order)
+ * sits before it. Strings are untouched (inv 19): the same text, other end.
+ */
+const drawnSpan = (view: DiagramView, span: Span): Span =>
+  view.vUp ? [view.v - span[1], view.v - span[0]] : span;
+
+const orientColumn = (view: DiagramView, l: Leader): Leader =>
+  view.vUp
+    ? {
+        key: l.key, band: l.band, span: drawnSpan(view, l.span),
+        ...(l.after !== undefined ? { before: l.after } : {}),
+        ...(l.before !== undefined ? { after: l.before } : {}),
+        ...(l.trailing !== undefined ? { leading: l.trailing } : {}),
+      }
+    : l;
 
 const positionLeader = (cut: DiagramCut, span: Span): Leader => ({
   key: cut.id, span, before: cut.offsetLabel, band: cut.widthLabel, trailing: cut.depthLabel,
@@ -81,6 +104,10 @@ const present = <T,>(x: T | null): x is T => x !== null;
  */
 const labelItems = (l: Leader, lo: number, hi: number, b: { start: number; size: number }) => {
   const items: { text: string; centre: number; width: number }[] = [];
+  if (l.leading !== undefined) {
+    const w = labelWidth(l.leading);
+    items.push({ text: l.leading, centre: b.start - GAP_X - w / 2, width: w });
+  }
   if (l.before !== undefined) {
     items.push({ text: l.before, centre: (lo + b.start) / 2, width: labelWidth(l.before) });
   }
@@ -171,7 +198,7 @@ export function PartDiagram({ view }: { view: DiagramView }) {
   const colLeaders: Leader[] = [
     ...vCuts.map((c) => positionLeader(c, c.v)),
     ...hCuts.map((c) => stopLeader(c, c.v)).filter(present),
-  ];
+  ].map((l) => orientColumn(view, l));
   // The left gutter: one COL-wide column per vertical leader, plus a fixed
   // pad separating the last column's tick marks from the outline. Zero when
   // there are none, so a board with no vertical leaders draws exactly as it
@@ -270,7 +297,7 @@ export function PartDiagram({ view }: { view: DiagramView }) {
 
         {view.cells.map((cell, i) => {
           const hb = bandOn(cell.h, fit.sx, left + fit.offsetX, fit.drawnH);
-          const vb = bandOn(cell.v, fit.sy, top, fit.drawnV);
+          const vb = bandOn(drawnSpan(view, cell.v), fit.sy, top, fit.drawnV);
           return (
             <rect
               key={i}

@@ -492,14 +492,16 @@ describe('PartDiagram label collisions — the seven sweep geometries', () => {
     const container = draw({ cuts: [dado({ stopMin: 1, stopMax: 1.5 })] });
     check(container);
     const texts = [...container.querySelectorAll('.cutlist-diagram-leader-v text')].map((t) => t.textContent);
-    expect(texts).toEqual(['1"', '3"', '1-1/2"']);
+    // thickness|min is a vUp view (fu 215): top to bottom reads max stop, run, min stop.
+    expect(texts).toEqual(['1-1/2"', '3"', '1"']);
   });
 
   it('10 stopped dado — one stop draws one stop label and the length', () => {
     const container = draw({ cuts: [dado({ stopMax: 1 })] });
     check(container);
     const texts = [...container.querySelectorAll('.cutlist-diagram-leader-v text')].map((t) => t.textContent);
-    expect(texts).toEqual(['4-1/2"', '1"']);
+    // vUp view: the max stop (1") is the upper label, the run below it.
+    expect(texts).toEqual(['1"', '4-1/2"']);
   });
 
   it('11 a stopped vertical-axis cut adds a stop ROW', () => {
@@ -564,8 +566,10 @@ describe('PartDiagram — a view with no stopped cut draws exactly as before', (
     ['narrow drawn', { length: 24, width: 100.9375, cuts: [dado()] }, 3094106887],
     ['five dados', { cuts: [0, 4, 8, 12, 16].map((offset, i) => dado({ id: `c${i}`, offset })) }, 3472338868],
     ['row and column crossing', { length: 24, width: 12, cuts: [
-      dado({ id: 'a', across: 'width', offset: 6, width: 0.75, depth: 0.125 }),
-      dado({ id: 'b', across: 'length', offset: 4, width: 0.75, depth: 0.375 }),
+      // from 'max': thickness|max is a vUp:false view, so this pin still guards the
+      // unflipped layout byte for byte (thickness|min flips, fu 215).
+      dado({ id: 'a', from: 'max', across: 'width', offset: 6, width: 0.75, depth: 0.125 }),
+      dado({ id: 'b', from: 'max', across: 'length', offset: 4, width: 0.75, depth: 0.375 }),
     ] }, 2253356282],
     ['no cuts', {}, 527349744],
   ])('%s', (_, board, pinned) => {
@@ -606,7 +610,8 @@ describe('PartDiagram — the stop leader measures its own runs', () => {
   const rowBoard = { length: 24, width: 12, cuts: [
     dado({ across: 'length', offset: 4, width: 0.75, stopMin: 2, stopMax: 3 }),
   ] };
-  const colBoard = { cuts: [dado({ stopMin: 1, stopMax: 1.5 })] };
+  // from 'max' = a vUp:false view, whose column reads min stop at the top (the flipped view has its own tests).
+  const colBoard = { cuts: [dado({ from: 'max', stopMin: 1, stopMax: 1.5 })] };
 
   it.each([
     ['row', 'x', rowBoard, ['2"', '19"', '3"'], 'x', 'width'],
@@ -640,7 +645,7 @@ describe('PartDiagram — the stop leader measures its own runs', () => {
     ['row', 'x', { length: 24, width: 12, cuts: [
       dado({ across: 'length', offset: 4, width: 0.75, stopMax: 3 }),
     ] }, ['21"', '3"'], 'x', 'width'],
-    ['column', 'y', { cuts: [dado({ stopMax: 1 })] }, ['4-1/2"', '1"'], 'y', 'height'],
+    ['column', 'y', { cuts: [dado({ from: 'max', stopMax: 1 })] }, ['4-1/2"', '1"'], 'y', 'height'],
   ] as const)('a one-stop %s leader: no near run, far run ends at the outline', (_, axis, board, texts, a, size) => {
     const c = render1(board as unknown as Parameters<typeof createBoard>[0]);
     const o = outline(c);
@@ -660,5 +665,90 @@ describe('PartDiagram — the stop leader measures its own runs', () => {
     expect(bandAt).toBeLessThan(bandRun[1]);
     expect(farAt).toBeGreaterThan(farRun[0]);
     expect(farAt).toBeLessThan(farRun[1]);
+  });
+});
+
+describe('PartDiagram on a vUp view (fu 215)', () => {
+  const B = { length: 24, width: 6, thickness: 0.75 } as const;
+  const vcut = (over: Partial<Cut> = {}): Cut => ({
+    id: 'v1', face: 'thickness', from: 'min', across: 'length',
+    offset: 0, width: 0.5, depth: 0.25, stopMin: 0, stopMax: 0, ...over,
+  });
+  const build = (cut: Cut) => {
+    const v = buildDiagrams(createBoard({ ...B, cuts: [cut] }), 16)[0]!;
+    const { container } = render(<PartDiagram view={v} />);
+    const num = (el: Element, a: string) => Number(el.getAttribute(a));
+    const outline = container.querySelector('.cutlist-diagram-outline')!;
+    const cell = container.querySelector('.cutlist-diagram-cell')!;
+    return {
+      v, container, num, outline, cell,
+      oTop: num(outline, 'y'), oBottom: num(outline, 'y') + num(outline, 'height'),
+      cTop: num(cell, 'y'), cBottom: num(cell, 'y') + num(cell, 'height'),
+    };
+  };
+
+  it('draws a cut at the vertical MIN end at the BOTTOM of the outline', () => {
+    const r = build(vcut());
+    expect(r.v.vUp).toBe(true);
+    // V = 6in drawn at 1000/24 = 41.667/in: the cut [0, 0.5in] is 20.8 units tall,
+    // flush with the bottom edge (by hand: drawn span [6-0.5, 6-0] = [5.5, 6]).
+    expect(r.cBottom).toBeCloseTo(r.oBottom, 9);
+    expect(r.cTop).toBeCloseTo(r.oBottom - 0.5 * (1000 / 24), 9);
+  });
+
+  it('the same cut on a vUp:false view (thickness|max) is drawn at the TOP', () => {
+    const r = build(vcut({ from: 'max' }));
+    expect(r.v.vUp).toBe(false);
+    expect(r.cTop).toBeCloseTo(r.oTop, 9);
+  });
+
+  it('draws the offset run from the BOTTOM edge up to the band', () => {
+    const r = build(vcut({ offset: 1 }));
+    // Band v [1, 1.5] -> drawn [4.5, 5] of 6. The offset run joins the band's
+    // lower end to the bottom edge, and its label sits below the band.
+    const col = r.container.querySelector('.cutlist-diagram-leader-v')!;
+    const run = [...col.querySelectorAll('line')].find(
+      (l) => Math.abs(r.num(l, 'y1') - r.cBottom) < 1e-9 && Math.abs(r.num(l, 'y2') - r.oBottom) < 1e-9,
+    );
+    expect(run).toBeDefined();
+    const offsetText = [...col.querySelectorAll('text')].find((t) => t.textContent === '1"')!;
+    expect(r.num(offsetText, 'y')).toBeGreaterThan(r.cBottom);
+    // Reading order on the page is depth (above the band), band, offset (below).
+    const order = [...col.querySelectorAll('text')].sort((a, b) => r.num(a, 'y') - r.num(b, 'y')).map((t) => t.textContent);
+    expect(order).toEqual(['1/4" deep', '1/2"', '1"']);
+    // No run is drawn from the top edge: nothing is labelled from the wrong edge.
+    expect([...col.querySelectorAll('line')].some((l) => r.num(l, 'y1') === r.oTop && r.num(l, 'y2') === r.cTop)).toBe(false);
+  });
+
+  it('puts a stopped cut\'s min stop at the bottom end and its max stop at the top', () => {
+    const r = build(vcut({ across: 'width', offset: 4, width: 0.5, stopMin: 1, stopMax: 2 }));
+    const col = r.container.querySelector('.cutlist-diagram-leader-v')!;
+    const y = (t: string) => r.num([...col.querySelectorAll('text')].find((e) => e.textContent === t)!, 'y');
+    // stopMin 1in, run 3in, stopMax 2in; min is the bottom end of a vUp view.
+    expect(y('1"')).toBeGreaterThan(y('3"'));
+    expect(y('3"')).toBeGreaterThan(y('2"'));
+  });
+
+  it('the same stopped cut on a vUp:false view reads min at the TOP', () => {
+    const r = build(vcut({ from: 'max', across: 'width', offset: 4, width: 0.5, stopMin: 1, stopMax: 2 }));
+    const col = r.container.querySelector('.cutlist-diagram-leader-v')!;
+    const y = (t: string) => r.num([...col.querySelectorAll('text')].find((e) => e.textContent === t)!, 'y');
+    expect(y('1"')).toBeLessThan(y('3"'));
+    expect(y('3"')).toBeLessThan(y('2"'));
+  });
+
+  it('flips the depth-field cells with the cuts (a crossing cell sits where both cuts do)', () => {
+    // Two cuts crossing at the bottom-left of a thickness|min view: v min end is
+    // the bottom, h min end the left. By hand: crossing cell = h [0,0.5], v [0,0.5].
+    const v = buildDiagrams(createBoard({ ...B, cuts: [
+      vcut({ id: 'a', across: 'length', offset: 0, width: 0.5, depth: 0.125 }),
+      vcut({ id: 'b', across: 'width', offset: 0, width: 0.5, depth: 0.25 }),
+    ] }), 16)[0]!;
+    const { container } = render(<PartDiagram view={v} />);
+    const o = container.querySelector('.cutlist-diagram-outline')!;
+    const x = container.querySelector('.cutlist-diagram-cross')!;
+    const n = (e: Element, a: string) => Number(e.getAttribute(a));
+    expect(n(x, 'y') + n(x, 'height')).toBeCloseTo(n(o, 'y') + n(o, 'height'), 9);
+    expect(n(x, 'x')).toBeCloseTo(n(o, 'x'), 9);
   });
 });
