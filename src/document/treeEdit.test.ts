@@ -138,6 +138,75 @@ describe('writeBackFlat (assemblies spec §6.1)', () => {
     const flat = flatDocument(doc).boards;
     expect(() => writeBackFlat(doc, flat, flat.slice(1))).toThrow(/count/);
   });
+
+  // Fu 228. A moved position is lowered as a DELTA (inv 46, spec §5.2): the
+  // stored value gains the inverse-rotated world change, and an axis that did
+  // not move gains exactly zero. writeBackFlat is the joinery rule (keepWorld),
+  // which only adds that a changed size or posture counts as a move; a
+  // Properties edit (mapWorld) keeps the stored local position instead.
+  describe('a part moved in the flat result (lowered through its frames)', () => {
+    const moveBy = (doc: SloydDocument, id: string, d: [number, number, number]) => {
+      const flat = flatDocument(doc).boards;
+      return writeBackFlat(doc, flat, flat.map((b) => (b.id === id
+        ? { ...b, position: [b.position[0] + d[0], b.position[1] + d[1], b.position[2] + d[2]] as [number, number, number] }
+        : b)));
+    };
+
+    it('a root part gains the move in its stored position; nothing else changes', () => {
+      const doc = assemblyDoc();
+      const out = moveBy(doc, 'r1', [1, 0, 0]);
+      expect(partAt(out, 'r1')!.position).toEqual([-5.3 + 1, 0, 0.1]);
+      expect({ ...out, boards: [] }).toEqual({ ...doc, boards: [] });
+      expect({ ...partAt(out, 'r1')!, position: [0, 0, 0] }).toEqual({ ...partAt(doc, 'r1')!, position: [0, 0, 0] });
+    });
+
+    it('a part inside a turned assembly: world +X is the frame\'s +Z; the other stored axes stay bit-identical', () => {
+      const doc = assemblyDoc();
+      const out = moveBy(doc, 'i1/b2', [1, 0, 0]);
+      const was = partAt(doc, 'i1/b2')!;
+      const now = partAt(out, 'i1/b2')!;
+      expect(now.position[0]).toBe(was.position[0]);
+      expect(now.position[1]).toBe(was.position[1]);
+      expect(now.position[2]).toBeCloseTo(2.7 + 1, 9);
+      expect(now.rotation).toBe(was.rotation);
+      // the assembly's own frame and every other part are untouched, and the world result is the requested one
+      expect(instanceAt(out, 'i1')).toEqual(instanceAt(doc, 'i1'));
+      expect(partAt(out, 'i1/b1')).toEqual(partAt(doc, 'i1/b1'));
+      expect(partAt(out, 'i1/i2/b3')).toEqual(partAt(doc, 'i1/i2/b3'));
+      const w0 = worldParts(doc).find((b) => b.id === 'i1/b2')!;
+      const w1 = worldParts(out).find((b) => b.id === 'i1/b2')!;
+      expect(w1.position[0]).toBeCloseTo(w0.position[0] + 1, 9);
+      expect(w1.position[1]).toBe(w0.position[1]);
+      expect(w1.position[2]).toBeCloseTo(w0.position[2], 9);
+    });
+
+    it('a part two frames deep (turned 90 inside a turned 90) lands where it was sent', () => {
+      const doc = assemblyDoc();
+      const out = moveBy(doc, 'i1/i2/b3', [0, 0, 2]);
+      const w0 = worldParts(doc).find((b) => b.id === 'i1/i2/b3')!;
+      const w1 = worldParts(out).find((b) => b.id === 'i1/i2/b3')!;
+      expect(w1.position[0]).toBeCloseTo(w0.position[0], 9);
+      expect(w1.position[2]).toBeCloseTo(w0.position[2] + 2, 9);
+      expect(w1.rotation).toBe(w0.rotation);
+      expect(instanceAt(out, 'i1/i2')).toEqual(instanceAt(doc, 'i1/i2'));
+    });
+  });
+
+  it('leaves its inputs unchanged (fu 231)', () => {
+    const doc = assemblyDoc();
+    const before = flatDocument(doc).boards;
+    const after = before.map((b, i) => ({ ...b, position: [b.position[0] + 1, b.position[1], b.position[2]] as [number, number, number], cuts: i === 1 ? [] : b.cuts }));
+    const frozen = [doc, before, after];
+    const snap = JSON.stringify(frozen);
+    const deepFreeze = (o: unknown): void => {
+      if (o && typeof o === 'object' && !Object.isFrozen(o)) { Object.freeze(o); Object.values(o).forEach(deepFreeze); }
+    };
+    deepFreeze(frozen);
+    const out = writeBackFlat(doc, before, after);   // a frozen input would throw on any write
+    expect(JSON.stringify(frozen)).toBe(snap);
+    expect(out).not.toBe(doc);
+    expect(partAt(out, 'r1')!.position[0]).toBeCloseTo(-5.3 + 1, 9);
+  });
 });
 
 describe('applyWorldEdits with shared definitions and shapes', () => {
