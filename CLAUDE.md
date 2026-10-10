@@ -24,10 +24,11 @@ handicraft education tradition built around hand woodworking.
 - **Production matches `master`** as of 2026-10-10: the older-record-only round, bundle
   `index-amBYj9wK.js`, CSS `index-NXp0eTQP.css`, deployed from `3596345`, **schema 11** (unchanged).
   Test count is under Commands.
-- **Nothing is pending. NO SUCCESSOR IS
+- **Pending deploy: the joinery-end-cuts round** (fu 205/206, merged 2026-10-10, no schema change);
+  `master` is ahead of production until it ships. **NO SUCCESSOR IS
   CHOSEN: ask what to work on; do not pick.** Open near the recent code:
   241 (open by decision), 215 (posture handedness, a question),
-  205/206 (joinery's safe refusals), 221, 225–235. See Open follow-ups below.
+  221, 225–235, 245. See Open follow-ups below.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
   byte-identical bundles (test-only). Check what a later commit touches before reading
@@ -73,6 +74,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | join repair text | 10-10 | — | A joined Refine labels joinery's repair rounds "Choosing joints — …" (fu 242) |
 | record-only 243/244 | 10-10 | — | Dialog memos refuse instead of throwing; residue tests; live pass (fu 243, 244) |
 | older record-only | 10-10 | — | Fu 211–239 triaged and closed: eye toggles share one undo entry, no-op edits push none, guards, ~140 tests |
+| joinery end cuts | 10-10 | — | A cut at a resized end follows the part in any storage form (fu 205); 206 pinned; residue fu 245 |
 
 ### The deployment rule
 
@@ -227,7 +229,7 @@ src/
 │                     chars/token, cached prefix, every repair round high; fu 236), refine.ts (refineMessage,
 │                     detailFor), run.ts (runRepairLoop, evaluateDesign — THE design evaluation
 │                     shared by Generate and Refine, runRefine, runJoinery),
-│                     joints/{pocket,sites,recipes,choose,unjoin,repair}.ts (inv 41); unjoin + gateUnjoin
+│                     joints/{pocket,sites,recipes,choose,unjoin,repair}.ts (inv 41; recipes' `refaceFromEnd` re-stores an end cut from another face, fu 205); unjoin + gateUnjoin
 │                     read joints back, proved by an exact (1e-9in) re-join (readJoints = the lenient
 │                     body); runJoinery's `fixed` keeps recorded joints passing validChoice, `alsoPresent`
 │                     = original's problems; repair.ts = fu 240's prune-and-prove (a stray must be empty
@@ -495,7 +497,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 2732 tests across 91 files
+npm test           # Vitest, currently 2758 tests across 91 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -504,12 +506,12 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–243, each with its closure). Read the entries
+**`docs/follow-ups.md` is authoritative** (1–245, each with its closure). Read the entries
 for the area you are about to touch; several are "correct but untested". Open items worth
 knowing without opening it:
 
 - **179** — refine by instruction (phase 2's other half). Read invs 38, 41 and fu 180–206
-  before touching `generate/joints/`. **205/206** are open safe refusals.
+  before touching `generate/joints/`.
 - **215** — postures differ in handedness; a question, not a bug. Read before touching
   posture or shapes across postures.
 - **221** — a hand-edited linked file whose cuts lack ids stays plain on load (fails safe).

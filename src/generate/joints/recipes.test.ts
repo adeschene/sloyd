@@ -11,7 +11,7 @@ import { axisDimensions, boardExtents, spanToWorldOffset } from '../../document/
 import type { Board, Cut, FlatDocument, SloydDocument } from '../../document/document';
 import { findSites } from './sites';
 import { defaultChoice } from './choose';
-import { applyJoints, tenonSection } from './recipes';
+import { applyJoints, refaceFromEnd, tenonSection } from './recipes';
 import { boxOf, pocketFor } from './pocket';
 import type { Site } from './sites';
 
@@ -20,6 +20,12 @@ const design = (...parts: P[]) => flatDocument(designToDocument({
   name: 'T',
   parts: parts.map((p) => ({ name: p.name, material: p.material ?? 'oak', at: { x: p.at[0], y: p.at[1], z: p.at[2] }, size: { x: p.size[0], y: p.size[1], z: p.size[2] } })),
 }).doc);
+const withoutIds = (v: unknown) => JSON.parse(JSON.stringify(v, (k, x) => (k === 'id' ? undefined : x)));
+/** Every part but `except` equals its twin in `control` (ids excluded: they are minted per design). */
+const othersMatch = (doc: FlatDocument, control: FlatDocument, except: string) => {
+  expect(doc.boards.map((b) => b.name)).toEqual(control.boards.map((b) => b.name));
+  for (const b of doc.boards.filter((x) => x.name !== except)) expect(withoutIds(b), b.name).toEqual(withoutIds(board(control, b.name)));
+};
 const limits = (doc: FlatDocument) => ({ width: null, depth: null, height: null, maxParts: doc.boards.length });
 const board = (doc: FlatDocument, name: string) => worldParts(doc).find((b) => b.name === name)!;
 const volume = (doc: FlatDocument, name: string) => boardSolids(board(doc, name)).reduce(
@@ -132,6 +138,37 @@ describe('dado and stopped dado', () => {
     const b2 = regionOf(withRabbet(alongD));
     expect(b2).toEqual(a);
     expect(a.length).toEqual([0.25, 1.0]);
+  });
+
+  it('a full-length back-edge rabbet stored INTO the growing end runs out the grown length, like its run form (fu 205 final review)', () => {
+    // Shelf 20 long between two sides: default dados grow it 1/4in at each end, to 20.5, x [0.5, 21.0].
+    // The rabbet, in the part's frame: length [0, 20], width [0, 1/4] (the back edge), thickness [3/8, 3/4].
+    // Form A: stored INTO the min end (face length, from min, depth 20: the whole length), 1/4in across the
+    // width position, thickness [3/8, 3/4] by stops (3/8 from min, 0 from max).
+    // Form B: the run form (face width from min 1/4 deep, across length, positioned on thickness 3/8, 3/8 wide).
+    // Both are the same stock, and a rabbet that RUNS along the length keeps running out: length [0, 20.5].
+    // World (shelf at x 0.5, y 12, z 0): x [0.5, 21.0], y [12.375, 12.75], z [0, 0.25].
+    const two = design(
+      { name: 'Left side', at: [0, 0, 0], size: [0.75, 30, 11.25] },
+      { name: 'Right side', at: [20.75, 0, 0], size: [0.75, 30, 11.25] },
+      { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 11.25] },
+    );
+    const withRabbet = (rabbet: Cut) => {
+      const d = structuredClone(two);
+      board(d, 'Shelf').cuts = [rabbet];
+      const sites = findSites(d);
+      return applyJoints(d, sites, sites.map((s) => defaultChoice(s, d, sites))).doc;
+    };
+    const stored: Cut = { id: 'r', face: 'length', from: 'min', across: 'thickness', offset: 0, width: 0.25, depth: 20, stopMin: 0.375, stopMax: 0 };
+    const run: Cut = { id: 'r', face: 'width', from: 'min', across: 'length', offset: 0.375, width: 0.375, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const shelfOf = (out: FlatDocument) => board(out, 'Shelf');
+    const a = withRabbet(stored);
+    const b2 = withRabbet(run);
+    expect(shelfOf(a).length).toBe(20.5);
+    expect(shelfOf(a).cuts).toHaveLength(1);
+    expect(cutRegion(shelfOf(a), shelfOf(a).cuts[0]!)).toEqual({ length: [0, 20.5], width: [0, 0.25], thickness: [0.375, 0.75] });
+    expect(cutRegion(shelfOf(b2), shelfOf(b2).cuts[0]!)).toEqual({ length: [0, 20.5], width: [0, 0.25], thickness: [0.375, 0.75] });
+    expect(worldSolids(shelfOf(a)).flatMap((w) => [w.min, w.max])).toEqual(worldSolids(shelfOf(b2)).flatMap((w) => [w.min, w.max]));
   });
 
   it('butt leaves the site alone', () => {
@@ -430,6 +467,42 @@ describe('half-lap: partners in different planes skip every site', () => {
     expect(board(out.doc, 'Upper').position[1]).toBe(board(doc, 'Upper').position[1]);
     for (const n of ['LowA', 'LowB', 'Upper']) expect(board(out.doc, n).cuts).toHaveLength(0);
     expect(checkDesign(out.doc, limits(out.doc)).filter((v) => v.kind === 'overlap')).toEqual([]);
+  });
+});
+
+describe('half-lap: partners on two axes (fu 206)', () => {
+  // findSites cannot produce this: a crossing needs E's THICKNESS axis to be the
+  // contact axis (rule 4), and a part has one thickness axis, so E enters
+  // crossings on one axis only. The sites are hand-built, which is how the
+  // refusal is reached at all. The refusal is DELIBERATE: the coplanar check
+  // spans every partner of E whatever its axis, because a per-axis check would
+  // also need the drop's collision sweep keyed by axis, for a path no real
+  // design reaches (fu 206, closed by decision).
+  //
+  // E is a 1x1x20 stick at x[0,1] y[5,6] z[0,20]. R1 lies under it (y[4,5],
+  // x[-5,6], z[8,10]): axis 1. R2 stands against its -x side (x[-1,0], y[3,8],
+  // z[8,10]): axis 0. Along y the partners' planes differ (R1 [4,5], R2 [3,8]),
+  // and along x they differ too (R1 [-5,6], R2 [-1,0]), so either site refuses.
+  const doc = design(
+    { name: 'E', at: [0, 5, 0], size: [1, 1, 20] },
+    { name: 'R1', at: [-5, 4, 8], size: [11, 1, 2] },
+    { name: 'R2', at: [-1, 3, 8], size: [1, 5, 2] },
+  );
+  const sites: Site[] = [
+    { id: 1, kind: 'crossing', enter: 0, receive: 1, axis: 1, side: -1, allowed: ['half-lap'], stopEnds: [] },
+    { id: 2, kind: 'crossing', enter: 0, receive: 2, axis: 0, side: -1, allowed: ['half-lap'], stopEnds: [] },
+  ];
+  let out: ReturnType<typeof applyJoints>;
+  beforeAll(() => { out = applyJoints(doc, sites, sites.map((s) => ({ site: s.id, joint: 'half-lap' as const }))); });
+
+  it('refuses both sites with the plane reason; nothing moves or is notched', () => {
+    expect(out.applied).toHaveLength(0);
+    expect(out.skipped.map((s) => s.reason)).toEqual(Array(2).fill("E's half-lap partners do not lie in one plane"));
+    expect(out.moved).toEqual([]);
+    for (const n of ['E', 'R1', 'R2']) {
+      expect(board(out.doc, n).position).toEqual(board(doc, n).position);
+      expect(board(out.doc, n).cuts).toHaveLength(0);
+    }
   });
 });
 
@@ -975,7 +1048,7 @@ describe('a bookcase with a raised bottom and a shelf leaves no voids (fu 182)',
   }
 });
 
-describe('a part in the rabbeted panel\'s path is trimmed by its intrusion (fu 201)', () => {
+describe('a part in the rabbeted panel\'s path is trimmed by its intrusion (fu 201, 205)', () => {
   const CASE: P[] = [
     { name: 'Left side', at: [0, 0, 0], size: [0.75, 30, 11.25] },
     { name: 'Right side', at: [23.25, 0, 0], size: [0.75, 30, 11.25] },
@@ -996,21 +1069,57 @@ describe('a part in the rabbeted panel\'s path is trimmed by its intrusion (fu 2
     expect(voids(out.doc)).toEqual([]);
   });
 
-  // A shelf already grooved into its back edge cannot be trimmed there: the
-  // trim would throw inside rebaseCuts and fail the whole run. It refuses.
-  for (const [label, at, depthZ] of [['butting the back', 0, 11.25], ['1/8in short of the back', 0.125, 11.125]] as const) {
-    it(`refuses a shelf ${label} that is already cut into its back edge, changing NOTHING`, () => {
+  // fu 205: a shelf grooved into its back edge IS trimmed there now. The groove's
+  // box reaches the shelf's length faces, so it is re-faced (face length, positioned
+  // along width) and the trim clips it instead of throwing inside rebaseCuts.
+  // Hand: the groove is thickness [1/4, 1/2], length full, width [0, 1/4] from the
+  // shelf's back edge. The back moves 1/4in forward, so the shelf is trimmed until its
+  // back edge is at the sides' z0 + 1/4 (both variants end at width 11, z0 + 1/4).
+  for (const [label, at, depthZ, survives] of [['butting the back', 0, 11.25, false], ['1/8in short of the back', 0.125, 11.125, true]] as const) {
+    it(`a shelf ${label} that is grooved into its back edge is trimmed, the groove clipped with it`, () => {
       const doc = design(...CASE, { name: 'Shelf', at: [0.75, 15, at], size: [22.5, 0.75, depthZ] });
-      board(doc, 'Shelf').cuts.push({ id: 'g1', face: 'width', from: 'min', across: 'length', offset: 0.25, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 });
+      const shelf = board(doc, 'Shelf');
+      const [px, py, pz] = shelf.position;
+      const z0 = board(doc, 'Left side').position[2];
+      shelf.cuts.push({ id: 'g1', face: 'width', from: 'min', across: 'length', offset: 0.25, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 });
       expect(checkDesign(doc, limits(doc))).toEqual([]);
       const sites = findSites(doc);
       const out = applyJoints(doc, sites, sites.map(rabbetPick(0.375)));
-      const backSites = sites.filter((s) => s.kind === 'face-against-edge' && worldParts(doc)[s.enter].name === 'Back');
-      expect(backSites).toHaveLength(4);
-      expect(out.skipped).toEqual(backSites.map((s) => ({ site: s.id, reason: 'moving Back would trim Shelf at an end it is already cut into' })));
-      expect(out.doc.boards).toEqual(doc.boards);
-      expect(out.trimmed).toEqual([]);
-      expect(out.moved).toEqual([]);
+      expect(out.skipped).toEqual([]);
+      expect(out.trimmed).toContain('Shelf');
+      const trimmed = board(out.doc, 'Shelf');
+      // The shelf's back edge ends at z0 + 1/4 whichever way it started; its width is the rest of its 11.25 side depth.
+      expect(trimmed.position[2]).toBeCloseTo(z0 + 0.25, 9);
+      expect(trimmed.width).toBeCloseTo(11, 9);
+      // x and y (the shelf's other axes) are untouched.
+      expect(trimmed.position[0]).toBe(px);
+      expect(trimmed.position[1]).toBe(py);
+      expect(trimmed.length).toBe(22.5);
+      if (!survives) {
+        // Butting: the groove lay in z [pz, pz + 1/4] = exactly the trimmed 1/4in, so the trim removes it whole.
+        // A groove the trim empties is dropped, never left as a zero-width cut.
+        expect(pz).toBe(z0);
+        expect(trimmed.cuts).toEqual([]);
+      } else {
+        // 1/8in short: groove z [pz + 0, pz + 1/4] = [z0 + 1/8, z0 + 3/8]; trimmed back edge at z0 + 1/4,
+        // so what survives is z [z0 + 1/4, z0 + 3/8] (1/8in), thickness [1/4, 1/2] -> y [py + 1/4, py + 1/2], full length.
+        expect(pz).toBeCloseTo(z0 + 0.125, 9);
+        expect(trimmed.cuts).toHaveLength(1);
+        const r = cutRegion(trimmed, trimmed.cuts[0]!);
+        const [lo, hi] = [trimmed.position[2] + r.width[0], trimmed.position[2] + r.width[1]];
+        expect(lo).toBeCloseTo(z0 + 0.25, 9);
+        expect(hi).toBeCloseTo(z0 + 0.375, 9);
+        expect(r.length[0]).toBeCloseTo(0, 9);
+        expect(r.length[1]).toBeCloseTo(22.5, 9);
+        expect(trimmed.position[1] + r.thickness[0]).toBeCloseTo(py + 0.25, 9);
+        expect(trimmed.position[1] + r.thickness[1]).toBeCloseTo(py + 0.5, 9);
+      }
+      expect(overlapsOf(out.doc)).toEqual([]);
+      // Every other part is what the same run does without the groove (ids are minted fresh per design, so compared without them).
+      const plain = design(...CASE, { name: 'Shelf', at: [0.75, 15, at], size: [22.5, 0.75, depthZ] });
+      const sites2 = findSites(plain);
+      const control = applyJoints(plain, sites2, sites2.map(rabbetPick(0.375)));
+      for (const b of out.doc.boards.filter((x) => x.name !== 'Shelf')) expect(withoutIds(b)).toEqual(withoutIds(board(control.doc, b.name)));
     });
   }
 
@@ -1240,15 +1349,45 @@ describe('blockers judge solids, not boxes (fu 203)', () => {
       expect(overlaps(out.doc)).toEqual([]);
     });
 
-    it('a cut making only PART of the room: its solids still meet the back, so the cut-into-end refusal stands, changing NOTHING', () => {
+    it('a cut making only PART of the room: the trim removes it with the stock it lies in (fu 205), nothing overlaps', () => {
       const doc = build();
-      // Room for 1/16in of the back's 1/8in intrusion; trimming the rest would
-      // cut into the end that rabbet already runs from.
+      // Room for 1/16in of the back's 1/8in intrusion. The cut is stored into RightSide's
+      // back end (width min), so before fu 205 the trim refused; now it is re-faced and the trim,
+      // which takes the whole 1/8in off that end, takes the cut with it.
       cutAt(doc, 'RightSide', [0, 0, 0], [0.25, 30, 0.0625]);
+      expect(problems(doc)).toEqual([]);
+      const before = board(doc, 'RightSide');
+      const z0 = before.position[2];
+      const out = join(doc);
+      // Hand: the cut is z [z0, z0 + 1/16], the trim removes z [z0, z0 + 1/8] (12 -> 11.875, as in the
+      // 'no room cut' control below), so the cut lies wholly inside the trimmed stock: it is dropped, not a zero-width cut.
+      expect(out.skipped).toEqual([]);
+      expect(out.trimmed).toContain('RightSide');
+      const right = board(out.doc, 'RightSide');
+      expect(right.cuts).toEqual([]);
+      expect(right.width).toBeCloseTo(11.875, 9);
+      expect(right.position[2]).toBeCloseTo(z0 + 0.125, 9);
+      expect(right.position[0]).toBe(before.position[0]);
+      expect(right.length).toBe(30);
+      expect(overlaps(out.doc)).toEqual([]);
+      // Every other part is what the same join does with no cut at all.
+      othersMatch(out.doc, join(build()).doc, 'RightSide');
+    });
+
+    it('a cut INTERIOR on both other axes in the end the receiver trim shortens still refuses, changing NOTHING', () => {
+      const doc = build();
+      // x [1/4, 1/2] (interior of the 3/4 thickness), y [10, 12] (interior of 30), z [0, 1/16] at the end the back's
+      // 1/8in intrusion trims: no other face holds it, so it cannot be re-faced (an end-grain mortise).
+      cutAt(doc, 'RightSide', [0.25, 10, 0], [0.5, 12, 0.0625]);
+      const right = board(doc, 'RightSide');
+      // RightSide is turned 90, which reverses world Z: its world-min end is the part's width MAX end.
+      expect(right.cuts[0]).toMatchObject({ face: 'width', from: 'max' });
+      expect(refaceFromEnd(right, right.cuts[0]!, 'width')).toBeNull();
       expect(problems(doc)).toEqual([]);
       const out = join(doc);
       expect(out.skipped).toEqual([{ site: 1, reason: 'moving Back would trim RightSide at an end it is already cut into' }]);
       expect(out.doc.boards).toEqual(doc.boards);
+      expect(overlaps(out.doc)).toEqual([]);
     });
 
     it('the back\'s OWN rabbet already makes room: RightSide is not trimmed, and nothing overlaps', () => {
@@ -1272,7 +1411,7 @@ describe('blockers judge solids, not boxes (fu 203)', () => {
   });
 
   for (const [label, min, max] of [['left', [0, 10, 0], [0.125, 12, 0.25]], ['right', [21.375, 10, 0], [21.5, 12, 0.25]]] as const) {
-  it(`a panel already cut into its ${label} end, which its rabbet line trims, refuses the unit, changing NOTHING`, () => {
+  it(`a panel already cut into its ${label} end, which its rabbet line trims, loses the notch with the strip (fu 205)`, () => {
     const doc = design(
       { name: 'LeftSide', at: [0, 0, 0], size: [0.75, 30, 12] },
       { name: 'RightSide', at: [20.75, 0, 0], size: [0.75, 30, 12] },
@@ -1285,11 +1424,49 @@ describe('blockers judge solids, not boxes (fu 203)', () => {
     const backSites = sites.filter((s) => s.kind === 'face-against-edge' && worldParts(doc)[s.enter].name === 'Back');
     expect(backSites).toHaveLength(2);
     const out = applyJoints(doc, sites, sites.map(rabbetPick(0.375)));
+    // Hand: the notch is 1/8in wide at one end of a 21.5in panel; the rabbet line trims 3/8in off EACH end
+    // (21.5 - 2 x 3/8 = 20.75, the 'rabbet' describe above), so the notch lies wholly inside the strip
+    // that goes: it is dropped with it, and the panel is the plain trimmed panel.
+    expect(out.skipped).toEqual([]);
+    expect(out.applied.map((a) => a.joint)).toEqual(['rabbet', 'rabbet']);
+    const back = board(out.doc, 'Back');
+    expect(back.cuts).toEqual([]);
+    expect(back.width).toBeCloseTo(20.75, 9);
+    expect(out.trimmed).toContain('Back');
+    expect(problems(out.doc).filter((v) => v.kind === 'overlap')).toEqual([]);
+    // Every other part is what the same join does to the panel with no notch.
+    const plain = design(
+      { name: 'LeftSide', at: [0, 0, 0], size: [0.75, 30, 12] },
+      { name: 'RightSide', at: [20.75, 0, 0], size: [0.75, 30, 12] },
+      { name: 'Back', at: [0, 0, -0.25], size: [21.5, 30, 0.25] },
+    );
+    const sites2 = findSites(plain);
+    othersMatch(out.doc, applyJoints(plain, sites2, sites2.map(rabbetPick(0.375))).doc, 'Back');
+  });
+  }
+
+  it('a panel cut INTERIOR on both other axes into the end its rabbet line trims still refuses the unit, changing NOTHING', () => {
+    const doc = design(
+      { name: 'LeftSide', at: [0, 0, 0], size: [0.75, 30, 12] },
+      { name: 'RightSide', at: [20.75, 0, 0], size: [0.75, 30, 12] },
+      { name: 'Back', at: [0, 0, -0.25], size: [21.5, 30, 0.25] },
+    );
+    // An end-grain mortise in the back's left end: x [0, 1/8] inside the 3/8 strip, y [10, 12] interior of 30,
+    // z [1/16, 3/16] interior of the 1/4 thickness. Nothing but the end holds it, so it cannot be re-faced.
+    cutAt(doc, 'Back', [0, 10, 0.0625], [0.125, 12, 0.1875]);
+    const back = board(doc, 'Back');
+    expect(back.cuts[0]).toMatchObject({ face: 'width', from: 'min' });
+    expect(refaceFromEnd(back, back.cuts[0]!, 'width')).toBeNull();
+    expect(problems(doc)).toEqual([]);
+    const sites = findSites(doc);
+    const backSites = sites.filter((s) => s.kind === 'face-against-edge' && worldParts(doc)[s.enter].name === 'Back');
+    expect(backSites).toHaveLength(2);
+    const out = applyJoints(doc, sites, sites.map(rabbetPick(0.375)));
     expect(out.skipped).toEqual(backSites.map((s) => ({ site: s.id, reason: 'moving Back would trim it at an end it is already cut into' })));
     expect(out.doc.boards).toEqual(doc.boards);
     expect(out.moved).toEqual([]);
+    expect(problems(out.doc).filter((v) => v.kind === 'overlap')).toEqual([]);
   });
-  }
 
   it('a half-lap that would leave E out of R\'s plane is refused BEFORE E moves', () => {
     // Hand-built: rule 4 forbids a thickness difference beyond TOUCH, so only
@@ -1307,23 +1484,28 @@ describe('blockers judge solids, not boxes (fu 203)', () => {
 });
 
 // Final review: tenons and dados GROW the entering part at its touching end,
-// and rebaseCuts throws on a cut already INTO that end. A sound hand-made
-// design reached it (on master too) and failed the whole run. It is skipped
-// with a reason now, before anything changes.
-describe('a part already cut into the end a tenon or dado would grow is skipped (final review)', () => {
+// and rebaseCuts threw on a cut already INTO that end, so such a part was
+// skipped with a reason (fu 203). Follow-up 205: a cut whose box reaches another
+// face is re-faced and follows the growth; only one that reaches no other face
+// (an end-grain mortise) is still skipped, below.
+describe('a part already cut at the end a tenon or dado would grow follows the growth (fu 205, was final review\'s skip)', () => {
   const notch = (d: FlatDocument, name: string, min: [number, number, number], max: [number, number, number]) => {
     const b = board(d, name);
     const at = (v: number[]) => v.map((x, k) => b.position[k] + x) as [number, number, number];
     b.cuts.push(pocketFor(b, { min: at(min), max: at(max) }));
     return b.cuts[b.cuts.length - 1];
   };
+  /** A cut's box in WORLD coordinates for an unturned part: position + cutRegion. */
+  const worldBox = (b: Board, c: Cut) => { const r = cutRegion(b, c); return { x: r.length.map((v) => b.position[0] + v), y: r.thickness.map((v) => b.position[1] + v), z: r.width.map((v) => b.position[2] + v) }; };
+  const near = (a: number[], b: number[]) => { expect(a[0]).toBeCloseTo(b[0]!, 9); expect(a[1]).toBeCloseTo(b[1]!, 9); };
 
-  it('a shelf notched 1/2 x 1/2in at its far end: the default dado into that side is skipped, nothing changes', () => {
+  it('a shelf notched 1/2 x 1/2in at its far end: the default dados both apply, the notch stays, nothing else moves', () => {
     const doc = design(
       { name: 'Left side', at: [0, 0, 0], size: [0.75, 30, 11.25] },
       { name: 'Right side', at: [20.75, 0, 0], size: [0.75, 30, 11.25] },
       { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 11.25] },
     );
+    const [px, py, pz] = board(doc, 'Shelf').position;
     const cut = notch(doc, 'Shelf', [19.5, 0, 0], [20, 0.75, 0.5]);
     expect(cut).toMatchObject({ face: 'length', from: 'max' });
     expect(checkDesign(doc, limits(doc))).toEqual([]);
@@ -1332,32 +1514,86 @@ describe('a part already cut into the end a tenon or dado would grow is skipped 
     const far = sites.find((s) => worldParts(doc)[s.receive].name === 'Right side')!;
     expect(choices.find((c) => c.site === far.id)!.joint).toBe('dado');
     const out = applyJoints(doc, sites, choices);
-    expect(out.skipped).toEqual([{ site: far.id, reason: 'Shelf is already cut at the end that would grow into Right side' }]);
-    // The near site still joins; only the far site's growth is refused.
-    expect(out.applied.map((a) => a.joint)).toEqual(['dado']);
-    expect(board(out.doc, 'Right side')).toEqual(board(doc, 'Right side'));
-    expect(board(out.doc, 'Shelf').length).toBe(20 + choices.find((c) => c.site !== far.id)!.depth!);
-    // A stopped dado grows the shelf the same way, and is skipped the same way.
-    const stopped = applyJoints(doc, sites, [{ site: far.id, joint: 'stopped-dado', depth: 0.25, stopAt: far.stopEnds[0], inset: 0.75 }]);
-    expect(stopped.skipped).toEqual([{ site: far.id, reason: 'Shelf is already cut at the end that would grow into Right side' }]);
-    expect(stopped.doc.boards).toEqual(doc.boards);
+    // Hand: default dados are 1/4in deep (probe, spec §3): 20 + 1/4 + 1/4 = 20.5, min end at px - 1/4.
+    expect(out.skipped).toEqual([]);
+    expect(out.applied.map((a) => a.joint)).toEqual(['dado', 'dado']);
+    const shelf = board(out.doc, 'Shelf');
+    expect(shelf.length).toBe(20.5);
+    expect(shelf.position[0]).toBeCloseTo(px - 0.25, 9);
+    // The notch still removes x [px + 19.5, px + 20], z [pz, pz + 1/2], full thickness y [py, py + 3/4].
+    expect(shelf.cuts).toHaveLength(1);
+    const w = worldBox(shelf, shelf.cuts[0]!);
+    near(w.x, [px + 19.5, px + 20]); near(w.y, [py, py + 0.75]); near(w.z, [pz, pz + 0.5]);
+    // The sides are only housed (cuts added), never moved or resized.
+    for (const n of ['Left side', 'Right side']) {
+      expect(board(out.doc, n).position).toEqual(board(doc, n).position);
+      expect(board(out.doc, n).length).toBe(board(doc, n).length);
+    }
+    expect(overlapsOf(out.doc)).toEqual([]);
+    expect(checkDesign(out.doc, limits(out.doc))).toEqual([]);
   });
 
-  it('a rail notched at the end entering its leg: the tenon is skipped, NOTHING changes', () => {
+  it('a stopped dado at that end grows the shelf the same way, and the notch still stays', () => {
+    const doc = design(
+      { name: 'Left side', at: [0, 0, 0], size: [0.75, 30, 11.25] },
+      { name: 'Right side', at: [20.75, 0, 0], size: [0.75, 30, 11.25] },
+      { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 11.25] },
+    );
+    const [px, py, pz] = board(doc, 'Shelf').position;
+    const cut = notch(doc, 'Shelf', [19.5, 0, 0], [20, 0.75, 0.5]);
+    const sites = findSites(doc);
+    const far = sites.find((s) => worldParts(doc)[s.receive].name === 'Right side')!;
+    const out = applyJoints(doc, sites, [{ site: far.id, joint: 'stopped-dado', depth: 0.25, stopAt: far.stopEnds[0], inset: 0.75 }]);
+    // Hand: only the far end grows, by the 1/4in depth: 20.25, min end unmoved.
+    expect(out.skipped).toEqual([]);
+    expect(out.applied.find((a) => a.site === far.id)).toEqual({ site: far.id, joint: 'stopped-dado' });
+    const shelf = board(out.doc, 'Shelf');
+    expect(shelf.length).toBe(20.25);
+    expect(shelf.position[0]).toBeCloseTo(px, 9);
+    // The pre-existing notch (same id) still removes x [px + 19.5, px + 20], z [pz, pz + 1/2], y [py, py + 3/4].
+    const kept = shelf.cuts.find((c) => c.id === cut.id)!;
+    const w = worldBox(shelf, kept);
+    near(w.x, [px + 19.5, px + 20]); near(w.y, [py, py + 0.75]); near(w.z, [pz, pz + 0.5]);
+    expect(checkDesign(out.doc, limits(out.doc))).toEqual([]);
+  });
+
+  it('a rail notched at the end entering its leg: the tenon applies and the notch stays', () => {
     const doc = design(
       { name: 'Leg', at: [0, 0, 0], size: [1.75, 28, 1.75] },
       { name: 'Rail', at: [1.75, 23.5, 0.5], size: [18, 3.5, 0.75] },
       { name: 'Far leg', at: [19.75, 0, 0], size: [1.75, 28, 1.75] },
     );
+    const rail0 = board(doc, 'Rail');
+    const [px, py, pz] = rail0.position;
+    // The rail is length 18 (x), width 3.5 (y), thickness 3/4 (z): the notch box is 1/2 x 1/2 x 3/4 at its min corner.
     const cut = notch(doc, 'Rail', [0, 0, 0], [0.5, 0.5, 0.75]);
     expect(cut).toMatchObject({ face: 'length', from: 'min' });
     expect(checkDesign(doc, limits(doc))).toEqual([]);
     const sites = findSites(doc);
-    const near = sites.find((s) => worldParts(doc)[s.receive].name === 'Leg')!;
-    const out = applyJoints(doc, sites, [{ site: near.id, joint: 'mortise-tenon', tenonLength: 1 }]);
-    expect(out.skipped).toEqual([{ site: near.id, reason: 'Rail is already cut at the end that would grow into Leg' }]);
-    expect(out.applied.every((a) => a.joint === 'butt')).toBe(true);
-    expect(out.doc.boards).toEqual(doc.boards);
+    const nearSite = sites.find((s) => worldParts(doc)[s.receive].name === 'Leg')!;
+    const out = applyJoints(doc, sites, [{ site: nearSite.id, joint: 'mortise-tenon', tenonLength: 1 }]);
+    // Hand: a 1in tenon grows the rail at its leg end: 18 -> 19, min end at px - 1 (probe, mortise-and-tenon describe).
+    expect(out.skipped).toEqual([]);
+    expect(out.applied.find((a) => a.site === nearSite.id)).toEqual({ site: nearSite.id, joint: 'mortise-tenon' });
+    const rail = board(out.doc, 'Rail');
+    expect(rail.length).toBe(19);
+    expect(rail.position[0]).toBeCloseTo(px - 1, 9);
+    // The notch (world x [px, px + 1/2], y [py, py + 1/2], z [pz, pz + 3/4]) is where it was. The rail's width
+    // runs along world y (3.5) and its thickness along z (3/4): cutRegion's width is y here, so read it directly.
+    const kept = rail.cuts.find((c) => c.id === cut.id)!;
+    const r = cutRegion(rail, kept);
+    near(r.length.map((v) => rail.position[0] + v), [px, px + 0.5]);
+    near(r.width.map((v) => rail.position[1] + v), [py, py + 0.5]);
+    near(r.thickness.map((v) => rail.position[2] + v), [pz, pz + 0.75]);
+    expect(checkDesign(out.doc, limits(out.doc))).toEqual([]);
+    // Every other part is what the same join does to an un-notched rail.
+    const plain = design(
+      { name: 'Leg', at: [0, 0, 0], size: [1.75, 28, 1.75] },
+      { name: 'Rail', at: [1.75, 23.5, 0.5], size: [18, 3.5, 0.75] },
+      { name: 'Far leg', at: [19.75, 0, 0], size: [1.75, 28, 1.75] },
+    );
+    const control = applyJoints(plain, findSites(plain), [{ site: nearSite.id, joint: 'mortise-tenon', tenonLength: 1 }]);
+    othersMatch(out.doc, control.doc, 'Rail');
   });
 });
 
@@ -1395,12 +1631,17 @@ describe('joinery is equivariant under a 180 turn of every part', () => {
       { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 11.25] },
       { name: 'Back', at: [0, 0, 11.25], size: [21.5, 30, 0.25] },
     ] },
-    { label: 'a shelf already cut at the end a dado would grow (skip)', want: 'skipped', kinds: ['dado'], notches: [['Shelf', [19.5, 0, 0], [20, 0.75, 0.5]]], parts: [
+    { label: 'a shelf notched at the end a dado grows (the notch follows, fu 205)', want: 'applied', kinds: ['dado', 'dado'], notches: [['Shelf', [19.5, 0, 0], [20, 0.75, 0.5]]], parts: [
       { name: 'Left side', at: [0, 0, 0], size: [0.75, 30, 11.25] },
       { name: 'Right side', at: [20.75, 0, 0], size: [0.75, 30, 11.25] },
       { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 11.25] },
     ] },
-    { label: 'a rail already cut at the end entering its leg (skip)', want: 'skipped', kinds: ['mortise-tenon'], notches: [['Rail', [0, 0, 0], [0.5, 0.5, 0.75]]], parts: [
+    { label: 'an end-grain mortise at the end entering its leg (still skipped)', want: 'skipped', kinds: ['mortise-tenon'], notches: [['Rail', [0, 1, 0.125], [0.5, 1.5, 0.625]]], parts: [
+      { name: 'Leg', at: [0, 0, 0], size: [1.75, 28, 1.75] },
+      { name: 'Rail', at: [1.75, 23.5, 0.5], size: [18, 3.5, 0.75] },
+      { name: 'Far leg', at: [19.75, 0, 0], size: [1.75, 28, 1.75] },
+    ] },
+    { label: 'a rail notched at the end entering its leg (the notch follows, fu 205)', want: 'applied', kinds: ['mortise-tenon', 'mortise-tenon'], notches: [['Rail', [0, 0, 0], [0.5, 0.5, 0.75]]], parts: [
       { name: 'Leg', at: [0, 0, 0], size: [1.75, 28, 1.75] },
       { name: 'Rail', at: [1.75, 23.5, 0.5], size: [18, 3.5, 0.75] },
       { name: 'Far leg', at: [19.75, 0, 0], size: [1.75, 28, 1.75] },
@@ -1417,8 +1658,10 @@ describe('joinery is equivariant under a 180 turn of every part', () => {
     const b = run(180);
     // Not vacuous: the 180 copy really is turned, and the fixture really joins or skips.
     expect(worldParts(b.doc).every((x, i) => x.rotation === (worldParts(a.doc)[i].rotation + 180) % 360)).toBe(true);
-    if (want === 'applied') expect(a.out.applied.some((x) => x.joint !== 'butt')).toBe(true);
+    if (want === 'applied') { expect(a.out.applied.some((x) => x.joint !== 'butt')).toBe(true); expect(a.out.skipped).toEqual([]); }
     else expect(a.out.skipped.length).toBeGreaterThan(0);
+    // fu 205: the two notch fixtures that follow the part are 'applied'; the skip branch is exercised by the
+    // end-grain-mortise fixture above (want: 'skipped'), the one cut that cannot be re-faced.
     // Pin the kind too (fu 217): "some joint is not butt" would pass a fixture
     // that quietly stopped getting the joint it exists to exercise.
     expect(a.out.applied.map((x) => x.joint).sort()).toEqual(kinds);
@@ -1437,44 +1680,47 @@ describe('joinery is equivariant under a 180 turn of every part', () => {
   });
 });
 
+// A whole design turned rigidly about one pivot (shared by fu 217's equivariance and fu 205's turned notch).
+type QuarterNotch = [string, [number, number, number], [number, number, number]];
+const PIVOT: [number, number, number] = [7, 0, 3];
+const carry = (p: [number, number, number], k: number) => {
+  let q = p;
+  for (let i = 0; i < k; i += 1) q = rotateQuarter(q, PIVOT);
+  return q;
+};
+const carryBox = (min: [number, number, number], max: [number, number, number], k: number) => {
+  const a = carry(min, k);
+  const b = carry(max, k);
+  return { min: a.map((v, i) => Math.min(v, b[i]!)) as [number, number, number], max: a.map((v, i) => Math.max(v, b[i]!)) as [number, number, number] };
+};
+const quarterTurned = (parts: P[], notches: QuarterNotch[], k: number) => {
+  const doc = design(...parts);
+  const world = new Map(doc.boards.map((b) => {
+    const e = boardExtents(b);
+    return [b.name, { min: [...b.position] as [number, number, number], e }] as const;
+  }));
+  for (const b of doc.boards) {
+    const { min, e } = world.get(b.name)!;
+    const box = carryBox(min, [min[0] + e[0], min[1] + e[1], min[2] + e[2]], k);
+    b.rotation = ((b.rotation + 90 * k) % 360) as Board['rotation'];
+    b.position = box.min;
+  }
+  for (const [name, nmin, nmax] of notches) {
+    const b = board(doc, name);
+    const { min } = world.get(name)!;
+    const at = (v: number[]) => v.map((x, i) => min[i]! + x) as [number, number, number];
+    b.cuts.push(pocketFor(b, carryBox(at(nmin), at(nmax), k)));
+  }
+  return doc;
+};
+
 // fu 217: the test above turns each part about its own centre, which only a
 // 180 turn leaves a design unchanged under. A quarter turn of the WHOLE design
 // (every part pivoted about one point, rotation + 90k) is the equivariance a
 // 90 or 270 turn owes: the joined world solids are the unturned result carried
 // by rotateQuarter k times. The notches are built from the carried world box.
 describe('joinery is equivariant under a rigid quarter turn of the whole design (fu 217)', () => {
-  type Notch = [string, [number, number, number], [number, number, number]];
-  const PIVOT: [number, number, number] = [7, 0, 3];
-  const carry = (p: [number, number, number], k: number) => {
-    let q = p;
-    for (let i = 0; i < k; i += 1) q = rotateQuarter(q, PIVOT);
-    return q;
-  };
-  const carryBox = (min: [number, number, number], max: [number, number, number], k: number) => {
-    const a = carry(min, k);
-    const b = carry(max, k);
-    return { min: a.map((v, i) => Math.min(v, b[i]!)) as [number, number, number], max: a.map((v, i) => Math.max(v, b[i]!)) as [number, number, number] };
-  };
-  const build = (parts: P[], notches: Notch[], k: number) => {
-    const doc = design(...parts);
-    const world = new Map(doc.boards.map((b) => {
-      const e = boardExtents(b);
-      return [b.name, { min: [...b.position] as [number, number, number], e }] as const;
-    }));
-    for (const b of doc.boards) {
-      const { min, e } = world.get(b.name)!;
-      const box = carryBox(min, [min[0] + e[0], min[1] + e[1], min[2] + e[2]], k);
-      b.rotation = ((b.rotation + 90 * k) % 360) as Board['rotation'];
-      b.position = box.min;
-    }
-    for (const [name, nmin, nmax] of notches) {
-      const b = board(doc, name);
-      const { min } = world.get(name)!;
-      const at = (v: number[]) => v.map((x, i) => min[i]! + x) as [number, number, number];
-      b.cuts.push(pocketFor(b, carryBox(at(nmin), at(nmax), k)));
-    }
-    return doc;
-  };
+  type Notch = QuarterNotch;
   const FIXTURES: { label: string; parts: P[]; notches: Notch[]; kinds: string[]; skips: boolean }[] = [
     { label: 'a mortise-and-tenon rail between legs', kinds: ['mortise-tenon', 'mortise-tenon'], skips: false, notches: [], parts: [
       { name: 'Leg', at: [0, 0, 0], size: [1.75, 28, 1.75] },
@@ -1487,14 +1733,21 @@ describe('joinery is equivariant under a rigid quarter turn of the whole design 
       { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 11.25] },
       { name: 'Back', at: [0, 0, 11.25], size: [21.5, 30, 0.25] },
     ] },
-    { label: 'a shelf already cut at the end a dado would grow (skip)', kinds: ['dado'], skips: true, notches: [['Shelf', [19.5, 0, 0], [20, 0.75, 0.5]]], parts: [
+    { label: 'a shelf notched at the end a dado grows (the notch follows, fu 205)', kinds: ['dado', 'dado'], skips: false, notches: [['Shelf', [19.5, 0, 0], [20, 0.75, 0.5]]], parts: [
       { name: 'Left side', at: [0, 0, 0], size: [0.75, 30, 11.25] },
       { name: 'Right side', at: [20.75, 0, 0], size: [0.75, 30, 11.25] },
       { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 11.25] },
     ] },
+    // The refusal under 90/270 too (every other entry follows the part): an end-grain mortise in the Rail's
+    // entering end cannot be re-faced, so one tenon is skipped and the other applies, as in the 180 describe.
+    { label: 'an end-grain mortise at the end entering its leg (still skipped)', kinds: ['mortise-tenon'], skips: true, notches: [['Rail', [0, 1, 0.125], [0.5, 1.5, 0.625]]], parts: [
+      { name: 'Leg', at: [0, 0, 0], size: [1.75, 28, 1.75] },
+      { name: 'Rail', at: [1.75, 23.5, 0.5], size: [18, 3.5, 0.75] },
+      { name: 'Far leg', at: [19.75, 0, 0], size: [1.75, 28, 1.75] },
+    ] },
   ];
   const run = (parts: P[], notches: Notch[], k: number) => {
-    const doc = build(parts, notches, k);
+    const doc = quarterTurned(parts, notches, k);
     const sites = findSites(doc);
     return { doc, out: applyJoints(doc, sites, sites.map((s) => defaultChoice(s, doc, sites))) };
   };
@@ -1552,6 +1805,233 @@ describe('joinery on assemblies (assemblies spec §6.1)', () => {
         expect(sameSet(corners(worldParts(back)[k]!), corners(j)), j.name).toBe(true);
         expect(worldParts(back)[k]!.cuts.map(({ id: _i, ...c }) => c), j.name).toEqual(j.cuts.map(({ id: _i, ...c }) => c));
       });
+    });
+  }
+});
+
+describe('refaceFromEnd (fu 205)', () => {
+  // A 20 x 11.25 x 0.75 shelf (length x width x thickness), unturned.
+  const shelf = (): Board => ({ ...design({ name: 'S', at: [0, 0, 0], size: [20, 0.75, 11.25] }).boards[0]!, cuts: [] });
+  it('fixture dimension mapping', () => {
+    const b = shelf();
+    expect([b.length, b.width, b.thickness]).toEqual([20, 11.25, 0.75]);
+  });
+  it('a corner notch stored into the far end re-stores to enter from the width face it reaches, positioned along length', () => {
+    const b = shelf();
+    // Hand: box length [19.5, 20], width [0, 0.5], thickness [0, 0.75]. Faces reached besides length:
+    // width (from min, span 0.5) and thickness (full, span 0.75) -> the shallower, width.
+    const c: Cut = { id: 'n', face: 'length', from: 'max', across: 'thickness', offset: 0, width: 0.5, depth: 0.5, stopMin: 0, stopMax: 0 };
+    expect(cutRegion(b, c)).toEqual({ length: [19.5, 20], width: [0, 0.5], thickness: [0, 0.75] });
+    expect(refaceFromEnd(b, c, 'length')).toEqual({ id: 'n', face: 'width', from: 'min', across: 'thickness', offset: 19.5, width: 0.5, depth: 0.5, stopMin: 0, stopMax: 0 });
+  });
+  it('a corner notch at the near end and far width edge re-faces from max', () => {
+    const b = shelf();
+    // Hand: box length [0, 0.5], width [10.75, 11.25], thickness [0, 0.75]. Reached besides length: width
+    // (from max, span 0.5) and thickness (full -> min, span 0.75). Shallower: width, entering from max.
+    const c: Cut = { id: 'n', face: 'length', from: 'min', across: 'thickness', offset: 10.75, width: 0.5, depth: 0.5, stopMin: 0, stopMax: 0 };
+    expect(cutRegion(b, c)).toEqual({ length: [0, 0.5], width: [10.75, 11.25], thickness: [0, 0.75] });
+    expect(refaceFromEnd(b, c, 'length')).toEqual({ id: 'n', face: 'width', from: 'max', across: 'thickness', offset: 0, width: 0.5, depth: 0.5, stopMin: 0, stopMax: 0 });
+  });
+  it('a cut that extends past the board on its position axis is refused, not widened (before the near edge)', () => {
+    const b = shelf();
+    // Hand: cutRegion does not clip the position axis: length [19.5, 20], width [-0.2, 0.3], thickness [0, 0.75].
+    // Options by span: width (r0 <= EPS -> from min, span 0.5), then thickness (full -> from min, span 0.75).
+    // Width candidate would remove width [0, 0.5], MORE than the original's [-0.2, 0.3] -> guard rejects.
+    // Thickness candidate has across=width with stopMin -0.2, clamped to 0 -> width [0, 0.3] != [-0.2, 0.3] -> rejects.
+    // So the result is null.
+    const c: Cut = { id: 'o', face: 'length', from: 'max', across: 'thickness', offset: -0.2, width: 0.5, depth: 0.5, stopMin: 0, stopMax: 0 };
+    expect(cutRegion(b, c).width).toEqual([-0.2, 0.3]);
+    expect(refaceFromEnd(b, c, 'length')).toBeNull();
+  });
+  it('a cut that extends past the board on its position axis is refused, not widened (past the far edge)', () => {
+    const b = shelf();
+    // Hand: width [10.95, 11.45] vs board width 11.25. Width option: r1 >= 11.25 -> from max, span 0.5; its
+    // candidate removes width [10.75, 11.25] != [10.95, 11.45] -> rejected. Thickness option (across width,
+    // stopMax = 11.25 - 11.45 = -0.2 clamped) removes width [10.95, 11.25] != original -> rejected. Null.
+    const c: Cut = { id: 'o', face: 'length', from: 'max', across: 'thickness', offset: 10.95, width: 0.5, depth: 0.5, stopMin: 0, stopMax: 0 };
+    expect(cutRegion(b, c).width).toEqual([10.95, 11.45]);
+    expect(refaceFromEnd(b, c, 'length')).toBeNull();
+  });
+  it('an end-grain mortise (interior on both other axes) cannot be re-faced', () => {
+    const b = shelf();
+    const c: Cut = { id: 'm', face: 'length', from: 'max', across: 'thickness', offset: 3, width: 1, depth: 1, stopMin: 0.25, stopMax: 0.25 };
+    expect(refaceFromEnd(b, c, 'length')).toBeNull();
+  });
+  it('a groove along the back edge, stored into the width end, re-faces to enter from the length end (the only face it reaches)', () => {
+    const b = shelf();
+    // Hand: face width from min, across length, offset/width on thickness [0.25, 0.5], depth 0.25:
+    // box width [0, 0.25], length [0, 20] (full), thickness [0.25, 0.5] (interior). Only length is reached
+    // (full span -> from min, depth 20); across = thickness with stops 0.25 / 0.25; position = width.
+    const c: Cut = { id: 'g', face: 'width', from: 'min', across: 'length', offset: 0.25, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 };
+    expect(refaceFromEnd(b, c, 'width')).toEqual({ id: 'g', face: 'length', from: 'min', across: 'thickness', offset: 0, width: 0.25, depth: 20, stopMin: 0.25, stopMax: 0.25 });
+  });
+  it('a metric (non-dyadic) corner notch still re-faces exactly', () => {
+    const b = { ...shelf(), length: 508 / 25.4 };
+    const c: Cut = { id: 'n', face: 'length', from: 'max', across: 'thickness', offset: 0, width: 12 / 25.4, depth: 12 / 25.4, stopMin: 0, stopMax: 0 };
+    const r = refaceFromEnd(b, c, 'length');
+    expect(r).not.toBeNull();
+    const a = cutRegion(b, r!); const e = cutRegion(b, c);
+    for (const k of ['length', 'width', 'thickness'] as const) for (const i of [0, 1]) expect(Math.abs(a[k][i] - e[k][i])).toBeLessThanOrEqual(1e-9);
+  });
+});
+
+describe('a cut at the end a joint resizes follows the part, in any storage form (fu 205)', () => {
+  // The follow-up's probe: shelf between two sides, 1/2 x 1/2in full-thickness corner notch at its far end.
+  // Hand: default dados 0.25 deep at each side -> shelf 20 + 0.25 + 0.25 = 20.5; the notch's world box stays
+  // x [p + 19.5, p + 20], z [q, q + 0.5], y [r, r + 0.75] for the shelf's ORIGINAL min corner (p, r, q).
+  const PARTS: P[] = [
+    { name: 'Left side', at: [0, 0, 0], size: [0.75, 30, 11.25] },
+    { name: 'Right side', at: [20.75, 0, 0], size: [0.75, 30, 11.25] },
+    { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 11.25] },
+  ];
+  const box = (b: Board, c: Cut) => { const r = cutRegion(b, c); return { x: r.length.map((v) => b.position[0] + v), y: r.thickness.map((v) => b.position[1] + v), z: r.width.map((v) => b.position[2] + v) }; };
+  const close = (a: number[], b: number[]) => { expect(a[0]).toBeCloseTo(b[0]!, 9); expect(a[1]).toBeCloseTo(b[1]!, 9); };
+  for (const form of ['length', 'width'] as const) {
+    it(`stored on the ${form} face: both dados apply, the shelf is 20.5in, the notch stays where it was`, () => {
+      const doc = design(...PARTS);
+      const [p, r, q] = board(doc, 'Shelf').position;
+      // length: stored INTO the far end. width: stored into the back edge, positioned 19.5in along the length.
+      const cut: Cut = form === 'length'
+        ? { id: 'n1', face: 'length', from: 'max', across: 'thickness', offset: 0, width: 0.5, depth: 0.5, stopMin: 0, stopMax: 0 }
+        : { id: 'n1', face: 'width', from: 'min', across: 'thickness', offset: 19.5, width: 0.5, depth: 0.5, stopMin: 0, stopMax: 0 };
+      board(doc, 'Shelf').cuts.push(cut);
+      // Both forms are the same box (precondition, from the hand derivation above, not from the output).
+      const b0 = box(board(doc, 'Shelf'), cut);
+      close(b0.x, [p + 19.5, p + 20]); close(b0.y, [r, r + 0.75]); close(b0.z, [q, q + 0.5]);
+      expect(checkDesign(doc, limits(doc))).toEqual([]);
+      const sites = findSites(doc);
+      const out = applyJoints(doc, sites, sites.map((s) => defaultChoice(s, doc, sites)));
+      expect(out.applied.map((a) => a.joint)).toEqual(['dado', 'dado']);
+      expect(out.skipped).toEqual([]);
+      const shelf = board(out.doc, 'Shelf');
+      expect(shelf.length).toBe(20.5);
+      expect(shelf.position[0]).toBeCloseTo(p - 0.25, 9);
+      expect(shelf.cuts).toHaveLength(1);
+      expect(shelf.cuts[0]!.id).toBe('n1');
+      const w = box(shelf, shelf.cuts[0]!);
+      close(w.x, [p + 19.5, p + 20]); close(w.y, [r, r + 0.75]); close(w.z, [q, q + 0.5]);
+      expect(checkDesign(out.doc, limits(out.doc))).toEqual([]);
+    });
+  }
+
+  it('an end-grain mortise at the end a tenon would grow is still skipped with today\'s reason, NOTHING changed', () => {
+    const doc = design(
+      { name: 'Leg', at: [0, 0, 0], size: [1.75, 28, 1.75] },
+      { name: 'Rail', at: [1.75, 23.5, 0.5], size: [18, 3.5, 0.75] },
+      { name: 'Far leg', at: [19.75, 0, 0], size: [1.75, 28, 1.75] },
+    );
+    const rail = board(doc, 'Rail');
+    // Rail: length 18, width 3.5, thickness 3/4. A mortise in the min end: length [0, 1/2], width [1, 1.5] (interior of
+    // 3.5), thickness [1/8, 5/8] (interior of 3/4): it touches no face but the end, so no other face can hold it.
+    const mortise: Cut = { id: 'm1', face: 'length', from: 'min', across: 'thickness', offset: 1, width: 0.5, depth: 0.5, stopMin: 0.125, stopMax: 0.125 };
+    rail.cuts.push(mortise);
+    const r = cutRegion(rail, mortise);
+    expect(r.length).toEqual([0, 0.5]); expect(r.width).toEqual([1, 1.5]); expect(r.thickness).toEqual([0.125, 0.625]);
+    expect(refaceFromEnd(rail, mortise, 'length')).toBeNull();
+    expect(checkDesign(doc, limits(doc))).toEqual([]);
+    const sites = findSites(doc);
+    const nearSite = sites.find((s) => worldParts(doc)[s.receive].name === 'Leg')!;
+    const out = applyJoints(doc, sites, [{ site: nearSite.id, joint: 'mortise-tenon', tenonLength: 1 }]);
+    expect(out.skipped).toEqual([{ site: nearSite.id, reason: 'Rail is already cut at the end that would grow into Leg' }]);
+    expect(out.applied.every((a) => a.joint === 'butt')).toBe(true);
+    expect(out.doc.boards).toEqual(doc.boards);
+  });
+
+  // The refusal is the one place `cutIntoEnd` still decides, and it maps the WORLD end to the part's own end with
+  // endFacing: on a turned part the raw end would look at the wrong end and let rebaseCuts throw.
+  for (const k of [1, 2, 3]) {
+    it(`an end-grain mortise on a rail turned ${90 * k}° is still skipped, NOTHING changed`, () => {
+      const parts: P[] = [
+        { name: 'Leg', at: [0, 0, 0], size: [1.75, 28, 1.75] },
+        { name: 'Rail', at: [1.75, 23.5, 0.5], size: [18, 3.5, 0.75] },
+        { name: 'Far leg', at: [19.75, 0, 0], size: [1.75, 28, 1.75] },
+      ];
+      // Same mortise as above, as a world box from the rail's min corner: x [0, 1/2], y [1, 1.5], z [1/8, 5/8].
+      const doc = quarterTurned(parts, [['Rail', [0, 1, 0.125], [0.5, 1.5, 0.625]]], k);
+      const rail = board(doc, 'Rail');
+      expect(rail.rotation).toBe(90 * k);
+      expect(rail.cuts).toHaveLength(1);
+      // Stored into an end, and no other face holds it.
+      expect(refaceFromEnd(rail, rail.cuts[0]!, rail.cuts[0]!.face)).toBeNull();
+      const sites = findSites(doc);
+      const nearSite = sites.find((s) => worldParts(doc)[s.enter].name === 'Rail' && worldParts(doc)[s.receive].name === 'Leg')!;
+      const out = applyJoints(doc, sites, [{ site: nearSite.id, joint: 'mortise-tenon', tenonLength: 1 }]);
+      expect(out.skipped).toEqual([{ site: nearSite.id, reason: 'Rail is already cut at the end that would grow into Leg' }]);
+      expect(out.applied.every((a) => a.joint === 'butt')).toBe(true);
+      expect(out.doc.boards).toEqual(doc.boards);
+    });
+  }
+
+  it('a trim through a re-faced notch clips it and keeps the rest of its box in place', () => {
+    const doc = design(
+      { name: 'LeftSide', at: [0, 0, 0], size: [0.75, 30, 12] },
+      { name: 'RightSide', at: [20.75, 0, 0], size: [0.75, 30, 12] },
+      { name: 'Back', at: [0, 0, -0.25], size: [21.5, 30, 0.25] },
+    );
+    const back0 = board(doc, 'Back');
+    const [bx, by] = back0.position;
+    // A 1/2 x 2in notch (full 1/4 thickness) at the back's left end, y [10, 12] from its bottom: it straddles the
+    // 3/8in strip the rabbet line trims, so 1/8in of it must survive.
+    // The back is length 30 (y), width 21.5 (x), thickness 1/4 (z). Stored INTO its left (width min) end, by hand.
+    const cut: Cut = { id: 'n2', face: 'width', from: 'min', across: 'thickness', offset: 10, width: 2, depth: 0.5, stopMin: 0, stopMax: 0 };
+    back0.cuts.push(cut);
+    const r0 = cutRegion(back0, cut);
+    expect(r0.width).toEqual([0, 0.5]); expect(r0.length).toEqual([10, 12]); expect(r0.thickness).toEqual([0, 0.25]);
+    expect(checkDesign(doc, limits(doc))).toEqual([]);
+    const sites = findSites(doc);
+    const out = applyJoints(doc, sites, sites.map(rabbetPick(0.375)));
+    // Hand: the back is trimmed 3/8in at EACH end (21.5 -> 20.75, fu 201), so its left end moves to bx + 3/8; the notch
+    // [bx, bx + 1/2] is clipped to [bx + 3/8, bx + 1/2] (1/8in wide); y [by + 10, by + 12] and the full thickness stay.
+    expect(out.skipped).toEqual([]);
+    const back = board(out.doc, 'Back');
+    expect(back.width).toBeCloseTo(20.75, 9);
+    expect(back.position[0]).toBeCloseTo(bx + 0.375, 9);
+    expect(back.cuts).toHaveLength(1);
+    expect(back.cuts[0]!.id).toBe(cut.id);
+    const r = cutRegion(back, back.cuts[0]!);
+    close(r.width.map((v) => back.position[0] + v), [bx + 0.375, bx + 0.5]);
+    close(r.length.map((v) => back.position[1] + v), [by + 10, by + 12]);
+    close(r.thickness, [0, 0.25]);
+    expect(checkDesign(out.doc, limits(out.doc)).filter((v) => v.kind === 'overlap')).toEqual([]);
+  });
+
+  // The probe's shelf and notch, turned as a whole design about a pivot. The notch is on ONE side only (the far end),
+  // so a turn that mapped the wrong end would move it (inv 44). Expected values are the unturned hand values carried
+  // through rotateQuarter, an independent implementation.
+  for (const turn of [90, 180] as const) {
+    it(`a turned shelf (${turn}°) behaves as the unturned one carried by the turn`, () => {
+      const k = turn / 90;
+      const notches: QuarterNotch[] = [['Shelf', [19.5, 0, 0], [20, 0.75, 0.5]]];
+      const run = (kk: number) => {
+        const doc = quarterTurned(PARTS, notches, kk);
+        const sites = findSites(doc);
+        return { doc, out: applyJoints(doc, sites, sites.map((s) => defaultChoice(s, doc, sites))) };
+      };
+      const a = run(0);
+      const b = run(k);
+      expect(board(b.doc, 'Shelf').rotation).toBe(turn);
+      expect(b.out.applied.map((x) => x.joint)).toEqual(['dado', 'dado']);
+      expect(b.out.skipped).toEqual([]);
+      expect(board(b.out.doc, 'Shelf').length).toBe(20.5);
+      const p = board(a.doc, 'Shelf').position;
+      // The unturned notch centre and the centre of the dado tongue beside it (the grown 1/4in at the far end),
+      // carried by the turn: the notch centre is void, the tongue centre is stock.
+      const inside = (doc: FlatDocument, pt: [number, number, number]) => worldSolids(board(doc, 'Shelf')).some((s) => [0, 1, 2].every((i) => pt[i]! > s.min[i]! + 1e-9 && pt[i]! < s.max[i]! - 1e-9));
+      const notchCentre: [number, number, number] = [p[0] + 19.75, p[1] + 0.375, p[2] + 0.25];
+      const tongueCentre: [number, number, number] = [p[0] + 20.125, p[1] + 0.375, p[2] + 0.25];
+      expect(inside(a.out.doc, notchCentre)).toBe(false);
+      expect(inside(a.out.doc, tongueCentre)).toBe(true);
+      expect(inside(b.out.doc, carry(notchCentre, k))).toBe(false);
+      expect(inside(b.out.doc, carry(tongueCentre, k))).toBe(true);
+      // Stock: 20.5 x 3/4 x 11.25 less the 1/2 x 1/2 x 3/4 notch = 172.96875 - 0.1875 = 172.78125.
+      const stock = (doc: FlatDocument) => worldSolids(board(doc, 'Shelf')).reduce((v, s) => v + (s.max[0]! - s.min[0]!) * (s.max[1]! - s.min[1]!) * (s.max[2]! - s.min[2]!), 0);
+      expect(stock(a.out.doc)).toBeCloseTo(172.78125, 9);
+      expect(stock(b.out.doc)).toBeCloseTo(172.78125, 9);
+      // And every part's solids are the unturned result carried.
+      for (const x of a.out.doc.boards) {
+        const carried = worldSolids(x).flatMap((w) => { const c = carryBox(w.min as [number, number, number], w.max as [number, number, number], k); return [c.min, c.max]; });
+        expect(sameSet(worldSolids(board(b.out.doc, x.name)).flatMap((w) => [w.min, w.max]), carried), `${x.name} world solids`).toBe(true);
+      }
     });
   }
 });

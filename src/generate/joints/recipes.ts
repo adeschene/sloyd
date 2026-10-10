@@ -1,6 +1,6 @@
 import { CURRENT_VERSION, migrateDocument, storedAsShape, flatDocument, worldParts } from '../../document/document';
-import type { Board, Dimension, FlatDocument, SloydDocument } from '../../document/document';
-import { boardSolids } from '../../document/cuts';
+import type { Board, Cut, Dimension, FlatDocument, SloydDocument } from '../../document/document';
+import { boardSolids, cutRegion } from '../../document/cuts';
 import { TOUCH, worldSolids } from '../../document/designCheck';
 import { SNAP_INCHES, axisDimensions, endFacing, positionAxisOf } from '../../document/geometry';
 import { boxOf, pocketFor } from './pocket';
@@ -51,17 +51,56 @@ function resize(b: Board, k: number, side: -1 | 1, amount: number) {
 }
 
 /**
+ * Follow-up 205: a cut STORED into `d` from one end (`face === d`) re-stored to
+ * enter from another face its box reaches, with `d` as its POSITION axis, so
+ * rebaseCuts' rule keeps it in place while the part grows past it or a trim clips
+ * it. A corner notch can be stored either way and storedAsShape keeps whichever
+ * form it was given, so without this the answer depended on storage. Null when
+ * the box reaches no other face (an end-grain mortise) or the re-store would not
+ * remove exactly the same box (within 1e-9, rebaseCuts' tolerance).
+ */
+export function refaceFromEnd(b: Board, c: Cut, d: Dimension): Cut | null {
+  const EPS = 1e-9;
+  const r = cutRegion(b, c);
+  const order: Dimension[] = ['thickness', 'width', 'length'];
+  type Option = { f: Dimension; from: 'min' | 'max'; span: number };
+  // Tie-break: thickness, width, length. pocketFor (pocket.ts) breaks ties differently ON PURPOSE: both
+  // remove the same box, so do not unify them.
+  const options = order.filter((f) => f !== d).flatMap((f): Option[] => {
+    const span = r[f][1] - r[f][0];
+    if (r[f][0] <= EPS) return [{ f, from: 'min' as const, span }];
+    if (r[f][1] >= b[f] - EPS) return [{ f, from: 'max' as const, span }];
+    return [];
+  }).sort((x, y) => x.span - y.span); // stable: ties keep thickness, width, length
+  for (const { f, from, span } of options) {
+    const g = order.find((x) => x !== d && x !== f)!;
+    const candidate: Cut = {
+      id: c.id, face: f, from, across: g,
+      offset: r[d][0], width: r[d][1] - r[d][0], depth: span,
+      stopMin: r[g][0], stopMax: b[g] - r[g][1],
+    };
+    const a = cutRegion(b, candidate);
+    if (order.every((k) => Math.abs(a[k][0] - r[k][0]) <= EPS && Math.abs(a[k][1] - r[k][1]) <= EPS)) return candidate;
+  }
+  return null;
+}
+
+/**
  * rebaseCuts' throwing condition, asked BEFORE anything changes (fu 203): a
  * cut INTO `b` from the end a resize along world axis k would move. Every
  * `resize` caller asks it first, so a design that arrives already cut there is
  * skipped with a reason instead of failing the whole run after a paid call.
  * `face` and `from` are what the throw reads and `storedAsShape` changes
- * neither, so the stored form answers it. `end` is a WORLD end; it is mapped
- * to the part's own end with endFacing, since a turn may reverse axis k.
+ * neither, so the stored form answers it. It asks AFTER the same re-facing
+ * rebaseCuts does (fu 205): a cut that refaceFromEnd can re-store from another
+ * face is not "cut into the end", it follows the part. `end` is a WORLD end;
+ * it is mapped to the part's own end with endFacing, since a turn may reverse
+ * axis k.
  */
 const cutIntoEnd = (b: Board, k: number, end: 'min' | 'max') => {
   const local = endFacing(b, k, end === 'min' ? -1 : 1);
-  return b.cuts.some((c) => c.face === axisDimensions(b)[k] && c.from === local);
+  const d = axisDimensions(b)[k];
+  return b.cuts.some((c) => c.face === d && c.from === local && refaceFromEnd(b, c, d) === null);
 };
 
 /**
@@ -80,9 +119,12 @@ const cutIntoEnd = (b: Board, k: number, end: 'min' | 'max') => {
  *   ordering rabbets before dados turned every bookcase bottom's rabbet into a
  *   notch stopped 1/4in short of each end, and the back drove into it. A cut
  *   POSITIONED flush with the end is NOT extended: it stays where it is.
- * - A cut INTO `d` from the moving end has no defined answer, so it throws.
+ * - A cut INTO `d` from the moving end is re-faced from another face its box
+ *   reaches (fu 205) and then stays put; only one that cannot be throws.
  *
- * Each cut is first re-stored the way it runs where the sheet accepts it
+ * A cut stored INTO the moving end is first re-faced (above), BEFORE the shape pass
+ * below, so a re-faced cut that spans all of `d` can still be re-stored as running.
+ * Each cut is then re-stored the way it runs where the sheet accepts it
  * (`storedAsShape`'s guard; a refused cut keeps its stored form and the old
  * rule), so the rule above reads the cut's shape: a cut that RUNS along `d` to the moving end keeps
  * running out; one POSITIONED at that end stays (follow-up 199).
@@ -101,6 +143,13 @@ function rebaseCuts(b: Board, d: Dimension, end: 'min' | 'max', amount: number, 
   // for the read (a cut spanning all of the old length is not full-length on
   // the grown one).
   const before: Board = { ...b, [d]: was };
+  // Follow-up 205: a cut stored INTO the moving end is re-faced first when its box
+  // reaches another face; it then stays put (positioned along d). Only a cut that
+  // cannot be re-faced still reaches the throw below (cutIntoEnd refuses it first).
+  // This runs BEFORE the shape pass: a re-faced full-length cut has d as its position
+  // axis, and only storedAsShape can re-store it as RUNNING along d (so it runs out on
+  // growth). Afterwards it would be left positioned and stop short of the grown end.
+  b.cuts = b.cuts.map((c) => (c.face === d && c.from === end ? refaceFromEnd(before, c, d) ?? c : c));
   const solids = boardSolids(before);
   b.cuts = b.cuts.map((c) => storedAsShape(before, c, solids));
   b.cuts = b.cuts.filter((c) => {
