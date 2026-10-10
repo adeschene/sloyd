@@ -11,6 +11,8 @@ import { findSites, jointKey, rangesOf } from './sites';
 import type { JointKind, Site } from './sites';
 import { defaultChoice } from './choose';
 import { boxOf } from './pocket';
+import { plainForRefine } from '../refine';
+import { worldSolids } from '../../document/designCheck';
 
 // The harness and fixtures of the measured spike (126/126 exact round trips), made permanent.
 
@@ -210,6 +212,59 @@ describe('a v11 file with a joined on-edge rail migrates and passes the gate (fu
     const flat = flatDocument(migrated);
     expect(flat.boards.find((b) => b.name === 'Rail')!.cuts).toEqual(rail.cuts);
     expect('refused' in gateUnjoin(flat)).toBe(false);
+  });
+});
+
+// The symmetric tenons above cannot see a mirrored joint. This one is ONE-SIDED: a pocket in one broad face of an
+// on-edge rail, stored in v11 form (from 'max' there, because v11's on-edge thickness ran the other way).
+//
+// Hand derivation. Rail 24 x 3.5 x 0.75, on-edge turn 0: X = length, Y = width, Z = thickness REVERSED (v12), so
+// part thickness t sits at world z = pos.z + T - t, T = 0.75. Brace (a 10-long part along Z) stands on the rail's
+// +Z face with its end, so the pocket must open on the +Z face: part thickness [0, 0.25] (from 'min') ->
+// world z in [pos.z + 0.5, pos.z + 0.75]. Length stops 10 and 12.5 -> length 10 .. 24 - 12.5 = 11.5 -> world x in
+// [pos.x + 10, pos.x + 11.5]; offset 1, width 1.5 across width -> world y in [pos.y + 1, pos.y + 2.5].
+// A v11 build stored that cut as from 'max' (its thickness ran the other way): unmigrated, the pocket would be
+// at pos.z + [0, 0.25], the face away from the brace.
+describe('a one-sided joint on an on-edge rail survives the v11 -> v12 load (fu 215, review focus 4)', () => {
+  const rail = () => design(
+    { name: 'Rail', at: [0, 20, 0], size: [24, 3.5, 0.75] },
+    { name: 'Brace', at: [10, 21, 0.75], size: [1.5, 1.5, 10] });
+  const joined = () => {
+    const P = rail();
+    const sites = findSites(P);
+    return applyJoints(P, sites, sites.map((x) => ({ site: x.id, joint: 'dado' as const, depth: 0.25 }))).doc;
+  };
+  const asV11 = () => {
+    const J = joined();
+    const boards = J.boards.map((b) => (b.posture === 'on-edge'
+      ? { ...b, cuts: b.cuts.map((c) => ({ ...c, from: c.from === 'min' ? 'max' as const : 'min' as const })) } : b));
+    return { J, doc: { ...J, version: 11, boards, instances: [], definitions: [], shapes: [] } };
+  };
+  const inSolid = (b: FlatDocument['boards'][number], p: [number, number, number]) =>
+    worldSolids(b).some((s) => [0, 1, 2].every((i) => p[i]! > s.min[i]! + 1e-9 && p[i]! < s.max[i]! - 1e-9));
+
+  it('the rail is on-edge with one one-sided cut, stored differently in v11', () => {
+    const { J, doc } = asV11();
+    const r = J.boards.find((b) => b.name === 'Rail')!;
+    expect(r.posture).toBe('on-edge');
+    expect(r.cuts).toHaveLength(1);
+    expect(r.cuts[0]).toMatchObject({ face: 'thickness', from: 'min', depth: 0.25, stopMin: 10, stopMax: 12.5 });
+    expect(doc.boards.find((b) => b.name === 'Rail')!.cuts[0]!.from).toBe('max');
+  });
+
+  it('migrated, the pocket is on the +Z face (hand-derived world box), the gate passes, Refine accepts', () => {
+    const { doc } = asV11();
+    const migrated = migrateDocument(doc);
+    const flat = flatDocument(migrated);
+    const r = flat.boards.find((b) => b.name === 'Rail')!;
+    const [px, py, pz] = r.position;
+    const x = px! + 10.75; const y = py! + 1.75;
+    expect(inSolid(r, [x, y, pz! + 0.625])).toBe(false);   // inside the pocket: z in [pz+.5, pz+.75]
+    expect(inSolid(r, [x, y, pz! + 0.25])).toBe(true);     // below the pocket floor, still wood
+    expect(inSolid(r, [px! + 5, y, pz! + 0.625])).toBe(true); // outside the pocket's length stops
+    expect(inSolid(r, [x, py! + 0.5, pz! + 0.625])).toBe(true); // outside its width run
+    expect('refused' in gateUnjoin(flat)).toBe(false);
+    expect(plainForRefine(migrated)).toHaveProperty('plain');
   });
 });
 
