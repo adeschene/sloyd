@@ -4809,3 +4809,17 @@ cut stored into the MOVING end) and the old rule leaves it in place, so it ends 
   that REACHES the moving end — stored from it, or stored from the other end with a depth spanning all of `d`
   — so the max-stored rabbet runs out the grown length like the other forms; a partial far-end cut is left as
   stored (its stored form is pinned, so it does not churn). Spec §2 amended.
+
+## From the posture-handedness round — 2026-10-10
+
+**246. Small gaps the round judged fine to leave.** Record-only; the final reviews' deferred minors.
+- **Stale comments.** `PartDiagram.tsx`'s `TOP` doc ("nothing is DRAWN above it") and module doc still describe
+  columns as growing only downward; a vUp column's labels now sit above the outline after the lift.
+  `docs/diagram-overlap-sweep.js` (~line 41) says no text is drawn above the outline and quotes a 5.83 clearance;
+  a lifted depth label sits 4 units from the viewBox top. The browser overlap sweep was not re-run on flipped views
+  (the live check read one flipped view by eye: no overlap).
+- **Tests.** `snapPoints.test.ts` (~line 204) cites another test by line number; the one-sided joint probes in
+  `unjoin.test.ts` pin the face, floor and one side of each in-plane span, not the far bounds; the restated
+  "version-8 never mirrored" test checks the on-edge branch's stored values only (world solids are covered by the
+  v12 migration cases).
+- **Status:** record-only.
