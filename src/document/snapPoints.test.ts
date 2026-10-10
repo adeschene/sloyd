@@ -518,7 +518,8 @@ describe('cutSnapPoints — stopped cuts', () => {
     expect(pts.filter((p) => p.at[0] === 11)).toHaveLength(8);
     expect(pts.filter((p) => p.at[0] === 10.25)).toHaveLength(9);
     expect(pts.filter((p) => p.at[0] === 10.75)).toHaveLength(0);
-    expect(pts.filter((p) => p.at[0] === 10).length).toBeGreaterThan(8);
+    // X = 10 holds both mouths: the mortise's 8 points plus the dado's 6 (15 = 9 floor + 6 mouth, line 208) = 14.
+    expect(pts.filter((p) => p.at[0] === 10)).toHaveLength(14);
   });
 });
 

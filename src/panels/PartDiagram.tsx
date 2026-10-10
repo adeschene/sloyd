@@ -59,8 +59,6 @@ interface Leader {
   after?: string;
   /** A label just past the band with no run of its own (depth). */
   trailing?: string;
-  /** The same label placed just BEFORE the band instead (a vUp column; see `orientColumn`). */
-  leading?: string;
 }
 
 /**
@@ -74,13 +72,18 @@ interface Leader {
 const drawnSpan = (view: DiagramView, span: Span): Span =>
   view.vUp ? [view.v - span[1], view.v - span[0]] : span;
 
+/**
+ * A column leader as DRAWN: the runs swap ends (before/after) and the span flips. The depth label is
+ * dropped here on purpose: a vUp column's labels are not placed from this drawn leader but from the
+ * UNFLIPPED one, packed in mirrored coordinates (see `columnLabels`), so depth stays "past the band"
+ * in the mirrored sense and the pack grows the way the unflipped pack does.
+ */
 const orientColumn = (view: DiagramView, l: Leader): Leader =>
   view.vUp
     ? {
         key: l.key, band: l.band, span: drawnSpan(view, l.span),
         ...(l.after !== undefined ? { before: l.after } : {}),
         ...(l.before !== undefined ? { after: l.before } : {}),
-        ...(l.trailing !== undefined ? { leading: l.trailing } : {}),
       }
     : l;
 
@@ -97,17 +100,13 @@ const stopLeader = (cut: DiagramCut, span: Span): Leader | null =>
 const present = <T,>(x: T | null): x is T => x !== null;
 
 /**
- * A leader's labels in drawing order, each centred on what it measures. `lo`
+ * A leader's labels in packing order (increasing distance from the leader's own origin edge), each centred on what it measures. `lo`
  * and `hi` are the outline's edges on the leader's axis, `b` its band. The
  * position leader's three centres are exactly the ones this file used before
  * stops existed — the characterisation test pins that.
  */
 const labelItems = (l: Leader, lo: number, hi: number, b: { start: number; size: number }) => {
   const items: { text: string; centre: number; width: number }[] = [];
-  if (l.leading !== undefined) {
-    const w = labelWidth(l.leading);
-    items.push({ text: l.leading, centre: b.start - GAP_X - w / 2, width: w });
-  }
   if (l.before !== undefined) {
     items.push({ text: l.before, centre: (lo + b.start) / 2, width: labelWidth(l.before) });
   }
@@ -195,43 +194,70 @@ export function PartDiagram({ view }: { view: DiagramView }) {
     ...hCuts.map((c) => positionLeader(c, c.h)),
     ...vCuts.map((c) => stopLeader(c, c.h)).filter(present),
   ];
-  const colLeaders: Leader[] = [
+  const rawColumns: Leader[] = [
     ...vCuts.map((c) => positionLeader(c, c.v)),
     ...hCuts.map((c) => stopLeader(c, c.v)).filter(present),
-  ].map((l) => orientColumn(view, l));
+  ];
+  const colLeaders = rawColumns.map((l) => orientColumn(view, l));
   // The left gutter: one COL-wide column per vertical leader, plus a fixed
   // pad separating the last column's tick marks from the outline. Zero when
   // there are none, so a board with no vertical leaders draws exactly as it
   // did before this round.
   const left = COL * colLeaders.length + (colLeaders.length ? LEFT_PAD : 0);
 
-  const top = TOP;
+  /**
+   * Column labels, packed UNBOUNDED (see the module doc comment for why no upper bound is assumed),
+   * for an outline whose top edge is at `top`.
+   *
+   * An unflipped column packs top-down from `top`, growing DOWN past the outline. A vUp column is its
+   * exact mirror (fu 215): the UNFLIPPED leader is packed in mirrored coordinates m = bottom - y,
+   * from the bottom edge, growing UP, and mapped back, so a cut near the vertical max end of a flipped
+   * view (drawn at the top) lays out as the mirror of the same cut unflipped. Its labels may reach above
+   * `top`; the caller lifts the whole figure by that overhang. DOM order stays top to bottom.
+   */
+  const layoutColumns = (top: number) => {
+    const bottom = top + fit.drawnV;
+    return colLeaders.map((l, i) => {
+      const b = bandOn(l.span, fit.sy, top, fit.drawnV);
+      let items: ReturnType<typeof labelItems>;
+      let ys: number[];
+      if (view.vUp) {
+        const raw = rawColumns[i]!;
+        const items0 = labelItems(raw, 0, fit.drawnV, bandOn(raw.span, fit.sy, 0, fit.drawnV));
+        const ms = packRow(items0, 0, Infinity, GAP_X);
+        items = items0.reverse();
+        ys = ms.map((m) => bottom - m).reverse();
+      } else {
+        items = labelItems(l, top, bottom, b);
+        ys = packRow(items, top, Infinity, GAP_X);
+      }
+      return {
+        l, b, items, ys,
+        // Anchored at `fit.offsetX`, not 0 — under the shrink branch (a tall
+        // narrow board) `offsetX` can be several hundred units, and the gutter
+        // has to sit immediately left of the OUTLINE, not left of the viewBox's
+        // own left edge, or the leader line points at empty space instead of
+        // the board (found by mutation review: a 450-unit gap on a 24" x
+        // 100-15/16" panel).
+        x: fit.offsetX + COL * (i + 1) - TICK,
+        labelX: fit.offsetX + COL * i + LABEL_ASCENT,
+      };
+    });
+  };
+  // A vUp column's labels can reach above the outline; lift the figure by the worst overhang past TOP
+  // (zero for any unflipped view, so those draw exactly as before).
+  const lift = view.vUp
+    ? Math.max(0, ...layoutColumns(TOP).flatMap((c) => c.items.map((it, k) => TOP - (c.ys[k]! - it.width / 2))))
+    : 0;
+
+  const top = TOP + lift;
   const bottom = top + fit.drawnV;
   const leaders = bottom + GAP;
-
-  // Column labels, packed UNBOUNDED (see the module doc comment for why no
-  // upper bound is assumed here). Computed before `height` because `height`
-  // has to grow to fit whichever column runs deepest.
-  const columns = colLeaders.map((l, i) => {
-    const b = bandOn(l.span, fit.sy, top, fit.drawnV);
-    const items = labelItems(l, top, bottom, b);
-    const ys = packRow(items, top, Infinity, GAP_X);
-    return {
-      l, b, items, ys,
-      // Anchored at `fit.offsetX`, not 0 — under the shrink branch (a tall
-      // narrow board) `offsetX` can be several hundred units, and the gutter
-      // has to sit immediately left of the OUTLINE, not left of the viewBox's
-      // own left edge, or the leader line points at empty space instead of
-      // the board (found by mutation review: a 450-unit gap on a 24" x
-      // 100-15/16" panel).
-      x: fit.offsetX + COL * (i + 1) - TICK,
-      labelX: fit.offsetX + COL * i + LABEL_ASCENT,
-    };
-  });
-  // The figure grows to fit whichever column's LAST label runs deepest — the
-  // depth label for a position column, the far stop (or band) for a stop column.
+  const columns = layoutColumns(top);
+  // The figure grows to fit whichever column's deepest label runs lowest (the order of an unflipped
+  // column's items is its top-to-bottom order, so that is its last; a vUp column's is its first).
   const maxColumnBottom = columns.length
-    ? Math.max(...columns.map((c) => c.ys[c.ys.length - 1] + c.items[c.items.length - 1].width / 2))
+    ? Math.max(...columns.flatMap((c) => c.items.map((it, k) => c.ys[k]! + it.width / 2)))
     : 0;
 
   const height = Math.max(leaders + ROW * rowLeaders.length + BOTTOM, maxColumnBottom + BOTTOM);

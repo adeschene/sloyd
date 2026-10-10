@@ -517,14 +517,32 @@ describe('PartDiagram label collisions — the seven sweep geometries', () => {
     expect([...stopRow!.querySelectorAll('text')].map((t) => t.textContent)).toEqual(['2"', '19"', '3"']);
   });
 
-  it('12b vUp pressure — a cut at the vertical MAX end (the TOP of a vUp view) packs its labels inside the figure', () => {
-    // v [5.25, 5.5] of 5.5 is drawn at the very top, so the leading depth label
-    // is clamped at `top` and the band and offset labels cascade below it.
+  it('12b vUp pressure — a cut at the vertical MAX end (the TOP of a vUp view) lays out as the mirror of the unflipped pack', () => {
+    // 24 x 5.5 board, s = 1000/24 per inch, V drawn = 5.5s = 229.1667. Cut v [5.25, 5.5]: band 0.25s = 10.4167
+    // tall, flush with the top edge. CHAR_W = 12.4, so '5-1/4"' = 74.4, '1/4"' = 49.6, '3/8" deep' = 111.6 wide.
+    // Packed in mirrored coordinates m (up from the bottom edge, as the unflipped column packs down from the top):
+    //   offset  centre 218.75/2 = 109.375            left 72.175,  cursor 72.175+74.4+8 = 154.575
+    //   band    centre 218.75 + 5.2083 = 223.9583    left 199.158 (>= cursor, stays), cursor 199.158+49.6+8 = 256.758
+    //   depth   ideal centre 229.1667+8+55.8 = 292.967, left 237.167 < cursor -> left 256.758, centre 312.558
+    // The depth label's far end is then 312.558+55.8 = 368.358 up from the bottom edge, i.e. above the outline top
+    // by 139.19 past TOP, so the figure lifts by 139.19: top = 143.19, bottom = 372.36 and y = bottom - m:
+    //   depth y 59.80 (its upper end sits exactly at TOP = 4), band y 148.40 (the band's own centre, 143.19 + 5.21),
+    //   offset y 262.99 (the middle of its run, band foot 153.6 to the bottom edge).
     const c = draw({ cuts: [dado({ across: 'length', offset: 5.25, width: 0.25 })] });
     check(c);
-    const ys = [...c.querySelectorAll('.cutlist-diagram-leader-v text')]
-      .map((t) => [t.textContent, Number(t.getAttribute('y'))] as const).sort((a, b) => a[1] - b[1]);
-    expect(ys.map(([t]) => t)).toEqual(['3/8" deep', '1/4"', '5-1/4"']);
+    const y = (t: string) => Number([...c.querySelectorAll('.cutlist-diagram-leader-v text')].find((e) => e.textContent === t)!.getAttribute('y'));
+    const o = c.querySelector('.cutlist-diagram-outline')!;
+    const top = Number(o.getAttribute('y'));
+    const bottom = top + Number(o.getAttribute('height'));
+    const s = 1000 / 24;
+    expect(top).toBeCloseTo(143.19, 1);
+    expect(bottom - top).toBeCloseTo(5.5 * s, 6);
+    expect(y('1/4"')).toBeCloseTo(top + 0.125 * s, 6);                 // centred on its band
+    expect(y('3/8" deep')).toBeCloseTo(59.80, 1);
+    expect(y('3/8" deep') - 55.8).toBeCloseTo(4, 1);                   // lifted, not clamped: its end sits at TOP
+    expect(y('5-1/4"')).toBeCloseTo((top + 0.25 * s + bottom) / 2, 6); // centred on its own run
+    // reading order top to bottom: depth, band, offset, with the 8-unit gap between depth and band
+    expect(y('1/4"') - 24.8 - (y('3/8" deep') + 55.8)).toBeCloseTo(8, 6);
   });
 
   it('12 crowded stops — a mortise with sixteenth stops still never overlaps', () => {
@@ -581,13 +599,14 @@ describe('PartDiagram — a view with no stopped cut draws exactly as before', (
       dado({ id: 'a', from: 'max', across: 'width', offset: 6, width: 0.75, depth: 0.125 }),
       dado({ id: 'b', from: 'max', across: 'length', offset: 4, width: 0.75, depth: 0.375 }),
     ] }, 2253356282],
-    // The FLIPPED twin of the board above (thickness|min is vUp): the pin is a
+    // The FLIPPED twin of the board above (thickness|min is vUp; re-pinned 2157391699 -> 2055517075 when its column
+    // packing became the mirror of the unflipped one, fu 215 final review): the pin is a
     // regression fingerprint of the flipped layout, not a hand derivation; the
     // hand-derived geometry is in the vUp stop-leader tests below.
     ['row and column crossing, vUp', { length: 24, width: 12, cuts: [
       dado({ id: 'a', across: 'width', offset: 6, width: 0.75, depth: 0.125 }),
       dado({ id: 'b', across: 'length', offset: 4, width: 0.75, depth: 0.375 }),
-    ] }, 2157391699],
+    ] }, 2055517075],
     ['no cuts', {}, 527349744],
   ])('%s', (_, board, pinned) => {
     expect(fingerprint(board)).toBe(pinned);
@@ -828,5 +847,6 @@ describe('PartDiagram — vUp stop columns mirror the unflipped geometry (fu 215
     expect(ticks).toHaveLength(3);
     [lo, lo + 4.5 * s, hi].forEach((t, i) => expect(ticks[i]).toBeCloseTo(t, 6));
     expect(texts.map(([t]) => t)).toEqual(['4-1/2"', '1"']);
+    texts.forEach(([, y], i) => { expect(y).toBeGreaterThan(runs[i]![0]!); expect(y).toBeLessThan(runs[i]![1]!); });
   });
 });

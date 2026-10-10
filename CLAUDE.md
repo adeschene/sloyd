@@ -142,7 +142,7 @@ would be a second implementation, not a parallel path.
 
 Every load path (open, import, autosave-restore) runs `migrateDocument` before the
 document is trusted. `CURRENT_VERSION` is **12**. Steps run one version at a time, in
-order, on RAW data before `validateBoard` (inv 11) — except v10→v11.
+order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11→v12, which run after.
 
 | Step | Adds | Shape | Harm a build one version back would do |
 |---|---|---|---|
@@ -156,12 +156,12 @@ order, on RAW data before `validateBoard` (inv 11) — except v10→v11.
 | 8→9 | `Board.link` | document-level | silent loss |
 | 9→10 | `instances`, `definitions` (default `[]`) | document-level | every part in an assembly vanishes |
 | 10→11 `linksToShapes` | `shapes` (default `[]`) | **after validation** | un-shares every component |
-| 11→12 `onEdgeToV12` | on-edge cuts mirrored along thickness | **after validation** | refuses the file (rollback strands projects saved since) |
+| 11→12 `onEdgeToV12` | on-edge cuts mirrored along thickness | **after validation** | wrong geometry (on-edge one-handed cuts mirrored) |
 
 - **A bump exists for the refusal gate, not for upgrading** — absent fields default
   regardless. Argue *your* field's harm; don't inherit another bump's argument.
-- **v8's step is NOT idempotent** (it mirrors): the `d.version < 8` guard is all that stops
-  a v8 file being re-mirrored on every load.
+- **v8's and v12's steps are NOT idempotent** (they mirror): the `d.version < 8` and
+  `d.version < 12` guards are all that stop a file being re-mirrored on every load.
 - **v10→v11 runs after validation**, guarded by `d.version < 11`, before `repairTree`,
   because it needs validated values and world order to judge equal link members (spec
   §8.3). Each link becomes one `Shape` from its first member; equal members become shaped
@@ -335,7 +335,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     after**; two-sided, with a floor (`GIZMO_MIN_CAP_INCHES`).
 11. **Migration steps run on raw data, before `validateBoard`, in version order**, because
     the validator's fallbacks are legal-but-wrong values. Upgrade first, validate second
-    (the one exception, v10→v11, is in Versioning).
+    (the exceptions, v10→v11 and v11→v12, are in Versioning).
 12. **Grain textures are cached and never disposed; per-board variation lives in the `uv`
     attribute, never on the texture.** Offset is zeroed on a `fit` axis.
 13. *Retired in v3* (`axisDimensions` is single-sourced; since v8 derived from `axisFrame`,
@@ -503,7 +503,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 2789 tests across 91 files
+npm test           # Vitest, currently 2793 tests across 91 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

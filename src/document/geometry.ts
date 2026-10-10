@@ -49,17 +49,15 @@ export function horizontalOf(posture: Posture): [Dimension, Dimension] {
  * Posture names the dimension that points up; the other two take X and Z, and
  * rotation picks which is which and in which direction — at 0 the earlier of
  * [length, width, thickness] goes on X; each further quarter turn is a TRUE
- * rotation counter-clockwise seen from above. Turn 0 is the pre-v8 mapping
- * for flat and upright; on-edge's turn 0 reverses thickness (schema 12, fu 215:
- * every posture has ONE hand). Before v8, 90 was a mirror across the X=Z diagonal (no
+ * rotation counter-clockwise seen from above. Before v8, 90 was a mirror across the X=Z diagonal (no
  * direction existed), so a part's cuts could never face (-X, +Z): one corner
  * of a frame was unreachable for identical parts.
  *
  * At turn 0 this reproduces all four orientations v2 could reach and adds the
- * two it could not, EXCEPT that on-edge's thickness axis is now reversed
- * (schema 12, fu 215): flat and upright agree with the v2 rows exactly, and an
- * on-edge part's stored cuts are mirrored along thickness by the v11 -> v12
- * migration (`onEdgeToV12`) so nothing moves on screen. The v2 rows are
+ * two it could not, with ONE exception: on-edge's thickness axis is reversed
+ * (schema 12, fu 215: every posture has ONE hand). Flat and upright agree with
+ * the v2 rows exactly, and an on-edge part's stored cuts are mirrored along
+ * thickness by the v11 -> v12 migration (`onEdgeToV12`) so nothing moves on screen. The v2 rows are
  * asserted explicitly in the tests, because agreeing with the old table is
  * what makes this a generalisation rather than a rewrite of every document
  * ever saved.

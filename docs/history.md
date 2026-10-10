@@ -315,8 +315,10 @@ length/min draw vertical upward (`DiagramView.vUp`, cells and leaders via `drawn
 every view is a true view, pinned for every posture x turn x face x side. Task 4 added the cut-list test (a
 flat and an on-edge part with one stopped dado share a row AND are congruent by a proper rotation, derived by
 hand; mutating `axisFrame`'s toggle fails it) and recorded the docs. What the reviews caught: without the
-migration a joined on-edge design (repair-joints fixture 5) fails the joint gate (`gateUnjoin` refuses), and
-passes with it, so the unjoin gate test is a real pin, not decoration. Test count 2763 -> 2789 across the
+migration a joined on-edge design fails the joint gate (`gateUnjoin` refuses), and passes with it. The pins are
+unjoin.test.ts's two on-edge describes (the symmetric-tenon rail, and the final-review ONE-SIDED pocket in an
+on-edge rail, which a mirrored joint cannot pass) and throwGuards.test.ts's `plainForRefine` on fixture 5; the
+unjoin gate tests are real pins, not decoration. Test count 2763 -> 2793 across the
 round. The live browser check (an on-edge part with a stopped dado saved under v11 reloads unchanged, six
 sheet views read true) is the controller's, run on the dev server after the final review. Rollback cost:
 a build below 12 refuses every project saved since the deploy; export first.
