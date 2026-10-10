@@ -78,7 +78,10 @@ describe('repairJoints returns null for designs this bug did not damage', () => 
   });
   it('a shared assembly joined with TODAY’s joinery', () => {
     const o = joinedToday(load(f2));
-    expect(o.boards.some((b) => b.cuts.length > 0 && o.boards.some((t) => t !== b && t.id.split('/').pop() === b.id.split('/').pop()))).toBe(true); // twins with cuts: past the pre-check
+    // Twins as the repair judges them: same last id segment AND same own name (fu 244: not id alone).
+    const own = (b: Board) => b.name.split(' › ').pop();
+    const twins = (b: Board, t: Board) => t !== b && t.id.split('/').pop() === b.id.split('/').pop() && own(t) === own(b);
+    expect(o.boards.some((b) => b.cuts.length > 0 && o.boards.some((t) => twins(b, t)))).toBe(true); // twins with cuts: past the pre-check
     expect(repairOf(joinedTodayDoc(load(f2)))).toBeNull();
   });
   it('the same with a hand-added cut (evidence rule: Refine’s gate message stands)', () => {
@@ -164,6 +167,17 @@ describe('repairJoints refuses damage it cannot account for', () => {
     // Check the filler really covers the box (posture decides which dimension runs on which axis):
     // if worldSolids(filler)[0] does not equal the box, fix the FILLER's dimensions, not the expectation.
     expect(repairJoints({ ...flat, boards: [...flat.boards, filler] }, [...keys2, freshKey()])).toEqual({ refused: REPAIR_REFUSAL });
+  });
+});
+
+describe('repairDocument passes a refusal through (fu 244)', () => {
+  it('a damaged fixture with a hand-added cut, written into its tree', () => {
+    const fx = load(f2);
+    const flat = flatDocument(fx.damaged);
+    const boards = flat.boards.map((b) => (b.name === 'Front › Rail' ? { ...b, cuts: [...b.cuts, { ...b.cuts[0]!, id: 'hand', offset: b.cuts[0]!.offset + 1 }] } : b));
+    const doc = migrateDocument(writeBackFlat(fx.damaged, flat.boards, boards));
+    expect(repairJoints(flatDocument(doc), storedKeys(doc))).toEqual({ refused: REPAIR_REFUSAL });
+    expect(repairDocument(doc)).toEqual({ refused: REPAIR_REFUSAL });
   });
 });
 

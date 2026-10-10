@@ -9,7 +9,7 @@ import { worldParts } from '../document/tree';
 import type { SloydDocument } from '../document/types';
 import { DETAIL_CAPS, limitLines, placedCeiling } from './prompt';
 import type { Detail } from './prompt';
-import { gateUnjoin } from './joints/unjoin';
+import { GATE_REFUSAL, gateUnjoin } from './joints/unjoin';
 import type { RecordedJoint } from './joints/unjoin';
 
 /** Refine by instruction (refine spec §3). The refine text rides in the USER turn; SYSTEM_PROMPT is Generate's, unchanged. */
@@ -46,11 +46,18 @@ export type RefineBase = { plain: SloydDocument; joints: RecordedJoint[] | null 
  * (invariant 46), so copies that come out identical stay shared.
  */
 export function plainForRefine(doc: SloydDocument): RefineBase {
-  const flat = flatDocument(doc);
-  if (!flat.boards.some((b) => b.cuts.length > 0)) return { plain: doc, joints: null };
-  const g = gateUnjoin(flat);
-  if ('refused' in g) return { refused: { reason: 'joints', message: g.refused } };
-  return { plain: migrateDocument(writeBackFlat(doc, flat.boards, g.plain)), joints: g.joints };
+  // Runs inside the Refine dialog's memo: a throw would break its render, so it refuses as the gate
+  // does and keeps the cause on the console (follow-up 244).
+  try {
+    const flat = flatDocument(doc);
+    if (!flat.boards.some((b) => b.cuts.length > 0)) return { plain: doc, joints: null };
+    const g = gateUnjoin(flat);
+    if ('refused' in g) return { refused: { reason: 'joints', message: g.refused } };
+    return { plain: migrateDocument(writeBackFlat(doc, flat.boards, g.plain)), joints: g.joints };
+  } catch (e) {
+    console.error('Sloyd: reading joints back threw', e);
+    return { refused: { reason: 'joints', message: GATE_REFUSAL } };
+  }
 }
 
 /** `base`: plainForRefine(doc), when the caller already has it (the dialog computes it once per document). */

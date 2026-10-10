@@ -24,9 +24,10 @@ handicraft education tradition built around hand woodworking.
 - **Production matches `master`** as of 2026-10-10: the join-repair-text round, bundle
   `index-DtJ_Cj0E.js`, CSS `index-QQ-rJZea.css`, merge `cf9302f`, **schema 11** (unchanged).
   Test count is under Commands.
-- **Nothing is pending. NO SUCCESSOR IS
+- **Pending deploy: the record-only round** (fu 243/244, merged 2026-10-10, no schema change);
+  `master` is ahead of production until it ships. **NO SUCCESSOR IS
   CHOSEN: ask what to work on; do not pick.** Open near the recent code:
-  241, 243, 244, 215 (posture handedness, a question),
+  241 (open by decision), 215 (posture handedness, a question),
   205/206 (joinery's safe refusals), 221, 225–235. See Open follow-ups below.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
@@ -71,6 +72,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | estimate range | 10-09 | — | Refine/joinery cost shown as a measured range (fu 236) |
 | refined name | 10-10 | — | Derived project names count a repeat ("— refined 2", "copy 2"; fu 237) |
 | join repair text | 10-10 | — | A joined Refine labels joinery's repair rounds "Choosing joints — …" (fu 242) |
+| record-only 243/244 | 10-10 | — | Dialog memos refuse instead of throwing; residue tests; live pass (fu 243, 244) |
 
 ### The deployment rule
 
@@ -491,7 +493,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 2589 tests across 88 files
+npm test           # Vitest, currently 2594 tests across 90 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

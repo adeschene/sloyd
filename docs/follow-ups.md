@@ -4728,7 +4728,12 @@ the possible joinery calls (up to 1 + MAX_REPAIRS). Cosmetic, but it is money (s
 - `refineDesign`'s `'cuts'` refusal is defence-in-depth (Refine's gate runs first).
 - Re-opening a colliding kept joint re-opens every non-butt kept joint touching the named parts,
   not only the culprit (may over-open a few).
-- **Status:** record-only.
+- **Status:** CLOSED 2026-10-10 by the record-only round (`docs/history.md`), item by item:
+  the unmapped-joint refusal — no change (it is `rejoin`'s null branch; removing it buys nothing);
+  the `alsoPresent` named-part filter — pinned (`src/generate/alsoPresent.test.ts`, mutated);
+  half-lap `side: -1` — no change (consistent with `findSites`); the `'cuts'` refusal — already pinned
+  (`refineDesign.test.ts`); over-opening — closed by decision (the user's re-open ruling; it costs a
+  few extra site choices).
 
 ## From the repair-joints round — 2026-10-09
 
@@ -4741,4 +4746,11 @@ the possible joinery calls (up to 1 + MAX_REPAIRS). Cosmetic, but it is money (s
 - Untested: the App wiring (covered live), `repairDocument` passing a refusal through, `unjoin`'s
   internal refusal text after the `readJoints` split. A test guard matches twins by id only.
 - Not driven live: the refused-repair text, a storage failure, the nested and turned fixtures.
-- **Status:** record-only.
+- **Status:** CLOSED 2026-10-10 by the record-only round (`docs/history.md`), item by item:
+  the hand-duplicated cut — closed by decision (deliberate hand-editing; dropping an identical
+  duplicate changes no geometry); the unguarded memos — FIXED: `repairDocument` and `plainForRefine`
+  catch, log, and return their usual refusals (`src/generate/throwGuards.test.ts`); the finished
+  repair cleared on close — closed by decision (Refine's and joinery's pattern); untested — the
+  pass-through and `unjoin`'s whole reason now pinned, the twin guard matches id AND own name, the
+  App wiring stays covered live; not driven live — all four driven
+  (`docs/browser-verification-repair-joints.md`, "Follow-up 244's live pass").

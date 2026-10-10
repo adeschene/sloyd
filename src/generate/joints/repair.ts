@@ -95,11 +95,18 @@ export type RepairCheck = null | { refused: string } | { doc: SloydDocument; dro
 
 /** The repair written back into the tree (invariant 46), with the placements it un-shared. */
 export function repairDocument(doc: SloydDocument): RepairCheck {
-  const flat = flatDocument(doc);
-  const r = repairJoints(flat, storedKeys(doc));
-  if (r === null || 'refused' in r) return r;
-  const out = migrateDocument(writeBackFlat(doc, flat.boards, r.boards));
-  return { doc: out, dropped: r.dropped, splits: splitCopies(doc, out) };
+  // Runs inside the dialogs' memos: a throw would break their render, so it refuses instead and
+  // keeps the cause on the console (follow-up 244).
+  try {
+    const flat = flatDocument(doc);
+    const r = repairJoints(flat, storedKeys(doc));
+    if (r === null || 'refused' in r) return r;
+    const out = migrateDocument(writeBackFlat(doc, flat.boards, r.boards));
+    return { doc: out, dropped: r.dropped, splits: splitCopies(doc, out) };
+  } catch (e) {
+    console.error('Sloyd: repairing joints threw', e);
+    return { refused: REPAIR_REFUSAL };
+  }
 }
 
 const instanceName = (doc: SloydDocument, path: string) => {
