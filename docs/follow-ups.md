@@ -4793,4 +4793,7 @@ cut stored into the MOVING end) and the old rule leaves it in place, so it ends 
 (`[0.25, 20.5]` in the probe, against `[0, 20.5]` for the same rabbet stored `from: 'min'`).
 - **Reach:** hand-made only. `pocketFor` picks the shallowest face, so joinery never stores such a cut.
   Pre-dates this round (the same on master before it).
-- **Status:** open, low.
+- **Status:** CLOSED 2026-10-10 by the opposite-end-cut round: `rebaseCuts` re-faces every `face === d` cut
+  that REACHES the moving end — stored from it, or stored from the other end with a depth spanning all of `d`
+  — so the max-stored rabbet runs out the grown length like the other forms; a partial far-end cut is left as
+  stored (its stored form is pinned, so it does not churn). Spec §2 amended.

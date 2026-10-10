@@ -29,8 +29,10 @@ The user chose: both forms should JOIN (a notch sitting at the end stays put; th
 
 ## 2. The rule
 
-In `rebaseCuts`, before its filter, each cut with `face === d && from === end` is **re-faced** when it
-can be:
+In `rebaseCuts`, before its filter, each cut with `face === d` that REACHES the moving end — stored from that
+end, or (amended 2026-10-10, follow-up 245) stored from the other end with a depth spanning all of `d` — is
+**re-faced** when it can be (a partial-depth cut at the far end does not reach the moving end and is left
+as stored):
 
 1. Read its box `r = cutRegion(before, c)` on the board as it was before the resize.
 2. Find another dimension `f ≠ d` whose span in `r` reaches one of the board's faces on `f`
