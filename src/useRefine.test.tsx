@@ -37,6 +37,14 @@ describe('useRefine', () => {
     expect(onCreated).toHaveBeenCalledWith('p1');
   });
 
+  it('refining a refined project counts instead of stacking (fu 237)', async () => {
+    const { result } = setup();
+    act(() => result.current.start(client(ok), { ...doc, name: 'Box — refined' }, S));
+    await waitFor(() => expect(result.current.live).toBe(false));
+    expect(createProject.mock.calls[0][0].name).toBe('Box — refined 2');
+    expect(result.current.run).toMatchObject({ projectName: 'Box — refined 2' });
+  });
+
   it('a refused design writes nothing and says why', async () => {
     const { result } = setup();
     const empty = { ...doc, boards: [] };

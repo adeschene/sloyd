@@ -56,3 +56,18 @@ export function dedupeNames<T extends Named>(items: readonly T[]): T[] {
   }
   return out;
 }
+
+/**
+ * A PROJECT name for a project derived from another: Refine's " — refined", joinery's " — joined",
+ * repair's " — repaired", Duplicate's " copy" (follow-up 237). A name already ending in the same
+ * suffix is counted instead of stacked — "Box — refined" → "Box — refined 2" → "… 3" — from the
+ * source's name alone, never the library (project names are not unique; see `duplicateProject`).
+ * A different suffix underneath stacks: "Box — joined — refined" keeps the history. Only a count
+ * of 2 or more without a leading zero is ours; "— refined 1" was typed and gets a fresh suffix.
+ */
+export function derivedName(name: string, suffix: string): string {
+  if (name.endsWith(suffix)) return `${name} 2`;
+  const m = / ([2-9]|[1-9]\d+)$/.exec(name);
+  if (m && name.slice(0, m.index).endsWith(suffix)) return `${name.slice(0, m.index)} ${Number(m[1]) + 1}`;
+  return `${name}${suffix}`;
+}

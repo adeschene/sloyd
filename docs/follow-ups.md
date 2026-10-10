@@ -4672,7 +4672,7 @@ output estimate by a measured factor. Generate's and joinery's estimates may sha
 
 **237. Refining a refined project names it "X — refined — refined".** The spec is silent; "— refined
 2" or stripping a trailing "— refined" would read better.
-- **Status:** open, low.
+- **Status:** CLOSED 2026-10-10 by the refined-name round: `derivedName` counts a repeated suffix ("— refined 2") for Refine, joinery, repair and Duplicate ("copy 2"); see `docs/history.md`.
 
 **238. Refining designs with joints.** The user chose fresh prototypes first (option 1 of 3). A
 joined design is refused before any call. Lifting that needs cuts to survive (or be re-derived)

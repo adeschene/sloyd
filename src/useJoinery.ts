@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { runJoinery } from './generate/run';
 import type { JoineryOutcome, RunProgress } from './generate/run';
 import type { SloydDocument } from './document/document';
+import { derivedName } from './document/names';
 import { LlmError } from './llm/types';
 import type { LlmClient } from './llm/types';
 import { storage } from './storage/browser';
@@ -45,7 +46,7 @@ export function useJoinery(opts: { onCreated: (id: string) => void; onStorageVer
         if ('noSites' in out) { setRun({ status: 'none', costUsd: null }); return; }
         const costUsd = client.estimateCostUsd(out.usage);
         if (ctl.signal.aborted) { setRun({ status: 'cancelled', costUsd }); return; }
-        const name = `${doc.name} — joined`;
+        const name = derivedName(doc.name, ' — joined');
         const id = await storage.createProject({ ...out.result.doc, name }, { activate: false });
         optsRef.current.onStorageVerdict();
         if (!id) { setRun({ status: 'failed', error: 'Could not save the project — storage is unavailable.', costUsd }); return; }

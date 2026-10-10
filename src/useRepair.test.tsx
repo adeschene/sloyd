@@ -28,6 +28,14 @@ describe('useRepair', () => {
     expect(result.current.run).toEqual({ status: 'ready', projectId: 'p1', projectName: `${damaged2.name} — repaired`, dropped: 3, splits: [['Front', 'Back']] });
     expect(onCreated).toHaveBeenCalledWith('p1');
   });
+
+  it('repairing a project named "— repaired" counts instead of stacking (fu 237)', async () => {
+    createProject.mockResolvedValue('p1');
+    const { result } = setup();
+    await act(() => result.current.repair({ ...damaged2, name: 'Frames — repaired' }));
+    expect(createProject.mock.calls[0]![0].name).toBe('Frames — repaired 2');
+    expect(result.current.run).toMatchObject({ projectName: 'Frames — repaired 2' });
+  });
   it('two clicks write one project (review focus 3)', async () => {
     let release!: (v: string) => void;
     createProject.mockReturnValue(new Promise<string>((r) => { release = r; }));

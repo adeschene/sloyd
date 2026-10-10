@@ -754,6 +754,16 @@ describe('project CRUD', () => {
     expect(copy!.name).toBe('Bench copy');
   });
 
+  it('duplicating a copy counts instead of stacking (fu 237)', async () => {
+    const { adapter, activeId } = await boot();
+    await adapter.autoSave(activeId, docWithBoard());
+    const first = await adapter.duplicateProject(activeId);
+    const second = await adapter.duplicateProject(first!);
+    expect((await adapter.loadProject(second!))!.name).toBe('Bench copy 2');
+    const third = await adapter.duplicateProject(second!);
+    expect((await adapter.loadProject(third!))!.name).toBe('Bench copy 3');
+  });
+
   it('duplicateProject returns null for an unknown id', async () => {
     const { adapter } = await boot();
     expect(await adapter.duplicateProject('ghost')).toBeNull();
