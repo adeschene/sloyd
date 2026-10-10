@@ -4669,7 +4669,7 @@ on `userMessage`, so the planner reads "an assembly's parts count once", but `CO
 explains assemblies. Cosmetic: the planner only proposes directions.
 - **Status:** open, low.
 
-**235. Small gaps the round judged fine to leave.** Record-only; the reviews' deferred minors.
+**235. Small gaps the round judged fine to leave.** Closed 2026-10-10; the reviews' deferred minors.
 - **Untested.** A part named in a violation but missing from the authored index; a violation
   spanning two assemblies (the `assemblies.size === 1` guard has no red test of its own); the
   class-split guard in `linkByRole` is load-bearing in one test only (`linksToShapes` re-checks
@@ -4681,7 +4681,7 @@ explains assemblies. Cosmetic: the planner only proposes directions.
   stays because tsc needs it.
 - **Not confirmed live.** The collapsed repair wording: the live run came back clean on its first
   call.
-- **Status:** record-only.
+- **Status:** CLOSED 2026-10-10 by the older-record-only round (batch D), item by item: a violation naming a part missing from the authored index, and a violation spanning two assemblies — tested (`assemblyChecks.test.ts`, mutated: the missing part keeps its own name as a between-placement fault; the two-assembly fault lists both assemblies' placements, never "fix the assembly"); the `assemblies.size === 1` guard — still no red test of its own, and none can exist: `every` also needs `internal`, which means ONE placement, so a group over two assemblies cannot reach `all.length > 1` (dropping the guard changes nothing; kept as a cheap defence); `linkByRole`'s class-split guard — closed, `linksToShapes` re-checks equality so no second test can see it; the run-level collapse test — exact text now (the overlap message and the full repair message the model receives, `run.test.ts`, mutated on the suffix and on the repair-prompt tail); `'first' in x` — closed, cosmetic; repeated label in merged `parts` — closed, not shown to the model; `isShaped(b)` in `linkByRole` — closed, not removable: it is dead on generated documents but is also the type narrowing from `StoredBoard` to `Board` that `sameShared` needs, and skipping an already-shaped part is the safe answer for any other caller; the `extentsOf(b as Board)` cast — closed, tsc needs it; the collapsed repair wording not seen live — closed, it needs a paid run that happens to fail, and the unit and run tests pin the exact text.
 
 ## From the refine round — 2026-10-09
 
@@ -4708,7 +4708,7 @@ joined design is refused before any call. Lifting that needs cuts to survive (or
 through the model's box format.
 - **Status:** CLOSED 2026-10-09 by the refine-joined round (`docs/superpowers/specs/2026-10-09-sloyd-refine-joined-design.md`).
 
-**239. Small gaps the round judged fine to leave.** Record-only; the reviews' deferred minors.
+**239. Small gaps the round judged fine to leave.** Closed 2026-10-10; the reviews' deferred minors.
 - **Untested.** The material-label-identical guard in `diffDesigns` (cannot fire: labels are unique);
   added/removed parts inside a kept placement merging ×N; material/link merges ×N; the dialog's
   storage-unavailable branches and repairing/retrying text; the 240-placed boundary was not mutated.
@@ -4718,7 +4718,7 @@ through the model's box format.
 - **Cosmetic.** The estimate recomputes per keystroke; two `role="status"` elements can render
   together; the `' turned'` detail string is duplicated in its merge key; the change list lives in
   hook state, so closing the dialog mid-run and reopening clears it (joinery's pattern).
-- **Status:** record-only.
+- **Status:** CLOSED 2026-10-10 by the older-record-only round (batch D), item by item: `diffDesigns`' material-label guard — closed, labels are unique so it cannot fire; added/removed parts inside a kept placement, material changes, link gained/lost, and a turned part merging ×N — tested (`designDiff.test.ts`, mutated: dropping any merge key fails its test; the link key's kind component is unobservable, since linked and unlinked cannot both occur for one definition part); the dialog's storage-unavailable branch — tested (message, Refine disabled with a filled form); repairing/retrying text — already pinned by the fu 242 labels test; the 240-placed boundary — already pinned by `refuses at 241 placed parts and not at 240`, now mutated (`>` to `>=` and `REFINE_MAX.placed + 1` both fail); an off-grid value landing an ulp off — closed, zero deltas are not printed so no phantom line; an unplaced definition counting toward distinct parts — FIXED: `distinctParts` counts root parts plus the parts of definitions a placement reaches (root instances, recursively through definitions' own instances, once each, cycle-safe), pinned for an unplaced definition and for one reached only through another; the estimate recomputing per keystroke — closed, cheap (the gate runs once per document); two `role="status"` — FIXED: one status region holding a `<p>` per message (refusal unless a repair notice replaces it, bad limit, storage), none lost, and none when there is nothing to say (the bad-limit message now sits with the others below the form); the `' turned'` string duplicated in its merge key — FIXED: one `TURNED` constant; the change list lost on close-and-reopen mid-run — closed, joinery's pattern.
 
 ## From the refine-joined round — 2026-10-09
 

@@ -63,6 +63,12 @@ export function RefineDialog(p: Props) {
   };
   const canRun = p.refusal === null && settings !== null && settings.instruction !== '' && !p.live && p.libraryAvailable;
   const estimate = p.hasKey && settings ? p.estimate(settings) : null;
+  // One status region, so a screen reader gets one live announcement however many of these hold.
+  const notices = [
+    ...(p.refusal !== null && !p.repairNotice ? [p.refusal] : []),
+    ...(p.refusal === null && badLimit ? ["A max size is not a length — try 36, 3', or 914mm."] : []),
+    ...(!p.libraryAvailable ? ['Refine is unavailable — storage is unavailable, so the result would have nowhere to go.'] : []),
+  ];
   const out = p.run?.status === 'ready' ? p.run.outcome : undefined;
   const field = (label: string, value: string, set: (v: string) => void) => (
     <div className="field generate-limit">
@@ -77,7 +83,7 @@ export function RefineDialog(p: Props) {
       <div className="modal-sheet" ref={sheet} tabIndex={-1}>
         <h2>Refine</h2>
         <p>{`Describe a change to ${p.projectName}. The result is saved as a new project; this one is not changed.`}</p>
-        {p.refusal !== null ? (p.repairNotice ?? <p className="field-error" role="status">{p.refusal}</p>) : (
+        {p.refusal !== null ? (p.repairNotice ?? null) : (
           <>
             <div className="field">
               <label htmlFor="refine-instruction">Instruction</label>
@@ -89,7 +95,6 @@ export function RefineDialog(p: Props) {
               {field('depth', depth, setDepth)}
               {field('height', height, setHeight)}
             </div>
-            {badLimit && <p className="field-error" role="status">A max size is not a length — try 36, 3', or 914mm.</p>}
             <div className="field">
               <label htmlFor="refine-detail">Detail</label>
               <select id="refine-detail" className="input" value={detail} onChange={(e) => setDetail(e.target.value as Detail)}>
@@ -100,7 +105,9 @@ export function RefineDialog(p: Props) {
             </div>
           </>
         )}
-        {!p.libraryAvailable && <p className="field-error" role="status">Refine is unavailable — storage is unavailable, so the result would have nowhere to go.</p>}
+        {notices.length > 0 && (
+          <div role="status">{notices.map((n) => <p key={n} className="field-error">{n}</p>)}</div>
+        )}
         {p.hasKey && p.refusal === null && (
           <p className="generate-plan">
             {p.model && <span>{`Model: ${p.model}`}</span>}
