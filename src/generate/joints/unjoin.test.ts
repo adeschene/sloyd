@@ -4,7 +4,7 @@ import { designToDocument } from '../../document/generated';
 import { flatDocument, migrateDocument } from '../../document/document';
 import type { FlatDocument } from '../../document/document';
 import { SNAP_INCHES } from '../../document/geometry';
-import { GATE_REFUSAL, GATE_TOLERANCE, gateUnjoin, readJoints, rejoin, sameJoined, unjoin } from './unjoin';
+import { GATE_REFUSAL, cutBox, GATE_TOLERANCE, gateUnjoin, readJoints, rejoin, sameJoined, unjoin } from './unjoin';
 import { applyJoints } from './recipes';
 import type { JointChoice } from './recipes';
 import { findSites, jointKey, rangesOf } from './sites';
@@ -197,6 +197,13 @@ describe('gateUnjoin refusals (review focus 2)', () => {
     // unjoin's own reason is internal and names the cut; the gate replaces it.
     const u = unjoin(extra);
     expect('refused' in u && u.refused.startsWith('unexplained cuts on Top')).toBe(true);
+    // The whole reason after the readJoints split (fu 244): "part[min->max]" entries, the hand cut's
+    // box among them. (It crosses the back rabbet, so the rabbet reads as unexplained too.)
+    if (!('refused' in u)) throw new Error('expected a refusal');
+    const box = String.raw`[-\d.e]+,[-\d.e]+,[-\d.e]+->[-\d.e]+,[-\d.e]+,[-\d.e]+`;
+    expect(u.refused).toMatch(new RegExp(String.raw`^unexplained cuts on Top\[${box}\](, Top\[${box}\])*$`));
+    const hb = cutBox(t, t.cuts.at(-1)!);
+    expect(u.refused).toContain(`Top[${hb.min.join(',')}->${hb.max.join(',')}]`);
   });
 
   it('refuses a project joined twice, dados before rabbets', () => {
