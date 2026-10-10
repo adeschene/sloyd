@@ -422,3 +422,46 @@ describe('other copies after Delete, Group and Ungroup in a shared definition (c
     expect(s().tapeAnchor?.at).toEqual(anchor.at);
   });
 });
+
+describe('commitSnapMove refuses a twin target (fu 230)', () => {
+  const twinDoc = (): SloydDocument => ({
+    ...drawerDoc(),
+    instances: [
+      { id: 'i1', name: 'Drawer', definition: 'd1', position: [0, 0, 0], rotation: 0 },
+      { id: 'i2', name: 'Drawer (1)', definition: 'd1', position: [50, 0, 0], rotation: 0 },
+    ],
+    boards: [{ id: 'r1', name: 'Rail', length: 10, width: 2, thickness: 1, position: [0, 30, 0], rotation: 0, posture: 'flat', grain: 'length', material: 'oak', cuts: [] }],
+  });
+  const cornerOf = (path: string) => {
+    const w = worldParts(s().doc).find((b) => b.id === path)!;
+    return snapPointsFor(w).find((p) => p.kind === 'corner')!;
+  };
+  const setup = () => {
+    s().replaceDocument(twinDoc());
+    s().openAssembly('i1');
+    s().selectItem('i1/b1', false);
+    s().setTool('move');
+    s().grabSnapPoint(cornerOf('i1/b1') as never);
+  };
+
+  it('does not snap a part to another placement of itself, and keeps the grab', () => {
+    setup();
+    const before = s().doc;
+    const entries = s().past.length;
+    const t = cornerOf('i2/b1');
+    s().commitSnapMove({ ...t, at: [t.at[0] + 3, t.at[1], t.at[2]] } as never);
+    expect(s().doc).toBe(before);
+    expect(s().past.length).toBe(entries);
+    expect(s().grabbed).not.toBeNull();
+  });
+
+  it('still snaps to a part that is not a twin', () => {
+    setup();
+    const g = cornerOf('i1/b1');
+    const t = cornerOf('r1');
+    s().commitSnapMove(t as never);
+    expect(s().grabbed).toBeNull();
+    const moved = worldParts(s().doc).find((b) => b.id === 'i1/b1')!;
+    expect(moved.position[1] - g.at[1]).not.toBe(0);
+  });
+});

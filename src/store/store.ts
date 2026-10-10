@@ -3,7 +3,7 @@ import {
   boardsBounds, createBoard, createDocument, createGuide, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
   linkPlan, sharedOf, sharedPatch, isShaped, plainOf, pruneShapes, dissolveShapes,
   childrenOf, instanceAt, isCovered, itemPaths, parentPath, worldParts, mapWorld,
-  translateItems, insertItems, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerTurn, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
+  translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerTurn, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
   rotateVec, inverseTurn, groupItems, ungroupItem, turnInstance as turnInstanceOp, updateContainer, lastSegment,
 } from '../document/document';
 import type { Board, BoardSnapPoint, Cut, Instance, Named, Rekey, Rotation, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
@@ -267,7 +267,7 @@ interface StoreState {
    * N - 1 copies of the selection, each shifted k * step * sign along `axis`
    * from the ORIGINAL. ONE undo entry; selects the originals then the copies.
    * Refuses (writes nothing) a count outside 2..MAX_ROW, a non-positive or
-   * non-finite step, or no known ids.
+   * non-finite step, a sign other than +1/-1, or no known ids.
    */
   copyInRow: (ids: string[], count: number, axis: 0 | 1 | 2, sign: 1 | -1, step: number) => void;
   selectBoard: (id: string | null) => void;
@@ -431,6 +431,9 @@ export const useStore = create<StoreState>((set, get) => {
     });
   };
 
+  /** The undo entry the current run of eye toggles pushed, held by identity (see applyHidden). */
+  let hideRunEntry: HistoryEntry | null = null;
+
   /**
    * The ONE writer of `hiddenIds` (hide/unhide spec §2.1). Never runs edit() and
    * never replaces `doc`: the entry it pushes holds the SAME document object.
@@ -442,7 +445,7 @@ export const useStore = create<StoreState>((set, get) => {
    * (invariant 34).
    *
    * Pushes nothing when the set does not change (invariant 4: no entry that
-   * undoes to nothing). Never touches tapeAnchor/tapeHover (invariant 24's
+   * undoes to nothing), and consecutive toggles share one entry (fu 214). Never touches tapeAnchor/tapeHover (invariant 24's
    * prohibition): hiding moves nothing.
    */
   const applyHidden = (next: string[]) => {
@@ -451,9 +454,29 @@ export const useStore = create<StoreState>((set, get) => {
     const exists = itemPaths(doc);
     const clean = [...new Set(next)].filter((id) => exists.has(id));
     if (clean.length === hiddenIds.length && clean.every((id) => hiddenIds.includes(id))) return;
+    // Consecutive toggles share ONE entry (fu 214, ruled): while the top of
+    // `past` is still the entry this run pushed, a further toggle only moves
+    // `hiddenIds`; the entry keeps the set from before the run. The run's end
+    // needs no flag: anything else that pushes (an edit, a gesture snapshot) or
+    // pops (undo) changes the top, and a redo pushes a fresh object. A run that
+    // lands back on its starting set leaves nothing to undo, so its entry goes
+    // (invariant 4).
+    const top = past[past.length - 1];
+    if (top !== undefined && top === hideRunEntry) {
+      const restored = top.hiddenIds.length === clean.length && clean.every((id) => top.hiddenIds.includes(id));
+      set({
+        hiddenIds: clean,
+        past: restored ? past.slice(0, -1) : past,
+        future: [],
+        ...selectionPatch(selectedIds, clean),
+      });
+      return;
+    }
+    const entry = { doc, hiddenIds };
+    hideRunEntry = entry;
     set({
       hiddenIds: clean,
-      past: [...past, { doc, hiddenIds }].slice(-HISTORY_LIMIT),
+      past: [...past, entry].slice(-HISTORY_LIMIT),
       future: [],
       ...selectionPatch(selectedIds, clean),
     });
@@ -897,6 +920,11 @@ export const useStore = create<StoreState>((set, get) => {
       // OWNERS are compared, not bare ids: a guide is a legal target, and a
       // guide whose id collided with a selected board's must not read as one.
       if (target.owner.type === 'board' && isCovered(target.owner.id, selected)) return;
+      // Nor can ANOTHER PLACEMENT of a selected stored part: i1/b1 and i2/b1 are
+      // one stored part, so the move carries the twin along and the target runs
+      // away from the grab (fu 230). The same predicate moveCandidates filters by.
+      const docNow = get().doc;
+      if (target.owner.type === 'board' && sharesStorageWith([...selected], (p) => itemKey(docNow, p))(target.owner.id)) return;
 
       // The moving set is the selected items (parts or assemblies); the grab's
       // owner must be a world part under one of them (assemblies spec §4.2).
@@ -1120,6 +1148,7 @@ export const useStore = create<StoreState>((set, get) => {
       // caller has run rowLayout; this re-checks only what would make a bad row.
       if (!Number.isInteger(count) || count < 2 || count > MAX_ROW) return;
       if (!Number.isFinite(step) || step <= 0) return;
+      if (sign !== 1 && sign !== -1) return;
       const doc = get().doc;
       const all = [...new Set(ids)].filter((id) => itemPaths(doc).has(id));
       if (all.length === 0) return;

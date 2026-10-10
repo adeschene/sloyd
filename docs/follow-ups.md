@@ -4355,7 +4355,7 @@ behaves the same way.
 - `duplicateBoards` collapsing a repeated id, and dropping a grab that is not a copy, has no test.
 - GroupProperties' Through-thickness test is absence-only; mutation 12 covers the behaviour.
 - "1 parts selected" is unreachable (selection filtering in the store), so no singular form exists.
-- **Status:** record-only.
+- **Status:** CLOSED 2026-10-10 by the older-record-only round (batch A), item by item: `duplicateBoards`' repeated-id collapse and the dropped grab on a non-copy — tested (`store.test.ts`, mutated; the singular Duplicate already pinned the grab); Through-thickness absence-only — closed, mutation 12 covers the behaviour; "1 parts selected" — closed, the store filters a one-part selection out so no singular form is reachable.
 
 **212. A field's Enter commit shows nothing, so it goes undiscovered.** Raised in the multi-select
 live check. The user found clicking away to commit a group Length awkward and asked for Enter as an
@@ -4388,7 +4388,7 @@ filters by id against the boards. Folding it into `edit()` would need an API cha
 - `.part-row.hidden .part { cursor: default }` may duplicate the existing `button:disabled` rule.
   Unchecked.
 - TapeTool's candidates memo is a ~120-character one-liner. Cosmetic.
-- **Status:** record-only.
+- **Status:** CLOSED 2026-10-10 by the older-record-only round (batch A), item by item: `HISTORY_LIMIT` — FIXED by the user's ruling: consecutive hide/show toggles through `applyHidden` share ONE undo entry (the run is the entry on top of `past`, held by identity; any edit, gesture snapshot, undo or redo ends it; a run back at its starting set leaves no entry), pinned in `store.test.ts`; `.part-row.hidden .part { cursor: default }` — fixed, the row's button is `disabled` so `button:disabled` already sets it (and out-specifies `.part`), duplicate dropped; TapeTool's candidates memo — closed, cosmetic, and viewport memo dep lists are inv 15's failure mode.
 
 ## From the quarter turns round — 2026-10-05
 
@@ -4464,7 +4464,7 @@ reaches `s = 0` or `NaN`, so the guard (which returns `value`) can be deleted wi
 - ~~The order of the selection after a multi-part group is copied, and distinct names in the group
   test.~~ Closed by the final review: the group test asserts the selection is the originals then
   the copies k-major, and that all six names are distinct.
-- **Status:** record-only (the `sign` item).
+- **Status:** CLOSED 2026-10-10 by the older-record-only round (batch A), item by item: `copyInRow` now refuses any `sign` other than +1/-1 (no edit, no undo entry), pinned in `store.test.ts`.
 
 ## From the linking round — 2026-10-06
 
@@ -4488,7 +4488,7 @@ reaches it.
 - `linkBoards` runs `dropHeldIfGone` on every member, including the source and members that did
   not change. A superset of "changed", and harmless: the test is point-precise, so an unchanged
   part keeps its points.
-- **Status:** record-only.
+- **Status:** CLOSED 2026-10-10 by the older-record-only round (batch A), item by item: Properties' plural wording — tested (three parts linked, `Properties.test.tsx`); `runJoinery`'s links on the fallback path — tested (`runJoinery.test.ts`, the same three outcomes); `linkBoards` dropping held points on unchanged members — closed, the test is point-precise so an unchanged part keeps its points.
 
 **223. Joinery returns linked parts it cuts UNLINKED, even when their cuts are identical.**
 "Add joinery…" leaves any linked part it cuts unlinked in the joined project, because `pocketFor`
@@ -4593,7 +4593,7 @@ children, so they reappear. No data is lost; hiding them again is one click.
 longer offers another placement of a selected stored part as a target (the final fix wave), and it
 is the only source of targets. A programmatic caller could still snap a part to its own twin, which
 then moves with it.
-- **Status:** record-only, unreachable from the UI.
+- **Status:** CLOSED 2026-10-10 by the older-record-only round (batch A), item by item: FIXED: `commitSnapMove` refuses a target on another placement of a selected stored part, through `sharesStorageWith` (`treeEdit.ts`), the one predicate `moveCandidates` now also uses (no owner-type guard, inv 26); pinned in `store.components.test.ts`.
 
 **231. Small gaps the round judged fine to leave.** Record-only; the per-task reviews' deferred
 minors, condensed.

@@ -69,6 +69,25 @@ export function itemKey(doc: SloydDocument, path: string): string | null {
   return `${def}:${lastSegment(path)}`;
 }
 
+/** The predicate for "this path lies under ANOTHER placement of a selected stored
+ *  item": it, or an ancestor, shares an `itemKey` with one of `selectedIds`, so an
+ *  edit to the selected item moves it too. The ONE statement of the twin rule:
+ *  `moveCandidates` withholds such points and `commitSnapMove` refuses them. */
+export function sharesStorageWith(
+  selectedIds: readonly string[],
+  keyOf: (path: string) => string | null,
+): (path: string) => boolean {
+  const keys = new Set(selectedIds.map(keyOf).filter((k): k is string => k !== null));
+  return (path) => {
+    if (keys.size === 0) return false;
+    for (let p: string | null = path; p !== null; p = parentPath(p)) {
+      const k = keyOf(p);
+      if (k !== null && keys.has(k)) return true;
+    }
+    return false;
+  };
+}
+
 /** Replace one definition's (or the root's) parts by id. */
 function updateDefinition(doc: SloydDocument, defId: string, fn: (boards: StoredBoard[]) => StoredBoard[]): SloydDocument {
   if (defId === ROOT) return { ...doc, boards: fn(doc.boards) };

@@ -452,6 +452,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     refused while `gesturing`. **PROHIBITION: no hide or show may clear `tapeAnchor` or
     `tapeHover`.** Never call `visibleBoards` in a selector; filter in a memo or handler.
     Hidden parts are still in the cut list, joinery, checks, export and autosave.
+    Consecutive hide/show toggles share ONE undo entry (the run is the top of `past`, by identity;
+    any edit, gesture snapshot, undo or redo ends it; a run back at its start leaves no entry).
 44. **`axisFrame` is the ONE turn table; every part↔world crossing goes through its helpers**
     (`toWorldOffset`, `fromWorldOffset`, `spanToWorldOffset`, `spanFromWorldOffset`,
     `endFacing`). **Never `board[dim] - u` at a call site.** Nothing branches on
