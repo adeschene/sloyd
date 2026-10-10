@@ -4720,7 +4720,7 @@ spends repair calls on it each time.
 **242. The join stage's repair text isn't labelled as joinery,** and the estimate note understates
 the possible joinery calls (up to 1 + MAX_REPAIRS). Cosmetic, but it is money (see fu 236).
 - **Status:** the money half closed 2026-10-09 with fu 236 (a joined Refine's high end includes
-  joinery's every round); the unlabelled repair text stays open, low.
+  joinery's every round). The repair text CLOSED 2026-10-10 by the join-repair-text round: joinery's rounds in a joined Refine read "Choosing joints — fixing N issues…" / "— retrying…"; see `docs/history.md`.
 
 **243. Small gaps the round judged fine to leave.** Record-only.
 - `gateUnjoin`'s unmapped-joint refusal is redundant with the compare; the named-part filter on
