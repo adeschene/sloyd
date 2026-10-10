@@ -313,14 +313,14 @@ other face or extending outside the board (shallower span first, ties thickness,
 enters `from: 'min'`; the cut keeps its id). Both `rebaseCuts` and `cutIntoEnd` use it. A cut that runs along
 `d` to the moving end (a bookcase bottom's rabbet) is not stored into the end and is never touched; an
 end-grain mortise still refuses. Skips that became joins or clips: the shelf-notch and rail-notch tenon and
-dado tests, the rigid-turn shelf and rail fixtures, both "shelf grooved into its back edge" trim tests, the
+dado tests, the 180-turn describe's shelf and rail fixtures and the rigid-turn describe's shelf fixture, both "shelf grooved into its back edge" trim tests, the
 back-panel end-notch trim tests, and "blockers judge solids > a cut making only PART of the room". New tests
 cover both storage forms of the probe, the end-grain mortise (also at 90/180/270), a trim through a notch,
 turned shelves at 90 and 180, end-grain cuts pinning both trim-path refusals, and an end-grain fixture in the
 180-degree equivariance set. Follow-up 206 closed by the user's decision: the two-axis half-lap refusal is
 pinned by a test with hand-built sites (`findSites` cannot reach it: a crossing needs E's thickness axis to be
 the contact axis, and a part has one), mutation-tested by restricting the coplanar filter to the site's axis.
-Tests 2573 -> 2754 across 91 files (the count includes the older-record-only round's additions).
+Tests 2732 → 2754.
 
 **What the older-record-only round did (2026-10-10)**: follow-ups 211, 214, 217, 220, 222, 228, 230,
 231, 235 and 239 — every item triaged FIX / TEST / CLOSE in
