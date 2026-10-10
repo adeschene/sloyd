@@ -1475,19 +1475,19 @@ describe('joinery is equivariant under a rigid quarter turn of the whole design 
     }
     return doc;
   };
-  const FIXTURES: { label: string; parts: P[]; notches: Notch[]; kinds: string[] }[] = [
-    { label: 'a mortise-and-tenon rail between legs', kinds: ['mortise-tenon', 'mortise-tenon'], notches: [], parts: [
+  const FIXTURES: { label: string; parts: P[]; notches: Notch[]; kinds: string[]; skips: boolean }[] = [
+    { label: 'a mortise-and-tenon rail between legs', kinds: ['mortise-tenon', 'mortise-tenon'], skips: false, notches: [], parts: [
       { name: 'Leg', at: [0, 0, 0], size: [1.75, 28, 1.75] },
       { name: 'Rail', at: [1.75, 23.5, 0.5], size: [18, 3.5, 0.75] },
       { name: 'Far leg', at: [19.75, 0, 0], size: [1.75, 28, 1.75] },
     ] },
-    { label: 'the rabbeted cabinet back', kinds: ['dado', 'dado', 'rabbet', 'rabbet'], notches: [], parts: [
+    { label: 'the rabbeted cabinet back', kinds: ['dado', 'dado', 'rabbet', 'rabbet'], skips: false, notches: [], parts: [
       { name: 'Left', at: [0, 0, 0], size: [0.75, 30, 11.25] },
       { name: 'Right', at: [20.75, 0, 0], size: [0.75, 30, 11.25] },
       { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 11.25] },
       { name: 'Back', at: [0, 0, 11.25], size: [21.5, 30, 0.25] },
     ] },
-    { label: 'a shelf already cut at the end a dado would grow (skip)', kinds: ['dado'], notches: [['Shelf', [19.5, 0, 0], [20, 0.75, 0.5]]], parts: [
+    { label: 'a shelf already cut at the end a dado would grow (skip)', kinds: ['dado'], skips: true, notches: [['Shelf', [19.5, 0, 0], [20, 0.75, 0.5]]], parts: [
       { name: 'Left side', at: [0, 0, 0], size: [0.75, 30, 11.25] },
       { name: 'Right side', at: [20.75, 0, 0], size: [0.75, 30, 11.25] },
       { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 11.25] },
@@ -1500,13 +1500,15 @@ describe('joinery is equivariant under a rigid quarter turn of the whole design 
   };
 
   for (const k of [1, 2, 3]) {
-    it.each(FIXTURES)(`$label, turned ${90 * k}`, ({ parts, notches, kinds }) => {
+    it.each(FIXTURES)(`$label, turned ${90 * k}`, ({ parts, notches, kinds, skips }) => {
       const a = run(parts, notches, 0);
       const b = run(parts, notches, k);
       expect(worldParts(b.doc).every((x, i) => x.rotation === (worldParts(a.doc)[i].rotation + 90 * k) % 360)).toBe(true);
       // The joint kinds are what the unturned design gets; a turn must not change them.
       expect(a.out.applied.map((x) => x.joint).sort()).toEqual(kinds);
       expect(b.out.applied.map((x) => x.joint).sort()).toEqual(kinds);
+      // A skip fixture must really skip, or two empty lists would pass.
+      expect(a.out.skipped.length > 0).toBe(skips);
       expect(b.out.skipped.map((x) => x.reason)).toEqual(a.out.skipped.map((x) => x.reason));
       expect([...b.out.moved].sort()).toEqual([...a.out.moved].sort());
       expect([...b.out.trimmed].sort()).toEqual([...a.out.trimmed].sort());

@@ -447,7 +447,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     the ONE writer of a user's selection change. A selection change mid-drag ends the
     gizmo's gesture and commits nothing.
 43. **Hidden-ness is view state with one gate, and a hide moves nothing.** The four user
-    actions go through `applyHidden` (one entry, the SAME `doc`, no autosave); others only
+    actions go through `applyHidden` (one entry per run, the SAME `doc`, no autosave); others only
     reconcile. `selectionPatch` drops hidden ids — do not move that to callers. A hide is
     refused while `gesturing`. **PROHIBITION: no hide or show may clear `tapeAnchor` or
     `tapeHover`.** Never call `visibleBoards` in a selector; filter in a memo or handler.
