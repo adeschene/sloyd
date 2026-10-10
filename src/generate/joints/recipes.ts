@@ -89,12 +89,16 @@ export function refaceFromEnd(b: Board, c: Cut, d: Dimension): Cut | null {
  * `resize` caller asks it first, so a design that arrives already cut there is
  * skipped with a reason instead of failing the whole run after a paid call.
  * `face` and `from` are what the throw reads and `storedAsShape` changes
- * neither, so the stored form answers it. `end` is a WORLD end; it is mapped
- * to the part's own end with endFacing, since a turn may reverse axis k.
+ * neither, so the stored form answers it. It asks AFTER the same re-facing
+ * rebaseCuts does (fu 205): a cut that refaceFromEnd can re-store from another
+ * face is not "cut into the end", it follows the part. `end` is a WORLD end;
+ * it is mapped to the part's own end with endFacing, since a turn may reverse
+ * axis k.
  */
 const cutIntoEnd = (b: Board, k: number, end: 'min' | 'max') => {
   const local = endFacing(b, k, end === 'min' ? -1 : 1);
-  return b.cuts.some((c) => c.face === axisDimensions(b)[k] && c.from === local);
+  const d = axisDimensions(b)[k];
+  return b.cuts.some((c) => c.face === d && c.from === local && refaceFromEnd(b, c, d) === null);
 };
 
 /**
@@ -113,7 +117,8 @@ const cutIntoEnd = (b: Board, k: number, end: 'min' | 'max') => {
  *   ordering rabbets before dados turned every bookcase bottom's rabbet into a
  *   notch stopped 1/4in short of each end, and the back drove into it. A cut
  *   POSITIONED flush with the end is NOT extended: it stays where it is.
- * - A cut INTO `d` from the moving end has no defined answer, so it throws.
+ * - A cut INTO `d` from the moving end is re-faced from another face its box
+ *   reaches (fu 205) and then stays put; only one that cannot be throws.
  *
  * Each cut is first re-stored the way it runs where the sheet accepts it
  * (`storedAsShape`'s guard; a refused cut keeps its stored form and the old
@@ -136,6 +141,10 @@ function rebaseCuts(b: Board, d: Dimension, end: 'min' | 'max', amount: number, 
   const before: Board = { ...b, [d]: was };
   const solids = boardSolids(before);
   b.cuts = b.cuts.map((c) => storedAsShape(before, c, solids));
+  // Follow-up 205: a cut stored INTO the moving end is re-faced first when its box
+  // reaches another face; it then stays put (positioned along d). Only a cut that
+  // cannot be re-faced still reaches the throw below (cutIntoEnd refuses it first).
+  b.cuts = b.cuts.map((c) => (c.face === d && c.from === end ? refaceFromEnd(before, c, d) ?? c : c));
   b.cuts = b.cuts.filter((c) => {
     if (c.face === d) {
       if (c.from === end) throw new Error(`applyJoints: ${b.name} grows at an end it is already cut into`);
