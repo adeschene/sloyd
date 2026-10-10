@@ -617,6 +617,27 @@ describe('UVs run WITH the world axis, so solids of one board agree (fu 163)', (
     }
   }
 
+  // fu 217: the sweep above is solid wood only, whose tiles are all finite
+  // except the ends. Plywood has FIT on v of its edges and ends, so a span
+  // reversed (or an axis swapped) wrongly shows there as well, and grain
+  // 'width' makes broad faces swap, which is the pose a reflect-after-swap
+  // mutation needs: a flat part at 180 turns reverses both horizontals and
+  // is blind to it by symmetry.
+  for (const grain of ['length', 'width'] as const) {
+    for (const posture of ['flat', 'on-edge', 'upright'] as const) {
+      for (const turn of [0, 90, 180, 270] as const) {
+        it(`reads one mapping from position to texture coordinate — chiral plywood grain ${grain} ${posture} turn ${turn}`, () => {
+          const board = turnedAbout({ ...chiralPart(posture), material: 'plywood', grain }, turn, [30, 0, 17]);
+          for (let face = 0; face < 6; face += 1) {
+            const { u, v } = residuals(board, face);
+            for (const r of u) expect(r).toBeCloseTo(u[0], 6);
+            for (const r of v) expect(r).toBeCloseTo(v[0], 6);
+          }
+        });
+      }
+    }
+  }
+
   it('puts the outermost ply against the face of a dadoed plywood panel', () => {
     // The user-visible statement of the same thing, on the surface where it
     // showed: on the edge of a 3/4in panel with a 1/4in dado, the two solids

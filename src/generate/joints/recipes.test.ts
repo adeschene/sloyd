@@ -4,10 +4,10 @@ import workbenchRaw from '../../document/fixtures/simple-workbench.sloyd?raw';
 import { designToDocument } from '../../document/generated';
 import { flatDocument, groupItems, migrateDocument, writeBackFlat } from '../../document/document';
 import { checkDesign, worldSolids } from '../../document/designCheck';
-import { sameSet } from '../../document/turnFixtures';
+import { rotateQuarter, sameSet } from '../../document/turnFixtures';
 import { boardSolids, clippedRegion, cutLabel, cutRegion, cutsThatRemoveStock } from '../../document/cuts';
 import { buildCutList } from '../../document/cutlist';
-import { axisDimensions, spanToWorldOffset } from '../../document/geometry';
+import { axisDimensions, boardExtents, spanToWorldOffset } from '../../document/geometry';
 import type { Board, Cut, FlatDocument, SloydDocument } from '../../document/document';
 import { findSites } from './sites';
 import { defaultChoice } from './choose';
@@ -1378,36 +1378,36 @@ describe('joinery is equivariant under a 180 turn of every part', () => {
     }
     return doc;
   };
-  const FIXTURES: { label: string; parts: P[]; notches: Notch[]; want: 'applied' | 'skipped' }[] = [
-    { label: 'a mortise-and-tenon rail between legs', want: 'applied', notches: [], parts: [
+  const FIXTURES: { label: string; parts: P[]; notches: Notch[]; want: 'applied' | 'skipped'; kinds: string[] }[] = [
+    { label: 'a mortise-and-tenon rail between legs', want: 'applied', kinds: ['mortise-tenon', 'mortise-tenon'], notches: [], parts: [
       { name: 'Leg', at: [0, 0, 0], size: [1.75, 28, 1.75] },
       { name: 'Rail', at: [1.75, 23.5, 0.5], size: [18, 3.5, 0.75] },
       { name: 'Far leg', at: [19.75, 0, 0], size: [1.75, 28, 1.75] },
     ] },
-    { label: 'a dado\'d shelf between sides', want: 'applied', notches: [], parts: [
+    { label: 'a dado\'d shelf between sides', want: 'applied', kinds: ['dado', 'dado'], notches: [], parts: [
       { name: 'Left side', at: [0, 0, 0], size: [0.75, 30, 11.25] },
       { name: 'Right side', at: [20.75, 0, 0], size: [0.75, 30, 11.25] },
       { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 11.25] },
     ] },
-    { label: 'the rabbeted cabinet back', want: 'applied', notches: [], parts: [
+    { label: 'the rabbeted cabinet back', want: 'applied', kinds: ['dado', 'dado', 'rabbet', 'rabbet'], notches: [], parts: [
       { name: 'Left', at: [0, 0, 0], size: [0.75, 30, 11.25] },
       { name: 'Right', at: [20.75, 0, 0], size: [0.75, 30, 11.25] },
       { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 11.25] },
       { name: 'Back', at: [0, 0, 11.25], size: [21.5, 30, 0.25] },
     ] },
-    { label: 'a shelf already cut at the end a dado would grow (skip)', want: 'skipped', notches: [['Shelf', [19.5, 0, 0], [20, 0.75, 0.5]]], parts: [
+    { label: 'a shelf already cut at the end a dado would grow (skip)', want: 'skipped', kinds: ['dado'], notches: [['Shelf', [19.5, 0, 0], [20, 0.75, 0.5]]], parts: [
       { name: 'Left side', at: [0, 0, 0], size: [0.75, 30, 11.25] },
       { name: 'Right side', at: [20.75, 0, 0], size: [0.75, 30, 11.25] },
       { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 11.25] },
     ] },
-    { label: 'a rail already cut at the end entering its leg (skip)', want: 'skipped', notches: [['Rail', [0, 0, 0], [0.5, 0.5, 0.75]]], parts: [
+    { label: 'a rail already cut at the end entering its leg (skip)', want: 'skipped', kinds: ['mortise-tenon'], notches: [['Rail', [0, 0, 0], [0.5, 0.5, 0.75]]], parts: [
       { name: 'Leg', at: [0, 0, 0], size: [1.75, 28, 1.75] },
       { name: 'Rail', at: [1.75, 23.5, 0.5], size: [18, 3.5, 0.75] },
       { name: 'Far leg', at: [19.75, 0, 0], size: [1.75, 28, 1.75] },
     ] },
   ];
 
-  it.each(FIXTURES)('$label', ({ parts, notches, want }) => {
+  it.each(FIXTURES)('$label', ({ parts, notches, want, kinds }) => {
     const run = (extra: number) => {
       const doc = turnedDesign(parts, notches, extra);
       const sites = findSites(doc);
@@ -1419,6 +1419,10 @@ describe('joinery is equivariant under a 180 turn of every part', () => {
     expect(worldParts(b.doc).every((x, i) => x.rotation === (worldParts(a.doc)[i].rotation + 180) % 360)).toBe(true);
     if (want === 'applied') expect(a.out.applied.some((x) => x.joint !== 'butt')).toBe(true);
     else expect(a.out.skipped.length).toBeGreaterThan(0);
+    // Pin the kind too (fu 217): "some joint is not butt" would pass a fixture
+    // that quietly stopped getting the joint it exists to exercise.
+    expect(a.out.applied.map((x) => x.joint).sort()).toEqual(kinds);
+    if (want === 'skipped') expect(a.out.skipped.map((x) => x.reason)).toEqual([expect.stringMatching(/is already cut at the end that would grow into/)]);
     expect(b.out.applied.map((x) => x.joint)).toEqual(a.out.applied.map((x) => x.joint));
     expect(b.out.skipped.map((x) => x.reason)).toEqual(a.out.skipped.map((x) => x.reason));
     expect([...b.out.moved].sort()).toEqual([...a.out.moved].sort());
@@ -1431,6 +1435,88 @@ describe('joinery is equivariant under a 180 turn of every part', () => {
       expect(sameSet(corners(y), corners(x)), `${x.name} world solids`).toBe(true);
     }
   });
+});
+
+// fu 217: the test above turns each part about its own centre, which only a
+// 180 turn leaves a design unchanged under. A quarter turn of the WHOLE design
+// (every part pivoted about one point, rotation + 90k) is the equivariance a
+// 90 or 270 turn owes: the joined world solids are the unturned result carried
+// by rotateQuarter k times. The notches are built from the carried world box.
+describe('joinery is equivariant under a rigid quarter turn of the whole design (fu 217)', () => {
+  type Notch = [string, [number, number, number], [number, number, number]];
+  const PIVOT: [number, number, number] = [7, 0, 3];
+  const carry = (p: [number, number, number], k: number) => {
+    let q = p;
+    for (let i = 0; i < k; i += 1) q = rotateQuarter(q, PIVOT);
+    return q;
+  };
+  const carryBox = (min: [number, number, number], max: [number, number, number], k: number) => {
+    const a = carry(min, k);
+    const b = carry(max, k);
+    return { min: a.map((v, i) => Math.min(v, b[i]!)) as [number, number, number], max: a.map((v, i) => Math.max(v, b[i]!)) as [number, number, number] };
+  };
+  const build = (parts: P[], notches: Notch[], k: number) => {
+    const doc = design(...parts);
+    const world = new Map(doc.boards.map((b) => {
+      const e = boardExtents(b);
+      return [b.name, { min: [...b.position] as [number, number, number], e }] as const;
+    }));
+    for (const b of doc.boards) {
+      const { min, e } = world.get(b.name)!;
+      const box = carryBox(min, [min[0] + e[0], min[1] + e[1], min[2] + e[2]], k);
+      b.rotation = ((b.rotation + 90 * k) % 360) as Board['rotation'];
+      b.position = box.min;
+    }
+    for (const [name, nmin, nmax] of notches) {
+      const b = board(doc, name);
+      const { min } = world.get(name)!;
+      const at = (v: number[]) => v.map((x, i) => min[i]! + x) as [number, number, number];
+      b.cuts.push(pocketFor(b, carryBox(at(nmin), at(nmax), k)));
+    }
+    return doc;
+  };
+  const FIXTURES: { label: string; parts: P[]; notches: Notch[]; kinds: string[] }[] = [
+    { label: 'a mortise-and-tenon rail between legs', kinds: ['mortise-tenon', 'mortise-tenon'], notches: [], parts: [
+      { name: 'Leg', at: [0, 0, 0], size: [1.75, 28, 1.75] },
+      { name: 'Rail', at: [1.75, 23.5, 0.5], size: [18, 3.5, 0.75] },
+      { name: 'Far leg', at: [19.75, 0, 0], size: [1.75, 28, 1.75] },
+    ] },
+    { label: 'the rabbeted cabinet back', kinds: ['dado', 'dado', 'rabbet', 'rabbet'], notches: [], parts: [
+      { name: 'Left', at: [0, 0, 0], size: [0.75, 30, 11.25] },
+      { name: 'Right', at: [20.75, 0, 0], size: [0.75, 30, 11.25] },
+      { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 11.25] },
+      { name: 'Back', at: [0, 0, 11.25], size: [21.5, 30, 0.25] },
+    ] },
+    { label: 'a shelf already cut at the end a dado would grow (skip)', kinds: ['dado'], notches: [['Shelf', [19.5, 0, 0], [20, 0.75, 0.5]]], parts: [
+      { name: 'Left side', at: [0, 0, 0], size: [0.75, 30, 11.25] },
+      { name: 'Right side', at: [20.75, 0, 0], size: [0.75, 30, 11.25] },
+      { name: 'Shelf', at: [0.75, 12, 0], size: [20, 0.75, 11.25] },
+    ] },
+  ];
+  const run = (parts: P[], notches: Notch[], k: number) => {
+    const doc = build(parts, notches, k);
+    const sites = findSites(doc);
+    return { doc, out: applyJoints(doc, sites, sites.map((s) => defaultChoice(s, doc, sites))) };
+  };
+
+  for (const k of [1, 2, 3]) {
+    it.each(FIXTURES)(`$label, turned ${90 * k}`, ({ parts, notches, kinds }) => {
+      const a = run(parts, notches, 0);
+      const b = run(parts, notches, k);
+      expect(worldParts(b.doc).every((x, i) => x.rotation === (worldParts(a.doc)[i].rotation + 90 * k) % 360)).toBe(true);
+      // The joint kinds are what the unturned design gets; a turn must not change them.
+      expect(a.out.applied.map((x) => x.joint).sort()).toEqual(kinds);
+      expect(b.out.applied.map((x) => x.joint).sort()).toEqual(kinds);
+      expect(b.out.skipped.map((x) => x.reason)).toEqual(a.out.skipped.map((x) => x.reason));
+      expect([...b.out.moved].sort()).toEqual([...a.out.moved].sort());
+      expect([...b.out.trimmed].sort()).toEqual([...a.out.trimmed].sort());
+      for (const x of a.out.doc.boards) {
+        const y = board(b.out.doc, x.name);
+        const carried = worldSolids(x).flatMap((w) => { const c = carryBox(w.min as [number, number, number], w.max as [number, number, number], k); return [c.min, c.max]; });
+        expect(sameSet(worldSolids(y).flatMap((w) => [w.min, w.max]), carried), `${x.name} world solids`).toBe(true);
+      }
+    });
+  }
 });
 
 describe('joinery on assemblies (assemblies spec §6.1)', () => {
