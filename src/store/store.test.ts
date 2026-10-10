@@ -2753,3 +2753,36 @@ describe('a run of eye toggles is one undo entry (fu 214)', () => {
     expect(st().past.length).toBe(base + 1);
   });
 });
+
+describe('edit() with nothing changed (fu 231)', () => {
+  const st = () => useStore.getState();
+
+  it('an edit that returns the same document pushes no undo entry and clears no redo', () => {
+    st().addBoard();
+    const b = worldParts(st().doc)[0]!;
+    st().updateBoard(b.id, { length: b.length + 1 });
+    st().undo();
+    expect(st().future).toHaveLength(1);
+    const past = st().past.length;
+    const doc = st().doc;
+    st().updateBoard(b.id, { length: b.length }); // same value: mapWorld returns the document
+    expect(st().doc).toBe(doc);
+    expect(st().past).toHaveLength(past);
+    expect(st().future).toHaveLength(1);
+  });
+
+  it('does not end a run of eye toggles (fu 214): the run still shares one entry afterwards', () => {
+    st().addBoard();
+    st().addBoard();
+    const [a, c] = st().doc.boards.map((x) => x.id);
+    const past = st().past.length;
+    st().setHidden(a!, true);
+    expect(st().past).toHaveLength(past + 1);
+    const b = worldParts(st().doc)[0]!;
+    st().updateBoard(b.id, { length: b.length }); // a no-op between the toggles
+    st().setHidden(c!, true);
+    expect(st().past).toHaveLength(past + 1);
+    st().undo();
+    expect(st().hiddenIds).toEqual([]);
+  });
+});

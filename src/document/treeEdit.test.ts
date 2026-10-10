@@ -110,6 +110,19 @@ describe('translateItems (assemblies spec §4.2)', () => {
   });
 });
 
+describe('translateItems with an ancestor and its descendant (fu 228)', () => {
+  it('moves the descendant once, with its ancestor, not twice', () => {
+    const doc = assemblyDoc();
+    const alone = translateItems(doc, ['i1'], [0.1, 0, 0.3]);
+    const both = translateItems(doc, ['i1', 'i1/b2', 'i1/i2'], [0.1, 0, 0.3]);
+    expect(both).toEqual(alone);
+    const w0 = worldParts(doc).find((b) => b.id === 'i1/b2')!;
+    const w1 = worldParts(both).find((b) => b.id === 'i1/b2')!;
+    expect(w1.position[0]).toBeCloseTo(w0.position[0] + 0.1, 9);
+    expect(w1.position[2]).toBeCloseTo(w0.position[2] + 0.3, 9);
+  });
+});
+
 describe('writeBackFlat (assemblies spec §6.1)', () => {
   it('maps flat parts back by index, path names never written as renames', () => {
     const doc = assemblyDoc();

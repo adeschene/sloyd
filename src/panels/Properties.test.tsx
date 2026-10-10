@@ -1217,6 +1217,18 @@ describe('linking controls', () => {
     expect(st().selectedIds).toEqual([a, b]);
   });
 
+  it('Select linked is not offered when the only other member is hidden (fu 228)', async () => {
+    const [a, b] = two();
+    act(() => { st().linkBoards([a!, b!]); st().selectBoard(a!); });
+    render(<Properties />);
+    expect(screen.getByRole('button', { name: 'Select linked' })).toBeInTheDocument();
+    act(() => { st().setHidden(b!, true); });
+    expect(screen.queryByRole('button', { name: 'Select linked' })).toBeNull();
+    expect(screen.getByText(/Linked with 1 other part/)).toBeInTheDocument();
+    act(() => { st().setHidden(b!, false); });
+    expect(screen.getByRole('button', { name: 'Select linked' })).toBeInTheDocument();
+  });
+
   it('plural wording: three parts link, "Linking makes 2 parts match" and "Linked with 2 other parts" (fu 222)', async () => {
     act(() => {
       st().addBoard(); st().addBoard(); st().addBoard();
@@ -1320,7 +1332,7 @@ describe('Properties shared copies', () => {
     useStore.getState().selectBoard('i1');
     render(<Properties />);
     await userEvent.click(screen.getByRole('button', { name: 'Select copies' }));
-    expect(useStore.getState().selectedIds.sort()).toEqual(['i1', 'i3']);
+    expect([...useStore.getState().selectedIds].sort()).toEqual(['i1', 'i3']);
   });
 
   it('offers no Make Unique for a drawer inside a cabinet placed twice (2 placements, 1 reference)', () => {

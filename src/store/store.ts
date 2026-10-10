@@ -392,6 +392,15 @@ export const useStore = create<StoreState>((set, get) => {
     const { doc, past, future, gesturing, gestureSnapshotTaken } = get();
     const next = fn(doc);
 
+    // The function changed nothing (the SAME document object): an undo entry
+    // for it would undo to nothing (invariant 4), so push none and take no
+    // gesture snapshot. A selection the caller asked for still applies. The top
+    // of `past` is untouched, so a hide run in progress carries on (applyHidden).
+    if (next === doc) {
+      if (selection) set(selectionPatch(selection(next)));
+      return;
+    }
+
     let nextPast = past;
     let nextFuture = future;
     let takeSnapshot = false;
@@ -766,7 +775,10 @@ export const useStore = create<StoreState>((set, get) => {
     // otherwise both be named "Leg (2)" (invariant 8).
     const name = uniqueName(source.name, taken);
     if (isShaped(source)) {
-      return { id: nextId(), name, position: [...position], rotation: source.rotation, shape: source.shape };
+      // Every own field by spread, so an optional one added to Board later is
+      // copied rather than dropped silently (fu 231); the position array is fresh.
+      const { id: _shapedId, ...own } = source;
+      return { ...own, id: nextId(), name, position: [...position] };
     }
     // Drop the id so createBoard generates a fresh one, and copy the position
     // array rather than sharing the reference with the source and with every
@@ -1464,7 +1476,7 @@ export const useStore = create<StoreState>((set, get) => {
 
     linkBoards: (ids) => {
       const doc0 = get().doc;
-      const plan = linkPlan(worldParts(doc0), ids);
+      const plan = linkPlan(worldParts(doc0), ids, (p) => storageKey(doc0, p));
       if (!plan) return; // fewer than two, or nothing would change (invariant 4)
       // Every member but the source takes the source's shared fields through
       // patchBoard, so a posture change pivots it about its own centre

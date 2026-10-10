@@ -9,9 +9,8 @@ export interface Named { id: string; name: string }
 const SUFFIX_RE = /^(.*?)\s\((\d+)\)$/;
 
 /**
- * A board name that no other board is using, disambiguated with " (n)" if
- * needed. `excludeId` is the board being renamed, so it does not collide
- * with itself.
+ * A name that no sibling is using, disambiguated with " (n)" if needed.
+ * `excludeId` is the item being renamed, so it does not collide with itself.
  *
  * Since the assemblies round, the items are one container's parts AND
  * assemblies together (invariant 8, restated: unique among siblings).
