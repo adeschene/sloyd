@@ -1,4 +1,5 @@
 import { worldParts } from '../document/tree';
+import { worldSolids } from '../document/designCheck';
 import { useStore } from './store';
 import type { Board } from '../document/document';
 import { createBoard, createDocument, boardCenter, boardExtents, boardSnapPoints, cutSnapPoints, sameSnapPoint } from '../document/document';
@@ -428,6 +429,47 @@ describe('cuts', () => {
   it('adds a cut that is not stopped', () => {
     useStore.getState().addCut(boardId());
     expect(cuts()[0]).toMatchObject({ stopMin: 0, stopMax: 0 });
+  });
+
+  // fu 215. Hand derivation: board L=24 W=4 T=2, turn 0. addCut: offset L/4=6, width min(.75,6)=.75,
+  // depth T/2=1, across width (whole width), face thickness.
+  // Flat: Y carries thickness, not reversed, from 'max' -> the world +Y face: solid-removed box
+  //   y in [pos.y+1, pos.y+2] (the cut), x in [6,6.75] of length.
+  // On-edge turn 0 (v12): Z carries thickness REVERSED (part 0 at world +Z). The default camera sits at +Z,
+  //   so the starter dado must open on world +Z: from 'min' -> part thickness [0,1] -> world z [T-1,T] = [1,2].
+  //   (from 'max' would be part [1,2] -> world z [0,1], the face away from the camera.)
+  const cutBox = (b: ReturnType<typeof worldParts>[number]) => {
+    const full = worldSolids({ ...b, cuts: [] })[0]!;
+    const sol = worldSolids(b);
+    return { full, sol };
+  };
+
+  it('starts a flat part dado on the world +Y face', () => {
+    const id = boardId();
+    useStore.getState().updateBoard(id, { length: 24, width: 4, thickness: 2 });
+    useStore.getState().addCut(id);
+    const b = worldParts(useStore.getState().doc)[0];
+    expect(b.cuts[0]).toMatchObject({ face: 'thickness', from: 'max' });
+    // some remaining solid reaches y = top (2) but none covers the dado cell x in [6,6.75] above y = 1
+    const { sol } = cutBox(b);
+    const inDado = sol.filter((s) => s.min[0]! < 6.75 && s.max[0]! > 6 && s.max[1]! > 1 + 1e-9);
+    expect(inDado).toEqual([]);
+  });
+
+  it('starts an on-edge part dado on the world +Z face (the camera side)', () => {
+    const id = boardId();
+    useStore.getState().updateBoard(id, { length: 24, width: 4, thickness: 2, posture: 'on-edge' });
+    useStore.getState().addCut(id);
+    const b = worldParts(useStore.getState().doc)[0];
+    expect(b.cuts[0]).toMatchObject({ face: 'thickness', from: 'min' });
+    const { full, sol } = cutBox(b);
+    expect(full.max[2]! - full.min[2]!).toBeCloseTo(2);
+    // Z is thickness: in the dado's x range nothing remains above z = min + 1 (the +Z half is cut away).
+    const z0 = full.min[2]!;
+    const inDado = sol.filter((s) => s.min[0]! < 6.75 && s.max[0]! > 6 && s.max[2]! > z0 + 1 + 1e-9);
+    expect(inDado).toEqual([]);
+    // and the -Z half is still solid there
+    expect(sol.some((s) => s.min[0]! <= 6 + 1e-9 && s.max[0]! >= 6.75 - 1e-9 && s.min[2]! <= z0 + 1e-9)).toBe(true);
   });
 
   it('keeps the stops when the board is duplicated', () => {

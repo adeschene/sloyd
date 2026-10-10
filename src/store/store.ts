@@ -1434,7 +1434,10 @@ export const useStore = create<StoreState>((set, get) => {
       const cut: Cut = {
         id: nextId(),
         face: 'thickness',
-        from: 'max',
+        // fu 215: on-edge's thickness axis is reversed (schema 12), so its 'max' side is the face away from the
+        // default camera; 'min' there is the world +Z face (the pre-v12 placement at every turn). Flat and
+        // upright keep 'max' (world +Y / the facing side).
+        from: board.posture === 'on-edge' ? 'min' : 'max',
         across: 'width',
         offset: board.length / 4,
         width: Math.min(0.75, board.length / 4),
