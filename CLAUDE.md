@@ -21,11 +21,10 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-10: the record-only 243/244 round, bundle
-  `index-nQcIwlOt.js`, CSS `index-QQ-rJZea.css`, merge `74469ff`, **schema 11** (unchanged).
+- **Production matches `master`** as of 2026-10-10: the older-record-only round, bundle
+  `index-amBYj9wK.js`, CSS `index-NXp0eTQP.css`, deployed from `3596345`, **schema 11** (unchanged).
   Test count is under Commands.
-- **Pending deploy: the older-record-only round** (fu 211/214/217/220/222/228/230/231/235/239,
-  merged 2026-10-10, no schema change); `master` is ahead of production until it ships. **NO SUCCESSOR IS
+- **Nothing is pending. NO SUCCESSOR IS
   CHOSEN: ask what to work on; do not pick.** Open near the recent code:
   241 (open by decision), 215 (posture handedness, a question),
   205/206 (joinery's safe refusals), 221, 225–235. See Open follow-ups below.
