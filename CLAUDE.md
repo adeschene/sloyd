@@ -21,11 +21,10 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-10: the joinery-end-cuts round, bundle
-  `index-DCZ4VM-C.js`, CSS `index-NXp0eTQP.css`, merge `25f9505`, **schema 11** (unchanged).
+- **Production matches `master`** as of 2026-10-10: the opposite-end-cut round, bundle
+  `index-BGlCmsgG.js`, CSS `index-NXp0eTQP.css`, merge `b953fdd`, **schema 11** (unchanged).
   Test count is under Commands.
-- **Pending deploy: the opposite-end-cut round** (fu 245, merged 2026-10-10, no schema change);
-  `master` is ahead of production until it ships. **NO SUCCESSOR IS
+- **Nothing is pending.** **NO SUCCESSOR IS
   CHOSEN: ask what to work on; do not pick.** Open near the recent code:
   241 (open by decision), 215 (posture handedness, a question),
   221, 225–227, 229, 232–234. See Open follow-ups below.
