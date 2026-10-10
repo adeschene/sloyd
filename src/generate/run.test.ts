@@ -1,6 +1,7 @@
 import { worldParts } from '../document/tree';
 import { describe, expect, it, vi } from 'vitest';
 import { MAX_REPAIRS, RunFailed, problemKey, refineEstimateUsd, runGeneration, runJoinery, runRefine, runRepairLoop } from './run';
+import type { RefineProgress } from './run';
 import { SYSTEM_PROMPT } from './prompt';
 import type { GenerateSettings } from './prompt';
 import { REFINE_MAX, plainForRefine, refineMessage } from './refine';
@@ -505,6 +506,20 @@ describe('runRefine — joined designs', () => {
     expect(listed.length).toBeGreaterThan(0);
     expect(listed.every((l) => l.includes('Shelf 3'))).toBe(true);
     expect(out.joints!.chosen).toBe(listed.length);
+  });
+
+  it('joinery\'s own rounds report stage "join"; the design call\'s do not (fu 242)', async () => {
+    const echo = plainEcho(joined);
+    const withShelf = { ...echo, parts: [...echo.parts, { ...echo.parts.find((p) => p.name === 'Shelf 1')!, name: 'Shelf 3', at: { ...echo.parts.find((p) => p.name === 'Shelf 1')!.at, y: 60 } }] };
+    // Design: unusable then the shelf (a design retry). Joinery: unusable then an answer (a joinery retry).
+    const { client } = fakeClient(['unparseable', withShelf, 'unparseable', { joints: [] }]);
+    const seen: RefineProgress[] = [];
+    const out = await runRefine(client, joined, RS, new AbortController().signal, (p) => seen.push(p));
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(seen).toEqual([
+      { phase: 'designing' }, { phase: 'retrying', round: 1 },
+      { phase: 'designing', stage: 'join' }, { phase: 'retrying', round: 1, stage: 'join' },
+    ]);
   });
 
   it('a new meeting answered butt still counts as chosen (spec §4 counts)', async () => {

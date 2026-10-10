@@ -11,14 +11,19 @@ import { storage } from './storage/browser';
 export type RefineStatus = 'designing' | 'joining' | 'repairing' | 'retrying' | 'ready' | 'failed' | 'cancelled';
 export interface RefineRun {
   status: RefineStatus; round?: number; issues?: number;
+  /** The round belongs to the joinery call, not the design call (fu 242). */
+  join?: boolean;
   projectId?: string; projectName?: string; outcome?: RefineOutcome;
   error?: string; costUsd: number | null;
 }
 
-export const progressPatch = (p: RefineProgress): Partial<RefineRun> =>
-  p.phase === 'designing' ? { status: p.stage === 'join' ? 'joining' : 'designing' }
-    : p.phase === 'repairing' ? { status: 'repairing', round: p.round, issues: p.issues }
-      : { status: 'retrying', round: p.round };
+/** `join` is set on EVERY patch, false included: patches merge into the run, so an omitted field would carry over. */
+export const progressPatch = (p: RefineProgress): Partial<RefineRun> => {
+  const join = p.stage === 'join';
+  return p.phase === 'designing' ? { status: join ? 'joining' : 'designing', join }
+    : p.phase === 'repairing' ? { status: 'repairing', round: p.round, issues: p.issues, join }
+      : { status: 'retrying', round: p.round, join };
+};
 
 /**
  * One refine run, owned by App so closing the dialog does not cancel it.

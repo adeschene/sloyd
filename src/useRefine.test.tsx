@@ -77,9 +77,17 @@ describe('useRefine', () => {
 
 describe('progressPatch', () => {
   it('maps the joinery stage designing phase to joining', () => {
-    expect(progressPatch({ phase: 'designing', stage: 'join' } as never)).toEqual({ status: 'joining' });
+    expect(progressPatch({ phase: 'designing', stage: 'join' })).toEqual({ status: 'joining', join: true });
   });
   it('keeps a plain designing phase as designing', () => {
-    expect(progressPatch({ phase: 'designing' } as never)).toEqual({ status: 'designing' });
+    expect(progressPatch({ phase: 'designing' })).toEqual({ status: 'designing', join: false });
+  });
+  it('keeps the joinery stage on its repair and retry rounds (fu 242)', () => {
+    expect(progressPatch({ phase: 'repairing', round: 1, issues: 2, stage: 'join' })).toEqual({ status: 'repairing', round: 1, issues: 2, join: true });
+    expect(progressPatch({ phase: 'retrying', round: 2, stage: 'join' })).toEqual({ status: 'retrying', round: 2, join: true });
+  });
+  it('a design round says join: false outright, so a merged run never inherits it', () => {
+    expect(progressPatch({ phase: 'repairing', round: 1, issues: 2 })).toEqual({ status: 'repairing', round: 1, issues: 2, join: false });
+    expect(progressPatch({ phase: 'retrying', round: 1 })).toEqual({ status: 'retrying', round: 1, join: false });
   });
 });
