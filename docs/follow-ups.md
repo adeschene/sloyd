@@ -4902,7 +4902,7 @@ legible (`docs/img/ui-polish-snaps.png`); the cyan reads by hue rather than ligh
   (was 1.78). Live: the resting guides drawn on pine, walnut, plywood and the ground at 1920×1080 on the dev server,
   and the user looked and judged the markers fine. The scripted hover sweep of each kind on each wood was stopped by
   the user as unnecessary.
-- **Status:** closed.
+- **Status:** closed; deployed as `index-DrjjRDmM.js`.
 
 **250. Popover and ProjectMenu close on a focusout whose `relatedTarget` is null — before an item's click lands, on
 browsers that do not focus a button on click.** Safari and macOS Firefox do not focus a `<button>` on mouse click, so
