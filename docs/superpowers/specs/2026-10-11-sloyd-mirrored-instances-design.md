@@ -90,15 +90,38 @@ edit through each frame on the occurrence's chain. Through a mirrored frame the 
 - `keepWorld` (joinery) and the Properties rule (keep the stored local position) are unchanged in meaning; both
   are expressed through the inverse.
 
+*Amended 2026-10-11 (final review).* The coupling above assumed every user of a Shape has one mirror parity;
+Ungroup of a plain original after Copy mirrored, Make Unique of a mirrored copy and Link can all make a Shape
+whose users sit on both sides of a mirror. The user's rulings and one rule the implementation already followed:
+
+- **Link refuses parts on opposite sides of a mirror.** `linkPlan` (the ONE Link decider) refuses when its
+  members' parities differ (the XOR of `mirrored` along each occurrence's instance chain, `mirroredAt`), with
+  "Can't link parts on opposite sides of a mirror." Every member counts, including those an already-linked
+  selected part brings along, since each becomes a user of the Shape (a selection is one level, so this is the
+  form the UI can reach). Nothing changes on refusal; the group panel shows the message in place of the Link
+  button. On ONE side of a mirror Link builds the Shape from the source's STORED shared fields, never its world
+  fields (which under a mirror are the stored ones reflected), so no member's world geometry changes.
+- **A posture change between flat/on-edge and upright on a Shape with users on both sides is refused**
+  (`postureRefusal`, shared by the store and the Posture field), before any mutation: "Linked parts on both
+  sides of a mirror can't change between flat and upright. Unlink first." The two sides would write different
+  cuts to the one Shape. Flat ↔ on-edge (d0 unchanged), sizes, material, and any posture change on a Shape
+  whose users are all on one side are unchanged.
+- **A Properties resize keeps the stored cuts** (the world cuts follow the mirror at the new size, as through a
+  plain frame), while `keepWorld` (joinery, which keeps the world box) re-mirrors the cuts at the new size.
+
 ## 5. Actions and UI
 
 - **"Mirrored" checkbox** in an assembly's Properties, under Turn (Orientation). Toggling flips the flag in place
   and adjusts the instance's position so the assembly's world bounds are unchanged — `turnInstance`'s rule
   (keep the box centre, min height), which the mirror-aware `placeBoard` makes exact. An assembly with no parts
-  keeps its position. One undo entry; refused while a gesture is open, like any edit.
+  keeps its position. One undo entry; like `turnAssembly` (not refused while a gesture is open; a checkbox
+  click ends a drag). *Amended 2026-10-11 (final review): was "refused while a gesture is open, like any edit".*
 - **"Copy mirrored"** beside Duplicate: a shared copy (`shareInstance`) with the OPPOSITE flag, placed so its world
-  box abuts the original's on the original's local +X side (the reflection of the original about the plane of
-  its own local-X max face; for a turned original that face is turned with it). Name through `uniqueName` among
+  box abuts the original's on the side `rotateVec(rotation, +X)` points to, whatever the original's flag (for a
+  turned original that side is turned with it; for an already-mirrored original it is the same world side as
+  for a plain one, so every Copy mirrored continues the same way). *Amended 2026-10-11 (final review): was "on
+  the original's local +X side (the reflection of the original about the plane of its own local-X max face)",
+  which for a mirrored original would name the other side.* Name through `uniqueName` among
   its siblings. The copy becomes the selection. One undo entry.
 - **Parts list:** a mirrored assembly row shows a mirrored badge (`role="img"`, accessible name "Mirrored"),
   beside the shared-copies ×N badge.
