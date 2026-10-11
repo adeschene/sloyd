@@ -116,7 +116,9 @@ controls move with them and assert `aria-pressed` instead of `checked`.
 
 ### 4.1 Frame
 
-- Width `clamp(300px, 19vw, 380px)` (≈365px at 1920, 300px at 1366).
+- Width `clamp(380px, 20vw, 420px)` (384px at 1920, 380px at 1366). Measured, not chosen: the assembly's action
+  row (Duplicate · Ungroup · Hide others · More ▾) is 302px in the fallback UI font, + 4px gap + ~30px trash,
+  + 2×15px padding + the thin scrollbar + 1px border ≈ 375px. (An earlier draft said 300px; it cannot fit.)
 - **Parts** list: `max-height: 35vh`, scrolls on its own.
 - **Properties**: fills the remaining height and scrolls.
 - **Guides**: a footer (§4.5).
@@ -127,7 +129,7 @@ controls move with them and assert `aria-pressed` instead of `checked`.
   `Assembly`, nothing for a multi-selection.
 - **Action row**, one line, directly under the name: three visible buttons, **More ▾**, and a right-aligned
   **trash icon button** (`aria-label="Delete"`, `title="Delete"`, alert colour, inline SVG, not a glyph). The
-  row must fit at 300px with the longest set (assembly) — checked live.
+  row must fit at the panel's minimum width (380px) with the longest set (an assembly with copies) — checked live.
 
 | Selection | Visible | Under More ▾ (only those that show today under the same conditions) |
 |---|---|---|
@@ -171,10 +173,11 @@ part's own block ("Select linked" / "Unlink", Properties.tsx ~528) and refusal/l
 
 ## 5. Dialogs and sheet
 
-Applies to `.cutlist-sheet`, Generate, Add joinery, Refine, Settings, the ProjectMenu popup, RepairNotice and
-the storage banner:
+Applies to `.cutlist-sheet`, Generate, Add joinery, Refine, Settings, RepairNotice and the storage banner:
 
-- Walnut surfaces (`--walnut-900`, inner surfaces `--walnut-850`), slate is not used inside dialogs.
+- Walnut surfaces (`--walnut-900`, inner surfaces `--walnut-850`), slate is not used inside dialogs. Popups that
+  drop from the toolbar (the project menu, Claude ▾) are slate, as in the approved layout mockup; More ▾ in the
+  side panel is walnut.
 - Form fields: label above the control, the side panel's control style. One rule set styles `select`,
   `input[type=checkbox]`, `input[type=radio]` across the app (`accent-color: var(--accent)` plus size and
   alignment), so no native default survives in the cut list head.

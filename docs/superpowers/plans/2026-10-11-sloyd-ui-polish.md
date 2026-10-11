@@ -114,6 +114,9 @@ function contrast(a: string, b: string): number {
 }
 
 describe('palette (ui-polish spec §2)', () => {
+  // Guards the two below against a stylesheet that loaded as '' (they would pass vacuously).
+  it('reads the stylesheet', () => expect(css).toContain(':root {'));
+
   // Body text and labels on each surface they sit on: WCAG AA, 4.5:1.
   it.each([
     ['walnut-ink', 'walnut-900'],
@@ -126,6 +129,8 @@ describe('palette (ui-polish spec §2)', () => {
     ['accent', 'walnut-900'],
     ['accent-bright', 'slate-900'],
     ['on-accent', 'accent'],
+    ['alert', 'walnut-900'],
+    ['alert', 'walnut-800'],
   ])('%s on %s is at least 4.5:1', (fg, bg) => {
     expect(contrast(token(fg), token(bg))).toBeGreaterThanOrEqual(4.5);
   });
@@ -140,7 +145,7 @@ describe('palette (ui-polish spec §2)', () => {
 - [ ] **Step 2: Run it to verify it fails**
 
 Run: `npx vitest run src/palette.test.ts`
-Expected: FAIL — `--walnut-ink is not declared as a 6-digit hex` (and the retire test fails on `--graphite-`).
+Expected: FAIL — `--walnut-ink is not declared as a 6-digit hex` (and the retire test fails on `--graphite-`). The `reads the stylesheet` case must PASS here; if it fails, `?raw` is not loading CSS under Vitest — replace the import with `import { readFileSync } from 'node:fs'; const css = readFileSync(new URL('./styles.css', import.meta.url), 'utf8');` and continue.
 
 - [ ] **Step 3: Replace the header comment and `:root`**
 
@@ -289,7 +294,7 @@ Expected: PASS. If a contrast pair fails, adjust that raw token's VALUE (spec §
 - [ ] **Step 7: Full suite and build**
 
 Run: `npm test 2>&1 | tail -5 && npm run build 2>&1 | tail -3`
-Expected: baseline + 11 tests (the palette file), all passing; build succeeds.
+Expected: baseline + 14 tests (the palette file), all passing; build succeeds.
 
 - [ ] **Step 8: Mutate**
 
@@ -730,7 +735,8 @@ interface Props {
  * tools top-left, projection and visibility top-right, the Move hint
  * bottom-left. Rendered inside `.viewport-stack`, so `.app-shell`'s `inert`
  * covers them, and as siblings of the canvas, so a click on one never reaches
- * R3F (no deselect, no Move/Tape click).
+ * R3F (no deselect, no Move/Tape click). `role="group"`, not "toolbar": a toolbar
+ * promises arrow-key roving focus, which these do not implement.
  */
 export function ViewportControls({
   orthographic, onToggleProjection, showGrid, onToggleGrid,
@@ -742,7 +748,7 @@ export function ViewportControls({
 
   return (
     <>
-      <div className="viewport-controls viewport-controls-tools" role="toolbar" aria-label="Tools">
+      <div className="viewport-controls viewport-controls-tools" role="group" aria-label="Tools">
         <div className="segmented">
           <button onClick={() => setTool('select')} aria-pressed={tool === 'select'}
             title="Select tool — click a part to select it, drag its gizmo to move it (Esc)">Select</button>
@@ -753,7 +759,7 @@ export function ViewportControls({
         </div>
       </div>
 
-      <div className="viewport-controls viewport-controls-view" role="toolbar" aria-label="View">
+      <div className="viewport-controls viewport-controls-view" role="group" aria-label="View">
         <div className="segmented">
           <button aria-pressed={!orthographic} onClick={() => { if (orthographic) onToggleProjection(); }}
             title="Perspective view">Perspective</button>
@@ -1229,7 +1235,7 @@ const openMore = () => userEvent.click(screen.getByRole('button', { name: 'More'
 Run `npx vitest run src/panels/Properties.test.tsx src/panels/CopyInRow.test.tsx`. For every failure "Unable to find role button name X" where X is now under More, insert `await openMore();` before that lookup — change nothing else in the test. Then, so negative assertions cannot pass vacuously, find every absence assertion on an action that can live under More:
 
 ```bash
-grep -n "queryByRole('button', { name: '\(Copy mirrored\|Copy in a row…\|Select copies\|Make Unique\|Unlink\|Ungroup\|Group\|Hide others\)' })" src/panels/*.test.tsx
+grep -rn "queryByRole('button', { name: '\(Copy mirrored\|Copy in a row…\|Select copies\|Make Unique\|Unlink\|Ungroup\|Group\|Hide others\)' })" src --include=*.test.tsx
 ```
 
 and insert `await openMore();` before each (make the test `async` if it is not). Known instance: `offers no Make Unique for a drawer inside a cabinet placed twice` — it becomes `async` and opens More before `queryByRole(... 'Make Unique')`. In CopyInRow.test.tsx, the helper at line ~17–20 opens More before clicking `Copy in a row…`, and the test at ~198 opens More before asserting the button is present.
@@ -1302,6 +1308,9 @@ The "cannot link" fixture is two parts already linked: the existing test `no "wi
 Append to `src/styles.css` (properties section):
 
 ```css
+/* Measured (spec §4.1): the assembly row is 302px of buttons + gap + trash + padding + scrollbar. */
+.sidebar { width: clamp(380px, 20vw, 420px); }          /* replaces width: 312px */
+
 .action-bar { display: flex; align-items: center; gap: 4px; margin: 8px 0 4px; }
 .action-bar > button, .action-more .popover-trigger { padding: 4px 8px; white-space: nowrap; }
 .action-delete { margin-left: auto; padding: 4px 7px; color: var(--alert); display: inline-flex; align-items: center; }
@@ -1314,7 +1323,7 @@ Run: `npx vitest run src/panels && npm run build 2>&1 | tail -3` — PASS, build
 
 - [ ] **Step 10: Live check (Review Focus 5)**
 
-Dev server, 1366×768: add a board, select it, open More ▾ — the popup is fully inside the sidebar (its `getBoundingClientRect()` lies within `.sidebar`'s). Group two boards, select the assembly: the action row is one line (`.action-bar` height < 34px) and the trash button's right edge ≤ the panel's content right edge. Screenshot `docs/img/ui-polish-actions.png`. Clear localStorage; confirm empty.
+Dev server, 1366×768 (sidebar at its 380px minimum): add a board, select it, open More ▾ — the popup is fully inside the sidebar (its `getBoundingClientRect()` lies within `.sidebar`'s). Then the WORST case: add two boards, Group them, select the assembly, Duplicate it (a shared copy), and select one copy — More ▾ now holds Copy mirrored, Copy in a row…, Select copies, Make Unique, Group. Check: the action row is one line (`.action-bar` height < 34px), the trash button's right edge ≤ the panel's content right edge, and the open More ▾ popup lies within `.sidebar`. If the row does not fit, report the measured widths rather than shrinking padding ad hoc (the 380px floor came from a measurement; a new one changes the spec). Screenshot `docs/img/ui-polish-actions.png`. Clear localStorage; confirm empty.
 
 - [ ] **Step 11: Commit**
 
@@ -1492,7 +1501,9 @@ In `src/styles.css`, replace the `.properties .name`, `.field`, `.field label`, 
 .field-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .field-grid > .field { margin-bottom: 0; }
 .field-grid > .field-error,
-.field-grid > .field-note { grid-column: 1 / -1; }
+.field-grid > .field-note,
+.field-grid > .field:has(> .field-error) { grid-column: 1 / -1; }
+.field-grid { grid-auto-flow: dense; }
 .field-grid-checkbox { align-self: end; padding-bottom: 6px; }
 
 .cut { background: var(--raised); border: 1px solid var(--rule); border-radius: 4px;
@@ -1518,7 +1529,7 @@ Remove `htmlFor="material"` → the Material label test RED. Revert.
 
 - [ ] **Step 8: Live check**
 
-Dev server at 1920×1080 and 1366×768: one part with one cut selected — no label inside `.properties` wraps (every `.field label` has `getBoundingClientRect().height` < 18), and at 1920 the whole panel including the cut card shows without scrolling `.panel-props` (`scrollHeight <= clientHeight`). Assembly: the Mirrored checkbox and its text share one line. Screenshots `docs/img/ui-polish-part-1920.png`, `…-assembly-1366.png`. Clear localStorage; confirm empty.
+Dev server at 1920×1080 and 1366×768: one part with one cut selected — no label inside `.properties` wraps (every `.field label` has `getBoundingClientRect().height` < 18), and at 1920 the whole panel including the cut card shows without scrolling `.panel-props` (`scrollHeight <= clientHeight`). Assembly: the Mirrored checkbox and its text share one line. At 1366, type `abc` into Width and press Enter: the error spans the whole Size row under the fields (its `getBoundingClientRect().width` ≈ the grid's), not an ~100px column; choose a refused posture if a fixture gives one (else skip and note it) and check Turn back-fills beside Posture. Screenshots `docs/img/ui-polish-part-1920.png`, `…-assembly-1366.png`. Clear localStorage; confirm empty.
 
 - [ ] **Step 9: Commit**
 
@@ -1673,7 +1684,6 @@ with `<GuidesFooter />`; swap the `GuidesList` import for `import { GuidesFooter
 In `src/styles.css`:
 
 ```css
-.sidebar { width: clamp(300px, 19vw, 380px); }          /* replaces width: 312px */
 .panel-parts { max-height: 35vh; }                        /* replaces max-height: 34% */
 .panel-guides { padding-top: 8px; padding-bottom: 8px; }  /* closed: one line */
 .panel-guides.open { max-height: 34%; }
