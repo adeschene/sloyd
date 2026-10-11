@@ -169,8 +169,10 @@ export function boardSnapPoints(board: Board): BoardSnapPoint[] {
  * one): a second pose with a different axisFrame mapping on all three
  * axes is what actually proves this reads the mapping rather than
  * hard-coding one board's arrangement of it.
+ *
+ * Exported as the ONE home of the part→world point mapping; `drawing.ts` reads edges through it (plans-sheet spec §2.1).
  */
-function toWorld(board: Board, p: Point): [number, number, number] {
+export function toWorld(board: Board, p: Point): [number, number, number] {
   const frame = axisFrame(board);
   return [0, 1, 2].map(
     (i) => board.position[i]! + toWorldOffset(board, i, p[frame[i]!.dim]),
