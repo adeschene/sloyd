@@ -4908,9 +4908,16 @@ real clicks in this round).
   still closes. Pinned by `Popover.test.tsx` (pointerdown, null focusout, click → `run` once and closed; trigger click
   leaves focus on the trigger; a released press no longer guards), each mutated red. Still only simulated: no
   Safari/macOS Firefox exists on this host.
-- **ProjectMenu: unchanged**, and keeps the identical latent handler. CLAUDE.md's "ProjectMenu.tsx" rule (its
-  arm/disarm focus handling, the sibling-index button swap) put it out of this round's scope.
-- **Status:** record-only for ProjectMenu — porting Popover's guard to it is the user's call.
+- **ProjectMenu: fixed** 2026-10-11, after the deploy, at the user's request. Popover's guard ported verbatim
+  (`pressing`, set on the root's `pointerdown`, cleared on a window `pointerup`/`pointercancel` while open, reset on
+  open). Unlike Popover's items, two of its controls leave the popup OPEN (Duplicate, the × that arms a delete), so
+  they and the caret focus themselves in their own `onClick`: on those browsers focus would otherwise sit on the body
+  after the press and Escape would stop reaching the popup. The arm/disarm swap is untouched (the same `<button>` at
+  the same sibling index; focusing it before `setArmed` leaves focus on the confirm). Pinned by seven tests in
+  `ProjectMenu.test.tsx`, each part mutated red (guard, caret focus, duplicate focus, arm focus, window `pointerup`,
+  reset on open). The reset on open was unpinned in Popover too; `Popover.test.tsx` gained the same stale-press test,
+  mutated red. Still only simulated: no Safari/macOS Firefox exists on this host.
+- **Status:** closed. Only a real Safari or macOS Firefox can confirm it.
 
 **251. Small gaps the round judged fine to leave.** Record-only; the task reviews' deferred minors.
 - **Closed in the final-review fix wave:** the stale comments (`BoardMesh.tsx`'s "Brass", the `.toolbar-hint`

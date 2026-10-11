@@ -103,6 +103,17 @@ describe('Popover', () => {
     expect(screen.queryByRole('button', { name: 'Refine…' })).toBeNull();
   });
 
+  // A press that began on the closed trigger and was released off it (no
+  // window pointerup listener while closed) must not guard the next open.
+  // MUTATE: drop the reset when the popup opens — it stays open, red.
+  it('does not carry a stale press from before it opened', () => {
+    const { trigger } = setup();
+    fireEvent.pointerDown(trigger);
+    fireEvent.click(trigger);
+    fireEvent.focusOut(trigger, { relatedTarget: null });
+    expect(screen.queryByRole('button', { name: 'Generate…' })).toBeNull();
+  });
+
   // The other half of fu 250: in those browsers a mouse-opened popover had
   // focus nowhere inside it, so Escape (listened for on the subtree,
   // invariant 27) never reached it. The trigger focuses itself.

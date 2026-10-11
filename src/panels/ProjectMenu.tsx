@@ -82,6 +82,8 @@ export function ProjectMenu({ activeId, onOpen, onNew, onDuplicate, onDelete, on
   // takes its message with it rather than leaving one attached to nothing.
   const [failed, setFailed] = useState<{ id: string; cause: DuplicateFailure } | null>(null);
   const root = useRef<HTMLDivElement>(null);
+  /** A pointer is down inside the root (fu 250); cleared on release anywhere. */
+  const pressing = useRef(false);
 
   const refresh = useCallback(() => {
     storage.listProjects().then(setProjects).catch(() => setProjects([]));
@@ -117,6 +119,10 @@ export function ProjectMenu({ activeId, onOpen, onNew, onDuplicate, onDelete, on
   // closed it.
   useEffect(() => {
     if (!open) return;
+    // Opened by a click, the pointer is already up; opened by keyboard there
+    // was none. Either way no press is in progress — clear a stale one left
+    // by a press that was dragged off the closed caret.
+    pressing.current = false;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation();
@@ -126,12 +132,17 @@ export function ProjectMenu({ activeId, onOpen, onNew, onDuplicate, onDelete, on
     const onDown = (e: PointerEvent) => {
       if (!root.current?.contains(e.target as Node)) setOpen(false);
     };
+    const onUp = () => { pressing.current = false; };
     const el = root.current;
     el?.addEventListener('keydown', onKey);
     window.addEventListener('pointerdown', onDown);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
     return () => {
       el?.removeEventListener('keydown', onKey);
       window.removeEventListener('pointerdown', onDown);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
     };
   }, [open]);
 
@@ -146,6 +157,14 @@ export function ProjectMenu({ activeId, onOpen, onNew, onDuplicate, onDelete, on
   // native `focusout` is `onBlur` (React normalizes the non-bubbling native
   // `focus`/`blur` pair into bubbling synthetic `onFocus`/`onBlur`), so this
   // is bound as `onBlur` on the root, not the native event name.
+  //
+  // Follow-up 250 — browsers that do not focus a button on mousedown (Safari,
+  // macOS Firefox): pressing a control inside the popup blurs the focused
+  // element with a NULL relatedTarget before the click lands, so a
+  // null-relatedTarget focusout is ignored while a pointer is down inside
+  // (Popover's guard, ported). With no pointer down it still closes. The caret
+  // and the two controls that leave the popup open (duplicate, arm) focus
+  // themselves on click, so focus stays inside for Escape to reach.
   // ONE clearing rule for the duplicate error, as an effect on `open` rather
   // than a `setFailed(null)` beside every `setOpen(false)`. There are six
   // close paths (Escape, outside click, focus-out, opening a row, New,
@@ -160,18 +179,20 @@ export function ProjectMenu({ activeId, onOpen, onNew, onDuplicate, onDelete, on
 
   const onFocusOut = useCallback((e: FocusEvent<HTMLDivElement>) => {
     const next = e.relatedTarget as Node | null;
+    if (!next && pressing.current) return;
     if (!next || !root.current?.contains(next)) setOpen(false);
   }, []);
 
   const now = Date.now();
 
   return (
-    <div className="project-menu" ref={root} onBlur={onFocusOut}>
+    <div className="project-menu" ref={root} onBlur={onFocusOut}
+      onPointerDown={() => { pressing.current = true; }}>
       <button
         className="project-menu-caret"
         aria-label="Open project menu"
         aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
+        onClick={(e) => { e.currentTarget.focus(); setOpen((o) => !o); }}
       >
         ▾
       </button>
@@ -195,7 +216,8 @@ export function ProjectMenu({ activeId, onOpen, onNew, onDuplicate, onDelete, on
                 className="project-row-action"
                 aria-label={`Duplicate ${p.name}`}
                 title="Duplicate"
-                onClick={async () => {
+                onClick={async (e) => {
+                  e.currentTarget.focus();
                   setArmed(null);
                   const cause = await onDuplicate(p.id);
                   // Set on failure AND cleared on success, in one statement:
@@ -232,7 +254,7 @@ export function ProjectMenu({ activeId, onOpen, onNew, onDuplicate, onDelete, on
                   className="project-row-action"
                   aria-label={`Delete ${p.name}`}
                   title="Delete"
-                  onClick={() => setArmed(p.id)}
+                  onClick={(e) => { e.currentTarget.focus(); setArmed(p.id); }}
                 >
                   ×
                 </button>

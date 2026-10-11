@@ -27,7 +27,7 @@ handicraft education tradition built around hand woodworking.
   export first). Test count is under Commands.
 - **NO SUCCESSOR IS
   CHOSEN: ask what to work on; do not pick.** Open near the recent code:
-  241 (open by decision), 248–251 (ui-polish residue; 248 and 249 wait on the user),
+  241 (open by decision), 248, 249, 251 (ui-polish residue; 248 and 249 wait on the user),
   221, 225 (rest out of scope), 232, 234, 247. See Open follow-ups below.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
@@ -311,7 +311,8 @@ Deployment scaffolding: `Dockerfile`, `docker-compose.yml`, `nginx.conf`,
 - **`GuidesList.tsx`** has no selection model, deliberately.
 - **`Popover.tsx`**: focuses the trigger BEFORE running an item (App records the opener);
   Escape is bound on its subtree with `stopPropagation`, never on window (inv 27).
-  ProjectMenu keeps its own copy.
+  ProjectMenu keeps its own copy, with the same fu 250 guard (a null-`relatedTarget` focusout ignored while a
+  pointer is down inside); its caret, Duplicate and arm buttons focus themselves on click.
 - **`styles.css`**: rules read surface ROLES (`--surface`, `--control`, `--rule`, `--ink`…),
   never raw `--grey-*`/`--walnut-*`; grey chrome re-points the roles in one context selector.
 - **`App.tsx` keys**: plain and Shift+H match by `e.key`; only Alt+H by `e.code === 'KeyH'`;
@@ -542,7 +543,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 2925 tests across 99 files
+npm test           # Vitest, currently 2933 tests across 99 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -565,8 +566,8 @@ knowing without opening it:
   for the shared posture write) and three texts overstate its role there; small unpinned guards.
 - **248–251** — ui-polish residue: the new viewport colours unseen on a real GPU (248, the user looks
   after the deploy); the cyan edge-midpoint marker weakest on maple, 1.86:1 (249, a user decision, do not
-  recolour unasked); Popover/ProjectMenu's null-`relatedTarget` focusout would close before an item's click on
-  Safari/macOS Firefox (250, latent); deferred minors (251).
+  recolour unasked); Popover/ProjectMenu's null-`relatedTarget` focusout (250, closed for both; simulated only, no
+  Safari here); deferred minors (251).
 - **176/177** — the held rules' known limits (mutual lapping) and an unseen live repair.
 - **130** — semi-infinite construction lines; picked and set aside 2026-08-31 without a
   reason. Ask before assuming it's wanted; it needs real hardware (26a).

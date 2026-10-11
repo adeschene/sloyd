@@ -34,7 +34,7 @@ interface Props {
  * pressing an item there blurs the focused element with a NULL relatedTarget
  * before the click lands, so a null-relatedTarget focusout is ignored while a
  * pointer is down inside. With no pointer down it still closes. ProjectMenu
- * keeps the identical latent handler (record-only, fu 250).
+ * carries the same guard (ported, fu 250).
  */
 export function Popover({ label, items, title, align = 'start', className }: Props) {
   const [open, setOpen] = useState(false);

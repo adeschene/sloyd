@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ProjectMenu, relativeTime } from './ProjectMenu';
 import { storage } from '../storage/browser';
@@ -261,6 +261,102 @@ describe('ProjectMenu', () => {
     const outside = screen.getByRole('button', { name: 'outside' });
     act(() => { outside.focus(); });
     expect(screen.queryByText('Workbench')).toBeNull();
+  });
+  // Follow-up 250, ported from Popover. Safari and macOS Firefox do not focus
+  // a button on mousedown: pressing a control while focus is inside the popup
+  // blurs the focused element with relatedTarget NULL, before the click
+  // lands. That focusout must not close the popup, or the click hits nothing.
+  // fireEvent throughout: userEvent would focus the control on mousedown, the
+  // very thing those browsers do not do.
+  describe('on browsers that do not focus a button on click (fu 250)', () => {
+    const renderMenu = (props: Partial<Parameters<typeof ProjectMenu>[0]> = {}) =>
+      render(<ProjectMenu activeId="a" onOpen={vi.fn()} onNew={vi.fn()} onDuplicate={vi.fn().mockResolvedValue(null)} onDelete={vi.fn()} onImport={vi.fn()} {...props} />);
+    const openByMouse = async () => {
+      const caret = screen.getByLabelText('Open project menu');
+      fireEvent.click(caret);
+      await screen.findAllByText('Workbench');
+      return caret;
+    };
+    /** pointerdown, the null-relatedTarget focusout those browsers send, pointerup, click. */
+    const press = (el: HTMLElement) => {
+      fireEvent.pointerDown(el);
+      fireEvent.focusOut(document.activeElement!, { relatedTarget: null });
+      fireEvent.pointerUp(el);
+      fireEvent.click(el);
+    };
+
+    // MUTATE: drop the caret's focus() — activeElement is body, red.
+    it('focuses the caret when it is clicked, so Escape reaches the popup', async () => {
+      renderMenu();
+      const caret = await openByMouse();
+      expect(document.activeElement).toBe(caret);
+      fireEvent.keyDown(caret, { key: 'Escape' });
+      expect(screen.queryByText('Workbench')).toBeNull();
+    });
+
+    // MUTATE: drop the pressing guard in onFocusOut — onOpen is never called, red.
+    it('does not let the focusout during a press swallow a row\'s open click', async () => {
+      const onOpen = vi.fn();
+      renderMenu({ onOpen });
+      await openByMouse();
+      press(openRows().find((r) => r.textContent?.includes('Shaker'))!);
+      expect(onOpen).toHaveBeenCalledWith('b');
+      expect(screen.queryByText('Workbench')).toBeNull();
+    });
+
+    // MUTATE: drop the guard — the popup closes and onDuplicate is never called;
+    // drop the duplicate's focus() — activeElement is body, red.
+    it('keeps the popup open through a duplicate, with focus inside for Escape', async () => {
+      const onDuplicate = vi.fn().mockResolvedValue(null);
+      renderMenu({ onDuplicate });
+      await openByMouse();
+      const dup = screen.getByLabelText('Duplicate Workbench');
+      press(dup);
+      expect(onDuplicate).toHaveBeenCalledWith('a');
+      expect(document.activeElement).toBe(dup);
+      await screen.findAllByText('Workbench');
+      fireEvent.keyDown(dup, { key: 'Escape' });
+      expect(screen.queryByText('Workbench')).toBeNull();
+    });
+
+    // MUTATE: drop the guard — the popup closes, no confirm; drop the arm's
+    // focus() — activeElement is body, red.
+    it('arms a delete and leaves focus on the confirm', async () => {
+      renderMenu();
+      await openByMouse();
+      press(screen.getByLabelText('Delete Workbench'));
+      expect(document.activeElement).toBe(screen.getByLabelText('Delete Workbench?'));
+    });
+
+    it('still closes on a null-relatedTarget focusout with no press inside', async () => {
+      renderMenu();
+      const caret = await openByMouse();
+      fireEvent.focusOut(caret, { relatedTarget: null });
+      expect(screen.queryByText('Workbench')).toBeNull();
+    });
+
+    // A press that began on the closed caret and was released off it (no
+    // window pointerup listener while closed) must not guard the next open.
+    // MUTATE: drop the reset when the popup opens — it stays open, red.
+    it('does not carry a stale press from before it opened', async () => {
+      renderMenu();
+      const caret = screen.getByLabelText('Open project menu');
+      fireEvent.pointerDown(caret);
+      await openByMouse();
+      fireEvent.focusOut(caret, { relatedTarget: null });
+      expect(screen.queryByText('Workbench')).toBeNull();
+    });
+
+    // MUTATE: drop the window pointerup listener — the guard sticks, red.
+    it('still closes on a null-relatedTarget focusout after a press inside was released', async () => {
+      renderMenu();
+      const caret = await openByMouse();
+      const row = openRows()[0];
+      fireEvent.pointerDown(row);
+      fireEvent.pointerUp(row);
+      fireEvent.focusOut(caret, { relatedTarget: null });
+      expect(screen.queryByText('Workbench')).toBeNull();
+    });
   });
 });
 
