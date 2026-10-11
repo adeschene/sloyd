@@ -57,6 +57,8 @@ const FADED_SATURATION = 0.15;
 const FADED_RENDER_ORDER = -1;
 
 interface Props {
+  /** View-only exploded translation (plans-sheet spec §4.3); never written back (invariant 1). */
+  offset?: [number, number, number];
   board: Board;
   selected: boolean;
   // outside the open assembly: drawn faded, still clickable (a click closes the assembly), still a snap target
@@ -80,7 +82,7 @@ interface Props {
   selectable: boolean;
 }
 
-export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable }: Props) {
+export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable, offset }: Props) {
   // Geometry is derived from the document on every render — the mesh is never
   // the source of truth. Extents already account for rotation and posture,
   // so the mesh itself is axis-aligned and never carries a rotation.
@@ -181,7 +183,7 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
   const family = grainFamily(board.material);
 
   return (
-    <group position={center}>
+    <group position={offset ? [center[0] + offset[0], center[1] + offset[1], center[2] + offset[2]] : center}>
       {geometries.items.map(({ geo, center: offset }, index) => (
         <mesh
           key={index}

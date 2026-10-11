@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { useStore } from '../store/store';
+import { EXPLODED_TITLE } from './ViewportControls';
 import { Popover } from './Popover';
 import { ProjectMenu } from './ProjectMenu';
 import type { DuplicateFailure } from './ProjectMenu';
@@ -68,6 +69,7 @@ export function Toolbar({
   const addBoard = useStore((s) => s.addBoard);
   const undo = useStore((s) => s.undo);
   const redo = useStore((s) => s.redo);
+  const exploded = useStore((s) => s.explode > 0);
   const canUndo = useStore((s) => s.past.length > 0);
   const canRedo = useStore((s) => s.future.length > 0);
 
@@ -81,6 +83,8 @@ export function Toolbar({
           className="input doc-name"
           aria-label="Project name"
           value={name}
+          disabled={exploded}
+          title={exploded ? EXPLODED_TITLE : undefined}
           onFocus={() => useStore.getState().beginGesture()}
           onBlur={() => useStore.getState().endGesture()}
           onChange={(e) => setDocumentName(e.target.value)}
@@ -97,7 +101,7 @@ export function Toolbar({
           />
         )}
         <span className="toolbar-divider" />
-        <button className="btn-primary" onClick={addBoard}>+ Add board</button>
+        <button className="btn-primary" onClick={addBoard} disabled={exploded}>+ Add board</button>
         <button onClick={onOpenCutList} title="Cut list — parts, quantities and joinery">
           Cut list
         </button>
@@ -112,8 +116,8 @@ export function Toolbar({
           ]}
         />
         <span className="toolbar-divider" />
-        <button onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
-        <button onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>
+        <button onClick={undo} disabled={!canUndo || exploded} title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
+        <button onClick={redo} disabled={!canRedo || exploded} title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>
       </div>
 
       {/* Right group: settings, then the document's state on disk. */}

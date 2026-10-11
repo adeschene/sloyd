@@ -472,6 +472,21 @@ button[aria-pressed='true'] {
 .viewport-controls-tools { left: 12px; }
 .viewport-controls-view { right: 12px; }
 
+/* A disabled fieldset is the plans-sheet edit lock (spec §4.2): it disables every control inside
+   without each component knowing. It must not draw a box. */
+.edit-lock { border: 0; padding: 0; margin: 0; min-width: 0; }
+
+.viewport-explode {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink);
+}
+.viewport-explode label { display: flex; align-items: center; gap: 6px; }
+.viewport-explode input { width: 96px; }
+.viewport-explode-value { font-family: var(--font-num); min-width: 3.5ch; text-align: right; }
+
 .segmented { display: inline-flex; }
 .segmented > button { border-radius: 0; margin-left: -1px; white-space: nowrap; }
 .segmented > button:first-child { border-radius: var(--radius) 0 0 var(--radius); margin-left: 0; }

@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
 import { createDocument } from '../document/document';
@@ -102,5 +102,27 @@ describe('ViewportControls view toggles', () => {
     await userEvent.click(btn('Guides'));
     expect(useStore.getState().doc).toBe(docBefore);
     expect(useStore.getState().past.length).toBe(undoDepthBefore);
+  });
+});
+
+describe('ViewportControls explode', () => {
+  afterEach(() => { act(() => useStore.getState().setExplode(0)); });
+
+  it('sets the explode amount from the slider and shows it as a percentage', () => {
+    renderControls();
+    const slider = screen.getByRole('slider', { name: 'Explode' });
+    expect(slider).toHaveValue('0');
+    fireEvent.change(slider, { target: { value: '0.5' } });
+    expect(useStore.getState().explode).toBe(0.5);
+    expect(screen.getByText('50%')).toBeInTheDocument();
+  });
+
+  it('shows the store value when a change is refused inside a gesture', () => {
+    renderControls();
+    const slider = screen.getByRole('slider', { name: 'Explode' });
+    act(() => useStore.getState().beginGesture());
+    fireEvent.change(slider, { target: { value: '0.5' } });
+    act(() => useStore.getState().endGesture());
+    expect(slider).toHaveValue('0');
   });
 });

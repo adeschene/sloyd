@@ -1,5 +1,8 @@
 import { useStore } from '../store/store';
 
+/** The one wording for "this is locked because the view is exploded" (plans-sheet spec §4.2). */
+export const EXPLODED_TITLE = 'Slide Explode back to 0 to edit';
+
 interface Props {
   /** True when the viewport is drawing through an orthographic camera. */
   orthographic: boolean;
@@ -38,6 +41,8 @@ export function ViewportControls({
 }: Props) {
   const tool = useStore((s) => s.tool);
   const setTool = useStore((s) => s.setTool);
+  const explode = useStore((s) => s.explode);
+  const setExplode = useStore((s) => s.setExplode);
   const hasSelection = useStore((s) => s.selectedIds.length > 0);
 
   return (
@@ -64,6 +69,15 @@ export function ViewportControls({
           <button aria-pressed={showGrid} onClick={onToggleGrid} title="Show the ground grid">Grid</button>
           <button aria-pressed={showAxes} onClick={onToggleAxes} title="Show the origin axes">Origin</button>
           <button aria-pressed={showGuides} onClick={onToggleGuides} title="Show tape-measure guide points">Guides</button>
+        </div>
+        <div className="viewport-explode">
+          <label
+            title="Explode the parts apart to see how they go together; editing pauses until it is back at 0">
+            Explode
+            <input type="range" min={0} max={1} step={0.05} value={explode}
+              onChange={(e) => setExplode(Number(e.target.value))} />
+          </label>
+          <span className="viewport-explode-value">{Math.round(explode * 100)}%</span>
         </div>
       </div>
 

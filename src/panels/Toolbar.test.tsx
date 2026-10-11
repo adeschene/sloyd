@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
 import { createDocument } from '../document/document';
@@ -99,5 +99,17 @@ describe('Toolbar Claude menu', () => {
     renderToolbar({ onOpenSettings });
     await userEvent.click(screen.getByRole('button', { name: 'Settings' }));
     expect(onOpenSettings).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Toolbar while exploded', () => {
+  afterEach(() => { act(() => useStore.getState().setExplode(0)); });
+  it('disables the project name, Add board, Undo and Redo', () => {
+    act(() => { useStore.getState().addBoard(); useStore.getState().setExplode(0.4); });
+    renderToolbar();
+    expect(screen.getByRole('textbox', { name: 'Project name' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '+ Add board' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Undo' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Redo' })).toBeDisabled();
   });
 });

@@ -1903,3 +1903,15 @@ describe('App assemblies', () => {
     expect(screen.queryByText(/No joints to add/)).toBeNull();
   });
 });
+
+describe('App edit lock while exploded', () => {
+  it('locks Properties and the guides footer while exploded', async () => {
+    await mountWithOneBoard();
+    const lock = document.querySelector('.panel-props fieldset.edit-lock') as HTMLFieldSetElement;
+    expect(lock.disabled).toBe(false);
+    act(() => useStore.getState().setExplode(0.4));
+    expect(lock.disabled).toBe(true);
+    expect(lock.title).toBe('Slide Explode back to 0 to edit');
+    act(() => useStore.getState().setExplode(0));
+  });
+});
