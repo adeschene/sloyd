@@ -136,11 +136,72 @@ about their contrast.
 Note for anyone repeating this: on software GL a marker sometimes does not appear in a screenshot taken right after
 a hover; moving 3px off and back and waiting 1.5s drew it reliably.
 
+## 10. Final-review fix wave (2026-10-11)
+
+Dev server, Playwright (Chromium), 1366×768 and 1920×1080. Fixture written straight into `localStorage`: two
+projects, Alpha (2 guides, active) and Beta (3 guides); a 24 × 5-1/2 × 3/4in board added in Beta. `localStorage`
+cleared afterwards, `localStorage.length === 0` confirmed (re-read after 1.5s, nothing re-written).
+
+**Guides footer on load and switch (finding 3).** 1366: page load opens Alpha → `Guides · 2`, `aria-expanded="false"`.
+Project menu → Beta → `Guides · 3`, `false`. A guide placed with the Tape tool (corner click, `6`, `X`, Enter) →
+`Guides · 4`, `true`. 1920: reload (Beta, 4 guides) → `false`. In the unit suite the restored `activeId` and document
+land in ONE render: a render log of the footer showed the unkeyed instance only ever at count 0 and the keyed one
+mounting at the restored count, never an old instance seeing the new count.
+
+**An errored field keeps its cell (finding 2).** Board selected, `abc` typed in Width, Enter:
+
+| | Length (x, y, w) | Width | Thickness | focus after |
+|---|---|---|---|---|
+| 1366 before | 1002, 266, 107.7 | 1117.7, 266, 107.7 | 1233.3, 266, 107.7 | — |
+| 1366 after | 1002, 266, 107.7 | 1117.7, 266, 107.7 | 1233.3, 266, 107.7 | Width |
+| 1920 before | 1552, 266, 112 | 1672, 266, 112 | 1793, 266, 112 | — |
+| 1920 after | 1552, 266, 112 | 1672, 266, 112 | 1793, 266, 112 | Width |
+
+Width stays in column 2, Thickness in column 3 (grid `107.656px 107.672px 107.656px` at 1366); the error
+"Enter a measurement, e.g. 3/4 or 1-1/2" wraps inside Width's cell, and the row grows to fit it. Escape then blur
+restored `5-1/2"`. Screenshot `docs/img/ui-polish-field-error-in-cell.png` (1366).
+
+**Cut card rows (finding 1).** Field boxes (x, y, w) after "+ Add cut":
+
+| Row | 1366 | 1920 |
+|---|---|---|
+| Cut into \| From | 1011,601,157 \| 1176,601,157 | 1561,898,159 \| 1728,898,159 |
+| Runs across (full) | 1011,651,321 | 1561,948,325 |
+| Stop short — near end \| — far end | 1011,701,157 \| 1176,701,157 | 1561,998,159 \| 1728,998,159 |
+| From the end \| Cut width | 1011,749,157 \| 1176,749,157 | 1561,1046,159 \| 1728,1046,159 |
+| Depth | 1011,797,157 | 1561,1094,159 |
+
+Screenshot `docs/img/ui-polish-cut-card-stops-row.png` (1366).
+
+**Header with the longest label (finding 6).** The Claude trigger's text node set to `Claude · Generating 3/3…` via
+the DOM (accessible text `Claude · Generating 3/3… ▾`):
+
+| | header `scrollWidth`/`clientWidth` | overlaps | one line | trigger | free space |
+|---|---|---|---|---|---|
+| 1366 | 1366 / 1366 | none (10 controls) | yes — every control centred at y 23, trigger 1 line box, 28.8px tall | 512–699px (187.3px) | Redo ends 794, Settings starts 1134: 340px |
+| 1920 | 1920 / 1920 | none | yes, y 23 | 512–699px | Redo 794 → Settings 1688: 894px |
+
+Screenshot `docs/img/ui-polish-header-longest-1366.png`.
+
+**New-badge ink (finding 5).** A `.project-row-new` span measured in the page: `rgb(35, 25, 15)` on
+`rgb(200, 149, 90)`, **6.49:1** (was 4.39:1 with `--raised-2`).
+
+**Accessible-name and text changes the plan's Global Constraints did not list (finding 8).** All are mandated by the
+spec; the constraint list named only the grain select, the overlay toggles and the Claude trigger.
+
+- The stop fields: "Stop short of near end" / "Stop short of far end" → **"Stop short — near end"** / **"Stop short —
+  far end"** (spec §4.4).
+- The cut button: "Add cut" → **"+ Add cut"** (spec §4.4).
+- A new **Perspective** button beside Orthographic (spec §3.2): the projection is a two-button segmented pair, each
+  with `aria-pressed`; before, Orthographic was a single toggle.
+- The assembly note: "Assembly — double-click it in the view to edit its parts." → **"Double-click it in the view to
+  edit its parts."** — the kind chip (`ASSEMBLY`) now carries the word (spec §4.2).
+
 ## Not verified here
 
 - **Real-GPU rendering** of the new ground, grid, hemisphere ground colour and the oak selection emissive
   (follow-up 26a): llvmpipe renders them here. The user looks once on real hardware after the deploy.
 - **Real print-to-PDF** (follow-ups 70/79/84 still stand): only `emulateMedia('print')`.
-- **Other browsers.** Chromium on Linux only. Popover's and ProjectMenu's focusout close is latent on browsers that
-  do not focus a button on click (follow-up 250).
+- **Other browsers.** Chromium on Linux only. Popover's fix for browsers that do not focus a button on click is
+  pinned only by simulated events; ProjectMenu keeps the latent handler (follow-up 250).
 - **The deploy.** Not deployed; production still serves the mirrored-instances build.
