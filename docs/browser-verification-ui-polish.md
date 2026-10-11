@@ -203,5 +203,17 @@ spec; the constraint list named only the grain select, the overlay toggles and t
   (follow-up 26a): llvmpipe renders them here. The user looks once on real hardware after the deploy.
 - **Real print-to-PDF** (follow-ups 70/79/84 still stand): only `emulateMedia('print')`.
 - **Other browsers.** Chromium on Linux only. Popover's fix for browsers that do not focus a button on click is
-  pinned only by simulated events; ProjectMenu keeps the latent handler (follow-up 250).
-- **The deploy.** Not deployed; production still serves the mirrored-instances build.
+  pinned only by simulated events; ProjectMenu has the same fix since `af3928d`, also simulated only (follow-up 250).
+- **The deploy** is not exercised here; see `DEPLOYMENT.local.md` (load-only checks).
+
+## 11. After the deploy (2026-10-11)
+
+- **Fu 248:** the user looked at the viewport on real hardware: "The viewport colors look fine."
+- **Fu 250, ProjectMenu** (`af3928d`): driven with real clicks in Chromium on the dev server — the caret opens the
+  popup and takes focus; Duplicate adds a row, keeps the popup open and keeps focus on itself; × arms and focus
+  lands on "Delete …?"; Escape closes; a confirmed delete removes the row with the popup still open; an outside
+  click closes; opening a row closes. Same behaviour as before the fix, as intended on Chromium.
+- **Fu 249, snap markers** (`d5dc553`): a fixture of 24 × 16in pine, walnut and plywood boards with resting guides on
+  each and one on the ground, at 1920×1080. The new slate-blue resting guides showed on all four surfaces. The user
+  watched and judged the markers fine; the scripted hover sweep of each kind on each wood was stopped by the user.
+  Measured values are in follow-up 249; the section 9 numbers above are the old colours.

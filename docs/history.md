@@ -335,7 +335,19 @@ list is pixel-identical before and after; contrast measured (lowest `--alert` on
 markers legible on maple, cyan edge midpoint the weakest at 1.86:1 (unchanged from the old ground). Could not
 confirm: the colours on a real GPU (26a; fu 248), real print-to-PDF (70/79/84), browsers other than Chromium on
 Linux (fu 250). Residue: fu 248–251. Test count 2881 -> 2925. No schema change; rollback is free.
-Merged to master 2026-10-11 (`14609fe`, `--no-ff`; merged tree 2925 tests, build green) after the whole-branch review and one fix wave. Deployed the same day as `index-pwj6gaFP.js` / `index-snqYHkpL.css` (commit `2429c51`): hashes at the edge and in-network, CSP at the edge, a page load with 0 errors, the verifying browser's `localStorage` cleared and read back empty. The user's real-hardware look at the viewport (fu 248) follows.
+Merged to master 2026-10-11 (`14609fe`, `--no-ff`; merged tree 2925 tests, build green) after the whole-branch review and one fix wave. Deployed the same day as `index-pwj6gaFP.js` / `index-snqYHkpL.css` (commit `2429c51`): hashes at the edge and in-network, CSP at the edge, a page load with 0 errors, the verifying browser's `localStorage` cleared and read back empty.
+**After the deploy, the same day — three follow-ups closed:** fu 248, the user looked on real hardware: "The viewport
+colors look fine." Fu 250, at the user's request: ProjectMenu got Popover's null-`relatedTarget` focusout guard, and its
+caret, Duplicate and arm buttons focus themselves on click (unlike Popover's items, those two leave the popup open, so
+Escape needs focus inside); seven tests in `ProjectMenu.test.tsx` plus Popover's missing stale-press test, every part
+mutated red; real clicks in Chromium unchanged; Safari itself unavailable here (`af3928d`, live as
+`index-c2pDi0bK.js`). Fu 249, at the user's request ("they do kind of stick out"): the snap markers recoloured to muted
+milk-paint tones — moss `#3a6028`, verdigris `#378988`, mulberry `#753c60`, slate blue `#5469a6` (also the tape) —
+found by a search under floors now written in `SnapMarker.tsx` (≥ 3:1 on the ground, ≥ 3.4:1 against the ring,
+mutually distinct under simulated deuteranopia/protanopia, clear of the selection oak); the old cyan was 1.86:1 on the
+ground and the old violet/blue pair indistinguishable to those viewers. The user judged them on the dev server; a
+scripted per-wood hover sweep was stopped by the user as unnecessary (`d5dc553`, live as `index-DrjjRDmM.js`). Test
+count 2925 -> 2933. Residue: fu 251 only, record-only.
 
 **What the mirrored-instances round did (2026-10-11)**: fu 225's first item, a LIVE mirrored copy, by the user's
 choices (live copy, assemblies only, Copy mirrored + a Mirrored checkbox, approach A: the mirror inside the one

@@ -70,6 +70,10 @@ the signature, its majors in the accent.
 | `AXIS_COLOR` | `viewport/OriginAxes.tsx` | — | unchanged |
 
 The snap colours were chosen against the old ground; the new ground is the same lightness, slightly warmer.
+
+*Amended after the deploy (fu 249, the user's request):* the snap marker colours were changed after all, to muted
+tones (moss `#3a6028`, verdigris `#378988`, mulberry `#753c60`, slate blue `#5469a6`); `RING_COLOR` unchanged.
+The floors they meet are in `SnapMarker.tsx`.
 They are re-checked in the live pass; one that loses legibility is a decision for the user, not a silent
 change. **Follow-up 26a**: the browser here renders with llvmpipe; the user looks once on real hardware after
 the deploy. Colour constants only, no shader change.
@@ -197,7 +201,8 @@ Applies to `.cutlist-sheet`, Generate, Add joinery, Refine, Settings, RepairNoti
 - **5, 9**: field components unchanged.
 - **43**: "Hide others" keeps going through `hideUnselected`; nothing new writes `hiddenIds`.
 - `.app-shell` inert covers every new overlay (they live inside it).
-- CLAUDE.md's "ProjectMenu.tsx" rule: ProjectMenu is not refactored onto `Popover`.
+- CLAUDE.md's "ProjectMenu.tsx" rule: ProjectMenu is not refactored onto `Popover`. (*Amended after the deploy, fu 250:*
+  it is still not refactored onto Popover, but it now carries the same focusout guard, at the user's request.)
 
 ## 7. Verification
 
