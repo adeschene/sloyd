@@ -4641,7 +4641,13 @@ its stale hidden id is dropped (`reconcileHidden`), but "hidden" does not pass t
 children, so they reappear. No data is lost; hiding them again is one click.
 - **A remedy, if wanted:** in the all-placements re-key, map a hidden group path to its lifted
   children's paths.
-- **Status:** open, low.
+- **Status:** CLOSED 2026-10-11 by the 229/233 round, as the remedy named: `ungroupItem` returns a `Lift`
+  (the ungrouped assembly's path under every placement of its container maps to its lifted children there),
+  and `rekeyHeld` expands a lifted hidden id, deduped against a child already hidden on its own; several
+  ungroups in one action compose in order. The copy the user ungrouped was visible (a hidden item cannot be
+  selected) and stays so. Undo restores the set as it was (`editRekeyed`'s entry). Pinned in
+  `store.components.test.ts` (c2, rewritten from "dropped"; c3 a nested assembly, a clashing id and a
+  covered child; c4 two at once), mutation-checked (no lift, no dedupe, this copy only, first step only).
 
 **230. `commitSnapMove` has no store-side guard against a twin target.** `moveCandidates` no
 longer offers another placement of a selected stored part as a target (the final fix wave), and it
@@ -4690,7 +4696,10 @@ emits only 0° and 90° parts (invariant 44).
 distinct cap (`N distinct parts; the limit is 12…`) and checkDesign's placed ceiling
 (`N parts; the limit is 48.`), which counts one extra in the repair loop's "fewest". Spec-conformant;
 a fix would drop the ceiling report when distinct equals placed.
-- **Status:** open, low.
+- **Status:** CLOSED 2026-10-11 by the 229/233 round, as the remedy named: `evaluateDesign` drops the placed
+  ceiling's `too-many-parts` when the distinct cap fired and `distinctParts` equals the placed count (no
+  repeated assembly: one fault). With an assembly placed more than once the counts differ and both reports
+  stay. Shared by Generate and Refine. Pinned in `run.test.ts`, mutation-checked (no equality, no filter).
 
 **234. The batch concept planner sees assembly wording it is not taught.** `conceptsMessage` builds
 on `userMessage`, so the planner reads "an assembly's parts count once", but `CONCEPTS_SYSTEM` never
