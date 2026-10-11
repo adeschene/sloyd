@@ -158,8 +158,8 @@ describe('PartsList tree', () => {
     useStore.getState().replaceDocument(assemblyDoc());
     act(() => { useStore.getState().openAssembly('i1/i2'); });
     render(<PartsList />);
-    expect(screen.getByRole('button', { name: 'Hide Drawer' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Hide Peg' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: "Drawer is open and can't be hidden" })).toBeDisabled();
+    expect(screen.getByRole('button', { name: "Peg is open and can't be hidden" })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Hide Pin' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Hide Top' })).toBeEnabled();
   });

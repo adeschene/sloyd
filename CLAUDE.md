@@ -28,7 +28,7 @@ handicraft education tradition built around hand woodworking.
 - **NO SUCCESSOR IS
   CHOSEN: ask what to work on; do not pick.** Open near the recent code:
   241 (open by decision),
-  221, 225–227, 229, 232–234, 246. See Open follow-ups below.
+  221, 225, 229, 232–234. See Open follow-ups below.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
   byte-identical bundles (test-only). Check what a later commit touches before reading
@@ -77,6 +77,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | joinery end cuts | 10-10 | — | A cut at a resized end follows the part in any storage form (fu 205); 206 pinned; residue fu 245 |
 | opposite-end cut | 10-10 | — | A full-span cut stored into the far end runs out the grown length too (fu 245) |
 | posture handedness | 10-10 | 12 | On-edge reverses thickness so all postures share one hand; v12 mirrors on-edge cuts; every sheet view true (fu 215) |
+| 246/226/227 | 10-11 | — | Deleting an assembly's last part removes it; dead eyes say why; `›` reserved in written names; sweep re-run on flipped views |
 
 ### The deployment rule
 
@@ -327,7 +328,10 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 8. **Names are unique among SIBLINGS** (the parts and assemblies of one container),
    enforced at add, duplicate, the name commit, Group, Ungroup and `migrateDocument`. Any
    new call site adding a part passes its name through `uniqueName`. New assemblies are
-   `Assembly N`. So paths, and `flatDocument`'s names, are unique.
+   `Assembly N`. So paths, and `flatDocument`'s names, are unique. **The separator glyph `›` is
+   reserved: `cleanName` turns it into `>` where a name is WRITTEN (`renameItem`, Generate), and
+   PROHIBITION: never in `uniqueName`, `dedupeNames` or on load** — a flat document names parts
+   "Front › Leg" by construction and runs through `migrateDocument` (fu 227).
 9. **`NameField` commits once, on blur or Enter — never per keystroke**; an emptied name
    reverts; `onCommit` returns the *stored* name.
 10. **The gizmo clamp writes `size` before `updateMatrixWorld`, never `handle.scale`
@@ -502,7 +506,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 2793 tests across 91 files
+npm test           # Vitest, currently 2808 tests across 91 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -518,7 +522,7 @@ knowing without opening it:
 - **179** — refine by instruction (phase 2's other half). Read invs 38, 41 and fu 180–206
   before touching `generate/joints/`.
 - **221** — a hand-edited linked file whose cuts lack ids stays plain on load (fails safe).
-- **225–231** — assemblies/components residues (225 out of scope by decision; the rest low).
+- **225, 229** — assemblies/components residues (225 out of scope by decision; 229 low).
 - **176/177** — the held rules' known limits (mutual lapping) and an unseen live repair.
 - **130** — semi-infinite construction lines; picked and set aside 2026-08-31 without a
   reason. Ask before assuming it's wanted; it needs real hardware (26a).

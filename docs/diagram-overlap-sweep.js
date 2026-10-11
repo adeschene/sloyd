@@ -167,11 +167,14 @@ function sweepDiagrams() {
 
     // P3 — a depth or leader label reaching left of the board's own edge. The
     // overall-width label is deliberately to the RIGHT of the outline, so it is
-    // exempt. So are the rotated leader-column labels (vertical-axis cuts): the
-    // columns stand LEFT of the outline by design (COL each, plus LEFT_PAD), a
-    // layout newer than this check, which flagged every one of them (fu 246).
+    // exempt. So is a rotated leader-column label (a vertical-axis cut) lying
+    // WHOLLY in the column band left of the outline: the columns stand there by
+    // design (COL each, plus LEFT_PAD), a layout newer than this check, which
+    // flagged every one of them (fu 246). A rotated label straddling the
+    // outline's left edge is still reported.
+    const inColumnBand = (t) => t.rotated && t.bbox.x + t.bbox.width <= box.x + 0.5;
     for (const t of texts) {
-      if (t.bbox.x < box.x - 0.5 && t.text !== widthLabel && !t.rotated) {
+      if (t.bbox.x < box.x - 0.5 && t.text !== widthLabel && !inColumnBand(t)) {
         issues.push({
           kind: 'left-of-board',
           text: t.text,

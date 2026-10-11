@@ -4582,7 +4582,9 @@ No data is lost, and the row can be deleted.
   lands on the wrong part. Renaming resolves it.
 - **Status:** CLOSED 2026-10-11 by the fu 246/226/227 round.
   - **The eye:** a covered row's eye reads "<name> is hidden with <nearest hidden assembly>"; a row's own
-    eye keeps Show/Hide. Pinned in `PartsList.test.tsx` (nearest, not outermost, mutation-checked).
+    eye keeps Show/Hide. The open assembly and its ancestors, whose eye is also dead, read "<name> is open
+    and can't be hidden" (the final review's minor, same mismatch). Pinned in `PartsList.test.tsx` (nearest,
+    not outermost; both labels mutation-checked).
   - **The separator:** `cleanName` turns every `›` into `>` where a name is WRITTEN: `renameItem` (typed)
     and Generate (which already did). The whole glyph is reserved, not only " › ": an assembly "X ›"
     holding "B" and "X" holding "› B" both printed "X › › B". **Not on load, and not in `uniqueName`:**
@@ -4843,7 +4845,8 @@ cut stored into the MOVING end) and the old rule leaves it in place, so it ends 
     part sizes (12 views, 54 rotated column labels): no overlaps, nothing outside the viewBox; the highest text sits
     5.32 units below the top on a lifted view, 4.75 on an unflipped one. **Finding:** its P3 check
     ("left-of-board") predates the rotated leader columns, which stand left of the outline by design, and flagged
-    every column label on every view, flipped or not; rotated labels are now exempt from P3, and the re-run is clean.
+    every column label on every view, flipped or not. A rotated label lying wholly in the column band left of the
+    outline is now exempt from P3 (one straddling the outline's edge is still reported), and the re-run is clean.
   - **Tests:** the line-number citation in `snapPoints.test.ts` now names the test; the one-sided pocket probes
     pin every bound 0.05in either side (mutation-checked by shortening the pocket); the version-8 test now compares
     the on-edge part's world solids against the v8-v11 frame written out by hand (mutation-checked).

@@ -68,13 +68,15 @@ export function PartsList() {
           // its ancestors (the open level is never hidden).
           const ancestor = parentPath(r.path);
           const coveredBy = nearestHidden(ancestor);
-          const eyeDisabled = coveredBy !== null
-            || (openPath !== null && isCovered(openPath, new Set([r.path])));
-          // A covered row's eye draws struck through and cannot act, so its
-          // name says why rather than offering a Hide it cannot do (fu 227).
+          const onOpenPath = openPath !== null && isCovered(openPath, new Set([r.path]));
+          const eyeDisabled = coveredBy !== null || onOpenPath;
+          // A dead eye says why rather than offering a Hide it cannot do (fu 227):
+          // covered by a hidden ancestor, or on the open level.
           const eyeLabel = coveredBy !== null
             ? `${r.name} is hidden with ${nameAt.get(coveredBy) ?? coveredBy}`
-            : `${hiddenSelf ? 'Show' : 'Hide'} ${r.name}`;
+            : onOpenPath
+              ? `${r.name} is open and can't be hidden`
+              : `${hiddenSelf ? 'Show' : 'Hide'} ${r.name}`;
           return (
             <li key={r.path} className={hiddenRow ? 'part-row hidden' : 'part-row'} style={{ paddingLeft: `${r.depth * 14}px` }}>
               <button
