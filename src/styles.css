@@ -1252,6 +1252,8 @@ select.input { cursor: pointer; }
 
   /* One drawing set per page where it fits; never split a figure. */
   .plans-section { break-inside: avoid; }
+  /* Plans draw in the screen theme's light --ink; print black, as the cut list's diagrams do below. */
+  .plans-figure, .plans-notes { color: #000; }
 
   .cutlist-overlay,
   .cutlist-sheet,

@@ -124,6 +124,11 @@ by it). The isometric figure draws `visible` only.
   applied by the callers; `explodeOffsets(doc, amount)` takes the amount.
 - Hidden parts count toward centres (the sheet includes them; the viewport uses the same offsets so
   a part never jumps when another is hidden).
+- **Floor lift.** After the offsets are computed, every offset's Y is raised by
+  `dy = max(0, assembledMinY − explodedMinY)`, where `assembledMinY` is the lowest `position[1]` over
+  all world parts and `explodedMinY` the lowest `position[1] + offset[1]`. The lowest part never goes
+  below where the assembled piece's lowest point sits. *(Amended 2026-10-11 after the browser pass,
+  by the user's ruling: an exploded view sank parts through the floor.)*
 - Cached per (doc object, k) like `worldParts`.
 
 ## 4. The viewport exploded view
@@ -233,9 +238,10 @@ import `panels`.)* So the work is split the way the diagrams already split it:
   (invariant 19: the measured string is the drawn string, assembled in the module that builds it).
   A segment whose label does not fit its drawn length plus a margin is **dropped** (no label, no
   ticks).
-- **Clutter cap:** if more than `CHAIN_MAX = 12` segments remain, or more than a third of the
-  segments were dropped, the whole chain on that axis is omitted and only the overall dimension
-  is drawn.
+- **Clutter cap:** if more than `CHAIN_MAX = 12` segments remain, the whole chain on that axis is
+  omitted and only the overall dimension is drawn. *(Amended 2026-10-11 after the browser pass, by
+  the user's decision: on casework the one-third arm omitted every chain, because panel thicknesses
+  leave many unlabelable gaps. Narrow segments are now dropped individually and noted.)*
 - **Nothing disappears silently.** `DimensionSet.notes` carries "Chain omitted: too dense" or
   "N small spacings not labelled", rendered under the view.
 - **Exactness:** segment values are differences of exact stored coordinates (no rounding before

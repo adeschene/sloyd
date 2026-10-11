@@ -64,6 +64,14 @@ export function explodeOffsets(doc: SloydDocument, amount: number): ReadonlyMap<
     }
     out.set(b.id, off);
   }
+  let assembledMinY = Infinity;
+  let explodedMinY = Infinity;
+  for (const b of parts) {
+    assembledMinY = Math.min(assembledMinY, b.position[1]);
+    explodedMinY = Math.min(explodedMinY, b.position[1] + out.get(b.id)![1]);
+  }
+  const dy = parts.length > 0 ? Math.max(0, assembledMinY - explodedMinY) : 0;
+  if (dy > 0) for (const off of out.values()) off[1] += dy;
   byAmount.set(amount, out);
   return out;
 }

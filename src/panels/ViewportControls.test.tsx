@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
 import { createDocument } from '../document/document';
-import { ViewportControls } from './ViewportControls';
+import { ViewportControls, EXPLODED_TITLE } from './ViewportControls';
 
 beforeEach(() => useStore.getState().replaceDocument(createDocument('Test')));
 
@@ -42,6 +42,21 @@ describe('ViewportControls tools', () => {
     expect(screen.queryByText('Select a part to move')).not.toBeInTheDocument();
     act(() => useStore.getState().selectBoard(null));
     expect(screen.getByText('Select a part to move')).toBeInTheDocument();
+  });
+});
+
+describe('ViewportControls while exploded', () => {
+  afterEach(() => { act(() => useStore.getState().setExplode(0)); });
+
+  it('disables Move and Tape (not Select) and says why', () => {
+    renderControls();
+    act(() => useStore.getState().setExplode(0.4));
+    expect(btn('Move')).toBeDisabled();
+    expect(btn('Tape')).toBeDisabled();
+    expect(btn('Select')).not.toBeDisabled();
+    expect(btn('Move')).toHaveAttribute('title', EXPLODED_TITLE);
+    act(() => useStore.getState().setExplode(0));
+    expect(btn('Move')).not.toBeDisabled();
   });
 });
 

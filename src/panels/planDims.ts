@@ -15,7 +15,7 @@ export function fitChain(axis: DimAxis, scale: number): { chain: DimLine[]; note
   if (total === 0) return { chain: [], note: null };
   const fits = axis.chain.filter((d) => labelWidth(d.label) + DIM_LABEL_PAD <= (d.to - d.from) * scale);
   const dropped = total - fits.length;
-  if (fits.length > CHAIN_MAX || dropped * 3 > total) {
+  if (fits.length > CHAIN_MAX) {
     return { chain: [], note: `${axis.name} chain omitted — too dense` };
   }
   const note = dropped === 0 ? null

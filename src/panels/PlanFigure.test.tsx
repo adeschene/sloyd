@@ -29,8 +29,10 @@ describe('PlanTrio', () => {
   });
 
   it('lists a note when a chain is omitted', () => {
-    // Thirteen 1in boards stacked: 13 chain segments > CHAIN_MAX.
-    const parts = Array.from({ length: 13 }, (_, k) => createBoard({ length: 30, width: 12, thickness: 1, position: [0, k, 0] }));
+    // Thirteen 3in boards stacked: 13 chain segments > CHAIN_MAX, and every one must FIT or it is
+    // dropped rather than counted. Trio scale = 752 / (front width 30 + side width 12) = 17.9; a
+    // 3in segment is 3·17.9 = 53.7 wide; its label is 2 chars → 12.4·2 + 8 = 32.8 ≤ 53.7: all 13 survive.
+    const parts = Array.from({ length: 13 }, (_, k) => createBoard({ length: 30, width: 12, thickness: 3, position: [0, 3 * k, 0] }));
     render(<PlanTrio parts={parts} precision={16} label="Stack" />);
     expect(screen.getAllByText(/Height chain omitted — too dense/).length).toBeGreaterThan(0);
   });

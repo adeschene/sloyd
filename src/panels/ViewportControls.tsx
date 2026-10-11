@@ -51,10 +51,10 @@ export function ViewportControls({
         <div className="segmented">
           <button onClick={() => setTool('select')} aria-pressed={tool === 'select'}
             title="Select tool — click a part to select it, drag its gizmo to move it (Esc)">Select</button>
-          <button onClick={() => setTool('move')} aria-pressed={tool === 'move'}
-            title="Move tool — click a corner or midpoint, then click one on another part to snap them together (M)">Move</button>
-          <button onClick={() => setTool('tape')} aria-pressed={tool === 'tape'}
-            title="Tape measure — click a point, then click another to measure and place a guide point; type a distance to place it partway (T)">Tape</button>
+          <button onClick={() => setTool('move')} aria-pressed={tool === 'move'} disabled={explode > 0}
+            title={explode > 0 ? EXPLODED_TITLE : "Move tool — click a corner or midpoint, then click one on another part to snap them together (M)"}>Move</button>
+          <button onClick={() => setTool('tape')} aria-pressed={tool === 'tape'} disabled={explode > 0}
+            title={explode > 0 ? EXPLODED_TITLE : "Tape measure — click a point, then click another to measure and place a guide point; type a distance to place it partway (T)"}>Tape</button>
         </div>
       </div>
 

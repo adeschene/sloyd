@@ -27,18 +27,22 @@ const expectVec = (got: V | undefined, want: V) => want.forEach((w, k) => expect
 describe('explodeOffsets', () => {
   it('moves the top level by full weight and deeper levels by EXPLODE_INNER', () => {
     const o = explodeOffsets(doc(), 1);
-    expectVec(o.get('r'), [5, -2, 0]);                              // (11,1,1) − (6,3,1)
-    expectVec(o.get('i/p'), plus([-3, 0, 0], EXPLODE_INNER, [-2, -2, 0])); // c(i)−c(root), then c(p)−c(i)
-    expectVec(o.get('i/q'), plus([-3, 0, 0], EXPLODE_INNER, [2, -2, 0]));
+    // Floor lift: unlifted Y offsets are r −2, i/p and i/q −INNER·2, i/j/s +INNER·2. Parts start at
+    // y 0 except s (y 4), so explodedMinY = min(0−2, 0−1, 0−1, 4+1) = −2 (r), assembledMinY = 0,
+    // dy = 2: every Y offset below gets `+ 2`.
+    expectVec(o.get('r'), [5, -2 + 2, 0]);                          // (11,1,1) − (6,3,1)
+    expectVec(o.get('i/p'), plus([-3, 2, 0], EXPLODE_INNER, [-2, -2, 0])); // c(i)−c(root), then c(p)−c(i)
+    expectVec(o.get('i/q'), plus([-3, 2, 0], EXPLODE_INNER, [2, -2, 0]));
     // i/j/s: c(i)−c(root), INNER·(c(j)−c(i)) = INNER·(−2,2,0), INNER·(c(s)−c(j)) = 0.
-    expectVec(o.get('i/j/s'), plus([-3, 0, 0], EXPLODE_INNER, [-2, 2, 0]));
+    expectVec(o.get('i/j/s'), plus([-3, 2, 0], EXPLODE_INNER, [-2, 2, 0]));
   });
 
   it('is not plain radial explode for a nested part', () => {
-    // Radial would be c(p) − c(root) = (−5,−2,0); the hierarchy differs whenever INNER ≠ 1.
+    // Radial would be c(p) − c(root) = (−5,−2,0); the hierarchy differs whenever INNER ≠ 1 (compare
+    // X, which the floor lift does not touch).
     expect(EXPLODE_INNER).toBeLessThan(1);
     const p = explodeOffsets(doc(), 1).get('i/p')!;
-    expect(Math.abs(p[0] - -5) + Math.abs(p[1] - -2)).toBeGreaterThan(1e-6);
+    expect(Math.abs(p[0] - -5)).toBeGreaterThan(1e-6);
   });
 
   it('is zero at amount 0 and linear in the amount', () => {
@@ -47,6 +51,13 @@ describe('explodeOffsets', () => {
     const one = explodeOffsets(d, 1);
     const half = explodeOffsets(d, 0.5);
     for (const [id, v] of one) expectVec(half.get(id), [v[0] / 2, v[1] / 2, v[2] / 2]);
+  });
+
+  it('adds no lift when no part would go below the floor', () => {
+    // Flat two-cube document: Y offsets are 0, explodedMinY = assembledMinY = 0, dy = 0.
+    const flat = { ...createDocument('Flat'), boards: [cube('a', [0, 0, 0]), cube('b', [8, 0, 0])] };
+    expect(explodeOffsets(flat, 1).get('a')![1]).toBe(0);
+    expect(explodeOffsets(flat, 1).get('b')![1]).toBe(0);
   });
 
   it('reduces to radial explode for a document with no assemblies', () => {
