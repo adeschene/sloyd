@@ -4897,23 +4897,30 @@ legible (`docs/img/ui-polish-snaps.png`); the cyan reads by hue rather than ligh
 
 **250. Popover and ProjectMenu close on a focusout whose `relatedTarget` is null — before an item's click lands, on
 browsers that do not focus a button on click.** Safari and macOS Firefox do not focus a `<button>` on mouse click, so
-pressing an item moves focus from the trigger to nowhere (`relatedTarget === null`), `onFocusOut` closes the popup,
-and the item unmounts before its `click` fires: the menu would open and do nothing. Chromium and Firefox on Linux
-focus the button, so `relatedTarget` is the item and the popup stays (driven live with real clicks in this round).
-Latent; the same handler is in `ProjectMenu.tsx`, which predates this round.
-- **Status:** open — latent, a future-platform bug (Linux/Chromium unaffected). A remedy (e.g. ignore a null
-  `relatedTarget` while a pointer is down inside the root) is a hypothesis until driven on such a browser.
+pressing an item while focus is inside the popup moves focus to nowhere (`relatedTarget === null`), `onFocusOut`
+closes the popup, and the item unmounts before its `click` fires: the menu would open and do nothing. A mouse-opened
+popup there also never had focus inside it, so Escape (listened for on its subtree, invariant 27) never reached it.
+Chromium and Firefox on Linux focus the button, so `relatedTarget` is the item and the popup stays (driven live with
+real clicks in this round).
+- **Popover: fixed** in the final-review fix wave. The trigger focuses itself in its own `onClick` (Escape reaches the
+  subtree), and a null-`relatedTarget` focusout is ignored while a pointer is down inside the root (set on the root's
+  `pointerdown`, cleared on a window `pointerup`/`pointercancel` while open, reset on open). With no pointer down it
+  still closes. Pinned by `Popover.test.tsx` (pointerdown, null focusout, click → `run` once and closed; trigger click
+  leaves focus on the trigger; a released press no longer guards), each mutated red. Still only simulated: no
+  Safari/macOS Firefox exists on this host.
+- **ProjectMenu: unchanged**, and keeps the identical latent handler. CLAUDE.md's "ProjectMenu.tsx" rule (its
+  arm/disarm focus handling, the sibling-index button swap) put it out of this round's scope.
+- **Status:** record-only for ProjectMenu — porting Popover's guard to it is the user's call.
 
 **251. Small gaps the round judged fine to leave.** Record-only; the task reviews' deferred minors.
-- **Stale comments.** `BoardMesh.tsx` (~line 14) still says "Brass" for the selection (now oak);
-  `styles.css` (~527) and `TapeReadout.tsx` (~235) cite the removed `.toolbar-hint` (now `.viewport-hint`);
-  `styles.css` (~587) cites 302px for the action row where the live measure was 289.5px of buttons, 337.5px with the
-  trash and gaps, of 349px; `Toolbar.tsx` (~36, across a line break) has a doubled "the".
-- **Dead or dangling.** `GenerateDialog.tsx` (~90) and `RefineDialog.tsx` (~74) keep the `generate-limit` class with no
-  rule; `.add-cut` has no rule; `GuidesFooter`'s `aria-controls="guides-body"` points at nothing while closed.
+- **Closed in the final-review fix wave:** the stale comments (`BoardMesh.tsx`'s "Brass", the `.toolbar-hint`
+  citations in `styles.css` and `TapeReadout.tsx`, the sidebar-width figure in `styles.css`, `Toolbar.tsx`'s doubled
+  "the"), the dead `generate-limit` class, and the missing test that a guide placed after the user closed the footer
+  reopens it.
+- **Dead or dangling.** `.add-cut` has no rule; `GuidesFooter`'s `aria-controls="guides-body"` points at nothing while closed.
 - **Tests.** `palette.test.ts` reads `src/styles.css` relative to the cwd (`?raw` is `''` under Vitest and
   `import.meta.url` fails under jsdom); Popover and ActionBar key items by label (unique today); no test of Popover's
-  `align`/`title`; no test that a guide placed after the user closed the footer reopens it; ViewportControls' ported
+  `align`/`title`; ViewportControls' ported
   "independent" test dropped its two initial-state asserts (covered by its `it.each`); `App.test.tsx`'s Claude-item
   `it.each` takes string keys and branches.
 - **Palette values.** The ink tokens differ from spec §2's table: one scale per material (walnut `#ece4d6`/`#b9ad9c`/

@@ -65,6 +65,55 @@ describe('Popover', () => {
     expect(screen.queryByRole('button', { name: 'Refine…' })).toBeNull();
   });
 
+  // Follow-up 250. Safari and macOS Firefox do not focus a button on
+  // mousedown: pressing an item while focus is inside the popover blurs the
+  // focused element with relatedTarget NULL, before the click lands. The
+  // focusout must not close the popup then, or the click hits nothing.
+  // fireEvent throughout: userEvent would focus the item on mousedown, the
+  // very thing those browsers do not do. MUTATE: drop the pointer-down guard
+  // in onFocusOut — this goes red.
+  it('does not let a null-relatedTarget focusout during a press inside swallow the item click', () => {
+    const { trigger, run } = setup();
+    fireEvent.click(trigger);
+    expect(document.activeElement).toBe(trigger);
+    const item = screen.getByRole('button', { name: 'Generate…' });
+    fireEvent.pointerDown(item);
+    fireEvent.focusOut(document.activeElement!, { relatedTarget: null });
+    fireEvent.pointerUp(item);
+    fireEvent.click(item);
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: 'Generate…' })).toBeNull();
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('still closes on a null-relatedTarget focusout with no pointer down inside', () => {
+    const { trigger } = setup();
+    fireEvent.click(trigger);
+    fireEvent.focusOut(trigger, { relatedTarget: null });
+    expect(screen.queryByRole('button', { name: 'Generate…' })).toBeNull();
+  });
+
+  it('still closes on a null-relatedTarget focusout after a press inside was released', () => {
+    const { trigger } = setup();
+    fireEvent.click(trigger);
+    const item = screen.getByRole('button', { name: 'Refine…' });
+    fireEvent.pointerDown(item);
+    fireEvent.pointerUp(item);
+    fireEvent.focusOut(trigger, { relatedTarget: null });
+    expect(screen.queryByRole('button', { name: 'Refine…' })).toBeNull();
+  });
+
+  // The other half of fu 250: in those browsers a mouse-opened popover had
+  // focus nowhere inside it, so Escape (listened for on the subtree,
+  // invariant 27) never reached it. The trigger focuses itself.
+  it('focuses its trigger when the trigger is clicked, so Escape reaches it', () => {
+    const { trigger } = setup();
+    fireEvent.click(trigger);
+    expect(document.activeElement).toBe(trigger);
+    fireEvent.keyDown(trigger, { key: 'Escape' });
+    expect(screen.queryByRole('button', { name: 'Generate…' })).toBeNull();
+  });
+
   it('adds no window pointerdown listener while closed', () => {
     const add = vi.spyOn(window, 'addEventListener');
     setup();
