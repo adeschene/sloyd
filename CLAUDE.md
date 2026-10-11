@@ -25,7 +25,7 @@ handicraft education tradition built around hand woodworking.
   `index-CUMg8UjZ.js`, CSS `index-NXp0eTQP.css`, merge `43b4928`, **schema 12** (since the
   posture-handedness round, `1a52fec`): rolling back to a build below 12 (`b953fdd`) refuses every
   project saved since that deploy (export first). Test count is under Commands.
-- **Pending deploy: the mirrored-instances round, merged 2026-10-11; `master` is ahead of production until it
+- **Pending deploy: the mirrored-instances round, merged 2026-10-11 (`e553f57`); `master` is ahead of production until it
   ships. It bumps to SCHEMA 13: after the deploy, rolling back to a build below 13 refuses every project saved since
   (export first).** **NO SUCCESSOR IS
   CHOSEN: ask what to work on; do not pick.** Open near the recent code:
