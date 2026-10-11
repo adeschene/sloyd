@@ -34,7 +34,7 @@ interface Props {
   onOpenSettings: () => void;
   /**
    * The live batch, or null when nothing is running. While non-null the
-   * the Claude trigger reads "Claude · Generating done/total…" and Generate
+   * Claude trigger reads "Claude · Generating done/total…" and Generate
    * STILL opens its dialog (spec §6.1) — closing the dialog does not cancel,
    * so this label is the only sign runs are out while it is shut.
    */

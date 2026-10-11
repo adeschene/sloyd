@@ -524,8 +524,9 @@ button[aria-pressed='true'] {
   gap: 0.5rem;
 }
 
-/* The app's existing hint idiom — same size and --ink-dim as .toolbar-hint, so
-   the two read as one class of text rather than as two decisions. */
+/* The app's existing hint idiom — the same --ink-dim as .viewport-hint (a
+   point smaller, inside the readout), so the two read as one class of text
+   rather than as two decisions. */
 .tape-readout-hint {
   font-size: 11px;
   color: var(--ink-dim);
@@ -584,7 +585,8 @@ button[aria-pressed='true'] {
 /* ---------------------------------------------------------------- sidebar */
 
 .sidebar {
-  /* Measured (spec §4.1): the assembly row is 302px of buttons + gap + trash + padding + scrollbar. */
+  /* Measured live (spec §4.1) at the 380px floor: the assembly's action buttons are 289.5px, the
+     row 337.5px with More, the trash and gaps, of 349px of content — so 380px is the floor. */
   width: clamp(380px, 20vw, 420px);
   flex: none;
   background: var(--surface);
@@ -857,9 +859,12 @@ button[aria-pressed='true'] {
 .field-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .field-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .field-grid > .field { margin-bottom: 0; }
+/* A sibling error or note (Posture's, say) spans the row. A field's OWN error
+   (DimensionField's, invariants 5/9) wraps inside its cell: the field never
+   moves while it holds focus and a refused entry. */
 .field-grid > .field-error,
 .field-grid > .field-note,
-.field-grid > .field:has(> .field-error) { grid-column: 1 / -1; }
+.field-grid > .field-wide { grid-column: 1 / -1; }
 .field-grid { grid-auto-flow: dense; }
 .field-grid-checkbox { align-self: end; padding-bottom: 6px; }
 
@@ -904,8 +909,9 @@ select.input { cursor: pointer; }
 
 .row {
   display: flex;
-  /* An assembly's row carries five actions (Duplicate, Ungroup, Group, Hide
-     others, Delete), wider than the panel; wrap rather than clip Delete. */
+  /* The small secondary rows (a linked part's Select linked/Unlink, Copy in a
+     row's Apply/Cancel). A selection's actions are the ActionBar, not this;
+     wrap rather than clip if a row ever outgrows the panel. */
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 10px;
@@ -1335,7 +1341,7 @@ select.input { cursor: pointer; }
   padding: 1px 5px;
   border-radius: 3px;
   background: var(--accent);
-  color: var(--raised-2);
+  color: var(--on-accent);
 }
 
 .copy-row {

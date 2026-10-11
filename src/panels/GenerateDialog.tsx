@@ -87,7 +87,7 @@ export function GenerateDialog(p: Props) {
   };
 
   const limitField = (label: string, value: string, set: (v: string) => void) => (
-    <div className="field generate-limit">
+    <div className="field">
       <label htmlFor={`gen-${label}`}>{`Max ${label}`}</label>
       <input id={`gen-${label}`} className={`input${parseLimit(value) === 'bad' ? ' invalid' : ''}`}
         placeholder="no limit" value={value} onChange={(e) => set(e.target.value)} />

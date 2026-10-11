@@ -71,7 +71,7 @@ export function RefineDialog(p: Props) {
   ];
   const out = p.run?.status === 'ready' ? p.run.outcome : undefined;
   const field = (label: string, value: string, set: (v: string) => void) => (
-    <div className="field generate-limit">
+    <div className="field">
       <label htmlFor={`refine-${label}`}>{`Max ${label}`}</label>
       <input id={`refine-${label}`} className={`input${parseLimit(value) === 'bad' ? ' invalid' : ''}`}
         placeholder="no limit" value={value} onChange={(e) => set(e.target.value)} />

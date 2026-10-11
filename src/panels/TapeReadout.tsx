@@ -231,8 +231,8 @@ export function TapeReadout() {
         is what tells anyone that the journey is unnecessary — and that the
         number is a distance rather than, say, a coordinate.
 
-        Quiet by construction, in the app's existing hint idiom (Toolbar's
-        `.toolbar-hint`, --ink-dim): it is read once and then permanently in the
+        Quiet by construction, in the app's existing hint idiom (the viewport's
+        `.viewport-hint`, --ink-dim): it is read once and then permanently in the
         way, so it must not compete with the measured distance beside it.
       */}
       {error ? (

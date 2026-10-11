@@ -11,7 +11,7 @@ import { boardUVs, boardUVSignature } from './grainTiling';
 import { grainTexture } from './grainTexture';
 import { CLICK_DRAG_SLOP_PX, clickPairStartedWithDrag } from './pointer';
 
-/** Brass — the one live colour in the app. */
+/** Oak — the one live colour in the app. */
 const SELECTED = '#c8955a';
 
 /**

@@ -227,7 +227,8 @@ function CutRow({ board, cut, precision, solids }: { board: Board; cut: Cut; pre
         </select>
       </div>
 
-      <div className="field">
+      {/* Full row, so the two stops share the next one (spec §4.4). */}
+      <div className="field field-wide">
         <label htmlFor={`across-${cut.id}`}>Runs across</label>
         <select id={`across-${cut.id}`} ref={acrossRef} className="input" value={cut.across}
           onChange={(e) => set(repositionForAxes(cut.face, e.target.value as Dimension))}>
