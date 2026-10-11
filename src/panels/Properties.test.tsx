@@ -6,6 +6,7 @@ import { createDocument } from '../document/document';
 import { formatLength } from '../units/length';
 import { Properties } from './Properties';
 import { assemblyDoc } from '../document/treeFixtures';
+import { chiralPart } from '../document/turnFixtures';
 import { instanceAt, partAt } from '../document/document';
 
 const reset = () => useStore.getState().replaceDocument(createDocument('Test'));
@@ -1368,3 +1369,46 @@ describe('Properties mirrored assemblies', () => {
     expect('mirrored' in instanceAt(useStore.getState().doc, copy)!).toBe(false);
   });
 });
+
+describe('Properties across a mirror (mirrored-instances spec §4, amended)', () => {
+  const st = () => useStore.getState();
+  /** Two linked shelves grouped, Copy mirrored, the original Ungrouped: the Shape has users on both sides. */
+  const bothSides = () => act(() => {
+    const shelf = (id: string, y: number) => ({ ...chiralPart('flat'), id, name: `Shelf ${id}`, position: [0, y, 0] as [number, number, number] });
+    st().replaceDocument({ ...createDocument('P'), boards: [shelf('a', 0), shelf('b', 5)] });
+    st().linkBoards(['a', 'b']);
+    st().selectBoard('a'); st().toggleSelected('b');
+    st().groupSelected();
+    const g = st().doc.instances[0]!.id;
+    st().copyMirrored(g);
+    st().selectItem(g, false);
+    st().ungroupSelected();
+  });
+
+  it('Posture flat -> upright on that Shape shows the refusal, changes nothing, and the select snaps back', async () => {
+    bothSides();
+    act(() => st().selectBoard('a'));
+    render(<Properties />);
+    const before = st().doc;
+    await userEvent.selectOptions(screen.getByLabelText('Posture'), 'upright');
+    expect(screen.getByRole('alert')).toHaveTextContent("Linked parts on both sides of a mirror can't change between flat and upright. Unlink first.");
+    expect(st().doc).toBe(before);
+    expect(screen.getByLabelText('Posture')).toHaveValue('flat');
+    await userEvent.selectOptions(screen.getByLabelText('Posture'), 'on-edge');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(worldParts(st().doc).find((b) => b.id === 'a')!.posture).toBe('on-edge');
+  });
+
+  it('Link is refused, with the message and no Link button, when a member sits on the other side of a mirror', () => {
+    bothSides();
+    act(() => {
+      st().addBoard();
+      const fresh = st().selectedIds[0]!;
+      st().selectBoard('a'); st().toggleSelected(fresh);
+    });
+    render(<Properties />);
+    expect(screen.getByText("Can't link parts on opposite sides of a mirror.")).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Link' })).toBeNull();
+  });
+});
+

@@ -74,6 +74,11 @@ export function containerLinear(doc: SloydDocument, path: string | null): Linear
   return (instancesOn(doc, path) ?? []).reduce<Linear>((l, i) => composeLinear(l, i), IDENTITY_LINEAR);
 }
 
+/** Whether an occurrence sits under an odd number of mirrors: the parity of its container's chain. */
+export function mirroredAt(doc: SloydDocument, occ: string): boolean {
+  return containerLinear(doc, parentPath(occ)).mirrored;
+}
+
 /**
  * Every part below `c`, in `c`'s frame, ids relative to `c`: c's parts in
  * order, then each instance depth first, placed innermost first, one

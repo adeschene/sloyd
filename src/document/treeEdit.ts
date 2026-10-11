@@ -1,5 +1,5 @@
 import { boardExtents } from './geometry';
-import type { Board, Cut, Definition, Instance, Shape, SloydDocument, StoredBoard } from './types';
+import type { Board, Cut, Definition, Instance, Posture, Shape, SloydDocument, StoredBoard } from './types';
 import { CUT_GEOMETRY_KEYS } from './cuts';
 import { nextId } from './ids';
 import { LINK_FIELDS, SHARED_KEYS, sharedOf } from './links';
@@ -8,7 +8,7 @@ import { addTurns, cornerShift, inverseTurn, mirrorDim, mirrorPart, placeBoard, 
 import type { Frame } from './frames';
 import { mirrorCut } from './mirrorCut';
 import type { Container } from './tree';
-import { PATH_SEPARATOR, containerLinear, definitionAt, instanceAt, instancesOn, isCovered, itemPaths, lastSegment, parentPath, partAt, worldParts } from './tree';
+import { PATH_SEPARATOR, containerLinear, definitionAt, instanceAt, instancesOn, isCovered, itemPaths, lastSegment, mirroredAt, parentPath, partAt, worldParts } from './tree';
 
 /** Replace one container's contents: the root's, or a definition's. */
 export function updateContainer(doc: SloydDocument, path: string | null, fn: (c: Container) => Container): SloydDocument {
@@ -95,6 +95,32 @@ function lower(inst: Instance, upperBefore: Board, lowerBefore: Board, upperAfte
     position: [lowerBefore.position[0] + dx, lowerBefore.position[1] + d[1]!, lowerBefore.position[2] + d[2]!],
     cuts: lowerCuts(lowerBefore, draft, keepWorld),
   };
+}
+
+export const POSTURE_ACROSS_MIRROR = "Linked parts on both sides of a mirror can't change between flat and upright. Unlink first.";
+
+/**
+ * Why a posture patch on `ids` must be refused, or null (mirrored-instances spec
+ * §4, amended). Under an odd number of mirrors a part's stored cuts depend on
+ * its posture's d0 (`mirrorDim`), so a posture change that moves d0 (flat or
+ * on-edge <-> upright) rewrites them, re-reflected (the approved coupling). A
+ * shaped part's cuts are stored ONCE: when the Shape's users sit on both sides
+ * of a mirror, the two sides would write different cuts to it, so the change is
+ * refused before any mutation. A posture that keeps d0 (flat <-> on-edge), and
+ * any change on a Shape whose users are all on one side, is allowed. Every
+ * placement of every user counts (a user in a definition placed both ways is on
+ * both sides). The ONE decider: the store's updateBoards and the Posture field.
+ */
+export function postureRefusal(doc: SloydDocument, ids: readonly string[], posture: Posture | undefined): string | null {
+  if (posture === undefined) return null;
+  const world = worldParts(doc);
+  for (const id of ids) {
+    const b = world.find((x) => x.id === id);
+    if (!b?.shape || mirrorDim({ ...b, posture }) === mirrorDim(b)) continue;
+    const sides = new Set(world.filter((x) => x.shape === b.shape).map((x) => mirroredAt(doc, x.id)));
+    if (sides.size > 1) return POSTURE_ACROSS_MIRROR;
+  }
+  return null;
 }
 
 /** The storage id of the root container. A definition may never carry it:

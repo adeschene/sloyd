@@ -3,7 +3,7 @@ import {
   boardsBounds, cleanName, createBoard, createDocument, createGuide, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
   linkPlan, sharedOf, sharedPatch, isShaped, plainOf, pruneShapes, dissolveShapes,
   childrenOf, instanceAt, isCovered, itemPaths, parentPath, worldParts, mapWorld,
-  translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerLinear, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
+  translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerLinear, mirroredAt, postureRefusal, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
   toLocal, groupItems, ungroupItem, turnInstance as turnInstanceOp, setMirrored, mirroredCopy, updateContainer, lastSegment,
 } from '../document/document';
 import type { Board, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
@@ -1029,6 +1029,10 @@ export const useStore = create<StoreState>((set, get) => {
       const world = worldParts(get().doc);
       const targets = new Set(ids.filter((id) => world.some((b) => b.id === id)));
       if (targets.size === 0) return;
+      // Refused before ANY mutation, the grab clear below included (invariant
+      // 4): a d0-moving posture change on a Shape used on both sides of a
+      // mirror would write two different cut sets to it.
+      if (postureRefusal(get().doc, [...targets], patch.posture) !== null) return;
 
       // Invariant 24: a grab holds a world position captured at grab time, not
       // a reference to the board. Properties stays fully live in Move mode
@@ -1518,8 +1522,10 @@ export const useStore = create<StoreState>((set, get) => {
 
     linkBoards: (ids) => {
       const doc0 = get().doc;
-      const plan = linkPlan(worldParts(doc0), ids, (p) => storageKey(doc0, p));
-      if (!plan) return; // fewer than two, or nothing would change (invariant 4)
+      const plan = linkPlan(worldParts(doc0), ids, (p) => storageKey(doc0, p), (p) => mirroredAt(doc0, p));
+      // Fewer than two, nothing would change, or refused (opposite sides of a
+      // mirror): nothing is written, no undo entry (invariant 4).
+      if (!plan || 'refused' in plan) return;
       // Every member but the source takes the source's shared fields through
       // patchBoard, so a posture change pivots it about its own centre
       // (invariant 2). One edit per storage target, the source's FIRST, so
@@ -1531,7 +1537,11 @@ export const useStore = create<StoreState>((set, get) => {
         let out = mapWorld(doc, (w) => w.map((b) => (patched.has(b.id) ? patchBoard(b, sharedOf(plan.source)) : b)));
         // The shape takes the source's shared fields, cut ids kept: the
         // source's existing shape (or a selected member's), else a new one.
-        const shape = { id: shapeId, ...sharedOf(plan.source) };
+        // Its STORED fields, never the world part's: under a mirror the world
+        // cuts are the stored ones reflected, and storing those would flip the
+        // source (and every member, all on its side of the mirror) when placed.
+        // (The source resolved in doc0, and the patch above removes no part.)
+        const shape = { id: shapeId, ...sharedOf(resolvedPartAt(out, plan.source.id)!) };
         out = { ...out, shapes: out.shapes.some((x) => x.id === shapeId)
           ? out.shapes.map((x) => (x.id === shapeId ? shape : x))
           : [...out.shapes, shape] };

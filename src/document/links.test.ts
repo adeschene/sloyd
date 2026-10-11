@@ -1,6 +1,13 @@
 import { createBoard } from './document';
 import type { Board } from './document';
-import { LINK_FIELDS, SHARED_KEYS, linkPlan, sameShared, sharedOf, sharedPatch } from './links';
+import { LINK_ACROSS_MIRROR, LINK_FIELDS, SHARED_KEYS, linkPlan, sameShared, sharedOf, sharedPatch } from './links';
+import type { LinkPlan } from './links';
+
+/** The plan, failing the test when linkPlan gave none or refused. */
+const ok = (p: ReturnType<typeof linkPlan>): LinkPlan => {
+  if (!p || 'refused' in p) throw new Error(`no plan: ${JSON.stringify(p)}`);
+  return p;
+};
 
 const leg = (over: Partial<Board> = {}): Board =>
   ({ ...createBoard({ name: 'Leg', length: 28, width: 1.75, thickness: 1.75, posture: 'upright' }), ...over });
@@ -68,7 +75,7 @@ describe('linkPlan', () => {
     const a = leg({ id: 'a', length: 30 });
     const b = leg({ id: 'b' });
     const c = leg({ id: 'c', length: 30 });
-    const plan = linkPlan([a, b, c], ['c', 'b', 'a'])!;
+    const plan = ok(linkPlan([a, b, c], ['c', 'b', 'a']));
     expect(plan.source.id).toBe('c');
     expect(plan.members).toEqual(['a', 'b', 'c']);
     expect(plan.changing).toEqual(['b']);
@@ -78,13 +85,13 @@ describe('linkPlan', () => {
     const a = leg({ id: 'a', length: 30 });
     const b = leg({ id: 'b', shape: 'L' });
     const c = leg({ id: 'c', shape: 'L' });
-    const plan = linkPlan([a, b, c], ['a', 'b'])!;
+    const plan = ok(linkPlan([a, b, c], ['a', 'b']));
     expect(plan.members).toEqual(['a', 'b', 'c']);
     expect(plan.changing).toEqual(['b', 'c']);
     expect(plan.shape).toBe('L');
   });
   it('is not a no-op when one shape is shared but a member differs', () => {
-    const plan = linkPlan([leg({ id: 'b', shape: 'L' }), leg({ id: 'c', shape: 'L', length: 30 })], ['b', 'c'])!;
+    const plan = ok(linkPlan([leg({ id: 'b', shape: 'L' }), leg({ id: 'c', shape: 'L', length: 30 })], ['b', 'c']));
     expect(plan.changing).toEqual(['c']);
   });
   it('is null for fewer than two parts, or when nothing would change', () => {
@@ -99,8 +106,22 @@ describe('linkPlan', () => {
     const c = leg({ id: 'c', shape: 'S2' });
     const d = leg({ id: 'd', shape: 'S2' });
     const e = leg({ id: 'e' });
-    expect(linkPlan([a, b, c, d, e], ['c', 'a'])!.shape).toBe('S2');
-    expect(linkPlan([a, b, c, d, e], ['c', 'a'])!.members).toEqual(['a', 'b', 'c', 'd']);
-    expect(linkPlan([a, b, c, d, e], ['e', 'a'])!.shape).toBe('S1');
+    expect(ok(linkPlan([a, b, c, d, e], ['c', 'a'])).shape).toBe('S2');
+    expect(ok(linkPlan([a, b, c, d, e], ['c', 'a'])).members).toEqual(['a', 'b', 'c', 'd']);
+    expect(ok(linkPlan([a, b, c, d, e], ['e', 'a'])).shape).toBe('S1');
+  });
+  it('refuses members on opposite sides of a mirror, in either order; same side is a plan', () => {
+    const a = leg({ id: 'i1/a', length: 30 });
+    const b = leg({ id: 'b' });
+    const m = (p: string) => p.startsWith('i1/');
+    expect(linkPlan([a, b], ['i1/a', 'b'], undefined, m)).toEqual({ refused: LINK_ACROSS_MIRROR });
+    expect(linkPlan([a, b], ['b', 'i1/a'], undefined, m)).toEqual({ refused: LINK_ACROSS_MIRROR });
+    expect(ok(linkPlan([a, b], ['i1/a', 'b'], undefined, () => true)).members).toEqual(['i1/a', 'b']);
+  });
+  it('judges parity over every member, an unselected one brought by its shape included', () => {
+    const a = leg({ id: 'a', length: 30 });
+    const b = leg({ id: 'b', shape: 'L' });
+    const c = leg({ id: 'i1/c', shape: 'L' });
+    expect(linkPlan([a, b, c], ['a', 'b'], undefined, (p) => p.startsWith('i1/'))).toEqual({ refused: LINK_ACROSS_MIRROR });
   });
 });

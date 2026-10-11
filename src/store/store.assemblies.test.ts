@@ -3,7 +3,8 @@ import { assemblyDoc, cabinetsDoc } from '../document/treeFixtures';
 import { childrenOf, instanceAt, isCovered, parentPath, resolvedPartAt, worldParts } from '../document/tree';
 import { visibleBoards } from './visibility';
 import type { BoardSnapPoint, SloydDocument } from '../document/document';
-import { boardsBounds, isShaped, removeItems, snapPointsFor } from '../document/document';
+import { boardsBounds, createDocument, linkPlan, mirroredAt, postureRefusal, removeItems, snapPointsFor, storageKey } from '../document/document';
+import { chiralPart } from '../document/turnFixtures';
 import { worldSolids } from '../document/designCheck';
 
 const load = (doc: SloydDocument = assemblyDoc()) => useStore.getState().replaceDocument(doc);
@@ -906,22 +907,128 @@ describe('Mirrored and Copy mirrored (mirrored-instances spec §5)', () => {
     s().mirrorAssembly('i1', true);
     expect(s().tapeAnchor).toBeNull();
   });
-  it('review focus 2: Link links a part inside a mirrored copy with its twin outside (one shared Shape) and keeps both world geometries', () => {
+  it('Link refuses a part inside a mirrored copy with its twin outside (opposite sides of a mirror): nothing changes', () => {
     s().copyMirrored('i1');
     const copy = s().selectedIds[0]!;
     // Ungroup the ORIGINAL so its b1 is a loose part at the root, equal to the copy's b1 in its own frame.
     s().selectItem('i1', false);
     s().ungroupSelected();
     const loose = worldParts(s().doc).find((b) => !b.id.includes('/') && b.name === 'Side')!;
-    const inCopy = worldParts(s().doc).find((b) => b.id === `${copy}/b1`)!;
-    const solidsOf = (id: string) => worldSolids(worldParts(s().doc).find((b) => b.id === id)!);
-    const a = solidsOf(loose.id); const b = solidsOf(inCopy.id);
-    s().linkBoards([loose.id, inCopy.id]);
-    // Link succeeded: both parts now point at one Shape, and neither world geometry moved.
+    for (const ids of [[loose.id, `${copy}/b1`], [`${copy}/b1`, loose.id]]) {
+      const before = s().doc;
+      const n = s().past.length;
+      expect(linkPlan(worldParts(before), ids, (p) => storageKey(before, p), (p) => mirroredAt(before, p)))
+        .toEqual({ refused: "Can't link parts on opposite sides of a mirror." });
+      s().linkBoards(ids);
+      expect(s().doc).toBe(before);
+      expect(s().past.length).toBe(n);
+    }
+  });
+  it('Link refuses a mirrored part with a plain one in either order; two mirrors deep is the plain side again', () => {
+    const one = assemblyDoc();
+    load({ ...one, instances: one.instances.map((i) => ({ ...i, mirrored: true })) });
+    for (const ids of [['i1/b1', 'r1'], ['r1', 'i1/b1'], ['i1/i2/b3', 'r1']]) {
+      const before = s().doc;
+      s().linkBoards(ids);
+      expect(s().doc).toBe(before);
+    }
+    // i1 and i2 both mirrored: b3 sits under two mirrors, the same side as r1.
+    load({ ...one, instances: one.instances.map((i) => ({ ...i, mirrored: true })),
+      definitions: one.definitions.map((d) => ({ ...d, instances: d.instances.map((i) => ({ ...i, mirrored: true })) })) });
+    s().linkBoards(['i1/i2/b3', 'r1']);
     expect(s().doc.shapes).toHaveLength(1);
-    expect(isShaped(s().doc.boards.find((x) => x.id === loose.id)!)).toBe(true);
-    expect(isShaped(s().doc.definitions.find((x) => x.id === 'd1')!.boards.find((x) => x.id === 'b1')!)).toBe(true);
-    expect(solidsOf(loose.id)).toEqual(a);
-    expect(solidsOf(inCopy.id)).toEqual(b);
+  });
+  describe('Link on the same side of a mirror keeps the world (the Shape holds STORED fields)', () => {
+    /** Two equal one-handed parts, distinct stored parts, both inside ONE mirrored assembly. */
+    const twinsDoc = (cutsOnR = true): SloydDocument => {
+      const part = (id: string, x: number) => ({ ...chiralPart('flat'), id, name: id, position: [x, 0.2, 0.3] as [number, number, number], rotation: 90 as const });
+      const r = part('R', 7.5);
+      return {
+        ...createDocument('Twins'),
+        instances: [{ id: 'm', name: 'Pair', definition: 'dp', position: [5.1, 0, 2.3], rotation: 90, mirrored: true }],
+        definitions: [{ id: 'dp', boards: [part('L', 0.1), cutsOnR ? r : { ...r, cuts: [] }], instances: [] }],
+      };
+    };
+    const solidsOf = (id: string) => worldSolids(worldParts(s().doc).find((b) => b.id === id)!);
+    it.each([[['m/L', 'm/R']], [['m/R', 'm/L']]])('selection %j: neither world geometry changes', (ids) => {
+      load(twinsDoc());
+      const l = solidsOf('m/L'); const r = solidsOf('m/R');
+      s().linkBoards(ids);
+      expect(s().doc.shapes).toHaveLength(1);
+      expect(solidsOf('m/L')).toEqual(l);
+      expect(solidsOf('m/R')).toEqual(r);
+    });
+    it('a member that differs takes the source\'s WORLD cuts; the source does not move', () => {
+      load(twinsDoc(false));
+      const l = solidsOf('m/L');
+      const geom = (id: string) => worldParts(s().doc).find((b) => b.id === id)!.cuts.map(({ id: _id, ...g }) => g);
+      const want = geom('m/L');
+      s().linkBoards(['m/L', 'm/R']);
+      expect(solidsOf('m/L')).toEqual(l);
+      expect(geom('m/R')).toEqual(want);
+    });
   });
 });
+
+/**
+ * Two linked shelves, grouped, a mirrored copy made, the original Ungrouped: the
+ * Shape's users now sit on both sides of a mirror (the two root shelves, plain,
+ * and the copy's two, mirrored). Every step a UI action.
+ */
+function bothSidesDoc(): { a: string; b: string; copy: string } {
+  const shelf = (id: string, y: number) => ({ ...chiralPart('flat'), id, name: `Shelf ${id}`, position: [0, y, 0] as [number, number, number] });
+  s().replaceDocument({ ...createDocument('P'), boards: [shelf('a', 0), shelf('b', 5)] });
+  s().linkBoards(['a', 'b']);
+  s().selectBoard('a'); s().toggleSelected('b');
+  s().groupSelected();
+  const g = s().doc.instances[0]!.id;
+  s().copyMirrored(g);
+  const copy = s().selectedIds[0]!;
+  s().selectItem(g, false);
+  s().ungroupSelected();
+  return { a: 'a', b: 'b', copy };
+}
+
+describe('posture on a Shape used on both sides of a mirror (mirrored-instances spec §4, amended)', () => {
+  const geom = (id: string) => worldParts(s().doc).find((x) => x.id === id)!.cuts.map(({ id: _id, ...g }) => g);
+  /** A cut's numbers to 1e-9: re-reflecting twice is not bit-exact (spec §4). */
+  const nearly = (c: object) => Object.fromEntries(Object.entries(c).map(([f, v]) => [f, typeof v === 'number' ? Math.round(v * 1e9) / 1e9 + 0 : v]));
+  it('flat -> upright is refused before any change: no undo entry, the same doc, the grab kept', () => {
+    const { a, copy } = bothSidesDoc();
+    expect(worldParts(s().doc).filter((x) => x.shape !== undefined)).toHaveLength(4);
+    expect(postureRefusal(s().doc, [a], 'upright')).toBe("Linked parts on both sides of a mirror can't change between flat and upright. Unlink first.");
+    expect(postureRefusal(s().doc, [`${copy}/a`], 'upright')).not.toBeNull();
+    const grab = heldOn(a);
+    s().grabSnapPoint(grab);
+    const before = s().doc;
+    const n = s().past.length;
+    s().updateBoard(a, { posture: 'upright' });
+    s().updateBoard(`${copy}/a`, { posture: 'upright' });
+    expect(s().doc).toBe(before);
+    expect(s().past.length).toBe(n);
+    expect(s().grabbed).toBe(grab);
+  });
+  it('flat -> on-edge on the same Shape (d0 stays length) still applies to every user', () => {
+    const { a, copy } = bothSidesDoc();
+    expect(postureRefusal(s().doc, [a], 'on-edge')).toBeNull();
+    s().updateBoard(a, { posture: 'on-edge' });
+    expect(worldParts(s().doc).filter((x) => x.shape !== undefined).map((x) => x.posture)).toEqual(['on-edge', 'on-edge', 'on-edge', 'on-edge']);
+    expect(worldParts(s().doc).find((x) => x.id === `${copy}/b`)!.posture).toBe('on-edge');
+  });
+  it('a Shape whose users are all on one side changes flat -> upright, every user keeping its world cuts as seen', () => {
+    const { a, b, copy } = bothSidesDoc();
+    s().selectBoard(a); s().toggleSelected(b);
+    s().unlinkBoards([a, b]); // the copy's two stay one Shape, both mirrored
+    const before = [geom(`${copy}/a`), geom(`${copy}/b`)];
+    expect(postureRefusal(s().doc, [`${copy}/a`], 'upright')).toBeNull();
+    const n = s().past.length;
+    s().openAssembly(copy);
+    s().updateBoard(`${copy}/a`, { posture: 'upright' });
+    expect(s().past.length).toBe(n + 1);
+    for (const [k, id] of [`${copy}/a`, `${copy}/b`].entries()) {
+      expect(worldParts(s().doc).find((x) => x.id === id)!.posture).toBe('upright');
+      expect(geom(id).map(nearly)).toEqual(before[k]!.map(nearly));
+    }
+  });
+});
+

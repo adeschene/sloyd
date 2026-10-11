@@ -75,6 +75,12 @@ export function sameShared(a: Board, b: Board): boolean {
 /** `shape`: the shape Link will reuse (the source's, else a selected member's), or null to mint one. */
 export interface LinkPlan { source: Board; members: string[]; changing: string[]; shape: string | null }
 
+/** Link would do something wrong, so it does nothing and says why (the panel shows `refused`). */
+export interface LinkRefusal { refused: string }
+
+/** Mirrored-instances spec §4 (amended): one Shape cannot serve both hands. */
+export const LINK_ACROSS_MIRROR = "Can't link parts on opposite sides of a mirror.";
+
 /**
  * What Link will do (linking spec §3.1). The ONE decider, used by the store's
  * linkBoards AND the panel's "will match" line, so the two cannot disagree.
@@ -87,12 +93,20 @@ export interface LinkPlan { source: Board; members: string[]; changing: string[]
  * which this layer cannot import). When given, members that are all placements
  * of ONE stored part are refused too: linking them would mint a one-user shape
  * (fu 231). Without it, ids are taken to be distinct stored parts.
+ *
+ * `mirroredOf` says whether an occurrence sits under an odd number of mirrors
+ * (tree's `mirroredAt`, which this layer cannot import). When given, members on
+ * opposite sides of a mirror are refused with LINK_ACROSS_MIRROR: a Shape's cuts
+ * are stored once, so a member under the other parity would show them
+ * mirror-imaged, not as the source's (mirrored-instances spec §4, amended). Every
+ * member counts, not only the selected ones: each becomes a user of the Shape.
  */
 export function linkPlan(
   boards: readonly Board[],
   ids: readonly string[],
   keyOf?: (path: string) => string | null,
-): LinkPlan | null {
+  mirroredOf?: (path: string) => boolean,
+): LinkPlan | LinkRefusal | null {
   const chosen = [...new Set(ids)].flatMap((id) => boards.filter((b) => b.id === id));
   if (chosen.length < 2) return null;
   const source = chosen[0]!;
@@ -104,5 +118,6 @@ export function linkPlan(
   const shape = source.shape ?? [...shapes][0] ?? null;
   const oneShape = members.every((b) => b.shape !== undefined && b.shape === members[0]!.shape);
   if (oneShape && changing.length === 0) return null;
+  if (mirroredOf && new Set(members.map((b) => mirroredOf(b.id))).size > 1) return { refused: LINK_ACROSS_MIRROR };
   return { source, members: members.map((b) => b.id), changing, shape };
 }
