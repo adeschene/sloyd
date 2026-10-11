@@ -25,10 +25,12 @@ handicraft education tradition built around hand woodworking.
   `index-CUMg8UjZ.js`, CSS `index-NXp0eTQP.css`, merge `43b4928`, **schema 12** (since the
   posture-handedness round, `1a52fec`): rolling back to a build below 12 (`b953fdd`) refuses every
   project saved since that deploy (export first). Test count is under Commands.
-- **NO SUCCESSOR IS
+- **Pending deploy: the mirrored-instances round, merged 2026-10-11; `master` is ahead of production until it
+  ships. It bumps to SCHEMA 13: after the deploy, rolling back to a build below 13 refuses every project saved since
+  (export first).** **NO SUCCESSOR IS
   CHOSEN: ask what to work on; do not pick.** Open near the recent code:
   241 (open by decision),
-  221, 225, 232, 234. See Open follow-ups below.
+  221, 225 (rest out of scope), 232, 234, 247. See Open follow-ups below.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
   byte-identical bundles (test-only). Check what a later commit touches before reading
@@ -79,6 +81,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | posture handedness | 10-10 | 12 | On-edge reverses thickness so all postures share one hand; v12 mirrors on-edge cuts; every sheet view true (fu 215) |
 | 246/226/227 | 10-11 | — | Deleting an assembly's last part removes it; dead eyes say why; `›` reserved in written names; sweep re-run on flipped views |
 | 229/233 | 10-11 | — | Ungroup keeps the other copy's hidden assembly hidden (as its children); one cap report for one fault |
+| mirrored instances | 10-11 | 13 | `Instance.mirrored`: a live mirrored copy through the one composition; Mirrored checkbox, Copy mirrored, ⇋ badge |
 
 ### The deployment rule
 
@@ -529,7 +532,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 2811 tests across 91 files
+npm test           # Vitest, currently 2881 tests across 94 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -538,7 +541,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–246, each with its closure). Read the entries
+**`docs/follow-ups.md` is authoritative** (1–247, each with its closure). Read the entries
 for the area you are about to touch; several are "correct but untested". Open items worth
 knowing without opening it:
 
