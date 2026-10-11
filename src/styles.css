@@ -1,37 +1,57 @@
 /*
- * Sloyd — "the instrument, not the workpiece."
+ * Sloyd — a grey-steel bench top with walnut drawers.
  *
- * The chrome is a dark anodised tool body: graphite panels, hairline rules,
- * brass for the one thing that is live. The viewport is the bright working
- * surface it frames. Every number is set in a monospace face with tabular
- * figures so fractional inches stack in a column the way they do on a cut
- * list. Section headings are drawing-annotation blocks — small, letterspaced,
- * with a leader rule running to the panel edge.
+ * Two materials, two jobs. Grey is the chrome you reach for: the toolbar and
+ * the controls floating over the view. Walnut is where the work is described:
+ * the side panel, the dialogs, the cut list. Honey oak is the one live colour —
+ * the selection, the active tool, the primary action. The viewport is pale
+ * maple, the bright surface everything frames. Every number is set in a
+ * monospace face with tabular figures so fractional inches stack in a column
+ * the way they do on a cut list.
  *
- * Signature: the tick rule under the toolbar, minor ticks every 8px and a
- * brass major every 96px, like the edge of a machinist's scale.
+ * Signature: the tick rule under the toolbar, minor ticks every 8px and an oak
+ * major every 96px, like the edge of a machinist's scale.
+ *
+ * Rules never name a raw token for a surface, a control, a rule or ink: they
+ * read the ROLES below (--surface, --control, --ink…). Walnut is the default;
+ * the grey context selector re-points the roles, so one button rule serves both.
  */
 
 :root {
-  /* Instrument body */
-  --graphite-950: #141619;
-  --graphite-900: #1c1f22;
-  --graphite-850: #22262a;
-  --graphite-800: #292d32;
-  --graphite-700: #363b41;
-  --graphite-600: #434950;
-  --rule: #3a4046;
-  --rule-soft: #2b3036;
+  /* Grey — the toolbar and anything floating over the view. */
+  --grey-900: #22211f;
+  --grey-850: #2a2927;
+  --grey-800: #32302e;
+  --grey-700: #3a3836;
+  --grey-600: #464441;
+  --grey-rule: #4b4946;
+  --grey-rule-soft: #383634;
+  --grey-rule-strong: #5c5a56;
+  --grey-ink: #ece9e4;
+  --grey-ink-dim: #c8c3bb;
+  --grey-ink-faint: #a19c94;
 
-  /* Marks on the body */
-  --ink: #e9e6e0;
-  --ink-dim: #a8adb3;
-  --ink-faint: #7b8188;
+  /* Walnut — panels, dialogs, the cut list sheet. */
+  --walnut-950: #1f1914;
+  --walnut-900: #2b241e;
+  --walnut-850: #322920;
+  --walnut-800: #3a3027;
+  --walnut-700: #4a3d31;
+  --walnut-600: #5a4a3b;
+  --walnut-rule: #463b31;
+  --walnut-rule-soft: #382f27;
+  --walnut-rule-strong: #5e4e3f;
+  --walnut-ink: #ece4d6;
+  --walnut-ink-dim: #b9ad9c;
+  --walnut-ink-faint: #a09482;
 
-  /* Hardware */
-  --brass: #c99a4e;
-  --brass-bright: #e2b568;
-  --brass-dim: #7f6231;
+  /* Honey oak — the one live colour. */
+  --accent: #c8955a;
+  --accent-bright: #e3b47c;
+  --accent-dim: #7d5a33;
+  --on-accent: #23190f;
+
+  /* Alerts and warnings (values re-checked against walnut). */
   --alert: #e8806a;
   --alert-bg: #2c1c19;
   --alert-bg-strong: #4a2b26;
@@ -42,12 +62,45 @@
   --warn-border: #5a481f;
   --warn-ink: #efd9a5;
 
+  /* ROLES — walnut by default. */
+  --sunk: var(--walnut-950);
+  --surface: var(--walnut-900);
+  --raised: var(--walnut-850);
+  --raised-2: var(--walnut-800);
+  --control: var(--walnut-800);
+  --control-hover: var(--walnut-700);
+  --rule: var(--walnut-rule);
+  --rule-soft: var(--walnut-rule-soft);
+  --rule-strong: var(--walnut-rule-strong);
+  --ink: var(--walnut-ink);
+  --ink-dim: var(--walnut-ink-dim);
+  --ink-faint: var(--walnut-ink-faint);
+
   --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-num: ui-monospace, 'SF Mono', 'JetBrains Mono', 'Roboto Mono', Menlo,
     Consolas, monospace;
 
-  --radius: 2px;
+  --radius: 3px;
   color-scheme: dark;
+}
+
+/* The grey context: chrome you reach for. Re-points the roles; rules do not change. */
+.toolbar,
+.viewport-controls,
+.viewport-hint,
+.tape-readout {
+  --sunk: var(--grey-900);
+  --surface: var(--grey-850);
+  --raised: var(--grey-800);
+  --raised-2: var(--grey-700);
+  --control: var(--grey-700);
+  --control-hover: var(--grey-600);
+  --rule: var(--grey-rule);
+  --rule-soft: var(--grey-rule-soft);
+  --rule-strong: var(--grey-rule-strong);
+  --ink: var(--grey-ink);
+  --ink-dim: var(--grey-ink-dim);
+  --ink-faint: var(--grey-ink-faint);
 }
 
 * { box-sizing: border-box; }
@@ -57,15 +110,15 @@ body {
   font-family: var(--font-ui);
   font-size: 13px;
   color: var(--ink);
-  background: var(--graphite-950);
+  background: var(--sunk);
   -webkit-font-smoothing: antialiased;
 }
 
 canvas { display: block; }
 
-/* Every control gets the same ring, and it is light enough to see on graphite. */
+/* Every control gets the same ring, and it is light enough to see on walnut and grey. */
 :focus-visible {
-  outline: 2px solid var(--brass-bright);
+  outline: 2px solid var(--accent-bright);
   outline-offset: 2px;
 }
 
@@ -84,18 +137,18 @@ canvas { display: block; }
   align-items: center;
   gap: 8px;
   padding: 9px 14px 15px;
-  background: var(--graphite-900);
+  background: var(--surface);
   flex: none;
 }
 
-/* The scale edge. Baseline hairline, minor ticks, brass major every 96px. */
+/* The scale edge. Baseline hairline, minor ticks, oak major every 96px. */
 .toolbar::after {
   content: '';
   position: absolute;
   inset: auto 0 0 0;
   height: 9px;
   background-image:
-    repeating-linear-gradient(90deg, var(--brass-dim) 0 1px, transparent 1px 96px),
+    repeating-linear-gradient(90deg, var(--accent-dim) 0 1px, transparent 1px 96px),
     repeating-linear-gradient(90deg, var(--rule) 0 1px, transparent 1px 8px),
     linear-gradient(var(--rule), var(--rule));
   background-size: 100% 9px, 100% 4px, 100% 1px;
@@ -152,7 +205,7 @@ button {
   font-weight: 500;
   line-height: 1.4;
   color: var(--ink);
-  background: var(--graphite-700);
+  background: var(--control);
   border: 1px solid var(--rule);
   border-radius: var(--radius);
   padding: 5px 10px;
@@ -161,33 +214,33 @@ button {
 }
 
 button:hover:not(:disabled) {
-  background: var(--graphite-600);
-  border-color: #545b63;
+  background: var(--control-hover);
+  border-color: var(--rule-strong);
 }
 
 button:disabled {
   color: var(--ink-faint);
-  background: var(--graphite-850);
+  background: var(--raised);
   border-color: var(--rule-soft);
   cursor: default;
 }
 
 .btn-primary {
-  background: var(--brass);
-  border-color: var(--brass-bright);
-  color: #1a1408;
+  background: var(--accent);
+  border-color: var(--accent-bright);
+  color: var(--on-accent);
   font-weight: 600;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--brass-bright);
-  border-color: var(--brass-bright);
+  background: var(--accent-bright);
+  border-color: var(--accent-bright);
 }
 
 button[aria-pressed='true'] {
-  background: var(--graphite-950);
-  border-color: var(--brass-dim);
-  color: var(--brass-bright);
+  background: var(--sunk);
+  border-color: var(--accent-dim);
+  color: var(--accent-bright);
 }
 
 .danger:hover:not(:disabled) {
@@ -200,18 +253,18 @@ button[aria-pressed='true'] {
   font-family: var(--font-ui);
   font-size: 12px;
   color: var(--ink);
-  background: var(--graphite-950);
+  background: var(--sunk);
   border: 1px solid var(--rule);
   border-radius: var(--radius);
   padding: 5px 7px;
   min-width: 0;
 }
 
-.input:hover { border-color: var(--graphite-600); }
+.input:hover { border-color: var(--control-hover); }
 
 .input.invalid {
   border-color: var(--alert);
-  background: #2c1c19;
+  background: var(--alert-bg);
 }
 
 .doc-name {
@@ -243,7 +296,7 @@ button[aria-pressed='true'] {
   /* Same surface, border and radius as the tape readout — this reads as part
      of the instrument rather than as a floating widget, the app's one idiom
      for a panel over the canvas. */
-  background: var(--graphite-850);
+  background: var(--raised);
   border: 1px solid var(--rule);
   border-radius: var(--radius);
   box-shadow: 0 6px 18px rgb(0 0 0 / 0.35);
@@ -280,9 +333,9 @@ button[aria-pressed='true'] {
   padding: 5px 6px;
 }
 
-.project-row-open:hover { background: var(--graphite-700); }
+.project-row-open:hover { background: var(--control); }
 
-.project-dot { color: var(--brass-bright); width: 0.6em; flex: none; }
+.project-dot { color: var(--accent-bright); width: 0.6em; flex: none; }
 
 .project-row-name {
   flex: 1;
@@ -319,7 +372,7 @@ button[aria-pressed='true'] {
   opacity: 1;
 }
 
-.project-row-action:hover { background: var(--graphite-700); color: var(--ink); }
+.project-row-action:hover { background: var(--control); color: var(--ink); }
 
 /* The armed "Delete?" confirm reuses the app's existing .danger idiom
    (button hover already goes alert-toned) rather than a new colour, and
@@ -347,7 +400,7 @@ button[aria-pressed='true'] {
   color: var(--ink);
 }
 
-.project-menu-cmd:hover { background: var(--graphite-700); }
+.project-menu-cmd:hover { background: var(--control); }
 
 /* ---------------------------------------------------------------- workspace */
 
@@ -381,7 +434,7 @@ button[aria-pressed='true'] {
   align-items: stretch;
   gap: 0.3rem;
   padding: 0.4rem 0.6rem;
-  background: var(--graphite-850);
+  background: var(--raised);
   border: 1px solid var(--rule);
   border-radius: var(--radius);
   color: var(--ink);
@@ -432,10 +485,10 @@ button[aria-pressed='true'] {
   font-weight: 600;
   line-height: 1.6;
   padding: 0 0.4rem;
-  border: 1px solid var(--brass-dim);
+  border: 1px solid var(--accent-dim);
   border-radius: calc(var(--radius) / 2);
-  background: var(--graphite-950);
-  color: var(--brass-bright);
+  background: var(--sunk);
+  color: var(--accent-bright);
 }
 
 .tape-readout-input {
@@ -452,14 +505,14 @@ button[aria-pressed='true'] {
   font-size: 12px;
 }
 
-.banner strong { color: var(--brass-bright); }
+.banner strong { color: var(--accent-bright); }
 
 /* ---------------------------------------------------------------- sidebar */
 
 .sidebar {
   width: 312px;
   flex: none;
-  background: var(--graphite-900);
+  background: var(--surface);
   border-left: 1px solid var(--rule);
   display: flex;
   flex-direction: column;
@@ -498,7 +551,7 @@ button[aria-pressed='true'] {
 .parts,
 .guides {
   scrollbar-width: thin;
-  scrollbar-color: var(--graphite-600) transparent;
+  scrollbar-color: var(--control-hover) transparent;
 }
 
 /* Guides sits below Properties and, like Parts, never shrinks: a zero basis
@@ -574,7 +627,7 @@ button[aria-pressed='true'] {
 }
 
 .part:hover:not(:disabled) {
-  background: var(--graphite-850);
+  background: var(--raised);
   border-color: transparent;
   border-left-color: var(--rule);
   color: var(--ink);
@@ -582,8 +635,8 @@ button[aria-pressed='true'] {
 
 .part.selected,
 .part.selected:hover:not(:disabled) {
-  background: var(--graphite-800);
-  border-left-color: var(--brass);
+  background: var(--raised-2);
+  border-left-color: var(--accent);
   color: var(--ink);
   font-weight: 600;
 }
@@ -658,7 +711,7 @@ button[aria-pressed='true'] {
 }
 
 .guides li:hover {
-  background: var(--graphite-850);
+  background: var(--raised);
   border-left-color: var(--rule);
 }
 
@@ -751,7 +804,7 @@ button[aria-pressed='true'] {
 /* A fact about the row, not a refusal, so not `--alert`. The warn tokens are
    used as the matched PILL they were built as (background + border + ink) —
    `--warn-ink` alone was rejected for `.cutlist-unplaceable` for exactly that
-   reason, and on graphite it barely differs from `--ink`. */
+   reason, and on walnut it barely differs from `--ink`. */
 .field-note {
   margin: 0 0 4px;
   padding: 4px 6px;
@@ -791,7 +844,7 @@ button[aria-pressed='true'] {
   margin-top: 2px;
 }
 
-.checkbox input { accent-color: var(--brass); cursor: pointer; }
+.checkbox input { accent-color: var(--accent); cursor: pointer; }
 
 /*
   The base .checkbox is a sidebar control and carries a top margin for the
@@ -850,14 +903,14 @@ button[aria-pressed='true'] {
   justify-content: center;
   padding: 32px 16px;
   overflow: auto;
-  background: rgba(12, 14, 16, 0.72);
+  background: rgba(20, 15, 11, 0.72);
 }
 
 .cutlist-sheet {
   width: min(760px, 100%);
   height: max-content;
   padding: 24px 28px 32px;
-  background: var(--graphite-900);
+  background: var(--surface);
   border: 1px solid var(--rule);
   border-radius: 4px;
 }
@@ -888,7 +941,7 @@ button[aria-pressed='true'] {
 
 .cutlist-group h3 {
   margin: 0 0 8px;
-  color: var(--brass);
+  color: var(--accent);
 }
 
 .cutlist-rows {
@@ -941,14 +994,14 @@ button[aria-pressed='true'] {
 /* The subtotal is the group's own total, so it reads brighter than the rows
    it sums. */
 .cutlist-subtotal .cutlist-stock {
-  color: var(--brass);
+  color: var(--accent);
 }
 
 .cutlist-setup {
   grid-column: 2 / -1;
   margin: 4px 0 0;
   padding: 2px 0 2px 12px;
-  border-left: 2px solid var(--brass-dim);
+  border-left: 2px solid var(--accent-dim);
   list-style: none;
   color: var(--ink-dim);
   font-size: 0.9em;
@@ -1053,11 +1106,11 @@ button[aria-pressed='true'] {
   stroke-width: 2;
 }
 
-/* --graphite-800 is one step lighter than .cutlist-sheet's own
-   --graphite-900 background, which is what makes a part's rect read as
+/* --raised-2 is one step lighter than .cutlist-sheet's own
+   --surface background, which is what makes a part's rect read as
    material sitting ON the sheet rather than a hole in it. */
 .cutlist-layout-part {
-  fill: var(--graphite-800);
+  fill: var(--raised-2);
   stroke: var(--ink);
   stroke-width: 2;
 }
@@ -1122,7 +1175,7 @@ button[aria-pressed='true'] {
   .cutlist-stock,
   .cutlist-subtotal-label,
   /* The empty-sheet line belongs here too: --ink-faint is grey chosen against
-     graphite, and grey on white is the one line on an otherwise blank page. */
+     walnut, and grey on white is the one line on an otherwise blank page. */
   .cutlist-empty,
   /* The diagram's heading and caption are the same shape of defect: both are
      --ink-dim/--ink-faint, both are grey on white, and neither is noticed on
@@ -1145,7 +1198,7 @@ button[aria-pressed='true'] {
 
   /* .cutlist-subtotal .cutlist-stock (screen rule, specificity 0,2,0) beats
      the enumerated .cutlist-stock above (0,1,0), so the group subtotal — the
-     figure most likely to be read at the bench — kept printing brass on
+     figure most likely to be read at the bench — kept printing oak on
      white even after .cutlist-stock joined the list. Enumerating the class
      alone is not enough wherever a more specific selector also sets color;
      this rule has to match that specificity to win. */
@@ -1200,13 +1253,13 @@ button[aria-pressed='true'] {
   align-items: flex-start;
   padding: 48px 16px;
   overflow: auto;
-  background: rgba(12, 14, 16, 0.72);
+  background: rgba(20, 15, 11, 0.72);
 }
 .modal-sheet {
   width: min(560px, 100%);
   padding: 20px 24px;
-  background: var(--graphite-800);
-  border: 1px solid var(--graphite-600);
+  background: var(--raised-2);
+  border: 1px solid var(--control-hover);
   border-radius: 8px;
   outline: none;
 }
@@ -1231,7 +1284,7 @@ button[aria-pressed='true'] {
 .generate-run-concept::before { content: '— '; font-weight: normal; }
 
 /* The project menu's "new" badge on a project generated this session and not
-   yet opened (spec §6.3). Brass on graphite — the app's existing chip idiom
+   yet opened (spec §6.3). Oak on grey — the app's existing chip idiom
    (TapeReadout's axis chip), not a new hue. */
 .project-row-new {
   font-size: 10px;
@@ -1239,8 +1292,8 @@ button[aria-pressed='true'] {
   letter-spacing: 0.05em;
   padding: 1px 5px;
   border-radius: 3px;
-  background: var(--brass);
-  color: var(--graphite-800);
+  background: var(--accent);
+  color: var(--raised-2);
 }
 
 .copy-row {

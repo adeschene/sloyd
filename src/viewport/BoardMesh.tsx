@@ -12,7 +12,7 @@ import { grainTexture } from './grainTexture';
 import { CLICK_DRAG_SLOP_PX, clickPairStartedWithDrag } from './pointer';
 
 /** Brass — the one live colour in the app. */
-const SELECTED = '#c99a4e';
+const SELECTED = '#c8955a';
 
 /**
  * How dark an edge line is relative to the stock it outlines. A single flat
