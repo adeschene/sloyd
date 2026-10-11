@@ -21,16 +21,14 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-11: the mirrored-instances round, bundle
-  `index-Ck21KxtH.js`, CSS `index-DzUjIHyD.css`, merge `e553f57`, **SCHEMA 13**: rolling back to a
-  build below 13 (`43b4928`) refuses every project saved since the deploy (export first). Test count
-  is under Commands.
+- **Production matches `master`** as of 2026-10-11: the ui-polish round, bundle
+  `index-pwj6gaFP.js`, CSS `index-snqYHkpL.css`, merge `14609fe`, **SCHEMA 13** (unchanged, so rolling
+  back to `a11ec0b` is free; below 13, `43b4928`, refuses every project saved since mirrored instances:
+  export first). Test count is under Commands.
 - **NO SUCCESSOR IS
   CHOSEN: ask what to work on; do not pick.** Open near the recent code:
-  241 (open by decision),
+  241 (open by decision), 248–251 (ui-polish residue; 248 and 249 wait on the user),
   221, 225 (rest out of scope), 232, 234, 247. See Open follow-ups below.
-- **The ui-polish round is merged to `master` (`14609fe`), NOT deployed**: master is ahead of
-  production. No schema change, so rollback is free. Follow-ups 248–251.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
   byte-identical bundles (test-only). Check what a later commit touches before reading
