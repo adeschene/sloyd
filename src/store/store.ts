@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import {
-  boardsBounds, createBoard, createDocument, createGuide, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
+  boardsBounds, cleanName, createBoard, createDocument, createGuide, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
   linkPlan, sharedOf, sharedPatch, isShaped, plainOf, pruneShapes, dissolveShapes,
   childrenOf, instanceAt, isCovered, itemPaths, parentPath, worldParts, mapWorld,
   translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerTurn, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
@@ -1115,6 +1115,11 @@ export const useStore = create<StoreState>((set, get) => {
         (doc) => removeItems(doc, [...doomed]),
         () => get().selectedIds.filter((id) => !isCovered(id, doomed)),
       );
+      // A delete that empties an assembly removes it (fu 226), and the open
+      // level may be that assembly: close to the deepest level left, as restore does.
+      let open = get().openPath;
+      while (open !== null && !instanceAt(get().doc, open)) open = parentPath(open);
+      if (open !== get().openPath) set({ openPath: open, ...selectionPatch([], get().hiddenIds, open) });
       // A deleted part in a shared definition vanishes from every copy; a missing
       // part offers no points, so judgeHeld drops what was held on the others.
       judgeHeld();
@@ -1281,7 +1286,7 @@ export const useStore = create<StoreState>((set, get) => {
 
     renameItem: (path, typed) => {
       const doc = get().doc;
-      const name = uniqueName(typed, siblingsOf(doc, parentPath(path)), lastSegment(path));
+      const name = uniqueName(cleanName(typed), siblingsOf(doc, parentPath(path)), lastSegment(path));
       const inst = instanceAt(doc, path);
       if (inst) {
         if (name !== inst.name) {

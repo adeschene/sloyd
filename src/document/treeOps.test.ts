@@ -245,6 +245,66 @@ describe('shared definitions', () => {
     expect(none.shapes).toEqual([]);
   });
 
+  describe('an assembly this delete empties goes with it (fu 226)', () => {
+    /** Root part r1; i1 holds ONLY the nested assembly i2, which holds b3. */
+    const nested = (): SloydDocument => ({
+      ...createDocument('Nested'),
+      boards: [createBoard({ id: 'r1', name: 'Top' })],
+      instances: [{ id: 'i1', name: 'Case', definition: 'd1', position: [0, 0, 0], rotation: 0 }],
+      definitions: [
+        { id: 'd1', boards: [], instances: [{ id: 'i2', name: 'Drawer', definition: 'd2', position: [1, 0, 0], rotation: 0 }] },
+        { id: 'd2', boards: [createBoard({ id: 'b3', name: 'Front' })], instances: [] },
+      ],
+    });
+
+    it('deleting the last part removes its assembly and prunes the definition', () => {
+      const out = removeItems(cabinetsDoc(), ['solo/only']);
+      expect(out.instances.map((i) => i.id)).toEqual(['c1', 'c2', 'c3', 'x']);
+      expect(out.definitions.map((d) => d.id).sort()).toEqual(['dc', 'dd']);
+    });
+
+    it('cascades up: an assembly left holding only an emptied one goes too', () => {
+      const out = removeItems(nested(), ['i1/i2/b3']);
+      expect(out.boards.map((b) => b.id)).toEqual(['r1']);
+      expect(out.instances).toEqual([]);
+      expect(out.definitions).toEqual([]);
+    });
+
+    it('deleting the only nested assembly empties its parent, which goes', () => {
+      const out = removeItems(nested(), ['i1/i2']);
+      expect(out.instances).toEqual([]);
+      expect(out.definitions).toEqual([]);
+    });
+
+    it('stops where a level still holds something', () => {
+      const out = removeItems(assemblyDoc(), ['i1/i2/b3']);
+      expect(out.instances.map((i) => i.id)).toEqual(['i1']);
+      expect(childrenOf(out, 'i1')).toEqual(['i1/b1', 'i1/b2']);
+      expect(out.definitions.map((d) => d.id)).toEqual(['d1']);
+    });
+
+    it('a shared definition emptied leaves every placement of it, at every depth', () => {
+      // dd (Front) is placed at x and inside each cabinet (c1..c3/dr).
+      const out = removeItems(cabinetsDoc(), ['x/front']);
+      expect(out.instances.map((i) => i.id)).toEqual(['c1', 'c2', 'c3', 'solo']);
+      expect(childrenOf(out, 'c1')).toEqual(['c1/side']);
+      expect(childrenOf(out, 'c3')).toEqual(['c3/side']);
+      expect(out.definitions.some((d) => d.id === 'dd')).toBe(false);
+    });
+
+    it('an assembly that was already empty is not this delete\'s to remove', () => {
+      const doc = nested();
+      const withEmpty: SloydDocument = {
+        ...doc,
+        instances: [...doc.instances, { id: 'e', name: 'Empty', definition: 'de', position: [5, 0, 0], rotation: 0 }],
+        definitions: [...doc.definitions, { id: 'de', boards: [], instances: [] }],
+      };
+      const out = removeItems(withEmpty, ['r1']);
+      expect(out.instances.map((i) => i.id)).toEqual(['i1', 'e']);
+      expect(out.definitions.map((d) => d.id)).toEqual(['d1', 'd2', 'de']);
+    });
+  });
+
   it('dissolveShapes turns a one-user shape back into a plain part', () => {
     const doc = base();
     const out = dissolveShapes(doc);

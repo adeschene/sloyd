@@ -302,6 +302,18 @@ and 79.
 
 ## What each round did
 
+**What the 246/226/227 round did (2026-10-11)**: three follow-ups, a bounded change (design in chat). **No schema
+change.** Fu 226: `removeItems` drops every placement of a definition the delete emptied (held something before),
+cascading up and across shared copies; an already-empty assembly stays; `deleteBoards` closes the open level to the
+deepest one left. Fu 227: a dead eye says why ("<name> is hidden with <nearest hidden assembly>", or "<name> is open
+and can't be hidden"); `cleanName` turns `›` into `>` where a name is written (`renameItem`, Generate). The approved
+design put it in `uniqueName` (so on load too); that renamed every assembly part on joinery's write-back, because
+flat documents carry " › " and pass through `migrateDocument` (47 tests red), so it moved to the write sites and the
+prohibition joined inv 8. Fu 246: stale vUp comments fixed; the overlap sweep re-run on all six views (12 views, 54
+rotated labels): no overlaps, nothing outside the viewBox; its P3 check predated the leader columns and flagged every
+column label, now exempt when wholly in the column band; three test gaps pinned. Final review (opus): ready to merge,
+3 minors, all fixed. Test count 2793 -> 2808.
+
 **What the posture-handedness round did (2026-10-10)**: follow-up 215, by the user's decision to do both
 steps as one round. **Schema 12.** The probe: flat and upright mapped (length, width, thickness) onto the
 world as mirrors, on-edge as a proper rotation, so a posture change mirrored a one-handed part's cuts; the

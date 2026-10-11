@@ -67,7 +67,31 @@ export function removeItems(doc: SloydDocument, paths: readonly string[]): Sloyd
       instances: k.instances.filter((i) => !ids.has(i.id)),
     }));
   }
-  return dissolveShapes(pruneShapes(pruneDefinitions(out)));
+  return dissolveShapes(pruneShapes(pruneDefinitions(dropEmptied(doc, out))));
+}
+
+const isEmpty = (c: Container) => c.boards.length === 0 && c.instances.length === 0;
+
+/**
+ * Drop every placement of a definition `after` has emptied, one that held
+ * something `before` (fu 226): an assembly whose last part was deleted goes
+ * with it, in every copy, and a level left holding only emptied assemblies
+ * goes in turn. A definition that was ALREADY empty is not the delete's doing
+ * and stays (a file may hold one; the row can still be deleted by hand).
+ */
+function dropEmptied(before: SloydDocument, after: SloydDocument): SloydDocument {
+  const heldBefore = new Set(before.definitions.filter((d) => !isEmpty(d)).map((d) => d.id));
+  let out = after;
+  for (;;) {
+    const emptied = new Set(out.definitions.filter((d) => isEmpty(d) && heldBefore.has(d.id)).map((d) => d.id));
+    const keep = (i: Instance) => !emptied.has(i.definition);
+    if (out.instances.every(keep) && out.definitions.every((d) => d.instances.every(keep))) return out;
+    out = {
+      ...out,
+      instances: out.instances.filter(keep),
+      definitions: out.definitions.map((d) => (d.instances.every(keep) ? d : { ...d, instances: d.instances.filter(keep) })),
+    };
+  }
 }
 
 const rekeyer = (pairs: ReadonlyArray<readonly [string, string]>): Rekey => (p) => {

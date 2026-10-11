@@ -3,7 +3,7 @@ import { createDocument, migrateDocument } from './document';
 import type { SloydDocument } from './document';
 import { DIMENSION_ORDER, SNAP_INCHES, axisDimensions } from './geometry';
 import { nextId } from './ids';
-import { uniqueName } from './names';
+import { cleanName as clean, uniqueName } from './names';
 import { NAME_SEPARATOR } from './tree';
 import { MATERIALS } from './types';
 import type { Board, Definition, Dimension, Grain, Instance, Posture, Rotation } from './types';
@@ -138,8 +138,6 @@ const snap = (v: number) => Math.round(v / SNAP_INCHES) * SNAP_INCHES;
 export const MAX_MAGNITUDE = 10_000;
 const usable = (v: number) => Number.isFinite(v) && Math.abs(v) <= MAX_MAGNITUDE;
 
-/** The model's names never carry the path separator, so a flat name is unambiguous. */
-const clean = (name: string) => name.replaceAll('›', '>');
 
 const POSTURE_FOR_UP: Record<Dimension, Posture> = {
   thickness: 'flat',

@@ -38,13 +38,19 @@ function sweepDiagrams() {
    * It used to be 1, to absorb a 0.6-unit overhang above the viewBox that every
    * near-side depth label produced at `y = TOP - 8 = 18` with a `getBBox` height
    * of 23.68. That was ascent padding rather than visible ink — and it is now
-   * GONE, because no text is drawn above the outline at all: every number a cut
-   * owns lives in that cut's own leader row. Measured on the baseline, the worst
-   * overhang past any of the four edges is exactly 0.00, and the smallest
-   * clearance to any edge is 5.83 units.
+   * GONE: every number a cut owns lives in that cut's own leader row or column.
+   * Measured on the baseline, the worst overhang past any of the four edges is
+   * exactly 0.00, and the smallest clearance to any edge is 5.83 units.
+   *
+   * Since schema 12 (fu 215) the three `vUp` views draw their vertical axis
+   * upward, so a leader column's labels CAN sit above the outline; PartDiagram
+   * lifts the figure so they start at TOP (4) or below. RE-MEASURED 2026-10-11
+   * (fu 246) on a fixture with stopped and positioned cuts on all six views, at
+   * two part sizes: 0.00 overhang everywhere; the highest text sits 5.32 units
+   * below the viewBox top on a lifted view and 4.75 on an unflipped one.
    *
    * So this is float noise headroom, not an allowance for a known artefact. Do
-   * not raise it to make a failure disappear — at 5.83 units of real clearance,
+   * not raise it to make a failure disappear — at ~5 units of real clearance,
    * anything this flags is a genuine breach. If `TOP` or the label font-size
    * changes, re-derive it the same way.
    */
@@ -110,6 +116,7 @@ function sweepDiagrams() {
       text: el.textContent,
       cls: el.getAttribute('class') || 'leader',
       bbox: boxOf(el, svg),
+      rotated: /rotate/.test(el.getAttribute('transform') || ''),
     }));
 
     // The overall-width label is the LAST <text> in the svg and is deliberately
@@ -160,9 +167,14 @@ function sweepDiagrams() {
 
     // P3 — a depth or leader label reaching left of the board's own edge. The
     // overall-width label is deliberately to the RIGHT of the outline, so it is
-    // exempt; nothing legitimately sits to the left of it.
+    // exempt. So is a rotated leader-column label (a vertical-axis cut) lying
+    // WHOLLY in the column band left of the outline: the columns stand there by
+    // design (COL each, plus LEFT_PAD), a layout newer than this check, which
+    // flagged every one of them (fu 246). A rotated label straddling the
+    // outline's left edge is still reported.
+    const inColumnBand = (t) => t.rotated && t.bbox.x + t.bbox.width <= box.x + 0.5;
     for (const t of texts) {
-      if (t.bbox.x < box.x - 0.5 && t.text !== widthLabel) {
+      if (t.bbox.x < box.x - 0.5 && t.text !== widthLabel && !inColumnBand(t)) {
         issues.push({
           kind: 'left-of-board',
           text: t.text,

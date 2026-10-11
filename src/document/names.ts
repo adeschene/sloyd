@@ -9,6 +9,18 @@ export interface Named { id: string; name: string }
 const SUFFIX_RE = /^(.*?)\s\((\d+)\)$/;
 
 /**
+ * A name a person or a model wrote, with the path separator's glyph
+ * (`NAME_SEPARATOR`, " › ") replaced by ">" (fu 227). Reserving the whole glyph,
+ * not only the spaced separator, is what makes a flat name unambiguous: an
+ * assembly "X ›" holding "B" and an assembly "X" holding "› B" would both print
+ * "X › › B". Applied where a name is WRITTEN (renameItem, Generate), never in
+ * uniqueName or on load: a flat document's names carry the separator by
+ * construction ("Front › Leg") and pass through migrateDocument (applyJoints,
+ * Refine, repair), so cleaning there would rename every assembly part.
+ */
+export const cleanName = (name: string): string => name.replaceAll('›', '>');
+
+/**
  * A name that no sibling is using, disambiguated with " (n)" if needed.
  * `excludeId` is the item being renamed, so it does not collide with itself.
  *

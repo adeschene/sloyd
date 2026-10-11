@@ -126,16 +126,40 @@ describe('PartsList tree', () => {
     useStore.getState().replaceDocument(assemblyDoc());
     act(() => useStore.getState().setHidden('i1', true));
     render(<PartsList />);
-    expect(screen.getByRole('button', { name: 'Hide Side' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Side is hidden with Drawer' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Show Drawer' })).toBeEnabled();
+  });
+
+  it('a covered eye names the NEAREST hidden ancestor, at any depth (fu 227)', () => {
+    useStore.getState().replaceDocument(assemblyDoc());
+    act(() => useStore.getState().setHidden('i1', true));
+    const { unmount } = render(<PartsList />);
+    expect(screen.getByRole('button', { name: 'Pin is hidden with Drawer' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Peg is hidden with Drawer' })).toBeDisabled();
+    unmount();
+    useStore.getState().replaceDocument(assemblyDoc());
+    act(() => useStore.getState().setHidden('i1/i2', true));
+    render(<PartsList />);
+    expect(screen.getByRole('button', { name: 'Pin is hidden with Peg' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Show Peg' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Hide Side' })).toBeEnabled();
+  });
+
+  it('with both a nested and an outer assembly hidden, a covered eye names the nested one', () => {
+    useStore.getState().replaceDocument(assemblyDoc());
+    act(() => { useStore.getState().setHidden('i1/i2', true); useStore.getState().setHidden('i1', true); });
+    expect(useStore.getState().hiddenIds).toEqual(expect.arrayContaining(['i1', 'i1/i2']));
+    render(<PartsList />);
+    expect(screen.getByRole('button', { name: 'Pin is hidden with Peg' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Peg is hidden with Drawer' })).toBeDisabled();
   });
 
   it('the eye is disabled on the open assembly and its ancestors, not on its children', () => {
     useStore.getState().replaceDocument(assemblyDoc());
     act(() => { useStore.getState().openAssembly('i1/i2'); });
     render(<PartsList />);
-    expect(screen.getByRole('button', { name: 'Hide Drawer' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Hide Peg' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: "Drawer is open and can't be hidden" })).toBeDisabled();
+    expect(screen.getByRole('button', { name: "Peg is open and can't be hidden" })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Hide Pin' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Hide Top' })).toBeEnabled();
   });

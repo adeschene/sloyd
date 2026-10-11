@@ -1,5 +1,5 @@
-import { createBoard } from './document';
-import { uniqueName, dedupeNames, derivedName } from './names';
+import { createBoard, createDocument, migrateDocument } from './document';
+import { cleanName, uniqueName, dedupeNames, derivedName } from './names';
 
 const named = (...names: string[]) => names.map((name) => createBoard({ name }));
 
@@ -94,6 +94,22 @@ describe('names over any { id, name } (assemblies spec §2.3)', () => {
   it('dedupeNames keeps the item type', () => {
     const out = dedupeNames([{ id: 'a', name: 'X', extra: 1 }, { id: 'b', name: 'X', extra: 2 }]);
     expect(out.map((o) => [o.name, o.extra])).toEqual([['X', 1], ['X (1)', 2]]);
+  });
+});
+
+describe('the path separator is reserved (fu 227)', () => {
+  it('cleanName turns every › into >', () => {
+    expect(cleanName('A › B')).toBe('A > B');
+    expect(cleanName('›B›')).toBe('>B>');
+    expect(cleanName('Plain')).toBe('Plain');
+  });
+  it('uniqueName and the load path leave a flat document\'s names alone', () => {
+    // A flat document names assembly parts "Drawer › Front" and runs through
+    // migrateDocument (applyJoints, Refine, repair); cleaning there would turn
+    // every write-back into a rename.
+    expect(uniqueName('Drawer › Front', [])).toBe('Drawer › Front');
+    const flat = { ...createDocument('Flat'), boards: [createBoard({ id: 'b1', name: 'Drawer › Front' })] };
+    expect(migrateDocument(JSON.parse(JSON.stringify(flat))).boards[0]!.name).toBe('Drawer › Front');
   });
 });
 
