@@ -1356,7 +1356,7 @@ describe('Properties shared copies', () => {
 
 
 describe('Properties mirrored assemblies', () => {
-  it('an assembly\'s Mirrored checkbox flips it, and Copy mirrored adds a mirrored copy', async () => {
+  it('an assembly\'s Mirrored checkbox flips it, and Copy mirrored of a mirrored original adds an unmirrored copy', async () => {
     useStore.getState().replaceDocument(assemblyDoc());
     act(() => useStore.getState().selectItem('i1', false));
     render(<Properties />);

@@ -3,7 +3,7 @@ import { assemblyDoc, cabinetsDoc } from '../document/treeFixtures';
 import { childrenOf, instanceAt, isCovered, parentPath, resolvedPartAt, worldParts } from '../document/tree';
 import { visibleBoards } from './visibility';
 import type { BoardSnapPoint, SloydDocument } from '../document/document';
-import { boardsBounds, removeItems, snapPointsFor } from '../document/document';
+import { boardsBounds, isShaped, removeItems, snapPointsFor } from '../document/document';
 import { worldSolids } from '../document/designCheck';
 
 const load = (doc: SloydDocument = assemblyDoc()) => useStore.getState().replaceDocument(doc);
@@ -898,6 +898,7 @@ describe('Mirrored and Copy mirrored (mirrored-instances spec §5)', () => {
     expect(instanceAt(s().doc, s().selectedIds[0]!)!.mirrored).toBe(true);
     s().copyInRow(['i1'], 2, 0, 1, 50);
     const row = s().doc.instances.filter((i) => i.definition === instanceAt(s().doc, 'i1')!.definition);
+    expect(row).toHaveLength(3); // original + duplicate + one row copy (count 2 = the original and one copy)
     expect(row.every((i) => i.mirrored === true)).toBe(true);
   });
   it('a tape anchor on a part of the flipped assembly is dropped (the world moved, invariant 24)', () => {
@@ -905,7 +906,7 @@ describe('Mirrored and Copy mirrored (mirrored-instances spec §5)', () => {
     s().mirrorAssembly('i1', true);
     expect(s().tapeAnchor).toBeNull();
   });
-  it('review focus 2: Link a part inside a mirrored copy with its twin outside keeps both world geometries', () => {
+  it('review focus 2: Link links a part inside a mirrored copy with its twin outside (one shared Shape) and keeps both world geometries', () => {
     s().copyMirrored('i1');
     const copy = s().selectedIds[0]!;
     // Ungroup the ORIGINAL so its b1 is a loose part at the root, equal to the copy's b1 in its own frame.
@@ -916,6 +917,10 @@ describe('Mirrored and Copy mirrored (mirrored-instances spec §5)', () => {
     const solidsOf = (id: string) => worldSolids(worldParts(s().doc).find((b) => b.id === id)!);
     const a = solidsOf(loose.id); const b = solidsOf(inCopy.id);
     s().linkBoards([loose.id, inCopy.id]);
+    // Link succeeded: both parts now point at one Shape, and neither world geometry moved.
+    expect(s().doc.shapes).toHaveLength(1);
+    expect(isShaped(s().doc.boards.find((x) => x.id === loose.id)!)).toBe(true);
+    expect(isShaped(s().doc.definitions.find((x) => x.id === 'd1')!.boards.find((x) => x.id === 'b1')!)).toBe(true);
     expect(solidsOf(loose.id)).toEqual(a);
     expect(solidsOf(inCopy.id)).toEqual(b);
   });

@@ -360,7 +360,7 @@ describe('mirrored instances: toggle, copy, ungroup (mirrored-instances spec §5
     expect('mirrored' in instanceAt(again.doc, again.path)!).toBe(false);
   });
 
-  it('Ungroup of a mirrored assembly leaves every world part bit-identical; lifted parts are plain', () => {
+  it('Ungroup of a mirrored assembly keeps every world part (direct children bit-identical, nested within rounding)', () => {
     const d = setMirrored(assemblyDoc(), 'i1', true);
     const before = worldParts(d).filter((b) => b.id.startsWith('i1/'));
     const r = ungroupItem(d, 'i1')!;
@@ -411,5 +411,24 @@ describe('mirrored instances: toggle, copy, ungroup (mirrored-instances spec §5
     expect((b.min[0]! + b.max[0]!) / 2).toBeCloseTo((a.min[0]! + a.max[0]!) / 2, 9);
     expect((b.min[2]! + b.max[2]!) / 2).toBeCloseTo((a.min[2]! + a.max[2]!) / 2, 9);
     expect(b.min[1]).toBeCloseTo(a.min[1]!, 9);
+  });
+
+  describe('mirroredCopy abuts on the side rotateVec(rotation, [1,0,0]) points to (any turn, mirrored or not)', () => {
+    // Hand derivation: the copy's box touches the original's on that side (turn 0: +X, 90: -Z, 180: -X, 270: +Z); the other axes are equal.
+    const sides: Array<[0 | 90 | 180 | 270, number, 'min' | 'max']> = [[0, 0, 'max'], [180, 0, 'min'], [270, 2, 'max']];
+    for (const mirrored of [false, true]) {
+      for (const [turn, axis, side] of sides) {
+        it(`turn ${turn}${mirrored ? ', mirrored original' : ''}`, () => {
+          const base = assemblyDoc();
+          const d = { ...base, instances: base.instances.map((i) => (i.id === 'i1' ? { ...i, rotation: turn, ...(mirrored ? { mirrored: true } : {}) } : i)) };
+          const r = mirroredCopy(d as SloydDocument, 'i1')!;
+          expect(instanceAt(r.doc, r.path)!.mirrored === true).toBe(!mirrored);
+          const a = bounds(r.doc, 'i1/'); const c = bounds(r.doc, `${r.path}/`);
+          if (side === 'max') expect(c.min[axis]).toBeCloseTo(a.max[axis]!, 9);
+          else expect(c.max[axis]).toBeCloseTo(a.min[axis]!, 9);
+          [0, 1, 2].filter((k) => k !== axis).forEach((k) => { expect(c.min[k]).toBeCloseTo(a.min[k]!, 9); expect(c.max[k]).toBeCloseTo(a.max[k]!, 9); });
+        });
+      }
+    }
   });
 });
