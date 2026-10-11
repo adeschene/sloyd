@@ -19,17 +19,17 @@ const FIELD_LABEL: Record<RowMode, string> = { gap: 'Gap', pitch: 'Pitch', fit: 
 /**
  * Copy in a row (copy-in-a-row spec §3): N ordinary copies of the selection
  * along an axis. Reads the selection itself and holds its values as local
- * state; nothing touches the document until Apply. It is rendered inside each
- * Properties panel's selection-keyed root, so a selection change remounts it,
- * closed and reset. rowLayout is the ONE source of the numbers: the summary
+ * state; nothing touches the document until Apply. Its opener lives in
+ * `ActionBar` (More ▾), which owns `open` and is rendered inside each
+ * Properties panel's selection-keyed root, so a selection change still
+ * remounts both, closed and reset. Closed, it renders nothing. rowLayout is the ONE source of the numbers: the summary
  * shows exactly what Apply will do.
  */
-export function CopyInRow() {
+export function CopyInRow({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const allBoards = useStore((s) => worldParts(s.doc));
   const selectedIds = useStore((s) => s.selectedIds);
   const precision = useStore((s) => s.doc.units.precision);
   const copyInRow = useStore((s) => s.copyInRow);
-  const [open, setOpen] = useState(false);
   const [countText, setCountText] = useState('2');
   const [dir, setDir] = useState(0);
   const [mode, setMode] = useState<RowMode>('gap');
@@ -39,8 +39,8 @@ export function CopyInRow() {
   // field itself, so every path that sets or clears its error is covered.
   const [fieldRefused, setFieldRefused] = useState(false);
 
-  // Only while open: closed, the button needs nothing but whether anything is
-  // selected, and this runs on every boards change (every drag frame).
+  // Only while open: closed, the form renders nothing, and this runs on every
+  // boards change (every drag frame).
   const selected = useMemo(() => {
     if (!open) return [];
     // World parts covered by the selection, so an assembly's bounds are its parts'.
@@ -48,9 +48,7 @@ export function CopyInRow() {
     return allBoards.filter((b) => isCovered(b.id, ids));
   }, [open, allBoards, selectedIds]);
   if (selectedIds.length === 0) return null;
-  if (!open) {
-    return <button className="copy-row-open" onClick={() => setOpen(true)}>Copy in a row…</button>;
-  }
+  if (!open) return null;
   if (selected.length === 0) return null;
 
   const { axis, sign } = DIRECTIONS[dir]!;
@@ -108,10 +106,10 @@ export function CopyInRow() {
       <p className={layout.ok ? 'copy-row-summary' : 'copy-row-summary invalid'} role="status">{summary}</p>
       <div className="row">
         <button disabled={!layout.ok || fieldRefused}
-          onClick={() => { if (layout.ok && !fieldRefused) { copyInRow(selectedIds, count, axis, sign, layout.step); setOpen(false); } }}>
+          onClick={() => { if (layout.ok && !fieldRefused) { copyInRow(selectedIds, count, axis, sign, layout.step); onOpenChange(false); } }}>
           Apply
         </button>
-        <button onClick={() => setOpen(false)}>Cancel</button>
+        <button onClick={() => onOpenChange(false)}>Cancel</button>
       </div>
     </fieldset>
   );

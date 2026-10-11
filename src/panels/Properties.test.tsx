@@ -13,6 +13,9 @@ const reset = () => useStore.getState().replaceDocument(createDocument('Test'));
 
 beforeEach(reset);
 
+/** Opens the action row's More ▾ (ui-polish spec §4.2). */
+const openMore = () => userEvent.click(screen.getByRole('button', { name: 'More' }));
+
 describe('Properties', () => {
   it('adds no undo history entry for a field that is focused and blurred untouched', async () => {
     useStore.getState().addBoard();
@@ -1172,6 +1175,7 @@ describe('Hide others', () => {
     useStore.getState().selectBoard(a!);
     useStore.getState().toggleSelected(b!);
     render(<Properties />);
+    await openMore();
     await userEvent.click(screen.getByRole('button', { name: 'Hide others' }));
     expect(useStore.getState().hiddenIds).toEqual([c]);
   });
@@ -1206,6 +1210,7 @@ describe('linking controls', () => {
     expect(screen.queryByText(/Linking makes/)).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Link' }));
     expect(screen.queryByRole('button', { name: 'Link' })).toBeNull();
+    await openMore();
     expect(screen.getByRole('button', { name: 'Unlink' })).toBeInTheDocument();
   });
 
@@ -1323,6 +1328,7 @@ describe('Properties shared copies', () => {
     render(<Properties />);
     expect(screen.getByText(/Shared by 2 copies/)).toBeInTheDocument();
     expect(useStore.getState().doc.definitions).toHaveLength(2);
+    await openMore();
     await userEvent.click(screen.getByRole('button', { name: 'Make Unique' }));
     expect(screen.queryByText(/Shared by/)).toBeNull();
     expect(useStore.getState().doc.definitions).toHaveLength(3);
@@ -1332,11 +1338,12 @@ describe('Properties shared copies', () => {
     useStore.getState().replaceDocument(twoCopies());
     useStore.getState().selectBoard('i1');
     render(<Properties />);
+    await openMore();
     await userEvent.click(screen.getByRole('button', { name: 'Select copies' }));
     expect([...useStore.getState().selectedIds].sort()).toEqual(['i1', 'i3']);
   });
 
-  it('offers no Make Unique for a drawer inside a cabinet placed twice (2 placements, 1 reference)', () => {
+  it('offers no Make Unique for a drawer inside a cabinet placed twice (2 placements, 1 reference)', async () => {
     const d = assemblyDoc();
     const cab = { id: 'dc', boards: [], instances: [{ ...d.instances[0]!, id: 'k1', name: 'Drawer' }] };
     const doc = {
@@ -1351,6 +1358,7 @@ describe('Properties shared copies', () => {
     useStore.getState().selectBoard('c1/k1');
     render(<Properties />);
     expect(screen.getByText(/Shared by 2 copies/)).toBeInTheDocument();
+    await openMore();
     expect(screen.queryByRole('button', { name: 'Make Unique' })).toBeNull();
   });
 });
@@ -1364,6 +1372,7 @@ describe('Properties mirrored assemblies', () => {
     await userEvent.click(screen.getByRole('checkbox', { name: 'Mirrored' }));
     expect(instanceAt(useStore.getState().doc, 'i1')!.mirrored).toBe(true);
     expect(screen.getByRole('checkbox', { name: 'Mirrored' })).toBeChecked();
+    await openMore();
     await userEvent.click(screen.getByRole('button', { name: 'Copy mirrored' }));
     const copy = useStore.getState().selectedIds[0]!;
     expect('mirrored' in instanceAt(useStore.getState().doc, copy)!).toBe(false);
@@ -1412,3 +1421,58 @@ describe('Properties across a mirror (mirrored-instances spec §4, amended)', ()
   });
 });
 
+
+describe('the action row (ui-polish spec §4.2)', () => {
+  const st = () => useStore.getState();
+  const shown = () => [...document.querySelectorAll('.action-bar > button:not(.action-delete)')].map((b) => b.textContent);
+  const moreItems = async () => {
+    await openMore();
+    return [...document.querySelectorAll('.popover-item')].map((b) => b.getAttribute('aria-label'));
+  };
+
+  it('one part: Duplicate, Group, Hide others; More holds Copy in a row…', async () => {
+    st().addBoard();
+    st().selectBoard(worldParts(st().doc)[0]!.id);
+    render(<Properties />);
+    expect(shown()).toEqual(['Duplicate', 'Group', 'Hide others']);
+    expect(await moreItems()).toEqual(['Copy in a row…']);
+  });
+
+  it('one assembly: Duplicate, Ungroup, Hide others; More holds the rest in order', async () => {
+    st().replaceDocument(assemblyDoc());
+    act(() => st().selectItem('i1', false));
+    render(<Properties />);
+    expect(shown()).toEqual(['Duplicate', 'Ungroup', 'Hide others']);
+    expect(await moreItems()).toEqual(['Copy mirrored', 'Copy in a row…', 'Group']);
+  });
+
+  it('several parts that can link: Link, Duplicate, Group visible', async () => {
+    act(() => { st().addBoard(); st().addBoard(); });
+    const [a, b] = worldParts(st().doc).map((x) => x.id);
+    act(() => { st().selectBoard(a!); st().toggleSelected(b!); });
+    render(<Properties />);
+    expect(shown()).toEqual(['Link', 'Duplicate', 'Group']);
+    expect(await moreItems()).toEqual(['Hide others', 'Copy in a row…']);
+  });
+
+  it('several parts that cannot link: Duplicate, Group, Hide others visible', async () => {
+    act(() => { st().addBoard(); st().addBoard(); });
+    const [a, b] = worldParts(st().doc).map((x) => x.id);
+    act(() => { st().linkBoards([a!, b!]); st().selectBoard(a!); st().toggleSelected(b!); });
+    render(<Properties />);
+    expect(shown()).toEqual(['Duplicate', 'Group', 'Hide others']);
+    expect(await moreItems()).toEqual(['Unlink', 'Copy in a row…']);
+  });
+
+  it('a selection change closes an open Copy in a row form', async () => {
+    act(() => { st().addBoard(); st().addBoard(); });
+    const [a, b] = worldParts(st().doc).map((x) => x.id);
+    act(() => st().selectBoard(a!));
+    render(<Properties />);
+    await openMore();
+    await userEvent.click(screen.getByRole('button', { name: 'Copy in a row…' }));
+    expect(screen.getByRole('group', { name: 'Copy in a row' })).toBeInTheDocument();
+    act(() => st().selectBoard(b!));
+    expect(screen.queryByRole('group', { name: 'Copy in a row' })).toBeNull();
+  });
+});

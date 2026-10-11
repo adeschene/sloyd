@@ -6,6 +6,9 @@ import { Properties } from './Properties';
 
 beforeEach(() => useStore.getState().replaceDocument(createDocument('Test')));
 
+/** Opens the action row's More ▾ (ui-polish spec §4.2). */
+const openMore = () => userEvent.click(screen.getByRole('button', { name: 'More' }));
+
 /** One flat 24 x 3-1/2 x 3/4 part at the origin, selected. Its Z extent is 3-1/2. */
 const onePart = () => {
   act(() => {
@@ -16,8 +19,10 @@ const onePart = () => {
   });
   render(<Properties />);
 };
-const open = async (user: ReturnType<typeof userEvent.setup>) =>
-  user.click(screen.getByRole('button', { name: 'Copy in a row…' }));
+const open = async (user: ReturnType<typeof userEvent.setup>) => {
+  await openMore();
+  await user.click(screen.getByRole('button', { name: 'Copy in a row…' }));
+};
 
 describe('Copy in a row', () => {
   it('summarises the row as values change, and Apply makes it', async () => {
@@ -188,13 +193,14 @@ describe('Copy in a row', () => {
     expect(screen.queryByRole('button', { name: 'Apply' })).toBeNull();
   });
 
-  it('the group panel offers it too', () => {
+  it('the group panel offers it too', async () => {
     act(() => {
       useStore.getState().addBoard();
       useStore.getState().addBoard();
       useStore.getState().selectAll();
     });
     render(<Properties />);
+    await openMore();
     expect(screen.getByRole('button', { name: 'Copy in a row…' })).toBeInTheDocument();
   });
 });

@@ -584,7 +584,8 @@ button[aria-pressed='true'] {
 /* ---------------------------------------------------------------- sidebar */
 
 .sidebar {
-  width: 312px;
+  /* Measured (spec §4.1): the assembly row is 302px of buttons + gap + trash + padding + scrollbar. */
+  width: clamp(380px, 20vw, 420px);
   flex: none;
   background: var(--surface);
   border-left: 1px solid var(--rule);
@@ -822,6 +823,11 @@ button[aria-pressed='true'] {
 }
 
 /* ---------------------------------------------------------------- properties */
+
+.action-bar { display: flex; align-items: center; gap: 4px; margin: 8px 0 4px; }
+.action-bar > button, .action-more .popover-trigger { padding: 4px 8px; white-space: nowrap; }
+.action-delete { margin-left: auto; padding: 4px 7px; color: var(--alert); display: inline-flex; align-items: center; }
+.action-delete svg { display: block; }
 
 .properties .name {
   display: block;
@@ -1382,10 +1388,6 @@ button[aria-pressed='true'] {
 
 .copy-row-summary.invalid {
   color: var(--alert);
-}
-
-.copy-row-open {
-  margin-top: 6px;
 }
 
 .part-link,

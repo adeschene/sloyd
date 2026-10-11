@@ -3,7 +3,7 @@ import { useStore } from '../store/store';
 import { MATERIALS, isSheetGood, boardSolids, cutShape, storedAsShape, cutRemovesNothing, findTenons, positionAxisOf, linkPlan, postureRefusal, storageKey, mirroredAt, worldParts, instanceAt, parentPath, placementsOf, instanceRefs, containerAt } from '../document/document';
 import { DimensionField } from './DimensionField';
 import { NameField } from './NameField';
-import { CopyInRow } from './CopyInRow';
+import { ActionBar, COPY_IN_ROW } from './ActionBar';
 import { formatLength } from '../units/length';
 import type { Rotation, Posture, Grain, Board, Cut, Dimension, Region } from '../document/document';
 
@@ -351,6 +351,24 @@ function GroupProperties() {
   return (
     <div className="properties" key={selectedIds.join('|')}>
       <h3>{allParts ? `${boards.length} parts selected` : `${selectedIds.length} items selected`}</h3>
+      <ActionBar
+        actions={[
+          ...(plan && !('refused' in plan) ? [{ label: 'Link', run: () => linkBoards(selectedIds) }] : []),
+          { label: 'Duplicate', run: () => duplicateBoards(selectedIds) },
+          { label: 'Group', run: () => useStore.getState().groupSelected() },
+          { label: 'Hide others', run: hideUnselected },
+          ...(allParts && boards.some((b) => b.shape) ? [{ label: 'Unlink', run: () => unlinkBoards(selectedIds) }] : []),
+          ...(anyAssembly ? [{ label: 'Ungroup', run: () => useStore.getState().ungroupSelected() }] : []),
+          COPY_IN_ROW,
+        ]}
+        onDelete={() => deleteBoards(selectedIds)}
+      />
+      {plan && 'refused' in plan && <p className="field-error" role="status">{plan.refused}</p>}
+      {plan && !('refused' in plan) && plan.changing.length > 0 && (
+        <p className="link-note">
+          Linking makes {plan.changing.length} {plan.changing.length === 1 ? 'part' : 'parts'} match {plan.source.name}: size, material, grain, posture and cuts.
+        </p>
+      )}
 
       {allParts && <>
       <h3>Dimensions</h3>
@@ -384,23 +402,6 @@ function GroupProperties() {
         </select>
       </div>
       </>}
-
-      {plan && 'refused' in plan && <p className="field-error" role="status">{plan.refused}</p>}
-      {plan && !('refused' in plan) && plan.changing.length > 0 && (
-        <p className="link-note">
-          Linking makes {plan.changing.length} {plan.changing.length === 1 ? 'part' : 'parts'} match {plan.source.name}: size, material, grain, posture and cuts.
-        </p>
-      )}
-      <div className="row">
-        {plan && !('refused' in plan) && <button onClick={() => linkBoards(selectedIds)}>Link</button>}
-        {allParts && boards.some((b) => b.shape) && <button onClick={() => unlinkBoards(selectedIds)}>Unlink</button>}
-        <button onClick={() => duplicateBoards(selectedIds)}>Duplicate</button>
-        <button onClick={() => useStore.getState().groupSelected()}>Group</button>
-        {anyAssembly && <button onClick={() => useStore.getState().ungroupSelected()}>Ungroup</button>}
-        <button onClick={hideUnselected}>Hide others</button>
-        <button className="danger" onClick={() => deleteBoards(selectedIds)}>Delete</button>
-      </div>
-      <CopyInRow />
     </div>
   );
 }
@@ -426,6 +427,19 @@ function InstanceProperties({ path }: { path: string }) {
   return (
     <div className="properties" key={path}>
       <NameField value={inst.name} onCommit={(typed) => useStore.getState().renameItem(path, typed)} />
+      <ActionBar
+        actions={[
+          { label: 'Duplicate', run: () => duplicateBoards([path]) },
+          { label: 'Ungroup', run: () => useStore.getState().ungroupSelected() },
+          { label: 'Hide others', run: hideUnselected },
+          { label: 'Copy mirrored', run: () => useStore.getState().copyMirrored(path) },
+          COPY_IN_ROW,
+          ...(copies >= 2 && copyHere ? [{ label: 'Select copies', run: () => selectCopies(path) }] : []),
+          ...(refs >= 2 ? [{ label: 'Make Unique', run: () => makeUnique(path) }] : []),
+          { label: 'Group', run: () => useStore.getState().groupSelected() },
+        ]}
+        onDelete={() => deleteBoards([path])}
+      />
       <p className="assembly-note">Assembly — double-click it in the view to edit its parts.</p>
       {copies >= 2 && <p className="link-note">Shared by {copies} copies: edits inside change all of them.</p>}
       <h3>Orientation</h3>
@@ -446,17 +460,6 @@ function InstanceProperties({ path }: { path: string }) {
           {' '}Mirrored
         </label>
       </div>
-      <div className="row">
-        <button onClick={() => duplicateBoards([path])}>Duplicate</button>
-        <button onClick={() => useStore.getState().copyMirrored(path)}>Copy mirrored</button>
-        {copies >= 2 && copyHere && <button onClick={() => selectCopies(path)}>Select copies</button>}
-        {refs >= 2 && <button onClick={() => makeUnique(path)}>Make Unique</button>}
-        <button onClick={() => useStore.getState().ungroupSelected()}>Ungroup</button>
-        <button onClick={() => useStore.getState().groupSelected()}>Group</button>
-        <button onClick={hideUnselected}>Hide others</button>
-        <button className="danger" onClick={() => deleteBoards([path])}>Delete</button>
-      </div>
-      <CopyInRow />
     </div>
   );
 }
@@ -524,6 +527,15 @@ export function Properties() {
   return (
     <div className="properties" key={board.id}>
       <NameField value={board.name} onCommit={commitName} />
+      <ActionBar
+        actions={[
+          { label: 'Duplicate', run: () => duplicateBoard(board.id) },
+          { label: 'Group', run: () => useStore.getState().groupSelected() },
+          { label: 'Hide others', run: hideUnselected },
+          COPY_IN_ROW,
+        ]}
+        onDelete={() => deleteBoard(board.id)}
+      />
       {linkedCount > 0 && (
         <div className="link-block">
           <p>Linked with {linkedCount} other {linkedCount === 1 ? 'part' : 'parts'}: edits to size, material, grain, posture or cuts change all {linkedCount + 1}.</p>
@@ -601,14 +613,6 @@ export function Properties() {
         <CutRow key={cut.id} board={board} cut={cut} precision={precision} solids={solids} />
       ))}
       <button onClick={() => addCut(board.id)}>Add cut</button>
-
-      <div className="row">
-        <button onClick={() => duplicateBoard(board.id)}>Duplicate</button>
-        <button onClick={() => useStore.getState().groupSelected()}>Group</button>
-        <button onClick={hideUnselected}>Hide others</button>
-        <button className="danger" onClick={() => deleteBoard(board.id)}>Delete</button>
-      </div>
-      <CopyInRow />
     </div>
   );
 }
