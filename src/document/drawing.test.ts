@@ -122,4 +122,10 @@ describe('hiddenSpan', () => {
     // Front-top edge of X 0..10, Y 0..2, Z 0..4, viewed from +Z: the ray leaves at once.
     expect(hiddenSpan([0, 2, 4], [10, 2, 4], { min: [0, 0, 0], max: [10, 2, 4] }, [0, 0, 1], 100)).toBeNull();
   });
+  it('keeps an edge visible when float drift pushes it inside a flush face', () => {
+    // An edge drifted ~1.2e-6 inside the z=4 face. With the second sample, s ≤ 0.7ε is infeasible
+    // against s ≥ ε, so the ray doesn't spend DRAW_EPS inside the box; returns null. Without it,
+    // the edge would wrongly report hidden in [0, 1].
+    expect(hiddenSpan([0, 2, 4 - 1.2e-6], [10, 2, 4 - 1.2e-6], { min: [0, 0, 0], max: [10, 2, 4] }, [0, 0, 1], 100)).toBeNull();
+  });
 });

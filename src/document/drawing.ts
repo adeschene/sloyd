@@ -62,7 +62,9 @@ function clip(poly: P2[], a: number, b: number, c: number): P2[] {
  * The t-range of the edge a→e hidden by one CLOSED box (spec §2.3): some s ≥ DRAW_EPS with both
  * P(t) + s·toward and P(t) + (s + DRAW_EPS)·toward inside the box grown by DRAW_EPS/2. Closed, so a
  * ray along the seam between two abutting solids of one part counts as inside (the union is solid).
- * The second sample is what stops a ray that merely LEAVES through a face from counting.
+ * The second sample requires the ray to spend at least DRAW_EPS inside the box; an edge drifted
+ * ~1.5·DRAW_EPS inside a face the ray leaves through still counts as visible. An edge exactly on
+ * such a face is already rejected by the s ≥ DRAW_EPS floor plus the DRAW_EPS/2 growth.
  */
 export function hiddenSpan(
   a: Vec3, e: Vec3, box: { min: readonly number[]; max: readonly number[] }, toward: Vec3, sMax: number,
