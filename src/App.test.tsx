@@ -1914,4 +1914,16 @@ describe('App edit lock while exploded', () => {
     expect(lock.title).toBe('Slide Explode back to 0 to edit');
     act(() => useStore.getState().setExplode(0));
   });
+
+  it('locks the guides footer while exploded', async () => {
+    await mountWithOneBoard();
+    const footer = document.querySelector('.panel-guides') as HTMLElement;
+    const lock = footer.closest('fieldset.edit-lock') as HTMLFieldSetElement;
+    expect(lock).not.toBeNull();
+    expect(lock.disabled).toBe(false);
+    act(() => useStore.getState().setExplode(0.4));
+    expect(lock.disabled).toBe(true);
+    expect(lock.title).toBe('Slide Explode back to 0 to edit');
+    act(() => useStore.getState().setExplode(0));
+  });
 });

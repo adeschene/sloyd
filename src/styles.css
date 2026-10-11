@@ -473,8 +473,11 @@ button[aria-pressed='true'] {
 .viewport-controls-view { right: 12px; }
 
 /* A disabled fieldset is the plans-sheet edit lock (spec §4.2): it disables every control inside
-   without each component knowing. It must not draw a box. */
-.edit-lock { border: 0; padding: 0; margin: 0; min-width: 0; }
+   without each component knowing. display: contents makes it layout-transparent: the original
+   flex tree is kept (.panel-guides stays the sidebar's flex item, so its max-height and scroll
+   caps still resolve), `disabled` still propagates through the DOM, and a `title` tooltip is
+   found through DOM ancestors. */
+.edit-lock { display: contents; }
 
 .viewport-explode {
   display: flex;
