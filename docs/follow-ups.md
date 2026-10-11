@@ -4552,7 +4552,7 @@ definition exactly one instance, so none of these could arise yet.
 
 **225. Out of scope by decision, recorded so they are not re-proposed as oversights.**
 - **Mirrored instances** (left and right cabinet halves). Blocked on follow-up 215, which hand
-  each posture has.
+  each posture has. — DONE 2026-10-11 by the mirrored-instances round (schema 13); the rest of 225 stays out of scope by decision.
 - **A cut list organised by assembly** ("Drawer ×3"). Today's cut list groups parts by identity
   across assemblies and names each by its path.
 - **Scaled instances.** They make a cut list lie.
