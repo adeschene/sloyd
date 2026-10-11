@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Restyle Sloyd in a slate-and-walnut palette and regroup its controls (project-level header, floating viewport controls, a compact side panel) so nothing wraps, overlaps or scrolls sideways at 1366–1920+.
+**Goal:** Restyle Sloyd in a grey-and-walnut palette and regroup its controls (project-level header, floating viewport controls, a compact side panel) so nothing wraps, overlaps or scrolls sideways at 1366–1920+.
 
-**Architecture:** CSS gets a two-layer palette — raw slate/walnut/oak tokens, and *surface roles* (`--sunk`, `--surface`, `--raised`, `--control`, `--rule`, `--ink`…) that every rule reads; slate chrome re-points the roles in one context selector. Two small new components carry the regrouping: `Popover` (a disclosure menu copying `ProjectMenu`'s closing rules, used by Claude ▾ and More ▾) and `ViewportControls` (tools and view toggles floating over the canvas). Properties gets an `ActionBar` (three actions, More ▾, a trash icon) and grid layouts; Guides becomes a self-opening footer. No store, document or geometry code changes.
+**Architecture:** CSS gets a two-layer palette — raw grey/walnut/oak tokens, and *surface roles* (`--sunk`, `--surface`, `--raised`, `--control`, `--rule`, `--ink`…) that every rule reads; grey chrome re-points the roles in one context selector. Two small new components carry the regrouping: `Popover` (a disclosure menu copying `ProjectMenu`'s closing rules, used by Claude ▾ and More ▾) and `ViewportControls` (tools and view toggles floating over the canvas). Properties gets an `ActionBar` (three actions, More ▾, a trash icon) and grid layouts; Guides becomes a self-opening footer. No store, document or geometry code changes.
 
 **Tech Stack:** React 19 + TypeScript, Zustand store, Vitest + Testing Library (jsdom), plain CSS (`src/styles.css`), react-three-fiber (colour constants only).
 
@@ -85,7 +85,7 @@ Start the dev server (`npm run dev -- --port 5180 --host 127.0.0.1`, background)
 - Modify: `src/viewport/Viewport.tsx:23,222,225,325`, `src/viewport/BoardMesh.tsx:15`, `src/viewport/SnapMarker.tsx:10-18` (comment only)
 
 **Interfaces:**
-- Produces (CSS custom properties every later task uses): raw `--slate-*`, `--walnut-*`, `--accent`, `--accent-bright`, `--accent-dim`, `--on-accent`; roles `--sunk`, `--surface`, `--raised`, `--raised-2`, `--control`, `--control-hover`, `--rule`, `--rule-soft`, `--rule-strong`, `--ink`, `--ink-dim`, `--ink-faint`. Slate context selector: `.toolbar, .viewport-controls, .viewport-hint, .tape-readout`.
+- Produces (CSS custom properties every later task uses): raw `--grey-*`, `--walnut-*`, `--accent`, `--accent-bright`, `--accent-dim`, `--on-accent`; roles `--sunk`, `--surface`, `--raised`, `--raised-2`, `--control`, `--control-hover`, `--rule`, `--rule-soft`, `--rule-strong`, `--ink`, `--ink-dim`, `--ink-faint`. Grey context selector: `.toolbar, .viewport-controls, .viewport-hint, .tape-readout`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -123,11 +123,11 @@ describe('palette (ui-polish spec §2)', () => {
     ['walnut-ink-dim', 'walnut-900'],
     ['walnut-ink-dim', 'walnut-800'],
     ['walnut-ink-faint', 'walnut-900'],
-    ['slate-ink', 'slate-850'],
-    ['slate-ink-dim', 'slate-850'],
-    ['slate-ink-dim', 'slate-700'],
+    ['grey-ink', 'grey-850'],
+    ['grey-ink-dim', 'grey-850'],
+    ['grey-ink-dim', 'grey-700'],
     ['accent', 'walnut-900'],
-    ['accent-bright', 'slate-900'],
+    ['accent-bright', 'grey-900'],
     ['on-accent', 'accent'],
     ['alert', 'walnut-900'],
     ['alert', 'walnut-800'],
@@ -153,9 +153,9 @@ Replace `styles.css` lines 1–48 (the header comment and the whole `:root { …
 
 ```css
 /*
- * Sloyd — a slate-topped bench with walnut drawers.
+ * Sloyd — a grey-steel bench top with walnut drawers.
  *
- * Two materials, two jobs. Slate is the chrome you reach for: the toolbar and
+ * Two materials, two jobs. Grey is the chrome you reach for: the toolbar and
  * the controls floating over the view. Walnut is where the work is described:
  * the side panel, the dialogs, the cut list. Honey oak is the one live colour —
  * the selection, the active tool, the primary action. The viewport is pale
@@ -168,22 +168,22 @@ Replace `styles.css` lines 1–48 (the header comment and the whole `:root { …
  *
  * Rules never name a raw token for a surface, a control, a rule or ink: they
  * read the ROLES below (--surface, --control, --ink…). Walnut is the default;
- * the slate context selector re-points the roles, so one button rule serves both.
+ * the grey context selector re-points the roles, so one button rule serves both.
  */
 
 :root {
-  /* Slate — the toolbar and anything floating over the view. */
-  --slate-900: #1f252b;
-  --slate-850: #262d34;
-  --slate-800: #2e363e;
-  --slate-700: #353d45;
-  --slate-600: #414a53;
-  --slate-rule: #454e57;
-  --slate-rule-soft: #343c44;
-  --slate-rule-strong: #56606a;
-  --slate-ink: #e8ebee;
-  --slate-ink-dim: #c3cbd2;
-  --slate-ink-faint: #9aa5ae;
+  /* Grey — the toolbar and anything floating over the view. */
+  --grey-900: #22211f;
+  --grey-850: #2a2927;
+  --grey-800: #32302e;
+  --grey-700: #3a3836;
+  --grey-600: #464441;
+  --grey-rule: #4b4946;
+  --grey-rule-soft: #383634;
+  --grey-rule-strong: #5c5a56;
+  --grey-ink: #ece9e4;
+  --grey-ink-dim: #c8c3bb;
+  --grey-ink-faint: #a19c94;
 
   /* Walnut — panels, dialogs, the cut list sheet. */
   --walnut-950: #1f1914;
@@ -238,23 +238,23 @@ Replace `styles.css` lines 1–48 (the header comment and the whole `:root { …
   color-scheme: dark;
 }
 
-/* The slate context: chrome you reach for. Re-points the roles; rules do not change. */
+/* The grey context: chrome you reach for. Re-points the roles; rules do not change. */
 .toolbar,
 .viewport-controls,
 .viewport-hint,
 .tape-readout {
-  --sunk: var(--slate-900);
-  --surface: var(--slate-850);
-  --raised: var(--slate-800);
-  --raised-2: var(--slate-700);
-  --control: var(--slate-700);
-  --control-hover: var(--slate-600);
-  --rule: var(--slate-rule);
-  --rule-soft: var(--slate-rule-soft);
-  --rule-strong: var(--slate-rule-strong);
-  --ink: var(--slate-ink);
-  --ink-dim: var(--slate-ink-dim);
-  --ink-faint: var(--slate-ink-faint);
+  --sunk: var(--grey-900);
+  --surface: var(--grey-850);
+  --raised: var(--grey-800);
+  --raised-2: var(--grey-700);
+  --control: var(--grey-700);
+  --control-hover: var(--grey-600);
+  --rule: var(--grey-rule);
+  --rule-soft: var(--grey-rule-soft);
+  --rule-strong: var(--grey-rule-strong);
+  --ink: var(--grey-ink);
+  --ink-dim: var(--grey-ink-dim);
+  --ink-faint: var(--grey-ink-faint);
 }
 ```
 
@@ -276,7 +276,7 @@ cd /home/alec/docker/sloyd && sed -i \
 grep -rn "graphite\|brass" src --include=*.css --include=*.ts --include=*.tsx | grep -v "\.test\." 
 ```
 
-Expected: the grep prints only comment lines (styles.css prose such as "brass on graphite", `SnapMarker.tsx`'s comment). Edit each remaining comment to say "oak"/"accent" and "walnut"/"slate" as it applies — words only, no rule changes. Then `.input.invalid { background: #2c1c19; }` → `background: var(--alert-bg);`.
+Expected: the grep prints only comment lines (styles.css prose such as "brass on graphite", `SnapMarker.tsx`'s comment). Edit each remaining comment to say "oak"/"accent" and "walnut"/"grey" as it applies — words only, no rule changes. Then `.input.invalid { background: #2c1c19; }` → `background: var(--alert-bg);`.
 
 - [ ] **Step 5: Run the palette test**
 
@@ -304,7 +304,7 @@ Temporarily set `--walnut-ink-dim: #6a6052;` → run `npx vitest run src/palette
 
 ```bash
 git add src/styles.css src/palette.test.ts src/viewport/Viewport.tsx src/viewport/BoardMesh.tsx src/viewport/SnapMarker.tsx
-git commit -m "style(ui-polish): slate and walnut palette with surface roles; oak accent; maple viewport
+git commit -m "style(ui-polish): grey and walnut palette with surface roles; oak accent; maple viewport
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -812,7 +812,7 @@ and `import { ViewportControls } from './panels/ViewportControls';`. `<TapeReado
 In `src/styles.css`: delete `.toolbar-hint`, `.checkbox.toolbar-checkbox` / `.toolbar-checkbox` rules (search `toolbar-hint`, `toolbar-checkbox`). Add after `.viewport-stack { … }`:
 
 ```css
-/* Floating chrome over the canvas (ui-polish spec §3.2). Slate context (see :root). */
+/* Floating chrome over the canvas (ui-polish spec §3.2). Grey context (see :root). */
 .viewport-controls {
   position: absolute;
   top: 12px;
@@ -851,7 +851,7 @@ In `src/styles.css`: delete `.toolbar-hint`, `.checkbox.toolbar-checkbox` / `.to
 }
 ```
 
-Also change the `.tape-readout` rule's background/border to `var(--surface)` / `var(--rule)` if they name other tokens (it is in the slate context now).
+Also change the `.tape-readout` rule's background/border to `var(--surface)` / `var(--rule)` if they name other tokens (it is in the grey context now).
 
 - [ ] **Step 7: Run tests and build**
 
@@ -877,7 +877,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ---
 
-### Task 4: The header — Claude ▾ and a slate toolbar
+### Task 4: The header — Claude ▾ and a grey toolbar
 
 **Files:**
 - Modify: `src/panels/Toolbar.tsx`, `src/panels/Toolbar.test.tsx`, `src/styles.css` (toolbar section, lines ~80–143)
@@ -1795,7 +1795,7 @@ Create `docs/browser-verification-ui-polish.md` in the style of the existing `do
 
 - `docs/history.md`: a "UI polish (2026-10-11)" section — what changed, the decisions (palette A, layout B, action table, Guides auto-open), the files added, what the live pass could and could not confirm.
 - `docs/follow-ups.md`: add numbered entries for anything left open (at minimum: real-hardware look at the viewport colours; any snap marker judged weak; any value nudged for contrast).
-- `CLAUDE.md`: add a rounds-table row `| ui polish | 10-11 | — | Slate/walnut palette; tools and view float over the viewport; Claude ▾; action row with More ▾ and a trash icon; Guides footer |`; in "Where things live" add `Popover.tsx`, `ViewportControls.tsx`, `ActionBar.tsx`, `GuidesFooter.tsx` under `panels/` and `palette.test.ts`; add a per-file rule: "**`Popover.tsx`**: focuses the trigger BEFORE running an item (App records the opener); Escape is bound on its subtree with `stopPropagation`, never on window (inv 27). ProjectMenu keeps its own copy." and "**`styles.css`**: rules read surface ROLES (`--surface`, `--control`, `--rule`, `--ink`…), never raw `--slate-*`/`--walnut-*`; slate chrome re-points the roles in one context selector." Update the test count under Commands. Status stays "production matches master" wording until the deploy.
+- `CLAUDE.md`: add a rounds-table row `| ui polish | 10-11 | — | Grey/walnut palette; tools and view float over the viewport; Claude ▾; action row with More ▾ and a trash icon; Guides footer |`; in "Where things live" add `Popover.tsx`, `ViewportControls.tsx`, `ActionBar.tsx`, `GuidesFooter.tsx` under `panels/` and `palette.test.ts`; add a per-file rule: "**`Popover.tsx`**: focuses the trigger BEFORE running an item (App records the opener); Escape is bound on its subtree with `stopPropagation`, never on window (inv 27). ProjectMenu keeps its own copy." and "**`styles.css`**: rules read surface ROLES (`--surface`, `--control`, `--rule`, `--ink`…), never raw `--grey-*`/`--walnut-*`; grey chrome re-points the roles in one context selector." Update the test count under Commands. Status stays "production matches master" wording until the deploy.
 
 - [ ] **Step 4: Full verification**
 
@@ -1810,7 +1810,7 @@ git commit -m "docs(ui-polish): live check, round record, follow-ups
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 git checkout master
-git merge --no-ff ui-polish -m "Merge branch 'ui-polish': slate/walnut palette, floating viewport controls, a tidy side panel
+git merge --no-ff ui-polish -m "Merge branch 'ui-polish': grey/walnut palette, floating viewport controls, a tidy side panel
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 npm test 2>&1 | tail -5 && npm run build 2>&1 | tail -3

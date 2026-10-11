@@ -25,7 +25,7 @@ The user's decisions:
 
 - **Regroup and restyle, keep every control.** No behaviour change except one (§4.5, Guides opens itself).
 - **Primary screen 1920+**; 1366 must still work cleanly. Below 1366 is not designed for.
-- **Palette A: slate toolbar, walnut panels, honey-oak accent, pale maple viewport.**
+- **Palette A: grey toolbar, walnut panels, honey-oak accent, pale maple viewport.**
 - **Layout B: the header holds project-level actions; viewport controls float over the viewport.**
 - **Side panel**: actions under the name (three visible, the rest under More ▾), Delete as a right-aligned
   trash icon, fields side by side, cuts as cards, Guides as a collapsible footer that opens itself.
@@ -36,13 +36,13 @@ viewport's geometry or shaders, to keyboard shortcuts.
 ## 2. Palette
 
 Tokens in `styles.css` `:root` are renamed to say what they are, and the file's header comment rewritten for
-the new look ("slate and walnut" in place of "graphite and brass"). The tick rule under the toolbar stays as
+the new look ("grey and walnut" in place of "graphite and brass"). The tick rule under the toolbar stays as
 the signature, its majors in the accent.
 
 | Role | Token | Value |
 |---|---|---|
-| Toolbar / floating chrome | `--slate-900` `--slate-850` `--slate-800` `--slate-700` | `#1f252b` `#262d34` `#2e363e` `#353d45` |
-| Slate rules / text on slate | `--slate-rule` `--slate-ink` | `#454e57` `#c3cbd2` |
+| Toolbar / floating chrome | `--grey-900` `--grey-850` `--grey-800` `--grey-700` | `#22211f` `#2a2927` `#32302e` `#3a3836` |
+| Grey rules / text on grey | `--grey-rule` `--grey-ink` | `#4b4946` `#c8c3bb` |
 | Panels, dialogs, sheet | `--walnut-950` `--walnut-900` `--walnut-850` `--walnut-800` `--walnut-700` | `#1f1914` `#2b241e` `#322920` `#3a3027` `#4a3d31` |
 | Walnut rules | `--rule` `--rule-soft` | `#463b31` `#382f27` |
 | Ink | `--ink` `--ink-dim` `--ink-faint` | `#ece4d6` `#b3a898` `#857a6c` |
@@ -51,7 +51,7 @@ the signature, its majors in the accent.
 
 - Every `--graphite-*` and `--brass*` reference is replaced mechanically (no `--graphite`/`--brass` survives;
   a grep is the check). Exact values may be nudged during the live pass for contrast; the roles do not change.
-- **Contrast floor**: `--ink-dim` on `--walnut-900` and `--slate-ink` on `--slate-850` at ≥ 4.5:1;
+- **Contrast floor**: `--ink-dim` on `--walnut-900` and `--grey-ink` on `--grey-850` at ≥ 4.5:1;
   `--accent` text on walnut ≥ 4.5:1 (use `--accent-bright` where it falls short). Measured, recorded in the
   browser-verification doc.
 - **Invariant 19 stands**: `--font-num` stays monospace; no CSS font-size on diagram text.
@@ -97,7 +97,7 @@ Left to right: brand · project name + ProjectMenu ▾ · divider · **+ Add boa
 ### 3.2 Viewport overlays (`panels/ViewportControls.tsx`, new)
 
 Rendered inside `.viewport-stack` (so `.app-shell`'s `inert` still covers them), absolutely positioned, on
-slate chrome at 92% opacity with a small shadow:
+grey chrome at 92% opacity with a small shadow:
 
 - **Top-left — tools**: a segmented control, Select | Move | Tape, buttons with `aria-pressed`, the same
   `title` text and shortcuts as today. The `setTool` calls are unchanged.
@@ -175,8 +175,8 @@ part's own block ("Select linked" / "Unlink", Properties.tsx ~528) and refusal/l
 
 Applies to `.cutlist-sheet`, Generate, Add joinery, Refine, Settings, RepairNotice and the storage banner:
 
-- Walnut surfaces (`--walnut-900`, inner surfaces `--walnut-850`), slate is not used inside dialogs. Popups that
-  drop from the toolbar (the project menu, Claude ▾) are slate, as in the approved layout mockup; More ▾ in the
+- Walnut surfaces (`--walnut-900`, inner surfaces `--walnut-850`), grey is not used inside dialogs. Popups that
+  drop from the toolbar (the project menu, Claude ▾) are grey, as in the approved layout mockup; More ▾ in the
   side panel is walnut.
 - Form fields: label above the control, the side panel's control style. One rule set styles `select`,
   `input[type=checkbox]`, `input[type=radio]` across the app (`accent-color: var(--accent)` plus size and
