@@ -334,8 +334,8 @@ assembly action row fits the 380px panel floor; Generate's radios share the lege
 list is pixel-identical before and after; contrast measured (lowest `--alert` on walnut-800 at 4.73:1); the snap
 markers legible on maple, cyan edge midpoint the weakest at 1.86:1 (unchanged from the old ground). Could not
 confirm: the colours on a real GPU (26a; fu 248), real print-to-PDF (70/79/84), browsers other than Chromium on
-Linux (fu 250). Residue: fu 248–251. Test count 2881 -> 2918. No schema change; rollback is free.
-**Not yet merged or deployed** when this was written: the branch awaits its whole-branch review.
+Linux (fu 250). Residue: fu 248–251. Test count 2881 -> 2925. No schema change; rollback is free.
+Merged to master 2026-10-11 (`14609fe`, `--no-ff`; merged tree 2925 tests, build green) after the whole-branch review and one fix wave. **Not deployed** when this was written.
 
 **What the mirrored-instances round did (2026-10-11)**: fu 225's first item, a LIVE mirrored copy, by the user's
 choices (live copy, assemblies only, Copy mirrored + a Mirrored checkbox, approach A: the mirror inside the one

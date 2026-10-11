@@ -29,8 +29,8 @@ handicraft education tradition built around hand woodworking.
   CHOSEN: ask what to work on; do not pick.** Open near the recent code:
   241 (open by decision),
   221, 225 (rest out of scope), 232, 234, 247. See Open follow-ups below.
-- **The ui-polish round is committed on branch `ui-polish`, merge pending** (its whole-branch
-  review, then the user): no schema change, so rollback is free. Not deployed; follow-ups 248–251.
+- **The ui-polish round is merged to `master` (`14609fe`), NOT deployed**: master is ahead of
+  production. No schema change, so rollback is free. Follow-ups 248–251.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
   byte-identical bundles (test-only). Check what a later commit touches before reading
@@ -544,7 +544,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 2918 tests across 99 files
+npm test           # Vitest, currently 2925 tests across 99 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
