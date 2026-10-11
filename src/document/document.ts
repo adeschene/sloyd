@@ -109,6 +109,12 @@ export type { BoardSnapPoint, SnapKind, SnapOwner, SnapPoint, TapeAxis } from '.
  * Shape's stored cuts along thickness, so world solids do not move. It runs
  * AFTER validation and `linksToShapes`, BEFORE repairTree, guarded by
  * `version < 12`, and like v8's mirror it is NOT idempotent.
+ *
+ * v13 (mirrored instances): `Instance.mirrored`, kept only when literally
+ * `true`. No step: an absent flag is an unmirrored placement, so no file needs
+ * upgrading. The bump's argument is WRONG GEOMETRY: a v12 build would drop
+ * `mirrored` and draw the mirrored copy unmirrored, a second left cabinet where
+ * the right one was, and autosave it.
  */
 export const CURRENT_VERSION = 13;
 

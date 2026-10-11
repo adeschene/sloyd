@@ -108,7 +108,7 @@ describe('write-back through a mirror is the exact inverse (mirrored-instances s
     expect(stored(d).cuts).toBe(original);
   });
 
-  it('review focus 1: a resize (Properties rule) in a mirrored copy grows the copy as the mirror of the original', () => {
+  it('a resize (Properties rule) in a mirrored copy grows the copy as the mirror of the original', () => {
     const base = doc({ ...chiralPart('flat'), rotation: 0, position: [1, 0, 1] }, { rotation: 0 });
     const twin: SloydDocument = {
       ...base,
@@ -135,7 +135,7 @@ describe('write-back through a mirror is the exact inverse (mirrored-instances s
     }
   });
 
-  it('fix 1a: a Properties resize (no keepWorld) leaves the stored cuts the SAME object through a mirrored occurrence, as through a plain one', () => {
+  it('a Properties resize (no keepWorld) leaves the stored cuts the SAME object through a mirrored occurrence, as through a plain one', () => {
     const base = doc({ ...chiralPart('flat'), rotation: 0, position: [1, 0, 1] }, { rotation: 0 });
     const twin: SloydDocument = {
       ...base,
@@ -158,7 +158,7 @@ describe('write-back through a mirror is the exact inverse (mirrored-instances s
     expect(sameSet(solids(R), reflected)).toBe(true);
   });
 
-  it('fix 1b: a keepWorld resize under a mirror (min kept, or max kept) is placed back exactly', () => {
+  it('a keepWorld resize under a mirror (min kept, or max kept) is placed back exactly', () => {
     for (const [name, A, B] of CHAINS) for (const posture of POSTURES) for (const s of TURNS) for (const keep of ['min', 'max'] as const) {
       const d = doc({ ...chiralPart(posture), rotation: s, position: [0.5, 0.25, 1.25] }, A, B);
       const before = occ(d);
@@ -171,7 +171,7 @@ describe('write-back through a mirror is the exact inverse (mirrored-instances s
     }
   });
 
-  it('fix 1c: a posture change moving d0 (Properties rule) keeps the world cuts as seen with stored cuts re-reflected; one that keeps d0 leaves them', () => {
+  it('a posture change moving d0 (Properties rule) keeps the world cuts as seen with stored cuts re-reflected; one that keeps d0 leaves them', () => {
     for (const [from, to] of [['flat', 'upright'], ['upright', 'flat'], ['on-edge', 'upright']] as const) {
       const d = doc({ ...chiralPart(from), rotation: 0 }, { rotation: 0, mirrored: true });
       const before = occ(d);

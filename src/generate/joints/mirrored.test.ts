@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { designToDocument } from '../../document/generated';
-import { flatDocument, writeBackFlat, worldParts } from '../../document/document';
+import { flatDocument, migrateDocument, writeBackFlat, worldParts } from '../../document/document';
 import type { Board, SloydDocument } from '../../document/document';
 import { worldSolids } from '../../document/designCheck';
 import { sameSet } from '../../document/turnFixtures';
@@ -8,10 +8,15 @@ import { applyJoints } from './recipes';
 import { findSites } from './sites';
 import { defaultChoice } from './choose';
 import { gateUnjoin } from './unjoin';
+import { REFINE_MAX, plainForRefine, refineRefusal } from '../refine';
+import { documentToDesign } from '../../document/refineDesign';
 
 const SHELF = { x: 40.25, y: 10, z: 0 };
-/** The Shelf butts the RIGHT leg's inner face (x 58.25) end-on: right-half world x [40.25, 58.25], clear of the left half (x <= 19.75). */
-/** A leg-and-rail side frame placed twice: left plain, right a mirrored copy far enough away not to touch. */
+/**
+ * A leg-and-rail side frame placed twice: left plain, right a mirrored copy far enough away not to touch.
+ * With `extra`, a loose Shelf butts the RIGHT leg's inner face (x 58.25) end-on: right-half world x
+ * [40.25, 58.25], clear of the left half (x <= 19.75).
+ */
 const pairDoc = (extra = false): SloydDocument => {
   const d = designToDocument({
     name: 'Pair',
@@ -43,9 +48,18 @@ describe('joinery on a mirrored pair (mirrored-instances spec §6)', () => {
     expect(sameSet(solids(worldParts(out)), solids(joined.boards))).toBe(true);
     expect('refused' in gateUnjoin(flatDocument(out))).toBe(false);
   });
-  it('review focus 3: a part touching only the right half splits the definition; the world still matches', () => {
+  it('a part touching only the right half splits the definition; the world still matches', () => {
     const { joined, out } = join(pairDoc(true));
     expect(out.definitions.length).toBeGreaterThan(1);
     expect(sameSet(solids(worldParts(out)), solids(joined.boards))).toBe(true);
+  });
+  it('Refine refuses the JOINED pair for the mirror, through its real path (plainForRefine reads the joints back first)', () => {
+    const joined = migrateDocument(join(pairDoc()).out);
+    expect(flatDocument(joined).boards.some((b) => b.cuts.length > 0)).toBe(true);
+    const base = plainForRefine(joined);
+    if ('refused' in base) throw new Error(`the gate refused: ${base.refused.message}`);
+    const r = documentToDesign(base.plain, REFINE_MAX);
+    expect('refused' in r && r.refused.reason).toBe('mirrored');
+    expect(refineRefusal(joined)).toBe("Refine can't describe a mirrored assembly yet — Ungroup the mirrored copy first.");
   });
 });

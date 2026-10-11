@@ -45,18 +45,23 @@ function lowerDelta(inst: Frame, upperBefore: Board, lowerBefore: Board, upperAf
  * (the stored part's size on d0) for a Properties edit, which keeps the stored
  * cuts when only a size field changed, as through a plain frame; and at the AFTER
  * frame under keepWorld (joinery keeps the world box, so an end cut's rebase must
- * shift the stored cuts). A posture change that moves d0 re-reflects every cut
- * (the approved coupling: the world cuts are kept as seen), because none matches. Any other cut is reflected
- * back along d0 of the lowered (after) posture. All reused, in order: the stored
- * array itself.
+ * shift the stored cuts). Any other cut is reflected back along d0 of the
+ * lowered (after) posture. All reused, in order: the stored array itself.
+ *
+ * A posture change that moves d0 (the approved coupling, spec §4) keeps the
+ * world cuts as seen, so each stored cut is re-reflected along the NEW d0. A
+ * stored cut can still match there (a cut symmetric about the centre of both
+ * d0s, say): a match means the stored cut placed along the new d0 IS the world
+ * cut, i.e. it already is the reflection, so reusing the stored object is
+ * correct either way.
  */
 function lowerCuts(storedBefore: Board, draft: Board, keepWorld: boolean): Cut[] {
   const d0 = mirrorDim(draft);
   const size = draft[d0];
   // A posture change that moves d0 (flat/on-edge <-> upright) is the approved
-  // coupling (spec §4): no world cut equals the stored cut placed along the NEW
-  // d0 (the world cuts were placed along the old one), so each is re-reflected
-  // and the world cuts stay as seen. No separate test of d0 is needed.
+  // coupling (spec §4) and needs no separate test of d0: a stored cut matches
+  // exactly when placing it along the new d0 gives the world cut, which is the
+  // reflection this would otherwise compute, so reuse is right either way.
   const atBefore = !keepWorld;
   const refSize = atBefore ? storedBefore[d0] : size;
   const byId = new Map(storedBefore.cuts.map((c) => [c.id, c]));

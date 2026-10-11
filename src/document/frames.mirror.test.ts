@@ -56,10 +56,11 @@ describe('placing a part through a mirrored frame (mirrored-instances spec §3)'
     const b = { ...part('flat', 0), position: [-20, 0, 0] as [number, number, number] }; // x + ex = 0
     expect(Object.is(mirrorPart(b).position[0], 0)).toBe(true);
     const j: Instance = { id: 'j', name: 'J', definition: 'd', position: [0, 1, 2], rotation: 0 };
-    expect(Object.is(placeInstance({ position: [0, 0, 0], rotation: 0, mirrored: true }, j).position[0], 0)).toBe(true);
+    // The parent at x = -0: -0 + (+0) is +0 but -0 + (-0) is -0, so a reflected -0 origin would show through.
+    expect(Object.is(placeInstance({ position: [-0, 0, 0], rotation: 0, mirrored: true }, j).position[0], 0)).toBe(true);
   });
 
-  it('two mirrors cancel and three equal one, at every depth (nested frames, innermost first)', () => {
+  it('through two and three nested mirrored frames equals the hand composition of those frames (innermost first)', () => {
     const A: Frame = { position: [10, 0, 4], rotation: 90, mirrored: true };
     const B: Frame = { position: [2, 1, -3], rotation: 270, mirrored: true };
     const C: Frame = { position: [-1, 0, 5], rotation: 180, mirrored: true };

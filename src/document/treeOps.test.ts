@@ -395,7 +395,7 @@ describe('mirrored instances: toggle, copy, ungroup (mirrored-instances spec §5
     expect(isShaped(r.doc.boards.find((b) => b.id === r.rekey('i1/sp'))!)).toBe(false);
   });
 
-  it('review focus 5: Make Unique of a mirrored copy keeps the flag and every world part', () => {
+  it('Make Unique of a mirrored copy keeps the flag and every world part', () => {
     const base = assemblyDoc();
     const twin = { ...base, instances: [...base.instances, { ...base.instances[0]!, id: 'i3', name: 'Drawer 2', position: [30, 0, 0] as [number, number, number], mirrored: true }] };
     const before = worldParts(twin).filter((b) => b.id.startsWith('i3/'));
@@ -404,7 +404,7 @@ describe('mirrored instances: toggle, copy, ungroup (mirrored-instances spec §5
     expect(worldParts(out).filter((b) => b.id.startsWith('i3/'))).toEqual(before);
   });
 
-  it('review focus 4: turning a mirrored assembly keeps its box centre and min height', () => {
+  it('turning a mirrored assembly keeps its box centre and min height', () => {
     const d = setMirrored(assemblyDoc(), 'i1', true);
     const a = bounds(d, 'i1/');
     const b = bounds(turnInstance(d, 'i1', 180), 'i1/');
