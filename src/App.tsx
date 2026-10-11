@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Viewport } from './viewport/Viewport';
 import { Toolbar } from './panels/Toolbar';
+import { ViewportControls } from './panels/ViewportControls';
 import { PartsList } from './panels/PartsList';
 import { Properties } from './panels/Properties';
 import { GuidesList } from './panels/GuidesList';
@@ -838,14 +839,6 @@ export default function App() {
       */}
       <div className="app-shell" inert={modalOpen}>
         <Toolbar
-          orthographic={orthographic}
-          onToggleProjection={() => setOrthographic((v) => !v)}
-          showGrid={showGrid}
-          onToggleGrid={() => setShowGrid((v) => !v)}
-          showAxes={showAxes}
-          onToggleAxes={() => setShowAxes((v) => !v)}
-          showGuides={showGuides}
-          onToggleGuides={() => setShowGuides((v) => !v)}
           onOpenCutList={() => {
             opener.current = document.activeElement as HTMLElement | null;
             setCutListOpen(true);
@@ -907,6 +900,16 @@ export default function App() {
               showAxes={showAxes}
               showGuides={showGuides}
               shortcutsSuspended={modalOpen}
+            />
+            <ViewportControls
+              orthographic={orthographic}
+              onToggleProjection={() => setOrthographic((v) => !v)}
+              showGrid={showGrid}
+              onToggleGrid={() => setShowGrid((v) => !v)}
+              showAxes={showAxes}
+              onToggleAxes={() => setShowAxes((v) => !v)}
+              showGuides={showGuides}
+              onToggleGuides={() => setShowGuides((v) => !v)}
             />
             {/*
               UNCONDITIONALLY MOUNTED, and that is load-bearing rather than

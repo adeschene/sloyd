@@ -174,15 +174,6 @@ canvas { display: block; }
   background: var(--rule);
 }
 
-/* Shown only while the Move tool is armed with nothing selected — the one
-   state where the tool is live but nothing is grabbable. Muted, because it
-   describes what to do next rather than reporting an error. */
-.toolbar-hint {
-  font-size: 12px;
-  color: var(--ink-dim);
-  white-space: nowrap;
-}
-
 .brand {
   font-family: var(--font-num);
   font-size: 12px;
@@ -457,6 +448,44 @@ button[aria-pressed='true'] {
   position: relative;
   display: flex;
   min-height: 0;
+}
+
+/* Floating chrome over the canvas (ui-polish spec §3.2). Grey context (see :root). */
+.viewport-controls {
+  position: absolute;
+  top: 12px;
+  z-index: 2;
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  box-shadow: 0 3px 10px rgb(0 0 0 / 0.2);
+}
+
+.viewport-controls-tools { left: 12px; }
+.viewport-controls-view { right: 12px; }
+
+.segmented { display: inline-flex; }
+.segmented > button { border-radius: 0; margin-left: -1px; white-space: nowrap; }
+.segmented > button:first-child { border-radius: var(--radius) 0 0 var(--radius); margin-left: 0; }
+.segmented > button:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+.segmented > button[aria-pressed='true'] { position: relative; z-index: 1; box-shadow: inset 0 -2px 0 var(--accent); }
+
+.viewport-hint {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 2;
+  margin: 0;
+  padding: 5px 10px;
+  font-size: 12px;
+  color: var(--ink-dim);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  border: 1px solid var(--rule);
+  border-radius: 5px;
+  white-space: nowrap;
 }
 
 /* The tape's live readout — SketchUp's VCB, over the canvas rather than in it.
@@ -885,19 +914,6 @@ button[aria-pressed='true'] {
 }
 
 .checkbox input { accent-color: var(--accent); cursor: pointer; }
-
-/*
-  The base .checkbox is a sidebar control and carries a top margin for the
-  stacked layout there. In the toolbar it sits in a flex row of buttons, so it
-  drops the margin, tightens the gap, and takes the same letter-spaced
-  treatment as the toolbar's other labels.
-*/
-.toolbar-checkbox {
-  margin-top: 0;
-  gap: 6px;
-  user-select: none;
-  white-space: nowrap;
-}
 
 .row {
   display: flex;
