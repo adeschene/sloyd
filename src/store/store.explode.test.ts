@@ -85,4 +85,78 @@ describe('explode', () => {
     s().replaceDocument(createDocument('Other'));
     expect(s().explode).toBe(0);
   });
+
+  // Refusal is at ENTRY: an action must not touch view state around a refused edit().
+  describe('refuses at entry, leaving view state alone', () => {
+    it('Ungroup keeps a hidden child hidden and the doc unchanged', () => {
+      s().addBoard();
+      s().addBoard();
+      s().selectAll();
+      s().groupSelected();
+      const group = s().selectedIds[0]!;
+      const child = worldParts(s().doc)[0]!.id;
+      s().setHidden(child, true);
+      s().selectBoard(group);
+      expect(s().selectedIds).toEqual([group]);
+      const [doc, hidden, past] = [s().doc, s().hiddenIds, s().past.length];
+      s().setExplode(0.5);
+      s().ungroupSelected();
+      expect(s().doc).toBe(doc);
+      expect(s().hiddenIds).toEqual(hidden);
+      expect(hidden).toEqual([child]);
+      expect(s().past.length).toBe(past);
+    });
+
+    it('Group changes nothing', () => {
+      s().addBoard();
+      s().addBoard();
+      s().selectAll();
+      const [doc, sel, past] = [s().doc, s().selectedIds, s().past.length];
+      s().setExplode(0.5);
+      s().groupSelected();
+      expect(s().doc).toBe(doc);
+      expect(s().selectedIds).toEqual(sel);
+      expect(s().past.length).toBe(past);
+    });
+
+    it('Delete keeps the selection, the doc and the held point', () => {
+      s().addBoard();
+      const board = worldParts(s().doc)[0]!;
+      s().selectBoard(board.id);
+      s().setTool('tape');
+      s().setTapeAnchor(boardSnapPoints(board)[0]!);
+      s().setExplode(0.5);
+      // Leaving 0 cleared the anchor (setTool); set it again as a held point survivor test.
+      s().setTapeAnchor(boardSnapPoints(board)[0]!);
+      const [doc, past, anchor] = [s().doc, s().past.length, s().tapeAnchor];
+      s().deleteBoards([board.id]);
+      expect(s().doc).toBe(doc);
+      expect(s().selectedIds).toEqual([board.id]);
+      expect(s().tapeAnchor).toBe(anchor);
+      expect(anchor).not.toBeNull();
+      expect(s().past.length).toBe(past);
+    });
+
+    it('addBoard requests no length focus', () => {
+      s().consumeLengthFocus();
+      s().setExplode(0.5);
+      s().addBoard();
+      expect(s().pendingLengthFocus).toBe(false);
+      expect(s().doc.boards).toHaveLength(0);
+    });
+
+    it('removeGuide and clearGuides keep the anchor on a guide', () => {
+      s().addGuide([1, 2, 3]);
+      const guide = s().doc.guides[0]!;
+      s().setTapeAnchor({ kind: 'guide', at: [1, 2, 3], owner: { type: 'guide', id: guide.id } });
+      const [doc, past, anchor] = [s().doc, s().past.length, s().tapeAnchor];
+      s().setExplode(0.5);
+      s().setTapeAnchor(anchor!);
+      s().removeGuide(guide.id);
+      s().clearGuides();
+      expect(s().doc).toBe(doc);
+      expect(s().tapeAnchor).toBe(anchor);
+      expect(s().past.length).toBe(past);
+    });
+  });
 });

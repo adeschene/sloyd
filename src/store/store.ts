@@ -135,14 +135,14 @@ interface StoreState {
    *  - `deleteBoard` and `removeGuide` are owner-conditional, which is exactly
    *    point-precise there: neither owner offers any point afterward.
    *  - `setTool`, `clearGuides` and `replaceDocument` clear it blanket.
-   *  - `setExplode` leaving 0 reaches the blanket clear THROUGH `setTool('select')` — the drawn
-   *    world no longer matches world positions (plans-sheet spec §4.1). It is not a new writer.
    *    `undo` and `redo` do too, through `restore`, but only when the restored
    *    document is a different object (invariant 43). Each is defensible only
    *    because it nulls the ANCHOR in the same statement. No anchor, no latch:
    *    TapeReadout renders nothing without one and every commit path returns
    *    on it, so there is nothing left to preserve. That is a property of those
    *    statements, not a licence to add another.
+   *  - `setExplode` leaving 0 reaches the blanket clear THROUGH `setTool('select')` — the drawn
+   *    world no longer matches world positions (plans-sheet spec §4.1). It is not a new writer.
    */
   tapeHover: SnapPoint | null;
   setTapeHover: (point: SnapPoint | null) => void;
@@ -401,6 +401,9 @@ export const useStore = create<StoreState>((set, get) => {
    * stack. Every mutating action funnels through here — that is what keeps
    * undo correct without any per-action bookkeeping.
    */
+  /** Exploded view = read-only (plans-sheet spec §4.2). Every action that touches state around edit() refuses at entry. */
+  const readOnly = () => get().explode > 0;
+
   const edit = (
     fn: (doc: SloydDocument) => SloydDocument,
     selection?: (doc: SloydDocument) => string[],
@@ -623,7 +626,7 @@ export const useStore = create<StoreState>((set, get) => {
   ) => {
     // Refused inside a gesture: edit() may push nothing there, and the patch
     // below would then rewrite the gesture's own snapshot (invariant 43's argument).
-    if (get().gesturing) return;
+    if (get().gesturing || readOnly()) return;
     const hiddenBefore = get().hiddenIds;
     rekeyHeld(rekey, lift);
     const pastBefore = get().past;
@@ -777,6 +780,7 @@ export const useStore = create<StoreState>((set, get) => {
    * The delta is computed once by the caller; nothing here rounds.
    */
   const translateBoards = (ids: ReadonlySet<string>, delta: readonly [number, number, number]) => {
+    if (readOnly()) return;
     // A world delta, rotated into each item's container frame and added
     // (assemblies spec §4.2). A root item gains it exactly, as before.
     edit((doc) => translateItems(doc, [...ids], delta));
@@ -940,6 +944,7 @@ export const useStore = create<StoreState>((set, get) => {
      * Position only — a snap move translates, it never turns (invariant 2).
      */
     commitSnapMove: (target) => {
+      if (readOnly()) return; // exploded: refuse at entry, before any side effect (spec §4.2)
       const grabbed = get().grabbed;
       if (!grabbed) return;
       // MoveTool's candidate memo offers only the selected parts' points,
@@ -1004,6 +1009,7 @@ export const useStore = create<StoreState>((set, get) => {
     },
 
     moveGroupTo: (ids, minCorner) => {
+      if (readOnly()) return; // exploded: refuse at entry, before any side effect (spec §4.2)
       const wanted = new Set(ids);
       // Bounds over the WORLD parts under the named items (assemblies spec §4.2).
       const paths = itemPaths(get().doc);
@@ -1024,6 +1030,7 @@ export const useStore = create<StoreState>((set, get) => {
     },
 
     addBoard: () => {
+      if (readOnly()) return; // exploded: refuse at entry, before any side effect (spec §4.2)
       // Into the open assembly when one is open, else the root (assemblies spec §3).
       const open = get().openPath;
       const c = containerAt(get().doc, open) ?? get().doc;
@@ -1048,6 +1055,7 @@ export const useStore = create<StoreState>((set, get) => {
     updateBoard: (id, patch) => get().updateBoards([id], patch),
 
     updateBoards: (ids, patch) => {
+      if (readOnly()) return; // exploded: refuse at entry, before any side effect (spec §4.2)
       const world = worldParts(get().doc);
       const targets = new Set(ids.filter((id) => world.some((b) => b.id === id)));
       if (targets.size === 0) return;
@@ -1129,6 +1137,7 @@ export const useStore = create<StoreState>((set, get) => {
     deleteBoard: (id) => get().deleteBoards([id]),
 
     deleteBoards: (ids) => {
+      if (readOnly()) return; // exploded: refuse at entry, before any side effect (spec §4.2)
       // Ids are item paths: a part or an assembly, at any depth (assemblies spec §4.2).
       const paths = itemPaths(get().doc);
       const doomed = new Set(ids.filter((id) => paths.has(id)));
@@ -1304,6 +1313,7 @@ export const useStore = create<StoreState>((set, get) => {
     },
 
     turnAssembly: (path, rotation) => {
+      if (readOnly()) return; // exploded: refuse at entry, before any side effect (spec §4.2)
       const inst = instanceAt(get().doc, path);
       if (!inst || inst.rotation === rotation) return;
       edit((doc) => turnInstanceOp(doc, path, rotation));
@@ -1312,6 +1322,7 @@ export const useStore = create<StoreState>((set, get) => {
     },
 
     mirrorAssembly: (path, mirrored) => {
+      if (readOnly()) return; // exploded: refuse at entry, before any side effect (spec §4.2)
       const next = setMirrored(get().doc, path, mirrored);
       if (next === get().doc) return; // invariant 4
       edit(() => next);
@@ -1493,6 +1504,7 @@ export const useStore = create<StoreState>((set, get) => {
      * fraction of the board's own dimensions, so it fits whatever it lands on.
      */
     addCut: (boardId) => {
+      if (readOnly()) return; // exploded: refuse at entry, before any side effect (spec §4.2)
       const world = worldParts(get().doc);
       const board = world.find((b) => b.id === boardId);
       if (!board) return;
@@ -1529,6 +1541,7 @@ export const useStore = create<StoreState>((set, get) => {
     // stack, so calling it on a no-op patch would leave a no-op undo entry
     // (invariant 4) and silently wipe redo.
     updateCut: (boardId, cutId, patch) => {
+      if (readOnly()) return; // exploded: refuse at entry, before any side effect (spec §4.2)
       const world = worldParts(get().doc);
       const board = world.find((b) => b.id === boardId);
       if (!board || !board.cuts.some((c) => c.id === cutId)) return;
@@ -1542,6 +1555,7 @@ export const useStore = create<StoreState>((set, get) => {
     },
 
     removeCut: (boardId, cutId) => {
+      if (readOnly()) return; // exploded: refuse at entry, before any side effect (spec §4.2)
       const world = worldParts(get().doc);
       const board = world.find((b) => b.id === boardId);
       if (!board || !board.cuts.some((c) => c.id === cutId)) return;
@@ -1552,6 +1566,7 @@ export const useStore = create<StoreState>((set, get) => {
     },
 
     linkBoards: (ids) => {
+      if (readOnly()) return; // exploded: refuse at entry, before any side effect (spec §4.2)
       const doc0 = get().doc;
       const plan = linkPlan(worldParts(doc0), ids, (p) => storageKey(doc0, p), (p) => mirroredAt(doc0, p));
       // Fewer than two, nothing would change, or refused (opposite sides of a
@@ -1645,6 +1660,7 @@ export const useStore = create<StoreState>((set, get) => {
     },
 
     removeGuide: (id) => {
+      if (readOnly()) return; // exploded: refuse at entry, before any side effect (spec §4.2)
       // Guarded before the edit, the same rule updateCut, removeCut and
       // commitSnapMove follow: edit() unconditionally pushes an undo snapshot
       // and clears redo, so a no-op would leave a no-op undo entry
@@ -1673,6 +1689,7 @@ export const useStore = create<StoreState>((set, get) => {
     },
 
     clearGuides: () => {
+      if (readOnly()) return; // exploded: refuse at entry, before any side effect (spec §4.2)
       if (get().doc.guides.length === 0) return;
       // Unconditional rather than narrowed to guide-owned anchors on purpose:
       // every guide is going, so any guide-owned anchor is invalid, and a
