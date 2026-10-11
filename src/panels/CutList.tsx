@@ -67,6 +67,7 @@ export function CutList({ onClose }: { onClose: () => void }) {
             <label className="cutlist-diagram-mode">
               Diagrams
               <select
+                className="input"
                 value={diagrams}
                 onChange={(e) => setDiagrams(e.target.value as DiagramMode)}
               >
@@ -75,7 +76,7 @@ export function CutList({ onClose }: { onClose: () => void }) {
                 <option value="all">All parts</option>
               </select>
             </label>
-            <label className="cutlist-layout-mode">
+            <label className="checkbox cutlist-layout-mode">
               <input
                 type="checkbox"
                 checked={layouts}

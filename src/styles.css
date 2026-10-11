@@ -896,7 +896,11 @@ button[aria-pressed='true'] {
 
 .checkbox { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink); cursor: pointer; }
 
-.checkbox input { accent-color: var(--accent); cursor: pointer; }
+/* One control style everywhere (ui-polish spec §5). */
+input[type='checkbox'], input[type='radio'] {
+  accent-color: var(--accent); width: 14px; height: 14px; margin: 0; cursor: pointer; flex: none;
+}
+select.input { cursor: pointer; }
 
 .row {
   display: flex;
@@ -963,6 +967,7 @@ button[aria-pressed='true'] {
 
 .cutlist-actions {
   display: flex;
+  align-items: center;
   gap: 8px;
 }
 
@@ -1297,19 +1302,17 @@ button[aria-pressed='true'] {
 .modal-sheet {
   width: min(560px, 100%);
   padding: 20px 24px;
-  background: var(--raised-2);
-  border: 1px solid var(--control-hover);
+  background: var(--surface);
+  border: 1px solid var(--rule-strong);
   border-radius: 8px;
   outline: none;
 }
-.modal-sheet h2 { margin: 0 0 16px; }
+.modal-sheet h2 { margin: 0 0 16px; font-size: 16px; }
 .modal-note { font-size: 12px; opacity: 0.75; }
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
 
-.generate-limits { display: flex; gap: 8px; }
-.generate-limit { flex: 1; min-width: 0; }
-.generate-count { display: flex; gap: 12px; border: 0; padding: 0; }
-.generate-count legend { padding: 0; margin-bottom: 4px; }
+.generate-count { flex-direction: row; align-items: center; gap: 14px; border: 0; padding: 0; margin: 0 0 6px; }
+.generate-count legend { float: left; padding: 0; margin: 0 6px 0 0; font-size: 11px; color: var(--ink-dim); }
 .generate-runs { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 6px; }
 .generate-run { display: flex; gap: 8px; align-items: center; }
 .generate-run-letter { font-family: var(--font-num); width: 1.5em; }
@@ -1340,6 +1343,7 @@ button[aria-pressed='true'] {
   border-radius: 4px;
   padding: 8px 10px;
   margin: 8px 0 0;
+  background: var(--raised);
 }
 
 .copy-row legend {

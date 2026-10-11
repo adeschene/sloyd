@@ -88,7 +88,7 @@ export function CopyInRow({ open, onOpenChange }: { open: boolean; onOpenChange:
       </div>
       <div className="copy-row-modes" role="radiogroup" aria-label="Spacing">
         {(['gap', 'pitch', 'fit'] as const).map((m) => (
-          <label key={m}>
+          <label key={m} className="checkbox">
             <input type="radio" name="row-mode" checked={mode === m} onChange={() => setMode(m)} />
             {m === 'gap' ? 'Gap' : m === 'pitch' ? 'Pitch' : 'Fit across'}
           </label>

@@ -107,10 +107,10 @@ export function GenerateDialog(p: Props) {
         <fieldset className="field generate-count">
           <legend>Generations</legend>
           {([1, 2, 3] as const).map((n) => (
-            <label key={n}><input type="radio" name="gen-count" checked={count === n} onChange={() => setCount(n)} aria-label={String(n)} />{n}</label>
+            <label key={n} className="checkbox"><input type="radio" name="gen-count" checked={count === n} onChange={() => setCount(n)} aria-label={String(n)} />{n}</label>
           ))}
         </fieldset>
-        <div className="generate-limits">
+        <div className="field-grid field-grid-3 generate-limits">
           {limitField('width', width, setWidth)}
           {limitField('depth', depth, setDepth)}
           {limitField('height', height, setHeight)}
