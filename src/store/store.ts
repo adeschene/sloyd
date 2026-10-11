@@ -261,8 +261,9 @@ interface StoreState {
   /**
    * How far the viewport's exploded view is spread, 0..1 (plans-sheet spec §4). View state: not in
    * the document, not in undo, not saved; `replaceDocument` resets it. While it is above 0 the model
-   * is READ-ONLY through ONE gate: `edit()`, `undo` and `redo` refuse, `setTool` refuses anything
-   * but Select, and `renameItem` returns the stored name. UI disabling is a courtesy on top.
+   * is READ-ONLY: `edit()`, `undo` and `redo` are the gate; any action with side effects outside
+   * `edit()` also refuses at entry (`readOnly()`); `setTool` refuses all but Select; `renameItem`
+   * returns the stored name. UI disabling is a courtesy on top.
    * `setExplode` is its ONE writer: refused inside a gesture, refuses a non-finite value, clamps.
    * Leaving 0 goes through `setTool('select')`, the existing blanket clear — no new clearing writer.
    */
@@ -396,13 +397,14 @@ export const useStore = create<StoreState>((set, get) => {
     };
   };
 
+  /** Exploded view = read-only (plans-sheet spec §4.2). Every action that touches state around edit() refuses at entry. */
+  const readOnly = () => get().explode > 0;
+
   /**
    * Apply an edit as a new document, pushing the previous one onto the undo
    * stack. Every mutating action funnels through here — that is what keeps
    * undo correct without any per-action bookkeeping.
    */
-  /** Exploded view = read-only (plans-sheet spec §4.2). Every action that touches state around edit() refuses at entry. */
-  const readOnly = () => get().explode > 0;
 
   const edit = (
     fn: (doc: SloydDocument) => SloydDocument,

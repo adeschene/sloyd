@@ -265,7 +265,7 @@ src/
 │                     SheetLayout, diagramScale, diagramLabels (inv 19); Popover (Claude ▾, More ▾),
 │                     ViewportControls (tools/view over the canvas), ActionBar (three actions, More ▾,
 │                     trash), GuidesFooter (opens itself when the guide count goes up), PlansSheet / PlanFigure /
-                     planLayout / planDims (the Plans sheet: figures, one-scale third-angle layout, dimension fitting)
+│                     planLayout / planDims (the Plans sheet: figures, one-scale third-angle layout, dimension fitting)
 ├── styles.css        surface ROLES over --grey-*/--walnut-*; palette.test.ts pins contrast (4.5:1)
 └── App.tsx           layout, autosave/restore, the ONE keydown effect (inv 27), `pending`
                       (inv 29), switchToken (inv 32), `.app-shell` inert behind any modal
@@ -546,10 +546,10 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       writes members' OWN fields only (each lowered alone); a shared posture write goes
       through `sameSideFirst` before `oneEditPerTarget`, so a Shape is never lowered through
       two parities in one edit.
-47. **Exploded is read-only through ONE gate.** `explode > 0` means the model cannot change: a `readOnly()` entry
-    guard on every store action that mutates state AROUND `edit()` (re-key, Group, Ungroup, guide and board
-    deletes, `addBoard`), plus `edit()`, `undo` and `redo` refusing; `setTool` refuses all but Select; `renameItem`
-    returns the stored name. `setExplode` is the one writer, and leaving 0 goes only through `setTool('select')`. The
+47. **Exploded is read-only.** `explode > 0` means the model cannot change: `edit()`, `undo` and `redo` are the
+    gate; any action with side effects outside `edit()` also refuses at entry (`readOnly()`: re-key, Group,
+    Ungroup, guide and board deletes, `addBoard`); `setTool` refuses all but Select; `renameItem` returns the
+    stored name. `setExplode` is the one writer, and leaving 0 goes only through `setTool('select')`. The
     UI lock is a `<fieldset class="edit-lock" disabled>` with `display: contents` (layout-transparent). The explode
     offset is a render-time translation, never written back (inv 1). Drawings take lines from `boardEdges` and
     occluders from `worldSolids`, as CLOSED boxes: a ray along a seam between solids is inside. The exploded set is
@@ -569,7 +569,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–251, each with its closure). Read the entries
+**`docs/follow-ups.md` is authoritative** (1–264, each with its closure). Read the entries
 for the area you are about to touch; several are "correct but untested". Open items worth
 knowing without opening it:
 
@@ -584,7 +584,7 @@ knowing without opening it:
 - **248–251** — ui-polish residue: 248 (viewport colours, the user approved them on real hardware), 249 (snap
   markers recoloured to muted tones; keep the floors in `SnapMarker.tsx` if retuning) and 250 (Popover and
   ProjectMenu focusout; simulated only, no Safari here) are closed; deferred minors (251) are record-only.
-- **252–258** — plans-sheet residue, all open: callouts, user-placed dimensions (schema bump), print-to-PDF (254,
+- **252–258, 260–264** — plans-sheet residue, all open (259 is record-only): callouts, user-placed dimensions (schema bump), print-to-PDF (254,
   unverified), explode constants seen only on software GL (255), section views, joint-direction explode, live
   viewport dimensions.
 - **176/177** — the held rules' known limits (mutual lapping) and an unseen live repair.

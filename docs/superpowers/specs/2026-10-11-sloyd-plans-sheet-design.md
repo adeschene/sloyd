@@ -98,7 +98,7 @@ model's bounding diagonal plus 1 (computed, not a magic number).
 
 ### 2.4 Output
 
-`drawView(parts, offsets, view)` returns `{ visible: Seg2[], hidden: Seg2[], bounds }` in screen
+`drawView(parts, view, offsets?)` *(Corrected at merge: the offsets are the optional third argument.)* returns `{ visible: Seg2[], hidden: Seg2[], bounds }` in screen
 inches (`right` and `up` coordinates). Collinear touching fragments of one edge are merged. Elevations
 draw `hidden` dashed **beneath** `visible` (so a hidden line coinciding with a visible one is covered
 by it). The isometric figure draws `visible` only.
@@ -165,7 +165,7 @@ or future caller can edit an exploded model, because nothing that changes the do
   exploded. They read `past`/`future` and call edits directly, so the gate alone would leave them
   looking live.
 - Hide and show are allowed. They are view state and go through `applyHidden`, not `edit()`.
-- *(Amended during planning.)* App's keydown effect is NOT changed. Every edit shortcut ends in
+- *(Amended during planning.)* *(Corrected at merge: the opener is in `Toolbar.tsx`, and the keydown effect is unchanged; there is no "keydown gate".)* App's keydown effect is NOT changed. Every edit shortcut ends in
   `edit()`, `undo`, `redo` or `setTool`, and each of those refuses, so a keydown branch would be a
   second, redundant gate.
 - Generate, Joinery, Refine and Repair create new projects and never adopt (invariant 36); they stay
@@ -243,7 +243,9 @@ import `panels`.)* So the work is split the way the diagrams already split it:
   the user's decision: on casework the one-third arm omitted every chain, because panel thicknesses
   leave many unlabelable gaps. Narrow segments are now dropped individually and noted.)*
 - **Nothing disappears silently.** `DimensionSet.notes` carries "Chain omitted: too dense" or
-  "N small spacings not labelled", rendered under the view.
+  "N small spacings not labelled", rendered under the view. *(Corrected at merge: the notes come from `fitChain` in
+  `panels/planDims.ts` and read "<Axis> chain omitted — too dense" / "N small <axis> spacing(s) not labelled"; there is no
+  `DimensionSet.notes`.)*
 - **Exactness:** segment values are differences of exact stored coordinates (no rounding before
   formatting; invariant 25's spirit: round only what is displayed). Overall = max − min, exact.
 - Strings use `formatLength` at `doc.units.precision`, so a dimension reads the same here as on the
@@ -251,7 +253,7 @@ import `panels`.)* So the work is split the way the diagrams already split it:
 
 ### 5.4 Rendering
 
-`PlanView.tsx` renders one view as an `<svg>`:
+`PlanFigure.tsx` *(Corrected at merge: the component file is `PlanFigure.tsx`, not `PlanView.tsx`.)* renders one view as an `<svg>`:
 - the drawing's hidden (dashed) and visible segments;
 - the dimension lines, with extension lines, ticks and labels;
 - the notes.
@@ -273,8 +275,8 @@ dash, dimensions 0.75, in SVG user units at a fixed `vector-effect: non-scaling-
 | `store/store.ts` | store | `explode`, `setExplode`, the `edit`/`undo`/`redo` gate | — |
 | `viewport/BoardMesh.tsx`, `Viewport.tsx` | viewport | offsets; markers hidden; gizmo/tools off | — |
 | `panels/ViewportControls.tsx` | panels | the slider | — |
-| `panels/PlansSheet.tsx`, `panels/PlanView.tsx` | panels | §5 | — |
-| `App.tsx`, `ActionBar.tsx`, `styles.css` | — | opener, `modalOpen`, keydown gate, print block | — |
+| `panels/PlansSheet.tsx`, `panels/PlanFigure.tsx` *(Corrected at merge: was `PlanView.tsx`)* | panels | §5 | — |
+| `App.tsx`, `Toolbar.tsx`, `styles.css` | — | opener (in `Toolbar.tsx`), `modalOpen`, print block *(Corrected at merge: no keydown gate)* | — |
 
 `panels` must not import from `viewport` (as now).
 
@@ -315,7 +317,7 @@ Expected values are computed by hand in the test, never by calling the code unde
   - The chain sums to the overall (both values hand-computed, never read from the code under test).
   - Collapsing happens at display precision.
   - A too-narrow label is dropped, with its note.
-  - Both arms of the cap fire (count, and fraction dropped).
+  - The cap fires on count. *(Corrected at merge: the fraction arm was removed in F1.)*
   - `CHAIN_MAX` is a strict bound: 12 segments are kept and 13 are omitted.
   - A rotated part contributes its WORLD extent.
 - **`store.ts`:**

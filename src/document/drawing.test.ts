@@ -101,9 +101,35 @@ describe('drawView', () => {
     expect(d.bounds).toEqual({ min: [0, -10], max: [4, 0] });
   });
 
-  it('adds offsets to edges, solids and bounds', () => {
+  it('adds an offset to the bounds', () => {
     const d = drawView([box('b', 10, 4, 2)], FRONT, new Map([['b', [5, 1, 0] as [number, number, number]]]));
     expect(d.bounds).toEqual({ min: [5, 1], max: [15, 3] });
+  });
+
+  it('draws the edges at their offset positions', () => {
+    // 10 (X) x 4 (Z) x 2 (Y) at the origin, offset [5, 1, 0], front view (right = +X, up = +Y).
+    // Front-top edge: y = 2 + 1 = 3, x = 0 + 5 .. 10 + 5. Front-bottom edge: y = 0 + 1 = 1, same x.
+    const d = drawView([box('b', 10, 4, 2)], FRONT, new Map([['b', [5, 1, 0] as [number, number, number]]]));
+    for (const y of [3, 1]) {
+      const h = horizontalAt(d.visible, y);
+      expect(total(h)).toBeCloseTo(10, 9);
+      expect(Math.min(...h.flatMap((g) => [g.a[0], g.b[0]]))).toBeCloseTo(5, 9);
+      expect(Math.max(...h.flatMap((g) => [g.a[0], g.b[0]]))).toBeCloseTo(15, 9);
+    }
+    // Nothing is left at the unoffset height.
+    expect(horizontalAt(d.visible, 2)).toHaveLength(0);
+  });
+
+  it('moves the occluders with their offsets', () => {
+    // R: 10 x 4 x 2 at the origin. F: 4 (X) x 1 (Z) x 2 (Y) at [3, 0, 10], in front of R.
+    // Unoffset, F covers R's front X-edges for x in [3,7]: R hidden = 24 + 8 = 32.
+    // Offset F by [20, 0, 0]: it sits at x 23..27, clear of R, so R hidden = 24 (its own back edges).
+    // If the occluder ignored the offset, F would stay at x 3..7 and R would still read 32.
+    const R = box('R', 10, 4, 2);
+    const F = box('F', 4, 1, 2, [3, 0, 10]);
+    const moved = drawView([R, F], FRONT, new Map([['F', [20, 0, 0] as [number, number, number]]]));
+    expect(total(moved.hidden, 'R')).toBeCloseTo(24, 5);
+    expect(total(drawView([R, F], FRONT).hidden, 'R')).toBeCloseTo(32, 5);
   });
 
   it('returns an empty drawing for no parts', () => {

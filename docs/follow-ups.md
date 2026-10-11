@@ -4958,9 +4958,12 @@ A dimension tool whose dimensions live in the document needs a schema bump (14) 
 - **Status:** open.
 
 **254. Real print-to-PDF of the Plans sheet is unverified.** Only `emulateMedia('print')` was driven (Playwright
-exposes no `pdf()`; the same limit as fu 70/79/84). Unconfirmed: page breaks, in particular whether a trio of
-elevations taller than a page splits sensibly (`break-inside`), and the ink on a real printer. The print ink bug (F2)
-was found by the emulated pass and fixed. See `docs/browser-verification-plans-sheet.md`.
+exposes no `pdf()`; the same limit as fu 70/79/84). Unconfirmed: page breaks and the ink on a real printer. The print
+ink bug (F2) was found by the emulated pass and fixed. See `docs/browser-verification-plans-sheet.md`.
+- **Known overflow.** `layoutTrio` fits width only, so a trio with (front h + plan h)/(front w + side w) above about
+  1.15 is taller than a printed Letter page at full width (e.g. a 36w x 12d x 72h bookcase: 1000 x ~1564 units, about
+  11.7 in tall at 7.5 in wide). `break-inside: avoid` cannot help a single element taller than a page. Open for the
+  user's decision: a height cap like `layoutSingle`'s, or a print-only max-height.
 - **Status:** open; needs a real browser's print dialog.
 
 **255. The explode spread constants were approved only on software GL.** `EXPLODE_SPREAD` (1) and `EXPLODE_INNER`
@@ -4979,3 +4982,42 @@ real display. Retuning changes only those two constants (INNER must stay below 1
 **258. Live dimension annotations in the viewport.** The sheet is the only place dimensions show; the viewport has the
 Tape tool and nothing automatic. Spec §9.
 - **Status:** open.
+
+**259. Small gaps the plans-sheet round judged fine to leave.** Record-only; the task reviews' deferred minors.
+- **T1.** `hiddenSpan`'s positive-test comment says s=1 (it is s=sqrt(3)); `Math.max(0, s0)` / `Math.min(1, s1)` are
+  redundant; `Math.min(...spread)` in bounds would hit the argument limit around 100k corners (about 12.5k parts).
+- **T2.** The explode cache is per amount (bounded by the 0.05 slider step); the cached Vec3 arrays are shared and
+  mutable; the "not radial" test partly duplicates test 1.
+- **T3.** The all-coordinates-collapse branch is untested; no SIDE axis-name assertion.
+- **T4.** The mirror test does not assert copies; no dangling/cycle test (load repair removes them); an inline
+  container type; `?? 1` could hide a `placementsOf` mismatch.
+- **T5.** `setTapeAnchor`/`setTapeHover`/`grabSnapPoint` are ungated (unreachable with the tool forced to Select); five
+  entry guards (`moveGroupTo`, `updateBoards`, `addCut`, `linkBoards`, `commitSnapMove`) are redundant behind `edit()`
+  in practice and untested.
+- **T6.** Viewport subscribes to `doc` twice.
+- **T7.** Zero-size layout, the `layoutSingle` cap and the `fitChain` `<=` boundary are untested.
+- **T8.** No test pins dimension/outline placement (the browser pass checked it).
+- **Spec §7 tests not written:** drawing through a mirrored instance, `chiralPart` pose coverage, explode counting
+  hidden parts (all guaranteed by construction); the three-stick test asserts "> 1in lost", not hand-derived crossings.
+- `docs/img/plans-explode-viewport-50.png` is about 1 MB.
+- **Status:** record-only.
+
+**260. F / Home frame the unexploded positions while exploded.** `CameraKeys` frames the assembled boards; fix by
+passing the explode offsets.
+- **Status:** open.
+
+**261. Renaming in the parts list reverts silently while exploded.** `PartsList` is outside the edit lock (same class
+as F3); make it visibly disabled.
+- **Status:** open.
+
+**262. The blanket edit lock also disables view-only controls.** Select copies / Select linked / the open buttons in
+Properties, and the guides footer's own disclosure toggle.
+- **Status:** open.
+
+**263. The sheet slider recomputes the isometric synchronously.** About 130-250 ms per step at furniture scale
+(measured in node); consider `useDeferredValue`.
+- **Status:** open.
+
+**264. A piece wrapped in ONE top-level assembly explodes at `EXPLODE_INNER` spread.** The first term is zero, and the
+sheet draws that wrapper as a duplicate of the whole piece.
+- **Status:** open, for the user's decision.

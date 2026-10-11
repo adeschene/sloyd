@@ -52,6 +52,9 @@ built around hand woodworking.
 - **Cut list**: a printable sheet that groups identical parts. Every part is named by its
   path (`Cabinet › Drawer › Side`). It shows each part's joinery as a drawing with its setup
   lines, board feet for solid wood and square feet for sheet goods.
+- **Plans**: a printable sheet of dimensioned third-angle elevations (front, plan, side) of the piece and of
+  each assembly, with an exploded isometric. The viewport has an **Explode** slider; the model is read-only while it
+  is spread.
 - **Sheet layout**: plywood and MDF parts are nested onto 4×8 sheets in guillotine-cuttable
   rows, accounting for the saw kerf.
 
