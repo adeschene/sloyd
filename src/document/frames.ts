@@ -1,10 +1,18 @@
-import type { Board, Instance, Rotation } from './types';
-import { boardExtents } from './geometry';
+import type { Board, Dimension, Instance, Rotation } from './types';
+import { axisFrame, boardExtents } from './geometry';
+import { mirrorCut } from './mirrorCut';
 
 export type Vec3 = [number, number, number];
 
-/** Where a frame sits in its parent: an Instance satisfies this. */
-export interface Frame { position: readonly number[]; rotation: Rotation }
+/** Where a frame sits in its parent: an Instance satisfies this. A mirrored
+ *  frame reflects its own local X before it turns (mirrored-instances spec §2). */
+export interface Frame { position: readonly number[]; rotation: Rotation; mirrored?: boolean }
+
+/** `x` with its mirror flag set to `m`: the key present only when true (spec §2). */
+export function withMirror<T extends { mirrored?: boolean }>(x: T, m: boolean): T {
+  const { mirrored: _drop, ...rest } = x;
+  return (m ? { ...rest, mirrored: true } : rest) as T;
+}
 
 /**
  * A vector turned by r about the vertical, counter-clockwise from above: the
@@ -39,6 +47,39 @@ export function cornerShift(r: Rotation, b: Board): Vec3 {
   }
 }
 
+/** The part dimension on X at turn 0 for the part's posture (v12 axisFrame):
+ *  length for flat and on-edge, width for upright. A reflection of X is a
+ *  reflection of this dimension, whichever way it runs (spec §3). */
+export function mirrorDim(b: Board): Dimension {
+  return axisFrame({ ...b, rotation: 0 })[0]!.dim;
+}
+
+/**
+ * A part reflected across x = 0 of its container (spec §3): M R(s) = R(-s) M,
+ * and M F = F M_d0 for the turn-0 frame F, so the turn is negated, the cuts are
+ * mirrored along d0, and the box's min corner is reflected. Posture and sizes
+ * are unchanged (turns s and -s put the same dimensions on the same axes).
+ * `0 - v` keeps a zero +0.
+ */
+export function mirrorPart(b: Board): Board {
+  const d = mirrorDim(b);
+  const ex = boardExtents(b)[0];
+  return {
+    ...b,
+    rotation: inverseTurn(b.rotation),
+    position: [0 - (b.position[0] + ex), b.position[1], b.position[2]],
+    cuts: b.cuts.map((c) => mirrorCut(c, d, b[d])),
+  };
+}
+
+/** A nested instance reflected across x = 0 of its container (spec §3):
+ *  M T(o) R(t) M^m = T(Mo) R(-t) M^(m+1). */
+function mirrorFrame(j: Instance): Instance {
+  return withMirror({ ...j, rotation: inverseTurn(j.rotation), position: [0 - j.position[0], j.position[1], j.position[2]] }, j.mirrored !== true);
+}
+
+const unmirrored = (f: Frame): Frame => ({ position: f.position, rotation: f.rotation });
+
 const isIdentity = (f: Frame) =>
   f.rotation === 0 && f.position[0] === 0 && f.position[1] === 0 && f.position[2] === 0;
 
@@ -49,8 +90,11 @@ const isIdentity = (f: Frame) =>
  * leaves direct children bit-identical. The identity frame returns the part's
  * own coordinates untouched, which is why Group moves nothing, bit for bit.
  * Evaluated as (origin + R(p)) + shift, in that order, everywhere.
+ * A mirrored frame first reflects the part in its own coordinates
+ * (`mirrorPart`), then places it as below.
  */
 export function placeBoard(f: Frame, b: Board): Board {
+  if (f.mirrored) return placeBoard(unmirrored(f), mirrorPart(b));
   if (isIdentity(f)) return { ...b, position: [b.position[0], b.position[1], b.position[2]] };
   const rp = rotateVec(f.rotation, b.position);
   const s = cornerShift(f.rotation, b);
@@ -68,6 +112,7 @@ export function placeBoard(f: Frame, b: Board): Board {
 /** A nested instance's frame, expressed in its parent's frame. An origin is a
  *  point, so it has no corner shift. Ungroup's step for nested assemblies. */
 export function placeInstance(f: Frame, j: Instance): Instance {
+  if (f.mirrored) return placeInstance(unmirrored(f), mirrorFrame(j));
   const rp = rotateVec(f.rotation, j.position);
   return {
     ...j,

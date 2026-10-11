@@ -135,6 +135,8 @@ export interface Instance {
   definition: string;
   position: [number, number, number];
   rotation: Rotation;
+  /** Reflected across its own local X before its turn (mirrored-instances spec §2). Stored only when true. */
+  mirrored?: boolean;
 }
 
 /**
