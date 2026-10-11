@@ -25,6 +25,8 @@ handicraft education tradition built around hand woodworking.
   `index-DUH2frTq.js`, CSS `index-NXp0eTQP.css`, merge `1a52fec`, **SCHEMA 12**: rolling back to a
   build below 12 (`b953fdd`) refuses every project saved since the deploy (export first).
   Test count is under Commands.
+- **Pending deploy: the 246/226/227 round, merged 2026-10-11 (`39b465b`); `master` is ahead of
+  production until it ships. No schema change (rollback costs only the round).**
 - **NO SUCCESSOR IS
   CHOSEN: ask what to work on; do not pick.** Open near the recent code:
   241 (open by decision),
