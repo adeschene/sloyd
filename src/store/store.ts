@@ -135,6 +135,8 @@ interface StoreState {
    *  - `deleteBoard` and `removeGuide` are owner-conditional, which is exactly
    *    point-precise there: neither owner offers any point afterward.
    *  - `setTool`, `clearGuides` and `replaceDocument` clear it blanket.
+   *  - `setExplode` leaving 0 reaches the blanket clear THROUGH `setTool('select')` — the drawn
+   *    world no longer matches world positions (plans-sheet spec §4.1). It is not a new writer.
    *    `undo` and `redo` do too, through `restore`, but only when the restored
    *    document is a different object (invariant 43). Each is defensible only
    *    because it nulls the ANCHOR in the same statement. No anchor, no latch:
@@ -256,6 +258,16 @@ interface StoreState {
   hideUnselected: () => void;
   showAll: () => void;
   setHidden: (id: string, hidden: boolean) => void;
+  /**
+   * How far the viewport's exploded view is spread, 0..1 (plans-sheet spec §4). View state: not in
+   * the document, not in undo, not saved; `replaceDocument` resets it. While it is above 0 the model
+   * is READ-ONLY through ONE gate: `edit()`, `undo` and `redo` refuse, `setTool` refuses anything
+   * but Select, and `renameItem` returns the stored name. UI disabling is a courtesy on top.
+   * `setExplode` is its ONE writer: refused inside a gesture, refuses a non-finite value, clamps.
+   * Leaving 0 goes through `setTool('select')`, the existing blanket clear — no new clearing writer.
+   */
+  explode: number;
+  setExplode: (amount: number) => void;
   duplicateBoard: (id: string) => void;
   /**
    * Copy every named part in place, as ONE undo entry, and select the copies.
@@ -393,6 +405,7 @@ export const useStore = create<StoreState>((set, get) => {
     fn: (doc: SloydDocument) => SloydDocument,
     selection?: (doc: SloydDocument) => string[],
   ) => {
+    if (get().explode > 0) return; // read-only while exploded (plans-sheet spec §4.2)
     const { doc, past, future, gesturing, gestureSnapshotTaken } = get();
     const next = fn(doc);
 
@@ -833,6 +846,13 @@ export const useStore = create<StoreState>((set, get) => {
     past: [],
     future: [],
     hiddenIds: [],
+    explode: 0,
+    setExplode: (amount) => {
+      if (!Number.isFinite(amount) || get().gesturing) return;
+      const next = Math.min(1, Math.max(0, amount));
+      if (next > 0 && get().explode === 0) get().setTool('select');
+      set({ explode: next });
+    },
     openPath: null,
 
     // Coalesce every edit within a gesture (a gizmo drag, a focused text
@@ -868,8 +888,10 @@ export const useStore = create<StoreState>((set, get) => {
     // (see its declaration): a typed number is not stale, but with the anchor
     // gone there is no ray for it to be a distance along, so leaving it would
     // hand the next measurement a number the user typed for the previous one.
-    setTool: (tool) =>
-      set({ tool, grabbed: null, tapeAnchor: null, tapeHover: null, tapeTyped: '', tapeAxis: null }),
+    setTool: (tool) => {
+      if (tool !== 'select' && get().explode > 0) return; // no Move/Tape over an exploded view
+      set({ tool, grabbed: null, tapeAnchor: null, tapeHover: null, tapeTyped: '', tapeAxis: null });
+    },
 
     grabSnapPoint: (point) => set({ grabbed: point }),
 
@@ -1321,6 +1343,8 @@ export const useStore = create<StoreState>((set, get) => {
 
     renameItem: (path, typed) => {
       const doc = get().doc;
+      // Exploded: nothing is written, so report what IS stored (invariant 9).
+      if (get().explode > 0) return instanceAt(doc, path)?.name ?? partAt(doc, path)?.name ?? typed;
       const name = uniqueName(cleanName(typed), siblingsOf(doc, parentPath(path)), lastSegment(path));
       const inst = instanceAt(doc, path);
       if (inst) {
@@ -1418,6 +1442,7 @@ export const useStore = create<StoreState>((set, get) => {
         tapeAnchor: null,
         tapeHover: null,
         tapeAxis: null,
+        explode: 0,
         // Follow-up 148. NOT the same reason as the held points above: those
         // clear because the world they name has been replaced, while these
         // clear because a gesture belongs to the component that opened it and
@@ -1431,7 +1456,7 @@ export const useStore = create<StoreState>((set, get) => {
 
     undo: () => {
       const { past, future, doc, hiddenIds, selectedIds } = get();
-      if (past.length === 0) return;
+      if (past.length === 0 || get().explode > 0) return;
       const previous = past[past.length - 1]!;
       // Undo ends a run of eye toggles: popping a LATER entry can leave the run's
       // entry on top again, and the identity check would wrongly continue it.
@@ -1445,7 +1470,7 @@ export const useStore = create<StoreState>((set, get) => {
 
     redo: () => {
       const { past, future, doc, hiddenIds, selectedIds } = get();
-      if (future.length === 0) return;
+      if (future.length === 0 || get().explode > 0) return;
       const next = future[0]!;
       hideRunEntry = null; // a redo ends a run, like undo
       set({
