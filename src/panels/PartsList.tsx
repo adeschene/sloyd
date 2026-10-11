@@ -113,6 +113,9 @@ export function PartsList() {
               {r.copies && (
                 <span className="part-copies" role="img" aria-label={`Shared, ${r.copies} copies`}>×{r.copies}</span>
               )}
+              {r.mirrored && (
+                <span className="part-mirrored" role="img" aria-label="Mirrored">⇋</span>
+              )}
               {r.shape && (
                 <span className="part-link" role="img" aria-label={`Linked, ${linkCount.get(r.shape)} parts`}>
                   <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false">

@@ -4,7 +4,7 @@ import { nextId } from './ids';
 import { uniqueName } from './names';
 import type { Named } from './names';
 import { boardsBounds } from './geometry';
-import { placeBoard, placeInstance } from './frames';
+import { placeBoard, placeInstance, rotateVec, withMirror } from './frames';
 import type { Container } from './tree';
 import { containerAt, definitionAt, instanceAt, itemPaths, joinPath, lastSegment, parentPath, partsBelow } from './tree';
 import { updateContainer } from './treeEdit';
@@ -192,8 +192,9 @@ export function ungroupItem(doc: SloydDocument, path: string):
     if (!r) return [];
     const placed = { ...placeBoard(inst, r), id: fresh(b.id) };
     const name = uniqueName(b.name, taken);
-    // A shaped part stays shaped: own fields from the placed result, the rest from storage.
-    const named: StoredBoard = isShaped(b)
+    // A shaped part stays shaped: own fields from the placed result, the rest from storage
+    // — except through a mirror, whose reflected cuts the Shape does not hold (mirrored-instances spec §5).
+    const named: StoredBoard = isShaped(b) && inst.mirrored !== true
       ? { ...b, position: placed.position, rotation: placed.rotation, id: placed.id, name }
       // A plain part gets its own Cut objects: the definition's part, which
       // the other copies still use, keeps its own (makeUniqueItem's rule).
@@ -245,6 +246,64 @@ export function turnInstance(doc: SloydDocument, path: string, rotation: Rotatio
     ...c,
     instances: c.instances.map((i) => (i.id === inst.id ? { ...i, rotation, position } : i)),
   }));
+}
+
+/**
+ * Flip an assembly placement's mirror (mirrored-instances spec §5), keeping its
+ * world box: turnInstance's rule (keep the box centre and min height), exact
+ * because the mirror-aware placeBoard reflects the box onto a box of the same
+ * extents. An assembly with no parts keeps its position. Same doc for a no-op.
+ */
+export function setMirrored(doc: SloydDocument, path: string, mirrored: boolean): SloydDocument {
+  const inst = instanceAt(doc, path);
+  const def = definitionAt(doc, path);
+  if (!inst || !def || (inst.mirrored === true) === mirrored) return doc;
+  const inner = partsBelow(doc, def);
+  const box = (f: Instance) => boardsBounds(inner.map((b) => placeBoard(f, b)));
+  const flipped = withMirror(inst, mirrored);
+  const before = box(inst);
+  const after = box(flipped);
+  const position: [number, number, number] = before && after
+    ? [
+        inst.position[0] + ((before.min[0] + before.max[0]) - (after.min[0] + after.max[0])) / 2,
+        inst.position[1],
+        inst.position[2] + ((before.min[2] + before.max[2]) - (after.min[2] + after.max[2])) / 2,
+      ]
+    : [...inst.position];
+  return updateContainer(doc, parentPath(path), (c) => ({
+    ...c,
+    instances: c.instances.map((i) => (i.id === inst.id ? { ...flipped, position } : i)),
+  }));
+}
+
+/**
+ * Copy mirrored (spec §5): a shared copy with the OPPOSITE flag whose world box
+ * abuts the original's on the original's local +X side (turned with it), the
+ * other two axes matching. Named among its siblings. Null when nothing resolves.
+ */
+export function mirroredCopy(doc: SloydDocument, path: string): { doc: SloydDocument; path: string } | null {
+  const inst = instanceAt(doc, path);
+  const def = definitionAt(doc, path);
+  const container = parentPath(path);
+  const c = containerAt(doc, container);
+  if (!inst || !def || !c) return null;
+  const inner = partsBelow(doc, def);
+  const box = (f: Instance) => boardsBounds(inner.map((b) => placeBoard(f, b)));
+  const draft = withMirror(shareInstance(inst), inst.mirrored !== true);
+  const a = box(inst);
+  const b = box(draft);
+  const position: [number, number, number] = [...inst.position];
+  if (a && b) {
+    const dir = rotateVec(inst.rotation, [1, 0, 0]);
+    const axis = dir[0] !== 0 ? 0 : 2;
+    for (const k of [0, 1, 2]) {
+      const shift = k !== axis ? a.min[k]! - b.min[k]!
+        : dir[axis]! > 0 ? a.max[k]! - b.min[k]! : a.min[k]! - b.max[k]!;
+      position[k] = inst.position[k]! + shift;
+    }
+  }
+  const copy: Instance = { ...draft, position, name: uniqueName(inst.name, [...c.boards, ...c.instances]) };
+  return { doc: insertItems(doc, container, { instances: [copy] }), path: joinPath(container, copy.id) };
 }
 
 export function shareInstance(inst: Instance): Instance {

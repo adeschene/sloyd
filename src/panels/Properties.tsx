@@ -403,8 +403,16 @@ function InstanceProperties({ path }: { path: string }) {
           <option value={270}>270°</option>
         </select>
       </div>
+      <div className="field">
+        <label>
+          <input type="checkbox" checked={inst.mirrored === true}
+            onChange={(e) => useStore.getState().mirrorAssembly(path, e.target.checked)} />
+          {' '}Mirrored
+        </label>
+      </div>
       <div className="row">
         <button onClick={() => duplicateBoards([path])}>Duplicate</button>
+        <button onClick={() => useStore.getState().copyMirrored(path)}>Copy mirrored</button>
         {copies >= 2 && copyHere && <button onClick={() => selectCopies(path)}>Select copies</button>}
         {refs >= 2 && <button onClick={() => makeUnique(path)}>Make Unique</button>}
         <button onClick={() => useStore.getState().ungroupSelected()}>Ungroup</button>

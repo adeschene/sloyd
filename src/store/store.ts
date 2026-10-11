@@ -4,7 +4,7 @@ import {
   linkPlan, sharedOf, sharedPatch, isShaped, plainOf, pruneShapes, dissolveShapes,
   childrenOf, instanceAt, isCovered, itemPaths, parentPath, worldParts, mapWorld,
   translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerLinear, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
-  toLocal, groupItems, ungroupItem, turnInstance as turnInstanceOp, updateContainer, lastSegment,
+  toLocal, groupItems, ungroupItem, turnInstance as turnInstanceOp, setMirrored, mirroredCopy, updateContainer, lastSegment,
 } from '../document/document';
 import type { Board, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
 import { SNAP_INCHES } from '../document/geometry';
@@ -291,6 +291,10 @@ interface StoreState {
   ungroupSelected: () => void;
   /** Turn an assembly about its box centre (spec §4.2). */
   turnAssembly: (path: string, rotation: Rotation) => void;
+  /** Flip an assembly's mirror in place, keeping its world box (mirrored-instances spec §5). */
+  mirrorAssembly: (path: string, mirrored: boolean) => void;
+  /** Place a shared, opposite-flag copy beside the assembly and select it (spec §5). */
+  copyMirrored: (path: string) => void;
   /** Give the instance its own copy of its definition (components spec §3.1). */
   makeUnique: (path: string) => void;
   /** Select the instances at the open level naming the same definition. */
@@ -1273,6 +1277,20 @@ export const useStore = create<StoreState>((set, get) => {
       edit((doc) => turnInstanceOp(doc, path, rotation));
       // A turn inside a shared definition moves parts under the other copies too.
       judgeHeld();
+    },
+
+    mirrorAssembly: (path, mirrored) => {
+      const next = setMirrored(get().doc, path, mirrored);
+      if (next === get().doc) return; // invariant 4
+      edit(() => next);
+      // The assembly's parts moved (reflected), in every copy if it is nested in a shared definition.
+      judgeHeld();
+    },
+
+    copyMirrored: (path) => {
+      const r = mirroredCopy(get().doc, path);
+      if (!r) return;
+      edit(() => r.doc, () => [r.path]);
     },
 
     makeUnique: (path) => {

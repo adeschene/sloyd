@@ -180,7 +180,7 @@ export function flatDocument(doc: SloydDocument): FlatDocument {
   };
 }
 
-export interface TreeRow { path: string; name: string; kind: 'part' | 'assembly'; depth: number; shape?: string; copies?: number }
+export interface TreeRow { path: string; name: string; kind: 'part' | 'assembly'; depth: number; shape?: string; copies?: number; mirrored?: true }
 
 /** The parts list's rows: depth first, a container's parts before its assemblies. */
 export function treeRows(doc: SloydDocument): TreeRow[] {
@@ -192,7 +192,7 @@ export function treeRows(doc: SloydDocument): TreeRow[] {
     for (const inst of c.instances) {
       const p = joinPath(path, inst.id);
       const n = placed.get(inst.definition) ?? 0;
-      out.push({ path: p, name: inst.name, kind: 'assembly', depth, ...(n >= 2 ? { copies: n } : {}) });
+      out.push({ path: p, name: inst.name, kind: 'assembly', depth, ...(n >= 2 ? { copies: n } : {}), ...(inst.mirrored ? { mirrored: true as const } : {}) });
       const d = defs.get(inst.definition);
       if (d && !onPath.has(d.id)) walk(d, p, depth + 1, new Set([...onPath, d.id]));
     }

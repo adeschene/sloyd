@@ -4,6 +4,7 @@ import { childrenOf, instanceAt, isCovered, parentPath, resolvedPartAt, worldPar
 import { visibleBoards } from './visibility';
 import type { BoardSnapPoint, SloydDocument } from '../document/document';
 import { boardsBounds, removeItems, snapPointsFor } from '../document/document';
+import { worldSolids } from '../document/designCheck';
 
 const load = (doc: SloydDocument = assemblyDoc()) => useStore.getState().replaceDocument(doc);
 const s = () => useStore.getState();
@@ -867,5 +868,55 @@ describe('moves and copies inside a mirrored assembly (mirrored-instances spec �
     expect(xs[0]).toBeCloseTo(2.5, 9);
     expect(xs[1]).toBeCloseTo(5, 9);
     copies.forEach((c) => { expect(c.position[0]).toBeCloseTo(orig.position[0], 9); expect(c.position[1]).toBeCloseTo(orig.position[1], 9); });
+  });
+});
+
+describe('Mirrored and Copy mirrored (mirrored-instances spec §5)', () => {
+  it('mirrorAssembly flips in place, one undo entry; a no-op pushes none; undo restores', () => {
+    const before = s().doc;
+    const n = s().past.length;
+    s().mirrorAssembly('i1', true);
+    expect(instanceAt(s().doc, 'i1')!.mirrored).toBe(true);
+    expect(s().past.length).toBe(n + 1);
+    s().mirrorAssembly('i1', true);
+    expect(s().past.length).toBe(n + 1);
+    s().undo();
+    expect(s().doc).toBe(before);
+  });
+  it('copyMirrored adds a shared mirrored copy, selects it, one undo entry', () => {
+    const n = s().past.length;
+    s().copyMirrored('i1');
+    const path = s().selectedIds[0]!;
+    expect(path).not.toBe('i1');
+    expect(instanceAt(s().doc, path)!.mirrored).toBe(true);
+    expect(instanceAt(s().doc, path)!.definition).toBe(instanceAt(s().doc, 'i1')!.definition);
+    expect(s().past.length).toBe(n + 1);
+  });
+  it('Duplicate and Copy in a row keep the flag (spec §5)', () => {
+    s().mirrorAssembly('i1', true);
+    s().duplicateBoards(['i1']);
+    expect(instanceAt(s().doc, s().selectedIds[0]!)!.mirrored).toBe(true);
+    s().copyInRow(['i1'], 2, 0, 1, 50);
+    const row = s().doc.instances.filter((i) => i.definition === instanceAt(s().doc, 'i1')!.definition);
+    expect(row.every((i) => i.mirrored === true)).toBe(true);
+  });
+  it('a tape anchor on a part of the flipped assembly is dropped (the world moved, invariant 24)', () => {
+    s().setTapeAnchor(heldOn('i1/b1'));
+    s().mirrorAssembly('i1', true);
+    expect(s().tapeAnchor).toBeNull();
+  });
+  it('review focus 2: Link a part inside a mirrored copy with its twin outside keeps both world geometries', () => {
+    s().copyMirrored('i1');
+    const copy = s().selectedIds[0]!;
+    // Ungroup the ORIGINAL so its b1 is a loose part at the root, equal to the copy's b1 in its own frame.
+    s().selectItem('i1', false);
+    s().ungroupSelected();
+    const loose = worldParts(s().doc).find((b) => !b.id.includes('/') && b.name === 'Side')!;
+    const inCopy = worldParts(s().doc).find((b) => b.id === `${copy}/b1`)!;
+    const solidsOf = (id: string) => worldSolids(worldParts(s().doc).find((b) => b.id === id)!);
+    const a = solidsOf(loose.id); const b = solidsOf(inCopy.id);
+    s().linkBoards([loose.id, inCopy.id]);
+    expect(solidsOf(loose.id)).toEqual(a);
+    expect(solidsOf(inCopy.id)).toEqual(b);
   });
 });

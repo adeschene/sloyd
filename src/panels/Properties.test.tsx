@@ -1353,3 +1353,18 @@ describe('Properties shared copies', () => {
     expect(screen.queryByRole('button', { name: 'Make Unique' })).toBeNull();
   });
 });
+
+
+describe('Properties mirrored assemblies', () => {
+  it('an assembly\'s Mirrored checkbox flips it, and Copy mirrored adds a mirrored copy', async () => {
+    useStore.getState().replaceDocument(assemblyDoc());
+    act(() => useStore.getState().selectItem('i1', false));
+    render(<Properties />);
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Mirrored' }));
+    expect(instanceAt(useStore.getState().doc, 'i1')!.mirrored).toBe(true);
+    expect(screen.getByRole('checkbox', { name: 'Mirrored' })).toBeChecked();
+    await userEvent.click(screen.getByRole('button', { name: 'Copy mirrored' }));
+    const copy = useStore.getState().selectedIds[0]!;
+    expect('mirrored' in instanceAt(useStore.getState().doc, copy)!).toBe(false);
+  });
+});
