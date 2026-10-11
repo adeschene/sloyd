@@ -4690,6 +4690,9 @@ minors, condensed.
 nested assemblies (drawers inside a case assembly) and turned placements are out of scope; a
 left/right pair of mirror-image assemblies cannot be expressed in schema 11 anyway. Generate still
 emits only 0° and 90° parts (invariant 44).
+- **Update 2026-10-11:** schema 13 (mirrored instances) can now express a mirrored pair; Generate's format
+  (`DESIGN_SCHEMA`) still has no mirror, and Refine refuses a mirrored assembly. Lifting it means a `mirrored`
+  placement field in the design format and in `documentToDesign`.
 - **Status:** open by decision; revisit if prototypes need them.
 
 **233. A flat Simple design of 49+ parts gets two cap reports for one fault.** It fails both the

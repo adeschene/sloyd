@@ -199,11 +199,14 @@ src/
 │   ├── mirrorCut.ts      mirrorCutAlong (moved verbatim), mirrorCut, clamp (inv 44)
 │   ├── tree.ts           occurrence paths, isCovered, worldParts (THE walk), flatDocument
 │   ├── treeEdit.ts       every write-back: applyWorldEdits (storageKey), lowerEdit,
-│   │                     translateItems, writeBackFlat (inv 46)
-│   ├── treeOps.ts        group/ungroup, shareInstance, makeUniqueItem, removeItems, turnInstance
+│   │                     translateItems, writeBackFlat (inv 46); lower/lowerCuts are the exact inverse
+│   │                     of a mirrored placement; postureRefusal (flat<->upright across a mirror), sameSideFirst
+│   ├── treeOps.ts        group/ungroup, shareInstance, makeUniqueItem, removeItems, turnInstance;
+│   │                     setMirrored / mirroredCopy over placedBox / replaceKeepingBox (mirrored instances)
 │   ├── treeRepair.ts     repairTree, dropUnresolved (load repair)
 │   ├── shapes.ts         resolveBoard (THE shape reader), shapeUsers, prune/dissolveShapes (inv 45)
-│   ├── links.ts          LINK_FIELDS (the ONE shared/own table), sameShared, linkPlan (inv 45)
+│   ├── links.ts          LINK_FIELDS (the ONE shared/own table), sameShared, linkPlan (inv 45; refuses
+│   │                     a member with no occurrence on the source's side of a mirror)
 │   ├── linksToShapes.ts  the v10→v11 step
 │   ├── cuts.ts           cutRegion, boardSolids, boardEdges (inv 16), clippedRegion (THE clip),
 │   │                     cutShape (THE description of a cut), cutLabel, openSides,
@@ -543,10 +546,14 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 for the area you are about to touch; several are "correct but untested". Open items worth
 knowing without opening it:
 
-- **179** — refine by instruction (phase 2's other half). Read invs 38, 41 and fu 180–206
-  before touching `generate/joints/`.
+- **179** is closed (refine shipped 2026-10-09); still read invs 38, 41 and fu 180–206 before
+  touching `generate/joints/`.
 - **221** — a hand-edited linked file whose cuts lack ids stays plain on load (fails safe).
-- **225** — assemblies/components residue, out of scope by decision.
+- **225** — assemblies/components residue, out of scope by decision (its mirrored-instances item
+  shipped as schema 13). **232** — Generate emits no mirrored or nested assemblies, by decision;
+  since schema 13 a mirrored pair is expressible if prototypes come to need it.
+- **247** — the mirrored-instances residue: `sameSideFirst` is dead in `linkBoards` (still needed
+  for the shared posture write) and three texts overstate its role there; small unpinned guards.
 - **176/177** — the held rules' known limits (mutual lapping) and an unseen live repair.
 - **130** — semi-infinite construction lines; picked and set aside 2026-08-31 without a
   reason. Ask before assuming it's wanted; it needs real hardware (26a).
