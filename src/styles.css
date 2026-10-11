@@ -402,6 +402,46 @@ button[aria-pressed='true'] {
 
 .project-menu-cmd:hover { background: var(--control); }
 
+/* ---------------------------------------------------------------- popover */
+
+.popover { position: relative; display: inline-flex; }
+
+.popover-trigger { white-space: nowrap; }
+
+.popover-popup {
+  position: absolute;
+  top: calc(100% + 4px);
+  z-index: 6;
+  min-width: 13rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px;
+  background: var(--raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.35);
+}
+
+.popover-start { left: 0; }
+.popover-end { right: 0; }
+
+.popover-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 6px 8px;
+  white-space: nowrap;
+}
+
+.popover-item:hover:not(:disabled) { background: var(--control); border-color: transparent; }
+
+.popover-item-detail { font-size: 11px; font-weight: 400; color: var(--ink-faint); }
+
 /* ---------------------------------------------------------------- workspace */
 
 .workspace { flex: 1; display: flex; min-height: 0; }
