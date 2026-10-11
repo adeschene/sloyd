@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useStore } from './store';
+import { visibleBoards } from './visibility';
 import { boardExtents, createDocument, worldParts, snapPointsFor } from '../document/document';
 import type { SloydDocument } from '../document/document';
 
@@ -406,14 +407,54 @@ describe('other copies after Delete, Group and Ungroup in a shared definition (c
     expect(s().hiddenIds).toEqual(['i2/g/b3']);
   });
 
-  it('(c2) Ungroup drops a hidden id naming the other copy\'s ungrouped assembly; undo restores', () => {
+  it('(c2) Ungroup passes the other copy\'s hidden assembly on to its lifted children; undo restores (fu 229)', () => {
     s().setHidden('i2/g', true);
     s().openAssembly('i1');
     s().selectItem('i1/g', false);
     s().ungroupSelected();
-    expect(s().hiddenIds).toEqual([]);
+    expect(s().hiddenIds).toEqual(['i2/b3']);
+    // The copy the user ungrouped was visible and stays so.
+    expect(visibleBoards(worldParts(s().doc), s().hiddenIds).map((b) => b.id).sort()).toEqual(['i1/b1', 'i1/b2', 'i1/b3', 'i2/b1', 'i2/b2']);
     s().undo();
     expect(s().hiddenIds).toEqual(['i2/g']);
+  });
+
+  it('(c3) every lifted child, a nested assembly and a clashing id included, takes the hidden-ness once (fu 229)', () => {
+    const doc = shared();
+    // dg gains a second part, a part whose id clashes with one beside the group (b1), and a nested assembly.
+    doc.definitions.push({ id: 'dn', boards: [part('b9', 0)], instances: [] });
+    doc.definitions[1] = { id: 'dg', boards: [part('b3', 0), part('b1', 3)], instances: [{ id: 'n', name: 'Nested', definition: 'dn', position: [0, 2, 0], rotation: 0 }] };
+    s().replaceDocument(doc);
+    s().setHidden('i2/g/b3', true); // covered once i2/g is hidden too: it must not appear twice
+    s().setHidden('i2/g', true);
+    s().openAssembly('i1');
+    s().selectItem('i1/g', false);
+    s().ungroupSelected();
+    const lifted = s().selectedIds.map((p) => p.split('/')[1]!);
+    expect(lifted).toHaveLength(3);
+    expect(lifted).toContain('b3');
+    expect(lifted).toContain('n');
+    expect(lifted).not.toContain('b1'); // the clash was re-minted
+    expect([...s().hiddenIds].sort()).toEqual(lifted.map((id) => `i2/${id}`).sort());
+    expect(visibleBoards(worldParts(s().doc), s().hiddenIds).every((b) => !lifted.some((id) => b.id === `i2/${id}` || b.id.startsWith(`i2/${id}/`)))).toBe(true);
+    s().undo();
+    expect([...s().hiddenIds].sort()).toEqual(['i2/g', 'i2/g/b3']);
+  });
+
+  it('(c4) two assemblies ungrouped at once each pass their hidden-ness on in the other copy (fu 229)', () => {
+    const doc = shared();
+    doc.definitions[0]!.instances.push({ id: 'h', name: 'Second', definition: 'dh', position: [0, 9, 0], rotation: 0 });
+    doc.definitions.push({ id: 'dh', boards: [part('b5', 0)], instances: [] });
+    s().replaceDocument(doc);
+    s().setHidden('i2/g', true);
+    s().setHidden('i2/h', true);
+    s().openAssembly('i1');
+    s().selectItem('i1/g', false);
+    s().selectItem('i1/h', true);
+    s().ungroupSelected();
+    expect([...s().hiddenIds].sort()).toEqual(['i2/b3', 'i2/b5']);
+    s().undo();
+    expect([...s().hiddenIds].sort()).toEqual(['i2/g', 'i2/h']);
   });
 
   it('(d) a tape anchor on the other copy survives a Group, re-keyed, at the same world point', () => {

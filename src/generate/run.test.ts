@@ -319,6 +319,19 @@ describe('runGeneration — assemblies', () => {
     expect(await kinds({ name: 'C', parts: [bp('Extra', [0, 20, 0], [10, 1, 10])], assemblies: [{ name: 'Stack', parts, placements: placements(1) }] }))
       .toEqual(["13 distinct parts; the limit is 12 (an assembly's parts count once)."]);
   });
+
+  it('a flat design over both caps gets ONE report: the distinct cap (fu 233)', async () => {
+    const kinds = async (design: unknown) => (await run(fakeClient([design]).client)).violations.filter((x) => x.kind === 'too-many-parts').map((x) => x.message);
+    const flat = Array.from({ length: 49 }, (_, i) => bp(`F${i}`, [0, i, 0], [10, 1, 10]));
+    expect(await kinds({ name: 'D', parts: flat, assemblies: [] }))
+      .toEqual(["49 distinct parts; the limit is 12 (an assembly's parts count once)."]);
+    // With an assembly placed twice the counts differ (13 distinct, 50 placed): two faults, both reported.
+    const parts = Array.from({ length: 12 }, (_, i) => bp(`P${i}`, [0, i, 0], [10, 1, 10]));
+    const twice = [{ name: 'C0', at: v3(0, 0, 0) }, { name: 'C1', at: v3(20, 0, 0) }];
+    const loose = Array.from({ length: 26 }, (_, i) => bp(`L${i}`, [60, i, 0], [10, 1, 10]));
+    expect(await kinds({ name: 'E', parts: loose, assemblies: [{ name: 'Stack', parts, placements: twice }] }))
+      .toEqual(["38 distinct parts; the limit is 12 (an assembly's parts count once).", '50 parts; the limit is 48.']);
+  });
 });
 
 const createDocumentForTest = () => createDocument('Empty');

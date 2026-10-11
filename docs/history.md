@@ -302,6 +302,14 @@ and 79.
 
 ## What each round did
 
+**What the 229/233 round did (2026-10-11)**: two follow-ups whose remedies were written down; the user asked for
+"whichever follow-ups make sense" (221 fails safe and its remedy was judged not worth it; 234 is an unmeasurable
+prompt change; 225, 232 and 241 are open by decision). **No schema change.** Fu 229: `ungroupItem` returns a `Lift`;
+a hidden assembly dissolved in another copy passes its hidden-ness to its lifted children (deduped; several ungroups
+compose in order). Fu 233: `evaluateDesign` drops the placed ceiling's report when the distinct cap fired and the
+counts are equal (no repeated assembly). Final review (opus): ready to merge, 0 Critical/Important; the stale
+`editRekeyed` comment fixed and inv 46 notes the lift. Test count 2808 -> 2811.
+
 **What the 246/226/227 round did (2026-10-11)**: three follow-ups, a bounded change (design in chat). **No schema
 change.** Fu 226: `removeItems` drops every placement of a definition the delete emptied (held something before),
 cascading up and across shared copies; an already-empty assembly stays; `deleteBoards` closes the open level to the
