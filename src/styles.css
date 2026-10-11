@@ -1137,6 +1137,16 @@ select.input { cursor: pointer; }
   color: var(--ink-faint);
 }
 
+/* Plans sheet figures (plans-sheet spec §5.4). Line weights in screen pixels whatever the scale.
+   No font-size here: LABEL_SIZE is the <svg> attribute (invariant 19). */
+.plans-figure { display: block; width: 100%; height: auto; color: var(--ink); }
+.plans-figure path, .plans-figure line { fill: none; stroke: currentColor; vector-effect: non-scaling-stroke; }
+.plan-visible { stroke-width: 1.5; }
+.plan-hidden { stroke-width: 1; stroke-dasharray: 4 3; opacity: 0.7; }
+.plan-dim line, .plan-ext { stroke-width: 0.75; }
+.plan-dim-label { fill: currentColor; stroke: none; font-family: var(--font-num); }
+.plans-notes { margin: 4px 0 0; padding-left: 1.2em; font-size: 12px; color: var(--ink-dim); }
+
 /* `.cutlist-sheet` is the printable modal itself — every class this round adds
    uses the `cutlist-layout-` prefix so the two never collide. */
 .cutlist-layout-count { color: var(--ink-dim); font-weight: 400; }
