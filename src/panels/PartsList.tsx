@@ -32,6 +32,12 @@ export function PartsList() {
 
   const rows = useMemo(() => treeRows(doc), [doc]);
   const hiddenSet = useMemo(() => new Set(hiddenIds), [hiddenIds]);
+  const nameAt = useMemo(() => new Map(rows.map((r) => [r.path, r.name])), [rows]);
+  /** The nearest hidden assembly at or above `path`, or null. */
+  const nearestHidden = (path: string | null): string | null => {
+    for (let p = path; p !== null; p = parentPath(p)) if (hiddenSet.has(p)) return p;
+    return null;
+  };
   const linkCount = useMemo(() => {
     const m = new Map<string, number>();
     for (const b of worldParts(doc)) if (b.shape) m.set(b.shape, (m.get(b.shape) ?? 0) + 1);
@@ -61,14 +67,20 @@ export function PartsList() {
           // ANCESTOR (the ancestor's eye decides), and on the open assembly and
           // its ancestors (the open level is never hidden).
           const ancestor = parentPath(r.path);
-          const eyeDisabled = (ancestor !== null && isCovered(ancestor, hiddenSet))
+          const coveredBy = nearestHidden(ancestor);
+          const eyeDisabled = coveredBy !== null
             || (openPath !== null && isCovered(openPath, new Set([r.path])));
+          // A covered row's eye draws struck through and cannot act, so its
+          // name says why rather than offering a Hide it cannot do (fu 227).
+          const eyeLabel = coveredBy !== null
+            ? `${r.name} is hidden with ${nameAt.get(coveredBy) ?? coveredBy}`
+            : `${hiddenSelf ? 'Show' : 'Hide'} ${r.name}`;
           return (
             <li key={r.path} className={hiddenRow ? 'part-row hidden' : 'part-row'} style={{ paddingLeft: `${r.depth * 14}px` }}>
               <button
                 className="part-eye"
                 disabled={eyeDisabled}
-                aria-label={`${hiddenSelf ? 'Show' : 'Hide'} ${r.name}`}
+                aria-label={eyeLabel}
                 onClick={() => setHidden(r.path, !hiddenSelf)}
               >
                 <EyeIcon hidden={hiddenRow} />

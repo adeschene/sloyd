@@ -1,4 +1,5 @@
-import { createBoard } from './document';
+import { createBoard, createDocument, migrateDocument } from './document';
+import { flatDocument } from './tree';
 import { uniqueName, dedupeNames, derivedName } from './names';
 
 const named = (...names: string[]) => names.map((name) => createBoard({ name }));
@@ -94,6 +95,37 @@ describe('names over any { id, name } (assemblies spec §2.3)', () => {
   it('dedupeNames keeps the item type', () => {
     const out = dedupeNames([{ id: 'a', name: 'X', extra: 1 }, { id: 'b', name: 'X', extra: 2 }]);
     expect(out.map((o) => [o.name, o.extra])).toEqual([['X', 1], ['X (1)', 2]]);
+  });
+});
+
+describe('the path separator is reserved (fu 227)', () => {
+  it('uniqueName turns every › into >', () => {
+    expect(uniqueName('A › B', [])).toBe('A > B');
+    expect(uniqueName('›B›', [])).toBe('>B>');
+  });
+  it('the replaced name collides with a sibling already spelled with >', () => {
+    expect(uniqueName('A › B', named('A > B'))).toBe('A > B (1)');
+  });
+  it('dedupeNames cleans every name it places', () => {
+    expect(dedupeNames(named('X ›', '› B')).map((b) => b.name)).toEqual(['X >', '> B']);
+  });
+  it('a loaded file cannot print one path as another', () => {
+    // Root assembly "X ›" holding part "B", and root assembly "X" holding part
+    // "› B": with the glyph kept, both flat names read "X › › B".
+    const raw = {
+      ...createDocument('Sep'),
+      instances: [
+        { id: 'i1', name: 'X ›', definition: 'd1', position: [0, 0, 0], rotation: 0 },
+        { id: 'i2', name: 'X', definition: 'd2', position: [20, 0, 0], rotation: 0 },
+      ],
+      definitions: [
+        { id: 'd1', boards: [createBoard({ id: 'b1', name: 'B' })], instances: [] },
+        { id: 'd2', boards: [createBoard({ id: 'b2', name: '› B' })], instances: [] },
+      ],
+    };
+    const names = flatDocument(migrateDocument(JSON.parse(JSON.stringify(raw)))).boards.map((b) => b.name);
+    expect(names).toEqual(['X > › B', 'X › > B']);
+    expect(new Set(names).size).toBe(2);
   });
 });
 

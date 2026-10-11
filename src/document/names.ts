@@ -9,11 +9,23 @@ export interface Named { id: string; name: string }
 const SUFFIX_RE = /^(.*?)\s\((\d+)\)$/;
 
 /**
+ * Every name a part or an assembly stores, with the path separator's glyph
+ * (`NAME_SEPARATOR`, " › ") replaced by ">" (fu 227). Reserving the whole glyph,
+ * not only the spaced separator, is what makes a flat name unambiguous: an
+ * assembly "X ›" holding "B" and an assembly "X" holding "› B" would both print
+ * "X › › B". uniqueName applies it, so every entry point does (invariant 8).
+ */
+export const cleanName = (name: string): string => name.replaceAll('›', '>');
+
+/**
  * A name that no sibling is using, disambiguated with " (n)" if needed.
  * `excludeId` is the item being renamed, so it does not collide with itself.
  *
  * Since the assemblies round, the items are one container's parts AND
  * assemblies together (invariant 8, restated: unique among siblings).
+ *
+ * The separator's glyph is replaced first (`cleanName`), so the result never
+ * contains it and a collision is judged on the stored spelling.
  *
  * Precondition: `base` is non-empty after trimming. Both call sites
  * guarantee it — the name field reverts an emptied value before committing,
@@ -21,7 +33,7 @@ const SUFFIX_RE = /^(.*?)\s\((\d+)\)$/;
  * whitespace-only) name on load.
  */
 export function uniqueName(base: string, items: readonly Named[], excludeId?: string): string {
-  const wanted = base.trim();
+  const wanted = cleanName(base.trim());
   const taken = new Set(
     items.filter((b) => b.id !== excludeId).map((b) => b.name),
   );

@@ -323,6 +323,12 @@ describe('Turn and Rename an assembly', () => {
     expect(resolvedPartAt(s().doc, 'i1/b1')!.name).toBe('Front (1)');
     expect(s().renameItem('i1/b1', 'Front (1)')).toBe('Front (1)');
   });
+  it('renameItem stores and returns the name with › replaced by > (fu 227)', () => {
+    expect(s().renameItem('i1', 'Case › left')).toBe('Case > left');
+    expect(instanceAt(s().doc, 'i1')!.name).toBe('Case > left');
+    expect(s().renameItem('i1/b1', '› Side')).toBe('> Side');
+    expect(resolvedPartAt(s().doc, 'i1/b1')!.name).toBe('> Side');
+  });
 });
 
 describe('renameItem and gestures', () => {
