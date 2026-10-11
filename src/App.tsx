@@ -4,7 +4,7 @@ import { Toolbar } from './panels/Toolbar';
 import { ViewportControls } from './panels/ViewportControls';
 import { PartsList } from './panels/PartsList';
 import { Properties } from './panels/Properties';
-import { GuidesList } from './panels/GuidesList';
+import { GuidesFooter } from './panels/GuidesFooter';
 import { FileMenu, SaveIndicator, StorageBanner } from './panels/FileMenu';
 import type { FileMenuHandle } from './panels/FileMenu';
 import { CutList } from './panels/CutList';
@@ -933,10 +933,7 @@ export default function App() {
               <h2>Properties</h2>
               <Properties />
             </section>
-            <section className="panel panel-guides">
-              <h2>Guides</h2>
-              <GuidesList />
-            </section>
+            <GuidesFooter />
           </aside>
         </main>
       </div>

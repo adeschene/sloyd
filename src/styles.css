@@ -609,7 +609,7 @@ button[aria-pressed='true'] {
    to a tall Properties panel instead of letting that panel scroll. */
 .panel-parts {
   flex: 0 0 auto;
-  max-height: 34%;
+  max-height: 35vh;
   border-bottom: 1px solid var(--rule);
 }
 
@@ -633,9 +633,17 @@ button[aria-pressed='true'] {
    would give up height to Properties instead of getting its own scrollbar. */
 .panel-guides {
   flex: 0 0 auto;
-  max-height: 34%;
   border-top: 1px solid var(--rule);
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
+.panel-guides.open { max-height: 34%; }
+.panel-guides:not(.open) h2 { margin-bottom: 0; }
+.guides-toggle { display: flex; align-items: center; gap: 8px; width: 100%; padding: 0;
+  background: none; border: 0; font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; }
+.guides-toggle:hover:not(:disabled) { background: none; color: var(--ink); }
+.guides-caret { margin-left: auto; }
+.guides-body { overflow-y: auto; min-height: 0; }
 
 .panel h2 {
   display: flex;
