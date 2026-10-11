@@ -616,9 +616,10 @@ export const useStore = create<StoreState>((set, get) => {
     // an OLDER entry (perhaps a hide run's) or invent one on an empty history.
     if (past === pastBefore) { reconcileHidden(); judgeHeld(); return; }
     set({ past: [...past.slice(0, -1), { ...past[past.length - 1]!, hiddenIds: hiddenBefore }] });
-    // The re-key covers every placement of the edited container; anything it
-    // could not map (an ungrouped assembly's own path) names nothing now, and
-    // every held point is judged against the new document (components spec §4.2).
+    // The re-key covers every placement of the edited container (an ungrouped
+    // assembly's own path LIFTS to its children there, fu 229); anything it could
+    // not map names nothing now, and every held point is judged against the new
+    // document (components spec §4.2).
     reconcileHidden();
     judgeHeld();
   };

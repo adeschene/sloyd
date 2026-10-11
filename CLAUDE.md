@@ -28,7 +28,7 @@ handicraft education tradition built around hand woodworking.
 - **NO SUCCESSOR IS
   CHOSEN: ask what to work on; do not pick.** Open near the recent code:
   241 (open by decision),
-  221, 225, 229, 232–234. See Open follow-ups below.
+  221, 225, 232, 234. See Open follow-ups below.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
   byte-identical bundles (test-only). Check what a later commit touches before reading
@@ -78,6 +78,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | opposite-end cut | 10-10 | — | A full-span cut stored into the far end runs out the grown length too (fu 245) |
 | posture handedness | 10-10 | 12 | On-edge reverses thickness so all postures share one hand; v12 mirrors on-edge cuts; every sheet view true (fu 215) |
 | 246/226/227 | 10-11 | — | Deleting an assembly's last part removes it; dead eyes say why; `›` reserved in written names; sweep re-run on flipped views |
+| 229/233 | 10-11 | — | Ungroup keeps the other copy's hidden assembly hidden (as its children); one cap report for one fault |
 
 ### The deployment rule
 
@@ -496,7 +497,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     - Write-back keys on the STORAGE target (`storageKey`); disagreeing edits throw, so the
       store sends one edit per target (`oneEditPerTarget`). An edit in a definition moves
       every copy, so held points are re-judged (`judgeHeld`) and hidden ids/held points are
-      re-keyed under every placement (`rekeyEverywhere`).
+      re-keyed under every placement (`rekeyEverywhere`); a hidden assembly that Ungroup dissolves
+      lifts to its children under every placement (`Lift`, fu 229) — a re-key, not a fifth hide writer.
     - Make Unique copies one level and keeps ids. A twin placement of a selected part is
       never a Move target. `writeBackFlat` splits definitions shallowest-first by deepest
       placement.
@@ -506,7 +508,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 2808 tests across 91 files
+npm test           # Vitest, currently 2811 tests across 91 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -522,7 +524,7 @@ knowing without opening it:
 - **179** — refine by instruction (phase 2's other half). Read invs 38, 41 and fu 180–206
   before touching `generate/joints/`.
 - **221** — a hand-edited linked file whose cuts lack ids stays plain on load (fails safe).
-- **225, 229** — assemblies/components residues (225 out of scope by decision; 229 low).
+- **225** — assemblies/components residue, out of scope by decision.
 - **176/177** — the held rules' known limits (mutual lapping) and an unseen live repair.
 - **130** — semi-infinite construction lines; picked and set aside 2026-08-31 without a
   reason. Ask before assuming it's wanted; it needs real hardware (26a).
