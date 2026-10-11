@@ -334,7 +334,7 @@ floor; **the user's decision**: lift the exploded set by `dy = max(0, assembledM
 `EXPLODE_SPREAD` 1, `EXPLODE_INNER` 0.5, `CHAIN_MAX` 12; the user approved the spread on software GL. Not confirmed:
 real print-to-PDF (fu 254; Playwright has no `pdf()`) and the spread on real hardware (fu 255).
 Residue: fu 252-258 (callouts, user-placed dimensions, print-to-PDF, spread constants, section views, joint-direction
-explode, live dimensions). Test count 2933 -> 2996. No schema change (SCHEMA 13); rollback is free. On `plans-sheet`,
+explode, live dimensions). Test count 2933 -> 2998. No schema change (SCHEMA 13); rollback is free. On `plans-sheet`,
 merged to master the same day; **not deployed**.
 
 **What the ui-polish round did (2026-10-11)**: a restyle and regroup, every control kept, by the user's choices
