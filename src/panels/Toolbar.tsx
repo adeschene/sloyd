@@ -22,6 +22,8 @@ interface Props {
   onImportProject: () => void;
   /** Opens the cut list sheet. */
   onOpenCutList: () => void;
+  /** Opens the plans sheet (plans-sheet spec §5.1). */
+  onOpenPlans: () => void;
   /**
    * Opens the Generate dialog. Required, like `onOpenSettings` and
    * `generating`: a Toolbar rendered without the wiring should fail to
@@ -50,6 +52,7 @@ interface Props {
 export function Toolbar({
   children,
   onOpenCutList,
+  onOpenPlans,
   libraryAvailable,
   activeId,
   onOpenProject,
@@ -104,6 +107,9 @@ export function Toolbar({
         <button className="btn-primary" onClick={addBoard} disabled={exploded}>+ Add board</button>
         <button onClick={onOpenCutList} title="Cut list — parts, quantities and joinery">
           Cut list
+        </button>
+        <button onClick={onOpenPlans} title="Plans — dimensioned drawings and an exploded view">
+          Plans
         </button>
         <Popover
           className="claude-menu"

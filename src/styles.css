@@ -982,6 +982,11 @@ select.input { cursor: pointer; }
   border-radius: 4px;
 }
 
+.plans-section { margin-top: 24px; }
+.plans-section h3 { margin: 0 0 8px; }
+.plans-figure-wrap { margin: 0; }
+.plans-explode { display: flex; align-items: center; gap: 6px; }
+
 .cutlist-head {
   display: flex;
   align-items: baseline;
@@ -1244,6 +1249,9 @@ select.input { cursor: pointer; }
   }
 
   .cutlist-actions { display: none; }
+
+  /* One drawing set per page where it fits; never split a figure. */
+  .plans-section { break-inside: avoid; }
 
   .cutlist-overlay,
   .cutlist-sheet,

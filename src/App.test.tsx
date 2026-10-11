@@ -1023,6 +1023,18 @@ describe('App keyboard delete', () => {
     expect(document.activeElement).toBe(open);
   });
 
+  it('opens the plans sheet as a modal and returns focus to its button', async () => {
+    await mountWithOneBoard();
+    const user = userEvent.setup();
+    const open = screen.getByRole('button', { name: 'Plans' });
+    await user.click(open);
+    expect(screen.getByRole('dialog', { name: 'Plans' })).toBeInTheDocument();
+    expect(document.querySelector('.app-shell')!.hasAttribute('inert')).toBe(true);
+    await user.click(screen.getByRole('button', { name: 'Close plans' }));
+    expect(screen.queryByRole('dialog', { name: 'Plans' })).toBeNull();
+    expect(document.activeElement).toBe(open);
+  });
+
   it('does not steal Backspace from the Length field', async () => {
     // Regression test: Backspace must be blocked when editing dimensions,
     // not just for arbitrary text inputs. If a bypass for testing artifacts

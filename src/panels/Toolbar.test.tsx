@@ -17,6 +17,7 @@ function renderToolbar(overrides: Partial<Parameters<typeof Toolbar>[0]> = {}) {
   return render(
     <Toolbar
       onOpenCutList={noop}
+      onOpenPlans={noop}
       libraryAvailable={false}
       activeId=""
       onOpenProject={noop}
