@@ -21,8 +21,8 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-11: the 246/226/227 round, bundle
-  `index-Dz_13Lc-.js`, CSS `index-NXp0eTQP.css`, merge `39b465b`, **schema 12** (since the
+- **Production matches `master`** as of 2026-10-11: the 229/233 round, bundle
+  `index-CUMg8UjZ.js`, CSS `index-NXp0eTQP.css`, merge `43b4928`, **schema 12** (since the
   posture-handedness round, `1a52fec`): rolling back to a build below 12 (`b953fdd`) refuses every
   project saved since that deploy (export first). Test count is under Commands.
 - **NO SUCCESSOR IS

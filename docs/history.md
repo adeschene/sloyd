@@ -308,7 +308,8 @@ prompt change; 225, 232 and 241 are open by decision). **No schema change.** Fu 
 a hidden assembly dissolved in another copy passes its hidden-ness to its lifted children (deduped; several ungroups
 compose in order). Fu 233: `evaluateDesign` drops the placed ceiling's report when the distinct cap fired and the
 counts are equal (no repeated assembly). Final review (opus): ready to merge, 0 Critical/Important; the stale
-`editRekeyed` comment fixed and inv 46 notes the lift. Test count 2808 -> 2811.
+`editRekeyed` comment fixed and inv 46 notes the lift. Test count 2808 -> 2811. **Deployed 2026-10-11** as `index-CUMg8UjZ.js` (CSS unchanged; deployed
+commit `43b4928`), confirmed by page load, bundle hash and the CSP at the edge and in-network; `localStorage` cleared.
 
 **What the 246/226/227 round did (2026-10-11)**: three follow-ups, a bounded change (design in chat). **No schema
 change.** Fu 226: `removeItems` drops every placement of a definition the delete emptied (held something before),
