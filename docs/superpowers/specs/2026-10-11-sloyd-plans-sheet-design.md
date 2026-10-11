@@ -1,6 +1,6 @@
 # Sloyd — plans sheet (dimensioned drawings) and exploded view
 
-**Date:** 2026-10-11 · **Status:** approved in conversation, section by section; spec awaiting review
+**Date:** 2026-10-11 · **Status:** approved by the user; amended during planning (§2.3, §3, §4.1, §4.2, §4.4, §5.3, §7), amendments awaiting the user's confirmation
 **Builds on:** the cut list round (the printable overlay, `.app > *` print rule), the per-face
 diagrams round (`diagramLabels.ts`, invariant 19), assemblies and components (invariants 45, 46),
 mirrored instances (schema 13) and invariants 1, 16, 24, 27, 38 and 43. Every rule there still holds
@@ -62,24 +62,33 @@ as third-angle projection expects.
 
 ### 2.3 Visibility
 
-A point P is **hidden by box B** when the ray `P + s·toward`, for some s > 0, passes through the
-interior of B shrunk by `DRAW_EPS` on every side. On an edge `P(t) = A + t·(E − A)`, t ∈ [0, 1],
-that condition is linear in (t, s):
+*(Amended 2026-10-11 during planning: the first draft used the strict interior of each box shrunk
+by `DRAW_EPS`. That calls a mortise wall VISIBLE in an elevation, because `boardSolids` splits a cut
+board into abutting boxes and the ray from the wall runs exactly along the seam between two of them,
+in neither box's interior. Occlusion must treat the union of solids as solid.)*
 
-    for each axis i:  lo_i + DRAW_EPS < A_i + t·d_i + s·toward_i < hi_i − DRAW_EPS
-    0 ≤ t ≤ 1,  s > DRAW_EPS
+A point P is **hidden by box B** when the ray `P + s·toward` travels a positive length inside the
+CLOSED box: there is an s ≥ `DRAW_EPS` such that both `P + s·toward` and `P + (s + DRAW_EPS)·toward`
+lie in B grown by `DRAW_EPS / 2` on every side (the growth absorbs float drift at seams). On an edge
+`P(t) = A + t·(E − A)`, t ∈ [0, 1], that is linear in (t, s), for σ ∈ {0, DRAW_EPS}:
+
+    for each axis i:  lo_i − DRAW_EPS/2 ≤ A_i + t·d_i + (s + σ)·toward_i ≤ hi_i + DRAW_EPS/2
+    0 ≤ t ≤ 1,  DRAW_EPS ≤ s ≤ S_MAX
 
 The feasible set is a convex polygon in (t, s). Clip the rectangle [0,1] × [DRAW_EPS, S_MAX] by the
-six half-planes and take its t-range: **one hidden interval per box, at most.** S_MAX is a bound
-larger than the model's diagonal (computed from the bounds, not a magic number).
+twelve half-planes and take its t-range: **one hidden interval per box, at most.** S_MAX is the
+model's bounding diagonal plus 1 (computed, not a magic number).
 
 - An edge's hidden set is the union of its per-box intervals; the visible set is the complement in
-  [0,1]. Intervals shorter than `DRAW_EPS` in length are dropped.
-- **No drawing order is involved**, so cyclic overlaps (a pinwheel of four boards) are exact. A
-  painter's algorithm is not an acceptable substitute.
-- **Flush faces do not hide their own edges:** an edge lying on B's surface has its coordinate equal
-  to `lo_i` or `hi_i`, which the strict, shrunk inequality excludes. A part's own solids DO hide its
-  own far edges; that is wanted.
+  [0,1]. Fragments whose projected length is under `DRAW_EPS` are dropped.
+- **No drawing order is involved**, so cyclic overlaps are exact. A painter's algorithm is not an
+  acceptable substitute (§7's three-stick test is one no draw order can reproduce).
+- **A face's own edges:** an edge on a face that the ray LEAVES through (a front face) is not hidden,
+  since the ray spends no length inside. An edge whose ray GRAZES a face parallel to the view (a
+  box's back silhouette edge in an elevation, a part's edge lying along a neighbour's face) counts as
+  hidden. Its projection lies on that face's projected outline, which is drawn solid wherever it is
+  a real edge, so the dashed line is covered by it (hidden is drawn beneath visible, §2.4). Where the
+  outline is only a seam between two solids, the ray really is inside the union, and hidden is right.
 - `DRAW_EPS = 1e-6` inches, a named constant with this justification in its comment: well above the
   float drift of `position + toWorldOffset` sums at furniture scale, and far below anything visible
   at print scale. It is not `TOUCH` and not `FLUSH_EPSILON`; do not unify them.
@@ -103,11 +112,16 @@ by it). The isometric figure draws `visible` only.
 - `centre(path)` is the centre of the world bounding box of every part at or below that path; the
   root's centre is that of every part.
 - A part at `A/B/p` moves by
-  `k·(centre(A) − centre(root)) + k·(centre(A/B) − centre(A)) + k·(centre(p) − centre(A/B))`.
-  Each level moves by k times its own centre's distance from its container's. A root-level part
-  takes only the last term.
-- `EXPLODE_SPREAD` scales the whole offset (a constant, initially 1, tuned by eye in the browser pass;
-  the user judges visual changes by eye). It is applied once at the top level, not per term.
+  `k·(centre(A) − centre(root)) + k·INNER·(centre(A/B) − centre(A)) + k·INNER·(centre(p) − centre(A/B))`.
+  The FIRST term (the top-level item away from the piece's centre) has weight k; every deeper term
+  has weight `k·EXPLODE_INNER`. A root-level part takes only its one first term.
+- *(Amended 2026-10-11 during planning.)* The first draft used weight k on every term. Those sums
+  telescope to `k·(centre(p) − centre(root))`, which is plain radial explode (option A), not the
+  option B the user chose. Unequal weights are what make an assembly move out as a unit and then
+  open up a little. `EXPLODE_INNER` (initially 0.5, must stay below 1) is tuned by eye in the
+  browser pass with the user, as `EXPLODE_SPREAD` is.
+- `EXPLODE_SPREAD` maps the slider's 0–1 to `amount = slider × EXPLODE_SPREAD` (initially 1). It is
+  applied by the callers; `explodeOffsets(doc, amount)` takes the amount.
 - Hidden parts count toward centres (the sheet includes them; the viewport uses the same offsets so
   a part never jumps when another is hidden).
 - Cached per (doc object, k) like `worldParts`.
@@ -120,10 +134,12 @@ by it). The isometric figure draws `visible` only.
 saved. It is store state, not App state like `showGrid`, because the read-only gate (§4.2) must live
 in the store.
 
-- **`setExplode(k)`** is its ONE writer. It is refused while `gesturing` (as a hide is, invariant 43).
-  Moving it off 0 drops `grabbed`, `tapeAnchor` and `tapeHover` and returns the tool to Select. This is
-  a new reason to clear held points (the drawn world no longer matches the world positions); it is
-  added to the enumeration at `tapeHover`'s declaration, the one place it lives (invariant 24).
+- **`setExplode(k)`** is its ONE writer. It is refused while `gesturing` (as a hide is, invariant 43),
+  and refuses a non-finite value; it clamps to [0, 1]. Moving it off 0 calls `setTool('select')`
+  **before** it sets the amount, and that existing blanket clear drops the held points and the tape
+  fields with the anchor in the same statement. **No new clearing writer is added**; invariant 24
+  says the tape-clear licence "is not to be extended". The new trigger is recorded in the
+  enumeration at `tapeHover`'s declaration.
 - `replaceDocument` resets it to 0 (a project switch or import starts assembled).
 
 ### 4.2 Read-only while exploded
@@ -133,12 +149,20 @@ in the store.
 or future caller can edit an exploded model, because nothing that changes the document goes around
 `edit()`.
 
-- Selection is allowed (`selectionPatch` is not an edit), and Properties shows values. Its fields and
-  action buttons are disabled with a title saying "Slide Explode back to 0 to edit".
-- The Move and Tape tools are disabled; the gizmo is not drawn.
+- Selection is allowed (`selectionPatch` is not an edit), and Properties shows values. Properties
+  and the guides footer sit in a `<fieldset disabled>` whose title says "Slide Explode back to 0 to
+  edit".
+- **`setTool` refuses any tool but Select while exploded**, so the M and T keys cannot arm Move or
+  Tape. The gizmo is not drawn.
+- **`renameItem` returns the STORED name while exploded** (invariant 9: `onCommit` returns the stored
+  name; returning the typed one would show a name that was never written).
+- The toolbar's Undo and Redo buttons, the project-name input and "+ Add board" are disabled while
+  exploded. They read `past`/`future` and call edits directly, so the gate alone would leave them
+  looking live.
 - Hide and show are allowed. They are view state and go through `applyHidden`, not `edit()`.
-- App's ONE keydown effect (invariant 27) skips edit shortcuts while exploded; Escape, selection and
-  H/Alt+H/Shift+H still work.
+- *(Amended during planning.)* App's keydown effect is NOT changed. Every edit shortcut ends in
+  `edit()`, `undo`, `redo` or `setTool`, and each of those refuses, so a keydown branch would be a
+  second, redundant gate.
 - Generate, Joinery, Refine and Repair create new projects and never adopt (invariant 36); they stay
   available.
 
@@ -153,7 +177,8 @@ or future caller can edit an exploded model, because nothing that changes the do
 ### 4.4 Control
 
 An **Explode** range input (0–1, step 0.05) in `ViewportControls`' view group, with its value as a
-percentage beside it. It is disabled while `gesturing`.
+percentage beside it. *(Amended during planning: the first draft disabled it while `gesturing`, but
+invariant 34 forbids any component reading `gesturing`; the store's refusal is the whole rule.)*
 
 ## 5. The plans sheet
 
@@ -186,20 +211,24 @@ It is derived from the store's document on every render, and it formats nothing 
 Hidden parts are included everywhere (invariant 43: hidden-ness never reaches the sheet, cut list,
 joinery or export). An empty document shows "Nothing to draw yet."
 
-### 5.3 Dimensions — `document/dimensions.ts`
+### 5.3 Dimensions — `document/dimensions.ts` and `panels/planDims.ts`
 
-`dimensionView(parts, offsets=none, view, precision, scale): DimensionSet`. It imports `units`
-(`formatLength`) because it produces strings a person reads (the `→ units` edge rule); `drawing.ts`
-and `explode.ts` do not.
+*(Amended during planning: `labelWidth` lives in `panels/diagramLabels.ts` and `document` must not
+import `panels`.)* So the work is split the way the diagrams already split it:
+- **`document/dimensionView(parts, view, precision)`** builds the overall dimension and the collapsed
+  chain, with every string. It imports `units` (`formatLength`) because it produces strings a person
+  reads (the `→ units` edge rule); `drawing.ts` and `explode.ts` do not.
+- **`panels/fitChain(axis, scale)`** measures those strings, then drops, caps and writes the notes.
 
 - **Overall:** the view's full horizontal extent below the view, and its full vertical extent to the
   right. On the front these are width and height, on the side depth and height, and on the plan width
   and depth.
 - **Chain:** along each screen axis, the distinct coordinates of every part's min and max on the
-  world axis that screen axis shows (cuts ignored; parts, not solids). They are sorted, and
-  consecutive coordinates whose separation **formats** to `0` at the document's precision collapse
-  (keeping the first). The segments between them form a chain above (horizontal) or to the left
-  (vertical) of the view.
+  world axis that screen axis shows (cuts ignored; parts, not solids). They are sorted, and a
+  coordinate whose distance from the last kept one **formats** to `0"` at the document's precision
+  is skipped. **The maximum always survives**: if it was skipped, it replaces the last kept
+  coordinate, so the chain still sums to the overall. A chain of one segment is the overall, so it
+  is not drawn. The segments form a chain above (horizontal) or to the left (vertical) of the view.
 - **Fitting:** each segment's label string is built here and measured with `labelWidth`
   (invariant 19: the measured string is the drawn string, assembled in the module that builds it).
   A segment whose label does not fit its drawn length plus a margin is **dropped** (no label, no
@@ -231,7 +260,9 @@ dash, dimensions 0.75, in SVG user units at a fixed `vector-effect: non-scaling-
 |---|---|---|---|
 | `document/explode.ts` | document | §3 offsets | no |
 | `document/drawing.ts` | document | §2 projection + hidden lines | no |
-| `document/dimensions.ts` | document | §5.3 | **yes** |
+| `document/dimensions.ts` | document | §5.3 strings + collapse | **yes** |
+| `document/plans.ts` | document | the assemblies to draw: order, title, copies, mirrored count | no |
+| `panels/planDims.ts`, `panels/planLayout.ts` | panels | §5.3 fitting; the third-angle layout and scale | — |
 | `snapPoints.ts` | document | exports `toWorld` (no behaviour change) | no (unchanged) |
 | `store/store.ts` | store | `explode`, `setExplode`, the `edit`/`undo`/`redo` gate | — |
 | `viewport/BoardMesh.tsx`, `Viewport.tsx` | viewport | offsets; markers hidden; gizmo/tools off | — |
@@ -247,14 +278,17 @@ dash, dimensions 0.75, in SVG user units at a fixed `vector-effect: non-scaling-
 Expected values are computed by hand in the test, never by calling the code under test.
 
 - **`drawing.ts`:**
-  - **A box alone, front view:** its four front edges are visible; the four back edges project onto
-    them and are hidden; the four depth edges are skipped.
-  - **A box behind a box:** the hidden length is hand-computed. Mutate by moving the rear box out
-    from behind; the hidden length goes to 0.
-  - **Flush faces:** two boards face to face hide none of each other's edges on the shared face.
-  - **Pinwheel:** four boards in a pinwheel, viewed isometrically. Each board's hidden intervals are
-    hand-derived, and the case must fail a painter's-order implementation (assert a value only the
-    exact method produces).
+  - **A box alone, front view:** its four front edges are visible; the four back edges graze and
+    are hidden (§2.3), beneath the visible ones; the four depth edges are skipped.
+  - **A box behind a box:** the hidden length is hand-computed. Mutate by moving the front box out
+    of the way; the rear box's hidden length falls by the hand-computed amount.
+  - **Flush faces:** a board stacked on another, isometric. The joint line on the near faces stays
+    visible; the lower board's far top edges are hidden by the upper one. The total visible length
+    is hand-computed.
+  - **Three-stick cycle** *(replaces the pinwheel, amended during planning: four flat boards at one
+    height need not form a cyclic depth order)*. Three sticks along X, Y and Z, each in front of the
+    next, viewed isometrically. Every stick is partly hidden, which no draw order can produce,
+    because whichever is drawn last comes out whole. Each crossing is hand-derived.
   - **Mortise:** a leg with a mortise, front view, gives dashed lines at the mortise's hand-computed
     position.
   - **Pose coverage:** a quarter-turned part and an on-edge part (a pose whose `axisFrame` reverses an
@@ -262,7 +296,9 @@ Expected values are computed by hand in the test, never by calling the code unde
     so a mirrored mapping shows.
   - **Mirrored instance:** a part drawn through a mirrored placement matches its hand-reflected
     coordinates.
-- **`explode.ts`:**
+- **`explode.ts`:** expected offsets are written as hand-derived vectors combined with
+  `EXPLODE_INNER`, so tuning it by eye does not quietly break them.
+  - Hierarchy is not radial: a nested part's offset differs from `amount·(centre(p) − centre(root))`.
   - k = 0 gives all zero offsets.
   - Offsets are linear in k.
   - All parts of one assembly share its assembly-level term.
