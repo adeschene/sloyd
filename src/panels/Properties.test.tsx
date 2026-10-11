@@ -13,6 +13,9 @@ const reset = () => useStore.getState().replaceDocument(createDocument('Test'));
 
 beforeEach(reset);
 
+/** Opens the action row's More ▾ (ui-polish spec §4.2). */
+const openMore = () => userEvent.click(screen.getByRole('button', { name: 'More' }));
+
 describe('Properties', () => {
   it('adds no undo history entry for a field that is focused and blurred untouched', async () => {
     useStore.getState().addBoard();
@@ -365,7 +368,7 @@ describe('the orientation controls', () => {
   it('offers three grain directions', () => {
     selectFirstBoard();
     render(<Properties />);
-    const grain = screen.getByLabelText('Runs') as HTMLSelectElement;
+    const grain = screen.getByLabelText('Grain runs') as HTMLSelectElement;
     expect([...grain.options].map((o) => o.textContent))
       .toEqual(['Along length', 'Across width', 'Through thickness']);
   });
@@ -373,7 +376,7 @@ describe('the orientation controls', () => {
   it('commits a grain change', async () => {
     const id = selectFirstBoard();
     render(<Properties />);
-    await userEvent.selectOptions(screen.getByLabelText('Runs'), 'width');
+    await userEvent.selectOptions(screen.getByLabelText('Grain runs'), 'width');
     expect(worldParts(useStore.getState().doc).find((b) => b.id === id)!.grain).toBe('width');
   });
 
@@ -381,7 +384,7 @@ describe('the orientation controls', () => {
     const id = selectFirstBoard();
     const before = worldParts(useStore.getState().doc)[0].position;
     render(<Properties />);
-    await userEvent.selectOptions(screen.getByLabelText('Runs'), 'width');
+    await userEvent.selectOptions(screen.getByLabelText('Grain runs'), 'width');
     expect(worldParts(useStore.getState().doc).find((b) => b.id === id)!.position).toEqual(before);
   });
 
@@ -410,7 +413,7 @@ describe('the orientation controls', () => {
     const id = selectFirstBoard();
     useStore.getState().updateBoard(id, { grain: 'thickness' });
     render(<Properties />);
-    expect((screen.getByLabelText('Runs') as HTMLSelectElement).value).toBe('thickness');
+    expect((screen.getByLabelText('Grain runs') as HTMLSelectElement).value).toBe('thickness');
   });
 
   // 'Through thickness' is meaningless for a sheet good — plywood's grain is
@@ -420,7 +423,7 @@ describe('the orientation controls', () => {
     const id = selectFirstBoard();
     useStore.getState().updateBoard(id, { material: 'plywood' });
     render(<Properties />);
-    const grain = screen.getByLabelText('Runs') as HTMLSelectElement;
+    const grain = screen.getByLabelText('Grain runs') as HTMLSelectElement;
     expect([...grain.options].map((o) => o.textContent))
       .toEqual(['Along length', 'Across width']);
   });
@@ -429,7 +432,7 @@ describe('the orientation controls', () => {
     const id = selectFirstBoard();
     useStore.getState().updateBoard(id, { material: 'mdf' });
     render(<Properties />);
-    const grain = screen.getByLabelText('Runs') as HTMLSelectElement;
+    const grain = screen.getByLabelText('Grain runs') as HTMLSelectElement;
     expect([...grain.options].map((o) => o.textContent))
       .toEqual(['Along length', 'Across width']);
   });
@@ -437,14 +440,14 @@ describe('the orientation controls', () => {
   it('updates the grain options when the material changes to a sheet good', async () => {
     const id = selectFirstBoard();
     render(<Properties />);
-    expect([...(screen.getByLabelText('Runs') as HTMLSelectElement).options])
+    expect([...(screen.getByLabelText('Grain runs') as HTMLSelectElement).options])
       .toHaveLength(3);
 
-    const materialSelect = document.querySelector('select[aria-labelledby="material-heading"]')!;
+    const materialSelect = screen.getByLabelText('Material');
     await userEvent.selectOptions(materialSelect, 'plywood');
 
     expect(worldParts(useStore.getState().doc).find((b) => b.id === id)!.material).toBe('plywood');
-    expect([...(screen.getByLabelText('Runs') as HTMLSelectElement).options].map((o) => o.textContent))
+    expect([...(screen.getByLabelText('Grain runs') as HTMLSelectElement).options].map((o) => o.textContent))
       .toEqual(['Along length', 'Across width']);
   });
 });
@@ -693,8 +696,8 @@ describe('cuts', () => {
   it('commits both stops and names the cut a blind dado', async () => {
     const id = renderWithBoard();
     await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
-    await typeInto(/stop short of near end/i, '1');
-    await typeInto(/stop short of far end/i, '1.5');
+    await typeInto(/stop short — near end/i, '1');
+    await typeInto(/stop short — far end/i, '1.5');
     expect(stored(id)).toMatchObject({ stopMin: 1, stopMax: 1.5 });
     // Cut-words spec §2.2: closed pocket 3 x 3/4, depth 3/8 not deeper than 3/4 -> 'blind dado', formerly 'mortise'.
     expect(screen.getByText('blind dado')).toBeInTheDocument();
@@ -703,17 +706,17 @@ describe('cuts', () => {
   it('names a cut stopped at one end a stopped dado', async () => {
     renderWithBoard();
     await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
-    await typeInto(/stop short of far end/i, '1');
+    await typeInto(/stop short — far end/i, '1');
     expect(screen.getByText('stopped dado')).toBeInTheDocument();
   });
 
   it('refuses stops that exactly use up the across dimension', async () => {
     const id = renderWithBoard();
     await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
-    await typeInto(/stop short of near end/i, '3');
+    await typeInto(/stop short — near end/i, '3');
     // 3 + 2.5 = 5.5, the board's width: no cut left. The field's max allows
     // equality, so this is the row's refusal, not DimensionField's.
-    await typeInto(/stop short of far end/i, '2.5');
+    await typeInto(/stop short — far end/i, '2.5');
     expect(screen.getByText(/would leave no cut/i)).toBeInTheDocument();
     expect(stored(id).stopMax).toBe(0);
   });
@@ -721,8 +724,8 @@ describe('cuts', () => {
   it('clears the leave-no-cut error after an undo resolves it', async () => {
     renderWithBoard();
     await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
-    await typeInto(/stop short of near end/i, '3');
-    await typeInto(/stop short of far end/i, '2.5');
+    await typeInto(/stop short — near end/i, '3');
+    await typeInto(/stop short — far end/i, '2.5');
     expect(screen.getByText(/would leave no cut/i)).toBeInTheDocument();
     // Undoes stopMin = 3 (the refused stopMax never reached the stack). With
     // stopMin back at 0 nothing is wrong, so the error must not outlive it.
@@ -733,8 +736,8 @@ describe('cuts', () => {
   it('resets both stops when Runs across changes', async () => {
     const id = renderWithBoard();
     await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
-    await typeInto(/stop short of near end/i, '1');
-    await typeInto(/stop short of far end/i, '1');
+    await typeInto(/stop short — near end/i, '1');
+    await typeInto(/stop short — far end/i, '1');
     const across = screen.getByLabelText(/runs across/i) as HTMLSelectElement;
     const other = [...across.options].map((o) => o.value).find((v) => v !== across.value)!;
     await userEvent.selectOptions(across, other);
@@ -744,7 +747,7 @@ describe('cuts', () => {
   it('keeps the stops when Cut into changes and across does not', async () => {
     const id = renderWithBoard();
     await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
-    await typeInto(/stop short of near end/i, '1');
+    await typeInto(/stop short — near end/i, '1');
     // Face -> End (length). across stays width, so the stops still mean what they said.
     await userEvent.selectOptions(screen.getByLabelText(/cut into/i), 'length');
     expect(stored(id).across).toBe('width');
@@ -754,7 +757,7 @@ describe('cuts', () => {
   it('resets the stops when Cut into takes the across dimension', async () => {
     const id = renderWithBoard();
     await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
-    await typeInto(/stop short of near end/i, '1');
+    await typeInto(/stop short — near end/i, '1');
     // Face -> Edge (width) moves across off width.
     await userEvent.selectOptions(screen.getByLabelText(/cut into/i), 'width');
     expect(stored(id).across).not.toBe('width');
@@ -764,7 +767,7 @@ describe('cuts', () => {
   it('allows a full-depth, full-width cut that stops short', async () => {
     const id = renderWithBoard();
     await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
-    await typeInto(/stop short of far end/i, '1');
+    await typeInto(/stop short — far end/i, '1');
     await typeInto(/from the end/i, '0');
     await typeInto(/cut width/i, '24');
     await typeInto(/^depth$/i, '3/4');
@@ -775,7 +778,7 @@ describe('cuts', () => {
   it('allows a full-depth, full-width cut that stops short at the near end', async () => {
     const id = renderWithBoard();
     await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
-    await typeInto(/stop short of near end/i, '1');
+    await typeInto(/stop short — near end/i, '1');
     await typeInto(/from the end/i, '0');
     await typeInto(/cut width/i, '24');
     await typeInto(/^depth$/i, '3/4');
@@ -786,8 +789,8 @@ describe('cuts', () => {
   it('keeps a cut editable after a board shrink leaves its stops crossing', async () => {
     const id = renderWithBoard();
     await userEvent.click(screen.getByRole('button', { name: /add cut/i }));
-    await typeInto(/stop short of near end/i, '3');
-    await typeInto(/stop short of far end/i, '2');
+    await typeInto(/stop short — near end/i, '3');
+    await typeInto(/stop short — far end/i, '2');
     expect(stored(id)).toMatchObject({ stopMin: 3, stopMax: 2 });
     // Width 5.5 -> 2: 3 + 2 >= 2, so the cut now has no length across.
     act(() => { useStore.getState().updateBoard(id, { width: 2 }); });
@@ -796,10 +799,10 @@ describe('cuts', () => {
     expect(screen.queryByText(/would leave no cut/i)).not.toBeInTheDocument();
     expect(stored(id).offset).toBe(1);
 
-    await typeInto(/stop short of far end/i, '0');
+    await typeInto(/stop short — far end/i, '0');
     expect(stored(id).stopMax).toBe(0);
 
-    await typeInto(/stop short of near end/i, '1');
+    await typeInto(/stop short — near end/i, '1');
     expect(stored(id).stopMin).toBe(1);
     expect(stored(id).stopMin + stored(id).stopMax).toBeLessThan(2);
   });
@@ -951,7 +954,7 @@ describe('Properties with two or more parts selected', () => {
     group();
     render(<Properties />);
     expect(screen.getByRole('heading', { name: '2 parts selected' })).toBeInTheDocument();
-    for (const label of ['Length', 'Width', 'Thickness', 'Runs']) {
+    for (const label of ['Length', 'Width', 'Thickness', 'Grain runs']) {
       expect(screen.getByLabelText(label)).toBeInTheDocument();
     }
     expect(screen.getByRole('combobox', { name: 'Material' })).toBeInTheDocument();
@@ -976,7 +979,7 @@ describe('Properties with two or more parts selected', () => {
     const { b } = group();
     useStore.getState().updateBoard(b, { grain: 'width' });
     render(<Properties />);
-    expect((screen.getByLabelText('Runs') as HTMLSelectElement).value).toBe('');
+    expect((screen.getByLabelText('Grain runs') as HTMLSelectElement).value).toBe('');
     expect(screen.getByRole('option', { name: 'mixed' })).toBeDisabled();
   });
 
@@ -1061,7 +1064,7 @@ describe('Properties with two or more parts selected', () => {
     render(<Properties />);
     const before = past();
     const doc = useStore.getState().doc;
-    await userEvent.click(screen.getByLabelText('Runs'));
+    await userEvent.click(screen.getByLabelText('Grain runs'));
     await userEvent.tab();
     expect(useStore.getState().doc).toBe(doc);
     expect(past()).toBe(before);
@@ -1070,7 +1073,7 @@ describe('Properties with two or more parts selected', () => {
   it('a grain change applies to every part', async () => {
     const { a, b } = group();
     render(<Properties />);
-    await userEvent.selectOptions(screen.getByLabelText('Runs'), 'width');
+    await userEvent.selectOptions(screen.getByLabelText('Grain runs'), 'width');
     expect([board(a).grain, board(b).grain]).toEqual(['width', 'width']);
   });
 
@@ -1172,6 +1175,7 @@ describe('Hide others', () => {
     useStore.getState().selectBoard(a!);
     useStore.getState().toggleSelected(b!);
     render(<Properties />);
+    await openMore();
     await userEvent.click(screen.getByRole('button', { name: 'Hide others' }));
     expect(useStore.getState().hiddenIds).toEqual([c]);
   });
@@ -1206,6 +1210,7 @@ describe('linking controls', () => {
     expect(screen.queryByText(/Linking makes/)).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Link' }));
     expect(screen.queryByRole('button', { name: 'Link' })).toBeNull();
+    await openMore();
     expect(screen.getByRole('button', { name: 'Unlink' })).toBeInTheDocument();
   });
 
@@ -1323,6 +1328,7 @@ describe('Properties shared copies', () => {
     render(<Properties />);
     expect(screen.getByText(/Shared by 2 copies/)).toBeInTheDocument();
     expect(useStore.getState().doc.definitions).toHaveLength(2);
+    await openMore();
     await userEvent.click(screen.getByRole('button', { name: 'Make Unique' }));
     expect(screen.queryByText(/Shared by/)).toBeNull();
     expect(useStore.getState().doc.definitions).toHaveLength(3);
@@ -1332,11 +1338,12 @@ describe('Properties shared copies', () => {
     useStore.getState().replaceDocument(twoCopies());
     useStore.getState().selectBoard('i1');
     render(<Properties />);
+    await openMore();
     await userEvent.click(screen.getByRole('button', { name: 'Select copies' }));
     expect([...useStore.getState().selectedIds].sort()).toEqual(['i1', 'i3']);
   });
 
-  it('offers no Make Unique for a drawer inside a cabinet placed twice (2 placements, 1 reference)', () => {
+  it('offers no Make Unique for a drawer inside a cabinet placed twice (2 placements, 1 reference)', async () => {
     const d = assemblyDoc();
     const cab = { id: 'dc', boards: [], instances: [{ ...d.instances[0]!, id: 'k1', name: 'Drawer' }] };
     const doc = {
@@ -1351,6 +1358,7 @@ describe('Properties shared copies', () => {
     useStore.getState().selectBoard('c1/k1');
     render(<Properties />);
     expect(screen.getByText(/Shared by 2 copies/)).toBeInTheDocument();
+    await openMore();
     expect(screen.queryByRole('button', { name: 'Make Unique' })).toBeNull();
   });
 });
@@ -1364,6 +1372,7 @@ describe('Properties mirrored assemblies', () => {
     await userEvent.click(screen.getByRole('checkbox', { name: 'Mirrored' }));
     expect(instanceAt(useStore.getState().doc, 'i1')!.mirrored).toBe(true);
     expect(screen.getByRole('checkbox', { name: 'Mirrored' })).toBeChecked();
+    await openMore();
     await userEvent.click(screen.getByRole('button', { name: 'Copy mirrored' }));
     const copy = useStore.getState().selectedIds[0]!;
     expect('mirrored' in instanceAt(useStore.getState().doc, copy)!).toBe(false);
@@ -1412,3 +1421,79 @@ describe('Properties across a mirror (mirrored-instances spec §4, amended)', ()
   });
 });
 
+
+describe('the action row (ui-polish spec §4.2)', () => {
+  const st = () => useStore.getState();
+  const shown = () => [...document.querySelectorAll('.action-bar > button:not(.action-delete)')].map((b) => b.textContent);
+  const moreItems = async () => {
+    await openMore();
+    return [...document.querySelectorAll('.popover-item')].map((b) => b.getAttribute('aria-label'));
+  };
+
+  it('one part: Duplicate, Group, Hide others; More holds Copy in a row…', async () => {
+    st().addBoard();
+    st().selectBoard(worldParts(st().doc)[0]!.id);
+    render(<Properties />);
+    expect(shown()).toEqual(['Duplicate', 'Group', 'Hide others']);
+    expect(await moreItems()).toEqual(['Copy in a row…']);
+  });
+
+  it('one assembly: Duplicate, Ungroup, Hide others; More holds the rest in order', async () => {
+    st().replaceDocument(assemblyDoc());
+    act(() => st().selectItem('i1', false));
+    render(<Properties />);
+    expect(shown()).toEqual(['Duplicate', 'Ungroup', 'Hide others']);
+    expect(await moreItems()).toEqual(['Copy mirrored', 'Copy in a row…', 'Group']);
+  });
+
+  it('several parts that can link: Link, Duplicate, Group visible', async () => {
+    act(() => { st().addBoard(); st().addBoard(); });
+    const [a, b] = worldParts(st().doc).map((x) => x.id);
+    act(() => { st().selectBoard(a!); st().toggleSelected(b!); });
+    render(<Properties />);
+    expect(shown()).toEqual(['Link', 'Duplicate', 'Group']);
+    expect(await moreItems()).toEqual(['Hide others', 'Copy in a row…']);
+  });
+
+  it('several parts that cannot link: Duplicate, Group, Hide others visible', async () => {
+    act(() => { st().addBoard(); st().addBoard(); });
+    const [a, b] = worldParts(st().doc).map((x) => x.id);
+    act(() => { st().linkBoards([a!, b!]); st().selectBoard(a!); st().toggleSelected(b!); });
+    render(<Properties />);
+    expect(shown()).toEqual(['Duplicate', 'Group', 'Hide others']);
+    expect(await moreItems()).toEqual(['Unlink', 'Copy in a row…']);
+  });
+
+  it('a selection change closes an open Copy in a row form', async () => {
+    act(() => { st().addBoard(); st().addBoard(); });
+    const [a, b] = worldParts(st().doc).map((x) => x.id);
+    act(() => st().selectBoard(a!));
+    render(<Properties />);
+    await openMore();
+    await userEvent.click(screen.getByRole('button', { name: 'Copy in a row…' }));
+    expect(screen.getByRole('group', { name: 'Copy in a row' })).toBeInTheDocument();
+    act(() => st().selectBoard(b!));
+    expect(screen.queryByRole('group', { name: 'Copy in a row' })).toBeNull();
+  });
+});
+
+describe('Properties layout labels (ui-polish spec §4)', () => {
+  it('names the kind beside the name: Part for a part, Assembly for an assembly', () => {
+    useStore.getState().addBoard();
+    useStore.getState().selectBoard(worldParts(useStore.getState().doc)[0]!.id);
+    const { unmount } = render(<Properties />);
+    expect(screen.getByText('Part', { selector: '.kind-chip' })).toBeInTheDocument();
+    unmount();
+    useStore.getState().replaceDocument(assemblyDoc());
+    act(() => useStore.getState().selectItem('i1', false));
+    render(<Properties />);
+    expect(screen.getByText('Assembly', { selector: '.kind-chip' })).toBeInTheDocument();
+  });
+
+  it('labels Material with a real <label>, keeping its accessible name', () => {
+    useStore.getState().addBoard();
+    useStore.getState().selectBoard(worldParts(useStore.getState().doc)[0]!.id);
+    render(<Properties />);
+    expect(screen.getByLabelText('Material').tagName).toBe('SELECT');
+  });
+});

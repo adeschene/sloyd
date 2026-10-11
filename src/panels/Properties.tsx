@@ -3,7 +3,7 @@ import { useStore } from '../store/store';
 import { MATERIALS, isSheetGood, boardSolids, cutShape, storedAsShape, cutRemovesNothing, findTenons, positionAxisOf, linkPlan, postureRefusal, storageKey, mirroredAt, worldParts, instanceAt, parentPath, placementsOf, instanceRefs, containerAt } from '../document/document';
 import { DimensionField } from './DimensionField';
 import { NameField } from './NameField';
-import { CopyInRow } from './CopyInRow';
+import { ActionBar, COPY_IN_ROW } from './ActionBar';
 import { formatLength } from '../units/length';
 import type { Rotation, Posture, Grain, Board, Cut, Dimension, Region } from '../document/document';
 
@@ -175,13 +175,14 @@ function CutRow({ board, cut, precision, solids }: { board: Board; cut: Cut; pre
 
   return (
     <div className="cut">
-      <div className="row cut-head">
+      <div className="cut-head">
         <span className="cut-label">{word}</span>
         <button
+          className="cut-remove"
           aria-label={`Remove cut (${word}, offset ${formatLength(cut.offset, precision)})`}
           onClick={() => removeCut(board.id, cut.id)}
         >
-          Remove
+          ✕
         </button>
       </div>
 
@@ -206,6 +207,7 @@ function CutRow({ board, cut, precision, solids }: { board: Board; cut: Cut; pre
         </div>
       )}
 
+      <div className="field-grid field-grid-2">
       <div className="field">
         <label htmlFor={`face-${cut.id}`}>Cut into</label>
         <select id={`face-${cut.id}`} className="input" value={cut.face}
@@ -225,7 +227,8 @@ function CutRow({ board, cut, precision, solids }: { board: Board; cut: Cut; pre
         </select>
       </div>
 
-      <div className="field">
+      {/* Full row, so the two stops share the next one (spec §4.4). */}
+      <div className="field field-wide">
         <label htmlFor={`across-${cut.id}`}>Runs across</label>
         <select id={`across-${cut.id}`} ref={acrossRef} className="input" value={cut.across}
           onChange={(e) => set(repositionForAxes(cut.face, e.target.value as Dimension))}>
@@ -237,10 +240,10 @@ function CutRow({ board, cut, precision, solids }: { board: Board; cut: Cut; pre
         </select>
       </div>
 
-      <DimensionField key={`stopMin-${attempt}`} label="Stop short of near end" precision={precision}
+      <DimensionField key={`stopMin-${attempt}`} label="Stop short — near end" precision={precision}
         value={cut.stopMin} min={0} max={Math.max(0, acrossDim - cut.stopMax)}
         onCommit={(v) => set({ stopMin: v })} />
-      <DimensionField key={`stopMax-${attempt}`} label="Stop short of far end" precision={precision}
+      <DimensionField key={`stopMax-${attempt}`} label="Stop short — far end" precision={precision}
         value={cut.stopMax} min={0} max={Math.max(0, acrossDim - cut.stopMin)}
         onCommit={(v) => set({ stopMax: v })} />
 
@@ -250,6 +253,7 @@ function CutRow({ board, cut, precision, solids }: { board: Board; cut: Cut; pre
         max={Math.max(0, posDim - cut.offset)} onCommit={(v) => set({ width: v })} />
       <DimensionField key={`depth-${attempt}`} label="Depth" precision={precision} value={cut.depth}
         max={faceDim} onCommit={(v) => set({ depth: v })} />
+      </div>
 
       {error && <p className="field-error" role="alert">{error}</p>}
     </div>
@@ -350,20 +354,41 @@ function GroupProperties() {
 
   return (
     <div className="properties" key={selectedIds.join('|')}>
-      <h3>{allParts ? `${boards.length} parts selected` : `${selectedIds.length} items selected`}</h3>
+      <h3 className="props-title">{allParts ? `${boards.length} parts selected` : `${selectedIds.length} items selected`}</h3>
+      <ActionBar
+        actions={[
+          ...(plan && !('refused' in plan) ? [{ label: 'Link', run: () => linkBoards(selectedIds) }] : []),
+          { label: 'Duplicate', run: () => duplicateBoards(selectedIds) },
+          { label: 'Group', run: () => useStore.getState().groupSelected() },
+          { label: 'Hide others', run: hideUnselected },
+          ...(allParts && boards.some((b) => b.shape) ? [{ label: 'Unlink', run: () => unlinkBoards(selectedIds) }] : []),
+          ...(anyAssembly ? [{ label: 'Ungroup', run: () => useStore.getState().ungroupSelected() }] : []),
+          COPY_IN_ROW,
+        ]}
+        onDelete={() => deleteBoards(selectedIds)}
+      />
+      {plan && 'refused' in plan && <p className="field-error" role="status">{plan.refused}</p>}
+      {plan && !('refused' in plan) && plan.changing.length > 0 && (
+        <p className="link-note">
+          Linking makes {plan.changing.length} {plan.changing.length === 1 ? 'part' : 'parts'} match {plan.source.name}: size, material, grain, posture and cuts.
+        </p>
+      )}
 
       {allParts && <>
-      <h3>Dimensions</h3>
+      <h3>Size</h3>
+      <div className="field-grid field-grid-3">
       <DimensionField label="Length" precision={precision} value={shared(boards, (b) => b.length)}
         onCommit={(v) => set({ length: v })} />
       <DimensionField label="Width" precision={precision} value={shared(boards, (b) => b.width)}
         onCommit={(v) => set({ width: v })} />
       <DimensionField label="Thickness" precision={precision} value={shared(boards, (b) => b.thickness)}
         onCommit={(v) => set({ thickness: v })} />
+      </div>
 
-      <h3>Grain</h3>
-      <div className="field field-wide">
-        <label htmlFor="grain">Runs</label>
+      <h3>Stock</h3>
+      <div className="field-grid field-grid-2">
+      <div className="field">
+        <label htmlFor="grain">Grain runs</label>
         <select id="grain" className="input" value={grain ?? ''}
           onChange={(e) => set({ grain: e.target.value as Grain })}>
           {grain === null && <option value="" disabled>mixed</option>}
@@ -373,9 +398,9 @@ function GroupProperties() {
         </select>
       </div>
 
-      <h3 id="material-heading">Material</h3>
-      <div className="field field-wide">
-        <select aria-labelledby="material-heading" className="input" value={material ?? ''}
+      <div className="field">
+        <label htmlFor="material">Material</label>
+        <select id="material" className="input" value={material ?? ''}
           onChange={(e) => set({ material: e.target.value })}>
           {material === null && <option value="" disabled>mixed</option>}
           {Object.entries(MATERIALS).map(([key, m]) => (
@@ -383,24 +408,8 @@ function GroupProperties() {
           ))}
         </select>
       </div>
-      </>}
-
-      {plan && 'refused' in plan && <p className="field-error" role="status">{plan.refused}</p>}
-      {plan && !('refused' in plan) && plan.changing.length > 0 && (
-        <p className="link-note">
-          Linking makes {plan.changing.length} {plan.changing.length === 1 ? 'part' : 'parts'} match {plan.source.name}: size, material, grain, posture and cuts.
-        </p>
-      )}
-      <div className="row">
-        {plan && !('refused' in plan) && <button onClick={() => linkBoards(selectedIds)}>Link</button>}
-        {allParts && boards.some((b) => b.shape) && <button onClick={() => unlinkBoards(selectedIds)}>Unlink</button>}
-        <button onClick={() => duplicateBoards(selectedIds)}>Duplicate</button>
-        <button onClick={() => useStore.getState().groupSelected()}>Group</button>
-        {anyAssembly && <button onClick={() => useStore.getState().ungroupSelected()}>Ungroup</button>}
-        <button onClick={hideUnselected}>Hide others</button>
-        <button className="danger" onClick={() => deleteBoards(selectedIds)}>Delete</button>
       </div>
-      <CopyInRow />
+      </>}
     </div>
   );
 }
@@ -425,10 +434,27 @@ function InstanceProperties({ path }: { path: string }) {
   if (!inst) return null;
   return (
     <div className="properties" key={path}>
-      <NameField value={inst.name} onCommit={(typed) => useStore.getState().renameItem(path, typed)} />
-      <p className="assembly-note">Assembly — double-click it in the view to edit its parts.</p>
+      <div className="props-name">
+        <NameField value={inst.name} onCommit={(typed) => useStore.getState().renameItem(path, typed)} />
+        <span className="kind-chip">Assembly</span>
+      </div>
+      <ActionBar
+        actions={[
+          { label: 'Duplicate', run: () => duplicateBoards([path]) },
+          { label: 'Ungroup', run: () => useStore.getState().ungroupSelected() },
+          { label: 'Hide others', run: hideUnselected },
+          { label: 'Copy mirrored', run: () => useStore.getState().copyMirrored(path) },
+          COPY_IN_ROW,
+          ...(copies >= 2 && copyHere ? [{ label: 'Select copies', run: () => selectCopies(path) }] : []),
+          ...(refs >= 2 ? [{ label: 'Make Unique', run: () => makeUnique(path) }] : []),
+          { label: 'Group', run: () => useStore.getState().groupSelected() },
+        ]}
+        onDelete={() => deleteBoards([path])}
+      />
+      <p className="assembly-note">Double-click it in the view to edit its parts.</p>
       {copies >= 2 && <p className="link-note">Shared by {copies} copies: edits inside change all of them.</p>}
       <h3>Orientation</h3>
+      <div className="field-grid field-grid-2">
       <div className="field">
         <label htmlFor="turn">Turn</label>
         <select id="turn" className="input" value={inst.rotation}
@@ -439,24 +465,12 @@ function InstanceProperties({ path }: { path: string }) {
           <option value={270}>270°</option>
         </select>
       </div>
-      <div className="field">
-        <label>
-          <input type="checkbox" checked={inst.mirrored === true}
-            onChange={(e) => useStore.getState().mirrorAssembly(path, e.target.checked)} />
-          {' '}Mirrored
-        </label>
+      <label className="checkbox field-grid-checkbox">
+        <input type="checkbox" checked={inst.mirrored === true}
+          onChange={(e) => useStore.getState().mirrorAssembly(path, e.target.checked)} />
+        Mirrored
+      </label>
       </div>
-      <div className="row">
-        <button onClick={() => duplicateBoards([path])}>Duplicate</button>
-        <button onClick={() => useStore.getState().copyMirrored(path)}>Copy mirrored</button>
-        {copies >= 2 && copyHere && <button onClick={() => selectCopies(path)}>Select copies</button>}
-        {refs >= 2 && <button onClick={() => makeUnique(path)}>Make Unique</button>}
-        <button onClick={() => useStore.getState().ungroupSelected()}>Ungroup</button>
-        <button onClick={() => useStore.getState().groupSelected()}>Group</button>
-        <button onClick={hideUnselected}>Hide others</button>
-        <button className="danger" onClick={() => deleteBoards([path])}>Delete</button>
-      </div>
-      <CopyInRow />
     </div>
   );
 }
@@ -523,7 +537,19 @@ export function Properties() {
 
   return (
     <div className="properties" key={board.id}>
-      <NameField value={board.name} onCommit={commitName} />
+      <div className="props-name">
+        <NameField value={board.name} onCommit={commitName} />
+        <span className="kind-chip">Part</span>
+      </div>
+      <ActionBar
+        actions={[
+          { label: 'Duplicate', run: () => duplicateBoard(board.id) },
+          { label: 'Group', run: () => useStore.getState().groupSelected() },
+          { label: 'Hide others', run: hideUnselected },
+          COPY_IN_ROW,
+        ]}
+        onDelete={() => deleteBoard(board.id)}
+      />
       {linkedCount > 0 && (
         <div className="link-block">
           <p>Linked with {linkedCount} other {linkedCount === 1 ? 'part' : 'parts'}: edits to size, material, grain, posture or cuts change all {linkedCount + 1}.</p>
@@ -534,25 +560,30 @@ export function Properties() {
         </div>
       )}
 
-      <h3>Dimensions</h3>
+      <h3>Size</h3>
+      <div className="field-grid field-grid-3">
       <DimensionField ref={lengthRef} label="Length" precision={precision} value={board.length}
         onCommit={(v) => updateBoard(board.id, { length: v })} />
       <DimensionField label="Width" precision={precision} value={board.width}
         onCommit={(v) => updateBoard(board.id, { width: v })} />
       <DimensionField label="Thickness" precision={precision} value={board.thickness}
         onCommit={(v) => updateBoard(board.id, { thickness: v })} />
+      </div>
 
       <h3>Position</h3>
+      <div className="field-grid field-grid-3">
       <DimensionField label="X" precision={precision} allowNegative value={board.position[0]} onCommit={setPos(0)} />
       <DimensionField label="Y" precision={precision} allowNegative value={board.position[1]} onCommit={setPos(1)} />
       <DimensionField label="Z" precision={precision} allowNegative value={board.position[2]} onCommit={setPos(2)} />
+      </div>
 
-      <h3>Orientation</h3>
+      <h3>Orientation &amp; stock</h3>
       {/* Posture names which of the board's dimensions points up, and that is
           the whole model: it picks the vertical dimension, Turn orders the other
           two. Upright is what v2 could not express — a leg, a post, a stile.
           "Turn" rather than "Rotation" because with three postures it is no
           longer the only thing that rotates the board. */}
+      <div className="field-grid field-grid-2">
       <PostureField board={board} />
       <div className="field">
         <label htmlFor="turn">Turn</label>
@@ -570,9 +601,8 @@ export function Properties() {
           board the way real stock does. Across the width is what makes two
           parts meeting at a right angle share one grain direction; through the
           thickness is an end-grain board. */}
-      <h3>Grain</h3>
-      <div className="field field-wide">
-        <label htmlFor="grain">Runs</label>
+      <div className="field">
+        <label htmlFor="grain">Grain runs</label>
         <select id="grain" className="input" value={board.grain}
           onChange={(e) => updateBoard(board.id, { grain: e.target.value as Grain })}>
           <option value="length">Along length</option>
@@ -581,34 +611,25 @@ export function Properties() {
         </select>
       </div>
 
-      {/* The heading names this control via aria-labelledby (an aria-label
-          alone would not be programmatically associated with the <h3>). */}
-      <h3 id="material-heading">Material</h3>
-      <div className="field field-wide">
-        <select aria-labelledby="material-heading" className="input" value={board.material}
+      <div className="field">
+        <label htmlFor="material">Material</label>
+        <select id="material" className="input" value={board.material}
           onChange={(e) => updateBoard(board.id, { material: e.target.value })}>
           {Object.entries(MATERIALS).map(([key, m]) => (
             <option key={key} value={key}>{m.label}</option>
           ))}
         </select>
       </div>
+      </div>
 
       {/* Joinery. One primitive — a rectangular through-cut — so a dado and a
           rabbet are the same control with different numbers, and the label
           is derived from the geometry rather than chosen by the user. */}
-      <h3>Cuts</h3>
+      <h3>Cuts{board.cuts.length > 0 && <span className="h3-count"> · {board.cuts.length}</span>}</h3>
       {board.cuts.map((cut) => (
         <CutRow key={cut.id} board={board} cut={cut} precision={precision} solids={solids} />
       ))}
-      <button onClick={() => addCut(board.id)}>Add cut</button>
-
-      <div className="row">
-        <button onClick={() => duplicateBoard(board.id)}>Duplicate</button>
-        <button onClick={() => useStore.getState().groupSelected()}>Group</button>
-        <button onClick={hideUnselected}>Hide others</button>
-        <button className="danger" onClick={() => deleteBoard(board.id)}>Delete</button>
-      </div>
-      <CopyInRow />
+      <button className="add-cut" onClick={() => addCut(board.id)}>+ Add cut</button>
     </div>
   );
 }

@@ -152,7 +152,9 @@ part's own block ("Select linked" / "Unlink", Properties.tsx ~528) and refusal/l
   **Stock**: Grain runs · Material. For an assembly, **Orientation**: Turn · Mirrored (a checkbox with its label
   inline, fixing today's split).
 - `DimensionField`/`NameField` are reused unchanged; only their wrapper layout changes (**invariants 5, 9**).
-  Field errors (`.field-error`) span the full row under the field that raised them.
+  A field's own error (DimensionField's, **invariants 5, 9**) stays in the field's cell and wraps inside it: the
+  field never moves while it holds focus and a refused entry. A sibling error or note — Posture's refusal, say —
+  spans the full row under the fields.
 
 ### 4.4 Cuts
 
@@ -206,7 +208,7 @@ Applies to `.cutlist-sheet`, Generate, Add joinery, Refine, Settings, RepairNoti
   (§4.5). Mutate the Guides auto-open test (remove the effect → red) and the More ▾ split test.
 - Live pass on the dev server (Playwright, user may watch) at **1920×1080 and 1366×768**: header
   `scrollWidth === clientWidth`; no element overlaps another in the header (bounding-box check); the assembly
-  action row fits at 300px; overlay clicks do not change the selection; Escape and outside-click close both
+  action row fits at 380px (§4.1); overlay clicks do not change the selection; Escape and outside-click close both
   popups; contrast ratios measured; snap markers legible on the new ground; print emulation matches before.
 - Recorded in `docs/browser-verification-ui-polish.md` with screenshots in `docs/img/`.
 - Deploy per the deployment rule (bundle hash, CSP header, `localStorage` cleared in the verifying browser),

@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { useStore } from '../store/store';
+import { Popover } from './Popover';
 import { ProjectMenu } from './ProjectMenu';
 import type { DuplicateFailure } from './ProjectMenu';
 
@@ -18,27 +19,6 @@ interface Props {
   onDuplicateProject: (id: string) => Promise<DuplicateFailure | null>;
   onDeleteProject: (id: string) => Promise<void>;
   onImportProject: () => void;
-  /** True when the viewport is drawing through an orthographic camera. */
-  orthographic: boolean;
-  onToggleProjection: () => void;
-  /** True when the ground grid is drawn. */
-  showGrid: boolean;
-  onToggleGrid: () => void;
-  /**
-   * True when the origin axis lines are drawn. Separate from `showGrid` on
-   * purpose: the axes answer "where is the origin" and the grid answers "how
-   * big is this", and wanting one on rarely means wanting the other on.
-   */
-  showAxes: boolean;
-  onToggleAxes: () => void;
-  /**
-   * True when tape-measure guide points are drawn. A third flag beside
-   * showGrid and showAxes, and view state for the same reason — guides are
-   * scaffolding, and wanting them on is a property of what you are doing right
-   * now, not of the project.
-   */
-  showGuides: boolean;
-  onToggleGuides: () => void;
   /** Opens the cut list sheet. */
   onOpenCutList: () => void;
   /**
@@ -54,9 +34,9 @@ interface Props {
   onOpenSettings: () => void;
   /**
    * The live batch, or null when nothing is running. While non-null the
-   * Generate button reads "Generating done/total…" and STILL opens the dialog
-   * (spec §6.1) — closing the dialog does not cancel, so this label is the
-   * only sign runs are out while it is shut.
+   * Claude trigger reads "Claude · Generating done/total…" and Generate
+   * STILL opens its dialog (spec §6.1) — closing the dialog does not cancel,
+   * so this label is the only sign runs are out while it is shut.
    */
   generating: { live: number; total: number } | null;
   /**
@@ -68,14 +48,6 @@ interface Props {
 
 export function Toolbar({
   children,
-  orthographic,
-  onToggleProjection,
-  showGrid,
-  onToggleGrid,
-  showAxes,
-  onToggleAxes,
-  showGuides,
-  onToggleGuides,
   onOpenCutList,
   libraryAvailable,
   activeId,
@@ -98,10 +70,8 @@ export function Toolbar({
   const redo = useStore((s) => s.redo);
   const canUndo = useStore((s) => s.past.length > 0);
   const canRedo = useStore((s) => s.future.length > 0);
-  const tool = useStore((s) => s.tool);
-  const setTool = useStore((s) => s.setTool);
-  const hasSelection = useStore((s) => s.selectedIds.length > 0);
 
+  const done = generating ? generating.total - generating.live : 0;
   return (
     <header className="toolbar">
       {/* Left group: the document and the things that change it. */}
@@ -126,69 +96,24 @@ export function Toolbar({
             newIds={newIds}
           />
         )}
+        <span className="toolbar-divider" />
         <button className="btn-primary" onClick={addBoard}>+ Add board</button>
         <button onClick={onOpenCutList} title="Cut list — parts, quantities and joinery">
           Cut list
         </button>
-        <button onClick={onOpenGenerate} title="Generate a prototype from a description">
-          {generating ? `Generating ${generating.total - generating.live}/${generating.total}…` : 'Generate…'}
-        </button>
-        <button onClick={onOpenJoinery} title="Add joints to the open design">Add joinery…</button>
-        <button onClick={onOpenRefine} title="Change the open prototype by instruction">Refine…</button>
+        <Popover
+          className="claude-menu"
+          title="Generate, refine or add joinery with Claude"
+          label={<>{generating ? `Claude · Generating ${done}/${generating.total}…` : 'Claude'}<span aria-hidden="true"> ▾</span></>}
+          items={[
+            { label: 'Generate…', detail: 'A new prototype from a description', run: onOpenGenerate },
+            { label: 'Refine…', detail: 'Change this design by instruction', run: onOpenRefine },
+            { label: 'Add joinery…', detail: 'Choose joints; saved as a new project', run: onOpenJoinery },
+          ]}
+        />
         <span className="toolbar-divider" />
         <button onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
         <button onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>
-        <span className="toolbar-divider" />
-        <button
-          onClick={() => setTool('select')}
-          aria-pressed={tool === 'select'}
-          title="Select tool — click a part to select it, drag its gizmo to move it (Esc)"
-        >
-          Select
-        </button>
-        <button
-          onClick={() => setTool('move')}
-          aria-pressed={tool === 'move'}
-          title="Move tool — click a corner or midpoint, then click one on another part to snap them together (M)"
-        >
-          Move
-        </button>
-        {tool === 'move' && !hasSelection && (
-          // The Move tool grabs points on the selected board only, so with
-          // nothing selected no marker ever appears and the tool reads as
-          // broken rather than as waiting. The button stays enabled: disabling
-          // it would take a control away to explain a state, and would need
-          // its own rule for a board deleted while the tool is active — which
-          // this needs none for, since deleteBoard already clears both.
-          <span className="toolbar-hint">Select a part to move</span>
-        )}
-        <button
-          onClick={() => setTool('tape')}
-          aria-pressed={tool === 'tape'}
-          title="Tape measure — click a point, then click another to measure and place a guide point; type a distance to place it partway (T)"
-        >
-          Tape
-        </button>
-        <span className="toolbar-divider" />
-        <button
-          onClick={onToggleProjection}
-          aria-pressed={orthographic}
-          title="Orthographic view — parallel projection, for checking alignment"
-        >
-          Orthographic
-        </button>
-        <label className="checkbox toolbar-checkbox">
-          <input type="checkbox" checked={showGrid} onChange={onToggleGrid} />
-          Grid
-        </label>
-        <label className="checkbox toolbar-checkbox">
-          <input type="checkbox" checked={showAxes} onChange={onToggleAxes} />
-          Origin
-        </label>
-        <label className="checkbox toolbar-checkbox">
-          <input type="checkbox" checked={showGuides} onChange={onToggleGuides} />
-          Guides
-        </label>
       </div>
 
       {/* Right group: settings, then the document's state on disk. */}

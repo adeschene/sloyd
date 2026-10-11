@@ -29,6 +29,8 @@ handicraft education tradition built around hand woodworking.
   CHOSEN: ask what to work on; do not pick.** Open near the recent code:
   241 (open by decision),
   221, 225 (rest out of scope), 232, 234, 247. See Open follow-ups below.
+- **The ui-polish round is committed on branch `ui-polish`, merge pending** (its whole-branch
+  review, then the user): no schema change, so rollback is free. Not deployed; follow-ups 248–251.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
   byte-identical bundles (test-only). Check what a later commit touches before reading
@@ -80,6 +82,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | 246/226/227 | 10-11 | — | Deleting an assembly's last part removes it; dead eyes say why; `›` reserved in written names; sweep re-run on flipped views |
 | 229/233 | 10-11 | — | Ungroup keeps the other copy's hidden assembly hidden (as its children); one cap report for one fault |
 | mirrored instances | 10-11 | 13 | `Instance.mirrored`: a live mirrored copy through the one composition; Mirrored checkbox, Copy mirrored, ⇋ badge |
+| ui polish | 10-11 | — | Grey/walnut palette; tools and view float over the viewport; Claude ▾; action row with More ▾ and a trash icon; Guides footer |
 
 ### The deployment rule
 
@@ -253,7 +256,10 @@ src/
 ├── panels/           DimensionField/NameField (invs 5, 9), Properties, CopyInRow, PartsList,
 │                     Toolbar, TapeReadout (invs 27, 28), GuidesList, ProjectMenu,
 │                     SettingsDialog, GenerateDialog, JoineryDialog, RefineDialog, RepairNotice, CutList, PartDiagram,
-│                     SheetLayout, diagramScale, diagramLabels (inv 19)
+│                     SheetLayout, diagramScale, diagramLabels (inv 19); Popover (Claude ▾, More ▾),
+│                     ViewportControls (tools/view over the canvas), ActionBar (three actions, More ▾,
+│                     trash), GuidesFooter (opens itself when the guide count goes up)
+├── styles.css        surface ROLES over --grey-*/--walnut-*; palette.test.ts pins contrast (4.5:1)
 └── App.tsx           layout, autosave/restore, the ONE keydown effect (inv 27), `pending`
                       (inv 29), switchToken (inv 32), `.app-shell` inert behind any modal
 ```
@@ -305,6 +311,11 @@ Deployment scaffolding: `Dockerfile`, `docker-compose.yml`, `nginx.conf`,
   focus. Rendered only when `libraryAvailable`. A duplicate error's cause is read off
   `storage.available` (the ADAPTER flag, never React's `available`; fu 159).
 - **`GuidesList.tsx`** has no selection model, deliberately.
+- **`Popover.tsx`**: focuses the trigger BEFORE running an item (App records the opener);
+  Escape is bound on its subtree with `stopPropagation`, never on window (inv 27).
+  ProjectMenu keeps its own copy.
+- **`styles.css`**: rules read surface ROLES (`--surface`, `--control`, `--rule`, `--ink`…),
+  never raw `--grey-*`/`--walnut-*`; grey chrome re-points the roles in one context selector.
 - **`App.tsx` keys**: plain and Shift+H match by `e.key`; only Alt+H by `e.code === 'KeyH'`;
   Ctrl/Cmd+H is unbound. Escape's ladder: grabbed → tapeAxis → tapeAnchor → tool.
 
@@ -533,7 +544,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 2881 tests across 94 files
+npm test           # Vitest, currently 2918 tests across 99 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -542,7 +553,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–247, each with its closure). Read the entries
+**`docs/follow-ups.md` is authoritative** (1–251, each with its closure). Read the entries
 for the area you are about to touch; several are "correct but untested". Open items worth
 knowing without opening it:
 
@@ -554,6 +565,10 @@ knowing without opening it:
   since schema 13 a mirrored pair is expressible if prototypes come to need it.
 - **247** — the mirrored-instances residue: `sameSideFirst` is dead in `linkBoards` (still needed
   for the shared posture write) and three texts overstate its role there; small unpinned guards.
+- **248–251** — ui-polish residue: the new viewport colours unseen on a real GPU (248, the user looks
+  after the deploy); the cyan edge-midpoint marker weakest on maple, 1.86:1 (249, a user decision, do not
+  recolour unasked); Popover/ProjectMenu's null-`relatedTarget` focusout would close before an item's click on
+  Safari/macOS Firefox (250, latent); deferred minors (251).
 - **176/177** — the held rules' known limits (mutual lapping) and an unseen live repair.
 - **130** — semi-infinite construction lines; picked and set aside 2026-08-31 without a
   reason. Ask before assuming it's wanted; it needs real hardware (26a).

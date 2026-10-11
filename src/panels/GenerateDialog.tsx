@@ -87,7 +87,7 @@ export function GenerateDialog(p: Props) {
   };
 
   const limitField = (label: string, value: string, set: (v: string) => void) => (
-    <div className="field generate-limit">
+    <div className="field">
       <label htmlFor={`gen-${label}`}>{`Max ${label}`}</label>
       <input id={`gen-${label}`} className={`input${parseLimit(value) === 'bad' ? ' invalid' : ''}`}
         placeholder="no limit" value={value} onChange={(e) => set(e.target.value)} />
@@ -107,10 +107,10 @@ export function GenerateDialog(p: Props) {
         <fieldset className="field generate-count">
           <legend>Generations</legend>
           {([1, 2, 3] as const).map((n) => (
-            <label key={n}><input type="radio" name="gen-count" checked={count === n} onChange={() => setCount(n)} aria-label={String(n)} />{n}</label>
+            <label key={n} className="checkbox"><input type="radio" name="gen-count" checked={count === n} onChange={() => setCount(n)} aria-label={String(n)} />{n}</label>
           ))}
         </fieldset>
-        <div className="generate-limits">
+        <div className="field-grid field-grid-3 generate-limits">
           {limitField('width', width, setWidth)}
           {limitField('depth', depth, setDepth)}
           {limitField('height', height, setHeight)}

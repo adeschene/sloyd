@@ -7,7 +7,7 @@ import { screenPixelsPerInch } from './screenScale';
 /**
  * Marker colour by kind. These are OFF-PALETTE on purpose, with the user's
  * explicit approval, and that is worth defending rather than quietly fixing:
- * brass (#c99a4e) is the one live colour in the app (snap-move design §6.1).
+ * oak (#c8955a) is the one live colour in the app (snap-move design §6.1).
  *
  * An inference marker is transient chrome, not part of the model, and it has
  * exactly one job — telling you which KIND of point you are about to snap to,
@@ -15,7 +15,7 @@ import { screenPixelsPerInch } from './screenScale';
  * sit on a corner without hiding it. Hue can.
  *
  * All four are cool and saturated against a palette that is entirely warm and
- * desaturated (ground #e6e3dd, grid #c6c1b8/#958f84, brass #c99a4e), so they
+ * desaturated (ground #ebe3d4, grid #d3c7b3/#9c8f7b, oak #c8955a), so they
  * read as not-part-of-the-model rather than as a clashing member of it. The
  * hues are spread far enough apart to stay mutually distinct, and the first
  * three echo SketchUp's own endpoint/midpoint convention closely enough to be

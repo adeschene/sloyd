@@ -313,6 +313,12 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
+/** Opens the Claude ▾ menu and chooses one of its items. */
+async function claudeItem(user: ReturnType<typeof userEvent.setup>, item: string) {
+  await user.click(screen.getByRole('button', { name: /^Claude/ }));
+  await user.click(screen.getByRole('button', { name: item }));
+}
+
 describe('App restore-on-mount', () => {
   it('does not clobber a document the user edited while the restore was in flight', async () => {
     const { promise, resolve } = deferred<{ activeId: string; doc: SloydDocument; libraryAvailable: boolean }>();
@@ -815,6 +821,54 @@ describe('App project switching', () => {
     expect(useStore.getState().doc.name).toBe('Project B');
     expect(setActiveProject).toHaveBeenLastCalledWith(idB);
     expect(setActiveProject).not.toHaveBeenCalledWith('pA');
+  });
+});
+
+// ---- ui-polish spec §4.5: the Guides footer is closed on load and switch ----
+//
+// GuidesFooter opens itself when the guide count goes UP. Before App keyed it
+// per project, its baseline was the count at mount — App mounts with an empty
+// document and restore's replaceDocument raised the count, so the footer
+// opened on every page load of a project with guides. MUTATE: drop the
+// `key={activeId}` on <GuidesFooter> in App.tsx — the restore test goes red.
+describe('App Guides footer across load and switch', () => {
+  const settle = async () => {
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+  };
+  const withGuides = (name: string, n: number): SloydDocument => ({
+    ...createDocument(name),
+    guides: Array.from({ length: n }, (_, i) => ({ id: `g${i}`, at: [i * 6, 0, 0] as [number, number, number] })),
+  });
+  const guidesToggle = () => screen.getByRole('button', { name: /^Guides · \d+$/ });
+
+  it('stays closed when the restored project has guides', async () => {
+    fake.seed(withGuides('Saved', 2), 'pSaved');
+    render(<App />);
+    await settle();
+    expect(guidesToggle()).toHaveAccessibleName('Guides · 2');
+    expect(guidesToggle()).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('stays closed after switching to another project with guides, then opens when a guide is placed', async () => {
+    fake.seed(withGuides('Other', 3), 'pOther');
+    // Home has none, so this test's red under the mutation comes from the
+    // SWITCH, independently of the restore test above.
+    fake.seed(withGuides('Home', 0), 'pHome');
+    render(<App />);
+    await settle();
+    expect(guidesToggle()).toHaveAttribute('aria-expanded', 'false');
+
+    fireEvent.click(screen.getByLabelText('Open project menu'));
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: /^Other/ }));
+    await settle();
+    expect(useStore.getState().doc.name).toBe('Other');
+    expect(guidesToggle()).toHaveAccessibleName('Guides · 3');
+    expect(guidesToggle()).toHaveAttribute('aria-expanded', 'false');
+
+    act(() => { useStore.getState().addGuide([30, 0, 0]); });
+    expect(guidesToggle()).toHaveAccessibleName('Guides · 4');
+    expect(guidesToggle()).toHaveAttribute('aria-expanded', 'true');
   });
 });
 
@@ -1538,7 +1592,7 @@ describe('Generate', () => {
     useStore.getState().selectBoard(boardId);
     const pastBefore = useStore.getState().past.length;
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /generate/i }));
+    await claudeItem(user, 'Generate…');
     expect(viewportProps.current?.shortcutsSuspended).toBe(true);
     expect(document.querySelector('.app-shell')!.hasAttribute('inert')).toBe(true);
     expect(document.activeElement).toBe(document.querySelector('.modal-sheet'));
@@ -1558,7 +1612,7 @@ describe('Generate', () => {
     const docBefore = useStore.getState().doc;
     const pastBefore = useStore.getState().past.length;
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /generate/i }));
+    await claudeItem(user, 'Generate…');
     await user.type(screen.getByLabelText('Description'), 'a bench');
     await user.click(screen.getByRole('button', { name: 'Generate' }));
     await screen.findByRole('button', { name: 'Open Bench' });
@@ -1575,13 +1629,13 @@ describe('Generate', () => {
     completeImpl.current = async () => { await gate; return { json: GOOD, assistantTurn: {}, usage }; };
     await mountWithOneBoard();
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /generate/i }));
+    await claudeItem(user, 'Generate…');
     await user.type(screen.getByLabelText('Description'), 'a bench');
     await user.click(screen.getByRole('button', { name: 'Generate' }));
     await user.click(screen.getByRole('button', { name: 'Close' }));
     expect(screen.getByRole('button', { name: /generating 0\/1/i })).toBeInTheDocument();
     release();
-    await user.click(await screen.findByRole('button', { name: /generate/i }));
+    await claudeItem(user, 'Generate…');
     await screen.findByRole('button', { name: 'Open Bench' });
   });
 
@@ -1589,7 +1643,7 @@ describe('Generate', () => {
     llmSettings = { provider: 'anthropic', apiKey: 'k', model: 'claude-opus-5-5' };
     await mountWithOneBoard();
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /generate/i }));
+    await claudeItem(user, 'Generate…');
     await user.type(screen.getByLabelText('Description'), 'a bench');
     await user.click(screen.getByRole('button', { name: 'Generate' }));
     await user.click(await screen.findByRole('button', { name: 'Open Bench' }));
@@ -1608,7 +1662,7 @@ describe('Generate', () => {
     llmSettings = { provider: 'anthropic', apiKey: 'k', model: 'claude-opus-5-5' };
     await mountWithOneBoard();
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /generate/i }));
+    await claudeItem(user, 'Generate…');
     await user.type(screen.getByLabelText('Description'), 'a bench');
     await user.click(screen.getByRole('button', { name: 'Generate' }));
     await screen.findByRole('button', { name: 'Open Bench' });
@@ -1637,7 +1691,7 @@ describe('Generate', () => {
     await waitFor(() => expect(loadProject).toHaveBeenCalledWith(otherId));
     // The switch is now out, parked on loadProject. Run a generation to
     // completion underneath it.
-    await user.click(screen.getByRole('button', { name: /generate/i }));
+    await claudeItem(user, 'Generate…');
     await user.type(screen.getByLabelText('Description'), 'a bench');
     await user.click(screen.getByRole('button', { name: 'Generate' }));
     await screen.findByRole('button', { name: 'Open Bench' });
@@ -1728,10 +1782,11 @@ describe('App assemblies', () => {
       act(() => field.blur());
     });
 
-    it.each([['the cut list', /cut list/i], ['a dialog (Generate)', /generate/i]])('does nothing behind %s: no group, no ungroup, not prevented', async (_name, button) => {
+    it.each([['the cut list', 'cutlist'], ['a dialog (Generate)', 'generate']])('does nothing behind %s: no group, no ungroup, not prevented', async (_name, button) => {
       const user = await mountGrouped();
       const past = useStore.getState().past.length;
-      await user.click(screen.getByRole('button', { name: button }));
+      if (button === 'generate') await claudeItem(user, 'Generate…');
+      else await user.click(screen.getByRole('button', { name: /cut list/i }));
       expect(document.querySelector('.app-shell')!.hasAttribute('inert')).toBe(true);
       expect(fireEvent.keyDown(window, { key: 'g', ctrlKey: true })).toBe(true);
       expect(ids()).toEqual(['i1']);
@@ -1842,7 +1897,7 @@ describe('App assemblies', () => {
     expect(grouped.boards).toHaveLength(0);
     act(() => { useStore.getState().replaceDocument(grouped); });
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /add joinery/i }));
+    await claudeItem(user, 'Add joinery…');
     const dialog = await screen.findByRole('dialog', { name: 'Add joinery' });
     expect(dialog.querySelectorAll('li').length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText(/No joints to add/)).toBeNull();

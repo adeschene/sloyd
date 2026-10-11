@@ -71,7 +71,7 @@ export function RefineDialog(p: Props) {
   ];
   const out = p.run?.status === 'ready' ? p.run.outcome : undefined;
   const field = (label: string, value: string, set: (v: string) => void) => (
-    <div className="field generate-limit">
+    <div className="field">
       <label htmlFor={`refine-${label}`}>{`Max ${label}`}</label>
       <input id={`refine-${label}`} className={`input${parseLimit(value) === 'bad' ? ' invalid' : ''}`}
         placeholder="no limit" value={value} onChange={(e) => set(e.target.value)} />
@@ -90,7 +90,7 @@ export function RefineDialog(p: Props) {
               <textarea id="refine-instruction" className="input" rows={3} value={instruction}
                 placeholder="Make the legs 2in longer and add a lower shelf" onChange={(e) => setInstruction(e.target.value)} />
             </div>
-            <div className="generate-limits">
+            <div className="field-grid field-grid-3 generate-limits">
               {field('width', width, setWidth)}
               {field('depth', depth, setDepth)}
               {field('height', height, setHeight)}

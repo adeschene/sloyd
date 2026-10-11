@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Viewport } from './viewport/Viewport';
 import { Toolbar } from './panels/Toolbar';
+import { ViewportControls } from './panels/ViewportControls';
 import { PartsList } from './panels/PartsList';
 import { Properties } from './panels/Properties';
-import { GuidesList } from './panels/GuidesList';
+import { GuidesFooter } from './panels/GuidesFooter';
 import { FileMenu, SaveIndicator, StorageBanner } from './panels/FileMenu';
 import type { FileMenuHandle } from './panels/FileMenu';
 import { CutList } from './panels/CutList';
@@ -838,14 +839,6 @@ export default function App() {
       */}
       <div className="app-shell" inert={modalOpen}>
         <Toolbar
-          orthographic={orthographic}
-          onToggleProjection={() => setOrthographic((v) => !v)}
-          showGrid={showGrid}
-          onToggleGrid={() => setShowGrid((v) => !v)}
-          showAxes={showAxes}
-          onToggleAxes={() => setShowAxes((v) => !v)}
-          showGuides={showGuides}
-          onToggleGuides={() => setShowGuides((v) => !v)}
           onOpenCutList={() => {
             opener.current = document.activeElement as HTMLElement | null;
             setCutListOpen(true);
@@ -908,6 +901,16 @@ export default function App() {
               showGuides={showGuides}
               shortcutsSuspended={modalOpen}
             />
+            <ViewportControls
+              orthographic={orthographic}
+              onToggleProjection={() => setOrthographic((v) => !v)}
+              showGrid={showGrid}
+              onToggleGrid={() => setShowGrid((v) => !v)}
+              showAxes={showAxes}
+              onToggleAxes={() => setShowAxes((v) => !v)}
+              showGuides={showGuides}
+              onToggleGuides={() => setShowGuides((v) => !v)}
+            />
             {/*
               UNCONDITIONALLY MOUNTED, and that is load-bearing rather than
               lazy. It returns null unless the tape is anchored, so
@@ -930,10 +933,13 @@ export default function App() {
               <h2>Properties</h2>
               <Properties />
             </section>
-            <section className="panel panel-guides">
-              <h2>Guides</h2>
-              <GuidesList />
-            </section>
+            {/*
+              Keyed per project (ui-polish spec §4.5): the footer opens itself
+              when the guide count goes UP, judged against the count at mount.
+              A fresh instance per project makes a load or a switch its new
+              baseline, so opening a project with guides leaves it closed.
+            */}
+            <GuidesFooter key={activeId} />
           </aside>
         </main>
       </div>

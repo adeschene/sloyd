@@ -20,7 +20,7 @@ import { screenPixelsPerInch } from './screenScale';
 import { watchClickPairs } from './pointer';
 
 /** The bench top the model sits on. Light, so wood tones and shadows read. */
-const GROUND = '#e6e3dd';
+const GROUND = '#ebe3d4';
 
 /**
  * Half-width of the shadow camera's frustum, in inches. World units here are
@@ -219,10 +219,10 @@ function AdaptiveGrid() {
       // the whole grid looks washed out. These are the pre-supersampling
       // values (0.5 and 1) doubled.
       cellThickness={1}
-      cellColor="#c6c1b8"
+      cellColor="#d3c7b3"
       sectionSize={tier.sectionSize}
       sectionThickness={2}
-      sectionColor="#958f84"
+      sectionColor="#9c8f7b"
       // Deliberately NOT infiniteGrid: an infinite grid has no single
       // readable density, since however coarse the tier the lines still
       // recede to the horizon and pile into a grey haze there — which is what
@@ -322,7 +322,7 @@ export function Viewport({
       )}
 
       <color attach="background" args={[GROUND]} />
-      <hemisphereLight intensity={0.55} groundColor="#b9b2a6" />
+      <hemisphereLight intensity={0.55} groundColor="#bfb29e" />
       <directionalLight
         position={[60, 90, 40]}
         intensity={1.5}
