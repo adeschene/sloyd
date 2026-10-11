@@ -829,51 +829,33 @@ button[aria-pressed='true'] {
 .action-delete { margin-left: auto; padding: 4px 7px; color: var(--alert); display: inline-flex; align-items: center; }
 .action-delete svg { display: block; }
 
-.properties .name {
-  display: block;
-  width: 100%;
-  font-size: 13px;
-  font-weight: 600;
-  padding: 6px 8px;
-}
+.props-name { display: flex; align-items: center; gap: 8px; }
+.props-name .name { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; padding: 6px 8px; }
+.props-title { margin: 0; padding: 0; border: 0; font-family: var(--font-ui); font-size: 13px;
+  font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink); }
+.kind-chip { flex: none; font-family: var(--font-num); font-size: 10px; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ink-dim); border: 1px solid var(--rule);
+  border-radius: 10px; padding: 2px 7px; }
+.h3-count { letter-spacing: 0.05em; }
 
-.field {
-  display: flex;
-  align-items: center;
-  /* The validation message is a sibling of the input inside this row; wrapping
-     drops it onto its own line instead of squeezing the input to nothing. */
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 4px;
-}
+/* A field is a label over its control (ui-polish spec §4.3, §5). */
+.field { display: flex; flex-direction: column; align-items: stretch; gap: 3px; margin-bottom: 6px; min-width: 0; }
+.field label { font-size: 11px; color: var(--ink-dim); }
+.field .input { width: 100%; }
+.field input.input { font-family: var(--font-num); font-size: 12px; font-variant-numeric: tabular-nums;
+  text-align: right; letter-spacing: 0.01em; }
 
-.field label {
-  width: 82px;
-  flex: none;
-  font-family: var(--font-num);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-}
-
-.field .input { flex: 1; }
-
-/* A control whose heading is its label takes the full column width. */
-.field-wide .input { width: 100%; }
-
-/* Measurements are read as numbers, so they are set as numbers: monospace,
-   tabular, right-aligned so the fractions line up down the column. */
-.field input.input {
-  font-family: var(--font-num);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-  letter-spacing: 0.01em;
-}
+.field-grid { display: grid; gap: 6px 8px; margin-bottom: 6px; }
+.field-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.field-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.field-grid > .field { margin-bottom: 0; }
+.field-grid > .field-error,
+.field-grid > .field-note,
+.field-grid > .field:has(> .field-error) { grid-column: 1 / -1; }
+.field-grid { grid-auto-flow: dense; }
+.field-grid-checkbox { align-self: end; padding-bottom: 6px; }
 
 .field-error {
-  flex: 0 0 100%;
   margin: 0 0 2px;
   color: var(--alert);
   font-family: var(--font-num);
@@ -897,32 +879,14 @@ button[aria-pressed='true'] {
   line-height: 1.4;
 }
 
-.cut {
-  border-top: 1px solid var(--rule);
-  padding-top: 0.5rem;
-  margin-top: 0.5rem;
-}
+.cut { background: var(--raised); border: 1px solid var(--rule); border-radius: 4px;
+  padding: 8px; margin: 0 0 8px; }
+.cut-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.cut-label { font-weight: 600; text-transform: capitalize; }
+.cut-remove { padding: 0 6px; line-height: 1.6; background: none; color: var(--ink-dim); }
+.cut-remove:hover:not(:disabled) { background: var(--alert-bg-strong); border-color: var(--alert-border); color: var(--alert-bright); }
 
-.cut-head {
-  align-items: baseline;
-  justify-content: space-between;
-}
-
-.cut-label {
-  text-transform: capitalize;
-  opacity: 0.75;
-  font-size: 0.85em;
-}
-
-.checkbox {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--ink-dim);
-  cursor: pointer;
-  margin-top: 2px;
-}
+.checkbox { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink); cursor: pointer; }
 
 .checkbox input { accent-color: var(--accent); cursor: pointer; }
 
