@@ -95,11 +95,15 @@ export const LINK_ACROSS_MIRROR = "Can't link parts on opposite sides of a mirro
  * (fu 231). Without it, ids are taken to be distinct stored parts.
  *
  * `mirroredOf` says whether an occurrence sits under an odd number of mirrors
- * (tree's `mirroredAt`, which this layer cannot import). When given, members on
- * opposite sides of a mirror are refused with LINK_ACROSS_MIRROR: a Shape's cuts
- * are stored once, so a member under the other parity would show them
- * mirror-imaged, not as the source's (mirrored-instances spec §4, amended). Every
- * member counts, not only the selected ones: each becomes a user of the Shape.
+ * (tree's `mirroredAt`, which this layer cannot import). A Shape's cuts are
+ * stored once, so a user under the other parity shows them mirror-imaged
+ * (mirrored-instances spec §4, amended). A member whose STORED part also sits on
+ * the source's side is fine: its other-side occurrences are a live mirrored copy
+ * of it, the feature itself. Only a member whose stored part has NO occurrence
+ * on the source's side would show the source's cuts mirror-imaged, so Link is
+ * refused with LINK_ACROSS_MIRROR (every member counts, those a linked part
+ * brings along included: each becomes a user). `changing` counts only the
+ * members on the source's side, the ones that must match it as seen.
  */
 export function linkPlan(
   boards: readonly Board[],
@@ -114,10 +118,16 @@ export function linkPlan(
   const picked = new Set(chosen.map((b) => b.id));
   const members = boards.filter((b) => picked.has(b.id) || (b.shape !== undefined && shapes.has(b.shape)));
   if (keyOf && new Set(members.map((b) => keyOf(b.id) ?? b.id)).size < 2) return null;
-  const changing = members.filter((b) => b.id !== source.id && !sameShared(source, b)).map((b) => b.id);
+  const side = mirroredOf?.(source.id);
+  const onSide = (b: Board) => mirroredOf === undefined || mirroredOf(b.id) === side;
+  const changing = members.filter((b) => b.id !== source.id && onSide(b) && !sameShared(source, b)).map((b) => b.id);
   const shape = source.shape ?? [...shapes][0] ?? null;
   const oneShape = members.every((b) => b.shape !== undefined && b.shape === members[0]!.shape);
   if (oneShape && changing.length === 0) return null;
-  if (mirroredOf && new Set(members.map((b) => mirroredOf(b.id))).size > 1) return { refused: LINK_ACROSS_MIRROR };
+  if (mirroredOf) {
+    const key = (id: string) => keyOf?.(id) ?? id;
+    const stored = new Set(boards.filter(onSide).map((b) => key(b.id)));
+    if (members.some((b) => !stored.has(key(b.id)))) return { refused: LINK_ACROSS_MIRROR };
+  }
   return { source, members: members.map((b) => b.id), changing, shape };
 }

@@ -514,9 +514,10 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       `placedBox`) change handedness while preserving the placed box; Ungroup lifts a shaped
       part through a mirror as plain. World→local vectors go through
       `toLocal(containerLinear(…))`, never a hand-written turn. Refine refuses a mirrored
-      assembly. **A Shape never spans a mirror by Link or by a posture change:** `linkPlan`
-      refuses members of differing parity (`mirroredAt`), and `postureRefusal` refuses a
-      d0-moving posture change (flat/on-edge ↔ upright) on a Shape with users on both sides;
+      assembly. **Across a mirror:** `linkPlan` refuses a member whose STORED part has no
+      occurrence on the source's side (`mirroredAt`; a live mirrored copy of a same-side part
+      is fine), and `postureRefusal` refuses a d0-moving posture change (flat/on-edge ↔
+      upright) on a Shape with users (any placement) on both sides;
       both decided before any mutation, one decider shared by store and panel. Link builds the
       Shape from the source's STORED fields, never the world part.
 
