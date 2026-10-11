@@ -34,15 +34,6 @@ function renderToolbar(overrides: Partial<Parameters<typeof Toolbar>[0]> = {}) {
   );
 }
 
-describe('Toolbar Refine button', () => {
-  it('asks its parent to open Refine', async () => {
-    const onOpenRefine = vi.fn();
-    renderToolbar({ onOpenRefine });
-    await userEvent.click(screen.getByRole('button', { name: 'Refine…' }));
-    expect(onOpenRefine).toHaveBeenCalledTimes(1);
-  });
-});
-
 describe('Toolbar', () => {
   it('opens the cut list', async () => {
     let opened = false;
@@ -70,21 +61,36 @@ describe('Project menu gating', () => {
   });
 });
 
-describe('Toolbar Generate button', () => {
-  it('reads Generate… when nothing is running', () => {
+const claude = (name = 'Claude') => screen.getByRole('button', { name });
+
+describe('Toolbar Claude menu', () => {
+  it.each([
+    ['Generate…', 'onOpenGenerate'],
+    ['Refine…', 'onOpenRefine'],
+    ['Add joinery…', 'onOpenJoinery'],
+  ] as const)('%s asks its parent to open its dialog', async (item, cb) => {
+    const spy = vi.fn();
+    renderToolbar({ [cb]: spy });
+    await userEvent.click(claude());
+    await userEvent.click(screen.getByRole('button', { name: item }));
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads Claude when nothing is running', () => {
     renderToolbar();
-    expect(screen.getByRole('button', { name: 'Generate…' })).toBeInTheDocument();
+    expect(claude()).toBeInTheDocument();
   });
 
-  it('counts finished runs while a batch is live — done = total − live', () => {
+  it('counts finished runs on the trigger while a batch is live — done = total − live', () => {
     renderToolbar({ generating: { live: 1, total: 3 } });
-    expect(screen.getByRole('button', { name: 'Generating 2/3…' })).toBeInTheDocument();
+    expect(claude('Claude · Generating 2/3…')).toBeInTheDocument();
   });
 
-  it('still opens the dialog while a batch is live', async () => {
+  it('still opens Generate while a batch is live', async () => {
     const onOpenGenerate = vi.fn();
     renderToolbar({ generating: { live: 2, total: 2 }, onOpenGenerate });
-    await userEvent.click(screen.getByRole('button', { name: 'Generating 0/2…' }));
+    await userEvent.click(claude('Claude · Generating 0/2…'));
+    await userEvent.click(screen.getByRole('button', { name: 'Generate…' }));
     expect(onOpenGenerate).toHaveBeenCalledTimes(1);
   });
 

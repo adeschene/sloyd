@@ -139,6 +139,8 @@ canvas { display: block; }
   padding: 9px 14px 15px;
   background: var(--surface);
   flex: none;
+  flex-wrap: nowrap;
+  min-width: 0;
 }
 
 /* The scale edge. Baseline hairline, minor ticks, oak major every 96px. */
@@ -258,8 +260,11 @@ button[aria-pressed='true'] {
   background: var(--alert-bg);
 }
 
+.toolbar button { white-space: nowrap; }
+.toolbar .btn-primary { color: var(--on-accent); }
+
 .doc-name {
-  width: 200px;
+  width: 180px;
   flex: none;
   font-weight: 500;
 }

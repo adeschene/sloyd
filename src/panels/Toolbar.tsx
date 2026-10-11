@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { useStore } from '../store/store';
+import { Popover } from './Popover';
 import { ProjectMenu } from './ProjectMenu';
 import type { DuplicateFailure } from './ProjectMenu';
 
@@ -33,9 +34,9 @@ interface Props {
   onOpenSettings: () => void;
   /**
    * The live batch, or null when nothing is running. While non-null the
-   * Generate button reads "Generating done/total…" and STILL opens the dialog
-   * (spec §6.1) — closing the dialog does not cancel, so this label is the
-   * only sign runs are out while it is shut.
+   * the Claude trigger reads "Claude · Generating done/total…" and Generate
+   * STILL opens its dialog (spec §6.1) — closing the dialog does not cancel,
+   * so this label is the only sign runs are out while it is shut.
    */
   generating: { live: number; total: number } | null;
   /**
@@ -70,6 +71,7 @@ export function Toolbar({
   const canUndo = useStore((s) => s.past.length > 0);
   const canRedo = useStore((s) => s.future.length > 0);
 
+  const done = generating ? generating.total - generating.live : 0;
   return (
     <header className="toolbar">
       {/* Left group: the document and the things that change it. */}
@@ -94,15 +96,21 @@ export function Toolbar({
             newIds={newIds}
           />
         )}
+        <span className="toolbar-divider" />
         <button className="btn-primary" onClick={addBoard}>+ Add board</button>
         <button onClick={onOpenCutList} title="Cut list — parts, quantities and joinery">
           Cut list
         </button>
-        <button onClick={onOpenGenerate} title="Generate a prototype from a description">
-          {generating ? `Generating ${generating.total - generating.live}/${generating.total}…` : 'Generate…'}
-        </button>
-        <button onClick={onOpenJoinery} title="Add joints to the open design">Add joinery…</button>
-        <button onClick={onOpenRefine} title="Change the open prototype by instruction">Refine…</button>
+        <Popover
+          className="claude-menu"
+          title="Generate, refine or add joinery with Claude"
+          label={<>{generating ? `Claude · Generating ${done}/${generating.total}…` : 'Claude'}<span aria-hidden="true"> ▾</span></>}
+          items={[
+            { label: 'Generate…', detail: 'A new prototype from a description', run: onOpenGenerate },
+            { label: 'Refine…', detail: 'Change this design by instruction', run: onOpenRefine },
+            { label: 'Add joinery…', detail: 'Choose joints; saved as a new project', run: onOpenJoinery },
+          ]}
+        />
         <span className="toolbar-divider" />
         <button onClick={undo} disabled={!canUndo} title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
         <button onClick={redo} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>

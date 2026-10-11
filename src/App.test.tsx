@@ -313,6 +313,12 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
+/** Opens the Claude ▾ menu and chooses one of its items. */
+async function claudeItem(user: ReturnType<typeof userEvent.setup>, item: string) {
+  await user.click(screen.getByRole('button', { name: /^Claude/ }));
+  await user.click(screen.getByRole('button', { name: item }));
+}
+
 describe('App restore-on-mount', () => {
   it('does not clobber a document the user edited while the restore was in flight', async () => {
     const { promise, resolve } = deferred<{ activeId: string; doc: SloydDocument; libraryAvailable: boolean }>();
@@ -1538,7 +1544,7 @@ describe('Generate', () => {
     useStore.getState().selectBoard(boardId);
     const pastBefore = useStore.getState().past.length;
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /generate/i }));
+    await claudeItem(user, 'Generate…');
     expect(viewportProps.current?.shortcutsSuspended).toBe(true);
     expect(document.querySelector('.app-shell')!.hasAttribute('inert')).toBe(true);
     expect(document.activeElement).toBe(document.querySelector('.modal-sheet'));
@@ -1558,7 +1564,7 @@ describe('Generate', () => {
     const docBefore = useStore.getState().doc;
     const pastBefore = useStore.getState().past.length;
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /generate/i }));
+    await claudeItem(user, 'Generate…');
     await user.type(screen.getByLabelText('Description'), 'a bench');
     await user.click(screen.getByRole('button', { name: 'Generate' }));
     await screen.findByRole('button', { name: 'Open Bench' });
@@ -1575,13 +1581,13 @@ describe('Generate', () => {
     completeImpl.current = async () => { await gate; return { json: GOOD, assistantTurn: {}, usage }; };
     await mountWithOneBoard();
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /generate/i }));
+    await claudeItem(user, 'Generate…');
     await user.type(screen.getByLabelText('Description'), 'a bench');
     await user.click(screen.getByRole('button', { name: 'Generate' }));
     await user.click(screen.getByRole('button', { name: 'Close' }));
     expect(screen.getByRole('button', { name: /generating 0\/1/i })).toBeInTheDocument();
     release();
-    await user.click(await screen.findByRole('button', { name: /generate/i }));
+    await claudeItem(user, 'Generate…');
     await screen.findByRole('button', { name: 'Open Bench' });
   });
 
@@ -1589,7 +1595,7 @@ describe('Generate', () => {
     llmSettings = { provider: 'anthropic', apiKey: 'k', model: 'claude-opus-5-5' };
     await mountWithOneBoard();
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /generate/i }));
+    await claudeItem(user, 'Generate…');
     await user.type(screen.getByLabelText('Description'), 'a bench');
     await user.click(screen.getByRole('button', { name: 'Generate' }));
     await user.click(await screen.findByRole('button', { name: 'Open Bench' }));
@@ -1608,7 +1614,7 @@ describe('Generate', () => {
     llmSettings = { provider: 'anthropic', apiKey: 'k', model: 'claude-opus-5-5' };
     await mountWithOneBoard();
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /generate/i }));
+    await claudeItem(user, 'Generate…');
     await user.type(screen.getByLabelText('Description'), 'a bench');
     await user.click(screen.getByRole('button', { name: 'Generate' }));
     await screen.findByRole('button', { name: 'Open Bench' });
@@ -1637,7 +1643,7 @@ describe('Generate', () => {
     await waitFor(() => expect(loadProject).toHaveBeenCalledWith(otherId));
     // The switch is now out, parked on loadProject. Run a generation to
     // completion underneath it.
-    await user.click(screen.getByRole('button', { name: /generate/i }));
+    await claudeItem(user, 'Generate…');
     await user.type(screen.getByLabelText('Description'), 'a bench');
     await user.click(screen.getByRole('button', { name: 'Generate' }));
     await screen.findByRole('button', { name: 'Open Bench' });
@@ -1728,10 +1734,11 @@ describe('App assemblies', () => {
       act(() => field.blur());
     });
 
-    it.each([['the cut list', /cut list/i], ['a dialog (Generate)', /generate/i]])('does nothing behind %s: no group, no ungroup, not prevented', async (_name, button) => {
+    it.each([['the cut list', 'cutlist'], ['a dialog (Generate)', 'generate']])('does nothing behind %s: no group, no ungroup, not prevented', async (_name, button) => {
       const user = await mountGrouped();
       const past = useStore.getState().past.length;
-      await user.click(screen.getByRole('button', { name: button }));
+      if (button === 'generate') await claudeItem(user, 'Generate…');
+      else await user.click(screen.getByRole('button', { name: /cut list/i }));
       expect(document.querySelector('.app-shell')!.hasAttribute('inert')).toBe(true);
       expect(fireEvent.keyDown(window, { key: 'g', ctrlKey: true })).toBe(true);
       expect(ids()).toEqual(['i1']);
@@ -1842,7 +1849,7 @@ describe('App assemblies', () => {
     expect(grouped.boards).toHaveLength(0);
     act(() => { useStore.getState().replaceDocument(grouped); });
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: /add joinery/i }));
+    await claudeItem(user, 'Add joinery…');
     const dialog = await screen.findByRole('dialog', { name: 'Add joinery' });
     expect(dialog.querySelectorAll('li').length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText(/No joints to add/)).toBeNull();
