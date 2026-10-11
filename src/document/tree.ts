@@ -1,6 +1,7 @@
-import type { Board, Definition, Instance, Rotation, SloydDocument, StoredBoard, FlatDocument } from './types';
+import type { Board, Definition, Instance, SloydDocument, StoredBoard, FlatDocument } from './types';
 import { isShaped, resolveBoard, shapeMap } from './shapes';
-import { addTurns, placeBoard } from './frames';
+import { IDENTITY_LINEAR, composeLinear, placeBoard } from './frames';
+import type { Linear } from './frames';
 
 /** A container's contents: the root (the document itself) or a definition. */
 export interface Container { boards: StoredBoard[]; instances: Instance[] }
@@ -67,10 +68,10 @@ export function resolvedPartAt(doc: SloydDocument, occ: string): Board | null {
   const p = partAt(doc, occ);
   return p ? resolveBoard(shapeMap(doc), p) : null;
 }
-/** The sum of the turns of the instances on `path`: how the container's frame is turned in the world. */
-export function containerTurn(doc: SloydDocument, path: string | null): Rotation {
-  if (path === null) return 0;
-  return (instancesOn(doc, path) ?? []).reduce<Rotation>((r, i) => addTurns(r, i.rotation), 0);
+/** The linear part of a container's frame chain from the root (spec §4): turns and mirrors, outermost first. */
+export function containerLinear(doc: SloydDocument, path: string | null): Linear {
+  if (path === null) return IDENTITY_LINEAR;
+  return (instancesOn(doc, path) ?? []).reduce<Linear>((l, i) => composeLinear(l, i), IDENTITY_LINEAR);
 }
 
 /**

@@ -850,3 +850,22 @@ describe('self-snap into the selected assembly, and cut actions on mates (fu 228
     expect(resolvedPartAt(s().doc, 'i1/b2')!.cuts.map((c) => c.id)).toEqual([id]);
   });
 });
+
+describe('moves and copies inside a mirrored assembly (mirrored-instances spec §4)', () => {
+  const mirroredDoc = () => {
+    const d = assemblyDoc();
+    return { ...d, instances: d.instances.map((i) => (i.id === 'i1' ? { ...i, mirrored: true } : i)) };
+  };
+  it('copyInRow inside a mirrored assembly lands at original + k*step along the WORLD axis', () => {
+    load(mirroredDoc());
+    s().openAssembly('i1');
+    const orig = worldParts(s().doc).find((b) => b.id === 'i1/b1')!;
+    s().copyInRow(['i1/b1'], 3, 0, 1, 2.5);
+    const copies = worldParts(s().doc).filter((b) => b.id.startsWith('i1/') && b.name.startsWith('Side') && b.id !== 'i1/b1');
+    expect(copies).toHaveLength(2);
+    const xs = copies.map((c) => c.position[0] - orig.position[0]).sort((a, b) => a - b);
+    expect(xs[0]).toBeCloseTo(2.5, 9);
+    expect(xs[1]).toBeCloseTo(5, 9);
+    copies.forEach((c) => { expect(c.position[1]).toBeCloseTo(orig.position[1], 9); expect(c.position[2]).toBeCloseTo(orig.position[2], 9); });
+  });
+});

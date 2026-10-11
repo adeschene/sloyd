@@ -1,12 +1,14 @@
 import { boardExtents } from './geometry';
-import type { Board, Definition, Instance, Shape, SloydDocument, StoredBoard } from './types';
+import type { Board, Cut, Definition, Instance, Shape, SloydDocument, StoredBoard } from './types';
 import { CUT_GEOMETRY_KEYS } from './cuts';
 import { nextId } from './ids';
 import { LINK_FIELDS, SHARED_KEYS, sharedOf } from './links';
 import { isShaped, resolveBoard, shapeMap } from './shapes';
-import { addTurns, cornerShift, inverseTurn, placeBoard, rotateVec } from './frames';
+import { addTurns, cornerShift, inverseTurn, mirrorDim, mirrorPart, placeBoard, rotateVec, toLocal } from './frames';
+import type { Frame } from './frames';
+import { mirrorCut } from './mirrorCut';
 import type { Container } from './tree';
-import { PATH_SEPARATOR, containerTurn, definitionAt, instanceAt, instancesOn, isCovered, itemPaths, lastSegment, parentPath, partAt, worldParts } from './tree';
+import { PATH_SEPARATOR, containerLinear, definitionAt, instanceAt, instancesOn, isCovered, itemPaths, lastSegment, parentPath, partAt, worldParts } from './tree';
 
 /** Replace one container's contents: the root's, or a definition's. */
 export function updateContainer(doc: SloydDocument, path: string | null, fn: (c: Container) => Container): SloydDocument {
@@ -25,20 +27,63 @@ export interface WorldEdit { before: Board; after: Board }
 const samePosition = (a: readonly number[], b: readonly number[]) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
 const sub = (a: readonly number[], b: readonly number[]) => [a[0]! - b[0]!, a[1]! - b[1]!, a[2]! - b[2]!];
 
+/** One level down, as a DELTA (spec §5.2): the lowered turn, a draft carrying
+ *  the after-state's fields at the before position, and the local position change. */
+function lowerDelta(inst: Frame, upperBefore: Board, lowerBefore: Board, upperAfter: Board): { draft: Board; d: number[] } {
+  const rotation = addTurns(upperAfter.rotation, inverseTurn(inst.rotation));
+  const draft: Board = { ...upperAfter, rotation, position: lowerBefore.position };
+  const dW = sub(upperAfter.position, upperBefore.position);
+  const dS = sub(cornerShift(inst.rotation, draft), cornerShift(inst.rotation, lowerBefore));
+  return { draft, d: rotateVec(inverseTurn(inst.rotation), sub(dW, dS)) };
+}
+
+/**
+ * The cuts of a part lowered back through ONE mirror (mirrored-instances spec §4):
+ * each world cut mirrored back along d0 of the lowered posture — except a cut
+ * that is exactly the placed form of the stored cut with the same id, which maps
+ * back to THAT object (mirrorCut twice is not bit-exact; repeated edits must not
+ * drift). All reused, in order: the stored array itself.
+ */
+function lowerCuts(storedBefore: Board, draft: Board): Cut[] {
+  const d0 = mirrorDim(draft);
+  const size = draft[d0];
+  const sameFrame = mirrorDim(storedBefore) === d0 && storedBefore[d0] === size;
+  const byId = new Map(storedBefore.cuts.map((c) => [c.id, c]));
+  const out = draft.cuts.map((c) => {
+    const s = byId.get(c.id);
+    if (s && sameFrame) {
+      const placed = mirrorCut(s, d0, size);
+      if (CUT_GEOMETRY_KEYS.every((k) => placed[k] === c[k])) return s;
+    }
+    return mirrorCut(c, d0, size);
+  });
+  return out.length === storedBefore.cuts.length && out.every((c, i) => c === storedBefore.cuts[i]) ? storedBefore.cuts : out;
+}
+
 /**
  * One level down: the part's after-state in an instance's frame, from its
  * after-state in the parent's frame. A position goes down as a DELTA (spec
  * §5.2): the stored value gains the inverse-rotated world change, less the
  * change in the turned box's corner offset. An axis that did not move gains
- * exactly zero, so nothing is round-tripped.
+ * exactly zero, so nothing is round-tripped. Through a MIRRORED frame
+ * (mirrored-instances spec §4) it lowers into the reflected coordinates the
+ * placement used (mirrorPart of the stored before), then reflects back: the turn
+ * negated, x by -dx' less the change in x extent, the cuts by lowerCuts.
  */
 function lower(inst: Instance, upperBefore: Board, lowerBefore: Board, upperAfter: Board): Board {
-  const rotation = addTurns(upperAfter.rotation, inverseTurn(inst.rotation));
-  const draft: Board = { ...upperAfter, rotation, position: lowerBefore.position };
-  const dW = sub(upperAfter.position, upperBefore.position);
-  const dS = sub(cornerShift(inst.rotation, draft), cornerShift(inst.rotation, lowerBefore));
-  const d = rotateVec(inverseTurn(inst.rotation), sub(dW, dS));
-  return { ...draft, position: [lowerBefore.position[0] + d[0], lowerBefore.position[1] + d[1], lowerBefore.position[2] + d[2]] };
+  if (!inst.mirrored) {
+    const { draft, d } = lowerDelta(inst, upperBefore, lowerBefore, upperAfter);
+    return { ...draft, position: [lowerBefore.position[0] + d[0]!, lowerBefore.position[1] + d[1]!, lowerBefore.position[2] + d[2]!] };
+  }
+  const mBefore = mirrorPart(lowerBefore);
+  const { draft, d } = lowerDelta(inst, upperBefore, mBefore, upperAfter);
+  const dx = (0 - d[0]!) - (boardExtents(draft)[0] - boardExtents(mBefore)[0]);
+  return {
+    ...draft,
+    rotation: inverseTurn(draft.rotation),
+    position: [lowerBefore.position[0] + dx, lowerBefore.position[1] + d[1]!, lowerBefore.position[2] + d[2]!],
+    cuts: lowerCuts(lowerBefore, draft),
+  };
 }
 
 /** The storage id of the root container. A definition may never carry it:
@@ -137,9 +182,9 @@ function lowerEdit(doc: SloydDocument, shapes: ReadonlyMap<string, Shape>, befor
   const changedKeys = [...new Set([...Object.keys(before), ...Object.keys(after)])].filter((k) => {
     if (k === 'id' || k === 'shape') return false;            // never written through here
     if (k === 'position' || k === 'rotation') return moved;
-    return k === 'cuts' ? before.cuts !== after.cuts : rec(before)[k] !== rec(after)[k];
+    return k === 'cuts' ? cur.cuts !== resolved.cuts : rec(before)[k] !== rec(after)[k];
   });
-  const valueOf = (k: string) => (k === 'position' ? [...cur.position] : k === 'rotation' ? cur.rotation : rec(after)[k]);
+  const valueOf = (k: string) => (k === 'position' ? [...cur.position] : k === 'rotation' ? cur.rotation : k === 'cuts' ? cur.cuts : rec(after)[k]);
   return { stored, defId, key: `${defId}:${stored.id}`, changedKeys, valueOf, after };
 }
 
@@ -237,8 +282,9 @@ export function mapWorld(doc: SloydDocument, fn: (world: Board[]) => Board[]): S
 }
 
 /**
- * Move items (parts or instances) by one WORLD delta (spec §4.2): rotated into
- * each item's container frame (exact, a quarter turn only swaps and negates)
+ * Move items (parts or instances) by one WORLD delta (spec §4.2): turned and,
+ * through a mirror, reflected into each item's container frame (exact, a
+ * quarter turn only swaps and negates)
  * and added to its stored position or origin. A root item gains the delta
  * exactly, as translateBoards did. Nothing rounds (invariant 25). An item
  * listed together with one of its ancestors is not moved separately.
@@ -258,7 +304,7 @@ export function translateItems(doc: SloydDocument, ids: readonly string[], world
   }
   let out = doc;
   for (const [cPath, members] of byContainer) {
-    const d = rotateVec(inverseTurn(containerTurn(doc, cPath)), worldDelta);
+    const d = toLocal(containerLinear(doc, cPath), worldDelta);
     const shift = (p: readonly number[]): [number, number, number] => [p[0]! + d[0], p[1]! + d[1], p[2]! + d[2]];
     out = updateContainer(out, cPath, (c) => ({
       boards: c.boards.map((b) => (members.has(b.id) ? { ...b, position: shift(b.position) } : b)),

@@ -3,8 +3,8 @@ import {
   boardsBounds, cleanName, createBoard, createDocument, createGuide, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
   linkPlan, sharedOf, sharedPatch, isShaped, plainOf, pruneShapes, dissolveShapes,
   childrenOf, instanceAt, isCovered, itemPaths, parentPath, worldParts, mapWorld,
-  translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerTurn, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
-  rotateVec, inverseTurn, groupItems, ungroupItem, turnInstance as turnInstanceOp, updateContainer, lastSegment,
+  translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerLinear, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
+  toLocal, groupItems, ungroupItem, turnInstance as turnInstanceOp, updateContainer, lastSegment,
 } from '../document/document';
 import type { Board, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
 import { SNAP_INCHES } from '../document/geometry';
@@ -1185,14 +1185,14 @@ export const useStore = create<StoreState>((set, get) => {
       const taken: Named[] = [...siblingsOf(doc, container)];
       const boards: StoredBoard[] = [];
       const instances: Instance[] = [];
-      const turn = containerTurn(doc, container);
+      const lin = containerLinear(doc, container);
       for (let k = 1; k < count; k += 1) {
         // From the ORIGINAL every time, never the previous copy: a running sum
         // drifts by an ulp per copy. Never rounded (invariant 25). The step is
         // a WORLD shift, turned into the container's frame, exactly (spec §4.2).
         const w: [number, number, number] = [0, 0, 0];
         w[axis] = k * step * sign;
-        const local = rotateVec(inverseTurn(turn), w);
+        const local = toLocal(lin, w);
         const at = (p: readonly number[]) =>
           p.map((v, a) => (local[a] === 0 ? v : v + local[a]!)) as [number, number, number];
         for (const id of sources) {

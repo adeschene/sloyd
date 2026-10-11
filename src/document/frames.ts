@@ -78,6 +78,24 @@ function mirrorFrame(j: Instance): Instance {
   return withMirror({ ...j, rotation: inverseTurn(j.rotation), position: [0 - j.position[0], j.position[1], j.position[2]] }, j.mirrored !== true);
 }
 
+/** A chain's linear part (spec §4): world vector = R(rotation) . M^mirrored . local vector. */
+export interface Linear { rotation: Rotation; mirrored: boolean }
+export const IDENTITY_LINEAR: Linear = { rotation: 0, mirrored: false };
+
+/** outer . f: R(a) M^p R(b) M^q = R(a + (p ? -b : b)) M^(p xor q). */
+export function composeLinear(outer: Linear, f: { rotation: Rotation; mirrored?: boolean }): Linear {
+  return {
+    rotation: addTurns(outer.rotation, outer.mirrored ? inverseTurn(f.rotation) : f.rotation),
+    mirrored: outer.mirrored !== (f.mirrored === true),
+  };
+}
+
+/** A world vector in the chain's local frame: M^m . R(-r) . w. Exact (quarter turns swap and negate). */
+export function toLocal(l: Linear, w: readonly number[]): Vec3 {
+  const v = rotateVec(inverseTurn(l.rotation), w);
+  return l.mirrored ? [0 - v[0], v[1], v[2]] : v;
+}
+
 const unmirrored = (f: Frame): Frame => ({ position: f.position, rotation: f.rotation });
 
 const isIdentity = (f: Frame) =>
