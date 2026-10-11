@@ -24,7 +24,10 @@ function chainOf(id: string): string[] {
 
 /**
  * Each placed part's exploded offset, by occurrence id. Hidden parts count toward centres, so a
- * part never jumps when another is hidden. Pure; cached per (document object, amount).
+ * part never jumps when another is hidden. The whole exploded set is then lifted by
+ * `dy = max(0, assembledMinY − explodedMinY)`, so the lowest part never goes below the assembled
+ * piece's lowest point (the user's ruling of 2026-10-11, after the browser pass). Pure; cached
+ * per (document object, amount).
  */
 export function explodeOffsets(doc: SloydDocument, amount: number): ReadonlyMap<string, Vec3> {
   let byAmount = cache.get(doc);

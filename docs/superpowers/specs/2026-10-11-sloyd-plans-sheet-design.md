@@ -1,6 +1,6 @@
 # Sloyd — plans sheet (dimensioned drawings) and exploded view
 
-**Date:** 2026-10-11 · **Status:** approved by the user; amended during planning (§2.3, §3, §4.1, §4.2, §4.4, §5.3, §7), amendments awaiting the user's confirmation
+**Date:** 2026-10-11 · **Status:** implemented (2026-10-11); amended during planning (§2.3, §3, §4.1, §4.2, §4.4, §5.3, §7) and after the browser pass (§3 floor lift, §5.3 chain drops), all approved by the user
 **Builds on:** the cut list round (the printable overlay, `.app > *` print rule), the per-face
 diagrams round (`diagramLabels.ts`, invariant 19), assemblies and components (invariants 45, 46),
 mirrored instances (schema 13) and invariants 1, 16, 24, 27, 38 and 43. Every rule there still holds

@@ -4945,3 +4945,37 @@ real clicks in this round).
 - **Placement.** A single part's Delete (the trash icon) now sits at the top of the panel, beside the actions (spec
   §4.2); watch for accidental clicks. Delete is undoable.
 - **Status:** record-only.
+
+
+## From the plans-sheet round — 2026-10-11
+
+**252. Numbered callouts linking the exploded figure to cut-list rows.** The exploded isometric names no part; a
+reader matches it to the cut list by eye. Spec §9, out of scope by decision.
+- **Status:** open.
+
+**253. User-placed dimensions.** The sheet's dimensions are automatic (overall plus chains, `document/dimensions.ts`).
+A dimension tool whose dimensions live in the document needs a schema bump (14) and a rollback cost; spec §9.
+- **Status:** open.
+
+**254. Real print-to-PDF of the Plans sheet is unverified.** Only `emulateMedia('print')` was driven (Playwright
+exposes no `pdf()`; the same limit as fu 70/79/84). Unconfirmed: page breaks, in particular whether a trio of
+elevations taller than a page splits sensibly (`break-inside`), and the ink on a real printer. The print ink bug (F2)
+was found by the emulated pass and fixed. See `docs/browser-verification-plans-sheet.md`.
+- **Status:** open; needs a real browser's print dialog.
+
+**255. The explode spread constants were approved only on software GL.** `EXPLODE_SPREAD` (1) and `EXPLODE_INNER`
+(0.5) in `document/explode.ts` were judged on llvmpipe (fu 26a). They are plain numbers feeding translations, not
+shader behaviour, so the 26a risk does not arise; what is unconfirmed is how the spread reads on real hardware and a
+real display. Retuning changes only those two constants (INNER must stay below 1, spec §3).
+- **Status:** open; a look on real hardware closes it.
+
+**256. Section views (a clipping plane).** To see inside a joint on the sheet or in the viewport. Spec §9.
+- **Status:** open.
+
+**257. Exploding along each joint's engagement direction.** The explode is hierarchical and radial from centres
+(spec §3, option B); option C moves parts along the direction they slide apart. Spec §9.
+- **Status:** open.
+
+**258. Live dimension annotations in the viewport.** The sheet is the only place dimensions show; the viewport has the
+Tape tool and nothing automatic. Spec §9.
+- **Status:** open.

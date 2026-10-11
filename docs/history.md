@@ -302,6 +302,41 @@ and 79.
 
 ## What each round did
 
+**What the plans-sheet round did (2026-10-11)**: a printable **Plans** sheet and a live exploded view, no schema change
+(spec `docs/superpowers/specs/2026-10-11-sloyd-plans-sheet-design.md`; `docs/feature-gaps.md` §2). The sheet holds an
+exploded isometric, then dimensioned third-angle elevations (front, right side, plan, one scale) of the whole piece and
+of each assembly (a placed-twice definition once, "× 2", with a mirrored copy noted). The viewport gets an Explode
+slider that makes the model **read-only while exploded** (invariant 47). Drawings are exact vector geometry: edges from
+`boardEdges` (inv 16), occluders from `worldSolids` (inv 38), no rendering, so 26a does not apply to them. New:
+`document/{drawing,explode,dimensions,plans}.ts`, `panels/{PlansSheet,PlanFigure,planDims,planLayout}.tsx|ts`, and
+`toWorld` exported from `snapPoints.ts` as the one local-to-world mapping.
+**Three spec amendments found while planning.** (1) **Telescoping weights**: the first explode used weight k on every
+level, and the per-level terms telescope to `k·(centre(p) − centre(root))`, plain radial explode, not the hierarchical
+option the user chose. The top level keeps weight k and every deeper level takes `EXPLODE_INNER` (0.5, must stay below
+1), so an assembly moves out as a unit and then opens a little. (2) **Closed-box seams**: occlusion by the strict
+interior of each box called a mortise wall visible, because `boardSolids` splits a cut board into abutting boxes and the
+ray along the seam is in neither interior. A ray along a seam is inside; a point is hidden by a box when the ray travels
+a positive length inside the CLOSED box grown by half of `DRAW_EPS`. (3) **The layer split**: `dimensions.ts` (document
+layer, values and strings as exact differences) versus `planDims.ts` (panels, fitting with `labelWidth`, inv 19).
+**Store.** `explode` (0..1) is view state; `setExplode` is its one writer and leaving 0 goes only through
+`setTool('select')`. The review found that a gate in `edit()` alone is not enough: `editRekeyed`, Group, Ungroup,
+`removeGuide`, `clearGuides`, `deleteBoards` and `addBoard` mutate state (re-key, drop hidden ids and held points, set
+`pendingLengthFocus`) BEFORE calling `edit()`. Each now has a `readOnly()` entry guard; `edit()`, `undo` and `redo`
+remain the backstop, `setTool` refuses all but Select, `renameItem` returns the stored name. The UI lock is a
+`<fieldset class="edit-lock" disabled>` with `display: contents`, so the sidebar's flex layout is unchanged (the first
+version made the guides footer the flex item and lost its 34% cap).
+**Browser pass (user watching; `docs/browser-verification-plans-sheet.md`)** found four things. F1: every chain on
+casework was omitted as "too dense" (the one-third-dropped arm of spec §5.3 always fires with 1/4"-3/4" panels); **the
+user's decision**: drop only the narrow segments, with a note ("N small spacings not labelled"), and omit a chain only
+past `CHAIN_MAX` (12) labelled segments. F2: the plans SVG printed in the screen's light ink; fixed with the cut list's
+print rule. F3: Move and Tape did not look disabled while exploded; fixed. F4: at 100% the lower drawer sank below the
+floor; **the user's decision**: lift the exploded set by `dy = max(0, assembledMinY − explodedMinY)`. Final constants:
+`EXPLODE_SPREAD` 1, `EXPLODE_INNER` 0.5, `CHAIN_MAX` 12; the user approved the spread on software GL. Not confirmed:
+real print-to-PDF (fu 254; Playwright has no `pdf()`) and the spread on real hardware (fu 255).
+Residue: fu 252-258 (callouts, user-placed dimensions, print-to-PDF, spread constants, section views, joint-direction
+explode, live dimensions). Test count 2933 -> 2996. No schema change (SCHEMA 13); rollback is free. On `plans-sheet`,
+merged to master the same day; **not deployed**.
+
 **What the ui-polish round did (2026-10-11)**: a restyle and regroup, every control kept, by the user's choices
 (spec `docs/superpowers/specs/2026-10-11-sloyd-ui-polish-design.md`). Measured first on the dev server: at 1440×900
 the header wrapped and overlapped (⚙ over the Origin checkbox, Guides over "Saved locally"), an assembly's six
