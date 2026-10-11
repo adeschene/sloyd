@@ -6,7 +6,7 @@ import {
   translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerTurn, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
   rotateVec, inverseTurn, groupItems, ungroupItem, turnInstance as turnInstanceOp, updateContainer, lastSegment,
 } from '../document/document';
-import type { Board, BoardSnapPoint, Cut, Instance, Named, Rekey, Rotation, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
+import type { Board, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
 import { SNAP_INCHES } from '../document/geometry';
 import { MAX_ROW } from '../document/row';
 import { clickTarget } from './assemblyPick';
@@ -587,11 +587,14 @@ export const useStore = create<StoreState>((set, get) => {
    * invariant 43's argument). `grabbed` is not re-keyed: the selection changes,
    * and selectionPatch drops it by the retargeting rule.
    */
-  const rekeyHeld = (rekey: Rekey) => {
+  const rekeyHeld = (rekey: Rekey, lift: Lift = () => null) => {
     const { hiddenIds, tapeAnchor, tapeHover } = get();
     const move = (p: SnapPoint | null) =>
       p && p.owner.type === 'board' ? { ...p, owner: { ...p.owner, id: rekey(p.owner.id) } } : p;
-    set({ hiddenIds: hiddenIds.map(rekey), tapeAnchor: move(tapeAnchor), tapeHover: move(tapeHover) });
+    // A hidden assembly an edit dissolved passes its hidden-ness to what it held
+    // (fu 229), once each: a child already hidden on its own is not listed twice.
+    const hidden = [...new Set(hiddenIds.flatMap((id) => lift(id) ?? [rekey(id)]))];
+    set({ hiddenIds: hidden, tapeAnchor: move(tapeAnchor), tapeHover: move(tapeHover) });
   };
 
   /** Run `edit` after a re-key, but leave the PRE-re-key hidden ids in the undo entry. */
@@ -599,12 +602,13 @@ export const useStore = create<StoreState>((set, get) => {
     rekey: Rekey,
     fn: (doc: SloydDocument) => SloydDocument,
     selection: (doc: SloydDocument) => string[],
+    lift?: Lift,
   ) => {
     // Refused inside a gesture: edit() may push nothing there, and the patch
     // below would then rewrite the gesture's own snapshot (invariant 43's argument).
     if (get().gesturing) return;
     const hiddenBefore = get().hiddenIds;
-    rekeyHeld(rekey);
+    rekeyHeld(rekey, lift);
     const pastBefore = get().past;
     edit(fn, selection);
     const past = get().past;
@@ -1246,7 +1250,7 @@ export const useStore = create<StoreState>((set, get) => {
       let doc = get().doc;
       const children: string[] = [];
       const kept: string[] = [];
-      const rekeys: Rekey[] = [];
+      const steps: Array<{ rekey: Rekey; lift: Lift }> = [];
       for (const id of get().selectedIds) {
         const r = ungroupItem(doc, id);
         // A selected plain part stays selected where it was; the ungrouped
@@ -1254,10 +1258,12 @@ export const useStore = create<StoreState>((set, get) => {
         if (!r) { kept.push(id); continue; }
         doc = r.doc;
         children.push(...r.children);
-        rekeys.push(r.rekey);
+        steps.push(r);
       }
-      if (rekeys.length === 0) return;
-      editRekeyed((p) => rekeys.reduce((q, f) => f(q), p), () => doc, () => [...kept, ...children]);
+      if (steps.length === 0) return;
+      // Each step's paths are the previous step's output: compose in order.
+      const through = (p: string) => steps.reduce<string[]>((ps, st) => ps.flatMap((q) => st.lift(q) ?? [st.rekey(q)]), [p]);
+      editRekeyed((p) => steps.reduce((q, st) => st.rekey(q), p), () => doc, () => [...kept, ...children], through);
     },
 
     turnAssembly: (path, rotation) => {

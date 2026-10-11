@@ -10,6 +10,12 @@ import { containerAt, definitionAt, instanceAt, itemPaths, joinPath, lastSegment
 import { updateContainer } from './treeEdit';
 
 export type Rekey = (path: string) => string;
+/**
+ * The paths an item's path now stands for, or null when it is not one of the
+ * items an edit dissolved: Ungroup's assembly, under every placement, lifts to
+ * its children there (fu 229).
+ */
+export type Lift = (path: string) => string[] | null;
 
 export function siblingsOf(doc: SloydDocument, path: string | null): Named[] {
   const c = containerAt(doc, path);
@@ -164,7 +170,7 @@ export function groupItems(doc: SloydDocument, container: string | null, paths: 
  * definition is pruned.
  */
 export function ungroupItem(doc: SloydDocument, path: string):
-  { doc: SloydDocument; children: string[]; rekey: Rekey } | null {
+  { doc: SloydDocument; children: string[]; rekey: Rekey; lift: Lift } | null {
   const inst = instanceAt(doc, path);
   const def = definitionAt(doc, path);
   const container = parentPath(path);
@@ -205,7 +211,14 @@ export function ungroupItem(doc: SloydDocument, path: string):
     boards: [...k.boards, ...boards],
     instances: [...keptInstances, ...instances],
   })))));
-  return { doc: out, children: pairs.map(([, to]) => joinPath(container, to)), rekey: rekeyEverywhere(doc, container, pairs) };
+  // The ungrouped assembly under EVERY placement of its container (a shared
+  // definition is ungrouped in every copy) stands for its lifted children there.
+  const lifted = new Map(containerPlacements(doc, container).map((at) =>
+    [joinPath(at, inst.id), pairs.map(([, to]) => joinPath(at, to))] as const));
+  return {
+    doc: out, children: pairs.map(([, to]) => joinPath(container, to)), rekey: rekeyEverywhere(doc, container, pairs),
+    lift: (p) => lifted.get(p) ?? null,
+  };
 }
 
 /**
