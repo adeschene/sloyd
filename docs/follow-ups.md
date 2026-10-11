@@ -4878,3 +4878,47 @@ cut stored into the MOVING end) and the old rule leaves it in place, so it ends 
 - The joinery split test (`joints/mirrored.test.ts`) asserts the split, not that the Shelf itself got cuts.
 - `linkBoards`' pivot write would be skipped silently if `partAt` failed to resolve; `linkPlan` makes it unreachable.
 - **Status:** record-only.
+
+## From the ui-polish round — 2026-10-11
+
+**248. The new viewport colours have not been seen on real hardware.** The maple ground `#ebe3d4`, grid
+`#d3c7b3`/`#9c8f7b`, hemisphere ground `#bfb29e` and the oak selection emissive `#c8955a` (spec §2.1) were only
+rendered by llvmpipe here (26a). Colour constants only, no shader change, so the undefined-behaviour risk 26a is about
+does not arise; what is unconfirmed is how the colours look on a real GPU and display.
+- **Status:** open — the user looks once on real hardware after the deploy (spec §7).
+
+**249. The cyan edge-midpoint snap marker is the weakest on the maple ground.** Measured fills against `#ebe3d4`:
+corner `#2e9e5b` 2.67:1, edge-mid `#22b8d4` **1.86:1**, face `#8a5fd0` 3.56:1, guide `#4f6fd0` 3.65:1; the ring
+`#f5f2ec` is 1.14:1 (it exists for walnut and all but vanishes on maple). The live pass found all three hovered markers
+legible (`docs/img/ui-polish-snaps.png`); the cyan reads by hue rather than lightness. Not a regression: the old ground
+`#e6e3dd` gave the same ratios to two decimals.
+- **Status:** open — a decision for the user (spec §2.1: a marker that loses legibility is not recoloured silently).
+  The colours are browser-settled (fu 60); any change re-runs that check on pine, walnut and plywood.
+
+**250. Popover and ProjectMenu close on a focusout whose `relatedTarget` is null — before an item's click lands, on
+browsers that do not focus a button on click.** Safari and macOS Firefox do not focus a `<button>` on mouse click, so
+pressing an item moves focus from the trigger to nowhere (`relatedTarget === null`), `onFocusOut` closes the popup,
+and the item unmounts before its `click` fires: the menu would open and do nothing. Chromium and Firefox on Linux
+focus the button, so `relatedTarget` is the item and the popup stays (driven live with real clicks in this round).
+Latent; the same handler is in `ProjectMenu.tsx`, which predates this round.
+- **Status:** open — latent, a future-platform bug (Linux/Chromium unaffected). A remedy (e.g. ignore a null
+  `relatedTarget` while a pointer is down inside the root) is a hypothesis until driven on such a browser.
+
+**251. Small gaps the round judged fine to leave.** Record-only; the task reviews' deferred minors.
+- **Stale comments.** `BoardMesh.tsx` (~line 14) still says "Brass" for the selection (now oak);
+  `styles.css` (~527) and `TapeReadout.tsx` (~235) cite the removed `.toolbar-hint` (now `.viewport-hint`);
+  `styles.css` (~587) cites 302px for the action row where the live measure was 289.5px of buttons, 337.5px with the
+  trash and gaps, of 349px; `Toolbar.tsx` (~36, across a line break) has a doubled "the".
+- **Dead or dangling.** `GenerateDialog.tsx` (~90) and `RefineDialog.tsx` (~74) keep the `generate-limit` class with no
+  rule; `.add-cut` has no rule; `GuidesFooter`'s `aria-controls="guides-body"` points at nothing while closed.
+- **Tests.** `palette.test.ts` reads `src/styles.css` relative to the cwd (`?raw` is `''` under Vitest and
+  `import.meta.url` fails under jsdom); Popover and ActionBar key items by label (unique today); no test of Popover's
+  `align`/`title`; no test that a guide placed after the user closed the footer reopens it; ViewportControls' ported
+  "independent" test dropped its two initial-state asserts (covered by its `it.each`); `App.test.tsx`'s Claude-item
+  `it.each` takes string keys and branches.
+- **Palette values.** The ink tokens differ from spec §2's table: one scale per material (walnut `#ece4d6`/`#b9ad9c`/
+  `#a09482`, grey `#ece9e4`/`#c8c3bb`/`#a19c94`); the spec's `--ink-faint` `#857a6c` was 3.64:1 on walnut-900, below
+  the floor. No value was nudged in a live pass. Final ratios: `docs/browser-verification-ui-polish.md` §8.
+- **Placement.** A single part's Delete (the trash icon) now sits at the top of the panel, beside the actions (spec
+  §4.2); watch for accidental clicks. Delete is undoable.
+- **Status:** record-only.

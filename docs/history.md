@@ -302,6 +302,41 @@ and 79.
 
 ## What each round did
 
+**What the ui-polish round did (2026-10-11)**: a restyle and regroup, every control kept, by the user's choices
+(spec `docs/superpowers/specs/2026-10-11-sloyd-ui-polish-design.md`). Measured first on the dev server: at 1440×900
+the header wrapped and overlapped (⚙ over the Origin checkbox, Guides over "Saved locally"), an assembly's six
+actions wrapped into a 3×2 grid, the Mirrored checkbox split from its label, a part with a cut scrolled the panel.
+Decisions: **palette A** — a warm grey toolbar and floating chrome (`--grey-*`; the plan once said slate, the user's
+mockup was grey), walnut panels and dialogs (`--walnut-*`), a honey-oak accent (was brass), a pale maple viewport
+(`GROUND` `#ebe3d4`, grid and hemisphere ground warmed, selection emissive oak; snap colours unchanged); rules read
+surface ROLES (`--surface`, `--control`, `--rule`, `--ink`…) and the grey context re-points them, so one button rule
+serves both materials; no `--graphite`/`--brass` survives. **Layout B** — the header holds project-level actions
+(project, Add board, Cut list, **Claude ▾** holding Generate/Refine/Add joinery, undo/redo, ⚙, save state, Export);
+tools, projection and Grid/Origin/Guides float over the viewport (`ViewportControls`; the three toggles became
+`aria-pressed` buttons), the Move hint bottom-left, the tape readout still unconditionally mounted bottom-right
+(inv 28). **The action table** — three visible actions per selection kind, the rest under **More ▾**, Delete a
+right-aligned trash icon (`ActionBar`, spec §4.2); `CopyInRow`'s open state lifted so More can open it. Properties
+fields side by side (Size, Position, Orientation & stock as grids; kind chip; "Runs" → "Grain runs"; cuts as cards
+with a ✕ and a count). **Guides auto-open** — the one behaviour change: Guides became a footer (`GuidesFooter`),
+closed by default, opening itself when the guide count goes up, never closing itself; the state is component-local
+view state. Dialogs and the cut list sheet are walnut, one control rule styles every select/checkbox/radio (oak
+`accent-color`), Generate's limits one row of three and its Generations radios inline. Files added:
+`src/panels/Popover.tsx` (a disclosure menu with ProjectMenu's closing rules; it focuses the trigger before running
+an item so App records the opener; ProjectMenu keeps its own copy), `ViewportControls.tsx`, `ActionBar.tsx`,
+`GuidesFooter.tsx`, `src/palette.test.ts` (twelve ink/surface pairs at ≥ 4.5:1, and the retired tokens). Test churn
+moved routes only (tests open Claude ▾ or More ▾ first); assertions stayed. What the reviews and passes caught: the
+plan's claim that no test named "Stop short of" (eleven did), Generate's radios stacking under the new `.field` until
+Task 8, Copy in a row's radios jammed against their text by the global control rule, a missing `props-title` on the
+group panel. Live pass on the dev server (`docs/browser-verification-ui-polish.md`) at 1920×1080 and 1366×768: the
+header fits on one line with nothing overlapping at both; focus returns to ⚙ and to the Claude trigger after a real
+click; More ▾ and Claude ▾ close on Escape and outside click; at 1920 a part with a cut shows without scrolling; the
+assembly action row fits the 380px panel floor; Generate's radios share the legend's line at 1366; the printed cut
+list is pixel-identical before and after; contrast measured (lowest `--alert` on walnut-800 at 4.73:1); the snap
+markers legible on maple, cyan edge midpoint the weakest at 1.86:1 (unchanged from the old ground). Could not
+confirm: the colours on a real GPU (26a; fu 248), real print-to-PDF (70/79/84), browsers other than Chromium on
+Linux (fu 250). Residue: fu 248–251. Test count 2881 -> 2918. No schema change; rollback is free.
+**Not yet merged or deployed** when this was written: the branch awaits its whole-branch review.
+
 **What the mirrored-instances round did (2026-10-11)**: fu 225's first item, a LIVE mirrored copy, by the user's
 choices (live copy, assemblies only, Copy mirrored + a Mirrored checkbox, approach A: the mirror inside the one
 composition). **Schema 13** (`Instance.mirrored`, stored only when true; no step; harm one version back: wrong
