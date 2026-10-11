@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { applyWorldEdits, translateItems } from './treeEdit';
 import { createDocument } from './document';
 import { worldParts } from './tree';
+import { boardExtents } from './geometry';
 import { worldSolids } from './designCheck';
 import { chiralPart, sameSet } from './turnFixtures';
 import { CUT_GEOMETRY_KEYS } from './cuts';
@@ -132,5 +133,57 @@ describe('write-back through a mirror is the exact inverse (mirrored-instances s
       const moved = occ(translateItems(d, [id], [2, 0.5, -1]));
       [2, 0.5, -1].forEach((dw, i) => expect(Math.abs(moved.position[i]! - (p.position[i]! + dw)), name).toBeLessThan(1e-9));
     }
+  });
+
+  it('fix 1a: a Properties resize (no keepWorld) leaves the stored cuts the SAME object through a mirrored occurrence, as through a plain one', () => {
+    const base = doc({ ...chiralPart('flat'), rotation: 0, position: [1, 0, 1] }, { rotation: 0 });
+    const twin: SloydDocument = {
+      ...base,
+      instances: [...base.instances, { id: 'i9', name: 'Right', definition: 'd1', position: [40, 0, 3], rotation: 0, mirrored: true }],
+    };
+    const grow = (id: string) => {
+      const p = worldParts(twin).find((q) => q.id === id)!;
+      return applyWorldEdits(twin, [{ before: p, after: { ...p, length: p.length + 2 } }]);
+    };
+    const viaPlain = grow('i1/b1');
+    const viaMirror = grow('i9/b1');
+    expect(stored(viaPlain).cuts).toBe(stored(twin).cuts);
+    expect(stored(viaMirror).cuts).toBe(stored(twin).cuts);
+    expect(stored(viaMirror)).toEqual(stored(viaPlain));
+    // Independently stated: i1 sits at x+6, i9 reflects local x about 40, so
+    // world x_R = 46 - x_L (instances are unturned). Compare every solid.
+    const L = worldParts(viaMirror).find((q) => q.id === 'i1/b1')!;
+    const R = worldParts(viaMirror).find((q) => q.id === 'i9/b1')!;
+    const reflected = solids(L).map(([a, b, c, d, e, f]) => [46 - d!, b!, c!, 46 - a!, e!, f!]);
+    expect(sameSet(solids(R), reflected)).toBe(true);
+  });
+
+  it('fix 1b: a keepWorld resize under a mirror (min kept, or max kept) is placed back exactly', () => {
+    for (const [name, A, B] of CHAINS) for (const posture of POSTURES) for (const s of TURNS) for (const keep of ['min', 'max'] as const) {
+      const d = doc({ ...chiralPart(posture), rotation: s, position: [0.5, 0.25, 1.25] }, A, B);
+      const before = occ(d);
+      const grown = { ...before, length: before.length + 2 };
+      const ext0 = boardExtents(before);
+      const ext1 = boardExtents(grown);
+      const position = before.position.map((v, a) => (keep === 'min' ? v : v - (ext1[a]! - ext0[a]!))) as [number, number, number];
+      const after = { ...grown, position };
+      expectPlacedBack(occ(applyWorldEdits(d, [{ before, after }], { keepWorld: true })), after, `${name} ${posture} ${s} ${keep}`);
+    }
+  });
+
+  it('fix 1c: a posture change moving d0 (Properties rule) keeps the world cuts as seen with stored cuts re-reflected; one that keeps d0 leaves them', () => {
+    for (const [from, to] of [['flat', 'upright'], ['upright', 'flat'], ['on-edge', 'upright']] as const) {
+      const d = doc({ ...chiralPart(from), rotation: 0 }, { rotation: 0, mirrored: true });
+      const before = occ(d);
+      const out = applyWorldEdits(d, [{ before, after: { ...before, posture: to } }]);
+      expect(stored(out).cuts, `${from}->${to}`).not.toBe(stored(d).cuts);
+      const now = occ(out);
+      expect(now.cuts.length).toBe(before.cuts.length);
+      now.cuts.forEach((c, i) => expect(sameCutGeometry(c, before.cuts[i]!), `${from}->${to} cut ${i}`).toBe(true));
+    }
+    const d = doc({ ...chiralPart('flat'), rotation: 0 }, { rotation: 0, mirrored: true });
+    const before = occ(d);
+    const out = applyWorldEdits(d, [{ before, after: { ...before, posture: 'on-edge' } }]);
+    expect(stored(out).cuts).toBe(stored(d).cuts);
   });
 });

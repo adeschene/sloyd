@@ -38,21 +38,32 @@ function lowerDelta(inst: Frame, upperBefore: Board, lowerBefore: Board, upperAf
 }
 
 /**
- * The cuts of a part lowered back through ONE mirror (mirrored-instances spec §4):
- * each world cut mirrored back along d0 of the lowered posture — except a cut
- * that is exactly the placed form of the stored cut with the same id, which maps
- * back to THAT object (mirrorCut twice is not bit-exact; repeated edits must not
- * drift). All reused, in order: the stored array itself.
+ * The cuts of a part lowered back through ONE mirror (mirrored-instances spec §4).
+ * A world cut that equals the stored cut with the same id, placed, maps back to
+ * THAT object (mirrorCut twice is not bit-exact; repeated edits must not drift,
+ * and an untouched cut is never rewritten). "Placed" means at the BEFORE frame
+ * (the stored part's size on d0) for a Properties edit, which keeps the stored
+ * cuts when only a size field changed, as through a plain frame; and at the AFTER
+ * frame under keepWorld (joinery keeps the world box, so an end cut's rebase must
+ * shift the stored cuts). A posture change that moves d0 re-reflects every cut
+ * (the approved coupling: the world cuts are kept as seen), because none matches. Any other cut is reflected
+ * back along d0 of the lowered (after) posture. All reused, in order: the stored
+ * array itself.
  */
-function lowerCuts(storedBefore: Board, draft: Board): Cut[] {
+function lowerCuts(storedBefore: Board, draft: Board, keepWorld: boolean): Cut[] {
   const d0 = mirrorDim(draft);
   const size = draft[d0];
-  const sameFrame = mirrorDim(storedBefore) === d0 && storedBefore[d0] === size;
+  // A posture change that moves d0 (flat/on-edge <-> upright) is the approved
+  // coupling (spec §4): no world cut equals the stored cut placed along the NEW
+  // d0 (the world cuts were placed along the old one), so each is re-reflected
+  // and the world cuts stay as seen. No separate test of d0 is needed.
+  const atBefore = !keepWorld;
+  const refSize = atBefore ? storedBefore[d0] : size;
   const byId = new Map(storedBefore.cuts.map((c) => [c.id, c]));
   const out = draft.cuts.map((c) => {
     const s = byId.get(c.id);
-    if (s && sameFrame) {
-      const placed = mirrorCut(s, d0, size);
+    if (s) {
+      const placed = mirrorCut(s, d0, refSize);
       if (CUT_GEOMETRY_KEYS.every((k) => placed[k] === c[k])) return s;
     }
     return mirrorCut(c, d0, size);
@@ -70,7 +81,7 @@ function lowerCuts(storedBefore: Board, draft: Board): Cut[] {
  * placement used (mirrorPart of the stored before), then reflects back: the turn
  * negated, x by -dx' less the change in x extent, the cuts by lowerCuts.
  */
-function lower(inst: Instance, upperBefore: Board, lowerBefore: Board, upperAfter: Board): Board {
+function lower(inst: Instance, upperBefore: Board, lowerBefore: Board, upperAfter: Board, keepWorld: boolean): Board {
   if (!inst.mirrored) {
     const { draft, d } = lowerDelta(inst, upperBefore, lowerBefore, upperAfter);
     return { ...draft, position: [lowerBefore.position[0] + d[0]!, lowerBefore.position[1] + d[1]!, lowerBefore.position[2] + d[2]!] };
@@ -82,7 +93,7 @@ function lower(inst: Instance, upperBefore: Board, lowerBefore: Board, upperAfte
     ...draft,
     rotation: inverseTurn(draft.rotation),
     position: [lowerBefore.position[0] + dx, lowerBefore.position[1] + d[1]!, lowerBefore.position[2] + d[2]!],
-    cuts: lowerCuts(lowerBefore, draft),
+    cuts: lowerCuts(lowerBefore, draft, keepWorld),
   };
 }
 
@@ -174,7 +185,7 @@ function lowerEdit(doc: SloydDocument, shapes: ReadonlyMap<string, Shape>, befor
   reps[chain.length] = resolved;
   for (let j = chain.length - 1; j >= 0; j -= 1) reps[j] = placeBoard(chain[j]!, reps[j + 1]!);
   let cur = after;
-  for (let j = 0; j < chain.length; j += 1) cur = lower(chain[j]!, reps[j]!, reps[j + 1]!, cur);
+  for (let j = 0; j < chain.length; j += 1) cur = lower(chain[j]!, reps[j]!, reps[j + 1]!, cur, keepWorld);
 
   const resized = keepWorld
     && (before.posture !== after.posture || boardExtents(before).some((e, a) => e !== boardExtents(after)[a]));
@@ -218,9 +229,10 @@ function mergeField(rec0: Record<string, unknown>, wrote: Map<string, unknown>, 
 /**
  * Write world-space edits back into the tree (spec §5.1, §5.2). Only changed
  * fields are written: `position` compared element by element, `cuts` by
- * reference, everything else by `!==`. `position` and `rotation` go down
- * level by level through `lower`; every other field is part-local and goes
- * back as it is. A key present before and absent after is deleted (storedValue).
+ * reference, everything else by `!==`. `position`, `rotation` and `cuts`
+ * go down level by level through `lower` (through a mirror the cuts are
+ * reflected back by `lowerCuts`; untouched ones stay the stored objects); every
+ * other field is part-local and goes back as it is. A key present before and absent after is deleted (storedValue).
  * A root part's write is plain assignment, exactly as before assemblies.
  * `keepWorld` (joinery only): a part whose extents or posture changed also
  * counts as moved, so the world box is kept; a Properties edit keeps the

@@ -856,16 +856,16 @@ describe('moves and copies inside a mirrored assembly (mirrored-instances spec Â
     const d = assemblyDoc();
     return { ...d, instances: d.instances.map((i) => (i.id === 'i1' ? { ...i, mirrored: true } : i)) };
   };
-  it('copyInRow inside a mirrored assembly lands at original + k*step along the WORLD axis', () => {
+  it('copyInRow inside a mirrored assembly lands at original + k*step along the WORLD Z axis (a 90 turn puts it on local X, where the mirror acts)', () => {
     load(mirroredDoc());
     s().openAssembly('i1');
     const orig = worldParts(s().doc).find((b) => b.id === 'i1/b1')!;
-    s().copyInRow(['i1/b1'], 3, 0, 1, 2.5);
+    s().copyInRow(['i1/b1'], 3, 2, 1, 2.5);
     const copies = worldParts(s().doc).filter((b) => b.id.startsWith('i1/') && b.name.startsWith('Side') && b.id !== 'i1/b1');
     expect(copies).toHaveLength(2);
-    const xs = copies.map((c) => c.position[0] - orig.position[0]).sort((a, b) => a - b);
+    const xs = copies.map((c) => c.position[2] - orig.position[2]).sort((a, b) => a - b);
     expect(xs[0]).toBeCloseTo(2.5, 9);
     expect(xs[1]).toBeCloseTo(5, 9);
-    copies.forEach((c) => { expect(c.position[1]).toBeCloseTo(orig.position[1], 9); expect(c.position[2]).toBeCloseTo(orig.position[2], 9); });
+    copies.forEach((c) => { expect(c.position[0]).toBeCloseTo(orig.position[0], 9); expect(c.position[1]).toBeCloseTo(orig.position[1], 9); });
   });
 });
