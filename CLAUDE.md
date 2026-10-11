@@ -27,7 +27,7 @@ handicraft education tradition built around hand woodworking.
   export first). Test count is under Commands.
 - **NO SUCCESSOR IS
   CHOSEN: ask what to work on; do not pick.** Open near the recent code:
-  241 (open by decision), 248, 249, 251 (ui-polish residue; 248 and 249 wait on the user),
+  241 (open by decision), 251 (ui-polish residue, record-only),
   221, 225 (rest out of scope), 232, 234, 247. See Open follow-ups below.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
@@ -564,10 +564,9 @@ knowing without opening it:
   since schema 13 a mirrored pair is expressible if prototypes come to need it.
 - **247** — the mirrored-instances residue: `sameSideFirst` is dead in `linkBoards` (still needed
   for the shared posture write) and three texts overstate its role there; small unpinned guards.
-- **248–251** — ui-polish residue: the new viewport colours unseen on a real GPU (248, the user looks
-  after the deploy); the cyan edge-midpoint marker weakest on maple, 1.86:1 (249, a user decision, do not
-  recolour unasked); Popover/ProjectMenu's null-`relatedTarget` focusout (250, closed for both; simulated only, no
-  Safari here); deferred minors (251).
+- **248–251** — ui-polish residue: 248 (viewport colours, the user approved them on real hardware), 249 (snap
+  markers recoloured to muted tones; keep the floors in `SnapMarker.tsx` if retuning) and 250 (Popover and
+  ProjectMenu focusout; simulated only, no Safari here) are closed; deferred minors (251) are record-only.
 - **176/177** — the held rules' known limits (mutual lapping) and an unseen live repair.
 - **130** — semi-infinite construction lines; picked and set aside 2026-08-31 without a
   reason. Ask before assuming it's wanted; it needs real hardware (26a).

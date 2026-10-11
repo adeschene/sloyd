@@ -5,40 +5,42 @@ import type { SnapKind } from '../document/document';
 import { screenPixelsPerInch } from './screenScale';
 
 /**
- * Marker colour by kind. These are OFF-PALETTE on purpose, with the user's
- * explicit approval, and that is worth defending rather than quietly fixing:
- * oak (#c8955a) is the one live colour in the app (snap-move design §6.1).
+ * Marker colour by kind. Off the UI palette on purpose (oak #c8955a is the
+ * one live colour in the app, snap-move design §6.1): an inference marker is
+ * transient chrome, not part of the model, and its one job is telling you
+ * which KIND of point you are about to snap to, before you commit. Shape
+ * cannot carry that at the ~9px a marker has to be to sit on a corner without
+ * hiding it. Hue and lightness can.
  *
- * An inference marker is transient chrome, not part of the model, and it has
- * exactly one job — telling you which KIND of point you are about to snap to,
- * before you commit. Shape cannot carry that at the ~9px a marker has to be to
- * sit on a corner without hiding it. Hue can.
+ * Retuned 2026-10-11 (follow-up 249, at the user's request) from saturated
+ * SketchUp-style primaries (#2e9e5b, #22b8d4, #8a5fd0, #4f6fd0) to muted
+ * milk-paint tones that sit with the walnut/maple palette: moss, verdigris,
+ * mulberry, slate blue. The hue families are kept (green corner, cyan-ish
+ * midpoint, violet-ish face, blue guide), so the convention still reads. The
+ * values came from a search, not from taste alone, with these floors — keep
+ * them if you retune again:
+ *   - every fill ≥ 3:1 against the maple ground #ebe3d4 (the old cyan was
+ *     1.86:1) and ≥ 3.4:1 against the ring, which is what carries a marker on
+ *     walnut and cherry;
+ *   - mutual CIEDE2000 ≥ 25, and ≥ 14 under simulated deuteranopia and
+ *     protanopia (the old violet/blue pair was 3 — indistinguishable). The
+ *     distinctness comes from lightness as much as hue: moss and mulberry are
+ *     dark, verdigris and slate lighter;
+ *   - ≥ 35 ΔE from the selected-board oak, so a marker never reads as part of
+ *     a selection.
+ * Measured values: docs/follow-ups.md, 249.
  *
- * All four are cool and saturated against a palette that is entirely warm and
- * desaturated (ground #ebe3d4, grid #d3c7b3/#9c8f7b, oak #c8955a), so they
- * read as not-part-of-the-model rather than as a clashing member of it. The
- * hues are spread far enough apart to stay mutually distinct, and the first
- * three echo SketchUp's own endpoint/midpoint convention closely enough to be
- * read without a legend — muted well below SketchUp's pure primaries, which
- * would look like error states here.
- *
- * Browser-settled in the sense of follow-up 60: verified against pine, walnut
- * and plywood on this app's own ground, not argued from theory. That verdict
- * covers the original three; the guide colour below carries the same
- * obligation and Task 10 discharges it.
+ * Browser-settled in the sense of follow-up 60: checked live against pine,
+ * walnut and plywood on this app's own ground, not argued from theory alone.
  */
 export const SNAP_COLORS: Record<SnapKind, string> = {
-  corner: '#2e9e5b',
-  'edge-mid': '#22b8d4',
-  'face-center': '#8a5fd0',
-  // The guide-points round's fourth. A guide is not a corner, an edge midpoint
-  // or a face centre, and colouring it as one would tell the user something
-  // false about what they are about to snap to — the marker's only job. Kept
-  // cool and desaturated with the other three, and placed in the blue-violet
-  // gap between cyan and violet so all four stay mutually distinct.
-  // Browser-settled in the sense of follow-up 60: Task 10 confirms or retunes
-  // it against pine, walnut and plywood. Do not "fix" it from theory.
-  guide: '#4f6fd0',
+  corner: '#3a6028',
+  'edge-mid': '#378988',
+  'face-center': '#753c60',
+  // A guide is not a corner, an edge midpoint or a face centre, and colouring
+  // it as one would tell the user something false about what they are about
+  // to snap to — the marker's only job. Also the tape's colour (TapeTool).
+  guide: '#5469a6',
 };
 
 /**
@@ -157,7 +159,7 @@ export function SnapMarker({ point, resting = false }: { point: MarkerPoint; res
           depthTest={false}
           depthWrite={false}
           transparent
-          // toneMapped off keeps the three hues exactly the values above
+          // toneMapped off keeps the four hues exactly the values above
           // rather than whatever the renderer's tone curve makes of them —
           // these are chrome, not lit surfaces.
           toneMapped={false}

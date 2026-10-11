@@ -4885,15 +4885,24 @@ cut stored into the MOVING end) and the old rule leaves it in place, so it ends 
 `#d3c7b3`/`#9c8f7b`, hemisphere ground `#bfb29e` and the oak selection emissive `#c8955a` (spec §2.1) were only
 rendered by llvmpipe here (26a). Colour constants only, no shader change, so the undefined-behaviour risk 26a is about
 does not arise; what is unconfirmed is how the colours look on a real GPU and display.
-- **Status:** open — the user looks once on real hardware after the deploy (spec §7).
+- **Status:** closed 2026-10-11 — the user looked on real hardware after the deploy: "The viewport colors look fine."
 
 **249. The cyan edge-midpoint snap marker is the weakest on the maple ground.** Measured fills against `#ebe3d4`:
 corner `#2e9e5b` 2.67:1, edge-mid `#22b8d4` **1.86:1**, face `#8a5fd0` 3.56:1, guide `#4f6fd0` 3.65:1; the ring
 `#f5f2ec` is 1.14:1 (it exists for walnut and all but vanishes on maple). The live pass found all three hovered markers
 legible (`docs/img/ui-polish-snaps.png`); the cyan reads by hue rather than lightness. Not a regression: the old ground
 `#e6e3dd` gave the same ratios to two decimals.
-- **Status:** open — a decision for the user (spec §2.1: a marker that loses legibility is not recoloured silently).
-  The colours are browser-settled (fu 60); any change re-runs that check on pine, walnut and plywood.
+- **Closed 2026-10-11: recoloured at the user's request** ("they do kind of stick out") to muted milk-paint tones:
+  corner moss `#3a6028`, edge-mid verdigris `#378988`, face mulberry `#753c60`, guide (and tape) slate blue `#5469a6`.
+  Found by a search under stated floors, not picked by eye: on the ground 5.71 / 3.23 / 6.40 / 4.17 (was 2.67 / 1.86 /
+  3.56 / 3.65); against the ring 6.52 / 3.69 / 7.31 / 4.76; mutual CIEDE2000 ≥ 25 (was 13.7), and ≥ 14.5 under
+  simulated deuteranopia and 16.4 under protanopia (was 2.5 and 2.0: the old violet face and blue guide were
+  indistinguishable to those viewers); ≥ 37 ΔE from the selected-board oak. On walnut and cherry the fill itself is low
+  (1.0–2.0) and the cream ring carries the marker, as before; a RESTING guide has no ring, so it is 1.55:1 on walnut
+  (was 1.78). Live: the resting guides drawn on pine, walnut, plywood and the ground at 1920×1080 on the dev server,
+  and the user looked and judged the markers fine. The scripted hover sweep of each kind on each wood was stopped by
+  the user as unnecessary.
+- **Status:** closed.
 
 **250. Popover and ProjectMenu close on a focusout whose `relatedTarget` is null — before an item's click lands, on
 browsers that do not focus a button on click.** Safari and macOS Firefox do not focus a `<button>` on mouse click, so
