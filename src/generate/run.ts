@@ -2,7 +2,7 @@ import { flatDocument, migrateDocument, worldParts, writeBackFlat } from '../doc
 import type { SloydDocument } from '../document/document';
 import { DESIGN_SCHEMA, designToDocument, parseDesign } from '../document/generated';
 import type { GeneratedDesign } from '../document/generated';
-import { collapseViolations, distinctPartsViolation } from '../document/assemblyChecks';
+import { collapseViolations, distinctParts, distinctPartsViolation } from '../document/assemblyChecks';
 import { checkDesign, rejectedViolations } from '../document/designCheck';
 import type { Violation } from '../document/designCheck';
 import { LlmError, ZERO_USAGE, addUsage } from '../llm/types';
@@ -162,7 +162,10 @@ function evaluateDesign(res: LlmResult, s: LimitSettings, opts: EvaluateOpts = {
   // Only a fault naming parts can be "already there"; limits (too-large,
   // too-many-parts, tips) are judged on the result (refine spec §3.2).
   const already = (v: Violation) => old !== undefined && v.parts.length > 0 && old.has(problemKey(v));
-  const fresh = raw.filter((v) => !already(v));
+  // With no repeated assembly the distinct count IS the placed count, so the
+  // placed ceiling restates the distinct cap's fault: one fault, one report (fu 233).
+  const restated = (v: Violation) => distinct !== null && v.kind === 'too-many-parts' && distinctParts(converted.doc) === flat.boards.length;
+  const fresh = raw.filter((v) => !already(v) && !restated(v));
   // Merged per authored part, so "fewest" is not biased by placement count (generate-assemblies spec §5.3).
   const violations = [
     ...rejectedViolations(converted.rejected),
