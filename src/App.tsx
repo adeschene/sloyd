@@ -933,7 +933,13 @@ export default function App() {
               <h2>Properties</h2>
               <Properties />
             </section>
-            <GuidesFooter />
+            {/*
+              Keyed per project (ui-polish spec §4.5): the footer opens itself
+              when the guide count goes UP, judged against the count at mount.
+              A fresh instance per project makes a load or a switch its new
+              baseline, so opening a project with guides leaves it closed.
+            */}
+            <GuidesFooter key={activeId} />
           </aside>
         </main>
       </div>

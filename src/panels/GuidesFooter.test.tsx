@@ -38,6 +38,17 @@ describe('GuidesFooter (ui-polish spec §4.5)', () => {
     expect(toggle()).toHaveAttribute('aria-expanded', 'false');
   });
 
+  it('opens again on the next guide after being closed by hand', async () => {
+    render(<GuidesFooter />);
+    addGuide([12, 0, 4]);
+    expect(toggle()).toHaveAttribute('aria-expanded', 'true');
+    await userEvent.click(toggle());                     // user closes it
+    expect(toggle()).toHaveAttribute('aria-expanded', 'false');
+    addGuide([24, 0, 4]);
+    expect(toggle()).toHaveAccessibleName('Guides · 2');
+    expect(toggle()).toHaveAttribute('aria-expanded', 'true');
+  });
+
   it('opens and closes by hand', async () => {
     render(<GuidesFooter />);
     await userEvent.click(toggle());

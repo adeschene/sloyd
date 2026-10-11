@@ -824,6 +824,54 @@ describe('App project switching', () => {
   });
 });
 
+// ---- ui-polish spec §4.5: the Guides footer is closed on load and switch ----
+//
+// GuidesFooter opens itself when the guide count goes UP. Before App keyed it
+// per project, its baseline was the count at mount — App mounts with an empty
+// document and restore's replaceDocument raised the count, so the footer
+// opened on every page load of a project with guides. MUTATE: drop the
+// `key={activeId}` on <GuidesFooter> in App.tsx — the restore test goes red.
+describe('App Guides footer across load and switch', () => {
+  const settle = async () => {
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+  };
+  const withGuides = (name: string, n: number): SloydDocument => ({
+    ...createDocument(name),
+    guides: Array.from({ length: n }, (_, i) => ({ id: `g${i}`, at: [i * 6, 0, 0] as [number, number, number] })),
+  });
+  const guidesToggle = () => screen.getByRole('button', { name: /^Guides · \d+$/ });
+
+  it('stays closed when the restored project has guides', async () => {
+    fake.seed(withGuides('Saved', 2), 'pSaved');
+    render(<App />);
+    await settle();
+    expect(guidesToggle()).toHaveAccessibleName('Guides · 2');
+    expect(guidesToggle()).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('stays closed after switching to another project with guides, then opens when a guide is placed', async () => {
+    fake.seed(withGuides('Other', 3), 'pOther');
+    // Home has none, so this test's red under the mutation comes from the
+    // SWITCH, independently of the restore test above.
+    fake.seed(withGuides('Home', 0), 'pHome');
+    render(<App />);
+    await settle();
+    expect(guidesToggle()).toHaveAttribute('aria-expanded', 'false');
+
+    fireEvent.click(screen.getByLabelText('Open project menu'));
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: /^Other/ }));
+    await settle();
+    expect(useStore.getState().doc.name).toBe('Other');
+    expect(guidesToggle()).toHaveAccessibleName('Guides · 3');
+    expect(guidesToggle()).toHaveAttribute('aria-expanded', 'false');
+
+    act(() => { useStore.getState().addGuide([30, 0, 0]); });
+    expect(guidesToggle()).toHaveAccessibleName('Guides · 4');
+    expect(guidesToggle()).toHaveAttribute('aria-expanded', 'true');
+  });
+});
+
 // Module scope rather than inside 'App keyboard delete', where it started:
 // the Generate tests below need the same "one board, selected, focus on a
 // button rather than a field" starting point, because that is exactly the
