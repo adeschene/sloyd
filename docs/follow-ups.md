@@ -4565,7 +4565,12 @@ geometry. Delete prunes only definitions that are no longer referenced, and an e
 No data is lost, and the row can be deleted.
 - **A remedy, if wanted:** `removeItems` could drop an instance whose definition it leaves empty,
   recursively up the open path. The open path would then have to close the levels it removed.
-- **Status:** open, low.
+- **Status:** CLOSED 2026-10-11 by the fu 246/226/227 round: `removeItems` drops every placement of a
+  definition the delete EMPTIED (it held something before), cascading up, in every copy of a shared
+  definition; an assembly that was already empty is not the delete's and stays. `deleteBoards` closes the
+  open level to the deepest one left, as `restore` does; one undo entry restores everything (the open level
+  stays at the parent: history does not record it). Pinned in `treeOps.test.ts` and
+  `store.assemblies.test.ts`, mutation-checked (single pass, no "held before" guard, root-only, no close).
 
 **227. Two small parts-list and display-name gaps.**
 - **The eye on a covered row.** On a row covered by a hidden ancestor, the eye draws struck
@@ -4575,7 +4580,16 @@ No data is lost, and the row can be deleted.
   inside assembly "X" prints like part "B" inside assembly "X › A". Only the cut list's and
   joinery's DISPLAY names can collide. Joinery maps back by index, never by name, so no edit
   lands on the wrong part. Renaming resolves it.
-- **Status:** open, low.
+- **Status:** CLOSED 2026-10-11 by the fu 246/226/227 round.
+  - **The eye:** a covered row's eye reads "<name> is hidden with <nearest hidden assembly>"; a row's own
+    eye keeps Show/Hide. Pinned in `PartsList.test.tsx` (nearest, not outermost, mutation-checked).
+  - **The separator:** `cleanName` turns every `›` into `>` where a name is WRITTEN: `renameItem` (typed)
+    and Generate (which already did). The whole glyph is reserved, not only " › ": an assembly "X ›"
+    holding "B" and "X" holding "› B" both printed "X › › B". **Not on load, and not in `uniqueName`:**
+    a flat document names assembly parts "Front › Leg" by construction and runs through `migrateDocument`
+    (`applyJoints`, Refine, repair); cleaning there renamed every assembly part on write-back (47 joinery
+    tests red, caught in the round). Residue: a file saved before this round with a typed `›` keeps it
+    until renamed (display names only, as before).
 
 **228. Small gaps the round judged fine to leave.** Record-only. These are the per-task reviews'
 deferred minors, condensed.
@@ -4822,4 +4836,15 @@ cut stored into the MOVING end) and the old rule leaves it in place, so it ends 
   `unjoin.test.ts` pin the face, floor and one side of each in-plane span, not the far bounds; the restated
   "version-8 never mirrored" test checks the on-edge branch's stored values only (world solids are covered by the
   v12 migration cases).
-- **Status:** record-only.
+- **Status:** CLOSED 2026-10-11 by the fu 246/226/227 round, item by item.
+  - **Stale comments:** `PartDiagram.tsx`'s `TOP` doc and module doc now describe the vUp lift; the sweep's
+    TOL comment is re-measured (below).
+  - **The sweep, re-run** on the dev server on a fixture with stopped and positioned cuts on all six views at two
+    part sizes (12 views, 54 rotated column labels): no overlaps, nothing outside the viewBox; the highest text sits
+    5.32 units below the top on a lifted view, 4.75 on an unflipped one. **Finding:** its P3 check
+    ("left-of-board") predates the rotated leader columns, which stand left of the outline by design, and flagged
+    every column label on every view, flipped or not; rotated labels are now exempt from P3, and the re-run is clean.
+  - **Tests:** the line-number citation in `snapPoints.test.ts` now names the test; the one-sided pocket probes
+    pin every bound 0.05in either side (mutation-checked by shortening the pocket); the version-8 test now compares
+    the on-edge part's world solids against the v8-v11 frame written out by hand (mutation-checked).
+

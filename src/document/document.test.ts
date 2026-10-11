@@ -1169,6 +1169,15 @@ describe('v7 -> v8: true quarter turns', () => {
       expect(byId('c1')).toMatchObject({ face: 'thickness', from: 'min', across: 'width', offset: 4, width: 0.75, stopMin: 0, stopMax: 1.5 });
       expect(byId('c3')).toMatchObject({ face: 'thickness', from: 'min', across: 'length', offset: 0, width: 1, stopMin: 0, stopMax: 5 });
       expect(byId('c2')).toMatchObject({ face: 'width', from: 'min', across: 'length', offset: 0.625, width: 0.5, stopMin: 2, stopMax: 12 });
+      // And the world solids are the v8-v11 build's (fu 246), written out by hand: that build's on-edge
+      // turn 90 put thickness on X unreversed, width on Y, and length on Z REVERSED.
+      const v11World = boardSolids(saved).map((sp) => [
+        [saved.position[0] + sp.thickness[0], saved.position[0] + sp.thickness[1]],
+        [saved.position[1] + sp.width[0], saved.position[1] + sp.width[1]],
+        [saved.position[2] + saved.length - sp.length[1], saved.position[2] + saved.length - sp.length[0]],
+      ]);
+      expect(newWorld(loaded).length).toBe(v11World.length);
+      expect(sameSet(flatten(newWorld(loaded)), flatten(v11World))).toBe(true);
     }
   });
 

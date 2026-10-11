@@ -3,7 +3,11 @@ import type { DiagramCut, DiagramView, Span } from '../document/document';
 import { bandOn, fitView, DRAW_WIDTH } from './diagramScale';
 import { labelWidth, labelHeight, packRow, LABEL_ASCENT, LABEL_SIZE } from './diagramLabels';
 
-/** Stroke clearance above the outline. Nothing is DRAWN above it any more. */
+/**
+ * Stroke clearance above the figure. On an unflipped view nothing is drawn above
+ * the outline; on a `vUp` view a leader column's labels can reach above it, and
+ * the whole figure is lifted (`lift`) so they start no higher than TOP (fu 246).
+ */
 const TOP = 4;
 /** Clearance between the outline and the leader stack. */
 const GAP = 16;
@@ -146,12 +150,18 @@ const labelItems = (l: Leader, lo: number, hi: number, b: { start: number; size:
  * involved. Only the three labels WITHIN a row or column can collide, and
  * `packRow` settles those (follow-up 59).
  *
+ * One exception since the posture-handedness round (fu 215): on a `vUp` view
+ * the vertical axis grows UPWARD, so a column packs as the mirror of an
+ * unflipped one and its labels can sit ABOVE the outline's top edge. The figure
+ * is lifted by the worst such overhang, so they still start at TOP or below.
+ *
  * A row's labels pack along X, bounded by the viewBox width, which is already
  * generous (DRAW_WIDTH + RIGHT). A column's labels pack along Y instead, and
  * there is no equivalent headroom to assume — a sliver-clamped view can be as
  * short as the MIN_WIDTH floor. So a column's three labels are packed
  * UNBOUNDED (`packRow(..., top, Infinity, GAP_X)`) and the figure's overall
- * height grows to fit the deepest column, the same principle the
+ * height grows to fit the deepest column (and, on a vUp view, lifts to fit
+ * the highest), the same principle the
  * overall-width label already uses on the other axis (see the comment by
  * `viewW` below): the label overlapping something is a worse failure than the
  * figure being taller than its nominal size.

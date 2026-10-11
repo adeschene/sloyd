@@ -263,6 +263,14 @@ describe('a one-sided joint on an on-edge rail survives the v11 -> v12 load (fu 
     expect(inSolid(r, [x, y, pz! + 0.25])).toBe(true);     // below the pocket floor, still wood
     expect(inSolid(r, [px! + 5, y, pz! + 0.625])).toBe(true); // outside the pocket's length stops
     expect(inSolid(r, [x, py! + 0.5, pz! + 0.625])).toBe(true); // outside its width run
+    // Every bound, 0.05in either side (fu 246): x [10, 11.5], y [1, 2.5], floor z = pz + 0.5.
+    for (const [at, wood] of [
+      [[px! + 9.95, y, pz! + 0.625], true], [[px! + 10.05, y, pz! + 0.625], false],
+      [[px! + 11.45, y, pz! + 0.625], false], [[px! + 11.55, y, pz! + 0.625], true],
+      [[x, py! + 0.95, pz! + 0.625], true], [[x, py! + 1.05, pz! + 0.625], false],
+      [[x, py! + 2.45, pz! + 0.625], false], [[x, py! + 2.55, pz! + 0.625], true],
+      [[x, y, pz! + 0.45], true], [[x, y, pz! + 0.55], false],
+    ] as Array<[[number, number, number], boolean]>) expect(inSolid(r, at), at.join(',')).toBe(wood);
     expect('refused' in gateUnjoin(flat)).toBe(false);
     expect(plainForRefine(migrated)).toHaveProperty('plain');
   });
