@@ -237,6 +237,48 @@ describe('moving and copying assemblies (assemblies spec §4.2)', () => {
     expect(s().tapeAnchor).toBeNull();
   });
 
+  it('Delete of the open assembly\'s last part removes it and closes to the parent; one undo restores it (fu 226)', () => {
+    s().openAssembly('i1');
+    s().openAssembly('i1/i2');
+    s().selectItem('i1/i2/b3', false);
+    const before = s().doc;
+    const entries = s().past.length;
+    s().deleteBoards(['i1/i2/b3']);
+    expect(instanceAt(s().doc, 'i1/i2')).toBeNull();
+    expect(s().doc.definitions.map((d) => d.id)).toEqual(['d1']);
+    expect(s().openPath).toBe('i1');
+    expect(s().selectedIds).toEqual([]);
+    expect(s().past.length).toBe(entries + 1);
+    s().undo();
+    expect(s().doc).toBe(before);
+    expect(s().openPath).toBe('i1');
+  });
+
+  it('a cascade closes the open level to the deepest one left, the root here', () => {
+    const b3 = { ...assemblyDoc().definitions[1]!.boards[0]! };
+    load({
+      ...assemblyDoc(),
+      instances: [{ id: 'i1', name: 'Case', definition: 'd1', position: [0, 0, 0], rotation: 0 }],
+      definitions: [
+        { id: 'd1', boards: [], instances: [{ id: 'i2', name: 'Peg', definition: 'd2', position: [0, 0, 0], rotation: 0 }] },
+        { id: 'd2', boards: [b3], instances: [] },
+      ],
+    });
+    s().openAssembly('i1');
+    s().openAssembly('i1/i2');
+    s().deleteBoards(['i1/i2/b3']);
+    expect(s().doc.instances).toEqual([]);
+    expect(s().openPath).toBeNull();
+    expect(s().selectedIds).toEqual([]);
+  });
+
+  it('an emptied assembly that was hidden leaves the hidden set', () => {
+    s().setHidden('i1/i2', true);
+    s().deleteBoards(['i1/i2/b3']);
+    expect(instanceAt(s().doc, 'i1/i2')).toBeNull();
+    expect(s().hiddenIds).toEqual([]);
+  });
+
   it('Add board while an assembly is open adds inside it', () => {
     s().openAssembly('i1');
     s().addBoard();

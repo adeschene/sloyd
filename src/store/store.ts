@@ -1115,6 +1115,11 @@ export const useStore = create<StoreState>((set, get) => {
         (doc) => removeItems(doc, [...doomed]),
         () => get().selectedIds.filter((id) => !isCovered(id, doomed)),
       );
+      // A delete that empties an assembly removes it (fu 226), and the open
+      // level may be that assembly: close to the deepest level left, as restore does.
+      let open = get().openPath;
+      while (open !== null && !instanceAt(get().doc, open)) open = parentPath(open);
+      if (open !== get().openPath) set({ openPath: open, ...selectionPatch([], get().hiddenIds, open) });
       // A deleted part in a shared definition vanishes from every copy; a missing
       // part offers no points, so judgeHeld drops what was held on the others.
       judgeHeld();
