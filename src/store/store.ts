@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import {
-  boardsBounds, createBoard, createDocument, createGuide, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
+  boardsBounds, cleanName, createBoard, createDocument, createGuide, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
   linkPlan, sharedOf, sharedPatch, isShaped, plainOf, pruneShapes, dissolveShapes,
   childrenOf, instanceAt, isCovered, itemPaths, parentPath, worldParts, mapWorld,
   translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerTurn, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
@@ -1281,7 +1281,7 @@ export const useStore = create<StoreState>((set, get) => {
 
     renameItem: (path, typed) => {
       const doc = get().doc;
-      const name = uniqueName(typed, siblingsOf(doc, parentPath(path)), lastSegment(path));
+      const name = uniqueName(cleanName(typed), siblingsOf(doc, parentPath(path)), lastSegment(path));
       const inst = instanceAt(doc, path);
       if (inst) {
         if (name !== inst.name) {

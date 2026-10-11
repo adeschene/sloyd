@@ -23,7 +23,7 @@ export {
   horizontalOf, axisFrame, toWorldOffset, fromWorldOffset, spanToWorldOffset, spanFromWorldOffset, endFacing,
 } from './geometry';
 export type { Bounds, AxisMap } from './geometry';
-export { uniqueName, dedupeNames } from './names';
+export { cleanName, uniqueName, dedupeNames } from './names';
 export type { Named } from './names';
 export { boardEdges, boardSolids, CUT_GEOMETRY_FIELDS, CUT_GEOMETRY_KEYS, cutLabel, cutRegion, clippedRegion, cutShape, storedAsShape, cutRemovesNothing, cutsThatRemoveStock, pointToLocalXYZ, solidWorldBox, wholeBoard } from './cuts';
 export type { CutKind, CutShape, Point, Segment } from './cuts';

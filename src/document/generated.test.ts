@@ -124,6 +124,13 @@ describe('designToDocument — assemblies', () => {
     expect(worldParts(doc).map((b) => b.position)).toEqual([[-5, 0, -0.375], [-5, 5, -0.375]]);
   });
 
+  it('a model-written › becomes > in every name it writes (fu 227)', () => {
+    const { doc } = designToDocument(withAsm([part('Top › lid', [0, 9, 0], [10, 1, 4])],
+      asm('Case › left', [part('Side › A', [0, 0, 0], [10, 4, 0.75])], ['Copy › 1', [0, 0, 0]])));
+    expect(flatDocument(doc).boards.map((b) => b.name)).toEqual(['Top > lid', 'Copy > 1 › Side > A']);
+    expect(doc.definitions[0]!.boards[0]!.name).toBe('Side > A');
+  });
+
   it('never shifts definition-local coordinates', () => {
     const { doc } = designToDocument(withAsm([part('Base', [40, 0, 40], [4, 1, 4])], asm('Drawer', [FRONT], ['D', [0, 3, 0]])));
     expect(doc.definitions[0].boards[0].position).toEqual([0, 0, 0]);

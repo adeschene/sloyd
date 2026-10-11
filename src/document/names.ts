@@ -9,11 +9,14 @@ export interface Named { id: string; name: string }
 const SUFFIX_RE = /^(.*?)\s\((\d+)\)$/;
 
 /**
- * Every name a part or an assembly stores, with the path separator's glyph
+ * A name a person or a model wrote, with the path separator's glyph
  * (`NAME_SEPARATOR`, " › ") replaced by ">" (fu 227). Reserving the whole glyph,
  * not only the spaced separator, is what makes a flat name unambiguous: an
  * assembly "X ›" holding "B" and an assembly "X" holding "› B" would both print
- * "X › › B". uniqueName applies it, so every entry point does (invariant 8).
+ * "X › › B". Applied where a name is WRITTEN (renameItem, Generate), never in
+ * uniqueName or on load: a flat document's names carry the separator by
+ * construction ("Front › Leg") and pass through migrateDocument (applyJoints,
+ * Refine, repair), so cleaning there would rename every assembly part.
  */
 export const cleanName = (name: string): string => name.replaceAll('›', '>');
 
@@ -24,16 +27,13 @@ export const cleanName = (name: string): string => name.replaceAll('›', '>');
  * Since the assemblies round, the items are one container's parts AND
  * assemblies together (invariant 8, restated: unique among siblings).
  *
- * The separator's glyph is replaced first (`cleanName`), so the result never
- * contains it and a collision is judged on the stored spelling.
- *
  * Precondition: `base` is non-empty after trimming. Both call sites
  * guarantee it — the name field reverts an emptied value before committing,
  * and validateBoard trims and substitutes 'Board' for a blank (including
  * whitespace-only) name on load.
  */
 export function uniqueName(base: string, items: readonly Named[], excludeId?: string): string {
-  const wanted = cleanName(base.trim());
+  const wanted = base.trim();
   const taken = new Set(
     items.filter((b) => b.id !== excludeId).map((b) => b.name),
   );
