@@ -302,6 +302,27 @@ and 79.
 
 ## What each round did
 
+**What the mirrored-instances round did (2026-10-11)**: fu 225's first item, a LIVE mirrored copy, by the user's
+choices (live copy, assemblies only, Copy mirrored + a Mirrored checkbox, approach A: the mirror inside the one
+composition). **Schema 13** (`Instance.mirrored`, stored only when true; no step; harm one version back: wrong
+geometry). `placeBoard`/`placeInstance` reflect a child first (turn negated, cuts mirrored along the posture's turn-0
+X dimension with `mirrorCutAlong`, moved verbatim to `mirrorCut.ts`, min corner reflected); every world part stays an
+ordinary board, so the viewport, cut list, sheet, checks, snapping and joinery are unchanged. Write-back is the exact
+inverse (`lower`/`lowerDelta`/`lowerCuts`, positions as deltas, an untouched cut maps back to the same stored object;
+a Properties resize keeps stored cuts, keepWorld re-mirrors at the new size); world->local vectors go through
+`toLocal(containerLinear(...))` (`containerTurn` removed). `setMirrored`/`mirroredCopy` share `placedBox`/
+`replaceKeepingBox` with `turnInstance`; Ungroup lifts a shaped part through a mirror as plain; Refine refuses a mirrored
+assembly. What the reviews caught: a Properties resize through the mirrored copy rewrote every copy's cuts (ruled
+against spec §4); a copy-in-row test that could not see the mirror; a near-copy of turnInstance's box rule; and, in
+the final review, Link flipping the source's cuts across a mirror (Shape built from world cuts) and a posture change
+throwing on a Shape spanning both mirror sides. The user decided: Link refuses a part with no occurrence on the
+source's side (narrowed from "any mirror crossing" so linking inside a mirrored pair works) and a flat<->upright change
+is refused only when a Shape user has no occurrence on the edited side; two further rounds removed the last
+"disagreeing edits" throws (Link now writes no shared field through an occurrence). Live check on the dev server
+(`docs/browser-verification-mirrored-instances.md`): Copy mirrored abuts and badges; the cut list splits the one-handed
+Side and merges the symmetric Top; an offset edited on the right half appears mirrored on the left. Residue: fu 247.
+Test count 2811 -> 2881. Rollback: a build below 13 refuses every project saved after the deploy; export first.
+
 **What the 229/233 round did (2026-10-11)**: two follow-ups whose remedies were written down; the user asked for
 "whichever follow-ups make sense" (221 fails safe and its remedy was judged not worth it; 234 is an unmeasurable
 prompt change; 225, 232 and 241 are open by decision). **No schema change.** Fu 229: `ungroupItem` returns a `Lift`;

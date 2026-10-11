@@ -1,12 +1,14 @@
 import { boardExtents } from './geometry';
-import type { Board, Definition, Instance, Shape, SloydDocument, StoredBoard } from './types';
+import type { Board, Cut, Definition, Instance, Posture, Shape, SloydDocument, StoredBoard } from './types';
 import { CUT_GEOMETRY_KEYS } from './cuts';
 import { nextId } from './ids';
 import { LINK_FIELDS, SHARED_KEYS, sharedOf } from './links';
 import { isShaped, resolveBoard, shapeMap } from './shapes';
-import { addTurns, cornerShift, inverseTurn, placeBoard, rotateVec } from './frames';
+import { addTurns, cornerShift, inverseTurn, mirrorDim, mirrorPart, placeBoard, rotateVec, toLocal } from './frames';
+import type { Frame } from './frames';
+import { mirrorCut } from './mirrorCut';
 import type { Container } from './tree';
-import { PATH_SEPARATOR, containerTurn, definitionAt, instanceAt, instancesOn, isCovered, itemPaths, lastSegment, parentPath, partAt, worldParts } from './tree';
+import { PATH_SEPARATOR, containerLinear, definitionAt, instanceAt, instancesOn, isCovered, itemPaths, lastSegment, mirroredAt, parentPath, partAt, worldParts } from './tree';
 
 /** Replace one container's contents: the root's, or a definition's. */
 export function updateContainer(doc: SloydDocument, path: string | null, fn: (c: Container) => Container): SloydDocument {
@@ -25,20 +27,127 @@ export interface WorldEdit { before: Board; after: Board }
 const samePosition = (a: readonly number[], b: readonly number[]) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
 const sub = (a: readonly number[], b: readonly number[]) => [a[0]! - b[0]!, a[1]! - b[1]!, a[2]! - b[2]!];
 
+/** One level down, as a DELTA (spec §5.2): the lowered turn, a draft carrying
+ *  the after-state's fields at the before position, and the local position change. */
+function lowerDelta(inst: Frame, upperBefore: Board, lowerBefore: Board, upperAfter: Board): { draft: Board; d: number[] } {
+  const rotation = addTurns(upperAfter.rotation, inverseTurn(inst.rotation));
+  const draft: Board = { ...upperAfter, rotation, position: lowerBefore.position };
+  const dW = sub(upperAfter.position, upperBefore.position);
+  const dS = sub(cornerShift(inst.rotation, draft), cornerShift(inst.rotation, lowerBefore));
+  return { draft, d: rotateVec(inverseTurn(inst.rotation), sub(dW, dS)) };
+}
+
+/**
+ * The cuts of a part lowered back through ONE mirror (mirrored-instances spec §4).
+ * A world cut that equals the stored cut with the same id, placed, maps back to
+ * THAT object (mirrorCut twice is not bit-exact; repeated edits must not drift,
+ * and an untouched cut is never rewritten). "Placed" means at the BEFORE frame
+ * (the stored part's size on d0) for a Properties edit, which keeps the stored
+ * cuts when only a size field changed, as through a plain frame; and at the AFTER
+ * frame under keepWorld (joinery keeps the world box, so an end cut's rebase must
+ * shift the stored cuts). Any other cut is reflected back along d0 of the
+ * lowered (after) posture. All reused, in order: the stored array itself.
+ *
+ * A posture change that moves d0 (the approved coupling, spec §4) keeps the
+ * world cuts as seen, so each stored cut is re-reflected along the NEW d0. A
+ * stored cut can still match there (a cut symmetric about the centre of both
+ * d0s, say): a match means the stored cut placed along the new d0 IS the world
+ * cut, i.e. it already is the reflection, so reusing the stored object is
+ * correct either way.
+ */
+function lowerCuts(storedBefore: Board, draft: Board, keepWorld: boolean): Cut[] {
+  const d0 = mirrorDim(draft);
+  const size = draft[d0];
+  // A posture change that moves d0 (flat/on-edge <-> upright) is the approved
+  // coupling (spec §4) and needs no separate test of d0: a stored cut matches
+  // exactly when placing it along the new d0 gives the world cut, which is the
+  // reflection this would otherwise compute, so reuse is right either way.
+  const atBefore = !keepWorld;
+  const refSize = atBefore ? storedBefore[d0] : size;
+  const byId = new Map(storedBefore.cuts.map((c) => [c.id, c]));
+  const out = draft.cuts.map((c) => {
+    const s = byId.get(c.id);
+    if (s) {
+      const placed = mirrorCut(s, d0, refSize);
+      if (CUT_GEOMETRY_KEYS.every((k) => placed[k] === c[k])) return s;
+    }
+    return mirrorCut(c, d0, size);
+  });
+  return out.length === storedBefore.cuts.length && out.every((c, i) => c === storedBefore.cuts[i]) ? storedBefore.cuts : out;
+}
+
 /**
  * One level down: the part's after-state in an instance's frame, from its
  * after-state in the parent's frame. A position goes down as a DELTA (spec
  * §5.2): the stored value gains the inverse-rotated world change, less the
  * change in the turned box's corner offset. An axis that did not move gains
- * exactly zero, so nothing is round-tripped.
+ * exactly zero, so nothing is round-tripped. Through a MIRRORED frame
+ * (mirrored-instances spec §4) it lowers into the reflected coordinates the
+ * placement used (mirrorPart of the stored before), then reflects back: the turn
+ * negated, x by -dx' less the change in x extent, the cuts by lowerCuts.
  */
-function lower(inst: Instance, upperBefore: Board, lowerBefore: Board, upperAfter: Board): Board {
-  const rotation = addTurns(upperAfter.rotation, inverseTurn(inst.rotation));
-  const draft: Board = { ...upperAfter, rotation, position: lowerBefore.position };
-  const dW = sub(upperAfter.position, upperBefore.position);
-  const dS = sub(cornerShift(inst.rotation, draft), cornerShift(inst.rotation, lowerBefore));
-  const d = rotateVec(inverseTurn(inst.rotation), sub(dW, dS));
-  return { ...draft, position: [lowerBefore.position[0] + d[0], lowerBefore.position[1] + d[1], lowerBefore.position[2] + d[2]] };
+function lower(inst: Instance, upperBefore: Board, lowerBefore: Board, upperAfter: Board, keepWorld: boolean): Board {
+  if (!inst.mirrored) {
+    const { draft, d } = lowerDelta(inst, upperBefore, lowerBefore, upperAfter);
+    return { ...draft, position: [lowerBefore.position[0] + d[0]!, lowerBefore.position[1] + d[1]!, lowerBefore.position[2] + d[2]!] };
+  }
+  const mBefore = mirrorPart(lowerBefore);
+  const { draft, d } = lowerDelta(inst, upperBefore, mBefore, upperAfter);
+  const dx = (0 - d[0]!) - (boardExtents(draft)[0] - boardExtents(mBefore)[0]);
+  return {
+    ...draft,
+    rotation: inverseTurn(draft.rotation),
+    position: [lowerBefore.position[0] + dx, lowerBefore.position[1] + d[1]!, lowerBefore.position[2] + d[2]!],
+    cuts: lowerCuts(lowerBefore, draft, keepWorld),
+  };
+}
+
+export const POSTURE_ACROSS_MIRROR = "Linked parts on both sides of a mirror can't change between flat and upright. Unlink first.";
+
+/**
+ * Why a posture patch on `ids` must be refused, or null (mirrored-instances spec
+ * §4, amended). Under an odd number of mirrors a part's stored cuts depend on
+ * its posture's d0 (`mirrorDim`), so a posture change that moves d0 (flat or
+ * on-edge <-> upright) rewrites them, re-reflected (the approved coupling). A
+ * shaped part's cuts are stored ONCE, and the store writes the change to every
+ * user through an occurrence on the EDITED part's side (`sameSideFirst`). So
+ * the change is refused only when some user of the Shape (by `storageKey`) has
+ * no world occurrence on that side: it would have to be lowered through the
+ * other side and would write different cuts to the Shape. That is a Shape split
+ * by Ungroup or Make Unique; a shared definition placed both ways (a cabinet and
+ * its mirrored copy) is allowed from either side. Also refused (defensive; a
+ * selection is one level): two targets sharing a Shape on different sides. A
+ * posture that keeps d0 (flat <-> on-edge) is never refused. The ONE decider:
+ * the store's updateBoards and the Posture field.
+ */
+export function postureRefusal(doc: SloydDocument, ids: readonly string[], posture: Posture | undefined): string | null {
+  if (posture === undefined) return null;
+  const world = worldParts(doc);
+  const sideOf = new Map<string, boolean>();
+  for (const id of ids) {
+    const b = world.find((x) => x.id === id);
+    if (!b?.shape || mirrorDim({ ...b, posture }) === mirrorDim(b)) continue;
+    const side = mirroredAt(doc, b.id);
+    if (sideOf.has(b.shape) && sideOf.get(b.shape) !== side) return POSTURE_ACROSS_MIRROR;
+    sideOf.set(b.shape, side);
+    const users = world.filter((x) => x.shape === b.shape);
+    const key = (x: Board) => storageKey(doc, x.id) ?? x.id;
+    const onSide = new Set(users.filter((x) => mirroredAt(doc, x.id) === side).map(key));
+    if (users.some((x) => !onSide.has(key(x)))) return POSTURE_ACROSS_MIRROR;
+  }
+  return null;
+}
+
+/**
+ * `ids` reordered so each occurrence on the side `sideOf` names comes before
+ * any on the other side (stable otherwise). `oneEditPerTarget` keeps the FIRST
+ * occurrence of each stored part, so this makes it lower every stored part
+ * through the side the edit was made on: two lowerings through different
+ * parities would write different cuts to one Shape (spec §4, amended).
+ */
+export function sameSideFirst(doc: SloydDocument, ids: Iterable<string>, sideOf: (id: string) => boolean | undefined): string[] {
+  const off = (id: string) => { const want = sideOf(id); return want !== undefined && mirroredAt(doc, id) !== want ? 1 : 0; };
+  return [...ids].map((id, i) => ({ id, i, o: off(id) })).sort((a, b) => a.o - b.o || a.i - b.i).map((x) => x.id);
 }
 
 /** The storage id of the root container. A definition may never carry it:
@@ -129,7 +238,7 @@ function lowerEdit(doc: SloydDocument, shapes: ReadonlyMap<string, Shape>, befor
   reps[chain.length] = resolved;
   for (let j = chain.length - 1; j >= 0; j -= 1) reps[j] = placeBoard(chain[j]!, reps[j + 1]!);
   let cur = after;
-  for (let j = 0; j < chain.length; j += 1) cur = lower(chain[j]!, reps[j]!, reps[j + 1]!, cur);
+  for (let j = 0; j < chain.length; j += 1) cur = lower(chain[j]!, reps[j]!, reps[j + 1]!, cur, keepWorld);
 
   const resized = keepWorld
     && (before.posture !== after.posture || boardExtents(before).some((e, a) => e !== boardExtents(after)[a]));
@@ -137,9 +246,9 @@ function lowerEdit(doc: SloydDocument, shapes: ReadonlyMap<string, Shape>, befor
   const changedKeys = [...new Set([...Object.keys(before), ...Object.keys(after)])].filter((k) => {
     if (k === 'id' || k === 'shape') return false;            // never written through here
     if (k === 'position' || k === 'rotation') return moved;
-    return k === 'cuts' ? before.cuts !== after.cuts : rec(before)[k] !== rec(after)[k];
+    return k === 'cuts' ? cur.cuts !== resolved.cuts : rec(before)[k] !== rec(after)[k];
   });
-  const valueOf = (k: string) => (k === 'position' ? [...cur.position] : k === 'rotation' ? cur.rotation : rec(after)[k]);
+  const valueOf = (k: string) => (k === 'position' ? [...cur.position] : k === 'rotation' ? cur.rotation : k === 'cuts' ? cur.cuts : rec(after)[k]);
   return { stored, defId, key: `${defId}:${stored.id}`, changedKeys, valueOf, after };
 }
 
@@ -173,9 +282,10 @@ function mergeField(rec0: Record<string, unknown>, wrote: Map<string, unknown>, 
 /**
  * Write world-space edits back into the tree (spec §5.1, §5.2). Only changed
  * fields are written: `position` compared element by element, `cuts` by
- * reference, everything else by `!==`. `position` and `rotation` go down
- * level by level through `lower`; every other field is part-local and goes
- * back as it is. A key present before and absent after is deleted (storedValue).
+ * reference, everything else by `!==`. `position`, `rotation` and `cuts`
+ * go down level by level through `lower` (through a mirror the cuts are
+ * reflected back by `lowerCuts`; untouched ones stay the stored objects); every
+ * other field is part-local and goes back as it is. A key present before and absent after is deleted (storedValue).
  * A root part's write is plain assignment, exactly as before assemblies.
  * `keepWorld` (joinery only): a part whose extents or posture changed also
  * counts as moved, so the world box is kept; a Properties edit keeps the
@@ -237,8 +347,9 @@ export function mapWorld(doc: SloydDocument, fn: (world: Board[]) => Board[]): S
 }
 
 /**
- * Move items (parts or instances) by one WORLD delta (spec §4.2): rotated into
- * each item's container frame (exact, a quarter turn only swaps and negates)
+ * Move items (parts or instances) by one WORLD delta (spec §4.2): turned and,
+ * through a mirror, reflected into each item's container frame (exact, a
+ * quarter turn only swaps and negates)
  * and added to its stored position or origin. A root item gains the delta
  * exactly, as translateBoards did. Nothing rounds (invariant 25). An item
  * listed together with one of its ancestors is not moved separately.
@@ -258,7 +369,7 @@ export function translateItems(doc: SloydDocument, ids: readonly string[], world
   }
   let out = doc;
   for (const [cPath, members] of byContainer) {
-    const d = rotateVec(inverseTurn(containerTurn(doc, cPath)), worldDelta);
+    const d = toLocal(containerLinear(doc, cPath), worldDelta);
     const shift = (p: readonly number[]): [number, number, number] => [p[0]! + d[0], p[1]! + d[1], p[2]! + d[2]];
     out = updateContainer(out, cPath, (c) => ({
       boards: c.boards.map((b) => (members.has(b.id) ? { ...b, position: shift(b.position) } : b)),

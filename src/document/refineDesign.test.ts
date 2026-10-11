@@ -151,4 +151,11 @@ describe('carryGrain', () => {
       placements: [{ name: 'Top drawer', at: v(0, 5, 0) }] }] }, original);
     expect(out.assemblies![0].parts[0].grain).toBe('width');
   });
+
+  it('refuses a design containing a mirrored assembly (mirrored-instances spec §6)', () => {
+    const d = designToDocument({ name: 'P', parts: [], assemblies: [{ name: 'Side', parts: [{ name: 'A', role: '', material: 'pine', at: { x: 0, y: 0, z: 0 }, size: { x: 10, y: 1, z: 4 } }], placements: [{ name: 'L', at: { x: 0, y: 0, z: 0 } }, { name: 'R', at: { x: 30, y: 0, z: 0 } }] }] } as GeneratedDesign).doc;
+    const m = { ...d, instances: d.instances.map((i, k) => (k === 1 ? { ...i, mirrored: true } : i)) };
+    expect(documentToDesign(m, { distinct: 12, placed: 48 })).toEqual({ refused: { reason: 'mirrored', message: "Refine can't describe a mirrored assembly yet — Ungroup the mirrored copy first." } });
+    expect('design' in documentToDesign(d, { distinct: 12, placed: 48 })).toBe(true);
+  });
 });

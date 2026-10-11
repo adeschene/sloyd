@@ -4,7 +4,7 @@ import { nextId } from './ids';
 import { uniqueName } from './names';
 import type { Named } from './names';
 import { boardsBounds } from './geometry';
-import { placeBoard, placeInstance } from './frames';
+import { placeBoard, placeInstance, rotateVec, withMirror } from './frames';
 import type { Container } from './tree';
 import { containerAt, definitionAt, instanceAt, itemPaths, joinPath, lastSegment, parentPath, partsBelow } from './tree';
 import { updateContainer } from './treeEdit';
@@ -192,8 +192,9 @@ export function ungroupItem(doc: SloydDocument, path: string):
     if (!r) return [];
     const placed = { ...placeBoard(inst, r), id: fresh(b.id) };
     const name = uniqueName(b.name, taken);
-    // A shaped part stays shaped: own fields from the placed result, the rest from storage.
-    const named: StoredBoard = isShaped(b)
+    // A shaped part stays shaped: own fields from the placed result, the rest from storage
+    // — except through a mirror, whose reflected cuts the Shape does not hold (mirrored-instances spec §5).
+    const named: StoredBoard = isShaped(b) && inst.mirrored !== true
       ? { ...b, position: placed.position, rotation: placed.rotation, id: placed.id, name }
       // A plain part gets its own Cut objects: the definition's part, which
       // the other copies still use, keeps its own (makeUniqueItem's rule).
@@ -221,19 +222,23 @@ export function ungroupItem(doc: SloydDocument, path: string):
   };
 }
 
-/**
- * Turn an instance to `rotation` about its box centre in the parent's frame,
- * keeping the box's min height: reorientedPosition's rule for a part
- * (invariant 2), for an assembly.
- */
-export function turnInstance(doc: SloydDocument, path: string, rotation: Rotation): SloydDocument {
-  const inst = instanceAt(doc, path);
-  const def = definitionAt(doc, path);
-  if (!inst || !def || inst.rotation === rotation) return doc;
+/** The world box (in the parent's frame) of an assembly's parts placed through `f`. */
+function placedBox(doc: SloydDocument, def: Definition, f: Instance) {
   const inner = partsBelow(doc, def);
-  const box = (f: Instance) => boardsBounds(inner.map((b) => placeBoard(f, b)));
-  const before = box(inst);
-  const after = box({ ...inst, rotation });
+  return boardsBounds(inner.map((b) => placeBoard(f, b)));
+}
+
+/**
+ * Replace the instance at `path` by `next` (a turned or mirrored version of
+ * it), keeping the placed parts' box centre in X and Z and its min height:
+ * reorientedPosition's rule for a part (invariant 2), for an assembly. `next`'s
+ * own position is replaced. An assembly with no parts keeps its position.
+ */
+function replaceKeepingBox(doc: SloydDocument, path: string, next: Instance): SloydDocument {
+  const inst = instanceAt(doc, path)!;
+  const def = definitionAt(doc, path)!;
+  const before = placedBox(doc, def, inst);
+  const after = placedBox(doc, def, next);
   const position: [number, number, number] = before && after
     ? [
         inst.position[0] + ((before.min[0] + before.max[0]) - (after.min[0] + after.max[0])) / 2,
@@ -243,8 +248,54 @@ export function turnInstance(doc: SloydDocument, path: string, rotation: Rotatio
     : [...inst.position];
   return updateContainer(doc, parentPath(path), (c) => ({
     ...c,
-    instances: c.instances.map((i) => (i.id === inst.id ? { ...i, rotation, position } : i)),
+    instances: c.instances.map((i) => (i.id === inst.id ? { ...next, position } : i)),
   }));
+}
+
+/** Turn an instance to `rotation` about its box centre, keeping the box's min height (replaceKeepingBox). */
+export function turnInstance(doc: SloydDocument, path: string, rotation: Rotation): SloydDocument {
+  const inst = instanceAt(doc, path);
+  if (!inst || !definitionAt(doc, path) || inst.rotation === rotation) return doc;
+  return replaceKeepingBox(doc, path, { ...inst, rotation });
+}
+
+/**
+ * Flip an assembly placement's mirror (mirrored-instances spec §5), keeping its
+ * world box (replaceKeepingBox), exact because the mirror-aware placeBoard
+ * reflects the box onto a box of the same extents. Same doc for a no-op.
+ */
+export function setMirrored(doc: SloydDocument, path: string, mirrored: boolean): SloydDocument {
+  const inst = instanceAt(doc, path);
+  if (!inst || !definitionAt(doc, path) || (inst.mirrored === true) === mirrored) return doc;
+  return replaceKeepingBox(doc, path, withMirror(inst, mirrored));
+}
+
+/**
+ * Copy mirrored (spec §5): a shared copy with the OPPOSITE flag whose world box
+ * abuts the original's on the original's local +X side (turned with it), the
+ * other two axes matching. Named among its siblings. Null when nothing resolves.
+ */
+export function mirroredCopy(doc: SloydDocument, path: string): { doc: SloydDocument; path: string } | null {
+  const inst = instanceAt(doc, path);
+  const def = definitionAt(doc, path);
+  const container = parentPath(path);
+  const c = containerAt(doc, container);
+  if (!inst || !def || !c) return null;
+  const draft = withMirror(shareInstance(inst), inst.mirrored !== true);
+  const a = placedBox(doc, def, inst);
+  const b = placedBox(doc, def, draft);
+  const position: [number, number, number] = [...inst.position];
+  if (a && b) {
+    const dir = rotateVec(inst.rotation, [1, 0, 0]);
+    const axis = dir[0] !== 0 ? 0 : 2;
+    for (const k of [0, 1, 2]) {
+      const shift = k !== axis ? a.min[k]! - b.min[k]!
+        : dir[axis]! > 0 ? a.max[k]! - b.min[k]! : a.min[k]! - b.max[k]!;
+      position[k] = inst.position[k]! + shift;
+    }
+  }
+  const copy: Instance = { ...draft, position, name: uniqueName(inst.name, [...c.boards, ...c.instances]) };
+  return { doc: insertItems(doc, container, { instances: [copy] }), path: joinPath(container, copy.id) };
 }
 
 export function shareInstance(inst: Instance): Instance {

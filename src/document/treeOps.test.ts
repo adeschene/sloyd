@@ -1,4 +1,4 @@
-import { groupItems, makeUniqueItem, nextAssemblyName, pruneDefinitions, removeItems, shareInstance, turnInstance, ungroupItem } from './treeOps';
+import { groupItems, makeUniqueItem, mirroredCopy, nextAssemblyName, pruneDefinitions, removeItems, setMirrored, shareInstance, turnInstance, ungroupItem } from './treeOps';
 import { dissolveShapes, isShaped } from './shapes';
 import type { Board, SloydDocument } from './types';
 import { childrenOf, instanceAt, partAt, worldParts } from './tree';
@@ -314,5 +314,121 @@ describe('shared definitions', () => {
     expect(out.shapes).toEqual([]);
     const two = { ...doc, boards: [{ id: 'r1', name: 'Leg R', position: [9, 0, 0] as [number, number, number], rotation: 0 as const, shape: 's1' }] };
     expect(dissolveShapes(two)).toBe(two);
+  });
+});
+
+describe('mirrored instances: toggle, copy, ungroup (mirrored-instances spec §5)', () => {
+  const bounds = (d: SloydDocument, prefix: string) => boardsBounds(worldParts(d).filter((b) => b.id.startsWith(prefix)))!;
+
+  it('setMirrored flips the flag and keeps the assembly\'s world bounds; a no-op returns the same doc', () => {
+    const d = assemblyDoc();
+    const out = setMirrored(d, 'i1', true);
+    expect(instanceAt(out, 'i1')!.mirrored).toBe(true);
+    const a = bounds(d, 'i1/'); const b = bounds(out, 'i1/');
+    [0, 1, 2].forEach((k) => { expect(b.min[k]).toBeCloseTo(a.min[k]!, 9); expect(b.max[k]).toBeCloseTo(a.max[k]!, 9); });
+    expect(setMirrored(d, 'i1', false)).toBe(d);
+    const back = setMirrored(out, 'i1', false);
+    expect('mirrored' in instanceAt(back, 'i1')!).toBe(false);
+  });
+
+  it('setMirrored really mirrors: a one-handed part\'s world solids are the reflection about the box centre', () => {
+    const d = assemblyDoc();
+    const out = setMirrored(d, 'i1', true);
+    const box = bounds(d, 'i1/');
+    // i1 is turned 90: its local X runs along world Z, so the reflection is about the box's Z centre.
+    const cz = (box.min[2]! + box.max[2]!) / 2;
+    const reflect = (s: { min: number[]; max: number[] }) => [s.min[0]!, s.min[1]!, 2 * cz - s.max[2]!, s.max[0]!, s.max[1]!, 2 * cz - s.min[2]!];
+    const before = worldParts(d).find((b) => b.id === 'i1/b1')!;
+    const after = worldParts(out).find((b) => b.id === 'i1/b1')!;
+    expect(sameSet(worldSolids(after).map((s) => [...s.min, ...s.max]), worldSolids(before).map(reflect))).toBe(true);
+  });
+
+  it('mirroredCopy: a shared, opposite-flag copy abutting on the original\'s local +X side, uniquely named', () => {
+    const d = assemblyDoc();
+    const r = mirroredCopy(d, 'i1')!;
+    const copy = instanceAt(r.doc, r.path)!;
+    expect(copy.definition).toBe(instanceAt(d, 'i1')!.definition);
+    expect(copy.mirrored).toBe(true);
+    expect(copy.name).not.toBe('Drawer');
+    const a = bounds(r.doc, 'i1/'); const c = bounds(r.doc, `${r.path}/`);
+    // i1 is turned 90: rotateVec(90, [1,0,0]) = [0,0,-1], so the copy sits on world -Z, touching.
+    expect(c.max[2]).toBeCloseTo(a.min[2]!, 9);
+    expect(c.min[0]).toBeCloseTo(a.min[0]!, 9);
+    expect(c.max[0]).toBeCloseTo(a.max[0]!, 9);
+    expect(c.min[1]).toBeCloseTo(a.min[1]!, 9);
+    const again = mirroredCopy(r.doc, r.path)!;
+    expect('mirrored' in instanceAt(again.doc, again.path)!).toBe(false);
+  });
+
+  it('Ungroup of a mirrored assembly keeps every world part (direct children bit-identical, nested within rounding)', () => {
+    const d = setMirrored(assemblyDoc(), 'i1', true);
+    const before = worldParts(d).filter((b) => b.id.startsWith('i1/'));
+    const r = ungroupItem(d, 'i1')!;
+    const after = worldParts(r.doc);
+    for (const b of before) {
+      const lifted = after.find((x) => x.name === b.name && Math.abs(x.position[0] - b.position[0]) < 1e-12)!;
+      expect(lifted, b.name).toBeDefined();
+      const got = worldSolids(lifted); const want = worldSolids(b);
+      if (b.id.split('/').length === 2) expect(got).toEqual(want); // direct child: bit-identical (inv 46)
+      else { // nested part: one composition step folded, so within rounding (inv 46 'direct child parts only')
+        expect(got).toHaveLength(want.length);
+        got.forEach((s, n) => [0, 1, 2].forEach((k) => { expect(s.min[k]).toBeCloseTo(want[n]!.min[k]!, 9); expect(s.max[k]).toBeCloseTo(want[n]!.max[k]!, 9); }));
+      }
+    }
+  });
+
+  it('Ungroup of a mirrored assembly holding a SHAPED part keeps its world solids (the lifted part is plain)', () => {
+    const base = assemblyDoc();
+    const side = base.definitions[0]!.boards[0]!;
+    const shaped = { id: 'sp', name: 'Shaped', shape: 'sh1', position: [3.1, 0.2, 0.4] as [number, number, number], rotation: 90 as const };
+    const { id: _i, name: _n, position: _p, rotation: _r, ...shapeBody } = side;
+    const d = setMirrored({
+      ...base,
+      shapes: [{ ...shapeBody, id: 'sh1' } as never],
+      definitions: base.definitions.map((x) => (x.id === 'd1' ? { ...x, boards: [...x.boards, shaped as never, { ...shaped, id: 'sp2', name: 'Shaped 2', position: [6.1, 0.2, 0.4] } as never] } : x)),
+    }, 'i1', true);
+    const before = worldParts(d).find((b) => b.id === 'i1/sp')!;
+    expect(before.cuts.length).toBeGreaterThan(0);
+    const r = ungroupItem(d, 'i1')!;
+    const lifted = worldParts(r.doc).find((b) => b.id === r.rekey('i1/sp'))!;
+    expect(worldSolids(lifted)).toEqual(worldSolids(before));
+    expect(isShaped(r.doc.boards.find((b) => b.id === r.rekey('i1/sp'))!)).toBe(false);
+  });
+
+  it('Make Unique of a mirrored copy keeps the flag and every world part', () => {
+    const base = assemblyDoc();
+    const twin = { ...base, instances: [...base.instances, { ...base.instances[0]!, id: 'i3', name: 'Drawer 2', position: [30, 0, 0] as [number, number, number], mirrored: true }] };
+    const before = worldParts(twin).filter((b) => b.id.startsWith('i3/'));
+    const out = makeUniqueItem(twin, 'i3')!;
+    expect(instanceAt(out, 'i3')!.mirrored).toBe(true);
+    expect(worldParts(out).filter((b) => b.id.startsWith('i3/'))).toEqual(before);
+  });
+
+  it('turning a mirrored assembly keeps its box centre and min height', () => {
+    const d = setMirrored(assemblyDoc(), 'i1', true);
+    const a = bounds(d, 'i1/');
+    const b = bounds(turnInstance(d, 'i1', 180), 'i1/');
+    expect((b.min[0]! + b.max[0]!) / 2).toBeCloseTo((a.min[0]! + a.max[0]!) / 2, 9);
+    expect((b.min[2]! + b.max[2]!) / 2).toBeCloseTo((a.min[2]! + a.max[2]!) / 2, 9);
+    expect(b.min[1]).toBeCloseTo(a.min[1]!, 9);
+  });
+
+  describe('mirroredCopy abuts on the side rotateVec(rotation, [1,0,0]) points to (any turn, mirrored or not)', () => {
+    // Hand derivation: the copy's box touches the original's on that side (turn 0: +X, 90: -Z, 180: -X, 270: +Z); the other axes are equal.
+    const sides: Array<[0 | 90 | 180 | 270, number, 'min' | 'max']> = [[0, 0, 'max'], [180, 0, 'min'], [270, 2, 'max']];
+    for (const mirrored of [false, true]) {
+      for (const [turn, axis, side] of sides) {
+        it(`turn ${turn}${mirrored ? ', mirrored original' : ''}`, () => {
+          const base = assemblyDoc();
+          const d = { ...base, instances: base.instances.map((i) => (i.id === 'i1' ? { ...i, rotation: turn, ...(mirrored ? { mirrored: true } : {}) } : i)) };
+          const r = mirroredCopy(d as SloydDocument, 'i1')!;
+          expect(instanceAt(r.doc, r.path)!.mirrored === true).toBe(!mirrored);
+          const a = bounds(r.doc, 'i1/'); const c = bounds(r.doc, `${r.path}/`);
+          if (side === 'max') expect(c.min[axis]).toBeCloseTo(a.max[axis]!, 9);
+          else expect(c.max[axis]).toBeCloseTo(a.min[axis]!, 9);
+          [0, 1, 2].filter((k) => k !== axis).forEach((k) => { expect(c.min[k]).toBeCloseTo(a.min[k]!, 9); expect(c.max[k]).toBeCloseTo(a.max[k]!, 9); });
+        });
+      }
+    }
   });
 });

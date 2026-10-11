@@ -4552,7 +4552,7 @@ definition exactly one instance, so none of these could arise yet.
 
 **225. Out of scope by decision, recorded so they are not re-proposed as oversights.**
 - **Mirrored instances** (left and right cabinet halves). Blocked on follow-up 215, which hand
-  each posture has.
+  each posture has. — DONE 2026-10-11 by the mirrored-instances round (schema 13); the rest of 225 stays out of scope by decision.
 - **A cut list organised by assembly** ("Drawer ×3"). Today's cut list groups parts by identity
   across assemblies and names each by its path.
 - **Scaled instances.** They make a cut list lie.
@@ -4860,3 +4860,18 @@ cut stored into the MOVING end) and the old rule leaves it in place, so it ends 
     pin every bound 0.05in either side (mutation-checked by shortening the pocket); the version-8 test now compares
     the on-edge part's world solids against the v8-v11 frame written out by hand (mutation-checked).
 
+
+## From the mirrored-instances round — 2026-10-11
+
+**247. Small gaps the round judged fine to leave.** Record-only; the reviews' deferred minors.
+- **`sameSideFirst` in `linkBoards` is dead since the round-3 fix** (Link writes no shared field through an
+  occurrence; the posture pivot keeps X/Z centre and min height, which a mirror leaves alone). Harmless; three texts
+  still say the side matters for Link: the comment at `linkBoards`, spec §4 "through an occurrence on the source's
+  side", CLAUDE.md invariant 46 "each lowered alone". It is still load-bearing for the shared POSTURE write in
+  `updateBoards`.
+- One edit changing posture so `d0` moves AND the new `d0`'s size, without keepWorld, could reuse a symmetric stored
+  cut whose reflection differs. Properties edits one field at a time; looks unreachable.
+- `replaceKeepingBox` uses non-null assertions on `instanceAt`/`definitionAt`; both callers guard first.
+- The joinery split test (`joints/mirrored.test.ts`) asserts the split, not that the Shelf itself got cuts.
+- `linkBoards`' pivot write would be skipped silently if `partAt` failed to resolve; `linkPlan` makes it unreachable.
+- **Status:** record-only.

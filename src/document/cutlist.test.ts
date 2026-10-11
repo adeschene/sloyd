@@ -1,5 +1,7 @@
 import { buildCutList, createBoard, createDocument } from './document';
-import type { Board, FlatDocument } from './document';
+import type { Board, FlatDocument, SloydDocument } from './document';
+import { flatDocument } from './tree';
+import { chiralPart } from './turnFixtures';
 import type { Cut } from './types';
 import { cutRegion } from './cuts';
 import { axisFrame, spanToWorldOffset } from './geometry';
@@ -645,5 +647,24 @@ describe('the setup line is written from the shape (cut-lines spec §2.2)', () =
       }
     }
     expect(through).toBeGreaterThan(100);
+  });
+});
+
+describe('mirrored copies on the cut list (mirrored-instances spec §6)', () => {
+  const pair = (b: Board): SloydDocument => ({
+    ...createDocument('Pair'),
+    instances: [
+      { id: 'l', name: 'Left', definition: 'd', position: [0, 0, 0], rotation: 0 },
+      { id: 'r', name: 'Right', definition: 'd', position: [40, 0, 0], rotation: 0, mirrored: true },
+    ],
+    definitions: [{ id: 'd', boards: [{ ...b, id: 'p' }], instances: [] }],
+  });
+  const rowsOf = (d: SloydDocument) => buildCutList(flatDocument(d)).groups.flatMap((g) => g.rows);
+  it('a one-handed part and its mirror are two rows; a symmetric part is one row of 2', () => {
+    expect(rowsOf(pair(chiralPart('flat')))).toHaveLength(2);
+    const plain = createBoard({ name: 'Plain', length: 20, width: 6, thickness: 0.75 });
+    const rows = rowsOf(pair(plain));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.qty).toBe(2);
   });
 });

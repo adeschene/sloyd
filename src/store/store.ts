@@ -3,8 +3,8 @@ import {
   boardsBounds, cleanName, createBoard, createDocument, createGuide, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
   linkPlan, sharedOf, sharedPatch, isShaped, plainOf, pruneShapes, dissolveShapes,
   childrenOf, instanceAt, isCovered, itemPaths, parentPath, worldParts, mapWorld,
-  translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerTurn, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
-  rotateVec, inverseTurn, groupItems, ungroupItem, turnInstance as turnInstanceOp, updateContainer, lastSegment,
+  translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerLinear, mirroredAt, postureRefusal, sameSideFirst, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
+  toLocal, groupItems, ungroupItem, turnInstance as turnInstanceOp, setMirrored, mirroredCopy, updateContainer, lastSegment,
 } from '../document/document';
 import type { Board, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
 import { SNAP_INCHES } from '../document/geometry';
@@ -291,6 +291,10 @@ interface StoreState {
   ungroupSelected: () => void;
   /** Turn an assembly about its box centre (spec §4.2). */
   turnAssembly: (path: string, rotation: Rotation) => void;
+  /** Flip an assembly's mirror in place, keeping its world box (mirrored-instances spec §5). */
+  mirrorAssembly: (path: string, mirrored: boolean) => void;
+  /** Place a shared, opposite-flag copy beside the assembly and select it (spec §5). */
+  copyMirrored: (path: string) => void;
   /** Give the instance its own copy of its definition (components spec §3.1). */
   makeUnique: (path: string) => void;
   /** Select the instances at the open level naming the same definition. */
@@ -1025,6 +1029,10 @@ export const useStore = create<StoreState>((set, get) => {
       const world = worldParts(get().doc);
       const targets = new Set(ids.filter((id) => world.some((b) => b.id === id)));
       if (targets.size === 0) return;
+      // Refused before ANY mutation, the grab clear below included (invariant
+      // 4): a d0-moving posture change on a Shape used on both sides of a
+      // mirror would write two different cut sets to it.
+      if (postureRefusal(get().doc, [...targets], patch.posture) !== null) return;
 
       // Invariant 24: a grab holds a world position captured at grab time, not
       // a reference to the board. Properties stays fully live in Move mode
@@ -1073,7 +1081,13 @@ export const useStore = create<StoreState>((set, get) => {
       // Through mapWorld (assemblies spec §5.1): patchBoard runs on WORLD parts,
       // and only what it changed is written back, position as a delta.
       const t = oneEditPerTarget(get().doc, targets);
-      const o = new Set([...oneEditPerTarget(get().doc, [...t, ...others])].filter((id) => !t.has(id)));
+      // Each mate through an occurrence on its target's side of any mirror
+      // (postureRefusal guarantees one exists for a d0-moving posture change),
+      // so every lowering writes the same cuts to the Shape (spec §4, amended).
+      const sideOfShape = new Map(world.filter((b) => targets.has(b.id) && b.shape).map((b) => [b.shape!, mirroredAt(get().doc, b.id)]));
+      const shapeOf = new Map(world.map((b) => [b.id, b.shape]));
+      const mates = sameSideFirst(get().doc, others, (id) => { const sh = shapeOf.get(id); return sh === undefined ? undefined : sideOfShape.get(sh); });
+      const o = new Set([...oneEditPerTarget(get().doc, [...t, ...mates])].filter((id) => !t.has(id)));
       edit((doc) => mapWorld(doc, (w) => w.map((b) =>
         t.has(b.id) ? patchBoard(b, patch) : o.has(b.id) ? patchBoard(b, shared) : b)));
 
@@ -1185,14 +1199,14 @@ export const useStore = create<StoreState>((set, get) => {
       const taken: Named[] = [...siblingsOf(doc, container)];
       const boards: StoredBoard[] = [];
       const instances: Instance[] = [];
-      const turn = containerTurn(doc, container);
+      const lin = containerLinear(doc, container);
       for (let k = 1; k < count; k += 1) {
         // From the ORIGINAL every time, never the previous copy: a running sum
         // drifts by an ulp per copy. Never rounded (invariant 25). The step is
         // a WORLD shift, turned into the container's frame, exactly (spec §4.2).
         const w: [number, number, number] = [0, 0, 0];
         w[axis] = k * step * sign;
-        const local = rotateVec(inverseTurn(turn), w);
+        const local = toLocal(lin, w);
         const at = (p: readonly number[]) =>
           p.map((v, a) => (local[a] === 0 ? v : v + local[a]!)) as [number, number, number];
         for (const id of sources) {
@@ -1273,6 +1287,20 @@ export const useStore = create<StoreState>((set, get) => {
       edit((doc) => turnInstanceOp(doc, path, rotation));
       // A turn inside a shared definition moves parts under the other copies too.
       judgeHeld();
+    },
+
+    mirrorAssembly: (path, mirrored) => {
+      const next = setMirrored(get().doc, path, mirrored);
+      if (next === get().doc) return; // invariant 4
+      edit(() => next);
+      // The assembly's parts moved (reflected), in every copy if it is nested in a shared definition.
+      judgeHeld();
+    },
+
+    copyMirrored: (path) => {
+      const r = mirroredCopy(get().doc, path);
+      if (!r) return;
+      edit(() => r.doc, () => [r.path]);
     },
 
     makeUnique: (path) => {
@@ -1500,20 +1528,42 @@ export const useStore = create<StoreState>((set, get) => {
 
     linkBoards: (ids) => {
       const doc0 = get().doc;
-      const plan = linkPlan(worldParts(doc0), ids, (p) => storageKey(doc0, p));
-      if (!plan) return; // fewer than two, or nothing would change (invariant 4)
+      const plan = linkPlan(worldParts(doc0), ids, (p) => storageKey(doc0, p), (p) => mirroredAt(doc0, p));
+      // Fewer than two, nothing would change, or refused (opposite sides of a
+      // mirror): nothing is written, no undo entry (invariant 4).
+      if (!plan || 'refused' in plan) return;
       // Every member but the source takes the source's shared fields through
       // patchBoard, so a posture change pivots it about its own centre
-      // (invariant 2). One edit per storage target, the source's FIRST, so
-      // another placement of the source's own stored part is never patched.
-      const patched = oneEditPerTarget(doc0, [plan.source.id, ...plan.members]);
+      // (invariant 2). One per storage target, the source's FIRST, so another
+      // placement of the source's own stored part is never patched; each
+      // through an occurrence on the SOURCE's side of any mirror (linkPlan
+      // guarantees one), the side whose pivot the user sees.
+      const side = mirroredAt(doc0, plan.source.id);
+      const patched = oneEditPerTarget(doc0, [plan.source.id, ...sameSideFirst(doc0, plan.members, () => side)]);
       patched.delete(plan.source.id);
       const shapeId = plan.shape ?? nextId();
       edit((doc) => {
-        let out = mapWorld(doc, (w) => w.map((b) => (patched.has(b.id) ? patchBoard(b, sharedOf(plan.source)) : b)));
+        // Only each member's OWN fields come from its patch: its patched world
+        // part is written back ALONE (never merged with another member's) and
+        // only position and rotation are read off the result. Shared fields are
+        // never written through an occurrence: the Shape is written once, below.
+        // Two members of one old Shape lowered through different numbers of
+        // mirrors would otherwise write cuts to it that differ in the last bits
+        // (a double reflection is not bit-exact) and the write-back would throw.
+        let out = doc;
+        for (const occ of patched) {
+          const one = mapWorld(doc, (w) => w.map((b) => (b.id === occ ? patchBoard(b, sharedOf(plan.source)) : b)));
+          const p = partAt(one, occ);
+          const q = partAt(out, occ);
+          if (p && q) out = setStored(out, occ, { ...q, position: p.position, rotation: p.rotation });
+        }
         // The shape takes the source's shared fields, cut ids kept: the
         // source's existing shape (or a selected member's), else a new one.
-        const shape = { id: shapeId, ...sharedOf(plan.source) };
+        // Its STORED fields, never the world part's: under a mirror the world
+        // cuts are the stored ones reflected, and storing those would flip the
+        // source (and every member, all on its side of the mirror) when placed.
+        // (The source resolved in doc0, and nothing above touches it.)
+        const shape = { id: shapeId, ...sharedOf(resolvedPartAt(out, plan.source.id)!) };
         out = { ...out, shapes: out.shapes.some((x) => x.id === shapeId)
           ? out.shapes.map((x) => (x.id === shapeId ? shape : x))
           : [...out.shapes, shape] };

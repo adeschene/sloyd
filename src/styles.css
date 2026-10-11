@@ -1275,7 +1275,8 @@ button[aria-pressed='true'] {
 }
 
 .part-link,
-.part-copies {
+.part-copies,
+.part-mirrored {
   flex: none;
   display: flex;
   align-items: center;

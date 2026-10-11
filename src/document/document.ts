@@ -8,8 +8,9 @@ import { dissolveShapes, pruneShapes, isShaped } from './shapes';
 import { linksToShapes } from './linksToShapes';
 import { ROOT_STORAGE_ID } from './treeEdit';
 import { nextId } from './ids';
+import { clamp, mirrorCutAlong } from './mirrorCut';
 import { dropUnresolved, repairTree } from './treeRepair';
-import { positionAxisOf, horizontalOf, DIMENSION_ORDER } from './geometry';
+import { positionAxisOf, horizontalOf } from './geometry';
 
 export * from './types';
 export * from './links';
@@ -23,6 +24,7 @@ export {
   horizontalOf, axisFrame, toWorldOffset, fromWorldOffset, spanToWorldOffset, spanFromWorldOffset, endFacing,
 } from './geometry';
 export type { Bounds, AxisMap } from './geometry';
+export { mirrorCut } from './mirrorCut';
 export { cleanName, uniqueName, dedupeNames } from './names';
 export type { Named } from './names';
 export { boardEdges, boardSolids, CUT_GEOMETRY_FIELDS, CUT_GEOMETRY_KEYS, cutLabel, cutRegion, clippedRegion, cutShape, storedAsShape, cutRemovesNothing, cutsThatRemoveStock, pointToLocalXYZ, solidWorldBox, wholeBoard } from './cuts';
@@ -107,8 +109,14 @@ export type { BoardSnapPoint, SnapKind, SnapOwner, SnapPoint, TapeAxis } from '.
  * Shape's stored cuts along thickness, so world solids do not move. It runs
  * AFTER validation and `linksToShapes`, BEFORE repairTree, guarded by
  * `version < 12`, and like v8's mirror it is NOT idempotent.
+ *
+ * v13 (mirrored instances): `Instance.mirrored`, kept only when literally
+ * `true`. No step: an absent flag is an unmirrored placement, so no file needs
+ * upgrading. The bump's argument is WRONG GEOMETRY: a v12 build would drop
+ * `mirrored` and draw the mirrored copy unmirrored, a second left cabinet where
+ * the right one was, and autosave it.
  */
-export const CURRENT_VERSION = 12;
+export const CURRENT_VERSION = 13;
 
 export class DocumentError extends Error {
   /**
@@ -233,10 +241,6 @@ function isPositiveFinite(v: unknown): v is number {
 
 const VALID_DIMENSIONS: Dimension[] = ['length', 'width', 'thickness'];
 const VALID_FROMS: CutFrom[] = ['min', 'max'];
-
-function clamp(v: number, lo: number, hi: number): number {
-  return Math.min(Math.max(v, lo), hi);
-}
 
 /**
  * Cuts that fit the board, with unique ids.
@@ -466,6 +470,7 @@ function validateInstance(raw: unknown, seen: Set<string>): Instance | null {
     id: takeId(i.id, seen), name, definition: i.definition,
     position: [pos[0], pos[1], pos[2]] as [number, number, number],
     rotation: VALID_ROTATIONS.includes(i.rotation as number) ? (i.rotation as Rotation) : 0,
+    ...(i.mirrored === true ? { mirrored: true } : {}),
   };
 }
 
@@ -602,51 +607,6 @@ export function onEdgeToV12(doc: SloydDocument): SloydDocument {
     definitions: doc.definitions.map((d) => ({ ...d, boards: d.boards.map(part) })),
     shapes: doc.shapes.map(mirror),
   };
-}
-
-/** One cut mirrored along dimension d (u -> size - u). face, across and the
- *  position axis are three different dimensions, so exactly one case applies.
- *
- *  The position-axis case CLIPS BEFORE IT REFLECTS. validateCuts clamps offset
- *  into [0, size] and then width into [0, size - offset], so what a v7 build
- *  removed is the raw interval clipped to the board; reflecting the RAW
- *  interval and letting validateCuts clamp afterwards is a different cut
- *  whenever it runs past an end (an overhang migrates wider, a cut the loader
- *  dropped comes back as a real one). So the clip here is validateCuts' clamp,
- *  in its order, and a cut it would drop is returned raw for it to drop.
- *
- *  The far end is reflected as ONE sum, `size - (lo + width)`: the clipped far
- *  end `lo + width` is exactly what validateCuts' cut reached, so a decimal cut
- *  flush with the far end lands at exactly 0 instead of a float residue away
- *  from it (`size - lo - width` leaves ~7e-16, a sliver solid). Nothing is
- *  snapped: a cut that stopped 1e-10 short of an end in v7 left a real sliver
- *  there, and the migration keeps it (spec §4, identical world solids).
- *
- *  The mirror case, a cut flush with the NEAR end, needs the width instead:
- *  on a non-dyadic board `(size - w) + w` can fall an ulp short of `size`,
- *  leaving a ~1e-15 sliver at the far end. So that cut stores
- *  `width = size - offset`, which is exact (Sterbenz: offset >= size/2, or
- *  offset is already exactly size - w), and offset + width === size. Exact
- *  arithmetic, not a tolerance, so the no-snap rule above still holds. */
-function mirrorCutAlong(raw: unknown, d: Dimension, size: number): unknown {
-  if (typeof raw !== 'object' || raw === null) return raw;
-  const c = raw as Record<string, unknown>;
-  if (c.face === d) {
-    return c.from === 'min' ? { ...c, from: 'max' } : c.from === 'max' ? { ...c, from: 'min' } : raw;
-  }
-  if (c.across === d) return { ...c, stopMin: c.stopMax, stopMax: c.stopMin };
-  const dims = DIMENSION_ORDER as string[];
-  if (!dims.includes(c.face as string) || !dims.includes(c.across as string)) return raw;
-  if (typeof c.offset !== 'number' || !Number.isFinite(c.offset)) return raw;
-  if (typeof c.width !== 'number' || !Number.isFinite(c.width)) return raw;
-  const lo = clamp(c.offset, 0, size);
-  const width = clamp(c.width, 0, size - lo);
-  if (width <= 0) return raw;
-  const offset = size - (lo + width);
-  // Flush with the near end: store the width that reaches the far end
-  // EXACTLY. offset is then >= size/2 (Sterbenz) or already size - width
-  // exactly, so size - offset is exact and offset + width === size.
-  return { ...c, offset, width: lo === 0 ? size - offset : width };
 }
 
 /**

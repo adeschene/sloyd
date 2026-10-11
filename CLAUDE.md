@@ -25,10 +25,12 @@ handicraft education tradition built around hand woodworking.
   `index-CUMg8UjZ.js`, CSS `index-NXp0eTQP.css`, merge `43b4928`, **schema 12** (since the
   posture-handedness round, `1a52fec`): rolling back to a build below 12 (`b953fdd`) refuses every
   project saved since that deploy (export first). Test count is under Commands.
-- **NO SUCCESSOR IS
+- **Pending deploy: the mirrored-instances round, merged 2026-10-11; `master` is ahead of production until it
+  ships. It bumps to SCHEMA 13: after the deploy, rolling back to a build below 13 refuses every project saved since
+  (export first).** **NO SUCCESSOR IS
   CHOSEN: ask what to work on; do not pick.** Open near the recent code:
   241 (open by decision),
-  221, 225, 232, 234. See Open follow-ups below.
+  221, 225 (rest out of scope), 232, 234, 247. See Open follow-ups below.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
   byte-identical bundles (test-only). Check what a later commit touches before reading
@@ -79,6 +81,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | posture handedness | 10-10 | 12 | On-edge reverses thickness so all postures share one hand; v12 mirrors on-edge cuts; every sheet view true (fu 215) |
 | 246/226/227 | 10-11 | — | Deleting an assembly's last part removes it; dead eyes say why; `›` reserved in written names; sweep re-run on flipped views |
 | 229/233 | 10-11 | — | Ungroup keeps the other copy's hidden assembly hidden (as its children); one cap report for one fault |
+| mirrored instances | 10-11 | 13 | `Instance.mirrored`: a live mirrored copy through the one composition; Mirrored checkbox, Copy mirrored, ⇋ badge |
 
 ### The deployment rule
 
@@ -93,7 +96,7 @@ rather than assumed. A paid Generate/joinery run needs the user's approval each 
 key never goes into chat or a committed file. (Generate was once exercised on production
 because it only ever adds unactivated projects, inv 36. That is not a precedent.)
 
-**Rollback cost is a schema question.** A build understanding less than `version: 12`
+**Rollback cost is a schema question.** A build understanding less than `version: 13`
 refuses the document. Rolling back past a schema bump strands every project saved since;
 export first. A round with no schema change costs nothing to roll back. The library
 round changed the storage *layout*, not the schema: rolling past it loses only projects
@@ -142,7 +145,7 @@ would be a second implementation, not a parallel path.
 ### Versioning
 
 Every load path (open, import, autosave-restore) runs `migrateDocument` before the
-document is trusted. `CURRENT_VERSION` is **12**. Steps run one version at a time, in
+document is trusted. `CURRENT_VERSION` is **13**. Steps run one version at a time, in
 order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11→v12, which run after.
 
 | Step | Adds | Shape | Harm a build one version back would do |
@@ -158,6 +161,7 @@ order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11�
 | 9→10 | `instances`, `definitions` (default `[]`) | document-level | every part in an assembly vanishes |
 | 10→11 `linksToShapes` | `shapes` (default `[]`) | **after validation** | un-shares every component |
 | 11→12 `onEdgeToV12` | on-edge cuts mirrored along thickness | **after validation** | wrong geometry (on-edge one-handed cuts mirrored) |
+| 12→13 | `Instance.mirrored` (only `true` stored) | document-level, no step | wrong geometry (a mirrored copy drawn unmirrored) |
 
 - **A bump exists for the refusal gate, not for upgrading** — absent fields default
   regardless. Argue *your* field's harm; don't inherit another bump's argument.
@@ -193,7 +197,8 @@ src/
 │   │                     the derived-PROJECT name ("— refined 2", fu 237)
 │   ├── geometry.ts       axisFrame, the ONE turn table, and its crossings (inv 44);
 │   │                     boardExtents/boardCenter/reorientedPosition (inv 2), boardsBounds
-│   ├── frames.ts         placeBoard / placeInstance, the ONE composition (inv 46)
+│   ├── frames.ts         placeBoard / placeInstance, the ONE composition (inv 46); mirrorPart/withMirror/toLocal (mirrored frames)
+│   ├── mirrorCut.ts      mirrorCutAlong (moved verbatim), mirrorCut, clamp (inv 44)
 │   ├── tree.ts           occurrence paths, isCovered, worldParts (THE walk), flatDocument
 │   ├── treeEdit.ts       every write-back: applyWorldEdits (storageKey), lowerEdit,
 │   │                     translateItems, writeBackFlat (inv 46)
@@ -475,7 +480,9 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     (fu 215, v12), so every posture shares ONE hand and a posture change no longer mirrors
     cuts. Equivariance tests use `chiralPart`, never a symmetric fixture; mutate any new one.
     In `boardUVs` the reflection is per geometry axis, before inv 35's sign and swap. Generate
-    stays at 0° and 90°.
+    stays at 0° and 90°. The composition is the second caller of `mirrorCutAlong` (`mirrorCut`,
+    moved verbatim to `mirrorCut.ts`): a mirrored frame reflects a part (`mirrorPart`: turn
+    negated, cuts along the posture's turn-0 X dimension, min corner reflected).
 45. **A link is a SHAPE its users point to; shared fields are stored once.** `LINK_FIELDS`
     is the ONE shared/own table (classify an optional own field with care, fu 231).
     `resolveBoard` is the ONE place a shape is read into a part. `linksToShapes` is the ONE
@@ -502,13 +509,30 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     - Make Unique copies one level and keeps ids. A twin placement of a selected part is
       never a Move target. `writeBackFlat` splits definitions shallowest-first by deepest
       placement.
+    - **A mirrored instance (schema 13) is a step inside the ONE composition**
+      (`placeBoard`/`placeInstance` reflect first); write-back is its exact inverse (`lower`:
+      positions as deltas, turn negated, `lowerCuts` reuses an untouched stored cut object).
+      A Properties resize keeps the stored cuts; with `keepWorld` (joinery) cuts are
+      re-mirrored at the new size. `setMirrored`/`mirroredCopy`/`replaceKeepingBox` (with
+      `placedBox`) change handedness while preserving the placed box; Ungroup lifts a shaped
+      part through a mirror as plain. World→local vectors go through
+      `toLocal(containerLinear(…))`, never a hand-written turn. Refine refuses a mirrored
+      assembly. **Across a mirror:** `linkPlan` refuses a picked part on the other side, or a
+      member whose STORED part has no occurrence on the source's side (`mirroredAt`; a live
+      mirrored copy of a same-side part is fine); `postureRefusal` refuses a d0-moving posture
+      change (flat/on-edge ↔ upright) when a user of the Shape has no occurrence on the edited
+      part's side. Both decided before any mutation, one decider shared by store and panel.
+      Link builds the Shape once from the source's STORED fields, never the world part, and
+      writes members' OWN fields only (each lowered alone); a shared posture write goes
+      through `sameSideFirst` before `oneEditPerTarget`, so a Shape is never lowered through
+      two parities in one edit.
 
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 2811 tests across 91 files
+npm test           # Vitest, currently 2881 tests across 94 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -517,7 +541,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–246, each with its closure). Read the entries
+**`docs/follow-ups.md` is authoritative** (1–247, each with its closure). Read the entries
 for the area you are about to touch; several are "correct but untested". Open items worth
 knowing without opening it:
 

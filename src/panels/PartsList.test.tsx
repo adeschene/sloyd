@@ -188,3 +188,12 @@ describe('PartsList shared copies', () => {
     expect(screen.getByRole('button', { name: 'Solo' }).closest('li')?.textContent).not.toMatch(/×/);
   });
 });
+
+describe('PartsList mirrored badge', () => {
+  it('a mirrored assembly row shows the Mirrored badge; an unmirrored one does not', () => {
+    const d = assemblyDoc();
+    useStore.getState().replaceDocument({ ...d, instances: d.instances.map((i) => ({ ...i, mirrored: true })) });
+    render(<PartsList />);
+    expect(screen.getAllByRole('img', { name: 'Mirrored' })).toHaveLength(1);
+  });
+});

@@ -1,5 +1,5 @@
 import {
-  childrenOf, containerAt, containerTurn, definitionAt, displayNames, flatDocument, instanceAt, instancesOn, isCovered, itemPaths,
+  childrenOf, containerAt, containerLinear, definitionAt, displayNames, flatDocument, instanceAt, instancesOn, isCovered, itemPaths,
   joinPath, lastSegment, parentPath, resolvedPartAt, worldParts,
 } from './tree';
 import { placeBoard } from './frames';
@@ -78,11 +78,13 @@ describe('item sets', () => {
   it('itemPaths holds every instance path and every occurrence', () => {
     expect([...itemPaths(assemblyDoc())].sort()).toEqual(['i1', 'i1/b1', 'i1/b2', 'i1/i2', 'i1/i2/b3', 'r1']);
   });
-  it('containerTurn sums the turns on the path', () => {
+  it('containerLinear sums the turns on the path and xors the mirrors', () => {
     const doc = assemblyDoc();
-    expect(containerTurn(doc, null)).toBe(0);
-    expect(containerTurn(doc, 'i1')).toBe(90);
-    expect(containerTurn(doc, 'i1/i2')).toBe(0);
+    expect(containerLinear(doc, null)).toEqual({ rotation: 0, mirrored: false });
+    expect(containerLinear(doc, 'i1')).toEqual({ rotation: 90, mirrored: false });
+    expect(containerLinear(doc, 'i1/i2')).toEqual({ rotation: 0, mirrored: false });
+    const m = { ...doc, instances: doc.instances.map((i) => (i.id === 'i1' ? { ...i, mirrored: true } : i)) };
+    expect(containerLinear(m, 'i1/i2')).toEqual({ rotation: 180, mirrored: true });
   });
 });
 

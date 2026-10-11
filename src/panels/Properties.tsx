@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store/store';
-import { MATERIALS, isSheetGood, boardSolids, cutShape, storedAsShape, cutRemovesNothing, findTenons, positionAxisOf, linkPlan, storageKey, worldParts, instanceAt, parentPath, placementsOf, instanceRefs, containerAt } from '../document/document';
+import { MATERIALS, isSheetGood, boardSolids, cutShape, storedAsShape, cutRemovesNothing, findTenons, positionAxisOf, linkPlan, postureRefusal, storageKey, mirroredAt, worldParts, instanceAt, parentPath, placementsOf, instanceRefs, containerAt } from '../document/document';
 import { DimensionField } from './DimensionField';
 import { NameField } from './NameField';
 import { CopyInRow } from './CopyInRow';
@@ -257,6 +257,41 @@ function CutRow({ board, cut, precision, solids }: { board: Board; cut: Cut; pre
 }
 
 /**
+ * The Posture select. Its own component so its refusal lives in state tied to
+ * the selected part's lifetime: Properties' root div is keyed on the part, so a
+ * selection change remounts this and the message cannot outlive its part, as
+ * with CutRow's error. The store refuses the same patch through the same
+ * decider (`postureRefusal`), so the two cannot disagree; the select is
+ * controlled, so a refused choice snaps back to the stored posture. The
+ * message is shown only while the attempted posture is still refused, so an
+ * Unlink or an undo clears it without an effect.
+ */
+function PostureField({ board }: { board: Board }) {
+  const updateBoard = useStore((s) => s.updateBoard);
+  const [attempt, setAttempt] = useState<Posture | null>(null);
+  const error = useStore((s) => (attempt === null ? null : postureRefusal(s.doc, [board.id], attempt)));
+  return (
+    <>
+      <div className="field">
+        <label htmlFor="posture">Posture</label>
+        <select id="posture" className="input" value={board.posture}
+          onChange={(e) => {
+            const next = e.target.value as Posture;
+            if (postureRefusal(useStore.getState().doc, [board.id], next) !== null) { setAttempt(next); return; }
+            setAttempt(null);
+            updateBoard(board.id, { posture: next });
+          }}>
+          <option value="flat">Flat</option>
+          <option value="on-edge">On edge</option>
+          <option value="upright">Upright</option>
+        </select>
+      </div>
+      {error && <p className="field-error" role="alert">{error}</p>}
+    </>
+  );
+}
+
+/**
  * The value every part holds, or null when they differ. EXACT comparison of
  * stored values: two thicknesses that both display 11/16" but are stored as
  * 0.7 and 0.6875 are mixed, because showing "11/16" would claim they agree
@@ -302,7 +337,7 @@ function GroupProperties() {
   );
   // A selection that includes an assembly is mixed: no shared size fields, no Link.
   const allParts = boards.length === selectedIds.length;
-  const plan = useMemo(() => (allParts ? linkPlan(allBoards, selectedIds, (p) => storageKey(doc, p)) : null), [allParts, allBoards, selectedIds, doc]);
+  const plan = useMemo(() => (allParts ? linkPlan(allBoards, selectedIds, (p) => storageKey(doc, p), (p) => mirroredAt(doc, p)) : null), [allParts, allBoards, selectedIds, doc]);
   const anyAssembly = useStore((s) => selectedIds.some((id) => instanceAt(s.doc, id) !== null));
   if (selectedIds.length === 0) return null;
 
@@ -350,13 +385,14 @@ function GroupProperties() {
       </div>
       </>}
 
-      {plan && plan.changing.length > 0 && (
+      {plan && 'refused' in plan && <p className="field-error" role="status">{plan.refused}</p>}
+      {plan && !('refused' in plan) && plan.changing.length > 0 && (
         <p className="link-note">
           Linking makes {plan.changing.length} {plan.changing.length === 1 ? 'part' : 'parts'} match {plan.source.name}: size, material, grain, posture and cuts.
         </p>
       )}
       <div className="row">
-        {plan && <button onClick={() => linkBoards(selectedIds)}>Link</button>}
+        {plan && !('refused' in plan) && <button onClick={() => linkBoards(selectedIds)}>Link</button>}
         {allParts && boards.some((b) => b.shape) && <button onClick={() => unlinkBoards(selectedIds)}>Unlink</button>}
         <button onClick={() => duplicateBoards(selectedIds)}>Duplicate</button>
         <button onClick={() => useStore.getState().groupSelected()}>Group</button>
@@ -403,8 +439,16 @@ function InstanceProperties({ path }: { path: string }) {
           <option value={270}>270°</option>
         </select>
       </div>
+      <div className="field">
+        <label>
+          <input type="checkbox" checked={inst.mirrored === true}
+            onChange={(e) => useStore.getState().mirrorAssembly(path, e.target.checked)} />
+          {' '}Mirrored
+        </label>
+      </div>
       <div className="row">
         <button onClick={() => duplicateBoards([path])}>Duplicate</button>
+        <button onClick={() => useStore.getState().copyMirrored(path)}>Copy mirrored</button>
         {copies >= 2 && copyHere && <button onClick={() => selectCopies(path)}>Select copies</button>}
         {refs >= 2 && <button onClick={() => makeUnique(path)}>Make Unique</button>}
         <button onClick={() => useStore.getState().ungroupSelected()}>Ungroup</button>
@@ -509,15 +553,7 @@ export function Properties() {
           two. Upright is what v2 could not express — a leg, a post, a stile.
           "Turn" rather than "Rotation" because with three postures it is no
           longer the only thing that rotates the board. */}
-      <div className="field">
-        <label htmlFor="posture">Posture</label>
-        <select id="posture" className="input" value={board.posture}
-          onChange={(e) => updateBoard(board.id, { posture: e.target.value as Posture })}>
-          <option value="flat">Flat</option>
-          <option value="on-edge">On edge</option>
-          <option value="upright">Upright</option>
-        </select>
-      </div>
+      <PostureField board={board} />
       <div className="field">
         <label htmlFor="turn">Turn</label>
         <select id="turn" className="input" value={board.rotation}
