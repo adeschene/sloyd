@@ -1534,23 +1534,35 @@ export const useStore = create<StoreState>((set, get) => {
       if (!plan || 'refused' in plan) return;
       // Every member but the source takes the source's shared fields through
       // patchBoard, so a posture change pivots it about its own centre
-      // (invariant 2). One edit per storage target, the source's FIRST, so
-      // another placement of the source's own stored part is never patched.
-      // Each member through an occurrence on the SOURCE's side of any mirror
-      // (linkPlan guarantees one), so two placements of one old Shape are never
-      // lowered through different parities (which would write it two ways).
+      // (invariant 2). One per storage target, the source's FIRST, so another
+      // placement of the source's own stored part is never patched; each
+      // through an occurrence on the SOURCE's side of any mirror (linkPlan
+      // guarantees one), the side whose pivot the user sees.
       const side = mirroredAt(doc0, plan.source.id);
       const patched = oneEditPerTarget(doc0, [plan.source.id, ...sameSideFirst(doc0, plan.members, () => side)]);
       patched.delete(plan.source.id);
       const shapeId = plan.shape ?? nextId();
       edit((doc) => {
-        let out = mapWorld(doc, (w) => w.map((b) => (patched.has(b.id) ? patchBoard(b, sharedOf(plan.source)) : b)));
+        // Only each member's OWN fields come from its patch: its patched world
+        // part is written back ALONE (never merged with another member's) and
+        // only position and rotation are read off the result. Shared fields are
+        // never written through an occurrence: the Shape is written once, below.
+        // Two members of one old Shape lowered through different numbers of
+        // mirrors would otherwise write cuts to it that differ in the last bits
+        // (a double reflection is not bit-exact) and the write-back would throw.
+        let out = doc;
+        for (const occ of patched) {
+          const one = mapWorld(doc, (w) => w.map((b) => (b.id === occ ? patchBoard(b, sharedOf(plan.source)) : b)));
+          const p = partAt(one, occ);
+          const q = partAt(out, occ);
+          if (p && q) out = setStored(out, occ, { ...q, position: p.position, rotation: p.rotation });
+        }
         // The shape takes the source's shared fields, cut ids kept: the
         // source's existing shape (or a selected member's), else a new one.
         // Its STORED fields, never the world part's: under a mirror the world
         // cuts are the stored ones reflected, and storing those would flip the
         // source (and every member, all on its side of the mirror) when placed.
-        // (The source resolved in doc0, and the patch above removes no part.)
+        // (The source resolved in doc0, and nothing above touches it.)
         const shape = { id: shapeId, ...sharedOf(resolvedPartAt(out, plan.source.id)!) };
         out = { ...out, shapes: out.shapes.some((x) => x.id === shapeId)
           ? out.shapes.map((x) => (x.id === shapeId ? shape : x))

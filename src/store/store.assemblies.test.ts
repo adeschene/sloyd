@@ -1170,3 +1170,51 @@ describe('Link through the store API across a mirror and through mixed first occ
   });
 });
 
+describe('Link with a member behind two mirrors and cuts that are not binary fractions', () => {
+  /** A part whose cut values (1/3, 0.1, ...) are not exact in binary, so a double reflection is not bit-exact. */
+  const odd = (id: string, y: number) => ({ ...chiralPart('flat'), id, name: id, position: [0, y, 0] as [number, number, number], length: 23.7,
+    cuts: [
+      { id: `${id}x1`, face: 'thickness' as const, from: 'max' as const, across: 'width' as const, offset: 1 / 3, width: 0.1, depth: 0.5, stopMin: 0, stopMax: 0.7 },
+      { id: `${id}x2`, face: 'thickness' as const, from: 'max' as const, across: 'length' as const, offset: 0.1, width: 0.7, depth: 0.3, stopMin: 0.3, stopMax: 2.1 },
+      { id: `${id}x3`, face: 'width' as const, from: 'min' as const, across: 'length' as const, offset: 0.1, width: 0.3, depth: 0.7, stopMin: 1.1, stopMax: 3.3 },
+    ] });
+  /** a and b linked; a ends at m2/m1/a behind two nested mirrors, b at the root; F (odd cuts) at the root. */
+  const nested = () => {
+    const shelf = (id: string, y: number) => ({ ...chiralPart('flat'), id, name: id, position: [0, y, 0] as [number, number, number] });
+    load({ ...createDocument('P'), boards: [shelf('a', 0), shelf('b', 5), odd('F', 15)] });
+    s().linkBoards(['a', 'b']);
+    const last = () => s().doc.instances.at(-1)!.id;
+    s().selectBoard('a'); s().groupSelected(); const g1 = last();
+    s().copyMirrored(g1); const m1 = s().selectedIds[0]!;
+    s().selectItem(g1, false); s().deleteBoards([g1]);
+    s().selectItem(m1, false); s().groupSelected(); const g2 = last();
+    s().copyMirrored(g2); const m2 = s().selectedIds[0]!;
+    s().selectItem(g2, false); s().deleteBoards([g2]);
+    return `${m2}/${m1}/a`;
+  };
+  const solidsOf = (id: string) => worldSolids(worldParts(s().doc).find((b) => b.id === id)!);
+  const geom = (id: string) => worldParts(s().doc).find((b) => b.id === id)!.cuts.map(({ id: _id, ...c }) => c);
+  /** To 1e-9: a reaches the Shape's cuts through two reflections, which are not bit-exact. */
+  const nearly = (c: object) => Object.fromEntries(Object.entries(c).map(([f, v]) => [f, typeof v === 'number' ? Math.round(v * 1e9) / 1e9 + 0 : v]));
+  it.each([[['F', 'b']], [['b', 'F']]])('selection %j: no throw, one undo entry, one Shape; F is unchanged and a, b show it', (ids) => {
+    const a = nested();
+    expect(mirroredAt(s().doc, a)).toBe(false);
+    const f = solidsOf('F'); const fGeom = geom('F').map(nearly);
+    const n = s().past.length;
+    s().linkBoards(ids);
+    expect(s().past.length).toBe(n + 1);
+    const users = worldParts(s().doc).filter((b) => b.shape !== undefined).map((b) => b.id);
+    expect(new Set(worldParts(s().doc).filter((b) => b.shape !== undefined).map((b) => b.shape)).size).toBe(1);
+    expect(users.sort()).toEqual([a, 'F', 'b'].sort());
+    if (ids[0] === 'F') {
+      expect(solidsOf('F')).toEqual(f);
+      expect(geom('b').map(nearly)).toEqual(fGeom);
+      expect(geom(a).map(nearly)).toEqual(fGeom);
+    } else {
+      // b is the source: F takes b's shape, and a (equal to b already) still shows it.
+      expect(geom('F').map(nearly)).toEqual(geom('b').map(nearly));
+      expect(geom(a).map(nearly)).toEqual(geom('b').map(nearly));
+    }
+  });
+});
+

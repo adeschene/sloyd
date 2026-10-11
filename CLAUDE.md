@@ -519,9 +519,10 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       mirrored copy of a same-side part is fine); `postureRefusal` refuses a d0-moving posture
       change (flat/on-edge ↔ upright) when a user of the Shape has no occurrence on the edited
       part's side. Both decided before any mutation, one decider shared by store and panel.
-      Link builds the Shape from the source's STORED fields, never the world part, and both
-      Link and a shared posture write go through `sameSideFirst` before `oneEditPerTarget`,
-      so a Shape is never lowered through two parities in one edit.
+      Link builds the Shape once from the source's STORED fields, never the world part, and
+      writes members' OWN fields only (each lowered alone); a shared posture write goes
+      through `sameSideFirst` before `oneEditPerTarget`, so a Shape is never lowered through
+      two parities in one edit.
 
 ## Commands
 

@@ -104,8 +104,10 @@ whose users sit on both sides of a mirror. The user's rulings and one rule the i
   on the source's side. A PICKED part on the other side is refused too, whatever its stored part (reachable
   only through the store API, since a selection is one level). Nothing changes on refusal; the group panel
   shows the message in place of the Link button. Link builds the Shape from the source's STORED shared fields,
-  never its world fields (which under a mirror are the stored ones reflected), and patches every member
-  through an occurrence on the source's side, so the source's, and every already-equal member's, world
+  never its world fields (which under a mirror are the stored ones reflected), written once; each member's
+  OWN fields (the posture pivot) are lowered alone through an occurrence on the source's side, and no shared
+  field is written through an occurrence (two members behind different numbers of mirrors would write cuts
+  differing in the last bits; third fix round), so the source's, and every already-equal member's, world
   geometry does not change (a differing member takes the source's fields, as Link always does).
 - **A posture change between flat/on-edge and upright is refused when some user of the edited part's Shape
   (by stored part) has NO occurrence on the edited part's side of the mirror** (`postureRefusal`, shared by
