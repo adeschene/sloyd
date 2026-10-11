@@ -321,7 +321,10 @@ is refused only when a Shape user has no occurrence on the edited side; two furt
 "disagreeing edits" throws (Link now writes no shared field through an occurrence). Live check on the dev server
 (`docs/browser-verification-mirrored-instances.md`): Copy mirrored abuts and badges; the cut list splits the one-handed
 Side and merges the symmetric Top; an offset edited on the right half appears mirrored on the left. Residue: fu 247.
-Test count 2811 -> 2881. Rollback: a build below 13 refuses every project saved after the deploy; export first.
+Test count 2811 -> 2881. Rollback: a build below 13 refuses every project saved after the deploy; export first. **Deployed 2026-10-11** as
+`index-Ck21KxtH.js`, CSS `index-DzUjIHyD.css` (deployed commit `a11ec0b`, docs-only past the merge `e553f57`), confirmed
+by page load, bundle hash and the CSP at the edge and in-network; the load's fresh project stored `version: 13`;
+`localStorage` cleared and read back empty twice.
 
 **What the 229/233 round did (2026-10-11)**: two follow-ups whose remedies were written down; the user asked for
 "whichever follow-ups make sense" (221 fails safe and its remedy was judged not worth it; 234 is an unmeasurable

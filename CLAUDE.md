@@ -21,13 +21,11 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-11: the 229/233 round, bundle
-  `index-CUMg8UjZ.js`, CSS `index-NXp0eTQP.css`, merge `43b4928`, **schema 12** (since the
-  posture-handedness round, `1a52fec`): rolling back to a build below 12 (`b953fdd`) refuses every
-  project saved since that deploy (export first). Test count is under Commands.
-- **Pending deploy: the mirrored-instances round, merged 2026-10-11 (`e553f57`); `master` is ahead of production until it
-  ships. It bumps to SCHEMA 13: after the deploy, rolling back to a build below 13 refuses every project saved since
-  (export first).** **NO SUCCESSOR IS
+- **Production matches `master`** as of 2026-10-11: the mirrored-instances round, bundle
+  `index-Ck21KxtH.js`, CSS `index-DzUjIHyD.css`, merge `e553f57`, **SCHEMA 13**: rolling back to a
+  build below 13 (`43b4928`) refuses every project saved since the deploy (export first). Test count
+  is under Commands.
+- **NO SUCCESSOR IS
   CHOSEN: ask what to work on; do not pick.** Open near the recent code:
   241 (open by decision),
   221, 225 (rest out of scope), 232, 234, 247. See Open follow-ups below.
