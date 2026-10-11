@@ -21,12 +21,11 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-10: the opposite-end-cut round, bundle
-  `index-BGlCmsgG.js`, CSS `index-NXp0eTQP.css`, merge `b953fdd`, **schema 11** (unchanged).
+- **Production matches `master`** as of 2026-10-11: the posture-handedness round, bundle
+  `index-DUH2frTq.js`, CSS `index-NXp0eTQP.css`, merge `1a52fec`, **SCHEMA 12**: rolling back to a
+  build below 12 (`b953fdd`) refuses every project saved since the deploy (export first).
   Test count is under Commands.
-- **Pending deploy: the posture-handedness round (fu 215), merged 2026-10-10 (`1a52fec`); `master` is
-  ahead of production until it ships. It bumps to SCHEMA 12: after the deploy, rolling back to a build below 12
-  refuses every project saved since (export first).** **NO SUCCESSOR IS
+- **NO SUCCESSOR IS
   CHOSEN: ask what to work on; do not pick.** Open near the recent code:
   241 (open by decision),
   221, 225–227, 229, 232–234, 246. See Open follow-ups below.

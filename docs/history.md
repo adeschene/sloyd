@@ -321,7 +321,10 @@ on-edge rail, which a mirrored joint cannot pass) and throwGuards.test.ts's `pla
 unjoin gate tests are real pins, not decoration. Test count 2763 -> 2793 across the
 round. The live browser check (an on-edge part with a stopped dado saved under v11 reloads unchanged, six
 sheet views read true) is the controller's, run on the dev server after the final review. Rollback cost:
-a build below 12 refuses every project saved since the deploy; export first.
+a build below 12 refuses every project saved since the deploy; export first. **Deployed 2026-10-11** as
+`index-DUH2frTq.js` (CSS unchanged, `index-NXp0eTQP.css`; deployed commit `52df4c4`, docs-only past the merge
+`1a52fec`), confirmed by page load, bundle hash and the CSP at the edge and in-network; the load's fresh project
+stored `version: 12`; that origin's `localStorage` cleared and read back empty twice.
 
 **What the opposite-end-cut round did (2026-10-10)**: follow-up 245, a bounded change (design in chat;
 spec §2 of the joinery-end-cuts design amended). **No schema change.** A full-span cut stored into the
