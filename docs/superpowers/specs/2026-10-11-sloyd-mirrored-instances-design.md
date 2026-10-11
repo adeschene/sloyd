@@ -101,15 +101,24 @@ whose users sit on both sides of a mirror. The user's rulings and one rule the i
   its other-side occurrences are the live mirrored copy, the feature itself (linking two shelves inside a
   cabinet that has a mirrored copy works, and the copy shows the mirror). Every member counts, including those
   an already-linked part brings along, since each becomes a user of the Shape; "will match" counts only members
-  on the source's side. Nothing changes on refusal; the group panel shows the message in place of the Link
-  button. On ONE side of a mirror Link builds the Shape from the source's STORED shared fields, never its world
-  fields (which under a mirror are the stored ones reflected), so no member's world geometry changes.
-- **A posture change between flat/on-edge and upright on a Shape with users on both sides is refused**
-  (`postureRefusal`, shared by the store and the Posture field), before any mutation: "Linked parts on both
-  sides of a mirror can't change between flat and upright. Unlink first." The two sides would write different
-  cuts to the one Shape. Every placement of every user counts, so this also covers linked parts inside an
-  assembly that has a mirrored copy, edited from either side. Flat ↔ on-edge (d0 unchanged), sizes, material, and any posture change on a Shape
-  whose users are all on one side are unchanged.
+  on the source's side. A PICKED part on the other side is refused too, whatever its stored part (reachable
+  only through the store API, since a selection is one level). Nothing changes on refusal; the group panel
+  shows the message in place of the Link button. Link builds the Shape from the source's STORED shared fields,
+  never its world fields (which under a mirror are the stored ones reflected), and patches every member
+  through an occurrence on the source's side, so the source's, and every already-equal member's, world
+  geometry does not change (a differing member takes the source's fields, as Link always does).
+- **A posture change between flat/on-edge and upright is refused when some user of the edited part's Shape
+  (by stored part) has NO occurrence on the edited part's side of the mirror** (`postureRefusal`, shared by
+  the store and the Posture field), before any mutation: "Linked parts on both sides of a mirror can't change
+  between flat and upright. Unlink first." Such a user could only be lowered through the other side and would
+  write different cuts to the one Shape (a Shape split by Ungroup of the plain original after Copy mirrored, or
+  by Make Unique). Otherwise the store writes the change to every user through an occurrence on the edited
+  part's side (`sameSideFirst`), so a shared definition placed both ways (a cabinet and its mirrored copy, linked
+  parts inside) changes from EITHER side: from the plain side the Shape's cuts are kept and the copy stays the
+  live mirror; from the mirrored side the approved coupling applies (the Shape's cuts are re-reflected and the
+  plain side follows). The edited part, and every user on its side, keeps its world cuts as seen. *Amended again
+  2026-10-11 (second fix round, user decision): the first amendment refused whenever the Shape's users sat on
+  both sides.* Flat ↔ on-edge (d0 unchanged), sizes and material are unchanged.
 - **A Properties resize keeps the stored cuts** (the world cuts follow the mirror at the new size, as through a
   plain frame), while `keepWorld` (joinery, which keeps the world box) re-mirrors the cuts at the new size.
 

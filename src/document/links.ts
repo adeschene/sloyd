@@ -102,8 +102,10 @@ export const LINK_ACROSS_MIRROR = "Can't link parts on opposite sides of a mirro
  * of it, the feature itself. Only a member whose stored part has NO occurrence
  * on the source's side would show the source's cuts mirror-imaged, so Link is
  * refused with LINK_ACROSS_MIRROR (every member counts, those a linked part
- * brings along included: each becomes a user). `changing` counts only the
- * members on the source's side, the ones that must match it as seen.
+ * brings along included: each becomes a user). A PICKED part on the other side
+ * is refused outright (reachable only through the store API: a selection is one
+ * level). `changing` counts only the members on the source's side, the ones
+ * that must match it as seen.
  */
 export function linkPlan(
   boards: readonly Board[],
@@ -127,7 +129,9 @@ export function linkPlan(
   if (mirroredOf) {
     const key = (id: string) => keyOf?.(id) ?? id;
     const stored = new Set(boards.filter(onSide).map((b) => key(b.id)));
-    if (members.some((b) => !stored.has(key(b.id)))) return { refused: LINK_ACROSS_MIRROR };
+    // A PICKED part is judged by its own occurrence, not its stored part's: the
+    // user chose that occurrence, and it must keep showing what they chose.
+    if (chosen.some((b) => !onSide(b)) || members.some((b) => !stored.has(key(b.id)))) return { refused: LINK_ACROSS_MIRROR };
   }
   return { source, members: members.map((b) => b.id), changing, shape };
 }

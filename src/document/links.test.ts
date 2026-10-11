@@ -140,4 +140,13 @@ describe('linkPlan', () => {
     const c = leg({ id: 'i1/c', shape: 'L' });
     expect(linkPlan([a, b, c], ['a', 'b'], keyOf, (p) => p.startsWith('i1/'))).toEqual({ refused: LINK_ACROSS_MIRROR });
   });
+  it('refuses a PICKED part on the other side even when its stored part also sits on the source\'s side', () => {
+    const keyOf = (p: string) => p.replace(/^i\d\//, 'd:');
+    const m = leg({ id: 'M' });
+    const plainS = leg({ id: 'i0/S' });
+    const mirroredS = leg({ id: 'i1/S' });
+    const mirrored = (p: string) => p.startsWith('i1/');
+    expect(linkPlan([m, plainS, mirroredS], ['M', 'i1/S'], keyOf, mirrored)).toEqual({ refused: LINK_ACROSS_MIRROR });
+    expect(linkPlan([m, plainS, mirroredS], ['i1/S', 'M'], keyOf, mirrored)).toEqual({ refused: LINK_ACROSS_MIRROR });
+  });
 });

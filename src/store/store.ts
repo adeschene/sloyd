@@ -3,7 +3,7 @@ import {
   boardsBounds, cleanName, createBoard, createDocument, createGuide, reorientedPosition, uniqueName, isSheetGood, nextId, sameSnapPoint, snapPointsFor,
   linkPlan, sharedOf, sharedPatch, isShaped, plainOf, pruneShapes, dissolveShapes,
   childrenOf, instanceAt, isCovered, itemPaths, parentPath, worldParts, mapWorld,
-  translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerLinear, mirroredAt, postureRefusal, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
+  translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerLinear, mirroredAt, postureRefusal, sameSideFirst, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
   toLocal, groupItems, ungroupItem, turnInstance as turnInstanceOp, setMirrored, mirroredCopy, updateContainer, lastSegment,
 } from '../document/document';
 import type { Board, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
@@ -1081,7 +1081,13 @@ export const useStore = create<StoreState>((set, get) => {
       // Through mapWorld (assemblies spec §5.1): patchBoard runs on WORLD parts,
       // and only what it changed is written back, position as a delta.
       const t = oneEditPerTarget(get().doc, targets);
-      const o = new Set([...oneEditPerTarget(get().doc, [...t, ...others])].filter((id) => !t.has(id)));
+      // Each mate through an occurrence on its target's side of any mirror
+      // (postureRefusal guarantees one exists for a d0-moving posture change),
+      // so every lowering writes the same cuts to the Shape (spec §4, amended).
+      const sideOfShape = new Map(world.filter((b) => targets.has(b.id) && b.shape).map((b) => [b.shape!, mirroredAt(get().doc, b.id)]));
+      const shapeOf = new Map(world.map((b) => [b.id, b.shape]));
+      const mates = sameSideFirst(get().doc, others, (id) => { const sh = shapeOf.get(id); return sh === undefined ? undefined : sideOfShape.get(sh); });
+      const o = new Set([...oneEditPerTarget(get().doc, [...t, ...mates])].filter((id) => !t.has(id)));
       edit((doc) => mapWorld(doc, (w) => w.map((b) =>
         t.has(b.id) ? patchBoard(b, patch) : o.has(b.id) ? patchBoard(b, shared) : b)));
 
@@ -1530,7 +1536,11 @@ export const useStore = create<StoreState>((set, get) => {
       // patchBoard, so a posture change pivots it about its own centre
       // (invariant 2). One edit per storage target, the source's FIRST, so
       // another placement of the source's own stored part is never patched.
-      const patched = oneEditPerTarget(doc0, [plan.source.id, ...plan.members]);
+      // Each member through an occurrence on the SOURCE's side of any mirror
+      // (linkPlan guarantees one), so two placements of one old Shape are never
+      // lowered through different parities (which would write it two ways).
+      const side = mirroredAt(doc0, plan.source.id);
+      const patched = oneEditPerTarget(doc0, [plan.source.id, ...sameSideFirst(doc0, plan.members, () => side)]);
       patched.delete(plan.source.id);
       const shapeId = plan.shape ?? nextId();
       edit((doc) => {

@@ -982,14 +982,54 @@ describe('Mirrored and Copy mirrored (mirrored-instances spec §5)', () => {
       expect(new Set(worldParts(s().doc).map((b) => b.shape)).size).toBe(1);
       expect(worldParts(s().doc).every((b) => b.cuts.length === 0)).toBe(true);
     });
-    it('Posture flat -> upright on that Shape is refused from either side (its users sit on both); flat -> on-edge applies', () => {
-      const { g, copy } = pairDoc();
-      const before = s().doc;
-      s().updateBoard(`${copy}/a`, { posture: 'upright' });
-      s().updateBoard(`${g}/a`, { posture: 'upright' });
-      expect(s().doc).toBe(before);
+    it('flat -> on-edge on that Shape applies to every user', () => {
+      const { copy, g } = pairDoc();
       s().updateBoard(`${copy}/a`, { posture: 'on-edge' });
       expect(worldParts(s().doc).find((b) => b.id === `${g}/b`)!.posture).toBe('on-edge');
+    });
+  });
+  describe('posture flat -> upright on a linked part in a cabinet with a live mirrored copy (spec §4, amended)', () => {
+    /** Shelves a and b linked inside an assembly, Copy mirrored, NOT Ungrouped; `mirrorFirst` swaps the instances' world order. */
+    const cabinet = (mirrorFirst: boolean) => {
+      const shelf = (id: string, y: number) => ({ ...chiralPart('flat'), id, name: `Shelf ${id}`, position: [0, y, 0] as [number, number, number] });
+      load({ ...createDocument('P'), boards: [shelf('a', 0), shelf('b', 5)] });
+      s().linkBoards(['a', 'b']);
+      s().selectBoard('a'); s().toggleSelected('b');
+      s().groupSelected();
+      const g = s().doc.instances[0]!.id;
+      s().copyMirrored(g);
+      const copy = s().selectedIds[0]!;
+      if (mirrorFirst) load({ ...s().doc, instances: [...s().doc.instances].reverse() });
+      return { g, copy };
+    };
+    const geom = (id: string) => worldParts(s().doc).find((x) => x.id === id)!.cuts.map(({ id: _id, ...c }) => c);
+    /** A cut's numbers to 1e-9: re-reflecting twice is not bit-exact (spec §4). */
+    const nearly = (c: object) => Object.fromEntries(Object.entries(c).map(([f, v]) => [f, typeof v === 'number' ? Math.round(v * 1e9) / 1e9 + 0 : v]));
+    const shapeCuts = () => JSON.stringify(s().doc.shapes.map((x) => x.cuts));
+    it.each([
+      ['plain side, plain first', false, 'g'], ['plain side, mirrored first', true, 'g'],
+      ['mirrored side, plain first', false, 'copy'], ['mirrored side, mirrored first', true, 'copy'],
+    ] as const)('%s: applies once; every user on the edited side keeps its world cuts as seen; the Shape re-reflects only from the mirrored side', (_t, mirrorFirst, from) => {
+      const ids = cabinet(mirrorFirst);
+      const side = ids[from];
+      const sameSide = [`${side}/a`, `${side}/b`];
+      const before = sameSide.map((id) => geom(id).map(nearly));
+      const cutsBefore = shapeCuts();
+      expect(postureRefusal(s().doc, [`${side}/a`], 'upright')).toBeNull();
+      const n = s().past.length;
+      s().updateBoard(`${side}/a`, { posture: 'upright' });
+      expect(s().past.length).toBe(n + 1);
+      expect(worldParts(s().doc).filter((b) => b.shape !== undefined).every((b) => b.posture === 'upright')).toBe(true);
+      sameSide.forEach((id, k) => expect(geom(id).map(nearly)).toEqual(before[k]));
+      // The approved coupling: the Shape's stored cuts are rewritten only when the edit comes through a mirror.
+      expect(shapeCuts() !== cutsBefore).toBe(from === 'copy');
+    });
+    it('refuses one edit whose targets share the Shape on both sides (defensive: a selection is one level)', () => {
+      const { g, copy } = cabinet(false);
+      expect(postureRefusal(s().doc, [`${g}/a`, `${copy}/b`], 'upright')).not.toBeNull();
+      const before = s().doc;
+      s().updateBoards([`${g}/a`, `${copy}/b`], { posture: 'upright' });
+      expect(s().doc).toBe(before);
     });
   });
   describe('Link on the same side of a mirror keeps the world (the Shape holds STORED fields)', () => {
@@ -1083,6 +1123,50 @@ describe('posture on a Shape used on both sides of a mirror (mirrored-instances 
       expect(worldParts(s().doc).find((x) => x.id === id)!.posture).toBe('upright');
       expect(geom(id).map(nearly)).toEqual(before[k]!.map(nearly));
     }
+  });
+});
+
+describe('Link through the store API across a mirror and through mixed first occurrences', () => {
+  const solidsOf = (id: string) => worldSolids(worldParts(s().doc).find((b) => b.id === id)!);
+  it('a PICKED part on the other side of a mirror is refused in either order, even when a placement of it sits on the source\'s side', () => {
+    const part = { ...chiralPart('flat'), id: 'S', name: 'S', position: [0, 0, 0] as [number, number, number] };
+    load({ ...createDocument('P'),
+      instances: [
+        { id: 'i0', name: 'L', definition: 'D', position: [0, 0, 0], rotation: 0 },
+        { id: 'i1', name: 'R', definition: 'D', position: [40, 0, 0], rotation: 0, mirrored: true },
+      ],
+      definitions: [{ id: 'D', boards: [part], instances: [] }] });
+    // M: a root part equal AS SEEN to the mirrored occurrence i1/S.
+    const seen = worldParts(s().doc).find((b) => b.id === 'i1/S')!;
+    load({ ...s().doc, boards: [{ ...seen, id: 'M', name: 'M', position: [seen.position[0], 20, seen.position[2]] }] });
+    for (const ids of [['M', 'i1/S'], ['i1/S', 'M']]) {
+      const before = s().doc;
+      s().linkBoards(ids);
+      expect(s().doc).toBe(before);
+    }
+  });
+  it('members whose first world occurrence is on the other side are patched on the source\'s side: no throw, the link is made', () => {
+    const shelf = (id: string, y: number) => ({ ...chiralPart('flat'), id, name: `Shelf ${id}`, position: [0, y, 0] as [number, number, number] });
+    load({ ...createDocument('P'), boards: [shelf('a', 0), shelf('b', 5), shelf('r', 10), { ...shelf('F', 15), length: 24 }] });
+    s().linkBoards(['a', 'b', 'r']);
+    s().selectBoard('a'); s().groupSelected(); const g1 = s().doc.instances.at(-1)!.id;
+    s().selectBoard('b'); s().groupSelected(); const g2 = s().doc.instances.at(-1)!.id;
+    s().copyMirrored(g1);
+    s().copyMirrored(g2); const c2 = s().selectedIds[0]!;
+    s().selectItem(g2, false); s().deleteBoards([g2]);
+    s().copyMirrored(c2); // a plain copy placed AFTER the mirrored one: b's first occurrence is mirrored
+    expect(s().doc.instances.findIndex((i) => i.id === c2)).toBeLessThan(s().doc.instances.length - 1);
+    const f = solidsOf('F');
+    const n = s().past.length;
+    s().linkBoards(['F', 'r']);
+    expect(s().past.length).toBe(n + 1);
+    const users = worldParts(s().doc).filter((b) => b.shape !== undefined);
+    expect(new Set(users.map((b) => b.shape)).size).toBe(1);
+    expect(users).toHaveLength(6); // F, r, g1/a, its mirrored copy, and b's two placements
+    expect(solidsOf('F')).toEqual(f);
+    const geom = (id: string) => worldParts(s().doc).find((b) => b.id === id)!.cuts.map(({ id: _id, ...c }) => c);
+    expect(geom('r')).toEqual(geom('F'));
+    expect(worldParts(s().doc).find((b) => b.id === 'r')!.length).toBe(24);
   });
 });
 

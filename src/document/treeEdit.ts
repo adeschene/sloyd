@@ -109,23 +109,45 @@ export const POSTURE_ACROSS_MIRROR = "Linked parts on both sides of a mirror can
  * §4, amended). Under an odd number of mirrors a part's stored cuts depend on
  * its posture's d0 (`mirrorDim`), so a posture change that moves d0 (flat or
  * on-edge <-> upright) rewrites them, re-reflected (the approved coupling). A
- * shaped part's cuts are stored ONCE: when the Shape's users sit on both sides
- * of a mirror, the two sides would write different cuts to it, so the change is
- * refused before any mutation. A posture that keeps d0 (flat <-> on-edge), and
- * any change on a Shape whose users are all on one side, is allowed. Every
- * placement of every user counts (a user in a definition placed both ways is on
- * both sides). The ONE decider: the store's updateBoards and the Posture field.
+ * shaped part's cuts are stored ONCE, and the store writes the change to every
+ * user through an occurrence on the EDITED part's side (`sameSideFirst`). So
+ * the change is refused only when some user of the Shape (by `storageKey`) has
+ * no world occurrence on that side: it would have to be lowered through the
+ * other side and would write different cuts to the Shape. That is a Shape split
+ * by Ungroup or Make Unique; a shared definition placed both ways (a cabinet and
+ * its mirrored copy) is allowed from either side. Also refused (defensive; a
+ * selection is one level): two targets sharing a Shape on different sides. A
+ * posture that keeps d0 (flat <-> on-edge) is never refused. The ONE decider:
+ * the store's updateBoards and the Posture field.
  */
 export function postureRefusal(doc: SloydDocument, ids: readonly string[], posture: Posture | undefined): string | null {
   if (posture === undefined) return null;
   const world = worldParts(doc);
+  const sideOf = new Map<string, boolean>();
   for (const id of ids) {
     const b = world.find((x) => x.id === id);
     if (!b?.shape || mirrorDim({ ...b, posture }) === mirrorDim(b)) continue;
-    const sides = new Set(world.filter((x) => x.shape === b.shape).map((x) => mirroredAt(doc, x.id)));
-    if (sides.size > 1) return POSTURE_ACROSS_MIRROR;
+    const side = mirroredAt(doc, b.id);
+    if (sideOf.has(b.shape) && sideOf.get(b.shape) !== side) return POSTURE_ACROSS_MIRROR;
+    sideOf.set(b.shape, side);
+    const users = world.filter((x) => x.shape === b.shape);
+    const key = (x: Board) => storageKey(doc, x.id) ?? x.id;
+    const onSide = new Set(users.filter((x) => mirroredAt(doc, x.id) === side).map(key));
+    if (users.some((x) => !onSide.has(key(x)))) return POSTURE_ACROSS_MIRROR;
   }
   return null;
+}
+
+/**
+ * `ids` reordered so each occurrence on the side `sideOf` names comes before
+ * any on the other side (stable otherwise). `oneEditPerTarget` keeps the FIRST
+ * occurrence of each stored part, so this makes it lower every stored part
+ * through the side the edit was made on: two lowerings through different
+ * parities would write different cuts to one Shape (spec §4, amended).
+ */
+export function sameSideFirst(doc: SloydDocument, ids: Iterable<string>, sideOf: (id: string) => boolean | undefined): string[] {
+  const off = (id: string) => { const want = sideOf(id); return want !== undefined && mirroredAt(doc, id) !== want ? 1 : 0; };
+  return [...ids].map((id, i) => ({ id, i, o: off(id) })).sort((a, b) => a.o - b.o || a.i - b.i).map((x) => x.id);
 }
 
 /** The storage id of the root container. A definition may never carry it:
