@@ -4917,7 +4917,7 @@ real clicks in this round).
   `ProjectMenu.test.tsx`, each part mutated red (guard, caret focus, duplicate focus, arm focus, window `pointerup`,
   reset on open). The reset on open was unpinned in Popover too; `Popover.test.tsx` gained the same stale-press test,
   mutated red. Still only simulated: no Safari/macOS Firefox exists on this host.
-- **Status:** closed. Only a real Safari or macOS Firefox can confirm it.
+- **Status:** closed; deployed as `index-c2pDi0bK.js`. Only a real Safari or macOS Firefox can confirm it.
 
 **251. Small gaps the round judged fine to leave.** Record-only; the task reviews' deferred minors.
 - **Closed in the final-review fix wave:** the stale comments (`BoardMesh.tsx`'s "Brass", the `.toolbar-hint`

@@ -21,9 +21,9 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-11: the ui-polish round, bundle
-  `index-pwj6gaFP.js`, CSS `index-snqYHkpL.css`, merge `14609fe`, **SCHEMA 13** (unchanged, so rolling
-  back to `a11ec0b` is free; below 13, `43b4928`, refuses every project saved since mirrored instances:
+- **Production matches `master`** as of 2026-10-11: the ui-polish round plus fu 250's
+  ProjectMenu fix (`af3928d`), bundle `index-c2pDi0bK.js`, CSS `index-snqYHkpL.css`, **SCHEMA 13**
+  (unchanged, so rolling back to `a11ec0b` is free; below 13, `43b4928`, refuses every project saved since mirrored instances:
   export first). Test count is under Commands.
 - **NO SUCCESSOR IS
   CHOSEN: ask what to work on; do not pick.** Open near the recent code:
