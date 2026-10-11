@@ -353,7 +353,7 @@ function GroupProperties() {
 
   return (
     <div className="properties" key={selectedIds.join('|')}>
-      <h3>{allParts ? `${boards.length} parts selected` : `${selectedIds.length} items selected`}</h3>
+      <h3 className="props-title">{allParts ? `${boards.length} parts selected` : `${selectedIds.length} items selected`}</h3>
       <ActionBar
         actions={[
           ...(plan && !('refused' in plan) ? [{ label: 'Link', run: () => linkBoards(selectedIds) }] : []),
