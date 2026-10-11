@@ -312,7 +312,9 @@ flat documents carry " › " and pass through `migrateDocument` (47 tests red), 
 prohibition joined inv 8. Fu 246: stale vUp comments fixed; the overlap sweep re-run on all six views (12 views, 54
 rotated labels): no overlaps, nothing outside the viewBox; its P3 check predated the leader columns and flagged every
 column label, now exempt when wholly in the column band; three test gaps pinned. Final review (opus): ready to merge,
-3 minors, all fixed. Test count 2793 -> 2808.
+3 minors, all fixed. Test count 2793 -> 2808. **Deployed 2026-10-11** as `index-Dz_13Lc-.js` (CSS unchanged;
+deployed commit `26e088f`, docs-only past the merge `39b465b`), confirmed by page load, bundle hash and the CSP at
+the edge and in-network; that origin's `localStorage` cleared and read back empty twice.
 
 **What the posture-handedness round did (2026-10-10)**: follow-up 215, by the user's decision to do both
 steps as one round. **Schema 12.** The probe: flat and upright mapped (length, width, thickness) onto the
