@@ -2,6 +2,8 @@ import { MATERIALS, isSheetGood, sheetStockOf } from './types';
 import type { Board, Cut, Grain, Region, FlatDocument } from './types';
 import { CUT_GEOMETRY_KEYS, pocketCells, cutShape, cutsThatRemoveStock } from './cuts';
 import type { CutShape } from './cuts';
+import { angleCutValues, angleCutsThatRemoveStock } from './angleCuts';
+import { angleLine, shortPointLine } from './angleText';
 import { findTenons } from './tenons';
 import type { Tenon } from './tenons';
 import { buildDiagrams } from './diagram';
@@ -33,7 +35,7 @@ export interface CutListRow {
   grain: Grain;
   /** e.g. `24" × 3-1/2"`, already formatted. */
   dims: string;
-  /** One line per cut, already formatted. Empty for a row with no joinery. */
+  /** One line per cut and per angle cut, then the short point when mitered; already formatted. Empty for a row with no joinery. */
   setup: string[];
   /**
    * The same cuts, drawn. Always populated — a cut-free row carries its one
@@ -212,7 +214,15 @@ function setupLines(board: Board, precision: number): string[] {
     if (!t) { lines.push(setupLine(board, cut, precision, solids)); continue; }
     if (!done.has(t)) { done.add(t); lines.push(tenonLine(t, precision)); }
   }
+  for (const c of angleCutsThatRemoveStock(board)) lines.push(angleLine(board, c, precision));
+  const short = shortPointLine(board, precision);
+  if (short) lines.push(short);
   return lines;
+}
+
+/** The angle-cut half of a row's identity: EXACT and order-independent, like cutSignature, `kind` included (spec §4.2). */
+function angleSignature(board: Board): string {
+  return angleCutsThatRemoveStock(board).map((c) => angleCutValues(c).join(':')).sort().join(';');
 }
 
 /**
@@ -249,6 +259,8 @@ function rowKey(board: Board, precision: number): string {
     // A cut a board edit has left removing nothing changes nothing you cut,
     // so it must not split a row (follow-up 178).
     cutSignature(cutsThatRemoveStock(board)),
+    // An angle cut that removes nothing must not split a row either (spec §2.3).
+    angleSignature(board),
   ].join('|');
 }
 
