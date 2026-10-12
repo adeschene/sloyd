@@ -1131,7 +1131,13 @@ select.input { cursor: pointer; }
   stroke-width: 1.5;
 }
 
-.cutlist-diagram-crossings {
+.cutlist-diagram-angle {
+  stroke: var(--ink);
+  stroke-width: 1;
+}
+
+.cutlist-diagram-crossings,
+.cutlist-diagram-angle-note {
   margin: 2px 0 0;
   font-size: 0.78em;
   color: var(--ink-faint);
@@ -1294,6 +1300,7 @@ select.input { cursor: pointer; }
   .cutlist-diagram-head,
   .cutlist-diagram-note,
   .cutlist-diagram-crossings,
+  .cutlist-diagram-angle-note,
   .cutlist-setup,
   .cutlist-layout-count,
   .cutlist-layout-head,

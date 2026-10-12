@@ -291,3 +291,31 @@ describe('true views (fu 215)', () => {
     });
   });
 });
+
+describe('angle cuts in part diagrams (spec §4.3)', () => {
+  const taper = { id: 'a1', kind: 'taper' as const, face: 'width' as const, from: 'min' as const, along: 'length' as const, alongFrom: 'min' as const, points: [[0, 0.625], [24, 0]] as [[number, number], [number, number]] };
+  const leg = () => createBoard({ length: 29, width: 1.75, thickness: 1.75, angleCuts: [taper] });
+
+  it('draws the wedge in the view looking along the through dimension', () => {
+    const views = buildDiagrams(leg(), 16);
+    const v = views.find((x) => x.face === 'thickness' && x.from === 'min')!;
+    expect(v.angles).toHaveLength(1);
+    // h = length, v = width (DIMENSION_ORDER): a triangle (0,0) (0,0.625) (24,0).
+    const pts = v.angles[0]!.poly.map(([h, w]) => `${Math.round(h * 1e9) / 1e9},${Math.round(w * 1e9) / 1e9}`).sort();
+    expect(pts).toEqual(['0,0', '0,0.625', '24,0'].sort());
+    expect(v.angles[0]!.label).toMatch(/^Taper 5\/8"/);
+  });
+  it('a cut-free board has no angles and still one view', () => {
+    const views = buildDiagrams(createBoard({}), 16);
+    expect(views).toHaveLength(1);
+    expect(views[0]!.angles).toEqual([]);
+  });
+  it('an angle cut that removes nothing is not drawn', () => {
+    const b = createBoard({ length: 29, width: 1.75, thickness: 1.75, angleCuts: [{ ...taper, points: [[40, 0], [50, 1]] }] });
+    expect(buildDiagrams(b, 16).flatMap((v) => v.angles)).toEqual([]);
+  });
+  it('an angle cut that removes nothing does not even open its view', () => {
+    const b = createBoard({ length: 29, width: 1.75, thickness: 1.75, angleCuts: [{ ...taper, face: 'thickness' as const, points: [[40, 0], [50, 1]] }] });
+    expect(buildDiagrams(b, 16).map((v) => v.key)).toEqual(['thickness|min']);
+  });
+});

@@ -850,3 +850,16 @@ describe('PartDiagram — vUp stop columns mirror the unflipped geometry (fu 215
     texts.forEach(([, y], i) => { expect(y).toBeGreaterThan(runs[i]![0]!); expect(y).toBeLessThan(runs[i]![1]!); });
   });
 });
+
+describe('PartDiagram angle cuts', () => {
+  it('draws an angle cut as a hatched polygon and prints its line', () => {
+    const v = buildDiagrams(createBoard({ length: 29, width: 1.75, thickness: 1.75, angleCuts: [
+      { id: 'a1', kind: 'taper', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[0, 0.625], [24, 0]] },
+    ] }), 16)[0]!;
+    const { container, getByText } = render(<PartDiagram view={v} />);
+    const poly = container.querySelector('polygon.cutlist-diagram-angle')!;
+    expect(poly.getAttribute('fill')).toMatch(/^url\(#hatch[a-zA-Z0-9]+\)$/);
+    expect(poly.getAttribute('points')!.split(' ')).toHaveLength(3);
+    expect(getByText(/^Taper 5\/8"/)).toBeInTheDocument();
+  });
+});
