@@ -698,4 +698,16 @@ describe('angle cuts on the cut list (spec §4)', () => {
     const b = buildCutList(legs([{}]) as FlatDocument).groups[0]!.stockInches;
     expect(a).toBe(b);
   });
+  const m = (from: 'min' | 'max', kind: 'miter' | 'bevel' = 'miter') => ({ id: `m${from}`, kind, face: 'length' as const, from, along: 'width' as const, alongFrom: 'min' as const, points: [[0, 0], [2.5, 2.5]] as [[number, number], [number, number]] });
+  const rails = (x: Partial<Board>[]) => buildCutList(legs(x.map((b) => ({ length: 24, width: 2.5, thickness: 0.75, ...b }))) as FlatDocument).groups[0]!.rows;
+  it('angle cuts added in either order are one row', () => {
+    expect(rails([{ angleCuts: [m('min'), m('max')] }, { angleCuts: [m('max'), m('min')] }])).toHaveLength(1);
+  });
+  it('the same geometry with a different kind is two rows', () => {
+    expect(rails([{ angleCuts: [m('max')] }, { angleCuts: [m('max', 'bevel')] }])).toHaveLength(2);
+  });
+  it('a mitered rail ends its setup with the short point', () => {
+    const setup = rails([{ angleCuts: [m('min'), m('max')] }])[0]!.setup;
+    expect(setup[setup.length - 1]).toBe('Short point 19"');
+  });
 });

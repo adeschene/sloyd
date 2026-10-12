@@ -33,4 +33,29 @@ describe('angle text (spec §4.2)', () => {
     expect(angleLine(b, bevel, 16)).toBe('Bevel 15.0° off the width face (max side), across the thickness');
     expect(angleLine(b, chamfer, 16)).toBe('Chamfer 1/8" × 1/8" off the thickness face (max side), at the width min edge');
   });
+  it('words a taper that deepens toward the far end from the deep end', () => {
+    const c: AngleCut = { ...taper, points: [[5, 0], [29, 0.625]] };
+    const leg = createBoard({ length: 29, width: 1.75, thickness: 1.75, angleCuts: [c] });
+    expect(angleLine(leg, c, 16)).toBe('Taper 5/8" off the width face (min side), from 24" from the length max end to that end');
+  });
+  it('uses the standard form when the line reaches zero exactly at the far end', () => {
+    const c: AngleCut = { ...taper, points: [[0, 0.625], [29, 0]] };
+    const leg = createBoard({ length: 29, width: 1.75, thickness: 1.75, angleCuts: [c] });
+    expect(angleLine(leg, c, 16)).toBe('Taper 5/8" off the width face (min side), from 29" from the length min end to that end');
+  });
+  it('words a taper that is zero at the anchored end and deep at the far end', () => {
+    const c: AngleCut = { ...taper, points: [[0, 0], [29, 0.625]] };
+    const leg = createBoard({ length: 29, width: 1.75, thickness: 1.75, angleCuts: [c] });
+    expect(angleLine(leg, c, 16)).toBe('Taper 5/8" off the width face (min side), from 29" from the length max end to that end');
+  });
+  it('prints 22.5° for a 22.5° miter', () => {
+    const c: AngleCut = { ...miter('max'), points: [[0, 0], [2.5, 2.5 * Math.tan(Math.PI / 8)]] };
+    const rail = createBoard({ length: 24, width: 2.5, thickness: 0.75, angleCuts: [c] });
+    expect(angleLine(rail, c, 16)).toBe('Miter 22.5° across the width at the length max end');
+  });
+  it('short point counts an end cut whatever its kind, and clamps at zero', () => {
+    const asBevel: AngleCut = { ...miter('max'), kind: 'bevel' };
+    expect(shortPointLine(createBoard({ length: 24, width: 2.5, thickness: 0.75, angleCuts: [asBevel] }), 16)).toBe('Short point 21-1/2"');
+    expect(shortPointLine(createBoard({ length: 2, width: 2.5, thickness: 0.75, angleCuts: [miter('max')] }), 16)).toBe('Short point 0"');
+  });
 });

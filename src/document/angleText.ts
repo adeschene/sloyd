@@ -28,6 +28,10 @@ export function angleLine(board: Board, c: AngleCut, precision: number): string 
       if (near > 0 && Number.isFinite(z) && z > 0 && z <= A) {
         return `Taper ${f(near)} off ${side}, from ${f(z)} from the ${c.along} ${c.alongFrom} end to that end`;
       }
+      // Deepening toward the far end: the same standard form, measured from the deep end.
+      if (near <= 0 && depthAt(c, A) > 0 && Number.isFinite(z) && z >= 0 && z < A) {
+        return `Taper ${f(depthAt(c, A))} off ${side}, from ${f(A - z)} from the ${c.along} ${other(c.alongFrom)} end to that end`;
+      }
       return `Taper off ${side}: ${f(Math.max(0, near))} at the ${c.along} ${c.alongFrom} end, ${f(Math.max(0, depthAt(c, A)))} at the ${c.along} ${other(c.alongFrom)} end`;
     case 'miter':
       return `Miter ${deg} across the ${c.along} at the ${c.face} ${c.from} end`;
@@ -40,12 +44,13 @@ export function angleLine(board: Board, c: AngleCut, precision: number): string 
 }
 
 /**
- * The short point of a part mitered at one or both ends (spec §4.2): the stock
- * length less the greatest depth, within the part, of each end miter. Null
- * when the part has no miter that removes stock.
+ * The short point of a part cut at one or both ends (spec §4.2): the stock
+ * length less the greatest depth, within the part, of each end cut (a cut on
+ * the length face, whatever its `kind`: kind never decides geometry). Null when
+ * the part has no such cut that removes stock.
  */
 export function shortPointLine(board: Board, precision: number): string | null {
-  const miters = angleCutsThatRemoveStock(board).filter((c) => c.kind === 'miter' && c.face === 'length');
+  const miters = angleCutsThatRemoveStock(board).filter((c) => c.face === 'length');
   if (miters.length === 0) return null;
   const deepest = (end: 'min' | 'max') => Math.max(0, ...miters.filter((c) => c.from === end).map((c) =>
     Math.min(board.length, Math.max(depthAt(c, 0), depthAt(c, board[c.along])))));
