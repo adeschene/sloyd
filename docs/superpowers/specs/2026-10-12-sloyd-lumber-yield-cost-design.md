@@ -1,6 +1,6 @@
 # Sloyd — solid-lumber yield and cost
 
-**Date:** 2026-10-12 · **Status:** approved in conversation, section by section; spec awaiting review
+**Date:** 2026-10-12 · **Status:** approved by the user; three small amendments made while planning (§2.1, §3.2, §4), marked
 **Builds on:** the cut list (`cutlist.ts`, invariant 18), board feet (`units/quantity.ts`), sheet nesting
 (`nesting.ts`, invariants 19, 22, 23), the storage seam (`StorageAdapter`, invariants 7, 31) and the Settings
 dialog. Every rule there still holds unless this document says otherwise.
@@ -46,7 +46,8 @@ interface StockBoard { id: string; thickness: number; width: number; length: num
 
 - **Modes per material:** a sheet good (`isSheetGood`) is always `'sheet'` — its size stays on `MATERIALS` (the
   sheet-nesting round's ruling). A solid material is `'board-foot'` or `'piece'`, the user's choice.
-- **Defaults** (`DEFAULT_SHOP`, one home, in `document/purchase.ts`): oak, maple, walnut, cherry →
+- **Defaults** (`defaultShop()`, one home, in `document/purchase.ts` — *(amended while planning: a function
+  returning a fresh object rather than a shared constant, so no caller can mutate the defaults)*): oak, maple, walnut, cherry →
   board-foot, waste factor **1.3**, no price; pine → piece, with ¾" × {1½, 2½, 3½, 5½, 7¼, 9¼, 11¼}" × {72, 96}"
   (14 sizes), no prices; plywood, MDF → sheet, no price. **No default carries a price** — prices are local facts.
 - **A material missing from the stored settings** (a key added to `MATERIALS` later) takes its default entry.
@@ -97,8 +98,11 @@ Per material, per cut-list thickness group (hardwood is bought by thickness, e.g
 
 Per material, across all its thickness groups:
 
-1. **Thickness.** Each part is assigned the **thinnest stock thickness ≥ its own thickness** (compared with the
-   cut list's FLUSH-style epsilon, `1e-9`). A part whose stock is thicker carries a note `plane to 1/2"`.
+1. **Thickness.** Each part is assigned the **thinnest stock thickness ≥ its own thickness at which some size
+   holds its footprint** (compared with the cut list's FLUSH-style epsilon, `1e-9`). *(Amended while planning:
+   the first draft took the thinnest thickness ≥ the part's regardless of width, so a 10"-wide ¾" shelf was
+   "unplaceable" when the ¾" list stopped at 1×8 even though 1" × 11¼" stock was listed.)* A part whose stock is
+   thicker carries a note `plane to 1/2"`.
 2. **Unplaceable.** A part thicker than every stock thickness, or whose footprint fits no stock board at its
    thickness (too wide or too long), goes to `unplaceable` — **never dropped** (as nesting's). Glue-ups are not
    modelled.
@@ -134,9 +138,11 @@ The cut list's existing nesting per thickness group: `Buy 3 sheets · $165.00` (
 
 - A **Buying** section at the end of `CutList.tsx`, one entry per material present (board-foot lines per thickness;
   piece: the buy line, unplaceable lines and board layouts; sheet: the buy line), then the project total.
-- **Board layouts** for by-the-piece materials are drawn by a `BoardLayout` component modelled on `SheetLayout`
-  (strings and measured labels built in `purchase.ts` / the packer, never in the component — invariant 19). They
-  share the existing layouts toggle, relabelled **"Layouts"**.
+- **Board layouts** for by-the-piece materials are drawn by **`SheetLayout` itself**, given a `noun` (e.g.
+  `3/4" × 5-1/2" × 96" — board`) in place of "Sheet" *(amended while planning: it already draws any stock rectangle
+  at one scale and falls back to numbered labels on thin parts, so a second component would have duplicated it)*.
+  Strings are built in `purchase.ts` / the packer, never in the component (invariant 19). They share the existing
+  layouts toggle, relabelled **"Layouts"**.
 - The cut list reads the shop settings once on open (through `StorageAdapter`) and again after the Lumber & prices
   dialog saves.
 - Print: the Buying section prints (ink rules as the cut list's); the dialog button does not.
@@ -151,7 +157,7 @@ The cut list's existing nesting per thickness group: `Buy 3 sheets · $165.00` (
 | `document/nesting.ts` | document | the shelf core generalised to a chosen sequence of bins; sheet behaviour unchanged |
 | `storage/types.ts`, `storage/browser.ts` | storage | `getShopSettings` / `setShopSettings`, key `sloyd.shop.v1` |
 | `panels/LumberPricesDialog.tsx` | panels | §2.3 |
-| `panels/CutList.tsx`, `panels/BoardLayout.tsx` | panels | §4 |
+| `panels/CutList.tsx`, `panels/SheetLayout.tsx` (a `noun` prop) | panels | §4 |
 | `App.tsx`, `panels/SettingsDialog.tsx`, `styles.css` | — | dialog wiring, `modalOpen`, the Settings link, styles |
 
 ## 6. Testing
