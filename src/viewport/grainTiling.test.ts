@@ -3,7 +3,8 @@ import {
   axisDimensions, boardExtents, pocketCells, createBoard, solidWorldBox, wholeBoard,
 } from '../document/document';
 import type { Region } from '../document/document';
-import { chiralPart, turnedAbout } from '../document/turnFixtures';
+import { chiralAngled, chiralPart, turnedAbout } from '../document/turnFixtures';
+import { mirrorPart } from '../document/frames';
 import { boardBodies } from '../document/document';
 import { boardUVOffset, boardUVs, boardUVSignature, bodyMesh, facePlans } from './grainTiling';
 
@@ -726,5 +727,32 @@ describe('bodyMesh agrees with the box path (invariant 35, spec §3.3)', () => {
     const b = poses[0]!;
     expect(boardUVSignature({ ...b, angleCuts: [{ id: 'a', kind: 'taper', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[0, 1], [10, 0]] }] }))
       .not.toBe(boardUVSignature(b));
+  });
+});
+
+describe('bodyMesh — hand-mapped normals across every pose (invariant 44)', () => {
+  const poses = (['flat', 'on-edge', 'upright'] as const).flatMap((posture) =>
+    ([0, 90, 180, 270] as const).flatMap((rotation) =>
+      [false, true].map((mirrored) => ({ posture, rotation, mirrored }))));
+  it.each(poses)('%o: every triangle faces away from its body', ({ posture, rotation, mirrored }) => {
+    const base = { ...chiralAngled(posture), rotation, position: [3, 1, -2] as [number, number, number] };
+    const b = mirrored ? mirrorPart(base) : base;
+    const bodies = boardBodies(b);
+    expect(bodies.some((body) => body.box === null)).toBe(true);
+    for (const body of bodies) {
+      const { positions: p } = bodyMesh(b, body);
+      const count = p.length / 3;
+      expect(count).toBeGreaterThan(0);
+      // The mean of the body's own triangle vertices: a convex combination touching every face, so inside.
+      const c = [0, 1, 2].map((i) => { let s = 0; for (let k = 0; k < count; k += 1) s += p[k * 3 + i]!; return s / count; });
+      for (let t = 0; t < count; t += 3) {
+        const v = [0, 1, 2].map((j) => [p[(t + j) * 3]!, p[(t + j) * 3 + 1]!, p[(t + j) * 3 + 2]!]);
+        const e1 = [0, 1, 2].map((k) => v[1]![k]! - v[0]![k]!);
+        const e2 = [0, 1, 2].map((k) => v[2]![k]! - v[0]![k]!);
+        const n = [e1[1]! * e2[2]! - e1[2]! * e2[1]!, e1[2]! * e2[0]! - e1[0]! * e2[2]!, e1[0]! * e2[1]! - e1[1]! * e2[0]!];
+        const mid = [0, 1, 2].map((k) => (v[0]![k]! + v[1]![k]! + v[2]![k]!) / 3);
+        expect(n[0]! * (mid[0]! - c[0]!) + n[1]! * (mid[1]! - c[1]!) + n[2]! * (mid[2]! - c[2]!)).toBeGreaterThan(0);
+      }
+    }
   });
 });

@@ -1,5 +1,7 @@
 import { createBoard } from './document';
 import type { Board } from './types';
+import { chiralAngled } from './turnFixtures';
+import { mirrorPart } from './frames';
 import { drawView, hiddenSpan, hiddenSpanPlanes, worldBodies, FRONT, ISO, TOP, type Seg2 } from './drawing';
 
 const len = (s: Seg2) => Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]);
@@ -209,5 +211,26 @@ describe('drawings with angle cuts (spec §3.5)', () => {
     const kept = createBoard({ length: 0.25, width: 0.25, thickness: 0.25, position: [rotation === 180 ? 0.4 : 1.2, 1, -3] });
     const keptSegs = drawView([leg, kept], FRONT).visible.filter((s) => s.part === kept.id);
     expect(keptSegs).toHaveLength(0);
+  });
+});
+
+describe('worldBodies — hand-mapped normals across every pose (invariant 44)', () => {
+  const poses = (['flat', 'on-edge', 'upright'] as const).flatMap((posture) =>
+    ([0, 90, 180, 270] as const).flatMap((rotation) =>
+      [false, true].map((mirrored) => ({ posture, rotation, mirrored }))));
+  it.each(poses)('%o: unit planes, every vertex inside its body, the centroid strictly inside', ({ posture, rotation, mirrored }) => {
+    const base: Board = { ...chiralAngled(posture), rotation, position: [3, 1, -2] };
+    const b = mirrored ? mirrorPart(base) : base;
+    const clipped = worldBodies(b).filter((w) => w.box === null);
+    expect(clipped.length).toBeGreaterThan(0);
+    for (const w of clipped) {
+      const n = w.verts.length;
+      const c = [0, 1, 2].map((i) => w.verts.reduce((s, v) => s + v[i]!, 0) / n);
+      for (const { m, c: k } of w.planes) {
+        expect(Math.abs(Math.hypot(m[0], m[1], m[2]) - 1)).toBeLessThan(1e-12);
+        for (const v of w.verts) expect(m[0] * v[0] + m[1] * v[1] + m[2] * v[2] + k).toBeGreaterThanOrEqual(-1e-9);
+        expect(m[0] * c[0]! + m[1] * c[1]! + m[2] * c[2]! + k).toBeGreaterThan(1e-6);
+      }
+    }
   });
 });
