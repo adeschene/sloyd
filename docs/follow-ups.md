@@ -5163,3 +5163,25 @@ from the + Add menu on a part wider than long (Taper stays). The resize half sta
 **297. A hand-edited offset miter is moved to canonical form on its first edit.** A miter whose stored points do not
 start at the corner (an offset miter, only reachable by editing the file) is rewritten to the canonical corner-anchored
 form by its first row edit. **Status:** open, hand-edited files only.
+
+## From the angle cuts round (chunk 3, bevels and chamfers) — 2026-10-12
+
+**298. A raised-panel field bevel has no preset of its own.** The Bevel row runs along the length only and always
+slopes corner to corner across the full thickness (or width); an end bevel is the Miter row with Across → Thickness,
+also full-depth. A fielded (raised) panel's bevel leaves a flat field and a tongue at the edge, so it reaches neither
+corner: it is an unequal-leg chamfer (e.g. 2" into the face × 9/16" into the thickness on each of the four edges —
+the long edges along the length, the ends along the width), which `chamferCut` stores but the row cannot make (its
+Size field writes equal legs and is a mixed field, `value: null`, on an unequal-leg chamfer). A "Raised panel" preset, or a
+second leg field, would close it. Found while writing the chunk 3 live check; not exercised live. **Status:** open, a
+feature gap.
+
+**299. The chamfer Edge select's option text is clipped at the panel's width.** At the default 1726 px window the
+Properties panel shows `Width min / thickness min edge (along the lengt` under the caret (`docs/img/angle-cuts-chamfer-leg.png`).
+The option text is the full name in the open list; only the closed select is clipped. Cosmetic. **Status:** open, minor.
+
+**300. Wording drift across the five presets (for the user to rule on).** The chamfer Edge option text
+(`Width max / thickness max edge (along the length)`) uses a different phrasing from the `face (max side)` form used
+elsewhere; an end-edge chamfer says `the length face (min side)` where miters and tapers say `the length min end`; and the
+chamfer refusal message pattern (`Too big for that edge — reduce the size first.`) differs from the taper/bevel ones
+(`Removes more than the … — reduce it first.`). None is wrong; the vocabulary just is not unified. **Status:** open, the
+user's call.

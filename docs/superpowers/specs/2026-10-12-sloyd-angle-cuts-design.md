@@ -1,6 +1,6 @@
 # Sloyd — angle cuts: tapers, miters, bevels and chamfers
 
-**Date:** 2026-10-12 · **Status:** approved by the user 2026-10-12; four amendments made while planning chunk 1 (§4.2, §6, §7 — marked *Amended*), also approved; chunk 1 implemented 2026-10-12 on branch angle-cuts (deployed 2026-10-12 as index-DLW02CPM.js); chunk 2 implemented 2026-10-12 on angle-cuts-2 (not yet deployed)
+**Date:** 2026-10-12 · **Status:** approved by the user 2026-10-12; four amendments made while planning chunk 1 (§4.2, §6, §7 — marked *Amended*), also approved; chunk 1 implemented 2026-10-12 on branch angle-cuts (deployed 2026-10-12 as index-DLW02CPM.js); chunk 2 implemented 2026-10-12 on angle-cuts-2 (deployed 2026-10-12 as index-b4ad9aBu.js); chunk 3 (bevels and chamfers) implemented 2026-10-12 on angle-cuts-3 (not yet deployed)
 **Builds on:** cuts (`cuts.ts`, invariants 16, 40), the turn table (invariant 44), the tree and mirrored instances
 (invariants 45, 46), the cut list (invariant 18), the Plans sheet's hidden-line drawings (invariants 38, 47) and the v1
 spec's non-goal "angled parts can arrive later as an explicit feature with compound-angle math done properly"
@@ -177,11 +177,16 @@ there (invariant 19), in the existing vocabulary.
 |---|---|
 | miter | `Miter 45.0° across the width at the length max end, long point on the width min side` |
 | taper | `Taper 5/8 off the width face (min side), from 24 from the length min end to that end` |
-| bevel | `Bevel 15.0° off the thickness face (max side), along the width min edge` |
-| chamfer | `Chamfer 1/8 × 1/8 off the thickness face (max side), along the width min edge` |
+| bevel | `Bevel 15.0° off the width face (max side), across the thickness, long point on the thickness min side` |
+| chamfer | `Chamfer 1/8" on the edge between the width face (max side) and the thickness face (max side), along the length` (unequal legs: `Chamfer 1/8" into the width × 3/16" into the thickness, on the edge between …`) |
 
 - Angles display to **0.1°**, always (45.0°, 22.5°); there is no "exact" branch. Lengths use `formatLength`.
 - *Amended (user, 2026-10-12):* the miter line names the long-point side (fu 294), so a trapezoid and a parallelogram print different lines.
+- *Amended (chunk 3, approved with the plan):* bevel and chamfer take the final wording in the table above, in the
+  same "long point" and "face (max side)" vocabulary as tapers and miters. A bevel names its long-point side; a chamfer
+  names its edge by the two faces it lies between (width face before thickness face) and the dimension it runs along,
+  and names both legs only when they differ. A cut neither row can describe keeps the generic `Bevel`/`Chamfer … off
+  <face>, across the <dimension>` line.
 - **Short point** = the stock length minus the greatest depth (within the part) of each miter entering an end; with
   miters at both ends, both are subtracted. Printed once per row, after the last miter.
 - *Amended (planning chunk 1):* the short point is its own line, `Short point 19"`, not part of the miter line as the

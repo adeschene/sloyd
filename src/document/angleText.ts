@@ -1,5 +1,5 @@
 import type { AngleCut, Board } from './types';
-import { angleCutsThatRemoveStock, depthAt, miterLongSide, zeroStation } from './angleCuts';
+import { angleCutsThatRemoveStock, bevelFields, chamferFields, depthAt, throughOf, miterLongSide, zeroStation } from './angleCuts';
 import { formatLength } from '../units/length';
 
 /** The cut's angle from square, degrees: atan(Δdepth / Δstation). A 45° miter stores depth = run (spec §2.3). */
@@ -35,11 +35,20 @@ export function angleLine(board: Board, c: AngleCut, precision: number): string 
       return `Taper off ${side}: ${f(Math.max(0, near))} at the ${c.along} ${c.alongFrom} end, ${f(Math.max(0, depthAt(c, A)))} at the ${c.along} ${other(c.alongFrom)} end`;
     case 'miter':
       return `Miter ${deg} across the ${c.along} at the ${c.face} ${c.from} end, long point on the ${c.along} ${miterLongSide(c, board)} side`;
-    case 'bevel':
-      return `Bevel ${deg} off ${side}, across the ${c.along}`;
-    case 'chamfer':
-      if (near > 0 && Number.isFinite(z) && z > 0) return `Chamfer ${f(near)} × ${f(z)} off ${side}, at the ${c.along} ${c.alongFrom} edge`;
-      return `Chamfer ${deg} off ${side}, across the ${c.along}`;
+    case 'bevel': {
+      const bf = bevelFields(c, board);
+      if (!bf) return `Bevel ${deg} off ${side}, across the ${c.along}`;
+      return `Bevel ${deg} off ${side}, across the ${c.along}, long point on the ${c.along} ${bf.longSide} side`;
+    }
+    case 'chamfer': {
+      const cf = chamferFields(c, board);
+      if (!cf) return `Chamfer ${deg} off ${side}, across the ${c.along}`;
+      const through = throughOf(cf);
+      const edge = `the edge between the ${cf.face} face (${cf.from} side) and the ${cf.along} face (${cf.alongFrom} side), along the ${through}`;
+      return cf.legFace === cf.legAlong
+        ? `Chamfer ${f(cf.legFace)} on ${edge}`
+        : `Chamfer ${f(cf.legFace)} into the ${cf.face} × ${f(cf.legAlong)} into the ${cf.along}, on ${edge}`;
+    }
   }
 }
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
 import type { AngleCut } from './types';
 import { boardBodies, bodyVerts } from './bodies';
+import { bevelCut, chamferCut, defaultChamfer, miterRatio } from './angleCuts';
 import { angleDegrees, angleLine, shortPointLine } from './angleText';
 
 const taper: AngleCut = { id: 'a1', kind: 'taper', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[0, 0.625], [24, 0]] };
@@ -31,8 +32,8 @@ describe('angle text (spec §4.2)', () => {
     const b = createBoard({ length: 20, width: 3, thickness: 0.75 });
     const bevel: AngleCut = { id: 'b', kind: 'bevel', face: 'width', from: 'max', along: 'thickness', alongFrom: 'min', points: [[0, 0], [0.75, 0.75 * Math.tan(15 * Math.PI / 180)]] };
     const chamfer: AngleCut = { id: 'c', kind: 'chamfer', face: 'thickness', from: 'max', along: 'width', alongFrom: 'min', points: [[0, 0.125], [0.125, 0]] };
-    expect(angleLine(b, bevel, 16)).toBe('Bevel 15.0° off the width face (max side), across the thickness');
-    expect(angleLine(b, chamfer, 16)).toBe('Chamfer 1/8" × 1/8" off the thickness face (max side), at the width min edge');
+    expect(angleLine(b, bevel, 16)).toBe('Bevel 15.0° off the width face (max side), across the thickness, long point on the thickness min side');
+    expect(angleLine(b, chamfer, 16)).toBe('Chamfer 1/8" on the edge between the width face (min side) and the thickness face (max side), along the length');
   });
   it('words a taper that deepens toward the far end from the deep end', () => {
     const c: AngleCut = { ...taper, points: [[5, 0], [29, 0.625]] };
@@ -113,5 +114,40 @@ describe('angle text (spec §4.2)', () => {
       expect(measured(mixed)).toBeCloseTo(15.75, 9);
       expect(shortPointLine(mixed, 16)).toBe('Short point 15-3/4"');
     });
+  });
+});
+
+describe('bevel and chamfer lines (chunk 3 wording)', () => {
+  const b = createBoard({ length: 20, width: 3, thickness: 0.75 });
+  it('a bevel names its long point', () => {
+    const c = { id: 'b', ...bevelCut({ face: 'width', from: 'max', longSide: 'min', ratio: miterRatio(15) }, b) };
+    expect(angleLine(b, c, 16)).toBe('Bevel 15.0° off the width face (max side), across the thickness, long point on the thickness min side');
+  });
+  it('mirror-image bevels read differently', () => {
+    const one = { id: 'b', ...bevelCut({ face: 'width', from: 'max', longSide: 'min', ratio: 1 }, b) };
+    const two = { id: 'b', ...bevelCut({ face: 'width', from: 'max', longSide: 'max', ratio: 1 }, b) };
+    expect(angleLine(b, one, 16)).not.toBe(angleLine(b, two, 16));
+  });
+  it('an equal-legged chamfer names its edge', () => {
+    const c = { id: 'c', ...defaultChamfer(b) };
+    expect(angleLine(b, c, 16)).toBe('Chamfer 1/8" on the edge between the width face (max side) and the thickness face (max side), along the length');
+  });
+  it('a chamfer resized below its legs still prints its edge (RULING: stays editable)', () => {
+    const thin = createBoard({ length: 20, width: 3, thickness: 0.1 });
+    const c = { id: 'c', ...chamferCut({ face: 'width', from: 'max', along: 'thickness', alongFrom: 'max', legFace: 0.125, legAlong: 0.125 }, thin) };
+    expect(angleLine(thin, c, 16)).toBe('Chamfer 1/8" on the edge between the width face (max side) and the thickness face (max side), along the length');
+  });
+  it('an unequal-legged chamfer names both legs', () => {
+    const c = { id: 'c', ...chamferCut({ face: 'width', from: 'max', along: 'thickness', alongFrom: 'max', legFace: 0.125, legAlong: 0.1875 }, b) };
+    expect(angleLine(b, c, 16)).toBe('Chamfer 1/8" into the width × 3/16" into the thickness, on the edge between the width face (max side) and the thickness face (max side), along the length');
+  });
+  it('reads a hand-edited chamfer canonically', () => {
+    const c = { id: 'h', kind: 'chamfer' as const, face: 'thickness' as const, from: 'max' as const, along: 'width' as const, alongFrom: 'min' as const,
+      points: [[2.75, 0], [3, 0.25]] as [[number, number], [number, number]] };
+    expect(angleLine(b, c, 16)).toBe('Chamfer 1/4" on the edge between the width face (max side) and the thickness face (max side), along the length');
+  });
+  it('falls back to a generic line for a shape neither row can describe', () => {
+    const c = { id: 'n', kind: 'chamfer' as const, face: 'width' as const, from: 'max' as const, along: 'thickness' as const, alongFrom: 'min' as const, points: [[0, 0.5], [0.75, 0.7]] as [[number, number], [number, number]] };
+    expect(angleLine(b, c, 16)).toMatch(/^Chamfer .*off the width face \(max side\)/);
   });
 });

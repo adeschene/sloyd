@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useStore } from '../store/store';
 import {
-  angleCutRemovesNothing, defaultMiter, defaultMiterPair, defaultTaper, miterCut, miterDegrees, miterFields, miterRatio, taperCut, taperFields,
+  CHAMFER_EDGES, angleCutRemovesNothing, throughOf, bevelAcross, bevelCut, bevelFields, chamferCut, chamferFields, defaultBevel, defaultChamfer,
+  defaultMiter, defaultMiterPair, defaultTaper, miterCut, miterDegrees, miterFields, miterRatio, taperCut, taperFields,
 } from '../document/document';
 import { angleLine } from '../document/angleText';
-import type { AngleCut, Board, CutFrom, MiterFields } from '../document/document';
+import type { AngleCut, BevelFields, Board, ChamferFields, CutFrom, MiterFields } from '../document/document';
 import { DimensionField } from './DimensionField';
 import { AngleField } from './AngleField';
 import { Popover } from './Popover';
@@ -18,8 +19,8 @@ const FACES: { value: string; label: string; face: 'width' | 'thickness'; from: 
 
 /**
  * One angle cut (angle-cuts spec §7). Its `kind` picks the controls, so an
- * edit never swaps them under the user. Tapers and miters are edited; bevels and
- * chamfers (chunk 3, or a hand-edited file) show their bench line and a remove button only.
+ * edit never swaps them under the user. Every kind is edited; a stored cut the row cannot represent
+ * (a hand-edited file) shows its bench line and a remove button only.
  */
 function AngleRow({ board, cut, precision }: { board: Board; cut: AngleCut; precision: number }) {
   const updateAngleCut = useStore((s) => s.updateAngleCut);
@@ -82,6 +83,82 @@ function AngleRow({ board, cut, precision }: { board: Board; cut: AngleCut; prec
       </div>
     );
   }
+  const bevel = cut.kind === 'bevel' ? bevelFields(cut, board) : null;
+  if (bevel) {
+    const setB = (patch: Partial<BevelFields>) => {
+      const next = { ...bevel, ...patch };
+      // A bevel deeper than its face is refused, never written (spec §7) — it would consume the part.
+      if (board[bevelAcross(next.face)] * next.ratio > board[next.face]) { setError(`Removes more than the ${next.face} — reduce the angle first.`); return; }
+      setError(null);
+      updateAngleCut(board.id, cut.id, bevelCut(next, board));
+    };
+    const across = bevelAcross(bevel.face);
+    const acrossName = across === 'width' ? 'Width' : 'Thickness';
+    return (
+      <div className="cut">
+        {head}
+        <p className="field-note">{line}</p>
+        {none}
+        <div className="field-grid field-grid-2">
+          <div className="field field-wide">
+            <label htmlFor={`bevel-face-${cut.id}`}>Face</label>
+            <select id={`bevel-face-${cut.id}`} className="input" value={`${bevel.face}|${bevel.from}`} onChange={(e) => {
+              const o = FACES.find((x) => x.value === e.target.value)!;
+              setB({ face: o.face, from: o.from });
+            }}>
+              {FACES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+          <div className="field field-wide">
+            <label htmlFor={`bevel-long-${cut.id}`}>Long point</label>
+            <select id={`bevel-long-${cut.id}`} className="input" value={bevel.longSide} onChange={(e) => setB({ longSide: e.target.value as CutFrom })}>
+              <option value="min">{`${acrossName} — min side`}</option>
+              <option value="max">{`${acrossName} — max side`}</option>
+            </select>
+          </div>
+          <AngleField label="Angle" value={miterDegrees(bevel.ratio)} max={miterDegrees(board[bevel.face] / board[across])}
+            onCommit={(deg) => setB({ ratio: miterRatio(deg) })} />
+        </div>
+        {error && <p className="field-error" role="alert">{error}</p>}
+      </div>
+    );
+  }
+  const chamfer = cut.kind === 'chamfer' ? chamferFields(cut, board) : null;
+  if (chamfer) {
+    const setC = (patch: Partial<ChamferFields>) => {
+      setError(null);
+      updateAngleCut(board.id, cut.id, chamferCut({ ...chamfer, ...patch }, board));
+    };
+    const edgeIndex = CHAMFER_EDGES.findIndex((x) => x.face === chamfer.face && x.from === chamfer.from && x.along === chamfer.along && x.alongFrom === chamfer.alongFrom);
+    const cap = (s: string) => s[0]!.toUpperCase() + s.slice(1);
+    const edgeText = (x: (typeof CHAMFER_EDGES)[number]) => {
+      return `${cap(x.face)} ${x.from} / ${x.along} ${x.alongFrom} edge (along the ${throughOf(x)})`;
+    };
+    return (
+      <div className="cut">
+        {head}
+        <p className="field-note">{line}</p>
+        {none}
+        <div className="field-grid field-grid-2">
+          <div className="field field-wide">
+            <label htmlFor={`chamfer-edge-${cut.id}`}>Edge</label>
+            <select id={`chamfer-edge-${cut.id}`} className="input" value={edgeIndex} onChange={(e) => {
+              const x = CHAMFER_EDGES[Number(e.target.value)]!;
+              // Changing the edge keeps the legs; a leg longer than the new edge's face is refused, never clamped.
+              if (chamfer.legFace > board[x.face] || chamfer.legAlong > board[x.along]) { setError('Too big for that edge — reduce the size first.'); return; }
+              setC(x);
+            }}>
+              {CHAMFER_EDGES.map((x, i) => <option key={i} value={i}>{edgeText(x)}</option>)}
+            </select>
+          </div>
+          <DimensionField label="Size" precision={precision}
+            value={chamfer.legFace === chamfer.legAlong ? chamfer.legFace : null} max={Math.min(board[chamfer.face], board[chamfer.along])}
+            onCommit={(v) => setC({ legFace: v, legAlong: v })} />
+        </div>
+        {error && <p className="field-error" role="alert">{error}</p>}
+      </div>
+    );
+  }
   if (cut.kind !== 'taper') {
     return <div className="cut">{head}<p className="field-note">{line}</p>{none}</div>;
   }
@@ -126,7 +203,7 @@ function AngleRow({ board, cut, precision }: { board: Board; cut: AngleCut; prec
   );
 }
 
-/** The Angles section (spec §7): a single part's angle cuts. Chunk 2: Taper and Miter. */
+/** The Angles section (spec §7): a single part's angle cuts. Taper, Miter, Bevel and Chamfer. */
 export function AngleCuts({ board, precision }: { board: Board; precision: number }) {
   const addAngleCuts = useStore((s) => s.addAngleCuts);
   return (
@@ -141,6 +218,11 @@ export function AngleCuts({ board, precision }: { board: Board; precision: numbe
             { label: 'Miter', detail: '45° across the width at one end', run: () => addAngleCuts(board.id, [defaultMiter(board)]) },
             { label: 'Miter both ends', detail: 'A picture-frame rail, in one step', run: () => addAngleCuts(board.id, defaultMiterPair(board)) },
           ]),
+          // The default 15° bevel is as deep as thickness × tan 15°; deeper than the width is refused on edit, so don't offer it.
+          ...(board.thickness * miterRatio(15) > board.width ? [] : [
+            { label: 'Bevel', detail: '15° along one edge', run: () => addAngleCuts(board.id, [defaultBevel(board)]) },
+          ]),
+          { label: 'Chamfer', detail: 'Knock off one edge at 45°', run: () => addAngleCuts(board.id, [defaultChamfer(board)]) },
         ]} />
     </>
   );
