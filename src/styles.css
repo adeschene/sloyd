@@ -1224,6 +1224,28 @@ select.input { cursor: pointer; }
   list-style: none;
 }
 
+/* The cut list's Buying section (lumber yield and cost spec §4). */
+.cutlist-buying { margin-top: 28px; padding-top: 12px; border-top: 2px solid var(--rule-strong); }
+.cutlist-buying h3 { margin: 0 0 8px; }
+.cutlist-buying-entry { margin: 12px 0; break-inside: avoid; }
+.cutlist-buying-entry h4 { margin: 0 0 4px; }
+.cutlist-buying-line { margin: 2px 0; font-variant-numeric: tabular-nums; }
+.cutlist-buying-note { margin: 2px 0; color: var(--ink-dim); }
+.cutlist-buying-total { margin: 16px 0 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* Lumber & prices (spec §2.3): the one dialog that scrolls — fourteen pine sizes do not fit a screen. */
+.lumber-sheet { width: min(720px, 100%); max-height: calc(100vh - 48px); overflow-y: auto; }
+.lumber-material { margin: 12px 0; padding: 8px 12px; border: 1px solid var(--rule); border-radius: 6px; }
+.lumber-material legend { padding: 0 4px; font-weight: 600; }
+.lumber-material label { display: inline-flex; align-items: center; gap: 6px; margin: 4px 12px 4px 0; }
+.lumber-material input.input { width: 7em; }
+.lumber-sizes { list-style: none; margin: 4px 0; padding: 0; }
+.lumber-sizes li { display: flex; gap: 6px; align-items: center; margin: 4px 0; }
+.lumber-sizes input.input { width: 6em; }
+.lumber-material input[aria-invalid='true'] { border-color: var(--alert); }
+.lumber-reset { margin-top: 6px; }
+.link-button { padding: 0; border: 0; background: none; color: inherit; text-decoration: underline; cursor: pointer; }
+
 @media print {
   /* The overlay is a direct child of `.app` — see CutList.tsx. */
   .app > *:not(.cutlist-overlay) { display: none !important; }
@@ -1291,6 +1313,7 @@ select.input { cursor: pointer; }
      alone is not enough wherever a more specific selector also sets color;
      this rule has to match that specificity to win. */
   .cutlist-subtotal .cutlist-stock { color: #000; }
+  .cutlist-buying-line, .cutlist-buying-note, .cutlist-buying-total { color: #000; }
 
   /* Follow-ups 58 and 81 are the SAME defect: an enumerated single-class
      override outranked by a MORE SPECIFIC screen rule. That contest does not

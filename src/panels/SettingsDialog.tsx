@@ -10,6 +10,8 @@ interface Props {
   onClose: () => void;
   /** One free API call that says whether a key works (App passes checkAnthropicKey). */
   checkKey: (apiKey: string) => Promise<KeyCheck>;
+  /** Switches to the Lumber & prices dialog (lumber yield and cost spec §2.3); the link is absent without it. */
+  onOpenPrices?: () => void;
 }
 
 /**
@@ -25,7 +27,7 @@ const NOT_A_KEY = /[^\x21-\x7e]/;
  * `.app-shell` inert while this is open, this takes focus on mount, and its
  * own Escape listener closes it.
  */
-export function SettingsDialog({ settings, onSave, onForget, onClose, checkKey }: Props) {
+export function SettingsDialog({ settings, onSave, onForget, onClose, checkKey, onOpenPrices }: Props) {
   const sheet = useRef<HTMLDivElement>(null);
   const known = CLAUDE_MODELS.some((m) => m.id === settings?.model);
   const [apiKey, setApiKey] = useState('');
@@ -100,6 +102,11 @@ export function SettingsDialog({ settings, onSave, onForget, onClose, checkKey }
         <p className="modal-note">Stored in this browser only. Anyone with access to this browser profile can read it.</p>
         {error && <p className="field-error" role="status">{error}</p>}
         {note && <p className="modal-note" role="status">{note}</p>}
+        {onOpenPrices && (
+          <p className="modal-note">
+            <button className="link-button" onClick={onOpenPrices}>Lumber &amp; prices…</button> — what you pay for lumber, for the cut list's Buying section.
+          </p>
+        )}
         <div className="modal-actions">
           {settings && <button onClick={() => void onForget()}>Forget key</button>}
           <button onClick={onClose}>Cancel</button>

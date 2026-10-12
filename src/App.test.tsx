@@ -239,6 +239,9 @@ let llmSettings: import('./storage/types').LlmSettings | null = null;
 const getLlmSettings = vi.fn(async () => llmSettings);
 const setLlmSettings = vi.fn(async (s: import('./storage/types').LlmSettings) => { llmSettings = s; return true; });
 const clearLlmSettings = vi.fn(async () => { llmSettings = null; });
+let shopSettings: import('./document/purchase').ShopSettings | null = null;
+const getShopSettings = vi.fn(async () => ({ settings: shopSettings ?? (await import('./document/purchase')).defaultShop(), readFailed: false }));
+const setShopSettings = vi.fn(async (s: import('./document/purchase').ShopSettings) => { shopSettings = s; return true; });
 const exportProject = vi.fn().mockResolvedValue(undefined);
 const importProject = vi.fn();
 
@@ -260,6 +263,8 @@ vi.mock('./storage/browser', () => ({
     getLlmSettings: () => getLlmSettings(),
     setLlmSettings: (s: import('./storage/types').LlmSettings) => setLlmSettings(s),
     clearLlmSettings: () => clearLlmSettings(),
+    getShopSettings: () => getShopSettings(),
+    setShopSettings: (s: import('./document/purchase').ShopSettings) => setShopSettings(s),
     exportProject: (...args: unknown[]) => exportProject(...args),
     importProject: (...args: unknown[]) => importProject(...args),
     listRecent: () => Promise.resolve([]),
@@ -887,6 +892,39 @@ const mountWithOneBoard = async () => {
   await user.click(screen.getByRole('button', { name: 'Board' }));
   return worldParts(useStore.getState().doc)[0].id;
 };
+
+describe('Lumber & prices (lumber yield and cost spec §2.3, §4)', () => {
+  beforeEach(() => { shopSettings = null; });
+
+  it('opens above the cut list, saves a price the Buying section uses, and returns focus', async () => {
+    // The default board is pine 24 × 5½ × ¾; default pine sizes carry no price, so the smallest that holds it
+    // is chosen: ¾ × 5½ × 72 (size 7 in the default list: widths 1½,2½,3½ × 72/96, then 5½ × 72).
+    await mountWithOneBoard();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Cut list' }));
+    expect(screen.getByText('Buy 1 × 3/4" × 5-1/2" × 72" · no price')).toBeInTheDocument();
+    const open = screen.getByRole('button', { name: 'Lumber & prices…' });
+    await user.click(open);
+    expect(screen.getByRole('dialog', { name: 'Lumber and prices' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Cut list' }).hasAttribute('inert')).toBe(true);
+    fireEvent.change(screen.getByRole('textbox', { name: 'Pine size 7: price' }), { target: { value: '9' } });
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Lumber and prices' })).toBeNull());
+    expect(setShopSettings).toHaveBeenCalled();
+    expect(screen.getByText('Buy 1 × 3/4" × 5-1/2" × 72" · $9.00')).toBeInTheDocument();
+    expect(document.activeElement).toBe(open);
+  });
+
+  it('Escape closes the prices dialog but leaves the cut list open', async () => {
+    await mountWithOneBoard();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Cut list' }));
+    await user.click(screen.getByRole('button', { name: 'Lumber & prices…' }));
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: 'Lumber and prices' })).toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Cut list' })).toBeInTheDocument();
+  });
+});
 
 describe('App keyboard delete', () => {
   it('deletes the selected board on Delete', async () => {
