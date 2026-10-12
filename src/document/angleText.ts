@@ -49,8 +49,8 @@ export function angleLine(board: Board, c: AngleCut, precision: number): string 
  * rectangle (width × thickness) an end's depth is its deepest end cut there
  * (a cut on the length face, whatever its `kind`: kind never decides geometry),
  * clamped to [0, length]; the short point is the least over the corners of
- * length less both ends' depths, clamped at 0. (The depth is concave, so the
- * least is at a corner.) Null when the part has no end cut that removes stock.
+ * length less both ends' depths, clamped at 0. (Each end's depth is a max of
+ * linear functions, so convex; the remaining length is concave and its least is at a corner.) Null when the part has no end cut that removes stock.
  */
 export function shortPointLine(board: Board, precision: number): string | null {
   const ends = angleCutsThatRemoveStock(board).filter((c) => c.face === 'length');

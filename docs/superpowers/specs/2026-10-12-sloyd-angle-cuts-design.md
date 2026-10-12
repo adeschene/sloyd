@@ -199,7 +199,7 @@ rectangle (width x thickness), of `L - depth_min_end(corner) - depth_max_end(cor
 at a corner is its deepest stock-removing end cut evaluated at that corner's coordinate on the cut's own `along`
 dimension, clamped to [0, L]. The earlier formula subtracted each end's deepest depth even when the two deepest points
 lay at opposite edges (parallel 45 degree ends on a 20 x 3-1/2 x 3/4 brace printed 13" where both long edges are 16-1/2").
-Depth is concave across the face, so the least lies at a corner. Trapezoid ends (same slope) are unchanged: 24 - 2.5 - 2.5 = 19.
+Each end's depth is a max of linear functions (convex), so the remaining length is concave across the face and its least lies at a corner. Trapezoid ends (same slope) are unchanged: 24 - 2.5 - 2.5 = 19.
 
 ### 4.3 Part diagrams (`diagram.ts`)
 

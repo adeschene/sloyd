@@ -68,7 +68,7 @@ describe('angle text (spec §4.2)', () => {
       for (const w of [0, b.width]) for (const t of [0, b.thickness]) {
         // The edge's remaining stretch: extremes of x among vertices on that edge line.
         const on = v.filter((p) => Math.abs(p[1] - w) < 1e-9 && Math.abs(p[2] - t) < 1e-9);
-        if (on.length === 0) continue;
+        if (on.length === 0) { least = 0; continue; } // a cut removed the whole edge
         least = Math.min(least, Math.max(...on.map((p) => p[0])) - Math.min(...on.map((p) => p[0])));
       }
       return least;
@@ -96,6 +96,17 @@ describe('angle text (spec §4.2)', () => {
       const cs = mk([end('min', 'thickness', 'min', 0.75), end('max', 'thickness', 'min', 0.75)]);
       expect(measured(cs)).toBeCloseTo(18.5, 9);
       expect(shortPointLine(cs, 16)).toBe('Short point 18-1/2"');
+    });
+    it('ends whose planes cross inside the part leave no long edge: 0', () => {
+      const crossed = mk([end('min', 'width', 'min', 2.5), end('max', 'width', 'max', 2.5)], [2, 2.5, 0.75]);
+      expect(measured(crossed)).toBe(0);
+      expect(shortPointLine(crossed, 16)).toBe('Short point 0"');
+    });
+    it('two cuts on one end (width and a steeper thickness): the deepest at each corner', () => {
+      const steep: AngleCut = { id: 'steep', kind: 'bevel', face: 'length', from: 'min', along: 'thickness', alongFrom: 'min', points: [[0, 0], [0.75, 3]] };
+      const two = mk([end('min', 'width', 'min', 3.5), steep, end('max', 'width', 'max', 3.5)]);
+      expect(measured(two)).toBeCloseTo(13.5, 9);
+      expect(shortPointLine(two, 16)).toBe('Short point 13-1/2"');
     });
     it('a min-end miter across the width with a max-end miter across the thickness: the corner minimum', () => {
       const mixed = mk([end('min', 'width', 'min', 3.5), end('max', 'thickness', 'min', 0.75)]);
