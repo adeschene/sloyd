@@ -15,7 +15,15 @@ export type MaterialBuying =
   | { mode: 'sheet'; pricePerSheet: number | null };
 
 /** The browser-level shop settings stored under `sloyd.shop.v1`. NOT document state. */
-export interface ShopSettings { layout: 1; materials: Record<string, MaterialBuying> }
+export interface ShopSettings {
+  layout: 1;
+  materials: Record<string, MaterialBuying>;
+  /**
+   * Stored entries for materials this build does not know (a newer build's custom material), carried through
+   * untouched so this build's next save does not erase them (final review, fu 266's hazard). Never read here.
+   */
+  extra?: Record<string, unknown>;
+}
 
 export const SHOP_LAYOUT = 1;
 export const DEFAULT_WASTE_FACTOR = 1.3;
@@ -86,13 +94,16 @@ export function validateShop(raw: unknown): { settings: ShopSettings; ok: boolea
   const stored = raw.materials;
   let ok = true;
   const materials: Record<string, MaterialBuying> = {};
+  const extra = Object.fromEntries(Object.entries(stored).filter(([k]) => !(k in MATERIALS)));
   for (const m of Object.keys(MATERIALS)) {
     if (!(m in stored)) { materials[m] = defaultBuying(m); continue; }
     const v = validateBuying(m, stored[m]);
     if (!v) ok = false;
     materials[m] = v ?? defaultBuying(m);
   }
-  return { settings: { layout: SHOP_LAYOUT, materials }, ok };
+  const settings: ShopSettings = { layout: SHOP_LAYOUT, materials };
+  if (Object.keys(extra).length > 0) settings.extra = extra;
+  return { settings, ok };
 }
 
 /** One material's lines in the cut list's Buying section; every string is built here (invariant 19). */
@@ -130,13 +141,21 @@ function byThePiece(material: string, label: string, parts: Board[], stock: Stoc
   const thicknesses = [...new Set(stock.map((s) => s.thickness))].sort((a, b) => a - b);
   const groups = new Map<number, Board[]>();
   for (const part of parts) {
+    // End grain (grain through the thickness) cannot come out of a board along its length; pricing it as long
+    // grain would buy stock that cannot yield it. Refused with its reason until it is modelled (final review).
+    if (part.grain === 'thickness') {
+      notes.push(`${part.name} (${partDims(part, p)}) has end grain — not priced as ${label.toLowerCase()} stock`);
+      unplaceable += 1;
+      continue;
+    }
     const f = grainFootprint(part);
     const thick = thicknesses.filter((t) => t >= part.thickness - EPS);
     // The thinnest stock at least as thick as the part ON WHICH SOME SIZE HOLDS ITS FOOTPRINT (spec §3.2,
     // amended in the plan): a 10"-wide 3/4" shelf comes from 1x12 stock even when the 3/4" list stops at 1x8.
     const t = thick.find((th) => stock.some((s) => Math.abs(s.thickness - th) <= EPS && fitsIn(f, s)));
     if (t === undefined) {
-      const reason = thick.length === 0 ? 'too thick'
+      const reason = stock.length === 0 ? `no ${label.toLowerCase()} sizes listed`
+        : thick.length === 0 ? 'too thick'
         : stock.some((s) => s.thickness >= part.thickness - EPS && f.h <= s.width + 1e-6) ? 'too long' : 'too wide';
       notes.push(`${part.name} (${partDims(part, p)}) fits no ${label.toLowerCase()} stock — ${reason}`);
       unplaceable += 1;
@@ -179,7 +198,8 @@ function byThePiece(material: string, label: string, parts: Board[], stock: Stoc
       nesting: { sheets: chosen.filter((c) => c.size === s).map((c) => ({ parts: c.parts })), unplaceable: [], label: '', sheet: dims },
     };
   });
-  return { material, label, mode: 'piece', lines, notes, layouts, cost: used.length > 0 ? cost : 0, unplaceable };
+  // Nothing bought is not "priced at $0" (final review): null, and with no buy line it is not counted as unpriced.
+  return { material, label, mode: 'piece', lines, notes, layouts, cost: used.length > 0 ? cost : null, unplaceable };
 }
 
 /**
@@ -225,7 +245,8 @@ export function buildPurchase(doc: FlatDocument, list: CutList, shop: ShopSettin
   });
 
   const total = entries.reduce((n, e) => n + (e.cost ?? 0), 0);
-  const unpriced = entries.filter((e) => e.cost === null).length;
+  // A material is unpriced when it has something to buy (a buy line) but no cost; one that bought nothing is not.
+  const unpriced = entries.filter((e) => e.cost === null && e.lines.length > 0).length;
   const unplaced = entries.reduce((n, e) => n + e.unplaceable, 0);
   const tail = [
     unpriced > 0 ? `(${unpriced} material${unpriced === 1 ? ' has' : 's have'} no price)` : '',

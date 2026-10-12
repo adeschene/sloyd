@@ -5058,3 +5058,14 @@ stock (a 5/8" walnut part is priced as 5/8" stock). **Status:** open.
 **272. The Lumber & prices dialog is long on a small screen** (fourteen pine sizes; it scrolls). Not judged on a phone.
 **Status:** open, cosmetic.
 
+
+**273. Pricing one size pulls small parts onto it, with no hint (spec §3.2 step 4, for the user to decide).** With only
+the 1x12x96 priced, a 30" x 1" strip that needs its own board is bought as a $20 1x12 rather than an unpriced 1x2x72:
+"a priced size is preferred over an unpriced one only when both fit" is the spec's rule, and the total gives no hint.
+A note ("priced as 1x12; a 1x2x72 would hold it — no price set") is one option. Found by the final review.
+**Status:** open, for the user's decision.
+
+**274. End-grain parts are not priced by the piece.** A part with grain through its thickness (an end-grain block) is
+listed as not placed ("has end grain — not priced as pine stock") rather than priced as long grain, which would buy
+stock that cannot yield it (final review). Modelling it means the part's thickness runs along the stock and its
+length x width must fit the stock's thickness x width. **Status:** open.

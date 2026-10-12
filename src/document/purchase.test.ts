@@ -127,7 +127,40 @@ describe('buildPurchase — sheets and totals', () => {
   });
 });
 
+describe('buildPurchase — nothing to buy (final review)', () => {
+  it('says no sizes are listed, and does not total a material it could not buy as $0.00', () => {
+    // An empty pine list: the part is not placed, and the total has nothing priced → "—", not "$0.00".
+    const p = purchase([pine('p', 30, 3)], shopWith({ pine: { mode: 'piece', stock: [] } }));
+    expect(p.entries[0]!.notes).toEqual(['p (3/4" × 3" × 30") fits no pine stock — no pine sizes listed']);
+    expect(p.totalLabel).toBe('Estimated materials: — (1 part not placed)');
+  });
+
+  it('does not total all-unplaceable parts as $0.00', () => {
+    const p = purchase([pine('long', 200, 3)], shopWith({ pine: { mode: 'piece', stock: [A] } }));
+    expect(p.totalLabel).toBe('Estimated materials: — (1 part not placed)');
+  });
+
+  it('refuses an end-grain part rather than pricing it as long grain', () => {
+    // Grain through the thickness: real stock cannot yield it along the board, so it is not placed.
+    const eg = createBoard({ id: 'eg', name: 'eg', material: 'pine', length: 20, width: 5, thickness: 0.75, grain: 'thickness' });
+    const p = purchase([eg, pine('ok', 30, 3)], shopWith({ pine: { mode: 'piece', stock: [A] } }));
+    expect(p.entries[0]!.notes).toEqual(['eg (3/4" × 5" × 20") has end grain — not priced as pine stock']);
+    expect(p.entries[0]!.unplaceable).toBe(1);
+    expect(p.entries[0]!.lines).toEqual(['Buy 1 × 3/4" × 5-1/2" × 96" · $12.00']);
+  });
+});
+
 describe('validateShop', () => {
+  it('carries a material this build does not know through untouched, unflagged (final review)', () => {
+    // A newer build's custom material must survive this build's next save.
+    const ash = { mode: 'board-foot', pricePerBoardFoot: 6, wasteFactor: 1.4, future: true };
+    const r = validateShop({ layout: 1, materials: { ash, oak: { mode: 'board-foot', pricePerBoardFoot: 8, wasteFactor: 1.5 } } });
+    expect(r.ok).toBe(true);
+    expect(r.settings.extra).toEqual({ ash });
+    expect(r.settings.materials).not.toHaveProperty('ash');
+    expect(defaultShop()).not.toHaveProperty('extra');
+  });
+
   it('defaults when absent or unreadable, and flags it', () => {
     expect(validateShop(null)).toEqual({ settings: defaultShop(), ok: false });
     expect(validateShop({ layout: 2, materials: {} })).toEqual({ settings: defaultShop(), ok: false });

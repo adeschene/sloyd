@@ -76,6 +76,20 @@ export function LumberPricesDialog({ shop, readFailed, onSave, onClose }: Props)
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const nextId = useRef(0);
+  // The draft a material had in each mode it has been switched AWAY from, so switching back restores it
+  // instead of starting blank (final review: a round trip used to drop pine's sizes and oak's price).
+  const stash = useRef<Record<string, Partial<Record<Draft['mode'], Draft>>>>({});
+  const switchMode = (m: string, mode: 'board-foot' | 'piece') => {
+    const d = drafts[m]!;
+    stash.current[m] = { ...stash.current[m], [d.mode]: d };
+    const stored = shop.materials[m];
+    const next = stash.current[m]?.[mode]
+      ?? (stored && stored.mode === mode ? toDraft(stored)
+        : mode === 'piece'
+          ? (defaultBuying(m).mode === 'piece' ? toDraft(defaultBuying(m)) : { mode: 'piece', stock: [] })
+          : { mode: 'board-foot', price: '', waste: String(DEFAULT_WASTE_FACTOR) });
+    set(m, next);
+  };
 
   useEffect(() => { sheet.current?.focus(); }, []);
   useEffect(() => {
@@ -100,7 +114,11 @@ export function LumberPricesDialog({ shop, readFailed, onSave, onClose }: Props)
   const save = async () => {
     if (!valid) return;
     setSaving(true);
-    const ok = await onSave({ layout: 1, materials: parsed as Record<string, MaterialBuying> });
+    const ok = await onSave({
+      layout: 1,
+      materials: parsed as Record<string, MaterialBuying>,
+      ...(shop.extra ? { extra: shop.extra } : {}),
+    });
     setSaving(false);
     if (ok) onClose();
     else setError('Could not save: this browser is not letting Sloyd store settings.');
@@ -123,9 +141,7 @@ export function LumberPricesDialog({ shop, readFailed, onSave, onClose }: Props)
                 <label>
                   Bought
                   <select className="input" aria-label={`${label}: bought`} value={d.mode}
-                    onChange={(e) => set(m, e.target.value === 'piece'
-                      ? { mode: 'piece', stock: d.mode === 'piece' ? d.stock : [] }
-                      : { mode: 'board-foot', price: '', waste: String(DEFAULT_WASTE_FACTOR) })}>
+                    onChange={(e) => switchMode(m, e.target.value === 'piece' ? 'piece' : 'board-foot')}>
                     <option value="board-foot">By the board foot</option>
                     <option value="piece">By the piece</option>
                   </select>
