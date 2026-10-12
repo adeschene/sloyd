@@ -21,12 +21,10 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-11: the ui-polish round plus fu 250's
-  ProjectMenu fix and fu 249's marker colours (`d5dc553`), bundle `index-DrjjRDmM.js`, CSS `index-snqYHkpL.css`, **SCHEMA 13**
-  (unchanged, so rolling back to `a11ec0b` is free; below 13, `43b4928`, refuses every project saved since mirrored instances:
-  export first). Test count is under Commands.
-- **The plans-sheet round is on `master`, not yet deployed** (2026-10-11; **SCHEMA 13** unchanged, so a deploy or
-  rollback of it is free). The line above still describes production.
+- **Production matches `master`** as of 2026-10-12: the plans-sheet round (merge `b023ac8`), bundle
+  `index-CNnZg_b6.js`, CSS `index-ysjULoHK.css`, **SCHEMA 13** (unchanged, so rolling back to `d5dc553`,
+  `index-DrjjRDmM.js`, is free; below 13, `43b4928`, refuses every project saved since mirrored instances: export
+  first). Test count is under Commands. Open for the user: fu 254 (tall trio overflows a printed page) and fu 264.
 - **NO SUCCESSOR IS
   CHOSEN: ask what to work on; do not pick.** Open near the recent code:
   241 (open by decision), 251 (ui-polish residue, record-only),

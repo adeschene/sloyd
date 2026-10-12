@@ -32,8 +32,8 @@ curves" arrive). Most of these need a schema bump, with the rollback cost that b
 
 | Gap | Notes | Status |
 |---|---|---|
-| Dimensioned drawings | The most-cited gap anywhere ("if I don't have a drawing with dimensions, what's the point of having a great model?"). Per-part diagrams exist; no assembly elevations with dimension strings | merged, not deployed (plans-sheet round, 2026-10-11) |
-| Exploded view | SketchUp scenes / OpenCutList; also shows joinery | merged, not deployed (plans-sheet round, 2026-10-11) |
+| Dimensioned drawings | The most-cited gap anywhere ("if I don't have a drawing with dimensions, what's the point of having a great model?"). Per-part diagrams exist; no assembly elevations with dimension strings | shipped (plans-sheet round, deployed 2026-10-12) |
+| Exploded view | SketchUp scenes / OpenCutList; also shows joinery | shipped (plans-sheet round, deployed 2026-10-12) |
 | Section cut | Clipping plane to see inside a joint | open |
 | Standard views | One-click top/front/side; only a perspective/orthographic toggle exists | open |
 | X-ray / transparency; saved views ("scenes") | | open |

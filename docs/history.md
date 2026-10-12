@@ -18,6 +18,14 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-12 with the plans-sheet round live** (`index-CNnZg_b6.js`, CSS
+`index-ysjULoHK.css`, merge `b023ac8`, **schema 13**, unchanged). Verified: `200` on `/` and a deep route
+in-network and at the edge; the bundle and CSS at both match `dist/`; the old `index-DrjjRDmM.js` 404s in-network;
+CSP `connect-src 'self' https://api.anthropic.com` at the edge; a real-browser page load with 0 errors, the
+Cloudflare beacon, and "Plans", "+ Add board" and the Explode slider present. The load wrote a fresh empty project
+stored as `version: 13`; that origin's `localStorage` was cleared and read back empty twice (3s apart) and again
+after navigating away. Features were verified on the dev server (`docs/browser-verification-plans-sheet.md`).
+
 **Production matches `master` as of 2026-10-07 with the components round live** (`index-3fpWh8yo.js`,
 CSS `index-QQ-rJZea.css`, merge `9012e1e`, **schema 11**). Verified:
 - `200` on `/` and on a deep route, in-network and at the edge;
