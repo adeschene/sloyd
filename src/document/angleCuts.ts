@@ -225,6 +225,10 @@ export function bevelCut(f: BevelFields, board: Pick<Board, Dimension>): Omit<An
 /** Null for a cut the bevel row cannot show (an end cut, or a slope along the length — that is a taper). */
 export function bevelFields(c: AngleCut, board: Pick<Board, Dimension>): BevelFields | null {
   if (c.face === 'length' || c.along === 'length') return null;
+  // A bevel's line starts at depth 0 on one side of `along`; an offset or zero-inside line would be silently rewritten
+  // into a different cut by an unrelated edit. (Local epsilon: bodies.ts imports this module.)
+  const eps = 1e-9;
+  if (!(Math.abs(depthAt(c, 0)) <= eps || Math.abs(depthAt(c, board[c.along])) <= eps)) return null;
   const [[s1, q1], [s2, q2]] = c.points;
   return { face: c.face, from: c.from, longSide: miterLongSide(c, board), ratio: Math.abs(q2 - q1) / Math.abs(s2 - s1) };
 }
@@ -257,9 +261,15 @@ export function chamferCut(f: ChamferFields, _board: Pick<Board, Dimension>): Om
 export function chamferFields(c: AngleCut, board: Pick<Board, Dimension>): ChamferFields | null {
   const A = board[c.along];
   let alongFrom = c.alongFrom;
+  const [[s1, q1], [s2, q2]] = c.points;
   let legFace = depthAt(c, 0);
   let legAlong = zeroStation(c);
-  if (legFace <= 0 && depthAt(c, A) > 0) { alongFrom = flip(c.alongFrom); legFace = depthAt(c, A); legAlong = A - legAlong; }
+  // Read the legs straight off the stored points when they sit on the faces (exact for decimal legs).
+  if (s1 === 0 && q2 === 0) { legFace = q1; legAlong = s2; }
+  if (legFace <= 0 && depthAt(c, A) > 0) {
+    alongFrom = flip(c.alongFrom);
+    if (s2 === A && q1 === 0) { legFace = q2; legAlong = A - s1; } else { legFace = depthAt(c, A); legAlong = A - legAlong; }
+  }
   if (!(legFace > 0 && legFace <= board[c.face] && Number.isFinite(legAlong) && legAlong > 0 && legAlong <= A)) return null;
   const swap = DIMENSION_ORDER.indexOf(c.face) > DIMENSION_ORDER.indexOf(c.along);
   return swap

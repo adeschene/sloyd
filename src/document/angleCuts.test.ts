@@ -222,6 +222,14 @@ describe('bevel fields (spec §7)', () => {
     expect(bevelFields({ id: 't', kind: 'bevel', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[0, 0.5], [10, 0]] }, b)).toBeNull();
     expect(bevelFields({ id: 'm', kind: 'bevel', face: 'length', from: 'max', along: 'width', alongFrom: 'min', points: [[0, 0], [3, 3]] }, b)).toBeNull();
   });
+  it('reads only lines that start at depth 0 on a side of along', () => {
+    const b = stock();
+    const mk = (points: [[number, number], [number, number]]): AngleCut => ({ id: 'x', kind: 'bevel', face: 'width', from: 'max', along: 'thickness', alongFrom: 'min', points });
+    expect(bevelFields(mk([[0, 0.2], [0.75, 0.4]]), b)).toBeNull();
+    expect(bevelFields(mk([[0.25, 0], [0.75, 0.3]]), b)).toBeNull();
+    expect(bevelFields(mk([[0, 0], [0.75, 0.3]]), b)).not.toBeNull();
+    expect(bevelFields(mk([[0, 0.2], [0.75, 0]]), b)).toMatchObject({ longSide: 'max' });
+  });
   it('defaults to 15° off the width face (max side), long point on the thickness min side', () => {
     expect(defaultBevel(stock())).toEqual(bevelCut({ face: 'width', from: 'max', longSide: 'min', ratio: miterRatio(15) }, stock()));
   });
@@ -277,6 +285,29 @@ describe('chamfer fields (spec §7)', () => {
     const same = (x: AngleCut) => volume({ ...b, angleCuts: [x] });
     expect(Math.abs(same(c) - same({ id: 'r', ...chamferCut(f!, b) }))).toBeLessThan(1e-9);
     expect(Math.abs(same(c) - (20 * 3 * 0.75 - 0.5 * 0.5 * 0.25 * 20))).toBeLessThan(1e-9);
+  });
+  it('round-trips decimal legs exactly (0.1 x 0.7), including the deep-end form', () => {
+    const b = stock();
+    const e = CHAMFER_EDGES[0]!;
+    const c = { id: 'c', ...chamferCut({ ...e, legFace: 0.1, legAlong: 0.7 }, b) };
+    expect(chamferFields(c, b)).toEqual({ ...e, legFace: 0.1, legAlong: 0.7 });
+    const A = b[e.along];
+    const deep = { id: 'd', kind: 'chamfer' as const, face: e.face, from: e.from, along: e.along, alongFrom: e.alongFrom, points: [[A - 0.7, 0], [A, 0.1]] as [[number, number], [number, number]] };
+    expect(chamferFields(deep, b)).toEqual({ ...e, alongFrom: e.alongFrom === 'min' ? 'max' : 'min', legFace: 0.1, legAlong: 0.7 });
+  });
+  it('carries the sides through the face/along swap, checked against geometry', () => {
+    const b = stock();
+    const c = { id: 's', kind: 'chamfer' as const, face: 'thickness' as const, from: 'min' as const, along: 'width' as const, alongFrom: 'max' as const,
+      points: [[0, 0.25], [0.5, 0]] as [[number, number], [number, number]] };
+    const f = chamferFields(c, b);
+    expect(f).toEqual({ face: 'width', from: 'max', along: 'thickness', alongFrom: 'min', legFace: 0.5, legAlong: 0.25 });
+    // Geometry: thickness-min / width-max corner is gone at both ends of the length; the other three remain.
+    const verts = boardBodies({ ...b, angleCuts: [c] }).flatMap(bodyVerts);
+    const has = (l: number, w: number, t: number) => verts.some((p) => Math.abs(p[0]! - l) < 1e-9 && Math.abs(p[1]! - w) < 1e-9 && Math.abs(p[2]! - t) < 1e-9);
+    for (const l of [0, 20]) {
+      expect(has(l, 3, 0)).toBe(false);
+      expect(has(l, 0, 0)).toBe(true); expect(has(l, 3, 0.75)).toBe(true); expect(has(l, 0, 0.75)).toBe(true);
+    }
   });
   it('is null for a line that is not a corner chamfer', () => {
     const b = stock();
