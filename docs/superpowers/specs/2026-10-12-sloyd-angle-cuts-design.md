@@ -1,6 +1,6 @@
 # Sloyd — angle cuts: tapers, miters, bevels and chamfers
 
-**Date:** 2026-10-12 · **Status:** draft, awaiting the user's review of this file
+**Date:** 2026-10-12 · **Status:** approved by the user 2026-10-12; four amendments made while planning chunk 1 (§4.2, §6, §7 — marked *Amended*), also approved
 **Builds on:** cuts (`cuts.ts`, invariants 16, 40), the turn table (invariant 44), the tree and mirrored instances
 (invariants 45, 46), the cut list (invariant 18), the Plans sheet's hidden-line drawings (invariants 38, 47) and the v1
 spec's non-goal "angled parts can arrive later as an explicit feature with compound-angle math done properly"
@@ -180,6 +180,10 @@ there (invariant 19), in the existing vocabulary.
 - Angles display to **0.1°**, always (45.0°, 22.5°); there is no "exact" branch. Lengths use `formatLength`.
 - **Short point** = the stock length minus the greatest depth (within the part) of each miter entering an end; with
   miters at both ends, both are subtracted. Printed once per row, after the last miter.
+- *Amended (planning chunk 1):* the short point is its own line, `Short point 19"`, not part of the miter line as the
+  table above shows. Bevel and chamfer read `Bevel 15.0° off the width face (max side), across the thickness` and
+  `Chamfer 1/8 × 1/8 off the thickness face (max side), at the width min edge`; they matter only for hand-edited files
+  until chunk 3, which may polish them.
 - **Grouping**: parts share a row only if their angle cuts are equal by `ANGLE_CUT_FIELDS` — every field but `id`,
   `kind` included, compared exactly — as an order-independent set (like `cutSignature`). The table is checked against
   `AngleCut` by `satisfies` (invariant 40's pattern, one type over).
@@ -225,6 +229,10 @@ overlap or cut into air. The message names the parts:
 first."* Refine and Repair joints say the same in their own words. Generate's `designToDocument` emits `angleCuts: []`;
 `documentToDesign` refuses. Tests assert no mutation and no paid call, never message text.
 
+*Amended (planning chunk 1):* Repair joints is **not offered** on an angled document rather than refusing with its own
+message: it is reachable only through the notice inside the Refine and Joinery dialogs, both of which refuse first, so a
+refusal of its own would print the same message twice.
+
 ## 7. Authoring (Properties)
 
 - An **Angles** section below Cuts, for a single selected part, with an **+ Add ▾** popover (Popover, Escape bound on
@@ -240,6 +248,8 @@ first."* Refine and Repair joints say the same in their own words. Generate's `d
   written back through `treeEdit` (invariant 46). Held points are re-judged with `dropHeldIfGone` AFTER the edit
   (invariant 24, point-precise: a miter can remove a grabbed corner). Inside the edit-lock fieldset, refused by
   `edit()` while exploded (invariant 47). Not offered for multi-selection.
+- *Amended (planning chunk 1):* chunk 1 has a plain **+ Add taper** button; the **+ Add ▾** popover arrives in chunk
+  2, when there is more than one preset to offer.
 - No viewport handles. A resize keeps each cut on its end: a taper follows `alongFrom`'s end, a miter follows the end
   face it enters.
 
