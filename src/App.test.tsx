@@ -1023,6 +1023,18 @@ describe('App keyboard delete', () => {
     expect(document.activeElement).toBe(open);
   });
 
+  it('opens the plans sheet as a modal and returns focus to its button', async () => {
+    await mountWithOneBoard();
+    const user = userEvent.setup();
+    const open = screen.getByRole('button', { name: 'Plans' });
+    await user.click(open);
+    expect(screen.getByRole('dialog', { name: 'Plans' })).toBeInTheDocument();
+    expect(document.querySelector('.app-shell')!.hasAttribute('inert')).toBe(true);
+    await user.click(screen.getByRole('button', { name: 'Close plans' }));
+    expect(screen.queryByRole('dialog', { name: 'Plans' })).toBeNull();
+    expect(document.activeElement).toBe(open);
+  });
+
   it('does not steal Backspace from the Length field', async () => {
     // Regression test: Backspace must be blocked when editing dimensions,
     // not just for arbitrary text inputs. If a bypass for testing artifacts
@@ -1901,5 +1913,29 @@ describe('App assemblies', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Add joinery' });
     expect(dialog.querySelectorAll('li').length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText(/No joints to add/)).toBeNull();
+  });
+});
+
+describe('App edit lock while exploded', () => {
+  it('locks Properties and the guides footer while exploded', async () => {
+    await mountWithOneBoard();
+    const lock = document.querySelector('.panel-props fieldset.edit-lock') as HTMLFieldSetElement;
+    expect(lock.disabled).toBe(false);
+    act(() => useStore.getState().setExplode(0.4));
+    expect(lock.disabled).toBe(true);
+    expect(lock.title).toBe('Slide Explode back to 0 to edit');
+    act(() => useStore.getState().setExplode(0));
+  });
+
+  it('locks the guides footer while exploded', async () => {
+    await mountWithOneBoard();
+    const footer = document.querySelector('.panel-guides') as HTMLElement;
+    const lock = footer.closest('fieldset.edit-lock') as HTMLFieldSetElement;
+    expect(lock).not.toBeNull();
+    expect(lock.disabled).toBe(false);
+    act(() => useStore.getState().setExplode(0.4));
+    expect(lock.disabled).toBe(true);
+    expect(lock.title).toBe('Slide Explode back to 0 to edit');
+    act(() => useStore.getState().setExplode(0));
   });
 });

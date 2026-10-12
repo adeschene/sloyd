@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Viewport } from './viewport/Viewport';
 import { Toolbar } from './panels/Toolbar';
-import { ViewportControls } from './panels/ViewportControls';
+import { ViewportControls, EXPLODED_TITLE } from './panels/ViewportControls';
 import { PartsList } from './panels/PartsList';
 import { Properties } from './panels/Properties';
 import { GuidesFooter } from './panels/GuidesFooter';
 import { FileMenu, SaveIndicator, StorageBanner } from './panels/FileMenu';
 import type { FileMenuHandle } from './panels/FileMenu';
 import { CutList } from './panels/CutList';
+import { PlansSheet } from './panels/PlansSheet';
 import { TapeReadout } from './panels/TapeReadout';
 import { GenerateDialog } from './panels/GenerateDialog';
 import { SettingsDialog } from './panels/SettingsDialog';
@@ -51,6 +52,7 @@ export default function App() {
   const undo = useStore((s) => s.undo);
   const redo = useStore((s) => s.redo);
   const doc = useStore((s) => s.doc);
+  const exploded = useStore((s) => s.explode > 0);
   const replaceDocument = useStore((s) => s.replaceDocument);
   const deleteBoards = useStore((s) => s.deleteBoards);
   const [saving, setSaving] = useState(false);
@@ -67,6 +69,7 @@ export default function App() {
   // Also view state, and also deliberately outside the document and the undo
   // stack: the cut list is a way of looking at a project, not part of one.
   const [cutListOpen, setCutListOpen] = useState(false);
+  const [plansOpen, setPlansOpen] = useState(false);
   // Which dialog is open. View state like `cutListOpen`, and it joins that
   // flag as a reason the shell is inert and every window shortcut is
   // suspended (invariant 27). Not because of typing in the description —
@@ -86,10 +89,10 @@ export default function App() {
   const joineryRepair = useMemo(() => (dialog === 'joinery' ? repairDocument(doc) : null), [dialog, doc]);
   // THE ONE FLAG every "something covers the app" consumer reads — the inert
   // shell, the keydown effect, `shortcutsSuspended`, the focus restore. One
-  // derived value rather than `cutListOpen || dialog !== null` spelled out at
+  // derived value rather than `cutListOpen || plansOpen || dialog !== null` spelled out at
   // each site, so a third modal joins in one place and no consumer can be
   // left reading only the old flag.
-  const modalOpen = cutListOpen || dialog !== null;
+  const modalOpen = cutListOpen || plansOpen || dialog !== null;
   const [llmSettings, setLlmSettingsState] = useState<LlmSettings | null>(null);
   // Generated this session and not yet opened (spec §6.3). Session-only:
   // not persisted and not in the store — a badge is a property of this
@@ -843,6 +846,10 @@ export default function App() {
             opener.current = document.activeElement as HTMLElement | null;
             setCutListOpen(true);
           }}
+          onOpenPlans={() => {
+            opener.current = document.activeElement as HTMLElement | null;
+            setPlansOpen(true);
+          }}
           libraryAvailable={libraryAvailable}
           activeId={activeId}
           onOpenProject={openProject}
@@ -931,7 +938,9 @@ export default function App() {
             </section>
             <section className="panel panel-props">
               <h2>Properties</h2>
-              <Properties />
+              <fieldset className="edit-lock" disabled={exploded} title={exploded ? EXPLODED_TITLE : undefined}>
+                <Properties />
+              </fieldset>
             </section>
             {/*
               Keyed per project (ui-polish spec §4.5): the footer opens itself
@@ -939,11 +948,14 @@ export default function App() {
               A fresh instance per project makes a load or a switch its new
               baseline, so opening a project with guides leaves it closed.
             */}
-            <GuidesFooter key={activeId} />
+            <fieldset className="edit-lock" disabled={exploded} title={exploded ? EXPLODED_TITLE : undefined}>
+              <GuidesFooter key={activeId} />
+            </fieldset>
           </aside>
         </main>
       </div>
       {cutListOpen && <CutList onClose={() => setCutListOpen(false)} />}
+      {plansOpen && <PlansSheet onClose={() => setPlansOpen(false)} />}
       {/*
         The two dialogs sit beside CutList, outside `.app-shell`, for the same
         reasons it does: the shell goes `inert` behind them, and the print rule

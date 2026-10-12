@@ -7,6 +7,7 @@ import { useStore } from '../store/store';
 import { visibleBoards } from '../store/visibility';
 import { boardExtents, isCovered, worldParts } from '../document/document';
 import type { Board } from '../document/document';
+import { explodeOffsets, EXPLODE_SPREAD } from '../document/explode';
 import { BoardMesh } from './BoardMesh';
 import { Gizmo } from './Gizmo';
 import { GuideMarkers } from './GuideMarkers';
@@ -284,6 +285,12 @@ export function Viewport({
   shortcutsSuspended = false,
 }: ViewportProps) {
   const boards = useStore((s) => worldParts(s.doc));
+  const doc = useStore((s) => s.doc);
+  const explode = useStore((s) => s.explode);
+  const offsets = useMemo(
+    () => (explode > 0 ? explodeOffsets(doc, explode * EXPLODE_SPREAD) : null),
+    [doc, explode],
+  );
   const openPath = useStore((s) => s.openPath);
   const hiddenIds = useStore((s) => s.hiddenIds);
   const shown = useMemo(() => visibleBoards(boards, hiddenIds), [boards, hiddenIds]);
@@ -383,12 +390,15 @@ export function Viewport({
       </mesh>
 
       {showAxes && <OriginAxes />}
-      {showGuides && <GuideMarkers />}
+      {/* Guide markers are world positions; while exploded they would sit away from the
+          parts they belong to (invariant 16). */}
+      {showGuides && explode === 0 && <GuideMarkers />}
 
       {shown.map((board) => (
         <BoardMesh
           key={board.id}
           board={board}
+          offset={offsets?.get(board.id)}
           selected={isCovered(board.id, selectedSet)}
           // Faded, but still clickable: a click outside the open assembly
           // closes it (assemblies spec §3.3). Never pass selectable={false} for this.
@@ -402,7 +412,7 @@ export function Viewport({
       {/* The gizmo's handles sit over the very board whose corner the Move
           tool is trying to grab, and it captures the pointer first. There is
           no way to share the pointer between them, so it is not rendered. */}
-      {tool === 'select' && <Gizmo />}
+      {tool === 'select' && explode === 0 && <Gizmo />}
       <MoveTool showGuides={showGuides} />
       <TapeTool showGuides={showGuides} />
       <CameraKeys suspended={shortcutsSuspended} />
