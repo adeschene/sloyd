@@ -32,7 +32,7 @@
 - **Testing discipline:**
   - Every expected value is hand-derived in the test, with the arithmetic in a comment.
   - Mutate each named test once: change the code so the test must fail, see it fail, then restore.
-  - Every code block in this plan was run in a scratch worktree off `9d4510c`: 3035 tests passed across 112 files, the typecheck and build were clean, and the named mutations failed.
+  - Every code block in this plan was run in a scratch worktree off `9d4510c`: 3038 tests passed across 113 files, the typecheck and build were clean, and the named mutations failed.
   - If something disagrees, find the cause before changing either side, and escalate.
 - **Diffs:** where a task shows a ```diff block, save it to a file and `git apply` it from the repo root. If context has drifted, apply the hunk by hand. New files are given whole.
 - `npm test` does not typecheck, so run `npm run build` before claiming a task compiles.
