@@ -192,8 +192,14 @@ there (invariant 19), in the existing vocabulary.
   `AngleCut` by `satisfies` (invariant 40's pattern, one type over).
 
 *Amended (implementation):* the short point counts every end cut (`face === 'length'`) that removes stock, not only
-`kind` miter (kind never decides geometry), and prints after ALL angle lines. See fu 281 for an open defect in the
-formula itself.
+`kind` miter (kind never decides geometry), and prints after ALL angle lines. See fu 281.
+
+*Amended (user, 2026-10-12):* the short point is the SHORTEST LONG EDGE: the minimum, over the four corners of the end-face
+rectangle (width x thickness), of `L - depth_min_end(corner) - depth_max_end(corner)`, clamped at 0, where an end's depth
+at a corner is its deepest stock-removing end cut evaluated at that corner's coordinate on the cut's own `along`
+dimension, clamped to [0, L]. The earlier formula subtracted each end's deepest depth even when the two deepest points
+lay at opposite edges (parallel 45 degree ends on a 20 x 3-1/2 x 3/4 brace printed 13" where both long edges are 16-1/2").
+Depth is concave across the face, so the least lies at a corner. Trapezoid ends (same slope) are unchanged: 24 - 2.5 - 2.5 = 19.
 
 ### 4.3 Part diagrams (`diagram.ts`)
 

@@ -5094,8 +5094,8 @@ documents (spec §6). **Status:** open.
 subtracts each end's deepest depth even when the two deepest points are at opposite edges. A 20 × 3-1/2 × 3/4 brace
 with parallel 45° ends prints a short point of 13", where both real long edges are 16-1/2". Proposed fix (final
 review): the minimum over the end-face corners of L − depth_min_end − depth_max_end, clamped at 0. Reachable only from
-hand-edited files until chunk 2's Miter preset; must be settled before chunk 2. **Status:** open — awaiting the
-user's decision (not changed in this round: a spec conflict is a human decision).
+hand-edited files until chunk 2's Miter preset. **Fixed 2026-10-12** (user-approved): `shortPointLine` takes the corner
+minimum; spec §4.2 amended; tests cross-checked against `boardBodies` vertices. **Status:** closed.
 
 **282. Sloped-face shading and grain are unverified on real hardware (26a).** Browser checks ran on software GL;
 lighting on sloped faces and grain continuity across a slope need the user's eyes. **Status:** open, needs the user.

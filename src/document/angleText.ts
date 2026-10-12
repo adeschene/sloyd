@@ -44,15 +44,27 @@ export function angleLine(board: Board, c: AngleCut, precision: number): string 
 }
 
 /**
- * The short point of a part cut at one or both ends (spec §4.2): the stock
- * length less the greatest depth, within the part, of each end cut (a cut on
- * the length face, whatever its `kind`: kind never decides geometry). Null when
- * the part has no such cut that removes stock.
+ * The short point of a part cut at one or both ends (spec §4.2, amended
+ * 2026-10-12, fu 281): the shortest long edge. At each corner of the end-face
+ * rectangle (width × thickness) an end's depth is its deepest end cut there
+ * (a cut on the length face, whatever its `kind`: kind never decides geometry),
+ * clamped to [0, length]; the short point is the least over the corners of
+ * length less both ends' depths, clamped at 0. (The depth is concave, so the
+ * least is at a corner.) Null when the part has no end cut that removes stock.
  */
 export function shortPointLine(board: Board, precision: number): string | null {
-  const miters = angleCutsThatRemoveStock(board).filter((c) => c.face === 'length');
-  if (miters.length === 0) return null;
-  const deepest = (end: 'min' | 'max') => Math.max(0, ...miters.filter((c) => c.from === end).map((c) =>
-    Math.min(board.length, Math.max(depthAt(c, 0), depthAt(c, board[c.along])))));
-  return `Short point ${formatLength(Math.max(0, board.length - deepest('min') - deepest('max')), precision)}`;
+  const ends = angleCutsThatRemoveStock(board).filter((c) => c.face === 'length');
+  if (ends.length === 0) return null;
+  const L = board.length;
+  const depth = (end: 'min' | 'max', corner: { width: number; thickness: number }) => Math.max(0, ...ends.filter((c) => c.from === end).map((c) => {
+    const x = corner[c.along as 'width' | 'thickness'];
+    const s = c.alongFrom === 'min' ? x : board[c.along] - x;
+    return Math.min(L, Math.max(0, depthAt(c, s)));
+  }));
+  let least = L;
+  for (const width of [0, board.width]) for (const thickness of [0, board.thickness]) {
+    const corner = { width, thickness };
+    least = Math.min(least, L - depth('min', corner) - depth('max', corner));
+  }
+  return `Short point ${formatLength(Math.max(0, least), precision)}`;
 }
