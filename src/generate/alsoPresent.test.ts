@@ -26,7 +26,7 @@ describe('runJoinery alsoPresent (fu 243)', () => {
     const tip = { kind: 'tips' as const, message: 'It tips.', parts: [] };
     const out = await runJoinery(client, migrateDocument(JSON.parse(f5).plain), new AbortController().signal, () => {},
       { alsoPresent: new Set([problemKey(tip)]) });
-    if ('noSites' in out) throw new Error('fixture 5 has sites');
+    if ('noSites' in out || 'refused' in out) throw new Error('fixture 5 has sites');
     expect(out.violations.map((v) => v.kind)).toContain('tips');
     expect(out.preexisting).toEqual([]);
   });

@@ -28,6 +28,7 @@ export type { Bounds, AxisMap } from './geometry';
 export { mirrorCut } from './mirrorCut';
 export { ANGLE_CUT_FIELDS, ANGLE_CUT_KEYS, angleCutRemovesNothing, angleCutValues, angleCutsThatRemoveStock, copyAngleCut, depthAt, keptHalfSpace, sameAngleCut, throughOf, zeroStation } from './angleCuts';
 export type { V3 } from './angleCuts';
+export { angledParts, angledRefusal } from './angledRefusal';
 export { cleanName, uniqueName, dedupeNames } from './names';
 export type { Named } from './names';
 export { pocketEdges, pocketCells, CUT_GEOMETRY_FIELDS, CUT_GEOMETRY_KEYS, cutLabel, cutRegion, clippedRegion, cutShape, storedAsShape, cutRemovesNothing, cutsThatRemoveStock, pointToLocalXYZ, solidWorldBox, wholeBoard } from './cuts';

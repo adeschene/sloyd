@@ -4,7 +4,8 @@ import type { RefineSettings } from './refine';
 import { limitLines } from './prompt';
 import { designToDocument } from '../document/generated';
 import type { GeneratedDesign } from '../document/generated';
-import { createDocument, flatDocument, migrateDocument } from '../document/document';
+import { createBoard, createDocument, flatDocument, migrateDocument } from '../document/document';
+import { documentToDesign } from '../document/refineDesign';
 import type { Board, SloydDocument } from '../document/document';
 import { applyJoints } from './joints/recipes';
 import { findSites } from './joints/sites';
@@ -71,5 +72,18 @@ describe('refine — joined designs', () => {
     const p = plainForRefine(doc);
     expect(p).toEqual({ plain: doc, joints: null });
     expect('plain' in p && p.plain).toBe(doc);
+  });
+});
+
+const TAPER = { id: 'a1', kind: 'taper' as const, face: 'width' as const, from: 'min' as const, along: 'length' as const, alongFrom: 'min' as const, points: [[0, 0.5], [20, 0]] as [[number, number], [number, number]] };
+describe('refine — angled documents (spec §6)', () => {
+  const angled: SloydDocument = { ...createDocument('T'), boards: [createBoard({ id: 'leg', name: 'Leg', angleCuts: [TAPER] })] };
+  it('plainForRefine refuses with reason angled', () => {
+    const r = plainForRefine(angled);
+    expect('refused' in r && r.refused.reason).toBe('angled');
+  });
+  it('documentToDesign refuses with reason angled', () => {
+    const r = documentToDesign(angled, REFINE_MAX);
+    expect('refused' in r && r.refused.reason).toBe('angled');
   });
 });

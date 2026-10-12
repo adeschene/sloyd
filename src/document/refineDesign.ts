@@ -1,5 +1,6 @@
 import type { Board, SloydDocument, StoredBoard } from './types';
 import type { GeneratedAssembly, GeneratedDesign, GeneratedPart } from './generated';
+import { angledParts, angledRefusal } from './angledRefusal';
 import { distinctParts } from './assemblyChecks';
 import { boardExtents } from './geometry';
 import { isShaped, resolveBoard, shapeMap } from './shapes';
@@ -12,7 +13,7 @@ import { NAME_SEPARATOR, flatDocument, worldParts } from './tree';
  * designs that format can express; everything else is REFUSED here, on the
  * document alone, before any model call.
  */
-export type RefusalReason = 'empty' | 'cuts' | 'turned' | 'nested' | 'too-large' | 'joints' | 'mirrored';
+export type RefusalReason = 'empty' | 'cuts' | 'turned' | 'nested' | 'too-large' | 'joints' | 'mirrored' | 'angled';
 export interface RefineRefusal { reason: RefusalReason; message: string }
 export interface RefineMax { distinct: number; placed: number }
 
@@ -49,6 +50,10 @@ export function documentToDesign(doc: SloydDocument, max: RefineMax): { design: 
   // runs first and hands over the plain parts), but documentToDesign can still be called directly.
   if (stored.some((b) => (resolveBoard(shapes, b)?.cuts.length ?? 0) > 0)) {
     return refuse('cuts', 'Refine works on prototypes without joints. Refine first, then add joinery.');
+  }
+  // `angledParts` walks every container (shapes included), so one test covers stored parts, definitions and shapes.
+  if (angledParts(doc).length > 0) {
+    return refuse('angled', angledRefusal(doc, 'refine') ?? "Refine doesn't handle angled parts yet.");
   }
   if (doc.instances.some((i) => i.mirrored === true) || doc.definitions.some((d) => d.instances.some((i) => i.mirrored === true))) {
     return refuse('mirrored', "Refine can't describe a mirrored assembly yet — Ungroup the mirrored copy first.");

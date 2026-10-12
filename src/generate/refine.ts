@@ -4,7 +4,7 @@ import type { RepairCheck } from './joints/repair';
 import type { GeneratedDesign } from '../document/generated';
 import { documentToDesign } from '../document/refineDesign';
 import type { RefineMax, RefineRefusal } from '../document/refineDesign';
-import { flatDocument, migrateDocument, writeBackFlat } from '../document/document';
+import { angledRefusal, flatDocument, migrateDocument, writeBackFlat } from '../document/document';
 import { worldParts } from '../document/tree';
 import type { SloydDocument } from '../document/types';
 import { DETAIL_CAPS, limitLines, placedCeiling } from './prompt';
@@ -49,6 +49,8 @@ export function plainForRefine(doc: SloydDocument): RefineBase {
   // Runs inside the Refine dialog's memo: a throw would break its render, so it refuses as the gate
   // does and keeps the cause on the console (follow-up 244).
   try {
+    const angled = angledRefusal(doc, 'refine');
+    if (angled) return { refused: { reason: 'angled', message: angled } };
     const flat = flatDocument(doc);
     if (!flat.boards.some((b) => b.cuts.length > 0)) return { plain: doc, joints: null };
     const g = gateUnjoin(flat);

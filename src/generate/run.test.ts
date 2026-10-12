@@ -7,7 +7,7 @@ import type { GenerateSettings } from './prompt';
 import { REFINE_MAX, plainForRefine, refineMessage } from './refine';
 import { documentToDesign } from '../document/refineDesign';
 import { LlmError } from '../llm/types';
-import { createDocument, flatDocument, migrateDocument } from '../document/document';
+import { createBoard, createDocument, flatDocument, migrateDocument } from '../document/document';
 import type { Board, SloydDocument } from '../document/document';
 import { applyJoints } from './joints/recipes';
 import { findSites, jointKey, rangesOf } from './joints/sites';
@@ -621,7 +621,7 @@ describe('runRefine — joined designs', () => {
         { name: 'Rail', role: '', material: 'oak', at: v3(1.75, 23.5, 0.5), size: v3(18, 3, 0.75) }],
       placements: [{ name: 'Front', at: v3(0, 0, 0) }, { name: 'Back', at: v3(0, 0, 30) }] }] }).doc;
     const jo = await runJoinery(fakeClient([new LlmError('overloaded', 'Overloaded.')]).client, tree, new AbortController().signal, () => {});
-    if ('noSites' in jo) throw new Error('sites');
+    if ('noSites' in jo || 'refused' in jo) throw new Error('sites');
     const joinedTree = jo.result.doc;
     expect(joinedTree.definitions).toHaveLength(1);
     const { client } = fakeClient([plainEcho(joinedTree)]);
@@ -750,5 +750,22 @@ describe('runRefine — joined designs', () => {
     expect(out.violations.filter((v) => v.kind === 'overlap').map(pair)).toEqual(['Rail N,Rail X', 'Rail N,Rail Z']);
     expect(out.violations.some((v) => v.kind === 'hangs' && v.parts.includes('Rail N'))).toBe(true);   // the refine stage's
     expect(out.present.filter((v) => v.kind === 'overlap').map(pair)).toEqual(['Rail X,Rail Z']);
+  });
+});
+
+const TAPER = { id: 'a1', kind: 'taper' as const, face: 'width' as const, from: 'min' as const, along: 'length' as const, alongFrom: 'min' as const, points: [[0, 0.5], [20, 0]] as [[number, number], [number, number]] };
+const angledDoc = (): SloydDocument => ({ ...createDocument('T'), boards: [
+  createBoard({ id: 'leg', name: 'Leg', angleCuts: [TAPER] }), createBoard({ id: 'apron', name: 'Apron', position: [1.75, 20, 0] }),
+] });
+
+describe('runJoinery — angled documents (spec §6)', () => {
+  it('refuses before any call and leaves the document alone', async () => {
+    const { client } = fakeClient([GOOD]);
+    const doc = angledDoc();
+    const before = JSON.stringify(doc);
+    const out = await runJoinery(client, doc, new AbortController().signal, () => {});
+    expect('refused' in out).toBe(true);
+    expect(client.complete).not.toHaveBeenCalled();
+    expect(JSON.stringify(doc)).toBe(before);
   });
 });

@@ -12,6 +12,8 @@ interface Props {
   projectName: string; sites: string[]; model: string | null;
   /** Before-you-run range (fu 236): one call low, every repair round high. */
   estimate: CostRange | null;
+  /** Why Add joinery will not run (angle-cuts spec §6), or null. */
+  refusal: string | null;
   run: JoineryRun | null; live: boolean;
   /** The repair note, shown above Run when the project's joints are damaged (repair-joints). */
   repairNotice?: ReactNode;
@@ -68,7 +70,8 @@ export function JoineryDialog(p: Props) {
   }, [p.onClose]);
 
   const noSites = p.sites.length === 0;
-  const canRun = !noSites && !p.live && p.libraryAvailable;
+  const blocked = p.refusal !== null;
+  const canRun = !blocked && !noSites && !p.live && p.libraryAvailable;
   const out = p.run?.status === 'ready' ? p.run.outcome : undefined;
   const sizeLines = out
     ? AXIS_NAME.flatMap((name, i) => {
@@ -85,14 +88,14 @@ export function JoineryDialog(p: Props) {
       <div className="modal-sheet" ref={sheet} tabIndex={-1}>
         <h2>Add joinery</h2>
         <p>{`Choose joints for ${p.projectName}. The result is saved as a new project; this one is not changed.`}</p>
-        {noSites ? <p className="field-error" role="status">{NO_SITES}</p> : (
+        {blocked ? <p className="field-error" role="status">{p.refusal}</p> : noSites ? <p className="field-error" role="status">{NO_SITES}</p> : (
           <ul className="generate-runs">
             {p.sites.map((s, i) => <li key={i}>{s}</li>)}
           </ul>
         )}
         {p.repairNotice}
         {!p.libraryAvailable && <p className="field-error" role="status">Add joinery is unavailable — storage is unavailable, so the result would have nowhere to go.</p>}
-        {p.hasKey && !noSites && (
+        {p.hasKey && !noSites && !blocked && (
           <p className="generate-plan">
             {p.model && <span>{`Model: ${p.model}`}</span>}
             {p.estimate !== null && <span className="generate-run-cost">{formatCostRange(p.estimate)}</span>}
