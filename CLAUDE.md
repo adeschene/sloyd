@@ -217,9 +217,11 @@ src/
 │   ├── links.ts          LINK_FIELDS (the ONE shared/own table), sameShared, linkPlan (inv 45; refuses
 │   │                     a member with no occurrence on the source's side of a mirror)
 │   ├── linksToShapes.ts  the v10→v11 step
-│   ├── cuts.ts           cutRegion, boardSolids, boardEdges (inv 16), clippedRegion (THE clip),
+│   ├── cuts.ts           cutRegion, pocketCells, pocketEdges (inv 16's exact grid path), clippedRegion (THE clip),
 │   │                     cutShape (THE description of a cut), cutLabel, openSides,
 │   │                     storedAsShape, cutsThatRemoveStock, CUT_GEOMETRY_FIELDS (inv 40)
+│   ├── bodies.ts         boardBodies (pocket cells clipped by angle cuts), bodyEdges, boardEdges (inv 16);
+│   │                     partGeometry: THE cached reader of both (shared, frozen; see per-file rules)
 │   ├── tenons.ts         findTenons
 │   ├── cutlist.ts        buildCutList (inv 18) — stock, not remainder
 │   ├── depthField.ts     buildDepthField (inv 20)
@@ -240,7 +242,8 @@ src/
 │   │                     carryGrain, designValues (exact values kept), definitionCorner
 │   ├── designDiff.ts     diffDesigns — what a refine changed, by flat display name (→ units)
 │   ├── designCheck.ts    checkDesign; worldSolids, the ONE world-solid mapping (invs 38, 39)
-│   ├── drawing.ts        drawView: exact hidden-line vector drawing of the solids (inv 38; edges from boardEdges, inv 16)
+│   ├── drawing.ts        drawView: exact hidden-line vector drawing; edges from boardEdges (inv 16), occluders
+│   │                     from worldBodies (the bodies, angle cuts included), both via partGeometry
 │   ├── explode.ts        explodeOffsets (hierarchical, floor-lifted), EXPLODE_SPREAD/INNER
 │   ├── dimensions.ts     overall + chain dimension values and strings per axis (fitting is panels/planDims.ts)
 │   ├── plans.ts          planAssemblies: what the sheet draws (copies, mirrored parity)
@@ -296,6 +299,10 @@ Deployment scaffolding: `Dockerfile`, `docker-compose.yml`, `nginx.conf`,
   `across`/`offset`/`width`/stops (fu 192). The cut list accumulates EXACT stock, never
   qty × rounded dimensions, and ignores cuts (stock, not remainder). `storedAsShape`
   returns an already-aligned cut as the same object.
+- **`bodies.ts`**: read bodies and edges through `partGeometry` wherever it runs per frame or per part (snap
+  points, drawings, BoardMesh). Its results are SHARED between parts with one `geometryKey` and deep-frozen:
+  never mutate them. The key is board-local (dimensions, cut geometry, angle cuts) — no pose — and carries each
+  angle cut's ID, because a clipped face names its cut (`BodyFace.cut`) and `bodyMesh` looks it up by id.
 - **`nesting.ts`** takes `doc.boards`, NEVER `CutListRows`; too-big parts go in
   `unplaceable`, never dropped. The word `turned` rides on `dims` (inv 19).
 - **`SheetLayout.tsx`** is the only caller of `fitLabel`'s `requireDetail`; the tier
@@ -385,7 +392,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     hand-written field list.** The signature is the same for every solid of a board, so
     don't cache per solid on it alone. A dep entry over a value nothing subscribes to is
     the same failure.
-16. **Edge lines come from the cell grid (`boardEdges`), not from the solids.** General
+16. **Edge lines come from `boardEdges` (the cell grid's `pocketEdges`, or `bodyEdges` once a part has angle
+    cuts), not from the solids.** General
     rule: a marker or line must sit on a feature that is actually drawn.
 17. **UVs are parent-relative and `FIT` resolves against the board, not the solid**, so
     figure runs continuously across a cut.
@@ -396,7 +404,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     string must be the same string: assemble it in the module that builds it
     (`nesting.ts`, `diagram.ts`), never in the component. A non-ASCII glyph must be
     measured in a browser before it is trusted.
-20. **`depthField.ts` is not `boardSolids`**: it assigns max depth per cell in 2D; it does
+20. **`depthField.ts` is not `pocketCells`**: it assigns max depth per cell in 2D; it does
     not drop cells. An agreement test must assert the value the derivation computes, not
     just where it is non-zero.
 21. **The empty-solids placeholder stays a mesh, not a wireframe** — a part you can see is
@@ -472,7 +480,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     "clean" them.
 38. **`overlap`, `hangs`' contacts and joinery's blockers/trims are measured between SOLIDS
     via `worldSolids`**, never `solidWorldBox`. Only grounding, `tips` and `faceContacts`
-    stay box-based. Do not raise `TOUCH` to make joints pass; do not drop the check.
+    stay box-based. `worldSolids` are pocket-cell BOXES (angle cuts ignored; joinery and refine refuse an
+    angled document); the drawings occlude with `worldBodies` instead (inv 47). Do not raise `TOUCH` to make joints pass; do not drop the check.
 39. **Support means HELD: every part off the floor is resting, between (≥ 50% coverage of
     both faces of X or Z) or lapped (a broad face; a top contact only under the stated
     one-level conditions), and the piece must not tip.** **PROHIBITION: do not drop (c),
@@ -562,7 +571,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     stored name. `setExplode` is the one writer, and leaving 0 goes only through `setTool('select')`. The
     UI lock is a `<fieldset class="edit-lock" disabled>` with `display: contents` (layout-transparent). The explode
     offset is a render-time translation, never written back (inv 1). Drawings take lines from `boardEdges` and
-    occluders from `worldSolids`, as CLOSED boxes: a ray along a seam between solids is inside. The exploded set is
+    occluders from `worldBodies` (each body CLOSED: a box, or its faces as half-spaces): a ray along a seam between
+    solids is inside. The exploded set is
     lifted so its lowest part never goes below the assembled lowest point.
 
 ## Commands
