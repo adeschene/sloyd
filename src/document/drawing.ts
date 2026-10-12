@@ -1,8 +1,8 @@
 import type { Board } from './types';
 import type { Vec3 } from './frames';
-import { boardEdges } from './bodies';
-import { worldSolids } from './designCheck';
-import { boardExtents } from './geometry';
+import { boardBodies, boardEdges } from './bodies';
+import { worldBox } from './designCheck';
+import { axisFrame, boardExtents } from './geometry';
 import { toWorld } from './snapPoints';
 
 /**
@@ -86,6 +86,53 @@ export function hiddenSpan(
   return hi > lo ? [lo, hi] : null;
 }
 
+const DIM_INDEX = { length: 0, width: 1, thickness: 2 } as const;
+
+/** A body in world space for the drawings (spec §3.5): its box when no angle cut clipped it (today's exact
+ *  path), else its world vertices and its faces as inside-half-spaces m·x + c >= 0 (derived from the faces:
+ *  m is the negated world outward normal, c = n·v0). */
+export interface WorldBody { box: { min: Vec3; max: Vec3 } | null; verts: Vec3[]; planes: { m: Vec3; c: number }[] }
+
+export function worldBodies(b: Board): WorldBody[] {
+  const frame = axisFrame(b);
+  return boardBodies(b).map((body) => {
+    if (body.box) {
+      const w = worldBox(b, body.box);
+      return { box: { min: w.min as unknown as Vec3, max: w.max as unknown as Vec3 }, verts: [], planes: [] };
+    }
+    const toW = ([l, w, t]: readonly number[]) => toWorld(b, { length: l!, width: w!, thickness: t! });
+    const verts = body.faces.flatMap((f) => f.verts.map(toW));
+    const planes = body.faces.map((f) => {
+      const n = [0, 1, 2].map((i) => f.n[DIM_INDEX[frame[i]!.dim]]! * (frame[i]!.reversed ? -1 : 1)) as Vec3;
+      const v0 = toW(f.verts[0]!);
+      return { m: [-n[0], -n[1], -n[2]] as Vec3, c: dot(n, v0) };
+    });
+    return { box: null, verts, planes };
+  });
+}
+
+/** hiddenSpan against any convex solid given as inside half-spaces m·x + c >= 0, |m| = 1. Same clip, same grow. */
+export function hiddenSpanPlanes(
+  a: Vec3, e: Vec3, planes: readonly { m: readonly number[]; c: number }[], toward: Vec3, sMax: number,
+): [number, number] | null {
+  const d = [e[0] - a[0], e[1] - a[1], e[2] - a[2]];
+  const grow = DRAW_EPS / 2;
+  let poly: P2[] = [[0, DRAW_EPS], [1, DRAW_EPS], [1, sMax], [0, sMax]];
+  for (const { m, c } of planes) {
+    const md = dot(m, d);
+    const mv = dot(m, toward);
+    const ma = dot(m, a);
+    for (const sigma of [0, DRAW_EPS]) {
+      poly = clip(poly, md, mv, ma + sigma * mv + c + grow);
+      if (poly.length === 0) return null;
+    }
+  }
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const [t] of poly) { lo = Math.min(lo, t); hi = Math.max(hi, t); }
+  return hi > lo ? [lo, hi] : null;
+}
+
 /** A part's BOARD box in world space, offset. Bounds read this, not the solids (Review Focus 1). */
 function boardBox(b: Board, off: readonly number[] | undefined): { min: Vec3; max: Vec3 } {
   const ext = boardExtents(b);
@@ -100,7 +147,7 @@ const corners = (bx: { min: readonly number[]; max: readonly number[] }): Vec3[]
 
 /**
  * Visible and hidden 2D segments for `parts` seen through `view` (spec §2). Edges from
- * `boardEdges` (invariant 16) through `toWorld`; occluders from `worldSolids` (invariant 38).
+ * `boardEdges` (invariant 16) through `toWorld`; occluders from `worldBodies` (invariant 38 as amended by angle-cuts spec §10).
  * No drawing order is involved, so cyclic overlaps are exact.
  */
 export function drawView(parts: readonly Board[], view: View, offsets?: ReadonlyMap<string, Vec3>): Drawing {
@@ -119,17 +166,20 @@ export function drawView(parts: readonly Board[], view: View, offsets?: Readonly
   const hi = [0, 1, 2].map((i) => Math.max(...boxes.map((bx) => bx.max[i]!)));
   const sMax = Math.hypot(hi[0]! - lo[0]!, hi[1]! - lo[1]!, hi[2]! - lo[2]!) + 1;
 
-  const solids = parts.flatMap((b) => worldSolids(b).map((s) => {
-    const bx = { min: plus(s.min, offsets?.get(b.id)), max: plus(s.max, offsets?.get(b.id)) };
-    const pts = corners(bx);
-    const sp = pts.map(proj);
-    return {
-      bx,
-      rmin: [Math.min(...sp.map((p) => p[0])), Math.min(...sp.map((p) => p[1]))],
-      rmax: [Math.max(...sp.map((p) => p[0])), Math.max(...sp.map((p) => p[1]))],
-      depthMax: Math.max(...pts.map((p) => dot(p, view.toward))),
-    };
-  }));
+  const solids = parts.flatMap((b) => {
+    const off = offsets?.get(b.id);
+    return worldBodies(b).map((w) => {
+      const pts = w.box ? corners({ min: plus(w.box.min, off), max: plus(w.box.max, off) }) : w.verts.map((p) => plus(p, off));
+      const sp = pts.map(proj);
+      return {
+        bx: w.box ? { min: plus(w.box.min, off), max: plus(w.box.max, off) } : null,
+        planes: w.box ? null : w.planes.map(({ m, c }) => ({ m, c: c - dot(m, off ?? [0, 0, 0]) })),
+        rmin: [Math.min(...sp.map((p) => p[0])), Math.min(...sp.map((p) => p[1]))],
+        rmax: [Math.max(...sp.map((p) => p[0])), Math.max(...sp.map((p) => p[1]))],
+        depthMax: Math.max(...pts.map((p) => dot(p, view.toward))),
+      };
+    });
+  });
 
   for (const b of parts) {
     const off = offsets?.get(b.id);
@@ -150,7 +200,7 @@ export function drawView(parts: readonly Board[], view: View, offsets?: Readonly
         if (s.depthMax < depthMin) continue;
         if (s.rmax[0]! < segMin[0]! - DRAW_EPS || s.rmin[0]! > segMax[0]! + DRAW_EPS) continue;
         if (s.rmax[1]! < segMin[1]! - DRAW_EPS || s.rmin[1]! > segMax[1]! + DRAW_EPS) continue;
-        const span = hiddenSpan(A, E, s.bx, view.toward, sMax);
+        const span = s.bx ? hiddenSpan(A, E, s.bx, view.toward, sMax) : hiddenSpanPlanes(A, E, s.planes!, view.toward, sMax);
         if (span) spans.push(span);
       }
       spans.sort((x, y) => x[0] - y[0]);

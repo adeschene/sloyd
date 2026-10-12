@@ -1,6 +1,6 @@
 import { createBoard } from './document';
 import type { Board } from './types';
-import { drawView, hiddenSpan, FRONT, ISO, TOP, type Seg2 } from './drawing';
+import { drawView, hiddenSpan, hiddenSpanPlanes, worldBodies, FRONT, ISO, TOP, type Seg2 } from './drawing';
 
 const len = (s: Seg2) => Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]);
 const total = (segs: Seg2[], part?: string) =>
@@ -153,5 +153,61 @@ describe('hiddenSpan', () => {
     // against s ≥ ε, so the ray doesn't spend DRAW_EPS inside the box; returns null. Without it,
     // the edge would wrongly report hidden in [0, 1].
     expect(hiddenSpan([0, 2, 4 - 1.2e-6], [10, 2, 4 - 1.2e-6], { min: [0, 0, 0], max: [10, 2, 4] }, [0, 0, 1], 100)).toBeNull();
+  });
+});
+
+describe('drawings with angle cuts (spec §3.5)', () => {
+  it('hiddenSpanPlanes over a box\'s six planes equals hiddenSpan', () => {
+    const bx = { min: [0, 0, 0], max: [2, 3, 4] };
+    const planes = [0, 1, 2].flatMap((i) => [
+      { m: [0, 1, 2].map((j) => (j === i ? 1 : 0)) as [number, number, number], c: -bx.min[i]! },
+      { m: [0, 1, 2].map((j) => (j === i ? -1 : 0)) as [number, number, number], c: bx.max[i]! },
+    ]);
+    // An axis-aligned ray (the second sample moves only s) and an oblique one (it moves the t-range too).
+    for (const toward of [[0, 0, 1], [0.6, 0, 0.8]] as [number, number, number][]) {
+      const a: [number, number, number] = [-3, 1, -2];
+      const e: [number, number, number] = [5, 2, -2];
+      const x = hiddenSpan(a, e, bx, toward, 50)!;
+      const y = hiddenSpanPlanes(a, e, planes, toward, 50)!;
+      expect(x).not.toBeNull();
+      expect(Math.abs(x[0] - y[0])).toBeLessThan(1e-12);
+      expect(Math.abs(x[1] - y[1])).toBeLessThan(1e-12);
+    }
+  });
+
+  it('a part with no angle cuts draws exactly as before (box bodies keep the box path)', () => {
+    const b = createBoard({ position: [1, 0, 2] });
+    expect(worldBodies(b).every((w) => w.box !== null)).toBe(true);
+  });
+
+  it('a mitered rail seen from above shows the miter line, not the square end', () => {
+    // Flat turn-0: length on X, thickness on Y, width on Z; TOP looks down Y.
+    const rail = createBoard({ length: 24, width: 2.5, thickness: 0.75, angleCuts: [
+      { id: 'm', kind: 'miter', face: 'length', from: 'max', along: 'width', alongFrom: 'min', points: [[0, 0], [2.5, 2.5]] },
+    ] });
+    const d = drawView([rail], TOP);
+    const diag = d.visible.filter((s) => Math.abs(s.a[0] - s.b[0]) > 1e-6 && Math.abs(s.a[1] - s.b[1]) > 1e-6);
+    expect(diag).toHaveLength(1);
+    expect(Math.hypot(diag[0]!.a[0] - diag[0]!.b[0], diag[0]!.a[1] - diag[0]!.b[1])).toBeCloseTo(2.5 * Math.SQRT2, 9);
+  });
+
+  it.each([0, 180] as const)('a slope hides what is behind it only where it is (turn %i)', (rotation) => {
+    // Upright: length on Y (foot at y = 0), thickness on Z, width on X — reversed at turn 180, so the
+    // width-min side (where the taper bites) is the world +X side there. FRONT looks down -Z.
+    const leg = createBoard({ length: 29, width: 1.75, thickness: 1.75, posture: 'upright', rotation, position: [0, 0, 0], angleCuts: [
+      { id: 'a1', kind: 'taper', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[0, 0.625], [24, 0]] },
+    ] });
+    // A small block behind the leg's foot (z < 0), inside the removed wedge (0.6in at y = 1).
+    const x0 = rotation === 180 ? 1.75 - 0.1 - 0.25 : 0.1;
+    const behind = createBoard({ length: 0.25, width: 0.25, thickness: 0.25, position: [x0, 1, -3] });
+    const visibleOf = (parts: Board[]) => drawView(parts, FRONT).visible.filter((s) => s.part === behind.id);
+    // CONTROL: without the taper the leg hides the block completely.
+    expect(visibleOf([{ ...leg, angleCuts: [] }, behind])).toHaveLength(0);
+    // With the taper the block shows through where the wedge was removed.
+    expect(visibleOf([leg, behind]).length).toBeGreaterThan(0);
+    // And a block behind the part that the taper left standing stays hidden (a flipped plane would show it).
+    const kept = createBoard({ length: 0.25, width: 0.25, thickness: 0.25, position: [rotation === 180 ? 0.4 : 1.2, 1, -3] });
+    const keptSegs = drawView([leg, kept], FRONT).visible.filter((s) => s.part === kept.id);
+    expect(keptSegs).toHaveLength(0);
   });
 });
