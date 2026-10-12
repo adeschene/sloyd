@@ -4,7 +4,8 @@ import {
 } from '../document/document';
 import type { Region } from '../document/document';
 import { chiralPart, turnedAbout } from '../document/turnFixtures';
-import { boardUVOffset, boardUVs, boardUVSignature, facePlans } from './grainTiling';
+import { boardBodies } from '../document/document';
+import { boardUVOffset, boardUVs, boardUVSignature, bodyMesh, facePlans } from './grainTiling';
 
 const flat = createBoard({ length: 24, width: 5.5, thickness: 0.75, material: 'oak' });
 
@@ -661,5 +662,69 @@ describe('UVs run WITH the world axis, so solids of one board agree (fu 163)', (
     expect(vs[0]).toBeCloseTo(0, 6);
     expect(vs[vs.length - 1]).toBeCloseTo(1, 6);
     expect(vs.some((v) => Math.abs(v - 1 / 3) < 1e-6)).toBe(true);
+  });
+});
+
+describe('bodyMesh agrees with the box path (invariant 35, spec §3.3)', () => {
+  const poses = [
+    createBoard({ length: 24, width: 5.5, thickness: 0.75, material: 'oak' }),
+    createBoard({ length: 24, width: 5.5, thickness: 0.75, material: 'plywood', rotation: 90, posture: 'on-edge', grain: 'width' }),
+    createBoard({ length: 30, width: 2, thickness: 1.5, material: 'walnut', rotation: 270, posture: 'upright' }),
+  ];
+  for (const b of poses) {
+    it(`${b.material} ${b.posture} ${b.rotation}°`, () => {
+      const body = boardBodies(b)[0]!;
+      const mine = bodyMesh(b, body);
+      // Every (position, uv) pair bodyMesh emits must occur in the BoxGeometry + boardUVs pairs.
+      const ref = new THREE.BoxGeometry(...boardExtents(b));
+      ref.setAttribute('uv', new THREE.BufferAttribute(boardUVs(b), 2));
+      const key = (x: number, y: number, z: number, u: number, v: number) => [x, y, z, u, v].map((n) => Math.round(n * 1e5)).join(',');
+      const want = new Set<string>();
+      const p = ref.getAttribute('position');
+      const uv = ref.getAttribute('uv');
+      for (let i = 0; i < p.count; i += 1) want.add(key(p.getX(i), p.getY(i), p.getZ(i), uv.getX(i), uv.getY(i)));
+      expect(mine.positions.length).toBeGreaterThan(0);
+      for (let i = 0; i < mine.positions.length / 3; i += 1) {
+        expect(want.has(key(mine.positions[3 * i]!, mine.positions[3 * i + 1]!, mine.positions[3 * i + 2]!, mine.uvs[2 * i]!, mine.uvs[2 * i + 1]!))).toBe(true);
+      }
+    });
+  }
+
+  it('puts each axis face in its BoxGeometry material group', () => {
+    const b = poses[0]!;
+    const groups = bodyMesh(b, boardBodies(b)[0]!).groups;
+    expect(groups.map((g) => g.materialIndex)).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(groups.every((g) => g.count === 6)).toBe(true);
+  });
+
+  it('a miter face reads as end grain, a taper face as long grain (tie to face)', () => {
+    const rail = createBoard({ length: 24, width: 2.5, thickness: 0.75, material: 'oak', angleCuts: [
+      { id: 'm', kind: 'miter', face: 'length', from: 'max', along: 'width', alongFrom: 'min', points: [[0, 0], [2.5, 2.5]] },
+    ] });
+    const body = boardBodies(rail)[0]!;
+    const slopeIndex = body.faces.findIndex((f) => f.cut === 'm');
+    expect(slopeIndex).toBeGreaterThanOrEqual(0);
+    const mesh = bodyMesh(rail, { ...body, faces: [body.faces[slopeIndex]!] });
+    // Flat turn 0: length on world X (check axisFrame) — the miter's material is the +X face's.
+    expect(mesh.groups.map((g) => g.materialIndex)).toEqual([0]);
+  });
+
+  it('a tie goes to the axis carrying the cut face even when it is not the first axis', () => {
+    // face 'width' with along 'length': the 45 degree slope ties world X (length) and Z (width, flat turn 0).
+    const b = createBoard({ length: 24, width: 5.5, thickness: 0.75, material: 'oak', angleCuts: [
+      { id: 't', kind: 'bevel', face: 'width', from: 'max', along: 'length', alongFrom: 'min', points: [[0, 0], [0.75, 0.75]] },
+    ] });
+    const body = boardBodies(b)[0]!;
+    const slope = body.faces.find((f) => f.cut === 't');
+    expect(slope).toBeDefined();
+    const mesh = bodyMesh(b, { ...body, faces: [slope!] });
+    expect(mesh.groups).toHaveLength(1);
+    expect(mesh.groups[0]!.materialIndex).toBeGreaterThanOrEqual(4);
+  });
+
+  it('the UV signature changes with an angle cut', () => {
+    const b = poses[0]!;
+    expect(boardUVSignature({ ...b, angleCuts: [{ id: 'a', kind: 'taper', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[0, 1], [10, 0]] }] }))
+      .not.toBe(boardUVSignature(b));
   });
 });

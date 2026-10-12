@@ -26,7 +26,7 @@ export {
 } from './geometry';
 export type { Bounds, AxisMap } from './geometry';
 export { mirrorCut } from './mirrorCut';
-export { ANGLE_CUT_FIELDS, ANGLE_CUT_KEYS, angleCutRemovesNothing, angleCutsThatRemoveStock, copyAngleCut, depthAt, keptHalfSpace, sameAngleCut, throughOf, zeroStation } from './angleCuts';
+export { ANGLE_CUT_FIELDS, ANGLE_CUT_KEYS, angleCutRemovesNothing, angleCutValues, angleCutsThatRemoveStock, copyAngleCut, depthAt, keptHalfSpace, sameAngleCut, throughOf, zeroStation } from './angleCuts';
 export type { V3 } from './angleCuts';
 export { cleanName, uniqueName, dedupeNames } from './names';
 export type { Named } from './names';

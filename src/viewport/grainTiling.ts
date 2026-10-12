@@ -1,5 +1,5 @@
-import { axisFrame, boardExtents, CUT_GEOMETRY_KEYS, DIMENSION_ORDER, isSheetGood, spanToWorldOffset, wholeBoard } from '../document/document';
-import type { Board, Region, Span } from '../document/document';
+import { angleCutValues, axisFrame, boardExtents, CUT_GEOMETRY_KEYS, DIMENSION_ORDER, isSheetGood, spanToWorldOffset, toWorldOffset, wholeBoard } from '../document/document';
+import type { Board, Body, Region, Span } from '../document/document';
 import { axisDimensions, faceGrainKinds, grainFamily } from './grainFaces';
 import type { Dimension, GrainFamily, GrainKind } from './grainFaces';
 
@@ -223,6 +223,69 @@ export function boardUVs(board: Board, solid: Region = wholeBoard(board)): Float
 }
 
 /**
+ * Triangles for one CLIPPED body (angle-cuts spec §3.3): positions relative
+ * to the board's centre, UVs from the SAME face plans as boardUVs (invariant
+ * 17: board-relative, FIT against the board), grouped by BoxGeometry's
+ * material order so the six grain materials apply unchanged.
+ *
+ * An axis-aligned face takes its own material and plan. A sloped face takes
+ * the plan of the world axis its normal is closest to; a tie goes to the axis
+ * carrying the cut's `face` dimension, so a 45° miter reads as end grain and a
+ * taper as long grain. UVs are read straight off each vertex's world offset
+ * along the plan's axes — which is what boardUVs' CORNERS-and-sign dance
+ * computes for a box, so the two agree (pinned by test, invariant 35).
+ */
+export function bodyMesh(board: Board, body: Body): { positions: Float32Array; uvs: Float32Array; groups: { start: number; count: number; materialIndex: number }[] } {
+  const plans = facePlans(board);
+  const frame = axisFrame(board);
+  const extents = boardExtents(board);
+  const [ou, ov] = boardUVOffset(board.id);
+  const dimIndex = (d: Dimension) => DIMENSION_ORDER.indexOf(d);
+  const offsetOf = (p: [number, number, number]) => [0, 1, 2].map((i) => toWorldOffset(board, i, p[dimIndex(frame[i]!.dim)]!)) as [number, number, number];
+  const byMaterial: { pos: number[]; uv: number[] }[] = Array.from({ length: 6 }, () => ({ pos: [], uv: [] }));
+  for (const f of body.faces) {
+    const n = [0, 1, 2].map((i) => f.n[dimIndex(frame[i]!.dim)]! * (frame[i]!.reversed ? -1 : 1));
+    let axis = 0;
+    for (let i = 1; i < 3; i += 1) if (Math.abs(n[i]!) > Math.abs(n[axis]!) + 1e-9) axis = i;
+    const cut = f.cut ? board.angleCuts.find((c) => c.id === f.cut) : undefined;
+    if (cut) {
+      const pref = frame.findIndex((a) => a.dim === cut.face);
+      if (Math.abs(Math.abs(n[pref]!) - Math.abs(n[axis]!)) <= 1e-9) axis = pref;
+    }
+    const material = axis * 2 + (n[axis]! > 0 ? 0 : 1);
+    const plan = plans[material]!;
+    const pts = f.verts.map(offsetOf);
+    const out = byMaterial[material]!;
+    for (let i = 1; i + 1 < pts.length; i += 1) {
+      let tri = [pts[0]!, pts[i]!, pts[i + 1]!];
+      const e1 = [0, 1, 2].map((k) => tri[1]![k]! - tri[0]![k]!);
+      const e2 = [0, 1, 2].map((k) => tri[2]![k]! - tri[0]![k]!);
+      const cr = [e1[1]! * e2[2]! - e1[2]! * e2[1]!, e1[2]! * e2[0]! - e1[0]! * e2[2]!, e1[0]! * e2[1]! - e1[1]! * e2[0]!];
+      // Near-duplicate vertices from clipping make zero-area fans; emit nothing for them.
+      if (Math.hypot(cr[0]!, cr[1]!, cr[2]!) / 2 < 1e-12) continue;
+      if (cr[0]! * n[0]! + cr[1]! * n[1]! + cr[2]! * n[2]! < 0) tri = [tri[0]!, tri[2]!, tri[1]!];
+      for (const p of tri) {
+        out.pos.push(p[0] - extents[0] / 2, p[1] - extents[1] / 2, p[2] - extents[2] / 2);
+        out.uv.push(
+          p[plan.axes[0]]! / plan.tileInches[0] + (plan.fit[0] ? 0 : ou),
+          p[plan.axes[1]]! / plan.tileInches[1] + (plan.fit[1] ? 0 : ov),
+        );
+      }
+    }
+  }
+  const positions: number[] = [];
+  const uvs: number[] = [];
+  const groups: { start: number; count: number; materialIndex: number }[] = [];
+  byMaterial.forEach((m, materialIndex) => {
+    if (m.pos.length === 0) return;
+    groups.push({ start: positions.length / 3, count: m.pos.length / 3, materialIndex });
+    positions.push(...m.pos);
+    uvs.push(...m.uv);
+  });
+  return { positions: new Float32Array(positions), uvs: new Float32Array(uvs), groups };
+}
+
+/**
  * Everything boardUVs reads, as one string.
  *
  * BoardMesh memoises the geometry that carries the UV attribute, and a memo
@@ -269,6 +332,9 @@ export function boardUVSignature(board: Board): string {
     board.cuts
       .map((c) => CUT_GEOMETRY_KEYS.map((k) => c[k]).join(','))
       .join(';'),
+    // Angle cuts change which bodies exist and which faces are sloped
+    // (angle-cuts spec §3.2; invariant 15).
+    board.angleCuts.map((c) => angleCutValues(c).join(',')).join(';'),
   ].join('|');
 }
 
