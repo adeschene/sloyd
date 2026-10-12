@@ -1,6 +1,7 @@
 import { boardExtents } from './geometry';
 import type { Board, Cut, Definition, Instance, Posture, Shape, SloydDocument, StoredBoard } from './types';
 import { CUT_GEOMETRY_KEYS } from './cuts';
+import { angleCutValues, copyAngleCut } from './angleCuts';
 import { nextId } from './ids';
 import { LINK_FIELDS, SHARED_KEYS, sharedOf } from './links';
 import { isShaped, resolveBoard, shapeMap } from './shapes';
@@ -395,9 +396,10 @@ function plainWithMarkers(doc: SloydDocument): SloydDocument {
 
 /** A part's shared fields as a comparable string, each cut by GEOMETRY
  *  (CUT_GEOMETRY_KEYS, in order) and NOT by id: pocketFor mints fresh cut ids
- *  per board, so identical mortises differ only by id (spec §5). */
+ *  per board, so identical mortises differ only by id (spec §5). Angle cuts
+ *  likewise by ANGLE_CUT_FIELDS, not id. */
 function sharedSignature(b: Board): unknown[] {
-  return SHARED_KEYS.map((k) => (k === 'cuts' ? b.cuts.map((c) => CUT_GEOMETRY_KEYS.map((f) => c[f])) : b[k]));
+  return SHARED_KEYS.map((k) => (k === 'cuts' ? b.cuts.map((c) => CUT_GEOMETRY_KEYS.map((f) => c[f])) : k === 'angleCuts' ? b.angleCuts.map(angleCutValues) : b[k]));
 }
 
 /** A lowered result as compared across placements: own position and rotation
@@ -437,7 +439,7 @@ function copyDefinition(d: Definition): Definition {
     id: nextId(),
     boards: d.boards.map((b) => (isShaped(b)
       ? { ...b, position: [...b.position] as [number, number, number] }
-      : { ...b, position: [...b.position] as [number, number, number], cuts: b.cuts.map((c) => ({ ...c })) })),
+      : { ...b, position: [...b.position] as [number, number, number], cuts: b.cuts.map((c) => ({ ...c })), angleCuts: b.angleCuts.map(copyAngleCut) })),
     instances: d.instances.map((j) => ({ ...j, position: [...j.position] as [number, number, number] })),
   };
 }

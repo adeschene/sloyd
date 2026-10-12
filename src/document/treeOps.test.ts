@@ -179,6 +179,18 @@ describe('shared definitions', () => {
     expect(worldParts(out).map((b) => b.id)).toEqual(worldParts(doc).map((b) => b.id));
   });
 
+  it('makeUniqueItem copies angle cuts with their ids and shares no points array (angle-cuts spec §5.2)', () => {
+    const doc = base();
+    const taper = { id: 'a1', kind: 'taper' as const, face: 'width' as const, from: 'min' as const, along: 'length' as const, alongFrom: 'min' as const, points: [[0, 0.5], [18, 0]] as [[number, number], [number, number]] };
+    doc.definitions[0]!.boards[0] = createBoard({ id: 'b1', name: 'Side', angleCuts: [taper] });
+    const out = makeUniqueItem(doc, 'i2')!;
+    const i2 = out.instances.find((i) => i.id === 'i2')!;
+    const copy = out.definitions.find((d) => d.id === i2.definition)!.boards[0] as Board;
+    expect(copy.angleCuts).toEqual([taper]);
+    expect(copy.angleCuts[0]).not.toBe(taper);
+    expect(copy.angleCuts[0]!.points).not.toBe(taper.points);
+  });
+
   // Fu 231. An instance INSIDE a shared container is one stored record whatever
   // the number of placements: the copy is made on that record, so every
   // placement of the container follows it, and the count that matters is how

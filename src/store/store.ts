@@ -8,6 +8,7 @@ import {
 } from '../document/document';
 import type { Board, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
 import { SNAP_INCHES } from '../document/geometry';
+import { copyAngleCut } from '../document/angleCuts';
 import { MAX_ROW } from '../document/row';
 import { clickTarget } from './assemblyPick';
 
@@ -821,12 +822,14 @@ export const useStore = create<StoreState>((set, get) => {
     // `...partial` rather than applied — copying the array and minting a
     // fresh id per cut (via the same nextId() addCut uses) means a future
     // in-place Cut mutation can't corrupt the source board and every undo
-    // snapshot holding it simultaneously.
+    // snapshot holding it simultaneously. `angleCuts` need the same treatment:
+    // fresh ids, and copyAngleCut for an independent `points` array.
     const { id: _sourceId, ...rest } = source;
     const fresh = createBoard({
       ...rest,
       position: [...position],
       cuts: source.cuts.map((cut) => ({ ...cut, id: nextId() })),
+      angleCuts: source.angleCuts.map((c) => ({ ...copyAngleCut(c), id: nextId() })),
     });
     return { ...fresh, name };
   };

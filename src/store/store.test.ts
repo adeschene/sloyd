@@ -250,6 +250,20 @@ describe('duplicateBoard', () => {
     expect(worldParts(useStore.getState().doc)[2].name).toBe('Leg (2)');
   });
 
+  it('mints fresh angle-cut ids and shares no points array (angle-cuts spec §5.2)', () => {
+    useStore.getState().replaceDocument({ ...createDocument('T'), boards: [createBoard({ id: 'leg', name: 'Leg', angleCuts: [
+      { id: 'a1', kind: 'taper', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[0, 0.5], [18, 0]] },
+    ] })] });
+    useStore.getState().duplicateBoard('leg');
+    const boards = useStore.getState().doc.boards as Board[];
+    expect(boards).toHaveLength(2);
+    const [src, dup] = boards;
+    expect(dup!.angleCuts).toHaveLength(1);
+    expect(dup!.angleCuts[0]!.id).not.toBe(src!.angleCuts[0]!.id);
+    expect(dup!.angleCuts[0]!.points).toEqual(src!.angleCuts[0]!.points);
+    expect(dup!.angleCuts[0]!.points).not.toBe(src!.angleCuts[0]!.points);
+  });
+
   it('copies cuts by value, not by reference, with fresh ids', () => {
     useStore.getState().addBoard();
     const source = worldParts(useStore.getState().doc)[0];
