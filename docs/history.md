@@ -337,6 +337,16 @@ and 79.
 
 ## What each round did
 
+**What the 254 / 264 / 273 fixes did (2026-10-12)**, each asked for by the user after its round shipped, each deployed:
+**fu 254** — the plans trio's scale also fits `TRIO_MAX_HEIGHT` (1250 units, Letter's printable ratio), and every plans
+figure is drawn at its share of the page width rather than stretched to 100% (which would have undone the cap and also
+affected the exploded figure); a 36x12x72 bookcase now prints 82% wide, aspect 1.523. **fu 264** — a container with ONE
+child is not a level: explode weights stay full until the first branching container, and the sheet skips a definition
+whose every placement is a sole child (its drawing repeated the one above it). **fu 273** — the priced-size rule is
+unchanged, but the Buying section now names a smaller unpriced size that would hold a board (once per pair, with a
+count). Session close: the user chose **tapers and miters** (`docs/feature-gaps.md` §1) as the next round, to start in
+a fresh session.
+
 **What the lumber yield & cost round did (2026-10-12)**: the cut list ends with a **Buying** section — per material
 what to buy and what it costs — and a project total; no schema change (spec
 `docs/superpowers/specs/2026-10-12-sloyd-lumber-yield-cost-design.md`; `docs/feature-gaps.md` §3). The user's rulings:

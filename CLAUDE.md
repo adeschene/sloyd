@@ -26,10 +26,13 @@ handicraft education tradition built around hand woodworking.
   rolling back to `f6261fd`, `index-BR6V0tAc.js`, or `d161946`, `index-ulm_-ktQ.js`, is free — an older build ignores
   `sloyd.shop.v1`; below 13, `43b4928`, refuses every project saved since mirrored instances: export first). Test count
   is under Commands.
-- **NO SUCCESSOR IS
-  CHOSEN: ask what to work on; do not pick.** Open near the recent code:
-  241 (open by decision), 251 (ui-polish residue, record-only),
-  221, 225 (rest out of scope), 232, 234, 247. See Open follow-ups below.
+- **SUCCESSOR CHOSEN (2026-10-12): tapers and miters** (`docs/feature-gaps.md` §1), to start in a fresh session with
+  the brainstorming skill — architectural, not bounded. Read first: the v1 spec's "free-angle rotation" and
+  "sketch-and-extrude" non-goals (`docs/superpowers/specs/2026-07-29-sloyd-v1-design.md`; angled parts were to "arrive
+  later as an explicit feature with compound-angle math"), invariants 2, 16, 38, 40, 44 (the board/cut model is
+  axis-aligned boxes everywhere: solids, edges, drawings, joinery), and expect a schema bump (rollback cost). Other
+  open items near the recent code: 241 (open by decision), 251 (ui-polish residue, record-only), 221, 225 (rest out of
+  scope), 232, 234, 247; plans-sheet and lumber residue below.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
   byte-identical bundles (test-only). Check what a later commit touches before reading
@@ -85,6 +88,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | 248–250 | 10-11 | — | Viewport colours approved on real hardware; ProjectMenu gets Popover's Safari focusout guard; snap markers in muted milk-paint tones |
 | plans sheet | 10-11 | — | Printable Plans sheet (exploded isometric, dimensioned third-angle elevations of the piece and each assembly); viewport Explode slider, read-only while exploded (inv 47) |
 | lumber yield & cost | 10-12 | — | Cut list Buying section: board feet × waste factor, by-the-piece boards packed and swapped to the cheapest size, sheets; prices per browser (`sloyd.shop.v1`) in a Lumber & prices dialog |
+| 254/264/273 | 10-12 | — | Plans trio height cap (tall pieces print on one page); a one-child container is not an explode level and its drawing is not repeated; a note when a smaller unpriced size would hold a board |
 
 ### The deployment rule
 
@@ -590,9 +594,15 @@ knowing without opening it:
 - **248–251** — ui-polish residue: 248 (viewport colours, the user approved them on real hardware), 249 (snap
   markers recoloured to muted tones; keep the floors in `SnapMarker.tsx` if retuning) and 250 (Popover and
   ProjectMenu focusout; simulated only, no Safari here) are closed; deferred minors (251) are record-only.
-- **252–258, 260–264** — plans-sheet residue, all open (259 is record-only): callouts, user-placed dimensions (schema bump), print-to-PDF (254,
-  unverified), explode constants seen only on software GL (255), section views, joint-direction explode, live
-  viewport dimensions.
+- **252–264** — plans-sheet residue: 252 (callouts), 253 (user-placed dimensions, schema bump), 255 (explode constants
+  seen only on software GL), 256–258 (section views, joint-direction explode, live viewport dimensions) and 260–263
+  (F/Home frame unexploded positions; parts-list rename reverts silently while exploded; the lock disables view-only
+  controls; the sheet slider lags) are open. 254 is open only for a real print (the tall-sheet overflow is fixed);
+  264 is closed; 259 is record-only.
+- **265–274** — lumber yield & cost residue: 265 (per-project price overrides), 266 (custom materials, nominal names),
+  267 (edge banding, hardware BOM), 268 (glue-ups), 269 (packer is a heuristic — measure before optimising), 270 (USD
+  only), 271 (rough thickness classes), 272 (dialog length on a phone), 274 (end-grain parts are not priced by the
+  piece) are open; 273 is closed (the note).
 - **176/177** — the held rules' known limits (mutual lapping) and an unseen live repair.
 - **130** — semi-infinite construction lines; picked and set aside 2026-08-31 without a
   reason. Ask before assuming it's wanted; it needs real hardware (26a).
