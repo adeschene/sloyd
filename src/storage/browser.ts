@@ -1,6 +1,7 @@
 import { DocumentError, createDocument, migrateDocument, nextId } from '../document/document';
 import type { SloydDocument } from '../document/document';
 import { derivedName } from '../document/names';
+import { defaultShop, validateShop, type ShopSettings } from '../document/purchase';
 import type { LibraryIndex, ProjectEntry } from './types';
 import type { LlmSettings, RecentEntry, StorageAdapter, StorageCapabilities } from './types';
 import { LAYOUT_VERSION, parseIndex, removeEntry, sortEntries, touchEntry } from './libraryIndex';
@@ -8,6 +9,8 @@ import { LAYOUT_VERSION, parseIndex, removeEntry, sortEntries, touchEntry } from
 export const AUTOSAVE_KEY = 'sloyd.autosave.v1';
 export const LIBRARY_KEY = 'sloyd.library.v1';
 export const LLM_KEY = 'sloyd.llm.v1';
+/** Browser-level lumber and price settings (lumber yield and cost spec §2). Never part of a project. */
+export const SHOP_KEY = 'sloyd.shop.v1';
 export const PROJECT_PREFIX = 'sloyd.project.';
 
 export class BrowserStorageAdapter implements StorageAdapter {
@@ -609,6 +612,29 @@ export class BrowserStorageAdapter implements StorageAdapter {
     if (!this.store) return false;
     try {
       this.store.setItem(LLM_KEY, JSON.stringify(settings));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async getShopSettings(): Promise<{ settings: ShopSettings; readFailed: boolean }> {
+    const raw = this.store ? readRaw(this.store, SHOP_KEY) : null;
+    if (raw === null) return { settings: defaultShop(), readFailed: false };
+    let parsed: unknown = null;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      // unparseable reads as damaged: validateShop(null) gives defaults and the flag
+    }
+    const { settings, ok } = validateShop(parsed);
+    return { settings, readFailed: !ok };
+  }
+
+  async setShopSettings(settings: ShopSettings): Promise<boolean> {
+    if (!this.store) return false;
+    try {
+      this.store.setItem(SHOP_KEY, JSON.stringify(settings));
       return true;
     } catch {
       return false;

@@ -1,4 +1,5 @@
 import type { SloydDocument } from '../document/document';
+import type { ShopSettings } from '../document/purchase';
 
 export interface RecentEntry {
   id: string;
@@ -112,4 +113,12 @@ export interface StorageAdapter {
   setLlmSettings(settings: LlmSettings): Promise<boolean>;
   /** Forget the key. */
   clearLlmSettings(): Promise<void>;
+  /**
+   * The browser-level shop settings (lumber yield and cost spec §2). Never throws. Absent → defaults;
+   * unreadable, another layout or an invalid entry → defaults for what failed and `readFailed: true`.
+   * Reading NEVER writes: a value a newer build stored must survive a rollback.
+   */
+  getShopSettings(): Promise<{ settings: ShopSettings; readFailed: boolean }>;
+  /** Store the shop settings. False, changing nothing, when storage is unavailable or the write fails. */
+  setShopSettings(settings: ShopSettings): Promise<boolean>;
 }
