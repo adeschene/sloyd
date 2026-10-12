@@ -349,6 +349,12 @@ function validateAngleCuts(raw: unknown, board: Pick<Board, Dimension>): AngleCu
     if (!Array.isArray(p) || p.length !== 2 || !finitePair(p[0]) || !finitePair(p[1])) continue;
     const points: AngleCut['points'] = [[p[0][0], p[0][1]], [p[1][0], p[1][1]]];
     if (points[0][0] === points[1][0]) continue;
+    // Finite inputs can still overflow (stations 1e-308 apart, values near ±1e308): every reader works
+    // from the slope, so a line whose slope is not finite has no geometry to keep. The station span is
+    // checked too: an overflowed span gives a finite slope (x / Infinity = 0) while depthAt's product
+    // (q2 − q1)(s − s1) still overflows, to NaN.
+    const ds = points[1][0] - points[0][0];
+    if (!Number.isFinite(ds) || !Number.isFinite((points[1][1] - points[0][1]) / ds)) continue;
     const base = { face, from: c.from as CutFrom, along, alongFrom: c.alongFrom as CutFrom, points };
     const kind = ANGLE_KINDS.includes(c.kind as AngleKind) ? (c.kind as AngleKind) : deriveKind(base, board);
     out.push({ id: takeId(c.id, seen), kind, ...base });

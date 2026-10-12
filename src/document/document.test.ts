@@ -1414,6 +1414,16 @@ describe('schema 14: angleCuts (angle-cuts spec §5.1)', () => {
     expect((doc.boards[0] as Board).angleCuts.map((c) => c.id)).toEqual(['a1']);
   });
 
+  it('drops a cut whose slope is not finite, and keeps a normal one', () => {
+    const bad = [
+      { ...good, id: 'n1', points: [[0, 0], [1e-308, 10]] },          // stations 1e-308 apart: slope 1e309 overflows
+      { ...good, id: 'n2', points: [[0, -1e308], [1, 1e308]] },       // depths whose difference overflows
+      { ...good, id: 'n3', points: [[-1e308, 0], [1e308, 1e308]] },   // station span overflows: slope 0, depthAt NaN
+    ];
+    const doc = migrateDocument({ ...v13([{ ...plain, angleCuts: [...bad, good] }]), version: 14 });
+    expect((doc.boards[0] as Board).angleCuts.map((c) => c.id)).toEqual(['a1']);
+  });
+
   it('derives a missing or unknown kind instead of dropping the cut', () => {
     const miter = { id: 'm1', face: 'length', from: 'max', along: 'width', alongFrom: 'min', points: [[0, 0], [1.75, 1.75]] };
     const doc = migrateDocument({ ...v13([{ ...plain, angleCuts: [miter, { ...good, kind: 'scarf' }] }]), version: 14 });
