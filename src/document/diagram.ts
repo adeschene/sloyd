@@ -73,7 +73,7 @@ export interface DiagramView {
   vUp: boolean;
   /** This face's depth field, from `buildDepthField`. */
   cells: FaceCell[];
-  /** Angle cuts seen edge-on as a line: drawn in the view looking along their through dimension, min side. Empty for most views. */
+  /** Angle cuts seen edge-on as a line: drawn in every view looking along their through dimension (the min side opened when neither exists). Empty for most views. */
   angles: DiagramAngle[];
   /** One line per distinct crossing depth, already formatted. Empty when none. */
   crossings: string[];
@@ -174,14 +174,22 @@ export function buildDiagrams(board: Board, precision: number): DiagramView[] {
     });
   }
 
+  // Angle cuts: each wedge is drawn in EVERY view whose face is the cut's through dimension (spec §4.3,
+  // "each face view where a slope shows"), and only the min-side view is opened when neither side exists.
+  // Decided after the pocket cuts' views, so a dado's far-side view takes the wedge without a second view.
   for (const c of angleCutsThatRemoveStock(board)) {
     const h = keptHalfSpace(board, c);
     if (!h) continue;
-    const view = ensure(throughOf(c), 'min');
-    const hi = DIMENSION_ORDER.indexOf(view.horizontal);
-    const vi = DIMENSION_ORDER.indexOf(view.vertical);
-    // The view's rectangle, clipped to the REMOVED side (n·x + d < 0): Sutherland–Hodgman, one edge.
-    const rect: [number, number][] = [[0, 0], [view.h, 0], [view.h, view.v], [0, view.v]];
+    const face = throughOf(c);
+    // Both sides of one face share (horizontal, vertical) and the outline: the polygon, in board inches,
+    // is the same in either view (vUp, the far side's flip, is the panel's job).
+    const [horizontal, vertical] = DIMENSION_ORDER.filter((d) => d !== face);
+    const hi = DIMENSION_ORDER.indexOf(horizontal!);
+    const vi = DIMENSION_ORDER.indexOf(vertical!);
+    const W = board[horizontal!];
+    const H = board[vertical!];
+    // The face's rectangle, clipped to the REMOVED side (n·x + d < 0): Sutherland–Hodgman, one edge.
+    const rect: [number, number][] = [[0, 0], [W, 0], [W, H], [0, H]];
     const g = ([x, y]: [number, number]) => -(h.n[hi]! * x + h.n[vi]! * y + h.d);
     const poly: [number, number][] = [];
     for (let i = 0; i < rect.length; i += 1) {
@@ -195,7 +203,11 @@ export function buildDiagrams(board: Board, precision: number): DiagramView[] {
     }
     // A vertex exactly on the line is kept AND is its own crossing point: drop consecutive repeats.
     const clean = poly.filter((p, i) => { const q = poly[(i + poly.length - 1) % poly.length]!; return Math.hypot(p[0] - q[0], p[1] - q[1]) > 1e-9; });
-    if (clean.length >= 3) view.angles.push({ id: c.id, poly: clean, label: angleLine(board, c, precision) });
+    if (clean.length < 3) continue;
+    const existing = (['min', 'max'] as const).map((from) => views.get(`${face}|${from}`)).filter((v): v is DiagramView => v !== undefined);
+    const targets = existing.length > 0 ? existing : [ensure(face, 'min')];
+    const label = angleLine(board, c, precision);
+    for (const view of targets) view.angles.push({ id: c.id, poly: clean.map(([x, y]) => [x, y] as [number, number]), label });
   }
 
   // A cut-free board still gets a drawing, for the "all parts" setting: broad

@@ -318,6 +318,25 @@ describe('angle cuts in part diagrams (spec §4.3)', () => {
     const b = createBoard({ length: 29, width: 1.75, thickness: 1.75, angleCuts: [{ ...taper, face: 'thickness' as const, points: [[40, 0], [50, 1]] }] });
     expect(buildDiagrams(b, 16).map((v) => v.key)).toEqual(['thickness|min']);
   });
+  it('a dado on the through face\'s max side: that view takes the wedge and no min view is opened (ruling 108)', () => {
+    const dado: Cut = { id: 'c1', face: 'thickness', across: 'width', from: 'max', offset: 10, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const b = createBoard({ length: 29, width: 1.75, thickness: 1.75, cuts: [dado], angleCuts: [taper] });
+    const views = buildDiagrams(b, 16);
+    expect(views.map((v) => v.key)).toEqual(['thickness|max']);
+    const pts = views[0]!.angles[0]!.poly.map(([h, w]) => `${Math.round(h * 1e9) / 1e9},${Math.round(w * 1e9) / 1e9}`).sort();
+    expect(pts).toEqual(['0,0', '0,0.625', '24,0'].sort());
+  });
+  it('dadoes on both sides of the through face: both views take the same wedge', () => {
+    const near: Cut = { id: 'c1', face: 'thickness', across: 'width', from: 'min', offset: 10, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const far: Cut = { ...near, id: 'c2', from: 'max' };
+    const views = buildDiagrams(createBoard({ length: 29, width: 1.75, thickness: 1.75, cuts: [near, far], angleCuts: [taper] }), 16);
+    expect(views.map((v) => v.key)).toEqual(['thickness|min', 'thickness|max']);
+    expect(views[0]!.angles).toHaveLength(1);
+    expect(views[1]!.angles).toEqual(views[0]!.angles);
+  });
+  it('a plain tapered part opens only the min-side through view', () => {
+    expect(buildDiagrams(leg(), 16).map((v) => v.key)).toEqual(['thickness|min']);
+  });
   it('draws in the other horizontal/vertical pairing (through = length: h = width, v = thickness)', () => {
     const bevel = { id: 'b1', kind: 'bevel' as const, face: 'thickness' as const, from: 'min' as const, along: 'width' as const, alongFrom: 'min' as const, points: [[0, 0.5], [1.75, 0]] as [[number, number], [number, number]] };
     const v = buildDiagrams(createBoard({ length: 29, width: 1.75, thickness: 1.75, angleCuts: [bevel] }), 16).find((x) => x.face === 'length' && x.from === 'min')!;
