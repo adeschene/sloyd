@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
-import type { AngleCut, Board } from './types';
+import type { AngleCut, Board, Dimension } from './types';
 import {
   ANGLE_CUT_KEYS, angleCutRemovesNothing, angleCutValues, copyAngleCut, deriveKind, depthAt,
   defaultTaper, keptHalfSpace, mirrorAngleCut, sameAngleCut, taperCut, taperFields, throughOf, zeroStation,
   defaultMiter, defaultMiterPair, miterCut, miterDegrees, miterFields, miterRatio,
+  bevelCut, bevelFields, bevelAcross, defaultBevel,
+  CHAMFER_EDGES, chamferCut, chamferFields, defaultChamfer,
 } from './angleCuts';
-import { boardBodies, bodyVerts } from './bodies';
+import { boardBodies, bodyVerts, bodyVolume } from './bodies';
 import { shortPointLine } from './angleText';
 
 const leg = (over: Partial<Board> = {}): Board =>
@@ -190,5 +192,100 @@ describe('miter fields (spec §7)', () => {
     const c = miterCut({ end: 'min', across: 'thickness', longSide: 'max', ratio: miterRatio(22.5) }, rail());
     expect(c.along).toBe('thickness');
     expect(c.points[1]![1]).toBe(0.75 * Math.tan(Math.PI / 8));
+  });
+});
+
+const stock = () => createBoard({ length: 20, width: 3, thickness: 0.75 });
+const volume = (b: Board) => boardBodies(b).reduce((v, x) => v + bodyVolume(x), 0);
+
+describe('bevel fields (spec §7)', () => {
+  it('slopes across the other cross dimension', () => {
+    expect(bevelAcross('width')).toBe('thickness');
+    expect(bevelAcross('thickness')).toBe('width');
+  });
+  it('a 45° bevel keeps depth === run through a face/side edit (Review Focus 1)', () => {
+    const b = stock();
+    const c = { id: 'b', ...bevelCut({ face: 'width', from: 'max', longSide: 'min', ratio: 1 }, b) };
+    expect(c.points).toEqual([[0, 0], [0.75, 0.75]]);
+    const f = bevelFields(c, b)!;
+    expect(f).toEqual({ face: 'width', from: 'max', longSide: 'min', ratio: 1 });
+    const moved = bevelCut({ ...f, from: 'min', longSide: 'max' }, b);
+    expect(moved.points).toEqual([[0, 0], [0.75, 0.75]]);
+  });
+  it('removes ½ · run · depth · length', () => {
+    const b = { ...stock(), angleCuts: [{ id: 'b', ...bevelCut({ face: 'width', from: 'max', longSide: 'min', ratio: miterRatio(15) }, stock()) }] };
+    const d = 0.75 * Math.tan((15 * Math.PI) / 180);
+    expect(Math.abs(volume(b) - (20 * 3 * 0.75 - 0.5 * 0.75 * d * 20))).toBeLessThan(1e-9);
+  });
+  it('is null for a cut the bevel row cannot show', () => {
+    const b = stock();
+    expect(bevelFields({ id: 't', kind: 'bevel', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[0, 0.5], [10, 0]] }, b)).toBeNull();
+    expect(bevelFields({ id: 'm', kind: 'bevel', face: 'length', from: 'max', along: 'width', alongFrom: 'min', points: [[0, 0], [3, 3]] }, b)).toBeNull();
+  });
+  it('defaults to 15° off the width face (max side), long point on the thickness min side', () => {
+    expect(defaultBevel(stock())).toEqual(bevelCut({ face: 'width', from: 'max', longSide: 'min', ratio: miterRatio(15) }, stock()));
+  });
+});
+
+describe('chamfer fields (spec §7)', () => {
+  it('lists twelve distinct canonical edges', () => {
+    expect(CHAMFER_EDGES).toHaveLength(12);
+    expect(new Set(CHAMFER_EDGES.map((e) => `${e.face}${e.from}${e.along}${e.alongFrom}`)).size).toBe(12);
+    for (const e of CHAMFER_EDGES) expect(['length', 'width', 'thickness'].indexOf(e.face)).toBeLessThan(['length', 'width', 'thickness'].indexOf(e.along));
+  });
+  it('each edge removes the corner it names, checked against the geometry (Review Focus 5)', () => {
+    const b0 = stock();
+    for (const e of CHAMFER_EDGES) {
+      const b = { ...b0, angleCuts: [{ id: 'c', ...chamferCut({ ...e, legFace: 0.125, legAlong: 0.125 }, b0) }] };
+      // The named edge's corner is gone at BOTH ends of the through line, and the part's other three corners
+      // on that end remain (so a cut on the wrong edge cannot pass).
+      const through = (['length', 'width', 'thickness'] as const).find((d) => d !== e.face && d !== e.along)!;
+      const verts = boardBodies(b).flatMap(bodyVerts);
+      const at = (p: number[], face: number, along: number, end: number) => {
+        const want = { length: 0, width: 0, thickness: 0 } as Record<Dimension, number>;
+        want[e.face] = face; want[e.along] = along; want[through] = end;
+        return Math.abs(p[0]! - want.length) < 1e-9 && Math.abs(p[1]! - want.width) < 1e-9 && Math.abs(p[2]! - want.thickness) < 1e-9;
+      };
+      const fc = e.from === 'min' ? 0 : b0[e.face];
+      const ac = e.alongFrom === 'min' ? 0 : b0[e.along];
+      for (const end of [0, b0[through]]) {
+        expect(verts.some((p) => at(p, fc, ac, end)), `${JSON.stringify(e)} corner removed at ${end}`).toBe(false);
+        for (const [f2, a2] of [[b0[e.face] - fc, ac], [fc, b0[e.along] - ac], [b0[e.face] - fc, b0[e.along] - ac]] as [number, number][]) {
+          expect(verts.some((p) => at(p, f2, a2, end)), `${JSON.stringify(e)} other corner kept at ${end}`).toBe(true);
+        }
+      }
+      expect(Math.abs(volume(b) - (20 * 3 * 0.75 - 0.5 * 0.125 * 0.125 * b0[through]))).toBeLessThan(1e-9);
+    }
+  });
+  it('round-trips exactly', () => {
+    const b = stock();
+    const e = CHAMFER_EDGES[0]!;
+    const c = { id: 'c', ...chamferCut({ ...e, legFace: 0.125, legAlong: 0.1875 }, b) };
+    expect(chamferFields(c, b)).toEqual({ ...e, legFace: 0.125, legAlong: 0.1875 });
+  });
+  it('canonicalises a hand-edited chamfer stored the other way round (Review Focus 2)', () => {
+    const b = stock();
+    // face thickness / along width (non-canonical order), deepening toward the far side of `along`. Unequal legs
+    // (0.5 along the width, 0.25 into the thickness) so a dropped face/along swap shows.
+    const c = { id: 'h', kind: 'chamfer' as const, face: 'thickness' as const, from: 'max' as const, along: 'width' as const, alongFrom: 'min' as const,
+      points: [[2.5, 0], [3, 0.25]] as [[number, number], [number, number]] };
+    // Hand-checked: depth into the thickness from its max face is 0 at width 2.5 and 0.25 at width 3, so it knocks off
+    // the thickness-max / width-max corner: 0.5 into the width, 0.25 into the thickness.
+    const f = chamferFields(c, b);
+    expect(f).toEqual({ face: 'width', from: 'max', along: 'thickness', alongFrom: 'max', legFace: 0.5, legAlong: 0.25 });
+    // And the canonical rewrite removes the same stock as the original.
+    const same = (x: AngleCut) => volume({ ...b, angleCuts: [x] });
+    expect(Math.abs(same(c) - same({ id: 'r', ...chamferCut(f!, b) }))).toBeLessThan(1e-9);
+    expect(Math.abs(same(c) - (20 * 3 * 0.75 - 0.5 * 0.5 * 0.25 * 20))).toBeLessThan(1e-9);
+  });
+  it('is null for a line that is not a corner chamfer', () => {
+    const b = stock();
+    expect(chamferFields({ id: 'n', kind: 'chamfer', face: 'width', from: 'max', along: 'thickness', alongFrom: 'min', points: [[0, 0.5], [0.75, 0.7]] }, b)).toBeNull(); // deep at both sides: never reaches 0 inside the part
+  });
+  it('defaults to 1/8 on the width-max / thickness-max edge, smaller on a tiny part', () => {
+    const d = defaultChamfer(stock());
+    expect(d).toMatchObject({ kind: 'chamfer', face: 'width', from: 'max', along: 'thickness', alongFrom: 'max', points: [[0, 0.125], [0.125, 0]] });
+    const tiny = defaultChamfer(createBoard({ length: 4, width: 0.25, thickness: 0.25 }));
+    expect(tiny.points).toEqual([[0, 0.0625], [0.0625, 0]]);
   });
 });

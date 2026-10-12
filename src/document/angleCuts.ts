@@ -206,3 +206,69 @@ export function defaultMiter(board: Pick<Board, Dimension>): Omit<AngleCut, 'id'
 export function defaultMiterPair(board: Pick<Board, Dimension>): Omit<AngleCut, 'id'>[] {
   return [defaultMiter(board), miterCut({ end: 'min', across: 'width', longSide: 'min', ratio: 1 }, board)];
 }
+
+/** A bevel as the shop reads it (spec §7): an edge face cut at a blade tilt, along the length. `ratio` is the stored
+ *  slope, like MiterFields — never re-derived through trigonometry. */
+export interface BevelFields { face: 'width' | 'thickness'; from: CutFrom; longSide: CutFrom; ratio: number }
+
+/** A bevel slopes across the part's OTHER cross dimension (it runs along the length). */
+export function bevelAcross(face: 'width' | 'thickness'): 'thickness' | 'width' {
+  return face === 'width' ? 'thickness' : 'width';
+}
+
+export function bevelCut(f: BevelFields, board: Pick<Board, Dimension>): Omit<AngleCut, 'id'> {
+  const along = bevelAcross(f.face);
+  const run = board[along];
+  return { kind: 'bevel', face: f.face, from: f.from, along, alongFrom: f.longSide, points: [[0, 0], [run, run * f.ratio]] };
+}
+
+/** Null for a cut the bevel row cannot show (an end cut, or a slope along the length — that is a taper). */
+export function bevelFields(c: AngleCut, board: Pick<Board, Dimension>): BevelFields | null {
+  if (c.face === 'length' || c.along === 'length') return null;
+  const [[s1, q1], [s2, q2]] = c.points;
+  return { face: c.face, from: c.from, longSide: miterLongSide(c, board), ratio: Math.abs(q2 - q1) / Math.abs(s2 - s1) };
+}
+
+/** 15 degrees off the width face (max side), long point on the thickness min side. */
+export function defaultBevel(board: Pick<Board, Dimension>): Omit<AngleCut, 'id'> {
+  return bevelCut({ face: 'width', from: 'max', longSide: 'min', ratio: miterRatio(15) }, board);
+}
+
+/** One of a part's twelve edges, canonical: `face` before `along` in DIMENSION_ORDER. */
+export interface ChamferEdge { face: Dimension; from: CutFrom; along: Dimension; alongFrom: CutFrom }
+
+export const CHAMFER_EDGES: ChamferEdge[] = DIMENSION_ORDER.flatMap((through) => {
+  const [face, along] = DIMENSION_ORDER.filter((d) => d !== through) as [Dimension, Dimension];
+  return (['min', 'max'] as CutFrom[]).flatMap((from) => (['min', 'max'] as CutFrom[]).map((alongFrom) => ({ face, from, along, alongFrom })));
+});
+
+/** A chamfer's edge and its two legs: `legFace` into `face`, `legAlong` into `along` (stored values, exact). */
+export interface ChamferFields extends ChamferEdge { legFace: number; legAlong: number }
+
+export function chamferCut(f: ChamferFields, _board: Pick<Board, Dimension>): Omit<AngleCut, 'id'> {
+  return { kind: 'chamfer', face: f.face, from: f.from, along: f.along, alongFrom: f.alongFrom, points: [[0, f.legFace], [f.legAlong, 0]] };
+}
+
+/**
+ * The edge and legs of a stored chamfer, canonical (`face` before `along`). A line that deepens toward the far side of
+ * `along` is read from that side (as taperFields does); null when the line is not a corner chamfer — it never reaches
+ * depth 0 inside the part, or a leg exceeds its dimension. Editing rewrites it canonically via `chamferCut`.
+ */
+export function chamferFields(c: AngleCut, board: Pick<Board, Dimension>): ChamferFields | null {
+  const A = board[c.along];
+  let alongFrom = c.alongFrom;
+  let legFace = depthAt(c, 0);
+  let legAlong = zeroStation(c);
+  if (legFace <= 0 && depthAt(c, A) > 0) { alongFrom = flip(c.alongFrom); legFace = depthAt(c, A); legAlong = A - legAlong; }
+  if (!(legFace > 0 && legFace <= board[c.face] && Number.isFinite(legAlong) && legAlong > 0 && legAlong <= A)) return null;
+  const swap = DIMENSION_ORDER.indexOf(c.face) > DIMENSION_ORDER.indexOf(c.along);
+  return swap
+    ? { face: c.along, from: alongFrom, along: c.face, alongFrom: c.from, legFace: legAlong, legAlong: legFace }
+    : { face: c.face, from: c.from, along: c.along, alongFrom, legFace, legAlong };
+}
+
+/** The width-max / thickness-max edge, both legs 1/8 (smaller on a tiny part). */
+export function defaultChamfer(board: Pick<Board, Dimension>): Omit<AngleCut, 'id'> {
+  const leg = Math.min(0.125, board.width / 4, board.thickness / 4);
+  return chamferCut({ face: 'width', from: 'max', along: 'thickness', alongFrom: 'max', legFace: leg, legAlong: leg }, board);
+}
