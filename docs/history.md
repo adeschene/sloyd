@@ -18,6 +18,12 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-12 with fu 273's note live** (`index-TRoZVkeX.js`, CSS `index-D82Pe9tp.css`
+unchanged, commit `47548d3`, **schema 13**). Verified: `200` on `/` and a deep route in-network and at the edge; bundle
+matches `dist/` at both; `index-BR6V0tAc.js` 404s in-network; CSP unchanged at the edge; a real-browser load with 0
+errors, the Cloudflare beacon and "Cut list" present; the load's two fresh keys (`version: 13`) cleared and read back
+empty twice and after navigating away. The note itself is unit-tested (no dev-server pass).
+
 **Production matches `master` as of 2026-10-12 with the lumber yield & cost round live** (`index-BR6V0tAc.js`, CSS
 `index-D82Pe9tp.css`, merge `f6261fd`, **schema 13**). Verified: `200` on `/` and a deep route in-network and at the edge;
 bundle and CSS at both match `dist/`; `index-ulm_-ktQ.js` 404s in-network; CSP `connect-src 'self'

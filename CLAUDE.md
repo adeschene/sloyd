@@ -21,11 +21,11 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-12: the lumber yield & cost round (merge `f6261fd`) on top of the
-  plans-sheet round and fu 254/264, bundle `index-BR6V0tAc.js`, CSS `index-D82Pe9tp.css`, **SCHEMA 13** (unchanged, so
-  rolling back to `d161946`, `index-ulm_-ktQ.js`, is free — browser-level prices in `sloyd.shop.v1` are simply ignored by
-  an older build; below 13, `43b4928`, refuses every project saved since mirrored instances: export first). Test count
-  is under Commands. Fu 273's note (a smaller unpriced size would do) is on `master`, not yet deployed.
+- **Production matches `master`** as of 2026-10-12: the lumber yield & cost round plus fu 273's note (`47548d3`) on top of
+  the plans-sheet round and fu 254/264, bundle `index-TRoZVkeX.js`, CSS `index-D82Pe9tp.css`, **SCHEMA 13** (unchanged, so
+  rolling back to `f6261fd`, `index-BR6V0tAc.js`, or `d161946`, `index-ulm_-ktQ.js`, is free — an older build ignores
+  `sloyd.shop.v1`; below 13, `43b4928`, refuses every project saved since mirrored instances: export first). Test count
+  is under Commands.
 - **NO SUCCESSOR IS
   CHOSEN: ask what to work on; do not pick.** Open near the recent code:
   241 (open by decision), 251 (ui-polish residue, record-only),
