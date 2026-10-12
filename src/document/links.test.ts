@@ -1,5 +1,6 @@
 import { createBoard } from './document';
 import type { Board } from './document';
+import type { AngleCut } from './types';
 import { LINK_ACROSS_MIRROR, LINK_FIELDS, SHARED_KEYS, linkPlan, sameShared, sharedOf, sharedPatch } from './links';
 import type { LinkPlan } from './links';
 
@@ -14,8 +15,8 @@ const leg = (over: Partial<Board> = {}): Board =>
 const cut = { id: 'c1', face: 'width', from: 'max', across: 'length', offset: 0.5, width: 0.75, depth: 1, stopMin: 22, stopMax: 2 } as const;
 
 describe('LINK_FIELDS', () => {
-  it('shares exactly the spec\'s seven fields', () => {
-    expect([...SHARED_KEYS].sort()).toEqual(['cuts', 'grain', 'length', 'material', 'posture', 'thickness', 'width']);
+  it('shares exactly the spec\'s eight fields', () => {
+    expect([...SHARED_KEYS].sort()).toEqual(['angleCuts', 'cuts', 'grain', 'length', 'material', 'posture', 'thickness', 'width']);
     expect(LINK_FIELDS.rotation).toBe('own');
     expect(LINK_FIELDS.position).toBe('own');
     expect(LINK_FIELDS.shape).toBe('own');
@@ -148,5 +149,29 @@ describe('linkPlan', () => {
     const mirrored = (p: string) => p.startsWith('i1/');
     expect(linkPlan([m, plainS, mirroredS], ['M', 'i1/S'], keyOf, mirrored)).toEqual({ refused: LINK_ACROSS_MIRROR });
     expect(linkPlan([m, plainS, mirroredS], ['i1/S', 'M'], keyOf, mirrored)).toEqual({ refused: LINK_ACROSS_MIRROR });
+  });
+});
+
+describe('angle cuts are a shared field (angle-cuts spec §5.2)', () => {
+  const taper: AngleCut = { id: 'a1', kind: 'taper', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[0, 0.625], [24, 0]] };
+  const a = createBoard({ id: 'p', length: 29, width: 1.75, thickness: 1.75, angleCuts: [taper] });
+  const b = createBoard({ id: 'q', length: 29, width: 1.75, thickness: 1.75, angleCuts: [{ ...taper }] });
+
+  it('is classified shared', () => {
+    expect(LINK_FIELDS.angleCuts).toBe('shared');
+  });
+  it('makes a tapered part and a plain one differ', () => {
+    expect(sameShared(a, { ...b, angleCuts: [] })).toBe(false);
+    expect(sameShared(a, b)).toBe(true);
+    expect(sameShared(a, { ...b, angleCuts: [{ ...taper, kind: 'bevel' }] })).toBe(false);
+    expect(sameShared(a, { ...b, angleCuts: [{ ...taper, id: 'other' }] })).toBe(false); // by id, like cuts
+  });
+  it('copies the cuts and their points in sharedOf and sharedPatch', () => {
+    const s = sharedOf(a);
+    expect(s.angleCuts).toEqual(a.angleCuts);
+    expect(s.angleCuts[0]).not.toBe(a.angleCuts[0]);
+    expect(s.angleCuts[0]!.points).not.toBe(a.angleCuts[0]!.points);
+    const p = sharedPatch({ angleCuts: a.angleCuts });
+    expect(p.angleCuts![0]!.points).not.toBe(a.angleCuts[0]!.points);
   });
 });

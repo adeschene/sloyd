@@ -1,4 +1,4 @@
-import { flatDocument, migrateDocument, worldParts, writeBackFlat } from '../document/document';
+import { angledRefusal, flatDocument, migrateDocument, worldParts, writeBackFlat } from '../document/document';
 import type { SloydDocument } from '../document/document';
 import { DESIGN_SCHEMA, designToDocument, parseDesign } from '../document/generated';
 import type { GeneratedDesign } from '../document/generated';
@@ -249,6 +249,7 @@ export async function runRefine(
     const alsoPresent = new Set(checkDesign(joinedFlat, { width: null, depth: null, height: null, maxParts: joinedFlat.boards.length })
       .filter((v) => v.parts.length > 0).map(problemKey));
     const jo = await runJoinery(client, refined, signal, (p) => onProgress({ ...p, stage: 'join' }), { fixed, alsoPresent });
+    if ('refused' in jo) throw new Error(jo.refused); // unreachable: a refined design has no angle cuts
     if ('noSites' in jo) {
       joints = { kept: 0, chosen: 0, dropped, skipped: [] };
     } else {
@@ -320,7 +321,10 @@ export async function runJoinery(
   signal: AbortSignal,
   onProgress: (p: RunProgress) => void,
   opts: { fixed?: FixedJoints; alsoPresent?: ReadonlySet<string> } = {},
-): Promise<JoineryOutcome | { noSites: true }> {
+): Promise<JoineryOutcome | { noSites: true } | { refused: string }> {
+  // Angle cuts (spec §6): decided before any mutation or call.
+  const angled = angledRefusal(doc, 'joinery');
+  if (angled) return { refused: angled };
   // Joinery reads the FLAT document (assemblies spec §6.1): placed parts named by
   // their display paths. Its result is written back into the tree by index.
   const flat = flatDocument(doc);

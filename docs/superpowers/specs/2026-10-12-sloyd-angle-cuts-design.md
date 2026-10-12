@@ -1,6 +1,6 @@
 # Sloyd — angle cuts: tapers, miters, bevels and chamfers
 
-**Date:** 2026-10-12 · **Status:** approved by the user 2026-10-12; four amendments made while planning chunk 1 (§4.2, §6, §7 — marked *Amended*), also approved
+**Date:** 2026-10-12 · **Status:** approved by the user 2026-10-12; four amendments made while planning chunk 1 (§4.2, §6, §7 — marked *Amended*), also approved; chunk 1 implemented 2026-10-12 on branch angle-cuts (not yet deployed)
 **Builds on:** cuts (`cuts.ts`, invariants 16, 40), the turn table (invariant 44), the tree and mirrored instances
 (invariants 45, 46), the cut list (invariant 18), the Plans sheet's hidden-line drawings (invariants 38, 47) and the v1
 spec's non-goal "angled parts can arrive later as an explicit feature with compound-angle math done properly"
@@ -112,6 +112,9 @@ otherwise both of the line's intercepts on the part's faces inside the part → 
   six. A board with no angle cuts yields bodies identical to its pocket cells. A board its angle cuts consume entirely
   yields `[]` (invariant 21's placeholder, unchanged).
 
+*Amended (implementation):* `taperFields(c, board)` and `angleLine` read a taper that deepens toward the far end from
+its deep end (end = other, amount = `depthAt(A)`, start = A - z), so one vocabulary and no negative amounts.
+
 ### 3.2 Sites the rename does not reach
 
 The compiler will not find these; the plan must visit each:
@@ -188,6 +191,16 @@ there (invariant 19), in the existing vocabulary.
   `kind` included, compared exactly — as an order-independent set (like `cutSignature`). The table is checked against
   `AngleCut` by `satisfies` (invariant 40's pattern, one type over).
 
+*Amended (implementation):* the short point counts every end cut (`face === 'length'`) that removes stock, not only
+`kind` miter (kind never decides geometry), and prints after ALL angle lines. See fu 281.
+
+*Amended (user, 2026-10-12):* the short point is the SHORTEST LONG EDGE: the minimum, over the four corners of the end-face
+rectangle (width x thickness), of `L - depth_min_end(corner) - depth_max_end(corner)`, clamped at 0, where an end's depth
+at a corner is its deepest stock-removing end cut evaluated at that corner's coordinate on the cut's own `along`
+dimension, clamped to [0, L]. The earlier formula subtracted each end's deepest depth even when the two deepest points
+lay at opposite edges (parallel 45 degree ends on a 20 x 3-1/2 x 3/4 brace printed 13" where both long edges are 16-1/2").
+Each end's depth is a max of linear functions (convex), so the remaining length is concave across the face and its least lies at a corner. Trapezoid ends (same slope) are unchanged: 24 - 2.5 - 2.5 = 19.
+
 ### 4.3 Part diagrams (`diagram.ts`)
 
 In each face view where a slope shows as a line, the diagram draws the sloped line and hatches the wedge it removes as
@@ -232,6 +245,9 @@ first."* Refine and Repair joints say the same in their own words. Generate's `d
 *Amended (planning chunk 1):* Repair joints is **not offered** on an angled document rather than refusing with its own
 message: it is reachable only through the notice inside the Refine and Joinery dialogs, both of which refuse first, so a
 refusal of its own would print the same message twice.
+
+*Amended (implementation):* validation also drops non-finite slopes and non-finite station spans. In Properties, a
+face switch that would remove more than the new face allows is refused with a field-error note (refuse, never clamp).
 
 ## 7. Authoring (Properties)
 

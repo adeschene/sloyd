@@ -1,6 +1,6 @@
 import { MATERIALS, DEFAULT_MATERIAL, DEFAULT_KERF, isSheetGood } from './types';
 import type {
-  Board, Instance, Definition, Cut, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, FlatDocument, GuidePoint,
+  Board, Instance, Definition, Cut, AngleCut, AngleKind, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, FlatDocument, GuidePoint,
   Shape, StoredBoard,
 } from './types';
 import type { SharedField } from './links';
@@ -8,6 +8,7 @@ import { dissolveShapes, pruneShapes, isShaped } from './shapes';
 import { linksToShapes } from './linksToShapes';
 import { ROOT_STORAGE_ID } from './treeEdit';
 import { nextId } from './ids';
+import { ANGLE_KINDS, deriveKind } from './angleCuts';
 import { clamp, mirrorCutAlong } from './mirrorCut';
 import { dropUnresolved, repairTree } from './treeRepair';
 import { positionAxisOf, horizontalOf } from './geometry';
@@ -25,10 +26,16 @@ export {
 } from './geometry';
 export type { Bounds, AxisMap } from './geometry';
 export { mirrorCut } from './mirrorCut';
+export { ANGLE_CUT_FIELDS, ANGLE_CUT_KEYS, angleCutRemovesNothing, angleCutValues, angleCutsThatRemoveStock, copyAngleCut, defaultTaper, depthAt, keptHalfSpace, sameAngleCut, taperCut, taperFields, throughOf, zeroStation } from './angleCuts';
+export type { TaperFields, V3 } from './angleCuts';
+export { angledParts, angledRefusal } from './angledRefusal';
 export { cleanName, uniqueName, dedupeNames } from './names';
 export type { Named } from './names';
-export { boardEdges, boardSolids, CUT_GEOMETRY_FIELDS, CUT_GEOMETRY_KEYS, cutLabel, cutRegion, clippedRegion, cutShape, storedAsShape, cutRemovesNothing, cutsThatRemoveStock, pointToLocalXYZ, solidWorldBox, wholeBoard } from './cuts';
+export { pocketEdges, pocketCells, CUT_GEOMETRY_FIELDS, CUT_GEOMETRY_KEYS, cutLabel, cutRegion, clippedRegion, cutShape, storedAsShape, cutRemovesNothing, cutsThatRemoveStock, pointToLocalXYZ, solidWorldBox, wholeBoard } from './cuts';
 export type { CutKind, CutShape, Point, Segment } from './cuts';
+export { BODY_EPS, boardBodies, boardEdges, bodyEdges, bodyVerts, bodyVolume, geometryKey, partGeometry, PART_GEOMETRY_LIMIT } from './bodies';
+export type { PartGeometry } from './bodies';
+export type { Body, BodyFace } from './bodies';
 export { buildCutList } from './cutlist';
 export { findTenons } from './tenons';
 export type { Tenon } from './tenons';
@@ -115,8 +122,11 @@ export type { BoardSnapPoint, SnapKind, SnapOwner, SnapPoint, TapeAxis } from '.
  * upgrading. The bump's argument is WRONG GEOMETRY: a v12 build would drop
  * `mirrored` and draw the mirrored copy unmirrored, a second left cabinet where
  * the right one was, and autosave it.
+ *
+ * v14 added `Board.angleCuts` (angle-cuts spec §5.1): document-level, no step — an absent field defaults to [].
+ * The harm of a v13 build is silent loss on round trip: it drops every angle cut and autosaves.
  */
-export const CURRENT_VERSION = 13;
+export const CURRENT_VERSION = 14;
 
 export class DocumentError extends Error {
   /**
@@ -205,6 +215,7 @@ export function createBoard(partial: Partial<Board> = {}): Board {
     grain: 'length',
     material: DEFAULT_MATERIAL,
     cuts: [],
+    angleCuts: [],
     ...partial,
   };
 }
@@ -314,6 +325,46 @@ function validateCuts(raw: unknown, board: Pick<Board, Dimension>): Cut[] {
 }
 
 /**
+ * The well-formed angle cuts out of raw data, in order (angle-cuts spec §2.3).
+ * Dropped, never clamped: equal stations, a non-finite number, `along === face`,
+ * an unknown dimension or side. A missing or unknown `kind` is DERIVED
+ * (`deriveKind`), not dropped — the geometry is good and only the word is
+ * missing. A cut that removes nothing is KEPT (unlike fu 178): keeping it loses
+ * nothing and restores the cut if the part grows back. Ids are scoped to this
+ * board, or this shape (invariant 33).
+ */
+function validateAngleCuts(raw: unknown, board: Pick<Board, Dimension>): AngleCut[] {
+  if (!Array.isArray(raw)) return [];
+  const out: AngleCut[] = [];
+  const seen = new Set<string>();
+  const finitePair = (q: unknown): q is [number, number] =>
+    Array.isArray(q) && q.length === 2 && q.every((v) => typeof v === 'number' && Number.isFinite(v));
+  for (const item of raw) {
+    if (typeof item !== 'object' || item === null) continue;
+    const c = item as Record<string, unknown>;
+    const face = c.face as Dimension;
+    const along = c.along as Dimension;
+    if (!VALID_DIMENSIONS.includes(face) || !VALID_DIMENSIONS.includes(along) || face === along) continue;
+    if (!VALID_FROMS.includes(c.from as CutFrom) || !VALID_FROMS.includes(c.alongFrom as CutFrom)) continue;
+    const p = c.points;
+    if (!Array.isArray(p) || p.length !== 2 || !finitePair(p[0]) || !finitePair(p[1])) continue;
+    const points: AngleCut['points'] = [[p[0][0], p[0][1]], [p[1][0], p[1][1]]];
+    if (points[0][0] === points[1][0]) continue;
+    // Finite inputs can still overflow (stations 1e-308 apart, values near ±1e308). keptHalfSpace and
+    // zeroStation divide by the station span or the slope, so a line whose slope or span is not finite
+    // has no geometry to keep (an overflowed span even gives a finite slope, x / Infinity = 0). This
+    // does NOT bound depthAt, which multiplies (q2 − q1)(s − s1) before dividing: a finite but huge
+    // slope can still overflow there at a far station — reachable only from a hand-edited file.
+    const ds = points[1][0] - points[0][0];
+    if (!Number.isFinite(ds) || !Number.isFinite((points[1][1] - points[0][1]) / ds)) continue;
+    const base = { face, from: c.from as CutFrom, along, alongFrom: c.alongFrom as CutFrom, points };
+    const kind = ANGLE_KINDS.includes(c.kind as AngleKind) ? (c.kind as AngleKind) : deriveKind(base, board);
+    out.push({ id: takeId(c.id, seen), kind, ...base });
+  }
+  return out;
+}
+
+/**
  * The well-formed guides out of raw data, in order.
  *
  * Drops rather than refuses, the same rule validateCuts follows and for the
@@ -390,7 +441,7 @@ function validateSharedFields(b: Record<string, unknown>): { fields: Pick<Board,
   };
   // validateCuts reads only the dimensions; its `seen` set is its own, so a
   // shape's cut ids are scoped to the shape (invariant 33's per-board rule).
-  return { fields: { ...fields, cuts: validateCuts(b.cuts, fields) } };
+  return { fields: { ...fields, cuts: validateCuts(b.cuts, fields), angleCuts: validateAngleCuts(b.angleCuts, fields) } };
 }
 
 /**

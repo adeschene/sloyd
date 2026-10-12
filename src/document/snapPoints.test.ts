@@ -3,7 +3,7 @@
 // other test file in the repo omits the import.
 import { createBoard } from './document';
 import { boardExtents } from './geometry';
-import { boardSolids } from './cuts';
+import { pocketCells } from './cuts';
 import { boardSnapPoints, cutSnapPoints, guideSnapPoints, offsetPoint, sameSnapPoint, snapPointsFor, tapeAxisFromKey, towardFor } from './snapPoints';
 import type { SnapPoint } from './snapPoints';
 import type { Board, Cut, Posture, Rotation } from './types';
@@ -133,14 +133,14 @@ describe('boardSnapPoints', () => {
     // The ghost box IS drawn at the AABB (invariant 21), so its 26 points
     // still sit on a drawn feature even though stockProbe would say every one
     // of them touches no remaining stock. This must be an explicit
-    // boardSolids(board).length === 0 check, not inferred from the filtered
+    // pocketCells(board).length === 0 check, not inferred from the filtered
     // set coming back empty (design §5.1) — a board could in principle have
     // every box point in removed stock while stock remains in its middle.
     const consumed = posed([
       { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 0, width: 12, depth: 1, stopMin: 0, stopMax: 0 },
       { id: 'b', face: 'thickness', from: 'min', across: 'width', offset: 12, width: 12, depth: 1, stopMin: 0, stopMax: 0 },
     ]);
-    expect(boardSolids(consumed)).toHaveLength(0);
+    expect(pocketCells(consumed)).toHaveLength(0);
     expect(boardSnapPoints(consumed)).toHaveLength(26);
     expect(cutSnapPoints(consumed)).toEqual([]);
   });
@@ -440,7 +440,7 @@ describe('cutSnapPoints', () => {
       { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 0, width: 12, depth: 1, stopMin: 0, stopMax: 0 },
       { id: 'b', face: 'thickness', from: 'min', across: 'width', offset: 12, width: 12, depth: 1, stopMin: 0, stopMax: 0 },
     ]);
-    expect(boardSolids(board)).toHaveLength(0);
+    expect(pocketCells(board)).toHaveLength(0);
     expect(cutSnapPoints(board)).toEqual([]);
   });
 
@@ -801,5 +801,55 @@ describe('an over-deep cut offers the snap points of the depth it removes (fu 19
     const over = pts(dado(5));
     expect(over.length).toBeGreaterThan(0);
     expect(over).toEqual(pts(dado(0.75)));
+  });
+});
+
+describe('snap points on angle cuts (spec §3.6)', () => {
+  const rail = () => createBoard({ length: 24, width: 2.5, thickness: 0.75, position: [0, 0, 0], angleCuts: [
+    { id: 'm', kind: 'miter', face: 'length', from: 'max', along: 'width', alongFrom: 'min', points: [[0, 0], [2.5, 2.5]] },
+  ] });
+  const key = (v: number[]) => v.map((x) => Math.round(x * 1e6) / 1e6).join(',');
+
+  it('withholds the lattice points the miter removed', () => {
+    // Flat, turn 0: axisFrame puts length on X, thickness on Y, width on Z.
+    const pts = boardSnapPoints(rail()).map((p) => key(p.at));
+    const removed = boardSnapPoints({ ...rail(), angleCuts: [] }).filter((p) => !pts.includes(key(p.at)));
+    expect(removed.length).toBeGreaterThan(0);
+    expect(removed.every((p) => p.at[0] > 21.5 - 1e-9)).toBe(true); // only near the mitered end
+  });
+
+  it('offers the short point corners', () => {
+    const pts = boardSnapPoints(rail());
+    const short = pts.filter((p) => Math.abs(p.at[0] - 21.5) < 1e-9 && p.kind === 'corner');
+    expect(short).toHaveLength(2); // top and bottom of the short point
+    expect(pts.every((p) => p.owner.type === 'board')).toBe(true);
+  });
+
+  it('a part with no angle cuts is unchanged', () => {
+    expect(boardSnapPoints(createBoard({}))).toHaveLength(26);
+  });
+
+  it('never returns two points on the same spot (non-dyadic position)', () => {
+    const position: [number, number, number] = [0.1234567, 0.3333333, 0.7777777];
+    const taper = createBoard({ length: 24, width: 2.5, thickness: 0.75, position, angleCuts: [
+      { id: 't', kind: 'taper', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[0, 0], [2.5, 1]] },
+    ] });
+    for (const b of [{ ...rail(), position }, taper]) {
+      const pts = boardSnapPoints(b);
+      for (let i = 0; i < pts.length; i += 1) {
+        for (let j = i + 1; j < pts.length; j += 1) {
+          expect(pts[i]!.at.some((v, k) => Math.abs(v - pts[j]!.at[k]!) > 1e-6)).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('a rectangular cut inside the angle cut\'s removed wedge offers no cut points', () => {
+    const dado: Cut = { id: 'c1', face: 'thickness', from: 'min', across: 'width', offset: 22.5, width: 0.75, depth: 0.5, stopMin: 0, stopMax: 0 };
+    const without = cutSnapPoints({ ...rail(), cuts: [dado], angleCuts: [] });
+    const withAngle = cutSnapPoints({ ...rail(), cuts: [dado] });
+    expect(without.length).toBeGreaterThan(withAngle.length);
+    // The miter keeps length <= 24 - width (world x <= 24 - z here).
+    expect(withAngle.every((p) => p.at[0] <= 24 - p.at[2] + 1e-9)).toBe(true);
   });
 });

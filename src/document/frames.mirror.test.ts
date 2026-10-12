@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { placeBoard, placeInstance, mirrorPart } from './frames';
 import type { Frame } from './frames';
 import { worldSolids } from './designCheck';
-import { chiralPart, sameSet } from './turnFixtures';
+import { chiralAngled, chiralPart, sameSet } from './turnFixtures';
+import { boardBodies, bodyVerts } from './bodies';
+import { toWorld } from './snapPoints';
 import type { Board, Instance, Rotation } from './types';
 
 const POSTURES = ['flat', 'on-edge', 'upright'] as const;
@@ -92,5 +94,28 @@ describe('placing a part through a mirrored frame (mirrored-instances spec §3)'
     const b = part('on-edge', 90);
     expect(placeBoard({ position: [0, 0, 0], rotation: 0 }, b)).toEqual(b);
     expect(placeBoard({ position: [0, 0, 0], rotation: 0, mirrored: false }, b)).toEqual(b);
+  });
+});
+
+const worldVerts = (b: Board) => boardBodies(b).flatMap(bodyVerts).map(([l, w, t]) => toWorld(b, { length: l, width: w, thickness: t }));
+
+describe('a mirrored frame reflects angle cuts (inv 44, spec 5.2)', () => {
+  for (const posture of POSTURES) {
+    for (const rotation of TURNS) {
+      it(`${posture} at ${rotation} deg: mirrorPart's vertices are the reflection across x = 0`, () => {
+        const b = { ...chiralAngled(posture), rotation, position: [2, 1, -3] as [number, number, number] };
+        const reflected = worldVerts(b).map(([x, y, z]) => [0 - x!, y!, z!]);
+        expect(sameSet(worldVerts(mirrorPart(b)), reflected)).toBe(true);
+        const placed = placeBoard({ position: [0, 0, 0], rotation: 0, mirrored: true }, b);
+        expect(placed.angleCuts).toEqual(mirrorPart(b).angleCuts);
+        expect(sameSet(worldVerts(placed), reflected)).toBe(true);
+      });
+    }
+  }
+  it('the fixture is chiral: an unmirrored-cut reflection would differ', () => {
+    const b = chiralAngled('flat');
+    const wrong = { ...mirrorPart(b), angleCuts: b.angleCuts };
+    const reflected = worldVerts(b).map(([x, y, z]) => [0 - x!, y!, z!]);
+    expect(sameSet(worldVerts(wrong), reflected)).toBe(false);
   });
 });

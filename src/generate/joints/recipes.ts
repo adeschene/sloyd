@@ -1,6 +1,6 @@
 import { CURRENT_VERSION, migrateDocument, storedAsShape, flatDocument, worldParts } from '../../document/document';
 import type { Board, Cut, Dimension, FlatDocument, SloydDocument } from '../../document/document';
-import { boardSolids, cutRegion } from '../../document/cuts';
+import { pocketCells, cutRegion } from '../../document/cuts';
 import { TOUCH, worldSolids } from '../../document/designCheck';
 import { SNAP_INCHES, axisDimensions, endFacing, positionAxisOf } from '../../document/geometry';
 import { boxOf, pocketFor } from './pocket';
@@ -153,7 +153,7 @@ function rebaseCuts(b: Board, d: Dimension, end: 'min' | 'max', amount: number, 
   // of d, so it is re-faced the same way (a partial one sits at the far end and stays there).
   const reachesMovingEnd = (c: Cut) => c.face === d && (c.from === end || c.depth >= was - 1e-9);
   b.cuts = b.cuts.map((c) => (reachesMovingEnd(c) ? refaceFromEnd(before, c, d) ?? c : c));
-  const solids = boardSolids(before);
+  const solids = pocketCells(before);
   b.cuts = b.cuts.map((c) => storedAsShape(before, c, solids));
   b.cuts = b.cuts.filter((c) => {
     if (c.face === d) {

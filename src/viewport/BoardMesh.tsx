@@ -2,12 +2,12 @@ import type { ToggleModifiers } from '../store/selectionGesture';
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import {
-  boardCenter, boardEdges, boardExtents, boardSolids, pointToLocalXYZ,
+  boardCenter, boardExtents, partGeometry, pointToLocalXYZ,
   solidWorldBox, wholeBoard, MATERIALS, DEFAULT_MATERIAL,
 } from '../document/document';
 import type { Board } from '../document/document';
 import { faceGrainKinds, grainFamily } from './grainFaces';
-import { boardUVs, boardUVSignature } from './grainTiling';
+import { bodyMesh, boardUVs, boardUVSignature } from './grainTiling';
 import { grainTexture } from './grainTexture';
 import { CLICK_DRAG_SLOP_PX, clickPairStartedWithDrag } from './pointer';
 
@@ -23,7 +23,7 @@ const EDGE_DARKEN = 0.3;
 
 /**
  * How solid the placeholder ghost is when a board's own cuts have removed all
- * of its stock (`boardSolids` returning `[]` — follow-ups 48 and 49).
+ * of its stock (`boardBodies` returning `[]` — follow-ups 48 and 49).
  *
  * Browser-settled by comparison, not derived. 0.1 was rendered against this
  * app's near-white ground and rejected: at that value the grid reads straight
@@ -109,7 +109,7 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
   // the array for the same reason as before: the box's own size belongs on
   // the memo that builds the box.
   //
-  // `boardSolids` can legitimately return `[]` — a board whose own cuts have
+  // `boardBodies` can legitimately return `[]` — a board whose own cuts have
   // consumed all of its stock, reachable by shrinking a dimension past an
   // existing cut (follow-up 48) or by two individually-legal cuts that jointly
   // remove everything (49). Before this branch existed the board then drew
@@ -125,8 +125,8 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
   // invariant 15's failure mode; riding along here inherits the signature key
   // and the disposal effect below for free.
   const geometries = useMemo(() => {
-    const solids = boardSolids(board);
-    if (solids.length === 0) {
+    const bodies = partGeometry(board).bodies;
+    if (bodies.length === 0) {
       const { center, size } = solidWorldBox(board, wholeBoard(board));
       return {
         placeholder: true,
@@ -135,11 +135,21 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
     }
     return {
       placeholder: false,
-      items: solids.map((solid) => {
-        const { center, size } = solidWorldBox(board, solid);
-        const geo = new THREE.BoxGeometry(size[0], size[1], size[2]);
-        geo.setAttribute('uv', new THREE.BufferAttribute(boardUVs(board, solid), 2));
-        return { geo, center };
+      items: bodies.map((body) => {
+        if (body.box) {
+          // Today's path, byte-for-byte (angle-cuts spec §3.3).
+          const { center, size } = solidWorldBox(board, body.box);
+          const geo = new THREE.BoxGeometry(size[0], size[1], size[2]);
+          geo.setAttribute('uv', new THREE.BufferAttribute(boardUVs(board, body.box), 2));
+          return { geo, center };
+        }
+        const m = bodyMesh(board, body);
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(m.positions, 3));
+        geo.setAttribute('uv', new THREE.BufferAttribute(m.uvs, 2));
+        for (const g of m.groups) geo.addGroup(g.start, g.count, g.materialIndex);
+        geo.computeVertexNormals();
+        return { geo, center: [0, 0, 0] as [number, number, number] };
       }),
     };
   }, [
@@ -168,7 +178,7 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
     if (geometries.placeholder) {
       return new THREE.EdgesGeometry(geometries.items[0].geo);
     }
-    const points = boardEdges(board).flatMap(([a, b]) => [
+    const points = partGeometry(board).edges.flatMap(([a, b]) => [
       ...pointToLocalXYZ(board, a),
       ...pointToLocalXYZ(board, b),
     ]);

@@ -3,7 +3,7 @@ import { LINK_FIELDS, SHARED_KEYS, createBoard, createDocument, isShaped, resolv
 import type { Shape, ShapedBoard, SloydDocument } from './document';
 
 const leg: Shape = { id: 's1', length: 28, width: 1.75, thickness: 1.75, material: 'oak', grain: 'length', posture: 'upright',
-  cuts: [{ id: 'c1', face: 'thickness', from: 'max', across: 'width', offset: 20, width: 2, depth: 0.5, stopMin: 0.25, stopMax: 0.25 }] };
+  cuts: [{ id: 'c1', face: 'thickness', from: 'max', across: 'width', offset: 20, width: 2, depth: 0.5, stopMin: 0.25, stopMax: 0.25 }], angleCuts: [] };
 const user = (id: string, x: number, rotation: 0 | 90 | 180 | 270 = 0): ShapedBoard =>
   ({ id, name: `Leg ${id}`, position: [x, 0, 0], rotation, shape: 's1' });
 
@@ -44,5 +44,18 @@ describe('shapes', () => {
     const w = worldParts(doc);
     expect(w.map((b) => [b.id, b.length, b.shape])).toEqual([['a', 28, 's1'], ['b', 28, 's1']]);
     expect(shapeMap(doc).get('s1')).toBe(leg);
+  });
+});
+
+describe('resolveBoard copies angle cuts', () => {
+  it('gives each user its own copy', () => {
+    const shape = { id: 's1', length: 29, width: 1.75, thickness: 1.75, posture: 'upright' as const, grain: 'length' as const, material: 'oak', cuts: [],
+      angleCuts: [{ id: 'a1', kind: 'taper' as const, face: 'width' as const, from: 'min' as const, along: 'length' as const, alongFrom: 'min' as const, points: [[0, 0.625], [24, 0]] as [[number, number], [number, number]] }] };
+    const shapes = new Map([['s1', shape]]);
+    const one = resolveBoard(shapes, { id: 'x', name: 'L1', position: [0, 0, 0], rotation: 0, shape: 's1' })!;
+    const two = resolveBoard(shapes, { id: 'y', name: 'L2', position: [3, 0, 0], rotation: 0, shape: 's1' })!;
+    expect(one.angleCuts).toEqual(shape.angleCuts);
+    expect(one.angleCuts[0]).not.toBe(two.angleCuts[0]);
+    expect(one.angleCuts[0]!.points).not.toBe(shape.angleCuts[0]!.points);
   });
 });

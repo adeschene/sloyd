@@ -203,7 +203,7 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], 
     rejected.push({ name: label, reason: 'too-small' });
     return null;
   }
-  return { name: clean(p.name), material: p.material, grain: isGrain(p.grain) ? p.grain : 'length', cuts: [], position: [ax, ay, az], ...orient([sx, sy, sz]) };
+  return { name: clean(p.name), material: p.material, grain: isGrain(p.grain) ? p.grain : 'length', cuts: [], angleCuts: [], position: [ax, ay, az], ...orient([sx, sy, sz]) };
 }
 
 /**

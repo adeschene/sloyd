@@ -153,7 +153,7 @@ describe('shared definitions', () => {
         instances: [{ id: 'k1', name: 'Knob', definition: 'd2', position: [0, 0, 0], rotation: 0 }] },
       { id: 'd2', boards: [createBoard({ id: 'n1', name: 'Knob' })], instances: [] },
     ],
-    shapes: [{ id: 's1', length: 6, width: 1, thickness: 1, material: 'oak', grain: 'length', posture: 'upright', cuts: [] }],
+    shapes: [{ id: 's1', length: 6, width: 1, thickness: 1, material: 'oak', grain: 'length', posture: 'upright', cuts: [], angleCuts: [] }],
   });
 
   it('shareInstance names the same definition with a fresh id', () => {
@@ -177,6 +177,30 @@ describe('shared definitions', () => {
     expect(out.instances.find((i) => i.id === 'i1')!.definition).toBe('d1');
     // occurrence paths are unchanged
     expect(worldParts(out).map((b) => b.id)).toEqual(worldParts(doc).map((b) => b.id));
+  });
+
+  it('makeUniqueItem copies angle cuts with their ids and shares no points array (angle-cuts spec §5.2)', () => {
+    const doc = base();
+    const taper = { id: 'a1', kind: 'taper' as const, face: 'width' as const, from: 'min' as const, along: 'length' as const, alongFrom: 'min' as const, points: [[0, 0.5], [18, 0]] as [[number, number], [number, number]] };
+    doc.definitions[0]!.boards[0] = createBoard({ id: 'b1', name: 'Side', angleCuts: [taper] });
+    const out = makeUniqueItem(doc, 'i2')!;
+    const i2 = out.instances.find((i) => i.id === 'i2')!;
+    const copy = out.definitions.find((d) => d.id === i2.definition)!.boards[0] as Board;
+    expect(copy.angleCuts).toEqual([taper]);
+    expect(copy.angleCuts[0]).not.toBe(taper);
+    expect(copy.angleCuts[0]!.points).not.toBe(taper.points);
+  });
+
+  it('ungroupItem lifts a plain part with its angle cuts, sharing no points array with the surviving definition', () => {
+    const doc = base();
+    const taper = { id: 'a1', kind: 'taper' as const, face: 'width' as const, from: 'min' as const, along: 'length' as const, alongFrom: 'min' as const, points: [[0, 0.5], [18, 0]] as [[number, number], [number, number]] };
+    doc.definitions[0]!.boards[0] = createBoard({ id: 'b1', name: 'Side', angleCuts: [taper] });
+    const r = ungroupItem(doc, 'i1')!;
+    expect(r.doc.definitions.some((d) => d.id === 'd1')).toBe(true);   // i2 still places it
+    const lifted = partAt(r.doc, r.rekey('i1/b1')) as Board;
+    expect(lifted.angleCuts).toEqual([taper]);
+    expect(lifted.angleCuts[0]!.points).not.toBe(taper.points);
+    expect((r.doc.definitions[0]!.boards[0] as Board).angleCuts[0]!.points).not.toBe(lifted.angleCuts[0]!.points);
   });
 
   // Fu 231. An instance INSIDE a shared container is one stored record whatever

@@ -4,7 +4,9 @@ import { createDocument } from './document';
 import { worldParts } from './tree';
 import { boardExtents } from './geometry';
 import { worldSolids } from './designCheck';
-import { chiralPart, sameSet } from './turnFixtures';
+import { chiralAngled, chiralPart, sameSet } from './turnFixtures';
+import { sameAngleCut } from './angleCuts';
+import { SHARED_KEYS, sharedOf } from './links';
 import { CUT_GEOMETRY_KEYS } from './cuts';
 import type { Board, Cut, Instance, Rotation, SloydDocument } from './types';
 
@@ -185,5 +187,59 @@ describe('write-back through a mirror is the exact inverse (mirrored-instances s
     const before = occ(d);
     const out = applyWorldEdits(d, [{ before, after: { ...before, posture: 'on-edge' } }]);
     expect(stored(out).cuts).toBe(stored(d).cuts);
+  });
+});
+
+describe('angle cuts through a mirrored instance (Review Focus 1)', () => {
+  it('an untouched edit keeps the stored angle cuts object', () => {
+    const d0 = doc(chiralAngled('flat'), { mirrored: true });
+    const before = occ(d0);
+    const d1 = applyWorldEdits(d0, [{ before, after: { ...before, length: before.length + 1 } }]);
+    expect(stored(d1).angleCuts).toBe(stored(d0).angleCuts);
+  });
+
+  it('an edit to a world taper writes back the mirror of it, and placing it again shows the edit', () => {
+    const d0 = doc(chiralAngled('upright'), { mirrored: true, rotation: 90 });
+    const before = occ(d0);
+    const edited = before.angleCuts.map((c) => (c.id === 'a1' ? { ...c, points: [[0, 1], [10, 0]] as [[number, number], [number, number]] } : c));
+    const d1 = applyWorldEdits(d0, [{ before, after: { ...before, angleCuts: edited } }]);
+    const shown = occ(d1).angleCuts.find((c) => c.id === 'a1')!;
+    expect(sameAngleCut(shown, edited.find((c) => c.id === 'a1')!)).toBe(true);
+    // Repeated identical edits do not drift.
+    const d2 = applyWorldEdits(d1, [{ before: occ(d1), after: { ...occ(d1), angleCuts: occ(d1).angleCuts.map((c) => ({ ...c })) } }]);
+    stored(d1).angleCuts.forEach((c, i) => expect(stored(d2).angleCuts[i]).toBe(c));
+  });
+
+  it('a posture change moving d0 keeps the world angle cuts as seen (stored ones re-reflected); one keeping d0 leaves them', () => {
+    for (const A of [{ mirrored: true }, { mirrored: true, rotation: 90 as const }]) {
+      for (const [from, to] of [['flat', 'upright'], ['upright', 'on-edge']] as const) {
+        const d = doc(chiralAngled(from), A);
+        const before = occ(d);
+        const out = applyWorldEdits(d, [{ before, after: { ...before, posture: to } }]);
+        expect(stored(out).angleCuts, `${from}->${to}`).not.toBe(stored(d).angleCuts);
+        const now = occ(out);
+        expect(now.angleCuts.length).toBe(before.angleCuts.length);
+        now.angleCuts.forEach((c, i) => expect(sameAngleCut(c, before.angleCuts[i]!), `${from}->${to} ${i}`).toBe(true));
+      }
+      const d = doc(chiralAngled('flat'), A);
+      const before = occ(d);
+      const out = applyWorldEdits(d, [{ before, after: { ...before, posture: 'on-edge' } }]);
+      expect(stored(out).angleCuts).toBe(stored(d).angleCuts);
+    }
+  });
+
+  it('a shaped part (all users on the mirrored side) keeps its world angle cuts through a d0-moving posture change', () => {
+    const d0 = doc(chiralAngled('flat'), { mirrored: true });
+    const b = stored(d0);
+    const own = Object.fromEntries(Object.entries(b).filter(([k]) => !(SHARED_KEYS as string[]).includes(k)));
+    const shaped = { ...own, shape: 's1' } as unknown as Board;
+    const d = { ...d0, shapes: [{ id: 's1', ...sharedOf(b) }], definitions: [{ ...d0.definitions[0]!, boards: [shaped] }] };
+    const before = occ(d);
+    expect(before.shape).toBe('s1');
+    const out = applyWorldEdits(d, [{ before, after: { ...before, posture: 'upright' } }]);
+    const now = occ(out);
+    expect(now.angleCuts.length).toBe(before.angleCuts.length);
+    now.angleCuts.forEach((c, i) => expect(sameAngleCut(c, before.angleCuts[i]!), `cut ${i}`).toBe(true));
+    expect(out.shapes[0]!.angleCuts).not.toEqual(d.shapes[0]!.angleCuts);
   });
 });

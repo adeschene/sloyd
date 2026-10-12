@@ -291,3 +291,57 @@ describe('true views (fu 215)', () => {
     });
   });
 });
+
+describe('angle cuts in part diagrams (spec §4.3)', () => {
+  const taper = { id: 'a1', kind: 'taper' as const, face: 'width' as const, from: 'min' as const, along: 'length' as const, alongFrom: 'min' as const, points: [[0, 0.625], [24, 0]] as [[number, number], [number, number]] };
+  const leg = () => createBoard({ length: 29, width: 1.75, thickness: 1.75, angleCuts: [taper] });
+
+  it('draws the wedge in the view looking along the through dimension', () => {
+    const views = buildDiagrams(leg(), 16);
+    const v = views.find((x) => x.face === 'thickness' && x.from === 'min')!;
+    expect(v.angles).toHaveLength(1);
+    // h = length, v = width (DIMENSION_ORDER): a triangle (0,0) (0,0.625) (24,0).
+    const pts = v.angles[0]!.poly.map(([h, w]) => `${Math.round(h * 1e9) / 1e9},${Math.round(w * 1e9) / 1e9}`).sort();
+    expect(pts).toEqual(['0,0', '0,0.625', '24,0'].sort());
+    expect(v.angles[0]!.label).toMatch(/^Taper 5\/8"/);
+  });
+  it('a cut-free board has no angles and still one view', () => {
+    const views = buildDiagrams(createBoard({}), 16);
+    expect(views).toHaveLength(1);
+    expect(views[0]!.angles).toEqual([]);
+  });
+  it('an angle cut that removes nothing is not drawn', () => {
+    const b = createBoard({ length: 29, width: 1.75, thickness: 1.75, angleCuts: [{ ...taper, points: [[40, 0], [50, 1]] }] });
+    expect(buildDiagrams(b, 16).flatMap((v) => v.angles)).toEqual([]);
+  });
+  it('an angle cut that removes nothing does not even open its view', () => {
+    const b = createBoard({ length: 29, width: 1.75, thickness: 1.75, angleCuts: [{ ...taper, face: 'thickness' as const, points: [[40, 0], [50, 1]] }] });
+    expect(buildDiagrams(b, 16).map((v) => v.key)).toEqual(['thickness|min']);
+  });
+  it('a dado on the through face\'s max side: that view takes the wedge and no min view is opened (ruling 108)', () => {
+    const dado: Cut = { id: 'c1', face: 'thickness', across: 'width', from: 'max', offset: 10, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const b = createBoard({ length: 29, width: 1.75, thickness: 1.75, cuts: [dado], angleCuts: [taper] });
+    const views = buildDiagrams(b, 16);
+    expect(views.map((v) => v.key)).toEqual(['thickness|max']);
+    const pts = views[0]!.angles[0]!.poly.map(([h, w]) => `${Math.round(h * 1e9) / 1e9},${Math.round(w * 1e9) / 1e9}`).sort();
+    expect(pts).toEqual(['0,0', '0,0.625', '24,0'].sort());
+  });
+  it('dadoes on both sides of the through face: both views take the same wedge', () => {
+    const near: Cut = { id: 'c1', face: 'thickness', across: 'width', from: 'min', offset: 10, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const far: Cut = { ...near, id: 'c2', from: 'max' };
+    const views = buildDiagrams(createBoard({ length: 29, width: 1.75, thickness: 1.75, cuts: [near, far], angleCuts: [taper] }), 16);
+    expect(views.map((v) => v.key)).toEqual(['thickness|min', 'thickness|max']);
+    expect(views[0]!.angles).toHaveLength(1);
+    expect(views[1]!.angles).toEqual(views[0]!.angles);
+  });
+  it('a plain tapered part opens only the min-side through view', () => {
+    expect(buildDiagrams(leg(), 16).map((v) => v.key)).toEqual(['thickness|min']);
+  });
+  it('draws in the other horizontal/vertical pairing (through = length: h = width, v = thickness)', () => {
+    const bevel = { id: 'b1', kind: 'bevel' as const, face: 'thickness' as const, from: 'min' as const, along: 'width' as const, alongFrom: 'min' as const, points: [[0, 0.5], [1.75, 0]] as [[number, number], [number, number]] };
+    const v = buildDiagrams(createBoard({ length: 29, width: 1.75, thickness: 1.75, angleCuts: [bevel] }), 16).find((x) => x.face === 'length' && x.from === 'min')!;
+    expect([v.horizontal, v.vertical]).toEqual(['width', 'thickness']);
+    const pts = v.angles[0]!.poly.map(([h, t]) => `${Math.round(h * 1e9) / 1e9},${Math.round(t * 1e9) / 1e9}`).sort();
+    expect(pts).toEqual(['0,0', '0,0.5', '1.75,0'].sort());
+  });
+});

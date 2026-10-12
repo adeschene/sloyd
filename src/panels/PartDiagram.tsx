@@ -351,6 +351,19 @@ export function PartDiagram({ view }: { view: DiagramView }) {
           );
         })}
 
+        {view.angles.map((a) => (
+          <polygon
+            key={a.id}
+            className="cutlist-diagram-angle"
+            points={a.poly.map(([h, v]) => {
+              const x = left + fit.offsetX + h * fit.sx;
+              const y = top + (view.vUp ? view.v - v : v) * fit.sy;
+              return `${x},${y}`;
+            }).join(' ')}
+            fill={`url(#${hatch})`}
+          />
+        ))}
+
         {rowLeaders.map((l, i) => {
           const lo = left + fit.offsetX;
           const hi = lo + fit.drawnH;
@@ -425,6 +438,9 @@ export function PartDiagram({ view }: { view: DiagramView }) {
       <p className="cutlist-diagram-note">Schematic — not to scale</p>
       {view.crossings.map((line) => (
         <p className="cutlist-diagram-crossings" key={line}>{line}</p>
+      ))}
+      {view.angles.map((a) => (
+        <p className="cutlist-diagram-angle-note" key={a.id}>{a.label}</p>
       ))}
     </figure>
   );

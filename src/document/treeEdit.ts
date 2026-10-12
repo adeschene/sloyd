@@ -1,6 +1,7 @@
 import { boardExtents } from './geometry';
-import type { Board, Cut, Definition, Instance, Posture, Shape, SloydDocument, StoredBoard } from './types';
+import type { AngleCut, Board, Cut, Definition, Instance, Posture, Shape, SloydDocument, StoredBoard } from './types';
 import { CUT_GEOMETRY_KEYS } from './cuts';
+import { angleCutValues, copyAngleCut, mirrorAngleCut, sameAngleCut } from './angleCuts';
 import { nextId } from './ids';
 import { LINK_FIELDS, SHARED_KEYS, sharedOf } from './links';
 import { isShaped, resolveBoard, shapeMap } from './shapes';
@@ -77,6 +78,25 @@ function lowerCuts(storedBefore: Board, draft: Board, keepWorld: boolean): Cut[]
 }
 
 /**
+ * The angle cuts of a part lowered back through ONE mirror (angle-cuts spec
+ * 5.2). The reflection is a flag flip, exact and size-free, so unlike
+ * `lowerCuts` there is no before/after frame to choose: each world cut is
+ * reflected along the lowered (after) posture's d0, and one equal to the stored
+ * cut with the same id maps back to THAT object. All reused: the stored array.
+ */
+function lowerAngleCuts(storedBefore: Board, draft: Board): AngleCut[] {
+  const d0 = mirrorDim(draft);
+  const byId = new Map(storedBefore.angleCuts.map((c) => [c.id, c]));
+  const out = draft.angleCuts.map((c) => {
+    const back = mirrorAngleCut(c, d0);
+    const s = byId.get(c.id);
+    return s && sameAngleCut(s, back) ? s : back;
+  });
+  return out.length === storedBefore.angleCuts.length && out.every((c, i) => c === storedBefore.angleCuts[i])
+    ? storedBefore.angleCuts : out;
+}
+
+/**
  * One level down: the part's after-state in an instance's frame, from its
  * after-state in the parent's frame. A position goes down as a DELTA (spec
  * §5.2): the stored value gains the inverse-rotated world change, less the
@@ -99,6 +119,7 @@ function lower(inst: Instance, upperBefore: Board, lowerBefore: Board, upperAfte
     rotation: inverseTurn(draft.rotation),
     position: [lowerBefore.position[0] + dx, lowerBefore.position[1] + d[1]!, lowerBefore.position[2] + d[2]!],
     cuts: lowerCuts(lowerBefore, draft, keepWorld),
+    angleCuts: lowerAngleCuts(lowerBefore, draft),
   };
 }
 
@@ -246,9 +267,15 @@ function lowerEdit(doc: SloydDocument, shapes: ReadonlyMap<string, Shape>, befor
   const changedKeys = [...new Set([...Object.keys(before), ...Object.keys(after)])].filter((k) => {
     if (k === 'id' || k === 'shape') return false;            // never written through here
     if (k === 'position' || k === 'rotation') return moved;
+    if (k === 'angleCuts') {
+      // Written when edited, or when a mirror lowering produced a fresh array that is not the stored one
+      // (a d0-moving posture change keeps the world angle cuts as seen). An unmirrored chain leaves
+      // cur === after, so a shared world array is never written.
+      return rec(before)[k] !== rec(after)[k] || (cur.angleCuts !== after.angleCuts && cur.angleCuts !== resolved.angleCuts);
+    }
     return k === 'cuts' ? cur.cuts !== resolved.cuts : rec(before)[k] !== rec(after)[k];
   });
-  const valueOf = (k: string) => (k === 'position' ? [...cur.position] : k === 'rotation' ? cur.rotation : k === 'cuts' ? cur.cuts : rec(after)[k]);
+  const valueOf = (k: string) => (k === 'position' ? [...cur.position] : k === 'rotation' ? cur.rotation : k === 'cuts' ? cur.cuts : k === 'angleCuts' ? cur.angleCuts : rec(after)[k]);
   return { stored, defId, key: `${defId}:${stored.id}`, changedKeys, valueOf, after };
 }
 
@@ -281,9 +308,10 @@ function mergeField(rec0: Record<string, unknown>, wrote: Map<string, unknown>, 
 
 /**
  * Write world-space edits back into the tree (spec §5.1, §5.2). Only changed
- * fields are written: `position` compared element by element, `cuts` by
- * reference, everything else by `!==`. `position`, `rotation` and `cuts`
- * go down level by level through `lower` (through a mirror the cuts are
+ * fields are written: `position` compared element by element, `cuts` by reference, `angleCuts` when edited or when a mirror lowering
+ * re-reflected them (a posture change that moves d0 keeps the world angle cuts as seen, as `lowerCuts` does for
+ * cuts; an unmirrored chain never writes a shared world array), everything else by `!==`. `position`, `rotation`, `cuts` and
+ * `angleCuts` go down level by level through `lower` (through a mirror the cuts are
  * reflected back by `lowerCuts`; untouched ones stay the stored objects); every
  * other field is part-local and goes back as it is. A key present before and absent after is deleted (storedValue).
  * A root part's write is plain assignment, exactly as before assemblies.
@@ -395,9 +423,10 @@ function plainWithMarkers(doc: SloydDocument): SloydDocument {
 
 /** A part's shared fields as a comparable string, each cut by GEOMETRY
  *  (CUT_GEOMETRY_KEYS, in order) and NOT by id: pocketFor mints fresh cut ids
- *  per board, so identical mortises differ only by id (spec §5). */
+ *  per board, so identical mortises differ only by id (spec §5). Angle cuts
+ *  likewise by ANGLE_CUT_FIELDS, not id. */
 function sharedSignature(b: Board): unknown[] {
-  return SHARED_KEYS.map((k) => (k === 'cuts' ? b.cuts.map((c) => CUT_GEOMETRY_KEYS.map((f) => c[f])) : b[k]));
+  return SHARED_KEYS.map((k) => (k === 'cuts' ? b.cuts.map((c) => CUT_GEOMETRY_KEYS.map((f) => c[f])) : k === 'angleCuts' ? b.angleCuts.map(angleCutValues) : b[k]));
 }
 
 /** A lowered result as compared across placements: own position and rotation
@@ -437,7 +466,7 @@ function copyDefinition(d: Definition): Definition {
     id: nextId(),
     boards: d.boards.map((b) => (isShaped(b)
       ? { ...b, position: [...b.position] as [number, number, number] }
-      : { ...b, position: [...b.position] as [number, number, number], cuts: b.cuts.map((c) => ({ ...c })) })),
+      : { ...b, position: [...b.position] as [number, number, number], cuts: b.cuts.map((c) => ({ ...c })), angleCuts: b.angleCuts.map(copyAngleCut) })),
     instances: d.instances.map((j) => ({ ...j, position: [...j.position] as [number, number, number] })),
   };
 }

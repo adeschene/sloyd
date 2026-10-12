@@ -11,6 +11,7 @@ const base = {
   hasKey: true, libraryAvailable: true, projectName: 'Bench',
   sites: ['Rail → Leg: end into face', 'Shelf → Leg: face against edge'],
   model: 'claude-sonnet-5-5', estimate: { low: 0.02, high: 0.11 } as CostRange | null,
+  refusal: null as string | null,
   run: null as JoineryRun | null, live: false,
   onRun: noop, onCancel: noop, onOpenProject: noop, onOpenSettings: noop, onClose: noop,
 };
@@ -48,6 +49,14 @@ describe('JoineryDialog', () => {
   it('with no sites it says so and cannot run', () => {
     draw({ sites: [], estimate: null });
     expect(screen.getByText('No joints to add — no parts meet end-to-face, face-to-edge, or crossing.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add joinery' })).toBeDisabled();
+  });
+
+  it('with a refusal it shows it instead of the sites, hides the estimate and cannot run', () => {
+    draw({ refusal: 'Add joinery will not run here.' });
+    expect(screen.getByText('Add joinery will not run here.')).toBeInTheDocument();
+    expect(screen.queryByText('Rail → Leg: end into face')).toBeNull();
+    expect(screen.queryByText('≈ $0.02–$0.11')).toBeNull();
     expect(screen.getByRole('button', { name: 'Add joinery' })).toBeDisabled();
   });
 

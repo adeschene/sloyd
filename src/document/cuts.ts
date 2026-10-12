@@ -1,4 +1,5 @@
 import { MATERIALS, type Board, type Cut, type Dimension, type Region, type Span } from './types';
+import { keptHalfSpace } from './angleCuts';
 import { axisFrame, boardExtents, DIMENSION_ORDER, positionAxisOf, spanToWorldOffset, toWorldOffset } from './geometry';
 
 /**
@@ -91,7 +92,7 @@ export function clippedRegion(board: Board, cut: Cut): Region {
  * cut a board edit has left behind: stops that now cross, an offset now past
  * the board's end, or a width or depth of zero. `cutRegion`'s all-zero region
  * covers only the first, so the test is the CLIPPED box, not that sentinel —
- * which is also exactly what `boardSolids` already does, so the 3D view and
+ * which is also exactly what `pocketCells` already does, so the 3D view and
  * this agree by construction.
  *
  * Such a cut is kept in the document (shrinking a board and growing it back
@@ -101,7 +102,7 @@ export function clippedRegion(board: Board, cut: Cut): Region {
 export function cutRemovesNothing(board: Board, cut: Cut): boolean {
   const region = cutRegion(board, cut);
   // `!(x > 0)` rather than `x <= 0`, so a NaN span (a directly-built Board)
-  // counts as empty — which is what boardSolids makes of it.
+  // counts as empty — which is what pocketCells makes of it.
   return DIMENSION_ORDER.some(
     (d) => !(Math.min(region[d][1], board[d]) - Math.max(region[d][0], 0) > 0),
   );
@@ -131,7 +132,7 @@ interface Grid {
  * two cuts is removed once, never twice, and there is no pairwise intersection
  * case to get wrong.
  *
- * Shared by boardSolids and boardEdges, which is why it is computed here once
+ * Shared by pocketCells and pocketEdges, which is why it is computed here once
  * rather than in each.
  */
 function grid(board: Board): Grid {
@@ -209,7 +210,9 @@ function mergeAlong(solids: Region[], axis: Dimension): Region[] {
 }
 
 /**
- * A board as a small set of axis-aligned boxes with its cuts removed.
+ * Stock minus RECTANGULAR cuts: a small set of axis-aligned boxes. Angle cuts are not here — they
+ * become geometry only in `bodies.ts`'s `boardBodies` (angle-cuts spec §3.1); a caller that draws, edges, occludes or
+ * probes stock reads bodies.
  *
  * A board with no cuts comes out as exactly one solid whose extents are the
  * board's own — that is what guarantees joinery costs nothing at all for the
@@ -229,7 +232,7 @@ function mergeAlong(solids: Region[], axis: Dimension): Region[] {
  * not a bug, and callers (the viewport, a future cut list) must handle an
  * empty solid set rather than assume at least one box.
  */
-export function boardSolids(board: Board): Region[] {
+export function pocketCells(board: Board): Region[] {
   if (board.cuts.length === 0) return [wholeBoard(board)];
 
   const { coords, filled } = grid(board);
@@ -254,7 +257,7 @@ export function boardSolids(board: Board): Region[] {
  * entirely (nothing is filled, so nothing is offered) and a cut's floor corner
  * that a deeper, overlapping cut has since removed.
  *
- * This is boardEdges' four-cell configuration test generalised from a segment
+ * This is pocketEdges' four-cell configuration test generalised from a segment
  * to a point: on each axis a coordinate either falls inside one cell or lands
  * exactly on a split plane between two, so up to eight cells touch it, and one
  * filled cell is enough. The span test is CLOSED (`>=`/`<=`) precisely so a
@@ -276,7 +279,13 @@ export function stockProbe(board: Board): (p: Point) => boolean {
     return out;
   };
 
+  // Angle cuts (angle-cuts spec §3.6): a point is stock only on every cut's kept side, closed. This governs both
+  // snap providers: boardSnapPoints' lattice and cutSnapPoints' pocket points both filter through stockProbe.
+  const planes = board.angleCuts.flatMap((c) => { const h = keptHalfSpace(board, c); return h ? [h] : []; });
+  const kept = (p: Point) => planes.every((h) => h.n[0] * p.length + h.n[1] * p.width + h.n[2] * p.thickness + h.d >= -1e-9);
+
   return (p) => {
+    if (!kept(p)) return false;
     for (const i of cells('length', p.length)) {
       for (const j of cells('width', p.width)) {
         for (const k of cells('thickness', p.thickness)) {
@@ -315,8 +324,12 @@ export type Segment = [Point, Point];
  * Cells outside the board count as empty, which is what makes the board's own
  * silhouette fall out of the same rule instead of needing its own pass. Three
  * filled is the concave shoulder of a dado; one filled is a convex corner.
+ *
+ * Rectangular cuts only. With angle cuts the rule generalises to `bodies.ts`'s
+ * `boardEdges` (angle-cuts spec §3.4); this stays as the exact path for a part
+ * without them, and its agreement with `bodyEdges` is pinned in bodies.test.ts.
  */
-export function boardEdges(board: Board): Segment[] {
+export function pocketEdges(board: Board): Segment[] {
   const { coords, filled } = grid(board);
   const counts: Record<Dimension, number> = {
     length: coords.length.length - 1,
@@ -434,7 +447,7 @@ export const FLUSH_EPSILON = 1e-9;
  * strip; a side that runs out into another cut's removed space has a strip
  * with no stock. The `face` entry is always closed (it is the depth axis).
  */
-export function openSides(board: Board, cut: Cut, solids: Region[] = boardSolids(board)): Record<Dimension, { min: boolean; max: boolean }> {
+export function openSides(board: Board, cut: Cut, solids: Region[] = pocketCells(board)): Record<Dimension, { min: boolean; max: boolean }> {
   const box = clippedRegion(board, cut);
   const noStock = (strip: Region) =>
     DIMENSION_ORDER.some((d) => strip[d][1] - strip[d][0] <= FLUSH_EPSILON) ||
@@ -596,7 +609,7 @@ function hasGrain(material: string): boolean {
  * groove, not a dado (cut-lines spec §3). Also gives the run axis, position
  * and stops that the cut-list line and drawing print (cut-lines spec §2.1).
  */
-export function cutShape(board: Board, cut: Cut, solids: Region[] = boardSolids(board)): CutShape {
+export function cutShape(board: Board, cut: Cut, solids: Region[] = pocketCells(board)): CutShape {
   const r = clippedRegion(board, cut);
   const span = (d: Dimension): Span => r[d];
   const ext = (d: Dimension) => span(d)[1] - span(d)[0];
@@ -621,7 +634,7 @@ export function cutShape(board: Board, cut: Cut, solids: Region[] = boardSolids(
 }
 
 /** A cut's word: `cutShape(...).word`. Kept as its own export for the readers that want only the word. */
-export function cutLabel(board: Board, cut: Cut, solids: Region[] = boardSolids(board)): CutKind {
+export function cutLabel(board: Board, cut: Cut, solids: Region[] = pocketCells(board)): CutKind {
   return cutShape(board, cut, solids).word;
 }
 
@@ -647,7 +660,7 @@ export function cutLabel(board: Board, cut: Cut, solids: Region[] = boardSolids(
  * is not 0.2), and float noise here would split cut-list rows (invariant 18).
  * A cut that removes nothing has no shape to follow and is also returned as is.
  */
-export function storedAsShape(board: Board, cut: Cut, solids: Region[] = boardSolids(board)): Cut {
+export function storedAsShape(board: Board, cut: Cut, solids: Region[] = pocketCells(board)): Cut {
   if (cutRemovesNothing(board, cut)) return cut;
   const s = cutShape(board, cut, solids);
   if (s.run === cut.across) return cut;

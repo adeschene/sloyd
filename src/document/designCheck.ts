@@ -1,6 +1,7 @@
 import type { Board, FlatDocument } from './document';
+import type { Region } from './types';
 import type { RejectedPart } from './generated';
-import { boardSolids } from './cuts';
+import { pocketCells } from './cuts';
 import { axisFrame, boardExtents, spanToWorldOffset } from './geometry';
 
 /**
@@ -232,23 +233,24 @@ const boxesOf = (doc: FlatDocument): Box[] => doc.boards.map((b) => {
   return { name: b.name, min: [...b.position], max: b.position.map((p, i) => p + e[i]) };
 });
 
+/** One local box in world space: invariant 2's mapping, the ONE home (worldSolids and worldBodies use it). */
+export function worldBox(b: Board, s: Region): Box {
+  const frame = axisFrame(b);
+  const spans = [0, 1, 2].map((i) => spanToWorldOffset(b, i, s[frame[i]!.dim]));
+  return { name: b.name, min: spans.map(([lo], i) => b.position[i]! + lo), max: spans.map(([, hi], i) => b.position[i]! + hi) };
+}
+
 /**
  * A part's SOLIDS in world space — invariant 2's mapping, position plus the
  * local span on the dimension each axis shows, reflected on any axis the turn
  * reverses (spanToWorldOffset). NOT solidWorldBox, which is
  * centre-relative (CLAUDE.md warns about exactly this). Exported as the ONE
  * home of this mapping: joinery's blockers judge the same solids (fu 203).
+ * Boxes: rectangular cuts only — `drawing.ts`'s `worldBodies` adds angle cuts for the drawings
+ * (spec §3.5); overlap, held and joinery stay on boxes, and joinery refuses angle cuts.
  */
 export function worldSolids(b: Board): Box[] {
-  const frame = axisFrame(b);
-  return boardSolids(b).map((s) => {
-    const spans = [0, 1, 2].map((i) => spanToWorldOffset(b, i, s[frame[i]!.dim]));
-    return {
-      name: b.name,
-      min: spans.map(([lo], i) => b.position[i]! + lo),
-      max: spans.map(([, hi], i) => b.position[i]! + hi),
-    };
-  });
+  return pocketCells(b).map((s) => worldBox(b, s));
 }
 const solidBoxesOf = (doc: FlatDocument): Box[][] => doc.boards.map(worldSolids);
 

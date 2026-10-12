@@ -44,6 +44,7 @@ export function useJoinery(opts: { onCreated: (id: string) => void; onStorageVer
       try {
         const out = await runJoinery(client, doc, ctl.signal, (p) => setRun((r) => (r ? { ...r, ...progressPatch(p) } : r)));
         if ('noSites' in out) { setRun({ status: 'none', costUsd: null }); return; }
+        if ('refused' in out) { setRun({ status: 'failed', error: out.refused, costUsd: null }); return; }
         const costUsd = client.estimateCostUsd(out.usage);
         if (ctl.signal.aborted) { setRun({ status: 'cancelled', costUsd }); return; }
         const name = derivedName(doc.name, ' — joined');

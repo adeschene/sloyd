@@ -40,3 +40,18 @@ export function sameSet(a: number[][], b: number[][]): boolean {
   const kb = b.map(key).sort();
   return ka.every((k, i) => k === kb[i]);
 }
+
+/**
+ * chiralPart plus angle cuts with a HAND (angle-cuts spec 8): a taper that
+ * starts off-centre on one face and a miter at one end only. A reflection
+ * anywhere in the angle-cut mapping shows up as different world vertices.
+ */
+export function chiralAngled(posture: Posture): Board {
+  return {
+    ...chiralPart(posture),
+    angleCuts: [
+      { id: 'a1', kind: 'taper', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[0, 1.25], [14, 0]] },
+      { id: 'a2', kind: 'miter', face: 'length', from: 'max', along: 'thickness', alongFrom: 'min', points: [[0, 0], [1.5, 1.5]] },
+    ],
+  };
+}

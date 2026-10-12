@@ -1,0 +1,70 @@
+import type { AngleCut, Board } from './types';
+import { angleCutsThatRemoveStock, depthAt, zeroStation } from './angleCuts';
+import { formatLength } from '../units/length';
+
+/** The cut's angle from square, degrees: atan(Δdepth / Δstation). A 45° miter stores depth = run (spec §2.3). */
+export function angleDegrees(c: Pick<AngleCut, 'points'>): number {
+  const [[s1, q1], [s2, q2]] = c.points;
+  return (Math.atan(Math.abs(q2 - q1) / Math.abs(s2 - s1)) * 180) / Math.PI;
+}
+
+const other = (f: 'min' | 'max') => (f === 'min' ? 'max' : 'min');
+
+/**
+ * One angle cut as a bench line (angle-cuts spec §4.2), worded from its `kind`
+ * in the cut list's existing vocabulary. THE ONE home of these strings: the cut
+ * list and the part diagrams both print what this returns (invariant 19). The
+ * degree sign is HTML text, never a measured SVG label.
+ */
+export function angleLine(board: Board, c: AngleCut, precision: number): string {
+  const f = (n: number) => formatLength(n, precision);
+  const deg = `${angleDegrees(c).toFixed(1)}°`;
+  const side = `the ${c.face} face (${c.from} side)`;
+  const A = board[c.along];
+  const z = zeroStation(c);
+  const near = depthAt(c, 0);
+  switch (c.kind) {
+    case 'taper':
+      if (near > 0 && Number.isFinite(z) && z > 0 && z <= A) {
+        return `Taper ${f(near)} off ${side}, from ${f(z)} from the ${c.along} ${c.alongFrom} end to that end`;
+      }
+      // Deepening toward the far end: the same standard form, measured from the deep end.
+      if (near <= 0 && depthAt(c, A) > 0 && Number.isFinite(z) && z >= 0 && z < A) {
+        return `Taper ${f(depthAt(c, A))} off ${side}, from ${f(A - z)} from the ${c.along} ${other(c.alongFrom)} end to that end`;
+      }
+      return `Taper off ${side}: ${f(Math.max(0, near))} at the ${c.along} ${c.alongFrom} end, ${f(Math.max(0, depthAt(c, A)))} at the ${c.along} ${other(c.alongFrom)} end`;
+    case 'miter':
+      return `Miter ${deg} across the ${c.along} at the ${c.face} ${c.from} end`;
+    case 'bevel':
+      return `Bevel ${deg} off ${side}, across the ${c.along}`;
+    case 'chamfer':
+      if (near > 0 && Number.isFinite(z) && z > 0) return `Chamfer ${f(near)} × ${f(z)} off ${side}, at the ${c.along} ${c.alongFrom} edge`;
+      return `Chamfer ${deg} off ${side}, across the ${c.along}`;
+  }
+}
+
+/**
+ * The short point of a part cut at one or both ends (spec §4.2, amended
+ * 2026-10-12, fu 281): the shortest long edge. At each corner of the end-face
+ * rectangle (width × thickness) an end's depth is its deepest end cut there
+ * (a cut on the length face, whatever its `kind`: kind never decides geometry),
+ * clamped to [0, length]; the short point is the least over the corners of
+ * length less both ends' depths, clamped at 0. (Each end's depth is a max of
+ * linear functions, so convex; the remaining length is concave and its least is at a corner.) Null when the part has no end cut that removes stock.
+ */
+export function shortPointLine(board: Board, precision: number): string | null {
+  const ends = angleCutsThatRemoveStock(board).filter((c) => c.face === 'length');
+  if (ends.length === 0) return null;
+  const L = board.length;
+  const depth = (end: 'min' | 'max', corner: { width: number; thickness: number }) => Math.max(0, ...ends.filter((c) => c.from === end).map((c) => {
+    const x = corner[c.along as 'width' | 'thickness'];
+    const s = c.alongFrom === 'min' ? x : board[c.along] - x;
+    return Math.min(L, Math.max(0, depthAt(c, s)));
+  }));
+  let least = L;
+  for (const width of [0, board.width]) for (const thickness of [0, board.thickness]) {
+    const corner = { width, thickness };
+    least = Math.min(least, L - depth('min', corner) - depth('max', corner));
+  }
+  return `Short point ${formatLength(Math.max(0, least), precision)}`;
+}

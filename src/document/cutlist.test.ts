@@ -668,3 +668,46 @@ describe('mirrored copies on the cut list (mirrored-instances spec §6)', () => 
     expect(rows[0]!.qty).toBe(2);
   });
 });
+
+describe('angle cuts on the cut list (spec §4)', () => {
+  const taper = { id: 'a1', kind: 'taper' as const, face: 'width' as const, from: 'min' as const, along: 'length' as const, alongFrom: 'min' as const, points: [[0, 0.625], [24, 0]] as [[number, number], [number, number]] };
+  const legs = (extra: Partial<Board>[]) => ({ ...createDocument('T'), boards: extra.map((x, i) => createBoard({ id: `l${i}`, name: `Leg ${i}`, length: 29, width: 1.75, thickness: 1.75, material: 'oak', ...x })) });
+
+  it('a tapered leg and a straight one are two rows', () => {
+    expect(buildCutList(legs([{ angleCuts: [taper] }, {}]) as FlatDocument).groups[0]!.rows).toHaveLength(2);
+  });
+  it('two identical tapers are one row, whatever their ids', () => {
+    const rows = buildCutList(legs([{ angleCuts: [taper] }, { angleCuts: [{ ...taper, id: 'zz' }] }]) as FlatDocument).groups[0]!.rows;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.setup).toContain('Taper 5/8" off the width face (min side), from 24" from the length min end to that end');
+  });
+  it('a taper that removes nothing neither prints nor splits the row (Review Focus 3)', () => {
+    const none = { ...taper, points: [[40, 0], [50, 1]] as [[number, number], [number, number]] };
+    const rows = buildCutList(legs([{ angleCuts: [none] }, {}]) as FlatDocument).groups[0]!.rows;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.setup).toEqual([]);
+  });
+  it('a mortised, tapered leg prints both, the angle after the pocket', () => {
+    const mortise = { id: 'c1', face: 'width' as const, from: 'max' as const, across: 'thickness' as const, offset: 24, width: 3, depth: 1, stopMin: 0.5, stopMax: 0.5 };
+    const setup = buildCutList(legs([{ cuts: [mortise], angleCuts: [taper] }]) as FlatDocument).groups[0]!.rows[0]!.setup;
+    expect(setup).toHaveLength(2);
+    expect(setup[1]).toMatch(/^Taper /);
+  });
+  it('stock is unchanged by an angle cut (inv 18)', () => {
+    const a = buildCutList(legs([{ angleCuts: [taper] }]) as FlatDocument).groups[0]!.stockInches;
+    const b = buildCutList(legs([{}]) as FlatDocument).groups[0]!.stockInches;
+    expect(a).toBe(b);
+  });
+  const m = (from: 'min' | 'max', kind: 'miter' | 'bevel' = 'miter') => ({ id: `m${from}`, kind, face: 'length' as const, from, along: 'width' as const, alongFrom: 'min' as const, points: [[0, 0], [2.5, 2.5]] as [[number, number], [number, number]] });
+  const rails = (x: Partial<Board>[]) => buildCutList(legs(x.map((b) => ({ length: 24, width: 2.5, thickness: 0.75, ...b }))) as FlatDocument).groups[0]!.rows;
+  it('angle cuts added in either order are one row', () => {
+    expect(rails([{ angleCuts: [m('min'), m('max')] }, { angleCuts: [m('max'), m('min')] }])).toHaveLength(1);
+  });
+  it('the same geometry with a different kind is two rows', () => {
+    expect(rails([{ angleCuts: [m('max')] }, { angleCuts: [m('max', 'bevel')] }])).toHaveLength(2);
+  });
+  it('a mitered rail ends its setup with the short point', () => {
+    const setup = rails([{ angleCuts: [m('min'), m('max')] }])[0]!.setup;
+    expect(setup[setup.length - 1]).toBe('Short point 19"');
+  });
+});

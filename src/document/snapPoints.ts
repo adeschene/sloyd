@@ -1,4 +1,6 @@
-import { boardSolids, clippedRegion, cutRemovesNothing, stockProbe } from './cuts';
+import { keptHalfSpace } from './angleCuts';
+import { partGeometry } from './bodies';
+import { clippedRegion, cutRemovesNothing, stockProbe } from './cuts';
 import type { Point } from './cuts';
 import { axisFrame, boardExtents, fromWorldOffset, positionAxisOf, toWorldOffset } from './geometry';
 import type { Board, Cut, GuidePoint } from './types';
@@ -96,21 +98,23 @@ export function sameSnapPoint(a: SnapPoint | null, b: SnapPoint | null): boolean
  * function never consulted `cuts` before that pass, so it kept offering them:
  * markers sitting a quarter-inch out in the air (design §5.1). The one
  * exception is the same one `cutSnapPoints`/`stockProbe` already make: when
- * `boardSolids` is empty (a board its own cuts consumed entirely), all 26
+ * `boardBodies` is empty (a board its own cuts consumed entirely), all 26
  * stay, because `BoardMesh` still draws a translucent ghost box at the AABB
  * (invariant 21) — the box points sit on a drawn feature even though every
- * cell is empty. That is an explicit `boardSolids(board).length === 0` check
+ * cell is empty. That is an explicit `partGeometry(board).bodies.length === 0` check
  * rather than "the filtered set came back empty": a board could in principle
  * have every box point sit in removed stock while stock remains in its
  * middle, and those are not the same condition.
  *
- * A board with no cuts returns before either check runs any grid arithmetic
- * at all, the same zero-cost guarantee `boardSolids`/`cutSnapPoints` make in
- * their first line. A cut board therefore builds the cell grid twice here —
- * once inside `stockProbe`, once inside `boardSolids` — which is accepted:
- * both run when the document changes, never per frame, and reusing one grid
- * across the two would mean reaching into `cuts.ts`'s private `grid()`, which
- * stays unexported on purpose.
+ * A board with no cuts and no angle cuts returns before either check runs any grid arithmetic
+ * at all, the same zero-cost guarantee `pocketCells`/`cutSnapPoints` make in
+ * their first line. Bodies and edges come from `partGeometry`, cached by board-local geometry:
+ * a gizmo drag rebuilds every world part each frame (new objects, new positions), and only the
+ * part whose dimensions or cuts changed recomputes them (angle-cuts final review measured
+ * ~17 ms per frame for four tapered, mortised legs and four aprons without the cache, ~1 ms
+ * with it). `stockProbe` still builds its own cell grid per call — reusing one grid would mean
+ * reaching into `cuts.ts`'s private `grid()`, which stays unexported on purpose — and that
+ * remainder was measured, not assumed, to be small.
  */
 export function boardSnapPoints(board: Board): BoardSnapPoint[] {
   const [ex, ey, ez] = boardExtents(board);
@@ -136,20 +140,39 @@ export function boardSnapPoints(board: Board): BoardSnapPoint[] {
     }
   }
 
-  if (board.cuts.length === 0) return points;
-  if (boardSolids(board).length === 0) return points;
+  if (board.cuts.length === 0 && board.angleCuts.length === 0) return points;
+  const geometry = partGeometry(board);
+  if (geometry.bodies.length === 0) return points;
 
   // World → part goes through fromWorldOffset: a turn may reverse any
   // horizontal axis, so a world offset is not the part coordinate there.
   const frame = axisFrame(board);
   const touchesStock = stockProbe(board);
-  return points.filter((p) => {
+  const lattice = points.filter((p) => {
     const local = {} as Point;
     for (let i = 0; i < 3; i += 1) {
       local[frame[i]!.dim] = fromWorldOffset(board, i, p.at[i]! - board.position[i]!);
     }
     return touchesStock(local);
   });
+  if (board.angleCuts.length === 0) return lattice;
+
+  // A sloped face's corners (angle-cuts spec §3.6) are the endpoints of drawn edges lying on an angle cut's
+  // plane — a marker on a drawn feature (invariant 16's general rule).
+  const planes = board.angleCuts.flatMap((c) => { const h = keptHalfSpace(board, c); return h ? [h] : []; });
+  const onSlope = (p: Point) => planes.some((h) => Math.abs(h.n[0] * p.length + h.n[1] * p.width + h.n[2] * p.thickness + h.d) <= 1e-9);
+  // Dedupe by distance, not by exact key: clipped body vertices carry ~1e-14 noise, so a sloped corner that
+  // coincides with a lattice corner would never match its exact coordinates. The first point found wins.
+  const near = (a: readonly number[], b: readonly number[]) => a.every((v, i) => Math.abs(v - b[i]!) <= 1e-9);
+  for (const [a, b] of geometry.edges) {
+    for (const p of [a, b]) {
+      if (!onSlope(p)) continue;
+      const at = toWorld(board, p);
+      if (lattice.some((q) => near(q.at, at))) continue;
+      lattice.push({ kind: 'corner', at, owner });
+    }
+  }
+  return lattice;
 }
 
 /**
@@ -258,7 +281,7 @@ function pointsOfCut(board: Board, cut: Cut): { at: Point; kind: SnapKind }[] {
  *
  * A board with no cuts returns immediately without building a grid, so joinery
  * still costs nothing at all for the boards that do not use it — the same
- * guarantee boardSolids makes in its first line.
+ * guarantee pocketCells makes in its first line.
  */
 export function cutSnapPoints(board: Board): BoardSnapPoint[] {
   if (board.cuts.length === 0) return [];

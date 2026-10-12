@@ -1,10 +1,12 @@
 import * as THREE from 'three';
 import {
-  axisDimensions, boardExtents, boardSolids, createBoard, solidWorldBox, wholeBoard,
+  axisDimensions, boardExtents, pocketCells, createBoard, solidWorldBox, wholeBoard,
 } from '../document/document';
 import type { Region } from '../document/document';
-import { chiralPart, turnedAbout } from '../document/turnFixtures';
-import { boardUVOffset, boardUVs, boardUVSignature, facePlans } from './grainTiling';
+import { chiralAngled, chiralPart, turnedAbout } from '../document/turnFixtures';
+import { mirrorPart } from '../document/frames';
+import { boardBodies } from '../document/document';
+import { boardUVOffset, boardUVs, boardUVSignature, bodyMesh, facePlans } from './grainTiling';
 
 const flat = createBoard({ length: 24, width: 5.5, thickness: 0.75, material: 'oak' });
 
@@ -526,7 +528,7 @@ describe('UVs run WITH the world axis, so solids of one board agree (fu 163)', (
   const samples = (board: Parameters<typeof boardUVs>[0], face: number) => {
     const plan = facePlans(board)[face];
     const out: Array<{ pu: number; pv: number; u: number; v: number }> = [];
-    for (const solid of boardSolids(board)) {
+    for (const solid of pocketCells(board)) {
       const { center, size } = solidWorldBox(board, solid);
       const geo = new THREE.BoxGeometry(size[0], size[1], size[2]);
       const pos = geo.attributes.position.array;
@@ -661,5 +663,96 @@ describe('UVs run WITH the world axis, so solids of one board agree (fu 163)', (
     expect(vs[0]).toBeCloseTo(0, 6);
     expect(vs[vs.length - 1]).toBeCloseTo(1, 6);
     expect(vs.some((v) => Math.abs(v - 1 / 3) < 1e-6)).toBe(true);
+  });
+});
+
+describe('bodyMesh agrees with the box path (invariant 35, spec §3.3)', () => {
+  const poses = [
+    createBoard({ length: 24, width: 5.5, thickness: 0.75, material: 'oak' }),
+    createBoard({ length: 24, width: 5.5, thickness: 0.75, material: 'plywood', rotation: 90, posture: 'on-edge', grain: 'width' }),
+    createBoard({ length: 30, width: 2, thickness: 1.5, material: 'walnut', rotation: 270, posture: 'upright' }),
+  ];
+  for (const b of poses) {
+    it(`${b.material} ${b.posture} ${b.rotation}°`, () => {
+      const body = boardBodies(b)[0]!;
+      const mine = bodyMesh(b, body);
+      // Every (position, uv) pair bodyMesh emits must occur in the BoxGeometry + boardUVs pairs.
+      const ref = new THREE.BoxGeometry(...boardExtents(b));
+      ref.setAttribute('uv', new THREE.BufferAttribute(boardUVs(b), 2));
+      const key = (x: number, y: number, z: number, u: number, v: number) => [x, y, z, u, v].map((n) => Math.round(n * 1e5)).join(',');
+      const want = new Set<string>();
+      const p = ref.getAttribute('position');
+      const uv = ref.getAttribute('uv');
+      for (let i = 0; i < p.count; i += 1) want.add(key(p.getX(i), p.getY(i), p.getZ(i), uv.getX(i), uv.getY(i)));
+      expect(mine.positions.length).toBeGreaterThan(0);
+      for (let i = 0; i < mine.positions.length / 3; i += 1) {
+        expect(want.has(key(mine.positions[3 * i]!, mine.positions[3 * i + 1]!, mine.positions[3 * i + 2]!, mine.uvs[2 * i]!, mine.uvs[2 * i + 1]!))).toBe(true);
+      }
+    });
+  }
+
+  it('puts each axis face in its BoxGeometry material group', () => {
+    const b = poses[0]!;
+    const groups = bodyMesh(b, boardBodies(b)[0]!).groups;
+    expect(groups.map((g) => g.materialIndex)).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(groups.every((g) => g.count === 6)).toBe(true);
+  });
+
+  it('a miter face reads as end grain, a taper face as long grain (tie to face)', () => {
+    const rail = createBoard({ length: 24, width: 2.5, thickness: 0.75, material: 'oak', angleCuts: [
+      { id: 'm', kind: 'miter', face: 'length', from: 'max', along: 'width', alongFrom: 'min', points: [[0, 0], [2.5, 2.5]] },
+    ] });
+    const body = boardBodies(rail)[0]!;
+    const slopeIndex = body.faces.findIndex((f) => f.cut === 'm');
+    expect(slopeIndex).toBeGreaterThanOrEqual(0);
+    const mesh = bodyMesh(rail, { ...body, faces: [body.faces[slopeIndex]!] });
+    // Flat turn 0: length on world X (check axisFrame) — the miter's material is the +X face's.
+    expect(mesh.groups.map((g) => g.materialIndex)).toEqual([0]);
+  });
+
+  it('a tie goes to the axis carrying the cut face even when it is not the first axis', () => {
+    // face 'width' with along 'length': the 45 degree slope ties world X (length) and Z (width, flat turn 0).
+    const b = createBoard({ length: 24, width: 5.5, thickness: 0.75, material: 'oak', angleCuts: [
+      { id: 't', kind: 'bevel', face: 'width', from: 'max', along: 'length', alongFrom: 'min', points: [[0, 0], [0.75, 0.75]] },
+    ] });
+    const body = boardBodies(b)[0]!;
+    const slope = body.faces.find((f) => f.cut === 't');
+    expect(slope).toBeDefined();
+    const mesh = bodyMesh(b, { ...body, faces: [slope!] });
+    expect(mesh.groups).toHaveLength(1);
+    expect(mesh.groups[0]!.materialIndex).toBeGreaterThanOrEqual(4);
+  });
+
+  it('the UV signature changes with an angle cut', () => {
+    const b = poses[0]!;
+    expect(boardUVSignature({ ...b, angleCuts: [{ id: 'a', kind: 'taper', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[0, 1], [10, 0]] }] }))
+      .not.toBe(boardUVSignature(b));
+  });
+});
+
+describe('bodyMesh — hand-mapped normals across every pose (invariant 44)', () => {
+  const poses = (['flat', 'on-edge', 'upright'] as const).flatMap((posture) =>
+    ([0, 90, 180, 270] as const).flatMap((rotation) =>
+      [false, true].map((mirrored) => ({ posture, rotation, mirrored }))));
+  it.each(poses)('%o: every triangle faces away from its body', ({ posture, rotation, mirrored }) => {
+    const base = { ...chiralAngled(posture), rotation, position: [3, 1, -2] as [number, number, number] };
+    const b = mirrored ? mirrorPart(base) : base;
+    const bodies = boardBodies(b);
+    expect(bodies.some((body) => body.box === null)).toBe(true);
+    for (const body of bodies) {
+      const { positions: p } = bodyMesh(b, body);
+      const count = p.length / 3;
+      expect(count).toBeGreaterThan(0);
+      // The mean of the body's own triangle vertices: a convex combination touching every face, so inside.
+      const c = [0, 1, 2].map((i) => { let s = 0; for (let k = 0; k < count; k += 1) s += p[k * 3 + i]!; return s / count; });
+      for (let t = 0; t < count; t += 3) {
+        const v = [0, 1, 2].map((j) => [p[(t + j) * 3]!, p[(t + j) * 3 + 1]!, p[(t + j) * 3 + 2]!]);
+        const e1 = [0, 1, 2].map((k) => v[1]![k]! - v[0]![k]!);
+        const e2 = [0, 1, 2].map((k) => v[2]![k]! - v[0]![k]!);
+        const n = [e1[1]! * e2[2]! - e1[2]! * e2[1]!, e1[2]! * e2[0]! - e1[0]! * e2[2]!, e1[0]! * e2[1]! - e1[1]! * e2[0]!];
+        const mid = [0, 1, 2].map((k) => (v[0]![k]! + v[1]![k]! + v[2]![k]!) / 3);
+        expect(n[0]! * (mid[0]! - c[0]!) + n[1]! * (mid[1]! - c[1]!) + n[2]! * (mid[2]! - c[2]!)).toBeGreaterThan(0);
+      }
+    }
   });
 });

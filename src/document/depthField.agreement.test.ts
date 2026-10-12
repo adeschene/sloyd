@@ -1,24 +1,24 @@
 import { buildDepthField } from './depthField';
-import { boardSolids } from './cuts';
+import { pocketCells } from './cuts';
 import { createBoard } from './document';
 import type { Cut } from './types';
 
 /**
  * The solids of ONE board, computed once per case.
  *
- * Both helpers below used to take the `Board` and call `boardSolids` themselves,
+ * Both helpers below used to take the `Board` and call `pocketCells` themselves,
  * which meant recomputing the same answer for an unchanging board on every
  * probe: 21 cells × 2 reads plus a 96 × 48 sweep is **4,650 calls** in the
  * heaviest case, all returning the same six regions. That, and not the geometry,
  * is what put the case at ~2.5 s against Vitest's 5 s per-test ceiling and made
  * it time out about one run in four under parallel load (follow-up 140).
  *
- * `boardSolids` is pure and the board is not mutated inside a case, so hoisting
+ * `pocketCells` is pure and the board is not mutated inside a case, so hoisting
  * changes what the test COSTS and nothing about what it CHECKS — the assertions
  * below are untouched. Type it off the function rather than importing `Region`,
  * which is not exported.
  */
-type Solids = ReturnType<typeof boardSolids>;
+type Solids = ReturnType<typeof pocketCells>;
 
 const cut = (over: Partial<Cut>): Cut => ({
   id: 'c', face: 'thickness', from: 'min', across: 'width',
@@ -97,12 +97,12 @@ const GEOMETRIES: { name: string; cuts: Cut[] }[] = [
     cut({ id: 'b', across: 'length', offset: 5, width: 0.75, depth: 0.25 })] },
 ];
 
-describe('the depth field agrees with boardSolids, by construction', () => {
+describe('the depth field agrees with pocketCells, by construction', () => {
   it.each(GEOMETRIES)('$name', ({ cuts }) => {
     const board = createBoard({ length: 24, width: 12, cuts });
     const cells = buildDepthField(board, 'thickness', 'min', 'length', 'width');
     // Once per case — see Solids above. The 3D side of the agreement.
-    const solids = boardSolids(board);
+    const solids = pocketCells(board);
 
     // Every cell the field reports as cut must be cut in the 3D model.
     for (const c of cells) {
@@ -111,11 +111,11 @@ describe('the depth field agrees with boardSolids, by construction', () => {
       expect(c.depth, `cell at ${x},${y} must have positive depth`).toBeGreaterThan(0);
       expect(
         stockAtMinFace(solids, x, y),
-        `field says cut at ${x},${y}; boardSolids still has stock there`,
+        `field says cut at ${x},${y}; pocketCells still has stock there`,
       ).toBe(false);
       expect(
         removedDepthAtMinFace(solids, board.thickness, x, y),
-        `field says ${c.depth}" deep at ${x},${y}; boardSolids removed a different amount`,
+        `field says ${c.depth}" deep at ${x},${y}; pocketCells removed a different amount`,
       ).toBeCloseTo(c.depth, 10);
     }
 
@@ -127,12 +127,12 @@ describe('the depth field agrees with boardSolids, by construction', () => {
     for (let x = 0.125; x < 24; x += 0.25) {
       for (let y = 0.125; y < 12; y += 0.25) {
         if (!stockAtMinFace(solids, x, y)) {
-          expect(covered(x, y), `boardSolids removed stock at ${x},${y}; field has no cell`).toBe(true);
+          expect(covered(x, y), `pocketCells removed stock at ${x},${y}; field has no cell`).toBe(true);
         }
         // The other direction: a cell wider than the cut centres inside it and
         // passes the cell-centre probe above, so check the grid for over-hatching.
         if (stockAtMinFace(solids, x, y)) {
-          expect(covered(x, y), `field hatches ${x},${y}; boardSolids still has stock there`).toBe(false);
+          expect(covered(x, y), `field hatches ${x},${y}; pocketCells still has stock there`).toBe(false);
         }
       }
     }

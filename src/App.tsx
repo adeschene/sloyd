@@ -30,7 +30,7 @@ import { AnthropicClient, checkAnthropicKey } from './llm/anthropic';
 import type { LlmSettings } from './storage/types';
 import type { DuplicateFailure } from './panels/ProjectMenu';
 import { canBeginLength } from './units/length';
-import { tapeAxisFromKey, createDocument, DocumentError, flatDocument } from './document/document';
+import { tapeAxisFromKey, createDocument, DocumentError, flatDocument, angledRefusal } from './document/document';
 import type { SloydDocument } from './document/document';
 import { storage } from './storage/browser';
 import { useStore } from './store/store';
@@ -88,6 +88,7 @@ export default function App() {
     return findSites(flat).map((s) => siteLabel(s, flat));
   }, [dialog, doc]);
   // Once per document while the dialog is open; the pre-check and evidence rule make it null for undamaged designs.
+  const joineryRefusal = useMemo(() => (dialog === 'joinery' ? angledRefusal(doc, 'joinery') : null), [dialog, doc]);
   const joineryRepair = useMemo(() => (dialog === 'joinery' ? repairDocument(doc) : null), [dialog, doc]);
   // THE ONE FLAG every "something covers the app" consumer reads — the inert
   // shell, the keydown effect, `shortcutsSuspended`, the focus restore. One
@@ -1057,7 +1058,8 @@ export default function App() {
           projectName={doc.name}
           sites={joinerySites}
           model={llmSettings?.model ?? null}
-          estimate={llmSettings ? joineryEstimateUsd(new AnthropicClient(llmSettings.apiKey, llmSettings.model), doc) : null}
+          refusal={joineryRefusal}
+          estimate={llmSettings && !joineryRefusal ? joineryEstimateUsd(new AnthropicClient(llmSettings.apiKey, llmSettings.model), doc) : null}
           run={joinery.run}
           repairNotice={repairNotice(joineryRepair, 'joinery')}
           live={joinery.live}

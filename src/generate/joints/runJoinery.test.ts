@@ -55,7 +55,7 @@ describe('runJoinery', () => {
   it('repairs a tenon collision: the second answer clears it', async () => {
     const c = client(long, short);
     const out = await run(c);
-    if ('noSites' in out) throw new Error('expected sites');
+    if ('noSites' in out || 'refused' in out) throw new Error('expected sites');
     expect(c.complete).toHaveBeenCalledTimes(2);
     expect(out.violations).toEqual([]);
     expect(out.fallback).toBeUndefined();
@@ -70,7 +70,7 @@ describe('runJoinery', () => {
 
   it('builds the defaults when the FIRST call fails, and says why', async () => {
     const out = await run(client(new LlmError('overloaded', 'Overloaded.')));
-    if ('noSites' in out) throw new Error('expected sites');
+    if ('noSites' in out || 'refused' in out) throw new Error('expected sites');
     expect(out.fallback).toBe('Overloaded.');
     expect(out.result.applied.map((a) => a.joint)).toEqual(['mortise-tenon', 'mortise-tenon']);
   });
@@ -88,7 +88,7 @@ describe('runJoinery', () => {
     const site = findSites(d)[0].id;
     const c = client({ joints: [{ site, joint: 'mortise-tenon', tenonLength: 1 }] });
     const out = await run(c, d);
-    if ('noSites' in out) throw new Error('expected sites');
+    if ('noSites' in out || 'refused' in out) throw new Error('expected sites');
     expect(c.complete).toHaveBeenCalledTimes(1);
     expect(out.violations).toEqual([]);
     expect(out.preexisting.map((v) => v.parts)).toContainEqual(['Float']);
@@ -105,7 +105,7 @@ describe('runJoinery', () => {
 
   it('keeps the usage spent before the failure when it falls back', async () => {
     const out = await run(client(null, new LlmError('overloaded', 'busy')));
-    if ('noSites' in out) throw new Error('expected sites');
+    if ('noSites' in out || 'refused' in out) throw new Error('expected sites');
     expect(out.fallback).toBe('busy');
     expect(out.usage.inputTokens).toBe(10);
   });
@@ -136,7 +136,7 @@ describe('runJoinery', () => {
     it('two linked legs joinery cuts identically stay ONE shape, sharing cut ids (follow-up 223)', async () => {
       const twinned = { joints: findSites(TWIN).map((site) => ({ site: site.id, joint: 'mortise-tenon', tenonLength: 0.5 })) };
       const out = await run(client(twinned), linked(['Leg A', 'Leg B'], TWIN));
-      if ('noSites' in out) throw new Error('expected sites');
+      if ('noSites' in out || 'refused' in out) throw new Error('expected sites');
       const legs = worldParts(out.result.doc).filter((b) => b.name.startsWith('Leg'));
       expect(legs.length).toBe(2);
       expect(legs[0]!.cuts.length).toBeGreaterThan(0);
@@ -148,7 +148,7 @@ describe('runJoinery', () => {
 
     it('two linked legs joinery cuts on different faces come out unlinked', async () => {
       const out = await run(client(railed), linked(['Leg A', 'Leg B']));
-      if ('noSites' in out) throw new Error('expected sites');
+      if ('noSites' in out || 'refused' in out) throw new Error('expected sites');
       const legs = worldParts(out.result.doc).filter((b) => b.name.startsWith('Leg'));
       expect(legs.length).toBe(2);
       for (const l of legs) expect('shape' in l).toBe(false);
@@ -157,7 +157,7 @@ describe('runJoinery', () => {
     it('a linked pair joinery does not cut keeps its link', async () => {
       const d = linked(['Spare', 'Spare 2']);
       const out = await run(client(railed), d);
-      if ('noSites' in out) throw new Error('expected sites');
+      if ('noSites' in out || 'refused' in out) throw new Error('expected sites');
       const kept = worldParts(out.result.doc).filter((b) => b.shape !== undefined && b.shape === worldParts(out.result.doc).find((x) => x.name === 'Spare')!.shape).map((b) => b.name);
       expect(kept.sort()).toEqual(['Spare', 'Spare 2']);
     });
@@ -185,7 +185,7 @@ describe('runJoinery', () => {
 
     it('linked legs the defaults cut identically stay ONE shape', async () => {
       const out = await run(busy(), linkedOn(['Leg A', 'Leg B'], TWIN));
-      if ('noSites' in out) throw new Error('expected sites');
+      if ('noSites' in out || 'refused' in out) throw new Error('expected sites');
       expect(out.fallback).toBe('busy');
       const legs = worldParts(out.result.doc).filter((b) => b.name.startsWith('Leg'));
       expect(legs[0]!.cuts.length).toBeGreaterThan(0);
@@ -196,7 +196,7 @@ describe('runJoinery', () => {
 
     it('linked legs the defaults cut on different faces come out unlinked', async () => {
       const out = await run(busy(), linkedOn(['Leg A', 'Leg B'], RAILED));
-      if ('noSites' in out) throw new Error('expected sites');
+      if ('noSites' in out || 'refused' in out) throw new Error('expected sites');
       expect(out.fallback).toBe('busy');
       const legs = worldParts(out.result.doc).filter((b) => b.name.startsWith('Leg'));
       expect(legs.some((l) => l.cuts.length > 0)).toBe(true);
@@ -205,7 +205,7 @@ describe('runJoinery', () => {
 
     it('a linked pair the defaults do not cut keeps its link', async () => {
       const out = await run(busy(), linkedOn(['Spare', 'Spare 2'], RAILED));
-      if ('noSites' in out) throw new Error('expected sites');
+      if ('noSites' in out || 'refused' in out) throw new Error('expected sites');
       expect(out.fallback).toBe('busy');
       const parts = worldParts(out.result.doc);
       const shape = parts.find((b) => b.name === 'Spare')!.shape;
@@ -217,7 +217,7 @@ describe('runJoinery', () => {
   it('returns the TREE: a grouped design comes back with its instance (assemblies spec §6.1)', async () => {
     const grouped = groupItems(CORNER, null, worldParts(CORNER).map((b) => b.id))!.doc;
     const out = await run(client(long), grouped);
-    if ('noSites' in out) throw new Error('expected sites');
+    if ('noSites' in out || 'refused' in out) throw new Error('expected sites');
     expect(out.result.doc.instances).toHaveLength(1);
   });
 });
@@ -233,7 +233,7 @@ describe('runJoinery on a generated assembly', () => {
       placements: [{ name: 'Front', at: { x: 0, y: 0, z: 0 } }, { name: 'Back', at: { x: 0, y: 0, z: 30 } }],
     }] }).doc;
     const out = await run(client(new LlmError('overloaded', 'Overloaded.')), tree);
-    if ('noSites' in out) throw new Error('expected sites');
+    if ('noSites' in out || 'refused' in out) throw new Error('expected sites');
     const doc = out.result.doc;
     expect(doc.definitions).toHaveLength(1);
     expect(doc.instances.map((i) => i.definition)).toEqual([doc.definitions[0].id, doc.definitions[0].id]);
@@ -260,7 +260,7 @@ describe('runJoinery — twins that get DIFFERENT joints', () => {
       placements: [{ name: 'Front', at: { x: 0, y: 0, z: 0 } }, { name: 'Back', at: { x: 0, y: 0, z: 30 } }],
     }] }).doc;
     const out = await run(client(new LlmError('overloaded', 'Overloaded.')), tree);
-    if ('noSites' in out) throw new Error('expected sites');
+    if ('noSites' in out || 'refused' in out) throw new Error('expected sites');
     expect(out.result.applied.map((a) => a.joint)).toEqual(['mortise-tenon', 'mortise-tenon', 'mortise-tenon']);
     const doc = out.result.doc;
     const legCuts = (name: string) => flatDocument(doc).boards.find((b) => b.name === name)!.cuts.length;
@@ -275,7 +275,7 @@ describe('runJoinery — alsoPresent', () => {
     const collide = JSON.stringify(['overlap', ['Rail X', 'Rail Z']]);
     const c = client(long, short);
     const out = await runJoinery(c, CORNER, new AbortController().signal, () => {}, { alsoPresent: new Set([collide]) });
-    if ('noSites' in out) throw new Error('sites');
+    if ('noSites' in out || 'refused' in out) throw new Error('sites');
     expect(c.complete).toHaveBeenCalledTimes(1);
     expect(out.violations).toEqual([]);
     expect(out.preexisting.filter((v) => v.kind === 'overlap').map((v) => [...v.parts].sort())).toEqual([['Rail X', 'Rail Z']]);
@@ -292,7 +292,7 @@ describe('runJoinery — fixed choices', () => {
   it('makes NO call when every site is fixed and valid, and reports them kept', async () => {
     const c = client(long);
     const out = await go(c, fixedAll);
-    if ('noSites' in out) throw new Error('sites');
+    if ('noSites' in out || 'refused' in out) throw new Error('sites');
     expect(c.complete).not.toHaveBeenCalled();
     expect(out.kept).toBe(sites.length);
     expect(out.usage.inputTokens).toBe(0);
@@ -311,7 +311,7 @@ describe('runJoinery — fixed choices', () => {
     const bad = new Map([...fixedAll].map(([k, c]) => [k, c.joint === 'mortise-tenon' ? { ...c, tenonLength: 99 } : c]));
     const c = client(long);
     const out = await go(c, bad);
-    if ('noSites' in out) throw new Error('sites');
+    if ('noSites' in out || 'refused' in out) throw new Error('sites');
     expect(c.complete).toHaveBeenCalled();
     expect(out.kept).toBeLessThan(sites.length);
   });
@@ -320,14 +320,14 @@ describe('runJoinery — fixed choices', () => {
     const none = await run(client(long));
     const one = await go(client(long), new Map([...fixedAll].slice(0, 1)));
     const all = await go(client(long), fixedAll);
-    if ('noSites' in none || 'noSites' in one || 'noSites' in all) throw new Error('sites');
+    if ('noSites' in none || 'noSites' in one || 'noSites' in all || 'refused' in none || 'refused' in one || 'refused' in all) throw new Error('sites');
     expect([none.chosen, one.chosen, all.chosen]).toEqual([sites.length, sites.length - 1, 0]);
   });
 
   it('a chosen butt still counts as chosen', async () => {
     const butts = { joints: ids.map((site) => ({ site, joint: 'butt' })) };
     const out = await run(client(butts));
-    if ('noSites' in out) throw new Error('sites');
+    if ('noSites' in out || 'refused' in out) throw new Error('sites');
     expect(out.result.applied.every((a) => a.joint === 'butt')).toBe(true);
     expect(out.chosen).toBe(sites.length);
   });
@@ -336,7 +336,7 @@ describe('runJoinery — fixed choices', () => {
     const butts = new Map([...fixedAll].map(([k]) => [k, { joint: 'butt' }]));
     const c = client(long);
     const out = await go(c, butts);
-    if ('noSites' in out) throw new Error('sites');
+    if ('noSites' in out || 'refused' in out) throw new Error('sites');
     expect(c.complete).not.toHaveBeenCalled();
     expect(out.kept).toBe(0);
     expect(out.chosen).toBe(0);
@@ -357,7 +357,7 @@ describe('runJoinery — fixed choices', () => {
     }));
     const c = client(long);
     const out = await runJoinery(c, LAP, new AbortController().signal, () => {}, { fixed: fixed as never });
-    if ('noSites' in out) throw new Error('sites');
+    if ('noSites' in out || 'refused' in out) throw new Error('sites');
     expect(c.complete).not.toHaveBeenCalled();
     expect(out.result.skipped.map((s) => s.reason)).toEqual(['moving Upper would drive it into Block']);
     const nonButt = [...fixed.values()].filter((f) => f.joint !== 'butt').length;
@@ -367,7 +367,7 @@ describe('runJoinery — fixed choices', () => {
 
   it('without fixed, kept is 0 and behaviour is unchanged', async () => {
     const out = await run(client(long, short));
-    if ('noSites' in out) throw new Error('sites');
+    if ('noSites' in out || 'refused' in out) throw new Error('sites');
     expect(out.kept).toBe(0);
   });
 });
@@ -400,7 +400,7 @@ describe('runJoinery — kept joints that collide are re-opened (refine-joined s
   it('re-opens both: they go to the chooser, are not kept, and the shorter answer leaves no new overlap', async () => {
     const c = client(shortAnswer);
     const out = await runJoinery(c, THIN, new AbortController().signal, () => {}, { fixed: recorded });
-    if ('noSites' in out) throw new Error('sites');
+    if ('noSites' in out || 'refused' in out) throw new Error('sites');
     expect(c.complete).toHaveBeenCalledTimes(1);
     const listed = listedIn(c);
     expect(listed).toHaveLength(2);
@@ -417,7 +417,7 @@ describe('runJoinery — kept joints that collide are re-opened (refine-joined s
     const out = await runJoinery(c, THIN, new AbortController().signal, () => {}, {
       fixed: recorded, alsoPresent: new Set([JSON.stringify(['overlap', ['Rail X', 'Rail Z']])]),
     });
-    if ('noSites' in out) throw new Error('sites');
+    if ('noSites' in out || 'refused' in out) throw new Error('sites');
     expect(c.complete).not.toHaveBeenCalled();
     expect(out.kept).toBe(2);
   });
@@ -439,7 +439,7 @@ describe('runJoinery — kept joints that collide are re-opened (refine-joined s
       cs.map((s) => [ck(s), CLEATED.boards[s.receive].name === 'Leg' ? { joint: 'mortise-tenon', tenonLength: 0.875 } : { joint: 'butt' }]));
     const c = client(shortAnswer);
     const out = await runJoinery(c, CLEATED, new AbortController().signal, () => {}, { fixed });
-    if ('noSites' in out) throw new Error('sites');
+    if ('noSites' in out || 'refused' in out) throw new Error('sites');
     const listed = listedIn(c);
     expect(listed).toHaveLength(2);
     expect(listed.some((l) => l.includes('Cleat'))).toBe(false);

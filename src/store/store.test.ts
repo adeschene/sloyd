@@ -2,6 +2,7 @@ import { worldParts } from '../document/tree';
 import { worldSolids } from '../document/designCheck';
 import { useStore } from './store';
 import type { Board } from '../document/document';
+import { taperCut } from '../document/document';
 import { createBoard, createDocument, boardCenter, boardExtents, boardSnapPoints, cutSnapPoints, sameSnapPoint } from '../document/document';
 
 const reset = () => useStore.getState().replaceDocument(createDocument('Test'));
@@ -248,6 +249,20 @@ describe('duplicateBoard', () => {
     expect(copy.name).toBe('Leg (1)');
     useStore.getState().duplicateBoard(copy.id);
     expect(worldParts(useStore.getState().doc)[2].name).toBe('Leg (2)');
+  });
+
+  it('mints fresh angle-cut ids and shares no points array (angle-cuts spec §5.2)', () => {
+    useStore.getState().replaceDocument({ ...createDocument('T'), boards: [createBoard({ id: 'leg', name: 'Leg', angleCuts: [
+      { id: 'a1', kind: 'taper', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[0, 0.5], [18, 0]] },
+    ] })] });
+    useStore.getState().duplicateBoard('leg');
+    const boards = useStore.getState().doc.boards as Board[];
+    expect(boards).toHaveLength(2);
+    const [src, dup] = boards;
+    expect(dup!.angleCuts).toHaveLength(1);
+    expect(dup!.angleCuts[0]!.id).not.toBe(src!.angleCuts[0]!.id);
+    expect(dup!.angleCuts[0]!.points).toEqual(src!.angleCuts[0]!.points);
+    expect(dup!.angleCuts[0]!.points).not.toBe(src!.angleCuts[0]!.points);
   });
 
   it('copies cuts by value, not by reference, with fresh ids', () => {
@@ -2870,5 +2885,51 @@ describe('edit() with nothing changed (fu 231)', () => {
     expect(st().past).toHaveLength(past + 1);
     st().undo();
     expect(st().hiddenIds).toEqual([]);
+  });
+});
+
+describe('angle-cut actions (spec §7)', () => {
+  const setup = () => {
+    useStore.getState().replaceDocument({ ...createDocument('T'), boards: [createBoard({ id: 'leg', name: 'Leg', length: 28, width: 2, thickness: 2 })] });
+  };
+  const s = () => useStore.getState();
+  const cuts = () => (s().doc.boards[0] as Board).angleCuts;
+  it('adds, updates and removes, one undo entry each', () => {
+    setup();
+    s().addAngleCuts('leg', [taperCut({ face: 'width', from: 'min', end: 'min', start: 21, amount: 0.5 })]);
+    const id = cuts()[0]!.id;
+    s().updateAngleCut('leg', id, taperCut({ face: 'width', from: 'min', end: 'min', start: 20, amount: 0.5 }));
+    expect(cuts()[0]!.points).toEqual([[0, 0.5], [20, 0]]);
+    s().removeAngleCut('leg', id);
+    expect(cuts()).toEqual([]);
+    expect(s().past.length).toBe(3);
+    s().undo(); s().undo(); s().undo();
+    expect(cuts()).toEqual([]);
+    expect(s().past.length).toBe(0);
+  });
+  it('an unchanged update pushes no undo entry (inv 4)', () => {
+    setup();
+    const t = taperCut({ face: 'width', from: 'min', end: 'min', start: 21, amount: 0.5 });
+    s().addAngleCuts('leg', [t]);
+    const before = s().past.length;
+    s().updateAngleCut('leg', cuts()[0]!.id, t);
+    expect(s().past.length).toBe(before);
+  });
+  it('is refused while exploded (inv 47)', () => {
+    setup();
+    s().setExplode(0.5);
+    s().addAngleCuts('leg', [taperCut({ face: 'width', from: 'min', end: 'min', start: 21, amount: 0.5 })]);
+    expect(cuts()).toEqual([]);
+    s().setExplode(0);
+    const t = taperCut({ face: 'width', from: 'min', end: 'min', start: 21, amount: 0.5 });
+    s().addAngleCuts('leg', [t]);
+    const id = cuts()[0]!.id;
+    const before = s().past.length;
+    s().setExplode(0.5);
+    s().updateAngleCut('leg', id, taperCut({ face: 'width', from: 'min', end: 'min', start: 20, amount: 0.5 }));
+    s().removeAngleCut('leg', id);
+    expect(cuts()).toHaveLength(1);
+    expect(cuts()[0]!.points).toEqual([[0, 0.5], [21, 0]]);
+    expect(s().past.length).toBe(before);
   });
 });

@@ -6,8 +6,9 @@ import {
   translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerLinear, mirroredAt, postureRefusal, sameSideFirst, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
   toLocal, groupItems, ungroupItem, turnInstance as turnInstanceOp, setMirrored, mirroredCopy, updateContainer, lastSegment,
 } from '../document/document';
-import type { Board, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
+import type { AngleCut, Board, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
 import { SNAP_INCHES } from '../document/geometry';
+import { copyAngleCut, sameAngleCut } from '../document/angleCuts';
 import { MAX_ROW } from '../document/row';
 import { clickTarget } from './assemblyPick';
 
@@ -346,6 +347,10 @@ interface StoreState {
   addCut: (boardId: string) => void;
   updateCut: (boardId: string, cutId: string, patch: Partial<Cut>) => void;
   removeCut: (boardId: string, cutId: string) => void;
+  /** Angle cuts (angle-cuts spec §7): several in one call are one undo entry. */
+  addAngleCuts: (boardId: string, cuts: Omit<AngleCut, 'id'>[]) => void;
+  updateAngleCut: (boardId: string, cutId: string, next: Omit<AngleCut, 'id'>) => void;
+  removeAngleCut: (boardId: string, cutId: string) => void;
 
   /** Link the named parts (linking spec §3.1): the first wins, each named part's whole link joins; every member then names ONE shape (components spec §3.2). One undo entry. */
   linkBoards: (ids: string[]) => void;
@@ -821,12 +826,14 @@ export const useStore = create<StoreState>((set, get) => {
     // `...partial` rather than applied — copying the array and minting a
     // fresh id per cut (via the same nextId() addCut uses) means a future
     // in-place Cut mutation can't corrupt the source board and every undo
-    // snapshot holding it simultaneously.
+    // snapshot holding it simultaneously. `angleCuts` need the same treatment:
+    // fresh ids, and copyAngleCut for an independent `points` array.
     const { id: _sourceId, ...rest } = source;
     const fresh = createBoard({
       ...rest,
       position: [...position],
       cuts: source.cuts.map((cut) => ({ ...cut, id: nextId() })),
+      angleCuts: source.angleCuts.map((c) => ({ ...copyAngleCut(c), id: nextId() })),
     });
     return { ...fresh, name };
   };
@@ -1564,6 +1571,37 @@ export const useStore = create<StoreState>((set, get) => {
       // Through mapWorld (assemblies spec §5.1); see updateCut.
       edit((doc) => mapWorld(doc, (w) => w.map((b) =>
         b.id === boardId ? { ...b, cuts: b.cuts.filter((c) => c.id !== cutId) } : b)));
+      judgeHeld();
+    },
+
+    // Angle cuts (angle-cuts spec §7): through mapWorld like cuts, so a shaped part's angle cuts are its
+    // shape's and every user sees the edit (invariant 45); several in one call are one undo entry
+    // (Miter's "both ends", chunk 2). Held points are re-judged after, as for cuts (invariant 24).
+    addAngleCuts: (boardId, cuts) => {
+      if (readOnly()) return;
+      const board = worldParts(get().doc).find((b) => b.id === boardId);
+      if (!board || cuts.length === 0) return;
+      const added = cuts.map((c) => ({ ...copyAngleCut(c as AngleCut), id: nextId() }));
+      edit((doc) => mapWorld(doc, (w) => w.map((b) => (b.id === boardId ? { ...b, angleCuts: [...b.angleCuts, ...added] } : b))));
+      judgeHeld();
+    },
+    updateAngleCut: (boardId, cutId, next) => {
+      if (readOnly()) return;
+      const board = worldParts(get().doc).find((b) => b.id === boardId);
+      const cur = board?.angleCuts.find((c) => c.id === cutId);
+      if (!board || !cur) return;
+      const after: AngleCut = { ...copyAngleCut(next as AngleCut), id: cutId };
+      if (sameAngleCut(cur, after)) return; // a no-op edit pushes no undo entry (invariant 4)
+      edit((doc) => mapWorld(doc, (w) => w.map((b) =>
+        b.id === boardId ? { ...b, angleCuts: b.angleCuts.map((c) => (c.id === cutId ? after : c)) } : b)));
+      judgeHeld();
+    },
+    removeAngleCut: (boardId, cutId) => {
+      if (readOnly()) return;
+      const board = worldParts(get().doc).find((b) => b.id === boardId);
+      if (!board || !board.angleCuts.some((c) => c.id === cutId)) return;
+      edit((doc) => mapWorld(doc, (w) => w.map((b) =>
+        b.id === boardId ? { ...b, angleCuts: b.angleCuts.filter((c) => c.id !== cutId) } : b)));
       judgeHeld();
     },
 

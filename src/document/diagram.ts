@@ -1,8 +1,13 @@
 import type { Board, CutFrom, Dimension, Span } from './types';
 import { DIMENSION_ORDER } from './geometry';
-import { boardSolids, clippedRegion, cutShape, cutRemovesNothing, type CutKind } from './cuts';
+import { pocketCells, clippedRegion, cutShape, cutRemovesNothing, type CutKind } from './cuts';
 import { buildDepthField, type FaceCell } from './depthField';
 import { formatLength } from '../units/length';
+import { angleCutsThatRemoveStock, keptHalfSpace, throughOf } from './angleCuts';
+import { angleLine } from './angleText';
+
+/** One angle cut in a view (spec §4.3): the wedge it removes, in (h, v) board inches, and its bench line. */
+export interface DiagramAngle { id: string; poly: [number, number][]; label: string }
 
 /**
  * One cut as it appears in a view, in BOARD INCHES.
@@ -68,6 +73,8 @@ export interface DiagramView {
   vUp: boolean;
   /** This face's depth field, from `buildDepthField`. */
   cells: FaceCell[];
+  /** Angle cuts seen edge-on as a line: drawn in every view looking along their through dimension (the min side opened when neither exists). Empty for most views. */
+  angles: DiagramAngle[];
   /** One line per distinct crossing depth, already formatted. Empty when none. */
   crossings: string[];
 }
@@ -123,6 +130,7 @@ export function buildDiagrams(board: Board, precision: number): DiagramView[] {
         vLabel: f(board[vertical]),
         vUp: (face === 'thickness' && from === 'min') || (face === 'width' && from === 'max') || (face === 'length' && from === 'min'),
         cuts: [],
+        angles: [],
         cells: [],
         crossings: [],
       };
@@ -131,7 +139,7 @@ export function buildDiagrams(board: Board, precision: number): DiagramView[] {
     return view;
   };
 
-  const solids = boardSolids(board);
+  const solids = pocketCells(board);
   for (const cut of board.cuts) {
     // A cut a board edit has left removing nothing is not drawn: there is no
     // stock for it to remove, and the 3D view already shows none (fu 178).
@@ -164,6 +172,42 @@ export function buildDiagrams(board: Board, precision: number): DiagramView[] {
         ? { lengthLabel: f(s.along[1] - s.along[0]) }
         : {}),
     });
+  }
+
+  // Angle cuts: each wedge is drawn in EVERY view whose face is the cut's through dimension (spec §4.3,
+  // "each face view where a slope shows"), and only the min-side view is opened when neither side exists.
+  // Decided after the pocket cuts' views, so a dado's far-side view takes the wedge without a second view.
+  for (const c of angleCutsThatRemoveStock(board)) {
+    const h = keptHalfSpace(board, c);
+    if (!h) continue;
+    const face = throughOf(c);
+    // Both sides of one face share (horizontal, vertical) and the outline: the polygon, in board inches,
+    // is the same in either view (vUp, the far side's flip, is the panel's job).
+    const [horizontal, vertical] = DIMENSION_ORDER.filter((d) => d !== face);
+    const hi = DIMENSION_ORDER.indexOf(horizontal!);
+    const vi = DIMENSION_ORDER.indexOf(vertical!);
+    const W = board[horizontal!];
+    const H = board[vertical!];
+    // The face's rectangle, clipped to the REMOVED side (n·x + d < 0): Sutherland–Hodgman, one edge.
+    const rect: [number, number][] = [[0, 0], [W, 0], [W, H], [0, H]];
+    const g = ([x, y]: [number, number]) => -(h.n[hi]! * x + h.n[vi]! * y + h.d);
+    const poly: [number, number][] = [];
+    for (let i = 0; i < rect.length; i += 1) {
+      const p = rect[i]!;
+      const q = rect[(i + 1) % rect.length]!;
+      if (g(p) >= 0) poly.push(p);
+      if ((g(p) >= 0) !== (g(q) >= 0)) {
+        const t = g(p) / (g(p) - g(q));
+        poly.push([p[0] + t * (q[0] - p[0]), p[1] + t * (q[1] - p[1])]);
+      }
+    }
+    // A vertex exactly on the line is kept AND is its own crossing point: drop consecutive repeats.
+    const clean = poly.filter((p, i) => { const q = poly[(i + poly.length - 1) % poly.length]!; return Math.hypot(p[0] - q[0], p[1] - q[1]) > 1e-9; });
+    if (clean.length < 3) continue;
+    const existing = (['min', 'max'] as const).map((from) => views.get(`${face}|${from}`)).filter((v): v is DiagramView => v !== undefined);
+    const targets = existing.length > 0 ? existing : [ensure(face, 'min')];
+    const label = angleLine(board, c, precision);
+    for (const view of targets) view.angles.push({ id: c.id, poly: clean.map(([x, y]) => [x, y] as [number, number]), label });
   }
 
   // A cut-free board still gets a drawing, for the "all parts" setting: broad

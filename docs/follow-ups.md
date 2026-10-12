@@ -5074,3 +5074,70 @@ A note ("priced as 1x12; a 1x2x72 would hold it — no price set") is one option
 listed as not placed ("has end grain — not priced as pine stock") rather than priced as long grain, which would buy
 stock that cannot yield it (final review). Modelling it means the part's thickness runs along the stock and its
 length x width must fit the stock's thickness x width. **Status:** open.
+
+## From the angle cuts round (chunk 1) — 2026-10-12
+
+**275. Stopped angle cuts** (a stopped chamfer, a two-stage taper). Spec §11. **Status:** open.
+
+**276. Angle-aware joinery** (splined and biscuited miters). Add joinery, Refine and Repair joints refuse angled
+documents (spec §6). **Status:** open.
+
+**277. Generate emitting tapers and miters.** `designToDocument` emits `angleCuts: []`. **Status:** open.
+
+**278. A "taper all four faces" shortcut.** **Status:** open.
+
+**279. Angle callouts on the Plans sheet** (see fu 252). **Status:** open.
+
+**280. Compound angles** (an angle cut that is sloped in two axes). **Status:** open.
+
+**281. The short point formula is wrong for parallel end cuts (spec defect, for the user to decide).** Spec §4.2
+subtracts each end's deepest depth even when the two deepest points are at opposite edges. A 20 × 3-1/2 × 3/4 brace
+with parallel 45° ends prints a short point of 13", where both real long edges are 16-1/2". Proposed fix (final
+review): the minimum over the end-face corners of L − depth_min_end − depth_max_end, clamped at 0. Reachable only from
+hand-edited files until chunk 2's Miter preset. **Fixed 2026-10-12** (user-approved): `shortPointLine` takes the corner
+minimum; spec §4.2 amended; tests cross-checked against `boardBodies` vertices. **Status:** closed.
+
+**282. Sloped-face shading and grain are unverified on real hardware (26a).** Browser checks ran on software GL;
+lighting on sloped faces and grain continuity across a slope need the user's eyes. **Status:** open, needs the user.
+
+**283. Add joinery with an API key present on an angled project was not seen live** (no key in the dev profile). The
+refusal is pinned by tests (no mutation, no paid call). **Status:** open, needs a key.
+
+**284. Test-coverage gaps (record-only).** No bodies test with two or more angle cuts on one part (a cap clipped by a
+second cut); the mortise + taper test does not overlap the two regions; the drift check loops only `d1` entries (add a
+length assertion); near-coincident tests skip the |delta| <= BODY_EPS band (add +-5e-10); "draws exactly as before"
+only asserts `box !== null` (compare `worldBodies` boxes to `worldSolids` on a turned non-flat pose with a cut); no
+committed occlusion/plane-containment test for on-edge or turns 90/270; zero-area triangle skip unpinned; no direct
+`runRefine`/`refineEstimateUsd` angled test; `useJoinery` refused-to-failed branch untested; no stale-draft-after-undo
+field test; the plan's miter tie-break test cannot fail (comment pointing at the bevel tie test); duplicate document
+import in `grainTiling.test.ts`; `angleCuts: []` added to `after` spreads in `treeEdit.test.ts` unnecessarily.
+**Status:** open, record-only.
+
+**285. The geometry cache goes cold after long resize drags or more than 256 distinct geometries.** `partGeometry`'s
+LRU is keyed by a board-local geometry signature and capped; past the cap it recomputes (slow, never wrong). **Status:**
+open, record-only.
+
+**286. `depthAt` overflows for finite-but-huge slopes (hand-edited files only).** Validation requires a finite slope
+and finite station span, but a huge finite slope can still overflow the depth. **Status:** open, record-only.
+
+**287. Sloped snap corners carry ~1e-14 noise**, against invariant 25 (exact moves are never rounded) and
+`sameSnapPoint`'s exact comparison. **Status:** open; decide whether a snap tolerance or a canonical corner is wanted.
+
+**288. SLIVER / BODY_EPS sub-micro behaviour.** Hand-edited features below ~1e-6 in draw approximately (spec ruling);
+the coplanar test's absolute 1e-9 on |n.u| should be noted in the SLIVER comment; `boardEdges` has no output filter for
+segments shorter than SLIVER; `boardEdges` with angle cuts costs ~35-100 ms per call on a heavily cut part before the
+cache (measure a heavily joined part on Plans). **Status:** open, record-only.
+
+**289. Duplicated code.** `treeEdit` `copyDefinition` and `treeOps` repeat the same plain-part copy expression
+(pre-existing); the plane-collection one-liner is duplicated in `cuts.ts` and `snapPoints.ts`; `boardBodies` is
+computed twice per sloped part in `boardSnapPoints` (ghost check and `boardEdges`); `drawing.ts` uses a double cast
+`as unknown as Vec3` and computes box corners twice. **Status:** open, record-only.
+
+**290. Zero-area Float32 slivers in `bodyMesh`.** The absolute 1e-12 triangle skip misses ~BODY_EPS slivers that may
+collapse in Float32 (cosmetic); the unit-pin for the skip is missing. **Status:** open, cosmetic.
+
+**291. `joineryEstimateUsd` is unguarded internally** (App guards the angled case). **Status:** open, record-only.
+
+**292. Wording: "a long-start taper on a short part".** A taper whose start station lies past the part's far end, or
+that deepens toward the far end, is phrased from its deep end (ruling at Task 9); the wording for odd hand-edited
+starts has not been reviewed by the user. **Status:** open, the user may prefer other wording.
