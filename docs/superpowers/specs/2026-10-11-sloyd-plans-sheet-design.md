@@ -120,6 +120,9 @@ by it). The isometric figure draws `visible` only.
   option B the user chose. Unequal weights are what make an assembly move out as a unit and then
   open up a little. `EXPLODE_INNER` (initially 0.5, must stay below 1) is tuned by eye in the
   browser pass with the user, as `EXPLODE_SPREAD` is.
+- *(Amended 2026-10-12, fu 264.)* A container with ONE child is not a level: terms take full weight
+  until the first branching container is passed, so a piece wrapped in one assembly explodes like the
+  unwrapped piece.
 - `EXPLODE_SPREAD` maps the slider's 0–1 to `amount = slider × EXPLODE_SPREAD` (initially 1). It is
   applied by the callers; `explodeOffsets(doc, amount)` takes the amount.
 - Hidden parts count toward centres (the sheet includes them; the viewport uses the same offsets so
@@ -210,7 +213,8 @@ It is derived from the store's document on every render, and it formats nothing 
    user's decision: the scale also fits `TRIO_MAX_HEIGHT` = 1250 units down (Letter's printable ratio
    with room for the heading), whichever binds; a figure is drawn at its share of the page width, never
    stretched to 100%, so a tall piece prints on one page. The exploded figure gets the same width rule.)*
-3. **Each assembly.** Each `Definition` is drawn once, ordered by first placement in `worldParts`
+3. **Each assembly.** *(Amended 2026-10-12, fu 264: a definition every one of whose placements is the
+   sole child of its container is skipped — its drawing repeats the one above it.)* Each `Definition` is drawn once, ordered by first placement in `worldParts`
    order, from its own parts in its own local frame (`partsBelow(doc, definition)`). It is titled with
    its first placement's flat display name, "× N" when placed N times (`placementsOf`), and "(one copy
    mirrored)" / "(N copies mirrored)" when any placement is mirrored. It gets its own front, side and

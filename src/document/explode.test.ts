@@ -67,6 +67,22 @@ describe('explodeOffsets', () => {
     expectVec(explodeOffsets(flat, 1).get('b'), [4, 0, 0]);
   });
 
+  it('explodes a piece wrapped in one assembly as fully as the unwrapped piece (fu 264)', () => {
+    // a x 0..2, b x 8..10 inside wrapper W, the root's only item; W in turn may hold only V.
+    // A one-child level does not count: a's term is full weight, (1,1,1) − (5,1,1) = (−4,0,0),
+    // exactly the flat document's. Before the fix it moved by EXPLODE_INNER·(−4,0,0).
+    const inner = { id: 'dv', boards: [cube('a', [0, 0, 0]), cube('b', [8, 0, 0])], instances: [] };
+    const wrapped: SloydDocument = { ...createDocument('Wrapped'),
+      instances: [{ id: 'W', name: 'Wrapper', definition: 'dv', position: [0, 0, 0], rotation: 0 }],
+      definitions: [inner] };
+    expectVec(explodeOffsets(wrapped, 1).get('W/a'), [-4, 0, 0]);
+    expectVec(explodeOffsets(wrapped, 1).get('W/b'), [4, 0, 0]);
+    const doubly: SloydDocument = { ...createDocument('Doubly'),
+      instances: [{ id: 'W', name: 'Wrapper', definition: 'dw', position: [0, 0, 0], rotation: 0 }],
+      definitions: [{ id: 'dw', boards: [], instances: [{ id: 'V', name: 'Inner', definition: 'dv', position: [0, 0, 0], rotation: 0 }] }, inner] };
+    expectVec(explodeOffsets(doubly, 1).get('W/V/a'), [-4, 0, 0]);
+  });
+
   it('returns the same map for the same document and amount', () => {
     const d = doc();
     expect(explodeOffsets(d, 0.4)).toBe(explodeOffsets(d, 0.4));

@@ -1,6 +1,6 @@
 import type { SloydDocument } from './types';
 import type { Vec3 } from './frames';
-import { parentPath, worldParts } from './tree';
+import { containerAt, parentPath, worldParts } from './tree';
 import { boardExtents } from './geometry';
 
 /** Slider 0..1 → amount (spec §3). Callers apply it; tuned by eye with the user. */
@@ -28,6 +28,10 @@ function chainOf(id: string): string[] {
  * `dy = max(0, assembledMinY − explodedMinY)`, so the lowest part never goes below the assembled
  * piece's lowest point (the user's ruling of 2026-10-11, after the browser pass). Pure; cached
  * per (document object, amount).
+ *
+ * A container with ONE child is not a level (fu 264): it cannot spread anything, so the first level
+ * that actually branches takes full weight and only the levels below it take EXPLODE_INNER. Without
+ * this, a piece wrapped in a single assembly exploded at INNER spread — its first term is zero.
  */
 export function explodeOffsets(doc: SloydDocument, amount: number): ReadonlyMap<string, Vec3> {
   let byAmount = cache.get(doc);
@@ -55,12 +59,25 @@ export function explodeOffsets(doc: SloydDocument, amount: number): ReadonlyMap<
     return [(l[0] + h[0]) / 2, (l[1] + h[1]) / 2, (l[2] + h[2]) / 2];
   };
 
+  const branches = new Map<string, boolean>();
+  const branching = (key: string): boolean => {
+    let v = branches.get(key);
+    if (v === undefined) {
+      const c = containerAt(doc, key === ROOT ? null : key);
+      v = c !== null && c.boards.length + c.instances.length > 1;
+      branches.set(key, v);
+    }
+    return v;
+  };
+
   const out = new Map<string, Vec3>();
   for (const b of parts) {
     const chain = chainOf(b.id);
     const off: Vec3 = [0, 0, 0];
+    let branched = false; // has a branching level been passed above this term?
     for (let i = 1; i < chain.length; i++) {
-      const w = amount * (i === 1 ? 1 : EXPLODE_INNER);
+      const w = amount * (branched ? EXPLODE_INNER : 1);
+      if (branching(chain[i - 1]!)) branched = true;
       const c1 = centre(chain[i]!);
       const c0 = centre(chain[i - 1]!);
       for (let k = 0; k < 3; k++) off[k] += w * (c1[k] - c0[k]);

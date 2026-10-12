@@ -1,6 +1,7 @@
 import { cabinetsDoc } from './treeFixtures';
-import { createDocument } from './document';
+import { createBoard, createDocument } from './document';
 import { planAssemblies } from './plans';
+import type { SloydDocument } from './types';
 
 describe('planAssemblies', () => {
   it('lists each definition once, in first-placement order, with nested placements counted', () => {
@@ -36,5 +37,35 @@ describe('planAssemblies', () => {
       definitions: [{ id: 'de', boards: [], instances: [] }] };
     expect(planAssemblies(doc)).toEqual([]);
     expect(planAssemblies(createDocument('Flat'))).toEqual([]);
+  });
+
+  it('skips an assembly that only repeats the drawing above it (fu 264)', () => {
+    // The whole piece wrapped in W (the root's only item): W's drawing would be the piece's again.
+    const wrapped = { ...cabinetsDoc(), boards: [],
+      instances: [{ id: 'W', name: 'Wrapper', definition: 'dwrap', position: [0, 0, 0] as [number, number, number], rotation: 0 as const }] };
+    wrapped.definitions = [...wrapped.definitions,
+      { id: 'dwrap', boards: [createBoard({ id: 'top', name: 'Top' })],
+        instances: [{ id: 'c1', name: 'Cabinet', definition: 'dc', position: [0, 0, 0], rotation: 0 },
+                    { id: 'c2', name: 'Cabinet (1)', definition: 'dc', position: [30, 0, 0], rotation: 0 }] }];
+    // dwrap is the root's sole child → skipped. dc is placed twice beside dwrap's `top` → kept. dd is not a
+    // sole child either (dc also holds `side`) → kept. Titles keep the wrapper's name.
+    expect(planAssemblies(wrapped).map((a) => [a.definition, a.title, a.copies])).toEqual([
+      ['dc', 'Wrapper › Cabinet', 2],
+      ['dd', 'Wrapper › Cabinet › Drawer', 2],
+    ]);
+  });
+
+  it('skips a nested one-child chain but keeps a definition that is a sole child only somewhere', () => {
+    // dx holds only an instance of dd; dd is ALSO placed at the root beside other items.
+    const doc: SloydDocument = { ...createDocument('Chain'), boards: [createBoard({ id: 'r', name: 'Top' })],
+      instances: [{ id: 'X', name: 'Box', definition: 'dx', position: [0, 0, 0], rotation: 0 },
+                  { id: 'L', name: 'Loose', definition: 'dd', position: [9, 0, 0], rotation: 0 }],
+      definitions: [{ id: 'dx', boards: [], instances: [{ id: 'D', name: 'Drawer', definition: 'dd', position: [0, 0, 0], rotation: 0 }] },
+                    { id: 'dd', boards: [createBoard({ id: 'front', name: 'Front' })], instances: [] }] };
+    // dx: one placement, not a sole child (root has r, X, L) → kept. dd: X/D is a sole child, L is not → kept.
+    expect(planAssemblies(doc).map((a) => a.definition)).toEqual(['dx', 'dd']);
+    // Now drop the loose copy: dd's only placement is dx's sole child → skipped; dx still kept.
+    const only = { ...doc, instances: doc.instances.filter((i) => i.id !== 'L') };
+    expect(planAssemblies(only).map((a) => a.definition)).toEqual(['dx']);
   });
 });

@@ -14,17 +14,25 @@ export interface PlanAssembly {
   parts: Board[];
 }
 
-/** Each definition once, in first-placement order (instance preorder = worldParts order). */
+/**
+ * Each definition once, in first-placement order (instance preorder = worldParts order). A definition
+ * every one of whose placements is the ONLY child of its container is skipped (fu 264): its drawing
+ * would repeat the one above it (the whole piece, for a root-level wrapper). Its own sub-assemblies
+ * are still listed, titled through it.
+ */
 export function planAssemblies(doc: SloydDocument): PlanAssembly[] {
   const defs = new Map(doc.definitions.map((d) => [d.id, d]));
   const counts = placementsOf(doc);
   const out = new Map<string, PlanAssembly>();
+  const repeatsParent = new Map<string, boolean>(); // definition id -> every placement so far is a sole child
   const walk = (c: { boards: StoredBoard[]; instances: Instance[] }, prefix: string, parity: boolean, onPath: Set<string>) => {
     for (const inst of c.instances) {
       const d = defs.get(inst.definition);
       if (!d || onPath.has(d.id)) continue;
       const title = prefix + inst.name;
       const mirrored = parity !== (inst.mirrored === true);
+      const sole = c.boards.length + c.instances.length === 1;
+      repeatsParent.set(d.id, (repeatsParent.get(d.id) ?? true) && sole);
       let entry = out.get(d.id);
       if (!entry) {
         entry = { definition: d.id, title, copies: counts.get(d.id) ?? 1, mirroredCopies: 0, parts: partsBelow(doc, d) };
@@ -35,5 +43,5 @@ export function planAssemblies(doc: SloydDocument): PlanAssembly[] {
     }
   };
   walk(doc, '', false, new Set());
-  return [...out.values()].filter((a) => a.parts.length > 0);
+  return [...out.values()].filter((a) => a.parts.length > 0 && !repeatsParent.get(a.definition));
 }

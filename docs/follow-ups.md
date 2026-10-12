@@ -5024,4 +5024,10 @@ Properties, and the guides footer's own disclosure toggle.
 
 **264. A piece wrapped in ONE top-level assembly explodes at `EXPLODE_INNER` spread.** The first term is zero, and the
 sheet draws that wrapper as a duplicate of the whole piece.
-- **Status:** open, for the user's decision.
+- **Fixed 2026-10-12 (the user asked for the fix).** One principle in both places: a container with ONE child is
+  not a level. `explodeOffsets` gives full weight to every term until the first BRANCHING container is passed, and
+  EXPLODE_INNER only below it, so a wrapped piece explodes exactly like the unwrapped one (a doubly wrapped one too).
+  `planAssemblies` skips a definition every one of whose placements is the sole child of its container; its
+  sub-assemblies are still drawn, titled through it. Normal documents are unchanged (their root branches). Tests pin
+  both, each mutated.
+- **Status:** closed.
