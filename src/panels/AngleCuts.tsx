@@ -20,6 +20,9 @@ const FACES: { value: string; label: string; face: 'width' | 'thickness'; from: 
 function AngleRow({ board, cut, precision }: { board: Board; cut: AngleCut; precision: number }) {
   const updateAngleCut = useStore((s) => s.updateAngleCut);
   const removeAngleCut = useStore((s) => s.removeAngleCut);
+  // Every hook sits above the kind branch below (rules of hooks): a row whose cut changes kind in place
+  // must not change its hook count.
+  const [error, setError] = useState<string | null>(null);
   const line = angleLine(board, cut, precision);
   const head = (
     <div className="cut-head">
@@ -34,7 +37,6 @@ function AngleRow({ board, cut, precision }: { board: Board; cut: AngleCut; prec
     return <div className="cut">{head}<p className="field-note">{line}</p>{none}</div>;
   }
   const f = taperFields(cut, board);
-  const [error, setError] = useState<string | null>(null);
   const set = (patch: Partial<typeof f>) => {
     setError(null);
     updateAngleCut(board.id, cut.id, taperCut({ ...f, ...patch }));

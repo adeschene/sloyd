@@ -4,6 +4,7 @@ import { useStore } from '../store/store';
 import { createBoard, createDocument, taperCut } from '../document/document';
 import type { AngleCut, Board } from '../document/document';
 import { Properties } from './Properties';
+import { AngleCuts } from './AngleCuts';
 
 const leg = (over: Partial<Board> = {}) => createBoard({ id: 'leg', name: 'Leg', length: 28, width: 2, thickness: 2, ...over });
 const open = (b: Board) => {
@@ -51,5 +52,15 @@ describe('the Angles section', () => {
     expect(cuts()[0]).toMatchObject({ face: 'width', from: 'min' });
     expect(cuts()[0]!.points[0]![1]).toBe(1.5);
     expect(screen.getByRole('alert')).toHaveTextContent('Removes more than the thickness — reduce it first.');
+  });
+  it('keeps one hook order when a row\'s cut changes kind in place (taper → miter → taper)', () => {
+    const taper: AngleCut = { id: 'a1', kind: 'taper', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[0, 0.5], [20, 0]] };
+    const miter: AngleCut = { id: 'a1', kind: 'miter', face: 'length', from: 'min', along: 'width', alongFrom: 'min', points: [[0, 0], [2, 2]] };
+    const { rerender } = render(<AngleCuts board={leg({ angleCuts: [taper] })} precision={16} />);
+    expect(screen.getByLabelText('Starts')).toBeInTheDocument();
+    rerender(<AngleCuts board={leg({ angleCuts: [miter] })} precision={16} />);
+    expect(screen.getByText(/^Miter 45\.0°/)).toBeInTheDocument();
+    rerender(<AngleCuts board={leg({ angleCuts: [taper] })} precision={16} />);
+    expect(screen.getByLabelText('Starts')).toBeInTheDocument();
   });
 });
