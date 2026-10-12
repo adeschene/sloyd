@@ -21,10 +21,10 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-12: the plans-sheet round plus fu 254's height cap (`7668787`),
-  bundle `index-Dk0nNgH6.js`, CSS `index-ysjULoHK.css`, **SCHEMA 13** (unchanged, so rolling back to `b023ac8`,
-  `index-CNnZg_b6.js`, or `d5dc553`, `index-DrjjRDmM.js`, is free; below 13, `43b4928`, refuses every project saved
-  since mirrored instances: export first). Test count is under Commands. Fu 264 is fixed on `master`, not yet deployed.
+- **Production matches `master`** as of 2026-10-12: the plans-sheet round plus fu 254's height cap and fu 264's
+  one-child-level rule (`d161946`), bundle `index-ulm_-ktQ.js`, CSS `index-ysjULoHK.css`, **SCHEMA 13** (unchanged, so
+  rolling back to `7668787`, `index-Dk0nNgH6.js`, or `d5dc553`, `index-DrjjRDmM.js`, is free; below 13, `43b4928`,
+  refuses every project saved since mirrored instances: export first). Test count is under Commands.
 - **NO SUCCESSOR IS
   CHOSEN: ask what to work on; do not pick.** Open near the recent code:
   241 (open by decision), 251 (ui-polish residue, record-only),
