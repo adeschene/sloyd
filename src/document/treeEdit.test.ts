@@ -335,6 +335,55 @@ describe('writeBackFlat shares where identical', () => {
     expect(worldParts(out).map((b) => b.cuts[0]!.offset)).toEqual([1, 1, 3]);
   });
 
+  it('an edited angle cut splits the definition; the copy is independent and the other placement unchanged (angle-cuts spec §5.2)', () => {
+    const doc = drawers(2);
+    const taper = { id: 'a1', kind: 'taper' as const, face: 'width' as const, from: 'min' as const, along: 'length' as const, alongFrom: 'min' as const, points: [[0, 0.5], [16, 0]] as [[number, number], [number, number]] };
+    doc.definitions[0]!.boards[0] = { ...(doc.definitions[0]!.boards[0] as Board), angleCuts: [taper] };
+    const before = flat(doc);
+    const after = before.map((b, k) => (k === 1 ? { ...b, angleCuts: [{ ...taper, points: [[0, 1], [16, 0]] as [[number, number], [number, number]] }] } : b));
+    const out = writeBackFlat(doc, before, after);
+    expect(out.instances[0]!.definition).toBe('d1');
+    expect(out.instances[1]!.definition).not.toBe('d1');
+    const w = worldParts(out);
+    expect(w[0]!.angleCuts[0]!.points).toEqual([[0, 0.5], [16, 0]]);
+    expect(w[1]!.angleCuts[0]!.points).toEqual([[0, 1], [16, 0]]);
+    expect(out.definitions.find((d) => d.id === 'd1')!.boards[0]).toMatchObject({ angleCuts: [taper] });
+    // the new definition's part owns its points: no array shared with d1's part
+    const split = out.definitions.find((d) => d.id === out.instances[1]!.definition)!.boards[0] as Board;
+    const orig = out.definitions.find((d) => d.id === 'd1')!.boards[0] as Board;
+    expect(split.angleCuts[0]!.points).not.toBe(orig.angleCuts[0]!.points);
+  });
+
+  describe('a tapered part placed twice (angle-cuts spec §5.2)', () => {
+    const T = (id: string, depth = 0.5) => ({ id, kind: 'taper' as const, face: 'width' as const, from: 'min' as const, along: 'length' as const, alongFrom: 'min' as const, points: [[0, depth], [16, 0]] as [[number, number], [number, number]] });
+    const tapered = () => {
+      const doc = drawers(2);
+      doc.definitions[0]!.boards[0] = { ...(doc.definitions[0]!.boards[0] as Board), angleCuts: [T('a1')] };
+      return doc;
+    };
+
+    it('identical angle cuts that differ only by id keep one definition', () => {
+      const doc = tapered();
+      const before = flat(doc);
+      const after = before.map((b, k) => ({ ...b, angleCuts: [T(`n${k}`)] }));
+      const out = writeBackFlat(doc, before, after);
+      expect(new Set(out.instances.map((i) => i.definition)).size).toBe(1);
+    });
+
+    it('a split copies the angle cuts: no array shared with the definition it left', () => {
+      const doc = tapered();
+      const before = flat(doc);
+      const after = before.map((b, k) => (k === 1 ? { ...b, material: 'oak' } : b));
+      const out = writeBackFlat(doc, before, after);
+      expect(out.instances[1]!.definition).not.toBe('d1');
+      const split = out.definitions.find((d) => d.id === out.instances[1]!.definition)!.boards[0] as Board;
+      const orig = out.definitions.find((d) => d.id === 'd1')!.boards[0] as Board;
+      expect(split.angleCuts).toEqual(orig.angleCuts);
+      expect(split.angleCuts[0]).not.toBe(orig.angleCuts[0]);
+      expect(split.angleCuts[0]!.points).not.toBe(orig.angleCuts[0]!.points);
+    });
+  });
+
   it('four shaped legs with identical mortises stay one shape (follow-up 223)', () => {
     const shape = { id: 's1', length: 28, width: 1.75, thickness: 1.75, material: 'oak', grain: 'length' as const, posture: 'upright' as const, cuts: [], angleCuts: [] };
     const doc: SloydDocument = { ...createDocument(), shapes: [shape],
