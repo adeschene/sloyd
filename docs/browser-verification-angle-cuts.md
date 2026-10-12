@@ -155,3 +155,44 @@ present before the check. `localStorage` read, never cleared. Dev server stopped
 
 **Findings:** fu 293 (the max message rounds up past what it accepts), fu 294 (the bench line omits the long-point
 side), fu 296 (a resize does not re-check stored miter depths; fails safe).
+
+## Chunk 3: bevels and chamfers (2026-10-12)
+
+Dev server only: `npm run dev -- --port 5183` on branch `angle-cuts-3` at `593aa9c`, driven through the Playwright MCP.
+Software GL (llvmpipe): shading and grain on the sloped faces are **not** judged (26a; the user approved sloped faces
+on real hardware in chunk 1). The fresh 5183 origin held only the `Untitled` project it creates on first load. The
+check made one project, `bevel chamfer check`, through the project menu and deleted it the same way. Readouts are
+from the DOM and the store (`import('/src/store/store.ts')`); no paid calls.
+
+### Checked
+
+| Check | Result |
+|---|---|
+| **+ Add ▾** menu | Five items: `Taper`, `Miter`, `Miter both ends`, `Bevel — 15° along one edge`, `Chamfer — Knock off one edge at 45°` |
+| Bevel on each long edge of a 30 × 18 × 3/4 flat `Panel` (step 1) | Bevel added (one undo entry, `past` 5 → 6), Face → `Width face — min side`; a second Bevel left on `Width face — max side`; its Angle typed `30`. Lines: `Bevel 15.0° off the width face (min side), across the thickness, long point on the thickness min side` and `Bevel 30.0° off the width face (max side), across the thickness, long point on the thickness min side`. Stored: `face: width, along: thickness, alongFrom: min`, points `[[0,0],[0.75,0.20096…]]` and `[[0,0],[0.75,0.43301…]]` (= 3/4 × tan 15° and 3/4 × tan 30° exactly as computed in the page) (`docs/img/angle-cuts-bevel-panel.png`) |
+| 45° bevel, long point only | Angle `45` → points `[[0,0],[0.75,0.75]]`; Long point → max side → `alongFrom: max`, points still `[[0,0],[0.75,0.75]]` (depth = run exactly), line `… long point on the thickness max side`. Returned to min side and 15° |
+| Bevel face switch refused | The 15° bevel's Face → `Thickness face — min side` (depth 18 × tan 15° = 4.82" > 3/4"): refused, `Removes more than the thickness — reduce the angle first.`, select stays `width|min`, stored cuts and `past` unchanged |
+| Bevel angle max | `89` refused: `Must be at most 87.6°` (atan 18/0.75), `aria-invalid`, focus kept, `past` unchanged; Escape restored `15.0°` |
+| End bevels | Bevels run along the length only (Global Constraints): the Face select offers width and thickness faces, never a length face. An end bevel is the Miter row with Across → Thickness (chunk 2 checked that it is written and drawn) |
+| Chamfer on the four long edges of a 29 × 1-1/2 × 1-1/2 `Leg` (step 2) | Four Chamfers added; Edge select (twelve options, `Width min / thickness min edge (along the length)` … `Length max / width max edge (along the thickness)`) set to the four "along the length" edges. Lines: `Chamfer 1/8" on the edge between the width face (min side) and the thickness face (min side), along the length`, and the same for (min, max), (max, min), (max, max). Stored `face: width, along: thickness`, points `[[0,0.125],[0.125,0]]` each |
+| Chamfer size | Size `3/16` on the first → `[[0,0.1875],[0.1875,0]]`, line `Chamfer 3/16" …`. Size `2` refused: `Must be at most 1-1/2"`, `aria-invalid`, focus kept, `past` and the stored cut unchanged; Escape restored `3/16"` |
+| Chamfer edge change refused (Task 3 review) | On the Panel (thickness 3/4): a Chamfer set to `Length max / width max edge (along the thickness)`, Size `1` (stored `[[0,1],[1,0]]`, legal: both faces ≥ 1"). Edge → `Width max / thickness max edge (along the length)` (a 1" leg into the 3/4" thickness): refused, `Too big for that edge — reduce the size first.`, select stays on the stored edge, the stored cut and `past` unchanged. Edge → `Length min / width min edge (along the thickness)` is written (one entry) and clears the note. That chamfer was then removed |
+| 3D view | The leg's end shows the chamfered corners (`docs/img/angle-cuts-chamfer-leg.png`, crop `docs/img/angle-cuts-chamfer-leg-end.png`); the panel's near long edge shows its bevel. At this zoom on software GL the chamfer edge lines are not distinguishable from the grain lines in the 3D view; the Plans drawing below (lines from `boardEdges`) shows them |
+| Cut list (step 3) | `Leg` row: `1 × 29" × 1-1/2"`, 0.45 bd ft, the four chamfer lines; its diagram `Length face — min side` draws a hatched (`url(#hatchrt)`) triangle at each of the four corners plus the four notes. `Panel` row: `1 × 30" × 18"`, 2.81 bd ft (stock, not remainder; inv 18), both bevel lines; its diagram `Length face — min side` draws both end-on wedges hatched (`url(#hatchru)`) with the notes (`docs/img/angle-cuts-bevel-cutlist.png`) |
+| Plans | Exploded isometric shows the bevel lines along the panel's long edges and the chamfer lines along the leg; the elevations carry dashed hidden lines (three `.plan-hidden` paths, dash `4px, 3px`); the side view shows the panel's bevelled profile and the leg's chamfered end (`docs/img/angle-cuts-chamfer-plans.png`) |
+| Exploded | Viewport Explode 25% (store `explode: 0.25`, tool `select`): `fieldset.edit-lock` disabled and contains the Angles rows; with the Panel selected all 8 bevel controls and `+ Add ▾` `:disabled`, with the Leg all 12 chamfer controls and `+ Add ▾` `:disabled`. Slider back to 0 (Home) released the lock |
+| Console | 0 errors; only the known warnings (`PCFSoftShadowMap` deprecated, GL driver "GPU stall") |
+
+### Cleanup
+
+`bevel chamfer check` deleted through the project menu (× → Delete?). The library index afterwards holds only
+`Untitled` (`b_mv5075hk_1`); keys are `sloyd.library.v1`, `sloyd.autosave.v1` and `sloyd.project.b_mv5075hk_1`, exactly
+the three present before the check. `localStorage` read, never cleared. Dev server stopped; `.playwright-mcp/` removed.
+
+### Not verified — needs the user on real hardware
+
+- Shading and grain on bevel and chamfer faces (26a).
+- A real print of the Plans sheet with bevels and chamfers (fu 70/79/84).
+
+**Findings:** fu 298 (a raised-panel field bevel has no preset of its own), fu 299 (the chamfer Edge select's option
+text is clipped at the panel's width).
