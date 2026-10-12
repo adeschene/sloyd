@@ -327,3 +327,13 @@ describe('DimensionField — onErrorChange', () => {
     expect(onErrorChange).toHaveBeenLastCalledWith(false);
   });
 });
+
+describe('DimensionField defaults (existing callers)', () => {
+  it('still shows fractions and refuses junk with the length message', async () => {
+    const { input } = setup({ value: 0.75 });
+    expect(input.value).toBe('3/4"');
+    await userEvent.clear(input);
+    await userEvent.type(input, 'abc{Enter}');
+    expect(screen.getByRole('alert').textContent).toBe('Enter a measurement, e.g. 3/4 or 1-1/2');
+  });
+});

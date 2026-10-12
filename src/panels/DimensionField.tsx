@@ -32,16 +32,27 @@ interface Props {
    *  changes (including false on mount), so a caller can refuse to act on a
    *  value other than the one on screen (copy in a row's Apply, fu 218). */
   onErrorChange?: (refused: boolean) => void;
+  /** Text -> number, or null when unparseable. Default `parseLength`. */
+  parse?: (text: string) => number | null;
+  /** Number -> text, for the field AND the min/max messages. Default
+   *  `formatLength(v, precision)`. */
+  format?: (v: number) => string;
+  /** The message for unparseable text. Default is the length wording. */
+  invalid?: string;
 }
 
 export const DimensionField = forwardRef<HTMLInputElement, Props>(function DimensionField({
   label, value, onCommit, allowNegative = false, min, max, precision = 16,
-  commitUnchanged = false, onErrorChange,
+  commitUnchanged = false, onErrorChange, parse, format, invalid,
 }: Props, forwardedRef) {
+  // parse/format generalise this field to non-length values (AngleField);
+  // every rule here — the dirty guard, Enter/Escape, refusal never clamps — is
+  // shared, never copied (invariant 5).
+  const fmt = format ?? ((v: number) => formatLength(v, precision));
   const id = useId();
   // The one formatter for `value`, so every resync path — initial state, the
   // adopt effect, the untouched-blur resync, Escape — handles mixed alike.
-  const display = (v: number | null) => (v === null ? '' : formatLength(v, precision));
+  const display = (v: number | null) => (v === null ? '' : fmt(v));
   const [text, setText] = useState(() => display(value));
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -81,14 +92,14 @@ export const DimensionField = forwardRef<HTMLInputElement, Props>(function Dimen
   // whether a commit should happen at all (see the `dirty` guard on blur).
   // False when the entry was refused.
   const commit = (): boolean => {
-    const parsed = parseLength(text);
+    const parsed = (parse ?? parseLength)(text);
     if (parsed === null) {
-      setError('Enter a measurement, e.g. 3/4 or 1-1/2');
+      setError(invalid ?? 'Enter a measurement, e.g. 3/4 or 1-1/2');
       return false;
     }
     if (min !== undefined) {
       if (parsed < min) {
-        setError(`Must be at least ${formatLength(min, precision)}`);
+        setError(`Must be at least ${fmt(min)}`);
         return false;
       }
     } else if (!allowNegative && parsed <= 0) {
@@ -96,11 +107,11 @@ export const DimensionField = forwardRef<HTMLInputElement, Props>(function Dimen
       return false;
     }
     if (max !== undefined && parsed > max) {
-      setError(`Must be at most ${formatLength(max, precision)}`);
+      setError(`Must be at most ${fmt(max)}`);
       return false;
     }
     setError(null);
-    setText(formatLength(parsed, precision));
+    setText(fmt(parsed));
     dirty.current = false;
     // Nothing actually changed (e.g. re-entering the same value, or the
     // display-rounded text still parses back to the stored value) — skip
