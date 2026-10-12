@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useStore } from '../store/store';
 import { angleCutRemovesNothing, defaultTaper, taperCut, taperFields } from '../document/document';
 import { angleLine } from '../document/angleText';
@@ -33,7 +34,11 @@ function AngleRow({ board, cut, precision }: { board: Board; cut: AngleCut; prec
     return <div className="cut">{head}<p className="field-note">{line}</p>{none}</div>;
   }
   const f = taperFields(cut, board);
-  const set = (patch: Partial<typeof f>) => updateAngleCut(board.id, cut.id, taperCut({ ...f, ...patch }));
+  const [error, setError] = useState<string | null>(null);
+  const set = (patch: Partial<typeof f>) => {
+    setError(null);
+    updateAngleCut(board.id, cut.id, taperCut({ ...f, ...patch }));
+  };
   return (
     <div className="cut">
       {head}
@@ -44,6 +49,8 @@ function AngleRow({ board, cut, precision }: { board: Board; cut: AngleCut; prec
           <label htmlFor={`angle-face-${cut.id}`}>Face</label>
           <select id={`angle-face-${cut.id}`} className="input" value={`${f.face}|${f.from}`} onChange={(e) => {
             const o = FACES.find((x) => x.value === e.target.value)!;
+            // A removal beyond the new face is refused, never written (spec §7); the select stays on the stored face.
+            if (f.amount > board[o.face]) { setError(`Removes more than the ${o.face} — reduce it first.`); return; }
             set({ face: o.face, from: o.from });
           }}>
             {FACES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -63,6 +70,7 @@ function AngleRow({ board, cut, precision }: { board: Board; cut: AngleCut; prec
           value={Number.isFinite(f.amount) ? f.amount : null} max={board[f.face]}
           onCommit={(v) => set({ amount: v })} />
       </div>
+      {error && <p className="field-error" role="alert">{error}</p>}
     </div>
   );
 }

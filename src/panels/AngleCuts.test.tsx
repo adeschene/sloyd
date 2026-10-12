@@ -1,7 +1,7 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
-import { createBoard, createDocument } from '../document/document';
+import { createBoard, createDocument, taperCut } from '../document/document';
 import type { AngleCut, Board } from '../document/document';
 import { Properties } from './Properties';
 
@@ -42,5 +42,14 @@ describe('the Angles section', () => {
     expect(screen.getByText(/^Miter 45\.0°/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Remove angle cut/ })).toBeInTheDocument();
     expect(screen.queryByLabelText('Starts')).toBeNull();
+  });
+  it('refuses a face change that would remove more than the new face', async () => {
+    const user = userEvent.setup();
+    open(leg({ width: 4, thickness: 1 }));
+    act(() => useStore.getState().addAngleCuts('leg', [taperCut({ face: 'width', from: 'min', end: 'min', start: 21, amount: 1.5 })]));
+    await user.selectOptions(screen.getByLabelText('Face'), 'Thickness face — min side');
+    expect(cuts()[0]).toMatchObject({ face: 'width', from: 'min' });
+    expect(cuts()[0]!.points[0]![1]).toBe(1.5);
+    expect(screen.getByRole('alert')).toHaveTextContent('Removes more than the thickness — reduce it first.');
   });
 });

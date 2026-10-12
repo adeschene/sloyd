@@ -2920,5 +2920,16 @@ describe('angle-cut actions (spec §7)', () => {
     s().setExplode(0.5);
     s().addAngleCuts('leg', [taperCut({ face: 'width', from: 'min', end: 'min', start: 21, amount: 0.5 })]);
     expect(cuts()).toEqual([]);
+    s().setExplode(0);
+    const t = taperCut({ face: 'width', from: 'min', end: 'min', start: 21, amount: 0.5 });
+    s().addAngleCuts('leg', [t]);
+    const id = cuts()[0]!.id;
+    const before = s().past.length;
+    s().setExplode(0.5);
+    s().updateAngleCut('leg', id, taperCut({ face: 'width', from: 'min', end: 'min', start: 20, amount: 0.5 }));
+    s().removeAngleCut('leg', id);
+    expect(cuts()).toHaveLength(1);
+    expect(cuts()[0]!.points).toEqual([[0, 0.5], [21, 0]]);
+    expect(s().past.length).toBe(before);
   });
 });
