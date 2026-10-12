@@ -318,4 +318,11 @@ describe('angle cuts in part diagrams (spec §4.3)', () => {
     const b = createBoard({ length: 29, width: 1.75, thickness: 1.75, angleCuts: [{ ...taper, face: 'thickness' as const, points: [[40, 0], [50, 1]] }] });
     expect(buildDiagrams(b, 16).map((v) => v.key)).toEqual(['thickness|min']);
   });
+  it('draws in the other horizontal/vertical pairing (through = length: h = width, v = thickness)', () => {
+    const bevel = { id: 'b1', kind: 'bevel' as const, face: 'thickness' as const, from: 'min' as const, along: 'width' as const, alongFrom: 'min' as const, points: [[0, 0.5], [1.75, 0]] as [[number, number], [number, number]] };
+    const v = buildDiagrams(createBoard({ length: 29, width: 1.75, thickness: 1.75, angleCuts: [bevel] }), 16).find((x) => x.face === 'length' && x.from === 'min')!;
+    expect([v.horizontal, v.vertical]).toEqual(['width', 'thickness']);
+    const pts = v.angles[0]!.poly.map(([h, t]) => `${Math.round(h * 1e9) / 1e9},${Math.round(t * 1e9) / 1e9}`).sort();
+    expect(pts).toEqual(['0,0', '0,0.5', '1.75,0'].sort());
+  });
 });

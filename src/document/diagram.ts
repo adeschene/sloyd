@@ -193,7 +193,9 @@ export function buildDiagrams(board: Board, precision: number): DiagramView[] {
         poly.push([p[0] + t * (q[0] - p[0]), p[1] + t * (q[1] - p[1])]);
       }
     }
-    if (poly.length >= 3) view.angles.push({ id: c.id, poly, label: angleLine(board, c, precision) });
+    // A vertex exactly on the line is kept AND is its own crossing point: drop consecutive repeats.
+    const clean = poly.filter((p, i) => { const q = poly[(i + poly.length - 1) % poly.length]!; return Math.hypot(p[0] - q[0], p[1] - q[1]) > 1e-9; });
+    if (clean.length >= 3) view.angles.push({ id: c.id, poly: clean, label: angleLine(board, c, precision) });
   }
 
   // A cut-free board still gets a drawing, for the "all parts" setting: broad

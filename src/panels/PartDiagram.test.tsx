@@ -862,4 +862,18 @@ describe('PartDiagram angle cuts', () => {
     expect(poly.getAttribute('points')!.split(' ')).toHaveLength(3);
     expect(getByText(/^Taper 5\/8"/)).toBeInTheDocument();
   });
+
+  it('flips the vertical on a vUp view: the sharp tip (v = 0) is drawn at the bottom', () => {
+    const v = buildDiagrams(createBoard({ length: 29, width: 1.75, thickness: 1.75, angleCuts: [
+      { id: 'a1', kind: 'taper', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[0, 0.625], [24, 0]] },
+    ] }), 16)[0]!;
+    expect(v.vUp).toBe(true);
+    const { container } = render(<PartDiagram view={v} />);
+    const pts = container.querySelector('polygon.cutlist-diagram-angle')!.getAttribute('points')!
+      .split(' ').map((p) => p.split(',').map(Number) as [number, number]);
+    const tip = pts.reduce((a, b) => (b[0] > a[0] ? b : a));
+    const ys = pts.map((p) => p[1]);
+    expect(tip[1]).toBe(Math.max(...ys));
+    expect(Math.min(...ys)).toBeLessThan(tip[1]);
+  });
 });

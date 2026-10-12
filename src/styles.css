@@ -1132,7 +1132,7 @@ select.input { cursor: pointer; }
 }
 
 .cutlist-diagram-angle {
-  stroke: var(--ink);
+  stroke: currentColor;
   stroke-width: 1;
 }
 
