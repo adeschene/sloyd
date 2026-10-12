@@ -136,8 +136,11 @@ export function AngleCuts({ board, precision }: { board: Board; precision: numbe
       <Popover className="add-angle" label={<>+ Add<span aria-hidden="true"> ▾</span></>} title="Add an angle cut"
         items={[
           { label: 'Taper', detail: 'Slope one face along the length', run: () => addAngleCuts(board.id, [defaultTaper(board)]) },
-          { label: 'Miter', detail: '45° across the width at one end', run: () => addAngleCuts(board.id, [defaultMiter(board)]) },
-          { label: 'Miter both ends', detail: 'A picture-frame rail, in one step', run: () => addAngleCuts(board.id, defaultMiterPair(board)) },
+          // A 45° miter across the width is as deep as the width; deeper than the length is refused on edit, so don't offer it (fu 296).
+          ...(board.width > board.length ? [] : [
+            { label: 'Miter', detail: '45° across the width at one end', run: () => addAngleCuts(board.id, [defaultMiter(board)]) },
+            { label: 'Miter both ends', detail: 'A picture-frame rail, in one step', run: () => addAngleCuts(board.id, defaultMiterPair(board)) },
+          ]),
         ]} />
     </>
   );

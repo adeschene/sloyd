@@ -33,6 +33,11 @@ describe('AngleField', () => {
     await userEvent.clear(input); await userEvent.type(input, '85{Enter}');
     expect(screen.getByRole('alert').textContent).toBe('Must be at most 80.0°');
   });
+  it('accepts an exact max of 45 (the floor must not take it to 44.9)', async () => {
+    const { input, onCommit } = setup(30, vi.fn(), 45);
+    await userEvent.clear(input); await userEvent.type(input, '45{Enter}');
+    expect(onCommit).toHaveBeenLastCalledWith(45);
+  });
   it('an untouched blur commits nothing', async () => {
     const { input, onCommit } = setup(22.499999999999996);
     input.focus(); input.blur();

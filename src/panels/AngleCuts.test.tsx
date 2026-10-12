@@ -119,4 +119,29 @@ describe('miters in the Angles section (spec §7, chunk 2)', () => {
     expect(cuts()[0]).toEqual(stored);
     expect(screen.getByRole('alert')).toHaveTextContent('Removes more than the length — reduce the angle first.');
   });
+  it('states a max the field accepts: 85 on a 24 x 2-1/2 rail reads 84.0 and 84.0 commits (fu 293)', async () => {
+    const user = userEvent.setup();
+    open(rail());
+    await addMenu(user, 'Miter');
+    const angle = screen.getByLabelText('Angle');
+    await user.clear(angle); await user.type(angle, '85{Enter}');
+    expect(screen.getByRole('alert')).toHaveTextContent('Must be at most 84.0°');
+    await user.clear(angle); await user.type(angle, '84.0{Enter}');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(cuts()[0]!.points[1]![1]).toBeCloseTo(2.5 * Math.tan(84 * Math.PI / 180), 9);
+  });
+  it('withholds the miter presets on a part wider than long; a rail has all three (fu 296)', async () => {
+    const user = userEvent.setup();
+    open(leg({ length: 2, width: 3, thickness: 0.75 }));
+    await user.click(screen.getByRole('button', { name: '+ Add' }));
+    expect(screen.getByRole('button', { name: 'Taper' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Miter' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Miter both ends' })).toBeNull();
+  });
+  it('offers Taper, Miter and Miter both ends on a 24 x 2-1/2 rail', async () => {
+    const user = userEvent.setup();
+    open(rail());
+    await user.click(screen.getByRole('button', { name: '+ Add' }));
+    for (const n of ['Taper', 'Miter', 'Miter both ends']) expect(screen.getByRole('button', { name: n })).toBeInTheDocument();
+  });
 });

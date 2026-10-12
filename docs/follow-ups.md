@@ -5144,11 +5144,7 @@ starts has not been reviewed by the user. **Status:** open, the user may prefer 
 
 ## From the angle cuts round (chunk 2, miters) — 2026-10-12
 
-**293. The angle field's max message rounds up past the max it enforces.** On a 24 × 2-1/2 rail mitered across the
-width the true max is atan(24/2.5) = 84.05°; the field says `Must be at most 84.1°` and refuses a typed 84.1 (also 90
-and 85 — the message for those reads "at most 84.1°", never "less than 90°"). 84.05 is accepted and displays as
-`84.0°`. Same on a 3 × 2-1/2 part: `Must be at most 50.2°`, and 50.2 is refused. Seen live (browser verification,
-chunk 2). Fix: format the max rounded DOWN (floor to 0.1°), so the stated bound is always typeable. **Status:** open.
+**293. The angle field's max message rounds up past the max it enforces.** Fixed 2026-10-12: `AngleField` floors the limit to the 0.1° it displays (epsilon keeps an exact 45.0), so a 24 x 2-1/2 rail reads "Must be at most 84.0°" and 84.0 is accepted. **Status:** closed.
 
 **294. A miter's bench line does not say which side holds the long point.** Changing Long point from `Width — min side`
 to `Width — max side` left the row and cut-list line `Miter 22.5° across the width at the length max end` unchanged, so a
@@ -5162,4 +5158,9 @@ open, by decision.
 **296. An edit is refused on a part shortened after its miter was stored, until the angle is reduced.** A resize is
 not checked against stored miter depths: the 24" rail resized to 2" kept both 45° miters (depth 2-1/2" > length), and
 the next miter edit (Long point) was refused with `Removes more than the length — reduce the angle first.`, nothing
-written. Seen live (chunk 2). **Status:** open, fails safe.
+written. Seen live (chunk 2). The add-time half is closed 2026-10-12: the Miter and Miter both ends presets are withheld
+from the + Add menu on a part wider than long (Taper stays). The resize half stays open. **Status:** open, fails safe.
+
+**297. A hand-edited offset miter is moved to canonical form on its first edit.** A miter whose stored points do not
+start at the corner (an offset miter, only reachable by editing the file) is rewritten to the canonical corner-anchored
+form by its first row edit. **Status:** open, hand-edited files only.
