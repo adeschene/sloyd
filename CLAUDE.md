@@ -21,12 +21,11 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-12: the plans-sheet round plus fu 254's height cap and fu 264's
-  one-child-level rule (`d161946`), bundle `index-ulm_-ktQ.js`, CSS `index-ysjULoHK.css`, **SCHEMA 13** (unchanged, so
-  rolling back to `7668787`, `index-Dk0nNgH6.js`, or `d5dc553`, `index-DrjjRDmM.js`, is free; below 13, `43b4928`,
-  refuses every project saved since mirrored instances: export first). Test count is under Commands.
-- **The lumber yield & cost round is on `master`, not yet deployed** (2026-10-12; **SCHEMA 13** unchanged — prices live
-  in the browser under `sloyd.shop.v1`, never in the document — so a deploy or rollback of it is free).
+- **Production matches `master`** as of 2026-10-12: the lumber yield & cost round (merge `f6261fd`) on top of the
+  plans-sheet round and fu 254/264, bundle `index-BR6V0tAc.js`, CSS `index-D82Pe9tp.css`, **SCHEMA 13** (unchanged, so
+  rolling back to `d161946`, `index-ulm_-ktQ.js`, is free — browser-level prices in `sloyd.shop.v1` are simply ignored by
+  an older build; below 13, `43b4928`, refuses every project saved since mirrored instances: export first). Test count
+  is under Commands. Open for the user: fu 273.
 - **NO SUCCESSOR IS
   CHOSEN: ask what to work on; do not pick.** Open near the recent code:
   241 (open by decision), 251 (ui-polish residue, record-only),

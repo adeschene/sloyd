@@ -18,6 +18,13 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-12 with the lumber yield & cost round live** (`index-BR6V0tAc.js`, CSS
+`index-D82Pe9tp.css`, merge `f6261fd`, **schema 13**). Verified: `200` on `/` and a deep route in-network and at the edge;
+bundle and CSS at both match `dist/`; `index-ulm_-ktQ.js` 404s in-network; CSP `connect-src 'self'
+https://api.anthropic.com` at the edge; a real-browser load with 0 errors, the Cloudflare beacon, "Cut list" and
+"+ Add board" present; the load's two fresh keys (`version: 13`) cleared and read back empty twice and after navigating
+away. Features were verified on the dev server (`docs/browser-verification-lumber-yield-cost.md`).
+
 **Production matches `master` as of 2026-10-12 with fu 264's fix live** (`index-ulm_-ktQ.js`, CSS `index-ysjULoHK.css`
 unchanged, commit `d161946`, **schema 13**). Verified: `200` on `/` and a deep route in-network and at the edge; the
 bundle matches `dist/` at both; `index-Dk0nNgH6.js` 404s in-network; CSP `connect-src 'self' https://api.anthropic.com`
