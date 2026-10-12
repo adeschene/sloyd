@@ -1,6 +1,6 @@
 import type { Board } from './types';
 import type { Vec3 } from './frames';
-import { boardBodies, boardEdges } from './bodies';
+import { partGeometry } from './bodies';
 import { worldBox } from './designCheck';
 import { axisFrame, boardExtents } from './geometry';
 import { toWorld } from './snapPoints';
@@ -95,7 +95,7 @@ export interface WorldBody { box: { min: Vec3; max: Vec3 } | null; verts: Vec3[]
 
 export function worldBodies(b: Board): WorldBody[] {
   const frame = axisFrame(b);
-  return boardBodies(b).map((body) => {
+  return partGeometry(b).bodies.map((body) => {
     if (body.box) {
       const w = worldBox(b, body.box);
       return { box: { min: w.min as unknown as Vec3, max: w.max as unknown as Vec3 }, verts: [], planes: [] };
@@ -183,7 +183,7 @@ export function drawView(parts: readonly Board[], view: View, offsets?: Readonly
 
   for (const b of parts) {
     const off = offsets?.get(b.id);
-    for (const [p, q] of boardEdges(b)) {
+    for (const [p, q] of partGeometry(b).edges) {
       const A = plus(toWorld(b, p), off);
       const E = plus(toWorld(b, q), off);
       const pa = proj(A);

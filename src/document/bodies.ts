@@ -1,6 +1,6 @@
 import type { Board, Region } from './types';
-import { pocketCells, pocketEdges, type Point, type Segment } from './cuts';
-import { keptHalfSpace, type V3 } from './angleCuts';
+import { CUT_GEOMETRY_KEYS, pocketCells, pocketEdges, type Point, type Segment } from './cuts';
+import { angleCutValues, keptHalfSpace, type V3 } from './angleCuts';
 
 /** Inches. Below any bench precision, above float drift on part-sized numbers. */
 export const BODY_EPS = 1e-9;
@@ -182,7 +182,7 @@ interface Wing { n: V3; w: V3 }
  * neighbouring faces share is computed twice and the two values differ in the
  * last bits, so nothing here assumes exact equality.
  */
-export function bodyEdges(bodies: Body[]): [V3, V3][] {
+export function bodyEdges(bodies: readonly Body[]): [V3, V3][] {
   const edgesOf = (f: BodyFace): [V3, V3][] =>
     f.verts.map((a, i) => [a, f.verts[(i + 1) % f.verts.length]!] as [V3, V3]).filter(([a, b]) => len(sub(b, a)) > SLIVER);
   // A face with fewer than three non-sliver edges has no area worth the name, and with its sliver edges
@@ -291,4 +291,74 @@ const toPoint = (p: V3): Point => ({ length: p[0], width: p[1], thickness: p[2] 
 export function boardEdges(board: Board): Segment[] {
   if (board.angleCuts.length === 0) return pocketEdges(board);
   return bodyEdges(boardBodies(board)).map(([a, b]) => [toPoint(a), toPoint(b)] as Segment);
+}
+
+/** A part's board-local geometry, shared by every part with the same geometry key. NEVER mutate it (frozen). */
+export interface PartGeometry { readonly bodies: readonly Body[]; readonly edges: readonly Segment[] }
+
+/** Exact, and distinct for -0, NaN and ±Infinity (JSON would write all of the last three as `null`). */
+const num = (n: number): string => (Object.is(n, -0) ? '-0' : String(n));
+
+/**
+ * Everything `boardBodies` and `boardEdges` read, as one string: the three dimensions, every cut's
+ * CUT_GEOMETRY_KEYS values, and every angle cut's id and ANGLE_CUT_KEYS values, in stored order.
+ *
+ * Position, rotation, posture, grain, material and the part's id are NOT in it: the pocket grid
+ * (`cutRegion`, `pocketCells`, `pocketEdges`) reads only the dimensions and cuts, and `keptHalfSpace`
+ * only the dimensions and the angle cut — the geometry is board-local, and every pose is applied
+ * after (toWorld, worldBodies, bodyMesh). The angle cut's ID is in it because a clipped face carries
+ * it (`BodyFace.cut`) and `bodyMesh` looks the cut up by it; a pocket cut's id is not (no output
+ * carries one). Ids are JSON-quoted so an id holding a separator cannot collide.
+ */
+export function geometryKey(board: Board): string {
+  const val = (v: string | number) => (typeof v === 'number' ? num(v) : v);
+  const cuts = board.cuts.map((c) => CUT_GEOMETRY_KEYS.map((k) => val(c[k])).join(',')).join(';');
+  const angles = board.angleCuts.map((c) => `${JSON.stringify(c.id)}:${angleCutValues(c).map(val).join(',')}`).join(';');
+  return `${num(board.length)},${num(board.width)},${num(board.thickness)}|${cuts}|${angles}`;
+}
+
+function deepFreeze<T>(o: T): T {
+  if (typeof o === 'object' && o !== null && !Object.isFrozen(o)) {
+    Object.freeze(o);
+    for (const v of Object.values(o)) deepFreeze(v);
+  }
+  return o;
+}
+
+/** Entries kept. A furniture piece has far fewer distinct part geometries; a drag mints at most one more per frame. */
+export const PART_GEOMETRY_LIMIT = 256;
+const cache = new Map<string, PartGeometry>();
+
+/**
+ * THE cached reader of a part's bodies and edges (angle-cuts final review): `boardBodies` and
+ * `boardEdges`, computed once per distinct `geometryKey` and shared, so a drag frame — which
+ * rebuilds every world part as a new object — recomputes only the part whose geometry changed.
+ * Edges are computed on first read (a caller needing only bodies never pays for them). Least
+ * recently used entries are evicted past PART_GEOMETRY_LIMIT. The result is deep-frozen: shared
+ * between parts, it must never be mutated.
+ */
+export function partGeometry(board: Board): PartGeometry {
+  const key = geometryKey(board);
+  const hit = cache.get(key);
+  if (hit) {
+    cache.delete(key);
+    cache.set(key, hit);
+    return hit;
+  }
+  const bodies = deepFreeze(boardBodies(board));
+  let edges: readonly Segment[] | undefined;
+  const entry: PartGeometry = {
+    bodies,
+    get edges() {
+      if (!edges) {
+        edges = deepFreeze(board.angleCuts.length === 0
+          ? pocketEdges(board)
+          : bodyEdges(bodies).map(([a, b]) => [toPoint(a), toPoint(b)] as Segment));
+      }
+      return edges;
+    },
+  };
+  cache.set(key, entry);
+  if (cache.size > PART_GEOMETRY_LIMIT) cache.delete(cache.keys().next().value!);
+  return entry;
 }

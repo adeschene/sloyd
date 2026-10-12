@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
 import type { AngleCut, Board, Cut } from './types';
-import { boardBodies, boardEdges, bodyEdges, bodyVerts, bodyVolume } from './bodies';
+import { boardBodies, boardEdges, bodyEdges, bodyVerts, bodyVolume, partGeometry, PART_GEOMETRY_LIMIT } from './bodies';
 import { pocketCells, pocketEdges } from './cuts';
 import type { Segment } from './cuts';
-import { chiralPart } from './turnFixtures';
+import { chiralAngled, chiralPart } from './turnFixtures';
 
 const taper: AngleCut = { id: 'a1', kind: 'taper', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[0, 0.625], [24, 0]] };
 const leg = (over: Partial<Board> = {}) => createBoard({ length: 29, width: 1.75, thickness: 1.75, ...over });
@@ -191,4 +191,75 @@ describe('bodyEdges tolerates near-coincident vertices (clip keeps a corner ~1e-
       }
     });
   }
+});
+
+describe('partGeometry — the shared cache of bodies and edges', () => {
+  const base = (): Board => ({ ...chiralAngled('flat'), id: 'p1', position: [1, 2, 3], rotation: 0 });
+
+  it('computes what boardBodies and boardEdges compute', () => {
+    const b = base();
+    const g = partGeometry(b);
+    expect(g.bodies).toEqual(boardBodies(b));
+    expect(g.edges).toEqual(boardEdges(b));
+    const plain = leg({ cuts: [{ id: 'c1', face: 'thickness', from: 'max', across: 'width', offset: 4, width: 0.75, depth: 0.5, stopMin: 0, stopMax: 0 }] });
+    expect(partGeometry(plain).edges).toEqual(pocketEdges(plain));
+  });
+
+  it('returns the same object for the same geometry in another pose, part, name or material', () => {
+    const g = partGeometry(base());
+    for (const over of [
+      { position: [40, -3, 7] as [number, number, number] }, { rotation: 90 as const }, { rotation: 270 as const },
+      { posture: 'upright' as const }, { posture: 'on-edge' as const }, { id: 'other', name: 'Other' },
+      { material: 'walnut' as const }, { grain: 'width' as const },
+    ]) {
+      expect(partGeometry({ ...base(), ...over })).toBe(g);
+    }
+  });
+
+  it('recomputes after any dimension, cut or angle-cut change', () => {
+    const b = base();
+    const g = partGeometry(b);
+    const changed: Board[] = [
+      { ...b, length: 21 }, { ...b, width: 5 }, { ...b, thickness: 1.25 },
+      { ...b, cuts: b.cuts.map((c, i) => (i === 0 ? { ...c, offset: c.offset + 0.25 } : c)) },
+      { ...b, cuts: b.cuts.map((c, i) => (i === 0 ? { ...c, from: 'min' as const } : c)) },
+      { ...b, cuts: b.cuts.map((c, i) => (i === 1 ? { ...c, stopMax: c.stopMax + 1 } : c)) },
+      { ...b, cuts: b.cuts.slice(1) },
+      { ...b, angleCuts: b.angleCuts.map((c, i) => (i === 0 ? { ...c, points: [[0, 1], [14, 0]] as AngleCut['points'] } : c)) },
+      { ...b, angleCuts: b.angleCuts.map((c, i) => (i === 0 ? { ...c, from: 'max' as const } : c)) },
+      { ...b, angleCuts: b.angleCuts.slice(0, 1) },
+    ];
+    for (const c of changed) {
+      const h = partGeometry(c);
+      expect(h).not.toBe(g);
+      expect(h.bodies).toEqual(boardBodies(c));
+    }
+  });
+
+  it('keys on the angle cut\'s id: a sloped face names THIS part\'s cut', () => {
+    const b = base();
+    partGeometry(b);
+    const renamed: Board = { ...b, angleCuts: b.angleCuts.map((c) => ({ ...c, id: `${c.id}-x` })) };
+    const ids = new Set(partGeometry(renamed).bodies.flatMap((body) => body.faces.flatMap((f) => (f.cut ? [f.cut] : []))));
+    expect([...ids].sort()).toEqual(['a1-x', 'a2-x']);
+  });
+
+  it('is frozen all the way down: shared between parts, never mutated', () => {
+    const g = partGeometry(base());
+    expect(Object.isFrozen(g.bodies)).toBe(true);
+    expect(Object.isFrozen(g.bodies[0]!.faces[0]!.verts[0])).toBe(true);
+    expect(Object.isFrozen(g.edges)).toBe(true);
+    expect(Object.isFrozen(g.edges[0]![0])).toBe(true);
+  });
+
+  it(`keeps at most ${PART_GEOMETRY_LIMIT} entries, evicting the least recently used`, () => {
+    const at = (k: number) => leg({ length: 100 + k });
+    const first = partGeometry(at(0));
+    const second = partGeometry(at(1));
+    for (let k = 2; k < PART_GEOMETRY_LIMIT; k += 1) partGeometry(at(k));
+    expect(partGeometry(at(0))).toBe(first); // a hit: the oldest becomes the most recent
+    partGeometry(at(PART_GEOMETRY_LIMIT)); // one past the limit: evicts the least recent, now at(1)
+    expect(partGeometry(at(0))).toBe(first);
+    expect(partGeometry(at(1))).not.toBe(second);
+  });
 });

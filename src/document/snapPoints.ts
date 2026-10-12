@@ -1,5 +1,5 @@
 import { keptHalfSpace } from './angleCuts';
-import { boardBodies, boardEdges } from './bodies';
+import { partGeometry } from './bodies';
 import { clippedRegion, cutRemovesNothing, stockProbe } from './cuts';
 import type { Point } from './cuts';
 import { axisFrame, boardExtents, fromWorldOffset, positionAxisOf, toWorldOffset } from './geometry';
@@ -101,18 +101,20 @@ export function sameSnapPoint(a: SnapPoint | null, b: SnapPoint | null): boolean
  * `boardBodies` is empty (a board its own cuts consumed entirely), all 26
  * stay, because `BoardMesh` still draws a translucent ghost box at the AABB
  * (invariant 21) — the box points sit on a drawn feature even though every
- * cell is empty. That is an explicit `boardBodies(board).length === 0` check
+ * cell is empty. That is an explicit `partGeometry(board).bodies.length === 0` check
  * rather than "the filtered set came back empty": a board could in principle
  * have every box point sit in removed stock while stock remains in its
  * middle, and those are not the same condition.
  *
  * A board with no cuts and no angle cuts returns before either check runs any grid arithmetic
  * at all, the same zero-cost guarantee `pocketCells`/`cutSnapPoints` make in
- * their first line. A cut board therefore builds the cell grid twice here —
- * once inside `stockProbe`, once inside `boardBodies` (and `boardEdges`, ~35-100 ms, once for a sloped part) — which is accepted:
- * both run when the document changes, never per frame, and reusing one grid
- * across the two would mean reaching into `cuts.ts`'s private `grid()`, which
- * stays unexported on purpose.
+ * their first line. Bodies and edges come from `partGeometry`, cached by board-local geometry:
+ * a gizmo drag rebuilds every world part each frame (new objects, new positions), and only the
+ * part whose dimensions or cuts changed recomputes them (angle-cuts final review measured
+ * ~17 ms per frame for four tapered, mortised legs and four aprons without the cache, ~1 ms
+ * with it). `stockProbe` still builds its own cell grid per call — reusing one grid would mean
+ * reaching into `cuts.ts`'s private `grid()`, which stays unexported on purpose — and that
+ * remainder was measured, not assumed, to be small.
  */
 export function boardSnapPoints(board: Board): BoardSnapPoint[] {
   const [ex, ey, ez] = boardExtents(board);
@@ -139,7 +141,8 @@ export function boardSnapPoints(board: Board): BoardSnapPoint[] {
   }
 
   if (board.cuts.length === 0 && board.angleCuts.length === 0) return points;
-  if (boardBodies(board).length === 0) return points;
+  const geometry = partGeometry(board);
+  if (geometry.bodies.length === 0) return points;
 
   // World → part goes through fromWorldOffset: a turn may reverse any
   // horizontal axis, so a world offset is not the part coordinate there.
@@ -161,7 +164,7 @@ export function boardSnapPoints(board: Board): BoardSnapPoint[] {
   // Dedupe by distance, not by exact key: clipped body vertices carry ~1e-14 noise, so a sloped corner that
   // coincides with a lattice corner would never match its exact coordinates. The first point found wins.
   const near = (a: readonly number[], b: readonly number[]) => a.every((v, i) => Math.abs(v - b[i]!) <= 1e-9);
-  for (const [a, b] of boardEdges(board)) {
+  for (const [a, b] of geometry.edges) {
     for (const p of [a, b]) {
       if (!onSlope(p)) continue;
       const at = toWorld(board, p);

@@ -2,7 +2,7 @@ import type { ToggleModifiers } from '../store/selectionGesture';
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import {
-  boardBodies, boardCenter, boardEdges, boardExtents, pointToLocalXYZ,
+  boardCenter, boardExtents, partGeometry, pointToLocalXYZ,
   solidWorldBox, wholeBoard, MATERIALS, DEFAULT_MATERIAL,
 } from '../document/document';
 import type { Board } from '../document/document';
@@ -125,7 +125,7 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
   // invariant 15's failure mode; riding along here inherits the signature key
   // and the disposal effect below for free.
   const geometries = useMemo(() => {
-    const bodies = boardBodies(board);
+    const bodies = partGeometry(board).bodies;
     if (bodies.length === 0) {
       const { center, size } = solidWorldBox(board, wholeBoard(board));
       return {
@@ -178,7 +178,7 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
     if (geometries.placeholder) {
       return new THREE.EdgesGeometry(geometries.items[0].geo);
     }
-    const points = boardEdges(board).flatMap(([a, b]) => [
+    const points = partGeometry(board).edges.flatMap(([a, b]) => [
       ...pointToLocalXYZ(board, a),
       ...pointToLocalXYZ(board, b),
     ]);

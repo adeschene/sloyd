@@ -113,12 +113,14 @@ export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
    * boardSnapPoints here would silently make the tape unable to measure to a
    * dado shoulder — half of what this round and the last one unlock together.
    */
+  // Built only while the tape is the tool: the handlers below are attached only then, and a
+  // gizmo drag under another tool changes `boards` every frame (angle-cuts final review).
   const candidates = useMemo(
-    () => [
+    () => tool !== 'tape' ? [] : [
       ...visibleBoards(boards, hiddenIds).flatMap(snapPointsFor),
       ...(showGuides ? guideSnapPoints(guides) : []),
     ],
-    [boards, hiddenIds, guides, showGuides],
+    [tool, boards, hiddenIds, guides, showGuides],
   );
 
   useEffect(() => {

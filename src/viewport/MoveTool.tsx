@@ -80,9 +80,11 @@ export function MoveTool({ showGuides = true }: { showGuides?: boolean }) {
   const grabbing = grabbed !== null;
   // Another placement of a selected item moves with it (components spec §4.1).
   const keyOf = useMemo(() => (p: string) => itemKey(doc, p), [doc]);
+  // Built only while Move is the tool: the handlers below are attached only then, and a gizmo
+  // drag under Select changes `boards` every frame (angle-cuts final review).
   const candidates = useMemo(
-    () => moveCandidates(boards, guides, selectedIds, hiddenIds, grabbing, showGuides, keyOf),
-    [boards, guides, selectedIds, hiddenIds, grabbing, showGuides, keyOf],
+    () => tool !== 'move' ? [] : moveCandidates(boards, guides, selectedIds, hiddenIds, grabbing, showGuides, keyOf),
+    [tool, boards, guides, selectedIds, hiddenIds, grabbing, showGuides, keyOf],
   );
 
   useEffect(() => {
