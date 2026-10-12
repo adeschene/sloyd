@@ -693,6 +693,14 @@ describe('angle cuts on the cut list (spec §4)', () => {
     expect(setup).toHaveLength(2);
     expect(setup[1]).toMatch(/^Taper /);
   });
+  it('two rails mitered alike but for the long-point side are two rows with different lines (fu 294)', () => {
+    const m = (alongFrom: 'min' | 'max') => ({ id: 'm', kind: 'miter' as const, face: 'length' as const, from: 'max' as const, along: 'width' as const, alongFrom, points: [[0, 0], [2.5, 2.5]] as [[number, number], [number, number]] });
+    const rows = buildCutList(legs([{ length: 24, width: 2.5, thickness: 0.75, angleCuts: [m('min')] }, { length: 24, width: 2.5, thickness: 0.75, angleCuts: [m('max')] }]) as FlatDocument).groups[0]!.rows;
+    expect(rows).toHaveLength(2);
+    const lines = rows.map((r) => r.setup.find((l) => l.startsWith('Miter ')));
+    expect(lines).toContain('Miter 45.0° across the width at the length max end, long point on the width min side');
+    expect(lines).toContain('Miter 45.0° across the width at the length max end, long point on the width max side');
+  });
   it('stock is unchanged by an angle cut (inv 18)', () => {
     const a = buildCutList(legs([{ angleCuts: [taper] }]) as FlatDocument).groups[0]!.stockInches;
     const b = buildCutList(legs([{}]) as FlatDocument).groups[0]!.stockInches;

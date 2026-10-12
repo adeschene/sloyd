@@ -5146,10 +5146,7 @@ starts has not been reviewed by the user. **Status:** open, the user may prefer 
 
 **293. The angle field's max message rounds up past the max it enforces.** Fixed 2026-10-12: `AngleField` floors the limit to the 0.1° it displays (epsilon keeps an exact 45.0), so a 24 x 2-1/2 rail reads "Must be at most 84.0°" and 84.0 is accepted. **Status:** closed.
 
-**294. A miter's bench line does not say which side holds the long point.** Changing Long point from `Width — min side`
-to `Width — max side` left the row and cut-list line `Miter 22.5° across the width at the length max end` unchanged, so a
-picture-frame trapezoid (long points on one side) and a parallelogram brace (opposite sides) print the same two lines;
-only the part diagram and `Short point` tell them apart. **Status:** open, wording for the user to decide.
+**294. A miter's bench line does not say which side holds the long point.** Fixed 2026-10-12: the line now ends `, long point on the width min side` (`miterLongSide`, shared with `miterFields`). **Status:** closed.
 
 **295. A row control to add the matching miter at the other end of an edited miter.** Spec §7 amended (chunk 2): "both
 ends" is the add-menu preset only; a user who edits one miter adds the match as a second miter by hand. **Status:**

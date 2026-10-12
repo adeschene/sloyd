@@ -75,7 +75,7 @@ describe('miters in the Angles section (spec §7, chunk 2)', () => {
     const user = userEvent.setup();
     open(rail());
     await addMenu(user, 'Miter');
-    expect(screen.getByText('Miter 45.0° across the width at the length max end')).toBeInTheDocument();
+    expect(screen.getByText('Miter 45.0° across the width at the length max end, long point on the width min side')).toBeInTheDocument();
   });
   it('adds a miter at both ends as one undo entry (Review Focus 3)', async () => {
     const user = userEvent.setup();

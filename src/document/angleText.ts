@@ -1,5 +1,5 @@
 import type { AngleCut, Board } from './types';
-import { angleCutsThatRemoveStock, depthAt, zeroStation } from './angleCuts';
+import { angleCutsThatRemoveStock, depthAt, miterLongSide, zeroStation } from './angleCuts';
 import { formatLength } from '../units/length';
 
 /** The cut's angle from square, degrees: atan(Δdepth / Δstation). A 45° miter stores depth = run (spec §2.3). */
@@ -34,7 +34,7 @@ export function angleLine(board: Board, c: AngleCut, precision: number): string 
       }
       return `Taper off ${side}: ${f(Math.max(0, near))} at the ${c.along} ${c.alongFrom} end, ${f(Math.max(0, depthAt(c, A)))} at the ${c.along} ${other(c.alongFrom)} end`;
     case 'miter':
-      return `Miter ${deg} across the ${c.along} at the ${c.face} ${c.from} end`;
+      return `Miter ${deg} across the ${c.along} at the ${c.face} ${c.from} end, long point on the ${c.along} ${miterLongSide(c, board)} side`;
     case 'bevel':
       return `Bevel ${deg} off ${side}, across the ${c.along}`;
     case 'chamfer':
