@@ -196,3 +196,13 @@ the three present before the check. `localStorage` read, never cleared. Dev serv
 
 **Findings:** fu 298 (a raised-panel field bevel has no preset of its own), fu 299 (the chamfer Edge select's option
 text is clipped at the panel's width).
+
+## fu 299 / fu 300: wording (2026-10-12)
+
+Dev server (port 5184), the app's own empty "Untitled" project (the only one in the dev library); a board and a chamfer
+added, read, then both undone (the project is empty again; same two keys before and after, nothing cleared).
+- The chamfer row's bench line: `Chamfer 1/8" on the edge between the width face (max side) and the thickness face (max
+  side), along the length`.
+- The Edge select's twelve options read `Width max side · thickness max side`, `Length min end · width max side`, …; the
+  widest measures 224 px in the select's 315 px content box, so the closed select no longer clips (fu 299).
+- 0 console errors.

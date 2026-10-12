@@ -5177,11 +5177,18 @@ feature gap.
 
 **299. The chamfer Edge select's option text is clipped at the panel's width.** At the default 1726 px window the
 Properties panel shows `Width min / thickness min edge (along the lengt` under the caret (`docs/img/angle-cuts-chamfer-leg.png`).
-The option text is the full name in the open list; only the closed select is clipped. Cosmetic. **Status:** open, minor.
+The option text is the full name in the open list; only the closed select is clipped. Cosmetic.
+- **Fixed 2026-10-12 with fu 300:** the options are now `Width max side · thickness max side` (≤ 36 characters; the through
+  dimension is implied), so they no longer clip. **Status:** closed.
 
 **300. Wording drift across the five presets (for the user to rule on).** The chamfer Edge option text
 (`Width max / thickness max edge (along the length)`) uses a different phrasing from the `face (max side)` form used
 elsewhere; an end-edge chamfer says `the length face (min side)` where miters and tapers say `the length min end`; and the
 chamfer refusal message pattern (`Too big for that edge — reduce the size first.`) differs from the taper/bevel ones
-(`Removes more than the … — reduce it first.`). None is wrong; the vocabulary just is not unified. **Status:** open, the
-user's call.
+(`Removes more than the … — reduce it first.`). None is wrong; the vocabulary just is not unified.
+- **Fixed 2026-10-12 — the user approved the wording:** a length face is named as an end everywhere (`faceName`:
+  `the length max end`; other faces `the width face (min side)`), so an end-edge chamfer reads `… between the length max end
+  and the width face (min side) …`; the Edge options read `Width max side · thickness max side` / `Length min end · width max
+  side`; every refusal follows `Removes more than the <dimension> — reduce the <control> first.` (taper: `the removal`,
+  miter/bevel: `the angle`, chamfer edge: `the size`, naming the dimension the leg exceeds).
+- **Status:** closed.
