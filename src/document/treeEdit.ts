@@ -267,6 +267,12 @@ function lowerEdit(doc: SloydDocument, shapes: ReadonlyMap<string, Shape>, befor
   const changedKeys = [...new Set([...Object.keys(before), ...Object.keys(after)])].filter((k) => {
     if (k === 'id' || k === 'shape') return false;            // never written through here
     if (k === 'position' || k === 'rotation') return moved;
+    if (k === 'angleCuts') {
+      // Written when edited, or when a mirror lowering produced a fresh array that is not the stored one
+      // (a d0-moving posture change keeps the world angle cuts as seen). An unmirrored chain leaves
+      // cur === after, so a shared world array is never written.
+      return rec(before)[k] !== rec(after)[k] || (cur.angleCuts !== after.angleCuts && cur.angleCuts !== resolved.angleCuts);
+    }
     return k === 'cuts' ? cur.cuts !== resolved.cuts : rec(before)[k] !== rec(after)[k];
   });
   const valueOf = (k: string) => (k === 'position' ? [...cur.position] : k === 'rotation' ? cur.rotation : k === 'cuts' ? cur.cuts : k === 'angleCuts' ? cur.angleCuts : rec(after)[k]);
@@ -302,8 +308,9 @@ function mergeField(rec0: Record<string, unknown>, wrote: Map<string, unknown>, 
 
 /**
  * Write world-space edits back into the tree (spec §5.1, §5.2). Only changed
- * fields are written: `position` compared element by element, `cuts` by reference, `angleCuts` by `!==` (a lowering reflects flags only, so
- * an untouched world array stays untouched), everything else by `!==`. `position`, `rotation`, `cuts` and
+ * fields are written: `position` compared element by element, `cuts` by reference, `angleCuts` when edited or when a mirror lowering
+ * re-reflected them (a posture change that moves d0 keeps the world angle cuts as seen, as `lowerCuts` does for
+ * cuts; an unmirrored chain never writes a shared world array), everything else by `!==`. `position`, `rotation`, `cuts` and
  * `angleCuts` go down level by level through `lower` (through a mirror the cuts are
  * reflected back by `lowerCuts`; untouched ones stay the stored objects); every
  * other field is part-local and goes back as it is. A key present before and absent after is deleted (storedValue).
