@@ -5,6 +5,7 @@ import { DimensionField } from './DimensionField';
 import { NameField } from './NameField';
 import { ActionBar, COPY_IN_ROW } from './ActionBar';
 import { formatLength } from '../units/length';
+import { AngleCuts } from './AngleCuts';
 import type { Rotation, Posture, Grain, Board, Cut, Dimension, Region } from '../document/document';
 
 const DIMENSION_LABEL: Record<Dimension, string> = {
@@ -630,6 +631,8 @@ export function Properties() {
         <CutRow key={cut.id} board={board} cut={cut} precision={precision} solids={solids} />
       ))}
       <button className="add-cut" onClick={() => addCut(board.id)}>+ Add cut</button>
+
+      <AngleCuts board={board} precision={precision} />
     </div>
   );
 }

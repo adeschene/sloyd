@@ -129,3 +129,32 @@ export function mirrorAngleCut(c: AngleCut, d: Dimension): AngleCut {
   else if (c.along === d) out.alongFrom = flip(c.alongFrom);
   return out;
 }
+
+/** A taper as the shop reads it (spec §7): which face, from which end, where it starts, how much it removes there. */
+export interface TaperFields { face: 'width' | 'thickness'; from: CutFrom; end: CutFrom; start: number; amount: number }
+
+/** Exact: the stored points are the typed numbers (invariant 25). */
+export function taperCut(f: TaperFields): Omit<AngleCut, 'id'> {
+  return { kind: 'taper', face: f.face, from: f.from, along: 'length', alongFrom: f.end, points: [[0, f.amount], [f.start, 0]] };
+}
+
+/**
+ * The shop numbers of a stored taper, described from its DEEP end (the wording's
+ * rule, Task 9): a line that is already at or past zero at `alongFrom`'s end and
+ * deepens toward the far end reads from that far end, so `amount` is never negative.
+ * Editing any field then rewrites the cut in canonical form through `taperCut`.
+ * A hand-edited line that never reaches zero gives a non-finite start (passed through).
+ */
+export function taperFields(c: AngleCut, board: Pick<Board, Dimension>): TaperFields {
+  const face = c.face === 'thickness' ? 'thickness' : 'width';
+  const a = board[c.along];
+  if (depthAt(c, 0) <= 0 && depthAt(c, a) > 0) {
+    return { face, from: c.from, end: flip(c.alongFrom), start: a - zeroStation(c), amount: depthAt(c, a) };
+  }
+  return { face, from: c.from, end: c.alongFrom, start: zeroStation(c), amount: depthAt(c, 0) };
+}
+
+/** A visible, legal starting point on any part: ¼ of the width off over ¾ of the length, from the min end. */
+export function defaultTaper(board: Pick<Board, Dimension>): Omit<AngleCut, 'id'> {
+  return taperCut({ face: 'width', from: 'min', end: 'min', start: board.length * 0.75, amount: board.width / 4 });
+}

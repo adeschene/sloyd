@@ -3,7 +3,7 @@ import { createBoard } from './document';
 import type { AngleCut, Board } from './types';
 import {
   ANGLE_CUT_KEYS, angleCutRemovesNothing, angleCutValues, copyAngleCut, deriveKind, depthAt,
-  keptHalfSpace, mirrorAngleCut, sameAngleCut, throughOf, zeroStation,
+  defaultTaper, keptHalfSpace, mirrorAngleCut, sameAngleCut, taperCut, taperFields, throughOf, zeroStation,
 } from './angleCuts';
 
 const leg = (over: Partial<Board> = {}): Board =>
@@ -117,5 +117,22 @@ describe('mirrorAngleCut (spec 5.2: a flag flip, no arithmetic)', () => {
   });
   it('is an exact involution', () => {
     for (const d of ['length', 'width', 'thickness'] as const) expect(mirrorAngleCut(mirrorAngleCut(taper, d), d)).toEqual(taper);
+  });
+});
+
+describe('taper fields (spec §7)', () => {
+  it('round-trips exactly', () => {
+    const f = { face: 'thickness' as const, from: 'max' as const, end: 'max' as const, start: 22.25, amount: 0.4375 };
+    const c = { id: 'x', ...taperCut(f) };
+    expect(c).toMatchObject({ kind: 'taper', face: 'thickness', from: 'max', along: 'length', alongFrom: 'max', points: [[0, 0.4375], [22.25, 0]] });
+    expect(taperFields(c, leg({ length: 28 }))).toEqual(f);
+  });
+  it('defaults to a quarter of the width over three quarters of the length', () => {
+    const b = createBoard({ length: 28, width: 2, thickness: 2 });
+    expect(defaultTaper(b)).toEqual(taperCut({ face: 'width', from: 'min', end: 'min', start: 21, amount: 0.5 }));
+  });
+  it('describes a taper that deepens toward the far end from its deep end', () => {
+    const c: AngleCut = { id: 'x', kind: 'taper', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[5, 0], [29, 0.625]] };
+    expect(taperFields(c, leg())).toEqual({ face: 'width', from: 'min', end: 'max', start: 24, amount: 0.625 });
   });
 });
