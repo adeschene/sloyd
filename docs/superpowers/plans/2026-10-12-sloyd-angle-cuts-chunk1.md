@@ -85,13 +85,20 @@ path byte-for-byte (render, drawing occluders), so existing behaviour cannot dri
 - Modify: `src/document/types.ts` (beside `Cut`, and `Board` at line ~100)
 - Create: `src/document/angleCuts.ts`, `src/document/angleCuts.test.ts`
 - Modify: `src/document/document.ts` (`CURRENT_VERSION` line 119, `createBoard` line ~207, `validateSharedFields` line ~357-394, barrel exports lines 30-31)
-- Modify: `src/document/links.ts:10-14` (LINK_FIELDS only — the rest is Task 2), `src/document/generated.ts:206`
+- Modify: `src/document/links.ts` (LINK_FIELDS line 10-14, `_sharedPrimitives` 35, `sharedOf` 40-46, `sharedPatch` 49-55, `sameShared` 58-72), `src/document/shapes.ts:31` (`resolveBoard`), `src/document/generated.ts:206`
+  — all of `links.ts` lands here: classifying `angleCuts` shared without its comparison breaks `sameShared` for every pair (`[] !== []`) and `_sharedPrimitives` fails `tsc`.
 - Modify: every test literal `tsc` flags (Step 7)
-- Test: `src/document/document.test.ts` (append)
+- Test: `src/document/document.test.ts`, `src/document/links.test.ts`, `src/document/shapes.test.ts` (append)
 
 **Interfaces:**
 - Produces (types.ts): `type AngleKind = 'taper' | 'miter' | 'bevel' | 'chamfer'`; `interface AngleCut { id: string; kind: AngleKind; face: Dimension; from: CutFrom; along: Dimension; alongFrom: CutFrom; points: [[number, number], [number, number]] }`; `Board.angleCuts: AngleCut[]` (required).
 - Produces (angleCuts.ts): `type V3 = [number, number, number]` (components in `DIMENSION_ORDER`: length, width, thickness); `ANGLE_KINDS: AngleKind[]`; `ANGLE_CUT_FIELDS`; `ANGLE_CUT_KEYS`; `angleCutValues(c): (string|number)[]`; `sameAngleCut(a, b): boolean`; `copyAngleCut(c): AngleCut`; `throughOf(c): Dimension`; `depthAt(c, s): number`; `zeroStation(c): number` (NaN when the depths are equal); `keptHalfSpace(board, c): { n: V3; d: number } | null`; `angleCutRemovesNothing(board, c): boolean`; `angleCutsThatRemoveStock(board): AngleCut[]`; `deriveKind(c, board): AngleKind`.
+
+- [ ] **Step 0: Branch**
+
+```bash
+git checkout -b angle-cuts
+```
 
 - [ ] **Step 1: Add the types**
 
@@ -482,58 +489,9 @@ function validateAngleCuts(raw: unknown, board: Pick<Board, Dimension>): AngleCu
    `export { ANGLE_CUT_FIELDS, ANGLE_CUT_KEYS, angleCutRemovesNothing, angleCutsThatRemoveStock, copyAngleCut, depthAt, keptHalfSpace, sameAngleCut, throughOf, zeroStation } from './angleCuts';`
    and `export type { V3 } from './angleCuts';`, and add `AngleCut, AngleKind` wherever `./types` types are re-exported.
 
-In `src/document/links.ts`, LINK_FIELDS: add `angleCuts: 'shared',` after `cuts: 'shared',` (Task 2 finishes this file).
 In `src/document/generated.ts:206`, add `angleCuts: [],` after `cuts: [],`.
 
-- [ ] **Step 8: Make it compile**
-
-Run: `npm run build`
-Expected: errors of two kinds only — (a) Board/Shape object literals missing `angleCuts` (tests and fixtures:
-add `angleCuts: [],` beside their `cuts:`), (b) the `_sharedPrimitives` guard in `links.ts` and `sharedOf` — fix (b)
-in Task 2 Step 3 now if it blocks the build (it is the same edit). Repeat until `npm run build` is clean. Do NOT add
-`angleCuts` to `createBoard({...})` partials — the default covers them.
-
-- [ ] **Step 9: Run the whole suite**
-
-Run: `npm test`
-Expected: all pass (3045 existing + the new ones). If a test fails only because it snapshots a Board's keys, add
-`angleCuts: []` to its expectation; any other failure is a real regression — stop and investigate.
-
-- [ ] **Step 10: Mutate**
-
-- Change `ANGLE_CUT_FIELDS` to drop `kind` → `tsc` fails (`satisfies`). Restore.
-- In `keptHalfSpace`, use `sa` where `sf` belongs → the "max face and max end" test fails. Restore.
-- In `validateAngleCuts`, drop the equal-stations `continue` → "drops malformed entries" fails. Restore.
-- In `validateAngleCuts`, `continue` on an unknown kind instead of deriving → "derives a missing … kind" fails. Restore.
-
-- [ ] **Step 11: Commit**
-
-```bash
-git checkout -b angle-cuts
-git add -A
-git commit -m "feat(angle cuts): AngleCut primitive, schema 14, validation
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
-```
-
----
-
-### Task 2: Sharing and copying carry angle cuts
-
-**Files:**
-- Modify: `src/document/links.ts` (`_sharedPrimitives` line 35, `sharedOf` 40-46, `sharedPatch` 49-55, `sameShared` 58-72)
-- Modify: `src/document/shapes.ts:31` (`resolveBoard`)
-- Modify: `src/document/treeEdit.ts:400` (`sharedSignature`), `:440` (`copyDefinition`)
-- Modify: `src/document/treeOps.ts:201` and `:327`
-- Modify: `src/store/store.ts:806-831` (`copyBoard`)
-- Test: `src/document/links.test.ts`, `src/document/shapes.test.ts`, `src/store/store.test.ts` (append; use the existing import blocks)
-
-**Interfaces:**
-- Consumes: `sameAngleCut`, `copyAngleCut`, `angleCutValues` (Task 1).
-- Produces: no new names; `sameShared`, `sharedOf`, `sharedPatch`, `resolveBoard`, `copyBoard`, Make Unique, Ungroup and
-  `writeBackFlat`'s regrouping now carry and compare `angleCuts`.
-
-- [ ] **Step 1: Write the failing tests**
+- [ ] **Step 7b: Shared like cuts — tests, then `links.ts` and `resolveBoard`**
 
 Append to `src/document/links.test.ts`:
 
@@ -585,6 +543,90 @@ describe('resolveBoard copies angle cuts', () => {
 });
 ```
 
+Run: `npx vitest run src/document/links.test.ts src/document/shapes.test.ts -t "angle"` — Expected: FAIL.
+
+In `src/document/links.ts`, LINK_FIELDS: add `angleCuts: 'shared',` after `cuts: 'shared',`. Then:
+
+Implement `links.ts`:
+
+```ts
+import { copyAngleCut, sameAngleCut } from './angleCuts';
+```
+
+- `_sharedPrimitives`: `Board[Exclude<SharedField, 'cuts' | 'angleCuts'>]` and update its comment to say "every
+  shared field except `cuts` and `angleCuts`".
+- `sharedOf`: add `angleCuts: b.angleCuts.map(copyAngleCut),`.
+- `sharedPatch`: after the cuts line add `if (patch.angleCuts) out.angleCuts = patch.angleCuts.map(copyAngleCut);`.
+- `sameShared`: add a branch before the `else if`:
+
+```ts
+    } else if (k === 'angleCuts') {
+      if (a.angleCuts.length !== b.angleCuts.length) return false;
+      for (let i = 0; i < a.angleCuts.length; i += 1) {
+        const ca = a.angleCuts[i]!;
+        const cb = b.angleCuts[i]!;
+        if (ca.id !== cb.id || !sameAngleCut(ca, cb)) return false;
+      }
+```
+
+Update `sameShared`'s doc comment: "Cuts and angle cuts in order, by id and every geometry field (CUT_GEOMETRY /
+ANGLE_CUT_FIELDS)."
+
+`shapes.ts:31`: `shared[k] = k === 'cuts' ? s.cuts.map((c) => ({ ...c })) : k === 'angleCuts' ? s.angleCuts.map(copyAngleCut) : s[k];` (import `copyAngleCut` from `./angleCuts`).
+
+
+- [ ] **Step 8: Make it compile**
+
+Run: `npm run build`
+Expected: errors of one kind only — Board/Shape object literals missing `angleCuts` (tests and fixtures: add
+`angleCuts: [],` beside their `cuts:`). Repeat until `npm run build` is clean. Do NOT add
+`angleCuts` to `createBoard({...})` partials — the default covers them.
+
+- [ ] **Step 9: Run the whole suite**
+
+Run: `npm test`
+Expected: all pass (3045 existing + the new ones). If a test fails only because it snapshots a Board's keys, add
+`angleCuts: []` to its expectation; any other failure is a real regression — stop and investigate.
+
+- [ ] **Step 10: Mutate**
+
+- Change `ANGLE_CUT_FIELDS` to drop `kind` → `tsc` fails (`satisfies`). Restore.
+- In `keptHalfSpace`, use `sa` where `sf` belongs → the "max face and max end" test fails. Restore.
+- In `validateAngleCuts`, drop the equal-stations `continue` → "drops malformed entries" fails. Restore.
+- In `validateAngleCuts`, `continue` on an unknown kind instead of deriving → "derives a missing … kind" fails. Restore.
+- Remove the `angleCuts` branch from `sameShared` → `tsc` (`_sharedPrimitives`) or "makes a tapered part and a plain one
+  differ" fails — and `npm test` shows the linksToShapes/linkPlan suites going red, which is why this lives in Task 1. Restore.
+- In `resolveBoard`, use `s[k]` for angleCuts → the shapes test fails. Restore.
+
+- [ ] **Step 11: Commit**
+
+```bash
+git add -A
+git commit -m "feat(angle cuts): AngleCut primitive, schema 14, validation; shared like cuts
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 2: Copies carry angle cuts
+
+**Files:**
+- Modify: `src/document/treeEdit.ts:400` (`sharedSignature`), `:440` (`copyDefinition`)
+- Modify: `src/document/treeOps.ts:201` and `:327`
+- Modify: `src/store/store.ts:806-831` (`copyBoard`)
+- Test: `src/store/store.test.ts`, `src/document/treeOps.test.ts` (append; use the existing import blocks)
+
+**Interfaces:**
+- Consumes: `copyAngleCut`, `angleCutValues` (Task 1; `sameShared`/`sharedOf`/`resolveBoard` already carry angle cuts).
+- Produces: no new names; `copyBoard`, Make Unique, Ungroup and `writeBackFlat`'s regrouping now carry `angleCuts`.
+
+- [ ] **Step 1: Write the failing tests**
+
+Append to `src/document/treeOps.test.ts` (Make Unique copies one level and keeps ids — inv 46): a test that Make Unique on
+an instance whose definition holds a tapered part gives the new definition a part whose `angleCuts` equal the original's
+(ids kept) and share no `points` array. Copy the file's nearest Make Unique test for setup.
+
 Append to `src/store/store.test.ts` (follow the file's existing pattern for resetting the store and adding a board;
 `useStore.getState()` is the store):
 
@@ -613,59 +655,32 @@ setup verbatim; the assertions above are the point).
 
 - [ ] **Step 2: Run to verify they fail**
 
-Run: `npx vitest run src/document/links.test.ts src/document/shapes.test.ts src/store/store.test.ts -t "angle"`
-Expected: FAIL (sameShared ignores angleCuts; copies share objects; duplicate keeps ids).
+Run: `npx vitest run src/document/treeOps.test.ts src/store/store.test.ts -t "angle"`
+Expected: FAIL (copies share objects; duplicate keeps ids).
 
-- [ ] **Step 3: Implement `links.ts`**
+- [ ] **Step 3: Implement the copies**
 
-```ts
-import { copyAngleCut, sameAngleCut } from './angleCuts';
-```
-
-- `_sharedPrimitives`: `Board[Exclude<SharedField, 'cuts' | 'angleCuts'>]` and update its comment to say "every
-  shared field except `cuts` and `angleCuts`".
-- `sharedOf`: add `angleCuts: b.angleCuts.map(copyAngleCut),`.
-- `sharedPatch`: after the cuts line add `if (patch.angleCuts) out.angleCuts = patch.angleCuts.map(copyAngleCut);`.
-- `sameShared`: add a branch before the `else if`:
-
-```ts
-    } else if (k === 'angleCuts') {
-      if (a.angleCuts.length !== b.angleCuts.length) return false;
-      for (let i = 0; i < a.angleCuts.length; i += 1) {
-        const ca = a.angleCuts[i]!;
-        const cb = b.angleCuts[i]!;
-        if (ca.id !== cb.id || !sameAngleCut(ca, cb)) return false;
-      }
-```
-
-Update `sameShared`'s doc comment: "Cuts and angle cuts in order, by id and every geometry field (CUT_GEOMETRY /
-ANGLE_CUT_FIELDS)."
-
-- [ ] **Step 4: Implement the copies**
-
-- `shapes.ts:31`: `shared[k] = k === 'cuts' ? s.cuts.map((c) => ({ ...c })) : k === 'angleCuts' ? s.angleCuts.map(copyAngleCut) : s[k];` (import `copyAngleCut` from `./angleCuts`).
 - `treeEdit.ts:400` (`sharedSignature`): `k === 'cuts' ? … : k === 'angleCuts' ? b.angleCuts.map(angleCutValues) : b[k]` (import `angleCutValues`). Update its doc comment: "angle cuts by ANGLE_CUT_FIELDS, not id".
 - `treeEdit.ts:440` (`copyDefinition`) and `treeOps.ts:201`, `treeOps.ts:327`: wherever `cuts: X.cuts.map((c) => ({ ...c }))` appears, add `angleCuts: X.angleCuts.map(copyAngleCut)` beside it.
 - `store.ts` `copyBoard`: in the `createBoard({...})` call add
   `angleCuts: source.angleCuts.map((c) => ({ ...copyAngleCut(c), id: nextId() })),` and extend the comment above
   ("`cuts` and `angleCuts` need the same treatment").
 
-- [ ] **Step 5: Run the tests and the suite**
+- [ ] **Step 4: Run the tests and the suite**
 
-Run: `npx vitest run src/document/links.test.ts src/document/shapes.test.ts src/store/store.test.ts` then `npm test` and `npm run build`
+Run: `npx vitest run src/document/treeOps.test.ts src/store/store.test.ts` then `npm test` and `npm run build`
 Expected: PASS, clean build.
 
-- [ ] **Step 6: Mutate**
+- [ ] **Step 5: Mutate**
 
-- Remove the `angleCuts` branch from `sameShared` → "makes a tapered part and a plain one differ" fails (the tsc
-  guard also fails, since `angleCuts` falls to the `!==` branch — confirm which fires first). Restore.
 - In `copyBoard`, drop the `id: nextId()` → duplicate test fails. Restore.
-- In `resolveBoard`, use `s[k]` for angleCuts → shapes test fails. Restore.
+- In `copyBoard`, copy without `copyAngleCut` (`...c`) → the shared-points assertion fails. Restore.
+- In the Make Unique copy, drop the `angleCuts` line → the treeOps test fails. Restore.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add -A && git commit -m "feat(angle cuts): shared, linked and copied like cuts
+git add -A && git commit -m "feat(angle cuts): duplicates, Make Unique and regrouping copy angle cuts
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
@@ -1586,11 +1601,16 @@ describe('drawings with angle cuts (spec §3.5)', () => {
     const leg = createBoard({ length: 29, width: 1.75, thickness: 1.75, posture: 'upright', position: [0, 0, 0], angleCuts: [
       { id: 'a1', kind: 'taper', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[0, 0.625], [24, 0]] },
     ] });
-    const behind = createBoard({ length: 0.75, width: 0.75, thickness: 0.75, position: [0.1, 1, -3] });
-    const d = drawView([leg, behind], FRONT);
-    // The small part sits behind the leg's tapered region near the foot; with the taper some of it is visible.
-    const smallVisible = d.visible.filter((s) => s.part === behind.id);
-    expect(smallVisible.length).toBeGreaterThan(0);
+    // A small block directly behind the leg's foot, inside the leg's silhouette as seen from FRONT, within the
+    // strip the taper removes (the first 5/8 of the width at the foot, from the width-min side). Place it from
+    // axisFrame for an upright turn-0 part: which world axis carries width, and on which side min sits.
+    const behind = createBoard({ length: 0.25, width: 0.25, thickness: 0.25, position: [0.1, 1, -3] });
+    const visibleOf = (parts: Board[]) => drawView(parts, FRONT).visible.filter((s) => s.part === behind.id);
+    // CONTROL: without the taper the leg hides the block completely. If this fails, the block is misplaced — fix the
+    // placement, never the expectation.
+    expect(visibleOf([{ ...leg, angleCuts: [] }, behind])).toHaveLength(0);
+    // With the taper the block shows through where the wedge was removed.
+    expect(visibleOf([leg, behind]).length).toBeGreaterThan(0);
   });
 });
 ```
@@ -1702,6 +1722,8 @@ from `worldBodies` (invariant 38 as amended by angle-cuts spec §10)".
 
 - [ ] **Step 4: Mutate**
 
+- Make `drawView` occlude with `worldSolids` boxes again (ignore bodies) → the taper occlusion test fails while its
+  control still passes. Restore.
 - In `worldBodies`, drop the `reversed` sign → the taper occlusion test fails in at least one pose; if it does not,
   add a turned (rotation 180) copy of that test that does. Restore.
 - In `hiddenSpanPlanes`, skip the `sigma = DRAW_EPS` pass → the equality test fails. Restore.
