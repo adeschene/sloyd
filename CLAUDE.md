@@ -25,10 +25,13 @@ handicraft education tradition built around hand woodworking.
   `610c2f2`) — the angle-cuts feature is complete — bundle `index-DACMEk1Y.js`, CSS `index-BkjfVfaC.css`, **SCHEMA 14** (chunks 2–3 changed no schema, so rolling
   back to `b56dcfd`, `index-D4EQ6d5G.js`, `80e41b6`, `index-b4ad9aBu.js`, or `5cb0a4c`, `index-DLW02CPM.js`, is free; below 14, `47548d3`, REFUSES every
   project saved since chunk 1: export first). Test count is under Commands.
-- **NO SUCCESSOR CHOSEN** — ask. Angle cuts shipped all five presets (Taper, Miter, Miter both ends, Bevel, Chamfer); the
-  next §1 gap the session recommended is angle-aware joinery (Add joinery/Refine refuse angled projects — fu 276,
-  architectural, brainstorm first). Angle-cut residue: 295–298 (299 and 300 closed: one face vocabulary and refusal pattern, deployed as `index-DACMEk1Y.js`).
-  Other open items near the recent code: 241 (open by decision), 251 (record-only), 221, 225 (rest out of scope), 232,
+- **NEXT (the user, closing the 2026-10-12 session): "the AI integration"**, to start in a fresh session. The user's
+  words; read them as the Claude features meeting angle cuts unless the user says otherwise — Add joinery, Refine and
+  Repair refuse angled documents today (inv 48, `angledRefusal.ts`; fu 276 angle-aware joinery, fu 277 Generate emitting
+  tapers/miters, fu 283 the joinery dialog with a key on an angled project, unseen). Confirm the scope first, then
+  brainstorm: joinery's checks are box-based throughout (invs 38, 41), so this is architectural. Read the spec
+  `docs/superpowers/specs/2026-10-12-sloyd-angle-cuts-design.md` §6 and the generate/ layer rules before proposing. Other
+  open items: angle-cut residue 295–298; 241 (open by decision), 251 (record-only), 221, 225 (rest out of scope), 232,
   234, 247.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
@@ -221,6 +224,13 @@ src/
 │   ├── cuts.ts           cutRegion, pocketCells, pocketEdges (inv 16's exact grid path), clippedRegion (THE clip),
 │   │                     cutShape (THE description of a cut), cutLabel, openSides,
 │   │                     storedAsShape, cutsThatRemoveStock, CUT_GEOMETRY_FIELDS (inv 40)
+│   ├── angleCuts.ts      AngleCut model (inv 48): ANGLE_CUT_FIELDS (inv 40), keptHalfSpace, depthAt/zeroStation,
+│   │                     mirrorAngleCut (inv 44), deriveKind; the shop-field conversions per kind — taperFields,
+│   │                     MiterFields/BevelFields (stored slope RATIO, miterRatio 45° → 1), ChamferFields (12 canonical
+│   │                     CHAMFER_EDGES, exact legs) — each with its xCut writer and default; imports only types/geometry
+│   ├── angleText.ts      angleLine (THE bench line for every angle cut; faceName: a length face is an END),
+│   │                     shortPointLine (corner minimum, fu 281), angleDegrees (→ units)
+│   ├── angledRefusal.ts  angledParts / angledRefusal: why joinery and Refine refuse an angled document (inv 48)
 │   ├── bodies.ts         boardBodies (pocket cells clipped by angle cuts), bodyEdges, boardEdges (inv 16);
 │   │                     partGeometry: THE cached reader of both (shared, frozen; see per-file rules)
 │   ├── tenons.ts         findTenons
@@ -280,6 +290,8 @@ src/
 │                     trash), GuidesFooter (opens itself when the guide count goes up), PlansSheet / PlanFigure /
 │                     planLayout / planDims (the Plans sheet: figures, one-scale third-angle layout, dimension fitting);
 │                     LumberPricesDialog (browser-level prices; refuses, never clamps); CutList's Buying section
+│                     AngleCuts (the Angles section: "+ Add ▾" — Taper, Miter, Miter both ends, Bevel, Chamfer —
+│                     and one row per kind), AngleField (DimensionField with a degree parse/format; max floored to 0.1°)
 ├── styles.css        surface ROLES over --grey-*/--walnut-*; palette.test.ts pins contrast (4.5:1)
 └── App.tsx           layout, autosave/restore, the ONE keydown effect (inv 27), `pending`
                       (inv 29), switchToken (inv 32), `.app-shell` inert behind any modal
@@ -304,6 +316,14 @@ Deployment scaffolding: `Dockerfile`, `docker-compose.yml`, `nginx.conf`,
   points, drawings, BoardMesh). Its results are SHARED between parts with one `geometryKey` and deep-frozen:
   never mutate them. The key is board-local (dimensions, cut geometry, angle cuts) — no pose — and carries each
   angle cut's ID, because a clipped face names its cut (`BodyFace.cut`) and `bodyMesh` looks it up by id.
+- **`angleCuts.ts` field conversions**: the row's fields carry STORED values — a miter/bevel its slope ratio, a chamfer
+  its legs, a taper its stations and depths — never re-derived through `atan`/`tan`, so an edit of side, end or face keeps
+  a 45° cut at depth = run exactly. Degrees exist only in display and typed input, and reach a writer only through
+  `miterRatio`. A reader returns null for a stored line its row cannot represent (an offset bevel line; a line that
+  never reaches 0 inside the part) — the row then shows the bench line and Remove, never a control that would rewrite it.
+- **`AngleCuts.tsx`**: every hook sits above every `kind` branch (a fixed crash class). Every refusal reads `Removes more
+  than the <dimension> — reduce the <control> first.`, is decided before `updateAngleCut`, and leaves the select on the
+  stored value. A menu preset whose default would be refused on this part is withheld, not added and then refused.
 - **`nesting.ts`** takes `doc.boards`, NEVER `CutListRows`; too-big parts go in
   `unplaceable`, never dropped. The word `turned` rides on `dims` (inv 19).
 - **`SheetLayout.tsx`** is the only caller of `fitLabel`'s `requireDetail`; the tier

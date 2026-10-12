@@ -1,6 +1,6 @@
 # Sloyd — angle cuts: tapers, miters, bevels and chamfers
 
-**Date:** 2026-10-12 · **Status:** approved by the user 2026-10-12; four amendments made while planning chunk 1 (§4.2, §6, §7 — marked *Amended*), also approved; chunk 1 implemented 2026-10-12 on branch angle-cuts (deployed 2026-10-12 as index-DLW02CPM.js); chunk 2 implemented 2026-10-12 on angle-cuts-2 (deployed 2026-10-12 as index-b4ad9aBu.js); chunk 3 (bevels and chamfers) implemented 2026-10-12 on angle-cuts-3 (not yet deployed)
+**Date:** 2026-10-12 · **Status:** approved by the user 2026-10-12; four amendments made while planning chunk 1 (§4.2, §6, §7 — marked *Amended*), also approved; chunk 1 implemented 2026-10-12 on branch angle-cuts (deployed 2026-10-12 as index-DLW02CPM.js); chunk 2 implemented 2026-10-12 on angle-cuts-2 (deployed 2026-10-12 as index-b4ad9aBu.js); chunk 3 (bevels and chamfers) implemented 2026-10-12 on angle-cuts-3 (deployed 2026-10-12 as index-D4EQ6d5G.js); fu 299/300 wording (a length face is an end; one refusal pattern) deployed as index-DACMEk1Y.js — **the feature is complete**
 **Builds on:** cuts (`cuts.ts`, invariants 16, 40), the turn table (invariant 44), the tree and mirrored instances
 (invariants 45, 46), the cut list (invariant 18), the Plans sheet's hidden-line drawings (invariants 38, 47) and the v1
 spec's non-goal "angled parts can arrive later as an explicit feature with compound-angle math done properly"

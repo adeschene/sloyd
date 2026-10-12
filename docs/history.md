@@ -363,6 +363,11 @@ and 79.
 
 ## What each round did
 
+**What fu 299/300 did (2026-10-12)**, the user's wording ruling after angle cuts shipped: one face vocabulary (`faceName`
+— a length face is "the length max end" in every angle line, as miters and tapers already said), short chamfer Edge labels
+(`Width max side · thickness max side`, no longer clipped), and one refusal pattern (`Removes more than the <dimension> —
+reduce the <control> first.`). Done directly (bounded), three mutated tests, checked on the dev server.
+
 **What angle cuts chunk 3 did (2026-10-12)** (plan `docs/superpowers/plans/2026-10-12-sloyd-angle-cuts-chunk3.md`,
 subagent-driven): the Bevel and Chamfer presets, completing angle cuts. A bevel (Face, Long point, Angle) runs along the
 length and slopes across the other cross dimension, its slope stored as a ratio like a miter's; a chamfer (Edge — any of
