@@ -5031,3 +5031,30 @@ sheet draws that wrapper as a duplicate of the whole piece.
   sub-assemblies are still drawn, titled through it. Normal documents are unchanged (their root branches). Tests pin
   both, each mutated.
 - **Status:** closed.
+
+## From the lumber yield & cost round — 2026-10-12
+
+**265. Per-project price overrides (the user's option C).** Prices are browser-level only; a project carries none, so
+an exported project does not say what it was priced at. Overrides would need a schema bump. **Status:** open.
+
+**266. Custom materials and nominal lumber names.** `MATERIALS` is still a fixed seven; ash, poplar, 5x5 Baltic birch
+and nominal names (2x4 = 1-1/2 x 3-1/2) are not expressible. `ShopSettings` is keyed by material, ready for more.
+**Status:** open.
+
+**267. Edge banding and a hardware bill of materials** (`docs/feature-gaps.md` §3). **Status:** open.
+
+**268. Glue-ups from narrow stock.** A part wider than every stock board is "too wide"; edge-gluing narrower boards is
+not modelled. **Status:** open.
+
+**269. The by-the-piece packer is a heuristic.** Largest-first then swap-down is not an optimum; a mix of sizes that
+needs a different split across boards is not searched. **Status:** open; measure before reaching for an optimiser
+(the follow-ups 140/160 rule).
+
+**270. US dollars only.** `formatMoney` is en-US `$`. **Status:** open.
+
+**271. Rough thickness classes (4/4, 8/4) as named stock** for board-foot materials, and a thickness the user does not
+stock (a 5/8" walnut part is priced as 5/8" stock). **Status:** open.
+
+**272. The Lumber & prices dialog is long on a small screen** (fourteen pine sizes; it scrolls). Not judged on a phone.
+**Status:** open, cosmetic.
+

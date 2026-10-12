@@ -43,8 +43,8 @@ curves" arrive). Most of these need a schema bump, with the rollback cost that b
 
 | Gap | Notes | Status |
 |---|---|---|
-| Solid-lumber yield | Only sheet goods get a nesting layout. OpenCutList applies a 1.2–1.7 rough-lumber waste factor; CutList Plus picks starting board sizes | open |
-| Cost | Price per board foot / per sheet, project total (OpenCutList, CutList Plus, SketchList 3D) | open |
+| Solid-lumber yield | Only sheet goods get a nesting layout. OpenCutList applies a 1.2–1.7 rough-lumber waste factor; CutList Plus picks starting board sizes | merged, not deployed (lumber yield & cost round, 2026-10-12) |
+| Cost | Price per board foot / per sheet, project total (OpenCutList, CutList Plus, SketchList 3D) | merged, not deployed (lumber yield & cost round, 2026-10-12) |
 | Custom materials | `MATERIALS` is a fixed seven entries; the `SheetStock` doc comment anticipates this round (ash, poplar, 5×5 Baltic birch, ½" ply…) | open |
 | Nominal dimensional lumber | A 2×4 is 1½ × 3½ | open |
 | Edge banding | Banded edges flagged on the cut list | open |

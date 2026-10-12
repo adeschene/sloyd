@@ -25,6 +25,8 @@ handicraft education tradition built around hand woodworking.
   one-child-level rule (`d161946`), bundle `index-ulm_-ktQ.js`, CSS `index-ysjULoHK.css`, **SCHEMA 13** (unchanged, so
   rolling back to `7668787`, `index-Dk0nNgH6.js`, or `d5dc553`, `index-DrjjRDmM.js`, is free; below 13, `43b4928`,
   refuses every project saved since mirrored instances: export first). Test count is under Commands.
+- **The lumber yield & cost round is on `master`, not yet deployed** (2026-10-12; **SCHEMA 13** unchanged — prices live
+  in the browser under `sloyd.shop.v1`, never in the document — so a deploy or rollback of it is free).
 - **NO SUCCESSOR IS
   CHOSEN: ask what to work on; do not pick.** Open near the recent code:
   241 (open by decision), 251 (ui-polish residue, record-only),
@@ -83,6 +85,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | ui polish | 10-11 | — | Grey/walnut palette; tools and view float over the viewport; Claude ▾; action row with More ▾ and a trash icon; Guides footer |
 | 248–250 | 10-11 | — | Viewport colours approved on real hardware; ProjectMenu gets Popover's Safari focusout guard; snap markers in muted milk-paint tones |
 | plans sheet | 10-11 | — | Printable Plans sheet (exploded isometric, dimensioned third-angle elevations of the piece and each assembly); viewport Explode slider, read-only while exploded (inv 47) |
+| lumber yield & cost | 10-12 | — | Cut list Buying section: board feet × waste factor, by-the-piece boards packed and swapped to the cheapest size, sheets; prices per browser (`sloyd.shop.v1`) in a Lumber & prices dialog |
 
 ### The deployment rule
 
@@ -218,7 +221,11 @@ src/
 │   ├── cutlist.ts        buildCutList (inv 18) — stock, not remainder
 │   ├── depthField.ts     buildDepthField (inv 20)
 │   ├── diagram.ts        buildDiagrams, one view per (face, from)
-│   ├── nesting.ts        buildNesting, shelf FFD; formatDims (invs 19, 22, 23)
+│   ├── nesting.ts        buildNesting, shelf FFD; formatDims (invs 19, 22, 23); packOnto (by-the-piece boards,
+│                         grain locked, largest size opened first) and grainFootprint
+│   ├── purchase.ts       ShopSettings + defaultShop/validateShop (browser-level prices); buildPurchase: the cut
+│                         list's Buying section (bd ft × waste, packed boards swapped down to the cheapest size
+│                         that still holds them — a heuristic, sheets × price), every string built here (→ units)
 │   ├── snapPoints.ts     board/cut/guide snap points, towardFor, offsetPoint (inv 26)
 │   ├── row.ts            rowLayout (gap/pitch/fit-across; refusal CODES; no rounding, inv 25)
 │   ├── generated.ts      DESIGN_SCHEMA, parseDesign, designToDocument (assemblies → a TREE;
@@ -241,7 +248,8 @@ src/
 │   ├── assemblyPick.ts   clickTarget (inv 46)
 │   ├── selectionGesture.ts  selectByClick, clearOnMiss (shared by viewport and parts list)
 │   └── visibility.ts     visibleBoards, the ONE visibility filter (inv 43)
-├── storage/          types.ts (StorageAdapter), browser.ts, libraryIndex.ts (invs 7, 29–31)
+├── storage/          types.ts (StorageAdapter), browser.ts, libraryIndex.ts (invs 7, 29–31); get/setShopSettings
+│                     (`sloyd.shop.v1`: reading never writes, so a newer build's value survives a rollback)
 ├── llm/              types.ts (LlmClient, opaque LlmMessage, inv 37), anthropic.ts
 ├── generate/         prompt.ts (limitLines), concepts.ts (batch planning), estimate.ts (cost ranges: measured
 │                     chars/token, cached prefix, every repair round high; fu 236), refine.ts (refineMessage,
@@ -263,7 +271,8 @@ src/
 │                     SheetLayout, diagramScale, diagramLabels (inv 19); Popover (Claude ▾, More ▾),
 │                     ViewportControls (tools/view over the canvas), ActionBar (three actions, More ▾,
 │                     trash), GuidesFooter (opens itself when the guide count goes up), PlansSheet / PlanFigure /
-│                     planLayout / planDims (the Plans sheet: figures, one-scale third-angle layout, dimension fitting)
+│                     planLayout / planDims (the Plans sheet: figures, one-scale third-angle layout, dimension fitting);
+│                     LumberPricesDialog (browser-level prices; refuses, never clamps); CutList's Buying section
 ├── styles.css        surface ROLES over --grey-*/--walnut-*; palette.test.ts pins contrast (4.5:1)
 └── App.tsx           layout, autosave/restore, the ONE keydown effect (inv 27), `pending`
                       (inv 29), switchToken (inv 32), `.app-shell` inert behind any modal
@@ -558,7 +567,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 3004 tests across 108 files
+npm test           # Vitest, currently 3038 tests across 113 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -567,7 +576,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–264, each with its closure). Read the entries
+**`docs/follow-ups.md` is authoritative** (1–272, each with its closure). Read the entries
 for the area you are about to touch; several are "correct but untested". Open items worth
 knowing without opening it:
 
