@@ -18,6 +18,12 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-12 with angle cuts chunk 3 live** (`index-D4EQ6d5G.js`, CSS `index-BkjfVfaC.css`
+unchanged, merge `b56dcfd`, **schema 14**, unchanged). Verified: `200` on `/` and a deep route in-network and at the edge;
+bundle matches `dist/` at both; `index-b4ad9aBu.js` 404s in-network; CSP unchanged at the edge; a real-browser load with 0
+errors, the Cloudflare beacon and "+ Add board" present; the load's two fresh keys (`version: 14`) cleared and read back
+empty after 3s, then navigated away. Features verified on the dev server (`docs/browser-verification-angle-cuts.md`, "Chunk 3").
+
 **Production matches `master` as of 2026-10-12 with angle cuts chunk 2 live** (`index-b4ad9aBu.js`, CSS `index-BkjfVfaC.css`
 unchanged, merge `80e41b6`, **schema 14**, unchanged by this chunk). Verified: `200` on `/` and a deep route in-network and
 at the edge; bundle matches `dist/` at both; `index-DLW02CPM.js` 404s in-network; CSP unchanged at the edge; a real-browser
@@ -350,6 +356,16 @@ and 79.
 ---
 
 ## What each round did
+
+**What angle cuts chunk 3 did (2026-10-12)** (plan `docs/superpowers/plans/2026-10-12-sloyd-angle-cuts-chunk3.md`,
+subagent-driven): the Bevel and Chamfer presets, completing angle cuts. A bevel (Face, Long point, Angle) runs along the
+length and slopes across the other cross dimension, its slope stored as a ratio like a miter's; a chamfer (Edge — any of
+twelve, canonical face-before-along — and Size) stores its legs exactly. Final bench wording, approved with the plan:
+`Bevel 15.0° off the width face (max side), across the thickness, long point on the thickness min side`, `Chamfer 1/8" on
+the edge between the width face (max side) and the thickness face (max side), along the length`. Reviews tightened the
+bevel reader (an offset hand-edited line becomes read-only instead of being rewritten), made chamfer legs exact for
+decimals, kept a chamfer on a resized part editable, rewrote two plan tests that could not fail, and added the missing
+refusal tests (each half of the edge-change guard, the Bevel menu gate). Residue: fu 298–300. No schema change.
 
 **What angle cuts chunk 2 did (2026-10-12)** (plan `docs/superpowers/plans/2026-10-12-sloyd-angle-cuts-chunk2.md`,
 subagent-driven): the Miter preset. Properties' Angles section gets a "+ Add ▾" menu (Taper, Miter, Miter both ends — the

@@ -21,15 +21,15 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-12: angle cuts chunk 2 (merge `80e41b6`) on chunk 1, bundle
-  `index-b4ad9aBu.js`, CSS `index-BkjfVfaC.css`, **SCHEMA 14** (chunk 2 changed no schema, so rolling back to `5cb0a4c`,
-  `index-DLW02CPM.js`, is free; below 14, `47548d3`, REFUSES every project saved since chunk 1: export first). Test count
-  is under Commands.
-- **Angle cuts: chunks 1–2 shipped; chunk 3 next** (spec `docs/superpowers/specs/2026-10-12-sloyd-angle-cuts-design.md`
-  §9): the Bevel and Chamfer presets — geometry, drawings and bench text exist; their wording may want polish (see the
-  spec's chunk-3 note). Sloped-face shading/grain still needs the user on real hardware (fu 282). Other open items near
-  the recent code: 295–297 (miter residue), 241 (open by decision), 251 (record-only), 221, 225 (rest out of scope), 232,
-  234, 247; plans-sheet, lumber and angle-cut residue below.
+- **Production matches `master`** as of 2026-10-12: angle cuts chunk 3 (merge `b56dcfd`) — the angle-cuts feature is
+  complete — bundle `index-D4EQ6d5G.js`, CSS `index-BkjfVfaC.css`, **SCHEMA 14** (chunks 2–3 changed no schema, so rolling
+  back to `80e41b6`, `index-b4ad9aBu.js`, or `5cb0a4c`, `index-DLW02CPM.js`, is free; below 14, `47548d3`, REFUSES every
+  project saved since chunk 1: export first). Test count is under Commands.
+- **NO SUCCESSOR CHOSEN** — ask. Angle cuts shipped all five presets (Taper, Miter, Miter both ends, Bevel, Chamfer); the
+  next §1 gap the session recommended is angle-aware joinery (Add joinery/Refine refuse angled projects — fu 276,
+  architectural, brainstorm first). Angle-cut residue: 295–300 (300 = wording drift across the presets, the user's call).
+  Other open items near the recent code: 241 (open by decision), 251 (record-only), 221, 225 (rest out of scope), 232,
+  234, 247.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
   byte-identical bundles (test-only). Check what a later commit touches before reading
@@ -88,6 +88,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | 254/264/273 | 10-12 | — | Plans trio height cap (tall pieces print on one page); a one-child container is not an explode level and its drawing is not repeated; a note when a smaller unpriced size would hold a board |
 | angle cuts (chunk 1) | 10-12 | 14 | `Board.angleCuts` (half-space plane cuts, stored `kind`); `boardBodies` clips pocket cells; tapers drawn, edged, snapped, on the Plans sheet, cut list (bench lines, short point) and part diagrams; Taper preset; joinery/Refine refuse angled projects |
 | angle cuts (chunk 2) | 10-12 | — | Miter preset: "+ Add ▾" (Taper, Miter, Miter both ends — one undo entry), End/Across/Long point/Angle controls (ratio stored, 45° exact), AngleField (DimensionField with a degree parse/format), the miter line names the long point |
+| angle cuts (chunk 3) | 10-12 | — | Bevel (Face, Long point, Angle; along the length) and Chamfer (any of 12 edges, Size; exact legs) presets and their final bench wording; the angle-cuts feature is complete |
 
 ### The deployment rule
 
@@ -592,7 +593,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 3266 tests across 119 files
+npm test           # Vitest, currently 3297 tests across 119 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -631,6 +632,8 @@ knowing without opening it:
 - **293–297** — miter residue: 293 and 294 closed (angle max floored; the line names the long point), 295 (a row control to add
   the matching miter, by decision), 296 (a part shortened past its miter refuses edits until the angle is reduced; presets
   withheld on parts wider than long), 297 (a hand-edited offset miter is moved to canonical form on its first edit).
+- **298–300** — bevel/chamfer residue: 298 (no raised-panel field-bevel preset; unequal chamfer legs not editable), 299
+  (chamfer Edge select clips its label when closed), 300 (wording drift across the five presets — the user's call).
 - **176/177** — the held rules' known limits (mutual lapping) and an unseen live repair.
 - **130** — semi-infinite construction lines; picked and set aside 2026-08-31 without a
   reason. Ask before assuming it's wanted; it needs real hardware (26a).
