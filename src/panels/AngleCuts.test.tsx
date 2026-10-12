@@ -55,7 +55,7 @@ describe('the Angles section', () => {
     await user.selectOptions(screen.getByLabelText('Face'), 'Thickness face — min side');
     expect(cuts()[0]).toMatchObject({ face: 'width', from: 'min' });
     expect(cuts()[0]!.points[0]![1]).toBe(1.5);
-    expect(screen.getByRole('alert')).toHaveTextContent('Removes more than the thickness — reduce it first.');
+    expect(screen.getByRole('alert')).toHaveTextContent('Removes more than the thickness — reduce the removal first.');
   });
   it('keeps one hook order when a row\'s cut changes kind in place (taper → miter → taper)', () => {
     const taper: AngleCut = { id: 'a1', kind: 'taper', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[0, 0.5], [20, 0]] };
@@ -177,7 +177,7 @@ describe('bevels and chamfers in the Angles section (chunk 3)', () => {
     const user = userEvent.setup();
     open(plank());
     await addMenu(user, 'Chamfer');
-    await user.selectOptions(screen.getByLabelText('Edge'), 'Width min / thickness max edge (along the length)');
+    await user.selectOptions(screen.getByLabelText('Edge'), 'Width min side · thickness max side');
     expect(cuts()[0]).toMatchObject({ face: 'width', from: 'min', along: 'thickness', alongFrom: 'max' });
     const size = screen.getByLabelText('Size');
     await user.clear(size); await user.type(size, '3/16{Enter}');
@@ -197,12 +197,12 @@ describe('bevels and chamfers in the Angles section (chunk 3)', () => {
     const past = useStore.getState().past.length;
     const edge = screen.getByLabelText('Edge') as HTMLSelectElement;
     const before = edge.value;
-    await user.selectOptions(edge, 'Width max / thickness max edge (along the length)');
+    await user.selectOptions(edge, 'Width max side · thickness max side');
     expect(cuts()[0]).toEqual(stored);
     expect(useStore.getState().past.length).toBe(past);
     expect((screen.getByLabelText('Edge') as HTMLSelectElement).value).toBe(before);
-    expect(screen.getByRole('alert')).toHaveTextContent('Too big for that edge — reduce the size first.');
-    await user.selectOptions(screen.getByLabelText('Edge'), 'Length min / width max edge (along the thickness)');
+    expect(screen.getByRole('alert')).toHaveTextContent('Removes more than the thickness — reduce the size first.');
+    await user.selectOptions(screen.getByLabelText('Edge'), 'Length min end · width max side');
     expect(cuts()[0]).toMatchObject({ face: 'length', from: 'min', along: 'width', alongFrom: 'max' });
     expect(screen.queryByRole('alert')).toBeNull();
   });
@@ -210,9 +210,9 @@ describe('bevels and chamfers in the Angles section (chunk 3)', () => {
     const user = userEvent.setup();
     chamferOn(plank({ width: 1, thickness: 3 }), { face: 'length', from: 'max', along: 'thickness', alongFrom: 'max' }, 2);
     const stored = cuts()[0]!;
-    await user.selectOptions(screen.getByLabelText('Edge'), 'Width max / thickness max edge (along the length)');
+    await user.selectOptions(screen.getByLabelText('Edge'), 'Width max side · thickness max side');
     expect(cuts()[0]).toEqual(stored);
-    expect(screen.getByRole('alert')).toHaveTextContent('Too big for that edge — reduce the size first.');
+    expect(screen.getByRole('alert')).toHaveTextContent('Removes more than the width — reduce the size first.');
   });
   it('withholds Bevel when the default 15 degrees would be deeper than the width (fu 296 sibling)', async () => {
     const user = userEvent.setup();
@@ -237,5 +237,20 @@ describe('bevels and chamfers in the Angles section (chunk 3)', () => {
     expect(screen.getByRole('button', { name: /Remove angle cut/ })).toBeInTheDocument();
     expect(screen.queryByLabelText('Angle')).toBeNull();
     expect(screen.queryByLabelText('Face')).toBeNull();
+  });
+});
+
+describe('chamfer edge options (fu 299, fu 300)', () => {
+  it('lists twelve short options in the bench vocabulary, a length side named as an end', async () => {
+    const user = userEvent.setup();
+    open(leg());
+    await addMenu(user, 'Chamfer');
+    const options = [...(screen.getByLabelText('Edge') as HTMLSelectElement).options].map((o) => o.textContent!);
+    expect(options).toHaveLength(12);
+    expect(new Set(options).size).toBe(12);
+    expect(options).toContain('Width max side · thickness max side');
+    expect(options).toContain('Length min end · width max side');
+    expect(options.every((t) => !/length (min|max) side/.test(t))).toBe(true);
+    expect(Math.max(...options.map((t) => t.length))).toBeLessThanOrEqual(36);
   });
 });

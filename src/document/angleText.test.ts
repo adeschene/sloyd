@@ -3,7 +3,7 @@ import { createBoard } from './document';
 import type { AngleCut } from './types';
 import { boardBodies, bodyVerts } from './bodies';
 import { bevelCut, chamferCut, defaultChamfer, miterRatio } from './angleCuts';
-import { angleDegrees, angleLine, shortPointLine } from './angleText';
+import { angleDegrees, angleLine, faceName, shortPointLine } from './angleText';
 
 const taper: AngleCut = { id: 'a1', kind: 'taper', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[0, 0.625], [24, 0]] };
 const miter = (from: 'min' | 'max', run = 2.5): AngleCut => ({ id: `m${from}`, kind: 'miter', face: 'length', from, along: 'width', alongFrom: 'min', points: [[0, 0], [run, run]] });
@@ -149,5 +149,18 @@ describe('bevel and chamfer lines (chunk 3 wording)', () => {
   it('falls back to a generic line for a shape neither row can describe', () => {
     const c = { id: 'n', kind: 'chamfer' as const, face: 'width' as const, from: 'max' as const, along: 'thickness' as const, alongFrom: 'min' as const, points: [[0, 0.5], [0.75, 0.7]] as [[number, number], [number, number]] };
     expect(angleLine(b, c, 16)).toMatch(/^Chamfer .*off the width face \(max side\)/);
+  });
+});
+
+describe('face names (fu 300)', () => {
+  it('names a length face as an end, any other face by its side', () => {
+    expect(faceName('length', 'max')).toBe('the length max end');
+    expect(faceName('width', 'min')).toBe('the width face (min side)');
+    expect(faceName('thickness', 'max')).toBe('the thickness face (max side)');
+  });
+  it('an end-edge chamfer names the end the way miters and tapers do', () => {
+    const b = createBoard({ length: 20, width: 3, thickness: 0.75 });
+    const c: AngleCut = { id: 'e', ...chamferCut({ face: 'length', from: 'max', along: 'width', alongFrom: 'min', legFace: 0.25, legAlong: 0.25 }, b) };
+    expect(angleLine(b, c, 16)).toBe('Chamfer 1/4" on the edge between the length max end and the width face (min side), along the thickness');
   });
 });

@@ -1,4 +1,4 @@
-import type { AngleCut, Board } from './types';
+import type { AngleCut, Board, CutFrom, Dimension } from './types';
 import { angleCutsThatRemoveStock, bevelFields, chamferFields, depthAt, throughOf, miterLongSide, zeroStation } from './angleCuts';
 import { formatLength } from '../units/length';
 
@@ -11,6 +11,14 @@ export function angleDegrees(c: Pick<AngleCut, 'points'>): number {
 const other = (f: 'min' | 'max') => (f === 'min' ? 'max' : 'min');
 
 /**
+ * A face as the bench names it (fu 300): a LENGTH face is an end — "the length max end", as miters and tapers already
+ * say — and any other face is "the width face (min side)". The one place a face's name is spelled, for every angle line.
+ */
+export function faceName(dim: Dimension, side: CutFrom): string {
+  return dim === 'length' ? `the length ${side} end` : `the ${dim} face (${side} side)`;
+}
+
+/**
  * One angle cut as a bench line (angle-cuts spec §4.2), worded from its `kind`
  * in the cut list's existing vocabulary. THE ONE home of these strings: the cut
  * list and the part diagrams both print what this returns (invariant 19). The
@@ -19,7 +27,7 @@ const other = (f: 'min' | 'max') => (f === 'min' ? 'max' : 'min');
 export function angleLine(board: Board, c: AngleCut, precision: number): string {
   const f = (n: number) => formatLength(n, precision);
   const deg = `${angleDegrees(c).toFixed(1)}°`;
-  const side = `the ${c.face} face (${c.from} side)`;
+  const side = faceName(c.face, c.from);
   const A = board[c.along];
   const z = zeroStation(c);
   const near = depthAt(c, 0);
@@ -44,7 +52,7 @@ export function angleLine(board: Board, c: AngleCut, precision: number): string 
       const cf = chamferFields(c, board);
       if (!cf) return `Chamfer ${deg} off ${side}, across the ${c.along}`;
       const through = throughOf(cf);
-      const edge = `the edge between the ${cf.face} face (${cf.from} side) and the ${cf.along} face (${cf.alongFrom} side), along the ${through}`;
+      const edge = `the edge between ${faceName(cf.face, cf.from)} and ${faceName(cf.along, cf.alongFrom)}, along the ${through}`;
       return cf.legFace === cf.legAlong
         ? `Chamfer ${f(cf.legFace)} on ${edge}`
         : `Chamfer ${f(cf.legFace)} into the ${cf.face} × ${f(cf.legAlong)} into the ${cf.along}, on ${edge}`;

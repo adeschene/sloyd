@@ -207,6 +207,10 @@ dimension, clamped to [0, L]. The earlier formula subtracted each end's deepest 
 lay at opposite edges (parallel 45 degree ends on a 20 x 3-1/2 x 3/4 brace printed 13" where both long edges are 16-1/2").
 Each end's depth is a max of linear functions (convex), so the remaining length is concave across the face and its least lies at a corner. Trapezoid ends (same slope) are unchanged: 24 - 2.5 - 2.5 = 19.
 
+*Amended (user, 2026-10-12, fu 300):* a length face is named as an end in every angle line (`the length max end`), so an
+end-edge chamfer reads `Chamfer 1/4" on the edge between the length max end and the width face (min side), along the
+thickness`.
+
 ### 4.3 Part diagrams (`diagram.ts`)
 
 In each face view where a slope shows as a line, the diagram draws the sloped line and hatches the wedge it removes as

@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useStore } from '../store/store';
 import {
-  CHAMFER_EDGES, angleCutRemovesNothing, throughOf, bevelAcross, bevelCut, bevelFields, chamferCut, chamferFields, defaultBevel, defaultChamfer,
+  CHAMFER_EDGES, angleCutRemovesNothing, bevelAcross, bevelCut, bevelFields, chamferCut, chamferFields, defaultBevel, defaultChamfer,
   defaultMiter, defaultMiterPair, defaultTaper, miterCut, miterDegrees, miterFields, miterRatio, taperCut, taperFields,
 } from '../document/document';
 import { angleLine } from '../document/angleText';
-import type { AngleCut, BevelFields, Board, ChamferFields, CutFrom, MiterFields } from '../document/document';
+import type { AngleCut, BevelFields, Board, ChamferFields, CutFrom, Dimension, MiterFields } from '../document/document';
 import { DimensionField } from './DimensionField';
 import { AngleField } from './AngleField';
 import { Popover } from './Popover';
@@ -131,9 +131,9 @@ function AngleRow({ board, cut, precision }: { board: Board; cut: AngleCut; prec
     };
     const edgeIndex = CHAMFER_EDGES.findIndex((x) => x.face === chamfer.face && x.from === chamfer.from && x.along === chamfer.along && x.alongFrom === chamfer.alongFrom);
     const cap = (s: string) => s[0]!.toUpperCase() + s.slice(1);
-    const edgeText = (x: (typeof CHAMFER_EDGES)[number]) => {
-      return `${cap(x.face)} ${x.from} / ${x.along} ${x.alongFrom} edge (along the ${throughOf(x)})`;
-    };
+    // fu 300: the bench vocabulary, short enough not to clip (fu 299) — a length side is an end; the through dimension is implied.
+    const sideText = (d: Dimension, side: CutFrom) => `${d} ${side} ${d === 'length' ? 'end' : 'side'}`;
+    const edgeText = (x: (typeof CHAMFER_EDGES)[number]) => cap(`${sideText(x.face, x.from)} · ${sideText(x.along, x.alongFrom)}`);
     return (
       <div className="cut">
         {head}
@@ -145,7 +145,8 @@ function AngleRow({ board, cut, precision }: { board: Board; cut: AngleCut; prec
             <select id={`chamfer-edge-${cut.id}`} className="input" value={edgeIndex} onChange={(e) => {
               const x = CHAMFER_EDGES[Number(e.target.value)]!;
               // Changing the edge keeps the legs; a leg longer than the new edge's face is refused, never clamped.
-              if (chamfer.legFace > board[x.face] || chamfer.legAlong > board[x.along]) { setError('Too big for that edge — reduce the size first.'); return; }
+              const over = chamfer.legFace > board[x.face] ? x.face : chamfer.legAlong > board[x.along] ? x.along : null;
+              if (over) { setError(`Removes more than the ${over} — reduce the size first.`); return; }
               setC(x);
             }}>
               {CHAMFER_EDGES.map((x, i) => <option key={i} value={i}>{edgeText(x)}</option>)}
@@ -178,7 +179,7 @@ function AngleRow({ board, cut, precision }: { board: Board; cut: AngleCut; prec
           <select id={`angle-face-${cut.id}`} className="input" value={`${f.face}|${f.from}`} onChange={(e) => {
             const o = FACES.find((x) => x.value === e.target.value)!;
             // A removal beyond the new face is refused, never written (spec §7); the select stays on the stored face.
-            if (f.amount > board[o.face]) { setError(`Removes more than the ${o.face} — reduce it first.`); return; }
+            if (f.amount > board[o.face]) { setError(`Removes more than the ${o.face} — reduce the removal first.`); return; }
             set({ face: o.face, from: o.from });
           }}>
             {FACES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
