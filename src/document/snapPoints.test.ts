@@ -828,4 +828,28 @@ describe('snap points on angle cuts (spec §3.6)', () => {
   it('a part with no angle cuts is unchanged', () => {
     expect(boardSnapPoints(createBoard({}))).toHaveLength(26);
   });
+
+  it('never returns two points on the same spot (non-dyadic position)', () => {
+    const position: [number, number, number] = [0.1234567, 0.3333333, 0.7777777];
+    const taper = createBoard({ length: 24, width: 2.5, thickness: 0.75, position, angleCuts: [
+      { id: 't', kind: 'taper', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[0, 0], [2.5, 1]] },
+    ] });
+    for (const b of [{ ...rail(), position }, taper]) {
+      const pts = boardSnapPoints(b);
+      for (let i = 0; i < pts.length; i += 1) {
+        for (let j = i + 1; j < pts.length; j += 1) {
+          expect(pts[i]!.at.some((v, k) => Math.abs(v - pts[j]!.at[k]!) > 1e-6)).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('a rectangular cut inside the angle cut\'s removed wedge offers no cut points', () => {
+    const dado: Cut = { id: 'c1', face: 'thickness', from: 'min', across: 'width', offset: 22.5, width: 0.75, depth: 0.5, stopMin: 0, stopMax: 0 };
+    const without = cutSnapPoints({ ...rail(), cuts: [dado], angleCuts: [] });
+    const withAngle = cutSnapPoints({ ...rail(), cuts: [dado] });
+    expect(without.length).toBeGreaterThan(withAngle.length);
+    // The miter keeps length <= 24 - width (world x <= 24 - z here).
+    expect(withAngle.every((p) => p.at[0] <= 24 - p.at[2] + 1e-9)).toBe(true);
+  });
 });

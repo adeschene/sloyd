@@ -158,14 +158,14 @@ export function boardSnapPoints(board: Board): BoardSnapPoint[] {
   // plane — a marker on a drawn feature (invariant 16's general rule).
   const planes = board.angleCuts.flatMap((c) => { const h = keptHalfSpace(board, c); return h ? [h] : []; });
   const onSlope = (p: Point) => planes.some((h) => Math.abs(h.n[0] * p.length + h.n[1] * p.width + h.n[2] * p.thickness + h.d) <= 1e-9);
-  const seen = new Set(lattice.map((p) => p.at.join(',')));
+  // Dedupe by distance, not by exact key: clipped body vertices carry ~1e-14 noise, so a sloped corner that
+  // coincides with a lattice corner would never match its exact coordinates. The first point found wins.
+  const near = (a: readonly number[], b: readonly number[]) => a.every((v, i) => Math.abs(v - b[i]!) <= 1e-9);
   for (const [a, b] of boardEdges(board)) {
     for (const p of [a, b]) {
       if (!onSlope(p)) continue;
       const at = toWorld(board, p);
-      const key = at.join(',');
-      if (seen.has(key)) continue;
-      seen.add(key);
+      if (lattice.some((q) => near(q.at, at))) continue;
       lattice.push({ kind: 'corner', at, owner });
     }
   }

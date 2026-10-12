@@ -279,7 +279,8 @@ export function stockProbe(board: Board): (p: Point) => boolean {
     return out;
   };
 
-  // Angle cuts (angle-cuts spec §3.6): a point is stock only on every cut's kept side, closed.
+  // Angle cuts (angle-cuts spec §3.6): a point is stock only on every cut's kept side, closed. This governs both
+  // snap providers: boardSnapPoints' lattice and cutSnapPoints' pocket points both filter through stockProbe.
   const planes = board.angleCuts.flatMap((c) => { const h = keptHalfSpace(board, c); return h ? [h] : []; });
   const kept = (p: Point) => planes.every((h) => h.n[0] * p.length + h.n[1] * p.width + h.n[2] * p.thickness + h.d >= -1e-9);
 
