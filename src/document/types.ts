@@ -70,6 +70,34 @@ export interface Cut {
 /** An inclusive [min, max] interval, in inches. */
 export type Span = [number, number];
 
+/** The word an angle cut's preset chose (angle-cuts spec §2.4). Names the cut and picks
+ *  its row's controls; never decides geometry. */
+export type AngleKind = 'taper' | 'miter' | 'bevel' | 'chamfer';
+
+/**
+ * A single-angle plane cut (angle-cuts spec §2): a straight line in the
+ * `face` × `along` plane, running straight through the third dimension; the
+ * stock on the `from` side of the line is removed. One half-space, unbounded:
+ * a line that runs negative removes nothing there by construction.
+ *
+ * Board-local like `Cut`, so turns and postures cost nothing.
+ */
+export interface AngleCut {
+  /** Unique within its board (per shape for a shape) — invariant 33's scopes. */
+  id: string;
+  kind: AngleKind;
+  /** The dimension the cut goes into … */
+  face: Dimension;
+  /** … entering from its min or max face. Depths are measured from that face. */
+  from: CutFrom;
+  /** The second dimension of the sloped line's plane. Always differs from `face`. */
+  along: Dimension;
+  /** Which end of `along` stations are measured from. */
+  alongFrom: CutFrom;
+  /** Two points on the line: [station along `along`, depth into `face`], inches. Stations differ. */
+  points: [[number, number], [number, number]];
+}
+
 /**
  * An axis-aligned box in a board's own coordinate space, keyed by dimension
  * rather than by axis index — there is no world here, and keying by dimension
@@ -98,6 +126,8 @@ export interface Board {
   material: string;
   /** Stock removed from this board. Empty for a board with no joinery. */
   cuts: Cut[];
+  /** Single-angle plane cuts (tapers, miters, bevels, chamfers). Empty for most parts. */
+  angleCuts: AngleCut[];
   /**
    * The Shape this part uses (components spec §2). Set ONLY on a RESOLVED part
    * (`resolveBoard`, `worldParts`); a stored plain part never has it, and a
