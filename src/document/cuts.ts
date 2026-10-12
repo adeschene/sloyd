@@ -1,4 +1,5 @@
 import { MATERIALS, type Board, type Cut, type Dimension, type Region, type Span } from './types';
+import { keptHalfSpace } from './angleCuts';
 import { axisFrame, boardExtents, DIMENSION_ORDER, positionAxisOf, spanToWorldOffset, toWorldOffset } from './geometry';
 
 /**
@@ -278,7 +279,12 @@ export function stockProbe(board: Board): (p: Point) => boolean {
     return out;
   };
 
+  // Angle cuts (angle-cuts spec §3.6): a point is stock only on every cut's kept side, closed.
+  const planes = board.angleCuts.flatMap((c) => { const h = keptHalfSpace(board, c); return h ? [h] : []; });
+  const kept = (p: Point) => planes.every((h) => h.n[0] * p.length + h.n[1] * p.width + h.n[2] * p.thickness + h.d >= -1e-9);
+
   return (p) => {
+    if (!kept(p)) return false;
     for (const i of cells('length', p.length)) {
       for (const j of cells('width', p.width)) {
         for (const k of cells('thickness', p.thickness)) {

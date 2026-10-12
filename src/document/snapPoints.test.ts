@@ -803,3 +803,29 @@ describe('an over-deep cut offers the snap points of the depth it removes (fu 19
     expect(over).toEqual(pts(dado(0.75)));
   });
 });
+
+describe('snap points on angle cuts (spec §3.6)', () => {
+  const rail = () => createBoard({ length: 24, width: 2.5, thickness: 0.75, position: [0, 0, 0], angleCuts: [
+    { id: 'm', kind: 'miter', face: 'length', from: 'max', along: 'width', alongFrom: 'min', points: [[0, 0], [2.5, 2.5]] },
+  ] });
+  const key = (v: number[]) => v.map((x) => Math.round(x * 1e6) / 1e6).join(',');
+
+  it('withholds the lattice points the miter removed', () => {
+    // Flat, turn 0: axisFrame puts length on X, thickness on Y, width on Z.
+    const pts = boardSnapPoints(rail()).map((p) => key(p.at));
+    const removed = boardSnapPoints({ ...rail(), angleCuts: [] }).filter((p) => !pts.includes(key(p.at)));
+    expect(removed.length).toBeGreaterThan(0);
+    expect(removed.every((p) => p.at[0] > 21.5 - 1e-9)).toBe(true); // only near the mitered end
+  });
+
+  it('offers the short point corners', () => {
+    const pts = boardSnapPoints(rail());
+    const short = pts.filter((p) => Math.abs(p.at[0] - 21.5) < 1e-9 && p.kind === 'corner');
+    expect(short).toHaveLength(2); // top and bottom of the short point
+    expect(pts.every((p) => p.owner.type === 'board')).toBe(true);
+  });
+
+  it('a part with no angle cuts is unchanged', () => {
+    expect(boardSnapPoints(createBoard({}))).toHaveLength(26);
+  });
+});
