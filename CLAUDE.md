@@ -27,7 +27,7 @@ handicraft education tradition built around hand woodworking.
   project saved since chunk 1: export first). Test count is under Commands.
 - **NO SUCCESSOR CHOSEN** — ask. Angle cuts shipped all five presets (Taper, Miter, Miter both ends, Bevel, Chamfer); the
   next §1 gap the session recommended is angle-aware joinery (Add joinery/Refine refuse angled projects — fu 276,
-  architectural, brainstorm first). Angle-cut residue: 295–300 (300 = wording drift across the presets, the user's call).
+  architectural, brainstorm first). Angle-cut residue: 295–298 (299 and 300 closed: one face vocabulary and refusal pattern, merged `610c2f2`, not yet deployed).
   Other open items near the recent code: 241 (open by decision), 251 (record-only), 221, 225 (rest out of scope), 232,
   234, 247.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
@@ -593,7 +593,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 3297 tests across 119 files
+npm test           # Vitest, currently 3300 tests across 119 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -633,7 +633,7 @@ knowing without opening it:
   the matching miter, by decision), 296 (a part shortened past its miter refuses edits until the angle is reduced; presets
   withheld on parts wider than long), 297 (a hand-edited offset miter is moved to canonical form on its first edit).
 - **298–300** — bevel/chamfer residue: 298 (no raised-panel field-bevel preset; unequal chamfer legs not editable), 299
-  (chamfer Edge select clips its label when closed), 300 (wording drift across the five presets — the user's call).
+  and 300 closed 2026-10-12 (short Edge labels; one face vocabulary and refusal pattern).
 - **176/177** — the held rules' known limits (mutual lapping) and an unseen live repair.
 - **130** — semi-infinite construction lines; picked and set aside 2026-08-31 without a
   reason. Ask before assuming it's wanted; it needs real hardware (26a).
