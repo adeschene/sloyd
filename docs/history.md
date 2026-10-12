@@ -18,6 +18,12 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-12 with fu 299/300's wording live** (`index-DACMEk1Y.js`, CSS
+`index-BkjfVfaC.css` unchanged, merge `610c2f2`, **schema 14**). One face vocabulary (a length face is an end), short chamfer
+Edge labels, one refusal pattern. Verified: `200` on `/` and a deep route in-network and at the edge; bundle matches `dist/`
+at both; `index-D4EQ6d5G.js` 404s in-network; CSP unchanged; a real-browser load with 0 errors, the Cloudflare beacon and
+"+ Add board" present; the load's two fresh keys (`version: 14`) cleared and read back empty after 3s, then navigated away.
+
 **Production matches `master` as of 2026-10-12 with angle cuts chunk 3 live** (`index-D4EQ6d5G.js`, CSS `index-BkjfVfaC.css`
 unchanged, merge `b56dcfd`, **schema 14**, unchanged). Verified: `200` on `/` and a deep route in-network and at the edge;
 bundle matches `dist/` at both; `index-b4ad9aBu.js` 404s in-network; CSP unchanged at the edge; a real-browser load with 0

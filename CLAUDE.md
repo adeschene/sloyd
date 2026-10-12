@@ -21,13 +21,13 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-12: angle cuts chunk 3 (merge `b56dcfd`) — the angle-cuts feature is
-  complete — bundle `index-D4EQ6d5G.js`, CSS `index-BkjfVfaC.css`, **SCHEMA 14** (chunks 2–3 changed no schema, so rolling
-  back to `80e41b6`, `index-b4ad9aBu.js`, or `5cb0a4c`, `index-DLW02CPM.js`, is free; below 14, `47548d3`, REFUSES every
+- **Production matches `master`** as of 2026-10-12: angle cuts chunk 3 (merge `b56dcfd`) plus fu 299/300's wording (merge
+  `610c2f2`) — the angle-cuts feature is complete — bundle `index-DACMEk1Y.js`, CSS `index-BkjfVfaC.css`, **SCHEMA 14** (chunks 2–3 changed no schema, so rolling
+  back to `b56dcfd`, `index-D4EQ6d5G.js`, `80e41b6`, `index-b4ad9aBu.js`, or `5cb0a4c`, `index-DLW02CPM.js`, is free; below 14, `47548d3`, REFUSES every
   project saved since chunk 1: export first). Test count is under Commands.
 - **NO SUCCESSOR CHOSEN** — ask. Angle cuts shipped all five presets (Taper, Miter, Miter both ends, Bevel, Chamfer); the
   next §1 gap the session recommended is angle-aware joinery (Add joinery/Refine refuse angled projects — fu 276,
-  architectural, brainstorm first). Angle-cut residue: 295–298 (299 and 300 closed: one face vocabulary and refusal pattern, merged `610c2f2`, not yet deployed).
+  architectural, brainstorm first). Angle-cut residue: 295–298 (299 and 300 closed: one face vocabulary and refusal pattern, deployed as `index-DACMEk1Y.js`).
   Other open items near the recent code: 241 (open by decision), 251 (record-only), 221, 225 (rest out of scope), 232,
   234, 247.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
