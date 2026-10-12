@@ -70,6 +70,29 @@ describe('buildPurchase — by the piece', () => {
     expect(p.entries[0]!.cost).toBeNull();
   });
 
+  it('notes a smaller unpriced size that would hold a board bought as a priced one (fu 273)', () => {
+    // W ¾×11¼×96 $20 (priced), N ¾×1½×72 (no price). A 30×1 strip: both hold it; the priced W is chosen (spec
+    // §3.2 step 4) and N, smaller (108 vs 1080 sq in), would do — so a note says so.
+    const W = size('W', 0.75, 11.25, 96, 20);
+    const N = size('N', 0.75, 1.5, 72, null);
+    const p = purchase([pine('strip', 30, 1)], shopWith({ pine: { mode: 'piece', stock: [W, N] } }));
+    expect(p.entries[0]!.lines).toEqual(['Buy 1 × 3/4" × 11-1/4" × 96" · $20.00']);
+    expect(p.entries[0]!.notes).toEqual(['1 board priced as 3/4" × 11-1/4" × 96" — a 3/4" × 1-1/2" × 72" would hold its parts (no price set)']);
+    // No note when the chosen size is already the smallest that holds it.
+    expect(purchase([pine('wide', 30, 10)], shopWith({ pine: { mode: 'piece', stock: [W, N] } })).entries[0]!.notes).toEqual([]);
+  });
+
+  it('counts boards that share the same priced size and smaller unpriced alternative (fu 273)', () => {
+    // W ¾×3½×96 $10, N ¾×2½×72 (no price). Two 70×2 strips: side by side 70 + ⅛ + 70 > 96, and stacked
+    // 2 + ⅛ + 2 = 4⅛ > 3½, so two W boards. N (72 ≥ 70, 2½ ≥ 2) holds each strip alone and is smaller
+    // (180 vs 336 sq in): one note for both boards.
+    const W = size('W', 0.75, 3.5, 96, 10);
+    const N = size('N', 0.75, 2.5, 72, null);
+    const p = purchase([pine('a', 70, 2), pine('b', 70, 2)], shopWith({ pine: { mode: 'piece', stock: [W, N] } }));
+    expect(p.entries[0]!.lines).toEqual(['Buy 2 × 3/4" × 3-1/2" × 96" · $20.00']);
+    expect(p.entries[0]!.notes).toEqual(['2 boards priced as 3/4" × 3-1/2" × 96" — a 3/4" × 2-1/2" × 72" would hold each one\'s parts (no price set)']);
+  });
+
   it('uses the thinnest stock thick enough to hold the part, and says to plane it', () => {
     // ½" part → ¾" stock; 1¼" part → 1½" stock (D).
     const shop = shopWith({ pine: { mode: 'piece', stock: [A, D] } });

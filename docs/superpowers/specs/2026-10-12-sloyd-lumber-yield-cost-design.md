@@ -116,6 +116,9 @@ Per material, across all its thickness groups:
    With no prices at that thickness, "cheapest" is **smallest area**; with some prices missing, a priced size is
    preferred over an unpriced one only when both fit (the unpriced cost is unknown, not zero). Ties keep the earlier
    size in the user's list.
+   - *(Amended 2026-10-12, fu 273, the user's decision.)* When the chosen size is priced and a SMALLER unpriced size
+     also holds the board's parts, a note names it (`N board(s) priced as … — a … would hold its parts (no price
+     set)`), once per pair with a count. The choice itself is unchanged.
    - This is a **heuristic, not an optimum** — stated in the module comment and the UI does not claim "minimum".
 5. **Report:** board count per stock size, e.g. `Buy 2 × 3/4" × 5-1/2" × 96", 1 × 3/4" × 7-1/4" × 96" · $38.97`;
    one line per unplaceable part (`Shelf (3/4" × 12" × 30") fits no pine stock — too wide`); a layout per board.

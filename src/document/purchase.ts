@@ -166,6 +166,8 @@ function byThePiece(material: string, label: string, parts: Board[], stock: Stoc
   }
 
   const count = new Map<string, number>();
+  // fu 273: boards bought as a priced size where a SMALLER unpriced size would also hold the parts, by pair.
+  const cheaperUnknown = new Map<string, { priced: StockBoard; smaller: StockBoard; boards: number }>();
   const chosen: { size: StockBoard; parts: PlacedPart[] }[] = [];
   for (const t of thicknesses) {
     const group = groups.get(t);
@@ -182,10 +184,23 @@ function byThePiece(material: string, label: string, parts: Board[], stock: Stoc
       const priced = fitting.filter((s) => s.price !== null);
       const pick = priced.length > 0 ? minBy(priced, (s) => s.price!) : minBy(fitting, (s) => s.length * s.width);
       chosen.push({ size: pick, parts: pick === bin.bin ? bin.parts : holds(pick)! });
+      const area = (s: StockBoard) => s.length * s.width;
+      const smaller = fitting.filter((s) => s.price === null && area(s) < area(pick));
+      if (pick.price !== null && smaller.length > 0) {
+        const alt = minBy(smaller, area);
+        const key = `${pick.id}|${alt.id}`;
+        const seen = cheaperUnknown.get(key);
+        cheaperUnknown.set(key, { priced: pick, smaller: alt, boards: (seen?.boards ?? 0) + 1 });
+      }
       count.set(pick.id, (count.get(pick.id) ?? 0) + 1);
     }
   }
 
+  for (const { priced, smaller, boards } of cheaperUnknown.values()) {
+    notes.push(boards === 1
+      ? `1 board priced as ${sizeDims(priced, p)} — a ${sizeDims(smaller, p)} would hold its parts (no price set)`
+      : `${boards} boards priced as ${sizeDims(priced, p)} — a ${sizeDims(smaller, p)} would hold each one's parts (no price set)`);
+  }
   const used = stock.filter((s) => count.has(s.id));
   const cost = used.some((s) => s.price === null) ? null : used.reduce((n, s) => n + count.get(s.id)! * s.price!, 0);
   const lines = used.length > 0 ? [`Buy ${used.map((s) => `${count.get(s.id)} × ${sizeDims(s, p)}`).join(', ')} · ${priceText(cost)}`] : [];

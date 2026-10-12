@@ -5063,7 +5063,12 @@ stock (a 5/8" walnut part is priced as 5/8" stock). **Status:** open.
 the 1x12x96 priced, a 30" x 1" strip that needs its own board is bought as a $20 1x12 rather than an unpriced 1x2x72:
 "a priced size is preferred over an unpriced one only when both fit" is the spec's rule, and the total gives no hint.
 A note ("priced as 1x12; a 1x2x72 would hold it — no price set") is one option. Found by the final review.
-**Status:** open, for the user's decision.
+- **Fixed 2026-10-12 — the user chose the note.** The rule is unchanged; when a board is bought as a priced size and a
+  SMALLER unpriced size would also hold its parts (proved by the same re-pack), the Buying section adds e.g.
+  `1 board priced as 3/4" × 11-1/4" × 96" — a 3/4" × 1-1/2" × 72" would hold its parts (no price set)`, once per
+  (priced, smaller) pair with a board count. Tests pin one board, two boards sharing a pair, and no note when the
+  chosen size is already the smallest; both the note and its grouping were mutated.
+- **Status:** closed.
 
 **274. End-grain parts are not priced by the piece.** A part with grain through its thickness (an end-grain block) is
 listed as not placed ("has end grain — not priced as pine stock") rather than priced as long grain, which would buy

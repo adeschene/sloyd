@@ -25,7 +25,7 @@ handicraft education tradition built around hand woodworking.
   plans-sheet round and fu 254/264, bundle `index-BR6V0tAc.js`, CSS `index-D82Pe9tp.css`, **SCHEMA 13** (unchanged, so
   rolling back to `d161946`, `index-ulm_-ktQ.js`, is free — browser-level prices in `sloyd.shop.v1` are simply ignored by
   an older build; below 13, `43b4928`, refuses every project saved since mirrored instances: export first). Test count
-  is under Commands. Open for the user: fu 273.
+  is under Commands. Fu 273's note (a smaller unpriced size would do) is on `master`, not yet deployed.
 - **NO SUCCESSOR IS
   CHOSEN: ask what to work on; do not pick.** Open near the recent code:
   241 (open by decision), 251 (ui-polish residue, record-only),
@@ -566,7 +566,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 3043 tests across 113 files
+npm test           # Vitest, currently 3045 tests across 113 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
