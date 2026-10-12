@@ -21,18 +21,14 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-12: the lumber yield & cost round plus fu 273's note (`47548d3`) on top of
-  the plans-sheet round and fu 254/264, bundle `index-TRoZVkeX.js`, CSS `index-D82Pe9tp.css`, **SCHEMA 13** (unchanged, so
-  rolling back to `f6261fd`, `index-BR6V0tAc.js`, or `d161946`, `index-ulm_-ktQ.js`, is free — an older build ignores
-  `sloyd.shop.v1`; below 13, `43b4928`, refuses every project saved since mirrored instances: export first). Test count
-  is under Commands.
-- **SUCCESSOR CHOSEN (2026-10-12): tapers and miters** (`docs/feature-gaps.md` §1), to start in a fresh session with
-  the brainstorming skill — architectural, not bounded. Read first: the v1 spec's "free-angle rotation" and
-  "sketch-and-extrude" non-goals (`docs/superpowers/specs/2026-07-29-sloyd-v1-design.md`; angled parts were to "arrive
-  later as an explicit feature with compound-angle math"), invariants 2, 16, 38, 40, 44 (the board/cut model is
-  axis-aligned boxes everywhere: solids, edges, drawings, joinery), and expect a schema bump (rollback cost). Other
-  open items near the recent code: 241 (open by decision), 251 (ui-polish residue, record-only), 221, 225 (rest out of
-  scope), 232, 234, 247; plans-sheet and lumber residue below.
+- **Production matches `master`** as of 2026-10-12: angle cuts chunk 1 (merge `5cb0a4c`), bundle `index-DLW02CPM.js`,
+  CSS `index-BkjfVfaC.css`, **SCHEMA 14**. Rolling back below 14 (`47548d3`, `index-TRoZVkeX.js`) REFUSES every project
+  saved since this deploy: export first. Test count is under Commands.
+- **Angle cuts: chunk 1 shipped; chunks 2 and 3 next** (spec `docs/superpowers/specs/2026-10-12-sloyd-angle-cuts-design.md`
+  §9): chunk 2 = the Miter preset ("+ Add ▾", both ends, the short point), chunk 3 = Bevel and Chamfer presets — the
+  geometry, labels, drawings and short point already exist. Sloped-face shading/grain still needs the user on real
+  hardware (fu 282). Other open items near the recent code: 241 (open by decision), 251 (record-only), 221, 225 (rest out
+  of scope), 232, 234, 247; plans-sheet, lumber and angle-cut residue below.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
   byte-identical bundles (test-only). Check what a later commit touches before reading
@@ -89,6 +85,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | plans sheet | 10-11 | — | Printable Plans sheet (exploded isometric, dimensioned third-angle elevations of the piece and each assembly); viewport Explode slider, read-only while exploded (inv 47) |
 | lumber yield & cost | 10-12 | — | Cut list Buying section: board feet × waste factor, by-the-piece boards packed and swapped to the cheapest size, sheets; prices per browser (`sloyd.shop.v1`) in a Lumber & prices dialog |
 | 254/264/273 | 10-12 | — | Plans trio height cap (tall pieces print on one page); a one-child container is not an explode level and its drawing is not repeated; a note when a smaller unpriced size would hold a board |
+| angle cuts (chunk 1) | 10-12 | 14 | `Board.angleCuts` (half-space plane cuts, stored `kind`); `boardBodies` clips pocket cells; tapers drawn, edged, snapped, on the Plans sheet, cut list (bench lines, short point) and part diagrams; Taper preset; joinery/Refine refuse angled projects |
 
 ### The deployment rule
 
@@ -103,7 +100,7 @@ rather than assumed. A paid Generate/joinery run needs the user's approval each 
 key never goes into chat or a committed file. (Generate was once exercised on production
 because it only ever adds unactivated projects, inv 36. That is not a precedent.)
 
-**Rollback cost is a schema question.** A build understanding less than `version: 13`
+**Rollback cost is a schema question.** A build understanding less than `version: 14`
 refuses the document. Rolling back past a schema bump strands every project saved since;
 export first. A round with no schema change costs nothing to roll back. The library
 round changed the storage *layout*, not the schema: rolling past it loses only projects
@@ -152,7 +149,7 @@ would be a second implementation, not a parallel path.
 ### Versioning
 
 Every load path (open, import, autosave-restore) runs `migrateDocument` before the
-document is trusted. `CURRENT_VERSION` is **13**. Steps run one version at a time, in
+document is trusted. `CURRENT_VERSION` is **14**. Steps run one version at a time, in
 order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11→v12, which run after.
 
 | Step | Adds | Shape | Harm a build one version back would do |
@@ -169,6 +166,7 @@ order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11�
 | 10→11 `linksToShapes` | `shapes` (default `[]`) | **after validation** | un-shares every component |
 | 11→12 `onEdgeToV12` | on-edge cuts mirrored along thickness | **after validation** | wrong geometry (on-edge one-handed cuts mirrored) |
 | 12→13 | `Instance.mirrored` (only `true` stored) | document-level, no step | wrong geometry (a mirrored copy drawn unmirrored) |
+| 13→14 | `angleCuts` on parts and shapes (default `[]`; malformed or non-finite entry dropped, missing `kind` derived) | document-level, no step | silent loss on round trip (every taper/miter dropped) |
 
 - **A bump exists for the refusal gate, not for upgrading** — absent fields default
   regardless. Argue *your* field's harm; don't inherit another bump's argument.
@@ -357,6 +355,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
    (post-patch extents). `grain` and `cuts` are absent from the reorient predicate, so cut
    edits have their own store actions. A future tool that moves *and* turns in one gesture
    must carry its own `position` in the same patch.
+    `angleCuts` is absent from the reorient predicate too (a slope moves nothing).
 3. **The `dragging` ref guard in `Gizmo.tsx`**: never sync the document into the proxy
    mid-drag (jitter/drift).
 4. **Gesture snapshots are lazy** — taken on the first `edit()` in a gesture, never in
@@ -473,6 +472,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     itself, read back off a real `BoxGeometry` (three of twelve axes run backwards). A UV
     test must check an interior number (`uv − position/tileInches` constant per board), not
     only extremes.
+    A SLOPED face (angle cuts) takes the plan of the world axis its normal is nearest, a tie going to the cut's `face`
+    (a miter reads as end grain, a taper as long grain); `bodyMesh` reads UVs off vertex world offsets through the same plans.
 36. **Generation never adopts a project**: `createProject(doc, { activate: false })` and
     nothing else. "Open when done" must call `openProject`.
 37. **The generation history is append-only; `LlmMessage` is opaque so it stays that way.**
@@ -491,6 +492,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     against `Cut` by `satisfies`.** Do not replace the table with a list in a function body
     or add an exclusion without a written reason. `cutsThatRemoveStock` decides which cuts
     are compared; the resulting row split on exact dimensions is correct — do not round.
+    Angle cuts have their own table, `ANGLE_CUT_FIELDS` (`angleCuts.ts`), every field but `id` — `kind` INCLUDED — exact.
 41. **Joinery has one converter (`pocketFor`), never adopts, and is blamed only for what it
     caused.** `pocketFor` is tested against the box in every pose, stores via
     `storedAsShape`. Problems compare by `kind` + `parts`, never message text. Every
@@ -522,6 +524,9 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     stays at 0° and 90°. The composition is the second caller of `mirrorCutAlong` (`mirrorCut`,
     moved verbatim to `mirrorCut.ts`): a mirrored frame reflects a part (`mirrorPart`: turn
     negated, cuts along the posture's turn-0 X dimension, min corner reflected).
+    An angle cut reflects by a FLAG FLIP (`mirrorAngleCut`: `from` if `face` is the mirrored dimension, `alongFrom` if
+    `along` is) — never arithmetic on stations; `lowerAngleCuts` is its exact inverse and is written back only when the user
+    edited it or a d0-moving posture change re-reflected it (`changedKeys`), never as a shared world array.
 45. **A link is a SHAPE its users point to; shared fields are stored once.** `LINK_FIELDS`
     is the ONE shared/own table (classify an optional own field with care, fu 231).
     `resolveBoard` is the ONE place a shape is read into a part. `linksToShapes` is the ONE
@@ -575,6 +580,11 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     solids is inside. The exploded set is
     lifted so its lowest part never goes below the assembled lowest point.
 
+48. **`boardBodies` is the ONE place angle cuts become geometry; `pocketCells` is stock minus RECTANGULAR cuts only.**
+    Anything that draws, edges, occludes or probes stock reads bodies (through the `partGeometry` cache); anything that
+    describes or joins rectangular cuts (`cutShape`, joinery, the cut list's pocket lines) stays on `pocketCells`. A body no
+    angle cut clips keeps the box path byte-for-byte (`body.box`). Joinery, Refine and Repair stay box-based and REFUSE (or
+    do not offer) an angled document, decided before any call or mutation (`angledRefusal`).
 ## Commands
 
 ```bash
@@ -613,6 +623,9 @@ knowing without opening it:
   267 (edge banding, hardware BOM), 268 (glue-ups), 269 (packer is a heuristic — measure before optimising), 270 (USD
   only), 271 (rough thickness classes), 272 (dialog length on a phone), 274 (end-grain parts are not priced by the
   piece) are open; 273 is closed (the note).
+- **275–292** — angle-cuts residue: 275–280 (stopped angle cuts, angle-aware joinery, Generate emitting angles, "taper
+  all four faces", Plans-sheet angle callouts, compound angles), 281 closed (short point: corner minimum), 282 (sloped-face
+  shading/grain on real hardware), 283 (joinery dialog with a key on an angled project, unseen), 284–292 recorded minors.
 - **176/177** — the held rules' known limits (mutual lapping) and an unseen live repair.
 - **130** — semi-infinite construction lines; picked and set aside 2026-08-31 without a
   reason. Ask before assuming it's wanted; it needs real hardware (26a).

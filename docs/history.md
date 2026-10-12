@@ -18,6 +18,14 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-12 with angle cuts chunk 1 live** (`index-DLW02CPM.js`, CSS
+`index-BkjfVfaC.css`, merge `5cb0a4c`, **schema 14** — rolling back below 14 refuses every project saved since: export
+first). Verified: `200` on `/` and a deep route in-network and at the edge; bundle and CSS at both match `dist/`;
+`index-TRoZVkeX.js` 404s in-network; CSP `connect-src 'self' https://api.anthropic.com` at the edge; a real-browser load
+with 0 errors (3 warnings), the Cloudflare beacon and "+ Add board" present; the load's two fresh keys (`version: 14`)
+cleared and read back empty after 3s, then the page was navigated away. Features were verified on the dev server
+(`docs/browser-verification-angle-cuts.md`, including a re-check after the final fix wave).
+
 **Production matches `master` as of 2026-10-12 with fu 273's note live** (`index-TRoZVkeX.js`, CSS `index-D82Pe9tp.css`
 unchanged, commit `47548d3`, **schema 13**). Verified: `200` on `/` and a deep route in-network and at the edge; bundle
 matches `dist/` at both; `index-BR6V0tAc.js` 404s in-network; CSP unchanged at the edge; a real-browser load with 0
@@ -336,6 +344,26 @@ and 79.
 ---
 
 ## What each round did
+
+**What angle cuts chunk 1 did (2026-10-12)** (spec `docs/superpowers/specs/2026-10-12-sloyd-angle-cuts-design.md`,
+plan `docs/superpowers/plans/2026-10-12-sloyd-angle-cuts-chunk1.md`, run subagent-driven with a review per task):
+**schema 14** adds `Board.angleCuts` — single-angle plane cuts, each a half-space (two points on a line in the
+`face` × `along` plane, straight through the third dimension) with a stored `kind` (taper / miter / bevel / chamfer) that
+names it but never decides geometry. `boardSolids` became `pocketCells`; the new `boardBodies` clips each pocket cell into
+a convex body, and everything that draws, edges, occludes or probes stock reads bodies through one cache
+(`partGeometry`): the 3D view (grain on sloped faces from the nearest axis's plan), `bodyEdges` (an edge where faces meet
+and are not coplanar; agrees with the old grid rule on a 200-board sweep), snap points (removed corners withheld, sloped
+corners offered), the Plans sheet's hidden lines. The cut list prints bench lines (`Taper 5/8" off the width face (min
+side), from 24" from the length min end to that end`) and a short point (the least, over the end-face corners, of the
+length less both ends' depths — the user approved this correction to the spec's formula after the final review found
+parallel ends printed 13" for 16-1/2"); part diagrams hatch the wedge in every through-face view. Mirrored instances
+reflect angle cuts by a flag flip; write-back keeps a taper on its world face through a flat↔upright change (a bug the
+Task 4 review reproduced, in both the plan's code and the first fix). Add joinery and Refine refuse angled documents;
+Repair is not offered. Properties gets an Angles section with **+ Add taper** only (Miter is chunk 2; Bevel and Chamfer
+chunk 3). Reviews caught a dozen real defects the plan's own code carried (duplicate snap markers off the origin, a
+taper deepening toward the far end losing its start, a print-invisible wedge outline, a face switch writing a removal
+past the face, a per-drag-frame 28 ms snap recompute, a hooks-order crash class). Residue: fu 275–292; sloped-face
+shading and grain await the user on real hardware (fu 282).
 
 **What the 254 / 264 / 273 fixes did (2026-10-12)**, each asked for by the user after its round shipped, each deployed:
 **fu 254** — the plans trio's scale also fits `TRIO_MAX_HEIGHT` (1250 units, Letter's printable ratio), and every plans
