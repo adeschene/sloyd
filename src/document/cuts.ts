@@ -131,7 +131,7 @@ interface Grid {
  * two cuts is removed once, never twice, and there is no pairwise intersection
  * case to get wrong.
  *
- * Shared by pocketCells and boardEdges, which is why it is computed here once
+ * Shared by pocketCells and pocketEdges, which is why it is computed here once
  * rather than in each.
  */
 function grid(board: Board): Grid {
@@ -256,7 +256,7 @@ export function pocketCells(board: Board): Region[] {
  * entirely (nothing is filled, so nothing is offered) and a cut's floor corner
  * that a deeper, overlapping cut has since removed.
  *
- * This is boardEdges' four-cell configuration test generalised from a segment
+ * This is pocketEdges' four-cell configuration test generalised from a segment
  * to a point: on each axis a coordinate either falls inside one cell or lands
  * exactly on a split plane between two, so up to eight cells touch it, and one
  * filled cell is enough. The span test is CLOSED (`>=`/`<=`) precisely so a
@@ -317,8 +317,12 @@ export type Segment = [Point, Point];
  * Cells outside the board count as empty, which is what makes the board's own
  * silhouette fall out of the same rule instead of needing its own pass. Three
  * filled is the concave shoulder of a dado; one filled is a convex corner.
+ *
+ * Rectangular cuts only. With angle cuts the rule generalises to `bodies.ts`'s
+ * `boardEdges` (angle-cuts spec §3.4); this stays as the exact path for a part
+ * without them, and its agreement with `bodyEdges` is pinned in bodies.test.ts.
  */
-export function boardEdges(board: Board): Segment[] {
+export function pocketEdges(board: Board): Segment[] {
   const { coords, filled } = grid(board);
   const counts: Record<Dimension, number> = {
     length: coords.length.length - 1,

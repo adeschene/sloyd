@@ -30,8 +30,10 @@ export { ANGLE_CUT_FIELDS, ANGLE_CUT_KEYS, angleCutRemovesNothing, angleCutsThat
 export type { V3 } from './angleCuts';
 export { cleanName, uniqueName, dedupeNames } from './names';
 export type { Named } from './names';
-export { boardEdges, pocketCells, CUT_GEOMETRY_FIELDS, CUT_GEOMETRY_KEYS, cutLabel, cutRegion, clippedRegion, cutShape, storedAsShape, cutRemovesNothing, cutsThatRemoveStock, pointToLocalXYZ, solidWorldBox, wholeBoard } from './cuts';
+export { pocketEdges, pocketCells, CUT_GEOMETRY_FIELDS, CUT_GEOMETRY_KEYS, cutLabel, cutRegion, clippedRegion, cutShape, storedAsShape, cutRemovesNothing, cutsThatRemoveStock, pointToLocalXYZ, solidWorldBox, wholeBoard } from './cuts';
 export type { CutKind, CutShape, Point, Segment } from './cuts';
+export { BODY_EPS, boardBodies, boardEdges, bodyEdges, bodyVerts, bodyVolume } from './bodies';
+export type { Body, BodyFace } from './bodies';
 export { buildCutList } from './cutlist';
 export { findTenons } from './tenons';
 export type { Tenon } from './tenons';

@@ -1,5 +1,5 @@
 import type { Board, Region } from './types';
-import { pocketCells } from './cuts';
+import { pocketCells, pocketEdges, type Point, type Segment } from './cuts';
 import { keptHalfSpace, type V3 } from './angleCuts';
 
 /** Inches. Below any bench precision, above float drift on part-sized numbers. */
@@ -136,4 +136,157 @@ export function bodyVolume(body: Body): number {
     v += (dot(f.n, p0) * Math.abs(dot(area, f.n))) / 2;
   }
   return v / 3;
+}
+
+const add = (a: V3, b: V3): V3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+const scale = (a: V3, s: number): V3 => [a[0] * s, a[1] * s, a[2] * s];
+const len = (a: V3) => Math.hypot(a[0], a[1], a[2]);
+
+/**
+ * Inches. A polygon edge this short is a sliver, not a feature: `clip` keeps
+ * a vertex sitting just over BODY_EPS off a plane next to the crossing point it
+ * computes on that plane, so a kept polygon can carry an edge ~1e-9 long whose
+ * direction is noise, and a cell corner just above a plane survives as a
+ * sub-micro wedge of its own. A sliver edge makes no line and is no wall in
+ * the inside test, and a face without three real edges is not a face — so a
+ * sliver can neither draw a speck nor claim every point on a line. Far below
+ * bench precision (1/64in); a real feature between this and BODY_EPS is drawn
+ * as what it is.
+ */
+const SLIVER = 1e-6;
+
+/** An in-plane direction from a line into a face that holds it, with that face's normal. */
+interface Wing { n: V3; w: V3 }
+
+/**
+ * The edges of a union of convex bodies (angle-cuts spec §3.4, invariant 16
+ * generalised): a segment is drawn where faces of the remaining stock meet and
+ * are NOT coplanar, and nowhere else.
+ *
+ * Candidate lines are every face polygon's edges, grouped by the line they lie
+ * on and split at every endpoint and every crossing with a coplanar face's
+ * boundary, so a face either contains a whole interval or none of it. At each
+ * interval's midpoint, every face containing it contributes WINGS — the
+ * in-plane direction from the line into the face (two for a face the line
+ * crosses the interior of, one for a face it bounds). A wing pair with the
+ * same direction and opposite normals is an internal wall between two bodies
+ * and cancels. What is left is no edge when it is empty or one flat surface
+ * continuing through (two wings, same normal, opposite directions); anything
+ * else is an edge. That is pocketEdges' four-cell rule restated without a grid:
+ * four filled cells cancel to nothing, two sharing a face leave a flat pair,
+ * and one, three or a diagonal two leave a crease.
+ *
+ * Every comparison is within BODY_EPS (or SLIVER, for lengths): a crossing two
+ * neighbouring faces share is computed twice and the two values differ in the
+ * last bits, so nothing here assumes exact equality.
+ */
+export function bodyEdges(bodies: Body[]): [V3, V3][] {
+  const edgesOf = (f: BodyFace): [V3, V3][] =>
+    f.verts.map((a, i) => [a, f.verts[(i + 1) % f.verts.length]!] as [V3, V3]).filter(([a, b]) => len(sub(b, a)) > SLIVER);
+  // A face with fewer than three non-sliver edges has no area worth the name, and with its sliver edges
+  // left out of the inside test it would "contain" every point on the line: it is not a face here.
+  const faces = bodies.flatMap((b) => b.faces).filter((f) => edgesOf(f).length >= 3);
+  const cents = faces.map((f) => scale(f.verts.reduce((s, p) => add(s, p), [0, 0, 0] as V3), 1 / f.verts.length));
+
+  // 1. Lines: every polygon edge, grouped by the line it lies on (direction signed so grouping ignores winding).
+  interface Line { o: V3; u: V3; ts: number[]; spans: [number, number][] }
+  const lines: Line[] = [];
+  for (const f of faces) {
+    for (const [a, b] of edgesOf(f)) {
+      let u = unit(sub(b, a));
+      const lead = Math.abs(u[0]) > BODY_EPS ? u[0] : Math.abs(u[1]) > BODY_EPS ? u[1] : u[2];
+      if (lead < 0) u = scale(u, -1);
+      let line = lines.find((l) => len(cross(l.u, u)) <= BODY_EPS && len(cross(sub(a, l.o), l.u)) <= BODY_EPS);
+      if (!line) { line = { o: a, u, ts: [], spans: [] }; lines.push(line); }
+      const ta = dot(sub(a, line.o), line.u);
+      const tb = dot(sub(b, line.o), line.u);
+      line.ts.push(ta, tb);
+      line.spans.push([Math.min(ta, tb), Math.max(ta, tb)]);
+    }
+  }
+
+  const out: [V3, V3][] = [];
+  for (const line of lines) {
+    // 2. Faces whose plane holds the line, and where the line crosses their boundaries.
+    const coplanar = faces.map((f, i) => ({ f, i })).filter(({ f }) =>
+      Math.abs(dot(f.n, line.u)) <= BODY_EPS && Math.abs(dot(f.n, sub(line.o, f.verts[0]!))) <= BODY_EPS);
+    const ts = [...line.ts];
+    for (const { f } of coplanar) {
+      for (const [a, b] of edgesOf(f)) {
+        const e = sub(b, a);
+        // In the face's plane, o + t·u meets a + s·e where (o + t·u − a)·(n × e) = 0.
+        const m = unit(cross(f.n, e));
+        const den = dot(line.u, m);
+        if (Math.abs(den) <= BODY_EPS) continue; // parallel (a collinear edge already gave its endpoints)
+        const t = dot(sub(a, line.o), m) / den;
+        const s = dot(sub(add(line.o, scale(line.u, t)), a), e) / dot(e, e);
+        if (s >= -BODY_EPS && s <= 1 + BODY_EPS) ts.push(t);
+      }
+    }
+    ts.sort((x, y) => x - y);
+    const cuts: number[] = [];
+    for (const t of ts) if (!cuts.length || t - cuts[cuts.length - 1]! > BODY_EPS) cuts.push(t);
+
+    // 3. Judge each interval at its midpoint; merge consecutive drawn intervals into one segment.
+    const judge = (tm: number): boolean => {
+      if (!line.spans.some(([lo, hi]) => lo - BODY_EPS <= tm && tm <= hi + BODY_EPS)) return false;
+      const mid = add(line.o, scale(line.u, tm));
+      const wings: Wing[] = [];
+      for (const { f, i } of coplanar) {
+        const c = cents[i]!;
+        let inside = true;
+        let onEdge = false;
+        for (const [a, b] of edgesOf(f)) {
+          let e = unit(cross(f.n, sub(b, a)));
+          if (dot(e, sub(c, a)) < 0) e = scale(e, -1); // inward
+          const dist = dot(e, sub(mid, a));
+          if (dist < -BODY_EPS) { inside = false; break; }
+          if (dist <= BODY_EPS) onEdge = true;
+        }
+        if (!inside) continue;
+        const w = unit(cross(f.n, line.u));
+        if (!onEdge) { wings.push({ n: f.n, w }, { n: f.n, w: scale(w, -1) }); continue; }
+        wings.push({ n: f.n, w: dot(w, sub(c, mid)) >= 0 ? w : scale(w, -1) });
+      }
+      // Cancel internal walls: same direction, opposite normals.
+      for (let a = 0; a < wings.length; a += 1) {
+        for (let b = a + 1; b < wings.length; b += 1) {
+          if (dot(wings[a]!.w, wings[b]!.w) > 1 - BODY_EPS && dot(wings[a]!.n, wings[b]!.n) < -1 + BODY_EPS) {
+            wings.splice(b, 1);
+            wings.splice(a, 1);
+            a -= 1;
+            break;
+          }
+        }
+      }
+      const flat = wings.length === 2
+        && dot(wings[0]!.n, wings[1]!.n) > 1 - BODY_EPS && dot(wings[0]!.w, wings[1]!.w) < -1 + BODY_EPS;
+      return wings.length > 0 && !flat;
+    };
+
+    let run: number | null = null;
+    const flush = (end: number) => {
+      if (run !== null) out.push([add(line.o, scale(line.u, run)), add(line.o, scale(line.u, end))]);
+      run = null;
+    };
+    for (let k = 0; k + 1 < cuts.length; k += 1) {
+      const drawn = judge((cuts[k]! + cuts[k + 1]!) / 2);
+      if (drawn && run === null) run = cuts[k]!;
+      if (!drawn) flush(cuts[k]!);
+    }
+    flush(cuts[cuts.length - 1] ?? 0);
+  }
+  return out;
+}
+
+const toPoint = (p: V3): Point => ({ length: p[0], width: p[1], thickness: p[2] });
+
+/**
+ * A part's edge lines (invariant 16): `pocketEdges`' exact grid rule for a part
+ * without angle cuts, `bodyEdges` otherwise. The ONE name every edge drawer
+ * (BoardMesh, the drawings) reads.
+ */
+export function boardEdges(board: Board): Segment[] {
+  if (board.angleCuts.length === 0) return pocketEdges(board);
+  return bodyEdges(boardBodies(board)).map(([a, b]) => [toPoint(a), toPoint(b)] as Segment);
 }

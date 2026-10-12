@@ -1,6 +1,6 @@
 import type { Board } from './types';
 import type { Vec3 } from './frames';
-import { boardEdges } from './cuts';
+import { boardEdges } from './bodies';
 import { worldSolids } from './designCheck';
 import { boardExtents } from './geometry';
 import { toWorld } from './snapPoints';

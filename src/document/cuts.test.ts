@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
-import { boardEdges, pocketCells, cutLabel, cutShape, storedAsShape, openSides, cutRegion, clippedRegion, cutRemovesNothing, solidWorldBox, stockProbe, wholeBoard } from './cuts';
+import { pocketEdges, pocketCells, cutLabel, cutShape, storedAsShape, openSides, cutRegion, clippedRegion, cutRemovesNothing, solidWorldBox, stockProbe, wholeBoard } from './cuts';
 import type { Board, Cut, Dimension, Region } from './types';
 
 /** A 24 x 5-1/2 x 3/4 flat board with whatever cuts are given. */
@@ -145,20 +145,20 @@ describe('pocketCells', () => {
   });
 });
 
-describe('boardEdges', () => {
+describe('pocketEdges', () => {
   it('gives an uncut board exactly the twelve edges of its box', () => {
-    expect(boardEdges(createBoard())).toHaveLength(12);
+    expect(pocketEdges(createBoard())).toHaveLength(12);
   });
 
   /** Segments that lie in the plane `d === value`, ignoring direction. */
-  const inPlane = (segs: ReturnType<typeof boardEdges>, d: Dimension, value: number) =>
+  const inPlane = (segs: ReturnType<typeof pocketEdges>, d: Dimension, value: number) =>
     segs.filter(([a, b]) => a[d] === value && b[d] === value);
 
   // The whole reason this function exists. The bottom face (thickness 0) is
   // continuous stock under the dado, but it is covered by three abutting
   // solids — per-solid edges would draw lines across it at length 6 and 6.75.
   it('draws no line across the uncut face beneath a dado', () => {
-    const segs = inPlane(boardEdges(withCuts([DADO])), 'thickness', 0);
+    const segs = inPlane(pocketEdges(withCuts([DADO])), 'thickness', 0);
     // Only the four edges of the bottom face itself.
     expect(segs).toHaveLength(4);
     expect(segs.some(([a, b]) => a.length === 6 && b.length === 6)).toBe(false);
@@ -166,7 +166,7 @@ describe('boardEdges', () => {
   });
 
   it('draws the shoulders and floor of a dado', () => {
-    const segs = boardEdges(withCuts([DADO]));
+    const segs = pocketEdges(withCuts([DADO]));
     // Both shoulders: a concave edge at the dado floor, running across width.
     const shoulders = segs.filter(
       ([a, b]) => a.thickness === 0.5 && b.thickness === 0.5 &&
@@ -179,7 +179,7 @@ describe('boardEdges', () => {
 
   it('is deterministic', () => {
     const board = withCuts([DADO]);
-    expect(boardEdges(board)).toEqual(boardEdges(board));
+    expect(pocketEdges(board)).toEqual(pocketEdges(board));
   });
 
   // A full-depth sever splits the board into two disconnected pieces, so the
@@ -199,7 +199,7 @@ describe('boardEdges', () => {
   // one as merge coverage.
   it('gives a full-depth sever exactly two box outlines, 24 segments total', () => {
     const rip: Cut = { ...DADO, depth: 0.75, stopMin: 0, stopMax: 0 };
-    const segs = boardEdges(withCuts([rip]));
+    const segs = pocketEdges(withCuts([rip]));
     expect(segs).toHaveLength(24);
   });
 
@@ -214,7 +214,7 @@ describe('boardEdges', () => {
   it('merges the uncut face across two unrelated dados: 4 + 8 = 12 at those planes, 36 total', () => {
     const a: Cut = { ...DADO, id: 'a', offset: 2, width: 0.75, depth: 0.5, stopMin: 0, stopMax: 0 };
     const b: Cut = { ...DADO, id: 'b', offset: 18, width: 0.75, depth: 0.5, stopMin: 0, stopMax: 0 };
-    const segs = boardEdges(withCuts([a, b]));
+    const segs = pocketEdges(withCuts([a, b]));
 
     const bottom = inPlane(segs, 'thickness', 0);
     expect(bottom).toHaveLength(4);
