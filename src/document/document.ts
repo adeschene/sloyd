@@ -26,8 +26,8 @@ export {
 } from './geometry';
 export type { Bounds, AxisMap } from './geometry';
 export { mirrorCut } from './mirrorCut';
-export { ANGLE_CUT_FIELDS, ANGLE_CUT_KEYS, angleCutRemovesNothing, angleCutValues, angleCutsThatRemoveStock, copyAngleCut, defaultTaper, depthAt, keptHalfSpace, sameAngleCut, taperCut, taperFields, throughOf, zeroStation } from './angleCuts';
-export type { TaperFields, V3 } from './angleCuts';
+export { ANGLE_CUT_FIELDS, ANGLE_CUT_KEYS, angleCutRemovesNothing, angleCutValues, angleCutsThatRemoveStock, copyAngleCut, defaultMiter, defaultMiterPair, defaultTaper, depthAt, keptHalfSpace, miterCut, miterDegrees, miterFields, miterRatio, sameAngleCut, taperCut, taperFields, throughOf, zeroStation } from './angleCuts';
+export type { MiterFields, TaperFields, V3 } from './angleCuts';
 export { angledParts, angledRefusal } from './angledRefusal';
 export { cleanName, uniqueName, dedupeNames } from './names';
 export type { Named } from './names';

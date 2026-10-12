@@ -19,7 +19,7 @@ describe('angle text (spec §4.2)', () => {
   });
   it('prints a miter to 0.1°', () => {
     const rail = createBoard({ length: 24, width: 2.5, thickness: 0.75, angleCuts: [miter('max')] });
-    expect(angleLine(rail, miter('max'), 16)).toBe('Miter 45.0° across the width at the length max end');
+    expect(angleLine(rail, miter('max'), 16)).toBe('Miter 45.0° across the width at the length max end, long point on the width min side');
     expect(angleDegrees({ ...miter('max'), points: [[0, 0], [2.5, 2.5 * Math.tan(Math.PI / 8)]] })).toBeCloseTo(22.5, 9);
   });
   it('prints the short point once, both ends subtracted', () => {
@@ -52,7 +52,7 @@ describe('angle text (spec §4.2)', () => {
   it('prints 22.5° for a 22.5° miter', () => {
     const c: AngleCut = { ...miter('max'), points: [[0, 0], [2.5, 2.5 * Math.tan(Math.PI / 8)]] };
     const rail = createBoard({ length: 24, width: 2.5, thickness: 0.75, angleCuts: [c] });
-    expect(angleLine(rail, c, 16)).toBe('Miter 22.5° across the width at the length max end');
+    expect(angleLine(rail, c, 16)).toBe('Miter 22.5° across the width at the length max end, long point on the width min side');
   });
   it('short point counts an end cut whatever its kind, and clamps at zero', () => {
     const asBevel: AngleCut = { ...miter('max'), kind: 'bevel' };

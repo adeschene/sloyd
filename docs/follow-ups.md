@@ -5141,3 +5141,23 @@ collapse in Float32 (cosmetic); the unit-pin for the skip is missing. **Status:*
 **292. Wording: "a long-start taper on a short part".** A taper whose start station lies past the part's far end, or
 that deepens toward the far end, is phrased from its deep end (ruling at Task 9); the wording for odd hand-edited
 starts has not been reviewed by the user. **Status:** open, the user may prefer other wording.
+
+## From the angle cuts round (chunk 2, miters) — 2026-10-12
+
+**293. The angle field's max message rounds up past the max it enforces.** Fixed 2026-10-12: `AngleField` floors the limit to the 0.1° it displays (epsilon keeps an exact 45.0), so a 24 x 2-1/2 rail reads "Must be at most 84.0°" and 84.0 is accepted. **Status:** closed.
+
+**294. A miter's bench line does not say which side holds the long point.** Fixed 2026-10-12: the line now ends `, long point on the width min side` (`miterLongSide`, shared with `miterFields`). **Status:** closed.
+
+**295. A row control to add the matching miter at the other end of an edited miter.** Spec §7 amended (chunk 2): "both
+ends" is the add-menu preset only; a user who edits one miter adds the match as a second miter by hand. **Status:**
+open, by decision.
+
+**296. An edit is refused on a part shortened after its miter was stored, until the angle is reduced.** A resize is
+not checked against stored miter depths: the 24" rail resized to 2" kept both 45° miters (depth 2-1/2" > length), and
+the next miter edit (Long point) was refused with `Removes more than the length — reduce the angle first.`, nothing
+written. Seen live (chunk 2). The add-time half is closed 2026-10-12: the Miter and Miter both ends presets are withheld
+from the + Add menu on a part wider than long (Taper stays). The resize half stays open. **Status:** open, fails safe.
+
+**297. A hand-edited offset miter is moved to canonical form on its first edit.** A miter whose stored points do not
+start at the corner (an offset miter, only reachable by editing the file) is rewritten to the canonical corner-anchored
+form by its first row edit. **Status:** open, hand-edited files only.

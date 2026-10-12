@@ -1,6 +1,6 @@
 # Sloyd — angle cuts: tapers, miters, bevels and chamfers
 
-**Date:** 2026-10-12 · **Status:** approved by the user 2026-10-12; four amendments made while planning chunk 1 (§4.2, §6, §7 — marked *Amended*), also approved; chunk 1 implemented 2026-10-12 on branch angle-cuts (not yet deployed)
+**Date:** 2026-10-12 · **Status:** approved by the user 2026-10-12; four amendments made while planning chunk 1 (§4.2, §6, §7 — marked *Amended*), also approved; chunk 1 implemented 2026-10-12 on branch angle-cuts (deployed 2026-10-12 as index-DLW02CPM.js); chunk 2 implemented 2026-10-12 on angle-cuts-2 (not yet deployed)
 **Builds on:** cuts (`cuts.ts`, invariants 16, 40), the turn table (invariant 44), the tree and mirrored instances
 (invariants 45, 46), the cut list (invariant 18), the Plans sheet's hidden-line drawings (invariants 38, 47) and the v1
 spec's non-goal "angled parts can arrive later as an explicit feature with compound-angle math done properly"
@@ -175,12 +175,13 @@ there (invariant 19), in the existing vocabulary.
 
 | `kind` | Reads as |
 |---|---|
-| miter | `Miter 45.0° across the width at the length max end — short point 21-1/2` |
+| miter | `Miter 45.0° across the width at the length max end, long point on the width min side` |
 | taper | `Taper 5/8 off the width face (min side), from 24 from the length min end to that end` |
 | bevel | `Bevel 15.0° off the thickness face (max side), along the width min edge` |
 | chamfer | `Chamfer 1/8 × 1/8 off the thickness face (max side), along the width min edge` |
 
 - Angles display to **0.1°**, always (45.0°, 22.5°); there is no "exact" branch. Lengths use `formatLength`.
+- *Amended (user, 2026-10-12):* the miter line names the long-point side (fu 294), so a trapezoid and a parallelogram print different lines.
 - **Short point** = the stock length minus the greatest depth (within the part) of each miter entering an end; with
   miters at both ends, both are subtracted. Printed once per row, after the last miter.
 - *Amended (planning chunk 1):* the short point is its own line, `Short point 19"`, not part of the miter line as the
@@ -266,6 +267,10 @@ face switch that would remove more than the new face allows is refused with a fi
   `edit()` while exploded (invariant 47). Not offered for multi-selection.
 - *Amended (planning chunk 1):* chunk 1 has a plain **+ Add taper** button; the **+ Add ▾** popover arrives in chunk
   2, when there is more than one preset to offer.
+- *Amended (planning chunk 2, approved by the user):* "both ends" is an add-menu preset, not a row control:
+  **+ Add ▾ → Miter both ends** adds two miters in one undo entry, long points on the same side (a picture-frame
+  trapezoid, short point = length − 2 × width at 45°). An edited miter's match at the other end is added as a second
+  miter (fu 295).
 - No viewport handles. A resize keeps each cut on its end: a taper follows `alongFrom`'s end, a miter follows the end
   face it enters.
 

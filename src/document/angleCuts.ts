@@ -158,3 +158,51 @@ export function taperFields(c: AngleCut, board: Pick<Board, Dimension>): TaperFi
 export function defaultTaper(board: Pick<Board, Dimension>): Omit<AngleCut, 'id'> {
   return taperCut({ face: 'width', from: 'min', end: 'min', start: board.length * 0.75, amount: board.width / 4 });
 }
+
+/** A miter as the shop reads it (spec §7). `ratio` is the stored slope (|Δdepth| / |Δstation|), NOT degrees, so an
+ *  untouched angle never round-trips through atan/tan (45° is ratio 1, exactly — spec §2.3). */
+export interface MiterFields { end: CutFrom; across: 'width' | 'thickness'; longSide: CutFrom; ratio: number }
+
+/** Degrees → stored slope. 45 is exactly 1 (`Math.tan(π/4)` is 0.9999999999999999). */
+export function miterRatio(degrees: number): number {
+  return degrees === 45 ? 1 : Math.tan((degrees * Math.PI) / 180);
+}
+
+/** Stored slope → degrees, for display and the angle field. */
+export function miterDegrees(ratio: number): number {
+  return (Math.atan(ratio) * 180) / Math.PI;
+}
+
+/** Canonical: depth 0 at the long-point side, run × ratio across the part (exact when ratio is 1). */
+export function miterCut(f: MiterFields, board: Pick<Board, Dimension>): Omit<AngleCut, 'id'> {
+  const run = board[f.across];
+  return { kind: 'miter', face: 'length', from: f.end, along: f.across, alongFrom: f.longSide, points: [[0, 0], [run, run * f.ratio]] };
+}
+
+/** The side of `along` holding a miter's long point: where the stored line is shallower. ONE reader for the row and the bench line. */
+export function miterLongSide(c: AngleCut, board: Pick<Board, Dimension>): CutFrom {
+  return depthAt(c, 0) <= depthAt(c, board[c.along]) ? c.alongFrom : flip(c.alongFrom);
+}
+
+/**
+ * The shop numbers of a stored miter. The long point is the side where the line is shallower; the ratio is read
+ * straight off the stored points (no trigonometry), so editing only the end or side keeps it exactly. A miter whose
+ * `along` is somehow `length` (hand-edited) reads as across the width. Editing rewrites it canonically via `miterCut`.
+ */
+export function miterFields(c: AngleCut, board: Pick<Board, Dimension>): MiterFields {
+  const across = c.along === 'thickness' ? 'thickness' : 'width';
+  const [[s1, q1], [s2, q2]] = c.points;
+  const ratio = Math.abs(q2 - q1) / Math.abs(s2 - s1);
+  const longSide = miterLongSide(c, board);
+  return { end: c.from, across, longSide, ratio };
+}
+
+/** 45° across the width at the length max end, long point on the width min side. */
+export function defaultMiter(board: Pick<Board, Dimension>): Omit<AngleCut, 'id'> {
+  return miterCut({ end: 'max', across: 'width', longSide: 'min', ratio: 1 }, board);
+}
+
+/** The picture-frame pair: the default miter and its match at the min end, long points on the SAME side (a trapezoid). */
+export function defaultMiterPair(board: Pick<Board, Dimension>): Omit<AngleCut, 'id'>[] {
+  return [defaultMiter(board), miterCut({ end: 'min', across: 'width', longSide: 'min', ratio: 1 }, board)];
+}

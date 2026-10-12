@@ -4,7 +4,10 @@ import type { AngleCut, Board } from './types';
 import {
   ANGLE_CUT_KEYS, angleCutRemovesNothing, angleCutValues, copyAngleCut, deriveKind, depthAt,
   defaultTaper, keptHalfSpace, mirrorAngleCut, sameAngleCut, taperCut, taperFields, throughOf, zeroStation,
+  defaultMiter, defaultMiterPair, miterCut, miterDegrees, miterFields, miterRatio,
 } from './angleCuts';
+import { boardBodies, bodyVerts } from './bodies';
+import { shortPointLine } from './angleText';
 
 const leg = (over: Partial<Board> = {}): Board =>
   createBoard({ name: 'Leg', length: 29, width: 1.75, thickness: 1.75, ...over });
@@ -134,5 +137,58 @@ describe('taper fields (spec §7)', () => {
   it('describes a taper that deepens toward the far end from its deep end', () => {
     const c: AngleCut = { id: 'x', kind: 'taper', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[5, 0], [29, 0.625]] };
     expect(taperFields(c, leg())).toEqual({ face: 'width', from: 'min', end: 'max', start: 24, amount: 0.625 });
+  });
+});
+
+describe('miter fields (spec §7)', () => {
+  const rail = () => createBoard({ length: 24, width: 2.5, thickness: 0.75 });
+
+  it('maps 45° to a ratio of exactly 1 and back to 45.0 for display', () => {
+    expect(miterRatio(45)).toBe(1);
+    expect(miterRatio(22.5)).toBeCloseTo(Math.tan(Math.PI / 8), 15);
+    expect(miterDegrees(1).toFixed(1)).toBe('45.0');
+  });
+
+  it('builds a canonical miter: depth 0 at the long-point side, run × ratio at the other', () => {
+    const c = miterCut({ end: 'max', across: 'width', longSide: 'min', ratio: 1 }, rail());
+    expect(c).toEqual({ kind: 'miter', face: 'length', from: 'max', along: 'width', alongFrom: 'min', points: [[0, 0], [2.5, 2.5]] });
+  });
+
+  it('round-trips exactly, and an edit of side or end keeps depth === run (Review Focus 1)', () => {
+    const b = rail();
+    const c = { id: 'm', ...miterCut({ end: 'max', across: 'width', longSide: 'min', ratio: 1 }, b) };
+    const f = miterFields(c, b);
+    expect(f).toEqual({ end: 'max', across: 'width', longSide: 'min', ratio: 1 });
+    const moved = miterCut({ ...f, longSide: 'max', end: 'min' }, b);
+    expect(moved.points).toEqual([[0, 0], [2.5, 2.5]]);
+    expect(moved.alongFrom).toBe('max');
+    expect(moved.from).toBe('min');
+  });
+
+  it('reads the long-point side of a hand-edited miter stored the other way round (Review Focus 4)', () => {
+    const b = rail();
+    // Deep at station 0 from the width min side: the long point is on the width MAX side.
+    const c = { id: 'h', kind: 'miter' as const, face: 'length' as const, from: 'max' as const, along: 'width' as const, alongFrom: 'min' as const, points: [[0, 2.5], [2.5, 0]] as [[number, number], [number, number]] };
+    expect(miterFields(c, b)).toEqual({ end: 'max', across: 'width', longSide: 'max', ratio: 1 });
+  });
+
+  it('defaults to a 45° miter across the width at the length max end, long point on the min side', () => {
+    expect(defaultMiter(rail())).toEqual(miterCut({ end: 'max', across: 'width', longSide: 'min', ratio: 1 }, rail()));
+  });
+
+  it('a default pair is a picture-frame trapezoid: short point = length − 2 × width (Review Focus 3)', () => {
+    const b = { ...rail(), angleCuts: defaultMiterPair(rail()).map((c, i) => ({ ...c, id: `p${i}` })) };
+    expect(b.angleCuts.map((c) => c.from).sort()).toEqual(['max', 'min']);
+    expect(shortPointLine(b, 16)).toBe('Short point 19"');
+    // Cross-check against the geometry: the width-max long edge spans 2.5 → 21.5, the width-min edge 0 → 24.
+    const xs = boardBodies(b).flatMap(bodyVerts).filter((p) => Math.abs(p[1] - 2.5) < 1e-9).map((p) => p[0]);
+    expect(Math.min(...xs)).toBeCloseTo(2.5, 12);
+    expect(Math.max(...xs)).toBeCloseTo(21.5, 12);
+  });
+
+  it('a 22.5° miter across the thickness stores run × tan', () => {
+    const c = miterCut({ end: 'min', across: 'thickness', longSide: 'max', ratio: miterRatio(22.5) }, rail());
+    expect(c.along).toBe('thickness');
+    expect(c.points[1]![1]).toBe(0.75 * Math.tan(Math.PI / 8));
   });
 });

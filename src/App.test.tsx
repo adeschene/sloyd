@@ -1962,7 +1962,11 @@ describe('App edit lock while exploded', () => {
     act(() => useStore.getState().setExplode(0.4));
     expect(lock.disabled).toBe(true);
     expect(lock.title).toBe('Slide Explode back to 0 to edit');
+    // The Angles "+ Add ▾" menu trigger sits inside the lock, so it is disabled with it.
+    const addAngle = screen.getByRole('button', { name: '+ Add' }) as HTMLButtonElement;
+    expect(addAngle.matches(':disabled')).toBe(true);
     act(() => useStore.getState().setExplode(0));
+    expect(addAngle.matches(':disabled')).toBe(false);
   });
 
   it('locks the guides footer while exploded', async () => {
