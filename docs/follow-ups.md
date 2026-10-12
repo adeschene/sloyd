@@ -5098,7 +5098,9 @@ hand-edited files until chunk 2's Miter preset. **Fixed 2026-10-12** (user-appro
 minimum; spec §4.2 amended; tests cross-checked against `boardBodies` vertices. **Status:** closed.
 
 **282. Sloped-face shading and grain are unverified on real hardware (26a).** Browser checks ran on software GL;
-lighting on sloped faces and grain continuity across a slope need the user's eyes. **Status:** open, needs the user.
+lighting on sloped faces and grain continuity across a slope need the user's eyes.
+- **Confirmed 2026-10-12 — the user judged tapers and miters on real hardware and approved them.**
+- **Status:** closed.
 
 **283. Add joinery with an API key present on an angled project was not seen live** (no key in the dev profile). The
 refusal is pinned by tests (no mutation, no paid call). **Status:** open, needs a key.

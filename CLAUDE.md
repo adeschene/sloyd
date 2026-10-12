@@ -626,8 +626,8 @@ knowing without opening it:
   only), 271 (rough thickness classes), 272 (dialog length on a phone), 274 (end-grain parts are not priced by the
   piece) are open; 273 is closed (the note).
 - **275–292** — angle-cuts residue: 275–280 (stopped angle cuts, angle-aware joinery, Generate emitting angles, "taper
-  all four faces", Plans-sheet angle callouts, compound angles), 281 closed (short point: corner minimum), 282 (sloped-face
-  shading/grain on real hardware), 283 (joinery dialog with a key on an angled project, unseen), 284–292 recorded minors.
+  all four faces", Plans-sheet angle callouts, compound angles), 281 closed (short point: corner minimum), 282 closed (approved on real
+  hardware), 283 (joinery dialog with a key on an angled project, unseen), 284–292 recorded minors.
 - **293–297** — miter residue: 293 and 294 closed (angle max floored; the line names the long point), 295 (a row control to add
   the matching miter, by decision), 296 (a part shortened past its miter refuses edits until the angle is reduced; presets
   withheld on parts wider than long), 297 (a hand-edited offset miter is moved to canonical form on its first edit).
