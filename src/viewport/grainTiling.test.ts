@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  axisDimensions, boardExtents, boardSolids, createBoard, solidWorldBox, wholeBoard,
+  axisDimensions, boardExtents, pocketCells, createBoard, solidWorldBox, wholeBoard,
 } from '../document/document';
 import type { Region } from '../document/document';
 import { chiralPart, turnedAbout } from '../document/turnFixtures';
@@ -526,7 +526,7 @@ describe('UVs run WITH the world axis, so solids of one board agree (fu 163)', (
   const samples = (board: Parameters<typeof boardUVs>[0], face: number) => {
     const plan = facePlans(board)[face];
     const out: Array<{ pu: number; pv: number; u: number; v: number }> = [];
-    for (const solid of boardSolids(board)) {
+    for (const solid of pocketCells(board)) {
       const { center, size } = solidWorldBox(board, solid);
       const geo = new THREE.BoxGeometry(size[0], size[1], size[2]);
       const pos = geo.attributes.position.array;

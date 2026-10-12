@@ -36,8 +36,8 @@ function boundaries(extent: number, spans: Span[]): number[] {
  * makes the centre test sound: no cell can straddle a cut edge, so a cell is
  * either wholly inside a cut or wholly outside it.
  *
- * BUT IT IS NOT `cuts.ts` REUSED, and reaching for `boardSolids` here will not
- * work. `boardSolids` DROPS a cell whose centre is inside any cut — a boolean.
+ * BUT IT IS NOT `cuts.ts` REUSED, and reaching for `pocketCells` here will not
+ * work. `pocketCells` DROPS a cell whose centre is inside any cut — a boolean.
  * This assigns the MAXIMUM depth among the covering cuts. Same skeleton,
  * different operation. Call it a depth field, not a solid decomposition.
  *

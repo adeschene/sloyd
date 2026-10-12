@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
-import { boardEdges, boardSolids, cutLabel, cutShape, storedAsShape, openSides, cutRegion, clippedRegion, cutRemovesNothing, solidWorldBox, stockProbe, wholeBoard } from './cuts';
+import { boardEdges, pocketCells, cutLabel, cutShape, storedAsShape, openSides, cutRegion, clippedRegion, cutRemovesNothing, solidWorldBox, stockProbe, wholeBoard } from './cuts';
 import type { Board, Cut, Dimension, Region } from './types';
 
 /** A 24 x 5-1/2 x 3/4 flat board with whatever cuts are given. */
@@ -52,29 +52,29 @@ describe('cutRegion', () => {
   });
 });
 
-describe('boardSolids', () => {
+describe('pocketCells', () => {
   // The guarantee that joinery costs nothing for boards that do not use it.
   it('returns exactly one solid, the whole board, when there are no cuts', () => {
     const board = createBoard();
-    expect(boardSolids(board)).toEqual([wholeBoard(board)]);
+    expect(pocketCells(board)).toEqual([wholeBoard(board)]);
   });
 
   it('comes back whole rather than throwing for a degenerate face-equals-across cut', () => {
     const degenerate: Cut = { ...DADO, face: 'length', across: 'length' };
     const board = withCuts([degenerate]);
-    expect(() => boardSolids(board)).not.toThrow();
-    expect(boardSolids(board)).toEqual([wholeBoard(board)]);
+    expect(() => pocketCells(board)).not.toThrow();
+    expect(pocketCells(board)).toEqual([wholeBoard(board)]);
   });
 
   it('leaves three solids for a dado in the middle of a face', () => {
-    const solids = boardSolids(withCuts([DADO]));
+    const solids = pocketCells(withCuts([DADO]));
     expect(solids).toHaveLength(3);
     expect(totalVolume(solids)).toBeCloseTo(24 * 5.5 * 0.75 - 0.75 * 5.5 * 0.25, 10);
   });
 
   it('leaves two solids for a rabbet at the end', () => {
     const rabbet: Cut = { ...DADO, offset: 0, width: 0.75 };
-    expect(boardSolids(withCuts([rabbet]))).toHaveLength(2);
+    expect(pocketCells(withCuts([rabbet]))).toHaveLength(2);
   });
 
   // The test that would catch double-removal: the union is subtracted, so
@@ -83,20 +83,20 @@ describe('boardSolids', () => {
   it('subtracts overlapping cuts as a union, not as a sum', () => {
     const a: Cut = { ...DADO, id: 'a', offset: 6, width: 0.75 };
     const b: Cut = { ...DADO, id: 'b', offset: 6.5, width: 0.75 };
-    const solids = boardSolids(withCuts([a, b]));
+    const solids = pocketCells(withCuts([a, b]));
     expect(totalVolume(solids)).toBeCloseTo(24 * 5.5 * 0.75 - 1.25 * 5.5 * 0.25, 10);
   });
 
   it('leaves two disconnected solids for a cut at full depth', () => {
     const rip: Cut = { ...DADO, depth: 0.75, stopMin: 0, stopMax: 0 };
-    const solids = boardSolids(withCuts([rip]));
+    const solids = pocketCells(withCuts([rip]));
     expect(solids).toHaveLength(2);
     expect(totalVolume(solids)).toBeCloseTo(24 * 5.5 * 0.75 - 0.75 * 5.5 * 0.75, 10);
   });
 
   it('is deterministic — the same board yields the same solids in the same order', () => {
     const board = withCuts([DADO, { ...DADO, id: 'c2', offset: 18 }]);
-    expect(boardSolids(board)).toEqual(boardSolids(board));
+    expect(pocketCells(board)).toEqual(pocketCells(board));
   });
 
   it('handles cuts on different faces at once', () => {
@@ -104,7 +104,7 @@ describe('boardSolids', () => {
       id: 'c2', face: 'width', from: 'min', across: 'thickness',
       offset: 2, width: 0.5, depth: 1, stopMin: 0, stopMax: 0,
     };
-    const solids = boardSolids(withCuts([DADO, across]));
+    const solids = pocketCells(withCuts([DADO, across]));
     expect(solids.length).toBeGreaterThan(3);
 
     // No two solids may overlap each other, and none may overlap either cut.
@@ -123,7 +123,7 @@ describe('boardSolids', () => {
     // dado (thickness [0, 0.5]) is never interrupted and merges across the
     // whole board length; the slab above it (thickness [0.5, 0.75]) is cut
     // in two by the dado and cannot merge across that gap.
-    const dadoOnly = boardSolids(withCuts([DADO]));
+    const dadoOnly = pocketCells(withCuts([DADO]));
     expect(dadoOnly).toEqual([
       { length: [0, 24], width: [0, 5.5], thickness: [0, 0.5] },
       { length: [0, 6], width: [0, 5.5], thickness: [0.5, 0.75] },
@@ -134,14 +134,14 @@ describe('boardSolids', () => {
   // Two cuts can each individually survive document.ts's single-cut
   // full-removal guard yet jointly remove everything the guard cannot see
   // (it has no view of other cuts). That is a legal, reachable output, not a
-  // bug — see boardSolids's doc comment.
+  // bug — see pocketCells's doc comment.
   it('returns no solids when cuts jointly remove the entire board', () => {
     const left: Cut = {
       id: 'a', face: 'thickness', from: 'max', across: 'width',
       offset: 0, width: 12, depth: 0.75, stopMin: 0, stopMax: 0,
     };
     const right: Cut = { ...left, id: 'b', offset: 12, width: 12 };
-    expect(boardSolids(withCuts([left, right]))).toEqual([]);
+    expect(pocketCells(withCuts([left, right]))).toEqual([]);
   });
 });
 
@@ -313,12 +313,12 @@ describe('stockProbe', () => {
   it('rejects every point on a board its own cuts consumed', () => {
     // Two adjacent full-depth cuts, each individually legal (neither is
     // full-width, so validateCuts refuses neither), jointly removing all the
-    // stock. boardSolids returns [] here — see its doc comment.
+    // stock. pocketCells returns [] here — see its doc comment.
     const board = withCuts([
       { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 0, width: 12, depth: 0.75, stopMin: 0, stopMax: 0 },
       { id: 'b', face: 'thickness', from: 'min', across: 'width', offset: 12, width: 12, depth: 0.75, stopMin: 0, stopMax: 0 },
     ]);
-    expect(boardSolids(board)).toHaveLength(0);
+    expect(pocketCells(board)).toHaveLength(0);
     const touches = stockProbe(board);
     expect(touches({ length: 0, width: 0, thickness: 0 })).toBe(false);
     expect(touches({ length: 12, width: 2.75, thickness: 0.75 })).toBe(false);
@@ -376,7 +376,7 @@ describe('cutRegion with stops', () => {
     const crossed: Cut = { ...base, stopMin: 4, stopMax: 3 };
     expect(cutRegion(b, crossed)).toEqual(EMPTY);
     const cutBoard = createBoard({ length: 24, width: 6, thickness: 1, cuts: [crossed] });
-    expect(boardSolids(cutBoard)).toEqual(boardSolids(b));
+    expect(pocketCells(cutBoard)).toEqual(pocketCells(b));
     expect(stockProbe(cutBoard)({ length: 6.375, width: 3, thickness: 0.1 })).toBe(true);
   });
 
@@ -460,12 +460,12 @@ describe('cutRemovesNothing (follow-up 178)', () => {
     expect(cutRemovesNothing(b, c(over))).toBe(want);
   });
 
-  // The doc comment claims agreement with boardSolids BY CONSTRUCTION, so the
+  // The doc comment claims agreement with pocketCells BY CONSTRUCTION, so the
   // test asserts the agreement itself, in both directions, for every row —
   // not merely that the solids of a few hand-picked empties are whole.
-  it.each(CASES)('agrees with boardSolids: %s', (_, over) => {
+  it.each(CASES)('agrees with pocketCells: %s', (_, over) => {
     const cutBoard = createBoard({ length: 10, width: 2, thickness: 1, cuts: [c(over)] });
-    const whole = JSON.stringify(boardSolids(cutBoard)) === JSON.stringify(boardSolids(b));
+    const whole = JSON.stringify(pocketCells(cutBoard)) === JSON.stringify(pocketCells(b));
     expect(cutRemovesNothing(b, c(over))).toBe(whole);
   });
 });

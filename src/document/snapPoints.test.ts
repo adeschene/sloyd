@@ -3,7 +3,7 @@
 // other test file in the repo omits the import.
 import { createBoard } from './document';
 import { boardExtents } from './geometry';
-import { boardSolids } from './cuts';
+import { pocketCells } from './cuts';
 import { boardSnapPoints, cutSnapPoints, guideSnapPoints, offsetPoint, sameSnapPoint, snapPointsFor, tapeAxisFromKey, towardFor } from './snapPoints';
 import type { SnapPoint } from './snapPoints';
 import type { Board, Cut, Posture, Rotation } from './types';
@@ -133,14 +133,14 @@ describe('boardSnapPoints', () => {
     // The ghost box IS drawn at the AABB (invariant 21), so its 26 points
     // still sit on a drawn feature even though stockProbe would say every one
     // of them touches no remaining stock. This must be an explicit
-    // boardSolids(board).length === 0 check, not inferred from the filtered
+    // pocketCells(board).length === 0 check, not inferred from the filtered
     // set coming back empty (design §5.1) — a board could in principle have
     // every box point in removed stock while stock remains in its middle.
     const consumed = posed([
       { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 0, width: 12, depth: 1, stopMin: 0, stopMax: 0 },
       { id: 'b', face: 'thickness', from: 'min', across: 'width', offset: 12, width: 12, depth: 1, stopMin: 0, stopMax: 0 },
     ]);
-    expect(boardSolids(consumed)).toHaveLength(0);
+    expect(pocketCells(consumed)).toHaveLength(0);
     expect(boardSnapPoints(consumed)).toHaveLength(26);
     expect(cutSnapPoints(consumed)).toEqual([]);
   });
@@ -440,7 +440,7 @@ describe('cutSnapPoints', () => {
       { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 0, width: 12, depth: 1, stopMin: 0, stopMax: 0 },
       { id: 'b', face: 'thickness', from: 'min', across: 'width', offset: 12, width: 12, depth: 1, stopMin: 0, stopMax: 0 },
     ]);
-    expect(boardSolids(board)).toHaveLength(0);
+    expect(pocketCells(board)).toHaveLength(0);
     expect(cutSnapPoints(board)).toEqual([]);
   });
 

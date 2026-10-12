@@ -1,6 +1,6 @@
 import type { Board, CutFrom, Dimension, Span } from './types';
 import { DIMENSION_ORDER } from './geometry';
-import { boardSolids, clippedRegion, cutShape, cutRemovesNothing, type CutKind } from './cuts';
+import { pocketCells, clippedRegion, cutShape, cutRemovesNothing, type CutKind } from './cuts';
 import { buildDepthField, type FaceCell } from './depthField';
 import { formatLength } from '../units/length';
 
@@ -131,7 +131,7 @@ export function buildDiagrams(board: Board, precision: number): DiagramView[] {
     return view;
   };
 
-  const solids = boardSolids(board);
+  const solids = pocketCells(board);
   for (const cut of board.cuts) {
     // A cut a board edit has left removing nothing is not drawn: there is no
     // stock for it to remove, and the 3D view already shows none (fu 178).

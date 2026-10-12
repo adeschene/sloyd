@@ -1,4 +1,4 @@
-import { boardCenter, boardEdges, boardSnapPoints, cutSnapPoints, solidWorldBox, boardSolids, pointToLocalXYZ } from './document';
+import { boardCenter, boardEdges, boardSnapPoints, cutSnapPoints, solidWorldBox, pocketCells, pointToLocalXYZ } from './document';
 import type { Posture, Rotation } from './document';
 import { worldSolids } from './designCheck';
 import { chiralPart, rotateQuarter, sameSet, turnedAbout } from './turnFixtures';
@@ -20,7 +20,7 @@ const sites = {
   cutSnapPoints: (b: ReturnType<typeof chiralPart>) => cutSnapPoints(b).map((p) => [...p.at]),
   solidWorldBox: (b: ReturnType<typeof chiralPart>) => {
     const c = boardCenter(b);
-    return boardSolids(b).flatMap((s) => {
+    return pocketCells(b).flatMap((s) => {
       const { center, size } = solidWorldBox(b, s);
       const mid = [0, 1, 2].map((i) => c[i]! + center[i]!);
       return corners(mid.map((m, i) => m - size[i]! / 2), mid.map((m, i) => m + size[i]! / 2));

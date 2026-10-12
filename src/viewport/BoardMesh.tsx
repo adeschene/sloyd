@@ -2,7 +2,7 @@ import type { ToggleModifiers } from '../store/selectionGesture';
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import {
-  boardCenter, boardEdges, boardExtents, boardSolids, pointToLocalXYZ,
+  boardCenter, boardEdges, boardExtents, pocketCells, pointToLocalXYZ,
   solidWorldBox, wholeBoard, MATERIALS, DEFAULT_MATERIAL,
 } from '../document/document';
 import type { Board } from '../document/document';
@@ -23,7 +23,7 @@ const EDGE_DARKEN = 0.3;
 
 /**
  * How solid the placeholder ghost is when a board's own cuts have removed all
- * of its stock (`boardSolids` returning `[]` — follow-ups 48 and 49).
+ * of its stock (`pocketCells` returning `[]` — follow-ups 48 and 49).
  *
  * Browser-settled by comparison, not derived. 0.1 was rendered against this
  * app's near-white ground and rejected: at that value the grid reads straight
@@ -109,7 +109,7 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
   // the array for the same reason as before: the box's own size belongs on
   // the memo that builds the box.
   //
-  // `boardSolids` can legitimately return `[]` — a board whose own cuts have
+  // `pocketCells` can legitimately return `[]` — a board whose own cuts have
   // consumed all of its stock, reachable by shrinking a dimension past an
   // existing cut (follow-up 48) or by two individually-legal cuts that jointly
   // remove everything (49). Before this branch existed the board then drew
@@ -125,7 +125,7 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
   // invariant 15's failure mode; riding along here inherits the signature key
   // and the disposal effect below for free.
   const geometries = useMemo(() => {
-    const solids = boardSolids(board);
+    const solids = pocketCells(board);
     if (solids.length === 0) {
       const { center, size } = solidWorldBox(board, wholeBoard(board));
       return {

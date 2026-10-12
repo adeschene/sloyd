@@ -1,6 +1,6 @@
 import { MATERIALS, isSheetGood, sheetStockOf } from './types';
 import type { Board, Cut, Grain, Region, FlatDocument } from './types';
-import { CUT_GEOMETRY_KEYS, boardSolids, cutShape, cutsThatRemoveStock } from './cuts';
+import { CUT_GEOMETRY_KEYS, pocketCells, cutShape, cutsThatRemoveStock } from './cuts';
 import type { CutShape } from './cuts';
 import { findTenons } from './tenons';
 import type { Tenon } from './tenons';
@@ -206,7 +206,7 @@ function setupLines(board: Board, precision: number): string[] {
   const owner = new Map(tenons.flatMap((t) => t.cutIds.map((id) => [id, t] as const)));
   const done = new Set<Tenon>();
   const lines: string[] = [];
-  const solids = boardSolids(board);
+  const solids = pocketCells(board);
   for (const cut of cutsThatRemoveStock(board)) {
     const t = owner.get(cut.id);
     if (!t) { lines.push(setupLine(board, cut, precision, solids)); continue; }
@@ -260,7 +260,7 @@ function rowKey(board: Board, precision: number): string {
  * STOCK DIMENSIONS ONLY — `board.cuts` is deliberately not read. A dado does
  * not reduce the board you buy: the stock leaves the yard whole and the
  * joinery happens afterward, out of material already paid for. This is the
- * inverse of what every other consumer of `cuts` does (`boardSolids` removes
+ * inverse of what every other consumer of `cuts` does (`pocketCells` removes
  * stock, `buildDepthField` measures the removal, `buildDiagrams` draws it), so
  * a reader arriving from `cuts.ts` will be primed to subtract here. Don't.
  */

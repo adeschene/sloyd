@@ -6,7 +6,7 @@ import { boardExtents, boardCenter, reorientedPosition, axisDimensions, boardsBo
 import { buildCutList } from './cutlist';
 import type { Board, Posture, Rotation } from './types';
 import type { Cut } from './document';
-import { boardSolids, FLUSH_EPSILON, cutRegion } from './cuts';
+import { pocketCells, FLUSH_EPSILON, cutRegion } from './cuts';
 import { worldSolids } from './designCheck';
 import { chiralPart, sameSet } from './turnFixtures';
 
@@ -582,7 +582,7 @@ describe('cut validation', () => {
   });
 
   // A cut at full depth, full width, spanning its across axis leaves
-  // boardSolids with nothing to return: a board that renders nothing, cannot
+  // pocketCells with nothing to return: a board that renders nothing, cannot
   // be clicked, and still sits in the parts list. There is no nearest legal
   // cut to clamp to, so this is the one case a drop beats a clamp.
   it('drops a cut that would remove all the stock', () => {
@@ -981,7 +981,7 @@ describe('v7 -> v8: true quarter turns', () => {
   // part span on axisDimensions, no direction. At 90 it was a mirror.
   const oldWorld = (b: Board) => {
     const dims = axisDimensions(b);
-    return boardSolids(b).map((s) => [0, 1, 2].map((i) => [b.position[i]! + s[dims[i]!][0], b.position[i]! + s[dims[i]!][1]]));
+    return pocketCells(b).map((s) => [0, 1, 2].map((i) => [b.position[i]! + s[dims[i]!][0], b.position[i]! + s[dims[i]!][1]]));
   };
   const newWorld = (b: Board) => worldSolids(b).map((s) => [0, 1, 2].map((i) => [s.min[i]!, s.max[i]!]));
   const v7 = (boards: unknown[]) => ({ version: 7, name: 'Old', units: { system: 'imperial', precision: 16 }, stock: { kerf: 0.125 }, guides: [], boards });
@@ -1171,7 +1171,7 @@ describe('v7 -> v8: true quarter turns', () => {
       expect(byId('c2')).toMatchObject({ face: 'width', from: 'min', across: 'length', offset: 0.625, width: 0.5, stopMin: 2, stopMax: 12 });
       // And the world solids are the v8-v11 build's (fu 246), written out by hand: that build's on-edge
       // turn 90 put thickness on X unreversed, width on Y, and length on Z REVERSED.
-      const v11World = boardSolids(saved).map((sp) => [
+      const v11World = pocketCells(saved).map((sp) => [
         [saved.position[0] + sp.thickness[0], saved.position[0] + sp.thickness[1]],
         [saved.position[1] + sp.width[0], saved.position[1] + sp.width[1]],
         [saved.position[2] + saved.length - sp.length[1], saved.position[2] + saved.length - sp.length[0]],

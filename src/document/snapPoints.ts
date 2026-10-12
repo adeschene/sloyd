@@ -1,4 +1,4 @@
-import { boardSolids, clippedRegion, cutRemovesNothing, stockProbe } from './cuts';
+import { pocketCells, clippedRegion, cutRemovesNothing, stockProbe } from './cuts';
 import type { Point } from './cuts';
 import { axisFrame, boardExtents, fromWorldOffset, positionAxisOf, toWorldOffset } from './geometry';
 import type { Board, Cut, GuidePoint } from './types';
@@ -96,18 +96,18 @@ export function sameSnapPoint(a: SnapPoint | null, b: SnapPoint | null): boolean
  * function never consulted `cuts` before that pass, so it kept offering them:
  * markers sitting a quarter-inch out in the air (design §5.1). The one
  * exception is the same one `cutSnapPoints`/`stockProbe` already make: when
- * `boardSolids` is empty (a board its own cuts consumed entirely), all 26
+ * `pocketCells` is empty (a board its own cuts consumed entirely), all 26
  * stay, because `BoardMesh` still draws a translucent ghost box at the AABB
  * (invariant 21) — the box points sit on a drawn feature even though every
- * cell is empty. That is an explicit `boardSolids(board).length === 0` check
+ * cell is empty. That is an explicit `pocketCells(board).length === 0` check
  * rather than "the filtered set came back empty": a board could in principle
  * have every box point sit in removed stock while stock remains in its
  * middle, and those are not the same condition.
  *
  * A board with no cuts returns before either check runs any grid arithmetic
- * at all, the same zero-cost guarantee `boardSolids`/`cutSnapPoints` make in
+ * at all, the same zero-cost guarantee `pocketCells`/`cutSnapPoints` make in
  * their first line. A cut board therefore builds the cell grid twice here —
- * once inside `stockProbe`, once inside `boardSolids` — which is accepted:
+ * once inside `stockProbe`, once inside `pocketCells` — which is accepted:
  * both run when the document changes, never per frame, and reusing one grid
  * across the two would mean reaching into `cuts.ts`'s private `grid()`, which
  * stays unexported on purpose.
@@ -137,7 +137,7 @@ export function boardSnapPoints(board: Board): BoardSnapPoint[] {
   }
 
   if (board.cuts.length === 0) return points;
-  if (boardSolids(board).length === 0) return points;
+  if (pocketCells(board).length === 0) return points;
 
   // World → part goes through fromWorldOffset: a turn may reverse any
   // horizontal axis, so a world offset is not the part coordinate there.
@@ -258,7 +258,7 @@ function pointsOfCut(board: Board, cut: Cut): { at: Point; kind: SnapKind }[] {
  *
  * A board with no cuts returns immediately without building a grid, so joinery
  * still costs nothing at all for the boards that do not use it — the same
- * guarantee boardSolids makes in its first line.
+ * guarantee pocketCells makes in its first line.
  */
 export function cutSnapPoints(board: Board): BoardSnapPoint[] {
   if (board.cuts.length === 0) return [];

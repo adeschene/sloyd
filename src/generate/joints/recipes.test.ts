@@ -5,7 +5,7 @@ import { designToDocument } from '../../document/generated';
 import { flatDocument, groupItems, migrateDocument, writeBackFlat } from '../../document/document';
 import { checkDesign, worldSolids } from '../../document/designCheck';
 import { rotateQuarter, sameSet } from '../../document/turnFixtures';
-import { boardSolids, clippedRegion, cutLabel, cutRegion, cutsThatRemoveStock } from '../../document/cuts';
+import { pocketCells, clippedRegion, cutLabel, cutRegion, cutsThatRemoveStock } from '../../document/cuts';
 import { buildCutList } from '../../document/cutlist';
 import { axisDimensions, boardExtents, spanToWorldOffset } from '../../document/geometry';
 import type { Board, Cut, FlatDocument, SloydDocument } from '../../document/document';
@@ -28,7 +28,7 @@ const othersMatch = (doc: FlatDocument, control: FlatDocument, except: string) =
 };
 const limits = (doc: FlatDocument) => ({ width: null, depth: null, height: null, maxParts: doc.boards.length });
 const board = (doc: FlatDocument, name: string) => worldParts(doc).find((b) => b.name === name)!;
-const volume = (doc: FlatDocument, name: string) => boardSolids(board(doc, name)).reduce(
+const volume = (doc: FlatDocument, name: string) => pocketCells(board(doc, name)).reduce(
   (v, s) => v + (s.length[1] - s.length[0]) * (s.width[1] - s.width[0]) * (s.thickness[1] - s.thickness[0]), 0);
 const boxVolume = (doc: FlatDocument, name: string) => { const b = board(doc, name); return b.length * b.width * b.thickness; };
 
@@ -1006,7 +1006,7 @@ const vol = (a: WB) => [0, 1, 2].reduce((v, k) => v * Math.max(0, a.max[k] - a.m
 const meet = (a: WB, b: WB): WB => ({ min: [0, 1, 2].map((k) => Math.max(a.min[k], b.min[k])), max: [0, 1, 2].map((k) => Math.min(a.max[k], b.max[k])) });
 const pocketsOf = (doc: FlatDocument) => worldParts(doc).flatMap((b, i) => cutsThatRemoveStock(b).map((c) => ({ i, b, c, at: worldOf(b, clippedRegion(b, c)) })));
 const voids = (doc: FlatDocument) => {
-  const solids = worldParts(doc).map((b) => boardSolids(b).map((s) => worldOf(b, s)));
+  const solids = worldParts(doc).map((b) => pocketCells(b).map((s) => worldOf(b, s)));
   return pocketsOf(doc).flatMap(({ i, b, c, at }) => {
     let filled = 0;
     solids.forEach((ss, j) => { if (j !== i) for (const s of ss) filled += vol(meet(at, s)); });

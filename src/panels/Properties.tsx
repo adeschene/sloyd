@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store/store';
-import { MATERIALS, isSheetGood, boardSolids, cutShape, storedAsShape, cutRemovesNothing, findTenons, positionAxisOf, linkPlan, postureRefusal, storageKey, mirroredAt, worldParts, instanceAt, parentPath, placementsOf, instanceRefs, containerAt } from '../document/document';
+import { MATERIALS, isSheetGood, pocketCells, cutShape, storedAsShape, cutRemovesNothing, findTenons, positionAxisOf, linkPlan, postureRefusal, storageKey, mirroredAt, worldParts, instanceAt, parentPath, placementsOf, instanceRefs, containerAt } from '../document/document';
 import { DimensionField } from './DimensionField';
 import { NameField } from './NameField';
 import { ActionBar, COPY_IN_ROW } from './ActionBar';
@@ -519,7 +519,7 @@ export function Properties() {
   if (!board) return <p className="empty">Select a part to edit it.</p>;
 
   // Once per render, shared by every CutRow's label (no memo key to go stale — inv 15).
-  const solids = boardSolids(board);
+  const solids = pocketCells(board);
 
   const setPos = (axis: 0 | 1 | 2) => (v: number) => {
     const position = [...board.position] as [number, number, number];

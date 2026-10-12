@@ -1,6 +1,6 @@
 import type { Board, FlatDocument } from './document';
 import type { RejectedPart } from './generated';
-import { boardSolids } from './cuts';
+import { pocketCells } from './cuts';
 import { axisFrame, boardExtents, spanToWorldOffset } from './geometry';
 
 /**
@@ -241,7 +241,7 @@ const boxesOf = (doc: FlatDocument): Box[] => doc.boards.map((b) => {
  */
 export function worldSolids(b: Board): Box[] {
   const frame = axisFrame(b);
-  return boardSolids(b).map((s) => {
+  return pocketCells(b).map((s) => {
     const spans = [0, 1, 2].map((i) => spanToWorldOffset(b, i, s[frame[i]!.dim]));
     return {
       name: b.name,
