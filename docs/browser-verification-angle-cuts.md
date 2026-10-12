@@ -79,3 +79,37 @@ Read, not cleared. The dev server on 5180 was stopped.
 - Z-fighting between overlapping parts (seen when both legs went flat on top of each other) was not judged; it is a
   property of overlapping geometry, not of tapers.
 - A real print-to-PDF of the diagram and the Plans sheet (fu 70/79/84).
+
+## Re-check after the final fix wave
+
+Dev server on 5181 (software GL, llvmpipe), Playwright MCP, new project `angle-cuts recheck`. After the fix wave in
+BoardMesh, MoveTool, TapeTool and the part diagrams (`67d1921`, `df45e9a`).
+
+1. **Taper renders.** Part 28 × 1-3/4 × 1-3/4, Upright, then `+ Add taper`: the Properties card reads "Taper 7/16" off
+   the width face (min side), from 21" from the length min end to that end"; the foot of the post narrows
+   (`docs/img/angle-cuts-recheck-taper.png`; the thin edge lines are hard to judge at this size on software GL).
+   Console: 0 errors, no React warnings. The only warnings are the known environmental ones (`THREE.Clock` deprecated,
+   `PCFSoftShadowMap` deprecated, GL "GPU stall due to ReadPixels").
+2. **Select drag and resize.** Three gizmo drags along X moved the part (X `13-1/8"` → `15-5/16"` → `12-13/16"` →
+   `14-1/8"`); Length 28 → 30 through Properties: the mesh followed and stayed tapered, the taper card kept its values
+   (Starts 21", Removes 7/16"). 0 console errors.
+3. **Move tool.** Hovering the foot corners shows the snap marker (green dot,
+   `docs/img/angle-cuts-recheck-move-foot.png`, two corners). Escape returned to Select (`aria-pressed` Select true,
+   Move false).
+4. **Tape tool.** `tapeHover` read back from the store (`import('/src/store/store.ts')`) while hovering: the taper's
+   foot corners `[14.5625,0,1.75] corner` (14-1/8" plus the 7/16" inset, i.e. the tapered corner, not the box
+   corner), `[15.875,0,1.75]`, `[15.875,0,0]`, and the top corner `[15.875,30,0]`. Escape returned to Select.
+   **Caveat:** a Playwright screenshot clears the hover (TapeTool clears it on pointer leave), so no screenshot shows
+   the Tape marker; the evidence for Tape is the store readout, not an image.
+5. **Cut list.** With a dado (`Cut into Face`, `From Far side`: the thickness face, max side) and the taper set to
+   "Thickness face — max side", the row reads "3/4" dado, 7/8" deep — into the thickness face (max side) …" and
+   "Taper 7/16" off the thickness face (max side) …". Two diagram views: "Width face — min side" shows the hatched
+   wedge (`url(#hatchrf)`) and its "Taper …" note under the figure; "Thickness face — max side" shows the dado with
+   its dimensions and no wedge or note (a taper on that face is seen in profile, not face-on).
+   `docs/img/angle-cuts-recheck-cutlist.png`. Buying still says `fits no pine stock — too thick`, as before.
+6. **Undo/redo.** Taper "Removes at that end" 7/16" → 1/4": Undo shows `7/16"`, Redo `1/4"`, Undo again `7/16"`.
+7. **Cleanup.** `angle-cuts recheck` deleted through the project menu (Delete → Delete?). The library index afterwards
+   holds only the `Untitled` project the fresh 5181 origin created on first load; keys are `sloyd.library.v1`,
+   `sloyd.autosave.v1` and that one project key. `localStorage` read, never cleared. Dev server stopped.
+
+**Concerns:** none found in the code paths checked. Tape-marker pixels are not evidenced (above).
