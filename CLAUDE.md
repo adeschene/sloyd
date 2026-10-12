@@ -24,7 +24,7 @@ handicraft education tradition built around hand woodworking.
 - **Production matches `master`** as of 2026-10-12: the plans-sheet round (merge `b023ac8`), bundle
   `index-CNnZg_b6.js`, CSS `index-ysjULoHK.css`, **SCHEMA 13** (unchanged, so rolling back to `d5dc553`,
   `index-DrjjRDmM.js`, is free; below 13, `43b4928`, refuses every project saved since mirrored instances: export
-  first). Test count is under Commands. Open for the user: fu 254 (tall trio overflows a printed page) and fu 264.
+  first). Test count is under Commands. Open for the user: fu 264. Fu 254's overflow is fixed on `master` (height cap), not yet deployed.
 - **NO SUCCESSOR IS
   CHOSEN: ask what to work on; do not pick.** Open near the recent code:
   241 (open by decision), 251 (ui-polish residue, record-only),
@@ -558,7 +558,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 2998 tests across 108 files
+npm test           # Vitest, currently 3001 tests across 108 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

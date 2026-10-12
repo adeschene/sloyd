@@ -4960,11 +4960,15 @@ A dimension tool whose dimensions live in the document needs a schema bump (14) 
 **254. Real print-to-PDF of the Plans sheet is unverified.** Only `emulateMedia('print')` was driven (Playwright
 exposes no `pdf()`; the same limit as fu 70/79/84). Unconfirmed: page breaks and the ink on a real printer. The print
 ink bug (F2) was found by the emulated pass and fixed. See `docs/browser-verification-plans-sheet.md`.
-- **Known overflow.** `layoutTrio` fits width only, so a trio with (front h + plan h)/(front w + side w) above about
-  1.15 is taller than a printed Letter page at full width (e.g. a 36w x 12d x 72h bookcase: 1000 x ~1564 units, about
-  11.7 in tall at 7.5 in wide). `break-inside: avoid` cannot help a single element taller than a page. Open for the
-  user's decision: a height cap like `layoutSingle`'s, or a print-only max-height.
-- **Status:** open; needs a real browser's print dialog.
+- **Known overflow — FIXED 2026-10-12 (the user chose a height cap).** `layoutTrio` fitted width only, so a trio
+  with (front h + plan h)/(front w + side w) above about 1.15 was taller than a printed Letter page (a 36w x 12d x 72h
+  bookcase: 1000 x ~1564 units, about 11.7 in tall at 7.5 in wide). Now the scale also fits `TRIO_MAX_HEIGHT` (1250
+  units, Letter's printable ratio with room for the heading); the bookcase comes out 820.6 x 1250. Second half of
+  the same bug: `.plans-figure` is `width: 100%`, which would have stretched the narrower figure back to full width
+  and off the page again, so each figure is now drawn at its share of the page width (`pageWidth` in
+  `PlanFigure.tsx`; the exploded figure too, whose own height cap had the same hole). Tests pin the bookcase case
+  and the on-page width; both were mutated.
+- **Status:** open only for the real print dialog (page breaks and ink on a real printer); the overflow is closed.
 
 **255. The explode spread constants were approved only on software GL.** `EXPLODE_SPREAD` (1) and `EXPLODE_INNER`
 (0.5) in `document/explode.ts` were judged on llvmpipe (fu 26a). They are plain numbers feeding translations, not

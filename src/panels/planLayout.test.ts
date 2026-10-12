@@ -1,4 +1,4 @@
-import { layoutTrio, layoutSingle, PLAN_WIDTH, DIM_BAND, VIEW_GAP, MAX_PLAN_SCALE } from './planLayout';
+import { layoutTrio, layoutSingle, PLAN_WIDTH, DIM_BAND, VIEW_GAP, MAX_PLAN_SCALE, TRIO_MAX_HEIGHT } from './planLayout';
 
 const rect = (w: number, h: number) => ({ min: [0, 0] as [number, number], max: [w, h] as [number, number] });
 
@@ -12,6 +12,19 @@ describe('layoutTrio', () => {
     expect(l.side.y).toBe(l.front.y);         // side level with front
     expect(l.front.y).toBeCloseTo(DIM_BAND + 12 * l.scale + DIM_BAND + VIEW_GAP + DIM_BAND, 9);
     expect(l.height).toBeCloseTo(l.front.y + 20 * l.scale + DIM_BAND, 9);
+  });
+  it('caps the height so a tall piece fits a printed page (fu 254)', () => {
+    // A 36w × 12d × 72h bookcase: front 36 × 72, side 12 × 72, plan 36 × 12.
+    // By width: 752 / (36 + 12) = 15.67/in → height 248 + 84·15.67 ≈ 1564 (the overflow fu 254 measured).
+    // By height: (1250 − 4·56 − 24) / (12 + 72) = 1002 / 84 ≈ 11.93/in, the smaller, so it binds.
+    expect(TRIO_MAX_HEIGHT).toBe(1250);
+    const l = layoutTrio(rect(36, 72), rect(12, 72), rect(36, 12));
+    expect(l.scale).toBeCloseTo(1002 / 84, 12);
+    expect(l.height).toBeCloseTo(1250, 9);
+    // Narrower than the page: 248 + 48 · 1002/84 ≈ 820.6.
+    expect(l.width).toBeCloseTo(248 + (48 * 1002) / 84, 9);
+    expect(l.top.x).toBe(l.front.x);
+    expect(l.side.y).toBe(l.front.y);
   });
   it('caps the scale for a small piece', () => {
     expect(layoutTrio(rect(1, 1), rect(1, 1), rect(1, 1)).scale).toBe(MAX_PLAN_SCALE);

@@ -206,7 +206,10 @@ It is derived from the store's document on every render, and it formats nothing 
    when printing). Visible lines only, no dimensions.
 2. **The whole piece.** Front, right side and plan, in third-angle arrangement: plan above front,
    side to the right of front. The three are drawn at **one shared scale**, chosen so the
-   arrangement fits the sheet width, so they align across views.
+   arrangement fits the sheet width, so they align across views. *(Amended 2026-10-12, fu 254, by the
+   user's decision: the scale also fits `TRIO_MAX_HEIGHT` = 1250 units down (Letter's printable ratio
+   with room for the heading), whichever binds; a figure is drawn at its share of the page width, never
+   stretched to 100%, so a tall piece prints on one page. The exploded figure gets the same width rule.)*
 3. **Each assembly.** Each `Definition` is drawn once, ordered by first placement in `worldParts`
    order, from its own parts in its own local frame (`partsBelow(doc, definition)`). It is titled with
    its first placement's flat display name, "× N" when placed N times (`placementsOf`), and "(one copy

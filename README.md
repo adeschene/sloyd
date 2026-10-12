@@ -98,7 +98,7 @@ guessed at. The current schema is **11**.
 ```bash
 npm install
 npm run dev      # start the Vite dev server
-npm test         # run the Vitest suite (2998 tests)
+npm test         # run the Vitest suite (3001 tests)
 npm run build    # tsc -b && vite build: type-checks and produces dist/
 ```
 

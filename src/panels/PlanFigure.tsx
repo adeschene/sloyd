@@ -5,10 +5,16 @@ import { drawView, FRONT, ISO, SIDE, TOP, type Drawing, type P2, type Seg2, type
 import { dimensionView, type DimLine } from '../document/dimensions';
 import { explodeOffsets } from '../document/explode';
 import { fitChain } from './planDims';
-import { DIM_BAND, layoutSingle, layoutTrio, type Placement } from './planLayout';
+import { DIM_BAND, PLAN_WIDTH, layoutSingle, layoutTrio, type Placement } from './planLayout';
 import { LABEL_SIZE } from './diagramLabels';
 
 const TICK = 6;
+
+/**
+ * A figure's on-page width: its share of PLAN_WIDTH. CSS draws `.plans-figure` at 100% width, which
+ * would stretch a narrower, height-capped figure back to full width — and back off the page (fu 254).
+ */
+const pageWidth = (width: number) => ({ width: `${(Math.min(width, PLAN_WIDTH) / PLAN_WIDTH) * 100}%` });
 const EXT_GAP = 4;
 
 type ToSvg = (p: P2) => P2;
@@ -105,7 +111,7 @@ export function PlanTrio({ parts, precision, label }: { parts: readonly Board[];
   const drawn = [draw(top, lay.top), draw(front, lay.front), draw(side, lay.side)];
   return (
     <figure className="plans-figure-wrap">
-      <svg className="plans-figure" viewBox={`0 0 ${lay.width} ${lay.height}`} fontSize={LABEL_SIZE}
+      <svg className="plans-figure" viewBox={`0 0 ${lay.width} ${lay.height}`} style={pageWidth(lay.width)} fontSize={LABEL_SIZE}
         role="img" aria-label={`${label}: front, side and plan`}>
         {drawn}
       </svg>
@@ -119,7 +125,7 @@ export function ExplodedFigure({ doc, amount }: { doc: SloydDocument; amount: nu
   const d = useMemo(() => drawView(worldParts(doc), ISO, explodeOffsets(doc, amount)), [doc, amount]);
   const lay = layoutSingle(d.bounds);
   return (
-    <svg className="plans-figure" viewBox={`0 0 ${lay.width} ${lay.height}`} role="img"
+    <svg className="plans-figure" viewBox={`0 0 ${lay.width} ${lay.height}`} style={pageWidth(lay.width)} role="img"
       aria-label="Exploded view" data-amount={amount}>
       <Lines d={d} map={mapper(d, lay.at, lay.scale)} hidden={false} />
     </svg>

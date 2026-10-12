@@ -5,6 +5,12 @@ export const DIM_BAND = 56;
 export const VIEW_GAP = 24;
 /** User units per inch, at most: a small piece is not blown up to fill the page. */
 export const MAX_PLAN_SCALE = 24;
+/**
+ * SVG user units DOWN a front/side/plan figure, at most (fu 254). A figure is drawn at its share of the page
+ * width (PLAN_WIDTH = the full width), so this is a height-to-width ratio: 1.25 fits US Letter's printable
+ * area (about 7.7 x 10.2 in at browser-default margins) with room left for the section heading and notes.
+ */
+export const TRIO_MAX_HEIGHT = 1250;
 export const ISO_MAX_HEIGHT = 640;
 export const ISO_MARGIN = 16;
 
@@ -18,12 +24,17 @@ const h = (r: Rect2) => r.max[1] - r.min[1];
 
 /**
  * Third-angle: plan above front, side right of front, ONE scale so the views align (spec §5.2).
- * Each view has a DIM_BAND on all four sides (chain above/left, overall below/right).
+ * Each view has a DIM_BAND on all four sides (chain above/left, overall below/right). The scale fits
+ * PLAN_WIDTH across and TRIO_MAX_HEIGHT down, whichever binds (fu 254): fitting the width alone sent a
+ * tall piece off the printed page, and `break-inside: avoid` cannot split one figure.
  */
 export function layoutTrio(front: Rect2, side: Rect2, top: Rect2): TrioLayout {
+  const bands = 4 * DIM_BAND + VIEW_GAP;
   const across = w(front) + w(side);
-  const room = PLAN_WIDTH - 4 * DIM_BAND - VIEW_GAP;
-  const scale = across > 0 ? Math.min(room / across, MAX_PLAN_SCALE) : MAX_PLAN_SCALE;
+  const down = h(top) + h(front);
+  const byW = across > 0 ? (PLAN_WIDTH - bands) / across : Infinity;
+  const byH = down > 0 ? (TRIO_MAX_HEIGHT - bands) / down : Infinity;
+  const scale = Math.min(byW, byH, MAX_PLAN_SCALE);
   const topAt = { x: DIM_BAND, y: DIM_BAND };
   const frontAt = { x: DIM_BAND, y: DIM_BAND + h(top) * scale + DIM_BAND + VIEW_GAP + DIM_BAND };
   const sideAt = { x: DIM_BAND + w(front) * scale + DIM_BAND + VIEW_GAP + DIM_BAND, y: frontAt.y };

@@ -38,6 +38,25 @@ describe('PlanTrio', () => {
   });
 });
 
+describe('figure width on the page (fu 254)', () => {
+  it('draws a height-capped trio at its share of the page width, not stretched to 100%', () => {
+    // Bookcase 36w × 12d × 72h as three boards spanning it: the trio is 248 + 48·1002/84 ≈ 820.6 wide of
+    // PLAN_WIDTH 1000 (planLayout.test.ts) → 82.06% of the page. Stretched to 100% it would be ~1523 tall again.
+    const parts = [
+      createBoard({ length: 36, width: 12, thickness: 0.75, position: [0, 0, 0] }),
+      createBoard({ length: 36, width: 12, thickness: 0.75, position: [0, 71.25, 0] }),
+      createBoard({ length: 72, width: 12, thickness: 0.75, posture: 'upright', rotation: 90, position: [0, 0, 0] }),
+    ];
+    const { container } = render(<PlanTrio parts={parts} precision={16} label="Bookcase" />);
+    const width = parseFloat((container.querySelector('svg') as SVGSVGElement).style.width);
+    expect(width).toBeCloseTo(((248 + (48 * 1002) / 84) / 1000) * 100, 6);
+  });
+  it('draws a full-width trio at 100%', () => {
+    const { container } = render(<PlanTrio parts={[slab(0)]} precision={16} label="Slab" />);
+    expect((container.querySelector('svg') as SVGSVGElement).style.width).toBe('100%');
+  });
+});
+
 describe('ExplodedFigure', () => {
   it('draws visible lines only', () => {
     const doc = { ...createDocument('X'), boards: [mortised] };
