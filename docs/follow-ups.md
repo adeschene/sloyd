@@ -5141,3 +5141,25 @@ collapse in Float32 (cosmetic); the unit-pin for the skip is missing. **Status:*
 **292. Wording: "a long-start taper on a short part".** A taper whose start station lies past the part's far end, or
 that deepens toward the far end, is phrased from its deep end (ruling at Task 9); the wording for odd hand-edited
 starts has not been reviewed by the user. **Status:** open, the user may prefer other wording.
+
+## From the angle cuts round (chunk 2, miters) — 2026-10-12
+
+**293. The angle field's max message rounds up past the max it enforces.** On a 24 × 2-1/2 rail mitered across the
+width the true max is atan(24/2.5) = 84.05°; the field says `Must be at most 84.1°` and refuses a typed 84.1 (also 90
+and 85 — the message for those reads "at most 84.1°", never "less than 90°"). 84.05 is accepted and displays as
+`84.0°`. Same on a 3 × 2-1/2 part: `Must be at most 50.2°`, and 50.2 is refused. Seen live (browser verification,
+chunk 2). Fix: format the max rounded DOWN (floor to 0.1°), so the stated bound is always typeable. **Status:** open.
+
+**294. A miter's bench line does not say which side holds the long point.** Changing Long point from `Width — min side`
+to `Width — max side` left the row and cut-list line `Miter 22.5° across the width at the length max end` unchanged, so a
+picture-frame trapezoid (long points on one side) and a parallelogram brace (opposite sides) print the same two lines;
+only the part diagram and `Short point` tell them apart. **Status:** open, wording for the user to decide.
+
+**295. A row control to add the matching miter at the other end of an edited miter.** Spec §7 amended (chunk 2): "both
+ends" is the add-menu preset only; a user who edits one miter adds the match as a second miter by hand. **Status:**
+open, by decision.
+
+**296. An edit is refused on a part shortened after its miter was stored, until the angle is reduced.** A resize is
+not checked against stored miter depths: the 24" rail resized to 2" kept both 45° miters (depth 2-1/2" > length), and
+the next miter edit (Long point) was refused with `Removes more than the length — reduce the angle first.`, nothing
+written. Seen live (chunk 2). **Status:** open, fails safe.

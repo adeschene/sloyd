@@ -113,3 +113,45 @@ BoardMesh, MoveTool, TapeTool and the part diagrams (`67d1921`, `df45e9a`).
    `sloyd.autosave.v1` and that one project key. `localStorage` read, never cleared. Dev server stopped.
 
 **Concerns:** none found in the code paths checked. Tape-marker pixels are not evidenced (above).
+
+## Chunk 2: miters (2026-10-12)
+
+Dev server only: `npm run dev -- --port 5182` on branch `angle-cuts-2` at `9d53aaf`, driven through the Playwright MCP.
+Software GL (llvmpipe): shading and grain on the miter faces are **not** judged (26a, fu 282). The fresh 5182 origin
+held only the `Untitled` project it creates on first load. The check made one project, `miter check`, through the
+project menu and deleted it the same way. Readouts are from the DOM and the store (`import('/src/store/store.ts')`).
+
+### Checked
+
+| Check | Result |
+|---|---|
+| **+ Add ▾** menu | Three items: `Taper — Slope one face along the length`, `Miter — 45° across the width at one end`, `Miter both ends — A picture-frame rail, in one step` |
+| Miter both ends (step 1) on a 24 × 2-1/2 × 3/4 flat rail | `Angles · 2`: rows `Miter 45.0° across the width at the length max end` and `… at the length min end`; both `Across Width`, `Long point Width — min side`, `Angle 45.0°`. Stored points `[[0,0],[2.5,2.5]]` for both (depth = run exactly) |
+| Cut list | One row: the two miter lines, then `Short point 19"` (= 24 − 2 × 2-1/2, the trapezoid, not a parallelogram) |
+| One undo entry | `past` 4 → Undo → 3 with `angleCuts` 0 → Redo → 4 with both back |
+| 3D view | A trapezoid: long edge on the min-Z side, the miter faces drawn with edge lines, no square-end edge across them (`docs/img/angle-cuts-miter-rail.png`) |
+| Edits (step 2), max-end miter | Angle 22.5 → `Miter 22.5° across the width at the length max end`; Long point → max side → line **unchanged** (fu 294); Across → Thickness → `Miter 22.5° across the thickness at the length max end`, stored `along: thickness, alongFrom: max, points [[0,0],[0.75,0.3107]]`. Each edit one undo entry (`past` 4 → 7) |
+| Back to 45 by typing | Across Width, Long point min, Angle `45` → stored `[[0,0],[2.5,2.5]]` exactly again (no `tan` round trip) |
+| The 84.1 item (Task 3 review) | Min-end miter on the 24 × 2-1/2 rail: typed `90`, `85` and `84.1` each refused, field `aria-invalid`, focus kept, message `Must be at most 84.1°`, nothing written (`past` unchanged). `84.05` accepted (depth 23.987, displays `84.0°`); `84` accepted. **Confirmed: the stated max is not typeable** (fu 293) |
+| Short part (3 × 2-1/2 × 3/4, + Add ▾ → Miter) | `90` and `85` refused, `Must be at most 50.2°`, focus kept; `50.2` also refused; Escape restored `45.0°` |
+| Width ↔ thickness on the short part | Across Thickness at 75° (depth 2.799 < 3) is written; switching back to Width (depth 9.33 > 3) is refused with `Removes more than the length — reduce the angle first.`, the select stays `Thickness`, the stored cut and `past` unchanged |
+| Frame (step 3) | `Rail` duplicated three times: `Rail (1)` turn 180° at Z 21-1/2, `Rail (2)` turn 90° at X 0, `Rail (3)` turn 270° at X 21-1/2. The four close as a picture frame with mitered corners (`docs/img/angle-cuts-miter-frame.png`) |
+| Cut list, frame | One row `4 × 24" × 2-1/2"`, `Rail, Rail (1), Rail (2), Rail (3)`, both miter lines and `Short point 19"`. Buying packs the four as 24" stock (stock, not remainder; inv 18) |
+| Plans, frame | Plan view: the 24" square with the four 45° corner seams and 19" inner dimensions; front and side views carry dashed hidden lines (`.plan-hidden`, dash `4px, 3px`: 16 segments in the plan, 34 in each elevation) (`docs/img/angle-cuts-miter-plans.png`) |
+| Exploded (step 4) | Explode 25%: `fieldset.edit-lock` disabled and contains the Angles section; both rows' ✕, End, Across, Long point, the angle field and `+ Add ▾` all `:disabled`. Clicking Select (already pressed) leaves Explode at 25% and the lock on; the slider back to 0 (Home) released the lock, tool `select` |
+| Shortened part (fu 296) | Rail Length 24 → 2 is accepted with both miters stored (depth 2-1/2); the next Long point edit is refused (`Removes more than the length — reduce the angle first.`), nothing written. Undone |
+| Console | 0 errors; only the known warnings (`PCFSoftShadowMap` deprecated ×91, `THREE.Clock` deprecated) |
+
+### Cleanup
+
+`miter check` deleted through the project menu (× → Delete?). The library index afterwards holds only `Untitled`
+(`b_mv4xmphc_1`); keys are `sloyd.project.b_mv4xmphc_1`, `sloyd.library.v1`, `sloyd.autosave.v1`, exactly the three
+present before the check. `localStorage` read, never cleared. Dev server stopped; `.playwright-mcp/` removed.
+
+### Not verified — needs the user on real hardware
+
+- Shading and grain on miter faces (26a, fu 282).
+- A real print of the Plans sheet with mitered corners (fu 70/79/84).
+
+**Findings:** fu 293 (the max message rounds up past what it accepts), fu 294 (the bench line omits the long-point
+side), fu 296 (a resize does not re-check stored miter depths; fails safe).
