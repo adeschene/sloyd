@@ -150,8 +150,10 @@ const len = (a: V3) => Math.hypot(a[0], a[1], a[2]);
  * sub-micro wedge of its own. A sliver edge makes no line and is no wall in
  * the inside test, and a face without three real edges is not a face — so a
  * sliver can neither draw a speck nor claim every point on a line. Far below
- * bench precision (1/64in); a real feature between this and BODY_EPS is drawn
- * as what it is.
+ * bench precision (1/64in). The price: a feature between BODY_EPS and this —
+ * reachable only from a hand-edited file, since every entry is fractional
+ * inches — is drawn approximately (a 1e-7 riser is dropped and its neighbour's
+ * edge stands in, a few micro-inches off), never as specks.
  */
 const SLIVER = 1e-6;
 
