@@ -18,6 +18,13 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-12 with fu 254's height cap live** (`index-Dk0nNgH6.js`, CSS
+`index-ysjULoHK.css` unchanged, commit `7668787`, **schema 13**). Verified: `200` on `/` and a deep route in-network
+and at the edge; the bundle matches `dist/` at both; `index-CNnZg_b6.js` 404s in-network; CSP `connect-src 'self'
+https://api.anthropic.com` at the edge; a real-browser load with 0 errors, the Cloudflare beacon and "Plans" present;
+the fresh `version: 13` project's origin `localStorage` was cleared and read back empty twice and after navigating
+away. The height cap itself was checked on a dev server (a 36x12x72 bookcase: the trio at 82.06% width, aspect 1.523).
+
 **Production matches `master` as of 2026-10-12 with the plans-sheet round live** (`index-CNnZg_b6.js`, CSS
 `index-ysjULoHK.css`, merge `b023ac8`, **schema 13**, unchanged). Verified: `200` on `/` and a deep route
 in-network and at the edge; the bundle and CSS at both match `dist/`; the old `index-DrjjRDmM.js` 404s in-network;
