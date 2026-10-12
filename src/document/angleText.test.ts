@@ -132,6 +132,11 @@ describe('bevel and chamfer lines (chunk 3 wording)', () => {
     const c = { id: 'c', ...defaultChamfer(b) };
     expect(angleLine(b, c, 16)).toBe('Chamfer 1/8" on the edge between the width face (max side) and the thickness face (max side), along the length');
   });
+  it('a chamfer resized below its legs still prints its edge (RULING: stays editable)', () => {
+    const thin = createBoard({ length: 20, width: 3, thickness: 0.1 });
+    const c = { id: 'c', ...chamferCut({ face: 'width', from: 'max', along: 'thickness', alongFrom: 'max', legFace: 0.125, legAlong: 0.125 }, thin) };
+    expect(angleLine(thin, c, 16)).toBe('Chamfer 1/8" on the edge between the width face (max side) and the thickness face (max side), along the length');
+  });
   it('an unequal-legged chamfer names both legs', () => {
     const c = { id: 'c', ...chamferCut({ face: 'width', from: 'max', along: 'thickness', alongFrom: 'max', legFace: 0.125, legAlong: 0.1875 }, b) };
     expect(angleLine(b, c, 16)).toBe('Chamfer 1/8" into the width × 3/16" into the thickness, on the edge between the width face (max side) and the thickness face (max side), along the length');

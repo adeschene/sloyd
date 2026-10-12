@@ -256,7 +256,8 @@ export function chamferCut(f: ChamferFields, _board: Pick<Board, Dimension>): Om
 /**
  * The edge and legs of a stored chamfer, canonical (`face` before `along`). A line that deepens toward the far side of
  * `along` is read from that side (as taperFields does); null when the line is not a corner chamfer — it never reaches
- * depth 0 inside the part, or a leg exceeds its dimension. Editing rewrites it canonically via `chamferCut`.
+ * depth 0 inside the part. A leg longer than its dimension (the part was resized below it) still reads: the row stays
+ * editable, and `chamferCut` with the same legs rewrites the identical line. Editing rewrites it canonically via `chamferCut`.
  */
 export function chamferFields(c: AngleCut, board: Pick<Board, Dimension>): ChamferFields | null {
   const A = board[c.along];
@@ -270,7 +271,7 @@ export function chamferFields(c: AngleCut, board: Pick<Board, Dimension>): Chamf
     alongFrom = flip(c.alongFrom);
     if (s2 === A && q1 === 0) { legFace = q2; legAlong = A - s1; } else { legFace = depthAt(c, A); legAlong = A - legAlong; }
   }
-  if (!(legFace > 0 && legFace <= board[c.face] && Number.isFinite(legAlong) && legAlong > 0 && legAlong <= A)) return null;
+  if (!(Number.isFinite(legFace) && legFace > 0 && Number.isFinite(legAlong) && legAlong > 0)) return null;
   const swap = DIMENSION_ORDER.indexOf(c.face) > DIMENSION_ORDER.indexOf(c.along);
   return swap
     ? { face: c.along, from: alongFrom, along: c.face, alongFrom: c.from, legFace: legAlong, legAlong: legFace }

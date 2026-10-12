@@ -1,7 +1,7 @@
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
-import { createBoard, createDocument, taperCut } from '../document/document';
+import { chamferCut, createBoard, createDocument, taperCut } from '../document/document';
 import type { AngleCut, Board } from '../document/document';
 import { Properties } from './Properties';
 import { AngleCuts } from './AngleCuts';
@@ -185,6 +185,50 @@ describe('bevels and chamfers in the Angles section (chunk 3)', () => {
     await user.clear(size); await user.type(size, '1{Enter}');
     expect(screen.getByRole('alert')).toHaveTextContent('Must be at most 3/4"');
     expect(cuts()[0]!.points).toEqual([[0, 0.1875], [0.1875, 0]]);
+  });
+  const chamferOn = (b: Board, e: { face: 'length' | 'width' | 'thickness'; from: 'min' | 'max'; along: 'length' | 'width' | 'thickness'; alongFrom: 'min' | 'max' }, leg: number) => {
+    open(b);
+    act(() => useStore.getState().addAngleCuts('leg', [chamferCut({ ...e, legFace: leg, legAlong: leg }, b)]));
+  };
+  it('refuses an edge change whose legs exceed the new edge (along-leg half), and a legal move clears the alert', async () => {
+    const user = userEvent.setup();
+    chamferOn(plank({ width: 3, thickness: 0.75 }), { face: 'length', from: 'max', along: 'width', alongFrom: 'max' }, 1);
+    const stored = cuts()[0]!;
+    const past = useStore.getState().past.length;
+    const edge = screen.getByLabelText('Edge') as HTMLSelectElement;
+    const before = edge.value;
+    await user.selectOptions(edge, 'Width max / thickness max edge (along the length)');
+    expect(cuts()[0]).toEqual(stored);
+    expect(useStore.getState().past.length).toBe(past);
+    expect((screen.getByLabelText('Edge') as HTMLSelectElement).value).toBe(before);
+    expect(screen.getByRole('alert')).toHaveTextContent('Too big for that edge — reduce the size first.');
+    await user.selectOptions(screen.getByLabelText('Edge'), 'Length min / width max edge (along the thickness)');
+    expect(cuts()[0]).toMatchObject({ face: 'length', from: 'min', along: 'width', alongFrom: 'max' });
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+  it('refuses an edge change whose legs exceed the new edge (face-leg half)', async () => {
+    const user = userEvent.setup();
+    chamferOn(plank({ width: 1, thickness: 3 }), { face: 'length', from: 'max', along: 'thickness', alongFrom: 'max' }, 2);
+    const stored = cuts()[0]!;
+    await user.selectOptions(screen.getByLabelText('Edge'), 'Width max / thickness max edge (along the length)');
+    expect(cuts()[0]).toEqual(stored);
+    expect(screen.getByRole('alert')).toHaveTextContent('Too big for that edge — reduce the size first.');
+  });
+  it('withholds Bevel when the default 15 degrees would be deeper than the width (fu 296 sibling)', async () => {
+    const user = userEvent.setup();
+    open(plank({ width: 0.1, thickness: 0.75 }));
+    await user.click(screen.getByRole('button', { name: '+ Add' }));
+    expect(screen.getByRole('button', { name: 'Taper' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Chamfer' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Bevel' })).toBeNull();
+  });
+  it('keeps a chamfer editable after the part is resized below its legs', () => {
+    const b = plank();
+    const c = { id: 'c1', ...chamferCut({ face: 'width', from: 'max', along: 'thickness', alongFrom: 'max', legFace: 0.125, legAlong: 0.125 }, b) };
+    open({ ...b, thickness: 0.1, angleCuts: [c] });
+    expect(screen.getByText(/^Chamfer 1\/8" on the edge between/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Edge')).toBeInTheDocument();
+    expect(screen.getByLabelText('Size')).toBeInTheDocument();
   });
   it('a hand-edited bevel the row cannot show gets its line and a remove button only', () => {
     const c: AngleCut = { id: 'a1', kind: 'bevel', face: 'width', from: 'max', along: 'length', alongFrom: 'min', points: [[0, 0], [10, 1]] };

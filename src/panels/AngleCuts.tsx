@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../store/store';
 import {
-  CHAMFER_EDGES, angleCutRemovesNothing, bevelAcross, bevelCut, bevelFields, chamferCut, chamferFields, defaultBevel, defaultChamfer,
+  CHAMFER_EDGES, angleCutRemovesNothing, throughOf, bevelAcross, bevelCut, bevelFields, chamferCut, chamferFields, defaultBevel, defaultChamfer,
   defaultMiter, defaultMiterPair, defaultTaper, miterCut, miterDegrees, miterFields, miterRatio, taperCut, taperFields,
 } from '../document/document';
 import { angleLine } from '../document/angleText';
@@ -132,8 +132,7 @@ function AngleRow({ board, cut, precision }: { board: Board; cut: AngleCut; prec
     const edgeIndex = CHAMFER_EDGES.findIndex((x) => x.face === chamfer.face && x.from === chamfer.from && x.along === chamfer.along && x.alongFrom === chamfer.alongFrom);
     const cap = (s: string) => s[0]!.toUpperCase() + s.slice(1);
     const edgeText = (x: (typeof CHAMFER_EDGES)[number]) => {
-      const through = (['length', 'width', 'thickness'] as const).find((d) => d !== x.face && d !== x.along)!;
-      return `${cap(x.face)} ${x.from} / ${x.along} ${x.alongFrom} edge (along the ${through})`;
+      return `${cap(x.face)} ${x.from} / ${x.along} ${x.alongFrom} edge (along the ${throughOf(x)})`;
     };
     return (
       <div className="cut">

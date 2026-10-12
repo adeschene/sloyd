@@ -313,6 +313,13 @@ describe('chamfer fields (spec §7)', () => {
     const b = stock();
     expect(chamferFields({ id: 'n', kind: 'chamfer', face: 'width', from: 'max', along: 'thickness', alongFrom: 'min', points: [[0, 0.5], [0.75, 0.7]] }, b)).toBeNull(); // deep at both sides: never reaches 0 inside the part
   });
+  it('still reads a chamfer whose legs exceed a resized dimension, so its row stays editable', () => {
+    const e = CHAMFER_EDGES.find((x) => x.face === 'width' && x.along === 'thickness' && x.from === 'max' && x.alongFrom === 'max')!;
+    const c = { id: 'c', ...chamferCut({ ...e, legFace: 0.125, legAlong: 0.125 }, stock()) };
+    const thin = { length: 20, width: 3, thickness: 0.1 };
+    expect(chamferFields(c, thin)).toEqual({ ...e, legFace: 0.125, legAlong: 0.125 });
+    expect(chamferCut(chamferFields(c, thin)!, thin).points).toEqual(c.points);
+  });
   it('defaults to 1/8 on the width-max / thickness-max edge, smaller on a tiny part', () => {
     const d = defaultChamfer(stock());
     expect(d).toMatchObject({ kind: 'chamfer', face: 'width', from: 'max', along: 'thickness', alongFrom: 'max', points: [[0, 0.125], [0.125, 0]] });

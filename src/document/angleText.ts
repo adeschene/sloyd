@@ -1,6 +1,5 @@
 import type { AngleCut, Board } from './types';
-import { angleCutsThatRemoveStock, bevelFields, chamferFields, depthAt, miterLongSide, zeroStation } from './angleCuts';
-import { DIMENSION_ORDER } from './geometry';
+import { angleCutsThatRemoveStock, bevelFields, chamferFields, depthAt, throughOf, miterLongSide, zeroStation } from './angleCuts';
 import { formatLength } from '../units/length';
 
 /** The cut's angle from square, degrees: atan(Δdepth / Δstation). A 45° miter stores depth = run (spec §2.3). */
@@ -44,7 +43,7 @@ export function angleLine(board: Board, c: AngleCut, precision: number): string 
     case 'chamfer': {
       const cf = chamferFields(c, board);
       if (!cf) return `Chamfer ${deg} off ${side}, across the ${c.along}`;
-      const through = DIMENSION_ORDER.find((d) => d !== cf.face && d !== cf.along)!;
+      const through = throughOf(cf);
       const edge = `the edge between the ${cf.face} face (${cf.from} side) and the ${cf.along} face (${cf.alongFrom} side), along the ${through}`;
       return cf.legFace === cf.legAlong
         ? `Chamfer ${f(cf.legFace)} on ${edge}`
