@@ -21,7 +21,7 @@ curves" arrive). Most of these need a schema bump, with the rollback cost that b
 | Gap | Notes | Status |
 |---|---|---|
 | Tapered legs | The most-asked SketchUp furniture question (several Fine Woodworking articles) | chunk 1 (primitive + Taper) shipped 2026-10-12, schema 14 |
-| Miters and bevels | Picture-frame and case miters, bevelled panel edges; a miter is faked as a butt today | geometry shipped 2026-10-12 (chunk 1); Miter preset = chunk 2, Bevel/Chamfer = chunk 3 |
+| Miters and bevels | Picture-frame and case miters, bevelled panel edges; a miter is faked as a butt today | Miter preset shipped 2026-10-12 (chunk 2); Bevel/Chamfer = chunk 3 |
 | Splayed / raked legs, compound angles | Windsor chairs, splayed stools; SketchUp has a dedicated extension | open |
 | Curves | Arched aprons, curved stretchers, rounded tops, bandsawn parts | open |
 | Edge profiles | Chamfers, roundovers, eased edges; mostly visual, but expected | open |

@@ -18,6 +18,12 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-12 with angle cuts chunk 2 live** (`index-b4ad9aBu.js`, CSS `index-BkjfVfaC.css`
+unchanged, merge `80e41b6`, **schema 14**, unchanged by this chunk). Verified: `200` on `/` and a deep route in-network and
+at the edge; bundle matches `dist/` at both; `index-DLW02CPM.js` 404s in-network; CSP unchanged at the edge; a real-browser
+load with 0 errors, the Cloudflare beacon and "+ Add board" present; the load's two fresh keys (`version: 14`) cleared and
+read back empty after 3s, then navigated away. Features verified on the dev server (`docs/browser-verification-angle-cuts.md`, "Chunk 2").
+
 **Production matches `master` as of 2026-10-12 with angle cuts chunk 1 live** (`index-DLW02CPM.js`, CSS
 `index-BkjfVfaC.css`, merge `5cb0a4c`, **schema 14** — rolling back below 14 refuses every project saved since: export
 first). Verified: `200` on `/` and a deep route in-network and at the edge; bundle and CSS at both match `dist/`;
@@ -344,6 +350,15 @@ and 79.
 ---
 
 ## What each round did
+
+**What angle cuts chunk 2 did (2026-10-12)** (plan `docs/superpowers/plans/2026-10-12-sloyd-angle-cuts-chunk2.md`,
+subagent-driven): the Miter preset. Properties' Angles section gets a "+ Add ▾" menu (Taper, Miter, Miter both ends — the
+pair is one undo entry and a picture-frame trapezoid) and a Miter row (End, Across, Long point, Angle). Fields carry the
+stored slope RATIO, not degrees, so 45° stays depth = run exactly through any edit of side or end; DimensionField gained
+parse/format props and AngleField wraps it (one set of edit rules). Reviews and the live check found the angle field
+stating a rounded-up maximum it then refused (fu 293, now floored), presets allowed on parts wider than long (now
+withheld), and — the user's call — a miter line that did not say which side the long point is on (fu 294: it now ends
+"long point on the width min side"). Residue: fu 295–297. No schema change.
 
 **What angle cuts chunk 1 did (2026-10-12)** (spec `docs/superpowers/specs/2026-10-12-sloyd-angle-cuts-design.md`,
 plan `docs/superpowers/plans/2026-10-12-sloyd-angle-cuts-chunk1.md`, run subagent-driven with a review per task):
