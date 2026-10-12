@@ -1,6 +1,7 @@
 import type { Board, Dimension, Instance, Rotation } from './types';
 import { axisFrame, boardExtents } from './geometry';
 import { mirrorCut } from './mirrorCut';
+import { mirrorAngleCut } from './angleCuts';
 
 export type Vec3 = [number, number, number];
 
@@ -56,7 +57,7 @@ export function mirrorDim(b: Board): Dimension {
 
 /**
  * A part reflected across x = 0 of its container (spec §3): M R(s) = R(-s) M,
- * and M F = F M_d0 for the turn-0 frame F, so the turn is negated, the cuts are
+ * and M F = F M_d0 for the turn-0 frame F, so the turn is negated, the cuts and angle cuts are
  * mirrored along d0, and the box's min corner is reflected. Posture and sizes
  * are unchanged (turns s and -s put the same dimensions on the same axes).
  * `0 - v` keeps a zero +0.
@@ -69,6 +70,7 @@ export function mirrorPart(b: Board): Board {
     rotation: inverseTurn(b.rotation),
     position: [0 - (b.position[0] + ex), b.position[1], b.position[2]],
     cuts: b.cuts.map((c) => mirrorCut(c, d, b[d])),
+    angleCuts: b.angleCuts.map((c) => mirrorAngleCut(c, d)),
   };
 }
 

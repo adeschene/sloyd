@@ -113,3 +113,19 @@ export function deriveKind(c: Omit<AngleCut, 'id' | 'kind'> & { id?: string; kin
   const deepest = Math.max(depthAt(c, 0), depthAt(c, board[c.along]));
   return z > 0 && z < board[c.along] && deepest < board[c.face] ? 'chamfer' : 'bevel';
 }
+
+const flip = (f: CutFrom): CutFrom => (f === 'min' ? 'max' : 'min');
+
+/**
+ * One angle cut reflected along part dimension `d` (u -> size - u): stations
+ * are measured from `alongFrom` and depths from `from`, so a reflection is a
+ * flag flip and NO arithmetic (angle-cuts spec 5.2; invariant 44's one hand
+ * reflection stays `mirrorCutAlong`, for rectangular cuts). Exact, and an
+ * involution. Always a fresh object with fresh points.
+ */
+export function mirrorAngleCut(c: AngleCut, d: Dimension): AngleCut {
+  const out = copyAngleCut(c);
+  if (c.face === d) out.from = flip(c.from);
+  else if (c.along === d) out.alongFrom = flip(c.alongFrom);
+  return out;
+}

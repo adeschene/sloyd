@@ -4,7 +4,8 @@ import { createDocument } from './document';
 import { worldParts } from './tree';
 import { boardExtents } from './geometry';
 import { worldSolids } from './designCheck';
-import { chiralPart, sameSet } from './turnFixtures';
+import { chiralAngled, chiralPart, sameSet } from './turnFixtures';
+import { sameAngleCut } from './angleCuts';
 import { CUT_GEOMETRY_KEYS } from './cuts';
 import type { Board, Cut, Instance, Rotation, SloydDocument } from './types';
 
@@ -185,5 +186,26 @@ describe('write-back through a mirror is the exact inverse (mirrored-instances s
     const before = occ(d);
     const out = applyWorldEdits(d, [{ before, after: { ...before, posture: 'on-edge' } }]);
     expect(stored(out).cuts).toBe(stored(d).cuts);
+  });
+});
+
+describe('angle cuts through a mirrored instance (Review Focus 1)', () => {
+  it('an untouched edit keeps the stored angle cuts object', () => {
+    const d0 = doc(chiralAngled('flat'), { mirrored: true });
+    const before = occ(d0);
+    const d1 = applyWorldEdits(d0, [{ before, after: { ...before, length: before.length + 1 } }]);
+    expect(stored(d1).angleCuts).toBe(stored(d0).angleCuts);
+  });
+
+  it('an edit to a world taper writes back the mirror of it, and placing it again shows the edit', () => {
+    const d0 = doc(chiralAngled('upright'), { mirrored: true, rotation: 90 });
+    const before = occ(d0);
+    const edited = before.angleCuts.map((c) => (c.id === 'a1' ? { ...c, points: [[0, 1], [10, 0]] as [[number, number], [number, number]] } : c));
+    const d1 = applyWorldEdits(d0, [{ before, after: { ...before, angleCuts: edited } }]);
+    const shown = occ(d1).angleCuts.find((c) => c.id === 'a1')!;
+    expect(sameAngleCut(shown, edited.find((c) => c.id === 'a1')!)).toBe(true);
+    // Repeated identical edits do not drift.
+    const d2 = applyWorldEdits(d1, [{ before: occ(d1), after: { ...occ(d1), angleCuts: occ(d1).angleCuts.map((c) => ({ ...c })) } }]);
+    expect(stored(d2).angleCuts).toEqual(stored(d1).angleCuts);
   });
 });

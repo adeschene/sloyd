@@ -3,7 +3,7 @@ import { createBoard } from './document';
 import type { AngleCut, Board } from './types';
 import {
   ANGLE_CUT_KEYS, angleCutRemovesNothing, angleCutValues, copyAngleCut, deriveKind, depthAt,
-  keptHalfSpace, sameAngleCut, throughOf, zeroStation,
+  keptHalfSpace, mirrorAngleCut, sameAngleCut, throughOf, zeroStation,
 } from './angleCuts';
 
 const leg = (over: Partial<Board> = {}): Board =>
@@ -100,5 +100,22 @@ describe('the angle-cut model', () => {
     expect(deriveKind({ ...base, face: 'width', along: 'length', points: [[0, 0.5], [20, 0]] }, b)).toBe('taper');
     expect(deriveKind({ ...base, face: 'thickness', along: 'width', points: [[0, 0.125], [0.125, 0]] }, b)).toBe('chamfer');
     expect(deriveKind({ ...base, face: 'width', along: 'thickness', points: [[0, 0], [0.75, 0.2]] }, b)).toBe('bevel');
+  });
+});
+
+describe('mirrorAngleCut (spec 5.2: a flag flip, no arithmetic)', () => {
+  it('flips from when the face is mirrored', () => {
+    expect(mirrorAngleCut(taper, 'width')).toEqual({ ...taper, from: 'max' });
+  });
+  it('flips alongFrom when along is mirrored', () => {
+    expect(mirrorAngleCut(taper, 'length')).toEqual({ ...taper, alongFrom: 'max' });
+  });
+  it('changes nothing through the third dimension, and never shares points', () => {
+    const m = mirrorAngleCut(taper, 'thickness');
+    expect(m).toEqual(taper);
+    expect(m.points).not.toBe(taper.points);
+  });
+  it('is an exact involution', () => {
+    for (const d of ['length', 'width', 'thickness'] as const) expect(mirrorAngleCut(mirrorAngleCut(taper, d), d)).toEqual(taper);
   });
 });
