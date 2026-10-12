@@ -145,3 +145,53 @@ describe('miters in the Angles section (spec §7, chunk 2)', () => {
     for (const n of ['Taper', 'Miter', 'Miter both ends']) expect(screen.getByRole('button', { name: n })).toBeInTheDocument();
   });
 });
+
+describe('bevels and chamfers in the Angles section (chunk 3)', () => {
+  const plank = (over: Partial<Board> = {}) => leg({ length: 20, width: 3, thickness: 0.75, ...over });
+  it('adds a bevel and a chamfer from + Add ▾', async () => {
+    const user = userEvent.setup();
+    open(plank());
+    await addMenu(user, 'Bevel');
+    expect(screen.getByText(/^Bevel 15\.0° off the width face \(max side\)/)).toBeInTheDocument();
+    await addMenu(user, 'Chamfer');
+    expect(screen.getByText(/^Chamfer 1\/8" on the edge between/)).toBeInTheDocument();
+  });
+  it('edits a bevel angle exactly (45 → depth === run)', async () => {
+    const user = userEvent.setup();
+    open(plank());
+    await addMenu(user, 'Bevel');
+    const angle = screen.getByLabelText('Angle');
+    await user.clear(angle); await user.type(angle, '45{Enter}');
+    expect(cuts()[0]!.points[1]).toEqual([0.75, 0.75]);
+  });
+  it('refuses moving a steep bevel to a face too thin for it (Review Focus 4)', async () => {
+    const user = userEvent.setup();
+    open(plank({ width: 0.5, thickness: 3 }));
+    act(() => useStore.getState().addAngleCuts('leg', [{ kind: 'bevel', face: 'thickness', from: 'min', along: 'width', alongFrom: 'min', points: [[0, 0], [0.5, 0.5 * Math.tan(Math.PI / 6)]] }]));
+    const stored = cuts()[0]!;
+    await user.selectOptions(screen.getByLabelText('Face'), 'Width face — max side');
+    expect(cuts()[0]).toEqual(stored);
+    expect(screen.getByRole('alert')).toHaveTextContent('Removes more than the width — reduce the angle first.');
+  });
+  it('edits a chamfer edge and size; refuses a size past the thinner face (Review Focus 3)', async () => {
+    const user = userEvent.setup();
+    open(plank());
+    await addMenu(user, 'Chamfer');
+    await user.selectOptions(screen.getByLabelText('Edge'), 'Width min / thickness max edge (along the length)');
+    expect(cuts()[0]).toMatchObject({ face: 'width', from: 'min', along: 'thickness', alongFrom: 'max' });
+    const size = screen.getByLabelText('Size');
+    await user.clear(size); await user.type(size, '3/16{Enter}');
+    expect(cuts()[0]!.points).toEqual([[0, 0.1875], [0.1875, 0]]);
+    await user.clear(size); await user.type(size, '1{Enter}');
+    expect(screen.getByRole('alert')).toHaveTextContent('Must be at most 3/4"');
+    expect(cuts()[0]!.points).toEqual([[0, 0.1875], [0.1875, 0]]);
+  });
+  it('a hand-edited bevel the row cannot show gets its line and a remove button only', () => {
+    const c: AngleCut = { id: 'a1', kind: 'bevel', face: 'width', from: 'max', along: 'length', alongFrom: 'min', points: [[0, 0], [10, 1]] };
+    open(plank({ angleCuts: [c] }));
+    expect(screen.getByText(/^Bevel /)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Remove angle cut/ })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Angle')).toBeNull();
+    expect(screen.queryByLabelText('Face')).toBeNull();
+  });
+});
