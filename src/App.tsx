@@ -12,6 +12,8 @@ import { PlansSheet } from './panels/PlansSheet';
 import { TapeReadout } from './panels/TapeReadout';
 import { GenerateDialog } from './panels/GenerateDialog';
 import { SettingsDialog } from './panels/SettingsDialog';
+import { LumberPricesDialog } from './panels/LumberPricesDialog';
+import { defaultShop, type ShopSettings } from './document/purchase';
 import { useGenerations } from './useGenerations';
 import { useJoinery } from './useJoinery';
 import { JoineryDialog } from './panels/JoineryDialog';
@@ -77,7 +79,7 @@ export default function App() {
   // and buttons hold focus too, and `inert` cannot reach a window listener:
   // `m`, Backspace or Ctrl+Z pressed there would arm Move, delete the
   // selected board, or undo, behind the dialog.
-  const [dialog, setDialog] = useState<'generate' | 'settings' | 'joinery' | 'refine' | null>(null);
+  const [dialog, setDialog] = useState<'generate' | 'settings' | 'joinery' | 'refine' | 'prices' | null>(null);
   // Joinery reads the FLAT design (assemblies spec §10): the tree document's own
   // `boards` hold only the root parts, so a grouped design would show no sites.
   const joinerySites = useMemo(() => {
@@ -94,6 +96,10 @@ export default function App() {
   // left reading only the old flag.
   const modalOpen = cutListOpen || plansOpen || dialog !== null;
   const [llmSettings, setLlmSettingsState] = useState<LlmSettings | null>(null);
+  // The browser-level lumber and price settings (lumber yield and cost spec §2): read once, replaced on a
+  // successful save. Not document state — never on the undo stack, never exported with a project.
+  const [shop, setShop] = useState<ShopSettings>(defaultShop);
+  const [shopReadFailed, setShopReadFailed] = useState(false);
   // Generated this session and not yet opened (spec §6.3). Session-only:
   // not persisted and not in the store — a badge is a property of this
   // sitting, and nothing about it belongs on the undo stack.
@@ -149,6 +155,10 @@ export default function App() {
   );
   useEffect(() => {
     void storage.getLlmSettings().then(setLlmSettingsState);
+    void storage.getShopSettings().then(({ settings, readFailed }) => {
+      setShop(settings);
+      setShopReadFailed(readFailed);
+    });
   }, []);
   // Where focus was when the sheet or a dialog opened, so closing it puts
   // focus back. Captured HERE, in each opener, rather than in CutList's or a
@@ -156,6 +166,15 @@ export default function App() {
   // blurs whatever was focused behind the scrim, so by the time the modal
   // mounts the opener is already gone from `document.activeElement`.
   const opener = useRef<HTMLElement | null>(null);
+  // The prices dialog can open ABOVE the cut list, where `modalOpen` stays true throughout, so the
+  // modalOpen-keyed focus return below never fires for it. It gets its own return trip.
+  const pricesOpener = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (dialog !== null || !pricesOpener.current) return;
+    const back = pricesOpener.current;
+    pricesOpener.current = null;
+    back.focus();
+  }, [dialog]);
   const restored = useRef(false);
   const [activeId, setActiveId] = useState('');
   // False when adoption failed (spec §2.2). The session runs the legacy
@@ -954,7 +973,17 @@ export default function App() {
           </aside>
         </main>
       </div>
-      {cutListOpen && <CutList onClose={() => setCutListOpen(false)} />}
+      {cutListOpen && (
+        <CutList
+          onClose={() => setCutListOpen(false)}
+          shop={shop}
+          suspended={dialog !== null}
+          onOpenPrices={() => {
+            pricesOpener.current = document.activeElement as HTMLElement | null;
+            setDialog('prices');
+          }}
+        />
+      )}
       {plansOpen && <PlansSheet onClose={() => setPlansOpen(false)} />}
       {/*
         The two dialogs sit beside CutList, outside `.app-shell`, for the same
@@ -978,6 +1007,22 @@ export default function App() {
             await storage.clearLlmSettings();
             setLlmSettingsState(null);
             setDialog(null);
+          }}
+          onClose={() => setDialog(null)}
+          onOpenPrices={() => setDialog('prices')}
+        />
+      )}
+      {dialog === 'prices' && (
+        <LumberPricesDialog
+          shop={shop}
+          readFailed={shopReadFailed}
+          onSave={async (s) => {
+            const ok = await storage.setShopSettings(s);
+            if (ok) {
+              setShop(s);
+              setShopReadFailed(false);
+            }
+            return ok;
           }}
           onClose={() => setDialog(null)}
         />

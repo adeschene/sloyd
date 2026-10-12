@@ -1,6 +1,6 @@
 # Sloyd — solid-lumber yield and cost
 
-**Date:** 2026-10-12 · **Status:** approved by the user; three small amendments made while planning (§2.1, §3.2, §4), marked
+**Date:** 2026-10-12 · **Status:** implemented 2026-10-12 (approved by the user; three small amendments made while planning — §2.1, §3.2, §4 — marked)
 **Builds on:** the cut list (`cutlist.ts`, invariant 18), board feet (`units/quantity.ts`), sheet nesting
 (`nesting.ts`, invariants 19, 22, 23), the storage seam (`StorageAdapter`, invariants 7, 31) and the Settings
 dialog. Every rule there still holds unless this document says otherwise.

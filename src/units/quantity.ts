@@ -47,3 +47,13 @@ export function formatBoardFeet(cubicInches: number): string {
 export function formatSquareFeet(squareInches: number): string {
   return `${(squareInches / INCHES_PER_SQUARE_FOOT).toFixed(DECIMALS)} sq ft`;
 }
+
+/**
+ * A price, printed: US dollars, two decimals, thousands separators — `$1,234.50`.
+ * The one home of money formatting (lumber yield and cost spec §3.4); the cut
+ * list's Buying section never formats a price itself. Sums are kept exact by the
+ * caller and rounded only here, for display.
+ */
+export function formatMoney(dollars: number): string {
+  return `$${dollars.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}

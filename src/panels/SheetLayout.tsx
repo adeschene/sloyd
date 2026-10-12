@@ -34,7 +34,7 @@ export const PAD = 6;
  * diagram hatch — so they survive printing with Chrome's "Background graphics"
  * off. A CSS background would not.
  */
-function Sheet({ sheet, stock, index }: { sheet: NestedSheet; stock: SheetStock; index: number }) {
+function Sheet({ sheet, stock, index, noun }: { sheet: NestedSheet; stock: SheetStock; index: number; noun: string }) {
   const s = DRAW_WIDTH / stock.length;
   const h = stock.width * s;
 
@@ -47,12 +47,12 @@ function Sheet({ sheet, stock, index }: { sheet: NestedSheet; stock: SheetStock;
 
   return (
     <figure className="cutlist-layout">
-      <figcaption className="cutlist-layout-head">Sheet {index + 1}</figcaption>
+      <figcaption className="cutlist-layout-head">{noun} {index + 1}</figcaption>
       <svg
         viewBox={`0 0 ${DRAW_WIDTH} ${h}`}
         fontSize={LABEL_SIZE}
         role="img"
-        aria-label={`Sheet ${index + 1}, ${sheet.parts.length} part${sheet.parts.length === 1 ? '' : 's'}`}
+        aria-label={`${noun} ${index + 1}, ${sheet.parts.length} part${sheet.parts.length === 1 ? '' : 's'}`}
       >
         <rect className="cutlist-layout-sheet" x={0} y={0} width={DRAW_WIDTH} height={h} />
         {sheet.parts.map((p) => {
@@ -108,11 +108,15 @@ function Sheet({ sheet, stock, index }: { sheet: NestedSheet; stock: SheetStock;
   );
 }
 
-export function SheetLayout({ nesting, stock }: { nesting: Nesting; stock: SheetStock }) {
+/**
+ * `noun` names each drawing: `Sheet 1` for sheet goods; the by-the-piece Buying section passes the stock
+ * size, e.g. `3/4" × 5-1/2" × 96" — board`, so a board strip reads as what it is (lumber yield spec §4).
+ */
+export function SheetLayout({ nesting, stock, noun = 'Sheet' }: { nesting: Nesting; stock: SheetStock; noun?: string }) {
   return (
     <>
       {nesting.sheets.map((sheet, i) => (
-        <Sheet key={i} sheet={sheet} stock={stock} index={i} />
+        <Sheet key={i} sheet={sheet} stock={stock} index={i} noun={noun} />
       ))}
     </>
   );

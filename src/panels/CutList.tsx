@@ -3,6 +3,9 @@ import { useStore } from '../store/store';
 import { buildCutList, flatDocument, sheetStockOf } from '../document/document';
 import { PartDiagram } from './PartDiagram';
 import { SheetLayout } from './SheetLayout';
+import { buildPurchase, defaultShop, type ShopSettings } from '../document/purchase';
+
+const DEFAULT_SHOP = defaultShop();
 
 /**
  * Which rows get drawn. LOCAL VIEW STATE, deliberately not in the store: it is
@@ -27,11 +30,20 @@ type DiagramMode = 'none' | 'joinery' | 'all';
  * arrangement is taking focus on mount, since focus is otherwise left on a
  * button that has just become unfocusable.
  */
-export function CutList({ onClose }: { onClose: () => void }) {
+export function CutList({ onClose, shop = DEFAULT_SHOP, onOpenPrices, suspended = false }: {
+  onClose: () => void;
+  /** The browser-level lumber and price settings (lumber yield and cost spec §2); App reads them. */
+  shop?: ShopSettings;
+  /** Opens the Lumber & prices dialog above this sheet; the button is absent without it. */
+  onOpenPrices?: () => void;
+  /** True while a dialog is open above the sheet: Escape belongs to it, and the sheet is inert. */
+  suspended?: boolean;
+}) {
   const doc = useStore((s) => s.doc);
   // The flat document: placed parts named by their display paths (assemblies spec §6).
   const flat = flatDocument(doc);
   const list = buildCutList(flat);
+  const purchase = buildPurchase(flat, list, shop);
   const sheet = useRef<HTMLDivElement>(null);
   const [diagrams, setDiagrams] = useState<DiagramMode>('joinery');
   /**
@@ -52,14 +64,14 @@ export function CutList({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape' && !suspended) onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, suspended]);
 
   return (
-    <div className="cutlist-overlay" role="dialog" aria-modal="true" aria-label="Cut list">
+    <div className="cutlist-overlay" role="dialog" aria-modal="true" aria-label="Cut list" inert={suspended}>
       <div className="cutlist-sheet" ref={sheet} tabIndex={-1}>
         <header className="cutlist-head">
           <h2>Cut list — {doc.name}</h2>
@@ -82,8 +94,9 @@ export function CutList({ onClose }: { onClose: () => void }) {
                 checked={layouts}
                 onChange={(e) => setLayouts(e.target.checked)}
               />
-              Sheet layouts
+              Layouts
             </label>
+            {onOpenPrices && <button onClick={onOpenPrices}>Lumber &amp; prices…</button>}
             <button onClick={() => window.print()}>Print</button>
             <button onClick={onClose} aria-label="Close cut list">✕</button>
           </div>
@@ -145,6 +158,21 @@ export function CutList({ onClose }: { onClose: () => void }) {
               )}
             </section>
           ))
+        )}
+
+        {purchase.entries.length > 0 && (
+          <section className="cutlist-buying" aria-label="Buying">
+            <h3>Buying</h3>
+            {purchase.entries.map((e) => (
+              <div className="cutlist-buying-entry" key={e.material}>
+                <h4>{e.label}</h4>
+                {e.lines.map((line, i) => <p className="cutlist-buying-line" key={`l${i}`}>{line}</p>)}
+                {e.notes.map((note, i) => <p className="cutlist-buying-note" key={`n${i}`}>{note}</p>)}
+                {layouts && e.layouts.map((l) => <SheetLayout key={l.key} nesting={l.nesting} stock={l.stock} noun={l.title} />)}
+              </div>
+            ))}
+            <p className="cutlist-buying-total">{purchase.totalLabel}</p>
+          </section>
         )}
       </div>
     </div>

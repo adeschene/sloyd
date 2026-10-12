@@ -31,6 +31,17 @@ export interface Footprint {
 }
 
 /**
+ * A part's footprint with its grain running along the stock's LENGTH — the only
+ * orientation solid lumber allows, and the first option under `rotate: 'grain'`.
+ * Exported for the by-the-piece packer (`packOnto`).
+ */
+export function grainFootprint(board: Board): Footprint {
+  return board.grain === 'width'
+    ? { w: board.width, h: board.length, turned: true }
+    : { w: board.length, h: board.width, turned: false };
+}
+
+/**
  * The orientations a part is allowed to take, PREFERRED FIRST.
  *
  * Under `rotate: 'grain'` there is exactly one, and `board.grain` chooses it —
@@ -43,16 +54,8 @@ export interface Footprint {
  * is a grouping key rather than a packing input.
  */
 export function footprintsOf(board: Board, stock: SheetStock): Footprint[] {
-  // 'thickness' is meaningless for a sheet good and validateBoard normalises
-  // it away; a Board built in code could still carry it, and defaulting beats
-  // throwing.
-  const natural: Footprint =
-    board.grain === 'width'
-      ? { w: board.width, h: board.length, turned: true }
-      : { w: board.length, h: board.width, turned: false };
-
+  const natural = grainFootprint(board);
   if (stock.rotate === 'grain') return [natural];
-
   const flipped: Footprint = { w: natural.h, h: natural.w, turned: !natural.turned };
   return natural.h <= flipped.h ? [natural, flipped] : [flipped, natural];
 }
@@ -174,7 +177,7 @@ function placeOn(
   sheet: WorkingSheet,
   board: Board,
   options: Footprint[],
-  stock: SheetStock,
+  stock: { length: number; width: number },
   kerf: number,
   precision: number,
 ): boolean {
@@ -319,4 +322,47 @@ export function buildNesting(
     label: `${count} sheet${count === 1 ? '' : 's'} (${sheet})`,
     sheet,
   };
+}
+
+/** One stock size a by-the-piece packer may open: its length runs along the grain. */
+export interface Bin { length: number; width: number }
+export interface PackedBin<B extends Bin> { bin: B; parts: PlacedPart[] }
+
+/**
+ * Pack solid-lumber parts onto boards chosen as packing proceeds (lumber yield
+ * and cost spec §3.2). The same SHELF FIRST-FIT-DECREASING core as buildNesting —
+ * edge-to-edge cuts, kerf between parts, the same EPS (invariants 22, 23) — with
+ * two differences: grain always runs along the board (no rotation), and the bins
+ * are not one sheet size. A part first tries every board already open; when none
+ * holds it, the LARGEST size (by length, then width; ties keep list order) that
+ * holds it alone is opened. A part no size holds is returned in `unplaceable`,
+ * never dropped. Choosing cheaper sizes afterwards is the caller's job.
+ */
+export function packOnto<B extends Bin>(
+  boards: Board[],
+  sizes: readonly B[],
+  kerf: number,
+  precision: number,
+): { bins: PackedBin<B>[]; unplaceable: Board[] } {
+  const sorted = [...boards].sort((a, b) => {
+    const fa = grainFootprint(a);
+    const fb = grainFootprint(b);
+    return fb.h - fa.h || fb.w - fa.w || a.id.localeCompare(b.id);
+  });
+  const open: { bin: B; sheet: WorkingSheet }[] = [];
+  const unplaceable: Board[] = [];
+  for (const board of sorted) {
+    const options = [grainFootprint(board)];
+    if (open.some((o) => placeOn(o.sheet, board, options, o.bin, kerf, precision))) continue;
+    let pick: B | null = null;
+    for (const s of sizes) {
+      if (!fits(options[0]!.w, s.length) || !fits(options[0]!.h, s.width)) continue;
+      if (!pick || s.length > pick.length || (s.length === pick.length && s.width > pick.width)) pick = s;
+    }
+    if (!pick) { unplaceable.push(board); continue; }
+    const sheet: WorkingSheet = { parts: [], shelves: [] };
+    placeOn(sheet, board, options, pick, kerf, precision);
+    open.push({ bin: pick, sheet });
+  }
+  return { bins: open.map((o) => ({ bin: o.bin, parts: o.sheet.parts })), unplaceable };
 }

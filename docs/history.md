@@ -324,6 +324,20 @@ and 79.
 
 ## What each round did
 
+**What the lumber yield & cost round did (2026-10-12)**: the cut list ends with a **Buying** section — per material
+what to buy and what it costs — and a project total; no schema change (spec
+`docs/superpowers/specs/2026-10-12-sloyd-lumber-yield-cost-design.md`; `docs/feature-gaps.md` §3). The user's rulings:
+both buying modes (hardwood by the board foot with a waste factor, dimensional lumber by the piece), prices in THIS
+BROWSER rather than the project (`sloyd.shop.v1`, through `StorageAdapter`; per-project overrides are a later round),
+several stock sizes per material with the packer choosing the mix. By the piece reuses the sheet packer's shelf core
+(`packOnto`): grain locked along the board, the largest size opened first, then each board swapped down to the
+cheapest size that still holds its parts (proved by re-packing) — a heuristic, said so. Three amendments while
+planning: a part comes from the thinnest stock that can actually HOLD it (a 10"-wide ¾" shelf from 1"×11¼", planed,
+rather than "unplaceable"); board layouts reuse `SheetLayout` with a `noun`; defaults are `defaultShop()`. The plan's
+code was prototyped and run before the plan was written (the whole tree applied cleanly: 3038 tests), and the round ran
+inline. Browser pass on a fresh dev port (`docs/browser-verification-lumber-yield-cost.md`): every check passed;
+cleanup removed only the check's own keys. Residue: fu 265–274 (273, 274 from the final review; it also fixed a false "$0.00" total, the dialog losing a material's settings on a mode round trip, end grain priced as long grain, and unknown materials erased on save).
+
 **What the plans-sheet round did (2026-10-11)**: a printable **Plans** sheet and a live exploded view, no schema change
 (spec `docs/superpowers/specs/2026-10-11-sloyd-plans-sheet-design.md`; `docs/feature-gaps.md` §2). The sheet holds an
 exploded isometric, then dimensioned third-angle elevations (front, right side, plan, one scale) of the whole piece and

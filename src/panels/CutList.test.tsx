@@ -1,10 +1,11 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
 import { createBoard, createDocument } from '../document/document';
 import type { Board } from '../document/document';
 import { assemblyDoc } from '../document/treeFixtures';
 import { CutList } from './CutList';
+import { defaultShop, type ShopSettings } from '../document/purchase';
 
 const load = (...boards: Partial<Board>[]) =>
   useStore.getState().replaceDocument({
@@ -18,7 +19,8 @@ describe('CutList', () => {
   it('names parts inside assemblies by their display path (assemblies spec §6)', () => {
     useStore.getState().replaceDocument(assemblyDoc());
     render(<CutList onClose={() => {}} />);
-    expect(screen.getByText(/Drawer › Peg › Pin/)).toBeInTheDocument();
+    // Scoped to the row names: the Buying section below also names the part (a planing note).
+    expect(screen.getByText(/Drawer › Peg › Pin/, { selector: '.cutlist-names' })).toBeInTheDocument();
   });
 
   it('says so when there are no parts', () => {
@@ -146,5 +148,44 @@ describe('CutList', () => {
     expect(screen.getByText('1.36 bd ft')).toBeInTheDocument();
     expect(container.querySelector('.cutlist-subtotal .cutlist-stock')?.textContent)
       .toBe('2.05 bd ft');
+  });
+
+  describe('Buying (lumber yield and cost spec §4)', () => {
+    const shop = (): ShopSettings => {
+      const s = defaultShop();
+      s.materials.oak = { mode: 'board-foot', pricePerBoardFoot: 10, wasteFactor: 1.3 };
+      s.materials.pine = { mode: 'piece', stock: [{ id: 'A', thickness: 0.75, width: 5.5, length: 96, price: 12 }] };
+      return s;
+    };
+
+    it('lists what to buy per material and an exact total', () => {
+      // Oak 48 × 6 × ¾ = 1.5 bd ft × 1.3 = 1.95 × $10 = $19.50. Pine 30 × 5 × ¾ on one A board = $12. Total $31.50.
+      load({ name: 'Top', material: 'oak', thickness: 0.75, length: 48, width: 6 },
+           { name: 'Rail', material: 'pine', thickness: 0.75, length: 30, width: 5 });
+      render(<CutList onClose={() => {}} shop={shop()} />);
+      const buying = screen.getByRole('region', { name: 'Buying' });
+      expect(within(buying).getByText('Oak — 3/4": buy 1.95 bd ft (1.50 bd ft net × 1.3) · $19.50')).toBeInTheDocument();
+      expect(within(buying).getByText('Buy 1 × 3/4" × 5-1/2" × 96" · $12.00')).toBeInTheDocument();
+      expect(within(buying).getByText('Estimated materials: $31.50')).toBeInTheDocument();
+      expect(within(buying).getByRole('img', { name: '3/4" × 5-1/2" × 96" — board 1, 1 part' })).toBeInTheDocument();
+    });
+
+    it('hides the board layouts with the Layouts toggle', async () => {
+      load({ name: 'Rail', material: 'pine', thickness: 0.75, length: 30, width: 5 });
+      render(<CutList onClose={() => {}} shop={shop()} />);
+      await userEvent.click(screen.getByRole('checkbox', { name: 'Layouts' }));
+      expect(screen.queryByRole('img', { name: /board 1/ })).toBeNull();
+    });
+
+    it('offers the prices dialog, and leaves Escape to it while suspended', async () => {
+      const onOpenPrices = vi.fn();
+      let closed = false;
+      const { rerender } = render(<CutList onClose={() => { closed = true; }} onOpenPrices={onOpenPrices} />);
+      await userEvent.click(screen.getByRole('button', { name: 'Lumber & prices…' }));
+      expect(onOpenPrices).toHaveBeenCalled();
+      rerender(<CutList onClose={() => { closed = true; }} onOpenPrices={onOpenPrices} suspended />);
+      await userEvent.keyboard('{Escape}');
+      expect(closed).toBe(false);
+    });
   });
 });
