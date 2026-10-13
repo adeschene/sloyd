@@ -2,6 +2,7 @@ import { formatLength } from '../units/length';
 import { MATERIALS } from './types';
 import { boardExtents } from './geometry';
 import type { Board, Instance, SloydDocument } from './types';
+import { worldTapers } from './taperWorld';
 import { definitionCorner } from './refineDesign';
 import { NAME_SEPARATOR, PATH_SEPARATOR, flatDocument } from './tree';
 
@@ -10,7 +11,7 @@ import { NAME_SEPARATOR, PATH_SEPARATOR, flatDocument } from './tree';
  * text is assembled HERE with formatLength (the `→ units` edge; invariant 19's
  * rule that a string a person reads is built in one module).
  */
-export type ChangeKind = 'added' | 'removed' | 'resized' | 'moved' | 'material' | 'linked' | 'unlinked';
+export type ChangeKind = 'added' | 'removed' | 'resized' | 'moved' | 'material' | 'taper' | 'linked' | 'unlinked';
 export interface Change { kind: ChangeKind; subject: 'part' | 'placement'; name: string; copies: number; text: string }
 
 interface Entry { b: Board; inst: Instance | null }
@@ -89,6 +90,17 @@ export function diffDesigns(before: SloydDocument, after: SloydDocument): Change
     const d = delta(localOf(B, e).map((p, k) => p - lo[k]!));
     if (d) { const t = ` moved ${d}`; push('moved', 'part', n, `${n}${t}`, key('moved', t)); }
     if (o.b.material !== e.b.material && label(o.b.material) !== label(e.b.material)) { const d = `: ${label(o.b.material)} → ${label(e.b.material)}`; push('material', 'part', n, `${n}${d}`, key('material', d)); }
+    // Tapers compared in design form (merged, ordered), so a reordering is not a change (spec §5.5).
+    // worldTapers is never null here: Refine refuses a non-standard taper before any call.
+    const ot = worldTapers(o.b) ?? [];
+    const nt = worldTapers(e.b) ?? [];
+    if (JSON.stringify(ot) !== JSON.stringify(nt)) {
+      const say = (t: { faces: string[]; toward: string; start: number; amount: number }) => `${t.faces.join(', ')}; ${len(t.start)} from the ${t.toward} end, ${len(t.amount)} off`;
+      const lines = nt.length === 0 ? ot.map((t) => `${n}: taper removed (${t.faces.join(', ')})`)
+        : ot.length === 0 ? nt.map((t) => `${n}: taper added (${say(t)})`)
+          : nt.map((t) => `${n}: taper changed (${say(t)})`);
+      for (const t of lines) push('taper', 'part', n, t, key('taper', t));
+    }
     if (!o.b.shape !== !e.b.shape) {
       const kind = e.b.shape ? 'linked' : 'unlinked';
       push(kind, 'part', n, e.b.shape ? `${n} is now linked` : `${n} is no longer linked`, key(kind, ''));
