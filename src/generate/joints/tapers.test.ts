@@ -11,6 +11,7 @@ import { angleConflicts, joineryRefusal, taperConflicts, taperFaults } from './t
 import { taperJointRefusal } from '../../document/angledRefusal';
 import { checkDesign } from '../../document/designCheck';
 import { applyJoints, rebaseAngleCuts } from './recipes';
+import { gateUnjoin } from './unjoin';
 import { defaultChoice } from './choose';
 
 type P = { name: string; at: [number, number, number]; size: [number, number, number] };
@@ -391,6 +392,14 @@ describe('joinery keeps angle cuts where they are on the wood (AI-angles spec §
     const c1 = after.angleCuts[0]!;
     expect(worldAt(after, c1, zeroStation(c1))).toBeCloseTo(worldAt(before, c0, zeroStation(c0)), 12);
     expect(depthAt(c1, after.length)).toBeCloseTo(depthAt(c0, before.length), 12);
+  });
+  it('the unjoin gate reads a rebased cut back: the plain part gets the original cut, and re-joining matches (final review I1)', () => {
+    const doc = withRail(CORNER, (b) => [deepEndLast(b)]);
+    const joined = tenonAll(doc).doc;
+    const u = gateUnjoin(joined);
+    if ('refused' in u) throw new Error(u.refused);
+    const plain = u.plain.find((b) => b.name === railName)!;
+    expect(plain.angleCuts).toEqual(doc.boards.find((b) => b.name === railName)!.angleCuts);
   });
   it('a canonical taper anchored at the free end is byte for byte unchanged', () => {
     const doc = withRail(CORNER, (b) => [{ id: 't', ...taperCut({ face: axisFrame(b)[2]!.dim as 'thickness', from: endFacing(b, 2, 1), end: endFacing(b, 0, 1), start: 10, amount: 0.25 }) }]);
