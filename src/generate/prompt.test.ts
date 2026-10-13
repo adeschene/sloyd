@@ -9,6 +9,13 @@ const base: GenerateSettings = {
 };
 
 describe('prompt', () => {
+  it('teaches tapers in the fixed prefix (AI-tapers spec §6)', () => {
+    expect(SYSTEM_PROMPT).toContain('Each part is an axis-aligned box, optionally tapered.');
+    expect(SYSTEM_PROMPT).toContain('"tapers": [] for every part that is not tapered');
+    expect(SYSTEM_PROMPT).toContain('start every taper at or below the lowest part that meets the tapered part');
+    expect(SYSTEM_PROMPT).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+  });
+
   it('without a concept, the message matches its pinned literal', () => {
     expect(userMessage(base)).toBe(
       'Design this: A bookcase with five shelves\n\nHard limits:\n- Overall width (X) at most 36in.\n' +
