@@ -81,12 +81,22 @@ they are the same leg turned.
 - **Joinery.** It works on the flat (world) document, and a leg's mortises land on its local faces. With a symmetric set of
   aprons the four legs' cuts are identical, so joinery keeps the Shape. When they differ, joinery splits the Shape as it
   already does for linked parts (inv 45). Pinned by a test, not assumed.
+- **Cut order is not geometry** (*amended during implementation, controller ruling*). Pinning the above showed joinery
+  appending identical mortises in a different stored order on turned legs, so it split four legs into two Shapes, and
+  Refine's unjoin gate would refuse a joined table with linked turned legs. Two places now treat cuts as a set:
+  `regroupShapes` (treeEdit.ts) groups users by an order-insensitive `groupSignature` (cuts and angle cuts sorted; the Shape
+  keeps its first member's order and ids), and `sameJoined` (unjoin.ts) matches cuts as a multiset (`sameCutSet`, still exact
+  at GATE_TOLERANCE 1e-9; angle cuts stay in order). `splitAssemblies`' `resultSignature` stays order-sensitive (fu 316).
 
 ### 2.5 Invariant amendments
 
 - **44.** "Generate stays at 0° and 90°" becomes: the converter (`orient`) encodes at 0° or 90°; role linking may store a
   part at any quarter turn that leaves its world box, grain axis and tapered faces unchanged (`linkByRole`, turned links).
 - **45.** `linkByRole` may re-turn a member before linking, and only through §2.2's candidates.
+
+**Size edits on a turned link** (*amended after the final review; the user's ruling*). A linked part grows from its own min
+corner. With the legs stored at different turns, a width-only or thickness-only edit grows two legs along X and two along Z.
+A square edit grows all four alike. Accepted and recorded as fu 318, not prevented.
 
 ## 3. Testing
 

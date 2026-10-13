@@ -485,3 +485,21 @@ describe('sameJoined — angle cuts', () => {
     expect(sameJoined(a, flat)).toBe(false);
   });
 });
+
+describe('sameJoined — cut order is not geometry (fu 301)', () => {
+  const flat = flatDocument(designToDocument({ name: 'T', assemblies: [], parts: [
+    { name: 'P', role: '', material: 'oak', at: { x: 0, y: 0, z: 0 }, size: { x: 2, y: 20, z: 2 }, tapers: [] },
+  ] }).doc);
+  const base = { face: 'width' as const, from: 'max' as const, across: 'length' as const, offset: 0.5, width: 0.25, depth: 0.75, stopMin: 3, stopMax: 0.5 };
+  const c1 = { id: 'c1', ...base };
+  const c2 = { id: 'c2', ...base, face: 'thickness' as const };
+  const withCuts = (cuts: Cut[]): FlatDocument => ({ ...flat, boards: flat.boards.map((b) => ({ ...b, cuts })) });
+  it('is true for the same cuts in a different order', () => {
+    expect(sameJoined(withCuts([c1, c2]), withCuts([{ ...c2, id: 'x' }, { ...c1, id: 'y' }]))).toBe(true);
+  });
+  it('is false for a different cut, a missing cut, or a repeated cut standing in for another', () => {
+    expect(sameJoined(withCuts([c1, c2]), withCuts([c1, { ...c2, depth: 0.5 }]))).toBe(false);
+    expect(sameJoined(withCuts([c1, c2]), withCuts([c1]))).toBe(false);
+    expect(sameJoined(withCuts([c1, c2]), withCuts([c1, { ...c1, id: 'z' }]))).toBe(false);
+  });
+});

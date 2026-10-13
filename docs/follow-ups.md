@@ -5197,7 +5197,13 @@ chamfer refusal message pattern (`Too big for that edge — reduce the size firs
 
 **301. Mirrored-component legs: inside-tapered legs share no Shape.** A leg whose inside tapers are reflected through a
 mirrored instance is a different stored part from its unmirrored twin, so the pair cannot share one Shape (inv 45). Joinery
-and the checks are correct; the cost is that a mirrored set of tapered legs is not one component. **Status:** open.
+and the checks are correct; the cost is that a mirrored set of tapered legs is not one component. **Status:** closed
+2026-10-13 (turned links; the title's mirrored case is fu 315). `linkByRole` now aligns angle-cut ids (identical tapered
+parts never linked before: the converter mints fresh ids per cut, so `sameShared` always differed; a latent bug) and tries
+each part's other quarter turns (`turnCandidates`, tapers re-stored via `taperWorld`), so four inside-tapered square legs
+become one Shape with turns 0/90/180/270; the prompt gives inside-tapered legs one role. Cut ORDER ruled not geometry:
+`regroupShapes` groups by geometry and `sameJoined` compares cuts as a multiset, so a joined and refined table keeps its legs
+linked (see fu 316).
 
 **302. Overlap stays box-based for tapered parts.** `overlap` reads `worldSolids` (inv 38), which ignore angle cuts, so a
 tapered part can report an overlap on wood the taper has removed. False positives only; a real overlap is never missed.
@@ -5272,3 +5278,28 @@ produce the kind; `evaluateDesign` alone adds it); the prompt reads "For a 29in 
 the legs…" and its test pins all four corner rows. **By decision:** the same face named in two entries toward one end stays
 allowed (two overlapping cuts), as Properties allows two tapers on one face — refusing it in the converter would also make
 Refine refuse such hand-made parts.
+
+## From the turned-links round — 2026-10-13
+
+**314. Parts with rectangular cuts are not turned.** `turnCandidates` returns none for a part carrying rectangular cuts,
+non-taper angle cuts or non-standard tapers, so such parts link only when already equal. Turning them would mean re-storing
+cuts through `axisFrame`'s crossings. **Status:** open, fails safe (the parts stay unlinked).
+
+**315. Mirror-only matches need mirrored placements.** Legs that match only through a reflection cannot share a Shape by
+turns alone; they need fu 232's mirrored placements from Generate. **Status:** open (depends on 232).
+
+**316. `splitAssemblies`' `resultSignature` is order-sensitive.** Two placements whose joined cuts differ only in order
+split into two definitions: sharing is lost, geometry is right. The cut-order ruling covered `regroupShapes` and `sameJoined`
+only. **Status:** open, fails safe.
+
+**317. Turned-links minors (record-only).** `groupSignature` also sorts angle cuts (inert today); the greedy multiset match
+in `sameCutSet` could false-negative within 1e-9 (it refuses, safe); the first-member-keeps-order rule is unpinned by a
+test; `turnCandidates` is rebuilt per representative (burns ids); the untapered test's title over-claims; no test of a tapered
+component inside an assembly definition; the joined-tree tests assert the shape count, not each leg's world cuts (the gate
+test covers it indirectly); `roleLinks.ts` ends without a trailing newline. **Status:** record-only.
+
+**318. A width-only (or thickness-only) edit on one turned, linked leg grows the legs along different world axes.** Linked
+parts grow from their own min corner (existing rule); turned links store the legs at 0/90/180/270, so a non-square edit grows
+two legs along X and two along Z (on the Shaker fixture, width 1-3/4" → 2" runs two legs into an apron). A square edit (width
+and thickness together) grows all four alike, as untapered linked legs do today. **Status:** accepted by the user 2026-10-13
+("accept and record"); found by the turned-links final review.

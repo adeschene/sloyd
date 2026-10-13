@@ -11,7 +11,7 @@ import { worldParts, partAt } from './tree';
  * from its FIRST member in worldParts order; a member equal to it (exactly,
  * cuts in order by id and geometry, invariant 18) becomes a shaped part keeping
  * id, name, position and turn; a differing member stays plain, unlinked, which
- * is what repairLinks did. Nothing moves: no position or turn is recomputed.
+ * is what repairLinks did. Nothing moves here: no position or turn is recomputed (its caller linkByRole may re-turn parts before calling it).
  *
  * `legacy` maps each STORED part object to its label (the v10 step passes the
  * map validateBoard filled from `link`; linkByRole builds its own from role

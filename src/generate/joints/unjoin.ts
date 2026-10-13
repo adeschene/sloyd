@@ -274,9 +274,21 @@ const same = (a: unknown, b: unknown) =>
   typeof a === 'number' && typeof b === 'number' ? Math.abs(a - b) <= GATE_TOLERANCE : a === b;
 export const sameCut = (c: Cut, d: Cut) => CUT_GEOMETRY_KEYS.every((k) => same(c[k], d[k]));
 
+/** The same cuts in any order: equal length, each of a matched to a distinct cut of b by sameCut (order is not geometry). */
+function sameCutSet(a: Board['cuts'], b: Board['cuts']): boolean {
+  if (a.length !== b.length) return false;
+  const free = [...b];
+  return a.every((c) => {
+    const i = free.findIndex((d) => sameCut(c, d));
+    if (i < 0) return false;
+    free.splice(i, 1);
+    return true;
+  });
+}
+
 /**
  * Ids ignored (refine-joined spec §3.2). Names, posture, rotation, material and grain compare
- * EXACTLY; every number (position, length/width/thickness, each numeric cut field) within
+ * EXACTLY; cuts are matched as a MULTISET (order is not geometry, sameCutSet); every number (position, length/width/thickness, each numeric cut field) within
  * GATE_TOLERANCE; non-numeric cut fields (face, from, across) exactly; angle cuts exactly (sameAngleCut). The gate is
  * only as good as this.
  */
@@ -287,7 +299,7 @@ export function sameJoined(a: FlatDocument, b: FlatDocument): boolean {
     return p.name === q.name && p.position.every((v, k) => same(v, q.position[k])) &&
       same(p.length, q.length) && same(p.width, q.width) && same(p.thickness, q.thickness) &&
       p.posture === q.posture && p.rotation === q.rotation && p.material === q.material && p.grain === q.grain &&
-      p.cuts.length === q.cuts.length && p.cuts.every((c, k) => sameCut(c, q.cuts[k]!)) &&
+      sameCutSet(p.cuts, q.cuts) &&
       // Exact, by design: joinery never touches angle cuts, so their round trip is identity (AI-tapers spec §5.4a).
       p.angleCuts.length === q.angleCuts.length && p.angleCuts.every((c, k) => sameAngleCut(c, q.angleCuts[k]!));
   });

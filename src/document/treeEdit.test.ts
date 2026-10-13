@@ -2,7 +2,7 @@ import { mapWorld, translateItems, writeBackFlat } from './treeEdit';
 import { flatDocument, instanceAt, partAt, resolvedPartAt, worldParts } from './tree';
 import { assemblyDoc } from './treeFixtures';
 import { boardCenter, reorientedPosition } from './geometry';
-import type { Board } from './types';
+import type { Board, Cut } from './types';
 import type { Shape, SloydDocument } from './types';
 import { createDocument } from './document';
 import { applyWorldEdits, storageKey } from './treeEdit';
@@ -512,5 +512,34 @@ describe('writeBackFlat shares where identical', () => {
     expect(worldParts(out).map((b) => b.cuts[0]!.offset)).toEqual([1, 1, 3]);
     expect(out.instances.map((i) => i.definition).slice(0, 2)).toEqual(['d1', 'c1']);
     expect(out.instances[2]!.definition).not.toBe('c1');
+  });
+});
+
+describe('writeBackFlat — shape grouping ignores cut order (fu 301)', () => {
+  const part = { length: 20, width: 2, thickness: 2, posture: 'upright' as const, grain: 'length' as const, material: 'oak', cuts: [], angleCuts: [] };
+  const doc = (): SloydDocument => ({
+    ...createDocument(),
+    shapes: [{ id: 's1', ...part }],
+    boards: [
+      { id: 'a', name: 'A', position: [0, 0, 0], rotation: 0, shape: 's1' },
+      { id: 'b', name: 'B', position: [10, 0, 0], rotation: 0, shape: 's1' },
+    ],
+  });
+  const m1: Omit<Cut, 'id'> = { face: 'width', from: 'max' as const, across: 'length' as const, offset: 0.5, width: 0.25, depth: 0.75, stopMin: 3, stopMax: 0.5 };
+  const m2: Omit<Cut, 'id'> = { ...m1, face: 'thickness' };
+  const cuts = (...c: Omit<Cut, 'id'>[]) => c.map((x, i) => ({ id: `c${i}${x.face}`, ...x }));
+  const usersOf = (d: SloydDocument) => new Set(d.boards.map((b) => ('shape' in b ? b.shape : undefined)));
+
+  it('two users whose cuts are the same set in different orders stay one shape', () => {
+    const d = doc();
+    const before = flatDocument(d).boards;
+    const out = writeBackFlat(d, before, [{ ...before[0]!, cuts: cuts(m1, m2) }, { ...before[1]!, cuts: cuts(m2, m1) }]);
+    expect(usersOf(out).size).toBe(1);
+  });
+  it('a user with a genuinely different cut splits off', () => {
+    const d = doc();
+    const before = flatDocument(d).boards;
+    const out = writeBackFlat(d, before, [{ ...before[0]!, cuts: cuts(m1, m2) }, { ...before[1]!, cuts: cuts(m2, { ...m1, depth: 0.5 }) }]);
+    expect(usersOf(out).size).toBe(2);
   });
 });

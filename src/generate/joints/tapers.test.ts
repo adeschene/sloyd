@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { designToDocument, parseDesign } from '../../document/generated';
-import { flatDocument, taperCut } from '../../document/document';
+import { flatDocument, migrateDocument, taperCut, worldParts, writeBackFlat } from '../../document/document';
+import { SHAKER_TABLE_JSON } from '../../document/shakerTableFixture';
 import type { AngleCut, Board, FlatDocument } from '../../document/document';
 import { axisFrame, boardCenter, endFacing } from '../../document/geometry';
 import { worldTapers } from '../../document/taperWorld';
@@ -218,20 +219,8 @@ describe('taperFaults \u2014 the fault on designs (spec 5.3)', () => {
 });
 
 describe('the headline flow: a Shaker table with tapered legs, generated and joined (AI-tapers chunk 2)', () => {
-  // Built the way the prompt teaches: four legs 1.75 x 28.25 x 1.75 tapering their INSIDE faces toward the floor by the
-  // corner rule, start 22.5 (below the aprons, which begin at 23.25), amount 0.5; four 5in aprons inset 0.25 from the
-  // legs' outside faces at the top of the legs; a top overhanging 1in all round. 30 x 20 x 29 overall.
-  const leg = (name: string, x: number, z: number, faces: string[]) => ({ name, role: '', material: 'oak',
-    at: { x, y: 0, z }, size: { x: 1.75, y: 28.25, z: 1.75 }, tapers: [{ faces, toward: '-y', start: 22.5, amount: 0.5 }] });
-  const plain = (name: string, at: [number, number, number], size: [number, number, number]) => ({ name, role: '', material: 'oak',
-    at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] }, tapers: [] });
-  const json = { name: 'Shaker table', assemblies: [], parts: [
-    leg('Leg FL', 0, 0, ['+x', '+z']), leg('Leg FR', 28.25, 0, ['-x', '+z']),
-    leg('Leg BL', 0, 18.25, ['+x', '-z']), leg('Leg BR', 28.25, 18.25, ['-x', '-z']),
-    plain('Apron F', [1.75, 23.25, 0.25], [26.5, 5, 0.75]), plain('Apron B', [1.75, 23.25, 19], [26.5, 5, 0.75]),
-    plain('Apron L', [0.25, 23.25, 1.75], [0.75, 5, 16.5]), plain('Apron R', [29, 23.25, 1.75], [0.75, 5, 16.5]),
-    plain('Top', [-1, 28.25, -1], [32, 0.75, 22]),
-  ] };
+  // The design json is shared with Refine's round trip: ../../document/shakerTableFixture.ts.
+  const json = SHAKER_TABLE_JSON;
   const limits = { width: null, depth: null, height: null, maxParts: 10 };
   const legs = (d: FlatDocument) => d.boards.filter((b) => b.name.startsWith('Leg'));
 
@@ -240,6 +229,10 @@ describe('the headline flow: a Shaker table with tapered legs, generated and joi
     if (!design) throw new Error('the design does not parse');
     const made = designToDocument(design, { centre: false });
     expect(made.rejected).toEqual([]);
+    // fu 301: the four inside-tapered legs are one component (turned links).
+    const legShapes = new Set(made.doc.boards.filter((b) => b.name.startsWith('Leg')).map((b) => ('shape' in b ? b.shape : undefined)));
+    expect(legShapes.size).toBe(1);
+    expect([...legShapes][0]).toBeDefined();
     const flat = flatDocument(made.doc);
     expect(legs(flat).map((b) => b.angleCuts.length)).toEqual([2, 2, 2, 2]);
     // The corner rule survives conversion: each stored leg's tapered faces, read back in world terms, face the middle.
@@ -271,5 +264,10 @@ describe('the headline flow: a Shaker table with tapered legs, generated and joi
     // Each leg keeps exactly its two tapers, unchanged.
     expect(legs(joined.doc).map((b) => b.angleCuts)).toEqual(legs(flat).map((b) => b.angleCuts));
     expect(legs(joined.doc).every((b) => b.cuts.length > 0)).toBe(true);
+    // Joinery writes back to the tree as runJoinery does, and the legs are still one component.
+    const tree = migrateDocument(writeBackFlat(made.doc, flat.boards, worldParts(joined.doc)));
+    const joinedLegShapes = new Set(tree.boards.filter((b) => b.name.startsWith('Leg')).map((b) => ('shape' in b ? b.shape : undefined)));
+    expect(joinedLegShapes.size).toBe(1);
+    expect([...joinedLegShapes][0]).toBeDefined();
   });
 });
