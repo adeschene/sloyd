@@ -19,6 +19,7 @@ import { axisFrame, boardExtents, spanToWorldOffset } from './geometry';
  *
  * Overlap is measured between SOLIDS (invariant 38): a cut explains an overlap by
  * removing the stock. Do not raise TOUCH to make joints pass.
+ * Contacts, grounding and the tip footprint read `contactSolids` (a tapered part counts only where it is flat); overlap stays on `worldSolids`.
  */
 export type ViolationKind = 'too-small' | 'overlap' | 'unsupported' | 'too-large' | 'too-many-parts' | 'hangs' | 'tips';
 export interface Violation { kind: ViolationKind; message: string; parts: string[] }
@@ -78,8 +79,8 @@ function hull(points: P2[]): P2[] {
  * on-the-floor parts' plan corners. Floating parts are left out — they are
  * already `unsupported`, and one fault gets one report.
  */
-function tipsMessage(boxes: Box[], grounded: Set<number>): string | null {
-  const floor = boxes.filter((b) => b.min[1] <= TOUCH);
+function tipsMessage(boxes: Box[], grounded: Set<number>, footprint: (i: number) => Box[]): string | null {
+  const floor = boxes.flatMap((b, i) => (b.min[1] <= TOUCH ? footprint(i) : []));
   if (floor.length === 0) return null;
   let vol = 0, cx = 0, cz = 0;
   for (const i of grounded) {
@@ -117,14 +118,17 @@ function tipsMessage(boxes: Box[], grounded: Set<number>): string | null {
 }
 
 /** The parts connected to the floor through touching parts, optionally with one part removed from the design. */
-function groundedSet(boxes: Box[], skip: number | null = null): Set<number> {
+function groundedSet(boxes: Box[], touching: Box[][], tapered: boolean[], skip: number | null = null): Set<number> {
+  const joined = (i: number, j: number) => (tapered[i] || tapered[j]
+    ? touching[i].some((a) => touching[j].some((b) => connected(a, b)))
+    : connected(boxes[i], boxes[j]));
   const grounded = new Set<number>();
   const queue = boxes.flatMap((b, i) => (i !== skip && b.min[1] <= TOUCH ? [i] : []));
   queue.forEach((i) => grounded.add(i));
   while (queue.length) {
     const i = queue.shift()!;
-    boxes.forEach((b, j) => {
-      if (j !== skip && !grounded.has(j) && connected(boxes[i], b)) {
+    boxes.forEach((_, j) => {
+      if (j !== skip && !grounded.has(j) && joined(i, j)) {
         grounded.add(j);
         queue.push(j);
       }
@@ -348,7 +352,10 @@ export function checkDesign(doc: FlatDocument, limits: DesignLimits): Violation[
     }
   }
 
-  const grounded = groundedSet(boxes);
+  // Contact trusts only flat wood (AI-tapers spec §3.3); overlap above stays on the full solids.
+  const tapered = doc.boards.map(isTapered);
+  const touching = doc.boards.map((b, i) => (tapered[i] ? contactSolids(b) : solids[i]));
+  const grounded = groundedSet(boxes, touching, tapered);
   boxes.forEach((b, i) => {
     if (grounded.has(i)) return;
     const near = [...grounded].map((g) => boxes[g]).sort((p, q) => distance(b, p) - distance(b, q))[0];
@@ -376,10 +383,10 @@ export function checkDesign(doc: FlatDocument, limits: DesignLimits): Violation[
 
   // Held (fu 165). One fault, one report: a part on the floor, already
   // unsupported, or named in an overlap is never also reported as hanging.
-  const contacts = solidContactsOf(solids);
+  const contacts = solidContactsOf(touching);
   const memo = new Map<number, Set<number>>();
   const groundedWithout = (skip: number) => {
-    if (!memo.has(skip)) memo.set(skip, groundedSet(boxes, skip));
+    if (!memo.has(skip)) memo.set(skip, groundedSet(boxes, touching, tapered, skip));
     return memo.get(skip)!;
   };
   boxes.forEach((b, i) => {
@@ -388,7 +395,7 @@ export function checkDesign(doc: FlatDocument, limits: DesignLimits): Violation[
     if (message) out.push({ kind: 'hangs', message, parts: [boxes[i].name] });
   });
 
-  const tip = tipsMessage(boxes, grounded);
+  const tip = tipsMessage(boxes, grounded, (i) => (tapered[i] ? touching[i].filter((s) => s.min[1] <= TOUCH) : [boxes[i]]));
   if (tip) out.push({ kind: 'tips', message: tip, parts: [] });
   return out;
 }
