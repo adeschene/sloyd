@@ -844,6 +844,11 @@ Expected: FAIL. The angled refusal still fires on tapers.
 
 - [ ] **Step 3: Implement**
 
+In `src/generate/refine.ts`, `KEEP_LINE` gains tapers. A model told exactly what to keep must be told to keep them:
+`'Keep every part you are not asked to change exactly as it is: the same name, role, material, size, position and tapers. Keep assembly and placement names. Return the whole design.'`
+Pin it in `refine.test.ts`: `expect(refineMessage(design, settings)).toContain('position and tapers')`. Update any
+literal expectation of the old line. `KEEP_LINE` rides in the user turn, so the fixed-prefix rule is untouched.
+
 In `angledRefusal.ts`, the refine branch becomes:
 
 ```ts
@@ -894,7 +899,7 @@ Make each of these changes in turn, check that a test fails, and restore:
 - [ ] **Step 6: Commit**
 
 ```bash
-git add src/document/angledRefusal.ts src/document/angledRefusal.test.ts src/document/refineDesign.ts src/document/refineDesign.test.ts src/generate/refine.test.ts
+git add src/document/angledRefusal.ts src/document/angledRefusal.test.ts src/document/refineDesign.ts src/document/refineDesign.test.ts src/generate/refine.ts src/generate/refine.test.ts
 git commit -m "feat(refine): Refine describes tapers exactly in world words; refuses only non-standard tapers and other angles"
 ```
 
@@ -958,6 +963,9 @@ describe('plainForRefine — tapers on a joined design (spec §5.4)', () => {
     const bad = /* `joined` with the Leg's taper starts set to 24 (taperCut with the same face/from/end) */;
     const r = plainForRefine(bad);
     expect('refused' in r && r.refused.reason).toBe('taper-joint');
+    // It IS joined (the gate read its joints): the dialog must say so, and offers no repair (repair is for 'joints').
+    expect(refineDialogInfo(bad).joined).toBe(true);
+    expect(refineDialogInfo(bad).repair).toBeNull();
   });
 });
 ```
@@ -1010,6 +1018,10 @@ round trip is identity.
 
 Imports: `taperJointRefusal` from `../document/document`, `taperConflicts` from `./joints/tapers`, `findSites` from
 `./joints/sites`. Check for an import cycle: `tapers.ts` does not import `refine.ts`.
+
+`refine.ts` `refineDialogInfo`: `joined` becomes
+`'refused' in base ? base.refused.reason === 'joints' || base.refused.reason === 'taper-joint' : base.joints !== null`.
+A `'taper-joint'` refusal is produced only after the gate read the joints. `repair` stays offered on `'joints'` only.
 
 `run.ts`:
 
@@ -1176,7 +1188,7 @@ In `SYSTEM_PROMPT`:
 ```
 Tapers:
 - A part may taper along its length (its longest side), like a table leg narrowing toward the floor. Describe it in "tapers": "faces" are the sides that slope ("+x", "-x", "+z", "-z" for an upright leg), "toward" is the end that gets thinner ("-y" for the floor end), "start" is how far from that end the taper begins, and "amount" is how much it removes from each named face at that end.
-- The usual Shaker leg tapers its two INSIDE faces (the faces toward the middle of the piece) toward the floor: a leg at the front-left corner tapers "+x" and "+z" when the piece runs toward +x and +z.
+- The usual Shaker leg tapers its two INSIDE faces (the faces toward the middle of the piece) toward the floor. By corner: the leg with the smallest x and z tapers "+x" and "+z"; the leg with the largest x and smallest z tapers "-x" and "+z"; the leg with the smallest x and largest z tapers "+x" and "-z"; the leg with the largest x and z tapers "-x" and "-z".
 - Joints go where parts meet, and a joint cannot sit on tapered wood: start every taper at or below the lowest part that meets the tapered part. For legs under 5in aprons at the top of a 29in table, a start of 22 to 23in is typical.
 - Leave wood: a taper removes at most about a third of the leg's width per face.
 - Use "tapers": [] for every part that is not tapered.
