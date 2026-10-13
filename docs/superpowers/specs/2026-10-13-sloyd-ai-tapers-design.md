@@ -119,7 +119,8 @@ never over-claims), because every check consumer is box-based (invariants 38, 39
 | tips: footprint hull | corners of `contactSolids` touching the floor | was box corners — a leg tapered to 1" stands on 1"×1" |
 | tips: centre of mass | box volumes | none; follow-up (§9) |
 | `faceContacts` → `findSites` | boxes | none, on purpose (§4.1) |
-| coverage denominators (between/lapped ≥ 50%) | the faces' `contactSolids` areas | was box faces |
+| coverage denominators (between/lapped ≥ 50%) | box faces | none — the numerator shrinks through `contactSolids`; a flat-wood denominator would make a tapered part *easier* to hold (amended while planning chunk 1) |
+| untapered parts, every row above | as before | byte-for-byte: `connected` and the footprint keep the whole box for a part with no taper (a notched part's cells would otherwise change today's results) |
 
 **Invariant 38 amendment.** Held, hangs, `connected` and the tip footprint read `contactSolids`; overlap stays on
 `worldSolids`; `faceContacts` stays on boxes.
