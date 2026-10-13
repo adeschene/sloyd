@@ -13,7 +13,7 @@ import { applyJoints } from './joints/recipes';
 import { findSites, jointKey, rangesOf } from './joints/sites';
 import { defaultChoice } from './joints/choose';
 import { GATE_REFUSAL, sameJoined } from './joints/unjoin';
-import { DESIGN_SCHEMA, designToDocument } from '../document/generated';
+import { DESIGN_SCHEMA, designToDocument, parseDesign } from '../document/generated';
 import { checkDesign } from '../document/designCheck';
 import type { LlmClient, LlmRequest, LlmResult, LlmUsage } from '../llm/types';
 import { CHARS_PER_TOKEN } from './estimate';
@@ -767,5 +767,40 @@ describe('runJoinery — angled documents (spec §6)', () => {
     expect('refused' in out).toBe(true);
     expect(client.complete).not.toHaveBeenCalled();
     expect(JSON.stringify(doc)).toBe(before);
+  });
+});
+
+describe('the taper-joint fault (AI-tapers spec 5.3)', () => {
+  const leg = (start: number) => ({ name: 'Leg', role: '', material: 'oak', at: { x: 0, y: 0, z: 0 }, size: { x: 1.75, y: 28, z: 1.75 },
+    tapers: [{ faces: ['+x', '+z'], toward: '-y', start, amount: 0.375 }] });
+  const rail = { name: 'Rail', role: '', material: 'oak', at: { x: 1.75, y: 23.5, z: 0.5 }, size: { x: 18, y: 3, z: 0.75 }, tapers: [] };
+  const post = { name: 'Post', role: '', material: 'oak', at: { x: 19.75, y: 0, z: 0 }, size: { x: 1.75, y: 28, z: 1.75 }, tapers: [] };
+  const design = (start: number) => ({ name: 'T', parts: [leg(start), rail, post], assemblies: [] });
+  const text = (turns: unknown[]) => JSON.stringify(turns);
+
+  it('runGeneration reports the fault, sends it back, and keeps the repaired design', async () => {
+    // No call count: this two-legged fixture may also trip the tip check, which drives its own repair rounds.
+    const { client, seen } = fakeClient([design(24), design(22)]);
+    const out = await run(client);
+    expect(text(seen[1]!)).toContain("Leg's taper toward -y");
+    expect(out.violations.filter((v) => v.kind === 'taper-joint')).toEqual([]);
+  });
+  it('checkDesign itself never emits the fault (joinery gate unchanged)', () => {
+    const flat = flatDocument(designToDocument(parseDesign(design(24))!).doc);
+    expect(checkDesign(flat, { width: null, depth: null, height: null, maxParts: 10 }).some((v) => v.kind === ('taper-joint' as never))).toBe(false);
+  });
+  // SKIPPED until Task 4: Refine still refuses a tapered original (refineDesign 'angled'), so the preexisting path
+  // cannot be reached yet. Task 4 (documentToDesign writes tapers, refusal narrowed) un-skips it.
+  it.skip('Refine counts the original\'s own taper conflict as preexisting: present, not fed back', async () => {
+    const RS = { instruction: 'keep it', width: null, depth: null, height: null, detail: 'simple' as const };
+    const doc = designToDocument(parseDesign(design(24))!).doc;
+    const from = documentToDesign(doc, REFINE_MAX);
+    if ('refused' in from) throw new Error('refused');
+    const { client, seen } = fakeClient([from.design]);
+    const out = await runRefine(client, doc, RS, new AbortController().signal, () => {});
+    if ('refused' in out) throw new Error('refused');
+    expect(out.present.some((v) => v.kind === 'taper-joint')).toBe(true);
+    expect(out.violations.some((v) => v.kind === 'taper-joint')).toBe(false);
+    expect(seen.slice(1).map(text).join('')).not.toContain("Leg's taper");
   });
 });

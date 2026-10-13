@@ -11,7 +11,7 @@ import { JOINERY_PROMPT, JOINT_SCHEMA, defaultChoice, jointsRepairMessage, joint
 import { applyJoints } from './joints/recipes';
 import type { JoinResult, JointChoice } from './joints/recipes';
 import { findSites, jointKey } from './joints/sites';
-import { joineryRefusal } from './joints/tapers';
+import { joineryRefusal, taperFaults } from './joints/tapers';
 import type { Site } from './joints/sites';
 import { DETAIL_CAPS, SYSTEM_PROMPT, limitsOf, repairMessage, unusableMessage, userMessage } from './prompt';
 import type { Concept, GenerateSettings, LimitSettings } from './prompt';
@@ -143,7 +143,7 @@ interface EvaluateOpts {
 /**
  * THE design evaluation, shared by Generate and Refine so they cannot drift
  * (refine spec §3.1): parse → tree → flatten → zero-board guard → distinct cap
- * → checkDesign → collapse. With `preexisting`, a raw violation whose
+ * → checkDesign + the taper-joint fault → collapse. With `preexisting`, a raw violation whose
  * problemKey the original already had (and which names parts) is set aside as `present` and neither
  * counts toward "fewest" nor goes back as feedback.
  */
@@ -158,7 +158,7 @@ function evaluateDesign(res: LlmResult, s: LimitSettings, opts: EvaluateOpts = {
   // document is not a prototype.
   if (flat.boards.length === 0) return { value: null, feedback: repairMessage(rejectedViolations(converted.rejected)) };
   const distinct = distinctPartsViolation(converted.doc, DETAIL_CAPS[s.detail]);
-  const raw = checkDesign(flat, limitsOf(s));
+  const raw = [...checkDesign(flat, limitsOf(s)), ...taperFaults(flat)];
   const old = opts.preexisting;
   // Only a fault naming parts can be "already there"; limits (too-large,
   // too-many-parts, tips) are judged on the result (refine spec §3.2).
@@ -219,7 +219,10 @@ export async function runRefine(
   if ('refused' in base) return { refused: base.refused };
   const from = documentToDesign(base.plain, REFINE_MAX);
   if ('refused' in from) return { refused: from.refused };
-  const preexisting = new Set(checkDesign(flatDocument(base.plain), limitsOf(settings)).map(problemKey));
+  // The original's own taper conflicts are preexisting too (spec 5.3, amended): a taper the person drew is not
+  // pushed back at the model as new.
+  const plainFlat0 = flatDocument(base.plain);
+  const preexisting = new Set([...checkDesign(plainFlat0, limitsOf(settings)), ...taperFaults(plainFlat0)].map(problemKey));
   const out = await runRepairLoop(client, {
     system: SYSTEM_PROMPT,
     schema: DESIGN_SCHEMA,
