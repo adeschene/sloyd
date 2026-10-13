@@ -18,6 +18,12 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-13 with AI angles chunk 1 live** (`index-DQwrQ8u9.js`, CSS `index-S14NxOeA.css`
+unchanged, merge `be4c87c`, **schema 14**). Verified: `200` on `/` and a deep route in-network and at the edge; bundle matches
+`dist/` at both; `index-CUVCRzP9.js` 404s in-network; CSP unchanged; a real-browser load with 0 errors, the Cloudflare beacon
+and "+ Add board" present; the load's two fresh keys (`version: 14`) cleared and read back empty after 3s, then navigated
+away. Checked on the dev server (`docs/browser-verification-ai-angles.md`).
+
 **Production matches `master` as of 2026-10-13 with standard views + image export live** (`index-CUVCRzP9.js`, CSS
 `index-S14NxOeA.css`, merge `353dd60`, **schema 14**). Verified: `200` on `/` and a deep route in-network and at the edge;
 bundle and CSS match `dist/` at both; `index-B11-8iMQ.js` 404s in-network; CSP unchanged; a real-browser load with 0 errors,
@@ -437,7 +443,7 @@ mitered at its leg and listed "Rail X → Leg: end into face" for the 1/8in-cham
 rebase, so a joined Refine or Repair refused a re-anchored cut and blamed the user (fixed, `resizeAt`); and a hairline cut
 under TOUCH on a growing joined end passed the joint rule, then bit the tenon as the part grew through its fixed line —
 the spec contradicted itself (§3 allowed it, §4 assumed it refused), so it went to the user, who ruled: refuse it,
-however small. Minors recorded as fu 321. Test count 3474 -> 3501. Merged to master as `be4c87c`; not deployed. No schema change (SCHEMA 14); rollback is free.
+however small. Minors recorded as fu 321. Test count 3474 -> 3501. Merged to master as `be4c87c`; deployed 2026-10-13 (`index-DQwrQ8u9.js`). No schema change (SCHEMA 14); rollback is free.
 
 **What standard views + image export did (2026-10-13, feature-gaps §2, fu 260)** (spec
 `docs/superpowers/specs/2026-10-13-sloyd-standard-views-image-design.md`, plan

@@ -21,14 +21,13 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-13: standard views + image export (merge `353dd60`: Front/Side/Top/Iso,
-  Save image, fu 260) on top of fu 302/303 — bundle `index-CUVCRzP9.js`, CSS `index-S14NxOeA.css`, **SCHEMA 14** (unchanged
-  since angle cuts chunk 1, so rolling back to `2a19279`, `index-B11-8iMQ.js`, or any 14 build is free; below 14, `47548d3`,
-  REFUSES every project saved since: export first). Test count is under Commands. Open from the round: 319 (the View group's
-  wrap, for the user's eye), 320 (record-only; a saved PNG owed a real-hardware look).
+- **Production matches `master`** as of 2026-10-13: AI angles chunk 1 (merge `be4c87c`) on top of standard views + image
+  export — bundle `index-DQwrQ8u9.js`, CSS `index-S14NxOeA.css`, **SCHEMA 14** (unchanged since angle cuts chunk 1, so rolling
+  back to `353dd60`, `index-CUVCRzP9.js`, or any 14 build is free; below 14, `47548d3`, REFUSES every project saved since:
+  export first). Test count is under Commands. Open from standard views: 319 (the View group's wrap, for the user's eye), 320.
 - **AI angles (fu 276/277's remainder; spec `2026-10-13-sloyd-ai-angles-design.md`)**: chunk 1 (Add joinery and Repair
-  accept miters, bevels and chamfers; the widened joint rule with the tenon-clearance exception; fu 307 closed) is MERGED
-  (`be4c87c`), not deployed — deploy on the user's word (no schema change; rollback free). **NEXT: chunk 2** (Generate and Refine read and write miters, bevels and
+  accept miters, bevels and chamfers; the widened joint rule with the tenon-clearance exception; fu 307 closed) is merged
+  (`be4c87c`) and deployed. **NEXT: chunk 2** (Generate and Refine read and write miters, bevels and
   chamfers in world words) — its own plan. Open near it: 314–318 (turned-links residue, record-only or accepted). Other open items: angle-cut residue 295–298; 241 (open by decision), 251 (record-only), 221, 225, 232, 234, 247.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
