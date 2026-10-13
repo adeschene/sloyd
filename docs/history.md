@@ -18,6 +18,13 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-13 with AI-tapers chunk 1 live** (`index-B4V-pkp9.js`, CSS `index-BkjfVfaC.css`
+unchanged, merge `71510e5`, **schema 14**, unchanged). Verified: `200` on `/` and a deep route in-network and at the edge;
+bundle matches `dist/` at both; `index-DACMEk1Y.js` 404s in-network; CSP `connect-src 'self' https://api.anthropic.com` at the
+edge; a real-browser load with 0 errors (3 three.js deprecation warnings), the Cloudflare beacon and "+ Add board" present;
+the load's two fresh keys (`version: 14`) cleared and read back empty after 3s, then navigated away. Features verified on the
+dev server (`docs/browser-verification-ai-tapers.md`); no paid joinery run (no key in the dev profile).
+
 **Production matches `master` as of 2026-10-12 with fu 299/300's wording live** (`index-DACMEk1Y.js`, CSS
 `index-BkjfVfaC.css` unchanged, merge `610c2f2`, **schema 14**). One face vocabulary (a length face is an end), short chamfer
 Edge labels, one refusal pattern. Verified: `200` on `/` and a deep route in-network and at the edge; bundle matches `dist/`
@@ -362,6 +369,16 @@ and 79.
 ---
 
 ## What each round did
+
+**What AI-tapers chunk 1 did (2026-10-13)** (spec `docs/superpowers/specs/2026-10-13-sloyd-ai-tapers-design.md`, plan
+`docs/superpowers/plans/2026-10-13-sloyd-ai-tapers-chunk1.md`, subagent-driven, a review per task and a whole-branch review):
+Add joinery and Repair joints accept tapered parts (every other angle kind is still refused; Refine refuses all until chunk 2).
+A taper whose sloped wood reaches a joint's patch refuses the whole run before any call (`taperConflicts`, one decider
+`joineryRefusal` shared by `runJoinery` and the dialog), naming the part, the other part and a start floored to the display
+grid so following the advice passes (the final review caught it rounding up). The checks read `contactSolids` for a tapered
+part — only its still-flat wood holds, grounds or forms the tip footprint; untapered pairs are byte-for-byte unchanged.
+Residue: fu 301–308. Rulings surfaced to the user: joinery's angled message reworded (spec §4.3 amended), a 1e-9 boundary
+tolerance, fu 304 closed by decision, fu 307/308 recorded rather than fixed.
 
 **What fu 299/300 did (2026-10-12)**, the user's wording ruling after angle cuts shipped: one face vocabulary (`faceName`
 — a length face is "the length max end" in every angle line, as miters and tapers already said), short chamfer Edge labels

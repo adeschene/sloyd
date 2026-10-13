@@ -21,18 +21,14 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-12: angle cuts chunk 3 (merge `b56dcfd`) plus fu 299/300's wording (merge
-  `610c2f2`) — the angle-cuts feature is complete — bundle `index-DACMEk1Y.js`, CSS `index-BkjfVfaC.css`, **SCHEMA 14** (chunks 2–3 changed no schema, so rolling
-  back to `b56dcfd`, `index-D4EQ6d5G.js`, `80e41b6`, `index-b4ad9aBu.js`, or `5cb0a4c`, `index-DLW02CPM.js`, is free; below 14, `47548d3`, REFUSES every
-  project saved since chunk 1: export first). Test count is under Commands.
-- **NEXT (the user, closing the 2026-10-12 session): "the AI integration"**, to start in a fresh session. The user's
-  words; read them as the Claude features meeting angle cuts unless the user says otherwise — Add joinery, Refine and
-  Repair refuse angled documents today (inv 48, `angledRefusal.ts`; fu 276 angle-aware joinery, fu 277 Generate emitting
-  tapers/miters, fu 283 the joinery dialog with a key on an angled project, unseen). Confirm the scope first, then
-  brainstorm: joinery's checks are box-based throughout (invs 38, 41), so this is architectural. Read the spec
-  `docs/superpowers/specs/2026-10-12-sloyd-angle-cuts-design.md` §6 and the generate/ layer rules before proposing. Other
-  open items: angle-cut residue 295–298; 241 (open by decision), 251 (record-only), 221, 225 (rest out of scope), 232,
-  234, 247.
+- **Production matches `master`** as of 2026-10-13: AI-tapers chunk 1 (merge `71510e5`) — joinery and Repair accept
+  tapers, the taper-at-joint refusal, checks trust only a taper's flat wood — bundle `index-B4V-pkp9.js`, CSS
+  `index-BkjfVfaC.css`, **SCHEMA 14** (unchanged since angle cuts chunk 1, so rolling back to `669a828`, `index-DACMEk1Y.js`,
+  or any 14 build is free; below 14, `47548d3`, REFUSES every project saved since: export first). Test count is under Commands.
+- **NEXT: AI-tapers chunk 2** (spec `docs/superpowers/specs/2026-10-13-sloyd-ai-tapers-design.md` §2, §5–§7; plan
+  `docs/superpowers/plans/2026-10-13-sloyd-ai-tapers-chunk2.md`): Generate and Refine emit tapers through the design
+  schema's `tapers`, `evaluateDesign` reports the taper-at-joint fault, Refine accepts tapered (only) documents. Other open
+  items: angle-cut residue 295–298; 241 (open by decision), 251 (record-only), 221, 225 (rest out of scope), 232, 234, 247.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
   byte-identical bundles (test-only). Check what a later commit touches before reading
@@ -92,6 +88,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | angle cuts (chunk 1) | 10-12 | 14 | `Board.angleCuts` (half-space plane cuts, stored `kind`); `boardBodies` clips pocket cells; tapers drawn, edged, snapped, on the Plans sheet, cut list (bench lines, short point) and part diagrams; Taper preset; joinery/Refine refuse angled projects |
 | angle cuts (chunk 2) | 10-12 | — | Miter preset: "+ Add ▾" (Taper, Miter, Miter both ends — one undo entry), End/Across/Long point/Angle controls (ratio stored, 45° exact), AngleField (DimensionField with a degree parse/format), the miter line names the long point |
 | angle cuts (chunk 3) | 10-12 | — | Bevel (Face, Long point, Angle; along the length) and Chamfer (any of 12 edges, Size; exact legs) presets and their final bench wording; the angle-cuts feature is complete |
+| AI tapers (chunk 1) | 10-13 | — | Add joinery and Repair accept tapers; the taper-at-joint refusal; checks trust only a taper's flat wood (`contactSolids`) |
 
 ### The deployment rule
 
@@ -623,7 +620,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 3332 tests across 121 files
+npm test           # Vitest, currently 3334 tests across 121 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
