@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { designToDocument } from './generated';
 import type { GeneratedAssembly, GeneratedDesign, GeneratedPart } from './generated';
-import { migrateDocument } from './document';
 import { isShaped } from './shapes';
-import { worldParts } from './tree';
+import { createBoard, migrateDocument } from './document';
+import { flatDocument, worldParts } from './tree';
+import { worldTapers } from './taperWorld';
+import { boardExtents } from './geometry';
+import { taperCut } from './angleCuts';
+import { turnCandidates, alignedTo } from './roleLinks';
+import type { Board } from './types';
 
 const v = (x: number, y: number, z: number) => ({ x, y, z });
 const part = (name: string, role: string, at: [number, number, number], size: [number, number, number]): GeneratedPart =>
@@ -104,5 +109,96 @@ describe('linkByRole (through designToDocument)', () => {
   it('a linked generated document survives migrateDocument unchanged', () => {
     const { doc } = designToDocument(d(legs()));
     expect(migrateDocument(JSON.parse(JSON.stringify(doc)))).toEqual(doc);
+  });
+});
+
+describe('turned links (fu 301)', () => {
+  type Dir = '+x' | '-x' | '+z' | '-z';
+  const tapered = (name: string, at: [number, number, number], size: [number, number, number], faces: Dir[], role = 'leg'): GeneratedPart =>
+    ({ ...part(name, role, at, size), tapers: [{ faces, toward: '-y', start: 20, amount: 0.5 }] });
+  // The prompt's corner rule: each leg tapers its two INSIDE faces.
+  const inside = (size: [number, number, number] = LEG, role = 'leg') => [
+    tapered('Leg FL', [0, 0, 0], size, ['+x', '+z'], role), tapered('Leg FR', [20, 0, 0], size, ['-x', '+z'], role),
+    tapered('Leg BL', [0, 0, 20], size, ['+x', '-z'], role), tapered('Leg BR', [20, 0, 20], size, ['-x', '-z'], role),
+  ];
+  const stored = (doc: ReturnType<typeof designToDocument>['doc']) => [...doc.boards, ...doc.definitions.flatMap((x) => x.boards)];
+  const shapeIds = (doc: ReturnType<typeof designToDocument>['doc']) => new Set(stored(doc).filter(isShaped).map((b) => b.shape));
+  const world = (doc: ReturnType<typeof designToDocument>['doc']) => flatDocument(doc).boards
+    .map((b) => ({ name: b.name, box: boardExtents(b), at: b.position, tapers: worldTapers(b) }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  it('identical tapered parts link (the angle-cut id fix)', () => {
+    const { doc } = designToDocument(d([0, 20, 40].map((x, i) => tapered(`Leg ${i + 1}`, [x, 0, 0], LEG, ['+x']))));
+    expect(doc.shapes).toHaveLength(1);
+    expect(shapedNames(doc)).toEqual(['Leg 1', 'Leg 2', 'Leg 3']);
+  });
+
+  it('four inside-tapered square legs become ONE component, each world leg unchanged', () => {
+    const unlinked = designToDocument(d(inside(LEG, ''))).doc;   // no role: today's encoding, never linked
+    const { doc } = designToDocument(d(inside()));
+    expect(doc.shapes).toHaveLength(1);
+    expect(shapedNames(doc)).toEqual(['Leg BL', 'Leg BR', 'Leg FL', 'Leg FR']);
+    expect(world(doc)).toEqual(world(unlinked));
+    expect(stored(doc).map((b) => b.rotation).sort((a, b) => a - b)).toEqual([0, 90, 180, 270]);
+  });
+
+  it('an outside-tapered set links the same way', () => {
+    const outside: GeneratedPart[] = [
+      tapered('Leg FL', [0, 0, 0], LEG, ['-x', '-z']), tapered('Leg FR', [20, 0, 0], LEG, ['+x', '-z']),
+      tapered('Leg BL', [0, 0, 20], LEG, ['-x', '+z']), tapered('Leg BR', [20, 0, 20], LEG, ['+x', '+z']),
+    ];
+    expect(designToDocument(d(outside)).doc.shapes).toHaveLength(1);
+  });
+
+  it('legs tapered on different numbers of faces do not link', () => {
+    const ps = inside();
+    ps[3] = tapered('Leg BR', [20, 0, 20], LEG, ['-x']);
+    const { doc } = designToDocument(d(ps));
+    expect(shapedNames(doc)).toEqual(['Leg BL', 'Leg FL', 'Leg FR']);
+  });
+
+  it('a non-square leg set pairs only by 180°: two components', () => {
+    const { doc } = designToDocument(d(inside([1.5, 28, 2.5])));
+    expect(shapeIds(doc).size).toBe(2);
+    expect(shapedNames(doc)).toEqual(['Leg BL', 'Leg BR', 'Leg FL', 'Leg FR']);
+  });
+
+  it('a square flat panel is never turned 90° (its figure would run crosswise)', () => {
+    const b = createBoard({ length: 12, width: 12, thickness: 0.75, posture: 'flat', rotation: 0, grain: 'length' });
+    expect(turnCandidates(b).map((c) => c.rotation)).toEqual([180]);
+  });
+
+  it('a part with rectangular cuts is never turned', () => {
+    const b = createBoard({ length: 28, width: 1.75, thickness: 1.75, posture: 'upright',
+      cuts: [{ id: 'c', face: 'width', from: 'max', across: 'length', offset: 0, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 }] });
+    expect(turnCandidates(b)).toEqual([]);
+  });
+
+  it('candidates keep the world box, position and tapered faces', () => {
+    const b: Board = { ...createBoard({ length: 28, width: 1.75, thickness: 1.75, posture: 'upright', rotation: 0, position: [3, 0, 4] }),
+      angleCuts: [{ id: 'a1', ...taperCut({ face: 'width', from: 'max', end: 'min', start: 20, amount: 0.5 }) }] };
+    const cs = turnCandidates(b);
+    expect(cs.map((c) => c.rotation)).toEqual([90, 180, 270]);
+    for (const c of cs) {
+      expect(boardExtents(c)).toEqual(boardExtents(b));
+      expect(c.position).toEqual(b.position);
+      expect(worldTapers(c)).toEqual(worldTapers(b));
+    }
+  });
+
+  it('alignedTo takes the representative\'s ids only when the angle cuts match by geometry', () => {
+    const t = (id: string, start: number) => ({ id, ...taperCut({ face: 'width', from: 'max', end: 'min', start, amount: 0.5 }) });
+    const rep: Board = { ...createBoard({ length: 28, width: 1.75, thickness: 1.75, posture: 'upright' }), angleCuts: [t('r1', 20)] };
+    const same: Board = { ...rep, id: 'other', angleCuts: [t('x9', 20)] };
+    expect(alignedTo(rep, same)?.angleCuts.map((c) => c.id)).toEqual(['r1']);
+    expect(alignedTo(rep, { ...same, angleCuts: [t('x9', 19)] })).toBeNull();
+    const plain = createBoard({ length: 28, width: 1.75, thickness: 1.75, posture: 'upright' });
+    expect(alignedTo({ ...plain, id: 'p0' }, plain)).toBe(plain);   // no angle cuts: the same object, as today
+  });
+
+  it('an untapered design links exactly as before: the same stored objects and turns', () => {
+    const { doc } = designToDocument(d(legs()));
+    expect(stored(doc).map((b) => b.rotation)).toEqual([0, 0, 0, 0]);
+    expect(doc.shapes).toHaveLength(1);
   });
 });
