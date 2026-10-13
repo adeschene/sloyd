@@ -2,10 +2,10 @@ import { clippedRegion, CUT_GEOMETRY_KEYS } from '../../document/document';
 import type { Board, Cut, FlatDocument } from '../../document/document';
 import { TOUCH } from '../../document/designCheck';
 import { sameAngleCut } from '../../document/angleCuts';
-import { axisDimensions, axisFrame, spanToWorldOffset } from '../../document/geometry';
+import { axisDimensions, axisFrame, endFacing, spanToWorldOffset } from '../../document/geometry';
 import { findSites, jointKey, THIN_PANEL } from './sites';
 import type { Site } from './sites';
-import { applyJoints } from './recipes';
+import { applyJoints, rebaseAngleCuts } from './recipes';
 import type { JointChoice } from './recipes';
 import { boxOf } from './pocket';
 import type { V3, WorldBox } from './pocket';
@@ -92,6 +92,9 @@ export function readJoints(flat: FlatDocument):
     const d = axisDimensions(boards[i])[k];
     boards[i][d] = boards[i][d] + amount;
     if (side === -1) boards[i].position[k] -= amount;
+    // The exact inverse of `resize`'s angle-cut re-anchoring (AI-angles spec §4): numbers measured from the moving end
+    // shift back by the same amount, so the plain part carries the cut as it was before joinery.
+    rebaseAngleCuts(boards[i], d, endFacing(boards[i], k, side), amount);
   };
 
   // 1. Grow joints (mortise-tenon, dado, stopped dado), applied LAST forward, undone first.
@@ -300,7 +303,8 @@ export function sameJoined(a: FlatDocument, b: FlatDocument): boolean {
       same(p.length, q.length) && same(p.width, q.width) && same(p.thickness, q.thickness) &&
       p.posture === q.posture && p.rotation === q.rotation && p.material === q.material && p.grain === q.grain &&
       sameCutSet(p.cuts, q.cuts) &&
-      // Exact, by design: joinery never touches angle cuts, so their round trip is identity (AI-tapers spec §5.4a).
+      // Exact, by design: joinery re-anchors angle cuts only by `rebaseAngleCuts`, which `readJoints` undoes exactly, so
+      // their round trip is identity (AI-tapers spec §5.4a; AI-angles spec §4).
       p.angleCuts.length === q.angleCuts.length && p.angleCuts.every((c, k) => sameAngleCut(c, q.angleCuts[k]!));
   });
 }

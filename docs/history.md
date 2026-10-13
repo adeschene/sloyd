@@ -416,6 +416,30 @@ and 79.
 
 ## What each round did
 
+**What AI angles chunk 1 did (2026-10-13, fu 276/277's remainder, fu 307)** (spec
+`docs/superpowers/specs/2026-10-13-sloyd-ai-angles-design.md`, plan `docs/superpowers/plans/2026-10-13-sloyd-ai-angles-chunk1.md`).
+Add joinery and Repair stop refusing mitered, beveled and chamfered projects. The user's rulings: accept the angles with no
+new joint kinds; a miter does not hold (a sloped face is never a contact); world words for every kind (chunk 2); two
+chunks; and, ruled while writing the spec, the tenon-clearance exception (a chamfer or bevel running the length of a rail
+through its tenoned end is allowed when it clears the tenon's section, so chamfered rails stay joinable). Every angle cut
+gets a touched box (`touchedRegion`: the smallest box holding all it can remove); contact (`contactRegions`) applies the
+taper rule unchanged, then splits what is left around each other cut's touched box (`splitRegion`, disjoint pieces, never
+removed wood). `angleConflicts` refuses a cut whose touched box overlaps a joint's patch by more than TOUCH, except a cut
+on the entering part that clears the tenon; `jointRefusal` is the one sentence-per-part message (a taper's sentence wins
+on its part). `rebaseAngleCuts` keeps every angle cut on its wood when joinery grows or trims a part (fu 307 closed).
+`isTapered` became `isAngled`. Three spec examples were corrected while planning against the code (an upright mitered
+frame reports its top rail, `unsupported`, not its stiles, whose long points reach the floor; the refused rail chamfer is
+5/8in, since a 1/2in width leg exactly meets the 1/2in shoulder; Repair never read the joinery refusal). Executing, three
+plan fixtures were too weak (two mutants survived until strengthened; a flush-apron fixture used absolute coordinates on
+a centred design). Live, on a fresh dev origin (port 5241): the joinery dialog showed the miter sentence for a rail
+mitered at its leg and listed "Rail X → Leg: end into face" for the 1/8in-chamfered rail
+(`docs/browser-verification-ai-angles.md`). The final review (a fresh reviewer) found: the unjoin gate did not undo the
+rebase, so a joined Refine or Repair refused a re-anchored cut and blamed the user (fixed, `resizeAt`); and a hairline cut
+under TOUCH on a growing joined end passed the joint rule, then bit the tenon as the part grew through its fixed line —
+the spec contradicted itself (§3 allowed it, §4 assumed it refused), so it went to the user, who ruled: refuse it,
+however small. Minors recorded as fu 321. Test count 3474 -> 3501. No schema change (SCHEMA 14); rollback is free. On
+`ai-angles-1`.
+
 **What standard views + image export did (2026-10-13, feature-gaps §2, fu 260)** (spec
 `docs/superpowers/specs/2026-10-13-sloyd-standard-views-image-design.md`, plan
 `docs/superpowers/plans/2026-10-13-sloyd-standard-views-image.md`, executed inline with one whole-branch review): the View

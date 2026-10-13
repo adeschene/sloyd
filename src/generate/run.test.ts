@@ -17,7 +17,7 @@ import { DESIGN_SCHEMA, designToDocument, parseDesign } from '../document/genera
 import { checkDesign } from '../document/designCheck';
 import type { LlmClient, LlmRequest, LlmResult, LlmUsage } from '../llm/types';
 import { CHARS_PER_TOKEN } from './estimate';
-import { taperCut } from '../document/angleCuts';
+import { miterCut, taperCut } from '../document/angleCuts';
 import { axisFrame, endFacing } from '../document/geometry';
 import type { AngleCut } from '../document/types';
 import type { WorldTaper } from '../document/taperWorld';
@@ -757,18 +757,23 @@ describe('runRefine — joined designs', () => {
   });
 });
 
-const TAPER = { id: 'a1', kind: 'taper' as const, face: 'width' as const, from: 'min' as const, along: 'length' as const, alongFrom: 'min' as const, points: [[0, 0.5], [20, 0]] as [[number, number], [number, number]] };
-const angledDoc = (): SloydDocument => ({ ...createDocument('T'), boards: [
-  createBoard({ id: 'leg', name: 'Leg', angleCuts: [{ ...TAPER, kind: 'miter' as const }] }), createBoard({ id: 'apron', name: 'Apron', position: [1.75, 20, 0] }),
-] });
+const angledDoc = (): SloydDocument => {
+  const made = designToDocument({ name: 'T', parts: [
+    { name: 'Leg', material: 'oak', at: { x: 0, y: 0, z: 0 }, size: { x: 1.75, y: 28, z: 1.75 } },
+    { name: 'Rail', material: 'oak', at: { x: 1.75, y: 23.5, z: 0.5 }, size: { x: 18, y: 3, z: 0.75 } },
+  ] } as never, { centre: false }).doc;
+  return { ...made, boards: made.boards.map((b) => (b.name === 'Rail' && !('shape' in b)
+    ? { ...b, angleCuts: [{ id: 'm', ...miterCut({ end: endFacing(b, 0, -1), across: 'thickness', longSide: endFacing(b, 2, -1), ratio: 1 }, b) }] } : b)) };
+};
 
-describe('runJoinery — angled documents (spec §6)', () => {
-  it('refuses before any call and leaves the document alone', async () => {
+describe('runJoinery — a miter running into a joint (AI-angles spec §3)', () => {
+  it('refuses before any call, names the part, and leaves the document alone', async () => {
     const { client } = fakeClient([GOOD]);
     const doc = angledDoc();
+    expect(doc.boards.some((b) => 'angleCuts' in b && b.angleCuts.length > 0)).toBe(true);
     const before = JSON.stringify(doc);
     const out = await runJoinery(client, doc, new AbortController().signal, () => {});
-    expect('refused' in out).toBe(true);
+    expect('refused' in out && out.refused).toContain("Rail's miter runs into its joint with Leg");
     expect(client.complete).not.toHaveBeenCalled();
     expect(JSON.stringify(doc)).toBe(before);
   });

@@ -5084,9 +5084,12 @@ length x width must fit the stock's thickness x width. **Status:** open.
 **275. Stopped angle cuts** (a stopped chamfer, a two-stage taper). Spec §11. **Status:** open.
 
 **276. Angle-aware joinery** (splined and biscuited miters). Add joinery, Refine and Repair joints refuse angled
-documents (spec §6). **Status:** open.
+documents (spec §6). **Status:** open for the joint kinds (splined, biscuited, keyed miters). Accepting angled documents
+is the AI-angles spec (`2026-10-13-sloyd-ai-angles-design.md`): chunk 1 (2026-10-13) lets Add joinery and Repair run on
+mitered, beveled and chamfered projects, refusing only an angle cut that runs into a joint; Refine is chunk 2.
 
-**277. Generate emitting tapers and miters.** `designToDocument` emits `angleCuts: []`. **Status:** open.
+**277. Generate emitting tapers and miters.** `designToDocument` emits `angleCuts: []`. **Status:** tapers closed (AI tapers
+chunk 2, 2026-10-13); miters, bevels and chamfers are AI-angles chunk 2, open.
 
 **278. A "taper all four faces" shortcut.** **Status:** open.
 
@@ -5244,7 +5247,11 @@ deep end, e.g. `alongFrom: 'max'` with points `[[20,0],[28,0.5]]`) is anchored a
 not touch angle cuts, so joinery shifts and slightly deepens it, and the post-run gate does not re-check the taper rule.
 Everything the app writes is canonical (`taperCut` stores `alongFrom = end`), so only hand-edited or imported files reach it.
 Remedy when touched: rewrite a resized part's tapers into canonical form via `taperCut(taperFields(c))` (fu 297 precedent).
-**Status:** open.
+**Status:** closed 2026-10-13 (AI-angles chunk 1, branch `ai-angles-1`). The named remedy was not adopted: it covers tapers
+only and rewrites stored values. Instead `rebaseAngleCuts` (`recipes.ts`, called from `resize` beside `rebaseCuts`) shifts
+every angle-cut station or depth measured FROM the moving end by the growth (or trim), one addition per number, so every
+kind keeps its wood exactly; a canonical cut is the same object. Pinned by the deep-end-last taper (RED by exactly the
+0.75in tenon before the fix), a trim, and two linked rails written back as one component.
 
 **308. "Taper the other end" is impossible for a part joined at both ends.** The taper-at-joint refusal for a joint on the
 thin end advises tapering the other end; a part joined at both ends has no such option (only "remove it" applies).
@@ -5324,3 +5331,12 @@ waits on the frame loop, so a capture asked for in a hidden tab completes when t
 `max-width: calc(100% - 220px)` depends on the Tools group staying under 220 px (a fourth tool would re-open the overlap);
 after a capture the gizmo's stabilize patch is re-installed on the fresh controls instance (`hidden` in its effect's deps),
 so its first frame back is unpatched, as after any selection change. **Status:** record-only.
+
+**321. AI angles chunk 1 minors (record-only; final review M1, M2).** (1) `angleConflicts` judges whether a RECEIVING
+part's touched box "reaches" the joint by the ENTERING part's touching face at a 1e-9 tolerance, while sites tolerate gaps
+up to TOUCH: a receiver chamfered on the joint face but sitting up to 1/32in apart is never caught (confirmed: a 3/4in leg
+chamfer flush with Rail X conflicts; Rail X moved 1/64in away, 0 conflicts and the mortise runs through the chamfer).
+Remedy when touched: test against the receiving part's own face (`r.min`/`r.max` by side) or with TOUCH. (2) Test gaps:
+Review Focus 2 pins only a turned MITER (its touched box spans the whole cross-section, so a width/thickness mix-up in the
+crossing would not show) — no turned or on-edge chamfer case; no bevel in the new contact or conflict tests; the split
+tests are board-local only (the `worldBox` crossing is pinned elsewhere). **Status:** record-only.

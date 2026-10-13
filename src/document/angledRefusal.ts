@@ -11,19 +11,12 @@ export function angledParts(doc: SloydDocument, allow: readonly AngleKind[] = []
 const shown = (names: string[]) => (names.length > 3 ? `${names.slice(0, 3).join(', ')}…` : names.join(', '));
 
 /**
- * Why Add joinery or Refine will not run on this document, or null (angle-cuts
- * spec §6; AI-tapers spec §4.3). Their checks and joints are box-based throughout
- * (invariants 38, 41): a mitered frame's stock boxes overlap at its corners, so a
- * run would report a false overlap or cut into air. Joinery accepts tapers — the
- * taper-at-joint rule (`generate/joints/tapers.ts`) guards those. Refine accepts
- * tapers it can describe exactly (AI-tapers chunk 2; `documentToDesign` refuses the rest) and refuses every other kind. Decided before any mutation or call.
+ * Why Refine will not run on this document, or null (angle-cuts spec §6; AI-tapers spec §4.3). Refine's checks and joints
+ * are box-based (invariants 38, 41): it accepts tapers it can describe exactly (`documentToDesign` refuses the rest) and
+ * refuses every other kind (AI-angles chunk 2 lifts that). Decided before any call. Joinery no longer reads this: its
+ * refusal is `jointRefusal` (AI-angles spec §3).
  */
-export function angledRefusal(doc: SloydDocument, action: 'joinery' | 'refine'): string | null {
-  if (action === 'joinery') {
-    const names = angledParts(doc, ['taper']);
-    if (names.length === 0) return null;
-    return `Add joinery doesn't handle mitered, beveled or chamfered parts yet (${shown(names)}). Add joinery before cutting those angles, or remove them.`;
-  }
+export function angledRefusal(doc: SloydDocument, _action: 'refine'): string | null {
   const names = angledParts(doc, ['taper']);
   if (names.length === 0) return null;
   return `Refine doesn't handle mitered, beveled or chamfered parts yet (${shown(names)}). Refine before cutting those angles, or remove them.`;
@@ -58,4 +51,26 @@ export function taperJointRefusal(flat: FlatDocument, conflicts: readonly TaperC
       ? `${name}'s taper runs to ${faceName('length', end)}, where it joins ${joint} — taper the other end, or remove it.`
       : `${name}'s taper runs into its joint with ${joint} — start it at ${formatLength(limit, p)} or less from ${faceName('length', end)}, or remove it.`;
   }).join(' ');
+}
+
+/** One miter, bevel or chamfer reaching into a joint (AI-angles spec §3). Indices are flat-document board indices. */
+export interface AngleConflict {
+  part: number;
+  other: number;
+  kind: 'miter' | 'bevel' | 'chamfer';
+}
+
+/**
+ * THE person-facing joint refusal (AI-angles spec §3): one sentence per part, in part order — a taper conflict's sentence
+ * (`taperJointRefusal`, unchanged) when the part has one, else its angle conflict's. Null when there is neither.
+ */
+export function jointRefusal(flat: FlatDocument, tapers: readonly TaperConflict[], angles: readonly AngleConflict[]): string | null {
+  const text = new Map<number, string>();
+  for (const c of tapers) text.set(c.part, taperJointRefusal(flat, [c])!);
+  for (const c of angles) {
+    if (text.has(c.part)) continue;
+    text.set(c.part, `${flat.boards[c.part]!.name}'s ${c.kind} runs into its joint with ${flat.boards[c.other]!.name} — add joinery before cutting it, or remove it.`);
+  }
+  if (text.size === 0) return null;
+  return [...text.keys()].sort((a, b) => a - b).map((p) => text.get(p)!).join(' ');
 }

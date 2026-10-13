@@ -1,5 +1,5 @@
 import { CURRENT_VERSION, migrateDocument, storedAsShape, flatDocument, worldParts } from '../../document/document';
-import type { Board, Cut, Dimension, FlatDocument, SloydDocument } from '../../document/document';
+import type { Board, Cut, CutFrom, Dimension, FlatDocument, SloydDocument } from '../../document/document';
 import { pocketCells, cutRegion } from '../../document/cuts';
 import { TOUCH, worldSolids } from '../../document/designCheck';
 import { SNAP_INCHES, axisDimensions, endFacing, positionAxisOf } from '../../document/geometry';
@@ -48,6 +48,7 @@ function resize(b: Board, k: number, side: -1 | 1, amount: number) {
   if (side === -1) b.position[k] -= amount;
   // The part end facing the world `side`: a turn may reverse axis k.
   rebaseCuts(b, d, endFacing(b, k, side), amount, was);
+  rebaseAngleCuts(b, d, endFacing(b, k, side), amount);
 }
 
 /**
@@ -178,6 +179,23 @@ function rebaseCuts(b: Board, d: Dimension, end: 'min' | 'max', amount: number, 
     c.stopMin = Math.max(0, c.stopMin);
     c.stopMax = Math.max(0, c.stopMax);
     return c.width > 1e-9 && c.stopMin + c.stopMax < b[c.across] - 1e-9;
+  });
+}
+
+/**
+ * AI-angles spec §4 (fu 307): `b` grew (or, negative, was trimmed) by `amount` at `end` of dimension `d`, so every
+ * angle-cut number MEASURED FROM that end — a station when `along` is `d`, a depth when `face` is `d` — shifts by
+ * `amount`, and the cut's wood stays exactly where it was. One addition per number, no trigonometry; a cut measured
+ * from the other end, or across another dimension, is the same object. `readJoints` (`unjoin.ts`) calls it with the
+ * opposite amount, its exact inverse. A grown part's cut measured along or into the growth that removes wood at the
+ * moving end is refused before any mutation, however small (`angleConflicts`, final review I2); a TRIM (a rabbet's, possibly on a part no site names) only removes wood, and the cut's plane stays put.
+ */
+export function rebaseAngleCuts(b: Board, d: Dimension, end: CutFrom, amount: number): void {
+  b.angleCuts = b.angleCuts.map((c) => {
+    const s = c.along === d && c.alongFrom === end ? amount : 0;
+    const q = c.face === d && c.from === end ? amount : 0;
+    if (s === 0 && q === 0) return c;
+    return { ...c, points: [[c.points[0][0] + s, c.points[0][1] + q], [c.points[1][0] + s, c.points[1][1] + q]] };
   });
 }
 

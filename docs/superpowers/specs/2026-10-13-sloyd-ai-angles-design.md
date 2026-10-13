@@ -1,6 +1,7 @@
 # Sloyd — the AI features accept miters, bevels and chamfers
 
-**Date:** 2026-10-13 · **Status:** approved in conversation (with the tenon-clearance exception, §3, ruled while writing); awaiting the user's review.
+**Date:** 2026-10-13 · **Status:** approved by the user (with the tenon-clearance exception, §3, ruled while writing; three
+examples corrected while planning, marked *amended*). Chunk 1 (§2–§4.1) implemented 2026-10-13 on `ai-angles-1`; chunk 2 open.
 **Builds on:** the angle-cuts spec (`2026-10-12-sloyd-angle-cuts-design.md`: the `AngleCut` model, §6 refusals) and the
 AI-tapers spec (`2026-10-13-sloyd-ai-tapers-design.md`: flat-wood contact, the taper-at-joint rule, world-direction design
 tapers), plus the generate, joinery, refine and refine-joined specs. Every rule there still holds unless this document
@@ -91,6 +92,11 @@ and comment follows.
   The tenon is the narrowest joint joinery can choose there (a dado or butt takes the whole end), so every joint kind
   stays whole; the cost is a small notch in the shoulder. A deeper cut, any miter (a miter never runs through its own
   end), any cut on the RECEIVING part, and any cut at another kind of site keep the overlap rule above.
+- **The growing part's joined end** (amended after the final review, the user's ruling): on the ENTERING part of an
+  `end-into-face` site — the part joinery lengthens there — a miter, bevel or chamfer measured along or into that length
+  (`along` or `face` is it) whose touched box reaches the joined end conflicts however small its overlap with the patch.
+  Joinery keeps such a cut's line fixed (§4) while the part grows through it, so a hairline cut under TOUCH would
+  otherwise bite the new tenon. Chamfers and bevels running the length (the clearance case) are unaffected.
 - One conflict per part, reported in `taperConflicts`' order (by part). A part with both a taper conflict and another
   kind's conflict reports the taper's.
 - **The message**, one sentence per part, in `angledRefusal.ts` (it is a string a person reads): "`<Part>`'s `<kind>` runs

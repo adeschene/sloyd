@@ -4,7 +4,7 @@ import type { RejectedPart } from './generated';
 import { pocketCells } from './cuts';
 import { clipConvex, partGeometry } from './bodies';
 import type { BodyFace } from './bodies';
-import { taperFields } from './angleCuts';
+import { splitRegion, taperFields, touchedRegion } from './angleCuts';
 import type { TaperConflict } from './angledRefusal';
 import { SNAP_INCHES, axisFrame, boardExtents, spanToWorldOffset, toWorldOffset } from './geometry';
 import { localToDir } from './taperWorld';
@@ -23,9 +23,9 @@ import { localToDir } from './taperWorld';
  *
  * Overlap is measured between SOLIDS (invariant 38): a cut explains an overlap by
  * removing the stock. Do not raise TOUCH to make joints pass.
- * Contacts, grounding and the tip footprint read `contactSolids` (a tapered part counts only where it is flat); overlap stays on
- * `worldSolids` except for a pair with a tapered part, measured on real bodies (fu 302); the tip check weighs a tapered part by
- * its real bodies (`partMass`, fu 303).
+ * Contacts, grounding and the tip footprint read `contactSolids` (an angled part counts only where it is flat; a sloped face
+ * is never a contact); overlap stays on `worldSolids` except for a pair with an angled part, measured on real bodies (fu 302);
+ * the tip check weighs an angled part by its real bodies (`partMass`, fu 303).
  */
 export type ViolationKind = 'too-small' | 'overlap' | 'unsupported' | 'too-large' | 'too-many-parts' | 'hangs' | 'tips' | 'taper-joint';
 export interface Violation { kind: ViolationKind; message: string; parts: string[] }
@@ -90,7 +90,7 @@ function tipsMessage(boxes: Box[], grounded: Set<number>, footprint: (i: number)
   if (floor.length === 0) return null;
   let vol = 0, cx = 0, cz = 0;
   for (const i of grounded) {
-    // A tapered part weighs its real solid (fu 303); every other part its box, by the same arithmetic as before.
+    // An angled part weighs its real solid (fu 303); every other part its box, by the same arithmetic as before.
     const real = mass(i);
     if (real) {
       // A part its cuts consumed has no wood and no weight (its centre would be NaN and poison the sum).
@@ -271,33 +271,30 @@ export function worldBox(b: Board, s: Region): Box {
  * Boxes: rectangular cuts only, angle cuts ignored — `drawing.ts`'s `worldBodies` adds angle
  * cuts for the drawings (spec §3.5). Overlap and joinery's blockers/trims are measured on these
  * solids; held/hangs contacts, grounding and the tip footprint read `contactSolids` when a part is
- * tapered (untapered parts keep these solids for contacts, and their whole boxes for grounding and
- * the footprint). Joinery refuses every non-taper angle
- * cut and any taper running into a joint (`generate/joints/tapers.ts`).
+ * angled (unangled parts keep these solids for contacts, and their whole boxes for grounding and
+ * the footprint). Joinery refuses any angle cut running into a joint (`generate/joints/tapers.ts`).
  */
 export function worldSolids(b: Board): Box[] {
   return pocketCells(b).map((s) => worldBox(b, s));
 }
 
-/** A part carrying any angle cut — for the checks, every one of them is a taper (spec §3.2; others are refused upstream). */
-export const isTapered = (b: Board): boolean => b.angleCuts.length > 0;
+/** A part carrying any angle cut: the checks read its real bodies (overlap, weight) and its flat wood (contact). */
+export const isAngled = (b: Board): boolean => b.angleCuts.length > 0;
 
 /**
- * A part's solids AS FAR AS CONTACT CAN TRUST THEM (AI-tapers spec §3.2), world boxes.
- * No taper: exactly `worldSolids`. Tapered: every pocket cell clipped, along the length,
- * to the stations no taper removes (a side face is trusted only where it is still flat —
- * conservative for the faces beside a sloped one too), plus, at each end a taper runs
- * toward, a zero-thickness slab per cell reaching it, shrunk by each such taper's amount.
- * The second reader of angle cuts besides `boardBodies` (invariant 48): tapers only,
- * never claiming wood a taper removed. Read through `taperFields`, so a line stored
- * deep-end-last reads as the same taper.
+ * A part's solids AS FAR AS CONTACT CAN TRUST THEM (AI-tapers spec §3.2; AI-angles spec §2), board-local regions.
+ * No angle cut: exactly `pocketCells`. Tapers first, unchanged: every pocket cell clipped, along the length, to the
+ * stations no taper removes (a side face is trusted only where it is still flat — conservative for the faces beside a
+ * sloped one too), plus, at each end a taper runs toward, a zero-thickness slab per cell reaching it, shrunk by each such
+ * taper's amount (read through `taperFields`, so a line stored deep-end-last reads as the same taper). Then every miter,
+ * bevel and chamfer splits what is left around its touched box (`splitRegion`): a sloped face is never a contact, and
+ * nothing a cut removes is ever trusted. The second reader of angle cuts besides `boardBodies` (invariant 48),
+ * box-valued, never over-claiming wood.
  */
-export function contactSolids(b: Board): Box[] {
-  if (!isTapered(b)) return worldSolids(b);
-  const tapers = b.angleCuts.map((c) => {
-    if (c.kind !== 'taper') throw new Error(`contactSolids: ${b.name} carries a ${c.kind}; only tapers reach the checks`);
-    return taperFields(c, b);
-  }).filter((t) => t.amount > 0);
+export function contactRegions(b: Board): Region[] {
+  const cells = pocketCells(b);
+  if (!isAngled(b)) return cells;
+  const tapers = b.angleCuts.filter((c) => c.kind === 'taper').map((c) => taperFields(c, b)).filter((t) => t.amount > 0);
   const L = b.length;
   let lo = 0;
   let hi = L;
@@ -305,8 +302,7 @@ export function contactSolids(b: Board): Box[] {
     if (t.end === 'min') lo = Math.max(lo, t.start);
     else hi = Math.min(hi, L - t.start);
   }
-  const cells = pocketCells(b);
-  const out: Region[] = [];
+  let out: Region[] = [];
   for (const r of cells) {
     const l0 = Math.max(r.length[0], lo);
     const l1 = Math.min(r.length[1], hi);
@@ -326,7 +322,18 @@ export function contactSolids(b: Board): Box[] {
       if (slab.width[0] < slab.width[1] && slab.thickness[0] < slab.thickness[1]) out.push(slab);
     }
   }
-  return out.map((s) => worldBox(b, s));
+  for (const c of b.angleCuts) {
+    if (c.kind === 'taper') continue;
+    const t = touchedRegion(b, c);
+    if (t) out = out.flatMap((r) => splitRegion(r, t, c));
+  }
+  return out;
+}
+
+/** `contactRegions` in world space; exactly `worldSolids` for a part with no angle cut. */
+export function contactSolids(b: Board): Box[] {
+  if (!isAngled(b)) return worldSolids(b);
+  return contactRegions(b).map((s) => worldBox(b, s));
 }
 const solidBoxesOf = (doc: FlatDocument): Box[][] => doc.boards.map(worldSolids);
 
@@ -338,7 +345,7 @@ const dot3 = (a: readonly number[], b: readonly number[]) => a[0]! * b[0]! + a[1
  * A part's bodies (boardBodies: pocket cells clipped by its angle cuts) in WORLD space, each as faces with outward
  * normals — the checks' home of the body crossing (drawing.ts' worldBodies is the drawings'; a box body's extents are
  * pinned against worldBox in every posture and turn by test) — the same crossing as worldBox (position + toWorldOffset on the dimension each axis shows; a reversed axis
- * flips the normal). The checks read it only for a tapered part (fu 302, 303).
+ * flips the normal). The checks read it only for an angled part (fu 302, 303).
  */
 export function worldBodyFaces(b: Board): BodyFace[][] {
   const frame = axisFrame(b);
@@ -363,11 +370,11 @@ function bodyOverlap(p: BodyFace[], q: BodyFace[]): number[] | null {
 
 /**
  * A part's volume and world centre for the tip check (fu 303). Untapered: its box, by the same arithmetic as before
- * (a notched part still weighs its box). Tapered: its real bodies, each split into tetrahedra from an interior point
+ * (a notched part still weighs its box). Angled: its real bodies, each split into tetrahedra from an interior point
  * (the mean of its vertices: a convex body contains it), volumes and centroids summed.
  */
 export function partMass(b: Board): { v: number; c: P3 } {
-  if (!isTapered(b)) {
+  if (!isAngled(b)) {
     const e = boardExtents(b);
     return { v: e[0] * e[1] * e[2], c: [0, 1, 2].map((i) => b.position[i]! + e[i]! / 2) as P3 };
   }
@@ -428,9 +435,9 @@ export function checkDesign(doc: FlatDocument, limits: DesignLimits): Violation[
   for (let i = 0; i < boxes.length; i++) {
     for (let j = 0; j < i; j++) {
       let worst: number[] | null = null;
-      // A pair with a tapered part is measured on real solids (fu 302): a box would claim wood the taper removed. Only
+      // A pair with an angled part is measured on real solids (fu 302): a box would claim wood an angle cut removed. Only
       // when the boxes overlap at all: a body lies inside its cell, so the bodies cannot overlap where the boxes do not.
-      const real = (isTapered(doc.boards[i]!) || isTapered(doc.boards[j]!))
+      const real = (isAngled(doc.boards[i]!) || isAngled(doc.boards[j]!))
         && solids[i].some((p) => solids[j].some((q) => [0, 1, 2].every((k) => shared(p, q, k) > TOUCH)));
       const pairs: [Box | BodyFace[], Box | BodyFace[]][] = real
         ? bodiesOf(i).flatMap((p) => bodiesOf(j).map((q) => [p, q] as [BodyFace[], BodyFace[]]))
@@ -449,7 +456,7 @@ export function checkDesign(doc: FlatDocument, limits: DesignLimits): Violation[
   }
 
   // Contact trusts only flat wood (AI-tapers spec §3.3); overlap above stays on the full solids.
-  const tapered = doc.boards.map(isTapered);
+  const tapered = doc.boards.map(isAngled);
   const touching = doc.boards.map((b, i) => (tapered[i] ? contactSolids(b) : solids[i]));
   const grounded = groundedSet(boxes, touching, tapered);
   boxes.forEach((b, i) => {

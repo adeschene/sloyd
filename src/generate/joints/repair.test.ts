@@ -6,7 +6,7 @@ import f4 from './fixtures/4-cases-every-kind.json?raw';
 import f5 from './fixtures/5-rail-enters-once.json?raw';
 import f6 from './fixtures/6-nested.json?raw';
 import { flatDocument, makeUniqueItem, migrateDocument, removeItems, writeBackFlat } from '../../document/document';
-import type { Board, Cut, FlatDocument, SloydDocument } from '../../document/document';
+import type { AngleCut, Board, Cut, FlatDocument, SloydDocument } from '../../document/document';
 import { findSites, jointKey } from './sites';
 import { applyJoints } from './recipes';
 import { cutBox, gateUnjoin, sameCut, sameJoined } from './unjoin';
@@ -245,15 +245,21 @@ describe('splitCopies', () => {
 });
 
 const TAPER = { id: 'a1', kind: 'taper' as const, face: 'width' as const, from: 'min' as const, along: 'length' as const, alongFrom: 'min' as const, points: [[0, 0.5], [20, 0]] as [[number, number], [number, number]] };
-const MITER = { ...TAPER, kind: 'miter' as const };
-const withAngle = (doc: SloydDocument, cut: typeof TAPER | typeof MITER): SloydDocument =>
+const CHAMFER: AngleCut = { id: 'a1', kind: 'chamfer', face: 'width', from: 'max', along: 'thickness', alongFrom: 'max', points: [[0, 0.125], [0.125, 0]] };
+const withAngle = (doc: SloydDocument, cut: AngleCut): SloydDocument =>
   ({ ...doc, definitions: doc.definitions.map((d, i) => (i === 0 ? { ...d, boards: d.boards.map((b, j) => (j === 0 ? { ...b, angleCuts: [cut] } : b)) } : d)) });
 describe('repairDocument — angled documents (AI-tapers spec §4.3)', () => {
-  it('offers nothing when any non-taper angle cut is present', () => {
+  it('repairs a chamfered document as it would the plain one, keeping the chamfer (AI-angles spec §4)', () => {
     const fx = load(f1);
-    const angled = withAngle(fx.damaged, MITER);
-    expect(flatDocument(angled).boards.some((b) => b.angleCuts.length > 0)).toBe(true);
-    expect(repairDocument(angled)).toBeNull();
+    const r0 = repairDocument(fx.damaged);
+    if (r0 === null || 'refused' in r0) throw new Error('expected a repair');
+    const input = withAngle(fx.damaged, CHAMFER);
+    const r = repairDocument(input);
+    if (r === null || 'refused' in r) throw new Error(`expected a repair, got ${JSON.stringify(r)}`);
+    expect(r.dropped).toBe(r0.dropped);
+    const angled = (d: SloydDocument) => flatDocument(d).boards.filter((b) => b.angleCuts.length > 0).map((b) => [b.name, b.angleCuts]);
+    expect(angled(r.doc)).toEqual(angled(input));
+    expect(angled(r.doc).length).toBeGreaterThan(0);
   });
   it('repairs a taper-only document as it would the plain one', () => {
     const fx = load(f1);

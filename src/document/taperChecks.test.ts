@@ -3,7 +3,8 @@ import { checkDesign, partMass, worldBodyFaces, worldBox } from './designCheck';
 import { partGeometry } from './bodies';
 import { createBoard, createDocument } from './document';
 import type { Board, Posture, Rotation } from './document';
-import { taperCut } from './angleCuts';
+import { chamferCut, miterCut, taperCut } from './angleCuts';
+import { axisFrame, endFacing } from './geometry';
 import { pocketCells } from './cuts';
 import { designToDocument } from './generated';
 import { flatDocument } from './tree';
@@ -107,5 +108,45 @@ describe('the checks\' world bodies (review of fu 302/303)', () => {
     const post = createBoard({ name: 'Post', length: 20, width: 4, thickness: 4, posture: 'upright', position: [8, 0.5, 3] });
     expect(tipsOf([base, post])).toHaveLength(1);
     expect(tipsOf([base, post, leg(all)])).toEqual(tipsOf([base, post]));
+  });
+});
+
+describe('the checks on mitered and chamfered parts (AI-angles spec §2)', () => {
+  const lim = { width: null, depth: null, height: null, maxParts: 20 };
+  const reports = (boards: Board[]) =>
+    checkDesign(flatDocument({ ...createDocument('T'), boards }), lim).map((v) => `${v.kind}:${v.parts.join(',')}`);
+
+  it('a top chamfered on its upper edges still rests on its posts', () => {
+    const posts = [[0, 0], [16, 0], [0, 16], [16, 16]].map(([x, z], i) =>
+      createBoard({ name: `Post ${i + 1}`, posture: 'upright', position: [x!, 0, z!], length: 10, width: 2, thickness: 2 }));
+    const top = createBoard({ name: 'Top', position: [0, 10, 0], length: 18, width: 18, thickness: 1 });
+    expect(axisFrame(top)[1]!.dim).toBe('thickness');
+    // Chamfer the two +Y edges along the length: width (Z) min/max, thickness (Y) max.
+    const up = { face: 'width' as const, along: 'thickness' as const, alongFrom: endFacing(top, 1, 1), legFace: 0.25, legAlong: 0.25 };
+    const chamfered: Board = { ...top, angleCuts: [
+      { id: 'c1', ...chamferCut({ ...up, from: endFacing(top, 2, -1) }, top) },
+      { id: 'c2', ...chamferCut({ ...up, from: endFacing(top, 2, 1) }, top) },
+    ] };
+    expect(reports([...posts, top])).toEqual([]);
+    expect(reports([...posts, chamfered])).toEqual([]);
+  });
+
+  it("the top rail of an upright mitered frame, held only by its miters, is reported (the user's ruling)", () => {
+    // A frame in the X-Y plane, 3/4 thick in Z, 1.5 wide members, 12 x 12 outside, standing on the floor.
+    const stile = (name: string, x: number, outer: -1 | 1): Board => {
+      const b = createBoard({ name, posture: 'upright', position: [x, 0, 0], length: 12, width: 1.5, thickness: 0.75 });
+      expect(axisFrame(b)[0]!.dim).toBe('width');
+      // Mitered at the top across the width (X), long point on the outer side.
+      return { ...b, angleCuts: [{ id: 'm', ...miterCut({ end: endFacing(b, 1, 1), across: 'width', longSide: endFacing(b, 0, outer), ratio: 1 }, b) }] };
+    };
+    const b = createBoard({ name: 'Top rail', posture: 'on-edge', position: [0, 10.5, 0], length: 12, width: 1.5, thickness: 0.75 });
+    expect(axisFrame(b)[0]!.dim).toBe('length');
+    expect(axisFrame(b)[1]!.dim).toBe('width');
+    // Mitered at both ends across the width (Y), long points on the top.
+    const rail: Board = { ...b, angleCuts: ([-1, 1] as const).map((s, i) =>
+      ({ id: `m${i}`, ...miterCut({ end: endFacing(b, 0, s), across: 'width', longSide: endFacing(b, 1, 1), ratio: 1 }, b) })) };
+    const out = reports([stile('Left', 0, -1), stile('Right', 10.5, 1), rail]);
+    expect(out.some((k) => k.startsWith('overlap'))).toBe(false);   // the real bodies meet only on the diagonals
+    expect(out).toContain('unsupported:Top rail');                   // a sloped face is never a contact
   });
 });
