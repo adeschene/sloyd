@@ -21,10 +21,10 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-13: AI-tapers chunk 2 (merge `f7a6202`) plus fu 311's fix (`158b2b6`) —
-  bundle `index-iDivrN-T.js`, CSS `index-BkjfVfaC.css`, **SCHEMA 14** (unchanged since angle cuts chunk 1, so rolling back to
-  `f7a6202`, `index-DWTxNeO6.js`, `71510e5`, `index-B4V-pkp9.js`, or any 14 build is free; below 14, `47548d3`, REFUSES every
-  project saved since: export first). Test count is under Commands.
+- **Production matches `master`** as of 2026-10-13: AI-tapers chunk 2 (merge `f7a6202`) plus fu 311 (`158b2b6`) and fu 310
+  (`721cfba`) — bundle `index-CV1sw3YE.js`, CSS `index-BkjfVfaC.css`, **SCHEMA 14** (unchanged since angle cuts chunk 1, so
+  rolling back to `158b2b6`, `index-iDivrN-T.js`, `f7a6202`, `index-DWTxNeO6.js`, or any 14 build is free; below 14,
+  `47548d3`, REFUSES every project saved since: export first). Test count is under Commands.
 - **NEXT: none chosen — ask.** The AI-tapers feature (the user's "the AI integration") is complete: one prompt gives tapered
   legs with joinery. Open near it: fu 313,
   301–303 (mirrored-component legs, box-based overlap and centre of mass), 276/277's rest (miters, bevels and chamfers in the

@@ -18,6 +18,12 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-13 with fu 310's fix live** (`index-CV1sw3YE.js`, CSS `index-BkjfVfaC.css`
+unchanged, commit `721cfba`, **schema 14**). Refine's change list diffs tapers face by face at display precision. Verified:
+`200` on `/` and a deep route in-network and at the edge; bundle matches `dist/` at both; `index-iDivrN-T.js` 404s in-network;
+CSP unchanged; a real-browser load with 0 errors, the Cloudflare beacon and "+ Add board" present; the load's two fresh keys
+(`version: 14`) cleared and read back empty after 3s, then navigated away. Unit-tested only.
+
 **Production matches `master` as of 2026-10-13 with fu 311's fix live** (`index-iDivrN-T.js`, CSS `index-BkjfVfaC.css`
 unchanged, commit `158b2b6`, **schema 14**). An unjoined Refine lists its taper fault once, in the person's words. Verified:
 `200` on `/` and a deep route in-network and at the edge; bundle matches `dist/` at both; `index-DWTxNeO6.js` 404s in-network;
@@ -382,6 +388,11 @@ and 79.
 ---
 
 ## What each round did
+
+**What fu 310 did (2026-10-13)**, at the user's word: `designDiff` compares tapers face by face (a sloped face toward one end)
+at display precision, so only faces added, removed or changed get a line ("taper removed (-x)" when one of two goes), faces
+sharing a kind and values share a line, and a regrouping or a sub-display difference is not a change. Done directly
+(bounded), five tests, two mutations.
 
 **What fu 311 did (2026-10-13)**, at the user's word after AI tapers shipped ("show the fault only once"): when a joined Refine
 comes back unjoined, the dialog no longer lists the model-facing `taper-joint` violation under the "Joints were not
