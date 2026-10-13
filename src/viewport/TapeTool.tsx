@@ -44,7 +44,7 @@ const TAPE_COLOR = SNAP_COLORS.guide;
  *
  * Renders nothing and listens to nothing unless `tool === 'tape'`.
  */
-export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
+export function TapeTool({ showGuides = true, hidden = false }: { showGuides?: boolean; hidden?: boolean }) {
   const tool = useStore((s) => s.tool);
   const boards = useStore((s) => worldParts(s.doc));
   const hiddenIds = useStore((s) => s.hiddenIds);
@@ -354,7 +354,9 @@ export function TapeTool({ showGuides = true }: { showGuides?: boolean }) {
     [anchor?.at[0], anchor?.at[1], anchor?.at[2], lineEnd?.[0], lineEnd?.[1], lineEnd?.[2]],
   );
 
-  if (tool !== 'tape') return null;
+  // `hidden`: the capture's clean frame (standard-views spec §3.2). The listeners and held points stay
+  // live (invariant 24: a capture moves nothing and writes no held point).
+  if (tool !== 'tape' || hidden) return null;
 
   return (
     <>

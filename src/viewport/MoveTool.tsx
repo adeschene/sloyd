@@ -41,7 +41,7 @@ const isBoardOwned = (p: SnapPoint): p is BoardSnapPoint => p.owner.type === 'bo
  *
  * Renders nothing and listens to nothing unless `tool === 'move'`.
  */
-export function MoveTool({ showGuides = true }: { showGuides?: boolean }) {
+export function MoveTool({ showGuides = true, hidden = false }: { showGuides?: boolean; hidden?: boolean }) {
   const tool = useStore((s) => s.tool);
   const doc = useStore((s) => s.doc);
   const boards = useStore((s) => worldParts(s.doc));
@@ -190,7 +190,8 @@ export function MoveTool({ showGuides = true }: { showGuides?: boolean }) {
     // resubscribe.
   }, [tool, candidates, gl, camera, size.width, size.height]);
 
-  if (tool !== 'move') return null;
+  // `hidden`: the capture's clean frame (standard-views spec §3.2) — the listeners stay live.
+  if (tool !== 'move' || hidden) return null;
 
   return (
     <>

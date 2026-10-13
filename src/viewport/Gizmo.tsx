@@ -228,7 +228,7 @@ function stabilizeTranslateGizmo(
 }
 // -------------------------------------------------------------------------
 
-export function Gizmo() {
+export function Gizmo({ hidden = false }: { hidden?: boolean } = {}) {
   // Bare fields, derived below — a selector returning a fresh array would
   // re-render on every set() (invariant 34's selector rule).
   const boards = useStore((s) => worldParts(s.doc));
@@ -364,7 +364,9 @@ export function Gizmo() {
     }
   }, []);
 
-  if (!center || !size) return null;
+  // `hidden` is the capture's clean frame (standard-views spec §3.2): drawn as nothing for one frame,
+  // never unmounted — the unmount cleanup above would end an in-flight gesture.
+  if (!center || !size || hidden) return null;
 
   const commit = () => {
     if (abandoned.current) return;

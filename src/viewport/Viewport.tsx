@@ -192,6 +192,59 @@ function CameraKeys({ suspended, viewRef }: {
 }
 
 /**
+ * Save image's clean frame (standard-views spec §3.2). `capture()` sets `clean`; the frame after that commit
+ * renders the scene without selection, fading or tool markers and reads the canvas IN THE SAME TASK — the
+ * drawing buffer is intact until the browser composites, so preserveDrawingBuffer (a cost on every frame)
+ * stays off. A second call while one is in flight gets the same promise: one click, one file.
+ */
+function Capture({ clean, setClean, captureRef }: {
+  clean: boolean;
+  setClean: (v: boolean) => void;
+  captureRef: { current: (() => Promise<Blob | null>) | null };
+}) {
+  const gl = useThree((s) => s.gl);
+  const scene = useThree((s) => s.scene);
+  const camera = useThree((s) => s.camera);
+  const pending = useRef<((png: Blob | null) => void) | null>(null);
+  const inFlight = useRef<Promise<Blob | null> | null>(null);
+
+  useEffect(() => {
+    captureRef.current = () => {
+      if (inFlight.current) return inFlight.current;
+      inFlight.current = new Promise<Blob | null>((resolve) => { pending.current = resolve; });
+      setClean(true);
+      return inFlight.current;
+    };
+    return () => {
+      captureRef.current = null;
+      pending.current?.(null);
+      pending.current = null;
+    };
+  }, [captureRef, setClean]);
+
+  // useFrame's callback is refreshed in a layout effect, so `clean` here is true only once the clean
+  // render has COMMITTED — the meshes and tools are already drawn clean.
+  useFrame(() => {
+    const resolve = pending.current;
+    if (!clean || !resolve) return;
+    pending.current = null;
+    const finish = (png: Blob | null) => {
+      inFlight.current = null;
+      setClean(false);
+      resolve(png);
+    };
+    try {
+      gl.render(scene, camera);
+      gl.domElement.toBlob(finish, 'image/png');
+    } catch {
+      finish(null);
+    }
+  });
+
+  return null;
+}
+
+/**
  * The ground grid, coarsening as the camera pulls back.
  *
  * One inch per cell is the app's unit and stays that way whenever an inch is
@@ -319,6 +372,7 @@ export function Viewport({
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const tool = useStore((s) => s.tool);
 
+  const [clean, setClean] = useState(false);
   const viewRef = useRef<((v: StandardView) => void) | null>(null);
   const captureRef = useRef<(() => Promise<Blob | null>) | null>(null);
   useEffect(() => {
@@ -431,10 +485,10 @@ export function Viewport({
           key={board.id}
           board={board}
           offset={offsets?.get(board.id)}
-          selected={isCovered(board.id, selectedSet)}
+          selected={!clean && isCovered(board.id, selectedSet)}
           // Faded, but still clickable: a click outside the open assembly
           // closes it (assemblies spec §3.3). Never pass selectable={false} for this.
-          faded={openPath !== null && !board.id.startsWith(`${openPath}/`)}
+          faded={!clean && openPath !== null && !board.id.startsWith(`${openPath}/`)}
           onOpen={(id) => useStore.getState().openPart(id)}
           onSelect={selectByClick}
           selectable={tool === 'select'}
@@ -444,10 +498,11 @@ export function Viewport({
       {/* The gizmo's handles sit over the very board whose corner the Move
           tool is trying to grab, and it captures the pointer first. There is
           no way to share the pointer between them, so it is not rendered. */}
-      {tool === 'select' && explode === 0 && <Gizmo />}
-      <MoveTool showGuides={showGuides} />
-      <TapeTool showGuides={showGuides} />
+      {tool === 'select' && explode === 0 && <Gizmo hidden={clean} />}
+      <MoveTool showGuides={showGuides} hidden={clean} />
+      <TapeTool showGuides={showGuides} hidden={clean} />
       <CameraKeys suspended={shortcutsSuspended} viewRef={viewRef} />
+      <Capture clean={clean} setClean={setClean} captureRef={captureRef} />
       <ClickPairs />
       {/*
         Damping is OFF, and that is the fix for the grid shimmer — not a
