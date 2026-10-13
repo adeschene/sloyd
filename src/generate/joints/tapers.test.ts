@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { designToDocument, parseDesign } from '../../document/generated';
-import { chamferCut, flatDocument, migrateDocument, miterCut, taperCut, worldParts, writeBackFlat } from '../../document/document';
+import { chamferCut, depthAt, flatDocument, migrateDocument, miterCut, taperCut, worldParts, writeBackFlat, zeroStation } from '../../document/document';
 import { SHAKER_TABLE_JSON } from '../../document/shakerTableFixture';
-import type { AngleCut, Board, FlatDocument } from '../../document/document';
-import { axisDimensions, axisFrame, boardCenter, endFacing } from '../../document/geometry';
+import type { AngleCut, Board, FlatDocument, SloydDocument } from '../../document/document';
+import { axisDimensions, axisFrame, boardCenter, endFacing, toWorldOffset } from '../../document/geometry';
 import { worldTapers } from '../../document/taperWorld';
 import { formatLength } from '../../units/length';
 import { findSites } from './sites';
 import { angleConflicts, joineryRefusal, taperConflicts, taperFaults } from './tapers';
 import { taperJointRefusal } from '../../document/angledRefusal';
 import { checkDesign } from '../../document/designCheck';
-import { applyJoints } from './recipes';
+import { applyJoints, rebaseAngleCuts } from './recipes';
 import { defaultChoice } from './choose';
 
 type P = { name: string; at: [number, number, number]; size: [number, number, number] };
@@ -360,5 +360,84 @@ describe('angleConflicts — a miter, bevel or chamfer reaching into a joint (AI
     expect(checkDesign(mitered, { width: null, depth: null, height: null, maxParts: 10 }).filter((v) => v.kind === 'overlap')).toEqual([]);
     // Unmitered, the same pair overlaps: the miters are what make it clean.
     expect(checkDesign(pair, { width: null, depth: null, height: null, maxParts: 10 }).filter((v) => v.kind === 'overlap')).toHaveLength(1);
+  });
+});
+
+describe('joinery keeps angle cuts where they are on the wood (AI-angles spec §4, fu 307)', () => {
+  /** World coordinate, along the cut's `along` axis, of station `s` measured from `alongFrom`. */
+  const worldAt = (b: Board, c: AngleCut, s: number) => {
+    const ax = axisDimensions(b).indexOf(c.along);
+    const u = c.alongFrom === 'min' ? s : b[c.along] - s;   // cut-local station → part-local coordinate (not a world crossing)
+    return b.position[ax]! + toWorldOffset(b, ax, u);
+  };
+  const tenonAll = (doc: FlatDocument) => {
+    const sites = findSites(doc);
+    return applyJoints(doc, sites, sites.map((s) => (doc.boards[s.enter]!.name.startsWith('Rail')
+      ? { site: s.id, joint: 'mortise-tenon' as const, tenonLength: 0.75 } : defaultChoice(s, doc, sites))));
+  };
+  const railName = 'Rail X';
+  const withRail = (doc: FlatDocument, cuts: (b: Board) => AngleCut[]): FlatDocument =>
+    ({ ...doc, boards: doc.boards.map((b) => (b.name === railName ? { ...b, angleCuts: cuts(b) } : b)) });
+  // A taper thin at Rail X's FREE end (+X), square from 10in in, stored deep-end-last: measured from the JOINT end.
+  const deepEndLast = (b: Board): AngleCut => ({ id: 'd', kind: 'taper', face: axisFrame(b)[2]!.dim, from: endFacing(b, 2, 1),
+    along: 'length', alongFrom: endFacing(b, 0, -1), points: [[b.length - 10, 0], [b.length, 0.25]] });
+
+  it('a deep-end-last taper on a tenoned rail stays put in world space (fu 307)', () => {
+    const doc = withRail(CORNER, (b) => [deepEndLast(b)]);
+    const before = doc.boards.find((b) => b.name === railName)!;
+    const after = tenonAll(doc).doc.boards.find((b) => b.name === railName)!;
+    expect(after.length).toBe(before.length + 0.75);                       // the tenon grew it at the joint end
+    const c0 = before.angleCuts[0]!;
+    const c1 = after.angleCuts[0]!;
+    expect(worldAt(after, c1, zeroStation(c1))).toBeCloseTo(worldAt(before, c0, zeroStation(c0)), 12);
+    expect(depthAt(c1, after.length)).toBeCloseTo(depthAt(c0, before.length), 12);
+  });
+  it('a canonical taper anchored at the free end is byte for byte unchanged', () => {
+    const doc = withRail(CORNER, (b) => [{ id: 't', ...taperCut({ face: axisFrame(b)[2]!.dim as 'thickness', from: endFacing(b, 2, 1), end: endFacing(b, 0, 1), start: 10, amount: 0.25 }) }]);
+    const before = doc.boards.find((b) => b.name === railName)!.angleCuts;
+    expect(tenonAll(doc).doc.boards.find((b) => b.name === railName)!.angleCuts).toEqual(before);
+  });
+  it('a trim (negative amount) shifts stations and depths measured from the moving end back by the same amount', () => {
+    const b = { ...CORNER.boards.find((x) => x.name === railName)! };
+    b.angleCuts = [
+      { id: 's', kind: 'chamfer', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[16, 0], [18, 0.25]] },
+      { id: 'q', kind: 'miter', face: 'length', from: 'min', along: 'width', alongFrom: 'min', points: [[0, 0], [3, 3]] },
+      { id: 'n', kind: 'chamfer', face: 'width', from: 'max', along: 'thickness', alongFrom: 'max', points: [[0, 0.125], [0.125, 0]] },
+    ];
+    const untouched = b.angleCuts[2];
+    rebaseAngleCuts(b, 'length', 'min', -0.5);
+    expect(b.angleCuts.map((c) => c.points)).toEqual([[[15.5, 0], [17.5, 0.25]], [[0, -0.5], [3, 2.5]], [[0, 0.125], [0.125, 0]]]);
+    expect(b.angleCuts[2]).toBe(untouched);                                  // a cut not measured from the end is the same object
+  });
+  it('two linked rails rebased by joinery are still one component, chamfer in place (Review Focus 5)', () => {
+    const made = designToDocument({ name: 'F', parts: [
+      { name: 'Leg A', role: 'leg', material: 'oak', at: { x: 0, y: 0, z: 0 }, size: { x: 1.75, y: 28, z: 1.75 }, tapers: [] },
+      { name: 'Rail 1', role: 'rail', material: 'oak', at: { x: 1.75, y: 23.5, z: 0.5 }, size: { x: 18, y: 3, z: 0.75 }, tapers: [] },
+      { name: 'Rail 2', role: 'rail', material: 'oak', at: { x: 1.75, y: 10, z: 0.5 }, size: { x: 18, y: 3, z: 0.75 }, tapers: [] },
+    ], assemblies: [] } as never, { centre: false }).doc;
+    const railShape = (d: SloydDocument) => new Set(d.boards.filter((b) => b.name.startsWith('Rail')).map((b) => ('shape' in b ? b.shape : undefined)));
+    expect(railShape(made).size).toBe(1);
+    const shapeId = [...railShape(made)][0]!;
+    expect(shapeId).toBeDefined();
+    // A chamfer at the rails' free +X end, stored deep-end-last (measured from the tenoned -X end), written on the Shape.
+    // An angle cut's line runs on past the part, so such a cut always reaches the far end: the rails are joined only at
+    // -X (Leg A), or the far joint would rightly refuse it.
+    const r0 = flatDocument(made).boards.find((b) => b.name === 'Rail 1')!;
+    const cut: AngleCut = { id: 'k', kind: 'chamfer', face: axisFrame(r0)[1]!.dim, from: endFacing(r0, 1, -1), along: 'length', alongFrom: endFacing(r0, 0, -1),
+      points: [[r0.length - 2, 0], [r0.length, 0.25]] };
+    const doc: SloydDocument = { ...made, shapes: made.shapes.map((s) => (s.id === shapeId ? { ...s, angleCuts: [cut] } : s)) };
+    const flat = flatDocument(doc);
+    expect(flat.boards.filter((b) => b.name.startsWith('Rail')).every((b) => b.angleCuts.length === 1)).toBe(true);
+    const joined = tenonAll(flat);
+    expect(joined.applied.length).toBeGreaterThanOrEqual(2);
+    const tree = migrateDocument(writeBackFlat(doc, flat.boards, worldParts(joined.doc)));
+    expect(railShape(tree).size).toBe(1);
+    expect([...railShape(tree)][0]).toBeDefined();
+    for (const name of ['Rail 1', 'Rail 2']) {
+      const b0 = flat.boards.find((b) => b.name === name)!;
+      const b1 = flatDocument(tree).boards.find((b) => b.name === name)!;
+      expect(b1.length).toBe(b0.length + 0.75);
+      expect(worldAt(b1, b1.angleCuts[0]!, zeroStation(b1.angleCuts[0]!))).toBeCloseTo(worldAt(b0, b0.angleCuts[0]!, zeroStation(b0.angleCuts[0]!)), 12);
+    }
   });
 });
