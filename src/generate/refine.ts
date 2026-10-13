@@ -18,7 +18,7 @@ export interface RefineSettings { instruction: string; width: number | null; dep
 /** Refine handles what Detailed allows; beyond it the model would be forced to drop parts. */
 export const REFINE_MAX: RefineMax = { distinct: DETAIL_CAPS.detailed, placed: placedCeiling('detailed') };
 
-export const KEEP_LINE = 'Keep every part you are not asked to change exactly as it is: the same name, role, material, size and position. Keep assembly and placement names. Return the whole design.';
+export const KEEP_LINE = 'Keep every part you are not asked to change exactly as it is: the same name, role, material, size, position and tapers. Keep assembly and placement names. Return the whole design.';
 
 export function refineMessage(design: GeneratedDesign, s: RefineSettings): string {
   return [

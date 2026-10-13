@@ -23,7 +23,8 @@ describe('refine', () => {
       'Here is the current design, in the same format you return:', JSON.stringify(D), '',
       'Change it as follows: make it taller', '', KEEP_LINE, '', 'Hard limits:', ...limitLines(S),
     ].join('\n'));
-    expect(KEEP_LINE).toBe('Keep every part you are not asked to change exactly as it is: the same name, role, material, size and position. Keep assembly and placement names. Return the whole design.');
+    expect(KEEP_LINE).toBe('Keep every part you are not asked to change exactly as it is: the same name, role, material, size, position and tapers. Keep assembly and placement names. Return the whole design.');
+    expect(refineMessage(D, S)).toContain('position and tapers');
   });
 
   it('caps at Detailed', () => {
@@ -77,7 +78,11 @@ describe('refine — joined designs', () => {
 
 const TAPER = { id: 'a1', kind: 'taper' as const, face: 'width' as const, from: 'min' as const, along: 'length' as const, alongFrom: 'min' as const, points: [[0, 0.5], [20, 0]] as [[number, number], [number, number]] };
 describe('refine — angled documents (spec §6)', () => {
-  const angled: SloydDocument = { ...createDocument('T'), boards: [createBoard({ id: 'leg', name: 'Leg', angleCuts: [TAPER] })] };
+  const angled: SloydDocument = { ...createDocument('T'), boards: [createBoard({ id: 'leg', name: 'Leg', angleCuts: [{ ...TAPER, kind: 'miter' as const }] })] };
+  it('a taper document passes plainForRefine', () => {
+    const tapered: SloydDocument = { ...createDocument('T'), boards: [createBoard({ id: 'leg', name: 'Leg', angleCuts: [TAPER] })] };
+    expect('plain' in plainForRefine(tapered)).toBe(true);
+  });
   it('plainForRefine refuses with reason angled', () => {
     const r = plainForRefine(angled);
     expect('refused' in r && r.refused.reason).toBe('angled');

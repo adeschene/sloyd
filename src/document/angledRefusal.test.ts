@@ -14,7 +14,7 @@ describe('angledRefusal (spec §6)', () => {
   });
   it('names the angled parts, three at most', () => {
     expect(angledParts(doc(4))).toEqual(['Leg 1', 'Leg 2', 'Leg 3', 'Leg 4']);
-    expect(angledRefusal(doc(1), 'refine')).toBe("Refine doesn't handle angled parts yet (Leg 1). Refine before tapering, or remove the angles first.");
+    expect(angledRefusal(doc(1), 'joinery')).toBeNull();
   });
 });
 
@@ -33,8 +33,11 @@ describe('angledRefusal — tapers are joinable (AI-tapers spec §4.3)', () => {
     expect(angledRefusal(withCut(miter, 4), 'joinery')).toBe(
       "Add joinery doesn't handle mitered, beveled or chamfered parts yet (Frame 1, Frame 2, Frame 3…). Add joinery before cutting those angles, or remove them.");
   });
-  it('Refine still refuses tapers in this chunk', () => {
-    expect(angledRefusal(withCut(taper), 'refine')).toBe(
-      "Refine doesn't handle angled parts yet (Frame 1). Refine before tapering, or remove the angles first.");
+  it('Refine allows tapers', () => {
+    expect(angledRefusal(withCut(taper), 'refine')).toBeNull();
+  });
+  it('Refine refuses a miter, naming the parts', () => {
+    expect(angledRefusal(withCut(miter, 4), 'refine')).toBe(
+      "Refine doesn't handle mitered, beveled or chamfered parts yet (Frame 1, Frame 2, Frame 3…). Refine before cutting those angles, or remove them.");
   });
 });

@@ -15,8 +15,8 @@ const shown = (names: string[]) => (names.length > 3 ? `${names.slice(0, 3).join
  * spec §6; AI-tapers spec §4.3). Their checks and joints are box-based throughout
  * (invariants 38, 41): a mitered frame's stock boxes overlap at its corners, so a
  * run would report a false overlap or cut into air. Joinery accepts tapers — the
- * taper-at-joint rule (`generate/joints/tapers.ts`) guards those. Refine still
- * refuses every angle cut until AI-tapers chunk 2. Decided before any mutation or call.
+ * taper-at-joint rule (`generate/joints/tapers.ts`) guards those. Refine accepts
+ * tapers it can describe exactly (AI-tapers chunk 2; `documentToDesign` refuses the rest) and refuses every other kind. Decided before any mutation or call.
  */
 export function angledRefusal(doc: SloydDocument, action: 'joinery' | 'refine'): string | null {
   if (action === 'joinery') {
@@ -24,9 +24,9 @@ export function angledRefusal(doc: SloydDocument, action: 'joinery' | 'refine'):
     if (names.length === 0) return null;
     return `Add joinery doesn't handle mitered, beveled or chamfered parts yet (${shown(names)}). Add joinery before cutting those angles, or remove them.`;
   }
-  const names = angledParts(doc);
+  const names = angledParts(doc, ['taper']);
   if (names.length === 0) return null;
-  return `Refine doesn't handle angled parts yet (${shown(names)}). Refine before tapering, or remove the angles first.`;
+  return `Refine doesn't handle mitered, beveled or chamfered parts yet (${shown(names)}). Refine before cutting those angles, or remove them.`;
 }
 
 /** One tapered part whose taper runs into a joint (AI-tapers spec §4.1). Indices are flat-document board indices. */

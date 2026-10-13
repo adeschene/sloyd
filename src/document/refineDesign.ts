@@ -3,6 +3,7 @@ import type { GeneratedAssembly, GeneratedDesign, GeneratedPart } from './genera
 import { angledParts, angledRefusal } from './angledRefusal';
 import { distinctParts } from './assemblyChecks';
 import { boardExtents } from './geometry';
+import { worldTapers } from './taperWorld';
 import { isShaped, resolveBoard, shapeMap } from './shapes';
 import { NAME_SEPARATOR, flatDocument, worldParts } from './tree';
 
@@ -13,7 +14,7 @@ import { NAME_SEPARATOR, flatDocument, worldParts } from './tree';
  * designs that format can express; everything else is REFUSED here, on the
  * document alone, before any model call.
  */
-export type RefusalReason = 'empty' | 'cuts' | 'turned' | 'nested' | 'too-large' | 'joints' | 'mirrored' | 'angled';
+export type RefusalReason = 'empty' | 'cuts' | 'turned' | 'nested' | 'too-large' | 'joints' | 'mirrored' | 'angled' | 'taper-form' | 'taper-joint';
 export interface RefineRefusal { reason: RefusalReason; message: string }
 export interface RefineMax { distinct: number; placed: number }
 
@@ -22,7 +23,7 @@ const refuse = (reason: RefusalReason, message: string) => ({ refused: { reason,
 type V3 = [number, number, number];
 const box = (b: Board, name: string, role: string, shift: V3 = [0, 0, 0]): GeneratedPart => {
   const [x, y, z] = boardExtents(b);
-  return { name, role, material: b.material, at: { x: b.position[0] - shift[0], y: b.position[1] - shift[1], z: b.position[2] - shift[2] }, size: { x, y, z }, tapers: [] };
+  return { name, role, material: b.material, at: { x: b.position[0] - shift[0], y: b.position[1] - shift[1], z: b.position[2] - shift[2] }, size: { x, y, z }, tapers: worldTapers(b) ?? [] };
 };
 
 /** The smallest local corner of a definition's parts, per axis (a position is an own field, so the stored one). */
@@ -53,9 +54,13 @@ export function documentToDesign(doc: SloydDocument, max: RefineMax): { design: 
     return refuse('cuts', 'Refine works on prototypes without joints. Refine first, then add joinery.');
   }
   // `angledParts` walks every container (shapes included), so one test covers stored parts, definitions and shapes.
-  if (angledParts(doc).length > 0) {
+  if (angledParts(doc, ['taper']).length > 0) {
     return refuse('angled', angledRefusal(doc, 'refine') ?? "Refine doesn't handle angled parts yet.");
   }
+  // A taper Refine cannot describe exactly is refused, never rewritten (spec §5.2). Flat names, as the person sees them.
+  const odd = flatDocument(doc).boards.filter((b) => worldTapers(b) === null).map((b) => b.name);
+  if (odd.length === 1) return refuse('taper-form', `${odd[0]}'s taper can't be described to Refine — edit it in Properties first.`);
+  if (odd.length > 1) return refuse('taper-form', `The tapers on ${odd.slice(0, 3).join(', ')}${odd.length > 3 ? '…' : ''} can't be described to Refine — edit them in Properties first.`);
   if (doc.instances.some((i) => i.mirrored === true) || doc.definitions.some((d) => d.instances.some((i) => i.mirrored === true))) {
     return refuse('mirrored', "Refine can't describe a mirrored assembly yet — Ungroup the mirrored copy first.");
   }

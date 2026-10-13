@@ -789,9 +789,7 @@ describe('the taper-joint fault (AI-tapers spec 5.3)', () => {
     const flat = flatDocument(designToDocument(parseDesign(design(24))!).doc);
     expect(checkDesign(flat, { width: null, depth: null, height: null, maxParts: 10 }).some((v) => v.kind === ('taper-joint' as never))).toBe(false);
   });
-  // SKIPPED until Task 4: Refine still refuses a tapered original (refineDesign 'angled'), so the preexisting path
-  // cannot be reached yet. Task 4 (documentToDesign writes tapers, refusal narrowed) un-skips it.
-  it.skip('Refine counts the original\'s own taper conflict as preexisting: present, not fed back', async () => {
+  it('Refine counts the original\'s own taper conflict as preexisting: present, not fed back', async () => {
     const RS = { instruction: 'keep it', width: null, depth: null, height: null, detail: 'simple' as const };
     const doc = designToDocument(parseDesign(design(24))!).doc;
     const from = documentToDesign(doc, REFINE_MAX);
