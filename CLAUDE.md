@@ -26,7 +26,7 @@ handicraft education tradition built around hand woodworking.
   rolling back to `71510e5`, `index-B4V-pkp9.js`, or any 14 build is free; below 14, `47548d3`, REFUSES every project saved
   since: export first). Test count is under Commands.
 - **NEXT: none chosen — ask.** The AI-tapers feature (the user's "the AI integration") is complete: one prompt gives tapered
-  legs with joinery. Open near it: fu 311 (Refine's not-joined dialog shows the fault twice; the user's UX call), 310, 313,
+  legs with joinery. Open near it: fu 310, 313,
   301–303 (mirrored-component legs, box-based overlap and centre of mass), 276/277's rest (miters, bevels and chamfers in the
   AI features). Other open items: angle-cut residue 295–298; 241 (open by decision), 251 (record-only), 221, 225, 232, 234, 247.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
@@ -623,7 +623,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 3419 tests across 122 files
+npm test           # Vitest, currently 3420 tests across 122 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -668,7 +668,7 @@ knowing without opening it:
   parts), 303 (tip check centre of mass uses box volumes), 304 (taper-at-joint rule is all-or-nothing, by decision), 305
   (Generate/Refine tapers) closed 2026-10-13, 306 (deferred minors, record-only), 307 (a hand-edited deep-end-last taper is shifted
   by joinery's resize), 308 ("taper the other end" is impossible for a part joined at both ends; record-only), 309 closed 2026-10-13 (Refine refuses, before any call, a taper the converter would reject), 310 (designDiff "changed" lists
-  unchanged tapers; exact-float compare), 311 (unjoined Refine shows the same fault twice), 312 closed 2026-10-13
+  unchanged tapers; exact-float compare), 311 closed 2026-10-13 (an unjoined Refine lists its taper fault once, in the note), 312 closed 2026-10-13
   (`plainForRefine` calls `joineryRefusal`), 313 (minor test/wording residue, record-only).
 - **176/177** — the held rules' known limits (mutual lapping) and an unseen live repair.
 - **130** — semi-infinite construction lines; picked and set aside 2026-08-31 without a

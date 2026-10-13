@@ -5251,7 +5251,9 @@ The taper compare is exact-float while the other change lines compare at display
 
 **311. An unjoined Refine shows the same fault twice.** When Refine returns unjoined (`notJoined`), the dialog shows the
 person-facing refusal AND the model-facing `taper-joint` violation (decimal inches). A UX call for the user.
-**Status:** open.
+**Status:** closed 2026-10-13 at the user's word ("show the fault only once"): when `notJoined` is set, the dialog lists no
+`taper-joint` violation; the "Joints were not re-applied." note is its one statement. It still counts in "N new issues", and
+`violations` itself is unchanged (problems compare by kind and parts). A normally joined result lists it as before.
 
 **312. `plainForRefine` recomposes the taper refusal.** It does not call `joineryRefusal` (inv 41's one decider);
 equivalent today, but a throw inside it is reported as `'joints'` and offers repair. **Status:** closed 2026-10-13: it calls

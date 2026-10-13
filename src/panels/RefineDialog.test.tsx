@@ -116,6 +116,23 @@ describe('RefineDialog', () => {
     expect(screen.queryByText(/joints kept/)).toBeNull();
   });
 
+  it('shows an unjoined result\'s taper fault once, in the person\'s words (fu 311)', () => {
+    const taper = { kind: 'taper-joint' as const, message: 'MODEL WORDS', parts: ['Leg', 'Rail'] };
+    const other = { kind: 'overlap' as const, message: 'A passes 0.5in into B along X.', parts: ['A', 'B'] };
+    const outcome = (notJoined?: string) => ({ status: 'ready' as const, projectId: 'p1', projectName: 'Box — refined', costUsd: 0.1, outcome: {
+      doc: {} as never, usage: {} as never, changes: [], violations: [taper, other], present: [],
+      joints: { kept: 0, chosen: 0, dropped: 0, skipped: [], ...(notJoined ? { notJoined } : {}) } } });
+    const { unmount } = render(<RefineDialog {...base} joined run={outcome('PERSON WORDS')} />);
+    expect(screen.getByText('Joints were not re-applied. PERSON WORDS')).toBeTruthy();
+    expect(screen.queryByText('MODEL WORDS')).toBeNull();
+    expect(screen.getByText(other.message)).toBeTruthy();
+    expect(screen.getByText('2 new issues · 0 already present')).toBeTruthy();
+    unmount();
+    // Joined normally (no note), the fault's own line is the only place it appears, so it stays.
+    render(<RefineDialog {...base} joined run={outcome()} />);
+    expect(screen.getByText('MODEL WORDS')).toBeTruthy();
+  });
+
   it('labels joinery\'s repair and retry rounds; the design\'s stay unlabelled (fu 242)', () => {
     const cases: [RefineRun, string][] = [
       [{ status: 'repairing', round: 1, issues: 2, join: false, costUsd: null }, 'Fixing 2 issues (round 1/3)…'],
