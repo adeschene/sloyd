@@ -4,14 +4,14 @@ import type { RepairCheck } from './joints/repair';
 import type { GeneratedDesign } from '../document/generated';
 import { documentToDesign } from '../document/refineDesign';
 import type { RefineMax, RefineRefusal } from '../document/refineDesign';
-import { angledRefusal, flatDocument, migrateDocument, taperJointRefusal, writeBackFlat } from '../document/document';
+import { angledRefusal, flatDocument, migrateDocument, writeBackFlat } from '../document/document';
 import { worldParts } from '../document/tree';
 import type { SloydDocument } from '../document/types';
 import { DETAIL_CAPS, limitLines, placedCeiling } from './prompt';
 import type { Detail } from './prompt';
 import { GATE_REFUSAL, gateUnjoin } from './joints/unjoin';
 import type { RecordedJoint } from './joints/unjoin';
-import { taperConflicts } from './joints/tapers';
+import { joineryRefusal } from './joints/tapers';
 import { findSites } from './joints/sites';
 
 /** Refine by instruction (refine spec §3). The refine text rides in the USER turn; SYSTEM_PROMPT is Generate's, unchanged. */
@@ -59,9 +59,9 @@ export function plainForRefine(doc: SloydDocument): RefineBase {
     if ('refused' in g) return { refused: { reason: 'joints', message: g.refused } };
     const plain = migrateDocument(writeBackFlat(doc, flat.boards, g.plain));
     // A joined original whose taper already runs into a joint could only come back unjoined (its re-join refuses):
-    // refused before any call (AI-tapers spec §5.4, amended), with joinery's own message.
+    // refused before any call (AI-tapers spec §5.4, amended), by joinery's ONE refusal decider (invariant 41).
     const pf = flatDocument(plain);
-    const taper = taperJointRefusal(pf, taperConflicts(pf, findSites(pf)));
+    const taper = joineryRefusal(plain, pf, findSites(pf));
     if (taper) return { refused: { reason: 'taper-joint', message: taper } };
     return { plain, joints: g.joints };
   } catch (e) {
