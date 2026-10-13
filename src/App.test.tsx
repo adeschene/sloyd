@@ -243,6 +243,7 @@ let shopSettings: import('./document/purchase').ShopSettings | null = null;
 const getShopSettings = vi.fn(async () => ({ settings: shopSettings ?? (await import('./document/purchase')).defaultShop(), readFailed: false }));
 const setShopSettings = vi.fn(async (s: import('./document/purchase').ShopSettings) => { shopSettings = s; return true; });
 const exportProject = vi.fn().mockResolvedValue(undefined);
+const exportImage = vi.fn().mockResolvedValue(undefined);
 const importProject = vi.fn();
 
 vi.mock('./storage/browser', () => ({
@@ -266,6 +267,7 @@ vi.mock('./storage/browser', () => ({
     getShopSettings: () => getShopSettings(),
     setShopSettings: (s: import('./document/purchase').ShopSettings) => setShopSettings(s),
     exportProject: (...args: unknown[]) => exportProject(...args),
+    exportImage: (...args: unknown[]) => exportImage(...args),
     importProject: (...args: unknown[]) => importProject(...args),
     listRecent: () => Promise.resolve([]),
   },
@@ -306,6 +308,7 @@ beforeEach(() => {
   setActiveProject.mockReset().mockImplementation((...args: [string]) => fake.setActiveProject(...args));
   autoSave.mockReset().mockImplementation(defaultAutoSave);
   exportProject.mockReset().mockResolvedValue(undefined);
+  exportImage.mockReset().mockResolvedValue(undefined);
   importProject.mockReset();
   llmSettings = null; getLlmSettings.mockClear(); setLlmSettings.mockClear(); clearLlmSettings.mockClear();
 });

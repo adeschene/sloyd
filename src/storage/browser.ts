@@ -501,19 +501,11 @@ export class BrowserStorageAdapter implements StorageAdapter {
 
   async exportProject(doc: SloydDocument): Promise<void> {
     const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = window.document.createElement('a');
-    a.href = url;
-    a.download = `${sanitizeFilename(doc.name)}.sloyd`;
-    window.document.body.appendChild(a);
-    try {
-      a.click();
-    } finally {
-      // Always clean up, even if click() throws (sandboxed iframe, CSP, etc.) —
-      // otherwise the anchor stays in the DOM and the blob URL leaks.
-      a.remove();
-      URL.revokeObjectURL(url);
-    }
+    download(blob, `${sanitizeFilename(doc.name)}.sloyd`);
+  }
+
+  async exportImage(name: string, png: Blob): Promise<void> {
+    download(png, `${sanitizeFilename(name)}.png`);
   }
 
   async importProject(): Promise<SloydDocument> {
@@ -686,6 +678,23 @@ function readJSON(store: Storage, key: string): unknown {
     return JSON.parse(raw);
   } catch {
     return null;
+  }
+}
+
+/** The one anchor download, shared by both exports so they cannot drift. */
+function download(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = window.document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  window.document.body.appendChild(a);
+  try {
+    a.click();
+  } finally {
+    // Always clean up, even if click() throws (sandboxed iframe, CSP, etc.) —
+    // otherwise the anchor stays in the DOM and the blob URL leaks.
+    a.remove();
+    URL.revokeObjectURL(url);
   }
 }
 
