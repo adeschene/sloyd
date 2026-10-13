@@ -18,6 +18,12 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-13 with fu 311's fix live** (`index-iDivrN-T.js`, CSS `index-BkjfVfaC.css`
+unchanged, commit `158b2b6`, **schema 14**). An unjoined Refine lists its taper fault once, in the person's words. Verified:
+`200` on `/` and a deep route in-network and at the edge; bundle matches `dist/` at both; `index-DWTxNeO6.js` 404s in-network;
+CSP unchanged; a real-browser load with 0 errors, the Cloudflare beacon and "+ Add board" present; the load's two fresh keys
+(`version: 14`) cleared and read back empty after 3s, then navigated away. Unit-tested only (a dialog render test).
+
 **Production matches `master` as of 2026-10-13 with AI-tapers chunk 2 live** (`index-DWTxNeO6.js`, CSS `index-BkjfVfaC.css`
 unchanged, merge `f7a6202`, **schema 14**, unchanged). Verified: `200` on `/` and a deep route in-network and at the edge;
 bundle matches `dist/` at both; `index-B4V-pkp9.js` 404s in-network; CSP `connect-src 'self' https://api.anthropic.com` at the
@@ -376,6 +382,10 @@ and 79.
 ---
 
 ## What each round did
+
+**What fu 311 did (2026-10-13)**, at the user's word after AI tapers shipped ("show the fault only once"): when a joined Refine
+comes back unjoined, the dialog no longer lists the model-facing `taper-joint` violation under the "Joints were not
+re-applied." note; it still counts as an issue and `violations` is unchanged. Done directly (bounded), one mutated test.
 
 **What AI-tapers chunk 2 did (2026-10-13)** (plan `docs/superpowers/plans/2026-10-13-sloyd-ai-tapers-chunk2.md`, subagent-driven,
 a review per task and a whole-branch review; spec amended while planning, user-approved): Generate and Refine read and write
