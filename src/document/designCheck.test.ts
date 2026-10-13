@@ -457,7 +457,7 @@ describe('tapered parts: contacts read contactSolids (AI-tapers spec §3.3)', ()
   it('the footprint shrinks by the amount: a piece that stood now tips', () => {
     // A 6in top overhanging +X. Untapered: footprint x 0..1.5 (margin 0.375), centre 0.9 — stands. Tapered: footprint
     // x 0..1 (margin 0.25), and the leg weighs its REAL wood (fu 303): centre 0.846 > 0.75 — tips. (A 3in top stood
-    // tapered once the leg stopped being weighed as its full box: centre 0.72.)
+    // tapered once the leg stopped being weighed as its full box: centre 0.7035.)
     const top = span('Top', [0, 28, 0], [6, 28.5, 1.5]);
     const tips = (doc: FlatDocument) => checkDesign(doc, NO_LIMITS).some((v) => v.kind === 'tips');
     expect(tips(docOf(leg(), top))).toBe(false);

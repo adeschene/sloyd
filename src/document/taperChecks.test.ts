@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { checkDesign, partMass } from './designCheck';
+import { checkDesign, partMass, worldBodyFaces, worldBox } from './designCheck';
+import { partGeometry } from './bodies';
+import { createBoard, createDocument } from './document';
+import type { Board, Posture, Rotation } from './document';
+import { taperCut } from './angleCuts';
+import { pocketCells } from './cuts';
 import { designToDocument } from './generated';
 import { flatDocument } from './tree';
 
@@ -59,5 +64,48 @@ describe('the tip check weighs a tapered part by its real solid (fu 303)', () =>
   });
   it('the same post untapered still tips', () => {
     expect(kinds('tips', base, post([]))).toHaveLength(1);
+  });
+});
+
+describe('the checks\' world bodies (review of fu 302/303)', () => {
+  it('a box body maps exactly as worldBox in every posture and turn, normals outward', () => {
+    for (const posture of ['flat', 'on-edge', 'upright'] as Posture[]) for (const rotation of [0, 90, 180, 270] as Rotation[]) {
+      // The taper reaches 0.5in into the length, so the part has clipped bodies AND (on a notched part) box bodies.
+      const b: Board = { ...createBoard({ name: 'P', length: 20, width: 3, thickness: 1.5, posture, rotation, position: [2, 1, 3],
+        cuts: [{ id: 'n', face: 'thickness', from: 'max', across: 'width', offset: 8, width: 2, depth: 0.5, stopMin: 0, stopMax: 0 }] }),
+        angleCuts: [{ id: 't', ...taperCut({ face: 'width', from: 'max', end: 'min', start: 0.5, amount: 0.25 }) }] };
+      const bodies = partGeometry(b).bodies;
+      const world = worldBodyFaces(b);
+      let boxes = 0;
+      bodies.forEach((body, i) => {
+        const vs = world[i]!.flatMap((f) => f.verts);
+        if (body.box) {
+          boxes += 1;
+          const w = worldBox(b, body.box);
+          for (let k = 0; k < 3; k += 1) {
+            expect(Math.min(...vs.map((v) => v[k]!))).toBeCloseTo(w.min[k]!, 12);
+            expect(Math.max(...vs.map((v) => v[k]!))).toBeCloseTo(w.max[k]!, 12);
+          }
+        }
+        // Outward: no vertex of the body lies outside any of its own faces.
+        for (const f of world[i]!) for (const v of vs) {
+          expect((v[0]! - f.verts[0]![0]!) * f.n[0] + (v[1]! - f.verts[0]![1]!) * f.n[1] + (v[2]! - f.verts[0]![2]!) * f.n[2]).toBeLessThan(1e-9);
+        }
+      });
+      expect(boxes).toBeGreaterThan(0);
+    }
+  });
+  it('a tapered part its cuts consumed weighs nothing, and does not poison the tip check', () => {
+    const leg = (cuts: Board['cuts']): Board => ({ ...createBoard({ name: 'Ghost', length: 10, width: 1.5, thickness: 1.5, posture: 'upright', position: [3, 0, 3], cuts }),
+      angleCuts: [{ id: 't', ...taperCut({ face: 'width', from: 'max', end: 'min', start: 5, amount: 0.25 }) }] });
+    const all = [{ id: 'c', face: 'width' as const, from: 'max' as const, across: 'length' as const, offset: 0, width: 1.5, depth: 1.5, stopMin: 0, stopMax: 0 }];
+    expect(pocketCells(leg(all))).toEqual([]);
+    expect(partMass(leg(all)).v).toBe(0);
+    const base = createBoard({ name: 'Base', length: 10, width: 10, thickness: 0.5, posture: 'flat', position: [0, 0, 0] });
+    const tipsOf = (boards: Board[]) => checkDesign(flatDocument({ ...createDocument('T'), boards }), limits).filter((v) => v.kind === 'tips');
+    // A heavy post overhanging the base's +x edge tips the piece; the empty part must not hide that (a NaN centre would).
+    const post = createBoard({ name: 'Post', length: 20, width: 4, thickness: 4, posture: 'upright', position: [8, 0.5, 3] });
+    expect(tipsOf([base, post])).toHaveLength(1);
+    expect(tipsOf([base, post, leg(all)])).toEqual(tipsOf([base, post]));
   });
 });

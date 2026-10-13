@@ -512,7 +512,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 38. **`overlap` and joinery's blockers/trims are measured between SOLIDS via `worldSolids`**, never
     `solidWorldBox`; `worldSolids` are pocket-cell BOXES, angle cuts ignored (the drawings occlude with
     `worldBodies` instead, inv 47). **A pair with a tapered part is measured on real bodies** (fu 302: the
-    intersection of the two parts' world bodies via `clipConvex`, its extents reported as today's box overlap), and
+    intersection of the two parts' world bodies via `clipConvex`, its extents reported as today's box overlap; only when
+    their boxes overlap; `worldBodyFaces` is the checks' body crossing, pinned against `worldBox`), and
     **the tip check weighs a tapered part by its real bodies** (fu 303, `partMass`); an untapered pair's overlap and an
     untapered part's weight (a notched part included: its box) are byte-for-byte as before. **Held/hangs contacts, grounding's `connected` and the tip footprint read
     `contactSolids` when a part is tapered** (a tapered part counts only where it is still flat); a pair of
@@ -634,7 +635,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 3452 tests across 123 files
+npm test           # Vitest, currently 3454 tests across 123 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

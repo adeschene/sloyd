@@ -93,9 +93,12 @@ function tipsMessage(boxes: Box[], grounded: Set<number>, footprint: (i: number)
     // A tapered part weighs its real solid (fu 303); every other part its box, by the same arithmetic as before.
     const real = mass(i);
     if (real) {
-      vol += real.v;
-      cx += real.v * real.c[0]!;
-      cz += real.v * real.c[2]!;
+      // A part its cuts consumed has no wood and no weight (its centre would be NaN and poison the sum).
+      if (real.v > 0) {
+        vol += real.v;
+        cx += real.v * real.c[0]!;
+        cz += real.v * real.c[2]!;
+      }
       continue;
     }
     const b = boxes[i];
@@ -333,10 +336,11 @@ const dot3 = (a: readonly number[], b: readonly number[]) => a[0]! * b[0]! + a[1
 
 /**
  * A part's bodies (boardBodies: pocket cells clipped by its angle cuts) in WORLD space, each as faces with outward
- * normals — the same crossing as worldBox (position + toWorldOffset on the dimension each axis shows; a reversed axis
+ * normals — the checks' home of the body crossing (drawing.ts' worldBodies is the drawings'; a box body's extents are
+ * pinned against worldBox in every posture and turn by test) — the same crossing as worldBox (position + toWorldOffset on the dimension each axis shows; a reversed axis
  * flips the normal). The checks read it only for a tapered part (fu 302, 303).
  */
-function worldBodyFaces(b: Board): BodyFace[][] {
+export function worldBodyFaces(b: Board): BodyFace[][] {
   const frame = axisFrame(b);
   const toW = (p: readonly number[]): P3 => [0, 1, 2].map((i) => b.position[i]! + toWorldOffset(b, i, p[DIM_INDEX[frame[i]!.dim]]!)) as P3;
   return partGeometry(b).bodies.map((body) => body.faces.map((f) => ({
@@ -413,13 +417,23 @@ export function checkDesign(doc: FlatDocument, limits: DesignLimits): Violation[
   // tenon with no mortise is. A design with no cuts has one solid per part,
   // equal to its box — Generate's behaviour is unchanged by construction.
   const solids = solidBoxesOf(doc);
+  // World bodies, built once per part and only for a part in a tapered pair whose boxes overlap (fu 302).
+  const bodyCache = new Map<number, BodyFace[][]>();
+  const bodiesOf = (k: number) => {
+    let w = bodyCache.get(k);
+    if (!w) { w = worldBodyFaces(doc.boards[k]!); bodyCache.set(k, w); }
+    return w;
+  };
   const overlapping = new Set<number>();
   for (let i = 0; i < boxes.length; i++) {
     for (let j = 0; j < i; j++) {
       let worst: number[] | null = null;
-      // A pair with a tapered part is measured on real solids (fu 302): a box would claim wood the taper removed.
-      const pairs: [Box | BodyFace[], Box | BodyFace[]][] = isTapered(doc.boards[i]!) || isTapered(doc.boards[j]!)
-        ? worldBodyFaces(doc.boards[i]!).flatMap((p) => worldBodyFaces(doc.boards[j]!).map((q) => [p, q] as [BodyFace[], BodyFace[]]))
+      // A pair with a tapered part is measured on real solids (fu 302): a box would claim wood the taper removed. Only
+      // when the boxes overlap at all: a body lies inside its cell, so the bodies cannot overlap where the boxes do not.
+      const real = (isTapered(doc.boards[i]!) || isTapered(doc.boards[j]!))
+        && solids[i].some((p) => solids[j].some((q) => [0, 1, 2].every((k) => shared(p, q, k) > TOUCH)));
+      const pairs: [Box | BodyFace[], Box | BodyFace[]][] = real
+        ? bodiesOf(i).flatMap((p) => bodiesOf(j).map((q) => [p, q] as [BodyFace[], BodyFace[]]))
         : solids[i].flatMap((p) => solids[j].map((q) => [p, q] as [Box, Box]));
       for (const [p, q] of pairs) {
         const s = Array.isArray(p) ? bodyOverlap(p, q as BodyFace[]) : [0, 1, 2].map((k) => shared(p, q as Box, k));
