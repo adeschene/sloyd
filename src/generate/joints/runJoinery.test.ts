@@ -1,7 +1,7 @@
 import { worldParts } from '../../document/tree';
 import { describe, expect, it, vi } from 'vitest';
 import { designToDocument } from '../../document/generated';
-import type { Board, SloydDocument } from '../../document/document';
+import type { Board, FlatDocument, SloydDocument } from '../../document/document';
 import { flatDocument, groupItems, sharedOf } from '../../document/document';
 import { LlmError } from '../../llm/types';
 import type { LlmClient, LlmResult } from '../../llm/types';
@@ -10,6 +10,9 @@ import { applyJoints } from './recipes';
 import { findSites, jointKey } from './sites';
 import { defaultChoice, validChoice } from './choose';
 import { checkDesign } from '../../document/designCheck';
+import { taperCut } from '../../document/angleCuts';
+import { axisFrame, endFacing } from '../../document/geometry';
+import type { AngleCut } from '../../document/types';
 
 vi.mock('./recipes', async (orig) => {
   const a = await orig<typeof import('./recipes')>();
@@ -444,5 +447,51 @@ describe('runJoinery — kept joints that collide are re-opened (refine-joined s
     expect(listed).toHaveLength(2);
     expect(listed.some((l) => l.includes('Cleat'))).toBe(false);
     expect(out.result.applied.find((a) => a.site === cleatSite!.id)?.joint ?? 'butt').toBe('butt');
+  });
+});
+
+describe('runJoinery — tapered legs (AI-tapers spec §4)', () => {
+  const face = (b: Board, axis: 0 | 2, start: number): AngleCut => ({
+    id: `t${axis}`, ...taperCut({ face: axisFrame(b)[axis]!.dim as 'width' | 'thickness', from: endFacing(b, axis, 1), end: endFacing(b, 1, -1), start, amount: 0.375 }),
+  });
+  const tapered = (doc: FlatDocument, start: number): FlatDocument =>
+    ({ ...doc, boards: doc.boards.map((b) => (b.name === 'Leg' ? { ...b, angleCuts: [face(b, 0, start), face(b, 2, start)] } : b)) });
+
+  it('refuses a taper that runs into a joint before any call, leaving the document alone', async () => {
+    const c = client(short);
+    const doc = tapered(CORNER, 24);
+    const before = JSON.stringify(doc);
+    const out = await run(c, doc);
+    expect('refused' in out).toBe(true);
+    expect(c.complete).not.toHaveBeenCalled();
+    expect(JSON.stringify(doc)).toBe(before);
+  });
+
+  it('joins a leg tapered below its rails, and the joined leg passes the gate with its taper intact', async () => {
+    const c = client(short);
+    const doc = tapered(CORNER, 22);
+    const cuts = doc.boards.find((b) => b.name === 'Leg')!.angleCuts;
+    const out = await run(c, doc);
+    if ('noSites' in out || 'refused' in out) throw new Error(`expected a run, got ${JSON.stringify(out)}`);
+    expect(c.complete).toHaveBeenCalled();
+    expect(out.violations).toEqual([]);
+    expect(flatDocument(out.result.doc).boards.find((b) => b.name === 'Leg')!.angleCuts).toEqual(cuts);
+  });
+
+  it('a tenon grown at the untapered end leaves the taper exactly where it was', async () => {
+    const TOP = design(
+      { name: 'Leg', at: [0, 0, 0], size: [1.75, 28, 1.75] },
+      { name: 'Top', at: [-1, 28, -1], size: [4, 1, 4] },
+    );
+    const doc = tapered(TOP, 20);
+    const ids = findSites(doc).map((s) => s.id);
+    const c = client({ joints: ids.map((site) => ({ site, joint: 'mortise-tenon', tenonLength: 0.5 })) });
+    const cuts = doc.boards.find((b) => b.name === 'Leg')!.angleCuts;
+    const out = await run(c, doc);
+    if ('noSites' in out || 'refused' in out) throw new Error(`expected a run, got ${JSON.stringify(out)}`);
+    expect(out.result.applied.map((a) => a.joint)).toEqual(['mortise-tenon']);
+    const leg = flatDocument(out.result.doc).boards.find((b) => b.name === 'Leg')!;
+    expect(leg.length).toBe(28.5);
+    expect(leg.angleCuts).toEqual(cuts);
   });
 });

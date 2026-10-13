@@ -2,6 +2,7 @@ import type { Board, FlatDocument } from './document';
 import type { Region } from './types';
 import type { RejectedPart } from './generated';
 import { pocketCells } from './cuts';
+import { taperFields } from './angleCuts';
 import { axisFrame, boardExtents, spanToWorldOffset } from './geometry';
 
 /**
@@ -18,6 +19,7 @@ import { axisFrame, boardExtents, spanToWorldOffset } from './geometry';
  *
  * Overlap is measured between SOLIDS (invariant 38): a cut explains an overlap by
  * removing the stock. Do not raise TOUCH to make joints pass.
+ * Contacts, grounding and the tip footprint read `contactSolids` (a tapered part counts only where it is flat); overlap stays on `worldSolids`.
  */
 export type ViolationKind = 'too-small' | 'overlap' | 'unsupported' | 'too-large' | 'too-many-parts' | 'hangs' | 'tips';
 export interface Violation { kind: ViolationKind; message: string; parts: string[] }
@@ -77,8 +79,8 @@ function hull(points: P2[]): P2[] {
  * on-the-floor parts' plan corners. Floating parts are left out — they are
  * already `unsupported`, and one fault gets one report.
  */
-function tipsMessage(boxes: Box[], grounded: Set<number>): string | null {
-  const floor = boxes.filter((b) => b.min[1] <= TOUCH);
+function tipsMessage(boxes: Box[], grounded: Set<number>, footprint: (i: number) => Box[]): string | null {
+  const floor = boxes.flatMap((b, i) => (b.min[1] <= TOUCH ? footprint(i) : []));
   if (floor.length === 0) return null;
   let vol = 0, cx = 0, cz = 0;
   for (const i of grounded) {
@@ -116,14 +118,17 @@ function tipsMessage(boxes: Box[], grounded: Set<number>): string | null {
 }
 
 /** The parts connected to the floor through touching parts, optionally with one part removed from the design. */
-function groundedSet(boxes: Box[], skip: number | null = null): Set<number> {
+function groundedSet(boxes: Box[], touching: Box[][], tapered: boolean[], skip: number | null = null): Set<number> {
+  const joined = (i: number, j: number) => (tapered[i] || tapered[j]
+    ? touching[i].some((a) => touching[j].some((b) => connected(a, b)))
+    : connected(boxes[i], boxes[j]));
   const grounded = new Set<number>();
   const queue = boxes.flatMap((b, i) => (i !== skip && b.min[1] <= TOUCH ? [i] : []));
   queue.forEach((i) => grounded.add(i));
   while (queue.length) {
     const i = queue.shift()!;
-    boxes.forEach((b, j) => {
-      if (j !== skip && !grounded.has(j) && connected(boxes[i], b)) {
+    boxes.forEach((_, j) => {
+      if (j !== skip && !grounded.has(j) && joined(i, j)) {
         grounded.add(j);
         queue.push(j);
       }
@@ -246,11 +251,65 @@ export function worldBox(b: Board, s: Region): Box {
  * reverses (spanToWorldOffset). NOT solidWorldBox, which is
  * centre-relative (CLAUDE.md warns about exactly this). Exported as the ONE
  * home of this mapping: joinery's blockers judge the same solids (fu 203).
- * Boxes: rectangular cuts only — `drawing.ts`'s `worldBodies` adds angle cuts for the drawings
- * (spec §3.5); overlap, held and joinery stay on boxes, and joinery refuses angle cuts.
+ * Boxes: rectangular cuts only, angle cuts ignored — `drawing.ts`'s `worldBodies` adds angle
+ * cuts for the drawings (spec §3.5). Overlap and joinery's blockers/trims are measured on these
+ * solids; held/hangs contacts, grounding and the tip footprint read `contactSolids` when a part is
+ * tapered (untapered parts keep these solids for contacts, and their whole boxes for grounding and
+ * the footprint). Joinery refuses every non-taper angle
+ * cut and any taper running into a joint (`generate/joints/tapers.ts`).
  */
 export function worldSolids(b: Board): Box[] {
   return pocketCells(b).map((s) => worldBox(b, s));
+}
+
+/** A part carrying any angle cut — for the checks, every one of them is a taper (spec §3.2; others are refused upstream). */
+export const isTapered = (b: Board): boolean => b.angleCuts.length > 0;
+
+/**
+ * A part's solids AS FAR AS CONTACT CAN TRUST THEM (AI-tapers spec §3.2), world boxes.
+ * No taper: exactly `worldSolids`. Tapered: every pocket cell clipped, along the length,
+ * to the stations no taper removes (a side face is trusted only where it is still flat —
+ * conservative for the faces beside a sloped one too), plus, at each end a taper runs
+ * toward, a zero-thickness slab per cell reaching it, shrunk by each such taper's amount.
+ * The second reader of angle cuts besides `boardBodies` (invariant 48): tapers only,
+ * never claiming wood a taper removed. Read through `taperFields`, so a line stored
+ * deep-end-last reads as the same taper.
+ */
+export function contactSolids(b: Board): Box[] {
+  if (!isTapered(b)) return worldSolids(b);
+  const tapers = b.angleCuts.map((c) => {
+    if (c.kind !== 'taper') throw new Error(`contactSolids: ${b.name} carries a ${c.kind}; only tapers reach the checks`);
+    return taperFields(c, b);
+  }).filter((t) => t.amount > 0);
+  const L = b.length;
+  let lo = 0;
+  let hi = L;
+  for (const t of tapers) {
+    if (t.end === 'min') lo = Math.max(lo, t.start);
+    else hi = Math.min(hi, L - t.start);
+  }
+  const cells = pocketCells(b);
+  const out: Region[] = [];
+  for (const r of cells) {
+    const l0 = Math.max(r.length[0], lo);
+    const l1 = Math.min(r.length[1], hi);
+    if (l0 <= l1) out.push({ ...r, length: [l0, l1] });
+  }
+  for (const end of ['min', 'max'] as const) {
+    const here = tapers.filter((t) => t.end === end);
+    if (here.length === 0) continue;
+    const at = end === 'min' ? 0 : L;
+    for (const r of cells) {
+      if (r.length[0] > at || r.length[1] < at) continue;
+      const slab: Region = { ...r, length: [at, at] };
+      for (const t of here) {
+        const [a, z] = slab[t.face];
+        slab[t.face] = t.from === 'min' ? [Math.max(a, t.amount), z] : [a, Math.min(z, b[t.face] - t.amount)];
+      }
+      if (slab.width[0] < slab.width[1] && slab.thickness[0] < slab.thickness[1]) out.push(slab);
+    }
+  }
+  return out.map((s) => worldBox(b, s));
 }
 const solidBoxesOf = (doc: FlatDocument): Box[][] => doc.boards.map(worldSolids);
 
@@ -297,7 +356,10 @@ export function checkDesign(doc: FlatDocument, limits: DesignLimits): Violation[
     }
   }
 
-  const grounded = groundedSet(boxes);
+  // Contact trusts only flat wood (AI-tapers spec §3.3); overlap above stays on the full solids.
+  const tapered = doc.boards.map(isTapered);
+  const touching = doc.boards.map((b, i) => (tapered[i] ? contactSolids(b) : solids[i]));
+  const grounded = groundedSet(boxes, touching, tapered);
   boxes.forEach((b, i) => {
     if (grounded.has(i)) return;
     const near = [...grounded].map((g) => boxes[g]).sort((p, q) => distance(b, p) - distance(b, q))[0];
@@ -325,10 +387,10 @@ export function checkDesign(doc: FlatDocument, limits: DesignLimits): Violation[
 
   // Held (fu 165). One fault, one report: a part on the floor, already
   // unsupported, or named in an overlap is never also reported as hanging.
-  const contacts = solidContactsOf(solids);
+  const contacts = solidContactsOf(touching);
   const memo = new Map<number, Set<number>>();
   const groundedWithout = (skip: number) => {
-    if (!memo.has(skip)) memo.set(skip, groundedSet(boxes, skip));
+    if (!memo.has(skip)) memo.set(skip, groundedSet(boxes, touching, tapered, skip));
     return memo.get(skip)!;
   };
   boxes.forEach((b, i) => {
@@ -337,7 +399,7 @@ export function checkDesign(doc: FlatDocument, limits: DesignLimits): Violation[
     if (message) out.push({ kind: 'hangs', message, parts: [boxes[i].name] });
   });
 
-  const tip = tipsMessage(boxes, grounded);
+  const tip = tipsMessage(boxes, grounded, (i) => (tapered[i] ? touching[i].filter((s) => s.min[1] <= TOUCH) : [boxes[i]]));
   if (tip) out.push({ kind: 'tips', message: tip, parts: [] });
   return out;
 }

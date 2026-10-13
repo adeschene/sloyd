@@ -14,7 +14,27 @@ describe('angledRefusal (spec §6)', () => {
   });
   it('names the angled parts, three at most', () => {
     expect(angledParts(doc(4))).toEqual(['Leg 1', 'Leg 2', 'Leg 3', 'Leg 4']);
-    expect(angledRefusal(doc(4), 'joinery')).toBe("Add joinery doesn't handle angled parts yet (Leg 1, Leg 2, Leg 3…). Add joinery before tapering, or remove the angles first.");
     expect(angledRefusal(doc(1), 'refine')).toBe("Refine doesn't handle angled parts yet (Leg 1). Refine before tapering, or remove the angles first.");
+  });
+});
+
+const miter = { ...taper, id: 'm1', kind: 'miter' as const };
+const withCut = (cut: typeof taper | typeof miter, n = 1) => ({ ...createDocument('T'), boards: [
+  createBoard({ id: 'apron', name: 'Apron' }),
+  ...Array.from({ length: n }, (_, i) => createBoard({ id: `f${i}`, name: `Frame ${i + 1}`, angleCuts: [cut] })),
+] });
+
+describe('angledRefusal — tapers are joinable (AI-tapers spec §4.3)', () => {
+  it('joinery ignores tapers', () => {
+    expect(angledRefusal(withCut(taper), 'joinery')).toBeNull();
+    expect(angledParts(withCut(taper), ['taper'])).toEqual([]);
+  });
+  it('joinery still refuses any other kind, naming the parts', () => {
+    expect(angledRefusal(withCut(miter, 4), 'joinery')).toBe(
+      "Add joinery doesn't handle mitered, beveled or chamfered parts yet (Frame 1, Frame 2, Frame 3…). Add joinery before cutting those angles, or remove them.");
+  });
+  it('Refine still refuses tapers in this chunk', () => {
+    expect(angledRefusal(withCut(taper), 'refine')).toBe(
+      "Refine doesn't handle angled parts yet (Frame 1). Refine before tapering, or remove the angles first.");
   });
 });

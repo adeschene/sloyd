@@ -755,7 +755,7 @@ describe('runRefine — joined designs', () => {
 
 const TAPER = { id: 'a1', kind: 'taper' as const, face: 'width' as const, from: 'min' as const, along: 'length' as const, alongFrom: 'min' as const, points: [[0, 0.5], [20, 0]] as [[number, number], [number, number]] };
 const angledDoc = (): SloydDocument => ({ ...createDocument('T'), boards: [
-  createBoard({ id: 'leg', name: 'Leg', angleCuts: [TAPER] }), createBoard({ id: 'apron', name: 'Apron', position: [1.75, 20, 0] }),
+  createBoard({ id: 'leg', name: 'Leg', angleCuts: [{ ...TAPER, kind: 'miter' as const }] }), createBoard({ id: 'apron', name: 'Apron', position: [1.75, 20, 0] }),
 ] });
 
 describe('runJoinery — angled documents (spec §6)', () => {

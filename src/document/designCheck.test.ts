@@ -6,6 +6,9 @@ import { createBoard, createDocument, flatDocument, migrateDocument } from './do
 import workbenchRaw from './fixtures/simple-workbench.sloyd?raw';
 import type { FlatDocument } from './document';
 import type { Board } from './types';
+import { taperCut } from './angleCuts';
+import { axisFrame, endFacing } from './geometry';
+import type { AngleCut } from './types';
 
 const NO_LIMITS: DesignLimits = { width: null, depth: null, height: null, maxParts: 100 };
 
@@ -425,5 +428,46 @@ describe('rejectedViolations — assemblies', () => {
     expect(out.map((x) => x.parts)).toEqual([['Drawer'], ['Door']]);
     expect(out[0].message).toBe('Drawer is an assembly with no usable placement, so none of its parts were built.');
     expect(out[1].message).toBe('Door is an assembly with no usable parts.');
+  });
+});
+
+describe('tapered parts: contacts read contactSolids (AI-tapers spec §3.3)', () => {
+  const leg = (): Board => createBoard({ name: 'Leg', position: [0, 0, 0], length: 28, width: 1.5, thickness: 1.5, posture: 'upright', rotation: 0 });
+  const plusX = (b: Board, start: number, amount = 0.5): AngleCut => ({
+    id: 'tx', ...taperCut({ face: axisFrame(b)[0]!.dim as 'width' | 'thickness', from: endFacing(b, 0, 1), end: endFacing(b, 1, -1), start, amount }),
+  });
+  const tapered = (start: number) => { const b = leg(); return { ...b, angleCuts: [plusX(b, start)] }; };
+  const about = (doc: FlatDocument, name: string) => checkDesign(doc, NO_LIMITS).filter((v) => v.parts.includes(name)).map((v) => v.kind);
+  // A batten fastened by its broad (-X) face to the leg's +X face, 5in to 8in up.
+  const batten = () => span('Batten', [1.5, 5, 0], [2.25, 8, 1.5]);
+
+  it('a batten on square wood is held', () => {
+    expect(about(docOf(leg(), batten()), 'Batten')).toEqual([]);
+    expect(about(docOf(tapered(4), batten()), 'Batten')).toEqual([]);   // the taper ends below it
+  });
+
+  it('a batten against the tapered length touches air, so it connects to nothing', () => {
+    expect(about(docOf(tapered(20), batten()), 'Batten')).toEqual(['unsupported']);
+  });
+
+  it('a full-length taper still carries a top on its far end', () => {
+    expect(about(docOf(tapered(28), span('Top', [0, 28, 0], [3, 28.5, 1.5])), 'Top')).toEqual([]);
+  });
+
+  it('the footprint shrinks by the amount: a piece that stood now tips', () => {
+    const top = span('Top', [0, 28, 0], [3, 28.5, 1.5]);
+    const tips = (doc: FlatDocument) => checkDesign(doc, NO_LIMITS).some((v) => v.kind === 'tips');
+    expect(tips(docOf(leg(), top))).toBe(false);
+    expect(tips(docOf(tapered(20), top))).toBe(true);
+  });
+
+  it('an untapered notched part keeps its whole box for the tip footprint', () => {
+    // A notch under the leg's floor end would drop its floor cell from a cells-based footprint.
+    // Footprint only: untapered grounding is protected structurally (`connected` reads
+    // contactSolids only when `tapered[i] || tapered[j]`), not by this test.
+    const notched = createBoard({ name: 'Leg', position: [0, 0, 0], length: 28, width: 1.5, thickness: 1.5, posture: 'upright', rotation: 0,
+      cuts: [{ id: 'n', face: 'width', from: 'max', across: 'thickness', offset: 0, width: 2, depth: 0.75, stopMin: 0, stopMax: 0 }] });   // offset/width run along the length (positionAxisOf)
+    const top = span('Top', [0, 28, 0], [3, 28.5, 1.5]);
+    expect(checkDesign(docOf(notched, top), NO_LIMITS)).toEqual(checkDesign(docOf(leg(), top), NO_LIMITS));
   });
 });
