@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { contactSolids, isTapered, worldSolids } from './designCheck';
+import { contactRegions, contactSolids, isAngled, worldSolids } from './designCheck';
 import type { Box } from './designCheck';
 import { createBoard } from './document';
-import { taperCut } from './angleCuts';
+import { chamferCut, miterCut, taperCut } from './angleCuts';
 import { axisFrame, endFacing } from './geometry';
 import type { AngleCut, Board } from './types';
 
@@ -21,14 +21,14 @@ describe('contactSolids (spec §3.2)', () => {
     const b = createBoard({ name: 'Notched', length: 20, width: 4, thickness: 1, cuts: [
       { id: 'c1', face: 'thickness', from: 'max', across: 'length', offset: 2, width: 3, depth: 0.5, stopMin: 0, stopMax: 0 },
     ] });
-    expect(isTapered(b)).toBe(false);
+    expect(isAngled(b)).toBe(false);
     expect(contactSolids(b)).toEqual(worldSolids(b));
   });
 
   it('trusts the square length and the shrunk thin end', () => {
     const b = leg();
     const t = { ...b, angleCuts: [taper(b, 0, 1, 20, 0.5)] };
-    expect(isTapered(t)).toBe(true);
+    expect(isAngled(t)).toBe(true);
     expect(sorted(contactSolids(t))).toEqual([
       [[0, 0, 0], [1, 0, 1.5]],        // the floor end, 0.5 off its +X side
       [[0, 20, 0], [1.5, 28, 1.5]],    // the square length
@@ -66,8 +66,45 @@ describe('contactSolids (spec §3.2)', () => {
     expect(sorted(contactSolids({ ...b, angleCuts: [flipped] }))).toEqual(sorted(contactSolids({ ...b, angleCuts: [std] })));
   });
 
-  it('throws on any other angle-cut kind (refused upstream)', () => {
+  it('a chamfered leg: the corner strip is never trusted, the rest is (AI-angles spec §2.2)', () => {
     const b = leg();
-    expect(() => contactSolids({ ...b, angleCuts: [{ ...taper(b, 0, 1, 20, 0.5), kind: 'miter' }] })).toThrow();
+    // The +X/+Z vertical edge of the upright leg: width (X) max and thickness (Z) max, 1/4in legs, all of the length.
+    const c: AngleCut = { id: 'c', ...chamferCut({ face: 'width', from: 'max', along: 'thickness', alongFrom: 'max', legFace: 0.25, legAlong: 0.25 }, b) };
+    expect(contactSolids({ ...b, angleCuts: [c] }).map((x) => [x.min, x.max])).toEqual([
+      [[0, 0, 0], [1.5, 28, 1.25]],    // thickness stations outside the strip, full width
+      [[0, 0, 1.25], [1.25, 28, 1.5]], // inside it, only past the width leg
+    ]);
+  });
+
+  it('a mitered end trusts nothing past its short point', () => {
+    const b = leg();
+    const c: AngleCut = { id: 'm', ...miterCut({ end: 'max', across: 'width', longSide: 'min', ratio: 1 }, b) };
+    expect(sorted(contactSolids({ ...b, angleCuts: [c] }))).toEqual([[[0, 0, 0], [1.5, 26.5, 1.5]]]);
+  });
+
+  it('taper first, then the chamfer: never trusts removed wood, never overlaps (Review Focus 1)', () => {
+    const b = leg();
+    const t = taper(b, 0, 1, 20, 0.5);
+    const c: AngleCut = { id: 'c', ...chamferCut({ face: 'width', from: 'min', along: 'thickness', alongFrom: 'min', legFace: 0.25, legAlong: 0.25 }, b) };
+    const rs = contactRegions({ ...b, angleCuts: [t, c] });
+    const taperOnly = contactRegions({ ...b, angleCuts: [t] });
+    const DIMS = ['length', 'width', 'thickness'] as const;
+    type R = (typeof rs)[number];
+    const within = (r: R, s: R) => DIMS.every((d) => r[d][0] >= s[d][0] - 1e-12 && r[d][1] <= s[d][1] + 1e-12);
+    expect(rs.length).toBeGreaterThan(0);
+    // Inside what the taper alone trusts, and outside the chamfer's strip.
+    expect(rs.every((r) => taperOnly.some((s) => within(r, s)))).toBe(true);
+    expect(rs.every((r) => r.width[0] >= 0.25 - 1e-12 || r.thickness[0] >= 0.25 - 1e-12)).toBe(true);
+    // Pairwise disjoint: no pair shares positive extent on every dimension.
+    const overlap = (p: R, q: R) => DIMS.every((d) => Math.min(p[d][1], q[d][1]) - Math.max(p[d][0], q[d][0]) > 0);
+    expect(rs.some((p, i) => rs.some((q, j) => i !== j && overlap(p, q)))).toBe(false);
+    // The taper's floor-end slab survives, shrunk past the chamfer too.
+    expect(rs.some((r) => r.length[0] === 0 && r.length[1] === 0)).toBe(true);
+  });
+
+  it('a chamfer deeper than the part trusts nothing in its strip, and does not throw (Review Focus 4)', () => {
+    const b = leg();
+    const c: AngleCut = { id: 'c', ...chamferCut({ face: 'width', from: 'max', along: 'thickness', alongFrom: 'max', legFace: 5, legAlong: 0.25 }, b) };
+    expect(sorted(contactSolids({ ...b, angleCuts: [c] }))).toEqual([[[0, 0, 0], [1.5, 28, 1.25]]]);
   });
 });
