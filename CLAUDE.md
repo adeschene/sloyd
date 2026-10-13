@@ -21,14 +21,14 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-13: AI-tapers chunk 1 (merge `71510e5`) — joinery and Repair accept
-  tapers, the taper-at-joint refusal, checks trust only a taper's flat wood — bundle `index-B4V-pkp9.js`, CSS
-  `index-BkjfVfaC.css`, **SCHEMA 14** (unchanged since angle cuts chunk 1, so rolling back to `669a828`, `index-DACMEk1Y.js`,
-  or any 14 build is free; below 14, `47548d3`, REFUSES every project saved since: export first). Test count is under Commands.
-- **NEXT: AI-tapers chunk 2** (spec `docs/superpowers/specs/2026-10-13-sloyd-ai-tapers-design.md` §2, §5–§7; plan
-  `docs/superpowers/plans/2026-10-13-sloyd-ai-tapers-chunk2.md`): Generate and Refine emit tapers through the design
-  schema's `tapers`, `evaluateDesign` reports the taper-at-joint fault, Refine accepts tapered (only) documents. Other open
-  items: angle-cut residue 295–298; 241 (open by decision), 251 (record-only), 221, 225 (rest out of scope), 232, 234, 247.
+- **Production matches `master`** as of 2026-10-13: AI-tapers chunk 2 (merge `f7a6202`) — Generate and Refine read and
+  write tapers — bundle `index-DWTxNeO6.js`, CSS `index-BkjfVfaC.css`, **SCHEMA 14** (unchanged since angle cuts chunk 1, so
+  rolling back to `71510e5`, `index-B4V-pkp9.js`, or any 14 build is free; below 14, `47548d3`, REFUSES every project saved
+  since: export first). Test count is under Commands.
+- **NEXT: none chosen — ask.** The AI-tapers feature (the user's "the AI integration") is complete: one prompt gives tapered
+  legs with joinery. Open near it: fu 311 (Refine's not-joined dialog shows the fault twice; the user's UX call), 310, 313,
+  301–303 (mirrored-component legs, box-based overlap and centre of mass), 276/277's rest (miters, bevels and chamfers in the
+  AI features). Other open items: angle-cut residue 295–298; 241 (open by decision), 251 (record-only), 221, 225, 232, 234, 247.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
   byte-identical bundles (test-only). Check what a later commit touches before reading
@@ -89,6 +89,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | angle cuts (chunk 2) | 10-12 | — | Miter preset: "+ Add ▾" (Taper, Miter, Miter both ends — one undo entry), End/Across/Long point/Angle controls (ratio stored, 45° exact), AngleField (DimensionField with a degree parse/format), the miter line names the long point |
 | angle cuts (chunk 3) | 10-12 | — | Bevel (Face, Long point, Angle; along the length) and Chamfer (any of 12 edges, Size; exact legs) presets and their final bench wording; the angle-cuts feature is complete |
 | AI tapers (chunk 1) | 10-13 | — | Add joinery and Repair accept tapers; the taper-at-joint refusal; checks trust only a taper's flat wood (`contactSolids`) |
+| AI tapers (chunk 2) | 10-13 | — | Generate and Refine read/write tapers in world words (`taperWorld.ts`); the taper-joint design fault; joined Refine with tapers |
 
 ### The deployment rule
 

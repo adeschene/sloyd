@@ -18,6 +18,13 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-13 with AI-tapers chunk 2 live** (`index-DWTxNeO6.js`, CSS `index-BkjfVfaC.css`
+unchanged, merge `f7a6202`, **schema 14**, unchanged). Verified: `200` on `/` and a deep route in-network and at the edge;
+bundle matches `dist/` at both; `index-B4V-pkp9.js` 404s in-network; CSP `connect-src 'self' https://api.anthropic.com` at the
+edge; a real-browser load with 0 errors, the Cloudflare beacon and "+ Add board" present; the load's two fresh keys
+(`version: 14`) cleared and read back empty after 3s, then navigated away. Features verified on the dev server with two
+user-approved paid runs (`docs/browser-verification-ai-tapers.md`, "Chunk 2").
+
 **Production matches `master` as of 2026-10-13 with AI-tapers chunk 1 live** (`index-B4V-pkp9.js`, CSS `index-BkjfVfaC.css`
 unchanged, merge `71510e5`, **schema 14**, unchanged). Verified: `200` on `/` and a deep route in-network and at the edge;
 bundle matches `dist/` at both; `index-DACMEk1Y.js` 404s in-network; CSP `connect-src 'self' https://api.anthropic.com` at the
@@ -369,6 +376,20 @@ and 79.
 ---
 
 ## What each round did
+
+**What AI-tapers chunk 2 did (2026-10-13)** (plan `docs/superpowers/plans/2026-10-13-sloyd-ai-tapers-chunk2.md`, subagent-driven,
+a review per task and a whole-branch review; spec amended while planning, user-approved): Generate and Refine read and write
+tapers. The design schema carries `tapers` in world directions (`taperWorld.ts`: the one world↔stored crossing, through inv
+44's helpers; generated tapers stored through `taperCut`); a taper running into a meeting is a `taper-joint` design fault in
+`evaluateDesign` (advice floored to 1/16 so following it passes); Refine describes standard-form tapers exactly, refuses
+before any call one it cannot describe or the converter would reject (`taper-form`), counts the original's own taper
+conflicts as preexisting, and KEEP_LINE keeps tapers; joined Refine proves angle cuts in its gate, refuses an original whose
+taper already runs into a joint, and returns an unfixed result unjoined with a note (the spec's "cannot refuse" was false);
+the change list names taper changes; the prompt teaches inside-face tapers corner by corner. The final review caught Refine
+sending the model hand-made tapers its own converter rejects (knife edge, opposite faces, a part wider than long, start past
+a shortened length) — fixed before merge. Live: one paid Generate ("Shaker side table with tapered legs", $0.05) gave four
+inside-tapered legs below 5" aprons with no repair round; one paid Add joinery ($0.03, estimate $0.02–$0.14) gave 8
+mortise-and-tenons with the tapers byte-identical. The user approved the joined table by eye. Residue: fu 310, 311, 313.
 
 **What AI-tapers chunk 1 did (2026-10-13)** (spec `docs/superpowers/specs/2026-10-13-sloyd-ai-tapers-design.md`, plan
 `docs/superpowers/plans/2026-10-13-sloyd-ai-tapers-chunk1.md`, subagent-driven, a review per task and a whole-branch review):
