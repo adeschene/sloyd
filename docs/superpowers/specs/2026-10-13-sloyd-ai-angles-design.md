@@ -21,7 +21,8 @@ joined and repaired; Generate can emit chamfered tops, beveled panels and mitere
 - **Accept the angles; no new joint kinds.** A miter, bevel or chamfer reaching into a joint refuses the joinery run,
   naming the part, as a taper does today.
 - **A miter does not hold.** A sloped face is never a contact (the checks' existing rule). An upright frame held only by
-  its miters is reported as hanging; that is honest for a plain glued miter. A structural miter is fu 276's splines.
+  its miters is reported (its top rail; amended while planning, §4.1); that is honest for a plain glued miter. A structural
+  miter is fu 276's splines.
 - **Approach 1: world words for every kind**, the AI-tapers pattern (not carrying angles through Refine unseen, not a
   generic stored-form array).
 - **Two chunks, each with its own plan and deploy.** Chunk 1 (§2–§4): the checks, joinery and Repair accept the angles,
@@ -95,14 +96,16 @@ and comment follows.
 - **The message**, one sentence per part, in `angledRefusal.ts` (it is a string a person reads): "`<Part>`'s `<kind>` runs
   into its joint with `<Other>` — add joinery before cutting it, or remove it." (`<kind>` is `miter`, `bevel` or
   `chamfer`.)
-- `joineryRefusal` returns, in order: this widened conflict refusal, else null. `angledRefusal(doc, 'joinery')` no longer
-  refuses any kind. Repair (`repairDocument`) and a joined Refine (`plainForRefine`) read `joineryRefusal`, so they refuse
-  in the same words.
+- `joineryRefusal` returns this widened conflict refusal, else null. `angledRefusal(doc, 'joinery')` no longer refuses any
+  kind. A joined Refine (`plainForRefine`) reads `joineryRefusal`, so it refuses in the same words. (Amended while
+  planning: Repair does not read it — Repair adds no joints; it prunes strays and proves the result by re-joining the
+  joints already recorded, §4.)
 - The design-side fault (`taperFaults` → `taperJointViolations`) is widened in chunk 2 (§5.4), not here.
 
 Examples: a rail mitered at the end that meets a leg is refused; a leg chamfered on an outside corner with its apron set
 back from that face is fine; the same apron set flush with that face is refused; an apron chamfered ⅛″ along its bottom
-edge, tenoned at both ends, is fine (clear of the tenon); the same apron chamfered ½″ on ¾″ stock is refused.
+edge, tenoned at both ends, is fine (clear of the tenon); the same apron chamfered ⅝″ is refused (amended while planning:
+½″ was the example, but a ½″ width leg exactly meets the ½″ shoulder, and touching is allowed).
 
 **Mitered corners:** two mitered parts meeting at a corner have overlapping boxes, so `faceContacts` never makes them a
 site; the real-body overlap check sees bodies touching on the diagonal, so they are not an overlap. A mitered corner gets
@@ -130,12 +133,14 @@ current message (`angledRefusal(doc, 'refine')` unchanged until chunk 2).
 Vitest; one live check on the dev server (a hand-made chamfered side table joined; free, no key).
 
 - **The split, per kind, in every posture and turn:** pieces pairwise disjoint; their union never contains removed wood
-  (sample points tested against `boardBodies`); the chamfered top rests on its aprons (no `hangs`); the mitered end trusts
-  nothing past the short point; two stiles standing on a mitered rail are reported (`hangs`), per the ruling.
+  (sample points tested against `keptHalfSpace`); the chamfered top rests on its posts (no `hangs`, no `unsupported`); the
+  mitered end trusts nothing past the short point; the top rail of an upright mitered frame, held only by its miters, is
+  reported (`unsupported`: its flat wood meets the stiles' only along a line), per the ruling. Amended while planning: the
+  spec first said the stiles would be reported, but their long points reach the floor and grounding reads boxes.
 - **Tapers:** contact results byte for byte as today (the existing taper tests stay green, unmodified).
 - **The joint rule:** mitered rail at a leg refused; chamfered leg with its apron set back passes, flush refused; a patch
-  touching `T`'s edge passes; a ⅛″ chamfer along a tenoned apron passes, a ½″ one on ¾″ stock is refused, and a chamfer
-  exactly at the cheek passes (touching allowed). Each case mutated (e.g. `>` → `>=` on the area and clearance tests).
+  touching `T`'s edge passes; a ⅛″ chamfer along a tenoned apron passes, a ⅝″ one is refused, and a chamfer whose width
+  leg is exactly the ½″ shoulder passes (touching allowed). Each case mutated (e.g. `>` → `>=` on the area and clearance tests).
 - **The rebase:** fu 307's fixture RED before, GREEN after; a deep-end-last chamfer stays put in world space under a
   tenon's growth; canonical tapers' stored values unchanged.
 - **Mitered corner pair:** no site, no overlap fault.
