@@ -27,8 +27,8 @@ handicraft education tradition built around hand woodworking.
   REFUSES every project saved since: export first). Test count is under Commands. Open from the round: 319 (the View group's
   wrap, for the user's eye), 320 (record-only; a saved PNG owed a real-hardware look).
 - **AI angles (fu 276/277's remainder; spec `2026-10-13-sloyd-ai-angles-design.md`)**: chunk 1 (Add joinery and Repair
-  accept miters, bevels and chamfers; the widened joint rule with the tenon-clearance exception; fu 307 closed) is on branch
-  `ai-angles-1`, not yet merged or deployed. **NEXT: chunk 2** (Generate and Refine read and write miters, bevels and
+  accept miters, bevels and chamfers; the widened joint rule with the tenon-clearance exception; fu 307 closed) is MERGED
+  (`be4c87c`), not deployed — deploy on the user's word (no schema change; rollback free). **NEXT: chunk 2** (Generate and Refine read and write miters, bevels and
   chamfers in world words) — its own plan. Open near it: 314–318 (turned-links residue, record-only or accepted). Other open items: angle-cut residue 295–298; 241 (open by decision), 251 (record-only), 221, 225, 232, 234, 247.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship

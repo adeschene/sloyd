@@ -437,8 +437,7 @@ mitered at its leg and listed "Rail X → Leg: end into face" for the 1/8in-cham
 rebase, so a joined Refine or Repair refused a re-anchored cut and blamed the user (fixed, `resizeAt`); and a hairline cut
 under TOUCH on a growing joined end passed the joint rule, then bit the tenon as the part grew through its fixed line —
 the spec contradicted itself (§3 allowed it, §4 assumed it refused), so it went to the user, who ruled: refuse it,
-however small. Minors recorded as fu 321. Test count 3474 -> 3501. No schema change (SCHEMA 14); rollback is free. On
-`ai-angles-1`.
+however small. Minors recorded as fu 321. Test count 3474 -> 3501. Merged to master as `be4c87c`; not deployed. No schema change (SCHEMA 14); rollback is free.
 
 **What standard views + image export did (2026-10-13, feature-gaps §2, fu 260)** (spec
 `docs/superpowers/specs/2026-10-13-sloyd-standard-views-image-design.md`, plan
