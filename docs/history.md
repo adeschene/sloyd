@@ -18,6 +18,13 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-13 with fu 313's fixes live** (`index-Cu_W4spT.js`, CSS `index-BkjfVfaC.css`
+unchanged, commit `db13999`, **schema 14**). A non-finite taper number is rejected in taper words; the prompt's typical-start
+sentence reworded; the rest is tests. Verified: `200` on `/` and a deep route in-network and at the edge; bundle matches
+`dist/` at both; `index-CV1sw3YE.js` 404s in-network; CSP unchanged; a real-browser load with 0 errors, the Cloudflare beacon
+and "+ Add board" present; the load's two fresh keys (`version: 14`) cleared and read back empty after 3s, then navigated
+away. Unit-tested only.
+
 **Production matches `master` as of 2026-10-13 with fu 310's fix live** (`index-CV1sw3YE.js`, CSS `index-BkjfVfaC.css`
 unchanged, commit `721cfba`, **schema 14**). Refine's change list diffs tapers face by face at display precision. Verified:
 `200` on `/` and a deep route in-network and at the edge; bundle matches `dist/` at both; `index-iDivrN-T.js` 404s in-network;
@@ -388,6 +395,12 @@ and 79.
 ---
 
 ## What each round did
+
+**What fu 313 did (2026-10-13)**, at the user's word: the AI-tapers test and wording residue. `taperCutsFor` tested in every
+pose with two adjacent faces (a four-face version let a min/max mutation survive), NaN and a second-entry fault; a
+non-finite taper number rejected as `taper` with its own words; the plural `taper-form` message pinned; a test that could not
+fail removed; the prompt's typical-start sentence reworded and all four corner rows pinned. By decision, the same face named
+in two entries toward one end stays allowed (Properties allows it; refusing would make Refine refuse such hand-made parts).
 
 **What fu 310 did (2026-10-13)**, at the user's word: `designDiff` compares tapers face by face (a sloped face toward one end)
 at display precision, so only faces added, removed or changed get a line ("taper removed (-x)" when one of two goes), faces
