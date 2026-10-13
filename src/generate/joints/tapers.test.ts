@@ -2,11 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { designToDocument, parseDesign } from '../../document/generated';
 import { flatDocument, taperCut } from '../../document/document';
 import type { AngleCut, Board, FlatDocument } from '../../document/document';
-import { axisFrame, endFacing } from '../../document/geometry';
+import { axisFrame, boardCenter, endFacing } from '../../document/geometry';
+import { worldTapers } from '../../document/taperWorld';
 import { formatLength } from '../../units/length';
 import { findSites } from './sites';
 import { joineryRefusal, taperConflicts, taperFaults } from './tapers';
 import { taperJointRefusal } from '../../document/angledRefusal';
+import { checkDesign } from '../../document/designCheck';
+import { applyJoints } from './recipes';
+import { defaultChoice } from './choose';
 
 type P = { name: string; at: [number, number, number]; size: [number, number, number] };
 const design = (...parts: P[]) => flatDocument(designToDocument({
@@ -210,5 +214,62 @@ describe('taperFaults \u2014 the fault on designs (spec 5.3)', () => {
       part('Foot', [-1, 0, -1], [4, 1, 4]),
     ]);
     expect(taperFaults(flat)[0]!.message).toBe("Leg's taper toward -y runs to its -y end, where it meets Foot (a joint goes there) \u2014 taper the other end, or remove the taper.");
+  });
+});
+
+describe('the headline flow: a Shaker table with tapered legs, generated and joined (AI-tapers chunk 2)', () => {
+  // Built the way the prompt teaches: four legs 1.75 x 28.25 x 1.75 tapering their INSIDE faces toward the floor by the
+  // corner rule, start 22.5 (below the aprons, which begin at 23.25), amount 0.5; four 5in aprons inset 0.25 from the
+  // legs' outside faces at the top of the legs; a top overhanging 1in all round. 30 x 20 x 29 overall.
+  const leg = (name: string, x: number, z: number, faces: string[]) => ({ name, role: '', material: 'oak',
+    at: { x, y: 0, z }, size: { x: 1.75, y: 28.25, z: 1.75 }, tapers: [{ faces, toward: '-y', start: 22.5, amount: 0.5 }] });
+  const plain = (name: string, at: [number, number, number], size: [number, number, number]) => ({ name, role: '', material: 'oak',
+    at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] }, tapers: [] });
+  const json = { name: 'Shaker table', assemblies: [], parts: [
+    leg('Leg FL', 0, 0, ['+x', '+z']), leg('Leg FR', 28.25, 0, ['-x', '+z']),
+    leg('Leg BL', 0, 18.25, ['+x', '-z']), leg('Leg BR', 28.25, 18.25, ['-x', '-z']),
+    plain('Apron F', [1.75, 23.25, 0.25], [26.5, 5, 0.75]), plain('Apron B', [1.75, 23.25, 19], [26.5, 5, 0.75]),
+    plain('Apron L', [0.25, 23.25, 1.75], [0.75, 5, 16.5]), plain('Apron R', [29, 23.25, 1.75], [0.75, 5, 16.5]),
+    plain('Top', [-1, 28.25, -1], [32, 0.75, 22]),
+  ] };
+  const limits = { width: null, depth: null, height: null, maxParts: 10 };
+  const legs = (d: FlatDocument) => d.boards.filter((b) => b.name.startsWith('Leg'));
+
+  it('converts, checks clean, and joins with mortise-and-tenons that leave every taper alone', () => {
+    const design = parseDesign(json);
+    if (!design) throw new Error('the design does not parse');
+    const made = designToDocument(design, { centre: false });
+    expect(made.rejected).toEqual([]);
+    const flat = flatDocument(made.doc);
+    expect(legs(flat).map((b) => b.angleCuts.length)).toEqual([2, 2, 2, 2]);
+    // The corner rule survives conversion: each stored leg's tapered faces, read back in world terms, face the middle.
+    const middle = [15, 10];
+    for (const b of legs(flat)) {
+      const c = boardCenter(b);
+      const inward = (d: string) => (d === '+x' ? c[0] < middle[0]! : d === '-x' ? c[0] > middle[0]! : d === '+z' ? c[2] < middle[1]! : c[2] > middle[1]!);
+      const t = worldTapers(b);
+      expect(t?.length).toBe(1);
+      expect(t![0]!.faces.every(inward)).toBe(true);
+    }
+    expect(checkDesign(flat, limits)).toEqual([]);
+    expect(taperFaults(flat)).toEqual([]);
+    expect(joineryRefusal(made.doc, flat)).toBeNull();
+
+    const sites = findSites(flat);
+    // Every apron end meets a leg: eight sites, each joined by an explicit mortise-and-tenon (3/4in: the two tenons in a
+    // leg come in on different axes and pass clear of each other). A 5in x 3/4in apron counts as "wide" for the default
+    // (width > 6 x thickness), which would pick a dado; the flow under test is the mortise-and-tenon one. Every other
+    // site (the top on the legs and aprons) takes its default.
+    const named = (i: number, prefix: string) => flat.boards[i]!.name.startsWith(prefix);
+    const apronLeg = new Set(sites.filter((s) => named(s.enter, 'Apron') && named(s.receive, 'Leg')).map((s) => s.id));
+    expect(apronLeg.size).toBe(8);
+    const choices = sites.map((s) => (apronLeg.has(s.id) ? { site: s.id, joint: 'mortise-tenon' as const, tenonLength: 0.75 } : defaultChoice(s, flat, sites)));
+    const joined = applyJoints(flat, sites, choices);
+    expect(joined.skipped).toEqual([]);
+    expect(joined.applied.filter((a) => apronLeg.has(a.site)).map((a) => a.joint)).toEqual(Array(8).fill('mortise-tenon'));
+    expect(checkDesign(joined.doc, limits)).toEqual([]);
+    // Each leg keeps exactly its two tapers, unchanged.
+    expect(legs(joined.doc).map((b) => b.angleCuts)).toEqual(legs(flat).map((b) => b.angleCuts));
+    expect(legs(joined.doc).every((b) => b.cuts.length > 0)).toBe(true);
   });
 });
