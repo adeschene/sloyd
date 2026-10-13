@@ -1,5 +1,7 @@
-import type { AngleKind, SloydDocument } from './types';
+import type { AngleKind, CutFrom, FlatDocument, SloydDocument } from './types';
 import { flatDocument } from './tree';
+import { faceName } from './angleText';
+import { formatLength } from '../units/length';
 
 /** Flat display names of every placed part carrying an angle cut whose kind is not in `allow`, in document order. */
 export function angledParts(doc: SloydDocument, allow: readonly AngleKind[] = []): string[] {
@@ -25,4 +27,30 @@ export function angledRefusal(doc: SloydDocument, action: 'joinery' | 'refine'):
   const names = angledParts(doc);
   if (names.length === 0) return null;
   return `Refine doesn't handle angled parts yet (${shown(names)}). Refine before tapering, or remove the angles first.`;
+}
+
+/** One tapered part whose taper runs into a joint (AI-tapers spec §4.1). Indices are flat-document board indices. */
+export interface TaperConflict {
+  part: number;
+  other: number;
+  /** The taper's thin end. */
+  end: CutFrom;
+  /** The joint's closest station to that end, inches; 0 when the joint is ON that end. */
+  nearest: number;
+}
+
+/**
+ * The person-facing refusal for taper conflicts (spec §4.1), one sentence per tapered part,
+ * or null. Built here, not in generate/, because it is a string a person reads (→ units).
+ */
+export function taperJointRefusal(flat: FlatDocument, conflicts: readonly TaperConflict[]): string | null {
+  if (conflicts.length === 0) return null;
+  const f = (n: number) => formatLength(n, flat.units.precision);
+  return conflicts.map(({ part, other, end, nearest }) => {
+    const name = flat.boards[part]!.name;
+    const joint = flat.boards[other]!.name;
+    return nearest === 0
+      ? `${name}'s taper runs to ${faceName('length', end)}, where it joins ${joint} — taper the other end, or remove it.`
+      : `${name}'s taper runs into its joint with ${joint} — start it at ${f(nearest)} or less from ${faceName('length', end)}, or remove it.`;
+  }).join(' ');
 }
