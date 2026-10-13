@@ -5,6 +5,8 @@ import { DIMENSION_ORDER, SNAP_INCHES, axisDimensions } from './geometry';
 import { nextId } from './ids';
 import { cleanName as clean, uniqueName } from './names';
 import { NAME_SEPARATOR } from './tree';
+import { DIRS, taperCutsFor } from './taperWorld';
+import type { WorldTaper } from './taperWorld';
 import { MATERIALS } from './types';
 import type { Board, Definition, Dimension, Grain, Instance, Posture, Rotation } from './types';
 
@@ -23,6 +25,8 @@ export interface GeneratedPart {
   name: string; role?: string; material: MaterialKey; at: Vec3; size: Vec3;
   /** TS-only, never in the schema: set by Refine's carryGrain from the original part of the same name. parseDesign drops it. */
   grain?: Grain;
+  /** Required from the model (parseDesign checks it); optional here like `role`. */
+  tapers?: WorldTaper[];
 }
 /** Where an assembly's local origin goes in the world. No turn (spec §2). */
 export interface GeneratedPlacement { name: string; at: Vec3 }
@@ -30,12 +34,23 @@ export interface GeneratedPlacement { name: string; at: Vec3 }
 export interface GeneratedAssembly { name: string; parts: GeneratedPart[]; placements: GeneratedPlacement[] }
 /** `assemblies` is REQUIRED from the model; optional here for the same reason as `role`. */
 export interface GeneratedDesign { name: string; parts: GeneratedPart[]; assemblies?: GeneratedAssembly[] }
-export interface RejectedPart { name: string; reason: 'not-finite' | 'too-small' | 'unplaced' | 'empty' }
+/** `detail` is the whole message, set for `'taper'`. */
+export interface RejectedPart { name: string; reason: 'not-finite' | 'too-small' | 'unplaced' | 'empty' | 'taper'; detail?: string }
 
 const vec3Schema = {
   type: 'object',
   properties: { x: { type: 'number' }, y: { type: 'number' }, z: { type: 'number' } },
   required: ['x', 'y', 'z'],
+  additionalProperties: false,
+};
+
+const dirSchema = { type: 'string', enum: [...DIRS] };
+/** One taper in world words (AI-tapers spec §2): the faces that slope, the end that gets thinner, where it starts
+ *  (from that end) and how much it removes there. Counts and duplicates are the converter's to check. */
+const taperSchema = {
+  type: 'object',
+  properties: { faces: { type: 'array', items: dirSchema }, toward: dirSchema, start: { type: 'number' }, amount: { type: 'number' } },
+  required: ['faces', 'toward', 'start', 'amount'],
   additionalProperties: false,
 };
 
@@ -48,8 +63,9 @@ const partSchema = {
     material: { type: 'string', enum: Object.keys(MATERIALS) },
     at: vec3Schema,
     size: vec3Schema,
+    tapers: { type: 'array', items: taperSchema },
   },
-  required: ['name', 'role', 'material', 'at', 'size'],
+  required: ['name', 'role', 'material', 'at', 'size', 'tapers'],
   additionalProperties: false,
 };
 
@@ -89,9 +105,14 @@ const isObj = (v: unknown): v is Record<string, unknown> =>
 const isVec3 = (v: unknown): v is Vec3 =>
   isObj(v) && (['x', 'y', 'z'] as const).every((k) => typeof v[k] === 'number');
 
+const isDir = (v: unknown) => (DIRS as readonly unknown[]).includes(v);
+const isTaper = (t: unknown): boolean =>
+  isObj(t) && Array.isArray(t.faces) && t.faces.every(isDir) && isDir(t.toward) && typeof t.start === 'number' && typeof t.amount === 'number';
+
 const isPart = (p: unknown): boolean =>
   isObj(p) && typeof p.name === 'string' && typeof p.role === 'string' && typeof p.material === 'string' &&
-  Object.hasOwn(MATERIALS, p.material) && isVec3(p.at) && isVec3(p.size);
+  Object.hasOwn(MATERIALS, p.material) && isVec3(p.at) && isVec3(p.size) &&
+  Array.isArray(p.tapers) && p.tapers.every(isTaper);
 const isPlacement = (p: unknown): boolean => isObj(p) && typeof p.name === 'string' && isVec3(p.at);
 const isAssembly = (a: unknown): boolean =>
   isObj(a) && typeof a.name === 'string' && Array.isArray(a.parts) && a.parts.every(isPart) &&
@@ -100,7 +121,8 @@ const isAssembly = (a: unknown): boolean =>
 const vec = (o: unknown): Vec3 => { const v = o as Vec3; return { x: v.x, y: v.y, z: v.z }; };
 const partOf = (o: unknown): GeneratedPart => {
   const p = o as GeneratedPart;
-  return { name: p.name, role: p.role, material: p.material, at: vec(p.at), size: vec(p.size) };
+  return { name: p.name, role: p.role, material: p.material, at: vec(p.at), size: vec(p.size),
+    tapers: (p.tapers ?? []).map((t) => ({ faces: [...t.faces], toward: t.toward, start: t.start, amount: t.amount })) };
 };
 
 /**
@@ -203,7 +225,19 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], 
     rejected.push({ name: label, reason: 'too-small' });
     return null;
   }
-  return { name: clean(p.name), material: p.material, grain: isGrain(p.grain) ? p.grain : 'length', cuts: [], angleCuts: [], position: [ax, ay, az], ...orient([sx, sy, sz]) };
+  const fields = { name: clean(p.name), material: p.material, grain: isGrain(p.grain) ? p.grain : 'length', cuts: [], position: [ax, ay, az] as Vec, ...orient([sx, sy, sz]) };
+  // Tapers (spec §2.1): numbers snapped as size is, unless exact; checked after the snap; mapped through taperWorld.
+  const tapers = (p.tapers ?? []).map((t) => ({ ...t, start: exact?.has(t.start) ? t.start : snap(t.start), amount: exact?.has(t.amount) ? t.amount : snap(t.amount) }));
+  if (!tapers.every((t) => usable(t.start) && usable(t.amount))) {
+    rejected.push({ name: label, reason: 'not-finite' });
+    return null;
+  }
+  const made = taperCutsFor({ id: '', angleCuts: [], ...fields } as Board, tapers);
+  if ('fault' in made) {
+    rejected.push({ name: label, reason: 'taper', detail: `${label} ${made.fault}.` });
+    return null;
+  }
+  return { ...fields, angleCuts: made.cuts.map((c) => ({ id: nextId(), ...c })) };
 }
 
 /**

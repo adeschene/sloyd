@@ -22,7 +22,7 @@ const refuse = (reason: RefusalReason, message: string) => ({ refused: { reason,
 type V3 = [number, number, number];
 const box = (b: Board, name: string, role: string, shift: V3 = [0, 0, 0]): GeneratedPart => {
   const [x, y, z] = boardExtents(b);
-  return { name, role, material: b.material, at: { x: b.position[0] - shift[0], y: b.position[1] - shift[1], z: b.position[2] - shift[2] }, size: { x, y, z } };
+  return { name, role, material: b.material, at: { x: b.position[0] - shift[0], y: b.position[1] - shift[1], z: b.position[2] - shift[2] }, size: { x, y, z }, tapers: [] };
 };
 
 /** The smallest local corner of a definition's parts, per axis (a position is an own field, so the stored one). */
@@ -33,9 +33,10 @@ export const definitionCorner = (boards: readonly StoredBoard[]): V3 =>
 export function designValues(design: GeneratedDesign): Set<number> {
   const out = new Set<number>();
   const add = (v: { x: number; y: number; z: number }) => { out.add(v.x); out.add(v.y); out.add(v.z); };
-  for (const p of design.parts) { add(p.at); add(p.size); }
+  const addTapers = (p: GeneratedPart) => { for (const t of p.tapers ?? []) { out.add(t.start); out.add(t.amount); } };
+  for (const p of design.parts) { add(p.at); add(p.size); addTapers(p); }
   for (const a of design.assemblies ?? []) {
-    for (const p of a.parts) { add(p.at); add(p.size); }
+    for (const p of a.parts) { add(p.at); add(p.size); addTapers(p); }
     for (const pl of a.placements) add(pl.at);
   }
   return out;

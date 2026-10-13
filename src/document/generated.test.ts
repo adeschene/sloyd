@@ -5,10 +5,12 @@ import { designToDocument, orient, parseDesign, DESIGN_SCHEMA, MAX_MAGNITUDE } f
 import type { GeneratedAssembly, GeneratedDesign, GeneratedPart } from './generated';
 import { boardExtents } from './geometry';
 import { MATERIALS } from './types';
+import { worldTapers } from './taperWorld';
+import { rejectedViolations } from './designCheck';
 import type { Board } from './types';
 
 const part = (name: string, at: [number, number, number], size: [number, number, number], material = 'pine', role = ''): GeneratedPart => ({
-  name, role, material,
+  name, role, material, tapers: [],
   at: { x: at[0], y: at[1], z: at[2] },
   size: { x: size[0], y: size[1], z: size[2] },
 });
@@ -278,7 +280,7 @@ describe('parseDesign', () => {
     const d = { name: 'x', parts: [], assemblies: [asm()] };
     expect(parseDesign(d)).toEqual(d);
   });
-  const okPart = { name: 'A', role: '', material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1) };
+  const okPart = { name: 'A', role: '', tapers: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1) };
   it.each([
     null, 42, {}, { name: 'x' },
     { name: 'x', parts: [], assemblies: [] },                                   // no parts at all
@@ -310,7 +312,7 @@ describe('DESIGN_SCHEMA', () => {
   it('requires role, assemblies and placements', () => {
     const s = DESIGN_SCHEMA as any;
     expect(s.required).toEqual(['name', 'parts', 'assemblies']);
-    expect(s.properties.parts.items.required).toEqual(['name', 'role', 'material', 'at', 'size']);
+    expect(s.properties.parts.items.required).toEqual(['name', 'role', 'material', 'at', 'size', 'tapers']);
     const a = s.properties.assemblies.items;
     expect(a.required).toEqual(['name', 'parts', 'placements']);
     expect(a.properties.parts.items).toBe(s.properties.parts.items);
@@ -322,15 +324,15 @@ describe('parseDesign — normalised copy', () => {
   it('drops keys the schema does not have, at every level', () => {
     const raw = {
       name: 'x', extra: 1,
-      parts: [{ name: 'A', role: '', material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1), grain: 'width', junk: true }],
-      assemblies: [{ name: 'D', note: 'n', parts: [{ name: 'F', role: '', material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1), grain: 'width' }],
+      parts: [{ name: 'A', role: '', tapers: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1), grain: 'width', junk: true }],
+      assemblies: [{ name: 'D', note: 'n', parts: [{ name: 'F', role: '', tapers: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1), grain: 'width' }],
         placements: [{ name: 'P', at: { x: 0, y: 0, z: 0, w: 9 }, extra: 2 }] }],
     };
     const d = parseDesign(raw)!;
     expect(d).toEqual({
       name: 'x',
-      parts: [{ name: 'A', role: '', material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1) }],
-      assemblies: [{ name: 'D', parts: [{ name: 'F', role: '', material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1) }], placements: [{ name: 'P', at: v(0, 0, 0) }] }],
+      parts: [{ name: 'A', role: '', tapers: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1) }],
+      assemblies: [{ name: 'D', parts: [{ name: 'F', role: '', tapers: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1) }], placements: [{ name: 'P', at: v(0, 0, 0) }] }],
     });
     expect(d).not.toBe(raw);
   });
@@ -364,5 +366,50 @@ describe('designToDocument — options', () => {
       placements: [{ name: 'P', at: v(7, 3, 9) }] }] }, { centre: false });
     expect(doc.instances[0].position).toEqual([7, 0, 9]);
     expect(doc.definitions[0].boards[0].position).toEqual([0, 0, 0]);
+  });
+});
+
+describe('tapers in the design (AI-tapers spec §2)', () => {
+  const legPart = (tapers: unknown) => ({ name: 'Leg', role: 'leg', material: 'oak', at: { x: 0, y: 0, z: 0 }, size: { x: 1.75, y: 28, z: 1.75 }, tapers });
+  const json = (tapers: unknown) => ({ name: 'T', parts: [legPart(tapers)], assemblies: [] });
+
+  it('the schema requires tapers on every part, with Dir enums', () => {
+    const part = (DESIGN_SCHEMA.properties as any).parts.items;
+    expect(part.required).toContain('tapers');
+    expect(part.properties.tapers.items.properties.toward.enum).toEqual(['+x', '-x', '+y', '-y', '+z', '-z']);
+    expect(part.properties.tapers.items.required).toEqual(['faces', 'toward', 'start', 'amount']);
+  });
+  it('parseDesign refuses a part without tapers or with a malformed one, and copies only schema fields', () => {
+    expect(parseDesign({ name: 'T', parts: [{ ...legPart([]), tapers: undefined }], assemblies: [] })).toBeNull();
+    expect(parseDesign(json([{ faces: ['up'], toward: '-y', start: 1, amount: 1 }]))).toBeNull();
+    expect(parseDesign(json([{ faces: ['+x'], toward: '-y', start: '1', amount: 1 }]))).toBeNull();
+    const ok = parseDesign(json([{ faces: ['+x'], toward: '-y', start: 22, amount: 0.5, extra: 1 }]))!;
+    expect(ok.parts[0]!.tapers).toEqual([{ faces: ['+x'], toward: '-y', start: 22, amount: 0.5 }]);
+  });
+  it('converts a tapered leg to stored tapers that read back in world words', () => {
+    const { doc, rejected } = designToDocument(parseDesign(json([{ faces: ['+z', '+x'], toward: '-y', start: 22, amount: 0.5 }]))!);
+    expect(rejected).toEqual([]);
+    const leg = doc.boards[0]! as Board;
+    expect(leg.angleCuts.every((c) => c.kind === 'taper')).toBe(true);
+    expect(worldTapers(leg)).toEqual([{ faces: ['+x', '+z'], toward: '-y', start: 22, amount: 0.5 }]);
+  });
+  it('snaps start and amount like size, unless exact', () => {
+    const d = parseDesign(json([{ faces: ['+x'], toward: '-y', start: 22.03, amount: 0.51 }]))!;
+    expect(worldTapers(designToDocument(d).doc.boards[0]! as Board)).toEqual([{ faces: ['+x'], toward: '-y', start: 22, amount: 0.5 }]);
+    const kept = designToDocument(d, { exact: new Set([22.03, 0.51]) }).doc.boards[0]! as Board;
+    expect(worldTapers(kept)).toEqual([{ faces: ['+x'], toward: '-y', start: 22.03, amount: 0.51 }]);
+  });
+  it('rejects the part on a broken taper rule, naming the part and the rule', () => {
+    const { doc, rejected } = designToDocument(parseDesign(json([{ faces: ['+z'], toward: '-x', start: 1, amount: 0.25 }]))!);
+    expect(doc.boards).toEqual([]);
+    expect(rejected).toEqual([{ name: 'Leg', reason: 'taper', detail: expect.stringContaining('Leg has a taper toward -x') }]);
+    expect(rejectedViolations(rejected)[0]!.message).toBe(rejected[0]!.detail);
+  });
+  it('rejects a non-finite taper number as not-finite', () => {
+    const { rejected } = designToDocument({ name: 'T', parts: [legPart([{ faces: ['+x'], toward: '-y', start: Infinity, amount: 0.5 }]) as never] });
+    expect(rejected.map((r) => r.reason)).toEqual(['not-finite']);
+  });
+  it('an untapered part converts exactly as before (angleCuts: [])', () => {
+    expect((designToDocument(parseDesign(json([]))!).doc.boards[0]! as Board).angleCuts).toEqual([]);
   });
 });

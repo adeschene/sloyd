@@ -411,6 +411,7 @@ export function rejectedViolations(rejected: RejectedPart[]): Violation[] {
     'too-small': (n) => `${n} has a size of zero or less after rounding to 1/16in.`,
     unplaced: (n) => `${n} is an assembly with no usable placement, so none of its parts were built.`,
     empty: (n) => `${n} is an assembly with no usable parts.`,
+    taper: (n) => `${n} has a taper that cannot be built.`,
   };
-  return rejected.map((r) => ({ kind: 'too-small' as const, message: say[r.reason](r.name), parts: [r.name] }));
+  return rejected.map((r) => ({ kind: 'too-small' as const, message: r.detail ?? say[r.reason](r.name), parts: [r.name] }));
 }

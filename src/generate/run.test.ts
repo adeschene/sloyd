@@ -23,7 +23,7 @@ const settings: GenerateSettings = {
 };
 const usage = { inputTokens: 10, outputTokens: 5, cacheReadTokens: 0, cacheWriteTokens: 0 };
 const p = (name: string, y: number) => ({
-  name, role: '', material: 'pine', at: { x: 0, y, z: 0 }, size: { x: 10, y: 1, z: 10 },
+  name, role: '', tapers: [], material: 'pine', at: { x: 0, y, z: 0 }, size: { x: 10, y: 1, z: 10 },
 });
 const GOOD = { name: 'Stack', parts: [p('A', 0), p('B', 1)], assemblies: [] };
 const ONE_ISSUE = { name: 'One', parts: [p('A', 0), p('B', 5)], assemblies: [] };                 // B floats
@@ -247,7 +247,7 @@ describe('problemKey (fu 186)', () => {
 
 const v3 = (x: number, y: number, z: number) => ({ x, y, z });
 const bp = (name: string, at: [number, number, number], size: [number, number, number]) =>
-  ({ name, role: '', material: 'pine', at: v3(...at), size: v3(...size) });
+  ({ name, role: '', tapers: [], material: 'pine', at: v3(...at), size: v3(...size) });
 /** A drawer whose Front and Side overlap, placed three times on the floor: one fault, three raw reports. */
 const BAD_DRAWERS = {
   name: 'Drawers', parts: [],
@@ -339,7 +339,7 @@ const createDocumentForTest = () => createDocument('Empty');
 describe('runRefine', () => {
   const RS = { instruction: 'make the top thicker', width: null, depth: null, height: null, detail: 'simple' as const };
   const v3 = (x: number, y: number, z: number) => ({ x, y, z });
-  const bp = (name: string, at: [number, number, number], size: [number, number, number]) => ({ name, role: '', material: 'pine', at: v3(...at), size: v3(...size) });
+  const bp = (name: string, at: [number, number, number], size: [number, number, number]) => ({ name, role: '', tapers: [], material: 'pine', at: v3(...at), size: v3(...size) });
   const orig = (parts: ReturnType<typeof bp>[]) => designToDocument({ name: 'Box', parts, assemblies: [] }).doc;
   const echo = (doc: Parameters<typeof documentToDesign>[0]) => { const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error('refused'); return r.design; };
   const go = (client: LlmClient, doc: Parameters<typeof runRefine>[1]) => runRefine(client, doc, RS, new AbortController().signal, () => {});
@@ -487,7 +487,7 @@ describe('runRefine — joined designs', () => {
     return r.design;
   };
   const bp = (name: string, at: [number, number, number], size: [number, number, number]) =>
-    ({ name, role: '', material: 'pine', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] } });
+    ({ name, role: '', tapers: [], material: 'pine', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] } });
   const bookFlat = flatDocument(designToDocument({ name: 'Bookcase', assemblies: [], parts: [
     bp('Back', [0, 0, -0.25], [31.5, 72, 0.25]), bp('Left side', [0, 0, 0], [0.75, 72, 11.25]), bp('Right side', [30.75, 0, 0], [0.75, 72, 11.25]),
     bp('Bottom', [0.75, 0, 0], [30, 0.75, 11.25]), bp('Top', [0.75, 71.25, 0], [30, 0.75, 11.25]),
@@ -616,9 +616,9 @@ describe('runRefine — joined designs', () => {
     const tree = designToDocument({ name: 'Frames', parts: [], assemblies: [{ name: 'Frame',
       // Two legs per frame so the piece does not tip: a tipping fixture makes the REFINE stage repair
       // (part-less problems are always new, refine spec §3.2), which is not what this test is about.
-      parts: [{ name: 'Leg', role: '', material: 'oak', at: v3(0, 0, 0), size: v3(1.75, 28, 1.75) },
-        { name: 'Leg 2', role: '', material: 'oak', at: v3(19.75, 0, 0), size: v3(1.75, 28, 1.75) },
-        { name: 'Rail', role: '', material: 'oak', at: v3(1.75, 23.5, 0.5), size: v3(18, 3, 0.75) }],
+      parts: [{ name: 'Leg', role: '', tapers: [], material: 'oak', at: v3(0, 0, 0), size: v3(1.75, 28, 1.75) },
+        { name: 'Leg 2', role: '', tapers: [], material: 'oak', at: v3(19.75, 0, 0), size: v3(1.75, 28, 1.75) },
+        { name: 'Rail', role: '', tapers: [], material: 'oak', at: v3(1.75, 23.5, 0.5), size: v3(18, 3, 0.75) }],
       placements: [{ name: 'Front', at: v3(0, 0, 0) }, { name: 'Back', at: v3(0, 0, 30) }] }] }).doc;
     const jo = await runJoinery(fakeClient([new LlmError('overloaded', 'Overloaded.')]).client, tree, new AbortController().signal, () => {});
     if ('noSites' in jo || 'refused' in jo) throw new Error('sites');
