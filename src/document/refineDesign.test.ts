@@ -204,6 +204,10 @@ describe('documentToDesign — tapers (AI-tapers spec §5.1, §5.2)', () => {
     const odd = { id: 'a', kind: 'taper' as const, face: 'width' as const, from: 'min' as const, along: 'length' as const, alongFrom: 'min' as const, points: [[0, 0], [20, 0.5]] as [[number, number], [number, number]] };
     const r = documentToDesign({ ...createDocument('T'), boards: [{ ...createBoard({ name: 'Leg 3' }), angleCuts: [odd] }] }, REFINE_MAX);
     expect('refused' in r && r.refused).toEqual({ reason: 'taper-form', message: "Leg 3's taper can't be described to Refine — edit it in Properties first." });
+    // Several parts, more than three: the names are cut at three (fu 313).
+    const legs = ['Leg 1', 'Leg 2', 'Leg 3', 'Leg 4'].map((name, i) => ({ ...createBoard({ name, position: [i * 5, 0, 0] }), angleCuts: [{ ...odd, id: `a${i}` }] }));
+    const many = documentToDesign({ ...createDocument('T'), boards: legs }, REFINE_MAX);
+    expect('refused' in many && many.refused).toEqual({ reason: 'taper-form', message: "The tapers on Leg 1, Leg 2, Leg 3… can't be described to Refine — edit them in Properties first." });
   });
   it('refuses a standard-form taper the converter would reject, in the person\'s words (fu 309)', () => {
     // A knife edge: the taper takes the whole 1.75in at the floor end.

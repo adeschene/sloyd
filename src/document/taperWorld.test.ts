@@ -30,6 +30,34 @@ const leg = () => createBoard({ name: 'Leg', length: 28, width: 1.75, thickness:
 const lengthAxisDir = (b: Board, sign: '-' | '+') => `${sign}${'xyz'[axisDimensions(b).indexOf('length')]}` as WorldTaper['toward'];
 
 describe('taperCutsFor', () => {
+  it('in every pose, each named world face lands on the stored face lying there (fu 313)', () => {
+    for (const b of poses({ length: 20, width: 3, thickness: 1.5 })) {
+      const toward = lengthAxisDir(b, '-');
+      const sides = DIRS.filter((d) => d[1] !== toward[1]);
+      // Two ADJACENT faces (sides[1] is sides[0]'s opposite): a min/max mix-up changes the set, so it shows.
+      const named = [sides[0]!, sides[2]!];
+      const r = taperCutsFor(b, [{ faces: named, toward, start: 12, amount: 0.25 }]);
+      if (!('cuts' in r)) throw new Error(r.fault);
+      expect(r.cuts).toHaveLength(2);
+      const end = dirToLocal(b, toward).from;
+      for (const d of named) {
+        const l = dirToLocal(b, d);
+        expect(r.cuts.some((c) => c.face === l.dim && c.from === l.from && c.alongFrom === end)).toBe(true);
+      }
+    }
+  });
+  it('refuses a NaN start or amount', () => {
+    expect('fault' in taperCutsFor(leg(), [{ faces: ['+x'], toward: '-y', start: NaN, amount: 0.25 }])).toBe(true);
+    expect('fault' in taperCutsFor(leg(), [{ faces: ['+x'], toward: '-y', start: 20, amount: NaN }])).toBe(true);
+  });
+  it('a fault in the second entry is reported, and no cuts come back', () => {
+    const r = taperCutsFor(leg(), [{ faces: ['+x'], toward: '-y', start: 20, amount: 0.25 }, { faces: ['+z'], toward: '-x', start: 1, amount: 0.25 }]);
+    expect(r).toEqual({ code: 'along', fault: expect.stringContaining('has a taper toward -x') });
+  });
+  it('the same face named in two entries toward one end is allowed: two overlapping cuts, as Properties allows (fu 313, by decision)', () => {
+    const r = taperCutsFor(leg(), [{ faces: ['+x'], toward: '-y', start: 20, amount: 0.25 }, { faces: ['+x'], toward: '-y', start: 10, amount: 0.5 }]);
+    expect('cuts' in r && r.cuts.length).toBe(2);
+  });
   it('writes one taperCut per face, in canonical order, whatever order the faces came in', () => {
     const b = leg();
     const a = taperCutsFor(b, [{ faces: ['+z', '+x'], toward: '-y', start: 22, amount: 0.5 }]);

@@ -789,10 +789,6 @@ describe('the taper-joint fault (AI-tapers spec 5.3)', () => {
     expect(text(seen[1]!)).toContain("Leg's taper toward -y");
     expect(out.violations.filter((v) => v.kind === 'taper-joint')).toEqual([]);
   });
-  it('checkDesign itself never emits the fault (joinery gate unchanged)', () => {
-    const flat = flatDocument(designToDocument(parseDesign(design(24))!).doc);
-    expect(checkDesign(flat, { width: null, depth: null, height: null, maxParts: 10 }).some((v) => v.kind === ('taper-joint' as never))).toBe(false);
-  });
   it('Refine counts the original\'s own taper conflict as preexisting: present, not fed back', async () => {
     const RS = { instruction: 'keep it', width: null, depth: null, height: null, detail: 'simple' as const };
     const doc = designToDocument(parseDesign(design(24))!).doc;

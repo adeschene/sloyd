@@ -405,9 +405,11 @@ describe('tapers in the design (AI-tapers spec §2)', () => {
     expect(rejected).toEqual([{ name: 'Leg', reason: 'taper', detail: expect.stringContaining('Leg has a taper toward -x') }]);
     expect(rejectedViolations(rejected)[0]!.message).toBe(rejected[0]!.detail);
   });
-  it('rejects a non-finite taper number as not-finite', () => {
-    const { rejected } = designToDocument({ name: 'T', parts: [legPart([{ faces: ['+x'], toward: '-y', start: Infinity, amount: 0.5 }]) as never] });
-    expect(rejected.map((r) => r.reason)).toEqual(['not-finite']);
+  it('rejects a non-finite taper number in taper words, not position-or-size words (fu 313)', () => {
+    for (const bad of [{ start: Infinity, amount: 0.5 }, { start: 20, amount: NaN }, { start: 20, amount: 20_000 }]) {
+      const { rejected } = designToDocument({ name: 'T', parts: [legPart([{ faces: ['+x'], toward: '-y', ...bad }]) as never] });
+      expect(rejected).toEqual([{ name: 'Leg', reason: 'taper', detail: 'Leg has a taper whose start or amount is not a finite number or is beyond 10,000in.' }]);
+    }
   });
   it('an untapered part converts exactly as before (angleCuts: [])', () => {
     expect((designToDocument(parseDesign(json([]))!).doc.boards[0]! as Board).angleCuts).toEqual([]);

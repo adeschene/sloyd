@@ -5265,4 +5265,10 @@ equivalent today, but a throw inside it is reported as `'joints'` and offers rep
 the same face named twice across entries gives overlapping cuts without a fault; non-finite taper numbers report the
 "position or size" not-finite text; the plural `taper-form` message is untested; the "checkDesign never emits taper-joint"
 test cannot fail; the prompt's "For legs under 5in aprons…" phrasing; the prompt test pins phrases, not the corner table.
-**Status:** record-only.
+**Status:** closed 2026-10-13 at the user's word. `taperCutsFor` is tested in every pose (two adjacent faces, so a min/max
+mix-up shows), with NaN and a fault in a second entry; a non-finite taper number is rejected in taper words (reason `taper`);
+the plural `taper-form` message is pinned (names cut at three); the test that could not fail is removed (`checkDesign` cannot
+produce the kind; `evaluateDesign` alone adds it); the prompt reads "For a 29in table whose aprons are 5in deep at the top of
+the legs…" and its test pins all four corner rows. **By decision:** the same face named in two entries toward one end stays
+allowed (two overlapping cuts), as Properties allows two tapers on one face — refusing it in the converter would also make
+Refine refuse such hand-made parts.

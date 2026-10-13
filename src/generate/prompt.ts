@@ -61,7 +61,7 @@ Coordinates and units:
 Tapers:
 - A part may taper along its length (its longest side), like a table leg narrowing toward the floor. Describe it in "tapers": "faces" are the sides that slope ("+x", "-x", "+z", "-z" for an upright leg), "toward" is the end that gets thinner ("-y" for the floor end), "start" is how far from that end the taper begins, and "amount" is how much it removes from each named face at that end.
 - The usual Shaker leg tapers its two INSIDE faces (the faces toward the middle of the piece) toward the floor. By corner: the leg with the smallest x and z tapers "+x" and "+z"; the leg with the largest x and smallest z tapers "-x" and "+z"; the leg with the smallest x and largest z tapers "+x" and "-z"; the leg with the largest x and z tapers "-x" and "-z".
-- Joints go where parts meet, and a joint cannot sit on tapered wood: start every taper at or below the lowest part that meets the tapered part. For legs under 5in aprons at the top of a 29in table, a start of 22 to 23in is typical.
+- Joints go where parts meet, and a joint cannot sit on tapered wood: start every taper at or below the lowest part that meets the tapered part. For a 29in table whose aprons are 5in deep at the top of the legs, a start of 22 to 23in is typical.
 - Leave wood: a taper removes at most about a third of the leg's width per face.
 - Legs whose tapers mirror each other (inside faces) differ, so they go under "parts", not in a repeated assembly, and do not share a role.
 - Use "tapers": [] for every part that is not tapered.

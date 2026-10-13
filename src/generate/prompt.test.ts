@@ -17,6 +17,16 @@ describe('prompt', () => {
     expect(SYSTEM_PROMPT).not.toMatch(/\d{4}-\d{2}-\d{2}/);
   });
 
+  it('pins the corner table and the typical start (fu 313)', () => {
+    for (const row of [
+      'the leg with the smallest x and z tapers "+x" and "+z"',
+      'the leg with the largest x and smallest z tapers "-x" and "+z"',
+      'the leg with the smallest x and largest z tapers "+x" and "-z"',
+      'the leg with the largest x and z tapers "-x" and "-z"',
+    ]) expect(SYSTEM_PROMPT).toContain(row);
+    expect(SYSTEM_PROMPT).toContain('For a 29in table whose aprons are 5in deep at the top of the legs, a start of 22 to 23in is typical.');
+  });
+
   it('without a concept, the message matches its pinned literal', () => {
     expect(userMessage(base)).toBe(
       'Design this: A bookcase with five shelves\n\nHard limits:\n- Overall width (X) at most 36in.\n' +

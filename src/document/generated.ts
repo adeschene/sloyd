@@ -229,7 +229,8 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], 
   // Tapers (spec §2.1): numbers snapped as size is, unless exact; checked after the snap; mapped through taperWorld.
   const tapers = (p.tapers ?? []).map((t) => ({ ...t, start: exact?.has(t.start) ? t.start : snap(t.start), amount: exact?.has(t.amount) ? t.amount : snap(t.amount) }));
   if (!tapers.every((t) => usable(t.start) && usable(t.amount))) {
-    rejected.push({ name: label, reason: 'not-finite' });
+    // Its own words (fu 313): the 'not-finite' text speaks of a position or size.
+    rejected.push({ name: label, reason: 'taper', detail: `${label} has a taper whose start or amount is not a finite number or is beyond 10,000in.` });
     return null;
   }
   const made = taperCutsFor({ id: '', angleCuts: [], ...fields } as Board, tapers);
