@@ -215,10 +215,14 @@ function Capture({ clean, setClean, captureRef }: {
       setClean(true);
       return inFlight.current;
     };
+    // A capture still pending at teardown resolves null and leaves nothing behind: a stale in-flight
+    // promise would answer every later capture with that null, and `clean` would stay set.
     return () => {
       captureRef.current = null;
       pending.current?.(null);
       pending.current = null;
+      inFlight.current = null;
+      setClean(false);
     };
   }, [captureRef, setClean]);
 

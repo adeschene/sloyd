@@ -75,7 +75,19 @@ describe('subsetBounds', () => {
     const parts = worldParts(doc);
     const offsets = explodeOffsets(doc, 1);
     for (const p of parts) expect(offsets.has(p.id)).toBe(true);
-    expect(subsetBounds(parts, offsets)).not.toEqual(subsetBounds(parts));
+    // The box the parts are DRAWN in, built here from the offsets — not by subsetBounds.
+    const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+    for (const p of parts) {
+      const o = offsets.get(p.id)!;
+      for (let k = 0; k < 3; k++) {
+        lo[k] = Math.min(lo[k]!, p.position[k]! + o[k]!);
+        hi[k] = Math.max(hi[k]!, p.position[k]! + o[k]! + 2); // every part is a 2in cube
+      }
+    }
+    const b = subsetBounds(parts, offsets)!;
+    expectVec(b.center, [0, 1, 2].map((k) => (lo[k]! + hi[k]!) / 2) as Vec3);
+    expect(b.radius).toBeCloseTo(Math.hypot(hi[0]! - lo[0]!, hi[1]! - lo[1]!, hi[2]! - lo[2]!) / 2, 12);
+    expect(b).not.toEqual(subsetBounds(parts));
   });
 });
 

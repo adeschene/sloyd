@@ -291,7 +291,10 @@ export function Gizmo({ hidden = false }: { hidden?: boolean } = {}) {
     const controls = controlsRef.current;
     if (!controls) return;
     return stabilizeTranslateGizmo(controls as unknown as ControlsInternals, { boardMaxExtent });
-  }, [selectionKey, camera]);
+    // `hidden` because the capture's clean frame unmounts <TransformControls>, and drei builds a FRESH
+    // controls instance when it comes back: without it the gizmo returns unpatched (no size ceiling, the
+    // 'bwd' handles, the flip) until the selection or camera next changes (standard-views final review).
+  }, [selectionKey, camera, hidden]);
 
   // A selection change mid-drag ENDS the drag. Ctrl/Cmd+A or Delete can land
   // while an arrow is held. With one part selected the old code got this by
@@ -364,8 +367,9 @@ export function Gizmo({ hidden = false }: { hidden?: boolean } = {}) {
     }
   }, []);
 
-  // `hidden` is the capture's clean frame (standard-views spec §3.2): drawn as nothing for one frame,
-  // never unmounted — the unmount cleanup above would end an in-flight gesture.
+  // `hidden` is the capture's clean frame (standard-views spec §3.2): Gizmo itself stays mounted (its unmount
+  // cleanup above would end an in-flight gesture), but its <TransformControls> child does unmount, which is
+  // why the stabilize effect above lists `hidden`.
   if (!center || !size || hidden) return null;
 
   const commit = () => {

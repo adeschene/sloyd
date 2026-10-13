@@ -5320,4 +5320,7 @@ right-aligned (Save image on a second row at 1440, three rows at 1024) and never
 **320. Standard views and image export minors (record-only).** No keyboard shortcuts for the views and no
 Back/Left/Bottom (spec §6, out of scope); the selection colour blinks off for one frame during a capture (accepted in
 conversation); a saved PNG has been seen only on software GL — one look on real hardware is owed (fu 26a); the capture
-waits on the frame loop, so a capture asked for in a hidden tab completes when the tab is shown. **Status:** record-only.
+waits on the frame loop, so a capture asked for in a hidden tab completes when the tab is shown; the View group's
+`max-width: calc(100% - 220px)` depends on the Tools group staying under 220 px (a fourth tool would re-open the overlap);
+after a capture the gizmo's stabilize patch is re-installed on the fresh controls instance (`hidden` in its effect's deps),
+so its first frame back is unpatched, as after any selection change. **Status:** record-only.

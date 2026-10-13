@@ -36,6 +36,18 @@ A harness artifact, not a defect: the first fu 260 attempt pressed Home while th
 focused range input takes Home as "go to minimum" (CameraKeys rightly ignores keys aimed at inputs). Re-run with the
 slider blurred, as above.
 
+## After the final review (the gizmo patch)
+
+The whole-branch review found that the clean frame unmounts Gizmo's `<TransformControls>` child, that drei builds a
+fresh controls instance on remount, and that `stabilizeTranslateGizmo` (the fu 29 size ceiling, the hidden 'bwd'
+handles, the flip fix) was re-installed only on a selection or camera change. Checked live with temporary
+instrumentation (removed before commit) that tested whether the gizmo's `updateMatrixWorld` was the patched function:
+**before the fix**, patched → Save image → unpatched → re-select → patched (RED). **After** adding `hidden` to the patch
+effect's dependencies, three saves in a row each gave a fresh instance, unpatched for the first frame or two (the
+download fires before React commits the remount) and patched by 300 ms, and it stayed patched (GREEN). One more save
+with the Capture-cleanup and file-name fixes in place: the download arrived, no alert, gizmo patched. Dev profile
+cleaned again (the check's project deleted; 16 projects, "Live links — legs" active).
+
 ## For the user's eye
 
 - **The View group wraps even at 1440 px** (Save image on a second row; three rows at 1024). It works and overlaps

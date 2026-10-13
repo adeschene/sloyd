@@ -65,9 +65,11 @@ export default function App() {
   const viewportRef = useRef<ViewportHandle | null>(null);
   // Save image (standard-views spec §3): the clean frame from the viewport, out through the storage seam.
   const saveImage = useCallback(async () => {
+    // The name of the project on screen when the button was pressed, not after the frame.
+    const name = useStore.getState().doc.name;
     const png = await (viewportRef.current?.capture() ?? Promise.resolve(null));
     if (!png) throw new Error('The viewport gave no image.');
-    await storage.exportImage(useStore.getState().doc.name, png);
+    await storage.exportImage(name, png);
   }, []);
   // View state, deliberately not part of the document: whether the grid and
   // the origin axes are drawn is a property of how you're looking at a
