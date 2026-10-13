@@ -1,6 +1,6 @@
 # Sloyd — turned links: four tapered legs, one component (fu 301)
 
-**Date:** 2026-10-13. **Status:** approved in conversation; spec awaiting review.
+**Date:** 2026-10-13. **Status:** approved; shipped 2026-10-13 (merge `3e7474f`). Amendments made while planning and after the final review are marked *amended*.
 **Builds on:** the generate-assemblies spec (role linking, `linkByRole`), components (inv 45), quarter turns (inv 44), the
 AI-tapers spec (`taperWorld.ts`). **No schema change.** Rollback is free.
 

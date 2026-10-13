@@ -26,9 +26,9 @@ handicraft education tradition built around hand woodworking.
   14** (unchanged since angle cuts chunk 1, so rolling back to `3e7474f`, `index-DtBsK7RB.js`, or any 14 build is free; below
   14, `47548d3`, REFUSES every project saved since: export first). Test count is under Commands.
 - **NEXT: none chosen — ask.** The AI-tapers feature (the user's "the AI integration") is complete: one prompt gives tapered
-  legs with joinery, and its follow-ups 309–313 are closed. Open near it:
-  314–318 (turned-links residue), 276/277's rest (miters, bevels and chamfers in the
-  AI features). Other open items: angle-cut residue 295–298; 241 (open by decision), 251 (record-only), 221, 225, 232, 234, 247.
+  legs with joinery, its legs link as one component, and its follow-ups 301–313 are closed except 304/306–308 (by decision or
+  record-only). Open near it: 314–318 (turned-links residue, record-only or accepted), 276/277's rest (miters, bevels and
+  chamfers in the AI features: joinery and Refine still refuse them). Other open items: angle-cut residue 295–298; 241 (open by decision), 251 (record-only), 221, 225, 232, 234, 247.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
   byte-identical bundles (test-only). Check what a later commit touches before reading
@@ -91,6 +91,8 @@ One line each; the full narrative per round is in `docs/history.md`.
 | AI tapers (chunk 1) | 10-13 | — | Add joinery and Repair accept tapers; the taper-at-joint refusal; checks trust only a taper's flat wood (`contactSolids`) |
 | AI tapers (chunk 2) | 10-13 | — | Generate and Refine read/write tapers in world words (`taperWorld.ts`); the taper-joint design fault; joined Refine with tapers |
 | turned links | 10-13 | — | Role linking aligns angle-cut ids and tries quarter turns: four tapered legs are one component (fu 301); cut order is not geometry |
+| 309–313 | 10-13 | — | AI-tapers residue: Refine refuses a taper the converter would reject; the change list diffs tapers face by face; an unjoined Refine states its fault once; taper tests in every pose |
+| 302/303 | 10-13 | — | Overlap and the tip check read a tapered part's real bodies (`clipConvex`, `partMass`); untapered results byte-for-byte unchanged |
 
 ### The deployment rule
 
@@ -644,7 +646,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–274, each with its closure). Read the entries
+**`docs/follow-ups.md` is authoritative** (1–318, each with its closure). Read the entries
 for the area you are about to touch; several are "correct but untested". Open items worth
 knowing without opening it:
 
@@ -676,7 +678,7 @@ knowing without opening it:
   withheld on parts wider than long), 297 (a hand-edited offset miter is moved to canonical form on its first edit).
 - **298–300** — bevel/chamfer residue: 298 (no raised-panel field-bevel preset; unequal chamfer legs not editable), 299
   and 300 closed 2026-10-12 (short Edge labels; one face vocabulary and refusal pattern).
-- **301–317** — AI-tapers residue (301–308 chunk 1; 309–313 chunk 2; 314–318 turned links): 301 closed 2026-10-13 (role linking aligns angle-cut ids and tries quarter turns, so four tapered legs are one component; also fixed identical tapered parts never linking; cut order ruled not geometry), 302 and 303 closed 2026-10-13 (overlap and the
+- **301–318** — AI-tapers residue (301–308 chunk 1; 309–313 chunk 2; 314–318 turned links): 301 closed 2026-10-13 (role linking aligns angle-cut ids and tries quarter turns, so four tapered legs are one component; also fixed identical tapered parts never linking; cut order ruled not geometry), 302 and 303 closed 2026-10-13 (overlap and the
   tip check's weight read a tapered part's real bodies), 304 (taper-at-joint rule is all-or-nothing, by decision), 305
   (Generate/Refine tapers) closed 2026-10-13, 306 (deferred minors, record-only), 307 (a hand-edited deep-end-last taper is shifted
   by joinery's resize), 308 ("taper the other end" is impossible for a part joined at both ends; record-only), 309 closed 2026-10-13 (Refine refuses, before any call, a taper the converter would reject), 310 closed 2026-10-13 (tapers diffed face
