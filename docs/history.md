@@ -18,6 +18,12 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-13 with turned links live** (`index-DtBsK7RB.js`, CSS `index-BkjfVfaC.css`
+unchanged, merge `3e7474f`, **schema 14**). Verified: `200` on `/` and a deep route in-network and at the edge; bundle matches
+`dist/` at both; `index-Cu_W4spT.js` 404s in-network; CSP unchanged; a real-browser load with 0 errors, the Cloudflare beacon
+and "+ Add board" present; the load's two fresh keys (`version: 14`) cleared and read back empty after 3s, then navigated
+away. Feature verified on the dev server (`docs/browser-verification-ai-tapers.md`, "Turned links"), free.
+
 **Production matches `master` as of 2026-10-13 with fu 313's fixes live** (`index-Cu_W4spT.js`, CSS `index-BkjfVfaC.css`
 unchanged, commit `db13999`, **schema 14**). A non-finite taper number is rejected in taper words; the prompt's typical-start
 sentence reworded; the rest is tests. Verified: `200` on `/` and a deep route in-network and at the edge; bundle matches
@@ -395,6 +401,16 @@ and 79.
 ---
 
 ## What each round did
+
+**What turned links did (2026-10-13, fu 301)** (spec `docs/superpowers/specs/2026-10-13-sloyd-turned-links-design.md`, plan
+`docs/superpowers/plans/2026-10-13-sloyd-turned-links.md`, subagent-driven): a generated or refined table's four inside-tapered
+square legs are ONE linked component. `linkByRole` aligns angle-cut ids to the class representative (identical tapered parts
+had never linked: the converter minted fresh ids and `sameShared` compares them) and tries each part at the other quarter
+turns that keep its world box and grain axis (`turnCandidates`, tapers re-stored through `taperWorld`), so the legs are stored
+at 0/90/180/270 on one Shape. The prompt gives inside-tapered legs one role. Mid-task ruling: cut ORDER is not geometry —
+`regroupShapes` groups order-insensitively and the unjoin gate matches cuts as a multiset — or joinery split the legs back
+into two pairs and Refine would refuse a joined linked table. Final review: a non-square size edit on one turned leg grows
+legs along different axes; the user accepted it (fu 318). Live (free): editing one leg's taper start moved all four.
 
 **What fu 313 did (2026-10-13)**, at the user's word: the AI-tapers test and wording residue. `taperCutsFor` tested in every
 pose with two adjacent faces (a four-face version let a min/max mutation survive), NaN and a second-entry fault; a

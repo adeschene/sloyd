@@ -21,9 +21,9 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-13: AI-tapers chunk 2 (merge `f7a6202`) plus fu 311, 310 and 313
-  (`db13999`) — bundle `index-Cu_W4spT.js`, CSS `index-BkjfVfaC.css`, **SCHEMA 14** (unchanged since angle cuts chunk 1, so
-  rolling back to `721cfba`, `index-CV1sw3YE.js`, `f7a6202`, `index-DWTxNeO6.js`, or any 14 build is free; below 14,
+- **Production matches `master`** as of 2026-10-13: turned links (merge `3e7474f`, fu 301: four tapered legs are one
+  component) on top of AI-tapers chunk 2 and fu 309–313 — bundle `index-DtBsK7RB.js`, CSS `index-BkjfVfaC.css`, **SCHEMA 14**
+  (unchanged since angle cuts chunk 1, so rolling back to `db13999`, `index-Cu_W4spT.js`, or any 14 build is free; below 14,
   `47548d3`, REFUSES every project saved since: export first). Test count is under Commands.
 - **NEXT: none chosen — ask.** The AI-tapers feature (the user's "the AI integration") is complete: one prompt gives tapered
   legs with joinery, and its follow-ups 309–313 are closed. Open near it:
@@ -90,6 +90,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | angle cuts (chunk 3) | 10-12 | — | Bevel (Face, Long point, Angle; along the length) and Chamfer (any of 12 edges, Size; exact legs) presets and their final bench wording; the angle-cuts feature is complete |
 | AI tapers (chunk 1) | 10-13 | — | Add joinery and Repair accept tapers; the taper-at-joint refusal; checks trust only a taper's flat wood (`contactSolids`) |
 | AI tapers (chunk 2) | 10-13 | — | Generate and Refine read/write tapers in world words (`taperWorld.ts`); the taper-joint design fault; joined Refine with tapers |
+| turned links | 10-13 | — | Role linking aligns angle-cut ids and tries quarter turns: four tapered legs are one component (fu 301); cut order is not geometry |
 
 ### The deployment rule
 
