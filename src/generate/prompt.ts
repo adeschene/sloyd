@@ -43,7 +43,7 @@ const STYLE_NOTES: Record<Exclude<Style, 'any'>, string> = {
   mission: 'Mission / Arts & Crafts: heavy, rectilinear, thick stock, exposed structure, vertical slats.',
   modern: 'Modern / minimal: flat planes, thin profiles, few parts, clean overhangs.',
   farmhouse: 'Farmhouse / rustic: chunky, sturdy, thick tops and legs, simple aprons.',
-  'mid-century': 'Mid-century: light cases on separate bases or splayed legs, raised off the floor.',
+  'mid-century': 'Mid-century: light cases on separate bases or tapered legs (no splayed legs yet — taper them instead), raised off the floor.',
   shop: 'Shop / utility: strong and plain; sheet goods and construction lumber; function first.',
 };
 
@@ -55,8 +55,16 @@ export const SYSTEM_PROMPT = `You design woodworking projects as a list of recta
 
 Coordinates and units:
 - All numbers are inches. Y is up. X is width, Z is depth.
-- Each part is an axis-aligned box. "at" is its MINIMUM corner (smallest x, y, z). "size" is its extent along X, Y and Z.
+- Each part is an axis-aligned box, optionally tapered. "at" is its MINIMUM corner (smallest x, y, z). "size" is its extent along X, Y and Z.
 - A part's top is at.y + size.y. A part resting on another has at.y equal to the lower part's top.
+
+Tapers:
+- A part may taper along its length (its longest side), like a table leg narrowing toward the floor. Describe it in "tapers": "faces" are the sides that slope ("+x", "-x", "+z", "-z" for an upright leg), "toward" is the end that gets thinner ("-y" for the floor end), "start" is how far from that end the taper begins, and "amount" is how much it removes from each named face at that end.
+- The usual Shaker leg tapers its two INSIDE faces (the faces toward the middle of the piece) toward the floor. By corner: the leg with the smallest x and z tapers "+x" and "+z"; the leg with the largest x and smallest z tapers "-x" and "+z"; the leg with the smallest x and largest z tapers "+x" and "-z"; the leg with the largest x and z tapers "-x" and "-z".
+- Joints go where parts meet, and a joint cannot sit on tapered wood: start every taper at or below the lowest part that meets the tapered part. For legs under 5in aprons at the top of a 29in table, a start of 22 to 23in is typical.
+- Leave wood: a taper removes at most about a third of the leg's width per face.
+- Legs whose tapers mirror each other (inside faces) differ, so they go under "parts", not in a repeated assembly, and do not share a role.
+- Use "tapers": [] for every part that is not tapered.
 
 Rules every design must follow:
 - Parts touch face to face. Parts must NOT pass into each other — there is no joinery in this tool yet, so a shelf sits between two sides, not inside them.

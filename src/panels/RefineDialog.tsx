@@ -126,7 +126,9 @@ export function RefineDialog(p: Props) {
           <div className="joinery-result">
             <p>{`Saved as '${p.run.projectName}'`}</p>
             <p>{`${out.violations.length} new issue${out.violations.length === 1 ? '' : 's'} · ${out.present.length} already present`}</p>
-            {out.joints && <p>{`${out.joints.kept} joints kept · ${out.joints.chosen} chosen · ${out.joints.dropped} dropped`}</p>}
+            {out.joints?.notJoined
+              ? <p>{`Joints were not re-applied. ${out.joints.notJoined}`}</p>
+              : out.joints && <p>{`${out.joints.kept} joints kept · ${out.joints.chosen} chosen · ${out.joints.dropped} dropped`}</p>}
             {out.joints?.skipped.map((s, i) => <p key={`s${i}`}>{s}</p>)}
             {out.violations.map((v, i) => <p key={`v${i}`} className="field-error">{v.message}</p>)}
             {out.changes.length === 0 ? <p>No changes.</p> : (

@@ -3,7 +3,9 @@ import type { Region } from './types';
 import type { RejectedPart } from './generated';
 import { pocketCells } from './cuts';
 import { taperFields } from './angleCuts';
-import { axisFrame, boardExtents, spanToWorldOffset } from './geometry';
+import type { TaperConflict } from './angledRefusal';
+import { SNAP_INCHES, axisFrame, boardExtents, spanToWorldOffset } from './geometry';
+import { localToDir } from './taperWorld';
 
 /**
  * The checks a generated design is held to (spec §4.3). Pure, against the
@@ -21,7 +23,7 @@ import { axisFrame, boardExtents, spanToWorldOffset } from './geometry';
  * removing the stock. Do not raise TOUCH to make joints pass.
  * Contacts, grounding and the tip footprint read `contactSolids` (a tapered part counts only where it is flat); overlap stays on `worldSolids`.
  */
-export type ViolationKind = 'too-small' | 'overlap' | 'unsupported' | 'too-large' | 'too-many-parts' | 'hangs' | 'tips';
+export type ViolationKind = 'too-small' | 'overlap' | 'unsupported' | 'too-large' | 'too-many-parts' | 'hangs' | 'tips' | 'taper-joint';
 export interface Violation { kind: ViolationKind; message: string; parts: string[] }
 export interface DesignLimits { width: number | null; depth: number | null; height: number | null; maxParts: number }
 
@@ -411,6 +413,26 @@ export function rejectedViolations(rejected: RejectedPart[]): Violation[] {
     'too-small': (n) => `${n} has a size of zero or less after rounding to 1/16in.`,
     unplaced: (n) => `${n} is an assembly with no usable placement, so none of its parts were built.`,
     empty: (n) => `${n} is an assembly with no usable parts.`,
+    taper: (n) => `${n} has a taper that cannot be built.`,
   };
-  return rejected.map((r) => ({ kind: 'too-small' as const, message: say[r.reason](r.name), parts: [r.name] }));
+  return rejected.map((r) => ({ kind: 'too-small' as const, message: r.detail ?? say[r.reason](r.name), parts: [r.name] }));
+}
+
+/**
+ * The taper-at-joint rule as a DESIGN fault (AI-tapers spec section 5.3), for the model: world words,
+ * plain decimal inches. The advice is a LIMIT floored to SNAP_INCHES: the converter snaps the
+ * model's `start` to 1/16, so advice off that grid would snap past the meeting and conflict again.
+ * Multiples of 1/16 print exactly. Not part of checkDesign (joinery's gate); evaluateDesign adds it.
+ */
+export function taperJointViolations(flat: FlatDocument, conflicts: readonly TaperConflict[]): Violation[] {
+  return conflicts.map(({ part, other, end, nearest }) => {
+    const b = flat.boards[part]!;
+    const o = flat.boards[other]!;
+    const dir = localToDir(b, 'length', end);
+    const limit = Math.floor(nearest / SNAP_INCHES + 1e-9) * SNAP_INCHES;
+    const message = limit === 0
+      ? `${b.name}'s taper toward ${dir} runs to its ${dir} end, where it meets ${o.name} (a joint goes there) \u2014 taper the other end, or remove the taper.`
+      : `${b.name}'s taper toward ${dir} runs into where it meets ${o.name} (a joint goes there) \u2014 start it ${limit}in or less from its ${dir} end, or remove it.`;
+    return { kind: 'taper-joint' as const, message, parts: [b.name, o.name] };
+  });
 }

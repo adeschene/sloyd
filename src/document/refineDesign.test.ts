@@ -2,12 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { carryGrain, designValues, documentToDesign } from './refineDesign';
 import { diffDesigns } from './designDiff';
 import { groupItems } from './treeOps';
-import { designToDocument } from './generated';
+import { designToDocument, orient } from './generated';
 import type { GeneratedDesign, GeneratedPart } from './generated';
-import { createDocument } from './document';
+import { createBoard, createDocument } from './document';
+import { taperCut } from './angleCuts';
+import { worldTapers } from './taperWorld';
 import { boardExtents } from './geometry';
 import { flatDocument } from './tree';
-import type { Cut, SloydDocument } from './types';
+import type { AngleCut, Board, Cut, Posture, Rotation, SloydDocument } from './types';
 
 const MAX = { distinct: 60, placed: 240 };
 const v = (x: number, y: number, z: number) => ({ x, y, z });
@@ -157,5 +159,68 @@ describe('carryGrain', () => {
     const m = { ...d, instances: d.instances.map((i, k) => (k === 1 ? { ...i, mirrored: true } : i)) };
     expect(documentToDesign(m, { distinct: 12, placed: 48 })).toEqual({ refused: { reason: 'mirrored', message: "Refine can't describe a mirrored assembly yet — Ungroup the mirrored copy first." } });
     expect('design' in documentToDesign(d, { distinct: 12, placed: 48 })).toBe(true);
+  });
+});
+
+describe('documentToDesign — tapers (AI-tapers spec §5.1, §5.2)', () => {
+  const REFINE_MAX = MAX;
+  const POSTURES: Posture[] = ['flat', 'on-edge', 'upright'];
+  const TURNS: Rotation[] = [0, 90, 180, 270];
+  const tapered = (b: Board): Board => ({ ...b, angleCuts: [
+    // A HAND: different amounts on two faces, so a mirrored mapping changes the part.
+    { id: 'a', ...taperCut({ face: 'width', from: 'max', end: 'min', start: 12, amount: 0.5 }) },
+    { id: 'b', ...taperCut({ face: 'thickness', from: 'min', end: 'min', start: 12, amount: 0.25 }) },
+  ] });
+  const parts = [
+    ...POSTURES.flatMap((posture) => TURNS.map((rotation) => tapered(createBoard({ name: `P ${posture} ${rotation}`, length: 20, width: 3, thickness: 1.5, posture, rotation, position: [0, 0, 0] })))),
+    tapered(createBoard({ name: 'Square leg', length: 28, width: 1.75, thickness: 1.75, posture: 'upright', rotation: 90, position: [0, 0, 0] })),
+  ];
+
+  for (const b of parts) {
+    it(`${b.name}: the world tapers round-trip exactly`, () => {
+      const doc = { ...createDocument('T'), boards: [b] };
+      const r = documentToDesign(doc, REFINE_MAX);
+      if ('refused' in r) throw new Error(r.refused.message);
+      expect(r.design.parts[0]!.tapers).toEqual(worldTapers(b));
+      const back = designToDocument(r.design, { centre: false, exact: designValues(r.design) }).doc.boards[0]! as Board;
+      expect(boardExtents(back)).toEqual(boardExtents(b));
+      expect(worldTapers(back)).toEqual(worldTapers(b));
+      // Stored fields are equal only for an encoding orient itself produces (Review Focus 2).
+      const o = orient(boardExtents(b));
+      if (o.posture === b.posture && o.rotation === b.rotation) {
+        expect(back.angleCuts.map(({ id: _i, ...c }: AngleCut) => c)).toEqual(b.angleCuts.map(({ id: _i, ...c }: AngleCut) => c));
+      }
+    });
+  }
+
+  it('keeps a float-hostile start exactly (no zeroStation)', () => {
+    const b = { ...createBoard({ name: 'Leg', length: 40, width: 1.75, thickness: 1.75, posture: 'upright' }), angleCuts: [{ id: 'a', ...taperCut({ face: 'width', from: 'min', end: 'min', start: 30.3, amount: 0.02 }) }] };
+    const r = documentToDesign({ ...createDocument('T'), boards: [b] }, REFINE_MAX);
+    if ('refused' in r) throw new Error(r.refused.message);
+    expect(r.design.parts[0]!.tapers![0]!.start).toBe(30.3);
+    expect(designValues(r.design).has(30.3)).toBe(true);
+  });
+  it('refuses a taper not in standard form, naming the part, before anything else is built', () => {
+    const odd = { id: 'a', kind: 'taper' as const, face: 'width' as const, from: 'min' as const, along: 'length' as const, alongFrom: 'min' as const, points: [[0, 0], [20, 0.5]] as [[number, number], [number, number]] };
+    const r = documentToDesign({ ...createDocument('T'), boards: [{ ...createBoard({ name: 'Leg 3' }), angleCuts: [odd] }] }, REFINE_MAX);
+    expect('refused' in r && r.refused).toEqual({ reason: 'taper-form', message: "Leg 3's taper can't be described to Refine — edit it in Properties first." });
+  });
+  it('refuses a standard-form taper the converter would reject, in the person\'s words (fu 309)', () => {
+    // A knife edge: the taper takes the whole 1.75in at the floor end.
+    const leg = { ...createBoard({ name: 'Leg 3', length: 28, width: 1.75, thickness: 1.75, posture: 'upright' }),
+      angleCuts: [{ id: 'a', ...taperCut({ face: 'width', from: 'min', end: 'min', start: 12, amount: 1.75 }) }] };
+    const r = documentToDesign({ ...createDocument('T'), boards: [leg] }, REFINE_MAX);
+    expect('refused' in r && r.refused).toEqual({ reason: 'taper-form', message: "Leg 3's taper can't be described to Refine (it leaves no wood at an end) — edit it in Properties first." });
+  });
+  it('names several unencodable parts once, with their shared reason', () => {
+    const knife = (name: string, x: number) => ({ ...createBoard({ name, length: 28, width: 1.75, thickness: 1.75, posture: 'upright', position: [x, 0, 0] }),
+      angleCuts: [{ id: 'a', ...taperCut({ face: 'width', from: 'min', end: 'min', start: 12, amount: 1.75 }) }] });
+    const r = documentToDesign({ ...createDocument('T'), boards: [knife('Leg', 0), knife('Leg 2', 10)] }, REFINE_MAX);
+    expect('refused' in r && r.refused).toEqual({ reason: 'taper-form', message: "The tapers on Leg, Leg 2 can't be described to Refine (it leaves no wood at an end) — edit them in Properties first." });
+  });
+  it('still refuses a miter', () => {
+    const miter = { id: 'm', kind: 'miter' as const, face: 'length' as const, from: 'max' as const, along: 'width' as const, alongFrom: 'min' as const, points: [[0, 0], [3, 3]] as [[number, number], [number, number]] };
+    const r = documentToDesign({ ...createDocument('T'), boards: [{ ...createBoard({ name: 'Frame' }), angleCuts: [miter] }] }, REFINE_MAX);
+    expect('refused' in r && r.refused.reason).toBe('angled');
   });
 });

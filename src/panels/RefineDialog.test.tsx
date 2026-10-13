@@ -107,6 +107,15 @@ describe('RefineDialog', () => {
     expect(screen.getByText('Shelf 3 no longer meets Left after an earlier joint')).toBeTruthy();
   });
 
+  it('says the joints were not re-applied when joinery refused the refined design (AI-tapers spec §5.4)', () => {
+    const run: RefineRun = { status: 'ready', projectId: 'p1', projectName: 'Box — refined', costUsd: 0.1, outcome: {
+      doc: {} as never, usage: {} as never, changes: [], violations: [], present: [],
+      joints: { kept: 0, chosen: 0, dropped: 0, skipped: [], notJoined: 'MSG' } } };
+    render(<RefineDialog {...base} joined run={run} />);
+    expect(screen.getByText('Joints were not re-applied. MSG')).toBeTruthy();
+    expect(screen.queryByText(/joints kept/)).toBeNull();
+  });
+
   it('labels joinery\'s repair and retry rounds; the design\'s stay unlabelled (fu 242)', () => {
     const cases: [RefineRun, string][] = [
       [{ status: 'repairing', round: 1, issues: 2, join: false, costUsd: null }, 'Fixing 2 issues (round 1/3)…'],

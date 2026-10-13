@@ -5212,7 +5212,12 @@ document (`joineryRefusal`); skipping the offending joint and joining the rest w
 **Status:** closed by decision; do not re-propose unasked.
 
 **305. Generate and Refine do not emit or keep tapers.** Refine still refuses every angle cut and Generate emits none.
-**Status:** open until chunk 2 of this round ships.
+**Status:** closed 2026-10-13 (AI-tapers chunk 2). The design schema's parts carry `tapers` in world directions
+(`taperWorld.ts`), stored through `taperCut`; a broken rule rejects the part (`'taper'`). Model-facing `taper-joint`
+violations (`taperJointViolations`, `taperFaults`) are added by `evaluateDesign`. Refine accepts standard-form tapers and
+refuses non-standard ones (`'taper-form'`); a joined Refine refuses up front when the original's taper runs into a joint
+and returns a still-conflicting result unjoined; the change list names taper additions, changes and removals; the prompt
+teaches tapers and the start-below-the-joints rule.
 
 **306. Deferred minors (record-only).** Untested branches: a zero-amount taper (filtered), a non-finite `start` (refuses with
 odd wording), a tapered part with rectangular cuts (multi-cell clip/slab), two-part conflict ordering, two tapers on one
@@ -5230,3 +5235,30 @@ Remedy when touched: rewrite a resized part's tapers into canonical form via `ta
 **308. "Taper the other end" is impossible for a part joined at both ends.** The taper-at-joint refusal for a joint on the
 thin end advises tapering the other end; a part joined at both ends has no such option (only "remove it" applies).
 **Status:** open, record-only.
+
+## From the AI tapers round (chunk 2, Generate and Refine) — 2026-10-13
+
+**309. `isStandardTaper` accepts `start > length`.** A part shortened after tapering can keep a taper whose start lies past
+its end; Refine would send it and `convertPart` rejects the whole part. **Status:** closed 2026-10-13 (final-review fix,
+widened): `documentToDesign` now runs the converter's own rule, `taperCutsFor`, on each tapered part as `orient` will encode
+it, and refuses `'taper-form'` before any call with a person-facing reason (`taperCutsFor` returns a fault `code`). Covers
+the four reachable cases: a start past the length; a knife edge (amount = the face dimension); opposite faces whose amounts
+meet; a part wider than long tapered along its stored length (re-encoded, the taper no longer runs along the length). Tests:
+`refineDesign.test.ts` (message), `run.test.ts` (each case: zero calls, document untouched).
+
+**310. designDiff "changed" lists every new taper.** Unchanged tapers appear too, and removing one of two reads "changed".
+The taper compare is exact-float while the other change lines compare at display precision. **Status:** open, record-only.
+
+**311. An unjoined Refine shows the same fault twice.** When Refine returns unjoined (`notJoined`), the dialog shows the
+person-facing refusal AND the model-facing `taper-joint` violation (decimal inches). A UX call for the user.
+**Status:** open.
+
+**312. `plainForRefine` recomposes the taper refusal.** It does not call `joineryRefusal` (inv 41's one decider);
+equivalent today, but a throw inside it is reported as `'joints'` and offers repair. **Status:** closed 2026-10-13: it calls
+`joineryRefusal(plain, pf, findSites(pf))`.
+
+**313. Minor test and wording residue (record-only).** `taperCutsFor` is tested on one pose; no NaN or second-entry tests;
+the same face named twice across entries gives overlapping cuts without a fault; non-finite taper numbers report the
+"position or size" not-finite text; the plural `taper-form` message is untested; the "checkDesign never emits taper-joint"
+test cannot fail; the prompt's "For legs under 5in aprons…" phrasing; the prompt test pins phrases, not the corner table.
+**Status:** record-only.

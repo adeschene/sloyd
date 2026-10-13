@@ -19,7 +19,7 @@ const settings: GenerateSettings = {
 const usage = { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0 };
 const GOOD = {
   name: 'Bench',
-  parts: [{ name: 'Top', role: '', material: 'pine', at: { x: 0, y: 0, z: 0 }, size: { x: 10, y: 1, z: 10 } }],
+  parts: [{ name: 'Top', role: '', tapers: [], material: 'pine', at: { x: 0, y: 0, z: 0 }, size: { x: 10, y: 1, z: 10 } }],
   assemblies: [],
 };
 const ok = (): Promise<LlmResult> => Promise.resolve({ json: GOOD, assistantTurn: {}, usage });

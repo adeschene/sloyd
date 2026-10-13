@@ -11,6 +11,8 @@ import { DETAIL_CAPS, limitLines, placedCeiling } from './prompt';
 import type { Detail } from './prompt';
 import { GATE_REFUSAL, gateUnjoin } from './joints/unjoin';
 import type { RecordedJoint } from './joints/unjoin';
+import { joineryRefusal } from './joints/tapers';
+import { findSites } from './joints/sites';
 
 /** Refine by instruction (refine spec §3). The refine text rides in the USER turn; SYSTEM_PROMPT is Generate's, unchanged. */
 export interface RefineSettings { instruction: string; width: number | null; depth: number | null; height: number | null; detail: Detail }
@@ -18,7 +20,7 @@ export interface RefineSettings { instruction: string; width: number | null; dep
 /** Refine handles what Detailed allows; beyond it the model would be forced to drop parts. */
 export const REFINE_MAX: RefineMax = { distinct: DETAIL_CAPS.detailed, placed: placedCeiling('detailed') };
 
-export const KEEP_LINE = 'Keep every part you are not asked to change exactly as it is: the same name, role, material, size and position. Keep assembly and placement names. Return the whole design.';
+export const KEEP_LINE = 'Keep every part you are not asked to change exactly as it is: the same name, role, material, size, position and tapers. Keep assembly and placement names. Return the whole design.';
 
 export function refineMessage(design: GeneratedDesign, s: RefineSettings): string {
   return [
@@ -55,7 +57,13 @@ export function plainForRefine(doc: SloydDocument): RefineBase {
     if (!flat.boards.some((b) => b.cuts.length > 0)) return { plain: doc, joints: null };
     const g = gateUnjoin(flat);
     if ('refused' in g) return { refused: { reason: 'joints', message: g.refused } };
-    return { plain: migrateDocument(writeBackFlat(doc, flat.boards, g.plain)), joints: g.joints };
+    const plain = migrateDocument(writeBackFlat(doc, flat.boards, g.plain));
+    // A joined original whose taper already runs into a joint could only come back unjoined (its re-join refuses):
+    // refused before any call (AI-tapers spec §5.4, amended), by joinery's ONE refusal decider (invariant 41).
+    const pf = flatDocument(plain);
+    const taper = joineryRefusal(plain, pf, findSites(pf));
+    if (taper) return { refused: { reason: 'taper-joint', message: taper } };
+    return { plain, joints: g.joints };
   } catch (e) {
     console.error('Sloyd: reading joints back threw', e);
     return { refused: { reason: 'joints', message: GATE_REFUSAL } };
@@ -75,8 +83,9 @@ export function refineRefusal(doc: SloydDocument, base: RefineBase = plainForRef
  */
 export function refineDialogInfo(doc: SloydDocument): { base: RefineBase; refusal: string | null; detail: Detail; joined: boolean; repair: RepairCheck } {
   const base = plainForRefine(doc);
-  // Joined = some placed part is cut: the gate either explained it (joints) or refused it.
-  const joined = 'refused' in base ? base.refused.reason === 'joints' : base.joints !== null;
+  // Joined = some placed part is cut: the gate either explained it (joints) or refused it. A 'taper-joint' refusal is
+  // produced only after the gate read the joints, so it is joined too (AI-tapers spec §5.4).
+  const joined = 'refused' in base ? base.refused.reason === 'joints' || base.refused.reason === 'taper-joint' : base.joints !== null;
   return { base, refusal: refineRefusal(doc, base), detail: detailFor(doc), joined,
     // Only when the gate refused for joints: the repair is the way out of that refusal (repair-joints spec §3).
     repair: 'refused' in base && base.refused.reason === 'joints' ? repairDocument(doc) : null };

@@ -13,17 +13,21 @@ import { applyJoints } from './joints/recipes';
 import { findSites, jointKey, rangesOf } from './joints/sites';
 import { defaultChoice } from './joints/choose';
 import { GATE_REFUSAL, sameJoined } from './joints/unjoin';
-import { DESIGN_SCHEMA, designToDocument } from '../document/generated';
+import { DESIGN_SCHEMA, designToDocument, parseDesign } from '../document/generated';
 import { checkDesign } from '../document/designCheck';
 import type { LlmClient, LlmRequest, LlmResult, LlmUsage } from '../llm/types';
 import { CHARS_PER_TOKEN } from './estimate';
+import { taperCut } from '../document/angleCuts';
+import { axisFrame, endFacing } from '../document/geometry';
+import type { AngleCut } from '../document/types';
+import type { WorldTaper } from '../document/taperWorld';
 
 const settings: GenerateSettings = {
   description: 'a box', width: null, depth: null, height: null, material: 'any', style: 'any', detail: 'simple',
 };
 const usage = { inputTokens: 10, outputTokens: 5, cacheReadTokens: 0, cacheWriteTokens: 0 };
 const p = (name: string, y: number) => ({
-  name, role: '', material: 'pine', at: { x: 0, y, z: 0 }, size: { x: 10, y: 1, z: 10 },
+  name, role: '', tapers: [], material: 'pine', at: { x: 0, y, z: 0 }, size: { x: 10, y: 1, z: 10 },
 });
 const GOOD = { name: 'Stack', parts: [p('A', 0), p('B', 1)], assemblies: [] };
 const ONE_ISSUE = { name: 'One', parts: [p('A', 0), p('B', 5)], assemblies: [] };                 // B floats
@@ -247,7 +251,7 @@ describe('problemKey (fu 186)', () => {
 
 const v3 = (x: number, y: number, z: number) => ({ x, y, z });
 const bp = (name: string, at: [number, number, number], size: [number, number, number]) =>
-  ({ name, role: '', material: 'pine', at: v3(...at), size: v3(...size) });
+  ({ name, role: '', tapers: [], material: 'pine', at: v3(...at), size: v3(...size) });
 /** A drawer whose Front and Side overlap, placed three times on the floor: one fault, three raw reports. */
 const BAD_DRAWERS = {
   name: 'Drawers', parts: [],
@@ -339,7 +343,7 @@ const createDocumentForTest = () => createDocument('Empty');
 describe('runRefine', () => {
   const RS = { instruction: 'make the top thicker', width: null, depth: null, height: null, detail: 'simple' as const };
   const v3 = (x: number, y: number, z: number) => ({ x, y, z });
-  const bp = (name: string, at: [number, number, number], size: [number, number, number]) => ({ name, role: '', material: 'pine', at: v3(...at), size: v3(...size) });
+  const bp = (name: string, at: [number, number, number], size: [number, number, number]) => ({ name, role: '', tapers: [], material: 'pine', at: v3(...at), size: v3(...size) });
   const orig = (parts: ReturnType<typeof bp>[]) => designToDocument({ name: 'Box', parts, assemblies: [] }).doc;
   const echo = (doc: Parameters<typeof documentToDesign>[0]) => { const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error('refused'); return r.design; };
   const go = (client: LlmClient, doc: Parameters<typeof runRefine>[1]) => runRefine(client, doc, RS, new AbortController().signal, () => {});
@@ -487,7 +491,7 @@ describe('runRefine — joined designs', () => {
     return r.design;
   };
   const bp = (name: string, at: [number, number, number], size: [number, number, number]) =>
-    ({ name, role: '', material: 'pine', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] } });
+    ({ name, role: '', tapers: [], material: 'pine', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] } });
   const bookFlat = flatDocument(designToDocument({ name: 'Bookcase', assemblies: [], parts: [
     bp('Back', [0, 0, -0.25], [31.5, 72, 0.25]), bp('Left side', [0, 0, 0], [0.75, 72, 11.25]), bp('Right side', [30.75, 0, 0], [0.75, 72, 11.25]),
     bp('Bottom', [0.75, 0, 0], [30, 0.75, 11.25]), bp('Top', [0.75, 71.25, 0], [30, 0.75, 11.25]),
@@ -616,9 +620,9 @@ describe('runRefine — joined designs', () => {
     const tree = designToDocument({ name: 'Frames', parts: [], assemblies: [{ name: 'Frame',
       // Two legs per frame so the piece does not tip: a tipping fixture makes the REFINE stage repair
       // (part-less problems are always new, refine spec §3.2), which is not what this test is about.
-      parts: [{ name: 'Leg', role: '', material: 'oak', at: v3(0, 0, 0), size: v3(1.75, 28, 1.75) },
-        { name: 'Leg 2', role: '', material: 'oak', at: v3(19.75, 0, 0), size: v3(1.75, 28, 1.75) },
-        { name: 'Rail', role: '', material: 'oak', at: v3(1.75, 23.5, 0.5), size: v3(18, 3, 0.75) }],
+      parts: [{ name: 'Leg', role: '', tapers: [], material: 'oak', at: v3(0, 0, 0), size: v3(1.75, 28, 1.75) },
+        { name: 'Leg 2', role: '', tapers: [], material: 'oak', at: v3(19.75, 0, 0), size: v3(1.75, 28, 1.75) },
+        { name: 'Rail', role: '', tapers: [], material: 'oak', at: v3(1.75, 23.5, 0.5), size: v3(18, 3, 0.75) }],
       placements: [{ name: 'Front', at: v3(0, 0, 0) }, { name: 'Back', at: v3(0, 0, 30) }] }] }).doc;
     const jo = await runJoinery(fakeClient([new LlmError('overloaded', 'Overloaded.')]).client, tree, new AbortController().signal, () => {});
     if ('noSites' in jo || 'refused' in jo) throw new Error('sites');
@@ -768,4 +772,114 @@ describe('runJoinery — angled documents (spec §6)', () => {
     expect(client.complete).not.toHaveBeenCalled();
     expect(JSON.stringify(doc)).toBe(before);
   });
+});
+
+describe('the taper-joint fault (AI-tapers spec 5.3)', () => {
+  const leg = (start: number) => ({ name: 'Leg', role: '', material: 'oak', at: { x: 0, y: 0, z: 0 }, size: { x: 1.75, y: 28, z: 1.75 },
+    tapers: [{ faces: ['+x', '+z'], toward: '-y', start, amount: 0.375 }] });
+  const rail = { name: 'Rail', role: '', material: 'oak', at: { x: 1.75, y: 23.5, z: 0.5 }, size: { x: 18, y: 3, z: 0.75 }, tapers: [] };
+  const post = { name: 'Post', role: '', material: 'oak', at: { x: 19.75, y: 0, z: 0 }, size: { x: 1.75, y: 28, z: 1.75 }, tapers: [] };
+  const design = (start: number) => ({ name: 'T', parts: [leg(start), rail, post], assemblies: [] });
+  const text = (turns: unknown[]) => JSON.stringify(turns);
+
+  it('runGeneration reports the fault, sends it back, and keeps the repaired design', async () => {
+    // No call count: this two-legged fixture may also trip the tip check, which drives its own repair rounds.
+    const { client, seen } = fakeClient([design(24), design(22)]);
+    const out = await run(client);
+    expect(text(seen[1]!)).toContain("Leg's taper toward -y");
+    expect(out.violations.filter((v) => v.kind === 'taper-joint')).toEqual([]);
+  });
+  it('checkDesign itself never emits the fault (joinery gate unchanged)', () => {
+    const flat = flatDocument(designToDocument(parseDesign(design(24))!).doc);
+    expect(checkDesign(flat, { width: null, depth: null, height: null, maxParts: 10 }).some((v) => v.kind === ('taper-joint' as never))).toBe(false);
+  });
+  it('Refine counts the original\'s own taper conflict as preexisting: present, not fed back', async () => {
+    const RS = { instruction: 'keep it', width: null, depth: null, height: null, detail: 'simple' as const };
+    const doc = designToDocument(parseDesign(design(24))!).doc;
+    const from = documentToDesign(doc, REFINE_MAX);
+    if ('refused' in from) throw new Error('refused');
+    const { client, seen } = fakeClient([from.design]);
+    const out = await runRefine(client, doc, RS, new AbortController().signal, () => {});
+    if ('refused' in out) throw new Error('refused');
+    expect(out.present.some((v) => v.kind === 'taper-joint')).toBe(true);
+    expect(out.violations.some((v) => v.kind === 'taper-joint')).toBe(false);
+    expect(seen.slice(1).map(text).join('')).not.toContain("Leg's taper");
+  });
+});
+
+describe('runRefine — joined designs with tapers (AI-tapers spec §5.4)', () => {
+  const RS = { instruction: 'change it', width: null, depth: null, height: null, detail: 'moderate' as const };
+  // CORNER of runJoinery.test.ts: the Leg tapered on its +x and +z faces toward the floor, joined with short mortise-tenons.
+  const legTaper = (b: Board, axis: 0 | 2, start: number): AngleCut => ({
+    id: `t${axis}`, ...taperCut({ face: axisFrame(b)[axis]!.dim as 'width' | 'thickness', from: endFacing(b, axis, 1), end: endFacing(b, 1, -1), start, amount: 0.375 }),
+  });
+  const part = (name: string, at: [number, number, number], size: [number, number, number], tapers: WorldTaper[] = []) =>
+    ({ name, role: '', tapers, material: 'oak', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] } });
+  const cornerDesign = (legTapers: WorldTaper[]) => ({ name: 'Corner', assemblies: [], parts: [
+    part('Leg', [0, 0, 0], [1.75, 28, 1.75], legTapers), part('Rail X', [1.75, 23.5, 0.5], [18, 3, 0.75]), part('Rail Z', [0.5, 23.5, 1.75], [0.75, 3, 18]),
+  ] });
+  const plainFlat = flatDocument(designToDocument(cornerDesign([])).doc);
+  const cornerFlat = { ...plainFlat, boards: plainFlat.boards.map((b) => (b.name === 'Leg' ? { ...b, angleCuts: [legTaper(b, 0, 22), legTaper(b, 2, 22)] } : b)) };
+  const sites = findSites(cornerFlat);
+  const joined: SloydDocument = migrateDocument(applyJoints(cornerFlat, sites,
+    sites.map((s) => ({ site: s.id, joint: 'mortise-tenon' as const, tenonLength: 0.5 }))).doc);
+  /** The plain design with the Leg's taper moved up into the rails (start 24): joinery refuses it. */
+  const conflicting = cornerDesign([{ faces: ['+x', '+z'], toward: '-y', start: 24, amount: 0.375 }]);
+
+  it('the fixture: the Leg faces +x and +z; the conflicting design parses', () => {
+    const leg = flatDocument(joined).boards.find((b) => b.name === 'Leg')!;
+    expect([endFacing(leg, 0, 1), endFacing(leg, 2, 1)]).toEqual(leg.angleCuts.map((c) => c.from));
+    expect(leg.cuts.length).toBeGreaterThan(0);
+    expect(parseDesign(conflicting)).not.toBeNull();
+    // The conflicting design stores the same taper as the fixture's, moved to start 24.
+    const noId = ({ id: _id, ...c }: AngleCut) => c;
+    const moved = flatDocument(designToDocument(parseDesign(conflicting)!).doc).boards.find((b) => b.name === 'Leg')!;
+    expect(moved.angleCuts.map(noId)).toEqual([legTaper(moved, 0, 24), legTaper(moved, 2, 24)].map(noId));
+  });
+
+  it('a joined original whose taper already runs into a joint is refused with no call, the document untouched', async () => {
+    const bad: SloydDocument = { ...joined, boards: (joined.boards as Board[]).map((b) => (b.name === 'Leg' ? { ...b, angleCuts: [legTaper(b, 0, 24), legTaper(b, 2, 24)] } : b)) };
+    const before = JSON.stringify(bad);
+    const { client } = fakeClient([conflicting]);
+    const out = await runRefine(client, bad, RS, new AbortController().signal, () => {});
+    expect('refused' in out && out.refused.reason).toBe('taper-joint');
+    expect(client.complete).not.toHaveBeenCalled();
+    expect(JSON.stringify(bad)).toBe(before);
+  });
+
+  it('a joined Refine whose model never fixes a taper conflict returns the design unjoined, with a note, never a throw', async () => {
+    // Four refine answers, all with the Leg's taper at start 24 (into the rails). Joinery refuses before any call.
+    const { client } = fakeClient([conflicting, conflicting, conflicting, conflicting]);
+    const out = await runRefine(client, joined, RS, new AbortController().signal, () => {});
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(client.complete).toHaveBeenCalledTimes(4);                 // no joinery call
+    expect(out.joints?.notJoined).toBeTruthy();
+    expect(out.violations.some((v) => v.kind === 'taper-joint')).toBe(true);
+    expect(flatDocument(out.doc).boards.every((b) => b.cuts.length === 0)).toBe(true);
+  });
+});
+
+describe('runRefine — a standard-form taper the converter would reject (fu 309)', () => {
+  const RS = { instruction: 'keep it', width: null, depth: null, height: null, detail: 'simple' as const };
+  const leg = (cuts: Parameters<typeof taperCut>[0][], over: Partial<Board> = {}): Board => ({
+    ...createBoard({ id: 'leg', name: 'Leg', length: 28, width: 1.75, thickness: 1.75, posture: 'upright', ...over }),
+    angleCuts: cuts.map((c, i) => ({ id: `t${i}`, ...taperCut(c) })),
+  });
+  const cases: [string, Board][] = [
+    ['a knife edge (amount = the face dimension)', leg([{ face: 'width', from: 'min', end: 'min', start: 12, amount: 1.75 }])],
+    ['opposite faces that meet (1 + 1 on 1.75)', leg([{ face: 'width', from: 'min', end: 'min', start: 12, amount: 1 }, { face: 'width', from: 'max', end: 'min', start: 12, amount: 1 }])],
+    ['a part wider than long, tapered along its stored length', leg([{ face: 'thickness', from: 'min', end: 'min', start: 3, amount: 0.25 }], { length: 4, width: 6, thickness: 0.75, posture: 'flat' })],
+    ['a start past the length (the part shortened after tapering)', leg([{ face: 'width', from: 'min', end: 'min', start: 24, amount: 0.5 }], { length: 20 })],
+  ];
+  for (const [what, b] of cases) {
+    it(`${what}: refused before any call, the document untouched`, async () => {
+      const doc: SloydDocument = { ...createDocument('T'), boards: [b] };
+      const before = JSON.stringify(doc);
+      const { client } = fakeClient([GOOD]);
+      const out = await runRefine(client, doc, RS, new AbortController().signal, () => {});
+      expect('refused' in out && out.refused.reason).toBe('taper-form');
+      expect(client.complete).not.toHaveBeenCalled();
+      expect(JSON.stringify(doc)).toBe(before);
+    });
+  }
 });

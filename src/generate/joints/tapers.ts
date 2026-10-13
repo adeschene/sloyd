@@ -2,6 +2,8 @@ import type { FlatDocument, SloydDocument, TaperConflict } from '../../document/
 import { angledRefusal, flatDocument, taperJointRefusal } from '../../document/document';
 import { taperFields } from '../../document/angleCuts';
 import { axisDimensions, endFacing, spanFromWorldOffset } from '../../document/geometry';
+import { taperJointViolations } from '../../document/designCheck';
+import type { Violation } from '../../document/designCheck';
 import { boxOf } from './pocket';
 import { findSites } from './sites';
 import type { Site } from './sites';
@@ -55,4 +57,9 @@ export function taperConflicts(flat: FlatDocument, sites: readonly Site[]): Tape
  */
 export function joineryRefusal(doc: SloydDocument, flat: FlatDocument = flatDocument(doc), sites: readonly Site[] = findSites(flat)): string | null {
   return angledRefusal(doc, 'joinery') ?? taperJointRefusal(flat, taperConflicts(flat, sites));
+}
+
+/** The taper-at-joint rule on a DESIGN (spec section 5.3): every conflict as a `taper-joint` fault, for evaluateDesign and Refine's preexisting set. */
+export function taperFaults(flat: FlatDocument): Violation[] {
+  return taperJointViolations(flat, taperConflicts(flat, findSites(flat)));
 }

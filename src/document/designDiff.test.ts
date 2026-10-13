@@ -147,3 +147,36 @@ describe('diffDesigns', () => {
     expect(out.map((c) => c.text)).toEqual([`Top moved X +${f(2)}, Z ${f(-0.5)}`]);
   });
 });
+
+describe('diffDesigns — tapers (AI-tapers spec §5.5)', () => {
+  const leg = (tapers: unknown[]) => ({ name: 'T', parts: [{ name: 'Leg', role: '', material: 'oak', at: { x: 0, y: 0, z: 0 }, size: { x: 1.75, y: 28, z: 1.75 }, tapers: tapers as never }], assemblies: [] });
+  const tdoc = (t: unknown[]) => designToDocument(leg(t) as never, { centre: false }).doc;
+  const T = { faces: ['+x', '+z'], toward: '-y', start: 22, amount: 0.375 };
+  it('added', () => {
+    expect(diffDesigns(tdoc([]), tdoc([T])).map((c) => c.text)).toEqual([`Leg: taper added (+x, +z; ${f(22)} from the -y end, ${f(0.375)} off)`]);
+  });
+  it('changed', () => {
+    expect(diffDesigns(tdoc([T]), tdoc([{ ...T, start: 20 }])).map((c) => c.text)).toEqual([`Leg: taper changed (+x, +z; ${f(20)} from the -y end, ${f(0.375)} off)`]);
+  });
+  it('removed', () => {
+    expect(diffDesigns(tdoc([T]), tdoc([])).map((c) => c.text)).toEqual(['Leg: taper removed (+x, +z)']);
+  });
+  it('face order is not a change', () => {
+    expect(diffDesigns(tdoc([T]), tdoc([{ ...T, faces: ['+z', '+x'] }]))).toEqual([]);
+  });
+});
+
+describe('diffDesigns — tapers across placements', () => {
+  const T = { faces: ['+x', '+z'] as never, toward: '-y' as never, start: 22, amount: 0.375 };
+  const asm = (tapers: unknown[]): GeneratedAssembly => ({
+    name: 'Leg set',
+    parts: [{ ...part('Leg', [0, 0, 0], [1.75, 28, 1.75]), tapers: tapers as never }],
+    placements: [['L1', 0], ['L2', 10], ['L3', 20]].map(([n, x]) => ({ name: n as string, at: v(x as number, 0, 0) })),
+  });
+  it('merges one assembly-part taper change across placements into one entry (×N)', () => {
+    const out = diffDesigns(doc([], [asm([])]), doc([], [asm([T])]));
+    expect(out.map((c) => [c.kind, c.copies, c.text])).toEqual([
+      ['taper', 3, `L1 › Leg: taper added (+x, +z; ${f(22)} from the -y end, ${f(0.375)} off) (×3)`],
+    ]);
+  });
+});

@@ -13,6 +13,7 @@ import { defaultChoice } from './choose';
 import { boxOf } from './pocket';
 import { plainForRefine } from '../refine';
 import { worldSolids } from '../../document/designCheck';
+import { taperCut } from '../../document/angleCuts';
 
 // The harness and fixtures of the measured spike (126/126 exact round trips), made permanent.
 
@@ -470,5 +471,17 @@ describe('rejoin', () => {
     const joined = joinedWithJoints();
     const r = readJoints(joined); if ('refused' in r) throw new Error('read');
     expect(rejoin({ ...joined, boards: r.plain }, [{ ...r.joints[0]!, enter: 'Nobody' }])).toBeNull();
+  });
+});
+
+describe('sameJoined — angle cuts', () => {
+  it('sameJoined compares angle cuts exactly (AI-tapers spec §5.4a)', () => {
+    const flat = design({ name: 'Leg', at: [0, 0, 0], size: [1.75, 28, 1.75] });
+    const t = { id: 'a', ...taperCut({ face: 'width', from: 'min', end: 'min', start: 20, amount: 0.5 }) };
+    const a = { ...flat, boards: flat.boards.map((b, i) => (i === 0 ? { ...b, angleCuts: [t] } : b)) };
+    const b = { ...flat, boards: flat.boards.map((x, i) => (i === 0 ? { ...x, angleCuts: [{ ...t, points: [[0, 0.5], [20.0625, 0]] as typeof t.points }] } : x)) };
+    expect(sameJoined(a, a)).toBe(true);
+    expect(sameJoined(a, b)).toBe(false);
+    expect(sameJoined(a, flat)).toBe(false);
   });
 });
