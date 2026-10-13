@@ -1,6 +1,7 @@
 import { clippedRegion, CUT_GEOMETRY_KEYS } from '../../document/document';
 import type { Board, Cut, FlatDocument } from '../../document/document';
 import { TOUCH } from '../../document/designCheck';
+import { sameAngleCut } from '../../document/angleCuts';
 import { axisDimensions, axisFrame, spanToWorldOffset } from '../../document/geometry';
 import { findSites, jointKey, THIN_PANEL } from './sites';
 import type { Site } from './sites';
@@ -276,7 +277,8 @@ export const sameCut = (c: Cut, d: Cut) => CUT_GEOMETRY_KEYS.every((k) => same(c
 /**
  * Ids ignored (refine-joined spec §3.2). Names, posture, rotation, material and grain compare
  * EXACTLY; every number (position, length/width/thickness, each numeric cut field) within
- * GATE_TOLERANCE; non-numeric cut fields (face, from, across) exactly. The gate is only as good as this.
+ * GATE_TOLERANCE; non-numeric cut fields (face, from, across) exactly; angle cuts exactly (sameAngleCut). The gate is
+ * only as good as this.
  */
 export function sameJoined(a: FlatDocument, b: FlatDocument): boolean {
   if (a.boards.length !== b.boards.length) return false;
@@ -285,7 +287,9 @@ export function sameJoined(a: FlatDocument, b: FlatDocument): boolean {
     return p.name === q.name && p.position.every((v, k) => same(v, q.position[k])) &&
       same(p.length, q.length) && same(p.width, q.width) && same(p.thickness, q.thickness) &&
       p.posture === q.posture && p.rotation === q.rotation && p.material === q.material && p.grain === q.grain &&
-      p.cuts.length === q.cuts.length && p.cuts.every((c, k) => sameCut(c, q.cuts[k]!));
+      p.cuts.length === q.cuts.length && p.cuts.every((c, k) => sameCut(c, q.cuts[k]!)) &&
+      // Exact, by design: joinery never touches angle cuts, so their round trip is identity (AI-tapers spec §5.4a).
+      p.angleCuts.length === q.angleCuts.length && p.angleCuts.every((c, k) => sameAngleCut(c, q.angleCuts[k]!));
   });
 }
 

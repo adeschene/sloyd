@@ -194,8 +194,9 @@ export async function runGeneration(
   return { doc: out.doc, violations: out.violations, usage: out.usage };
 }
 
-/** What re-joining a refined joined design did (refine-joined spec §4). */
-export interface JointsSummary { kept: number; chosen: number; dropped: number; skipped: string[] }
+/** What re-joining a refined joined design did (refine-joined spec §4). `notJoined`: joinery refused the refined design
+ *  (its taper runs into a joint the model never moved, AI-tapers spec §5.4) — the design is returned unjoined. */
+export interface JointsSummary { kept: number; chosen: number; dropped: number; skipped: string[]; notJoined?: string }
 export interface RefineOutcome { doc: SloydDocument; violations: Violation[]; present: Violation[]; changes: Change[]; usage: LlmUsage; joints: JointsSummary | null }
 export type RefineProgress = RunProgress & { stage?: 'join' };
 
@@ -253,8 +254,11 @@ export async function runRefine(
     const alsoPresent = new Set(checkDesign(joinedFlat, { width: null, depth: null, height: null, maxParts: joinedFlat.boards.length })
       .filter((v) => v.parts.length > 0).map(problemKey));
     const jo = await runJoinery(client, refined, signal, (p) => onProgress({ ...p, stage: 'join' }), { fixed, alsoPresent });
-    if ('refused' in jo) throw new Error(jo.refused); // unreachable: a refined design has no angle cuts
-    if ('noSites' in jo) {
+    // Reachable (AI-tapers spec §5.4, amended): the repair loop keeps its best attempt even with a taper-joint fault
+    // left, and joinery refuses that before any call. The refined design is kept, unjoined; the fault is in `violations`.
+    if ('refused' in jo) {
+      joints = { kept: 0, chosen: 0, dropped: 0, skipped: [], notJoined: jo.refused };
+    } else if ('noSites' in jo) {
       joints = { kept: 0, chosen: 0, dropped, skipped: [] };
     } else {
       refined = { ...jo.result.doc, stock: doc.stock, units: doc.units, guides: doc.guides };
