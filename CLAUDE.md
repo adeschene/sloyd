@@ -21,12 +21,11 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-13: fu 302/303 (merge `2a19279`: overlap and the tip check read a tapered
-  part's real bodies) on top of turned links and AI tapers — bundle `index-B11-8iMQ.js`, CSS `index-BkjfVfaC.css`, **SCHEMA
-  14** (unchanged since angle cuts chunk 1, so rolling back to `3e7474f`, `index-DtBsK7RB.js`, or any 14 build is free; below
-  14, `47548d3`, REFUSES every project saved since: export first). Test count is under Commands.
-- **`master` is ahead of production** with standard views + image export (feature-gaps §2; fu 260 closed): no schema
-  change, deploy on the user's word. Open from it: 319 (the View group's wrap, for the user's eye), 320 (record-only).
+- **Production matches `master`** as of 2026-10-13: standard views + image export (merge `353dd60`: Front/Side/Top/Iso,
+  Save image, fu 260) on top of fu 302/303 — bundle `index-CUVCRzP9.js`, CSS `index-S14NxOeA.css`, **SCHEMA 14** (unchanged
+  since angle cuts chunk 1, so rolling back to `2a19279`, `index-B11-8iMQ.js`, or any 14 build is free; below 14, `47548d3`,
+  REFUSES every project saved since: export first). Test count is under Commands. Open from the round: 319 (the View group's
+  wrap, for the user's eye), 320 (record-only; a saved PNG owed a real-hardware look).
 - **NEXT: none chosen — ask.** The AI-tapers feature (the user's "the AI integration") is complete: one prompt gives tapered
   legs with joinery, its legs link as one component, and its follow-ups 301–313 are closed except 304/306–308 (by decision or
   record-only). Open near it: 314–318 (turned-links residue, record-only or accepted), 276/277's rest (miters, bevels and

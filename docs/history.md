@@ -18,6 +18,14 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-13 with standard views + image export live** (`index-CUVCRzP9.js`, CSS
+`index-S14NxOeA.css`, merge `353dd60`, **schema 14**). Verified: `200` on `/` and a deep route in-network and at the edge;
+bundle and CSS match `dist/` at both; `index-B11-8iMQ.js` 404s in-network; CSP unchanged; a real-browser load with 0 errors,
+the Cloudflare beacon, "+ Add board", "Save image" and the four view buttons present; the load's two fresh keys (`version:
+14`) cleared and read back empty after 3s, then navigated away. Checked on the dev server
+(`docs/browser-verification-standard-views-image.md`); a saved PNG and the View group's wrap still owe the user a look on
+real hardware (fu 319, 320).
+
 **Production matches `master` as of 2026-10-13 with fu 302/303 live** (`index-B11-8iMQ.js`, CSS `index-BkjfVfaC.css`
 unchanged, merge `2a19279`, **schema 14**). Verified: `200` on `/` and a deep route in-network and at the edge; bundle matches
 `dist/` at both; `index-DtBsK7RB.js` 404s in-network; CSP unchanged; a real-browser load with 0 errors, the Cloudflare beacon
