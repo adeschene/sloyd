@@ -2,6 +2,7 @@ import type { Board, FlatDocument } from './document';
 import type { Region } from './types';
 import type { RejectedPart } from './generated';
 import { pocketCells } from './cuts';
+import { taperFields } from './angleCuts';
 import { axisFrame, boardExtents, spanToWorldOffset } from './geometry';
 
 /**
@@ -251,6 +252,56 @@ export function worldBox(b: Board, s: Region): Box {
  */
 export function worldSolids(b: Board): Box[] {
   return pocketCells(b).map((s) => worldBox(b, s));
+}
+
+/** A part carrying any angle cut — for the checks, every one of them is a taper (spec §3.2; others are refused upstream). */
+export const isTapered = (b: Board): boolean => b.angleCuts.length > 0;
+
+/**
+ * A part's solids AS FAR AS CONTACT CAN TRUST THEM (AI-tapers spec §3.2), world boxes.
+ * No taper: exactly `worldSolids`. Tapered: every pocket cell clipped, along the length,
+ * to the stations no taper removes (a side face is trusted only where it is still flat —
+ * conservative for the faces beside a sloped one too), plus, at each end a taper runs
+ * toward, a zero-thickness slab per cell reaching it, shrunk by each such taper's amount.
+ * The second reader of angle cuts besides `boardBodies` (invariant 48): tapers only,
+ * never claiming wood a taper removed. Read through `taperFields`, so a line stored
+ * deep-end-last reads as the same taper.
+ */
+export function contactSolids(b: Board): Box[] {
+  if (!isTapered(b)) return worldSolids(b);
+  const tapers = b.angleCuts.map((c) => {
+    if (c.kind !== 'taper') throw new Error(`contactSolids: ${b.name} carries a ${c.kind}; only tapers reach the checks`);
+    return taperFields(c, b);
+  }).filter((t) => t.amount > 0);
+  const L = b.length;
+  let lo = 0;
+  let hi = L;
+  for (const t of tapers) {
+    if (t.end === 'min') lo = Math.max(lo, t.start);
+    else hi = Math.min(hi, L - t.start);
+  }
+  const cells = pocketCells(b);
+  const out: Region[] = [];
+  for (const r of cells) {
+    const l0 = Math.max(r.length[0], lo);
+    const l1 = Math.min(r.length[1], hi);
+    if (l0 <= l1) out.push({ ...r, length: [l0, l1] });
+  }
+  for (const end of ['min', 'max'] as const) {
+    const here = tapers.filter((t) => t.end === end);
+    if (here.length === 0) continue;
+    const at = end === 'min' ? 0 : L;
+    for (const r of cells) {
+      if (r.length[0] > at || r.length[1] < at) continue;
+      const slab: Region = { ...r, length: [at, at] };
+      for (const t of here) {
+        const [a, z] = slab[t.face];
+        slab[t.face] = t.from === 'min' ? [Math.max(a, t.amount), z] : [a, Math.min(z, b[t.face] - t.amount)];
+      }
+      if (slab.width[0] < slab.width[1] && slab.thickness[0] < slab.thickness[1]) out.push(slab);
+    }
+  }
+  return out.map((s) => worldBox(b, s));
 }
 const solidBoxesOf = (doc: FlatDocument): Box[][] => doc.boards.map(worldSolids);
 
