@@ -2,7 +2,8 @@ import { formatLength } from '../units/length';
 import { MATERIALS } from './types';
 import { boardExtents } from './geometry';
 import type { Board, Instance, SloydDocument } from './types';
-import { worldTapers } from './taperWorld';
+import { DIRS, worldTapers } from './taperWorld';
+import type { WorldTaper } from './taperWorld';
 import { definitionCorner } from './refineDesign';
 import { NAME_SEPARATOR, PATH_SEPARATOR, flatDocument } from './tree';
 
@@ -90,17 +91,11 @@ export function diffDesigns(before: SloydDocument, after: SloydDocument): Change
     const d = delta(localOf(B, e).map((p, k) => p - lo[k]!));
     if (d) { const t = ` moved ${d}`; push('moved', 'part', n, `${n}${t}`, key('moved', t)); }
     if (o.b.material !== e.b.material && label(o.b.material) !== label(e.b.material)) { const d = `: ${label(o.b.material)} → ${label(e.b.material)}`; push('material', 'part', n, `${n}${d}`, key('material', d)); }
-    // Tapers compared in design form (merged, ordered), so a reordering is not a change (spec §5.5).
-    // worldTapers is never null here: Refine refuses a non-standard taper before any call.
-    const ot = worldTapers(o.b) ?? [];
-    const nt = worldTapers(e.b) ?? [];
-    if (JSON.stringify(ot) !== JSON.stringify(nt)) {
-      const say = (t: { faces: string[]; toward: string; start: number; amount: number }) => `${t.faces.join(', ')}; ${len(t.start)} from the ${t.toward} end, ${len(t.amount)} off`;
-      const lines = nt.length === 0 ? ot.map((t) => `${n}: taper removed (${t.faces.join(', ')})`)
-        : ot.length === 0 ? nt.map((t) => `${n}: taper added (${say(t)})`)
-          : nt.map((t) => `${n}: taper changed (${say(t)})`);
-      for (const t of lines) push('taper', 'part', n, t, key('taper', t.slice(n.length)));
-    }
+    // Tapers compared FACE BY FACE (fu 310): a sloped face toward one end is the unit, so a reordering or a regrouping is
+    // not a change, and an untouched taper beside a changed one gets no line. Values compare at display precision, like
+    // every other line. worldTapers is never null here: Refine refuses a non-standard taper before any call.
+    const lines = taperLines(worldTapers(o.b) ?? [], worldTapers(e.b) ?? [], len);
+    for (const t of lines) push('taper', 'part', n, `${n}: ${t}`, key('taper', `: ${t}`));
     if (!o.b.shape !== !e.b.shape) {
       const kind = e.b.shape ? 'linked' : 'unlinked';
       push(kind, 'part', n, e.b.shape ? `${n} is now linked` : `${n} is no longer linked`, key(kind, ''));
@@ -111,4 +106,43 @@ export function diffDesigns(before: SloydDocument, after: SloydDocument): Change
     push('removed', 'part', n, `Removed ${n}`, keyOf(n, e)('removed', ''));
   }
   return out.map((c) => (c.copies > 1 ? { ...c, text: `${c.text} (×${c.copies})` } : c));
+}
+
+/**
+ * One part's taper lines (fu 310). Each taper is split into its faces; a face is matched across the two sides by face and
+ * thin end. A face only after is added, only before is removed, on both with a different displayed start or amount is
+ * changed. Faces sharing a kind and displayed values are named on one line, in DIRS order.
+ */
+function taperLines(before: readonly WorldTaper[], after: readonly WorldTaper[], len: (n: number) => string): string[] {
+  type Face = { face: string; toward: string; start: number; amount: number };
+  const split = (ts: readonly WorldTaper[]): Face[] => ts.flatMap((t) => t.faces.map((face) => ({ face, toward: t.toward, start: t.start, amount: t.amount })));
+  const shown = (f: Face) => `${len(f.start)} from the ${f.toward} end, ${len(f.amount)} off`;
+  // Two tapers on one face toward one end are possible (overlapping cuts): the face's entries compare as one list.
+  const byFace = (fs: Face[]) => {
+    const m = new Map<string, Face[]>();
+    for (const f of fs) m.set(`${f.face}|${f.toward}`, [...(m.get(`${f.face}|${f.toward}`) ?? []), f]);
+    return m;
+  };
+  const was = byFace(split(before));
+  const now = byFace(split(after));
+  const groups = new Map<string, { kind: 'added' | 'changed' | 'removed'; faces: string[]; detail: string }>();
+  const add = (kind: 'added' | 'changed' | 'removed', f: Face, detail: string) => {
+    const k = `${kind}|${f.toward}|${detail}`;
+    const g = groups.get(k) ?? { kind, faces: [], detail };
+    if (!g.faces.includes(f.face)) g.faces.push(f.face);
+    groups.set(k, g);
+  };
+  const list = (fs: Face[]) => fs.map(shown).sort().join(' / ');
+  for (const [k, fs] of now) {
+    const old = was.get(k);
+    if (!old) for (const f of fs) add('added', f, shown(f));
+    else if (list(old) !== list(fs)) for (const f of fs) add('changed', f, shown(f));
+  }
+  for (const [k, fs] of was) if (!now.has(k)) add('removed', fs[0]!, '');
+  const rank = (d: string) => DIRS.indexOf(d as WorldTaper['toward']);
+  const order = { added: 0, changed: 1, removed: 2 };
+  return [...groups.values()]
+    .map((g) => ({ ...g, faces: [...g.faces].sort((x, y) => rank(x) - rank(y)) }))
+    .sort((x, y) => order[x.kind] - order[y.kind] || rank(x.faces[0]!) - rank(y.faces[0]!))
+    .map((g) => `taper ${g.kind} (${g.faces.join(', ')}${g.detail ? `; ${g.detail}` : ''})`);
 }

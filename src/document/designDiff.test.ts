@@ -150,7 +150,7 @@ describe('diffDesigns', () => {
 
 describe('diffDesigns — tapers (AI-tapers spec §5.5)', () => {
   const leg = (tapers: unknown[]) => ({ name: 'T', parts: [{ name: 'Leg', role: '', material: 'oak', at: { x: 0, y: 0, z: 0 }, size: { x: 1.75, y: 28, z: 1.75 }, tapers: tapers as never }], assemblies: [] });
-  const tdoc = (t: unknown[]) => designToDocument(leg(t) as never, { centre: false }).doc;
+  const tdoc = (t: unknown[], exact?: number[]) => designToDocument(leg(t) as never, { centre: false, exact: exact && new Set(exact) }).doc;
   const T = { faces: ['+x', '+z'], toward: '-y', start: 22, amount: 0.375 };
   it('added', () => {
     expect(diffDesigns(tdoc([]), tdoc([T])).map((c) => c.text)).toEqual([`Leg: taper added (+x, +z; ${f(22)} from the -y end, ${f(0.375)} off)`]);
@@ -163,6 +163,26 @@ describe('diffDesigns — tapers (AI-tapers spec §5.5)', () => {
   });
   it('face order is not a change', () => {
     expect(diffDesigns(tdoc([T]), tdoc([{ ...T, faces: ['+z', '+x'] }]))).toEqual([]);
+  });
+
+  // fu 310: tapers are compared face by face, at display precision; only what changed gets a line.
+  const U = { faces: ['-x'], toward: '+y', start: 10, amount: 0.25 };
+  const texts = (a: unknown[], b: unknown[], exact?: number[]) =>
+    diffDesigns(tdoc(a, exact), tdoc(b, exact)).map((c) => c.text);
+  it('an unchanged taper beside a changed one gets no line', () => {
+    expect(texts([T, U], [{ ...T, start: 20 }, U])).toEqual([`Leg: taper changed (+x, +z; ${f(20)} from the -y end, ${f(0.375)} off)`]);
+  });
+  it('removing one of two tapers reads "removed", naming only its faces', () => {
+    expect(texts([T, U], [T])).toEqual(['Leg: taper removed (-x)']);
+  });
+  it('a face added to an existing taper reads "added" for that face only', () => {
+    expect(texts([{ ...T, faces: ['+x'] }], [T])).toEqual([`Leg: taper added (+z; ${f(22)} from the -y end, ${f(0.375)} off)`]);
+  });
+  it('one face of a shared taper changed: only that face', () => {
+    expect(texts([T], [{ ...T, faces: ['+x'] }, { ...T, faces: ['+z'], start: 20 }])).toEqual([`Leg: taper changed (+z; ${f(20)} from the -y end, ${f(0.375)} off)`]);
+  });
+  it('a change below display precision is no change, like the other lines', () => {
+    expect(texts([T], [{ ...T, start: 22.001 }], [22.001])).toEqual([]);
   });
 });
 

@@ -5247,7 +5247,9 @@ meet; a part wider than long tapered along its stored length (re-encoded, the ta
 `refineDesign.test.ts` (message), `run.test.ts` (each case: zero calls, document untouched).
 
 **310. designDiff "changed" lists every new taper.** Unchanged tapers appear too, and removing one of two reads "changed".
-The taper compare is exact-float while the other change lines compare at display precision. **Status:** open, record-only.
+The taper compare is exact-float while the other change lines compare at display precision. **Status:** closed 2026-10-13 at
+the user's word: `designDiff` compares tapers face by face (a sloped face toward one end), at display precision; only faces
+added, removed or changed get a line, faces sharing a kind and values share one line, and a regrouping is not a change.
 
 **311. An unjoined Refine shows the same fault twice.** When Refine returns unjoined (`notJoined`), the dialog shows the
 person-facing refusal AND the model-facing `taper-joint` violation (decimal inches). A UX call for the user.
