@@ -18,6 +18,12 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-13 with fu 302/303 live** (`index-B11-8iMQ.js`, CSS `index-BkjfVfaC.css`
+unchanged, merge `2a19279`, **schema 14**). Verified: `200` on `/` and a deep route in-network and at the edge; bundle matches
+`dist/` at both; `index-DtBsK7RB.js` 404s in-network; CSP unchanged; a real-browser load with 0 errors, the Cloudflare beacon
+and "+ Add board" present; the load's two fresh keys (`version: 14`) cleared and read back empty after 3s, then navigated
+away. Unit-tested only (the checks have no UI of their own).
+
 **Production matches `master` as of 2026-10-13 with turned links live** (`index-DtBsK7RB.js`, CSS `index-BkjfVfaC.css`
 unchanged, merge `3e7474f`, **schema 14**). Verified: `200` on `/` and a deep route in-network and at the edge; bundle matches
 `dist/` at both; `index-Cu_W4spT.js` 404s in-network; CSP unchanged; a real-browser load with 0 errors, the Cloudflare beacon
@@ -401,6 +407,13 @@ and 79.
 ---
 
 ## What each round did
+
+**What fu 302/303 did (2026-10-13)**, at the user's word, bounded and done directly with an independent review: a pair with a
+tapered part is measured for overlap on the two parts' real world bodies (their intersection through `clipConvex`, reported
+by its extents, only when their boxes overlap), and the tip check weighs a tapered part by its real bodies (`partMass`,
+tetrahedra from an interior point). Untapered results are byte-for-byte unchanged. The review measured the first version at
+~28x slower on 240 tapered legs (no box prefilter, bodies rebuilt per pair) and found a part with no wood would poison the
+centre with NaN; both fixed and pinned. A chunk-1 tip test relied on box weight and was widened (6in top) to keep its reason.
 
 **What turned links did (2026-10-13, fu 301)** (spec `docs/superpowers/specs/2026-10-13-sloyd-turned-links-design.md`, plan
 `docs/superpowers/plans/2026-10-13-sloyd-turned-links.md`, subagent-driven): a generated or refined table's four inside-tapered
