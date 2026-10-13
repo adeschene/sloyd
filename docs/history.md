@@ -408,6 +408,20 @@ and 79.
 
 ## What each round did
 
+**What standard views + image export did (2026-10-13, feature-gaps §2, fu 260)** (spec
+`docs/superpowers/specs/2026-10-13-sloyd-standard-views-image-design.md`, plan
+`docs/superpowers/plans/2026-10-13-sloyd-standard-views-image.md`, executed inline with one whole-branch review): the View
+group gains Front · Side · Top · Iso, read from the Plans sheet's own `FRONT`/`SIDE`/`TOP`/`ISO` so the viewport and the
+sheet name the same faces, and a Save image button that downloads a clean PNG of the view through a new
+`StorageAdapter.exportImage`. The framing arithmetic moved into a pure, tested `viewport/framing.ts`; F, Home, the
+projection swap and the views now frame exploded parts where they are drawn (fu 260). Two spec amendments came from
+reading the source while planning: the camera's `up` stays +Y (three-stdlib's OrbitControls orbits about `object.up`;
+Top tilts 1e-4 rad toward +Z instead), and the tools are hidden by a `hidden` prop for the clean frame, never unmounted
+(their unmount cleanup ends gestures). The capture renders one clean frame and reads it with `toBlob` in the same task,
+so `preserveDrawingBuffer` stays off. A plan-supplied axis test compared against the module's own table and could not
+catch a swapped table; it was rewritten to read the sheet constants. The live pass (`docs/browser-verification-standard-views-image.md`)
+found the dev origin was not fresh (the user's 16 projects and key); only the check's projects were deleted.
+
 **What fu 302/303 did (2026-10-13)**, at the user's word, bounded and done directly with an independent review: a pair with a
 tapered part is measured for overlap on the two parts' real world bodies (their intersection through `clipConvex`, reported
 by its extents, only when their boxes overlap), and the tip check weighs a tapered part by its real bodies (`partMass`,

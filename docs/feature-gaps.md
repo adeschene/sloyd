@@ -36,9 +36,9 @@ curves" arrive). Most of these need a schema bump, with the rollback cost that b
 | Dimensioned drawings | The most-cited gap anywhere ("if I don't have a drawing with dimensions, what's the point of having a great model?"). Per-part diagrams exist; no assembly elevations with dimension strings | shipped (plans-sheet round, deployed 2026-10-12) |
 | Exploded view | SketchUp scenes / OpenCutList; also shows joinery | shipped (plans-sheet round, deployed 2026-10-12) |
 | Section cut | Clipping plane to see inside a joint | open |
-| Standard views | One-click top/front/side; only a perspective/orthographic toggle exists | open |
+| Standard views | One-click top/front/side; only a perspective/orthographic toggle exists | merged 2026-10-13 (standard views + image export: Front/Side/Top/Iso), not deployed |
 | X-ray / transparency; saved views ("scenes") | | open |
-| Image export | PNG of the viewport; no export path exists | open |
+| Image export | PNG of the viewport; no export path exists | merged 2026-10-13 (Save image: a clean PNG of the view), not deployed |
 
 ## 3. Materials and buying — fit, mostly in the cut list
 

@@ -1059,3 +1059,56 @@ describe('LLM settings', () => {
     }
   });
 });
+
+describe('exportImage', () => {
+  const originalCreateObjectURL = URL.createObjectURL;
+  const originalRevokeObjectURL = URL.revokeObjectURL;
+
+  beforeEach(() => {
+    URL.createObjectURL = vi.fn(() => 'blob:mock-url');
+    URL.revokeObjectURL = vi.fn();
+  });
+
+  afterEach(() => {
+    URL.createObjectURL = originalCreateObjectURL;
+    URL.revokeObjectURL = originalRevokeObjectURL;
+    vi.restoreAllMocks();
+  });
+
+  const captureAnchor = () => {
+    const seen: { a?: HTMLAnchorElement } = {};
+    vi.spyOn(document.body, 'appendChild').mockImplementation(function (this: HTMLElement, node: Node) {
+      if (node instanceof HTMLAnchorElement) seen.a = node;
+      return HTMLElement.prototype.appendChild.call(this, node) as Node;
+    });
+    return seen;
+  };
+  const png = () => new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], { type: 'image/png' });
+
+  it('downloads the given PNG as <sanitized name>.png', async () => {
+    const a = new BrowserStorageAdapter(new FakeStorage());
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    const seen = captureAnchor();
+    const blob = png();
+    await a.exportImage('My Bench!', blob);
+    expect(seen.a?.download).toBe('My-Bench.png');
+    expect(URL.createObjectURL).toHaveBeenCalledWith(blob);
+  });
+
+  it('falls back to sloyd-project.png for a name with nothing usable in it', async () => {
+    const a = new BrowserStorageAdapter(new FakeStorage());
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    const seen = captureAnchor();
+    await a.exportImage('!!!', png());
+    expect(seen.a?.download).toBe('sloyd-project.png');
+  });
+
+  it('removes the anchor and revokes the object URL even when click() throws', async () => {
+    const a = new BrowserStorageAdapter(new FakeStorage());
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => { throw new Error('blocked by CSP'); });
+    const seen = captureAnchor();
+    await expect(a.exportImage('Bench', png())).rejects.toThrow('blocked by CSP');
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock-url');
+    expect(document.body.contains(seen.a!)).toBe(false);
+  });
+});

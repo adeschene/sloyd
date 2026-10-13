@@ -1,6 +1,6 @@
 # Sloyd — standard views and image export
 
-**Date:** 2026-10-13 · **Status:** approved by the user 2026-10-13; two amendments made while planning (§2.2 camera up, §3.2 hidden not unmounted)
+**Date:** 2026-10-13 · **Status:** implemented 2026-10-13 (approved by the user; two amendments made while planning — §2.2 camera up, §3.2 hidden not unmounted)
 **Builds on:** the viewport's framing (`CameraKeys` in `viewport/Viewport.tsx`), the Plans sheet's view table
 (`FRONT`, `SIDE`, `TOP`, `ISO` in `document/drawing.ts`), explode (`explodeOffsets`, invariant 47), the floating
 view controls (`panels/ViewportControls.tsx`) and the storage seam (`StorageAdapter`, invariant 7). Every rule there

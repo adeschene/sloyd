@@ -99,6 +99,8 @@ export interface StorageAdapter {
   setActiveProject(id: string): Promise<void>;
   /** "Save as" — writes the project out. May prompt the user. */
   exportProject(doc: SloydDocument): Promise<void>;
+  /** Offer a PNG for download as `<name>.png`. Rejects if triggering the download throws. */
+  exportImage(name: string, png: Blob): Promise<void>;
   /** "Open" — prompts and resolves with the chosen project. Rejects on cancel. */
   importProject(): Promise<SloydDocument>;
   /** Recently opened projects. Returns [] where unsupported. */
