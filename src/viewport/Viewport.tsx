@@ -5,7 +5,7 @@ import { Grid, OrbitControls, OrthographicCamera, PerspectiveCamera } from '@rea
 import * as THREE from 'three';
 import { useStore } from '../store/store';
 import { visibleBoards } from '../store/visibility';
-import { boardExtents, isCovered, worldParts } from '../document/document';
+import { isCovered, worldParts } from '../document/document';
 import type { Board } from '../document/document';
 import { explodeOffsets, EXPLODE_SPREAD } from '../document/explode';
 import { BoardMesh } from './BoardMesh';
@@ -19,6 +19,9 @@ import { gridDensity } from './gridDensity';
 import type { GridTier } from './gridDensity';
 import { screenPixelsPerInch } from './screenScale';
 import { watchClickPairs } from './pointer';
+import { orthoDistance, orthoZoom, perspectiveDistance, subsetBounds, viewDirection } from './framing';
+import type { StandardView } from './framing';
+import type { Vec3 } from '../document/frames';
 
 /** The bench top the model sits on. Light, so wood tones and shadows read. */
 const GROUND = '#ebe3d4';
@@ -69,7 +72,10 @@ function ClickPairs() {
  * `f` while reading a printable sheet would re-frame the camera invisibly and
  * hand the user back a moved view when they close it.
  */
-function CameraKeys({ suspended }: { suspended: boolean }) {
+function CameraKeys({ suspended, viewRef }: {
+  suspended: boolean;
+  viewRef: { current: ((v: StandardView) => void) | null };
+}) {
   const boards = useStore((s) => worldParts(s.doc));
   const hiddenIds = useStore((s) => s.hiddenIds);
   const selectedIds = useStore((s) => s.selectedIds);
@@ -78,38 +84,29 @@ function CameraKeys({ suspended }: { suspended: boolean }) {
   const size = useThree((s) => s.size);
 
   const frame = useCallback(
-    (subset: readonly Board[]) => {
-      if (subset.length === 0) return;
+    (subset: readonly Board[], toward?: Vec3) => {
+      // fu 260: while exploded, frame the parts where they are DRAWN — the same offsets Viewport hands
+      // BoardMesh. Read at call time: framing is an event, and explodeOffsets is cached per (doc, amount).
+      const s = useStore.getState();
+      const offsets = s.explode > 0 ? explodeOffsets(s.doc, s.explode * EXPLODE_SPREAD) : null;
+      const bounds = subsetBounds(subset, offsets);
+      if (!bounds) return;
+      const center = new THREE.Vector3(...bounds.center);
+      const { radius } = bounds;
 
-      const box = new THREE.Box3();
-      const corner = new THREE.Vector3();
-      for (const b of subset) {
-        const [ex, ey, ez] = boardExtents(b);
-        corner.set(b.position[0], b.position[1], b.position[2]);
-        box.expandByPoint(corner);
-        box.expandByPoint(corner.clone().add(new THREE.Vector3(ex, ey, ez)));
-      }
-      if (box.isEmpty()) return;
-
-      const center = box.getCenter(new THREE.Vector3());
-      const extent = box.getSize(new THREE.Vector3());
-      const radius = Math.max(extent.length() / 2, 1);
-
-      // Keep looking from wherever the user already was.
-      const dir = camera.position.clone().sub(controls ? controls.target : new THREE.Vector3());
+      // A standard view looks from its own direction; F / Home / the projection swap keep looking from
+      // wherever the user already was. The camera's `up` is never written (standard-views spec §2.2).
+      const dir = toward
+        ? new THREE.Vector3(...toward)
+        : camera.position.clone().sub(controls ? controls.target : new THREE.Vector3());
       if (dir.lengthSq() < 1e-6) dir.set(...DEFAULT_EYE);
       dir.normalize();
 
       if (camera instanceof THREE.OrthographicCamera) {
-        // Ortho size comes from zoom, not distance: drei sizes the frustum to
-        // the canvas in pixels, so world-units-across = pixels / zoom.
-        camera.zoom = Math.min(size.width, size.height) / (radius * 2.3);
-        camera.position.copy(center).addScaledVector(dir, radius * 4 + 100);
+        camera.zoom = orthoZoom(radius, size.width, size.height);
+        camera.position.copy(center).addScaledVector(dir, orthoDistance(radius));
       } else if (camera instanceof THREE.PerspectiveCamera) {
-        const vfov = (camera.fov * Math.PI) / 180;
-        const hfov = 2 * Math.atan(Math.tan(vfov / 2) * camera.aspect);
-        const dist = Math.max(radius / Math.sin(vfov / 2), radius / Math.sin(hfov / 2)) * 1.15;
-        camera.position.copy(center).addScaledVector(dir, dist);
+        camera.position.copy(center).addScaledVector(dir, perspectiveDistance(radius, camera.fov, camera.aspect));
       }
 
       camera.updateProjectionMatrix();
@@ -180,6 +177,16 @@ function CameraKeys({ suspended }: { suspended: boolean }) {
     const s = useStore.getState();
     frame(visibleBoards(worldParts(s.doc), s.hiddenIds));
   }, [camera, controls, frame]);
+
+  // The standard views (spec §2.2): everything visible — Home's subset — from the view's direction.
+  // Read imperatively: a view is an event, not a subscription.
+  useEffect(() => {
+    viewRef.current = (view) => {
+      const s = useStore.getState();
+      frame(visibleBoards(worldParts(s.doc), s.hiddenIds), viewDirection(view));
+    };
+    return () => { viewRef.current = null; };
+  }, [frame, viewRef]);
 
   return null;
 }
@@ -275,6 +282,19 @@ interface ViewportProps {
    * save one prop would move it into the app's shared state for no gain.
    */
   shortcutsSuspended?: boolean;
+  /**
+   * Filled with the viewport's imperative handle (standard-views spec §2.5). The buttons live outside the
+   * Canvas and the camera inside it; a view is an event, so a handle rather than a request counter in props
+   * (which would replay on remount).
+   */
+  handleRef?: { current: ViewportHandle | null };
+}
+
+export interface ViewportHandle {
+  /** Frame everything visible from a standard view (spec §2.2). */
+  showView(view: StandardView): void;
+  /** Render one clean frame and return it as a PNG, or null if the canvas gave none (spec §3). */
+  capture(): Promise<Blob | null>;
 }
 
 export function Viewport({
@@ -283,6 +303,7 @@ export function Viewport({
   showAxes = true,
   showGuides = true,
   shortcutsSuspended = false,
+  handleRef,
 }: ViewportProps) {
   const boards = useStore((s) => worldParts(s.doc));
   const doc = useStore((s) => s.doc);
@@ -297,6 +318,17 @@ export function Viewport({
   const selectedIds = useStore((s) => s.selectedIds);
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const tool = useStore((s) => s.tool);
+
+  const viewRef = useRef<((v: StandardView) => void) | null>(null);
+  const captureRef = useRef<(() => Promise<Blob | null>) | null>(null);
+  useEffect(() => {
+    if (!handleRef) return;
+    handleRef.current = {
+      showView: (v) => viewRef.current?.(v),
+      capture: () => captureRef.current?.() ?? Promise.resolve(null),
+    };
+    return () => { handleRef.current = null; };
+  }, [handleRef]);
 
   // The dpr floor of 2 is an anti-aliasing measure, not a sharpness
   // preference, and it is what makes an unfaded grid viable. A 1in grid
@@ -415,7 +447,7 @@ export function Viewport({
       {tool === 'select' && explode === 0 && <Gizmo />}
       <MoveTool showGuides={showGuides} />
       <TapeTool showGuides={showGuides} />
-      <CameraKeys suspended={shortcutsSuspended} />
+      <CameraKeys suspended={shortcutsSuspended} viewRef={viewRef} />
       <ClickPairs />
       {/*
         Damping is OFF, and that is the fix for the grid shimmer — not a
