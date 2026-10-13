@@ -229,6 +229,8 @@ src/
 │   │                     shortPointLine (corner minimum, fu 281), angleDegrees (→ units)
 │   ├── angledRefusal.ts  angledParts / angledRefusal: why joinery and Refine refuse an angled document (inv 48; joinery and Repair
 │   │                     allow tapers); TaperConflict / taperJointRefusal (the taper-at-joint message)
+│   ├── taperWorld.ts     Dir/WorldTaper: design tapers in world words; dirToLocal/localToDir (inv 44), worldTapers
+│   │                     (stored → design form, structural standard form), taperCutsFor (design → taperCuts, §2.2 rules)
 │   ├── bodies.ts         boardBodies (pocket cells clipped by angle cuts), bodyEdges, boardEdges (inv 16);
 │   │                     partGeometry: THE cached reader of both (shared, frozen; see per-file rules)
 │   ├── tenons.ts         findTenons
@@ -271,7 +273,7 @@ src/
 │                     chars/token, cached prefix, every repair round high; fu 236), refine.ts (refineMessage,
 │                     detailFor), run.ts (runRepairLoop, evaluateDesign — THE design evaluation
 │                     shared by Generate and Refine, runRefine, runJoinery),
-│                     joints/{pocket,sites,recipes,choose,unjoin,repair,tapers}.ts (tapers.ts: taperConflicts, joineryRefusal — the ONE joinery refusal decider; inv 41; recipes' `refaceFromEnd` re-stores an end cut from another face, fu 205); unjoin + gateUnjoin
+│                     joints/{pocket,sites,recipes,choose,unjoin,repair,tapers}.ts (tapers.ts: taperConflicts, taperFaults (model-facing, for evaluateDesign), joineryRefusal — the ONE joinery refusal decider; inv 41; recipes' `refaceFromEnd` re-stores an end cut from another face, fu 205); unjoin + gateUnjoin
 │                     read joints back, proved by an exact (1e-9in) re-join (readJoints = the lenient
 │                     body); runJoinery's `fixed` keeps recorded joints passing validChoice, `alsoPresent`
 │                     = original's problems; repair.ts = fu 240's prune-and-prove (a stray must be empty
@@ -507,7 +509,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     `contactSolids` when a part is tapered** (a tapered part counts only where it is still flat); a pair of
     untapered parts keeps its BOXES in `connected`, and an untapered part keeps its box as its footprint,
     byte-for-byte. `faceContacts` stays on boxes. Joinery refuses every non-taper angle cut (and a taper running
-    into a joint); Refine refuses all angle cuts until AI-tapers chunk 2. Do not raise `TOUCH` to make joints
+    into a joint); Refine accepts tapers in standard form (`worldTapers`) and refuses any other angle cut, or a non-standard taper (`'taper-form'`). Do not raise `TOUCH` to make joints
     pass; do not drop the check.
 39. **Support means HELD: every part off the floor is resting, between (≥ 50% coverage of
     both faces of X or Z) or lapped (a broad face; a top contact only under the stated
@@ -525,7 +527,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     refusal is decided before ANY mutation, and every `resize` is pre-checked by
     `cutIntoEnd`. Joinery accepts tapers and refuses, through the ONE decider `joineryRefusal` (`joints/tapers.ts`), any
     site whose patch lies on tapered wood (`taperConflicts`; `start` itself allowed, compared with a 1e-9 float tolerance,
-    inv 22). Sites stay on box contacts on purpose.
+    inv 22). Sites stay on box contacts on purpose. A joined Refine is refused up front (`plainForRefine`, `'taper-joint'`) when the original's taper already runs into a joint; a result the model leaves conflicting comes back UNJOINED (`JointsSummary.notJoined`), never joined over a taper.
 42. **A group move rounds the GROUP's min corner once and adds one delta
     (`moveGroupTo` → `translateBoards`); one selected part keeps the separate single-part
     path.** Do not unify them; do not round inside `translateBoards`. `selectionPatch` is
@@ -613,14 +615,14 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     describes or joins rectangular cuts (`cutShape`, joinery, the cut list's pocket lines) stays on `pocketCells`. A body no
     angle cut clips keeps the box path byte-for-byte (`body.box`). Joinery, Refine and Repair stay box-based and REFUSE (or
     do not offer) an angled document, decided before any call or mutation (`angledRefusal`) — every kind but `taper`
-    (joinery, Repair); Refine refuses all until AI-tapers chunk 2. `contactSolids` is the second, narrower reader of
+    (joinery, Repair, Refine); Refine also refuses a non-standard taper (`'taper-form'`, `isStandardTaper`) and writes standard tapers into the design as world-direction `tapers` (`taperWorld.ts`, stored through `taperCut`). `contactSolids` is the second, narrower reader of
     angle cuts: tapers only, box-valued, never over-claiming wood.
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 3334 tests across 121 files
+npm test           # Vitest, currently 3412 tests across 121 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -661,10 +663,12 @@ knowing without opening it:
   withheld on parts wider than long), 297 (a hand-edited offset miter is moved to canonical form on its first edit).
 - **298–300** — bevel/chamfer residue: 298 (no raised-panel field-bevel preset; unequal chamfer legs not editable), 299
   and 300 closed 2026-10-12 (short Edge labels; one face vocabulary and refusal pattern).
-- **301–308** — AI-tapers chunk 1 residue: 301 (mirrored-component legs share no Shape), 302 (overlap box-based for tapered
+- **301–313** — AI-tapers residue (301–308 chunk 1; 309–313 chunk 2): 301 (mirrored-component legs share no Shape), 302 (overlap box-based for tapered
   parts), 303 (tip check centre of mass uses box volumes), 304 (taper-at-joint rule is all-or-nothing, by decision), 305
-  (Generate/Refine tapers: chunk 2), 306 (deferred minors, record-only), 307 (a hand-edited deep-end-last taper is shifted
-  by joinery's resize), 308 ("taper the other end" is impossible for a part joined at both ends; record-only).
+  (Generate/Refine tapers) closed 2026-10-13, 306 (deferred minors, record-only), 307 (a hand-edited deep-end-last taper is shifted
+  by joinery's resize), 308 ("taper the other end" is impossible for a part joined at both ends; record-only), 309 (`isStandardTaper` accepts start > length), 310 (designDiff "changed" lists
+  unchanged tapers; exact-float compare), 311 (unjoined Refine shows the same fault twice), 312 (`plainForRefine` recomposes
+  the refusal rather than calling `joineryRefusal`), 313 (minor test/wording residue, record-only).
 - **176/177** — the held rules' known limits (mutual lapping) and an unseen live repair.
 - **130** — semi-infinite construction lines; picked and set aside 2026-08-31 without a
   reason. Ask before assuming it's wanted; it needs real hardware (26a).
