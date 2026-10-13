@@ -63,7 +63,7 @@ Tapers:
 - The usual Shaker leg tapers its two INSIDE faces (the faces toward the middle of the piece) toward the floor. By corner: the leg with the smallest x and z tapers "+x" and "+z"; the leg with the largest x and smallest z tapers "-x" and "+z"; the leg with the smallest x and largest z tapers "+x" and "-z"; the leg with the largest x and z tapers "-x" and "-z".
 - Joints go where parts meet, and a joint cannot sit on tapered wood: start every taper at or below the lowest part that meets the tapered part. For a 29in table whose aprons are 5in deep at the top of the legs, a start of 22 to 23in is typical.
 - Leave wood: a taper removes at most about a third of the leg's width per face.
-- Legs whose tapers mirror each other (inside faces) differ, so they go under "parts", not in a repeated assembly, and do not share a role.
+- Legs tapered on their inside faces go under "parts", not in a repeated assembly; give them the same role ("leg"): Sloyd links legs that are the same leg turned.
 - Use "tapers": [] for every part that is not tapered.
 
 Rules every design must follow:

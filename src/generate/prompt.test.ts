@@ -13,7 +13,7 @@ describe('prompt', () => {
     expect(SYSTEM_PROMPT).toContain('Each part is an axis-aligned box, optionally tapered.');
     expect(SYSTEM_PROMPT).toContain('"tapers": [] for every part that is not tapered');
     expect(SYSTEM_PROMPT).toContain('start every taper at or below the lowest part that meets the tapered part');
-    expect(SYSTEM_PROMPT).toContain('Legs whose tapers mirror each other (inside faces) differ, so they go under "parts", not in a repeated assembly, and do not share a role.');
+    expect(SYSTEM_PROMPT).toContain('Legs tapered on their inside faces go under "parts", not in a repeated assembly; give them the same role ("leg"): Sloyd links legs that are the same leg turned.');
     expect(SYSTEM_PROMPT).not.toMatch(/\d{4}-\d{2}-\d{2}/);
   });
 

@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { carryGrain, designValues, documentToDesign } from './refineDesign';
 import { diffDesigns } from './designDiff';
 import { groupItems } from './treeOps';
-import { designToDocument, orient } from './generated';
+import { designToDocument, orient, parseDesign } from './generated';
+import { SHAKER_TABLE_JSON } from './shakerTableFixture';
 import type { GeneratedDesign, GeneratedPart } from './generated';
 import { createBoard, createDocument } from './document';
 import { taperCut } from './angleCuts';
@@ -199,6 +200,18 @@ describe('documentToDesign — tapers (AI-tapers spec §5.1, §5.2)', () => {
     if ('refused' in r) throw new Error(r.refused.message);
     expect(r.design.parts[0]!.tapers![0]!.start).toBe(30.3);
     expect(designValues(r.design).has(30.3)).toBe(true);
+  });
+  it('a refined table keeps its four turned legs as one component, and the change list is empty (fu 301)', () => {
+    const doc = designToDocument(parseDesign(SHAKER_TABLE_JSON)!, { centre: false }).doc;
+    const r = documentToDesign(doc, REFINE_MAX);
+    if ('refused' in r) throw new Error(r.refused.message);
+    const back = designToDocument(r.design, { centre: false, exact: designValues(r.design) }).doc;
+    const legShapes = new Set(back.boards.filter((b) => b.name.startsWith('Leg')).map((b) => ('shape' in b ? b.shape : undefined)));
+    expect(legShapes.size).toBe(1);
+    expect([...legShapes][0]).toBeDefined();
+    const worldOf = (x: typeof doc) => flatDocument(x).boards.map((b) => [b.name, boardExtents(b), b.position, worldTapers(b)]);
+    expect(worldOf(back)).toEqual(worldOf(doc));
+    expect(diffDesigns(doc, back)).toEqual([]);
   });
   it('refuses a taper not in standard form, naming the part, before anything else is built', () => {
     const odd = { id: 'a', kind: 'taper' as const, face: 'width' as const, from: 'min' as const, along: 'length' as const, alongFrom: 'min' as const, points: [[0, 0], [20, 0.5]] as [[number, number], [number, number]] };
