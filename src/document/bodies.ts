@@ -92,6 +92,14 @@ function clip(faces: BodyFace[], h: { n: V3; d: number }, cut: string): BodyFace
 }
 
 /**
+ * One convex body (faces in any one frame) kept on the side n·x + d >= 0: `clip`, for a caller with no cut to name.
+ * The checks intersect two world bodies with it (fu 302): a body clipped by each of the other's inside half-spaces.
+ */
+export function clipConvex(faces: BodyFace[], h: { n: V3; d: number }): BodyFace[] {
+  return clip(faces, h, '');
+}
+
+/**
  * THE place angle cuts become geometry (angle-cuts spec §3.1): each pocket cell
  * clipped by every angle cut's kept half-space. With no angle cuts this is the
  * pocket cells as boxes, so a part without angle cuts costs nothing. Can return
