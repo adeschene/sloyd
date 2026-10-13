@@ -30,8 +30,9 @@ import { AnthropicClient, checkAnthropicKey } from './llm/anthropic';
 import type { LlmSettings } from './storage/types';
 import type { DuplicateFailure } from './panels/ProjectMenu';
 import { canBeginLength } from './units/length';
-import { tapeAxisFromKey, createDocument, DocumentError, flatDocument, angledRefusal } from './document/document';
+import { tapeAxisFromKey, createDocument, DocumentError, flatDocument } from './document/document';
 import type { SloydDocument } from './document/document';
+import { joineryRefusal as decideJoineryRefusal } from './generate/joints/tapers';
 import { storage } from './storage/browser';
 import { useStore } from './store/store';
 
@@ -82,13 +83,14 @@ export default function App() {
   const [dialog, setDialog] = useState<'generate' | 'settings' | 'joinery' | 'refine' | 'prices' | null>(null);
   // Joinery reads the FLAT design (assemblies spec §10): the tree document's own
   // `boards` hold only the root parts, so a grouped design would show no sites.
-  const joinerySites = useMemo(() => {
-    if (dialog !== 'joinery') return [];
+  const joineryFlat = useMemo(() => {
+    if (dialog !== 'joinery') return null;
     const flat = flatDocument(doc);
-    return findSites(flat).map((s) => siteLabel(s, flat));
+    return { flat, sites: findSites(flat) };
   }, [dialog, doc]);
-  // Once per document while the dialog is open; the pre-check and evidence rule make it null for undamaged designs.
-  const joineryRefusal = useMemo(() => (dialog === 'joinery' ? angledRefusal(doc, 'joinery') : null), [dialog, doc]);
+  const joinerySites = useMemo(() => (joineryFlat ? joineryFlat.sites.map((s) => siteLabel(s, joineryFlat.flat)) : []), [joineryFlat]);
+  // THE joinery refusal (AI-tapers spec §4.2) — the same decider runJoinery calls, fed the sites above.
+  const joineryRefusal = useMemo(() => (joineryFlat ? decideJoineryRefusal(doc, joineryFlat.flat, joineryFlat.sites) : null), [doc, joineryFlat]);
   const joineryRepair = useMemo(() => (dialog === 'joinery' ? repairDocument(doc) : null), [dialog, doc]);
   // THE ONE FLAG every "something covers the app" consumer reads — the inert
   // shell, the keydown effect, `shortcutsSuspended`, the focus restore. One

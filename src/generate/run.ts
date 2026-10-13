@@ -1,4 +1,4 @@
-import { angledRefusal, flatDocument, migrateDocument, worldParts, writeBackFlat } from '../document/document';
+import { flatDocument, migrateDocument, worldParts, writeBackFlat } from '../document/document';
 import type { SloydDocument } from '../document/document';
 import { DESIGN_SCHEMA, designToDocument, parseDesign } from '../document/generated';
 import type { GeneratedDesign } from '../document/generated';
@@ -11,6 +11,7 @@ import { JOINERY_PROMPT, JOINT_SCHEMA, defaultChoice, jointsRepairMessage, joint
 import { applyJoints } from './joints/recipes';
 import type { JoinResult, JointChoice } from './joints/recipes';
 import { findSites, jointKey } from './joints/sites';
+import { joineryRefusal } from './joints/tapers';
 import type { Site } from './joints/sites';
 import { DETAIL_CAPS, SYSTEM_PROMPT, limitsOf, repairMessage, unusableMessage, userMessage } from './prompt';
 import type { Concept, GenerateSettings, LimitSettings } from './prompt';
@@ -322,13 +323,13 @@ export async function runJoinery(
   onProgress: (p: RunProgress) => void,
   opts: { fixed?: FixedJoints; alsoPresent?: ReadonlySet<string> } = {},
 ): Promise<JoineryOutcome | { noSites: true } | { refused: string }> {
-  // Angle cuts (spec §6): decided before any mutation or call.
-  const angled = angledRefusal(doc, 'joinery');
-  if (angled) return { refused: angled };
-  // Joinery reads the FLAT document (assemblies spec §6.1): placed parts named by
-  // their display paths. Its result is written back into the tree by index.
+  // Angle cuts and the taper-at-joint rule (AI-tapers spec §4.2): ONE decider, shared with the
+  // dialog, decided before any mutation or call. Joinery reads the FLAT document (assemblies
+  // spec §6.1): placed parts named by their display paths, written back by index.
   const flat = flatDocument(doc);
   const sites = findSites(flat);
+  const refusal = joineryRefusal(doc, flat, sites);
+  if (refusal) return { refused: refusal };
   if (sites.length === 0) return { noSites: true };
   const keyOf = (s: Site) => jointKey(flat.boards[s.enter]!.name, flat.boards[s.receive]!.name, s.axis, s.side);
   const fixed = new Map<number, JointChoice>();
