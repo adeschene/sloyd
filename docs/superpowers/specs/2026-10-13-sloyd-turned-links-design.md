@@ -44,7 +44,7 @@ For a stored part `b` (unshaped, with a role), its **turn candidates** are the p
 - Its tapers are re-stored in the new frame: `taperCutsFor(b', worldTapers(b))`. If `worldTapers(b)` is null (a non-standard
   taper), or `b` has a non-taper angle cut, there are no candidates. Both are unreachable from the converter, but the code
   must not guess. A `fault` from `taperCutsFor` also means no candidate. The new cuts keep `b`'s angle-cut ids in order
-  where the counts agree, otherwise they get fresh ids from `nextId`.
+  where the counts agree, otherwise they get fresh ids from `nextId`. Ids are then aligned to the representative's (§2.3).
 
 The world part (box and tapered faces) is identical for every candidate, by construction through `taperWorld`
 (invariant 44's helpers).
@@ -59,6 +59,17 @@ matching candidate in 0/90/180/270 order. When it matches through a candidate, t
 candidate (rotation and `angleCuts` only). If nothing matches, the part starts a new class, unturned.
 
 Order matters only for which leg keeps the converter's encoding, and that is deterministic.
+
+**Angle-cut ids are aligned** (*amended while planning*). `sameShared` compares angle-cut ids, and the converter mints fresh
+ids for every part. So today even identical tapered parts never link: three identical tapered legs give 0 Shapes, a latent
+bug found while planning. A part (or a candidate) whose angle cuts equal the representative's by geometry
+(`sameAngleCut`, index by index, in the canonical order `taperCutsFor` writes) takes the representative's ids before
+`sameShared` judges it. Ids are not geometry, and the Shape keeps the representative's. A part with no angle cuts is judged
+exactly as today, the same object, so untapered linking is byte-for-byte unchanged.
+
+**The prompt** (*amended while planning*). The fu 313 line told the model that legs with mirrored tapers "do not share a
+role". Linking finds them only through a shared role, so the line now says to give them the same role: Sloyd links them when
+they are the same leg turned.
 
 ### 2.4 What changes downstream
 
@@ -81,6 +92,7 @@ Order matters only for which leg keeps the converter's encoding, and that is det
 
 TDD; every plan-supplied test is mutated before it is trusted.
 
+- Identical tapered parts link (the id-alignment fix): three legs tapered on the same world faces give one Shape.
 - Four inside-tapered square legs (the prompt's corner rule) link into ONE Shape. Each leg's `boardExtents`, `position`
   and `worldTapers` are unchanged from the unlinked conversion, and the stored turns are a permutation of 0/90/180/270.
 - An outside-tapered set links the same way. Legs tapered on different numbers of faces do not link.
