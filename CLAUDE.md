@@ -26,7 +26,7 @@ handicraft education tradition built around hand woodworking.
   rolling back to `158b2b6`, `index-iDivrN-T.js`, `f7a6202`, `index-DWTxNeO6.js`, or any 14 build is free; below 14,
   `47548d3`, REFUSES every project saved since: export first). Test count is under Commands.
 - **NEXT: none chosen — ask.** The AI-tapers feature (the user's "the AI integration") is complete: one prompt gives tapered
-  legs with joinery. Open near it:
+  legs with joinery, and its follow-ups 309–313 are closed. Open near it:
   301–303 (mirrored-component legs, box-based overlap and centre of mass), 276/277's rest (miters, bevels and chamfers in the
   AI features). Other open items: angle-cut residue 295–298; 241 (open by decision), 251 (record-only), 221, 225, 232, 234, 247.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
