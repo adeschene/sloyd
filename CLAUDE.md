@@ -230,9 +230,11 @@ src/
 │   │                     CHAMFER_EDGES, exact legs) — each with its xCut writer and default; imports only types/geometry
 │   ├── angleText.ts      angleLine (THE bench line for every angle cut; faceName: a length face is an END),
 │   │                     shortPointLine (corner minimum, fu 281), angleDegrees (→ units)
-│   ├── angledRefusal.ts  angledParts / angledRefusal: why joinery and Refine refuse an angled document (inv 48)
+│   ├── angledRefusal.ts  angledParts / angledRefusal: why joinery and Refine refuse an angled document (inv 48; joinery and Repair
+│   │                     allow tapers); TaperConflict / taperJointRefusal (the taper-at-joint message)
 │   ├── bodies.ts         boardBodies (pocket cells clipped by angle cuts), bodyEdges, boardEdges (inv 16);
 │   │                     partGeometry: THE cached reader of both (shared, frozen; see per-file rules)
+│   │                     contactSolids / isTapered (designCheck.ts): the checks' tapers-only, flat-wood-only reader (inv 38, 48)
 │   ├── tenons.ts         findTenons
 │   ├── cutlist.ts        buildCutList (inv 18) — stock, not remainder
 │   ├── depthField.ts     buildDepthField (inv 20)
@@ -272,7 +274,7 @@ src/
 │                     chars/token, cached prefix, every repair round high; fu 236), refine.ts (refineMessage,
 │                     detailFor), run.ts (runRepairLoop, evaluateDesign — THE design evaluation
 │                     shared by Generate and Refine, runRefine, runJoinery),
-│                     joints/{pocket,sites,recipes,choose,unjoin,repair}.ts (inv 41; recipes' `refaceFromEnd` re-stores an end cut from another face, fu 205); unjoin + gateUnjoin
+│                     joints/{pocket,sites,recipes,choose,unjoin,repair,tapers}.ts (tapers.ts: taperConflicts, joineryRefusal — the ONE joinery refusal decider; inv 41; recipes' `refaceFromEnd` re-stores an end cut from another face, fu 205); unjoin + gateUnjoin
 │                     read joints back, proved by an exact (1e-9in) re-join (readJoints = the lenient
 │                     body); runJoinery's `fixed` keeps recorded joints passing validChoice, `alsoPresent`
 │                     = original's problems; repair.ts = fu 240's prune-and-prove (a stray must be empty
@@ -506,6 +508,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     via `worldSolids`**, never `solidWorldBox`. Only grounding, `tips` and `faceContacts`
     stay box-based. `worldSolids` are pocket-cell BOXES (angle cuts ignored; joinery and refine refuse an
     angled document); the drawings occlude with `worldBodies` instead (inv 47). Do not raise `TOUCH` to make joints pass; do not drop the check.
+    Held/hangs contacts, `connected` and the tip footprint read `contactSolids` (a tapered part counts only where it is
+    flat; an untapered part keeps its box/solids byte-for-byte); overlap stays on `worldSolids`; `faceContacts` stays on boxes.
 39. **Support means HELD: every part off the floor is resting, between (≥ 50% coverage of
     both faces of X or Z) or lapped (a broad face; a top contact only under the stated
     one-level conditions), and the piece must not tip.** **PROHIBITION: do not drop (c),
@@ -520,7 +524,9 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     caused.** `pocketFor` is tested against the box in every pose, stores via
     `storedAsShape`. Problems compare by `kind` + `parts`, never message text. Every
     refusal is decided before ANY mutation, and every `resize` is pre-checked by
-    `cutIntoEnd`.
+    `cutIntoEnd`. Joinery accepts tapers and refuses, through the ONE decider `joineryRefusal` (`joints/tapers.ts`), any
+    site whose patch lies on tapered wood (`taperConflicts`; `start` itself allowed, compared with a 1e-9 float tolerance,
+    inv 22). Sites stay on box contacts on purpose.
 42. **A group move rounds the GROUP's min corner once and adds one delta
     (`moveGroupTo` → `translateBoards`); one selected part keeps the separate single-part
     path.** Do not unify them; do not round inside `translateBoards`. `selectionPatch` is
@@ -607,13 +613,15 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     Anything that draws, edges, occludes or probes stock reads bodies (through the `partGeometry` cache); anything that
     describes or joins rectangular cuts (`cutShape`, joinery, the cut list's pocket lines) stays on `pocketCells`. A body no
     angle cut clips keeps the box path byte-for-byte (`body.box`). Joinery, Refine and Repair stay box-based and REFUSE (or
-    do not offer) an angled document, decided before any call or mutation (`angledRefusal`).
+    do not offer) an angled document, decided before any call or mutation (`angledRefusal`) — every kind but `taper`
+    (joinery, Repair); Refine refuses all until AI-tapers chunk 2. `contactSolids` is the second, narrower reader of
+    angle cuts: tapers only, box-valued, never over-claiming wood.
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 3300 tests across 119 files
+npm test           # Vitest, currently 3332 tests across 121 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -654,6 +662,9 @@ knowing without opening it:
   withheld on parts wider than long), 297 (a hand-edited offset miter is moved to canonical form on its first edit).
 - **298–300** — bevel/chamfer residue: 298 (no raised-panel field-bevel preset; unequal chamfer legs not editable), 299
   and 300 closed 2026-10-12 (short Edge labels; one face vocabulary and refusal pattern).
+- **301–306** — AI-tapers chunk 1 residue: 301 (mirrored-component legs share no Shape), 302 (overlap box-based for tapered
+  parts), 303 (tip check centre of mass uses box volumes), 304 (taper-at-joint rule is all-or-nothing, by decision), 305
+  (Generate/Refine tapers: chunk 2), 306 (deferred minors, record-only).
 - **176/177** — the held rules' known limits (mutual lapping) and an unseen live repair.
 - **130** — semi-infinite construction lines; picked and set aside 2026-08-31 without a
   reason. Ask before assuming it's wanted; it needs real hardware (26a).

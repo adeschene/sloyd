@@ -5192,3 +5192,31 @@ chamfer refusal message pattern (`Too big for that edge — reduce the size firs
   side`; every refusal follows `Removes more than the <dimension> — reduce the <control> first.` (taper: `the removal`,
   miter/bevel: `the angle`, chamfer edge: `the size`, naming the dimension the leg exceeds).
 - **Status:** closed.
+
+## From the AI tapers round (chunk 1, joinery and checks) — 2026-10-13
+
+**301. Mirrored-component legs: inside-tapered legs share no Shape.** A leg whose inside tapers are reflected through a
+mirrored instance is a different stored part from its unmirrored twin, so the pair cannot share one Shape (inv 45). Joinery
+and the checks are correct; the cost is that a mirrored set of tapered legs is not one component. **Status:** open.
+
+**302. Overlap stays box-based for tapered parts.** `overlap` reads `worldSolids` (inv 38), which ignore angle cuts, so a
+tapered part can report an overlap on wood the taper has removed. False positives only; a real overlap is never missed.
+**Status:** open, fails safe.
+
+**303. The tip check's centre of mass uses box volumes.** `contactSolids` makes the footprint trust only a taper's flat
+wood, but the centre of mass is still computed from box volumes (no body centroid), so a heavily tapered part's mass is
+overstated. **Status:** open.
+
+**304. The taper-at-joint rule is all-or-nothing.** If any site's patch lies on tapered wood, joinery refuses the whole
+document (`joineryRefusal`); skipping the offending joint and joining the rest was proposed and declined by the user.
+**Status:** closed by decision; do not re-propose unasked.
+
+**305. Generate and Refine do not emit or keep tapers.** Refine still refuses every angle cut and Generate emits none.
+**Status:** open until chunk 2 of this round ships.
+
+**306. Deferred minors (record-only).** Untested branches: a zero-amount taper (filtered), a non-finite `start` (refuses with
+odd wording), a tapered part with rectangular cuts (multi-cell clip/slab), two-part conflict ordering, a mixed taper+miter
+part (the `.some` path), two tapers on one face and end, a whole-section slab drop. The notched-part test's comment says
+"grounding and footprint" but pins only the footprint (untapered grounding is protected structurally by the
+`tapered[i]||tapered[j]` gate). The taper-only repair test compares only `dropped`, not that the repaired boards keep the
+taper. Accepted-run joinery tests 2/3 were not mutated. **Status:** record-only.
