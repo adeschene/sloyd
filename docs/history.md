@@ -433,7 +433,11 @@ frame reports its top rail, `unsupported`, not its stiles, whose long points rea
 plan fixtures were too weak (two mutants survived until strengthened; a flush-apron fixture used absolute coordinates on
 a centred design). Live, on a fresh dev origin (port 5241): the joinery dialog showed the miter sentence for a rail
 mitered at its leg and listed "Rail X → Leg: end into face" for the 1/8in-chamfered rail
-(`docs/browser-verification-ai-angles.md`). Test count 3474 -> 3499. No schema change (SCHEMA 14); rollback is free. On
+(`docs/browser-verification-ai-angles.md`). The final review (a fresh reviewer) found: the unjoin gate did not undo the
+rebase, so a joined Refine or Repair refused a re-anchored cut and blamed the user (fixed, `resizeAt`); and a hairline cut
+under TOUCH on a growing joined end passed the joint rule, then bit the tenon as the part grew through its fixed line —
+the spec contradicted itself (§3 allowed it, §4 assumed it refused), so it went to the user, who ruled: refuse it,
+however small. Minors recorded as fu 321. Test count 3474 -> 3501. No schema change (SCHEMA 14); rollback is free. On
 `ai-angles-1`.
 
 **What standard views + image export did (2026-10-13, feature-gaps §2, fu 260)** (spec

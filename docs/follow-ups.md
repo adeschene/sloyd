@@ -5331,3 +5331,12 @@ waits on the frame loop, so a capture asked for in a hidden tab completes when t
 `max-width: calc(100% - 220px)` depends on the Tools group staying under 220 px (a fourth tool would re-open the overlap);
 after a capture the gizmo's stabilize patch is re-installed on the fresh controls instance (`hidden` in its effect's deps),
 so its first frame back is unpatched, as after any selection change. **Status:** record-only.
+
+**321. AI angles chunk 1 minors (record-only; final review M1, M2).** (1) `angleConflicts` judges whether a RECEIVING
+part's touched box "reaches" the joint by the ENTERING part's touching face at a 1e-9 tolerance, while sites tolerate gaps
+up to TOUCH: a receiver chamfered on the joint face but sitting up to 1/32in apart is never caught (confirmed: a 3/4in leg
+chamfer flush with Rail X conflicts; Rail X moved 1/64in away, 0 conflicts and the mortise runs through the chamfer).
+Remedy when touched: test against the receiving part's own face (`r.min`/`r.max` by side) or with TOUCH. (2) Test gaps:
+Review Focus 2 pins only a turned MITER (its touched box spans the whole cross-section, so a width/thickness mix-up in the
+crossing would not show) — no turned or on-edge chamfer case; no bevel in the new contact or conflict tests; the split
+tests are board-local only (the `worldBox` crossing is pinned elsewhere). **Status:** record-only.

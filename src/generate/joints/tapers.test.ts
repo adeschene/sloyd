@@ -340,6 +340,14 @@ describe('angleConflicts — a miter, bevel or chamfer reaching into a joint (AI
     expect(ends(withPart(CORNER, 'Rail X', bottom(0.625, 0.625)))).toHaveLength(1);
     expect(ends(withPart(CORNER, 'Rail X', bottom(0.5, 0.625)))).toEqual([]);   // width leg = shoulder: touching
   });
+  it('a hairline cut on the growing part\'s joined end refuses, however small (final review I2, the user\'s ruling)', () => {
+    // A 1/64in chamfer on the vertical edge of Rail X's joined end (end face × its -Z face): under TOUCH of patch overlap,
+    // but joinery lengthens the rail through the cut's line, which would then bite the tenon.
+    const hairline = (leg: number) => (b: Board) => [chamfer(b, [0, -1], [2, -1], leg)];
+    expect(ends(withPart(CORNER, 'Rail X', hairline(1 / 64)))).toEqual([{ part: at(CORNER, 'Rail X'), other: at(CORNER, 'Leg'), kind: 'chamfer' }]);
+    // The same chamfer at the FREE end is fine; so is the through-length chamfer of the tenon-clearance case (above).
+    expect(ends(withPart(CORNER, 'Rail X', (b) => [chamfer(b, [0, 1], [2, -1], 1 / 64)]))).toEqual([]);
+  });
   it('a cut that removes nothing never conflicts (Review Focus 3)', () => {
     expect(ends(withPart(CORNER, 'Rail X', (b) => [{ ...railMiter(-1)(b)[0]!, points: [[0, -1], [1, -2]] }]))).toEqual([]);
   });

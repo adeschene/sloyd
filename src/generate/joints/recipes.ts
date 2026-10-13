@@ -187,8 +187,8 @@ function rebaseCuts(b: Board, d: Dimension, end: 'min' | 'max', amount: number, 
  * angle-cut number MEASURED FROM that end — a station when `along` is `d`, a depth when `face` is `d` — shifts by
  * `amount`, and the cut's wood stays exactly where it was. One addition per number, no trigonometry; a cut measured
  * from the other end, or across another dimension, is the same object. `readJoints` (`unjoin.ts`) calls it with the
- * opposite amount, its exact inverse. A grown part's cut reaching the moving end is refused before any mutation
- * (`joineryRefusal`); a TRIM (a rabbet's, possibly on a part no site names) only removes wood, and the cut's plane stays put.
+ * opposite amount, its exact inverse. A grown part's cut measured along or into the growth that removes wood at the
+ * moving end is refused before any mutation, however small (`angleConflicts`, final review I2); a TRIM (a rabbet's, possibly on a part no site names) only removes wood, and the cut's plane stays put.
  */
 export function rebaseAngleCuts(b: Board, d: Dimension, end: CutFrom, amount: number): void {
   b.angleCuts = b.angleCuts.map((c) => {
