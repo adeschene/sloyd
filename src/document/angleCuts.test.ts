@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
-import type { AngleCut, Board, Dimension } from './types';
+import type { AngleCut, Board, Dimension, Region } from './types';
 import {
   ANGLE_CUT_KEYS, angleCutRemovesNothing, angleCutValues, copyAngleCut, deriveKind, depthAt,
   defaultTaper, keptHalfSpace, mirrorAngleCut, sameAngleCut, taperCut, taperFields, throughOf, zeroStation,
   defaultMiter, defaultMiterPair, miterCut, miterDegrees, miterFields, miterRatio,
   bevelCut, bevelFields, bevelAcross, defaultBevel,
-  CHAMFER_EDGES, chamferCut, chamferFields, defaultChamfer,
+  CHAMFER_EDGES, chamferCut, chamferFields, defaultChamfer, splitRegion, touchedRegion,
 } from './angleCuts';
 import { boardBodies, bodyVerts, bodyVolume } from './bodies';
 import { shortPointLine } from './angleText';
@@ -325,5 +325,75 @@ describe('chamfer fields (spec §7)', () => {
     expect(d).toMatchObject({ kind: 'chamfer', face: 'width', from: 'max', along: 'thickness', alongFrom: 'max', points: [[0, 0.125], [0.125, 0]] });
     const tiny = defaultChamfer(createBoard({ length: 4, width: 0.25, thickness: 0.25 }));
     expect(tiny.points).toEqual([[0, 0.0625], [0.0625, 0]]);
+  });
+});
+
+describe('touchedRegion / splitRegion (AI-angles spec §2.1, §2.2)', () => {
+  const rail = () => createBoard({ name: 'Rail', length: 18, width: 3, thickness: 0.75 });
+  const chamfer = (legFace: number, legAlong: number): AngleCut =>
+    ({ id: 'c', ...chamferCut({ face: 'width', from: 'max', along: 'thickness', alongFrom: 'max', legFace, legAlong }, rail()) });
+  const miter = (b: Board, across: 'width' | 'thickness'): AngleCut =>
+    ({ id: 'm', ...miterCut({ end: 'max', across, longSide: 'min', ratio: 1 }, b) });
+  const whole = (b: Pick<Board, Dimension>): Region =>
+    ({ length: [0, b.length], width: [0, b.width], thickness: [0, b.thickness] });
+  const vol = (r: Region) => (r.length[1] - r.length[0]) * (r.width[1] - r.width[0]) * (r.thickness[1] - r.thickness[0]);
+  const DIMS = ['length', 'width', 'thickness'] as const;
+  const disjoint = (rs: Region[]) => rs.every((p, i) => rs.every((q, j) =>
+    i === j || DIMS.some((d) => Math.min(p[d][1], q[d][1]) - Math.max(p[d][0], q[d][0]) <= 0)));
+  // Every sampled point of every piece is on the KEPT side of the cut (never trusts removed wood).
+  const kept = (b: Board, c: AngleCut, rs: Region[]) => {
+    const h = keptHalfSpace(b, c)!;
+    const f = [0, 0.5, 1];
+    return rs.every((r) => f.every((u) => f.every((v) => f.every((w) => {
+      const p = [r.length[0] + u * (r.length[1] - r.length[0]), r.width[0] + v * (r.width[1] - r.width[0]), r.thickness[0] + w * (r.thickness[1] - r.thickness[0])];
+      return h.n[0] * p[0]! + h.n[1] * p[1]! + h.n[2] * p[2]! + h.d >= -1e-9;
+    }))));
+  };
+
+  it('a chamfer: its two legs from its edge, all of the length', () => {
+    expect(touchedRegion(rail(), chamfer(0.125, 0.25))).toEqual({ length: [0, 18], width: [2.875, 3], thickness: [0.5, 0.75] });
+  });
+  it('a miter: all of its across dimension, its run × ratio into the end', () => {
+    expect(touchedRegion(rail(), miter(rail(), 'width'))).toEqual({ length: [15, 18], width: [0, 3], thickness: [0, 0.75] });
+  });
+  it('a taper read from its thin end: stations up to its start', () => {
+    const c: AngleCut = { id: 't', ...taperCut({ face: 'width', from: 'min', end: 'max', start: 6, amount: 0.5 }) };
+    expect(touchedRegion(rail(), c)).toEqual({ length: [12, 18], width: [0, 0.5], thickness: [0, 0.75] });
+  });
+  it('null for a cut that removes nothing (Review Focus 3)', () => {
+    expect(touchedRegion(rail(), { ...chamfer(0.125, 0.25), points: [[0, -1], [1, -2]] })).toBeNull();
+  });
+  it('clamps a leg longer than its dimension (Review Focus 4)', () => {
+    expect(touchedRegion(rail(), chamfer(5, 0.25))).toEqual({ length: [0, 18], width: [0, 3], thickness: [0.5, 0.75] });
+  });
+  it('splits a cell into disjoint pieces that never hold removed wood, and keep everything else', () => {
+    const b = rail();
+    const fromMin: AngleCut = { id: 'n', ...chamferCut({ face: 'width', from: 'min', along: 'thickness', alongFrom: 'min', legFace: 0.25, legAlong: 0.125 }, b) };
+    for (const c of [chamfer(0.125, 0.25), fromMin, miter(b, 'width')]) {
+      const t = touchedRegion(b, c)!;
+      const pieces = splitRegion(whole(b), t, c);
+      expect(disjoint(pieces)).toBe(true);
+      expect(kept(b, c, pieces)).toBe(true);
+      expect(pieces.reduce((s, r) => s + vol(r), 0)).toBeCloseTo(vol(whole(b)) - vol(t), 12);
+    }
+  });
+  it('the mitered end trusts nothing past its short point', () => {
+    const b = rail();
+    const c = miter(b, 'width');
+    expect(splitRegion(whole(b), touchedRegion(b, c)!, c)).toEqual([{ length: [0, 15], width: [0, 3], thickness: [0, 0.75] }]);
+  });
+  it('a cell the touched box only touches on a face comes back alone, unchanged', () => {
+    // The chamfer's strip starts at width 2.875: this cell ends exactly there (shares a face, no volume).
+    const cell: Region = { length: [0, 18], width: [0, 2.875], thickness: [0, 0.75] };
+    const c = chamfer(0.125, 0.25);
+    expect(splitRegion(cell, touchedRegion(rail(), c)!, c)).toEqual([cell]);
+  });
+  it("a zero-length end slab (a taper's) on a mitered end is not trusted; one away from it is untouched", () => {
+    const b = rail();
+    const c = miter(b, 'thickness');
+    const slab: Region = { length: [18, 18], width: [0, 3], thickness: [0, 0.75] };
+    expect(splitRegion(slab, touchedRegion(b, c)!, c)).toEqual([]);
+    const far: Region = { length: [0, 0], width: [0, 3], thickness: [0, 0.75] };
+    expect(splitRegion(far, touchedRegion(b, c)!, c)).toEqual([far]);
   });
 });

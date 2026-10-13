@@ -1,4 +1,4 @@
-import type { AngleCut, AngleKind, Board, CutFrom, Dimension } from './types';
+import type { AngleCut, AngleKind, Board, CutFrom, Dimension, Region, Span } from './types';
 import { DIMENSION_ORDER } from './geometry';
 
 /**
@@ -98,6 +98,55 @@ export function angleCutRemovesNothing(board: Pick<Board, Dimension>, c: AngleCu
 /** The angle cuts that actually remove stock — what the cut list prints and groups by. */
 export function angleCutsThatRemoveStock(board: Board): AngleCut[] {
   return board.angleCuts.filter((c) => !angleCutRemovesNothing(board, c));
+}
+
+/**
+ * The smallest board-local box holding every point the cut can remove (AI-angles spec §2.1): along `along`, the
+ * stations where the line is deeper than 0; into `face`, from the `from` face to the line's greatest depth there
+ * (clamped to the dimension); all of `throughOf(c)`. Depth is linear in station, so the greatest depth is at an end.
+ * Null for a cut that removes nothing. Board-local: a caller crosses it to world space through `worldBox` (invariant 44).
+ */
+export function touchedRegion(board: Pick<Board, Dimension>, c: AngleCut): Region | null {
+  if (angleCutRemovesNothing(board, c)) return null;
+  const A = board[c.along];
+  const F = board[c.face];
+  const d0 = depthAt(c, 0);
+  const d1 = depthAt(c, A);
+  const z = Math.min(A, Math.max(0, zeroStation(c)));
+  // Stations from `alongFrom` where the line is deeper than 0: up to (or from) its zero, or all of `along`.
+  const lo = d0 > 0 ? 0 : z;
+  const hi = d1 > 0 ? A : z;
+  const deep = Math.min(F, Math.max(d0, d1));
+  const r: Region = { length: [0, board.length], width: [0, board.width], thickness: [0, board.thickness] };
+  r[c.along] = c.alongFrom === 'min' ? [lo, hi] : [A - hi, A - lo];
+  r[c.face] = c.from === 'min' ? [0, deep] : [F - deep, F];
+  return r;
+}
+
+/**
+ * `cell` minus a cut's touched box `t` (AI-angles spec §2.2), as boxes that do not overlap: the stations along
+ * `c.along` outside `t`, at full size, and the stations inside `t`, kept only past `t`'s greatest depth into `c.face`.
+ * A cell `t` does not reach comes back alone, unchanged. A cell already of zero size along `along` (a taper's end slab)
+ * inside `t`'s stations is split by depth only, so it is never duplicated. Pieces the split leaves empty are dropped.
+ */
+export function splitRegion(cell: Region, t: Region, c: Pick<AngleCut, 'face' | 'from' | 'along'>): Region[] {
+  const meets = DIMENSION_ORDER.every((d) => {
+    const [a, b] = cell[d];
+    const [p, q] = t[d];
+    return a === b ? a >= p && a <= q : Math.min(b, q) - Math.max(a, p) > 0;
+  });
+  if (!meets) return [cell];
+  const out: Region[] = [];
+  const [a, b] = cell[c.along];
+  const [p, q] = t[c.along];
+  const zero = a === b;
+  if (!zero && Math.min(b, p) > a) out.push({ ...cell, [c.along]: [a, Math.min(b, p)] });
+  if (!zero && b > Math.max(a, q)) out.push({ ...cell, [c.along]: [Math.max(a, q), b] });
+  const s: Span = zero ? [a, b] : [Math.max(a, p), Math.min(b, q)];
+  const [f0, f1] = cell[c.face];
+  const f: Span = c.from === 'min' ? [Math.max(f0, t[c.face][1]), f1] : [f0, Math.min(f1, t[c.face][0])];
+  if (f[1] > f[0] || (f0 === f1 && f[0] === f[1])) out.push({ ...cell, [c.along]: s, [c.face]: f });
+  return out;
 }
 
 /**
