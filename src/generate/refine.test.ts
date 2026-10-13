@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { KEEP_LINE, REFINE_MAX, detailFor, plainForRefine, refineDialogInfo, refineMessage, refineRefusal } from './refine';
 import type { RefineSettings } from './refine';
 import { limitLines } from './prompt';
-import { designToDocument } from '../document/generated';
+import { designToDocument, parseDesign } from '../document/generated';
+import { SHAKER_TABLE_JSON } from '../document/shakerTableFixture';
+import { worldParts, writeBackFlat } from '../document/document';
 import type { GeneratedDesign } from '../document/generated';
 import { createBoard, createDocument, flatDocument, migrateDocument } from '../document/document';
 import { documentToDesign } from '../document/refineDesign';
@@ -132,5 +134,23 @@ describe('plainForRefine — tapers on a joined design (spec §5.4)', () => {
     // It IS joined (the gate read its joints): the dialog must say so, and offers no repair (repair is for 'joints').
     expect(refineDialogInfo(bad).joined).toBe(true);
     expect(refineDialogInfo(bad).repair).toBeNull();
+  });
+});
+
+describe('plainForRefine — the joined Shaker table with linked turned legs (fu 301)', () => {
+  it('passes the gate and its plain legs are still one component', () => {
+    const made = designToDocument(parseDesign(SHAKER_TABLE_JSON)!, { centre: false });
+    const flat = flatDocument(made.doc);
+    const sites = findSites(flat);
+    const named = (i: number, prefix: string) => flat.boards[i]!.name.startsWith(prefix);
+    const apronLeg = new Set(sites.filter((s) => named(s.enter, 'Apron') && named(s.receive, 'Leg')).map((s) => s.id));
+    expect(apronLeg.size).toBe(8);
+    const joined = applyJoints(flat, sites, sites.map((s) => (apronLeg.has(s.id) ? { site: s.id, joint: 'mortise-tenon' as const, tenonLength: 0.75 } : defaultChoice(s, flat, sites))));
+    const tree = migrateDocument(writeBackFlat(made.doc, flat.boards, worldParts(joined.doc)));
+    const r = plainForRefine(tree);
+    if ('refused' in r) throw new Error(r.refused.message);
+    const legShapes = new Set(r.plain.boards.filter((b) => b.name.startsWith('Leg')).map((b) => ('shape' in b ? b.shape : undefined)));
+    expect(legShapes.size).toBe(1);
+    expect([...legShapes][0]).toBeDefined();
   });
 });

@@ -429,6 +429,13 @@ function sharedSignature(b: Board): unknown[] {
   return SHARED_KEYS.map((k) => (k === 'cuts' ? b.cuts.map((c) => CUT_GEOMETRY_KEYS.map((f) => c[f])) : k === 'angleCuts' ? b.angleCuts.map(angleCutValues) : b[k]));
 }
 
+/** sharedSignature for GROUPING users of one shape: the order cuts (and angle cuts) were stored in is not geometry
+ *  (joinery appends mortises in site order, a turned user's list differs from its mate's), so each list is sorted. */
+function groupSignature(b: Board): unknown[] {
+  const sorted = (xs: unknown[]) => xs.map((x) => JSON.stringify(x)).sort();
+  return SHARED_KEYS.map((k) => (k === 'cuts' ? sorted(b.cuts.map((c) => CUT_GEOMETRY_KEYS.map((f) => c[f]))) : k === 'angleCuts' ? sorted(b.angleCuts.map(angleCutValues)) : b[k]));
+}
+
 /** A lowered result as compared across placements: own position and rotation
  *  plus the shared fields. Never `id`, `name` or `shape`: an occurrence is
  *  matched by its relative id already, and names are never written here. */
@@ -538,7 +545,7 @@ function regroupShapes(doc: SloydDocument): SloydDocument {
     if (!marked(b)) continue;
     if (!groups.has(b.shape)) groups.set(b.shape, new Map());
     const g = groups.get(b.shape)!;
-    const sig = JSON.stringify(sharedSignature(b));
+    const sig = JSON.stringify(groupSignature(b));
     if (!g.has(sig)) g.set(sig, []);
     g.get(sig)!.push(b);
   }
