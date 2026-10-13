@@ -5239,7 +5239,12 @@ thin end advises tapering the other end; a part joined at both ends has no such 
 ## From the AI tapers round (chunk 2, Generate and Refine) — 2026-10-13
 
 **309. `isStandardTaper` accepts `start > length`.** A part shortened after tapering can keep a taper whose start lies past
-its end; Refine would send it and `convertPart` rejects the whole part. **Status:** open, record-only.
+its end; Refine would send it and `convertPart` rejects the whole part. **Status:** closed 2026-10-13 (final-review fix,
+widened): `documentToDesign` now runs the converter's own rule, `taperCutsFor`, on each tapered part as `orient` will encode
+it, and refuses `'taper-form'` before any call with a person-facing reason (`taperCutsFor` returns a fault `code`). Covers
+the four reachable cases: a start past the length; a knife edge (amount = the face dimension); opposite faces whose amounts
+meet; a part wider than long tapered along its stored length (re-encoded, the taper no longer runs along the length). Tests:
+`refineDesign.test.ts` (message), `run.test.ts` (each case: zero calls, document untouched).
 
 **310. designDiff "changed" lists every new taper.** Unchanged tapers appear too, and removing one of two reads "changed".
 The taper compare is exact-float while the other change lines compare at display precision. **Status:** open, record-only.
@@ -5249,7 +5254,8 @@ person-facing refusal AND the model-facing `taper-joint` violation (decimal inch
 **Status:** open.
 
 **312. `plainForRefine` recomposes the taper refusal.** It does not call `joineryRefusal` (inv 41's one decider);
-equivalent today, but a throw inside it is reported as `'joints'` and offers repair. **Status:** open, record-only.
+equivalent today, but a throw inside it is reported as `'joints'` and offers repair. **Status:** closed 2026-10-13: it calls
+`joineryRefusal(plain, pf, findSites(pf))`.
 
 **313. Minor test and wording residue (record-only).** `taperCutsFor` is tested on one pose; no NaN or second-entry tests;
 the same face named twice across entries gives overlapping cuts without a fault; non-finite taper numbers report the

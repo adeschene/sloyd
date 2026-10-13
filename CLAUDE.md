@@ -622,7 +622,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 3412 tests across 121 files
+npm test           # Vitest, currently 3419 tests across 122 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -666,9 +666,9 @@ knowing without opening it:
 - **301–313** — AI-tapers residue (301–308 chunk 1; 309–313 chunk 2): 301 (mirrored-component legs share no Shape), 302 (overlap box-based for tapered
   parts), 303 (tip check centre of mass uses box volumes), 304 (taper-at-joint rule is all-or-nothing, by decision), 305
   (Generate/Refine tapers) closed 2026-10-13, 306 (deferred minors, record-only), 307 (a hand-edited deep-end-last taper is shifted
-  by joinery's resize), 308 ("taper the other end" is impossible for a part joined at both ends; record-only), 309 (`isStandardTaper` accepts start > length), 310 (designDiff "changed" lists
-  unchanged tapers; exact-float compare), 311 (unjoined Refine shows the same fault twice), 312 (`plainForRefine` recomposes
-  the refusal rather than calling `joineryRefusal`), 313 (minor test/wording residue, record-only).
+  by joinery's resize), 308 ("taper the other end" is impossible for a part joined at both ends; record-only), 309 closed 2026-10-13 (Refine refuses, before any call, a taper the converter would reject), 310 (designDiff "changed" lists
+  unchanged tapers; exact-float compare), 311 (unjoined Refine shows the same fault twice), 312 closed 2026-10-13
+  (`plainForRefine` calls `joineryRefusal`), 313 (minor test/wording residue, record-only).
 - **176/177** — the held rules' known limits (mutual lapping) and an unseen live repair.
 - **130** — semi-infinite construction lines; picked and set aside 2026-08-31 without a
   reason. Ask before assuming it's wanted; it needs real hardware (26a).
