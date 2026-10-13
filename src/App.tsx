@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Viewport } from './viewport/Viewport';
+import type { ViewportHandle } from './viewport/Viewport';
 import { Toolbar } from './panels/Toolbar';
 import { ViewportControls, EXPLODED_TITLE } from './panels/ViewportControls';
 import { PartsList } from './panels/PartsList';
@@ -61,6 +62,13 @@ export default function App() {
   const [saving, setSaving] = useState(false);
   const [available, setAvailable] = useState(true);
   const [orthographic, setOrthographic] = useState(false);
+  const viewportRef = useRef<ViewportHandle | null>(null);
+  // Save image (standard-views spec §3): the clean frame from the viewport, out through the storage seam.
+  const saveImage = useCallback(async () => {
+    const png = await (viewportRef.current?.capture() ?? Promise.resolve(null));
+    if (!png) throw new Error('The viewport gave no image.');
+    await storage.exportImage(useStore.getState().doc.name, png);
+  }, []);
   // View state, deliberately not part of the document: whether the grid and
   // the origin axes are drawn is a property of how you're looking at a
   // project, not of the project, so neither saves nor lands on the undo stack.
@@ -929,6 +937,7 @@ export default function App() {
               showAxes={showAxes}
               showGuides={showGuides}
               shortcutsSuspended={modalOpen}
+              handleRef={viewportRef}
             />
             <ViewportControls
               orthographic={orthographic}
@@ -939,6 +948,8 @@ export default function App() {
               onToggleAxes={() => setShowAxes((v) => !v)}
               showGuides={showGuides}
               onToggleGuides={() => setShowGuides((v) => !v)}
+              onView={(v) => viewportRef.current?.showView(v)}
+              onSaveImage={saveImage}
             />
             {/*
               UNCONDITIONALLY MOUNTED, and that is load-bearing rather than

@@ -10,7 +10,8 @@ const noop = () => {};
 function renderControls(overrides: Partial<Parameters<typeof ViewportControls>[0]> = {}) {
   return render(
     <ViewportControls orthographic={false} onToggleProjection={noop} showGrid onToggleGrid={noop}
-      showAxes onToggleAxes={noop} showGuides onToggleGuides={noop} {...overrides} />,
+      showAxes onToggleAxes={noop} showGuides onToggleGuides={noop}
+      onView={noop} onSaveImage={() => Promise.resolve()} {...overrides} />,
   );
 }
 const btn = (name: string) => screen.getByRole('button', { name });
@@ -139,5 +140,48 @@ describe('ViewportControls explode', () => {
     fireEvent.change(slider, { target: { value: '0.5' } });
     act(() => useStore.getState().endGesture());
     expect(slider).toHaveValue('0');
+  });
+});
+
+describe('ViewportControls standard views and Save image', () => {
+  afterEach(() => { act(() => useStore.getState().setExplode(0)); });
+
+  it('asks for each standard view by name', async () => {
+    const onView = vi.fn();
+    renderControls({ onView });
+    for (const [name, view] of [['Front', 'front'], ['Side', 'side'], ['Top', 'top'], ['Iso', 'iso']] as const) {
+      await userEvent.click(btn(name));
+      expect(onView).toHaveBeenLastCalledWith(view);
+    }
+    expect(onView).toHaveBeenCalledTimes(4);
+  });
+
+  it('keeps the views and Save image enabled while exploded (they change nothing)', () => {
+    renderControls();
+    act(() => useStore.getState().setExplode(0.5));
+    for (const name of ['Front', 'Side', 'Top', 'Iso', 'Save image']) expect(btn(name)).toBeEnabled();
+  });
+
+  it('saves once for a double click: the button is disabled while saving', async () => {
+    let finish!: () => void;
+    const onSaveImage = vi.fn(() => new Promise<void>((r) => { finish = r; }));
+    renderControls({ onSaveImage });
+    await userEvent.click(btn('Save image'));
+    expect(btn('Save image')).toBeDisabled();
+    await userEvent.click(btn('Save image'));
+    expect(onSaveImage).toHaveBeenCalledTimes(1);
+    await act(async () => { finish(); });
+    expect(btn('Save image')).toBeEnabled();
+  });
+
+  it('shows "Could not save the image." when saving fails, and clears it on the next attempt', async () => {
+    const onSaveImage = vi.fn()
+      .mockRejectedValueOnce(new Error('no canvas'))
+      .mockResolvedValueOnce(undefined);
+    renderControls({ onSaveImage });
+    await userEvent.click(btn('Save image'));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not save the image.');
+    await userEvent.click(btn('Save image'));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });

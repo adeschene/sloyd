@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { useStore } from '../store/store';
+import type { StandardView } from '../viewport/framing';
 
 /** The one wording for "this is locked because the view is exploded" (plans-sheet spec §4.2). */
 export const EXPLODED_TITLE = 'Slide Explode back to 0 to edit';
@@ -25,6 +27,10 @@ interface Props {
    */
   showGuides: boolean;
   onToggleGuides: () => void;
+  /** Look at the piece from a standard view (standard-views spec §2). An action, not a mode: no button shows pressed. */
+  onView: (view: StandardView) => void;
+  /** Save a clean PNG of the view (spec §3). Rejects when nothing could be saved. */
+  onSaveImage: () => Promise<void>;
 }
 
 /**
@@ -37,13 +43,23 @@ interface Props {
  */
 export function ViewportControls({
   orthographic, onToggleProjection, showGrid, onToggleGrid,
-  showAxes, onToggleAxes, showGuides, onToggleGuides,
+  showAxes, onToggleAxes, showGuides, onToggleGuides, onView, onSaveImage,
 }: Props) {
   const tool = useStore((s) => s.tool);
   const setTool = useStore((s) => s.setTool);
   const explode = useStore((s) => s.explode);
   const setExplode = useStore((s) => s.setExplode);
   const hasSelection = useStore((s) => s.selectedIds.length > 0);
+  // Disabled while saving, so a double click saves one file (spec §3.2).
+  const [saving, setSaving] = useState(false);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const saveImage = () => {
+    setImageError(null);
+    setSaving(true);
+    onSaveImage()
+      .catch(() => setImageError('Could not save the image.'))
+      .finally(() => setSaving(false));
+  };
 
   return (
     <>
@@ -65,6 +81,12 @@ export function ViewportControls({
           <button aria-pressed={orthographic} onClick={() => { if (!orthographic) onToggleProjection(); }}
             title="Orthographic view — parallel projection, for checking alignment">Orthographic</button>
         </div>
+        <div className="segmented" role="group" aria-label="Standard views">
+          <button onClick={() => onView('front')} title="Look at the front of the piece">Front</button>
+          <button onClick={() => onView('side')} title="Look at the right side of the piece">Side</button>
+          <button onClick={() => onView('top')} title="Look down on the piece from above">Top</button>
+          <button onClick={() => onView('iso')} title="Look from the front-right corner, above">Iso</button>
+        </div>
         <div className="segmented">
           <button aria-pressed={showGrid} onClick={onToggleGrid} title="Show the ground grid">Grid</button>
           <button aria-pressed={showAxes} onClick={onToggleAxes} title="Show the origin axes">Origin</button>
@@ -79,6 +101,9 @@ export function ViewportControls({
           </label>
           <span className="viewport-explode-value">{Math.round(explode * 100)}%</span>
         </div>
+        <button onClick={saveImage} disabled={saving}
+          title="Save a PNG of the view, without the selection or tool markers">Save image</button>
+        {imageError && <span role="alert" className="field-error">{imageError}</span>}
       </div>
 
       {tool === 'move' && !hasSelection && (
