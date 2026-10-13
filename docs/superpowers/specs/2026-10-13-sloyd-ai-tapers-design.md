@@ -158,7 +158,7 @@ order: the narrowed angled refusal (§4.3), else the taper refusal (§4.1), else
 
 | Site | Change |
 |---|---|
-| `angledRefusal`/`angledParts` (`angledRefusal.ts`) | count only angle cuts whose `kind !== 'taper'`; message unchanged |
+| `angledRefusal`/`angledParts` (`angledRefusal.ts`) | count only angle cuts whose `kind !== 'taper'`; joinery's message becomes "Add joinery doesn't handle mitered, beveled or chamfered parts yet (…). Add joinery before cutting those angles, or remove them." — the old text ("Add joinery doesn't handle angled parts yet (…). Add joinery before tapering, or remove the angles first.") said "before tapering", false once tapers are joinable; amended in the final review of chunk 1 (this row first read "message unchanged") |
 | `runJoinery` entry (`run.ts` ~326) | calls `joineryRefusal` before any call or mutation (invariant 41) |
 | `App.tsx` ~91 (`joineryRefusal` → `JoineryDialog`) | calls the same decider, fed by the existing `joinerySites` memo (sites are not found twice); the estimate stays suppressed on refusal |
 | `repair.ts` ~101 (`repairDocument` returns null on angled) | narrowed: a taper-only document is repaired (its prune-and-prove never touches angle cuts) |

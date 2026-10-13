@@ -234,7 +234,6 @@ src/
 │   │                     allow tapers); TaperConflict / taperJointRefusal (the taper-at-joint message)
 │   ├── bodies.ts         boardBodies (pocket cells clipped by angle cuts), bodyEdges, boardEdges (inv 16);
 │   │                     partGeometry: THE cached reader of both (shared, frozen; see per-file rules)
-│   │                     contactSolids / isTapered (designCheck.ts): the checks' tapers-only, flat-wood-only reader (inv 38, 48)
 │   ├── tenons.ts         findTenons
 │   ├── cutlist.ts        buildCutList (inv 18) — stock, not remainder
 │   ├── depthField.ts     buildDepthField (inv 20)
@@ -254,7 +253,8 @@ src/
 │   ├── refineDesign.ts   documentToDesign (Refine's input + refusals; definitions normalised),
 │   │                     carryGrain, designValues (exact values kept), definitionCorner
 │   ├── designDiff.ts     diffDesigns — what a refine changed, by flat display name (→ units)
-│   ├── designCheck.ts    checkDesign; worldSolids, the ONE world-solid mapping (invs 38, 39)
+│   ├── designCheck.ts    checkDesign; worldSolids, the ONE world-solid mapping (invs 38, 39);
+│   │                     contactSolids / isTapered: the checks' tapers-only, flat-wood-only reader (invs 38, 48)
 │   ├── drawing.ts        drawView: exact hidden-line vector drawing; edges from boardEdges (inv 16), occluders
 │   │                     from worldBodies (the bodies, angle cuts included), both via partGeometry
 │   ├── explode.ts        explodeOffsets (hierarchical, floor-lifted), EXPLODE_SPREAD/INNER
@@ -504,12 +504,14 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 37. **The generation history is append-only; `LlmMessage` is opaque so it stays that way.**
     Assistant turns go back verbatim (thinking and fallback blocks included); do not
     "clean" them.
-38. **`overlap`, `hangs`' contacts and joinery's blockers/trims are measured between SOLIDS
-    via `worldSolids`**, never `solidWorldBox`. Only grounding, `tips` and `faceContacts`
-    stay box-based. `worldSolids` are pocket-cell BOXES (angle cuts ignored; joinery and refine refuse an
-    angled document); the drawings occlude with `worldBodies` instead (inv 47). Do not raise `TOUCH` to make joints pass; do not drop the check.
-    Held/hangs contacts, `connected` and the tip footprint read `contactSolids` (a tapered part counts only where it is
-    flat; an untapered part keeps its box/solids byte-for-byte); overlap stays on `worldSolids`; `faceContacts` stays on boxes.
+38. **`overlap` and joinery's blockers/trims are measured between SOLIDS via `worldSolids`**, never
+    `solidWorldBox`; `worldSolids` are pocket-cell BOXES, angle cuts ignored (the drawings occlude with
+    `worldBodies` instead, inv 47). **Held/hangs contacts, grounding's `connected` and the tip footprint read
+    `contactSolids` when a part is tapered** (a tapered part counts only where it is still flat); a pair of
+    untapered parts keeps its BOXES in `connected`, and an untapered part keeps its box as its footprint,
+    byte-for-byte. `faceContacts` stays on boxes. Joinery refuses every non-taper angle cut (and a taper running
+    into a joint); Refine refuses all angle cuts until AI-tapers chunk 2. Do not raise `TOUCH` to make joints
+    pass; do not drop the check.
 39. **Support means HELD: every part off the floor is resting, between (≥ 50% coverage of
     both faces of X or Z) or lapped (a broad face; a top contact only under the stated
     one-level conditions), and the piece must not tip.** **PROHIBITION: do not drop (c),
@@ -662,9 +664,10 @@ knowing without opening it:
   withheld on parts wider than long), 297 (a hand-edited offset miter is moved to canonical form on its first edit).
 - **298–300** — bevel/chamfer residue: 298 (no raised-panel field-bevel preset; unequal chamfer legs not editable), 299
   and 300 closed 2026-10-12 (short Edge labels; one face vocabulary and refusal pattern).
-- **301–306** — AI-tapers chunk 1 residue: 301 (mirrored-component legs share no Shape), 302 (overlap box-based for tapered
+- **301–308** — AI-tapers chunk 1 residue: 301 (mirrored-component legs share no Shape), 302 (overlap box-based for tapered
   parts), 303 (tip check centre of mass uses box volumes), 304 (taper-at-joint rule is all-or-nothing, by decision), 305
-  (Generate/Refine tapers: chunk 2), 306 (deferred minors, record-only).
+  (Generate/Refine tapers: chunk 2), 306 (deferred minors, record-only), 307 (a hand-edited deep-end-last taper is shifted
+  by joinery's resize), 308 ("taper the other end" is impossible for a part joined at both ends; record-only).
 - **176/177** — the held rules' known limits (mutual lapping) and an unseen live repair.
 - **130** — semi-infinite construction lines; picked and set aside 2026-08-31 without a
   reason. Ask before assuming it's wanted; it needs real hardware (26a).

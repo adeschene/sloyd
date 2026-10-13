@@ -5215,8 +5215,18 @@ document (`joineryRefusal`); skipping the offending joint and joining the rest w
 **Status:** open until chunk 2 of this round ships.
 
 **306. Deferred minors (record-only).** Untested branches: a zero-amount taper (filtered), a non-finite `start` (refuses with
-odd wording), a tapered part with rectangular cuts (multi-cell clip/slab), two-part conflict ordering, a mixed taper+miter
-part (the `.some` path), two tapers on one face and end, a whole-section slab drop. The notched-part test's comment says
-"grounding and footprint" but pins only the footprint (untapered grounding is protected structurally by the
-`tapered[i]||tapered[j]` gate). The taper-only repair test compares only `dropped`, not that the repaired boards keep the
-taper. Accepted-run joinery tests 2/3 were not mutated. **Status:** record-only.
+odd wording), a tapered part with rectangular cuts (multi-cell clip/slab), two-part conflict ordering, two tapers on one
+face and end, a whole-section slab drop. Accepted-run joinery tests 2/3 were not mutated. (Closed in the final review: the
+mixed taper+miter part is covered by tapers.test.ts "both at once"; the notched-part test's comment now says footprint only;
+the taper-only repair test now asserts the repaired leg keeps its taper.) **Status:** record-only.
+
+**307. A hand-edited deep-end-last taper is shifted by joinery's resize.** A taper stored deep-end-last (`alongFrom` the
+deep end, e.g. `alongFrom: 'max'` with points `[[20,0],[28,0.5]]`) is anchored at the end a tenon grows; `rebaseCuts` does
+not touch angle cuts, so joinery shifts and slightly deepens it, and the post-run gate does not re-check the taper rule.
+Everything the app writes is canonical (`taperCut` stores `alongFrom = end`), so only hand-edited or imported files reach it.
+Remedy when touched: rewrite a resized part's tapers into canonical form via `taperCut(taperFields(c))` (fu 297 precedent).
+**Status:** open.
+
+**308. "Taper the other end" is impossible for a part joined at both ends.** The taper-at-joint refusal for a joint on the
+thin end advises tapering the other end; a part joined at both ends has no such option (only "remove it" applies).
+**Status:** open, record-only.
