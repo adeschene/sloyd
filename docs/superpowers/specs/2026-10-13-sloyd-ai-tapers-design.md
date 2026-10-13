@@ -1,6 +1,6 @@
 # Sloyd — the AI integration meets tapers
 
-**Date:** 2026-10-13. **Status:** design approved in conversation; spec awaiting review.
+**Date:** 2026-10-13. **Status:** approved; chunk 1 shipped 2026-10-13. Amendments made while planning chunk 2 are marked *amended*.
 **Builds on:** the angle-cuts spec (`2026-10-12-sloyd-angle-cuts-design.md`, §6 refusals, §11 follow-ups),
 the generate, generate-assemblies, joinery, refine and refine-joined specs. **No document schema change** (tapers are
 already schema 14); only the *design* schema the model writes changes, so rollback is free.
@@ -68,8 +68,10 @@ the part and the rule:
 - `faces` is empty, longer than 4, repeats a face, or names a face along the length or the end `toward` names (or its
   opposite end).
 - `start` not in (0, length], or `amount` not > 0, or either non-finite (checked after the snap, as `size` is).
-- `amount` removes more than the dimension behind that face — Properties' rule ("Removes more than the …") — and two
-  tapers on opposite faces of one dimension together leave no wood.
+- The tapers on one dimension leave no wood at either end: the depths on its min face plus those on its max face reach
+  the dimension (a single taper whose `amount` equals the dimension included). *Amended while planning chunk 2:* this is
+  one notch stricter than Properties' "Removes more than the …" (which lets one taper reach a knife edge); a generated
+  part keeps wood at both ends.
 
 ## 3. Checks (`designCheck.ts`)
 
@@ -198,20 +200,36 @@ asked to change. Decided before any call (new `RefineRefusal` reason, e.g. `'tap
 `evaluateDesign` (shared by Generate and Refine) runs `taperConflicts` (§4.2) on the converted flat document and reports
 each conflict as a **design fault** with its own `kind` (e.g. `'taper-joint'`) and `parts`, so `collapseViolations` and
 problem comparison work by kind and parts. The model-facing message uses world words
-(*"Leg 1's taper (toward -y) runs into its joint with Front apron — start it at 22 or less from its -y end"*).
+(*"Leg 1's taper toward -y runs into where it meets Front apron (a joint goes there) — start it 22.4375in or less from
+its -y end, or remove it"*). *Amended while planning chunk 2:* the advised number is floored to `SNAP_INCHES` (1/16), not
+to display precision, because `convertPart` snaps the model's `start` to 1/16 — advice of 22.47 would snap to 22.5 and
+conflict again (the chunk 1 bug class).
+
+**Refine's preexisting rule covers this fault** (*amended while planning chunk 2*): `runRefine` adds the original plain
+design's own taper conflicts to `preexisting`, so a taper the person drew into a joint is not pushed back at the model as
+a new problem every round (it was not asked to change it; §5.2, `KEEP_LINE`).
 
 It lives in `evaluateDesign` only, **not** in `checkDesign`: `checkDesign` is also joinery's gate, where a taper conflict is
 impossible after §4's refusal and would only muddy the preexisting-problem comparison.
 
-This is what makes the goal hold end to end: a Generate or Refine result can never be one Add joinery then refuses for
-its tapers.
+This is what makes the goal hold end to end — *as a repaired fault, not a guarantee* (*amended while planning chunk 2*):
+the repair loop returns its best attempt even with violations left, so a result whose model never fixed a conflict
+within `MAX_REPAIRS` carries the `taper-joint` fault in its violations, and Add joinery on it refuses, naming the part.
 
 ### 5.4 Joined Refine
 
 Refining a joined project unjoins it (`gateUnjoin`, exact re-join) and re-joins afterwards with the recorded choices.
-With tapers, (a) `gateUnjoin`'s exact (1e-9in) re-join must pass on a joined tapered document — pinned by a test; and
-(b) the re-join's `runJoinery` entry cannot refuse on tapers, because §5.3 already rejected any design with a conflict —
-pinned by a test, and the `run.ts` comment says so.
+With tapers:
+
+- (a) `gateUnjoin`'s exact (1e-9in) re-join must pass on a joined tapered document — pinned by a test. `sameJoined` gains
+  an exact `sameAngleCut` comparison, or the proof says nothing about the tapers.
+- (b) *Amended while planning chunk 2 (the original text claimed the re-join cannot refuse; §5.3's amendment shows it
+  can).* **A joined original whose taper already runs into a joint is refused before any call** (`plainForRefine`, reason
+  `'taper-joint'`, the §4.1 message): its re-join would refuse, so the paid refine could only come back unjoined.
+  **A refined design the model left with a conflict** is returned as it came back, unjoined: `runRefine` does not throw;
+  `JointsSummary.notJoined` carries joinery's refusal and the Refine dialog says the joints were not re-applied. The
+  `taper-joint` fault is already in its violations. Pinned by a test whose fake model returns the conflicting design on
+  all four calls.
 
 ### 5.5 `designDiff`
 
