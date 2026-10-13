@@ -99,7 +99,7 @@ export function diffDesigns(before: SloydDocument, after: SloydDocument): Change
       const lines = nt.length === 0 ? ot.map((t) => `${n}: taper removed (${t.faces.join(', ')})`)
         : ot.length === 0 ? nt.map((t) => `${n}: taper added (${say(t)})`)
           : nt.map((t) => `${n}: taper changed (${say(t)})`);
-      for (const t of lines) push('taper', 'part', n, t, key('taper', t));
+      for (const t of lines) push('taper', 'part', n, t, key('taper', t.slice(n.length)));
     }
     if (!o.b.shape !== !e.b.shape) {
       const kind = e.b.shape ? 'linked' : 'unlinked';
