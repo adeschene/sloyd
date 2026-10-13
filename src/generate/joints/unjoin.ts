@@ -288,7 +288,7 @@ function sameCutSet(a: Board['cuts'], b: Board['cuts']): boolean {
 
 /**
  * Ids ignored (refine-joined spec §3.2). Names, posture, rotation, material and grain compare
- * EXACTLY; every number (position, length/width/thickness, each numeric cut field) within
+ * EXACTLY; cuts are matched as a MULTISET (order is not geometry, sameCutSet); every number (position, length/width/thickness, each numeric cut field) within
  * GATE_TOLERANCE; non-numeric cut fields (face, from, across) exactly; angle cuts exactly (sameAngleCut). The gate is
  * only as good as this.
  */

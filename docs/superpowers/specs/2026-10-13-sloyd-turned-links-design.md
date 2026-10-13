@@ -81,6 +81,12 @@ they are the same leg turned.
 - **Joinery.** It works on the flat (world) document, and a leg's mortises land on its local faces. With a symmetric set of
   aprons the four legs' cuts are identical, so joinery keeps the Shape. When they differ, joinery splits the Shape as it
   already does for linked parts (inv 45). Pinned by a test, not assumed.
+- **Cut order is not geometry** (*amended during implementation, controller ruling*). Pinning the above showed joinery
+  appending identical mortises in a different stored order on turned legs, so it split four legs into two Shapes, and
+  Refine's unjoin gate would refuse a joined table with linked turned legs. Two places now treat cuts as a set:
+  `regroupShapes` (treeEdit.ts) groups users by an order-insensitive `groupSignature` (cuts and angle cuts sorted; the Shape
+  keeps its first member's order and ids), and `sameJoined` (unjoin.ts) matches cuts as a multiset (`sameCutSet`, still exact
+  at GATE_TOLERANCE 1e-9; angle cuts stay in order). `splitAssemblies`' `resultSignature` stays order-sensitive (fu 316).
 
 ### 2.5 Invariant amendments
 

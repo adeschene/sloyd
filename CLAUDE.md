@@ -27,7 +27,7 @@ handicraft education tradition built around hand woodworking.
   `47548d3`, REFUSES every project saved since: export first). Test count is under Commands.
 - **NEXT: none chosen — ask.** The AI-tapers feature (the user's "the AI integration") is complete: one prompt gives tapered
   legs with joinery, and its follow-ups 309–313 are closed. Open near it:
-  301–303 (mirrored-component legs, box-based overlap and centre of mass), 276/277's rest (miters, bevels and chamfers in the
+  302/303 (box-based overlap and centre of mass), 314–317 (turned-links residue), 276/277's rest (miters, bevels and chamfers in the
   AI features). Other open items: angle-cut residue 295–298; 241 (open by decision), 251 (record-only), 221, 225, 232, 234, 247.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
@@ -247,7 +247,9 @@ src/
 │   ├── row.ts            rowLayout (gap/pitch/fit-across; refusal CODES; no rounding, inv 25)
 │   ├── generated.ts      DESIGN_SCHEMA, parseDesign, designToDocument (assemblies → a TREE;
 │   │                     `Authored` maps flat names back to what the model wrote; MAX_MAGNITUDE)
-│   ├── roleLinks.ts      linkByRole: role + sameShared classes → linksToShapes (inv 45)
+│   ├── roleLinks.ts      linkByRole: role + sameShared classes → linksToShapes (inv 45);
+│                     turnCandidates (other quarter turns keeping the world box and grain axis; tapers re-stored via taperWorld; none
+│                     for rectangular cuts, non-taper angle cuts or non-standard tapers), alignedTo (adopts the representative's angle-cut ids)
 │   ├── assemblyChecks.ts distinctParts, distinctPartsViolation, collapseViolations (one report
 │   │                     per authored fault; "fix the assembly" only for overlaps)
 │   ├── refineDesign.ts   documentToDesign (Refine's input + refusals; definitions normalised),
@@ -260,7 +262,8 @@ src/
 │   ├── explode.ts        explodeOffsets (hierarchical, floor-lifted), EXPLODE_SPREAD/INNER
 │   ├── dimensions.ts     overall + chain dimension values and strings per axis (fitting is panels/planDims.ts)
 │   ├── plans.ts          planAssemblies: what the sheet draws (copies, mirrored parity)
-│   └── treeFixtures.ts, turnFixtures.ts   TEST-ONLY (assemblyDoc; chiralPart, inv 44)
+│   └── treeFixtures.ts, turnFixtures.ts   TEST-ONLY (assemblyDoc; chiralPart, inv 44);
+│                         shakerTableFixture.ts (the generated, joined, refined Shaker table)
 ├── store/
 │   ├── store.ts          state, edit(), undo/redo/restore, selectionPatch, held points,
 │   │                     hiddenIds, copyInRow, group/link/unique actions (invs 4, 24, 34, 42–46)
@@ -528,7 +531,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     refusal is decided before ANY mutation, and every `resize` is pre-checked by
     `cutIntoEnd`. Joinery accepts tapers and refuses, through the ONE decider `joineryRefusal` (`joints/tapers.ts`), any
     site whose patch lies on tapered wood (`taperConflicts`; `start` itself allowed, compared with a 1e-9 float tolerance,
-    inv 22). Sites stay on box contacts on purpose. A joined Refine is refused up front (`plainForRefine`, `'taper-joint'`) when the original's taper already runs into a joint; a result the model leaves conflicting comes back UNJOINED (`JointsSummary.notJoined`), never joined over a taper.
+    inv 22). Sites stay on box contacts on purpose. The unjoin gate (`sameJoined`) compares a part's cuts as a MULTISET (`sameCutSet`; order is not geometry, still exact at 1e-9; angle cuts stay in order). A joined Refine is refused up front (`plainForRefine`, `'taper-joint'`) when the original's taper already runs into a joint; a result the model leaves conflicting comes back UNJOINED (`JointsSummary.notJoined`), never joined over a taper.
 42. **A group move rounds the GROUP's min corner once and adds one delta
     (`moveGroupTo` → `translateBoards`); one selected part keeps the separate single-part
     path.** Do not unify them; do not round inside `translateBoards`. `selectionPatch` is
@@ -551,8 +554,9 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     helpers. Flat and upright keep the pre-v8 mapping at turn 0; on-edge reverses thickness
     (fu 215, v12), so every posture shares ONE hand and a posture change no longer mirrors
     cuts. Equivariance tests use `chiralPart`, never a symmetric fixture; mutate any new one.
-    In `boardUVs` the reflection is per geometry axis, before inv 35's sign and swap. Generate
-    stays at 0° and 90°. The composition is the second caller of `mirrorCutAlong` (`mirrorCut`,
+    In `boardUVs` the reflection is per geometry axis, before inv 35's sign and swap. Generate's
+    converter (`orient`) encodes at 0° or 90°; role linking may store any quarter turn that leaves the world part unchanged
+    (`turnCandidates`, fu 301). The composition is the second caller of `mirrorCutAlong` (`mirrorCut`,
     moved verbatim to `mirrorCut.ts`): a mirrored frame reflects a part (`mirrorPart`: turn
     negated, cuts along the posture's turn-0 X dimension, min corner reflected).
     An angle cut reflects by a FLAG FLIP (`mirrorAngleCut`: `from` if `face` is the mirrored dimension, `alongFrom` if
@@ -562,7 +566,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     is the ONE shared/own table (classify an optional own field with care, fu 231).
     `resolveBoard` is the ONE place a shape is read into a part. `linksToShapes` is the ONE
     label→shape builder, with two callers (the v10→v11 step and generation's `linkByRole`);
-    both judge equality by `sameShared` only. Shared-field edits are written to the Shape (`applyWorldEdits`); the only propagation left is `shapeMates`
+    both judge equality by `sameShared` only. `linkByRole` aligns a member's angle-cut ids to the representative's (only when
+    `sameAngleCut` matches; never loosen `sameShared`) and may re-turn a member through `turnCandidates` first. Shared-field edits are written to the Shape (`applyWorldEdits`); the only propagation left is `shapeMates`
     re-pivoting posture. `linkPlan` is the ONE Link decider. A one-user shape dissolves
     (users counted as STORED parts). Joinery keeps sharing where cuts are identical by
     geometry. **`Board.link`, `repairLinks`, `dissolveSingletons` and `mates` propagation
@@ -575,6 +580,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     - Group moves nothing (identity frame); Ungroup is exact for direct child parts only.
     - Joinery runs on `flatDocument`, maps back by index; anything reading sites/joints uses
       the flat document.
+    - `regroupShapes` groups a shape's users by geometry (`groupSignature`): cut ORDER is ignored (joinery appends mortises in site order, a turned user's list differs); the Shape keeps its first member's order and ids.
     - A selection is one level (`isCovered` is the ancestor test).
     - Write-back keys on the STORAGE target (`storageKey`); disagreeing edits throw, so the
       store sends one edit per target (`oneEditPerTarget`). An edit in a definition moves
@@ -623,7 +629,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 3429 tests across 122 files
+npm test           # Vitest, currently 3445 tests across 122 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -664,12 +670,13 @@ knowing without opening it:
   withheld on parts wider than long), 297 (a hand-edited offset miter is moved to canonical form on its first edit).
 - **298–300** — bevel/chamfer residue: 298 (no raised-panel field-bevel preset; unequal chamfer legs not editable), 299
   and 300 closed 2026-10-12 (short Edge labels; one face vocabulary and refusal pattern).
-- **301–313** — AI-tapers residue (301–308 chunk 1; 309–313 chunk 2): 301 (mirrored-component legs share no Shape), 302 (overlap box-based for tapered
+- **301–317** — AI-tapers residue (301–308 chunk 1; 309–313 chunk 2; 314–317 turned links): 301 closed 2026-10-13 (role linking aligns angle-cut ids and tries quarter turns, so four tapered legs are one component; also fixed identical tapered parts never linking; cut order ruled not geometry), 302 (overlap box-based for tapered
   parts), 303 (tip check centre of mass uses box volumes), 304 (taper-at-joint rule is all-or-nothing, by decision), 305
   (Generate/Refine tapers) closed 2026-10-13, 306 (deferred minors, record-only), 307 (a hand-edited deep-end-last taper is shifted
   by joinery's resize), 308 ("taper the other end" is impossible for a part joined at both ends; record-only), 309 closed 2026-10-13 (Refine refuses, before any call, a taper the converter would reject), 310 closed 2026-10-13 (tapers diffed face
   by face at display precision), 311 closed 2026-10-13 (an unjoined Refine lists its taper fault once, in the note), 312 closed 2026-10-13
-  (`plainForRefine` calls `joineryRefusal`), 313 closed 2026-10-13 (test and wording residue; same face in two entries allowed by decision).
+  (`plainForRefine` calls `joineryRefusal`), 313 closed 2026-10-13 (test and wording residue; same face in two entries allowed by decision),
+  314 (parts with rectangular cuts are not turned), 315 (mirror-only matches need fu 232's mirrored placements), 316 (`splitAssemblies`' `resultSignature` is order-sensitive), 317 (record-only turned-links minors).
 - **176/177** — the held rules' known limits (mutual lapping) and an unseen live repair.
 - **130** — semi-infinite construction lines; picked and set aside 2026-08-31 without a
   reason. Ask before assuming it's wanted; it needs real hardware (26a).
