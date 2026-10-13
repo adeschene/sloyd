@@ -1,6 +1,7 @@
 # Sloyd — the AI features accept miters, bevels and chamfers
 
-**Date:** 2026-10-13 · **Status:** approved in conversation (with the tenon-clearance exception, §3, ruled while writing); awaiting the user's review.
+**Date:** 2026-10-13 · **Status:** approved by the user (with the tenon-clearance exception, §3, ruled while writing; three
+examples corrected while planning, marked *amended*). Chunk 1 (§2–§4.1) implemented 2026-10-13 on `ai-angles-1`; chunk 2 open.
 **Builds on:** the angle-cuts spec (`2026-10-12-sloyd-angle-cuts-design.md`: the `AngleCut` model, §6 refusals) and the
 AI-tapers spec (`2026-10-13-sloyd-ai-tapers-design.md`: flat-wood contact, the taper-at-joint rule, world-direction design
 tapers), plus the generate, joinery, refine and refine-joined specs. Every rule there still holds unless this document
