@@ -1,9 +1,11 @@
 import type { Board, SloydDocument, StoredBoard } from './types';
 import type { GeneratedAssembly, GeneratedDesign, GeneratedPart } from './generated';
+import { orient } from './generated';
 import { angledParts, angledRefusal } from './angledRefusal';
 import { distinctParts } from './assemblyChecks';
 import { boardExtents } from './geometry';
-import { worldTapers } from './taperWorld';
+import { taperCutsFor, worldTapers } from './taperWorld';
+import type { TaperFaultCode } from './taperWorld';
 import { isShaped, resolveBoard, shapeMap } from './shapes';
 import { NAME_SEPARATOR, flatDocument, worldParts } from './tree';
 
@@ -17,6 +19,15 @@ import { NAME_SEPARATOR, flatDocument, worldParts } from './tree';
 export type RefusalReason = 'empty' | 'cuts' | 'turned' | 'nested' | 'too-large' | 'joints' | 'mirrored' | 'angled' | 'taper-form' | 'taper-joint';
 export interface RefineRefusal { reason: RefusalReason; message: string }
 export interface RefineMax { distinct: number; placed: number }
+
+/** Each converter fault, in the person's words (never the model-facing fault text). */
+const TAPER_REASON: Record<TaperFaultCode, string> = {
+  'no-wood': 'it leaves no wood at an end',
+  along: "it no longer runs along the part's longest side",
+  start: "it starts beyond the part's length",
+  faces: "its faces don't describe a taper",
+  amount: "its amount doesn't describe a taper",
+};
 
 const refuse = (reason: RefusalReason, message: string) => ({ refused: { reason, message } });
 
@@ -61,6 +72,25 @@ export function documentToDesign(doc: SloydDocument, max: RefineMax): { design: 
   const odd = flatDocument(doc).boards.filter((b) => worldTapers(b) === null).map((b) => b.name);
   if (odd.length === 1) return refuse('taper-form', `${odd[0]}'s taper can't be described to Refine — edit it in Properties first.`);
   if (odd.length > 1) return refuse('taper-form', `The tapers on ${odd.slice(0, 3).join(', ')}${odd.length > 3 ? '…' : ''} can't be described to Refine — edit them in Properties first.`);
+  // A standard-form taper the CONVERTER would reject is refused here too, by the converter's own rule (taperCutsFor) on
+  // the board as the design will encode it (orient: longest side = length) — sent, it would be a new fault every round
+  // the model cannot fix without changing the person's taper (fu 309). The reason is worded for the person.
+  const unencodable = flatDocument(doc).boards.flatMap((b) => {
+    const tapers = worldTapers(b);
+    if (!tapers || tapers.length === 0) return [];
+    const made = taperCutsFor({ ...b, ...orient(boardExtents(b)) }, tapers);
+    return 'fault' in made ? [{ name: b.name, why: TAPER_REASON[made.code] }] : [];
+  });
+  if (unencodable.length === 1) {
+    const [u] = unencodable;
+    return refuse('taper-form', `${u!.name}'s taper can't be described to Refine (${u!.why}) — edit it in Properties first.`);
+  }
+  if (unencodable.length > 1) {
+    const names = unencodable.map((u) => u.name);
+    const whys = new Set(unencodable.map((u) => u.why));
+    const why = whys.size === 1 ? ` (${[...whys][0]})` : '';
+    return refuse('taper-form', `The tapers on ${names.slice(0, 3).join(', ')}${names.length > 3 ? '…' : ''} can't be described to Refine${why} — edit them in Properties first.`);
+  }
   if (doc.instances.some((i) => i.mirrored === true) || doc.definitions.some((d) => d.instances.some((i) => i.mirrored === true))) {
     return refuse('mirrored', "Refine can't describe a mirrored assembly yet — Ungroup the mirrored copy first.");
   }

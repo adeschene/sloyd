@@ -63,24 +63,30 @@ export function worldTapers(b: Board): WorldTaper[] | null {
 }
 
 /**
+ * Which rule a taper broke — for a caller that words it for a PERSON (Refine's refusal), so it never
+ * shows the model-facing `fault` text and never restates the checks.
+ */
+export type TaperFaultCode = 'along' | 'faces' | 'start' | 'amount' | 'no-wood';
+
+/**
  * Design tapers → stored cuts on `b` (oriented; numbers already snapped), one `taperCut`
  * per face, in ONE canonical order (spec §2.1: `sameShared` compares angle cuts by index).
  * Or the first rule broken (spec §2.2), as a phrase the caller prefixes with the part's
  * name: "has a taper toward -x, …".
  */
-export function taperCutsFor(b: Board, tapers: readonly WorldTaper[]): { cuts: Omit<AngleCut, 'id'>[] } | { fault: string } {
+export function taperCutsFor(b: Board, tapers: readonly WorldTaper[]): { cuts: Omit<AngleCut, 'id'>[] } | { fault: string; code: TaperFaultCode } {
   const L = AXES[axisDimensions(b).indexOf('length')]!.toUpperCase();
   const cuts: Omit<AngleCut, 'id'>[] = [];
   for (const t of tapers) {
     const end = dirToLocal(b, t.toward);
-    if (end.dim !== 'length') return { fault: `has a taper toward ${t.toward}, which is not along its length (${L}); a taper runs along a part's longest side` };
-    if (t.faces.length === 0) return { fault: `has a taper toward ${t.toward} with no faces` };
-    if (t.faces.length > 4) return { fault: `has a taper toward ${t.toward} with more than 4 faces` };
-    if (new Set(t.faces).size !== t.faces.length) return { fault: `has a taper toward ${t.toward} that names a face twice` };
+    if (end.dim !== 'length') return { fault: `has a taper toward ${t.toward}, which is not along its length (${L}); a taper runs along a part's longest side`, code: 'along' };
+    if (t.faces.length === 0) return { fault: `has a taper toward ${t.toward} with no faces`, code: 'faces' };
+    if (t.faces.length > 4) return { fault: `has a taper toward ${t.toward} with more than 4 faces`, code: 'faces' };
+    if (new Set(t.faces).size !== t.faces.length) return { fault: `has a taper toward ${t.toward} that names a face twice`, code: 'faces' };
     const bad = t.faces.find((f) => dirToLocal(b, f).dim === 'length');
-    if (bad) return { fault: `has a taper face ${bad}, which is an end of the part; taper faces are its sides` };
-    if (!(t.start > 0 && t.start <= b.length)) return { fault: `has a taper toward ${t.toward} whose start (${t.start}in) is not above 0 and at most its length (${b.length}in)` };
-    if (!(t.amount > 0)) return { fault: `has a taper toward ${t.toward} whose amount (${t.amount}in) is not above 0` };
+    if (bad) return { fault: `has a taper face ${bad}, which is an end of the part; taper faces are its sides`, code: 'faces' };
+    if (!(t.start > 0 && t.start <= b.length)) return { fault: `has a taper toward ${t.toward} whose start (${t.start}in) is not above 0 and at most its length (${b.length}in)`, code: 'start' };
+    if (!(t.amount > 0)) return { fault: `has a taper toward ${t.toward} whose amount (${t.amount}in) is not above 0`, code: 'amount' };
     for (const f of t.faces) {
       const l = dirToLocal(b, f);
       cuts.push(taperCut({ face: l.dim as 'width' | 'thickness', from: l.from, end: end.from, start: t.start, amount: t.amount }));
@@ -94,7 +100,7 @@ export function taperCutsFor(b: Board, tapers: readonly WorldTaper[]): { cuts: O
       const station = (c: Omit<AngleCut, 'id'>) => (c.alongFrom === at ? 0 : b.length);
       const deepest = (from: CutFrom) => Math.max(0, ...cuts.filter((c) => c.face === dim && c.from === from).map((c) => depthAt(c, station(c))));
       if (deepest('min') + deepest('max') >= b[dim]) {
-        return { fault: `has tapers that leave no wood across its ${localToDir(b, dim, 'min')[1]!.toUpperCase()} at its ${localToDir(b, 'length', at)} end` };
+        return { fault: `has tapers that leave no wood across its ${localToDir(b, dim, 'min')[1]!.toUpperCase()} at its ${localToDir(b, 'length', at)} end`, code: 'no-wood' };
       }
     }
   }

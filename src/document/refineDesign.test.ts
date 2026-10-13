@@ -205,6 +205,19 @@ describe('documentToDesign — tapers (AI-tapers spec §5.1, §5.2)', () => {
     const r = documentToDesign({ ...createDocument('T'), boards: [{ ...createBoard({ name: 'Leg 3' }), angleCuts: [odd] }] }, REFINE_MAX);
     expect('refused' in r && r.refused).toEqual({ reason: 'taper-form', message: "Leg 3's taper can't be described to Refine — edit it in Properties first." });
   });
+  it('refuses a standard-form taper the converter would reject, in the person\'s words (fu 309)', () => {
+    // A knife edge: the taper takes the whole 1.75in at the floor end.
+    const leg = { ...createBoard({ name: 'Leg 3', length: 28, width: 1.75, thickness: 1.75, posture: 'upright' }),
+      angleCuts: [{ id: 'a', ...taperCut({ face: 'width', from: 'min', end: 'min', start: 12, amount: 1.75 }) }] };
+    const r = documentToDesign({ ...createDocument('T'), boards: [leg] }, REFINE_MAX);
+    expect('refused' in r && r.refused).toEqual({ reason: 'taper-form', message: "Leg 3's taper can't be described to Refine (it leaves no wood at an end) — edit it in Properties first." });
+  });
+  it('names several unencodable parts once, with their shared reason', () => {
+    const knife = (name: string, x: number) => ({ ...createBoard({ name, length: 28, width: 1.75, thickness: 1.75, posture: 'upright', position: [x, 0, 0] }),
+      angleCuts: [{ id: 'a', ...taperCut({ face: 'width', from: 'min', end: 'min', start: 12, amount: 1.75 }) }] });
+    const r = documentToDesign({ ...createDocument('T'), boards: [knife('Leg', 0), knife('Leg 2', 10)] }, REFINE_MAX);
+    expect('refused' in r && r.refused).toEqual({ reason: 'taper-form', message: "The tapers on Leg, Leg 2 can't be described to Refine (it leaves no wood at an end) — edit them in Properties first." });
+  });
   it('still refuses a miter', () => {
     const miter = { id: 'm', kind: 'miter' as const, face: 'length' as const, from: 'max' as const, along: 'width' as const, alongFrom: 'min' as const, points: [[0, 0], [3, 3]] as [[number, number], [number, number]] };
     const r = documentToDesign({ ...createDocument('T'), boards: [{ ...createBoard({ name: 'Frame' }), angleCuts: [miter] }] }, REFINE_MAX);

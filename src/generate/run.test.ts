@@ -858,3 +858,28 @@ describe('runRefine — joined designs with tapers (AI-tapers spec §5.4)', () =
     expect(flatDocument(out.doc).boards.every((b) => b.cuts.length === 0)).toBe(true);
   });
 });
+
+describe('runRefine — a standard-form taper the converter would reject (fu 309)', () => {
+  const RS = { instruction: 'keep it', width: null, depth: null, height: null, detail: 'simple' as const };
+  const leg = (cuts: Parameters<typeof taperCut>[0][], over: Partial<Board> = {}): Board => ({
+    ...createBoard({ id: 'leg', name: 'Leg', length: 28, width: 1.75, thickness: 1.75, posture: 'upright', ...over }),
+    angleCuts: cuts.map((c, i) => ({ id: `t${i}`, ...taperCut(c) })),
+  });
+  const cases: [string, Board][] = [
+    ['a knife edge (amount = the face dimension)', leg([{ face: 'width', from: 'min', end: 'min', start: 12, amount: 1.75 }])],
+    ['opposite faces that meet (1 + 1 on 1.75)', leg([{ face: 'width', from: 'min', end: 'min', start: 12, amount: 1 }, { face: 'width', from: 'max', end: 'min', start: 12, amount: 1 }])],
+    ['a part wider than long, tapered along its stored length', leg([{ face: 'thickness', from: 'min', end: 'min', start: 3, amount: 0.25 }], { length: 4, width: 6, thickness: 0.75, posture: 'flat' })],
+    ['a start past the length (the part shortened after tapering)', leg([{ face: 'width', from: 'min', end: 'min', start: 24, amount: 0.5 }], { length: 20 })],
+  ];
+  for (const [what, b] of cases) {
+    it(`${what}: refused before any call, the document untouched`, async () => {
+      const doc: SloydDocument = { ...createDocument('T'), boards: [b] };
+      const before = JSON.stringify(doc);
+      const { client } = fakeClient([GOOD]);
+      const out = await runRefine(client, doc, RS, new AbortController().signal, () => {});
+      expect('refused' in out && out.refused.reason).toBe('taper-form');
+      expect(client.complete).not.toHaveBeenCalled();
+      expect(JSON.stringify(doc)).toBe(before);
+    });
+  }
+});
