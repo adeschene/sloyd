@@ -245,13 +245,22 @@ describe('splitCopies', () => {
 });
 
 const TAPER = { id: 'a1', kind: 'taper' as const, face: 'width' as const, from: 'min' as const, along: 'length' as const, alongFrom: 'min' as const, points: [[0, 0.5], [20, 0]] as [[number, number], [number, number]] };
-describe('repairDocument — angled documents (spec §6)', () => {
-  it('offers nothing, even for a document that would otherwise repair', () => {
+const MITER = { ...TAPER, kind: 'miter' as const };
+const withAngle = (doc: SloydDocument, cut: typeof TAPER | typeof MITER): SloydDocument =>
+  ({ ...doc, definitions: doc.definitions.map((d, i) => (i === 0 ? { ...d, boards: d.boards.map((b, j) => (j === 0 ? { ...b, angleCuts: [cut] } : b)) } : d)) });
+describe('repairDocument — angled documents (AI-tapers spec §4.3)', () => {
+  it('offers nothing when any non-taper angle cut is present', () => {
+    const fx = load(f1);
+    const angled = withAngle(fx.damaged, MITER);
+    expect(flatDocument(angled).boards.some((b) => b.angleCuts.length > 0)).toBe(true);
+    expect(repairDocument(angled)).toBeNull();
+  });
+  it('repairs a taper-only document as it would the plain one', () => {
     const fx = load(f1);
     const r0 = repairDocument(fx.damaged);
     if (r0 === null || 'refused' in r0) throw new Error('expected a repair');
-    const angled: SloydDocument = { ...fx.damaged, definitions: fx.damaged.definitions.map((d, i) => (i === 0 ? { ...d, boards: d.boards.map((b, j) => (j === 0 ? { ...b, angleCuts: [TAPER] } : b)) } : d)) };
-    expect(flatDocument(angled).boards.some((b) => b.angleCuts.length > 0)).toBe(true);
-    expect(repairDocument(angled)).toBeNull();
+    const r = repairDocument(withAngle(fx.damaged, TAPER));
+    if (r === null || 'refused' in r) throw new Error(`expected a repair, got ${JSON.stringify(r)}`);
+    expect(r.dropped).toBe(r0.dropped);
   });
 });
