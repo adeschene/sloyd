@@ -1,6 +1,6 @@
 # Sloyd — standard views and image export
 
-**Date:** 2026-10-13 · **Status:** approved in conversation; spec awaiting the user's review
+**Date:** 2026-10-13 · **Status:** approved by the user 2026-10-13; two amendments made while planning (§2.2 camera up, §3.2 hidden not unmounted)
 **Builds on:** the viewport's framing (`CameraKeys` in `viewport/Viewport.tsx`), the Plans sheet's view table
 (`FRONT`, `SIDE`, `TOP`, `ISO` in `document/drawing.ts`), explode (`explodeOffsets`, invariant 47), the floating
 view controls (`panels/ViewportControls.tsx`) and the storage seam (`StorageAdapter`, invariant 7). Every rule there
@@ -50,16 +50,20 @@ those four constants; it never restates them. Back, left and bottom are left out
 ### 2.2 The camera move
 
 A standard view **frames everything visible** (the Home subset: `visibleBoards(worldParts(doc), hiddenIds)`) from the
-view's `toward` direction, then sets the camera's `up` so the screen axes match §2.1. It jumps; there is no animation.
+view's `toward` direction. It jumps; there is no animation.
 The projection is untouched. With no visible parts the button does nothing, as Home does.
 
-**Top is the one degenerate case.** OrbitControls orbits about world +Y and keeps the camera's polar angle inside
-`[ε, π − ε]`; looking straight down puts it on the pole, where its azimuth is undefined and the first orbit would
-spin the view. The camera therefore sits on the `toward` ray with a vanishing +Z tilt (well under a pixel at any
-framing), so OrbitControls' own azimuth is "front at the bottom" and the first drag orbits from there without a jump.
-**This is a hypothesis about three-stdlib's `OrbitControls.update` to be confirmed by reading it while planning**
-(the plan names the lines); if `camera.up = −Z` is what actually holds the orientation, the plan says so and this
-paragraph is amended.
+**The camera's `up` stays +Y for every view** (amended while planning, confirmed by reading the source). Three-stdlib's
+`OrbitControls.update` (`node_modules/three-stdlib/controls/OrbitControls.js:181-230`) rebuilds the camera position
+every update from spherical coordinates taken about `object.up`, then calls `lookAt(target)`; changing `up` would
+change the orbit axis. With `up = +Y`, `lookAt` already gives the screen axes of §2.1: screen right = `normalize(Y ×
+toward)` is +X, −Z, +X and (1, 0, −1)/√2 for Front, Side, Top and Iso, each the constant's `right`.
+
+**Top is the one degenerate case.** Straight down, `Y × toward` is zero: the screen orientation and OrbitControls'
+azimuth (`atan2(x, z)` of the offset, with `Spherical.makeSafe` clamping the polar angle to `[1e-6, π − 1e-6]`) are
+both decided by floating-point noise, and the first orbit could spin the view. The camera therefore sits on a
+direction tilted `1e-4` rad toward +Z (invisible at any framing), so the screen's up is −Z (the front edge at the
+bottom) and the azimuth is 0, and the first drag orbits from there without a jump.
 
 After any standard view, orbiting works as before. Nothing is remembered: the views are actions, not a mode, and no
 button shows as pressed.
@@ -121,8 +125,9 @@ roughly 3000 px across). No size control.
 `capture()`:
 
 1. sets a `clean` flag held in `Viewport`'s React state;
-2. while `clean`, `BoardMesh` gets `selected={false}` and `faded={false}`, and `Gizmo`, `MoveTool`'s markers and
-   `TapeTool`'s drawing are not rendered (each takes the flag, or is left out as `Gizmo` already is while exploded);
+2. while `clean`, `BoardMesh` gets `selected={false}` and `faded={false}`, and `Gizmo`, `MoveTool` and `TapeTool`
+   take a `hidden` prop and return null AFTER all their hooks. They are never unmounted for a capture (amended while
+   planning): each owns canvas listeners, and `Gizmo`'s unmount cleanup ends an in-flight gesture;
 3. waits for the commit and one rendered frame (`useFrame` after the flag is seen), then calls
    `gl.render(scene, camera)` and, in the same task, `gl.domElement.toBlob(…, 'image/png')` — the drawing buffer is
    still intact within the task, so `preserveDrawingBuffer` is NOT turned on (it costs every frame);
