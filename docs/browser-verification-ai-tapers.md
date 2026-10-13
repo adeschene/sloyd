@@ -86,3 +86,22 @@ Shapes; the leg→top meetings were left butt.
 Deleted the two imported projects (Delete, confirm). The generated pair (`b_mv6d3mmf_m`, `b_mv6d603x_1r`) was left for the
 user to look at. Keys after: `sloyd.library.v1`, `sloyd.autosave.v1`, `sloyd.project.b_mv4tzn73_1` and the two generated
 projects (plus the user's own key). `localStorage` was not cleared.
+
+---
+
+# Turned links (fu 301, 2026-10-13)
+
+Dev server (`npm run dev -- --port 5181`) on branch `turned-links`, Playwright MCP, software GL. **Free; no paid run.**
+
+1. **Fixture.** The test-only `SHAKER_TABLE_JSON` (four inside-tapered legs, role `leg`) through `parseDesign` →
+   `designToDocument(…, { centre: false })`, imported as "Turned links check". Stored: ONE Shape; the legs are at turns
+   FL 0°, FR 270°, BL 90° and BR 180°.
+2. **Linked.** Leg BL selected: Properties reads "Linked with 3 other parts: edits to size, material, grain, posture or cuts
+   change all 4." Turn 90°, two Taper rows (width max side, thickness max side, from the length min end).
+3. **One edit moves all four.** Starts 22-1/2" → 19" in both rows. Stored Shape tapers: `[[0,0.5],[19,0]]` on both faces;
+   all four legs still point to the one Shape, with unchanged turns and positions. Screenshot:
+   `docs/img/turned-links-legs.png`.
+4. **Size edits** were measured by the final review rather than live: a width-only edit grows legs along different axes
+   (fu 318, accepted by the user).
+5. **Cleanup.** The imported project was deleted (the library's active project became "Shaker Side Table — joined"; it had
+   been "Shaker Side Table"); the fixture file was removed. `localStorage` was not cleared.

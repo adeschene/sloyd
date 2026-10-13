@@ -94,6 +94,10 @@ they are the same leg turned.
   part at any quarter turn that leaves its world box, grain axis and tapered faces unchanged (`linkByRole`, turned links).
 - **45.** `linkByRole` may re-turn a member before linking, and only through §2.2's candidates.
 
+**Size edits on a turned link** (*amended after the final review; the user's ruling*). A linked part grows from its own min
+corner. With the legs stored at different turns, a width-only or thickness-only edit grows two legs along X and two along Z.
+A square edit grows all four alike. Accepted and recorded as fu 318, not prevented.
+
 ## 3. Testing
 
 TDD; every plan-supplied test is mutated before it is trusted.

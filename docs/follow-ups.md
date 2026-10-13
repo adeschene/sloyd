@@ -5295,4 +5295,11 @@ only. **Status:** open, fails safe.
 **317. Turned-links minors (record-only).** `groupSignature` also sorts angle cuts (inert today); the greedy multiset match
 in `sameCutSet` could false-negative within 1e-9 (it refuses, safe); the first-member-keeps-order rule is unpinned by a
 test; `turnCandidates` is rebuilt per representative (burns ids); the untapered test's title over-claims; no test of a tapered
-component inside an assembly definition. **Status:** record-only.
+component inside an assembly definition; the joined-tree tests assert the shape count, not each leg's world cuts (the gate
+test covers it indirectly); `roleLinks.ts` ends without a trailing newline. **Status:** record-only.
+
+**318. A width-only (or thickness-only) edit on one turned, linked leg grows the legs along different world axes.** Linked
+parts grow from their own min corner (existing rule); turned links store the legs at 0/90/180/270, so a non-square edit grows
+two legs along X and two along Z (on the Shaker fixture, width 1-3/4" → 2" runs two legs into an apron). A square edit (width
+and thickness together) grows all four alike, as untapered linked legs do today. **Status:** accepted by the user 2026-10-13
+("accept and record"); found by the turned-links final review.
