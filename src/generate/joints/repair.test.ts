@@ -259,8 +259,17 @@ describe('repairDocument — angled documents (AI-tapers spec §4.3)', () => {
     const fx = load(f1);
     const r0 = repairDocument(fx.damaged);
     if (r0 === null || 'refused' in r0) throw new Error('expected a repair');
-    const r = repairDocument(withAngle(fx.damaged, TAPER));
+    const input = withAngle(fx.damaged, TAPER);
+    const r = repairDocument(input);
     if (r === null || 'refused' in r) throw new Error(`expected a repair, got ${JSON.stringify(r)}`);
     expect(r.dropped).toBe(r0.dropped);
+    // The repaired document keeps the taper: the stored part carries it unchanged, and every
+    // placement of it still reads it.
+    const def = input.definitions[0]!;
+    const stored = r.doc.definitions.find((d) => d.id === def.id)!.boards.find((b) => b.id === def.boards[0]!.id)!;
+    expect('angleCuts' in stored ? stored.angleCuts : 'shaped').toEqual([TAPER]);
+    const tapered = (d: SloydDocument) => flatDocument(d).boards.filter((b) => b.angleCuts.length > 0).map((b) => [b.name, b.angleCuts]);
+    expect(tapered(r.doc)).toEqual(tapered(input));
+    expect(tapered(r.doc).length).toBeGreaterThan(0);
   });
 });

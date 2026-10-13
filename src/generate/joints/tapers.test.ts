@@ -26,6 +26,8 @@ const face = (b: Board, axis: 0 | 2, side: -1 | 1, start: number, toward: -1 | 1
 const withLeg = (doc: FlatDocument, cuts: (b: Board) => AngleCut[], patch: Partial<Board> = {}): FlatDocument =>
   ({ ...doc, boards: doc.boards.map((b) => (b.name === 'Leg' ? { ...b, ...patch, angleCuts: cuts({ ...b, ...patch }) } : b)) });
 const conflicts = (doc: FlatDocument) => taperConflicts(doc, findSites(doc));
+const atY = (doc: FlatDocument, y: (b: Board) => number): FlatDocument =>
+  ({ ...doc, boards: doc.boards.map((b) => ({ ...b, position: [b.position[0], y(b), b.position[2]] as Board['position'] })) });
 const inside = (start: number) => (b: Board) => [face(b, 0, 1, start), face(b, 2, 1, start)];
 
 describe('taperConflicts (AI-tapers spec §4.1)', () => {
@@ -134,14 +136,34 @@ describe('taperJointRefusal / joineryRefusal', () => {
     expect(msg).toContain('Leg');
     expect(msg).toContain(`start it at ${formatLength(23.5, doc.units.precision)} or less from the length`);
   });
+  it('an off-grid patch is floored to the display grid, and the advice it prints is accepted', () => {
+    // Rails at y 23.47: rounding to the nearest 1/16 would print 23-1/2", above the real limit.
+    // (designToDocument snaps to the grid, so the rails are moved off it by hand.)
+    const off = atY(CORNER, (b) => (b.name === 'Leg' ? 0 : 23.47));
+    expect(off.boards.find((b) => b.name === 'Rail X')!.position[1]).toBe(23.47);
+    expect(off.units.precision).toBe(16);
+    const doc = withLeg(off, inside(24));
+    expect(taperJointRefusal(doc, conflicts(doc))).toContain('start it at 23-7/16" or less from the length');
+    // Following the advice: a start of exactly 23-7/16 refuses nothing.
+    expect(conflicts(withLeg(off, inside(23 + 7 / 16)))).toEqual([]);
+    expect(joineryRefusal(withLeg(off, inside(23 + 7 / 16)))).toBeNull();
+  });
+  it('a patch within one tick of the thin end reads as joining at that end, never "start it at 0"', () => {
+    const near = atY(CORNER, (b) => (b.name === 'Leg' ? 0 : 0.05));
+    const doc = withLeg(near, inside(24));
+    const out = conflicts(doc);
+    expect(out).toHaveLength(1);
+    expect(out[0]!.nearest).toBeCloseTo(0.05, 12);
+    expect(taperJointRefusal(doc, out)).toBe("Leg's taper runs to the length min end, where it joins Rail X — taper the other end, or remove it.");
+  });
   it('the decider: angled kinds first, then tapers, else null', () => {
     expect(joineryRefusal(CORNER)).toBeNull();
     expect(joineryRefusal(withLeg(CORNER, inside(22)))).toBeNull();
     expect(joineryRefusal(withLeg(CORNER, inside(24)))).toContain('taper runs into its joint');
     const mitered = withLeg(CORNER, (b) => [{ ...face(b, 0, 1, 24), kind: 'miter' }]);
-    expect(joineryRefusal(mitered)).toContain('mitered, bevelled or chamfered');
+    expect(joineryRefusal(mitered)).toContain('mitered, beveled or chamfered');
     // Both at once: the angled refusal wins.
     const both = withLeg(CORNER, (b) => [...inside(24)(b), { ...face(b, 2, -1, 24), kind: 'miter' }]);
-    expect(joineryRefusal(both)).toContain('mitered, bevelled or chamfered');
+    expect(joineryRefusal(both)).toContain('mitered, beveled or chamfered');
   });
 });

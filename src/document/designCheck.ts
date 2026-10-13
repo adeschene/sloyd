@@ -251,8 +251,12 @@ export function worldBox(b: Board, s: Region): Box {
  * reverses (spanToWorldOffset). NOT solidWorldBox, which is
  * centre-relative (CLAUDE.md warns about exactly this). Exported as the ONE
  * home of this mapping: joinery's blockers judge the same solids (fu 203).
- * Boxes: rectangular cuts only — `drawing.ts`'s `worldBodies` adds angle cuts for the drawings
- * (spec §3.5); overlap, held and joinery stay on boxes, and joinery refuses angle cuts.
+ * Boxes: rectangular cuts only, angle cuts ignored — `drawing.ts`'s `worldBodies` adds angle
+ * cuts for the drawings (spec §3.5). Overlap and joinery's blockers/trims are measured on these
+ * solids; held/hangs contacts, grounding and the tip footprint read `contactSolids` when a part is
+ * tapered (untapered parts keep these solids for contacts, and their whole boxes for grounding and
+ * the footprint). Joinery refuses every non-taper angle
+ * cut and any taper running into a joint (`generate/joints/tapers.ts`).
  */
 export function worldSolids(b: Board): Box[] {
   return pocketCells(b).map((s) => worldBox(b, s));

@@ -22,7 +22,7 @@ export function angledRefusal(doc: SloydDocument, action: 'joinery' | 'refine'):
   if (action === 'joinery') {
     const names = angledParts(doc, ['taper']);
     if (names.length === 0) return null;
-    return `Add joinery doesn't handle mitered, bevelled or chamfered parts yet (${shown(names)}). Add joinery first, or remove those angles.`;
+    return `Add joinery doesn't handle mitered, beveled or chamfered parts yet (${shown(names)}). Add joinery before cutting those angles, or remove them.`;
   }
   const names = angledParts(doc);
   if (names.length === 0) return null;
@@ -45,12 +45,17 @@ export interface TaperConflict {
  */
 export function taperJointRefusal(flat: FlatDocument, conflicts: readonly TaperConflict[]): string | null {
   if (conflicts.length === 0) return null;
-  const f = (n: number) => formatLength(n, flat.units.precision);
+  const p = flat.units.precision;
   return conflicts.map(({ part, other, end, nearest }) => {
     const name = flat.boards[part]!.name;
     const joint = flat.boards[other]!.name;
-    return nearest === 0
+    // The advice is a LIMIT, so it is floored to the display grid (ticks of 1/p in), never
+    // rounded: a patch at 23.47 must read 23-7/16", not 23-1/2" (which would be refused again).
+    // The 1e-9 is float noise only (invariant 22). Within one tick of the end, the joint is
+    // read as joining at that end.
+    const limit = Math.floor(nearest * p + 1e-9) / p;
+    return limit === 0
       ? `${name}'s taper runs to ${faceName('length', end)}, where it joins ${joint} — taper the other end, or remove it.`
-      : `${name}'s taper runs into its joint with ${joint} — start it at ${f(nearest)} or less from ${faceName('length', end)}, or remove it.`;
+      : `${name}'s taper runs into its joint with ${joint} — start it at ${formatLength(limit, p)} or less from ${faceName('length', end)}, or remove it.`;
   }).join(' ');
 }

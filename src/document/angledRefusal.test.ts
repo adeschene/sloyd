@@ -31,7 +31,7 @@ describe('angledRefusal — tapers are joinable (AI-tapers spec §4.3)', () => {
   });
   it('joinery still refuses any other kind, naming the parts', () => {
     expect(angledRefusal(withCut(miter, 4), 'joinery')).toBe(
-      "Add joinery doesn't handle mitered, bevelled or chamfered parts yet (Frame 1, Frame 2, Frame 3…). Add joinery first, or remove those angles.");
+      "Add joinery doesn't handle mitered, beveled or chamfered parts yet (Frame 1, Frame 2, Frame 3…). Add joinery before cutting those angles, or remove them.");
   });
   it('Refine still refuses tapers in this chunk', () => {
     expect(angledRefusal(withCut(taper), 'refine')).toBe(

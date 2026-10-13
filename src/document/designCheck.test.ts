@@ -461,8 +461,10 @@ describe('tapered parts: contacts read contactSolids (AI-tapers spec §3.3)', ()
     expect(tips(docOf(tapered(20), top))).toBe(true);
   });
 
-  it('an untapered notched part keeps its whole box for grounding and footprint', () => {
+  it('an untapered notched part keeps its whole box for the tip footprint', () => {
     // A notch under the leg's floor end would drop its floor cell from a cells-based footprint.
+    // Footprint only: untapered grounding is protected structurally (`connected` reads
+    // contactSolids only when `tapered[i] || tapered[j]`), not by this test.
     const notched = createBoard({ name: 'Leg', position: [0, 0, 0], length: 28, width: 1.5, thickness: 1.5, posture: 'upright', rotation: 0,
       cuts: [{ id: 'n', face: 'width', from: 'max', across: 'thickness', offset: 0, width: 2, depth: 0.75, stopMin: 0, stopMax: 0 }] });   // offset/width run along the length (positionAxisOf)
     const top = span('Top', [0, 28, 0], [3, 28.5, 1.5]);
