@@ -5207,11 +5207,15 @@ linked (see fu 316).
 
 **302. Overlap stays box-based for tapered parts.** `overlap` reads `worldSolids` (inv 38), which ignore angle cuts, so a
 tapered part can report an overlap on wood the taper has removed. False positives only; a real overlap is never missed.
-**Status:** open, fails safe.
+**Status:** closed 2026-10-13 at the user's word: a pair with a tapered part is measured on the two parts' world bodies
+(their intersection, through the bodies' convex clipper `clipConvex`), reported by its extents like today's box overlap; an
+untapered pair is unchanged.
 
 **303. The tip check's centre of mass uses box volumes.** `contactSolids` makes the footprint trust only a taper's flat
 wood, but the centre of mass is still computed from box volumes (no body centroid), so a heavily tapered part's mass is
-overstated. **Status:** open.
+overstated. **Status:** closed 2026-10-13 at the user's word: `partMass` weighs a tapered part by its world bodies (each split
+into tetrahedra from an interior point); an untapered part keeps its box. The chunk-1 test "the footprint shrinks…" relied
+on the overstated weight; its top was widened to 6in so it still tips for the footprint's reason.
 
 **304. The taper-at-joint rule is all-or-nothing.** If any site's patch lies on tapered wood, joinery refuses the whole
 document (`joineryRefusal`); skipping the offending joint and joining the rest was proposed and declined by the user.

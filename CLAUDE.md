@@ -27,7 +27,7 @@ handicraft education tradition built around hand woodworking.
   `47548d3`, REFUSES every project saved since: export first). Test count is under Commands.
 - **NEXT: none chosen — ask.** The AI-tapers feature (the user's "the AI integration") is complete: one prompt gives tapered
   legs with joinery, and its follow-ups 309–313 are closed. Open near it:
-  302/303 (box-based overlap and centre of mass), 314–318 (turned-links residue), 276/277's rest (miters, bevels and chamfers in the
+  314–318 (turned-links residue), 276/277's rest (miters, bevels and chamfers in the
   AI features). Other open items: angle-cut residue 295–298; 241 (open by decision), 251 (record-only), 221, 225, 232, 234, 247.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
@@ -256,7 +256,8 @@ src/
 │   ├── refineDesign.ts   documentToDesign (Refine's input + refusals; definitions normalised),
 │   │                     carryGrain, designValues (exact values kept), definitionCorner
 │   ├── designDiff.ts     diffDesigns — what a refine changed, by flat display name (→ units)
-│   ├── designCheck.ts    checkDesign; worldSolids, the ONE world-solid mapping (invs 38, 39);
+│   ├── designCheck.ts    checkDesign; worldSolids, the ONE world-solid mapping (invs 38, 39); partMass and the body overlap
+│   │                     for tapered parts (fu 302/303);
 │   │                     contactSolids / isTapered: the checks' tapers-only, flat-wood-only reader (invs 38, 48)
 │   ├── drawing.ts        drawView: exact hidden-line vector drawing; edges from boardEdges (inv 16), occluders
 │   │                     from worldBodies (the bodies, angle cuts included), both via partGeometry
@@ -510,7 +511,11 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     "clean" them.
 38. **`overlap` and joinery's blockers/trims are measured between SOLIDS via `worldSolids`**, never
     `solidWorldBox`; `worldSolids` are pocket-cell BOXES, angle cuts ignored (the drawings occlude with
-    `worldBodies` instead, inv 47). **Held/hangs contacts, grounding's `connected` and the tip footprint read
+    `worldBodies` instead, inv 47). **A pair with a tapered part is measured on real bodies** (fu 302: the
+    intersection of the two parts' world bodies via `clipConvex`, its extents reported as today's box overlap; only when
+    their boxes overlap; `worldBodyFaces` is the checks' body crossing, pinned against `worldBox`), and
+    **the tip check weighs a tapered part by its real bodies** (fu 303, `partMass`); an untapered pair's overlap and an
+    untapered part's weight (a notched part included: its box) are byte-for-byte as before. **Held/hangs contacts, grounding's `connected` and the tip footprint read
     `contactSolids` when a part is tapered** (a tapered part counts only where it is still flat); a pair of
     untapered parts keeps its BOXES in `connected`, and an untapered part keeps its box as its footprint,
     byte-for-byte. `faceContacts` stays on boxes. Joinery refuses every non-taper angle cut (and a taper running
@@ -630,7 +635,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 3445 tests across 122 files
+npm test           # Vitest, currently 3454 tests across 123 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -671,8 +676,8 @@ knowing without opening it:
   withheld on parts wider than long), 297 (a hand-edited offset miter is moved to canonical form on its first edit).
 - **298–300** — bevel/chamfer residue: 298 (no raised-panel field-bevel preset; unequal chamfer legs not editable), 299
   and 300 closed 2026-10-12 (short Edge labels; one face vocabulary and refusal pattern).
-- **301–317** — AI-tapers residue (301–308 chunk 1; 309–313 chunk 2; 314–318 turned links): 301 closed 2026-10-13 (role linking aligns angle-cut ids and tries quarter turns, so four tapered legs are one component; also fixed identical tapered parts never linking; cut order ruled not geometry), 302 (overlap box-based for tapered
-  parts), 303 (tip check centre of mass uses box volumes), 304 (taper-at-joint rule is all-or-nothing, by decision), 305
+- **301–317** — AI-tapers residue (301–308 chunk 1; 309–313 chunk 2; 314–318 turned links): 301 closed 2026-10-13 (role linking aligns angle-cut ids and tries quarter turns, so four tapered legs are one component; also fixed identical tapered parts never linking; cut order ruled not geometry), 302 and 303 closed 2026-10-13 (overlap and the
+  tip check's weight read a tapered part's real bodies), 304 (taper-at-joint rule is all-or-nothing, by decision), 305
   (Generate/Refine tapers) closed 2026-10-13, 306 (deferred minors, record-only), 307 (a hand-edited deep-end-last taper is shifted
   by joinery's resize), 308 ("taper the other end" is impossible for a part joined at both ends; record-only), 309 closed 2026-10-13 (Refine refuses, before any call, a taper the converter would reject), 310 closed 2026-10-13 (tapers diffed face
   by face at display precision), 311 closed 2026-10-13 (an unjoined Refine lists its taper fault once, in the note), 312 closed 2026-10-13
