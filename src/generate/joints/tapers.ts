@@ -38,7 +38,8 @@ export function taperConflicts(flat: FlatDocument, sites: readonly Site[]): Tape
       }
       for (const t of tapers) {
         const nearest = Math.max(0, t.end === 'min' ? s0 : b.length - s1);
-        if (nearest >= t.start) continue;
+        // `nearest` is computed (a world difference), `start` is typed: allow float noise only (invariant 22).
+        if (nearest >= t.start - 1e-9) continue;
         const prev = best.get(part);
         if (!prev || nearest < prev.nearest) best.set(part, { part, other, end: t.end, nearest });
       }

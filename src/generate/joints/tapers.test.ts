@@ -36,6 +36,16 @@ describe('taperConflicts (AI-tapers spec §4.1)', () => {
     expect(conflicts(withLeg(CORNER, inside(22)))).toEqual([]);
     expect(conflicts(withLeg(CORNER, inside(23.5)))).toEqual([]);
   });
+  it('a start exactly at a computed, non-dyadic patch station is allowed (float noise only)', () => {
+    // Leg at y 0.1, rails at y 2.3: the patch station is 2.3 - 0.1, which is NOT exactly 2.2 in floating point.
+    expect(2.3 - 0.1).not.toBe(2.2);
+    const lifted: FlatDocument = {
+      ...CORNER,
+      boards: CORNER.boards.map((b) => ({ ...b, position: [b.position[0], b.name === 'Leg' ? 0.1 : 2.3, b.position[2]] as Board['position'] })),
+    };
+    expect(conflicts(withLeg(lifted, inside(2.2)))).toEqual([]);
+    expect(conflicts(withLeg(lifted, inside(2.21)))).toHaveLength(1);
+  });
   it('one conflict per tapered part, at the patch nearest the thin end', () => {
     const leg = CORNER.boards.findIndex((b) => b.name === 'Leg');
     const out = conflicts(withLeg(CORNER, inside(24)));
@@ -60,7 +70,7 @@ describe('taperConflicts (AI-tapers spec §4.1)', () => {
     expect(out).toHaveLength(1);
     expect(out[0]!.nearest).toBeCloseTo(28 - 26.5, 12);
   });
-  it('a turned leg maps its stations through the turn table', () => {
+  it('a turned leg: each face() names its local face through the turn, and the same world rails meet the same stations', () => {
     const turned = withLeg(CORNER, inside(24), { rotation: 180 });
     expect(conflicts(turned)).toHaveLength(1);
     expect(conflicts(withLeg(CORNER, inside(22), { rotation: 180 }))).toEqual([]);
