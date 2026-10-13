@@ -1,4 +1,4 @@
-import { angledParts, definitionAt, flatDocument, instanceAt, itemPaths, lastSegment, migrateDocument, NAME_SEPARATOR, parentPath, PATH_SEPARATOR, worldParts, writeBackFlat } from '../../document/document';
+import { definitionAt, flatDocument, instanceAt, itemPaths, lastSegment, migrateDocument, NAME_SEPARATOR, parentPath, PATH_SEPARATOR, worldParts, writeBackFlat } from '../../document/document';
 import type { Board, Cut, FlatDocument, SloydDocument } from '../../document/document';
 import { TOUCH, worldSolids } from '../../document/designCheck';
 import { cutBox, gateUnjoin, readJoints, rejoin, sameCut } from './unjoin';
@@ -98,7 +98,6 @@ export function repairDocument(doc: SloydDocument): RepairCheck {
   // Runs inside the dialogs' memos: a throw would break their render, so it refuses instead and
   // keeps the cause on the console (follow-up 244).
   try {
-    if (angledParts(doc, ['taper']).length > 0) return null; // not offered: AI-tapers spec §4.3 (tapers repair; other kinds do not)
     const flat = flatDocument(doc);
     const r = repairJoints(flat, storedKeys(doc));
     if (r === null || 'refused' in r) return r;
