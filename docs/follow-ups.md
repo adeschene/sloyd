@@ -5008,7 +5008,11 @@ Tape tool and nothing automatic. Spec §9.
 
 **260. F / Home frame the unexploded positions while exploded.** `CameraKeys` frames the assembled boards; fix by
 passing the explode offsets.
-- **Status:** open.
+- **Fixed 2026-10-13 (standard views + image export round).** Every framing — F, Home, the projection swap and the new
+  standard views — boxes the parts where they are DRAWN: `subsetBounds` (`viewport/framing.ts`) takes the
+  `explodeOffsets` map, read at call time; at explode 0 the arithmetic is the old `THREE.Box3` path's. Pinned by
+  `framing.test.ts` (offsets moved the box; `explodeOffsets` keys every `worldParts` id) and seen live
+  (`docs/browser-verification-standard-views-image.md`).
 
 **261. Renaming in the parts list reverts silently while exploded.** `PartsList` is outside the edit lock (same class
 as F3); make it visibly disabled.
@@ -5307,3 +5311,13 @@ parts grow from their own min corner (existing rule); turned links store the leg
 two legs along X and two along Z (on the Shaker fixture, width 1-3/4" → 2" runs two legs into an apron). A square edit (width
 and thickness together) grows all four alike, as untapered linked legs do today. **Status:** accepted by the user 2026-10-13
 ("accept and record"); found by the turned-links final review.
+
+**319. The View group wraps even at 1440 px.** With the standard views and Save image it holds five clusters; it wraps
+right-aligned (Save image on a second row at 1440, three rows at 1024) and never runs under the Tools group
+(`max-width: calc(100% - 220px)`, measured). Works; whether it reads well is the user's call by eye. **Status:** open
+(awaiting the user's look).
+
+**320. Standard views and image export minors (record-only).** No keyboard shortcuts for the views and no
+Back/Left/Bottom (spec §6, out of scope); the selection colour blinks off for one frame during a capture (accepted in
+conversation); a saved PNG has been seen only on software GL — one look on real hardware is owed (fu 26a); the capture
+waits on the frame loop, so a capture asked for in a hidden tab completes when the tab is shown. **Status:** record-only.

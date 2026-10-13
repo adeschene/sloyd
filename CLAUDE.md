@@ -25,6 +25,8 @@ handicraft education tradition built around hand woodworking.
   part's real bodies) on top of turned links and AI tapers — bundle `index-B11-8iMQ.js`, CSS `index-BkjfVfaC.css`, **SCHEMA
   14** (unchanged since angle cuts chunk 1, so rolling back to `3e7474f`, `index-DtBsK7RB.js`, or any 14 build is free; below
   14, `47548d3`, REFUSES every project saved since: export first). Test count is under Commands.
+- **`master` is ahead of production** with standard views + image export (feature-gaps §2; fu 260 closed): no schema
+  change, deploy on the user's word. Open from it: 319 (the View group's wrap, for the user's eye), 320 (record-only).
 - **NEXT: none chosen — ask.** The AI-tapers feature (the user's "the AI integration") is complete: one prompt gives tapered
   legs with joinery, its legs link as one component, and its follow-ups 301–313 are closed except 304/306–308 (by decision or
   record-only). Open near it: 314–318 (turned-links residue, record-only or accepted), 276/277's rest (miters, bevels and
@@ -93,6 +95,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | turned links | 10-13 | — | Role linking aligns angle-cut ids and tries quarter turns: four tapered legs are one component (fu 301); cut order is not geometry |
 | 309–313 | 10-13 | — | AI-tapers residue: Refine refuses a taper the converter would reject; the change list diffs tapers face by face; an unjoined Refine states its fault once; taper tests in every pose |
 | 302/303 | 10-13 | — | Overlap and the tip check read a tapered part's real bodies (`clipConvex`, `partMass`); untapered results byte-for-byte unchanged |
+| standard views + image | 10-13 | — | Front/Side/Top/Iso (the Plans sheet's views; camera up stays +Y, Top tilted 1e-4 rad); Save image (one clean frame, `toBlob`, `StorageAdapter.exportImage`); framing frames exploded parts where drawn (fu 260) |
 
 ### The deployment rule
 
@@ -275,7 +278,8 @@ src/
 │   ├── selectionGesture.ts  selectByClick, clearOnMiss (shared by viewport and parts list)
 │   └── visibility.ts     visibleBoards, the ONE visibility filter (inv 43)
 ├── storage/          types.ts (StorageAdapter), browser.ts, libraryIndex.ts (invs 7, 29–31); get/setShopSettings
-│                     (`sloyd.shop.v1`: reading never writes, so a newer build's value survives a rollback)
+│                     (`sloyd.shop.v1`: reading never writes, so a newer build's value survives a rollback);
+│                     exportProject/exportImage share ONE anchor download helper
 ├── llm/              types.ts (LlmClient, opaque LlmMessage, inv 37), anthropic.ts
 ├── generate/         prompt.ts (limitLines), concepts.ts (batch planning), estimate.ts (cost ranges: measured
 │                     chars/token, cached prefix, every repair round high; fu 236), refine.ts (refineMessage,
@@ -289,7 +293,10 @@ src/
 ├── useGenerations.ts, useJoinery.ts, useRefine.ts, useRepair.ts   write only via createProject(…, {activate:false}) (inv 36)
 ├── viewport/         NO unit tests by design. Viewport, BoardMesh (inv 21), MoveTool +
 │                     moveCandidates, TapeTool, Gizmo (invs 3, 10, 42), GuideMarkers,
-│                     SnapMarker, snapPick (screen-space nearest, on purpose), grain*.ts
+│                     SnapMarker, snapPick (screen-space nearest, on purpose), grain*.ts,
+│                     framing.ts (pure, TESTED: STANDARD_VIEWS = the Plans sheet's views, viewDirection, subsetBounds
+│                     with explode offsets, zoom/distance); Viewport's `ViewportHandle` (showView, capture — the clean
+│                     frame hides Gizmo/MoveTool/TapeTool by a `hidden` prop, NEVER by unmounting them)
 │                     (invs 12, 14, 15, 17, 35), pointer.ts, gridDensity, screenScale, extent
 ├── panels/           DimensionField/NameField (invs 5, 9), Properties, CopyInRow, PartsList,
 │                     Toolbar, TapeReadout (invs 27, 28), GuidesList, ProjectMenu,
@@ -637,7 +644,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 3454 tests across 123 files
+npm test           # Vitest, currently 3474 tests across 124 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -646,7 +653,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–318, each with its closure). Read the entries
+**`docs/follow-ups.md` is authoritative** (1–320, each with its closure). Read the entries
 for the area you are about to touch; several are "correct but untested". Open items worth
 knowing without opening it:
 
@@ -662,9 +669,9 @@ knowing without opening it:
   markers recoloured to muted tones; keep the floors in `SnapMarker.tsx` if retuning) and 250 (Popover and
   ProjectMenu focusout; simulated only, no Safari here) are closed; deferred minors (251) are record-only.
 - **252–264** — plans-sheet residue: 252 (callouts), 253 (user-placed dimensions, schema bump), 255 (explode constants
-  seen only on software GL), 256–258 (section views, joint-direction explode, live viewport dimensions) and 260–263
-  (F/Home frame unexploded positions; parts-list rename reverts silently while exploded; the lock disables view-only
-  controls; the sheet slider lags) are open. 254 is open only for a real print (the tall-sheet overflow is fixed);
+  seen only on software GL), 256–258 (section views, joint-direction explode, live viewport dimensions) and 261–263
+  (parts-list rename reverts silently while exploded; the lock disables view-only controls; the sheet slider lags) are
+  open; 260 (F/Home framed unexploded positions) closed 2026-10-13. 254 is open only for a real print (the tall-sheet overflow is fixed);
   264 is closed; 259 is record-only.
 - **265–274** — lumber yield & cost residue: 265 (per-project price overrides), 266 (custom materials, nominal names),
   267 (edge banding, hardware BOM), 268 (glue-ups), 269 (packer is a heuristic — measure before optimising), 270 (USD
@@ -685,6 +692,8 @@ knowing without opening it:
   by face at display precision), 311 closed 2026-10-13 (an unjoined Refine lists its taper fault once, in the note), 312 closed 2026-10-13
   (`plainForRefine` calls `joineryRefusal`), 313 closed 2026-10-13 (test and wording residue; same face in two entries allowed by decision),
   314 (parts with rectangular cuts are not turned), 315 (mirror-only matches need fu 232's mirrored placements), 316 (`splitAssemblies`' `resultSignature` is order-sensitive), 317 (record-only turned-links minors), 318 (a width-only edit on one turned linked leg grows legs along different axes; accepted by the user).
+- **319–320** — standard views + image export residue: 319 (the View group wraps even at 1440 px; open for the user's
+  eye), 320 (record-only: no view shortcuts, one-frame selection blink, a saved PNG owed a real-hardware look).
 - **176/177** — the held rules' known limits (mutual lapping) and an unseen live repair.
 - **130** — semi-infinite construction lines; picked and set aside 2026-08-31 without a
   reason. Ask before assuming it's wanted; it needs real hardware (26a).
