@@ -345,3 +345,57 @@ describe('angle cuts in part diagrams (spec §4.3)', () => {
     expect(pts).toEqual(['0,0', '0,0.5', '1.75,0'].sort());
   });
 });
+
+describe('holes in the part diagrams (holes spec §4.3, amended)', () => {
+  const pins = { id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 3, pitch: 1.25, acrossFrom: 'min' as const, inset: 1.5 };
+  const side = (over: Record<string, unknown> = {}) => createBoard({ id: 's', length: 30, width: 11.25, thickness: 0.75, holes: [pins], ...over });
+
+  it('a part without holes draws exactly what it drew before', () => {
+    const plain = createBoard({ id: 's', length: 30, width: 11.25, thickness: 0.75 });
+    expect(buildDiagrams({ ...plain, holes: [] }, 16)).toEqual(buildDiagrams(plain, 16));
+    expect(buildDiagrams(plain, 16)[0]!.holes).toEqual([]);
+  });
+  it('a holed part with no cuts opens its ENTRY face view, with one circle per hole (Review Focus 4)', () => {
+    const views = buildDiagrams(side(), 16);
+    expect(views.map((v) => v.key)).toEqual(['thickness|max']);
+    const v = views[0]!;
+    expect(v.horizontal).toBe('length');
+    expect(v.holes).toEqual([
+      { row: 'h1', index: 0, h: 2, v: 1.5, r: 0.125 },
+      { row: 'h1', index: 1, h: 3.25, v: 1.5, r: 0.125 },
+      { row: 'h1', index: 2, h: 4.5, v: 1.5, r: 0.125 },
+    ]);
+    expect(v.holeNotes).toEqual([expect.stringMatching(/^Row of 3 holes 1\/4" dia × 3\/8" deep/)]);
+  });
+  it('a hole into an end opens the length view', () => {
+    const dowel = { ...pins, id: 'd', face: 'length' as const, from: 'max' as const, diameter: 0.375, depth: 1, along: 'width' as const, station: 2, count: 1, acrossFrom: 'min' as const, inset: 0.375 };
+    const views = buildDiagrams(side({ holes: [dowel] }), 16);
+    expect(views.map((v) => v.key)).toEqual(['length|max']);
+    expect(views[0]!.holes).toHaveLength(1);
+  });
+  it('a view across the axis that exists for another reason shows the depth outline (dashed), not a circle', () => {
+    const rabbet = { id: 'c1', face: 'width' as const, from: 'min' as const, across: 'length' as const, offset: 0, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const views = buildDiagrams(side({ cuts: [rabbet] }), 16);
+    const w = views.find((v) => v.key === 'width|min')!;
+    expect(w.holes).toEqual([]);
+    expect(w.holeSides).toHaveLength(3);
+    expect(w.holeSides[0]).toMatchObject({ row: 'h1', index: 0, h: [1.875, 2.125], v: [0.375, 0.75], axis: 'v', bottomAt: 'vmin' });
+    expect(w.holeNotes).toHaveLength(1);
+  });
+  it('a through hole shows its circle on the far side only when that view exists, and has no bottom', () => {
+    const thru = { ...pins, depth: 'through' as const, count: 1 };
+    const dado = { id: 'c1', face: 'thickness' as const, from: 'min' as const, across: 'width' as const, offset: 10, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const views = buildDiagrams(side({ holes: [thru], cuts: [dado] }), 16);
+    expect(views.find((v) => v.key === 'thickness|min')!.holes).toHaveLength(1);
+    expect(views.find((v) => v.key === 'thickness|max')!.holes).toHaveLength(1);
+  });
+  it('a through hole does not open the far-side view by itself', () => {
+    const views = buildDiagrams(side({ holes: [{ ...pins, depth: 'through' as const, count: 1 }] }), 16);
+    expect(views.map((v) => v.key)).toEqual(['thickness|max']);
+  });
+  it('a faulted row\'s note is its bench line, check suffix included (Review Focus 5)', () => {
+    const short = side({ length: 4 });
+    const v = buildDiagrams(short, 16)[0]!;
+    expect(v.holeNotes[0]).toMatch(/— check: hole 3 runs past the length max end$/);
+  });
+});

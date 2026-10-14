@@ -54,7 +54,7 @@ export { findTenons } from './tenons';
 export type { Tenon } from './tenons';
 export type { CutList, CutListGroup, CutListRow } from './cutlist';
 export { buildDiagrams } from './diagram';
-export type { DiagramCut, DiagramView } from './diagram';
+export type { DiagramCut, DiagramHole, DiagramHoleSide, DiagramView } from './diagram';
 export { buildDepthField } from './depthField';
 export type { FaceCell } from './depthField';
 export { buildNesting, footprintsOf } from './nesting';
