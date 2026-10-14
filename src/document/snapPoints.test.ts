@@ -853,3 +853,31 @@ describe('snap points on angle cuts (spec §3.6)', () => {
     expect(withAngle.every((p) => p.at[0] <= 24 - p.at[2] + 1e-9)).toBe(true);
   });
 });
+
+describe('hole centres (holes spec §3.5)', () => {
+  const centred = { id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 12, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 2.75 };
+  const b = createBoard({ id: 'p', length: 24, width: 5.5, thickness: 0.75, holes: [centred] });
+  it('adds the centre on the entry face, once, and withholds nothing else on a plain part', () => {
+    const pts = boardSnapPoints(b);
+    const at = pts.filter((p) => p.at.every((v, i) => Math.abs(v - [12, 0.75, 2.75][i]!) < 1e-9));
+    expect(at).toHaveLength(1);
+    expect(at[0]!.owner).toEqual({ type: 'board', id: 'p' });
+    expect(pts).toHaveLength(26);   // the face-centre lattice point is in the mouth: withheld, replaced by the centre
+  });
+  it('a through hole adds its exit centre too', () => {
+    const pts = boardSnapPoints({ ...b, holes: [{ ...centred, depth: 'through' as const }] });
+    expect(pts.some((p) => p.at.every((v, i) => Math.abs(v - [12, 0, 2.75][i]!) < 1e-9))).toBe(true);
+    expect(pts).toHaveLength(26);
+  });
+  it('an off-centre hole adds its centre and withholds nothing', () => {
+    const pts = boardSnapPoints({ ...b, holes: [{ ...centred, station: 5 }] });
+    expect(pts).toHaveLength(27);
+  });
+  it('the mouth withholds a lattice point the centre does not coincide with', () => {
+    // Station 12.05: the face-centre lattice point (12, 0.75, 2.75) is inside the 0.125 radius but is not the centre.
+    const pts = boardSnapPoints({ ...b, holes: [{ ...centred, station: 12.05 }] });
+    expect(pts.some((p) => p.at.every((v, i) => Math.abs(v - [12, 0.75, 2.75][i]!) < 1e-9))).toBe(false);
+    expect(pts.some((p) => p.at.every((v, i) => Math.abs(v - [12.05, 0.75, 2.75][i]!) < 1e-9))).toBe(true);
+    expect(pts).toHaveLength(26);
+  });
+});
