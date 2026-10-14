@@ -29,3 +29,25 @@ ReadPixels" performance notice, none from this change.
 Every key on the origin was created by this check (the load's empty project and the two imports): the four keys were
 removed by name and the origin read back empty; the page was navigated to `about:blank` and the dev server (only the one
 this check started) stopped. The user's origin `:5199` was not opened.
+
+## Chunk 2 — the paid live runs (2026-10-14)
+
+On the dev origin `:5199` (the user's profile, holding the key; baseline 16 projects, "Live links — legs" active), each run
+approved by the user at the time. Model `claude-opus-5-5`.
+
+1. **Generate**, 1 generation, Moderate: "a mitered picture frame and a chamfered side table". **First attempt refused by
+   the API** — 400 "The compiled grammar is too large…" (request `req_011Cg1BrmbzwQuRbLqLQR3Lf`; no output). Diagnosed
+   with three user-approved probes (max_tokens 16; fu 322): the same schema with the part and the direction in `$defs`
+   compiled, its inline expansion was refused under identical conditions, and the `$defs` form plus two extra arrays
+   compiled. `DESIGN_SCHEMA` moved to `$defs` (commit `3582ca2`). **Re-run: Ready, ≈ $0.08.** Read from storage:
+   "Mitered Picture Frame on Chamfered Side Table", 13 parts, 4 components — four legs each chamfered 1/8in on one vertical
+   edge, stored at turns 0/270/90/180 and **one component** (turned links); a tabletop chamfered 1/4in on its four top
+   edges; a flat 12in picture frame, every member mitered 45° at both ends (rails one component, stiles another).
+2. **Refine** that project (dialog estimate ≈ $0.09–$0.69; no refusal for the angles): "Make the tabletop's chamfers 1/8
+   inch instead of 1/4 inch." **Done, ≈ $0.04, 0 new issues.** Change list: exactly four lines, `Tabletop: chamfer changed
+   (+x/+y edge; 1/8" × 1/8")` and its three siblings. Compared from storage: of 13 parts only the Tabletop's angle cuts
+   differ; every other part's miters and chamfers are byte-for-byte the original's, no part moved, 4 components kept.
+
+Cleanup: "Live links — legs" re-activated; both check projects deleted through the project menu; read back 16 projects,
+16 project keys, the same active project, `sloyd.llm.v1` present (presence only). The dev server this check started was
+stopped.

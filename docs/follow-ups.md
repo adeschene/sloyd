@@ -5088,8 +5088,10 @@ documents (spec §6). **Status:** open for the joint kinds (splined, biscuited, 
 is the AI-angles spec (`2026-10-13-sloyd-ai-angles-design.md`): chunk 1 (2026-10-13) lets Add joinery and Repair run on
 mitered, beveled and chamfered projects, refusing only an angle cut that runs into a joint; Refine is chunk 2.
 
-**277. Generate emitting tapers and miters.** `designToDocument` emits `angleCuts: []`. **Status:** tapers closed (AI tapers
-chunk 2, 2026-10-13); miters, bevels and chamfers are AI-angles chunk 2, open.
+**277. Generate emitting tapers and miters.** `designToDocument` emits `angleCuts: []`. **Status:** closed 2026-10-14 — tapers
+(AI tapers chunk 2) and miters, bevels and chamfers (AI-angles chunk 2, branch `ai-angles-2`): Generate and Refine write them in
+world words (`angleWorld.ts`); live: one Generate gave four chamfered legs linked through turns, a top chamfered on four
+edges and a flat 45° picture frame; one Refine changed only the top's chamfers.
 
 **278. A "taper all four faces" shortcut.** **Status:** open.
 
@@ -5340,3 +5342,12 @@ Remedy when touched: test against the receiving part's own face (`r.min`/`r.max`
 Review Focus 2 pins only a turned MITER (its touched box spans the whole cross-section, so a width/thickness mix-up in the
 crossing would not show) — no turned or on-edge chamfer case; no bevel in the new contact or conflict tests; the split
 tests are board-local only (the `worldBox` crossing is pinned elsewhere). **Status:** record-only.
+
+**322. The design schema's compiled-grammar margin (record).** The API compiles the structured-output schema into a grammar
+and refuses one that grows too large (400 "The compiled grammar is too large…"; unpublished limit, beyond the documented
+24-optional / 16-union caps). Measured 2026-10-14 with user-approved probes (max_tokens 16): the chunk 2 schema inline (the
+part written twice, 4,297 chars, 16 enums) was refused; the same schema with the part and the direction in `$defs`
+(2,372 chars) compiled; that `$defs` schema plus two more four-field arrays (2,836 chars) also compiled. So there is room
+for at least two more angle-like arrays. A new part field or enum costs once (in `$defs`). Anything that changes
+`DESIGN_SCHEMA` needs one live compile before it ships — the unit suite cannot see this limit (a test pins the `$defs`
+form only). **Status:** record-only.
