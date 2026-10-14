@@ -117,11 +117,12 @@ export function TapeTool({ showGuides = true, hidden = false }: { showGuides?: b
   // Built only while the tape is the tool: the handlers below are attached only then, and a
   // gizmo drag under another tool changes `boards` every frame (angle-cuts final review).
   const candidates = useMemo(
-    // A point on the section's removed side is not drawn, so it is not a candidate (invariant 51).
+    // A part's point on the section's removed side is clipped away, so it is not a candidate (invariant 51). Guide
+    // markers are drawn unclipped (section-cut spec §4), so a guide's points stay targets on either side.
     () => tool !== 'tape' ? [] : [
       ...visibleBoards(boards, hiddenIds).flatMap(snapPointsFor),
       ...(showGuides ? guideSnapPoints(guides) : []),
-    ].filter((p) => keptBySection(section, p.at)),
+    ].filter((p) => p.owner.type === 'guide' || keptBySection(section, p.at)),
     [tool, boards, hiddenIds, guides, showGuides, section],
   );
 

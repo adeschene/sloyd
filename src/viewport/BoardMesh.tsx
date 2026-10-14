@@ -270,16 +270,32 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
     if (!section) return null;
     const c = sectionCaps(board, section, offset);
     if (!c) return null;
+    // The cap faces the removed side (the viewer): −sectionPlaneOf's normal.
+    const { normal } = sectionPlaneOf(section);
+    const capN: V3 = [-normal[0], -normal[1], -normal[2]];
+    // Each piece is fanned COUNTER-CLOCKWISE about capN, so the cap is front-facing to the viewer. sectionCaps' world
+    // pieces come out clockwise seen from the removed side (every board frame is improper, inv 44 / fu 215), and with
+    // DoubleSide a back face has its normal flipped by the shader — lit as from behind. Decided per piece from its own
+    // Newell normal, so a future change of hand cannot silently flip it back.
     const fill: number[] = [];
-    for (const poly of c.pieces) for (let k = 1; k + 1 < poly.length; k += 1) fill.push(...poly[0]!, ...poly[k]!, ...poly[k + 1]!);
+    for (const poly of c.pieces) {
+      let nx = 0, ny = 0, nz = 0;
+      for (let k = 0; k < poly.length; k += 1) {
+        const p = poly[k]!, q = poly[(k + 1) % poly.length]!;
+        nx += (p[1] - q[1]) * (p[2] + q[2]);
+        ny += (p[2] - q[2]) * (p[0] + q[0]);
+        nz += (p[0] - q[0]) * (p[1] + q[1]);
+      }
+      const ring = nx * capN[0] + ny * capN[1] + nz * capN[2] < 0 ? [...poly].reverse() : poly;
+      for (let k = 1; k + 1 < ring.length; k += 1) fill.push(...ring[0]!, ...ring[k]!, ...ring[k + 1]!);
+    }
     const fillGeo = new THREE.BufferGeometry();
     fillGeo.setAttribute('position', new THREE.Float32BufferAttribute(fill, 3));
-    // EXPLICIT normals (lit by meshStandardMaterial): the cap faces the removed side, −sectionPlaneOf's normal.
-    // Without them the normal is zero and the lighting undefined — software GL may hide that (26a).
-    const { normal } = sectionPlaneOf(section);
+    // EXPLICIT normals (lit by meshStandardMaterial), all capN. Without them the normal is zero and the lighting
+    // undefined — software GL may hide that (26a).
     const normals = new Float32Array(fill.length);
     for (let k = 0; k < normals.length; k += 3) {
-      normals[k] = -normal[0]; normals[k + 1] = -normal[1]; normals[k + 2] = -normal[2];
+      normals[k] = capN[0]; normals[k + 1] = capN[1]; normals[k + 2] = capN[2];
     }
     fillGeo.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
     const lineGeo = new THREE.BufferGeometry();
@@ -372,13 +388,14 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
       {/* The cap: already in world inches where drawn (offset included), so undo the group's own translation. Its
           materials take NO clippingPlanes (it lies ON the plane) and its mesh keeps three's default raycast (a hit on
           the plane, in float32, would fail a 1e-7 side test). castShadow closes the kept half's shadow where the cut
-          opened it. DoubleSide: world pieces' winding is arbitrary (board frames are improper). */}
+          opened it; receiveShadow, as the part's faces do. The fill is wound counter-clockwise about the cap normal
+          (front-facing to the viewer, see the memo); DoubleSide stays as a fallback for a camera on the removed side. */}
       {cap && (
         <group position={offset
           ? [-center[0] - offset[0], -center[1] - offset[1], -center[2] - offset[2]]
           : [-center[0], -center[1], -center[2]]}>
           <mesh geometry={cap.fillGeo} onClick={onClick} onDoubleClick={onDoubleClick}
-            renderOrder={faded ? FADED_RENDER_ORDER : 0} castShadow={!faded}>
+            renderOrder={faded ? FADED_RENDER_ORDER : 0} castShadow={!faded} receiveShadow>
             <meshStandardMaterial color={capColor} roughness={0.9} metalness={0} side={THREE.DoubleSide}
               emissive={selected ? SELECTED : '#000000'} emissiveIntensity={selected ? 0.16 : 0}
               transparent={faded} opacity={faded ? FADED_OPACITY : 1}
