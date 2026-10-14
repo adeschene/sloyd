@@ -3034,3 +3034,17 @@ describe('adopting and applying custom materials (custom materials spec §4)', (
     useStore.getState().setExplode(0);
   });
 });
+
+describe('duplicating a holed part (holes spec §5.2)', () => {
+  it('gives the copy fresh row ids and its own rows', () => {
+    const row = { id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 3, pitch: 1.25, acrossFrom: 'min' as const, inset: 1.5 };
+    useStore.getState().replaceDocument({ ...createDocument('T'), boards: [createBoard({ id: 'side', name: 'Side', holes: [row] })] });
+    useStore.getState().duplicateBoards(['side']);
+    const [a, b] = useStore.getState().doc.boards as Board[];
+    expect(b!.holes).toHaveLength(1);
+    expect(b!.holes[0]!.id).not.toBe(a!.holes[0]!.id);
+    const { id: _a, ...ra } = a!.holes[0]!;
+    const { id: _b, ...rb } = b!.holes[0]!;
+    expect(rb).toEqual(ra);
+  });
+});

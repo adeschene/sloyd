@@ -354,6 +354,20 @@ describe('writeBackFlat shares where identical', () => {
     expect(split.angleCuts[0]!.points).not.toBe(orig.angleCuts[0]!.points);
   });
 
+  it('a split definition\'s part owns its hole rows: no row object shared with d1\'s part (holes spec §5.2)', () => {
+    const doc = drawers(2);
+    const row = { id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 3, pitch: 1.25, acrossFrom: 'min' as const, inset: 1.5 };
+    doc.definitions[0]!.boards[0] = { ...(doc.definitions[0]!.boards[0] as Board), holes: [row] };
+    const before = flat(doc);
+    const after = before.map((b, k) => (k === 1 ? { ...b, cuts: [{ id: 'x1', ...cut }] } : b));
+    const out = writeBackFlat(doc, before, after);
+    expect(out.instances[1]!.definition).not.toBe('d1');
+    const split = out.definitions.find((d) => d.id === out.instances[1]!.definition)!.boards[0] as Board;
+    const orig = out.definitions.find((d) => d.id === 'd1')!.boards[0] as Board;
+    expect(split.holes).toEqual([row]);
+    expect(split.holes[0]).not.toBe(orig.holes[0]);
+  });
+
   describe('a tapered part placed twice (angle-cuts spec §5.2)', () => {
     const T = (id: string, depth = 0.5) => ({ id, kind: 'taper' as const, face: 'width' as const, from: 'min' as const, along: 'length' as const, alongFrom: 'min' as const, points: [[0, depth], [16, 0]] as [[number, number], [number, number]] });
     const tapered = () => {

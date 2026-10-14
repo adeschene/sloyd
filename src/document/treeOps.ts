@@ -1,6 +1,7 @@
 import type { Definition, Instance, Rotation, SloydDocument, StoredBoard } from './types';
 import { dissolveShapes, isShaped, pruneShapes, resolveBoard, shapeMap } from './shapes';
 import { nextId } from './ids';
+import { copyHoleRow } from './holes';
 import { copyAngleCut } from './angleCuts';
 import { uniqueName } from './names';
 import type { Named } from './names';
@@ -199,7 +200,7 @@ export function ungroupItem(doc: SloydDocument, path: string):
       ? { ...b, position: placed.position, rotation: placed.rotation, id: placed.id, name }
       // A plain part gets its own Cut objects: the definition's part, which
       // the other copies still use, keeps its own (makeUniqueItem's rule).
-      : { ...placed, name, cuts: placed.cuts.map((c) => ({ ...c })), angleCuts: placed.angleCuts.map(copyAngleCut) };
+      : { ...placed, name, cuts: placed.cuts.map((c) => ({ ...c })), angleCuts: placed.angleCuts.map(copyAngleCut), holes: placed.holes.map(copyHoleRow) };
     taken.push(named);
     return [named];
   });
@@ -325,7 +326,7 @@ export function makeUniqueItem(doc: SloydDocument, path: string): SloydDocument 
     id: nextId(),
     boards: def.boards.map((b) => (isShaped(b)
       ? { ...b, position: [...b.position] as [number, number, number] }
-      : { ...b, position: [...b.position] as [number, number, number], cuts: b.cuts.map((c) => ({ ...c })), angleCuts: b.angleCuts.map(copyAngleCut) })),
+      : { ...b, position: [...b.position] as [number, number, number], cuts: b.cuts.map((c) => ({ ...c })), angleCuts: b.angleCuts.map(copyAngleCut), holes: b.holes.map(copyHoleRow) })),
     instances: def.instances.map((j) => ({ ...j, position: [...j.position] as [number, number, number] })),
   };
   const withDef = { ...doc, definitions: [...doc.definitions, copy] };

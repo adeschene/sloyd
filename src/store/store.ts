@@ -9,6 +9,7 @@ import {
 import type { AngleCut, Board, CustomMaterial, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
 import { SNAP_INCHES } from '../document/geometry';
 import { copyAngleCut, sameAngleCut } from '../document/angleCuts';
+import { copyHoleRow } from '../document/holes';
 import { pruneMaterials, upsertMaterials, materialUses } from '../document/materials';
 import { MAX_ROW } from '../document/row';
 import { clickTarget } from './assemblyPick';
@@ -836,13 +837,14 @@ export const useStore = create<StoreState>((set, get) => {
     // fresh id per cut (via the same nextId() addCut uses) means a future
     // in-place Cut mutation can't corrupt the source board and every undo
     // snapshot holding it simultaneously. `angleCuts` need the same treatment:
-    // fresh ids, and copyAngleCut for an independent `points` array.
+    // fresh ids, and copyAngleCut for an independent `points` array. `holes` likewise: fresh ids.
     const { id: _sourceId, ...rest } = source;
     const fresh = createBoard({
       ...rest,
       position: [...position],
       cuts: source.cuts.map((cut) => ({ ...cut, id: nextId() })),
       angleCuts: source.angleCuts.map((c) => ({ ...copyAngleCut(c), id: nextId() })),
+      holes: source.holes.map((r) => ({ ...copyHoleRow(r), id: nextId() })),
     });
     return { ...fresh, name };
   };

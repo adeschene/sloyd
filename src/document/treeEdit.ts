@@ -2,6 +2,7 @@ import { boardExtents } from './geometry';
 import type { AngleCut, Board, Cut, Definition, Instance, Posture, Shape, SloydDocument, StoredBoard } from './types';
 import { CUT_GEOMETRY_KEYS } from './cuts';
 import { angleCutValues, copyAngleCut, mirrorAngleCut, sameAngleCut } from './angleCuts';
+import { copyHoleRow } from './holes';
 import { nextId } from './ids';
 import { LINK_FIELDS, SHARED_KEYS, sharedOf } from './links';
 import { isShaped, resolveBoard, shapeMap } from './shapes';
@@ -473,7 +474,7 @@ function copyDefinition(d: Definition): Definition {
     id: nextId(),
     boards: d.boards.map((b) => (isShaped(b)
       ? { ...b, position: [...b.position] as [number, number, number] }
-      : { ...b, position: [...b.position] as [number, number, number], cuts: b.cuts.map((c) => ({ ...c })), angleCuts: b.angleCuts.map(copyAngleCut) })),
+      : { ...b, position: [...b.position] as [number, number, number], cuts: b.cuts.map((c) => ({ ...c })), angleCuts: b.angleCuts.map(copyAngleCut), holes: b.holes.map(copyHoleRow) })),
     instances: d.instances.map((j) => ({ ...j, position: [...j.position] as [number, number, number] })),
   };
 }

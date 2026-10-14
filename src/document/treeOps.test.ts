@@ -203,6 +203,27 @@ describe('shared definitions', () => {
     expect((r.doc.definitions[0]!.boards[0] as Board).angleCuts[0]!.points).not.toBe(lifted.angleCuts[0]!.points);
   });
 
+  const pinRow = { id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 3, pitch: 1.25, acrossFrom: 'min' as const, inset: 1.5 };
+
+  it('makeUniqueItem copies hole rows with their ids, sharing no row object', () => {
+    const doc = base();
+    doc.definitions[0]!.boards[0] = createBoard({ id: 'b1', name: 'Side', holes: [pinRow] });
+    const out = makeUniqueItem(doc, 'i2')!;
+    const i2 = out.instances.find((i) => i.id === 'i2')!;
+    const copy = out.definitions.find((d) => d.id === i2.definition)!.boards[0] as Board;
+    expect(copy.holes).toEqual([pinRow]);
+    expect(copy.holes[0]).not.toBe(pinRow);
+  });
+
+  it('ungroupItem lifts a plain part with its hole rows, sharing no row with the surviving definition', () => {
+    const doc = base();
+    doc.definitions[0]!.boards[0] = createBoard({ id: 'b1', name: 'Side', holes: [pinRow] });
+    const r = ungroupItem(doc, 'i1')!;
+    const lifted = partAt(r.doc, r.rekey('i1/b1')) as Board;
+    expect(lifted.holes).toEqual([pinRow]);
+    expect((r.doc.definitions[0]!.boards[0] as Board).holes[0]).not.toBe(lifted.holes[0]);
+  });
+
   // Fu 231. An instance INSIDE a shared container is one stored record whatever
   // the number of placements: the copy is made on that record, so every
   // placement of the container follows it, and the count that matters is how

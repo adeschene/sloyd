@@ -59,3 +59,16 @@ describe('resolveBoard copies angle cuts', () => {
     expect(one.angleCuts[0]!.points).not.toBe(shape.angleCuts[0]!.points);
   });
 });
+
+describe('resolveBoard copies holes', () => {
+  it('gives each user its own rows', () => {
+    const row = { id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 3, pitch: 1.25, acrossFrom: 'min' as const, inset: 1.5 };
+    const shape = { id: 's1', length: 30, width: 11.25, thickness: 0.75, posture: 'flat' as const, grain: 'length' as const, material: 'oak', cuts: [], angleCuts: [], holes: [row] };
+    const shapes = new Map([['s1', shape]]);
+    const one = resolveBoard(shapes, { id: 'x', name: 'S1', position: [0, 0, 0], rotation: 0, shape: 's1' })!;
+    const two = resolveBoard(shapes, { id: 'y', name: 'S2', position: [12, 0, 0], rotation: 0, shape: 's1' })!;
+    expect(one.holes).toEqual([row]);
+    expect(one.holes).not.toBe(shape.holes);
+    expect(one.holes[0]).not.toBe(two.holes[0]);
+  });
+});
