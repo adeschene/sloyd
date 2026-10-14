@@ -12,6 +12,7 @@ import { applyJoints } from './joints/recipes';
 import type { JoinResult, JointChoice } from './joints/recipes';
 import { findSites, jointKey } from './joints/sites';
 import { joineryRefusal, jointFaults } from './joints/tapers';
+import { angleRatiosOf } from '../document/angleWorld';
 import type { Site } from './joints/sites';
 import { DETAIL_CAPS, SYSTEM_PROMPT, limitsOf, repairMessage, unusableMessage, userMessage } from './prompt';
 import type { Concept, GenerateSettings, LimitSettings } from './prompt';
@@ -138,6 +139,8 @@ interface EvaluateOpts {
   preexisting?: ReadonlySet<string>;
   /** Values the converter keeps unsnapped (Refine: the original's own numbers). */
   exact?: ReadonlySet<number>;
+  /** Refine: degree text it wrote → the stored slope, so an untouched angle is re-stored exactly (AI-angles spec §6.2). */
+  exactAngles?: ReadonlyMap<number, number>;
 }
 
 /**
@@ -150,7 +153,7 @@ interface EvaluateOpts {
 function evaluateDesign(res: LlmResult, s: LimitSettings, opts: EvaluateOpts = {}): { value: DesignValue | null; feedback: string } {
   const parsed = res.json === null ? null : parseDesign(res.json);
   const design = parsed && (opts.prepare ? opts.prepare(parsed) : parsed);
-  const converted = design && designToDocument(design, { centre: opts.centre ?? true, exact: opts.exact });
+  const converted = design && designToDocument(design, { centre: opts.centre ?? true, exact: opts.exact, exactAngles: opts.exactAngles });
   if (!converted) return { value: null, feedback: unusableMessage(res.unusable ?? 'unparseable') };
   // Checks read the placed world (generate-assemblies spec §5.1); the TREE is what is kept.
   const flat = flatDocument(converted.doc);
@@ -228,7 +231,7 @@ export async function runRefine(
     system: SYSTEM_PROMPT,
     schema: DESIGN_SCHEMA,
     first: refineMessage(from.design, settings),
-    evaluate: (res) => evaluateDesign(res, settings, { prepare: (d) => carryGrain(d, base.plain), centre: false, preexisting, exact: designValues(from.design) }),
+    evaluate: (res) => evaluateDesign(res, settings, { prepare: (d) => carryGrain(d, base.plain), centre: false, preexisting, exact: designValues(from.design), exactAngles: angleRatiosOf(plainFlat0.boards) }),
   }, signal, onProgress);
   // Document-level facts the model never sees travel with the result.
   let refined: SloydDocument = { ...out.doc, stock: doc.stock, units: doc.units, guides: doc.guides };

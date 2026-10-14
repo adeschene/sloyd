@@ -6,7 +6,8 @@ import { designToDocument, orient, parseDesign } from './generated';
 import { SHAKER_TABLE_JSON } from './shakerTableFixture';
 import type { GeneratedDesign, GeneratedPart } from './generated';
 import { createBoard, createDocument } from './document';
-import { taperCut } from './angleCuts';
+import { bevelCut, chamferCut, miterCut, miterRatio, taperCut } from './angleCuts';
+import { angleRatiosOf, worldAngles } from './angleWorld';
 import { worldTapers } from './taperWorld';
 import { boardExtents } from './geometry';
 import { flatDocument } from './tree';
@@ -235,9 +236,87 @@ describe('documentToDesign — tapers (AI-tapers spec §5.1, §5.2)', () => {
     const r = documentToDesign({ ...createDocument('T'), boards: [knife('Leg', 0), knife('Leg 2', 10)] }, REFINE_MAX);
     expect('refused' in r && r.refused).toEqual({ reason: 'taper-form', message: "The tapers on Leg, Leg 2 can't be described to Refine (it leaves no wood at an end) — edit them in Properties first." });
   });
-  it('still refuses a miter', () => {
-    const miter = { id: 'm', kind: 'miter' as const, face: 'length' as const, from: 'max' as const, along: 'width' as const, alongFrom: 'min' as const, points: [[0, 0], [3, 3]] as [[number, number], [number, number]] };
-    const r = documentToDesign({ ...createDocument('T'), boards: [{ ...createBoard({ name: 'Frame' }), angleCuts: [miter] }] }, REFINE_MAX);
-    expect('refused' in r && r.refused.reason).toBe('angled');
+  it('accepts a miter in its standard form (AI-angles chunk 2)', () => {
+    const frame = createBoard({ name: 'Frame' });
+    const miter = { id: 'm', ...miterCut({ end: 'max', across: 'width', longSide: 'min', ratio: 1 }, frame) };
+    const r = documentToDesign({ ...createDocument('T'), boards: [{ ...frame, angleCuts: [miter] }] }, REFINE_MAX);
+    expect('refused' in r).toBe(false);
+  });
+});
+
+describe('documentToDesign — miters, bevels and chamfers (AI-angles spec §6)', () => {
+  const POSTURES: Posture[] = ['flat', 'on-edge', 'upright'];
+  const TURNS: Rotation[] = [0, 90, 180, 270];
+  const angled = (b: Board): Board => ({ ...b, angleCuts: [
+    { id: 'm', ...miterCut({ end: 'max', across: 'width', longSide: 'min', ratio: miterRatio(37.5) }, b) },
+    { id: 'v', ...bevelCut({ face: 'thickness', from: 'max', longSide: 'max', ratio: miterRatio(15) }, b) },
+    { id: 'c', ...chamferCut({ face: 'width', from: 'min', along: 'thickness', alongFrom: 'min', legFace: 0.25, legAlong: 0.125 }, b) },
+  ] });
+  const parts = POSTURES.flatMap((posture) => TURNS.map((rotation) =>
+    angled(createBoard({ name: `P ${posture} ${rotation}`, length: 20, width: 3, thickness: 1.5, posture, rotation, position: [0, 0, 0] }))));
+  for (const b of parts) {
+    it(`${b.name}: round-trips exactly through the design (untouched angles keep their slope)`, () => {
+      const doc = { ...createDocument('T'), boards: [b] };
+      const r = documentToDesign(doc, MAX);
+      if ('refused' in r) throw new Error(r.refused.message);
+      expect({ miters: r.design.parts[0]!.miters, bevels: r.design.parts[0]!.bevels, chamfers: r.design.parts[0]!.chamfers }).toEqual(worldAngles(b));
+      const back = designToDocument(r.design, { centre: false, exact: designValues(r.design), exactAngles: angleRatiosOf([b]) }).doc.boards[0]! as Board;
+      expect(worldAngles(back)).toEqual(worldAngles(b));
+      const o = orient(boardExtents(b));
+      if (o.posture === b.posture && o.rotation === b.rotation) {
+        expect(back.angleCuts.map(({ id: _i, ...c }) => c)).toEqual(b.angleCuts.map(({ id: _i, ...c }) => c));
+      }
+    });
+  }
+  it('without the exact-angle map a non-45° slope can drift (the map is what keeps it)', () => {
+    const b = { ...createBoard({ name: 'R', length: 20, width: 3, thickness: 0.75 }), angleCuts: [
+      { id: 'm', ...miterCut({ end: 'max', across: 'width', longSide: 'min', ratio: 0.7 }, createBoard({ length: 20, width: 3, thickness: 0.75 })) },
+    ] };
+    const r = documentToDesign({ ...createDocument('T'), boards: [b] }, MAX);
+    if ('refused' in r) throw new Error(r.refused.message);
+    const plain = designToDocument(r.design, { centre: false }).doc.boards[0] as Board;
+    const kept = designToDocument(r.design, { centre: false, exactAngles: angleRatiosOf([b]) }).doc.boards[0] as Board;
+    expect(kept.angleCuts[0]!.points).toEqual(b.angleCuts[0]!.points);
+    expect(plain.angleCuts[0]!.points).not.toEqual(b.angleCuts[0]!.points);   // rounded to 0.1°: a different slope
+  });
+  it('a model that rounds 37.4999… back to 37.5 still stores the Properties slope (Review Focus 5)', () => {
+    const b = parts[0]!;
+    const r = documentToDesign({ ...createDocument('T'), boards: [b] }, MAX);
+    if ('refused' in r) throw new Error(r.refused.message);
+    const rounded = { ...r.design, parts: [{ ...r.design.parts[0]!, miters: r.design.parts[0]!.miters!.map((m) => ({ ...m, angle: 37.5 })) }] };
+    const back = designToDocument(rounded, { centre: false, exact: designValues(rounded), exactAngles: angleRatiosOf([b]) }).doc.boards[0] as Board;
+    expect(back.angleCuts.find((c) => c.kind === 'miter')!.points).toEqual(b.angleCuts.find((c) => c.kind === 'miter')!.points);
+  });
+  it('an assembly part keeps its chamfer in the definition frame (Review Focus 2)', () => {
+    const part = { ...createBoard({ id: 'p', name: 'Slat', length: 20, width: 3, thickness: 0.75, position: [0, 0, 0] }), angleCuts: [
+      { id: 'c', ...chamferCut({ face: 'width', from: 'max', along: 'thickness', alongFrom: 'max', legFace: 0.125, legAlong: 0.125 }, createBoard({ length: 20, width: 3, thickness: 0.75 })) },
+    ] };
+    const doc = { ...createDocument('T'), definitions: [{ id: 'd', boards: [part], instances: [] }],
+      instances: [{ id: 'i1', name: 'A', definition: 'd', position: [0, 0, 0] as [number, number, number], rotation: 0 as const }, { id: 'i2', name: 'B', definition: 'd', position: [0, 0, 10] as [number, number, number], rotation: 0 as const }] };
+    const r = documentToDesign(doc, MAX);
+    if ('refused' in r) throw new Error(r.refused.message);
+    expect(r.design.assemblies![0]!.parts[0]!.chamfers).toEqual(worldAngles(part)!.chamfers);
+  });
+  it("refuses, before any call, a cut it can't describe ('angle-form'), naming the part and kind", () => {
+    const b = parts[0]!;
+    const odd = { ...b, angleCuts: [{ ...b.angleCuts[0]!, points: [[0, 0.5], [3, 3.5]] as [[number, number], [number, number]] }] };
+    const r = documentToDesign({ ...createDocument('T'), boards: [odd] }, MAX);
+    expect('refused' in r && r.refused).toEqual({ reason: 'angle-form', message: `${b.name}'s miter can't be described to Refine — edit it in Properties first.` });
+  });
+  it('refuses a cut the converter would reject on the re-encoded part (Review Focus 3)', () => {
+    // Stored with WIDTH 22 > length 20: orient re-encodes it with the 22 side as its length, so its miter across the
+    // old length (now the width) would cut deeper than the new part is long... use a miter at its old LENGTH end, which
+    // is a side of the re-encoded part: not an end any more.
+    const b = { ...createBoard({ name: 'Wide', length: 20, width: 22, thickness: 0.75, position: [0, 0, 0] }) };
+    const withMiter = { ...b, angleCuts: [{ id: 'm', ...miterCut({ end: 'max', across: 'thickness', longSide: 'min', ratio: 1 }, b) }] };
+    const r = documentToDesign({ ...createDocument('T'), boards: [withMiter] }, MAX);
+    expect('refused' in r && r.refused.reason).toBe('angle-form');
+    expect('refused' in r && r.refused.message).toContain("Wide's miter can't be described to Refine (");
+  });
+  it('designValues carries chamfer legs (exact set)', () => {
+    const r = documentToDesign({ ...createDocument('T'), boards: [parts[0]!] }, MAX);
+    if ('refused' in r) throw new Error(r.refused.message);
+    expect(designValues(r.design).has(0.125)).toBe(true);
+    expect(designValues(r.design).has(0.25)).toBe(true);
   });
 });

@@ -1,26 +1,6 @@
-import type { AngleKind, CutFrom, FlatDocument, SloydDocument } from './types';
-import { flatDocument } from './tree';
+import type { CutFrom, FlatDocument } from './types';
 import { faceName } from './angleText';
 import { formatLength } from '../units/length';
-
-/** Flat display names of every placed part carrying an angle cut whose kind is not in `allow`, in document order. */
-export function angledParts(doc: SloydDocument, allow: readonly AngleKind[] = []): string[] {
-  return flatDocument(doc).boards.filter((b) => b.angleCuts.some((c) => !allow.includes(c.kind))).map((b) => b.name);
-}
-
-const shown = (names: string[]) => (names.length > 3 ? `${names.slice(0, 3).join(', ')}…` : names.join(', '));
-
-/**
- * Why Refine will not run on this document, or null (angle-cuts spec §6; AI-tapers spec §4.3). Refine's checks and joints
- * are box-based (invariants 38, 41): it accepts tapers it can describe exactly (`documentToDesign` refuses the rest) and
- * refuses every other kind (AI-angles chunk 2 lifts that). Decided before any call. Joinery no longer reads this: its
- * refusal is `jointRefusal` (AI-angles spec §3).
- */
-export function angledRefusal(doc: SloydDocument, _action: 'refine'): string | null {
-  const names = angledParts(doc, ['taper']);
-  if (names.length === 0) return null;
-  return `Refine doesn't handle mitered, beveled or chamfered parts yet (${shown(names)}). Refine before cutting those angles, or remove them.`;
-}
 
 /** One tapered part whose taper runs into a joint (AI-tapers spec §4.1). Indices are flat-document board indices. */
 export interface TaperConflict {

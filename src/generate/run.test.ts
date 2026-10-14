@@ -378,6 +378,18 @@ describe('runRefine', () => {
     expect(out.changes.map((c) => c.kind)).toEqual(['resized']);
   });
 
+  it('re-stores an untouched non-45° miter with its exact slope (AI-angles spec §6.2: the exact-angle map is wired in)', async () => {
+    const made = designToDocument({ name: 'M', parts: [bp('Rail', [0, 0, 0], [18, 3, 0.75])], assemblies: [] }).doc;
+    const rail = made.boards[0]! as Board;
+    // 0.7 is no 0.1° step: rounding the echoed degrees would store a different slope.
+    const doc = { ...made, boards: [{ ...rail, angleCuts: [{ id: 'm', ...miterCut({ end: 'max', across: 'thickness', longSide: 'min', ratio: 0.7 }, rail) }] }] };
+    const { client } = fakeClient([echo(doc)]);
+    const out = await go(client, doc);
+    if ('refused' in out) throw new Error('refused');
+    expect(flatDocument(out.doc).boards[0]!.angleCuts.map((c) => c.points)).toEqual([doc.boards[0]!.angleCuts[0]!.points]);
+    expect(out.changes).toEqual([]);
+  });
+
   it('carries grain over by name', async () => {
     const doc = designToDocument({ name: 'G', parts: [{ ...bp('Shelf', [0, 0, 0], [30, 0.75, 11]), grain: 'width' }], assemblies: [] }).doc;
     const { client } = fakeClient([echo(doc)]);

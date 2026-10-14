@@ -4,7 +4,7 @@ import type { RepairCheck } from './joints/repair';
 import type { GeneratedDesign } from '../document/generated';
 import { documentToDesign } from '../document/refineDesign';
 import type { RefineMax, RefineRefusal } from '../document/refineDesign';
-import { angledRefusal, flatDocument, migrateDocument, writeBackFlat } from '../document/document';
+import { flatDocument, migrateDocument, writeBackFlat } from '../document/document';
 import { worldParts } from '../document/tree';
 import type { SloydDocument } from '../document/types';
 import { DETAIL_CAPS, limitLines, placedCeiling } from './prompt';
@@ -20,7 +20,7 @@ export interface RefineSettings { instruction: string; width: number | null; dep
 /** Refine handles what Detailed allows; beyond it the model would be forced to drop parts. */
 export const REFINE_MAX: RefineMax = { distinct: DETAIL_CAPS.detailed, placed: placedCeiling('detailed') };
 
-export const KEEP_LINE = 'Keep every part you are not asked to change exactly as it is: the same name, role, material, size, position and tapers. Keep assembly and placement names. Return the whole design.';
+export const KEEP_LINE = 'Keep every part you are not asked to change exactly as it is: the same name, role, material, size, position, tapers, miters, bevels and chamfers. Keep assembly and placement names. Return the whole design.';
 
 export function refineMessage(design: GeneratedDesign, s: RefineSettings): string {
   return [
@@ -51,8 +51,6 @@ export function plainForRefine(doc: SloydDocument): RefineBase {
   // Runs inside the Refine dialog's memo: a throw would break its render, so it refuses as the gate
   // does and keeps the cause on the console (follow-up 244).
   try {
-    const angled = angledRefusal(doc, 'refine');
-    if (angled) return { refused: { reason: 'angled', message: angled } };
     const flat = flatDocument(doc);
     if (!flat.boards.some((b) => b.cuts.length > 0)) return { plain: doc, joints: null };
     const g = gateUnjoin(flat);
