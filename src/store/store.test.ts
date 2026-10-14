@@ -3005,6 +3005,15 @@ describe('adopting and applying custom materials (custom materials spec §4)', (
     expect(useStore.getState().past.length).toBe(n);
   });
 
+  it('applyMaterials keeps the project upserts when its assignment edits nothing (no such parts)', () => {
+    reset({ boards: [createBoard({ id: 'a', name: 'A', material: 'm-s-ash1' })], materials: [ash] });
+    const brown = { ...ash, color: '#553311' };
+    const before = useStore.getState().past.length;
+    useStore.getState().applyMaterials([brown], { ids: ['gone'], material: 'm-s-ash1' });
+    expect(useStore.getState().doc.materials).toEqual([brown]);
+    expect(useStore.getState().past.length).toBe(before + 1);
+  });
+
   it('a shaped (linked) part takes the material on its Shape, and the copy is kept', () => {
     reset();
     useStore.getState().linkBoards(['a', 'b']);

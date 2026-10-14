@@ -1155,8 +1155,11 @@ export const useStore = create<StoreState>((set, get) => {
     applyMaterials: (upserts, assign) => {
       if (readOnly()) return; // exploded: refuse at entry (invariant 47)
       if (assign) {
+        const before = get().doc;
         get().updateBoards(assign.ids, { material: assign.material }, upserts);
-        return;
+        // updateBoards edits nothing when no id names a part or a posture refusal bails: the upserts must not be
+        // lost with it (App reports the Save as done), so fall through to the plain path below.
+        if (get().doc !== before) return;
       }
       // Only copies something uses: an unused upsert would be pruned straight back out, but as a NEW object,
       // so edit()'s same-object test would miss it and push an empty undo entry (invariant 4).
