@@ -33,6 +33,7 @@ import type { DuplicateFailure } from './panels/ProjectMenu';
 import { canBeginLength } from './units/length';
 import { tapeAxisFromKey, createDocument, DocumentError, flatDocument } from './document/document';
 import type { SloydDocument } from './document/document';
+import type { CustomMaterial, MaterialKind } from './document/types';
 import { joineryRefusal as decideJoineryRefusal } from './generate/joints/tapers';
 import { storage } from './storage/browser';
 import { useStore } from './store/store';
@@ -113,6 +114,12 @@ export default function App() {
   // successful save. Not document state — never on the undo stack, never exported with a project.
   const [shop, setShop] = useState<ShopSettings>(defaultShop);
   const [shopReadFailed, setShopReadFailed] = useState(false);
+  // The browser's custom-material library (custom materials spec §4.1), read once like the prices and replaced
+  // on a successful save. Opening a project never writes it.
+  const [library, setLibrary] = useState<{ materials: CustomMaterial[]; readFailed: boolean }>({ materials: [], readFailed: false });
+  // "New material…" (spec §4.2): the parts that take the dialog's new material on Save. Cleared whenever the
+  // dialog closes, so a later plain opening starts no new row.
+  const [newMaterialFor, setNewMaterialFor] = useState<{ ids: string[]; kind: MaterialKind } | null>(null);
   // Generated this session and not yet opened (spec §6.3). Session-only:
   // not persisted and not in the store — a badge is a property of this
   // sitting, and nothing about it belongs on the undo stack.
@@ -172,6 +179,7 @@ export default function App() {
       setShop(settings);
       setShopReadFailed(readFailed);
     });
+    void storage.getMaterialLibrary().then(setLibrary);
   }, []);
   // Where focus was when the sheet or a dialog opened, so closing it puts
   // focus back. Captured HERE, in each opener, rather than in CutList's or a
@@ -1032,15 +1040,28 @@ export default function App() {
         <MaterialsDialog
           shop={shop}
           readFailed={shopReadFailed}
-          onSave={async (s) => {
-            const ok = await storage.setShopSettings(s);
-            if (ok) {
+          project={doc.materials}
+          library={library.materials}
+          libraryReadFailed={library.readFailed}
+          locked={exploded}
+          newFor={newMaterialFor}
+          // ONE Save (spec §4.1): the project's copies in one edit (one undo entry), then the library, then the
+          // prices. A failed browser write is reported and does not roll back the project edit.
+          onSave={async ({ shop: s, plan }) => {
+            if (plan.project.length > 0 || plan.assign) useStore.getState().applyMaterials(plan.project, plan.assign ?? undefined);
+            const failed: string[] = [];
+            if (plan.library) {
+              if (await storage.setMaterialLibrary(plan.library)) setLibrary({ materials: plan.library, readFailed: false });
+              else failed.push('your material library');
+            }
+            if (await storage.setShopSettings(s)) {
               setShop(s);
               setShopReadFailed(false);
-            }
-            return ok;
+            } else failed.push('your prices');
+            return failed.length === 0 ? null
+              : `Could not save ${failed.join(' or ')}: this browser is not letting Sloyd store settings. The project's changes were made.`;
           }}
-          onClose={() => setDialog(null)}
+          onClose={() => { setDialog(null); setNewMaterialFor(null); }}
         />
       )}
       {dialog === 'generate' && (

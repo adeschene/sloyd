@@ -34,7 +34,7 @@ export function CutList({ onClose, shop = DEFAULT_SHOP, onOpenPrices, suspended 
   onClose: () => void;
   /** The browser-level lumber and price settings (lumber yield and cost spec §2); App reads them. */
   shop?: ShopSettings;
-  /** Opens the Lumber & prices dialog above this sheet; the button is absent without it. */
+  /** Opens the Materials & prices dialog above this sheet; the button is absent without it. */
   onOpenPrices?: () => void;
   /** True while a dialog is open above the sheet: Escape belongs to it, and the sheet is inert. */
   suspended?: boolean;
@@ -96,7 +96,7 @@ export function CutList({ onClose, shop = DEFAULT_SHOP, onOpenPrices, suspended 
               />
               Layouts
             </label>
-            {onOpenPrices && <button onClick={onOpenPrices}>Lumber &amp; prices…</button>}
+            {onOpenPrices && <button onClick={onOpenPrices}>Materials &amp; prices…</button>}
             <button onClick={() => window.print()}>Print</button>
             <button onClick={onClose} aria-label="Close cut list">✕</button>
           </div>

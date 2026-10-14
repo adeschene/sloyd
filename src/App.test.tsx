@@ -901,7 +901,7 @@ const mountWithOneBoard = async () => {
   return worldParts(useStore.getState().doc)[0].id;
 };
 
-describe('Lumber & prices (lumber yield and cost spec §2.3, §4)', () => {
+describe('Materials & prices (lumber yield and cost spec §2.3, §4; custom materials spec §4.1)', () => {
   beforeEach(() => { shopSettings = null; materialLibrary = []; });
 
   it('opens above the cut list, saves a price the Buying section uses, and returns focus', async () => {
@@ -911,13 +911,13 @@ describe('Lumber & prices (lumber yield and cost spec §2.3, §4)', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Cut list' }));
     expect(screen.getByText('Buy 1 × 3/4" × 5-1/2" × 72" · no price')).toBeInTheDocument();
-    const open = screen.getByRole('button', { name: 'Lumber & prices…' });
+    const open = screen.getByRole('button', { name: 'Materials & prices…' });
     await user.click(open);
-    expect(screen.getByRole('dialog', { name: 'Lumber and prices' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Materials and prices' })).toBeInTheDocument();
     expect(screen.getByRole('dialog', { name: 'Cut list' }).hasAttribute('inert')).toBe(true);
     fireEvent.change(screen.getByRole('textbox', { name: 'Pine size 7: price' }), { target: { value: '9' } });
     await user.click(screen.getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Lumber and prices' })).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Materials and prices' })).toBeNull());
     expect(setShopSettings).toHaveBeenCalled();
     expect(screen.getByText('Buy 1 × 3/4" × 5-1/2" × 72" · $9.00')).toBeInTheDocument();
     expect(document.activeElement).toBe(open);
@@ -927,10 +927,47 @@ describe('Lumber & prices (lumber yield and cost spec §2.3, §4)', () => {
     await mountWithOneBoard();
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Cut list' }));
-    await user.click(screen.getByRole('button', { name: 'Lumber & prices…' }));
+    await user.click(screen.getByRole('button', { name: 'Materials & prices…' }));
     await user.keyboard('{Escape}');
-    expect(screen.queryByRole('dialog', { name: 'Lumber and prices' })).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Materials and prices' })).toBeNull();
     expect(screen.getByRole('dialog', { name: 'Cut list' })).toBeInTheDocument();
+  });
+  it('a failed library write leaves the project edit standing; Save again adds no undo entry', async () => {
+    const ash = { id: 'm-s-ash1', label: 'Ash', color: '#d8c8a8', kind: 'solid' as const };
+    const id = await mountWithOneBoard();
+    act(() => { useStore.getState().updateBoards([id], { material: 'm-s-ash1' }, [ash]); });
+    materialLibrary = [ash];
+    setMaterialLibrary.mockResolvedValue(false);
+    try {
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: 'Cut list' }));
+      await user.click(screen.getByRole('button', { name: 'Materials & prices…' }));
+      fireEvent.change(screen.getByRole('textbox', { name: 'Ash: name' }), { target: { value: 'White ash' } });
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+      expect(await screen.findByText(/Could not save your material library/)).toBeInTheDocument();
+      expect(screen.getByRole('dialog', { name: 'Materials and prices' })).toBeInTheDocument();
+      expect(useStore.getState().doc.materials[0]!.label).toBe('White ash');
+      const n = useStore.getState().past.length;
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+      await screen.findByText(/Could not save your material library/);
+      expect(useStore.getState().past.length).toBe(n);
+    } finally {
+      setMaterialLibrary.mockImplementation(async (m) => { materialLibrary = m; return true; });
+    }
+  });
+
+  it('opened over the cut list, then exploded: the definitions lock', async () => {
+    await mountWithOneBoard();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Cut list' }));
+    await user.click(screen.getByRole('button', { name: 'Materials & prices…' }));
+    expect(screen.getByRole('button', { name: 'Add material' })).toBeEnabled();
+    act(() => { useStore.getState().setExplode(0.5); });
+    try {
+      expect(screen.getByRole('button', { name: 'Add material' })).toBeDisabled();
+    } finally {
+      act(() => { useStore.getState().setTool('select'); });
+    }
   });
 });
 

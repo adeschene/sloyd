@@ -181,7 +181,7 @@ describe('CutList', () => {
       const onOpenPrices = vi.fn();
       let closed = false;
       const { rerender } = render(<CutList onClose={() => { closed = true; }} onOpenPrices={onOpenPrices} />);
-      await userEvent.click(screen.getByRole('button', { name: 'Lumber & prices…' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Materials & prices…' }));
       expect(onOpenPrices).toHaveBeenCalled();
       rerender(<CutList onClose={() => { closed = true; }} onOpenPrices={onOpenPrices} suspended />);
       await userEvent.keyboard('{Escape}');
