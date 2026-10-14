@@ -1,16 +1,14 @@
 import { useState } from 'react';
 import { useStore } from '../store/store';
-import { acrossOf, defaultHole, defaultShelfPinRow, holeFaults } from '../document/document';
+import { MM, acrossOf, defaultHole, defaultShelfPinRow, holeFaults } from '../document/document';
 import type { Board, CutFrom, Dimension, HoleFault, HoleRow } from '../document/document';
-import { holeFaultText, holeLine } from '../document/holeText';
+import { edgeName, endWord as end, holeFaultText, holeLine } from '../document/holeText';
 import { DimensionField } from './DimensionField';
 import { CountField } from './CountField';
 import { Popover } from './Popover';
 
 const DIMS: Dimension[] = ['length', 'width', 'thickness'];
 const cap = (d: string) => d[0]!.toUpperCase() + d.slice(1);
-const end = (d: Dimension) => (d === 'length' ? 'end' : 'side');
-const edgeName = (e: NonNullable<HoleFault['edge']>) => `the ${e.dim} ${e.side} ${end(e.dim)}`;
 
 /** The refusal for an edit that ADDS a fault (spec §7, amended), worded per kind. */
 function refusal(f: HoleFault, r: Omit<HoleRow, 'id'>, rowId: string): string {
@@ -24,27 +22,39 @@ function refusal(f: HoleFault, r: Omit<HoleRow, 'id'>, rowId: string): string {
 }
 /** The note for a fault the stored row already has (a later edit caused it), from THE fault words (holeText.ts). */
 const note = (f: HoleFault, r: HoleRow) => { const t = holeFaultText(f, r); return `${t[0]!.toUpperCase()}${t.slice(1)} at this size.`; };
-const key = (f: HoleFault) => `${f.index}:${f.kind}`;
+/** A fault's identity for "does this edit ADD one": per hole, except too-deep, which is a property of the ROW (every
+ *  hole shares its depth) — so a too-deep row can still change its count, and its note counts it once. */
+const key = (f: HoleFault) => (f.kind === 'too-deep' ? 'too-deep' : `${f.index}:${f.kind}`);
+/** One fault per key, in holeFaults' order. */
+const distinct = (fs: HoleFault[]) => fs.filter((f, i) => fs.findIndex((g) => key(g) === key(f)) === i);
+/** The pitch a single hole takes when its count first rises (ruling R5): 32 mm, or twice the diameter for a bore 32 mm
+ *  or wider, so hole 2 is not stacked on hole 1. */
+const seedPitch = (diameter: number) => (32 * MM > diameter ? 32 * MM : 2 * diameter);
 
 function HoleRowView({ board, row, precision }: { board: Board; row: HoleRow; precision: number }) {
   const updateHoleRow = useStore((s) => s.updateHoleRow);
   const removeHoleRow = useStore((s) => s.removeHoleRow);
   const [error, setError] = useState<string | null>(null);
   const line = holeLine(board, row, precision);
-  const stored = holeFaults(board, row);
+  const stored = distinct(holeFaults(board, row));
   const across = acrossOf(row);
-  const set = (patch: Partial<Omit<HoleRow, 'id'>>) => {
+  /** False when the edit is refused (the field then keeps its text and focus, ruling R6). */
+  const set = (patch: Partial<Omit<HoleRow, 'id'>>): boolean => {
     let next: HoleRow = { ...row, ...patch };
     // A face change onto the row's direction swaps the two: the row keeps running along the old face dimension.
     if (next.along === next.face) next = { ...next, along: row.face };
+    // Ruling R5: a single hole becoming a row gets a real pitch in the SAME edit (Every is hidden at count 1, and a
+    // stored pitch of 0 would stack hole 2 on hole 1); the fault check below judges the seeded row.
+    if (row.count === 1 && next.count > 1 && next.pitch < next.diameter) next = { ...next, pitch: seedPitch(next.diameter) };
     // Refused only when the edit ADDS a (hole, kind) fault the stored row lacks (spec §7, amended): a row a later
     // resize faulted can still be edited toward fitting.
     const had = new Set(stored.map(key));
     const added = holeFaults({ ...board, holes: board.holes.map((r) => (r.id === row.id ? next : r)) }, next).find((f) => !had.has(key(f)));
-    if (added) { setError(refusal(added, next, row.id)); return; }
+    if (added) { setError(refusal(added, next, row.id)); return false; }
     setError(null);
     const { id: _id, ...rest } = next;
     updateHoleRow(board.id, row.id, rest);
+    return true;
   };
   return (
     <div className="cut">
@@ -53,7 +63,7 @@ function HoleRowView({ board, row, precision }: { board: Board; row: HoleRow; pr
         <button className="cut-remove" aria-label={`Remove hole row (${line})`} onClick={() => removeHoleRow(board.id, row.id)}>✕</button>
       </div>
       <p className="field-note">{line}</p>
-      {stored.length > 0 && <p className="field-note" role="status">{note(stored[0]!, row)}{stored.length > 1 ? ` (${stored.length - 1} more)` : ''}</p>}
+      {stored.length > 0 && <p className="field-note" role="status">{note(stored[0]!, row)}{stored.length > 1 ? ` (and ${stored.length - 1} more)` : ''}</p>}
       <div className="field-grid field-grid-2">
         <div className="field field-wide">
           <label htmlFor={`hole-face-${row.id}`}>Face</label>
@@ -118,15 +128,17 @@ export function Holes({ board, precision }: { board: Board; precision: number })
   };
   const hole = defaultHole(board);
   const pins = defaultShelfPinRow(board);
+  const items = [
+    ...(fits(hole) ? [{ label: 'Hole', detail: 'One bore, centred on the broad face', run: () => addHoleRows(board.id, [hole]) }] : []),
+    ...(fits(pins) ? [{ label: 'Shelf-pin row', detail: `¼" pins every 32 mm along the ${pins.along}`, run: () => addHoleRows(board.id, [pins]) }] : []),
+  ];
   return (
     <>
       <h3>Holes{board.holes.length > 0 && <span className="h3-count"> · {board.holes.length}</span>}</h3>
       {board.holes.map((row) => <HoleRowView key={row.id} board={board} row={row} precision={precision} />)}
-      <Popover className="add-hole" label={<>+ Add hole<span aria-hidden="true"> ▾</span></>} title="Add a hole"
-        items={[
-          ...(fits(hole) ? [{ label: 'Hole', detail: 'One bore, centred on the broad face', run: () => addHoleRows(board.id, [hole]) }] : []),
-          ...(fits(pins) ? [{ label: 'Shelf-pin row', detail: '¼" pins every 32 mm along the length', run: () => addHoleRows(board.id, [pins]) }] : []),
-        ]} />
+      {items.length > 0
+        ? <Popover className="add-hole" label={<>+ Add hole<span aria-hidden="true"> ▾</span></>} title="Add a hole" items={items} />
+        : <p className="field-note">No hole preset fits this part.</p>}
     </>
   );
 }

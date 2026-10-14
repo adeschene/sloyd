@@ -336,4 +336,19 @@ describe('DimensionField defaults (existing callers)', () => {
     await userEvent.type(input, 'abc{Enter}');
     expect(screen.getByRole('alert').textContent).toBe('Enter a measurement, e.g. 3/4 or 1-1/2');
   });
+
+  it('a caller that refuses (onCommit returns false) keeps the typed text and focus (holes ruling R6)', async () => {
+    const onCommit = vi.fn(() => false);
+    render(<DimensionField label="Length" value={1.5} onCommit={onCommit} />);
+    const input = screen.getByLabelText('Length') as HTMLInputElement;
+    await userEvent.clear(input);
+    await userEvent.type(input, '3{Enter}');
+    expect(onCommit).toHaveBeenCalledWith(3);
+    expect(document.activeElement).toBe(input);
+    expect(input.value).toBe('3');
+    // Still dirty: a second Enter offers the value again rather than settling silently.
+    await userEvent.type(input, '{Enter}');
+    expect(onCommit).toHaveBeenCalledTimes(2);
+    expect(document.activeElement).toBe(input);
+  });
 });

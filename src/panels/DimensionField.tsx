@@ -11,7 +11,10 @@ interface Props {
    * one value, silently (invariant 5).
    */
   value: number | null;
-  onCommit: (inches: number) => void;
+  /** Return `false` to REFUSE the value (holes ruling R6): the caller kept the stored value (and says why itself), so
+   *  the field keeps the typed text, stays dirty and, on Enter, keeps focus — it does not show a number that was not
+   *  stored. Any other return (undefined included) is today's behaviour: the value was taken. */
+  onCommit: (inches: number) => boolean | void;
   /** Positions may be negative; dimensions may not. */
   allowNegative?: boolean;
   /** Smallest legal value, inclusive. Overrides the default "> 0" rule for
@@ -111,15 +114,18 @@ export const DimensionField = forwardRef<HTMLInputElement, Props>(function Dimen
       return false;
     }
     setError(null);
-    setText(fmt(parsed));
-    dirty.current = false;
     // Nothing actually changed (e.g. re-entering the same value, or the
     // display-rounded text still parses back to the stored value) — skip
     // the no-op onCommit/history entry.
     // `commitUnchanged` opts out: the caller's value is a default, and the
     // person typing it is a choice to record.
-    if (parsed === value && !commitUnchanged) return true;
-    onCommit(parsed);
+    if (!(parsed === value && !commitUnchanged)) {
+      // The caller refused (R6): nothing was stored, so nothing is normalised
+      // or marked settled — the text stays what was typed, and Enter keeps focus.
+      if (onCommit(parsed) === false) return false;
+    }
+    setText(fmt(parsed));
+    dirty.current = false;
     return true;
   };
 

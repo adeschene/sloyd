@@ -1,17 +1,21 @@
-import type { Board, Dimension, HoleRow } from './types';
+import type { Board, CutFrom, Dimension, HoleRow } from './types';
 import { formatLength } from '../units/length';
 import { faceName } from './angleText';
 import { acrossOf } from './holes';
 import { holeFaults, type HoleFault } from './holeFaults';
 
-const end = (d: Dimension) => (d === 'length' ? 'end' : 'side');
+/** "end" for the length, "side" for width and thickness: THE one home of the word (the Properties labels read it too). */
+export const endWord = (d: Dimension) => (d === 'length' ? 'end' : 'side');
+const end = endWord;
+/** An edge a hole can run past, e.g. "the length max end" (the fault text and the Properties refusal share it). */
+export const edgeName = (e: { dim: Dimension; side: CutFrom }) => `the ${e.dim} ${e.side} ${endWord(e.dim)}`;
 
 /** A fault in words (holes spec §2.4): THE one home (invariant 19), read by the cut-list line and the Properties note.
  *  Lower-case, no full stop: each reader frames it. */
 export function holeFaultText(f: HoleFault, r: HoleRow): string {
   const n = f.index + 1;
   switch (f.kind) {
-    case 'breaks-out': return `hole ${n} runs past the ${f.edge!.dim} ${f.edge!.side} ${end(f.edge!.dim)}`;
+    case 'breaks-out': return `hole ${n} runs past ${edgeName(f.edge!)}`;
     case 'off-flat': return `hole ${n} sits where a cut has removed the wood`;
     case 'meets-hole': return `hole ${n} meets ${f.other!.row === r.id ? `hole ${f.other!.index + 1}` : 'a hole of another row'}`;
     case 'too-deep': return `the holes are deeper than the ${r.face}`;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
-import { holeFaultText, holeLine } from './holeText';
+import { edgeName, endWord, holeFaultText, holeLine } from './holeText';
 import type { HoleRow } from './types';
 
 const side = createBoard({ length: 30, width: 11.25, thickness: 0.75 });
@@ -31,5 +31,10 @@ describe('holeLine (spec §4.1, as amended)', () => {
   });
   it('an exact-1/64 whole-mm value does not print its mm (5" is 127 mm)', () => {
     expect(holeLine(side, { ...pins, pitch: 5, count: 2 }, 16)).toContain('every 5", last at 7"');
+  });
+  it('edgeName and endWord are the one home of the edge words', () => {
+    expect(edgeName({ dim: 'length', side: 'max' })).toBe('the length max end');
+    expect(edgeName({ dim: 'width', side: 'min' })).toBe('the width min side');
+    expect(endWord('thickness')).toBe('side');
   });
 });
