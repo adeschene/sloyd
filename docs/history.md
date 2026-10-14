@@ -447,7 +447,7 @@ and 79.
 
 **What holes chunk 2 did (2026-10-14, fu 327)** (spec `docs/superpowers/specs/2026-10-14-sloyd-holes-design.md` §3.4, §4.3,
 §7, plan `docs/superpowers/plans/2026-10-14-sloyd-holes-chunk2.md`, branch `holes-2` from `fc4875e` — master `0a1060c` plus
-the §4.3 amendment). **Merged to master, NOT deployed** — deployment waits for the user; no schema change, so a rollback to
+the §4.3 amendment). **Merged to master as `d74e5c5`, NOT deployed** — deployment waits for the user; no schema change, so a rollback to
 chunk 1 (`2ded5cc`, `index-CTpNZw9F.js`) is free. Drawings and the last preset; a part with no holes draws byte-for-byte as
 before (the final review compared hole-free `drawView`/`buildDiagrams` against master on 112 cases: identical, the SVG
 differing only by the 20 `M` commands chaining drops). Subagent-driven, five tasks, each reviewed:
