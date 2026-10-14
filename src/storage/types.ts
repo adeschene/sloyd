@@ -1,5 +1,6 @@
 import type { SloydDocument } from '../document/document';
 import type { ShopSettings } from '../document/purchase';
+import type { CustomMaterial } from '../document/types';
 
 export interface RecentEntry {
   id: string;
@@ -123,4 +124,9 @@ export interface StorageAdapter {
   getShopSettings(): Promise<{ settings: ShopSettings; readFailed: boolean }>;
   /** Store the shop settings. False, changing nothing, when storage is unavailable or the write fails. */
   setShopSettings(settings: ShopSettings): Promise<boolean>;
+  /** The browser's custom-material library (custom materials spec §2.4). Never throws; reading never writes.
+   *  `readFailed`: a stored value exists but is unusable or newer — callers must not save over it. */
+  getMaterialLibrary(): Promise<{ materials: CustomMaterial[]; readFailed: boolean }>;
+  /** Resolves false when the write failed. */
+  setMaterialLibrary(materials: CustomMaterial[]): Promise<boolean>;
 }

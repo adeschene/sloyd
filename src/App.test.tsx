@@ -242,6 +242,9 @@ const clearLlmSettings = vi.fn(async () => { llmSettings = null; });
 let shopSettings: import('./document/purchase').ShopSettings | null = null;
 const getShopSettings = vi.fn(async () => ({ settings: shopSettings ?? (await import('./document/purchase')).defaultShop(), readFailed: false }));
 const setShopSettings = vi.fn(async (s: import('./document/purchase').ShopSettings) => { shopSettings = s; return true; });
+let materialLibrary: import('./document/types').CustomMaterial[] = [];
+const getMaterialLibrary = vi.fn(async () => ({ materials: materialLibrary, readFailed: false }));
+const setMaterialLibrary = vi.fn(async (m: import('./document/types').CustomMaterial[]) => { materialLibrary = m; return true; });
 const exportProject = vi.fn().mockResolvedValue(undefined);
 const exportImage = vi.fn().mockResolvedValue(undefined);
 const importProject = vi.fn();
@@ -266,6 +269,8 @@ vi.mock('./storage/browser', () => ({
     clearLlmSettings: () => clearLlmSettings(),
     getShopSettings: () => getShopSettings(),
     setShopSettings: (s: import('./document/purchase').ShopSettings) => setShopSettings(s),
+    getMaterialLibrary: () => getMaterialLibrary(),
+    setMaterialLibrary: (m: import('./document/types').CustomMaterial[]) => setMaterialLibrary(m),
     exportProject: (...args: unknown[]) => exportProject(...args),
     exportImage: (...args: unknown[]) => exportImage(...args),
     importProject: (...args: unknown[]) => importProject(...args),
@@ -897,7 +902,7 @@ const mountWithOneBoard = async () => {
 };
 
 describe('Lumber & prices (lumber yield and cost spec §2.3, §4)', () => {
-  beforeEach(() => { shopSettings = null; });
+  beforeEach(() => { shopSettings = null; materialLibrary = []; });
 
   it('opens above the cut list, saves a price the Buying section uses, and returns focus', async () => {
     // The default board is pine 24 × 5½ × ¾; default pine sizes carry no price, so the smallest that holds it
