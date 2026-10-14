@@ -917,6 +917,8 @@ button[aria-pressed='true'] {
   padding: 8px; margin: 0 0 8px; }
 .cut-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .cut-label { font-weight: 600; text-transform: capitalize; }
+/* A hole row's label is a phrase ("Row of 6"), not a kind word: sentence case, not every word capitalised. */
+.cut-label.hole-label { text-transform: none; }
 .cut-remove { padding: 0 6px; line-height: 1.6; background: none; color: var(--ink-dim); }
 .cut-remove:hover:not(:disabled) { background: var(--alert-bg-strong); border-color: var(--alert-border); color: var(--alert-bright); }
 

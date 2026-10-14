@@ -63,7 +63,7 @@ function HoleRowView({ board, row, precision }: { board: Board; row: HoleRow; pr
   return (
     <div className="cut">
       <div className="cut-head">
-        <span className="cut-label">{row.count === 1 ? 'Hole' : `Row of ${row.count}`}</span>
+        <span className="cut-label hole-label">{row.count === 1 ? 'Hole' : `Row of ${row.count}`}</span>
         <button className="cut-remove" aria-label={`Remove hole row (${line})`} onClick={() => removeHoleRow(board.id, row.id)}>✕</button>
       </div>
       <p className="field-note">{line}</p>

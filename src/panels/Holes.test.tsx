@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
@@ -209,6 +210,18 @@ describe('the Holes section', () => {
     open(side({ length: 10, width: 30 }));
     await user.click(screen.getByRole('button', { name: '+ Add hole' }));
     expect(screen.getByText('¼" pins every 32 mm along the width')).toBeInTheDocument();
+  });
+  it('a row label reads "Row of 6", not capitalised word by word like a cut kind (final review 7)', () => {
+    // jsdom applies no stylesheet, so the label is pinned two ways: the span carries hole-label beside cut-label, and
+    // styles.css gives that pair text-transform: none (cut-label's capitalize would print "Row Of 6"). Not `?raw`:
+    // Vitest hands CSS back as '' (palette.test.ts reads it the same way).
+    const six = { id: 'h1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.375, along: 'length', alongFrom: 'min',
+      station: 2, count: 6, pitch: 32 / 25.4, acrossFrom: 'min', inset: 1.5 } as const;
+    open(side({ holes: [six] }));
+    const label = screen.getByText('Row of 6');
+    expect(label).toHaveClass('cut-label', 'hole-label');
+    const css = readFileSync('src/styles.css', 'utf8');
+    expect(css).toMatch(/\.cut-label\.hole-label\s*\{[^}]*text-transform:\s*none;/);
   });
   it('removes a row', async () => {
     const user = userEvent.setup();
