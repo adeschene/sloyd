@@ -2945,6 +2945,23 @@ describe('edit() prunes custom materials (custom materials spec §2.3)', () => {
     expect(useStore.getState().doc.materials).toEqual([ash]);
     expect((useStore.getState().doc.boards[0] as Board).material).toBe('m-s-ash1');
   });
+
+  it('drops a material when its last user is a part inside an assembly and it changes material', () => {
+    const ash = { id: 'm-s-ash1', label: 'Ash', color: '#d8c8a8', kind: 'solid' as const };
+    const start: SloydDocument = {
+      ...createDocument(), boards: [], materials: [ash],
+      instances: [{ id: 'i', name: 'Case', definition: 'd', position: [0, 0, 0], rotation: 0 }],
+      definitions: [{ id: 'd', boards: [createBoard({ id: 'a', name: 'A', material: 'm-s-ash1' })], instances: [] }],
+    };
+    useStore.getState().replaceDocument(start);
+    useStore.getState().updateBoard('i/a', { name: 'Side' }); // an edit while the part still uses it keeps it
+    expect(useStore.getState().doc.materials).toEqual([ash]);
+    useStore.getState().updateBoard('i/a', { material: 'oak' });
+    expect((useStore.getState().doc.definitions[0]!.boards[0] as Board).material).toBe('oak');
+    expect(useStore.getState().doc.materials).toEqual([]);
+    useStore.getState().undo();
+    expect(useStore.getState().doc.materials).toEqual([ash]);
+  });
 });
 
 describe('adopting and applying custom materials (custom materials spec §4)', () => {

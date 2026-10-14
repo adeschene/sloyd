@@ -1485,7 +1485,7 @@ describe('schema 15: custom materials (custom materials spec §2.3)', () => {
     expect((d.boards[0] as Board).material).toBe('pine');
     expect(d.materials).toEqual([]);
   });
-  it('validates materials BEFORE parts: a shape and a definition part see them too', () => {
+  it('validates materials BEFORE parts: a shape sees them too', () => {
     const shape = { id: 's1', length: 10, width: 4, thickness: 0.75, posture: 'flat', grain: 'length', material: 'm-s-ash1', cuts: [], angleCuts: [] };
     const d = migrateDocument(v14({
       version: 15, materials: [ash],
@@ -1493,6 +1493,15 @@ describe('schema 15: custom materials (custom materials spec §2.3)', () => {
       shapes: [shape],
     }));
     expect(d.shapes[0]!.material).toBe('m-s-ash1');
+    expect(d.materials).toEqual([ash]);
+  });
+  it('validates materials BEFORE definitions: a definition part placed by an instance keeps its custom material', () => {
+    const d = migrateDocument(v14({
+      version: 15, materials: [ash], boards: [],
+      instances: [{ id: 'i', name: 'Case', definition: 'd', position: [0, 0, 0], rotation: 0 }],
+      definitions: [{ id: 'd', boards: [part('m-s-ash1')], instances: [] }],
+    }));
+    expect((d.definitions[0]!.boards[0] as Board).material).toBe('m-s-ash1');
     expect(d.materials).toEqual([ash]);
   });
   it('prunes unused entries on load', () => {
