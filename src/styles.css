@@ -1147,8 +1147,26 @@ select.input { cursor: pointer; }
   stroke-width: 1;
 }
 
+.cutlist-diagram-hole {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+}
+
+.cutlist-diagram-hole-centre {
+  stroke: currentColor;
+  stroke-width: 0.75;
+}
+
+.cutlist-diagram-hole-side {
+  stroke: currentColor;
+  stroke-width: 1;
+  stroke-dasharray: 3 2;
+}
+
 .cutlist-diagram-crossings,
-.cutlist-diagram-angle-note {
+.cutlist-diagram-angle-note,
+.cutlist-diagram-hole-note {
   margin: 2px 0 0;
   font-size: 0.78em;
   color: var(--ink-faint);
@@ -1323,6 +1341,7 @@ select.input { cursor: pointer; }
   .cutlist-diagram-note,
   .cutlist-diagram-crossings,
   .cutlist-diagram-angle-note,
+  .cutlist-diagram-hole-note,
   .cutlist-setup,
   .cutlist-layout-count,
   .cutlist-layout-head,

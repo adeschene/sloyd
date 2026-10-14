@@ -877,3 +877,63 @@ describe('PartDiagram angle cuts', () => {
     expect(Math.min(...ys)).toBeLessThan(tip[1]);
   });
 });
+
+describe('PartDiagram holes (holes spec §4.3, amended)', () => {
+  const pins = { id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 3, pitch: 1.25, acrossFrom: 'min' as const, inset: 1.5 };
+  const holedView = (over: Record<string, unknown> = {}) =>
+    buildDiagrams(createBoard({ length: 30, width: 11.25, thickness: 0.75, holes: [pins], ...over }), 16)[0]!;
+
+  it('draws one ellipse and one centre mark per hole, scaled like the outline', () => {
+    const { container } = render(<PartDiagram view={holedView()} />);
+    const holes = container.querySelectorAll('ellipse.cutlist-diagram-hole');
+    expect(holes).toHaveLength(3);
+    expect(container.querySelectorAll('.cutlist-diagram-hole-centre')).toHaveLength(3);
+    const rx = Number(holes[0]!.getAttribute('rx'));
+    const ry = Number(holes[0]!.getAttribute('ry'));
+    expect(rx).toBeGreaterThan(0);
+    expect(ry).toBeGreaterThan(0);
+  });
+  it('prints each row\'s bench line once, as a note under the figure (HTML, not a measured label)', () => {
+    render(<PartDiagram view={holedView()} />);
+    const notes = screen.getAllByText(/^Row of 3 holes/);
+    expect(notes).toHaveLength(1);
+    expect(notes[0]!.tagName).toBe('P');
+  });
+  it('draws a hole seen across its axis as a dashed outline: two walls and a bottom when blind', () => {
+    const rabbet = { id: 'c1', face: 'width' as const, from: 'min' as const, across: 'length' as const, offset: 0, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const views = buildDiagrams(createBoard({ length: 30, width: 11.25, thickness: 0.75, holes: [pins], cuts: [rabbet] }), 16);
+    const w = views.find((v) => v.key === 'width|min')!;
+    const { container } = render(<PartDiagram view={w} />);
+    expect(container.querySelectorAll('line.cutlist-diagram-hole-side')).toHaveLength(9);
+  });
+  it('a part without holes renders exactly as before (no hole elements, no hole notes)', () => {
+    const { container } = render(<PartDiagram view={view(dado())} />);
+    expect(container.querySelectorAll('.cutlist-diagram-hole, .cutlist-diagram-hole-side, .cutlist-diagram-hole-note')).toHaveLength(0);
+  });
+  it('a vUp view flips v: a hole on the thickness MIN side draws at top + (v - c.v)*sy', () => {
+    const minHole = { ...pins, id: 'h2', from: 'min' as const, count: 1 };
+    const v = holedView({ holes: [minHole] });
+    expect(v.vUp).toBe(true);
+    const flat = { ...v, vUp: false };
+    const up = render(<PartDiagram view={v} />).container.querySelector('ellipse.cutlist-diagram-hole')!;
+    const down = render(<PartDiagram view={flat} />).container.querySelector('ellipse.cutlist-diagram-hole')!;
+    const c = v.holes[0]!;
+    const sy = Number(up.getAttribute('ry')) / c.r;
+    // Same figure, same scales: the two cy differ by exactly (v - 2*c.v)*sy.
+    expect(Number(up.getAttribute('cy')) - Number(down.getAttribute('cy'))).toBeCloseTo((v.v - 2 * c.v) * sy, 6);
+  });
+  it('a vUp view flips v for the depth outlines too', () => {
+    const rabbet = { id: 'c1', face: 'width' as const, from: 'max' as const, across: 'length' as const, offset: 0, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const w = buildDiagrams(createBoard({ length: 30, width: 11.25, thickness: 0.75, holes: [pins], cuts: [rabbet] }), 16)
+      .find((v) => v.key === 'width|max')!;
+    expect(w.vUp).toBe(true);
+    expect(w.holeSides.length).toBeGreaterThan(0);
+    const lines = [...render(<PartDiagram view={w} />).container.querySelectorAll('line.cutlist-diagram-hole-side')];
+    // Walls come first as (low v, high v); flipped, the low-v wall sits lower on the page (larger y).
+    const s0 = w.holeSides[0]!;
+    expect(s0.v[0]).toBeLessThan(s0.v[1]);
+    const lowFirst = s0.axis === 'h' ? Number(lines[0]!.getAttribute('y1')) > Number(lines[1]!.getAttribute('y1'))
+      : Number(lines[0]!.getAttribute('y1')) > Number(lines[0]!.getAttribute('y2'));
+    expect(lowFirst).toBe(true);
+  });
+});
