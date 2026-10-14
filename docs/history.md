@@ -18,6 +18,11 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-14 with custom materials chunk 1 live** (`index-DyeArqLP.js`, CSS
+`index-D82WvZxV.css`, merge `4851945`, **schema 15** — a rollback below it refuses projects saved since; export first). Verified
+per the deployment rule: in-network and edge `200`s, the bundle hash at both, the old bundle 404, the CSP's `connect-src`, a
+real-browser load (0 errors; its fresh project stored as version 15; the origin's storage cleared and read back empty).
+
 **Production matches `master` as of 2026-10-14 with AI angles chunk 2 live** (`index-D6x3XODA.js`, CSS `index-S14NxOeA.css`
 unchanged, merge `a4914f1`, **schema 14**). Verified: `200` on `/` and a deep route in-network and at the edge; bundle matches
 `dist/` at both; `index-DQwrQ8u9.js` 404s in-network; CSP unchanged; a real-browser load with 0 errors, the Cloudflare beacon

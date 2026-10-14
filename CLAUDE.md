@@ -21,15 +21,13 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-14: AI angles chunk 2 (merge `a4914f1`) on top of chunk 1 — bundle
-  `index-D6x3XODA.js`, CSS `index-S14NxOeA.css`, **SCHEMA 14** (unchanged since angle cuts chunk 1, so rolling back to
-  `35d12e1`, `index-DQwrQ8u9.js`, or any 14 build is free; below 14, `47548d3`, REFUSES every project saved since: export
-  first). Test count is under Commands. Open from standard views: 319 (the View group's wrap, for the user's eye), 320.
-- **AI angles (fu 276/277's remainder; spec `2026-10-13-sloyd-ai-angles-design.md`)**: chunk 1 deployed; **chunk 2**
-  (Generate and Refine read and write miters, bevels and chamfers in world words; `angle-joint`; the design schema in
-  `$defs`; rabbets run out through miters) is merged (`a4914f1`) and deployed. Both paid live runs passed.
-  **NEXT: none chosen — ask.** Open near it: 314–318 (turned-links residue). Other open items: angle-cut residue 295–298;
-  241 (open by decision), 251 (record-only), 221, 225, 232, 234, 247.
+- **Production matches `master`** as of 2026-10-14: custom materials chunk 1 (merge `4851945`) — bundle `index-DyeArqLP.js`,
+  CSS `index-D82WvZxV.css`, **SCHEMA 15** (rolling back to `c610393`, `index-D6x3XODA.js`, schema 14, REFUSES every project
+  saved since: export first). Test count is under Commands.
+- **Custom materials (fu 266; spec `2026-10-14-sloyd-custom-materials-design.md`)**: chunk 1 deployed (user-defined solid and
+  sheet materials, library + per-project copies, Materials & prices, Refine keeps them; inv 49). **NEXT: chunk 2, nominal
+  names** (spec §5; chosen by the user, not started; no schema change). Open near it: 324, 325. Other open items: 314–320,
+  angle-cut residue 295–298; 241 (open by decision), 251 (record-only), 221, 225, 232, 234, 247.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
   byte-identical bundles (test-only). Check what a later commit touches before reading
@@ -97,6 +95,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | standard views + image | 10-13 | — | Front/Side/Top/Iso (the Plans sheet's views; camera up stays +Y, Top tilted 1e-4 rad); Save image (one clean frame, `toBlob`, `StorageAdapter.exportImage`); framing frames exploded parts where drawn (fu 260) |
 | AI angles (chunk 1) | 10-13 | — | Add joinery and Repair accept miters, bevels and chamfers: contact trusts their flat wood (`touchedRegion`/`splitRegion`), a cut running into a joint refuses unless it clears the tenon (`angleConflicts`), joinery keeps angle cuts on their wood (`rebaseAngleCuts`, fu 307) |
 | AI angles (chunk 2) | 10-14 | — | Generate and Refine write miters, bevels and chamfers in world words (`angleWorld.ts`); exact untouched angles (`angleRatiosOf`); `angle-joint` design fault; the change list names them; chamfered legs link through turns; the design schema in `$defs` (the API's compiled-grammar cap) |
+| custom materials (chunk 1) | 10-14 | 15 | User-defined solid and sheet materials (kind in the id, inv 49): a browser library and per-project copies (`doc.materials`, pruned to what parts use); Materials & prices (was Lumber & prices); Properties picks project/library materials and New material…; Refine keeps them (per-project schema enum; Generate's byte-identical) |
 
 ### The deployment rule
 
