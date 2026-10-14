@@ -33,7 +33,7 @@ export { CHAMFER_EDGES, bevelAcross, bevelCut, bevelFields, chamferCut, chamferF
 export type { BevelFields, ChamferEdge, ChamferFields, MiterFields, TaperFields, V3 } from './angleCuts';
 export {
   HOLE_COUNT_MAX, HOLE_EPS, HOLE_FIELDS, HOLE_KEYS, HOLE_SEGMENTS, PRISM_EPS, acrossOf, axialOffset, boardHoles, bodyPlanes,
-  clipPolygon, copyHoleRow, holeInstances, holePrism, holeRims, holeRing, holeRowValues, holeTouches, holeTouchesBox,
+  clipPolygon, clipPlan, copyHoleRow, holeInstances, holePrism, holeRims, holeRing, holeRowValues, holeTouches, holeTouchesBox,
   insideHole, minusPrism, mirrorHoleRow, ringInside, sameHoleRow, MM, defaultHole, defaultShelfPinRow,
 } from './holes';
 export type { Hole, Plane } from './holes';

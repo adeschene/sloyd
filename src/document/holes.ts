@@ -136,8 +136,36 @@ export function boardHoles(board: Pick<Board, Dimension | 'holes'>): Hole[] {
   return board.holes.flatMap((r) => holeInstances(board, r));
 }
 
+/**
+ * Per-hole derived geometry at the default HOLE_SEGMENTS, memoised by Hole OBJECT identity (Task 11b: a rebuild asks for
+ * the same prism once per face and the same ring once per wall and face). Only a FROZEN hole is memoised — partGeometry's
+ * are — so a hole that could still change never answers from a stale entry; any other hole, or another `n`, computes
+ * fresh. A memoised result is shared, so it is returned frozen (array, planes, normals and points alike).
+ */
+interface HoleMemo { prism?: Plane[]; rings: Map<number, V3[]> }
+const holeMemo = new WeakMap<Hole, HoleMemo>();
+/** A memoised prism's hole: touchesPrism reads its frame to try the facet facing a polygon first. */
+const prismHole = new WeakMap<Plane[], Hole>();
+function memoOf(h: Hole): HoleMemo {
+  let m = holeMemo.get(h);
+  if (!m) { m = { rings: new Map() }; holeMemo.set(h, m); }
+  return m;
+}
+const freezeRing = (r: V3[]): V3[] => { r.forEach((p) => Object.freeze(p)); return Object.freeze(r) as V3[]; };
+const freezePrism = (ps: Plane[]): Plane[] => {
+  ps.forEach((q) => { Object.freeze(q.n); Object.freeze(q); });
+  return Object.freeze(ps) as Plane[];
+};
+
 /** The ring at axial distance `t` from the entry plane: `n` points on the true circle, θ_k = 2πk/n from +u toward +v. */
 export function holeRing(h: Hole, t: number, n = HOLE_SEGMENTS): V3[] {
+  if (n !== HOLE_SEGMENTS || !Object.isFrozen(h)) return ringOf(h, t, n);
+  const memo = memoOf(h);
+  let r = memo.rings.get(t);
+  if (!r) { r = freezeRing(ringOf(h, t, n)); memo.rings.set(t, r); }
+  return r;
+}
+function ringOf(h: Hole, t: number, n: number): V3[] {
   const { a, u, v } = frameOf(h);
   return Array.from({ length: n }, (_, k) => {
     const th = (2 * Math.PI * k) / n;
@@ -155,6 +183,12 @@ export function holeRing(h: Hole, t: number, n = HOLE_SEGMENTS): V3[] {
  * PRISM_EPS (see there).
  */
 export function holePrism(h: Hole, n = HOLE_SEGMENTS): Plane[] {
+  if (n !== HOLE_SEGMENTS || !Object.isFrozen(h)) return prismOf(h, n);
+  const memo = memoOf(h);
+  if (!memo.prism) { memo.prism = freezePrism(prismOf(h, n)); prismHole.set(memo.prism, h); }
+  return memo.prism;
+}
+function prismOf(h: Hole, n: number): Plane[] {
   const { a, u, v } = frameOf(h);
   const out: Plane[] = [];
   const inner = h.radius * Math.cos(Math.PI / n);
@@ -192,6 +226,32 @@ export function clipPolygon(verts: V3[], h: Plane): V3[] {
   return out.length >= 3 ? out : [];
 }
 
+/**
+ * The planes that can change ANY convex polygon whose vertices are among `verts` or on segments between them, when it is
+ * clipped by `planes` in turn (clipPolygon) — or null when such a polygon always clips to nothing (Task 11b: one answer
+ * for all of a hole's wall quads and its bottom, per body). Clipping by the returned planes, in order, gives exactly
+ * what clipping by all of them gives:
+ * - a plane keeping every vertex by HOLE_EPS / 2 keeps every point between them by more than HOLE_EPS (rounding is far
+ *   below the margin), and clipPolygon returns such a polygon unchanged — it is left out;
+ * - a plane with every vertex beyond -2·HOLE_EPS has every such point beyond -HOLE_EPS, where clipPolygon keeps nothing
+ *   (and stops) — null.
+ */
+export function clipPlan(planes: readonly Plane[], verts: readonly V3[]): Plane[] | null {
+  const out: Plane[] = [];
+  for (const q of planes) {
+    let allOut = true;
+    let allIn = true;
+    for (const p of verts) {
+      const g = dot(q.n, p) + q.d;
+      if (!(g >= -HOLE_EPS / 2)) allIn = false;
+      if (!(g < -2 * HOLE_EPS)) allOut = false;
+    }
+    if (allOut) return null;
+    if (!allIn) out.push(q);
+  }
+  return out;
+}
+
 const flipPlane = (h: Plane): Plane => ({ n: [-h.n[0], -h.n[1], -h.n[2]], d: -h.d });
 
 /** Twice-area > this: a piece thinner than a sliver is no piece (bodies.ts' SLIVER, squared). */
@@ -210,8 +270,34 @@ function twiceArea(p: V3[]): number {
 export function holeTouches(h: Hole, poly: V3[]): boolean {
   return touchesPrism(holePrism(h), poly);
 }
+/**
+ * Whether no plane of the prism has the whole polygon on or outside it. The answer does not depend on the order the
+ * planes are tried in, so the likeliest separators go first (Task 11b): the caps (holePrism puts them last), which part
+ * most faces of a part from most of its holes in two tests, then (a memoised prism, whose hole is known) the facet facing
+ * the polygon's centroid, which parts most of a fallback split's pieces from the other holes. Same predicate, plane for
+ * plane, as before.
+ */
 function touchesPrism(prism: Plane[], poly: V3[]): boolean {
-  return !prism.some((q) => poly.every((p) => dot(q.n, p) + q.d <= HOLE_EPS));
+  const m = prism.length;
+  if (m >= 2 && (separates(prism[m - 1]!, poly) || separates(prism[m - 2]!, poly))) return false;
+  // Then, for a memoised prism, the side facet facing the polygon's centroid (the likeliest to separate), then the rest.
+  const h = prismHole.get(prism);
+  let best = -1;
+  if (h) {
+    const { u, v } = frameOf(h);
+    let cu = 0; let cv = 0;
+    for (const p of poly) { cu += p[u]; cv += p[v]; }
+    const th = Math.atan2(cv / poly.length - h.centre[v], cu / poly.length - h.centre[u]);
+    const k = Math.floor(((th < 0 ? th + 2 * Math.PI : th) * (m - 2)) / (2 * Math.PI));
+    best = k >= 0 && k < m - 2 ? k : -1;
+  }
+  if (best >= 0 && separates(prism[best]!, poly)) return false;
+  for (let i = 0; i < m - 2; i += 1) if (i !== best && separates(prism[i]!, poly)) return false;
+  return true;
+}
+function separates(q: Plane, poly: V3[]): boolean {
+  for (const p of poly) if (!(dot(q.n, p) + q.d <= HOLE_EPS)) return false;
+  return true;
 }
 
 /**
@@ -250,12 +336,22 @@ export function ringInside(poly: V3[], n: V3, ring: V3[]): boolean {
     const l = Math.hypot(...m);
     m = [m[0] / l, m[1] / l, m[2] / l];
     if (dot(m, [c[0] - a[0], c[1] - a[1], c[2] - a[2]]) < 0) m = [-m[0], -m[1], -m[2]];
-    return ring.every((p) => dot(m, [p[0] - a[0], p[1] - a[1], p[2] - a[2]]) > HOLE_EPS);
+    // dot(m, p - a), written out: it runs for every ring vertex against every edge (Task 11b), the same arithmetic.
+    for (const p of ring) if (!(m[0] * (p[0] - a[0]) + m[1] * (p[1] - a[1]) + m[2] * (p[2] - a[2]) > HOLE_EPS)) return false;
+    return true;
   });
 }
 
 /** A convex body's faces as inside half-spaces (closed): the wall and bottom are clipped to the stock with these. */
 export function bodyPlanes(faces: readonly { n: V3; verts: V3[] }[]): Plane[] {
+  // A frozen face list (partGeometry's bodies) is asked for once per hole of the part: memoised by identity, frozen.
+  if (!Object.isFrozen(faces)) return planesOf(faces);
+  let ps = planesMemo.get(faces);
+  if (!ps) { ps = freezePrism(planesOf(faces)); planesMemo.set(faces, ps); }
+  return ps;
+}
+const planesMemo = new WeakMap<readonly unknown[], Plane[]>();
+function planesOf(faces: readonly { n: V3; verts: V3[] }[]): Plane[] {
   return faces.map((f) => ({ n: [-f.n[0], -f.n[1], -f.n[2]], d: dot(f.n, f.verts[0]!) }));
 }
 

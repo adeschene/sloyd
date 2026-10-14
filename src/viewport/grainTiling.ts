@@ -1,10 +1,10 @@
 import { ShapeUtils, Vector2 } from 'three';
 import {
-  angleCutValues, axialOffset, axisFrame, boardExtents, bodyPlanes, clipPolygon, CUT_GEOMETRY_KEYS, DIMENSION_ORDER,
+  angleCutValues, axialOffset, axisFrame, boardExtents, bodyPlanes, clipPlan, clipPolygon, CUT_GEOMETRY_KEYS, DIMENSION_ORDER,
   HOLE_EPS, holePrism, holeRing, holeRowValues, holeTouches, isSheetGood, minusPrism, ringInside, spanToWorldOffset, toWorldOffset,
   wholeBoard,
 } from '../document/document';
-import type { Board, Body, BodyFace, Hole, Region, Span, V3 } from '../document/document';
+import type { Board, Body, BodyFace, Hole, Plane, Region, Span, V3 } from '../document/document';
 import { axisDimensions, faceGrainKinds, grainFamily } from './grainFaces';
 import type { Dimension, GrainFamily, GrainKind } from './grainFaces';
 
@@ -228,6 +228,51 @@ export function boardUVs(board: Board, solid: Region = wholeBoard(board)): Float
 }
 
 /**
+ * A board-local point's world offsets (toWorldOffset on each world axis), memoised per CALL by the point's identity: a
+ * fan, an earcut triangulation and a wall share each vertex object among several triangles (Task 11b). The memo lives
+ * only as long as one mesh build — never module-level: partGeometry shares one set of points between parts in
+ * different poses. Points are never mutated (frozen bodies and rings, or fresh clip output), so identity decides value.
+ */
+function worldOffsets(board: Board): (p: V3) => V3 {
+  const frame = axisFrame(board);
+  const dims = frame.map((a) => DIMENSION_ORDER.indexOf(a.dim));
+  const memo = new Map<V3, V3>();
+  return (p) => {
+    let w = memo.get(p);
+    if (!w) {
+      w = [toWorldOffset(board, 0, p[dims[0]!]!), toWorldOffset(board, 1, p[dims[1]!]!), toWorldOffset(board, 2, p[dims[2]!]!)];
+      memo.set(p, w);
+    }
+    return w;
+  };
+}
+
+/** For a triangle given by its world offsets: null when its area is under 1e-12 (a near-duplicate vertex from clipping
+ *  makes such a fan; it is not drawn), else its (unnormalised) normal dotted with `n` — negative means wound against
+ *  `n`. Scalars only: it runs once per drawn triangle. */
+function facing(w0: V3, w1: V3, w2: V3, n: readonly number[]): number | null {
+  const e10 = w1[0] - w0[0]; const e11 = w1[1] - w0[1]; const e12 = w1[2] - w0[2];
+  const e20 = w2[0] - w0[0]; const e21 = w2[1] - w0[1]; const e22 = w2[2] - w0[2];
+  const c0 = e11 * e22 - e12 * e21; const c1 = e12 * e20 - e10 * e22; const c2 = e10 * e21 - e11 * e20;
+  return Math.hypot(c0, c1, c2) / 2 < 1e-12 ? null : c0 * n[0]! + c1 * n[1]! + c2 * n[2]!;
+}
+
+/** Per-material vertex streams (each a list of attributes) packed into one typed array per attribute, materials in
+ *  BoxGeometry order, an empty material skipped; `groups` counts vertices by the FIRST attribute (positions, 3 each). */
+function packGroups(byMaterial: number[][][]): { groups: { start: number; count: number; materialIndex: number }[]; out: Float32Array[] } {
+  const attrs = byMaterial[0]!.length;
+  const out = Array.from({ length: attrs }, (_, j) => new Float32Array(byMaterial.reduce((s, m) => s + m[j]!.length, 0)));
+  const at = new Array<number>(attrs).fill(0);
+  const groups: { start: number; count: number; materialIndex: number }[] = [];
+  byMaterial.forEach((m, materialIndex) => {
+    if (m[0]!.length === 0) return;
+    groups.push({ start: at[0]! / 3, count: m[0]!.length / 3, materialIndex });
+    m.forEach((xs, j) => { out[j]!.set(xs, at[j]!); at[j]! += xs.length; });
+  });
+  return { groups, out };
+}
+
+/**
  * Triangles for one CLIPPED body (angle-cuts spec §3.3): positions relative
  * to the board's centre, UVs from the SAME face plans as boardUVs (invariant
  * 17: board-relative, FIT against the board), grouped by BoxGeometry's
@@ -249,7 +294,7 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = []):
   const extents = boardExtents(board);
   const [ou, ov] = boardUVOffset(board.id);
   const dimIndex = (d: Dimension) => DIMENSION_ORDER.indexOf(d);
-  const offsetOf = (p: [number, number, number]) => [0, 1, 2].map((i) => toWorldOffset(board, i, p[dimIndex(frame[i]!.dim)]!)) as [number, number, number];
+  const offsetOf = worldOffsets(board);
   const byMaterial: { pos: number[]; uv: number[] }[] = Array.from({ length: 6 }, () => ({ pos: [], uv: [] }));
   for (const f of body.faces) {
     const n = [0, 1, 2].map((i) => f.n[dimIndex(frame[i]!.dim)]! * (frame[i]!.reversed ? -1 : 1));
@@ -263,33 +308,24 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = []):
     const material = axis * 2 + (n[axis]! > 0 ? 0 : 1);
     const plan = plans[material]!;
     const out = byMaterial[material]!;
+    const put = (p: V3) => {
+      out.pos.push(p[0] - extents[0] / 2, p[1] - extents[1] / 2, p[2] - extents[2] / 2);
+      out.uv.push(
+        p[plan.axes[0]]! / plan.tileInches[0] + (plan.fit[0] ? 0 : ou),
+        p[plan.axes[1]]! / plan.tileInches[1] + (plan.fit[1] ? 0 : ov),
+      );
+    };
     for (const t of faceTriangles(f, holes)) {
-      let tri = t.map(offsetOf);
-      const e1 = [0, 1, 2].map((k) => tri[1]![k]! - tri[0]![k]!);
-      const e2 = [0, 1, 2].map((k) => tri[2]![k]! - tri[0]![k]!);
-      const cr = [e1[1]! * e2[2]! - e1[2]! * e2[1]!, e1[2]! * e2[0]! - e1[0]! * e2[2]!, e1[0]! * e2[1]! - e1[1]! * e2[0]!];
+      const w0 = offsetOf(t[0]!); const w1 = offsetOf(t[1]!); const w2 = offsetOf(t[2]!);
+      const d = facing(w0, w1, w2, n);
       // Near-duplicate vertices from clipping make zero-area fans; emit nothing for them.
-      if (Math.hypot(cr[0]!, cr[1]!, cr[2]!) / 2 < 1e-12) continue;
-      if (cr[0]! * n[0]! + cr[1]! * n[1]! + cr[2]! * n[2]! < 0) tri = [tri[0]!, tri[2]!, tri[1]!];
-      for (const p of tri) {
-        out.pos.push(p[0] - extents[0] / 2, p[1] - extents[1] / 2, p[2] - extents[2] / 2);
-        out.uv.push(
-          p[plan.axes[0]]! / plan.tileInches[0] + (plan.fit[0] ? 0 : ou),
-          p[plan.axes[1]]! / plan.tileInches[1] + (plan.fit[1] ? 0 : ov),
-        );
-      }
+      if (d === null) continue;
+      put(w0);
+      if (d < 0) { put(w2); put(w1); } else { put(w1); put(w2); }
     }
   }
-  const positions: number[] = [];
-  const uvs: number[] = [];
-  const groups: { start: number; count: number; materialIndex: number }[] = [];
-  byMaterial.forEach((m, materialIndex) => {
-    if (m.pos.length === 0) return;
-    groups.push({ start: positions.length / 3, count: m.pos.length / 3, materialIndex });
-    positions.push(...m.pos);
-    uvs.push(...m.uv);
-  });
-  return { positions: new Float32Array(positions), uvs: new Float32Array(uvs), groups };
+  const { groups, out: [positions, uvs] } = packGroups(byMaterial.map((m) => [m.pos, m.uv]));
+  return { positions: positions!, uvs: uvs!, groups };
 }
 
 /**
@@ -324,7 +360,7 @@ export function faceTriangles(f: BodyFace, holes: readonly Hole[]): V3[][] {
     }
   }
   let pieces: V3[][] = [f.verts];
-  for (const h of reaching) pieces = pieces.flatMap((p) => minusPrism(p, holePrism(h)));
+  for (const h of reaching) { const prism = holePrism(h); pieces = pieces.flatMap((p) => minusPrism(p, prism)); }
   return pieces.flatMap(fan);
 }
 
@@ -342,8 +378,10 @@ export function holeMesh(board: Board, h: Hole, bodies: readonly Body[]): { posi
   const extents = boardExtents(board);
   const [ou, ov] = boardUVOffset(board.id);
   const dimIndex = (d: Dimension) => DIMENSION_ORDER.indexOf(d);
-  const offsetOf = (p: V3) => [0, 1, 2].map((i) => toWorldOffset(board, i, p[dimIndex(frame[i]!.dim)]!)) as V3;
-  const vecOf = (n: V3) => [0, 1, 2].map((i) => n[dimIndex(frame[i]!.dim)]! * (frame[i]!.reversed ? -1 : 1)) as V3;
+  const offsetOf = worldOffsets(board);
+  const [d0, d1, d2] = frame.map((f) => dimIndex(f.dim)) as [number, number, number];
+  const [s0, s1, s2] = frame.map((f) => (f.reversed ? -1 : 1));
+  const vecOf = (n: V3): V3 => [n[d0]! * s0!, n[d1]! * s1!, n[d2]! * s2!];
   const planes = bodies.map((b) => bodyPlanes(b.faces));
   const a = dimIndex(h.axis);
   const inward = (p: V3): V3 => {
@@ -353,52 +391,68 @@ export function holeMesh(board: Board, h: Hole, bodies: readonly Body[]): { posi
     return [r[0] / l, r[1] / l, r[2] / l];
   };
   const byMaterial = Array.from({ length: 6 }, () => ({ pos: [] as number[], nor: [] as number[], uv: [] as number[] }));
-  const emit = (poly: V3[], facet: V3, normalAt: (p: V3) => V3) => {
-    const fw = vecOf(facet);
+  // One convex piece, fanned from its first vertex: `ws` its vertices' world offsets, `ns` their WORLD normals, `fw` the
+  // facet's world normal (material, plan and winding).
+  const emit = (ws: V3[], ns: V3[], fw: V3) => {
     let axis = 0;
     for (let i = 1; i < 3; i += 1) if (Math.abs(fw[i]!) > Math.abs(fw[axis]!) + 1e-9) axis = i;
     const material = axis * 2 + (fw[axis]! > 0 ? 0 : 1);
     const plan = plans[material]!;
     const out = byMaterial[material]!;
-    for (let i = 1; i + 1 < poly.length; i += 1) {
-      let tri = [poly[0]!, poly[i]!, poly[i + 1]!];
-      let w = tri.map(offsetOf);
-      const e1 = [0, 1, 2].map((k) => w[1]![k]! - w[0]![k]!);
-      const e2 = [0, 1, 2].map((k) => w[2]![k]! - w[0]![k]!);
-      const cr = [e1[1]! * e2[2]! - e1[2]! * e2[1]!, e1[2]! * e2[0]! - e1[0]! * e2[2]!, e1[0]! * e2[1]! - e1[1]! * e2[0]!];
-      if (Math.hypot(cr[0]!, cr[1]!, cr[2]!) / 2 < 1e-12) continue;
-      if (cr[0]! * fw[0]! + cr[1]! * fw[1]! + cr[2]! * fw[2]! < 0) { tri = [tri[0]!, tri[2]!, tri[1]!]; w = [w[0]!, w[2]!, w[1]!]; }
-      tri.forEach((p, k) => {
-        const q = w[k]!;
-        const nw = vecOf(normalAt(p));
-        out.pos.push(q[0] - extents[0] / 2, q[1] - extents[1] / 2, q[2] - extents[2] / 2);
-        out.nor.push(nw[0], nw[1], nw[2]);
-        out.uv.push(q[plan.axes[0]]! / plan.tileInches[0] + (plan.fit[0] ? 0 : ou), q[plan.axes[1]]! / plan.tileInches[1] + (plan.fit[1] ? 0 : ov));
-      });
+    const put = (q: V3, nw: V3) => {
+      out.pos.push(q[0] - extents[0] / 2, q[1] - extents[1] / 2, q[2] - extents[2] / 2);
+      out.nor.push(nw[0], nw[1], nw[2]);
+      out.uv.push(q[plan.axes[0]]! / plan.tileInches[0] + (plan.fit[0] ? 0 : ou), q[plan.axes[1]]! / plan.tileInches[1] + (plan.fit[1] ? 0 : ov));
+    };
+    for (let i = 1; i + 1 < ws.length; i += 1) {
+      const d = facing(ws[0]!, ws[i]!, ws[i + 1]!, fw);
+      if (d === null) continue;
+      put(ws[0]!, ns[0]!);
+      if (d < 0) { put(ws[i + 1]!, ns[i + 1]!); put(ws[i]!, ns[i]!); } else { put(ws[i]!, ns[i]!); put(ws[i + 1]!, ns[i + 1]!); }
     }
   };
-  const clipTo = (poly: V3[]) => planes.flatMap((ps) => { let p = poly; for (const q of ps) { p = clipPolygon(p, q); if (!p.length) break; } return p.length ? [p] : []; });
+  const wallNormals = new Map<V3, V3>();
+  const wallNormal = (p: V3): V3 => {
+    let nw = wallNormals.get(p);
+    if (!nw) { nw = vecOf(inward(p)); wallNormals.set(p, nw); }
+    return nw;
+  };
   const top = holeRing(h, 0);
   const far = holeRing(h, h.depth);
+  // Every wall quad and the bottom are made of ring vertices, so one test per body finds the planes that can change
+  // them, or that nothing survives (clipPlan; Task 11b) — the same pieces as clipping by every plane. A body with no
+  // such plane keeps every quad whole, so its quads are emitted from the rings' offsets and normals by index.
+  const rings = [...top, ...far];
+  const plan = planes.map((ps) => clipPlan(ps, rings)).filter((ps): ps is Plane[] => ps !== null);
+  const clip = (poly: V3[], ps: Plane[]): V3[] => {
+    let p = poly;
+    for (const q of ps) { p = clipPolygon(p, q); if (!p.length) break; }
+    return p;
+  };
+  const topW = top.map(offsetOf); const farW = far.map(offsetOf);
+  const topN = top.map(wallNormal); const farN = far.map(wallNormal);
   for (let k = 0; k < top.length; k += 1) {
     const k1 = (k + 1) % top.length;
     const quad = [top[k]!, top[k1]!, far[k1]!, far[k]!];
     const mid: V3 = [0, 1, 2].map((i) => (top[k]![i]! + top[k1]![i]!) / 2) as V3;
-    for (const piece of clipTo(quad)) emit(piece, inward(mid), inward);
+    const fw = vecOf(inward(mid));
+    for (const ps of plan) {
+      if (ps.length === 0) { emit([topW[k]!, topW[k1]!, farW[k1]!, farW[k]!], [topN[k]!, topN[k1]!, farN[k1]!, farN[k]!], fw); continue; }
+      const piece = clip(quad, ps);
+      if (piece.length) emit(piece.map(offsetOf), piece.map(wallNormal), fw);
+    }
   }
   if (!h.through) {
     const back: V3 = [0, 0, 0];
     back[a] = -h.dir;
-    for (const piece of clipTo(far)) emit(piece, back, () => back);
+    const backWorld = vecOf(back);
+    for (const ps of plan) {
+      const piece = ps.length === 0 ? far : clip(far, ps);
+      if (piece.length) emit(piece === far ? farW : piece.map(offsetOf), piece.map(() => backWorld), backWorld);
+    }
   }
-  const positions: number[] = []; const normals: number[] = []; const uvs: number[] = [];
-  const groups: { start: number; count: number; materialIndex: number }[] = [];
-  byMaterial.forEach((m, materialIndex) => {
-    if (m.pos.length === 0) return;
-    groups.push({ start: positions.length / 3, count: m.pos.length / 3, materialIndex });
-    positions.push(...m.pos); normals.push(...m.nor); uvs.push(...m.uv);
-  });
-  return { positions: new Float32Array(positions), normals: new Float32Array(normals), uvs: new Float32Array(uvs), groups };
+  const { groups, out: [positions, normals, uvs] } = packGroups(byMaterial.map((m) => [m.pos, m.nor, m.uv]));
+  return { positions: positions!, normals: normals!, uvs: uvs!, groups };
 }
 
 /**
