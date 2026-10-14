@@ -1393,7 +1393,7 @@ the code.)
 
 ```ts
 import { boardHoles, boardBodies, holeRing, holeTouchesBox, HOLE_SEGMENTS, createBoard } from '../document/document';
-import { bodyMesh, boardUVSignature, faceTriangles, holeMesh } from './grainTiling';
+import { boardUVSignature, faceTriangles, holeMesh } from './grainTiling';
 
 const pinRow = { id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 3, pitch: 32 / 25.4, acrossFrom: 'min' as const, inset: 1.5 };
 const dado = { id: 'c1', face: 'thickness' as const, from: 'max' as const, across: 'width' as const, offset: 10, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
