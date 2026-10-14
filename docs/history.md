@@ -18,6 +18,10 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-14 with custom materials chunk 2 live** (`index-qj1aqsa6.js`, CSS
+`index-DmVXKxYH.css`, merge `bfde00c`, schema 15 unchanged). Verified per the deployment rule: in-network and edge `200`s, the
+bundle hash at both, the old bundle 404, the CSP's `connect-src`, a real-browser load (0 errors; storage cleared, read back empty).
+
 **Production matches `master` as of 2026-10-14 with custom materials chunk 1 live** (`index-DyeArqLP.js`, CSS
 `index-D82WvZxV.css`, merge `4851945`, **schema 15** — a rollback below it refuses projects saved since; export first). Verified
 per the deployment rule: in-network and edge `200`s, the bundle hash at both, the old bundle 404, the CSP's `connect-src`, a

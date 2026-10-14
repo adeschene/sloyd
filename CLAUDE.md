@@ -21,13 +21,13 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-14: custom materials chunk 1 (merge `4851945`) — bundle `index-DyeArqLP.js`,
-  CSS `index-D82WvZxV.css`, **SCHEMA 15** (rolling back to `c610393`, `index-D6x3XODA.js`, schema 14, REFUSES every project
-  saved since: export first). Test count is under Commands.
-- **Custom materials (fu 266; spec `2026-10-14-sloyd-custom-materials-design.md`)**: chunk 1 deployed (user-defined solid and
-  sheet materials, library + per-project copies, Materials & prices, Refine keeps them; inv 49). **NEXT: chunk 2, nominal
-  names** (spec §5; chosen by the user, not started; no schema change). Open near it: 324, 325. Other open items: 314–320,
-  angle-cut residue 295–298; 241 (open by decision), 251 (record-only), 221, 225, 232, 234, 247.
+- **Production matches `master`** as of 2026-10-14: custom materials chunk 2 (merge `bfde00c`) — bundle `index-qj1aqsa6.js`,
+  CSS `index-DmVXKxYH.css`, **SCHEMA 15** (unchanged since chunk 1, so rolling back to `4851945`, `index-DyeArqLP.js`, is free;
+  below 15, `c610393`, REFUSES every project saved since: export first). Test count is under Commands.
+- **Custom materials (fu 266, closed; spec `2026-10-14-sloyd-custom-materials-design.md`)**: both chunks deployed —
+  user-defined solid and sheet materials (library + per-project copies, Materials & prices, Refine keeps them) and nominal
+  lumber names (inv 49). **NEXT: none chosen — ask.** Open near it: 324–326. Other open items: 314–320, angle-cut residue
+  295–298; 241 (open by decision), 251 (record-only), 221, 225, 232, 234, 247.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
   byte-identical bundles (test-only). Check what a later commit touches before reading
@@ -96,6 +96,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | AI angles (chunk 1) | 10-13 | — | Add joinery and Repair accept miters, bevels and chamfers: contact trusts their flat wood (`touchedRegion`/`splitRegion`), a cut running into a joint refuses unless it clears the tenon (`angleConflicts`), joinery keeps angle cuts on their wood (`rebaseAngleCuts`, fu 307) |
 | AI angles (chunk 2) | 10-14 | — | Generate and Refine write miters, bevels and chamfers in world words (`angleWorld.ts`); exact untouched angles (`angleRatiosOf`); `angle-joint` design fault; the change list names them; chamfered legs link through turns; the design schema in `$defs` (the API's compiled-grammar cap) |
 | custom materials (chunk 1) | 10-14 | 15 | User-defined solid and sheet materials (kind in the id, inv 49): a browser library and per-project copies (`doc.materials`, pruned to what parts use); Materials & prices (was Lumber & prices); Properties picks project/library materials and New material…; Refine keeps them (per-project schema enum; Generate's byte-identical) |
+| custom materials (chunk 2) | 10-14 | — | Nominal lumber names (`units/nominal.ts`, exact match): cut-list rows named when every board is the section, Buying `2×4 × 8′`, a Properties Nominal size select, the Sold in nominal sizes switch; pine is nominal |
 
 ### The deployment rule
 
@@ -742,9 +743,8 @@ knowing without opening it:
   candidates' angle-cut ids by index (latent); test gaps; multi-decimal angles fall back to 0.1°.
 - **322** — the design schema's compiled-grammar margin (record): the API caps the compiled schema (unpublished); the part
   and direction live in `$defs`; any `DESIGN_SCHEMA` change needs one live compile before it ships.
-- **266** — custom materials shipped (chunk 1, schema 15); **nominal names are chunk 2** (spec §5: the table, pine's
-  flag, cut list/Buying names, the Size select; no schema change). **324** — chunk 1 minors (record-only). **325** — two
-  tabs overwrite each other's library/prices (record); the v14-rollback `extra` round trip is covered.
+- **266** — closed 2026-10-14 (custom materials, both chunks). **324**/**326** — chunk 1/chunk 2 minors (record-only).
+  **325** — two tabs overwrite each other's library/prices (record); the v14-rollback `extra` round trip is covered.
 - **176/177** — the held rules' known limits (mutual lapping) and an unseen live repair.
 - **130** — semi-infinite construction lines; picked and set aside 2026-08-31 without a
   reason. Ask before assuming it's wanted; it needs real hardware (26a).
