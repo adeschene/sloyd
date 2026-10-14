@@ -7,7 +7,7 @@ import { axisDimensions, axisFrame, boardCenter, endFacing, toWorldOffset } from
 import { worldTapers } from '../../document/taperWorld';
 import { formatLength } from '../../units/length';
 import { findSites } from './sites';
-import { angleConflicts, joineryRefusal, taperConflicts, taperFaults } from './tapers';
+import { angleConflicts, joineryRefusal, taperConflicts, jointFaults } from './tapers';
 import { taperJointRefusal } from '../../document/angledRefusal';
 import { checkDesign } from '../../document/designCheck';
 import { applyJoints, rebaseAngleCuts } from './recipes';
@@ -193,7 +193,7 @@ describe('taperJointRefusal / joineryRefusal', () => {
   });
 });
 
-describe('taperFaults \u2014 the fault on designs (spec 5.3)', () => {
+describe('jointFaults \u2014 the fault on designs (spec 5.3)', () => {
   const part = (name: string, at: number[], size: number[], tapers: unknown[] = []) =>
     ({ name, role: '', material: 'oak', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] }, tapers, miters: [], bevels: [], chamfers: [] });
   const build = (parts: unknown[], opts?: { exact: Set<number> }) =>
@@ -203,15 +203,15 @@ describe('taperFaults \u2014 the fault on designs (spec 5.3)', () => {
     part('Rail X', [1.75, railY, 0.5], [18, 3, 0.75]),
   ]);
 
-  it('reports one taper-joint fault naming both parts, in world words', () => {
-    const v = taperFaults(corner(24));
+  it('reports one angle-joint fault naming both parts, in world words', () => {
+    const v = jointFaults(corner(24));
     expect(v).toHaveLength(1);
-    expect(v[0]!.kind).toBe('taper-joint');
+    expect(v[0]!.kind).toBe('angle-joint');
     expect([...v[0]!.parts].sort()).toEqual(['Leg', 'Rail X']);
     expect(v[0]!.message).toBe("Leg's taper toward -y runs into where it meets Rail X (a joint goes there) \u2014 start it 23.5in or less from its -y end, or remove it.");
   });
   it('allows start exactly at the meeting', () => {
-    expect(taperFaults(corner(23.5))).toEqual([]);
+    expect(jointFaults(corner(23.5))).toEqual([]);
   });
   it('floors the advice to 1/16, and following it passes (snapped start)', () => {
     // The rail sits at 22.47: exact in the design (no snap) so the meeting is off-grid.
@@ -221,20 +221,20 @@ describe('taperFaults \u2014 the fault on designs (spec 5.3)', () => {
       part('Leg', [0, 0, 0], [1.75, 28, 1.75], [{ faces: ['+x'], toward: '-y', start: 24, amount: 0.375 }]),
       part('Rail X', [1.75, at, 0.5], [18, 3, 0.75]),
     ], opts);
-    const [v] = taperFaults(flat);
+    const [v] = jointFaults(flat);
     expect(v!.message).toContain('start it 22.4375in or less');
     const fixed = build([
       part('Leg', [0, 0, 0], [1.75, 28, 1.75], [{ faces: ['+x'], toward: '-y', start: 22.4375, amount: 0.375 }]),
       part('Rail X', [1.75, at, 0.5], [18, 3, 0.75]),
     ], opts);
-    expect(taperFaults(fixed)).toEqual([]);
+    expect(jointFaults(fixed)).toEqual([]);
   });
   it('a meeting at the thin end advises tapering the other end', () => {
     const flat = build([
       part('Leg', [0, 1, 0], [1.75, 28, 1.75], [{ faces: ['+x'], toward: '-y', start: 10, amount: 0.375 }]),
       part('Foot', [-1, 0, -1], [4, 1, 4]),
     ]);
-    expect(taperFaults(flat)[0]!.message).toBe("Leg's taper toward -y runs to its -y end, where it meets Foot (a joint goes there) \u2014 taper the other end, or remove the taper.");
+    expect(jointFaults(flat)[0]!.message).toBe("Leg's taper toward -y runs to its -y end, where it meets Foot (a joint goes there) \u2014 taper the other end, or remove the taper.");
   });
 });
 
@@ -265,7 +265,7 @@ describe('the headline flow: a Shaker table with tapered legs, generated and joi
       expect(t![0]!.faces.every(inward)).toBe(true);
     }
     expect(checkDesign(flat, limits)).toEqual([]);
-    expect(taperFaults(flat)).toEqual([]);
+    expect(jointFaults(flat)).toEqual([]);
     expect(joineryRefusal(made.doc, flat)).toBeNull();
 
     const sites = findSites(flat);
@@ -347,6 +347,16 @@ describe('angleConflicts — a miter, bevel or chamfer reaching into a joint (AI
     expect(ends(withPart(CORNER, 'Rail X', hairline(1 / 64)))).toEqual([{ part: at(CORNER, 'Rail X'), other: at(CORNER, 'Leg'), kind: 'chamfer' }]);
     // The same chamfer at the FREE end is fine; so is the through-length chamfer of the tenon-clearance case (above).
     expect(ends(withPart(CORNER, 'Rail X', (b) => [chamfer(b, [0, 1], [2, -1], 1 / 64)]))).toEqual([]);
+  });
+  it('the design fault: a miter at a joint goes back to the model as angle-joint, in world words (spec §5.4)', () => {
+    const doc = withPart(CORNER, 'Rail X', railMiter(-1));
+    const f = jointFaults(doc);
+    expect(f).toEqual([{ kind: 'angle-joint', parts: ['Rail X', 'Leg'],
+      message: "Rail X's miter runs into where it meets Leg (a joint goes there) — move it off that end or face, or remove it." }]);
+    // A taper conflict on the same part wins, worded as before.
+    const both = withPart(withLeg(CORNER, inside(24)), 'Leg', (b) => [...inside(24)(b), chamfer(b, [0, 1], [2, -1], 0.75)]);
+    expect(jointFaults(both).filter((v) => v.parts[0] === 'Leg')).toHaveLength(1);
+    expect(jointFaults(both)[0]!.message).toContain("Leg's taper toward");
   });
   it('a cut that removes nothing never conflicts (Review Focus 3)', () => {
     expect(ends(withPart(CORNER, 'Rail X', (b) => [{ ...railMiter(-1)(b)[0]!, points: [[0, -1], [1, -2]] }]))).toEqual([]);

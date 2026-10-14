@@ -2,7 +2,7 @@ import type { AngleConflict, AngleCut, Board, FlatDocument, Region, SloydDocumen
 import { flatDocument, jointRefusal } from '../../document/document';
 import { taperFields, throughOf, touchedRegion } from '../../document/angleCuts';
 import { axisDimensions, endFacing, spanFromWorldOffset } from '../../document/geometry';
-import { TOUCH, taperJointViolations, worldBox } from '../../document/designCheck';
+import { TOUCH, jointViolations, worldBox } from '../../document/designCheck';
 import type { Violation } from '../../document/designCheck';
 import { boxOf } from './pocket';
 import { tenonSection } from './recipes';
@@ -123,7 +123,8 @@ export function joineryRefusal(doc: SloydDocument, flat: FlatDocument = flatDocu
   return jointRefusal(flat, taperConflicts(flat, sites), angleConflicts(flat, sites));
 }
 
-/** The taper-at-joint rule on a DESIGN (spec section 5.3): every conflict as a `taper-joint` fault, for evaluateDesign and Refine's preexisting set. */
-export function taperFaults(flat: FlatDocument): Violation[] {
-  return taperJointViolations(flat, taperConflicts(flat, findSites(flat)));
+/** The angle-at-joint rule on a DESIGN (AI-tapers spec 5.3; AI-angles spec §5.4): every conflict as an `angle-joint` fault, for evaluateDesign and Refine's preexisting set. */
+export function jointFaults(flat: FlatDocument): Violation[] {
+  const sites = findSites(flat);
+  return jointViolations(flat, taperConflicts(flat, sites), angleConflicts(flat, sites));
 }

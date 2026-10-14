@@ -62,7 +62,7 @@ export function plainForRefine(doc: SloydDocument): RefineBase {
     // refused before any call (AI-tapers spec §5.4, amended), by joinery's ONE refusal decider (invariant 41).
     const pf = flatDocument(plain);
     const taper = joineryRefusal(plain, pf, findSites(pf));
-    if (taper) return { refused: { reason: 'taper-joint', message: taper } };
+    if (taper) return { refused: { reason: 'angle-joint', message: taper } };
     return { plain, joints: g.joints };
   } catch (e) {
     console.error('Sloyd: reading joints back threw', e);
@@ -83,9 +83,9 @@ export function refineRefusal(doc: SloydDocument, base: RefineBase = plainForRef
  */
 export function refineDialogInfo(doc: SloydDocument): { base: RefineBase; refusal: string | null; detail: Detail; joined: boolean; repair: RepairCheck } {
   const base = plainForRefine(doc);
-  // Joined = some placed part is cut: the gate either explained it (joints) or refused it. A 'taper-joint' refusal is
+  // Joined = some placed part is cut: the gate either explained it (joints) or refused it. An 'angle-joint' refusal is
   // produced only after the gate read the joints, so it is joined too (AI-tapers spec §5.4).
-  const joined = 'refused' in base ? base.refused.reason === 'joints' || base.refused.reason === 'taper-joint' : base.joints !== null;
+  const joined = 'refused' in base ? base.refused.reason === 'joints' || base.refused.reason === 'angle-joint' : base.joints !== null;
   return { base, refusal: refineRefusal(doc, base), detail: detailFor(doc), joined,
     // Only when the gate refused for joints: the repair is the way out of that refusal (repair-joints spec §3).
     repair: 'refused' in base && base.refused.reason === 'joints' ? repairDocument(doc) : null };

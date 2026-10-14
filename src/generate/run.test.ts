@@ -779,7 +779,7 @@ describe('runJoinery — a miter running into a joint (AI-angles spec §3)', () 
   });
 });
 
-describe('the taper-joint fault (AI-tapers spec 5.3)', () => {
+describe('the angle-joint fault for tapers (AI-tapers spec 5.3)', () => {
   const leg = (start: number) => ({ name: 'Leg', role: '', material: 'oak', at: { x: 0, y: 0, z: 0 }, size: { x: 1.75, y: 28, z: 1.75 },
     miters: [], bevels: [], chamfers: [], tapers: [{ faces: ['+x', '+z'], toward: '-y', start, amount: 0.375 }] });
   const rail = { name: 'Rail', role: '', material: 'oak', at: { x: 1.75, y: 23.5, z: 0.5 }, size: { x: 18, y: 3, z: 0.75 }, miters: [], bevels: [], chamfers: [], tapers: [] };
@@ -792,7 +792,7 @@ describe('the taper-joint fault (AI-tapers spec 5.3)', () => {
     const { client, seen } = fakeClient([design(24), design(22)]);
     const out = await run(client);
     expect(text(seen[1]!)).toContain("Leg's taper toward -y");
-    expect(out.violations.filter((v) => v.kind === 'taper-joint')).toEqual([]);
+    expect(out.violations.filter((v) => v.kind === 'angle-joint')).toEqual([]);
   });
   it('Refine counts the original\'s own taper conflict as preexisting: present, not fed back', async () => {
     const RS = { instruction: 'keep it', width: null, depth: null, height: null, detail: 'simple' as const };
@@ -802,8 +802,8 @@ describe('the taper-joint fault (AI-tapers spec 5.3)', () => {
     const { client, seen } = fakeClient([from.design]);
     const out = await runRefine(client, doc, RS, new AbortController().signal, () => {});
     if ('refused' in out) throw new Error('refused');
-    expect(out.present.some((v) => v.kind === 'taper-joint')).toBe(true);
-    expect(out.violations.some((v) => v.kind === 'taper-joint')).toBe(false);
+    expect(out.present.some((v) => v.kind === 'angle-joint')).toBe(true);
+    expect(out.violations.some((v) => v.kind === 'angle-joint')).toBe(false);
     expect(seen.slice(1).map(text).join('')).not.toContain("Leg's taper");
   });
 });
@@ -843,7 +843,7 @@ describe('runRefine — joined designs with tapers (AI-tapers spec §5.4)', () =
     const before = JSON.stringify(bad);
     const { client } = fakeClient([conflicting]);
     const out = await runRefine(client, bad, RS, new AbortController().signal, () => {});
-    expect('refused' in out && out.refused.reason).toBe('taper-joint');
+    expect('refused' in out && out.refused.reason).toBe('angle-joint');
     expect(client.complete).not.toHaveBeenCalled();
     expect(JSON.stringify(bad)).toBe(before);
   });
@@ -855,7 +855,7 @@ describe('runRefine — joined designs with tapers (AI-tapers spec §5.4)', () =
     if ('refused' in out) throw new Error(out.refused.message);
     expect(client.complete).toHaveBeenCalledTimes(4);                 // no joinery call
     expect(out.joints?.notJoined).toBeTruthy();
-    expect(out.violations.some((v) => v.kind === 'taper-joint')).toBe(true);
+    expect(out.violations.some((v) => v.kind === 'angle-joint')).toBe(true);
     expect(flatDocument(out.doc).boards.every((b) => b.cuts.length === 0)).toBe(true);
   });
 });

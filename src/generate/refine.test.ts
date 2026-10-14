@@ -130,7 +130,7 @@ describe('plainForRefine — tapers on a joined design (spec §5.4)', () => {
   it('refuses, before any call, a joined design whose taper already runs into a joint', () => {
     const bad = withLegTaper(joined, 24);
     const r = plainForRefine(bad);
-    expect('refused' in r && r.refused.reason).toBe('taper-joint');
+    expect('refused' in r && r.refused.reason).toBe('angle-joint');
     // It IS joined (the gate read its joints): the dialog must say so, and offers no repair (repair is for 'joints').
     expect(refineDialogInfo(bad).joined).toBe(true);
     expect(refineDialogInfo(bad).repair).toBeNull();

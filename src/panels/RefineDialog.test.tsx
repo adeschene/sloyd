@@ -117,7 +117,7 @@ describe('RefineDialog', () => {
   });
 
   it('shows an unjoined result\'s taper fault once, in the person\'s words (fu 311)', () => {
-    const taper = { kind: 'taper-joint' as const, message: 'MODEL WORDS', parts: ['Leg', 'Rail'] };
+    const taper = { kind: 'angle-joint' as const, message: 'MODEL WORDS', parts: ['Leg', 'Rail'] };
     const other = { kind: 'overlap' as const, message: 'A passes 0.5in into B along X.', parts: ['A', 'B'] };
     const outcome = (notJoined?: string) => ({ status: 'ready' as const, projectId: 'p1', projectName: 'Box — refined', costUsd: 0.1, outcome: {
       doc: {} as never, usage: {} as never, changes: [], violations: [taper, other], present: [],

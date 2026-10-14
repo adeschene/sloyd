@@ -5,7 +5,7 @@ import { pocketCells } from './cuts';
 import { clipConvex, partGeometry } from './bodies';
 import type { BodyFace } from './bodies';
 import { splitRegion, taperFields, touchedRegion } from './angleCuts';
-import type { TaperConflict } from './angledRefusal';
+import type { AngleConflict, TaperConflict } from './angledRefusal';
 import { SNAP_INCHES, axisFrame, boardExtents, spanToWorldOffset, toWorldOffset } from './geometry';
 import { localToDir } from './taperWorld';
 
@@ -27,7 +27,7 @@ import { localToDir } from './taperWorld';
  * is never a contact); overlap stays on `worldSolids` except for a pair with an angled part, measured on real bodies (fu 302);
  * the tip check weighs an angled part by its real bodies (`partMass`, fu 303).
  */
-export type ViolationKind = 'too-small' | 'overlap' | 'unsupported' | 'too-large' | 'too-many-parts' | 'hangs' | 'tips' | 'taper-joint';
+export type ViolationKind = 'too-small' | 'overlap' | 'unsupported' | 'too-large' | 'too-many-parts' | 'hangs' | 'tips' | 'angle-joint';
 export interface Violation { kind: ViolationKind; message: string; parts: string[] }
 export interface DesignLimits { width: number | null; depth: number | null; height: number | null; maxParts: number }
 
@@ -518,13 +518,14 @@ export function rejectedViolations(rejected: RejectedPart[]): Violation[] {
 }
 
 /**
- * The taper-at-joint rule as a DESIGN fault (AI-tapers spec section 5.3), for the model: world words,
- * plain decimal inches. The advice is a LIMIT floored to SNAP_INCHES: the converter snaps the
- * model's `start` to 1/16, so advice off that grid would snap past the meeting and conflict again.
- * Multiples of 1/16 print exactly. Not part of checkDesign (joinery's gate); evaluateDesign adds it.
+ * The angle-at-joint rule as a DESIGN fault (AI-tapers spec §5.3; AI-angles spec §5.4), for the model: world words,
+ * plain decimal inches, one per part — a taper conflict's wording (unchanged) when the part has one, else its angle
+ * conflict's. The taper advice is a LIMIT floored to SNAP_INCHES: the converter snaps `start` to 1/16, so advice off
+ * that grid would snap past the meeting and conflict again. Multiples of 1/16 print exactly. Not part of checkDesign
+ * (joinery's gate); evaluateDesign adds it.
  */
-export function taperJointViolations(flat: FlatDocument, conflicts: readonly TaperConflict[]): Violation[] {
-  return conflicts.map(({ part, other, end, nearest }) => {
+export function jointViolations(flat: FlatDocument, tapers: readonly TaperConflict[], angles: readonly AngleConflict[]): Violation[] {
+  const out: Violation[] = tapers.map(({ part, other, end, nearest }) => {
     const b = flat.boards[part]!;
     const o = flat.boards[other]!;
     const dir = localToDir(b, 'length', end);
@@ -532,6 +533,15 @@ export function taperJointViolations(flat: FlatDocument, conflicts: readonly Tap
     const message = limit === 0
       ? `${b.name}'s taper toward ${dir} runs to its ${dir} end, where it meets ${o.name} (a joint goes there) \u2014 taper the other end, or remove the taper.`
       : `${b.name}'s taper toward ${dir} runs into where it meets ${o.name} (a joint goes there) \u2014 start it ${limit}in or less from its ${dir} end, or remove it.`;
-    return { kind: 'taper-joint' as const, message, parts: [b.name, o.name] };
+    return { kind: 'angle-joint' as const, message, parts: [b.name, o.name] };
   });
+  const tapered = new Set(tapers.map((c) => c.part));
+  for (const { part, other, kind } of angles) {
+    if (tapered.has(part)) continue;
+    const b = flat.boards[part]!;
+    const o = flat.boards[other]!;
+    out.push({ kind: 'angle-joint', parts: [b.name, o.name],
+      message: `${b.name}'s ${kind} runs into where it meets ${o.name} (a joint goes there) \u2014 move it off that end or face, or remove it.` });
+  }
+  return out;
 }

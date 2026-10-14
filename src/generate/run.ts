@@ -11,7 +11,7 @@ import { JOINERY_PROMPT, JOINT_SCHEMA, defaultChoice, jointsRepairMessage, joint
 import { applyJoints } from './joints/recipes';
 import type { JoinResult, JointChoice } from './joints/recipes';
 import { findSites, jointKey } from './joints/sites';
-import { joineryRefusal, taperFaults } from './joints/tapers';
+import { joineryRefusal, jointFaults } from './joints/tapers';
 import type { Site } from './joints/sites';
 import { DETAIL_CAPS, SYSTEM_PROMPT, limitsOf, repairMessage, unusableMessage, userMessage } from './prompt';
 import type { Concept, GenerateSettings, LimitSettings } from './prompt';
@@ -143,7 +143,7 @@ interface EvaluateOpts {
 /**
  * THE design evaluation, shared by Generate and Refine so they cannot drift
  * (refine spec §3.1): parse → tree → flatten → zero-board guard → distinct cap
- * → checkDesign + the taper-joint fault → collapse. With `preexisting`, a raw violation whose
+ * → checkDesign + the angle-joint fault → collapse. With `preexisting`, a raw violation whose
  * problemKey the original already had (and which names parts) is set aside as `present` and neither
  * counts toward "fewest" nor goes back as feedback.
  */
@@ -158,7 +158,7 @@ function evaluateDesign(res: LlmResult, s: LimitSettings, opts: EvaluateOpts = {
   // document is not a prototype.
   if (flat.boards.length === 0) return { value: null, feedback: repairMessage(rejectedViolations(converted.rejected)) };
   const distinct = distinctPartsViolation(converted.doc, DETAIL_CAPS[s.detail]);
-  const raw = [...checkDesign(flat, limitsOf(s)), ...taperFaults(flat)];
+  const raw = [...checkDesign(flat, limitsOf(s)), ...jointFaults(flat)];
   const old = opts.preexisting;
   // Only a fault naming parts can be "already there"; limits (too-large,
   // too-many-parts, tips) are judged on the result (refine spec §3.2).
@@ -223,7 +223,7 @@ export async function runRefine(
   // The original's own taper conflicts are preexisting too (spec 5.3, amended): a taper the person drew is not
   // pushed back at the model as new.
   const plainFlat0 = flatDocument(base.plain);
-  const preexisting = new Set([...checkDesign(plainFlat0, limitsOf(settings)), ...taperFaults(plainFlat0)].map(problemKey));
+  const preexisting = new Set([...checkDesign(plainFlat0, limitsOf(settings)), ...jointFaults(plainFlat0)].map(problemKey));
   const out = await runRepairLoop(client, {
     system: SYSTEM_PROMPT,
     schema: DESIGN_SCHEMA,
@@ -254,7 +254,7 @@ export async function runRefine(
     const alsoPresent = new Set(checkDesign(joinedFlat, { width: null, depth: null, height: null, maxParts: joinedFlat.boards.length })
       .filter((v) => v.parts.length > 0).map(problemKey));
     const jo = await runJoinery(client, refined, signal, (p) => onProgress({ ...p, stage: 'join' }), { fixed, alsoPresent });
-    // Reachable (AI-tapers spec §5.4, amended): the repair loop keeps its best attempt even with a taper-joint fault
+    // Reachable (AI-tapers spec §5.4, amended): the repair loop keeps its best attempt even with an angle-joint fault
     // left, and joinery refuses that before any call. The refined design is kept, unjoined; the fault is in `violations`.
     if ('refused' in jo) {
       joints = { kept: 0, chosen: 0, dropped: 0, skipped: [], notJoined: jo.refused };
