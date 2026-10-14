@@ -652,7 +652,9 @@ export class BrowserStorageAdapter implements StorageAdapter {
     }
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return { materials: [], readFailed: true };
     const v = parsed as Record<string, unknown>;
-    if (v.layout !== MATERIALS_LAYOUT) return { materials: [], readFailed: true };
+    // A layout-1 value without a materials ARRAY is damaged, not empty: reading it as empty would let a Save
+    // replace it.
+    if (v.layout !== MATERIALS_LAYOUT || !Array.isArray(v.materials)) return { materials: [], readFailed: true };
     return { materials: validateCustomMaterials(v.materials), readFailed: false };
   }
 

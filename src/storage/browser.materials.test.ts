@@ -28,7 +28,9 @@ describe('the material library (custom materials spec §2.4)', () => {
     expect(await a.setMaterialLibrary([ash])).toBe(true);
     expect(await a.getMaterialLibrary()).toEqual({ materials: [ash], readFailed: false });
   });
-  it.each([['unparseable', '{'], ['another layout', JSON.stringify({ layout: 2, materials: [ash] })], ['not an object', '[]']])(
+  it.each([['unparseable', '{'], ['another layout', JSON.stringify({ layout: 2, materials: [ash] })], ['not an object', '[]'],
+    ['layout 1 with no materials array', JSON.stringify({ layout: 1, materials: { 'm-s-ash1': ash } })],
+    ['layout 1 with materials missing', JSON.stringify({ layout: 1 })]])(
     '%s reads as empty and FAILED, and the stored value is left alone', async (_, raw) => {
       const store = new MemoryStorage();
       store.setItem(MATERIALS_KEY, raw);
