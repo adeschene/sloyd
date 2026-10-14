@@ -21,11 +21,9 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production** (2026-10-14): custom materials chunk 2 (merge `bfde00c`) — bundle `index-qj1aqsa6.js`, CSS
-  `index-DmVXKxYH.css`, **SCHEMA 15**. **`master` is AHEAD of it**: holes chunk 1 is MERGED, NOT DEPLOYED — deployment
-  waits for the user. It brings **SCHEMA 16**: once deployed, rolling back below 16 REFUSES every project saved since
-  (export first). Until it deploys, production's rollback is unchanged: to `4851945` (`index-DyeArqLP.js`) is free; below
-  15 (`c610393`) REFUSES every project saved since: export first. Test count is under Commands.
+- **Production matches `master`** as of 2026-10-14: holes chunk 1 (merge `2ded5cc`) — bundle `index-CTpNZw9F.js`, CSS
+  `index-gw2MZHzH.css`, **SCHEMA 16**: rolling back to `bfde00c` (`index-qj1aqsa6.js`, schema 15) REFUSES every project
+  saved since — export first. Test count is under Commands.
 - **Holes chunk 1 (spec `2026-10-14-sloyd-holes-design.md`, inv 50)**: blind and through holes, singly or in stored rows,
   square to any face; rendered open, rims, centre snap points, the strict rule (`holeFaults`), bench lines and cut-list
   grouping; Properties' Holes section (Hole, Shelf-pin row); joinery/Refine/Repair refuse holed projects. Open near it:

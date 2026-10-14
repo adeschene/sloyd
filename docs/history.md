@@ -18,6 +18,14 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-14 with holes chunk 1 live** (`index-CTpNZw9F.js`, CSS `index-gw2MZHzH.css`,
+merge `2ded5cc`, **schema 16** — a rollback to `bfde00c` refuses projects saved since; export first). Verified per the
+deployment rule: `200` on `/` and a deep route in-network and at the edge; the bundle and CSS match `dist/` at both; the old
+bundle `index-qj1aqsa6.js` 404s in-network; CSP `connect-src 'self' https://api.anthropic.com` at the edge; a real-browser
+load (0 errors, the Cloudflare beacon and "+ Add board" present; its fresh project stored as `version: 16`; the load's two
+keys cleared from a plain asset page and read back empty immediately and after 3s, then navigated away). Checked on the dev
+server (`docs/browser-verification-holes.md`).
+
 **Production matches `master` as of 2026-10-14 with custom materials chunk 2 live** (`index-qj1aqsa6.js`, CSS
 `index-DmVXKxYH.css`, merge `bfde00c`, schema 15 unchanged). Verified per the deployment rule: in-network and edge `200`s, the
 bundle hash at both, the old bundle 404, the CSP's `connect-src`, a real-browser load (0 errors; storage cleared, read back empty).
@@ -438,9 +446,9 @@ and 79.
 ## What each round did
 
 **What holes chunk 1 did (2026-10-14, feature-gaps §1)** (spec `docs/superpowers/specs/2026-10-14-sloyd-holes-design.md`,
-plan `docs/superpowers/plans/2026-10-14-sloyd-holes-chunk1.md`, branch `holes` from `fbe5ed9`). **Merged to master as `2ded5cc`, NOT
-deployed** — deployment waits for the user; **schema 16** (once deployed, a rollback below 16 refuses every project saved
-since: export first). The user's rulings while brainstorming: holes only (a dowel joint is two holes placed by hand); rows
+plan `docs/superpowers/plans/2026-10-14-sloyd-holes-chunk1.md`, branch `holes` from `fbe5ed9`). **Merged to master as `2ded5cc` and
+deployed the same day** (`index-CTpNZw9F.js`); **schema 16** (a rollback below 16 refuses every project saved since: export
+first). The user's rulings while brainstorming: holes only (a dowel joint is two holes placed by hand); rows
 STORED with a count and a pitch (one entry is the jig); Claude features refuse holed projects this round; strict geometry
 (a hole sits wholly on one flat face); station / pitch / inset from named ends. A `HoleRow` (face + from, diameter, depth
 or `'through'`, along + alongFrom, station, count, pitch, acrossFrom + inset) is board-local, so resizes keep it on its end
