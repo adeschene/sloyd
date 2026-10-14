@@ -187,6 +187,14 @@ describe('the Holes section', () => {
     await user.clear(count); await user.type(count, '22{Enter}');
     expect(rows()[0]!.count).toBe(22);
   });
+  it('a row thinned under its depth: the bench line and the note both count too-deep once (final review 1)', () => {
+    const pins = { id: 'h1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.375, along: 'length', alongFrom: 'min',
+      station: 2, count: 21, pitch: 32 / 25.4, acrossFrom: 'min', inset: 1.5 } as const;
+    open(side({ thickness: 0.375, holes: [pins] }));
+    expect(screen.getByText(/ — check: the holes are deeper than the thickness$/)).toBeInTheDocument();
+    expect(screen.getByText('The holes are deeper than the thickness at this size.')).toBeInTheDocument();
+    expect(screen.queryByText(/more\)$/)).toBeNull();
+  });
   it('the Shelf-pin row names its real direction', async () => {
     const user = userEvent.setup();
     open(side({ length: 10, width: 30 }));

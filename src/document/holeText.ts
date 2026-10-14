@@ -22,6 +22,13 @@ export function holeFaultText(f: HoleFault, r: HoleRow): string {
   }
 }
 
+/** A fault's identity: per hole, except too-deep, which is a property of the ROW (every hole shares its depth). The
+ *  Properties panel's "does this edit ADD a fault" reads it too. */
+export const faultKey = (f: HoleFault) => (f.kind === 'too-deep' ? 'too-deep' : `${f.index}:${f.kind}`);
+/** One fault per key, in holeFaults' order: THE one count of a row's faults (invariant 19), read by the bench line and
+ *  the Properties note, so a row thinned under its depth reads one fault, not one per hole. */
+export const distinctFaults = (fs: HoleFault[]) => fs.filter((f, i) => fs.findIndex((g) => faultKey(g) === faultKey(f)) === i);
+
 /** A diameter or pitch that is a whole number of millimetres AND not an exact 1/64 also prints its mm (spec §4.1,
  *  amended): the 32 mm system and 35 mm cups read as what the jig and the bit say. 5" (127 mm) does not. */
 function mm(v: number): string {
@@ -39,7 +46,7 @@ function mm(v: number): string {
  */
 export function holeLine(board: Board, r: HoleRow, precision: number): string {
   const base = holeLineBase(r, precision);
-  const faults = holeFaults(board, r);
+  const faults = distinctFaults(holeFaults(board, r));
   if (faults.length === 0) return base;
   return `${base} — check: ${holeFaultText(faults[0]!, r)}${faults.length > 1 ? ` (and ${faults.length - 1} more)` : ''}`;
 }

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useStore } from '../store/store';
 import { MM, acrossOf, defaultHole, defaultShelfPinRow, holeFaults } from '../document/document';
 import type { Board, CutFrom, Dimension, HoleFault, HoleRow } from '../document/document';
-import { edgeName, endWord as end, holeFaultText, holeLine } from '../document/holeText';
+import { distinctFaults, edgeName, endWord as end, faultKey as key, holeFaultText, holeLine } from '../document/holeText';
 import { DimensionField } from './DimensionField';
 import { CountField } from './CountField';
 import { Popover } from './Popover';
@@ -22,11 +22,6 @@ function refusal(f: HoleFault, r: Omit<HoleRow, 'id'>, rowId: string): string {
 }
 /** The note for a fault the stored row already has (a later edit caused it), from THE fault words (holeText.ts). */
 const note = (f: HoleFault, r: HoleRow) => { const t = holeFaultText(f, r); return `${t[0]!.toUpperCase()}${t.slice(1)} at this size.`; };
-/** A fault's identity for "does this edit ADD one": per hole, except too-deep, which is a property of the ROW (every
- *  hole shares its depth) — so a too-deep row can still change its count, and its note counts it once. */
-const key = (f: HoleFault) => (f.kind === 'too-deep' ? 'too-deep' : `${f.index}:${f.kind}`);
-/** One fault per key, in holeFaults' order. */
-const distinct = (fs: HoleFault[]) => fs.filter((f, i) => fs.findIndex((g) => key(g) === key(f)) === i);
 /** The pitch a single hole takes when its count first rises (ruling R5): 32 mm, or twice the diameter for a bore 32 mm
  *  or wider, so hole 2 is not stacked on hole 1. */
 const seedPitch = (diameter: number) => (32 * MM > diameter ? 32 * MM : 2 * diameter);
@@ -36,7 +31,7 @@ function HoleRowView({ board, row, precision }: { board: Board; row: HoleRow; pr
   const removeHoleRow = useStore((s) => s.removeHoleRow);
   const [error, setError] = useState<string | null>(null);
   const line = holeLine(board, row, precision);
-  const stored = distinct(holeFaults(board, row));
+  const stored = distinctFaults(holeFaults(board, row));
   const across = acrossOf(row);
   /** Tries the edit: the refusal text when it is refused (nothing stored), else null. */
   const attempt = (patch: Partial<Omit<HoleRow, 'id'>>): string | null => {

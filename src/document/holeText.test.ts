@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
-import { edgeName, endWord, holeFaultText, holeLine } from './holeText';
+import { distinctFaults, edgeName, endWord, holeFaultText, holeLine } from './holeText';
+import { holeFaults } from './holeFaults';
 import type { HoleRow } from './types';
 
 const side = createBoard({ length: 30, width: 11.25, thickness: 0.75 });
@@ -22,6 +23,14 @@ describe('holeLine (spec §4.1, as amended)', () => {
     const short = { ...side, length: 26, holes: [pins] };
     expect(holeLine(short, pins, 16)).toMatch(/ — check: hole 20 runs past the length max end \(and 1 more\)$/);
     expect(holeLine({ ...side, holes: [pins] }, pins, 16)).not.toContain('check:');
+  });
+  it('too-deep is a ROW fault: a row thinned under its depth is counted once on the bench line (final review 1)', () => {
+    // 3/8" stock under 3/8"-deep pins: every one of the 21 holes reaches the back face (too-deep's >=), so holeFaults
+    // reports 21 too-deep entries, one per hole; the row's depth is one value, so the line names it once, no count.
+    const thin = { ...side, thickness: 0.375, holes: [pins] };
+    expect(holeFaults(thin, pins).filter((f) => f.kind === 'too-deep')).toHaveLength(21);
+    expect(distinctFaults(holeFaults(thin, pins))).toEqual([{ index: 0, kind: 'too-deep' }]);
+    expect(holeLine(thin, pins, 16)).toMatch(/ — check: the holes are deeper than the thickness$/);
   });
   it('holeFaultText words each kind', () => {
     expect(holeFaultText({ index: 0, kind: 'off-flat' }, pins)).toBe('hole 1 sits where a cut has removed the wood');
