@@ -438,7 +438,7 @@ and 79.
 ## What each round did
 
 **What holes chunk 1 did (2026-10-14, feature-gaps §1)** (spec `docs/superpowers/specs/2026-10-14-sloyd-holes-design.md`,
-plan `docs/superpowers/plans/2026-10-14-sloyd-holes-chunk1.md`, branch `holes` from `fbe5ed9`). **Merged to master, NOT
+plan `docs/superpowers/plans/2026-10-14-sloyd-holes-chunk1.md`, branch `holes` from `fbe5ed9`). **Merged to master as `2ded5cc`, NOT
 deployed** — deployment waits for the user; **schema 16** (once deployed, a rollback below 16 refuses every project saved
 since: export first). The user's rulings while brainstorming: holes only (a dowel joint is two holes placed by hand); rows
 STORED with a count and a pitch (one entry is the jig); Claude features refuse holed projects this round; strict geometry
