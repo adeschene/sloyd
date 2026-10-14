@@ -109,8 +109,8 @@ export function angleCutsFor(b: Board, a: WorldAngles, exact?: ReadonlyMap<numbe
 
 /**
  * A part's miters, bevels and chamfers in design form (§5.3), each list in one canonical order (DIRS rank), a chamfer's
- * edge normalised to DIRS rank with its legs following. Recognised STRUCTURALLY — the exact shape its writer stores —
- * so its numbers read back exactly; null when any non-taper cut has another shape (Refine refuses those, §6.1).
+ * edge normalised to DIRS rank with its legs following. Recognised STRUCTURALLY — the shape its writer stores (a miter
+ * or bevel at any run: a resize does not rewrite it) — so its numbers read back exactly; null when any non-taper cut has another shape (Refine refuses those, §6.1).
  */
 export function worldAngles(b: Board): WorldAngles | null {
   const out = noAngles();
@@ -121,7 +121,9 @@ export function worldAngles(b: Board): WorldAngles | null {
       const shaped = c.kind === 'miter'
         ? c.face === 'length' && c.along !== 'length'
         : c.face !== 'length' && c.along === bevelAcross(c.face as 'width' | 'thickness');
-      if (!(shaped && s0 === 0 && q0 === 0 && s1 === b[c.along] && Number.isFinite(q1) && q1 > 0)) return null;
+      // The writer stores the run as the part's dimension then; a later resize leaves the cut's numbers alone (final review
+      // I1), so any run is accepted: the line through station 0 at depth 0 with slope q1/s1 is the same plane.
+      if (!(shaped && s0 === 0 && q0 === 0 && Number.isFinite(s1) && s1 > 0 && Number.isFinite(q1) && q1 > 0)) return null;
       const angle = miterDegrees(q1 / s1);
       const longPoint = localToDir(b, c.along, c.alongFrom);
       if (c.kind === 'miter') out.miters.push({ end: localToDir(b, 'length', c.from), longPoint, angle });

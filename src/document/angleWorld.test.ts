@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
 import type { Board, Posture, Rotation } from './document';
-import { chamferCut, miterCut, miterRatio } from './angleCuts';
+import { bevelCut, chamferCut, miterCut, miterRatio } from './angleCuts';
 import { axisDimensions } from './geometry';
 import { DIRS } from './taperWorld';
 import type { Dir } from './taperWorld';
@@ -120,3 +120,17 @@ describe('angleCutsFor — faults (Review Focus 4)', () => {
   });
 });
 
+describe('worldAngles after a resize (final review I1)', () => {
+  it('reads a miter or bevel stored at an older run as the same plane, not as undescribable', () => {
+    const rail = createBoard({ name: 'Rail', length: 20, width: 3, thickness: 0.75 });
+    const m = { id: 'm', ...miterCut({ end: 'max', across: 'width', longSide: 'min', ratio: 1 }, rail) };
+    const wider = { ...rail, width: 3.5, angleCuts: [m] };          // resized in Properties: the cut keeps [[0,0],[3,3]]
+    expect(worldAngles(wider)!.miters).toEqual([{ end: dir(wider, 'length', '+'), longPoint: dir(wider, 'width', '-'), angle: 45 }]);
+    // Re-stored at the new run: the same plane (depth = station), exactly.
+    const again = stored(wider, worldAngles(wider)!, angleRatiosOf([wider]));
+    expect(again.angleCuts[0]!.points).toEqual([[0, 0], [3.5, 3.5]]);
+    const panel = createBoard({ name: 'Panel', length: 20, width: 10, thickness: 0.75 });
+    const v = { id: 'v', ...bevelCut({ face: 'width', from: 'max', longSide: 'min', ratio: miterRatio(15) }, panel) };
+    expect(worldAngles({ ...panel, thickness: 1, angleCuts: [v] })!.bevels).toHaveLength(1);
+  });
+});
