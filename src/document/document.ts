@@ -61,8 +61,8 @@ export { buildNesting, footprintsOf } from './nesting';
 export type { Nesting, NestedSheet, PlacedPart, UnplaceablePart, Footprint } from './nesting';
 export { boardSnapPoints, cutSnapPoints, guideSnapPoints, offsetPoint, sameSnapPoint, snapPointsFor, tapeAxisFromKey, towardFor } from './snapPoints';
 export type { BoardSnapPoint, SnapKind, SnapOwner, SnapPoint, TapeAxis } from './snapPoints';
-export { keptBySection, sectionAxisIndex, sectionPlaneOf, sectionSpan, SECTION_EPS } from './section';
-export type { Section, SectionAxis } from './section';
+export { keptBySection, sectionAxisIndex, sectionPlaneOf, sectionSpan, sectionCaps, SECTION_EPS } from './section';
+export type { Section, SectionAxis, SectionCap } from './section';
 
 /**
  * v5 added `stock.kerf`.
