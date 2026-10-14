@@ -1058,8 +1058,11 @@ export default function App() {
               setShop(s);
               setShopReadFailed(false);
             } else failed.push('your prices');
-            return failed.length === 0 ? null
-              : `Could not save ${failed.join(' or ')}: this browser is not letting Sloyd store settings. The project's changes were made.`;
+            if (failed.length === 0) return null;
+            // Claimed only when this Save did change the project (not for prices, the library alone, or exploded).
+            const projectChanged = plan.project.length > 0 || plan.assign !== null;
+            return `Could not save ${failed.join(' or ')}: this browser is not letting Sloyd store settings.`
+              + (projectChanged ? " The project's changes were made." : '');
           }}
           onClose={() => { setDialog(null); setNewMaterialFor(null); }}
         />

@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { ReactElement } from 'react';
 import { MaterialsDialog } from './MaterialsDialog';
 import { defaultShop, type ShopSettings } from '../document/purchase';
 import type { SavePlan } from './materialsDraft';
@@ -262,5 +263,28 @@ describe('MaterialsDialog — definitions (custom materials spec §4.1)', () => 
     fireEvent.click(saveBtn());
     await waitFor(() => expect(onSave).toHaveBeenCalled());
     expect(onSave.mock.calls[0]![0].shop.materials['m-s-ash1']).toEqual({ mode: 'board-foot', pricePerBoardFoot: 10, wasteFactor: 1.4 });
+  });
+  it('after a partial failure the assigned new row is a stored material: no kind select, no second assign (fix round 1)', async () => {
+    let rerender: (ui: ReactElement) => void = () => {};
+    const props = (project: typeof ash[]) => ({ shop: defaultShop(), readFailed: false, project, library: [], libraryReadFailed: false,
+      locked: false, newFor: { ids: ['a'], kind: 'solid' as const }, onClose: () => {} });
+    // App applies the project edit before the failed browser write resolves: the props change first.
+    const onSave = vi.fn(async ({ plan }: { shop: ShopSettings; plan: SavePlan }) => {
+      rerender(<MaterialsDialog {...props(plan.project as typeof ash[])} onSave={onSave} />);
+      return 'Could not save your prices: …';
+    });
+    ({ rerender } = render(<MaterialsDialog {...props([])} onSave={onSave} />));
+    fireEvent.change(screen.getByRole('textbox', { name: 'New material: name' }), { target: { value: 'Sapele' } });
+    fireEvent.click(saveBtn());
+    expect(await screen.findByText('Could not save your prices: …')).toBeInTheDocument();
+    const first = onSave.mock.calls[0]![0].plan.assign!.material;
+    await waitFor(() => expect(screen.queryByRole('combobox', { name: /kind/ })).toBeNull());
+    fireEvent.change(screen.getByRole('textbox', { name: 'Sapele: name' }), { target: { value: 'Red sapele' } });
+    // A material added now is a library material: "New material…" was spent on the first Save.
+    fireEvent.click(screen.getByRole('button', { name: 'Add material' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'New material: name' }), { target: { value: 'Iroko' } });
+    fireEvent.click(saveBtn());
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+    expect(onSave.mock.calls[1]![0].plan).toMatchObject({ assign: null, project: [{ id: first, label: 'Red sapele' }] });
   });
 });

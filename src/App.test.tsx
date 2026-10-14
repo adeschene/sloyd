@@ -932,11 +932,11 @@ describe('Materials & prices (lumber yield and cost spec §2.3, §4; custom mate
     expect(screen.queryByRole('dialog', { name: 'Materials and prices' })).toBeNull();
     expect(screen.getByRole('dialog', { name: 'Cut list' })).toBeInTheDocument();
   });
-  it('a failed library write leaves the project edit standing; Save again adds no undo entry', async () => {
+  it('a failed library write leaves the project edit standing; Save again adds no undo entry; a revert follows', async () => {
     const ash = { id: 'm-s-ash1', label: 'Ash', color: '#d8c8a8', kind: 'solid' as const };
+    materialLibrary = [ash]; // read on mount: the library already holds Ash
     const id = await mountWithOneBoard();
     act(() => { useStore.getState().updateBoards([id], { material: 'm-s-ash1' }, [ash]); });
-    materialLibrary = [ash];
     setMaterialLibrary.mockResolvedValue(false);
     try {
       const user = userEvent.setup();
@@ -947,12 +947,37 @@ describe('Materials & prices (lumber yield and cost spec §2.3, §4; custom mate
       expect(await screen.findByText(/Could not save your material library/)).toBeInTheDocument();
       expect(screen.getByRole('dialog', { name: 'Materials and prices' })).toBeInTheDocument();
       expect(useStore.getState().doc.materials[0]!.label).toBe('White ash');
+      expect(screen.getByText(/Could not save your material library/)).toHaveTextContent(/The project's changes were made\.$/);
       const n = useStore.getState().past.length;
+      setMaterialLibrary.mockClear();
       await user.click(screen.getByRole('button', { name: 'Save' }));
-      await screen.findByText(/Could not save your material library/);
+      // The retry still writes the library (the edit's intent survives the rebase) and changes nothing in the project.
+      await waitFor(() => expect(setMaterialLibrary).toHaveBeenCalledTimes(1));
+      expect(await screen.findByText('Could not save your material library: this browser is not letting Sloyd store settings.')).toBeInTheDocument();
       expect(useStore.getState().past.length).toBe(n);
+      // Fix round 1: the dialog's rows are rebased on what is now stored, so typing the old name back is a change.
+      // Named by its STORED label, which is now White ash.
+      fireEvent.change(screen.getByRole('textbox', { name: 'White ash: name' }), { target: { value: 'Ash' } });
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Materials and prices' })).toBeNull());
+      expect(useStore.getState().doc.materials[0]!.label).toBe('Ash');
     } finally {
       setMaterialLibrary.mockImplementation(async (m) => { materialLibrary = m; return true; });
+    }
+  });
+
+  it('a prices-only failure does not claim project changes', async () => {
+    await mountWithOneBoard();
+    setShopSettings.mockResolvedValue(false);
+    try {
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: 'Cut list' }));
+      await user.click(screen.getByRole('button', { name: 'Materials & prices…' }));
+      fireEvent.change(screen.getByRole('textbox', { name: 'Oak: price per board foot' }), { target: { value: '8' } });
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+      expect(await screen.findByText('Could not save your prices: this browser is not letting Sloyd store settings.')).toBeInTheDocument();
+    } finally {
+      setShopSettings.mockImplementation(async (s) => { shopSettings = s; return true; });
     }
   });
 

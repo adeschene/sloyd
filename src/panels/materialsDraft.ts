@@ -153,3 +153,29 @@ export function planSave(input: {
   }
   return { project, library: lib, assign: assigned && assignIds ? { ids: assignIds, material: assigned.id } : null };
 }
+
+/**
+ * After a Save that reported a failed browser write the dialog stays open, so its rows must start again from what
+ * is NOW stored (Task 7 review, fix round 1): otherwise `changed` compares against the opening copy, and an
+ * assigned new row keeps its kind select although its material exists. The user's drafts are kept. A row stored in
+ * the project becomes a project row, one stored only in the library a library row; an unsaved new row stays new;
+ * a stored row in neither (a library delete that was written) leaves the list. A library row's own edit needs no
+ * flag: its original is the library prop, which a failed write left unchanged.
+ */
+export function rebaseRows(rows: readonly Row[], project: readonly CustomMaterial[], library: readonly CustomMaterial[]): Row[] {
+  const inProject = new Map(project.map((m) => [m.id, m]));
+  const inLibrary = new Map(library.map((m) => [m.id, m]));
+  return rows.flatMap((r): Row[] => {
+    const p = inProject.get(r.id);
+    if (p) {
+      // A row this Save wrote to the project was also meant for the library (planSave upserts an edited project
+      // row). If the library still lacks that content, its write failed: keep the intent so a retry writes it.
+      const meant = r.addToLibrary || r.original === null || !sameMaterial(r.original, p);
+      const l = inLibrary.get(r.id);
+      return [{ ...r, source: 'project', original: p, deleted: false, addToLibrary: meant && !(l && sameMaterial(l, p)) }];
+    }
+    const l = inLibrary.get(r.id);
+    if (l) return [{ ...r, source: 'library', original: l, addToLibrary: false }];
+    return r.source === 'new' ? [r] : [];
+  });
+}

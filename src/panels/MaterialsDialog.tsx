@@ -6,7 +6,7 @@ import {
 } from '../document/purchase';
 import { formatLength, parseLength } from '../units/length';
 import {
-  initialRows, newRow, planSave, rowNotes, rowRefusal, setRowKind,
+  initialRows, newRow, planSave, rebaseRows, rowNotes, rowRefusal, setRowKind,
   // Not a React hook, whatever its name says: a pure row transform, called from a click handler.
   useLibraryVersion as libraryVersionOf,
   type DefDraft, type Row, type SavePlan,
@@ -100,6 +100,18 @@ export function MaterialsDialog({ shop, readFailed, project, library, libraryRea
     Object.fromEntries([...builtIns, ...rows.map((r) => r.id)].map((m) => [m, toDraft(shop.materials[m] ?? defaultBuying(m))])));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // A Save that reported a failure leaves the dialog open over a CHANGED project (App applies the project edit
+  // first): the rows are rebased on the props as they stand after it, in an effect, since the props may land a
+  // render later than the resolved promise. Once the assigned material is stored, "New material…" is spent.
+  const [rebasePending, setRebasePending] = useState(false);
+  const [assignDone, setAssignDone] = useState(false);
+  const savedAssign = useRef<string | null>(null);
+  useEffect(() => {
+    if (!rebasePending) return;
+    setRows((all) => rebaseRows(all, project, library));
+    if (savedAssign.current !== null && project.some((m) => m.id === savedAssign.current)) setAssignDone(true);
+    setRebasePending(false);
+  }, [rebasePending, project, library]);
   const nextId = useRef(0);
   // The draft a material had in each mode it has been switched AWAY from, so switching back restores it
   // instead of starting blank (final review: a round trip used to drop pine's sizes and oak's price).
@@ -128,7 +140,7 @@ export function MaterialsDialog({ shop, readFailed, project, library, libraryRea
   const keys = [...builtIns, ...liveRows.map((r) => r.id)];
   const parsed = Object.fromEntries(keys.map((m) => [m, fromDraft(drafts[m]!)]));
   const valid = keys.every((m) => parsed[m] !== undefined);
-  const result = planSave({ rows, library, libraryWritable: !libraryReadFailed, assignIds: newFor?.ids ?? null, locked });
+  const result = planSave({ rows, library, libraryWritable: !libraryReadFailed, assignIds: newFor && !assignDone ? newFor.ids : null, locked });
   const refusals = new Map(liveRows.map((r) => [r.id, rowRefusal(r, rows)]));
   const rowRefused = [...refusals.values()].some((why) => why !== null);
   const set = (m: string, d: Draft) => setDrafts((all) => ({ ...all, [m]: d }));
@@ -181,7 +193,11 @@ export function MaterialsDialog({ shop, readFailed, project, library, libraryRea
     });
     setSaving(false);
     if (message === null) onClose();
-    else setError(message);
+    else {
+      setError(message);
+      savedAssign.current = result.assign?.material ?? null;
+      setRebasePending(true);
+    }
   };
 
   const bad = (ok: boolean) => (ok ? undefined : true);
