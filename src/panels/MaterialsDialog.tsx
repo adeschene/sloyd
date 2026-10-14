@@ -161,6 +161,16 @@ export function MaterialsDialog({ shop, readFailed, project, library, libraryRea
     setRows([...rows, r]);
     set(r.id, toDraft(defaultBuying(r.id)));
   };
+  // An unsaved new row (not the one "New material…" assigns) can be taken back out: the row and its price draft
+  // go entirely — nothing was stored, so there is nothing to mark deleted.
+  const removeNewRow = (r: Row) => {
+    setRows((all) => all.filter((x) => x.id !== r.id));
+    setDrafts((all) => {
+      const { [r.id]: _gone, ...rest } = all;
+      return rest;
+    });
+    delete stash.current[r.id];
+  };
   // A new row's kind change re-mints its id; its price draft MOVES to the new id, started from the new kind's
   // defaults (the old draft's mode no longer fits the kind).
   const changeKind = (r: Row, kind: MaterialKind) => {
@@ -265,6 +275,8 @@ export function MaterialsDialog({ shop, readFailed, project, library, libraryRea
   const libraryOff = locked || libraryReadFailed;
   const libraryTitle = locked ? EXPLODED_TITLE : libraryReadFailed ? LIBRARY_UNREADABLE_TITLE : undefined;
   const newForId = newFor ? rows.find((r) => r.source === 'new')?.id : undefined;
+  // The row a Save will assign (planSave's `assigned`: the first new row, while New material… is unspent).
+  const assignRowId = newFor && !assignDone ? newForId : undefined;
 
   return (
     <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Materials and prices">
@@ -324,6 +336,10 @@ export function MaterialsDialog({ shop, readFailed, project, library, libraryRea
                   </svg>
                 </button>
               ))}
+              {r.source === 'new' && r.id !== assignRowId && (
+                <button className="material-delete" aria-label={`Remove ${r.draft.label.trim() || 'New material'}`}
+                  disabled={locked} title={lockTitle} onClick={() => removeNewRow(r)}>✕</button>
+              )}
               {why && <p className="field-error" role="status">{why}</p>}
               {!r.deleted && (
                 <fieldset className="lumber-prices">

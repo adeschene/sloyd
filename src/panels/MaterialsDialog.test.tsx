@@ -174,6 +174,32 @@ describe('MaterialsDialog — definitions (custom materials spec §4.1)', () => 
     expect(shop.materials[plan.assign!.material]).toEqual({ mode: 'sheet', pricePerSheet: null });
     expect(Object.keys(shop.materials).filter((k) => k.startsWith('m-v-'))).toEqual([]);
   });
+  it('an unsaved new row can be removed: it and its prices leave the Save', async () => {
+    const { onSave } = open();
+    fireEvent.click(screen.getByRole('button', { name: 'Add material' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Remove New material' }));
+    expect(screen.queryByRole('textbox', { name: 'New material: name' })).toBeNull();
+    expect(saveBtn()).toBeEnabled();
+    fireEvent.click(saveBtn());
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const { plan, shop } = onSave.mock.calls[0]![0];
+    expect(plan).toEqual({ project: [], library: null, assign: null });
+    expect(Object.keys(shop.materials).sort()).toEqual(Object.keys(defaultShop().materials).sort());
+  });
+  it('the remove button names the typed label; the New material… row has none; it is off while locked', () => {
+    const props = { shop: defaultShop(), readFailed: false, project: [], library: [], libraryReadFailed: false,
+      newFor: { ids: ['a'], kind: 'solid' as const }, onSave: async () => null, onClose: () => {} };
+    const { rerender } = render(<MaterialsDialog {...props} locked={false} />);
+    // Not the piece sizes' own "Remove <label> size N" buttons.
+    const removes = () => screen.queryAllByRole('button', { name: /^Remove (?!.* size \d+$)/ }).map((b) => b.getAttribute('aria-label'));
+    expect(removes()).toEqual([]);
+    fireEvent.click(screen.getByRole('button', { name: 'Add material' }));
+    const names = screen.getAllByRole('textbox', { name: 'New material: name' });
+    fireEvent.change(names[1]!, { target: { value: 'Iroko' } });
+    expect(removes()).toEqual(['Remove Iroko']);
+    rerender(<MaterialsDialog {...props} locked={true} />);
+    expect(screen.getByRole('button', { name: 'Remove Iroko' })).toBeDisabled();
+  });
   it('a solid new row switched to a sheet starts the sheet\'s prices, not the solid\'s draft', async () => {
     const { onSave } = open();
     fireEvent.click(screen.getByRole('button', { name: 'Add material' }));
@@ -283,6 +309,8 @@ describe('MaterialsDialog — definitions (custom materials spec §4.1)', () => 
     // A material added now is a library material: "New material…" was spent on the first Save.
     fireEvent.click(screen.getByRole('button', { name: 'Add material' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'New material: name' }), { target: { value: 'Iroko' } });
+    // No longer the assigned row, so it can be taken back out.
+    expect(screen.getByRole('button', { name: 'Remove Iroko' })).toBeEnabled();
     fireEvent.click(saveBtn());
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
     expect(onSave.mock.calls[1]![0].plan).toMatchObject({ assign: null, project: [{ id: first, label: 'Red sapele' }] });
