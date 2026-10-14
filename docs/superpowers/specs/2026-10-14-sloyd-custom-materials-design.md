@@ -1,6 +1,6 @@
 # Sloyd — custom materials and nominal lumber
 
-**Date:** 2026-10-14 · **Status:** draft for the user's review
+**Date:** 2026-10-14 · **Status:** approved by the user; chunk 1 implemented on branch `custom-materials-1` (plan `docs/superpowers/plans/2026-10-14-sloyd-custom-materials-chunk1.md`); chunk 2 (nominal names) not started
 **Amended while planning (2026-10-14), marked "(amended)":** §2.2 the id encodes the kind; §2.5 shop validation by id; §4.1 entry points; §6 joinery prompt names.
 **Builds on:** the document schema and versioned load (`document.ts`, invariants 11, 33), the material table
 (`MATERIALS`, `types.ts`), sheet nesting (`nesting.ts`), lumber yield and cost (`purchase.ts`,
@@ -101,7 +101,7 @@ Pine's built-in default is unchanged.
 ## 3. The catalog
 
 ```ts
-interface MaterialCatalog { get(id: string): MaterialInfo | undefined; ids(): string[] }
+interface MaterialCatalog { get(id: string): MaterialInfo | undefined; ids: readonly string[]; label(id: string): string; color(id: string): string }
 interface MaterialInfo { id: string; label: string; color: string; kind: MaterialKind; nominal: boolean;
                          sheet?: SheetStock; builtIn: boolean }
 ```
@@ -109,11 +109,11 @@ interface MaterialInfo { id: string; label: string; color: string; kind: Materia
 - `catalogOf(doc)` = built-ins + `doc.materials`, memoised on the `doc.materials` array's identity, so every
   render and every part shares one catalog per document state.
 - `builtInCatalog()` = the seven alone.
-- **Every reader of a material takes a catalog** **(amended)** *— every reader of a label, colour or sheet size. Kind-only readers keep their `(id)` signatures (§2.2).*
-  Originally: — `isSheetGood(catalog, id)`, `sheetStockOf(catalog, id)`,
-  `grainFamily(catalog, id)`, the label lookups. Builders that already take the document (`buildCutList`,
-  `buildPurchase`, `buildNesting`, `checkDesign`, `diffDesigns`) build it themselves from the document.
-  `MATERIALS` stops being imported outside `types.ts`/the catalog module; the compiler finds every site.
+- **(amended)** Every reader of a label, colour or sheet size takes a catalog; kind-only readers (`isSheetGood`,
+  `grainFamily`, `hasGrain`, shop validation) keep their `(id)` signatures and read the kind off the id (§2.2).
+  `sheetStockOf` is gone: a cut-list group carries its `sheet`. Builders that already take the document
+  (`buildCutList`, `buildPurchase`, `diffDesigns`, joinery's prompt) build the catalog themselves from it.
+  *(Originally: every reader took a catalog — `isSheetGood(catalog, id)` and so on.)*
 - **No global registry.** A background Refine or joinery run reads its own document's catalog, never the open
   project's.
 - An unknown id reads as pine everywhere it is drawn or priced (it cannot occur after load, §2.3; this is the
