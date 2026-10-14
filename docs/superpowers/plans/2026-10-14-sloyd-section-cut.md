@@ -261,10 +261,10 @@ git commit -m "feat(section): side test, plane and span"
   `fromWorldOffset`, `DIMENSION_ORDER` (geometry.ts), `toWorld` (snapPoints.ts).
 - Produces:
   ```ts
-  export interface SectionCap { pieces: V3[][]; outline: [V3, V3][] }   // world inches, no explode offset
-  export function sectionCaps(board: Board, s: Section): SectionCap | null;
-  /** internal, exported for tests: board-local pieces + the local index of the cut dimension */
-  export function localCapPieces(board: Board, s: Section): { pieces: V3[][]; li: number; u: number } | null;
+  export interface SectionCap { pieces: V3[][]; outline: [V3, V3][] }   // world inches, WHERE DRAWN (offset added)
+  export function sectionCaps(board: Board, s: Section, offset?: readonly number[]): SectionCap | null;
+  /** internal, exported for tests: board-local pieces (normalised winding) + the local index of the cut dimension */
+  export function localCapPieces(board: Board, s: Section, offset?: readonly number[]): { pieces: V3[][]; li: number; u: number } | null;
   ```
   In this task `outline` is returned as `[]`; Task 3 fills it.
 
@@ -336,6 +336,20 @@ describe('sectionCaps: a plain box', () => {
     expect(totalArea(sectionCaps(box, { axis: 'top', at: 1.5, flip: false })!.pieces as P3[][])).toBeCloseTo(120, 9);
     // flipped, the box is all removed: nothing to cap.
     expect(sectionCaps(box, { axis: 'top', at: 1.5, flip: true })).toBeNull();
+  });
+});
+
+describe('sectionCaps: explode offset', () => {
+  it('a part offset by [0, 0, 5] cut at front 8 is capped as the same part moved by 5 and cut at 8', () => {
+    const moved = { ...box, position: [0, 0, 5] as P3 };
+    const a = sectionCaps(box, { axis: 'front', at: 8, flip: false }, [0, 0, 5])!;
+    const b = sectionCaps(moved, { axis: 'front', at: 8, flip: false })!;
+    expect(a.pieces).toEqual(b.pieces);
+    for (const p of a.pieces.flat()) expect(p[2]).toBeCloseTo(8, 12);
+  });
+  it('an offset off the cut axis only translates the cap', () => {
+    const a = sectionCaps(box, { axis: 'front', at: 3, flip: false }, [10, 0, 0])!;
+    expect(Math.min(...a.pieces.flat().map((p) => p[0]))).toBeCloseTo(10, 12);
   });
 });
 
@@ -443,11 +457,14 @@ export interface SectionCap { pieces: V3[][]; outline: [V3, V3][] }
  * and wound counter-clockwise about the cap's normal (which faces the REMOVED side), so `unionOutline` can cancel seams.
  * Null when the plane misses the part or nothing of it is cut.
  */
-export function localCapPieces(board: Board, s: Section): { pieces: V3[][]; li: number; u: number } | null {
+export function localCapPieces(
+  board: Board, s: Section, offset?: readonly number[],
+): { pieces: V3[][]; li: number; u: number } | null {
   const k = AXIS_INDEX[s.axis];
   const { dim, reversed } = axisFrame(board)[k]!;
   const li = DIMENSION_ORDER.indexOf(dim);
-  const u = fromWorldOffset(board, k, s.at - board.position[k]!);
+  // The GPU clips the part where it is DRAWN (position + explode offset), so the plane moves into the undrawn frame.
+  const u = fromWorldOffset(board, k, s.at - (offset?.[k] ?? 0) - board.position[k]!);
   if (u < -BODY_EPS || u > board[dim] + BODY_EPS) return null;
   // Kept side in local terms: the world kept side, reflected when this axis runs reversed.
   const keepLow = s.flip === reversed;
@@ -472,6 +489,11 @@ export function localCapPieces(board: Board, s: Section): { pieces: V3[][]; li: 
     const cap = clipped.find((g) => g.cut === '');
     if (cap) pieces.push(cap.verts);
   }
+  // ONE winding for every piece (counter-clockwise about capN): `clip`'s cap is ringed about the KEPT side's normal,
+  // a body face is wound about its own outward normal (capN) — opposite ways. pocketCells MERGES cells (mergeAlong),
+  // so a plane on a grid line can both cut a merged slab and lie on a neighbour's face, mixing the two; unionOutline's
+  // cancellation needs them to agree. minusPrism keeps a polygon's winding.
+  pieces = pieces.map((poly) => (newellAlong(poly, li) * capN[li]! < 0 ? [...poly].reverse() : poly));
   for (const hole of holes) {
     const prism = holePrism(hole);
     pieces = pieces.flatMap((p) => minusPrism(p, prism));
@@ -479,11 +501,27 @@ export function localCapPieces(board: Board, s: Section): { pieces: V3[][]; li: 
   return pieces.length ? { pieces, li, u } : null;
 }
 
-/** THE caps (section-cut spec §3.1): a part's cut faces in world inches (no explode offset), or null. */
-export function sectionCaps(board: Board, s: Section): SectionCap | null {
-  const local = localCapPieces(board, s);
+/** Twice the signed area of a polygon projected along index `li` (Newell's component `li`). */
+function newellAlong(poly: readonly V3[], li: number): number {
+  const [i, j] = [(li + 1) % 3, (li + 2) % 3] as const;
+  let a = 0;
+  for (let n = 0; n < poly.length; n += 1) {
+    const p = poly[n]!, q = poly[(n + 1) % poly.length]!;
+    a += (p[i] - q[i]) * (p[j] + q[j]);
+  }
+  return a;
+}
+
+/** THE caps (section-cut spec §3.1): a part's cut faces in world inches where the part is DRAWN (explode offset
+ *  added), or null. */
+export function sectionCaps(board: Board, s: Section, offset?: readonly number[]): SectionCap | null {
+  const local = localCapPieces(board, s, offset);
   if (!local) return null;
-  const w = (p: readonly number[]): V3 => toWorld(board, { length: p[0]!, width: p[1]!, thickness: p[2]! });
+  const o = offset ?? [0, 0, 0];
+  const w = (p: readonly number[]): V3 => {
+    const q = toWorld(board, { length: p[0]!, width: p[1]!, thickness: p[2]! });
+    return [q[0] + o[0]!, q[1] + o[1]!, q[2] + o[2]!];
+  };
   return { pieces: local.pieces.map((poly) => poly.map(w)), outline: [] };
 }
 ```
@@ -493,6 +531,9 @@ Add `type BodyFace` to the bodies import. Notes for the implementer:
   finds the cap uniquely. If `clipConvex`'s doc comment or `clip` disagree with this, stop and report.
 - `holes.ts` cannot import `bodies.ts` (cycle noted in holes.ts); `section.ts` imports both, which is fine — check
   `npm run build` for a cycle warning anyway.
+- Check `newellAlong`'s sign convention once on the unit square `[[0,0,0],[1,0,0],[1,1,0],[0,1,0]]` with li = 2
+  (counter-clockwise about +z): Newell's z component is `Σ (x_n − x_{n+1})(y_n + y_{n+1})` = +2 for it. If your hand
+  check disagrees, fix the formula — the cyclic `(li+1, li+2)` order is what keeps the sign right-handed.
 - If the seam test's expected areas disagree with the implementation, work out which side's cell owns the on-plane face
   by hand before changing either: the expectation was derived, not run.
 
@@ -580,6 +621,14 @@ describe('sectionCaps outline', () => {
       expect(left !== right, `segment ${p} → ${q}`).toBe(true);
     }
   });
+  it('plane on a seam (a cut merged slab beside a neighbour face on the plane): one rectangle, no seam line', () => {
+    // pocketCells merges the cells under the dado into ONE full-length slab (t 0 … 1.25), so at x = 10 the slab is
+    // CUT (clip's cap) while the top-left block's face lies ON the plane (a face cap): mixed winding unless normalised.
+    const dado = { id: 'c1', face: 'thickness' as const, from: 'max' as const, across: 'width' as const, offset: 10,
+      width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const b = createBoard({ id: 'm', length: 20, width: 6, thickness: 1.5, position: [0, 0, 0], cuts: [dado] });
+    expect(len(sectionCaps(b, { axis: 'side', at: 10, flip: false })!.outline as [P3, P3][])).toBeCloseTo(2 * (6 + 1.5), 9);
+  });
   it('blind bore along its axis notches the outline (no line across the notch mouth)', () => {
     const pin = { id: 'r1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.5,
       along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 1.5 };
@@ -658,7 +707,9 @@ the expectation (the expectations are perimeters you can check on paper).
 
 - [ ] **Step 4: Run** — PASS.
 - [ ] **Step 5: Mutate.** (a) Set `w = 1` unconditionally (no sign): the shared-edge, T-junction, partial-overlap and
-  notched-part tests must fail. (b) Skip the `cuts` de-duplication (push every `t`): the T-junction test must still
+  notched-part tests must fail. (c) Delete the winding normalisation line in `localCapPieces`: the seam outline test
+  must fail (before deleting, confirm with a console.log that the dado part really yields one clip cap and one face cap
+  at x = 10 — if pocketCells does not merge there, pick a cut layout where it does, and say so). (b) Skip the `cuts` de-duplication (push every `t`): the T-junction test must still
   pass (zero-length intervals contribute nothing) — if it fails, the de-dup is load-bearing; say so in a comment.
   Revert both.
 - [ ] **Step 6: Commit** — `git commit -am "feat(section): cap outline as the boundary of the pieces' union"`
@@ -976,9 +1027,10 @@ export function syncSectionPlane(s: Section): void {
 
 - [ ] **Step 3: BoardMesh.tsx**
   - Add to Props: `/** The section cut, or null (invariant 51). Clips this part's materials and edges; draws its cap. */ section: Section | null;`
-  - `const clip = section ? SECTION_PLANES : NO_PLANES;` — pass `clippingPlanes={clip}` to the ghost
-    `meshStandardMaterial`, every grain `meshStandardMaterial`, and the `lineBasicMaterial`. Add `clip` to nothing's
-    key: three recompiles on a plane-count change by itself.
+  - `const clip = section ? SECTION_PLANES : NO_PLANES;` — pass `clippingPlanes={clip}` AND `clipShadows` to the ghost
+    `meshStandardMaterial` and every grain `meshStandardMaterial`, and `clippingPlanes={clip}` to the
+    `lineBasicMaterial`. `Material.clipShadows` defaults to false: without it the removed half still casts its shadow.
+    Add `clip` to nothing's key: three recompiles on a plane-count change by itself.
   - Raycast: a module-level factory
     ```ts
     /** Drops hits on the section's removed side, so a click passes through to what is drawn (invariant 51). */
@@ -1000,17 +1052,23 @@ export function syncSectionPlane(s: Section): void {
     ```ts
     const cap = useMemo(() => {
       if (!section) return null;
-      const c = sectionCaps(board, section);
+      const c = sectionCaps(board, section, offset);
       if (!c) return null;
       const fill: number[] = [];
       for (const poly of c.pieces) for (let k = 1; k + 1 < poly.length; k += 1) fill.push(...poly[0]!, ...poly[k]!, ...poly[k + 1]!);
       const fillGeo = new THREE.BufferGeometry();
       fillGeo.setAttribute('position', new THREE.Float32BufferAttribute(fill, 3));
+      // EXPLICIT normals (lit by meshStandardMaterial): the cap faces the removed side, −sectionPlaneOf's normal.
+      // Without them the normal is zero and the lighting undefined — software GL may hide that (26a).
+      const { normal } = sectionPlaneOf(section);
+      const normals = new Float32Array(fill.length);
+      for (let k = 0; k < normals.length; k += 3) { normals[k] = -normal[0]; normals[k + 1] = -normal[1]; normals[k + 2] = -normal[2]; }
+      fillGeo.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
       const lineGeo = new THREE.BufferGeometry();
       lineGeo.setAttribute('position', new THREE.Float32BufferAttribute(c.outline.flatMap(([a, b]) => [...a, ...b]), 3));
       return { fillGeo, lineGeo };
-    }, [section, board.position[0], board.position[1], board.position[2], board.rotation, board.posture,
-        extents[0], extents[1], extents[2], boardUVSignature(board)]);
+    }, [section, offset?.[0], offset?.[1], offset?.[2], board.position[0], board.position[1], board.position[2],
+        board.rotation, board.posture, extents[0], extents[1], extents[2], boardUVSignature(board)]);
     useEffect(() => () => { cap?.fillGeo.dispose(); cap?.lineGeo.dispose(); }, [cap]);
     const capColor = useMemo(() => (faded ? fadedColor : new THREE.Color(color)).clone().multiplyScalar(CAP_DARKEN), [faded, fadedColor, color]);
     ```
@@ -1020,12 +1078,15 @@ export function syncSectionPlane(s: Section): void {
     source only in fields this list already has.
     `const CAP_DARKEN = 0.62;` beside `EDGE_DARKEN`, commented "the cut face reads as end grain: darker than every face;
     real-hardware look owed (fu NEW)".
-    Render, inside the `<group>`, after the edges, positioned at `-center` (the group sits at `center + offset`, and the
-    cap is in world inches):
+    Render, inside the `<group>`, after the edges, positioned at `-(center + offset)` (the group sits at
+    `center + offset`, and the cap is already in world inches where drawn, offset included):
     ```tsx
       {cap && (
-        <group position={[-center[0], -center[1], -center[2]]}>
-          <mesh geometry={cap.fillGeo} onClick={onClick} onDoubleClick={onDoubleClick} renderOrder={faded ? FADED_RENDER_ORDER : 0}>
+        <group position={offset
+          ? [-center[0] - offset[0], -center[1] - offset[1], -center[2] - offset[2]]
+          : [-center[0], -center[1], -center[2]]}>
+          <mesh geometry={cap.fillGeo} onClick={onClick} onDoubleClick={onDoubleClick} renderOrder={faded ? FADED_RENDER_ORDER : 0}
+            castShadow={!faded}>
             <meshStandardMaterial color={capColor} roughness={0.9} metalness={0} side={THREE.DoubleSide}
               emissive={selected ? SELECTED : '#000000'} emissiveIntensity={selected ? 0.16 : 0}
               transparent={faded} opacity={faded ? FADED_OPACITY : 1}
@@ -1038,6 +1099,7 @@ export function syncSectionPlane(s: Section): void {
         </group>
       )}
     ```
+    `castShadow` on the cap closes the kept half's shadow where the cut opened it.
     The cap's materials take NO `clippingPlanes` (it lies on the plane) and its mesh keeps three's default raycast (a
     cap hit is on the plane; the float32 position would fail a 1e-7 side test).
 
@@ -1066,8 +1128,9 @@ Expected: build clean; all tests pass (count = previous + the new section, store
 - [ ] **Step 2: Measure first.** Run each case with `expect(ms).toBeLessThan(Infinity)` and print the minima
   (`console.log`). Set each bound to about 3× the measured minimum, rounded up to 5 ms, and write the measured numbers
   into the file header, as holesPerf records its own. If any case measures above 16 ms, STOP and report: a slider drag
-  recomputes this per crossed part per frame, so that needs the user's decision (memoising caps per geometry key and
-  plane position is the obvious remedy — measure before adopting it).
+  recomputes this per crossed part per frame, so that needs the user's decision (first suspect `unionOutline`'s linear
+  `lines.find`: key the lines in a `Map` on rounded `(dx, dy, c)`; memoising caps per geometry key and plane position is
+  the next remedy — measure before adopting either).
 - [ ] **Step 3: Mutate.** Temporarily build the prism without the memo (`holePrism(h, 47)` forces a fresh prism) and
   confirm the across-bores case slows measurably; revert. (If it does not, say so in the header: the guard then guards
   only the absolute budget.)
@@ -1086,7 +1149,10 @@ Expected: build clean; all tests pass (count = previous + the new section, store
   3. Click a part on the removed side through empty space: selects what is behind / nothing. Click a cap: selects its
      part.
   4. Move and Tape: markers appear only on the kept side.
-  5. Explode 50%: caps follow the parts.
+  5. Explode 50%, with the cut axis the one the parts explode along (Top): every cap sits ON its part's cut, not
+     floating off it.
+  5a. Shadows: the removed half casts no shadow; the kept half's shadow is closed (no light through the cut).
+  5b. Caps are lit like a face (not black, not noisy) from Front, Side, Top and Iso — real-hardware look still owed.
   6. Save image: the PNG contains the section.
   7. Type the exact shoulder position of a dado on the drilled side: solid, not hollow.
   8. Edit the part (resize) while sectioned: caps follow, `at` unchanged.
