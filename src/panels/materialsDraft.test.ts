@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { initialRows, labelTyped, newRow, planSave, rowNotes, rowRefusal, setRowKind, useLibraryVersion, type Row } from './materialsDraft';
+import { initialRows, labelTyped, newRow, planSave, rebaseRows, rowNotes, rowRefusal, setRowKind, useLibraryVersion, type Row } from './materialsDraft';
 import { pickerLibrary } from '../document/materials';
 import type { CustomMaterial } from '../document/types';
 
@@ -145,5 +145,29 @@ describe('planSave', () => {
     const twin: CustomMaterial = { ...libAsh, label: 'Ash' };
     const rows = initialRows([], [twin, ash, birch]);
     expect(plan([rows[0]!, rows[1]!, edit(rows[2]!, { color: '#000000' })], [twin, ash, birch])).toEqual({ project: [], library: [twin, ash, { ...birch, color: '#000000' }], assign: null });
+  });
+});
+
+describe('rebaseRows (after a Save whose library write failed)', () => {
+  it('keeps the library intent for a project row the Save wrote, when the library still lacks it', () => {
+    const r = edit(initialRows([ash], [])[0]!, { color: '#112233' });
+    const written = { ...ash, color: '#112233' };
+    const [out] = rebaseRows([r], [written], []);
+    expect(out).toMatchObject({ source: 'project', original: written, addToLibrary: true });
+    expect(plan([out!], []).library).toEqual([written]);
+  });
+  it('keeps the intent when the library holds the SAME id at its old value (its own label is no clash)', () => {
+    const r = edit(initialRows([ash], [ash])[0]!, { color: '#112233' });
+    const written = { ...ash, color: '#112233' };
+    const [out] = rebaseRows([r], [written], [ash]);
+    expect(out).toMatchObject({ addToLibrary: true });
+    expect(plan([out!], [ash]).library).toEqual([written]);
+  });
+  it('sets no library intent when ANOTHER library entry holds the same label (planSave would refuse the retry)', () => {
+    const r = edit(initialRows([ash], [libAsh])[0]!, { color: '#112233' });
+    const written = { ...ash, color: '#112233' };
+    const [out] = rebaseRows([r], [written], [libAsh]);
+    expect(out).toMatchObject({ source: 'project', original: written, addToLibrary: false });
+    expect(plan([out!, ...initialRows([], [libAsh])], [libAsh])).not.toHaveProperty('refused');
   });
 });

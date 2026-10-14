@@ -171,8 +171,10 @@ export function rebaseRows(rows: readonly Row[], project: readonly CustomMateria
       // A row this Save wrote to the project was also meant for the library (planSave upserts an edited project
       // row). If the library still lacks that content, its write failed: keep the intent so a retry writes it.
       const meant = r.addToLibrary || r.original === null || !sameMaterial(r.original, p);
+      // Not when ANOTHER library entry holds its label: planSave never writes such a row, and refuses one flagged.
       const l = inLibrary.get(r.id);
-      return [{ ...r, source: 'project', original: p, deleted: false, addToLibrary: meant && !(l && sameMaterial(l, p)) }];
+      const clash = library.some((m) => m.id !== r.id && labelKey(m.label) === labelKey(p.label));
+      return [{ ...r, source: 'project', original: p, deleted: false, addToLibrary: meant && !clash && !(l && sameMaterial(l, p)) }];
     }
     const l = inLibrary.get(r.id);
     if (l) return [{ ...r, source: 'library', original: l, addToLibrary: false }];
