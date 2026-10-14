@@ -26,7 +26,11 @@ handicraft education tradition built around hand woodworking.
   below 15, `c610393`, REFUSES every project saved since: export first). Test count is under Commands.
 - **Custom materials (fu 266, closed; spec `2026-10-14-sloyd-custom-materials-design.md`)**: both chunks deployed —
   user-defined solid and sheet materials (library + per-project copies, Materials & prices, Refine keeps them) and nominal
-  lumber names (inv 49). **NEXT: none chosen — ask.** Open near it: 324–326. Other open items: 314–320, angle-cut residue
+  lumber names (inv 49). Open near it: 324–326.
+- **NEXT: HOLES** (`docs/feature-gaps.md` §1: dowels, shelf-pin rows, hardware bores) — chosen by the user 2026-10-14, to
+  start in a fresh session with brainstorming (architectural: round geometry against the all-box model — read invs 16, 20,
+  38, 40, 41, 48 and the v1 spec's mesh-kernel non-goal first; likely a schema bump, with its rollback cost). Don't ask what
+  to work on; start its brainstorm. Other open items: 314–320, angle-cut residue
   295–298; 241 (open by decision), 251 (record-only), 221, 225, 232, 234, 247.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship

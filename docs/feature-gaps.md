@@ -25,7 +25,7 @@ curves" arrive). Most of these need a schema bump, with the rollback cost that b
 | Splayed / raked legs, compound angles | Windsor chairs, splayed stools; SketchUp has a dedicated extension | open |
 | Curves | Arched aprons, curved stretchers, rounded tops, bandsawn parts | open |
 | Edge profiles | Chamfers, roundovers, eased edges; mostly visual, but expected | chamfers shipped 2026-10-12 (angle cuts chunk 3); roundovers open |
-| Holes | Dowels, shelf-pin rows, hardware bores | open |
+| Holes | Dowels, shelf-pin rows, hardware bores | chosen 2026-10-14 by the user as the next round — to start in a fresh session with brainstorming |
 | Dovetails, box joints | Joinery generator is rectangular joints only | open |
 | Claude features on angled parts | Generate/Refine/Add joinery refused angle cuts after they shipped | tapers shipped 2026-10-13 (AI tapers chunks 1–2, turned links); miters, bevels and chamfers shipped 2026-10-13/14 (AI angles chunks 1–2); splined/biscuited miter joints still open (fu 276) |
 

@@ -5045,7 +5045,7 @@ an exported project does not say what it was priced at. Overrides would need a s
 and nominal names (2x4 = 1-1/2 x 3-1/2) are not expressible. `ShopSettings` is keyed by material, ready for more.
 **Status:** custom materials done 2026-10-14 (chunk 1, branch `custom-materials-1`; spec
 `docs/superpowers/specs/2026-10-14-sloyd-custom-materials-design.md`, schema 15); nominal names done 2026-10-14 (chunk 2,
-branch `custom-materials-2`, no schema change). **Closed.** Residue: 324, 325, 326.
+merge `bfde00c`, deployed, no schema change). **Closed.** Residue: 324, 325, 326.
 
 **267. Edge banding and a hardware bill of materials** (`docs/feature-gaps.md` §3). **Status:** open.
 
