@@ -262,11 +262,12 @@ src/
 │                     for rectangular cuts or a cut either cannot describe), alignedTo (adopts the representative's angle-cut ids)
 │   ├── assemblyChecks.ts distinctParts, distinctPartsViolation, collapseViolations (one report
 │   │                     per authored fault; "fix the assembly" only for overlaps)
-│   ├── refineDesign.ts   documentToDesign (Refine's input + refusals; definitions normalised),
-│   │                     carryGrain, designValues (exact values kept), definitionCorner
-│   ├── designDiff.ts     diffDesigns — what a refine changed, by flat display name (→ units)
+│   ├── refineDesign.ts   documentToDesign (Refine's input + refusals, incl. 'taper-form'/'angle-form'; definitions normalised),
+│   │                     carryGrain, designValues (exact values kept; angles via the exact-angle map), definitionCorner
+│   ├── designDiff.ts     diffDesigns — what a refine changed, by flat display name (→ units); taperLines/angleLines (kind `angle`;
+│   │                     a bevel placed by face AND long point)
 │   ├── designCheck.ts    checkDesign; worldSolids, the ONE world-solid mapping (invs 38, 39); partMass and the body overlap
-│   │                     for tapered parts (fu 302/303);
+│   │                     for angled parts (fu 302/303); jointViolations (the model-facing `angle-joint` fault);
 │   │                     contactRegions / contactSolids / isAngled: the checks' flat-wood-only reader (invs 38, 48)
 │   ├── drawing.ts        drawView: exact hidden-line vector drawing; edges from boardEdges (inv 16), occluders
 │   │                     from worldBodies (the bodies, angle cuts included), both via partGeometry
@@ -694,9 +695,9 @@ knowing without opening it:
   267 (edge banding, hardware BOM), 268 (glue-ups), 269 (packer is a heuristic — measure before optimising), 270 (USD
   only), 271 (rough thickness classes), 272 (dialog length on a phone), 274 (end-grain parts are not priced by the
   piece) are open; 273 is closed (the note).
-- **275–292** — angle-cuts residue: 275–280 (stopped angle cuts, angle-aware joinery — open for the joint kinds; joinery
-  accepts angled projects since AI angles chunk 1 — Generate emitting angles (chunk 2), "taper
-  all four faces", Plans-sheet angle callouts, compound angles), 281 closed (short point: corner minimum), 282 closed (approved on real
+- **275–292** — angle-cuts residue: 275–280 (stopped angle cuts; 276 angle-aware joinery — open only for the joint kinds
+  (splined/biscuited miters): joinery accepts angled projects since AI angles chunk 1; 277 Generate emitting angles — closed
+  2026-10-14 (AI angles chunk 2); "taper all four faces", Plans-sheet angle callouts, compound angles), 281 closed (short point: corner minimum), 282 closed (approved on real
   hardware), 283 (joinery dialog with a key on an angled project, unseen), 284–292 recorded minors.
 - **293–297** — miter residue: 293 and 294 closed (angle max floored; the line names the long point), 295 (a row control to add
   the matching miter, by decision), 296 (a part shortened past its miter refuses edits until the angle is reduced; presets

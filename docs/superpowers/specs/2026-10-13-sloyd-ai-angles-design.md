@@ -1,7 +1,10 @@
 # Sloyd — the AI features accept miters, bevels and chamfers
 
 **Date:** 2026-10-13 · **Status:** approved by the user (with the tenon-clearance exception, §3, ruled while writing; three
-examples corrected while planning, marked *amended*). Chunk 1 (§2–§4.1) implemented and merged 2026-10-13 (`be4c87c`); chunk 2 implemented and merged 2026-10-14 (`a4914f1`). *Amended
+examples corrected while planning, marked *amended*). Chunk 1 (§2–§4.1) implemented and merged 2026-10-13 (`be4c87c`); chunk 2 implemented and merged 2026-10-14 (`a4914f1`); both deployed (`index-DQwrQ8u9.js`, then `index-D6x3XODA.js`).
+Names in this text are as designed; the code since renamed or removed some (`taperFaults` → `jointFaults`,
+`taperJointViolations` → `jointViolations`, `angledRefusal`/`angledParts` removed, `isTapered` → `isAngled`). Chunk 2's
+final review also amended §3 (a miter at a thin panel's rabbet passes, the user's ruling). *Amended
 while executing chunk 2:* the design schema defines the part and the direction once in `$defs` (§5.1's arrays unchanged in
 shape) — the API refused the inline form's compiled grammar (fu 322); and `CHARS_PER_TOKEN` was not re-measured (§8; the
 estimate counts the real prompt and schema).

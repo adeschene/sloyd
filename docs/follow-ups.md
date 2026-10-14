@@ -5086,10 +5086,11 @@ length x width must fit the stock's thickness x width. **Status:** open.
 **276. Angle-aware joinery** (splined and biscuited miters). Add joinery, Refine and Repair joints refuse angled
 documents (spec §6). **Status:** open for the joint kinds (splined, biscuited, keyed miters). Accepting angled documents
 is the AI-angles spec (`2026-10-13-sloyd-ai-angles-design.md`): chunk 1 (2026-10-13) lets Add joinery and Repair run on
-mitered, beveled and chamfered projects, refusing only an angle cut that runs into a joint; Refine is chunk 2.
+mitered, beveled and chamfered projects, refusing only an angle cut that runs into a joint; chunk 2 (2026-10-14) lets Generate
+and Refine write them. Both chunks deployed; only the angle-aware joint kinds remain.
 
 **277. Generate emitting tapers and miters.** `designToDocument` emits `angleCuts: []`. **Status:** closed 2026-10-14 — tapers
-(AI tapers chunk 2) and miters, bevels and chamfers (AI-angles chunk 2, branch `ai-angles-2`): Generate and Refine write them in
+(AI tapers chunk 2) and miters, bevels and chamfers (AI-angles chunk 2, merge `a4914f1`, deployed 2026-10-14): Generate and Refine write them in
 world words (`angleWorld.ts`); live: one Generate gave four chamfered legs linked through turns, a top chamfered on four
 edges and a flat 45° picture frame; one Refine changed only the top's chamfers.
 
