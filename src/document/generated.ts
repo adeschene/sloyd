@@ -7,6 +7,9 @@ import { cleanName as clean, uniqueName } from './names';
 import { NAME_SEPARATOR } from './tree';
 import { DIRS, taperCutsFor } from './taperWorld';
 import type { WorldTaper } from './taperWorld';
+import { angleCutsFor, sortAngleCuts } from './angleWorld';
+import type { WorldBevel, WorldChamfer, WorldMiter } from './angleWorld';
+import { boardBodies } from './bodies';
 import { MATERIALS } from './types';
 import type { Board, Definition, Dimension, Grain, Instance, Posture, Rotation } from './types';
 
@@ -27,6 +30,10 @@ export interface GeneratedPart {
   grain?: Grain;
   /** Required from the model (parseDesign checks it); optional here like `role`. */
   tapers?: WorldTaper[];
+  /** Required from the model (parseDesign checks them); optional here like `tapers` (AI-angles spec §5.1). */
+  miters?: WorldMiter[];
+  bevels?: WorldBevel[];
+  chamfers?: WorldChamfer[];
 }
 /** Where an assembly's local origin goes in the world. No turn (spec §2). */
 export interface GeneratedPlacement { name: string; at: Vec3 }
@@ -34,8 +41,8 @@ export interface GeneratedPlacement { name: string; at: Vec3 }
 export interface GeneratedAssembly { name: string; parts: GeneratedPart[]; placements: GeneratedPlacement[] }
 /** `assemblies` is REQUIRED from the model; optional here for the same reason as `role`. */
 export interface GeneratedDesign { name: string; parts: GeneratedPart[]; assemblies?: GeneratedAssembly[] }
-/** `detail` is the whole message, set for `'taper'`. */
-export interface RejectedPart { name: string; reason: 'not-finite' | 'too-small' | 'unplaced' | 'empty' | 'taper'; detail?: string }
+/** `detail` is the whole message, set for `'taper'` and `'angle'`. */
+export interface RejectedPart { name: string; reason: 'not-finite' | 'too-small' | 'unplaced' | 'empty' | 'taper' | 'angle'; detail?: string }
 
 const vec3Schema = {
   type: 'object',
@@ -54,6 +61,26 @@ const taperSchema = {
   additionalProperties: false,
 };
 
+/** One miter, bevel or chamfer in world words (AI-angles spec §5.1); the converter checks directions and numbers. */
+const miterSchema = {
+  type: 'object',
+  properties: { end: dirSchema, longPoint: dirSchema, angle: { type: 'number' } },
+  required: ['end', 'longPoint', 'angle'],
+  additionalProperties: false,
+};
+const bevelSchema = {
+  type: 'object',
+  properties: { face: dirSchema, longPoint: dirSchema, angle: { type: 'number' } },
+  required: ['face', 'longPoint', 'angle'],
+  additionalProperties: false,
+};
+const chamferSchema = {
+  type: 'object',
+  properties: { edge: { type: 'array', items: dirSchema }, legs: { type: 'array', items: { type: 'number' } } },
+  required: ['edge', 'legs'],
+  additionalProperties: false,
+};
+
 /** Built from MATERIALS at load, so a new material reaches the model with no second edit. */
 const partSchema = {
   type: 'object',
@@ -64,8 +91,11 @@ const partSchema = {
     at: vec3Schema,
     size: vec3Schema,
     tapers: { type: 'array', items: taperSchema },
+    miters: { type: 'array', items: miterSchema },
+    bevels: { type: 'array', items: bevelSchema },
+    chamfers: { type: 'array', items: chamferSchema },
   },
-  required: ['name', 'role', 'material', 'at', 'size', 'tapers'],
+  required: ['name', 'role', 'material', 'at', 'size', 'tapers', 'miters', 'bevels', 'chamfers'],
   additionalProperties: false,
 };
 
@@ -109,10 +139,18 @@ const isDir = (v: unknown) => (DIRS as readonly unknown[]).includes(v);
 const isTaper = (t: unknown): boolean =>
   isObj(t) && Array.isArray(t.faces) && t.faces.every(isDir) && isDir(t.toward) && typeof t.start === 'number' && typeof t.amount === 'number';
 
+const isMiter = (m: unknown): boolean => isObj(m) && isDir(m.end) && isDir(m.longPoint) && typeof m.angle === 'number';
+const isBevel = (m: unknown): boolean => isObj(m) && isDir(m.face) && isDir(m.longPoint) && typeof m.angle === 'number';
+// Arrays cannot be length-constrained in the schema: exactly two of each here.
+const isChamfer = (m: unknown): boolean => isObj(m) && Array.isArray(m.edge) && m.edge.length === 2 && m.edge.every(isDir) &&
+  Array.isArray(m.legs) && m.legs.length === 2 && m.legs.every((n) => typeof n === 'number');
+
 const isPart = (p: unknown): boolean =>
   isObj(p) && typeof p.name === 'string' && typeof p.role === 'string' && typeof p.material === 'string' &&
   Object.hasOwn(MATERIALS, p.material) && isVec3(p.at) && isVec3(p.size) &&
-  Array.isArray(p.tapers) && p.tapers.every(isTaper);
+  Array.isArray(p.tapers) && p.tapers.every(isTaper) &&
+  Array.isArray(p.miters) && p.miters.every(isMiter) && Array.isArray(p.bevels) && p.bevels.every(isBevel) &&
+  Array.isArray(p.chamfers) && p.chamfers.every(isChamfer);
 const isPlacement = (p: unknown): boolean => isObj(p) && typeof p.name === 'string' && isVec3(p.at);
 const isAssembly = (a: unknown): boolean =>
   isObj(a) && typeof a.name === 'string' && Array.isArray(a.parts) && a.parts.every(isPart) &&
@@ -122,7 +160,10 @@ const vec = (o: unknown): Vec3 => { const v = o as Vec3; return { x: v.x, y: v.y
 const partOf = (o: unknown): GeneratedPart => {
   const p = o as GeneratedPart;
   return { name: p.name, role: p.role, material: p.material, at: vec(p.at), size: vec(p.size),
-    tapers: (p.tapers ?? []).map((t) => ({ faces: [...t.faces], toward: t.toward, start: t.start, amount: t.amount })) };
+    tapers: (p.tapers ?? []).map((t) => ({ faces: [...t.faces], toward: t.toward, start: t.start, amount: t.amount })),
+    miters: (p.miters ?? []).map((m) => ({ end: m.end, longPoint: m.longPoint, angle: m.angle })),
+    bevels: (p.bevels ?? []).map((m) => ({ face: m.face, longPoint: m.longPoint, angle: m.angle })),
+    chamfers: (p.chamfers ?? []).map((m) => ({ edge: [m.edge[0], m.edge[1]] as WorldChamfer['edge'], legs: [m.legs[0], m.legs[1]] as [number, number] })) };
 };
 
 /**
@@ -211,7 +252,7 @@ const isGrain = (g: unknown): g is Grain => (DIMENSION_ORDER as readonly unknown
  * Snap, check, encode one part; null (and a rejection) when unusable. A value in
  * `exact` (Refine: the original's own numbers) is kept as it is (refine spec §4).
  */
-function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], exact?: ReadonlySet<number>): Omit<Board, 'id'> | null {
+function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], exact?: ReadonlySet<number>, exactAngles?: ReadonlyMap<number, number>): Omit<Board, 'id'> | null {
   // Checked AFTER the snap: a finite value near Number.MAX_VALUE overflows
   // to Infinity on the division by SNAP_INCHES. Covers NaN/±Infinity too,
   // and anything beyond MAX_MAGNITUDE.
@@ -238,7 +279,25 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], 
     rejected.push({ name: label, reason: 'taper', detail: `${label} ${made.fault}.` });
     return null;
   }
-  return { ...fields, angleCuts: made.cuts.map((c) => ({ id: nextId(), ...c })) };
+  // Miters, bevels and chamfers (AI-angles spec §5.2): legs snapped as size is, unless exact; angles through ratioFor.
+  const chamfers = (p.chamfers ?? []).map((c) => ({ ...c, legs: c.legs.map((l) => (exact?.has(l) ? l : snap(l))) as [number, number] }));
+  if (!chamfers.every((c) => c.legs.every(usable)) || ![...(p.miters ?? []), ...(p.bevels ?? [])].every((m) => Number.isFinite(m.angle))) {
+    rejected.push({ name: label, reason: 'angle', detail: `${label} has a miter, bevel or chamfer whose numbers are not finite or are beyond 10,000in.` });
+    return null;
+  }
+  const board = { id: '', angleCuts: [], ...fields } as Board;
+  const angled = angleCutsFor(board, { miters: p.miters ?? [], bevels: p.bevels ?? [], chamfers }, exactAngles);
+  if ('fault' in angled) {
+    rejected.push({ name: label, reason: 'angle', detail: `${label} ${angled.fault}.` });
+    return null;
+  }
+  const angleCuts = [...made.cuts, ...sortAngleCuts(angled.cuts)].map((c) => ({ id: nextId(), ...c }));
+  // Together they must leave wood (spec §5.2): the part's real bodies are not empty.
+  if (angleCuts.length > 0 && boardBodies({ ...board, angleCuts }).length === 0) {
+    rejected.push({ name: label, reason: 'angle', detail: `${label} has angle cuts that together leave no wood.` });
+    return null;
+  }
+  return { ...fields, angleCuts };
 }
 
 /**
@@ -248,13 +307,14 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], 
  * translate the whole design onto the floor with its footprint centred — by a
  * multiple of SNAP_INCHES, shifting loose parts and instance ORIGINS only,
  * never definition-local coordinates (`opts.centre === false` skips the
- * horizontal centring and keeps only the floor rule; `opts.exact` lists values to keep unsnapped) — then migrateDocument, the same gate an
+ * horizontal centring and keeps only the floor rule; `opts.exact` lists values to keep unsnapped; `opts.exactAngles` maps a
+ * degree value Refine wrote to the stored slope, AI-angles spec §6.2) — then migrateDocument, the same gate an
  * imported file passes, which dedupes names (inv 8) and checks ids (inv 33).
  *
  * Every id is minted here with nextId so `roles` (stored part id → role) and
  * the definition → assembly label map survive the load gate.
  */
-export function designToDocument(design: GeneratedDesign, opts: { centre?: boolean; exact?: ReadonlySet<number> } = {}): {
+export function designToDocument(design: GeneratedDesign, opts: { centre?: boolean; exact?: ReadonlySet<number>; exactAngles?: ReadonlyMap<number, number> } = {}): {
   doc: SloydDocument; rejected: RejectedPart[]; authored: Authored;
 } {
   const rejected: RejectedPart[] = [];
@@ -267,7 +327,7 @@ export function designToDocument(design: GeneratedDesign, opts: { centre?: boole
   };
 
   const loose: Board[] = design.parts.flatMap((p) => {
-    const b = convertPart(p, clean(p.name), rejected, opts.exact);
+    const b = convertPart(p, clean(p.name), rejected, opts.exact, opts.exactAngles);
     return b ? [mint(p, b)] : [];
   });
 
@@ -281,7 +341,7 @@ export function designToDocument(design: GeneratedDesign, opts: { centre?: boole
     const label = uniqueName(clean(a.name).trim() || 'Assembly', taken);
     taken.push({ id: label, name: label });
     const parts = a.parts.flatMap((p) => {
-      const b = convertPart(p, `${clean(p.name)} (in assembly ${label})`, rejected, opts.exact);
+      const b = convertPart(p, `${clean(p.name)} (in assembly ${label})`, rejected, opts.exact, opts.exactAngles);
       return b ? [mint(p, b)] : [];
     });
     const origins = a.placements.flatMap((pl) => {

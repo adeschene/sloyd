@@ -115,7 +115,7 @@ describe('linkByRole (through designToDocument)', () => {
 describe('turned links (fu 301)', () => {
   type Dir = '+x' | '-x' | '+z' | '-z';
   const tapered = (name: string, at: [number, number, number], size: [number, number, number], faces: Dir[], role = 'leg'): GeneratedPart =>
-    ({ ...part(name, role, at, size), tapers: [{ faces, toward: '-y', start: 20, amount: 0.5 }] });
+    ({ ...part(name, role, at, size), miters: [], bevels: [], chamfers: [], tapers: [{ faces, toward: '-y', start: 20, amount: 0.5 }] });
   // The prompt's corner rule: each leg tapers its two INSIDE faces.
   const inside = (size: [number, number, number] = LEG, role = 'leg') => [
     tapered('Leg FL', [0, 0, 0], size, ['+x', '+z'], role), tapered('Leg FR', [20, 0, 0], size, ['-x', '+z'], role),

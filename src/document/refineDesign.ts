@@ -34,7 +34,7 @@ const refuse = (reason: RefusalReason, message: string) => ({ refused: { reason,
 type V3 = [number, number, number];
 const box = (b: Board, name: string, role: string, shift: V3 = [0, 0, 0]): GeneratedPart => {
   const [x, y, z] = boardExtents(b);
-  return { name, role, material: b.material, at: { x: b.position[0] - shift[0], y: b.position[1] - shift[1], z: b.position[2] - shift[2] }, size: { x, y, z }, tapers: worldTapers(b) ?? [] };
+  return { name, role, material: b.material, at: { x: b.position[0] - shift[0], y: b.position[1] - shift[1], z: b.position[2] - shift[2] }, size: { x, y, z }, tapers: worldTapers(b) ?? [], miters: [], bevels: [], chamfers: [] };
 };
 
 /** The smallest local corner of a definition's parts, per axis (a position is an own field, so the stored one). */

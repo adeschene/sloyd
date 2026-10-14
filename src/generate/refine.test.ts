@@ -106,7 +106,7 @@ const legTaper = (b: Board, axis: 0 | 2, start: number): AngleCut => ({
 const withLegTaper = <D extends { boards: unknown[] }>(doc: D, start: number): D =>
   ({ ...doc, boards: (doc.boards as Board[]).map((b) => (b.name === 'Leg' ? { ...b, angleCuts: [legTaper(b, 0, start), legTaper(b, 2, start)] } : b)) });
 const cornerPart = (name: string, at: [number, number, number], size: [number, number, number]) =>
-  ({ name, role: '', tapers: [], material: 'oak', at: v(...at), size: v(...size) });
+  ({ name, role: '', miters: [], bevels: [], chamfers: [], tapers: [], material: 'oak', at: v(...at), size: v(...size) });
 const cornerFlat = withLegTaper(flatDocument(designToDocument({ name: 'Corner', assemblies: [], parts: [
   cornerPart('Leg', [0, 0, 0], [1.75, 28, 1.75]), cornerPart('Rail X', [1.75, 23.5, 0.5], [18, 3, 0.75]), cornerPart('Rail Z', [0.5, 23.5, 1.75], [0.75, 3, 18]),
 ] }).doc), 22);

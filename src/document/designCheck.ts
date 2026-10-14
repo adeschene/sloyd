@@ -512,6 +512,7 @@ export function rejectedViolations(rejected: RejectedPart[]): Violation[] {
     unplaced: (n) => `${n} is an assembly with no usable placement, so none of its parts were built.`,
     empty: (n) => `${n} is an assembly with no usable parts.`,
     taper: (n) => `${n} has a taper that cannot be built.`,
+    angle: (n) => `${n} has a miter, bevel or chamfer that cannot be built.`,
   };
   return rejected.map((r) => ({ kind: 'too-small' as const, message: r.detail ?? say[r.reason](r.name), parts: [r.name] }));
 }
