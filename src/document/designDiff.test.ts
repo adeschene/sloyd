@@ -4,7 +4,7 @@ import { designToDocument } from './generated';
 import type { GeneratedAssembly, GeneratedPart } from './generated';
 import { formatLength } from '../units/length';
 import { createBoard, createDocument } from './document';
-import { chamferCut, miterCut, miterRatio } from './angleCuts';
+import { bevelCut, chamferCut, miterCut, miterRatio } from './angleCuts';
 import type { Board } from './types';
 
 const v = (x: number, y: number, z: number) => ({ x, y, z });
@@ -224,5 +224,18 @@ describe('diffDesigns — miters, bevels and chamfers (AI-angles spec §6.4)', (
   });
   it('taper lines are kind angle too', () => {
     expect(['added', 'removed', 'resized', 'moved', 'material', 'angle', 'linked', 'unlinked']).toContain('angle');
+  });
+});
+
+describe('diffDesigns — two bevels on one face (final review I3)', () => {
+  it('a knife edge: changing or removing one of the two bevels is reported', () => {
+    const p = createBoard({ name: 'Blade', length: 20, width: 3, thickness: 0.75, position: [0, 0, 0] });
+    const v = (id: string, longSide: 'min' | 'max', deg: number) => ({ id, ...bevelCut({ face: 'width', from: 'max', longSide, ratio: miterRatio(deg) }, p) });
+    const d = (cuts: ReturnType<typeof v>[]) => ({ ...createDocument('T'), boards: [{ ...p, angleCuts: cuts }] });
+    const lines = (a: ReturnType<typeof v>[], b: ReturnType<typeof v>[]) => diffDesigns(d(a), d(b)).filter((c) => c.kind === 'angle').map((c) => c.text);
+    const before = [v('a', 'min', 15), v('b', 'max', 15)];
+    expect(lines(before, [v('a', 'min', 15), v('b', 'max', 20)])).toHaveLength(1);
+    expect(lines(before, [v('a', 'min', 15)])).toHaveLength(1);
+    expect(lines(before, before)).toEqual([]);
   });
 });

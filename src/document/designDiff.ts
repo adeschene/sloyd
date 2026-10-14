@@ -152,7 +152,7 @@ function taperLines(before: readonly WorldTaper[], after: readonly WorldTaper[],
 
 /**
  * One part's miter, bevel and chamfer lines (AI-angles spec §6.4): matched by where they are — a miter by its end, a
- * bevel by its face, a chamfer by its edge — then added, changed (its displayed detail differs) or removed, in kind
+ * bevel by its face and long point, a chamfer by its edge — then added, changed (its displayed detail differs) or removed, in kind
  * order. `worldAngles` is never null here: Refine refuses a cut it cannot describe before any call.
  */
 function angleLines(before: WorldAngles, after: WorldAngles, len: (n: number) => string): string[] {
@@ -160,7 +160,8 @@ function angleLines(before: WorldAngles, after: WorldAngles, len: (n: number) =>
   const deg = (a: number) => `${a.toFixed(1)}°`;
   const entries = (a: WorldAngles): Entry[] => [
     ...a.miters.map((m) => ({ kind: 'miter' as const, where: `${m.end} end`, detail: `${deg(m.angle)}, long point ${m.longPoint}` })),
-    ...a.bevels.map((v) => ({ kind: 'bevel' as const, where: `${v.face} face`, detail: `${deg(v.angle)}, long point ${v.longPoint}` })),
+    // Two bevels may share a face (a knife edge, long points opposite): a bevel is placed by its face AND long point.
+    ...a.bevels.map((v) => ({ kind: 'bevel' as const, where: `${v.face} face, long point ${v.longPoint}`, detail: deg(v.angle) })),
     ...a.chamfers.map((c) => ({ kind: 'chamfer' as const, where: `${c.edge[0]}/${c.edge[1]} edge`, detail: `${len(c.legs[0])} × ${len(c.legs[1])}` })),
   ];
   const was = new Map(entries(before).map((x) => [`${x.kind}|${x.where}`, x]));

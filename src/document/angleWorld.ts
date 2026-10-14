@@ -100,7 +100,7 @@ export function angleCutsFor(b: Board, a: WorldAngles, exact?: ReadonlyMap<numbe
   const seen = new Set<string>();
   for (const c of cuts) {
     const key = `${c.kind}|${c.face}|${c.from}|${c.along}|${c.alongFrom}`;
-    if (seen.has(key)) return { fault: `has two ${c.kind}s on the same ${c.kind === 'chamfer' ? 'edge' : 'face'}`, code: 'direction' };
+    if (seen.has(key)) return { fault: `has two ${c.kind}s on the same ${c.kind === 'chamfer' ? 'edge' : 'face with the same long point'}`, code: 'direction' };
     seen.add(key);
     if (angleCutRemovesNothing(b, c as AngleCut)) return { fault: `has a ${c.kind} that removes no wood`, code: 'no-wood' };
   }
