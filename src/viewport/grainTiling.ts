@@ -1,10 +1,10 @@
 import { ShapeUtils, Vector2 } from 'three';
 import {
   angleCutValues, axialOffset, axisFrame, boardExtents, bodyPlanes, clipPlan, clipPolygon, CUT_GEOMETRY_KEYS, DIMENSION_ORDER,
-  HOLE_EPS, holeInStock, holePrism, holeRing, holeRowValues, holeTouches, holeTouchesBox, isSheetGood, minusCover, minusPrism, ringInside, spanToWorldOffset, toWorldOffset,
+  HOLE_EPS, holeInStock, holePrism, stockChecks, holeRing, holeRowValues, holeTouches, holeTouchesBox, isSheetGood, minusCover, minusPrism, ringInside, spanToWorldOffset, toWorldOffset,
   wholeBoard,
 } from '../document/document';
-import type { Board, Body, BodyFace, Hole, Plane, Region, Span, V3 } from '../document/document';
+import type { Board, Body, BodyFace, Hole, Plane, Region, Span, StockChecks, V3 } from '../document/document';
 import { axisDimensions, faceGrainKinds, grainFamily } from './grainFaces';
 import type { Dimension, GrainFamily, GrainKind } from './grainFaces';
 
@@ -410,12 +410,13 @@ function putWall({ out, plan, extents, ou, ov }: WallSink, q: V3, nw: V3): void 
 /**
  * One hole's wall and (blind) bottom (holes spec §3.2): the wall's HOLE_SEGMENTS quads between the entry ring and the
  * far ring, and the bottom ring. A clean hole (holeInStock) draws them whole (ruling R15); a faulted one clips each to
- * every body, so its wall stops at the stock (and a seam splits it). Explicit normals — radial toward the axis on the wall (smooth), back toward the mouth on the
+ * every body, so its wall stops at the stock (and a seam splits it). `checks` is the board's stockChecks: a caller
+ * drawing every hole of a part builds it once per rebuild and passes it. Explicit normals — radial toward the axis on the wall (smooth), back toward the mouth on the
  * bottom — because BoardMesh's computeVertexNormals would facet them. Triangles wound to face along their normals
  * (the materials are FrontSide). UVs and materials as bodyMesh's sloped faces: each facet takes the plan of the world
  * axis its normal is nearest.
  */
-export function holeMesh(board: Board, h: Hole, bodies: readonly Body[]): { positions: Float32Array; normals: Float32Array; uvs: Float32Array; groups: { start: number; count: number; materialIndex: number }[] } {
+export function holeMesh(board: Board, h: Hole, bodies: readonly Body[], checks: StockChecks = stockChecks(board)): { positions: Float32Array; normals: Float32Array; uvs: Float32Array; groups: { start: number; count: number; materialIndex: number }[] } {
   const plans = facePlans(board);
   const frame = axisFrame(board);
   const extents = boardExtents(board);
@@ -464,7 +465,7 @@ export function holeMesh(board: Board, h: Hole, bodies: readonly Body[]): { posi
   // A CLEAN hole (holeInStock: no breaks-out, off-flat or too-deep — holeFaults' own checks) lies wholly in the stock,
   // so its wall and bottom are drawn whole, once, never split where they cross a seam between bodies (ruling R15).
   const rings = [...top, ...far];
-  const plan: Plane[][] = holeInStock(board, h)
+  const plan: Plane[][] = holeInStock(board, h, checks)
     ? [[]]
     : planes.map((ps) => clipPlan(ps, rings)).filter((ps): ps is Plane[] => ps !== null);
   const clip = (poly: V3[], ps: Plane[]): V3[] => {

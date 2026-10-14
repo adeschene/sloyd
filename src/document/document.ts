@@ -37,8 +37,8 @@ export {
   insideHole, minusCover, minusPrism, mirrorHoleRow, ringInside, sameHoleRow, MM, defaultHole, defaultShelfPinRow,
 } from './holes';
 export type { Hole, Plane } from './holes';
-export { holeFaults, holeInStock } from './holeFaults';
-export type { HoleFault, HoleFaultKind } from './holeFaults';
+export { holeFaults, holeInStock, stockChecks } from './holeFaults';
+export type { HoleFault, HoleFaultKind, StockChecks } from './holeFaults';
 export { jointRefusal, taperJointRefusal } from './angledRefusal';
 export type { AngleConflict, TaperConflict } from './angledRefusal';
 export { cleanName, uniqueName, dedupeNames } from './names';

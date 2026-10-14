@@ -138,8 +138,9 @@ export function boardHoles(board: Pick<Board, Dimension | 'holes'>): Hole[] {
 
 /**
  * Per-hole derived geometry at the default HOLE_SEGMENTS, memoised by Hole OBJECT identity (Task 11b: a rebuild asks for
- * the same prism once per face and the same ring once per wall and face). Only a FROZEN hole is memoised — partGeometry's
- * are — so a hole that could still change never answers from a stale entry; any other hole, or another `n`, computes
+ * the same prism once per face and the same ring once per wall and face). Only a FROZEN hole is memoised — the hole and
+ * its `centre`, its one nested field, as partGeometry's deep freeze leaves them — so a hole that could still change
+ * never answers from a stale entry; any other hole, or another `n`, computes
  * fresh. A memoised result is shared, so it is returned frozen (array, planes, normals and points alike).
  */
 interface HoleMemo { prism?: Plane[]; rings: Map<number, V3[]> }
@@ -164,7 +165,7 @@ const freezePrism = (ps: Plane[]): Plane[] => {
 
 /** The ring at axial distance `t` from the entry plane: `n` points on the true circle, θ_k = 2πk/n from +u toward +v. */
 export function holeRing(h: Hole, t: number, n = HOLE_SEGMENTS): V3[] {
-  if (n !== HOLE_SEGMENTS || !Object.isFrozen(h)) return ringOf(h, t, n);
+  if (n !== HOLE_SEGMENTS || !Object.isFrozen(h) || !Object.isFrozen(h.centre)) return ringOf(h, t, n);
   const memo = memoOf(h);
   let r = memo.rings.get(t);
   if (!r) { r = freezeRing(ringOf(h, t, n)); memo.rings.set(t, r); }
@@ -188,7 +189,7 @@ function ringOf(h: Hole, t: number, n: number): V3[] {
  * PRISM_EPS (see there).
  */
 export function holePrism(h: Hole, n = HOLE_SEGMENTS): Plane[] {
-  if (n !== HOLE_SEGMENTS || !Object.isFrozen(h)) return prismOf(h, n);
+  if (n !== HOLE_SEGMENTS || !Object.isFrozen(h) || !Object.isFrozen(h.centre)) return prismOf(h, n);
   const memo = memoOf(h);
   if (!memo.prism) memo.prism = freezePrism(prismOf(h, n));
   return memo.prism;
@@ -251,8 +252,9 @@ export function clipPolygon(verts: V3[], h: Plane): V3[] {
  * clipped by `planes` in turn (clipPolygon) — or null when such a polygon always clips to nothing (Task 11b: one answer
  * for all of a hole's wall quads and its bottom, per body). Clipping by the returned planes, in order, gives exactly
  * what clipping by all of them gives:
- * - a plane keeping every vertex by HOLE_EPS / 2 keeps every point between them by more than HOLE_EPS (rounding is far
- *   below the margin), and clipPolygon returns such a polygon unchanged — it is left out;
+ * - a plane keeping every vertex within -HOLE_EPS / 2 keeps every point between them within -HOLE_EPS / 2 too (up to
+ *   rounding, far below the margin), inside clipPolygon's -HOLE_EPS band, so clipPolygon returns such a polygon
+ *   unchanged — it is left out;
  * - a plane with every vertex beyond -2·HOLE_EPS has every such point beyond -HOLE_EPS, where clipPolygon keeps nothing
  *   (and stops) — null.
  */

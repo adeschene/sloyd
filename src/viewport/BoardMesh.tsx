@@ -2,7 +2,7 @@ import type { ToggleModifiers } from '../store/selectionGesture';
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import {
-  boardCenter, boardExtents, holeRims, holeTouchesBox, partGeometry, pointToLocalXYZ,
+  boardCenter, boardExtents, holeRims, holeTouchesBox, partGeometry, pointToLocalXYZ, stockChecks,
   solidWorldBox, wholeBoard,
 } from '../document/document';
 import type { Board, V3 } from '../document/document';
@@ -127,6 +127,7 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
   // and the disposal effect below for free.
   const geometries = useMemo(() => {
     const { bodies, holes } = partGeometry(board);
+    const checks = stockChecks(board);   // once per rebuild, for every hole's clean test (ruling R15)
     // A ghost has no holes to draw: the placeholder branch is unchanged.
     if (bodies.length === 0) {
       const { center, size } = solidWorldBox(board, wholeBoard(board));
@@ -156,7 +157,7 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
         }),
         // Each hole's wall and bottom (holes spec §3.2): explicit normals, so NO computeVertexNormals here.
         ...holes.map((h) => {
-          const m = holeMesh(board, h, bodies);
+          const m = holeMesh(board, h, bodies, checks);
           const geo = new THREE.BufferGeometry();
           geo.setAttribute('position', new THREE.BufferAttribute(m.positions, 3));
           geo.setAttribute('normal', new THREE.BufferAttribute(m.normals, 3));
