@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { createBoard, createDocument } from '../document/document';
 import type { HoleRow } from '../document/types';
-import { PlanTrio, ExplodedFigure } from './PlanFigure';
+import { PlanTrio, ExplodedFigure, pathOf } from './PlanFigure';
 
 // 2in shelves: the trio's scale is 752 / (30 + 12) ≈ 17.9 per inch (Task 7), so a 2in spacing is
 // ≈ 35.8 drawn, room for a 2-char label (24.8 + 8 = 32.8). 1in spacings (17.9) would be dropped.
@@ -43,6 +43,16 @@ describe('PlanTrio', () => {
     const holed = moves([pin]);
     expect(holed.l - plain.l).toBe(96);
     expect(holed.m - plain.m).toBe(1);
+  });
+
+  it('chains segments only within one part: edges of two parts meeting end to end are separate subpaths', () => {
+    const map = (p: readonly [number, number]): [number, number] => [p[0], p[1]];
+    const seg = (part: string, a: [number, number], b: [number, number]) => ({ a, b, part });
+    const moves = (d: string) => (d.match(/M/g) ?? []).length;
+    // Two parts' edges meet at (1, 0): not one dashed run.
+    expect(moves(pathOf([seg('A', [0, 0], [1, 0]), seg('B', [1, 0], [2, 0])], map))).toBe(2);
+    // One part's chords still chain into one subpath.
+    expect(moves(pathOf([seg('A', [0, 0], [1, 0]), seg('A', [1, 0], [2, 0]), seg('A', [2, 0], [3, 0])], map))).toBe(1);
   });
 
   it('lists a note when a chain is omitted', () => {

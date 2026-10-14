@@ -25,20 +25,20 @@ const mapper = (d: Drawing, at: Placement, scale: number): ToSvg =>
 const CHAIN_EPS = 1e-9;
 
 /**
- * One SVG path for `segs`. Consecutive segments that meet (the next starts where the previous ended, within CHAIN_EPS
+ * One SVG path for `segs`. Consecutive segments of ONE part that meet (the next starts where the previous ended, within CHAIN_EPS
  * before mapping) are ONE subpath, `M…L…L…`: SVG restarts the dash pattern at every `M`, so a hole's 96-chord rim drawn
  * as 96 subpaths would read solid on the sheet (ruling R2). Joining moves no line; it only carries the dash phase on.
  */
-const pathOf = (segs: Seg2[], map: ToSvg) => {
+export const pathOf = (segs: Seg2[], map: ToSvg) => {
   let out = '';
-  let prev: P2 | null = null;
+  let prev: Seg2 | null = null;
   for (const s of segs) {
     const [ax, ay] = map(s.a);
     const [bx, by] = map(s.b);
-    const joined = prev !== null && Math.abs(s.a[0] - prev[0]) <= CHAIN_EPS && Math.abs(s.a[1] - prev[1]) <= CHAIN_EPS;
+    const joined = prev !== null && prev.part === s.part && Math.abs(s.a[0] - prev.b[0]) <= CHAIN_EPS && Math.abs(s.a[1] - prev.b[1]) <= CHAIN_EPS;
     if (!joined) out += `M${ax.toFixed(2)} ${ay.toFixed(2)}`;
     out += `L${bx.toFixed(2)} ${by.toFixed(2)}`;
-    prev = s.b;
+    prev = s;
   }
   return out;
 };
