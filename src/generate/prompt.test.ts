@@ -10,12 +10,24 @@ const base: GenerateSettings = {
 
 describe('prompt', () => {
   it('teaches tapers in the fixed prefix (AI-tapers spec §6)', () => {
-    expect(SYSTEM_PROMPT).toContain('Each part is an axis-aligned box, optionally tapered.');
+    expect(SYSTEM_PROMPT).toContain('Each part is an axis-aligned box, optionally tapered, mitered, beveled or chamfered.');
     expect(SYSTEM_PROMPT).toContain('"tapers": [] for every part that is not tapered');
     expect(SYSTEM_PROMPT).toContain('start every taper at or below the lowest part that meets the tapered part');
     expect(SYSTEM_PROMPT).toContain('Legs tapered on their inside faces go under "parts", not in a repeated assembly; give them the same role ("leg"): Sloyd links legs that are the same leg turned.');
     expect(SYSTEM_PROMPT).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+  });  it('describes miters, bevels and chamfers and their two rules (AI-angles spec §8)', () => {
+    for (const s of [
+      'Angles:',
+      '"chamfers"',
+      '"bevels"',
+      '"miters"',
+      'Two mitered parts meeting at a corner overlap as boxes there',
+      'A miter does not hold a part',
+      'Never cut an angle where a part joins another',
+      'Use "miters": [], "bevels": [] and "chamfers": [] for every part without them.',
+    ]) expect(SYSTEM_PROMPT).toContain(s);
   });
+
 
   it('pins the corner table and the typical start (fu 313)', () => {
     for (const row of [
