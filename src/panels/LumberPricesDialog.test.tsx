@@ -104,4 +104,17 @@ describe('LumberPricesDialog', () => {
     expect(saved.materials.oak).toEqual({ mode: 'board-foot', pricePerBoardFoot: 11, wasteFactor: 1.5 });
     expect(saved.extra).toEqual(shop.extra); // a material this build does not know is carried through
   });
+
+  it('Save keeps stored custom-material entries the dialog does not edit (task 3 review)', async () => {
+    const shop = defaultShop();
+    shop.materials['m-s-ash1'] = { mode: 'board-foot', pricePerBoardFoot: 9, wasteFactor: 1.4 };
+    const onSave = vi.fn(async (_s: ShopSettings) => true);
+    render(<LumberPricesDialog shop={shop} readFailed={false} onSave={onSave} onClose={() => {}} />);
+    fireEvent.change(field('Oak: price per board foot'), { target: { value: '8' } });
+    fireEvent.click(saveBtn());
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const saved = onSave.mock.calls[0]![0];
+    expect(saved.materials['m-s-ash1']).toEqual({ mode: 'board-foot', pricePerBoardFoot: 9, wasteFactor: 1.4 });
+    expect(saved.materials.oak).toEqual({ mode: 'board-foot', pricePerBoardFoot: 8, wasteFactor: 1.3 });
+  });
 });

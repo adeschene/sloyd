@@ -116,7 +116,12 @@ export function LumberPricesDialog({ shop, readFailed, onSave, onClose }: Props)
     setSaving(true);
     const ok = await onSave({
       layout: 1,
-      materials: parsed as Record<string, MaterialBuying>,
+      // Stored entries for ids this dialog does not edit (custom materials, which validateShop keeps in
+      // `materials`) ride through; the parsed built-ins win over them.
+      materials: {
+        ...Object.fromEntries(Object.entries(shop.materials).filter(([k]) => !(k in MATERIALS))),
+        ...(parsed as Record<string, MaterialBuying>),
+      },
       ...(shop.extra ? { extra: shop.extra } : {}),
     });
     setSaving(false);
