@@ -60,7 +60,7 @@ describe('moveCandidates with assemblies', () => {
 describe('moveCandidates with shared definitions (components spec §4.1)', () => {
   const part = (id: string, x: number) => ({ id, name: `P ${id}`, length: 10, width: 4, thickness: 0.75,
     position: [x, 0, 0] as [number, number, number], rotation: 0 as const, posture: 'flat' as const,
-    grain: 'length' as const, material: 'oak', cuts: [], angleCuts: [] });
+    grain: 'length' as const, material: 'oak', cuts: [], angleCuts: [], holes: [] });
   const doc: SloydDocument = {
     ...createDocument(),
     instances: [
