@@ -147,6 +147,15 @@ passes, 1e-6 past it fails.
   it.
 - Shading and grain inside a hole are a real-hardware check (26a); software GL is not evidence.
 
+*Amended (planning chunk 1):* the clip split above leaves T-junctions at every rim (a piece's long edge passes ring
+vertices that are not its own), which can crack on real hardware. A face every overlapping hole's ring lies **strictly
+inside** (by more than `BODY_EPS`) is instead triangulated with those rings as holes (`THREE.ShapeUtils.triangulateShape`),
+from the SAME ring vertices the wall uses (`holeRing`), so face and wall share every rim vertex — pinned by a test. The clip
+split stays as the fallback (a tangent hole, a seam face parallel to the axis, a faulted hole), where a T-junction is
+accepted. Each prism cap is pushed out by `PRISM_EPS = 1e-7` so a face lying on the entry plane, or an internal seam inside
+the hole's depth, is punched. Walls carry explicit radial normals (BoardMesh's `computeVertexNormals` would facet them), and
+are wound to face the axis: the materials are `FrontSide`.
+
 ### 3.3 Edges (invariant 16 extended)
 
 - Each hole draws its **rim** where it meets its entry face, and its exit face when through: the same 48-gon's vertices
@@ -154,6 +163,9 @@ passes, 1e-6 past it fails.
 - No wall facet lines.
 - Body edges are unchanged: under the strict rule a hole never crosses one. A faulted hole's rim is drawn whole, which is
   part of "approximately".
+
+*Amended (planning chunk 1):* a blind hole also draws its **bottom rim** in the viewport: wall meets bottom at a right
+angle, a crease by this section's own rule.
 
 ### 3.4 Drawings (`drawing.ts`, chunk 2)
 
@@ -173,6 +185,12 @@ passes, 1e-6 past it fails.
   (`BoardSnapPoint`, invariant 26 unchanged) — so the Tape tool measures centre to centre.
 - `stockProbe` withholds a lattice point strictly inside a hole's cylinder (open: a point on the rim is stock).
 
+*Amended (planning chunk 1):* every lattice point lies on the box surface, so "strictly inside" would withhold nothing:
+the **mouth is air**. `stockProbe` withholds a point within the radius (open: the rim is stock) and between the caps
+(closed). The centre points reuse the existing `'face-center'` kind (no new `SnapKind`), deduped by distance against the
+lattice. A centre sits in air, a deliberate exception to invariant 16's marker-on-a-drawn-feature rule: it is the
+centre of a drawn rim.
+
 ### 3.6 Who reads holes
 
 | Reads holes | Ignores holes, deliberately |
@@ -191,14 +209,21 @@ existing vocabulary:
 
 | Case | Reads as |
 |---|---|
-| row | `Row of 21 holes 1/4" dia × 3/8" deep in the thickness face (max side), along the length: first 2" from the min end, every 1 17/64", last at 27 13/64"; 1 1/2" in from the width min side` |
-| single | `Hole 1 3/8" dia × 1/2" deep in the thickness face (max side), 3" from the length min end, 57/64" in from the width min side` |
+| row | `Row of 21 holes 1/4" dia × 3/8" deep in the thickness face (max side), along the length: first 2" from the min end, every 1-17/64" (32 mm), last at 27-3/16"; 1-1/2" in from the width min side` |
+| single | `Hole 1-3/8" (35 mm) dia × 1/2" deep in the thickness face (max side), 3" from the length min end, 7/8" in from the width min side` |
 | through | `× through` in place of `× <depth> deep` |
 
 - A face of `length` reads as an end (fu 300's rule): `in the length max end`.
-- Every length through `formatLength`; the pitch is the exact stored value displayed to the usual precision (32 mm reads
-  1 17/64"). "last at" is computed from the exact values, not from the rounded pitch.
+- Every length through `formatLength` (which writes `1-1/2"`), at the document's precision (1/16 by default) except as
+  amended below. "last at" is computed from the exact values, not from the rounded pitch. The table's strings are exact
+  at precision 16 (*corrected while planning chunk 1*: they first showed a 1/64 display and spaced fractions).
 - Hole lines print after the angle lines, rows in stored order.
+
+*Amended (planning chunk 1):* the document's default precision is 1/16, at which 32 mm would print `1 1/4"` — a jig set to
+that drifts ⅕" over 21 holes. So the **pitch prints at 1/64 at least** (`max(precision, 64)`), and a **diameter or pitch that
+is a whole number of millimetres and not an exact 1/64** also prints its millimetres: `every 1-17/64" (32 mm)`,
+`1-3/8" (35 mm) dia`. "last at" is computed exactly and printed at the document precision. This is not metric display:
+`units.display` is unchanged.
 
 ### 4.2 Grouping
 
@@ -268,6 +293,14 @@ Versioning row: `15→16 · holes (default [], malformed entry dropped) · docum
   the stored value.
 - A fault a later edit caused shows as a note on the row (`Hole 12 runs past the length max end at this size.`); Remove
   always works.
+
+*Amended (planning chunk 1):*
+- The menu reads **+ Add hole ▾** (as "+ Add cut"), not "+ Add ▾": two popovers named "+ Add" in one panel collide.
+- **An edit is refused when it ADDS a fault** — a (hole, kind) pair the stored row does not already have. "Refuse any result
+  that faults" would trap a row a resize already faulted: every edit toward fixing it (one fewer hole, a smaller pitch)
+  would still fault and be refused. An add is refused on any fault (there is no stored row).
+- **Every** is hidden at count 1, not disabled. **Count** is a DimensionField with a whole-number parse (AngleField's
+  pattern), min 1.
 - Store actions `addHoleRows` / `updateHoleRow` / `removeHoleRow`: through `edit()` (one undo entry, autosave), written
   back through `treeEdit` (invariant 46). Held points are re-judged with `dropHeldIfGone` AFTER the edit (invariant 24,
   point-precise: a new hole can swallow a grabbed lattice point). Refused by `edit()` while exploded (invariant 47).
