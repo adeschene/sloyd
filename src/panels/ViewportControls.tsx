@@ -1,6 +1,16 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { sectionSpan, worldParts, type SectionAxis } from '../document/document';
+import { explodeOffsets, EXPLODE_SPREAD } from '../document/explode';
+import { visibleBoards } from '../store/visibility';
+import { DimensionField } from './DimensionField';
 import { useStore } from '../store/store';
 import type { StandardView } from '../viewport/framing';
+
+const SECTION_AXES: readonly { axis: SectionAxis; text: string; title: string }[] = [
+  { axis: 'front', text: 'Front', title: 'Cut across the depth, seen from the front' },
+  { axis: 'side', text: 'Side', title: 'Cut across the width, seen from the side' },
+  { axis: 'top', text: 'Top', title: 'Cut across the height, seen from above' },
+];
 
 /** The one wording for "this is locked because the view is exploded" (plans-sheet spec §4.2). */
 export const EXPLODED_TITLE = 'Slide Explode back to 0 to edit';
@@ -50,6 +60,23 @@ export function ViewportControls({
   const explode = useStore((s) => s.explode);
   const setExplode = useStore((s) => s.setExplode);
   const hasSelection = useStore((s) => s.selectedIds.length > 0);
+  const section = useStore((s) => s.section);
+  const setSection = useStore((s) => s.setSection);
+  const doc = useStore((s) => s.doc);
+  const hiddenIds = useStore((s) => s.hiddenIds);
+  const shown = useMemo(() => visibleBoards(worldParts(doc), hiddenIds), [doc, hiddenIds]);
+  const offsets = useMemo(
+    () => (explode > 0 ? explodeOffsets(doc, explode * EXPLODE_SPREAD) : null),
+    [doc, explode],
+  );
+  const spanOf = (axis: SectionAxis) => sectionSpan(shown, offsets, axis);
+  const centre = (axis: SectionAxis) => { const sp = spanOf(axis); return sp ? (sp[0] + sp[1]) / 2 : null; };
+  const toggleSection = () => {
+    if (section) { setSection(null); return; }
+    const at = centre('front');
+    if (at !== null) setSection({ axis: 'front', at, flip: false });
+  };
+  const span = section ? spanOf(section.axis) : null;
   // Disabled while saving, so a double click saves one file (spec §3.2).
   const [saving, setSaving] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
@@ -92,6 +119,9 @@ export function ViewportControls({
           <button aria-pressed={showAxes} onClick={onToggleAxes} title="Show the origin axes">Origin</button>
           <button aria-pressed={showGuides} onClick={onToggleGuides} title="Show tape-measure guide points">Guides</button>
         </div>
+        <button aria-pressed={section !== null} onClick={toggleSection}
+          disabled={section === null && centre('front') === null}
+          title="Cut the model with a plane to see inside joints and holes">Section</button>
         <div className="viewport-explode">
           <label
             title="Explode the parts apart to see how they go together; editing pauses until it is back at 0">
@@ -105,6 +135,28 @@ export function ViewportControls({
           title="Save a PNG of the view, without the selection or tool markers">Save image</button>
         {imageError && <span role="alert" className="field-error">{imageError}</span>}
       </div>
+
+      {section && (
+        <div className="viewport-controls viewport-controls-section" role="group" aria-label="Section">
+          <div className="segmented" role="group" aria-label="Section axis">
+            {SECTION_AXES.map(({ axis, text, title }) => (
+              <button key={axis} aria-label={`Section ${axis}`} aria-pressed={section.axis === axis} title={title}
+                onClick={() => {
+                  if (axis === section.axis) return;
+                  const at = centre(axis);
+                  if (at !== null) setSection({ ...section, axis, at });
+                }}>{text}</button>
+            ))}
+          </div>
+          <input type="range" aria-label="Section position" step="any"
+            min={span ? span[0] : section.at} max={span ? span[1] : section.at} value={section.at}
+            onChange={(e) => setSection({ ...section, at: Number(e.target.value) })} />
+          <DimensionField label="Position" value={section.at} allowNegative
+            min={span?.[0]} max={span?.[1]} onCommit={(at) => setSection({ ...section, at })} />
+          <button aria-pressed={section.flip} onClick={() => setSection({ ...section, flip: !section.flip })}
+            title="Keep the other side of the cut">Flip</button>
+        </div>
+      )}
 
       {tool === 'move' && !hasSelection && (
         // The Move tool grabs points on the selected board only, so with

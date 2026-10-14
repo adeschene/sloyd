@@ -1,7 +1,8 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
-import { createDocument } from '../document/document';
+import { createBoard, createDocument } from '../document/document';
+import { formatLength } from '../units/length';
 import { ViewportControls, EXPLODED_TITLE } from './ViewportControls';
 
 beforeEach(() => useStore.getState().replaceDocument(createDocument('Test')));
@@ -183,5 +184,66 @@ describe('ViewportControls standard views and Save image', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not save the image.');
     await userEvent.click(btn('Save image'));
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+});
+
+describe('ViewportControls section', () => {
+  const withPart = () => {
+    const doc = createDocument('Test');
+    doc.boards = [createBoard({ id: 'a', length: 20, width: 6, thickness: 1.5, position: [0, 0, 0] })];
+    useStore.getState().replaceDocument(doc);
+  };
+  afterEach(() => { act(() => { useStore.getState().setSection(null); useStore.setState({ hiddenIds: [] }); }); });
+  it('is disabled with no parts', () => {
+    renderControls();
+    expect(btn('Section')).toBeDisabled();
+  });
+  it('turns on at the middle of the parts, seen from the front', async () => {
+    withPart();
+    renderControls();
+    await userEvent.click(btn('Section'));
+    expect(useStore.getState().section).toEqual({ axis: 'front', at: 3, flip: false });
+    expect(btn('Section')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('group', { name: 'Section' })).toBeInTheDocument();
+  });
+  it('changing axis re-centres; Flip toggles; turning off clears', async () => {
+    withPart();
+    renderControls();
+    await userEvent.click(btn('Section'));
+    await userEvent.click(btn('Section side'));
+    expect(useStore.getState().section).toEqual({ axis: 'side', at: 10, flip: false });
+    await userEvent.click(btn('Flip'));
+    expect(useStore.getState().section?.flip).toBe(true);
+    await userEvent.click(btn('Section'));
+    expect(useStore.getState().section).toBeNull();
+  });
+  it('the position field refuses a value outside the parts, never clamps', async () => {
+    withPart();
+    renderControls();
+    await userEvent.click(btn('Section'));
+    const field = screen.getByLabelText('Position');
+    await userEvent.clear(field);
+    await userEvent.type(field, '9{Enter}');
+    expect(useStore.getState().section?.at).toBe(3);
+    expect(field).toHaveAttribute('aria-invalid', 'true');
+    await userEvent.clear(field);
+    await userEvent.type(field, '1 1/2{Enter}');
+    expect(useStore.getState().section?.at).toBe(1.5);
+  });
+  it('a stored position outside the span is shown, not moved', () => {
+    withPart();
+    act(() => useStore.getState().setSection({ axis: 'front', at: 40, flip: false }));
+    renderControls();
+    expect(useStore.getState().section?.at).toBe(40);
+    expect((screen.getByLabelText('Position') as HTMLInputElement).value).toBe(formatLength(40));
+  });
+  it('with every part hidden: the group stays usable and writes no NaN', async () => {
+    withPart();
+    renderControls();
+    await userEvent.click(btn('Section'));
+    act(() => useStore.setState({ hiddenIds: ['a'] }));
+    await userEvent.click(btn('Section top'));
+    expect(Number.isFinite(useStore.getState().section!.at)).toBe(true);
+    expect(useStore.getState().section!.axis).toBe('front');
   });
 });

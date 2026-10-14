@@ -471,6 +471,15 @@ button[aria-pressed='true'] {
 
 .viewport-controls-tools { left: 12px; }
 .viewport-controls-view { right: 12px; }
+/* Bottom-right, not under the View group: that group wraps to a variable height (fu 319), so a fixed offset
+   below it could overlap at 1440 px; the opposite corner cannot. The Move hint is bottom-left. */
+.viewport-controls-section {
+  top: auto; bottom: 12px; right: 12px;
+  align-items: center; flex-wrap: wrap; justify-content: flex-end;
+  max-width: calc(100% - 24px);
+  color: var(--ink);
+}
+.viewport-controls-section input[type='range'] { width: 10rem; }
 /* Five clusters now (projection, visibility, views, explode, Save image): wrap, right-aligned, rather than
    run under the Tools group on a narrow window. 220px clears the Tools group (Select/Move/Tape) and its gap. */
 .viewport-controls-view { flex-wrap: wrap; justify-content: flex-end; max-width: calc(100% - 220px); }
