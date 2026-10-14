@@ -437,7 +437,12 @@ both paid runs passed: a Generate gave four chamfered legs linked through turns,
 45° frame (≈ $0.08); a Refine changed only the top's chamfers, everything else back byte for byte (≈ $0.04)
 (`docs/browser-verification-ai-angles.md`, "Chunk 2"). Plan defects ruled while executing: Refine's design needed the empty
 arrays from Task 2, not Task 4; four mutants survived until tests were added (edge order, the runRefine wiring of the
-exact-angle map, the map in linking — a Refine-kept 0.7 slope). Test count 3501 -> 3564. No schema change (SCHEMA 14).
+exact-angle map, the map in linking — a Refine-kept 0.7 slope). The final review (a fresh reviewer) found: Refine refused a
+hand-made miter or bevel after a resize (fixed: any stored run is the same plane); the change list hid one of two bevels on
+a face (fixed: keyed by face and long point); a false "no wood" for two miters (fixed: the pair check removed — two miters
+always leave wood at their shared long-point corner); and the prompt's mitered box on a thin bottom tripped chunk 1's joint
+rule at the rabbet — the user ruled a miter on the rabbeted part passes. Minors as fu 323. Test count 3501 -> 3568. No
+schema change (SCHEMA 14). Merged to master as `a4914f1`; not deployed.
 
 **What AI angles chunk 1 did (2026-10-13, fu 276/277's remainder, fu 307)** (spec
 `docs/superpowers/specs/2026-10-13-sloyd-ai-angles-design.md`, plan `docs/superpowers/plans/2026-10-13-sloyd-ai-angles-chunk1.md`).

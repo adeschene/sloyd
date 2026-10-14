@@ -27,7 +27,8 @@ handicraft education tradition built around hand woodworking.
   export first). Test count is under Commands. Open from standard views: 319 (the View group's wrap, for the user's eye), 320.
 - **AI angles (fu 276/277's remainder; spec `2026-10-13-sloyd-ai-angles-design.md`)**: chunk 1 deployed; **chunk 2**
   (Generate and Refine read and write miters, bevels and chamfers in world words; `angle-joint`; the design schema in
-  `$defs`) is on branch `ai-angles-2`, merged only after its final review; not deployed. Both paid live runs passed.
+  `$defs`; rabbets run out through miters) is MERGED (`a4914f1`), not deployed — deploy on the user's word (no schema
+  change; rollback free). Both paid live runs passed.
   **NEXT: none chosen — ask.** Open near it: 314–318 (turned-links residue). Other open items: angle-cut residue 295–298;
   241 (open by decision), 251 (record-only), 221, 225, 232, 234, 247.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
@@ -661,7 +662,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 3564 tests across 124 files
+npm test           # Vitest, currently 3568 tests across 124 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
