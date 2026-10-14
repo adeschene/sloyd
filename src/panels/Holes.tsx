@@ -38,8 +38,8 @@ function HoleRowView({ board, row, precision }: { board: Board; row: HoleRow; pr
   const line = holeLine(board, row, precision);
   const stored = distinct(holeFaults(board, row));
   const across = acrossOf(row);
-  /** False when the edit is refused (the field then keeps its text and focus, ruling R6). */
-  const set = (patch: Partial<Omit<HoleRow, 'id'>>): boolean => {
+  /** Tries the edit: the refusal text when it is refused (nothing stored), else null. */
+  const attempt = (patch: Partial<Omit<HoleRow, 'id'>>): string | null => {
     let next: HoleRow = { ...row, ...patch };
     // A face change onto the row's direction swaps the two: the row keeps running along the old face dimension.
     if (next.along === next.face) next = { ...next, along: row.face };
@@ -50,12 +50,17 @@ function HoleRowView({ board, row, precision }: { board: Board; row: HoleRow; pr
     // resize faulted can still be edited toward fitting.
     const had = new Set(stored.map(key));
     const added = holeFaults({ ...board, holes: board.holes.map((r) => (r.id === row.id ? next : r)) }, next).find((f) => !had.has(key(f)));
-    if (added) { setError(refusal(added, next, row.id)); return false; }
+    if (added) return refusal(added, next, row.id);
     setError(null);
     const { id: _id, ...rest } = next;
     updateHoleRow(board.id, row.id, rest);
-    return true;
+    return null;
   };
+  // Ruling R7: a typed field owns its refusal (DimensionField shows the returned text as ITS error, keeps the text and
+  // focus, and no sibling's success clears it). A select or checkbox shows its refusal on the row (it stays on the
+  // stored value, so the row-level alert can never sit beside a stale control).
+  const field = (patch: Partial<Omit<HoleRow, 'id'>>): string | undefined => attempt(patch) ?? undefined;
+  const set = (patch: Partial<Omit<HoleRow, 'id'>>) => { const r = attempt(patch); if (r) setError(r); };
   return (
     <div className="cut">
       <div className="cut-head">
@@ -76,14 +81,14 @@ function HoleRowView({ board, row, precision }: { board: Board; row: HoleRow; pr
             )))}
           </select>
         </div>
-        <DimensionField label="Diameter" value={row.diameter} precision={precision} onCommit={(diameter) => set({ diameter })} />
+        <DimensionField label="Diameter" value={row.diameter} precision={precision} onCommit={(diameter) => field({ diameter })} />
         <div className="field">
           <label htmlFor={`hole-through-${row.id}`}>Through</label>
           <input id={`hole-through-${row.id}`} type="checkbox" checked={row.depth === 'through'}
             onChange={(e) => set({ depth: e.target.checked ? 'through' : board[row.face] / 2 })} />
         </div>
         {row.depth !== 'through' && (
-          <DimensionField label="Depth" value={row.depth} precision={precision} onCommit={(depth) => set({ depth })} />
+          <DimensionField label="Depth" value={row.depth} precision={precision} onCommit={(depth) => field({ depth })} />
         )}
         <div className="field">
           <label htmlFor={`hole-along-${row.id}`}>Along</label>
@@ -98,12 +103,12 @@ function HoleRowView({ board, row, precision }: { board: Board; row: HoleRow; pr
             <option value="max">{`${cap(row.along)} max ${end(row.along)}`}</option>
           </select>
         </div>
-        <DimensionField label="First at" value={row.station} min={0} precision={precision} onCommit={(station) => set({ station })} />
-        <CountField label="Count" value={row.count} onCommit={(count) => set({ count })} />
+        <DimensionField label="First at" value={row.station} min={0} precision={precision} onCommit={(station) => field({ station })} />
+        <CountField label="Count" value={row.count} onCommit={(count) => field({ count })} />
         {row.count > 1 && (
-          <DimensionField label="Every" value={row.pitch} precision={Math.max(precision, 64)} onCommit={(pitch) => set({ pitch })} />
+          <DimensionField label="Every" value={row.pitch} precision={Math.max(precision, 64)} onCommit={(pitch) => field({ pitch })} />
         )}
-        <DimensionField label="In from" value={row.inset} min={0} precision={precision} onCommit={(inset) => set({ inset })} />
+        <DimensionField label="In from" value={row.inset} min={0} precision={precision} onCommit={(inset) => field({ inset })} />
         <div className="field">
           <label htmlFor={`hole-side-${row.id}`}>Side</label>
           <select id={`hole-side-${row.id}`} className="input" value={row.acrossFrom} onChange={(e) => set({ acrossFrom: e.target.value as CutFrom })}>

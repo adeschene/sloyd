@@ -45,6 +45,26 @@ describe('the Holes section', () => {
     expect(count).toHaveFocus();
     expect(count).toHaveValue('24');
   });
+  it('a refused Count keeps its own error through a sibling\'s successful edit, and an untouched blur commits nothing (ruling R7)', async () => {
+    const user = userEvent.setup();
+    open(side());
+    await add(user, 'Shelf-pin row');
+    const count = screen.getByLabelText('Count');
+    await user.clear(count); await user.type(count, '24{Enter}');
+    expect(count).toHaveFocus();
+    // A valid First at edit (1-1/2": the last of 21 at 1.5 + 20 x 32mm = 26.7" still fits) succeeds beside it.
+    const first = screen.getByLabelText('First at');
+    await user.clear(first); await user.type(first, '1-1/2{Enter}');
+    expect(rows()[0]!.station).toBe(1.5);
+    expect(count).toHaveValue('24');
+    expect(count).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByRole('alert')).toHaveTextContent('Puts hole 24 past the length max end');
+    expect(rows()[0]!.count).toBe(21);
+    // Focus and blur Count with nothing typed: no silent commit.
+    await user.click(count);
+    await user.tab();
+    expect(rows()[0]!.count).toBe(21);
+  });
   it('accepts 23, the most that fit', async () => {
     const user = userEvent.setup();
     open(side());
