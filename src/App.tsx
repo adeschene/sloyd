@@ -982,7 +982,7 @@ export default function App() {
             <section className="panel panel-props">
               <h2>Properties</h2>
               <fieldset className="edit-lock" disabled={exploded} title={exploded ? EXPLODED_TITLE : undefined}>
-                <Properties />
+                <Properties library={library.materials} onNewMaterial={(ids, kind) => { setNewMaterialFor({ ids, kind }); setDialog('prices'); }} />
               </fieldset>
             </section>
             {/*

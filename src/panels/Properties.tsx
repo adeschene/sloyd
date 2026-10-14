@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store/store';
-import { MATERIALS, isSheetGood, pocketCells, cutShape, storedAsShape, cutRemovesNothing, findTenons, positionAxisOf, linkPlan, postureRefusal, storageKey, mirroredAt, worldParts, instanceAt, parentPath, placementsOf, instanceRefs, containerAt } from '../document/document';
+import { isSheetGood, pocketCells, cutShape, storedAsShape, cutRemovesNothing, findTenons, positionAxisOf, linkPlan, postureRefusal, storageKey, mirroredAt, worldParts, catalogOf, pickerLibrary, materialKind, instanceAt, parentPath, placementsOf, instanceRefs, containerAt } from '../document/document';
 import { DimensionField } from './DimensionField';
 import { NameField } from './NameField';
 import { ActionBar, COPY_IN_ROW } from './ActionBar';
 import { formatLength } from '../units/length';
 import { AngleCuts } from './AngleCuts';
-import type { Rotation, Posture, Grain, Board, Cut, Dimension, Region } from '../document/document';
+import type { CustomMaterial, MaterialKind, Rotation, Posture, Grain, Board, Cut, Dimension, Region } from '../document/document';
 
 const DIMENSION_LABEL: Record<Dimension, string> = {
   length: 'Length',
@@ -325,7 +325,48 @@ function shared<T>(boards: Board[], read: (b: Board) => T): T | null {
  * an external change. Without it a mixed field (null -> null) would keep a
  * stale draft across a selection change, since its value never changed.
  */
-function GroupProperties() {
+const NEW_MATERIAL = '__new__';
+type NewMaterialHandler = (ids: string[], kind: MaterialKind) => void;
+
+/** The Material select (custom materials spec §4.2): built-ins, this project's, the library's (one label each), New material…. */
+function MaterialSelect({ ids, value, library, onNewMaterial }: {
+  ids: string[]; value: string | null; library: CustomMaterial[]; onNewMaterial?: NewMaterialHandler;
+}) {
+  const doc = useStore((s) => s.doc);
+  const catalog = catalogOf(doc);
+  const fromLibrary = pickerLibrary(doc.materials, library);
+  const pick = (id: string) => {
+    if (id === NEW_MATERIAL) {
+      // A sheet selection starts a sheet of its kind (one kind for all, else solid): the kind cannot change once saved.
+      const world = worldParts(doc).filter((b) => ids.includes(b.id));
+      const kinds = new Set(world.map((b) => materialKind(b.material)));
+      const only: MaterialKind = kinds.size === 1 ? [...kinds][0]! : 'solid';
+      onNewMaterial?.(ids, only);
+      return;
+    }
+    const adopt = fromLibrary.find((m) => m.id === id);
+    useStore.getState().updateBoards(ids, { material: id }, adopt ? [adopt] : undefined);
+  };
+  return (
+    <select id="material" className="input" value={value ?? ''} onChange={(e) => pick(e.target.value)}>
+      {value === null && <option value="" disabled>mixed</option>}
+      {catalog.ids.filter((id) => catalog.get(id)!.builtIn).map((id) => <option key={id} value={id}>{catalog.label(id)}</option>)}
+      {doc.materials.length > 0 && (
+        <optgroup label="This project">
+          {doc.materials.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+        </optgroup>
+      )}
+      {fromLibrary.length > 0 && (
+        <optgroup label="Your library">
+          {fromLibrary.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+        </optgroup>
+      )}
+      {onNewMaterial && <option value={NEW_MATERIAL}>New material…</option>}
+    </select>
+  );
+}
+
+function GroupProperties({ library, onNewMaterial }: { library: CustomMaterial[]; onNewMaterial?: NewMaterialHandler }) {
   const doc = useStore((s) => s.doc);
   const allBoards = useStore((s) => worldParts(s.doc));
   const selectedIds = useStore((s) => s.selectedIds);
@@ -401,13 +442,7 @@ function GroupProperties() {
 
       <div className="field">
         <label htmlFor="material">Material</label>
-        <select id="material" className="input" value={material ?? ''}
-          onChange={(e) => set({ material: e.target.value })}>
-          {material === null && <option value="" disabled>mixed</option>}
-          {Object.entries(MATERIALS).map(([key, m]) => (
-            <option key={key} value={key}>{m.label}</option>
-          ))}
-        </select>
+        <MaterialSelect ids={selectedIds} value={material} library={library} onNewMaterial={onNewMaterial} />
       </div>
       </div>
       </>}
@@ -476,7 +511,7 @@ function InstanceProperties({ path }: { path: string }) {
   );
 }
 
-export function Properties() {
+export function Properties({ library = [], onNewMaterial }: { library?: CustomMaterial[]; onNewMaterial?: NewMaterialHandler } = {}) {
   const board = useStore((s) =>
     s.selectedIds.length === 1 ? worldParts(s.doc).find((b) => b.id === s.selectedIds[0]) : undefined);
   const instPath = useStore((s) => (s.selectedIds.length === 1 && instanceAt(s.doc, s.selectedIds[0]!) ? s.selectedIds[0]! : null));
@@ -515,7 +550,7 @@ export function Properties() {
     }
   }, [board?.id]);
 
-  if (groupSize >= 2) return <GroupProperties />;
+  if (groupSize >= 2) return <GroupProperties library={library} onNewMaterial={onNewMaterial} />;
   if (instPath) return <InstanceProperties path={instPath} />;
   if (!board) return <p className="empty">Select a part to edit it.</p>;
 
@@ -614,12 +649,7 @@ export function Properties() {
 
       <div className="field">
         <label htmlFor="material">Material</label>
-        <select id="material" className="input" value={board.material}
-          onChange={(e) => updateBoard(board.id, { material: e.target.value })}>
-          {Object.entries(MATERIALS).map(([key, m]) => (
-            <option key={key} value={key}>{m.label}</option>
-          ))}
-        </select>
+        <MaterialSelect ids={[board.id]} value={board.material} library={library} onNewMaterial={onNewMaterial} />
       </div>
       </div>
 
