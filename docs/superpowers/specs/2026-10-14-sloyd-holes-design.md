@@ -1,6 +1,6 @@
 # Sloyd — holes: bores and shelf-pin rows
 
-**Date:** 2026-10-14 · **Status:** design approved by the user in conversation 2026-10-14; this written spec awaits review
+**Date:** 2026-10-14 · **Status:** approved by the user 2026-10-14; the amendments made while planning chunk 1 (§3.2, §3.3, §3.5, §4.1, §7 — marked *Amended*) also approved, and §4.1's faulted-row line ruled by the user
 **Builds on:** angle cuts (`2026-10-12-sloyd-angle-cuts-design.md`, invariant 48) — bodies, `partGeometry`, the field-by-field
 sites; cuts (`cuts.ts`, invariants 16, 40); the turn table (invariant 44); the tree and mirrored instances (invariants 45,
 46); the cut list (invariant 18); the Plans sheet's hidden-line drawings (invariant 47). Every rule there still holds unless
@@ -226,6 +226,10 @@ that drifts ⅕" over 21 holes. So the **pitch prints at 1/64 at least** (`max(p
 is a whole number of millimetres and not an exact 1/64** also prints its millimetres: `every 1-17/64" (32 mm)`,
 `1-3/8" (35 mm) dia`. "last at" is computed exactly and printed at the document precision. This is not metric display:
 `units.display` is unchanged.
+
+*Amended (user, 2026-10-14):* a **faulted** row's line ends with its first fault and a count — `… — check: hole 20 runs
+past the length max end (and 1 more)` — so the bench never reads a row that runs off the part silently. The fault words
+have one home (`holeFaultText`, invariant 19), shared with the Properties note.
 
 ### 4.2 Grouping
 

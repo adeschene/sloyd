@@ -49,8 +49,9 @@ notes added while writing this plan — §3.2 triangulation, §3.3 bottom rim, �
    pins): the pocket grid puts an internal seam at the dado's floor plane inside every hole. An unpunched seam leaves a
    membrane inside each hole. Pinned in Task 6 (no triangle of any body face lies inside a hole's radius between its caps).
 2. **Shortening a part until a row's last holes run off it**: the row is kept unchanged, the Properties row shows a note,
-   edits that do not ADD a fault are still accepted (one fewer hole, a smaller pitch). Pinned in Tasks 3 and 10. The cut
-   list keeps printing the row as stored — *the user decides at handoff whether the cut-list line should carry the fault*.
+   edits that do not ADD a fault are still accepted (one fewer hole, a smaller pitch). The cut-list line carries the
+   fault (*the user's ruling, 2026-10-14*): `… — check: hole 20 runs past the length max end (and 1 more)`. Pinned in
+   Tasks 3, 7 and 10.
 3. **A holed part inside a mirrored assembly**: the copy shows mirror-image holes; editing either side writes the stored
    row back exactly; repeated identical edits do not drift or rewrite the stored array. Pinned in Task 4.
 4. **A hand-edited file with a malformed row or an absurd count** (`count: 1e6`, `depth: 0`, `along === face`): the file
@@ -1646,7 +1647,10 @@ Restore each.
 - Test: `src/document/holeText.test.ts` (create), `src/document/cutlist.test.ts`
 
 **Interfaces:**
-- Produces: `holeLine(board: Board, r: HoleRow, precision: number): string`.
+- Consumes: `holeFaults`, `HoleFault` (Task 3).
+- Produces: `holeLine(board: Board, r: HoleRow, precision: number): string`;
+  `holeFaultText(f: HoleFault, r: HoleRow): string` — THE words for a fault (lower-case, no full stop), read by the
+  cut-list line and by Task 10's Properties note.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1655,7 +1659,7 @@ Restore each.
 ```ts
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
-import { holeLine } from './holeText';
+import { holeFaultText, holeLine } from './holeText';
 import type { HoleRow } from './types';
 
 const side = createBoard({ length: 30, width: 11.25, thickness: 0.75 });
@@ -1672,6 +1676,17 @@ describe('holeLine (spec §4.1, as amended)', () => {
   it('through, and an end face reads as an end', () => {
     const dowel: HoleRow = { ...cup, face: 'length', from: 'max', diameter: 0.375, depth: 'through', along: 'width', station: 2, inset: 0.375, acrossFrom: 'min' };
     expect(holeLine(side, dowel, 16)).toBe('Hole 3/8" dia × through in the length max end, 2" from the width min side, 3/8" in from the thickness min side');
+  });
+  it('a faulted row carries its first fault and a count (the user\'s ruling, Review Focus 2)', () => {
+    const short = { ...side, length: 26, holes: [pins] };
+    expect(holeLine(short, pins, 16)).toMatch(/ — check: hole 20 runs past the length max end \(and 1 more\)$/);
+    expect(holeLine({ ...side, holes: [pins] }, pins, 16)).not.toContain('check:');
+  });
+  it('holeFaultText words each kind', () => {
+    expect(holeFaultText({ index: 0, kind: 'off-flat' }, pins)).toBe('hole 1 sits where a cut has removed the wood');
+    expect(holeFaultText({ index: 2, kind: 'meets-hole', other: { row: 'h1', index: 1 } }, pins)).toBe('hole 3 meets hole 2');
+    expect(holeFaultText({ index: 0, kind: 'meets-hole', other: { row: 'zz', index: 0 } }, pins)).toBe('hole 1 meets a hole of another row');
+    expect(holeFaultText({ index: 0, kind: 'too-deep' }, pins)).toBe('the holes are deeper than the thickness');
   });
   it('an exact-1/64 whole-mm value does not print its mm (5" is 127 mm)', () => {
     expect(holeLine(side, { ...pins, pitch: 5, count: 2 }, 16)).toContain('every 5", last at 7"');
@@ -1699,9 +1714,11 @@ describe('holes on the cut list (spec §4)', () => {
     const setup = buildCutList(sides([{ angleCuts: [taper], holes: [r1] }]) as FlatDocument).groups[0]!.rows[0]!.setup;
     expect(setup.findIndex((l) => l.startsWith('Row of'))).toBeGreaterThan(setup.findIndex((l) => l.startsWith('Taper')));
   });
-  it('a faulted row still prints as stored (Review Focus 2 — the user decides at handoff)', () => {
+  it('a faulted row prints as stored, with its fault (Review Focus 2)', () => {
     const off = { ...r1, station: 29, count: 3 };
-    expect(buildCutList(sides([{ holes: [off] }]) as FlatDocument).groups[0]!.rows[0]!.setup.some((l) => l.includes('last at 31-1/2"'))).toBe(true);
+    const line = buildCutList(sides([{ holes: [off] }]) as FlatDocument).groups[0]!.rows[0]!.setup.find((l) => l.startsWith('Row of'))!;
+    expect(line).toContain('last at 31-1/2"');
+    expect(line).toMatch(/ — check: hole 2 runs past the length max end \(and 1 more\)$/);
   });
 });
 ```
@@ -1715,8 +1732,21 @@ import type { Board, Dimension, HoleRow } from './types';
 import { formatLength } from '../units/length';
 import { faceName } from './angleText';
 import { acrossOf } from './holes';
+import { holeFaults, type HoleFault } from './holeFaults';
 
 const end = (d: Dimension) => (d === 'length' ? 'end' : 'side');
+
+/** A fault in words (holes spec §2.4): THE one home (invariant 19), read by the cut-list line and the Properties note.
+ *  Lower-case, no full stop: each reader frames it. */
+export function holeFaultText(f: HoleFault, r: HoleRow): string {
+  const n = f.index + 1;
+  switch (f.kind) {
+    case 'breaks-out': return `hole ${n} runs past the ${f.edge!.dim} ${f.edge!.side} ${end(f.edge!.dim)}`;
+    case 'off-flat': return `hole ${n} sits where a cut has removed the wood`;
+    case 'meets-hole': return `hole ${n} meets ${f.other!.row === r.id ? `hole ${f.other!.index + 1}` : 'a hole of another row'}`;
+    case 'too-deep': return `the holes are deeper than the ${r.face}`;
+  }
+}
 
 /** A diameter or pitch that is a whole number of millimetres AND not an exact 1/64 also prints its mm (spec §4.1,
  *  amended): the 32 mm system and 35 mm cups read as what the jig and the bit say. 5" (127 mm) does not. */
@@ -1730,9 +1760,17 @@ function mm(v: number): string {
 /**
  * One hole row as a bench line (holes spec §4.1, as amended): THE ONE home of these strings (invariant 19). Lengths at
  * the document precision except the pitch, at 1/64 at least (a jig set to a rounded pitch drifts along the row). "last
- * at" is computed from the exact stored values, then rounded.
+ * at" is computed from the exact stored values, then rounded. A faulted row (a later edit ran it off the part, spec §2.4)
+ * ends with its first fault and how many more — the user's ruling: the bench must not read a wrong row silently.
  */
 export function holeLine(board: Board, r: HoleRow, precision: number): string {
+  const base = holeLineBase(board, r, precision);
+  const faults = holeFaults(board, r);
+  if (faults.length === 0) return base;
+  return `${base} — check: ${holeFaultText(faults[0]!, r)}${faults.length > 1 ? ` (and ${faults.length - 1} more)` : ''}`;
+}
+
+function holeLineBase(board: Board, r: HoleRow, precision: number): string {
   const f = (n: number) => formatLength(n, precision);
   const size = `${f(r.diameter)}${mm(r.diameter)} dia × ${r.depth === 'through' ? 'through' : `${f(r.depth)} deep`}`;
   const where = `in ${faceName(r.face, r.from)}`;
@@ -2165,7 +2203,7 @@ import { useState } from 'react';
 import { useStore } from '../store/store';
 import { acrossOf, defaultHole, defaultShelfPinRow, holeFaults } from '../document/document';
 import type { Board, CutFrom, Dimension, HoleFault, HoleRow } from '../document/document';
-import { holeLine } from '../document/holeText';
+import { holeFaultText, holeLine } from '../document/holeText';
 import { DimensionField } from './DimensionField';
 import { CountField } from './CountField';
 import { Popover } from './Popover';
@@ -2185,16 +2223,8 @@ function refusal(f: HoleFault, r: Omit<HoleRow, 'id'>, rowId: string): string {
     case 'too-deep': return `Deeper than the ${r.face} — use Through.`;
   }
 }
-/** The note for a fault the stored row already has (a later edit caused it). */
-function note(f: HoleFault, r: HoleRow): string {
-  const n = f.index + 1;
-  switch (f.kind) {
-    case 'breaks-out': return `Hole ${n} runs past ${edgeName(f.edge!)} at this size.`;
-    case 'off-flat': return `Hole ${n} sits where a cut has removed the wood.`;
-    case 'meets-hole': return `Hole ${n} meets ${f.other!.row === r.id ? `hole ${f.other!.index + 1}` : 'a hole of another row'}.`;
-    case 'too-deep': return `Deeper than the ${r.face} at this size — use Through.`;
-  }
-}
+/** The note for a fault the stored row already has (a later edit caused it), from THE fault words (holeText.ts). */
+const note = (f: HoleFault, r: HoleRow) => { const t = holeFaultText(f, r); return `${t[0]!.toUpperCase()}${t.slice(1)} at this size.`; };
 const key = (f: HoleFault) => `${f.index}:${f.kind}`;
 
 function HoleRowView({ board, row, precision }: { board: Board; row: HoleRow; precision: number }) {
