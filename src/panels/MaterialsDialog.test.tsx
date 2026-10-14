@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { MaterialsDialog } from './MaterialsDialog';
-import { defaultShop, type ShopSettings } from '../document/purchase';
+import { defaultBuying, defaultShop, type ShopSettings } from '../document/purchase';
 import type { SavePlan } from './materialsDraft';
 import { EXPLODED_TITLE } from './ViewportControls';
 
@@ -314,5 +314,88 @@ describe('MaterialsDialog — definitions (custom materials spec §4.1)', () => 
     fireEvent.click(saveBtn());
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
     expect(onSave.mock.calls[1]![0].plan).toMatchObject({ assign: null, project: [{ id: first, label: 'Red sapele' }] });
+  });
+});
+
+describe('Sold in nominal sizes (custom materials spec §5)', () => {
+  it('a new solid with the switch on starts from the nominal stock list and saves nominal: true', async () => {
+    const { onSave } = open();
+    fireEvent.click(screen.getByRole('button', { name: 'Add material' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'New material: name' }), { target: { value: 'SPF' } });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'New material: sold in nominal sizes' }));
+    fireEvent.click(saveBtn());
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const { plan, shop } = onSave.mock.calls[0]![0];
+    const m = plan.library![0]!;
+    expect(m.nominal).toBe(true);
+    expect(shop.materials[m.id]).toEqual(defaultBuying(m.id, true));
+  });
+  it('a new row\'s price draft follows its switch: defaults each way, edits and stash dropped', async () => {
+    const { onSave } = open();
+    fireEvent.click(screen.getByRole('button', { name: 'Add material' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'New material: name' }), { target: { value: 'SPF' } });
+    fireEvent.change(field('New material: price per board foot'), { target: { value: '5' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'New material: bought' }), { target: { value: 'piece' } });
+    const box = screen.getByRole('checkbox', { name: 'New material: sold in nominal sizes' });
+    fireEvent.click(box);
+    // The stash was cleared: going back to board foot does not resurrect the $5 typed before the switch.
+    fireEvent.change(screen.getByRole('combobox', { name: 'New material: bought' }), { target: { value: 'board-foot' } });
+    expect(field('New material: price per board foot')).toHaveValue('');
+    fireEvent.change(field('New material: price per board foot'), { target: { value: '7' } });
+    fireEvent.click(box);
+    expect(field('New material: price per board foot')).toHaveValue('');
+    fireEvent.click(saveBtn());
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const { plan, shop } = onSave.mock.calls[0]![0];
+    expect(plan.library![0]).not.toHaveProperty('nominal');
+    expect(shop.materials[plan.library![0]!.id]).toEqual(defaultBuying('m-s-x', false));
+  });
+  it('a nominal row\'s defaults are the nominal stock list: by the piece from board foot, and Reset', () => {
+    const spf = { id: 'm-s-spf1', label: 'SPF', color: '#e0c890', kind: 'solid' as const, nominal: true as const };
+    const shop = defaultShop();
+    shop.materials['m-s-spf1'] = { mode: 'board-foot', pricePerBoardFoot: 3, wasteFactor: 1.3 };
+    open({ project: [spf], shop });
+    const n = (defaultBuying('m-s-spf1', true) as { stock: unknown[] }).stock.length;
+    const widths = () => screen.getAllByRole('textbox', { name: /^SPF size \d+: width$/ });
+    fireEvent.change(screen.getByRole('combobox', { name: 'SPF: bought' }), { target: { value: 'piece' } });
+    expect(widths()).toHaveLength(n);
+    fireEvent.change(widths()[0]!, { target: { value: '9' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Reset spf to defaults' }));
+    expect(widths()).toHaveLength(n);
+    expect(widths()[0]).not.toHaveValue('9');
+  });
+  it('a stored nominal material with no stored prices opens on the nominal stock list', () => {
+    const spf = { id: 'm-s-spf1', label: 'SPF', color: '#e0c890', kind: 'solid' as const, nominal: true as const };
+    open({ project: [spf] });
+    const n = (defaultBuying('m-s-spf1', true) as { stock: unknown[] }).stock.length;
+    expect(screen.getAllByRole('textbox', { name: /^SPF size \d+: width$/ })).toHaveLength(n);
+  });
+  it('the switch is offered only for solid kinds', () => {
+    open({ project: [{ id: 'm-v-bb55', label: 'Baltic birch', color: '#e8d8b8', kind: 'sheet-veneered', sheet: { length: 60, width: 60 } }] });
+    expect(screen.queryByRole('checkbox', { name: 'Baltic birch: sold in nominal sizes' })).toBeNull();
+  });
+  it('the switch is off while locked, and for a library-only row while the library is unreadable', () => {
+    const walnut = { id: 'm-s-wal1', label: 'Black walnut', color: '#5a3a28', kind: 'solid' as const };
+    const props = { shop: defaultShop(), readFailed: false, project: [ash], library: [walnut], newFor: null,
+      onSave: async () => null, onClose: () => {} };
+    const { rerender } = render(<MaterialsDialog {...props} libraryReadFailed={true} locked={false} />);
+    const box = (n: string) => screen.getByRole('checkbox', { name: `${n}: sold in nominal sizes` });
+    expect(box('Ash')).toBeEnabled();
+    expect(box('Black walnut')).toBeDisabled();
+    rerender(<MaterialsDialog {...props} libraryReadFailed={false} locked={true} />);
+    expect(box('Ash')).toBeDisabled();
+    expect(box('Ash')).toHaveAttribute('title', EXPLODED_TITLE);
+  });
+  it('turning a stored material off keeps its stock list and saves nominal off', async () => {
+    const spf = { id: 'm-s-spf1', label: 'SPF', color: '#e0c890', kind: 'solid' as const, nominal: true as const };
+    const shop = defaultShop();
+    shop.materials['m-s-spf1'] = defaultBuying('m-s-spf1', true);
+    const { onSave } = open({ project: [spf], shop });
+    fireEvent.click(screen.getByRole('checkbox', { name: 'SPF: sold in nominal sizes' }));
+    fireEvent.click(saveBtn());
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const out = onSave.mock.calls[0]![0];
+    expect(out.plan.project[0]).not.toHaveProperty('nominal');
+    expect(out.shop.materials['m-s-spf1']).toEqual(defaultBuying('m-s-spf1', true));
   });
 });

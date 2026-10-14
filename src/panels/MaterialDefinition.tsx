@@ -41,6 +41,13 @@ export function MaterialDefinition({ row, name, disabled, disabledTitle, onChang
       ) : (
         <span className="material-kind">{KIND_TEXT[row.kind]}</span>
       )}
+      {row.kind === 'solid' && (
+        <label className="material-nominal">
+          <input type="checkbox" aria-label={`${name}: sold in nominal sizes`} checked={d.nominal} disabled={disabled} title={disabledTitle}
+            onChange={(e) => onChange({ nominal: e.target.checked })} />
+          Sold in nominal sizes (2×4, 1×6…)
+        </label>
+      )}
       {row.kind !== 'solid' && (
         <>
           <label>Sheet length

@@ -1265,6 +1265,7 @@ select.input { cursor: pointer; }
 .lumber-prices legend { padding: 0 4px 0 0; font-weight: 400; color: var(--ink-dim); }
 .material-definition { display: flex; flex-wrap: wrap; align-items: center; }
 .material-kind { margin: 4px 12px 4px 0; color: var(--ink-dim); }
+.material-nominal { margin: 4px 12px 4px 0; }
 .material-note { margin: 4px 0; color: var(--ink-dim); }
 .material-delete { position: absolute; top: 4px; right: 8px; }
 .custom-material.is-deleted legend, .custom-material.is-deleted .material-definition { text-decoration: line-through; color: var(--ink-dim); }
