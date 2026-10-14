@@ -719,3 +719,28 @@ describe('angle cuts on the cut list (spec §4)', () => {
     expect(setup[setup.length - 1]).toBe('Short point 19"');
   });
 });
+
+describe('custom materials (custom materials spec §3)', () => {
+  const ash = { id: 'm-s-ash1', label: 'Ash', color: '#d8c8a8', kind: 'solid' as const };
+  const birch = { id: 'm-v-bb55', label: 'Baltic birch 5×5', color: '#e8d8b8', kind: 'sheet-veneered' as const, sheet: { length: 60, width: 60, rotate: 'grain' as const } };
+  const cdoc = (boards: Board[], materials = [ash, birch]) => ({ ...createDocument(), boards, materials }) as FlatDocument;
+
+  it('labels a custom group and counts it in board feet', () => {
+    const list = buildCutList(cdoc([createBoard({ id: 'a', name: 'A', material: 'm-s-ash1', length: 12, width: 12, thickness: 1 })]));
+    expect(list.groups[0]!.label).toMatch(/^Ash — /);
+    expect(list.groups[0]!.stock).toMatch(/bd ft/);
+    expect(list.groups[0]!.sheet).toBeUndefined();
+  });
+  it('nests a custom sheet on ITS sheet size', () => {
+    const list = buildCutList(cdoc([createBoard({ id: 'a', name: 'A', material: 'm-v-bb55', length: 50, width: 50, thickness: 0.5 })]));
+    const g = list.groups[0]!;
+    expect(g.sheet).toEqual({ length: 60, width: 60, rotate: 'grain' });
+    expect(g.nesting!.sheets).toHaveLength(1);
+    // A 50 × 50 part fits a 60 × 60 sheet; on a 96 × 48 sheet it would not.
+    expect(g.nesting!.unplaceable).toHaveLength(0);
+  });
+  it('sorts groups by LABEL, so Ash sorts before Oak', () => {
+    const list = buildCutList(cdoc([createBoard({ id: 'o', name: 'O', material: 'oak' }), createBoard({ id: 'a', name: 'A', material: 'm-s-ash1' })]));
+    expect(list.groups.map((g) => g.material)).toEqual(['m-s-ash1', 'oak']);
+  });
+});

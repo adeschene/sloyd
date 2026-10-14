@@ -1,7 +1,7 @@
 import { worldParts } from '../document/tree';
 import { worldSolids } from '../document/designCheck';
 import { useStore } from './store';
-import type { Board } from '../document/document';
+import type { Board, SloydDocument } from '../document/document';
 import { taperCut } from '../document/document';
 import { createBoard, createDocument, boardCenter, boardExtents, boardSnapPoints, cutSnapPoints, sameSnapPoint } from '../document/document';
 
@@ -2931,5 +2931,106 @@ describe('angle-cut actions (spec §7)', () => {
     expect(cuts()).toHaveLength(1);
     expect(cuts()[0]!.points).toEqual([[0, 0.5], [21, 0]]);
     expect(s().past.length).toBe(before);
+  });
+});
+
+describe('edit() prunes custom materials (custom materials spec §2.3)', () => {
+  it('drops a material when its last part changes material, in the same undo entry', () => {
+    const ash = { id: 'm-s-ash1', label: 'Ash', color: '#d8c8a8', kind: 'solid' as const };
+    const start = { ...createDocument(), boards: [createBoard({ id: 'a', name: 'A', material: 'm-s-ash1' })], materials: [ash] };
+    useStore.getState().replaceDocument(start);
+    useStore.getState().updateBoard('a', { material: 'oak' });
+    expect(useStore.getState().doc.materials).toEqual([]);
+    useStore.getState().undo();
+    expect(useStore.getState().doc.materials).toEqual([ash]);
+    expect((useStore.getState().doc.boards[0] as Board).material).toBe('m-s-ash1');
+  });
+
+  it('drops a material when its last user is a part inside an assembly and it changes material', () => {
+    const ash = { id: 'm-s-ash1', label: 'Ash', color: '#d8c8a8', kind: 'solid' as const };
+    const start: SloydDocument = {
+      ...createDocument(), boards: [], materials: [ash],
+      instances: [{ id: 'i', name: 'Case', definition: 'd', position: [0, 0, 0], rotation: 0 }],
+      definitions: [{ id: 'd', boards: [createBoard({ id: 'a', name: 'A', material: 'm-s-ash1' })], instances: [] }],
+    };
+    useStore.getState().replaceDocument(start);
+    useStore.getState().updateBoard('i/a', { name: 'Side' }); // an edit while the part still uses it keeps it
+    expect(useStore.getState().doc.materials).toEqual([ash]);
+    useStore.getState().updateBoard('i/a', { material: 'oak' });
+    expect((useStore.getState().doc.definitions[0]!.boards[0] as Board).material).toBe('oak');
+    expect(useStore.getState().doc.materials).toEqual([]);
+    useStore.getState().undo();
+    expect(useStore.getState().doc.materials).toEqual([ash]);
+  });
+});
+
+describe('adopting and applying custom materials (custom materials spec §4)', () => {
+  const ash = { id: 'm-s-ash1', label: 'Ash', color: '#d8c8a8', kind: 'solid' as const };
+  const reset = (over: Partial<SloydDocument> = {}) =>
+    useStore.getState().replaceDocument({ ...createDocument(), boards: [createBoard({ id: 'a', name: 'A' }), createBoard({ id: 'b', name: 'B', position: [20, 0, 0] })], ...over });
+
+  it('a library material adopted with a part change is ONE undo entry', () => {
+    reset();
+    const before = useStore.getState().past.length;
+    useStore.getState().updateBoards(['a'], { material: 'm-s-ash1' }, [ash]);
+    const s = useStore.getState();
+    expect(s.past.length).toBe(before + 1);
+    expect(s.doc.materials).toEqual([ash]);
+    expect((s.doc.boards[0] as Board).material).toBe('m-s-ash1');
+    s.undo();
+    expect(useStore.getState().doc.materials).toEqual([]);
+    expect((useStore.getState().doc.boards[0] as Board).material).toBe('pine');
+  });
+
+  it('applyMaterials with an assignment (New material…) is ONE entry; undo drops the copy and the assignment', () => {
+    reset();
+    const before = useStore.getState().past.length;
+    useStore.getState().applyMaterials([ash], { ids: ['a', 'b'], material: 'm-s-ash1' });
+    expect(useStore.getState().past.length).toBe(before + 1);
+    expect(useStore.getState().doc.boards.map((b) => (b as Board).material)).toEqual(['m-s-ash1', 'm-s-ash1']);
+    useStore.getState().undo();
+    expect(useStore.getState().doc.materials).toEqual([]);
+  });
+
+  it('applyMaterials edits a project copy; an unused upsert is pruned away; re-applying the same adds no entry', () => {
+    reset({ boards: [createBoard({ id: 'a', name: 'A', material: 'm-s-ash1' })], materials: [ash] });
+    const brown = { ...ash, color: '#553311' };
+    const unused = { ...ash, id: 'm-s-zzzz', label: 'Zed' };
+    useStore.getState().applyMaterials([brown, unused]);
+    expect(useStore.getState().doc.materials).toEqual([brown]);
+    const n = useStore.getState().past.length;
+    useStore.getState().applyMaterials([brown]);
+    expect(useStore.getState().past.length).toBe(n);
+    useStore.getState().applyMaterials([unused]);
+    expect(useStore.getState().past.length).toBe(n);
+  });
+
+  it('applyMaterials keeps the project upserts when its assignment edits nothing (no such parts)', () => {
+    reset({ boards: [createBoard({ id: 'a', name: 'A', material: 'm-s-ash1' })], materials: [ash] });
+    const brown = { ...ash, color: '#553311' };
+    const before = useStore.getState().past.length;
+    useStore.getState().applyMaterials([brown], { ids: ['gone'], material: 'm-s-ash1' });
+    expect(useStore.getState().doc.materials).toEqual([brown]);
+    expect(useStore.getState().past.length).toBe(before + 1);
+  });
+
+  it('a shaped (linked) part takes the material on its Shape, and the copy is kept', () => {
+    reset();
+    useStore.getState().linkBoards(['a', 'b']);
+    const shapedId = useStore.getState().doc.boards[0]!.id;
+    useStore.getState().updateBoards([shapedId], { material: 'm-s-ash1' }, [ash]);
+    const d = useStore.getState().doc;
+    expect(d.shapes[0]!.material).toBe('m-s-ash1');
+    expect(d.materials).toEqual([ash]);
+  });
+
+  it('refuses while exploded, writing nothing', () => {
+    reset();
+    useStore.getState().setExplode(0.5);
+    const doc = useStore.getState().doc;
+    useStore.getState().applyMaterials([ash], { ids: ['a'], material: 'm-s-ash1' });
+    useStore.getState().updateBoards(['a'], { material: 'm-s-ash1' }, [ash]);
+    expect(useStore.getState().doc).toBe(doc);
+    useStore.getState().setExplode(0);
   });
 });

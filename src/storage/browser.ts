@@ -2,6 +2,8 @@ import { DocumentError, createDocument, migrateDocument, nextId } from '../docum
 import type { SloydDocument } from '../document/document';
 import { derivedName } from '../document/names';
 import { defaultShop, validateShop, type ShopSettings } from '../document/purchase';
+import { validateCustomMaterials } from '../document/materials';
+import type { CustomMaterial } from '../document/types';
 import type { LibraryIndex, ProjectEntry } from './types';
 import type { LlmSettings, RecentEntry, StorageAdapter, StorageCapabilities } from './types';
 import { LAYOUT_VERSION, parseIndex, removeEntry, sortEntries, touchEntry } from './libraryIndex';
@@ -12,6 +14,9 @@ export const LLM_KEY = 'sloyd.llm.v1';
 /** Browser-level lumber and price settings (lumber yield and cost spec §2). Never part of a project. */
 export const SHOP_KEY = 'sloyd.shop.v1';
 export const PROJECT_PREFIX = 'sloyd.project.';
+/** The browser's custom-material library (custom materials spec §2.4). Never part of a project. */
+export const MATERIALS_KEY = 'sloyd.materials.v1';
+const MATERIALS_LAYOUT = 1;
 
 export class BrowserStorageAdapter implements StorageAdapter {
   private store: Storage | null;
@@ -626,7 +631,37 @@ export class BrowserStorageAdapter implements StorageAdapter {
   async setShopSettings(settings: ShopSettings): Promise<boolean> {
     if (!this.store) return false;
     try {
-      this.store.setItem(SHOP_KEY, JSON.stringify(settings));
+      // Unknown ids (`extra`) are stored back INSIDE `materials`, never as a top-level field: that is the
+      // shape every build reads (a v14 build included), so a price no build here knows survives a Save.
+      const { layout, materials, extra } = settings;
+      this.store.setItem(SHOP_KEY, JSON.stringify({ layout, materials: { ...extra, ...materials } }));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async getMaterialLibrary(): Promise<{ materials: CustomMaterial[]; readFailed: boolean }> {
+    const raw = this.store ? readRaw(this.store, MATERIALS_KEY) : null;
+    if (raw === null) return { materials: [], readFailed: false };
+    let parsed: unknown = null;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return { materials: [], readFailed: true };
+    }
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return { materials: [], readFailed: true };
+    const v = parsed as Record<string, unknown>;
+    // A layout-1 value without a materials ARRAY is damaged, not empty: reading it as empty would let a Save
+    // replace it.
+    if (v.layout !== MATERIALS_LAYOUT || !Array.isArray(v.materials)) return { materials: [], readFailed: true };
+    return { materials: validateCustomMaterials(v.materials), readFailed: false };
+  }
+
+  async setMaterialLibrary(materials: CustomMaterial[]): Promise<boolean> {
+    if (!this.store) return false;
+    try {
+      this.store.setItem(MATERIALS_KEY, JSON.stringify({ layout: MATERIALS_LAYOUT, materials }));
       return true;
     } catch {
       return false;

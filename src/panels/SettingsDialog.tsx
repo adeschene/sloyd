@@ -10,7 +10,7 @@ interface Props {
   onClose: () => void;
   /** One free API call that says whether a key works (App passes checkAnthropicKey). */
   checkKey: (apiKey: string) => Promise<KeyCheck>;
-  /** Switches to the Lumber & prices dialog (lumber yield and cost spec §2.3); the link is absent without it. */
+  /** Switches to the Materials & prices dialog (lumber yield and cost spec §2.3; custom materials spec §4.1); the link is absent without it. */
   onOpenPrices?: () => void;
 }
 
@@ -104,7 +104,7 @@ export function SettingsDialog({ settings, onSave, onForget, onClose, checkKey, 
         {note && <p className="modal-note" role="status">{note}</p>}
         {onOpenPrices && (
           <p className="modal-note">
-            <button className="link-button" onClick={onOpenPrices}>Lumber &amp; prices…</button> — what you pay for lumber, for the cut list's Buying section.
+            <button className="link-button" onClick={onOpenPrices}>Materials &amp; prices…</button> — your own materials, and what you pay for lumber, for the cut list's Buying section.
           </p>
         )}
         <div className="modal-actions">

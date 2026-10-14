@@ -710,6 +710,11 @@ describe('groove: a channel running with the grain (cut-lines spec §3)', () => 
     expect(word({ material: 'mdf' }, along())).toBe('dado');
   });
 
+  it('custom materials follow their kind: plain sheets have no grain, veneered ones do', () => {
+    expect(word({ material: 'm-p-hb48' }, along())).toBe('dado');
+    expect(word({ material: 'm-v-bb55' }, along())).toBe('groove');
+  });
+
   it('stopped and blind versions', () => {
     expect(word({}, along({ stopMax: 1 }))).toBe('stopped groove');
     expect(word({}, along({ stopMin: 1, stopMax: 1 }))).toBe('blind groove');

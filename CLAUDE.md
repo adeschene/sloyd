@@ -111,7 +111,7 @@ rather than assumed. A paid Generate/joinery run needs the user's approval each 
 key never goes into chat or a committed file. (Generate was once exercised on production
 because it only ever adds unactivated projects, inv 36. That is not a precedent.)
 
-**Rollback cost is a schema question.** A build understanding less than `version: 14`
+**Rollback cost is a schema question.** A build understanding less than `version: 15`
 refuses the document. Rolling back past a schema bump strands every project saved since;
 export first. A round with no schema change costs nothing to roll back. The library
 round changed the storage *layout*, not the schema: rolling past it loses only projects
@@ -160,7 +160,7 @@ would be a second implementation, not a parallel path.
 ### Versioning
 
 Every load path (open, import, autosave-restore) runs `migrateDocument` before the
-document is trusted. `CURRENT_VERSION` is **14**. Steps run one version at a time, in
+document is trusted. `CURRENT_VERSION` is **15**. Steps run one version at a time, in
 order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11→v12, which run after.
 
 | Step | Adds | Shape | Harm a build one version back would do |
@@ -178,6 +178,7 @@ order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11�
 | 11→12 `onEdgeToV12` | on-edge cuts mirrored along thickness | **after validation** | wrong geometry (on-edge one-handed cuts mirrored) |
 | 12→13 | `Instance.mirrored` (only `true` stored) | document-level, no step | wrong geometry (a mirrored copy drawn unmirrored) |
 | 13→14 | `angleCuts` on parts and shapes (default `[]`; malformed or non-finite entry dropped, missing `kind` derived) | document-level, no step | silent loss on round trip (every taper/miter dropped) |
+| 14→15 | `materials` (custom materials the parts and shapes use; default `[]`; validated BEFORE the parts so they see them; malformed entry or one whose `kind` disagrees with its id dropped; pruned on load and in `edit()`) | document-level, no step | silent loss (a custom material becomes pine, and the next save writes pine) |
 
 - **A bump exists for the refusal gate, not for upgrading** — absent fields default
   regardless. Argue *your* field's harm; don't inherit another bump's argument.
@@ -250,7 +251,11 @@ src/
 │   ├── diagram.ts        buildDiagrams, one view per (face, from)
 │   ├── nesting.ts        buildNesting, shelf FFD; formatDims (invs 19, 22, 23); packOnto (by-the-piece boards,
 │                         grain locked, largest size opened first) and grainFootprint
-│   ├── purchase.ts       ShopSettings + defaultShop/validateShop (browser-level prices); buildPurchase: the cut
+│   ├── materials.ts      custom materials (inv 49): validateCustomMaterial(s), mintMaterialId, MaterialCatalog —
+│   │                     catalogOf(doc) (built-ins + doc.materials, memoised on the array) / builtInCatalog; materialUses,
+│   │                     pruneMaterials, upsertMaterials (same object when unchanged), pickerLibrary (one label per picker)
+│   ├── purchase.ts       ShopSettings + defaultShop/validateShop (browser-level prices; built-in AND custom-shaped ids
+│   │                     validated by kind; a top-level `extra` folded back on read); buildPurchase: the cut
 │                         list's Buying section (bd ft × waste, packed boards swapped down to the cheapest size
 │                         that still holds them — a heuristic, sheets × price), every string built here (→ units)
 │   ├── snapPoints.ts     board/cut/guide snap points, towardFor, offsetPoint (inv 26)
@@ -283,7 +288,9 @@ src/
 │   ├── selectionGesture.ts  selectByClick, clearOnMiss (shared by viewport and parts list)
 │   └── visibility.ts     visibleBoards, the ONE visibility filter (inv 43)
 ├── storage/          types.ts (StorageAdapter), browser.ts, libraryIndex.ts (invs 7, 29–31); get/setShopSettings
-│                     (`sloyd.shop.v1`: reading never writes, so a newer build's value survives a rollback);
+│                     (`sloyd.shop.v1`: reading never writes, so a newer build's value survives a rollback; a write
+│                     folds `extra` into `materials`); get/setMaterialLibrary (`sloyd.materials.v1`, layout 1; an
+│                     unusable or newer value reads empty with `readFailed`, and the dialog never saves over it);
 │                     exportProject/exportImage share ONE anchor download helper
 ├── llm/              types.ts (LlmClient, opaque LlmMessage, inv 37), anthropic.ts
 ├── generate/         prompt.ts (limitLines), concepts.ts (batch planning), estimate.ts (cost ranges: measured
@@ -310,7 +317,9 @@ src/
 │                     ViewportControls (tools/view over the canvas), ActionBar (three actions, More ▾,
 │                     trash), GuidesFooter (opens itself when the guide count goes up), PlansSheet / PlanFigure /
 │                     planLayout / planDims (the Plans sheet: figures, one-scale third-angle layout, dimension fitting);
-│                     LumberPricesDialog (browser-level prices; refuses, never clamps); CutList's Buying section
+│                     MaterialsDialog ("Materials & prices": built-in prices, custom definitions + prices, library rows;
+│                     one Save = one project edit + library + prices; refuses, never clamps) on materialsDraft.ts (THE
+│                     pure rows/refusals/planSave/rebaseRows) and MaterialDefinition; CutList's Buying section
 │                     AngleCuts (the Angles section: "+ Add ▾" — Taper, Miter, Miter both ends, Bevel, Chamfer —
 │                     and one row per kind), AngleField (DimensionField with a degree parse/format; max floored to 0.1°)
 ├── styles.css        surface ROLES over --grey-*/--walnut-*; palette.test.ts pins contrast (4.5:1)
@@ -657,12 +666,24 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     and the direction ONCE in `$defs`** — the API refuses a schema whose compiled grammar grows too large (measured
     2026-10-14: the inline form with the three angle arrays was refused). `contactSolids` is the second, narrower reader of
     angle cuts: box-valued, never over-claiming wood.
+
+49. **A custom material's KIND is in its id** (`m-s-…` solid, `m-v-…` veneered sheet, `m-p-…` plain sheet), so
+    `isSheetGood`, `grainFamily`, `hasGrain` and shop validation read it off the id with no catalog; a stored `kind` that
+    disagrees with its id drops the entry, and nothing may change a stored material's kind (only an UNSAVED new dialog row
+    has a kind select). Label, colour and sheet size come only from a `MaterialCatalog` (`catalogOf(doc)`) — no global
+    registry: a background Refine or joinery run reads its own document's. **A document carries exactly the custom
+    materials its parts and shapes use**: `pruneMaterials` runs at the end of the load and inside `edit()` (same object
+    when nothing goes, inv 4); a part change that adopts a library material does it in the SAME edit
+    (`updateBoards(…, adopt)`, `applyMaterials`). Every path that makes a project from another carries them; Refine's
+    converter gets them BEFORE `migrateDocument` (`designToDocument(…, { materials })`), or they become pine. Generate's
+    schema stays byte-identical (built-in catalog, fixture-pinned); Refine's adds the project's ids (fu 322: a per-project
+    grammar, compiled live 2026-10-14). The library and prices are browser state: undo reverts a project's copy only.
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 3568 tests across 124 files
+npm test           # Vitest, currently 3694 tests across 127 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -718,6 +739,9 @@ knowing without opening it:
   candidates' angle-cut ids by index (latent); test gaps; multi-decimal angles fall back to 0.1°.
 - **322** — the design schema's compiled-grammar margin (record): the API caps the compiled schema (unpublished); the part
   and direction live in `$defs`; any `DESIGN_SCHEMA` change needs one live compile before it ships.
+- **266** — custom materials shipped (chunk 1, schema 15); **nominal names are chunk 2** (spec §5: the table, pine's
+  flag, cut list/Buying names, the Size select; no schema change). **324** — chunk 1 minors (record-only). **325** — two
+  tabs overwrite each other's library/prices (record); the v14-rollback `extra` round trip is covered.
 - **176/177** — the held rules' known limits (mutual lapping) and an unseen live repair.
 - **130** — semi-infinite construction lines; picked and set aside 2026-08-31 without a
   reason. Ask before assuming it's wanted; it needs real hardware (26a).

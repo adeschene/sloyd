@@ -1,4 +1,5 @@
 import type { FlatDocument } from '../../document/document';
+import { catalogOf } from '../../document/materials';
 import type { Violation } from '../../document/designCheck';
 import { SNAP_INCHES, axisDimensions } from '../../document/geometry';
 import { boxOf } from './pocket';
@@ -57,9 +58,10 @@ export const JOINT_SCHEMA: Record<string, unknown> = {
 const SIDE = (s: Site) => `${s.side === 1 ? '+' : '-'}${AXES[s.axis]}`;
 
 export function siteMessage(doc: FlatDocument, sites: Site[]): string {
+  const catalog = catalogOf(doc);
   const parts = doc.boards.map((b) => {
     const x = boxOf(b);
-    return `- ${b.name} (${b.material}): ${n(x.max[0] - x.min[0])} x ${n(x.max[1] - x.min[1])} x ${n(x.max[2] - x.min[2])} in, ` +
+    return `- ${b.name} (${catalog.get(b.material)?.builtIn === false ? catalog.label(b.material) : b.material}): ${n(x.max[0] - x.min[0])} x ${n(x.max[1] - x.min[1])} x ${n(x.max[2] - x.min[2])} in, ` +
       `x ${n(x.min[0])}–${n(x.max[0])}, y ${n(x.min[1])}–${n(x.max[1])}, z ${n(x.min[2])}–${n(x.max[2])}`;
   });
   const lines = sites.map((s) => {

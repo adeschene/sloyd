@@ -1,4 +1,4 @@
-import { MATERIALS, type Board, type Cut, type Dimension, type Region, type Span } from './types';
+import { materialKind, type Board, type Cut, type Dimension, type Region, type Span } from './types';
 import { keptHalfSpace } from './angleCuts';
 import { axisFrame, boardExtents, DIMENSION_ORDER, positionAxisOf, spanToWorldOffset, toWorldOffset } from './geometry';
 
@@ -590,12 +590,10 @@ const GROOVE: Partial<Record<CutKind, CutKind>> = {
 };
 
 /**
- * Whether a material has a grain direction for `groove` to follow. Read off the
- * material table, not a list of names: a sheet whose stock rotates freely
- * (MDF) has none, so a new grainless sheet good follows by declaring that.
+ * Whether a material has a grain direction for `groove` to follow: every kind but a plain sheet (MDF, hardboard).
  */
 function hasGrain(material: string): boolean {
-  return MATERIALS[material]?.sheet?.rotate !== 'free';
+  return materialKind(material) !== 'sheet-plain';
 }
 
 /**

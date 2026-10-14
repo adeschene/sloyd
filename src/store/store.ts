@@ -6,9 +6,10 @@ import {
   translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerLinear, mirroredAt, postureRefusal, sameSideFirst, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
   toLocal, groupItems, ungroupItem, turnInstance as turnInstanceOp, setMirrored, mirroredCopy, updateContainer, lastSegment,
 } from '../document/document';
-import type { AngleCut, Board, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
+import type { AngleCut, Board, CustomMaterial, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
 import { SNAP_INCHES } from '../document/geometry';
 import { copyAngleCut, sameAngleCut } from '../document/angleCuts';
+import { pruneMaterials, upsertMaterials, materialUses } from '../document/materials';
 import { MAX_ROW } from '../document/row';
 import { clickTarget } from './assemblyPick';
 
@@ -232,7 +233,13 @@ interface StoreState {
    * reorient pivot, its own sheet-good grain reset — so a group edit is N
    * single edits sharing one snapshot. Unknown ids are ignored.
    */
-  updateBoards: (ids: string[], patch: Partial<Board>) => void;
+  /** `adopt`: custom materials copied into the document in the SAME edit (a library pick, spec §4.2). */
+  updateBoards: (ids: string[], patch: Partial<Board>, adopt?: CustomMaterial[]) => void;
+  /**
+   * The Materials & prices dialog's project write (spec §4.1): its edited copies, and with `assign` the
+   * selection's new material — ONE edit, one undo entry. Unused copies are pruned by edit(). Refused while exploded.
+   */
+  applyMaterials: (upserts: CustomMaterial[], assign?: { ids: string[]; material: string }) => void;
   /**
    * The group gizmo's path (multi-select spec §4.1). `minCorner` is the
    * ABSOLUTE place the group's min corner should go — not a delta, because
@@ -417,7 +424,9 @@ export const useStore = create<StoreState>((set, get) => {
   ) => {
     if (get().explode > 0) return; // read-only while exploded (plans-sheet spec §4.2)
     const { doc, past, future, gesturing, gestureSnapshotTaken } = get();
-    const next = fn(doc);
+    // Custom materials (spec §2.3): a document carries exactly what it uses. The SAME object when nothing
+    // was unused, so the no-op test below still sees an unchanged document.
+    const next = pruneMaterials(fn(doc));
 
     // The function changed nothing (the SAME document object): an undo entry
     // for it would undo to nothing (invariant 4), so push none and take no
@@ -1063,7 +1072,7 @@ export const useStore = create<StoreState>((set, get) => {
 
     updateBoard: (id, patch) => get().updateBoards([id], patch),
 
-    updateBoards: (ids, patch) => {
+    updateBoards: (ids, patch, adopt) => {
       if (readOnly()) return; // exploded: refuse at entry, before any side effect (spec §4.2)
       const world = worldParts(get().doc);
       const targets = new Set(ids.filter((id) => world.some((b) => b.id === id)));
@@ -1127,7 +1136,7 @@ export const useStore = create<StoreState>((set, get) => {
       const shapeOf = new Map(world.map((b) => [b.id, b.shape]));
       const mates = sameSideFirst(get().doc, others, (id) => { const sh = shapeOf.get(id); return sh === undefined ? undefined : sideOfShape.get(sh); });
       const o = new Set([...oneEditPerTarget(get().doc, [...t, ...mates])].filter((id) => !t.has(id)));
-      edit((doc) => mapWorld(doc, (w) => w.map((b) =>
+      edit((doc) => mapWorld(adopt ? upsertMaterials(doc, adopt) : doc, (w) => w.map((b) =>
         t.has(b.id) ? patchBoard(b, patch) : o.has(b.id) ? patchBoard(b, shared) : b)));
 
       // Point-precise, and AFTER the edit for the reason dropHeldIfGone's own
@@ -1141,6 +1150,22 @@ export const useStore = create<StoreState>((set, get) => {
       // no-op rather than a second opinion. Every held point is judged: a
       // shape's Length moves every user's points, not only the targets'.
       judgeHeld();
+    },
+
+    applyMaterials: (upserts, assign) => {
+      if (readOnly()) return; // exploded: refuse at entry (invariant 47)
+      if (assign) {
+        const before = get().doc;
+        get().updateBoards(assign.ids, { material: assign.material }, upserts);
+        // updateBoards edits nothing when no id names a part or a posture refusal bails: the upserts must not be
+        // lost with it (App reports the Save as done), so fall through to the plain path below.
+        if (get().doc !== before) return;
+      }
+      // Only copies something uses: an unused upsert would be pruned straight back out, but as a NEW object,
+      // so edit()'s same-object test would miss it and push an empty undo entry (invariant 4).
+      const used = materialUses(get().doc);
+      const kept = upserts.filter((m) => used.has(m.id));
+      if (kept.length > 0) edit((doc) => upsertMaterials(doc, kept));
     },
 
     deleteBoard: (id) => get().deleteBoards([id]),

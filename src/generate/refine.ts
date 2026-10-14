@@ -7,6 +7,7 @@ import type { RefineMax, RefineRefusal } from '../document/refineDesign';
 import { flatDocument, migrateDocument, writeBackFlat } from '../document/document';
 import { worldParts } from '../document/tree';
 import type { SloydDocument } from '../document/types';
+import type { MaterialCatalog } from '../document/materials';
 import { DETAIL_CAPS, limitLines, placedCeiling } from './prompt';
 import type { Detail } from './prompt';
 import { GATE_REFUSAL, gateUnjoin } from './joints/unjoin';
@@ -22,9 +23,13 @@ export const REFINE_MAX: RefineMax = { distinct: DETAIL_CAPS.detailed, placed: p
 
 export const KEEP_LINE = 'Keep every part you are not asked to change exactly as it is: the same name, role, material, size, position, tapers, miters, bevels and chamfers. Keep assembly and placement names. Return the whole design.';
 
-export function refineMessage(design: GeneratedDesign, s: RefineSettings): string {
+/** `catalog` (the project's): its custom materials are named by id and label, in the USER turn — the schema's enum
+ *  carries only ids, and SYSTEM_PROMPT stays a fixed prefix (custom materials spec §6). None: the message is unchanged. */
+export function refineMessage(design: GeneratedDesign, s: RefineSettings, catalog?: MaterialCatalog): string {
+  const customs = catalog ? catalog.ids.filter((id) => !catalog.get(id)!.builtIn) : [];
   return [
     'Here is the current design, in the same format you return:', JSON.stringify(design), '',
+    ...(customs.length > 0 ? [`Custom materials in this design: ${customs.map((id) => `"${id}" is ${catalog!.label(id)}`).join('; ')}.`, ''] : []),
     `Change it as follows: ${s.instruction.trim()}`, '', KEEP_LINE, '', 'Hard limits:', ...limitLines(s),
   ].join('\n');
 }

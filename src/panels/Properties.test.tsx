@@ -1,8 +1,8 @@
 import { worldParts } from '../document/tree';
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
-import { createDocument } from '../document/document';
+import { createBoard, createDocument } from '../document/document';
 import { formatLength } from '../units/length';
 import { Properties } from './Properties';
 import { assemblyDoc } from '../document/treeFixtures';
@@ -1495,5 +1495,52 @@ describe('Properties layout labels (ui-polish spec §4)', () => {
     useStore.getState().selectBoard(worldParts(useStore.getState().doc)[0]!.id);
     render(<Properties />);
     expect(screen.getByLabelText('Material').tagName).toBe('SELECT');
+  });
+});
+
+describe('the material picker (custom materials spec §4.2)', () => {
+  const ash = { id: 'm-s-ash1', label: 'Ash', color: '#d8c8a8', kind: 'solid' as const };
+  const libAsh = { id: 'm-s-ash2', label: 'Ash', color: '#ccbb99', kind: 'solid' as const };
+  const birch = { id: 'm-v-bb55', label: 'Baltic birch', color: '#e8d8b8', kind: 'sheet-veneered' as const, sheet: { length: 60, width: 60 } };
+  const load = (materials: Array<typeof ash | typeof birch>, mats: string[]) => {
+    const boards = mats.map((material, i) => createBoard({ id: String.fromCharCode(97 + i), name: `P${i}`, material }));
+    useStore.getState().replaceDocument({ ...createDocument('T'), materials, boards });
+    useStore.getState().selectAll();
+  };
+
+  it('groups built-ins, this project and the library, showing one "Ash"', () => {
+    load([ash], ['m-s-ash1']);
+    useStore.getState().selectBoard('a');
+    render(<Properties library={[libAsh, birch]} onNewMaterial={() => {}} />);
+    const select = screen.getByRole('combobox', { name: 'Material' });
+    expect(within(select).getAllByRole('option', { name: 'Ash' })).toHaveLength(1);
+    expect(within(select).getByRole('group', { name: 'This project' })).toBeInTheDocument();
+    expect(within(select).getByRole('group', { name: 'Your library' })).toBeInTheDocument();
+    expect(within(select).getByRole('option', { name: 'New material…' })).toBeInTheDocument();
+  });
+  it('picking a library material adopts it in one undo entry', () => {
+    load([], ['pine']);
+    useStore.getState().selectBoard('a');
+    render(<Properties library={[birch]} onNewMaterial={() => {}} />);
+    const n = useStore.getState().past.length;
+    fireEvent.change(screen.getByRole('combobox', { name: 'Material' }), { target: { value: 'm-v-bb55' } });
+    expect(useStore.getState().doc.materials).toEqual([birch]);
+    expect(useStore.getState().past.length).toBe(n + 1);
+  });
+  it('New material… on plywood parts starts a veneered sheet', () => {
+    const onNewMaterial = vi.fn();
+    load([], ['plywood', 'plywood']);
+    render(<Properties library={[]} onNewMaterial={onNewMaterial} />);
+    fireEvent.change(screen.getByRole('combobox', { name: 'Material' }), { target: { value: '__new__' } });
+    expect(onNewMaterial).toHaveBeenCalledWith(['a', 'b'], 'sheet-veneered');
+  });
+  it('New material… calls onNewMaterial with the selection and changes nothing', () => {
+    const onNewMaterial = vi.fn();
+    load([], ['pine', 'pine']);
+    render(<Properties library={[]} onNewMaterial={onNewMaterial} />);
+    const doc = useStore.getState().doc;
+    fireEvent.change(screen.getByRole('combobox', { name: 'Material' }), { target: { value: '__new__' } });
+    expect(onNewMaterial).toHaveBeenCalledWith(['a', 'b'], 'solid');
+    expect(useStore.getState().doc).toBe(doc);
   });
 });

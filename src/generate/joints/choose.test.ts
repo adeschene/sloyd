@@ -394,3 +394,13 @@ describe('validChoice (strict — review focus 3)', () => {
     expect(validChoice({ site: s.id, joint: 'rabbet', depth: 0.125 - 1 / 16 }, s, CASE_BACK)).toBe(false);
   });
 });
+
+describe('siteMessage material names (custom materials spec §6)', () => {
+  const ash = { id: 'm-s-ash1', label: 'Ash', color: '#d8c8a8', kind: 'solid' as const };
+  it('prints a custom material by label and a built-in by key', () => {
+    const custom = { ...doc, materials: [ash], boards: doc.boards.map((b, i) => (i === 0 ? { ...b, material: 'm-s-ash1' } : b)) };
+    const m = siteMessage(custom, findSites(custom));
+    expect(m).toContain(`${doc.boards[0]!.name} (Ash)`);
+    expect(siteMessage(doc, sites)).toContain(`${doc.boards[0]!.name} (oak)`);
+  });
+});

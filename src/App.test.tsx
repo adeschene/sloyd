@@ -242,6 +242,9 @@ const clearLlmSettings = vi.fn(async () => { llmSettings = null; });
 let shopSettings: import('./document/purchase').ShopSettings | null = null;
 const getShopSettings = vi.fn(async () => ({ settings: shopSettings ?? (await import('./document/purchase')).defaultShop(), readFailed: false }));
 const setShopSettings = vi.fn(async (s: import('./document/purchase').ShopSettings) => { shopSettings = s; return true; });
+let materialLibrary: import('./document/types').CustomMaterial[] = [];
+const getMaterialLibrary = vi.fn(async () => ({ materials: materialLibrary, readFailed: false }));
+const setMaterialLibrary = vi.fn(async (m: import('./document/types').CustomMaterial[]) => { materialLibrary = m; return true; });
 const exportProject = vi.fn().mockResolvedValue(undefined);
 const exportImage = vi.fn().mockResolvedValue(undefined);
 const importProject = vi.fn();
@@ -266,6 +269,8 @@ vi.mock('./storage/browser', () => ({
     clearLlmSettings: () => clearLlmSettings(),
     getShopSettings: () => getShopSettings(),
     setShopSettings: (s: import('./document/purchase').ShopSettings) => setShopSettings(s),
+    getMaterialLibrary: () => getMaterialLibrary(),
+    setMaterialLibrary: (m: import('./document/types').CustomMaterial[]) => setMaterialLibrary(m),
     exportProject: (...args: unknown[]) => exportProject(...args),
     exportImage: (...args: unknown[]) => exportImage(...args),
     importProject: (...args: unknown[]) => importProject(...args),
@@ -896,8 +901,8 @@ const mountWithOneBoard = async () => {
   return worldParts(useStore.getState().doc)[0].id;
 };
 
-describe('Lumber & prices (lumber yield and cost spec §2.3, §4)', () => {
-  beforeEach(() => { shopSettings = null; });
+describe('Materials & prices (lumber yield and cost spec §2.3, §4; custom materials spec §4.1)', () => {
+  beforeEach(() => { shopSettings = null; materialLibrary = []; });
 
   it('opens above the cut list, saves a price the Buying section uses, and returns focus', async () => {
     // The default board is pine 24 × 5½ × ¾; default pine sizes carry no price, so the smallest that holds it
@@ -906,13 +911,13 @@ describe('Lumber & prices (lumber yield and cost spec §2.3, §4)', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Cut list' }));
     expect(screen.getByText('Buy 1 × 3/4" × 5-1/2" × 72" · no price')).toBeInTheDocument();
-    const open = screen.getByRole('button', { name: 'Lumber & prices…' });
+    const open = screen.getByRole('button', { name: 'Materials & prices…' });
     await user.click(open);
-    expect(screen.getByRole('dialog', { name: 'Lumber and prices' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Materials and prices' })).toBeInTheDocument();
     expect(screen.getByRole('dialog', { name: 'Cut list' }).hasAttribute('inert')).toBe(true);
     fireEvent.change(screen.getByRole('textbox', { name: 'Pine size 7: price' }), { target: { value: '9' } });
     await user.click(screen.getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Lumber and prices' })).toBeNull());
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Materials and prices' })).toBeNull());
     expect(setShopSettings).toHaveBeenCalled();
     expect(screen.getByText('Buy 1 × 3/4" × 5-1/2" × 72" · $9.00')).toBeInTheDocument();
     expect(document.activeElement).toBe(open);
@@ -922,10 +927,72 @@ describe('Lumber & prices (lumber yield and cost spec §2.3, §4)', () => {
     await mountWithOneBoard();
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Cut list' }));
-    await user.click(screen.getByRole('button', { name: 'Lumber & prices…' }));
+    await user.click(screen.getByRole('button', { name: 'Materials & prices…' }));
     await user.keyboard('{Escape}');
-    expect(screen.queryByRole('dialog', { name: 'Lumber and prices' })).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Materials and prices' })).toBeNull();
     expect(screen.getByRole('dialog', { name: 'Cut list' })).toBeInTheDocument();
+  });
+  it('a failed library write leaves the project edit standing; Save again adds no undo entry; a revert follows', async () => {
+    const ash = { id: 'm-s-ash1', label: 'Ash', color: '#d8c8a8', kind: 'solid' as const };
+    materialLibrary = [ash]; // read on mount: the library already holds Ash
+    const id = await mountWithOneBoard();
+    act(() => { useStore.getState().updateBoards([id], { material: 'm-s-ash1' }, [ash]); });
+    setMaterialLibrary.mockResolvedValue(false);
+    try {
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: 'Cut list' }));
+      await user.click(screen.getByRole('button', { name: 'Materials & prices…' }));
+      fireEvent.change(screen.getByRole('textbox', { name: 'Ash: name' }), { target: { value: 'White ash' } });
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+      expect(await screen.findByText(/Could not save your material library/)).toBeInTheDocument();
+      expect(screen.getByRole('dialog', { name: 'Materials and prices' })).toBeInTheDocument();
+      expect(useStore.getState().doc.materials[0]!.label).toBe('White ash');
+      expect(screen.getByText(/Could not save your material library/)).toHaveTextContent(/The project's changes were made\.$/);
+      const n = useStore.getState().past.length;
+      setMaterialLibrary.mockClear();
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+      // The retry still writes the library (the edit's intent survives the rebase) and changes nothing in the project.
+      await waitFor(() => expect(setMaterialLibrary).toHaveBeenCalledTimes(1));
+      expect(await screen.findByText('Could not save your material library: this browser is not letting Sloyd store settings.')).toBeInTheDocument();
+      expect(useStore.getState().past.length).toBe(n);
+      // Fix round 1: the dialog's rows are rebased on what is now stored, so typing the old name back is a change.
+      // Named by its STORED label, which is now White ash.
+      fireEvent.change(screen.getByRole('textbox', { name: 'White ash: name' }), { target: { value: 'Ash' } });
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Materials and prices' })).toBeNull());
+      expect(useStore.getState().doc.materials[0]!.label).toBe('Ash');
+    } finally {
+      setMaterialLibrary.mockImplementation(async (m) => { materialLibrary = m; return true; });
+    }
+  });
+
+  it('a prices-only failure does not claim project changes', async () => {
+    await mountWithOneBoard();
+    setShopSettings.mockResolvedValue(false);
+    try {
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: 'Cut list' }));
+      await user.click(screen.getByRole('button', { name: 'Materials & prices…' }));
+      fireEvent.change(screen.getByRole('textbox', { name: 'Oak: price per board foot' }), { target: { value: '8' } });
+      await user.click(screen.getByRole('button', { name: 'Save' }));
+      expect(await screen.findByText('Could not save your prices: this browser is not letting Sloyd store settings.')).toBeInTheDocument();
+    } finally {
+      setShopSettings.mockImplementation(async (s) => { shopSettings = s; return true; });
+    }
+  });
+
+  it('opened over the cut list, then exploded: the definitions lock', async () => {
+    await mountWithOneBoard();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Cut list' }));
+    await user.click(screen.getByRole('button', { name: 'Materials & prices…' }));
+    expect(screen.getByRole('button', { name: 'Add material' })).toBeEnabled();
+    act(() => { useStore.getState().setExplode(0.5); });
+    try {
+      expect(screen.getByRole('button', { name: 'Add material' })).toBeDisabled();
+    } finally {
+      act(() => { useStore.getState().setTool('select'); });
+    }
   });
 });
 

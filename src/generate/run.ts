@@ -1,6 +1,8 @@
 import { flatDocument, migrateDocument, worldParts, writeBackFlat } from '../document/document';
 import type { SloydDocument } from '../document/document';
-import { DESIGN_SCHEMA, designToDocument, parseDesign } from '../document/generated';
+import { DESIGN_SCHEMA, designSchema, designToDocument, parseDesign } from '../document/generated';
+import { builtInCatalog, catalogOf, pruneMaterials } from '../document/materials';
+import type { CustomMaterial } from '../document/types';
 import type { GeneratedDesign } from '../document/generated';
 import { collapseViolations, distinctParts, distinctPartsViolation } from '../document/assemblyChecks';
 import { checkDesign, rejectedViolations } from '../document/designCheck';
@@ -141,6 +143,9 @@ interface EvaluateOpts {
   exact?: ReadonlySet<number>;
   /** Refine: degree text it wrote → the stored slope, so an untouched angle is re-stored exactly (AI-angles spec §6.2). */
   exactAngles?: ReadonlyMap<number, number>;
+  /** Refine: the project's custom materials — a part may name one (parseDesign's catalog), and the converter's load
+   *  gate keeps it instead of falling it back to pine (custom materials spec §6). Generate: none, built-ins only. */
+  materials?: readonly CustomMaterial[];
 }
 
 /**
@@ -151,9 +156,10 @@ interface EvaluateOpts {
  * counts toward "fewest" nor goes back as feedback.
  */
 function evaluateDesign(res: LlmResult, s: LimitSettings, opts: EvaluateOpts = {}): { value: DesignValue | null; feedback: string } {
-  const parsed = res.json === null ? null : parseDesign(res.json);
+  const catalog = opts.materials ? catalogOf({ materials: opts.materials }) : builtInCatalog();
+  const parsed = res.json === null ? null : parseDesign(res.json, catalog);
   const design = parsed && (opts.prepare ? opts.prepare(parsed) : parsed);
-  const converted = design && designToDocument(design, { centre: opts.centre ?? true, exact: opts.exact, exactAngles: opts.exactAngles });
+  const converted = design && designToDocument(design, { centre: opts.centre ?? true, exact: opts.exact, exactAngles: opts.exactAngles, materials: opts.materials });
   if (!converted) return { value: null, feedback: unusableMessage(res.unusable ?? 'unparseable') };
   // Checks read the placed world (generate-assemblies spec §5.1); the TREE is what is kept.
   const flat = flatDocument(converted.doc);
@@ -227,14 +233,16 @@ export async function runRefine(
   // pushed back at the model as new.
   const plainFlat0 = flatDocument(base.plain);
   const preexisting = new Set([...checkDesign(plainFlat0, limitsOf(settings)), ...jointFaults(plainFlat0)].map(problemKey));
+  // The project's custom materials are choosable and named (custom materials spec §6); Generate's schema is untouched.
+  const catalog = catalogOf(doc);
   const out = await runRepairLoop(client, {
     system: SYSTEM_PROMPT,
-    schema: DESIGN_SCHEMA,
-    first: refineMessage(from.design, settings),
-    evaluate: (res) => evaluateDesign(res, settings, { prepare: (d) => carryGrain(d, base.plain), centre: false, preexisting, exact: designValues(from.design), exactAngles: angleRatiosOf(plainFlat0.boards) }),
+    schema: designSchema(catalog),
+    first: refineMessage(from.design, settings, catalog),
+    evaluate: (res) => evaluateDesign(res, settings, { prepare: (d) => carryGrain(d, base.plain), centre: false, preexisting, exact: designValues(from.design), exactAngles: angleRatiosOf(plainFlat0.boards), materials: doc.materials }),
   }, signal, onProgress);
-  // Document-level facts the model never sees travel with the result.
-  let refined: SloydDocument = { ...out.doc, stock: doc.stock, units: doc.units, guides: doc.guides };
+  // Document-level facts the model never sees travel with the result; custom materials the result no longer uses go.
+  let refined: SloydDocument = pruneMaterials({ ...out.doc, stock: doc.stock, units: doc.units, guides: doc.guides, materials: doc.materials });
   let violations = out.violations;
   let present = out.present;
   let usage = out.usage;
@@ -264,7 +272,7 @@ export async function runRefine(
     } else if ('noSites' in jo) {
       joints = { kept: 0, chosen: 0, dropped, skipped: [] };
     } else {
-      refined = { ...jo.result.doc, stock: doc.stock, units: doc.units, guides: doc.guides };
+      refined = pruneMaterials({ ...jo.result.doc, stock: doc.stock, units: doc.units, guides: doc.guides, materials: doc.materials });
       violations = [...violations, ...jo.violations];
       const shown = new Set(present.map(problemKey));
       present = [...present, ...jo.preexisting.filter((v) => alsoPresent.has(problemKey(v)) && !shown.has(problemKey(v)))];
@@ -291,8 +299,8 @@ export function refineEstimateUsd(client: LlmClient, doc: SloydDocument, setting
   const from = documentToDesign(base.plain, REFINE_MAX);
   if ('refused' in from) return null;
   const refine = costRange(client, {
-    prefixChars: SYSTEM_PROMPT.length + JSON.stringify(DESIGN_SCHEMA).length,
-    messageChars: refineMessage(from.design, settings).length,
+    prefixChars: SYSTEM_PROMPT.length + JSON.stringify(designSchema(catalogOf(doc))).length,
+    messageChars: refineMessage(from.design, settings, catalogOf(doc)).length,
     outputTokens: Math.ceil(JSON.stringify(from.design).length * REFINE_OUTPUT_PER_CHAR),
   }, 1 + MAX_REPAIRS);
   const join = base.joints === null ? null : joineryShape(base.plain);

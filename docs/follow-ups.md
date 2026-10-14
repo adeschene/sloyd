@@ -5043,7 +5043,9 @@ an exported project does not say what it was priced at. Overrides would need a s
 
 **266. Custom materials and nominal lumber names.** `MATERIALS` is still a fixed seven; ash, poplar, 5x5 Baltic birch
 and nominal names (2x4 = 1-1/2 x 3-1/2) are not expressible. `ShopSettings` is keyed by material, ready for more.
-**Status:** open.
+**Status:** custom materials done 2026-10-14 (chunk 1, branch `custom-materials-1`; spec
+`docs/superpowers/specs/2026-10-14-sloyd-custom-materials-design.md`, schema 15). **Nominal names stay open** (chunk 2:
+the table, pine's flag, cut list and Buying names, the Size select). Residue: 324, 325.
 
 **267. Edge banding and a hardware bill of materials** (`docs/feature-gaps.md` §3). **Status:** open.
 
@@ -5362,3 +5364,27 @@ candidates angle-cut ids by index after the canonical re-sort, so an id can name
 design only (no back-conversion in the definition frame); the fault table runs in one pose. (M6) AngleField accepts more
 than one decimal; a model that rounds such a degree value misses the exact-angle map and `ratioFor` falls back to 0.1°
 (a change below the change list's 0.1° display). **Status:** record-only.
+
+**324. Custom materials chunk 1 minors (record-only; task and final reviews).** (1) `builtInInfo` shares
+`MATERIALS[id].sheet` by reference (nothing mutates it; freezing would close it). (2) `mintMaterialId` loops forever on a
+constant injected `random` whose id is taken (tests only). (3) `validateShapes`' `known` defaults to the built-ins, so a
+future caller can omit it silently (the one caller passes it). (4) `updateBoards` accepts a custom id the document does
+not carry when no `adopt` is passed — the next load turns that part to pine; Properties always adopts. (5) Refine's
+prompt line interpolates the user's label unescaped (odd prompt text only). (6) `runRefine` rebuilds `refined` with
+`materials: doc.materials` and prunes, redundantly (the converter already carries and prunes); the catalog is built
+twice from one list. (7) In the dialog: a deleted library row still shows its notes; `rowRefusal` judges the first label
+match only; `deleted` is honoured on non-library rows (the UI cannot set it); `libraryLabelClash` is judged against the
+stored library, not the planned one (over-refuses a rename-then-add in one Save); two new rows share aria-labels
+("New material: name"); the trash SVG is duplicated from ActionBar; the fallback refusal "Choose a colour." covers other
+invalid rows. (8) Test gaps: no test that the Material select shows the stored value after New material…, no
+multi-select adopt test, no assembly-in-selection kind case, no plain custom sheet `rotate: 'free'` cut-list case, the
+fix-5 posture-refusal bail of `applyMaterials`, a NEW entry joining a pre-existing duplicate library label, the explode
+test's reset not in `finally`. (9) A cut-list fixture puts `rotate` into a `CustomMaterial` behind a cast.
+**Status:** record-only.
+
+**325. Two tabs and the browser-level settings (record).** The material library (`sloyd.materials.v1`) and the prices
+(`sloyd.shop.v1`) are read once at mount; a second open tab saves its stale copy over the first's on its next Save.
+Prices behaved this way before custom materials; the spec is silent. Remedy if it bites: re-read both when the dialog
+opens (cheap), or a `storage` event listener. Also recorded: a rollback to the 2026-10-14 v14 bundle followed by a prices
+Save writes custom-id prices to a top-level `extra`; this build folds a top-level `extra` back on read (final review I1),
+so the prices survive the round trip. **Status:** record-only.
