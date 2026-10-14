@@ -43,6 +43,45 @@ export function mirrorHoleRow(r: HoleRow, d: Dimension): HoleRow {
   return { ...r, acrossFrom: flip(r.acrossFrom) };
 }
 
+/** Inches per millimetre. 32 mm stores 32 * MM — not rounded. */
+export const MM = 1 / 25.4;
+
+/** The broad face: the smallest dimension (a tie goes to the later of DIMENSION_ORDER: thickness, then width). */
+function broadFace(b: Pick<Board, Dimension>): Dimension {
+  return DIMENSION_ORDER.reduce((best, d) => (b[d] <= b[best] ? d : best), 'length' as Dimension);
+}
+/** The two others, the longer first (a row runs along the longer). */
+function othersOf(b: Pick<Board, Dimension>, face: Dimension): [Dimension, Dimension] {
+  const [x, y] = DIMENSION_ORDER.filter((d) => d !== face) as [Dimension, Dimension];
+  return b[y] > b[x] ? [y, x] : [x, y];
+}
+
+/** "Hole" (spec §7): ¼" dia, ½" deep (through when the face dimension is ½" or less), centred on the broad face. */
+export function defaultHole(b: Board): Omit<HoleRow, 'id'> {
+  const face = broadFace(b);
+  const [along, across] = othersOf(b, face);
+  return {
+    face, from: 'max', diameter: 0.25, depth: b[face] <= 0.5 ? 'through' : 0.5,
+    along, alongFrom: 'min', station: b[along] / 2, count: 1, pitch: 0, acrossFrom: 'min', inset: b[across] / 2,
+  };
+}
+
+/** "Shelf-pin row" (spec §7): ¼" × ⅜" deep in the broad face, along the longer side from its min end, first at 2",
+ *  every 32 mm, as many as leave the last at least 2" from the far end; 1½" in (or centred, on stock under 3" wide).
+ *  Null when not even one hole fits. */
+export function defaultShelfPinRow(b: Board): Omit<HoleRow, 'id'> | null {
+  const face = broadFace(b);
+  const [along, across] = othersOf(b, face);
+  const pitch = 32 * MM;
+  const room = b[along] - 4;
+  if (room < 0) return null;
+  const count = Math.min(HOLE_COUNT_MAX, Math.floor(room / pitch + 1e-9) + 1);
+  return {
+    face, from: 'max', diameter: 0.25, depth: 0.375, along, alongFrom: 'min', station: 2, count, pitch,
+    acrossFrom: 'min', inset: b[across] >= 3 ? 1.5 : b[across] / 2,
+  };
+}
+
 /** The third dimension: neither the drill axis nor the row's direction. */
 export function acrossOf(r: Pick<HoleRow, 'face' | 'along'>): Dimension {
   return DIMENSION_ORDER.find((d) => d !== r.face && d !== r.along)!;

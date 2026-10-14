@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
 import {
   HOLE_KEYS, HOLE_SEGMENTS, PRISM_EPS, acrossOf, boardHoles, clipPolygon, copyHoleRow, holeInstances, holePrism, holeRing,
-  holeRims, insideHole, minusPrism, mirrorHoleRow, ringInside, sameHoleRow,
+  holeRims, insideHole, minusPrism, mirrorHoleRow, ringInside, sameHoleRow, defaultHole, defaultShelfPinRow,
 } from './holes';
 import type { V3 } from './angleCuts';
 import type { HoleRow } from './types';
@@ -134,5 +134,19 @@ describe('mirrorHoleRow (inv 44: a flag flip, no arithmetic)', () => {
     expect(mirrorHoleRow(PIN, 'length')).toEqual({ ...PIN, alongFrom: 'max' });
     expect(mirrorHoleRow(PIN, 'width')).toEqual({ ...PIN, acrossFrom: 'max' });
     expect(mirrorHoleRow(mirrorHoleRow(PIN, 'width'), 'width')).toEqual(PIN);
+  });
+});
+
+describe('presets (spec §7)', () => {
+  const sideB = createBoard({ length: 30, width: 11.25, thickness: 0.75 });
+  it('shelf-pin row: broad face, along the length, every 32 mm from 2", as many as leave 2" at the far end', () => {
+    expect(defaultShelfPinRow(sideB)).toEqual({ face: 'thickness', from: 'max', diameter: 0.25, depth: 0.375, along: 'length', alongFrom: 'min', station: 2, count: 21, pitch: 32 / 25.4, acrossFrom: 'min', inset: 1.5 });
+  });
+  it('shelf-pin row: null on a part too short for one hole', () => {
+    expect(defaultShelfPinRow(createBoard({ length: 3, width: 3, thickness: 0.75 }))).toBeNull();
+  });
+  it('hole: centred on the broad face, through stock 1/2" or thinner', () => {
+    expect(defaultHole(sideB)).toMatchObject({ face: 'thickness', diameter: 0.25, depth: 0.5, station: 15, inset: 5.625, count: 1 });
+    expect(defaultHole(createBoard({ length: 12, width: 6, thickness: 0.5 })).depth).toBe('through');
   });
 });
