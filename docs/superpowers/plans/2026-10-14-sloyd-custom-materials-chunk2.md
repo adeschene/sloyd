@@ -349,7 +349,8 @@ Thread `nominal` into `byThePiece` (new last parameter) and every `sizeDims` cal
 
 **Interfaces:**
 - Consumes: `NOMINAL_SECTIONS`, `nominalName`, `catalogOf`, store `updateBoards`.
-- Produces: a `NominalSize` component inside `Properties.tsx`, rendered under each Size grid.
+- Produces: a `NominalSize` component inside `Properties.tsx`, rendered under each Size grid. Spec §5.3 amendments
+  (approved with this plan): label "Nominal size"; keep each part's stored thickness/width order when the selection shares it.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -369,6 +370,15 @@ describe('Nominal size (custom materials spec §5.3)', () => {
     const doc = useStore.getState().doc;
     fireEvent.change(sel, { target: { value: 'custom' } });
     expect(useStore.getState().doc).toBe(doc);
+  });
+  it('keeps a part stored thicker-than-wide the same way round (spec §5.3, amended)', () => {
+    // part 'a' pine stored thickness 3.5, width 0.75 (reads 1×4); select 'a'
+    render(<Properties />);
+    const sel = screen.getByRole('combobox', { name: 'Nominal size' });
+    expect(sel).toHaveValue('1×4');
+    fireEvent.change(sel, { target: { value: '2×6' } });
+    const b = useStore.getState().doc.boards[0] as Board;
+    expect([b.thickness, b.width]).toEqual([5.5, 1.5]);
   });
   it('a mixed selection reads mixed; choosing 2×4 sets every part in ONE undo entry', () => {
     // parts 'a' (pine 1×4) and 'b' (pine 1×6); select both
@@ -407,7 +417,11 @@ function NominalSize({ ids, boards }: { ids: string[]; boards: Board[] }) {
       <label htmlFor="nominal-size">Nominal size</label>
       <select id="nominal-size" className="input" value={value} onChange={(e) => {
         const s = NOMINAL_SECTIONS.find((x) => x.name === e.target.value);
-        if (s) useStore.getState().updateBoards(ids, { thickness: s.thickness, width: s.width });
+        if (!s) return;
+        // Keep the parts' stored order when they all share it, so a board stored thicker-than-wide does not turn
+        // over (spec §5.3, amended); a selection mixing orders takes the thinner side as thickness.
+        const reversed = boards.every((b) => b.thickness > b.width);
+        useStore.getState().updateBoards(ids, reversed ? { thickness: s.width, width: s.thickness } : { thickness: s.thickness, width: s.width });
       }}>
         {value === '' && <option value="" disabled>mixed</option>}
         <option value="custom">Custom</option>
@@ -422,7 +436,8 @@ Render `<NominalSize ids={selectedIds} boards={boards} />` after the group form'
 
 - [ ] **Step 4: Run** — `npx vitest run && npm run build` → PASS, clean.
 
-- [ ] **Step 5: Mutate** — split the update into two `updateBoards` calls: the one-entry test must go red. Restore.
+- [ ] **Step 5: Mutate** — split the update into two `updateBoards` calls: the one-entry test must go red. Drop the
+  `reversed` branch: the thicker-than-wide test must go red. Restore.
 
 - [ ] **Step 6: Commit** — `feat(nominal): Properties' Nominal size select`.
 

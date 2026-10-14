@@ -201,14 +201,20 @@ machined (invariant 18). A name is shown only for a part whose material is `nomi
 
 ### 5.3 Where names appear
 
-- **Cut list rows:** the name prefixes the row and the actual dimensions stay: `2×4  1 1/2 × 3 1/2 × 36`. Built in
-  `cutlist.ts` (invariant 19). Rows are not re-grouped by name.
+- **Cut list rows:** the row carries the name and the actual dimensions stay. Built in `cutlist.ts` (invariant 19). Rows
+  are not re-grouped by name. **(amended, chunk 2 plan)** *The name leads the row's names cell (`2×4  Stud 1, Stud 2`),
+  not the dims cell: a row's dims are `L × W` (thickness is in the group heading) in an 11em column. A row names a
+  section only when EVERY board on it is exactly that section, never after its representative.*
 - **Buying, by the piece:** a stock size that matches reads `2×4 × 8′`; a non-matching size reads as today. Built in
   `purchase.ts`.
-- **Properties:** a **Size** select (`Custom`, then each named section) shows only when every selected part's
+- **Properties:** a **Size** select — **(amended)** *labelled "Nominal size", under the Size fields* — (`Custom`, then each named section) shows only when every selected part's
   material is nominal. It shows the current name or `Custom`; choosing a section sets thickness and width in ONE edit
   (one undo entry, the normal reorient path, invariant 2). Choosing `Custom` changes nothing.
-- **Not** on the Plans sheet or part diagrams: drawings keep actual dimensions.
+- **Not** on the Plans sheet or part diagrams: drawings keep actual dimensions. **(amended)** *Nor in a by-the-piece
+  sheet layout's key label (`nesting.sheet`), a measured SVG string (invariant 19); the layout's caption does name it.*
+- **(amended)** *Choosing a section keeps each part's stored order of thickness and width when every selected part has
+  the same order (a part stored 3½ thick × 1½ wide stays that way round, so the board does not turn over); a selection
+  mixing orders takes the thinner side as thickness.*
 
 ### 5.4 Default stock for a nominal custom material
 
