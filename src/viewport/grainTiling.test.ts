@@ -6,7 +6,8 @@ import type { Region } from '../document/document';
 import { chiralAngled, chiralPart, turnedAbout } from '../document/turnFixtures';
 import { mirrorPart } from '../document/frames';
 import { boardBodies } from '../document/document';
-import { boardUVOffset, boardUVs, boardUVSignature, bodyMesh, facePlans } from './grainTiling';
+import { boardUVOffset, boardUVs, boardUVSignature, bodyMesh, facePlans, faceTriangles, holeMesh } from './grainTiling';
+import { boardHoles, holeRing, holeTouchesBox, HOLE_SEGMENTS } from '../document/document';
 
 const flat = createBoard({ length: 24, width: 5.5, thickness: 0.75, material: 'oak' });
 
@@ -754,5 +755,81 @@ describe('bodyMesh — hand-mapped normals across every pose (invariant 44)', ()
         expect(n[0]! * (mid[0]! - c[0]!) + n[1]! * (mid[1]! - c[1]!) + n[2]! * (mid[2]! - c[2]!)).toBeGreaterThan(0);
       }
     }
+  });
+});
+
+const pinRow = { id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 3, pitch: 32 / 25.4, acrossFrom: 'min' as const, inset: 1.5 };
+const dado = { id: 'c1', face: 'thickness' as const, from: 'max' as const, across: 'width' as const, offset: 10, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
+const cabinetSide = createBoard({ id: 'side', length: 30, width: 11.25, thickness: 0.75, cuts: [dado], holes: [pinRow] });
+
+describe('holes in the mesh (holes spec §3.2)', () => {
+  it('boardUVSignature changes with a row (inv 15)', () => {
+    expect(boardUVSignature(cabinetSide)).not.toBe(boardUVSignature({ ...cabinetSide, holes: [] }));
+    expect(boardUVSignature(cabinetSide)).not.toBe(boardUVSignature({ ...cabinetSide, holes: [{ ...pinRow, inset: 2 }] }));
+  });
+  it('holeTouchesBox decides the box path: false for a cell no hole reaches, true for one it does', () => {
+    const holes = boardHoles(cabinetSide);
+    const cells = boardBodies(cabinetSide).map((b) => b.box!);
+    const far = cells.find((r) => r.length[0] >= 10.75)!;                 // the cell beyond the dado
+    const near = cells.find((r) => r.length[1] <= 10 && r.thickness[0] >= 0.5)!;   // under the pins, above the seam
+    expect(holes.some((h) => holeTouchesBox(h, far))).toBe(false);
+    expect(holes.some((h) => holeTouchesBox(h, near))).toBe(true);
+  });
+  it('the face is watertight against the wall: every top-ring vertex is a face-mesh vertex', () => {
+    const holes = boardHoles(cabinetSide);
+    const faces = boardBodies(cabinetSide).flatMap((body) => body.faces);
+    const verts = faces.flatMap((f) => faceTriangles(f, holes)).flat();
+    for (const h of holes) {
+      for (const p of holeRing(h, 0)) expect(verts.some((q) => q.every((v, i) => v === p[i]))).toBe(true);
+    }
+  });
+  it('no face triangle lies inside a hole between its caps — no membrane at the dado-floor seam (Review Focus 1)', () => {
+    const holes = boardHoles(cabinetSide);
+    const tris = boardBodies(cabinetSide).flatMap((body) => body.faces).flatMap((f) => faceTriangles(f, holes));
+    for (const t of tris) {
+      const c = [0, 1, 2].map((k) => (t[0]![k]! + t[1]![k]! + t[2]![k]!) / 3);
+      for (const h of holes) {
+        const tt = h.dir * (c[2]! - h.centre[2]);
+        const r = Math.hypot(c[0]! - h.centre[0], c[1]! - h.centre[1]);
+        expect(tt > 1e-6 && tt < h.depth - 1e-6 && r < h.radius * 0.9).toBe(false);
+      }
+    }
+  });
+  it('face area is the body face area less each hole polygon', () => {
+    const b = createBoard({ id: 'p', length: 30, width: 11.25, thickness: 0.75, holes: [pinRow] });
+    const holes = boardHoles(b);
+    const top = boardBodies(b)[0]!.faces.find((f) => f.n[2] === 1)!;
+    const triArea = (t: number[][]) => Math.abs((t[1]![0]! - t[0]![0]!) * (t[2]![1]! - t[0]![1]!) - (t[2]![0]! - t[0]![0]!) * (t[1]![1]! - t[0]![1]!)) / 2;
+    const ngon = (HOLE_SEGMENTS / 2) * 0.125 ** 2 * Math.sin((2 * Math.PI) / HOLE_SEGMENTS);
+    expect(faceTriangles(top, holes).reduce((s, t) => s + triArea(t), 0)).toBeCloseTo(30 * 11.25 - 3 * ngon, 9);
+  });
+  it('holeMesh: a wall facing the axis with radial normals, and a bottom facing the mouth', () => {
+    const b = createBoard({ id: 'p', length: 30, width: 11.25, thickness: 0.75, holes: [{ ...pinRow, count: 1 }] });
+    const [h] = boardHoles(b);
+    const m = holeMesh(b, h!, boardBodies(b));
+    expect(m.positions.length).toBe(m.normals.length);
+    expect(m.uvs.length / 2).toBe(m.positions.length / 3);
+    // Every triangle is wound so its geometric normal agrees with its vertex normals (FrontSide materials).
+    for (let i = 0; i < m.positions.length; i += 9) {
+      const p = [0, 1, 2].map((k) => [m.positions[i + 3 * k]!, m.positions[i + 3 * k + 1]!, m.positions[i + 3 * k + 2]!]);
+      const e1 = [0, 1, 2].map((k) => p[1]![k]! - p[0]![k]!); const e2 = [0, 1, 2].map((k) => p[2]![k]! - p[0]![k]!);
+      const cr = [e1[1]! * e2[2]! - e1[2]! * e2[1]!, e1[2]! * e2[0]! - e1[0]! * e2[2]!, e1[0]! * e2[1]! - e1[1]! * e2[0]!];
+      const n = [m.normals[i]!, m.normals[i + 1]!, m.normals[i + 2]!];
+      expect(cr[0]! * n[0]! + cr[1]! * n[1]! + cr[2]! * n[2]!).toBeGreaterThan(0);
+    }
+    // Every normal faces into the hole: toward the vertex centroid, which lies on the axis between mouth and bottom
+    // (frame-independent — a wall normal is radial toward the axis, the bottom's points back at the mouth).
+    const nv = m.positions.length / 3;
+    const c = [0, 1, 2].map((k) => { let s = 0; for (let i = 0; i < nv; i += 1) s += m.positions[3 * i + k]!; return s / nv; });
+    const shared = new Map<string, number>();
+    for (let i = 0; i < nv; i += 1) {
+      const n = [0, 1, 2].map((k) => m.normals[3 * i + k]!);
+      expect(Math.hypot(n[0]!, n[1]!, n[2]!)).toBeCloseTo(1, 6);
+      expect(n.reduce((s, x, k) => s + x * (c[k]! - m.positions[3 * i + k]!), 0)).toBeGreaterThan(0);
+      shared.set(n.join(','), (shared.get(n.join(',')) ?? 0) + 1);
+    }
+    // The blind hole has a bottom: one flat HOLE_SEGMENTS-gon, fanned, every vertex carrying the same normal (a wall
+    // vertex's normal is shared only by the triangles around one ring vertex).
+    expect(Math.max(...shared.values()) / 3).toBeGreaterThanOrEqual(HOLE_SEGMENTS - 2);
   });
 });

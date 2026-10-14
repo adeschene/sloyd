@@ -1,5 +1,10 @@
-import { angleCutValues, axisFrame, boardExtents, CUT_GEOMETRY_KEYS, DIMENSION_ORDER, isSheetGood, spanToWorldOffset, toWorldOffset, wholeBoard } from '../document/document';
-import type { Board, Body, Region, Span } from '../document/document';
+import { ShapeUtils, Vector2 } from 'three';
+import {
+  angleCutValues, axialOffset, axisFrame, boardExtents, bodyPlanes, clipPolygon, CUT_GEOMETRY_KEYS, DIMENSION_ORDER,
+  holePrism, holeRing, holeRowValues, holeTouches, isSheetGood, minusPrism, ringInside, spanToWorldOffset, toWorldOffset,
+  wholeBoard,
+} from '../document/document';
+import type { Board, Body, BodyFace, Hole, Region, Span, V3 } from '../document/document';
 import { axisDimensions, faceGrainKinds, grainFamily } from './grainFaces';
 import type { Dimension, GrainFamily, GrainKind } from './grainFaces';
 
@@ -234,8 +239,11 @@ export function boardUVs(board: Board, solid: Region = wholeBoard(board)): Float
  * taper as long grain. UVs are read straight off each vertex's world offset
  * along the plan's axes — which is what boardUVs' CORNERS-and-sign dance
  * computes for a box, so the two agree (pinned by test, invariant 35).
+ *
+ * Holes are cut out of the faces they reach (faceTriangles); a part without
+ * holes draws exactly what it drew before.
  */
-export function bodyMesh(board: Board, body: Body): { positions: Float32Array; uvs: Float32Array; groups: { start: number; count: number; materialIndex: number }[] } {
+export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = []): { positions: Float32Array; uvs: Float32Array; groups: { start: number; count: number; materialIndex: number }[] } {
   const plans = facePlans(board);
   const frame = axisFrame(board);
   const extents = boardExtents(board);
@@ -254,10 +262,9 @@ export function bodyMesh(board: Board, body: Body): { positions: Float32Array; u
     }
     const material = axis * 2 + (n[axis]! > 0 ? 0 : 1);
     const plan = plans[material]!;
-    const pts = f.verts.map(offsetOf);
     const out = byMaterial[material]!;
-    for (let i = 1; i + 1 < pts.length; i += 1) {
-      let tri = [pts[0]!, pts[i]!, pts[i + 1]!];
+    for (const t of faceTriangles(f, holes)) {
+      let tri = t.map(offsetOf);
       const e1 = [0, 1, 2].map((k) => tri[1]![k]! - tri[0]![k]!);
       const e2 = [0, 1, 2].map((k) => tri[2]![k]! - tri[0]![k]!);
       const cr = [e1[1]! * e2[2]! - e1[2]! * e2[1]!, e1[2]! * e2[0]! - e1[0]! * e2[2]!, e1[0]! * e2[1]! - e1[1]! * e2[0]!];
@@ -283,6 +290,104 @@ export function bodyMesh(board: Board, body: Body): { positions: Float32Array; u
     uvs.push(...m.uv);
   });
   return { positions: new Float32Array(positions), uvs: new Float32Array(uvs), groups };
+}
+
+/**
+ * One body face as triangles (board-local), with every hole that reaches into it cut out (holes spec §3.2, amended).
+ * No hole: the fan bodyMesh always drew, vertex for vertex. Every reaching hole perpendicular to the face with its ring
+ * STRICTLY inside it: triangulated with the rings as holes, from the SAME ring vertices the wall uses, so face and wall
+ * share every rim vertex (no T-junctions). Otherwise (a tangent hole, a seam parallel to the axis, a faulted hole): the
+ * disjoint convex split, fanned — T-junctions accepted there.
+ */
+export function faceTriangles(f: BodyFace, holes: readonly Hole[]): V3[][] {
+  const fan = (p: V3[]): V3[][] => p.slice(1, -1).map((_, i) => [p[0]!, p[i + 1]!, p[i + 2]!]);
+  const reaching = holes.filter((h) => holeTouches(h, f.verts));
+  if (reaching.length === 0) return fan(f.verts);
+  const rings = reaching.map((h) => { const t = axialOffset(h, f); return t === null ? null : holeRing(h, t); });
+  if (rings.every((r): r is V3[] => r !== null && ringInside(f.verts, f.n, r))) {
+    const a = [0, 1, 2].reduce((m, k) => (Math.abs(f.n[k]!) > Math.abs(f.n[m]!) ? k : m), 0);
+    const [u, v] = [0, 1, 2].filter((k) => k !== a) as [number, number];
+    const flat = (p: V3) => new Vector2(p[u], p[v]);
+    const all = [...f.verts, ...rings.flat()];
+    return ShapeUtils.triangulateShape(f.verts.map(flat), rings.map((r) => r.map(flat)))
+      .map(([i, j, k]) => [all[i!]!, all[j!]!, all[k!]!]);
+  }
+  let pieces: V3[][] = [f.verts];
+  for (const h of reaching) pieces = pieces.flatMap((p) => minusPrism(p, holePrism(h)));
+  return pieces.flatMap(fan);
+}
+
+/**
+ * One hole's wall and (blind) bottom (holes spec §3.2): the wall's HOLE_SEGMENTS quads between the entry ring and the
+ * far ring, each clipped to every body (so a seam splits it and a faulted hole's wall stops at the stock); the bottom
+ * ring clipped likewise. Explicit normals — radial toward the axis on the wall (smooth), back toward the mouth on the
+ * bottom — because BoardMesh's computeVertexNormals would facet them. Triangles wound to face along their normals
+ * (the materials are FrontSide). UVs and materials as bodyMesh's sloped faces: each facet takes the plan of the world
+ * axis its normal is nearest.
+ */
+export function holeMesh(board: Board, h: Hole, bodies: readonly Body[]): { positions: Float32Array; normals: Float32Array; uvs: Float32Array; groups: { start: number; count: number; materialIndex: number }[] } {
+  const plans = facePlans(board);
+  const frame = axisFrame(board);
+  const extents = boardExtents(board);
+  const [ou, ov] = boardUVOffset(board.id);
+  const dimIndex = (d: Dimension) => DIMENSION_ORDER.indexOf(d);
+  const offsetOf = (p: V3) => [0, 1, 2].map((i) => toWorldOffset(board, i, p[dimIndex(frame[i]!.dim)]!)) as V3;
+  const vecOf = (n: V3) => [0, 1, 2].map((i) => n[dimIndex(frame[i]!.dim)]! * (frame[i]!.reversed ? -1 : 1)) as V3;
+  const planes = bodies.map((b) => bodyPlanes(b.faces));
+  const a = dimIndex(h.axis);
+  const inward = (p: V3): V3 => {
+    const r: V3 = [h.centre[0] - p[0], h.centre[1] - p[1], h.centre[2] - p[2]];
+    r[a] = 0;
+    const l = Math.hypot(...r);
+    return [r[0] / l, r[1] / l, r[2] / l];
+  };
+  const byMaterial = Array.from({ length: 6 }, () => ({ pos: [] as number[], nor: [] as number[], uv: [] as number[] }));
+  const emit = (poly: V3[], facet: V3, normalAt: (p: V3) => V3) => {
+    const fw = vecOf(facet);
+    let axis = 0;
+    for (let i = 1; i < 3; i += 1) if (Math.abs(fw[i]!) > Math.abs(fw[axis]!) + 1e-9) axis = i;
+    const material = axis * 2 + (fw[axis]! > 0 ? 0 : 1);
+    const plan = plans[material]!;
+    const out = byMaterial[material]!;
+    for (let i = 1; i + 1 < poly.length; i += 1) {
+      let tri = [poly[0]!, poly[i]!, poly[i + 1]!];
+      let w = tri.map(offsetOf);
+      const e1 = [0, 1, 2].map((k) => w[1]![k]! - w[0]![k]!);
+      const e2 = [0, 1, 2].map((k) => w[2]![k]! - w[0]![k]!);
+      const cr = [e1[1]! * e2[2]! - e1[2]! * e2[1]!, e1[2]! * e2[0]! - e1[0]! * e2[2]!, e1[0]! * e2[1]! - e1[1]! * e2[0]!];
+      if (Math.hypot(cr[0]!, cr[1]!, cr[2]!) / 2 < 1e-12) continue;
+      if (cr[0]! * fw[0]! + cr[1]! * fw[1]! + cr[2]! * fw[2]! < 0) { tri = [tri[0]!, tri[2]!, tri[1]!]; w = [w[0]!, w[2]!, w[1]!]; }
+      tri.forEach((p, k) => {
+        const q = w[k]!;
+        const nw = vecOf(normalAt(p));
+        out.pos.push(q[0] - extents[0] / 2, q[1] - extents[1] / 2, q[2] - extents[2] / 2);
+        out.nor.push(nw[0], nw[1], nw[2]);
+        out.uv.push(q[plan.axes[0]]! / plan.tileInches[0] + (plan.fit[0] ? 0 : ou), q[plan.axes[1]]! / plan.tileInches[1] + (plan.fit[1] ? 0 : ov));
+      });
+    }
+  };
+  const clipTo = (poly: V3[]) => planes.flatMap((ps) => { let p = poly; for (const q of ps) { p = clipPolygon(p, q); if (!p.length) break; } return p.length ? [p] : []; });
+  const top = holeRing(h, 0);
+  const far = holeRing(h, h.depth);
+  for (let k = 0; k < top.length; k += 1) {
+    const k1 = (k + 1) % top.length;
+    const quad = [top[k]!, top[k1]!, far[k1]!, far[k]!];
+    const mid: V3 = [0, 1, 2].map((i) => (top[k]![i]! + top[k1]![i]!) / 2) as V3;
+    for (const piece of clipTo(quad)) emit(piece, inward(mid), inward);
+  }
+  if (!h.through) {
+    const back: V3 = [0, 0, 0];
+    back[a] = -h.dir;
+    for (const piece of clipTo(far)) emit(piece, back, () => back);
+  }
+  const positions: number[] = []; const normals: number[] = []; const uvs: number[] = [];
+  const groups: { start: number; count: number; materialIndex: number }[] = [];
+  byMaterial.forEach((m, materialIndex) => {
+    if (m.pos.length === 0) return;
+    groups.push({ start: positions.length / 3, count: m.pos.length / 3, materialIndex });
+    positions.push(...m.pos); normals.push(...m.nor); uvs.push(...m.uv);
+  });
+  return { positions: new Float32Array(positions), normals: new Float32Array(normals), uvs: new Float32Array(uvs), groups };
 }
 
 /**
@@ -335,6 +440,8 @@ export function boardUVSignature(board: Board): string {
     // Angle cuts change which bodies exist and which faces are sloped
     // (angle-cuts spec §3.2; invariant 15).
     board.angleCuts.map((c) => angleCutValues(c).join(',')).join(';'),
+    // Holes change which faces are opened and add walls (holes spec §3.2; invariant 15).
+    board.holes.map((r) => holeRowValues(r).join(',')).join(';'),
   ].join('|');
 }
 
