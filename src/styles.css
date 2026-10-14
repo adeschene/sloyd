@@ -1044,6 +1044,12 @@ select.input { cursor: pointer; }
   color: var(--ink-dim);
 }
 
+.cutlist-nominal {
+  font-weight: 600;
+  color: var(--ink);
+  margin-right: 0.5em;
+}
+
 /* Right-aligned and monospace so a column of totals aligns on the decimal
    point. --font-num is the same stack the diagram labels rely on. */
 .cutlist-stock {

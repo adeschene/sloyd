@@ -123,7 +123,10 @@ export function CutList({ onClose, shop = DEFAULT_SHOP, onOpenPrices, suspended 
                   <li className="cutlist-row" key={row.key}>
                     <span className="cutlist-qty">{row.qty} ×</span>
                     <span className="cutlist-dims">{row.dims}</span>
-                    <span className="cutlist-names">{row.names.join(', ')}</span>
+                    <span className="cutlist-names">
+                      {row.nominal && <span className="cutlist-nominal">{row.nominal}</span>}
+                      {row.names.join(', ')}
+                    </span>
                     <span className="cutlist-stock">{row.stock}</span>
                     {row.setup.length > 0 && (
                       <ul className="cutlist-setup">

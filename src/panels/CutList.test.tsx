@@ -188,4 +188,13 @@ describe('CutList', () => {
       expect(closed).toBe(false);
     });
   });
+
+  it('a pine 1×4 row shows its nominal name beside unchanged dims', () => {
+    load({ name: 'Rail', material: 'pine', thickness: 0.75, length: 24, width: 3.5 });
+    const { container } = render(<CutList onClose={() => {}} />);
+    const row = container.querySelector('.cutlist-row')!;
+    expect(row.querySelector('.cutlist-nominal')?.textContent).toBe('1×4');
+    expect(row.querySelector('.cutlist-dims')?.textContent).toBe('24" × 3-1/2"');
+  });
+
 });
