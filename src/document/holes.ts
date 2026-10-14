@@ -144,8 +144,13 @@ export function boardHoles(board: Pick<Board, Dimension | 'holes'>): Hole[] {
  */
 interface HoleMemo { prism?: Plane[]; rings: Map<number, V3[]> }
 const holeMemo = new WeakMap<Hole, HoleMemo>();
-/** A memoised prism's hole: touchesPrism reads its frame to try the facet facing a polygon first. */
-const prismHole = new WeakMap<Plane[], Hole>();
+/**
+ * What touchesPrism knows of a prism built here, beside its planes: the hole's in-plane axes and centre (to try the
+ * facet facing a polygon first) and the hole's bounding box — axially the caps' span (PRISM_EPS out), across ±radius,
+ * which holds every facet's vertices.
+ */
+interface PrismInfo { u: number; v: number; cu: number; cv: number; lo: V3; hi: V3 }
+const prismInfo = new WeakMap<Plane[], PrismInfo>();
 function memoOf(h: Hole): HoleMemo {
   let m = holeMemo.get(h);
   if (!m) { m = { rings: new Map() }; holeMemo.set(h, m); }
@@ -185,7 +190,7 @@ function ringOf(h: Hole, t: number, n: number): V3[] {
 export function holePrism(h: Hole, n = HOLE_SEGMENTS): Plane[] {
   if (n !== HOLE_SEGMENTS || !Object.isFrozen(h)) return prismOf(h, n);
   const memo = memoOf(h);
-  if (!memo.prism) { memo.prism = freezePrism(prismOf(h, n)); prismHole.set(memo.prism, h); }
+  if (!memo.prism) memo.prism = freezePrism(prismOf(h, n));
   return memo.prism;
 }
 function prismOf(h: Hole, n: number): Plane[] {
@@ -203,20 +208,35 @@ function prismOf(h: Hole, n: number): Plane[] {
   ax[a] = h.dir;
   out.push({ n: ax, d: -h.dir * h.centre[a] + PRISM_EPS });                                         // t ≥ -ε
   out.push({ n: [-ax[0], -ax[1], -ax[2]], d: h.dir * h.centre[a] + h.depth + PRISM_EPS });          // t ≤ depth + ε
+  const lo: V3 = [h.centre[0] - h.radius, h.centre[1] - h.radius, h.centre[2] - h.radius];
+  const hi: V3 = [h.centre[0] + h.radius, h.centre[1] + h.radius, h.centre[2] + h.radius];
+  const end = h.centre[a] + h.dir * h.depth;
+  lo[a] = Math.min(h.centre[a], end) - PRISM_EPS;
+  hi[a] = Math.max(h.centre[a], end) + PRISM_EPS;
+  prismInfo.set(out, { u, v, cu: h.centre[u], cv: h.centre[v], lo, hi });
   return out;
 }
 
 /** Keep the part of a convex planar polygon where n·x + d ≥ 0 (Sutherland–Hodgman). A vertex within HOLE_EPS of the
  *  plane is ON it and kept. Fewer than three points: []. Returns the SAME array when nothing is cut away. */
 export function clipPolygon(verts: V3[], h: Plane): V3[] {
-  const g = (p: V3) => dot(h.n, p) + h.d;
-  if (verts.every((p) => g(p) >= -HOLE_EPS)) return verts;
+  // Each vertex's side computed once (Task 11b: it runs for every wall piece of every hole), the same arithmetic as dot.
+  const len = verts.length;
+  const gs = new Array<number>(len);
+  let kept = true;
+  for (let i = 0; i < len; i += 1) {
+    const p = verts[i]!;
+    const g = h.n[0] * p[0] + h.n[1] * p[1] + h.n[2] * p[2] + h.d;
+    gs[i] = g;
+    if (!(g >= -HOLE_EPS)) kept = false;
+  }
+  if (kept) return verts;
   const out: V3[] = [];
-  for (let i = 0; i < verts.length; i += 1) {
+  for (let i = 0; i < len; i += 1) {
     const a = verts[i]!;
-    const b = verts[(i + 1) % verts.length]!;
-    const ga = g(a);
-    const gb = g(b);
+    const b = verts[(i + 1) % len]!;
+    const ga = gs[i]!;
+    const gb = gs[(i + 1) % len]!;
     if (ga >= -HOLE_EPS) out.push(a);
     if ((ga > HOLE_EPS && gb < -HOLE_EPS) || (ga < -HOLE_EPS && gb > HOLE_EPS)) {
       const t = ga / (ga - gb);
@@ -266,28 +286,36 @@ function twiceArea(p: V3[]): number {
   return Math.hypot(x, y, z);
 }
 
-/** True when the polygon is not wholly on or outside some plane of the prism: the hole reaches into it. */
+/** True when the hole reaches into the polygon: their bounding boxes meet (closed, HOLE_EPS), and no plane of the
+ *  prism has the whole polygon on or outside it. */
 export function holeTouches(h: Hole, poly: V3[]): boolean {
   return touchesPrism(holePrism(h), poly);
 }
 /**
- * Whether no plane of the prism has the whole polygon on or outside it. The answer does not depend on the order the
- * planes are tried in, so the likeliest separators go first (Task 11b): the caps (holePrism puts them last), which part
- * most faces of a part from most of its holes in two tests, then (a memoised prism, whose hole is known) the facet facing
- * the polygon's centroid, which parts most of a fallback split's pieces from the other holes. Same predicate, plane for
- * plane, as before.
+ * The prism-touch test (Task 11b). First a bounding-box reject for a prism built here (ruling R10): a polygon whose box
+ * misses the hole's by more than HOLE_EPS is untouched. The plane test alone over-reports — a long face beside a hole
+ * but clear of it is on the inside of every single plane — and such a face used to be split for nothing (ruling R10
+ * accepts the new, unsplit triangulation there; the covered area is the same). Then the separating-plane test, whose
+ * answer does not depend on the order the planes are tried in, so the likeliest separators go first: the caps
+ * (holePrism puts them last), then the facet facing the polygon's centroid, then the rest.
  */
 function touchesPrism(prism: Plane[], poly: V3[]): boolean {
   const m = prism.length;
+  const info = prismInfo.get(prism);
+  if (info) {
+    for (let i = 0; i < 3; i += 1) {
+      let min = Infinity; let max = -Infinity;
+      for (const p of poly) { if (p[i]! < min) min = p[i]!; if (p[i]! > max) max = p[i]!; }
+      if (min > info.hi[i]! + HOLE_EPS || max < info.lo[i]! - HOLE_EPS) return false;
+    }
+  }
   if (m >= 2 && (separates(prism[m - 1]!, poly) || separates(prism[m - 2]!, poly))) return false;
-  // Then, for a memoised prism, the side facet facing the polygon's centroid (the likeliest to separate), then the rest.
-  const h = prismHole.get(prism);
   let best = -1;
-  if (h) {
-    const { u, v } = frameOf(h);
+  if (info) {
+    const { u, v } = info;
     let cu = 0; let cv = 0;
-    for (const p of poly) { cu += p[u]; cv += p[v]; }
-    const th = Math.atan2(cv / poly.length - h.centre[v], cu / poly.length - h.centre[u]);
+    for (const p of poly) { cu += p[u]!; cv += p[v]!; }
+    const th = Math.atan2(cv / poly.length - info.cv, cu / poly.length - info.cu);
     const k = Math.floor(((th < 0 ? th + 2 * Math.PI : th) * (m - 2)) / (2 * Math.PI));
     best = k >= 0 && k < m - 2 ? k : -1;
   }
@@ -315,6 +343,36 @@ export function minusPrism(poly: V3[], prism: Plane[]): V3[][] {
     if (outside.length && twiceArea(outside) > MIN_AREA) out.push(outside);
     rest = clipPolygon(rest, q);
     if (!rest.length) break;
+  }
+  return out;
+}
+
+/**
+ * A convex planar polygon minus a convex COPLANAR polygon `cover` (the face normal `n` is shared), as disjoint convex
+ * pieces: piece i is the polygon outside cover edge i and inside edges 0…i-1, a piece under MIN_AREA dropped (an edge
+ * the two share would otherwise leave an on-the-line sliver). A polygon the cover does not overlap comes back as the
+ * same array, alone. Each edge's inside is decided by the cover's centroid, not its winding (a seam's cover faces the
+ * other way). Ruling R11's seam faces (grainTiling's bodyMesh).
+ */
+export function minusCover(poly: V3[], n: V3, cover: readonly V3[]): V3[][] {
+  const c: V3 = [0, 1, 2].map((k) => cover.reduce((s, p) => s + p[k]!, 0) / cover.length) as V3;
+  const out: V3[][] = [];
+  let rest = poly;
+  for (let i = 0; i < cover.length; i += 1) {
+    const a = cover[i]!;
+    const b = cover[(i + 1) % cover.length]!;
+    const e: V3 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+    let m: V3 = [n[1] * e[2] - n[2] * e[1], n[2] * e[0] - n[0] * e[2], n[0] * e[1] - n[1] * e[0]];
+    const l = Math.hypot(m[0], m[1], m[2]);
+    if (!(l > 0)) continue;
+    m = [m[0] / l, m[1] / l, m[2] / l];
+    if (dot(m, [c[0] - a[0], c[1] - a[1], c[2] - a[2]]) < 0) m = [-m[0], -m[1], -m[2]];
+    const q: Plane = { n: m, d: -dot(m, a) };
+    const outside = clipPolygon(rest, flipPlane(q));
+    if (outside === rest) return out.length ? [...out, rest] : [poly];
+    if (outside.length && twiceArea(outside) > MIN_AREA) out.push(outside);
+    rest = clipPolygon(rest, q);
+    if (!rest.length) return out;
   }
   return out;
 }

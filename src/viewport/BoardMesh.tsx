@@ -146,7 +146,7 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
             geo.setAttribute('uv', new THREE.BufferAttribute(boardUVs(board, body.box), 2));
             return { geo, center };
           }
-          const m = bodyMesh(board, body, holes);
+          const m = bodyMesh(board, body, holes, bodies);   // seams between holed bodies skipped (ruling R11)
           const geo = new THREE.BufferGeometry();
           geo.setAttribute('position', new THREE.BufferAttribute(m.positions, 3));
           geo.setAttribute('uv', new THREE.BufferAttribute(m.uvs, 2));

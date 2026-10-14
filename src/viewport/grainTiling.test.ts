@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  axisDimensions, boardExtents, pocketCells, createBoard, solidWorldBox, wholeBoard,
+  axisDimensions, axisFrame, boardExtents, DIMENSION_ORDER, fromWorldOffset, pocketCells, createBoard, solidWorldBox, wholeBoard,
 } from '../document/document';
 import type { Region } from '../document/document';
 import { chiralAngled, chiralPart, turnedAbout } from '../document/turnFixtures';
@@ -831,6 +831,68 @@ describe('holes in the mesh (holes spec §3.2)', () => {
     // The blind hole has a bottom: one flat HOLE_SEGMENTS-gon, fanned, every vertex carrying the same normal (a wall
     // vertex's normal is shared only by the triangles around one ring vertex).
     expect(Math.max(...shared.values()) / 3).toBeGreaterThanOrEqual(HOLE_SEGMENTS - 2);
+  });
+});
+
+describe('seams inside a holed part are not drawn (ruling R11)', () => {
+  // cabinetSide: three pins (to 4.65in) and a dado 10..10.75in, 1/4 deep. Bodies: the slab under the dado's floor
+  // (thickness 0..0.5, full length) and the stock either side of the dado above it — so the plane thickness = 0.5 is a
+  // seam everywhere but the dado's floor, and the 3/8-deep pins cross it.
+  const bodies = boardBodies(cabinetSide);
+  const holes = boardHoles(cabinetSide);
+  /** Every body triangle's centroid, board-local (positions are centred world offsets; fromWorldOffset maps back). */
+  const centroids = (board: typeof cabinetSide, meshes: ReturnType<typeof bodyMesh>[]) => {
+    const frame = axisFrame(board);
+    const ext = boardExtents(board);
+    return meshes.flatMap((m) => {
+      const out: number[][] = [];
+      for (let t = 0; t < m.positions.length / 3; t += 3) {
+        const w = [0, 1, 2].map((k) => (m.positions[t * 3 + k]! + m.positions[t * 3 + 3 + k]! + m.positions[t * 3 + 6 + k]!) / 3 + ext[k]! / 2);
+        const local = [0, 0, 0];
+        frame.forEach((a, i) => { local[DIMENSION_ORDER.indexOf(a.dim)] = fromWorldOffset(board, i, w[i]!); });
+        out.push(local);
+      }
+      return out;
+    });
+  };
+  // The bodies a pin reaches — the ones BoardMesh sends through bodyMesh; a body no hole reaches keeps its box path.
+  const holedBodies = bodies.filter((b) => holes.some((h) => holeTouchesBox(h, b.box!)));
+  const meshes = holedBodies.map((body) => bodyMesh(cabinetSide, body, holes, bodies));
+
+  it('no triangle on the seam plane inside the stock: at thickness 1/2 a holed body draws only the dado floor', () => {
+    expect(holedBodies.length).toBe(2);
+    const onSeam = centroids(cabinetSide, meshes).filter((c) => Math.abs(c[2]! - 0.5) < 1e-6);
+    expect(onSeam.length).toBeGreaterThan(0);                        // the floor is still there
+    for (const c of onSeam) {
+      expect(c[0]!).toBeGreaterThanOrEqual(10 - 1e-6);
+      expect(c[0]!).toBeLessThanOrEqual(10.75 + 1e-6);
+    }
+  });
+  it('no membrane through bodyMesh: no body triangle lies inside a hole between its caps', () => {
+    for (const c of centroids(cabinetSide, meshes)) {
+      for (const h of holes) {
+        const tt = h.dir * (c[2]! - h.centre[2]);
+        const r = Math.hypot(c[0]! - h.centre[0], c[1]! - h.centre[1]);
+        expect(tt > 1e-6 && tt < h.depth - 1e-6 && r < h.radius * 0.9).toBe(false);
+      }
+    }
+  });
+  it('a part without holes, and a body no hole reaches, draw exactly what they drew before', () => {
+    const same = (a: ReturnType<typeof bodyMesh>, b: ReturnType<typeof bodyMesh>) => {
+      expect(Array.from(a.positions)).toEqual(Array.from(b.positions));
+      expect(Array.from(a.uvs)).toEqual(Array.from(b.uvs));
+      expect(a.groups).toEqual(b.groups);
+    };
+    const plain = { ...cabinetSide, holes: [] };
+    const plainBodies = boardBodies(plain);
+    for (const body of plainBodies) same(bodyMesh(plain, body, [], plainBodies), bodyMesh(plain, body));
+    for (const posture of ['flat', 'on-edge', 'upright'] as const) {
+      const angled = { ...chiralAngled(posture), cuts: [dado] };
+      const angledBodies = boardBodies(angled);
+      for (const body of angledBodies) same(bodyMesh(angled, body, [], angledBodies), bodyMesh(angled, body));
+    }
+    const far = bodies.find((b) => b.box!.length[0] >= 10.75)!;          // beyond the dado: no pin reaches it
+    same(bodyMesh(cabinetSide, far, holes, bodies), bodyMesh(cabinetSide, far, holes));
   });
 });
 

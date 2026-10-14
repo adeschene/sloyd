@@ -1,7 +1,7 @@
 import { ShapeUtils, Vector2 } from 'three';
 import {
   angleCutValues, axialOffset, axisFrame, boardExtents, bodyPlanes, clipPlan, clipPolygon, CUT_GEOMETRY_KEYS, DIMENSION_ORDER,
-  HOLE_EPS, holePrism, holeRing, holeRowValues, holeTouches, isSheetGood, minusPrism, ringInside, spanToWorldOffset, toWorldOffset,
+  HOLE_EPS, holePrism, holeRing, holeRowValues, holeTouches, holeTouchesBox, isSheetGood, minusCover, minusPrism, ringInside, spanToWorldOffset, toWorldOffset,
   wholeBoard,
 } from '../document/document';
 import type { Board, Body, BodyFace, Hole, Plane, Region, Span, V3 } from '../document/document';
@@ -232,6 +232,7 @@ export function boardUVs(board: Board, solid: Region = wholeBoard(board)): Float
  * fan, an earcut triangulation and a wall share each vertex object among several triangles (Task 11b). The memo lives
  * only as long as one mesh build — never module-level: partGeometry shares one set of points between parts in
  * different poses. Points are never mutated (frozen bodies and rings, or fresh clip output), so identity decides value.
+ * The crossing is toWorldOffset's, bound to this board's frame computed once (ruling R12).
  */
 function worldOffsets(board: Board): (p: V3) => V3 {
   const frame = axisFrame(board);
@@ -240,7 +241,7 @@ function worldOffsets(board: Board): (p: V3) => V3 {
   return (p) => {
     let w = memo.get(p);
     if (!w) {
-      w = [toWorldOffset(board, 0, p[dims[0]!]!), toWorldOffset(board, 1, p[dims[1]!]!), toWorldOffset(board, 2, p[dims[2]!]!)];
+      w = [toWorldOffset(board, 0, p[dims[0]!]!, frame), toWorldOffset(board, 1, p[dims[1]!]!, frame), toWorldOffset(board, 2, p[dims[2]!]!, frame)];
       memo.set(p, w);
     }
     return w;
@@ -288,7 +289,7 @@ function packGroups(byMaterial: number[][][]): { groups: { start: number; count:
  * Holes are cut out of the faces they reach (faceTriangles); a part without
  * holes draws exactly what it drew before.
  */
-export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = []): { positions: Float32Array; uvs: Float32Array; groups: { start: number; count: number; materialIndex: number }[] } {
+export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], bodies?: readonly Body[]): { positions: Float32Array; uvs: Float32Array; groups: { start: number; count: number; materialIndex: number }[] } {
   const plans = facePlans(board);
   const frame = axisFrame(board);
   const extents = boardExtents(board);
@@ -296,7 +297,8 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = []):
   const dimIndex = (d: Dimension) => DIMENSION_ORDER.indexOf(d);
   const offsetOf = worldOffsets(board);
   const byMaterial: { pos: number[]; uv: number[] }[] = Array.from({ length: 6 }, () => ({ pos: [], uv: [] }));
-  for (const f of body.faces) {
+  const faces = bodies && holed(body, holes) ? body.faces.flatMap((f) => uncovered(f, body, bodies)) : body.faces;
+  for (const f of faces) {
     const n = [0, 1, 2].map((i) => f.n[dimIndex(frame[i]!.dim)]! * (frame[i]!.reversed ? -1 : 1));
     let axis = 0;
     for (let i = 1; i < 3; i += 1) if (Math.abs(n[i]!) > Math.abs(n[axis]!) + 1e-9) axis = i;
@@ -326,6 +328,39 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = []):
   }
   const { groups, out: [positions, uvs] } = packGroups(byMaterial.map((m) => [m.pos, m.uv]));
   return { positions: positions!, uvs: uvs!, groups };
+}
+
+/** A hole's box meets the body's (holeTouchesBox over the body's vertex bounds): the body is HOLED (ruling R11). */
+function holed(body: Body, holes: readonly Hole[]): boolean {
+  if (holes.length === 0) return false;
+  const lo: V3 = [Infinity, Infinity, Infinity];
+  const hi: V3 = [-Infinity, -Infinity, -Infinity];
+  for (const f of body.faces) for (const p of f.verts) for (let i = 0; i < 3; i += 1) { lo[i] = Math.min(lo[i]!, p[i]!); hi[i] = Math.max(hi[i]!, p[i]!); }
+  const r = Object.fromEntries(DIMENSION_ORDER.map((d, i) => [d, [lo[i]!, hi[i]!]])) as Region;
+  return holes.some((h) => holeTouchesBox(h, r));
+}
+
+/**
+ * A holed body's face minus every part of it another body of the part covers (ruling R11): a coplanar face of another
+ * body facing the opposite way lies against it, so between them is stock — a seam inside the part, never seen, and
+ * punching it with every ring that crosses it was most of a holed part's rebuild. Coincident faces drop entirely; a
+ * face a neighbour only partly covers keeps the rest (a dado's floor, beside the bodies on either side). A face nothing
+ * covers comes back as the same object.
+ */
+function uncovered(f: BodyFace, body: Body, bodies: readonly Body[]): BodyFace[] {
+  let pieces: V3[][] = [f.verts];
+  for (const other of bodies) {
+    if (other === body) continue;
+    for (const g of other.faces) {
+      if (f.n[0] * g.n[0] + f.n[1] * g.n[1] + f.n[2] * g.n[2] > -1 + HOLE_EPS) continue;
+      const p = g.verts[0]!;
+      const q = f.verts[0]!;
+      if (Math.abs(f.n[0] * (p[0] - q[0]) + f.n[1] * (p[1] - q[1]) + f.n[2] * (p[2] - q[2])) > HOLE_EPS) continue;
+      pieces = pieces.flatMap((piece) => minusCover(piece, f.n, g.verts));
+    }
+  }
+  if (pieces.length === 1 && pieces[0] === f.verts) return [f];
+  return pieces.map((verts) => ({ ...f, verts }));
 }
 
 /**
@@ -364,6 +399,14 @@ export function faceTriangles(f: BodyFace, holes: readonly Hole[]): V3[][] {
   return pieces.flatMap(fan);
 }
 
+/** One hole-mesh vertex: position (centred), world normal, UV from the facet's plan (holeMesh's emit). */
+interface WallSink { out: { pos: number[]; nor: number[]; uv: number[] }; plan: FacePlan; extents: [number, number, number]; ou: number; ov: number }
+function putWall({ out, plan, extents, ou, ov }: WallSink, q: V3, nw: V3): void {
+  out.pos.push(q[0] - extents[0] / 2, q[1] - extents[1] / 2, q[2] - extents[2] / 2);
+  out.nor.push(nw[0], nw[1], nw[2]);
+  out.uv.push(q[plan.axes[0]]! / plan.tileInches[0] + (plan.fit[0] ? 0 : ou), q[plan.axes[1]]! / plan.tileInches[1] + (plan.fit[1] ? 0 : ov));
+}
+
 /**
  * One hole's wall and (blind) bottom (holes spec §3.2): the wall's HOLE_SEGMENTS quads between the entry ring and the
  * far ring, each clipped to every body (so a seam splits it and a faulted hole's wall stops at the stock); the bottom
@@ -399,16 +442,12 @@ export function holeMesh(board: Board, h: Hole, bodies: readonly Body[]): { posi
     const material = axis * 2 + (fw[axis]! > 0 ? 0 : 1);
     const plan = plans[material]!;
     const out = byMaterial[material]!;
-    const put = (q: V3, nw: V3) => {
-      out.pos.push(q[0] - extents[0] / 2, q[1] - extents[1] / 2, q[2] - extents[2] / 2);
-      out.nor.push(nw[0], nw[1], nw[2]);
-      out.uv.push(q[plan.axes[0]]! / plan.tileInches[0] + (plan.fit[0] ? 0 : ou), q[plan.axes[1]]! / plan.tileInches[1] + (plan.fit[1] ? 0 : ov));
-    };
+    const at = { out, plan, extents, ou, ov };
     for (let i = 1; i + 1 < ws.length; i += 1) {
       const d = facing(ws[0]!, ws[i]!, ws[i + 1]!, fw);
       if (d === null) continue;
-      put(ws[0]!, ns[0]!);
-      if (d < 0) { put(ws[i + 1]!, ns[i + 1]!); put(ws[i]!, ns[i]!); } else { put(ws[i]!, ns[i]!); put(ws[i + 1]!, ns[i + 1]!); }
+      putWall(at, ws[0]!, ns[0]!);
+      if (d < 0) { putWall(at, ws[i + 1]!, ns[i + 1]!); putWall(at, ws[i]!, ns[i]!); } else { putWall(at, ws[i]!, ns[i]!); putWall(at, ws[i + 1]!, ns[i + 1]!); }
     }
   };
   const wallNormals = new Map<V3, V3>();
