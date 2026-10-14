@@ -171,4 +171,12 @@ describe('the Hinge cup preset (spec §7)', () => {
       station: 3, count: 1, pitch: 0, acrossFrom: 'min', inset: mm(22.5),
     });
   });
+  it('on a part wider than long it runs along the width (the longer non-face dimension), the shelf-pin convention', () => {
+    const wide = createBoard({ length: 15, width: 20, thickness: 0.75 });
+    expect(defaultHingeCup(wide)).toEqual({
+      face: 'thickness', from: 'max', diameter: mm(35), depth: 0.5, along: 'width', alongFrom: 'min',
+      station: 3, count: 1, pitch: 0, acrossFrom: 'min', inset: mm(22.5),
+    });
+    expect(defaultHingeCup(wide).along).toBe(defaultShelfPinRow(wide)!.along);
+  });
 });

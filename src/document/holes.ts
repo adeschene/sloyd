@@ -85,7 +85,8 @@ export function defaultShelfPinRow(b: Board): Omit<HoleRow, 'id'> | null {
 }
 
 /** "Hinge cup" (spec §7): a 35 mm Forstner cup, 1/2" deep, in the broad face, 3" from the min end of the longer side,
- *  22.5 mm in from the min side (the common cup-hinge spec puts the cup's edge 3–6 mm from the door edge). */
+ *  22.5 mm in from the min side (the common cup-hinge spec puts the cup's edge 3–6 mm from the door edge).
+ *  Orientation follows the shelf-pin convention: along the LONGER non-face dimension, whichever of length/width that is. */
 export function defaultHingeCup(b: Board): Omit<HoleRow, 'id'> {
   const face = broadFace(b);
   const [along] = othersOf(b, face);
