@@ -5457,11 +5457,11 @@ holes Task 10 review judged it to carry the same latent pattern (a caller-refuse
 refused value showing while the stored value is unchanged) — inferred from the code, not checked live. Adopting R7 there
 is a small change. **Status:** open.
 
-**340. The hole perf guard is wall-clock (Task 11b, final review).** `holesPerf.test.ts` bounds medians of 7 runs (≤40 ms
+**340. The hole perf guard is wall-clock (Task 11b, final review).** `holesPerf.test.ts` bounds runs (≤40 ms
 healthy, ≤100 ms faulted). On 2026-10-14 it failed 1 of 4 isolated runs at a load average of 5.4, then passed 3/3 (the
 round's runs passed 3/3 on a quiet box); run `npm test` on a quiet machine before trusting a red. The faulted bound has
 only ~1.4× margin over the revert it guards (about 135–140 ms reverted); the memo gate checks freezing of `h.centre`
-only (Hole's one nested field today — a new nested field must join it). **Status:** record-only.
+only (Hole's one nested field today — a new nested field must join it). The guard now times the minimum of 9 runs (R19): load can only inflate a run, so the minimum is load-robust. **Status:** record-only.
 
 **341. Holes geometry and model minors (record-only; task reviews 1, 3, 5, 6).** (1) The drop-malformed test lacks cases for
 a negative station/inset, a non-finite pitch/diameter, a bad `from`/`alongFrom`, a non-array `holes`; `holes.test.ts`

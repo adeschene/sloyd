@@ -14,6 +14,9 @@ import { bodyMesh, holesMesh } from './grainTiling';
  * The clean-hole wall path (ruling R15) is pinned deterministically, not here: grainTiling.test.ts' "per hole: one
  * quad per facet (no seam split, nothing doubled)…" counts 96 wall triangles where the clipped path draws 192.
  *
+ * Each case times the MINIMUM of 9 runs, not the median (ruling R19): machine load can only inflate a run, never
+ * deflate it, so the minimum is load-robust while a real regression raises every run and so the minimum too.
+ *
  * Each run reads the part through partGeometry with a fresh geometry key (the length moves by a micro-inch), exactly
  * as a drag frame does: new, frozen bodies and holes, so nothing is reused from the run before. bodyMesh gets the part's
  * bodies and holesMesh (every hole's holeMesh, merged) the board's stockChecks, as BoardMesh passes them.
@@ -42,20 +45,19 @@ function rebuild(cuts: Board['cuts']): number {
   return performance.now() - start;
 }
 
-function medianOf7(cuts: Board['cuts']): number {
+function minOf9(cuts: Board['cuts']): number {
   for (let i = 0; i < 3; i += 1) rebuild(cuts);
-  const ts = Array.from({ length: 7 }, () => rebuild(cuts)).sort((a, b) => a - b);
-  return ts[3]!;
+  return Math.min(...Array.from({ length: 9 }, () => rebuild(cuts)));
 }
 
 describe('a holed part rebuilds inside a frame (Task 11b)', () => {
-  it('two shelf-pin rows (42 holes): median of 7 full rebuilds is at most 40 ms', () => {
-    expect(medianOf7([])).toBeLessThanOrEqual(40);
+  it('two shelf-pin rows (42 holes): minimum of 9 full rebuilds is at most 40 ms', () => {
+    expect(minOf9([])).toBeLessThanOrEqual(40);
   });
-  it('the same rows and a dado clear of the pins: median of 7 full rebuilds is at most 40 ms', () => {
-    expect(medianOf7([dado])).toBeLessThanOrEqual(40);
+  it('the same rows and a dado clear of the pins: minimum of 9 full rebuilds is at most 40 ms', () => {
+    expect(minOf9([dado])).toBeLessThanOrEqual(40);
   });
-  it('the same rows and a dado they cross (faulted): median of 7 full rebuilds is at most 100 ms', () => {
-    expect(medianOf7([crossingDado])).toBeLessThanOrEqual(100);
+  it('the same rows and a dado they cross (faulted): minimum of 9 full rebuilds is at most 100 ms', () => {
+    expect(minOf9([crossingDado])).toBeLessThanOrEqual(100);
   });
 });
