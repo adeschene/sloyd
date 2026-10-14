@@ -125,3 +125,7 @@ describe('uses, pruning and upserts', () => {
     expect(sameMaterial(ash, { ...ash, nominal: true })).toBe(false);
   });
 });
+
+it('pine is the one nominal built-in', () => {
+  expect(builtInCatalog().ids.filter((id) => builtInCatalog().get(id)!.nominal)).toEqual(['pine']);
+});

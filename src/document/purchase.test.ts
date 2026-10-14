@@ -1,6 +1,7 @@
 import { createBoard, createDocument, buildCutList } from './document';
 import type { Board, FlatDocument } from './types';
 import { buildPurchase, defaultBuying, defaultShop, validateShop, type MaterialBuying, type ShopSettings, type StockBoard } from './purchase';
+import { nominalName } from '../units/nominal';
 
 const size = (id: string, thickness: number, width: number, length: number, price: number | null): StockBoard =>
   ({ id, thickness, width, length, price });
@@ -248,5 +249,25 @@ describe('custom materials in the shop (custom materials spec §2.5, amended)', 
     const p = buildPurchase(d, buildCutList(d), defaultShop());
     expect(p.entries[0]!.label).toBe('Ash');
     expect(p.entries[0]!.mode).toBe('board-foot');
+  });
+});
+
+describe('nominal default stock (custom materials spec §5.4)', () => {
+  it('a nominal custom solid defaults to dimensional lumber by the piece, no prices', () => {
+    const b = defaultBuying('m-s-spf1', true);
+    expect(b.mode).toBe('piece');
+    const names = (b as Extract<typeof b, { mode: 'piece' }>).stock.map((s) => `${nominalName(s.thickness, s.width)} ${s.length}`);
+    expect(names).toEqual([
+      ...['1×2', '1×3', '1×4', '1×6', '1×8', '1×10', '1×12'].map((n) => `${n} 96`),
+      ...['2×2', '2×3', '2×4', '2×6', '2×8', '2×10', '2×12'].flatMap((n) => [96, 120, 144].map((l) => `${n} ${l}`)),
+      '4×4 96',
+    ]);
+    expect((b as Extract<typeof b, { mode: 'piece' }>).stock.every((s) => s.price === null)).toBe(true);
+    expect(new Set((b as Extract<typeof b, { mode: 'piece' }>).stock.map((s) => s.id)).size).toBe(29);
+  });
+  it('the flag changes nothing for pine, sheets or a non-nominal solid', () => {
+    expect(defaultBuying('pine', true)).toEqual(defaultBuying('pine'));
+    expect(defaultBuying('m-v-bb55', true)).toEqual({ mode: 'sheet', pricePerSheet: null });
+    expect(defaultBuying('m-s-ash1')).toEqual({ mode: 'board-foot', pricePerBoardFoot: null, wasteFactor: 1.3 });
   });
 });

@@ -91,7 +91,7 @@ export function sameMaterial(a: CustomMaterial, b: CustomMaterial): boolean {
 
 const builtInInfo = (id: string): MaterialInfo => {
   const m = MATERIALS[id]!;
-  return { id, label: m.label, color: m.color, kind: materialKind(id), nominal: false, ...(m.sheet ? { sheet: m.sheet } : {}), builtIn: true };
+  return { id, label: m.label, color: m.color, kind: materialKind(id), nominal: m.nominal === true, ...(m.sheet ? { sheet: m.sheet } : {}), builtIn: true };
 };
 const customInfo = (m: CustomMaterial): MaterialInfo => ({
   id: m.id, label: m.label, color: m.color, kind: m.kind, nominal: m.nominal === true, builtIn: false,
