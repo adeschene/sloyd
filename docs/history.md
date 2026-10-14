@@ -18,6 +18,12 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-14 with AI angles chunk 2 live** (`index-D6x3XODA.js`, CSS `index-S14NxOeA.css`
+unchanged, merge `a4914f1`, **schema 14**). Verified: `200` on `/` and a deep route in-network and at the edge; bundle matches
+`dist/` at both; `index-DQwrQ8u9.js` 404s in-network; CSP unchanged; a real-browser load with 0 errors, the Cloudflare beacon
+and "+ Add board" present; the load's two fresh keys (`version: 14`) cleared and read back empty after 3s, then navigated
+away. Checked on the dev server with two paid runs (`docs/browser-verification-ai-angles.md`, "Chunk 2").
+
 **Production matches `master` as of 2026-10-13 with AI angles chunk 1 live** (`index-DQwrQ8u9.js`, CSS `index-S14NxOeA.css`
 unchanged, merge `be4c87c`, **schema 14**). Verified: `200` on `/` and a deep route in-network and at the edge; bundle matches
 `dist/` at both; `index-CUVCRzP9.js` 404s in-network; CSP unchanged; a real-browser load with 0 errors, the Cloudflare beacon
@@ -442,7 +448,7 @@ hand-made miter or bevel after a resize (fixed: any stored run is the same plane
 a face (fixed: keyed by face and long point); a false "no wood" for two miters (fixed: the pair check removed — two miters
 always leave wood at their shared long-point corner); and the prompt's mitered box on a thin bottom tripped chunk 1's joint
 rule at the rabbet — the user ruled a miter on the rabbeted part passes. Minors as fu 323. Test count 3501 -> 3568. No
-schema change (SCHEMA 14). Merged to master as `a4914f1`; not deployed.
+schema change (SCHEMA 14). Merged to master as `a4914f1`; deployed 2026-10-14 (`index-D6x3XODA.js`).
 
 **What AI angles chunk 1 did (2026-10-13, fu 276/277's remainder, fu 307)** (spec
 `docs/superpowers/specs/2026-10-13-sloyd-ai-angles-design.md`, plan `docs/superpowers/plans/2026-10-13-sloyd-ai-angles-chunk1.md`).
