@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {
-  axisDimensions, axisFrame, boardExtents, DIMENSION_ORDER, fromWorldOffset, pocketCells, createBoard, solidWorldBox, wholeBoard,
+  axisDimensions, axisFrame, boardExtents, DIMENSION_ORDER, fromWorldOffset, holeInStock, pocketCells, createBoard, solidWorldBox, wholeBoard,
 } from '../document/document';
 import type { Region } from '../document/document';
 import { chiralAngled, chiralPart, turnedAbout } from '../document/turnFixtures';
@@ -893,6 +893,40 @@ describe('seams inside a holed part are not drawn (ruling R11)', () => {
     }
     const far = bodies.find((b) => b.box!.length[0] >= 10.75)!;          // beyond the dado: no pin reaches it
     same(bodyMesh(cabinetSide, far, holes, bodies), bodyMesh(cabinetSide, far, holes));
+  });
+});
+
+describe('a clean hole draws its wall whole across a seam (ruling R15)', () => {
+  // cabinetSide's pins are clean (holeInStock) and cross the seam at thickness 1/2 between two bodies.
+  const bodies = boardBodies(cabinetSide);
+  const holes = boardHoles(cabinetSide);
+  const n = HOLE_SEGMENTS;
+  const drill = axisFrame(cabinetSide).findIndex((a) => a.dim === 'thickness');
+  it('every pin is clean and crosses the seam', () => {
+    for (const h of holes) {
+      expect(holeInStock(cabinetSide, h)).toBe(true);
+      expect(h.centre[2] - h.depth).toBeLessThan(0.5);
+    }
+  });
+  it('per hole: one quad per facet (no seam split, nothing doubled), wall area 48 x facet x depth, bottom the 48-gon', () => {
+    const facet = 2 * 0.125 * Math.sin(Math.PI / n);                    // r = 1/8
+    const ngon = (n / 2) * 0.125 ** 2 * Math.sin((2 * Math.PI) / n);
+    for (const h of holes) {
+      const m = holeMesh(cabinetSide, h, bodies);
+      let wall = 0; let bottom = 0; let wallTris = 0; let bottomTris = 0;
+      for (let t = 0; t < m.positions.length / 3; t += 3) {
+        const v = [0, 1, 2].map((j) => [0, 1, 2].map((k) => m.positions[(t + j) * 3 + k]!));
+        const e1 = [0, 1, 2].map((k) => v[1]![k]! - v[0]![k]!);
+        const e2 = [0, 1, 2].map((k) => v[2]![k]! - v[0]![k]!);
+        const area = Math.hypot(e1[1]! * e2[2]! - e1[2]! * e2[1]!, e1[2]! * e2[0]! - e1[0]! * e2[2]!, e1[0]! * e2[1]! - e1[1]! * e2[0]!) / 2;
+        // A bottom vertex's normal runs along the drill axis (thickness); the wall's lies across it.
+        if (Math.abs(m.normals[t * 3 + drill]!) > 0.999) { bottom += area; bottomTris += 1; } else { wall += area; wallTris += 1; }
+      }
+      expect(wallTris).toBe(2 * n);
+      expect(bottomTris).toBe(n - 2);
+      expect(wall).toBeCloseTo(n * facet * h.depth, 5);
+      expect(bottom).toBeCloseTo(ngon, 5);
+    }
   });
 });
 

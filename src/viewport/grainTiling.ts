@@ -1,7 +1,7 @@
 import { ShapeUtils, Vector2 } from 'three';
 import {
   angleCutValues, axialOffset, axisFrame, boardExtents, bodyPlanes, clipPlan, clipPolygon, CUT_GEOMETRY_KEYS, DIMENSION_ORDER,
-  HOLE_EPS, holePrism, holeRing, holeRowValues, holeTouches, holeTouchesBox, isSheetGood, minusCover, minusPrism, ringInside, spanToWorldOffset, toWorldOffset,
+  HOLE_EPS, holeInStock, holePrism, holeRing, holeRowValues, holeTouches, holeTouchesBox, isSheetGood, minusCover, minusPrism, ringInside, spanToWorldOffset, toWorldOffset,
   wholeBoard,
 } from '../document/document';
 import type { Board, Body, BodyFace, Hole, Plane, Region, Span, V3 } from '../document/document';
@@ -409,8 +409,8 @@ function putWall({ out, plan, extents, ou, ov }: WallSink, q: V3, nw: V3): void 
 
 /**
  * One hole's wall and (blind) bottom (holes spec §3.2): the wall's HOLE_SEGMENTS quads between the entry ring and the
- * far ring, each clipped to every body (so a seam splits it and a faulted hole's wall stops at the stock); the bottom
- * ring clipped likewise. Explicit normals — radial toward the axis on the wall (smooth), back toward the mouth on the
+ * far ring, and the bottom ring. A clean hole (holeInStock) draws them whole (ruling R15); a faulted one clips each to
+ * every body, so its wall stops at the stock (and a seam splits it). Explicit normals — radial toward the axis on the wall (smooth), back toward the mouth on the
  * bottom — because BoardMesh's computeVertexNormals would facet them. Triangles wound to face along their normals
  * (the materials are FrontSide). UVs and materials as bodyMesh's sloped faces: each facet takes the plan of the world
  * axis its normal is nearest.
@@ -461,8 +461,12 @@ export function holeMesh(board: Board, h: Hole, bodies: readonly Body[]): { posi
   // Every wall quad and the bottom are made of ring vertices, so one test per body finds the planes that can change
   // them, or that nothing survives (clipPlan; Task 11b) — the same pieces as clipping by every plane. A body with no
   // such plane keeps every quad whole, so its quads are emitted from the rings' offsets and normals by index.
+  // A CLEAN hole (holeInStock: no breaks-out, off-flat or too-deep — holeFaults' own checks) lies wholly in the stock,
+  // so its wall and bottom are drawn whole, once, never split where they cross a seam between bodies (ruling R15).
   const rings = [...top, ...far];
-  const plan = planes.map((ps) => clipPlan(ps, rings)).filter((ps): ps is Plane[] => ps !== null);
+  const plan: Plane[][] = holeInStock(board, h)
+    ? [[]]
+    : planes.map((ps) => clipPlan(ps, rings)).filter((ps): ps is Plane[] => ps !== null);
   const clip = (poly: V3[], ps: Plane[]): V3[] => {
     let p = poly;
     for (const q of ps) { p = clipPolygon(p, q); if (!p.length) break; }
