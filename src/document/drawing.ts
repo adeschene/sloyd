@@ -4,6 +4,7 @@ import { partGeometry } from './bodies';
 import { worldBox } from './designCheck';
 import { axisFrame, boardExtents } from './geometry';
 import { toWorld } from './snapPoints';
+import { holeDrawingSegments } from './holeDrawing';
 
 /**
  * An orthographic view (plans-sheet spec §2.2). `toward` points from the model TO the viewer;
@@ -147,7 +148,7 @@ const corners = (bx: { min: readonly number[]; max: readonly number[] }): Vec3[]
 
 /**
  * Visible and hidden 2D segments for `parts` seen through `view` (spec §2). Edges from
- * `boardEdges` (invariant 16) through `toWorld`; occluders from `worldBodies` (invariant 38 as amended by angle-cuts spec §10).
+ * `boardEdges` (invariant 16) and hole lines from `holeDrawingSegments` (holes spec §3.4), through `toWorld`; occluders from `worldBodies` (invariant 38 as amended by angle-cuts spec §10).
  * No drawing order is involved, so cyclic overlaps are exact.
  */
 export function drawView(parts: readonly Board[], view: View, offsets?: ReadonlyMap<string, Vec3>): Drawing {
@@ -183,9 +184,15 @@ export function drawView(parts: readonly Board[], view: View, offsets?: Readonly
 
   for (const b of parts) {
     const off = offsets?.get(b.id);
-    for (const [p, q] of partGeometry(b).edges) {
-      const A = plus(toWorld(b, p), off);
-      const E = plus(toWorld(b, q), off);
+    // Board edges (invariant 16) and hole lines (holes spec §3.4): one list, one hidden-line pass, the same occluders —
+    // the hole-free bodies, so a through-bore's far rim seen down its axis is hidden (spec §3.4, pinned by test).
+    const segments: [Vec3, Vec3][] = [
+      ...partGeometry(b).edges.map(([p, q]) => [toWorld(b, p), toWorld(b, q)] as [Vec3, Vec3]),
+      ...holeDrawingSegments(b, view.toward),
+    ];
+    for (const [P0, Q0] of segments) {
+      const A = plus(P0, off);
+      const E = plus(Q0, off);
       const pa = proj(A);
       const pe = proj(E);
       const length = Math.hypot(pe[0] - pa[0], pe[1] - pa[1]);
