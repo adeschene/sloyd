@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
 import { createBoard, createDocument } from '../document/document';
+import type { Board } from '../document/document';
 import { formatLength } from '../units/length';
 import { Properties } from './Properties';
 import { assemblyDoc } from '../document/treeFixtures';
@@ -980,7 +981,7 @@ describe('Properties with two or more parts selected', () => {
     useStore.getState().updateBoard(b, { grain: 'width' });
     render(<Properties />);
     expect((screen.getByLabelText('Grain runs') as HTMLSelectElement).value).toBe('');
-    expect(screen.getByRole('option', { name: 'mixed' })).toBeDisabled();
+    expect(within(screen.getByLabelText('Grain runs')).getByRole('option', { name: 'mixed' })).toBeDisabled();
   });
 
   it('treats values that DISPLAY alike but are stored differently as mixed; a typed value lands exactly on both', async () => {
@@ -1542,5 +1543,52 @@ describe('the material picker (custom materials spec §4.2)', () => {
     fireEvent.change(screen.getByRole('combobox', { name: 'Material' }), { target: { value: '__new__' } });
     expect(onNewMaterial).toHaveBeenCalledWith(['a', 'b'], 'solid');
     expect(useStore.getState().doc).toBe(doc);
+  });
+});
+
+describe('Nominal size (custom materials spec §5.3)', () => {
+  const load = (specs: Array<{ id: string; material?: string; thickness: number; width: number }>) => {
+    const boards = specs.map((s) => createBoard({ name: `P${s.id}`, length: 24, ...s }));
+    useStore.getState().replaceDocument({ ...createDocument('T'), boards });
+  };
+  it('shows only when every selected part is a nominal material, reading the current name', () => {
+    load([{ id: 'a', material: 'pine', thickness: 0.75, width: 3.5 }]);
+    useStore.getState().selectBoard('a');
+    render(<Properties />);
+    expect(screen.getByRole('combobox', { name: 'Nominal size' })).toHaveValue('1×4');
+    act(() => useStore.getState().updateBoard('a', { material: 'oak' }));
+    expect(screen.queryByRole('combobox', { name: 'Nominal size' })).toBeNull();
+  });
+  it('reads Custom for a non-section size, and choosing Custom changes nothing', () => {
+    load([{ id: 'a', material: 'pine', thickness: 0.75, width: 3 }]);
+    useStore.getState().selectBoard('a');
+    render(<Properties />);
+    const sel = screen.getByRole('combobox', { name: 'Nominal size' });
+    expect(sel).toHaveValue('custom');
+    const doc = useStore.getState().doc;
+    fireEvent.change(sel, { target: { value: 'custom' } });
+    expect(useStore.getState().doc).toBe(doc);
+  });
+  it('keeps a part stored thicker-than-wide the same way round (spec §5.3, amended)', () => {
+    load([{ id: 'a', material: 'pine', thickness: 3.5, width: 0.75 }]);
+    useStore.getState().selectBoard('a');
+    render(<Properties />);
+    const sel = screen.getByRole('combobox', { name: 'Nominal size' });
+    expect(sel).toHaveValue('1×4');
+    fireEvent.change(sel, { target: { value: '2×6' } });
+    const b = useStore.getState().doc.boards[0] as Board;
+    expect([b.thickness, b.width]).toEqual([5.5, 1.5]);
+  });
+  it('a mixed selection reads mixed; choosing 2×4 sets every part in ONE undo entry', () => {
+    load([{ id: 'a', material: 'pine', thickness: 0.75, width: 3.5 }, { id: 'b', material: 'pine', thickness: 0.75, width: 5.5 }]);
+    useStore.getState().selectAll();
+    render(<Properties />);
+    const sel = screen.getByRole('combobox', { name: 'Nominal size' });
+    expect(sel).toHaveValue('');
+    const n = useStore.getState().past.length;
+    fireEvent.change(sel, { target: { value: '2×4' } });
+    const parts = useStore.getState().doc.boards as Board[];
+    expect(parts.map((b) => [b.thickness, b.width])).toEqual([[1.5, 3.5], [1.5, 3.5]]);
+    expect(useStore.getState().past.length).toBe(n + 1);
   });
 });

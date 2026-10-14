@@ -5,6 +5,7 @@ import { DimensionField } from './DimensionField';
 import { NameField } from './NameField';
 import { ActionBar, COPY_IN_ROW } from './ActionBar';
 import { formatLength } from '../units/length';
+import { NOMINAL_SECTIONS, nominalName } from '../units/nominal';
 import { AngleCuts } from './AngleCuts';
 import type { CustomMaterial, MaterialKind, Rotation, Posture, Grain, Board, Cut, Dimension, Region } from '../document/document';
 
@@ -328,6 +329,36 @@ function shared<T>(boards: Board[], read: (b: Board) => T): T | null {
 const NEW_MATERIAL = '__new__';
 type NewMaterialHandler = (ids: string[], kind: MaterialKind) => void;
 
+/**
+ * The Nominal size select (custom materials spec §5.3): only when every part's material is sold in nominal sizes.
+ * Shows the shared section, `Custom`, or `mixed`; choosing a section sets thickness and width in ONE edit (the
+ * normal reorient path, invariant 2). `Custom` changes nothing.
+ */
+function NominalSize({ ids, boards }: { ids: string[]; boards: Board[] }) {
+  const doc = useStore((s) => s.doc);
+  const catalog = catalogOf(doc);
+  if (boards.length === 0 || !boards.every((b) => catalog.get(b.material)?.nominal)) return null;
+  const names = new Set(boards.map((b) => nominalName(b.thickness, b.width) ?? 'custom'));
+  const value = names.size === 1 ? [...names][0]! : '';
+  return (
+    <div className="field">
+      <label htmlFor="nominal-size">Nominal size</label>
+      <select id="nominal-size" className="input" value={value} onChange={(e) => {
+        const s = NOMINAL_SECTIONS.find((x) => x.name === e.target.value);
+        if (!s) return;
+        // Keep the parts' stored order when they all share it, so a board stored thicker-than-wide does not turn
+        // over (spec §5.3, amended); a selection mixing orders takes the thinner side as thickness.
+        const reversed = boards.every((b) => b.thickness > b.width);
+        useStore.getState().updateBoards(ids, reversed ? { thickness: s.width, width: s.thickness } : { thickness: s.thickness, width: s.width });
+      }}>
+        {value === '' && <option value="" disabled>mixed</option>}
+        <option value="custom">Custom</option>
+        {NOMINAL_SECTIONS.map((s) => <option key={s.name} value={s.name}>{s.name}</option>)}
+      </select>
+    </div>
+  );
+}
+
 /** The Material select (custom materials spec §4.2): built-ins, this project's, the library's (one label each), New material…. */
 function MaterialSelect({ ids, value, library, onNewMaterial }: {
   ids: string[]; value: string | null; library: CustomMaterial[]; onNewMaterial?: NewMaterialHandler;
@@ -426,6 +457,7 @@ function GroupProperties({ library, onNewMaterial }: { library: CustomMaterial[]
       <DimensionField label="Thickness" precision={precision} value={shared(boards, (b) => b.thickness)}
         onCommit={(v) => set({ thickness: v })} />
       </div>
+      <NominalSize ids={selectedIds} boards={boards} />
 
       <h3>Stock</h3>
       <div className="field-grid field-grid-2">
@@ -605,6 +637,7 @@ export function Properties({ library = [], onNewMaterial }: { library?: CustomMa
       <DimensionField label="Thickness" precision={precision} value={board.thickness}
         onCommit={(v) => updateBoard(board.id, { thickness: v })} />
       </div>
+      <NominalSize ids={[board.id]} boards={[board]} />
 
       <h3>Position</h3>
       <div className="field-grid field-grid-3">
