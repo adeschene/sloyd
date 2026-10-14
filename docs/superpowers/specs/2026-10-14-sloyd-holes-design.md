@@ -292,7 +292,7 @@ Versioning row: `15→16 · holes (default [], malformed entry dropped) · docum
   |---|---|---|
   | Hole | 1 | ¼" dia, ½" deep (through if the face dimension is ½" or less), centred on a broad face, entering from max |
   | Shelf-pin row | 1 | ¼" dia × ⅜" deep in a broad face, along the length from the min end: first at 2", every 32 mm, as many as fit with the last at least 2" from the far end; 1½" in from the width min side |
-  | Hinge cup | 2 | 35 mm dia × ½" deep in a broad face, 3" from the length min end, 22.5 mm in from the width min side |
+  | Hinge cup | 2 | 35 mm dia × ½" deep in a broad face, 3" from the min end of its longer side, 22.5 mm in from the other side's min edge (*amended, the user's ruling 2026-10-14*: on a part wider than long the cup runs along the width, as shelf pins do; was "3" from the length min end, 22.5 mm in from the width min side") |
 
 - **One row type** (count 1 is a hole). Controls: Face + side · Diameter · Depth with a **Through** checkbox · Along
   (the two non-face dimensions) + from which end · First at · Count · Every (disabled at count 1) · In from + which side.

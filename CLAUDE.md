@@ -29,8 +29,8 @@ handicraft education tradition built around hand woodworking.
   grouping; Properties' Holes section (Hole, Shelf-pin row); joinery/Refine/Repair refuse holed projects. **Chunk 2**
   (fu 327, closed): rims and dashed depth lines on the Plans sheet (`holeDrawing.ts`), part-diagram ellipses, centre marks,
   dashed sides and bench-line notes, the Hinge cup preset. Open near it: 328–342 (336: the wall-grain seam, deferred by the
-  user to a texture/shader session; 337: real-hardware looks owed), 343 (Hinge cup orientation on a part wider than long:
-  R5, for the user's ruling), 344–346.
+  user to a texture/shader session; 337: real-hardware looks owed), 344–346 (343 closed: the user kept the Hinge cup on the
+  longer side).
 - **NEXT: none chosen — ask the user.** Custom materials (fu 266) closed; open near it 324–326. Other open items:
   314–320, angle-cut residue 295–298; 241 (open by decision), 251 (record-only), 221, 225, 232, 234, 247.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
@@ -815,7 +815,7 @@ knowing without opening it:
   session), 337 (real-hardware looks owed: rims, drag smoothness, faded holed parts, overlapping holes), 338 (count-1 rows
   compare `pitch`, for the user), 339 (AngleCuts adopting the refusal message), 340 (the perf guard is wall-clock), 341–342
   (record-only minors).
-- **343–346** — holes chunk 2 residue: 343 (Hinge cup along the LONGER in-face dimension, R5 — the user's ruling owed), 344
+- **343–346** — holes chunk 2 residue: 343 (Hinge cup along the LONGER in-face dimension, R5) closed — the user kept it; 344
   (the exploded view computes hidden hole lines it never draws; ties to 263's slider lag), 345 (dash look of chained paths
   and corner joins on a real print, for the user's eye; fu 254), 346 (record-only minors).
 - **176/177** — the held rules' known limits (mutual lapping) and an unseen live repair.

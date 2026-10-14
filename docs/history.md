@@ -501,9 +501,9 @@ survived), the bottom line's position untested and the records unwritten. R4, on
 sx ≠ sy part; the bottom line's coordinates pinned (one `v`, one `h` case); hole notes keyed by row (`{row, text}`, the
 old `key={line}` could collide on identical lines); a FRONT `drawView` through-hole test; `pathOf` chains only within ONE
 part (`Seg2.part`: coincident points of different parts no longer join); the Hinge cup label written with ½".
-**R5 (provisional, for the user):** the Hinge cup runs along the LONGER of the face's two dimensions (the shelf-pin
-convention) — spec §7's "length min end" assumed length is the longer, as on any door; pinned by a test with width > length.
-If the user rules otherwise, a part wider than long would take its cup 3" from the width end instead (fu 343).
+**R5:** the Hinge cup runs along the LONGER of the face's two dimensions (the shelf-pin convention) — spec §7's "length
+min end" assumed length is the longer, as on any door; pinned by a test with width > length, where the cup sits 3" from the
+width end. **The user's ruling (2026-10-14): keep the cup on the longer side** (fu 343 closed; spec §7 amended).
 **R6:** in FRONT the through-bore's edge-on rims lie in the top and bottom face planes set back from the front face; the
 view ray grazes the stock, so they are correctly HIDDEN, drawn beneath the coincident visible edges — the fix brief's
 "visible" was wrong and the implementer pinned the actual behaviour (no visible difference). Re-review: all seven items

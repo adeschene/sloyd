@@ -5494,8 +5494,8 @@ a test comment overstates "no silent commit"; one row can hold two `role="alert"
 **343. The Hinge cup on a part wider than long (ruling R5).** `defaultHingeCup` runs the cup along the LONGER of the broad
 face's two dimensions (the shelf-pin convention), 3" from its min end, 22.5 mm in from the other's min side. Spec §7's "3"
 from the length min end" assumed length is the longer, as on any door; on a part stored wider than long the two readings
-differ (the cup goes 3" from the width end). Pinned by a test with width > length. **Status:** open — pending the user's
-ruling (provisional R5 ships).
+differ (the cup goes 3" from the width end). Pinned by a test with width > length. **Status:** closed 2026-10-14 — the
+user's ruling: keep the cup on the longer side (R5 stands; spec §7 amended).
 
 **344. The exploded view's hidden hole work (ties to fu 263).** `drawView` computes every hole's silhouettes and blind
 bottom rims and runs them through the hidden-line pass even in the exploded view, which draws no hidden lines: ~8k
