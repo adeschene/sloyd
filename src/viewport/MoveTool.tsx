@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { itemKey, sameSnapPoint, worldParts } from '../document/document';
+import { itemKey, sameSnapPoint, worldParts, keptBySection } from '../document/document';
 import type { BoardSnapPoint, SnapPoint } from '../document/document';
 import { useStore } from '../store/store';
 import { moveCandidates } from './moveCandidates';
@@ -49,6 +49,7 @@ export function MoveTool({ showGuides = true, hidden = false }: { showGuides?: b
   const grabbed = useStore((s) => s.grabbed);
   const selectedIds = useStore((s) => s.selectedIds);
   const hiddenIds = useStore((s) => s.hiddenIds);
+  const section = useStore((s) => s.section);
 
   const gl = useThree((s) => s.gl);
   const camera = useThree((s) => s.camera);
@@ -83,8 +84,10 @@ export function MoveTool({ showGuides = true, hidden = false }: { showGuides?: b
   // Built only while Move is the tool: the handlers below are attached only then, and a gizmo
   // drag under Select changes `boards` every frame (angle-cuts final review).
   const candidates = useMemo(
-    () => tool !== 'move' ? [] : moveCandidates(boards, guides, selectedIds, hiddenIds, grabbing, showGuides, keyOf),
-    [tool, boards, guides, selectedIds, hiddenIds, grabbing, showGuides, keyOf],
+    // A point on the section's removed side is not drawn, so it is not a candidate (invariant 51).
+    () => tool !== 'move' ? [] : moveCandidates(boards, guides, selectedIds, hiddenIds, grabbing, showGuides, keyOf)
+      .filter((p) => keptBySection(section, p.at)),
+    [tool, boards, guides, selectedIds, hiddenIds, grabbing, showGuides, keyOf, section],
   );
 
   useEffect(() => {
