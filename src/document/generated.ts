@@ -51,7 +51,8 @@ const vec3Schema = {
   additionalProperties: false,
 };
 
-const dirSchema = { type: 'string', enum: [...DIRS] };
+/** A world direction: defined ONCE in `$defs` and referenced (see DESIGN_SCHEMA). */
+const dirSchema = { $ref: '#/$defs/dir' };
 /** One taper in world words (AI-tapers spec §2): the faces that slope, the end that gets thinner, where it starts
  *  (from that end) and how much it removes there. Counts and duplicates are the converter's to check. */
 const taperSchema = {
@@ -99,18 +100,25 @@ const partSchema = {
   additionalProperties: false,
 };
 
+/**
+ * The part and the direction are defined ONCE, in `$defs`, and referenced: the API compiles the schema into a grammar
+ * and refuses one that grows too large (400 "The compiled grammar is too large"). Measured 2026-10-14 with the miter,
+ * bevel and chamfer arrays: written out inline (the part twice, loose and in assemblies) it was refused; with `$defs`
+ * it compiled. A new part field or enum costs once here, not twice.
+ */
 export const DESIGN_SCHEMA: Record<string, unknown> = {
+  $defs: { dir: { type: 'string', enum: [...DIRS] }, part: partSchema },
   type: 'object',
   properties: {
     name: { type: 'string' },
-    parts: { type: 'array', items: partSchema },
+    parts: { type: 'array', items: { $ref: '#/$defs/part' } },
     assemblies: {
       type: 'array',
       items: {
         type: 'object',
         properties: {
           name: { type: 'string' },
-          parts: { type: 'array', items: partSchema },
+          parts: { type: 'array', items: { $ref: '#/$defs/part' } },
           placements: {
             type: 'array',
             items: {
