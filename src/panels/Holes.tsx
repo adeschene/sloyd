@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../store/store';
-import { acrossOf, mm, defaultHole, defaultShelfPinRow, holeFaults } from '../document/document';
+import { acrossOf, mm, defaultHole, defaultShelfPinRow, defaultHingeCup, holeFaults } from '../document/document';
 import type { Board, CutFrom, Dimension, HoleFault, HoleRow } from '../document/document';
 import { distinctFaults, edgeName, endWord as end, faultKey as key, holeFaultText, holeLine } from '../document/holeText';
 import { DimensionField } from './DimensionField';
@@ -132,9 +132,11 @@ export function Holes({ board, precision }: { board: Board; precision: number })
   };
   const hole = defaultHole(board);
   const pins = defaultShelfPinRow(board);
+  const cup = defaultHingeCup(board);
   const items = [
     ...(fits(hole) ? [{ label: 'Hole', detail: 'One bore, centred on the broad face', run: () => addHoleRows(board.id, [hole]) }] : []),
     ...(fits(pins) ? [{ label: 'Shelf-pin row', detail: `¼" pins every 32 mm along the ${pins.along}`, run: () => addHoleRows(board.id, [pins]) }] : []),
+    ...(fits(cup) ? [{ label: 'Hinge cup', detail: '35 mm cup, 1/2" deep, 22.5 mm in from the edge', run: () => addHoleRows(board.id, [cup]) }] : []),
   ];
   return (
     <>

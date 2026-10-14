@@ -84,6 +84,17 @@ export function defaultShelfPinRow(b: Board): Omit<HoleRow, 'id'> | null {
   };
 }
 
+/** "Hinge cup" (spec §7): a 35 mm Forstner cup, 1/2" deep, in the broad face, 3" from the min end of the longer side,
+ *  22.5 mm in from the min side (the common cup-hinge spec puts the cup's edge 3–6 mm from the door edge). */
+export function defaultHingeCup(b: Board): Omit<HoleRow, 'id'> {
+  const face = broadFace(b);
+  const [along] = othersOf(b, face);
+  return {
+    face, from: 'max', diameter: mm(35), depth: 0.5, along, alongFrom: 'min', station: 3, count: 1, pitch: 0,
+    acrossFrom: 'min', inset: mm(22.5),
+  };
+}
+
 /** The third dimension: neither the drill axis nor the row's direction. */
 export function acrossOf(r: Pick<HoleRow, 'face' | 'along'>): Dimension {
   return DIMENSION_ORDER.find((d) => d !== r.face && d !== r.along)!;

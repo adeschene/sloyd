@@ -113,6 +113,19 @@ describe('the Holes section', () => {
     await user.clear(every); await user.type(every, '30mm{Enter}');     // 21 holes at 30 mm: last centre 25.6" on 30"
     expect(rows()[0]!.pitch).toBe(30 / 25.4);
   });
+  it('adds a hinge cup; its line prints the millimetres', async () => {
+    const user = userEvent.setup();
+    open(side({ length: 20, width: 15 }));
+    await add(user, 'Hinge cup');
+    expect(rows()[0]).toMatchObject({ diameter: 35 / 25.4, depth: 0.5, station: 3, count: 1 });
+    expect(screen.getByText(/^Hole 1-3\/8" \(35 mm\) dia × 1\/2" deep/)).toBeInTheDocument();
+  });
+  it('withholds the hinge cup on stock too thin for a 1/2" cup', async () => {
+    const user = userEvent.setup();
+    open(side({ length: 20, width: 15, thickness: 0.5 }));
+    await user.click(screen.getByRole('button', { name: '+ Add hole' }));
+    expect(screen.queryByRole('button', { name: 'Hinge cup' })).toBeNull();
+  });
   it('withholds a preset that would fault on this part', async () => {
     const user = userEvent.setup();
     open(side({ length: 3, width: 3 }));
