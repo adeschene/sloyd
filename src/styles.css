@@ -1306,6 +1306,7 @@ select.input { cursor: pointer; }
   .cutlist-group h3,
   .cutlist-qty,
   .cutlist-names,
+  .cutlist-nominal,
   .cutlist-stock,
   .cutlist-subtotal-label,
   /* The empty-sheet line belongs here too: --ink-faint is grey chosen against
