@@ -3,7 +3,7 @@ import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import {
   boardCenter, boardExtents, partGeometry, pointToLocalXYZ,
-  solidWorldBox, wholeBoard, MATERIALS, DEFAULT_MATERIAL,
+  solidWorldBox, wholeBoard,
 } from '../document/document';
 import type { Board } from '../document/document';
 import { faceGrainKinds, grainFamily } from './grainFaces';
@@ -80,15 +80,16 @@ interface Props {
    * rather than the one they moved.
    */
   selectable: boolean;
+  /** The material's colour, from the document's catalog (custom materials spec §3) — Viewport reads it. */
+  color: string;
 }
 
-export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable, offset }: Props) {
+export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable, offset, color }: Props) {
   // Geometry is derived from the document on every render — the mesh is never
   // the source of truth. Extents already account for rotation and posture,
   // so the mesh itself is axis-aligned and never carries a rotation.
   const extents = boardExtents(board);
   const center = boardCenter(board);
-  const color = (MATERIALS[board.material] ?? MATERIALS[DEFAULT_MATERIAL]).color;
   const edgeColor = useMemo(
     () => new THREE.Color(color).multiplyScalar(EDGE_DARKEN),
     [color],

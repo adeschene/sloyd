@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store/store';
-import { buildCutList, flatDocument, sheetStockOf } from '../document/document';
+import { buildCutList, flatDocument } from '../document/document';
 import { PartDiagram } from './PartDiagram';
 import { SheetLayout } from './SheetLayout';
 import { buildPurchase, defaultShop, type ShopSettings } from '../document/purchase';
@@ -154,7 +154,7 @@ export function CutList({ onClose, shop = DEFAULT_SHOP, onOpenPrices, suspended 
                 <span className="cutlist-stock">{group.stock}</span>
               </p>
               {layouts && group.nesting && group.nesting.sheets.length > 0 && (
-                <SheetLayout nesting={group.nesting} stock={sheetStockOf(group.material)!} />
+                <SheetLayout nesting={group.nesting} stock={group.sheet!} />
               )}
             </section>
           ))

@@ -44,3 +44,14 @@ describe('grainFamily', () => {
     expect(grainFamily('purpleheart')).toBe('wood');
   });
 });
+
+describe('grainFamily by kind', () => {
+  it('reads the family off the kind (custom materials spec §3)', () => {
+    expect(grainFamily('oak')).toBe('wood');
+    expect(grainFamily('plywood')).toBe('plywood');
+    expect(grainFamily('mdf')).toBe('mdf');
+    expect(grainFamily('m-s-ash1')).toBe('wood');
+    expect(grainFamily('m-v-bb55')).toBe('plywood');
+    expect(grainFamily('m-p-hb48')).toBe('mdf');
+  });
+});

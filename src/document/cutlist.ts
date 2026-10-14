@@ -1,4 +1,5 @@
-import { MATERIALS, isSheetGood, sheetStockOf } from './types';
+import { isSheetGood, type SheetStock } from './types';
+import { catalogOf } from './materials';
 import type { Board, Cut, Grain, Region, FlatDocument } from './types';
 import { CUT_GEOMETRY_KEYS, pocketCells, cutShape, cutsThatRemoveStock } from './cuts';
 import type { CutShape } from './cuts';
@@ -74,7 +75,7 @@ export interface CutListRow {
 }
 
 export interface CutListGroup {
-  /** MATERIALS key. */
+  /** A built-in MATERIALS key or a custom material id. */
   material: string;
   /**
    * Exact inches — but the FIRST board's, exactly as `CutListRow`'s numbers
@@ -105,31 +106,12 @@ export interface CutListGroup {
    * buildNesting's own comment.
    */
   nesting?: Nesting;
+  /** The sheet this group nests on — present exactly when `nesting` is (custom materials spec §3). */
+  sheet?: SheetStock;
 }
 
 export interface CutList {
   groups: CutListGroup[];
-}
-
-/**
- * The `??` guards an unknown material KEY, not an unvalidated board.
- *
- * It used to claim the latter, and that claim was not survivable: `buildCutList`
- * reads `board.cuts` twice (here in `rowKey` via `cutSignature`, and again for
- * `setup`), so raw pre-v4 data throws before any fallback here could help, and
- * pre-v3 data would produce an undefined `grain` in the key rather than an
- * exception — garbage, not safety. Every path into this function runs through
- * `migrateDocument`, which is where that guarantee belongs.
- *
- * What remains is narrow and worth keeping: a Board constructed in code —
- * a test, a future creation path — can carry a material string `MATERIALS`
- * does not know (`validateBoard` would have replaced it with the default), and
- * printing the raw key beats printing `undefined` in a group heading. So: a
- * one-field fallback with a stated scope, not a totality claim the rest of the
- * function cannot honour.
- */
-function materialLabel(material: string): string {
-  return MATERIALS[material]?.label ?? material;
 }
 
 /**
@@ -284,6 +266,7 @@ function stockInchesOf(board: Board): number {
 
 export function buildCutList(doc: FlatDocument): CutList {
   const precision = doc.units.precision;
+  const catalog = catalogOf(doc);
   const groups = new Map<string, CutListGroup>();
   const rows = new Map<string, CutListRow>();
   // Boards per group, kept beside the groups rather than on them: nesting
@@ -298,7 +281,7 @@ export function buildCutList(doc: FlatDocument): CutList {
       group = {
         material: board.material,
         thickness: board.thickness,
-        label: `${materialLabel(board.material)} — ${formatLength(board.thickness, precision)}`,
+        label: `${catalog.label(board.material)} — ${formatLength(board.thickness, precision)}`,
         rows: [],
         stockInches: 0,
         stock: '',
@@ -368,14 +351,15 @@ export function buildCutList(doc: FlatDocument): CutList {
     // One nesting per group, because a group IS the packing partition: one
     // material (so one sheet size and one rotation policy) and one thickness
     // (parts of different thickness cannot share a sheet).
-    const sheet = sheetStockOf(group.material);
+    const sheet = catalog.get(group.material)?.sheet;
     if (sheet) {
+      group.sheet = sheet;
       group.nesting = buildNesting(groupBoards.get(group)!, sheet, doc.stock.kerf, precision);
     }
   }
   out.sort(
     (a, b) =>
-      materialLabel(a.material).localeCompare(materialLabel(b.material)) ||
+      catalog.label(a.material).localeCompare(catalog.label(b.material)) ||
       b.thickness - a.thickness,
   );
   return { groups: out };

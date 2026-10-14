@@ -1,5 +1,6 @@
 import type { Board, FlatDocument, SheetStock } from './types';
-import { MATERIALS, isSheetGood } from './types';
+import { MATERIALS, isCustomMaterialId, isSheetGood } from './types';
+import { catalogOf } from './materials';
 import type { CutList } from './cutlist';
 import { packOnto, grainFootprint, type Nesting, type PlacedPart } from './nesting';
 import { formatLength } from '../units/length';
@@ -94,9 +95,17 @@ export function validateShop(raw: unknown): { settings: ShopSettings; ok: boolea
   const stored = raw.materials;
   let ok = true;
   const materials: Record<string, MaterialBuying> = {};
-  const extra = Object.fromEntries(Object.entries(stored).filter(([k]) => !(k in MATERIALS)));
+  // Known = built-in OR custom-shaped (amended §2.5): the kind is in the id, so a custom entry validates
+  // without knowing which project is open, and an id never moves between `materials` and `extra`.
+  const known = (k: string) => k in MATERIALS || isCustomMaterialId(k);
+  const extra = Object.fromEntries(Object.entries(stored).filter(([k]) => !known(k)));
   for (const m of Object.keys(MATERIALS)) {
     if (!(m in stored)) { materials[m] = defaultBuying(m); continue; }
+    const v = validateBuying(m, stored[m]);
+    if (!v) ok = false;
+    materials[m] = v ?? defaultBuying(m);
+  }
+  for (const m of Object.keys(stored).filter(isCustomMaterialId)) {
     const v = validateBuying(m, stored[m]);
     if (!v) ok = false;
     materials[m] = v ?? defaultBuying(m);
@@ -227,9 +236,10 @@ function byThePiece(material: string, label: string, parts: Board[], stock: Stoc
  */
 export function buildPurchase(doc: FlatDocument, list: CutList, shop: ShopSettings): Purchase {
   const p = doc.units.precision;
+  const catalog = catalogOf(doc);
   const materials = [...new Set(list.groups.map((g) => g.material))];
   const entries: PurchaseEntry[] = materials.map((m) => {
-    const label = MATERIALS[m]?.label ?? m;
+    const label = catalog.label(m);
     const buying = shop.materials[m] ?? defaultBuying(m);
     const groups = list.groups.filter((g) => g.material === m);
     if (buying.mode === 'piece' && !isSheetGood(m)) {

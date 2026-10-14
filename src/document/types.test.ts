@@ -1,4 +1,6 @@
-import { isSheetGood, sheetStockOf, MATERIALS } from './types';
+import { isSheetGood, MATERIALS } from './types';
+
+const sheetStockOf = (m: string) => MATERIALS[m]?.sheet;
 
 describe('sheet stock metadata', () => {
   it('still reports which materials are sheet goods', () => {

@@ -319,8 +319,3 @@ export function materialKind(id: string): MaterialKind {
 export function isSheetGood(material: string): boolean {
   return materialKind(material) !== 'solid';
 }
-
-/** The sheet a material is sold as, or undefined for solid lumber. */
-export function sheetStockOf(material: string): SheetStock | undefined {
-  return MATERIALS[material]?.sheet;
-}

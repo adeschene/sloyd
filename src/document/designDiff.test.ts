@@ -243,3 +243,20 @@ describe('diffDesigns — two bevels on one face (final review I3)', () => {
     expect(lines(before, before)).toEqual([]);
   });
 });
+
+describe('custom materials in the diff (custom materials spec §3)', () => {
+  const ash = { id: 'm-s-ash1', label: 'Ash', color: '#d8c8a8', kind: 'solid' as const };
+  const withMaterials = (d: ReturnType<typeof doc>, materials: typeof ash[]) => ({ ...d, materials });
+  it('reads a custom label from the after side', () => {
+    const before = doc([part('Top', [0, 0, 0], [40, 1, 12])]);
+    const after = withMaterials(doc([part('Top', [0, 0, 0], [40, 1, 12])]), [ash]);
+    after.boards = after.boards.map((b) => ({ ...b, material: 'm-s-ash1' }));
+    expect(diffDesigns(before, after).map((c) => c.text)).toEqual(['Top: Oak → Ash']);
+  });
+  it('reads a custom label from the before side', () => {
+    const before = withMaterials(doc([part('Top', [0, 0, 0], [40, 1, 12])]), [ash]);
+    before.boards = before.boards.map((b) => ({ ...b, material: 'm-s-ash1' }));
+    const after = doc([part('Top', [0, 0, 0], [40, 1, 12])]);
+    expect(diffDesigns(before, after).map((c) => c.text)).toEqual(['Top: Ash → Oak']);
+  });
+});

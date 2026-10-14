@@ -1,6 +1,6 @@
 import { createBoard, createDocument, buildCutList } from './document';
 import type { Board, FlatDocument } from './types';
-import { buildPurchase, defaultShop, validateShop, type MaterialBuying, type ShopSettings, type StockBoard } from './purchase';
+import { buildPurchase, defaultBuying, defaultShop, validateShop, type MaterialBuying, type ShopSettings, type StockBoard } from './purchase';
 
 const size = (id: string, thickness: number, width: number, length: number, price: number | null): StockBoard =>
   ({ id, thickness, width, length, price });
@@ -218,5 +218,35 @@ describe('validateShop', () => {
     const r = validateShop({ layout: 1, materials: { plywood: { mode: 'board-foot', pricePerBoardFoot: 1, wasteFactor: 1.2 } } });
     expect(r.ok).toBe(false);
     expect(r.settings.materials.plywood).toEqual({ mode: 'sheet', pricePerSheet: null });
+  });
+});
+
+describe('custom materials in the shop (custom materials spec §2.5, amended)', () => {
+  it('defaults a custom solid to board feet and a custom sheet to sheets', () => {
+    expect(defaultBuying('m-s-ash1')).toEqual({ mode: 'board-foot', pricePerBoardFoot: null, wasteFactor: 1.3 });
+    expect(defaultBuying('m-p-hb48')).toEqual({ mode: 'sheet', pricePerSheet: null });
+  });
+  it('validates a custom id by its kind and keeps it in materials, never in extra', () => {
+    const { settings, ok } = validateShop({ layout: 1, materials: {
+      'm-s-ash1': { mode: 'board-foot', pricePerBoardFoot: 9, wasteFactor: 1.4 },
+      'm-p-hb48': { mode: 'sheet', pricePerSheet: 22 },
+      'future-key': { anything: true },
+    } });
+    expect(ok).toBe(true);
+    expect(settings.materials['m-s-ash1']).toEqual({ mode: 'board-foot', pricePerBoardFoot: 9, wasteFactor: 1.4 });
+    expect(settings.materials['m-p-hb48']).toEqual({ mode: 'sheet', pricePerSheet: 22 });
+    expect(settings.extra).toEqual({ 'future-key': { anything: true } });
+  });
+  it('a custom entry of the wrong mode for its kind takes its default and flags the read', () => {
+    const { settings, ok } = validateShop({ layout: 1, materials: { 'm-p-hb48': { mode: 'board-foot', pricePerBoardFoot: 3, wasteFactor: 1.3 } } });
+    expect(ok).toBe(false);
+    expect(settings.materials['m-p-hb48']).toEqual({ mode: 'sheet', pricePerSheet: null });
+  });
+  it('labels a custom material in Buying by the catalog', () => {
+    const ash = { id: 'm-s-ash1', label: 'Ash', color: '#d8c8a8', kind: 'solid' as const };
+    const d = { ...createDocument(), boards: [createBoard({ id: 'a', name: 'A', material: 'm-s-ash1' })], materials: [ash] } as FlatDocument;
+    const p = buildPurchase(d, buildCutList(d), defaultShop());
+    expect(p.entries[0]!.label).toBe('Ash');
+    expect(p.entries[0]!.mode).toBe('board-foot');
   });
 });

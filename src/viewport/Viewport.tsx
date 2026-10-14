@@ -5,7 +5,7 @@ import { Grid, OrbitControls, OrthographicCamera, PerspectiveCamera } from '@rea
 import * as THREE from 'three';
 import { useStore } from '../store/store';
 import { visibleBoards } from '../store/visibility';
-import { isCovered, worldParts } from '../document/document';
+import { catalogOf, isCovered, worldParts } from '../document/document';
 import type { Board } from '../document/document';
 import { explodeOffsets, EXPLODE_SPREAD } from '../document/explode';
 import { BoardMesh } from './BoardMesh';
@@ -364,6 +364,7 @@ export function Viewport({
 }: ViewportProps) {
   const boards = useStore((s) => worldParts(s.doc));
   const doc = useStore((s) => s.doc);
+  const catalog = useStore((s) => catalogOf(s.doc));
   const explode = useStore((s) => s.explode);
   const offsets = useMemo(
     () => (explode > 0 ? explodeOffsets(doc, explode * EXPLODE_SPREAD) : null),
@@ -496,6 +497,7 @@ export function Viewport({
           onOpen={(id) => useStore.getState().openPart(id)}
           onSelect={selectByClick}
           selectable={tool === 'select'}
+          color={catalog.color(board.material)}
         />
       ))}
 

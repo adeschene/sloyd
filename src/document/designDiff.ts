@@ -1,5 +1,5 @@
 import { formatLength } from '../units/length';
-import { MATERIALS } from './types';
+import { catalogOf } from './materials';
 import { boardExtents } from './geometry';
 import type { Board, Instance, SloydDocument } from './types';
 import { DIRS, worldTapers } from './taperWorld';
@@ -43,9 +43,11 @@ const localOf = (side: Side, e: Entry) => (e.inst ? e.b.position.map((v, k) => v
 const same = (a: readonly number[], b: readonly number[]) => a.length === b.length && a.every((v, k) => v === b[k]);
 /** The detail of a turned part's line, shared by its text and its merge key. */
 const TURNED = ' turned';
-const label = (m: string) => MATERIALS[m]?.label ?? m;
 
 export function diffDesigns(before: SloydDocument, after: SloydDocument): Change[] {
+  const ca = catalogOf(after);
+  const cb = catalogOf(before);
+  const label = (m: string) => ca.get(m)?.label ?? cb.get(m)?.label ?? m;
   const len = (n: number) => formatLength(n, after.units.precision);
   const dims = (b: Board) => sizeOf(b).map(len).join(' × ');
   // A component that displays as zero is omitted, so no line reads "X +0".
