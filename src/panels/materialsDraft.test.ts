@@ -154,14 +154,14 @@ describe('rebaseRows (after a Save whose library write failed)', () => {
     const written = { ...ash, color: '#112233' };
     const [out] = rebaseRows([r], [written], []);
     expect(out).toMatchObject({ source: 'project', original: written, addToLibrary: true });
-    expect(plan([out!], []).library).toEqual([written]);
+    expect(plan([out!], [])).toHaveProperty('library', [written]);
   });
   it('keeps the intent when the library holds the SAME id at its old value (its own label is no clash)', () => {
     const r = edit(initialRows([ash], [ash])[0]!, { color: '#112233' });
     const written = { ...ash, color: '#112233' };
     const [out] = rebaseRows([r], [written], [ash]);
     expect(out).toMatchObject({ addToLibrary: true });
-    expect(plan([out!], [ash]).library).toEqual([written]);
+    expect(plan([out!], [ash])).toHaveProperty('library', [written]);
   });
   it('sets no library intent when ANOTHER library entry holds the same label (planSave would refuse the retry)', () => {
     const r = edit(initialRows([ash], [libAsh])[0]!, { color: '#112233' });
