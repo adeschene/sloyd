@@ -380,6 +380,8 @@ describe('holes in the part diagrams (holes spec §4.3, amended)', () => {
     expect(w.holes).toEqual([]);
     expect(w.holeSides).toHaveLength(3);
     expect(w.holeSides[0]).toMatchObject({ row: 'h1', index: 0, h: [1.875, 2.125], v: [0.375, 0.75], axis: 'v', bottomAt: 'vmin' });
+    expect(w.holeSides[1]).toMatchObject({ index: 1, h: [3.125, 3.375], v: [0.375, 0.75], axis: 'v', bottomAt: 'vmin' });
+    expect(w.holeSides[2]).toMatchObject({ index: 2, h: [4.375, 4.625], v: [0.375, 0.75], axis: 'v', bottomAt: 'vmin' });
     expect(w.holeNotes).toHaveLength(1);
   });
   it('a through hole shows its circle on the far side only when that view exists, and has no bottom', () => {
@@ -392,6 +394,41 @@ describe('holes in the part diagrams (holes spec §4.3, amended)', () => {
   it('a through hole does not open the far-side view by itself', () => {
     const views = buildDiagrams(side({ holes: [{ ...pins, depth: 'through' as const, count: 1 }] }), 16);
     expect(views.map((v) => v.key)).toEqual(['thickness|max']);
+  });
+  it('a through hole\'s far-side circle and the notes do not depend on row order (R3)', () => {
+    const A = { ...pins, id: 'A', depth: 'through' as const, count: 1 };
+    const B = { ...pins, id: 'B', from: 'min' as const, station: 6, count: 1 };
+    const one = buildDiagrams(side({ holes: [A, B] }), 16).find((v) => v.key === 'thickness|min')!;
+    const two = buildDiagrams(side({ holes: [B, A] }), 16).find((v) => v.key === 'thickness|min')!;
+    for (const v of [one, two]) expect(v.holes.map((c) => c.row).sort()).toEqual(['A', 'B']);
+    expect(one.holeNotes).toHaveLength(2);
+    expect([...two.holes].sort((x, y) => x.row.localeCompare(y.row))).toEqual([...one.holes].sort((x, y) => x.row.localeCompare(y.row)));
+    expect([...two.holeNotes].sort()).toEqual([...one.holeNotes].sort());
+  });
+  it('notes come out in stored row order, a sides-only row before a circle row', () => {
+    const S = { ...pins, id: 'S', count: 1 }; // thickness|max: sides-only in the width view
+    const C = { ...pins, id: 'C', face: 'width' as const, from: 'min' as const, along: 'length' as const, count: 1, depth: 0.25, inset: 0.375 };
+    const views = buildDiagrams(side({ holes: [S, C] }), 16);
+    const w = views.find((v) => v.key === 'width|min')!;
+    expect(w.holes.map((c) => c.row)).toEqual(['C']);
+    expect(w.holeSides.map((c) => c.row)).toEqual(['S']);
+    expect(w.holeNotes).toHaveLength(2);
+    expect(w.holeNotes[0]).toBe(buildDiagrams(side({ holes: [S] }), 16)[0]!.holeNotes[0]);
+  });
+  it('a hole entering from the MIN face runs +1: its bottom is at the max of the depth axis', () => {
+    // Thickness min, depth 3/8: centre at thickness 0, runs to 0.375; width view v = thickness, so bottom at vmax.
+    const rabbet = { id: 'c1', face: 'width' as const, from: 'min' as const, across: 'length' as const, offset: 0, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const w = buildDiagrams(side({ holes: [{ ...pins, from: 'min' as const, count: 1 }], cuts: [rabbet] }), 16).find((v) => v.key === 'width|min')!;
+    expect(w.holeSides[0]).toMatchObject({ v: [0, 0.375], axis: 'v', bottomAt: 'vmax' });
+  });
+  it('an end-grain hole across a width view runs along h (axis h)', () => {
+    // Into the length max end: centre at length 30, dir -1, depth 1 -> h [29, 30]; width view h = length: bottom at hmin.
+    const dowel = { ...pins, id: 'd', face: 'length' as const, from: 'max' as const, diameter: 0.375, depth: 1, along: 'width' as const, station: 2, count: 1, acrossFrom: 'min' as const, inset: 0.375 };
+    const rabbet = { id: 'c1', face: 'width' as const, from: 'min' as const, across: 'length' as const, offset: 0, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const w = buildDiagrams(side({ holes: [dowel], cuts: [rabbet] }), 16).find((v) => v.key === 'width|min')!;
+    expect(w.holeSides[0]).toMatchObject({ h: [29, 30], axis: 'h', bottomAt: 'hmin' });
+    const min = buildDiagrams(side({ holes: [{ ...dowel, from: 'min' as const }], cuts: [rabbet] }), 16).find((v) => v.key === 'width|min')!;
+    expect(min.holeSides[0]).toMatchObject({ h: [0, 1], axis: 'h', bottomAt: 'hmax' });
   });
   it('a faulted row\'s note is its bench line, check suffix included (Review Focus 5)', () => {
     const short = side({ length: 4 });

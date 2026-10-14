@@ -235,22 +235,23 @@ export function buildDiagrams(board: Board, precision: number): DiagramView[] {
   // Holes (holes spec §4.3, amended). Down the axis: a circle in the ENTRY face's view (opened, like a cut's), and on the
   // exit side of a through hole only when that view already exists. Across the axis: the depth box, only in views that
   // exist for another reason (a hole opens no view of its own across its axis). The note is the row's bench line (inv 19).
-  const noted = new Map<DiagramView, Set<string>>();
-  const note = (view: DiagramView, r: HoleRow) => {
-    if (!noted.has(view)) noted.set(view, new Set());
-    if (noted.get(view)!.has(r.id)) return;
-    noted.get(view)!.add(r.id);
-    view.holeNotes.push(holeLine(board, r, precision));
+  // Three passes so the result never depends on row order: (1) every row opens its entry view; (2) circles, then sides,
+  // over the views that now exist; (3) notes, per view, in STORED row order.
+  const used = new Map<DiagramView, Set<string>>();
+  const mark = (view: DiagramView, r: HoleRow) => {
+    if (!used.has(view)) used.set(view, new Set());
+    used.get(view)!.add(r.id);
   };
+  for (const r of board.holes) ensure(r.face, r.from);
   for (const r of board.holes) for (const h of holeInstances(board, r)) {
-    const entry = ensure(r.face, r.from);
+    const entry = views.get(`${r.face}|${r.from}`);
     const exit = h.through ? views.get(`${r.face}|${r.from === 'min' ? 'max' : 'min'}`) : undefined;
     for (const view of [entry, exit]) {
       if (!view) continue;
       const hi = DIMENSION_ORDER.indexOf(view.horizontal);
       const vi = DIMENSION_ORDER.indexOf(view.vertical);
       view.holes.push({ row: r.id, index: h.index, h: h.centre[hi]!, v: h.centre[vi]!, r: h.radius });
-      note(view, r);
+      mark(view, r);
     }
   }
   for (const r of board.holes) for (const h of holeInstances(board, r)) {
@@ -268,9 +269,10 @@ export function buildDiagrams(board: Board, precision: number): DiagramView[] {
       const axisIsH = view.horizontal === r.face;
       const bottomAt = h.through ? null : axisIsH ? (h.dir > 0 ? 'hmax' : 'hmin') : (h.dir > 0 ? 'vmax' : 'vmin');
       view.holeSides.push({ row: r.id, index: h.index, h: spanOf(view.horizontal), v: spanOf(view.vertical), axis: axisIsH ? 'h' : 'v', bottomAt });
-      note(view, r);
+      mark(view, r);
     }
   }
+  for (const [view, ids] of used) for (const r of board.holes) if (ids.has(r.id)) view.holeNotes.push(holeLine(board, r, precision));
 
   // A cut-free board still gets a drawing, for the "all parts" setting: broad
   // face on, length running horizontally — the view a woodworker draws by hand.
