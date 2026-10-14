@@ -1,7 +1,7 @@
 # Sloyd — section cut (design)
 
-Date: 2026-10-14. Feature gaps §2 ("Section cut: clipping plane to see inside a joint"). Status: spec, awaiting the
-user's review.
+Date: 2026-10-14. Feature gaps §2 ("Section cut: clipping plane to see inside a joint"). Status: approved; plan
+`docs/superpowers/plans/2026-10-14-sloyd-section-cut.md`.
 
 ## 1. Purpose and rulings
 
@@ -73,7 +73,11 @@ plane misses the part.
 1. **Plane to local.** Find the board-local dimension the world axis maps to and the local coordinate of `at`.
 2. **Bodies.** For each body from `partGeometry(board).bodies` (inv 48: angle cuts included, holes not), the cap is the
    face `clipConvex` adds when the body is clipped by the plane (the kept side's cap face). A body the plane does not
-   cross, or a plane lying exactly ON a body face (`clip`'s `onPlane`), adds no cap: the face itself is drawn.
+   cross adds no cap. **Amended 2026-10-14 (the user approved at plan review):** a body face lying exactly ON the plane
+   and facing the removed side IS capped — a holed body's mesh subtracts seam faces (inv 50), so without it a plane at a
+   dado's shoulder would show a hole into the part. Visible consequence, accepted: any face exactly on the plane reads
+   as a cut (e.g. a Top cut at a tabletop's underside darkens the aprons' tops). Every piece is normalised to one
+   winding (pocketCells merges cells, so clip caps and face caps can mix).
 3. **Holes.** For each hole in `partGeometry(board).holes` whose axial extent and radius box the plane crosses
    (prefiltered, inv 50's budget), subtract its prism from every piece with `minusPrism`. Because the plane and the
    hole are both axis-aligned, the plane is either across the bore (a 48-gon void) or along it (a strip; a blind bore's
