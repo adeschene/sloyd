@@ -428,6 +428,25 @@ and 79.
 
 ## What each round did
 
+**What custom materials chunk 1 did (2026-10-14, fu 266's first half, feature-gaps §3)** (spec
+`docs/superpowers/specs/2026-10-14-sloyd-custom-materials-design.md`, plan `…/plans/2026-10-14-sloyd-custom-materials-chunk1.md`).
+The user chose all four purposes (more species, other sheet goods, construction lumber, nominal names everywhere),
+storage in BOTH a browser library (`sloyd.materials.v1`) and each project file (`doc.materials`, schema 15), Refine keeping
+custom materials (Generate staying on the built-ins), nominal names by a per-material switch, edits applying where you
+make them, and an explicit catalog over a global registry. While planning, the kind moved INTO the id (`m-s-`/`m-v-`/`m-p-`;
+an amendment the user approved), so every kind-only reader kept its `(id)` signature and shop validation stopped depending
+on the open project. Lumber & prices became Materials & prices (a pure `materialsDraft.ts` plan; one Save = one undo entry +
+library + prices); Properties' picker lists built-ins, the project's and the library's materials (one label each) and
+New material…. Ran subagent-driven, ten tasks, each reviewed; the reviews caught real data hazards: the old prices dialog
+dropping custom prices on Save (Task 3), untouched sheet sizes rounded to 1/64" and rewritten on every Save and a library
+able to hold two "White ash" (Task 6), the dialog's rows going stale after a half-failed Save (Task 7), and Refine's
+converter turning custom parts to pine before the carry (Task 9 — a plan defect; the converter now takes `materials`).
+The final review added: prices' `extra` lost across write → read (pre-existing, made reachable by a v14 rollback), the
+definition-part load path unpinned, unsaved new rows unremovable; all fixed. Live check on the dev server with the user's
+two approved paid calls: the per-project Refine schema compiled (`req_011Cg1QMMMwRho2oZCqsS4XQ`), and "make the Ash board
+cherry" kept the untouched Baltic-birch part's custom material and pruned Ash (`docs/browser-verification-custom-materials.md`).
+3694 tests across 127 files. Residue fu 324, 325; nominal names are chunk 2.
+
 **What AI angles chunk 2 did (2026-10-14, fu 277)** (plan `docs/superpowers/plans/2026-10-13-sloyd-ai-angles-chunk2.md`).
 Generate and Refine read and write miters, bevels and chamfers. `angleWorld.ts` is the one crossing between the design's
 world words and stored cuts (through the Properties writers), recognising stored cuts structurally; the design schema gains
