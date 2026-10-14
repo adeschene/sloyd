@@ -833,3 +833,55 @@ describe('holes in the mesh (holes spec §3.2)', () => {
     expect(Math.max(...shared.values()) / 3).toBeGreaterThanOrEqual(HOLE_SEGMENTS - 2);
   });
 });
+
+describe('faceTriangles: faulted and tangent holes take the fallback split (ruling R4; holes spec §3.2)', () => {
+  // A 10 x 10 panel, 1in thick, holes r = 1 entered from the top (thickness max) face.
+  const row = { id: 'h', face: 'thickness' as const, from: 'max' as const, diameter: 2, depth: 0.5, along: 'length' as const, alongFrom: 'min' as const, station: 4, count: 2, pitch: 1, acrossFrom: 'min' as const, inset: 5 };
+  const panel = (r: typeof row) => createBoard({ id: 'q', length: 10, width: 10, thickness: 1, holes: [r] });
+  const topOf = (b: ReturnType<typeof createBoard>) => boardBodies(b)[0]!.faces.find((f) => f.n[2] === 1)!;
+  const area = (tris: number[][][]) => tris.reduce((s, t) => s + Math.abs((t[1]![0]! - t[0]![0]!) * (t[2]![1]! - t[0]![1]!) - (t[2]![0]! - t[0]![0]!) * (t[1]![1]! - t[0]![1]!)) / 2, 0);
+  const ngon = (HOLE_SEGMENTS / 2) * Math.sin((2 * Math.PI) / HOLE_SEGMENTS);   // r = 1
+  // No triangle's centroid inside a hole, from its mouth (inclusive) to its bottom.
+  const noneInside = (tris: number[][][], holes: ReturnType<typeof boardHoles>) => {
+    for (const t of tris) {
+      const c = [0, 1, 2].map((k) => (t[0]![k]! + t[1]![k]! + t[2]![k]!) / 3);
+      for (const h of holes) {
+        const tt = h.dir * (c[2]! - h.centre[2]);
+        expect(tt >= -1e-6 && tt < h.depth - 1e-6 && Math.hypot(c[0]! - h.centre[0], c[1]! - h.centre[1]) < h.radius * 0.9).toBe(false);
+      }
+    }
+  };
+
+  it('two overlapping holes (centres 1 apart, r = 1): the face loses their union', () => {
+    const b = panel(row);
+    const holes = boardHoles(b);
+    const tris = faceTriangles(topOf(b), holes);
+    // Union of two unit circles 1 apart: 2π − lens, lens = 2·acos(1/2) − (1/2)·√3. The 48-gons sit within ~0.02 of it.
+    const union = 2 * Math.PI - (2 * Math.acos(0.5) - 0.5 * Math.sqrt(3));
+    expect(Math.abs(area(tris) - (100 - union))).toBeLessThan(0.03);
+    noneInside(tris, holes);
+  });
+  it('coincident holes (pitch 0): the mouth is not capped', () => {
+    const b = panel({ ...row, pitch: 0 });
+    const holes = boardHoles(b);
+    const tris = faceTriangles(topOf(b), holes);
+    expect(area(tris)).toBeCloseTo(100 - ngon, 9);
+    noneInside(tris, holes);
+  });
+  it('a hole tangent to a face edge takes the fallback: face less the 48-gon', () => {
+    const b = panel({ ...row, count: 1, inset: 1 });   // the ring touches the width-min edge
+    const holes = boardHoles(b);
+    const top = topOf(b);
+    const tris = faceTriangles(top, holes);
+    expect(area(tris)).toBeCloseTo(100 - ngon, 9);
+    noneInside(tris, holes);
+  });
+  it('a hole centred on a face edge (ring not inside the face) loses exactly half its 48-gon', () => {
+    // The tangent case above also triangulates correctly on the strict path; this one only the fallback can draw.
+    const b = panel({ ...row, count: 1, inset: 0 });
+    const holes = boardHoles(b);
+    const tris = faceTriangles(topOf(b), holes);
+    expect(area(tris)).toBeCloseTo(100 - ngon / 2, 9);
+    noneInside(tris, holes);
+  });
+});

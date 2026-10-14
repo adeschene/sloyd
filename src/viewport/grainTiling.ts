@@ -1,7 +1,7 @@
 import { ShapeUtils, Vector2 } from 'three';
 import {
   angleCutValues, axialOffset, axisFrame, boardExtents, bodyPlanes, clipPolygon, CUT_GEOMETRY_KEYS, DIMENSION_ORDER,
-  holePrism, holeRing, holeRowValues, holeTouches, isSheetGood, minusPrism, ringInside, spanToWorldOffset, toWorldOffset,
+  HOLE_EPS, holePrism, holeRing, holeRowValues, holeTouches, isSheetGood, minusPrism, ringInside, spanToWorldOffset, toWorldOffset,
   wholeBoard,
 } from '../document/document';
 import type { Board, Body, BodyFace, Hole, Region, Span, V3 } from '../document/document';
@@ -295,22 +295,33 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = []):
 /**
  * One body face as triangles (board-local), with every hole that reaches into it cut out (holes spec §3.2, amended).
  * No hole: the fan bodyMesh always drew, vertex for vertex. Every reaching hole perpendicular to the face with its ring
- * STRICTLY inside it: triangulated with the rings as holes, from the SAME ring vertices the wall uses, so face and wall
- * share every rim vertex (no T-junctions). Otherwise (a tangent hole, a seam parallel to the axis, a faulted hole): the
- * disjoint convex split, fanned — T-junctions accepted there.
+ * STRICTLY inside it, and the rings PAIRWISE DISJOINT (ruling R4: centres more than r1 + r2 apart in the face plane):
+ * triangulated with the rings as holes, from the SAME ring vertices the wall uses, so face and wall share every rim
+ * vertex (no T-junctions). Otherwise (a tangent hole, a seam parallel to the axis, a faulted hole — overlapping or
+ * coincident rings, which earcut would cover with face): the disjoint convex split, fanned — T-junctions accepted there.
  */
 export function faceTriangles(f: BodyFace, holes: readonly Hole[]): V3[][] {
   const fan = (p: V3[]): V3[][] => p.slice(1, -1).map((_, i) => [p[0]!, p[i + 1]!, p[i + 2]!]);
   const reaching = holes.filter((h) => holeTouches(h, f.verts));
   if (reaching.length === 0) return fan(f.verts);
+  const a = [0, 1, 2].reduce((m, k) => (Math.abs(f.n[k]!) > Math.abs(f.n[m]!) ? k : m), 0);
+  const [u, v] = [0, 1, 2].filter((k) => k !== a) as [number, number];
   const rings = reaching.map((h) => { const t = axialOffset(h, f); return t === null ? null : holeRing(h, t); });
-  if (rings.every((r): r is V3[] => r !== null && ringInside(f.verts, f.n, r))) {
-    const a = [0, 1, 2].reduce((m, k) => (Math.abs(f.n[k]!) > Math.abs(f.n[m]!) ? k : m), 0);
-    const [u, v] = [0, 1, 2].filter((k) => k !== a) as [number, number];
+  // Holes on a perpendicular face share its axis, so their in-plane centre distance decides overlap.
+  const disjoint = reaching.every((h, i) => reaching.slice(i + 1).every((g) =>
+    Math.hypot(h.centre[u] - g.centre[u], h.centre[v] - g.centre[v]) > h.radius + g.radius + HOLE_EPS));
+  if (disjoint && rings.every((r): r is V3[] => r !== null && ringInside(f.verts, f.n, r))) {
     const flat = (p: V3) => new Vector2(p[u], p[v]);
-    const all = [...f.verts, ...rings.flat()];
-    return ShapeUtils.triangulateShape(f.verts.map(flat), rings.map((r) => r.map(flat)))
-      .map(([i, j, k]) => [all[i!]!, all[j!]!, all[k!]!]);
+    const contour = f.verts.map(flat);
+    const flatRings = rings.map((r) => r.map(flat));
+    // triangulateShape drops a contour's last point when it equals the first (removeDupEndPts), which would shift every
+    // index against `all`; such a contour takes the fallback split instead.
+    const closed = (c: Vector2[]) => c.length > 2 && c[c.length - 1]!.equals(c[0]!);
+    if (!closed(contour) && !flatRings.some(closed)) {
+      const all = [...f.verts, ...rings.flat()];
+      return ShapeUtils.triangulateShape(contour, flatRings)
+        .map(([i, j, k]) => [all[i!]!, all[j!]!, all[k!]!]);
+    }
   }
   let pieces: V3[][] = [f.verts];
   for (const h of reaching) pieces = pieces.flatMap((p) => minusPrism(p, holePrism(h)));
