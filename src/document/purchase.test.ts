@@ -1,6 +1,7 @@
 import { createBoard, createDocument, buildCutList } from './document';
-import type { Board, FlatDocument } from './types';
+import type { Board, CustomMaterial, FlatDocument } from './types';
 import { buildPurchase, defaultBuying, defaultShop, validateShop, type MaterialBuying, type ShopSettings, type StockBoard } from './purchase';
+import { nominalName } from '../units/nominal';
 
 const size = (id: string, thickness: number, width: number, length: number, price: number | null): StockBoard =>
   ({ id, thickness, width, length, price });
@@ -39,7 +40,7 @@ describe('buildPurchase — by the piece', () => {
     // A ($12) and B ($18), not C (72) → A; board 2 (30) fits A, B, C → C ($9). Total $21.
     const shop = shopWith({ pine: { mode: 'piece', stock: [A, B, C] } });
     const p = purchase([pine('p1', 40, 5), pine('p2', 40, 5), pine('p3', 30, 5)], shop);
-    expect(p.entries[0]!.lines).toEqual(['Buy 1 × 3/4" × 5-1/2" × 96", 1 × 3/4" × 5-1/2" × 72" · $21.00']);
+    expect(p.entries[0]!.lines).toEqual(['Buy 1 × 1×6 × 8′, 1 × 1×6 × 6′ · $21.00']);
     expect(p.entries[0]!.cost).toBe(21);
     expect(p.entries[0]!.layouts.map((l) => [l.key, l.nesting.sheets.length])).toEqual([['A', 1], ['C', 1]]);
   });
@@ -62,11 +63,11 @@ describe('buildPurchase — by the piece', () => {
     // C unpriced, A priced: a 30" part fits both → A (priced) even though C is smaller.
     const cUnpriced = { ...C, price: null };
     expect(purchase([pine('x', 30, 5)], shopWith({ pine: { mode: 'piece', stock: [A, cUnpriced] } })).entries[0]!.lines)
-      .toEqual(['Buy 1 × 3/4" × 5-1/2" × 96" · $12.00']);
+      .toEqual(['Buy 1 × 1×6 × 8′ · $12.00']);
     // Nothing priced → smallest area: C (72×5½ = 396) over A (528); cost unknown.
     const none = shopWith({ pine: { mode: 'piece', stock: [{ ...A, price: null }, cUnpriced] } });
     const p = purchase([pine('x', 30, 5)], none);
-    expect(p.entries[0]!.lines).toEqual(['Buy 1 × 3/4" × 5-1/2" × 72" · no price']);
+    expect(p.entries[0]!.lines).toEqual(['Buy 1 × 1×6 × 6′ · no price']);
     expect(p.entries[0]!.cost).toBeNull();
   });
 
@@ -76,8 +77,8 @@ describe('buildPurchase — by the piece', () => {
     const W = size('W', 0.75, 11.25, 96, 20);
     const N = size('N', 0.75, 1.5, 72, null);
     const p = purchase([pine('strip', 30, 1)], shopWith({ pine: { mode: 'piece', stock: [W, N] } }));
-    expect(p.entries[0]!.lines).toEqual(['Buy 1 × 3/4" × 11-1/4" × 96" · $20.00']);
-    expect(p.entries[0]!.notes).toEqual(['1 board priced as 3/4" × 11-1/4" × 96" — a 3/4" × 1-1/2" × 72" would hold its parts (no price set)']);
+    expect(p.entries[0]!.lines).toEqual(['Buy 1 × 1×12 × 8′ · $20.00']);
+    expect(p.entries[0]!.notes).toEqual(['1 board priced as 1×12 × 8′ — a 1×2 × 6′ would hold its parts (no price set)']);
     // No note when the chosen size is already the smallest that holds it.
     expect(purchase([pine('wide', 30, 10)], shopWith({ pine: { mode: 'piece', stock: [W, N] } })).entries[0]!.notes).toEqual([]);
   });
@@ -89,8 +90,8 @@ describe('buildPurchase — by the piece', () => {
     const W = size('W', 0.75, 3.5, 96, 10);
     const N = size('N', 0.75, 2.5, 72, null);
     const p = purchase([pine('a', 70, 2), pine('b', 70, 2)], shopWith({ pine: { mode: 'piece', stock: [W, N] } }));
-    expect(p.entries[0]!.lines).toEqual(['Buy 2 × 3/4" × 3-1/2" × 96" · $20.00']);
-    expect(p.entries[0]!.notes).toEqual(['2 boards priced as 3/4" × 3-1/2" × 96" — a 3/4" × 2-1/2" × 72" would hold each one\'s parts (no price set)']);
+    expect(p.entries[0]!.lines).toEqual(['Buy 2 × 1×4 × 8′ · $20.00']);
+    expect(p.entries[0]!.notes).toEqual(['2 boards priced as 1×4 × 8′ — a 1×3 × 6′ would hold each one\'s parts (no price set)']);
   });
 
   it('uses the thinnest stock thick enough to hold the part, and says to plane it', () => {
@@ -98,7 +99,7 @@ describe('buildPurchase — by the piece', () => {
     const shop = shopWith({ pine: { mode: 'piece', stock: [A, D] } });
     const p = purchase([pine('half', 20, 3, 0.5), pine('thick', 20, 3, 1.25)], shop);
     expect(p.entries[0]!.notes).toEqual(['half: plane 3/4" stock to 1/2"', 'thick: plane 1-1/2" stock to 1-1/4"']);
-    expect(p.entries[0]!.lines).toEqual(['Buy 1 × 3/4" × 5-1/2" × 96", 1 × 1-1/2" × 3-1/2" × 96" · $20.00']);
+    expect(p.entries[0]!.lines).toEqual(['Buy 1 × 1×6 × 8′, 1 × 2×4 × 8′ · $20.00']);
   });
 
   it('goes to thicker stock when no size at the thinnest thickness is wide enough', () => {
@@ -169,7 +170,7 @@ describe('buildPurchase — nothing to buy (final review)', () => {
     const p = purchase([eg, pine('ok', 30, 3)], shopWith({ pine: { mode: 'piece', stock: [A] } }));
     expect(p.entries[0]!.notes).toEqual(['eg (3/4" × 5" × 20") has end grain — not priced as pine stock']);
     expect(p.entries[0]!.unplaceable).toBe(1);
-    expect(p.entries[0]!.lines).toEqual(['Buy 1 × 3/4" × 5-1/2" × 96" · $12.00']);
+    expect(p.entries[0]!.lines).toEqual(['Buy 1 × 1×6 × 8′ · $12.00']);
   });
 });
 
@@ -248,5 +249,62 @@ describe('custom materials in the shop (custom materials spec §2.5, amended)', 
     const p = buildPurchase(d, buildCutList(d), defaultShop());
     expect(p.entries[0]!.label).toBe('Ash');
     expect(p.entries[0]!.mode).toBe('board-foot');
+  });
+});
+
+describe('nominal default stock (custom materials spec §5.4)', () => {
+  it('a nominal custom solid defaults to dimensional lumber by the piece, no prices', () => {
+    const b = defaultBuying('m-s-spf1', true);
+    expect(b.mode).toBe('piece');
+    const names = (b as Extract<typeof b, { mode: 'piece' }>).stock.map((s) => `${nominalName(s.thickness, s.width)} ${s.length}`);
+    expect(names).toEqual([
+      ...['1×2', '1×3', '1×4', '1×6', '1×8', '1×10', '1×12'].map((n) => `${n} 96`),
+      ...['2×2', '2×3', '2×4', '2×6', '2×8', '2×10', '2×12'].flatMap((n) => [96, 120, 144].map((l) => `${n} ${l}`)),
+      '4×4 96',
+    ]);
+    expect((b as Extract<typeof b, { mode: 'piece' }>).stock.every((s) => s.price === null)).toBe(true);
+    expect(new Set((b as Extract<typeof b, { mode: 'piece' }>).stock.map((s) => s.id)).size).toBe(29);
+  });
+  it('the flag changes nothing for pine, sheets or a non-nominal solid', () => {
+    expect(defaultBuying('pine', true)).toEqual(defaultBuying('pine'));
+    expect(defaultBuying('m-v-bb55', true)).toEqual({ mode: 'sheet', pricePerSheet: null });
+    expect(defaultBuying('m-s-ash1')).toEqual({ mode: 'board-foot', pricePerBoardFoot: null, wasteFactor: 1.3 });
+  });
+});
+
+describe('Buying names nominal sizes (custom materials spec §5.3)', () => {
+  const spf = { id: 'm-s-spf1', label: 'SPF', color: '#e0c890', kind: 'solid' as const, nominal: true as const };
+  const doc = (boards: Board[], materials: CustomMaterial[] = [spf]) => ({ ...createDocument(), boards, materials }) as FlatDocument;
+  const run = (d: FlatDocument, shop = defaultShop()) => buildPurchase(d, buildCutList(d), shop);
+
+  it('a nominal material with no stored entry buys from the nominal list and names it', () => {
+    const d = doc([createBoard({ id: 'a', name: 'Stud', material: 'm-s-spf1', length: 90, width: 3.5, thickness: 1.5 })]);
+    expect(run(d).entries[0]!.lines).toEqual(['Buy 1 × 2×4 × 8′ · no price']);
+  });
+  it('pine stock reads 1×4 × 6′; a size that is not a section reads as before', () => {
+    const d = doc([createBoard({ id: 'a', name: 'Rail', material: 'pine', length: 24, width: 3.5, thickness: 0.75 })], []);
+    expect(run(d).entries[0]!.lines[0]).toMatch(/^Buy 1 × 1×4 × 6′ · /);
+    const shop = defaultShop();
+    shop.materials.pine = { mode: 'piece', stock: [{ id: 'odd', thickness: 0.75, width: 3.4, length: 100, price: null }] };
+    const d2 = doc([createBoard({ id: 'a', name: 'Rail', material: 'pine', length: 24, width: 3, thickness: 0.75 })], []);
+    expect(run(d2, shop).entries[0]!.lines[0]).toMatch(/^Buy 1 × 3\/4" × 3-.*" × 100" · /);
+  });
+  it('a non-whole-foot nominal board keeps its exact length', () => {
+    const shop = defaultShop();
+    shop.materials['m-s-spf1'] = { mode: 'piece', stock: [{ id: 'x', thickness: 1.5, width: 3.5, length: 100, price: null }] };
+    const d = doc([createBoard({ id: 'a', name: 'Stud', material: 'm-s-spf1', length: 90, width: 3.5, thickness: 1.5 })]);
+    expect(run(d, shop).entries[0]!.lines).toEqual(['Buy 1 × 2×4 × 100" · no price']);
+  });
+  it('an oak by-the-piece entry of the same section is NOT named (oak is not nominal)', () => {
+    const shop = defaultShop();
+    shop.materials.oak = { mode: 'piece', stock: [{ id: 'o', thickness: 0.75, width: 3.5, length: 96, price: null }] };
+    const d = doc([createBoard({ id: 'a', name: 'Rail', material: 'oak', length: 24, width: 3.5, thickness: 0.75 })], []);
+    expect(run(d, shop).entries[0]!.lines[0]).toMatch(/^Buy 1 × 3\/4" × 3-1\/2" × 96" · /);
+  });
+  it('the layout title takes the name; the SVG sheet label stays on actual dimensions (inv 19)', () => {
+    const d = doc([createBoard({ id: 'a', name: 'Rail', material: 'pine', length: 24, width: 3.5, thickness: 0.75 })], []);
+    const l = run(d).entries[0]!.layouts[0]!;
+    expect(l.title).toBe('1×4 × 6′ — board');
+    expect(l.nesting.sheet).toBe('3/4" × 3-1/2" × 72"');
   });
 });

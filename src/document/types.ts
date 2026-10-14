@@ -255,8 +255,9 @@ export interface SheetStock {
   rotate: 'grain' | 'free';
 }
 
-export const MATERIALS: Record<string, { label: string; color: string; sheet?: SheetStock }> = {
-  pine:    { label: 'Pine',     color: '#d9b98a' },
+export const MATERIALS: Record<string, { label: string; color: string; nominal?: true; sheet?: SheetStock }> = {
+  // Sold in nominal sizes (spec §5): a ¾ × 3½ pine part is a 1×4.
+  pine:    { label: 'Pine',     color: '#d9b98a', nominal: true },
   oak:     { label: 'Oak',      color: '#c69c6d' },
   maple:   { label: 'Maple',    color: '#e6d2b5' },
   walnut:  { label: 'Walnut',   color: '#6b4630' },

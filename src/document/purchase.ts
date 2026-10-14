@@ -4,6 +4,7 @@ import { catalogOf } from './materials';
 import type { CutList } from './cutlist';
 import { packOnto, grainFootprint, type Nesting, type PlacedPart } from './nesting';
 import { formatLength } from '../units/length';
+import { NOMINAL_SECTIONS, nominalName, stockLengthText } from '../units/nominal';
 import { formatBoardFeet, formatMoney, INCHES_PER_BOARD_FOOT } from '../units/quantity';
 
 /** One by-the-piece stock size, inches; `price` per board, or null when not set. */
@@ -37,8 +38,16 @@ const EPS = 1e-9;
 const S4S_WIDTHS = [1.5, 2.5, 3.5, 5.5, 7.25, 9.25, 11.25];
 const S4S_LENGTHS = [72, 96];
 
-/** A material's default buying entry. No default carries a price: prices are local facts. */
-export function defaultBuying(material: string): MaterialBuying {
+/** A new nominal material's stock (spec §5.4): 1× at 8′; 2× at 8′, 10′, 12′; 4×4 at 8′. No prices. */
+export const NOMINAL_DEFAULT_STOCK: readonly StockBoard[] = [
+  ...NOMINAL_SECTIONS.filter((s) => s.thickness === 0.75).map((s) => [s, 96] as const),
+  ...NOMINAL_SECTIONS.filter((s) => s.thickness === 1.5).flatMap((s) => [96, 120, 144].map((l) => [s, l] as const)),
+  ...NOMINAL_SECTIONS.filter((s) => s.name === '4×4').map((s) => [s, 96] as const),
+].map(([s, l]) => ({ id: `n${s.name.replace('×', 'x')}x${l}`, thickness: s.thickness, width: s.width, length: l, price: null }));
+
+/** A material's default buying entry. No default carries a price: prices are local facts.
+ *  `nominal`: a custom solid sold in nominal sizes (spec §5.4); pine keeps its own list. */
+export function defaultBuying(material: string, nominal = false): MaterialBuying {
   if (isSheetGood(material)) return { mode: 'sheet', pricePerSheet: null };
   if (material === 'pine') {
     return {
@@ -46,6 +55,7 @@ export function defaultBuying(material: string): MaterialBuying {
       stock: S4S_WIDTHS.flatMap((w) => S4S_LENGTHS.map((l) => ({ id: `s${w}x${l}`, thickness: 0.75, width: w, length: l, price: null }))),
     };
   }
+  if (nominal) return { mode: 'piece', stock: NOMINAL_DEFAULT_STOCK.map((s) => ({ ...s })) };
   return { mode: 'board-foot', pricePerBoardFoot: null, wasteFactor: DEFAULT_WASTE_FACTOR };
 }
 
@@ -135,7 +145,13 @@ export interface PurchaseEntry {
 }
 export interface Purchase { entries: PurchaseEntry[]; total: number; totalLabel: string }
 
-const sizeDims = (s: StockBoard, p: number) => `${formatLength(s.thickness, p)} × ${formatLength(s.width, p)} × ${formatLength(s.length, p)}`;
+/** A stock size as the yard names it: `2×4 × 8′` for a nominal material's section, else actual `t × w × l`. */
+const sizeDims = (s: StockBoard, p: number, nominal: boolean) => {
+  const name = nominal ? nominalName(s.thickness, s.width) : null;
+  return name !== null
+    ? `${name} × ${stockLengthText(s.length, p)}`
+    : `${formatLength(s.thickness, p)} × ${formatLength(s.width, p)} × ${formatLength(s.length, p)}`;
+};
 const partDims = (b: Board, p: number) => `${formatLength(b.thickness, p)} × ${formatLength(b.width, p)} × ${formatLength(b.length, p)}`;
 const priceText = (cost: number | null) => (cost === null ? 'no price' : formatMoney(cost));
 const fitsIn = (f: { w: number; h: number }, s: StockBoard) => f.w <= s.length + 1e-6 && f.h <= s.width + 1e-6;
@@ -147,7 +163,7 @@ function minBy<T>(items: readonly T[], key: (t: T) => number): T {
   return best;
 }
 
-function byThePiece(material: string, label: string, parts: Board[], stock: StockBoard[], kerf: number, p: number): PurchaseEntry {
+function byThePiece(material: string, label: string, parts: Board[], stock: StockBoard[], kerf: number, p: number, nominal: boolean): PurchaseEntry {
   const notes: string[] = [];
   let unplaceable = 0;
   const thicknesses = [...new Set(stock.map((s) => s.thickness))].sort((a, b) => a - b);
@@ -210,19 +226,20 @@ function byThePiece(material: string, label: string, parts: Board[], stock: Stoc
 
   for (const { priced, smaller, boards } of cheaperUnknown.values()) {
     notes.push(boards === 1
-      ? `1 board priced as ${sizeDims(priced, p)} — a ${sizeDims(smaller, p)} would hold its parts (no price set)`
-      : `${boards} boards priced as ${sizeDims(priced, p)} — a ${sizeDims(smaller, p)} would hold each one's parts (no price set)`);
+      ? `1 board priced as ${sizeDims(priced, p, nominal)} — a ${sizeDims(smaller, p, nominal)} would hold its parts (no price set)`
+      : `${boards} boards priced as ${sizeDims(priced, p, nominal)} — a ${sizeDims(smaller, p, nominal)} would hold each one's parts (no price set)`);
   }
   const used = stock.filter((s) => count.has(s.id));
   const cost = used.some((s) => s.price === null) ? null : used.reduce((n, s) => n + count.get(s.id)! * s.price!, 0);
-  const lines = used.length > 0 ? [`Buy ${used.map((s) => `${count.get(s.id)} × ${sizeDims(s, p)}`).join(', ')} · ${priceText(cost)}`] : [];
+  const lines = used.length > 0 ? [`Buy ${used.map((s) => `${count.get(s.id)} × ${sizeDims(s, p, nominal)}`).join(', ')} · ${priceText(cost)}`] : [];
   const layouts = used.map((s) => {
-    const dims = sizeDims(s, p);
+    const dims = sizeDims(s, p, nominal);
     return {
       key: s.id,
       title: `${dims} — board`,
       stock: { length: s.length, width: s.width, rotate: 'grain' as const },
-      nesting: { sheets: chosen.filter((c) => c.size === s).map((c) => ({ parts: c.parts })), unplaceable: [], label: '', sheet: dims },
+      // Actual dimensions on purpose: nothing reads `sheet` for a Buying layout (it is the sheet-goods unplaceable noun); the caption names the section.
+      nesting: { sheets: chosen.filter((c) => c.size === s).map((c) => ({ parts: c.parts })), unplaceable: [], label: '', sheet: sizeDims(s, p, false) },
     };
   });
   // Nothing bought is not "priced at $0" (final review): null, and with no buy line it is not counted as unpriced.
@@ -243,10 +260,11 @@ export function buildPurchase(doc: FlatDocument, list: CutList, shop: ShopSettin
   const materials = [...new Set(list.groups.map((g) => g.material))];
   const entries: PurchaseEntry[] = materials.map((m) => {
     const label = catalog.label(m);
-    const buying = shop.materials[m] ?? defaultBuying(m);
+    const nominal = catalog.get(m)?.nominal === true;
+    const buying = shop.materials[m] ?? defaultBuying(m, nominal);
     const groups = list.groups.filter((g) => g.material === m);
     if (buying.mode === 'piece' && !isSheetGood(m)) {
-      return byThePiece(m, label, doc.boards.filter((b) => b.material === m), buying.stock, doc.stock.kerf, p);
+      return byThePiece(m, label, doc.boards.filter((b) => b.material === m), buying.stock, doc.stock.kerf, p, nominal);
     }
     if (buying.mode === 'board-foot' && !isSheetGood(m)) {
       const price = buying.pricePerBoardFoot;

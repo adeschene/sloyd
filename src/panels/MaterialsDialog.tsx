@@ -32,6 +32,8 @@ interface Props {
   onClose: () => void;
 }
 
+const nominalIn = (rows: readonly Row[], id: string) => rows.find((r) => r.id === id)?.draft.nominal ?? false;
+
 const LIBRARY_UNREADABLE_TITLE = 'Your saved materials could not be read';
 
 /** Text drafts: a field may hold text that does not parse yet; Save stays off until every field does. */
@@ -97,7 +99,7 @@ export function MaterialsDialog({ shop, readFailed, project, library, libraryRea
     return newFor ? [...r, newRow(newFor.kind, r)] : r;
   });
   const [drafts, setDrafts] = useState<Record<string, Draft>>(() =>
-    Object.fromEntries([...builtIns, ...rows.map((r) => r.id)].map((m) => [m, toDraft(shop.materials[m] ?? defaultBuying(m))])));
+    Object.fromEntries([...builtIns, ...rows.map((r) => r.id)].map((m) => [m, toDraft(shop.materials[m] ?? defaultBuying(m, nominalIn(rows, m)))])));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   // A Save that reported a failure leaves the dialog open over a CHANGED project (App applies the project edit
@@ -113,6 +115,8 @@ export function MaterialsDialog({ shop, readFailed, project, library, libraryRea
     setRebasePending(false);
   }, [rebasePending, project, library]);
   const nextId = useRef(0);
+  // Built-ins are false here (pine is handled inside defaultBuying); a row follows its draft's switch.
+  const nominalOf = (id: string) => nominalIn(rows, id);
   // The draft a material had in each mode it has been switched AWAY from, so switching back restores it
   // instead of starting blank (final review: a round trip used to drop pine's sizes and oak's price).
   const stash = useRef<Record<string, Partial<Record<Draft['mode'], Draft>>>>({});
@@ -123,7 +127,7 @@ export function MaterialsDialog({ shop, readFailed, project, library, libraryRea
     const next = stash.current[m]?.[mode]
       ?? (stored && stored.mode === mode ? toDraft(stored)
         : mode === 'piece'
-          ? (defaultBuying(m).mode === 'piece' ? toDraft(defaultBuying(m)) : { mode: 'piece', stock: [] })
+          ? (defaultBuying(m, nominalOf(m)).mode === 'piece' ? toDraft(defaultBuying(m, nominalOf(m))) : { mode: 'piece', stock: [] })
           : { mode: 'board-foot', price: '', waste: String(DEFAULT_WASTE_FACTOR) });
     set(m, next);
   };
@@ -155,11 +159,19 @@ export function MaterialsDialog({ shop, readFailed, project, library, libraryRea
   };
 
   const replaceRow = (id: string, next: Row) => setRows((all) => all.map((r) => (r.id === id ? next : r)));
-  const editRow = (r: Row, patch: Partial<DefDraft>) => replaceRow(r.id, { ...r, draft: { ...r.draft, ...patch } });
+  const editRow = (r: Row, patch: Partial<DefDraft>) => {
+    replaceRow(r.id, { ...r, draft: { ...r.draft, ...patch } });
+    // A NEW row's prices follow its nominal switch (they start from the switched defaults, as a kind change does);
+    // a stored row's prices are the user's and are never touched by it.
+    if (patch.nominal !== undefined && patch.nominal !== r.draft.nominal && r.source === 'new') {
+      set(r.id, toDraft(defaultBuying(r.id, patch.nominal)));
+      delete stash.current[r.id];
+    }
+  };
   const addMaterial = () => {
     const r = newRow('solid', rows);
     setRows([...rows, r]);
-    set(r.id, toDraft(defaultBuying(r.id)));
+    set(r.id, toDraft(defaultBuying(r.id, r.draft.nominal)));
   };
   // An unsaved new row (not the one "New material…" assigns) can be taken back out: the row and its price draft
   // go entirely — nothing was stored, so there is nothing to mark deleted.
@@ -179,7 +191,7 @@ export function MaterialsDialog({ shop, readFailed, project, library, libraryRea
     replaceRow(r.id, next);
     setDrafts((all) => {
       const { [r.id]: _old, ...rest } = all;
-      return { ...rest, [next.id]: toDraft(defaultBuying(next.id)) };
+      return { ...rest, [next.id]: toDraft(defaultBuying(next.id, next.draft.nominal)) };
     });
     delete stash.current[r.id];
   };
@@ -264,7 +276,7 @@ export function MaterialsDialog({ shop, readFailed, project, library, libraryRea
             </li>
           </ul>
         )}
-        <button className="lumber-reset" onClick={() => set(m, toDraft(defaultBuying(m)))}>Reset {label.toLowerCase()} to defaults</button>
+        <button className="lumber-reset" onClick={() => set(m, toDraft(defaultBuying(m, nominalOf(m))))}>Reset {label.toLowerCase()} to defaults</button>
       </>
     );
   };

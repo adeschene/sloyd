@@ -910,7 +910,7 @@ describe('Materials & prices (lumber yield and cost spec §2.3, §4; custom mate
     await mountWithOneBoard();
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Cut list' }));
-    expect(screen.getByText('Buy 1 × 3/4" × 5-1/2" × 72" · no price')).toBeInTheDocument();
+    expect(screen.getByText('Buy 1 × 1×6 × 6′ · no price')).toBeInTheDocument();
     const open = screen.getByRole('button', { name: 'Materials & prices…' });
     await user.click(open);
     expect(screen.getByRole('dialog', { name: 'Materials and prices' })).toBeInTheDocument();
@@ -919,7 +919,7 @@ describe('Materials & prices (lumber yield and cost spec §2.3, §4; custom mate
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Materials and prices' })).toBeNull());
     expect(setShopSettings).toHaveBeenCalled();
-    expect(screen.getByText('Buy 1 × 3/4" × 5-1/2" × 72" · $9.00')).toBeInTheDocument();
+    expect(screen.getByText('Buy 1 × 1×6 × 6′ · $9.00')).toBeInTheDocument();
     expect(document.activeElement).toBe(open);
   });
 

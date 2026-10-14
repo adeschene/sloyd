@@ -1,6 +1,6 @@
 # Sloyd — custom materials and nominal lumber
 
-**Date:** 2026-10-14 · **Status:** approved by the user; chunk 1 implemented on branch `custom-materials-1` (plan `docs/superpowers/plans/2026-10-14-sloyd-custom-materials-chunk1.md`); chunk 2 (nominal names) not started
+**Date:** 2026-10-14 · **Status:** approved by the user; chunk 1 deployed 2026-10-14 (merge `4851945`); chunk 2 (nominal names) implemented on branch `custom-materials-2` (plan `docs/superpowers/plans/2026-10-14-sloyd-custom-materials-chunk2.md`)
 **Amended while planning (2026-10-14), marked "(amended)":** §2.2 the id encodes the kind; §2.5 shop validation by id; §4.1 entry points; §6 joinery prompt names.
 **Builds on:** the document schema and versioned load (`document.ts`, invariants 11, 33), the material table
 (`MATERIALS`, `types.ts`), sheet nesting (`nesting.ts`), lumber yield and cost (`purchase.ts`,
@@ -211,7 +211,8 @@ machined (invariant 18). A name is shown only for a part whose material is `nomi
   material is nominal. It shows the current name or `Custom`; choosing a section sets thickness and width in ONE edit
   (one undo entry, the normal reorient path, invariant 2). Choosing `Custom` changes nothing.
 - **Not** on the Plans sheet or part diagrams: drawings keep actual dimensions. **(amended)** *Nor in a by-the-piece
-  sheet layout's key label (`nesting.sheet`), a measured SVG string (invariant 19); the layout's caption does name it.*
+  sheet layout's `nesting.sheet`, which stays on actual dimensions because nothing reads it for a Buying layout (it is the
+  sheet-goods unplaceable message's noun); the layout's caption names the section.*
 - **(amended)** *Choosing a section keeps each part's stored order of thickness and width when every selected part has
   the same order (a part stored 3½ thick × 1½ wide stays that way round, so the board does not turn over); a selection
   mixing orders takes the thinner side as thickness.*

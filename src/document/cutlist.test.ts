@@ -744,3 +744,34 @@ describe('custom materials (custom materials spec §3)', () => {
     expect(list.groups.map((g) => g.material)).toEqual(['m-s-ash1', 'oak']);
   });
 });
+
+describe('nominal names on rows (custom materials spec §5.3)', () => {
+  const spf = { id: 'm-s-spf1', label: 'SPF', color: '#e0c890', kind: 'solid' as const, nominal: true as const };
+  const list = (boards: Board[], materials = [spf]) => buildCutList({ ...createDocument(), boards, materials } as FlatDocument);
+  const part = (id: string, material: string, width: number, thickness: number, length = 36) =>
+    createBoard({ id, name: id, material, width, thickness, length });
+
+  it('a pine 3/4 × 3-1/2 row reads 1×4; the same oak row has no name', () => {
+    const l = list([part('a', 'pine', 3.5, 0.75), part('b', 'oak', 3.5, 0.75)]);
+    const row = (m: string) => l.groups.find((g) => g.material === m)!.rows[0]!;
+    expect(row('pine').nominal).toBe('1×4');
+    expect(row('oak').nominal).toBeNull();
+  });
+  it('a nominal custom material names 2×4, either way round', () => {
+    expect(list([part('a', 'm-s-spf1', 3.5, 1.5)]).groups[0]!.rows[0]!.nominal).toBe('2×4');
+    expect(list([part('a', 'm-s-spf1', 1.5, 3.5)]).groups.flatMap((g) => g.rows)[0]!.nominal).toBe('2×4');
+  });
+  it('a row whose boards print alike but are not all the section has NO name', () => {
+    const l = list([part('a', 'm-s-spf1', 3.5, 1.5), part('b', 'm-s-spf1', 3.5 + 1e-6, 1.5)]);
+    const rows = l.groups[0]!.rows;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.qty).toBe(2);
+    expect(rows[0]!.nominal).toBeNull();
+  });
+  it('switching the material off clears the name', () => {
+    expect(list([part('a', 'm-s-spf1', 3.5, 1.5)], [{ ...spf, nominal: undefined } as never]).groups[0]!.rows[0]!.nominal).toBeNull();
+  });
+  it('3/8 short is no name', () => {
+    expect(list([part('a', 'pine', 3.375, 0.75)]).groups[0]!.rows[0]!.nominal).toBeNull();
+  });
+});

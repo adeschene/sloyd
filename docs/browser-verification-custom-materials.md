@@ -50,3 +50,20 @@ project switched back to "Shaker Side Table — joined"; `sloyd.materials.v1` an
 check) removed by name. Read back: the three original projects, `sloyd.llm.v1` present, `sloyd.autosave.v1`,
 `sloyd.library.v1`, nothing else. The exported file was deleted from `.playwright-mcp/`; the page was navigated to
 `about:blank` and the dev server stopped.
+
+## Chunk 2 — nominal names (2026-10-14, branch `custom-materials-2`, head `ccd57be`)
+
+Same origin (`localhost:5181`), same start state (three projects, the key, no library or prices keys). Free: no API call.
+
+| Step | Read back |
+|---|---|
+| New project "Live nominal", + Add board (pine 24 × 5½ × ¾) | Properties shows "Nominal size" = `1×6`; the cut list row reads `1 × 24" × 5-1/2" 1×6 Board`; Buying `Buy 1 × 1×6 × 6′ · no price` |
+| Nominal size → 2×4 | the stored part is thickness 1.5 × width 3.5; one Undo → back to 0.75 × 5.5 |
+| Material → Oak | the Nominal size select is gone; the oak row has no name; Buying stays by the board foot |
+| + Add board → Material → New material… → "SPF", Sold in nominal sizes on | the new row's prices switched to By the piece with the 29-size yard list; Save assigned SPF |
+| SPF part → Nominal size 2×4, length 90 | row `1 × 90" × 3-1/2" 2×4 Board (1)`; Buying `Buy 1 × 2×4 × 8′ · no price`; layout caption `2×4 × 8′ — board 1` (screenshot `live-cutlist.png`, workspace) |
+
+The `×` and `′` glyphs render cleanly in the row, the Buy line and the caption; drawings keep actual dimensions. Console:
+no errors (the existing three.js/GL warnings only). Cleanup: "Live nominal" deleted through the project menu, the active
+project switched back, `sloyd.materials.v1` and `sloyd.shop.v1` (created by this check) removed by name; read back as at
+the start; navigated to `about:blank`, dev server stopped.

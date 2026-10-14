@@ -165,9 +165,9 @@ describe('CutList', () => {
       render(<CutList onClose={() => {}} shop={shop()} />);
       const buying = screen.getByRole('region', { name: 'Buying' });
       expect(within(buying).getByText('Oak — 3/4": buy 1.95 bd ft (1.50 bd ft net × 1.3) · $19.50')).toBeInTheDocument();
-      expect(within(buying).getByText('Buy 1 × 3/4" × 5-1/2" × 96" · $12.00')).toBeInTheDocument();
+      expect(within(buying).getByText('Buy 1 × 1×6 × 8′ · $12.00')).toBeInTheDocument();
       expect(within(buying).getByText('Estimated materials: $31.50')).toBeInTheDocument();
-      expect(within(buying).getByRole('img', { name: '3/4" × 5-1/2" × 96" — board 1, 1 part' })).toBeInTheDocument();
+      expect(within(buying).getByRole('img', { name: '1×6 × 8′ — board 1, 1 part' })).toBeInTheDocument();
     });
 
     it('hides the board layouts with the Layouts toggle', async () => {
@@ -187,5 +187,14 @@ describe('CutList', () => {
       await userEvent.keyboard('{Escape}');
       expect(closed).toBe(false);
     });
+  });
+
+  it('a pine 1×4 row shows its nominal name beside unchanged dims', () => {
+    load({ name: 'Rail', material: 'pine', thickness: 0.75, length: 24, width: 3.5 });
+    const { container } = render(<CutList onClose={() => {}} />);
+    const row = container.querySelector('.cutlist-row')!;
+    expect(row.querySelector('.cutlist-nominal')?.textContent).toBe('1×4');
+    expect(row.querySelector('.cutlist-dims')?.textContent).toBe('24" × 3-1/2"');
+    expect(row.querySelector('.cutlist-names')?.textContent).toBe('1×4 Rail');
   });
 });
