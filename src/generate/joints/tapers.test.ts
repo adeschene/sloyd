@@ -358,6 +358,26 @@ describe('angleConflicts — a miter, bevel or chamfer reaching into a joint (AI
     expect(jointFaults(both).filter((v) => v.parts[0] === 'Leg')).toHaveLength(1);
     expect(jointFaults(both)[0]!.message).toContain("Leg's taper toward");
   });
+  it('a mitered box on a thin bottom: the rabbet runs out through each mitered end (final review I2, the user\'s ruling)', () => {
+    // A 1/2in bottom 12 x 8; four 4in sides on it, each its full outside length, mitered 45deg at the vertical corners.
+    const box = design(
+      { name: 'Bottom', at: [0, 0, 0], size: [12, 0.5, 8] },
+      { name: 'Front', at: [0, 0.5, 0], size: [12, 4, 0.75] },
+      { name: 'Back', at: [0, 0.5, 7.25], size: [12, 4, 0.75] },
+      { name: 'Left', at: [0, 0.5, 0], size: [0.75, 4, 8] },
+      { name: 'Right', at: [11.25, 0.5, 0], size: [0.75, 4, 8] },
+    );
+    const m = (len: 0 | 2, across: 0 | 2, out: -1 | 1) => (b: Board): AngleCut[] => ([-1, 1] as const).map((e, i) =>
+      ({ id: `m${i}`, ...miterCut({ end: endFacing(b, len, e), across: axisFrame(b)[across]!.dim as 'width' | 'thickness', longSide: endFacing(b, across, out), ratio: 1 }, b) }));
+    const mitered = withPart(withPart(withPart(withPart(box, 'Front', m(0, 2, -1)), 'Back', m(0, 2, 1)), 'Left', m(2, 0, -1)), 'Right', m(2, 0, 1));
+    const sites = findSites(mitered);
+    expect(sites.filter((x) => x.kind === 'face-against-edge')).toHaveLength(4);
+    expect(angleConflicts(mitered, sites)).toEqual([]);
+    expect(jointFaults(mitered)).toEqual([]);
+    // A chamfer on that edge still conflicts: it would eat the rabbet.
+    const chamfered = withPart(mitered, 'Front', (b) => [...m(0, 2, -1)(b), chamfer(b, [1, -1], [2, 1], 0.25)]);
+    expect(angleConflicts(chamfered, findSites(chamfered)).map((c) => c.kind)).toEqual(['chamfer']);
+  });
   it('a cut that removes nothing never conflicts (Review Focus 3)', () => {
     expect(ends(withPart(CORNER, 'Rail X', (b) => [{ ...railMiter(-1)(b)[0]!, points: [[0, -1], [1, -2]] }]))).toEqual([]);
   });

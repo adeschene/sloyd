@@ -100,6 +100,9 @@ and comment follows.
   (`along` or `face` is it) whose touched box reaches the joined end conflicts however small its overlap with the patch.
   Joinery keeps such a cut's line fixed (§4) while the part grows through it, so a hairline cut under TOUCH would
   otherwise bite the new tenon. Chamfers and bevels running the length (the clearance case) are unaffected.
+- **Rabbets at a thin panel's edge** (amended after chunk 2's final review, the user's ruling): at a `face-against-edge`
+  site a MITER on the RECEIVING part does not conflict — the rabbet runs along that part's edge and out through the mitered
+  end (a mitered box on a thin bottom, which §8's prompt suggests). A chamfer or bevel on that edge keeps the overlap rule.
 - One conflict per part, reported in `taperConflicts`' order (by part). A part with both a taper conflict and another
   kind's conflict reports the taper's.
 - **The message**, one sentence per part, in `angledRefusal.ts` (it is a string a person reads): "`<Part>`'s `<kind>` runs

@@ -223,7 +223,11 @@ describe('diffDesigns — miters, bevels and chamfers (AI-angles spec §6.4)', (
     expect(lines(m45, { ...b, angleCuts: [miter(b, 1.0000000001)] })).toEqual([]);
   });
   it('taper lines are kind angle too', () => {
-    expect(['added', 'removed', 'resized', 'moved', 'material', 'angle', 'linked', 'unlinked']).toContain('angle');
+    const leg = createBoard({ name: 'Leg', length: 28, width: 1.75, thickness: 1.75, posture: 'upright', position: [0, 0, 0] });
+    const tapered = { ...leg, angleCuts: [{ id: 't', kind: 'taper' as const, face: 'width' as const, from: 'min' as const, along: 'length' as const, alongFrom: 'min' as const, points: [[0, 0.5], [20, 0]] as [[number, number], [number, number]] }] };
+    const c = diffDesigns({ ...createDocument('T'), boards: [leg] }, { ...createDocument('T'), boards: [tapered] });
+    expect(c.map((x) => x.kind)).toEqual(['angle']);
+    expect(c[0]!.text).toContain('taper added');
   });
 });
 

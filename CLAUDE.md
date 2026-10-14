@@ -554,7 +554,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     site whose patch lies on tapered wood (`taperConflicts`; `start` itself allowed, compared with a 1e-9 float tolerance,
     inv 22) — and, for a miter, bevel or chamfer, any site whose patch its touched box overlaps by more than TOUCH
     (`angleConflicts`), except a cut on the ENTERING part of an end-into-face site that runs straight through the joined end
-    and clears the tenon's section (`clearsTenon`); on that growing part a cut measured along or into the growth that removes
+    and clears the tenon's section (`clearsTenon`), and a MITER on the receiving part of a face-against-edge (rabbet) site (the
+    rabbet runs out through the mitered end); on that growing part a cut measured along or into the growth that removes
     wood at the joined end refuses however small (final review I2: the rebase keeps its line fixed while the part grows). One sentence per part (`jointRefusal`). `resize` re-anchors angle cuts
     measured from the moving end (`rebaseAngleCuts`, fu 307), and `readJoints`' `resizeAt` undoes it exactly (the gate's
     round trip). Sites stay on box contacts on purpose. The unjoin gate (`sameJoined`) compares a part's cuts as a MULTISET (`sameCutSet`; order is not geometry, still exact at 1e-9; angle cuts stay in order). A joined Refine is refused up front (`plainForRefine`, `'angle-joint'`) when the original's angle cut already runs into a joint; a result the model leaves conflicting comes back UNJOINED (`JointsSummary.notJoined`), never joined over an angle cut.
@@ -669,7 +670,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–322, each with its closure). Read the entries
+**`docs/follow-ups.md` is authoritative** (1–323, each with its closure). Read the entries
 for the area you are about to touch; several are "correct but untested". Open items worth
 knowing without opening it:
 
@@ -712,6 +713,8 @@ knowing without opening it:
   eye), 320 (record-only: no view shortcuts, one-frame selection blink, a saved PNG owed a real-hardware look).
 - **321** — AI angles chunk 1 minors (record-only): the receiving part's "reaches" test uses the entering face at 1e-9;
   test gaps (no turned chamfer, no bevel case).
+- **323** — AI angles chunk 2 minors (record-only): generic `angle-joint` advice; refusal-kind found by text search; turned
+  candidates' angle-cut ids by index (latent); test gaps; multi-decimal angles fall back to 0.1°.
 - **322** — the design schema's compiled-grammar margin (record): the API caps the compiled schema (unpublished); the part
   and direction live in `$defs`; any `DESIGN_SCHEMA` change needs one live compile before it ships.
 - **176/177** — the held rules' known limits (mutual lapping) and an unseen live repair.
