@@ -165,9 +165,9 @@ describe('CutList', () => {
       render(<CutList onClose={() => {}} shop={shop()} />);
       const buying = screen.getByRole('region', { name: 'Buying' });
       expect(within(buying).getByText('Oak — 3/4": buy 1.95 bd ft (1.50 bd ft net × 1.3) · $19.50')).toBeInTheDocument();
-      expect(within(buying).getByText('Buy 1 × 3/4" × 5-1/2" × 96" · $12.00')).toBeInTheDocument();
+      expect(within(buying).getByText('Buy 1 × 1×6 × 8′ · $12.00')).toBeInTheDocument();
       expect(within(buying).getByText('Estimated materials: $31.50')).toBeInTheDocument();
-      expect(within(buying).getByRole('img', { name: '3/4" × 5-1/2" × 96" — board 1, 1 part' })).toBeInTheDocument();
+      expect(within(buying).getByRole('img', { name: '1×6 × 8′ — board 1, 1 part' })).toBeInTheDocument();
     });
 
     it('hides the board layouts with the Layouts toggle', async () => {
