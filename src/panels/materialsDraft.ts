@@ -58,7 +58,12 @@ const positiveLength = (t: string) => { const v = parseLength(t); return v !== n
 
 /** The material a row's draft describes, or undefined while any field is refused. */
 export function fromDraft(r: Row): CustomMaterial | undefined {
-  const sheet = r.kind === 'solid' ? undefined : { length: positiveLength(r.draft.sheetLength), width: positiveLength(r.draft.sheetWidth) };
+  // An untouched field keeps its stored value exactly (display rounds; stored is exact, inv 5).
+  const keep = (text: string, stored: number | undefined) =>
+    stored !== undefined && text === lengthText(stored) ? stored : positiveLength(text);
+  const o = r.original?.sheet;
+  const sheet = r.kind === 'solid' ? undefined
+    : { length: keep(r.draft.sheetLength, o?.length), width: keep(r.draft.sheetWidth, o?.width) };
   if (sheet && (sheet.length === undefined || sheet.width === undefined)) return undefined;
   return validateCustomMaterial({
     id: r.id, kind: r.kind, label: r.draft.label, color: r.draft.color,
@@ -131,6 +136,17 @@ export function planSave(input: {
       } else if (changed(r)) {
         upsert(m);
       }
+    }
+    const seen: CustomMaterial[] = [];
+    for (const m of next) {
+      const k = labelKey(m.label);
+      const twin = seen.find((e) => labelKey(e.label) === k);
+      if (twin) {
+        const a = library.find((x) => x.id === twin.id), b = library.find((x) => x.id === m.id);
+        const preExisting = a !== undefined && b !== undefined && labelKey(a.label) === k && labelKey(b.label) === k;
+        if (!preExisting) return { refused: `Your library would have two materials called "${m.label.trim()}" — rename one first.` };
+      }
+      seen.push(m);
     }
     const same = next.length === library.length && next.every((m, i) => sameMaterial(m, library[i]!));
     lib = same ? null : next;

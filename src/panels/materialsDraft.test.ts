@@ -123,4 +123,27 @@ describe('planSave', () => {
     const rows = initialRows([ash], []);
     expect(plan([edit(rows[0]!, { label: '' })], [])).toEqual({ refused: 'Give the material a name.' });
   });
+  it('an untouched sheet row writes nothing, however odd its stored size (invariant 5)', () => {
+    const odd: CustomMaterial = { ...birch, sheet: { length: 48.03, width: 1220 / 25.4 } };
+    const rows = initialRows([odd], [odd]);
+    expect(plan(rows, [odd])).toEqual({ project: [], library: null, assign: null });
+    const p = plan([edit(rows[0]!, { sheetWidth: '40' })], [odd]);
+    if ('refused' in p) throw new Error(p.refused);
+    expect(p.project[0]!.sheet).toEqual({ length: 48.03, width: 40 });
+  });
+  it('refuses a library that would hold one label twice (hidden label of a project copy)', () => {
+    const hidden: CustomMaterial = { ...ash, label: 'White ash' };
+    const rows = [...initialRows([ash], [hidden]), edit(newRow('solid', [], () => 0.5), { label: 'White ash' })];
+    expect(plan(rows, [hidden])).toEqual({ refused: 'Your library would have two materials called "White ash" — rename one first.' });
+  });
+  it('refuses renaming a library-only row to the hidden label', () => {
+    const hidden: CustomMaterial = { ...ash, label: 'White ash' };
+    const rows = initialRows([ash], [hidden, birch]);
+    expect(plan([rows[0]!, edit(rows[1]!, { label: 'white ash' })], [hidden, birch])).toEqual({ refused: 'Your library would have two materials called "white ash" — rename one first.' });
+  });
+  it('a duplicate pair already in the stored library does not block an unrelated Save', () => {
+    const twin: CustomMaterial = { ...libAsh, label: 'Ash' };
+    const rows = initialRows([], [twin, ash, birch]);
+    expect(plan([rows[0]!, rows[1]!, edit(rows[2]!, { color: '#000000' })], [twin, ash, birch])).toEqual({ project: [], library: [twin, ash, { ...birch, color: '#000000' }], assign: null });
+  });
 });
