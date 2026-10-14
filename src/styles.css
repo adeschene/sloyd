@@ -470,19 +470,23 @@ button[aria-pressed='true'] {
 }
 
 .viewport-controls-tools { left: 12px; }
-.viewport-controls-view { right: 12px; }
-/* Bottom-right, not under the View group: that group wraps to a variable height (fu 319), so a fixed offset
-   below it could overlap at 1440 px; the opposite corner cannot. The Move hint is bottom-left. */
+/* The View group and the Section group stack in one top-right column, so Section follows whatever height View
+   wraps to (fu 319) and never meets the Tape readout (bottom-right) or the Move hint (bottom-left). 220px clears
+   the Tools group and its gap. */
+.viewport-controls-right {
+  position: absolute; top: 12px; right: 12px; z-index: 2;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
+  max-width: calc(100% - 220px);
+}
+.viewport-controls-right > .viewport-controls { position: static; max-width: 100%; }
 .viewport-controls-section {
-  top: auto; bottom: 12px; right: 12px;
   align-items: center; flex-wrap: wrap; justify-content: flex-end;
-  max-width: calc(100% - 24px);
   color: var(--ink);
 }
 .viewport-controls-section input[type='range'] { width: 10rem; }
 /* Five clusters now (projection, visibility, views, explode, Save image): wrap, right-aligned, rather than
    run under the Tools group on a narrow window. 220px clears the Tools group (Select/Move/Tape) and its gap. */
-.viewport-controls-view { flex-wrap: wrap; justify-content: flex-end; max-width: calc(100% - 220px); }
+.viewport-controls-view { flex-wrap: wrap; justify-content: flex-end; }
 
 /* A disabled fieldset is the plans-sheet edit lock (spec §4.2): it disables every control inside
    without each component knowing. display: contents makes it layout-transparent: the original

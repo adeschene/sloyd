@@ -101,6 +101,7 @@ export function ViewportControls({
         </div>
       </div>
 
+      <div className="viewport-controls-right">
       <div className="viewport-controls viewport-controls-view" role="group" aria-label="View">
         <div className="segmented">
           <button aria-pressed={!orthographic} onClick={() => { if (orthographic) onToggleProjection(); }}
@@ -144,6 +145,7 @@ export function ViewportControls({
                 onClick={() => {
                   if (axis === section.axis) return;
                   const at = centre(axis);
+                  // Defence in depth: the store also refuses a non-finite `at`.
                   if (at !== null) setSection({ ...section, axis, at });
                 }}>{text}</button>
             ))}
@@ -157,6 +159,7 @@ export function ViewportControls({
             title="Keep the other side of the cut">Flip</button>
         </div>
       )}
+      </div>
 
       {tool === 'move' && !hasSelection && (
         // The Move tool grabs points on the selected board only, so with
