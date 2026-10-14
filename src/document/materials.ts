@@ -156,3 +156,11 @@ export function upsertMaterials<T extends MaterialDoc>(doc: T, ms: readonly Cust
   }
   return materials === doc.materials ? doc : { ...doc, materials };
 }
+
+/** Library entries the picker may list (spec §4.1–4.2): not in the project, and named like no built-in and no
+ *  project material — so one label never shows twice. */
+export function pickerLibrary(project: readonly CustomMaterial[], library: readonly CustomMaterial[]): CustomMaterial[] {
+  const ids = new Set(project.map((m) => m.id));
+  const taken = new Set([...Object.values(MATERIALS).map((m) => labelKey(m.label)), ...project.map((m) => labelKey(m.label))]);
+  return library.filter((m) => !ids.has(m.id) && !taken.has(labelKey(m.label)));
+}
