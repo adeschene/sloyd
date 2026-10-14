@@ -92,7 +92,11 @@ library with a flag; the dialog says so and does not save the library over it.
 
 `sloyd.shop.v1` keeps its layout, keyed by material id. `validateShop` takes the catalog of materials it should
 know (built-ins + library + this project) and validates those entries by their kind; every other stored entry is
-carried untouched in `extra` (the existing passthrough). A material with no stored entry takes its default buying:
+carried untouched in `extra` (the existing passthrough). The known set depends on the open project, so an id moves
+between `materials` and `extra` as projects open; three rules keep that clean: **an id is never in both** (on read,
+an id the set knows is taken out of `extra`); **`materials` wins** (a write never re-emits an `extra` entry for an id
+it now validates); and **a changed known set never sets `ok: false`** — only a known id's entry failing validation
+does. A material with no stored entry takes its default buying:
 - nominal solid → **by the piece**, stock per §5.4;
 - other solid → **by the board foot**, waste 1.3, no price;
 - sheet → **by the sheet**, no price.
@@ -157,6 +161,19 @@ shows **Add to library**. **Opening a project never writes the library.**
 
 **Delete** (library-only rows): removes the library entry on Save. Projects keep their copies; its prices stay in
 `sloyd.shop.v1` (harmless, carried in `extra` once nothing knows the id).
+
+**Two materials with one label** cannot be created here, but load cannot refuse one: an imported file's "Ash"
+(`m-aaa`) beside a library "Ash" (`m-bbb`). The project's copy wins the label: a library-only entry whose label
+equals a project material's is **left out of the picker** (§4.2), and in the dialog its row reads "Same name as a
+project material" with its definition fields enabled, so a rename (which the label refusal then accepts) brings it
+back. "Add to library" on the project's copy is refused while a library entry holds the same label — rename one
+first. So the picker never shows one label twice.
+
+**Exploded (invariant 47).** Save's project edit would be refused while exploded, and Save also writes the library;
+a half-applied Save is not allowed. While exploded the dialog opens with every DEFINITION control disabled — the
+fields, Add material, Use library version, Add to library, Delete — under the existing `EXPLODED_TITLE`; prices stay
+editable (browser state, as today), and Save writes prices only. "New material…" is already unreachable: Properties
+sits inside the `edit-lock` fieldset (pinned in `App.test.tsx`).
 
 ### 4.2 Picking
 
@@ -224,7 +241,11 @@ By the piece, no prices: 1×2…1×12 at 8′; 2×2…2×12 at 8′, 10′, 12�
 - **Pruning** on every write path that can drop a last use: material change, delete, Ungroup, Make Unique, Refine,
   joinery, Repair, undo/redo (a restored document carries its own `materials`).
 - **Library storage:** a read never writes; an unusable value reads empty with a flag; round trip.
-- **Shop:** custom ids validated by kind; unknown ids carried in `extra`; defaults per §2.5.
+- **Shop:** custom ids validated by kind; unknown ids carried in `extra`; an id moving from `extra` to `materials`
+  and back is never in both and never flags `ok: false`; defaults per §2.5.
+- **Same label:** an imported "Ash" beside a library "Ash" — the picker shows one; "Add to library" refused until
+  renamed.
+- **Exploded:** the dialog's definition controls are disabled; Save writes prices only.
 - **Dialog:** each refusal; Save is one undo entry; undo reverts the project copy and not the library; "Use library
   version"; "Add to library"; delete library-only; "New material…" applies to the selection in the same entry.
 - **Nominal:** the match is exact (mutate to 3⅜ and to a 1e-6 offset); either order; non-nominal material shows no
