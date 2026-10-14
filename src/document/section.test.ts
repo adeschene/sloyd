@@ -1,7 +1,7 @@
 import { createBoard, mirrorPart, pocketCells, keptHalfSpace, partGeometry, taperCut, type Board, type Posture, type Rotation } from './document';
 import { axisFrame, fromWorldOffset, DIMENSION_ORDER } from './geometry';
 import { holePrism } from './holes';
-import { keptBySection, sectionAxisIndex, sectionPlaneOf, sectionSpan, SECTION_EPS, sectionCaps, type Section } from './section';
+import { keptBySection, sectionAxisIndex, sectionPlaneOf, sectionSpan, SECTION_EPS, sectionCaps, unionOutline, type Section } from './section';
 import { chiralPart } from './turnFixtures';
 
 describe('section side test', () => {
@@ -104,6 +104,7 @@ function solidAt(b: Board, w: readonly number[]): boolean {
   return !partGeometry(b).holes.some((h) => holePrism(h).every((q) => q.n[0] * l + q.n[1] * wd + q.n[2] * t + q.d >= 0));
 }
 
+const len = (segs: readonly [P3, P3][]) => segs.reduce((s, [a, b]) => s + Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]), 0);
 const box = createBoard({ id: 'box', length: 20, width: 6, thickness: 1.5, position: [0, 0, 0] });
 
 describe('sectionCaps: a plain box', () => {
@@ -190,6 +191,20 @@ describe('sectionCaps: the kept side follows a reversed axis (a plane on a shoul
     expect(totalArea(sectionCaps(turned, { axis: 'side', at: 10, flip: false })!.pieces as P3[][])).toBeCloseTo(6 * 1.25, 9);
     expect(totalArea(sectionCaps(turned, { axis: 'side', at: 10, flip: true })!.pieces as P3[][])).toBeCloseTo(6 * 1.5, 9);
   });
+  it('turned 90° and cut on front, world z runs against the length: z ≤ 10 keeps the dado side', () => {
+    const quarter = createBoard({ id: 'q', length: 20, width: 6, thickness: 1.5, rotation: 90, position: [0, 0, 0], cuts: [dado] });
+    expect(axisFrame(quarter)[2]!.reversed).toBe(true);
+    // z = 10 is the shoulder (length 10 either way, the extent being 0 … 20). Reversed: flip false keeps length ≥ 10, the
+    // 6 × 1.25 slab under the dado; flip true keeps length ≤ 10, the full 6 × 1.5 block whose end face lies on the plane.
+    const a = sectionCaps(quarter, { axis: 'front', at: 10, flip: false })!;
+    const b = sectionCaps(quarter, { axis: 'front', at: 10, flip: true })!;
+    expect(totalArea(a.pieces as P3[][])).toBeCloseTo(6 * 1.25, 9);
+    expect(totalArea(b.pieces as P3[][])).toBeCloseTo(6 * 1.5, 9);
+    expect(len(a.outline as [P3, P3][])).toBeCloseTo(2 * (6 + 1.25), 9);
+    expect(len(b.outline as [P3, P3][])).toBeCloseTo(2 * (6 + 1.5), 9);
+    expect(a.outline).toHaveLength(4);
+    expect(b.outline).toHaveLength(4);
+  });
 });
 
 describe('sectionCaps: every pose agrees with an independent inside-test', () => {
@@ -229,5 +244,67 @@ describe('sectionCaps: every pose agrees with an independent inside-test', () =>
       angleCuts: [{ id: 't1', ...taperCut({ face: 'width', from: 'min', end: 'min', start: 15, amount: 0.75 }) }] });
     sweep(leg);
     sweep(mirrorPart(leg));
+  });
+});
+
+describe('unionOutline', () => {
+  it('two squares sharing an edge: the shared edge cancels', () => {
+    // in plane z = 0 (li = 2), both CCW about +z
+    const a: P3[] = [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]];
+    const b: P3[] = [[1, 0, 0], [2, 0, 0], [2, 1, 0], [1, 1, 0]];
+    expect(len(unionOutline([a, b], 2) as [P3, P3][])).toBeCloseTo(6, 12);
+  });
+  it('a T-junction: a long edge against two short twins cancels exactly', () => {
+    const big: P3[] = [[0, 0, 0], [2, 0, 0], [2, 1, 0], [0, 1, 0]];
+    const s1: P3[] = [[0, 1, 0], [1, 1, 0], [1, 2, 0], [0, 2, 0]];
+    const s2: P3[] = [[1, 1, 0], [2, 1, 0], [2, 2, 0], [1, 2, 0]];
+    // union is the 2 × 2 square
+    expect(len(unionOutline([big, s1, s2], 2) as [P3, P3][])).toBeCloseTo(8, 12);
+  });
+  it('a partial overlap leaves only the uncovered stretch', () => {
+    const big: P3[] = [[0, 0, 0], [3, 0, 0], [3, 1, 0], [0, 1, 0]];
+    const top: P3[] = [[1, 1, 0], [2, 1, 0], [2, 2, 0], [1, 2, 0]];
+    // perimeter of the union: 3 + 1 + (1 + 1 + 1 + 1 + 1) + 1 = 10
+    expect(len(unionOutline([big, top], 2) as [P3, P3][])).toBeCloseTo(10, 12);
+  });
+});
+
+describe('sectionCaps outline', () => {
+  it('across bores: the rectangle plus each 48-gon void', () => {
+    const pin = { id: 'r1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.5,
+      along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 3, pitch: 2, acrossFrom: 'min' as const, inset: 1.5 };
+    const b = createBoard({ id: 'v', length: 20, width: 6, thickness: 1.5, position: [0, 0, 0], holes: [pin] });
+    const gonPerimeter = 48 * 2 * 0.125 * Math.sin(Math.PI / 48);
+    expect(len(sectionCaps(b, { axis: 'top', at: 1.25, flip: false })!.outline as [P3, P3][])).toBeCloseTo(52 + 3 * gonPerimeter, 6);
+  });
+  it('a plain box: the rectangle', () => {
+    expect(len(sectionCaps(box, { axis: 'front', at: 3, flip: false })!.outline as [P3, P3][])).toBeCloseTo(43, 9);
+  });
+  it('a notched part: one outline, no seam lines between pocket cells', () => {
+    const b = { ...chiralPart('flat'), position: [0, 0, 0] as P3 };
+    const s = { axis: 'side' as const, at: 4.375, flip: false };   // through c1's dado
+    const cap = sectionCaps(b, s)!;
+    for (const [p, q] of cap.outline as [P3, P3][]) {
+      const m: P3 = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2];
+      const d: P3 = [q[0] - p[0], q[1] - p[1], q[2] - p[2]];
+      const l = Math.hypot(d[1], d[2]);
+      const off: P3 = [0, (-d[2] / l) * 1e-4, (d[1] / l) * 1e-4];
+      const left = solidAt(b, [m[0], m[1] + off[1], m[2] + off[2]]);
+      const right = solidAt(b, [m[0], m[1] - off[1], m[2] - off[2]]);
+      expect(left !== right, `segment ${p} → ${q}`).toBe(true);
+    }
+  });
+  it('plane on a seam (a cut merged slab beside a neighbour face on the plane): one rectangle, no seam line', () => {
+    const dado = { id: 'c1', face: 'thickness' as const, from: 'max' as const, across: 'width' as const, offset: 10,
+      width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const b = createBoard({ id: 'm', length: 20, width: 6, thickness: 1.5, position: [0, 0, 0], cuts: [dado] });
+    expect(len(sectionCaps(b, { axis: 'side', at: 10, flip: false })!.outline as [P3, P3][])).toBeCloseTo(2 * (6 + 1.5), 9);
+  });
+  it('blind bore along its axis notches the outline (no line across the notch mouth)', () => {
+    const pin = { id: 'r1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.5,
+      along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 1.5 };
+    const b = createBoard({ id: 'n', length: 20, width: 6, thickness: 1.5, position: [0, 0, 0], holes: [pin] });
+    const cap = sectionCaps(b, { axis: 'front', at: 1.5, flip: false })!;
+    expect(len(cap.outline as [P3, P3][])).toBeCloseTo(43 - 0.25 + 0.5 + 0.5 + 0.25, 6);
   });
 });

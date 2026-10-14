@@ -127,5 +127,59 @@ export function sectionCaps(board: Board, s: Section, offset?: readonly number[]
     const q = toWorld(board, { length: p[0]!, width: p[1]!, thickness: p[2]! });
     return [q[0] + o[0]!, q[1] + o[1]!, q[2] + o[2]!];
   };
-  return { pieces: local.pieces.map((poly) => poly.map(w)), outline: [] };
+  return {
+    pieces: local.pieces.map((poly) => poly.map(w)),
+    outline: unionOutline(local.pieces, local.li).map(([a, b]) => [w(a), w(b)] as [V3, V3]),
+  };
+}
+
+/**
+ * The boundary of the union of coplanar, disjoint, consistently wound convex pieces in the plane x[li] = const: every
+ * piece edge, grouped by its supporting line, with each line's stretches weighted +1 along the line's canonical
+ * direction and −1 against it; a stretch whose weights sum to zero is interior (a seam between pocket cells, or one of
+ * minusPrism's splits, always meets its twin running the other way) and is dropped. What is left is the cut's outline.
+ */
+export function unionOutline(pieces: readonly V3[][], li: number): [V3, V3][] {
+  const [i, j] = [0, 1, 2].filter((d) => d !== li) as [number, number];
+  const plane = pieces[0]?.[0]?.[li] ?? 0;
+  interface Line { dx: number; dy: number; c: number; spans: { t0: number; t1: number; w: number }[] }
+  const lines: Line[] = [];
+  for (const poly of pieces) {
+    for (let n = 0; n < poly.length; n += 1) {
+      const p = poly[n]!, q = poly[(n + 1) % poly.length]!;
+      let dx = q[i] - p[i], dy = q[j] - p[j];
+      const l = Math.hypot(dx, dy);
+      if (l <= SECTION_EPS) continue;
+      dx /= l; dy /= l;
+      let w = 1;
+      if (dx < -1e-9 || (Math.abs(dx) <= 1e-9 && dy < 0)) { dx = -dx; dy = -dy; w = -1; }
+      const c = -dy * p[i] + dx * p[j];                    // offset along the line's normal (−dy, dx)
+      const ta = dx * p[i] + dy * p[j], tb = dx * q[i] + dy * q[j];
+      let line = lines.find((m) => Math.abs(m.dx - dx) <= 1e-9 && Math.abs(m.dy - dy) <= 1e-9 && Math.abs(m.c - c) <= SECTION_EPS);
+      if (!line) { line = { dx, dy, c, spans: [] }; lines.push(line); }
+      line.spans.push({ t0: Math.min(ta, tb), t1: Math.max(ta, tb), w });
+    }
+  }
+  const out: [V3, V3][] = [];
+  const at = (m: Line, t: number): V3 => {
+    const v: V3 = [0, 0, 0];
+    v[li] = plane;
+    v[i] = -m.dy * m.c + m.dx * t;
+    v[j] = m.dx * m.c + m.dy * t;
+    return v;
+  };
+  for (const m of lines) {
+    const ts = m.spans.flatMap((s) => [s.t0, s.t1]).sort((a, b) => a - b);
+    const cuts: number[] = [];
+    for (const t of ts) if (!cuts.length || t - cuts[cuts.length - 1]! > SECTION_EPS) cuts.push(t);
+    let runStart: number | null = null;
+    for (let k = 0; k + 1 < cuts.length; k += 1) {
+      const mid = (cuts[k]! + cuts[k + 1]!) / 2;
+      const sum = m.spans.reduce((s, sp) => s + (sp.t0 < mid && mid < sp.t1 ? sp.w : 0), 0);
+      if (sum !== 0) { if (runStart === null) runStart = cuts[k]!; }
+      else if (runStart !== null) { out.push([at(m, runStart), at(m, cuts[k]!)]); runStart = null; }
+    }
+    if (runStart !== null) out.push([at(m, runStart), at(m, cuts[cuts.length - 1]!)]);
+  }
+  return out;
 }
