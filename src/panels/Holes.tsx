@@ -26,6 +26,10 @@ const note = (f: HoleFault, r: HoleRow) => { const t = holeFaultText(f, r); retu
  *  or wider, so hole 2 is not stacked on hole 1. */
 const seedPitch = (diameter: number) => (32 * MM > diameter ? 32 * MM : 2 * diameter);
 
+/** The depth a row takes when Through is unchecked: half the face dimension (3/8" in 3/4" stock), at most 1/2" — an
+ *  end-grain row in a 30" rail would otherwise seed a 15" bore. */
+const throughSeed = (faceDim: number) => Math.min(faceDim / 2, 0.5);
+
 function HoleRowView({ board, row, precision }: { board: Board; row: HoleRow; precision: number }) {
   const updateHoleRow = useStore((s) => s.updateHoleRow);
   const removeHoleRow = useStore((s) => s.removeHoleRow);
@@ -80,7 +84,7 @@ function HoleRowView({ board, row, precision }: { board: Board; row: HoleRow; pr
         <div className="field">
           <label htmlFor={`hole-through-${row.id}`}>Through</label>
           <input id={`hole-through-${row.id}`} type="checkbox" checked={row.depth === 'through'}
-            onChange={(e) => set({ depth: e.target.checked ? 'through' : board[row.face] / 2 })} />
+            onChange={(e) => set({ depth: e.target.checked ? 'through' : throughSeed(board[row.face]) })} />
         </div>
         {row.depth !== 'through' && (
           <DimensionField label="Depth" value={row.depth} precision={precision} onCommit={(depth) => field({ depth })} />

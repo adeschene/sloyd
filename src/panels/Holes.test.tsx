@@ -95,6 +95,15 @@ describe('the Holes section', () => {
     await user.click(screen.getByLabelText('Through'));
     expect(rows()[0]!.depth).toBe(0.375);
   });
+  it('unchecking Through on an end-grain row seeds a bench depth, not half the part (final review 3)', async () => {
+    // A dowel bore in the length max end of a 30" rail: half the face dimension would be 15"; the seed is capped at 1/2".
+    const user = userEvent.setup();
+    const dowel = { id: 'h1', face: 'length', from: 'max', diameter: 0.375, depth: 'through', along: 'width', alongFrom: 'min',
+      station: 2, count: 1, pitch: 0, acrossFrom: 'min', inset: 0.375 } as const;
+    open(side({ holes: [dowel] }));
+    await user.click(screen.getByLabelText('Through'));
+    expect(rows()[0]!.depth).toBe(0.5);
+  });
   it('accepts a metric pitch exactly', async () => {
     const user = userEvent.setup();
     open(side());
