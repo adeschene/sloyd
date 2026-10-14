@@ -36,15 +36,15 @@
 ### Task 1: The material model — kinds by id, validation, catalog, pruning
 
 **Files:**
-- Modify: `src/document/types.ts:125` (Board.material comment), `:195-224` (`SloydDocument`), `:256-288` (`MATERIALS`, `isSheetGood`, `sheetStockOf`)
+- Modify: `src/document/types.ts:125` (Board.material comment), `:256-284` (`MATERIALS`, `isSheetGood`; `sheetStockOf` stays until Task 3)
 - Create: `src/document/materials.ts`
 - Test: `src/document/materials.test.ts`
 - Modify: `src/document/document.ts:16-29` (barrel: `export * from './materials'`)
 - Modify: `docs/superpowers/specs/2026-10-14-sloyd-custom-materials-design.md` (amendments)
 
 **Interfaces:**
-- Produces (types.ts): `type MaterialKind = 'solid' | 'sheet-veneered' | 'sheet-plain'`; `interface CustomMaterial { id: string; label: string; color: string; kind: MaterialKind; nominal?: true; sheet?: { length: number; width: number } }`; `CUSTOM_MATERIAL_ID: RegExp`; `isCustomMaterialId(id: string): boolean`; `materialKind(id: string): MaterialKind`; `isSheetGood(id: string): boolean` (now `materialKind(id) !== 'solid'`). `sheetStockOf` is DELETED (Task 3 replaces its two callers).
-- Produces (materials.ts): `mintMaterialId(kind, taken?, random?) : string`; `validateCustomMaterial(raw: unknown): CustomMaterial | null`; `validateCustomMaterials(raw: unknown): CustomMaterial[]`; `sameMaterial(a, b): boolean`; `interface MaterialInfo { id; label; color; kind; nominal: boolean; sheet?: SheetStock; builtIn: boolean }`; `interface MaterialCatalog { get(id): MaterialInfo | undefined; ids: readonly string[]; label(id): string; color(id): string }`; `builtInCatalog(): MaterialCatalog`; `catalogOf(doc: Pick<SloydDocument, 'materials'>): MaterialCatalog`; `materialUses(doc): Set<string>`; `pruneMaterials<T extends SloydDocument>(doc: T): T`; `upsertMaterials<T extends SloydDocument>(doc: T, ms: readonly CustomMaterial[]): T`; `BUILT_IN_MATERIAL_IDS: ReadonlySet<string>`; `labelKey(label: string): string` (trim + lower-case).
+- Produces (types.ts): `type MaterialKind = 'solid' | 'sheet-veneered' | 'sheet-plain'`; `interface CustomMaterial { id: string; label: string; color: string; kind: MaterialKind; nominal?: true; sheet?: { length: number; width: number } }`; `CUSTOM_MATERIAL_ID: RegExp`; `isCustomMaterialId(id: string): boolean`; `materialKind(id: string): MaterialKind`; `isSheetGood(id: string): boolean` (now `materialKind(id) !== 'solid'`). `SloydDocument` is NOT changed here (Task 2 adds `materials`), so this task builds green on its own.
+- Produces (materials.ts): `mintMaterialId(kind, taken?, random?) : string`; `validateCustomMaterial(raw: unknown): CustomMaterial | null`; `validateCustomMaterials(raw: unknown): CustomMaterial[]`; `sameMaterial(a, b): boolean`; `interface MaterialInfo { id; label; color; kind; nominal: boolean; sheet?: SheetStock; builtIn: boolean }`; `interface MaterialCatalog { get(id): MaterialInfo | undefined; ids: readonly string[]; label(id): string; color(id): string }`; `builtInCatalog(): MaterialCatalog`; `catalogOf(doc: { materials: readonly CustomMaterial[] }): MaterialCatalog`; `type MaterialDoc = Pick<SloydDocument, 'boards' | 'definitions' | 'shapes'> & { materials: CustomMaterial[] }`; `materialUses(doc: Pick<SloydDocument, 'boards' | 'definitions' | 'shapes'>): Set<string>`; `pruneMaterials<T extends MaterialDoc>(doc: T): T`; `upsertMaterials<T extends MaterialDoc>(doc: T, ms: readonly CustomMaterial[]): T`; `BUILT_IN_MATERIAL_IDS: ReadonlySet<string>`; `labelKey(label: string): string` (trim + lower-case).
 
 - [ ] **Step 1: Branch and record the spec amendments**
 
@@ -257,12 +257,7 @@ export function isSheetGood(material: string): boolean {
 }
 ```
 
-Delete `sheetStockOf`. Change `Board.material`'s comment to `/** A built-in MATERIALS key or a custom material id (custom materials spec §2.2). */`. Add to `SloydDocument`, after `shapes`:
-
-```ts
-  /** Exactly the custom materials this document's parts and shapes use (custom materials spec §2.3). */
-  materials: CustomMaterial[];
-```
+Keep `sheetStockOf` as it is (Task 3 replaces its callers and deletes it). Change `Board.material`'s comment to `/** A built-in MATERIALS key or a custom material id (custom materials spec §2.2). */`. Do NOT touch `SloydDocument` here.
 
 Create `src/document/materials.ts`:
 
@@ -271,6 +266,9 @@ import {
   DEFAULT_MATERIAL, MATERIALS, isCustomMaterialId, materialKind,
   type Board, type CustomMaterial, type MaterialKind, type SheetStock, type SloydDocument, type StoredBoard,
 } from './types';
+
+/** What pruning and upserting need. Structural, so this module builds before `SloydDocument` has `materials`. */
+export type MaterialDoc = Pick<SloydDocument, 'boards' | 'definitions' | 'shapes'> & { materials: CustomMaterial[] };
 
 /** Everything a page shows about one material (custom materials spec §3). */
 export interface MaterialInfo {
@@ -383,7 +381,7 @@ const memo = new WeakMap<readonly CustomMaterial[], MaterialCatalog>();
 export const builtInCatalog = (): MaterialCatalog => BUILT_IN;
 
 /** Built-ins + `doc.materials`, memoised on the array's identity (every render shares one per document state). */
-export function catalogOf(doc: Pick<SloydDocument, 'materials'>): MaterialCatalog {
+export function catalogOf(doc: { materials: readonly CustomMaterial[] }): MaterialCatalog {
   let c = memo.get(doc.materials);
   if (!c) {
     c = makeCatalog(doc.materials);
@@ -406,14 +404,14 @@ export function materialUses(doc: Pick<SloydDocument, 'boards' | 'definitions' |
 }
 
 /** Drop custom materials nothing uses (spec §2.3). The SAME object when nothing goes (edit()'s no-op test). */
-export function pruneMaterials<T extends SloydDocument>(doc: T): T {
+export function pruneMaterials<T extends MaterialDoc>(doc: T): T {
   const used = materialUses(doc);
   const kept = doc.materials.filter((m) => used.has(m.id));
   return kept.length === doc.materials.length ? doc : { ...doc, materials: kept };
 }
 
 /** Replace by id, append new; the SAME object when nothing changes. Unused entries are pruned by edit(). */
-export function upsertMaterials<T extends SloydDocument>(doc: T, ms: readonly CustomMaterial[]): T {
+export function upsertMaterials<T extends MaterialDoc>(doc: T, ms: readonly CustomMaterial[]): T {
   let materials = doc.materials;
   for (const m of ms) {
     const i = materials.findIndex((x) => x.id === m.id);
@@ -429,17 +427,16 @@ Add `export * from './materials';` to the barrel block at the top of `src/docume
 - [ ] **Step 5: Run the test, then the build**
 
 Run: `npx vitest run src/document/materials.test.ts` — Expected: PASS.
-Run: `npm run build` — Expected: FAIL only on (a) object literals now missing `materials` and (b) `sheetStockOf` callers (`cutlist.ts`, `CutList.tsx`). Do NOT fix them here; Task 2 and Task 3 own them. Note the list.
+Run: `npm run build && npx vitest run` — Expected: clean build, every test PASS (nothing outside `materials.ts` reads the new code yet except `isSheetGood`, whose built-in answers are unchanged).
 
 - [ ] **Step 6: Mutate** — change `kept.length === doc.materials.length ? doc` to always return a copy; the "SAME object" test must go red. Drop `if (m.kind !== kind) return null;`; the "kind disagrees" case must go red. Restore both.
 
-- [ ] **Step 7: Commit** (the build is red until Task 2; commit anyway on the branch, saying so)
+- [ ] **Step 7: Commit**
 
 ```bash
 git add src/document/types.ts src/document/materials.ts src/document/materials.test.ts src/document/document.ts docs/superpowers/specs/2026-10-14-sloyd-custom-materials-design.md
 git commit -m "feat(materials): the custom material model — kind by id, validation, catalog, pruning
 
-Build is red until the schema task adds doc.materials everywhere.
 Mutated: prune identity, kind/id agreement.
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
@@ -450,6 +447,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ### Task 2: Schema 15 — load, create, edit() prunes
 
 **Files:**
+- Modify: `src/document/types.ts:195-224` (`SloydDocument` gains `materials`)
 - Modify: `src/document/document.ts` (`CURRENT_VERSION` `:130`, `createDocument` `:224-236`, `validateSharedFields` `:415-421`, `validateBoard` `:458`, `validateShapes` `:493`, `validateDefinitions` `:543-553`, `migrateDocument` `:669-771`)
 - Modify: `src/store/store.ts:414-421` (`edit`)
 - Modify: every `SloydDocument` object literal the build names (tests included): add `materials: []`
@@ -539,6 +537,13 @@ Expected: FAIL (`CURRENT_VERSION` is 14; `materials` undefined).
 
 - [ ] **Step 3: Implement**
 
+In `types.ts`, add to `SloydDocument` after `shapes`:
+
+```ts
+  /** Exactly the custom materials this document's parts and shapes use (custom materials spec §2.3). */
+  materials: CustomMaterial[];
+```
+
 In `document.ts`: import `validateCustomMaterials, pruneMaterials, BUILT_IN_MATERIAL_IDS` from `./materials` (not via the barrel). Set `export const CURRENT_VERSION = 15;`. In `createDocument` add `materials: [],` after `shapes: []`.
 
 Thread a `known` set (built-in ids + this file's custom ids):
@@ -582,8 +587,8 @@ In `store.ts` `edit`: import `pruneMaterials` with the other document imports, a
 
 - [ ] **Step 4: Fix every literal the build names**
 
-Run: `npm run build 2>&1 | grep -E "error TS" | grep -v sheetStockOf`
-For each `Property 'materials' is missing` site, add `materials: []` beside its `shapes:` key (or `materials: doc.materials` where the literal copies another document's fields — read each site; a literal built from `...doc` already carries it). Repeat until only the `sheetStockOf` errors (Task 3) remain.
+Run: `npm run build 2>&1 | grep -E "error TS"`
+For each `Property 'materials' is missing` site, add `materials: []` beside its `shapes:` key (or `materials: doc.materials` where the literal copies another document's fields — read each site; a literal built from `...doc` already carries it). Repeat until the build is clean.
 
 - [ ] **Step 5: Run the tests**
 
@@ -720,7 +725,7 @@ Expected: FAIL (labels print raw ids; custom sheet not nested; `m-s-…` lands i
 
 Replace `const sheet = sheetStockOf(group.material);` with `const sheet = catalog.get(group.material)?.sheet;` and inside `if (sheet)` add `group.sheet = sheet;`. Sort by `catalog.label(a.material).localeCompare(catalog.label(b.material))`. Update the import line (`MATERIALS`, `sheetStockOf` gone; `isSheetGood` stays; import `type SheetStock`).
 
-`CutList.tsx:157`: `<SheetLayout nesting={group.nesting} stock={group.sheet!} />`.
+`CutList.tsx:157`: `<SheetLayout nesting={group.nesting} stock={group.sheet!} />`. Then delete `sheetStockOf` from `types.ts` (its two callers are gone; `npm run build` confirms no other).
 
 `purchase.ts`: import `isCustomMaterialId` from `./types` and `catalogOf` from `./materials`. In `validateShop`:
 
@@ -924,7 +929,7 @@ and in the mocked `storage` object: `getMaterialLibrary: () => getMaterialLibrar
 - Test: `src/store/store.test.ts`
 
 **Interfaces:**
-- Consumes: `upsertMaterials`, `CustomMaterial`.
+- Consumes: `upsertMaterials`, `materialUses`, `CustomMaterial`.
 - Produces: `updateBoards(ids: string[], patch: Partial<Board>, adopt?: CustomMaterial[]): void`; `applyMaterials(upserts: CustomMaterial[], assign?: { ids: string[]; material: string }): void`. Both refuse while exploded (`readOnly()`), both are ONE `edit()`.
 
 - [ ] **Step 1: Write the failing tests** — append to `store.test.ts`:
@@ -966,6 +971,8 @@ describe('adopting and applying custom materials (custom materials spec §4)', (
     expect(useStore.getState().doc.materials).toEqual([brown]);
     const n = useStore.getState().past.length;
     useStore.getState().applyMaterials([brown]);
+    expect(useStore.getState().past.length).toBe(n);
+    useStore.getState().applyMaterials([unused]);
     expect(useStore.getState().past.length).toBe(n);
   });
 
@@ -1022,7 +1029,11 @@ New action after `updateBoards`:
         get().updateBoards(assign.ids, { material: assign.material }, upserts);
         return;
       }
-      edit((doc) => upsertMaterials(doc, upserts));
+      // Only copies something uses: an unused upsert would be pruned straight back out, but as a NEW object,
+      // so edit()'s same-object test would miss it and push an empty undo entry (invariant 4).
+      const used = materialUses(get().doc);
+      const kept = upserts.filter((m) => used.has(m.id));
+      if (kept.length > 0) edit((doc) => upsertMaterials(doc, kept));
     },
 ```
 
@@ -1047,7 +1058,9 @@ New action after `updateBoards`:
   - `pickerLibrary(project: readonly CustomMaterial[], library: readonly CustomMaterial[]): CustomMaterial[]` — library entries not in the project, whose label matches no built-in and no project label.
   - `type RowSource = 'project' | 'library' | 'new'`
   - `interface DefDraft { label: string; color: string; sheetLength: string; sheetWidth: string; nominal: boolean }`
-  - `interface Row { id: string; kind: MaterialKind; source: RowSource; original: CustomMaterial | null; draft: DefDraft; touched: boolean; addToLibrary: boolean; deleted: boolean }`
+  - `interface Row { id: string; kind: MaterialKind; source: RowSource; original: CustomMaterial | null; draft: DefDraft; addToLibrary: boolean; deleted: boolean }`
+  - `labelTyped(row: Row): boolean` — new, or its label (by `labelKey`) differs from the stored one
+  - `setRowKind(row: Row, kind: MaterialKind, rows: Row[], random?): Row` — a NEW row only: re-mints the id for the kind and resets the sheet defaults; any other row is returned unchanged
   - `initialRows(project, library): Row[]` (project rows in stored order, then library-only rows in library order)
   - `newRow(kind: MaterialKind, rows: Row[], random?): Row`
   - `useLibraryVersion(row: Row, library): Row`
@@ -1059,7 +1072,7 @@ New action after `updateBoards`:
 
 **The rules this module owns** (spec §4.1, §4.2):
 - Built-in labels are taken too: a custom label equal to `Pine` is refused.
-- A clash refuses only when one side was typed this session (`touched`) or is new; a pre-existing clash between untouched rows (an imported "Ash" beside a library "Ash") is tolerated and shown, never blocks Save.
+- A clash refuses only when one side's LABEL was typed (`labelTyped`: new, or its label changed); a pre-existing clash (an imported "Ash" beside a library "Ash") is tolerated and shown, and a colour or sheet-size edit on either side still saves (edit where you are).
 - `project` = project rows whose parsed draft differs from `original`, plus the assigned new row. A library-only row never goes to `project` (it would be pruned unused).
 - `library` (null when `!libraryWritable` or nothing changes): start from `library`; upsert every changed project row and every `addToLibrary` row — EXCEPT a row whose label matches a DIFFERENT id already in the library (`libraryLabelClash`): it is skipped (its note says why); apply library-row edits; remove `deleted` rows; append new rows.
 - `addToLibrary` on a row with `libraryLabelClash` is refused: `'Your library already has a material called "<label>" — rename one first.'`
@@ -1070,14 +1083,14 @@ New action after `updateBoards`:
 
 ```ts
 import { describe, expect, it } from 'vitest';
-import { initialRows, newRow, planSave, rowNotes, rowRefusal, useLibraryVersion, type Row } from './materialsDraft';
+import { initialRows, labelTyped, newRow, planSave, rowNotes, rowRefusal, setRowKind, useLibraryVersion, type Row } from './materialsDraft';
 import { pickerLibrary } from '../document/materials';
 import type { CustomMaterial } from '../document/types';
 
 const ash: CustomMaterial = { id: 'm-s-ash1', label: 'Ash', color: '#d8c8a8', kind: 'solid' };
 const libAsh: CustomMaterial = { id: 'm-s-ash2', label: 'ash', color: '#ccbb99', kind: 'solid' };
 const birch: CustomMaterial = { id: 'm-v-bb55', label: 'Baltic birch', color: '#e8d8b8', kind: 'sheet-veneered', sheet: { length: 60, width: 60 } };
-const edit = (r: Row, d: Partial<Row['draft']>): Row => ({ ...r, draft: { ...r.draft, ...d }, touched: true });
+const edit = (r: Row, d: Partial<Row['draft']>): Row => ({ ...r, draft: { ...r.draft, ...d } });
 const plan = (rows: Row[], library: CustomMaterial[], over: Partial<Parameters<typeof planSave>[0]> = {}) =>
   planSave({ rows, library, libraryWritable: true, assignIds: null, locked: false, ...over });
 
@@ -1094,12 +1107,26 @@ describe('refusals', () => {
     expect(rowRefusal(edit(r!, { label: '  ' }), [r!])).toBe('Give the material a name.');
     expect(rowRefusal(edit(r!, { label: 'oak' }), [r!])).toBe('Another material is already called "Oak".');
   });
-  it('refuses a typed clash but tolerates an untouched imported one', () => {
+  it('tolerates an imported clash, even with a colour edit, but refuses a TYPED label clash', () => {
     const rows = initialRows([ash], [libAsh]);
     expect(rowRefusal(rows[0]!, rows)).toBeNull();
     expect(rowRefusal(rows[1]!, rows)).toBeNull();
-    const typed = [rows[0]!, edit(rows[1]!, { color: '#000000' })];
-    expect(rowRefusal(typed[1]!, typed)).toBe('Another material is already called "Ash".');
+    const coloured = [edit(rows[0]!, { color: '#000000' }), rows[1]!];
+    expect(rowRefusal(coloured[0]!, coloured)).toBeNull();
+    const recased = [edit(rows[0]!, { label: ' ASH' }), rows[1]!];
+    expect(labelTyped(recased[0]!)).toBe(false);
+    const typed = initialRows([ash], [birch]);
+    const clash = [typed[0]!, edit(typed[1]!, { label: 'ash' })];
+    expect(labelTyped(clash[1]!)).toBe(true);
+    expect(rowRefusal(clash[1]!, clash)).toBe('Another material is already called "Ash".');
+  });
+  it('a new row can change kind: a fresh id of that kind and the sheet defaults', () => {
+    const r = setRowKind(newRow('solid', [], () => 0.5), 'sheet-veneered', [], () => 0.25);
+    expect(r.id).toMatch(/^m-v-/);
+    expect(r.kind).toBe('sheet-veneered');
+    expect([r.draft.sheetLength, r.draft.sheetWidth]).toEqual(['96', '48']);
+    const [stored] = initialRows([ash], []);
+    expect(setRowKind(stored!, 'sheet-plain', [])).toBe(stored);
   });
   it('refuses a sheet size that is not a positive length', () => {
     const [r] = initialRows([birch], []);
@@ -1206,8 +1233,6 @@ export interface Row {
   /** The stored value this row started from (project copy, or library entry); null for a new row. */
   original: CustomMaterial | null;
   draft: DefDraft;
-  /** Typed in this dialog session (a clash then refuses; an untouched imported clash is tolerated). */
-  touched: boolean;
   addToLibrary: boolean;
   deleted: boolean;
 }
@@ -1219,7 +1244,7 @@ const toDraft = (m: CustomMaterial): DefDraft => ({
   sheetLength: m.sheet ? lengthText(m.sheet.length) : '', sheetWidth: m.sheet ? lengthText(m.sheet.width) : '',
 });
 const row = (m: CustomMaterial, source: RowSource): Row =>
-  ({ id: m.id, kind: m.kind, source, original: m, draft: toDraft(m), touched: false, addToLibrary: false, deleted: false });
+  ({ id: m.id, kind: m.kind, source, original: m, draft: toDraft(m), addToLibrary: false, deleted: false });
 
 export function initialRows(project: readonly CustomMaterial[], library: readonly CustomMaterial[]): Row[] {
   const ids = new Set(project.map((m) => m.id));
@@ -1231,13 +1256,23 @@ export function newRow(kind: MaterialKind, rows: readonly Row[], random?: () => 
   const [sheetLength, sheetWidth] = DEFAULT_SHEET[kind];
   return {
     id: mintMaterialId(kind, new Set(rows.map((r) => r.id)), random), kind, source: 'new', original: null,
-    draft: { label: '', color: '#c8a878', sheetLength, sheetWidth, nominal: false }, touched: true, addToLibrary: false, deleted: false,
+    draft: { label: '', color: '#c8a878', sheetLength, sheetWidth, nominal: false }, addToLibrary: false, deleted: false,
   };
 }
 
+/** Kind is fixed once stored (spec §4.1); an unsaved new row may still change it, which re-mints its id. */
+export function setRowKind(r: Row, kind: MaterialKind, rows: readonly Row[], random?: () => number): Row {
+  if (r.source !== 'new' || r.kind === kind) return r;
+  const fresh = newRow(kind, rows, random);
+  return { ...fresh, draft: { ...fresh.draft, label: r.draft.label, color: r.draft.color } };
+}
+
+/** The label was typed: a new row, or one whose label (trimmed, case-insensitive) moved off the stored one. */
+export const labelTyped = (r: Row) => r.original === null || labelKey(r.draft.label) !== labelKey(r.original.label);
+
 export function useLibraryVersion(r: Row, library: readonly CustomMaterial[]): Row {
   const lib = library.find((m) => m.id === r.id);
-  return lib ? { ...r, draft: toDraft(lib), touched: true } : r;
+  return lib ? { ...r, draft: toDraft(lib) } : r;
 }
 
 const positiveLength = (t: string) => { const v = parseLength(t); return v !== null && v > 0 ? v : undefined; };
@@ -1265,8 +1300,8 @@ export function rowRefusal(r: Row, rows: readonly Row[]): string | null {
   const builtIn = BUILT_IN_LABELS.get(key);
   if (builtIn !== undefined) return `Another material is already called "${builtIn}".`;
   const other = live(rows).find((o) => o.id !== r.id && labelKey(o.draft.label) === key);
-  // A clash refuses only when one side was typed this session; an untouched imported pair is shown, not blocked.
-  if (other && (r.touched || other.touched)) return `Another material is already called "${other.draft.label.trim()}".`;
+  // A clash refuses only when one side's LABEL was typed; an imported pair is shown, not blocked (edit where you are).
+  if (other && (labelTyped(r) || labelTyped(other))) return `Another material is already called "${other.draft.label.trim()}".`;
   if (!fromDraft(r)) return 'Choose a colour.';
   return null;
 }
@@ -1329,7 +1364,7 @@ Note `useLibraryVersion` makes the draft equal the library, so the plan's librar
 
 - [ ] **Step 4: Run** — `npx vitest run src/panels/materialsDraft.test.ts src/document/materials.test.ts` → PASS. `npm run build` → clean.
 
-- [ ] **Step 5: Mutate** — (a) drop `(r.touched || other.touched)` so every clash refuses: "tolerates an untouched imported one" must go red; (b) drop the `libraryLabelClash` guard from the project-row library upsert: "NOT added to the library" must go red; (c) drop `if (locked)`: the locked test must go red. Restore.
+- [ ] **Step 5: Mutate** — (a) drop `(labelTyped(r) || labelTyped(other))` so every clash refuses: "tolerates an imported clash" must go red; (a2) make `labelTyped` return true for any draft change: the colour-edit case must go red; (b) drop the `libraryLabelClash` guard from the project-row library upsert: "NOT added to the library" must go red; (c) drop `if (locked)`: the locked test must go red. Restore.
 
 - [ ] **Step 6: Commit** — `feat(materials): the dialog's pure draft and save plan; pickerLibrary (one label per picker)`.
 
@@ -1345,7 +1380,7 @@ Note `useLibraryVersion` makes the draft equal the library, so the plan's librar
 - Test: `src/panels/MaterialsDialog.test.tsx`, `src/App.test.tsx` (`describe('Lumber & prices …')` renamed and extended), `src/panels/CutList.test.tsx:184`
 
 **Interfaces:**
-- Consumes: Task 6's `initialRows`, `newRow`, `useLibraryVersion`, `rowNotes`, `rowRefusal`, `planSave`, `SavePlan`; Task 5's `applyMaterials`; Task 4's storage methods; `defaultBuying`, `ShopSettings`.
+- Consumes: Task 6's `initialRows`, `newRow`, `setRowKind`, `useLibraryVersion`, `rowNotes`, `rowRefusal`, `planSave`, `SavePlan`; Task 5's `applyMaterials`; Task 4's storage methods; `defaultBuying`, `ShopSettings`.
 - Produces: `MaterialsDialog` with props:
 
 ```ts
@@ -1359,8 +1394,8 @@ interface Props {
   libraryReadFailed: boolean;
   /** Exploded (invariant 47): definitions are read-only; Save writes prices only. */
   locked: boolean;
-  /** "New material…" from Properties: these parts take the new material on Save. */
-  newFor: string[] | null;
+  /** "New material…" from Properties: these parts take the new material on Save; `kind` starts the new row. */
+  newFor: { ids: string[]; kind: MaterialKind } | null;
   /** Resolves null on success, else the message to show (the dialog then stays open). */
   onSave: (out: { shop: ShopSettings; plan: SavePlan }) => Promise<string | null>;
   onClose: () => void;
@@ -1371,7 +1406,7 @@ interface Props {
 - Heading "Materials & prices"; `aria-label="Materials and prices"`. The note: "Your materials and prices are stored in this browser; each project also keeps a copy of the materials it uses. Undo reverts a project's copy, not your library or prices."
 - Order: built-ins (prices fieldset only, exactly as today), then each live row: a `<fieldset>` whose legend is the row's label (or "New material"), `<MaterialDefinition>` (Label, Colour `<input type="color">`, Sheet length/width for sheet kinds — `aria-label`s `"<label>: name"`, `"<label>: colour"`, `"<label>: sheet length"`, `"<label>: sheet width"`; kind shown as text, never editable), then that material's prices fieldset (reuse the existing price-draft code keyed by the row id; a new row's prices start from `defaultBuying(row.id)`).
 - Notes per row from `rowNotes`: "Differs from your library" + button **Use library version**; "Only in this project" + button **Add to library**; "Same name as a project material — rename it to use it here" on a library-only row; "Your library has another material with this name — rename one to add it to the library" on a project row with `libraryLabelClash`. A library-only row has a trash button `aria-label="Delete <label> from your library"` (marks `deleted`; the row stays listed, struck through, with **Undo delete**).
-- **Add material** button with a kind `<select>` (Solid wood / Veneered sheet (plywood) / Plain sheet (MDF, hardboard)); appends `newRow(kind, rows)`. When `newFor` is given, the dialog opens with one new solid row already added, focused on its name field.
+- **Add material** appends `newRow('solid', rows)`. A NEW row shows a kind `<select>` (`aria-label="<name>: kind"`: Solid wood / Veneered sheet (plywood) / Plain sheet (MDF, hardboard)); changing it calls `setRowKind` and MOVES that row's price draft from the old id to the new one (`defaultBuying(newId)` — the old draft's mode no longer fits the kind). A stored row shows its kind as text. When `newFor` is given, the dialog opens with one new row of `newFor.kind` already added, focused on its name field.
 - `locked`: every definition control, Add material, Use library version, Add to library and the trash buttons are `disabled` with `title={EXPLODED_TITLE}` (import it from where App defines it, or move it to `panels/` if it lives in App — keep one home).
 - `libraryReadFailed`: a note "Your saved materials could not be read; the library will not be changed." Library-targeted controls disabled; project edits still save.
 - Each row's refusal from `rowRefusal` shows under the row (`role="status"`); Save is disabled while any row or price is refused; the plan's own refusal (Add to library clash) shows above the actions.
@@ -1393,7 +1428,7 @@ onSave={async ({ shop: s, plan }) => {
 }}
 ```
 
-`library` state: `const [library, setLibrary] = useState<{ materials: CustomMaterial[]; readFailed: boolean }>({ materials: [], readFailed: false });` loaded in the same mount effect as the shop (`void storage.getMaterialLibrary().then(setLibrary);`). `newFor` state: `const [newMaterialFor, setNewMaterialFor] = useState<string[] | null>(null)`, cleared whenever the dialog closes. Pass `project={doc.materials}` (from the store subscription App already has), `locked={exploded}`.
+`library` state: `const [library, setLibrary] = useState<{ materials: CustomMaterial[]; readFailed: boolean }>({ materials: [], readFailed: false });` loaded in the same mount effect as the shop (`void storage.getMaterialLibrary().then(setLibrary);`). `newFor` state: `const [newMaterialFor, setNewMaterialFor] = useState<{ ids: string[]; kind: MaterialKind } | null>(null)`, cleared whenever the dialog closes. Pass `project={doc.materials}` (from the store subscription App already has), `locked={exploded}`.
 
 Renames: Settings link text "Materials & prices…" and its comment; CutList button "Materials & prices…" and its comment.
 
@@ -1433,11 +1468,23 @@ describe('MaterialsDialog — definitions (custom materials spec §4.1)', () => 
     expect(saveBtn()).toBeDisabled();
   });
   it('New material… opens with a new row and assigns it on Save', async () => {
-    const { onSave } = open({ newFor: ['a'] });
+    const { onSave } = open({ newFor: { ids: ['a'], kind: 'solid' } });
     fireEvent.change(screen.getByRole('textbox', { name: 'New material: name' }), { target: { value: 'Sapele' } });
     fireEvent.click(saveBtn());
     await waitFor(() => expect(onSave).toHaveBeenCalled());
     expect(onSave.mock.calls[0]![0].plan.assign).toMatchObject({ ids: ['a'] });
+  });
+  it('a new row can switch to a sheet kind; its prices follow it to the new id', async () => {
+    const { onSave } = open({ newFor: { ids: ['a'], kind: 'sheet-veneered' } });
+    expect(screen.getByRole('textbox', { name: 'New material: sheet length' })).toHaveValue('96');
+    fireEvent.change(screen.getByRole('combobox', { name: 'New material: kind' }), { target: { value: 'sheet-plain' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'New material: name' }), { target: { value: 'Hardboard' } });
+    fireEvent.click(saveBtn());
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const { plan, shop } = onSave.mock.calls[0]![0];
+    expect(plan.assign!.material).toMatch(/^m-p-/);
+    expect(shop.materials[plan.assign!.material]).toEqual({ mode: 'sheet', pricePerSheet: null });
+    expect(Object.keys(shop.materials).filter((k) => k.startsWith('m-v-'))).toEqual([]);
   });
   it('shows one "Ash" note pair for an imported clash and refuses Add to library', () => {
     open({ project: [ash], library: [libAsh] });
@@ -1466,23 +1513,43 @@ describe('MaterialsDialog — definitions (custom materials spec §4.1)', () => 
 });
 ```
 
-In `App.test.tsx`, rename the describe to `'Materials & prices'`, the button names to `'Materials & prices…'`, and add:
+In `App.test.tsx`, rename the describe to `'Materials & prices'`, the button names to `'Materials & prices…'`, the dialog name to `'Materials and prices'`, reset `materialLibrary = []` in its `beforeEach`, and add (Review Focus 5 and 3):
 
 ```ts
-it('a failed library write leaves the project edit standing; Save again adds no undo entry', async () => {
-  // Arrange a project using m-s-ash1 (replaceDocument with materials [ash]) and open the dialog from Settings.
-  setMaterialLibrary.mockResolvedValueOnce(false).mockResolvedValueOnce(false);
-  // Change Ash's name to 'White ash', Save.
-  // Expect: the dialog shows /Could not save your material library/; useStore doc.materials[0].label === 'White ash'.
-  // Record past.length; click Save again; expect past.length unchanged.
-});
-it('opening the dialog over the cut list and then exploding locks the definitions', async () => {
-  // Open the cut list, click 'Materials & prices…', then useStore.getState().setExplode(0.5) inside act().
-  // Expect the 'Add material' button disabled.
-});
+  it('a failed library write leaves the project edit standing; Save again adds no undo entry', async () => {
+    const ash = { id: 'm-s-ash1', label: 'Ash', color: '#d8c8a8', kind: 'solid' as const };
+    const id = await mountWithOneBoard();
+    act(() => { useStore.getState().updateBoards([id], { material: 'm-s-ash1' }, [ash]); });
+    materialLibrary = [ash];
+    setMaterialLibrary.mockResolvedValue(false);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Cut list' }));
+    await user.click(screen.getByRole('button', { name: 'Materials & prices…' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Ash: name' }), { target: { value: 'White ash' } });
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByText(/Could not save your material library/)).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Materials and prices' })).toBeInTheDocument();
+    expect(useStore.getState().doc.materials[0]!.label).toBe('White ash');
+    const n = useStore.getState().past.length;
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText(/Could not save your material library/);
+    expect(useStore.getState().past.length).toBe(n);
+    setMaterialLibrary.mockImplementation(async (m) => { materialLibrary = m; return true; });
+  });
+
+  it('opened over the cut list, then exploded: the definitions lock', async () => {
+    await mountWithOneBoard();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Cut list' }));
+    await user.click(screen.getByRole('button', { name: 'Materials & prices…' }));
+    expect(screen.getByRole('button', { name: 'Add material' })).toBeEnabled();
+    act(() => { useStore.getState().setExplode(0.5); });
+    expect(screen.getByRole('button', { name: 'Add material' })).toBeDisabled();
+    act(() => { useStore.getState().setTool('select'); });
+  });
 ```
 
-Write these two in full in the style of the neighbouring App tests (they already show how to open Settings, the cut list, and drive the store in `act`). They are Review Focus 3 and 5.
+(If the cut list cannot be opened while exploded in this build, the second test still holds: it opens first, then explodes. If `setExplode` refuses outside the Select tool, call `setTool('select')` first — read `setExplode` at `store.ts:863`. Restore the `setMaterialLibrary` default implementation exactly as the file's top declares it.)
 
 - [ ] **Step 3: Run to verify they fail** — `npx vitest run src/panels/MaterialsDialog.test.tsx src/App.test.tsx -t "Materials"` → FAIL.
 
@@ -1528,7 +1595,7 @@ export function MaterialDefinition({ row, name, disabled, disabledTitle, onChang
 
 (`name` is the row's STORED label, or "New material" for a new row, so `aria-label`s do not change while typing. The nominal checkbox is chunk 2.)
 
-In `MaterialsDialog.tsx`: keep the existing price-draft machinery, generalised from `keys = Object.keys(MATERIALS)` to `keys = [...builtIns, ...liveRows.map((r) => r.id)]` with `labelOf(id)` (built-in label, or the row's stored label / "New material"); `defaultBuying(id)` already handles every kind. Add `const [rows, setRows] = useState(() => { const r = initialRows(project, library); return newFor ? [...r, newRow('solid', r)] : r; })`; `const result = planSave({ rows, library, libraryWritable: !libraryReadFailed, assignIds: newFor, locked })`; Save disabled when `!valid || 'refused' in result || saving`. Save builds `shop.materials` from the parsed prices of every listed id, plus every stored `shop.materials` entry whose id is not listed (a library material deleted earlier, or one used only by another project), and `extra` unchanged. Render rows after the built-ins as described above. Escape and focus handling: unchanged.
+In `MaterialsDialog.tsx`: keep the existing price-draft machinery, generalised from `keys = Object.keys(MATERIALS)` to `keys = [...builtIns, ...liveRows.map((r) => r.id)]` with `labelOf(id)` (built-in label, or the row's stored label / "New material"); `defaultBuying(id)` already handles every kind. Add `const [rows, setRows] = useState(() => { const r = initialRows(project, library); return newFor ? [...r, newRow(newFor.kind, r)] : r; })`; `const result = planSave({ rows, library, libraryWritable: !libraryReadFailed, assignIds: newFor?.ids ?? null, locked })`; Save disabled when `!valid || 'refused' in result || saving`. Save builds `shop.materials` from the parsed prices of every listed id, plus every stored `shop.materials` entry whose id is not listed (a library material deleted earlier, or one used only by another project), and `extra` unchanged. Render rows after the built-ins as described above. Escape and focus handling: unchanged.
 
 Wire App and the two renames per the Interfaces block.
 
@@ -1549,7 +1616,7 @@ Wire App and the two renames per the Interfaces block.
 
 **Interfaces:**
 - Consumes: `catalogOf`, `pickerLibrary`, store `updateBoards(ids, patch, adopt?)`.
-- Produces: `Properties` props `{ library?: CustomMaterial[]; onNewMaterial?: (ids: string[]) => void }` (both optional so existing tests render unchanged).
+- Produces: `Properties` props `{ library?: CustomMaterial[]; onNewMaterial?: (ids: string[], kind: MaterialKind) => void }` (both optional so existing tests render unchanged). `kind` is the selection's common SHEET kind when every selected part's material is that one sheet kind, else `'solid'`.
 
 - [ ] **Step 1: Write the failing tests** — in `Properties.test.tsx`:
 
@@ -1576,13 +1643,20 @@ describe('the material picker (custom materials spec §4.2)', () => {
     expect(useStore.getState().doc.materials).toEqual([birch]);
     expect(useStore.getState().past.length).toBe(n + 1);
   });
+  it('New material… on plywood parts starts a veneered sheet', () => {
+    const onNewMaterial = vi.fn();
+    // replaceDocument: parts 'a','b' both material 'plywood'; select both
+    render(<Properties library={[]} onNewMaterial={onNewMaterial} />);
+    fireEvent.change(screen.getByRole('combobox', { name: 'Material' }), { target: { value: '__new__' } });
+    expect(onNewMaterial).toHaveBeenCalledWith(['a', 'b'], 'sheet-veneered');
+  });
   it('New material… calls onNewMaterial with the selection and changes nothing', () => {
     const onNewMaterial = vi.fn();
     // replaceDocument: parts 'a','b'; select both
     render(<Properties library={[]} onNewMaterial={onNewMaterial} />);
     const doc = useStore.getState().doc;
     fireEvent.change(screen.getByRole('combobox', { name: 'Material' }), { target: { value: '__new__' } });
-    expect(onNewMaterial).toHaveBeenCalledWith(['a', 'b']);
+    expect(onNewMaterial).toHaveBeenCalledWith(['a', 'b'], 'solid');
     expect(useStore.getState().doc).toBe(doc);
   });
 });
@@ -1599,13 +1673,20 @@ const NEW_MATERIAL = '__new__';
 
 /** The Material select (custom materials spec §4.2): built-ins, this project's, the library's (one label each), New material…. */
 function MaterialSelect({ ids, value, library, onNewMaterial }: {
-  ids: string[]; value: string | null; library: CustomMaterial[]; onNewMaterial?: (ids: string[]) => void;
+  ids: string[]; value: string | null; library: CustomMaterial[]; onNewMaterial?: (ids: string[], kind: MaterialKind) => void;
 }) {
   const doc = useStore((s) => s.doc);
   const catalog = catalogOf(doc);
   const fromLibrary = pickerLibrary(doc.materials, library);
   const pick = (id: string) => {
-    if (id === NEW_MATERIAL) { onNewMaterial?.(ids); return; }
+    if (id === NEW_MATERIAL) {
+      // A sheet selection starts a sheet of its kind (one kind for all, else solid): the kind cannot change once saved.
+      const world = worldParts(doc).filter((b) => ids.includes(b.id));
+      const kinds = new Set(world.map((b) => materialKind(b.material)));
+      const only = kinds.size === 1 ? [...kinds][0]! : 'solid';
+      onNewMaterial?.(ids, only);
+      return;
+    }
     const adopt = fromLibrary.find((m) => m.id === id);
     useStore.getState().updateBoards(ids, { material: id }, adopt ? [adopt] : undefined);
   };
@@ -1629,7 +1710,7 @@ function MaterialSelect({ ids, value, library, onNewMaterial }: {
 }
 ```
 
-Replace both `<select id="material" …>` blocks with `<MaterialSelect ids={selectedIds} value={material} … />` (multi) and `<MaterialSelect ids={[board.id]} value={board.material} … />` (single), threading `library = []` and `onNewMaterial` from `Properties`' new props. Picking a sheet material for a part with through-thickness grain is normalised by `patchBoard` as today (`isSheetGood` reads the kind off the id). In App: `<Properties library={library.materials} onNewMaterial={(ids) => { setNewMaterialFor(ids); setDialog('prices'); }} />`.
+Replace both `<select id="material" …>` blocks with `<MaterialSelect ids={selectedIds} value={material} … />` (multi) and `<MaterialSelect ids={[board.id]} value={board.material} … />` (single), threading `library = []` and `onNewMaterial` from `Properties`' new props. Picking a sheet material for a part with through-thickness grain is normalised by `patchBoard` as today (`isSheetGood` reads the kind off the id). In App: `<Properties library={library.materials} onNewMaterial={(ids, kind) => { setNewMaterialFor({ ids, kind }); setDialog('prices'); }} />`.
 
 - [ ] **Step 4: Run** — `npx vitest run && npm run build` → PASS, clean.
 
