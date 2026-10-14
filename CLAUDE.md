@@ -21,17 +21,20 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-14: holes chunk 1 (merge `2ded5cc`) — bundle `index-CTpNZw9F.js`, CSS
+- **Production** (2026-10-14): holes chunk 1 (merge `2ded5cc`) — bundle `index-CTpNZw9F.js`, CSS
   `index-gw2MZHzH.css`, **SCHEMA 16**: rolling back to `bfde00c` (`index-qj1aqsa6.js`, schema 15) REFUSES every project
-  saved since — export first. Test count is under Commands.
-- **Holes chunk 1 (spec `2026-10-14-sloyd-holes-design.md`, inv 50)**: blind and through holes, singly or in stored rows,
+  saved since — export first. **`master` is AHEAD of it**: holes chunk 2 is MERGED, NOT DEPLOYED — deployment waits for
+  the user. No schema change, so once it deploys a rollback to chunk 1 (`2ded5cc`, `index-CTpNZw9F.js`) is free. Test
+  count is under Commands.
+- **Holes (spec `2026-10-14-sloyd-holes-design.md`, inv 50)**: chunk 1 deployed — blind and through holes, singly or in stored rows,
   square to any face; rendered open, rims, centre snap points, the strict rule (`holeFaults`), bench lines and cut-list
-  grouping; Properties' Holes section (Hole, Shelf-pin row); joinery/Refine/Repair refuse holed projects. Open near it:
-  327–342 (336: the wall-grain seam, deferred by the user to a texture/shader session; 337: real-hardware looks owed).
-- **NEXT: holes chunk 2** (spec §9: Plans-sheet rims and dashed depth lines, part-diagram circles and labels, the Hinge
-  cup preset; fu 327) — already specced, so it starts at planning, not brainstorming. Custom materials (fu 266) closed;
-  open near it 324–326. Other open items: 314–320, angle-cut residue 295–298; 241 (open by decision), 251 (record-only),
-  221, 225, 232, 234, 247.
+  grouping; Properties' Holes section (Hole, Shelf-pin row); joinery/Refine/Repair refuse holed projects. **Chunk 2**
+  (fu 327, closed): rims and dashed depth lines on the Plans sheet (`holeDrawing.ts`), part-diagram ellipses, centre marks,
+  dashed sides and bench-line notes, the Hinge cup preset. Open near it: 328–342 (336: the wall-grain seam, deferred by the
+  user to a texture/shader session; 337: real-hardware looks owed), 343 (Hinge cup orientation on a part wider than long:
+  R5, for the user's ruling), 344–346.
+- **NEXT: none chosen — ask the user.** Custom materials (fu 266) closed; open near it 324–326. Other open items:
+  314–320, angle-cut residue 295–298; 241 (open by decision), 251 (record-only), 221, 225, 232, 234, 247.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
   byte-identical bundles (test-only). Check what a later commit touches before reading
@@ -101,7 +104,8 @@ One line each; the full narrative per round is in `docs/history.md`.
 | AI angles (chunk 2) | 10-14 | — | Generate and Refine write miters, bevels and chamfers in world words (`angleWorld.ts`); exact untouched angles (`angleRatiosOf`); `angle-joint` design fault; the change list names them; chamfered legs link through turns; the design schema in `$defs` (the API's compiled-grammar cap) |
 | custom materials (chunk 1) | 10-14 | 15 | User-defined solid and sheet materials (kind in the id, inv 49): a browser library and per-project copies (`doc.materials`, pruned to what parts use); Materials & prices (was Lumber & prices); Properties picks project/library materials and New material…; Refine keeps them (per-project schema enum; Generate's byte-identical) |
 | custom materials (chunk 2) | 10-14 | — | Nominal lumber names (`units/nominal.ts`, exact match): cut-list rows named when every board is the section, Buying `2×4 × 8′`, a Properties Nominal size select, the Sold in nominal sizes switch; pine is nominal |
-| holes (chunk 1) | 10-14 | 16 | `HoleRow` (blind/through, a row of `count` at `pitch`, inv 50): rendered open (walls, bottoms, rims), centre snap points, `holeFaults`' strict rule, bench lines (32 mm pitch at 1/64 + mm) and cut-list grouping; Holes section (Hole, Shelf-pin row); joinery/Refine/Repair refuse holed projects. MERGED, NOT DEPLOYED |
+| holes (chunk 1) | 10-14 | 16 | `HoleRow` (blind/through, a row of `count` at `pitch`, inv 50): rendered open (walls, bottoms, rims), centre snap points, `holeFaults`' strict rule, bench lines (32 mm pitch at 1/64 + mm) and cut-list grouping; Holes section (Hole, Shelf-pin row); joinery/Refine/Repair refuse holed projects |
+| holes (chunk 2) | 10-14 | — | Plans sheet: hole rims (96-gons; edge-on as one segment) and wall silhouettes through the one hidden-line pass, occluded by the hole-free bodies; plan paths chain within a part; part diagrams: ellipses, centre marks, dashed depth sides, each row's bench line as a note; the Hinge cup preset. MERGED, NOT DEPLOYED |
 
 ### The deployment rule
 
@@ -246,12 +250,16 @@ src/
 │   │                     shortPointLine (corner minimum, fu 281), angleDegrees (→ units)
 │   ├── angledRefusal.ts  TaperConflict / taperJointRefusal; AngleConflict / jointRefusal (THE joint-refusal message, one sentence per part)
 │   ├── holes.ts          THE hole geometry (inv 50): HOLE_FIELDS (inv 40), sameHoleRow, copyHoleRow, mirrorHoleRow (inv 44),
-│   │                     mm (n / 25.4, as parseLength), defaultHole/defaultShelfPinRow, holeInstances/boardHoles, holeRing/
+│   │                     mm (n / 25.4, as parseLength), defaultHole/defaultShelfPinRow/defaultHingeCup (35 mm × 1/2", 3" from
+│   │                     the min end of the LONGER in-face dimension, 22.5 mm in; R5), holeInstances/boardHoles, holeRing/
 │   │                     holePrism (memoised by frozen Hole identity), clipPolygon/clipPlan/minusPrism/minusCover, holeRims, insideHole
 │   ├── holeFaults.ts     holeFaults (THE strict rule: breaks-out, off-flat, meets-hole, too-deep), stockChecks, holeInStock (clean)
 │   ├── holeText.ts       holeLine (THE bench line; pitch at 1/64 at least, whole mm shown; a faulted row's `— check:`),
 │   │                     holeFaultText (THE fault words), distinctFaults (too-deep once), endWord/edgeName (→ units)
 │   ├── holedRefusal.ts   holedParts / holedRefusal: joinery, Refine and Repair refuse a holed project, naming the parts
+│   ├── holeDrawing.ts    holeDrawingSegments: one part's hole lines for the Plans sheet (inv 50), world space — every rim as a
+│   │                     DRAWING_HOLE_SEGMENTS (96)-gon, a rim edge-on to the view as ONE segment (R2), then the wall's two
+│   │                     silhouettes (none looking down the axis); built only through `toWorld` (inv 44); decides nothing hidden
 │   ├── angleWorld.ts     WorldMiter/WorldBevel/WorldChamfer: design miters, bevels, chamfers in world words; angleCutsFor (design →
 │   │                     stored via the Properties writers), worldAngles (structural standard forms), angleRatiosOf (the exact-angle
 │   │                     map), ratioFor, sortAngleCuts (the one stored order)
@@ -262,7 +270,9 @@ src/
 │   ├── tenons.ts         findTenons
 │   ├── cutlist.ts        buildCutList (inv 18) — stock, not remainder
 │   ├── depthField.ts     buildDepthField (inv 20)
-│   ├── diagram.ts        buildDiagrams, one view per (face, from)
+│   ├── diagram.ts        buildDiagrams, one view per (face, from); per view `holes` (circles down the axis), `holeSides`
+│   │                     ({axis, bottomAt}: dashed depth boxes across it) and `holeNotes` ({row, text}: bench lines), in THREE
+│   │                     passes — every row's entry view opened first, then circles and sides, notes last in STORED row order (R3)
 │   ├── nesting.ts        buildNesting, shelf FFD; formatDims (invs 19, 22, 23); packOnto (by-the-piece boards,
 │                         grain locked, largest size opened first) and grainFootprint
 │   ├── materials.ts      custom materials (inv 49): validateCustomMaterial(s), mintMaterialId, MaterialCatalog —
@@ -289,8 +299,8 @@ src/
 │   ├── designCheck.ts    checkDesign; worldSolids, the ONE world-solid mapping (invs 38, 39); partMass and the body overlap
 │   │                     for angled parts (fu 302/303); jointViolations (the model-facing `angle-joint` fault);
 │   │                     contactRegions / contactSolids / isAngled: the checks' flat-wood-only reader (invs 38, 48)
-│   ├── drawing.ts        drawView: exact hidden-line vector drawing; edges from boardEdges (inv 16), occluders
-│   │                     from worldBodies (the bodies, angle cuts included), both via partGeometry
+│   ├── drawing.ts        drawView: exact hidden-line vector drawing; edges from boardEdges (inv 16) plus hole lines from
+│   │                     holeDrawingSegments, occluders from worldBodies (the bodies, angle cuts included, holes not), via partGeometry
 │   ├── explode.ts        explodeOffsets (hierarchical, floor-lifted), EXPLODE_SPREAD/INNER
 │   ├── dimensions.ts     overall + chain dimension values and strings per axis (fitting is panels/planDims.ts)
 │   ├── plans.ts          planAssemblies: what the sheet draws (copies, mirrored parity)
@@ -335,13 +345,16 @@ src/
 │                     SheetLayout, diagramScale, diagramLabels (inv 19); Popover (Claude ▾, More ▾),
 │                     ViewportControls (tools/view over the canvas), ActionBar (three actions, More ▾,
 │                     trash), GuidesFooter (opens itself when the guide count goes up), PlansSheet / PlanFigure /
-│                     planLayout / planDims (the Plans sheet: figures, one-scale third-angle layout, dimension fitting);
+│                     planLayout / planDims (the Plans sheet: figures, one-scale third-angle layout, dimension fitting;
+│                     PlanFigure's `pathOf` chains a segment into the previous subpath only when its start meets the previous
+│                     end AND it is the same part, so a hidden rim dashes continuously); PartDiagram draws hole ellipses
+│                     (rx = r·sx, ry = r·sy), centre crosses, dashed sides and the hole notes (keyed by row);
 │                     MaterialsDialog ("Materials & prices": built-in prices, custom definitions + prices, library rows;
 │                     one Save = one project edit + library + prices; refuses, never clamps) on materialsDraft.ts (THE
 │                     pure rows/refusals/planSave/rebaseRows) and MaterialDefinition; CutList's Buying section
 │                     AngleCuts (the Angles section: "+ Add ▾" — Taper, Miter, Miter both ends, Bevel, Chamfer —
 │                     and one row per kind), AngleField (DimensionField with a degree parse/format; max floored to 0.1°);
-│                     Holes (the Holes section: "+ Add hole ▾" — Hole, Shelf-pin row —, one row type; an edit refused
+│                     Holes (the Holes section: "+ Add hole ▾" — Hole, Shelf-pin row, Hinge cup —, one row type; an edit refused
 │                     when it ADDS a fault; Count 1→more seeds a pitch, R5), CountField (DimensionField, whole numbers)
 ├── styles.css        surface ROLES over --grey-*/--walnut-*; palette.test.ts pins contrast (4.5:1)
 └── App.tsx           layout, autosave/restore, the ONE keydown effect (inv 27), `pending`
@@ -480,7 +493,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     diagram text, and `--font-num` must stay monospace.** The measured string and the drawn
     string must be the same string: assemble it in the module that builds it
     (`nesting.ts`, `diagram.ts`), never in the component. A non-ASCII glyph must be
-    measured in a browser before it is trusted.
+    measured in a browser before it is trusted. A hole row's diagram label is its bench line (`holeLine`) as an HTML
+    note under the figure, as angle cuts' notes are — never a measured SVG label (holes spec §4.3, amended).
 20. **`depthField.ts` is not `pocketCells`**: it assigns max depth per cell in 2D; it does
     not drop cells. An agreement test must assert the value the derivation computes, not
     just where it is non-zero.
@@ -679,11 +693,11 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     Ungroup, guide and board deletes, `addBoard`); `setTool` refuses all but Select; `renameItem` returns the
     stored name. `setExplode` is the one writer, and leaving 0 goes only through `setTool('select')`. The
     UI lock is a `<fieldset class="edit-lock" disabled>` with `display: contents` (layout-transparent). The explode
-    offset is a render-time translation, never written back (inv 1). Drawings take lines from `boardEdges` and
-    occluders from `worldBodies` (each body CLOSED: a box, or its faces as half-spaces): a ray along a seam between
+    offset is a render-time translation, never written back (inv 1). Drawings take lines from `boardEdges` and hole
+    lines from `holeDrawingSegments` (one list, one hidden-line pass), and occluders from `worldBodies` (each body CLOSED: a box, or its faces as half-spaces): a ray along a seam between
     solids is inside. The exploded set is
     lifted so its lowest part never goes below the assembled lowest point. Occluders are the HOLE-FREE bodies: you
-    cannot see through a hole (a rule for chunk 2's drawings, not an accident).
+    cannot see through a hole (a rule, not an accident; a through-bore's far rim seen down its axis is hidden, pinned).
 
 48. **`boardBodies` is the ONE place angle cuts become geometry; `pocketCells` is stock minus RECTANGULAR cuts only.**
     Anything that draws, edges, occludes or probes stock reads bodies (through the `partGeometry` cache); anything that
@@ -728,14 +742,18 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     CLEAN hole's (`holeInStock`: no breaks-out, off-flat or too-deep) wall and bottom are emitted UNCLIPPED, a faulted
     hole's clipped to the bodies; all of a part's holes are ONE geometry, one mesh (`holesMesh`), never a mesh per hole.
     `viewport/holesPerf.test.ts` guards it (≤40 ms per healthy case, ≤100 ms faulted, median of 7; wall-clock — run on a
-    quiet machine, fu 340).
+    quiet machine, fu 340). **On the Plans sheet** a rim is a `DRAWING_HOLE_SEGMENTS` (96)-gon (the viewport keeps
+    `HOLE_SEGMENTS`, 48), except a rim whose plane is EDGE-ON to the view, which is ONE segment across its diameter — 96
+    chords folded onto one line restart the dash and draw a hidden rim solid. For a part with no holes `drawView` and
+    `buildDiagrams` are byte-for-byte unchanged; its SVG path differs only by chaining (R2) — do not undo the chaining to
+    "restore" it.
 
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 3882 tests across 134 files
+npm test           # Vitest, currently 3932 tests across 135 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -793,12 +811,15 @@ knowing without opening it:
   and direction live in `$defs`; any `DESIGN_SCHEMA` change needs one live compile before it ships.
 - **266** — closed 2026-10-14 (custom materials, both chunks). **324**/**326** — chunk 1/chunk 2 minors (record-only).
   **325** — two tabs overwrite each other's library/prices (record); the v14-rollback `extra` round trip is covered.
-- **327–342** — holes chunk 1 residue: 327 (chunk 2: drawings, Hinge cup — NEXT), 328–335 (spec §11: holes through
+- **327–342** — holes chunk 1 residue: 327 closed 2026-10-14 (chunk 2: drawings, Hinge cup), 328–335 (spec §11: holes through
   joinery/Refine/Repair, Generate/Refine authoring them, counterbores/cam-and-bolt, half-holes, dowels as hardware, Plans
   callouts, pointed bottoms, metric display), 336 (wall-grain seam inside a bore, deferred by the user to a texture/shader
   session), 337 (real-hardware looks owed: rims, drag smoothness, faded holed parts, overlapping holes), 338 (count-1 rows
   compare `pitch`, for the user), 339 (AngleCuts adopting the refusal message), 340 (the perf guard is wall-clock), 341–342
   (record-only minors).
+- **343–346** — holes chunk 2 residue: 343 (Hinge cup along the LONGER in-face dimension, R5 — the user's ruling owed), 344
+  (the exploded view computes hidden hole lines it never draws; ties to 263's slider lag), 345 (dash look of chained paths
+  and corner joins on a real print, for the user's eye; fu 254), 346 (record-only minors).
 - **176/177** — the held rules' known limits (mutual lapping) and an unseen live repair.
 - **130** — semi-infinite construction lines; picked and set aside 2026-08-31 without a
   reason. Ask before assuming it's wanted; it needs real hardware (26a).
