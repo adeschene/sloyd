@@ -1,6 +1,7 @@
 import type { Board, Shape } from './types';
 import { CUT_GEOMETRY_KEYS } from './cuts';
 import { copyAngleCut, sameAngleCut } from './angleCuts';
+import { copyHoleRow, sameHoleRow } from './holes';
 
 /**
  * Which Board fields a link shares (linking spec §2): the shared ones live in
@@ -11,7 +12,7 @@ import { copyAngleCut, sameAngleCut } from './angleCuts';
 export const LINK_FIELDS = {
   id: 'own', name: 'own', position: 'own', rotation: 'own', shape: 'own',
   length: 'shared', width: 'shared', thickness: 'shared', material: 'shared',
-  grain: 'shared', posture: 'shared', cuts: 'shared', angleCuts: 'shared',
+  grain: 'shared', posture: 'shared', cuts: 'shared', angleCuts: 'shared', holes: 'shared',
 } as const satisfies Record<keyof Board, 'shared' | 'own'>;
 
 export type SharedField = {
@@ -28,12 +29,12 @@ const _shapeMatchesTable: [Exclude<keyof Shape, 'id'>] extends [SharedField] ? (
 void _shapeMatchesTable;
 
 /**
- * `sameShared` compares every shared field except `cuts` and `angleCuts` with `!==`, which is
+ * `sameShared` compares every shared field except `cuts`, `angleCuts` and `holes` with `!==`, which is
  * only right for primitives. This fails tsc if any other shared field is ever
  * not a string or number (invariant 40's argument, one table over): such a
  * field needs its own comparison in `sameShared` before it can be classified.
  */
-const _sharedPrimitives: Board[Exclude<SharedField, 'cuts' | 'angleCuts'>] extends string | number ? true : never = true;
+const _sharedPrimitives: Board[Exclude<SharedField, 'cuts' | 'angleCuts' | 'holes'>] extends string | number ? true : never = true;
 void _sharedPrimitives;
 
 /** A board's shared fields, cuts copied (same ids, new objects) so no two
@@ -44,6 +45,7 @@ export function sharedOf(b: Board): Pick<Board, SharedField> {
     material: b.material, grain: b.grain, posture: b.posture,
     cuts: b.cuts.map((c) => ({ ...c })),
     angleCuts: b.angleCuts.map(copyAngleCut),
+    holes: b.holes.map(copyHoleRow),
   };
 }
 
@@ -54,6 +56,7 @@ export function sharedPatch(patch: Partial<Board>): Partial<Pick<Board, SharedFi
   // Copy cuts, as sharedOf does, so no two members ever hold one Cut object.
   if (patch.cuts) out.cuts = patch.cuts.map((c) => ({ ...c }));
   if (patch.angleCuts) out.angleCuts = patch.angleCuts.map(copyAngleCut);
+  if (patch.holes) out.holes = patch.holes.map(copyHoleRow);
   return out;
 }
 
@@ -74,6 +77,13 @@ export function sameShared(a: Board, b: Board): boolean {
         const ca = a.angleCuts[i]!;
         const cb = b.angleCuts[i]!;
         if (ca.id !== cb.id || !sameAngleCut(ca, cb)) return false;
+      }
+    } else if (k === 'holes') {
+      if (a.holes.length !== b.holes.length) return false;
+      for (let i = 0; i < a.holes.length; i += 1) {
+        const ra = a.holes[i]!;
+        const rb = b.holes[i]!;
+        if (ra.id !== rb.id || !sameHoleRow(ra, rb)) return false;
       }
     } else if (a[k] !== b[k]) {
       return false;

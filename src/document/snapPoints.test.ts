@@ -853,3 +853,57 @@ describe('snap points on angle cuts (spec §3.6)', () => {
     expect(withAngle.every((p) => p.at[0] <= 24 - p.at[2] + 1e-9)).toBe(true);
   });
 });
+
+describe('hole centres (holes spec §3.5)', () => {
+  const centred = { id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 12, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 2.75 };
+  const b = createBoard({ id: 'p', length: 24, width: 5.5, thickness: 0.75, holes: [centred] });
+  it('adds the centre on the entry face, once, and withholds nothing else on a plain part', () => {
+    const pts = boardSnapPoints(b);
+    const at = pts.filter((p) => p.at.every((v, i) => Math.abs(v - [12, 0.75, 2.75][i]!) < 1e-9));
+    expect(at).toHaveLength(1);
+    expect(at[0]!.owner).toEqual({ type: 'board', id: 'p' });
+    expect(pts).toHaveLength(26);   // the face-centre lattice point is in the mouth: withheld, replaced by the centre
+  });
+  it('a through hole adds its exit centre too', () => {
+    const pts = boardSnapPoints({ ...b, holes: [{ ...centred, depth: 'through' as const }] });
+    expect(pts.some((p) => p.at.every((v, i) => Math.abs(v - [12, 0, 2.75][i]!) < 1e-9))).toBe(true);
+    expect(pts).toHaveLength(26);
+  });
+  it('an off-centre hole adds its centre and withholds nothing', () => {
+    const pts = boardSnapPoints({ ...b, holes: [{ ...centred, station: 5 }] });
+    expect(pts).toHaveLength(27);
+  });
+  // CLAUDE.md's snapPoints.ts rule: local→world is position[axis] + toWorldOffset(local[axisFrame[axis].dim]); a
+  // centre-relative mapping is off by half the part, plausibly — so pin rotated, non-flat poses (final review 5).
+  // The hole: entry on the thickness max face, 5" along the length from its min end, 1-1/2" in from the width min side,
+  // so its board-local centre is (length 5, width 1-1/2, thickness 3/4) on a 24 × 5-1/2 × 3/4 part whose min corner is
+  // (10, 2, 20). Each expectation is worked by hand from geometry.ts' turn table (horizontalOf drops the up dimension
+  // from length, width, thickness; on-edge then reverses thickness, fu 215); a reversed axis maps u to dim − u.
+  const posed = (posture: Posture, rotation: Rotation) => createBoard({ id: 'p', length: 24, width: 5.5, thickness: 0.75,
+    posture, rotation, position: [10, 2, 20], holes: [{ ...centred, station: 5, inset: 1.5 }] });
+  it.each([
+    // upright (up: length; horizontals width, thickness), 90: X = thickness, Y = length, Z = width reversed
+    //   → X 10 + 0.75, Y 2 + 5, Z 20 + (5.5 − 1.5)
+    ['upright', 90, [10.75, 7, 24]],
+    // upright 270: X = thickness reversed, Y = length, Z = width → X 10 + (0.75 − 0.75), Y 2 + 5, Z 20 + 1.5
+    ['upright', 270, [10, 7, 21.5]],
+    // on-edge (up: width; horizontals length, thickness), 90: the table gives X = thickness not reversed, and on-edge
+    //   flips it to reversed; Y = width; Z = length reversed → X 10 + (0.75 − 0.75), Y 2 + 1.5, Z 20 + (24 − 5)
+    ['on-edge', 90, [10, 3.5, 39]],
+    // on-edge 270: the table gives thickness reversed, on-edge flips it to NOT reversed; Z = length
+    //   → X 10 + 0.75, Y 2 + 1.5, Z 20 + 5
+    ['on-edge', 270, [10.75, 3.5, 25]],
+  ] as const)('%s at turn %i puts the centre at the hand-mapped world point', (posture, rotation, want) => {
+    const pts = boardSnapPoints(posed(posture, rotation));
+    const at = pts.filter((p) => p.at.every((v, i) => Math.abs(v - want[i]!) < 1e-9));
+    expect(at).toHaveLength(1);
+    expect(at[0]!.kind).toBe('face-center');
+  });
+  it('the mouth withholds a lattice point the centre does not coincide with', () => {
+    // Station 12.05: the face-centre lattice point (12, 0.75, 2.75) is inside the 0.125 radius but is not the centre.
+    const pts = boardSnapPoints({ ...b, holes: [{ ...centred, station: 12.05 }] });
+    expect(pts.some((p) => p.at.every((v, i) => Math.abs(v - [12, 0.75, 2.75][i]!) < 1e-9))).toBe(false);
+    expect(pts.some((p) => p.at.every((v, i) => Math.abs(v - [12.05, 0.75, 2.75][i]!) < 1e-9))).toBe(true);
+    expect(pts).toHaveLength(26);
+  });
+});

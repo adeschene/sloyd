@@ -6,9 +6,10 @@ import {
   translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerLinear, mirroredAt, postureRefusal, sameSideFirst, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
   toLocal, groupItems, ungroupItem, turnInstance as turnInstanceOp, setMirrored, mirroredCopy, updateContainer, lastSegment,
 } from '../document/document';
-import type { AngleCut, Board, CustomMaterial, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
+import type { AngleCut, Board, HoleRow, CustomMaterial, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
 import { SNAP_INCHES } from '../document/geometry';
 import { copyAngleCut, sameAngleCut } from '../document/angleCuts';
+import { copyHoleRow, sameHoleRow } from '../document/holes';
 import { pruneMaterials, upsertMaterials, materialUses } from '../document/materials';
 import { MAX_ROW } from '../document/row';
 import { clickTarget } from './assemblyPick';
@@ -358,6 +359,10 @@ interface StoreState {
   addAngleCuts: (boardId: string, cuts: Omit<AngleCut, 'id'>[]) => void;
   updateAngleCut: (boardId: string, cutId: string, next: Omit<AngleCut, 'id'>) => void;
   removeAngleCut: (boardId: string, cutId: string) => void;
+  /** Hole rows (holes spec §7): several in one call are one undo entry. */
+  addHoleRows: (boardId: string, rows: Omit<HoleRow, 'id'>[]) => void;
+  updateHoleRow: (boardId: string, rowId: string, next: Omit<HoleRow, 'id'>) => void;
+  removeHoleRow: (boardId: string, rowId: string) => void;
 
   /** Link the named parts (linking spec §3.1): the first wins, each named part's whole link joins; every member then names ONE shape (components spec §3.2). One undo entry. */
   linkBoards: (ids: string[]) => void;
@@ -836,13 +841,14 @@ export const useStore = create<StoreState>((set, get) => {
     // fresh id per cut (via the same nextId() addCut uses) means a future
     // in-place Cut mutation can't corrupt the source board and every undo
     // snapshot holding it simultaneously. `angleCuts` need the same treatment:
-    // fresh ids, and copyAngleCut for an independent `points` array.
+    // fresh ids, and copyAngleCut for an independent `points` array. `holes` likewise: fresh ids.
     const { id: _sourceId, ...rest } = source;
     const fresh = createBoard({
       ...rest,
       position: [...position],
       cuts: source.cuts.map((cut) => ({ ...cut, id: nextId() })),
       angleCuts: source.angleCuts.map((c) => ({ ...copyAngleCut(c), id: nextId() })),
+      holes: source.holes.map((r) => ({ ...copyHoleRow(r), id: nextId() })),
     });
     return { ...fresh, name };
   };
@@ -1627,6 +1633,37 @@ export const useStore = create<StoreState>((set, get) => {
       if (!board || !board.angleCuts.some((c) => c.id === cutId)) return;
       edit((doc) => mapWorld(doc, (w) => w.map((b) =>
         b.id === boardId ? { ...b, angleCuts: b.angleCuts.filter((c) => c.id !== cutId) } : b)));
+      judgeHeld();
+    },
+
+    // Hole rows (holes spec §7): through mapWorld like angle cuts, so a shaped part's rows are its shape's and every
+    // user sees the edit (invariant 45). Held points are re-judged after (invariant 24): a hole can swallow a grabbed
+    // lattice point (the mouth is air).
+    addHoleRows: (boardId, rows) => {
+      if (readOnly()) return;
+      const board = worldParts(get().doc).find((b) => b.id === boardId);
+      if (!board || rows.length === 0) return;
+      const added = rows.map((r) => ({ ...copyHoleRow(r as HoleRow), id: nextId() }));
+      edit((doc) => mapWorld(doc, (w) => w.map((b) => (b.id === boardId ? { ...b, holes: [...b.holes, ...added] } : b))));
+      judgeHeld();
+    },
+    updateHoleRow: (boardId, rowId, next) => {
+      if (readOnly()) return;
+      const board = worldParts(get().doc).find((b) => b.id === boardId);
+      const cur = board?.holes.find((r) => r.id === rowId);
+      if (!board || !cur) return;
+      const after: HoleRow = { ...copyHoleRow(next as HoleRow), id: rowId };
+      if (sameHoleRow(cur, after)) return; // a no-op edit pushes no undo entry (invariant 4)
+      edit((doc) => mapWorld(doc, (w) => w.map((b) =>
+        b.id === boardId ? { ...b, holes: b.holes.map((r) => (r.id === rowId ? after : r)) } : b)));
+      judgeHeld();
+    },
+    removeHoleRow: (boardId, rowId) => {
+      if (readOnly()) return;
+      const board = worldParts(get().doc).find((b) => b.id === boardId);
+      if (!board || !board.holes.some((r) => r.id === rowId)) return;
+      edit((doc) => mapWorld(doc, (w) => w.map((b) =>
+        b.id === boardId ? { ...b, holes: b.holes.filter((r) => r.id !== rowId) } : b)));
       judgeHeld();
     },
 

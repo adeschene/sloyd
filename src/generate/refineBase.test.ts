@@ -69,6 +69,26 @@ describe('the Refine dialog reads a document once (F4)', () => {
   });
 });
 
+describe('holes (holes spec §6)', () => {
+  const row = { id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 1.5 };
+  const withHole = (d: SloydDocument, name: string): SloydDocument => ({ ...d, boards: d.boards.map((b) => (b.name === name ? { ...b, holes: [row] } : b)) });
+  it('a holed plain document is refused as holes', () => {
+    const base = plainForRefine(withHole(plain, 'Top'));
+    expect('refused' in base && base.refused.reason).toBe('holes');
+  });
+  it('a holed joined document is refused as holes before the gate', () => {
+    gate.mockClear();
+    const base = plainForRefine(withHole(joined, 'Top'));
+    expect('refused' in base && base.refused.reason).toBe('holes');
+    expect(gate).not.toHaveBeenCalled();
+  });
+  it('the dialog reads it as neither joined nor repairable', () => {
+    const info = refineDialogInfo(withHole(joined, 'Top'));
+    expect(info.joined).toBe(false);
+    expect(info.repair).toBeNull();
+  });
+});
+
 describe('estimate ranges (fu 236)', () => {
   it('a joined design: the low end is the refine call alone; the high end adds joinery over every meeting', () => {
     const base = plainForRefine(joined);

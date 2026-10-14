@@ -238,3 +238,12 @@ describe('turned links with chamfers (AI-angles spec §7)', () => {
     expect(turnCandidates({ ...b, cuts: [{ id: 'k', face: 'width', from: 'min', across: 'length', offset: 2, width: 1, depth: 0.25, stopMin: 0, stopMax: 0 }] })).toEqual([]);
   });
 });
+
+describe('turned candidates and holes', () => {
+  it('offers no turned candidates for a holed part (holes spec §5.2)', () => {
+    const leg: Board = { ...createBoard({ length: 28, width: 1.75, thickness: 1.75, posture: 'upright' }),
+      holes: [{ id: 'h1', face: 'width', from: 'max', diameter: 0.375, depth: 1, along: 'length', alongFrom: 'max', station: 2, count: 1, pitch: 0, acrossFrom: 'min', inset: 0.875 }] };
+    expect(turnCandidates({ ...leg, holes: [] }).length).toBeGreaterThan(0);   // the guard is what refuses, not the box
+    expect(turnCandidates(leg)).toEqual([]);
+  });
+});

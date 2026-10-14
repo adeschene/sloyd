@@ -2,7 +2,7 @@ import { keptHalfSpace } from './angleCuts';
 import { partGeometry } from './bodies';
 import { clippedRegion, cutRemovesNothing, stockProbe } from './cuts';
 import type { Point } from './cuts';
-import { axisFrame, boardExtents, fromWorldOffset, positionAxisOf, toWorldOffset } from './geometry';
+import { DIMENSION_ORDER, axisFrame, boardExtents, fromWorldOffset, positionAxisOf, toWorldOffset } from './geometry';
 import type { Board, Cut, GuidePoint } from './types';
 
 /**
@@ -88,6 +88,9 @@ export function sameSnapPoint(a: SnapPoint | null, b: SnapPoint | null): boolean
  * skipped. It is the one lattice point with no feature under it to draw a
  * marker against, so an indicator there would appear to hang in mid-air.
  *
+ * Holes add their centres (entry face, and exit when through); the mouth withholds lattice points through
+ * `stockProbe`.
+ *
  * Pure, and derived on demand: nothing about snap points is stored, the same
  * way the cut list, the diagrams and the nesting are derived.
  *
@@ -140,7 +143,7 @@ export function boardSnapPoints(board: Board): BoardSnapPoint[] {
     }
   }
 
-  if (board.cuts.length === 0 && board.angleCuts.length === 0) return points;
+  if (board.cuts.length === 0 && board.angleCuts.length === 0 && board.holes.length === 0) return points;
   const geometry = partGeometry(board);
   if (geometry.bodies.length === 0) return points;
 
@@ -155,6 +158,19 @@ export function boardSnapPoints(board: Board): BoardSnapPoint[] {
     }
     return touchesStock(local);
   });
+  // Hole centres (holes spec §3.5, amended): on the entry face, and the exit face when through, kind 'face-center',
+  // owned by the board. A centre sits in AIR — a deliberate exception to invariant 16's marker rule: it is the centre
+  // of a drawn rim, and the Tape tool measures centre to centre from it. Deduped by distance against the lattice.
+  const close = (a: readonly number[], b: readonly number[]) => a.every((v, i) => Math.abs(v - b[i]!) <= 1e-9);
+  for (const h of geometry.holes) {
+    const ends = h.through ? [0, h.depth] : [0];
+    for (const t of ends) {
+      const c = [...h.centre];
+      c[DIMENSION_ORDER.indexOf(h.axis)] += h.dir * t;
+      const at = toWorld(board, { length: c[0]!, width: c[1]!, thickness: c[2]! });
+      if (!lattice.some((q) => close(q.at, at))) lattice.push({ kind: 'face-center', at, owner });
+    }
+  }
   if (board.angleCuts.length === 0) return lattice;
 
   // A sloped face's corners (angle-cuts spec §3.6) are the endpoints of drawn edges lying on an angle cut's

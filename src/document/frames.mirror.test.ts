@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { placeBoard, placeInstance, mirrorPart } from './frames';
 import type { Frame } from './frames';
 import { worldSolids } from './designCheck';
-import { chiralAngled, chiralPart, sameSet } from './turnFixtures';
+import { chiralAngled, chiralHoled, chiralPart, sameSet } from './turnFixtures';
+import { boardHoles } from './holes';
 import { boardBodies, bodyVerts } from './bodies';
 import { toWorld } from './snapPoints';
 import type { Board, Instance, Rotation } from './types';
@@ -117,5 +118,26 @@ describe('a mirrored frame reflects angle cuts (inv 44, spec 5.2)', () => {
     const wrong = { ...mirrorPart(b), angleCuts: b.angleCuts };
     const reflected = worldVerts(b).map(([x, y, z]) => [0 - x!, y!, z!]);
     expect(sameSet(worldVerts(wrong), reflected)).toBe(false);
+  });
+});
+
+const worldCentres = (b: Board) => boardHoles(b).map((h) => toWorld(b, { length: h.centre[0], width: h.centre[1], thickness: h.centre[2] }));
+
+describe('a mirrored frame reflects holes (inv 44, holes spec §5.2)', () => {
+  for (const posture of POSTURES) {
+    for (const rotation of TURNS) {
+      it(`${posture} at ${rotation} deg: mirrorPart's hole centres are the reflection across x = 0`, () => {
+        const b = { ...chiralHoled(posture), rotation, position: [2, 1, -3] as [number, number, number] };
+        const reflected = worldCentres(b).map(([x, y, z]) => [0 - x!, y!, z!]);
+        expect(sameSet(worldCentres(mirrorPart(b)), reflected)).toBe(true);
+        const placed = placeBoard({ position: [0, 0, 0], rotation: 0, mirrored: true }, b);
+        expect(placed.holes).toEqual(mirrorPart(b).holes);
+      });
+    }
+  }
+  it('the fixture is chiral: unmirrored rows would differ', () => {
+    const b = chiralHoled('flat');
+    const reflected = worldCentres(b).map(([x, y, z]) => [0 - x!, y!, z!]);
+    expect(sameSet(worldCentres({ ...mirrorPart(b), holes: b.holes }), reflected)).toBe(false);
   });
 });

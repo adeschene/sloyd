@@ -1,7 +1,7 @@
 import { validateCustomMaterials, pruneMaterials, BUILT_IN_MATERIAL_IDS } from './materials';
 import { DEFAULT_MATERIAL, DEFAULT_KERF, isSheetGood } from './types';
 import type {
-  Board, Instance, Definition, Cut, AngleCut, AngleKind, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, FlatDocument, GuidePoint,
+  Board, Instance, Definition, Cut, AngleCut, AngleKind, HoleRow, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, FlatDocument, GuidePoint,
   Shape, StoredBoard,
 } from './types';
 import type { SharedField } from './links';
@@ -10,6 +10,7 @@ import { linksToShapes } from './linksToShapes';
 import { ROOT_STORAGE_ID } from './treeEdit';
 import { nextId } from './ids';
 import { ANGLE_KINDS, deriveKind } from './angleCuts';
+import { HOLE_COUNT_MAX } from './holes';
 import { clamp, mirrorCutAlong } from './mirrorCut';
 import { dropUnresolved, repairTree } from './treeRepair';
 import { positionAxisOf, horizontalOf } from './geometry';
@@ -30,6 +31,14 @@ export type { Bounds, AxisMap } from './geometry';
 export { mirrorCut } from './mirrorCut';
 export { CHAMFER_EDGES, bevelAcross, bevelCut, bevelFields, chamferCut, chamferFields, defaultBevel, defaultChamfer, ANGLE_CUT_FIELDS, ANGLE_CUT_KEYS, angleCutRemovesNothing, angleCutValues, angleCutsThatRemoveStock, copyAngleCut, defaultMiter, defaultMiterPair, defaultTaper, depthAt, keptHalfSpace, miterCut, miterDegrees, miterFields, miterRatio, sameAngleCut, splitRegion, taperCut, taperFields, throughOf, touchedRegion, zeroStation } from './angleCuts';
 export type { BevelFields, ChamferEdge, ChamferFields, MiterFields, TaperFields, V3 } from './angleCuts';
+export {
+  HOLE_COUNT_MAX, HOLE_EPS, HOLE_FIELDS, HOLE_KEYS, HOLE_SEGMENTS, PRISM_EPS, acrossOf, axialOffset, boardHoles, bodyPlanes,
+  clipPolygon, clipPlan, copyHoleRow, holeInstances, holePrism, holeRims, holeRing, holeRowValues, holeTouches, holeTouchesBox,
+  insideHole, minusCover, minusPrism, mirrorHoleRow, ringInside, sameHoleRow, mm, defaultHole, defaultShelfPinRow,
+} from './holes';
+export type { Hole, Plane } from './holes';
+export { holeFaults, holeInStock, stockChecks } from './holeFaults';
+export type { HoleFault, HoleFaultKind, StockChecks } from './holeFaults';
 export { jointRefusal, taperJointRefusal } from './angledRefusal';
 export type { AngleConflict, TaperConflict } from './angledRefusal';
 export { cleanName, uniqueName, dedupeNames } from './names';
@@ -130,8 +139,11 @@ export type { BoardSnapPoint, SnapKind, SnapOwner, SnapPoint, TapeAxis } from '.
  * The harm of a v13 build is silent loss on round trip: it drops every angle cut and autosaves.
  *
  * v15 (custom materials spec §2.3): `materials`, document-level, no step. Harm a v14 build would do: a custom material silently becomes pine.
+ *
+ * v16 (holes spec §5.1): `Board.holes` (and `Shape.holes`), document-level, no step — an absent field defaults to [].
+ * Harm a v15 build would do: silent loss on round trip — it drops every hole row and autosaves.
  */
-export const CURRENT_VERSION = 15;
+export const CURRENT_VERSION = 16;
 
 export class DocumentError extends Error {
   /**
@@ -221,6 +233,7 @@ export function createBoard(partial: Partial<Board> = {}): Board {
     material: DEFAULT_MATERIAL,
     cuts: [],
     angleCuts: [],
+    holes: [],
     ...partial,
   };
 }
@@ -371,6 +384,37 @@ function validateAngleCuts(raw: unknown, board: Pick<Board, Dimension>): AngleCu
 }
 
 /**
+ * Hole rows (holes spec §2.3), in order. Dropped, never clamped: a non-finite number; diameter ≤ 0; a numeric depth ≤ 0
+ * or a depth that is neither a number nor 'through'; a count that is not an integer from 1 to HOLE_COUNT_MAX; a negative
+ * station, pitch or inset; along === face; an unknown dimension or side. A FAULTED but well-formed row (holeFaults) is
+ * KEPT: no stored value changes on load. Ids are scoped to this board, or this shape (invariant 33).
+ */
+function validateHoleRows(raw: unknown): HoleRow[] {
+  if (!Array.isArray(raw)) return [];
+  const out: HoleRow[] = [];
+  const seen = new Set<string>();
+  const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+  for (const item of raw) {
+    if (typeof item !== 'object' || item === null) continue;
+    const r = item as Record<string, unknown>;
+    const face = r.face as Dimension;
+    const along = r.along as Dimension;
+    if (!VALID_DIMENSIONS.includes(face) || !VALID_DIMENSIONS.includes(along) || face === along) continue;
+    if (![r.from, r.alongFrom, r.acrossFrom].every((f) => VALID_FROMS.includes(f as CutFrom))) continue;
+    if (!finite(r.diameter) || r.diameter <= 0) continue;
+    if (r.depth !== 'through' && !(finite(r.depth) && r.depth > 0)) continue;
+    if (!Number.isInteger(r.count) || (r.count as number) < 1 || (r.count as number) > HOLE_COUNT_MAX) continue;
+    if (![r.station, r.pitch, r.inset].every((v) => finite(v) && v >= 0)) continue;
+    out.push({
+      id: takeId(r.id, seen), face, from: r.from as CutFrom, diameter: r.diameter, depth: r.depth as number | 'through',
+      along, alongFrom: r.alongFrom as CutFrom, station: r.station as number, count: r.count as number,
+      pitch: r.pitch as number, acrossFrom: r.acrossFrom as CutFrom, inset: r.inset as number,
+    });
+  }
+  return out;
+}
+
+/**
  * The well-formed guides out of raw data, in order.
  *
  * Drops rather than refuses, the same rule validateCuts follows and for the
@@ -447,7 +491,7 @@ function validateSharedFields(b: Record<string, unknown>, known: ReadonlySet<str
   };
   // validateCuts reads only the dimensions; its `seen` set is its own, so a
   // shape's cut ids are scoped to the shape (invariant 33's per-board rule).
-  return { fields: { ...fields, cuts: validateCuts(b.cuts, fields), angleCuts: validateAngleCuts(b.angleCuts, fields) } };
+  return { fields: { ...fields, cuts: validateCuts(b.cuts, fields), angleCuts: validateAngleCuts(b.angleCuts, fields), holes: validateHoleRows(b.holes) } };
 }
 
 /**

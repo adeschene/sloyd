@@ -468,6 +468,13 @@ describe('runJoinery — tapered legs (AI-tapers spec §4)', () => {
   const tapered = (doc: FlatDocument, start: number): FlatDocument =>
     ({ ...doc, boards: doc.boards.map((b) => (b.name === 'Leg' ? { ...b, angleCuts: [face(b, 0, start), face(b, 2, start)] } : b)) });
 
+  it('refuses a document with holes before any call (holes spec §6)', async () => {
+    const c = client({ joints: [] });
+    const holed = { ...CORNER, boards: CORNER.boards.map((b, i) => (i === 0 ? { ...b, holes: [{ id: 'h1', face: 'width' as const, from: 'max' as const, diameter: 0.375, depth: 1, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 0.875 }] } : b)) };
+    const out = await run(c, holed);
+    expect('refused' in out).toBe(true);
+    expect(c.complete).not.toHaveBeenCalled();
+  });
   it('refuses a taper that runs into a joint before any call, leaving the document alone', async () => {
     const c = client(short);
     const doc = tapered(CORNER, 24);

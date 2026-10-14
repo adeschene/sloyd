@@ -99,6 +99,39 @@ export interface AngleCut {
 }
 
 /**
+ * A row of round holes drilled square to one face (holes spec §2): `count` flat-bottomed cylinders `pitch` apart along
+ * `along`, the first `station` from `alongFrom`'s end and all `inset` from `acrossFrom`'s side of the third dimension.
+ * A single bore is a row of one. Board-local like `Cut`, so turns and postures cost nothing. No `kind`: the stored
+ * geometry fully names what the drill does; presets only choose defaults.
+ */
+export interface HoleRow {
+  /** Unique within its board (per shape for a shape) — invariant 33's scopes. */
+  id: string;
+  /** The dimension the holes go into (the drill axis) … */
+  face: Dimension;
+  /** … entering from its min or max face. Depth is measured from that face. */
+  from: CutFrom;
+  /** Inches, exact (a metric entry stores mm / 25.4 unrounded). */
+  diameter: number;
+  /** Inches from the `from` face, or right through the `face` dimension. */
+  depth: number | 'through';
+  /** The row's direction: one of the two dimensions that are not `face`. */
+  along: Dimension;
+  /** Which end of `along` stations are measured from. */
+  alongFrom: CutFrom;
+  /** The first hole's centre, from that end. */
+  station: number;
+  /** Integer, 1 to HOLE_COUNT_MAX. */
+  count: number;
+  /** Centre to centre, toward the far end. Stored, and ignored, when count is 1. */
+  pitch: number;
+  /** The third dimension's side the centres are measured from … */
+  acrossFrom: CutFrom;
+  /** … and how far. */
+  inset: number;
+}
+
+/**
  * An axis-aligned box in a board's own coordinate space, keyed by dimension
  * rather than by axis index — there is no world here, and keying by dimension
  * is what stops the two from being confused.
@@ -128,6 +161,8 @@ export interface Board {
   cuts: Cut[];
   /** Single-angle plane cuts (tapers, miters, bevels, chamfers). Empty for most parts. */
   angleCuts: AngleCut[];
+  /** Rows of round holes (holes spec §2). Empty for most parts. */
+  holes: HoleRow[];
   /**
    * The Shape this part uses (components spec §2). Set ONLY on a RESOLVED part
    * (`resolveBoard`, `worldParts`); a stored plain part never has it, and a

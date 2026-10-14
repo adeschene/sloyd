@@ -217,10 +217,10 @@ describe('applyWorldEdits with shared definitions and shapes', () => {
       { id: 'i2', name: 'Drawer (1)', definition: 'd1', position: [20, 0, 0], rotation: 90 },
     ],
     definitions: [{ id: 'd1', boards: [
-      { id: 'b1', name: 'Side', length: 16, width: 6, thickness: 0.5, position: [0, 0, 0], rotation: 0, posture: 'on-edge', grain: 'length', material: 'maple', cuts: [], angleCuts: [] },
+      { id: 'b1', name: 'Side', length: 16, width: 6, thickness: 0.5, position: [0, 0, 0], rotation: 0, posture: 'on-edge', grain: 'length', material: 'maple', cuts: [], angleCuts: [], holes: [] },
       { id: 'b2', name: 'Leg', position: [3, 0, 3], rotation: 0, shape: 's1' },
     ], instances: [] }],
-    shapes: [{ id: 's1', length: 6, width: 1, thickness: 1, material: 'oak', grain: 'length', posture: 'upright', cuts: [], angleCuts: [] } satisfies Shape],
+    shapes: [{ id: 's1', length: 6, width: 1, thickness: 1, material: 'oak', grain: 'length', posture: 'upright', cuts: [], angleCuts: [], holes: [] } satisfies Shape],
   });
 
   it('storageKey is the same for every placement of one stored part', () => {
@@ -310,7 +310,7 @@ describe('writeBackFlat shares where identical', () => {
     ...createDocument(),
     instances: Array.from({ length: n }, (_, k) => ({ id: `i${k}`, name: `D${k}`, definition: 'd1', position: [k * 30, 0, 0] as [number, number, number], rotation: 0 as const })),
     definitions: [{ id: 'd1', boards: [
-      { id: 'b1', name: 'Side', length: 16, width: 6, thickness: 0.5, position: [0, 0, 0], rotation: 0, posture: 'on-edge', grain: 'length', material: 'maple', cuts: [], angleCuts: [] },
+      { id: 'b1', name: 'Side', length: 16, width: 6, thickness: 0.5, position: [0, 0, 0], rotation: 0, posture: 'on-edge', grain: 'length', material: 'maple', cuts: [], angleCuts: [], holes: [] },
     ], instances: [] }],
   });
   const cut = { face: 'thickness' as const, from: 'max' as const, across: 'width' as const, offset: 1, width: 0.5, depth: 0.25, stopMin: 0, stopMax: 0 };
@@ -323,6 +323,16 @@ describe('writeBackFlat shares where identical', () => {
     const out = writeBackFlat(doc, before, after);
     expect(new Set(out.instances.map((i) => i.definition)).size).toBe(1);
     expect(worldParts(out).map((b) => b.cuts[0]!.id)).toEqual(['x0', 'x0', 'x0']);
+  });
+
+  it('identical hole rows under different ids keep one definition (sharedSignature reads rows without ids)', () => {
+    const doc = drawers(3);
+    const before = flat(doc);
+    const row = { face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 3, pitch: 1.25, acrossFrom: 'min' as const, inset: 1 };
+    const after = before.map((b, k) => ({ ...b, holes: [{ id: `h${k}`, ...row }] }));
+    const out = writeBackFlat(doc, before, after);
+    expect(new Set(out.instances.map((i) => i.definition)).size).toBe(1);
+    expect(worldParts(out).map((b) => b.holes[0]!.id)).toEqual(['h0', 'h0', 'h0']);
   });
 
   it('a copy whose result differs splits off; the others stay shared', () => {
@@ -352,6 +362,20 @@ describe('writeBackFlat shares where identical', () => {
     const split = out.definitions.find((d) => d.id === out.instances[1]!.definition)!.boards[0] as Board;
     const orig = out.definitions.find((d) => d.id === 'd1')!.boards[0] as Board;
     expect(split.angleCuts[0]!.points).not.toBe(orig.angleCuts[0]!.points);
+  });
+
+  it('a split definition\'s part owns its hole rows: no row object shared with d1\'s part (holes spec §5.2)', () => {
+    const doc = drawers(2);
+    const row = { id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 3, pitch: 1.25, acrossFrom: 'min' as const, inset: 1.5 };
+    doc.definitions[0]!.boards[0] = { ...(doc.definitions[0]!.boards[0] as Board), holes: [row] };
+    const before = flat(doc);
+    const after = before.map((b, k) => (k === 1 ? { ...b, cuts: [{ id: 'x1', ...cut }] } : b));
+    const out = writeBackFlat(doc, before, after);
+    expect(out.instances[1]!.definition).not.toBe('d1');
+    const split = out.definitions.find((d) => d.id === out.instances[1]!.definition)!.boards[0] as Board;
+    const orig = out.definitions.find((d) => d.id === 'd1')!.boards[0] as Board;
+    expect(split.holes).toEqual([row]);
+    expect(split.holes[0]).not.toBe(orig.holes[0]);
   });
 
   describe('a tapered part placed twice (angle-cuts spec §5.2)', () => {
@@ -385,7 +409,7 @@ describe('writeBackFlat shares where identical', () => {
   });
 
   it('four shaped legs with identical mortises stay one shape (follow-up 223)', () => {
-    const shape = { id: 's1', length: 28, width: 1.75, thickness: 1.75, material: 'oak', grain: 'length' as const, posture: 'upright' as const, cuts: [], angleCuts: [] };
+    const shape = { id: 's1', length: 28, width: 1.75, thickness: 1.75, material: 'oak', grain: 'length' as const, posture: 'upright' as const, cuts: [], angleCuts: [], holes: [] };
     const doc: SloydDocument = { ...createDocument(), shapes: [shape],
       boards: [0, 1, 2, 3].map((k) => ({ id: `l${k}`, name: `Leg ${k}`, position: [k * 10, 0, 0] as [number, number, number], rotation: 0 as const, shape: 's1' })) };
     const before = flat(doc);
@@ -397,7 +421,7 @@ describe('writeBackFlat shares where identical', () => {
   });
 
   it('a leg whose mortise differs gets its own shape', () => {
-    const shape = { id: 's1', length: 28, width: 1.75, thickness: 1.75, material: 'oak', grain: 'length' as const, posture: 'upright' as const, cuts: [], angleCuts: [] };
+    const shape = { id: 's1', length: 28, width: 1.75, thickness: 1.75, material: 'oak', grain: 'length' as const, posture: 'upright' as const, cuts: [], angleCuts: [], holes: [] };
     const doc: SloydDocument = { ...createDocument(), shapes: [shape],
       boards: [0, 1, 2].map((k) => ({ id: `l${k}`, name: `Leg ${k}`, position: [k * 10, 0, 0] as [number, number, number], rotation: 0 as const, shape: 's1' })) };
     const before = flat(doc);
@@ -412,11 +436,11 @@ describe('writeBackFlat shares where identical', () => {
   // part and both stored copies of the definition's part (step 3).
   const rootAndDef = (): SloydDocument => ({
     ...createDocument(),
-    shapes: [{ id: 's1', length: 28, width: 1.75, thickness: 1.75, material: 'oak', grain: 'length', posture: 'upright', cuts: [], angleCuts: [] }],
+    shapes: [{ id: 's1', length: 28, width: 1.75, thickness: 1.75, material: 'oak', grain: 'length', posture: 'upright', cuts: [], angleCuts: [], holes: [] }],
     boards: [{ id: 'r1', name: 'Leg', position: [-20, 0, 0], rotation: 0, shape: 's1' }],
     instances: [0, 1].map((k) => ({ id: `i${k}`, name: `F${k}`, definition: 'd1', position: [k * 30, 0, 0] as [number, number, number], rotation: 0 as const })),
     definitions: [{ id: 'd1', boards: [
-      { id: 'b1', name: 'Rail', length: 16, width: 3, thickness: 0.75, position: [2, 10, 0], rotation: 0, posture: 'flat', grain: 'length', material: 'oak', cuts: [], angleCuts: [] },
+      { id: 'b1', name: 'Rail', length: 16, width: 3, thickness: 0.75, position: [2, 10, 0], rotation: 0, posture: 'flat', grain: 'length', material: 'oak', cuts: [], angleCuts: [], holes: [] },
       { id: 'b2', name: 'Post', position: [0, 0, 0], rotation: 0, shape: 's1' },
     ], instances: [] }],
   });
@@ -513,10 +537,23 @@ describe('writeBackFlat shares where identical', () => {
     expect(out.instances.map((i) => i.definition).slice(0, 2)).toEqual(['d1', 'c1']);
     expect(out.instances[2]!.definition).not.toBe('c1');
   });
+  it('users whose hole rows differ only in order and ids stay one Shape; a differing row splits (groupSignature)', () => {
+    const shape = { id: 's1', length: 28, width: 1.75, thickness: 1.75, material: 'oak', grain: 'length' as const, posture: 'upright' as const, cuts: [], angleCuts: [], holes: [] };
+    const doc: SloydDocument = { ...createDocument(), shapes: [shape],
+      boards: [0, 1, 2].map((k) => ({ id: `l${k}`, name: `Leg ${k}`, position: [k * 10, 0, 0] as [number, number, number], rotation: 0 as const, shape: 's1' })) };
+    const r1 = { id: 'x', face: 'width' as const, from: 'max' as const, diameter: 0.375, depth: 1, along: 'length' as const, alongFrom: 'max' as const, station: 2, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 0.875 };
+    const r2 = { ...r1, station: 5 };
+    const before = flat(doc);
+    const rows = [[{ ...r1, id: 'a' }, { ...r2, id: 'b' }], [{ ...r2, id: 'c' }, { ...r1, id: 'd' }], [{ ...r1, id: 'e', station: 3 }]];
+    const out = writeBackFlat(doc, before, before.map((b, k) => ({ ...b, holes: rows[k]! })));
+    expect(out.shapes).toHaveLength(2);
+    expect(shapeOfAt(out, 'l0')).toBe(shapeOfAt(out, 'l1'));
+    expect(shapeOfAt(out, 'l2')).not.toBe(shapeOfAt(out, 'l0'));
+  });
 });
 
 describe('writeBackFlat — shape grouping ignores cut order (fu 301)', () => {
-  const part = { length: 20, width: 2, thickness: 2, posture: 'upright' as const, grain: 'length' as const, material: 'oak', cuts: [], angleCuts: [] };
+  const part = { length: 20, width: 2, thickness: 2, posture: 'upright' as const, grain: 'length' as const, material: 'oak', cuts: [], angleCuts: [], holes: [] };
   const doc = (): SloydDocument => ({
     ...createDocument(),
     shapes: [{ id: 's1', ...part }],

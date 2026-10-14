@@ -7,6 +7,7 @@ import { ActionBar, COPY_IN_ROW } from './ActionBar';
 import { formatLength } from '../units/length';
 import { NOMINAL_SECTIONS, nominalName } from '../units/nominal';
 import { AngleCuts } from './AngleCuts';
+import { Holes } from './Holes';
 import type { CustomMaterial, MaterialKind, Rotation, Posture, Grain, Board, Cut, Dimension, Region } from '../document/document';
 
 const DIMENSION_LABEL: Record<Dimension, string> = {
@@ -696,6 +697,7 @@ export function Properties({ library = [], onNewMaterial }: { library?: CustomMa
       <button className="add-cut" onClick={() => addCut(board.id)}>+ Add cut</button>
 
       <AngleCuts board={board} precision={precision} />
+      <Holes board={board} precision={precision} />
     </div>
   );
 }

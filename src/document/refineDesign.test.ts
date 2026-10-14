@@ -34,6 +34,17 @@ const snapshot = (doc: SloydDocument) => flatDocument(doc).boards
   .sort((a, b) => a[0].localeCompare(b[0]));
 
 describe('documentToDesign', () => {
+  it('refuses a document with holes (holes spec §6, defence in depth)', () => {
+    const doc = table();
+    const holed = { ...doc, boards: doc.boards.map((b, i) => (i === 0 ? { ...b, holes: [{ id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 1.5 }] } : b)) };
+    expect(refused(holed)?.reason).toBe('holes');
+    // a shaped part: the row lives on its Shape
+    const shaped = { ...doc, shapes: doc.shapes.map((s, i) => (i === 0 ? { ...s, holes: [{ id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 1.5 }] } : s)) };
+    expect(doc.shapes.length).toBeGreaterThan(0);   // role-linked parts share a Shape: the case below is never skipped
+    expect(refused(shaped)?.reason).toBe('holes');
+    expect(refused(doc)).toBeNull();
+  });
+
   it('round-trips: converting back (centre: false) reproduces every placed part exactly', () => {
     const doc = table();
     const r = documentToDesign(doc, MAX);

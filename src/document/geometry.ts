@@ -99,10 +99,11 @@ export function axisDimensions(board: Board): [Dimension, Dimension, Dimension] 
  * `position[axis]` (the world min corner, invariant 2). On a reversed axis the
  * part's 0 is at the far side. Every crossing between a part's frame and the
  * world goes through these four helpers; never write `board[dim] - u` at a
- * call site.
+ * call site. A hot loop may pass `frame` — `axisFrame(board)` computed once for
+ * the SAME board (Task 11b, ruling R12) — instead of recomputing it per call.
  */
-export function toWorldOffset(board: Board, axis: number, u: number): number {
-  const a = axisFrame(board)[axis]!;
+export function toWorldOffset(board: Board, axis: number, u: number, frame: readonly AxisMap[] = axisFrame(board)): number {
+  const a = frame[axis]!;
   return a.reversed ? board[a.dim] - u : u;
 }
 

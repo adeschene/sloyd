@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
 import type { AngleCut, Board, Cut } from './types';
-import { boardBodies, boardEdges, bodyEdges, bodyVerts, bodyVolume, partGeometry, PART_GEOMETRY_LIMIT } from './bodies';
+import { geometryKey, boardBodies, boardEdges, bodyEdges, bodyVerts, bodyVolume, partGeometry, PART_GEOMETRY_LIMIT } from './bodies';
 import { pocketCells, pocketEdges } from './cuts';
 import type { Segment } from './cuts';
 import { chiralAngled, chiralPart } from './turnFixtures';
@@ -261,5 +261,22 @@ describe('partGeometry — the shared cache of bodies and edges', () => {
     partGeometry(at(PART_GEOMETRY_LIMIT)); // one past the limit: evicts the least recent, now at(1)
     expect(partGeometry(at(0))).toBe(first);
     expect(partGeometry(at(1))).not.toBe(second);
+  });
+});
+
+describe('partGeometry and holes (holes spec §3.1)', () => {
+  const row = { id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 3, pitch: 1.25, acrossFrom: 'min' as const, inset: 1.5 };
+  it('a row changes the key; its id is in it', () => {
+    const b = createBoard({ length: 30, width: 11.25, thickness: 0.75 });
+    expect(geometryKey({ ...b, holes: [row] })).not.toBe(geometryKey(b));
+    expect(geometryKey({ ...b, holes: [{ ...row, id: 'h2' }] })).not.toBe(geometryKey({ ...b, holes: [row] }));
+    expect(geometryKey({ ...b, holes: [{ ...row, pitch: 1.3 }] })).not.toBe(geometryKey({ ...b, holes: [row] }));
+  });
+  it('carries the instances; bodies are unchanged (hole-free, inv 50)', () => {
+    const b = createBoard({ length: 30, width: 11.25, thickness: 0.75 });
+    const g = partGeometry({ ...b, holes: [row] });
+    expect(g.holes).toHaveLength(3);
+    expect(Object.isFrozen(g.holes)).toBe(true);
+    expect(g.bodies).toEqual(boardBodies(b));
   });
 });

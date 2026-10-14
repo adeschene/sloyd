@@ -122,6 +122,16 @@ describe('repairJoints returns null for designs this bug did not damage', () => 
   });
 });
 
+describe('repairDocument withholds a holed document (holes spec §6)', () => {
+  it('a damaged fixture with a hole row is not repaired', () => {
+    const fx = load(f1);
+    expect(repairDocument(fx.damaged)).not.toBeNull();
+    const doc = { ...fx.damaged, boards: fx.damaged.boards.map((b, i) => (i === 0 ? { ...b, holes: [{ id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 1.5 }] } : b)),
+      definitions: fx.damaged.definitions.map((d) => ({ ...d, boards: d.boards.map((b, i) => (i === 0 ? { ...b, holes: [{ id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 1.5 }] } : b)) })) };
+    expect(repairDocument(doc)).toBeNull();
+  });
+});
+
 describe('repairDocument keeps custom materials (custom materials spec §6)', () => {
   it('a repaired document carries the project\'s custom materials', () => {
     const ash = { id: 'm-s-ash1', label: 'Ash', color: '#d8c8a8', kind: 'solid' as const };

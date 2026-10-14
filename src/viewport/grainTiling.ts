@@ -1,5 +1,10 @@
-import { angleCutValues, axisFrame, boardExtents, CUT_GEOMETRY_KEYS, DIMENSION_ORDER, isSheetGood, spanToWorldOffset, toWorldOffset, wholeBoard } from '../document/document';
-import type { Board, Body, Region, Span } from '../document/document';
+import { ShapeUtils, Vector2 } from 'three';
+import {
+  angleCutValues, axialOffset, axisFrame, boardExtents, bodyPlanes, clipPlan, clipPolygon, CUT_GEOMETRY_KEYS, DIMENSION_ORDER,
+  HOLE_EPS, holeInStock, holePrism, stockChecks, holeRing, holeRowValues, holeTouches, holeTouchesBox, isSheetGood, minusCover, minusPrism, ringInside, spanToWorldOffset, toWorldOffset,
+  wholeBoard,
+} from '../document/document';
+import type { Board, Body, BodyFace, Hole, Plane, Region, Span, StockChecks, V3 } from '../document/document';
 import { axisDimensions, faceGrainKinds, grainFamily } from './grainFaces';
 import type { Dimension, GrainFamily, GrainKind } from './grainFaces';
 
@@ -223,6 +228,52 @@ export function boardUVs(board: Board, solid: Region = wholeBoard(board)): Float
 }
 
 /**
+ * A board-local point's world offsets (toWorldOffset on each world axis), memoised per CALL by the point's identity: a
+ * fan, an earcut triangulation and a wall share each vertex object among several triangles (Task 11b). The memo lives
+ * only as long as one mesh build — never module-level: partGeometry shares one set of points between parts in
+ * different poses. Points are never mutated (frozen bodies and rings, or fresh clip output), so identity decides value.
+ * The crossing is toWorldOffset's, bound to this board's frame computed once (ruling R12).
+ */
+function worldOffsets(board: Board): (p: V3) => V3 {
+  const frame = axisFrame(board);
+  const dims = frame.map((a) => DIMENSION_ORDER.indexOf(a.dim));
+  const memo = new Map<V3, V3>();
+  return (p) => {
+    let w = memo.get(p);
+    if (!w) {
+      w = [toWorldOffset(board, 0, p[dims[0]!]!, frame), toWorldOffset(board, 1, p[dims[1]!]!, frame), toWorldOffset(board, 2, p[dims[2]!]!, frame)];
+      memo.set(p, w);
+    }
+    return w;
+  };
+}
+
+/** For a triangle given by its world offsets: null when its area is under 1e-12 (a near-duplicate vertex from clipping
+ *  makes such a fan; it is not drawn), else its (unnormalised) normal dotted with `n` — negative means wound against
+ *  `n`. Scalars only: it runs once per drawn triangle. */
+function facing(w0: V3, w1: V3, w2: V3, n: readonly number[]): number | null {
+  const e10 = w1[0] - w0[0]; const e11 = w1[1] - w0[1]; const e12 = w1[2] - w0[2];
+  const e20 = w2[0] - w0[0]; const e21 = w2[1] - w0[1]; const e22 = w2[2] - w0[2];
+  const c0 = e11 * e22 - e12 * e21; const c1 = e12 * e20 - e10 * e22; const c2 = e10 * e21 - e11 * e20;
+  return Math.hypot(c0, c1, c2) / 2 < 1e-12 ? null : c0 * n[0]! + c1 * n[1]! + c2 * n[2]!;
+}
+
+/** Per-material vertex streams (each a list of attributes) packed into one typed array per attribute, materials in
+ *  BoxGeometry order, an empty material skipped; `groups` counts vertices by the FIRST attribute (positions, 3 each). */
+function packGroups(byMaterial: number[][][]): { groups: { start: number; count: number; materialIndex: number }[]; out: Float32Array[] } {
+  const attrs = byMaterial[0]!.length;
+  const out = Array.from({ length: attrs }, (_, j) => new Float32Array(byMaterial.reduce((s, m) => s + m[j]!.length, 0)));
+  const at = new Array<number>(attrs).fill(0);
+  const groups: { start: number; count: number; materialIndex: number }[] = [];
+  byMaterial.forEach((m, materialIndex) => {
+    if (m[0]!.length === 0) return;
+    groups.push({ start: at[0]! / 3, count: m[0]!.length / 3, materialIndex });
+    m.forEach((xs, j) => { out[j]!.set(xs, at[j]!); at[j]! += xs.length; });
+  });
+  return { groups, out };
+}
+
+/**
  * Triangles for one CLIPPED body (angle-cuts spec §3.3): positions relative
  * to the board's centre, UVs from the SAME face plans as boardUVs (invariant
  * 17: board-relative, FIT against the board), grouped by BoxGeometry's
@@ -234,16 +285,20 @@ export function boardUVs(board: Board, solid: Region = wholeBoard(board)): Float
  * taper as long grain. UVs are read straight off each vertex's world offset
  * along the plan's axes — which is what boardUVs' CORNERS-and-sign dance
  * computes for a box, so the two agree (pinned by test, invariant 35).
+ *
+ * Holes are cut out of the faces they reach (faceTriangles); a part without
+ * holes draws exactly what it drew before.
  */
-export function bodyMesh(board: Board, body: Body): { positions: Float32Array; uvs: Float32Array; groups: { start: number; count: number; materialIndex: number }[] } {
+export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], bodies?: readonly Body[]): { positions: Float32Array; uvs: Float32Array; groups: { start: number; count: number; materialIndex: number }[] } {
   const plans = facePlans(board);
   const frame = axisFrame(board);
   const extents = boardExtents(board);
   const [ou, ov] = boardUVOffset(board.id);
   const dimIndex = (d: Dimension) => DIMENSION_ORDER.indexOf(d);
-  const offsetOf = (p: [number, number, number]) => [0, 1, 2].map((i) => toWorldOffset(board, i, p[dimIndex(frame[i]!.dim)]!)) as [number, number, number];
+  const offsetOf = worldOffsets(board);
   const byMaterial: { pos: number[]; uv: number[] }[] = Array.from({ length: 6 }, () => ({ pos: [], uv: [] }));
-  for (const f of body.faces) {
+  const faces = bodies && holed(body, holes) ? body.faces.flatMap((f) => uncovered(f, body, bodies)) : body.faces;
+  for (const f of faces) {
     const n = [0, 1, 2].map((i) => f.n[dimIndex(frame[i]!.dim)]! * (frame[i]!.reversed ? -1 : 1));
     let axis = 0;
     for (let i = 1; i < 3; i += 1) if (Math.abs(n[i]!) > Math.abs(n[axis]!) + 1e-9) axis = i;
@@ -254,35 +309,233 @@ export function bodyMesh(board: Board, body: Body): { positions: Float32Array; u
     }
     const material = axis * 2 + (n[axis]! > 0 ? 0 : 1);
     const plan = plans[material]!;
-    const pts = f.verts.map(offsetOf);
     const out = byMaterial[material]!;
-    for (let i = 1; i + 1 < pts.length; i += 1) {
-      let tri = [pts[0]!, pts[i]!, pts[i + 1]!];
-      const e1 = [0, 1, 2].map((k) => tri[1]![k]! - tri[0]![k]!);
-      const e2 = [0, 1, 2].map((k) => tri[2]![k]! - tri[0]![k]!);
-      const cr = [e1[1]! * e2[2]! - e1[2]! * e2[1]!, e1[2]! * e2[0]! - e1[0]! * e2[2]!, e1[0]! * e2[1]! - e1[1]! * e2[0]!];
+    const put = (p: V3) => {
+      out.pos.push(p[0] - extents[0] / 2, p[1] - extents[1] / 2, p[2] - extents[2] / 2);
+      out.uv.push(
+        p[plan.axes[0]]! / plan.tileInches[0] + (plan.fit[0] ? 0 : ou),
+        p[plan.axes[1]]! / plan.tileInches[1] + (plan.fit[1] ? 0 : ov),
+      );
+    };
+    for (const t of faceTriangles(f, holes)) {
+      const w0 = offsetOf(t[0]!); const w1 = offsetOf(t[1]!); const w2 = offsetOf(t[2]!);
+      const d = facing(w0, w1, w2, n);
       // Near-duplicate vertices from clipping make zero-area fans; emit nothing for them.
-      if (Math.hypot(cr[0]!, cr[1]!, cr[2]!) / 2 < 1e-12) continue;
-      if (cr[0]! * n[0]! + cr[1]! * n[1]! + cr[2]! * n[2]! < 0) tri = [tri[0]!, tri[2]!, tri[1]!];
-      for (const p of tri) {
-        out.pos.push(p[0] - extents[0] / 2, p[1] - extents[1] / 2, p[2] - extents[2] / 2);
-        out.uv.push(
-          p[plan.axes[0]]! / plan.tileInches[0] + (plan.fit[0] ? 0 : ou),
-          p[plan.axes[1]]! / plan.tileInches[1] + (plan.fit[1] ? 0 : ov),
-        );
-      }
+      if (d === null) continue;
+      put(w0);
+      if (d < 0) { put(w2); put(w1); } else { put(w1); put(w2); }
     }
   }
-  const positions: number[] = [];
-  const uvs: number[] = [];
+  const { groups, out: [positions, uvs] } = packGroups(byMaterial.map((m) => [m.pos, m.uv]));
+  return { positions: positions!, uvs: uvs!, groups };
+}
+
+/** A hole's box meets the body's (holeTouchesBox over the body's vertex bounds): the body is HOLED (ruling R11). */
+function holed(body: Body, holes: readonly Hole[]): boolean {
+  if (holes.length === 0) return false;
+  const lo: V3 = [Infinity, Infinity, Infinity];
+  const hi: V3 = [-Infinity, -Infinity, -Infinity];
+  for (const f of body.faces) for (const p of f.verts) for (let i = 0; i < 3; i += 1) { lo[i] = Math.min(lo[i]!, p[i]!); hi[i] = Math.max(hi[i]!, p[i]!); }
+  const r = Object.fromEntries(DIMENSION_ORDER.map((d, i) => [d, [lo[i]!, hi[i]!]])) as Region;
+  return holes.some((h) => holeTouchesBox(h, r));
+}
+
+/**
+ * A holed body's face minus every part of it another body of the part covers (ruling R11): a coplanar face of another
+ * body facing the opposite way lies against it, so between them is stock — a seam inside the part, never seen, and
+ * punching it with every ring that crosses it was most of a holed part's rebuild. Coincident faces drop entirely; a
+ * face a neighbour only partly covers keeps the rest (a dado's floor, beside the bodies on either side). A face nothing
+ * covers comes back as the same object.
+ */
+function uncovered(f: BodyFace, body: Body, bodies: readonly Body[]): BodyFace[] {
+  let pieces: V3[][] = [f.verts];
+  for (const other of bodies) {
+    if (other === body) continue;
+    for (const g of other.faces) {
+      if (f.n[0] * g.n[0] + f.n[1] * g.n[1] + f.n[2] * g.n[2] > -1 + HOLE_EPS) continue;
+      const p = g.verts[0]!;
+      const q = f.verts[0]!;
+      if (Math.abs(f.n[0] * (p[0] - q[0]) + f.n[1] * (p[1] - q[1]) + f.n[2] * (p[2] - q[2])) > HOLE_EPS) continue;
+      pieces = pieces.flatMap((piece) => minusCover(piece, f.n, g.verts));
+    }
+  }
+  if (pieces.length === 1 && pieces[0] === f.verts) return [f];
+  return pieces.map((verts) => ({ ...f, verts }));
+}
+
+/**
+ * One body face as triangles (board-local), with every hole that reaches into it cut out (holes spec §3.2, amended).
+ * No hole: the fan bodyMesh always drew, vertex for vertex. Every reaching hole perpendicular to the face with its ring
+ * STRICTLY inside it, and the rings PAIRWISE DISJOINT (ruling R4: centres more than r1 + r2 apart in the face plane):
+ * triangulated with the rings as holes, from the SAME ring vertices the wall uses, so face and wall share every rim
+ * vertex (no T-junctions). Otherwise (a tangent hole, a seam parallel to the axis, a faulted hole — overlapping or
+ * coincident rings, which earcut would cover with face): the disjoint convex split, fanned — T-junctions accepted there.
+ */
+export function faceTriangles(f: BodyFace, holes: readonly Hole[]): V3[][] {
+  const fan = (p: V3[]): V3[][] => p.slice(1, -1).map((_, i) => [p[0]!, p[i + 1]!, p[i + 2]!]);
+  const reaching = holes.filter((h) => holeTouches(h, f.verts));
+  if (reaching.length === 0) return fan(f.verts);
+  const a = [0, 1, 2].reduce((m, k) => (Math.abs(f.n[k]!) > Math.abs(f.n[m]!) ? k : m), 0);
+  const [u, v] = [0, 1, 2].filter((k) => k !== a) as [number, number];
+  const rings = reaching.map((h) => { const t = axialOffset(h, f); return t === null ? null : holeRing(h, t); });
+  // Holes on a perpendicular face share its axis, so their in-plane centre distance decides overlap.
+  const disjoint = reaching.every((h, i) => reaching.slice(i + 1).every((g) =>
+    Math.hypot(h.centre[u] - g.centre[u], h.centre[v] - g.centre[v]) > h.radius + g.radius + HOLE_EPS));
+  if (disjoint && rings.every((r): r is V3[] => r !== null && ringInside(f.verts, f.n, r))) {
+    const flat = (p: V3) => new Vector2(p[u], p[v]);
+    const contour = f.verts.map(flat);
+    const flatRings = rings.map((r) => r.map(flat));
+    // triangulateShape drops a contour's last point when it equals the first (removeDupEndPts), which would shift every
+    // index against `all`; such a contour takes the fallback split instead.
+    const closed = (c: Vector2[]) => c.length > 2 && c[c.length - 1]!.equals(c[0]!);
+    if (!closed(contour) && !flatRings.some(closed)) {
+      const all = [...f.verts, ...rings.flat()];
+      return ShapeUtils.triangulateShape(contour, flatRings)
+        .map(([i, j, k]) => [all[i!]!, all[j!]!, all[k!]!]);
+    }
+  }
+  let pieces: V3[][] = [f.verts];
+  for (const h of reaching) { const prism = holePrism(h); pieces = pieces.flatMap((p) => minusPrism(p, prism)); }
+  return pieces.flatMap(fan);
+}
+
+/** One hole-mesh vertex: position (centred), world normal, UV from the facet's plan (holeMesh's emit). */
+interface WallSink { out: { pos: number[]; nor: number[]; uv: number[] }; plan: FacePlan; extents: [number, number, number]; ou: number; ov: number }
+function putWall({ out, plan, extents, ou, ov }: WallSink, q: V3, nw: V3): void {
+  out.pos.push(q[0] - extents[0] / 2, q[1] - extents[1] / 2, q[2] - extents[2] / 2);
+  out.nor.push(nw[0], nw[1], nw[2]);
+  out.uv.push(q[plan.axes[0]]! / plan.tileInches[0] + (plan.fit[0] ? 0 : ou), q[plan.axes[1]]! / plan.tileInches[1] + (plan.fit[1] ? 0 : ov));
+}
+
+/**
+ * One hole's wall and (blind) bottom (holes spec §3.2): the wall's HOLE_SEGMENTS quads between the entry ring and the
+ * far ring, and the bottom ring. A clean hole (holeInStock) draws them whole (ruling R15); a faulted one clips each to
+ * every body, so its wall stops at the stock (and a seam splits it). `checks` is the board's stockChecks: a caller
+ * drawing every hole of a part builds it once per rebuild and passes it. Explicit normals — radial toward the axis on the wall (smooth), back toward the mouth on the
+ * bottom — because BoardMesh's computeVertexNormals would facet them. Triangles wound to face along their normals
+ * (the materials are FrontSide). UVs and materials as bodyMesh's sloped faces: each facet takes the plan of the world
+ * axis its normal is nearest.
+ */
+export function holeMesh(board: Board, h: Hole, bodies: readonly Body[], checks: StockChecks = stockChecks(board)): { positions: Float32Array; normals: Float32Array; uvs: Float32Array; groups: { start: number; count: number; materialIndex: number }[] } {
+  const plans = facePlans(board);
+  const frame = axisFrame(board);
+  const extents = boardExtents(board);
+  const [ou, ov] = boardUVOffset(board.id);
+  const dimIndex = (d: Dimension) => DIMENSION_ORDER.indexOf(d);
+  const offsetOf = worldOffsets(board);
+  const [d0, d1, d2] = frame.map((f) => dimIndex(f.dim)) as [number, number, number];
+  const [s0, s1, s2] = frame.map((f) => (f.reversed ? -1 : 1));
+  const vecOf = (n: V3): V3 => [n[d0]! * s0!, n[d1]! * s1!, n[d2]! * s2!];
+  const planes = bodies.map((b) => bodyPlanes(b.faces));
+  const a = dimIndex(h.axis);
+  const inward = (p: V3): V3 => {
+    const r: V3 = [h.centre[0] - p[0], h.centre[1] - p[1], h.centre[2] - p[2]];
+    r[a] = 0;
+    const l = Math.hypot(...r);
+    return [r[0] / l, r[1] / l, r[2] / l];
+  };
+  const byMaterial = Array.from({ length: 6 }, () => ({ pos: [] as number[], nor: [] as number[], uv: [] as number[] }));
+  // One convex piece, fanned from its first vertex: `ws` its vertices' world offsets, `ns` their WORLD normals, `fw` the
+  // facet's world normal (material, plan and winding).
+  const emit = (ws: V3[], ns: V3[], fw: V3) => {
+    let axis = 0;
+    for (let i = 1; i < 3; i += 1) if (Math.abs(fw[i]!) > Math.abs(fw[axis]!) + 1e-9) axis = i;
+    const material = axis * 2 + (fw[axis]! > 0 ? 0 : 1);
+    const plan = plans[material]!;
+    const out = byMaterial[material]!;
+    const at = { out, plan, extents, ou, ov };
+    for (let i = 1; i + 1 < ws.length; i += 1) {
+      const d = facing(ws[0]!, ws[i]!, ws[i + 1]!, fw);
+      if (d === null) continue;
+      putWall(at, ws[0]!, ns[0]!);
+      if (d < 0) { putWall(at, ws[i + 1]!, ns[i + 1]!); putWall(at, ws[i]!, ns[i]!); } else { putWall(at, ws[i]!, ns[i]!); putWall(at, ws[i + 1]!, ns[i + 1]!); }
+    }
+  };
+  const wallNormals = new Map<V3, V3>();
+  const wallNormal = (p: V3): V3 => {
+    let nw = wallNormals.get(p);
+    if (!nw) { nw = vecOf(inward(p)); wallNormals.set(p, nw); }
+    return nw;
+  };
+  const top = holeRing(h, 0);
+  const far = holeRing(h, h.depth);
+  // Every wall quad and the bottom are made of ring vertices, so one test per body finds the planes that can change
+  // them, or that nothing survives (clipPlan; Task 11b) — the same pieces as clipping by every plane. A body with no
+  // such plane keeps every quad whole, so its quads are emitted from the rings' offsets and normals by index.
+  // A CLEAN hole (holeInStock: no breaks-out, off-flat or too-deep — holeFaults' own checks) lies wholly in the stock,
+  // so its wall and bottom are drawn whole, once, never split where they cross a seam between bodies (ruling R15).
+  const rings = [...top, ...far];
+  const plan: Plane[][] = holeInStock(board, h, checks)
+    ? [[]]
+    : planes.map((ps) => clipPlan(ps, rings)).filter((ps): ps is Plane[] => ps !== null);
+  const clip = (poly: V3[], ps: Plane[]): V3[] => {
+    let p = poly;
+    for (const q of ps) { p = clipPolygon(p, q); if (!p.length) break; }
+    return p;
+  };
+  const topW = top.map(offsetOf); const farW = far.map(offsetOf);
+  const topN = top.map(wallNormal); const farN = far.map(wallNormal);
+  for (let k = 0; k < top.length; k += 1) {
+    const k1 = (k + 1) % top.length;
+    const quad = [top[k]!, top[k1]!, far[k1]!, far[k]!];
+    const mid: V3 = [0, 1, 2].map((i) => (top[k]![i]! + top[k1]![i]!) / 2) as V3;
+    const fw = vecOf(inward(mid));
+    for (const ps of plan) {
+      if (ps.length === 0) { emit([topW[k]!, topW[k1]!, farW[k1]!, farW[k]!], [topN[k]!, topN[k1]!, farN[k1]!, farN[k]!], fw); continue; }
+      const piece = clip(quad, ps);
+      if (piece.length) emit(piece.map(offsetOf), piece.map(wallNormal), fw);
+    }
+  }
+  if (!h.through) {
+    const back: V3 = [0, 0, 0];
+    back[a] = -h.dir;
+    const backWorld = vecOf(back);
+    for (const ps of plan) {
+      const piece = ps.length === 0 ? far : clip(far, ps);
+      if (piece.length) emit(piece === far ? farW : piece.map(offsetOf), piece.map(() => backWorld), backWorld);
+    }
+  }
+  const { groups, out: [positions, normals, uvs] } = packGroups(byMaterial.map((m) => [m.pos, m.nor, m.uv]));
+  return { positions: positions!, normals: normals!, uvs: uvs!, groups };
+}
+
+/**
+ * Every hole of a part as ONE geometry (final review 2): each hole's holeMesh, unchanged, concatenated material by
+ * material in hole order, so a part draws its holes in one mesh (one draw call per material) rather than one mesh per
+ * hole. Every holeMesh is centred on the board, so concatenation needs no offset. Null for a part with no holes: it
+ * adds no hole mesh. `checks` as holeMesh's (built once per rebuild by the caller).
+ */
+export function holesMesh(board: Board, holes: readonly Hole[], bodies: readonly Body[], checks: StockChecks = stockChecks(board)): { positions: Float32Array; normals: Float32Array; uvs: Float32Array; groups: { start: number; count: number; materialIndex: number }[] } | null {
+  if (holes.length === 0) return null;
+  const meshes = holes.map((h) => holeMesh(board, h, bodies, checks));
+  // Vertices per material over every hole, then each material's run laid out back to back in BoxGeometry order (as
+  // packGroups lays one mesh out), each hole's slice copied straight in: no intermediate number arrays (a 42-hole part
+  // rebuilds every drag frame).
+  const counts = new Array<number>(6).fill(0);
+  for (const m of meshes) for (const g of m.groups) counts[g.materialIndex]! += g.count;
+  const total = counts.reduce((a, b) => a + b, 0);
+  const positions = new Float32Array(total * 3);
+  const normals = new Float32Array(total * 3);
+  const uvs = new Float32Array(total * 2);
   const groups: { start: number; count: number; materialIndex: number }[] = [];
-  byMaterial.forEach((m, materialIndex) => {
-    if (m.pos.length === 0) return;
-    groups.push({ start: positions.length / 3, count: m.pos.length / 3, materialIndex });
-    positions.push(...m.pos);
-    uvs.push(...m.uv);
+  const at = new Array<number>(6).fill(0);
+  let start = 0;
+  counts.forEach((count, materialIndex) => {
+    if (count === 0) return;
+    groups.push({ start, count, materialIndex });
+    at[materialIndex] = start;
+    start += count;
   });
-  return { positions: new Float32Array(positions), uvs: new Float32Array(uvs), groups };
+  for (const m of meshes) {
+    for (const g of m.groups) {
+      const v = at[g.materialIndex]!;
+      positions.set(m.positions.subarray(g.start * 3, (g.start + g.count) * 3), v * 3);
+      normals.set(m.normals.subarray(g.start * 3, (g.start + g.count) * 3), v * 3);
+      uvs.set(m.uvs.subarray(g.start * 2, (g.start + g.count) * 2), v * 2);
+      at[g.materialIndex] = v + g.count;
+    }
+  }
+  return { positions, normals, uvs, groups };
 }
 
 /**
@@ -335,6 +588,8 @@ export function boardUVSignature(board: Board): string {
     // Angle cuts change which bodies exist and which faces are sloped
     // (angle-cuts spec §3.2; invariant 15).
     board.angleCuts.map((c) => angleCutValues(c).join(',')).join(';'),
+    // Holes change which faces are opened and add walls (holes spec §3.2; invariant 15).
+    board.holes.map((r) => holeRowValues(r).join(',')).join(';'),
   ].join('|');
 }
 

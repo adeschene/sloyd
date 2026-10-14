@@ -1,5 +1,6 @@
 import type { Board, Region } from './types';
 import { CUT_GEOMETRY_KEYS, pocketCells, pocketEdges, type Point, type Segment } from './cuts';
+import { boardHoles, holeRowValues, type Hole } from './holes';
 import { angleCutValues, keptHalfSpace, type V3 } from './angleCuts';
 
 /** Inches. Below any bench precision, above float drift on part-sized numbers. */
@@ -302,7 +303,12 @@ export function boardEdges(board: Board): Segment[] {
 }
 
 /** A part's board-local geometry, shared by every part with the same geometry key. NEVER mutate it (frozen). */
-export interface PartGeometry { readonly bodies: readonly Body[]; readonly edges: readonly Segment[] }
+export interface PartGeometry {
+  readonly bodies: readonly Body[];
+  readonly edges: readonly Segment[];
+  /** Every row's instances (holes spec §3.1); bodies stay hole-free. */
+  readonly holes: readonly Hole[];
+}
 
 /** Exact, and distinct for -0, NaN and ±Infinity (JSON would write all of the last three as `null`). */
 const num = (n: number): string => (Object.is(n, -0) ? '-0' : String(n));
@@ -314,7 +320,8 @@ const num = (n: number): string => (Object.is(n, -0) ? '-0' : String(n));
  * Position, rotation, posture, grain, material and the part's id are NOT in it: the pocket grid
  * (`cutRegion`, `pocketCells`, `pocketEdges`) reads only the dimensions and cuts, and `keptHalfSpace`
  * only the dimensions and the angle cut — the geometry is board-local, and every pose is applied
- * after (toWorld, worldBodies, bodyMesh). The angle cut's ID is in it because a clipped face carries
+ * after (toWorld, worldBodies, bodyMesh). Every hole row's id and HOLE_KEYS values are in it too (a hole carries
+ * its row id, Hole.row). The angle cut's ID is in it because a clipped face carries
  * it (`BodyFace.cut`) and `bodyMesh` looks the cut up by it; a pocket cut's id is not (no output
  * carries one). Ids are JSON-quoted so an id holding a separator cannot collide.
  */
@@ -322,7 +329,8 @@ export function geometryKey(board: Board): string {
   const val = (v: string | number) => (typeof v === 'number' ? num(v) : v);
   const cuts = board.cuts.map((c) => CUT_GEOMETRY_KEYS.map((k) => val(c[k])).join(',')).join(';');
   const angles = board.angleCuts.map((c) => `${JSON.stringify(c.id)}:${angleCutValues(c).map(val).join(',')}`).join(';');
-  return `${num(board.length)},${num(board.width)},${num(board.thickness)}|${cuts}|${angles}`;
+  const holes = board.holes.map((r) => `${JSON.stringify(r.id)}:${holeRowValues(r).map(val).join(',')}`).join(';');
+  return `${num(board.length)},${num(board.width)},${num(board.thickness)}|${cuts}|${angles}|${holes}`;
 }
 
 function deepFreeze<T>(o: T): T {
@@ -354,9 +362,11 @@ export function partGeometry(board: Board): PartGeometry {
     return hit;
   }
   const bodies = deepFreeze(boardBodies(board));
+  const holes = deepFreeze(boardHoles(board));
   let edges: readonly Segment[] | undefined;
   const entry: PartGeometry = {
     bodies,
+    holes,
     get edges() {
       if (!edges) {
         edges = deepFreeze(board.angleCuts.length === 0

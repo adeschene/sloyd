@@ -2,12 +2,12 @@ import type { ToggleModifiers } from '../store/selectionGesture';
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import {
-  boardCenter, boardExtents, partGeometry, pointToLocalXYZ,
+  boardCenter, boardExtents, holeRims, holeTouchesBox, partGeometry, pointToLocalXYZ, stockChecks,
   solidWorldBox, wholeBoard,
 } from '../document/document';
-import type { Board } from '../document/document';
+import type { Board, V3 } from '../document/document';
 import { faceGrainKinds, grainFamily } from './grainFaces';
-import { bodyMesh, boardUVs, boardUVSignature } from './grainTiling';
+import { bodyMesh, boardUVs, boardUVSignature, holesMesh } from './grainTiling';
 import { grainTexture } from './grainTexture';
 import { CLICK_DRAG_SLOP_PX, clickPairStartedWithDrag } from './pointer';
 
@@ -126,7 +126,9 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
   // invariant 15's failure mode; riding along here inherits the signature key
   // and the disposal effect below for free.
   const geometries = useMemo(() => {
-    const bodies = partGeometry(board).bodies;
+    const { bodies, holes } = partGeometry(board);
+    const checks = stockChecks(board);   // once per rebuild, for every hole's clean test (ruling R15)
+    // A ghost has no holes to draw: the placeholder branch is unchanged.
     if (bodies.length === 0) {
       const { center, size } = solidWorldBox(board, wholeBoard(board));
       return {
@@ -136,22 +138,35 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
     }
     return {
       placeholder: false,
-      items: bodies.map((body) => {
-        if (body.box) {
-          // Today's path, byte-for-byte (angle-cuts spec §3.3).
-          const { center, size } = solidWorldBox(board, body.box);
-          const geo = new THREE.BoxGeometry(size[0], size[1], size[2]);
-          geo.setAttribute('uv', new THREE.BufferAttribute(boardUVs(board, body.box), 2));
-          return { geo, center };
-        }
-        const m = bodyMesh(board, body);
-        const geo = new THREE.BufferGeometry();
-        geo.setAttribute('position', new THREE.BufferAttribute(m.positions, 3));
-        geo.setAttribute('uv', new THREE.BufferAttribute(m.uvs, 2));
-        for (const g of m.groups) geo.addGroup(g.start, g.count, g.materialIndex);
-        geo.computeVertexNormals();
-        return { geo, center: [0, 0, 0] as [number, number, number] };
-      }),
+      items: [
+        ...bodies.map((body) => {
+          if (body.box && !holes.some((h) => holeTouchesBox(h, body.box!))) {
+            // Today's path, byte-for-byte (angle-cuts spec §3.3; holes spec §3.2: a part with no holes keeps it).
+            const { center, size } = solidWorldBox(board, body.box);
+            const geo = new THREE.BoxGeometry(size[0], size[1], size[2]);
+            geo.setAttribute('uv', new THREE.BufferAttribute(boardUVs(board, body.box), 2));
+            return { geo, center };
+          }
+          const m = bodyMesh(board, body, holes, bodies);   // seams between holed bodies skipped (ruling R11)
+          const geo = new THREE.BufferGeometry();
+          geo.setAttribute('position', new THREE.BufferAttribute(m.positions, 3));
+          geo.setAttribute('uv', new THREE.BufferAttribute(m.uvs, 2));
+          for (const g of m.groups) geo.addGroup(g.start, g.count, g.materialIndex);
+          geo.computeVertexNormals();
+          return { geo, center: [0, 0, 0] as [number, number, number] };
+        }),
+        // Every hole's wall and bottom (holes spec §3.2) in ONE geometry (final review 2: one mesh per part, not per
+        // hole): explicit normals, so NO computeVertexNormals here. A part with no holes adds nothing.
+        ...[holesMesh(board, holes, bodies, checks)].flatMap((m) => {
+          if (!m) return [];
+          const geo = new THREE.BufferGeometry();
+          geo.setAttribute('position', new THREE.BufferAttribute(m.positions, 3));
+          geo.setAttribute('normal', new THREE.BufferAttribute(m.normals, 3));
+          geo.setAttribute('uv', new THREE.BufferAttribute(m.uvs, 2));
+          for (const g of m.groups) geo.addGroup(g.start, g.count, g.materialIndex);
+          return [{ geo, center: [0, 0, 0] as [number, number, number] }];
+        }),
+      ],
     };
   }, [
     extents[0], extents[1], extents[2],
@@ -183,8 +198,13 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
       ...pointToLocalXYZ(board, a),
       ...pointToLocalXYZ(board, b),
     ]);
+    // Each hole's rims (holes spec §3.3, amended): the entry ring and the far ring.
+    const toPt = (p: V3) => ({ length: p[0], width: p[1], thickness: p[2] });
+    const rims = partGeometry(board).holes.flatMap((h) => holeRims(h).flatMap(([a, b]) => [
+      ...pointToLocalXYZ(board, toPt(a)), ...pointToLocalXYZ(board, toPt(b)),
+    ]));
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+    geo.setAttribute('position', new THREE.Float32BufferAttribute([...points, ...rims], 3));
     return geo;
   }, [extents[0], extents[1], extents[2], boardUVSignature(board), geometries]);
 

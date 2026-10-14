@@ -2934,6 +2934,98 @@ describe('angle-cut actions (spec §7)', () => {
   });
 });
 
+describe('hole-row actions (spec §7)', () => {
+  const row = { face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 3, pitch: 1.25, acrossFrom: 'min' as const, inset: 1.5 };
+  const setup = () => {
+    useStore.getState().replaceDocument({ ...createDocument('T'), boards: [createBoard({ id: 'side', name: 'Side', length: 30, width: 11.25, thickness: 0.75 })] });
+  };
+  const s = () => useStore.getState();
+  const rows = () => (s().doc.boards[0] as Board).holes;
+  it('adds, updates and removes, one undo entry each', () => {
+    setup();
+    s().addHoleRows('side', [row]);
+    const id = rows()[0]!.id;
+    s().updateHoleRow('side', id, { ...row, station: 3 });
+    expect(rows()[0]!.station).toBe(3);
+    s().removeHoleRow('side', id);
+    expect(rows()).toEqual([]);
+    expect(s().past.length).toBe(3);
+    s().undo(); s().undo(); s().undo();
+    expect(rows()).toEqual([]);
+    expect(s().past.length).toBe(0);
+  });
+  it('several rows in one call are one undo entry', () => {
+    setup();
+    s().addHoleRows('side', [row, { ...row, station: 9 }]);
+    expect(rows()).toHaveLength(2);
+    expect(s().past.length).toBe(1);
+  });
+  it('an unchanged update pushes no undo entry (inv 4)', () => {
+    setup();
+    s().addHoleRows('side', [row]);
+    const before = s().past.length;
+    s().updateHoleRow('side', rows()[0]!.id, row);
+    expect(s().past.length).toBe(before);
+  });
+  it('is refused while exploded (inv 47)', () => {
+    setup();
+    s().setExplode(0.5);
+    s().addHoleRows('side', [row]);
+    expect(rows()).toEqual([]);
+    s().setExplode(0);
+    s().addHoleRows('side', [row]);
+    const id = rows()[0]!.id;
+    const before = s().past.length;
+    s().setExplode(0.5);
+    s().updateHoleRow('side', id, { ...row, station: 3 });
+    s().removeHoleRow('side', id);
+    expect(rows()).toHaveLength(1);
+    expect(rows()[0]!.station).toBe(2);
+    expect(s().past.length).toBe(before);
+  });
+  describe('held points (inv 24)', () => {
+    const part = () => createBoard({ id: 'side', length: 24, width: 5.5, thickness: 0.75 });
+    // Top face centre: length -> X, thickness -> Y, width -> Z.
+    const grabTop = () => {
+      useStore.setState({ doc: { ...createDocument('T'), boards: [part()] }, selectedIds: [], past: [], future: [], tool: 'select', grabbed: null, tapeAnchor: null, tapeHover: null });
+      const top = boardSnapPoints(s().doc.boards[0] as Board).find((p) => p.at.every((v, i) => Math.abs(v - [12, 0.75, 2.75][i]!) < 1e-9))!;
+      expect(top.kind).toBe('face-center');
+      s().grabSnapPoint(top);
+      expect(s().grabbed).not.toBeNull();
+    };
+    const hole = { ...row, diameter: 0.25, depth: 0.375, count: 1, pitch: 0, inset: 2.75 };
+    it('a hole whose mouth swallows the grabbed point (centre elsewhere) drops the grab', () => {
+      grabTop();
+      s().addHoleRows('side', [{ ...hole, station: 12.05 }]);
+      expect(s().grabbed).toBeNull();
+    });
+    it('a hole centred exactly on the grabbed point keeps it (same kind, owner, position)', () => {
+      grabTop();
+      s().addHoleRows('side', [{ ...hole, station: 12 }]);
+      expect(s().grabbed).not.toBeNull();
+    });
+    it('removing the hole that took the lattice point away keeps a grab on the hole centre; update re-judges too', () => {
+      grabTop();
+      s().addHoleRows('side', [{ ...hole, station: 5 }]);
+      expect(s().grabbed).not.toBeNull();
+      s().updateHoleRow('side', (s().doc.boards[0] as Board).holes[0]!.id, { ...hole, station: 12.05 });
+      expect(s().grabbed).toBeNull();
+    });
+  });
+  it('a row added to a part inside an assembly is written to the definition', () => {
+    useStore.getState().replaceDocument({
+      ...createDocument('T'), boards: [],
+      instances: [{ id: 'i', name: 'Case', definition: 'd', position: [0, 0, 0], rotation: 0 }],
+      definitions: [{ id: 'd', boards: [createBoard({ id: 'a', name: 'A', length: 30, width: 11.25, thickness: 0.75 })], instances: [] }],
+    });
+    s().addHoleRows('i/a', [row]);
+    const stored = (s().doc.definitions[0]!.boards[0] as Board).holes;
+    expect(stored).toHaveLength(1);
+    expect(stored[0]!.station).toBe(2);
+    expect(worldParts(s().doc).find((b) => b.id === 'i/a')!.holes).toHaveLength(1);
+  });
+});
+
 describe('edit() prunes custom materials (custom materials spec §2.3)', () => {
   it('drops a material when its last part changes material, in the same undo entry', () => {
     const ash = { id: 'm-s-ash1', label: 'Ash', color: '#d8c8a8', kind: 'solid' as const };
@@ -3032,5 +3124,19 @@ describe('adopting and applying custom materials (custom materials spec §4)', (
     useStore.getState().updateBoards(['a'], { material: 'm-s-ash1' }, [ash]);
     expect(useStore.getState().doc).toBe(doc);
     useStore.getState().setExplode(0);
+  });
+});
+
+describe('duplicating a holed part (holes spec §5.2)', () => {
+  it('gives the copy fresh row ids and its own rows', () => {
+    const row = { id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 3, pitch: 1.25, acrossFrom: 'min' as const, inset: 1.5 };
+    useStore.getState().replaceDocument({ ...createDocument('T'), boards: [createBoard({ id: 'side', name: 'Side', holes: [row] })] });
+    useStore.getState().duplicateBoards(['side']);
+    const [a, b] = useStore.getState().doc.boards as Board[];
+    expect(b!.holes).toHaveLength(1);
+    expect(b!.holes[0]!.id).not.toBe(a!.holes[0]!.id);
+    const { id: _a, ...ra } = a!.holes[0]!;
+    const { id: _b, ...rb } = b!.holes[0]!;
+    expect(rb).toEqual(ra);
   });
 });

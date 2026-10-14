@@ -1,6 +1,6 @@
 import { createBoard } from './document';
 import type { Board } from './document';
-import type { AngleCut } from './types';
+import type { AngleCut, HoleRow } from './types';
 import { LINK_ACROSS_MIRROR, LINK_FIELDS, SHARED_KEYS, linkPlan, sameShared, sharedOf, sharedPatch } from './links';
 import type { LinkPlan } from './links';
 
@@ -15,8 +15,8 @@ const leg = (over: Partial<Board> = {}): Board =>
 const cut = { id: 'c1', face: 'width', from: 'max', across: 'length', offset: 0.5, width: 0.75, depth: 1, stopMin: 22, stopMax: 2 } as const;
 
 describe('LINK_FIELDS', () => {
-  it('shares exactly the spec\'s eight fields', () => {
-    expect([...SHARED_KEYS].sort()).toEqual(['angleCuts', 'cuts', 'grain', 'length', 'material', 'posture', 'thickness', 'width']);
+  it('shares exactly the spec\'s nine fields', () => {
+    expect([...SHARED_KEYS].sort()).toEqual(['angleCuts', 'cuts', 'grain', 'holes', 'length', 'material', 'posture', 'thickness', 'width']);
     expect(LINK_FIELDS.rotation).toBe('own');
     expect(LINK_FIELDS.position).toBe('own');
     expect(LINK_FIELDS.shape).toBe('own');
@@ -173,5 +173,30 @@ describe('angle cuts are a shared field (angle-cuts spec §5.2)', () => {
     expect(s.angleCuts[0]!.points).not.toBe(a.angleCuts[0]!.points);
     const p = sharedPatch({ angleCuts: a.angleCuts });
     expect(p.angleCuts![0]!.points).not.toBe(a.angleCuts[0]!.points);
+  });
+});
+
+describe('links see holes (holes spec §5.2)', () => {
+  const PIN: HoleRow = {
+    id: 'h1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.375, along: 'length', alongFrom: 'min',
+    station: 2, count: 21, pitch: 32 / 25.4, acrossFrom: 'min', inset: 1.5,
+  };
+  const a = createBoard({ id: 'a', holes: [PIN] });
+  it('a holed part and a plain one are not the same shared part', () => {
+    expect(sameShared(a, { ...a, id: 'b', holes: [] })).toBe(false);
+  });
+  it('equal rows with equal ids are the same; a changed field is not', () => {
+    expect(sameShared(a, { ...a, id: 'b', holes: [{ ...PIN }] })).toBe(true);
+    expect(sameShared(a, { ...a, id: 'b', holes: [{ ...PIN, inset: 2 }] })).toBe(false);
+  });
+  it('sharedOf copies the rows', () => {
+    expect(sharedOf(a).holes).toEqual([PIN]);
+    expect(sharedOf(a).holes[0]).not.toBe(PIN);
+  });
+  it('sharedPatch copies the rows too: no two members ever hold one HoleRow object (final review 6)', () => {
+    const p = sharedPatch({ holes: a.holes });
+    expect(p.holes).toEqual([PIN]);
+    expect(p.holes).not.toBe(a.holes);
+    expect(p.holes![0]).not.toBe(PIN);
   });
 });

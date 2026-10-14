@@ -5398,3 +5398,90 @@ row's kind round trip (solid → sheet → solid) turns its nominal switch off �
 change. (4) "Use library version" may change a stored row's nominal flag without touching its prices (the rule for stored
 rows). (5) Materials created before chunk 2 keep their stored board-foot buying when the switch is turned on — choose By
 the piece to get the yard list (by design: the switch never touches stored prices). **Status:** record-only.
+
+## From the holes round (chunk 1) — 2026-10-14
+
+**327. Holes chunk 2: drawings and the Hinge cup.** Spec §9 chunk 2 (`2026-10-14-sloyd-holes-design.md` §3.4, §4.3, §7):
+Plans-sheet rims as `DRAWING_HOLE_SEGMENTS = 96` polylines through the hidden-line pass, dashed depth lines (the wall's two
+silhouette generators and a blind hole's bottom rim; none looking down the axis), occluders staying the hole-free bodies
+(inv 47, pinned by a test); part-diagram circles with a centre mark and a once-per-row label (`21 × Ø1/4" × 3/8"`), built
+from `holeText.ts` (inv 19); the **Hinge cup** preset (35 mm × 1/2" deep, 3" from the length min end, 22.5 mm in). No schema
+change. **Status:** open — NEXT (chosen with the round; starts at planning, the spec is approved).
+
+**328. Holes through Add joinery, Repair and Refine.** Chunk 1 refuses a holed project at entry (`holedRefusal`, spec §6).
+Carrying holes through needs a rebase for rows measured from an end joinery grows or trims (as `rebaseAngleCuts`, fu 307),
+`readJoints`' exact undo of it, and a hole-in-pocket refusal (a hole meeting a mortise or tenon). **Status:** open (spec §11).
+
+**329. Generate and Refine authoring holes.** Holes in world words in the design schema — a `DESIGN_SCHEMA` change, so one
+live compile before it ships (fu 322); Refine keeping untouched rows exactly. Depends on 328 for joined Refine. **Status:**
+open (spec §11).
+
+**330. Counterbores, countersinks and cam-and-bolt.** Concentric holes and holes meeting holes; `holeFaults`' `meets-hole`
+refuses both today. **Status:** open (spec §11, a non-goal of chunk 1).
+
+**331. Half-holes and holes breaking out of an edge.** `breaks-out` refuses them; they would need a hole to cross body
+edges (inv 50's convex bodies stay). **Status:** open (spec §11).
+
+**332. Dowels as hardware.** A dowel joint is two holes placed by hand (the user's ruling); dowels as objects belong with
+the hardware bill of materials (fu 267). **Status:** open (spec §11).
+
+**333. Hole callouts on the Plans sheet.** Dimensioned hole positions and sizes on the sheet; joins fu 252 (callouts).
+**Status:** open (spec §11).
+
+**334. Pointed bottoms.** Twist and brad-point bits leave a cone; chunk 1's holes are flat-bottomed. **Status:** open
+(spec §11).
+
+**335. Metric display of hole sizes.** `units.display` is unchanged; a whole-millimetre diameter or pitch prints its mm in
+parentheses only (spec §4.1, amended). **Status:** open (spec §11).
+
+**336. The grain seam inside a bore (ruling R9).** A wall facet takes the plan of the world axis its normal is nearest
+(spec §3.2, inv 35's sloped-face rule), so a bore's wall switches from end-grain rings to long grain halfway round with a
+hard seam. The user, on the live pass: "It looks pretty bad and the seam is very clear." A seamless look needs cylindrical
+or triplanar mapping — shader work judged by eye. **Status:** deferred by the user 2026-10-14 to a later texture/shader
+session; chunk 1 ships with the seam.
+
+**337. Real-hardware looks owed (26a).** Seen only on software GL: hole wall shading and grain; rim lines (indistinguishable
+at screenshot scale, as the part's own edges are; unit-tested only); drag smoothness on a drilled cabinet side (the
+in-browser timing was meaningless on llvmpipe: 1.5–7 s per edit with holes, 3–9 s without); a FADED (transparent) holed
+part, which no longer draws interior seam faces in its holed bodies while an unholed one still does (Task 11b); overlapping
+or coincident (faulted) holes, for cracks at the fallback split's T-junctions. **Status:** open (awaiting the user's look).
+
+**338. Count-1 rows still compare `pitch` (ruling R18).** `HOLE_FIELDS` is every field but `id`, exact (spec §4.2), and a
+count-1 row stores a pitch it ignores; two identical single bores whose rows once had different pitches split into two
+cut-list rows (and do not link). Normalising the pitch at count 1 (on compare, or on write) is the user's call.
+**Status:** open (for the user).
+
+**339. AngleCuts and the field-owned refusal message.** Holes' DimensionField onCommits return the refusal text (R7): the
+field shows it as its own error, keeps focus and the typed text. AngleCuts' refusals still use the row alert, and the
+holes Task 10 review judged it to carry the same latent pattern (a caller-refused DimensionField edit blurring with the
+refused value showing while the stored value is unchanged) — inferred from the code, not checked live. Adopting R7 there
+is a small change. **Status:** open.
+
+**340. The hole perf guard is wall-clock (Task 11b, final review).** `holesPerf.test.ts` bounds runs (≤40 ms
+healthy, ≤100 ms faulted). On 2026-10-14 it failed 1 of 4 isolated runs at a load average of 5.4, then passed 3/3 (the
+round's runs passed 3/3 on a quiet box); run `npm test` on a quiet machine before trusting a red. The faulted bound has
+only ~1.4× margin over the revert it guards (about 135–140 ms reverted); the memo gate checks freezing of `h.centre`
+only (Hole's one nested field today — a new nested field must join it). The guard now times the minimum of 9 runs (R19): load can only inflate a run, so the minimum is load-robust. **Status:** record-only.
+
+**341. Holes geometry and model minors (record-only; task reviews 1, 3, 5, 6).** (1) The drop-malformed test lacks cases for
+a negative station/inset, a non-finite pitch/diameter, a bad `from`/`alongFrom`, a non-array `holes`; `holes.test.ts`
+exports `PIN` (consumed by its own appended tests; R2: never import a test module). (2) A corner breakout names one edge
+only; `holeFaults.ts` duplicates `idx`/in-plane/span helpers beside `holes.ts`' `frameOf`. (3) Test gaps: only `dir = -1`
+for prism/ring/`insideHole`; the bottom cap's `PRISM_EPS` and `onSlope`'s far disc unpinned; `holeRims` closure and depth
+unchecked; the original perpendicular test's comment overstates; a max-face hole against a min-face dado floor and a
+stopped cut's in-plane edge not separately pinned; the exact `+HOLE_EPS` touching margin unpinned. (4) Zero skin against
+an ANGLE cut (a plane exactly perpendicular to the axis touching the bottom disc) still passes — R3 made only a cut's
+floor count; reachable only from a near-axis-aligned taper. (5) `stockProbe` recomputes `boardHoles` per call; the
+through-hole snap test does not assert the entry centre is still present. (6) The `removeDupEndPts` guard in
+`faceTriangles` is unreachable and untested; a doubled coplanar bottom on a grid seam is possible and unverified;
+`holeTouchesBox`' test pins Task 3's function only. **Status:** record-only.
+
+**342. Holes copies, mirroring, text, store and panel minors (record-only; task reviews 2, 4, 7–10).** (1) The plain-part
+copy expression is duplicated at `treeOps.ts` and `treeEdit.ts` (a pre-existing pattern); the store duplicate test does
+not assert row object independence. (2) No shaped-part posture-through-mirror test for holes; the chirality test is flat
+only; `sharedSignature`'s doc comment does not name hole rows. (3) `holeFaultText` relies on `f.edge!`/`f.other!`
+(`HoleFault` is not a discriminated union); the signature separators are uncommented. (4) The hole-row literal is
+duplicated across five test files; the runJoinery holed test does not assert the document unchanged. (5) The third held
+test's title says "removing" but never calls `removeHoleRow`; `removeHoleRow`'s `judgeHeld` is unpinned. (6) A caller
+refusal's message can go stale after a sibling edit makes the value fit (R8-consistent: a later blur commits it, visibly);
+a test comment overstates "no silent commit"; one row can hold two `role="alert"` elements. **Status:** record-only.

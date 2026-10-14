@@ -4,7 +4,8 @@ import { createDocument } from './document';
 import { worldParts } from './tree';
 import { boardExtents } from './geometry';
 import { worldSolids } from './designCheck';
-import { chiralAngled, chiralPart, sameSet } from './turnFixtures';
+import { chiralAngled, chiralHoled, chiralPart, sameSet } from './turnFixtures';
+import { sameHoleRow } from './holes';
 import { sameAngleCut } from './angleCuts';
 import { SHARED_KEYS, sharedOf } from './links';
 import { CUT_GEOMETRY_KEYS } from './cuts';
@@ -241,5 +242,49 @@ describe('angle cuts through a mirrored instance (Review Focus 1)', () => {
     expect(now.angleCuts.length).toBe(before.angleCuts.length);
     now.angleCuts.forEach((c, i) => expect(sameAngleCut(c, before.angleCuts[i]!), `cut ${i}`).toBe(true));
     expect(out.shapes[0]!.angleCuts).not.toEqual(d.shapes[0]!.angleCuts);
+  });
+});
+
+describe('holes through a mirror (Review Focus 3)', () => {
+  it('an edit elsewhere keeps the stored rows (the same array)', () => {
+    const d0 = doc(chiralHoled('flat'), { mirrored: true });
+    const before = occ(d0);
+    const d1 = applyWorldEdits(d0, [{ before, after: { ...before, name: 'Renamed' } }]);
+    expect(stored(d1).holes).toBe(stored(d0).holes);
+  });
+  it('a resize keeps the stored rows (the same array)', () => {
+    const d0 = doc(chiralHoled('flat'), { mirrored: true });
+    const before = occ(d0);
+    const d1 = applyWorldEdits(d0, [{ before, after: { ...before, length: before.length + 1 } }]);
+    expect(stored(d1).holes).toBe(stored(d0).holes);
+  });
+  it('an edit to a world row writes back its mirror; placing again shows the edit; repeats do not drift', () => {
+    const d0 = doc(chiralHoled('upright'), { mirrored: true, rotation: 90 });
+    const before = occ(d0);
+    const edited = before.holes.map((r) => (r.id === 'h1' ? { ...r, station: 6 } : r));
+    const d1 = applyWorldEdits(d0, [{ before, after: { ...before, holes: edited } }]);
+    expect(sameHoleRow(occ(d1).holes.find((r) => r.id === 'h1')!, edited.find((r) => r.id === 'h1')!)).toBe(true);
+    expect(stored(d1).holes.find((r) => r.id === 'h1')).not.toEqual(edited.find((r) => r.id === 'h1'));   // stored is the mirror
+    const d2 = applyWorldEdits(d1, [{ before: occ(d1), after: { ...occ(d1), holes: occ(d1).holes.map((r) => ({ ...r })) } }]);
+    stored(d1).holes.forEach((r, i) => expect(stored(d2).holes[i]).toBe(r));
+  });
+  it('a posture change moving d0 keeps the world rows as seen (stored ones re-reflected); one keeping d0 leaves them', () => {
+    // The ONLY path to changedKeys' second clause (cur.holes !== after.holes && cur.holes !== resolved.holes): the
+    // rows are not edited, but the lowering re-reflects them along the NEW d0.
+    for (const A of [{ mirrored: true }, { mirrored: true, rotation: 90 as const }]) {
+      for (const [from, to] of [['flat', 'upright'], ['upright', 'on-edge']] as const) {
+        const d = doc(chiralHoled(from), A);
+        const before = occ(d);
+        const out = applyWorldEdits(d, [{ before, after: { ...before, posture: to } }]);
+        expect(stored(out).holes, `${from}->${to}`).not.toBe(stored(d).holes);
+        const now = occ(out);
+        expect(now.holes.length).toBe(before.holes.length);
+        now.holes.forEach((r, i) => expect(sameHoleRow(r, before.holes[i]!), `${from}->${to} ${i}`).toBe(true));
+      }
+      const d = doc(chiralHoled('flat'), A);
+      const before = occ(d);
+      const out = applyWorldEdits(d, [{ before, after: { ...before, posture: 'on-edge' } }]);
+      expect(stored(out).holes).toBe(stored(d).holes);
+    }
   });
 });
