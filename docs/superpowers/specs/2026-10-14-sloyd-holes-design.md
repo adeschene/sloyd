@@ -243,6 +243,11 @@ In the face view looking down the drill axis, each hole draws as a circle with a
 (`21 × Ø1/4" × 3/8"`). In views across the axis a hole draws its dashed depth lines. Strings are built in `diagram.ts`
 from `holeText.ts` (invariant 19), measured as today.
 
+*Amended (planning chunk 2, approved by the user 2026-10-14):* a row's label is its **bench line as an HTML note under the
+figure** (`holeLine`), as angle cuts' notes are — not a measured SVG label. Part diagrams are schematic with unequal
+scales (circles draw as ellipses) and `Ø` is non-ASCII (invariant 19 would require a browser measurement). Circles,
+centre marks and dashed outlines carry no text.
+
 ## 5. Schema, mirroring, links
 
 ### 5.1 Schema 16
