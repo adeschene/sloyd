@@ -500,6 +500,45 @@ export function holeMesh(board: Board, h: Hole, bodies: readonly Body[], checks:
 }
 
 /**
+ * Every hole of a part as ONE geometry (final review 2): each hole's holeMesh, unchanged, concatenated material by
+ * material in hole order, so a part draws its holes in one mesh (one draw call per material) rather than one mesh per
+ * hole. Every holeMesh is centred on the board, so concatenation needs no offset. Null for a part with no holes: it
+ * adds no hole mesh. `checks` as holeMesh's (built once per rebuild by the caller).
+ */
+export function holesMesh(board: Board, holes: readonly Hole[], bodies: readonly Body[], checks: StockChecks = stockChecks(board)): { positions: Float32Array; normals: Float32Array; uvs: Float32Array; groups: { start: number; count: number; materialIndex: number }[] } | null {
+  if (holes.length === 0) return null;
+  const meshes = holes.map((h) => holeMesh(board, h, bodies, checks));
+  // Vertices per material over every hole, then each material's run laid out back to back in BoxGeometry order (as
+  // packGroups lays one mesh out), each hole's slice copied straight in: no intermediate number arrays (a 42-hole part
+  // rebuilds every drag frame).
+  const counts = new Array<number>(6).fill(0);
+  for (const m of meshes) for (const g of m.groups) counts[g.materialIndex]! += g.count;
+  const total = counts.reduce((a, b) => a + b, 0);
+  const positions = new Float32Array(total * 3);
+  const normals = new Float32Array(total * 3);
+  const uvs = new Float32Array(total * 2);
+  const groups: { start: number; count: number; materialIndex: number }[] = [];
+  const at = new Array<number>(6).fill(0);
+  let start = 0;
+  counts.forEach((count, materialIndex) => {
+    if (count === 0) return;
+    groups.push({ start, count, materialIndex });
+    at[materialIndex] = start;
+    start += count;
+  });
+  for (const m of meshes) {
+    for (const g of m.groups) {
+      const v = at[g.materialIndex]!;
+      positions.set(m.positions.subarray(g.start * 3, (g.start + g.count) * 3), v * 3);
+      normals.set(m.normals.subarray(g.start * 3, (g.start + g.count) * 3), v * 3);
+      uvs.set(m.uvs.subarray(g.start * 2, (g.start + g.count) * 2), v * 2);
+      at[g.materialIndex] = v + g.count;
+    }
+  }
+  return { positions, normals, uvs, groups };
+}
+
+/**
  * Everything boardUVs reads, as one string.
  *
  * BoardMesh memoises the geometry that carries the UV attribute, and a memo

@@ -6,8 +6,8 @@ import type { Region } from '../document/document';
 import { chiralAngled, chiralPart, turnedAbout } from '../document/turnFixtures';
 import { mirrorPart } from '../document/frames';
 import { boardBodies } from '../document/document';
-import { boardUVOffset, boardUVs, boardUVSignature, bodyMesh, facePlans, faceTriangles, holeMesh } from './grainTiling';
-import { boardHoles, holeRing, holeTouchesBox, HOLE_SEGMENTS } from '../document/document';
+import { boardUVOffset, boardUVs, boardUVSignature, bodyMesh, facePlans, faceTriangles, holeMesh, holesMesh } from './grainTiling';
+import { boardHoles, holeRing, holeTouchesBox, HOLE_SEGMENTS, partGeometry, stockChecks } from '../document/document';
 
 const flat = createBoard({ length: 24, width: 5.5, thickness: 0.75, material: 'oak' });
 
@@ -979,5 +979,52 @@ describe('faceTriangles: faulted and tangent holes take the fallback split (ruli
     const tris = faceTriangles(topOf(b), holes);
     expect(area(tris)).toBeCloseTo(100 - ngon / 2, 9);
     noneInside(tris, holes);
+  });
+});
+
+describe('holesMesh: every hole of a part in ONE geometry (final review 2: one draw call per part, not per hole)', () => {
+  type M = { positions: Float32Array; normals: Float32Array; uvs: Float32Array; groups: { start: number; count: number; materialIndex: number }[] };
+  // One material's slice of a mesh: positions, normals and uvs of its group (or empty when it has none).
+  const slice = (m: M, material: number) => {
+    const g = m.groups.find((x) => x.materialIndex === material);
+    if (!g) return { pos: [] as number[], nor: [] as number[], uv: [] as number[] };
+    return {
+      pos: [...m.positions.subarray(g.start * 3, (g.start + g.count) * 3)],
+      nor: [...m.normals.subarray(g.start * 3, (g.start + g.count) * 3)],
+      uv: [...m.uvs.subarray(g.start * 2, (g.start + g.count) * 2)],
+    };
+  };
+  // Two rows (42 holes) on a dadoed side whose dado crosses them: clean holes and faulted (clipped) ones both.
+  const rows = [{ ...pinRow, id: 'r1', count: 21 }, { ...pinRow, id: 'r2', count: 21, acrossFrom: 'max' as const }];
+  const side = createBoard({ id: 'side', length: 30, width: 11.25, thickness: 0.75, cuts: [dado], holes: rows });
+  it('the merged geometry is the per-hole meshes concatenated, material by material, in hole order', () => {
+    const { bodies, holes } = partGeometry(side);
+    const checks = stockChecks(side);
+    const each = holes.map((h) => holeMesh(side, h, bodies, checks));
+    const merged = holesMesh(side, holes, bodies, checks)!;
+    expect(holes).toHaveLength(42);
+    // Triangle count: the sum of the per-hole meshes.
+    const tris = (m: M) => m.positions.length / 9;
+    expect(tris(merged)).toBe(each.reduce((s, m) => s + tris(m), 0));
+    expect(merged.normals.length).toBe(merged.positions.length);
+    expect(merged.uvs.length / 2).toBe(merged.positions.length / 3);
+    // Per material: one group whose count is the sum of the per-hole groups', holding exactly their vertices in order.
+    const used = [...new Set(each.flatMap((m) => m.groups.map((g) => g.materialIndex)))].sort();
+    expect(merged.groups.map((g) => g.materialIndex)).toEqual(used);
+    for (const material of used) {
+      const g = merged.groups.find((x) => x.materialIndex === material)!;
+      expect(g.count).toBe(each.reduce((s, m) => s + (m.groups.find((x) => x.materialIndex === material)?.count ?? 0), 0));
+      const want = each.map((m) => slice(m, material));
+      expect(slice(merged, material)).toEqual({ pos: want.flatMap((w) => w.pos), nor: want.flatMap((w) => w.nor), uv: want.flatMap((w) => w.uv) });
+    }
+    // Groups are packed back to back from 0, covering every vertex.
+    let at = 0;
+    for (const g of merged.groups) { expect(g.start).toBe(at); at += g.count; }
+    expect(at).toBe(merged.positions.length / 3);
+  });
+  it('a part without holes adds no hole mesh', () => {
+    const plain = createBoard({ id: 'p', length: 30, width: 11.25, thickness: 0.75 });
+    const { bodies, holes } = partGeometry(plain);
+    expect(holesMesh(plain, holes, bodies, stockChecks(plain))).toBeNull();
   });
 });

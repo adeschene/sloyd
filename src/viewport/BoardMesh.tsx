@@ -7,7 +7,7 @@ import {
 } from '../document/document';
 import type { Board, V3 } from '../document/document';
 import { faceGrainKinds, grainFamily } from './grainFaces';
-import { bodyMesh, boardUVs, boardUVSignature, holeMesh } from './grainTiling';
+import { bodyMesh, boardUVs, boardUVSignature, holesMesh } from './grainTiling';
 import { grainTexture } from './grainTexture';
 import { CLICK_DRAG_SLOP_PX, clickPairStartedWithDrag } from './pointer';
 
@@ -155,15 +155,16 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
           geo.computeVertexNormals();
           return { geo, center: [0, 0, 0] as [number, number, number] };
         }),
-        // Each hole's wall and bottom (holes spec §3.2): explicit normals, so NO computeVertexNormals here.
-        ...holes.map((h) => {
-          const m = holeMesh(board, h, bodies, checks);
+        // Every hole's wall and bottom (holes spec §3.2) in ONE geometry (final review 2: one mesh per part, not per
+        // hole): explicit normals, so NO computeVertexNormals here. A part with no holes adds nothing.
+        ...[holesMesh(board, holes, bodies, checks)].flatMap((m) => {
+          if (!m) return [];
           const geo = new THREE.BufferGeometry();
           geo.setAttribute('position', new THREE.BufferAttribute(m.positions, 3));
           geo.setAttribute('normal', new THREE.BufferAttribute(m.normals, 3));
           geo.setAttribute('uv', new THREE.BufferAttribute(m.uvs, 2));
           for (const g of m.groups) geo.addGroup(g.start, g.count, g.materialIndex);
-          return { geo, center: [0, 0, 0] as [number, number, number] };
+          return [{ geo, center: [0, 0, 0] as [number, number, number] }];
         }),
       ],
     };

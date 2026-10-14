@@ -1,6 +1,6 @@
 import { createBoard, partGeometry, stockChecks } from '../document/document';
 import type { Board } from '../document/document';
-import { bodyMesh, holeMesh } from './grainTiling';
+import { bodyMesh, holesMesh } from './grainTiling';
 
 /**
  * Hole rebuild performance (Task 11b). A resize drag rebuilds a holed part's meshes every frame, so a full rebuild —
@@ -16,7 +16,7 @@ import { bodyMesh, holeMesh } from './grainTiling';
  *
  * Each run reads the part through partGeometry with a fresh geometry key (the length moves by a micro-inch), exactly
  * as a drag frame does: new, frozen bodies and holes, so nothing is reused from the run before. bodyMesh gets the part's
- * bodies and holeMesh the board's stockChecks, as BoardMesh passes them.
+ * bodies and holesMesh (every hole's holeMesh, merged) the board's stockChecks, as BoardMesh passes them.
  */
 const pinRow = (id: string, acrossFrom: 'min' | 'max') => ({
   id, face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const,
@@ -38,7 +38,7 @@ function rebuild(cuts: Board['cuts']): number {
   const { bodies, holes } = partGeometry(board);
   for (const body of bodies) bodyMesh(board, body, holes, bodies);
   const checks = stockChecks(board);
-  for (const h of holes) holeMesh(board, h, bodies, checks);
+  holesMesh(board, holes, bodies, checks);   // every hole in one geometry, as BoardMesh draws them (final review 2)
   return performance.now() - start;
 }
 
