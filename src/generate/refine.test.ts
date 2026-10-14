@@ -16,6 +16,7 @@ import { GATE_REFUSAL } from './joints/unjoin';
 import { chamferCut, taperCut } from '../document/angleCuts';
 import { axisFrame, endFacing } from '../document/geometry';
 import type { AngleCut } from '../document/types';
+import { builtInCatalog, catalogOf } from '../document/materials';
 
 const v = (x: number, y: number, z: number) => ({ x, y, z });
 const p = (name: string, i: number) => ({ name, role: '', material: 'pine', at: v(i * 2, 0, 0), size: v(1, 1, 1) });
@@ -30,6 +31,20 @@ describe('refine', () => {
     ].join('\n'));
     expect(KEEP_LINE).toBe('Keep every part you are not asked to change exactly as it is: the same name, role, material, size, position, tapers, miters, bevels and chamfers. Keep assembly and placement names. Return the whole design.');
     expect(refineMessage(D, S)).toContain('tapers, miters, bevels and chamfers');
+  });
+
+  it('names the custom materials in the user turn, and only when there are some (custom materials spec §6)', () => {
+    const ash = { id: 'm-s-ash1', label: 'Ash', color: '#d8c8a8', kind: 'solid' as const };
+    const elm = { id: 'm-p-elm2', label: 'Elm ply', color: '#c8b898', kind: 'sheet-plain' as const, sheet: { length: 96, width: 48 } };
+    const withAsh = refineMessage(D, S, catalogOf({ materials: [ash] }));
+    expect(withAsh).toBe([
+      'Here is the current design, in the same format you return:', JSON.stringify(D), '',
+      'Custom materials in this design: "m-s-ash1" is Ash.', '',
+      'Change it as follows: make it taller', '', KEEP_LINE, '', 'Hard limits:', ...limitLines(S),
+    ].join('\n'));
+    expect(refineMessage(D, S, catalogOf({ materials: [ash, elm] }))).toContain('Custom materials in this design: "m-s-ash1" is Ash; "m-p-elm2" is Elm ply.\n');
+    expect(refineMessage(D, S, catalogOf({ materials: [] }))).toBe(refineMessage(D, S));
+    expect(refineMessage(D, S, builtInCatalog())).toBe(refineMessage(D, S));
   });
 
   it('caps at Detailed', () => {

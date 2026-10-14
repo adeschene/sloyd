@@ -10,8 +10,9 @@ import type { WorldTaper } from './taperWorld';
 import { angleCutsFor, sortAngleCuts } from './angleWorld';
 import type { WorldBevel, WorldChamfer, WorldMiter } from './angleWorld';
 import { boardBodies } from './bodies';
-import { MATERIALS } from './types';
-import type { Board, Definition, Dimension, Grain, Instance, Posture, Rotation } from './types';
+import { builtInCatalog } from './materials';
+import type { MaterialCatalog } from './materials';
+import type { Board, CustomMaterial, Definition, Dimension, Grain, Instance, Posture, Rotation } from './types';
 
 /**
  * What the model sends back (spec §4.1). The model thinks in WORLD BOXES —
@@ -82,13 +83,14 @@ const chamferSchema = {
   additionalProperties: false,
 };
 
-/** Built from MATERIALS at load, so a new material reaches the model with no second edit. */
-const partSchema = {
+/** The part, its material enum from a catalog's ids: the built-ins (from MATERIALS, so a new built-in reaches the model
+ *  with no second edit), then a project's custom materials for Refine. Key order is pinned byte for byte (fu 322). */
+const partSchemaFor = (materials: readonly string[]) => ({
   type: 'object',
   properties: {
     name: { type: 'string' },
     role: { type: 'string' },
-    material: { type: 'string', enum: Object.keys(MATERIALS) },
+    material: { type: 'string', enum: [...materials] },
     at: vec3Schema,
     size: vec3Schema,
     tapers: { type: 'array', items: taperSchema },
@@ -98,45 +100,51 @@ const partSchema = {
   },
   required: ['name', 'role', 'material', 'at', 'size', 'tapers', 'miters', 'bevels', 'chamfers'],
   additionalProperties: false,
-};
+});
 
 /**
  * The part and the direction are defined ONCE, in `$defs`, and referenced: the API compiles the schema into a grammar
  * and refuses one that grows too large (400 "The compiled grammar is too large"). Measured 2026-10-14 with the miter,
  * bevel and chamfer arrays: written out inline (the part twice, loose and in assemblies) it was refused; with `$defs`
  * it compiled. A new part field or enum costs once here, not twice.
+ *
+ * `catalog`: Generate passes the built-ins (the schema it always had, byte for byte); Refine passes the project's
+ * catalog so its custom materials are choosable (custom materials spec §6). Only the material enum differs.
  */
-export const DESIGN_SCHEMA: Record<string, unknown> = {
-  $defs: { dir: { type: 'string', enum: [...DIRS] }, part: partSchema },
-  type: 'object',
-  properties: {
-    name: { type: 'string' },
-    parts: { type: 'array', items: { $ref: '#/$defs/part' } },
-    assemblies: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          name: { type: 'string' },
-          parts: { type: 'array', items: { $ref: '#/$defs/part' } },
-          placements: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: { name: { type: 'string' }, at: vec3Schema },
-              required: ['name', 'at'],
-              additionalProperties: false,
+export function designSchema(catalog: MaterialCatalog = builtInCatalog()): Record<string, unknown> {
+  return {
+    $defs: { dir: { type: 'string', enum: [...DIRS] }, part: partSchemaFor(catalog.ids) },
+    type: 'object',
+    properties: {
+      name: { type: 'string' },
+      parts: { type: 'array', items: { $ref: '#/$defs/part' } },
+      assemblies: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            parts: { type: 'array', items: { $ref: '#/$defs/part' } },
+            placements: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: { name: { type: 'string' }, at: vec3Schema },
+                required: ['name', 'at'],
+                additionalProperties: false,
+              },
             },
           },
+          required: ['name', 'parts', 'placements'],
+          additionalProperties: false,
         },
-        required: ['name', 'parts', 'placements'],
-        additionalProperties: false,
       },
     },
-  },
-  required: ['name', 'parts', 'assemblies'],
-  additionalProperties: false,
-};
+    required: ['name', 'parts', 'assemblies'],
+    additionalProperties: false,
+  };
+}
+export const DESIGN_SCHEMA: Record<string, unknown> = designSchema();
 
 const isObj = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -153,15 +161,15 @@ const isBevel = (m: unknown): boolean => isObj(m) && isDir(m.face) && isDir(m.lo
 const isChamfer = (m: unknown): boolean => isObj(m) && Array.isArray(m.edge) && m.edge.length === 2 && m.edge.every(isDir) &&
   Array.isArray(m.legs) && m.legs.length === 2 && m.legs.every((n) => typeof n === 'number');
 
-const isPart = (p: unknown): boolean =>
+const isPart = (p: unknown, catalog: MaterialCatalog): boolean =>
   isObj(p) && typeof p.name === 'string' && typeof p.role === 'string' && typeof p.material === 'string' &&
-  Object.hasOwn(MATERIALS, p.material) && isVec3(p.at) && isVec3(p.size) &&
+  catalog.get(p.material) !== undefined && isVec3(p.at) && isVec3(p.size) &&
   Array.isArray(p.tapers) && p.tapers.every(isTaper) &&
   Array.isArray(p.miters) && p.miters.every(isMiter) && Array.isArray(p.bevels) && p.bevels.every(isBevel) &&
   Array.isArray(p.chamfers) && p.chamfers.every(isChamfer);
 const isPlacement = (p: unknown): boolean => isObj(p) && typeof p.name === 'string' && isVec3(p.at);
-const isAssembly = (a: unknown): boolean =>
-  isObj(a) && typeof a.name === 'string' && Array.isArray(a.parts) && a.parts.every(isPart) &&
+const isAssembly = (a: unknown, catalog: MaterialCatalog): boolean =>
+  isObj(a) && typeof a.name === 'string' && Array.isArray(a.parts) && a.parts.every((p) => isPart(p, catalog)) &&
   Array.isArray(a.placements) && a.placements.every(isPlacement);
 
 const vec = (o: unknown): Vec3 => { const v = o as Vec3; return { x: v.x, y: v.y, z: v.z }; };
@@ -180,10 +188,11 @@ const partOf = (o: unknown): GeneratedPart => {
  * truncated stream, must not reach the converter. Numbers are only checked
  * for TYPE here; non-finite values are the converter's to reject per part.
  * A design with no parts anywhere (loose or in an assembly) is unusable.
+ * A material must be in `catalog` (Refine: the project's, custom materials spec §6; otherwise the built-ins).
  */
-export function parseDesign(json: unknown): GeneratedDesign | null {
+export function parseDesign(json: unknown, catalog: MaterialCatalog = builtInCatalog()): GeneratedDesign | null {
   if (!isObj(json) || typeof json.name !== 'string' || !Array.isArray(json.parts) || !Array.isArray(json.assemblies)) return null;
-  if (!json.parts.every(isPart) || !json.assemblies.every(isAssembly)) return null;
+  if (!json.parts.every((p) => isPart(p, catalog)) || !json.assemblies.every((a) => isAssembly(a, catalog))) return null;
   const total = json.parts.length + (json.assemblies as { parts: unknown[] }[]).reduce((n, a) => n + a.parts.length, 0);
   if (total === 0) return null;
   // A fresh object with ONLY the schema's fields, so nothing the model adds
@@ -316,13 +325,15 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], 
  * multiple of SNAP_INCHES, shifting loose parts and instance ORIGINS only,
  * never definition-local coordinates (`opts.centre === false` skips the
  * horizontal centring and keeps only the floor rule; `opts.exact` lists values to keep unsnapped; `opts.exactAngles` maps a
- * degree value Refine wrote to the stored slope, AI-angles spec §6.2) — then migrateDocument, the same gate an
- * imported file passes, which dedupes names (inv 8) and checks ids (inv 33).
+ * degree value Refine wrote to the stored slope, AI-angles spec §6.2; `opts.materials`, Refine: the project's custom
+ * materials, so the load gate keeps a part naming one instead of falling it back to pine, custom materials spec §6) —
+ * then migrateDocument, the same gate an imported file passes, which dedupes names (inv 8), checks ids (inv 33) and
+ * prunes a custom material no part uses.
  *
  * Every id is minted here with nextId so `roles` (stored part id → role) and
  * the definition → assembly label map survive the load gate.
  */
-export function designToDocument(design: GeneratedDesign, opts: { centre?: boolean; exact?: ReadonlySet<number>; exactAngles?: ReadonlyMap<number, number> } = {}): {
+export function designToDocument(design: GeneratedDesign, opts: { centre?: boolean; exact?: ReadonlySet<number>; exactAngles?: ReadonlyMap<number, number>; materials?: readonly CustomMaterial[] } = {}): {
   doc: SloydDocument; rejected: RejectedPart[]; authored: Authored;
 } {
   const rejected: RejectedPart[] = [];
@@ -389,7 +400,7 @@ export function designToDocument(design: GeneratedDesign, opts: { centre?: boole
   }
 
   const name = design.name.trim() || 'Generated design';
-  const doc = linkByRole(migrateDocument({ ...createDocument(name), boards: loose, instances, definitions }), roles);
+  const doc = linkByRole(migrateDocument({ ...createDocument(name), boards: loose, instances, definitions, materials: [...(opts.materials ?? [])] }), roles);
   return { doc, rejected, authored: authoredIndex(doc, labelOf) };
 }
 

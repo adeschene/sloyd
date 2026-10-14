@@ -2,7 +2,7 @@ import { worldParts } from '../../document/tree';
 import { describe, expect, it, vi } from 'vitest';
 import { designToDocument } from '../../document/generated';
 import type { Board, FlatDocument, SloydDocument } from '../../document/document';
-import { flatDocument, groupItems, sharedOf } from '../../document/document';
+import { flatDocument, groupItems, migrateDocument, sharedOf } from '../../document/document';
 import { LlmError } from '../../llm/types';
 import type { LlmClient, LlmResult } from '../../llm/types';
 import { runJoinery } from '../run';
@@ -55,6 +55,17 @@ const long = { joints: ids.map((site) => ({ site, joint: 'mortise-tenon', tenonL
 const short = { joints: ids.map((site) => ({ site, joint: 'mortise-tenon', tenonLength: 0.5 })) };
 
 describe('runJoinery', () => {
+  it('the joined result keeps the project\'s custom materials (custom materials spec §6)', async () => {
+    const ash = { id: 'm-s-ash1', label: 'Ash', color: '#d8c8a8', kind: 'solid' as const };
+    const doc = migrateDocument({ ...CORNER, materials: [ash], boards: CORNER.boards.map((b) => ({ ...b, material: 'm-s-ash1' })) });
+    expect(doc.materials).toEqual([ash]);
+    const out = await run(client(short), doc);
+    if ('refused' in out || 'noSites' in out) throw new Error('expected a join');
+    expect(flatDocument(out.result.doc).boards.some((b) => b.cuts.length > 0)).toBe(true);
+    expect(out.result.doc.boards.map((b) => (b as Board).material)).toEqual(['m-s-ash1', 'm-s-ash1', 'm-s-ash1']);
+    expect(out.result.doc.materials).toEqual([ash]);
+  });
+
   it('repairs a tenon collision: the second answer clears it', async () => {
     const c = client(long, short);
     const out = await run(c);

@@ -13,7 +13,8 @@ import { applyJoints } from './joints/recipes';
 import { findSites, jointKey, rangesOf } from './joints/sites';
 import { defaultChoice } from './joints/choose';
 import { GATE_REFUSAL, sameJoined } from './joints/unjoin';
-import { DESIGN_SCHEMA, designToDocument, parseDesign } from '../document/generated';
+import { DESIGN_SCHEMA, designSchema, designToDocument, parseDesign } from '../document/generated';
+import { catalogOf } from '../document/materials';
 import { checkDesign } from '../document/designCheck';
 import type { LlmClient, LlmRequest, LlmResult, LlmUsage } from '../llm/types';
 import { CHARS_PER_TOKEN } from './estimate';
@@ -60,6 +61,14 @@ function fakeClient(steps: Step[]) {
   };
   return { client, seen, turns };
 }
+
+const ASH = { id: 'm-s-ash1', label: 'Ash', color: '#d8c8a8', kind: 'solid' as const };
+/** Every part and shape of `doc` in `material`, with `materials` stored: through the load gate, as a saved file would be. */
+const paint = (doc: SloydDocument, material: string, materials: SloydDocument['materials']): SloydDocument => {
+  const re = <T extends object>(b: T): T => ('material' in b ? { ...b, material } : b);
+  return migrateDocument({ ...doc, materials, boards: doc.boards.map(re), shapes: doc.shapes.map(re),
+    definitions: doc.definitions.map((d) => ({ ...d, boards: d.boards.map(re) })) });
+};
 const run = (client: LlmClient, signal = new AbortController().signal) =>
   runGeneration(client, settings, signal, () => {});
 
@@ -491,6 +500,74 @@ describe('runRefine', () => {
     expect(first.cacheWriteTokens).toBe(Math.ceil((SYSTEM_PROMPT.length + JSON.stringify(DESIGN_SCHEMA).length) / CHARS_PER_TOKEN));
     expect(first.cacheReadTokens).toBe(0);
     expect(r.high).toBeGreaterThan(r.low);
+  });
+});
+
+describe('runRefine — custom materials (custom materials spec §6)', () => {
+  const RS = { instruction: 'make the top thicker', width: null, depth: null, height: null, detail: 'simple' as const };
+  const bp = (name: string, at: [number, number, number], size: [number, number, number]) =>
+    ({ name, role: '', miters: [], bevels: [], chamfers: [], tapers: [], material: 'pine', at: { x: at[0], y: at[1], z: at[2] }, size: { x: size[0], y: size[1], z: size[2] } });
+  const echo = (doc: SloydDocument) => { const r = documentToDesign(doc, REFINE_MAX); if ('refused' in r) throw new Error('refused'); return r.design; };
+  const go = (client: LlmClient, doc: SloydDocument) => runRefine(client, doc, RS, new AbortController().signal, () => {});
+  const doc = paint(designToDocument({ name: 'Box', parts: [bp('Top', [0, 0, 0], [10, 1, 10])], assemblies: [] }).doc, 'm-s-ash1', [ASH]);
+
+  it('the fixture is what it claims: the part is Ash and the project carries it', () => {
+    expect((doc.boards[0] as Board).material).toBe('m-s-ash1');
+    expect(doc.materials).toEqual([ASH]);
+    expect(echo(doc).parts[0]!.material).toBe('m-s-ash1');
+  });
+
+  it('sends a schema whose material enum lists the project\'s id, and the line naming it', async () => {
+    const { client, seen } = fakeClient([echo(doc)]);
+    await go(client, doc);
+    const req = (client.complete as ReturnType<typeof vi.fn>).mock.calls[0][0] as LlmRequest;
+    const part = (req.schema.$defs as { part: { properties: { material: { enum: string[] } } } }).part;
+    expect(part.properties.material.enum).toContain('m-s-ash1');
+    expect((seen[0]![0] as { text: string }).text).toContain('Custom materials in this design: "m-s-ash1" is Ash.');
+  });
+
+  it('an untouched custom-material part keeps its material, and the derived project carries the material', async () => {
+    const { client } = fakeClient([echo(doc)]);
+    const out = await go(client, doc);
+    if ('refused' in out) throw new Error('refused');
+    expect((flatDocument(out.doc).boards[0]! as Board).material).toBe('m-s-ash1');
+    expect(out.doc.materials).toEqual([ASH]);
+    expect(out.changes).toEqual([]);
+  });
+
+  it('a part moved off the custom material prunes it, and the change list names both labels', async () => {
+    const d = echo(doc);
+    const { client } = fakeClient([{ ...d, parts: [{ ...d.parts[0]!, material: 'oak' }] }]);
+    const out = await go(client, doc);
+    if ('refused' in out) throw new Error('refused');
+    expect(out.doc.materials).toEqual([]);
+    expect(out.changes.map((c) => c.text)).toEqual(['Top: Ash → Oak']);
+  });
+
+  it('the estimate prices the schema and message Refine actually sends', () => {
+    const estimate = vi.fn((u: LlmUsage) => u.inputTokens + u.outputTokens + u.cacheReadTokens + u.cacheWriteTokens);
+    const c = { ...fakeClient([GOOD]).client, estimateCostUsd: estimate };
+    refineEstimateUsd(c, doc, RS);
+    const first = (estimate.mock.calls[0] as unknown[])[0] as LlmUsage;
+    const prefix = SYSTEM_PROMPT.length + JSON.stringify(designSchema(catalogOf(doc))).length;
+    expect(prefix).toBeGreaterThan(SYSTEM_PROMPT.length + JSON.stringify(DESIGN_SCHEMA).length);
+    expect(first.cacheWriteTokens).toBe(Math.ceil(prefix / CHARS_PER_TOKEN));
+  });
+
+  it('a joined design keeps its custom material through the re-join', async () => {
+    const flat = flatDocument(designToDocument({ name: 'Corner', assemblies: [], parts: [
+      bp('Leg', [0, 0, 0], [1.75, 28, 1.75]), bp('Rail', [1.75, 23.5, 0.5], [18, 3, 0.75]),
+    ] }).doc);
+    const sites = findSites(flat);
+    const joined = paint(migrateDocument(applyJoints(flat, sites, sites.map((s) => defaultChoice(s, flat, sites))).doc), 'm-s-ash1', [ASH]);
+    expect(flatDocument(joined).boards.some((b) => b.cuts.length > 0)).toBe(true);
+    const p = plainForRefine(joined); if ('refused' in p) throw new Error(p.refused.message);
+    const { client } = fakeClient([echo(p.plain)]);
+    const out = await go(client, joined);
+    if ('refused' in out) throw new Error(out.refused.message);
+    expect(out.joints!.kept).toBeGreaterThan(0);
+    expect(flatDocument(out.doc).boards.map((b) => (b as Board).material)).toEqual(['m-s-ash1', 'm-s-ash1']);
+    expect(out.doc.materials).toEqual([ASH]);
   });
 });
 

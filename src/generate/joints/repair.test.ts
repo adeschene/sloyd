@@ -122,6 +122,21 @@ describe('repairJoints returns null for designs this bug did not damage', () => 
   });
 });
 
+describe('repairDocument keeps custom materials (custom materials spec §6)', () => {
+  it('a repaired document carries the project\'s custom materials', () => {
+    const ash = { id: 'm-s-ash1', label: 'Ash', color: '#d8c8a8', kind: 'solid' as const };
+    const d = load(f1).damaged;
+    const re = <T extends object>(b: T): T => ('material' in b ? { ...b, material: 'm-s-ash1' } : b);
+    const damaged = migrateDocument({ ...d, materials: [ash], boards: d.boards.map(re), shapes: d.shapes.map(re),
+      definitions: d.definitions.map((x) => ({ ...x, boards: x.boards.map(re) })) });
+    expect(damaged.materials).toEqual([ash]);
+    const r = repairDocument(damaged);
+    if (r === null || 'refused' in r) throw new Error(`expected a repair, got ${JSON.stringify(r)}`);
+    expect(r.doc.materials).toEqual([ash]);
+    expect(new Set(flatDocument(r.doc).boards.map((b) => (b as Board).material))).toEqual(new Set(['m-s-ash1']));
+  });
+});
+
 describe('repairJoints refuses damage it cannot account for', () => {
   const keys2 = storedKeys(load(f2).damaged);
   const tweak = (raw: string, name: string, f: (b: Board) => Board) => {

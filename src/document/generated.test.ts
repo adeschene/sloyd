@@ -1,7 +1,9 @@
 import { NAME_SEPARATOR, worldParts } from './tree';
 import { flatDocument, migrateDocument } from './document';
 import { describe, expect, it } from 'vitest';
-import { designToDocument, orient, parseDesign, DESIGN_SCHEMA, MAX_MAGNITUDE } from './generated';
+import { designToDocument, designSchema, orient, parseDesign, DESIGN_SCHEMA, MAX_MAGNITUDE } from './generated';
+import { builtInCatalog, catalogOf } from './materials';
+import builtinSchemaRaw from './fixtures/design-schema-builtin.json?raw';
 import type { GeneratedAssembly, GeneratedDesign, GeneratedPart } from './generated';
 import { boardExtents } from './geometry';
 import { MATERIALS } from './types';
@@ -510,5 +512,39 @@ describe('miters, bevels and chamfers in the design (AI-angles spec §5)', () =>
     expect(plain.angleCuts[0]!.points[1][1]).toBe(0.75 * miterRatio(37.5));
     const kept = designToDocument({ name: 'T', parts: [p] } as never, { centre: false, exactAngles: new Map([[37.4999, 0.77]]) }).doc.boards[0] as Board;
     expect(kept.angleCuts[0]!.points[1][1]).toBe(0.75 * 0.77);
+  });
+});
+
+describe('the design schema per catalog (custom materials spec §6)', () => {
+  const ash = { id: 'm-s-ash1', label: 'Ash', color: '#d8c8a8', kind: 'solid' as const };
+  const ashPart = { name: 'A', role: 'top', material: 'm-s-ash1', at: { x: 0, y: 0, z: 0 }, size: { x: 10, y: 1, z: 10 }, tapers: [], miters: [], bevels: [], chamfers: [] };
+  it("Generate's schema is byte-identical to the pre-custom-materials schema", () => {
+    // Captured from DESIGN_SCHEMA before this change: the API's compiled-grammar cap (fu 322) was measured on these bytes.
+    expect(JSON.stringify(DESIGN_SCHEMA)).toBe(builtinSchemaRaw.trim());
+    expect(JSON.stringify(designSchema(builtInCatalog()))).toBe(builtinSchemaRaw.trim());
+    expect(JSON.stringify(designSchema())).toBe(builtinSchemaRaw.trim());
+  });
+  it("Refine's schema adds the project's ids to the material enum, still defined once in $defs", () => {
+    const s = designSchema(catalogOf({ materials: [ash] })) as { $defs: { part: { properties: { material: { enum: string[] } } } } };
+    expect(s.$defs.part.properties.material.enum).toEqual([...Object.keys(MATERIALS), 'm-s-ash1']);
+    expect(JSON.stringify(s).match(/"enum":\["pine"/g)).toHaveLength(1);
+  });
+  it('parseDesign accepts a custom id only with a catalog that knows it', () => {
+    const design = { name: 'X', assemblies: [], parts: [ashPart] };
+    expect(parseDesign(design)).toBeNull();
+    expect(parseDesign(design, catalogOf({ materials: [] }))).toBeNull();
+    expect(parseDesign(design, catalogOf({ materials: [ash] }))?.parts[0]!.material).toBe('m-s-ash1');
+    const inAssembly = { name: 'X', parts: [], assemblies: [{ name: 'S', parts: [ashPart], placements: [{ name: 'S1', at: { x: 0, y: 0, z: 0 } }] }] };
+    expect(parseDesign(inAssembly)).toBeNull();
+    expect(parseDesign(inAssembly, catalogOf({ materials: [ash] }))?.assemblies![0]!.parts[0]!.material).toBe('m-s-ash1');
+  });
+  it('designToDocument keeps a custom material only when given the list that defines it', () => {
+    const design = { name: 'X', assemblies: [], parts: [ashPart] };
+    const kept = designToDocument(design, { materials: [ash] }).doc;
+    expect((kept.boards[0] as Board).material).toBe('m-s-ash1');
+    expect(kept.materials).toEqual([ash]);
+    const lost = designToDocument(design).doc;
+    expect((lost.boards[0] as Board).material).toBe('pine');
+    expect(lost.materials).toEqual([]);
   });
 });
