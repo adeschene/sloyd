@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MaterialsDialog } from './MaterialsDialog';
 import { defaultShop, type ShopSettings } from '../document/purchase';
 import type { SavePlan } from './materialsDraft';
+import { EXPLODED_TITLE } from './ViewportControls';
 
 type SaveOut = { shop: ShopSettings; plan: SavePlan };
 const fixed = { project: [], library: [], libraryReadFailed: false, locked: false, newFor: null };
@@ -154,6 +155,7 @@ describe('MaterialsDialog — definitions (custom materials spec §4.1)', () => 
   });
   it('New material… opens with a new row and assigns it on Save', async () => {
     const { onSave } = open({ newFor: { ids: ['a'], kind: 'solid' } });
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'New material: name' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'New material: name' }), { target: { value: 'Sapele' } });
     fireEvent.click(saveBtn());
     await waitFor(() => expect(onSave).toHaveBeenCalled());
@@ -194,6 +196,8 @@ describe('MaterialsDialog — definitions (custom materials spec §4.1)', () => 
     const { onSave } = open({ project: [ash], locked: true });
     expect(screen.getByRole('textbox', { name: 'Ash: name' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Add material' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Add material' })).toHaveAttribute('title', EXPLODED_TITLE);
+    expect(screen.getByRole('textbox', { name: 'Ash: name' })).toHaveAttribute('title', EXPLODED_TITLE);
     fireEvent.change(field('Oak: price per board foot'), { target: { value: '8' } });
     fireEvent.click(saveBtn());
     await waitFor(() => expect(onSave).toHaveBeenCalled());
