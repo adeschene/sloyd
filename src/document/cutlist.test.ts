@@ -720,6 +720,31 @@ describe('angle cuts on the cut list (spec §4)', () => {
   });
 });
 
+describe('holes on the cut list (spec §4)', () => {
+  const r1 = { id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 3, pitch: 1.25, acrossFrom: 'min' as const, inset: 1.5 };
+  const r2 = { ...r1, id: 'h2', acrossFrom: 'max' as const };
+  const sides = (extra: Partial<Board>[]) => ({ ...createDocument('T'), boards: extra.map((x, i) => createBoard({ id: `s${i}`, name: `Side ${i}`, length: 30, width: 11.25, thickness: 0.75, material: 'oak', ...x })) });
+  it('a drilled side and a plain one are two rows', () => {
+    expect(buildCutList(sides([{ holes: [r1] }, {}]) as FlatDocument).groups[0]!.rows).toHaveLength(2);
+  });
+  it('the same rows in another order, other ids, are one row (Review Focus 5)', () => {
+    const rows = buildCutList(sides([{ holes: [r1, r2] }, { holes: [{ ...r2, id: 'x' }, { ...r1, id: 'y' }] }]) as FlatDocument).groups[0]!.rows;
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.setup.filter((l) => l.startsWith('Row of 3 holes'))).toHaveLength(2);
+  });
+  it('hole lines print after the angle lines', () => {
+    const taper = { id: 'a1', kind: 'taper' as const, face: 'width' as const, from: 'min' as const, along: 'length' as const, alongFrom: 'min' as const, points: [[0, 0.625], [24, 0]] as [[number, number], [number, number]] };
+    const setup = buildCutList(sides([{ angleCuts: [taper], holes: [r1] }]) as FlatDocument).groups[0]!.rows[0]!.setup;
+    expect(setup.findIndex((l) => l.startsWith('Row of'))).toBeGreaterThan(setup.findIndex((l) => l.startsWith('Taper')));
+  });
+  it('a faulted row prints as stored, with its fault (Review Focus 2)', () => {
+    const off = { ...r1, station: 29, count: 3 };
+    const line = buildCutList(sides([{ holes: [off] }]) as FlatDocument).groups[0]!.rows[0]!.setup.find((l) => l.startsWith('Row of'))!;
+    expect(line).toContain('last at 31-1/2"');
+    expect(line).toMatch(/ — check: hole 2 runs past the length max end \(and 1 more\)$/);
+  });
+});
+
 describe('custom materials (custom materials spec §3)', () => {
   const ash = { id: 'm-s-ash1', label: 'Ash', color: '#d8c8a8', kind: 'solid' as const };
   const birch = { id: 'm-v-bb55', label: 'Baltic birch 5×5', color: '#e8d8b8', kind: 'sheet-veneered' as const, sheet: { length: 60, width: 60, rotate: 'grain' as const } };

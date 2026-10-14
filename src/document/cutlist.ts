@@ -5,6 +5,8 @@ import { CUT_GEOMETRY_KEYS, pocketCells, cutShape, cutsThatRemoveStock } from '.
 import type { CutShape } from './cuts';
 import { angleCutValues, angleCutsThatRemoveStock } from './angleCuts';
 import { angleLine, shortPointLine } from './angleText';
+import { holeLine } from './holeText';
+import { holeRowValues } from './holes';
 import { findTenons } from './tenons';
 import type { Tenon } from './tenons';
 import { buildDiagrams } from './diagram';
@@ -206,12 +208,18 @@ function setupLines(board: Board, precision: number): string[] {
   for (const c of angleCutsThatRemoveStock(board)) lines.push(angleLine(board, c, precision));
   const short = shortPointLine(board, precision);
   if (short) lines.push(short);
+  for (const r of board.holes) lines.push(holeLine(board, r, precision));
   return lines;
 }
 
 /** The angle-cut half of a row's identity: EXACT and order-independent, like cutSignature, `kind` included (spec §4.2). */
 function angleSignature(board: Board): string {
   return angleCutsThatRemoveStock(board).map((c) => angleCutValues(c).join(':')).sort().join(';');
+}
+
+/** The hole half of a row's identity: EXACT and order-independent, ids ignored (holes spec §4.2). */
+function holeSignature(board: Board): string {
+  return board.holes.map((r) => holeRowValues(r).join(':')).sort().join(';');
 }
 
 /**
@@ -250,6 +258,7 @@ function rowKey(board: Board, precision: number): string {
     cutSignature(cutsThatRemoveStock(board)),
     // An angle cut that removes nothing must not split a row either (spec §2.3).
     angleSignature(board),
+    holeSignature(board),
   ].join('|');
 }
 
