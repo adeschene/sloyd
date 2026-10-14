@@ -9,6 +9,7 @@ import {
 import type { AngleCut, Board, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
 import { SNAP_INCHES } from '../document/geometry';
 import { copyAngleCut, sameAngleCut } from '../document/angleCuts';
+import { pruneMaterials } from '../document/materials';
 import { MAX_ROW } from '../document/row';
 import { clickTarget } from './assemblyPick';
 
@@ -417,7 +418,9 @@ export const useStore = create<StoreState>((set, get) => {
   ) => {
     if (get().explode > 0) return; // read-only while exploded (plans-sheet spec §4.2)
     const { doc, past, future, gesturing, gestureSnapshotTaken } = get();
-    const next = fn(doc);
+    // Custom materials (spec §2.3): a document carries exactly what it uses. The SAME object when nothing
+    // was unused, so the no-op test below still sees an unchanged document.
+    const next = pruneMaterials(fn(doc));
 
     // The function changed nothing (the SAME document object): an undo entry
     // for it would undo to nothing (invariant 4), so push none and take no

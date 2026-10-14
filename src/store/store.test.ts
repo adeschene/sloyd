@@ -2933,3 +2933,16 @@ describe('angle-cut actions (spec §7)', () => {
     expect(s().past.length).toBe(before);
   });
 });
+
+describe('edit() prunes custom materials (custom materials spec §2.3)', () => {
+  it('drops a material when its last part changes material, in the same undo entry', () => {
+    const ash = { id: 'm-s-ash1', label: 'Ash', color: '#d8c8a8', kind: 'solid' as const };
+    const start = { ...createDocument(), boards: [createBoard({ id: 'a', name: 'A', material: 'm-s-ash1' })], materials: [ash] };
+    useStore.getState().replaceDocument(start);
+    useStore.getState().updateBoard('a', { material: 'oak' });
+    expect(useStore.getState().doc.materials).toEqual([]);
+    useStore.getState().undo();
+    expect(useStore.getState().doc.materials).toEqual([ash]);
+    expect((useStore.getState().doc.boards[0] as Board).material).toBe('m-s-ash1');
+  });
+});

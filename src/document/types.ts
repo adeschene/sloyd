@@ -215,6 +215,8 @@ export interface SloydDocument {
   definitions: Definition[];
   /** Document-wide shared part fields (components spec §2). */
   shapes: Shape[];
+  /** Exactly the custom materials this document's parts and shapes use (custom materials spec §2.3). */
+  materials: CustomMaterial[];
 }
 
 /**

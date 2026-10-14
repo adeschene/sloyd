@@ -1,4 +1,5 @@
-import { MATERIALS, DEFAULT_MATERIAL, DEFAULT_KERF, isSheetGood } from './types';
+import { validateCustomMaterials, pruneMaterials, BUILT_IN_MATERIAL_IDS } from './materials';
+import { DEFAULT_MATERIAL, DEFAULT_KERF, isSheetGood } from './types';
 import type {
   Board, Instance, Definition, Cut, AngleCut, AngleKind, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, FlatDocument, GuidePoint,
   Shape, StoredBoard,
@@ -127,8 +128,10 @@ export type { BoardSnapPoint, SnapKind, SnapOwner, SnapPoint, TapeAxis } from '.
  *
  * v14 added `Board.angleCuts` (angle-cuts spec §5.1): document-level, no step — an absent field defaults to [].
  * The harm of a v13 build is silent loss on round trip: it drops every angle cut and autosaves.
+ *
+ * v15 (custom materials spec §2.3): `materials`, document-level, no step. Harm a v14 build would do: a custom material silently becomes pine.
  */
-export const CURRENT_VERSION = 14;
+export const CURRENT_VERSION = 15;
 
 export class DocumentError extends Error {
   /**
@@ -233,6 +236,7 @@ export function createDocument(name = 'Untitled'): FlatDocument {
     instances: [],
     definitions: [],
     shapes: [],
+    materials: [],
   };
 }
 
@@ -413,12 +417,12 @@ const validRotation = (r: unknown): Rotation => (VALID_ROTATIONS.includes(r as n
  * number: the caller decides whether that refuses the file (a part) or drops
  * the thing (a shape). `bad` names the first bad dimension.
  */
-function validateSharedFields(b: Record<string, unknown>): { fields: Pick<Board, SharedField> } | { bad: Dimension } {
+function validateSharedFields(b: Record<string, unknown>, known: ReadonlySet<string>): { fields: Pick<Board, SharedField> } | { bad: Dimension } {
   for (const key of ['length', 'width', 'thickness'] as const) {
     if (!isPositiveFinite(b[key])) return { bad: key };
   }
   const material =
-    typeof b.material === 'string' && Object.hasOwn(MATERIALS, b.material)
+    typeof b.material === 'string' && known.has(b.material)
       ? b.material
       : DEFAULT_MATERIAL;
   const grain = VALID_GRAINS.includes(b.grain as Grain)
@@ -456,7 +460,7 @@ function validateSharedFields(b: Record<string, unknown>): { fields: Pick<Board,
  * non-blank string `link` is recorded under the object returned, which is
  * what `linksToShapes` keys on. The key itself never reaches a stored part.
  */
-function validateBoard(raw: unknown, index: number, seen: Set<string>, legacy?: Map<StoredBoard, string>): StoredBoard {
+function validateBoard(raw: unknown, index: number, seen: Set<string>, known: ReadonlySet<string>, legacy?: Map<StoredBoard, string>): StoredBoard {
   const where = `board ${index + 1}`;
   if (typeof raw !== 'object' || raw === null) {
     throw new DocumentError(`${where} is not an object`);
@@ -464,7 +468,7 @@ function validateBoard(raw: unknown, index: number, seen: Set<string>, legacy?: 
   const b = raw as Record<string, unknown>;
   const shaped = typeof b.shape === 'string' && b.shape !== '' && !('length' in b);
 
-  const shared = shaped ? null : validateSharedFields(b);
+  const shared = shaped ? null : validateSharedFields(b, known);
   if (shared && 'bad' in shared) {
     throw new DocumentError(`${where} has an invalid ${shared.bad} — must be a positive number`);
   }
@@ -491,7 +495,7 @@ function validateBoard(raw: unknown, index: number, seen: Set<string>, legacy?: 
  * dropped duplicate leaves no reference to rewrite; a part naming a dropped
  * shape is dropped later (`dropUnresolved`, step 5).
  */
-export function validateShapes(raw: unknown): Shape[] {
+export function validateShapes(raw: unknown, known: ReadonlySet<string> = BUILT_IN_MATERIAL_IDS): Shape[] {
   if (!Array.isArray(raw)) return [];
   const ids = new Set<string>();
   const out: Shape[] = [];
@@ -501,7 +505,7 @@ export function validateShapes(raw: unknown): Shape[] {
     if (typeof s.id !== 'string' || !s.id || ids.has(s.id)) continue;
     // A shape with a bad size claims no id, so a later good one may keep it:
     // validateDefinitions' rule for a definition with no boards list.
-    const shared = validateSharedFields(s);
+    const shared = validateSharedFields(s, known);
     if ('bad' in shared) continue;
     ids.add(s.id);
     out.push({ id: s.id, ...shared.fields });
@@ -541,7 +545,7 @@ const validateInstances = (raw: unknown, seen: Set<string>): Instance[] =>
  * repairTree): treeEdit routes that id to the root container, so keeping it
  * would send every edit inside it to the root's parts.
  */
-function validateDefinitions(raw: unknown, legacy?: Map<StoredBoard, string>): Definition[] {
+function validateDefinitions(raw: unknown, known: ReadonlySet<string>, legacy?: Map<StoredBoard, string>): Definition[] {
   if (!Array.isArray(raw)) return [];
   const ids = new Set<string>();
   const out: Definition[] = [];
@@ -551,7 +555,7 @@ function validateDefinitions(raw: unknown, legacy?: Map<StoredBoard, string>): D
     if (typeof d.id !== 'string' || !d.id || d.id === ROOT_STORAGE_ID || ids.has(d.id) || !Array.isArray(d.boards)) continue;
     ids.add(d.id);
     const seen = new Set<string>();
-    const boards = d.boards.map((b, i) => validateBoard(b, i, seen, legacy));
+    const boards = d.boards.map((b, i) => validateBoard(b, i, seen, known, legacy));
     out.push({ id: d.id, boards, instances: validateInstances(d.instances, seen) });
   }
   return out;
@@ -730,6 +734,11 @@ export function migrateDocument(raw: unknown): SloydDocument {
   // here. Read defensively off the raw document; an absent field defaults
   // cleanly regardless of CURRENT_VERSION.
   const guides = validateGuides(d.guides);
+  // Schema 15 (custom materials spec §2.3): document-level, no step. Validated BEFORE the parts, so a part,
+  // a definition part or a shape naming a custom material this file carries keeps it; any other unknown
+  // material falls back to pine, as before.
+  const materials = validateCustomMaterials(d.materials);
+  const known = new Set([...BUILT_IN_MATERIAL_IDS, ...materials.map((m) => m.id)]);
   const boardIds = new Set<string>();
 
   // ONE `seen` set threaded across the whole list, which is why this is not
@@ -742,9 +751,9 @@ export function migrateDocument(raw: unknown): SloydDocument {
   // records each plain part's label under the object it returns; a v11 file's
   // stray `link` is ignored (no map is passed).
   const legacy = d.version < 11 ? new Map<StoredBoard, string>() : undefined;
-  const boards = rawBoards.map((b, i) => validateBoard(b, i, boardIds, legacy));
+  const boards = rawBoards.map((b, i) => validateBoard(b, i, boardIds, known, legacy));
   const instances = validateInstances(d.instances, boardIds);
-  const definitions = validateDefinitions(d.definitions, legacy);
+  const definitions = validateDefinitions(d.definitions, known, legacy);
   let doc: SloydDocument = {
     version: CURRENT_VERSION,
     name: typeof d.name === 'string' && d.name ? d.name : 'Untitled',
@@ -754,7 +763,8 @@ export function migrateDocument(raw: unknown): SloydDocument {
     boards,
     instances,
     definitions,
-    shapes: validateShapes(d.shapes),
+    shapes: validateShapes(d.shapes, known),
+    materials,
   };
   // Links first, while each stored part is still the object validateBoard
   // built (the `legacy` map is keyed by object). worldParts tolerates missing
@@ -768,5 +778,5 @@ export function migrateDocument(raw: unknown): SloydDocument {
   // restated); then a part naming a missing shape is dropped (5), unused
   // shapes go (6) and a one-user shape dissolves (7).
   doc = repairTree(doc, { copyShared: d.version < 11 });
-  return dissolveShapes(pruneShapes(dropUnresolved(doc)));
+  return pruneMaterials(dissolveShapes(pruneShapes(dropUnresolved(doc))));
 }
