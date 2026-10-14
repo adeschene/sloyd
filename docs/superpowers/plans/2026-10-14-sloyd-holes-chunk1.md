@@ -1153,6 +1153,25 @@ describe('holes through a mirror (Review Focus 3)', () => {
     const d2 = applyWorldEdits(d1, [{ before: occ(d1), after: { ...occ(d1), holes: occ(d1).holes.map((r) => ({ ...r })) } }]);
     stored(d1).holes.forEach((r, i) => expect(stored(d2).holes[i]).toBe(r));
   });
+  it('a posture change moving d0 keeps the world rows as seen (stored ones re-reflected); one keeping d0 leaves them', () => {
+    // The ONLY path to changedKeys' second clause (cur.holes !== after.holes && cur.holes !== resolved.holes): the
+    // rows are not edited, but the lowering re-reflects them along the NEW d0.
+    for (const A of [{ mirrored: true }, { mirrored: true, rotation: 90 as const }]) {
+      for (const [from, to] of [['flat', 'upright'], ['upright', 'on-edge']] as const) {
+        const d = doc(chiralHoled(from), A);
+        const before = occ(d);
+        const out = applyWorldEdits(d, [{ before, after: { ...before, posture: to } }]);
+        expect(stored(out).holes, `${from}->${to}`).not.toBe(stored(d).holes);
+        const now = occ(out);
+        expect(now.holes.length).toBe(before.holes.length);
+        now.holes.forEach((r, i) => expect(sameHoleRow(r, before.holes[i]!), `${from}->${to} ${i}`).toBe(true));
+      }
+      const d = doc(chiralHoled('flat'), A);
+      const before = occ(d);
+      const out = applyWorldEdits(d, [{ before, after: { ...before, posture: 'on-edge' } }]);
+      expect(stored(out).holes).toBe(stored(d).holes);
+    }
+  });
 });
 ```
 
@@ -1373,7 +1392,7 @@ the code.)
 - [ ] **Step 1: Write the failing tests** (`grainTiling.test.ts`)
 
 ```ts
-import { boardHoles, boardBodies, holeRing, HOLE_SEGMENTS, createBoard } from '../document/document';
+import { boardHoles, boardBodies, holeRing, holeTouchesBox, HOLE_SEGMENTS, createBoard } from '../document/document';
 import { bodyMesh, boardUVSignature, faceTriangles, holeMesh } from './grainTiling';
 
 const pinRow = { id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 3, pitch: 32 / 25.4, acrossFrom: 'min' as const, inset: 1.5 };
@@ -1385,9 +1404,13 @@ describe('holes in the mesh (holes spec §3.2)', () => {
     expect(boardUVSignature(cabinetSide)).not.toBe(boardUVSignature({ ...cabinetSide, holes: [] }));
     expect(boardUVSignature(cabinetSide)).not.toBe(boardUVSignature({ ...cabinetSide, holes: [{ ...pinRow, inset: 2 }] }));
   });
-  it('a part without holes: bodyMesh output is byte-identical with or without the holes argument', () => {
-    const b = createBoard({ id: 'p', length: 30, width: 11.25, thickness: 0.75, cuts: [dado] });
-    for (const body of boardBodies(b)) expect(bodyMesh(b, body, [])).toEqual(bodyMesh(b, body));
+  it('holeTouchesBox decides the box path: false for a cell no hole reaches, true for one it does', () => {
+    const holes = boardHoles(cabinetSide);
+    const cells = boardBodies(cabinetSide).map((b) => b.box!);
+    const far = cells.find((r) => r.length[0] >= 10.75)!;                 // the cell beyond the dado
+    const near = cells.find((r) => r.length[1] <= 10 && r.thickness[0] >= 0.5)!;   // under the pins, above the seam
+    expect(holes.some((h) => holeTouchesBox(h, far))).toBe(false);
+    expect(holes.some((h) => holeTouchesBox(h, near))).toBe(true);
   });
   it('the face is watertight against the wall: every top-ring vertex is a face-mesh vertex', () => {
     const holes = boardHoles(cabinetSide);
@@ -1875,9 +1898,13 @@ export function holedRefusal(flat: FlatDocument, action: 'joinery' | 'refine'): 
   1. add / update (`station: 3`) / remove are one undo entry each; three undos restore `[]` and `past.length === 0`;
   2. an unchanged update pushes no undo entry (inv 4);
   3. refused while exploded (inv 47): add does nothing at explode 0.5; update and remove at 0.5 leave the row and `past`;
-  4. **held points** (inv 24): grab the part's face-centre snap point (`selectionPatch`/`grab` as the existing
-     `judgeHeld` tests in this file do — `grep -n "judgeHeld\|grabbed" src/store/store.test.ts`), then add a hole centred
-     there: `grabbed` is dropped (the point is now in air and withheld from the lattice); adding one elsewhere keeps it.
+  4. **held points** (inv 24): grab the part's top face-centre snap point (as the existing held-point tests in this file
+     do — `grep -n "judgeHeld\|grabbed" src/store/store.test.ts`), then:
+     - add a hole at `station: 12.05` (r = ⅛, its mouth covers the face centre at 12, but its own centre is elsewhere):
+       `grabbed` is dropped — the face-centre point is withheld and nothing replaces it at that position;
+     - from a fresh grab, add a hole CENTRED there: `grabbed` is **kept** — the hole-centre point has the same kind
+       (`'face-center'`), owner and exact position, so `sameSnapPoint` still finds it. This is correct, not a bug: do
+       not give hole centres a new kind to "fix" it.
   5. a row added to a part inside an assembly is written to the definition (`mapWorld`), visible through every placement.
 
 - [ ] **Step 2: Run them to see them fail.**
@@ -2314,7 +2341,13 @@ The viewport has no unit tests by design (CLAUDE.md); the mesh builders are test
   6. Group the part, Copy mirrored (More ▾): the copy's row is on the mirrored side. Edit the original's inset: both
      update.
   7. Open Add joinery and Refine: both show the holes refusal; no Repair notice.
-  8. Undo back to the empty project; every step one entry.
+  8. **Time a drag.** Add a second shelf-pin row (42 holes on the part). Gizmo-resize the part's length for ~2 s and read
+     the frame time with the Performance panel or a `requestAnimationFrame` probe via `browser_evaluate`. `partGeometry`
+     caches bodies but NOT the mesh, so every frame re-runs `faceTriangles`, earcut and `holeMesh` (and `holeTouches`
+     rebuilds a 50-plane prism per face × hole). The angle-cuts round measured ~17 ms/frame before it added its cache.
+     Over ~16 ms: stop, report the number, and propose a cache (e.g. `holePrism` per hole in `partGeometry`, the mesh
+     keyed on `geometryKey`) as a follow-up task for the user's decision — do not optimise unmeasured.
+  9. Undo back to the empty project; every step one entry.
 - [ ] **Step 3:** Record each step's result in `docs/browser-verification-holes.md` (what was checked, what was seen,
   what software GL cannot confirm: shading and grain inside a hole → **the user, on real hardware**, as 26a).
 - [ ] **Step 4:** Remove the projects this check created (by id), confirm by reading `sloyd.library.v1`'s index that

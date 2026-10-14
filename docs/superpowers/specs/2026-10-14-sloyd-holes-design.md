@@ -141,7 +141,9 @@ passes, 1e-6 past it fails.
   Wall and bottom UVs project onto the plane of the dimension they are nearest (invariant 35's sloped-face rule): a wall
   drilled into a broad face reads as end grain.
 - A **faulted** hole is drawn approximately: the wall is clipped to the part's bodies (each quad against each body's
-  half-spaces), only faces on the entry and exit planes are opened, and a side face it breaks through stays closed.
+  half-spaces), and every face it reaches is opened by the convex clip split — a side face it breaks out of included
+  (*corrected while planning chunk 1*: this first said such a face stays closed; the amended split opens it), with
+  T-junctions accepted there.
 - **A part with no holes keeps today's geometry byte-for-byte**, including the `BoxGeometry` path.
 - `boardUVSignature` gains the holes (invariant 15's failure mode, shipped once with angle cuts); BoardMesh's memo keys on
   it.
