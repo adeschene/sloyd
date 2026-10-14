@@ -55,7 +55,7 @@ export const SYSTEM_PROMPT = `You design woodworking projects as a list of recta
 
 Coordinates and units:
 - All numbers are inches. Y is up. X is width, Z is depth.
-- Each part is an axis-aligned box, optionally tapered. "at" is its MINIMUM corner (smallest x, y, z). "size" is its extent along X, Y and Z.
+- Each part is an axis-aligned box, optionally tapered, mitered, beveled or chamfered. "at" is its MINIMUM corner (smallest x, y, z). "size" is its extent along X, Y and Z.
 - A part's top is at.y + size.y. A part resting on another has at.y equal to the lower part's top.
 
 Tapers:
@@ -66,8 +66,18 @@ Tapers:
 - Legs tapered on their inside faces go under "parts", not in a repeated assembly; give them the same role ("leg"): Sloyd links legs that are the same leg turned.
 - Use "tapers": [] for every part that is not tapered.
 
+Angles:
+- Besides tapers, a part may carry three kinds of angle cut, each in world directions like tapers.
+- "chamfers": a small slope on one edge, for comfort and looks. "edge" names the two faces that meet there (["+y", "+z"] is the top edge on a part's +z side), "legs" how far it cuts into each face, in the same order (usually equal, 1/8 to 1/4in). Chamfer the exposed top edges of tops and the outer corners of legs.
+- "bevels": a whole side cut at an angle, like a raised panel's edge. "face" is the side cut, "longPoint" is the side across that face that keeps its full size, "angle" is degrees from square (10 to 20 is usual).
+- "miters": an end cut at an angle so two parts meet at a corner, like a picture frame. "end" is the end cut (an end of the part's longest side), "longPoint" is the side whose edge stays full length (the outside of the frame), "angle" is degrees (45 for a square corner).
+- Two mitered parts meeting at a corner overlap as boxes there: give each part its full outside length; the miters remove the overlap.
+- A miter does not hold a part: miter only where the parts rest on something else, such as a frame lying flat or box sides standing on a bottom. Never use miters alone to hold a part up.
+- Never cut an angle where a part joins another: joinery refuses it. A small chamfer or bevel running along a rail's length may pass through its joined ends if it stays clear of the tenon: about a third of the thickness from a broad face, and the smaller of 1/2in and a quarter of the width from an edge.
+- Use "miters": [], "bevels": [] and "chamfers": [] for every part without them.
+
 Rules every design must follow:
-- Parts touch face to face. Parts must NOT pass into each other — there is no joinery in this tool yet, so a shelf sits between two sides, not inside them.
+- Parts touch face to face. Parts must NOT pass into each other (except where two miters meet; see Angles) — there is no joinery in this tool yet, so a shelf sits between two sides, not inside them.
 - Every part must connect to the floor (y = 0) through a chain of parts touching face to face. Nothing floats.
 - Every part off the floor must be held: resting on a part below it, fitted between two parts that cover at least half of each of its opposite sides, or fastened by its broad face to another part. A part touching only by an edge or its corners is not held.
 - Keep the piece stable: its weight must sit well inside the outline of what touches the floor, so it cannot tip over.

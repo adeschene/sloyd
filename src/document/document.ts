@@ -28,7 +28,7 @@ export type { Bounds, AxisMap } from './geometry';
 export { mirrorCut } from './mirrorCut';
 export { CHAMFER_EDGES, bevelAcross, bevelCut, bevelFields, chamferCut, chamferFields, defaultBevel, defaultChamfer, ANGLE_CUT_FIELDS, ANGLE_CUT_KEYS, angleCutRemovesNothing, angleCutValues, angleCutsThatRemoveStock, copyAngleCut, defaultMiter, defaultMiterPair, defaultTaper, depthAt, keptHalfSpace, miterCut, miterDegrees, miterFields, miterRatio, sameAngleCut, splitRegion, taperCut, taperFields, throughOf, touchedRegion, zeroStation } from './angleCuts';
 export type { BevelFields, ChamferEdge, ChamferFields, MiterFields, TaperFields, V3 } from './angleCuts';
-export { angledParts, angledRefusal, jointRefusal, taperJointRefusal } from './angledRefusal';
+export { jointRefusal, taperJointRefusal } from './angledRefusal';
 export type { AngleConflict, TaperConflict } from './angledRefusal';
 export { cleanName, uniqueName, dedupeNames } from './names';
 export type { Named } from './names';

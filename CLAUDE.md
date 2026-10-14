@@ -25,10 +25,11 @@ handicraft education tradition built around hand woodworking.
   export — bundle `index-DQwrQ8u9.js`, CSS `index-S14NxOeA.css`, **SCHEMA 14** (unchanged since angle cuts chunk 1, so rolling
   back to `353dd60`, `index-CUVCRzP9.js`, or any 14 build is free; below 14, `47548d3`, REFUSES every project saved since:
   export first). Test count is under Commands. Open from standard views: 319 (the View group's wrap, for the user's eye), 320.
-- **AI angles (fu 276/277's remainder; spec `2026-10-13-sloyd-ai-angles-design.md`)**: chunk 1 (Add joinery and Repair
-  accept miters, bevels and chamfers; the widened joint rule with the tenon-clearance exception; fu 307 closed) is merged
-  (`be4c87c`) and deployed. **NEXT: chunk 2** (Generate and Refine read and write miters, bevels and
-  chamfers in world words) — its own plan. Open near it: 314–318 (turned-links residue, record-only or accepted). Other open items: angle-cut residue 295–298; 241 (open by decision), 251 (record-only), 221, 225, 232, 234, 247.
+- **AI angles (fu 276/277's remainder; spec `2026-10-13-sloyd-ai-angles-design.md`)**: chunk 1 deployed; **chunk 2**
+  (Generate and Refine read and write miters, bevels and chamfers in world words; `angle-joint`; the design schema in
+  `$defs`) is on branch `ai-angles-2`, merged only after its final review; not deployed. Both paid live runs passed.
+  **NEXT: none chosen — ask.** Open near it: 314–318 (turned-links residue). Other open items: angle-cut residue 295–298;
+  241 (open by decision), 251 (record-only), 221, 225, 232, 234, 247.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
   byte-identical bundles (test-only). Check what a later commit touches before reading
@@ -95,6 +96,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | 302/303 | 10-13 | — | Overlap and the tip check read a tapered part's real bodies (`clipConvex`, `partMass`); untapered results byte-for-byte unchanged |
 | standard views + image | 10-13 | — | Front/Side/Top/Iso (the Plans sheet's views; camera up stays +Y, Top tilted 1e-4 rad); Save image (one clean frame, `toBlob`, `StorageAdapter.exportImage`); framing frames exploded parts where drawn (fu 260) |
 | AI angles (chunk 1) | 10-13 | — | Add joinery and Repair accept miters, bevels and chamfers: contact trusts their flat wood (`touchedRegion`/`splitRegion`), a cut running into a joint refuses unless it clears the tenon (`angleConflicts`), joinery keeps angle cuts on their wood (`rebaseAngleCuts`, fu 307) |
+| AI angles (chunk 2) | 10-14 | — | Generate and Refine write miters, bevels and chamfers in world words (`angleWorld.ts`); exact untouched angles (`angleRatiosOf`); `angle-joint` design fault; the change list names them; chamfered legs link through turns; the design schema in `$defs` (the API's compiled-grammar cap) |
 
 ### The deployment rule
 
@@ -234,8 +236,10 @@ src/
 │   │                     CHAMFER_EDGES, exact legs) — each with its xCut writer and default; imports only types/geometry
 │   ├── angleText.ts      angleLine (THE bench line for every angle cut; faceName: a length face is an END),
 │   │                     shortPointLine (corner minimum, fu 281), angleDegrees (→ units)
-│   ├── angledRefusal.ts  angledParts / angledRefusal: why Refine refuses an angled document (inv 48; tapers allowed);
-│   │                     TaperConflict / taperJointRefusal; AngleConflict / jointRefusal (THE joint-refusal message, one sentence per part)
+│   ├── angledRefusal.ts  TaperConflict / taperJointRefusal; AngleConflict / jointRefusal (THE joint-refusal message, one sentence per part)
+│   ├── angleWorld.ts     WorldMiter/WorldBevel/WorldChamfer: design miters, bevels, chamfers in world words; angleCutsFor (design →
+│   │                     stored via the Properties writers), worldAngles (structural standard forms), angleRatiosOf (the exact-angle
+│   │                     map), ratioFor, sortAngleCuts (the one stored order)
 │   ├── taperWorld.ts     Dir/WorldTaper: design tapers in world words; dirToLocal/localToDir (inv 44), worldTapers
 │   │                     (stored → design form, structural standard form), taperCutsFor (design → taperCuts, §2.2 rules)
 │   ├── bodies.ts         boardBodies (pocket cells clipped by angle cuts), bodyEdges, boardEdges (inv 16);
@@ -251,11 +255,11 @@ src/
 │                         that still holds them — a heuristic, sheets × price), every string built here (→ units)
 │   ├── snapPoints.ts     board/cut/guide snap points, towardFor, offsetPoint (inv 26)
 │   ├── row.ts            rowLayout (gap/pitch/fit-across; refusal CODES; no rounding, inv 25)
-│   ├── generated.ts      DESIGN_SCHEMA, parseDesign, designToDocument (assemblies → a TREE;
+│   ├── generated.ts      DESIGN_SCHEMA (part + direction in `$defs`: the API's grammar cap), parseDesign, designToDocument (assemblies → a TREE;
 │   │                     `Authored` maps flat names back to what the model wrote; MAX_MAGNITUDE)
 │   ├── roleLinks.ts      linkByRole: role + sameShared classes → linksToShapes (inv 45);
-│                     turnCandidates (other quarter turns keeping the world box and grain axis; tapers re-stored via taperWorld; none
-│                     for rectangular cuts, non-taper angle cuts or non-standard tapers), alignedTo (adopts the representative's angle-cut ids)
+│                     turnCandidates (other quarter turns keeping the world box and grain axis; every kind re-stored via taperWorld/angleWorld; none
+│                     for rectangular cuts or a cut either cannot describe), alignedTo (adopts the representative's angle-cut ids)
 │   ├── assemblyChecks.ts distinctParts, distinctPartsViolation, collapseViolations (one report
 │   │                     per authored fault; "fix the assembly" only for overlaps)
 │   ├── refineDesign.ts   documentToDesign (Refine's input + refusals; definitions normalised),
@@ -285,7 +289,7 @@ src/
 │                     chars/token, cached prefix, every repair round high; fu 236), refine.ts (refineMessage,
 │                     detailFor), run.ts (runRepairLoop, evaluateDesign — THE design evaluation
 │                     shared by Generate and Refine, runRefine, runJoinery),
-│                     joints/{pocket,sites,recipes,choose,unjoin,repair,tapers}.ts (tapers.ts: taperConflicts, angleConflicts + clearsTenon, taperFaults (model-facing, for evaluateDesign), joineryRefusal — the ONE joinery refusal decider; inv 41; recipes' `refaceFromEnd` re-stores an end cut from another face, fu 205, and `rebaseAngleCuts` keeps angle cuts on their wood, fu 307); unjoin + gateUnjoin
+│                     joints/{pocket,sites,recipes,choose,unjoin,repair,tapers}.ts (tapers.ts: taperConflicts, angleConflicts + clearsTenon, jointFaults (model-facing `angle-joint`, for evaluateDesign), joineryRefusal — the ONE joinery refusal decider; inv 41; recipes' `refaceFromEnd` re-stores an end cut from another face, fu 205, and `rebaseAngleCuts` keeps angle cuts on their wood, fu 307); unjoin + gateUnjoin
 │                     read joints back, proved by an exact (1e-9in) re-join (readJoints = the lenient
 │                     body); runJoinery's `fixed` keeps recorded joints passing validChoice, `alsoPresent`
 │                     = original's problems; repair.ts = fu 240's prune-and-prove (a stray must be empty
@@ -530,7 +534,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     byte-for-byte. Contact reads `contactSolids` for any ANGLED part (`isAngled`): a taper's flat wood as before, then every
     miter, bevel and chamfer splits it around its touched box (`touchedRegion`/`splitRegion`), so a sloped face is never a
     contact (the user's ruling: a miter does not hold). `faceContacts` stays on boxes. Joinery refuses any angle cut running
-    into a joint (`joineryRefusal`); Refine accepts tapers in standard form (`worldTapers`) and refuses any other angle cut, or a non-standard taper (`'taper-form'`). Do not raise `TOUCH` to make joints
+    into a joint (`joineryRefusal`); Refine accepts every kind in standard form (`worldTapers`, `worldAngles`) and refuses the rest (`'taper-form'`, `'angle-form'`). Do not raise `TOUCH` to make joints
     pass; do not drop the check.
 39. **Support means HELD: every part off the floor is resting, between (≥ 50% coverage of
     both faces of X or Z) or lapped (a broad face; a top contact only under the stated
@@ -550,10 +554,11 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     site whose patch lies on tapered wood (`taperConflicts`; `start` itself allowed, compared with a 1e-9 float tolerance,
     inv 22) — and, for a miter, bevel or chamfer, any site whose patch its touched box overlaps by more than TOUCH
     (`angleConflicts`), except a cut on the ENTERING part of an end-into-face site that runs straight through the joined end
-    and clears the tenon's section (`clearsTenon`); on that growing part a cut measured along or into the growth that removes
+    and clears the tenon's section (`clearsTenon`), and a MITER on the receiving part of a face-against-edge (rabbet) site (the
+    rabbet runs out through the mitered end); on that growing part a cut measured along or into the growth that removes
     wood at the joined end refuses however small (final review I2: the rebase keeps its line fixed while the part grows). One sentence per part (`jointRefusal`). `resize` re-anchors angle cuts
     measured from the moving end (`rebaseAngleCuts`, fu 307), and `readJoints`' `resizeAt` undoes it exactly (the gate's
-    round trip). Sites stay on box contacts on purpose. The unjoin gate (`sameJoined`) compares a part's cuts as a MULTISET (`sameCutSet`; order is not geometry, still exact at 1e-9; angle cuts stay in order). A joined Refine is refused up front (`plainForRefine`, `'taper-joint'`) when the original's taper already runs into a joint; a result the model leaves conflicting comes back UNJOINED (`JointsSummary.notJoined`), never joined over a taper.
+    round trip). Sites stay on box contacts on purpose. The unjoin gate (`sameJoined`) compares a part's cuts as a MULTISET (`sameCutSet`; order is not geometry, still exact at 1e-9; angle cuts stay in order). A joined Refine is refused up front (`plainForRefine`, `'angle-joint'`) when the original's angle cut already runs into a joint; a result the model leaves conflicting comes back UNJOINED (`JointsSummary.notJoined`), never joined over an angle cut.
 42. **A group move rounds the GROUP's min corner once and adds one delta
     (`moveGroupTo` → `translateBoards`); one selected part keeps the separate single-part
     path.** Do not unify them; do not round inside `translateBoards`. `selectionPatch` is
@@ -578,7 +583,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     cuts. Equivariance tests use `chiralPart`, never a symmetric fixture; mutate any new one.
     In `boardUVs` the reflection is per geometry axis, before inv 35's sign and swap. Generate's
     converter (`orient`) encodes at 0° or 90°; role linking may store any quarter turn that leaves the world part unchanged
-    (`turnCandidates`, fu 301). The composition is the second caller of `mirrorCutAlong` (`mirrorCut`,
+    (`turnCandidates`, fu 301; every kind re-stored through `taperWorld`/`angleWorld` with the part's own slopes). The composition is the second caller of `mirrorCutAlong` (`mirrorCut`,
     moved verbatim to `mirrorCut.ts`): a mirrored frame reflects a part (`mirrorPart`: turn
     negated, cuts along the posture's turn-0 X dimension, min corner reflected).
     An angle cut reflects by a FLAG FLIP (`mirrorAngleCut`: `from` if `face` is the mirrored dimension, `alongFrom` if
@@ -643,15 +648,20 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     Anything that draws, edges, occludes or probes stock reads bodies (through the `partGeometry` cache); anything that
     describes or joins rectangular cuts (`cutShape`, joinery, the cut list's pocket lines) stays on `pocketCells`. A body no
     angle cut clips keeps the box path byte-for-byte (`body.box`). Joinery and Repair stay box-based and accept
-    every kind, refusing only an angle cut running into a joint (inv 41); Refine REFUSES every kind but `taper`, decided
-    before any call (`angledRefusal`); Refine also refuses a non-standard taper (`'taper-form'`, `isStandardTaper`) and writes standard tapers into the design as world-direction `tapers` (`taperWorld.ts`, stored through `taperCut`). `contactSolids` is the second, narrower reader of
+    every kind, refusing only an angle cut running into a joint (inv 41). Generate and Refine read and write every kind in
+    WORLD words — `tapers` (`taperWorld.ts`, through `taperCut`) and `miters`/`bevels`/`chamfers` (`angleWorld.ts`, through
+    `miterCut`/`bevelCut`/`chamferCut`) — recognised STRUCTURALLY (`isStandardTaper`, `worldAngles`); Refine refuses, before
+    any call, a cut it cannot describe or the converter would reject on the re-encoded part (`'taper-form'`, `'angle-form'`),
+    and keeps untouched angles exactly through the exact-angle map (`angleRatiosOf`). **The design schema defines the part
+    and the direction ONCE in `$defs`** — the API refuses a schema whose compiled grammar grows too large (measured
+    2026-10-14: the inline form with the three angle arrays was refused). `contactSolids` is the second, narrower reader of
     angle cuts: box-valued, never over-claiming wood.
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 3501 tests across 124 files
+npm test           # Vitest, currently 3564 tests across 124 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -660,7 +670,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–321, each with its closure). Read the entries
+**`docs/follow-ups.md` is authoritative** (1–323, each with its closure). Read the entries
 for the area you are about to touch; several are "correct but untested". Open items worth
 knowing without opening it:
 
@@ -703,6 +713,10 @@ knowing without opening it:
   eye), 320 (record-only: no view shortcuts, one-frame selection blink, a saved PNG owed a real-hardware look).
 - **321** — AI angles chunk 1 minors (record-only): the receiving part's "reaches" test uses the entering face at 1e-9;
   test gaps (no turned chamfer, no bevel case).
+- **323** — AI angles chunk 2 minors (record-only): generic `angle-joint` advice; refusal-kind found by text search; turned
+  candidates' angle-cut ids by index (latent); test gaps; multi-decimal angles fall back to 0.1°.
+- **322** — the design schema's compiled-grammar margin (record): the API caps the compiled schema (unpublished); the part
+  and direction live in `$defs`; any `DESIGN_SCHEMA` change needs one live compile before it ships.
 - **176/177** — the held rules' known limits (mutual lapping) and an unseen live repair.
 - **130** — semi-infinite construction lines; picked and set aside 2026-08-31 without a
   reason. Ask before assuming it's wanted; it needs real hardware (26a).

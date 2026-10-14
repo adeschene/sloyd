@@ -3,6 +3,9 @@ import { diffDesigns } from './designDiff';
 import { designToDocument } from './generated';
 import type { GeneratedAssembly, GeneratedPart } from './generated';
 import { formatLength } from '../units/length';
+import { createBoard, createDocument } from './document';
+import { bevelCut, chamferCut, miterCut, miterRatio } from './angleCuts';
+import type { Board } from './types';
 
 const v = (x: number, y: number, z: number) => ({ x, y, z });
 const part = (name: string, at: [number, number, number], size: [number, number, number], material = 'oak', role = ''): GeneratedPart =>
@@ -196,7 +199,47 @@ describe('diffDesigns — tapers across placements', () => {
   it('merges one assembly-part taper change across placements into one entry (×N)', () => {
     const out = diffDesigns(doc([], [asm([])]), doc([], [asm([T])]));
     expect(out.map((c) => [c.kind, c.copies, c.text])).toEqual([
-      ['taper', 3, `L1 › Leg: taper added (+x, +z; ${f(22)} from the -y end, ${f(0.375)} off) (×3)`],
+      ['angle', 3, `L1 › Leg: taper added (+x, +z; ${f(22)} from the -y end, ${f(0.375)} off) (×3)`],
     ]);
+  });
+});
+
+describe('diffDesigns — miters, bevels and chamfers (AI-angles spec §6.4)', () => {
+  const rail = (name = 'Rail') => createBoard({ name, length: 18, width: 3, thickness: 0.75, position: [0, 0, 0] });
+  const doc = (b: Board) => ({ ...createDocument('T'), boards: [b] });
+  const miter = (b: Board, ratio: number) => ({ id: 'm', ...miterCut({ end: 'max', across: 'width', longSide: 'min', ratio }, b) });
+  const ch = (b: Board, leg: number) => ({ id: 'c', ...chamferCut({ face: 'width', from: 'max', along: 'thickness', alongFrom: 'max', legFace: leg, legAlong: leg }, b) });
+  it('added, changed and removed, one line each, in world words at display precision', () => {
+    const b = rail();
+    const lines = (before: Board, after: Board) => diffDesigns(doc(before), doc(after)).filter((c) => c.kind === 'angle').map((c) => c.text);
+    const m45 = { ...b, angleCuts: [miter(b, 1)] };
+    const m30 = { ...b, angleCuts: [miter(b, miterRatio(30))] };
+    const c8 = { ...b, angleCuts: [ch(b, 0.125)] };
+    expect(lines(b, m45)).toEqual(['Rail: miter added (+x end; 45.0°, long point -z)']);
+    expect(lines(m45, m30)).toEqual(['Rail: miter changed (+x end; 30.0°, long point -z)']);
+    expect(lines(m45, b)).toEqual(['Rail: miter removed (+x end)']);
+    expect(lines(b, c8)).toEqual(['Rail: chamfer added (+y/+z edge; 1/8" × 1/8")']);
+    // Below display precision: no line.
+    expect(lines(m45, { ...b, angleCuts: [miter(b, 1.0000000001)] })).toEqual([]);
+  });
+  it('taper lines are kind angle too', () => {
+    const leg = createBoard({ name: 'Leg', length: 28, width: 1.75, thickness: 1.75, posture: 'upright', position: [0, 0, 0] });
+    const tapered = { ...leg, angleCuts: [{ id: 't', kind: 'taper' as const, face: 'width' as const, from: 'min' as const, along: 'length' as const, alongFrom: 'min' as const, points: [[0, 0.5], [20, 0]] as [[number, number], [number, number]] }] };
+    const c = diffDesigns({ ...createDocument('T'), boards: [leg] }, { ...createDocument('T'), boards: [tapered] });
+    expect(c.map((x) => x.kind)).toEqual(['angle']);
+    expect(c[0]!.text).toContain('taper added');
+  });
+});
+
+describe('diffDesigns — two bevels on one face (final review I3)', () => {
+  it('a knife edge: changing or removing one of the two bevels is reported', () => {
+    const p = createBoard({ name: 'Blade', length: 20, width: 3, thickness: 0.75, position: [0, 0, 0] });
+    const v = (id: string, longSide: 'min' | 'max', deg: number) => ({ id, ...bevelCut({ face: 'width', from: 'max', longSide, ratio: miterRatio(deg) }, p) });
+    const d = (cuts: ReturnType<typeof v>[]) => ({ ...createDocument('T'), boards: [{ ...p, angleCuts: cuts }] });
+    const lines = (a: ReturnType<typeof v>[], b: ReturnType<typeof v>[]) => diffDesigns(d(a), d(b)).filter((c) => c.kind === 'angle').map((c) => c.text);
+    const before = [v('a', 'min', 15), v('b', 'max', 15)];
+    expect(lines(before, [v('a', 'min', 15), v('b', 'max', 20)])).toHaveLength(1);
+    expect(lines(before, [v('a', 'min', 15)])).toHaveLength(1);
+    expect(lines(before, before)).toEqual([]);
   });
 });

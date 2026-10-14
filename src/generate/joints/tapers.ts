@@ -2,7 +2,7 @@ import type { AngleConflict, AngleCut, Board, FlatDocument, Region, SloydDocumen
 import { flatDocument, jointRefusal } from '../../document/document';
 import { taperFields, throughOf, touchedRegion } from '../../document/angleCuts';
 import { axisDimensions, endFacing, spanFromWorldOffset } from '../../document/geometry';
-import { TOUCH, taperJointViolations, worldBox } from '../../document/designCheck';
+import { TOUCH, jointViolations, worldBox } from '../../document/designCheck';
 import type { Violation } from '../../document/designCheck';
 import { boxOf } from './pocket';
 import { tenonSection } from './recipes';
@@ -68,7 +68,7 @@ function clearsTenon(b: Board, c: AngleCut, t: Region, axis: number): boolean {
  * The angle-at-joint rule for miters, bevels and chamfers (AI-angles spec §3): a cut conflicts with a site when its
  * touched box (in world space through `worldBox`) reaches the contact plane and overlaps the site's box-contact patch with
  * positive area (both in-plane spans above TOUCH, the box contacts' own tolerance). Tapers are `taperConflicts`' job and
- * skipped here. On the ENTERING part of an end-into-face site — the part joinery lengthens — a cut measured along or into
+ * skipped here, and so is a miter on the RECEIVING part of a face-against-edge (rabbet) site. On the ENTERING part of an end-into-face site — the part joinery lengthens — a cut measured along or into
  * that length that removes wood at the joined end conflicts however small (final review I2), and a cut that clears the
  * tenon (`clearsTenon`) does not. One
  * conflict per part (its first site in site order), sorted by part. Pure.
@@ -87,6 +87,10 @@ export function angleConflicts(flat: FlatDocument, sites: readonly Site[]): Angl
         if (c.kind === 'taper') continue;
         const t = touchedRegion(b, c);
         if (!t) continue;
+        // A rabbet at a thin panel's edge (final review I2, the user's ruling): the rabbet runs along the RECEIVING part's
+        // edge and out through a miter at its end — a mitered box on a thin bottom — so the joint stays whole. Any other
+        // kind on that part (a chamfer or bevel on the edge) would eat the rabbet and keeps the overlap rule.
+        if (s.kind === 'face-against-edge' && part === s.receive && c.kind === 'miter') continue;
         if (part === s.enter && s.kind === 'end-into-face') {
           // The growing part (final review I2, the user's ruling): joinery lengthens it at this end, so a cut measured
           // along or into that length (`rebaseAngleCuts` keeps its line fixed) would run on into the new wood. One that
@@ -123,7 +127,8 @@ export function joineryRefusal(doc: SloydDocument, flat: FlatDocument = flatDocu
   return jointRefusal(flat, taperConflicts(flat, sites), angleConflicts(flat, sites));
 }
 
-/** The taper-at-joint rule on a DESIGN (spec section 5.3): every conflict as a `taper-joint` fault, for evaluateDesign and Refine's preexisting set. */
-export function taperFaults(flat: FlatDocument): Violation[] {
-  return taperJointViolations(flat, taperConflicts(flat, findSites(flat)));
+/** The angle-at-joint rule on a DESIGN (AI-tapers spec 5.3; AI-angles spec §5.4): every conflict as an `angle-joint` fault, for evaluateDesign and Refine's preexisting set. */
+export function jointFaults(flat: FlatDocument): Violation[] {
+  const sites = findSites(flat);
+  return jointViolations(flat, taperConflicts(flat, sites), angleConflicts(flat, sites));
 }

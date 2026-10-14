@@ -4,6 +4,8 @@ import { boardExtents } from './geometry';
 import type { Board, Instance, SloydDocument } from './types';
 import { DIRS, worldTapers } from './taperWorld';
 import type { WorldTaper } from './taperWorld';
+import { noAngles, worldAngles } from './angleWorld';
+import type { WorldAngles } from './angleWorld';
 import { definitionCorner } from './refineDesign';
 import { NAME_SEPARATOR, PATH_SEPARATOR, flatDocument } from './tree';
 
@@ -12,7 +14,7 @@ import { NAME_SEPARATOR, PATH_SEPARATOR, flatDocument } from './tree';
  * text is assembled HERE with formatLength (the `→ units` edge; invariant 19's
  * rule that a string a person reads is built in one module).
  */
-export type ChangeKind = 'added' | 'removed' | 'resized' | 'moved' | 'material' | 'taper' | 'linked' | 'unlinked';
+export type ChangeKind = 'added' | 'removed' | 'resized' | 'moved' | 'material' | 'angle' | 'linked' | 'unlinked';
 export interface Change { kind: ChangeKind; subject: 'part' | 'placement'; name: string; copies: number; text: string }
 
 interface Entry { b: Board; inst: Instance | null }
@@ -95,7 +97,8 @@ export function diffDesigns(before: SloydDocument, after: SloydDocument): Change
     // not a change, and an untouched taper beside a changed one gets no line. Values compare at display precision, like
     // every other line. worldTapers is never null here: Refine refuses a non-standard taper before any call.
     const lines = taperLines(worldTapers(o.b) ?? [], worldTapers(e.b) ?? [], len);
-    for (const t of lines) push('taper', 'part', n, `${n}: ${t}`, key('taper', `: ${t}`));
+    for (const t of lines) push('angle', 'part', n, `${n}: ${t}`, key('angle', `: ${t}`));
+    for (const t of angleLines(worldAngles(o.b) ?? noAngles(), worldAngles(e.b) ?? noAngles(), len)) push('angle', 'part', n, `${n}: ${t}`, key('angle', `: ${t}`));
     if (!o.b.shape !== !e.b.shape) {
       const kind = e.b.shape ? 'linked' : 'unlinked';
       push(kind, 'part', n, e.b.shape ? `${n} is now linked` : `${n} is no longer linked`, key(kind, ''));
@@ -145,4 +148,30 @@ function taperLines(before: readonly WorldTaper[], after: readonly WorldTaper[],
     .map((g) => ({ ...g, faces: [...g.faces].sort((x, y) => rank(x) - rank(y)) }))
     .sort((x, y) => order[x.kind] - order[y.kind] || rank(x.faces[0]!) - rank(y.faces[0]!))
     .map((g) => `taper ${g.kind} (${g.faces.join(', ')}${g.detail ? `; ${g.detail}` : ''})`);
+}
+
+/**
+ * One part's miter, bevel and chamfer lines (AI-angles spec §6.4): matched by where they are — a miter by its end, a
+ * bevel by its face and long point, a chamfer by its edge — then added, changed (its displayed detail differs) or removed, in kind
+ * order. `worldAngles` is never null here: Refine refuses a cut it cannot describe before any call.
+ */
+function angleLines(before: WorldAngles, after: WorldAngles, len: (n: number) => string): string[] {
+  type Entry = { kind: 'miter' | 'bevel' | 'chamfer'; where: string; detail: string };
+  const deg = (a: number) => `${a.toFixed(1)}°`;
+  const entries = (a: WorldAngles): Entry[] => [
+    ...a.miters.map((m) => ({ kind: 'miter' as const, where: `${m.end} end`, detail: `${deg(m.angle)}, long point ${m.longPoint}` })),
+    // Two bevels may share a face (a knife edge, long points opposite): a bevel is placed by its face AND long point.
+    ...a.bevels.map((v) => ({ kind: 'bevel' as const, where: `${v.face} face, long point ${v.longPoint}`, detail: deg(v.angle) })),
+    ...a.chamfers.map((c) => ({ kind: 'chamfer' as const, where: `${c.edge[0]}/${c.edge[1]} edge`, detail: `${len(c.legs[0])} × ${len(c.legs[1])}` })),
+  ];
+  const was = new Map(entries(before).map((x) => [`${x.kind}|${x.where}`, x]));
+  const now = new Map(entries(after).map((x) => [`${x.kind}|${x.where}`, x]));
+  const out: string[] = [];
+  for (const [k, x] of now) {
+    const old = was.get(k);
+    if (!old) out.push(`${x.kind} added (${x.where}; ${x.detail})`);
+    else if (old.detail !== x.detail) out.push(`${x.kind} changed (${x.where}; ${x.detail})`);
+  }
+  for (const [k, x] of was) if (!now.has(k)) out.push(`${x.kind} removed (${x.where})`);
+  return out;
 }

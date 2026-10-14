@@ -488,7 +488,7 @@ describe('sameJoined — angle cuts', () => {
 
 describe('sameJoined — cut order is not geometry (fu 301)', () => {
   const flat = flatDocument(designToDocument({ name: 'T', assemblies: [], parts: [
-    { name: 'P', role: '', material: 'oak', at: { x: 0, y: 0, z: 0 }, size: { x: 2, y: 20, z: 2 }, tapers: [] },
+    { name: 'P', role: '', material: 'oak', at: { x: 0, y: 0, z: 0 }, size: { x: 2, y: 20, z: 2 }, miters: [], bevels: [], chamfers: [], tapers: [] },
   ] }).doc);
   const base = { face: 'width' as const, from: 'max' as const, across: 'length' as const, offset: 0.5, width: 0.25, depth: 0.75, stopMin: 3, stopMax: 0.5 };
   const c1 = { id: 'c1', ...base };

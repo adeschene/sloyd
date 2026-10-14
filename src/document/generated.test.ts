@@ -6,11 +6,27 @@ import type { GeneratedAssembly, GeneratedDesign, GeneratedPart } from './genera
 import { boardExtents } from './geometry';
 import { MATERIALS } from './types';
 import { worldTapers } from './taperWorld';
-import { rejectedViolations } from './designCheck';
+import { checkDesign, rejectedViolations } from './designCheck';
+import { worldAngles } from './angleWorld';
+import { miterRatio } from './angleCuts';
 import type { Board } from './types';
 
+/** DESIGN_SCHEMA with its local `$ref`s expanded: what the model is held to. */
+const deref = (root: any) => {
+  const go = (x: any): any => {
+    if (Array.isArray(x)) return x.map(go);
+    if (x && typeof x === 'object') {
+      if (x.$ref) return go(root.$defs[x.$ref.split('/').pop()]);
+      return Object.fromEntries(Object.entries(x).filter(([k]) => k !== '$defs').map(([k, v]) => [k, go(v)]));
+    }
+    return x;
+  };
+  return go(root);
+};
+const SCHEMA = deref(DESIGN_SCHEMA);
+
 const part = (name: string, at: [number, number, number], size: [number, number, number], material = 'pine', role = ''): GeneratedPart => ({
-  name, role, material, tapers: [],
+  name, role, material, miters: [], bevels: [], chamfers: [], tapers: [],
   at: { x: at[0], y: at[1], z: at[2] },
   size: { x: size[0], y: size[1], z: size[2] },
 });
@@ -280,7 +296,7 @@ describe('parseDesign', () => {
     const d = { name: 'x', parts: [], assemblies: [asm()] };
     expect(parseDesign(d)).toEqual(d);
   });
-  const okPart = { name: 'A', role: '', tapers: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1) };
+  const okPart = { name: 'A', role: '', miters: [], bevels: [], chamfers: [], tapers: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1) };
   it.each([
     null, 42, {}, { name: 'x' },
     { name: 'x', parts: [], assemblies: [] },                                   // no parts at all
@@ -299,23 +315,34 @@ describe('parseDesign', () => {
 });
 
 describe('DESIGN_SCHEMA', () => {
+  it('defines the part and the direction once, in $defs, and references them (the API caps the compiled grammar)', () => {
+    // Measured 2026-10-14: the same schema with the part written out twice (loose and in assemblies) was refused with
+    // 400 "The compiled grammar is too large"; with $defs it compiled.
+    const raw = DESIGN_SCHEMA as any;
+    expect(raw.properties.parts.items).toEqual({ $ref: '#/$defs/part' });
+    expect(raw.properties.assemblies.items.properties.parts.items).toEqual({ $ref: '#/$defs/part' });
+    expect(raw.$defs.dir).toEqual({ type: 'string', enum: ['+x', '-x', '+y', '-y', '+z', '-z'] });
+    const text = JSON.stringify(DESIGN_SCHEMA);
+    expect(text.split('"+x","-x","+y","-y","+z","-z"').length - 1).toBe(1);
+    expect(text.split('"material":').length - 1).toBe(1);
+  });
   it("offers exactly MATERIALS' keys", () => {
-    const parts = (DESIGN_SCHEMA as any).properties.parts.items;
+    const parts = (SCHEMA as any).properties.parts.items;
     expect(parts.properties.material.enum).toEqual(Object.keys(MATERIALS));
   });
   it('sets additionalProperties: false on every object', () => {
     const walk = (s: any): boolean =>
       s.type === 'array' ? walk(s.items)
         : s.type !== 'object' || (s.additionalProperties === false && Object.values(s.properties).every(walk));
-    expect(walk(DESIGN_SCHEMA)).toBe(true);
+    expect(walk(SCHEMA)).toBe(true);
   });
   it('requires role, assemblies and placements', () => {
-    const s = DESIGN_SCHEMA as any;
+    const s = SCHEMA as any;
     expect(s.required).toEqual(['name', 'parts', 'assemblies']);
-    expect(s.properties.parts.items.required).toEqual(['name', 'role', 'material', 'at', 'size', 'tapers']);
+    expect(s.properties.parts.items.required).toEqual(['name', 'role', 'material', 'at', 'size', 'tapers', 'miters', 'bevels', 'chamfers']);
     const a = s.properties.assemblies.items;
     expect(a.required).toEqual(['name', 'parts', 'placements']);
-    expect(a.properties.parts.items).toBe(s.properties.parts.items);
+    expect(a.properties.parts.items).toEqual(s.properties.parts.items);
     expect(a.properties.placements.items.required).toEqual(['name', 'at']);
   });
 });
@@ -324,15 +351,15 @@ describe('parseDesign — normalised copy', () => {
   it('drops keys the schema does not have, at every level', () => {
     const raw = {
       name: 'x', extra: 1,
-      parts: [{ name: 'A', role: '', tapers: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1), grain: 'width', junk: true }],
-      assemblies: [{ name: 'D', note: 'n', parts: [{ name: 'F', role: '', tapers: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1), grain: 'width' }],
+      parts: [{ name: 'A', role: '', miters: [], bevels: [], chamfers: [], tapers: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1), grain: 'width', junk: true }],
+      assemblies: [{ name: 'D', note: 'n', parts: [{ name: 'F', role: '', miters: [], bevels: [], chamfers: [], tapers: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1), grain: 'width' }],
         placements: [{ name: 'P', at: { x: 0, y: 0, z: 0, w: 9 }, extra: 2 }] }],
     };
     const d = parseDesign(raw)!;
     expect(d).toEqual({
       name: 'x',
-      parts: [{ name: 'A', role: '', tapers: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1) }],
-      assemblies: [{ name: 'D', parts: [{ name: 'F', role: '', tapers: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1) }], placements: [{ name: 'P', at: v(0, 0, 0) }] }],
+      parts: [{ name: 'A', role: '', miters: [], bevels: [], chamfers: [], tapers: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1) }],
+      assemblies: [{ name: 'D', parts: [{ name: 'F', role: '', miters: [], bevels: [], chamfers: [], tapers: [], material: 'pine', at: v(0, 0, 0), size: v(1, 1, 1) }], placements: [{ name: 'P', at: v(0, 0, 0) }] }],
     });
     expect(d).not.toBe(raw);
   });
@@ -370,11 +397,11 @@ describe('designToDocument — options', () => {
 });
 
 describe('tapers in the design (AI-tapers spec §2)', () => {
-  const legPart = (tapers: unknown) => ({ name: 'Leg', role: 'leg', material: 'oak', at: { x: 0, y: 0, z: 0 }, size: { x: 1.75, y: 28, z: 1.75 }, tapers });
+  const legPart = (tapers: unknown) => ({ name: 'Leg', role: 'leg', material: 'oak', at: { x: 0, y: 0, z: 0 }, size: { x: 1.75, y: 28, z: 1.75 }, tapers, miters: [], bevels: [], chamfers: [] });
   const json = (tapers: unknown) => ({ name: 'T', parts: [legPart(tapers)], assemblies: [] });
 
   it('the schema requires tapers on every part, with Dir enums', () => {
-    const part = (DESIGN_SCHEMA.properties as any).parts.items;
+    const part = ((SCHEMA as any).properties).parts.items;
     expect(part.required).toContain('tapers');
     expect(part.properties.tapers.items.properties.toward.enum).toEqual(['+x', '-x', '+y', '-y', '+z', '-z']);
     expect(part.properties.tapers.items.required).toEqual(['faces', 'toward', 'start', 'amount']);
@@ -413,5 +440,75 @@ describe('tapers in the design (AI-tapers spec §2)', () => {
   });
   it('an untapered part converts exactly as before (angleCuts: [])', () => {
     expect((designToDocument(parseDesign(json([]))!).doc.boards[0]! as Board).angleCuts).toEqual([]);
+  });
+});
+
+describe('miters, bevels and chamfers in the design (AI-angles spec §5)', () => {
+  const v = (x: number, y: number, z: number) => ({ x, y, z });
+  const base = { role: '', material: 'oak', tapers: [], miters: [], bevels: [], chamfers: [] };
+  it('the schema: each array is required and strict', () => {
+    const part = (SCHEMA as any).properties.parts.items;
+    expect(part.properties.miters.items.required).toEqual(['end', 'longPoint', 'angle']);
+    expect(part.properties.bevels.items.required).toEqual(['face', 'longPoint', 'angle']);
+    expect(part.properties.chamfers.items.required).toEqual(['edge', 'legs']);
+    for (const k of ['miters', 'bevels', 'chamfers']) expect(part.properties[k].items.additionalProperties).toBe(false);
+  });
+  it('parseDesign refuses a part without the arrays, and copies only schema fields', () => {
+    const p = { name: 'Top', ...base, at: v(0, 0, 0), size: v(18, 0.75, 12) };
+    const { miters: _m, ...noMiters } = p;
+    expect(parseDesign({ name: 'T', parts: [noMiters], assemblies: [] })).toBeNull();
+    const ok = parseDesign({ name: 'T', parts: [{ ...p, chamfers: [{ edge: ['+y', '+z'], legs: [0.125, 0.125], extra: 1 }] }], assemblies: [] });
+    expect(ok!.parts[0]!.chamfers).toEqual([{ edge: ['+y', '+z'], legs: [0.125, 0.125] }]);
+  });
+  it('a chamfered top converts: the chamfer is stored on the faces it names, legs snapped', () => {
+    const { doc, rejected } = designToDocument({ name: 'T', parts: [
+      { name: 'Top', ...base, at: v(0, 0, 0), size: v(18, 0.75, 12), chamfers: [{ edge: ['+y', '+z'], legs: [0.13, 0.13] }] },
+    ] }, { centre: false });
+    expect(rejected).toEqual([]);
+    const b = doc.boards[0] as Board;
+    expect(b.angleCuts).toHaveLength(1);
+    expect(worldAngles(b)!.chamfers).toEqual([{ edge: ['+y', '+z'], legs: [0.125, 0.125] }]);
+  });
+  it('a flat mitered picture frame converts and checks with no overlap (Review Focus 1)', () => {
+    // 12 x 12 outside, 1.5 wide, 3/4 thick, lying on the floor (Y up). Each member its full outside length; the
+    // corners overlap as boxes, the miters (long point outside) remove it.
+    const m = (end: string, longPoint: string) => ({ end, longPoint, angle: 45 });
+    const { doc, rejected } = designToDocument({ name: 'Frame', parts: [
+      { name: 'Front', ...base, at: v(0, 0, 0), size: v(12, 0.75, 1.5), miters: [m('-x', '-z'), m('+x', '-z')] },
+      { name: 'Back', ...base, at: v(0, 0, 10.5), size: v(12, 0.75, 1.5), miters: [m('-x', '+z'), m('+x', '+z')] },
+      { name: 'Left', ...base, at: v(0, 0, 0), size: v(1.5, 0.75, 12), miters: [m('-z', '-x'), m('+z', '-x')] },
+      { name: 'Right', ...base, at: v(10.5, 0, 0), size: v(1.5, 0.75, 12), miters: [m('-z', '+x'), m('+z', '+x')] },
+    ] } as never, { centre: false });
+    expect(rejected).toEqual([]);
+    expect(checkDesign(flatDocument(doc), { width: null, depth: null, height: null, maxParts: 10 })).toEqual([]);
+  });
+  it('a fault rejects the part, worded for the model', () => {
+    const { rejected } = designToDocument({ name: 'T', parts: [
+      { name: 'Rail', ...base, at: v(0, 0, 0), size: v(18, 3, 0.75), miters: [{ end: '+y', longPoint: '-z', angle: 45 }] },
+    ] } as never);
+    expect(rejected).toEqual([{ name: 'Rail', reason: 'angle', detail: expect.stringMatching(/^Rail has a miter at \+y, which is not an end of the part/) }]);
+  });
+  it('angle cuts leaving no wood together are rejected (bodies empty)', () => {
+    const { rejected } = designToDocument({ name: 'T', parts: [
+      { name: 'Stick', ...base, at: v(0, 0, 0), size: v(10, 1, 1), chamfers: [
+        { edge: ['+y', '+z'], legs: [1, 1] }, { edge: ['-y', '-z'], legs: [1, 1] },
+      ] },
+    ] } as never);
+    expect(rejected.map((r) => r.reason)).toEqual(['angle']);
+  });
+  it('tapers first, then miters, bevels, chamfers — one stored order whatever the model wrote', () => {
+    const p = { name: 'Leg', ...base, at: v(0, 0, 0), size: v(1.75, 28, 1.75),
+      tapers: [{ faces: ['+x'], toward: '-y', start: 20, amount: 0.25 }], chamfers: [{ edge: ['-x', '-z'], legs: [0.125, 0.125] }, { edge: ['-x', '+z'], legs: [0.125, 0.125] }] };
+    const a = designToDocument({ name: 'T', parts: [p] } as never).doc.boards[0] as Board;
+    const b = designToDocument({ name: 'T', parts: [{ ...p, chamfers: [...p.chamfers].reverse() }] } as never).doc.boards[0] as Board;
+    expect(a.angleCuts.map((c) => c.kind)).toEqual(['taper', 'chamfer', 'chamfer']);
+    expect(b.angleCuts.map(({ id: _i, ...c }) => c)).toEqual(a.angleCuts.map(({ id: _i, ...c }) => c));
+  });
+  it('exactAngles keeps a stored slope; without it the angle is rounded to 0.1°', () => {
+    const p = { name: 'Rail', ...base, at: v(0, 0, 0), size: v(18, 3, 0.75), miters: [{ end: '+x', longPoint: '-z', angle: 37.4999 }] };
+    const plain = designToDocument({ name: 'T', parts: [p] } as never, { centre: false }).doc.boards[0] as Board;
+    expect(plain.angleCuts[0]!.points[1][1]).toBe(0.75 * miterRatio(37.5));
+    const kept = designToDocument({ name: 'T', parts: [p] } as never, { centre: false, exactAngles: new Map([[37.4999, 0.77]]) }).doc.boards[0] as Board;
+    expect(kept.angleCuts[0]!.points[1][1]).toBe(0.75 * 0.77);
   });
 });

@@ -23,7 +23,7 @@ export const ANGLE_CUT_FIELDS = {
 export const ANGLE_CUT_KEYS = Object.keys(ANGLE_CUT_FIELDS) as (keyof typeof ANGLE_CUT_FIELDS)[];
 
 /** One angle cut's comparable values, in ANGLE_CUT_KEYS order, `points` flattened. */
-export function angleCutValues(c: AngleCut): (string | number)[] {
+export function angleCutValues(c: Omit<AngleCut, 'id'>): (string | number)[] {
   return ANGLE_CUT_KEYS.flatMap((k): (string | number)[] => {
     if (k === 'points') return [c.points[0][0], c.points[0][1], c.points[1][0], c.points[1][1]];
     return [c[k]];

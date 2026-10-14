@@ -13,7 +13,7 @@ import { applyJoints } from './joints/recipes';
 import { findSites } from './joints/sites';
 import { defaultChoice } from './joints/choose';
 import { GATE_REFUSAL } from './joints/unjoin';
-import { taperCut } from '../document/angleCuts';
+import { chamferCut, taperCut } from '../document/angleCuts';
 import { axisFrame, endFacing } from '../document/geometry';
 import type { AngleCut } from '../document/types';
 
@@ -28,8 +28,8 @@ describe('refine', () => {
       'Here is the current design, in the same format you return:', JSON.stringify(D), '',
       'Change it as follows: make it taller', '', KEEP_LINE, '', 'Hard limits:', ...limitLines(S),
     ].join('\n'));
-    expect(KEEP_LINE).toBe('Keep every part you are not asked to change exactly as it is: the same name, role, material, size, position and tapers. Keep assembly and placement names. Return the whole design.');
-    expect(refineMessage(D, S)).toContain('position and tapers');
+    expect(KEEP_LINE).toBe('Keep every part you are not asked to change exactly as it is: the same name, role, material, size, position, tapers, miters, bevels and chamfers. Keep assembly and placement names. Return the whole design.');
+    expect(refineMessage(D, S)).toContain('tapers, miters, bevels and chamfers');
   });
 
   it('caps at Detailed', () => {
@@ -82,21 +82,6 @@ describe('refine — joined designs', () => {
 });
 
 const TAPER = { id: 'a1', kind: 'taper' as const, face: 'width' as const, from: 'min' as const, along: 'length' as const, alongFrom: 'min' as const, points: [[0, 0.5], [20, 0]] as [[number, number], [number, number]] };
-describe('refine — angled documents (spec §6)', () => {
-  const angled: SloydDocument = { ...createDocument('T'), boards: [createBoard({ id: 'leg', name: 'Leg', angleCuts: [{ ...TAPER, kind: 'miter' as const }] })] };
-  it('a taper document passes plainForRefine', () => {
-    const tapered: SloydDocument = { ...createDocument('T'), boards: [createBoard({ id: 'leg', name: 'Leg', angleCuts: [TAPER] })] };
-    expect('plain' in plainForRefine(tapered)).toBe(true);
-  });
-  it('plainForRefine refuses with reason angled', () => {
-    const r = plainForRefine(angled);
-    expect('refused' in r && r.refused.reason).toBe('angled');
-  });
-  it('documentToDesign refuses with reason angled', () => {
-    const r = documentToDesign(angled, REFINE_MAX);
-    expect('refused' in r && r.refused.reason).toBe('angled');
-  });
-});
 
 // A joined tapered corner, built with chunk 1's machinery: the CORNER of runJoinery.test.ts, the Leg tapered on its
 // +x and +z faces toward the floor, joined with short mortise-tenons.
@@ -106,13 +91,52 @@ const legTaper = (b: Board, axis: 0 | 2, start: number): AngleCut => ({
 const withLegTaper = <D extends { boards: unknown[] }>(doc: D, start: number): D =>
   ({ ...doc, boards: (doc.boards as Board[]).map((b) => (b.name === 'Leg' ? { ...b, angleCuts: [legTaper(b, 0, start), legTaper(b, 2, start)] } : b)) });
 const cornerPart = (name: string, at: [number, number, number], size: [number, number, number]) =>
-  ({ name, role: '', tapers: [], material: 'oak', at: v(...at), size: v(...size) });
+  ({ name, role: '', miters: [], bevels: [], chamfers: [], tapers: [], material: 'oak', at: v(...at), size: v(...size) });
 const cornerFlat = withLegTaper(flatDocument(designToDocument({ name: 'Corner', assemblies: [], parts: [
   cornerPart('Leg', [0, 0, 0], [1.75, 28, 1.75]), cornerPart('Rail X', [1.75, 23.5, 0.5], [18, 3, 0.75]), cornerPart('Rail Z', [0.5, 23.5, 1.75], [0.75, 3, 18]),
 ] }).doc), 22);
 const cornerSites = findSites(cornerFlat);
 const joinedCorner: SloydDocument = migrateDocument(applyJoints(cornerFlat, cornerSites,
   cornerSites.map((s) => ({ site: s.id, joint: 'mortise-tenon' as const, tenonLength: 0.5 }))).doc);
+
+describe('refine — angled documents (AI-angles spec §6)', () => {
+  const odd: SloydDocument = { ...createDocument('T'), boards: [createBoard({ id: 'leg', name: 'Leg', angleCuts: [{ ...TAPER, kind: 'miter' as const }] })] };
+  it('a taper document passes plainForRefine', () => {
+    const tapered: SloydDocument = { ...createDocument('T'), boards: [createBoard({ id: 'leg', name: 'Leg', angleCuts: [TAPER] })] };
+    expect('plain' in plainForRefine(tapered)).toBe(true);
+  });
+  it('plainForRefine no longer refuses angled documents', () => {
+    expect('plain' in plainForRefine(odd)).toBe(true);
+  });
+  it("documentToDesign refuses a miter it can't describe, as angle-form", () => {
+    const r = documentToDesign(odd, REFINE_MAX);
+    expect('refused' in r && r.refused.reason).toBe('angle-form');
+  });
+});
+
+// A joined CHAMFERED corner (AI-angles spec §6.3): the corner above, the Leg chamfered on its -x/-z vertical edge (no
+// rail reaches it), joined with short mortise-tenons.
+const legChamfer = (b: Board): AngleCut => {
+  const p = { dim: axisFrame(b)[0]!.dim, from: endFacing(b, 0, -1) };
+  const q = { dim: axisFrame(b)[2]!.dim, from: endFacing(b, 2, -1) };
+  const order = ['length', 'width', 'thickness'];
+  const [f, g] = order.indexOf(p.dim) < order.indexOf(q.dim) ? [p, q] : [q, p];
+  return { id: 'k', ...chamferCut({ face: f.dim, from: f.from, along: g.dim, alongFrom: g.from, legFace: 0.125, legAlong: 0.125 }, b) };
+};
+describe('plainForRefine — a joined chamfered design (AI-angles spec §6.3)', () => {
+  it('reads the joints back and returns the plain parts with the chamfer intact', () => {
+    const flat0 = flatDocument(designToDocument({ name: 'Corner', assemblies: [], parts: [
+      cornerPart('Leg', [0, 0, 0], [1.75, 28, 1.75]), cornerPart('Rail X', [1.75, 23.5, 0.5], [18, 3, 0.75]), cornerPart('Rail Z', [0.5, 23.5, 1.75], [0.75, 3, 18]),
+    ] }).doc);
+    const flat = { ...flat0, boards: flat0.boards.map((b) => (b.name === 'Leg' ? { ...b, angleCuts: [legChamfer(b)] } : b)) };
+    const sites = findSites(flat);
+    const joined = migrateDocument(applyJoints(flat, sites, sites.map((s) => ({ site: s.id, joint: 'mortise-tenon' as const, tenonLength: 0.5 }))).doc);
+    expect(flatDocument(joined).boards.find((b) => b.name === 'Leg')!.cuts.length).toBeGreaterThan(0);
+    const r = plainForRefine(joined);
+    if ('refused' in r) throw new Error(r.refused.message);
+    expect(flatDocument(r.plain).boards.find((b) => b.name === 'Leg')!.angleCuts).toEqual([legChamfer(flat.boards.find((b) => b.name === 'Leg')!)]);
+  });
+});
 
 describe('plainForRefine — tapers on a joined design (spec §5.4)', () => {
   const joined = joinedCorner;
@@ -130,7 +154,7 @@ describe('plainForRefine — tapers on a joined design (spec §5.4)', () => {
   it('refuses, before any call, a joined design whose taper already runs into a joint', () => {
     const bad = withLegTaper(joined, 24);
     const r = plainForRefine(bad);
-    expect('refused' in r && r.refused.reason).toBe('taper-joint');
+    expect('refused' in r && r.refused.reason).toBe('angle-joint');
     // It IS joined (the gate read its joints): the dialog must say so, and offers no repair (repair is for 'joints').
     expect(refineDialogInfo(bad).joined).toBe(true);
     expect(refineDialogInfo(bad).repair).toBeNull();

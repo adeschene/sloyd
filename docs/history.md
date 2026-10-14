@@ -422,6 +422,23 @@ and 79.
 
 ## What each round did
 
+**What AI angles chunk 2 did (2026-10-14, fu 277)** (plan `docs/superpowers/plans/2026-10-13-sloyd-ai-angles-chunk2.md`).
+Generate and Refine read and write miters, bevels and chamfers. `angleWorld.ts` is the one crossing between the design's
+world words and stored cuts (through the Properties writers), recognising stored cuts structurally; the design schema gains
+`miters`/`bevels`/`chamfers`; one stored order (tapers, miters, bevels, chamfers); Refine refuses only a cut it cannot
+describe or the converter would reject on the re-encoded part (`'angle-form'`), and keeps untouched angles exactly through
+an exact-angle map (measured while planning: rewriting run × (depth ÷ run) is exact in 18,879 cases); the design fault
+widened to `angle-joint` (renamed from `taper-joint`); the change list names each kind (change kind `taper` → `angle`); role
+linking re-stores every kind under turns. The live Generate was first REFUSED by the API — the schema's compiled grammar
+was too large once the part (written twice, loose and in assemblies) gained three arrays; the unit suite cannot see that
+limit. With the user's approval, three tiny probes showed `$defs` fixes it (the inline expansion refused, the `$defs` form
+and even that plus two more arrays compiled; fu 322); `DESIGN_SCHEMA` now defines the part and the direction once. Then
+both paid runs passed: a Generate gave four chamfered legs linked through turns, a top chamfered on four edges and a flat
+45° frame (≈ $0.08); a Refine changed only the top's chamfers, everything else back byte for byte (≈ $0.04)
+(`docs/browser-verification-ai-angles.md`, "Chunk 2"). Plan defects ruled while executing: Refine's design needed the empty
+arrays from Task 2, not Task 4; four mutants survived until tests were added (edge order, the runRefine wiring of the
+exact-angle map, the map in linking — a Refine-kept 0.7 slope). Test count 3501 -> 3564. No schema change (SCHEMA 14).
+
 **What AI angles chunk 1 did (2026-10-13, fu 276/277's remainder, fu 307)** (spec
 `docs/superpowers/specs/2026-10-13-sloyd-ai-angles-design.md`, plan `docs/superpowers/plans/2026-10-13-sloyd-ai-angles-chunk1.md`).
 Add joinery and Repair stop refusing mitered, beveled and chamfered projects. The user's rulings: accept the angles with no

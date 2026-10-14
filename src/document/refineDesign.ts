@@ -1,11 +1,12 @@
 import type { Board, SloydDocument, StoredBoard } from './types';
 import type { GeneratedAssembly, GeneratedDesign, GeneratedPart } from './generated';
 import { orient } from './generated';
-import { angledParts, angledRefusal } from './angledRefusal';
 import { distinctParts } from './assemblyChecks';
 import { boardExtents } from './geometry';
 import { taperCutsFor, worldTapers } from './taperWorld';
 import type { TaperFaultCode } from './taperWorld';
+import { angleCutsFor, angleRatiosOf, noAngles, worldAngles } from './angleWorld';
+import type { AngleFaultCode } from './angleWorld';
 import { isShaped, resolveBoard, shapeMap } from './shapes';
 import { NAME_SEPARATOR, flatDocument, worldParts } from './tree';
 
@@ -16,7 +17,7 @@ import { NAME_SEPARATOR, flatDocument, worldParts } from './tree';
  * designs that format can express; everything else is REFUSED here, on the
  * document alone, before any model call.
  */
-export type RefusalReason = 'empty' | 'cuts' | 'turned' | 'nested' | 'too-large' | 'joints' | 'mirrored' | 'angled' | 'taper-form' | 'taper-joint';
+export type RefusalReason = 'empty' | 'cuts' | 'turned' | 'nested' | 'too-large' | 'joints' | 'mirrored' | 'taper-form' | 'angle-form' | 'angle-joint';
 export interface RefineRefusal { reason: RefusalReason; message: string }
 export interface RefineMax { distinct: number; placed: number }
 
@@ -29,23 +30,35 @@ const TAPER_REASON: Record<TaperFaultCode, string> = {
   amount: "its amount doesn't describe a taper",
 };
 
+/** Each angle-converter fault, in the person's words (AI-angles spec §6.1). */
+const ANGLE_REASON: Record<AngleFaultCode, string> = {
+  direction: 'its faces no longer describe it on the reshaped part',
+  angle: 'its angle is out of range',
+  legs: "its legs don't describe a chamfer",
+  'no-wood': 'it would leave no wood',
+};
+
 const refuse = (reason: RefusalReason, message: string) => ({ refused: { reason, message } });
 
 type V3 = [number, number, number];
 const box = (b: Board, name: string, role: string, shift: V3 = [0, 0, 0]): GeneratedPart => {
   const [x, y, z] = boardExtents(b);
-  return { name, role, material: b.material, at: { x: b.position[0] - shift[0], y: b.position[1] - shift[1], z: b.position[2] - shift[2] }, size: { x, y, z }, tapers: worldTapers(b) ?? [] };
+  return { name, role, material: b.material, at: { x: b.position[0] - shift[0], y: b.position[1] - shift[1], z: b.position[2] - shift[2] }, size: { x, y, z }, tapers: worldTapers(b) ?? [], ...(worldAngles(b) ?? noAngles()) };
 };
 
 /** The smallest local corner of a definition's parts, per axis (a position is an own field, so the stored one). */
 export const definitionCorner = (boards: readonly StoredBoard[]): V3 =>
   [0, 1, 2].map((k) => Math.min(...boards.map((b) => b.position[k]!))) as V3;
 
-/** Every number the design carries: positions, sizes and placement origins (refine spec §4, "exact values"). */
+/** Every number the design carries: positions, sizes, placement origins, taper numbers and chamfer legs (refine spec §4,
+ *  "exact values"). Angles are kept exactly by the exact-angle map instead (`angleRatiosOf`, AI-angles spec §6.2). */
 export function designValues(design: GeneratedDesign): Set<number> {
   const out = new Set<number>();
   const add = (v: { x: number; y: number; z: number }) => { out.add(v.x); out.add(v.y); out.add(v.z); };
-  const addTapers = (p: GeneratedPart) => { for (const t of p.tapers ?? []) { out.add(t.start); out.add(t.amount); } };
+  const addTapers = (p: GeneratedPart) => {
+    for (const t of p.tapers ?? []) { out.add(t.start); out.add(t.amount); }
+    for (const c of p.chamfers ?? []) { out.add(c.legs[0]); out.add(c.legs[1]); }
+  };
   for (const p of design.parts) { add(p.at); add(p.size); addTapers(p); }
   for (const a of design.assemblies ?? []) {
     for (const p of a.parts) { add(p.at); add(p.size); addTapers(p); }
@@ -63,10 +76,6 @@ export function documentToDesign(doc: SloydDocument, max: RefineMax): { design: 
   // runs first and hands over the plain parts), but documentToDesign can still be called directly.
   if (stored.some((b) => (resolveBoard(shapes, b)?.cuts.length ?? 0) > 0)) {
     return refuse('cuts', 'Refine works on prototypes without joints. Refine first, then add joinery.');
-  }
-  // `angledParts` walks every container (shapes included), so one test covers stored parts, definitions and shapes.
-  if (angledParts(doc, ['taper']).length > 0) {
-    return refuse('angled', angledRefusal(doc, 'refine') ?? "Refine doesn't handle angled parts yet.");
   }
   // A taper Refine cannot describe exactly is refused, never rewritten (spec §5.2). Flat names, as the person sees them.
   const odd = flatDocument(doc).boards.filter((b) => worldTapers(b) === null).map((b) => b.name);
@@ -90,6 +99,28 @@ export function documentToDesign(doc: SloydDocument, max: RefineMax): { design: 
     const whys = new Set(unencodable.map((u) => u.why));
     const why = whys.size === 1 ? ` (${[...whys][0]})` : '';
     return refuse('taper-form', `The tapers on ${names.slice(0, 3).join(', ')}${names.length > 3 ? '…' : ''} can't be described to Refine${why} — edit them in Properties first.`);
+  }
+  // A miter, bevel or chamfer Refine cannot describe exactly is refused, never rewritten (AI-angles spec §6.1).
+  const flatBoards = flatDocument(doc).boards;
+  const oddKind = (b: Board) => b.angleCuts.find((c) => c.kind !== 'taper' && worldAngles({ ...b, angleCuts: [c] }) === null)?.kind;
+  const oddAngles = flatBoards.flatMap((b) => { const k = oddKind(b); return k ? [{ name: b.name, kind: k }] : []; });
+  if (oddAngles.length === 1) return refuse('angle-form', `${oddAngles[0]!.name}'s ${oddAngles[0]!.kind} can't be described to Refine — edit it in Properties first.`);
+  if (oddAngles.length > 1) return refuse('angle-form', `The angle cuts on ${oddAngles.slice(0, 3).map((o) => o.name).join(', ')}${oddAngles.length > 3 ? '…' : ''} can't be described to Refine — edit them in Properties first.`);
+  // …and one the converter would reject on the part as the design re-encodes it (orient), as fu 309 does for tapers.
+  const unbuildable = flatBoards.flatMap((b) => {
+    const a = worldAngles(b);
+    if (!a || a.miters.length + a.bevels.length + a.chamfers.length === 0) return [];
+    const made = angleCutsFor({ ...b, ...orient(boardExtents(b)) }, a, angleRatiosOf([b]));
+    if (!('fault' in made)) return [];
+    const kind = (['miter', 'bevel', 'chamfer'] as const).find((k) => made.fault.includes(k)) ?? 'angle cut';
+    return [{ name: b.name, kind, why: ANGLE_REASON[made.code] }];
+  });
+  if (unbuildable.length === 1) {
+    const [u] = unbuildable;
+    return refuse('angle-form', `${u!.name}'s ${u!.kind} can't be described to Refine (${u!.why}) — edit it in Properties first.`);
+  }
+  if (unbuildable.length > 1) {
+    return refuse('angle-form', `The angle cuts on ${unbuildable.slice(0, 3).map((u) => u.name).join(', ')}${unbuildable.length > 3 ? '…' : ''} can't be described to Refine — edit them in Properties first.`);
   }
   if (doc.instances.some((i) => i.mirrored === true) || doc.definitions.some((d) => d.instances.some((i) => i.mirrored === true))) {
     return refuse('mirrored', "Refine can't describe a mirrored assembly yet — Ungroup the mirrored copy first.");

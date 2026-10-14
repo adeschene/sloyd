@@ -6,18 +6,23 @@ import { sameAngleCut } from './angleCuts';
 import { axisDimensions, boardExtents } from './geometry';
 import { nextId } from './ids';
 import { taperCutsFor, worldTapers } from './taperWorld';
+import { angleCutsFor, angleRatiosOf, worldAngles } from './angleWorld';
 
 const TURNS: readonly Rotation[] = [0, 90, 180, 270];
 
 /**
  * The part re-stored at each OTHER quarter turn that leaves the world part unchanged (turned-links spec §2.2): the same
- * world box (so the same min corner, inv 2), the grain on the same world axis, and its tapers re-stored on the same world
- * faces through taperWorld (inv 44). None for a part with rectangular cuts, a non-taper angle cut or a non-standard taper.
+ * world box (so the same min corner, inv 2), the grain on the same world axis, and its tapers, miters, bevels and chamfers
+ * re-stored on the same world faces through taperWorld and angleWorld (inv 44). None for a part with rectangular cuts, or
+ * a cut either cannot describe.
  */
 export function turnCandidates(b: Board): Board[] {
-  if (b.cuts.length > 0 || b.angleCuts.some((c) => c.kind !== 'taper')) return [];
+  if (b.cuts.length > 0) return [];
   const world = worldTapers(b);
-  if (world === null) return [];
+  const angles = worldAngles(b);
+  if (world === null || angles === null) return [];
+  // Re-stored with the part's OWN slopes (exact-angle map), so a turned candidate can equal its representative exactly.
+  const exact = angleRatiosOf([b]);
   const box = boardExtents(b);
   const grainAxis = axisDimensions(b).indexOf(b.grain);
   return TURNS.filter((r) => r !== b.rotation).flatMap((rotation): Board[] => {
@@ -25,7 +30,9 @@ export function turnCandidates(b: Board): Board[] {
     if (boardExtents(t).some((v, i) => v !== box[i]) || axisDimensions(t).indexOf(b.grain) !== grainAxis) return [];
     const made = taperCutsFor(t, world);
     if ('fault' in made) return [];
-    return [{ ...t, angleCuts: made.cuts.map((c, i) => ({ id: b.angleCuts[i]?.id ?? nextId(), ...c })) }];
+    const more = angleCutsFor(t, angles, exact);
+    if ('fault' in more) return [];
+    return [{ ...t, angleCuts: [...made.cuts, ...more.cuts].map((c, i) => ({ id: b.angleCuts[i]?.id ?? nextId(), ...c })) }];
   });
 }
 

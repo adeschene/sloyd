@@ -5,8 +5,9 @@ import { isShaped } from './shapes';
 import { createBoard, migrateDocument } from './document';
 import { flatDocument, worldParts } from './tree';
 import { worldTapers } from './taperWorld';
+import { worldAngles } from './angleWorld';
 import { boardExtents } from './geometry';
-import { taperCut } from './angleCuts';
+import { miterDegrees, taperCut } from './angleCuts';
 import { turnCandidates, alignedTo } from './roleLinks';
 import type { Board } from './types';
 
@@ -115,7 +116,7 @@ describe('linkByRole (through designToDocument)', () => {
 describe('turned links (fu 301)', () => {
   type Dir = '+x' | '-x' | '+z' | '-z';
   const tapered = (name: string, at: [number, number, number], size: [number, number, number], faces: Dir[], role = 'leg'): GeneratedPart =>
-    ({ ...part(name, role, at, size), tapers: [{ faces, toward: '-y', start: 20, amount: 0.5 }] });
+    ({ ...part(name, role, at, size), miters: [], bevels: [], chamfers: [], tapers: [{ faces, toward: '-y', start: 20, amount: 0.5 }] });
   // The prompt's corner rule: each leg tapers its two INSIDE faces.
   const inside = (size: [number, number, number] = LEG, role = 'leg') => [
     tapered('Leg FL', [0, 0, 0], size, ['+x', '+z'], role), tapered('Leg FR', [20, 0, 0], size, ['-x', '+z'], role),
@@ -200,5 +201,40 @@ describe('turned links (fu 301)', () => {
     const { doc } = designToDocument(d(legs()));
     expect(stored(doc).map((b) => b.rotation)).toEqual([0, 0, 0, 0]);
     expect(doc.shapes).toHaveLength(1);
+  });
+});
+
+describe('turned links with chamfers (AI-angles spec §7)', () => {
+  type Dir = '+x' | '-x' | '+z' | '-z';
+  const chamfered = (name: string, at: [number, number, number], edge: [Dir, Dir], role = 'leg'): GeneratedPart =>
+    ({ ...part(name, role, at, LEG), chamfers: [{ edge, legs: [0.25, 0.25] }] });
+  // Each leg chamfered on its OUTSIDE vertical corner: four different stored parts until turned.
+  const outside = (role = 'leg') => [
+    chamfered('Leg FL', [0, 0, 0], ['-x', '-z'], role), chamfered('Leg FR', [20, 0, 0], ['+x', '-z'], role),
+    chamfered('Leg BL', [0, 0, 20], ['-x', '+z'], role), chamfered('Leg BR', [20, 0, 20], ['+x', '+z'], role),
+  ];
+  it('four legs chamfered on their outside corners become ONE component, each world leg unchanged', () => {
+    const unlinked = designToDocument(d(outside(''))).doc;
+    const { doc } = designToDocument(d(outside()));
+    expect(doc.shapes).toHaveLength(1);
+    const w = (x: typeof doc) => flatDocument(x).boards.map((b) => ({ name: b.name, box: boardExtents(b), at: b.position, a: worldAngles(b) })).sort((p, q) => p.name.localeCompare(q.name));
+    expect(w(doc)).toEqual(w(unlinked));
+  });
+  it("legs beveled at a Refine-kept slope link through turns (the exact-angle map re-stores the slope)", () => {
+    // 0.7 is no 0.1° step: only the exact-angle map (as Refine passes it) stores it; turned candidates must keep it too.
+    const deg = miterDegrees(0.7);
+    type Dir = '+x' | '-x' | '+z' | '-z';
+    const beveled = (name: string, at: [number, number, number], face: Dir, longPoint: Dir): GeneratedPart =>
+      ({ ...part(name, 'leg', at, LEG), bevels: [{ face, longPoint, angle: deg }] });
+    const { doc } = designToDocument(d([
+      // Each leg the front-left one turned about Y (no mirror pair): outside face, long point turned with it.
+      beveled('Leg FL', [0, 0, 0], '-x', '-z'), beveled('Leg FR', [20, 0, 0], '-z', '+x'),
+      beveled('Leg BL', [0, 0, 20], '+z', '-x'), beveled('Leg BR', [20, 0, 20], '+x', '+z'),
+    ]), { exactAngles: new Map([[deg, 0.7]]) });
+    expect(doc.shapes).toHaveLength(1);
+  });
+  it('a leg with a rectangular cut is not turned (fu 314)', () => {
+    const b = flatDocument(designToDocument(d([chamfered('Leg', [0, 0, 0], ['-x', '-z'])])).doc).boards[0]!;
+    expect(turnCandidates({ ...b, cuts: [{ id: 'k', face: 'width', from: 'min', across: 'length', offset: 2, width: 1, depth: 0.25, stopMin: 0, stopMax: 0 }] })).toEqual([]);
   });
 });
