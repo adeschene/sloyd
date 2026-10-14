@@ -70,10 +70,9 @@ export function angleCutsFor(b: Board, a: WorldAngles, exact?: ReadonlyMap<numbe
     if (b[lp.dim] * ratio > b.length) return { fault: `has a miter at its ${m.end} end that cuts deeper than the part is long`, code: 'no-wood' };
     cuts.push(miterCut({ end: e.from, across: lp.dim as 'width' | 'thickness', longSide: lp.from, ratio }, b));
   }
-  // Two miters: their deepest points together must leave wood along the length (conservative: either long side).
-  if (cuts.length === 2 && cuts[0]!.points[1][1] + cuts[1]!.points[1][1] >= b.length) {
-    return { fault: 'has miters at both ends that leave no wood between them', code: 'no-wood' };
-  }
+  // No pair check (final review M1): a miter removes nothing along its long-point side, so at the corner where both long
+  // points lie two miters, each shallower than the length, remove nothing — they always leave wood. The converter's
+  // bodies check (`boardBodies`, generated.ts) still refuses a part its cuts empty together.
   for (const v of a.bevels) {
     const f = dirToLocal(b, v.face);
     if (f.dim === 'length') return { fault: `has a bevel on ${v.face}, which is an end of the part; a bevel is cut on a side`, code: 'direction' };

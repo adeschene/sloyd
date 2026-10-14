@@ -108,7 +108,6 @@ describe('angleCutsFor — faults (Review Focus 4)', () => {
     ['an angle of 90', { bevels: [{ face: T('+'), longPoint: W('-'), angle: 89.96 }] }, 'angle'],
     ['a zero leg', { chamfers: [{ edge: [W('+'), T('+')], legs: [0, 0.125] }] as WorldAngles['chamfers'] }, 'legs'],
     ['a miter deeper than the length', { miters: [{ end: L('+'), longPoint: W('-'), angle: 89 }] }, 'no-wood'],
-    ['two miters leaving no wood', { miters: [{ end: L('+'), longPoint: W('-'), angle: 80 }, { end: L('-'), longPoint: W('-'), angle: 80 }] }, 'no-wood'],
     ['a bevel deeper than its face', { bevels: [{ face: T('+'), longPoint: W('-'), angle: 60 }] }, 'no-wood'],
     ['a chamfer leg longer than the part', { chamfers: [{ edge: [W('+'), T('+')], legs: [0.125, 2] }] as WorldAngles['chamfers'] }, 'no-wood'],
   ])('%s → %s', (_n, a, code) => {
@@ -132,5 +131,21 @@ describe('worldAngles after a resize (final review I1)', () => {
     const panel = createBoard({ name: 'Panel', length: 20, width: 10, thickness: 0.75 });
     const v = { id: 'v', ...bevelCut({ face: 'width', from: 'max', longSide: 'min', ratio: miterRatio(15) }, panel) };
     expect(worldAngles({ ...panel, thickness: 1, angleCuts: [v] })!.bevels).toHaveLength(1);
+  });
+});
+
+describe('two miters that leave wood (final review M1)', () => {
+  const part = (length: number, width: number) => createBoard({ name: 'P', length, width, thickness: 0.75 });
+  const miters = (b: Board, longs: ['-' | '+', '-' | '+']) => ({ ...noAngles(), miters: [
+    { end: dir(b, 'length', '-'), longPoint: dir(b, 'width', longs[0]), angle: 45 },
+    { end: dir(b, 'length', '+'), longPoint: dir(b, 'width', longs[1]), angle: 45 },
+  ] });
+  it('a parallelogram (long points on opposite sides) leaves wood and is accepted', () => {
+    const b = part(4, 3);
+    expect('cuts' in angleCutsFor(b, miters(b, ['-', '+']))).toBe(true);
+  });
+  it("Properties' 'Miter both ends' on a short part (long points on one side) leaves wood and is accepted", () => {
+    const b = part(5, 3);
+    expect('cuts' in angleCutsFor(b, miters(b, ['-', '-']))).toBe(true);
   });
 });
