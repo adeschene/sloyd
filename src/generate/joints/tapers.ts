@@ -4,6 +4,7 @@ import { taperFields, throughOf, touchedRegion } from '../../document/angleCuts'
 import { axisDimensions, endFacing, spanFromWorldOffset } from '../../document/geometry';
 import { TOUCH, jointViolations, worldBox } from '../../document/designCheck';
 import type { Violation } from '../../document/designCheck';
+import { holedRefusal } from '../../document/holedRefusal';
 import { boxOf } from './pocket';
 import { tenonSection } from './recipes';
 import { findSites } from './sites';
@@ -121,9 +122,11 @@ export function angleConflicts(flat: FlatDocument, sites: readonly Site[]): Angl
 /**
  * THE joinery refusal (AI-tapers spec §4.2; AI-angles spec §3): every taper or other angle cut running into a joint, one
  * sentence per part, else null. `runJoinery`, the dialog and a joined Refine all call it, so they refuse in the same
- * words. Decided before any call or mutation. `doc` is kept for the callers; only `flat` is read.
+ * words. Holes first (holes spec §6). Decided before any call or mutation. `doc` is kept for the callers; only `flat` is read.
  */
 export function joineryRefusal(doc: SloydDocument, flat: FlatDocument = flatDocument(doc), sites: readonly Site[] = findSites(flat)): string | null {
+  const holed = holedRefusal(flat, 'joinery');
+  if (holed) return holed;
   return jointRefusal(flat, taperConflicts(flat, sites), angleConflicts(flat, sites));
 }
 
