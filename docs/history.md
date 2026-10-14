@@ -445,6 +445,68 @@ and 79.
 
 ## What each round did
 
+**What holes chunk 2 did (2026-10-14, fu 327)** (spec `docs/superpowers/specs/2026-10-14-sloyd-holes-design.md` §3.4, §4.3,
+§7, plan `docs/superpowers/plans/2026-10-14-sloyd-holes-chunk2.md`, branch `holes-2` from `fc4875e` — master `0a1060c` plus
+the §4.3 amendment). **Merged to master, NOT deployed** — deployment waits for the user; no schema change, so a rollback to
+chunk 1 (`2ded5cc`, `index-CTpNZw9F.js`) is free. Drawings and the last preset; a part with no holes draws byte-for-byte as
+before (the final review compared hole-free `drawView`/`buildDiagrams` against master on 112 cases: identical, the SVG
+differing only by the 20 `M` commands chaining drops). Subagent-driven, five tasks, each reviewed:
+(1) the Plans sheet — `holeDrawing.ts`' `holeDrawingSegments`: every rim (entry, and a through hole's exit or a blind
+hole's bottom) as a `DRAWING_HOLE_SEGMENTS` = 96-gon (the viewport keeps 48), then the wall's two silhouette generators
+(none looking down the axis), all built from `toWorld` of board-local points (inv 44); `drawView` runs them through the
+same hidden-line pass as the board edges, against the hole-free occluders (inv 47: you cannot see through a hole; a
+through-bore's far rim seen down its axis is hidden, pinned). Ruling R1 replaced the plan's self-comparing "no holes draws
+the same" test (it compared the code with itself) with `holeDrawingSegments` returning `[]`, the existing drawing tests'
+unchanged expectations guarding byte-identity. **The review caught hidden rims rendering SOLID**: 96 separate `M…L`
+subpaths each restart the 4-3 dash, and the chords are far shorter than a dash; edge-on rims also zigzagged twice along one
+line in the elevations. R2: (a) a rim whose plane is edge-on to the view (|A·T| ≤ 1e-9·|A|) is ONE segment across its
+diameter at its depth — its exact projection; (b) PlanFigure's `pathOf` chains a segment into the previous subpath when its
+start meets the previous end (1e-9), so a hidden circle dashes continuously. Folded minors: the exploded test asserts hole
+lines exist; the front filter checks both ends; an absolute turned case (upright, turn 90, FRONT) with a hand-derived
+silhouette x. Timing: `drawView` with 42 holes, 20–28 ms per view.
+(2) the part-diagram data — per view `holes` (circles down the axis: the entry face's view opened, the exit view only if it
+already exists), `holeSides` ({axis, bottomAt}: the dashed depth box across the axis, only in views that exist for another
+reason) and `holeNotes` (each row's bench line, `holeLine`, inv 19). **The review caught a row-order bug**: a through
+hole's far-side circle depended on row order (the exit view was looked up before later rows opened their entry views). R3:
+three passes — open every row's entry view first, then circles and sides, then notes in STORED row order. Folded minors:
+`dir = +1` (entry from min → `bottomAt` `hmax`/`vmax`) and axis `'h'` (an end-grain hole seen in a width/thickness view)
+cases, every side index checked, the two-row order test. Two re-review minors (a duplicate row id repeats a note; a
+zero-count row opens a view) are unreachable: `takeId` makes ids unique and validation keeps count ≥ 1.
+(3) `PartDiagram` draws them: ellipses (the schematic diagram's unequal scales), centre crosses, dashed sides
+(`stroke-dasharray: 3 2`), and the notes under the figure beside the angle notes. Review clean.
+(4) the **Hinge cup** preset (35 mm × 1/2" deep, 3" from the min end, 22.5 mm in, on the broad face's max side), withheld
+where it would fault (thin stock: too-deep). Review clean.
+(5) the live check, the final review and its fix wave, these records.
+**The §4.3 amendment** (planning chunk 2, approved by the user 2026-10-14): a row's diagram label is its bench line as an
+HTML note under the figure, as angle cuts' notes are — not the measured SVG label `21 × Ø1/4" × 3/8"` the spec first named.
+Part diagrams have unequal scales (circles draw as ellipses) and `Ø` is non-ASCII (inv 19 would require a browser
+measurement); circles, centre marks and dashed outlines carry no text. Inv 19 now says so.
+**The live check** (dev server :5181, software GL, `docs/browser-verification-holes.md` "Chunk 2", the profile's fixture
+project deleted and its active project restored after): a cabinet side standing on edge (a dado, a 12-pin 32 mm row on its
+far face, a 3/8 through-bore) and a door lying flat with a hinge cup. The exploded view drew the cup and bore as ellipses
+and omitted the far-face pins (no hidden lines there, as specified); the plan view drew the cup as a circle and the pins as
+short dashed depth marks; the Front elevation (down the pins) drew the bore visible and the pins hidden, the hidden path
+34 subpaths over 2421 segments (chained, R2); the Side elevation drew 72 single-segment edge-on rims plus silhouettes;
+every plan path `fill: none`, hidden lines `4px, 3px`; the cut-list diagrams drew 13 ellipses with centre marks on the side
+and one on the door, each row's bench line as a note; 0 console errors.
+**The final review** (a fresh reviewer, no Critical; "With fixes") found the ellipse scale untested (rx and ry swapped
+survived), the bottom line's position untested and the records unwritten. R4, one wave: rx = r·sx / ry = r·sy pinned on an
+sx ≠ sy part; the bottom line's coordinates pinned (one `v`, one `h` case); hole notes keyed by row (`{row, text}`, the
+old `key={line}` could collide on identical lines); a FRONT `drawView` through-hole test; `pathOf` chains only within ONE
+part (`Seg2.part`: coincident points of different parts no longer join); the Hinge cup label written with ½".
+**R5 (provisional, for the user):** the Hinge cup runs along the LONGER of the face's two dimensions (the shelf-pin
+convention) — spec §7's "length min end" assumed length is the longer, as on any door; pinned by a test with width > length.
+If the user rules otherwise, a part wider than long would take its cup 3" from the width end instead (fu 343).
+**R6:** in FRONT the through-bore's edge-on rims lie in the top and bottom face planes set back from the front face; the
+view ray grazes the stock, so they are correctly HIDDEN, drawn beneath the coincident visible edges — the fix brief's
+"visible" was wrong and the implementer pinned the actual behaviour (no visible difference). Re-review: all seven items
+addressed, nothing new.
+**Not confirmed here:** a real print-to-PDF (fu 254: no `pdf()` on this host) — the look of the dashes on paper, the
+chained dash phase around box corners and at corner joins (chaining continues the phase through a part's own corners), are
+for the user's eye (fu 345). An attempt to re-render the sheet's SVG standalone at 4× lost its stylesheet and showed filled
+dots; it was discarded as evidence. Deferred: the exploded view computes ~8k hidden hole segments it discards (~25 ms per
+sheet; fu 344, with 263's slider lag); record-only minors as fu 346. Test count 3882 → 3932 (135 files). NEXT: none chosen.
+
 **What holes chunk 1 did (2026-10-14, feature-gaps §1)** (spec `docs/superpowers/specs/2026-10-14-sloyd-holes-design.md`,
 plan `docs/superpowers/plans/2026-10-14-sloyd-holes-chunk1.md`, branch `holes` from `fbe5ed9`). **Merged to master as `2ded5cc` and
 deployed the same day** (`index-CTpNZw9F.js`); **schema 16** (a rollback below 16 refuses every project saved since: export

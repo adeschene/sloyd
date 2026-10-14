@@ -1,4 +1,6 @@
-import type { Board, CutFrom, Dimension, Span } from './types';
+import type { Board, CutFrom, Dimension, HoleRow, Span } from './types';
+import { holeInstances } from './holes';
+import { holeLine } from './holeText';
 import { DIMENSION_ORDER } from './geometry';
 import { pocketCells, clippedRegion, cutShape, cutRemovesNothing, type CutKind } from './cuts';
 import { buildDepthField, type FaceCell } from './depthField';
@@ -44,7 +46,24 @@ export interface DiagramCut {
   lengthLabel?: string;
 }
 
+/** A hole seen down its axis (spec §4.3): a circle, board inches, in the view's (h, v). */
+export interface DiagramHole { row: string; index: number; h: number; v: number; r: number }
+/** A hole seen across its axis: the box of its depth, drawn dashed (the two walls and, when blind, the bottom). */
+export interface DiagramHoleSide {
+  row: string; index: number; h: Span; v: Span;
+  /** Which in-plane axis the hole's depth runs along: its two walls are lines along it. */
+  axis: 'h' | 'v';
+  /** Where the bottom line is drawn (blind holes only); null for a through hole. */
+  bottomAt: 'hmin' | 'hmax' | 'vmin' | 'vmax' | null;
+}
+
 export interface DiagramView {
+  /** Holes seen down their axis in this view (circles). */
+  holes: DiagramHole[];
+  /** Holes seen across their axis in this view (dashed depth boxes). */
+  holeSides: DiagramHoleSide[];
+  /** One bench line per hole row drawn in this view (inv 19: built in holeText.ts). */
+  holeNotes: { row: string; text: string }[];
   /** `${face}|${from}`. Stable across renders; the React key. */
   key: string;
   /** e.g. `Thickness face — min side` */
@@ -130,6 +149,9 @@ export function buildDiagrams(board: Board, precision: number): DiagramView[] {
         vLabel: f(board[vertical]),
         vUp: (face === 'thickness' && from === 'min') || (face === 'width' && from === 'max') || (face === 'length' && from === 'min'),
         cuts: [],
+        holes: [],
+        holeSides: [],
+        holeNotes: [],
         angles: [],
         cells: [],
         crossings: [],
@@ -209,6 +231,48 @@ export function buildDiagrams(board: Board, precision: number): DiagramView[] {
     const label = angleLine(board, c, precision);
     for (const view of targets) view.angles.push({ id: c.id, poly: clean.map(([x, y]) => [x, y] as [number, number]), label });
   }
+
+  // Holes (holes spec §4.3, amended). Down the axis: a circle in the ENTRY face's view (opened, like a cut's), and on the
+  // exit side of a through hole only when that view already exists. Across the axis: the depth box, only in views that
+  // exist for another reason (a hole opens no view of its own across its axis). The note is the row's bench line (inv 19).
+  // Three passes so the result never depends on row order: (1) every row opens its entry view; (2) circles, then sides,
+  // over the views that now exist; (3) notes, per view, in STORED row order.
+  const used = new Map<DiagramView, Set<string>>();
+  const mark = (view: DiagramView, r: HoleRow) => {
+    if (!used.has(view)) used.set(view, new Set());
+    used.get(view)!.add(r.id);
+  };
+  for (const r of board.holes) ensure(r.face, r.from);
+  for (const r of board.holes) for (const h of holeInstances(board, r)) {
+    const entry = views.get(`${r.face}|${r.from}`);
+    const exit = h.through ? views.get(`${r.face}|${r.from === 'min' ? 'max' : 'min'}`) : undefined;
+    for (const view of [entry, exit]) {
+      if (!view) continue;
+      const hi = DIMENSION_ORDER.indexOf(view.horizontal);
+      const vi = DIMENSION_ORDER.indexOf(view.vertical);
+      view.holes.push({ row: r.id, index: h.index, h: h.centre[hi]!, v: h.centre[vi]!, r: h.radius });
+      mark(view, r);
+    }
+  }
+  for (const r of board.holes) for (const h of holeInstances(board, r)) {
+    for (const view of views.values()) {
+      if (view.face === r.face) continue;
+      const a = DIMENSION_ORDER.indexOf(r.face);
+      const s0 = h.centre[a]!;
+      const s1 = s0 + h.dir * h.depth;
+      const axial: Span = [Math.min(s0, s1), Math.max(s0, s1)];
+      const spanOf = (d: Dimension): Span => {
+        if (d === r.face) return axial;
+        const i = DIMENSION_ORDER.indexOf(d);
+        return [h.centre[i]! - h.radius, h.centre[i]! + h.radius];
+      };
+      const axisIsH = view.horizontal === r.face;
+      const bottomAt = h.through ? null : axisIsH ? (h.dir > 0 ? 'hmax' : 'hmin') : (h.dir > 0 ? 'vmax' : 'vmin');
+      view.holeSides.push({ row: r.id, index: h.index, h: spanOf(view.horizontal), v: spanOf(view.vertical), axis: axisIsH ? 'h' : 'v', bottomAt });
+      mark(view, r);
+    }
+  }
+  for (const [view, ids] of used) for (const r of board.holes) if (ids.has(r.id)) view.holeNotes.push({ row: r.id, text: holeLine(board, r, precision) });
 
   // A cut-free board still gets a drawing, for the "all parts" setting: broad
   // face on, length running horizontally — the view a woodworker draws by hand.

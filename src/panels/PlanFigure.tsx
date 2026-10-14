@@ -21,11 +21,27 @@ type ToSvg = (p: P2) => P2;
 const mapper = (d: Drawing, at: Placement, scale: number): ToSvg =>
   (p) => [at.x + (p[0] - d.bounds.min[0]) * scale, at.y + (d.bounds.max[1] - p[1]) * scale];
 
-const pathOf = (segs: Seg2[], map: ToSvg) => segs.map((s) => {
-  const [ax, ay] = map(s.a);
-  const [bx, by] = map(s.b);
-  return `M${ax.toFixed(2)} ${ay.toFixed(2)}L${bx.toFixed(2)} ${by.toFixed(2)}`;
-}).join('');
+/** Inches, in drawing coordinates: a segment starting where the previous one ended continues its subpath. */
+const CHAIN_EPS = 1e-9;
+
+/**
+ * One SVG path for `segs`. Consecutive segments of ONE part that meet (the next starts where the previous ended, within CHAIN_EPS
+ * before mapping) are ONE subpath, `M…L…L…`: SVG restarts the dash pattern at every `M`, so a hole's 96-chord rim drawn
+ * as 96 subpaths would read solid on the sheet (ruling R2). Joining moves no line; it only carries the dash phase on.
+ */
+export const pathOf = (segs: Seg2[], map: ToSvg) => {
+  let out = '';
+  let prev: Seg2 | null = null;
+  for (const s of segs) {
+    const [ax, ay] = map(s.a);
+    const [bx, by] = map(s.b);
+    const joined = prev !== null && prev.part === s.part && Math.abs(s.a[0] - prev.b[0]) <= CHAIN_EPS && Math.abs(s.a[1] - prev.b[1]) <= CHAIN_EPS;
+    if (!joined) out += `M${ax.toFixed(2)} ${ay.toFixed(2)}`;
+    out += `L${bx.toFixed(2)} ${by.toFixed(2)}`;
+    prev = s;
+  }
+  return out;
+};
 
 /** Hidden beneath visible (spec §2.4), so a hidden line coinciding with a visible one is covered. */
 function Lines({ d, map, hidden }: { d: Drawing; map: ToSvg; hidden: boolean }) {

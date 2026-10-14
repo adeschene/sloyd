@@ -27,6 +27,8 @@ export const TICK = 4;
 const COL_GAP = 6;
 /** Clearance between the last leader column's tick marks and the outline. */
 export const LEFT_PAD = 12;
+/** Half-length, in px, of a hole's centre cross. */
+const HOLE_MARK = 3;
 /**
  * One leader column's width, DERIVED rather than hard-coded.
  *
@@ -364,6 +366,34 @@ export function PartDiagram({ view }: { view: DiagramView }) {
           />
         ))}
 
+        {view.holes.map((c) => {
+          const x = left + fit.offsetX + c.h * fit.sx;
+          const y = top + (view.vUp ? view.v - c.v : c.v) * fit.sy;
+          const k = HOLE_MARK;
+          return (
+            <g key={`${c.row}:${c.index}`}>
+              <ellipse className="cutlist-diagram-hole" cx={x} cy={y} rx={c.r * fit.sx} ry={c.r * fit.sy} />
+              <path className="cutlist-diagram-hole-centre" d={`M${x - k} ${y}H${x + k}M${x} ${y - k}V${y + k}`} />
+            </g>
+          );
+        })}
+
+        {view.holeSides.flatMap((s) => {
+          const X = (h: number) => left + fit.offsetX + h * fit.sx;
+          const Y = (v: number) => top + (view.vUp ? view.v - v : v) * fit.sy;
+          // The two walls run along the hole's axis; the bottom (blind only) closes its far end.
+          const lines: [number, number, number, number][] = s.axis === 'h'
+            ? [[X(s.h[0]), Y(s.v[0]), X(s.h[1]), Y(s.v[0])], [X(s.h[0]), Y(s.v[1]), X(s.h[1]), Y(s.v[1])]]
+            : [[X(s.h[0]), Y(s.v[0]), X(s.h[0]), Y(s.v[1])], [X(s.h[1]), Y(s.v[0]), X(s.h[1]), Y(s.v[1])]];
+          if (s.bottomAt === 'hmin') lines.push([X(s.h[0]), Y(s.v[0]), X(s.h[0]), Y(s.v[1])]);
+          if (s.bottomAt === 'hmax') lines.push([X(s.h[1]), Y(s.v[0]), X(s.h[1]), Y(s.v[1])]);
+          if (s.bottomAt === 'vmin') lines.push([X(s.h[0]), Y(s.v[0]), X(s.h[1]), Y(s.v[0])]);
+          if (s.bottomAt === 'vmax') lines.push([X(s.h[0]), Y(s.v[1]), X(s.h[1]), Y(s.v[1])]);
+          return lines.map(([x1, y1, x2, y2], i) => (
+            <line key={`${s.row}:${s.index}:${i}`} className="cutlist-diagram-hole-side" x1={x1} y1={y1} x2={x2} y2={y2} />
+          ));
+        })}
+
         {rowLeaders.map((l, i) => {
           const lo = left + fit.offsetX;
           const hi = lo + fit.drawnH;
@@ -441,6 +471,9 @@ export function PartDiagram({ view }: { view: DiagramView }) {
       ))}
       {view.angles.map((a) => (
         <p className="cutlist-diagram-angle-note" key={a.id}>{a.label}</p>
+      ))}
+      {view.holeNotes.map((n) => (
+        <p className="cutlist-diagram-hole-note" key={n.row}>{n.text}</p>
       ))}
     </figure>
   );

@@ -1,6 +1,6 @@
 # Sloyd — holes: bores and shelf-pin rows
 
-**Date:** 2026-10-14 · **Status:** approved by the user 2026-10-14; the amendments made while planning chunk 1 (§3.2, §3.3, §3.5, §4.1, §7 — marked *Amended*) also approved, and §4.1's faulted-row line ruled by the user; **chunk 1 implemented** on branch `holes` (merged 2026-10-14 as `2ded5cc`, deployed 2026-10-14 as `index-CTpNZw9F.js`)
+**Date:** 2026-10-14 · **Status:** approved by the user 2026-10-14; the amendments made while planning chunk 1 (§3.2, §3.3, §3.5, §4.1, §7 — marked *Amended*) also approved, and §4.1's faulted-row line ruled by the user; **chunk 1 implemented** on branch `holes` (merged 2026-10-14 as `2ded5cc`, deployed 2026-10-14 as `index-CTpNZw9F.js`); **chunk 2 implemented** on branch `holes-2` (merged 2026-10-14, not yet deployed)
 **Builds on:** angle cuts (`2026-10-12-sloyd-angle-cuts-design.md`, invariant 48) — bodies, `partGeometry`, the field-by-field
 sites; cuts (`cuts.ts`, invariants 16, 40); the turn table (invariant 44); the tree and mirrored instances (invariants 45,
 46); the cut list (invariant 18); the Plans sheet's hidden-line drawings (invariant 47). Every rule there still holds unless
@@ -242,6 +242,11 @@ an order-independent multiset (like `cutSignature`). `HOLE_FIELDS` is checked ag
 In the face view looking down the drill axis, each hole draws as a circle with a centre mark; a row is labelled once
 (`21 × Ø1/4" × 3/8"`). In views across the axis a hole draws its dashed depth lines. Strings are built in `diagram.ts`
 from `holeText.ts` (invariant 19), measured as today.
+
+*Amended (planning chunk 2, approved by the user 2026-10-14):* a row's label is its **bench line as an HTML note under the
+figure** (`holeLine`), as angle cuts' notes are — not a measured SVG label. Part diagrams are schematic with unequal
+scales (circles draw as ellipses) and `Ø` is non-ASCII (invariant 19 would require a browser measurement). Circles,
+centre marks and dashed outlines carry no text.
 
 ## 5. Schema, mirroring, links
 

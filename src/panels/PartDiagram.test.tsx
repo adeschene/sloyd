@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { buildDiagrams, createBoard } from '../document/document';
 import type { Cut } from '../document/document';
 import { PartDiagram, LEFT_PAD, TICK } from './PartDiagram';
@@ -875,5 +875,131 @@ describe('PartDiagram angle cuts', () => {
     const ys = pts.map((p) => p[1]);
     expect(tip[1]).toBe(Math.max(...ys));
     expect(Math.min(...ys)).toBeLessThan(tip[1]);
+  });
+});
+
+describe('PartDiagram holes (holes spec §4.3, amended)', () => {
+  const pins = { id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 3, pitch: 1.25, acrossFrom: 'min' as const, inset: 1.5 };
+  const holedView = (over: Record<string, unknown> = {}) =>
+    buildDiagrams(createBoard({ length: 30, width: 11.25, thickness: 0.75, holes: [pins], ...over }), 16)[0]!;
+
+  it('draws one ellipse and one centre mark per hole, scaled like the outline', () => {
+    const { container } = render(<PartDiagram view={holedView()} />);
+    const holes = container.querySelectorAll('ellipse.cutlist-diagram-hole');
+    expect(holes).toHaveLength(3);
+    expect(container.querySelectorAll('.cutlist-diagram-hole-centre')).toHaveLength(3);
+    const rx = Number(holes[0]!.getAttribute('rx'));
+    const ry = Number(holes[0]!.getAttribute('ry'));
+    expect(rx).toBeGreaterThan(0);
+    expect(ry).toBeGreaterThan(0);
+  });
+  it('prints each row\'s bench line once, as a note under the figure (HTML, not a measured label)', () => {
+    render(<PartDiagram view={holedView()} />);
+    const notes = screen.getAllByText(/^Row of 3 holes/);
+    expect(notes).toHaveLength(1);
+    expect(notes[0]!.tagName).toBe('P');
+  });
+  it('draws a hole seen across its axis as a dashed outline: two walls and a bottom when blind', () => {
+    const rabbet = { id: 'c1', face: 'width' as const, from: 'min' as const, across: 'length' as const, offset: 0, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const views = buildDiagrams(createBoard({ length: 30, width: 11.25, thickness: 0.75, holes: [pins], cuts: [rabbet] }), 16);
+    const w = views.find((v) => v.key === 'width|min')!;
+    const { container } = render(<PartDiagram view={w} />);
+    expect(container.querySelectorAll('line.cutlist-diagram-hole-side')).toHaveLength(9);
+  });
+  it('a part without holes renders exactly as before (no hole elements, no hole notes)', () => {
+    const { container } = render(<PartDiagram view={view(dado())} />);
+    expect(container.querySelectorAll('.cutlist-diagram-hole, .cutlist-diagram-hole-side, .cutlist-diagram-hole-note')).toHaveLength(0);
+  });
+  it('a vUp view flips v: a hole on the thickness MIN side draws at top + (v - c.v)*sy', () => {
+    const minHole = { ...pins, id: 'h2', from: 'min' as const, count: 1 };
+    const v = holedView({ holes: [minHole] });
+    expect(v.vUp).toBe(true);
+    const flat = { ...v, vUp: false };
+    const up = render(<PartDiagram view={v} />).container.querySelector('ellipse.cutlist-diagram-hole')!;
+    const down = render(<PartDiagram view={flat} />).container.querySelector('ellipse.cutlist-diagram-hole')!;
+    const c = v.holes[0]!;
+    const sy = Number(up.getAttribute('ry')) / c.r;
+    // Same figure, same scales: the two cy differ by exactly (v - 2*c.v)*sy.
+    expect(Number(up.getAttribute('cy')) - Number(down.getAttribute('cy'))).toBeCloseTo((v.v - 2 * c.v) * sy, 6);
+  });
+  it('a vUp view flips v for the depth outlines too', () => {
+    const rabbet = { id: 'c1', face: 'width' as const, from: 'max' as const, across: 'length' as const, offset: 0, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const w = buildDiagrams(createBoard({ length: 30, width: 11.25, thickness: 0.75, holes: [pins], cuts: [rabbet] }), 16)
+      .find((v) => v.key === 'width|max')!;
+    expect(w.vUp).toBe(true);
+    expect(w.holeSides.length).toBeGreaterThan(0);
+    const lines = [...render(<PartDiagram view={w} />).container.querySelectorAll('line.cutlist-diagram-hole-side')];
+    // Walls come first as (low v, high v); flipped, the low-v wall sits lower on the page (larger y).
+    const s0 = w.holeSides[0]!;
+    expect(s0.v[0]).toBeLessThan(s0.v[1]);
+    const lowFirst = s0.axis === 'h' ? Number(lines[0]!.getAttribute('y1')) > Number(lines[1]!.getAttribute('y1'))
+      : Number(lines[0]!.getAttribute('y1')) > Number(lines[0]!.getAttribute('y2'));
+    expect(lowFirst).toBe(true);
+  });
+  /** The figure's scales, read back off the rendered outline (not from the code under test). */
+  const scales = (container: HTMLElement, w: { h: number; v: number; vUp: boolean }) => {
+    const o = container.querySelector('.cutlist-diagram-outline')!;
+    const [ox, oy, ow, oh] = ['x', 'y', 'width', 'height'].map((a) => Number(o.getAttribute(a)));
+    const sx = ow! / w.h;
+    const sy = oh! / w.v;
+    return { sx, sy, X: (h: number) => ox! + h * sx, Y: (v: number) => oy! + (w.vUp ? w.v - v : v) * sy };
+  };
+
+  it('each hole ellipse is r*sx by r*sy, the scales read off the outline (sx differs from sy)', () => {
+    const w = holedView({ length: 96, width: 3.5, holes: [{ ...pins, inset: 1.75 }] }); // the sliver clamp: sx != sy
+    const { container } = render(<PartDiagram view={w} />);
+    const { sx, sy } = scales(container, w);
+    expect(Math.abs(sx - sy)).toBeGreaterThan(1e-3);
+    const ells = [...container.querySelectorAll('ellipse.cutlist-diagram-hole')];
+    expect(ells).toHaveLength(3);
+    ells.forEach((e, i) => {
+      expect(Number(e.getAttribute('rx'))).toBeCloseTo(w.holes[i]!.r * sx, 6);
+      expect(Number(e.getAttribute('ry'))).toBeCloseTo(w.holes[i]!.r * sy, 6);
+    });
+  });
+
+  it('a blind hole\'s bottom line lies at the far end of its depth span (axis v), not at the mouth', () => {
+    const rabbet = (from: 'min' | 'max') => ({ id: 'c1', face: 'width' as const, from, across: 'length' as const, offset: 0, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 });
+    for (const [from, key, at] of [['max', 'width|min', 'vmin'], ['min', 'width|min', 'vmax']] as const) {
+      const hole = { ...pins, from, count: 1 };
+      const w = buildDiagrams(createBoard({ length: 30, width: 11.25, thickness: 0.75, holes: [hole], cuts: [rabbet('min')] }), 16).find((v) => v.key === key)!;
+      const s = w.holeSides[0]!;
+      expect(s.axis).toBe('v');
+      expect(s.bottomAt).toBe(at);
+      const { container } = render(<PartDiagram view={w} />);
+      const { X, Y } = scales(container, w);
+      const lines = container.querySelectorAll('line.cutlist-diagram-hole-side');
+      expect(lines).toHaveLength(3);
+      const b = lines[2]!;
+      const yFar = Y(at === 'vmax' ? s.v[1] : s.v[0]);
+      expect(Number(b.getAttribute('y1'))).toBeCloseTo(yFar, 6);
+      expect(Number(b.getAttribute('y2'))).toBeCloseTo(yFar, 6);
+      expect(Number(b.getAttribute('x1'))).toBeCloseTo(X(s.h[0]), 6);
+      expect(Number(b.getAttribute('x2'))).toBeCloseTo(X(s.h[1]), 6);
+      // The mouth is the OTHER end of the span.
+      expect(Math.abs(Y(at === 'vmax' ? s.v[0] : s.v[1]) - yFar)).toBeGreaterThan(1e-3);
+      cleanup();
+    }
+  });
+
+  it('an end-grain hole seen across its axis: the bottom line lies at the far end along h', () => {
+    for (const [from, at] of [['min', 'hmax'], ['max', 'hmin']] as const) {
+      const hole = { id: 'e1', face: 'length' as const, from, diameter: 0.25, depth: 1, along: 'width' as const, alongFrom: 'min' as const, station: 5, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 0.375 };
+      const rb = { id: 'c1', face: 'width' as const, from: 'min' as const, across: 'length' as const, offset: 0, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 };
+      const w = buildDiagrams(createBoard({ length: 30, width: 11.25, thickness: 0.75, holes: [hole], cuts: [rb] }), 16).find((v) => v.holeSides.length > 0)!;
+      const s = w.holeSides[0]!;
+      expect(s.axis).toBe('h');
+      expect(s.bottomAt).toBe(at);
+      const { container } = render(<PartDiagram view={w} />);
+      const { X, Y } = scales(container, w);
+      const b = container.querySelectorAll('line.cutlist-diagram-hole-side')[2]!;
+      const xFar = X(at === 'hmax' ? s.h[1] : s.h[0]);
+      expect(Number(b.getAttribute('x1'))).toBeCloseTo(xFar, 6);
+      expect(Number(b.getAttribute('x2'))).toBeCloseTo(xFar, 6);
+      expect(Number(b.getAttribute('y1'))).toBeCloseTo(Y(s.v[0]), 6);
+      expect(Number(b.getAttribute('y2'))).toBeCloseTo(Y(s.v[1]), 6);
+      expect(Math.abs(X(at === 'hmax' ? s.h[0] : s.h[1]) - xFar)).toBeGreaterThan(1e-3);
+      cleanup();
+    }
   });
 });

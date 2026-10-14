@@ -56,3 +56,24 @@ active project was switched back and the starting state confirmed after each pas
 ## For the user on real hardware (26a)
 
 Hole wall shading and grain (and the seam above), rim lines, and drag smoothness on a drilled cabinet side.
+
+## Chunk 2 — drawings and the Hinge cup (branch `holes-2`)
+
+Dev server `localhost:5181`, the same profile rules (state recorded first; fixture imported as a new project, deleted after;
+active project restored). Fixture: a 30 × 11-1/4 × 3/4 side standing ON EDGE (so the Front elevation looks down its holes and
+the Side elevation across them) with a dado at 20", a 12-pin row (32 mm) on its far face and a 3/8 through-bore; a 20 × 15 ×
+3/4 door lying flat with a 35 mm hinge cup.
+
+| Check | Result |
+|---|---|
+| Plans sheet, exploded view | ✅ the door's cup and the side's bore drawn as ellipses; the far-face pins absent (no hidden lines in the exploded view, as specified) |
+| Plan view | ✅ the cup a circle; the side's pins as short dashed depth marks |
+| Front elevation (down the pins' axis) | ✅ the bore a visible circle; the far-face pins hidden. The hidden path is 34 subpaths carrying 2421 segments: the 96-chord rims are chained (R2) so they dash continuously |
+| Side elevation (across the axis) | ✅ 72 single-segment lines in the hidden path: edge-on rims are ONE segment each (R2), plus the silhouettes |
+| Every plan path | ✅ `fill: none`; hidden lines `stroke-dasharray: 4px, 3px` |
+| Cut list, "All parts" diagrams | ✅ side: 13 hole ellipses (12 pins + the bore) with centre marks, pins at 1-1/2" in along the top edge, the bore lower right; two notes — each row's bench line (`Row of 12 holes 1/4" dia × 3/8" deep … every 1-17/64" (32 mm), last at 15-7/8" …`, `Hole 3/8" dia × through …`). Door: one ellipse, note `Hole 1-3/8" (35 mm) dia × 1/2" deep …` |
+| Console | ✅ 0 errors |
+
+**Not confirmed here:** a real print-to-PDF of the sheet and the diagrams (fu 254: no `pdf()` on this host) — the dashes'
+look on paper, and the chained dash phase around box corners (Task 1's minor), are for the user's eye. An attempt to
+re-render the sheet's SVG standalone at 4× lost its stylesheet and showed filled dots; it was discarded as evidence.

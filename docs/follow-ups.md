@@ -5406,7 +5406,10 @@ Plans-sheet rims as `DRAWING_HOLE_SEGMENTS = 96` polylines through the hidden-li
 silhouette generators and a blind hole's bottom rim; none looking down the axis), occluders staying the hole-free bodies
 (inv 47, pinned by a test); part-diagram circles with a centre mark and a once-per-row label (`21 × Ø1/4" × 3/8"`), built
 from `holeText.ts` (inv 19); the **Hinge cup** preset (35 mm × 1/2" deep, 3" from the length min end, 22.5 mm in). No schema
-change. **Status:** open — NEXT (chosen with the round; starts at planning, the spec is approved).
+change. **Status:** closed 2026-10-14 — holes chunk 2 (branch `holes-2`, merged, not yet deployed; no schema
+change), with the §4.3 amendment (a row's diagram label is its bench line as an HTML note, not a measured SVG label) and
+rulings R2 (an edge-on rim is ONE segment; plan paths chain within a part so a hidden rim dashes) and R3 (diagram holes
+independent of row order). Residue: 343–346.
 
 **328. Holes through Add joinery, Repair and Refine.** Chunk 1 refuses a holed project at entry (`holedRefusal`, spec §6).
 Carrying holes through needs a rebase for rows measured from an end joinery grows or trims (as `rebaseAngleCuts`, fu 307),
@@ -5485,3 +5488,28 @@ duplicated across five test files; the runJoinery holed test does not assert the
 test's title says "removing" but never calls `removeHoleRow`; `removeHoleRow`'s `judgeHeld` is unpinned. (6) A caller
 refusal's message can go stale after a sibling edit makes the value fit (R8-consistent: a later blur commits it, visibly);
 a test comment overstates "no silent commit"; one row can hold two `role="alert"` elements. **Status:** record-only.
+
+## From the holes round (chunk 2) — 2026-10-14
+
+**343. The Hinge cup on a part wider than long (ruling R5).** `defaultHingeCup` runs the cup along the LONGER of the broad
+face's two dimensions (the shelf-pin convention), 3" from its min end, 22.5 mm in from the other's min side. Spec §7's "3"
+from the length min end" assumed length is the longer, as on any door; on a part stored wider than long the two readings
+differ (the cup goes 3" from the width end). Pinned by a test with width > length. **Status:** open — pending the user's
+ruling (provisional R5 ships).
+
+**344. The exploded view's hidden hole work (ties to fu 263).** `drawView` computes every hole's silhouettes and blind
+bottom rims and runs them through the hidden-line pass even in the exploded view, which draws no hidden lines: ~8k
+discarded segments, ~25 ms per sheet on a drilled cabinet — part of why the sheet's Explode slider lags (fu 263). Remedy to
+measure first: emit no silhouettes or blind-bottom rims when no hidden lines are drawn.
+**Status:** open.
+
+**345. The dash look on a real print.** Hidden lines are `4px, 3px` dashes over chained paths (R2): a hidden rim is one
+subpath so it dashes continuously, and chaining also carries the dash phase around a part's own box corners, so a corner
+join may land mid-dash. Seen only on screen; real print-to-PDF is unavailable here (fu 254). **Status:**
+open — for the user's eye on paper.
+
+**346. Holes chunk 2 minors (record-only; task reviews 2 and 4).** (1) A duplicate row id would repeat a diagram note, and a
+zero-count row would open a diagram view — both unreachable (`takeId` makes row ids unique; validation keeps count ≥ 1).
+(2) The Hinge cup's thin-stock withholding test lacks a self-contained positive control (it relies on the other tests'
+fitting part). (3) R6: in FRONT a through-bore's edge-on rims are hidden, drawn beneath the coincident visible edges (no
+visible difference; pinned as is). **Status:** record-only.

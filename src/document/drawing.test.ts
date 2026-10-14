@@ -1,5 +1,5 @@
 import { createBoard } from './document';
-import type { Board } from './types';
+import type { Board, HoleRow } from './types';
 import { chiralAngled } from './turnFixtures';
 import { mirrorPart } from './frames';
 import { drawView, hiddenSpan, hiddenSpanPlanes, worldBodies, FRONT, ISO, TOP, type Seg2 } from './drawing';
@@ -232,5 +232,78 @@ describe('worldBodies — hand-mapped normals across every pose (invariant 44)',
         expect(m[0] * c[0]! + m[1] * c[1]! + m[2] * c[2]! + k).toBeGreaterThan(1e-6);
       }
     }
+  });
+});
+
+describe('holes on the sheet (holes spec §3.4)', () => {
+  const pin: HoleRow = { id: 'h1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.375, along: 'length', alongFrom: 'min', station: 5, count: 1, pitch: 0, acrossFrom: 'min', inset: 2 };
+  const holed = (extra: Partial<HoleRow> = {}) => box('s', 30, 11.25, 0.75, [0, 0, 0], { holes: [{ ...pin, ...extra }] });
+  const near = (p: readonly number[], q: readonly number[]) => Math.hypot(p[0]! - q[0]!, p[1]! - q[1]!) < 1e-9;
+
+  // A part without holes: holeDrawing.test.ts pins that it adds no segments (ruling R1), and every test above guards the
+  // unchanged output.
+  it('front elevation: the depth lines are hidden (dashed), at x = 5 ± 1/8, down to y = 3/8; the bottom line too', () => {
+    const d = drawView([holed()], FRONT);
+    for (const x of [4.875, 5.125]) {
+      const v = d.hidden.filter((s) => Math.abs(s.a[0] - x) < 1e-9 && Math.abs(s.b[0] - x) < 1e-9);
+      expect(v.reduce((n, s) => n + Math.abs(s.b[1] - s.a[1]), 0)).toBeCloseTo(0.375, 9);
+    }
+    const bottom = horizontalAt(d.hidden, 0.375).filter((s) => Math.min(s.a[0], s.b[0]) > 4.8 && Math.max(s.a[0], s.b[0]) < 5.2);
+    expect(bottom.length).toBeGreaterThan(0);
+    // No hole line is visible in the elevation except where the rim lies on the top edge line (y = 3/4).
+    expect(d.visible.filter((s) => Math.min(s.a[0], s.b[0]) > 4.8 && Math.max(s.a[0], s.b[0]) < 5.2 && (Math.abs(s.a[1] - 0.75) > 1e-9 || Math.abs(s.b[1] - 0.75) > 1e-9))).toEqual([]);
+  });
+  it('front elevation of a through pin: both rims edge-on, single segments on the top and bottom edge lines, covered by the visible part edges; both walls hidden over the full thickness', () => {
+    const d = drawView([holed({ depth: 'through' })], FRONT);
+    const inHole = (s: { a: readonly number[]; b: readonly number[] }) => Math.min(s.a[0]!, s.b[0]!) > 4.8 && Math.max(s.a[0]!, s.b[0]!) < 5.2;
+    // A rim seen edge-on collapses to ONE segment x 4.875..5.125 on its edge line (top y = 3/4, bottom y = 0). The classifier
+    // calls it hidden (its sight line grazes the top/bottom face), but on the sheet "hidden beneath visible" (spec §2.4)
+    // puts it under the part's own solid edge line, which spans it: it reads as the edge, never as a dashed line.
+    for (const y of [0.75, 0]) {
+      const rim = d.hidden.filter((s) => inHole(s) && Math.abs(s.a[1]! - y) < 1e-9 && Math.abs(s.b[1]! - y) < 1e-9 && Math.abs(s.a[0]! - s.b[0]!) > 0.1);
+      expect(rim).toHaveLength(1);
+      expect(Math.min(rim[0]!.a[0]!, rim[0]!.b[0]!)).toBeCloseTo(4.875, 9);
+      expect(Math.max(rim[0]!.a[0]!, rim[0]!.b[0]!)).toBeCloseTo(5.125, 9);
+      const covers = d.visible.some((s) => Math.abs(s.a[1]! - y) < 1e-9 && Math.abs(s.b[1]! - y) < 1e-9 && Math.min(s.a[0]!, s.b[0]!) <= 4.875 && Math.max(s.a[0]!, s.b[0]!) >= 5.125);
+      expect(covers).toBe(true);
+    }
+    // No hole line is drawn visible in the elevation.
+    expect(d.visible.filter(inHole)).toEqual([]);
+    for (const x of [4.875, 5.125]) {
+      const wall = d.hidden.filter((s) => Math.abs(s.a[0]! - x) < 1e-9 && Math.abs(s.b[0]! - x) < 1e-9);
+      expect(wall.reduce((n, s) => n + Math.abs(s.b[1]! - s.a[1]!), 0)).toBeCloseTo(0.75, 9);
+      const ys = wall.flatMap((s) => [s.a[1]!, s.b[1]!]);
+      expect(Math.min(...ys)).toBeCloseTo(0, 9);
+      expect(Math.max(...ys)).toBeCloseTo(0.75, 9);
+    }
+    // A through hole has no bottom line inside the thickness.
+    expect(horizontalAt(d.hidden, 0.375).filter(inHole)).toEqual([]);
+  });
+  it('plan: the entry rim is visible; a blind bottom rim is hidden beneath it', () => {
+    const d = drawView([holed()], TOP);
+    const inRim = (s: { a: readonly number[]; b: readonly number[] }) => Math.hypot(s.a[0] - 5, s.a[1] + 2) < 0.13;
+    expect(d.visible.filter(inRim).length).toBeGreaterThan(0);
+    expect(d.hidden.filter(inRim).length).toBeGreaterThan(0);
+  });
+  it('occluders stay hole-free: a through-bore\'s exit rim is hidden from above (Review Focus 1)', () => {
+    const d = drawView([holed({ depth: 'through' })], TOP);
+    // TOP: right = +X, up = -Z, so the hole at (x 5, z 2) draws around (5, -2). Every rim segment there is either
+    // the entry rim (visible) or the exit rim (hidden): the exit rim never appears visible a second time.
+    const around = (s: { a: readonly number[] }) => Math.hypot(s.a[0] - 5, s.a[1] + 2) < 0.13;
+    const vis = d.visible.filter(around);
+    const hid = d.hidden.filter(around);
+    expect(hid.length).toBeGreaterThan(0);
+    // Each visible rim segment is matched by a hidden one at the same place (the exit rim beneath it), not the reverse.
+    expect(vis.every((s) => hid.some((h) => near(h.a, s.a) && near(h.b, s.b)))).toBe(true);
+  });
+  it('exploded: the hole segments move with their part and the sheet draws them (Review Focus 3)', () => {
+    const offsets = new Map([['s', [0, 10, 0] as [number, number, number]]]);
+    const d0 = drawView([holed()], ISO);
+    const d1 = drawView([holed()], ISO, offsets);
+    // The hole lines are there: more visible lines than the same part without holes.
+    expect(d0.visible.length).toBeGreaterThan(drawView([box('s', 30, 11.25, 0.75)], ISO).visible.length);
+    expect(d1.visible.length).toBe(d0.visible.length);
+    const dy = ISO.up[1]! * 10;
+    d0.visible.forEach((s, i) => expect(d1.visible[i]!.a[1]).toBeCloseTo(s.a[1] + dy, 9));
   });
 });

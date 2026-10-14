@@ -34,9 +34,10 @@ export type { BevelFields, ChamferEdge, ChamferFields, MiterFields, TaperFields,
 export {
   HOLE_COUNT_MAX, HOLE_EPS, HOLE_FIELDS, HOLE_KEYS, HOLE_SEGMENTS, PRISM_EPS, acrossOf, axialOffset, boardHoles, bodyPlanes,
   clipPolygon, clipPlan, copyHoleRow, holeInstances, holePrism, holeRims, holeRing, holeRowValues, holeTouches, holeTouchesBox,
-  insideHole, minusCover, minusPrism, mirrorHoleRow, ringInside, sameHoleRow, mm, defaultHole, defaultShelfPinRow,
+  insideHole, minusCover, minusPrism, mirrorHoleRow, ringInside, sameHoleRow, mm, defaultHole, defaultShelfPinRow, defaultHingeCup,
 } from './holes';
 export type { Hole, Plane } from './holes';
+export { DRAWING_HOLE_SEGMENTS, holeDrawingSegments } from './holeDrawing';
 export { holeFaults, holeInStock, stockChecks } from './holeFaults';
 export type { HoleFault, HoleFaultKind, StockChecks } from './holeFaults';
 export { jointRefusal, taperJointRefusal } from './angledRefusal';
@@ -53,7 +54,7 @@ export { findTenons } from './tenons';
 export type { Tenon } from './tenons';
 export type { CutList, CutListGroup, CutListRow } from './cutlist';
 export { buildDiagrams } from './diagram';
-export type { DiagramCut, DiagramView } from './diagram';
+export type { DiagramCut, DiagramHole, DiagramHoleSide, DiagramView } from './diagram';
 export { buildDepthField } from './depthField';
 export type { FaceCell } from './depthField';
 export { buildNesting, footprintsOf } from './nesting';
