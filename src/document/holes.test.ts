@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
 import {
   HOLE_KEYS, HOLE_SEGMENTS, PRISM_EPS, acrossOf, boardHoles, clipPolygon, copyHoleRow, holeInstances, holePrism, holeRing,
-  holeRims, insideHole, minusPrism, ringInside, sameHoleRow,
+  holeRims, insideHole, minusPrism, mirrorHoleRow, ringInside, sameHoleRow,
 } from './holes';
 import type { V3 } from './angleCuts';
 import type { HoleRow } from './types';
@@ -125,5 +125,14 @@ describe('rings, prisms and clipping (spec §3.2)', () => {
     expect(insideHole(h, [2, 1.5, 0.375])).toBe(true);        // the bottom centre (closed)
     expect(insideHole(h, [2, 1.5, 0.3])).toBe(false);         // below the bottom
     expect(insideHole(h, [2.125, 1.5, 0.75])).toBe(false);    // on the rim
+  });
+});
+
+describe('mirrorHoleRow (inv 44: a flag flip, no arithmetic)', () => {
+  it('flips exactly the flag on the mirrored dimension', () => {
+    expect(mirrorHoleRow(PIN, 'thickness')).toEqual({ ...PIN, from: 'min' });
+    expect(mirrorHoleRow(PIN, 'length')).toEqual({ ...PIN, alongFrom: 'max' });
+    expect(mirrorHoleRow(PIN, 'width')).toEqual({ ...PIN, acrossFrom: 'max' });
+    expect(mirrorHoleRow(mirrorHoleRow(PIN, 'width'), 'width')).toEqual(PIN);
   });
 });

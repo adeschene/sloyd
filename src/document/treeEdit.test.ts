@@ -325,6 +325,16 @@ describe('writeBackFlat shares where identical', () => {
     expect(worldParts(out).map((b) => b.cuts[0]!.id)).toEqual(['x0', 'x0', 'x0']);
   });
 
+  it('identical hole rows under different ids keep one definition (sharedSignature reads rows without ids)', () => {
+    const doc = drawers(3);
+    const before = flat(doc);
+    const row = { face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 3, pitch: 1.25, acrossFrom: 'min' as const, inset: 1 };
+    const after = before.map((b, k) => ({ ...b, holes: [{ id: `h${k}`, ...row }] }));
+    const out = writeBackFlat(doc, before, after);
+    expect(new Set(out.instances.map((i) => i.definition)).size).toBe(1);
+    expect(worldParts(out).map((b) => b.holes[0]!.id)).toEqual(['h0', 'h0', 'h0']);
+  });
+
   it('a copy whose result differs splits off; the others stay shared', () => {
     const doc = drawers(3);
     const before = flat(doc);
@@ -526,6 +536,19 @@ describe('writeBackFlat shares where identical', () => {
     expect(worldParts(out).map((b) => b.cuts[0]!.offset)).toEqual([1, 1, 3]);
     expect(out.instances.map((i) => i.definition).slice(0, 2)).toEqual(['d1', 'c1']);
     expect(out.instances[2]!.definition).not.toBe('c1');
+  });
+  it('users whose hole rows differ only in order and ids stay one Shape; a differing row splits (groupSignature)', () => {
+    const shape = { id: 's1', length: 28, width: 1.75, thickness: 1.75, material: 'oak', grain: 'length' as const, posture: 'upright' as const, cuts: [], angleCuts: [], holes: [] };
+    const doc: SloydDocument = { ...createDocument(), shapes: [shape],
+      boards: [0, 1, 2].map((k) => ({ id: `l${k}`, name: `Leg ${k}`, position: [k * 10, 0, 0] as [number, number, number], rotation: 0 as const, shape: 's1' })) };
+    const r1 = { id: 'x', face: 'width' as const, from: 'max' as const, diameter: 0.375, depth: 1, along: 'length' as const, alongFrom: 'max' as const, station: 2, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 0.875 };
+    const r2 = { ...r1, station: 5 };
+    const before = flat(doc);
+    const rows = [[{ ...r1, id: 'a' }, { ...r2, id: 'b' }], [{ ...r2, id: 'c' }, { ...r1, id: 'd' }], [{ ...r1, id: 'e', station: 3 }]];
+    const out = writeBackFlat(doc, before, before.map((b, k) => ({ ...b, holes: rows[k]! })));
+    expect(out.shapes).toHaveLength(2);
+    expect(shapeOfAt(out, 'l0')).toBe(shapeOfAt(out, 'l1'));
+    expect(shapeOfAt(out, 'l2')).not.toBe(shapeOfAt(out, 'l0'));
   });
 });
 

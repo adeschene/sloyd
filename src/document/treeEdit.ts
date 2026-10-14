@@ -1,8 +1,8 @@
 import { boardExtents } from './geometry';
-import type { AngleCut, Board, Cut, Definition, Instance, Posture, Shape, SloydDocument, StoredBoard } from './types';
+import type { AngleCut, Board, Cut, Definition, HoleRow, Instance, Posture, Shape, SloydDocument, StoredBoard } from './types';
 import { CUT_GEOMETRY_KEYS } from './cuts';
 import { angleCutValues, copyAngleCut, mirrorAngleCut, sameAngleCut } from './angleCuts';
-import { copyHoleRow } from './holes';
+import { copyHoleRow, holeRowValues, mirrorHoleRow, sameHoleRow } from './holes';
 import { nextId } from './ids';
 import { LINK_FIELDS, SHARED_KEYS, sharedOf } from './links';
 import { isShaped, resolveBoard, shapeMap } from './shapes';
@@ -98,6 +98,21 @@ function lowerAngleCuts(storedBefore: Board, draft: Board): AngleCut[] {
 }
 
 /**
+ * The hole rows of a part lowered back through ONE mirror (holes spec §5.2): like lowerAngleCuts, a flag flip, exact and
+ * size-free; a row equal to the stored one with the same id maps back to THAT object; all reused: the stored array.
+ */
+function lowerHoles(storedBefore: Board, draft: Board): HoleRow[] {
+  const d0 = mirrorDim(draft);
+  const byId = new Map(storedBefore.holes.map((r) => [r.id, r]));
+  const out = draft.holes.map((r) => {
+    const back = mirrorHoleRow(r, d0);
+    const s = byId.get(r.id);
+    return s && sameHoleRow(s, back) ? s : back;
+  });
+  return out.length === storedBefore.holes.length && out.every((r, i) => r === storedBefore.holes[i]) ? storedBefore.holes : out;
+}
+
+/**
  * One level down: the part's after-state in an instance's frame, from its
  * after-state in the parent's frame. A position goes down as a DELTA (spec
  * §5.2): the stored value gains the inverse-rotated world change, less the
@@ -121,6 +136,7 @@ function lower(inst: Instance, upperBefore: Board, lowerBefore: Board, upperAfte
     position: [lowerBefore.position[0] + dx, lowerBefore.position[1] + d[1]!, lowerBefore.position[2] + d[2]!],
     cuts: lowerCuts(lowerBefore, draft, keepWorld),
     angleCuts: lowerAngleCuts(lowerBefore, draft),
+    holes: lowerHoles(lowerBefore, draft),
   };
 }
 
@@ -274,9 +290,13 @@ function lowerEdit(doc: SloydDocument, shapes: ReadonlyMap<string, Shape>, befor
       // cur === after, so a shared world array is never written.
       return rec(before)[k] !== rec(after)[k] || (cur.angleCuts !== after.angleCuts && cur.angleCuts !== resolved.angleCuts);
     }
+    if (k === 'holes') {
+      // As angleCuts: written when edited, or when a mirror lowering produced a fresh array that is not the stored one.
+      return rec(before)[k] !== rec(after)[k] || (cur.holes !== after.holes && cur.holes !== resolved.holes);
+    }
     return k === 'cuts' ? cur.cuts !== resolved.cuts : rec(before)[k] !== rec(after)[k];
   });
-  const valueOf = (k: string) => (k === 'position' ? [...cur.position] : k === 'rotation' ? cur.rotation : k === 'cuts' ? cur.cuts : k === 'angleCuts' ? cur.angleCuts : rec(after)[k]);
+  const valueOf = (k: string) => (k === 'position' ? [...cur.position] : k === 'rotation' ? cur.rotation : k === 'cuts' ? cur.cuts : k === 'angleCuts' ? cur.angleCuts : k === 'holes' ? cur.holes : rec(after)[k]);
   return { stored, defId, key: `${defId}:${stored.id}`, changedKeys, valueOf, after };
 }
 
@@ -309,10 +329,10 @@ function mergeField(rec0: Record<string, unknown>, wrote: Map<string, unknown>, 
 
 /**
  * Write world-space edits back into the tree (spec §5.1, §5.2). Only changed
- * fields are written: `position` compared element by element, `cuts` by reference, `angleCuts` when edited or when a mirror lowering
- * re-reflected them (a posture change that moves d0 keeps the world angle cuts as seen, as `lowerCuts` does for
- * cuts; an unmirrored chain never writes a shared world array), everything else by `!==`. `position`, `rotation`, `cuts` and
- * `angleCuts` go down level by level through `lower` (through a mirror the cuts are
+ * fields are written: `position` compared element by element, `cuts` by reference, `angleCuts` and `holes` when edited
+ * or when a mirror lowering re-reflected them (a posture change that moves d0 keeps the world angle cuts and hole rows as
+ * seen, as `lowerCuts` does for cuts; an unmirrored chain never writes a shared world array), everything else by `!==`.
+ * `position`, `rotation`, `cuts`, `angleCuts` and `holes` go down level by level through `lower` (through a mirror the cuts are
  * reflected back by `lowerCuts`; untouched ones stay the stored objects); every
  * other field is part-local and goes back as it is. A key present before and absent after is deleted (storedValue).
  * A root part's write is plain assignment, exactly as before assemblies.
@@ -427,14 +447,14 @@ function plainWithMarkers(doc: SloydDocument): SloydDocument {
  *  per board, so identical mortises differ only by id (spec §5). Angle cuts
  *  likewise by ANGLE_CUT_FIELDS, not id. */
 function sharedSignature(b: Board): unknown[] {
-  return SHARED_KEYS.map((k) => (k === 'cuts' ? b.cuts.map((c) => CUT_GEOMETRY_KEYS.map((f) => c[f])) : k === 'angleCuts' ? b.angleCuts.map(angleCutValues) : b[k]));
+  return SHARED_KEYS.map((k) => (k === 'cuts' ? b.cuts.map((c) => CUT_GEOMETRY_KEYS.map((f) => c[f])) : k === 'angleCuts' ? b.angleCuts.map(angleCutValues) : k === 'holes' ? b.holes.map(holeRowValues) : b[k]));
 }
 
 /** sharedSignature for GROUPING users of one shape: the order cuts (and angle cuts) were stored in is not geometry
  *  (joinery appends mortises in site order, a turned user's list differs from its mate's), so each list is sorted. */
 function groupSignature(b: Board): unknown[] {
   const sorted = (xs: unknown[]) => xs.map((x) => JSON.stringify(x)).sort();
-  return SHARED_KEYS.map((k) => (k === 'cuts' ? sorted(b.cuts.map((c) => CUT_GEOMETRY_KEYS.map((f) => c[f]))) : k === 'angleCuts' ? sorted(b.angleCuts.map(angleCutValues)) : b[k]));
+  return SHARED_KEYS.map((k) => (k === 'cuts' ? sorted(b.cuts.map((c) => CUT_GEOMETRY_KEYS.map((f) => c[f]))) : k === 'angleCuts' ? sorted(b.angleCuts.map(angleCutValues)) : k === 'holes' ? sorted(b.holes.map(holeRowValues)) : b[k]));
 }
 
 /** A lowered result as compared across placements: own position and rotation

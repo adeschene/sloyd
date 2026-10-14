@@ -1,4 +1,4 @@
-import type { Board, Dimension, HoleRow, Region } from './types';
+import type { Board, CutFrom, Dimension, HoleRow, Region } from './types';
 import type { V3 } from './angleCuts';
 import { DIMENSION_ORDER } from './geometry';
 
@@ -31,6 +31,16 @@ export function sameHoleRow(a: Omit<HoleRow, 'id'>, b: Omit<HoleRow, 'id'>): boo
 /** A copy that is not the same object, so no two parts ever hold one row. */
 export function copyHoleRow(r: HoleRow): HoleRow {
   return { ...r };
+}
+
+const flip = (f: CutFrom): CutFrom => (f === 'min' ? 'max' : 'min');
+
+/** A row reflected along dimension `d` (inv 44): a FLAG FLIP, never arithmetic on positions — the flag on whichever of
+ *  face / along / across is `d`. Its own inverse. */
+export function mirrorHoleRow(r: HoleRow, d: Dimension): HoleRow {
+  if (r.face === d) return { ...r, from: flip(r.from) };
+  if (r.along === d) return { ...r, alongFrom: flip(r.alongFrom) };
+  return { ...r, acrossFrom: flip(r.acrossFrom) };
 }
 
 /** The third dimension: neither the drill axis nor the row's direction. */

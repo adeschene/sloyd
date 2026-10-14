@@ -55,3 +55,18 @@ export function chiralAngled(posture: Posture): Board {
     ],
   };
 }
+
+/**
+ * chiralPart plus hole rows with a HAND (holes spec §8): a row off-centre on one face measured from the min end, and a
+ * single bore into one end, off-centre across. A reflection anywhere in the hole mapping shows up as different world
+ * centres.
+ */
+export function chiralHoled(posture: Posture): Board {
+  return {
+    ...chiralPart(posture),
+    holes: [
+      { id: 'h1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.375, along: 'length', alongFrom: 'min', station: 7, count: 3, pitch: 1.5, acrossFrom: 'min', inset: 4.5 },
+      { id: 'h2', face: 'length', from: 'max', diameter: 0.375, depth: 1, along: 'width', alongFrom: 'min', station: 4.25, count: 1, pitch: 0, acrossFrom: 'max', inset: 0.5 },
+    ],
+  };
+}
