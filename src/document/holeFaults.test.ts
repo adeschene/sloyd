@@ -36,6 +36,17 @@ describe('holeFaults (spec §2.4)', () => {
     // Review Focus 1's layout: a shelf-pin row on the same face, clear of the dado, is fine.
     expect(kinds(part({ cuts: [dado] }), one({ station: 2, count: 6, pitch: 32 / 25.4 }))).toEqual([]);
   });
+  it('off flat: a blind hole whose bottom meets a dado\'s floor leaves zero skin (ruling R3)', () => {
+    // The dado above (thickness [0.5, 0.75]); a pin from the MIN face under it, at the dado's centre (length 10.375).
+    // Depth 0.5 puts its bottom ON the floor: zero skin, judged as too-deep judges depth = thickness.
+    const dado = { id: 'c1', face: 'thickness' as const, from: 'max' as const, across: 'width' as const, offset: 10, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const under = (depth: number) => one({ from: 'min', station: 10.375, depth });
+    expect(kinds(part({ cuts: [dado] }), under(0.5))).toEqual(['0:off-flat']);
+    expect(kinds(part({ cuts: [dado] }), under(0.5 - 1e-6))).toEqual([]);
+    // Same face beside the dado, deeper than it (axial spans overlap), tangent to its near wall in-plane: clean.
+    expect(kinds(part({ cuts: [dado] }), one({ station: 9.875 }))).toEqual([]);
+    expect(kinds(part({ cuts: [dado] }), one({ station: 9.875 + 1e-6 }))).toEqual(['0:off-flat']);
+  });
   it('a cut that a shrink left removing nothing never faults', () => {
     const gone = { id: 'c1', face: 'thickness' as const, from: 'max' as const, across: 'width' as const, offset: 40, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
     expect(kinds(part({ cuts: [gone] }), one())).toEqual([]);

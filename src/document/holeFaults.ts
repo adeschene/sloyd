@@ -69,11 +69,13 @@ export function holeFaults(board: Board, row: HoleRow): HoleFault[] {
       if (h.centre[i]! - h.radius < -HOLE_EPS) { out.push({ index: h.index, kind: 'breaks-out', edge: { dim: d, side: 'min' } }); break; }
       if (h.centre[i]! + h.radius > board[d] + HOLE_EPS) { out.push({ index: h.index, kind: 'breaks-out', edge: { dim: d, side: 'max' } }); break; }
     }
-    // off-flat: a rectangular cut's region overlaps the cylinder (positive axial overlap, the disc reaching inside it),
+    // off-flat: a rectangular cut's region meets the cylinder — the axial spans touching (CONTACT counts: a bottom on a
+    // cut's floor leaves zero skin and breaks through, as too-deep's ≥ judges the back face; ruling R3) and the disc
+    // reaching strictly inside the region in-plane (in-plane tangency stays allowed),
     // or a point of the cylinder lies on an angle cut's removed side (the linear minimum over each end disc).
     const inCut = regions.some((r) => {
       const R = [r.length, r.width, r.thickness];
-      if (Math.min(s[1], R[ax]![1]) - Math.max(s[0], R[ax]![0]) <= HOLE_EPS) return false;
+      if (Math.min(s[1], R[ax]![1]) - Math.max(s[0], R[ax]![0]) < -HOLE_EPS) return false;
       const dx = Math.max(R[u]![0] - h.centre[u]!, 0, h.centre[u]! - R[u]![1]);
       const dy = Math.max(R[v]![0] - h.centre[v]!, 0, h.centre[v]! - R[v]![1]);
       return Math.hypot(dx, dy) < h.radius - HOLE_EPS;
