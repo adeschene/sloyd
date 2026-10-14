@@ -18,6 +18,13 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-14 with holes chunk 2 live** (`index-DFCdm3n1.js`, CSS `index-CT8doMkT.css`,
+merge `d74e5c5`, schema 16 unchanged — a rollback to chunk 1, `index-CTpNZw9F.js`, is free). Verified per the deployment
+rule: `200` on `/` and a deep route in-network and at the edge; bundle and CSS match `dist/` at both; the old bundle 404s
+in-network; CSP `connect-src 'self' https://api.anthropic.com` at the edge; a real-browser load (0 errors, the Cloudflare
+beacon and "+ Add board" present; its fresh project stored as `version: 16`; the load's two keys cleared from a plain asset
+page and read back empty immediately and after 3s, then navigated away).
+
 **Production matches `master` as of 2026-10-14 with holes chunk 1 live** (`index-CTpNZw9F.js`, CSS `index-gw2MZHzH.css`,
 merge `2ded5cc`, **schema 16** — a rollback to `bfde00c` refuses projects saved since; export first). Verified per the
 deployment rule: `200` on `/` and a deep route in-network and at the edge; the bundle and CSS match `dist/` at both; the old
@@ -447,7 +454,7 @@ and 79.
 
 **What holes chunk 2 did (2026-10-14, fu 327)** (spec `docs/superpowers/specs/2026-10-14-sloyd-holes-design.md` §3.4, §4.3,
 §7, plan `docs/superpowers/plans/2026-10-14-sloyd-holes-chunk2.md`, branch `holes-2` from `fc4875e` — master `0a1060c` plus
-the §4.3 amendment). **Merged to master as `d74e5c5`, NOT deployed** — deployment waits for the user; no schema change, so a rollback to
+the §4.3 amendment). **Merged to master as `d74e5c5` and deployed the same day** (`index-DFCdm3n1.js`); no schema change, so a rollback to
 chunk 1 (`2ded5cc`, `index-CTpNZw9F.js`) is free. Drawings and the last preset; a part with no holes draws byte-for-byte as
 before (the final review compared hole-free `drawView`/`buildDiagrams` against master on 112 cases: identical, the SVG
 differing only by the 20 `M` commands chaining drops). Subagent-driven, five tasks, each reviewed:

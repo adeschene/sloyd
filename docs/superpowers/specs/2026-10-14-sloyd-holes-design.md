@@ -1,6 +1,6 @@
 # Sloyd — holes: bores and shelf-pin rows
 
-**Date:** 2026-10-14 · **Status:** approved by the user 2026-10-14; the amendments made while planning chunk 1 (§3.2, §3.3, §3.5, §4.1, §7 — marked *Amended*) also approved, and §4.1's faulted-row line ruled by the user; **chunk 1 implemented** on branch `holes` (merged 2026-10-14 as `2ded5cc`, deployed 2026-10-14 as `index-CTpNZw9F.js`); **chunk 2 implemented** on branch `holes-2` (merged 2026-10-14, not yet deployed)
+**Date:** 2026-10-14 · **Status:** approved by the user 2026-10-14; the amendments made while planning chunk 1 (§3.2, §3.3, §3.5, §4.1, §7 — marked *Amended*) also approved, and §4.1's faulted-row line ruled by the user; **chunk 1 implemented** on branch `holes` (merged 2026-10-14 as `2ded5cc`, deployed 2026-10-14 as `index-CTpNZw9F.js`); **chunk 2 implemented** on branch `holes-2` (merged 2026-10-14 as `d74e5c5`, deployed 2026-10-14 as `index-DFCdm3n1.js`)
 **Builds on:** angle cuts (`2026-10-12-sloyd-angle-cuts-design.md`, invariant 48) — bodies, `partGeometry`, the field-by-field
 sites; cuts (`cuts.ts`, invariants 16, 40); the turn table (invariant 44); the tree and mirrored instances (invariants 45,
 46); the cut list (invariant 18); the Plans sheet's hidden-line drawings (invariant 47). Every rule there still holds unless
