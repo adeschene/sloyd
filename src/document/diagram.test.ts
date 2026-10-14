@@ -365,7 +365,7 @@ describe('holes in the part diagrams (holes spec §4.3, amended)', () => {
       { row: 'h1', index: 1, h: 3.25, v: 1.5, r: 0.125 },
       { row: 'h1', index: 2, h: 4.5, v: 1.5, r: 0.125 },
     ]);
-    expect(v.holeNotes).toEqual([expect.stringMatching(/^Row of 3 holes 1\/4" dia × 3\/8" deep/)]);
+    expect(v.holeNotes).toEqual([{ row: pins.id, text: expect.stringMatching(/^Row of 3 holes 1\/4" dia × 3\/8" deep/) }]);
   });
   it('a hole into an end opens the length view', () => {
     const dowel = { ...pins, id: 'd', face: 'length' as const, from: 'max' as const, diameter: 0.375, depth: 1, along: 'width' as const, station: 2, count: 1, acrossFrom: 'min' as const, inset: 0.375 };
@@ -403,7 +403,8 @@ describe('holes in the part diagrams (holes spec §4.3, amended)', () => {
     for (const v of [one, two]) expect(v.holes.map((c) => c.row).sort()).toEqual(['A', 'B']);
     expect(one.holeNotes).toHaveLength(2);
     expect([...two.holes].sort((x, y) => x.row.localeCompare(y.row))).toEqual([...one.holes].sort((x, y) => x.row.localeCompare(y.row)));
-    expect([...two.holeNotes].sort()).toEqual([...one.holeNotes].sort());
+    const byRow = (a: { row: string }, b: { row: string }) => a.row.localeCompare(b.row);
+    expect([...two.holeNotes].sort(byRow)).toEqual([...one.holeNotes].sort(byRow));
   });
   it('notes come out in stored row order, a sides-only row before a circle row', () => {
     const S = { ...pins, id: 'S', count: 1 }; // thickness|max: sides-only in the width view
@@ -413,7 +414,8 @@ describe('holes in the part diagrams (holes spec §4.3, amended)', () => {
     expect(w.holes.map((c) => c.row)).toEqual(['C']);
     expect(w.holeSides.map((c) => c.row)).toEqual(['S']);
     expect(w.holeNotes).toHaveLength(2);
-    expect(w.holeNotes[0]).toBe(buildDiagrams(side({ holes: [S] }), 16)[0]!.holeNotes[0]);
+    expect(w.holeNotes.map((n) => n.row)).toEqual(['S', 'C']);
+    expect(w.holeNotes[0]!.text).toBe(buildDiagrams(side({ holes: [S] }), 16)[0]!.holeNotes[0]!.text);
   });
   it('a hole entering from the MIN face runs +1: its bottom is at the max of the depth axis', () => {
     // Thickness min, depth 3/8: centre at thickness 0, runs to 0.375; width view v = thickness, so bottom at vmax.
@@ -433,6 +435,6 @@ describe('holes in the part diagrams (holes spec §4.3, amended)', () => {
   it('a faulted row\'s note is its bench line, check suffix included (Review Focus 5)', () => {
     const short = side({ length: 4 });
     const v = buildDiagrams(short, 16)[0]!;
-    expect(v.holeNotes[0]).toMatch(/— check: hole 3 runs past the length max end$/);
+    expect(v.holeNotes[0]!.text).toMatch(/— check: hole 3 runs past the length max end$/);
   });
 });

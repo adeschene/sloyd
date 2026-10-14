@@ -63,7 +63,7 @@ export interface DiagramView {
   /** Holes seen across their axis in this view (dashed depth boxes). */
   holeSides: DiagramHoleSide[];
   /** One bench line per hole row drawn in this view (inv 19: built in holeText.ts). */
-  holeNotes: string[];
+  holeNotes: { row: string; text: string }[];
   /** `${face}|${from}`. Stable across renders; the React key. */
   key: string;
   /** e.g. `Thickness face — min side` */
@@ -272,7 +272,7 @@ export function buildDiagrams(board: Board, precision: number): DiagramView[] {
       mark(view, r);
     }
   }
-  for (const [view, ids] of used) for (const r of board.holes) if (ids.has(r.id)) view.holeNotes.push(holeLine(board, r, precision));
+  for (const [view, ids] of used) for (const r of board.holes) if (ids.has(r.id)) view.holeNotes.push({ row: r.id, text: holeLine(board, r, precision) });
 
   // A cut-free board still gets a drawing, for the "all parts" setting: broad
   // face on, length running horizontally — the view a woodworker draws by hand.

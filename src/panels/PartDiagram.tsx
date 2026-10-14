@@ -472,8 +472,8 @@ export function PartDiagram({ view }: { view: DiagramView }) {
       {view.angles.map((a) => (
         <p className="cutlist-diagram-angle-note" key={a.id}>{a.label}</p>
       ))}
-      {view.holeNotes.map((line) => (
-        <p className="cutlist-diagram-hole-note" key={line}>{line}</p>
+      {view.holeNotes.map((n) => (
+        <p className="cutlist-diagram-hole-note" key={n.row}>{n.text}</p>
       ))}
     </figure>
   );
