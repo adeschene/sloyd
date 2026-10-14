@@ -433,6 +433,18 @@ and 79.
 
 ## What each round did
 
+**What custom materials chunk 2 did (2026-10-14, fu 266's second half)** (plan
+`docs/superpowers/plans/2026-10-14-sloyd-custom-materials-chunk2.md`). Nominal lumber names: `src/units/nominal.ts` (the
+seventeen US softwood sections, an EXACT matcher at 1e-9 in either order, whole-foot stock lengths as `8′`); pine sold in
+nominal sizes; a new nominal custom material starts from a 29-size yard list (1× at 8′, 2× at 8′/10′/12′, 4×4 at 8′); cut-list
+rows lead their names cell with the section only when EVERY board is exactly it; Buying reads `2×4 × 8′`; a Properties
+"Nominal size" select (one edit; keeps a part's stored thickness/width order when the selection shares it); the dialog's
+"Sold in nominal sizes" switch (a new row's prices follow it, a stored row's never). User-approved amendments: the name's
+place (the names cell, not the 11em dims cell), the select's label, the layout key label staying actual, the order rule.
+Subagent-driven, five code tasks; reviews caught the name printing cream-on-white (the print colour list) and, at the final
+review, a missing space (`1×4Rail` in copied text), an amendment with a wrong reason, and an untested approved rule — all
+fixed. Live check on the dev server, free. No schema change. 3724 tests across 128 files. Residue fu 326.
+
 **What custom materials chunk 1 did (2026-10-14, fu 266's first half, feature-gaps §3)** (spec
 `docs/superpowers/specs/2026-10-14-sloyd-custom-materials-design.md`, plan `…/plans/2026-10-14-sloyd-custom-materials-chunk1.md`).
 The user chose all four purposes (more species, other sheet goods, construction lumber, nominal names everywhere),
