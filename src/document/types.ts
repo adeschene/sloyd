@@ -122,7 +122,7 @@ export interface Board {
   posture: Posture;
   /** Which dimension the fibres run along. */
   grain: Grain;
-  /** Key into MATERIALS. */
+  /** A built-in MATERIALS key or a custom material id (custom materials spec §2.2). */
   material: string;
   /** Stock removed from this board. Empty for a board with no joinery. */
   cuts: Cut[];
@@ -270,16 +270,52 @@ export const DEFAULT_MATERIAL = 'pine';
 /** Inches. A standard table-saw blade. */
 export const DEFAULT_KERF = 0.125;
 
+/** How a material is made, fixed at creation (custom materials spec §2.2). */
+export type MaterialKind = 'solid' | 'sheet-veneered' | 'sheet-plain';
+
 /**
- * Sheet goods (plywood, MDF) are a different domain thing from solid stock:
- * their "grain" is a face-veneer direction that always lies in the sheet
- * plane, so 'Through thickness' is not a meaningful value for one — see the
- * comment on grainFamily in viewport/grainFaces.ts. Lives here, not in
- * viewport, because panels must not import from viewport, and this is a fact
- * about the material, not about how it's drawn.
+ * A user-defined material (custom materials spec §2.2). Stored in the document (`materials`) and in the
+ * browser library. The KIND is encoded in the id (amended §2.2), so a kind-only reader never needs a catalog.
+ */
+export interface CustomMaterial {
+  id: string;
+  label: string;
+  /** Lower-case `#rrggbb`. */
+  color: string;
+  kind: MaterialKind;
+  /** Sold in nominal sizes (chunk 2 reads it). Solid only; stored only when true. */
+  nominal?: true;
+  /** Inches. Present exactly when `kind` is a sheet kind. */
+  sheet?: { length: number; width: number };
+}
+
+/** `m-` + kind letter + `-` + 4–32 of [a-z0-9]: never a built-in key, never a `/`. */
+export const CUSTOM_MATERIAL_ID = /^m-([svp])-[a-z0-9]{4,32}$/;
+const LETTER_KIND: Record<string, MaterialKind> = { s: 'solid', v: 'sheet-veneered', p: 'sheet-plain' };
+
+export function isCustomMaterialId(id: string): boolean {
+  return CUSTOM_MATERIAL_ID.test(id);
+}
+
+/**
+ * The kind of any material id: a custom one by its letter, a built-in by its `sheet` (MDF's free rotation is
+ * the plain kind). Anything else reads as solid — the pine fallback (a part cannot carry one after load).
+ */
+export function materialKind(id: string): MaterialKind {
+  const m = CUSTOM_MATERIAL_ID.exec(id);
+  if (m) return LETTER_KIND[m[1]!]!;
+  const sheet = Object.hasOwn(MATERIALS, id) ? MATERIALS[id]!.sheet : undefined;
+  if (sheet === undefined) return 'solid';
+  return sheet.rotate === 'free' ? 'sheet-plain' : 'sheet-veneered';
+}
+
+/**
+ * Sheet goods are a different domain thing from solid stock: their "grain" is a face-veneer direction that
+ * always lies in the sheet plane, so 'Through thickness' is not a meaningful value for one — see grainFamily
+ * in viewport/grainFaces.ts. A fact about the material's KIND, read off its id.
  */
 export function isSheetGood(material: string): boolean {
-  return MATERIALS[material]?.sheet !== undefined;
+  return materialKind(material) !== 'solid';
 }
 
 /** The sheet a material is sold as, or undefined for solid lumber. */

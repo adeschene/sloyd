@@ -1,6 +1,7 @@
 # Sloyd — custom materials and nominal lumber
 
 **Date:** 2026-10-14 · **Status:** draft for the user's review
+**Amended while planning (2026-10-14), marked "(amended)":** §2.2 the id encodes the kind; §2.5 shop validation by id; §4.1 entry points; §6 joinery prompt names.
 **Builds on:** the document schema and versioned load (`document.ts`, invariants 11, 33), the material table
 (`MATERIALS`, `types.ts`), sheet nesting (`nesting.ts`), lumber yield and cost (`purchase.ts`,
 `LumberPricesDialog.tsx`, `sloyd.shop.v1`), the storage seam (`StorageAdapter`, invariants 7, 31), Refine and
@@ -46,7 +47,7 @@ or deleted; a variant is a new custom material ("Baltic birch 5×5").
 ```ts
 type MaterialKind = 'solid' | 'sheet-veneered' | 'sheet-plain';
 interface CustomMaterial {
-  id: string;          // minted 'm-' + random base36; never a built-in key; no '/'
+  id: string;          // 'm-' + kind letter (s solid, v sheet-veneered, p sheet-plain) + '-' + 4–32 [a-z0-9]
   label: string;       // free text, trimmed, non-empty
   color: string;       // '#rrggbb'
   kind: MaterialKind;
@@ -59,6 +60,7 @@ interface CustomMaterial {
 - `sheet-plain` reads as MDF: the MDF look, `rotate: 'free'` (melamine, hardboard).
 - `id` is random so the same label created in two browsers cannot collide by accident. The label carries meaning;
   the id never shows.
+- **(amended)** *The kind is part of the identity (it is fixed at creation), so every reader that needs only the kind — sheet or not, grain family, whether a groove follows grain, shop validation — reads it off the id and needs no catalog. A stored `kind` that disagrees with its id drops the entry.*
 
 ### 2.3 The document (schema 15)
 
@@ -90,13 +92,7 @@ library with a flag; the dialog says so and does not save the library over it.
 
 ### 2.5 Prices
 
-`sloyd.shop.v1` keeps its layout, keyed by material id. `validateShop` takes the catalog of materials it should
-know (built-ins + library + this project) and validates those entries by their kind; every other stored entry is
-carried untouched in `extra` (the existing passthrough). The known set depends on the open project, so an id moves
-between `materials` and `extra` as projects open; three rules keep that clean: **an id is never in both** (on read,
-an id the set knows is taken out of `extra`); **`materials` wins** (a write never re-emits an `extra` entry for an id
-it now validates); and **a changed known set never sets `ok: false`** — only a known id's entry failing validation
-does. A material with no stored entry takes its default buying:
+`sloyd.shop.v1` keeps its layout, keyed by material id. **(amended)** *`validateShop` knows an id when it is built-in or has the custom-id shape, and validates its entry by the id's kind; anything else is carried untouched in `extra`. The known set no longer depends on the open project, so an id never moves between `materials` and `extra`.* A material with no stored entry takes its default buying:
 - nominal solid → **by the piece**, stock per §5.4;
 - other solid → **by the board foot**, waste 1.3, no price;
 - sheet → **by the sheet**, no price.
@@ -113,7 +109,8 @@ interface MaterialInfo { id: string; label: string; color: string; kind: Materia
 - `catalogOf(doc)` = built-ins + `doc.materials`, memoised on the `doc.materials` array's identity, so every
   render and every part shares one catalog per document state.
 - `builtInCatalog()` = the seven alone.
-- **Every reader of a material takes a catalog** — `isSheetGood(catalog, id)`, `sheetStockOf(catalog, id)`,
+- **Every reader of a material takes a catalog** **(amended)** *— every reader of a label, colour or sheet size. Kind-only readers keep their `(id)` signatures (§2.2).*
+  Originally: — `isSheetGood(catalog, id)`, `sheetStockOf(catalog, id)`,
   `grainFamily(catalog, id)`, the label lookups. Builders that already take the document (`buildCutList`,
   `buildPurchase`, `buildNesting`, `checkDesign`, `diffDesigns`) build it themselves from the document.
   `MATERIALS` stops being imported outside `types.ts`/the catalog module; the compiler finds every site.
@@ -128,7 +125,7 @@ interface MaterialInfo { id: string; label: string; color: string; kind: Materia
 
 ### 4.1 Materials & prices
 
-The **Lumber & prices** dialog becomes **Materials & prices** (More ▾ → "Materials & prices…"). It lists, in order:
+The **Lumber & prices** dialog becomes **Materials & prices** **(amended)** *reached where Lumber & prices is today — the Settings dialog's link and the cut list's button, both renamed "Materials & prices…"*. It lists, in order:
 1. the built-ins — prices only (as today);
 2. this project's custom materials — definition and prices;
 3. library materials this project does not use — definition and prices, with a delete (trash) control.
@@ -228,7 +225,7 @@ By the piece, no prices: 1×2…1×12 at 8′; 2×2…2×12 at 8′, 10′, 12�
 - `parseDesign` validates a material against the catalog it was given; `designDiff` reads labels through it.
 - **Every path that makes a project from another carries the custom materials used**: Refine, Add joinery, Repair
   (the new document's `materials` = the source's, then pruned) and Duplicate (a copy of the stored document).
-- Joinery's prompt lines (`choose.ts`) print the label, not the id.
+- Joinery's prompt lines (`choose.ts`) **(amended)** *print a custom material's label; a built-in keeps its key, so existing joinery prompts are byte-identical.*
 - **fu 322:** a Refine schema with custom entries is a new grammar. One live compile probe (≈1¢) and one paid Refine
   on a project using a custom material (≈4¢), each with the user's approval.
 

@@ -14,6 +14,7 @@ import { dropUnresolved, repairTree } from './treeRepair';
 import { positionAxisOf, horizontalOf } from './geometry';
 
 export * from './types';
+export * from './materials';
 export * from './links';
 export * from './shapes';
 export * from './frames';
