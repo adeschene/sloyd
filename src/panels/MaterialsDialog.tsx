@@ -68,7 +68,7 @@ function fromDraft(d: Draft): MaterialBuying | undefined {
  * through StorageAdapter, Cancel discards, nothing is undoable. The SettingsDialog modal pattern; its own
  * Escape listener closes it (it renders above the cut list, which ignores Escape while it is open).
  */
-export function LumberPricesDialog({ shop, readFailed, onSave, onClose }: Props) {
+export function MaterialsDialog({ shop, readFailed, onSave, onClose }: Props) {
   const sheet = useRef<HTMLDivElement>(null);
   const keys = Object.keys(MATERIALS);
   const [drafts, setDrafts] = useState<Record<string, Draft>>(() =>

@@ -13,7 +13,7 @@ import { PlansSheet } from './panels/PlansSheet';
 import { TapeReadout } from './panels/TapeReadout';
 import { GenerateDialog } from './panels/GenerateDialog';
 import { SettingsDialog } from './panels/SettingsDialog';
-import { LumberPricesDialog } from './panels/LumberPricesDialog';
+import { MaterialsDialog } from './panels/MaterialsDialog';
 import { defaultShop, type ShopSettings } from './document/purchase';
 import { useGenerations } from './useGenerations';
 import { useJoinery } from './useJoinery';
@@ -1029,7 +1029,7 @@ export default function App() {
         />
       )}
       {dialog === 'prices' && (
-        <LumberPricesDialog
+        <MaterialsDialog
           shop={shop}
           readFailed={shopReadFailed}
           onSave={async (s) => {

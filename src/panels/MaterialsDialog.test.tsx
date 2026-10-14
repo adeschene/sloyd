@@ -1,17 +1,17 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { LumberPricesDialog } from './LumberPricesDialog';
+import { MaterialsDialog } from './MaterialsDialog';
 import { defaultShop, type ShopSettings } from '../document/purchase';
 
 const setup = (over: Partial<{ readFailed: boolean; save: boolean }> = {}) => {
   const onSave = vi.fn(async (_s: ShopSettings) => over.save ?? true);
   const onClose = vi.fn();
-  render(<LumberPricesDialog shop={defaultShop()} readFailed={over.readFailed ?? false} onSave={onSave} onClose={onClose} />);
+  render(<MaterialsDialog shop={defaultShop()} readFailed={over.readFailed ?? false} onSave={onSave} onClose={onClose} />);
   return { onSave, onClose };
 };
 const field = (name: string) => screen.getByRole('textbox', { name });
 const saveBtn = () => screen.getByRole('button', { name: 'Save' });
 
-describe('LumberPricesDialog', () => {
+describe('MaterialsDialog', () => {
   it('saves an edited board-foot price and closes', async () => {
     const { onSave, onClose } = setup();
     fireEvent.change(field('Oak: price per board foot'), { target: { value: '8.50' } });
@@ -81,7 +81,7 @@ describe('LumberPricesDialog', () => {
     shop.materials.oak = { mode: 'board-foot', pricePerBoardFoot: 9, wasteFactor: 1.5 };
     shop.extra = { ash: { mode: 'board-foot', pricePerBoardFoot: 6, wasteFactor: 1.4 } };
     const onSave = vi.fn(async (_s: ShopSettings) => true);
-    render(<LumberPricesDialog shop={shop} readFailed={false} onSave={onSave} onClose={() => {}} />);
+    render(<MaterialsDialog shop={shop} readFailed={false} onSave={onSave} onClose={() => {}} />);
     const mode = (name: string) => screen.getByRole('combobox', { name });
     // Unsaved edits first: only the stash (not the stored value) can bring these back.
     fireEvent.change(field('Pine size 1: price'), { target: { value: '4' } });
@@ -109,7 +109,7 @@ describe('LumberPricesDialog', () => {
     const shop = defaultShop();
     shop.materials['m-s-ash1'] = { mode: 'board-foot', pricePerBoardFoot: 9, wasteFactor: 1.4 };
     const onSave = vi.fn(async (_s: ShopSettings) => true);
-    render(<LumberPricesDialog shop={shop} readFailed={false} onSave={onSave} onClose={() => {}} />);
+    render(<MaterialsDialog shop={shop} readFailed={false} onSave={onSave} onClose={() => {}} />);
     fireEvent.change(field('Oak: price per board foot'), { target: { value: '8' } });
     fireEvent.click(saveBtn());
     await waitFor(() => expect(onSave).toHaveBeenCalled());
