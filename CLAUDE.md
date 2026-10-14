@@ -21,17 +21,19 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-14: custom materials chunk 2 (merge `bfde00c`) — bundle `index-qj1aqsa6.js`,
-  CSS `index-DmVXKxYH.css`, **SCHEMA 15** (unchanged since chunk 1, so rolling back to `4851945`, `index-DyeArqLP.js`, is free;
-  below 15, `c610393`, REFUSES every project saved since: export first). Test count is under Commands.
-- **Custom materials (fu 266, closed; spec `2026-10-14-sloyd-custom-materials-design.md`)**: both chunks deployed —
-  user-defined solid and sheet materials (library + per-project copies, Materials & prices, Refine keeps them) and nominal
-  lumber names (inv 49). Open near it: 324–326.
-- **NEXT: HOLES** (`docs/feature-gaps.md` §1: dowels, shelf-pin rows, hardware bores) — chosen by the user 2026-10-14, to
-  start in a fresh session with brainstorming (architectural: round geometry against the all-box model — read invs 16, 20,
-  38, 40, 41, 48 and the v1 spec's mesh-kernel non-goal first; likely a schema bump, with its rollback cost). Don't ask what
-  to work on; start its brainstorm. Other open items: 314–320, angle-cut residue
-  295–298; 241 (open by decision), 251 (record-only), 221, 225, 232, 234, 247.
+- **Production** (2026-10-14): custom materials chunk 2 (merge `bfde00c`) — bundle `index-qj1aqsa6.js`, CSS
+  `index-DmVXKxYH.css`, **SCHEMA 15**. **`master` is AHEAD of it**: holes chunk 1 is MERGED, NOT DEPLOYED — deployment
+  waits for the user. It brings **SCHEMA 16**: once deployed, rolling back below 16 REFUSES every project saved since
+  (export first). Until it deploys, production's rollback is unchanged: to `4851945` (`index-DyeArqLP.js`) is free; below
+  15 (`c610393`) REFUSES every project saved since: export first. Test count is under Commands.
+- **Holes chunk 1 (spec `2026-10-14-sloyd-holes-design.md`, inv 50)**: blind and through holes, singly or in stored rows,
+  square to any face; rendered open, rims, centre snap points, the strict rule (`holeFaults`), bench lines and cut-list
+  grouping; Properties' Holes section (Hole, Shelf-pin row); joinery/Refine/Repair refuse holed projects. Open near it:
+  327–342 (336: the wall-grain seam, deferred by the user to a texture/shader session; 337: real-hardware looks owed).
+- **NEXT: holes chunk 2** (spec §9: Plans-sheet rims and dashed depth lines, part-diagram circles and labels, the Hinge
+  cup preset; fu 327) — already specced, so it starts at planning, not brainstorming. Custom materials (fu 266) closed;
+  open near it 324–326. Other open items: 314–320, angle-cut residue 295–298; 241 (open by decision), 251 (record-only),
+  221, 225, 232, 234, 247.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
   byte-identical bundles (test-only). Check what a later commit touches before reading
@@ -101,6 +103,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | AI angles (chunk 2) | 10-14 | — | Generate and Refine write miters, bevels and chamfers in world words (`angleWorld.ts`); exact untouched angles (`angleRatiosOf`); `angle-joint` design fault; the change list names them; chamfered legs link through turns; the design schema in `$defs` (the API's compiled-grammar cap) |
 | custom materials (chunk 1) | 10-14 | 15 | User-defined solid and sheet materials (kind in the id, inv 49): a browser library and per-project copies (`doc.materials`, pruned to what parts use); Materials & prices (was Lumber & prices); Properties picks project/library materials and New material…; Refine keeps them (per-project schema enum; Generate's byte-identical) |
 | custom materials (chunk 2) | 10-14 | — | Nominal lumber names (`units/nominal.ts`, exact match): cut-list rows named when every board is the section, Buying `2×4 × 8′`, a Properties Nominal size select, the Sold in nominal sizes switch; pine is nominal |
+| holes (chunk 1) | 10-14 | 16 | `HoleRow` (blind/through, a row of `count` at `pitch`, inv 50): rendered open (walls, bottoms, rims), centre snap points, `holeFaults`' strict rule, bench lines (32 mm pitch at 1/64 + mm) and cut-list grouping; Holes section (Hole, Shelf-pin row); joinery/Refine/Repair refuse holed projects. MERGED, NOT DEPLOYED |
 
 ### The deployment rule
 
@@ -115,7 +118,7 @@ rather than assumed. A paid Generate/joinery run needs the user's approval each 
 key never goes into chat or a committed file. (Generate was once exercised on production
 because it only ever adds unactivated projects, inv 36. That is not a precedent.)
 
-**Rollback cost is a schema question.** A build understanding less than `version: 15`
+**Rollback cost is a schema question.** A build understanding less than `version: 16`
 refuses the document. Rolling back past a schema bump strands every project saved since;
 export first. A round with no schema change costs nothing to roll back. The library
 round changed the storage *layout*, not the schema: rolling past it loses only projects
@@ -164,7 +167,7 @@ would be a second implementation, not a parallel path.
 ### Versioning
 
 Every load path (open, import, autosave-restore) runs `migrateDocument` before the
-document is trusted. `CURRENT_VERSION` is **15**. Steps run one version at a time, in
+document is trusted. `CURRENT_VERSION` is **16**. Steps run one version at a time, in
 order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11→v12, which run after.
 
 | Step | Adds | Shape | Harm a build one version back would do |
@@ -183,6 +186,7 @@ order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11�
 | 12→13 | `Instance.mirrored` (only `true` stored) | document-level, no step | wrong geometry (a mirrored copy drawn unmirrored) |
 | 13→14 | `angleCuts` on parts and shapes (default `[]`; malformed or non-finite entry dropped, missing `kind` derived) | document-level, no step | silent loss on round trip (every taper/miter dropped) |
 | 14→15 | `materials` (custom materials the parts and shapes use; default `[]`; validated BEFORE the parts so they see them; malformed entry or one whose `kind` disagrees with its id dropped; pruned on load and in `edit()`) | document-level, no step | silent loss (a custom material becomes pine, and the next save writes pine) |
+| 15→16 | `holes` on parts and shapes (default `[]`; malformed entry dropped — non-finite, non-positive diameter or depth, non-integer count, negative pitch/station/inset, `along === face`, unknown enum; a faulted but well-formed row KEPT) | document-level, no step | silent loss on round trip (every hole dropped) |
 
 - **A bump exists for the refusal gate, not for upgrading** — absent fields default
   regardless. Argue *your* field's harm; don't inherit another bump's argument.
@@ -211,7 +215,7 @@ src/
 │                     quantity.ts (board/square feet, two decimals fixed)
 ├── document/
 │   ├── types.ts          Board, Cut, Shape, ShapedBoard, StoredBoard, Instance, Definition,
-│   │                     SloydDocument, FlatDocument, MATERIALS, sheet stock
+│   │                     SloydDocument, FlatDocument, MATERIALS, sheet stock, HoleRow (`Board.holes`, `Shape.holes`)
 │   ├── document.ts       create/validate/migrate (inv 11); takeId (inv 33); trueTurnsToV8 /
 │   │                     mirrorCutAlong (inv 44); validateGuides, validateShapes
 │   ├── ids.ts            nextId, the one id minter
@@ -243,13 +247,20 @@ src/
 │   ├── angleText.ts      angleLine (THE bench line for every angle cut; faceName: a length face is an END),
 │   │                     shortPointLine (corner minimum, fu 281), angleDegrees (→ units)
 │   ├── angledRefusal.ts  TaperConflict / taperJointRefusal; AngleConflict / jointRefusal (THE joint-refusal message, one sentence per part)
+│   ├── holes.ts          THE hole geometry (inv 50): HOLE_FIELDS (inv 40), sameHoleRow, copyHoleRow, mirrorHoleRow (inv 44),
+│   │                     mm (n / 25.4, as parseLength), defaultHole/defaultShelfPinRow, holeInstances/boardHoles, holeRing/
+│   │                     holePrism (memoised by frozen Hole identity), clipPolygon/clipPlan/minusPrism/minusCover, holeRims, insideHole
+│   ├── holeFaults.ts     holeFaults (THE strict rule: breaks-out, off-flat, meets-hole, too-deep), stockChecks, holeInStock (clean)
+│   ├── holeText.ts       holeLine (THE bench line; pitch at 1/64 at least, whole mm shown; a faulted row's `— check:`),
+│   │                     holeFaultText (THE fault words), distinctFaults (too-deep once), endWord/edgeName (→ units)
+│   ├── holedRefusal.ts   holedParts / holedRefusal: joinery, Refine and Repair refuse a holed project, naming the parts
 │   ├── angleWorld.ts     WorldMiter/WorldBevel/WorldChamfer: design miters, bevels, chamfers in world words; angleCutsFor (design →
 │   │                     stored via the Properties writers), worldAngles (structural standard forms), angleRatiosOf (the exact-angle
 │   │                     map), ratioFor, sortAngleCuts (the one stored order)
 │   ├── taperWorld.ts     Dir/WorldTaper: design tapers in world words; dirToLocal/localToDir (inv 44), worldTapers
 │   │                     (stored → design form, structural standard form), taperCutsFor (design → taperCuts, §2.2 rules)
 │   ├── bodies.ts         boardBodies (pocket cells clipped by angle cuts), bodyEdges, boardEdges (inv 16);
-│   │                     partGeometry: THE cached reader of both (shared, frozen; see per-file rules)
+│   │                     partGeometry: THE cached reader of both, plus the frozen `holes` (shared, frozen; see per-file rules)
 │   ├── tenons.ts         findTenons
 │   ├── cutlist.ts        buildCutList (inv 18) — stock, not remainder
 │   ├── depthField.ts     buildDepthField (inv 20)
@@ -263,7 +274,8 @@ src/
 │   │                     validated by kind; a top-level `extra` folded back on read); buildPurchase: the cut
 │                         list's Buying section (bd ft × waste, packed boards swapped down to the cheapest size
 │                         that still holds them — a heuristic, sheets × price), every string built here (→ units)
-│   ├── snapPoints.ts     board/cut/guide snap points, towardFor, offsetPoint (inv 26)
+│   ├── snapPoints.ts     board/cut/guide snap points, towardFor, offsetPoint (inv 26); hole centres ('face-center', entry
+│   │                     and through exit); stockProbe treats a hole's mouth as air (inv 16's exception)
 │   ├── row.ts            rowLayout (gap/pitch/fit-across; refusal CODES; no rounding, inv 25)
 │   ├── generated.ts      DESIGN_SCHEMA (part + direction in `$defs`: the API's grammar cap), parseDesign, designToDocument (assemblies → a TREE;
 │   │                     `Authored` maps flat names back to what the model wrote; MAX_MAGNITUDE)
@@ -288,7 +300,8 @@ src/
 │                         shakerTableFixture.ts (the generated, joined, refined Shaker table)
 ├── store/
 │   ├── store.ts          state, edit(), undo/redo/restore, selectionPatch, held points,
-│   │                     hiddenIds, copyInRow, group/link/unique actions (invs 4, 24, 34, 42–46)
+│   │                     hiddenIds, copyInRow, group/link/unique actions (invs 4, 24, 34, 42–46);
+│   │                     addHoleRows/updateHoleRow/removeHoleRow (one edit, held points re-judged after)
 │   ├── assemblyPick.ts   clickTarget (inv 46)
 │   ├── selectionGesture.ts  selectByClick, clearOnMiss (shared by viewport and parts list)
 │   └── visibility.ts     visibleBoards, the ONE visibility filter (inv 43)
@@ -314,7 +327,10 @@ src/
 │                     framing.ts (pure, TESTED: STANDARD_VIEWS = the Plans sheet's views, viewDirection, subsetBounds
 │                     with explode offsets, zoom/distance); Viewport's `ViewportHandle` (showView, capture — the clean
 │                     frame hides Gizmo/MoveTool/TapeTool by a `hidden` prop, NEVER by unmounting them)
-│                     (invs 12, 14, 15, 17, 35), pointer.ts, gridDensity, screenScale, extent
+│                     (invs 12, 14, 15, 17, 35), pointer.ts, gridDensity, screenScale, extent;
+│                     grainTiling.ts' hole path (inv 50): bodyMesh (holed faces; seam faces subtracted only in holed
+│                     bodies), faceTriangles (rings as holes, clip-split fallback), holeMesh (one hole's wall + bottom;
+│                     clean = unclipped), holesMesh (every hole of a part, ONE geometry); holesPerf.test.ts (the guard)
 ├── panels/           DimensionField/NameField (invs 5, 9), Properties, CopyInRow, PartsList,
 │                     Toolbar, TapeReadout (invs 27, 28), GuidesList, ProjectMenu,
 │                     SettingsDialog, GenerateDialog, JoineryDialog, RefineDialog, RepairNotice, CutList, PartDiagram,
@@ -326,7 +342,9 @@ src/
 │                     one Save = one project edit + library + prices; refuses, never clamps) on materialsDraft.ts (THE
 │                     pure rows/refusals/planSave/rebaseRows) and MaterialDefinition; CutList's Buying section
 │                     AngleCuts (the Angles section: "+ Add ▾" — Taper, Miter, Miter both ends, Bevel, Chamfer —
-│                     and one row per kind), AngleField (DimensionField with a degree parse/format; max floored to 0.1°)
+│                     and one row per kind), AngleField (DimensionField with a degree parse/format; max floored to 0.1°);
+│                     Holes (the Holes section: "+ Add hole ▾" — Hole, Shelf-pin row —, one row type; an edit refused
+│                     when it ADDS a fault; Count 1→more seeds a pitch, R5), CountField (DimensionField, whole numbers)
 ├── styles.css        surface ROLES over --grey-*/--walnut-*; palette.test.ts pins contrast (4.5:1)
 └── App.tsx           layout, autosave/restore, the ONE keydown effect (inv 27), `pending`
                       (inv 29), switchToken (inv 32), `.app-shell` inert behind any modal
@@ -385,7 +403,9 @@ Deployment scaffolding: `Dockerfile`, `docker-compose.yml`, `nginx.conf`,
 - **`Viewport.tsx`**: the projection swap re-frames only once `controls.object === camera`,
   or it aims the new camera at the origin.
 - **`DimensionField.tsx`**: min/max REFUSE out-of-range input, never clamp. Enter commits
-  and blurs (fu 212); a refused entry keeps focus.
+  and blurs (fu 212); a refused entry keeps focus. `onCommit` may return a refusal MESSAGE (a string): the field shows
+  it as its OWN error (same element, role and `aria-invalid` as min/max), keeps focus and the typed text, and keeps it
+  until its own next commit or an external resync — no sibling clears it (holes R7, R8). AngleCuts has not adopted it (fu 339).
 - **`ProjectMenu.tsx`**: deliberately not an ARIA menu. The arm/disarm swap renders a
   `<button>` at the same sibling index in both branches — giving either a `key` breaks
   focus. Rendered only when `libraryAvailable`. A duplicate error's cause is read off
@@ -413,7 +433,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
    (post-patch extents). `grain` and `cuts` are absent from the reorient predicate, so cut
    edits have their own store actions. A future tool that moves *and* turns in one gesture
    must carry its own `position` in the same patch.
-    `angleCuts` is absent from the reorient predicate too (a slope moves nothing).
+    `angleCuts` and `holes` are absent from the reorient predicate too (a slope or a bore moves nothing).
 3. **The `dragging` ref guard in `Gizmo.tsx`**: never sync the document into the proxy
    mid-drag (jitter/drift).
 4. **Gesture snapshots are lazy** — taken on the first `edit()` in a gesture, never in
@@ -448,10 +468,12 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 15. **Anything memoising on what `boardUVs` reads keys on `boardUVSignature`, never a
     hand-written field list.** The signature is the same for every solid of a board, so
     don't cache per solid on it alone. A dep entry over a value nothing subscribes to is
-    the same failure.
+    the same failure. It includes every hole row (BoardMesh's memo keys on it).
 16. **Edge lines come from `boardEdges` (the cell grid's `pocketEdges`, or `bodyEdges` once a part has angle
     cuts), not from the solids.** General
-    rule: a marker or line must sit on a feature that is actually drawn.
+    rule: a marker or line must sit on a feature that is actually drawn. A hole draws its rim on its entry face (and exit
+    face when through) and, when blind, its bottom rim (a crease); its wall draws no facet lines. The exception: a hole's
+    centre snap point sits in air (the mouth is air to `stockProbe`) — it is the centre of a drawn rim.
 17. **UVs are parent-relative and `FIT` resolves against the board, not the solid**, so
     figure runs continuously across a cut.
 18. **On the cut list, stock dimensions collapse at display precision; cuts match
@@ -550,7 +572,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     miter, bevel and chamfer splits it around its touched box (`touchedRegion`/`splitRegion`), so a sloped face is never a
     contact (the user's ruling: a miter does not hold). `faceContacts` stays on boxes. Joinery refuses any angle cut running
     into a joint (`joineryRefusal`); Refine accepts every kind in standard form (`worldTapers`, `worldAngles`) and refuses the rest (`'taper-form'`, `'angle-form'`). Do not raise `TOUCH` to make joints
-    pass; do not drop the check.
+    pass; do not drop the check. **Holes are ignored** by overlap, held/hangs, tip, contact and grounding: a hole never
+    decides support.
 39. **Support means HELD: every part off the floor is resting, between (≥ 50% coverage of
     both faces of X or Z) or lapped (a broad face; a top contact only under the stated
     one-level conditions), and the piece must not tip.** **PROHIBITION: do not drop (c),
@@ -561,6 +584,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     or add an exclusion without a written reason. `cutsThatRemoveStock` decides which cuts
     are compared; the resulting row split on exact dimensions is correct — do not round.
     Angle cuts have their own table, `ANGLE_CUT_FIELDS` (`angleCuts.ts`), every field but `id` — `kind` INCLUDED — exact.
+    Hole rows have `HOLE_FIELDS` (`holes.ts`), every field but `id`, exact (a count-1 row's ignored `pitch` included, fu
+    338), compared as a multiset for cut-list grouping and `sameShared`.
 41. **Joinery has one converter (`pocketFor`), never adopts, and is blamed only for what it
     caused.** `pocketFor` is tested against the box in every pose, stores via
     `storedAsShape`. Problems compare by `kind` + `parts`, never message text. Every
@@ -604,6 +629,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     An angle cut reflects by a FLAG FLIP (`mirrorAngleCut`: `from` if `face` is the mirrored dimension, `alongFrom` if
     `along` is) — never arithmetic on stations; `lowerAngleCuts` is its exact inverse and is written back only when the user
     edited it or a d0-moving posture change re-reflected it (`changedKeys`), never as a shared world array.
+    A hole row reflects by flag flips too (`mirrorHoleRow`: `from`, `alongFrom` or `acrossFrom`, whichever of face, along
+    and across is the mirrored dimension); `lowerHoles` is its exact inverse, reusing an untouched stored array.
 45. **A link is a SHAPE its users point to; shared fields are stored once.** `LINK_FIELDS`
     is the ONE shared/own table (classify an optional own field with care, fu 231).
     `resolveBoard` is the ONE place a shape is read into a part. `linksToShapes` is the ONE
@@ -657,7 +684,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     offset is a render-time translation, never written back (inv 1). Drawings take lines from `boardEdges` and
     occluders from `worldBodies` (each body CLOSED: a box, or its faces as half-spaces): a ray along a seam between
     solids is inside. The exploded set is
-    lifted so its lowest part never goes below the assembled lowest point.
+    lifted so its lowest part never goes below the assembled lowest point. Occluders are the HOLE-FREE bodies: you
+    cannot see through a hole (a rule for chunk 2's drawings, not an accident).
 
 48. **`boardBodies` is the ONE place angle cuts become geometry; `pocketCells` is stock minus RECTANGULAR cuts only.**
     Anything that draws, edges, occludes or probes stock reads bodies (through the `partGeometry` cache); anything that
@@ -686,12 +714,30 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     **Nominal names** (chunk 2) show only for a material whose catalog entry is `nominal` (pine; a custom solid with the
     switch), only on an EXACT section match, and on a cut-list row only when EVERY board on it is that section; drawings
     keep actual dimensions. The switch never touches a stored material's prices.
+
+50. **`holes.ts` is the ONE place holes become geometry (`holeInstances`, through `boardHoles` and `partGeometry`'s
+    frozen `holes`); `boardBodies` stays hole-free and convex**, so every `Body` reader (`clip`, `clipConvex`, `bodyEdges`,
+    occluders, contact) keeps its convexity assumption. **`holeFaults` is the ONE strict-rule decider** (`breaks-out`,
+    `off-flat` — zero skin at a cut's floor counts —, `meets-hole`, `too-deep`; exact closed forms, tangent passes): an add
+    is refused on any fault, an edit only when it ADDS a (hole, kind) fault the stored row lacks (so a row a resize faulted
+    can be edited back), decided before any mutation; a fault a later edit causes is KEPT, noted, drawn approximately,
+    never clamped or trimmed. Fault words have one home (`holeFaultText`; `distinctFaults` counts too-deep once). Joinery,
+    Refine and Repair refuse a holed project at entry (`holedRefusal`); `turnCandidates` returns none for a holed part.
+    A part with no holes keeps its geometry byte-for-byte (the `BoxGeometry` path included). **Rebuild performance —
+    a resize drag rebuilds a holed part every frame; these break silently:** per-hole prisms and rings are memoised by
+    the deep-frozen `Hole`'s IDENTITY (a WeakMap; an unfrozen hole computes fresh — never memoise one that can change);
+    seam faces (what a coplanar, opposite-facing face of another body covers) are subtracted ONLY in holed bodies; a
+    CLEAN hole's (`holeInStock`: no breaks-out, off-flat or too-deep) wall and bottom are emitted UNCLIPPED, a faulted
+    hole's clipped to the bodies; all of a part's holes are ONE geometry, one mesh (`holesMesh`), never a mesh per hole.
+    `viewport/holesPerf.test.ts` guards it (≤40 ms per healthy case, ≤100 ms faulted, median of 7; wall-clock — run on a
+    quiet machine, fu 340).
+
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 3724 tests across 128 files
+npm test           # Vitest, currently 3882 tests across 134 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -749,6 +795,12 @@ knowing without opening it:
   and direction live in `$defs`; any `DESIGN_SCHEMA` change needs one live compile before it ships.
 - **266** — closed 2026-10-14 (custom materials, both chunks). **324**/**326** — chunk 1/chunk 2 minors (record-only).
   **325** — two tabs overwrite each other's library/prices (record); the v14-rollback `extra` round trip is covered.
+- **327–342** — holes chunk 1 residue: 327 (chunk 2: drawings, Hinge cup — NEXT), 328–335 (spec §11: holes through
+  joinery/Refine/Repair, Generate/Refine authoring them, counterbores/cam-and-bolt, half-holes, dowels as hardware, Plans
+  callouts, pointed bottoms, metric display), 336 (wall-grain seam inside a bore, deferred by the user to a texture/shader
+  session), 337 (real-hardware looks owed: rims, drag smoothness, faded holed parts, overlapping holes), 338 (count-1 rows
+  compare `pitch`, for the user), 339 (AngleCuts adopting the refusal message), 340 (the perf guard is wall-clock), 341–342
+  (record-only minors).
 - **176/177** — the held rules' known limits (mutual lapping) and an unseen live repair.
 - **130** — semi-infinite construction lines; picked and set aside 2026-08-31 without a
   reason. Ask before assuming it's wanted; it needs real hardware (26a).

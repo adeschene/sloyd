@@ -2386,6 +2386,11 @@ The viewport has no unit tests by design (CLAUDE.md); the mesh builders are test
 
 ---
 
+### Task 11b: Rebuild performance (added after the live check)
+
+Inserted 2026-10-14 by the user's decision ("fix before merge") after Task 11 measured 107–580 ms rebuilds of a holed
+part. Executed under rulings R10–R16 (the SDD ledger); guarded by `src/viewport/holesPerf.test.ts`.
+
 ### Task 12: Record and merge
 
 - [ ] **Step 1: Final review.** Dispatch a whole-branch review (superpowers:requesting-code-review) against the spec and

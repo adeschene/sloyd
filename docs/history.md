@@ -437,6 +437,74 @@ and 79.
 
 ## What each round did
 
+**What holes chunk 1 did (2026-10-14, feature-gaps §1)** (spec `docs/superpowers/specs/2026-10-14-sloyd-holes-design.md`,
+plan `docs/superpowers/plans/2026-10-14-sloyd-holes-chunk1.md`, branch `holes` from `fbe5ed9`). **Merged to master, NOT
+deployed** — deployment waits for the user; **schema 16** (once deployed, a rollback below 16 refuses every project saved
+since: export first). The user's rulings while brainstorming: holes only (a dowel joint is two holes placed by hand); rows
+STORED with a count and a pitch (one entry is the jig); Claude features refuse holed projects this round; strict geometry
+(a hole sits wholly on one flat face); station / pitch / inset from named ends. A `HoleRow` (face + from, diameter, depth
+or `'through'`, along + alongFrom, station, count, pitch, acrossFrom + inset) is board-local, so resizes keep it on its end
+and turns and postures cost nothing. Subagent-driven, twelve tasks plus one inserted, each reviewed:
+(1) the primitive, schema 16, validation (malformed dropped, faulted kept), `LINK_FIELDS` `holes: 'shared'`;
+(2) copies carry rows (`copyBoard`, Make Unique, Group/Ungroup, `resolveBoard`);
+(3) `holeInstances` and the geometry helpers, and `holeFaults`, the ONE strict-rule decider (breaks-out, off-flat,
+meets-hole, too-deep; exact closed forms, tangent passes);
+(4) mirroring by flag flips (`mirrorHoleRow`) with `lowerHoles` its exact inverse;
+(5) `partGeometry`'s frozen `holes`, the mouth as air to `stockProbe`, hole-centre snap points;
+(6) the 3D view: holed faces triangulated with the rings as holes (shared rim vertices with the wall), the clip split as
+the fallback, walls with radial normals, bottoms, rims; a part with no holes byte-for-byte unchanged;
+(7) `holeText.ts`' bench line and cut-list grouping by `HOLE_FIELDS` as a multiset;
+(8) joinery, Refine and Repair refuse a holed project (`holedRefusal`);
+(9) store actions `addHoleRows`/`updateHoleRow`/`removeHoleRow`;
+(10) the Holes section ("+ Add hole ▾": Hole, Shelf-pin row; Count as a whole-number field);
+(11) the live check; (11b, inserted) rebuild performance; (12) these records.
+Planning amendments, approved by the user with the spec: the clip split leaves T-junctions at every rim, so a face every
+ring lies strictly inside is triangulated with the rings as holes from the wall's own ring vertices (the split kept as the
+fallback); prism caps pushed out by `PRISM_EPS = 1e-7`; a blind hole draws its bottom rim; the mouth is air (every lattice
+point lies on the box surface, so "strictly inside" withheld nothing) and centres reuse `'face-center'`; the pitch prints
+at 1/64 at least with whole millimetres shown (`every 1-17/64" (32 mm)` — at 1/16 a jig set to `1 1/4"` drifts 1/5" over 21
+holes); a faulted row's bench line ends `— check: hole 20 runs past … (and 1 more)` (the user's ruling); the menu reads
+"+ Add hole ▾"; an edit is refused only when it ADDS a fault (else a row a resize faulted could never be edited back);
+Every hidden, not disabled, at count 1.
+Rulings while executing:
+- R1: work on branch `holes` in the main checkout, no worktree.
+- R2: `links.test.ts` defines its own row rather than importing `holes.test.ts` (importing a test module re-registers its suite).
+- R3: axial contact with a rectangular cut's region is off-flat (zero skin at a dado floor breaks through); in-plane tangency stays allowed.
+- R4: the strict triangulation also requires the reaching rings pairwise disjoint; overlapping (faulted) holes take the fallback split.
+- R5: raising Count from 1 when the stored pitch would make holes meet seeds the pitch in the same edit (32 mm if it clears the diameter, else 2 × diameter).
+- R6: a caller-refused DimensionField edit keeps focus and text (`onCommit` returning `false`) — superseded by R7.
+- R7: `onCommit` may return a refusal MESSAGE, shown as the field's own error until its own next commit or a resync; no sibling clears it.
+- R8: a blurred caller-refused field keeps its text and visible error, as its own min/max refusals do; a later blur may commit it once it fits.
+- R9: the wall-grain seam deferred to the user's texture/shader session (fu 336).
+- R10: a bounding-box reject before the face × hole test, though it changes the (equivalent) triangulation in ~180 of 245,700 pairs.
+- R11: a holed body skips internal seam faces (inside the stock, invisible; the main earcut cost); unholed parts byte-for-byte.
+- R12: helpers may take a precomputed `axisFrame` (a frame-bound mapper through inv 44's helpers, never `board[dim] - u`).
+- R13: the permanent perf test bounds ≤40 ms per healthy case (median of 7), passing 3 runs in a row on a quiet machine.
+- R14: R11 generalised to covered-region subtraction (exact coincidence matched nothing in the dado fixture).
+- R15: a CLEAN hole's wall and bottom are emitted unclipped; a faulted hole keeps the per-body clip.
+- R16: the 16 ms target is judged in node (vitest adds ~1.5×); too-deep joins the clean predicate (else a blind hole past the back face would draw outside the part).
+- R17: the final review's fix wave (below).
+- R18: count-1 rows still compare `pitch` exactly (spec §4.2) — recorded for the user (fu 338).
+Reviews caught: zero skin at a cut floor passing while zero skin at the back face was too-deep (Task 3, R3); the strict
+triangulation capping the mouths of overlapping holes (Task 6, R4); a single hole that could never become a row, and a
+refused field edit blurring with the refused value showing (Task 10, R5–R8). **The live check** (dev server :5181, software
+GL, `docs/browser-verification-holes.md`, two passes, the profile restored after each) confirmed the import, the Holes
+section's lines equal to the cut list's, holes rendering open with lit walls, a through-bore showing the ground, no membrane
+at the dado seam, a shrunk part keeping its faulted row with its note and `— check:` line, Count refusals owned by the field,
+and the joinery/Refine refusals; it found (1) rebuilds of a holed part at 107 ms (two 21-pin rows), 131 ms (with a clear
+dado) and ~580 ms (a row crossing a dado) against 0.5 ms unholed — **the user: fix before merge**, so Task 11b (R10–R16):
+node medians 11.9 / 12.1 / 24.7 ms, guarded by `holesPerf.test.ts` (≤40 / ≤100 ms in vitest); (2) the wall-grain seam —
+**the user deferred it** to a texture/shader session (R9, fu 336); (3) rims indistinguishable at screenshot scale; (4)
+"Row Of 6" (CSS capitalisation). Software GL could not confirm shading and grain inside a bore, rims, drag smoothness
+(in-browser timings were 1.5–9 s per edit with or without holes), faded holed parts, or cracks at overlapping holes (fu 337);
+Tape centre-to-centre and a mirrored holed copy were unit-tested only. The final review (a fresh reviewer, no Critical)
+found: the bench line counting too-deep per hole while the note counted it once; one mesh and six materials per hole (42
+meshes on one drilled side); unchecking Through seeding half the face dimension (15" on an end-grain row); `mm` multiplying
+(n × 0.03937… ≠ n / 25.4 for 5 and 22.5). R17 fixed all four in one wave (`distinctFaults`, `holesMesh`, a 1/2" seed cap,
+`mm(n) = n / 25.4`) with its minors: snap centres pinned in upright and on-edge poses at turns 90 and 270, an explicit expect
+for the shaped Refine case, `sharedPatch` copying rows, "Row of 6". Deferred minors as fu 340–342. Test count 3724 -> 3882
+(134 files). Next: chunk 2 (fu 327).
+
 **What custom materials chunk 2 did (2026-10-14, fu 266's second half)** (plan
 `docs/superpowers/plans/2026-10-14-sloyd-custom-materials-chunk2.md`). Nominal lumber names: `src/units/nominal.ts` (the
 seventeen US softwood sections, an EXACT matcher at 1e-9 in either order, whole-foot stock lengths as `8′`); pine sold in
