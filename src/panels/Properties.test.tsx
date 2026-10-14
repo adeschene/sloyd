@@ -1579,6 +1579,14 @@ describe('Nominal size (custom materials spec §5.3)', () => {
     const b = useStore.getState().doc.boards[0] as Board;
     expect([b.thickness, b.width]).toEqual([5.5, 1.5]);
   });
+  it('a selection mixing stored orders flips neither way round: both take thickness 1.5, width 3.5', () => {
+    load([{ id: 'a', material: 'pine', thickness: 3.5, width: 0.75 }, { id: 'b', material: 'pine', thickness: 0.75, width: 3.5 }]);
+    useStore.getState().selectAll();
+    render(<Properties />);
+    fireEvent.change(screen.getByRole('combobox', { name: 'Nominal size' }), { target: { value: '2×4' } });
+    const parts = useStore.getState().doc.boards as Board[];
+    expect(parts.map((b) => [b.thickness, b.width])).toEqual([[1.5, 3.5], [1.5, 3.5]]);
+  });
   it('a mixed selection reads mixed; choosing 2×4 sets every part in ONE undo entry', () => {
     load([{ id: 'a', material: 'pine', thickness: 0.75, width: 3.5 }, { id: 'b', material: 'pine', thickness: 0.75, width: 5.5 }]);
     useStore.getState().selectAll();

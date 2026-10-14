@@ -211,7 +211,8 @@ machined (invariant 18). A name is shown only for a part whose material is `nomi
   material is nominal. It shows the current name or `Custom`; choosing a section sets thickness and width in ONE edit
   (one undo entry, the normal reorient path, invariant 2). Choosing `Custom` changes nothing.
 - **Not** on the Plans sheet or part diagrams: drawings keep actual dimensions. **(amended)** *Nor in a by-the-piece
-  sheet layout's key label (`nesting.sheet`), a measured SVG string (invariant 19); the layout's caption does name it.*
+  sheet layout's `nesting.sheet`, which stays on actual dimensions because nothing reads it for a Buying layout (it is the
+  sheet-goods unplaceable message's noun); the layout's caption names the section.*
 - **(amended)** *Choosing a section keeps each part's stored order of thickness and width when every selected part has
   the same order (a part stored 3½ thick × 1½ wide stays that way round, so the board does not turn over); a selection
   mixing orders takes the thinner side as thickness.*

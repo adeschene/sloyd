@@ -195,6 +195,6 @@ describe('CutList', () => {
     const row = container.querySelector('.cutlist-row')!;
     expect(row.querySelector('.cutlist-nominal')?.textContent).toBe('1×4');
     expect(row.querySelector('.cutlist-dims')?.textContent).toBe('24" × 3-1/2"');
+    expect(row.querySelector('.cutlist-names')?.textContent).toBe('1×4 Rail');
   });
-
 });

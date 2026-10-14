@@ -238,6 +238,7 @@ function byThePiece(material: string, label: string, parts: Board[], stock: Stoc
       key: s.id,
       title: `${dims} — board`,
       stock: { length: s.length, width: s.width, rotate: 'grain' as const },
+      // Actual dimensions on purpose: nothing reads `sheet` for a Buying layout (it is the sheet-goods unplaceable noun); the caption names the section.
       nesting: { sheets: chosen.filter((c) => c.size === s).map((c) => ({ parts: c.parts })), unplaceable: [], label: '', sheet: sizeDims(s, p, false) },
     };
   });

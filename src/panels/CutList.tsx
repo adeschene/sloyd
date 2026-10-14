@@ -125,6 +125,7 @@ export function CutList({ onClose, shop = DEFAULT_SHOP, onOpenPrices, suspended 
                     <span className="cutlist-dims">{row.dims}</span>
                     <span className="cutlist-names">
                       {row.nominal && <span className="cutlist-nominal">{row.nominal}</span>}
+                      {row.nominal && ' '}
                       {row.names.join(', ')}
                     </span>
                     <span className="cutlist-stock">{row.stock}</span>
