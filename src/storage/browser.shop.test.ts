@@ -28,6 +28,39 @@ describe('shop settings storage', () => {
     expect(await a.getShopSettings()).toEqual({ settings: s, readFailed: false });
   });
 
+  it('keeps unknown ids (extra) and custom prices across a write and a read', async () => {
+    const store = new MemoryStorage();
+    const a = new BrowserStorageAdapter(store);
+    const s = defaultShop();
+    const ash = { mode: 'board-foot' as const, pricePerBoardFoot: 9, wasteFactor: 1.4 };
+    s.materials['m-s-ash1'] = ash;
+    s.extra = { 'future-key': { mode: 'sheet', pricePerSheet: 70 } };
+    expect(await a.setShopSettings(s)).toBe(true);
+    const stored = JSON.parse(store.getItem(SHOP_KEY)!);
+    expect('extra' in stored).toBe(false);
+    expect(stored.materials['future-key']).toEqual({ mode: 'sheet', pricePerSheet: 70 });
+    const back = await a.getShopSettings();
+    expect(back.readFailed).toBe(false);
+    expect(back.settings.materials['m-s-ash1']).toEqual(ash);
+    expect(back.settings.extra).toEqual({ 'future-key': { mode: 'sheet', pricePerSheet: 70 } });
+    expect('future-key' in back.settings.materials).toBe(false);
+  });
+
+  it('recovers entries a faulty earlier write left in a top-level extra; materials wins a shared key', async () => {
+    const store = new MemoryStorage();
+    const ash = { mode: 'board-foot', pricePerBoardFoot: 9, wasteFactor: 1.4 };
+    store.setItem(SHOP_KEY, JSON.stringify({
+      layout: 1,
+      materials: { oak: { mode: 'board-foot', pricePerBoardFoot: 8, wasteFactor: 1.5 }, 'future-key': { v: 'materials' } },
+      extra: { 'm-s-ash1': ash, 'future-key': { v: 'extra' }, 'other-key': { v: 2 } },
+    }));
+    const back = await new BrowserStorageAdapter(store).getShopSettings();
+    expect(back.readFailed).toBe(false);
+    expect(back.settings.materials['m-s-ash1']).toEqual(ash);
+    expect(back.settings.materials.oak).toEqual({ mode: 'board-foot', pricePerBoardFoot: 8, wasteFactor: 1.5 });
+    expect(back.settings.extra).toEqual({ 'future-key': { v: 'materials' }, 'other-key': { v: 2 } });
+  });
+
   it('reads unparseable or newer values as defaults, flagged, and never overwrites them', async () => {
     for (const raw of ['{not json', JSON.stringify({ layout: 2, materials: {} })]) {
       const store = new MemoryStorage();

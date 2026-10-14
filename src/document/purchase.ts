@@ -88,11 +88,14 @@ function validateBuying(material: string, raw: unknown): MaterialBuying | null {
  * Read stored shop settings (spec §2.2). Never throws. `ok` is false when the stored value had to be
  * replaced, wholly (not an object, another layout) or in part (an entry failed validation and took its
  * default) — the dialog then says so. A material absent from the stored value takes its default
- * silently: that is a new MATERIALS key, not damage. Keys no longer in MATERIALS are not kept.
+ * silently: that is a new MATERIALS key, not damage. A key that is neither built in nor custom-shaped
+ * (another build's, or one no longer in MATERIALS) is kept, untouched, in `extra`, so a write puts it back.
+ * A top-level `extra` object (left by an earlier faulty write) is folded in as stored entries; `materials`
+ * wins a key both hold.
  */
 export function validateShop(raw: unknown): { settings: ShopSettings; ok: boolean } {
   if (!isObj(raw) || raw.layout !== SHOP_LAYOUT || !isObj(raw.materials)) return { settings: defaultShop(), ok: false };
-  const stored = raw.materials;
+  const stored: Record<string, unknown> = { ...(isObj(raw.extra) ? raw.extra : {}), ...raw.materials };
   let ok = true;
   const materials: Record<string, MaterialBuying> = {};
   // Known = built-in OR custom-shaped (amended §2.5): the kind is in the id, so a custom entry validates

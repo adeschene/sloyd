@@ -631,7 +631,10 @@ export class BrowserStorageAdapter implements StorageAdapter {
   async setShopSettings(settings: ShopSettings): Promise<boolean> {
     if (!this.store) return false;
     try {
-      this.store.setItem(SHOP_KEY, JSON.stringify(settings));
+      // Unknown ids (`extra`) are stored back INSIDE `materials`, never as a top-level field: that is the
+      // shape every build reads (a v14 build included), so a price no build here knows survives a Save.
+      const { layout, materials, extra } = settings;
+      this.store.setItem(SHOP_KEY, JSON.stringify({ layout, materials: { ...extra, ...materials } }));
       return true;
     } catch {
       return false;
