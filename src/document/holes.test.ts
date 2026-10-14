@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
 import {
   HOLE_KEYS, HOLE_SEGMENTS, PRISM_EPS, acrossOf, boardHoles, clipPolygon, copyHoleRow, holeInstances, holePrism, holeRing,
-  holeRims, insideHole, minusPrism, mirrorHoleRow, ringInside, sameHoleRow, defaultHole, defaultShelfPinRow,
+  holeRims, insideHole, minusPrism, mirrorHoleRow, ringInside, sameHoleRow, defaultHole, defaultShelfPinRow, mm,
 } from './holes';
+import { parseLength } from '../units/length';
 import type { V3 } from './angleCuts';
 import type { HoleRow } from './types';
 
@@ -134,6 +135,17 @@ describe('mirrorHoleRow (inv 44: a flag flip, no arithmetic)', () => {
     expect(mirrorHoleRow(PIN, 'length')).toEqual({ ...PIN, alongFrom: 'max' });
     expect(mirrorHoleRow(PIN, 'width')).toEqual({ ...PIN, acrossFrom: 'max' });
     expect(mirrorHoleRow(mirrorHoleRow(PIN, 'width'), 'width')).toEqual(PIN);
+  });
+});
+
+describe('mm: millimetres DIVIDE, as parseLength stores them (final review 4)', () => {
+  // A preset or seed in mm must store exactly what typing the same mm stores: n / 25.4. Multiplying by 1/25.4 differs
+  // in the last bit for 5 and 22.5 (5 * (1/25.4) !== 5 / 25.4), so a typed 5mm and a preset 5mm would read as two rows.
+  it.each([5, 22.5, 32, 35])('mm(%s) is parseLength of the same mm', (n) => {
+    expect(mm(n)).toBe(parseLength(`${n}mm`));
+  });
+  it('the shelf-pin preset\'s pitch is a typed 32mm', () => {
+    expect(defaultShelfPinRow(createBoard({ length: 30, width: 11.25, thickness: 0.75 }))!.pitch).toBe(parseLength('32mm'));
   });
 });
 

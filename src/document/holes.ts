@@ -43,8 +43,10 @@ export function mirrorHoleRow(r: HoleRow, d: Dimension): HoleRow {
   return { ...r, acrossFrom: flip(r.acrossFrom) };
 }
 
-/** Inches per millimetre. 32 mm stores 32 * MM — not rounded. */
-export const MM = 1 / 25.4;
+/** Millimetres to inches, DIVIDED by 25.4 exactly as parseLength stores a typed mm (`n / MM_PER_INCH`), so a preset's
+ *  32 mm and a typed "32mm" are the same number — multiplying by 1/25.4 differs in the last bit for 5 and 22.5. Not
+ *  rounded. (The 25.4 is written here rather than imported: this module produces no text, so it does not import units.) */
+export const mm = (n: number) => n / 25.4;
 
 /** The broad face: the smallest dimension (a tie goes to the later of DIMENSION_ORDER: thickness, then width). */
 function broadFace(b: Pick<Board, Dimension>): Dimension {
@@ -72,7 +74,7 @@ export function defaultHole(b: Board): Omit<HoleRow, 'id'> {
 export function defaultShelfPinRow(b: Board): Omit<HoleRow, 'id'> | null {
   const face = broadFace(b);
   const [along, across] = othersOf(b, face);
-  const pitch = 32 * MM;
+  const pitch = mm(32);
   const room = b[along] - 4;
   if (room < 0) return null;
   const count = Math.min(HOLE_COUNT_MAX, Math.floor(room / pitch + 1e-9) + 1);

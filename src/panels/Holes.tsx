@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../store/store';
-import { MM, acrossOf, defaultHole, defaultShelfPinRow, holeFaults } from '../document/document';
+import { acrossOf, mm, defaultHole, defaultShelfPinRow, holeFaults } from '../document/document';
 import type { Board, CutFrom, Dimension, HoleFault, HoleRow } from '../document/document';
 import { distinctFaults, edgeName, endWord as end, faultKey as key, holeFaultText, holeLine } from '../document/holeText';
 import { DimensionField } from './DimensionField';
@@ -24,7 +24,7 @@ function refusal(f: HoleFault, r: Omit<HoleRow, 'id'>, rowId: string): string {
 const note = (f: HoleFault, r: HoleRow) => { const t = holeFaultText(f, r); return `${t[0]!.toUpperCase()}${t.slice(1)} at this size.`; };
 /** The pitch a single hole takes when its count first rises (ruling R5): 32 mm, or twice the diameter for a bore 32 mm
  *  or wider, so hole 2 is not stacked on hole 1. */
-const seedPitch = (diameter: number) => (32 * MM > diameter ? 32 * MM : 2 * diameter);
+const seedPitch = (diameter: number) => (mm(32) > diameter ? mm(32) : 2 * diameter);
 
 /** The depth a row takes when Through is unchecked: half the face dimension (3/8" in 3/4" stock), at most 1/2" — an
  *  end-grain row in a 30" rail would otherwise seed a 15" bore. */
