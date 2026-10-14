@@ -12,8 +12,10 @@ built around hand woodworking.
 ## What it does
 
 **Boards**
-- Add boards, then set length, width, thickness, material (pine, oak, maple, walnut, cherry,
-  plywood, MDF) and grain direction. Fields take fractional inches, decimals or millimetres.
+- Add boards, then set length, width, thickness, material and grain direction. Fields take fractional inches,
+  decimals or millimetres. Built-in materials are pine, oak, maple, walnut, cherry, plywood and MDF; **Materials &
+  prices** adds your own solid woods and sheet goods (kept in a browser library and copied into each project that uses
+  them). Pine and nominal-sized custom woods show **nominal names** (a ¾ × 5½ board reads 1×6).
 - **Posture** (flat, on edge, upright) and **turn** (0°, 90°, 180°, 270°, true rotations).
 - Move with the gizmo, which snaps to 1/16". Or use the **Move** tool (M) to snap one point
   exactly onto another: a corner, an edge midpoint, a face centre, a cut's corner or a guide.
@@ -28,12 +30,15 @@ built around hand woodworking.
 - Cuts are stock removed from a board: dados, grooves, rabbets, notches, and mortises and
   stopped dados (a cut can stop short of either end). The 3D view, the snap points and the
   cut list all read the same cut.
+- **Angles**: tapers, miters (one end or both), bevels and chamfers, from the **+ Add ▾** menu; the cut list reads them
+  as bench lines (a miter names its long point, and mitered parts get a short point).
 - **Holes**: a single bore or a stored row (shelf pins at 32 mm), blind or through, square to any face, plus a 35 mm
   hinge cup preset. They show open in 3D, on the Plans sheet and in the part diagrams, and as bench lines on the cut
   list. Add joinery and Refine don't handle holed projects yet.
 - **Add joinery…** finds where parts meet and, using Claude, chooses mortise-and-tenon, dado,
   stopped dado, rabbet or half-lap joints. It then cuts and resizes the parts. The result is
-  saved as a new project, and the original is never changed.
+  saved as a new project, and the original is never changed. Tapered, mitered, beveled and chamfered parts are
+  accepted; an angle cut running into a joint refuses. **Repair joints** fixes projects damaged by an older build.
 
 **Linked parts, assemblies and components**
 - **Link** parts so they share size, material, grain, posture and cuts. Edit one and every
@@ -54,17 +59,23 @@ built around hand woodworking.
 **At the bench**
 - **Cut list**: a printable sheet that groups identical parts. Every part is named by its
   path (`Cabinet › Drawer › Side`). It shows each part's joinery as a drawing with its setup
-  lines, board feet for solid wood and square feet for sheet goods.
+  lines, board feet for solid wood and square feet for sheet goods. A **Buying** section turns it into a shopping
+  list: board feet with a waste factor, boards bought by the piece packed onto the cheapest sizes, sheets, and a cost
+  from the prices you set.
 - **Plans**: a printable sheet of dimensioned third-angle elevations (front, plan, side) of the piece and of
   each assembly, with an exploded isometric. The viewport has an **Explode** slider; the model is read-only while it
   is spread.
+- **Views**: Front, Side, Top and Iso buttons over the viewport; **Save image** downloads a clean PNG of the view.
 - **Sheet layout**: plywood and MDF parts are nested onto 4×8 sheets in guillotine-cuttable
   rows, accounting for the saw kerf.
 
 **Generate**
 - Describe a piece and get one to three prototypes built from boards, using Claude with your
   own API key. The key is stored in this browser only. Each prototype is saved as a new
-  project; generation never touches the project you are working on.
+  project; generation never touches the project you are working on. Prototypes can come with tapers, miters, bevels and
+  chamfers.
+- **Refine…** changes an existing design by instruction ("make it 2 inches taller") and saves the result as a new
+  project with a list of what changed; joined designs keep their joints.
 
 **Projects**
 - Several projects live in the browser's local storage, with switch, duplicate, delete and

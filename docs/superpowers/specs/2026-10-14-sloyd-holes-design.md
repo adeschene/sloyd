@@ -172,7 +172,9 @@ angle, a crease by this section's own rule.
 ### 3.4 Drawings (`drawing.ts`, chunk 2)
 
 - Rims run through the same hidden-line pass as every other edge, as polylines of `DRAWING_HOLE_SEGMENTS = 96` (print
-  scale; never displayed in the viewport).
+  scale; never displayed in the viewport). *Amended (implementation, chunk 2, review ruling R2):* a rim seen exactly
+  edge-on is drawn as ONE segment, its exact projection (96 chords would fold back along one line), and the sheet's path
+  writer joins segments that continue one another within a part, so a hidden circle dashes continuously.
 - **Depth lines**: in each view, the wall's two silhouette generators (the lines tangent to the view direction) and,
   when blind, the bottom rim. A view looking down the axis has no silhouettes (the rim covers the bottom). In the
   elevations these are hidden (inside the part) and draw dashed, as a shop drawing does; the exploded view draws no
