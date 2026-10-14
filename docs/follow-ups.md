@@ -5044,8 +5044,8 @@ an exported project does not say what it was priced at. Overrides would need a s
 **266. Custom materials and nominal lumber names.** `MATERIALS` is still a fixed seven; ash, poplar, 5x5 Baltic birch
 and nominal names (2x4 = 1-1/2 x 3-1/2) are not expressible. `ShopSettings` is keyed by material, ready for more.
 **Status:** custom materials done 2026-10-14 (chunk 1, branch `custom-materials-1`; spec
-`docs/superpowers/specs/2026-10-14-sloyd-custom-materials-design.md`, schema 15). **Nominal names stay open** (chunk 2:
-the table, pine's flag, cut list and Buying names, the Size select). Residue: 324, 325.
+`docs/superpowers/specs/2026-10-14-sloyd-custom-materials-design.md`, schema 15); nominal names done 2026-10-14 (chunk 2,
+branch `custom-materials-2`, no schema change). **Closed.** Residue: 324, 325, 326.
 
 **267. Edge banding and a hardware bill of materials** (`docs/feature-gaps.md` §3). **Status:** open.
 
@@ -5388,3 +5388,13 @@ Prices behaved this way before custom materials; the spec is silent. Remedy if i
 opens (cheap), or a `storage` event listener. Also recorded: a rollback to the 2026-10-14 v14 bundle followed by a prices
 Save writes custom-id prices to a top-level `extra`; this build folds a top-level `extra` back on read (final review I1),
 so the prices survive the round trip. **Status:** record-only.
+
+**326. Nominal names minors (record-only; chunk 2 task and final reviews).** (1) `NOMINAL_DEFAULT_STOCK` filters sections
+by float equality on table literals (exact, but a name filter would be tidier). (2) Untested: re-picking the current
+section in "Nominal size" (a native select fires no change; a no-op edit pushes no entry), a shaped/assembly selection, a
+stored custom-nominal stock entry in Buying, a kind change after the nominal switch on a new row (the switch resets with
+the kind, as prices do), a switch on a row rebased after a partial-failure Save, the checkbox's visible text. (3) A new
+row's kind round trip (solid → sheet → solid) turns its nominal switch off — consistent with prices resetting on a kind
+change. (4) "Use library version" may change a stored row's nominal flag without touching its prices (the rule for stored
+rows). (5) Materials created before chunk 2 keep their stored board-foot buying when the switch is turned on — choose By
+the piece to get the yard list (by design: the switch never touches stored prices). **Status:** record-only.

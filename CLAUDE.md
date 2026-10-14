@@ -201,7 +201,8 @@ source of truth — `tapeHover`'s clearing enumeration, `tapeAxis`'s structural 
 
 ```
 src/
-├── units/            length.ts (parseLength/formatLength/canBeginLength; capture set {0-9 . -}),
+├── units/            length.ts (parseLength/formatLength/canBeginLength; capture set {0-9 . -}), nominal.ts
+│                     (NOMINAL_SECTIONS, nominalName — EXACT at 1e-9, either order —, stockLengthText: whole feet `8′`),
 │                     quantity.ts (board/square feet, two decimals fixed)
 ├── document/
 │   ├── types.ts          Board, Cut, Shape, ShapedBoard, StoredBoard, Instance, Definition,
@@ -677,12 +678,15 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     converter gets them BEFORE `migrateDocument` (`designToDocument(…, { materials })`), or they become pine. Generate's
     schema stays byte-identical (built-in catalog, fixture-pinned); Refine's adds the project's ids (fu 322: a per-project
     grammar, compiled live 2026-10-14). The library and prices are browser state: undo reverts a project's copy only.
+    **Nominal names** (chunk 2) show only for a material whose catalog entry is `nominal` (pine; a custom solid with the
+    switch), only on an EXACT section match, and on a cut-list row only when EVERY board on it is that section; drawings
+    keep actual dimensions. The switch never touches a stored material's prices.
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 3694 tests across 127 files
+npm test           # Vitest, currently 3724 tests across 128 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

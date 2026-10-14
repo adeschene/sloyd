@@ -1,6 +1,6 @@
 # Sloyd — custom materials and nominal lumber
 
-**Date:** 2026-10-14 · **Status:** approved by the user; chunk 1 implemented on branch `custom-materials-1` (plan `docs/superpowers/plans/2026-10-14-sloyd-custom-materials-chunk1.md`); chunk 2 (nominal names) not started
+**Date:** 2026-10-14 · **Status:** approved by the user; chunk 1 deployed 2026-10-14 (merge `4851945`); chunk 2 (nominal names) implemented on branch `custom-materials-2` (plan `docs/superpowers/plans/2026-10-14-sloyd-custom-materials-chunk2.md`)
 **Amended while planning (2026-10-14), marked "(amended)":** §2.2 the id encodes the kind; §2.5 shop validation by id; §4.1 entry points; §6 joinery prompt names.
 **Builds on:** the document schema and versioned load (`document.ts`, invariants 11, 33), the material table
 (`MATERIALS`, `types.ts`), sheet nesting (`nesting.ts`), lumber yield and cost (`purchase.ts`,
