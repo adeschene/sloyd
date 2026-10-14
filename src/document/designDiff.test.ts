@@ -3,6 +3,9 @@ import { diffDesigns } from './designDiff';
 import { designToDocument } from './generated';
 import type { GeneratedAssembly, GeneratedPart } from './generated';
 import { formatLength } from '../units/length';
+import { createBoard, createDocument } from './document';
+import { chamferCut, miterCut, miterRatio } from './angleCuts';
+import type { Board } from './types';
 
 const v = (x: number, y: number, z: number) => ({ x, y, z });
 const part = (name: string, at: [number, number, number], size: [number, number, number], material = 'oak', role = ''): GeneratedPart =>
@@ -196,7 +199,30 @@ describe('diffDesigns — tapers across placements', () => {
   it('merges one assembly-part taper change across placements into one entry (×N)', () => {
     const out = diffDesigns(doc([], [asm([])]), doc([], [asm([T])]));
     expect(out.map((c) => [c.kind, c.copies, c.text])).toEqual([
-      ['taper', 3, `L1 › Leg: taper added (+x, +z; ${f(22)} from the -y end, ${f(0.375)} off) (×3)`],
+      ['angle', 3, `L1 › Leg: taper added (+x, +z; ${f(22)} from the -y end, ${f(0.375)} off) (×3)`],
     ]);
+  });
+});
+
+describe('diffDesigns — miters, bevels and chamfers (AI-angles spec §6.4)', () => {
+  const rail = (name = 'Rail') => createBoard({ name, length: 18, width: 3, thickness: 0.75, position: [0, 0, 0] });
+  const doc = (b: Board) => ({ ...createDocument('T'), boards: [b] });
+  const miter = (b: Board, ratio: number) => ({ id: 'm', ...miterCut({ end: 'max', across: 'width', longSide: 'min', ratio }, b) });
+  const ch = (b: Board, leg: number) => ({ id: 'c', ...chamferCut({ face: 'width', from: 'max', along: 'thickness', alongFrom: 'max', legFace: leg, legAlong: leg }, b) });
+  it('added, changed and removed, one line each, in world words at display precision', () => {
+    const b = rail();
+    const lines = (before: Board, after: Board) => diffDesigns(doc(before), doc(after)).filter((c) => c.kind === 'angle').map((c) => c.text);
+    const m45 = { ...b, angleCuts: [miter(b, 1)] };
+    const m30 = { ...b, angleCuts: [miter(b, miterRatio(30))] };
+    const c8 = { ...b, angleCuts: [ch(b, 0.125)] };
+    expect(lines(b, m45)).toEqual(['Rail: miter added (+x end; 45.0°, long point -z)']);
+    expect(lines(m45, m30)).toEqual(['Rail: miter changed (+x end; 30.0°, long point -z)']);
+    expect(lines(m45, b)).toEqual(['Rail: miter removed (+x end)']);
+    expect(lines(b, c8)).toEqual(['Rail: chamfer added (+y/+z edge; 1/8" × 1/8")']);
+    // Below display precision: no line.
+    expect(lines(m45, { ...b, angleCuts: [miter(b, 1.0000000001)] })).toEqual([]);
+  });
+  it('taper lines are kind angle too', () => {
+    expect(['added', 'removed', 'resized', 'moved', 'material', 'angle', 'linked', 'unlinked']).toContain('angle');
   });
 });
