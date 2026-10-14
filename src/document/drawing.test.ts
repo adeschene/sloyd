@@ -251,7 +251,7 @@ describe('holes on the sheet (holes spec §3.4)', () => {
     const bottom = horizontalAt(d.hidden, 0.375).filter((s) => Math.min(s.a[0], s.b[0]) > 4.8 && Math.max(s.a[0], s.b[0]) < 5.2);
     expect(bottom.length).toBeGreaterThan(0);
     // No hole line is visible in the elevation except where the rim lies on the top edge line (y = 3/4).
-    expect(d.visible.filter((s) => Math.min(s.a[0], s.b[0]) > 4.8 && Math.max(s.a[0], s.b[0]) < 5.2 && Math.abs(s.a[1] - 0.75) > 1e-9)).toEqual([]);
+    expect(d.visible.filter((s) => Math.min(s.a[0], s.b[0]) > 4.8 && Math.max(s.a[0], s.b[0]) < 5.2 && (Math.abs(s.a[1] - 0.75) > 1e-9 || Math.abs(s.b[1] - 0.75) > 1e-9))).toEqual([]);
   });
   it('plan: the entry rim is visible; a blind bottom rim is hidden beneath it', () => {
     const d = drawView([holed()], TOP);
@@ -274,6 +274,8 @@ describe('holes on the sheet (holes spec §3.4)', () => {
     const offsets = new Map([['s', [0, 10, 0] as [number, number, number]]]);
     const d0 = drawView([holed()], ISO);
     const d1 = drawView([holed()], ISO, offsets);
+    // The hole lines are there: more visible lines than the same part without holes.
+    expect(d0.visible.length).toBeGreaterThan(drawView([box('s', 30, 11.25, 0.75)], ISO).visible.length);
     expect(d1.visible.length).toBe(d0.visible.length);
     const dy = ISO.up[1]! * 10;
     d0.visible.forEach((s, i) => expect(d1.visible[i]!.a[1]).toBeCloseTo(s.a[1] + dy, 9));

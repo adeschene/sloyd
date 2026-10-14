@@ -22,8 +22,8 @@ describe('holeDrawingSegments (spec §3.4)', () => {
   });
   it('looking across the axis (front, +Z): two silhouettes at x = 5 ± 1/8 from the mouth to the bottom', () => {
     const segs = holeDrawingSegments(side([pin]), [0, 0, 1]);
-    expect(segs).toHaveLength(2 * DRAWING_HOLE_SEGMENTS + 2);
-    const sil = segs.slice(2 * DRAWING_HOLE_SEGMENTS);
+    expect(segs).toHaveLength(2 + 2); // two edge-on rims, two silhouettes
+    const sil = segs.slice(2);
     const xs = sil.map(([a]) => a[0]).sort((p, q) => p - q);
     expect(xs[0]).toBeCloseTo(4.875, 12);
     expect(xs[1]).toBeCloseTo(5.125, 12);
@@ -33,9 +33,46 @@ describe('holeDrawingSegments (spec §3.4)', () => {
       expect(a[2]).toBeCloseTo(2, 12);                    // on the axis' plane through the centre, z = inset
     }
   });
+  it('an edge-on rim is ONE segment, its exact projection (ruling R2): front, the mouth at y = 3/4 and the bottom at 3/8', () => {
+    const rims = holeDrawingSegments(side([pin]), [0, 0, 1]).slice(0, 2);
+    rims.forEach(([a, b], i) => {
+      const y = [0.75, 0.375][i]!;
+      expect(a[1]).toBeCloseTo(y, 12);
+      expect(b[1]).toBeCloseTo(y, 12);
+      expect([a[0], b[0]].sort((p, q) => p - q).map((x) => x.toFixed(9))).toEqual(['4.875000000', '5.125000000']);
+      expect(a[2]).toBeCloseTo(2, 12);
+      expect(b[2]).toBeCloseTo(2, 12);
+    });
+    // Seen from above the rims face the viewer: 96 chords each, no silhouettes.
+    expect(holeDrawingSegments(side([pin]), [0, 1, 0])).toHaveLength(2 * DRAWING_HOLE_SEGMENTS);
+    // Oblique (iso), a rim is an ellipse: 96 chords each, and two silhouettes.
+    expect(holeDrawingSegments(side([pin]), ISO.toward)).toHaveLength(2 * DRAWING_HOLE_SEGMENTS + 2);
+  });
+  it('an upright part at turn 90, front: absolute silhouettes and rims (derived by hand)', () => {
+    // Upright: length up (Y); horizontals [width, thickness]. Turn 90 (axisFrame's table): X = thickness (not reversed),
+    // Y = length, Z = width REVERSED. Board 30 x 11.25 x 1.5 at the origin.
+    // The hole: entered from the length MAX end (y = 30), so it runs DOWN, depth 1: y 30 → 29. Along width 4 from min →
+    // z = 11.25 − 4 = 7.25 (reversed). Across = thickness, inset 0.5 from min → x = 0.5 (not reversed; reversed would be
+    // 1.0). Front looks along +Z, the axis is Y, the disc is XZ, so the silhouette radial is ±X: x = 0.5 ± 0.125 =
+    // 0.375 and 0.625, each from y 30 to 29 at z = 7.25. The rims' planes are horizontal and the view is horizontal:
+    // both are edge-on, one segment each, x 0.375..0.625 at y 30 and y 29.
+    const end: HoleRow = { id: 'e', face: 'length', from: 'max', diameter: 0.25, depth: 1, along: 'width', alongFrom: 'min', station: 4, count: 1, pitch: 0, acrossFrom: 'min', inset: 0.5 };
+    const b = createBoard({ id: 'u', length: 30, width: 11.25, thickness: 1.5, posture: 'upright', rotation: 90, holes: [end] });
+    const segs = holeDrawingSegments(b, [0, 0, 1]);
+    expect(segs).toHaveLength(4);
+    const fix = (p: readonly number[]) => p.map((v) => (Math.abs(v) < 5e-13 ? 0 : v).toFixed(9)).join(' ');
+    const got = segs.map(([p, q]) => [fix(p), fix(q)].sort().join(' | ')).sort();
+    expect(got).toEqual([
+      '0.375000000 29.000000000 7.250000000 | 0.375000000 30.000000000 7.250000000',
+      '0.375000000 29.000000000 7.250000000 | 0.625000000 29.000000000 7.250000000',
+      '0.375000000 30.000000000 7.250000000 | 0.625000000 30.000000000 7.250000000',
+      '0.625000000 29.000000000 7.250000000 | 0.625000000 30.000000000 7.250000000',
+    ].sort());
+  });
   it('a through hole runs the whole thickness', () => {
     const segs = holeDrawingSegments(side([{ ...pin, depth: 'through' }]), [0, 0, 1]);
-    const sil = segs.slice(2 * DRAWING_HOLE_SEGMENTS);
+    expect(segs).toHaveLength(4);
+    const sil = segs.slice(2);
     for (const [a, b] of sil) expect([a[1], b[1]].sort((p, q) => p - q)).toEqual([0, 0.75]);
   });
 });

@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { createBoard, createDocument } from '../document/document';
+import type { HoleRow } from '../document/types';
 import { PlanTrio, ExplodedFigure } from './PlanFigure';
 
 // 2in shelves: the trio's scale is 752 / (30 + 12) ≈ 17.9 per inch (Task 7), so a 2in spacing is
@@ -26,6 +27,22 @@ describe('PlanTrio', () => {
   it('draws hidden lines dashed in the elevations', () => {
     const { container } = render(<PlanTrio parts={[mortised]} precision={16} label="Leg" />);
     expect(container.querySelector('path.plan-hidden')!.getAttribute('d')).toMatch(/M/);
+  });
+
+  it('a hidden 96-chord rim is ONE subpath, so it draws dashed (ruling R2)', () => {
+    // Plan (drawn first) of a blind pin hole: the bottom rim's 96 chords are all hidden. One more `M` than the plain part.
+    const pin: HoleRow = { id: 'h1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.375, along: 'length', alongFrom: 'min', station: 5, count: 1, pitch: 0, acrossFrom: 'min', inset: 2 };
+    const part = (holes: HoleRow[]) => createBoard({ length: 30, width: 11.25, thickness: 0.75, holes });
+    const moves = (holes: HoleRow[]) => {
+      const { container, unmount } = render(<PlanTrio parts={[part(holes)]} precision={16} label="Side" />);
+      const plan = container.querySelector('path.plan-hidden')!.getAttribute('d')!;
+      unmount();
+      return { m: (plan.match(/M/g) ?? []).length, l: (plan.match(/L/g) ?? []).length };
+    };
+    const plain = moves([]);
+    const holed = moves([pin]);
+    expect(holed.l - plain.l).toBe(96);
+    expect(holed.m - plain.m).toBe(1);
   });
 
   it('lists a note when a chain is omitted', () => {

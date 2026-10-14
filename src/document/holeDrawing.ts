@@ -15,8 +15,8 @@ const dot = (a: readonly number[], b: readonly number[]) => a[0]! * b[0]! + a[1]
 /**
  * One part's hole lines for a view looking along `toward` (from the model to the viewer), in world space, no explode
  * offset (spec §3.4): every hole's entry rim and far rim (a through hole's exit, a blind hole's bottom) as
- * DRAWING_HOLE_SEGMENTS-gons, and — unless the view looks down the axis — the wall's two silhouette generators, the
- * lines where the cylinder's surface turns away from the viewer. Built only from `toWorld` of board-local points
+ * DRAWING_HOLE_SEGMENTS-gons — a rim whose plane is edge-on to the view as the ONE segment it projects to (ruling R2) —
+ * and, unless the view looks down the axis, the wall's two silhouette generators, the lines where the cylinder's surface turns away from the viewer. Built only from `toWorld` of board-local points
  * (invariant 44): the radial directions U, V and the axis A are differences of mapped points, so every turn, posture and
  * mirror is the one composition's. The silhouette's radial r = (V·T)·U − (U·T)·V, scaled to the radius, is the one
  * direction in the disc plane perpendicular to T. drawView decides what is hidden; this module decides nothing about it.
@@ -27,13 +27,9 @@ export function holeDrawingSegments(b: Board, toward: readonly number[]): [Vec3,
   if (holes.length === 0) return [];
   const P = (p: readonly number[]): Vec3 => toWorld(b, { length: p[0]!, width: p[1]!, thickness: p[2]! });
   const out: [Vec3, Vec3][] = [];
-  for (const h of holes) {
-    for (const t of [0, h.depth]) {
-      const ring = holeRing(h, t, DRAWING_HOLE_SEGMENTS).map(P);
-      for (let i = 0; i < ring.length; i += 1) out.push([ring[i]!, ring[(i + 1) % ring.length]!]);
-    }
-  }
-  for (const h of holes) {
+  // Each hole's world frame, from mapped points only: centre C, axis A (entry to far rim), silhouette radial r (null when
+  // the view looks down the axis), and whether the rim's plane is edge-on to the view.
+  const frames = holes.map((h) => {
     const a = DIMENSION_ORDER.indexOf(h.axis);
     const [u, v] = [0, 1, 2].filter((i) => i !== a) as [number, number];
     const at = (du: number, dv: number, t: number): Vec3 => {
@@ -48,8 +44,30 @@ export function holeDrawingSegments(b: Board, toward: readonly number[]): [Vec3,
     const tu = dot(U, toward);
     const tv = dot(V, toward);
     const n = Math.hypot(tu, tv);
-    if (n <= 1e-9 * h.radius) continue; // looking down the axis: the rim covers the wall
-    const r = [0, 1, 2].map((i) => (tv * U[i]! - tu * V[i]!) / n);
+    // Looking down the axis: the rim covers the wall, no silhouettes.
+    const r = n <= 1e-9 * h.radius ? null : [0, 1, 2].map((i) => (tv * U[i]! - tu * V[i]!) / n);
+    const edgeOn = Math.abs(dot(A, toward)) <= 1e-9 * Math.hypot(A[0]!, A[1]!, A[2]!);
+    return { h, C, A, r, edgeOn };
+  });
+  for (const { h, C, A, r, edgeOn } of frames) {
+    for (const t of [0, h.depth]) {
+      if (edgeOn && r) {
+        // Edge-on, the rim projects to exactly the diameter across r (ruling R2): ONE segment, not 96 chords folded back
+        // along one line, so a hidden rim reads dashed on the sheet.
+        const k = t / h.depth;
+        const c = [C[0] + k * A[0]!, C[1] + k * A[1]!, C[2] + k * A[2]!];
+        out.push([
+          [c[0]! - r[0]!, c[1]! - r[1]!, c[2]! - r[2]!],
+          [c[0]! + r[0]!, c[1]! + r[1]!, c[2]! + r[2]!],
+        ]);
+        continue;
+      }
+      const ring = holeRing(h, t, DRAWING_HOLE_SEGMENTS).map(P);
+      for (let i = 0; i < ring.length; i += 1) out.push([ring[i]!, ring[(i + 1) % ring.length]!]);
+    }
+  }
+  for (const { C, A, r } of frames) {
+    if (!r) continue;
     for (const s of [1, -1]) {
       const p0: Vec3 = [C[0] + s * r[0]!, C[1] + s * r[1]!, C[2] + s * r[2]!];
       out.push([p0, [p0[0] + A[0]!, p0[1] + A[1]!, p0[2] + A[2]!]]);
