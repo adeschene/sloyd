@@ -31,7 +31,14 @@ export type { Bounds, AxisMap } from './geometry';
 export { mirrorCut } from './mirrorCut';
 export { CHAMFER_EDGES, bevelAcross, bevelCut, bevelFields, chamferCut, chamferFields, defaultBevel, defaultChamfer, ANGLE_CUT_FIELDS, ANGLE_CUT_KEYS, angleCutRemovesNothing, angleCutValues, angleCutsThatRemoveStock, copyAngleCut, defaultMiter, defaultMiterPair, defaultTaper, depthAt, keptHalfSpace, miterCut, miterDegrees, miterFields, miterRatio, sameAngleCut, splitRegion, taperCut, taperFields, throughOf, touchedRegion, zeroStation } from './angleCuts';
 export type { BevelFields, ChamferEdge, ChamferFields, MiterFields, TaperFields, V3 } from './angleCuts';
-export { HOLE_COUNT_MAX, HOLE_FIELDS, HOLE_KEYS, acrossOf, copyHoleRow, holeRowValues, sameHoleRow } from './holes';
+export {
+  HOLE_COUNT_MAX, HOLE_EPS, HOLE_FIELDS, HOLE_KEYS, HOLE_SEGMENTS, PRISM_EPS, acrossOf, axialOffset, boardHoles, bodyPlanes,
+  clipPolygon, copyHoleRow, holeInstances, holePrism, holeRims, holeRing, holeRowValues, holeTouches, holeTouchesBox,
+  insideHole, minusPrism, ringInside, sameHoleRow,
+} from './holes';
+export type { Hole, Plane } from './holes';
+export { holeFaults } from './holeFaults';
+export type { HoleFault, HoleFaultKind } from './holeFaults';
 export { jointRefusal, taperJointRefusal } from './angledRefusal';
 export type { AngleConflict, TaperConflict } from './angledRefusal';
 export { cleanName, uniqueName, dedupeNames } from './names';
