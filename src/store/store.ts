@@ -6,7 +6,7 @@ import {
   translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerLinear, mirroredAt, postureRefusal, sameSideFirst, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
   toLocal, groupItems, ungroupItem, turnInstance as turnInstanceOp, setMirrored, mirroredCopy, updateContainer, lastSegment,
 } from '../document/document';
-import type { AngleCut, Board, HoleRow, CustomMaterial, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
+import type { AngleCut, Board, HoleRow, CustomMaterial, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, Section, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
 import { SNAP_INCHES } from '../document/geometry';
 import { copyAngleCut, sameAngleCut } from '../document/angleCuts';
 import { copyHoleRow, sameHoleRow } from '../document/holes';
@@ -278,6 +278,14 @@ interface StoreState {
    */
   explode: number;
   setExplode: (amount: number) => void;
+  /**
+   * The viewport's section cut (section-cut spec §2.1; invariant 51): ONE axis plane, or null. View state, like
+   * `hiddenIds` and `explode`: never in the document, never autosaved, no undo entry. `setSection` is its ONE writer
+   * and refuses a non-finite position; nothing clamps `at` (an edit that leaves it outside the parts keeps it).
+   * Reset only where `explode` is (the initial state and `replaceDocument`); undo, redo, `setTool` and Escape leave it.
+   */
+  section: Section | null;
+  setSection: (next: Section | null) => void;
   duplicateBoard: (id: string) => void;
   /**
    * Copy every named part in place, as ONE undo entry, and select the copies.
@@ -875,6 +883,11 @@ export const useStore = create<StoreState>((set, get) => {
     future: [],
     hiddenIds: [],
     explode: 0,
+    section: null,
+    setSection: (next) => {
+      if (next !== null && !Number.isFinite(next.at)) return;
+      set({ section: next });
+    },
     setExplode: (amount) => {
       if (!Number.isFinite(amount) || get().gesturing) return;
       const next = Math.min(1, Math.max(0, amount));
@@ -1494,6 +1507,7 @@ export const useStore = create<StoreState>((set, get) => {
         tapeHover: null,
         tapeAxis: null,
         explode: 0,
+        section: null,
         // Follow-up 148. NOT the same reason as the held points above: those
         // clear because the world they name has been replaced, while these
         // clear because a gesture belongs to the component that opened it and
