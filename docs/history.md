@@ -556,12 +556,13 @@ Rulings while executing:
 - R10: a bounding-box reject before the face × hole test, though it changes the (equivalent) triangulation in ~180 of 245,700 pairs.
 - R11: a holed body skips internal seam faces (inside the stock, invisible; the main earcut cost); unholed parts byte-for-byte.
 - R12: helpers may take a precomputed `axisFrame` (a frame-bound mapper through inv 44's helpers, never `board[dim] - u`).
-- R13: the permanent perf test bounds ≤40 ms per healthy case (median of 7), passing 3 runs in a row on a quiet machine.
+- R13: the permanent perf test bounds ≤40 ms per healthy case (median of 7), passing 3 runs in a row on a quiet machine — the median superseded by R19.
 - R14: R11 generalised to covered-region subtraction (exact coincidence matched nothing in the dado fixture).
 - R15: a CLEAN hole's wall and bottom are emitted unclipped; a faulted hole keeps the per-body clip.
 - R16: the 16 ms target is judged in node (vitest adds ~1.5×); too-deep joins the clean predicate (else a blind hole past the back face would draw outside the part).
 - R17: the final review's fix wave (below).
 - R18: count-1 rows still compare `pitch` exactly (spec §4.2) — recorded for the user (fu 338).
+- R19 (after the records): `holesPerf.test.ts` times the MINIMUM of 9 runs instead of the median (load can only inflate a run); bounds unchanged, the revert mutation still fails the faulted case (fu 340).
 Reviews caught: zero skin at a cut floor passing while zero skin at the back face was too-deep (Task 3, R3); the strict
 triangulation capping the mouths of overlapping holes (Task 6, R4); a single hole that could never become a row, and a
 refused field edit blurring with the refused value showing (Task 10, R5–R8). **The live check** (dev server :5181, software

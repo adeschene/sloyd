@@ -1,5 +1,8 @@
 # Holes, chunk 1 (primitive through bench) — Implementation Plan
 
+**Status:** implemented on branch `holes` (Task 11b inserted for rebuild performance), merged 2026-10-14 as `2ded5cc`,
+deployed 2026-10-14 as `index-CTpNZw9F.js` (schema 16). The record is `docs/history.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A part can carry rows of round holes (`Board.holes`, schema 16) that the 3D view, edges, snap points and cut

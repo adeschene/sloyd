@@ -1,9 +1,9 @@
-# Browser verification — holes, chunk 1
+# Browser verification — holes, chunks 1 and 2
 
 **Date:** 2026-10-14 · **Branch:** `holes` · **Where:** the dev server (`localhost:5181`) in the Playwright browser, software GL
 (llvmpipe). Two passes: one after Task 10 (all features), one after Task 11b (performance rework of the mesh builders).
 Screenshots were kept in the git-ignored SDD workspace (`.superpowers/sdd/2026-10-14-sloyd-holes-chunk1/live*.png`), as
-earlier rounds did; this prose, with its numbers, is the durable record.
+earlier rounds did — the user's standing choice; this prose, with its numbers, is the durable record.
 
 The dev profile's state was recorded first (three projects, active "Shaker Side Table — joined", an API key present —
 checked for presence only). Each pass imported its fixture as a NEW project and deleted only that project afterwards; the
@@ -33,7 +33,8 @@ active project was switched back and the starting state confirmed after each pas
    looks pretty bad and the seam is very clear." A seamless look needs cylindrical or triplanar mapping.
 3. Rim lines could not be told apart at screenshot scale; the part's own edge lines are equally faint at that zoom. Rims
    are unit-tested only (Task 6).
-4. Cosmetic: the existing `.cut-label` CSS capitalises every word, so a row reads "Row Of 6".
+4. Cosmetic: the existing `.cut-label` CSS capitalises every word, so a row reads "Row Of 6" — fixed in the final review's
+   wave ("Row of 6").
 
 ## Pass 2 — after Task 11b (fixture: the same side with two 21-pin rows, a dado at 28-1/4" clear of them, a through-bore)
 
@@ -60,7 +61,8 @@ Hole wall shading and grain (and the seam above), rim lines, and drag smoothness
 ## Chunk 2 — drawings and the Hinge cup (branch `holes-2`)
 
 Dev server `localhost:5181`, the same profile rules (state recorded first; fixture imported as a new project, deleted after;
-active project restored). Fixture: a 30 × 11-1/4 × 3/4 side standing ON EDGE (so the Front elevation looks down its holes and
+active project restored). Screenshots in the git-ignored `.superpowers/sdd/2026-10-14-sloyd-holes-chunk2/live*.png` (the
+user's standing choice; this prose is the record). Fixture: a 30 × 11-1/4 × 3/4 side standing ON EDGE (so the Front elevation looks down its holes and
 the Side elevation across them) with a dado at 20", a 12-pin row (32 mm) on its far face and a 3/8 through-bore; a 20 × 15 ×
 3/4 door lying flat with a 35 mm hinge cup.
 
@@ -75,5 +77,9 @@ the Side elevation across them) with a dado at 20", a 12-pin row (32 mm) on its 
 | Console | ✅ 0 errors |
 
 **Not confirmed here:** a real print-to-PDF of the sheet and the diagrams (fu 254: no `pdf()` on this host) — the dashes'
-look on paper, and the chained dash phase around box corners (Task 1's minor), are for the user's eye. An attempt to
+look on paper, and the chained dash phase around box corners (Task 1's minor), are for the user's eye (fu 345). An attempt to
 re-render the sheet's SVG standalone at 4× lost its stylesheet and showed filled dots; it was discarded as evidence.
+
+This pass ran before the final review's fix wave (`8f5af4d`, before `c79d71a`…`88c8b3a`), which added tests, keyed the
+notes by row, relabelled the Hinge cup menu item with ½" and made `pathOf` chain only within one part — so the subpath
+count above predates that last rule. Shipped as merge `d74e5c5`, deployed as `index-DFCdm3n1.js`.

@@ -1,5 +1,8 @@
 # Holes, chunk 2 (drawings and the Hinge cup) — Implementation Plan
 
+**Status:** implemented on branch `holes-2`, merged 2026-10-14 as `d74e5c5`, deployed 2026-10-14 as `index-DFCdm3n1.js`
+(no schema change). The record is `docs/history.md`.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Holes show on the printed drawings: the Plans sheet draws each hole's rims and its dashed depth lines through
@@ -16,9 +19,9 @@ outlines and notes in board inches; `PartDiagram` draws them, scaling as it scal
 
 **Spec:** `docs/superpowers/specs/2026-10-14-sloyd-holes-design.md` §3.4, §4.3, §7 (Hinge cup), §9 chunk 2; chunk 1's
 plan `docs/superpowers/plans/2026-10-14-sloyd-holes-chunk1.md` and CLAUDE.md invariant 50 for what exists. One planning
-amendment (§4.3, below) needs the user's approval with the plan.
+amendment (§4.3, below) needs the user's approval with the plan (approved 2026-10-14).
 
-### Planning amendment — §4.3's row label (for the user's approval)
+### Planning amendment — §4.3's row label (approved by the user 2026-10-14)
 
 The spec has each row "labelled once (`21 × Ø1/4" × 3/8"`) … measured as today". Two facts make that a poor fit:
 1. Part diagrams are **schematic with unequal horizontal and vertical scales** ("Schematic — not to scale"), so a label

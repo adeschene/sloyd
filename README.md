@@ -28,6 +28,9 @@ built around hand woodworking.
 - Cuts are stock removed from a board: dados, grooves, rabbets, notches, and mortises and
   stopped dados (a cut can stop short of either end). The 3D view, the snap points and the
   cut list all read the same cut.
+- **Holes**: a single bore or a stored row (shelf pins at 32 mm), blind or through, square to any face, plus a 35 mm
+  hinge cup preset. They show open in 3D, on the Plans sheet and in the part diagrams, and as bench lines on the cut
+  list. Add joinery and Refine don't handle holed projects yet.
 - **Add joinery…** finds where parts meet and, using Claude, chooses mortise-and-tenon, dado,
   stopped dado, rabbet or half-lap joints. It then cuts and resizes the parts. The result is
   saved as a new project, and the original is never changed.

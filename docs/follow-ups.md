@@ -5406,10 +5406,10 @@ Plans-sheet rims as `DRAWING_HOLE_SEGMENTS = 96` polylines through the hidden-li
 silhouette generators and a blind hole's bottom rim; none looking down the axis), occluders staying the hole-free bodies
 (inv 47, pinned by a test); part-diagram circles with a centre mark and a once-per-row label (`21 × Ø1/4" × 3/8"`), built
 from `holeText.ts` (inv 19); the **Hinge cup** preset (35 mm × 1/2" deep, 3" from the length min end, 22.5 mm in). No schema
-change. **Status:** closed 2026-10-14 — holes chunk 2 (branch `holes-2`, merged, not yet deployed; no schema
-change), with the §4.3 amendment (a row's diagram label is its bench line as an HTML note, not a measured SVG label) and
+change. **Status:** closed 2026-10-14 — holes chunk 2 (branch `holes-2`, merged as `d74e5c5` and deployed as `index-DFCdm3n1.js`;
+no schema change), with the §4.3 amendment (a row's diagram label is its bench line as an HTML note, not a measured SVG label) and
 rulings R2 (an edge-on rim is ONE segment; plan paths chain within a part so a hidden rim dashes) and R3 (diagram holes
-independent of row order). Residue: 343–346.
+independent of row order); the Hinge cup runs along the longer in-face dimension (fu 343, the user's ruling). Residue: 343–346.
 
 **328. Holes through Add joinery, Repair and Refine.** Chunk 1 refuses a holed project at entry (`holedRefusal`, spec §6).
 Carrying holes through needs a rebase for rows measured from an end joinery grows or trims (as `rebaseAngleCuts`, fu 307),

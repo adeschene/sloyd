@@ -1,6 +1,6 @@
 # Sloyd — holes: bores and shelf-pin rows
 
-**Date:** 2026-10-14 · **Status:** approved by the user 2026-10-14; the amendments made while planning chunk 1 (§3.2, §3.3, §3.5, §4.1, §7 — marked *Amended*) also approved, and §4.1's faulted-row line ruled by the user; **chunk 1 implemented** on branch `holes` (merged 2026-10-14 as `2ded5cc`, deployed 2026-10-14 as `index-CTpNZw9F.js`); **chunk 2 implemented** on branch `holes-2` (merged 2026-10-14 as `d74e5c5`, deployed 2026-10-14 as `index-DFCdm3n1.js`)
+**Date:** 2026-10-14 · **Status:** approved by the user 2026-10-14; the amendments made while planning chunk 1 (§3.2, §3.3, §3.5, §4.1, §7 — marked *Amended*) also approved, and §4.1's faulted-row line ruled by the user; the chunk 2 planning amendment to §4.3 approved, and §7's Hinge cup placement ruled by the user (fu 343); **chunk 1 implemented** on branch `holes` (merged 2026-10-14 as `2ded5cc`, deployed 2026-10-14 as `index-CTpNZw9F.js`); **chunk 2 implemented** on branch `holes-2` (merged 2026-10-14 as `d74e5c5`, deployed 2026-10-14 as `index-DFCdm3n1.js`)
 **Builds on:** angle cuts (`2026-10-12-sloyd-angle-cuts-design.md`, invariant 48) — bodies, `partGeometry`, the field-by-field
 sites; cuts (`cuts.ts`, invariants 16, 40); the turn table (invariant 44); the tree and mirrored instances (invariants 45,
 46); the cut list (invariant 18); the Plans sheet's hidden-line drawings (invariant 47). Every rule there still holds unless
@@ -353,6 +353,7 @@ Each chunk ships and deploys on its own.
 - **2**: `holes` is absent from the reorient predicate, like `cuts` and `angleCuts`.
 - **15**: `boardUVSignature` includes holes.
 - **16**: a hole draws its rim on its entry (and exit) face; a wall draws no facet lines.
+- **19** (chunk 2, with §4.3's amendment): a row's diagram label is its bench line as an HTML note, never a measured SVG label.
 - **38**: overlap, held, tip and contact ignore holes.
 - **40**: `HOLE_FIELDS` is the one "same hole row" table.
 - **44**: a reflection flips `from` / `alongFrom` / `acrossFrom`, never arithmetic on positions.

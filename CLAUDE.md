@@ -24,13 +24,9 @@ handicraft education tradition built around hand woodworking.
 - **Production matches `master`** as of 2026-10-14: holes chunk 2 (merge `d74e5c5`) — bundle `index-DFCdm3n1.js`, CSS
   `index-CT8doMkT.css`, **SCHEMA 16** (unchanged since chunk 1, so rolling back to `2ded5cc`, `index-CTpNZw9F.js`, is free;
   below 16, `bfde00c`, REFUSES every project saved since: export first). Test count is under Commands.
-- **Holes (spec `2026-10-14-sloyd-holes-design.md`, inv 50)**: chunk 1 deployed — blind and through holes, singly or in stored rows,
-  square to any face; rendered open, rims, centre snap points, the strict rule (`holeFaults`), bench lines and cut-list
-  grouping; Properties' Holes section (Hole, Shelf-pin row); joinery/Refine/Repair refuse holed projects. **Chunk 2**
-  (fu 327, closed): rims and dashed depth lines on the Plans sheet (`holeDrawing.ts`), part-diagram ellipses, centre marks,
-  dashed sides and bench-line notes, the Hinge cup preset. Open near it: 328–342 (336: the wall-grain seam, deferred by the
-  user to a texture/shader session; 337: real-hardware looks owed), 344–346 (343 closed: the user kept the Hinge cup on the
-  longer side).
+- **Holes (spec `2026-10-14-sloyd-holes-design.md`, inv 50)**: both chunks deployed (schema 16; fu 327 and 343 closed).
+  Open near it: 328–342 (336: the wall-grain seam, deferred by the user to a texture/shader session; 337: real-hardware
+  looks owed), 344–346.
 - **NEXT: none chosen — ask the user.** Custom materials (fu 266) closed; open near it 324–326. Other open items:
   314–320, angle-cut residue 295–298; 241 (open by decision), 251 (record-only), 221, 225, 232, 234, 247.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
@@ -103,7 +99,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | custom materials (chunk 1) | 10-14 | 15 | User-defined solid and sheet materials (kind in the id, inv 49): a browser library and per-project copies (`doc.materials`, pruned to what parts use); Materials & prices (was Lumber & prices); Properties picks project/library materials and New material…; Refine keeps them (per-project schema enum; Generate's byte-identical) |
 | custom materials (chunk 2) | 10-14 | — | Nominal lumber names (`units/nominal.ts`, exact match): cut-list rows named when every board is the section, Buying `2×4 × 8′`, a Properties Nominal size select, the Sold in nominal sizes switch; pine is nominal |
 | holes (chunk 1) | 10-14 | 16 | `HoleRow` (blind/through, a row of `count` at `pitch`, inv 50): rendered open (walls, bottoms, rims), centre snap points, `holeFaults`' strict rule, bench lines (32 mm pitch at 1/64 + mm) and cut-list grouping; Holes section (Hole, Shelf-pin row); joinery/Refine/Repair refuse holed projects |
-| holes (chunk 2) | 10-14 | — | Plans sheet: hole rims (96-gons; edge-on as one segment) and wall silhouettes through the one hidden-line pass, occluded by the hole-free bodies; plan paths chain within a part; part diagrams: ellipses, centre marks, dashed depth sides, each row's bench line as a note; the Hinge cup preset. MERGED, NOT DEPLOYED |
+| holes (chunk 2) | 10-14 | — | Plans sheet: hole rims (96-gons; edge-on as one segment) and wall silhouettes through the one hidden-line pass, occluded by the hole-free bodies; plan paths chain within a part; part diagrams: ellipses, centre marks, dashed depth sides, each row's bench line as a note; the Hinge cup preset |
 
 ### The deployment rule
 
@@ -133,7 +129,7 @@ user's own key (`dangerouslyAllowBrowser`), stored only in `sloyd.llm.v1`; the C
 
 **The plain-JSON document is the source of truth; the Three.js scene is derived from it
 and is never authoritative.** A document is
-`{ version, name, units, stock, guides, boards, instances, definitions, shapes }`.
+`{ version, name, units, stock, guides, boards, instances, definitions, shapes, materials }`.
 Dragging computes a number, writes it to the document, and the scene re-renders — never
 the reverse. That keeps undo, save/load and export simple. **A board's `position` is its
 min corner**, not its centre (inv 2).
@@ -249,14 +245,14 @@ src/
 │   ├── angledRefusal.ts  TaperConflict / taperJointRefusal; AngleConflict / jointRefusal (THE joint-refusal message, one sentence per part)
 │   ├── holes.ts          THE hole geometry (inv 50): HOLE_FIELDS (inv 40), sameHoleRow, copyHoleRow, mirrorHoleRow (inv 44),
 │   │                     mm (n / 25.4, as parseLength), defaultHole/defaultShelfPinRow/defaultHingeCup (35 mm × 1/2", 3" from
-│   │                     the min end of the LONGER in-face dimension, 22.5 mm in; R5), holeInstances/boardHoles, holeRing/
+│   │                     the min end of the LONGER in-face dimension, 22.5 mm in; fu 343), holeInstances/boardHoles, holeRing/
 │   │                     holePrism (memoised by frozen Hole identity), clipPolygon/clipPlan/minusPrism/minusCover, holeRims, insideHole
 │   ├── holeFaults.ts     holeFaults (THE strict rule: breaks-out, off-flat, meets-hole, too-deep), stockChecks, holeInStock (clean)
 │   ├── holeText.ts       holeLine (THE bench line; pitch at 1/64 at least, whole mm shown; a faulted row's `— check:`),
 │   │                     holeFaultText (THE fault words), distinctFaults (too-deep once), endWord/edgeName (→ units)
 │   ├── holedRefusal.ts   holedParts / holedRefusal: joinery, Refine and Repair refuse a holed project, naming the parts
 │   ├── holeDrawing.ts    holeDrawingSegments: one part's hole lines for the Plans sheet (inv 50), world space — every rim as a
-│   │                     DRAWING_HOLE_SEGMENTS (96)-gon, a rim edge-on to the view as ONE segment (R2), then the wall's two
+│   │                     DRAWING_HOLE_SEGMENTS (96)-gon, a rim edge-on to the view as ONE segment (chunk 2 R2), then the wall's two
 │   │                     silhouettes (none looking down the axis); built only through `toWorld` (inv 44); decides nothing hidden
 │   ├── angleWorld.ts     WorldMiter/WorldBevel/WorldChamfer: design miters, bevels, chamfers in world words; angleCutsFor (design →
 │   │                     stored via the Properties writers), worldAngles (structural standard forms), angleRatiosOf (the exact-angle
@@ -270,7 +266,7 @@ src/
 │   ├── depthField.ts     buildDepthField (inv 20)
 │   ├── diagram.ts        buildDiagrams, one view per (face, from); per view `holes` (circles down the axis), `holeSides`
 │   │                     ({axis, bottomAt}: dashed depth boxes across it) and `holeNotes` ({row, text}: bench lines), in THREE
-│   │                     passes — every row's entry view opened first, then circles and sides, notes last in STORED row order (R3)
+│   │                     passes — every row's entry view opened first, then circles and sides, notes last in STORED row order (chunk 2 R3)
 │   ├── nesting.ts        buildNesting, shelf FFD; formatDims (invs 19, 22, 23); packOnto (by-the-piece boards,
 │                         grain locked, largest size opened first) and grainFootprint
 │   ├── materials.ts      custom materials (inv 49): validateCustomMaterial(s), mintMaterialId, MaterialCatalog —
@@ -353,7 +349,7 @@ src/
 │                     AngleCuts (the Angles section: "+ Add ▾" — Taper, Miter, Miter both ends, Bevel, Chamfer —
 │                     and one row per kind), AngleField (DimensionField with a degree parse/format; max floored to 0.1°);
 │                     Holes (the Holes section: "+ Add hole ▾" — Hole, Shelf-pin row, Hinge cup —, one row type; an edit refused
-│                     when it ADDS a fault; Count 1→more seeds a pitch, R5), CountField (DimensionField, whole numbers)
+│                     when it ADDS a fault; Count 1→more seeds a pitch, chunk 1 R5), CountField (DimensionField, whole numbers)
 ├── styles.css        surface ROLES over --grey-*/--walnut-*; palette.test.ts pins contrast (4.5:1)
 └── App.tsx           layout, autosave/restore, the ONE keydown effect (inv 27), `pending`
                       (inv 29), switchToken (inv 32), `.app-shell` inert behind any modal
@@ -376,8 +372,8 @@ Deployment scaffolding: `Dockerfile`, `docker-compose.yml`, `nginx.conf`,
   returns an already-aligned cut as the same object.
 - **`bodies.ts`**: read bodies and edges through `partGeometry` wherever it runs per frame or per part (snap
   points, drawings, BoardMesh). Its results are SHARED between parts with one `geometryKey` and deep-frozen:
-  never mutate them. The key is board-local (dimensions, cut geometry, angle cuts) — no pose — and carries each
-  angle cut's ID, because a clipped face names its cut (`BodyFace.cut`) and `bodyMesh` looks it up by id.
+  never mutate them. The key is board-local (dimensions, cut geometry, angle cuts, hole rows) — no pose — and carries each
+  angle cut's and hole row's ID, because a clipped face names its cut (`BodyFace.cut`) and `bodyMesh` looks it up by id.
 - **`angleCuts.ts` field conversions**: the row's fields carry STORED values — a miter/bevel its slope ratio, a chamfer
   its legs, a taper its stations and depths — never re-derived through `atan`/`tan`, so an edit of side, end or face keeps
   a 45° cut at depth = run exactly. Degrees exist only in display and typed input, and reach a writer only through
@@ -414,7 +410,7 @@ Deployment scaffolding: `Dockerfile`, `docker-compose.yml`, `nginx.conf`,
 - **`DimensionField.tsx`**: min/max REFUSE out-of-range input, never clamp. Enter commits
   and blurs (fu 212); a refused entry keeps focus. `onCommit` may return a refusal MESSAGE (a string): the field shows
   it as its OWN error (same element, role and `aria-invalid` as min/max), keeps focus and the typed text, and keeps it
-  until its own next commit or an external resync — no sibling clears it (holes R7, R8). AngleCuts has not adopted it (fu 339).
+  until its own next commit or an external resync — no sibling clears it (holes chunk 1 R7, R8). AngleCuts has not adopted it (fu 339).
 - **`ProjectMenu.tsx`**: deliberately not an ARIA menu. The arm/disarm swap renders a
   `<button>` at the same sibling index in both branches — giving either a `key` breaks
   focus. Rendered only when `libraryAvailable`. A duplicate error's cause is read off
@@ -595,7 +591,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     are compared; the resulting row split on exact dimensions is correct — do not round.
     Angle cuts have their own table, `ANGLE_CUT_FIELDS` (`angleCuts.ts`), every field but `id` — `kind` INCLUDED — exact.
     Hole rows have `HOLE_FIELDS` (`holes.ts`), every field but `id`, exact (a count-1 row's ignored `pitch` included, fu
-    338), compared as a multiset for cut-list grouping and `sameShared`.
+    338): the cut list groups by them as a multiset, ids ignored (`holeSignature`); `sameShared` compares rows in order,
+    ids included, as it does cuts and angle cuts.
 41. **Joinery has one converter (`pocketFor`), never adopts, and is blamed only for what it
     caused.** `pocketFor` is tested against the box in every pose, stores via
     `storedAsShape`. Problems compare by `kind` + `parts`, never message text. Every
@@ -739,11 +736,11 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     seam faces (what a coplanar, opposite-facing face of another body covers) are subtracted ONLY in holed bodies; a
     CLEAN hole's (`holeInStock`: no breaks-out, off-flat or too-deep) wall and bottom are emitted UNCLIPPED, a faulted
     hole's clipped to the bodies; all of a part's holes are ONE geometry, one mesh (`holesMesh`), never a mesh per hole.
-    `viewport/holesPerf.test.ts` guards it (≤40 ms per healthy case, ≤100 ms faulted, median of 7; wall-clock — run on a
-    quiet machine, fu 340). **On the Plans sheet** a rim is a `DRAWING_HOLE_SEGMENTS` (96)-gon (the viewport keeps
+    `viewport/holesPerf.test.ts` guards it (≤40 ms per healthy case, ≤100 ms faulted, the MINIMUM of 9 runs — load only
+    inflates a run; still wall-clock, fu 340). **On the Plans sheet** a rim is a `DRAWING_HOLE_SEGMENTS` (96)-gon (the viewport keeps
     `HOLE_SEGMENTS`, 48), except a rim whose plane is EDGE-ON to the view, which is ONE segment across its diameter — 96
-    chords folded onto one line restart the dash and draw a hidden rim solid. For a part with no holes `drawView` and
-    `buildDiagrams` are byte-for-byte unchanged; its SVG path differs only by chaining (R2) — do not undo the chaining to
+    chords folded onto one line restart the dash and draw a hidden rim solid (chunk 2 R2). For a part with no holes `drawView` and
+    `buildDiagrams` are byte-for-byte unchanged; its SVG path differs only by chaining (chunk 2 R2: within one part) — do not undo the chaining to
     "restore" it.
 
 ## Commands
@@ -760,7 +757,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–323, each with its closure). Read the entries
+**`docs/follow-ups.md` is authoritative** (1–346, each with its closure). Read the entries
 for the area you are about to touch; several are "correct but untested". Open items worth
 knowing without opening it:
 
@@ -780,10 +777,10 @@ knowing without opening it:
   (parts-list rename reverts silently while exploded; the lock disables view-only controls; the sheet slider lags) are
   open; 260 (F/Home framed unexploded positions) closed 2026-10-13. 254 is open only for a real print (the tall-sheet overflow is fixed);
   264 is closed; 259 is record-only.
-- **265–274** — lumber yield & cost residue: 265 (per-project price overrides), 266 (custom materials, nominal names),
+- **265–274** — lumber yield & cost residue: 265 (per-project price overrides),
   267 (edge banding, hardware BOM), 268 (glue-ups), 269 (packer is a heuristic — measure before optimising), 270 (USD
   only), 271 (rough thickness classes), 272 (dialog length on a phone), 274 (end-grain parts are not priced by the
-  piece) are open; 273 is closed (the note).
+  piece) are open; 273 is closed (the note), 266 closed 2026-10-14 (below).
 - **275–292** — angle-cuts residue: 275–280 (stopped angle cuts; 276 angle-aware joinery — open only for the joint kinds
   (splined/biscuited miters): joinery accepts angled projects since AI angles chunk 1; 277 Generate emitting angles — closed
   2026-10-14 (AI angles chunk 2); "taper all four faces", Plans-sheet angle callouts, compound angles), 281 closed (short point: corner minimum), 282 closed (approved on real
