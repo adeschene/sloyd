@@ -40,7 +40,8 @@ describe('documentToDesign', () => {
     expect(refused(holed)?.reason).toBe('holes');
     // a shaped part: the row lives on its Shape
     const shaped = { ...doc, shapes: doc.shapes.map((s, i) => (i === 0 ? { ...s, holes: [{ id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 1.5 }] } : s)) };
-    if (doc.shapes.length > 0) expect(refused(shaped)?.reason).toBe('holes');
+    expect(doc.shapes.length).toBeGreaterThan(0);   // role-linked parts share a Shape: the case below is never skipped
+    expect(refused(shaped)?.reason).toBe('holes');
     expect(refused(doc)).toBeNull();
   });
 

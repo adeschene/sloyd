@@ -193,4 +193,10 @@ describe('links see holes (holes spec §5.2)', () => {
     expect(sharedOf(a).holes).toEqual([PIN]);
     expect(sharedOf(a).holes[0]).not.toBe(PIN);
   });
+  it('sharedPatch copies the rows too: no two members ever hold one HoleRow object (final review 6)', () => {
+    const p = sharedPatch({ holes: a.holes });
+    expect(p.holes).toEqual([PIN]);
+    expect(p.holes).not.toBe(a.holes);
+    expect(p.holes![0]).not.toBe(PIN);
+  });
 });
