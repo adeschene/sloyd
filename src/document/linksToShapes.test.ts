@@ -11,7 +11,7 @@ describe('v10 -> v11: links become shapes', () => {
   it('equal members become users of one shape; nothing moves', () => {
     const v10 = { version: 10, name: 'x', boards: [leg('a', 0), leg('b', 10.1)], instances: [], definitions: [] };
     const doc = migrateDocument(v10);
-    expect(doc.version).toBe(16);
+    expect(doc.version).toBe(17);
     expect(doc.shapes).toHaveLength(1);
     expect(doc.boards.map((b) => 'shape' in b)).toEqual([true, true]);
     expect(worldParts(doc).map((b) => [b.position, b.rotation, b.cuts[0]!.id]))

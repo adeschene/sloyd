@@ -291,7 +291,7 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], 
     rejected.push({ name: label, reason: 'taper', detail: `${label} has a taper whose start or amount is not a finite number or is beyond 10,000in.` });
     return null;
   }
-  const made = taperCutsFor({ id: '', angleCuts: [], holes: [], ...fields } as Board, tapers);
+  const made = taperCutsFor({ id: '', angleCuts: [], holes: [], curves: [], ...fields } as Board, tapers);
   if ('fault' in made) {
     rejected.push({ name: label, reason: 'taper', detail: `${label} ${made.fault}.` });
     return null;
@@ -302,7 +302,7 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], 
     rejected.push({ name: label, reason: 'angle', detail: `${label} has a miter, bevel or chamfer whose numbers are not finite or are beyond 10,000in.` });
     return null;
   }
-  const board = { id: '', angleCuts: [], holes: [], ...fields } as Board;
+  const board = { id: '', angleCuts: [], holes: [], curves: [], ...fields } as Board;
   const angled = angleCutsFor(board, { miters: p.miters ?? [], bevels: p.bevels ?? [], chamfers }, exactAngles);
   if ('fault' in angled) {
     rejected.push({ name: label, reason: 'angle', detail: `${label} ${angled.fault}.` });
@@ -314,7 +314,7 @@ function convertPart(p: GeneratedPart, label: string, rejected: RejectedPart[], 
     rejected.push({ name: label, reason: 'angle', detail: `${label} has angle cuts that together leave no wood.` });
     return null;
   }
-  return { ...fields, angleCuts, holes: [] };
+  return { ...fields, angleCuts, holes: [], curves: [] };
 }
 
 /**

@@ -1,7 +1,7 @@
 import { validateCustomMaterials, pruneMaterials, BUILT_IN_MATERIAL_IDS } from './materials';
 import { DEFAULT_MATERIAL, DEFAULT_KERF, isSheetGood } from './types';
 import type {
-  Board, Instance, Definition, Cut, AngleCut, AngleKind, HoleRow, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, FlatDocument, GuidePoint,
+  Board, Instance, Definition, Cut, AngleCut, AngleKind, HoleRow, CurveCut, CurveSegment, CutFrom, Dimension, Rotation, Posture, Grain, SloydDocument, FlatDocument, GuidePoint,
   Shape, StoredBoard,
 } from './types';
 import type { SharedField } from './links';
@@ -12,6 +12,7 @@ import { ROOT_STORAGE_ID } from './treeEdit';
 import { nextId } from './ids';
 import { ANGLE_KINDS, deriveKind } from './angleCuts';
 import { HOLE_COUNT_MAX } from './holes';
+import { CURVE_EPS, CURVE_SEGMENTS_STORED_MAX, segmentsCross, twiceArea } from './curves';
 import { clamp, mirrorCutAlong } from './mirrorCut';
 import { dropUnresolved, repairTree } from './treeRepair';
 import { positionAxisOf, horizontalOf } from './geometry';
@@ -38,6 +39,8 @@ export {
   insideHole, minusCover, minusPrism, mirrorHoleRow, ringInside, sameHoleRow, mm, defaultHole, defaultShelfPinRow, defaultHingeCup,
 } from './holes';
 export type { Hole, Plane } from './holes';
+export { CURVE_EPS, CURVE_FIELDS, CURVE_KEYS, CURVE_SEGMENTS_MAX, CURVE_SEGMENTS_STORED_MAX, CURVE_TOLERANCE, copyCurve, curveValues, sameCurve, uvDims } from './curves';
+export type { P2 } from './curves';
 export { DRAWING_HOLE_SEGMENTS, holeDrawingSegments } from './holeDrawing';
 export { holeFaults, holeInStock, stockChecks } from './holeFaults';
 export type { HoleFault, HoleFaultKind, StockChecks } from './holeFaults';
@@ -146,8 +149,12 @@ export type { Section, SectionAxis, SectionCap } from './section';
  *
  * v16 (holes spec §5.1): `Board.holes` (and `Shape.holes`), document-level, no step — an absent field defaults to [].
  * Harm a v15 build would do: silent loss on round trip — it drops every hole row and autosaves.
+ *
+ * v17 (curves spec §6.1): `Board.curves` (and `Shape.curves`), document-level, no step — an absent field defaults to [].
+ * Harm a v16 build would do: silent loss on round trip — it drops every curve and autosaves. From v17 on, a segment
+ * type this build does not know refuses the document (spec §2.4), so a later segment type needs no bump.
  */
-export const CURRENT_VERSION = 16;
+export const CURRENT_VERSION = 17;
 
 export class DocumentError extends Error {
   /**
@@ -238,6 +245,7 @@ export function createBoard(partial: Partial<Board> = {}): Board {
     cuts: [],
     angleCuts: [],
     holes: [],
+    curves: [],
     ...partial,
   };
 }
@@ -418,6 +426,99 @@ function validateHoleRows(raw: unknown): HoleRow[] {
   return out;
 }
 
+/** A segment `type` this build cannot draw (spec §2.4): the whole document is refused, as a newer version is. */
+function refuseUnknownSegment(type: string): never {
+  throw new DocumentError(
+    `This project has a curve this version of Sloyd can't read (segment type "${type}") — it was saved by a newer version of Sloyd.`,
+  );
+}
+
+/**
+ * Curve cuts (curves spec §2.3), in order. Dropped, never clamped: an unknown dimension or side; a start that is not two
+ * finite numbers; no segments or more than CURVE_SEGMENTS_STORED_MAX; a segment with no string `type`, a `to` that is not
+ * two finite numbers; an arc with an unknown `side`, both or neither of `rise`/`radius`, a non-positive one, a
+ * zero-length chord, a rise over half its chord or a radius under half; an outline whose last `to` is not exactly `start`
+ * (P1), that crosses itself, or that encloses no area. A STRING `type` other than line/arc REFUSES THE DOCUMENT (spec
+ * §2.4). A faulted but well-formed curve (curveFaults) is KEPT. Ids scoped to this board, or this shape (invariant 33).
+ */
+function validateCurveCuts(raw: unknown): CurveCut[] {
+  if (!Array.isArray(raw)) return [];
+  const out: CurveCut[] = [];
+  const seen = new Set<string>();
+  const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+  const pair = (v: unknown): v is [number, number] => Array.isArray(v) && v.length === 2 && finite(v[0]) && finite(v[1]);
+  for (const item of raw) {
+    if (typeof item !== 'object' || item === null) continue;
+    const c = item as Record<string, unknown>;
+    const segsRaw = c.segments;
+    // The refusal is decided before anything else about this curve: a newer build's curve must never be dropped quietly.
+    if (Array.isArray(segsRaw)) {
+      for (const s of segsRaw) {
+        const t = (s as Record<string, unknown> | null)?.type;
+        if (typeof t === 'string' && t !== 'line' && t !== 'arc') refuseUnknownSegment(t);
+      }
+    }
+    if (!VALID_DIMENSIONS.includes(c.through as Dimension)) continue;
+    if (![c.uFrom, c.vFrom].every((f) => VALID_FROMS.includes(f as CutFrom))) continue;
+    if (!pair(c.start)) continue;
+    if (!Array.isArray(segsRaw) || segsRaw.length === 0 || segsRaw.length > CURVE_SEGMENTS_STORED_MAX) continue;
+    const segments: CurveSegment[] = [];
+    let at: [number, number] = [c.start[0], c.start[1]];
+    let ok = true;
+    for (const sr of segsRaw) {
+      const s = sr as Record<string, unknown> | null;
+      if (!s || !pair(s.to)) { ok = false; break; }
+      const to: [number, number] = [s.to[0], s.to[1]];
+      if (s.type === 'line') {
+        segments.push({ type: 'line', to });
+      } else if (s.type === 'arc') {
+        const chord = Math.hypot(to[0] - at[0], to[1] - at[1]);
+        const hasRise = s.rise !== undefined;
+        const hasRadius = s.radius !== undefined;
+        if (s.side !== 'left' && s.side !== 'right') { ok = false; break; }
+        if (hasRise === hasRadius || chord <= CURVE_EPS) { ok = false; break; }
+        if (hasRise) {
+          if (!finite(s.rise) || s.rise <= 0 || s.rise > chord / 2) { ok = false; break; }
+          segments.push({ type: 'arc', to, side: s.side, rise: s.rise });
+        } else {
+          if (!finite(s.radius) || s.radius <= 0 || s.radius < chord / 2) { ok = false; break; }
+          segments.push({ type: 'arc', to, side: s.side, radius: s.radius });
+        }
+      } else { ok = false; break; }
+      at = to;
+    }
+    if (!ok) continue;
+    if (at[0] !== c.start[0] || at[1] !== c.start[1]) continue;           // P1: closes exactly
+    // Crossing and area are judged on the stored points with each arc as its chord and crown — enough to catch a
+    // hand-edited figure eight; the true arcs are the model's business (curves.ts).
+    const pts: [number, number][] = [[c.start[0], c.start[1]]];
+    let prev: [number, number] = [c.start[0], c.start[1]];
+    for (const s of segments) {
+      if (s.type === 'arc') {
+        const dx = s.to[0] - prev[0], dy = s.to[1] - prev[1];
+        const ch = Math.hypot(dx, dy);
+        const h = s.rise !== undefined ? s.rise : s.radius! - Math.sqrt(Math.max(0, s.radius! ** 2 - ch * ch / 4));
+        const sg = s.side === 'left' ? 1 : -1;
+        pts.push([(prev[0] + s.to[0]) / 2 - sg * h * dy / ch, (prev[1] + s.to[1]) / 2 + sg * h * dx / ch]);
+      }
+      pts.push([s.to[0], s.to[1]]);
+      prev = s.to;
+    }
+    pts.pop();                                                             // the closing point repeats start
+    if (Math.abs(twiceArea(pts)) <= CURVE_EPS) continue;
+    let crosses = false;
+    for (let i = 0; i < pts.length && !crosses; i += 1) {
+      for (let j = i + 2; j < pts.length; j += 1) {
+        if (i === 0 && j === pts.length - 1) continue;                     // neighbours across the closing point
+        if (segmentsCross(pts[i]!, pts[(i + 1) % pts.length]!, pts[j]!, pts[(j + 1) % pts.length]!)) { crosses = true; break; }
+      }
+    }
+    if (crosses) continue;
+    out.push({ id: takeId(c.id, seen), through: c.through as Dimension, uFrom: c.uFrom as CutFrom, vFrom: c.vFrom as CutFrom, start: [c.start[0], c.start[1]], segments });
+  }
+  return out;
+}
+
 /**
  * The well-formed guides out of raw data, in order.
  *
@@ -495,7 +596,7 @@ function validateSharedFields(b: Record<string, unknown>, known: ReadonlySet<str
   };
   // validateCuts reads only the dimensions; its `seen` set is its own, so a
   // shape's cut ids are scoped to the shape (invariant 33's per-board rule).
-  return { fields: { ...fields, cuts: validateCuts(b.cuts, fields), angleCuts: validateAngleCuts(b.angleCuts, fields), holes: validateHoleRows(b.holes) } };
+  return { fields: { ...fields, cuts: validateCuts(b.cuts, fields), angleCuts: validateAngleCuts(b.angleCuts, fields), holes: validateHoleRows(b.holes), curves: validateCurveCuts(b.curves) } };
 }
 
 /**

@@ -56,7 +56,7 @@ describe('worldParts (assemblies spec §2.1)', () => {
   });
 
   it('worldParts resolves a shaped part inside a turned assembly', () => {
-    const shape: Shape = { id: 's1', length: 10, width: 2, thickness: 1, material: 'pine', grain: 'length', posture: 'flat', cuts: [], angleCuts: [], holes: [] };
+    const shape: Shape = { id: 's1', length: 10, width: 2, thickness: 1, material: 'pine', grain: 'length', posture: 'flat', cuts: [], angleCuts: [], holes: [], curves: [] };
     const doc: SloydDocument = {
       ...createDocument(),
       instances: [{ id: 'i1', name: 'A', definition: 'd1', position: [0, 0, 0], rotation: 90 }],
