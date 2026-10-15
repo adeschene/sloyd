@@ -1583,10 +1583,9 @@ describe('boardBodies with curves (curves spec §3.2)', () => {
 });
 ```
 
-`splitVolumeForTest` is a test-only export of `bodies.ts` that runs the SPLIT path for one curve on a part's cells
-(implement it as `export function splitBodiesForTest(board, c): Body[]` beside `boardBodies`, and in the test sum
-`bodyVolume` over it). It exists so the agreement test can force the path the decider would not pick; its doc comment
-says TEST-ONLY.
+with, at the top of the describe, `const splitVolumeForTest = (b: Board, c: CurveCut) => splitBodiesForTest(b, c).reduce((s, x) => s + bodyVolume(x), 0);`
+(import `splitBodiesForTest` from `./bodies` and the `CurveCut` type). `splitBodiesForTest` (Step 3) forces the split
+path the decider would not pick.
 
 `grainTiling.test.ts`:
 
@@ -1686,18 +1685,29 @@ export function curvePlan(board: Pick<Board, Dimension>, c: Omit<CurveCut, 'id'>
     }
     return { clip: true, planes };
   }
-  return {
-    clip: false,
-    pieces: convexPieces(o.pts, o.arcEdge).map(({ pts, onArc }) => ({
-      onArc,
-      planes: pts.map((p, i) => {
-        const q = pts[(i + 1) % pts.length]!;
-        const l = Math.hypot(q[0] - p[0], q[1] - p[1]);
-        const n: P2 = [-(q[1] - p[1]) / l, (q[0] - p[0]) / l];       // CCW: left of each edge is inside
-        return lift(n, -(n[0] * p[0] + n[1] * p[1]));
-      }),
-    })),
-  };
+  return { clip: false, pieces: splitPieces(board, c) };
+}
+
+/**
+ * The SPLIT plan's pieces for one curve (spec §3.2): the waste polygon's convex pieces (`convexPieces`), each as inside
+ * half-planes — n points INTO the waste, a CCW piece's inside being the left of each edge — with its arc-chord edges
+ * flagged. `curvePlan` uses it for a curve that does not clip; the clip/split agreement test forces it for one that does.
+ */
+export function splitPieces(board: Pick<Board, Dimension>, c: Omit<CurveCut, 'id'>): { planes: Half[]; onArc: boolean[] }[] {
+  const [u, v] = uvDims(c.through);
+  const iu = DIMENSION_ORDER.indexOf(u);
+  const iv = DIMENSION_ORDER.indexOf(v);
+  const lift = (n: P2, d: number): Half => { const N: V3 = [0, 0, 0]; N[iu] = n[0]; N[iv] = n[1]; return { n: N, d }; };
+  const o = curveOutline(board, c);
+  return convexPieces(o.pts, o.arcEdge).map(({ pts, onArc }) => ({
+    onArc,
+    planes: pts.map((p, i) => {
+      const q = pts[(i + 1) % pts.length]!;
+      const l = Math.hypot(q[0] - p[0], q[1] - p[1]);
+      const n: P2 = [-(q[1] - p[1]) / l, (q[0] - p[0]) / l];
+      return lift(n, -(n[0] * p[0] + n[1] * p[1]));
+    }),
+  }));
 }
 ```
 
@@ -1762,8 +1772,15 @@ function subtractPieces(faces: BodyFace[], pieces: readonly { planes: { n: V3; d
   return parts;
 }
 
-/** TEST-ONLY: the split path for one curve over a part's bodies before curves (the clip/split agreement test). */
-export function splitBodiesForTest(board: Board, c: CurveCut): Body[] { … build the plan's pieces with clip: false forced … }
+/**
+ * TEST-ONLY: `board`'s bodies with `c` (its only curve) removed down the SPLIT path even where `curvePlan` would clip —
+ * the clip/split agreement test (spec §3.2: both paths give the same wood).
+ */
+export function splitBodiesForTest(board: Board, c: CurveCut): Body[] {
+  const before = boardBodies({ ...board, curves: [] });
+  const pieces = splitPieces(board, c);
+  return before.flatMap((body) => subtractPieces(body.faces, pieces, c.id).flatMap((f) => (f.length >= 4 ? [{ box: null, faces: f }] : [])));
+}
 ```
 
   For `splitBodiesForTest`, build the pieces exactly as `curvePlan`'s split branch does (factor that branch into an
@@ -1849,7 +1866,8 @@ describe('curvedEdges equals the slow edges minus facet lines (curves spec §3.3
   const apron = createBoard({ length: 30, width: 5, thickness: 0.75 });
   const top = createBoard({ length: 36, width: 20, thickness: 0.75 });
   const dado = { id: 't', face: 'thickness' as const, from: 'max' as const, across: 'width' as const, offset: 10, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
-  const chamfer = { /* one chamfer on a long edge — copy a chamfer fixture from angleCuts.test.ts and give it id 'ch' */ };
+  // The 1/8" chamfer on the width-max / thickness-max edge — defaultChamfer's form (angleCuts.test.ts), away from the arch.
+  const chamfer = { id: 'ch', kind: 'chamfer' as const, face: 'width' as const, from: 'max' as const, along: 'thickness' as const, alongFrom: 'max' as const, points: [[0, 0.125], [0.125, 0]] as [[number, number], [number, number]] };
   const cases: [string, Board][] = [
     ['arch', { ...apron, curves: [ARCH] }],
     ['notch', { ...apron, curves: [{ id: 'n', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 14, span: 2, rise: 1 }) }] }],
@@ -1858,7 +1876,7 @@ describe('curvedEdges equals the slow edges minus facet lines (curves spec §3.3
     ['through the width', { ...apron, curves: [{ id: 'x', ...bowCurve({ through: 'width', along: 'length', side: 'min', span: 30, rise: 0.25 }) }] }],
     ['through the length', { ...apron, curves: [{ id: 'y', ...cornerCurve({ through: 'length', uFrom: 'min', vFrom: 'max', radius: 0.5 }) }] }],
     ['with a dado', { ...apron, cuts: [dado], curves: [ARCH] }],
-    ['with a chamfer', { ...apron, angleCuts: [chamfer as never], curves: [ARCH] }],
+    ['with a chamfer', { ...apron, angleCuts: [chamfer], curves: [ARCH] }],
   ];
   for (const [name, b] of cases) {
     it(name, () => {
@@ -1879,8 +1897,7 @@ describe('curvedEdges equals the slow edges minus facet lines (curves spec §3.3
 });
 ```
 
-(The `along` filter keeps lines running along the thickness, local index 2. Fill `chamfer` from an existing chamfer
-fixture before running; do not invent one.)
+(The `along` filter keeps lines running along the thickness, local index 2.)
 
 - [ ] **Step 2: Run them to see them fail.**
 
@@ -2048,7 +2065,7 @@ describe('curved bodies in the mesh (curves spec §3.4)', () => {
     expect(area).toBeCloseTo(outer, 6);
   });
   it('a part without curves returns no normals (BoardMesh keeps computeVertexNormals)', () => {
-    const plain = { ...createBoard({ length: 30, width: 5, thickness: 0.75 }), angleCuts: [/* the chamfer fixture */] };
+    const plain = { ...createBoard({ length: 30, width: 5, thickness: 0.75 }), angleCuts: [{ id: 'ch', kind: 'chamfer' as const, face: 'width' as const, from: 'max' as const, along: 'thickness' as const, alongFrom: 'max' as const, points: [[0, 0.125], [0.125, 0]] as [[number, number], [number, number]] }] };
     const pb = boardBodies(plain);
     expect(bodyMesh(plain, pb[0]!, [], pb).normals).toBeUndefined();
   });
@@ -2212,19 +2229,28 @@ describe('curve snap points (curves spec §3.5, P5)', () => {
 ```ts
 describe('a hole into a curve\'s waste is breaks-out (curves spec §6.3)', () => {
   const apron = (row: HoleRow) => createBoard({ length: 30, width: 5, thickness: 0.75, holes: [row], curves: [ARCH] });
-  const down = { id: 'h', face: 'thickness' as const, from: 'max' as const, diameter: 0.5, depth: 'through' as const, along: 'length' as const, alongFrom: 'min' as const, station: 15, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 2 };
-  it('a bore along through: touching the crown meets; just clear does not', () => {
-    expect(holeFaults(apron(down), down)).toEqual([{ index: 0, kind: 'breaks-out', curve: { id: 'c1', kind: 'arch' } }]);   // 2 − 0.25 = 1.75 > 1.5: clear?
+  const fault = [{ index: 0, kind: 'breaks-out', curve: { id: 'c1', kind: 'arch' } }];
+  // A 1/2" through bore along the thickness (the curve's through), centred 15" along: its disc's nearest point to the
+  // arch's crown (15, 1.5) is at v = inset − 1/4.
+  const down = (inset: number): HoleRow => ({ id: 'h', face: 'thickness', from: 'max', diameter: 0.5, depth: 'through', along: 'length', alongFrom: 'min', station: 15, count: 1, pitch: 0, acrossFrom: 'min', inset });
+  it('a bore along through: touching the crown meets (inset 1.75); a micro-inch clear does not', () => {
+    expect(holeFaults(apron(down(1.75)), down(1.75))).toEqual(fault);
+    expect(holeFaults(apron(down(1.75 + 1e-6)), down(1.75 + 1e-6))).toEqual([]);
+  });
+  // A 3/8" dowel hole 1" deep drilled into the arched EDGE (the width min face): its projection on (length, width) is the
+  // rectangle [station − 3/16, station + 3/16] × [0, 1].
+  const edge = (station: number): HoleRow => ({ id: 'h', face: 'width', from: 'min', diameter: 0.375, depth: 1, along: 'length', alongFrom: 'min', station, count: 1, pitch: 0, acrossFrom: 'min', inset: 0.375 });
+  it('a hole square to through: its rectangle inside the waste meets; beside the arch it does not', () => {
+    expect(holeFaults(apron(edge(15)), edge(15))).toEqual(fault);
+    expect(holeFaults(apron(edge(1.5)), edge(1.5))).toEqual([]);
   });
 });
 ```
 
-STOP and derive before writing the expectation: the bore's disc is centred 2" from the width min side with radius ¼, so
-its nearest point is at v = 1.75, above the crown at 1.5 — it is CLEAR. Write two cases instead: `inset: 1.75` (nearest
-point 1.5: touches → the fault) and `inset: 1.75 + 1e-6` (clear → `[]`). Then a third: a ⅜" dowel hole drilled into
-the arched EDGE (`face: 'width', from: 'min', depth: 1, along: 'length', station: 15, acrossFrom: 'min', inset: 0.375`)
-— its projection on (length, width) is the rectangle [14.8125, 15.1875] × [0, 1], inside the arch's waste → the fault;
-the same hole at `station: 1.5` (beside the arch) → `[]`.
+(Derivations: at inset 1.75 the disc reaches v = 1.5, the crown — touching is meeting. The edge dowel at station 15
+covers [14.8125, 15.1875] × [0, 1]; the arch's waste there runs from v = 0 up to about 1.4997 — inside. At station 1.5
+it covers [1.3125, 1.6875] × [0, 1], left of the arch's start at u = 3 — clear. `breaksOut` reports nothing for either:
+the edge dowel enters the width min face inside its rectangle.)
 
 `holeText.test.ts`:
 
@@ -2350,9 +2376,15 @@ describe('curveLines', () => {
     const four = (['min', 'max'] as const).flatMap((uf) => (['min', 'max'] as const).map((vf) => ({ id: `${uf}${vf}`, ...cornerCurve({ through: 'thickness', uFrom: uf, vFrom: vf, radius: 2 }) })));
     expect(curveLines({ ...top, curves: [ARCH, ...four] }, IMPERIAL)).toEqual([curveLine(top, ARCH, IMPERIAL), 'Round all four corners to a 2" radius']);
   });
-  it('three corners print three lines', () => {
-    const three = (['min', 'max'] as const).map((uf) => ({ id: uf, ...cornerCurve({ through: 'thickness', uFrom: uf, vFrom: 'min', radius: 2 }) }));
-    expect(curveLines({ ...top, curves: three }, IMPERIAL)).toHaveLength(2);
+  it('two corners print two lines', () => {
+    const two = (['min', 'max'] as const).map((uf) => ({ id: uf, ...cornerCurve({ through: 'thickness', uFrom: uf, vFrom: 'min', radius: 2 }) }));
+    expect(curveLines({ ...top, curves: two }, IMPERIAL)).toHaveLength(2);
+  });
+  it('a duplicate corner keeps its own line; the four distinct corners still collapse', () => {
+    const four = (['min', 'max'] as const).flatMap((uf) => (['min', 'max'] as const).map((vf) => ({ id: `${uf}${vf}`, ...cornerCurve({ through: 'thickness', uFrom: uf, vFrom: vf, radius: 2 }) })));
+    const dup = { ...four[0]!, id: 'dup' };
+    const lines = curveLines({ ...top, curves: [four[0]!, dup, ...four.slice(1)] }, IMPERIAL);
+    expect(lines).toEqual(['Round all four corners to a 2" radius', curveLine(top, dup, IMPERIAL)]);
   });
 });
 ```
@@ -2465,21 +2497,19 @@ export function curveLines(board: Board, units: Units): string[] {
   const collapsed = new Map<CurveCut, string>();
   const skip = new Set<CurveCut>();
   for (const [, cs] of groups) {
-    const seen = new Set(cs.map((c) => `${c.uFrom}${c.vFrom}`));
-    if (seen.size !== 4) continue;
-    const firstFour = cs.slice(0, 4);
-    const f = cornerFields(firstFour[0]!)!;
+    // One curve per distinct corner, the first of each in stored order; a duplicate corner keeps its own line.
+    const firstAt = new Map<string, CurveCut>();
+    for (const c of cs) { const k = `${c.uFrom}${c.vFrom}`; if (!firstAt.has(k)) firstAt.set(k, c); }
+    if (firstAt.size !== 4) continue;
+    const four = [...firstAt.values()].sort((a, b) => board.curves.indexOf(a) - board.curves.indexOf(b));
+    const f = cornerFields(four[0]!)!;
     const through = f.through === 'thickness' ? '' : `, cut through the ${f.through}`;
-    collapsed.set(firstFour[0]!, `Round all four corners to a ${formatLength(f.radius, units)} radius${through}`);
-    for (const c of firstFour.slice(1)) skip.add(c);
+    collapsed.set(four[0]!, `Round all four corners to a ${formatLength(f.radius, units)} radius${through}`);
+    for (const c of four.slice(1)) skip.add(c);
   }
   return board.curves.flatMap((c) => (skip.has(c) ? [] : [collapsed.get(c) ?? curveLine(board, c, units)]));
 }
 ```
-
-(Five identical-radius corner curves with one duplicate corner: `seen.size === 4` but five curves — the first four are
-not necessarily the four distinct corners. Take one curve per distinct `uFrom`+`vFrom` instead of `slice(0, 4)` — fix
-this when writing it, and add a test with a duplicate corner.)
 
 `cutlist.ts`:
 - `import { curveLines } from './curveText';` and `import { curveValues } from './curves';`
@@ -2665,7 +2695,7 @@ export function defaultCorners(b: Pick<Board, Dimension>): Omit<CurveCut, 'id'>[
 }
 ```
 
-  (`defaultCorners`' test expects a non-null array: its type is the array. Fix the test's `!` if the type says so.)
+  (`defaultCorners` always returns four; the test's `!` is harmless.)
 
 - [ ] **Step 3: Write the failing panel tests** (`src/panels/Curves.test.tsx`, modelled on `Holes.test.tsx` — copy its
   `open`/`add` helpers with the menu button `'+ Add curve'`):
@@ -2706,26 +2736,37 @@ const DIMS: Dimension[] = ['length', 'width', 'thickness'];
 const cap = (d: string) => d[0]!.toUpperCase() + d.slice(1);
 type Draft = Omit<CurveCut, 'id'>;
 
-/** The refusal for an edit that ADDS a curve fault, or a hole fault, the stored state lacks (spec §8). */
+/** The dimension a cut-through crosses, for the refusal's words: an Arch's or Bow's depth dimension (the in-face one
+ *  that is not `along`); otherwise the smaller of u and v. */
+function cutDim(board: Board, next: Draft): Dimension {
+  const along = archFields(next)?.along ?? bowFields(next)?.along;
+  const [u, v] = uvDims(next.through);
+  if (along) return along === u ? v : u;
+  return board[u] <= board[v] ? u : v;
+}
+
+/** The refusal for an edit that ADDS a curve fault, or a hole fault, the stored state lacks (spec §8), or null. `control`
+ *  names the field the user changed, for "reduce the … first"; a select change passes null. */
 function refusalFor(board: Board, curve: CurveCut, next: Draft, control: 'Rise' | 'Span' | 'Radius' | 'Start' | null): string | null {
   const had = new Set(curveFaults(board, curve).map((f) => f.kind));
   const added = curveFaults(board, next).find((f) => !had.has(f.kind));
+  if (added?.kind === 'cuts-through') return `Removes more than the ${cutDim(board, next)} — reduce the ${control ?? 'Rise'} first.`;
   if (added) {
-    if (added.kind === 'cuts-through') return `Removes more than the ${uvDims(next.through).find((d) => d !== (archFields(next)?.along ?? bowFields(next)?.along))} — reduce the ${control ?? 'Rise'} first.`;
-    return control === 'Radius' ? `A radius can't run past ${edgeName(added.edge!)} — reduce it first.` : `Runs past ${edgeName(added.edge!)} — reduce the ${control ?? 'Span'} first.`;
+    return control === 'Radius'
+      ? `A radius can't run past ${edgeName(added.edge!)} — reduce it first.`
+      : `Runs past ${edgeName(added.edge!)} — reduce the ${control ?? 'Span'} first.`;
   }
   const after: Board = { ...board, curves: board.curves.map((c) => (c.id === curve.id ? { ...next, id: curve.id } : c)) };
   for (const row of board.holes) {
     const was = new Set(distinctFaults(holeFaults(board, row)).map(faultKey));
     const hit = distinctFaults(holeFaults(after, row)).find((f) => !was.has(faultKey(f)) && f.curve);
-    if (hit) return `Puts hole ${hit.index + 1} into ${hit.curve!.kind === 'arch' ? 'the arch' : hit.curve!.kind === 'bow' ? 'the bow' : hit.curve!.kind === 'corner' ? 'the rounded corner' : 'a curve cut'} — move it first.`;
+    if (hit) return `Puts hole ${hit.index + 1} into ${curveKindWord(hit.curve!.kind)} — move it first.`;
   }
   return null;
 }
 ```
 
-  (Use `curveKindWord` from `curveText.ts` in place of the inline chain above when writing it. The cuts-through
-  dimension word: for an Arch or Bow, the in-face dimension that is not `along`; for a corner, the smaller of u and v.)
+  (Import `curveKindWord` from `../document/curveText` beside `curveFaultText`, `curveLine`.)
 
   Rows:
   - **Arch** — Through (select of the three dimensions; a change re-seats: keep `along` unless it equals the new

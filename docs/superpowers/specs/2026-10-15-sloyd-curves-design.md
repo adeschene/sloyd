@@ -1,8 +1,8 @@
 # Sloyd — curves: arcs cut through a part
 
-**Date:** 2026-10-15 · **Status:** designed with the user 2026-10-15 (sections 1–5 approved in conversation); written spec
-awaiting the user's review. Two corrections made while writing it are marked *Corrected (writing)* and need the user's
-approval with the spec: §2.1's arc side, and §4.1's wording.
+**Date:** 2026-10-15 · **Status:** approved by the user 2026-10-15, with its two *Corrected (writing)* notes (§2.1's arc
+side, §4.1's wording). Chunk 1 plan: `docs/superpowers/plans/2026-10-15-sloyd-curves-chunk1.md` (its planning rulings P1–P7
+await the user's review with the plan).
 **Builds on:** angle cuts (`2026-10-12-sloyd-angle-cuts-design.md`, invariant 48) — bodies, `partGeometry`, `clipConvex`;
 holes (`2026-10-14-sloyd-holes-design.md`, invariant 50) — a second kind of geometry with its own home, faults kept and
 noted, the rebuild-performance guard; the section cut (`2026-10-14-sloyd-section-cut-design.md`, invariant 51) — caps and
