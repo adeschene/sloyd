@@ -334,14 +334,14 @@ export function buildCutList(doc: FlatDocument): CutList {
         // more useful one at the bench. Follow-up 55.
         setup: setupLines(board, units),
         diagrams: buildDiagrams(board, units),
-        nominal: catalog.get(board.material)?.nominal ? nominalName(board.thickness, board.width) : null,
+        nominal: catalog.get(board.material)?.nominal ? nominalName(board.thickness, board.width, units) : null,
         stockInches: 0,
         stock: '',
       };
       rows.set(key, row);
       group.rows.push(row);
     }
-    if (row.qty > 0 && row.nominal !== null && nominalName(board.thickness, board.width) !== row.nominal) row.nominal = null;
+    if (row.qty > 0 && row.nominal !== null && nominalName(board.thickness, board.width, units) !== row.nominal) row.nominal = null;
     row.qty += 1;
     row.names.push(board.name);
 

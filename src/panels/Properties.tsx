@@ -340,7 +340,7 @@ function NominalSize({ ids, boards }: { ids: string[]; boards: Board[] }) {
   const doc = useStore((s) => s.doc);
   const catalog = catalogOf(doc);
   if (boards.length === 0 || !boards.every((b) => catalog.get(b.material)?.nominal)) return null;
-  const names = new Set(boards.map((b) => nominalName(b.thickness, b.width) ?? 'custom'));
+  const names = new Set(boards.map((b) => nominalName(b.thickness, b.width, doc.units) ?? 'custom'));
   const value = names.size === 1 ? [...names][0]! : '';
   return (
     <div className="field">

@@ -2,7 +2,7 @@ import { createBoard, createDocument, buildCutList } from './document';
 import type { Board, CustomMaterial, FlatDocument } from './types';
 import { buildPurchase, defaultBuying, defaultShop, validateShop, type MaterialBuying, type ShopSettings, type StockBoard } from './purchase';
 import { nominalName } from '../units/nominal';
-import type { Units } from '../units/length';
+import { IMPERIAL, type Units } from '../units/length';
 
 const size = (id: string, thickness: number, width: number, length: number, price: number | null): StockBoard =>
   ({ id, thickness, width, length, price });
@@ -257,7 +257,7 @@ describe('nominal default stock (custom materials spec §5.4)', () => {
   it('a nominal custom solid defaults to dimensional lumber by the piece, no prices', () => {
     const b = defaultBuying('m-s-spf1', true);
     expect(b.mode).toBe('piece');
-    const names = (b as Extract<typeof b, { mode: 'piece' }>).stock.map((s) => `${nominalName(s.thickness, s.width)} ${s.length}`);
+    const names = (b as Extract<typeof b, { mode: 'piece' }>).stock.map((s) => `${nominalName(s.thickness, s.width, IMPERIAL)} ${s.length}`);
     expect(names).toEqual([
       ...['1×2', '1×3', '1×4', '1×6', '1×8', '1×10', '1×12'].map((n) => `${n} 96`),
       ...['2×2', '2×3', '2×4', '2×6', '2×8', '2×10', '2×12'].flatMap((n) => [96, 120, 144].map((l) => `${n} ${l}`)),
@@ -339,5 +339,30 @@ describe('Buying in a metric project (metric display chunk 2)', () => {
     const E = size('E', 1, 7.25, 96, 20);
     const p = metric([pine('wide', 30, 6)], shopWith({ pine: { mode: 'piece', stock: [A, E] } }));
     expect(p.entries[0]!.lines).toEqual(['Buy 1 × 1" × 7-1/4" × 96" (25 × 184 × 2438 mm) \u00b7 $20.00']);
+  });
+});
+
+describe('metric parts fit the stock they read the same as (fu 354)', () => {
+  const MM: Units = { display: 'metric-mm', precision: 16 };
+  const mm = (n: number) => n / 25.4;
+  const metric = (boards: Board[], shop: ShopSettings) => {
+    const doc = { ...docOf(boards), units: MM };
+    return buildPurchase(doc, buildCutList(doc), shop);
+  };
+  it('a 38 × 89 × 600 mm part is bought as a 2×4', () => {
+    const shop = shopWith({ pine: { mode: 'piece', stock: [D] } });
+    const p = metric([pine('stud', mm(600), mm(89), mm(38))], shop);
+    expect(p.entries[0]!.unplaceable).toBe(0);
+    expect(p.entries[0]!.lines[0]).toContain('2×4 × 8′ (38 × 89 × 2438 mm)');
+  });
+  it('a 286 mm shelf is bought as 1×12; 287 mm is too wide', () => {
+    const E = size('E', 0.75, 11.25, 96, 30);
+    const shop = shopWith({ pine: { mode: 'piece', stock: [E] } });
+    expect(metric([pine('shelf', mm(600), mm(286), mm(19))], shop).entries[0]!.unplaceable).toBe(0);
+    expect(metric([pine('shelf', mm(600), mm(287), mm(19))], shop).entries[0]!.unplaceable).toBe(1);
+  });
+  it('imperial stays exact: a 3.504" part fits no 2×4', () => {
+    const shop = shopWith({ pine: { mode: 'piece', stock: [D] } });
+    expect(purchase([pine('stud', 24, mm(89), 1.5)], shop).entries[0]!.unplaceable).toBe(1);
   });
 });

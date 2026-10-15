@@ -2,6 +2,7 @@ import type { Board, FlatDocument, SheetStock } from './types';
 import { MATERIALS, isCustomMaterialId, isSheetGood } from './types';
 import { catalogOf } from './materials';
 import type { CutList } from './cutlist';
+import { fitSlack } from './geometry';
 import { packOnto, grainFootprint, type Nesting, type PlacedPart } from './nesting';
 import { formatLength, formatLengthBare, formatSize, isMetric, mmBracket, tradeLength, tradeSize, type Units } from '../units/length';
 import { NOMINAL_SECTIONS, nominalName, stockLengthText } from '../units/nominal';
@@ -147,14 +148,15 @@ export interface Purchase { entries: PurchaseEntry[]; total: number; totalLabel:
 
 /** A stock size as the yard names it: `2×4 × 8′` for a nominal material's section, else actual `t × w × l`. */
 const sizeDims = (s: StockBoard, units: Units, nominal: boolean) => {
-  const name = nominal ? nominalName(s.thickness, s.width) : null;
+  const name = nominal ? nominalName(s.thickness, s.width, units) : null;
   if (name === null) return tradeSize([s.thickness, s.width, s.length], units);
   return `${name} × ${stockLengthText(s.length, units.precision)}${mmBracket([s.thickness, s.width, s.length], units)}`;
 };
 /** A PART as the user sees it: in the project's units (a metric project reads mm). */
 const partDims = (b: Board, units: Units) => formatSize([b.thickness, b.width, b.length], units);
 const priceText = (cost: number | null) => (cost === null ? 'no price' : formatMoney(cost));
-const fitsIn = (f: { w: number; h: number }, s: StockBoard) => f.w <= s.length + 1e-6 && f.h <= s.width + 1e-6;
+/** `slack` is `fitSlack(units)` (fu 354): a metric part that reads the same whole mm as the stock fits it; imperial 0. */
+const fitsIn = (f: { w: number; h: number }, s: StockBoard, slack: number) => f.w <= s.length + 1e-6 + slack && f.h <= s.width + 1e-6 + slack;
 
 /** First minimum by `key`, so ties keep list order (spec §3.2 step 4). */
 function minBy<T>(items: readonly T[], key: (t: T) => number): T {
@@ -166,6 +168,7 @@ function minBy<T>(items: readonly T[], key: (t: T) => number): T {
 function byThePiece(material: string, label: string, parts: Board[], stock: StockBoard[], kerf: number, units: Units, nominal: boolean): PurchaseEntry {
   const notes: string[] = [];
   let unplaceable = 0;
+  const slack = fitSlack(units);
   const thicknesses = [...new Set(stock.map((s) => s.thickness))].sort((a, b) => a - b);
   const groups = new Map<number, Board[]>();
   for (const part of parts) {
@@ -177,14 +180,14 @@ function byThePiece(material: string, label: string, parts: Board[], stock: Stoc
       continue;
     }
     const f = grainFootprint(part);
-    const thick = thicknesses.filter((t) => t >= part.thickness - EPS);
+    const thick = thicknesses.filter((t) => t >= part.thickness - EPS - slack);
     // The thinnest stock at least as thick as the part ON WHICH SOME SIZE HOLDS ITS FOOTPRINT (spec §3.2,
     // amended in the plan): a 10"-wide 3/4" shelf comes from 1x12 stock even when the 3/4" list stops at 1x8.
-    const t = thick.find((th) => stock.some((s) => Math.abs(s.thickness - th) <= EPS && fitsIn(f, s)));
+    const t = thick.find((th) => stock.some((s) => Math.abs(s.thickness - th) <= EPS && fitsIn(f, s, slack)));
     if (t === undefined) {
       const reason = stock.length === 0 ? `no ${label.toLowerCase()} sizes listed`
         : thick.length === 0 ? 'too thick'
-        : stock.some((s) => s.thickness >= part.thickness - EPS && f.h <= s.width + 1e-6) ? 'too long' : 'too wide';
+        : stock.some((s) => s.thickness >= part.thickness - EPS - slack && f.h <= s.width + 1e-6 + slack) ? 'too long' : 'too wide';
       notes.push(`${part.name} (${partDims(part, units)}) fits no ${label.toLowerCase()} stock — ${reason}`);
       unplaceable += 1;
       continue;
