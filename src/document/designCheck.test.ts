@@ -499,6 +499,11 @@ describe('the displayed copy in a metric project (fu 355)', () => {
     expect(lost.message).toContain('the nearest supported part is Base, 2in away');
     expect(lost.shown).toContain('the nearest supported part is Base, 50.8 mm away');
   });
+  it('too-large stays in inches: the limit was typed in inches (the user\'s ruling)', () => {
+    const v = checkDesign(metric(box('Slab', [0, 0, 0], [36, 1, 10])), { ...NO_LIMITS, width: 30 }).find((x) => x.kind === 'too-large')!;
+    expect(v.message).toBe('Overall width 36in exceeds the 30in limit.');
+    expect('shown' in v).toBe(false);
+  });
   it('a message with no length has no displayed copy', () => {
     const lost = one(metric(box('Float', [0, 3, 0], [10, 1, 10])), 'unsupported');
     expect('shown' in lost).toBe(false);

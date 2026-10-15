@@ -5577,7 +5577,9 @@ a `display` units parameter defaulting to the checked document's; Refine passes 
 because it checks the model's imperial conversion. Fault lengths read to 0.1 mm (`formatMm(v, 1)`: a 2.6 mm part must not read
 "3 mm; the minimum is 3 mm"); the taper advice is floored to whole mm (`floorToTick`, as `angledRefusal`'s). `collapseViolations`
 suffixes both copies; the Joinery and Refine dialogs render `shownText(v)`. The converter's rejections (`rejectedViolations`:
-"beyond 10,000in", "1/16in") stay inches — they describe the model's numbers. The model's feedback is unchanged.
+"beyond 10,000in", "1/16in") stay inches — they describe the model's numbers. `too-large` stays inches too (the user's
+ruling: a fault reads in the unit typed, and Generate's and Refine's limit fields take inches, spec §7). The model's feedback
+is unchanged.
 
 **356. Metric chunk 1 minors (record-only).** (1) The 1e-9 bound tolerance can store a value up to an ulp past a bound; a
 reload clamps it, below any display. (2) `'- 19 mm'` (space after the sign before `mm`) is null in both modes — the

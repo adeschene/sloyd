@@ -501,7 +501,9 @@ export function checkDesign(doc: FlatDocument, limits: DesignLimits, display: Un
     ];
     for (const [label, limit, actual] of checks) {
       if (limit !== null && actual > limit + 1e-9) {
-        out.push({ kind: 'too-large', ...worded(display, (len) => `Overall ${label} ${len(actual)} exceeds the ${len(limit)} limit.`), parts: [] });
+        // Inches for the person too: the limit was typed in inches (Generate's and Refine's limit fields; spec §7), and the
+        // fault reads in the unit typed (the user's ruling, fu 355).
+        out.push({ kind: 'too-large', message: `Overall ${label} ${inches(actual)} exceeds the ${inches(limit)} limit.`, parts: [] });
       }
     }
   }
