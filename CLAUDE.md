@@ -741,7 +741,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     - Group moves nothing (identity frame); Ungroup is exact for direct child parts only.
     - Joinery runs on `flatDocument`, maps back by index; anything reading sites/joints uses
       the flat document.
-    - `regroupShapes` groups a shape's users by geometry (`groupSignature`): cut ORDER is ignored (joinery appends mortises in site order, a turned user's list differs); the Shape keeps its first member's order and ids.
+    - `regroupShapes` groups a shape's users by geometry (`groupSignature`): cut ORDER is ignored (joinery appends mortises in site order, a turned user's list differs); the Shape keeps its first member's order and ids. `splitAssemblies` compares placements the same way (fu 316); the definition keeps the first placement's record.
     - A selection is one level (`isCovered` is the ancestor test).
     - Write-back keys on the STORAGE target (`storageKey`); disagreeing edits throw, so the
       store sends one edit per target (`oneEditPerTarget`). An edit in a definition moves

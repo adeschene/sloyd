@@ -5328,6 +5328,12 @@ turns alone; they need fu 232's mirrored placements from Generate. **Status:** o
 **316. `splitAssemblies`' `resultSignature` is order-sensitive.** Two placements whose joined cuts differ only in order
 split into two definitions: sharing is lost, geometry is right. The cut-order ruling covered `regroupShapes` and `sameJoined`
 only. **Status:** open, fails safe.
+- **Closed 2026-10-15 (follow-ups session, branch `follow-ups-1`).** `resultSignature` now reads `groupSignature` (every
+  list sorted; the order-sensitive `sharedSignature` is gone, its one other caller having been this), so placements of one
+  definition whose joined cuts differ only in order stay one definition; step 2 already writes one edit per storage key,
+  from the first occurrence, so the definition takes the first placement's order and ids. Test: three drawer placements,
+  one with its two cuts reversed — one definition, every copy reading the first's ids (red before the change).
+  **Status:** closed.
 
 **317. Turned-links minors (record-only).** `groupSignature` also sorts angle cuts (inert today); the greedy multiset match
 in `sameCutSet` could false-negative within 1e-9 (it refuses, safe); the first-member-keeps-order rule is unpinned by a
