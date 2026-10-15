@@ -1,5 +1,12 @@
 # Curves, chunk 2 (drawings) — Implementation Plan
 
+**Status:** implemented subagent-driven on branch `curves-2`, merged as `1e16c01` and deployed 2026-10-15
+(`index-C-5a29hA.js`, no schema change). Rulings Q1–Q6 approved by the user with this plan. Execution departures, marked in the
+spec §5 as *Amended (implementation, chunk 2)*: a silhouette's visibility probe steps 4×DRAW_EPS out along its viewer-facing
+adjacent faces' normals (Task 3: the verbatim code read a near silhouette hidden by grazing; a fixed lift toward the viewer
+failed gentle bows); three of Task 2's tests and one of Task 3's were corrected; the final review added a deep freeze, a strict
+(0, 1) node filter and off-face curve notes. The record is `docs/history.md`; residue fu 374–379.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Curved parts read truly on paper. The Plans sheet draws arcs smooth (≤ 0.001" from the true arc, ≤ 96 chords per

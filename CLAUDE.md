@@ -40,8 +40,13 @@ handicraft education tradition built around hand woodworking.
 - **Holes (spec `2026-10-14-sloyd-holes-design.md`, inv 50)**: both chunks deployed (schema 16; fu 327 and 343 closed).
   Open near it: 328–342 (336: the wall-grain seam, deferred by the user to a texture/shader session; 337: real-hardware
   looks owed), 344–346.
-- **NEXT: ask.** Custom materials (fu 266) closed; open near it 324–326. Other open items:
-  314–320, angle-cut residue 295–298; 241 (open by decision), 251 (record-only), 221, 225, 232, 234, 247.
+- **NEXT: follow-ups** (the user's choice, 2026-10-15, in a fresh session; master `ff292b2` and production are in step, no
+  branches open). `docs/follow-ups.md` is authoritative: an open entry reads `**Status:** open`, and many are record-only, so
+  read the entry before proposing work. Owed to the USER, not code: review of the spec amendments marked *Amended
+  (implementation, chunk 1)* / *(… chunk 2)* in the curves spec; a real Brave print (254, 345, 357, 379); real-hardware looks
+  (26a: 337, 347, 370; 336's grain seam is deferred to a texture/shader session). Custom materials (fu 266) closed; open near
+  it 324–326. Other open items: 314–320, angle-cut residue 295–298; 241 (open by decision), 251 (record-only), 221, 225, 232,
+  234, 247.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
   byte-identical bundles (test-only). Check what a later commit touches before reading
@@ -918,7 +923,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–373, each with its closure). Read the entries
+**`docs/follow-ups.md` is authoritative** (1–379, each with its closure). Read the entries
 for the area you are about to touch; several are "correct but untested". Open items worth
 knowing without opening it:
 

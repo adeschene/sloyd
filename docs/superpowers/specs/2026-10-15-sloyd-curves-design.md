@@ -4,8 +4,11 @@
 side, §4.1's wording). Chunk 1 plan: `docs/superpowers/plans/2026-10-15-sloyd-curves-chunk1.md`; its planning rulings P1–P7
 were approved by the user with the plan (2026-10-15) and are marked *Amended (planning chunk 1, approved by the user
 2026-10-15)* where they touch this document. Changes made while executing chunk 1 (controller and review rulings, not yet
-seen by the user) are marked *Amended (implementation, chunk 1)* and are **for the user's review**. **Chunk 1 implemented**
-on branch `curves` (2026-10-15, schema 17), **not yet merged or deployed**; the record is `docs/history.md`.
+seen by the user) are marked *Amended (implementation, chunk 1)* and are **for the user's review**. **Chunk 1 deployed**
+2026-10-15 (merge `54ea740`, schema 17). Chunk 2 plan: `docs/superpowers/plans/2026-10-15-sloyd-curves-chunk2.md`; its rulings
+Q1–Q6 were approved by the user with the plan, and execution rulings are marked *Amended (implementation, chunk 2)* (§5),
+**for the user's review**. **Chunk 2 deployed** 2026-10-15 (merge `1e16c01`, no schema change). Both chunks are complete;
+§12's list (fu 362–367) is what remains. The record is `docs/history.md`.
 **Builds on:** angle cuts (`2026-10-12-sloyd-angle-cuts-design.md`, invariant 48) — bodies, `partGeometry`, `clipConvex`;
 holes (`2026-10-14-sloyd-holes-design.md`, invariant 50) — a second kind of geometry with its own home, faults kept and
 noted, the rebuild-performance guard; the section cut (`2026-10-14-sloyd-section-cut-design.md`, invariant 51) — caps and
