@@ -442,6 +442,7 @@ function mergeHoledPlanes(board: Board, bodies: readonly Body[], holes: readonly
   const out = new Map<Body, MergedPlane[]>();
   const checks = stockChecks(board);
   const clean = new Set(holes.filter((h) => holeInStock(board, h, checks)));
+  const faulted = holes.filter((h) => !clean.has(h));
   // Every plane a clean hole opens into: axis, outward sign, coordinate, and the holes on it.
   const planes: { a: number; sign: number; at: number; holes: Hole[] }[] = [];
   const planeOf = (a: number, sign: number, at: number) => {
@@ -464,7 +465,9 @@ function mergeHoledPlanes(board: Board, bodies: readonly Body[], holes: readonly
       }
     }
     if (members.length === 0) continue;
-    if (holes.some((h) => !pl.holes.includes(h) && members.some(({ f }) => holeTouches(h, f.verts)))) continue;
+    // Only a faulted hole can reach a plane it does not open into: a clean one's wall meets no face (touching is a
+    // breaks-out), and its own planes are the ones it is listed on.
+    if (faulted.some((h) => members.some(({ f }) => holeTouches(h, f.verts)))) continue;
     const disjoint = pl.holes.every((h, i) => pl.holes.slice(i + 1).every((g) =>
       Math.hypot(h.centre[u]! - g.centre[u]!, h.centre[v]! - g.centre[v]!) > h.radius + g.radius + HOLE_EPS));
     if (!disjoint) continue;
@@ -489,9 +492,17 @@ function mergeHoledPlanes(board: Board, bodies: readonly Body[], holes: readonly
     };
     const rings = pl.holes.map((h) => { const t = axialOffset(h, { n: members[0]!.f.n, verts: members[0]!.f.verts }); return t === null ? null : holeRing(h, t); });
     if (rings.some((r) => r === null)) continue;
-    const ringHome = (rings as V3[][]).map((r) => {
-      const l = home(r[0]!);
-      return l && r.every((p) => inside(p, l) && !inner.some((i) => inside(p, i))) ? l : null;
+    // A ring is clear of every loop when its centre is inside its outer loop, outside every inner one, and farther than
+    // its radius (+ HOLE_EPS) from every loop edge: the ring's vertices lie on that circle.
+    const clear = (c: V3, r: number, loop: readonly V3[]) => loop.every((a, i) => {
+      const b = loop[(i + 1) % loop.length]!;
+      const du = b[u]! - a[u]!, dv = b[v]! - a[v]!;
+      const t = Math.max(0, Math.min(1, ((c[u]! - a[u]!) * du + (c[v]! - a[v]!) * dv) / (du * du + dv * dv)));
+      return Math.hypot(c[u]! - a[u]! - t * du, c[v]! - a[v]! - t * dv) > r + HOLE_EPS;
+    });
+    const ringHome = pl.holes.map((h) => {
+      const l = home(h.centre);
+      return l && !inner.some((i) => inside(h.centre, i)) && clear(h.centre, h.radius, l) && inner.every((i) => clear(h.centre, h.radius, i)) ? l : null;
     });
     if (ringHome.some((l) => l === null)) continue;
     const tris: V3[][] = [];
@@ -499,8 +510,13 @@ function mergeHoledPlanes(board: Board, bodies: readonly Body[], holes: readonly
     for (const l of outer) {
       const holesIn = [...inner.filter((i) => home(i[0]!) === l), ...(rings as V3[][]).filter((_, k) => ringHome[k] === l)];
       const all = [...l, ...holesIn.flat()];
+      // Loop vertices (outer, then inner) come before the rings in `all`: a part vertex can lie only on an edge between
+      // two of them — the plane meets the rest of the part only along its loops — so only such a triangle is conformed.
+      const onLoop = l.length + holesIn.slice(0, holesIn.length - rings.filter((_, q) => ringHome[q] === l).length).reduce((n, h) => n + h.length, 0);
       for (const [i, j, k] of ShapeUtils.triangulateShape(l.map(flat), holesIn.map((r) => r.map(flat)))) {
         const t = [all[i!]!, all[j!]!, all[k!]!];
+        const loops = (i! < onLoop ? 1 : 0) + (j! < onLoop ? 1 : 0) + (k! < onLoop ? 1 : 0);
+        if (loops < 2) { tris.push(t); continue; }
         const poly = insertOnEdges(t, members[0]!.f.n, cands);
         if (poly === t) tris.push(t); else tris.push(...centroidFan(poly));
       }

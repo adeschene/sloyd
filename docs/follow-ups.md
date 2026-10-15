@@ -5692,11 +5692,13 @@ open.
   bound). Neither named remedy was taken: each plane a CLEAN hole opens into is merged (`unionLoops`, a directed
   `unionOutline`; loops chained and welded), triangulated once with the wall's own rings as holes, each triangle conformed
   (`mergeHoledPlanes`, grainTiling.ts). Watertight on five fixtures (blind and through rows, a straddling bore, a bore in a
-  box cell, a hinge cup) and the caps across them; the side rebuilds in ~33 ms, the stile ~6 (new `curvesPerf` cases).
+  box cell, a hinge cup) and the caps across them; the side's bodies, edges and mesh rebuild in ~16 ms (was ~52), the stile
+  ~6 (new `curvesPerf` cases; the holes' own mesh, ~13 ms there and the same on a part without curves, stays with holesPerf —
+  timing it in the curves guard put the side at ~33 ms and failed one full-suite run in two under load).
   Mutated: no merge, no conform, unwelded loops, no disjoint guard, no faulted-hole guard each turn a test red. Residue:
   a plane a faulted hole reaches or whose rings overlap keeps the per-face path and its T-junctions (pinned by area, not
   watertightness); the ring-inside-its-loop guard is unreachable for a clean hole (defensive); the holes' own mesh costs
-  ~15 ms on that side, unchanged and unexamined (the profile was too coarse to attribute). Real-hardware look still owed
+  ~13 ms for 52 bores on any part (~0.26 ms a hole), unexamined (fu 340's guard). Real-hardware look still owed
   with fu 370. **Status:** closed.
 
 **370. Real-hardware looks owed (26a).** Seen only on software GL (llvmpipe): smooth shading on the curved faces (radial
