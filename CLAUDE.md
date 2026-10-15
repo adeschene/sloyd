@@ -39,7 +39,7 @@ handicraft education tradition built around hand woodworking.
 - **Holes (spec `2026-10-14-sloyd-holes-design.md`, inv 50)**: both chunks deployed (schema 16; fu 327 and 343 closed).
   Open near it: 328–342 (336: the wall-grain seam, deferred by the user to a texture/shader session; 337: real-hardware
   looks owed), 345–346 (335, 338, 339, 344 closed in follow-ups 1).
-- **Follow-ups 1 (2026-10-15, branch `follow-ups-1`, merged to master, NOT deployed; no schema change, so deploying or
+- **Follow-ups 1 (2026-10-15, branch `follow-ups-1`, merged to master as `333bddf`, NOT deployed; no schema change, so deploying or
   rolling it back costs nothing)**: closed 369 (a curved part's holed planes drawn as one region: watertight, the pinned
   arched side ~52 → 16 ms), 375 (silhouettes clipped to the wood), 339, 262 (+261 not reproducible), 338 and 359 (the
   user's rulings), 335 (bookkeeping), 348, 344 + 263, 316, 296. Two rulings made in implementation await the user: 296
