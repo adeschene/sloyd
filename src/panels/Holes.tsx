@@ -2,11 +2,10 @@ import { useState } from 'react';
 import { useStore } from '../store/store';
 import { acrossOf, mm, defaultHole, defaultShelfPinRow, defaultHingeCup, holeFaults } from '../document/document';
 import type { Board, CutFrom, Dimension, HoleFault, HoleRow } from '../document/document';
-import { distinctFaults, edgeName, endWord as end, faultKey as key, holeFaultText, holeLine } from '../document/holeText';
+import { distinctFaults, edgeName, endWord as end, faultKey as key, holeFaultText, holeLengthText, holeLine } from '../document/holeText';
 import { DimensionField } from './DimensionField';
 import { CountField } from './CountField';
 import { Popover } from './Popover';
-import { formatLength, formatMm, imperialAt, isMetric } from '../units/length';
 
 const DIMS: Dimension[] = ['length', 'width', 'thickness'];
 const cap = (d: string) => d[0]!.toUpperCase() + d.slice(1);
@@ -33,11 +32,9 @@ const throughSeed = (faceDim: number) => Math.min(faceDim / 2, 0.5);
 
 function HoleRowView({ board, row }: { board: Board; row: HoleRow }) {
   const units = useStore((s) => s.doc.units);
-  // Diameter and Every read as a hole is specified (spec R7): mm to one decimal in a metric project; imperial at the
-  // document's precision (Diameter) and at 1/64 at least (Every, as the bench line prints the pitch).
-  const metric = isMetric(units);
-  const diameterText = (v: number) => (metric ? formatMm(v, 1) : formatLength(v, units));
-  const pitchText = (v: number) => (metric ? formatMm(v, 1) : formatLength(v, imperialAt(Math.max(units.precision, 64))));
+  // Diameter and Every read as a hole is specified (spec R7), through the bench line's own formatter (holeText.ts).
+  const diameterText = (v: number) => holeLengthText(v, units, 'diameter');
+  const pitchText = (v: number) => holeLengthText(v, units, 'pitch');
   const updateHoleRow = useStore((s) => s.updateHoleRow);
   const removeHoleRow = useStore((s) => s.removeHoleRow);
   const [error, setError] = useState<string | null>(null);

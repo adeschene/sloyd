@@ -1,7 +1,7 @@
 import { IMPERIAL } from '../units/length';
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
-import { distinctFaults, edgeName, endWord, holeFaultText, holeLine } from './holeText';
+import { distinctFaults, edgeName, endWord, holeFaultText, holeLengthText, holeLine } from './holeText';
 import { holeFaults } from './holeFaults';
 import type { HoleRow } from './types';
 
@@ -57,5 +57,23 @@ describe('holeLine in metric', () => {
     expect(line).toContain('every 32 mm');
     expect(line).toContain('first 51 mm');
     expect(line).not.toContain('(32 mm)');
+  });
+});
+
+describe('holeLengthText: the one diameter/pitch formatter (bench line and Holes fields)', () => {
+  const MM = { display: 'metric-mm' as const, precision: 16 };
+  it('metric: mm to one decimal, either kind', () => {
+    expect(holeLengthText(0.25, MM, 'diameter')).toBe('6.4 mm');
+    expect(holeLengthText(32 / 25.4, MM, 'pitch')).toBe('32 mm');
+  });
+  it('imperial: the diameter at the document precision, the pitch at 1/64 at least, no mm annotation', () => {
+    expect(holeLengthText(35 / 25.4, IMPERIAL, 'diameter')).toBe('1-3/8"');
+    expect(holeLengthText(32 / 25.4, IMPERIAL, 'pitch')).toBe('1-17/64"');
+    expect(holeLengthText(32 / 25.4, IMPERIAL, 'diameter')).toBe('1-1/4"');
+  });
+  it('is the text the bench line prints (imperial adds only its mm annotation)', () => {
+    expect(holeLine(side, pins, IMPERIAL)).toContain(`every ${holeLengthText(pins.pitch, IMPERIAL, 'pitch')} (32 mm)`);
+    expect(holeLine(side, pins, MM)).toContain(`${holeLengthText(pins.diameter, MM, 'diameter')} dia`);
+    expect(holeLine(side, pins, MM)).toContain(`every ${holeLengthText(pins.pitch, MM, 'pitch')},`);
   });
 });
