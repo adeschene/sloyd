@@ -5638,7 +5638,7 @@ draws the outline lines at `DRAWING_CURVE_TOLERANCE = 0.001"`, capped at 96 chor
 sheet), occluders staying the model's bodies. Part diagrams (seen live as plain rectangles for a curved part, as specified):
 the waste outline in the view down `through`, clipped to the part; a line across the part at each SHARP outline vertex in
 the other views (matching the viewport, inv 16); each curve's bench line as an HTML note under the figure (inv 19). No
-schema change. **Status:** CLOSED on branch `curves-2` (not merged), 2026-10-15 (spec §5 as amended, rulings Q1–Q6; `curveDrawing.ts`,
+schema change. **Status:** CLOSED 2026-10-15 — curves chunk 2 (branch `curves-2`, merged as `1e16c01`, deployed as `index-C-5a29hA.js`) (spec §5 as amended, rulings Q1–Q6; `curveDrawing.ts`,
 `diagram.ts`, `PartDiagram`). Shipped: `curveDrawEdges` (fine path ON the true arc, 0.001", ≤96 chords; visibility on the model
 chord, edge-on views unrefined, a split chord keeping its end); part diagrams (hatched waste, sharp-vertex lines on their own
 face, notes through `curveLineEntries`, four corners one note). **The curved-surface silhouette was a LIVE production defect

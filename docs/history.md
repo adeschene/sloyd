@@ -18,6 +18,14 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-15 with curves chunk 2 live** (`index-C-5a29hA.js`, CSS `index-DdiQhqkN.css`,
+merge `1e16c01`, schema 17 unchanged — a rollback to curves chunk 1, `54ea740` / `index-D4nh2vvL.js`, is free). Merged on the
+user's word (4436 tests across 151 files, build clean on the merged tree; branch deleted). Verified per the deployment rule:
+`200` on a deep route at the edge; bundle and CSS match `dist/` in-network (via `127.0.0.1`) and at the edge; the old bundle
+`index-D4nh2vvL.js` 404s in-network; CSP `connect-src 'self' https://api.anthropic.com` at the edge; a real-browser load (0
+errors, the Cloudflare beacon and "+ Add board" present; the load's two keys cleared from a plain asset page and read back
+empty after 3s, then navigated away).
+
 **Production matches `master` as of 2026-10-15 with curves chunk 1 live** (`index-D4nh2vvL.js`, CSS `index-B_EfuaB_.css`,
 merge `54ea740`, **schema 17** — a rollback to fu 357, `7f851f9` / `index-BZDp6iOz.js`, refuses projects saved since; export
 first). Merged on the user's word (4374 tests across 148 files, build clean on the merged tree; branch deleted). Verified per the
@@ -461,7 +469,7 @@ and 79.
 ## What each round did
 
 **What curves chunk 2 did (2026-10-15, fu 361)** (plan `docs/superpowers/plans/2026-10-15-sloyd-curves-chunk2.md`, spec §5, branch
-`curves-2` from master `3b4abdb`, HEAD `3f6fba4`). **Built, NOT merged or deployed. No schema change** (17), so rolling back is free.
+`curves-2` from master `3b4abdb`, HEAD `8d176a3`). **Merged as `1e16c01` and deployed 2026-10-15** (`index-C-5a29hA.js`). **No schema change** (17), so rolling back to chunk 1 is free.
 The plan's rulings Q1–Q6 were approved by the user with it. **Q1 (a live defect on master):** a probe found the Plans sheet drew no
 silhouette for a curved surface: a four-corner top's Front and Side elevations had open ends and an arch's Side view lacked its
 hidden crown, because a smooth outline point's line along `through` is suppressed (inv 16) and nothing replaced it. `silhouetteLines`
