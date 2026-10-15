@@ -5,9 +5,14 @@ import {
 import type { Region } from '../document/document';
 import { chiralAngled, chiralPart, turnedAbout } from '../document/turnFixtures';
 import { mirrorPart } from '../document/frames';
+import { ARCH } from '../document/curveFixtures';
 import { boardBodies } from '../document/document';
 import { boardUVOffset, boardUVs, boardUVSignature, bodyMesh, facePlans, faceTriangles, holeMesh, holesMesh } from './grainTiling';
 import { boardHoles, holeRing, holeTouchesBox, HOLE_SEGMENTS, partGeometry, stockChecks } from '../document/document';
+import { curveOutline, localSegments } from '../document/document';
+import type { Body, LocalArc, V3 } from '../document/document';
+import { cornerCurve } from '../document/document';
+import { twiceArea } from '../document/curves';
 
 const flat = createBoard({ length: 24, width: 5.5, thickness: 0.75, material: 'oak' });
 
@@ -448,6 +453,12 @@ describe('boardUVSignature', () => {
     }] });
     const b = { ...a, cuts: [{ ...a.cuts[0], [key]: 1 }] };
     expect(boardUVSignature(b)).not.toBe(boardUVSignature(a));
+  });
+
+  it('boardUVSignature includes curves (inv 15)', () => {
+    const b = createBoard({ length: 30, width: 5, thickness: 0.75 });
+    expect(boardUVSignature({ ...b, curves: [ARCH] })).not.toBe(boardUVSignature(b));
+    expect(boardUVSignature({ ...b, curves: [{ ...ARCH, start: [3.5, 0] }] })).not.toBe(boardUVSignature({ ...b, curves: [ARCH] }));
   });
 
   // Deliberately excluded: a board being dragged must not rebuild its
@@ -930,6 +941,21 @@ describe('a clean hole draws its wall whole across a seam (ruling R15)', () => {
   });
 });
 
+describe('a hole into a curve\'s waste is not clean: its wall is clipped to the bodies (invariant 50, curves Task 10)', () => {
+  const apron = createBoard({
+    id: 'a', length: 30, width: 5, thickness: 0.75, curves: [ARCH],
+    holes: [{ id: 'h', face: 'thickness', from: 'max', diameter: 0.5, depth: 'through', along: 'length', alongFrom: 'min', station: 15, count: 1, pitch: 0, acrossFrom: 'min', inset: 1 }],
+  });
+  it('the bore is not in stock (it meets the arch) and its wall is not the clean 2 x 96-quad path', () => {
+    const h = boardHoles(apron)[0]!;
+    expect(holeInStock(apron, h)).toBe(false);
+    const tris = (b: typeof apron) => holeMesh(b, boardHoles(b)[0]!, boardBodies(b)).positions.length / 9;
+    const clean = createBoard({ ...apron, curves: [] });
+    expect(tris(clean)).toBe(2 * HOLE_SEGMENTS);                         // the unclipped path: one quad (2 triangles) per facet
+    expect(tris(apron)).not.toBe(2 * HOLE_SEGMENTS);                     // the arch's bodies split and drop wall
+  });
+});
+
 describe('faceTriangles: faulted and tangent holes take the fallback split (ruling R4; holes spec §3.2)', () => {
   // A 10 x 10 panel, 1in thick, holes r = 1 entered from the top (thickness max) face.
   const row = { id: 'h', face: 'thickness' as const, from: 'max' as const, diameter: 2, depth: 0.5, along: 'length' as const, alongFrom: 'min' as const, station: 4, count: 2, pitch: 1, acrossFrom: 'min' as const, inset: 5 };
@@ -1026,5 +1052,100 @@ describe('holesMesh: every hole of a part in ONE geometry (final review 2: one d
     const plain = createBoard({ id: 'p', length: 30, width: 11.25, thickness: 0.75 });
     const { bodies, holes } = partGeometry(plain);
     expect(holesMesh(plain, holes, bodies, stockChecks(plain))).toBeNull();
+  });
+});
+
+describe('curved bodies in the mesh (curves spec §3.4)', () => {
+  const b = { ...createBoard({ length: 30, width: 5, thickness: 0.75 }), curves: [ARCH] };
+  const bodies = boardBodies(b);
+  it('returns normals; on a chord face they are radial (perpendicular to the arc), not the chord\'s', () => {
+    const arc = localSegments(b, ARCH)[0] as LocalArc;
+    let radial = 0;
+    for (const body of bodies) {
+      const m = bodyMesh(b, body, [], bodies);
+      expect(m.normals).toBeDefined();
+      // Board flat at turn 0: world X = length, Y = thickness, Z = width; positions are centred.
+      for (let i = 0; i < m.positions.length; i += 3) {
+        const x = m.positions[i]! + 15;
+        const z = m.positions[i + 2]! + 2.5;
+        const ny = m.normals![i + 1]!;
+        // Float32 positions near 48.75" carry ~4e-6 of error: judge "on the arc" at 1e-4.
+        const onArc = Math.abs(Math.hypot(x - arc.centre[0], z - arc.centre[1]) - arc.radius) < 1e-4 && ny === 0 && z > 1e-4;
+        if (!onArc) continue;
+        const r = [(x - arc.centre[0]) / arc.radius, (z - arc.centre[1]) / arc.radius];
+        expect(Math.abs(m.normals![i]! * r[1]! - m.normals![i + 2]! * r[0]!)).toBeLessThan(1e-6);   // parallel to the radius
+        radial += 1;
+      }
+    }
+    expect(radial).toBeGreaterThan(0);
+  });
+  it('a split part shows no internal walls: total triangle area equals the outer surface', () => {
+    let area = 0;
+    for (const body of bodies) {
+      const m = bodyMesh(b, body, [], bodies);
+      for (let i = 0; i < m.positions.length; i += 9) {
+        const p = [0, 3, 6].map((o) => [m.positions[i + o]!, m.positions[i + o + 1]!, m.positions[i + o + 2]!]);
+        const e1 = p[1]!.map((v, k) => v - p[0]![k]!);
+        const e2 = p[2]!.map((v, k) => v - p[0]![k]!);
+        area += Math.hypot(e1[1]! * e2[2]! - e1[2]! * e2[1]!, e1[2]! * e2[0]! - e1[0]! * e2[2]!, e1[0]! * e2[1]! - e1[1]! * e2[0]!) / 2;
+      }
+    }
+    const o = curveOutline(b, ARCH);
+    const faceArea = 30 * 5 - Math.abs(twiceArea(o.pts)) / 2;            // the polygon actually removed
+    const chordLen = o.pts.reduce((s, p, i) => (o.arcEdge[i] ? s + Math.hypot(o.pts[(i + 1) % o.pts.length]![0] - p[0], o.pts[(i + 1) % o.pts.length]![1] - p[1]) : s), 0);
+    const outer = 2 * faceArea + 0.75 * (30 + 2 * 5 + (30 - 24) + chordLen); // two faces; top, ends, bottom beside the arch, arch
+    // Positions are Float32 (up to 15" from the centre: half an ulp is 2^-21 ≈ 4.8e-7 per coordinate), so the summed
+    // area carries error of that order (measured 5.5e-7, past toBeCloseTo(…, 6)'s 5e-7). 1e-4 is still far below what
+    // the internal walls add when drawn (~361 sq in, measured by dropping the seam skip).
+    expect(Math.abs(area - outer)).toBeLessThan(1e-4);
+  });
+  it('a face tagged with the curve but on no chord (a wall on a chord plane\'s extension) keeps its flat normal', () => {
+    // Hand-built: the width min face left of the arch, tagged with the arch's id. It lies on no chord segment.
+    const wall: Body = { box: null, faces: [{ n: [0, -1, 0], curve: ARCH.id, verts: [[0, 0, 0], [3, 0, 0], [3, 0, 0.75], [0, 0, 0.75]] }] };
+    const m = bodyMesh(b, wall, [], [wall]);
+    expect(m.positions.length).toBe(18);
+    // Width −1 is world −Z on a flat part at turn 0.
+    for (let i = 0; i < m.normals!.length; i += 3) expect([m.normals![i], m.normals![i + 1], m.normals![i + 2]]).toEqual([0, 0, -1]);
+  });
+  it('a chord face another curve clips keeps radial normals at its vertices inside the chord (two through axes)', () => {
+    // The width-min / thickness-max edge rounded through the length (u width, v thickness; centre (0.5, 0.25)), and the
+    // arch's chord planes clipping those facets: the clip leaves vertices INSIDE a facet's chord, off the circle.
+    const endCorner = { id: 'y', ...cornerCurve({ through: 'length', uFrom: 'min', vFrom: 'max', radius: 0.5 }) };
+    const two = { ...createBoard({ length: 30, width: 5, thickness: 0.75 }), curves: [ARCH, endCorner] };
+    const tb = boardBodies(two);
+    let checked = 0;
+    let offCircle = 0;
+    for (const body of tb) {
+      const m = bodyMesh(two, body, [], tb);
+      for (let i = 0; i < m.positions.length; i += 3) {
+        const w = m.positions[i + 2]! + 2.5;
+        const t = m.positions[i + 1]! + 0.375;
+        // Only the corner's facets lie strictly inside its quadrant with no length component in their normal.
+        if (!(w < 0.5 - 1e-4 && t > 0.25 + 1e-4) || m.normals![i] !== 0) continue;
+        const r = [w - 0.5, t - 0.25];
+        const l = Math.hypot(r[0]!, r[1]!);
+        if (Math.abs(l - 0.5) > 1e-5) offCircle += 1;
+        expect(Math.abs(m.normals![i + 2]! * r[1]! - m.normals![i + 1]! * r[0]!) / l).toBeLessThan(1e-6);   // radial
+        expect(m.normals![i + 2]! * r[0]! + m.normals![i + 1]! * r[1]!).toBeGreaterThan(0);                // outward
+        checked += 1;
+      }
+    }
+    expect(checked).toBeGreaterThan(0);
+    expect(offCircle).toBeGreaterThan(0);
+  });
+  it('a seam is found when the neighbour\'s normal is opposite only within HOLE_EPS (the key window)', () => {
+    // Hand-built: a face and a neighbour's face against it whose normal is tilted 1e-7 rad — inside uncovered's
+    // n·m <= −1 + HOLE_EPS, but its sort key is not the exact negative, so only the window finds it.
+    const sq: V3[] = [[1, 1, 0.75], [2, 1, 0.75], [2, 2, 0.75], [1, 2, 0.75]];
+    const l = Math.hypot(1e-7, 1);
+    const a: Body = { box: null, faces: [{ n: [0, 0, 1], verts: sq }] };
+    const c: Body = { box: null, faces: [{ n: [1e-7 / l, 0, -1 / l], verts: [...sq].reverse() }] };
+    expect(bodyMesh(b, a, [], [a]).positions.length).toBe(18);       // alone: drawn
+    expect(bodyMesh(b, a, [], [a, c]).positions.length).toBe(0);     // against its neighbour: a seam
+  });
+  it('a part without curves returns no normals (BoardMesh keeps computeVertexNormals)', () => {
+    const plain = { ...createBoard({ length: 30, width: 5, thickness: 0.75 }), angleCuts: [{ id: 'ch', kind: 'chamfer' as const, face: 'width' as const, from: 'max' as const, along: 'thickness' as const, alongFrom: 'max' as const, points: [[0, 0.125], [0.125, 0]] as [[number, number], [number, number]] }] };
+    const pb = boardBodies(plain);
+    expect(bodyMesh(plain, pb[0]!, [], pb).normals).toBeUndefined();
   });
 });

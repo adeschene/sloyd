@@ -2,6 +2,7 @@ import { definitionAt, flatDocument, instanceAt, itemPaths, lastSegment, migrate
 import type { Board, Cut, FlatDocument, SloydDocument } from '../../document/document';
 import { TOUCH, worldSolids } from '../../document/designCheck';
 import { holedParts } from '../../document/holedRefusal';
+import { curvedParts } from '../../document/curvedRefusal';
 import { cutBox, gateUnjoin, readJoints, rejoin, sameCut } from './unjoin';
 
 /**
@@ -101,6 +102,7 @@ export function repairDocument(doc: SloydDocument): RepairCheck {
   try {
     const flat = flatDocument(doc);
     if (holedParts(flat).length > 0) return null; // withheld, not refused (holes spec §6): the dialog has already refused
+    if (curvedParts(flat).length > 0) return null; // withheld (curves spec §7)
     const r = repairJoints(flat, storedKeys(doc));
     if (r === null || 'refused' in r) return r;
     const out = migrateDocument(writeBackFlat(doc, flat.boards, r.boards));

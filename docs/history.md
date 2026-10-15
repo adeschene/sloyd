@@ -452,6 +452,106 @@ and 79.
 
 ## What each round did
 
+**What curves chunk 1 did (2026-10-15, feature gaps §1)** (spec `docs/superpowers/specs/2026-10-15-sloyd-curves-design.md`,
+plan `docs/superpowers/plans/2026-10-15-sloyd-curves-chunk1.md`, branch `curves` from `4be8d00`, HEAD `0ccb64f`). **Built,
+NOT merged or deployed** — merge and deploy wait on the user's word. **Schema 17** once merged: a build below 17 refuses
+every project saved since (export first). Picked by Claude at the user's request. The user's rulings while brainstorming:
+curved profiles cut clean through a part first (no edge profiles, no bent parts); arcs now, splines later without a schema
+bump (a stored path of segments; an unknown segment type refuses the document); through any of the three dimensions,
+default the thickness; Claude features refuse curved projects this round; approach 1, measured — curves become part of the
+ONE geometry (`boardBodies`) and a curved part's edges are BUILT, not rediscovered; the grain seam on a curved face is
+accepted (with fu 336). Two *Corrected (writing)* notes went to the user with the spec: an arc stores the `side` of its
+chord it bows toward (a `bulge: wood | waste` cannot be decided for an arch until it is placed), and the lines use the one
+face vocabulary (`the width min side`), not "bottom" or "left".
+**The timing spike** (throwaway, the real code with injected bodies, minimum of several runs) decided approach 1's edges:
+an arched apron 30 × 5 (24" span, 1-1/2" rise) at 18 chords splits into 20 bodies with `bodyEdges` 25 ms, one drawing 25
+ms, mesh 1 ms, cap 0.6 ms; a 36 × 20 top with four 2" corners (12 chords each) stays one body, `bodyEdges` 18 ms, drawing
+19, mesh 2, cap 2; the arch at 48 chords: 50 bodies, `bodyEdges` 135 ms, drawing 131. `bodyEdges` grows with the square of
+the faces on the two broad planes, so curved edges are built from `unionOutline` plus sharp vertices.
+**What shipped on the branch:** `CurveCut` (`Board.curves`, `Shape.curves`): a closed waste outline of `line` and minor
+`arc` segments (`rise` or `radius`, `side`) in a face's stored (u, v) from named ends, extruded through `through`.
+`curves.ts` is the one model (arc maths, chords ON the arc at 0.005" and ≤24 per arc, inside tests, `curveFaults` —
+`runs-off`, `cuts-through` — the canonical writers/readers and `deriveCurveKind`, presets, `mirrorCurveCut`).
+`boardBodies` CLIPS a convex-wood curve (corners, a full-span bow) by chord half-planes and SPLITS the rest (arches,
+notches) along the waste's ear-clipped convex pieces; `curvedEdges` builds the edges; `bodyMesh` gives chord faces radial
+normals and drops seams; snap points at arc ends, crowns and centres; holes into a curve's waste are `breaks-out`; bench
+lines (`Arch on the width min side, 3" in from each length end: 24" span, 1-1/2" rise (radius 48-3/4")`, the radius for the
+trammel) and cut-list grouping by `CURVE_FIELDS` as a multiset, four equal corners as one line; joinery, Refine and Repair
+refuse a curved project; store actions; the Curves section (Arch, Half-round notch, Bow, Rounded corner, Rounded corners).
+A curved part still buys its box (inv 18).
+**Planning rulings P1–P7** (spec gaps found while writing the plan; approved by the user with it): P1 explicit closure (the
+last `to` `===` `start`); P2 a Bow is stored at its edge's length when written and refit by every edit, a resize never
+stretches it (`over 18" from the length min end` on the line, a note on the row); P3 the waste is air to the stock probe
+except a point on an arc or on a straight side off the face boundary; P4 fault words (`runs past the length max end`,
+`cuts right through the part`, `hole 3 runs into the arch`); P5 snap kinds (ends `corner`, crown `edge-mid`, centre
+`face-center`, nothing off the face); P6 the clip decider (every arc into the waste, every straight side on the boundary);
+P7 `, cut through the width` after the radius bracket.
+Subagent-driven, sixteen tasks, each reviewed; rulings while executing:
+- `curveKindWord` lives in `curves.ts`, not `curveText.ts` (the pre-flight scan found a duplicate declaration and a
+  `holeText` ↔ `curveText` import cycle in the plan).
+- The fixtures ARCH and CORNER live in `curveFixtures.ts` (TEST-ONLY): ~10 files imported them from `curves.test.ts`, and
+  importing a test module re-registers its suite in every importer.
+- Task 4: `wasteContains` closes the chord band PER ARC (strict for an arc bowing into the wood, closed for one into the
+  waste) — the plan's uniform closed band read a band along an outward arc's chord as waste (spurious cuts-through on
+  non-canonical curves, which the spec says render and print). Spec §2.5's example "an arch or bow deeper than the part is
+  wide" is not a cuts-through under the stated rule (the curve leaves the face first); the code follows the rule and such a
+  curve reads `runs-off`, which still flags and refuses it. Spec amended in these records.
+- Task 6: the implementer STRENGTHENED P6 — CLIP also requires one arc run and convex wood at every off-boundary vertex and
+  arc–arc join. P6 as written clipped 28 in³ of real wood off two arcs meeting in a reflex wood corner (hand-edited only);
+  the guard only moves curves to SPLIT, which gives the same wood. Accepted and marked for the user's review. The review
+  added the containment half of the clip/split agreement pin (volume alone was there) and replaced the plan's
+  "no curves byte-for-byte" test, which compared a value with itself.
+- Task 7: smooth-line suppression dropped whole lines, erasing a real crease where a dado wall meets a corner's tangent end
+  (the oracle shared the filter, so it could not see it) — now per interval, with an independent fixture; and `slanted`
+  tested against every through axis made a two-axis part nearly the slow path (5.7 vs 8.0 ms) — now the matching plane's
+  own axis. `unionOutline` moved to `outline.ts`.
+- Task 8: the controller-added L-shaped notch (a non-convex waste: 14 pieces, 83 bodies, 477 faces) measured 48–54 ms
+  against 40 (bodies 4, edges 35 on frozen bodies, mesh 8); ruled a 100 ms bound (the holes guard's precedent for an unusual
+  case — no preset authors a non-convex waste), the presets and a two-axis part at 40; the upstream causes are fu 368.
+- Task 10: a hole edit adding a hole-into-curve fault crashed the Holes panel's refusal (`edgeName` of a fault with no edge);
+  it now reads `Puts hole N into the arch — move it first.`
+- Task 14: Span and a Bow's Rise also refuse an arc past a half circle (the loader DROPS `rise > chord/2`, so an unrefused
+  edit was silent loss on the next load); the review found a SELECT change (a faulted Bow re-seated through the length,
+  refit to a 0.75" span at its old rise) stored one too — the check now runs on every candidate (`pastHalfCircle`).
+**Plan defects the reviews and implementers caught** (fixed in code or test, never by weakening): mutations that survived
+the plan's tests (a non-closing outline and a 71-segment one were dropped anyway by the area test; the outline's sweep sign;
+`curveFaults`' arc extremes (no test of a crown alone past the far side); a notch's `>=`; `intoCurve` in `holeInStock`; withholding a preset that
+faults; the re-seat on a thickness→length switch, where the writer puts the arc on v anyway); a one-user shape that
+dissolves on load used as a "shape's own curves" fixture; a test fixture on 3/4" stock whose re-seat cuts through; the
+plan's `convexPieces` loop that could stop with waste untriangulated; extended piece planes slicing cells the waste never
+reaches (a disjointness pre-check); the circle search for a chord's arc replaced by index.
+**The live check** (Task 15, dev server :5181, software GL, `docs/browser-verification-curves.md`, the profile restored
+after: 6 keys, 3 projects, hashes unchanged): Properties and the cut list read Task 11's strings; four corners in one undo
+entry; a Bow through the width reads `Bow the thickness min side 1/2" (radius 225-1/4"), cut through the width`; the tape
+reads 24" arch end to arch end and 12-1/16" to the crown; the section's cap follows the arch (Front, for an on-edge apron);
+a length of 26 keeps the arch with its note and `— check:` suffix, Span 20 clears it; a Rise into a hole refused in the
+field; a mirrored copy's off-centre arch mirrors and follows edits; joinery and Refine refuse with no call; the Plans sheet
+draws arches dashed where hidden; 47 undo/redo steps one entry each. It found **light pinholes in the arched apron's ground
+shadow** along the arch and faint specks on its section cap (`docs/img/curves-shadow-speckles.png`).
+**The final review** (opus, whole branch; "With fixes") traced the pinholes to T-junctions — 90 unmatched directed edges in
+the default arch's merged mesh, 92 for the notch, 14 for a lengthened bow, 86 for the L-notch — and found a box cell beside
+the slices still drawn as a `BoxGeometry` (T-junctions against them too); a `faultKey` collision (a hole ALREADY past an
+edge could be edited into a curve's waste unrefused, since both faults keyed `breaks-out`); and a Bow's select refusal
+saying "reduce the Span" (a Bow has no Span). The fix wave (`f1292ee`..`6fb1f4d`): `bodyMeshIdentity.test.ts` written FIRST
+(holed multi-body parts without curves hash the same on master and after); every body of a curved part through `bodyMesh`
+(`drawsAsBox`), its seams dropped, vertices welded (a crown at mid-length gives 0 in one slice and 1.8e-15 in the next),
+every part vertex inside a face's edge inserted (the uncovered remainder's corners included: a dado floor's), centroid fans
+(`conform.ts`); the cap fan moved to `capFill.ts` and conformed for curved parts; `curvesWatertight.test.ts` (exact Float32
+keys; every directed edge matched by its reverse; caps matched or on the outline). The L-notch went from ~54 to ~65 ms
+(bound 100). `faultKey` now keys `:edge` / `:curve:<id>` and `distinctFaults` shares it (so a hole past an edge and in a
+curve can still be edited back; its line reads `(and 1 more)`). A select refusal names the field that sizes the kind (a
+Bow's Rise; and a corner's Radius, `A radius can't run past … — reduce it first.`, the same defect, fixed beyond the brief).
+Re-review: all three addressed, nothing new. **The re-check** (`0ccb64f`): the shadow solid, matching a plain board, the
+cap clean, the bow clean, 0 console errors (`docs/img/curves-shadow-fixed*.png`, `curves-section-fixed.png`).
+**Not confirmed here** (software GL, fu 26a; fu 370): smooth shading on the curved faces; the grain seam on a curved face
+(fu 336); arch-end edge lines and the absence of facet lines (indistinguishable at screenshot scale); a faded curved part
+beside a dado (strips at the dado — the box path's control shows the same); drag smoothness (no gizmo resize exists;
+in-browser frame times were llvmpipe's: ~1.1–1.4 s with or without the arch; node rebuilds under 16 ms for every preset,
+two-axis the least margin). The shadow and cap fix is confirmed on llvmpipe only; a real-hardware look closes it.
+**Deferred:** chunk 2's drawings (fu 361), spec §12's list (362–367; the grain seam appended to fu 336), the non-convex
+rebuild cost (368), a holed face of a curved part keeping T-junctions (369), real-hardware looks (370), record-only minors
+(371–373). Test count 4189 → 4374 (141 → 148 files). NEXT: the user's merge word.
+
 **What fu 357 did (2026-10-15)** (bounded, in-chat design; branch `fu-357`). The approved mechanism — the note as a print-only
 header group repeated per page — was measured not to work: Chromium repeats neither a CSS `table-header-group` nor a real
 `<thead>` on later printed pages. The user, printing from Brave, took the `@page` margin box instead: a metric sheet carries

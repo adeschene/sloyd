@@ -2,13 +2,14 @@ import type { ToggleModifiers } from '../store/selectionGesture';
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import {
-  boardCenter, boardExtents, holeRims, holeTouchesBox, keptBySection, partGeometry, pointToLocalXYZ, sectionCaps,
+  boardCenter, boardExtents, holeRims, keptBySection, partGeometry, pointToLocalXYZ, sectionCaps,
   sectionPlaneOf, stockChecks, solidWorldBox, wholeBoard,
 } from '../document/document';
 import type { Board, Section, V3 } from '../document/document';
 import type { ThreeEvent } from '@react-three/fiber';
 import { faceGrainKinds, grainFamily } from './grainFaces';
-import { bodyMesh, boardUVs, boardUVSignature, holesMesh } from './grainTiling';
+import { bodyMesh, boardUVs, boardUVSignature, drawsAsBox, holesMesh } from './grainTiling';
+import { capFill } from './capFill';
 import { grainTexture } from './grainTexture';
 import { CLICK_DRAG_SLOP_PX, clickPairStartedWithDrag } from './pointer';
 import { NO_PLANES, SECTION_PLANES } from './sectionPlane';
@@ -159,19 +160,24 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
       placeholder: false,
       items: [
         ...bodies.map((body) => {
-          if (body.box && !holes.some((h) => holeTouchesBox(h, body.box!))) {
-            // Today's path, byte-for-byte (angle-cuts spec §3.3; holes spec §3.2: a part with no holes keeps it).
+          if (drawsAsBox(board, body, holes)) {
+            // Today's path, byte-for-byte (angle-cuts spec §3.3; holes spec §3.2: a part with no holes keeps it; a
+            // curved part never takes it, so its box cells conform to the slices beside them — finding 1).
             const { center, size } = solidWorldBox(board, body.box);
             const geo = new THREE.BoxGeometry(size[0], size[1], size[2]);
             geo.setAttribute('uv', new THREE.BufferAttribute(boardUVs(board, body.box), 2));
             return { geo, center };
           }
-          const m = bodyMesh(board, body, holes, bodies);   // seams between holed bodies skipped (ruling R11)
+          // Seams between holed bodies, and between a split curved part's bodies, skipped (ruling R11; curves spec §3.4).
+          const m = bodyMesh(board, body, holes, bodies);
           const geo = new THREE.BufferGeometry();
           geo.setAttribute('position', new THREE.BufferAttribute(m.positions, 3));
           geo.setAttribute('uv', new THREE.BufferAttribute(m.uvs, 2));
           for (const g of m.groups) geo.addGroup(g.start, g.count, g.materialIndex);
-          geo.computeVertexNormals();
+          // A curved part's normals are explicit (radial on an arc's facets: one smooth surface); any other part's are
+          // computed, as they always were.
+          if (m.normals) geo.setAttribute('normal', new THREE.BufferAttribute(m.normals, 3));
+          else geo.computeVertexNormals();
           return { geo, center: [0, 0, 0] as [number, number, number] };
         }),
         // Every hole's wall and bottom (holes spec §3.2) in ONE geometry (final review 2: one mesh per part, not per
@@ -275,22 +281,9 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
     // The cap faces the removed side (the viewer): −sectionPlaneOf's normal.
     const { normal } = sectionPlaneOf(section);
     const capN: V3 = [-normal[0], -normal[1], -normal[2]];
-    // Each piece is fanned COUNTER-CLOCKWISE about capN, so the cap is front-facing to the viewer. sectionCaps' world
-    // pieces come out clockwise seen from the removed side (every board frame is improper, inv 44 / fu 215), and with
-    // DoubleSide a back face has its normal flipped by the shader — lit as from behind. Decided per piece from its own
-    // Newell normal, so a future change of hand cannot silently flip it back.
-    const fill: number[] = [];
-    for (const poly of c.pieces) {
-      let nx = 0, ny = 0, nz = 0;
-      for (let k = 0; k < poly.length; k += 1) {
-        const p = poly[k]!, q = poly[(k + 1) % poly.length]!;
-        nx += (p[1] - q[1]) * (p[2] + q[2]);
-        ny += (p[2] - q[2]) * (p[0] + q[0]);
-        nz += (p[0] - q[0]) * (p[1] + q[1]);
-      }
-      const ring = nx * capN[0] + ny * capN[1] + nz * capN[2] < 0 ? [...poly].reverse() : poly;
-      for (let k = 1; k + 1 < ring.length; k += 1) fill.push(...ring[0]!, ...ring[k]!, ...ring[k + 1]!);
-    }
+    // Each piece fanned counter-clockwise about capN (front-facing to the viewer), a curved part's pieces conformed
+    // first (no T-junction specks): capFill.
+    const fill = capFill(c.pieces, capN, board.curves.length > 0);
     const fillGeo = new THREE.BufferGeometry();
     fillGeo.setAttribute('position', new THREE.Float32BufferAttribute(fill, 3));
     // EXPLICIT normals (lit by meshStandardMaterial), all capN. Without them the normal is zero and the lighting

@@ -1,4 +1,6 @@
 import { worldParts } from '../document/tree';
+import { ARCH } from '../document/curveFixtures';
+import { sameCurve } from '../document/curves';
 import { worldSolids } from '../document/designCheck';
 import { useStore } from './store';
 import type { Board, SloydDocument } from '../document/document';
@@ -3026,6 +3028,80 @@ describe('hole-row actions (spec §7)', () => {
   });
 });
 
+describe('curve actions (spec §8)', () => {
+  const { id: _, ...arch } = ARCH;
+  const setup = () => {
+    useStore.setState({ doc: { ...createDocument('T'), boards: [createBoard({ id: 'apron', name: 'Apron', length: 30, width: 5, thickness: 0.75 })] }, selectedIds: [], past: [], future: [], tool: 'select', grabbed: null, tapeAnchor: null, tapeHover: null, explode: 0 });
+  };
+  const s = () => useStore.getState();
+  const curves = () => (s().doc.boards[0] as Board).curves;
+  it('adds, updates and removes, one undo entry each', () => {
+    setup();
+    s().addCurves('apron', [arch]);
+    const id = curves()[0]!.id;
+    s().updateCurve('apron', id, { ...arch, segments: [{ type: 'arc', to: [27, 0], side: 'left', rise: 1 }, arch.segments[1]!] });
+    expect((curves()[0]!.segments[0] as { rise: number }).rise).toBe(1);
+    s().removeCurve('apron', id);
+    expect(curves()).toEqual([]);
+    expect(s().past.length).toBe(3);
+    s().undo(); s().undo(); s().undo();
+    expect(curves()).toEqual([]);
+    expect(s().past.length).toBe(0);
+  });
+  it('an unchanged update pushes no undo entry (inv 4)', () => {
+    setup();
+    s().addCurves('apron', [arch]);
+    const before = s().past.length;
+    s().updateCurve('apron', curves()[0]!.id, arch);
+    expect(s().past.length).toBe(before);
+  });
+  it('is refused while exploded (inv 47)', () => {
+    setup();
+    s().setExplode(0.5);
+    s().addCurves('apron', [arch]);
+    expect(curves()).toEqual([]);
+    s().setExplode(0);
+    s().addCurves('apron', [arch]);
+    const id = curves()[0]!.id;
+    const before = s().past.length;
+    s().setExplode(0.5);
+    s().updateCurve('apron', id, { ...arch, start: [4, 0] });
+    s().removeCurve('apron', id);
+    expect(curves()).toHaveLength(1);
+    expect(curves()[0]!.start).toEqual([3, 0]);
+    expect(s().past.length).toBe(before);
+  });
+  it('adding an arch drops a grab on the edge midpoint it turns to air (inv 24)', () => {
+    setup();
+    const mid = boardSnapPoints(s().doc.boards[0] as Board).find((p) => p.at.every((v, i) => Math.abs(v - [15, 0, 0][i]!) < 1e-9))!;
+    expect(mid).toBeDefined();
+    s().grabSnapPoint(mid);
+    expect(s().grabbed).not.toBeNull();
+    s().addCurves('apron', [arch]);
+    expect(s().grabbed).toBeNull();
+  });
+  it('four corners in one call are one undo entry', () => {
+    setup();
+    const c = { through: 'thickness' as const, uFrom: 'min' as const, vFrom: 'min' as const, start: [0, 0] as [number, number],
+      segments: [{ type: 'line' as const, to: [1, 0] as [number, number] }, { type: 'arc' as const, to: [0, 1] as [number, number], side: 'left' as const, radius: 1 }, { type: 'line' as const, to: [0, 0] as [number, number] }] };
+    s().addCurves('apron', [c, { ...c, uFrom: 'max' }, { ...c, vFrom: 'max' }, { ...c, uFrom: 'max', vFrom: 'max' }]);
+    expect(curves()).toHaveLength(4);
+    expect(s().past.length).toBe(1);
+    s().undo();
+    expect(curves()).toEqual([]);
+  });
+  it('a curve added to a part inside an assembly is written to the definition', () => {
+    useStore.getState().replaceDocument({
+      ...createDocument('T'), boards: [],
+      instances: [{ id: 'i', name: 'Case', definition: 'd', position: [0, 0, 0], rotation: 0 }],
+      definitions: [{ id: 'd', boards: [createBoard({ id: 'a', name: 'A', length: 30, width: 5, thickness: 0.75 })], instances: [] }],
+    });
+    s().addCurves('i/a', [arch]);
+    expect((s().doc.definitions[0]!.boards[0] as Board).curves).toHaveLength(1);
+    expect(worldParts(s().doc).find((b) => b.id === 'i/a')!.curves).toHaveLength(1);
+  });
+});
+
 describe('edit() prunes custom materials (custom materials spec §2.3)', () => {
   it('drops a material when its last part changes material, in the same undo entry', () => {
     const ash = { id: 'm-s-ash1', label: 'Ash', color: '#d8c8a8', kind: 'solid' as const };
@@ -3138,5 +3214,17 @@ describe('duplicating a holed part (holes spec §5.2)', () => {
     const { id: _a, ...ra } = a!.holes[0]!;
     const { id: _b, ...rb } = b!.holes[0]!;
     expect(rb).toEqual(ra);
+  });
+});
+
+describe('duplicating a curved part (curves spec §6.2)', () => {
+  it('gives the copy fresh curve ids and its own curves', () => {
+    useStore.getState().replaceDocument({ ...createDocument('T'), boards: [createBoard({ id: 'apron', name: 'Apron', length: 30, width: 5, thickness: 0.75, curves: [ARCH] })] });
+    useStore.getState().duplicateBoards(['apron']);
+    const [a, b] = useStore.getState().doc.boards as Board[];
+    expect(b!.curves).toHaveLength(1);
+    expect(b!.curves[0]!.id).not.toBe(a!.curves[0]!.id);
+    expect(sameCurve(a!.curves[0]!, b!.curves[0]!)).toBe(true);
+    expect(b!.curves[0]!.segments).not.toBe(a!.curves[0]!.segments);
   });
 });

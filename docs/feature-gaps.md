@@ -23,7 +23,7 @@ curves" arrive). Most of these need a schema bump, with the rollback cost that b
 | Tapered legs | The most-asked SketchUp furniture question (several Fine Woodworking articles) | shipped 2026-10-12 (angle cuts chunk 1, schema 14) |
 | Miters and bevels | Picture-frame and case miters, bevelled panel edges; a miter is faked as a butt today | shipped 2026-10-12: Miter (chunk 2), Bevel and Chamfer (chunk 3) |
 | Splayed / raked legs, compound angles | Windsor chairs, splayed stools; SketchUp has a dedicated extension | open |
-| Curves | Arched aprons, curved stretchers, rounded tops, bandsawn parts | open |
+| Curves | Arched aprons, curved stretchers, rounded tops, bandsawn parts | chunk 1 built on branch `curves` 2026-10-15 (schema 17: Arch, Half-round notch, Bow, Rounded corner(s) cut through a part; viewport, section, snap, cut list), not yet merged; chunk 2 (drawings) fu 361; Claude features on curves fu 363 |
 | Edge profiles | Chamfers, roundovers, eased edges; mostly visual, but expected | chamfers shipped 2026-10-12 (angle cuts chunk 3); roundovers open |
 | Holes | Dowels, shelf-pin rows, hardware bores | shipped 2026-10-14: chunk 1 (schema 16: bores and shelf-pin rows, cut list) and chunk 2 (drawings, Hinge cup), both deployed 2026-10-14; holes through joinery/Refine and Generate still open (fu 328, 329) |
 | Dovetails, box joints | Joinery generator is rectangular joints only | open |

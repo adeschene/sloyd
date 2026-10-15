@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
 import { createBoard, createDocument } from '../document/document';
 import type { Board } from '../document/document';
+import { ARCH } from '../document/curveFixtures';
 import { Properties } from './Properties';
 import { holeLengthText } from '../document/holeText';
 
@@ -266,5 +267,34 @@ describe('the Holes section', () => {
     expect(screen.getByLabelText('Every')).toHaveValue('32 mm');
     act(() => useStore.getState().setUnitsDisplay('imperial-fractional'));
     expect(screen.getByLabelText('Every')).toHaveValue('1-17/64"');
+  });
+  it('an edit that puts a hole into a curve\'s waste is refused in words, keeping the stored inset (curves Task 10)', async () => {
+    const user = userEvent.setup();
+    const bore = { id: 'h1', face: 'thickness', from: 'max', diameter: 0.5, depth: 'through', along: 'length', alongFrom: 'min',
+      station: 15, count: 1, pitch: 0, acrossFrom: 'min', inset: 3 } as const;
+    open(side({ width: 5, curves: [ARCH], holes: [bore] }));
+    const inset = screen.getByLabelText('In from');
+    await user.clear(inset); await user.type(inset, '1{Enter}');            // the arch's waste runs to v = 1.5 at 15"
+    expect(rows()[0]!.inset).toBe(3);
+    expect(screen.getByRole('alert')).toHaveTextContent('Puts hole 1 into the arch — move it first.');
+  });
+  // Whole-branch review, finding 2: an edge breaks-out and a curve breaks-out are different faults (faultKey names the
+  // curve), so a hole ALREADY past an edge is still refused into the arch's waste — and one already in both may be edited.
+  const pastEdge = { id: 'h1', face: 'thickness', from: 'max', diameter: 0.5, depth: 'through', along: 'length', alongFrom: 'min',
+    station: 15, count: 1, pitch: 0, acrossFrom: 'max', inset: 0.1 } as const;   // runs past the width max side
+  it('a hole already past an edge is still refused into the arch\'s waste (finding 2)', async () => {
+    const user = userEvent.setup();
+    open(side({ width: 5, curves: [ARCH], holes: [pastEdge] }));
+    await user.selectOptions(document.getElementById('hole-side-h1')!, 'min');   // 0.1" in from the arched side, at 15"
+    expect(rows()[0]!.acrossFrom).toBe('max');
+    expect(screen.getByRole('alert')).toHaveTextContent('Puts hole 1 into the arch — move it first.');
+  });
+  it('a hole already past an edge AND in the arch\'s waste can still be edited (it adds no fault)', async () => {
+    const user = userEvent.setup();
+    open(side({ width: 5, curves: [ARCH], holes: [{ ...pastEdge, acrossFrom: 'min' }] }));
+    const dia = screen.getByLabelText('Diameter');
+    await user.clear(dia); await user.type(dia, '3/8{Enter}');
+    expect(rows()[0]!.diameter).toBe(0.375);
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });

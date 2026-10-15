@@ -7,6 +7,7 @@ import { boardsBounds } from './geometry';
 import { worldSolids } from './designCheck';
 import { rotateQuarter, sameSet } from './turnFixtures';
 import { createBoard, createDocument } from './document';
+import { ARCH } from './curveFixtures';
 
 const strip = (b: { id: string }) => ({ ...b, id: '' });
 
@@ -153,7 +154,7 @@ describe('shared definitions', () => {
         instances: [{ id: 'k1', name: 'Knob', definition: 'd2', position: [0, 0, 0], rotation: 0 }] },
       { id: 'd2', boards: [createBoard({ id: 'n1', name: 'Knob' })], instances: [] },
     ],
-    shapes: [{ id: 's1', length: 6, width: 1, thickness: 1, material: 'oak', grain: 'length', posture: 'upright', cuts: [], angleCuts: [], holes: [] }],
+    shapes: [{ id: 's1', length: 6, width: 1, thickness: 1, material: 'oak', grain: 'length', posture: 'upright', cuts: [], angleCuts: [], holes: [], curves: [] }],
   });
 
   it('shareInstance names the same definition with a fresh id', () => {
@@ -222,6 +223,25 @@ describe('shared definitions', () => {
     const lifted = partAt(r.doc, r.rekey('i1/b1')) as Board;
     expect(lifted.holes).toEqual([pinRow]);
     expect((r.doc.definitions[0]!.boards[0] as Board).holes[0]).not.toBe(lifted.holes[0]);
+  });
+
+  it('makeUniqueItem copies curves with their ids, sharing no curve object', () => {
+    const doc = base();
+    doc.definitions[0]!.boards[0] = createBoard({ id: 'b1', name: 'Apron', curves: [ARCH] });
+    const out = makeUniqueItem(doc, 'i2')!;
+    const i2 = out.instances.find((i) => i.id === 'i2')!;
+    const copy = out.definitions.find((d) => d.id === i2.definition)!.boards[0] as Board;
+    expect(copy.curves).toEqual([ARCH]);
+    expect(copy.curves[0]).not.toBe(ARCH);
+  });
+
+  it('ungroupItem lifts a plain part with its curves, sharing no curve with the surviving definition', () => {
+    const doc = base();
+    doc.definitions[0]!.boards[0] = createBoard({ id: 'b1', name: 'Apron', curves: [ARCH] });
+    const r = ungroupItem(doc, 'i1')!;
+    const lifted = partAt(r.doc, r.rekey('i1/b1')) as Board;
+    expect(lifted.curves).toEqual([ARCH]);
+    expect((r.doc.definitions[0]!.boards[0] as Board).curves[0]).not.toBe(lifted.curves[0]);
   });
 
   // Fu 231. An instance INSIDE a shared container is one stored record whatever

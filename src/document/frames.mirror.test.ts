@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { placeBoard, placeInstance, mirrorPart } from './frames';
 import type { Frame } from './frames';
 import { worldSolids } from './designCheck';
-import { chiralAngled, chiralHoled, chiralPart, sameSet } from './turnFixtures';
+import { chiralAngled, chiralCurved, chiralHoled, chiralPart, sameSet } from './turnFixtures';
 import { boardHoles } from './holes';
+import { curveFaults, curveOutline, uvDims } from './curves';
 import { boardBodies, bodyVerts } from './bodies';
 import { toWorld } from './snapPoints';
 import type { Board, Instance, Rotation } from './types';
+import type { Point } from './cuts';
 
 const POSTURES = ['flat', 'on-edge', 'upright'] as const;
 const TURNS: Rotation[] = [0, 90, 180, 270];
@@ -139,5 +141,36 @@ describe('a mirrored frame reflects holes (inv 44, holes spec §5.2)', () => {
     const b = chiralHoled('flat');
     const reflected = worldCentres(b).map(([x, y, z]) => [0 - x!, y!, z!]);
     expect(sameSet(worldCentres({ ...mirrorPart(b), holes: b.holes }), reflected)).toBe(false);
+  });
+});
+
+/** Every outline vertex in world, on the `through` min face. */
+const worldOutline = (b: Board) => b.curves.flatMap((c) => {
+  const [u, v] = uvDims(c.through);
+  return curveOutline(b, c).pts.map(([x, y]) => toWorld(b, { length: 0, width: 0, thickness: 0, [u]: x, [v]: y, [c.through]: 0 } as Point));
+});
+
+describe('a mirrored frame reflects curves (inv 44, curves spec §6.2)', () => {
+  for (const posture of POSTURES) {
+    for (const rotation of TURNS) {
+      it(`${posture} at ${rotation} deg: mirrorPart's outline is the reflection across x = 0`, () => {
+        const b = { ...chiralCurved(posture), rotation, position: [2, 1, -3] as [number, number, number] };
+        const reflected = worldOutline(b).map(([x, y, z]) => [0 - x!, y!, z!]);
+        expect(sameSet(worldOutline(mirrorPart(b)), reflected)).toBe(true);
+        const placed = placeBoard({ position: [0, 0, 0], rotation: 0, mirrored: true }, b);
+        expect(placed.curves).toEqual(mirrorPart(b).curves);
+      });
+    }
+  }
+  it('the fixture is chiral: unmirrored curves would differ', () => {
+    const b = chiralCurved('flat');
+    const reflected = worldOutline(b).map(([x, y, z]) => [0 - x!, y!, z!]);
+    expect(sameSet(worldOutline({ ...mirrorPart(b), curves: b.curves }), reflected)).toBe(false);
+  });
+  it('the fixture curves fit the part with no fault', () => {
+    for (const posture of POSTURES) {
+      const b = chiralCurved(posture);
+      for (const c of b.curves) expect(curveFaults(b, c), `${posture} ${c.id}`).toEqual([]);
+    }
   });
 });

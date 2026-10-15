@@ -3,6 +3,7 @@ import type { Board } from './document';
 import type { AngleCut, HoleRow } from './types';
 import { LINK_ACROSS_MIRROR, LINK_FIELDS, SHARED_KEYS, linkPlan, sameShared, sharedOf, sharedPatch } from './links';
 import type { LinkPlan } from './links';
+import { ARCH } from './curveFixtures';
 
 /** The plan, failing the test when linkPlan gave none or refused. */
 const ok = (p: ReturnType<typeof linkPlan>): LinkPlan => {
@@ -15,8 +16,8 @@ const leg = (over: Partial<Board> = {}): Board =>
 const cut = { id: 'c1', face: 'width', from: 'max', across: 'length', offset: 0.5, width: 0.75, depth: 1, stopMin: 22, stopMax: 2 } as const;
 
 describe('LINK_FIELDS', () => {
-  it('shares exactly the spec\'s nine fields', () => {
-    expect([...SHARED_KEYS].sort()).toEqual(['angleCuts', 'cuts', 'grain', 'holes', 'length', 'material', 'posture', 'thickness', 'width']);
+  it('shares exactly the spec\'s ten fields', () => {
+    expect([...SHARED_KEYS].sort()).toEqual(['angleCuts', 'curves', 'cuts', 'grain', 'holes', 'length', 'material', 'posture', 'thickness', 'width']);
     expect(LINK_FIELDS.rotation).toBe('own');
     expect(LINK_FIELDS.position).toBe('own');
     expect(LINK_FIELDS.shape).toBe('own');
@@ -198,5 +199,21 @@ describe('links see holes (holes spec §5.2)', () => {
     expect(p.holes).toEqual([PIN]);
     expect(p.holes).not.toBe(a.holes);
     expect(p.holes![0]).not.toBe(PIN);
+  });
+});
+
+describe('links see curves (curves spec §6.2)', () => {
+  const a = createBoard({ id: 'a', curves: [ARCH] });
+  it('a curved part and a plain one are not the same shared part', () => {
+    expect(sameShared(a, { ...a, id: 'b', curves: [] })).toBe(false);
+  });
+  it('equal curves with equal ids are the same; a changed rise or id is not', () => {
+    expect(sameShared(a, { ...a, id: 'b', curves: [{ ...ARCH }] })).toBe(true);
+    expect(sameShared(a, { ...a, id: 'b', curves: [{ ...ARCH, id: 'zz' }] })).toBe(false);
+    expect(sameShared(a, { ...a, id: 'b', curves: [{ ...ARCH, segments: [{ type: 'arc', to: [27, 0], side: 'left', rise: 1 }, { type: 'line', to: [3, 0] }] }] })).toBe(false);
+  });
+  it('sharedOf copies the curves', () => {
+    expect(sharedOf(a).curves).toEqual([ARCH]);
+    expect(sharedOf(a).curves[0]).not.toBe(ARCH);
   });
 });

@@ -9,6 +9,7 @@ import type { Units } from '../units/length';
 import { NOMINAL_SECTIONS, nominalName } from '../units/nominal';
 import { AngleCuts } from './AngleCuts';
 import { Holes } from './Holes';
+import { Curves } from './Curves';
 import type { CustomMaterial, MaterialKind, Rotation, Posture, Grain, Board, Cut, Dimension, Region } from '../document/document';
 
 const DIMENSION_LABEL: Record<Dimension, string> = {
@@ -699,6 +700,7 @@ export function Properties({ library = [], onNewMaterial }: { library?: CustomMa
 
       <AngleCuts board={board} />
       <Holes board={board} />
+      <Curves board={board} />
     </div>
   );
 }

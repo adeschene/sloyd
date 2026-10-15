@@ -1,8 +1,11 @@
 # Sloyd — curves: arcs cut through a part
 
 **Date:** 2026-10-15 · **Status:** approved by the user 2026-10-15, with its two *Corrected (writing)* notes (§2.1's arc
-side, §4.1's wording). Chunk 1 plan: `docs/superpowers/plans/2026-10-15-sloyd-curves-chunk1.md` (its planning rulings P1–P7
-await the user's review with the plan).
+side, §4.1's wording). Chunk 1 plan: `docs/superpowers/plans/2026-10-15-sloyd-curves-chunk1.md`; its planning rulings P1–P7
+were approved by the user with the plan (2026-10-15) and are marked *Amended (planning chunk 1, approved by the user
+2026-10-15)* where they touch this document. Changes made while executing chunk 1 (controller and review rulings, not yet
+seen by the user) are marked *Amended (implementation, chunk 1)* and are **for the user's review**. **Chunk 1 implemented**
+on branch `curves` (2026-10-15, schema 17), **not yet merged or deployed**; the record is `docs/history.md`.
 **Builds on:** angle cuts (`2026-10-12-sloyd-angle-cuts-design.md`, invariant 48) — bodies, `partGeometry`, `clipConvex`;
 holes (`2026-10-14-sloyd-holes-design.md`, invariant 50) — a second kind of geometry with its own home, faults kept and
 noted, the rebuild-performance guard; the section cut (`2026-10-14-sloyd-section-cut-design.md`, invariant 51) — caps and
@@ -114,6 +117,12 @@ min, start: [0, 0], segments: [{line, to: [2, 0]}, {arc, to: [0, 2], side: 'left
   re-minted by `takeId`'s rules (invariant 33).
 - A **faulted** but well-formed curve (§2.5) is **kept** on load.
 
+*Amended (planning chunk 1, approved by the user 2026-10-15) — P1, explicit closure:* a stored outline's last segment ends
+EXACTLY at `start` (its `to` equal to `start`, both numbers `===`); an outline that does not close is malformed and dropped
+on load. "Back to start" is thereby checkable. As built, validation also drops an outline of more than
+`CURVE_SEGMENTS_STORED_MAX` (64) segments (a 10,000-segment file is dropped, not expanded), and its crossing test sees the
+chords and crowns only (an arc crossing a straight side without its crown is not caught; fu 371).
+
 ### 2.4 Unknown segment types — the refusal gate
 
 A segment whose `type` is neither `line` nor `arc` makes `migrateDocument` **refuse the whole document**, exactly as it
@@ -121,6 +130,8 @@ refuses a newer `version`, with the same message ("made by a newer version of Sl
 be silent loss on the next save. So a later spline round adds a segment type with NO schema bump: every build from schema 17
 on refuses what it cannot draw. (A bump exists for the refusal gate, CLAUDE.md's Versioning; this gate is that gate, keyed
 on content.) Every load path — open, import, autosave-restore — runs it, because they all run `migrateDocument`.
+(As built, the message names the segment: `This project has a curve this version of Sloyd can't read (segment type "…") —
+it was saved by a newer version of Sloyd.`)
 
 ### 2.5 Faults — `curveFaults`
 
@@ -138,6 +149,21 @@ never against the polygon):
   actually cuts. No stored value changes.
 - Holes meeting curves are `holeFaults`' business (§6.3), not this decider's.
 
+*Amended (implementation, chunk 1, Task 4 ruling — for the user's review):* the table's example "an arch or bow deeper than
+the part is wide" is not a `cuts-through` under the stated rule: a curve deeper than the part leaves the face rectangle
+(an arch's crown, a bow's end lines), and the kept region left inside the face need not fall apart. The code follows the
+rule: such a curve reads **`runs-off`**, which still flags it on the row and refuses it at authoring. A `cuts-through` is a
+waste that stays on the face yet splits the kept region into pieces or empties it — an arch whose crown exactly TOUCHES the
+far side (rise equal to the width; 1e-6 less is clean, pinned). The waste test
+behind both (`wasteContains`) closes the chord band per arc: an arc bowing into the wood keeps only the strict side of its
+chord, an arc bowing into the waste the closed side (Task 4 review: a uniform closed band read a band along an outward arc's
+chord as waste).
+
+*Amended (planning chunk 1, approved by the user 2026-10-15) — P4, fault words:* `runs-off` reads `runs past the length max
+end` (the first side it passes: u min, u max, v min, v max); `cuts-through` reads `cuts right through the part` (a general
+outline has no single "to the width max side"). A hole into a curve reads `hole 3 runs into the arch` / `the bow` / `the
+rounded corner` / `a curve cut` (the curve's derived kind, `curveKindWord`).
+
 ## 3. Geometry
 
 ### 3.1 `curves.ts` — the ONE place curves become geometry
@@ -152,6 +178,11 @@ never against the polygon):
 - `deriveCurveKind`, the canonical writers (`archCurve`, `bowCurve`, `cornerCurve`) and their readers (a reader returns null
   for a form its row cannot represent — the angle-cuts rule), `CURVE_FIELDS` (§6.1), `mirrorCurveCut` (§6.2).
 - Imports only `types` and `geometry` (as `angleCuts.ts` does).
+
+*As built (chunk 1 plan):* the derived values live on `LocalArc` (`arcOf`: centre, radius, rise, crown, sweep) over
+`localSegments(board, curve)`, and the predicate is `bowsInto(segs, arc)` — the same behaviour as the names above. The plan
+form governs. `curveKindWord` lives here too (a controller ruling: `holeText` and `curveText` both use it, and placing it in
+`curveText` made an import cycle).
 
 ### 3.2 Bodies (`boardBodies`, invariant 48 extended)
 
@@ -169,6 +200,26 @@ A test decides which path a curve takes; both produce the same wood (pinned: equ
 the other, within `BODY_EPS`). A face lying on a chord carries `curve: <curve id>` (as a face on an angle cut's plane
 carries `cut`). A body that no curve touches is unchanged byte-for-byte, and a part with no curves keeps every existing
 path (the `BoxGeometry` path included).
+
+*Amended (planning chunk 1, approved by the user 2026-10-15) — P6, the clip path's decider:* a curve CLIPS (no new bodies)
+when every arc bows into the waste and every straight side lies along the face rectangle's boundary; otherwise it SPLITS.
+Both give the same wood (pinned).
+
+*Amended (implementation, chunk 1, Task 6 ruling and review — for the user's review):* the decider is **strengthened**: CLIP
+also requires the arcs to form ONE run (two runs part the wood; each run's planes keep only their own side) and the wood to be convex at every outline vertex off the face boundary and at every arc–arc join
+(`woodConvexOffBoundary`: such a vertex must be reflex or straight in the waste). P6 as written accepts two arcs that each
+bow into the waste but meet in a convex WASTE corner — a reflex WOOD corner — and their extended chord planes then clip real
+wood past the other arc (28 in³ lost in the test that pins it). The guard only sends more curves to SPLIT, which gives the
+same wood; Arch, Bow and Corner are unaffected. Also as built: each chord's arc is found by INDEX (an arc of n chords owns n
+consecutive outline edges), not by searching for the circle through its ends; a body lying wholly outside any one of a
+piece's planes is kept whole (else the extended planes slice cells the waste never reaches — a box beside the arch keeps
+`box`).
+
+*Amended (implementation, chunk 1, Task 6 review):* "each piece bounded by one chord plane" is not how SPLIT builds them.
+The waste is decomposed by ear clipping (`convexPieces`, zero-area ears dropped) into FAN pieces, each a convex polygon
+whose edges are chords and diagonals; a body is sliced along every plane of a piece (extended across the body), so one
+arch's 18 chords give 18 slices and an L-shaped waste of 14 pieces gives 83 bodies (fu 368). The agreement pin is volume
+AND point containment both ways.
 
 `geometryKey` adds every curve's id and `CURVE_FIELDS` values in stored order (the id because a face carries it, as for
 angle cuts); `boardUVSignature` (invariant 15) includes them.
@@ -191,6 +242,14 @@ it measured 25 ms at 18 chords and 135 ms at 48 (§3.6). So a curved part's edge
   within `BODY_EPS`.
 - `boardEdges` and `partGeometry.edges` take this path for a part with curves; a part without curves is unchanged.
 
+*As built (chunk 1, Task 7 and its review ruling):* `unionOutline` and `SECTION_EPS` moved to `document/outline.ts`
+(re-exported by `section.ts`), shared by the caps and `curvedEdges`. A line at a smooth outline point is suppressed **per
+interval**, only where its wings are that curve's chord faces and the tangent-continuing face — never as a whole line, which
+erased a real crease where another feature meets a tangent point (a dado wall at a corner's tangent end; pinned by an
+independent fixture). A face is judged slanted against the matching plane's own axis only (testing every through axis made a
+two-axis part nearly as slow as the slow path). With curves through two dimensions, an outline segment lying on another
+curve's smooth line is skipped too, and every case asserts no line is drawn twice.
+
 ### 3.4 Rendering (`bodyMesh`, `BoardMesh`)
 
 - Curved bodies render through `bodyMesh` like any non-box body.
@@ -205,6 +264,28 @@ it measured 25 ms at 18 chords and 135 ms at 48 (§3.6). So a curved part's edge
   recorded with fu 336 (the wall-grain seam inside a bore), for the user's texture/shader session.
 - **Section caps** (invariant 51) read the bodies: a curved part caps with no new code (caps measured 0.6–2 ms).
 
+*Amended (implementation, chunk 1, final review — for the user's review): a curved part's mesh and cap are WATERTIGHT.*
+The live check saw light pinholes in an arched apron's ground shadow along the arch and faint specks on its section cap;
+the final review measured 90 unmatched directed edges in the default arch's merged mesh — T-junctions, where one slice's
+chord vertex lies inside its neighbour's edge and the two triangulations do not share it. So:
+- **Every body of a curved part renders through `bodyMesh`**, a box cell beside the slices included (`drawsAsBox`: a box
+  no hole reaches, on a part WITHOUT curves, is the one routing decision BoardMesh reads). That replaces "curved bodies
+  render through `bodyMesh`" above.
+- **Seams are dropped for every body of a curved part** (not only split bodies; a box cell's walls against the slices
+  too), and the "Seams" bullet reads so.
+- Per part, once per frozen bodies array: every vertex is **welded** (within `CONFORM_EPS = 1e-7`; a crown at mid-length
+  gives 0 in one slice and 1.8e-15 in the next, which Float32 keeps apart), and every drawn face takes, by **vertex
+  insertion**, every welded part vertex lying strictly inside one of its edges (the candidates' own objects, never a
+  projection — the uncovered remainder's corners included, e.g. a dado floor's), then is fanned from its **centroid** (a
+  vertex-0 fan makes zero-area triangles, which are dropped, reopening the crack). `viewport/conform.ts`.
+- **The cap** (`viewport/capFill.ts`, the fan moved out of BoardMesh): for a curved part each piece takes the other
+  pieces' vertices on its edges and is centroid-fanned; a part without curves fans exactly as before.
+- Pinned: `curvesWatertight.test.ts` (every directed edge matched by its reverse, exact Float32 keys, on the arch, notch, a
+  lengthened bow, an L-notch and an arch beside a dado; every cap edge matched or on the outline);
+  `bodyMeshIdentity.test.ts` (holed multi-body parts without curves hash byte-for-byte as on master).
+- The live re-check found the shadow and cap clean (llvmpipe). **Limit:** a face a HOLE reaches still triangulates through
+  `faceTriangles` (earcut drops collinear inserted points), so a holed face of a curved part may keep T-junctions (fu 369).
+
 ### 3.5 Snap points and picking
 
 - New snap points: each arc's two ends; an arc's crown (its midpoint); the arc's centre — which can sit in air or off the
@@ -212,6 +293,15 @@ it measured 25 ms at 18 chords and 135 ms at 48 (§3.6). So a curved part's edge
   off the part's face is not offered.
 - `stockProbe` reads the bodies, so the waste is air.
 - Picking and the section's `keptBySection` are unchanged (they read meshes and points).
+
+*Amended (planning chunk 1, approved by the user 2026-10-15) — P3, air at the waste's straight sides:* for the stock probe,
+a point inside the closed waste is air, except a point ON an arc or on a straight side that is not on the part's face
+boundary — those are the kept surface. So the lattice point in the middle of an arched edge is withheld (it is gone), and an
+arc's end is kept (`isAir`).
+
+*Amended (planning chunk 1, approved by the user 2026-10-15) — P5, snap kinds:* an arc's ends are `'corner'`, its crown
+`'edge-mid'`, its centre `'face-center'` (the hole-centre precedent), each on both faces square to `through`; a point outside
+the face rectangle is not offered.
 
 ### 3.6 Performance — `viewport/curvesPerf.test.ts`
 
@@ -227,6 +317,13 @@ The guard, as `holesPerf.test.ts`: an arched apron (18 chords) and the rounded t
 with edges, plus every body's `bodyMesh` — at most **40 ms**, the MINIMUM of 9 runs (load only inflates a run; still
 wall-clock, fu 340's caveat). With the direct edges the target is well under it; a regression to rediscovered edges fails
 it.
+
+*As built (chunk 1, Task 8 and the final fix wave):* four cases. The arch, the rounded top, and an arch with its arched edge
+rounded through the length (two through axes) at **40 ms**; measured after the watertight fix about 7–13, 7 and 19–22 ms
+(loaded machine). An **L-shaped notch** (a non-convex waste, ear-clipped into 14 pieces, 83 bodies, 477 faces) at **100
+ms** — the holes guard's bound for an unusual case, ruled because no preset authors a non-convex waste (only a hand-edited
+file can): about 48–54 ms before the fix (bodies 4, edges 35 on frozen bodies, mesh 8), 62–72 ms after (the conform pass).
+The upstream causes are fu 368.
 
 ## 4. Bench numbers
 
@@ -257,6 +354,15 @@ The lines use it.
 - A faulted curve's line ends `— check: runs past the length max end` / `— check: cuts right through to the width max side`
   (fault words have one home, `curveFaultText`, shared with the row's note — holes' amended §4.1 pattern).
 - Curve lines print after the hole lines, in stored order.
+
+*Amended (planning chunk 1, approved by the user 2026-10-15) — P7, through-suffix placement:* a curve cut through a dimension
+other than the thickness ends its line `, cut through the width` AFTER the radius bracket — `Bow the thickness min side 1/2"
+(radius 225-1/4"), cut through the width` (as seen live).
+
+*Amended (planning chunk 1, approved by the user 2026-10-15) — P4 and P2:* the `cuts-through` suffix reads `— check: cuts
+right through the part` (P4, §2.5). A Bow whose stored span differs from its edge (a resize does not stretch it, P2, §8)
+reads `Bow the width min side 1/2" over 18" from the length min end (radius …)`. A faulted line with more than one fault
+ends `… (and 1 more)`, as holes' does.
 
 ### 4.2 Grouping
 
@@ -317,6 +423,14 @@ field but `id`, exact, segments compared field by field in order.
 Holes row; of a curve, by the Curves row (`Puts hole 3 into the arch — move it first.`); a fault a later resize causes is
 kept and noted. `holeInStock` (the clean test) counts it, so such a hole's wall is clipped (invariant 50).
 
+*Amended (implementation, chunk 1, final review — for the user's review):* "refused both ways" needs the curve fault to be
+told apart from an edge fault. `faultKey` (`holeText.ts`) keys a breaks-out as `…:breaks-out:edge` or
+`…:breaks-out:curve:<id>`, and `distinctFaults` uses the same key, so a hole ALREADY past an edge (a resize faulted it) is
+still refused into an arch, from either row, and a hole both past an edge and in a curve's waste can still be edited back
+(invariant 50's rule). Its line then counts both: `— check: hole 1 runs past the width min side (and 1 more)`. The Holes
+row's refusal for it reads `Puts hole 1 into the arch — move it first.` (Task 10 review: the edge wording crashed on a
+fault with no edge).
+
 Rectangular cuts and angle cuts combine with curves freely through the bodies; no refusal.
 
 ## 7. Refusals — Claude features
@@ -366,6 +480,28 @@ Rectangular cuts and angle cuts combine with curves freely through the bodies; n
 - Store actions `addCurves` / `updateCurve` / `removeCurve`: through `edit()` (one undo entry, autosave), written back
   through `treeEdit` (invariant 46); held points re-judged with `dropHeldIfGone` AFTER the edit (invariant 24,
   point-precise: a new curve can remove a grabbed corner).
+
+*Amended (planning chunk 1, approved by the user 2026-10-15) — P2, a Bow is stored at the edge's length when written; a
+resize does not stretch it.* Every Bow edit (Rise, Through, Side) rewrites it at the CURRENT edge length (a refit). When the
+stored span differs from the edge, the bench line says `… over 18" from the length min end …` (§4.1) and the row's note
+reads `Spans 18" of this 24" length — change the Rise to refit it.` (Positions are stored, as every cut's are; stretching on
+resize would be a hidden write.)
+
+*Amended (implementation, chunk 1, Task 14 rulings and the final review — for the user's review):*
+- **The half-circle refusal is judged on EVERY edit**, typed or selected (`pastHalfCircle`, the loader's own EXACT rule:
+  a rise over half its chord, a radius under half, or no chord). The loader DROPS such an arc, so an unrefused edit would be
+  silently lost on the next load. It refuses a Span under twice the Rise and a Bow's Rise past half its edge as well as the
+  Arch's Rise, and a select change too (a faulted Bow re-seated through the length was refit to a 0.75" span at its old
+  rise). Exactly a half circle is accepted (the notch). It always reads `… — reduce the Rise first.` (a corner's chord is
+  r√2, so its Radius can never trip it).
+- **The refusal words as built:** `An arc is at most a half circle — reduce the Rise first.` / `Removes more than the width
+  — reduce the Rise first.` / `Runs past the length max end — reduce the Span first.` / for a corner, `A radius can't run
+  past the length max end — reduce it first.` (not "exceed the width") / `Puts hole 3 into the arch — move it first.` A
+  SELECT change (no field) names the field that sizes the kind: a Bow's Rise, a corner's Radius, else Span (final review:
+  a Bow re-seated onto a short side said "reduce the Span", and a Bow has no Span).
+- A typed refusal is the field's own message (holes R7); a select's is a row-level alert, the select left on the stored
+  value. A preset is withheld when it is null, faults, or would put a hole into its waste; when none fits the section reads
+  `No curve preset fits this part.` The row's stored fault shows as `Runs past the length max end at this size.`
 
 ## 9. Testing
 
@@ -424,7 +560,17 @@ When each chunk deploys is the user's word at the time.
   vertices + `bodyEdges` on the rest), never `bodyEdges` over its slices; an unknown segment type refuses the document;
   `curvesPerf.test.ts` guards the rebuild.
 
+*As written into CLAUDE.md (records, chunk 1):* 50's seam clause covers EVERY body of a curved part (not only split
+bodies — §3.4's watertight amendment), and adds the watertight rule (welded, conformed, centroid-fanned; `drawsAsBox`;
+`curvesWatertight.test.ts`); 51 names `capFill` as the cap fan's home; 53 also carries the strengthened clip decider
+(§3.2), the half-circle refusal on every edit (§8) and the fine `faultKey` (§6.3).
+
 ## 12. Follow-ups this round leaves
+
+Filed 2026-10-15 in `docs/follow-ups.md` as 361–373 (the grain seam appended to fu 336, not a new number): chunk 2's
+drawings 361; callouts 362; Claude features 363; splines 364; stopped curves and edge profiles 365; compound curves 366;
+change-kind control 367; then the round's own residue — rebuild cost of a non-convex waste 368, holed faces of a curved
+part 369, real-hardware looks 370, record-only minors 371–373.
 
 - Grain on curved faces — recorded with fu 336 (the user's texture/shader session).
 - Dimension callouts on curves (radius, rise) on the Plans sheet (with fu 252, 333).

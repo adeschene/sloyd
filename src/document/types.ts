@@ -133,6 +133,35 @@ export interface HoleRow {
 }
 
 /**
+ * One step of a curve cut's outline (curves spec §2.1), from the previous point to `to`, in STORED (u, v): each
+ * coordinate measured from its named end (`uFrom`, `vFrom`). An arc is the MINOR arc (at most a half circle) bowing
+ * toward `side` of its chord — left or right of travel from its start to `to`, in stored (u, v) with u to the right and v
+ * up — fixed by `rise` (the sagitta) or by `radius`, whichever the user typed; the other is derived, never stored. A later
+ * round adds segment types; a build that meets one it does not know refuses the document (spec §2.4).
+ */
+export type CurveSegment =
+  | { type: 'line'; to: [number, number] }
+  | { type: 'arc'; to: [number, number]; side: 'left' | 'right'; rise: number; radius?: never }
+  | { type: 'arc'; to: [number, number]; side: 'left' | 'right'; radius: number; rise?: never };
+
+/**
+ * A cut clean through one dimension of a part along a curved outline (curves spec §2): the WASTE is the region the
+ * closed outline encloses — `start`, then each segment, the last ending exactly at `start` — extruded through `through`.
+ * u and v are the other two dimensions in DIMENSION_ORDER (`uvDims`). Board-local, so turns and postures cost nothing.
+ * No `kind`: the preset (Arch, Bow, Rounded corner) is derived from the stored form (`deriveCurveKind`).
+ */
+export interface CurveCut {
+  /** Unique within its board (per shape for a shape) — invariant 33's scopes. */
+  id: string;
+  through: Dimension;
+  uFrom: CutFrom;
+  vFrom: CutFrom;
+  start: [number, number];
+  segments: CurveSegment[];
+}
+
+
+/**
  * An axis-aligned box in a board's own coordinate space, keyed by dimension
  * rather than by axis index — there is no world here, and keying by dimension
  * is what stops the two from being confused.
@@ -164,6 +193,8 @@ export interface Board {
   angleCuts: AngleCut[];
   /** Rows of round holes (holes spec §2). Empty for most parts. */
   holes: HoleRow[];
+  /** Curve cuts through the part (curves spec §2). Empty for most parts. */
+  curves: CurveCut[];
   /**
    * The Shape this part uses (components spec §2). Set ONLY on a RESOLVED part
    * (`resolveBoard`, `worldParts`); a stored plain part never has it, and a

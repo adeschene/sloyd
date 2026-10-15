@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
 import { holeFaults } from './holeFaults';
+import { ARCH } from './curveFixtures';
 import type { Board, HoleRow } from './types';
 
 const one = (over: Partial<HoleRow> = {}): HoleRow => ({
@@ -94,5 +95,24 @@ describe('holeFaults (spec §2.4)', () => {
     const p = 32 / 25.4;
     const L = 399 / 25.4;
     expect(kinds(part({ length: L }), one({ station: L - 0.125 - 6 * p, count: 7, pitch: p }))).toEqual([]);
+  });
+});
+
+describe('a hole into a curve\'s waste is breaks-out (curves spec §6.3)', () => {
+  const apron = (row: HoleRow) => createBoard({ length: 30, width: 5, thickness: 0.75, holes: [row], curves: [ARCH] });
+  const fault = [{ index: 0, kind: 'breaks-out', curve: { id: 'c1', kind: 'arch' } }];
+  // A 1/2" through bore along the thickness (the curve's through), centred 15" along: its disc's nearest point to the
+  // arch's crown (15, 1.5) is at v = inset − 1/4.
+  const down = (inset: number): HoleRow => ({ id: 'h', face: 'thickness', from: 'max', diameter: 0.5, depth: 'through', along: 'length', alongFrom: 'min', station: 15, count: 1, pitch: 0, acrossFrom: 'min', inset });
+  it('a bore along through: touching the crown meets (inset 1.75); a micro-inch clear does not', () => {
+    expect(holeFaults(apron(down(1.75)), down(1.75))).toEqual(fault);
+    expect(holeFaults(apron(down(1.75 + 1e-6)), down(1.75 + 1e-6))).toEqual([]);
+  });
+  // A 3/8" dowel hole 1" deep drilled into the arched EDGE (the width min face): its projection on (length, width) is the
+  // rectangle [station − 3/16, station + 3/16] × [0, 1].
+  const edge = (station: number): HoleRow => ({ id: 'h', face: 'width', from: 'min', diameter: 0.375, depth: 1, along: 'length', alongFrom: 'min', station, count: 1, pitch: 0, acrossFrom: 'min', inset: 0.375 });
+  it('a hole square to through: its rectangle inside the waste meets; beside the arch it does not', () => {
+    expect(holeFaults(apron(edge(15)), edge(15))).toEqual(fault);
+    expect(holeFaults(apron(edge(1.5)), edge(1.5))).toEqual([]);
   });
 });

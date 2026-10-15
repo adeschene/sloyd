@@ -5441,7 +5441,10 @@ parentheses only (spec §4.1, amended). **Status:** open (spec §11).
 (spec §3.2, inv 35's sloped-face rule), so a bore's wall switches from end-grain rings to long grain halfway round with a
 hard seam. The user, on the live pass: "It looks pretty bad and the seam is very clear." A seamless look needs cylindrical
 or triplanar mapping — shader work judged by eye. **Status:** deferred by the user 2026-10-14 to a later texture/shader
-session; chunk 1 ships with the seam.
+session; chunk 1 ships with the seam. **Also covers curved faces (curves chunk 1, 2026-10-15, branch `curves`):** a curve's
+chord face takes the plan of its nearest world axis (inv 35), so around an arc the grain switches partway with the same
+kind of seam — accepted by the user's ruling in the curves spec (§1, §3.4); the same cylindrical/triplanar remedy, the same
+session. Not yet seen on real hardware (fu 370).
 
 **337. Real-hardware looks owed (26a).** Seen only on software GL: hole wall shading and grain; rim lines (indistinguishable
 at screenshot scale, as the part's own edges are; unit-tested only); drag smoothness on a drilled cabinet side (the
@@ -5623,3 +5626,96 @@ user chose the nominal set. Pine keeps its own 1× list (6′ and 8′, its own 
 nominal list's 2× (8/10/12′) and 4×4 (8′): 36 sizes, no prices. Reaches only a browser whose pine settings were never saved
 (or "Reset pine to defaults"). Consequence, as for a custom nominal solid already: a 3/4" pine part longer than 8′ or wider
 than a 1×12, refused before ("too long"/"too wide"), now buys 2× stock with a plane note.
+
+## From the curves round (chunk 1) — 2026-10-15
+
+Chunk 1 is built on branch `curves` (schema 17), not yet merged or deployed. Spec
+`docs/superpowers/specs/2026-10-15-sloyd-curves-design.md`; the narrative is `docs/history.md`.
+
+**361. Curves chunk 2: drawings.** Spec §5 and §10's chunk 2. The Plans sheet already draws curved parts through
+`partGeometry`'s edges at the MODEL's tolerance (0.005", ≤24 chords per arc; seen live, dashed exactly where hidden); chunk 2
+draws the outline lines at `DRAWING_CURVE_TOLERANCE = 0.001"`, capped at 96 chords per arc (as hole rims are 96-gons on the
+sheet), occluders staying the model's bodies. Part diagrams (seen live as plain rectangles for a curved part, as specified):
+the waste outline in the view down `through`, clipped to the part; a line across the part at each SHARP outline vertex in
+the other views (matching the viewport, inv 16); each curve's bench line as an HTML note under the figure (inv 19). No
+schema change. **Status:** open (next in this feature).
+
+**362. Dimension callouts on curves.** Radius and rise on the Plans sheet. Joins fu 252 (callouts) and 333 (hole
+callouts). **Status:** open (spec §12).
+
+**363. Claude features on curves.** Add joinery and Repair accepting curved parts (refusing only a joint a curve runs into,
+as angle cuts do, inv 41), Generate and Refine reading and writing curves (a `DESIGN_SCHEMA` change: one live compile first,
+fu 322), and the design checks (overlap, held, tip, contact) reading curved bodies. Chunk 1 refuses curved projects at entry
+(`curvedRefusal`, after holes'); `turnCandidates` returns none for a curved part. **Status:** open (spec §12).
+
+**364. Splines and free curves.** A new segment type; no schema bump, because every build from 17 on refuses a document
+holding a segment type it cannot draw (spec §2.4). **Status:** open (spec §12).
+
+**365. Stopped curved cuts and edge profiles.** A scooped seat or curved recess; roundovers, coves, ogees (chamfers exist as
+angle cuts). **Status:** open (spec §12).
+
+**366. Compound curves.** A cabriole leg is two curves on two faces — allowed today, nothing designed for it. **Status:**
+open (spec §12).
+
+**367. A row control to change a curve's kind.** Arch into Bow and so on; the user removes and re-adds this round.
+**Status:** open (spec §12).
+
+**368. Rebuild cost of a non-convex waste (Task 8 ruling; final fix wave).** `curvesPerf.test.ts`' L-shaped notch (a
+hand-edited waste, ear-clipped into 14 pieces, sliced into 83 bodies and 477 faces) measured 48–54 ms (bodies ~4, edges ~35
+on frozen bodies, mesh ~8), and 62–72 ms after the watertight fix's weld and conform pass; it is bounded at 100 ms (the holes
+guard's bound for an unusual case) because no preset authors a non-convex waste. The upstream causes, each a hypothesis to
+measure before adopting: (1) the ear-clip triangles are not merged into larger convex pieces (Hertel–Mehlhorn), and SPLIT
+slices each body along every piece plane EXTENDED across it, which multiplies bodies; (2) `bodyEdges` finds a polygon edge's
+line by a linear lookup and filters every face per line — bucket it as `unionOutline` and the seam index do; (3) frozen
+bodies slow `bodyEdges` about threefold (A/B in one process: unfrozen 14.5 ms, frozen 35.3, then unfrozen 36.3 — deepFreeze
+appears to leave the call sites slow afterwards, so unfrozen timings are only valid in a clean process). Also: the presets
+measure ~7–13 ms (arch), ~7 (four corners) and 15–22 (two through axes, the least margin under a 16 ms frame in node and
+the 40 ms bound) on a loaded machine; the guard is wall-clock (fu 340's caveat). **Status:** open.
+
+**369. A holed face of a curved part keeps T-junctions (final fix wave limit).** The watertight pass (inv 50) inserts
+vertices and fans from the centroid on every face of a curved part EXCEPT one a hole reaches: that face keeps
+`faceTriangles` (earcut, whose `filterPoints` drops collinear — inserted — points, or the vertex-0 fallback fan). So pinholes
+can remain where a holed face meets a split slice (shelf pins on an arched side). No fixture has one; untested. Remedy to
+measure: feed earcut the inserted vertices with a guard against its filter, or conform the ring-cut polygon. **Status:**
+open.
+
+**370. Real-hardware looks owed (26a).** Seen only on software GL (llvmpipe): smooth shading on the curved faces (radial
+normals); the grain seam on a curved face (fu 336); the arch-end edge lines and the absence of facet lines (not
+distinguishable at screenshot scale); a FADED curved part beside a dado, which shows vertical strips at the dado — the box
+path's control looks the same, so undetermined; the shadow and cap after the watertight fix (clean on llvmpipe, re-check on
+hardware); drag smoothness (there is no gizmo resize; in-browser frame times were set by llvmpipe, 1.1–1.4 s with or
+without the arch). **Status:** open (awaiting the user's look).
+
+**371. Curves model and geometry minors (record-only; Tasks 1, 3–6).** (1) Validation's crossing test sees chords and
+crowns only: an arc crossing a straight side without its crown is not caught (documented). (2) No half-turn (uFrom = vFrom =
+max) fixture in `localSegments`' tests (covered by `chiralCurved` and the mirror tests), none through width or length; a
+misleading `[arc]` test name; `as never` casts in `bowsInto` tests; the tangent's sign unpinned (only |cross|). (3)
+`curveFaults`' run count over-reports `cuts-through` when a waste leaves the face and re-enters (only on a curve already
+`runs-off`; no canonical form); its empty-face branch and `rectMeetsWaste`'s endpoint/crown shortcut untested;
+`segArcHits`/`segSegHits` tolerances are on 0–1 parameters, not inches. (4) `frames.mirror`'s outline test samples the
+through-min face only. (5) The `curve` tag on internal walls (a SPLIT's chord planes and diagonals, and walls the `rest` clip
+leaves) is undocumented; `convexPieces`' no-ear fallback can merge collinear edges, drop flags and stop silently (untested;
+never reached by a validated curve); `curvePlan` and `splitPieces` build the outline twice; `splitBodiesForTest` is exported
+from a production module (plan-mandated). (6) Duplicate and split import lines in `curves.test.ts`. **Status:** record-only.
+
+**372. Curves edges, mesh and snap minors (record-only; Tasks 7–9, final fix wave).** (1) `smooth` uses |cross|, so a
+reversal (a cusp) also reads smooth; `canon` (the edge oracle) rounds keys at 1e-7 (a boundary flake risk, plan-mandated);
+`smoothLines` also lists collinear straight-run points; the smooth-join match ignores the normal's sign and wing direction
+(no reachable geometry found). (2) Per-stretch judging raised the edge cost (arch ~4.3 ms, four corners ~2.8, arch + end
+corner ~10). (3) The seam lookup's `.sort` is unpinned; `chordArc` is linear per face. (4) No Bow and no turned or mirrored
+pose in the snap tests (`toWorld` carries the pose). (5) Cap pieces are not welded — a mutation removing it survived, so it
+was dropped as unpinned; `capFill(…, false)` (a part without curves) has no dedicated byte test, being the moved loop
+unchanged. **Status:** record-only.
+
+**373. Curves text, refusals, store and panel minors (record-only; Tasks 10–14, final review).** (1) A hole both past an
+edge and into a curve reads two faults, `(and 1 more)` (deliberate: `faultKey` tells them apart, and `distinctFaults` must
+share the key); `intoCurve` recomputes `localSegments` per hole per curve. (2) The notch is detected by exact
+`rise === span / 2` (a hand-edited 1e-16 drift reads as an arch); the Bow's `from the length min end` hard-codes min (bows
+are always min-anchored). (3) `curvedRefusal`'s list helper duplicates `holedRefusal`'s (plan-mandated); its ordering test
+lives in the document layer importing `generate/`; holes-before-curves is pinned only at `joineryRefusal`. (4) `readOnly()`
+in the curve store actions is unobservable (`edit()` gates explode, as for holes); the held-point "kept" case is not
+mirrored. (5) `Curves.tsx`: the cuts-through branch reads `control ?? 'Rise'`, so a corner select that cut through would
+say Rise (likely unreachable); the half-circle refusal always says Rise (a corner's Radius cannot trip it: its chord is
+r√2); a select refusal's row alert survives later events; `refusalFor`'s `had` is keyed by fault kind only
+(plan-mandated); the Rounded-corner Corner select and Radius field and the Bow's Side select have no panel test; "No curve
+preset fits this part." and the `.curve-label` sentence-case rule are untested. **Status:** record-only.

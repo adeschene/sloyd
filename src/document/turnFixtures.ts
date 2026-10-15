@@ -1,6 +1,7 @@
 import { createBoard } from './document';
 import type { Board, Posture, Rotation } from './document';
 import { boardExtents } from './geometry';
+import { archCurve, cornerCurve } from './curves';
 
 /**
  * A part whose cuts have a HAND: a stopped dado stopped at one end only, and
@@ -67,6 +68,22 @@ export function chiralHoled(posture: Posture): Board {
     holes: [
       { id: 'h1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.375, along: 'length', alongFrom: 'min', station: 7, count: 3, pitch: 1.5, acrossFrom: 'min', inset: 4.5 },
       { id: 'h2', face: 'length', from: 'max', diameter: 0.375, depth: 1, along: 'width', alongFrom: 'min', station: 4.25, count: 1, pitch: 0, acrossFrom: 'max', inset: 0.5 },
+    ],
+  };
+}
+
+/**
+ * chiralPart plus curves with a HAND (curves spec §6.2): an off-centre arch on one long side measured from the min end,
+ * and one rounded corner. A reflection anywhere in the curve mapping shows up as different world outline points.
+ * (chiralPart is 20 x 6 x 1.5: the arch, start 2 + span 5 < 20, rise 0.75 < 6, and the radius-1 corner fit.)
+ */
+export function chiralCurved(posture: Posture): Board {
+  const b = chiralPart(posture);
+  return {
+    ...b,
+    curves: [
+      { id: 'k1', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 2, span: 5, rise: 0.75 }) },
+      { id: 'k2', ...cornerCurve({ through: 'thickness', uFrom: 'max', vFrom: 'max', radius: 1 }) },
     ],
   };
 }

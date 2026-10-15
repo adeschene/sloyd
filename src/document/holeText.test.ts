@@ -4,6 +4,7 @@ import { createBoard } from './document';
 import { distinctFaults, edgeName, endWord, holeFaultText, holeLengthText, holeLine } from './holeText';
 import { holeFaults } from './holeFaults';
 import type { HoleRow } from './types';
+import { ARCH } from './curveFixtures';
 
 const side = createBoard({ length: 30, width: 11.25, thickness: 0.75 });
 const pins: HoleRow = { id: 'h1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.375, along: 'length', alongFrom: 'min', station: 2, count: 21, pitch: 32 / 25.4, acrossFrom: 'min', inset: 1.5 };
@@ -32,6 +33,13 @@ describe('holeLine (spec §4.1, as amended)', () => {
     expect(holeFaults(thin, pins).filter((f) => f.kind === 'too-deep')).toHaveLength(21);
     expect(distinctFaults(holeFaults(thin, pins))).toEqual([{ index: 0, kind: 'too-deep' }]);
     expect(holeLine(thin, pins, IMPERIAL)).toMatch(/ — check: the holes are deeper than the thickness$/);
+  });
+  it('a hole past an edge AND into a curve reads two faults: two things to fix (finding 2, faultKey names the curve)', () => {
+    const apron = createBoard({ length: 30, width: 5, thickness: 0.75, curves: [ARCH] });
+    const bore: HoleRow = { ...cup, id: 'h3', diameter: 0.5, depth: 'through', station: 15, inset: 0.1 };
+    const faults = distinctFaults(holeFaults({ ...apron, holes: [bore] }, bore));
+    expect(faults.map((f) => f.curve?.id ?? 'edge')).toEqual(['edge', 'c1']);
+    expect(holeLine({ ...apron, holes: [bore] }, bore, IMPERIAL)).toMatch(/ — check: hole 1 runs past the width min side \(and 1 more\)$/);
   });
   it('holeFaultText words each kind', () => {
     expect(holeFaultText({ index: 0, kind: 'off-flat' }, pins)).toBe('hole 1 sits where a cut has removed the wood');
@@ -75,5 +83,9 @@ describe('holeLengthText: the one diameter/pitch formatter (bench line and Holes
     expect(holeLine(side, pins, IMPERIAL)).toContain(`every ${holeLengthText(pins.pitch, IMPERIAL, 'pitch')} (32 mm)`);
     expect(holeLine(side, pins, MM)).toContain(`${holeLengthText(pins.diameter, MM, 'diameter')} dia`);
     expect(holeLine(side, pins, MM)).toContain(`every ${holeLengthText(pins.pitch, MM, 'pitch')},`);
+  });
+  it('a hole into a curve reads by the curve\'s kind (P4)', () => {
+    expect(holeFaultText({ index: 2, kind: 'breaks-out', curve: { id: 'c1', kind: 'arch' } }, pins)).toBe('hole 3 runs into the arch');
+    expect(holeFaultText({ index: 0, kind: 'breaks-out', curve: { id: 'c1', kind: null } }, pins)).toBe('hole 1 runs into a curve cut');
   });
 });

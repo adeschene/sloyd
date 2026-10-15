@@ -25,6 +25,13 @@ handicraft education tradition built around hand woodworking.
   — bundle `index-BZDp6iOz.js`, CSS `index-G3ndwYrP.css`, **SCHEMA 16** (unchanged since holes chunk 1, so rolling back to `a927d1e`, `index-BIWe_ffw.js`, `bf0bdc2`, `index-yiFC6fXl.js`, `71e8d19`,
   `index-DwixxasK.js`, or earlier down to `2ded5cc` is free — an older build reads a metric project as imperial; below 16,
   `bfde00c`, REFUSES every project saved since: export first). Test count is under Commands.
+- **Curves chunk 1 (spec `2026-10-15-sloyd-curves-design.md`, plan `…-curves-chunk1.md`, inv 53)**: BUILT on branch
+  `curves` (HEAD `0ccb64f`), **NOT merged or deployed** — merge and deploy on the user's word. **SCHEMA 17 once merged**:
+  rolling back below 17 then strands every project saved since (export first); a build below 17 refuses it. Arch,
+  Half-round notch, Bow, Rounded corner(s) cut through a part; viewport, edges, section caps, snap points, cut list, Properties.
+  The execution rulings marked *Amended (implementation, chunk 1)* in the spec await the user's review. Open near it:
+  361 (chunk 2: drawings), 362–367 (spec §12), 368–373 (residue; 370 real-hardware looks: smooth shading, the grain seam).
+  Everything below this bullet describes `master` unless it says "on the branch".
 - **Metric display (spec `2026-10-15-sloyd-metric-display-design.md`, inv 52)**: deployed. 354 closed (metric parts match the nominal
   sections and stock they read the same as). Open near it: 359 (the
   imperial plane note can read the same on both sides), 356/358 record-only. 355, 357 and 360 closed and deployed (357's real Brave print is owed for the user's eye).
@@ -33,7 +40,7 @@ handicraft education tradition built around hand woodworking.
 - **Holes (spec `2026-10-14-sloyd-holes-design.md`, inv 50)**: both chunks deployed (schema 16; fu 327 and 343 closed).
   Open near it: 328–342 (336: the wall-grain seam, deferred by the user to a texture/shader session; 337: real-hardware
   looks owed), 344–346.
-- **NEXT: none chosen — ask the user.** Custom materials (fu 266) closed; open near it 324–326. Other open items:
+- **NEXT: curves chunk 1 awaits the user's merge word; after it, ask.** Custom materials (fu 266) closed; open near it 324–326. Other open items:
   314–320, angle-cut residue 295–298; 241 (open by decision), 251 (record-only), 221, 225, 232, 234, 247.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
@@ -111,6 +118,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | fu 354 | 10-15 | — | Metric parts match nominal sections and stock when they READ the same whole mm (`nominalName`, `fitsStock`, one `mmTicks` rounding); imperial exact |
 | fu 360 + 355 | 10-15 | — | Built-in pine's default stock adds the nominal 2× and 4×4 sizes (36); metric design faults show mm in the Joinery/Refine dialogs (`Violation.shown`), the model's text unchanged |
 | fu 357 | 10-15 | — | A metric sheet's `Dimensions in mm` repeats in every printed page's top margin (`@page metric-sheet`, margin box) |
+| curves (chunk 1) — ON BRANCH `curves`, not merged | 10-15 | 17 | `Board.curves` (`CurveCut`: a closed waste outline of lines and minor arcs in a face's (u, v), cut clean through one dimension; inv 53): clipped or split bodies, built edges, smooth normals, a watertight mesh and cap; arc snap points; bench lines and grouping; Curves section (Arch, Half-round notch, Bow, Rounded corner(s)); holes into a curve's waste fault; joinery/Refine/Repair refuse curved projects; an unknown segment type refuses the document |
 
 ### The deployment rule
 
@@ -176,7 +184,7 @@ would be a second implementation, not a parallel path.
 ### Versioning
 
 Every load path (open, import, autosave-restore) runs `migrateDocument` before the
-document is trusted. `CURRENT_VERSION` is **16**. Steps run one version at a time, in
+document is trusted. `CURRENT_VERSION` is **17** on branch `curves` (**16** on `master` until it merges). Steps run one version at a time, in
 order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11→v12, which run after.
 
 | Step | Adds | Shape | Harm a build one version back would do |
@@ -196,6 +204,7 @@ order, on RAW data before `validateBoard` (inv 11) — except v10→v11 and v11�
 | 13→14 | `angleCuts` on parts and shapes (default `[]`; malformed or non-finite entry dropped, missing `kind` derived) | document-level, no step | silent loss on round trip (every taper/miter dropped) |
 | 14→15 | `materials` (custom materials the parts and shapes use; default `[]`; validated BEFORE the parts so they see them; malformed entry or one whose `kind` disagrees with its id dropped; pruned on load and in `edit()`) | document-level, no step | silent loss (a custom material becomes pine, and the next save writes pine) |
 | 15→16 | `holes` on parts and shapes (default `[]`; malformed entry dropped — non-finite, non-positive diameter or depth, non-integer count, negative pitch/station/inset, `along === face`, unknown enum; a faulted but well-formed row KEPT) | document-level, no step | silent loss on round trip (every hole dropped) |
+| 16→17 (branch `curves`) | `curves` on parts and shapes (default `[]`; malformed entry dropped — non-finite number, unknown enum, no segments or more than 64, an arc with both/neither of `rise`/`radius`, a non-positive one, a zero chord, a rise over half its chord or a radius under half, an outline not closing EXACTLY at `start` (P1), crossing itself or enclosing no area; a faulted but well-formed curve KEPT); a string segment `type` other than `line`/`arc` REFUSES THE DOCUMENT (the newer-version gate keyed on content: a spline needs no bump) | document-level, no step | silent loss on round trip (every curve dropped) |
 
 - **A bump exists for the refusal gate, not for upgrading** — absent fields default
   regardless. Argue *your* field's harm; don't inherit another bump's argument.
@@ -261,20 +270,36 @@ src/
 │   │                     mm (n / 25.4, as parseLength), defaultHole/defaultShelfPinRow/defaultHingeCup (35 mm × 1/2", 3" from
 │   │                     the min end of the LONGER in-face dimension, 22.5 mm in; fu 343), holeInstances/boardHoles, holeRing/
 │   │                     holePrism (memoised by frozen Hole identity), clipPolygon/clipPlan/minusPrism/minusCover, holeRims, insideHole
-│   ├── holeFaults.ts     holeFaults (THE strict rule: breaks-out, off-flat, meets-hole, too-deep), stockChecks, holeInStock (clean)
+│   ├── holeFaults.ts     holeFaults (THE strict rule: breaks-out, off-flat, meets-hole, too-deep), stockChecks, holeInStock (clean);
+│   │                     [branch `curves`] intoCurve: a hole meeting a curve's waste is a breaks-out carrying `curve` (not `edge`)
 │   ├── holeText.ts       holeLine (THE bench line; pitch at 1/64 at least, whole mm shown; a faulted row's `— check:`),
-│   │                     holeFaultText (THE fault words), distinctFaults (too-deep once), endWord/edgeName (→ units)
+│   │                     holeFaultText (THE fault words), distinctFaults (too-deep once), endWord/edgeName (→ units);
+│   │                     faultKey ([branch `curves`] a breaks-out keyed `:edge` or `:curve:<id>`, distinctFaults on the same key)
 │   ├── holedRefusal.ts   holedParts / holedRefusal: joinery, Refine and Repair refuse a holed project, naming the parts
 │   ├── holeDrawing.ts    holeDrawingSegments: one part's hole lines for the Plans sheet (inv 50), world space — every rim as a
 │   │                     DRAWING_HOLE_SEGMENTS (96)-gon, a rim edge-on to the view as ONE segment (chunk 2 R2), then the wall's two
 │   │                     silhouettes (none looking down the axis); built only through `toWorld` (inv 44); decides nothing hidden
+│   ├── curves.ts         [branch `curves`] THE curve model (inv 53): CURVE_FIELDS (inv 40), CURVE_TOLERANCE 0.005 / SEGMENTS_MAX
+│   │                     24 / STORED_MAX 64, copyCurve, mirrorCurveCut (inv 44), localSegments/arcOf (LocalArc: centre, radius,
+│   │                     rise, crown), curveOutline (chords ON the arc), smoothLines, bowsInto, wasteContains/isAir (P3),
+│   │                     circleMeetsWaste/rectMeetsWaste, curveFaults (THE decider: runs-off, cuts-through), convexPieces (ear
+│   │                     clip), curvePlan (CLIP or SPLIT; the strengthened P6), splitPieces; writers/readers archCurve/archFields,
+│   │                     bowCurve/bowFields, cornerCurve/cornerFields, deriveCurveKind, curveKindWord, presets defaultArch/
+│   │                     Notch/Bow/Corner/Corners; runtime imports `geometry` only
+│   ├── curveText.ts      [branch `curves`] curveLine/curveLines (THE bench lines; four equal corners collapse), curveFaultText
+│   │                     (THE fault words) (→ units)
+│   ├── curvedRefusal.ts  [branch `curves`] curvedParts / curvedRefusal: joinery, Refine and Repair refuse a curved project (after holes')
+│   ├── outline.ts        [branch `curves`] unionOutline + SECTION_EPS, moved from section.ts (re-exported there): the caps' and
+│   │                     curvedEdges' boundary of coplanar convex pieces
 │   ├── angleWorld.ts     WorldMiter/WorldBevel/WorldChamfer: design miters, bevels, chamfers in world words; angleCutsFor (design →
 │   │                     stored via the Properties writers), worldAngles (structural standard forms), angleRatiosOf (the exact-angle
 │   │                     map), ratioFor, sortAngleCuts (the one stored order)
 │   ├── taperWorld.ts     Dir/WorldTaper: design tapers in world words; dirToLocal/localToDir (inv 44), worldTapers
 │   │                     (stored → design form, structural standard form), taperCutsFor (design → taperCuts, §2.2 rules)
 │   ├── bodies.ts         boardBodies (pocket cells clipped by angle cuts), bodyEdges, boardEdges (inv 16);
-│   │                     partGeometry: THE cached reader of both, plus the frozen `holes` (shared, frozen; see per-file rules)
+│   │                     partGeometry: THE cached reader of both, plus the frozen `holes` (shared, frozen; see per-file rules);
+│   │                     [branch `curves`] curve waste clipped or split (`BodyFace.curve` on chord faces), curvedEdges (BUILT
+│   │                     edges, inv 53), edgesOf (THE three-way choice: pocketEdges / curvedEdges / bodyEdges), SMOOTH_EPS
 │   ├── tenons.ts         findTenons
 │   ├── cutlist.ts        buildCutList (inv 18) — stock, not remainder
 │   ├── depthField.ts     buildDepthField (inv 20)
@@ -312,14 +337,17 @@ src/
 │   ├── explode.ts        explodeOffsets (hierarchical, floor-lifted), EXPLODE_SPREAD/INNER
 │   ├── section.ts        THE section cut (inv 51): Section, keptBySection (THE side test), sectionPlaneOf, sectionSpan,
 │   │                     sectionCaps (board-local caps minus bores, a per-part local cache), unionOutline
+│   │                     ([branch `curves`] moved to outline.ts and re-exported)
 │   ├── dimensions.ts     overall + chain dimension values and strings per axis (fitting is panels/planDims.ts)
 │   ├── plans.ts          planAssemblies: what the sheet draws (copies, mirrored parity)
-│   └── treeFixtures.ts, turnFixtures.ts   TEST-ONLY (assemblyDoc; chiralPart, inv 44);
+│   └── treeFixtures.ts, turnFixtures.ts   TEST-ONLY (assemblyDoc; chiralPart, inv 44; [branch `curves`] chiralCurved);
+│                         curveFixtures.ts (TEST-ONLY ARCH, CORNER: never import a test module, it re-registers its suite);
 │                         shakerTableFixture.ts (the generated, joined, refined Shaker table)
 ├── store/
 │   ├── store.ts          state, edit(), undo/redo/restore, selectionPatch, held points,
 │   │                     hiddenIds, copyInRow, group/link/unique actions (invs 4, 24, 34, 42–46);
-│   │                     addHoleRows/updateHoleRow/removeHoleRow (one edit, held points re-judged after)
+│   │                     addHoleRows/updateHoleRow/removeHoleRow (one edit, held points re-judged after); [branch `curves`]
+│   │                     addCurves/updateCurve/removeCurve, the same shape
 │   ├── assemblyPick.ts   clickTarget (inv 46)
 │   ├── selectionGesture.ts  selectByClick, clearOnMiss (shared by viewport and parts list)
 │   └── visibility.ts     visibleBoards, the ONE visibility filter (inv 43)
@@ -350,6 +378,11 @@ src/
 │                     bodies), faceTriangles (rings as holes, clip-split fallback), holeMesh (one hole's wall + bottom;
 │                     clean = unclipped), holesMesh (every hole of a part, ONE geometry); holesPerf.test.ts (the guard)
 │                     sectionPlane.ts (THE shared clipping plane, inv 51); BoardMesh draws its part's cap; sectionPerf.test.ts
+│                     [branch `curves`] grainTiling's drawsAsBox (THE BoxGeometry-or-bodyMesh routing: a box no hole reaches,
+│                     on a part WITHOUT curves), bodyMesh's radial normals on chord faces and curvedPart (seams dropped, welded,
+│                     conformed); conform.ts (insertOnEdges, centroidFan, welder, CONFORM_EPS 1e-7); capFill.ts (THE cap fan,
+│                     moved out of BoardMesh; conformed for a curved part); curvesPerf.test.ts (the guard),
+│                     curvesWatertight.test.ts (every directed edge matched), bodyMeshIdentity.test.ts (holed, uncurved: master's bytes)
 ├── panels/           DimensionField/NameField (invs 5, 9), Properties, CopyInRow, PartsList,
 │                     Toolbar, TapeReadout (invs 27, 28), GuidesList, ProjectMenu,
 │                     SettingsDialog, GenerateDialog, JoineryDialog, RefineDialog, RepairNotice, CutList, PartDiagram,
@@ -366,7 +399,10 @@ src/
 │                     AngleCuts (the Angles section: "+ Add ▾" — Taper, Miter, Miter both ends, Bevel, Chamfer —
 │                     and one row per kind), AngleField (DimensionField with a degree parse/format; max floored to 0.1°);
 │                     Holes (the Holes section: "+ Add hole ▾" — Hole, Shelf-pin row, Hinge cup —, one row type; an edit refused
-│                     when it ADDS a fault; Count 1→more seeds a pitch, chunk 1 R5), CountField (DimensionField, whole numbers)
+│                     when it ADDS a fault; Count 1→more seeds a pitch, chunk 1 R5), CountField (DimensionField, whole numbers);
+│                     [branch `curves`] Curves (the Curves section: "+ Add curve ▾" — Arch, Half-round notch, Bow, Rounded
+│                     corner, Rounded corners —; rows by derived kind; refusalFor: half circle first, then an ADDED curve fault,
+│                     then a hole into the waste)
 ├── styles.css        surface ROLES over --grey-*/--walnut-*; palette.test.ts pins contrast (4.5:1)
 └── App.tsx           layout, autosave/restore, the ONE keydown effect (inv 27), `pending`
                       (inv 29), switchToken (inv 32), `.app-shell` inert behind any modal
@@ -455,7 +491,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
    (post-patch extents). `grain` and `cuts` are absent from the reorient predicate, so cut
    edits have their own store actions. A future tool that moves *and* turns in one gesture
    must carry its own `position` in the same patch.
-    `angleCuts` and `holes` are absent from the reorient predicate too (a slope or a bore moves nothing).
+    `angleCuts` and `holes` are absent from the reorient predicate too (a slope or a bore moves nothing), and so are
+    `curves` ([branch `curves`]).
 3. **The `dragging` ref guard in `Gizmo.tsx`**: never sync the document into the proxy
    mid-drag (jitter/drift).
 4. **Gesture snapshots are lazy** — taken on the first `edit()` in a gesture, never in
@@ -490,12 +527,20 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 15. **Anything memoising on what `boardUVs` reads keys on `boardUVSignature`, never a
     hand-written field list.** The signature is the same for every solid of a board, so
     don't cache per solid on it alone. A dep entry over a value nothing subscribes to is
-    the same failure. It includes every hole row (BoardMesh's memo keys on it).
+    the same failure. It includes every hole row (BoardMesh's memo keys on it) and, [branch `curves`], every curve (its
+    id and `CURVE_FIELDS` values, as `geometryKey` does).
 16. **Edge lines come from `boardEdges` (the cell grid's `pocketEdges`, or `bodyEdges` once a part has angle
     cuts), not from the solids.** General
     rule: a marker or line must sit on a feature that is actually drawn. A hole draws its rim on its entry face (and exit
     face when through) and, when blind, its bottom rim (a crease); its wall draws no facet lines. The exception: a hole's
     centre snap point sits in air (the mouth is air to `stockProbe`) — it is the centre of a drawn rim.
+    [branch `curves`] A curve draws its outline on every plane square to its `through` and a line along `through` only at
+    a SHARP outline vertex judged on the true arc — no facet lines, none at a tangent end or a bow's crown; a smooth
+    point's line is suppressed per INTERVAL (where its wings are that curve's chord faces and the tangent-continuing face),
+    never as a whole line, or a real crease where another feature meets the tangent point is erased. An arc's centre snap
+    point may sit in air (the hole-centre exception, extended; a centre off the face is not offered); ends are `'corner'`,
+    the crown `'edge-mid'`, the centre `'face-center'` (P5). The waste is air to `stockProbe` except a point ON an arc or
+    on a straight side off the face boundary (P3: the middle of an arched edge is gone, an arc's end is kept).
 17. **UVs are parent-relative and `FIT` resolves against the board, not the solid**, so
     figure runs continuously across a cut.
 18. **On the cut list, stock dimensions collapse at display precision; cuts match
@@ -564,7 +609,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 33. **Duplicate ids are repaired on LOAD by `takeId`; the FIRST keeps its id**, the later
     is re-minted (never all of them), and `seen.add` lives inside `takeId`. Scopes: part and instance ids per
     container; definition and shape ids per document; cut ids per board (per shape for a
-    shape). `/` in an id is re-minted. A guide with no id is dropped. References
+    shape), and so angle-cut, hole and ([branch `curves`]) curve ids. `/` in an id is re-minted. A guide with no id is dropped. References
     (`Instance.definition`, `ShapedBoard.shape`) are resolved by DROPPING the duplicate or
     the dangling part, never by re-minting, so nothing is rewritten. A future field pointing
     at a board by id breaks the single-pass repair.
@@ -577,6 +622,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     only extremes.
     A SLOPED face (angle cuts) takes the plan of the world axis its normal is nearest, a tie going to the cut's `face`
     (a miter reads as end grain, a taper as long grain); `bodyMesh` reads UVs off vertex world offsets through the same plans.
+    [branch `curves`] A curve's chord face takes the plan of its nearest world axis too; around an arc the plan switches
+    partway, and the grain seam there is ACCEPTED (the user's ruling, recorded with fu 336 for a texture/shader session).
 36. **Generation never adopts a project**: `createProject(doc, { activate: false })` and
     nothing else. "Open when done" must call `openProject`.
 37. **The generation history is append-only; `LlmMessage` is opaque so it stays that way.**
@@ -610,6 +657,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     Hole rows have `HOLE_FIELDS` (`holes.ts`), every field but `id`, exact (a count-1 row's ignored `pitch` included, fu
     338): the cut list groups by them as a multiset, ids ignored (`holeSignature`); `sameShared` compares rows in order,
     ids included, as it does cuts and angle cuts.
+    [branch `curves`] Curves have `CURVE_FIELDS` (`curves.ts`, `satisfies`), every field but `id`, exact, the segment list
+    compared field by field in order: the cut list groups by them as a multiset, ids ignored; `sameShared` in order, ids included.
 41. **Joinery has one converter (`pocketFor`), never adopts, and is blamed only for what it
     caused.** `pocketFor` is tested against the box in every pose, stores via
     `storedAsShape`. Problems compare by `kind` + `parts`, never message text. Every
@@ -657,6 +706,9 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     edited it or a d0-moving posture change re-reflected it (`changedKeys`), never as a shared world array.
     A hole row reflects by flag flips too (`mirrorHoleRow`: `from`, `alongFrom` or `acrossFrom`, whichever of face, along
     and across is the mirrored dimension); `lowerHoles` is its exact inverse, reusing an untouched stored array.
+    [branch `curves`] A curve reflects by flag flips too (`mirrorCurveCut`: `uFrom` when u is the mirrored dimension,
+    `vFrom` when v is, nothing when `through` is) — never arithmetic on coordinates, and `side` never flips (it is defined on
+    STORED numbers); `lowerCurves` is its exact inverse, reusing an untouched stored array. Pinned with `chiralCurved`.
 45. **A link is a SHAPE its users point to; shared fields are stored once.** `LINK_FIELDS`
     is the ONE shared/own table (classify an optional own field with care, fu 231).
     `resolveBoard` is the ONE place a shape is read into a part. `linksToShapes` is the ONE
@@ -666,7 +718,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     re-pivoting posture. `linkPlan` is the ONE Link decider. A one-user shape dissolves
     (users counted as STORED parts). Joinery keeps sharing where cuts are identical by
     geometry. **`Board.link`, `repairLinks`, `dissolveSingletons` and `mates` propagation
-    must not come back.**
+    must not come back.** [branch `curves`] `curves` is SHARED in `LINK_FIELDS` (an array, so excluded from `_sharedPrimitives`' primitive check as cuts, angle cuts and holes are).
 46. **The tree has ONE composition (`placeBoard`/`placeInstance`), ONE walk
     (`worldParts`), and every edit is written back through `treeEdit.ts`**, changed fields
     only, a moved position lowered as a delta. Path names come only from `flatDocument`.
@@ -725,6 +777,13 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     and the direction ONCE in `$defs`** — the API refuses a schema whose compiled grammar grows too large (measured
     2026-10-14: the inline form with the three angle arrays was refused). `contactSolids` is the second, narrower reader of
     angle cuts: box-valued, never over-claiming wood.
+    [branch `curves`] `boardBodies` is the ONE place curves become bodies too, and bodies stay CONVEX: each curve's waste
+    is CLIPPED by its chords' half-planes when the kept wood is convex (`curvePlan`: every arc bows into the waste, every
+    straight side lies on the face boundary, AND the arcs form ONE run with the wood convex at every off-boundary vertex and
+    arc–arc join — the
+    strengthened P6; without that guard two arcs meeting in a reflex wood corner lost real wood), else SPLIT along the
+    waste's ear-clipped convex pieces (`convexPieces`; a body wholly outside any one piece plane stays whole). Both give the
+    same wood (volume and containment, pinned). A chord face carries `curve: <id>`. A body no curve touches is unchanged.
 
 49. **A custom material's KIND is in its id** (`m-s-…` solid, `m-v-…` veneered sheet, `m-p-…` plain sheet), so
     `isSheetGood`, `grainFamily`, `hasGrain` and shop validation read it off the id with no catalog; a stored `kind` that
@@ -751,10 +810,20 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     can be edited back), decided before any mutation; a fault a later edit causes is KEPT, noted, drawn approximately,
     never clamped or trimmed. Fault words have one home (`holeFaultText`; `distinctFaults` counts too-deep once). Joinery,
     Refine and Repair refuse a holed project at entry (`holedRefusal`); `turnCandidates` returns none for a holed part.
-    A part with no holes keeps its geometry byte-for-byte (the `BoxGeometry` path included). **Rebuild performance —
+    A part with no holes keeps its geometry byte-for-byte (the `BoxGeometry` path included; [branch `curves`] a part with no
+    holes AND no curves — `drawsAsBox` is the ONE routing decision, `bodyMeshIdentity.test.ts` pins holed uncurved parts to
+    master's bytes). [branch `curves`] `holeFaults`' `breaks-out` includes a hole meeting a curve's waste (`intoCurve`;
+    touching is meeting; `holeInStock` counts it), keyed apart from an edge's (`faultKey` `:edge` / `:curve:<id>`, and
+    `distinctFaults` on the SAME key, or a hole past an edge and in a curve could never be edited back). **A curved part's
+    mesh is WATERTIGHT**: every body through `bodyMesh`, vertices welded (`CONFORM_EPS`), every part vertex strictly inside
+    a face's edge inserted (the candidate's own object, never a projection), faces fanned from their CENTROID (a vertex-0
+    fan's zero-area triangles are dropped and reopen the crack); a split curve's T-junctions otherwise show as pinholes in
+    the shadow and on the cap. `curvesWatertight.test.ts` pins it (exact Float32 keys, every directed edge matched); a face
+    a hole reaches still goes through `faceTriangles` (fu 369). **Rebuild performance —
     a resize drag rebuilds a holed part every frame; these break silently:** per-hole prisms and rings are memoised by
     the deep-frozen `Hole`'s IDENTITY (a WeakMap; an unfrozen hole computes fresh — never memoise one that can change);
-    seam faces (what a coplanar, opposite-facing face of another body covers) are subtracted ONLY in holed bodies; a
+    seam faces (what a coplanar, opposite-facing face of another body covers) are subtracted ONLY in holed bodies (and,
+    [branch `curves`], in EVERY body of a curved part, box cells included); a
     CLEAN hole's (`holeInStock`: no breaks-out, off-flat or too-deep) wall and bottom are emitted UNCLIPPED, a faulted
     hole's clipped to the bodies; all of a part's holes are ONE geometry, one mesh (`holesMesh`), never a mesh per hole.
     `viewport/holesPerf.test.ts` guards it (≤40 ms per healthy case, ≤100 ms faulted, the MINIMUM of 9 runs — load only
@@ -772,8 +841,10 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     `clipConvex`, a body face lying ON the plane and facing the removed side capped too (a holed body's mesh drops seam
     faces; spec §3.1 as amended), every piece normalised to ONE winding before `minusPrism` (pocketCells merges cells, so
     clip caps and face caps mix; `unionOutline`'s cancellation needs one winding), bores subtracted, the outline the boundary
-    of the union. World cap pieces wind clockwise as the viewer sees them (board frames are improper): BoardMesh rewinds each
-    by its Newell normal before fanning, or a DoubleSide cap is lit from behind. The cap material takes no clipping plane and
+    of the union. World cap pieces wind clockwise as the viewer sees them (board frames are improper): the cap fan rewinds
+    each by its Newell normal before fanning, or a DoubleSide cap is lit from behind (in BoardMesh on master; [branch
+    `curves`] in `viewport/capFill.ts`, which for a curved part also inserts the other pieces' vertices on each piece's
+    edges and fans from the centroid — no specks; a part without curves fans byte-for-byte as before). The cap material takes no clipping plane and
     is keyed on `faded`. **Picking and snapping read only `keptBySection`** (a raycast wrapper on part meshes; Move/Tape
     candidates), guide points exempt — guides are drawn unclipped. The per-part local-cap cache is hit only on the same
     `geometryKey` and the exact local plane coordinate; never hand out its arrays.
@@ -794,12 +865,30 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     (`.sheet-metric`; an `@page` margin box, Chromium 131+ — a header group was measured not to repeat; fu 357); Buying reads parts in the project's units and trade sizes imperial with
     mm in brackets (`tradeLength`/`tradeSize`/`mmBracket`, one home); the grid ladder is 10 mm / 100 mm / 1 m.
 
+53. **[branch `curves`] `curves.ts` is the ONE place curves become outlines; `curveFaults` is the ONE fault decider.** A
+    `CurveCut` is a closed WASTE outline (`start`, then `line`/`arc` segments, the last ending EXACTLY at `start`, P1) in a
+    face's stored (u, v) from named ends, cut clean through `through`; an arc is a MINOR arc fixed by `rise` OR `radius`
+    (whichever was typed; the other derived, never written back), bowing toward `side` of its chord in STORED numbers. No
+    stored kind: Arch/Notch/Bow/Corner are derived structurally (`deriveCurveKind`); a curve no row can represent renders,
+    prints, and shows its line and Remove. Faults: `runs-off` (leaves the face rectangle; a too-deep curve reads this) and
+    `cuts-through` (the kept face falls apart or empties), exact against the true arcs. Authoring refuses a fault an edit
+    ADDS (or a hole it puts into the waste), decided before any mutation; a fault a later resize causes is KEPT and noted
+    (`… at this size.`, `— check: …`), never clamped. **Every edit, typed or selected, is refused when an arc would pass a
+    half circle** (`pastHalfCircle`, the loader's own exact rule), because the loader DROPS such an arc — silent loss. A
+    Bow is stored at its edge's length when written and refit by every edit; a resize never stretches it (P2). **A curved
+    part's edges are BUILT** (`curvedEdges`: `unionOutline` on the planes square to `through`, then `bodyEdges` on the rest
+    with smooth lines dropped per interval), never `bodyEdges` over its slices (25 ms at 18 chords, 135 at 48). **An unknown
+    segment `type` refuses the whole document** with the newer-version message (a spline needs no schema bump). Joinery,
+    Refine and Repair refuse a curved project at entry (`curvedRefusal`, after holes'); `turnCandidates` none; the design
+    checks never see a curve. `viewport/curvesPerf.test.ts` guards the rebuild (≤40 ms per preset and a two-axis part,
+    ≤100 ms for a hand-edited non-convex waste — fu 368; MINIMUM of 9, wall-clock).
+
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 4189 tests across 141 files
+npm test           # Vitest, currently 4374 tests across 148 files on branch `curves` (4189 across 141 on master)
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -808,7 +897,7 @@ docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 
 ## Open follow-ups
 
-**`docs/follow-ups.md` is authoritative** (1–346, each with its closure). Read the entries
+**`docs/follow-ups.md` is authoritative** (1–373, each with its closure). Read the entries
 for the area you are about to touch; several are "correct but untested". Open items worth
 knowing without opening it:
 
@@ -866,6 +955,13 @@ knowing without opening it:
 - **343–346** — holes chunk 2 residue: 343 (Hinge cup along the LONGER in-face dimension, R5) closed — the user kept it; 344
   (the exploded view computes hidden hole lines it never draws; ties to 263's slider lag), 345 (dash look of chained paths
   and corner joins on a real print, for the user's eye; fu 254), 346 (record-only minors).
+- **361–373** — curves chunk 1 (branch `curves`): 361 (chunk 2: Plans-sheet arcs at `DRAWING_CURVE_TOLERANCE` 0.001", ≤96
+  chords per arc, and part-diagram outlines, sharp-vertex lines and notes), 362 (curve callouts; with 252, 333), 363 (Claude
+  features on curves: joinery/Repair, Generate/Refine, the design checks), 364 (splines: a segment type, no bump), 365
+  (stopped curves, edge profiles), 366 (compound curves), 367 (a row control to change kind); residue — 368 (a non-convex
+  waste rebuilds in ~65 ms: merge ear-clip triangles, bucket bodyEdges' line lookup, frozen bodies slow bodyEdges), 369 (a
+  holed face of a curved part keeps T-junctions), 370 (real-hardware looks owed: smooth shading, the grain seam, arch-end
+  lines, a faded curved part beside a dado), 371–373 (record-only minors). The curved-face grain seam is filed with **336**.
 - **176/177** — the held rules' known limits (mutual lapping) and an unseen live repair.
 - **130** — semi-infinite construction lines; picked and set aside 2026-08-31 without a
   reason. Ask before assuming it's wanted; it needs real hardware (26a).

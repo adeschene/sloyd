@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../store/store';
-import { acrossOf, mm, defaultHole, defaultShelfPinRow, defaultHingeCup, holeFaults } from '../document/document';
+import { acrossOf, curveKindWord, mm, defaultHole, defaultShelfPinRow, defaultHingeCup, holeFaults } from '../document/document';
 import type { Board, CutFrom, Dimension, HoleFault, HoleRow } from '../document/document';
 import { distinctFaults, edgeName, endWord as end, faultKey as key, holeFaultText, holeLengthText, holeLine } from '../document/holeText';
 import { DimensionField } from './DimensionField';
@@ -14,7 +14,7 @@ const cap = (d: string) => d[0]!.toUpperCase() + d.slice(1);
 function refusal(f: HoleFault, r: Omit<HoleRow, 'id'>, rowId: string): string {
   const n = f.index + 1;
   switch (f.kind) {
-    case 'breaks-out': return `Puts hole ${n} past ${edgeName(f.edge!)} — move it in, or reduce the count or the spacing first.`;
+    case 'breaks-out': return f.curve ? `Puts hole ${n} into ${curveKindWord(f.curve.kind)} — move it first.` : `Puts hole ${n} past ${edgeName(f.edge!)} — move it in, or reduce the count or the spacing first.`;
     case 'off-flat': return `Puts hole ${n} where a cut has removed the wood — move it first.`;
     case 'meets-hole': return `Puts hole ${n} into ${f.other!.row === rowId ? `hole ${f.other!.index + 1}` : `hole ${f.other!.index + 1} of another row`} — move it or widen the spacing first.`;
     case 'too-deep': return `Deeper than the ${r.face} — use Through.`;
