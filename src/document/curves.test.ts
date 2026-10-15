@@ -84,6 +84,8 @@ describe('curveOutline (spec §3.1)', () => {
     const sag = arc.radius * (1 - Math.cos(Math.abs(arc.sweep) / chords / 2));
     expect(sag).toBeLessThanOrEqual(0.005 + 1e-12);
     expect(chords).toBe(18);                                            // the spike's count for this arch
+    expect(close(o.pts[9]!, arc.crown, 1e-9)).toBe(true);               // t = 1/2 of 18 chords: the crown, so the chords run the minor way
+    expect(o.pts[9]![1]).toBeGreaterThan(0);
   });
   it('caps the chord count', () => {
     expect(curveOutline(apron, ARCH, 1e-6, 24).arcEdge.filter(Boolean).length).toBe(24);
