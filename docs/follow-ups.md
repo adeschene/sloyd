@@ -5599,8 +5599,12 @@ left byte-identical on purpose (inv 52's imperial guarantee). Remedy: the same "
 display precision. **Status:** open — the user's call (it changes imperial output).
 
 **360. Built-in pine has no 2× (or thicker) default stock.** `defaultBuying('pine')` lists only 3/4" S4S boards (the
-1×2…1×12 widths at 6′/8′ lengths); a custom NOMINAL solid gets the full `NOMINAL_DEFAULT_STOCK` (1×, 2× in 8/10/12′, 4×4,
-4×6, 6×6). So a 2×4 (38 × 89 mm, or 1-1/2 × 3-1/2) in built-in pine is named `2×4` yet Buying reports "fits no pine stock
+1×2…1×12 widths at 6′/8′ lengths); a custom NOMINAL solid gets the full `NOMINAL_DEFAULT_STOCK` (1× at 8′, 2× at
+8/10/12′, 4×4 at 8′). So a 2×4 (38 × 89 mm, or 1-1/2 × 3-1/2) in built-in pine is named `2×4` yet Buying reports "fits no pine stock
 — too thick" until the user adds 2× sizes in Materials & prices. Found during fu 354's live check (2026-10-15). Remedy to
 discuss: give pine the nominal default stock (a change for any browser whose shop settings were never saved — saved
-settings keep their own list), or leave pine as board stock and say so in the dialog. **Status:** open — the user's call.
+settings keep their own list), or leave pine as board stock and say so in the dialog. **Status:** closed 2026-10-15 — the
+user chose the nominal set. Pine keeps its own 1× list (6′ and 8′, its own ids, so no 1× choice changes) and adds the
+nominal list's 2× (8/10/12′) and 4×4 (8′): 36 sizes, no prices. Reaches only a browser whose pine settings were never saved
+(or "Reset pine to defaults"). Consequence, as for a custom nominal solid already: a 3/4" pine part longer than 8′ or wider
+than a 1×12, refused before ("too long"/"too wide"), now buys 2× stock with a plane note.
