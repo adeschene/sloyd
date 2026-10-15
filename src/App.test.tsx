@@ -1457,6 +1457,22 @@ describe('App type-anywhere tape capture', () => {
     expect(useStore.getState().tool).toBe('select');
   });
 
+  it('Escape never touches the section: every rung of the ladder, and Escape with nothing to back out of (spec §6)', async () => {
+    const user = await anchoredTape();
+    const cut = { axis: 'front' as const, at: 0.5, flip: true };
+    await act(async () => { useStore.getState().setSection(cut); });
+    await user.keyboard('z');
+    expect(useStore.getState().tapeAxis).toBe('z');
+    for (let i = 0; i < 4; i += 1) {           // axis, anchor, tool, then a press with nothing left
+      await user.keyboard('{Escape}');
+      expect(useStore.getState().section).toEqual(cut);
+    }
+    expect(useStore.getState().tool).toBe('select');
+    expect(useStore.getState().tapeAnchor).toBeNull();
+    // View state outlives a render: leave no section behind for the next test (it would filter its clicks).
+    await act(async () => { useStore.getState().setSection(null); });
+  });
+
   it('does not lock an axis while the cut list is open', async () => {
     const user = await anchoredTape();
     await user.click(screen.getByRole('button', { name: /cut list/i }));
