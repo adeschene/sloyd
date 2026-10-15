@@ -12,6 +12,10 @@ export const BODY_EPS = 1e-9;
 /** Inches: how near a candidate line must pass a smooth outline point to be one of an arc's facet lines (curves spec
  *  §3.3). The chord vertices are the same numbers in both (curveOutline), so this only absorbs clip's arithmetic. */
 export const SMOOTH_EPS = 1e-7;
+/** How near parallel (|n × m|) a face's normal must be to an outline edge's for the face to be that edge's (a smooth
+ *  join's two faces, bodyEdges' `smooth`). Both come from the same outline points, so this only absorbs arithmetic;
+ *  a chord turns far more than this (24 chords at most per arc). */
+const SMOOTH_NORMAL_EPS = 1e-7;
 
 /** One face of a body: outward unit normal and a convex polygon, board-local. Winding is NOT meaningful —
  *  a consumer that needs it orients against `n` (BoardMesh does). `cut` names the angle cut whose plane
@@ -266,8 +270,16 @@ interface Wing { n: V3; w: V3 }
  *
  * `keep` (curves spec §3.3) skips candidate lines: a polygon edge on a line it refuses (given the edge's start, its
  * direction and its face's normal) makes no candidate, but its face still contributes wings to the lines that remain.
+ * `smooth` (curves spec §3.3) names, for a line, the normal pairs of faces that meet along it WITHOUT a crease (an
+ * arc's facets at a chord vertex, a chord and the straight face at a tangent join): a stretch where the only wings left
+ * are one face of each normal of such a pair is no edge. Judged per stretch, so a wall that meets the same line
+ * elsewhere (a dado reaching a tangent join) still draws its crease there.
  */
-export function bodyEdges(bodies: readonly Body[], keep?: (o: V3, u: V3, n: V3) => boolean): [V3, V3][] {
+export function bodyEdges(
+  bodies: readonly Body[],
+  keep?: (o: V3, u: V3, n: V3) => boolean,
+  smooth?: (o: V3, u: V3) => readonly (readonly [V3, V3])[],
+): [V3, V3][] {
   const edgesOf = (f: BodyFace): [V3, V3][] =>
     f.verts.map((a, i) => [a, f.verts[(i + 1) % f.verts.length]!] as [V3, V3]).filter(([a, b]) => len(sub(b, a)) > SLIVER);
   // A face with fewer than three non-sliver edges has no area worth the name, and with its sliver edges
@@ -316,6 +328,8 @@ export function bodyEdges(bodies: readonly Body[], keep?: (o: V3, u: V3, n: V3) 
     for (const t of ts) if (!cuts.length || t - cuts[cuts.length - 1]! > BODY_EPS) cuts.push(t);
 
     // 3. Judge each interval at its midpoint; merge consecutive drawn intervals into one segment.
+    const pairs = smooth?.(line.o, line.u) ?? [];
+    const par = (a: V3, b: V3) => len(cross(a, b)) <= SMOOTH_NORMAL_EPS;
     const judge = (tm: number): boolean => {
       if (!line.spans.some(([lo, hi]) => lo - BODY_EPS <= tm && tm <= hi + BODY_EPS)) return false;
       const mid = add(line.o, scale(line.u, tm));
@@ -349,6 +363,8 @@ export function bodyEdges(bodies: readonly Body[], keep?: (o: V3, u: V3, n: V3) 
       }
       const flat = wings.length === 2
         && dot(wings[0]!.n, wings[1]!.n) > 1 - BODY_EPS && dot(wings[0]!.w, wings[1]!.w) < -1 + BODY_EPS;
+      if (wings.length === 2 && pairs.some(([p, q]) => (par(wings[0]!.n, p) && par(wings[1]!.n, q))
+        || (par(wings[0]!.n, q) && par(wings[1]!.n, p)))) return false;   // a smooth join: the two faces turn by a facet
       return wings.length > 0 && !flat;
     };
 
@@ -387,9 +403,12 @@ function areaIn(verts: readonly V3[], k: number): number {
  * a face facing +k wound anticlockwise and one facing −k clockwise — so two bodies' faces against each other (a seam)
  * cancel, and slices' faces merge into one outline. A segment already drawn on a plane of an earlier axis is skipped,
  * and so is one on another curve's smooth line (below).
- * (2) Everything else: `bodyEdges` with the lines on those planes skipped, and the lines along `through` at smooth
- * outline points (a chord vertex, a tangent join) skipped — an arc draws no facet lines (invariant 16).
- * A line on one of those planes is skipped only as an edge of a face lying on it or square to it: a SLANTED face (an
+ * (2) Everything else: `bodyEdges` with the lines on those planes skipped. The lines along `through` at smooth outline
+ * points (a chord vertex, a tangent join) are judged per stretch: no edge where only the join's two faces meet — an arc
+ * draws no facet lines (invariant 16) — but a crease where anything else meets the line (a dado wall reaching a tangent
+ * join). So the outline leaves such a line to bodyEdges, and `keep` never skips it.
+ * A line on one of those planes is skipped only as an edge of a face lying on it or square to it — square to THAT
+ * plane's axis; a face of a curve through another axis is no exception: a SLANTED face (an
  * angle cut's) can crease against a wall at a plane's height off that plane's faces (a 1/4" chamfer's lower crease at a
  * 1/4"-deep dado's floor height), which the outline does not draw. Such a face's edges stay candidates, and whatever
  * the outline already drew on their lines is taken off what bodyEdges returns, so nothing is drawn twice.
@@ -399,8 +418,9 @@ export function curvedEdges(board: Board, bodies: readonly Body[]): [V3, V3][] {
   const axes = [...new Set(board.curves.map((c) => DIMENSION_ORDER.indexOf(c.through)))];
   const faces = bodies.flatMap((b) => b.faces);
   const smooth = smoothLines(board);
-  const onSmooth = (o: V3, u: V3) => smooth.some(({ k, p }) => Math.abs(Math.abs(u[k]!) - 1) <= BODY_EPS
+  const smoothOn = (o: V3, u: V3) => smooth.filter(({ k, p }) => Math.abs(Math.abs(u[k]!) - 1) <= BODY_EPS
     && [0, 1, 2].every((i) => i === k || Math.abs(o[i]! - p[i]!) <= SMOOTH_EPS));
+  const onSmooth = (o: V3, u: V3) => smoothOn(o, u).length > 0;
   const out: [V3, V3][] = [];
   const planes: { k: number; c: number }[] = [];
   for (const k of axes) {
@@ -417,7 +437,7 @@ export function curvedEdges(board: Board, bodies: readonly Body[]): [V3, V3][] {
       for (const [a, b] of unionOutline(g.pieces, k)) {
         if (planes.some((p) => Math.abs(a[p.k]! - p.c) <= BODY_EPS && Math.abs(b[p.k]! - p.c) <= BODY_EPS)) continue;
         // A plane of one axis can hold another curve's smooth line (a rounded edge's tangent line on the face an arch
-        // runs through): its outline runs there, but the surface does not crease.
+        // runs through): bodyEdges judges that line per stretch (below), so the outline leaves it.
         if (onSmooth(a, unit(sub(b, a)))) continue;
         out.push([a, b]);
       }
@@ -425,15 +445,25 @@ export function curvedEdges(board: Board, bodies: readonly Body[]): [V3, V3][] {
     for (const g of groups) planes.push({ k, c: g.c });
   }
   const onPlane = (o: V3, u: V3) => planes.some(({ k, c }) => Math.abs(u[k]!) <= BODY_EPS && Math.abs(o[k]! - c) <= BODY_EPS);
-  const slanted = (n: V3) => planes.some(({ k }) => Math.abs(n[k]!) > BODY_EPS && Math.abs(Math.abs(n[k]!) - 1) > BODY_EPS);
-  const keep = (o: V3, u: V3, n: V3) => (!onPlane(o, u) || slanted(n)) && !onSmooth(o, u);
+  const keep = (o: V3, u: V3, n: V3) => onSmooth(o, u) || !skipsInPlane(planes, o, u, n);
   const outline = out.slice();
-  for (const seg of bodyEdges(bodies, keep)) {
+  for (const seg of bodyEdges(bodies, keep, (o, u) => smoothOn(o, u).map((s) => s.n))) {
     const u = unit(sub(seg[1], seg[0]));
     if (onPlane(seg[0], u)) out.push(...minusCovered(seg, u, outline));
     else out.push(seg);
   }
   return out;
+}
+
+/**
+ * curvedEdges' plane skip: a candidate line (point `o`, direction `u`, from a face of normal `n`) is left to the outline
+ * when some through plane {k, c} holds it AND the face is not slanted relative to THAT plane's axis k (it lies on the
+ * plane or is square to it). Slant is judged per plane: a chord face of a curve through another axis is slanted to this
+ * one's planes only if its normal is (testing it against every axis would make every chord edge a candidate).
+ */
+export function skipsInPlane(planes: readonly { k: number; c: number }[], o: V3, u: V3, n: V3): boolean {
+  return planes.some(({ k, c }) => Math.abs(u[k]!) <= BODY_EPS && Math.abs(o[k]! - c) <= BODY_EPS
+    && !(Math.abs(n[k]!) > BODY_EPS && Math.abs(Math.abs(n[k]!) - 1) > BODY_EPS));
 }
 
 /** `seg` (direction `u`) minus every stretch of `cover` lying on its line; pieces of SLIVER or less are dropped. */

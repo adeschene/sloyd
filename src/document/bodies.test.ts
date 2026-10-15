@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
 import type { AngleCut, Board, Cut, CurveCut } from './types';
-import { BODY_EPS, clipConvex, curvedEdges, splitBodiesForTest, type Body } from './bodies';
+import { BODY_EPS, clipConvex, curvedEdges, skipsInPlane, splitBodiesForTest, type Body } from './bodies';
 import { ARCH, CORNER } from './curveFixtures';
 import { archCurve, bowCurve, cornerCurve, curveOutline, curvePlan, smoothLines } from './curves';
 import type { V3 } from './angleCuts';
@@ -506,6 +506,32 @@ describe('curvedEdges equals the slow edges minus facet lines (curves spec §3.3
       .filter((f) => f.length >= 4).map((faces) => ({ box: null, faces })));
     expect(halves.length).toBeGreaterThan(boardBodies(b).length);
     expect(canon(curvedEdges(b, halves))).toEqual(canon(curvedEdges(b, boardBodies(b))));
+  });
+  it('a dado wall reaching a tangent join draws its crease there, and only there (fix round 1)', () => {
+    // A 2" corner at length-min / width-min; its straight side runs into the arc at (2, 0). A dado across the width at
+    // offset 2 (depth 1/4) puts its wall (normal +length) on that line over t ∈ [0.5, 0.75], where it meets the last
+    // chord face at a real angle. Below the floor the chord meets the width-min face tangentially: no line. Checked
+    // directly, not through the oracle (whose filter drops the whole line).
+    const b = { ...top, cuts: [{ ...dado, offset: 2 }], curves: [{ id: 'r', ...cornerCurve({ through: 'thickness', uFrom: 'min', vFrom: 'min', radius: 2 }) }] };
+    const onJoin = curvedEdges(b, boardBodies(b)).filter(([p, q]) => [p, q].every((x) => Math.abs(x[0] - 2) < 1e-7 && Math.abs(x[1]) < 1e-7));
+    const zs = onJoin.map(([p, q]) => [Math.min(p[2], q[2]), Math.max(p[2], q[2])] as [number, number]);
+    expect(zs.some(([lo, hi]) => lo <= 0.5 + 1e-7 && hi >= 0.75 - 1e-7)).toBe(true);
+    expect(zs.every(([lo]) => lo >= 0.5 - 1e-7)).toBe(true);
+    // The same per stretch through the slow path: bodyEdges over every face with the same smooth pairs.
+    const smooth = smoothLines(b);
+    const pairs = (o: V3, u: V3) => smooth.filter(({ k, p }) => Math.abs(Math.abs(u[k]!) - 1) <= 1e-9
+      && [0, 1, 2].every((i) => i === k || Math.abs(o[i]! - p[i]!) <= 1e-7)).map((s) => s.n);
+    expect(canon(curvedEdges(b, boardBodies(b)))).toEqual(canon(bodyEdges(boardBodies(b), undefined, pairs)));
+  });
+  it('the plane skip judges slant against the holding plane\'s own axis (fix round 1)', () => {
+    const planes = [{ k: 2, c: 0.75 }, { k: 0, c: 30 }];
+    // An arch chord face (square to the thickness, slanted to the length): its edge on the top plane is the outline's.
+    expect(skipsInPlane(planes, [10, 1, 0.75], [0.8, 0.6, 0], [0.6, -0.8, 0])).toBe(true);
+    // A chamfer face (slanted to the thickness): its edge on the top plane stays a candidate.
+    expect(skipsInPlane(planes, [0, 4.75, 0.75], [1, 0, 0], [0, Math.SQRT1_2, Math.SQRT1_2])).toBe(false);
+    // A face on the top plane itself, and a line no plane holds.
+    expect(skipsInPlane(planes, [0, 4.75, 0.75], [1, 0, 0], [0, 0, 1])).toBe(true);
+    expect(skipsInPlane(planes, [0, 4.75, 0.5], [1, 0, 0], [0, 1, 0])).toBe(false);
   });
   it('an arch draws no line between its chords and one at each end', () => {
     const b = { ...apron, curves: [ARCH] };

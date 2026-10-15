@@ -180,18 +180,31 @@ export function curveOutline(board: Pick<Board, Dimension>, c: Omit<CurveCut, 'i
 }
 
 /** The lines along each curve's `through` at its smooth outline points (spec §3.3): board-local, the point with
- *  p[k] = 0, k the through axis. curvedEdges drops a candidate line on one of these. */
-export function smoothLines(board: Pick<Board, Dimension | 'curves'>): { k: number; p: V3 }[] {
+ *  p[k] = 0, k the through axis, and `n` the unit normals (either sign) of the two outline edges meeting there — the
+ *  planes of the two faces that meet along the line without a crease (two chord faces, or a chord face and the straight
+ *  face the arc runs into; at a rounded corner's join the outline edge lies on the part's face). curvedEdges judges a
+ *  stretch of such a line as no edge only where those two faces are all that meet (bodyEdges' `smooth`). */
+export function smoothLines(board: Pick<Board, Dimension | 'curves'>): { k: number; p: V3; n: [V3, V3] }[] {
   return board.curves.flatMap((c) => {
     const [u, v] = uvDims(c.through);
+    const [ui, vi] = [DIMENSION_ORDER.indexOf(u), DIMENSION_ORDER.indexOf(v)];
     const k = DIMENSION_ORDER.indexOf(c.through);
     const o = curveOutline(board, c);
+    const m = o.pts.length;
+    const normal = (a: P2, b: P2): V3 => {
+      const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      const n: V3 = [0, 0, 0];
+      n[ui] = -(b[1] - a[1]) / l;
+      n[vi] = (b[0] - a[0]) / l;
+      return n;
+    };
     return o.pts.flatMap((q, i) => {
       if (!o.smooth[i]) return [];
       const p: V3 = [0, 0, 0];
-      p[DIMENSION_ORDER.indexOf(u)] = q[0];
-      p[DIMENSION_ORDER.indexOf(v)] = q[1];
-      return [{ k, p }];
+      p[ui] = q[0];
+      p[vi] = q[1];
+      const n: [V3, V3] = [normal(o.pts[(i - 1 + m) % m]!, q), normal(q, o.pts[(i + 1) % m]!)];
+      return [{ k, p, n }];
     });
   });
 }
