@@ -6,7 +6,8 @@
 bench line follow the project's `units`; imperial output stays byte-for-byte unchanged.
 
 **Architecture:** `units/length.ts` gains a `Units` type and unit-aware `formatLength`/`parseLength` plus `formatMm`,
-`formatLengthBare`, `formatSize`, `snapStep`, `floorToTick`. The document's `units.display` admits `'metric-mm'`; a store
+`formatLengthBare`, `formatSize`, `floorToTick`; the drag grid `snapStep` sits beside `SNAP_INCHES` in `document/geometry.ts`
+(it produces no string, so it must not pull the store or Gizmo into `units` — the `→ units` edge rule). The document's `units.display` admits `'metric-mm'`; a store
 action switches it as one edit. Every text-producing caller passes the document's own `units` (approach A, inv 52). During
 the conversion `formatLength`/`parseLength` temporarily also accept a plain precision number / no units; Task 6 removes that
 so the type checker proves every caller converted. Chunk-2 surfaces (drawings, buying) stay imperial in this chunk, by an
@@ -27,8 +28,9 @@ explicit `imperialAt(precision)` the chunk-2 plan replaces.
 - Free drags snap to 1 mm (`1 / 25.4` in) in metric, 1/16 in imperial (R5); exact moves never rounded (inv 25); Generate's
   and joinery's `SNAP_INCHES` untouched.
 - No schema bump (R6): `CURRENT_VERSION` stays 16.
-- Imperial output byte-for-byte unchanged: every existing test passes UNCHANGED (do not edit an existing expectation to make
-  a task pass — if one fails, the conversion is wrong).
+- Imperial output byte-for-byte unchanged: NO existing expectation changes (do not edit an expected value to make a task
+  pass — if one fails, the conversion is wrong). Task 6 may change a test's CALL (`formatLength(x, 16)` → `imperialAt(16)`),
+  never what it expects.
 - `units` imports nothing (layer 1). The `→ units` edge rule stands.
 - No pull requests: branch `metric-1`, merged locally with `--no-ff`. `npm run build` is the typecheck gate.
 
@@ -87,14 +89,13 @@ export function formatMm(inches: number, decimals: 0 | 1): string;              
 export function formatLengthBare(inches: number, units: Units): string;         // metric '762', imperial === formatLength
 export function formatSize(values: readonly number[], units: Units): string;    // imperial 'a × b' (each with ″); metric '762 × 140 mm'
 export function parseLength(input: string, units?: Units): number | null;       // undefined = imperial (TEMPORARY until Task 6)
-export function snapStep(units: Units): number;                                  // 1/16 or 1/25.4
 export function floorToTick(inches: number, units: Units): number;              // floor to the display grid (1/precision in, or 1 mm)
 ```
 
 - [ ] **Step 1: Write the failing tests** (append to `length.test.ts`; import the new names)
 
 ```ts
-import { formatLength, formatLengthBare, formatMm, formatSize, floorToTick, IMPERIAL, imperialAt, parseLength, snapStep, type Units } from './length';
+import { formatLength, formatLengthBare, formatMm, formatSize, floorToTick, IMPERIAL, imperialAt, parseLength, type Units } from './length';
 
 const MM: Units = { display: 'metric-mm', precision: 16 };
 const inch = (mm: number) => mm / 25.4;
@@ -151,11 +152,7 @@ describe('parseLength — metric', () => {
   });
 });
 
-describe('snapStep / floorToTick', () => {
-  it('1/16 in imperial, 1 mm in metric', () => {
-    expect(snapStep(IMPERIAL)).toBe(1 / 16);
-    expect(snapStep(MM)).toBe(1 / 25.4);
-  });
+describe('floorToTick', () => {
   it('floors to the display grid, never up', () => {
     expect(floorToTick(23.47, IMPERIAL)).toBe(Math.floor(23.47 * 16 + 1e-9) / 16);
     expect(formatLength(floorToTick(inch(596.9), MM), MM)).toBe('596 mm');
@@ -219,9 +216,6 @@ export function formatSize(values: readonly number[], units: Units): string {
   return `${values.map((v) => formatLengthBare(v, units)).join(' × ')} mm`;
 }
 
-/** The free-drag grid (spec R5): 1/16" or 1 mm. Exact moves are never rounded to it (inv 25). */
-export const snapStep = (units: Units): number => (isMetric(units) ? 1 / MM_PER_INCH : 1 / 16);
-
 /** Floor to the display grid — a LIMIT is floored, never rounded (fu 309's advice): 1/precision inch, or 1 mm. The 1e-9
  *  is float noise (inv 22). */
 export function floorToTick(inches: number, units: Units): number {
@@ -244,7 +238,7 @@ is the same in both modes except a bare number's unit.
 - [ ] **Step 5: Mutate.** Drop the `(1 + Number.EPSILON)` nudge in `mmNumber` → the `18.5 → 19 mm` case or the round-trip
   must fail (if neither does, add `[inch(2.5), '3 mm']` and re-run); remove the `BARE_RE` branch → the metric bare cases fail;
   swap `floorToTick`'s `Math.floor` for `Math.round` → the `596.9 → 596 mm` case fails. Revert each.
-- [ ] **Step 6: Commit** — `git add src/units && git commit -m "feat(units): Units, metric format/parse, snap step, tick floor"`
+- [ ] **Step 6: Commit** — `git add src/units && git commit -m "feat(units): Units, metric format/parse, tick floor"`
 
 ### Task 2: Document model and the switch action
 
@@ -554,7 +548,15 @@ export function UnitsSwitch() {
 }
 ```
 Mount `<UnitsSwitch />` in `Toolbar.tsx` right after the `{libraryAvailable && (<ProjectMenu …/>)}` block.
-Drag snap: `store.ts` moveGroupTo — `const step = snapStep(get().doc.units); const snap = (v: number) => Math.round(v / step) * step;`.
+Drag snap — `snapStep` lives in `src/document/geometry.ts` beside `SNAP_INCHES` (type-only import of `Units`; the edge
+rule counts a type-only import as no edge — say so in inv 52's record):
+```ts
+/** The FREE-drag grid (metric-display spec R5): 1/16" or 1 mm. Exact moves are never rounded to it (inv 25); Generate and
+ *  joinery keep SNAP_INCHES. Here, not in units/, because it produces no string (the → units edge rule). */
+export const snapStep = (units: Units): number => (units.display === 'metric-mm' ? 1 / 25.4 : SNAP_INCHES);
+```
+with a test in `geometry.test.ts`: `snapStep({display:'imperial-fractional',precision:16})` is `1/16` and the metric one `1/25.4`.
+`store.ts` moveGroupTo — `const step = snapStep(get().doc.units); const snap = (v: number) => Math.round(v / step) * step;`.
 `Gizmo.tsx`: read `const units = useStore((s) => s.doc.units)`; `translationSnap={snapStep(units)}`; replace the module-level
 `snap` with one built from `snapStep(units)` inside the component (keep the comment about why the corner is snapped).
 Note for the metric grid: the drag rounding `Math.round(v / (1/25.4)) * (1/25.4)` gives whole mm within float noise —
@@ -577,20 +579,28 @@ the test uses `toBeCloseTo` on mm for that reason; the imperial assertion stays 
 - [ ] **Step 3:** `npm run build && npm test` — clean, all PASS.
 - [ ] **Step 4:** `grep -rn "formatLength(\|parseLength(" src --include=*.ts --include=*.tsx | grep -v test | grep -v "units\|imperialAt\|IMPERIAL\|MM\b"`
   — read every remaining hit and confirm it passes a `Units`.
-- [ ] **Step 5: Commit** — `git commit -am "refactor(units): every length formatter and parser takes Units (inv 52)"`
+- [ ] **Step 5: Ad-hoc length text.** Inv 52 claims every person-facing length goes through `units/length.ts`; prove it.
+  Run `grep -rnE '\$\{[^}]+\}("|in\b|″|mm\b)|toFixed\(' src --include=*.ts --include=*.tsx | grep -v '\.test\.'` and classify
+  every hit in the report: model-facing (Generate/Refine prompts and design text — stays inches, spec non-goal),
+  person-facing length (convert with the project's units in this task), or not a length (degrees, money, board feet,
+  counts). List each person-facing exception you keep and why.
+- [ ] **Step 6: Commit** — `git commit -am "refactor(units): every length formatter and parser takes Units (inv 52)"`
 
 ### Task 7: Live check, records, merge
 
+- [ ] **Step 0:** Watch a gizmo drag of a 3/4" part in metric for hopping: TransformControls snaps the CENTRE to 1 mm and
+  `commit` snaps the CORNER to 1 mm — the two grids sit 0.525 mm apart for a 19.05 mm part.
 - [ ] **Step 1:** `npm run dev -- --port 5181 --strictPort`; Playwright, the user watching. Never `localStorage.clear()` on
   the dev origin; delete only what this check creates.
 - [ ] **Step 2: Check** (record in `docs/browser-verification-metric-display.md`): a new test project; Units → mm; add a
   board: Properties shows `610 mm × 140 mm × 19 mm`; type `600` → 600 mm; type `3/4` in Thickness → `19 mm`; drag with the
   gizmo → Position reads whole mm; Tape: measure, type `250` → a guide 250 mm away; Guides footer lists mm; add a shelf-pin
-  row → `6.4 mm` / `32 mm`; Cut list rows in mm, bench lines in mm, Plans sheet still imperial (chunk 2, expected); undo the
+  row → `6.4 mm` / `32 mm`; Cut list rows in mm, bench lines in mm (the part-diagram and nesting labels and the Plans sheet stay imperial until chunk 2 — see the deploy gate below); undo the
   switch → inches; reload → the project keeps mm. Delete the test project; confirm the profile's keys are as before.
 - [ ] **Step 3: Records.** `CLAUDE.md`: invariant 52 (spec §5), inv 18/19/25 and the `→ units` rule restated to name
   `Units`, "Where things live" for `units/length.ts` and `UnitsSwitch.tsx`; `docs/follow-ups.md` (next free number after
   352): chunk 2 owed, P1/P2 rulings, residue; `docs/history.md` entry; `docs/feature-gaps.md` Metric display row
   ("chunk 1 …").
 - [ ] **Step 4:** Final review, then on the user's word: `git checkout master && git merge --no-ff metric-1 && npm run build
-  && npm test && git branch -d metric-1`. Deploy only on the user's word (no schema change; rollback free).
+  && npm test && git branch -d metric-1`. **Deploy gate:** chunk 1 is not deployed alone — a metric cut list would print mm rows beside imperial diagram labels on
+  one sheet. It merges; it deploys with chunk 2 (the user's call at plan review; see the hand-off). No schema change.
