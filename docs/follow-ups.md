@@ -5560,6 +5560,15 @@ A slider move recomputes it per crossed part per frame, so two drilled sides cro
 that keeps the local plane coordinate is served from the per-part cap cache (0.35–0.55 ms); explode ticks and moves along
 the cut axis miss it. Remedy to measure first: triangulate a face's interior rings as holes (as `faceTriangles` does)
 instead of wedge-splitting. **Status:** open.
+- **Closed 2026-10-15 (follow-ups session, branch `follow-ups-1`).** Measured first (one process, min of 12): 15.7 ms a
+  cap, `unionOutline` over the 1975 wedges ~5 of it. The named remedy (triangulate the rings as holes) would need a
+  triangulator in `document/`, which imports no `three` (earcut lives there) — not taken. Instead the outline is BUILT
+  when every bore the plane meets is cut across its axis, strictly between mouth and bottom, its ring strictly inside one
+  unbored piece and clear of every other ring: the unbored pieces' union plus each ring's edges (`buildLocalPieces`);
+  anything else unions the bored pieces as before. 15.7 → 10.6 ms. Tests: the built outline and a union of the same
+  pieces cover each other; overlapping bores fall back. Mutated — no disjoint guard, no base outline — each red. The
+  one-piece condition is stricter than needed (a ring inside the union across a seam would do); kept as the safe side.
+  Residue: minusPrism's wedges, ~8 ms, remain (a triangulated cap would need earcut in `document/`). **Status:** closed.
 
 **349. Snap points on caps.** The Tape and Move tools offer no points on a cap (a mortise's floor corner seen in
 section, a bore's centre on the cut). Spec §1 non-goal. **Status:** open — ask before assuming it is wanted.

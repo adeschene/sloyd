@@ -13,6 +13,8 @@ import type { Board, Section } from '../document/document';
  *   unionOutline's line grouping bucketed on its tolerances (was a linear scan, about 18-21 ms) and its weights swept
  *   (about 8-9 ms after the bucketing, 5 ms after the sweep), the world map done as one affine map per axis (about
  *   2 ms), a box prefilter before minusPrism (about 3 ms). What is left is minusPrism's wedge splitting, about 8 ms.
+ *   fu 348 (2026-10-15): the outline built from the unbored pieces and the rings, not a union over the ~2000 wedges:
+ *   15.7 -> 10.6 (min of 12, one process); the wedges' ~8 ms remain.
  * - front plane at the rows' inset, ALONG a row of 21 bores: 3.7-4.8 -> 2.1-2.5 (bound 10).
  * - side plane through a dado the pins cross: 1.0-1.8 -> 0.3 (bound 5).
  * - (final review I3) the same drilled side MOVED by a micro-inch across the plane's direction each run (one geometry

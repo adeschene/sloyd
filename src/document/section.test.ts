@@ -311,6 +311,33 @@ describe('sectionCaps outline', () => {
     const gonPerimeter = 48 * 2 * 0.125 * Math.sin(Math.PI / 48);
     expect(len(sectionCaps(b, { axis: 'top', at: 1.25, flip: false })!.outline as [P3, P3][])).toBeCloseTo(52 + 3 * gonPerimeter, 6);
   });
+  // fu 348: across bores the outline is built from the unbored pieces and the rings; it must be what a union of the bored
+  // pieces gives (every segment of each lies on the other's). Overlapping bores fall back to the union itself.
+  const covers = (a: [P3, P3][], b: [P3, P3][]) => a.every(([p, q]) => {
+    const m: P3 = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2];
+    return b.some(([x, y]) => {
+      const d = [y[0] - x[0], y[1] - x[1], y[2] - x[2]];
+      const l2 = d[0]! ** 2 + d[1]! ** 2 + d[2]! ** 2;
+      const t = Math.max(0, Math.min(1, ((m[0] - x[0]) * d[0]! + (m[1] - x[1]) * d[1]! + (m[2] - x[2]) * d[2]!) / l2));
+      return Math.hypot(m[0] - x[0] - t * d[0]!, m[1] - x[1] - t * d[1]!, m[2] - x[2] - t * d[2]!) <= 1e-9;
+    });
+  });
+  const pinRow = (station: number, count: number) => ({ id: `r${station}`, face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.5,
+    along: 'length' as const, alongFrom: 'min' as const, station, count, pitch: 2, acrossFrom: 'min' as const, inset: 1.5 });
+  it('across bores, the built outline is the union of the bored pieces (fu 348)', () => {
+    const b = createBoard({ id: 'v1', length: 20, width: 6, thickness: 1.5, position: [0, 0, 0], holes: [pinRow(2, 3)] });
+    const cap = sectionCaps(b, { axis: 'top', at: 1.25, flip: false })!;
+    const union = unionOutline(cap.pieces, 1) as [P3, P3][];
+    expect(covers(cap.outline as [P3, P3][], union)).toBe(true);
+    expect(covers(union, cap.outline as [P3, P3][])).toBe(true);
+  });
+  it('overlapping bores: the outline is the union\'s, not two whole rings (fu 348)', () => {
+    const b = createBoard({ id: 'v2', length: 20, width: 6, thickness: 1.5, position: [0, 0, 0], holes: [pinRow(2, 1), pinRow(2.1, 1)] });
+    const cap = sectionCaps(b, { axis: 'top', at: 1.25, flip: false })!;
+    const union = unionOutline(cap.pieces, 1) as [P3, P3][];
+    expect(covers(cap.outline as [P3, P3][], union)).toBe(true);
+    expect(covers(union, cap.outline as [P3, P3][])).toBe(true);
+  });
   it('a plain box: the rectangle', () => {
     expect(len(sectionCaps(box, { axis: 'front', at: 3, flip: false })!.outline as [P3, P3][])).toBeCloseTo(43, 9);
   });

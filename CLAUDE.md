@@ -867,7 +867,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     `clipConvex`, a body face lying ON the plane and facing the removed side capped too (a holed body's mesh drops seam
     faces; spec §3.1 as amended), every piece normalised to ONE winding before `minusPrism` (pocketCells merges cells, so
     clip caps and face caps mix; `unionOutline`'s cancellation needs one winding), bores subtracted, the outline the boundary
-    of the union. World cap pieces wind clockwise as the viewer sees them (board frames are improper): the cap fan rewinds
+    of the union (built as the unbored pieces' union plus each ring when every bore the plane meets is cut across its axis,
+    inside one piece, clear of the others — fu 348; else the union of the bored pieces). World cap pieces wind clockwise as the viewer sees them (board frames are improper): the cap fan rewinds
     each by its Newell normal before fanning, or a DoubleSide cap is lit from behind (in `viewport/capFill.ts`, which for a curved part also inserts the other pieces' vertices on each piece's
     edges and fans from the centroid — no specks; a part without curves fans byte-for-byte as before). The cap material takes no clipping plane and
     is keyed on `faded`. **Picking and snapping read only `keptBySection`** (a raycast wrapper on part meshes; Move/Tape
