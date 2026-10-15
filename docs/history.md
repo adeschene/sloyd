@@ -18,6 +18,14 @@
 
 ## Deployment record
 
+**Production matches `master` as of 2026-10-15 with curves chunk 1 live** (`index-D4nh2vvL.js`, CSS `index-B_EfuaB_.css`,
+merge `54ea740`, **schema 17** — a rollback to fu 357, `7f851f9` / `index-BZDp6iOz.js`, refuses projects saved since; export
+first). Merged on the user's word (4374 tests across 148 files, build clean on the merged tree; branch deleted). Verified per the
+deployment rule: `200` on a deep route at the edge; bundle and CSS match `dist/` in-network (via `127.0.0.1`) and at the edge;
+the old bundle `index-BZDp6iOz.js` 404s in-network; CSP `connect-src 'self' https://api.anthropic.com` at the edge; a
+real-browser load (0 errors, the Cloudflare beacon and "+ Add board" present; its fresh project stored as `version: 17`; the
+load's two keys cleared from a plain asset page and read back empty after 3s, then navigated away).
+
 **Production matches `master` as of 2026-10-14 with holes chunk 2 live** (`index-DFCdm3n1.js`, CSS `index-CT8doMkT.css`,
 merge `d74e5c5`, schema 16 unchanged — a rollback to chunk 1, `index-CTpNZw9F.js`, is free). Verified per the deployment
 rule: `200` on `/` and a deep route in-network and at the edge; bundle and CSS match `dist/` at both; the old bundle 404s
@@ -453,9 +461,8 @@ and 79.
 ## What each round did
 
 **What curves chunk 1 did (2026-10-15, feature gaps §1)** (spec `docs/superpowers/specs/2026-10-15-sloyd-curves-design.md`,
-plan `docs/superpowers/plans/2026-10-15-sloyd-curves-chunk1.md`, branch `curves` from `4be8d00`, HEAD `0ccb64f`). **Built,
-NOT merged or deployed** — merge and deploy wait on the user's word. **Schema 17** once merged: a build below 17 refuses
-every project saved since (export first). Picked by Claude at the user's request. The user's rulings while brainstorming:
+plan `docs/superpowers/plans/2026-10-15-sloyd-curves-chunk1.md`, branch `curves` from `4be8d00`, HEAD `0ccb64f`). **Merged as `54ea740` and deployed 2026-10-15**
+(`index-D4nh2vvL.js`). **Schema 17**: a build below 17 refuses every project saved since (export first). Picked by Claude at the user's request. The user's rulings while brainstorming:
 curved profiles cut clean through a part first (no edge profiles, no bent parts); arcs now, splines later without a schema
 bump (a stored path of segments; an unknown segment type refuses the document); through any of the three dimensions,
 default the thickness; Claude features refuse curved projects this round; approach 1, measured — curves become part of the
@@ -550,7 +557,7 @@ in-browser frame times were llvmpipe's: ~1.1–1.4 s with or without the arch; n
 two-axis the least margin). The shadow and cap fix is confirmed on llvmpipe only; a real-hardware look closes it.
 **Deferred:** chunk 2's drawings (fu 361), spec §12's list (362–367; the grain seam appended to fu 336), the non-convex
 rebuild cost (368), a holed face of a curved part keeping T-junctions (369), real-hardware looks (370), record-only minors
-(371–373). Test count 4189 → 4374 (141 → 148 files). NEXT: the user's merge word.
+(371–373). Test count 4189 → 4374 (141 → 148 files).
 
 **What fu 357 did (2026-10-15)** (bounded, in-chat design; branch `fu-357`). The approved mechanism — the note as a print-only
 header group repeated per page — was measured not to work: Chromium repeats neither a CSS `table-header-group` nor a real

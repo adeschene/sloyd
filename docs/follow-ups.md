@@ -5441,7 +5441,7 @@ parentheses only (spec §4.1, amended). **Status:** open (spec §11).
 (spec §3.2, inv 35's sloped-face rule), so a bore's wall switches from end-grain rings to long grain halfway round with a
 hard seam. The user, on the live pass: "It looks pretty bad and the seam is very clear." A seamless look needs cylindrical
 or triplanar mapping — shader work judged by eye. **Status:** deferred by the user 2026-10-14 to a later texture/shader
-session; chunk 1 ships with the seam. **Also covers curved faces (curves chunk 1, 2026-10-15, branch `curves`):** a curve's
+session; chunk 1 ships with the seam. **Also covers curved faces (curves chunk 1, deployed 2026-10-15):** a curve's
 chord face takes the plan of its nearest world axis (inv 35), so around an arc the grain switches partway with the same
 kind of seam — accepted by the user's ruling in the curves spec (§1, §3.4); the same cylindrical/triplanar remedy, the same
 session. Not yet seen on real hardware (fu 370).
@@ -5629,7 +5629,7 @@ than a 1×12, refused before ("too long"/"too wide"), now buys 2× stock with a 
 
 ## From the curves round (chunk 1) — 2026-10-15
 
-Chunk 1 is built on branch `curves` (schema 17), not yet merged or deployed. Spec
+Chunk 1 merged (`54ea740`) and deployed 2026-10-15 (schema 17). Spec
 `docs/superpowers/specs/2026-10-15-sloyd-curves-design.md`; the narrative is `docs/history.md`.
 
 **361. Curves chunk 2: drawings.** Spec §5 and §10's chunk 2. The Plans sheet already draws curved parts through
