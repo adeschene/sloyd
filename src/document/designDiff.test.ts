@@ -265,6 +265,6 @@ describe('diffDesigns in metric', () => {
   it('a length change reads in mm', () => {
     const mm = (d: ReturnType<typeof doc>) => ({ ...d, units: { display: 'metric-mm' as const, precision: 16 } });
     const out = diffDesigns(mm(doc(BASE)), mm(doc([BASE[0], part('Shelf', [0, 0, 0], [40, 1, 14])])));
-    expect(out[0]!.text).toBe('Shelf: 1016 mm × 305 mm × 25 mm → 1016 mm × 356 mm × 25 mm');
+    expect(out[0]!.text).toBe('Shelf: 1016 × 305 × 25 mm → 1016 × 356 × 25 mm');
   });
 });

@@ -126,8 +126,10 @@ const capitalise = (d: Dimension): string => d[0].toUpperCase() + d.slice(1);
  * this module does not recompute what counts as a crossing (see
  * `depthField.ts`'s own doc comment for that rule).
  */
-export function buildDiagrams(board: Board, precision: number, units: Units = imperialAt(precision)): DiagramView[] {
-  const f = (n: number) => formatLength(n, imperialAt(precision));
+export function buildDiagrams(board: Board, units: Units | number): DiagramView[] {
+  // A bare number is imperial at that precision (the shim the line functions share); the labels below stay imperial either way.
+  const u = typeof units === 'number' ? imperialAt(units) : units;
+  const f = (n: number) => formatLength(n, imperialAt(u.precision));
   const views = new Map<string, DiagramView>();
 
   const ensure = (face: Dimension, from: CutFrom): DiagramView => {
@@ -229,7 +231,7 @@ export function buildDiagrams(board: Board, precision: number, units: Units = im
     if (clean.length < 3) continue;
     const existing = (['min', 'max'] as const).map((from) => views.get(`${face}|${from}`)).filter((v): v is DiagramView => v !== undefined);
     const targets = existing.length > 0 ? existing : [ensure(face, 'min')];
-    const label = angleLine(board, c, units);
+    const label = angleLine(board, c, u);
     for (const view of targets) view.angles.push({ id: c.id, poly: clean.map(([x, y]) => [x, y] as [number, number]), label });
   }
 
@@ -273,7 +275,7 @@ export function buildDiagrams(board: Board, precision: number, units: Units = im
       mark(view, r);
     }
   }
-  for (const [view, ids] of used) for (const r of board.holes) if (ids.has(r.id)) view.holeNotes.push({ row: r.id, text: holeLine(board, r, units) });
+  for (const [view, ids] of used) for (const r of board.holes) if (ids.has(r.id)) view.holeNotes.push({ row: r.id, text: holeLine(board, r, u) });
 
   // A cut-free board still gets a drawing, for the "all parts" setting: broad
   // face on, length running horizontally — the view a woodworker draws by hand.

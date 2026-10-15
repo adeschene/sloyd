@@ -821,3 +821,16 @@ describe('metric display (units chunk 1)', () => {
     expect(buildCutList(doc).groups[0]!.rows).toHaveLength(2);
   });
 });
+
+describe('metric part diagram notes (units chunk 1)', () => {
+  const MMU = { display: 'metric-mm' as const, precision: 16 };
+  it('a holed part: the hole note reads in mm', () => {
+    const hole = { id: 'h', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const,
+      alongFrom: 'min' as const, station: 2, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 1.5 };
+    const doc = { ...createDocument('M'), units: MMU, boards: [createBoard({ name: 'Side', length: 30, width: 11.25, thickness: 0.75, holes: [hole] })] };
+    const notes = buildCutList(doc).groups[0]!.rows[0]!.diagrams.flatMap((d) => d.holeNotes);
+    expect(notes.length).toBeGreaterThan(0);
+    expect(notes[0]!.text).toContain(' mm');
+    expect(notes[0]!.text).not.toContain('"');
+  });
+});

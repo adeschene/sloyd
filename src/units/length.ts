@@ -6,7 +6,7 @@ export type LengthDisplay = 'imperial-fractional' | 'metric-mm';
 export interface Units { display: LengthDisplay; precision: number }
 export const IMPERIAL: Units = Object.freeze({ display: 'imperial-fractional', precision: 16 }) as Units;
 export const imperialAt = (precision: number): Units => ({ display: 'imperial-fractional', precision });
-const isMetric = (u: Units) => u.display === 'metric-mm';
+export const isMetric = (u: Units) => u.display === 'metric-mm';
 
 const MM_RE = /^(-?(?:\d+\.?\d*|\.\d+))\s*mm$/;
 const FEET_RE = /^((?:\d+\.?\d*|\.\d+))\s*(?:'|ft)\s*/;

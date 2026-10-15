@@ -1,5 +1,5 @@
 import type { Board, CutFrom, Dimension, HoleRow } from './types';
-import { formatLength, formatMm, imperialAt, type Units } from '../units/length';
+import { formatLength, formatMm, imperialAt, isMetric, type Units } from '../units/length';
 import { faceName } from './angleText';
 import { acrossOf } from './holes';
 import { holeFaults, type HoleFault } from './holeFaults';
@@ -52,7 +52,7 @@ export function holeLine(board: Board, r: HoleRow, units: Units | number): strin
 }
 
 function holeLineBase(r: HoleRow, units: Units): string {
-  const metric = units.display === 'metric-mm';
+  const metric = isMetric(units);
   const f = (n: number) => formatLength(n, units);
   const dia = (n: number) => (metric ? formatMm(n, 1) : `${f(n)}${mm(n)}`);
   const size = `${dia(r.diameter)} dia × ${r.depth === 'through' ? 'through' : `${f(r.depth)} deep`}`;

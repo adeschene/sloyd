@@ -334,7 +334,7 @@ export function buildCutList(doc: FlatDocument): CutList {
         // precision the sheet is printed to, the representative's word is the
         // more useful one at the bench. Follow-up 55.
         setup: setupLines(board, units),
-        diagrams: buildDiagrams(board, precision, units),
+        diagrams: buildDiagrams(board, units),
         nominal: catalog.get(board.material)?.nominal ? nominalName(board.thickness, board.width) : null,
         stockInches: 0,
         stock: '',

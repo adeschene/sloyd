@@ -1,4 +1,4 @@
-import { formatLength } from '../units/length';
+import { formatLength, formatSize } from '../units/length';
 import { catalogOf } from './materials';
 import { boardExtents } from './geometry';
 import type { Board, Instance, SloydDocument } from './types';
@@ -49,7 +49,7 @@ export function diffDesigns(before: SloydDocument, after: SloydDocument): Change
   const cb = catalogOf(before);
   const label = (m: string) => ca.get(m)?.label ?? cb.get(m)?.label ?? m;
   const len = (n: number) => formatLength(n, after.units);
-  const dims = (b: Board) => sizeOf(b).map(len).join(' × ');
+  const dims = (b: Board) => formatSize(sizeOf(b), after.units);
   // A component that displays as zero is omitted, so no line reads "X +0".
   const delta = (d: number[]) => d.flatMap((n, k) => (len(Math.abs(n)) === len(0) ? [] : [`${'XYZ'[k]} ${n > 0 ? '+' : ''}${len(n)}`])).join(', ');
   const A = sideOf(before);
