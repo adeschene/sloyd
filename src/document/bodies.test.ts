@@ -488,6 +488,9 @@ describe('curvedEdges equals the slow edges minus facet lines (curves spec §3.3
     // Two through axes (not in the brief): the end corner's planes and the arch's share the top/end edges — the
     // earlier-plane skip is what keeps them from being drawn twice.
     ['through two axes', { ...apron, curves: [ARCH, endCorner] }],
+    // A slanted face's crease at a through-plane height off that plane's faces (not in the brief): the 1/4" chamfer's lower
+    // crease runs at (w 5, t 0.5), the dado floor's height — z = 0.5 is a through plane along the whole part.
+    ['a chamfer crease at a dado floor height', { ...apron, cuts: [dado], angleCuts: [{ ...chamfer, points: [[0, 0.25], [0.25, 0]] }], curves: [ARCH] }],
   ];
   for (const [name, b] of cases) {
     it(name, () => {

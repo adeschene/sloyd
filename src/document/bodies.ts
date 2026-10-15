@@ -264,10 +264,10 @@ interface Wing { n: V3; w: V3 }
  * neighbouring faces share is computed twice and the two values differ in the
  * last bits, so nothing here assumes exact equality.
  *
- * `keep` (curves spec §3.3) skips candidate lines: a polygon edge on a line it refuses (given the edge's start and its
- * direction) makes no candidate, but its face still contributes wings to the lines that remain.
+ * `keep` (curves spec §3.3) skips candidate lines: a polygon edge on a line it refuses (given the edge's start, its
+ * direction and its face's normal) makes no candidate, but its face still contributes wings to the lines that remain.
  */
-export function bodyEdges(bodies: readonly Body[], keep?: (o: V3, u: V3) => boolean): [V3, V3][] {
+export function bodyEdges(bodies: readonly Body[], keep?: (o: V3, u: V3, n: V3) => boolean): [V3, V3][] {
   const edgesOf = (f: BodyFace): [V3, V3][] =>
     f.verts.map((a, i) => [a, f.verts[(i + 1) % f.verts.length]!] as [V3, V3]).filter(([a, b]) => len(sub(b, a)) > SLIVER);
   // A face with fewer than three non-sliver edges has no area worth the name, and with its sliver edges
@@ -283,7 +283,7 @@ export function bodyEdges(bodies: readonly Body[], keep?: (o: V3, u: V3) => bool
       let u = unit(sub(b, a));
       const lead = Math.abs(u[0]) > BODY_EPS ? u[0] : Math.abs(u[1]) > BODY_EPS ? u[1] : u[2];
       if (lead < 0) u = scale(u, -1);
-      if (keep && !keep(a, u)) continue;
+      if (keep && !keep(a, u, f.n)) continue;
       let line = lines.find((l) => len(cross(l.u, u)) <= BODY_EPS && len(cross(sub(a, l.o), l.u)) <= BODY_EPS);
       if (!line) { line = { o: a, u, ts: [], spans: [] }; lines.push(line); }
       const ta = dot(sub(a, line.o), line.u);
@@ -389,6 +389,10 @@ function areaIn(verts: readonly V3[], k: number): number {
  * and so is one on another curve's smooth line (below).
  * (2) Everything else: `bodyEdges` with the lines on those planes skipped, and the lines along `through` at smooth
  * outline points (a chord vertex, a tangent join) skipped — an arc draws no facet lines (invariant 16).
+ * A line on one of those planes is skipped only as an edge of a face lying on it or square to it: a SLANTED face (an
+ * angle cut's) can crease against a wall at a plane's height off that plane's faces (a 1/4" chamfer's lower crease at a
+ * 1/4"-deep dado's floor height), which the outline does not draw. Such a face's edges stay candidates, and whatever
+ * the outline already drew on their lines is taken off what bodyEdges returns, so nothing is drawn twice.
  * Never mutates `bodies` (partGeometry's are frozen and shared).
  */
 export function curvedEdges(board: Board, bodies: readonly Body[]): [V3, V3][] {
@@ -420,9 +424,39 @@ export function curvedEdges(board: Board, bodies: readonly Body[]): [V3, V3][] {
     }
     for (const g of groups) planes.push({ k, c: g.c });
   }
-  const keep = (o: V3, u: V3) =>
-    !planes.some(({ k, c }) => Math.abs(u[k]!) <= BODY_EPS && Math.abs(o[k]! - c) <= BODY_EPS) && !onSmooth(o, u);
-  out.push(...bodyEdges(bodies, keep));
+  const onPlane = (o: V3, u: V3) => planes.some(({ k, c }) => Math.abs(u[k]!) <= BODY_EPS && Math.abs(o[k]! - c) <= BODY_EPS);
+  const slanted = (n: V3) => planes.some(({ k }) => Math.abs(n[k]!) > BODY_EPS && Math.abs(Math.abs(n[k]!) - 1) > BODY_EPS);
+  const keep = (o: V3, u: V3, n: V3) => (!onPlane(o, u) || slanted(n)) && !onSmooth(o, u);
+  const outline = out.slice();
+  for (const seg of bodyEdges(bodies, keep)) {
+    const u = unit(sub(seg[1], seg[0]));
+    if (onPlane(seg[0], u)) out.push(...minusCovered(seg, u, outline));
+    else out.push(seg);
+  }
+  return out;
+}
+
+/** `seg` (direction `u`) minus every stretch of `cover` lying on its line; pieces of SLIVER or less are dropped. */
+function minusCovered(seg: [V3, V3], u: V3, cover: readonly [V3, V3][]): [V3, V3][] {
+  const o = seg[0];
+  const t1 = dot(sub(seg[1], o), u);
+  const gaps: [number, number][] = [];
+  for (const [a, b] of cover) {
+    if (len(cross(sub(a, o), u)) > BODY_EPS || len(cross(sub(b, o), u)) > BODY_EPS) continue;
+    const ta = dot(sub(a, o), u);
+    const tb = dot(sub(b, o), u);
+    gaps.push([Math.min(ta, tb), Math.max(ta, tb)]);
+  }
+  if (gaps.length === 0) return [seg];
+  gaps.sort((x, y) => x[0] - y[0]);
+  const out: [V3, V3][] = [];
+  let at = 0;
+  for (const [lo, hi] of gaps) {
+    if (lo - at > SLIVER) out.push([add(o, scale(u, at)), add(o, scale(u, Math.min(lo, t1)))]);
+    at = Math.max(at, hi);
+    if (at >= t1) break;
+  }
+  if (t1 - at > SLIVER) out.push([add(o, scale(u, at)), seg[1]]);
   return out;
 }
 
