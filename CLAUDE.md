@@ -296,6 +296,8 @@ src/
 │   ├── drawing.ts        drawView: exact hidden-line vector drawing; edges from boardEdges (inv 16) plus hole lines from
 │   │                     holeDrawingSegments, occluders from worldBodies (the bodies, angle cuts included, holes not), via partGeometry
 │   ├── explode.ts        explodeOffsets (hierarchical, floor-lifted), EXPLODE_SPREAD/INNER
+│   ├── section.ts        THE section cut (inv 51): Section, keptBySection (THE side test), sectionPlaneOf, sectionSpan,
+│   │                     sectionCaps (board-local caps minus bores, a per-part local cache), unionOutline
 │   ├── dimensions.ts     overall + chain dimension values and strings per axis (fitting is panels/planDims.ts)
 │   ├── plans.ts          planAssemblies: what the sheet draws (copies, mirrored parity)
 │   └── treeFixtures.ts, turnFixtures.ts   TEST-ONLY (assemblyDoc; chiralPart, inv 44);
@@ -333,6 +335,7 @@ src/
 │                     grainTiling.ts' hole path (inv 50): bodyMesh (holed faces; seam faces subtracted only in holed
 │                     bodies), faceTriangles (rings as holes, clip-split fallback), holeMesh (one hole's wall + bottom;
 │                     clean = unclipped), holesMesh (every hole of a part, ONE geometry); holesPerf.test.ts (the guard)
+│                     sectionPlane.ts (THE shared clipping plane, inv 51); BoardMesh draws its part's cap; sectionPerf.test.ts
 ├── panels/           DimensionField/NameField (invs 5, 9), Properties, CopyInRow, PartsList,
 │                     Toolbar, TapeReadout (invs 27, 28), GuidesList, ProjectMenu,
 │                     SettingsDialog, GenerateDialog, JoineryDialog, RefineDialog, RepairNotice, CutList, PartDiagram,
@@ -743,12 +746,26 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     `buildDiagrams` are byte-for-byte unchanged; its SVG path differs only by chaining (chunk 2 R2: within one part) — do not undo the chaining to
     "restore" it.
 
+51. **The section cut is view state with ONE writer (`setSection`), never in the document, undo or autosave; reset only
+    where `explode` is (initial state, `replaceDocument`).** One shared `THREE.Plane` (`viewport/sectionPlane.ts`) clips
+    every part material (`clipShadows` too) and edge line on the GPU, so a slider move changes one uniform and rebuilds no
+    part geometry. **Caps come only from `sectionCaps` (`document/section.ts`)**: board-local — a placed part's cut is one
+    of its own axis planes (quarter turns, mirroring resolved by the composition; inv 44) — each convex body clipped by
+    `clipConvex`, a body face lying ON the plane and facing the removed side capped too (a holed body's mesh drops seam
+    faces; spec §3.1 as amended), every piece normalised to ONE winding before `minusPrism` (pocketCells merges cells, so
+    clip caps and face caps mix; `unionOutline`'s cancellation needs one winding), bores subtracted, the outline the boundary
+    of the union. World cap pieces wind clockwise as the viewer sees them (board frames are improper): BoardMesh rewinds each
+    by its Newell normal before fanning, or a DoubleSide cap is lit from behind. The cap material takes no clipping plane and
+    is keyed on `faded`. **Picking and snapping read only `keptBySection`** (a raycast wrapper on part meshes; Move/Tape
+    candidates), guide points exempt — guides are drawn unclipped. The per-part local-cap cache is hit only on the same
+    `geometryKey` and the exact local plane coordinate; never hand out its arrays.
+
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 3932 tests across 135 files
+npm test           # Vitest, currently 4017 tests across 138 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

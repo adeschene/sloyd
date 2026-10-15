@@ -452,6 +452,33 @@ and 79.
 
 ## What each round did
 
+**What the section cut did (2026-10-15, feature gaps §2)** (spec `docs/superpowers/specs/2026-10-14-sloyd-section-cut-design.md`,
+plan `docs/superpowers/plans/2026-10-14-sloyd-section-cut.md`, branch `section-cut` from `e56170f`). No schema change; view
+state only, so a rollback costs nothing. User rulings: viewport only (no Plans-sheet sections, fu 256 stays its own item);
+axis planes placed by slider + exact field + Flip; solid caps built from the exact model, not a stencil trick; editing left
+free (picking and snapping filtered to the kept side); approach A (GPU clipping for meshes and edges, exact caps on the
+CPU). At plan review the user approved one spec amendment: a body face lying ON the plane and facing the removed side is
+capped, because a holed body's mesh subtracts seam faces (inv 50) — a plane typed at a dado's shoulder would otherwise show
+a hole into the part; any face exactly on the plane therefore reads as cut. Subagent-driven, seven tasks plus a final
+review: (1) `section.ts`' side test (`keptBySection`, the ONE), plane and span; (2) `localCapPieces`/`sectionCaps` — each
+convex body clipped by `clipConvex` in board-local coordinates (the plane is always one of the part's own axis planes), the
+on-plane face cap, every piece normalised to one winding (pocketCells MERGES cells, so clip caps and face caps mix), bores
+subtracted by `minusPrism`; checked against an independent inside-test over every posture, quarter turn and mirror, tapers,
+miters and bevels; (3) `unionOutline` — the boundary of the pieces' union, opposite collinear stretches cancelled;
+(4) store `section`/`setSection` (reset only with `explode`); (5) the Section toggle and group (stacked under the View group
+in one right-hand column — the first placement, bottom-right, collided with the tape readout); (6) BoardMesh: one shared
+`THREE.Plane` with `clipShadows`, the cap inside BoardMesh (shares its click handlers and fade/selection), a raycast wrapper
+dropping removed-side hits, Move/Tape candidates filtered (guide points exempt: guides are drawn unclipped — a ruling); the
+task review caught every cap BACK-facing (board frames are improper, so world pieces wind clockwise as seen by the
+viewer; DoubleSide then flipped the explicit normal away) — fixed by rewinding each piece by its Newell normal; (7) the
+perf guard — the first measure was 36–38 ms across 42 bores; bucketed line grouping + a sweep, an affine world map and a
+per-hole box prefilter brought it to 13–14 ms (fu 348). Plan mutation claims were wrong twice (a kept-side mutation the
+pose sweep could not see — a plane through cell interiors caps the same from either side; a guard the store's own refusal
+already covered). The final review found a cap material not remounted on fade (three bakes OPAQUE), the right-hand
+column swallowing canvas clicks, and caps rebuilt every drag frame — fixed (a per-part cache of the local cap: a move that
+keeps the plane's place costs 0.35–0.55 ms instead of 12–14). Live pass: `docs/browser-verification-section-cut.md`.
+Follow-ups 347–352.
+
 **What holes chunk 2 did (2026-10-14, fu 327)** (spec `docs/superpowers/specs/2026-10-14-sloyd-holes-design.md` §3.4, §4.3,
 §7, plan `docs/superpowers/plans/2026-10-14-sloyd-holes-chunk2.md`, branch `holes-2` from `fc4875e` — master `0a1060c` plus
 the §4.3 amendment). **Merged to master as `d74e5c5` and deployed the same day** (`index-DFCdm3n1.js`); no schema change, so a rollback to
