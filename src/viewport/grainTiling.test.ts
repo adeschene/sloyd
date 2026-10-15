@@ -941,6 +941,21 @@ describe('a clean hole draws its wall whole across a seam (ruling R15)', () => {
   });
 });
 
+describe('a hole into a curve\'s waste is not clean: its wall is clipped to the bodies (invariant 50, curves Task 10)', () => {
+  const apron = createBoard({
+    id: 'a', length: 30, width: 5, thickness: 0.75, curves: [ARCH],
+    holes: [{ id: 'h', face: 'thickness', from: 'max', diameter: 0.5, depth: 'through', along: 'length', alongFrom: 'min', station: 15, count: 1, pitch: 0, acrossFrom: 'min', inset: 1 }],
+  });
+  it('the bore is not in stock (it meets the arch) and its wall is not the clean 2 x 96-quad path', () => {
+    const h = boardHoles(apron)[0]!;
+    expect(holeInStock(apron, h)).toBe(false);
+    const tris = (b: typeof apron) => holeMesh(b, boardHoles(b)[0]!, boardBodies(b)).positions.length / 9;
+    const clean = createBoard({ ...apron, curves: [] });
+    expect(tris(clean)).toBe(2 * HOLE_SEGMENTS);                         // the unclipped path: one quad (2 triangles) per facet
+    expect(tris(apron)).not.toBe(2 * HOLE_SEGMENTS);                     // the arch's bodies split and drop wall
+  });
+});
+
 describe('faceTriangles: faulted and tangent holes take the fallback split (ruling R4; holes spec §3.2)', () => {
   // A 10 x 10 panel, 1in thick, holes r = 1 entered from the top (thickness max) face.
   const row = { id: 'h', face: 'thickness' as const, from: 'max' as const, diameter: 2, depth: 0.5, along: 'length' as const, alongFrom: 'min' as const, station: 4, count: 2, pitch: 1, acrossFrom: 'min' as const, inset: 5 };

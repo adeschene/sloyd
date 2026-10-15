@@ -76,4 +76,8 @@ describe('holeLengthText: the one diameter/pitch formatter (bench line and Holes
     expect(holeLine(side, pins, MM)).toContain(`${holeLengthText(pins.diameter, MM, 'diameter')} dia`);
     expect(holeLine(side, pins, MM)).toContain(`every ${holeLengthText(pins.pitch, MM, 'pitch')},`);
   });
+  it('a hole into a curve reads by the curve\'s kind (P4)', () => {
+    expect(holeFaultText({ index: 2, kind: 'breaks-out', curve: { id: 'c1', kind: 'arch' } }, pins)).toBe('hole 3 runs into the arch');
+    expect(holeFaultText({ index: 0, kind: 'breaks-out', curve: { id: 'c1', kind: null } }, pins)).toBe('hole 1 runs into a curve cut');
+  });
 });

@@ -650,6 +650,10 @@ export function deriveCurveKind(c: Omit<CurveCut, 'id'>): CurveKind | null {
   return archFields(c) ? 'arch' : bowFields(c) ? 'bow' : cornerFields(c) ? 'corner' : null;
 }
 
+/** A curve kind in words for a fault ("hole 3 runs into the arch"); null is a curve no preset describes. Lives here, not in
+ *  curveText.ts, which imports holeText (an import cycle otherwise). */
+export const curveKindWord = (k: CurveKind | null) => (k === 'arch' ? 'the arch' : k === 'bow' ? 'the bow' : k === 'corner' ? 'the rounded corner' : 'a curve cut');
+
 const flipFrom = (f: CutFrom): CutFrom => (f === 'min' ? 'max' : 'min');
 
 /** A curve reflected along dimension `d` (inv 44): a FLAG FLIP, never arithmetic on coordinates — `uFrom` when u is `d`,

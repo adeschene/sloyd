@@ -2,6 +2,7 @@ import type { Board, CutFrom, Dimension, HoleRow } from './types';
 import { formatLength, formatMm, imperialAt, isMetric, type Units } from '../units/length';
 import { faceName } from './angleText';
 import { acrossOf } from './holes';
+import { curveKindWord } from './curves';
 import { holeFaults, type HoleFault } from './holeFaults';
 
 /** "end" for the length, "side" for width and thickness: THE one home of the word (the Properties labels read it too). */
@@ -15,7 +16,7 @@ export const edgeName = (e: { dim: Dimension; side: CutFrom }) => `the ${e.dim} 
 export function holeFaultText(f: HoleFault, r: HoleRow): string {
   const n = f.index + 1;
   switch (f.kind) {
-    case 'breaks-out': return `hole ${n} runs past ${edgeName(f.edge!)}`;
+    case 'breaks-out': return f.curve ? `hole ${n} runs into ${curveKindWord(f.curve.kind)}` : `hole ${n} runs past ${edgeName(f.edge!)}`;
     case 'off-flat': return `hole ${n} sits where a cut has removed the wood`;
     case 'meets-hole': return `hole ${n} meets ${f.other!.row === r.id ? `hole ${f.other!.index + 1}` : 'a hole of another row'}`;
     case 'too-deep': return `the holes are deeper than the ${r.face}`;
@@ -25,7 +26,7 @@ export function holeFaultText(f: HoleFault, r: HoleRow): string {
 /** A fault's identity: per hole, except too-deep, which is a property of the ROW (every hole shares its depth). The
  *  Properties panel's "does this edit ADD a fault" reads it too. */
 export const faultKey = (f: HoleFault) => (f.kind === 'too-deep' ? 'too-deep' : `${f.index}:${f.kind}`);
-/** One fault per key, in holeFaults' order: THE one count of a row's faults (invariant 19), read by the bench line and
+/** One fault per key (a hole that both passes an edge and meets a curve reads ONE breaks-out), in holeFaults' order: THE one count of a row's faults (invariant 19), read by the bench line and
  *  the Properties note, so a row thinned under its depth reads one fault, not one per hole. */
 export const distinctFaults = (fs: HoleFault[]) => fs.filter((f, i) => fs.findIndex((g) => faultKey(g) === faultKey(f)) === i);
 

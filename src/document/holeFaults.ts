@@ -2,6 +2,7 @@ import type { Board, CutFrom, Dimension, HoleRow } from './types';
 import { DIMENSION_ORDER } from './geometry';
 import { clippedRegion } from './cuts';
 import { keptHalfSpace } from './angleCuts';
+import { circleMeetsWaste, deriveCurveKind, localSegments, rectMeetsWaste, uvDims, type CurveKind } from './curves';
 import { HOLE_EPS, holeInstances, type Hole } from './holes';
 
 export type HoleFaultKind = 'breaks-out' | 'off-flat' | 'meets-hole' | 'too-deep';
@@ -10,6 +11,8 @@ export interface HoleFault {
   kind: HoleFaultKind;
   /** breaks-out: the face edge it runs past. */
   edge?: { dim: Dimension; side: CutFrom };
+  /** breaks-out into a curve's waste: the curve (instead of an edge). */
+  curve?: { id: string; kind: CurveKind | null };
   /** meets-hole: the hole it meets. */
   other?: { row: string; index: number };
 }
@@ -56,12 +59,36 @@ export function stockChecks(board: Board): StockChecks {
   };
 }
 
-/** breaks-out: the face edge the circle runs past (tangent allowed), or null. */
+/** breaks-out: the face edge the circle runs past (tangent allowed), or null. A curve's waste is `intoCurve`, the same fault kind. */
 export function breaksOut(board: Board, h: Hole): { dim: Dimension; side: CutFrom } | null {
   for (const i of inPlane(h)) {
     const d = DIMENSION_ORDER[i]!;
     if (h.centre[i]! - h.radius < -HOLE_EPS) return { dim: d, side: 'min' };
     if (h.centre[i]! + h.radius > board[d] + HOLE_EPS) return { dim: d, side: 'max' };
+  }
+  return null;
+}
+
+/** A hole meeting a curve's waste (curves spec §6.3; touching is meeting): along `through` its disc, square to it the
+ *  rectangle it projects to on (u, v). The first such curve, or null. */
+export function intoCurve(board: Board, h: Hole): { id: string; kind: CurveKind | null } | null {
+  for (const c of board.curves) {
+    const [u, v] = uvDims(c.through);
+    const iu = idx(u);
+    const iv = idx(v);
+    const segs = localSegments(board, c);
+    let hit: boolean;
+    if (h.axis === c.through) hit = circleMeetsWaste(segs, [h.centre[iu]!, h.centre[iv]!], h.radius);
+    else {
+      const [lo, hi] = span(h);
+      const ax = idx(h.axis);
+      const other = ax === iu ? iv : iu;
+      const box = (k: number) => (k === ax ? [lo, hi] : [h.centre[other]! - h.radius, h.centre[other]! + h.radius]);
+      const bu = box(iu);
+      const bv = box(iv);
+      hit = rectMeetsWaste(segs, [bu[0]!, bv[0]!], [bu[1]!, bv[1]!]);
+    }
+    if (hit) return { id: c.id, kind: deriveCurveKind(c) };
   }
   return null;
 }
@@ -101,11 +128,11 @@ export function tooDeep(board: Board, h: Hole): boolean {
 
 /**
  * A hole whose cylinder lies wholly in the stock (ruling R15): it neither breaks out, nor runs off the flat, nor (blind)
- * reaches the back face — the per-hole checks holeFaults reports, from the same functions. Its wall needs no clipping
+ * reaches the back face — the per-hole checks holeFaults reports (a curve's waste included), from the same functions. Its wall needs no clipping
  * to the part's bodies (grainTiling's holeMesh). meets-hole does not matter for the wall.
  */
 export function holeInStock(board: Board, h: Hole, checks: StockChecks = stockChecks(board)): boolean {
-  return !breaksOut(board, h) && !offFlat(checks, h) && !tooDeep(board, h);
+  return !breaksOut(board, h) && !offFlat(checks, h) && !tooDeep(board, h) && !intoCurve(board, h);
 }
 
 /**
@@ -122,6 +149,8 @@ export function holeFaults(board: Board, row: HoleRow): HoleFault[] {
   for (const h of mine) {
     const edge = breaksOut(board, h);
     if (edge) out.push({ index: h.index, kind: 'breaks-out', edge });
+    const curve = intoCurve(board, h);
+    if (curve) out.push({ index: h.index, kind: 'breaks-out', curve });
     if (offFlat(checks, h)) out.push({ index: h.index, kind: 'off-flat' });
     const hit = [...mine.filter((o) => o.index !== h.index), ...others].find((o) => meets(h, o));
     if (hit) out.push({ index: h.index, kind: 'meets-hole', other: { row: hit.row, index: hit.index } });
