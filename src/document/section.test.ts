@@ -1,4 +1,4 @@
-import { createBoard, mirrorPart, pocketCells, keptHalfSpace, partGeometry, taperCut, type Board, type Posture, type Rotation } from './document';
+import { createBoard, mirrorPart, pocketCells, keptHalfSpace, partGeometry, taperCut, miterCut, bevelCut, miterRatio, type Board, type Posture, type Rotation } from './document';
 import { axisFrame, fromWorldOffset, DIMENSION_ORDER } from './geometry';
 import { holePrism } from './holes';
 import { keptBySection, sectionAxisIndex, sectionPlaneOf, sectionSpan, SECTION_EPS, sectionCaps, unionOutline, localCapPieces, type Section } from './section';
@@ -245,6 +245,18 @@ describe('sectionCaps: every pose agrees with an independent inside-test', () =>
       angleCuts: [{ id: 't1', ...taperCut({ face: 'width', from: 'min', end: 'min', start: 15, amount: 0.75 }) }] });
     sweep(leg);
     sweep(mirrorPart(leg));
+  });
+  it.each([['flat', 0], ['on-edge', 90], ['upright', 270]] as [Posture, Rotation][])('a mitered and beveled rail, %s %s', (posture, rotation) => {
+    const dims = { length: 16, width: 3, thickness: 1.25 };
+    // A 45° miter at the max end across the width, and a 30° bevel along the max-width edge: sloped faces on two
+    // different axes, so every section axis crosses at least one of them somewhere.
+    const rail = createBoard({ id: 'rail', ...dims, posture, rotation, position: [0.5, 0.25, -1],
+      angleCuts: [
+        { id: 'm1', ...miterCut({ end: 'max', across: 'width', longSide: 'min', ratio: 1 }, dims) },
+        { id: 'b1', ...bevelCut({ face: 'width', from: 'max', longSide: 'min', ratio: miterRatio(30) }, dims) },
+      ] });
+    sweep(rail);
+    sweep(mirrorPart(rail));
   });
 });
 
