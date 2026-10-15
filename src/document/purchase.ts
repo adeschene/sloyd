@@ -3,8 +3,7 @@ import { MATERIALS, isCustomMaterialId, isSheetGood } from './types';
 import { catalogOf } from './materials';
 import type { CutList } from './cutlist';
 import { packOnto, grainFootprint, type Nesting, type PlacedPart } from './nesting';
-import { formatLength, formatLengthBare, formatSize, isMetric, tradeLength, tradeSize, type Units } from '../units/length';
-// Imperial until metric chunk 2 (drawings/buying, spec §4).
+import { formatLength, formatLengthBare, formatSize, isMetric, mmBracket, tradeLength, tradeSize, type Units } from '../units/length';
 import { NOMINAL_SECTIONS, nominalName, stockLengthText } from '../units/nominal';
 import { formatBoardFeet, formatMoney, INCHES_PER_BOARD_FOOT } from '../units/quantity';
 
@@ -150,8 +149,7 @@ export interface Purchase { entries: PurchaseEntry[]; total: number; totalLabel:
 const sizeDims = (s: StockBoard, units: Units, nominal: boolean) => {
   const name = nominal ? nominalName(s.thickness, s.width) : null;
   if (name === null) return tradeSize([s.thickness, s.width, s.length], units);
-  const text = `${name} × ${stockLengthText(s.length, units.precision)}`;
-  return isMetric(units) ? `${text} (${[s.thickness, s.width, s.length].map((v) => formatLengthBare(v, units)).join(' × ')} mm)` : text;
+  return `${name} × ${stockLengthText(s.length, units.precision)}${mmBracket([s.thickness, s.width, s.length], units)}`;
 };
 /** A PART as the user sees it: in the project's units (a metric project reads mm). */
 const partDims = (b: Board, units: Units) => formatSize([b.thickness, b.width, b.length], units);
@@ -191,7 +189,9 @@ function byThePiece(material: string, label: string, parts: Board[], stock: Stoc
       unplaceable += 1;
       continue;
     }
-    if (t > part.thickness + EPS) notes.push(`${part.name}: plane ${tradeLength(t, units)} stock to ${formatLength(part.thickness, units)}`);
+    // Metric: a 19 mm part from 3/4" stock reads the same whole mm both sides, so there is nothing to plane to say.
+    const sameMm = isMetric(units) && formatLengthBare(t, units) === formatLengthBare(part.thickness, units);
+    if (t > part.thickness + EPS && !sameMm) notes.push(`${part.name}: plane ${tradeLength(t, units)} stock to ${formatLength(part.thickness, units)}`);
     groups.set(t, [...(groups.get(t) ?? []), part]);
   }
 
