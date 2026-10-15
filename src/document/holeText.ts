@@ -44,8 +44,8 @@ function mm(v: number): string {
  * at" is computed from the exact stored values, then rounded. A faulted row (a later edit ran it off the part, spec §2.4)
  * ends with its first fault and how many more — the user's ruling: the bench must not read a wrong row silently.
  */
-export function holeLine(board: Board, r: HoleRow, units: Units | number): string {
-  const base = holeLineBase(r, typeof units === 'number' ? imperialAt(units) : units);
+export function holeLine(board: Board, r: HoleRow, units: Units): string {
+  const base = holeLineBase(r, units);
   const faults = distinctFaults(holeFaults(board, r));
   if (faults.length === 0) return base;
   return `${base} — check: ${holeFaultText(faults[0]!, r)}${faults.length > 1 ? ` (and ${faults.length - 1} more)` : ''}`;
@@ -60,7 +60,7 @@ function holeLineBase(r: HoleRow, units: Units): string {
   const across = acrossOf(r);
   const inset = `${f(r.inset)} in from the ${across} ${r.acrossFrom} ${end(across)}`;
   if (r.count === 1) return `Hole ${size} ${where}, ${f(r.station)} from the ${r.along} ${r.alongFrom} ${end(r.along)}, ${inset}`;
-  const pitch = metric ? formatMm(r.pitch, 1) : `${formatLength(r.pitch, Math.max(units.precision, 64))}${mm(r.pitch)}`;
+  const pitch = metric ? formatMm(r.pitch, 1) : `${formatLength(r.pitch, imperialAt(Math.max(units.precision, 64)))}${mm(r.pitch)}`;
   const last = r.station + (r.count - 1) * r.pitch;
   return `Row of ${r.count} holes ${size} ${where}, along the ${r.along}: first ${f(r.station)} from the ${r.alongFrom} ${end(r.along)}, every ${pitch}, last at ${f(last)}; ${inset}`;
 }

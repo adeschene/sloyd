@@ -1,3 +1,4 @@
+import { IMPERIAL, imperialAt } from '../units/length';
 import { buildDiagrams, createBoard } from './document';
 import type { Board, Cut } from './document';
 import { axisFrame } from './geometry';
@@ -14,7 +15,7 @@ const board = (...cuts: Cut[]): Board => createBoard({ cuts });
 
 describe('buildDiagrams', () => {
   it('gives a cut-free board one broad-face view with no cuts', () => {
-    const views = buildDiagrams(board(), 16);
+    const views = buildDiagrams(board(), IMPERIAL);
     expect(views).toHaveLength(1);
     expect(views[0].face).toBe('thickness');
     expect(views[0].from).toBe('min');
@@ -28,7 +29,7 @@ describe('buildDiagrams', () => {
       dado(),
       dado({ id: 'c2', face: 'width', across: 'length', offset: 0.1, width: 0.2 }),
       dado({ id: 'c3', face: 'length', across: 'thickness', offset: 1, width: 0.5 }),
-    ), 16);
+    ), IMPERIAL);
     expect(views.map((v) => [v.face, v.horizontal, v.vertical])).toEqual([
       ['length', 'width', 'thickness'],
       ['width', 'length', 'thickness'],
@@ -37,7 +38,7 @@ describe('buildDiagrams', () => {
   });
 
   it('draws a cut as a band spanning the full height', () => {
-    const views = buildDiagrams(board(dado()), 16);
+    const views = buildDiagrams(board(dado()), IMPERIAL);
     expect(views[0].cuts[0].h).toEqual([6, 6.75]);
     expect(views[0].cuts[0].v).toEqual([0, 5.5]);
   });
@@ -50,7 +51,7 @@ describe('buildDiagrams', () => {
       { id: 'a', face: 'thickness', from: 'min', across: 'width',  offset: 6, width: 0.75, depth: 0.375, stopMin: 0, stopMax: 0 },
       { id: 'b', face: 'thickness', from: 'min', across: 'length', offset: 4, width: 0.75, depth: 0.125, stopMin: 0, stopMax: 0 },
     ]});
-    const views = buildDiagrams(board, 16);
+    const views = buildDiagrams(board, IMPERIAL);
     expect(views).toHaveLength(1);
     expect(views[0].cuts).toHaveLength(2);
   });
@@ -60,7 +61,7 @@ describe('buildDiagrams', () => {
       { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 6, width: 0.75, depth: 0.375, stopMin: 0, stopMax: 0 },
       { id: 'b', face: 'thickness', from: 'max', across: 'width', offset: 6, width: 0.75, depth: 0.375, stopMin: 0, stopMax: 0 },
     ]});
-    const views = buildDiagrams(board, 16);
+    const views = buildDiagrams(board, IMPERIAL);
     expect(views).toHaveLength(2);
     // Asserts the ACTUAL emitted order, not an alphabetised one: 'min' before
     // 'max' regardless of insertion order, per FROM_ORDER in buildDiagrams —
@@ -72,7 +73,7 @@ describe('buildDiagrams', () => {
     const views = buildDiagrams(createBoard({ length: 24, width: 12, cuts: [
       { id: 'a', face: 'thickness', from: 'min', across: 'width',  offset: 6, width: 0.75, depth: 0.375, stopMin: 0, stopMax: 0 },
       { id: 'b', face: 'thickness', from: 'min', across: 'length', offset: 4, width: 0.75, depth: 0.125, stopMin: 0, stopMax: 0 },
-    ]}), 16);
+    ]}), IMPERIAL);
     const byId = Object.fromEntries(views[0].cuts.map((c) => [c.id, c]));
     expect(byId.a.axis).toBe('h');   // across the width -> positioned along the length
     expect(byId.b.axis).toBe('v');   // across the length -> positioned along the width
@@ -82,7 +83,7 @@ describe('buildDiagrams', () => {
     const views = buildDiagrams(createBoard({ length: 24, width: 12, cuts: [
       { id: 'a', face: 'thickness', from: 'min', across: 'width',  offset: 6, width: 0.75, depth: 0.125, stopMin: 0, stopMax: 0 },
       { id: 'b', face: 'thickness', from: 'min', across: 'length', offset: 4, width: 0.75, depth: 0.375, stopMin: 0, stopMax: 0 },
-    ]}), 16);
+    ]}), IMPERIAL);
     expect(views[0].crossings).toEqual(['overlap: 3/8" deep governs']);
   });
 
@@ -100,7 +101,7 @@ describe('buildDiagrams', () => {
       { id: 'c', face: 'thickness', from: 'min', across: 'width',  offset: 16, width: 1, depth: 0.5, stopMin: 0, stopMax: 0 },
       { id: 'b', face: 'thickness', from: 'min', across: 'length', offset: 2,  width: 1, depth: 0.25, stopMin: 0, stopMax: 0 },
       { id: 'd', face: 'thickness', from: 'min', across: 'length', offset: 8,  width: 1, depth: 0.1, stopMin: 0, stopMax: 0 },
-    ]}), 16);
+    ]}), IMPERIAL);
     expect(views[0].cells.filter((c) => c.crossing).length).toBeGreaterThan(1);
     expect(views[0].crossings).toEqual(['overlap: 1/2" deep governs']);
   });
@@ -109,7 +110,7 @@ describe('buildDiagrams', () => {
     const views = buildDiagrams(createBoard({ length: 24, width: 12, cuts: [
       { id: 'a', face: 'thickness', from: 'min', across: 'width',  offset: 6, width: 0.75, depth: 0.375, stopMin: 0, stopMax: 0 },
       { id: 'b', face: 'thickness', from: 'min', across: 'length', offset: 4, width: 0.75, depth: 0.375, stopMin: 0, stopMax: 0 },
-    ]}), 16);
+    ]}), IMPERIAL);
     expect(views[0].crossings).toEqual([]);
   });
 
@@ -117,8 +118,8 @@ describe('buildDiagrams', () => {
     // `from` now selects a different VIEW; within that view a band still
     // reads out the same region spans. If this fails, the region span is
     // being read out by the wrong key.
-    const near = buildDiagrams(board(dado()), 16)[0].cuts[0];
-    const far = buildDiagrams(board(dado({ from: 'max' })), 16)[0].cuts[0];
+    const near = buildDiagrams(board(dado()), IMPERIAL)[0].cuts[0];
+    const far = buildDiagrams(board(dado({ from: 'max' })), IMPERIAL)[0].cuts[0];
     expect(far.h).toEqual(near.h);
     expect(far.v).toEqual(near.v);
   });
@@ -128,7 +129,7 @@ describe('buildDiagrams', () => {
       dado({ id: 'c3', face: 'length', across: 'thickness', offset: 1, width: 0.5 }),
       dado(),
       dado({ id: 'c2', face: 'width', across: 'length', offset: 0.1, width: 0.2 }),
-    ), 16);
+    ), IMPERIAL);
     expect(views.map((v) => v.face)).toEqual(['length', 'width', 'thickness']);
   });
 
@@ -136,17 +137,17 @@ describe('buildDiagrams', () => {
     const views = buildDiagrams(board(
       dado({ id: 'late', offset: 18 }),
       dado({ id: 'early', offset: 2 }),
-    ), 16);
+    ), IMPERIAL);
     expect(views[0].cuts.map((c) => c.id)).toEqual(['early', 'late']);
   });
 
   it('heads a view with its face and side', () => {
-    expect(buildDiagrams(board(dado()), 16)[0].heading)
+    expect(buildDiagrams(board(dado()), IMPERIAL)[0].heading)
       .toBe('Thickness face — min side');
   });
 
   it('formats every label at the given precision', () => {
-    const [view] = buildDiagrams(board(dado()), 16);
+    const [view] = buildDiagrams(board(dado()), IMPERIAL);
     expect(view.hLabel).toBe('24"');
     expect(view.vLabel).toBe('5-1/2"');
     expect(view.cuts[0].offsetLabel).toBe('6"');
@@ -156,27 +157,27 @@ describe('buildDiagrams', () => {
 
   it('follows the document precision rather than assuming 1/16', () => {
     // 3/8 is unrepresentable at 1/4, so it rounds — proving precision is used.
-    const [view] = buildDiagrams(board(dado()), 4);
+    const [view] = buildDiagrams(board(dado()), imperialAt(4));
     expect(view.cuts[0].depthLabel).toBe('1/2" deep');
   });
 
   it('carries the cut kind from cutLabel', () => {
     const flush = dado({ offset: 23.25 });   // reaches the far end: a rabbet
-    expect(buildDiagrams(board(dado()), 16)[0].cuts[0].kind).toBe('dado');
-    expect(buildDiagrams(board(flush), 16)[0].cuts[0].kind).toBe('rabbet');
+    expect(buildDiagrams(board(dado()), IMPERIAL)[0].cuts[0].kind).toBe('dado');
+    expect(buildDiagrams(board(flush), IMPERIAL)[0].cuts[0].kind).toBe('rabbet');
   });
 
   it('keeps each cut its own id, so two identical cuts stay distinct', () => {
     // cutSignature and setupLine both exclude `id`, so identical cuts collapse
     // there. Here the Cut objects are in hand and the real id costs nothing.
-    const views = buildDiagrams(board(dado(), dado({ id: 'c2' })), 16);
+    const views = buildDiagrams(board(dado(), dado({ id: 'c2' })), IMPERIAL);
     expect(views[0].cuts.map((c) => c.id)).toEqual(['c1', 'c2']);
   });
 
   it('skips a degenerate cut naming one dimension twice', () => {
     // validateCuts drops these on load, but a Board built in code can hold one
     // and this function must not depend on validation having run.
-    const views = buildDiagrams(board(dado({ across: 'thickness' })), 16);
+    const views = buildDiagrams(board(dado({ across: 'thickness' })), IMPERIAL);
     expect(views).toHaveLength(1);
     expect(views[0].face).toBe('thickness');
     expect(views[0].cuts).toEqual([]);
@@ -184,7 +185,7 @@ describe('buildDiagrams', () => {
 });
 
 describe('buildDiagrams — stopped cuts', () => {
-  const only = (cut: Cut) => buildDiagrams(board(cut), 16)[0].cuts[0];
+  const only = (cut: Cut) => buildDiagrams(board(cut), IMPERIAL)[0].cuts[0];
 
   it('adds no stop labels to a cut that is not stopped', () => {
     const c = only(dado());
@@ -219,12 +220,12 @@ describe('buildDiagrams — stopped cuts', () => {
 
 describe('buildDiagrams — a cut that removes nothing (follow-up 178)', () => {
   it('draws no band for it, and keeps a live cut beside it', () => {
-    const views = buildDiagrams(board(dado({ stopMin: 3, stopMax: 3 }), dado({ id: 'c2', offset: 12 })), 16);
+    const views = buildDiagrams(board(dado({ stopMin: 3, stopMax: 3 }), dado({ id: 'c2', offset: 12 })), IMPERIAL);
     expect(views.flatMap((v) => v.cuts.map((c) => c.id))).toEqual(['c2']);
   });
 
   it('falls back to the plain broad-face drawing when every cut removes nothing', () => {
-    const views = buildDiagrams(board(dado({ face: 'width', across: 'length', offset: 30 })), 16);
+    const views = buildDiagrams(board(dado({ face: 'width', across: 'length', offset: 30 })), IMPERIAL);
     expect(views).toHaveLength(1);
     expect(views[0].face).toBe('thickness');
     expect(views[0].cuts).toEqual([]);
@@ -234,7 +235,7 @@ describe('buildDiagrams — a cut that removes nothing (follow-up 178)', () => {
 describe('an overhanging cut is drawn by its clipped box (fu 197)', () => {
   const rabbet = (over: Partial<Cut>): Cut => dado({ across: 'width', offset: 0, width: 0.5, depth: 0.25, ...over });
   const shown = (c: Cut) => {
-    const cuts = buildDiagrams(board(c), 16).flatMap((v) => v.cuts);
+    const cuts = buildDiagrams(board(c), IMPERIAL).flatMap((v) => v.cuts);
     expect(cuts).toHaveLength(1);
     const { h, v, axis, offsetLabel, widthLabel, kind } = cuts[0];
     return { h, v, axis, offsetLabel, widthLabel, kind };
@@ -268,7 +269,7 @@ describe('true views (fu 215)', () => {
         const other = (['length', 'width', 'thickness'] as const).filter((x) => x !== face);
         const b: Board = { ...createBoard({ length: 20, width: 6, thickness: 0.75, posture, rotation }),
           cuts: [{ id: 'c', face, from, across: other[0]!, offset: 0.1, width: 0.1, depth: 0.1, stopMin: 0, stopMax: 0 }] };
-        const v = buildDiagrams(b, 16).find((x) => x.face === face && x.from === from)!;
+        const v = buildDiagrams(b, IMPERIAL).find((x) => x.face === face && x.from === from)!;
         const right = dirOf(b, v.horizontal);
         const up = dirOf(b, v.vertical).map((x) => (v.vUp ? x : -x)); // page v grows DOWN unless vUp
         const toward = dirOf(b, face).map((x) => (from === 'max' ? x : -x)); // outward normal
@@ -282,7 +283,7 @@ describe('true views (fu 215)', () => {
       const other = (['length', 'width', 'thickness'] as const).filter((x) => x !== face);
       cuts.push({ id: `${face}${from}`, face, from, across: other[0]!, offset: 0.1, width: 0.1, depth: 0.1, stopMin: 0, stopMax: 0 });
     }
-    const views = buildDiagrams(createBoard({ length: 20, width: 6, thickness: 0.75, cuts }), 16);
+    const views = buildDiagrams(createBoard({ length: 20, width: 6, thickness: 0.75, cuts }), IMPERIAL);
     expect(views).toHaveLength(6);
     expect(Object.fromEntries(views.map((v) => [v.key, v.vUp]))).toEqual({
       'thickness|min': true, 'thickness|max': false,
@@ -297,7 +298,7 @@ describe('angle cuts in part diagrams (spec §4.3)', () => {
   const leg = () => createBoard({ length: 29, width: 1.75, thickness: 1.75, angleCuts: [taper] });
 
   it('draws the wedge in the view looking along the through dimension', () => {
-    const views = buildDiagrams(leg(), 16);
+    const views = buildDiagrams(leg(), IMPERIAL);
     const v = views.find((x) => x.face === 'thickness' && x.from === 'min')!;
     expect(v.angles).toHaveLength(1);
     // h = length, v = width (DIMENSION_ORDER): a triangle (0,0) (0,0.625) (24,0).
@@ -306,22 +307,22 @@ describe('angle cuts in part diagrams (spec §4.3)', () => {
     expect(v.angles[0]!.label).toMatch(/^Taper 5\/8"/);
   });
   it('a cut-free board has no angles and still one view', () => {
-    const views = buildDiagrams(createBoard({}), 16);
+    const views = buildDiagrams(createBoard({}), IMPERIAL);
     expect(views).toHaveLength(1);
     expect(views[0]!.angles).toEqual([]);
   });
   it('an angle cut that removes nothing is not drawn', () => {
     const b = createBoard({ length: 29, width: 1.75, thickness: 1.75, angleCuts: [{ ...taper, points: [[40, 0], [50, 1]] }] });
-    expect(buildDiagrams(b, 16).flatMap((v) => v.angles)).toEqual([]);
+    expect(buildDiagrams(b, IMPERIAL).flatMap((v) => v.angles)).toEqual([]);
   });
   it('an angle cut that removes nothing does not even open its view', () => {
     const b = createBoard({ length: 29, width: 1.75, thickness: 1.75, angleCuts: [{ ...taper, face: 'thickness' as const, points: [[40, 0], [50, 1]] }] });
-    expect(buildDiagrams(b, 16).map((v) => v.key)).toEqual(['thickness|min']);
+    expect(buildDiagrams(b, IMPERIAL).map((v) => v.key)).toEqual(['thickness|min']);
   });
   it('a dado on the through face\'s max side: that view takes the wedge and no min view is opened (ruling 108)', () => {
     const dado: Cut = { id: 'c1', face: 'thickness', across: 'width', from: 'max', offset: 10, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
     const b = createBoard({ length: 29, width: 1.75, thickness: 1.75, cuts: [dado], angleCuts: [taper] });
-    const views = buildDiagrams(b, 16);
+    const views = buildDiagrams(b, IMPERIAL);
     expect(views.map((v) => v.key)).toEqual(['thickness|max']);
     const pts = views[0]!.angles[0]!.poly.map(([h, w]) => `${Math.round(h * 1e9) / 1e9},${Math.round(w * 1e9) / 1e9}`).sort();
     expect(pts).toEqual(['0,0', '0,0.625', '24,0'].sort());
@@ -329,17 +330,17 @@ describe('angle cuts in part diagrams (spec §4.3)', () => {
   it('dadoes on both sides of the through face: both views take the same wedge', () => {
     const near: Cut = { id: 'c1', face: 'thickness', across: 'width', from: 'min', offset: 10, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
     const far: Cut = { ...near, id: 'c2', from: 'max' };
-    const views = buildDiagrams(createBoard({ length: 29, width: 1.75, thickness: 1.75, cuts: [near, far], angleCuts: [taper] }), 16);
+    const views = buildDiagrams(createBoard({ length: 29, width: 1.75, thickness: 1.75, cuts: [near, far], angleCuts: [taper] }), IMPERIAL);
     expect(views.map((v) => v.key)).toEqual(['thickness|min', 'thickness|max']);
     expect(views[0]!.angles).toHaveLength(1);
     expect(views[1]!.angles).toEqual(views[0]!.angles);
   });
   it('a plain tapered part opens only the min-side through view', () => {
-    expect(buildDiagrams(leg(), 16).map((v) => v.key)).toEqual(['thickness|min']);
+    expect(buildDiagrams(leg(), IMPERIAL).map((v) => v.key)).toEqual(['thickness|min']);
   });
   it('draws in the other horizontal/vertical pairing (through = length: h = width, v = thickness)', () => {
     const bevel = { id: 'b1', kind: 'bevel' as const, face: 'thickness' as const, from: 'min' as const, along: 'width' as const, alongFrom: 'min' as const, points: [[0, 0.5], [1.75, 0]] as [[number, number], [number, number]] };
-    const v = buildDiagrams(createBoard({ length: 29, width: 1.75, thickness: 1.75, angleCuts: [bevel] }), 16).find((x) => x.face === 'length' && x.from === 'min')!;
+    const v = buildDiagrams(createBoard({ length: 29, width: 1.75, thickness: 1.75, angleCuts: [bevel] }), IMPERIAL).find((x) => x.face === 'length' && x.from === 'min')!;
     expect([v.horizontal, v.vertical]).toEqual(['width', 'thickness']);
     const pts = v.angles[0]!.poly.map(([h, t]) => `${Math.round(h * 1e9) / 1e9},${Math.round(t * 1e9) / 1e9}`).sort();
     expect(pts).toEqual(['0,0', '0,0.5', '1.75,0'].sort());
@@ -352,11 +353,11 @@ describe('holes in the part diagrams (holes spec §4.3, amended)', () => {
 
   it('a part without holes draws exactly what it drew before', () => {
     const plain = createBoard({ id: 's', length: 30, width: 11.25, thickness: 0.75 });
-    expect(buildDiagrams({ ...plain, holes: [] }, 16)).toEqual(buildDiagrams(plain, 16));
-    expect(buildDiagrams(plain, 16)[0]!.holes).toEqual([]);
+    expect(buildDiagrams({ ...plain, holes: [] }, IMPERIAL)).toEqual(buildDiagrams(plain, IMPERIAL));
+    expect(buildDiagrams(plain, IMPERIAL)[0]!.holes).toEqual([]);
   });
   it('a holed part with no cuts opens its ENTRY face view, with one circle per hole (Review Focus 4)', () => {
-    const views = buildDiagrams(side(), 16);
+    const views = buildDiagrams(side(), IMPERIAL);
     expect(views.map((v) => v.key)).toEqual(['thickness|max']);
     const v = views[0]!;
     expect(v.horizontal).toBe('length');
@@ -369,13 +370,13 @@ describe('holes in the part diagrams (holes spec §4.3, amended)', () => {
   });
   it('a hole into an end opens the length view', () => {
     const dowel = { ...pins, id: 'd', face: 'length' as const, from: 'max' as const, diameter: 0.375, depth: 1, along: 'width' as const, station: 2, count: 1, acrossFrom: 'min' as const, inset: 0.375 };
-    const views = buildDiagrams(side({ holes: [dowel] }), 16);
+    const views = buildDiagrams(side({ holes: [dowel] }), IMPERIAL);
     expect(views.map((v) => v.key)).toEqual(['length|max']);
     expect(views[0]!.holes).toHaveLength(1);
   });
   it('a view across the axis that exists for another reason shows the depth outline (dashed), not a circle', () => {
     const rabbet = { id: 'c1', face: 'width' as const, from: 'min' as const, across: 'length' as const, offset: 0, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 };
-    const views = buildDiagrams(side({ cuts: [rabbet] }), 16);
+    const views = buildDiagrams(side({ cuts: [rabbet] }), IMPERIAL);
     const w = views.find((v) => v.key === 'width|min')!;
     expect(w.holes).toEqual([]);
     expect(w.holeSides).toHaveLength(3);
@@ -387,19 +388,19 @@ describe('holes in the part diagrams (holes spec §4.3, amended)', () => {
   it('a through hole shows its circle on the far side only when that view exists, and has no bottom', () => {
     const thru = { ...pins, depth: 'through' as const, count: 1 };
     const dado = { id: 'c1', face: 'thickness' as const, from: 'min' as const, across: 'width' as const, offset: 10, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
-    const views = buildDiagrams(side({ holes: [thru], cuts: [dado] }), 16);
+    const views = buildDiagrams(side({ holes: [thru], cuts: [dado] }), IMPERIAL);
     expect(views.find((v) => v.key === 'thickness|min')!.holes).toHaveLength(1);
     expect(views.find((v) => v.key === 'thickness|max')!.holes).toHaveLength(1);
   });
   it('a through hole does not open the far-side view by itself', () => {
-    const views = buildDiagrams(side({ holes: [{ ...pins, depth: 'through' as const, count: 1 }] }), 16);
+    const views = buildDiagrams(side({ holes: [{ ...pins, depth: 'through' as const, count: 1 }] }), IMPERIAL);
     expect(views.map((v) => v.key)).toEqual(['thickness|max']);
   });
   it('a through hole\'s far-side circle and the notes do not depend on row order (R3)', () => {
     const A = { ...pins, id: 'A', depth: 'through' as const, count: 1 };
     const B = { ...pins, id: 'B', from: 'min' as const, station: 6, count: 1 };
-    const one = buildDiagrams(side({ holes: [A, B] }), 16).find((v) => v.key === 'thickness|min')!;
-    const two = buildDiagrams(side({ holes: [B, A] }), 16).find((v) => v.key === 'thickness|min')!;
+    const one = buildDiagrams(side({ holes: [A, B] }), IMPERIAL).find((v) => v.key === 'thickness|min')!;
+    const two = buildDiagrams(side({ holes: [B, A] }), IMPERIAL).find((v) => v.key === 'thickness|min')!;
     for (const v of [one, two]) expect(v.holes.map((c) => c.row).sort()).toEqual(['A', 'B']);
     expect(one.holeNotes).toHaveLength(2);
     expect([...two.holes].sort((x, y) => x.row.localeCompare(y.row))).toEqual([...one.holes].sort((x, y) => x.row.localeCompare(y.row)));
@@ -409,32 +410,32 @@ describe('holes in the part diagrams (holes spec §4.3, amended)', () => {
   it('notes come out in stored row order, a sides-only row before a circle row', () => {
     const S = { ...pins, id: 'S', count: 1 }; // thickness|max: sides-only in the width view
     const C = { ...pins, id: 'C', face: 'width' as const, from: 'min' as const, along: 'length' as const, count: 1, depth: 0.25, inset: 0.375 };
-    const views = buildDiagrams(side({ holes: [S, C] }), 16);
+    const views = buildDiagrams(side({ holes: [S, C] }), IMPERIAL);
     const w = views.find((v) => v.key === 'width|min')!;
     expect(w.holes.map((c) => c.row)).toEqual(['C']);
     expect(w.holeSides.map((c) => c.row)).toEqual(['S']);
     expect(w.holeNotes).toHaveLength(2);
     expect(w.holeNotes.map((n) => n.row)).toEqual(['S', 'C']);
-    expect(w.holeNotes[0]!.text).toBe(buildDiagrams(side({ holes: [S] }), 16)[0]!.holeNotes[0]!.text);
+    expect(w.holeNotes[0]!.text).toBe(buildDiagrams(side({ holes: [S] }), IMPERIAL)[0]!.holeNotes[0]!.text);
   });
   it('a hole entering from the MIN face runs +1: its bottom is at the max of the depth axis', () => {
     // Thickness min, depth 3/8: centre at thickness 0, runs to 0.375; width view v = thickness, so bottom at vmax.
     const rabbet = { id: 'c1', face: 'width' as const, from: 'min' as const, across: 'length' as const, offset: 0, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 };
-    const w = buildDiagrams(side({ holes: [{ ...pins, from: 'min' as const, count: 1 }], cuts: [rabbet] }), 16).find((v) => v.key === 'width|min')!;
+    const w = buildDiagrams(side({ holes: [{ ...pins, from: 'min' as const, count: 1 }], cuts: [rabbet] }), IMPERIAL).find((v) => v.key === 'width|min')!;
     expect(w.holeSides[0]).toMatchObject({ v: [0, 0.375], axis: 'v', bottomAt: 'vmax' });
   });
   it('an end-grain hole across a width view runs along h (axis h)', () => {
     // Into the length max end: centre at length 30, dir -1, depth 1 -> h [29, 30]; width view h = length: bottom at hmin.
     const dowel = { ...pins, id: 'd', face: 'length' as const, from: 'max' as const, diameter: 0.375, depth: 1, along: 'width' as const, station: 2, count: 1, acrossFrom: 'min' as const, inset: 0.375 };
     const rabbet = { id: 'c1', face: 'width' as const, from: 'min' as const, across: 'length' as const, offset: 0, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 };
-    const w = buildDiagrams(side({ holes: [dowel], cuts: [rabbet] }), 16).find((v) => v.key === 'width|min')!;
+    const w = buildDiagrams(side({ holes: [dowel], cuts: [rabbet] }), IMPERIAL).find((v) => v.key === 'width|min')!;
     expect(w.holeSides[0]).toMatchObject({ h: [29, 30], axis: 'h', bottomAt: 'hmin' });
-    const min = buildDiagrams(side({ holes: [{ ...dowel, from: 'min' as const }], cuts: [rabbet] }), 16).find((v) => v.key === 'width|min')!;
+    const min = buildDiagrams(side({ holes: [{ ...dowel, from: 'min' as const }], cuts: [rabbet] }), IMPERIAL).find((v) => v.key === 'width|min')!;
     expect(min.holeSides[0]).toMatchObject({ h: [0, 1], axis: 'h', bottomAt: 'hmax' });
   });
   it('a faulted row\'s note is its bench line, check suffix included (Review Focus 5)', () => {
     const short = side({ length: 4 });
-    const v = buildDiagrams(short, 16)[0]!;
+    const v = buildDiagrams(short, IMPERIAL)[0]!;
     expect(v.holeNotes[0]!.text).toMatch(/— check: hole 3 runs past the length max end$/);
   });
 });

@@ -5,7 +5,7 @@ import { SHAKER_TABLE_JSON } from '../../document/shakerTableFixture';
 import type { AngleCut, Board, FlatDocument, SloydDocument } from '../../document/document';
 import { axisDimensions, axisFrame, boardCenter, endFacing, toWorldOffset } from '../../document/geometry';
 import { worldTapers } from '../../document/taperWorld';
-import { formatLength } from '../../units/length';
+import { formatLength, imperialAt } from '../../units/length';
 import { findSites } from './sites';
 import { angleConflicts, joineryRefusal, taperConflicts, jointFaults } from './tapers';
 import { taperJointRefusal } from '../../document/angledRefusal';
@@ -143,7 +143,7 @@ describe('taperJointRefusal / joineryRefusal', () => {
     const doc = withLeg(CORNER, inside(24));
     const msg = taperJointRefusal(doc, conflicts(doc))!;
     expect(msg).toContain('Leg');
-    expect(msg).toContain(`start it at ${formatLength(23.5, doc.units.precision)} or less from the length`);
+    expect(msg).toContain(`start it at ${formatLength(23.5, imperialAt(doc.units.precision))} or less from the length`);
   });
   it('an off-grid patch is floored to the display grid, and the advice it prints is accepted', () => {
     // Rails at y 23.47: rounding to the nearest 1/16 would print 23-1/2", above the real limit.

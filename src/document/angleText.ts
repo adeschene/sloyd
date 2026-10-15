@@ -24,7 +24,7 @@ export function faceName(dim: Dimension, side: CutFrom): string {
  * list and the part diagrams both print what this returns (invariant 19). The
  * degree sign is HTML text, never a measured SVG label.
  */
-export function angleLine(board: Board, c: AngleCut, units: Units | number): string {
+export function angleLine(board: Board, c: AngleCut, units: Units): string {
   const f = (n: number) => formatLength(n, units);
   const deg = `${angleDegrees(c).toFixed(1)}°`;
   const side = faceName(c.face, c.from);
@@ -69,7 +69,7 @@ export function angleLine(board: Board, c: AngleCut, units: Units | number): str
  * length less both ends' depths, clamped at 0. (Each end's depth is a max of
  * linear functions, so convex; the remaining length is concave and its least is at a corner.) Null when the part has no end cut that removes stock.
  */
-export function shortPointLine(board: Board, units: Units | number): string | null {
+export function shortPointLine(board: Board, units: Units): string | null {
   const ends = angleCutsThatRemoveStock(board).filter((c) => c.face === 'length');
   if (ends.length === 0) return null;
   const L = board.length;

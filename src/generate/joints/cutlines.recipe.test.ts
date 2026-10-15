@@ -1,3 +1,4 @@
+import { IMPERIAL } from '../../units/length';
 import { worldParts } from '../../document/tree';
 import workbenchRaw from '../../document/fixtures/simple-workbench.sloyd?raw';
 import { flatDocument, migrateDocument } from '../../document/document';
@@ -84,7 +85,7 @@ describe('the live designs (cut-lines spec §2.2)', () => {
 
   it('and its drawing carries the same numbers (spec §2.4)', () => {
     const side = worldParts(stoppedShelves()).find((b) => b.name === 'Left side')!;
-    const view = buildDiagrams(side, 16).find((v) => v.key === 'thickness|max')!;
+    const view = buildDiagrams(side, IMPERIAL).find((v) => v.key === 'thickness|max')!;
     const housing = view.cuts.find((c) => c.offsetLabel === '24"')!;
     expect(housing).toMatchObject({
       axis: 'h', offsetLabel: '24"', widthLabel: '3/4"', kind: 'stopped dado',

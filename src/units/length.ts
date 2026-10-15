@@ -21,9 +21,9 @@ const DECIMAL_RE = /^(?:\d+\.?\d*|\.\d+)$/;
  * positive dimension must check the sign themselves.
  * Returns null for anything it cannot parse. Never throws, never guesses.
  * The grammar is the same in both modes except a bare number's unit: inches
- * when `units` is absent or imperial, millimetres in a metric project.
+ * when `units` is imperial, millimetres in a metric project.
  */
-export function parseLength(input: string, units?: Units): number | null {
+export function parseLength(input: string, units: Units): number | null {
   if (typeof input !== 'string') return null;
   let rest = input.trim().toLowerCase();
   if (!rest) return null;
@@ -66,7 +66,7 @@ export function parseLength(input: string, units?: Units): number | null {
   if (DECIMAL_RE.test(rest)) {
     // A bare number (no feet, no inch mark) in a metric project is millimetres (spec R4), after the sign strip so
     // '- 19' and '-19' agree.
-    if (unmarked && units && isMetric(units)) return (sign * Number(rest)) / MM_PER_INCH;
+    if (unmarked && isMetric(units)) return (sign * Number(rest)) / MM_PER_INCH;
     return sign * (total + Number(rest));
   }
 
@@ -153,11 +153,10 @@ export function formatMm(inches: number, decimals: 0 | 1): string {
 
 /**
  * THE length formatter (inv 52). Imperial: shop fractions reduced at `units.precision` — byte-for-byte today's output.
- * Metric: whole millimetres. A plain number is TEMPORARY (imperial at that precision) until every caller passes Units.
+ * Metric: whole millimetres.
  */
-export function formatLength(inches: number, units: Units | number = 16): string {
-  const u = typeof units === 'number' ? imperialAt(units) : units;
-  return isMetric(u) ? formatMm(inches, 0) : formatFraction(inches, u.precision);
+export function formatLength(inches: number, units: Units): string {
+  return isMetric(units) ? formatMm(inches, 0) : formatFraction(inches, units.precision);
 }
 
 /** A drawing's dimension (spec R8): metric drops the unit (the sheet carries one note); imperial keeps its mark. */

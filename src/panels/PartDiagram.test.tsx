@@ -1,3 +1,4 @@
+import { IMPERIAL } from '../units/length';
 import { cleanup, render, screen } from '@testing-library/react';
 import { buildDiagrams, createBoard } from '../document/document';
 import type { Cut } from '../document/document';
@@ -9,7 +10,7 @@ const dado = (over: Partial<Cut> = {}): Cut => ({
   offset: 6, width: 0.75, depth: 0.375, stopMin: 0, stopMax: 0, ...over,
 });
 
-const view = (...cuts: Cut[]) => buildDiagrams(createBoard({ cuts }), 16)[0];
+const view = (...cuts: Cut[]) => buildDiagrams(createBoard({ cuts }), IMPERIAL)[0];
 
 /** The perpendicular-crossing board from Task 5's `diagram.test.ts` (its
  * "reports one legend line per distinct crossing depth" case): one
@@ -18,7 +19,7 @@ const view = (...cuts: Cut[]) => buildDiagrams(createBoard({ cuts }), 16)[0];
 const crossingView = () => buildDiagrams(createBoard({ length: 24, width: 12, cuts: [
   { id: 'a', face: 'thickness', from: 'min', across: 'width', offset: 6, width: 0.75, depth: 0.125, stopMin: 0, stopMax: 0 },
   { id: 'b', face: 'thickness', from: 'min', across: 'length', offset: 4, width: 0.75, depth: 0.375, stopMin: 0, stopMax: 0 },
-] }), 16)[0];
+] }), IMPERIAL)[0];
 
 describe('PartDiagram', () => {
   it('draws the outline and one cell per non-crossing cut', () => {
@@ -163,7 +164,7 @@ describe('PartDiagram', () => {
     // shrink branch (h = 24, v = 24, via width: 24) so offsetX/drawnH differ
     // from the nominal DRAW_WIDTH.
     const { container } = render(
-      <PartDiagram view={buildDiagrams(createBoard({ width: 24, cuts: [dado()] }), 16)[0]} />,
+      <PartDiagram view={buildDiagrams(createBoard({ width: 24, cuts: [dado()] }), IMPERIAL)[0]} />,
     );
     const outline = container.querySelector('.cutlist-diagram-outline')!;
     const right = Number(outline.getAttribute('x')) + Number(outline.getAttribute('width'));
@@ -180,7 +181,7 @@ describe('PartDiagram', () => {
     // what produced the defect.
     const { container } = render(
       <PartDiagram
-        view={buildDiagrams(createBoard({ length: 240, width: 100.9375, cuts: [dado()] }), 16)[0]}
+        view={buildDiagrams(createBoard({ length: 240, width: 100.9375, cuts: [dado()] }), IMPERIAL)[0]}
       />,
     );
     const svg = container.querySelector('svg')!;
@@ -238,7 +239,7 @@ describe('PartDiagram', () => {
       <PartDiagram
         view={buildDiagrams(
           createBoard({ length: 24, width: 100.9375, cuts: [dado({ offset: 0, width: 0.125 })] }),
-          16,
+          IMPERIAL,
         )[0]}
       />,
     );
@@ -264,7 +265,7 @@ describe('PartDiagram', () => {
           createBoard({ length: 24, width: 100.9375, cuts: [
             dado({ across: 'length', offset: 0.25, width: 0.25 }),
           ] }),
-          16,
+          IMPERIAL,
         )[0]}
       />,
     );
@@ -332,7 +333,7 @@ describe('PartDiagram', () => {
   it('draws a cut whose stops cross without a NaN anywhere', () => {
     // A Board built directly (bypassing the loader), as a shortened board
     // reaches it mid-session: the region is empty, nothing is removed.
-    const v = buildDiagrams(createBoard({ cuts: [dado({ stopMin: 4, stopMax: 3 })] }), 16)[0];
+    const v = buildDiagrams(createBoard({ cuts: [dado({ stopMin: 4, stopMax: 3 })] }), IMPERIAL)[0];
     const { container } = render(<PartDiagram view={v} />);
     for (const el of container.querySelectorAll('*')) {
       for (const attr of el.getAttributeNames()) {
@@ -422,7 +423,7 @@ describe('PartDiagram label collisions — the seven sweep geometries', () => {
 
   const draw = (board: Parameters<typeof createBoard>[0]) => {
     const { container } = render(
-      <PartDiagram view={buildDiagrams(createBoard(board), 16)[0]} />,
+      <PartDiagram view={buildDiagrams(createBoard(board), IMPERIAL)[0]} />,
     );
     return container;
   };
@@ -581,7 +582,7 @@ describe('PartDiagram — a view with no stopped cut draws exactly as before', (
     return h;
   };
   const fingerprint = (board: Parameters<typeof createBoard>[0]) => {
-    const { container } = render(<PartDiagram view={buildDiagrams(createBoard(board), 16)[0]} />);
+    const { container } = render(<PartDiagram view={buildDiagrams(createBoard(board), IMPERIAL)[0]} />);
     return hash(layout(container));
   };
 
@@ -616,7 +617,7 @@ describe('PartDiagram — a view with no stopped cut draws exactly as before', (
 describe('PartDiagram — the stop leader measures its own runs', () => {
   const num = (e: Element, a: string) => Number(e.getAttribute(a));
   const render1 = (board: Parameters<typeof createBoard>[0]) =>
-    render(<PartDiagram view={buildDiagrams(createBoard(board), 16)[0]} />).container;
+    render(<PartDiagram view={buildDiagrams(createBoard(board), IMPERIAL)[0]} />).container;
   const outline = (c: HTMLElement) => c.querySelector('.cutlist-diagram-outline')!;
   const textsOf = (g: Element) => [...g.querySelectorAll('text')].map((t) => t.textContent);
 
@@ -711,7 +712,7 @@ describe('PartDiagram on a vUp view (fu 215)', () => {
     offset: 0, width: 0.5, depth: 0.25, stopMin: 0, stopMax: 0, ...over,
   });
   const build = (cut: Cut) => {
-    const v = buildDiagrams(createBoard({ ...B, cuts: [cut] }), 16)[0]!;
+    const v = buildDiagrams(createBoard({ ...B, cuts: [cut] }), IMPERIAL)[0]!;
     const { container } = render(<PartDiagram view={v} />);
     const num = (el: Element, a: string) => Number(el.getAttribute(a));
     const outline = container.querySelector('.cutlist-diagram-outline')!;
@@ -779,7 +780,7 @@ describe('PartDiagram on a vUp view (fu 215)', () => {
     const v = buildDiagrams(createBoard({ ...B, cuts: [
       vcut({ id: 'a', across: 'length', offset: 0, width: 0.5, depth: 0.125 }),
       vcut({ id: 'b', across: 'width', offset: 0, width: 0.5, depth: 0.25 }),
-    ] }), 16)[0]!;
+    ] }), IMPERIAL)[0]!;
     const { container } = render(<PartDiagram view={v} />);
     const o = container.querySelector('.cutlist-diagram-outline')!;
     const x = container.querySelector('.cutlist-diagram-cross')!;
@@ -792,7 +793,7 @@ describe('PartDiagram on a vUp view (fu 215)', () => {
 describe('PartDiagram — vUp stop columns mirror the unflipped geometry (fu 215)', () => {
   const num = (e: Element, a: string) => Number(e.getAttribute(a));
   const colOf = (cuts: Cut[]) => {
-    const { container } = render(<PartDiagram view={buildDiagrams(createBoard({ cuts }), 16)[0]!} />);
+    const { container } = render(<PartDiagram view={buildDiagrams(createBoard({ cuts }), IMPERIAL)[0]!} />);
     const o = container.querySelector('.cutlist-diagram-outline')!;
     const g = container.querySelector('.cutlist-diagram-leader-v')!;
     const lines = [...g.querySelectorAll('line')];
@@ -855,7 +856,7 @@ describe('PartDiagram angle cuts', () => {
   it('draws an angle cut as a hatched polygon and prints its line', () => {
     const v = buildDiagrams(createBoard({ length: 29, width: 1.75, thickness: 1.75, angleCuts: [
       { id: 'a1', kind: 'taper', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[0, 0.625], [24, 0]] },
-    ] }), 16)[0]!;
+    ] }), IMPERIAL)[0]!;
     const { container, getByText } = render(<PartDiagram view={v} />);
     const poly = container.querySelector('polygon.cutlist-diagram-angle')!;
     expect(poly.getAttribute('fill')).toMatch(/^url\(#hatch[a-zA-Z0-9]+\)$/);
@@ -866,7 +867,7 @@ describe('PartDiagram angle cuts', () => {
   it('flips the vertical on a vUp view: the sharp tip (v = 0) is drawn at the bottom', () => {
     const v = buildDiagrams(createBoard({ length: 29, width: 1.75, thickness: 1.75, angleCuts: [
       { id: 'a1', kind: 'taper', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[0, 0.625], [24, 0]] },
-    ] }), 16)[0]!;
+    ] }), IMPERIAL)[0]!;
     expect(v.vUp).toBe(true);
     const { container } = render(<PartDiagram view={v} />);
     const pts = container.querySelector('polygon.cutlist-diagram-angle')!.getAttribute('points')!
@@ -881,7 +882,7 @@ describe('PartDiagram angle cuts', () => {
 describe('PartDiagram holes (holes spec §4.3, amended)', () => {
   const pins = { id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 3, pitch: 1.25, acrossFrom: 'min' as const, inset: 1.5 };
   const holedView = (over: Record<string, unknown> = {}) =>
-    buildDiagrams(createBoard({ length: 30, width: 11.25, thickness: 0.75, holes: [pins], ...over }), 16)[0]!;
+    buildDiagrams(createBoard({ length: 30, width: 11.25, thickness: 0.75, holes: [pins], ...over }), IMPERIAL)[0]!;
 
   it('draws one ellipse and one centre mark per hole, scaled like the outline', () => {
     const { container } = render(<PartDiagram view={holedView()} />);
@@ -901,7 +902,7 @@ describe('PartDiagram holes (holes spec §4.3, amended)', () => {
   });
   it('draws a hole seen across its axis as a dashed outline: two walls and a bottom when blind', () => {
     const rabbet = { id: 'c1', face: 'width' as const, from: 'min' as const, across: 'length' as const, offset: 0, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 };
-    const views = buildDiagrams(createBoard({ length: 30, width: 11.25, thickness: 0.75, holes: [pins], cuts: [rabbet] }), 16);
+    const views = buildDiagrams(createBoard({ length: 30, width: 11.25, thickness: 0.75, holes: [pins], cuts: [rabbet] }), IMPERIAL);
     const w = views.find((v) => v.key === 'width|min')!;
     const { container } = render(<PartDiagram view={w} />);
     expect(container.querySelectorAll('line.cutlist-diagram-hole-side')).toHaveLength(9);
@@ -924,7 +925,7 @@ describe('PartDiagram holes (holes spec §4.3, amended)', () => {
   });
   it('a vUp view flips v for the depth outlines too', () => {
     const rabbet = { id: 'c1', face: 'width' as const, from: 'max' as const, across: 'length' as const, offset: 0, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 };
-    const w = buildDiagrams(createBoard({ length: 30, width: 11.25, thickness: 0.75, holes: [pins], cuts: [rabbet] }), 16)
+    const w = buildDiagrams(createBoard({ length: 30, width: 11.25, thickness: 0.75, holes: [pins], cuts: [rabbet] }), IMPERIAL)
       .find((v) => v.key === 'width|max')!;
     expect(w.vUp).toBe(true);
     expect(w.holeSides.length).toBeGreaterThan(0);
@@ -962,7 +963,7 @@ describe('PartDiagram holes (holes spec §4.3, amended)', () => {
     const rabbet = (from: 'min' | 'max') => ({ id: 'c1', face: 'width' as const, from, across: 'length' as const, offset: 0, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 });
     for (const [from, key, at] of [['max', 'width|min', 'vmin'], ['min', 'width|min', 'vmax']] as const) {
       const hole = { ...pins, from, count: 1 };
-      const w = buildDiagrams(createBoard({ length: 30, width: 11.25, thickness: 0.75, holes: [hole], cuts: [rabbet('min')] }), 16).find((v) => v.key === key)!;
+      const w = buildDiagrams(createBoard({ length: 30, width: 11.25, thickness: 0.75, holes: [hole], cuts: [rabbet('min')] }), IMPERIAL).find((v) => v.key === key)!;
       const s = w.holeSides[0]!;
       expect(s.axis).toBe('v');
       expect(s.bottomAt).toBe(at);
@@ -986,7 +987,7 @@ describe('PartDiagram holes (holes spec §4.3, amended)', () => {
     for (const [from, at] of [['min', 'hmax'], ['max', 'hmin']] as const) {
       const hole = { id: 'e1', face: 'length' as const, from, diameter: 0.25, depth: 1, along: 'width' as const, alongFrom: 'min' as const, station: 5, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 0.375 };
       const rb = { id: 'c1', face: 'width' as const, from: 'min' as const, across: 'length' as const, offset: 0, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 };
-      const w = buildDiagrams(createBoard({ length: 30, width: 11.25, thickness: 0.75, holes: [hole], cuts: [rb] }), 16).find((v) => v.holeSides.length > 0)!;
+      const w = buildDiagrams(createBoard({ length: 30, width: 11.25, thickness: 0.75, holes: [hole], cuts: [rb] }), IMPERIAL).find((v) => v.holeSides.length > 0)!;
       const s = w.holeSides[0]!;
       expect(s.axis).toBe('h');
       expect(s.bottomAt).toBe(at);

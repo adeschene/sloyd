@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { diffDesigns } from './designDiff';
 import { designToDocument } from './generated';
 import type { GeneratedAssembly, GeneratedPart } from './generated';
-import { formatLength } from '../units/length';
+import { formatLength, IMPERIAL } from '../units/length';
 import { createBoard, createDocument } from './document';
 import { bevelCut, chamferCut, miterCut, miterRatio } from './angleCuts';
 import type { Board } from './types';
@@ -12,7 +12,7 @@ const part = (name: string, at: [number, number, number], size: [number, number,
   ({ name, role, material, at: v(...at), size: v(...size) });
 const doc = (parts: GeneratedPart[], assemblies: GeneratedAssembly[] = []) =>
   designToDocument({ name: 'T', parts, assemblies }, { centre: false }).doc;
-const f = (n: number) => formatLength(n, 16);
+const f = (n: number) => formatLength(n, IMPERIAL);
 const drawer = (name: string, placements: [string, number][], front: [number, number, number] = [10, 4, 0.75]): GeneratedAssembly =>
   ({ name, parts: [part('Front', [0, 0, 0], front), part('Side', [0, 0, 0.75], [0.75, 4, 10])],
     placements: placements.map(([n, x]) => ({ name: n, at: v(x, 0, 0) })) });

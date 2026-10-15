@@ -1,3 +1,4 @@
+import { IMPERIAL } from '../units/length';
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
 import type { AngleCut, Board, Dimension, Region } from './types';
@@ -181,7 +182,7 @@ describe('miter fields (spec §7)', () => {
   it('a default pair is a picture-frame trapezoid: short point = length − 2 × width (Review Focus 3)', () => {
     const b = { ...rail(), angleCuts: defaultMiterPair(rail()).map((c, i) => ({ ...c, id: `p${i}` })) };
     expect(b.angleCuts.map((c) => c.from).sort()).toEqual(['max', 'min']);
-    expect(shortPointLine(b, 16)).toBe('Short point 19"');
+    expect(shortPointLine(b, IMPERIAL)).toBe('Short point 19"');
     // Cross-check against the geometry: the width-max long edge spans 2.5 → 21.5, the width-min edge 0 → 24.
     const xs = boardBodies(b).flatMap(bodyVerts).filter((p) => Math.abs(p[1] - 2.5) < 1e-9).map((p) => p[0]);
     expect(Math.min(...xs)).toBeCloseTo(2.5, 12);

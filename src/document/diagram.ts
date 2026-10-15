@@ -126,9 +126,9 @@ const capitalise = (d: Dimension): string => d[0].toUpperCase() + d.slice(1);
  * this module does not recompute what counts as a crossing (see
  * `depthField.ts`'s own doc comment for that rule).
  */
-export function buildDiagrams(board: Board, units: Units | number): DiagramView[] {
+export function buildDiagrams(board: Board, units: Units): DiagramView[] {
   // A bare number is imperial at that precision (the shim the line functions share); the labels below stay imperial either way.
-  const u = typeof units === 'number' ? imperialAt(units) : units;
+  const u = units;
   const f = (n: number) => formatLength(n, imperialAt(u.precision));
   const views = new Map<string, DiagramView>();
 

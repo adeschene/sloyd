@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
 import { createBoard, createDocument } from '../document/document';
 import type { Board } from '../document/document';
-import { formatLength } from '../units/length';
+import { formatLength, IMPERIAL } from '../units/length';
 import { Properties } from './Properties';
 import { assemblyDoc } from '../document/treeFixtures';
 import { chiralPart } from '../document/turnFixtures';
@@ -662,7 +662,7 @@ describe('cuts', () => {
     const stored = worldParts(useStore.getState().doc).find((b) => b.id === id)!.cuts[0].depth;
     expect(stored).not.toBe(0.75);
     expect((screen.getByLabelText(/depth/i) as HTMLInputElement).value)
-      .toBe(formatLength(stored, 16));
+      .toBe(formatLength(stored, IMPERIAL));
   });
 
   it('clears the whole-board error after an undo restores a legal cut', async () => {

@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
 import { createBoard, createDocument } from '../document/document';
-import { formatLength } from '../units/length';
+import { formatLength, IMPERIAL } from '../units/length';
 import { ViewportControls, EXPLODED_TITLE } from './ViewportControls';
 
 beforeEach(() => useStore.getState().replaceDocument(createDocument('Test')));
@@ -236,7 +236,7 @@ describe('ViewportControls section', () => {
     act(() => useStore.getState().setSection({ axis: 'front', at: 40, flip: false }));
     renderControls();
     expect(useStore.getState().section?.at).toBe(40);
-    expect((screen.getByLabelText('Position') as HTMLInputElement).value).toBe(formatLength(40));
+    expect((screen.getByLabelText('Position') as HTMLInputElement).value).toBe(formatLength(40, IMPERIAL));
   });
   it('off, follows whether any part is drawn: hiding the only part disables it, showing it enables it', () => {
     withPart();

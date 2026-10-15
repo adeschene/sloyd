@@ -1,3 +1,4 @@
+import { IMPERIAL } from '../units/length';
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
 import { distinctFaults, edgeName, endWord, holeFaultText, holeLine } from './holeText';
@@ -10,19 +11,19 @@ const cup: HoleRow = { id: 'h2', face: 'thickness', from: 'max', diameter: 35 / 
 
 describe('holeLine (spec §4.1, as amended)', () => {
   it('a row: pitch at 1/64 with its mm, last centre exact at the document precision', () => {
-    expect(holeLine(side, pins, 16)).toBe('Row of 21 holes 1/4" dia × 3/8" deep in the thickness face (max side), along the length: first 2" from the min end, every 1-17/64" (32 mm), last at 27-3/16"; 1-1/2" in from the width min side');
+    expect(holeLine(side, pins, IMPERIAL)).toBe('Row of 21 holes 1/4" dia × 3/8" deep in the thickness face (max side), along the length: first 2" from the min end, every 1-17/64" (32 mm), last at 27-3/16"; 1-1/2" in from the width min side');
   });
   it('a single hole: a whole-mm diameter prints its mm', () => {
-    expect(holeLine(side, cup, 16)).toBe('Hole 1-3/8" (35 mm) dia × 1/2" deep in the thickness face (max side), 3" from the length min end, 7/8" in from the width min side');
+    expect(holeLine(side, cup, IMPERIAL)).toBe('Hole 1-3/8" (35 mm) dia × 1/2" deep in the thickness face (max side), 3" from the length min end, 7/8" in from the width min side');
   });
   it('through, and an end face reads as an end', () => {
     const dowel: HoleRow = { ...cup, face: 'length', from: 'max', diameter: 0.375, depth: 'through', along: 'width', station: 2, inset: 0.375, acrossFrom: 'min' };
-    expect(holeLine(side, dowel, 16)).toBe('Hole 3/8" dia × through in the length max end, 2" from the width min side, 3/8" in from the thickness min side');
+    expect(holeLine(side, dowel, IMPERIAL)).toBe('Hole 3/8" dia × through in the length max end, 2" from the width min side, 3/8" in from the thickness min side');
   });
   it('a faulted row carries its first fault and a count (the user\'s ruling, Review Focus 2)', () => {
     const short = { ...side, length: 26, holes: [pins] };
-    expect(holeLine(short, pins, 16)).toMatch(/ — check: hole 20 runs past the length max end \(and 1 more\)$/);
-    expect(holeLine({ ...side, holes: [pins] }, pins, 16)).not.toContain('check:');
+    expect(holeLine(short, pins, IMPERIAL)).toMatch(/ — check: hole 20 runs past the length max end \(and 1 more\)$/);
+    expect(holeLine({ ...side, holes: [pins] }, pins, IMPERIAL)).not.toContain('check:');
   });
   it('too-deep is a ROW fault: a row thinned under its depth is counted once on the bench line (final review 1)', () => {
     // 3/8" stock under 3/8"-deep pins: every one of the 21 holes reaches the back face (too-deep's >=), so holeFaults
@@ -30,7 +31,7 @@ describe('holeLine (spec §4.1, as amended)', () => {
     const thin = { ...side, thickness: 0.375, holes: [pins] };
     expect(holeFaults(thin, pins).filter((f) => f.kind === 'too-deep')).toHaveLength(21);
     expect(distinctFaults(holeFaults(thin, pins))).toEqual([{ index: 0, kind: 'too-deep' }]);
-    expect(holeLine(thin, pins, 16)).toMatch(/ — check: the holes are deeper than the thickness$/);
+    expect(holeLine(thin, pins, IMPERIAL)).toMatch(/ — check: the holes are deeper than the thickness$/);
   });
   it('holeFaultText words each kind', () => {
     expect(holeFaultText({ index: 0, kind: 'off-flat' }, pins)).toBe('hole 1 sits where a cut has removed the wood');
@@ -39,7 +40,7 @@ describe('holeLine (spec §4.1, as amended)', () => {
     expect(holeFaultText({ index: 0, kind: 'too-deep' }, pins)).toBe('the holes are deeper than the thickness');
   });
   it('an exact-1/64 whole-mm value does not print its mm (5" is 127 mm)', () => {
-    expect(holeLine(side, { ...pins, pitch: 5, count: 2 }, 16)).toContain('every 5", last at 7"');
+    expect(holeLine(side, { ...pins, pitch: 5, count: 2 }, IMPERIAL)).toContain('every 5", last at 7"');
   });
   it('edgeName and endWord are the one home of the edge words', () => {
     expect(edgeName({ dim: 'length', side: 'max' })).toBe('the length max end');
