@@ -5,10 +5,9 @@ import * as THREE from 'three';
 import type { TransformControls as TransformControlsImpl } from 'three-stdlib';
 import { useStore } from '../store/store';
 import { boardCenter, boardExtents, boardsBounds, isCovered, partAt, worldParts } from '../document/document';
-import { SNAP_INCHES } from '../document/geometry';
+import { snapStep } from '../document/geometry';
 import { gizmoDistanceFactor, gizmoSizeForExtent } from './gizmoScale';
 
-const snap = (v: number) => Math.round(v / SNAP_INCHES) * SNAP_INCHES;
 
 // --- Gizmo axis-flip fix -----------------------------------------------
 //
@@ -234,6 +233,8 @@ export function Gizmo({ hidden = false }: { hidden?: boolean } = {}) {
   const boards = useStore((s) => worldParts(s.doc));
   const selectedIds = useStore((s) => s.selectedIds);
   const doc = useStore((s) => s.doc);
+  const step = snapStep(doc.units);
+  const snap = (v: number) => Math.round(v / step) * step;
   const updateBoard = useStore((s) => s.updateBoard);
   const moveGroupTo = useStore((s) => s.moveGroupTo);
   const selected = useMemo(() => {
@@ -408,7 +409,7 @@ export function Gizmo({ hidden = false }: { hidden?: boolean } = {}) {
         ref={controlsRef}
         object={proxy.current}
         mode="translate"
-        translationSnap={SNAP_INCHES}
+        translationSnap={step}
         onMouseDown={() => { abandoned.current = false; dragging.current = true; useStore.getState().beginGesture(); }}
         onObjectChange={commit}
         onMouseUp={() => {

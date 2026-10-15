@@ -3,6 +3,7 @@ import { useStore } from '../store/store';
 import { EXPLODED_TITLE } from './ViewportControls';
 import { Popover } from './Popover';
 import { ProjectMenu } from './ProjectMenu';
+import { UnitsSwitch } from './UnitsSwitch';
 import type { DuplicateFailure } from './ProjectMenu';
 
 interface Props {
@@ -103,6 +104,7 @@ export function Toolbar({
             newIds={newIds}
           />
         )}
+        <UnitsSwitch />
         <span className="toolbar-divider" />
         <button className="btn-primary" onClick={addBoard} disabled={exploded}>+ Add board</button>
         <button onClick={onOpenCutList} title="Cut list — parts, quantities and joinery">

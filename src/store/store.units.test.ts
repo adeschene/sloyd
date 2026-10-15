@@ -32,4 +32,15 @@ describe('units switch', () => {
     s().setUnitsDisplay('metric-mm');
     expect(s().doc.units.display).toBe('imperial-fractional');
   });
+  it('a group move snaps the min corner to whole mm in metric, 1/16 in imperial', () => {
+    s().addBoard(); s().addBoard();
+    const ids = worldParts(s().doc).map((b) => b.id);
+    s().setUnitsDisplay('metric-mm');
+    s().moveGroupTo(ids, [10.3, 0, 0]);
+    const minX = Math.min(...worldParts(s().doc).map((b) => b.position[0]));
+    expect(minX * 25.4).toBeCloseTo(Math.round(10.3 * 25.4), 9);
+    s().setUnitsDisplay('imperial-fractional');
+    s().moveGroupTo(ids, [10.3, 0, 0]);
+    expect(Math.min(...worldParts(s().doc).map((b) => b.position[0]))).toBe(Math.round(10.3 * 16) / 16);
+  });
 });

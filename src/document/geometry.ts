@@ -1,3 +1,4 @@
+import type { Units } from '../units/length';
 import type { Board, Dimension, Posture, Span } from './types';
 
 /** The order two dimensions are considered in when they share the floor. */
@@ -10,6 +11,10 @@ export const DIMENSION_ORDER: Dimension[] = ['length', 'width', 'thickness'];
  * applied to an exact position or a difference of two (invariant 25).
  */
 export const SNAP_INCHES = 1 / 16;
+
+/** The FREE-drag grid (metric-display spec R5): 1/16" or 1 mm. Exact moves are never rounded to it (inv 25); Generate and
+ *  joinery keep SNAP_INCHES. Here, not in units/, because it produces no string (the → units edge rule). */
+export const snapStep = (units: Units): number => (units.display === 'metric-mm' ? 1 / 25.4 : SNAP_INCHES);
 
 /**
  * The dimension a cut's offset and width are measured along: the one that is

@@ -1,3 +1,4 @@
+import { snapStep } from './geometry';
 import { createBoard } from './document';
 import type { Board, Dimension, Posture, Rotation } from './document';
 import {
@@ -118,5 +119,12 @@ describe('the offset helpers', () => {
     expect(endFacing(b, 0, -1)).toBe('max');
     expect(endFacing(b, 0, 1)).toBe('min');
     expect(endFacing(part('flat', 0), 0, -1)).toBe('min');
+  });
+});
+
+describe('snapStep', () => {
+  it('is 1/16 in imperial and 1 mm in metric', () => {
+    expect(snapStep({ display: 'imperial-fractional', precision: 16 })).toBe(1 / 16);
+    expect(snapStep({ display: 'metric-mm', precision: 16 })).toBe(1 / 25.4);
   });
 });

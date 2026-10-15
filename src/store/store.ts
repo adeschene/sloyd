@@ -8,7 +8,7 @@ import {
 } from '../document/document';
 import type { AngleCut, Board, HoleRow, CustomMaterial, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, Section, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
 import type { LengthDisplay } from '../units/length';
-import { SNAP_INCHES } from '../document/geometry';
+import { snapStep } from '../document/geometry';
 import { copyAngleCut, sameAngleCut } from '../document/angleCuts';
 import { copyHoleRow, sameHoleRow } from '../document/holes';
 import { pruneMaterials, upsertMaterials, materialUses } from '../document/materials';
@@ -1059,7 +1059,8 @@ export const useStore = create<StoreState>((set, get) => {
       // Round the GROUP's min corner, once. Rounding each part's corner
       // instead would pull an off-grid part onto the grid and break the
       // layout by up to a sixteenth, invisibly (invariant 25).
-      const snap = (v: number) => Math.round(v / SNAP_INCHES) * SNAP_INCHES;
+      const step = snapStep(get().doc.units);
+      const snap = (v: number) => Math.round(v / step) * step;
       const delta = [
         snap(minCorner[0]) - bounds.min[0],
         snap(minCorner[1]) - bounds.min[1],
