@@ -1,7 +1,7 @@
 import { ShapeUtils, Vector2 } from 'three';
 import {
   angleCutValues, axialOffset, axisFrame, boardExtents, bodyPlanes, clipPlan, clipPolygon, CUT_GEOMETRY_KEYS, DIMENSION_ORDER,
-  HOLE_EPS, holeInStock, holePrism, stockChecks, holeRing, holeRowValues, holeTouches, holeTouchesBox, isSheetGood, minusCover, minusPrism, ringInside, spanToWorldOffset, toWorldOffset,
+  HOLE_EPS, holeInStock, holePrism, stockChecks, holeRing, holeRowValues, curveValues, holeTouches, holeTouchesBox, isSheetGood, minusCover, minusPrism, ringInside, spanToWorldOffset, toWorldOffset,
   wholeBoard,
 } from '../document/document';
 import type { Board, Body, BodyFace, Hole, Plane, Region, Span, StockChecks, V3 } from '../document/document';
@@ -590,6 +590,8 @@ export function boardUVSignature(board: Board): string {
     board.angleCuts.map((c) => angleCutValues(c).join(',')).join(';'),
     // Holes change which faces are opened and add walls (holes spec §3.2; invariant 15).
     board.holes.map((r) => holeRowValues(r).join(',')).join(';'),
+    // Curves change which bodies exist and add chord faces (curves spec §3.2; invariant 15).
+    board.curves.map((c) => `${c.id}:${curveValues(c)}`).join(';'),
   ].join('|');
 }
 

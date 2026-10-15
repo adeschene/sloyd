@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
-import type { AngleCut, Board, Cut } from './types';
+import type { AngleCut, Board, Cut, CurveCut } from './types';
+import { splitBodiesForTest } from './bodies';
+import { ARCH, CORNER } from './curveFixtures';
+import { bowCurve, curveOutline, curvePlan } from './curves';
 import { geometryKey, boardBodies, boardEdges, bodyEdges, bodyVerts, bodyVolume, partGeometry, PART_GEOMETRY_LIMIT } from './bodies';
 import { pocketCells, pocketEdges } from './cuts';
 import type { Segment } from './cuts';
@@ -278,5 +281,74 @@ describe('partGeometry and holes (holes spec §3.1)', () => {
     expect(g.holes).toHaveLength(3);
     expect(Object.isFrozen(g.holes)).toBe(true);
     expect(g.bodies).toEqual(boardBodies(b));
+  });
+});
+
+/** The exact area of an arc's segment (between chord and arc): R²·acos((R−h)/R) − (R−h)·√(2Rh − h²). */
+const segmentArea = (R: number, h: number) => R * R * Math.acos((R - h) / R) - (R - h) * Math.sqrt(2 * R * h - h * h);
+
+describe('boardBodies with curves (curves spec §3.2)', () => {
+  const splitVolumeForTest = (b: Board, c: CurveCut) => splitBodiesForTest(b, c).reduce((s, x) => s + bodyVolume(x), 0);
+  const apron = createBoard({ length: 30, width: 5, thickness: 0.75 });
+  const top = createBoard({ length: 36, width: 20, thickness: 0.75 });
+  const vol = (b: Board) => boardBodies(b).reduce((s, x) => s + bodyVolume(x), 0);
+
+  it('an arch SPLITS: the volume is the box minus the true segment, within the chord tolerance', () => {
+    const v = vol({ ...apron, curves: [ARCH] });
+    const exact = (30 * 5 - segmentArea(48.75, 1.5)) * 0.75;
+    const arcLength = 48.75 * 2 * Math.asin(12 / 48.75);
+    expect(v).toBeGreaterThanOrEqual(exact - 1e-9);                     // inscribed chords leave MORE wood
+    expect(v - exact).toBeLessThanOrEqual(0.005 * arcLength * 0.75);
+    expect(boardBodies({ ...apron, curves: [ARCH] }).length).toBeGreaterThan(1);
+  });
+  it('a rounded corner CLIPS: one body, volume the box minus (r² − πr²/4), within the tolerance', () => {
+    const bodies = boardBodies({ ...top, curves: [CORNER] });
+    expect(bodies).toHaveLength(1);
+    const exact = (36 * 20 - (4 - Math.PI)) * 0.75;
+    expect(Math.abs(bodyVolume(bodies[0]!) - exact)).toBeLessThanOrEqual(0.005 * Math.PI * 0.75 + 1e-9);
+    expect(bodies[0]!.box).toBeNull();
+    // Every chord plane caps the one body, named by the curve (bodyMesh's smooth normals read it).
+    const chords = curveOutline(top, CORNER).arcEdge.filter(Boolean).length;
+    expect(bodies[0]!.faces.filter((f) => f.curve === 'c2')).toHaveLength(chords);
+  });
+  it('both paths give the same wood where both apply (a bow, forced down the split path)', () => {
+    const bow = { id: 'w', ...bowCurve({ through: 'thickness', along: 'length', side: 'min', span: 30, rise: 0.5 }) };
+    const b = { ...apron, curves: [bow] };
+    const clipped = vol(b);
+    const plan = curvePlan(b, bow)!;
+    expect(plan.clip).toBe(true);
+    expect(Math.abs(clipped - splitVolumeForTest(b, bow))).toBeLessThan(1e-9);
+  });
+  it('faces on an arc chord carry the curve id; a body no curve touches keeps its box', () => {
+    const b = { ...apron, cuts: [{ id: 't', face: 'thickness' as const, from: 'max' as const, across: 'width' as const, offset: 0.5, width: 1, depth: 0.25, stopMin: 0, stopMax: 0 }], curves: [ARCH] };
+    const bodies = boardBodies(b);
+    expect(bodies.some((x) => x.faces.some((f) => f.curve === 'c1'))).toBe(true);
+    expect(bodies.some((x) => x.box !== null)).toBe(true);              // the cells around the dado at the far end
+  });
+  it('two arcs bowing into the waste that meet in a reflex WOOD corner split (the wood there is not convex)', () => {
+    const k: CurveCut = { id: 'k', through: 'thickness', uFrom: 'min', vFrom: 'min', start: [0, 0], segments: [
+      { type: 'line', to: [2, 0] }, { type: 'arc', to: [1.3, 1.3], side: 'left', rise: 0.2 },
+      { type: 'arc', to: [0, 2], side: 'left', rise: 0.2 }, { type: 'line', to: [0, 0] }] };
+    const b = { ...top, curves: [k] };
+    expect(curvePlan(b, k)!.clip).toBe(false);
+    expect(Math.abs(vol(b) - splitVolumeForTest(b, k))).toBeLessThan(1e-9);
+  });
+  it('a cell the waste only TOUCHES (its wall through the crown vertex) keeps its wood once', () => {
+    // ARCH's 18 chords put a vertex at the crown (15, 1.5). A groove over v ∈ [0.5, 1.5] in the top quarter leaves a cell
+    // above it starting at v = 1.5: it meets the piece only at the crown, so no piece plane has it wholly outside — it goes
+    // through the split loop, and must come out once (all of its wood, exactly), not once per later plane.
+    expect(curveOutline(apron, ARCH).pts).toContainEqual([expect.closeTo(15, 12), expect.closeTo(1.5, 12)]);
+    const groove: Cut = { id: 'g', face: 'thickness', from: 'max', across: 'length', offset: 0.5, width: 1, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const bodies = boardBodies({ ...apron, cuts: [groove], curves: [ARCH] });
+    const above = bodies.filter((x) => bodyVerts(x).every((p) => p[1] >= 1.5 - 1e-9 && p[2] >= 0.5 - 1e-9));
+    near(above.reduce((s, x) => s + bodyVolume(x), 0), 30 * 3.5 * 0.25);
+  });
+  it('a part with no curves is byte-for-byte unchanged', () => {
+    expect(boardBodies({ ...apron, curves: [] })).toEqual(boardBodies(apron));
+  });
+  it('geometryKey carries each curve\'s id and values', () => {
+    expect(geometryKey({ ...apron, curves: [ARCH] })).not.toBe(geometryKey(apron));
+    expect(geometryKey({ ...apron, curves: [{ ...ARCH, id: 'zz' }] })).not.toBe(geometryKey({ ...apron, curves: [ARCH] }));
+    expect(geometryKey({ ...apron, curves: [{ ...ARCH, start: [3.5, 0] }] })).not.toBe(geometryKey({ ...apron, curves: [ARCH] }));
   });
 });

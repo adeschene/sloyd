@@ -4,6 +4,7 @@ import {
   archCurve, archFields, bowCurve, bowFields, cornerCurve, cornerFields, curveFaults, deriveCurveKind,
   boundaryDistance, circleMeetsWaste, isAir, rectMeetsWaste, wasteContains,
 } from './curves';
+import { convexPieces, twiceArea } from './curves';
 import type { P2 } from './curves';
 import { createBoard } from './document';
 import type { CurveCut } from './types';
@@ -231,5 +232,25 @@ describe('mirrorCurveCut (inv 44: a flag flip, no arithmetic)', () => {
     const m = mirrorCurveCut(ARCH, 'width');
     const [arc] = localSegments(apron, m) as [Extract<ReturnType<typeof localSegments>[number], { kind: 'arc' }>];
     expect(close(arc.crown, [15, 5 - 1.5])).toBe(true);
+  });
+});
+
+describe('convexPieces', () => {
+  it('a convex outline is one piece; an L is split, every original arc edge kept flagged', () => {
+    expect(convexPieces([[0, 0], [2, 0], [2, 2], [0, 2]], [false, true, false, false])).toEqual([{ pts: [[0, 0], [2, 0], [2, 2], [0, 2]], onArc: [false, true, false, false] }]);
+    const l = convexPieces([[0, 0], [2, 0], [2, 1], [1, 1], [1, 2], [0, 2]], [false, true, false, false, false, false]);
+    expect(l.length).toBeGreaterThan(1);
+    expect(l.reduce((s, p) => s + Math.abs(twiceArea(p.pts)) / 2, 0)).toBeCloseTo(3, 12);
+    expect(l.flatMap((p) => p.onArc).filter(Boolean)).toHaveLength(1);
+  });
+  it('a vertex touching an edge (a Bow\'s crown on its own edge): the pieces partition the area and none is degenerate', () => {
+    const poly: P2[] = [[0, 0], [0, 1], [2, 0], [4, 1], [4, 0]];           // clockwise, as a Bow's outline runs
+    const pieces = convexPieces(poly, [false, true, true, false, false]);
+    expect(pieces.reduce((s, p) => s + Math.abs(twiceArea(p.pts)) / 2, 0)).toBeCloseTo(Math.abs(twiceArea(poly)) / 2, 12);
+    expect(pieces.every((p) => twiceArea(p.pts) > 1e-9)).toBe(true);      // CCW, real area
+    // The flags sit on the ORIGINAL arc edges (0,1)–(2,0) and (2,0)–(4,1), whatever the reversal did to the order.
+    const flagged = pieces.flatMap((p) => p.pts.flatMap((a, i) => (p.onArc[i] ? [[a, p.pts[(i + 1) % p.pts.length]!]] : [])))
+      .map(([a, b]) => [a!, b!].map((q) => q.join(',')).sort().join(' ')).sort();
+    expect(flagged).toEqual(['0,1 2,0', '2,0 4,1']);
   });
 });

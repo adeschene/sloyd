@@ -5,6 +5,7 @@ import {
 import type { Region } from '../document/document';
 import { chiralAngled, chiralPart, turnedAbout } from '../document/turnFixtures';
 import { mirrorPart } from '../document/frames';
+import { ARCH } from '../document/curveFixtures';
 import { boardBodies } from '../document/document';
 import { boardUVOffset, boardUVs, boardUVSignature, bodyMesh, facePlans, faceTriangles, holeMesh, holesMesh } from './grainTiling';
 import { boardHoles, holeRing, holeTouchesBox, HOLE_SEGMENTS, partGeometry, stockChecks } from '../document/document';
@@ -448,6 +449,12 @@ describe('boardUVSignature', () => {
     }] });
     const b = { ...a, cuts: [{ ...a.cuts[0], [key]: 1 }] };
     expect(boardUVSignature(b)).not.toBe(boardUVSignature(a));
+  });
+
+  it('boardUVSignature includes curves (inv 15)', () => {
+    const b = createBoard({ length: 30, width: 5, thickness: 0.75 });
+    expect(boardUVSignature({ ...b, curves: [ARCH] })).not.toBe(boardUVSignature(b));
+    expect(boardUVSignature({ ...b, curves: [{ ...ARCH, start: [3.5, 0] }] })).not.toBe(boardUVSignature({ ...b, curves: [ARCH] }));
   });
 
   // Deliberately excluded: a board being dragged must not rebuild its

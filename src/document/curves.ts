@@ -1,5 +1,6 @@
 import type { Board, CurveCut, CurveSegment, CutFrom, Dimension } from './types';
 import { DIMENSION_ORDER } from './geometry';
+import type { V3 } from './angleCuts';
 
 /** A point in a face's (u, v). */
 export type P2 = [number, number];
@@ -270,6 +271,144 @@ export function isAir(board: Pick<Board, Dimension>, c: Omit<CurveCut, 'id'>, p:
   const segs = localSegments(board, c);
   if (!wasteContains(segs, p, 'closed')) return false;
   return !segs.some((s) => segDistance(s, p) <= CURVE_EPS && (s.kind === 'arc' || !onRectBoundary(board, c.through, s)));
+}
+
+/**
+ * A simple polygon's convex pieces by ear clipping, each CCW, each edge flagged when it is an ORIGINAL arc chord
+ * (diagonals never are). A convex input comes back whole (CCW). The pieces partition the polygon; a zero-area ear
+ * (three collinear vertices — a straight side with a vertex on it, or a Bow's crown touching its edge) is dropped,
+ * since it holds no waste.
+ */
+export function convexPieces(pts: P2[], arcEdge: boolean[]): { pts: P2[]; onArc: boolean[] }[] {
+  const ccw = twiceArea(pts) > 0;
+  const P = ccw ? pts : [...pts].reverse();
+  // Edge i of the reversed polygon is edge (n - 2 - i) of the original: P[i] → P[i+1] = pts[n-1-i] → pts[n-2-i].
+  const n = P.length;
+  const flag = ccw ? arcEdge : P.map((_, i) => arcEdge[(n - 2 - i + n) % n]!);
+  const cross = (o: P2, a: P2, b: P2) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  if (P.every((p, i) => cross(p, P[(i + 1) % n]!, P[(i + 2) % n]!) >= -CURVE_EPS)) return [{ pts: P, onArc: flag }];
+  // Ear clipping on indices; an edge (i, i+1 mod n) of the original keeps its flag.
+  const idx = P.map((_, i) => i);
+  const tris: [number, number, number][] = [];
+  const same = (a: P2, b: P2) => a[0] === b[0] && a[1] === b[1];
+  while (idx.length > 3) {
+    let clipped = false;
+    // A strictly convex ear holding no other vertex (a vertex ON its boundary blocks it: the Bow's crown).
+    for (let k = 0; k < idx.length && !clipped; k += 1) {
+      const i0 = idx[(k - 1 + idx.length) % idx.length]!;
+      const i1 = idx[k]!;
+      const i2 = idx[(k + 1) % idx.length]!;
+      if (cross(P[i0]!, P[i1]!, P[i2]!) <= CURVE_EPS) continue;
+      const inside = idx.some((j) => j !== i0 && j !== i1 && j !== i2 && !same(P[j]!, P[i0]!) && !same(P[j]!, P[i1]!) && !same(P[j]!, P[i2]!)
+        && cross(P[i0]!, P[i1]!, P[j]!) >= 0 && cross(P[i1]!, P[i2]!, P[j]!) >= 0 && cross(P[i2]!, P[i0]!, P[j]!) >= 0);
+      if (inside) continue;
+      tris.push([i0, i1, i2]);
+      idx.splice(k, 1);
+      clipped = true;
+    }
+    if (clipped) continue;
+    // No convex ear: a vertex in a straight run (collinear neighbours) holds no area — drop it. Its edge flags are lost
+    // only for a zero-area remainder, never for an edge of a piece that is kept.
+    const k = idx.findIndex((i1, k2) => {
+      const i0 = idx[(k2 - 1 + idx.length) % idx.length]!;
+      const i2 = idx[(k2 + 1) % idx.length]!;
+      return Math.abs(cross(P[i0]!, P[i1]!, P[i2]!)) <= CURVE_EPS;
+    });
+    if (k < 0) break; // not a simple polygon: what is left is not triangulated (never for a validated curve)
+    idx.splice(k, 1);
+  }
+  if (idx.length === 3) tris.push([idx[0]!, idx[1]!, idx[2]!]);
+  const edgeFlag = (a: number, b: number) => (b === (a + 1) % n ? flag[a]! : false);
+  return tris
+    .filter(([a, b, c]) => cross(P[a]!, P[b]!, P[c]!) > CURVE_EPS)
+    .map(([a, b, c]) => ({ pts: [P[a]!, P[b]!, P[c]!], onArc: [edgeFlag(a, b), edgeFlag(b, c), edgeFlag(c, a)] }));
+}
+
+type Half = { n: V3; d: number };
+
+/** A (u, v) half-plane lifted into board-local 3D: no component along `through`. */
+function lifter(through: Dimension): (n: P2, d: number) => Half {
+  const [u, v] = uvDims(through);
+  const iu = DIMENSION_ORDER.indexOf(u);
+  const iv = DIMENSION_ORDER.indexOf(v);
+  return (n, d) => { const N: V3 = [0, 0, 0]; N[iu] = n[0]; N[iv] = n[1]; return { n: N, d }; };
+}
+
+/**
+ * P6's premise, checked: the wood is convex at every outline vertex OFF the face boundary — the waste's corner there is
+ * reflex or straight. Two arcs that each bow into the waste can still meet in a convex WASTE corner (a reflex wood
+ * corner, from a hand-edited file); their chord planes, extended, would then remove wood past the other arc. Such a
+ * curve splits instead (the same wood, by the agreement test). Every canonical form passes: chord vertices of an arc
+ * bowing into the waste are reflex in it, and every other vertex lies on the boundary.
+ */
+function woodConvexOffBoundary(board: Pick<Board, Dimension>, through: Dimension, pts: readonly P2[]): boolean {
+  const [u, v] = uvDims(through);
+  const s = twiceArea(pts) > 0 ? 1 : -1;
+  const onBoundary = (p: P2) => Math.abs(p[0]) <= CURVE_EPS || Math.abs(p[0] - board[u]) <= CURVE_EPS
+    || Math.abs(p[1]) <= CURVE_EPS || Math.abs(p[1] - board[v]) <= CURVE_EPS;
+  return pts.every((p, i) => {
+    if (onBoundary(p)) return true;
+    const a = pts[(i - 1 + pts.length) % pts.length]!;
+    const b = pts[(i + 1) % pts.length]!;
+    return s * ((p[0] - a[0]) * (b[1] - p[1]) - (p[1] - a[1]) * (b[0] - p[0])) <= CURVE_EPS;
+  });
+}
+
+/**
+ * How `boardBodies` removes one curve's waste (spec §3.2, P6). CLIP — every arc bows into the waste and every straight
+ * side lies along the face boundary, so the wood left is convex near the curve: one kept half-plane per chord, the side
+ * holding the arc's centre. SPLIT otherwise: the waste polygon's convex pieces (`splitPieces`). Planes are board-local
+ * 3D with no component along `through`. Null when the outline has no area.
+ */
+export function curvePlan(board: Pick<Board, Dimension>, c: Omit<CurveCut, 'id'>):
+  { clip: true; planes: Half[] } | { clip: false; pieces: { planes: Half[]; onArc: boolean[] }[] } | null {
+  const lift = lifter(c.through);
+  const segs = localSegments(board, c);
+  const o = curveOutline(board, c);
+  if (Math.abs(twiceArea(o.pts)) <= CURVE_EPS) return null;
+  const clips = segs.every((s) => (s.kind === 'arc' ? bowsInto(segs, s) === 'waste' : onRectBoundary(board, c.through, s)))
+    && woodConvexOffBoundary(board, c.through, o.pts);
+  if (!clips) return { clip: false, pieces: splitPieces(board, c) };
+  // Each chord's arc: the chords of segment k run from its start to its end, in outline order.
+  const arcOfEdge: LocalArc[] = [];
+  let at = 0;
+  for (const s of segs) {
+    if (s.kind === 'line') { at += 1; continue; }
+    const n = arcChords(s, CURVE_TOLERANCE, CURVE_SEGMENTS_MAX);
+    for (let k = 0; k < n; k += 1) arcOfEdge[at + k] = s;
+    at += n;
+  }
+  const planes: Half[] = [];
+  for (let i = 0; i < o.pts.length; i += 1) {
+    if (!o.arcEdge[i]) continue;
+    const p = o.pts[i]!;
+    const q = o.pts[(i + 1) % o.pts.length]!;
+    const arc = arcOfEdge[i]!;
+    const l = Math.hypot(q[0] - p[0], q[1] - p[1]);
+    let n: P2 = [-(q[1] - p[1]) / l, (q[0] - p[0]) / l];
+    if (n[0] * (arc.centre[0] - p[0]) + n[1] * (arc.centre[1] - p[1]) < 0) n = [-n[0], -n[1]];
+    planes.push(lift(n, -(n[0] * p[0] + n[1] * p[1])));
+  }
+  return { clip: true, planes };
+}
+
+/**
+ * The SPLIT plan's pieces for one curve (spec §3.2): the waste polygon's convex pieces (`convexPieces`), each as inside
+ * half-planes — n points INTO the waste, a CCW piece's inside being the left of each edge — with its arc-chord edges
+ * flagged. `curvePlan` uses it for a curve that does not clip; the clip/split agreement test forces it for one that does.
+ */
+export function splitPieces(board: Pick<Board, Dimension>, c: Omit<CurveCut, 'id'>): { planes: Half[]; onArc: boolean[] }[] {
+  const lift = lifter(c.through);
+  const o = curveOutline(board, c);
+  return convexPieces(o.pts, o.arcEdge).map(({ pts, onArc }) => ({
+    onArc,
+    planes: pts.map((p, i) => {
+      const q = pts[(i + 1) % pts.length]!;
+      const l = Math.hypot(q[0] - p[0], q[1] - p[1]);
+      const n: P2 = [-(q[1] - p[1]) / l, (q[0] - p[0]) / l];
+      return lift(n, -(n[0] * p[0] + n[1] * p[1]));
+    }),
+  }));
 }
 
 /** Where a closed segment p0→p1 meets an arc (closed: tangency counts), as points. */

@@ -2,14 +2,17 @@ import type { Board, Region } from './types';
 import { CUT_GEOMETRY_KEYS, pocketCells, pocketEdges, type Point, type Segment } from './cuts';
 import { boardHoles, holeRowValues, type Hole } from './holes';
 import { angleCutValues, keptHalfSpace, type V3 } from './angleCuts';
+import { curvePlan, curveValues, splitPieces } from './curves';
+import type { CurveCut } from './types';
 
 /** Inches. Below any bench precision, above float drift on part-sized numbers. */
 export const BODY_EPS = 1e-9;
 
 /** One face of a body: outward unit normal and a convex polygon, board-local. Winding is NOT meaningful —
  *  a consumer that needs it orients against `n` (BoardMesh does). `cut` names the angle cut whose plane
- *  the face lies on. */
-export interface BodyFace { n: V3; verts: V3[]; cut?: string }
+ *  the face lies on. `curve` names the curve whose chord plane the face lies on (curves spec §3.2): `bodyMesh`
+ *  reads it for smooth normals. */
+export interface BodyFace { n: V3; verts: V3[]; cut?: string; curve?: string }
 
 /**
  * A convex piece of a part's remaining stock (angle-cuts spec §3.1): one pocket
@@ -59,7 +62,7 @@ function ring(points: V3[], n: V3): V3[] {
  * clipped body from an untouched one. A face lying on the plane is kept as is
  * and no cap is added (the plane is already a face).
  */
-function clip(faces: BodyFace[], h: { n: V3; d: number }, cut: string): BodyFace[] {
+function clip(faces: BodyFace[], h: { n: V3; d: number }, tag: { cut?: string; curve?: string }): BodyFace[] {
   const g = (p: V3) => dot(h.n, p) + h.d;
   const side = (p: V3) => { const v = g(p); return v > BODY_EPS ? 1 : v < -BODY_EPS ? -1 : 0; };
   if (!faces.some((f) => f.verts.some((p) => side(p) < 0))) return faces;
@@ -87,17 +90,25 @@ function clip(faces: BodyFace[], h: { n: V3; d: number }, cut: string): BodyFace
   }
   if (!onPlane) {
     const r = ring(cap, h.n);
-    if (r.length >= 3) out.push({ n: [-h.n[0], -h.n[1], -h.n[2]], verts: r, cut });
+    if (r.length >= 3) {
+      const capFace: BodyFace = { n: [-h.n[0], -h.n[1], -h.n[2]], verts: r };
+      if (tag.cut !== undefined) capFace.cut = tag.cut;
+      if (tag.curve !== undefined) capFace.curve = tag.curve;
+      out.push(capFace);
+    }
   }
   return out;
 }
+
+/** `clipConvex`'s tag: a cap named by no cut (section caps find it by `cut === ''`). */
+const UNNAMED = { cut: '' } as const;
 
 /**
  * One convex body (faces in any one frame) kept on the side n·x + d >= 0: `clip`, for a caller with no cut to name.
  * The checks intersect two world bodies with it (fu 302): a body clipped by each of the other's inside half-spaces.
  */
 export function clipConvex(faces: BodyFace[], h: { n: V3; d: number }): BodyFace[] {
-  return clip(faces, h, '');
+  return clip(faces, h, UNNAMED);
 }
 
 /**
@@ -110,19 +121,76 @@ export function boardBodies(board: Board): Body[] {
   const cells = pocketCells(board);
   const planes = board.angleCuts.flatMap((c) => {
     const h = keptHalfSpace(board, c);
-    return h ? [{ h, id: c.id }] : [];
+    return h ? [{ h, tag: { cut: c.id } }] : [];
   });
   const out: Body[] = [];
   for (const r of cells) {
     const start = boxFaces(r);
     let faces = start;
-    for (const { h, id } of planes) {
-      faces = clip(faces, h, id);
+    for (const { h, tag } of planes) {
+      faces = clip(faces, h, tag);
       if (faces.length === 0) break;
     }
     if (faces.length >= 4) out.push({ box: faces === start ? r : null, faces });
   }
-  return out;
+  // Curves (curves spec §3.2): each curve's waste leaves every body convex — clipped by the chords' kept half-planes when
+  // the wood left is convex (P6), else split along the waste's convex pieces. A body no curve reaches keeps its object,
+  // so its `box` survives (invariant 48's box path). Caps on an arc chord carry the curve's id.
+  let bodies = out;
+  for (const c of board.curves) {
+    const plan = curvePlan(board, c);
+    if (!plan) continue;
+    bodies = bodies.flatMap((body) => {
+      const faces = plan.clip ? clipAll(body.faces, plan.planes, c.id) : subtractPieces(body.faces, plan.pieces, c.id);
+      return faces.flatMap((f) => (f === body.faces ? [body] : f.length >= 4 ? [{ box: null, faces: f }] : []));
+    });
+  }
+  return bodies;
+}
+
+/** A body clipped by every kept half-plane of a CLIP plan: one body or none. */
+function clipAll(faces: BodyFace[], planes: readonly { n: V3; d: number }[], curve: string): BodyFace[][] {
+  let f = faces;
+  const tag = { curve };
+  for (const h of planes) { f = clip(f, h, tag); if (f.length === 0) return []; }
+  return [f];
+}
+
+/**
+ * A body minus the waste of a SPLIT plan (spec §3.2): for each convex piece in turn, every current part splits at the
+ * piece's planes — the part OUTSIDE each plane (inside the ones before) is kept, the part inside them all (waste) dropped.
+ * Caps on an arc chord carry the curve's id. A body the waste does not reach comes back as its own array (one element).
+ */
+function subtractPieces(faces: BodyFace[], pieces: readonly { planes: { n: V3; d: number }[]; onArc: boolean[] }[], curve: string): BodyFace[][] {
+  let parts: BodyFace[][] = [faces];
+  for (const piece of pieces) {
+    const next: BodyFace[][] = [];
+    for (const part of parts) {
+      // A part wholly outside one of the piece's planes does not meet it: it stays whole, its own array. Without this
+      // the piece's planes, extended past its edges, would slice a cell the waste never reaches (and lose its box).
+      if (piece.planes.some((h) => part.every((f) => f.verts.every((p) => dot(h.n, p) + h.d <= BODY_EPS)))) { next.push(part); continue; }
+      let rest = part;
+      piece.planes.forEach((h, i) => {
+        if (rest.length === 0) return;
+        const tag = piece.onArc[i] ? { curve } : {};
+        const outside = clip(rest, { n: [-h.n[0], -h.n[1], -h.n[2]], d: -h.d }, tag);
+        if (outside.length >= 4) next.push(outside);
+        rest = outside === rest ? [] : clip(rest, h, tag);
+      });
+    }
+    parts = next;
+  }
+  return parts;
+}
+
+/**
+ * TEST-ONLY: `board`'s bodies with `c` (its only curve) removed down the SPLIT path even where `curvePlan` would clip —
+ * the clip/split agreement test (spec §3.2: both paths give the same wood).
+ */
+export function splitBodiesForTest(board: Board, c: CurveCut): Body[] {
+  const before = boardBodies({ ...board, curves: [] });
+  const pieces = splitPieces(board, c);
+  return before.flatMap((body) => subtractPieces(body.faces, pieces, c.id).flatMap((f) => (f.length >= 4 ? [{ box: null, faces: f }] : [])));
 }
 
 /** Distinct vertices of a body. */
@@ -321,7 +389,8 @@ const num = (n: number): string => (Object.is(n, -0) ? '-0' : String(n));
  * (`cutRegion`, `pocketCells`, `pocketEdges`) reads only the dimensions and cuts, and `keptHalfSpace`
  * only the dimensions and the angle cut — the geometry is board-local, and every pose is applied
  * after (toWorld, worldBodies, bodyMesh). Every hole row's id and HOLE_KEYS values are in it too (a hole carries
- * its row id, Hole.row). The angle cut's ID is in it because a clipped face carries
+ * its row id, Hole.row), and every curve's id and CURVE_FIELDS values (a chord face carries its curve id,
+ * BodyFace.curve). The angle cut's ID is in it because a clipped face carries
  * it (`BodyFace.cut`) and `bodyMesh` looks the cut up by it; a pocket cut's id is not (no output
  * carries one). Ids are JSON-quoted so an id holding a separator cannot collide.
  */
@@ -330,7 +399,8 @@ export function geometryKey(board: Board): string {
   const cuts = board.cuts.map((c) => CUT_GEOMETRY_KEYS.map((k) => val(c[k])).join(',')).join(';');
   const angles = board.angleCuts.map((c) => `${JSON.stringify(c.id)}:${angleCutValues(c).map(val).join(',')}`).join(';');
   const holes = board.holes.map((r) => `${JSON.stringify(r.id)}:${holeRowValues(r).map(val).join(',')}`).join(';');
-  return `${num(board.length)},${num(board.width)},${num(board.thickness)}|${cuts}|${angles}|${holes}`;
+  const curves = board.curves.map((c) => `${JSON.stringify(c.id)}:${curveValues(c)}`).join(';');
+  return `${num(board.length)},${num(board.width)},${num(board.thickness)}|${cuts}|${angles}|${holes}|${curves}`;
 }
 
 function deepFreeze<T>(o: T): T {
