@@ -27,7 +27,12 @@ handicraft education tradition built around hand woodworking.
 - **Curves chunk 1 (spec `2026-10-15-sloyd-curves-design.md`, plan `…-curves-chunk1.md`, inv 53)**: deployed. Arch,
   Half-round notch, Bow, Rounded corner(s) cut through a part; viewport, edges, section caps, snap points, cut list, Properties.
   The execution rulings marked *Amended (implementation, chunk 1)* in the spec await the user's review. Open near it:
-  361 (chunk 2: drawings), 362–367 (spec §12), 368–373 (residue; 370 real-hardware looks: smooth shading, the grain seam).
+  361 closed on the branch (chunk 2), 362–367 (spec §12), 368–373 (residue; 370 real-hardware looks: smooth shading, the grain seam).
+- **Curves chunk 2 (drawings; plan `…-curves-chunk2.md`, inv 47/53, fu 361 closed)**: BUILT on branch `curves-2` (HEAD
+  `3f6fba4`), **NOT merged or deployed** — merge and deploy on the user's word. **No schema change** (17), so rolling back is
+  free. The Plans sheet draws arcs at 0.001" and the silhouettes of curved surfaces (a live defect on master: open rounded-top
+  ends, no arch crown); part diagrams draw the waste, sharp-vertex lines and curve notes. Rulings Q1–Q6 (marked *Amended
+  (implementation, chunk 2)* in the spec) await the user's review. Open near it: 374–379 (residue).
 - **Metric display (spec `2026-10-15-sloyd-metric-display-design.md`, inv 52)**: deployed. 354 closed (metric parts match the nominal
   sections and stock they read the same as). Open near it: 359 (the
   imperial plane note can read the same on both sides), 356/358 record-only. 355, 357 and 360 closed and deployed (357's real Brave print is owed for the user's eye).
@@ -36,7 +41,7 @@ handicraft education tradition built around hand woodworking.
 - **Holes (spec `2026-10-14-sloyd-holes-design.md`, inv 50)**: both chunks deployed (schema 16; fu 327 and 343 closed).
   Open near it: 328–342 (336: the wall-grain seam, deferred by the user to a texture/shader session; 337: real-hardware
   looks owed), 344–346.
-- **NEXT: ask** (curves chunk 2, fu 361, is the natural next curves work). Custom materials (fu 266) closed; open near it 324–326. Other open items:
+- **NEXT: curves chunk 2 awaits the user's merge word; after it, ask.** Custom materials (fu 266) closed; open near it 324–326. Other open items:
   314–320, angle-cut residue 295–298; 241 (open by decision), 251 (record-only), 221, 225, 232, 234, 247.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
@@ -115,6 +120,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | fu 360 + 355 | 10-15 | — | Built-in pine's default stock adds the nominal 2× and 4×4 sizes (36); metric design faults show mm in the Joinery/Refine dialogs (`Violation.shown`), the model's text unchanged |
 | fu 357 | 10-15 | — | A metric sheet's `Dimensions in mm` repeats in every printed page's top margin (`@page metric-sheet`, margin box) |
 | curves (chunk 1) | 10-15 | 17 | `Board.curves` (`CurveCut`: a closed waste outline of lines and minor arcs in a face's (u, v), cut clean through one dimension; inv 53): clipped or split bodies, built edges, smooth normals, a watertight mesh and cap; arc snap points; bench lines and grouping; Curves section (Arch, Half-round notch, Bow, Rounded corner(s)); holes into a curve's waste fault; joinery/Refine/Repair refuse curved projects; an unknown segment type refuses the document |
+| curves (chunk 2) — ON BRANCH `curves-2`, not merged | 10-15 | — | Plans sheet: arcs at `DRAWING_CURVE_TOLERANCE` 0.001" (≤96 chords) through `curveDrawEdges`, visibility on the model chord, edge-on views unrefined; silhouettes of curved surfaces (`silhouetteLines`; fixes open rounded-top ends and the missing arch crown). Part diagrams: hatched waste, sharp-vertex lines on their own face, curve notes (`curveLineEntries`). Fu 361 |
 
 ### The deployment rule
 
@@ -282,6 +288,9 @@ src/
 │   │                     clip), curvePlan (CLIP or SPLIT; the strengthened P6), splitPieces; writers/readers archCurve/archFields,
 │   │                     bowCurve/bowFields, cornerCurve/cornerFields, deriveCurveKind, curveKindWord, presets defaultArch/
 │   │                     Notch/Bow/Corner/Corners; runtime imports `geometry` only
+│   ├── curveDrawing.ts   [branch `curves-2`] curves on paper (inv 47, 53): DRAWING_CURVE_TOLERANCE 0.001 / DRAWING_CURVE_SEGMENTS_MAX 96,
+│   │                     curveDrawEdges (each model chord + a fine path of nodes ON the true arc; ends stay on the chord, Q4;
+│   │                     deep-frozen, memoised), curveSilhouettes / silhouetteLines (Q1; the probe offset); imports geometry, bodies, snapPoints, curves
 │   ├── curveText.ts      curveLine/curveLines (THE bench lines; four equal corners collapse), curveFaultText
 │   │                     (THE fault words) (→ units)
 │   ├── curvedRefusal.ts  curvedParts / curvedRefusal: joinery, Refine and Repair refuse a curved project (after holes')
@@ -301,7 +310,10 @@ src/
 │   ├── depthField.ts     buildDepthField (inv 20)
 │   ├── diagram.ts        buildDiagrams, one view per (face, from); per view `holes` (circles down the axis), `holeSides`
 │   │                     ({axis, bottomAt}: dashed depth boxes across it) and `holeNotes` ({row, text}: bench lines), in THREE
-│   │                     passes — every row's entry view opened first, then circles and sides, notes last in STORED row order (chunk 2 R3)
+│   │                     passes — every row's entry view opened first, then circles and sides, notes last in STORED row order (chunk 2 R3);
+│   │                     [branch `curves-2`] per view `curves` (waste polygons, hatched), `curveLines` (sharp-vertex lines, only on a face
+│   │                     the vertex lies on) and `curveNotes` (`curveLineEntries`); a curve opens its through face's min view only when
+│   │                     neither side exists, AFTER holes' entry views
 │   ├── nesting.ts        buildNesting, shelf FFD; formatDims (invs 19, 22, 23); packOnto (by-the-piece boards,
 │                         grain locked, largest size opened first) and grainFootprint
 │   ├── materials.ts      custom materials (inv 49): validateCustomMaterial(s), mintMaterialId, MaterialCatalog —
@@ -329,7 +341,8 @@ src/
 │   │                     for angled parts (fu 302/303); jointViolations (the model-facing `angle-joint` fault);
 │   │                     contactRegions / contactSolids / isAngled: the checks' flat-wood-only reader (invs 38, 48)
 │   ├── drawing.ts        drawView: exact hidden-line vector drawing; edges from boardEdges (inv 16) plus hole lines from
-│   │                     holeDrawingSegments, occluders from worldBodies (the bodies, angle cuts included, holes not), via partGeometry
+│   │                     holeDrawingSegments, occluders from worldBodies (the bodies, angle cuts included, holes not), via partGeometry;
+│   │                     [branch `curves-2`] a curved part's edges come through `curveDrawEdges`, plus `silhouetteLines`
 │   ├── explode.ts        explodeOffsets (hierarchical, floor-lifted), EXPLODE_SPREAD/INNER
 │   ├── section.ts        THE section cut (inv 51): Section, keptBySection (THE side test), sectionPlaneOf, sectionSpan,
 │   │                     sectionCaps (board-local caps minus bores, a per-part local cache), unionOutline
@@ -546,7 +559,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     string must be the same string: assemble it in the module that builds it
     (`nesting.ts`, `diagram.ts`), never in the component. A non-ASCII glyph must be
     measured in a browser before it is trusted. A hole row's diagram label is its bench line (`holeLine`) as an HTML
-    note under the figure, as angle cuts' notes are — never a measured SVG label (holes spec §4.3, amended).
+    note under the figure, as angle cuts' notes are — never a measured SVG label (holes spec §4.3, amended). A curve's notes
+    are HTML notes too, built by `curveLineEntries` ([branch `curves-2`]; one note per entry, four equal corners one note).
 20. **`depthField.ts` is not `pocketCells`**: it assigns max depth per cell in 2D; it does
     not drop cells. An agreement test must assert the value the derivation computes, not
     just where it is non-zero.
@@ -760,6 +774,14 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     solids is inside. The exploded set is
     lifted so its lowest part never goes below the assembled lowest point. Occluders are the HOLE-FREE bodies: you
     cannot see through a hole (a rule, not an accident; a through-bore's far rim seen down its axis is hidden, pinned).
+    [branch `curves-2`] **A curved part's drawing edges come through `curveDrawEdges`** (inv 53): each model chord drawn as a
+    fine path on the true arc, but **visibility is judged on the MODEL chord** (the path only changes what is drawn; the
+    visible/hidden split is chunk 1's), and a view whose direction lies in the outline's plane (**edge-on**) keeps the model
+    chords unrefined (a 96-chord arc folds back over itself). A chord split by another feature keeps its split end on the
+    chord (Q4). **Curved surfaces' silhouettes come from `silhouetteLines`** (a line along `through` at each smooth model
+    vertex whose faces turn opposite ways to the view), each probed from **4×`DRAW_EPS` along the outward normals of the
+    viewer-facing adjacent faces** — never lifted toward the viewer (a fixed lift failed gentle bows) and never probed from the
+    vertex itself (DRAW_EPS grazing reads it hidden).
 
 48. **`boardBodies` is the ONE place angle cuts become geometry; `pocketCells` is stock minus RECTANGULAR cuts only.**
     Anything that draws, edges, occludes or probes stock reads bodies (through the `partGeometry` cache); anything that
@@ -876,13 +898,19 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     Refine and Repair refuse a curved project at entry (`curvedRefusal`, after holes'); `turnCandidates` none; the design
     checks never see a curve. `viewport/curvesPerf.test.ts` guards the rebuild (≤40 ms per preset and a two-axis part,
     ≤100 ms for a hand-edited non-convex waste — fu 368; MINIMUM of 9, wall-clock).
+    [branch `curves-2`] **On paper:** `DRAWING_CURVE_TOLERANCE` 0.001" and `DRAWING_CURVE_SEGMENTS_MAX` 96 (`curveDrawing.ts`;
+    inv 47 for edges and silhouettes). **Part diagrams:** the waste is hatched in the through-face view (clipped to the part); a
+    curve opens its through face's MIN view only when neither side exists, decided after holes' entry views; a sharp-vertex
+    line is drawn only in the view of a face the vertex lies on, never along the outline's own edges; notes are
+    `curveLineEntries` (`{ ids, text }`; a view lists the entries any of whose ids it draws, a curve run wholly off its face
+    still in the view it opened); a part with no curves keeps its diagrams byte-for-byte.
 
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 4374 tests across 148 files
+npm test           # Vitest, currently 4436 across 151 files on branch `curves-2` (4374 across 148 on master)
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -949,8 +977,10 @@ knowing without opening it:
 - **343–346** — holes chunk 2 residue: 343 (Hinge cup along the LONGER in-face dimension, R5) closed — the user kept it; 344
   (the exploded view computes hidden hole lines it never draws; ties to 263's slider lag), 345 (dash look of chained paths
   and corner joins on a real print, for the user's eye; fu 254), 346 (record-only minors).
-- **361–373** — curves chunk 1: 361 (chunk 2: Plans-sheet arcs at `DRAWING_CURVE_TOLERANCE` 0.001", ≤96
-  chords per arc, and part-diagram outlines, sharp-vertex lines and notes), 362 (curve callouts; with 252, 333), 363 (Claude
+- **361–379** — curves: 361 closed on branch `curves-2` (chunk 2: arcs at 0.001", silhouettes — a live defect on master —, part
+  diagrams); residue 374 (the edge-on fold, Q3), 375 (a silhouette drawn through another cut's air), 376 (a split chord's end up
+  to 0.005" off the arc, Q4; Q2's split likewise; record-only), 377 (the unreachable (0, 1) node guard; record-only), 378
+  (chunk 2 deferred minors; record-only), 379 (drawView timing ~6 ms/view, unchanged). Chunk 1: 362 (curve callouts; with 252, 333), 363 (Claude
   features on curves: joinery/Repair, Generate/Refine, the design checks), 364 (splines: a segment type, no bump), 365
   (stopped curves, edge profiles), 366 (compound curves), 367 (a row control to change kind); residue — 368 (a non-convex
   waste rebuilds in ~65 ms: merge ear-clip triangles, bucket bodyEdges' line lookup, frozen bodies slow bodyEdges), 369 (a

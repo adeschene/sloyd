@@ -5638,7 +5638,13 @@ draws the outline lines at `DRAWING_CURVE_TOLERANCE = 0.001"`, capped at 96 chor
 sheet), occluders staying the model's bodies. Part diagrams (seen live as plain rectangles for a curved part, as specified):
 the waste outline in the view down `through`, clipped to the part; a line across the part at each SHARP outline vertex in
 the other views (matching the viewport, inv 16); each curve's bench line as an HTML note under the figure (inv 19). No
-schema change. **Status:** open (next in this feature).
+schema change. **Status:** CLOSED on branch `curves-2` (not merged), 2026-10-15 (spec §5 as amended, rulings Q1–Q6; `curveDrawing.ts`,
+`diagram.ts`, `PartDiagram`). Shipped: `curveDrawEdges` (fine path ON the true arc, 0.001", ≤96 chords; visibility on the model
+chord, edge-on views unrefined, a split chord keeping its end); part diagrams (hatched waste, sharp-vertex lines on their own
+face, notes through `curveLineEntries`, four corners one note). **The curved-surface silhouette was a LIVE production defect
+(chunk 1 as deployed), fixed here:** a four-corner top's Front and Side elevations had open ends and an arch's Side view
+lacked its hidden crown; `silhouetteLines` now draws them. Live check (`docs/browser-verification-curves.md`, Chunk 2): seen on
+software GL; the real print is owed (fu 254, 345, 357, 379).
 
 **362. Dimension callouts on curves.** Radius and rise on the Plans sheet. Joins fu 252 (callouts) and 333 (hole
 callouts). **Status:** open (spec §12).
@@ -5719,3 +5725,32 @@ say Rise (likely unreachable); the half-circle refusal always says Rise (a corne
 r√2); a select refusal's row alert survives later events; `refusalFor`'s `had` is keyed by fault kind only
 (plan-mandated); the Rounded-corner Corner select and Radius field and the Bow's Side select have no panel test; "No curve
 preset fits this part." and the `.curve-label` sentence-case rule are untested. **Status:** record-only.
+
+**374. The edge-on fold (Q3).** A view looking along an arch's plane (an arch's Side view) keeps chunk 1's 24-chord arc
+unrefined, because 96 chords fold back over themselves on screen. The 24-chord fold remains as chunk 1 had it; it almost
+always lies under the face's own visible edge line. **Status:** open (a dedicated edge-on rule, if a print shows it).
+
+**375. A silhouette drawn through another cut's air.** `silhouetteLines` draws a smooth vertex's line along `through` for its
+whole length; where another cut (a dado, a hole) removes wood along that line, the line is drawn through air. **Status:** open
+(unseen on a print; fix by clipping the silhouette to the wood).
+
+**376. Chord ends off the arc (record-only).** (1) Q4: a model chord split by a dado or a second curve keeps its split end ON
+the chord, up to 0.005" (the model tolerance) off the true arc, so the other feature's line meets it. (2) Q2: visibility is
+decided on the model chord, so a visibility cut inside a chord can land up to 0.005" (not 0.001") off an oblique occluder's
+edge. Both far below a printed line's width. **Status:** record-only.
+
+**377. The unreachable node guard (record-only).** `curveDrawEdges` drops fine nodes whose chord parameter `at` is <= 0 or
+>= 1 (Q4's exactness beside a split end). No constructed case reaches it; its test pins the invariant (no node at 0 or 1), not
+the guard, so removing it is not caught. Kept by ruling: it states the invariant at no cost. **Status:** record-only.
+
+**378. Curves chunk 2 deferred minors (record-only).** (1) No test pins a reversed p→q edge or a negative-sweep arc in
+`curveDrawEdges`. (2) Its match scan is O(edges × chords) (memoised; fine at the caps). (3) The totals test (`toBeCloseTo 2`)
+cannot tell the fine path from chunk 1's chords; the 54-piece and occluder tests pin it. (4) `curveLines` does not de-duplicate
+two curves sharing a sharp vertex (identical lines). (5) No diagram test with `through` = width or length. (6) An unreachable
+`F !== cu && F !== cv` guard in `diagram.ts`; test imports appended mid-file. (7) `PartDiagram`: the `along: 'h'` line branch
+and the line's `vUp` are untested; X/Y closures are per iteration. (8) The plan's Task 3 comment said corner radius 2 (joins at
+(0,2), (0,18)); `defaultCorners` gives radius 1 (tests use the right values). **Status:** record-only.
+
+**379. drawView timing, and the real print (record).** A curved part's `drawView` costs about 6 ms per view (measured in Task 2:
+5.6 / 6.2 / 6.2 / 6.6 ms against the baseline 5.6 / 6.4 / 6.3 / 5.4), unchanged by chunk 2. The line weight of 96-chord arcs and
+the dash look on a real print are owed to the user's eye (with 254, 345, 357). **Status:** open for the user's print.
