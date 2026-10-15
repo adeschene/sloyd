@@ -100,7 +100,7 @@ export function localCapPieces(
   pieces = pieces.map((poly) => (newellAlong(poly, li) * capN[li]! < 0 ? [...poly].reverse() : poly));
   // A hole can only touch a piece whose box meets the hole's (centre ± radius + depth, generous on every axis), so
   // minusPrism sees only those; the rest pass through untouched (its own first test would have returned them too).
-  const boxOf = (poly: readonly V3[]) => {
+  const boxOf = (poly: V3[]) => {
     const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
     for (const p of poly) for (let k = 0; k < 3; k += 1) { if (p[k]! < lo[k]!) lo[k] = p[k]!; if (p[k]! > hi[k]!) hi[k] = p[k]!; }
     return { poly, lo, hi };
