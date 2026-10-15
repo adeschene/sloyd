@@ -453,7 +453,7 @@ and 79.
 ## What each round did
 
 **What metric display chunk 2 did (2026-10-15)** (plan `docs/superpowers/plans/2026-10-15-sloyd-metric-display-chunk2.md`,
-branch `metric-2` from `133d22a`; chunk 1 merged as `80d41fb`). No schema change. Subagent-driven, four tasks plus a final
+branch `metric-2` from `133d22a`; chunk 1 merged as `80d41fb`). **Merged as `b993ac7` and deployed with chunk 1 the same day** (`index-BhtsAcfC.js`). No schema change. At the deploy gate the user ruled sheet sizes in cut-list prose read in trade form (`96" × 48" (2438 × 1219 mm)`; placed-part labels stay bare) and shipping with fu 354 and 355 open. Subagent-driven, four tasks plus a final
 review: (1) drawings in bare mm — `dimensions.ts`, `diagram.ts`' own labels, `nesting.ts`' `formatDims` and `packOnto` take
 `Units` and format through `formatLengthBare` (one string measured and drawn, inv 19), `PlanTrio` memoises on `units`;
 (2) one `Dimensions in mm` note in the cut-list and Plans-sheet headers, metric only, shown whenever the sheet is open

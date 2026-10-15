@@ -21,9 +21,13 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-15: the section cut (merge `71e8d19`) — bundle `index-DwixxasK.js`, CSS
-  `index-BcAtcm35.css`, **SCHEMA 16** (unchanged since holes chunk 1, so rolling back to `d74e5c5`, `index-DFCdm3n1.js`, or
-  `2ded5cc` is free; below 16, `bfde00c`, REFUSES every project saved since: export first). Test count is under Commands.
+- **Production matches `master`** as of 2026-10-15: metric display chunks 1 + 2 (merge `b993ac7`) — bundle
+  `index-BhtsAcfC.js`, CSS `index-CwNDYAf3.css`, **SCHEMA 16** (unchanged since holes chunk 1, so rolling back to `71e8d19`,
+  `index-DwixxasK.js`, or earlier down to `2ded5cc` is free — an older build reads a metric project as imperial; below 16,
+  `bfde00c`, REFUSES every project saved since: export first). Test count is under Commands.
+- **Metric display (spec `2026-10-15-sloyd-metric-display-design.md`, inv 52)**: deployed. Open near it: 354 (round-mm parts
+  miss nominal sections), 355 (designCheck dialog text in inches), 357 (the units note prints on page 1 only), 359 (the
+  imperial plane note can read the same on both sides), 356/358 record-only.
 - **Section cut (spec `2026-10-14-sloyd-section-cut-design.md`, inv 51)**: deployed. Open near it: 347 (cap look on real
   hardware), 348 (cap cost on drilled parts), 349–350, 352 record-only (351 closed: inv 43 amended).
 - **Holes (spec `2026-10-14-sloyd-holes-design.md`, inv 50)**: both chunks deployed (schema 16; fu 327 and 343 closed).
@@ -103,6 +107,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | holes (chunk 1) | 10-14 | 16 | `HoleRow` (blind/through, a row of `count` at `pitch`, inv 50): rendered open (walls, bottoms, rims), centre snap points, `holeFaults`' strict rule, bench lines (32 mm pitch at 1/64 + mm) and cut-list grouping; Holes section (Hole, Shelf-pin row); joinery/Refine/Repair refuse holed projects |
 | holes (chunk 2) | 10-14 | — | Plans sheet: hole rims (96-gons; edge-on as one segment) and wall silhouettes through the one hidden-line pass, occluded by the hole-free bodies; plan paths chain within a part; part diagrams: ellipses, centre marks, dashed depth sides, each row's bench line as a note; the Hinge cup preset |
 | section cut | 10-15 | — | Viewport section: one Front/Side/Top plane (slider, exact field, Flip), GPU-clipped parts and edges, exact solid caps from the bodies minus bores (one winding, outline = union boundary), picking/snapping on the kept side (guides exempt); view state only (inv 51) |
+| metric display (chunks 1–2) | 10-15 | — | Per-project `in \| mm` Units switch; whole mm for fields, typing (a bare number is mm), tape, cut list, bench lines (holes to 0.1 mm), drag snap; drawings bare mm + "Dimensions in mm" note; Buying parts in mm, trade sizes with mm brackets; metric grid (inv 52) |
 
 ### The deployment rule
 
@@ -786,7 +791,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 4149 tests across 141 files
+npm test           # Vitest, currently 4150 tests across 141 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
