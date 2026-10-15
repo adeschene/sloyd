@@ -26,6 +26,7 @@ import { diffDesigns } from '../document/designDiff';
 import { costRange, withOptional } from './estimate';
 import type { CallShape, CostRange } from './estimate';
 import type { Change } from '../document/designDiff';
+import type { Units } from '../units/length';
 
 /** Repair rounds after the first call — 4 calls at most (spec §4.5). */
 export const MAX_REPAIRS = 3;
@@ -146,6 +147,9 @@ interface EvaluateOpts {
   /** Refine: the project's custom materials — a part may name one (parseDesign's catalog), and the converter's load
    *  gate keeps it instead of falling it back to pine (custom materials spec §6). Generate: none, built-ins only. */
   materials?: readonly CustomMaterial[];
+  /** Refine: the project's units, for the faults' displayed copy (fu 355) — the conversion itself is imperial. Generate:
+   *  none (its projects are imperial). The model's feedback is inches either way. */
+  units?: Units;
 }
 
 /**
@@ -167,7 +171,8 @@ function evaluateDesign(res: LlmResult, s: LimitSettings, opts: EvaluateOpts = {
   // document is not a prototype.
   if (flat.boards.length === 0) return { value: null, feedback: repairMessage(rejectedViolations(converted.rejected)) };
   const distinct = distinctPartsViolation(converted.doc, DETAIL_CAPS[s.detail]);
-  const raw = [...checkDesign(flat, limitsOf(s)), ...jointFaults(flat)];
+  const display = opts.units ?? flat.units;
+  const raw = [...checkDesign(flat, limitsOf(s), display), ...jointFaults(flat, display)];
   const old = opts.preexisting;
   // Only a fault naming parts can be "already there"; limits (too-large,
   // too-many-parts, tips) are judged on the result (refine spec §3.2).
@@ -239,7 +244,7 @@ export async function runRefine(
     system: SYSTEM_PROMPT,
     schema: designSchema(catalog),
     first: refineMessage(from.design, settings, catalog),
-    evaluate: (res) => evaluateDesign(res, settings, { prepare: (d) => carryGrain(d, base.plain), centre: false, preexisting, exact: designValues(from.design), exactAngles: angleRatiosOf(plainFlat0.boards), materials: doc.materials }),
+    evaluate: (res) => evaluateDesign(res, settings, { prepare: (d) => carryGrain(d, base.plain), centre: false, preexisting, exact: designValues(from.design), exactAngles: angleRatiosOf(plainFlat0.boards), materials: doc.materials, units: doc.units }),
   }, signal, onProgress);
   // Document-level facts the model never sees travel with the result; custom materials the result no longer uses go.
   let refined: SloydDocument = pruneMaterials({ ...out.doc, stock: doc.stock, units: doc.units, guides: doc.guides, materials: doc.materials });

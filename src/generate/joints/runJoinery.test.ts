@@ -117,6 +117,20 @@ describe('runJoinery', () => {
     expect(out.preexisting.map((v) => v.parts)).toContainEqual(['Float']);
   });
 
+  it('a metric project\'s preexisting fault carries its mm copy (fu 355)', async () => {
+    const d = { ...design(
+      { name: 'Leg', at: [0, 0, 0], size: [1.75, 28, 1.75] },
+      { name: 'Rail', at: [1.75, 23.5, 0.5], size: [18, 3, 0.75] },
+      { name: 'Float', at: [50, 40, 0], size: [5, 1, 5] },
+    ), units: { display: 'metric-mm' as const, precision: 16 } };
+    const site = findSites(d)[0].id;
+    const out = await run(client({ joints: [{ site, joint: 'mortise-tenon', tenonLength: 1 }] }), d);
+    if ('noSites' in out || 'refused' in out) throw new Error('expected sites');
+    const float = out.preexisting.find((v) => v.parts[0] === 'Float')!;
+    expect(float.message).toMatch(/\d(\.\d+)?in away\.$/);
+    expect(float.shown).toMatch(/\d mm away\.$/);
+  });
+
   it.each(['cancelled', 'auth'] as const)('%s after a usable attempt still rejects', async (kind) => {
     await expect(run(client(long, new LlmError(kind, 'x')))).rejects.toMatchObject({ kind });
   });

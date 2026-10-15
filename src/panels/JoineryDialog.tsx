@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { formatLength } from '../units/length';
 import { useStore } from '../store/store';
 import { MAX_REPAIRS } from '../generate/run';
+import { shownText } from '../document/designCheck';
 import type { JointKind } from '../generate/joints/sites';
 import type { JoineryRun } from '../useJoinery';
 import { formatCostRange } from '../generate/estimate';
@@ -125,8 +126,8 @@ export function JoineryDialog(p: Props) {
             )}
             {out.result.lowered > 0 && <p>{`The whole piece was lowered ${formatLength(out.result.lowered, units)} to sit on the floor again.`}</p>}
             {out.notes.map((n, i) => <p key={`n${i}`}>{n}</p>)}
-            {out.preexisting.map((v, i) => <p key={`p${i}`}>{`Already in the original: ${v.message}`}</p>)}
-            {out.violations.map((v, i) => <p key={`v${i}`} className="field-error">{v.message}</p>)}
+            {out.preexisting.map((v, i) => <p key={`p${i}`}>{`Already in the original: ${shownText(v)}`}</p>)}
+            {out.violations.map((v, i) => <p key={`v${i}`} className="field-error">{shownText(v)}</p>)}
           </div>
         )}
 

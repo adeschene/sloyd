@@ -105,6 +105,16 @@ describe('JoineryDialog', () => {
     expect(screen.getByText('Rail overlaps Leg.')).toBeInTheDocument();
   });
 
+  it('shows a fault\'s displayed copy (a metric project) instead of the model\'s words (fu 355)', () => {
+    draw({ run: ready(outcome({
+      preexisting: [{ kind: 'overlap', message: 'A passes 0.5in into B along X.', shown: 'A passes 12.7 mm into B along X.', parts: ['A', 'B'] }],
+      violations: [{ kind: 'overlap', message: 'Rail passes 0.25in into Leg along Z.', shown: 'Rail passes 6.4 mm into Leg along Z.', parts: ['Rail', 'Leg'] }],
+    })) });
+    expect(screen.getByText('Already in the original: A passes 12.7 mm into B along X.')).toBeInTheDocument();
+    expect(screen.getByText('Rail passes 6.4 mm into Leg along Z.')).toBeInTheDocument();
+    expect(screen.queryByText(/0\.25in/)).toBeNull();
+  });
+
   it('says the whole piece was lowered, only when it was', () => {
     draw({ run: ready(outcome({}, { lowered: 0.25 })) });
     expect(screen.getByText('The whole piece was lowered 1/4" to sit on the floor again.')).toBeInTheDocument();

@@ -8,6 +8,7 @@ import { splitRegion, taperFields, touchedRegion } from './angleCuts';
 import type { AngleConflict, TaperConflict } from './angledRefusal';
 import { SNAP_INCHES, axisFrame, boardExtents, spanToWorldOffset, toWorldOffset } from './geometry';
 import { localToDir } from './taperWorld';
+import { floorToTick, formatLength, formatMm, isMetric, type Units } from '../units/length';
 
 /**
  * The checks a generated design is held to (spec §4.3). Pure, against the
@@ -15,8 +16,13 @@ import { localToDir } from './taperWorld';
  *
  * Messages are written FOR THE MODEL, in decimal inches, naming parts by
  * their STORED (post-dedupe) names and the axis involved, so they are
- * actionable. Not a person-facing string, which is why this module does not
- * take the → units edge (CLAUDE.md, Architecture).
+ * actionable. The Joinery and Refine dialogs show them too, so in a METRIC
+ * project a message with a length also carries `shown`, the same words with
+ * the lengths in mm (0.1 mm: a fault's size can sit under a whole mm; fu 355) —
+ * the → units edge. An imperial violation carries no `shown`: byte-for-byte as
+ * before (inv 52). The display units are a parameter, not read off the checked
+ * document alone, because Refine checks the model's (imperial) conversion of a
+ * metric project.
  *
  * `hangs` (fu 165): every part off the floor must be held: resting, between, or lapped (inv 39).
  * `tips` (fu 165): the grounded parts' volume-weighted centre of mass sits at least min(1in, s/4) inside the floor footprint's hull.
@@ -28,7 +34,15 @@ import { localToDir } from './taperWorld';
  * the tip check weighs an angled part by its real bodies (`partMass`, fu 303).
  */
 export type ViolationKind = 'too-small' | 'overlap' | 'unsupported' | 'too-large' | 'too-many-parts' | 'hangs' | 'tips' | 'angle-joint';
-export interface Violation { kind: ViolationKind; message: string; parts: string[] }
+export interface Violation {
+  kind: ViolationKind;
+  message: string;
+  parts: string[];
+  /** The person's copy when it differs from `message` (a metric project's lengths in mm; fu 355). */
+  shown?: string;
+}
+/** The text a dialog shows for a violation. */
+export const shownText = (v: Violation) => v.shown ?? v.message;
 export interface DesignLimits { width: number | null; depth: number | null; height: number | null; maxParts: number }
 
 export const TOUCH = 1 / 32;
@@ -36,6 +50,16 @@ export const MIN_SIDE = 1 / 8;
 
 const AXES = ['X', 'Y', 'Z'] as const;
 const inches = (v: number) => `${+v.toFixed(3)}in`;
+
+/** Writes a length into a message. */
+type Len = (v: number) => string;
+/** `message` with lengths in inches; `shown` with them in mm when `display` is metric (and the text differs). */
+function worded(display: Units, text: (len: Len) => string): { message: string; shown?: string } {
+  const message = text(inches);
+  if (!isMetric(display)) return { message };
+  const shown = text((v) => formatMm(v, 1));
+  return shown === message ? { message } : { message, shown };
+}
 
 export interface Box { name: string; min: number[]; max: number[] }
 
@@ -85,7 +109,7 @@ function hull(points: P2[]): P2[] {
  * on-the-floor parts' plan corners. Floating parts are left out — they are
  * already `unsupported`, and one fault gets one report.
  */
-function tipsMessage(boxes: Box[], grounded: Set<number>, footprint: (i: number) => Box[], mass: (i: number) => { v: number; c: number[] } | null): string | null {
+function tipsMessage(boxes: Box[], grounded: Set<number>, footprint: (i: number) => Box[], mass: (i: number) => { v: number; c: number[] } | null): ((len: Len) => string) | null {
   const floor = boxes.flatMap((b, i) => (b.min[1] <= TOUCH ? footprint(i) : []));
   if (floor.length === 0) return null;
   let vol = 0, cx = 0, cz = 0;
@@ -112,7 +136,7 @@ function tipsMessage(boxes: Box[], grounded: Set<number>, footprint: (i: number)
     [b.min[0], b.min[2]], [b.max[0], b.min[2]], [b.max[0], b.max[2]], [b.min[0], b.max[2]],
   ]));
   if (h.length < 3) {
-    return 'The piece would tip: its centre of mass is not over a usable footprint. Widen the base or move weight inward.';
+    return () => 'The piece would tip: its centre of mass is not over a usable footprint. Widen the base or move weight inward.';
   }
   const xs = h.map((p) => p[0]);
   const zs = h.map((p) => p[1]);
@@ -131,7 +155,7 @@ function tipsMessage(boxes: Box[], grounded: Set<number>, footprint: (i: number)
   const dir = Math.abs(normal[0]) >= Math.abs(normal[1])
     ? `${normal[0] >= 0 ? '+' : '-'}X`
     : `${normal[1] >= 0 ? '+' : '-'}Z`;
-  return `The piece would tip toward ${dir}: its centre of mass is ${inches(Math.abs(d))} ${d >= 0 ? 'inside' : 'beyond'} the edge of what touches the floor; keep it at least ${inches(m)} inside. Widen the base or move weight inward.`;
+  return (len) => `The piece would tip toward ${dir}: its centre of mass is ${len(Math.abs(d))} ${d >= 0 ? 'inside' : 'beyond'} the edge of what touches the floor; keep it at least ${len(m)} inside. Widen the base or move weight inward.`;
 }
 
 /** The parts connected to the floor through touching parts, optionally with one part removed from the design. */
@@ -408,14 +432,15 @@ export function faceContacts(doc: FlatDocument): FaceContact[] {
     cs.filter((c) => c.other > a).map((c) => ({ a, b: c.other, axis: c.axis, side: c.side, area: c.area })));
 }
 
-export function checkDesign(doc: FlatDocument, limits: DesignLimits): Violation[] {
+/** `display`: the units the person reads (default the document's; Refine passes the original project's). */
+export function checkDesign(doc: FlatDocument, limits: DesignLimits, display: Units = doc.units): Violation[] {
   const boxes = boxesOf(doc);
   const out: Violation[] = [];
 
   for (const b of boxes) {
     const i = [0, 1, 2].find((k) => b.max[k] - b.min[k] < MIN_SIDE - 1e-9);
     if (i !== undefined) {
-      out.push({ kind: 'too-small', message: `${b.name} is ${inches(b.max[i] - b.min[i])} along ${AXES[i]}; the minimum is ${inches(MIN_SIDE)}.`, parts: [b.name] });
+      out.push({ kind: 'too-small', ...worded(display, (len) => `${b.name} is ${len(b.max[i] - b.min[i])} along ${AXES[i]}; the minimum is ${len(MIN_SIDE)}.`), parts: [b.name] });
     }
   }
 
@@ -450,7 +475,8 @@ export function checkDesign(doc: FlatDocument, limits: DesignLimits): Violation[
         overlapping.add(i);
         overlapping.add(j);
         const axis = worst.indexOf(Math.min(...worst));
-        out.push({ kind: 'overlap', message: `${boxes[i].name} passes ${inches(worst[axis])} into ${boxes[j].name} along ${AXES[axis]}.`, parts: [boxes[i].name, boxes[j].name] });
+        const by = worst[axis]!;
+        out.push({ kind: 'overlap', ...worded(display, (len) => `${boxes[i].name} passes ${len(by)} into ${boxes[j].name} along ${AXES[axis]}.`), parts: [boxes[i].name, boxes[j].name] });
       }
     }
   }
@@ -462,8 +488,8 @@ export function checkDesign(doc: FlatDocument, limits: DesignLimits): Violation[
   boxes.forEach((b, i) => {
     if (grounded.has(i)) return;
     const near = [...grounded].map((g) => boxes[g]).sort((p, q) => distance(b, p) - distance(b, q))[0];
-    const hint = near ? `; the nearest supported part is ${near.name}, ${inches(distance(b, near))} away` : '';
-    out.push({ kind: 'unsupported', message: `${b.name} is not connected to the floor through touching parts${hint}.`, parts: [b.name] });
+    const hint = (len: Len) => (near ? `; the nearest supported part is ${near.name}, ${len(distance(b, near))} away` : '');
+    out.push({ kind: 'unsupported', ...worded(display, (len) => `${b.name} is not connected to the floor through touching parts${hint(len)}.`), parts: [b.name] });
   });
 
   if (boxes.length > 0) {
@@ -475,6 +501,8 @@ export function checkDesign(doc: FlatDocument, limits: DesignLimits): Violation[
     ];
     for (const [label, limit, actual] of checks) {
       if (limit !== null && actual > limit + 1e-9) {
+        // Inches for the person too: the limit was typed in inches (Generate's and Refine's limit fields; spec §7), and the
+        // fault reads in the unit typed (the user's ruling, fu 355).
         out.push({ kind: 'too-large', message: `Overall ${label} ${inches(actual)} exceeds the ${inches(limit)} limit.`, parts: [] });
       }
     }
@@ -500,7 +528,7 @@ export function checkDesign(doc: FlatDocument, limits: DesignLimits): Violation[
 
   const tip = tipsMessage(boxes, grounded, (i) => (tapered[i] ? touching[i].filter((s) => s.min[1] <= TOUCH) : [boxes[i]]),
     (i) => (tapered[i] ? partMass(doc.boards[i]!) : null));
-  if (tip) out.push({ kind: 'tips', message: tip, parts: [] });
+  if (tip) out.push({ kind: 'tips', ...worded(display, tip), parts: [] });
   return out;
 }
 
@@ -524,16 +552,21 @@ export function rejectedViolations(rejected: RejectedPart[]): Violation[] {
  * that grid would snap past the meeting and conflict again. Multiples of 1/16 print exactly. Not part of checkDesign
  * (joinery's gate); evaluateDesign adds it.
  */
-export function jointViolations(flat: FlatDocument, tapers: readonly TaperConflict[], angles: readonly AngleConflict[]): Violation[] {
+export function jointViolations(flat: FlatDocument, tapers: readonly TaperConflict[], angles: readonly AngleConflict[], display: Units = flat.units): Violation[] {
   const out: Violation[] = tapers.map(({ part, other, end, nearest }) => {
     const b = flat.boards[part]!;
     const o = flat.boards[other]!;
     const dir = localToDir(b, 'length', end);
     const limit = Math.floor(nearest / SNAP_INCHES + 1e-9) * SNAP_INCHES;
-    const message = limit === 0
-      ? `${b.name}'s taper toward ${dir} runs to its ${dir} end, where it meets ${o.name} (a joint goes there) \u2014 taper the other end, or remove the taper.`
-      : `${b.name}'s taper toward ${dir} runs into where it meets ${o.name} (a joint goes there) \u2014 start it ${limit}in or less from its ${dir} end, or remove it.`;
-    return { kind: 'angle-joint' as const, message, parts: [b.name, o.name] };
+    const advice = (at: string) => `${b.name}'s taper toward ${dir} runs into where it meets ${o.name} (a joint goes there) \u2014 start it ${at} or less from its ${dir} end, or remove it.`;
+    if (limit === 0) {
+      const message = `${b.name}'s taper toward ${dir} runs to its ${dir} end, where it meets ${o.name} (a joint goes there) \u2014 taper the other end, or remove the taper.`;
+      return { kind: 'angle-joint' as const, message, parts: [b.name, o.name] };
+    }
+    // The person's limit is floored to THEIR grid (whole mm), as the taper refusal's is (angledRefusal): a limit rounded
+    // up would conflict again. limit > 0 means nearest ≥ 1/16in, so the floored mm is at least 1.
+    const shown = isMetric(display) ? { shown: advice(formatLength(floorToTick(nearest, display), display)) } : {};
+    return { kind: 'angle-joint' as const, message: advice(`${limit}in`), ...shown, parts: [b.name, o.name] };
   });
   const tapered = new Set(tapers.map((c) => c.part));
   for (const { part, other, kind } of angles) {

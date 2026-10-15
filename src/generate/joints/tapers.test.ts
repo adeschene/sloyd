@@ -213,6 +213,14 @@ describe('jointFaults \u2014 the fault on designs (spec 5.3)', () => {
   it('allows start exactly at the meeting', () => {
     expect(jointFaults(corner(23.5))).toEqual([]);
   });
+  it('a metric project shows the advice floored to whole mm; the model keeps its inches (fu 355)', () => {
+    const mm = { display: 'metric-mm', precision: 16 } as const;
+    const [v] = jointFaults(corner(24), mm);
+    expect(v!.message).toBe("Leg's taper toward -y runs into where it meets Rail X (a joint goes there) \u2014 start it 23.5in or less from its -y end, or remove it.");
+    // 23.5in = 596.9 mm: floored, so following the advice clears the joint.
+    expect(v!.shown).toBe("Leg's taper toward -y runs into where it meets Rail X (a joint goes there) \u2014 start it 596 mm or less from its -y end, or remove it.");
+    expect('shown' in jointFaults(corner(24))[0]!).toBe(false);
+  });
   it('floors the advice to 1/16, and following it passes (snapped start)', () => {
     // The rail sits at 22.47: exact in the design (no snap) so the meeting is off-grid.
     const at = 22.47;

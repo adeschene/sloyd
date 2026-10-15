@@ -71,6 +71,16 @@ describe('collapseViolations', () => {
     }]);
   });
 
+  it('a displayed copy (a metric project) gets the same suffix; an imperial one gains none (fu 355)', () => {
+    const pls = ['D1', 'D2'];
+    const mm = (p: string) => ({ ...overlap(`${p}${S}Front`, `${p}${S}Side`), shown: `${p}${S}Front passes 12.7 mm into ${p}${S}Side along X.` });
+    const [v] = collapseViolations(pls.map(mm), index(pls));
+    expect(v!.shown).toBe(`D1${S}Front passes 12.7 mm into D1${S}Side along X. (in every placement of Drawer — fix the assembly)`);
+    expect(v!.message).toBe(`D1${S}Front passes 0.5in into D1${S}Side along X. (in every placement of Drawer — fix the assembly)`);
+    const [w] = collapseViolations(['D1'].map((p) => overlap(`${p}${S}Front`, `${p}${S}Side`)), index(['D1']));
+    expect('shown' in w!).toBe(false);
+  });
+
   it('names the placements when only some have the defect', () => {
     const out = collapseViolations(['D1', 'D3'].map((p) => overlap(`${p}${S}Front`, `${p}${S}Side`)), index(['D1', 'D2', 'D3']));
     expect(out).toHaveLength(1);

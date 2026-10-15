@@ -79,6 +79,7 @@ export function collapseViolations(violations: readonly Violation[], authored: A
     const every = x.first.kind === 'overlap' && x.internal && all.length > 1 && all.every((p) => x.placements.has(p));
     const ordered = [...x.assemblies].flatMap((a) => (authored.placements.get(a) ?? []).filter((p) => x.placements.has(p)));
     const where = every ? ` (in every placement of ${asm} — fix the assembly)` : ` (in ${ordered.join(', ')})`;
-    return { kind: x.first.kind, message: `${x.first.message}${where}`, parts: x.labels };
+    const shown = x.first.shown === undefined ? {} : { shown: `${x.first.shown}${where}` };
+    return { kind: x.first.kind, message: `${x.first.message}${where}`, ...shown, parts: x.labels };
   });
 }
