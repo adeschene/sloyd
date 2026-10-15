@@ -47,3 +47,14 @@ describe('holeLine (spec §4.1, as amended)', () => {
     expect(endWord('thickness')).toBe('side');
   });
 });
+
+describe('holeLine in metric', () => {
+  const MM = { display: 'metric-mm' as const, precision: 16 };
+  it('diameter and pitch to 0.1 mm, positions whole mm, no aside', () => {
+    const line = holeLine(side, pins, MM);
+    expect(line).toContain('6.4 mm dia × 10 mm deep');
+    expect(line).toContain('every 32 mm');
+    expect(line).toContain('first 51 mm');
+    expect(line).not.toContain('(32 mm)');
+  });
+});

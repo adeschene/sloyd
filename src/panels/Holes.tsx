@@ -31,10 +31,11 @@ const seedPitch = (diameter: number) => (mm(32) > diameter ? mm(32) : 2 * diamet
 const throughSeed = (faceDim: number) => Math.min(faceDim / 2, 0.5);
 
 function HoleRowView({ board, row, precision }: { board: Board; row: HoleRow; precision: number }) {
+  const units = useStore((s) => s.doc.units);
   const updateHoleRow = useStore((s) => s.updateHoleRow);
   const removeHoleRow = useStore((s) => s.removeHoleRow);
   const [error, setError] = useState<string | null>(null);
-  const line = holeLine(board, row, precision);
+  const line = holeLine(board, row, units);
   const stored = distinctFaults(holeFaults(board, row));
   const across = acrossOf(row);
   /** Tries the edit: the refusal text when it is refused (nothing stored), else null. */

@@ -13,7 +13,7 @@ import { buildDiagrams } from './diagram';
 import type { DiagramView } from './diagram';
 import { buildNesting } from './nesting';
 import type { Nesting } from './nesting';
-import { formatLength } from '../units/length';
+import { formatLength, formatSize, type Units } from '../units/length';
 import { nominalName } from '../units/nominal';
 import { formatBoardFeet, formatSquareFeet } from '../units/quantity';
 
@@ -176,8 +176,8 @@ function stopClause(s: CutShape, f: (n: number) => string): string {
  * dimensions and its other cuts. That is why setup lines are built during
  * grouping, while the board is in hand.
  */
-function setupLine(board: Board, cut: Cut, precision: number, solids: Region[]): string {
-  const f = (n: number) => formatLength(n, precision);
+function setupLine(board: Board, cut: Cut, units: Units, solids: Region[]): string {
+  const f = (n: number) => formatLength(n, units);
   const s = cutShape(board, cut, solids);
   return (
     `${f(s.at[1] - s.at[0])} ${s.word}, ${f(cut.depth)} deep — ` +
@@ -188,13 +188,13 @@ function setupLine(board: Board, cut: Cut, precision: number, solids: Region[]):
 }
 
 /** A tenon as one bench line (fu 180): it replaces the shoulder cuts it is made of. */
-function tenonLine(t: Tenon, precision: number): string {
-  const f = (n: number) => formatLength(n, precision);
+function tenonLine(t: Tenon, units: Units): string {
+  const f = (n: number) => formatLength(n, units);
   return `${f(t.length)} tenon, ${f(t.thickness)} thick × ${f(t.width)} wide — at the length ${t.end} end`;
 }
 
 /** Setup lines: one per tenon (where its first cut stood), the rest one per cut, unchanged. */
-function setupLines(board: Board, precision: number): string[] {
+function setupLines(board: Board, units: Units): string[] {
   const tenons = findTenons(board);
   const owner = new Map(tenons.flatMap((t) => t.cutIds.map((id) => [id, t] as const)));
   const done = new Set<Tenon>();
@@ -202,13 +202,13 @@ function setupLines(board: Board, precision: number): string[] {
   const solids = pocketCells(board);
   for (const cut of cutsThatRemoveStock(board)) {
     const t = owner.get(cut.id);
-    if (!t) { lines.push(setupLine(board, cut, precision, solids)); continue; }
-    if (!done.has(t)) { done.add(t); lines.push(tenonLine(t, precision)); }
+    if (!t) { lines.push(setupLine(board, cut, units, solids)); continue; }
+    if (!done.has(t)) { done.add(t); lines.push(tenonLine(t, units)); }
   }
-  for (const c of angleCutsThatRemoveStock(board)) lines.push(angleLine(board, c, precision));
-  const short = shortPointLine(board, precision);
+  for (const c of angleCutsThatRemoveStock(board)) lines.push(angleLine(board, c, units));
+  const short = shortPointLine(board, units);
   if (short) lines.push(short);
-  for (const r of board.holes) lines.push(holeLine(board, r, precision));
+  for (const r of board.holes) lines.push(holeLine(board, r, units));
   return lines;
 }
 
@@ -245,8 +245,8 @@ function holeSignature(board: Board): string {
  * from one running along its length, so collapsing those would produce a row
  * you cannot cut as a batch.
  */
-function rowKey(board: Board, precision: number): string {
-  const f = (n: number) => formatLength(n, precision);
+function rowKey(board: Board, units: Units): string {
+  const f = (n: number) => formatLength(n, units);
   return [
     board.material,
     f(board.thickness),
@@ -281,7 +281,8 @@ function stockInchesOf(board: Board): number {
 }
 
 export function buildCutList(doc: FlatDocument): CutList {
-  const precision = doc.units.precision;
+  const units = doc.units;
+  const precision = units.precision;
   const catalog = catalogOf(doc);
   const groups = new Map<string, CutListGroup>();
   const rows = new Map<string, CutListRow>();
@@ -291,13 +292,13 @@ export function buildCutList(doc: FlatDocument): CutList {
   const groupBoards = new Map<CutListGroup, Board[]>();
 
   for (const board of doc.boards) {
-    const groupKey = `${board.material}|${formatLength(board.thickness, precision)}`;
+    const groupKey = `${board.material}|${formatLength(board.thickness, units)}`;
     let group = groups.get(groupKey);
     if (!group) {
       group = {
         material: board.material,
         thickness: board.thickness,
-        label: `${catalog.label(board.material)} — ${formatLength(board.thickness, precision)}`,
+        label: `${catalog.label(board.material)} — ${formatLength(board.thickness, units)}`,
         rows: [],
         stockInches: 0,
         stock: '',
@@ -308,7 +309,7 @@ export function buildCutList(doc: FlatDocument): CutList {
 
     // rowKey starts with the group's own two fields, so a row key is unique
     // across the whole list and belongs to exactly one group.
-    const key = rowKey(board, precision);
+    const key = rowKey(board, units);
     let row = rows.get(key);
     if (!row) {
       row = {
@@ -319,7 +320,7 @@ export function buildCutList(doc: FlatDocument): CutList {
         width: board.width,
         thickness: board.thickness,
         grain: board.grain,
-        dims: `${formatLength(board.length, precision)} × ${formatLength(board.width, precision)}`,
+        dims: formatSize([board.length, board.width], units),
         // The setup lines are the FIRST board's, and the row's other boards
         // hold numerically identical cuts — `cutSignature` is exact, so that
         // much really is by construction. The WORD is not: `cutLabel` decides
@@ -332,8 +333,8 @@ export function buildCutList(doc: FlatDocument): CutList {
         // the noun is the representative's. Left as is deliberately: at the
         // precision the sheet is printed to, the representative's word is the
         // more useful one at the bench. Follow-up 55.
-        setup: setupLines(board, precision),
-        diagrams: buildDiagrams(board, precision),
+        setup: setupLines(board, units),
+        diagrams: buildDiagrams(board, precision, units),
         nominal: catalog.get(board.material)?.nominal ? nominalName(board.thickness, board.width) : null,
         stockInches: 0,
         stock: '',

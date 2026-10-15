@@ -1,6 +1,6 @@
 import type { AngleCut, Board, CutFrom, Dimension } from './types';
 import { angleCutsThatRemoveStock, bevelFields, chamferFields, depthAt, throughOf, miterLongSide, zeroStation } from './angleCuts';
-import { formatLength } from '../units/length';
+import { formatLength, type Units } from '../units/length';
 
 /** The cut's angle from square, degrees: atan(Δdepth / Δstation). A 45° miter stores depth = run (spec §2.3). */
 export function angleDegrees(c: Pick<AngleCut, 'points'>): number {
@@ -24,8 +24,8 @@ export function faceName(dim: Dimension, side: CutFrom): string {
  * list and the part diagrams both print what this returns (invariant 19). The
  * degree sign is HTML text, never a measured SVG label.
  */
-export function angleLine(board: Board, c: AngleCut, precision: number): string {
-  const f = (n: number) => formatLength(n, precision);
+export function angleLine(board: Board, c: AngleCut, units: Units | number): string {
+  const f = (n: number) => formatLength(n, units);
   const deg = `${angleDegrees(c).toFixed(1)}°`;
   const side = faceName(c.face, c.from);
   const A = board[c.along];
@@ -69,7 +69,7 @@ export function angleLine(board: Board, c: AngleCut, precision: number): string 
  * length less both ends' depths, clamped at 0. (Each end's depth is a max of
  * linear functions, so convex; the remaining length is concave and its least is at a corner.) Null when the part has no end cut that removes stock.
  */
-export function shortPointLine(board: Board, precision: number): string | null {
+export function shortPointLine(board: Board, units: Units | number): string | null {
   const ends = angleCutsThatRemoveStock(board).filter((c) => c.face === 'length');
   if (ends.length === 0) return null;
   const L = board.length;
@@ -83,5 +83,5 @@ export function shortPointLine(board: Board, precision: number): string | null {
     const corner = { width, thickness };
     least = Math.min(least, L - depth('min', corner) - depth('max', corner));
   }
-  return `Short point ${formatLength(Math.max(0, least), precision)}`;
+  return `Short point ${formatLength(Math.max(0, least), units)}`;
 }

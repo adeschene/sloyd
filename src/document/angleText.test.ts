@@ -164,3 +164,10 @@ describe('face names (fu 300)', () => {
     expect(angleLine(b, c, 16)).toBe('Chamfer 1/4" on the edge between the length max end and the width face (min side), along the thickness');
   });
 });
+
+describe('angleLine in metric', () => {
+  it('a taper: lengths in mm, angle in degrees unchanged', () => {
+    const leg = createBoard({ length: 29, width: 1.75, thickness: 1.75, angleCuts: [taper] });
+    expect(angleLine(leg, taper, { display: 'metric-mm', precision: 16 })).toBe('Taper 16 mm off the width face (min side), from 610 mm from the length min end to that end');
+  });
+});

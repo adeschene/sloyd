@@ -260,3 +260,11 @@ describe('custom materials in the diff (custom materials spec §3)', () => {
     expect(diffDesigns(before, after).map((c) => c.text)).toEqual(['Top: Ash → Oak']);
   });
 });
+
+describe('diffDesigns in metric', () => {
+  it('a length change reads in mm', () => {
+    const mm = (d: ReturnType<typeof doc>) => ({ ...d, units: { display: 'metric-mm' as const, precision: 16 } });
+    const out = diffDesigns(mm(doc(BASE)), mm(doc([BASE[0], part('Shelf', [0, 0, 0], [40, 1, 14])])));
+    expect(out[0]!.text).toBe('Shelf: 1016 mm × 305 mm × 25 mm → 1016 mm × 356 mm × 25 mm');
+  });
+});

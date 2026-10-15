@@ -23,12 +23,13 @@ const FACES: { value: string; label: string; face: 'width' | 'thickness'; from: 
  * (a hand-edited file) shows its bench line and a remove button only.
  */
 function AngleRow({ board, cut, precision }: { board: Board; cut: AngleCut; precision: number }) {
+  const units = useStore((s) => s.doc.units);
   const updateAngleCut = useStore((s) => s.updateAngleCut);
   const removeAngleCut = useStore((s) => s.removeAngleCut);
   // Every hook sits above the kind branch below (rules of hooks): a row whose cut changes kind in place
   // must not change its hook count.
   const [error, setError] = useState<string | null>(null);
-  const line = angleLine(board, cut, precision);
+  const line = angleLine(board, cut, units);
   const head = (
     <div className="cut-head">
       <span className="cut-label">{cut.kind[0]!.toUpperCase() + cut.kind.slice(1)}</span>

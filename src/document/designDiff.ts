@@ -48,7 +48,7 @@ export function diffDesigns(before: SloydDocument, after: SloydDocument): Change
   const ca = catalogOf(after);
   const cb = catalogOf(before);
   const label = (m: string) => ca.get(m)?.label ?? cb.get(m)?.label ?? m;
-  const len = (n: number) => formatLength(n, after.units.precision);
+  const len = (n: number) => formatLength(n, after.units);
   const dims = (b: Board) => sizeOf(b).map(len).join(' × ');
   // A component that displays as zero is omitted, so no line reads "X +0".
   const delta = (d: number[]) => d.flatMap((n, k) => (len(Math.abs(n)) === len(0) ? [] : [`${'XYZ'[k]} ${n > 0 ? '+' : ''}${len(n)}`])).join(', ');

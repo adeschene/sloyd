@@ -800,3 +800,24 @@ describe('nominal names on rows (custom materials spec §5.3)', () => {
     expect(list([part('a', 'pine', 3.375, 0.75)]).groups[0]!.rows[0]!.nominal).toBeNull();
   });
 });
+
+describe('metric display (units chunk 1)', () => {
+  const MMU = { display: 'metric-mm' as const, precision: 16 };
+  it('a metric project: rows, label and lines in whole mm', () => {
+    const doc = { ...createDocument('M'), units: MMU,
+      boards: [createBoard({ name: 'Side', length: 30, width: 11.25, thickness: 0.75 })] };
+    const list = buildCutList(doc);
+    expect(list.groups[0]!.label).toMatch(/— 19 mm$/);
+    expect(list.groups[0]!.rows[0]!.dims).toBe('762 × 286 mm');
+  });
+  it('metric collapses at whole mm (inv 18): 24" and 24.034" share a row (imperial 1/16 would split them)', () => {
+    const doc = { ...createDocument('M'), units: MMU,
+      boards: [createBoard({ name: 'A', length: 24 }), createBoard({ name: 'B', length: 24.034 })] };
+    expect(buildCutList(doc).groups[0]!.rows).toHaveLength(1);
+  });
+  it('imperial keeps 24" and 24.2" apart at 1/16 (the metric collapse is whole mm only)', () => {
+    const doc = { ...createDocument('M'),
+      boards: [createBoard({ name: 'A', length: 24 }), createBoard({ name: 'B', length: 24.2 })] };
+    expect(buildCutList(doc).groups[0]!.rows).toHaveLength(2);
+  });
+});

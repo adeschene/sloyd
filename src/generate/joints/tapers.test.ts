@@ -488,3 +488,12 @@ describe('joinery keeps angle cuts where they are on the wood (AI-angles spec §
     }
   });
 });
+
+describe('taperJointRefusal in metric', () => {
+  it('advice is floored to whole mm', () => {
+    const doc = withLeg(CORNER, inside(24));
+    const mm: FlatDocument = { ...doc, units: { display: 'metric-mm', precision: 16 } };
+    const c = conflicts(doc).map((x) => ({ ...x, nearest: 596.9 / 25.4 }));
+    expect(taperJointRefusal(mm, c)).toContain('start it at 596 mm or less');
+  });
+});

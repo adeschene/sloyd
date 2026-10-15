@@ -3,7 +3,8 @@ import { MATERIALS, isCustomMaterialId, isSheetGood } from './types';
 import { catalogOf } from './materials';
 import type { CutList } from './cutlist';
 import { packOnto, grainFootprint, type Nesting, type PlacedPart } from './nesting';
-import { formatLength } from '../units/length';
+import { formatLength, imperialAt } from '../units/length';
+// Imperial until metric chunk 2 (drawings/buying, spec §4).
 import { NOMINAL_SECTIONS, nominalName, stockLengthText } from '../units/nominal';
 import { formatBoardFeet, formatMoney, INCHES_PER_BOARD_FOOT } from '../units/quantity';
 
@@ -150,9 +151,9 @@ const sizeDims = (s: StockBoard, p: number, nominal: boolean) => {
   const name = nominal ? nominalName(s.thickness, s.width) : null;
   return name !== null
     ? `${name} × ${stockLengthText(s.length, p)}`
-    : `${formatLength(s.thickness, p)} × ${formatLength(s.width, p)} × ${formatLength(s.length, p)}`;
+    : `${formatLength(s.thickness, imperialAt(p))} × ${formatLength(s.width, imperialAt(p))} × ${formatLength(s.length, imperialAt(p))}`;
 };
-const partDims = (b: Board, p: number) => `${formatLength(b.thickness, p)} × ${formatLength(b.width, p)} × ${formatLength(b.length, p)}`;
+const partDims = (b: Board, p: number) => `${formatLength(b.thickness, imperialAt(p))} × ${formatLength(b.width, imperialAt(p))} × ${formatLength(b.length, imperialAt(p))}`;
 const priceText = (cost: number | null) => (cost === null ? 'no price' : formatMoney(cost));
 const fitsIn = (f: { w: number; h: number }, s: StockBoard) => f.w <= s.length + 1e-6 && f.h <= s.width + 1e-6;
 
@@ -189,7 +190,7 @@ function byThePiece(material: string, label: string, parts: Board[], stock: Stoc
       unplaceable += 1;
       continue;
     }
-    if (t > part.thickness + EPS) notes.push(`${part.name}: plane ${formatLength(t, p)} stock to ${formatLength(part.thickness, p)}`);
+    if (t > part.thickness + EPS) notes.push(`${part.name}: plane ${formatLength(t, imperialAt(p))} stock to ${formatLength(part.thickness, imperialAt(p))}`);
     groups.set(t, [...(groups.get(t) ?? []), part]);
   }
 

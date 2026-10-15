@@ -1,4 +1,5 @@
-import { formatLength } from './length';
+import { formatLength, imperialAt } from './length';
+// Imperial until metric chunk 2 (drawings/buying, spec §4).
 
 /** US softwood dimensional lumber: nominal inches → actual (custom materials spec §5.1). */
 export const NOMINAL_ACTUAL: Readonly<Record<number, number>> = { 1: 0.75, 2: 1.5, 3: 2.5, 4: 3.5, 6: 5.5, 8: 7.25, 10: 9.25, 12: 11.25 };
@@ -27,5 +28,5 @@ export function nominalName(thickness: number, width: number): string | null {
 /** A stock board's length as a yard writes it: whole feet as `8′`, anything else exactly as `formatLength`. */
 export function stockLengthText(length: number, precision: number): string {
   const feet = length / 12;
-  return Number.isInteger(feet) ? `${feet}′` : formatLength(length, precision);
+  return Number.isInteger(feet) ? `${feet}′` : formatLength(length, imperialAt(precision));
 }
