@@ -1,4 +1,4 @@
-import { parseLength, formatLength, canBeginLength } from './length';
+import { parseLength, formatLength, canBeginLength, formatLengthBare, formatMm, formatSize, floorToTick, IMPERIAL, imperialAt, type Units } from './length';
 
 describe('parseLength', () => {
   it.each([
@@ -162,5 +162,70 @@ describe('canBeginLength', () => {
   // accumulated text.
   it('takes one keystroke, not a string that starts like a length', () => {
     for (const s of ['12', '1 1/2', '3/4', '.5', '-5']) expect(canBeginLength(s)).toBe(false);
+  });
+});
+
+const MM: Units = { display: 'metric-mm', precision: 16 };
+const inch = (mm: number) => mm / 25.4;
+
+describe('formatLength — metric', () => {
+  it.each([
+    [inch(762), '762 mm'], [inch(19), '19 mm'], [inch(-38), '-38 mm'], [0, '0 mm'], [-0, '0 mm'],
+    [inch(18.4999), '18 mm'], [inch(18.5), '19 mm'], [inch(-18.5), '-19 mm'], [inch(0.4), '0 mm'], [inch(-0.4), '0 mm'],
+    [0.75, '19 mm'], [24, '610 mm'], [1.5, '38 mm'],
+    // halves that land one ulp short in float (0.49999999999999994, 6.499999999999999): only the nudge rounds them up
+    [inch(0.5), '1 mm'], [inch(6.5), '7 mm'], [inch(-6.5), '-7 mm'],
+  ])('%s in → %s', (v, s) => expect(formatLength(v, MM)).toBe(s));
+  it('non-finite → —', () => {
+    expect(formatLength(NaN, MM)).toBe('—');
+    expect(formatLength(Infinity, MM)).toBe('—');
+  });
+  it('ignores precision', () => expect(formatLength(0.75, { ...MM, precision: 64 })).toBe('19 mm'));
+});
+
+describe('formatLength — imperial is unchanged', () => {
+  // Literal strings, not old-vs-new: Task 6 removes the number overload, and a self-comparison could not fail.
+  it.each([[0.75, 16, '3/4"'], [1.5, 16, '1-1/2"'], [-2.0625, 16, '-2-1/16"'], [23.47, 64, '23-15/32"'], [0, 16, '0"'],
+    [-0.001, 16, '-0"'], [NaN, 16, '—']] as const)('%s @%s → %s', (v, p, s) => {
+    expect(formatLength(v, imperialAt(p))).toBe(s);
+  });
+  it('IMPERIAL is 1/16', () => expect(formatLength(0.6, IMPERIAL)).toBe('5/8"'));
+});
+
+describe('formatMm', () => {
+  it.each([
+    [0.25, 1, '6.4 mm'], [inch(32), 1, '32 mm'], [inch(35), 1, '35 mm'], [inch(5), 1, '5 mm'], [0.25, 0, '6 mm'],
+    [inch(-6.35), 1, '-6.4 mm'], [0, 1, '0 mm'], [NaN, 1, '—'],
+  ] as const)('%s, %s dp → %s', (v, d, s) => expect(formatMm(v, d)).toBe(s));
+});
+
+describe('formatLengthBare / formatSize', () => {
+  it('metric bare is the number alone', () => expect(formatLengthBare(inch(762), MM)).toBe('762'));
+  it('imperial bare keeps the mark', () => expect(formatLengthBare(0.75, IMPERIAL)).toBe('3/4"'));
+  it('a metric size writes the unit once', () => expect(formatSize([30, 5.5, 0.75], MM)).toBe('762 × 140 × 19 mm'));
+  it('an imperial size is the old join', () => expect(formatSize([30, 5.5], IMPERIAL)).toBe('30" × 5-1/2"'));
+});
+
+describe('parseLength — metric', () => {
+  it.each([
+    ['19', inch(19)], ['19.5', inch(19.5)], ['-38', inch(-38)], ['.5', inch(0.5)], ['19mm', inch(19)], ['19 mm', inch(19)],
+    ['3/4', 0.75], ['1-1/2', 1.5], ['1 1/2', 1.5], ['19"', 19], ['19 in', 19], ['2\'', 24], ['2\'6"', 30], ['-3/4', -0.75],
+  ])('%s', (t, v) => expect(parseLength(t, MM)).toBeCloseTo(v, 12));
+  it.each(['', 'abc', '1/0', '19 cm', 'mm'])('junk %s → null', (t) => expect(parseLength(t, MM)).toBeNull());
+  it('a bare number is still inches in imperial', () => expect(parseLength('19', IMPERIAL)).toBe(19));
+  it('mm in imperial is mm', () => expect(parseLength('19mm', IMPERIAL)).toBeCloseTo(inch(19), 12));
+  it('round trip within half a mm', () => {
+    for (let mm = -500; mm <= 3000; mm += 7.3) {
+      const back = parseLength(formatLength(inch(mm), MM).replace(' mm', ''), MM)!;
+      expect(Math.abs(back * 25.4 - mm)).toBeLessThanOrEqual(0.5 + 1e-9);
+    }
+  });
+});
+
+describe('floorToTick', () => {
+  it('floors to the display grid, never up', () => {
+    expect(floorToTick(23.47, IMPERIAL)).toBe(Math.floor(23.47 * 16 + 1e-9) / 16);
+    expect(formatLength(floorToTick(inch(596.9), MM), MM)).toBe('596 mm');
+    expect(floorToTick(inch(596), MM) * 25.4).toBeCloseTo(596, 9);   // exactly on a tick stays
   });
 });
