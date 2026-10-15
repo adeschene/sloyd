@@ -1,7 +1,7 @@
 import { createBoard } from './document';
 import type { Board, HoleRow } from './types';
 import { chiralAngled, chiralCurved } from './turnFixtures';
-import { archCurve, defaultCorners } from './curves';
+import { archCurve, bowCurve, defaultCorners } from './curves';
 import { mirrorPart } from './frames';
 import { curveSilhouettes } from './curveDrawing';
 import { drawView, hiddenSpan, hiddenSpanPlanes, worldBodies, FRONT, SIDE, ISO, TOP, type Seg2 } from './drawing';
@@ -414,8 +414,28 @@ describe('curved surfaces draw their silhouettes (ruling Q1)', () => {
   it('Side: each end closes at x = 0 and x = -20 (Side\'s right is -Z)', () => {
     const d = drawView([top], SIDE);
     for (const x of [0, -20]) expect(total(verticalAt(d.visible, x))).toBeCloseTo(0.75, 9);
+    // The silhouettes are at world x = 1 and x = 35 (the corner joins), z = 0 and 20 -> screen x = 0 and -20. The near
+    // pair (x = 35) is visible, the far pair (x = 1) hides behind the part; both are asserted so a far line wrongly
+    // turning visible (a visible total of 1.5) is caught.
+    for (const x of [0, -20]) expect(total(verticalAt(d.hidden, x))).toBeCloseTo(0.75, 9);
   });
   it('Plan looks down the thickness: no silhouettes (the outline is the drawing)', () => {
     expect(curveSilhouettes(top, [0, 1, 0])).toHaveLength(0);
+  });
+});
+
+describe('a shallow chord does not hide its own silhouette (review fix, ruling Q1)', () => {
+  // Flat span x 12 x 3/4, a bow along the length on the width-min side, seen from Side (toward +X, screen x = -z, y = height).
+  // Looking along the bow, the silhouette is where the bowed face's normal turns through edge-on: at the crown for 30 x 0.25
+  // (8 chords: the crown, world (15, z = 0), is a vertex -> screen x = 0), and at the two vertices flanking the crown for
+  // 60 x 0.1 (24 chords: world x = 24 and 36, z = 0.004 -> screen x = -0.004; one is near the viewer, one behind). The
+  // chords there leave the face at n.toward ~ 4e-3 and 2.7e-3, so a fixed lift toward the viewer (1e-4) cleared them by
+  // ~4e-7, less than the occluders' DRAW_EPS / 2 growth, and the near line read hidden (visible 0, hidden 0.75).
+  const bow = (span: number, rise: number) =>
+    box('b', span, 12, 0.75, [0, 0, 0], { curves: [{ id: 'bw', ...bowCurve({ through: 'thickness', along: 'length', side: 'min', span, rise }) }] });
+  it.each([[30, 0.25, 0], [60, 0.1, -0.004]])('span %d rise %d: a 3/4" visible silhouette at screen x = %d', (span, rise, sx) => {
+    const d = drawView([bow(span, rise)], SIDE);
+    const near = (segs: Seg2[]) => total(segs.filter((s) => Math.abs(s.a[0] - sx) < 5e-4 && Math.abs(s.b[0] - sx) < 5e-4 && Math.abs(s.a[0] - s.b[0]) < 1e-9));
+    expect(near(d.visible)).toBeCloseTo(0.75, 9);
   });
 });

@@ -109,14 +109,20 @@ export function curveSilhouettes(board: Board, toward: readonly number[]): [V3, 
   return silhouetteLines(board, toward).map(({ A, E }) => [A, E]);
 }
 
-/** Inches: how far a silhouette's hidden-line probe is stepped toward the viewer (`toward` is a unit vector). */
-const PROBE = 1e-4;
+/** Inches: how far a silhouette's hidden-line probe is stepped out of each viewer-facing adjacent face. drawView's
+ *  occluders grow every body by DRAW_EPS / 2 and sample the ray from DRAW_EPS on, so 4 x DRAW_EPS clears the growth
+ *  by a wide margin. Along the face's own normal the clearance is this distance whatever the face's angle to the view
+ *  (a toward-lift clears a shallow chord only by lift x n.toward, which vanishes with it). */
+const PROBE = 4e-6; // 4 x drawing.ts' DRAW_EPS (1e-6), not imported: drawing.ts imports this file
 
 /**
- * curveSilhouettes with each line's `lift`: a world offset (toward the viewer) that drawView adds to the line ONLY when it
- * judges what hides it. The line lies exactly on the body boundary where a chord leaves the face at a shallow angle, so
- * the occluders' DRAW_EPS growth would otherwise count the part's own wood as hiding it (measured: a rounded top's near
- * end line read hidden). Stepping toward the viewer, not sideways, keeps a far line's seam against the wood it is behind. The drawn position is never moved.
+ * curveSilhouettes with each line's `lift`: a world offset that drawView adds to the line ONLY when it judges what hides
+ * it; the drawn position is never moved. The line lies exactly on the body boundary, where a chord can leave the face at
+ * a shallow angle, so the occluders' DRAW_EPS growth would otherwise count the part's own wood as hiding it (measured: a
+ * rounded top's near end line read hidden). The lift is the sum of PROBE along the world outward normal of each adjacent
+ * face with n.toward > 0 (strictly: it faces the viewer, so stepping out of it only moves the probe off that wood). A
+ * face edge-on to the view, or facing away, contributes nothing, so a line hidden only by grazing, or one that lies
+ * behind wood it seams against, stays hidden (spec 2.3).
  */
 export function silhouetteLines(board: Board, toward: readonly number[]): { A: V3; E: V3; lift: V3 }[] {
   const out: { A: V3; E: V3; lift: V3 }[] = [];
@@ -155,7 +161,13 @@ export function silhouetteLines(board: Board, toward: readonly number[]): { A: V
       const n1 = normal(pts[(i - 1 + m) % m]!, q);
       const n2 = normal(q, pts[(i + 1) % m]!);
       if ((n1[0] * d[0] + n1[1] * d[1]) * (n2[0] * d[0] + n2[1] * d[1]) > 0) return;
-      const lift = toward.map((t) => PROBE * t) as V3;
+      const wu = axis([1, 0]);
+      const wv = axis([0, 1]);
+      const lift: V3 = [0, 0, 0];
+      for (const n of [n1, n2]) {
+        if (n[0] * d[0] + n[1] * d[1] <= 1e-9) continue; // edge-on or facing away
+        for (let j = 0; j < 3; j++) lift[j] += PROBE * (n[0] * wu[j]! + n[1] * wv[j]!);
+      }
       out.push({ A: W(q, 0), E: W(q, board[c.through]), lift });
     });
   }
