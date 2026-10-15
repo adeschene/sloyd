@@ -41,13 +41,15 @@ function AngleRow({ board, cut }: { board: Board; cut: AngleCut }) {
   );
   if (cut.kind === 'miter') {
     const m = miterFields(cut, board);
-    const setM = (patch: Partial<MiterFields>) => {
+    // Returns the refusal (fu 339): a select shows it in the row's alert (`pick`), a field as its own error.
+    const setM = (patch: Partial<MiterFields>): string | void => {
       const next = { ...m, ...patch };
       // A miter deeper than the part is refused, never written (spec §7) — it would consume the part.
-      if (board[next.across] * next.ratio > board.length) { setError('Removes more than the length — reduce the angle first.'); return; }
+      if (board[next.across] * next.ratio > board.length) return 'Removes more than the length — reduce the angle first.';
       setError(null);
       updateAngleCut(board.id, cut.id, miterCut(next, board));
     };
+    const pickM = (patch: Partial<MiterFields>) => { const r = setM(patch); if (r) setError(r); };
     const maxDegrees = miterDegrees(board.length / board[m.across]);
     const acrossName = m.across === 'width' ? 'Width' : 'Thickness';
     return (
@@ -58,21 +60,21 @@ function AngleRow({ board, cut }: { board: Board; cut: AngleCut }) {
         <div className="field-grid field-grid-2">
           <div className="field field-wide">
             <label htmlFor={`miter-end-${cut.id}`}>End</label>
-            <select id={`miter-end-${cut.id}`} className="input" value={m.end} onChange={(e) => setM({ end: e.target.value as CutFrom })}>
+            <select id={`miter-end-${cut.id}`} className="input" value={m.end} onChange={(e) => pickM({ end: e.target.value as CutFrom })}>
               <option value="min">Length min end</option>
               <option value="max">Length max end</option>
             </select>
           </div>
           <div className="field field-wide">
             <label htmlFor={`miter-across-${cut.id}`}>Across</label>
-            <select id={`miter-across-${cut.id}`} className="input" value={m.across} onChange={(e) => setM({ across: e.target.value as 'width' | 'thickness' })}>
+            <select id={`miter-across-${cut.id}`} className="input" value={m.across} onChange={(e) => pickM({ across: e.target.value as 'width' | 'thickness' })}>
               <option value="width">Width</option>
               <option value="thickness">Thickness</option>
             </select>
           </div>
           <div className="field field-wide">
             <label htmlFor={`miter-long-${cut.id}`}>Long point</label>
-            <select id={`miter-long-${cut.id}`} className="input" value={m.longSide} onChange={(e) => setM({ longSide: e.target.value as CutFrom })}>
+            <select id={`miter-long-${cut.id}`} className="input" value={m.longSide} onChange={(e) => pickM({ longSide: e.target.value as CutFrom })}>
               <option value="min">{`${acrossName} — min side`}</option>
               <option value="max">{`${acrossName} — max side`}</option>
             </select>
@@ -86,13 +88,14 @@ function AngleRow({ board, cut }: { board: Board; cut: AngleCut }) {
   }
   const bevel = cut.kind === 'bevel' ? bevelFields(cut, board) : null;
   if (bevel) {
-    const setB = (patch: Partial<BevelFields>) => {
+    const setB = (patch: Partial<BevelFields>): string | void => {
       const next = { ...bevel, ...patch };
       // A bevel deeper than its face is refused, never written (spec §7) — it would consume the part.
-      if (board[bevelAcross(next.face)] * next.ratio > board[next.face]) { setError(`Removes more than the ${next.face} — reduce the angle first.`); return; }
+      if (board[bevelAcross(next.face)] * next.ratio > board[next.face]) return `Removes more than the ${next.face} — reduce the angle first.`;
       setError(null);
       updateAngleCut(board.id, cut.id, bevelCut(next, board));
     };
+    const pickB = (patch: Partial<BevelFields>) => { const r = setB(patch); if (r) setError(r); };
     const across = bevelAcross(bevel.face);
     const acrossName = across === 'width' ? 'Width' : 'Thickness';
     return (
@@ -105,14 +108,14 @@ function AngleRow({ board, cut }: { board: Board; cut: AngleCut }) {
             <label htmlFor={`bevel-face-${cut.id}`}>Face</label>
             <select id={`bevel-face-${cut.id}`} className="input" value={`${bevel.face}|${bevel.from}`} onChange={(e) => {
               const o = FACES.find((x) => x.value === e.target.value)!;
-              setB({ face: o.face, from: o.from });
+              pickB({ face: o.face, from: o.from });
             }}>
               {FACES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </div>
           <div className="field field-wide">
             <label htmlFor={`bevel-long-${cut.id}`}>Long point</label>
-            <select id={`bevel-long-${cut.id}`} className="input" value={bevel.longSide} onChange={(e) => setB({ longSide: e.target.value as CutFrom })}>
+            <select id={`bevel-long-${cut.id}`} className="input" value={bevel.longSide} onChange={(e) => pickB({ longSide: e.target.value as CutFrom })}>
               <option value="min">{`${acrossName} — min side`}</option>
               <option value="max">{`${acrossName} — max side`}</option>
             </select>

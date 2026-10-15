@@ -5462,6 +5462,13 @@ field shows it as its own error, keeps focus and the typed text. AngleCuts' refu
 holes Task 10 review judged it to carry the same latent pattern (a caller-refused DimensionField edit blurring with the
 refused value showing while the stored value is unchanged) — inferred from the code, not checked live. Adopting R7 there
 is a small change. **Status:** open.
+- **Closed 2026-10-15 (follow-ups session, branch `follow-ups-1`).** Checked first whether the pattern is reachable: it
+  is not, today — every AngleCuts field a caller can refuse (the miter and bevel Angle) carries a `max` floored to what
+  the check accepts, so the field's own bound refuses first; the Starts, Removes and Size fields have no caller refusal.
+  Adopted anyway, as the entry asked: `setM`/`setB` return the refusal, the Angle fields pass it back to DimensionField
+  (its own error, focus and typed text kept), and the selects show it in the row alert as before (`pickM`/`pickB`).
+  `AngleField`'s `onCommit` type now admits the message; its test pins the plumbing (a returned refusal is the field's
+  error). No UI test can reach the AngleCuts half, so it is unpinned by construction. **Status:** closed.
 
 **340. The hole perf guard is wall-clock (Task 11b, final review).** `holesPerf.test.ts` bounds runs (≤40 ms
 healthy, ≤100 ms faulted). On 2026-10-14 it failed 1 of 4 isolated runs at a load average of 5.4, then passed 3/3 (the
