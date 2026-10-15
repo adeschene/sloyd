@@ -33,20 +33,25 @@ handicraft education tradition built around hand woodworking.
   ends, no arch crown); part diagrams draw the waste, sharp-vertex lines and curve notes. Rulings Q1–Q6 (marked *Amended
   (implementation, chunk 2)* in the spec) await the user's review. Open near it: 374–379 (residue).
 - **Metric display (spec `2026-10-15-sloyd-metric-display-design.md`, inv 52)**: deployed. 354 closed (metric parts match the nominal
-  sections and stock they read the same as). Open near it: 359 (the
-  imperial plane note can read the same on both sides), 356/358 record-only. 355, 357 and 360 closed and deployed (357's real Brave print is owed for the user's eye).
+  sections and stock they read the same as). 359 closed (follow-ups 1: imperial omits a plane note that reads the same), 356/358 record-only. 355, 357 and 360 closed and deployed (357's real Brave print is owed for the user's eye).
 - **Section cut (spec `2026-10-14-sloyd-section-cut-design.md`, inv 51)**: deployed. Open near it: 347 (cap look on real
-  hardware), 348 (cap cost on drilled parts), 349–350, 352 record-only (351 closed: inv 43 amended).
+  hardware), 349–350, 352 record-only (348 closed: a drilled cap's outline is built, ~10.6 ms) (351 closed: inv 43 amended).
 - **Holes (spec `2026-10-14-sloyd-holes-design.md`, inv 50)**: both chunks deployed (schema 16; fu 327 and 343 closed).
   Open near it: 328–342 (336: the wall-grain seam, deferred by the user to a texture/shader session; 337: real-hardware
-  looks owed), 344–346.
-- **NEXT: follow-ups** (the user's choice, 2026-10-15, in a fresh session; production is merge `1e16c01`, every later commit docs-only; no
-  branches open). `docs/follow-ups.md` is authoritative: an open entry reads `**Status:** open`, and many are record-only, so
-  read the entry before proposing work. Owed to the USER, not code: review of the spec amendments marked *Amended
-  (implementation, chunk 1)* / *(… chunk 2)* in the curves spec; a real Brave print (254, 345, 357, 379); real-hardware looks
-  (26a: 337, 347, 370; 336's grain seam is deferred to a texture/shader session). Custom materials (fu 266) closed; open near
-  it 324–326. Other open items: 314–320, angle-cut residue 295–298; 241 (open by decision), 251 (record-only), 221, 225, 232,
-  234, 247.
+  looks owed), 345–346 (335, 338, 339, 344 closed in follow-ups 1).
+- **Follow-ups 1 (2026-10-15, branch `follow-ups-1`, merged to master, NOT deployed; no schema change, so deploying or
+  rolling it back costs nothing)**: closed 369 (a curved part's holed planes drawn as one region: watertight, the pinned
+  arched side ~52 → 16 ms), 375 (silhouettes clipped to the wood), 339, 262 (+261 not reproducible), 338 and 359 (the
+  user's rulings), 335 (bookkeeping), 348, 344 + 263, 316, 296. Two rulings made in implementation await the user: 296
+  (angle-cuts spec §7 marked *Amended (implementation, follow-ups 2026-10-15)*) and 262's set of view-only actions (Hide
+  others, Select copies, Select linked, the guides disclosure).
+- **NEXT: ask** — deploy follow-ups 1 (per `DEPLOYMENT.local.md`), then 368 (hand-edited non-convex waste perf; its three
+  causes are hypotheses to measure) or other open items. `docs/follow-ups.md` is authoritative: an open entry reads
+  `**Status:** open`, and many are record-only, so read the entry before proposing work. Owed to the USER, not code: review
+  of the spec amendments marked *Amended (implementation, …)* in the curves and angle-cuts specs; a real Brave print (254,
+  345, 357, 379); real-hardware looks (26a: 337, 347, 370 — 370 is the only real proof 369's pinholes are gone; the Plans
+  sheet slider's feel, 263; 336's grain seam is deferred to a texture/shader session). Other open items: 314, 315, 317–320,
+  angle-cut residue 295, 297, 298; 241 (open by decision), 251 (record-only), 221, 225, 232, 234, 247.
 - **The deployed commit always trails `HEAD`**: a deploy's own record is committed after
   it. Docs-only commits past the hash above are not unreleased work, and some rounds ship
   byte-identical bundles (test-only). Check what a later commit touches before reading
@@ -125,6 +130,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | fu 357 | 10-15 | — | A metric sheet's `Dimensions in mm` repeats in every printed page's top margin (`@page metric-sheet`, margin box) |
 | curves (chunk 1) | 10-15 | 17 | `Board.curves` (`CurveCut`: a closed waste outline of lines and minor arcs in a face's (u, v), cut clean through one dimension; inv 53): clipped or split bodies, built edges, smooth normals, a watertight mesh and cap; arc snap points; bench lines and grouping; Curves section (Arch, Half-round notch, Bow, Rounded corner(s)); holes into a curve's waste fault; joinery/Refine/Repair refuse curved projects; an unknown segment type refuses the document |
 | curves (chunk 2) | 10-15 | — | Plans sheet: arcs at `DRAWING_CURVE_TOLERANCE` 0.001" (≤96 chords) through `curveDrawEdges`, visibility on the model chord, edge-on views unrefined; silhouettes of curved surfaces (`silhouetteLines`; fixes open rounded-top ends and the missing arch crown). Part diagrams: hatched waste, sharp-vertex lines on their own face, curve notes (`curveLineEntries`). Fu 361 |
+| follow-ups 1 | 10-15 | — | Fu 369 (a curved part's holed planes as one region: watertight, ~3x faster), 375, 339, 262 (+261), 338/359 (the user's rulings), 335, 348, 344 + 263, 316, 296 |
 
 ### The deployment rule
 
@@ -478,7 +484,7 @@ Deployment scaffolding: `Dockerfile`, `docker-compose.yml`, `nginx.conf`,
 - **`DimensionField.tsx`**: min/max REFUSE out-of-range input, never clamp. Enter commits
   and blurs (fu 212); a refused entry keeps focus. `onCommit` may return a refusal MESSAGE (a string): the field shows
   it as its OWN error (same element, role and `aria-invalid` as min/max), keeps focus and the typed text, and keeps it
-  until its own next commit or an external resync — no sibling clears it (holes chunk 1 R7, R8). AngleCuts has not adopted it (fu 339).
+  until its own next commit or an external resync — no sibling clears it (holes chunk 1 R7, R8). AngleCuts' Angle fields return their refusal too (fu 339; unreachable through today's bounds).
 - **`ProjectMenu.tsx`**: deliberately not an ARIA menu. The arm/disarm swap renders a
   `<button>` at the same sibling index in both branches — giving either a `key` breaks
   focus. Rendered only when `libraryAvailable`. A duplicate error's cause is read off
@@ -923,7 +929,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 4436 tests across 151 files
+npm test           # Vitest, currently 4472 tests across 151 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
@@ -948,9 +954,9 @@ knowing without opening it:
   markers recoloured to muted tones; keep the floors in `SnapMarker.tsx` if retuning) and 250 (Popover and
   ProjectMenu focusout; simulated only, no Safari here) are closed; deferred minors (251) are record-only.
 - **252–264** — plans-sheet residue: 252 (callouts), 253 (user-placed dimensions, schema bump), 255 (explode constants
-  seen only on software GL), 256–258 (section views, joint-direction explode, live viewport dimensions) and 261–263
-  (parts-list rename reverts silently while exploded; the lock disables view-only controls; the sheet slider lags) are
-  open; 260 (F/Home framed unexploded positions) closed 2026-10-13. 254 is open only for a real print (the tall-sheet overflow is fixed);
+  seen only on software GL), 256–258 (section views, joint-direction explode, live viewport dimensions) are open;
+  261–263 closed 2026-10-15 (follow-ups 1: 261 not reproducible; the lock wraps editing regions only; the sheet's figure
+  deferred); 260 (F/Home framed unexploded positions) closed 2026-10-13. 254 is open only for a real print (the tall-sheet overflow is fixed);
   264 is closed; 259 is record-only.
 - **265–274** — lumber yield & cost residue: 265 (per-project price overrides),
   267 (edge banding, hardware BOM), 268 (glue-ups), 269 (packer is a heuristic — measure before optimising), 270 (USD
@@ -961,8 +967,8 @@ knowing without opening it:
   2026-10-14 (AI angles chunk 2); "taper all four faces", Plans-sheet angle callouts, compound angles), 281 closed (short point: corner minimum), 282 closed (approved on real
   hardware), 283 (joinery dialog with a key on an angled project, unseen), 284–292 recorded minors.
 - **293–297** — miter residue: 293 and 294 closed (angle max floored; the line names the long point), 295 (a row control to add
-  the matching miter, by decision), 296 (a part shortened past its miter refuses edits until the angle is reduced; presets
-  withheld on parts wider than long), 297 (a hand-edited offset miter is moved to canonical form on its first edit).
+  the matching miter, by decision), 296 closed 2026-10-15 (an overrun a resize caused is noted; edits that overrun no
+  further are taken — for the user's review), 297 (a hand-edited offset miter is moved to canonical form on its first edit).
 - **298–300** — bevel/chamfer residue: 298 (no raised-panel field-bevel preset; unequal chamfer legs not editable), 299
   and 300 closed 2026-10-12 (short Edge labels; one face vocabulary and refusal pattern).
 - **301–318** — AI-tapers residue (301–308 chunk 1; 309–313 chunk 2; 314–318 turned links): 301 closed 2026-10-13 (role linking aligns angle-cut ids and tries quarter turns, so four tapered legs are one component; also fixed identical tapered parts never linking; cut order ruled not geometry), 302 and 303 closed 2026-10-13 (overlap and the
@@ -970,7 +976,7 @@ knowing without opening it:
   (Generate/Refine tapers) closed 2026-10-13, 306 (deferred minors, record-only), 308 ("taper the other end" is impossible for a part joined at both ends; record-only), 307 closed 2026-10-13 (`rebaseAngleCuts`), 309 closed 2026-10-13 (Refine refuses, before any call, a taper the converter would reject), 310 closed 2026-10-13 (tapers diffed face
   by face at display precision), 311 closed 2026-10-13 (an unjoined Refine lists its taper fault once, in the note), 312 closed 2026-10-13
   (`plainForRefine` calls `joineryRefusal`), 313 closed 2026-10-13 (test and wording residue; same face in two entries allowed by decision),
-  314 (parts with rectangular cuts are not turned), 315 (mirror-only matches need fu 232's mirrored placements), 316 (`splitAssemblies`' `resultSignature` is order-sensitive), 317 (record-only turned-links minors), 318 (a width-only edit on one turned linked leg grows legs along different axes; accepted by the user).
+  314 (parts with rectangular cuts are not turned), 315 (mirror-only matches need fu 232's mirrored placements), 316 closed 2026-10-15 (placements compare cuts in any order), 317 (record-only turned-links minors), 318 (a width-only edit on one turned linked leg grows legs along different axes; accepted by the user).
 - **319–320** — standard views + image export residue: 319 (the View group wraps even at 1440 px; open for the user's
   eye), 320 (record-only: no view shortcuts, one-frame selection blink, a saved PNG owed a real-hardware look).
 - **321** — AI angles chunk 1 minors (record-only): the receiving part's "reaches" test uses the entering face at 1e-9;
@@ -983,21 +989,21 @@ knowing without opening it:
   **325** — two tabs overwrite each other's library/prices (record); the v14-rollback `extra` round trip is covered.
 - **327–342** — holes chunk 1 residue: 327 closed 2026-10-14 (chunk 2: drawings, Hinge cup), 328–335 (spec §11: holes through
   joinery/Refine/Repair, Generate/Refine authoring them, counterbores/cam-and-bolt, half-holes, dowels as hardware, Plans
-  callouts, pointed bottoms, metric display), 336 (wall-grain seam inside a bore, deferred by the user to a texture/shader
-  session), 337 (real-hardware looks owed: rims, drag smoothness, faded holed parts, overlapping holes), 338 (count-1 rows
-  compare `pitch`, for the user), 339 (AngleCuts adopting the refusal message), 340 (the perf guard is wall-clock), 341–342
+  callouts, pointed bottoms; 335 closed — the metric round shows hole sizes in mm), 336 (wall-grain seam inside a bore, deferred by the user to a texture/shader
+  session), 337 (real-hardware looks owed: rims, drag smoothness, faded holed parts, overlapping holes), 338 and 339 closed
+  2026-10-15 (a count-1 row's pitch is not compared, the user's ruling; AngleCuts returns its refusal), 340 (the perf guard is wall-clock), 341–342
   (record-only minors).
 - **343–346** — holes chunk 2 residue: 343 (Hinge cup along the LONGER in-face dimension, R5) closed — the user kept it; 344
-  (the exploded view computes hidden hole lines it never draws; ties to 263's slider lag), 345 (dash look of chained paths
+  closed 2026-10-15 (the exploded view skips always-hidden hole lines), 345 (dash look of chained paths
   and corner joins on a real print, for the user's eye; fu 254), 346 (record-only minors).
 - **361–379** — curves: 361 closed (chunk 2: arcs at 0.001", silhouettes — a live defect on master —, part
-  diagrams); residue 374 (the edge-on fold, Q3), 375 (a silhouette drawn through another cut's air), 376 (a split chord's end up
+  diagrams); residue 374 (the edge-on fold, Q3), 375 closed 2026-10-15 (clipped to the wood), 376 (a split chord's end up
   to 0.005" off the arc, Q4; Q2's split likewise; record-only), 377 (the unreachable (0, 1) node guard; record-only), 378
   (chunk 2 deferred minors; record-only), 379 (drawView timing ~6 ms/view, unchanged). Chunk 1: 362 (curve callouts; with 252, 333), 363 (Claude
   features on curves: joinery/Repair, Generate/Refine, the design checks), 364 (splines: a segment type, no bump), 365
   (stopped curves, edge profiles), 366 (compound curves), 367 (a row control to change kind); residue — 368 (a non-convex
-  waste rebuilds in ~65 ms: merge ear-clip triangles, bucket bodyEdges' line lookup, frozen bodies slow bodyEdges), 369 (a
-  holed face of a curved part keeps T-junctions), 370 (real-hardware looks owed: smooth shading, the grain seam, arch-end
+  waste rebuilds in ~65 ms: merge ear-clip triangles, bucket bodyEdges' line lookup, frozen bodies slow bodyEdges), 369 closed
+  2026-10-15 (a holed plane drawn as one region, watertight), 370 (real-hardware looks owed: smooth shading, the grain seam, arch-end
   lines, a faded curved part beside a dado), 371–373 (record-only minors). The curved-face grain seam is filed with **336**.
 - **176/177** — the held rules' known limits (mutual lapping) and an unseen live repair.
 - **130** — semi-infinite construction lines; picked and set aside 2026-08-31 without a
