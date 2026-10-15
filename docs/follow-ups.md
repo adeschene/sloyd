@@ -5639,6 +5639,10 @@ switched to inches, or any part within 1/32" under 3/4") bought from 3/4" stock 
 display-rounding contradiction chunk 2 removed from metric (omitted when both read the same whole mm). Pre-existing;
 left byte-identical on purpose (inv 52's imperial guarantee). Remedy: the same "reads the same → omit" rule at the
 display precision. **Status:** open — the user's call (it changes imperial output).
+- **Closed 2026-10-15 (the user ruled: omit when the same, imperial too).** `buildPurchase` compares stock and part
+  through `formatLengthBare` in the project's units, one rule for both systems (was metric-only): a 0.748" part from
+  3/4" stock prints no plane note; one display step under (11/16") keeps it. The one ruled exception to inv 52's
+  byte-for-byte imperial guarantee. **Status:** closed.
 
 **360. Built-in pine has no 2× (or thicker) default stock.** `defaultBuying('pine')` lists only 3/4" S4S boards (the
 1×2…1×12 widths at 6′/8′ lengths); a custom NOMINAL solid gets the full `NOMINAL_DEFAULT_STOCK` (1× at 8′, 2× at

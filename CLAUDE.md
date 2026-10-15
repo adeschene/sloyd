@@ -877,7 +877,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 52. **A length becomes text — and text becomes a length — only through `units/length.ts`, with the DOCUMENT's own `Units`**
     (`formatLength`/`parseLength` take `Units`; there is no module- or browser-level unit setting, so a background run or a
     sheet formats with its own document). Stored values are inches always; a units switch (`setUnitsDisplay`, one edit,
-    locked while exploded) moves no number. Imperial output is byte-for-byte what it was. Metric: whole mm (half away from
+    locked while exploded) moves no number. Imperial output is byte-for-byte what it was, but for one ruled change: Buying's plane note is omitted when stock and
+    part READ the same, in either system (fu 359). Metric: whole mm (half away from
     zero after the fraction path's nudge), a bare typed number is mm (marks, fractions and feet stay inches — so switching
     units reinterprets a pending typed tape entry, preview and commit alike), hole diameter and pitch to 0.1 mm through
     `holeLengthText` (one home for the bench line and the fields, inv 19), stock collapsing at whole mm (inv 18), free drags
