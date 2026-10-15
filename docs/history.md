@@ -452,6 +452,15 @@ and 79.
 
 ## What each round did
 
+**What fu 354 did (2026-10-15)** (bounded, in-chat design; branch `fu354`, merged as `bf0bdc2` and deployed the same day,
+`index-yiFC6fXl.js`). In a metric project, round-mm parts missed nominal lumber (89 mm = 3.504" > a 2×4's 3.5"), so they were
+unnamed and Buying refused them. The user chose matching at display precision: `nominalName(t, w, units)` matches when both
+sides read the same whole mm, and every stock-fit decision (sheet nesting's stock bounds, Buying's thickness filter, `fitsIn`,
+the packer, the reason) uses `fitsStock` — reads no more than the stock at whole mm — through the one `mmTicks` rounding the
+fields use; shelves stay exact (inv 23); imperial exact as before. The review caught the first cut's literal half-mm slack
+disagreeing with the naming for decimal mm (89.45 mm named 2×4 but refused; 19.5 mm bought from 3/4"). Live: a 286 mm shelf is
+bought as `1×12 × 6′ (19 × 286 × 1829 mm)`. Found on the way: built-in pine has no 2× default stock (fu 360).
+
 **What metric display chunk 2 did (2026-10-15)** (plan `docs/superpowers/plans/2026-10-15-sloyd-metric-display-chunk2.md`,
 branch `metric-2` from `133d22a`; chunk 1 merged as `80d41fb`). **Merged as `b993ac7` and deployed with chunk 1 the same day** (`index-BhtsAcfC.js`). No schema change. At the deploy gate the user ruled sheet sizes in cut-list prose read in trade form (`96" × 48" (2438 × 1219 mm)`; placed-part labels stay bare) and shipping with fu 354 and 355 open. Subagent-driven, four tasks plus a final
 review: (1) drawings in bare mm — `dimensions.ts`, `diagram.ts`' own labels, `nesting.ts`' `formatDims` and `packOnto` take
