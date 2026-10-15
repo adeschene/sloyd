@@ -30,7 +30,7 @@ function cutDim(board: Board, next: Draft): Dimension {
 }
 
 /** The first hole fault `after` adds that the stored part lacks and that is a hole into a curve's waste, in words; or
- *  null. Known limit (deferred): a hole already past an EDGE shares its fault key with a hole-into-curve fault. */
+ *  null. faultKey names the curve, so a hole already past an EDGE is still refused (finding 2). */
 function holeRefusal(board: Board, after: Board): string | null {
   for (const row of board.holes) {
     const was = new Set(distinctFaults(holeFaults(board, row)).map(faultKey));

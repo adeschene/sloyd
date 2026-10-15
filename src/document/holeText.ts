@@ -23,11 +23,16 @@ export function holeFaultText(f: HoleFault, r: HoleRow): string {
   }
 }
 
-/** A fault's identity: per hole, except too-deep, which is a property of the ROW (every hole shares its depth). The
- *  Properties panel's "does this edit ADD a fault" reads it too. */
-export const faultKey = (f: HoleFault) => (f.kind === 'too-deep' ? 'too-deep' : `${f.index}:${f.kind}`);
-/** One fault per key (a hole that both passes an edge and meets a curve reads ONE breaks-out), in holeFaults' order: THE one count of a row's faults (invariant 19), read by the bench line and
- *  the Properties note, so a row thinned under its depth reads one fault, not one per hole. */
+/** A fault's identity: per hole, except too-deep, which is a property of the ROW (every hole shares its depth). A
+ *  breaks-out names WHAT it breaks into — an edge, or a curve by id (curves spec §6.3: whole-branch review, finding 2) —
+ *  so a hole already past an edge is still refused into an arch's waste. The Properties panels' "does this edit ADD a
+ *  fault" (Holes and Curves) reads it, and so does distinctFaults: one key for both, or a hole already past an edge and
+ *  in a curve would collapse to one fault on one side of the test and be refused on every edit. */
+export const faultKey = (f: HoleFault) => (f.kind === 'too-deep' ? 'too-deep'
+  : f.kind === 'breaks-out' ? `${f.index}:breaks-out:${f.curve ? `curve:${f.curve.id}` : 'edge'}` : `${f.index}:${f.kind}`);
+/** One fault per key, in holeFaults' order: THE one count of a row's faults (invariant 19), read by the bench line and
+ *  the Properties note, so a row thinned under its depth reads one fault, not one per hole. A hole past an edge and into
+ *  a curve reads two (two things to fix). */
 export const distinctFaults = (fs: HoleFault[]) => fs.filter((f, i) => fs.findIndex((g) => faultKey(g) === faultKey(f)) === i);
 
 /** A diameter or pitch that is a whole number of millimetres AND not an exact 1/64 also prints its mm (spec §4.1,

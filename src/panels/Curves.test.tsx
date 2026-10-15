@@ -1,7 +1,7 @@
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
-import { archFields, bowCurve, bowFields, createBoard, createDocument } from '../document/document';
+import { archCurve, archFields, bowCurve, bowFields, createBoard, createDocument } from '../document/document';
 import type { Board, CurveCut } from '../document/document';
 import { Properties } from './Properties';
 
@@ -125,6 +125,17 @@ describe('the Curves section', () => {
     await add(user, 'Arch');                                        // rise 1-1/4: the bore's near rim is at 1-7/8
     await typeInto(user, 'Rise', '1.9');
     expect(archFields(curves()[0]!)!.rise).toBe(1.25);
+    expect(screen.getByRole('alert')).toHaveTextContent('Puts hole 1 into the arch — move it first.');
+  });
+
+  it('a curve edit is refused into a hole already past an edge (finding 2: the edge does not mask the curve)', async () => {
+    const user = userEvent.setup();
+    const bore = { id: 'h1', face: 'thickness', from: 'max', diameter: 0.5, depth: 'through', along: 'length', alongFrom: 'min',
+      station: 15, count: 1, pitch: 0, acrossFrom: 'min', inset: 0.1 } as const;   // runs past the width min side
+    const short = { id: 'c1', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 3, span: 6, rise: 1 }) };
+    open(apron({ holes: [bore], curves: [short] }));
+    await typeInto(user, 'Span', '24');                                 // 3 to 27 takes in the bore at 15"
+    expect(archFields(curves()[0]!)!.span).toBe(6);
     expect(screen.getByRole('alert')).toHaveTextContent('Puts hole 1 into the arch — move it first.');
   });
 
