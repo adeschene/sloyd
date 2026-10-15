@@ -452,6 +452,18 @@ and 79.
 
 ## What each round did
 
+**What fu 360 and fu 355 did (2026-10-15)** (bounded, one in-chat design for both; branches `fu-360` and `fu-355`, merged as
+`0f2be31` and `3b7455c`). **fu 360**: the user chose giving built-in pine the nominal set. Pine keeps its own 1× list (6′ and 8′,
+its own ids, so no 1× pick changes) and adds `NOMINAL_DEFAULT_STOCK`'s 2× (8/10/12′) and 4×4 (8′) — 36 sizes; a 2×4 in pine
+(1-1/2 × 3-1/2, or 38 × 89 mm in a metric project) buys `2×4 × 8′`. It reaches only a browser whose pine settings were never
+saved (or Reset). As for a custom nominal solid, a 3/4" part longer than 8′ or wider than a 1×12 now buys 2× stock with a plane
+note. **fu 355**: a `Violation` may carry `shown`, the person's copy, set only in a metric project when it differs; `checkDesign`
+and `jointFaults` take display units (default the checked document's; Refine passes the original project's, since it checks the
+model's imperial conversion); `collapseViolations` suffixes both; the dialogs render `shownText`. Lengths to 0.1 mm (a 2.6 mm
+part must not read "3 mm; the minimum is 3 mm"); taper advice floored to whole mm. The user ruled `too-large` stays in inches —
+a fault reads in the unit its limit was typed in. The converter's rejections stay inches. Model feedback and imperial violations
+unchanged (pinned). Unit-tested only: a live dialog check needs a paid run.
+
 **What fu 354 did (2026-10-15)** (bounded, in-chat design; branch `fu354`, merged as `bf0bdc2` and deployed the same day,
 `index-yiFC6fXl.js`). In a metric project, round-mm parts missed nominal lumber (89 mm = 3.504" > a 2×4's 3.5"), so they were
 unnamed and Buying refused them. The user chose matching at display precision: `nominalName(t, w, units)` matches when both

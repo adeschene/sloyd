@@ -26,8 +26,8 @@ handicraft education tradition built around hand woodworking.
   `index-DwixxasK.js`, or earlier down to `2ded5cc` is free — an older build reads a metric project as imperial; below 16,
   `bfde00c`, REFUSES every project saved since: export first). Test count is under Commands.
 - **Metric display (spec `2026-10-15-sloyd-metric-display-design.md`, inv 52)**: deployed. 354 closed (metric parts match the nominal
-  sections and stock they read the same as). Open near it: 360 (built-in pine has no 2× default stock), 355 (designCheck dialog text in inches), 357 (the units note prints on page 1 only), 359 (the
-  imperial plane note can read the same on both sides), 356/358 record-only.
+  sections and stock they read the same as). Open near it: 357 (the units note prints on page 1 only), 359 (the
+  imperial plane note can read the same on both sides), 356/358 record-only. 355 and 360 closed on `master` (merge `3b7455c`), not yet deployed.
 - **Section cut (spec `2026-10-14-sloyd-section-cut-design.md`, inv 51)**: deployed. Open near it: 347 (cap look on real
   hardware), 348 (cap cost on drilled parts), 349–350, 352 record-only (351 closed: inv 43 amended).
 - **Holes (spec `2026-10-14-sloyd-holes-design.md`, inv 50)**: both chunks deployed (schema 16; fu 327 and 343 closed).
@@ -109,6 +109,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | section cut | 10-15 | — | Viewport section: one Front/Side/Top plane (slider, exact field, Flip), GPU-clipped parts and edges, exact solid caps from the bodies minus bores (one winding, outline = union boundary), picking/snapping on the kept side (guides exempt); view state only (inv 51) |
 | metric display (chunks 1–2) | 10-15 | — | Per-project `in \| mm` Units switch; whole mm for fields, typing (a bare number is mm), tape, cut list, bench lines (holes to 0.1 mm), drag snap; drawings bare mm + "Dimensions in mm" note; Buying parts in mm, trade sizes with mm brackets; metric grid (inv 52) |
 | fu 354 | 10-15 | — | Metric parts match nominal sections and stock when they READ the same whole mm (`nominalName`, `fitsStock`, one `mmTicks` rounding); imperial exact |
+| fu 360 + 355 | 10-15 | — | Built-in pine's default stock adds the nominal 2× and 4×4 sizes (36); metric design faults show mm in the Joinery/Refine dialogs (`Violation.shown`), the model's text unchanged |
 
 ### The deployment rule
 
@@ -161,7 +162,8 @@ Each layer depends only on the ones before it:
 **The `→ units` edge rule: a module imports `units` when it produces a string a person
 reads off the page, and not otherwise.** `cutlist.ts`, `diagram.ts`, `nesting.ts`
 (`formatLength`, so one dimension never reads two ways on one sheet) and
-`viewport/TapeTool.tsx` (`parseLength`, for the live preview) take it.
+`viewport/TapeTool.tsx` (`parseLength`, for the live preview) take it, and so does `designCheck.ts` (a metric violation's
+`shown` copy, fu 355; its model `message` stays decimal inches).
 `snapPoints.ts` and `row.ts` deliberately do not. Do not generalise to "everything under
 `document` imports `formatLength`". A TYPE-only import of `Units` is not an edge (`types.ts`, `geometry.ts`' `snapStep`), nor is `gridDensity.ts`' `isMetric` (the
 ground grid's ladder is a display choice of the project's units, not a string).
@@ -784,7 +786,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     `holeLengthText` (one home for the bench line and the fields, inv 19), stock collapsing at whole mm (inv 18), free drags
     on whole mm via `snapToGrid` (`Math.round(v * 25.4) / 25.4`, the SAME float a typed value stores). Field bounds are
     compared with a 1e-9 tolerance (inv 22): a metric max like `posDim − offset` is not exact. Imperial on purpose: the
-    Materials dialog's sheet and stock sizes (trade units), Generate's limits, model-facing text, `stockLengthText`
+    Materials dialog's sheet and stock sizes (trade units), Generate's limits, model-facing text (a design fault's `message`; the dialogs show its `shown` copy, mm to 0.1 — taper
+    advice floored to whole mm — except `too-large`, which reads in the inches its limit was typed in; fu 355), `stockLengthText`
     (`8′`). Drawings (Plans sheet, part diagrams, nesting labels) read BARE mm via `formatLengthBare`, with one
     `Dimensions in mm` note in the sheet header; Buying reads parts in the project's units and trade sizes imperial with
     mm in brackets (`tradeLength`/`tradeSize`/`mmBracket`, one home); the grid ladder is 10 mm / 100 mm / 1 m.
@@ -794,7 +797,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 4171 tests across 141 files
+npm test           # Vitest, currently 4188 tests across 141 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
