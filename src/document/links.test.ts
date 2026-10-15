@@ -3,7 +3,7 @@ import type { Board } from './document';
 import type { AngleCut, HoleRow } from './types';
 import { LINK_ACROSS_MIRROR, LINK_FIELDS, SHARED_KEYS, linkPlan, sameShared, sharedOf, sharedPatch } from './links';
 import type { LinkPlan } from './links';
-import { ARCH } from './curves.test';
+import { ARCH } from './curveFixtures';
 
 /** The plan, failing the test when linkPlan gave none or refused. */
 const ok = (p: ReturnType<typeof linkPlan>): LinkPlan => {

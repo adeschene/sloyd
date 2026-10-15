@@ -13,11 +13,11 @@ const TURNS: readonly Rotation[] = [0, 90, 180, 270];
 /**
  * The part re-stored at each OTHER quarter turn that leaves the world part unchanged (turned-links spec §2.2): the same
  * world box (so the same min corner, inv 2), the grain on the same world axis, and its tapers, miters, bevels and chamfers
- * re-stored on the same world faces through taperWorld and angleWorld (inv 44). None for a part with rectangular cuts or holes, or
+ * re-stored on the same world faces through taperWorld and angleWorld (inv 44). None for a part with rectangular cuts, holes or curves, or
  * a cut either cannot describe.
  */
 export function turnCandidates(b: Board): Board[] {
-  if (b.cuts.length > 0 || b.holes.length > 0) return [];
+  if (b.cuts.length > 0 || b.holes.length > 0 || b.curves.length > 0) return [];
   const world = worldTapers(b);
   const angles = worldAngles(b);
   if (world === null || angles === null) return [];

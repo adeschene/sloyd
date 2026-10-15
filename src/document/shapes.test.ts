@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LINK_FIELDS, SHARED_KEYS, createBoard, createDocument, isShaped, resolveBoard, shapeMap, worldParts } from './document';
+import { ARCH } from './curveFixtures';
 import type { Shape, ShapedBoard, SloydDocument } from './document';
 
 const leg: Shape = { id: 's1', length: 28, width: 1.75, thickness: 1.75, material: 'oak', grain: 'length', posture: 'upright',
@@ -70,5 +71,17 @@ describe('resolveBoard copies holes', () => {
     expect(one.holes).toEqual([row]);
     expect(one.holes).not.toBe(shape.holes);
     expect(one.holes[0]).not.toBe(two.holes[0]);
+  });
+});
+
+describe('resolveBoard copies curves', () => {
+  it('gives each user its own curves', () => {
+    const shape = { id: 's1', length: 30, width: 5, thickness: 0.75, posture: 'flat' as const, grain: 'length' as const, material: 'oak', cuts: [], angleCuts: [], holes: [], curves: [ARCH] };
+    const shapes = new Map([['s1', shape]]);
+    const one = resolveBoard(shapes, { id: 'x', name: 'A1', position: [0, 0, 0], rotation: 0, shape: 's1' })!;
+    const two = resolveBoard(shapes, { id: 'y', name: 'A2', position: [12, 0, 0], rotation: 0, shape: 's1' })!;
+    expect(one.curves).toEqual([ARCH]);
+    expect(one.curves).not.toBe(shape.curves);
+    expect(one.curves[0]).not.toBe(two.curves[0]);
   });
 });

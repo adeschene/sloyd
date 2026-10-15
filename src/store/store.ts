@@ -10,6 +10,7 @@ import type { AngleCut, Board, HoleRow, CustomMaterial, BoardSnapPoint, Cut, Ins
 import type { LengthDisplay } from '../units/length';
 import { snapToGrid } from '../document/geometry';
 import { copyAngleCut, sameAngleCut } from '../document/angleCuts';
+import { copyCurve } from '../document/curves';
 import { copyHoleRow, sameHoleRow } from '../document/holes';
 import { pruneMaterials, upsertMaterials, materialUses } from '../document/materials';
 import { MAX_ROW } from '../document/row';
@@ -852,7 +853,7 @@ export const useStore = create<StoreState>((set, get) => {
     // fresh id per cut (via the same nextId() addCut uses) means a future
     // in-place Cut mutation can't corrupt the source board and every undo
     // snapshot holding it simultaneously. `angleCuts` need the same treatment:
-    // fresh ids, and copyAngleCut for an independent `points` array. `holes` likewise: fresh ids.
+    // fresh ids, and copyAngleCut for an independent `points` array. `holes` and `curves` likewise: fresh ids.
     const { id: _sourceId, ...rest } = source;
     const fresh = createBoard({
       ...rest,
@@ -860,6 +861,7 @@ export const useStore = create<StoreState>((set, get) => {
       cuts: source.cuts.map((cut) => ({ ...cut, id: nextId() })),
       angleCuts: source.angleCuts.map((c) => ({ ...copyAngleCut(c), id: nextId() })),
       holes: source.holes.map((r) => ({ ...copyHoleRow(r), id: nextId() })),
+      curves: source.curves.map((c) => ({ ...copyCurve(c), id: nextId() })),
     });
     return { ...fresh, name };
   };

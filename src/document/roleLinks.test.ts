@@ -10,6 +10,7 @@ import { boardExtents } from './geometry';
 import { miterDegrees, taperCut } from './angleCuts';
 import { turnCandidates, alignedTo } from './roleLinks';
 import type { Board } from './types';
+import { ARCH } from './curveFixtures';
 
 const v = (x: number, y: number, z: number) => ({ x, y, z });
 const part = (name: string, role: string, at: [number, number, number], size: [number, number, number]): GeneratedPart =>
@@ -244,6 +245,12 @@ describe('turned candidates and holes', () => {
     const leg: Board = { ...createBoard({ length: 28, width: 1.75, thickness: 1.75, posture: 'upright' }),
       holes: [{ id: 'h1', face: 'width', from: 'max', diameter: 0.375, depth: 1, along: 'length', alongFrom: 'max', station: 2, count: 1, pitch: 0, acrossFrom: 'min', inset: 0.875 }] };
     expect(turnCandidates({ ...leg, holes: [] }).length).toBeGreaterThan(0);   // the guard is what refuses, not the box
+    expect(turnCandidates(leg)).toEqual([]);
+  });
+
+  it('offers no turned candidates for a curved part (curves spec §7)', () => {
+    const leg: Board = { ...createBoard({ length: 28, width: 1.75, thickness: 1.75, posture: 'upright' }), curves: [{ ...ARCH, start: [3, 0], segments: [{ type: 'arc', to: [6, 0], side: 'left', rise: 0.5 }, { type: 'line', to: [3, 0] }] }] };
+    expect(turnCandidates({ ...leg, curves: [] }).length).toBeGreaterThan(0);   // the guard refuses, not the box
     expect(turnCandidates(leg)).toEqual([]);
   });
 });

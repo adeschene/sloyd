@@ -5,6 +5,7 @@ import { boardCenter, reorientedPosition } from './geometry';
 import type { Board, Cut } from './types';
 import type { Shape, SloydDocument } from './types';
 import { createDocument } from './document';
+import { ARCH } from './curveFixtures';
 import { applyWorldEdits, storageKey } from './treeEdit';
 
 const edit = (doc: ReturnType<typeof assemblyDoc>, id: string, f: (b: Board) => Board) =>
@@ -376,6 +377,19 @@ describe('writeBackFlat shares where identical', () => {
     const orig = out.definitions.find((d) => d.id === 'd1')!.boards[0] as Board;
     expect(split.holes).toEqual([row]);
     expect(split.holes[0]).not.toBe(orig.holes[0]);
+  });
+
+  it('a split definition\'s part owns its curves: no curve object shared with d1\'s part (curves spec §6.2)', () => {
+    const doc = drawers(2);
+    doc.definitions[0]!.boards[0] = { ...(doc.definitions[0]!.boards[0] as Board), curves: [ARCH] };
+    const before = flat(doc);
+    const after = before.map((b, k) => (k === 1 ? { ...b, cuts: [{ id: 'x1', ...cut }] } : b));
+    const out = writeBackFlat(doc, before, after);
+    expect(out.instances[1]!.definition).not.toBe('d1');
+    const split = out.definitions.find((d) => d.id === out.instances[1]!.definition)!.boards[0] as Board;
+    const orig = out.definitions.find((d) => d.id === 'd1')!.boards[0] as Board;
+    expect(split.curves).toEqual([ARCH]);
+    expect(split.curves[0]).not.toBe(orig.curves[0]);
   });
 
   describe('a tapered part placed twice (angle-cuts spec §5.2)', () => {

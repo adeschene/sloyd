@@ -1,4 +1,6 @@
 import { worldParts } from '../document/tree';
+import { ARCH } from '../document/curveFixtures';
+import { sameCurve } from '../document/curves';
 import { worldSolids } from '../document/designCheck';
 import { useStore } from './store';
 import type { Board, SloydDocument } from '../document/document';
@@ -3138,5 +3140,17 @@ describe('duplicating a holed part (holes spec §5.2)', () => {
     const { id: _a, ...ra } = a!.holes[0]!;
     const { id: _b, ...rb } = b!.holes[0]!;
     expect(rb).toEqual(ra);
+  });
+});
+
+describe('duplicating a curved part (curves spec §6.2)', () => {
+  it('gives the copy fresh curve ids and its own curves', () => {
+    useStore.getState().replaceDocument({ ...createDocument('T'), boards: [createBoard({ id: 'apron', name: 'Apron', length: 30, width: 5, thickness: 0.75, curves: [ARCH] })] });
+    useStore.getState().duplicateBoards(['apron']);
+    const [a, b] = useStore.getState().doc.boards as Board[];
+    expect(b!.curves).toHaveLength(1);
+    expect(b!.curves[0]!.id).not.toBe(a!.curves[0]!.id);
+    expect(sameCurve(a!.curves[0]!, b!.curves[0]!)).toBe(true);
+    expect(b!.curves[0]!.segments).not.toBe(a!.curves[0]!.segments);
   });
 });

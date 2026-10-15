@@ -1,6 +1,7 @@
 import type { Board, Shape, ShapedBoard, SloydDocument, StoredBoard } from './types';
 import { SHARED_KEYS } from './links';
 import { copyAngleCut } from './angleCuts';
+import { copyCurve } from './curves';
 import { copyHoleRow } from './holes';
 import type { SharedField } from './links';
 
@@ -30,7 +31,7 @@ export function resolveBoard(shapes: ReadonlyMap<string, Shape>, b: StoredBoard)
   const shared: Record<string, unknown> = {};
   for (const k of SHARED_KEYS) {
     if (!(k in s)) continue;
-    shared[k] = k === 'cuts' ? s.cuts.map((c) => ({ ...c })) : k === 'angleCuts' ? s.angleCuts.map(copyAngleCut) : k === 'holes' ? s.holes.map(copyHoleRow) : s[k];
+    shared[k] = k === 'cuts' ? s.cuts.map((c) => ({ ...c })) : k === 'angleCuts' ? s.angleCuts.map(copyAngleCut) : k === 'holes' ? s.holes.map(copyHoleRow) : k === 'curves' ? s.curves.map(copyCurve) : s[k];
   }
   const { shape, ...own } = b;
   return { ...own, ...(shared as Pick<Board, SharedField>), shape };
