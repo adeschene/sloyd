@@ -4,8 +4,9 @@ import { createDocument } from './document';
 import { worldParts } from './tree';
 import { boardExtents } from './geometry';
 import { worldSolids } from './designCheck';
-import { chiralAngled, chiralHoled, chiralPart, sameSet } from './turnFixtures';
+import { chiralAngled, chiralCurved, chiralHoled, chiralPart, sameSet } from './turnFixtures';
 import { sameHoleRow } from './holes';
+import { archCurve, archFields, sameCurve } from './curves';
 import { sameAngleCut } from './angleCuts';
 import { SHARED_KEYS, sharedOf } from './links';
 import { CUT_GEOMETRY_KEYS } from './cuts';
@@ -285,6 +286,50 @@ describe('holes through a mirror (Review Focus 3)', () => {
       const before = occ(d);
       const out = applyWorldEdits(d, [{ before, after: { ...before, posture: 'on-edge' } }]);
       expect(stored(out).holes).toBe(stored(d).holes);
+    }
+  });
+});
+
+describe('curves through a mirror (Review Focus 2)', () => {
+  it('an edit elsewhere keeps the stored curves (the same array)', () => {
+    const d0 = doc(chiralCurved('flat'), { mirrored: true });
+    const before = occ(d0);
+    const d1 = applyWorldEdits(d0, [{ before, after: { ...before, name: 'Renamed' } }]);
+    expect(stored(d1).curves).toBe(stored(d0).curves);
+  });
+  it('a resize keeps the stored curves (the same array)', () => {
+    const d0 = doc(chiralCurved('flat'), { mirrored: true });
+    const before = occ(d0);
+    const d1 = applyWorldEdits(d0, [{ before, after: { ...before, length: before.length + 1 } }]);
+    expect(stored(d1).curves).toBe(stored(d0).curves);
+  });
+  it('an edit to a world curve writes back its mirror; placing again shows the edit; repeats do not drift', () => {
+    const d0 = doc(chiralCurved('upright'), { mirrored: true, rotation: 90 });
+    const before = occ(d0);
+    const edit = (c: typeof before.curves[number]) => ({ ...c, ...archCurve({ ...archFields(c)!, start: 3 }) });
+    const edited = before.curves.map((c) => (c.id === 'k1' ? edit(c) : c));
+    const d1 = applyWorldEdits(d0, [{ before, after: { ...before, curves: edited } }]);
+    expect(sameCurve(occ(d1).curves.find((c) => c.id === 'k1')!, edited.find((c) => c.id === 'k1')!)).toBe(true);
+    expect(stored(d1).curves.find((c) => c.id === 'k1')).not.toEqual(edited.find((c) => c.id === 'k1'));   // stored is the mirror
+    const d2 = applyWorldEdits(d1, [{ before: occ(d1), after: { ...occ(d1), curves: occ(d1).curves.map((c) => ({ ...c })) } }]);
+    stored(d1).curves.forEach((c, i) => expect(stored(d2).curves[i]).toBe(c));
+  });
+  it('a posture change moving d0 keeps the world curves as seen (stored ones re-reflected); one keeping d0 leaves them', () => {
+    // The ONLY path to changedKeys' second clause (cur.curves !== after.curves && cur.curves !== resolved.curves).
+    for (const A of [{ mirrored: true }, { mirrored: true, rotation: 90 as const }]) {
+      for (const [from, to] of [['flat', 'upright'], ['upright', 'on-edge']] as const) {
+        const d = doc(chiralCurved(from), A);
+        const before = occ(d);
+        const out = applyWorldEdits(d, [{ before, after: { ...before, posture: to } }]);
+        expect(stored(out).curves, `${from}->${to}`).not.toBe(stored(d).curves);
+        const now = occ(out);
+        expect(now.curves.length).toBe(before.curves.length);
+        now.curves.forEach((c, i) => expect(sameCurve(c, before.curves[i]!), `${from}->${to} ${i}`).toBe(true));
+      }
+      const d = doc(chiralCurved('flat'), A);
+      const before = occ(d);
+      const out = applyWorldEdits(d, [{ before, after: { ...before, posture: 'on-edge' } }]);
+      expect(stored(out).curves).toBe(stored(d).curves);
     }
   });
 });

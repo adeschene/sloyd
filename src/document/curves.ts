@@ -471,3 +471,14 @@ export type CurveKind = 'arch' | 'bow' | 'corner';
 export function deriveCurveKind(c: Omit<CurveCut, 'id'>): CurveKind | null {
   return archFields(c) ? 'arch' : bowFields(c) ? 'bow' : cornerFields(c) ? 'corner' : null;
 }
+
+const flipFrom = (f: CutFrom): CutFrom => (f === 'min' ? 'max' : 'min');
+
+/** A curve reflected along dimension `d` (inv 44): a FLAG FLIP, never arithmetic on coordinates — `uFrom` when u is `d`,
+ *  `vFrom` when v is, nothing when `d` is `through` (the cut runs right through it). `side` is defined on stored numbers,
+ *  which do not change, so it is untouched; `localSegments` flips it where the mapping reflects. Its own inverse. */
+export function mirrorCurveCut(c: CurveCut, d: Dimension): CurveCut {
+  if (d === c.through) return c;
+  const [u] = uvDims(c.through);
+  return d === u ? { ...c, uFrom: flipFrom(c.uFrom) } : { ...c, vFrom: flipFrom(c.vFrom) };
+}

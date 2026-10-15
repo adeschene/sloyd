@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { arcOf, bowsInto, copyCurve, curveOutline, curveValues, localSegments, sameCurve, uvDims } from './curves';
+import { arcOf, bowsInto, mirrorCurveCut, copyCurve, curveOutline, curveValues, localSegments, sameCurve, uvDims } from './curves';
 import {
   archCurve, archFields, bowCurve, bowFields, cornerCurve, cornerFields, curveFaults, deriveCurveKind,
   boundaryDistance, circleMeetsWaste, isAir, rectMeetsWaste, wasteContains,
@@ -217,5 +217,19 @@ describe('an arc bowing into the wood keeps its chord as waste', () => {
   it('an arc bowing off the part adds no spurious cuts-through', () => {
     expect(wasteContains(localSegments(apron, off), [5, 0], 'closed')).toBe(true);
     expect(curveFaults(apron, off).some((x) => x.kind === 'cuts-through')).toBe(false);
+  });
+});
+
+describe('mirrorCurveCut (inv 44: a flag flip, no arithmetic)', () => {
+  it('flips exactly the flag on the mirrored dimension; through changes nothing', () => {
+    expect(mirrorCurveCut(ARCH, 'length')).toEqual({ ...ARCH, uFrom: 'max' });
+    expect(mirrorCurveCut(ARCH, 'width')).toEqual({ ...ARCH, vFrom: 'max' });
+    expect(mirrorCurveCut(ARCH, 'thickness')).toEqual(ARCH);
+    expect(mirrorCurveCut(mirrorCurveCut(ARCH, 'width'), 'width')).toEqual(ARCH);
+  });
+  it('a reflected arch still bows into the wood (localSegments flips the side)', () => {
+    const m = mirrorCurveCut(ARCH, 'width');
+    const [arc] = localSegments(apron, m) as [Extract<ReturnType<typeof localSegments>[number], { kind: 'arc' }>];
+    expect(close(arc.crown, [15, 5 - 1.5])).toBe(true);
   });
 });

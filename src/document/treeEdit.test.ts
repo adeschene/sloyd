@@ -6,6 +6,7 @@ import type { Board, Cut } from './types';
 import type { Shape, SloydDocument } from './types';
 import { createDocument } from './document';
 import { ARCH } from './curveFixtures';
+import { archCurve, cornerCurve } from './curves';
 import { applyWorldEdits, storageKey } from './treeEdit';
 
 const edit = (doc: ReturnType<typeof assemblyDoc>, id: string, f: (b: Board) => Board) =>
@@ -560,6 +561,19 @@ describe('writeBackFlat shares where identical', () => {
     const before = flat(doc);
     const rows = [[{ ...r1, id: 'a' }, { ...r2, id: 'b' }], [{ ...r2, id: 'c' }, { ...r1, id: 'd' }], [{ ...r1, id: 'e', station: 3 }]];
     const out = writeBackFlat(doc, before, before.map((b, k) => ({ ...b, holes: rows[k]! })));
+    expect(out.shapes).toHaveLength(2);
+    expect(shapeOfAt(out, 'l0')).toBe(shapeOfAt(out, 'l1'));
+    expect(shapeOfAt(out, 'l2')).not.toBe(shapeOfAt(out, 'l0'));
+  });
+  it('users whose curves differ only in order and ids stay one Shape; a differing curve splits (groupSignature)', () => {
+    const shape = { id: 's1', length: 30, width: 5, thickness: 0.75, material: 'oak', grain: 'length' as const, posture: 'flat' as const, cuts: [], angleCuts: [], holes: [], curves: [] };
+    const doc: SloydDocument = { ...createDocument(), shapes: [shape],
+      boards: [0, 1, 2].map((k) => ({ id: `l${k}`, name: `Apron ${k}`, position: [k * 10, 0, 0] as [number, number, number], rotation: 0 as const, shape: 's1' })) };
+    const c1 = archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 3, span: 24, rise: 1.5 });
+    const c2 = cornerCurve({ through: 'thickness', uFrom: 'max', vFrom: 'max', radius: 1 });
+    const before = flat(doc);
+    const sets = [[{ ...c1, id: 'a' }, { ...c2, id: 'b' }], [{ ...c2, id: 'c' }, { ...c1, id: 'd' }], [{ ...c1, id: 'e' }]];
+    const out = writeBackFlat(doc, before, before.map((b, k) => ({ ...b, curves: sets[k]! })));
     expect(out.shapes).toHaveLength(2);
     expect(shapeOfAt(out, 'l0')).toBe(shapeOfAt(out, 'l1'));
     expect(shapeOfAt(out, 'l2')).not.toBe(shapeOfAt(out, 'l0'));
