@@ -55,6 +55,27 @@ describe('the Curves section', () => {
     expect(rise).toHaveAttribute('aria-invalid', 'true');
   });
 
+  it('a Span under twice the Rise is refused (the loader drops an arc past a half circle)', async () => {
+    const user = userEvent.setup();
+    open(apron({ width: 30 }));
+    await add(user, 'Arch');                                        // span 24, rise 1-1/2
+    const span = await typeInto(user, 'Span', '2');
+    expect(archFields(curves()[0]!)!.span).toBe(24);
+    expect(span).toHaveFocus();
+    expect(screen.getByRole('alert')).toHaveTextContent('An arc is at most a half circle — reduce the Rise first.');
+    await typeInto(user, 'Span', '3');                              // exactly a half circle: accepted
+    expect(archFields(curves()[0]!)).toMatchObject({ span: 3, rise: 1.5 });
+  });
+
+  it('a Bow\'s Rise past half its edge is refused in the same words', async () => {
+    const user = userEvent.setup();
+    open(apron({ length: 10, width: 30 }));
+    await add(user, 'Bow');
+    await typeInto(user, 'Rise', '6');                              // a 10" edge: at most 5
+    expect(bowFields(curves()[0]!)!.rise).toBe(0.5);
+    expect(screen.getByRole('alert')).toHaveTextContent('An arc is at most a half circle — reduce the Rise first.');
+  });
+
   it('a Rise that cuts through the part is refused in words', async () => {
     const user = userEvent.setup();
     open(apron({ width: 1.5 }));                                   // default rise 3/8, span 24: room along the length
@@ -110,6 +131,16 @@ describe('the Curves section', () => {
     await add(user, 'Arch');
     await user.selectOptions(screen.getByLabelText('Through'), 'length');
     expect(archFields(curves()[0]!)).toEqual({ through: 'length', along: 'thickness', side: 'min', from: 'min', start: 3, span: 24, rise: 1.5 });
+    // From width (along the length) onto the length: the arch now runs along the width, the old through.
+    await user.selectOptions(screen.getByLabelText('Through'), 'width');
+    expect(archFields(curves()[0]!)).toMatchObject({ through: 'width', along: 'thickness' });
+    act(() => useStore.getState().undo());
+    act(() => useStore.getState().undo());
+    expect(archFields(curves()[0]!)).toMatchObject({ through: 'thickness', along: 'length' });
+    await user.selectOptions(screen.getByLabelText('Through'), 'width');
+    expect(archFields(curves()[0]!)).toMatchObject({ through: 'width', along: 'length' });
+    await user.selectOptions(screen.getByLabelText('Through'), 'length');
+    expect(archFields(curves()[0]!)).toEqual({ through: 'length', along: 'width', side: 'min', from: 'min', start: 3, span: 24, rise: 1.5 });
   });
 
   it('a preset whose default is null or faults is withheld', async () => {

@@ -55,6 +55,11 @@ function refusalFor(board: Board, curve: CurveCut, next: Draft, control: Control
   return holeRefusal(board, after);
 }
 
+/** An arc rises at most half its chord (a half circle). EXACT, as the loader's own test (`validateCurveCuts` drops
+ *  `rise > chord / 2`): a field tolerance here would store an arc the next load drops. */
+const pastHalf = (span: number, rise: number) => rise > span / 2;
+const HALF_CIRCLE = 'An arc is at most a half circle — reduce the Rise first.';
+
 /** A Through change keeps `along` unless it is the new through, which takes the old through's place. */
 const reseat = (along: Dimension, from: Dimension, to: Dimension): Dimension => (along === to ? from : along);
 
@@ -117,10 +122,12 @@ function CurveRowView({ board, curve }: { board: Board; curve: CurveCut }) {
           </select>
         </div>
         <DimensionField label="Start" value={arch.start} min={0} units={units} onCommit={(start) => field(archCurve({ ...arch, start }), 'Start')} />
-        <DimensionField label="Span" value={arch.span} units={units} onCommit={(span) => field(archCurve({ ...arch, span }), 'Span')} />
+        <DimensionField label="Span" value={arch.span} units={units} onCommit={(span) => (
+          pastHalf(span, arch.rise) ? HALF_CIRCLE : field(archCurve({ ...arch, span }), 'Span')
+        )} />
         <DimensionField label="Rise" value={arch.rise} units={units} onCommit={(rise) => (
           // Its own words, not the field's "Must be at most": an arc rises at most half its span (a half circle).
-          rise > arch.span / 2 + 1e-9 ? 'An arc is at most a half circle — reduce the Rise first.' : field(archCurve({ ...arch, rise }), 'Rise')
+          pastHalf(arch.span, rise) ? HALF_CIRCLE : field(archCurve({ ...arch, rise }), 'Rise')
         )} />
       </div>
     );
@@ -128,12 +135,15 @@ function CurveRowView({ board, curve }: { board: Board; curve: CurveCut }) {
     // P2: every Bow edit writes it at the CURRENT edge length (a resize never stretches it; an edit refits it).
     const refit = (b: typeof bow) => bowCurve({ ...b, span: board[b.along] });
     const edge = otherDim(curve.through, bow.along);
-    if (bow.span !== board[bow.along]) note = `Spans ${f(bow.span)} of this ${f(board[bow.along])} ${bow.along} — change the Rise to refit it.`;
+    // The bench line's own test (curveText.ts), so the note and the line's "over …" agree.
+    if (Math.abs(bow.span - board[bow.along]) > 1e-9) note = `Spans ${f(bow.span)} of this ${f(board[bow.along])} ${bow.along} — change the Rise to refit it.`;
     fields = (
       <div className="field-grid field-grid-2">
         {throughSelect((to) => set(refit({ ...bow, through: to, along: reseat(bow.along, curve.through, to) })))}
         {sideSelect(edge, bow.side, (side) => set(refit({ ...bow, side })))}
-        <DimensionField label="Rise" value={bow.rise} units={units} onCommit={(rise) => field(refit({ ...bow, rise }), 'Rise')} />
+        <DimensionField label="Rise" value={bow.rise} units={units} onCommit={(rise) => (
+          pastHalf(board[bow.along], rise) ? HALF_CIRCLE : field(refit({ ...bow, rise }), 'Rise')
+        )} />
       </div>
     );
   } else if (corner) {
