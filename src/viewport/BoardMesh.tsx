@@ -24,7 +24,7 @@ const SELECTED = '#c8955a';
 const EDGE_DARKEN = 0.3;
 
 /** The section cap's shade relative to the stock: the cut face reads as end grain, darker than every face (invariant
- *  51). A real-hardware look is owed (fu NEW). */
+ *  51). A real-hardware look is owed (fu 347). */
 const CAP_DARKEN = 0.62;
 
 /** Drops hits on the section's removed side, so a click passes through to what is drawn (invariant 51). */
@@ -396,7 +396,9 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
           : [-center[0], -center[1], -center[2]]}>
           <mesh geometry={cap.fillGeo} onClick={onClick} onDoubleClick={onDoubleClick}
             renderOrder={faded ? FADED_RENDER_ORDER : 0} castShadow={!faded} receiveShadow>
-            <meshStandardMaterial color={capColor} roughness={0.9} metalness={0} side={THREE.DoubleSide}
+            {/* Keyed on `faded`, as the grain materials are: three bakes `transparent` into the program (the OPAQUE
+                define) and a prop change alone does not recompile it, so a cap drawn opaque would stay opaque. */}
+            <meshStandardMaterial key={`cap-${faded}`} color={capColor} roughness={0.9} metalness={0} side={THREE.DoubleSide}
               emissive={selected ? SELECTED : '#000000'} emissiveIntensity={selected ? 0.16 : 0}
               transparent={faded} opacity={faded ? FADED_OPACITY : 1}
               polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} />
