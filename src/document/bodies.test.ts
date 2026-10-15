@@ -333,6 +333,25 @@ describe('boardBodies with curves (curves spec §3.2)', () => {
     expect(curvePlan(b, k)!.clip).toBe(false);
     expect(Math.abs(vol(b) - splitVolumeForTest(b, k))).toBeLessThan(1e-9);
   });
+  it('two arc runs separated by boundary sides split (each keeps its own corner; their half-planes together keep nothing)', () => {
+    const k: CurveCut = { id: 'k', through: 'thickness', uFrom: 'min', vFrom: 'min', start: [0, 0], segments: [
+      { type: 'line', to: [10, 0] }, { type: 'line', to: [10, 3] }, { type: 'arc', to: [7, 10], side: 'left', rise: 1 },
+      { type: 'line', to: [3, 10] }, { type: 'arc', to: [0, 3], side: 'left', rise: 1 }, { type: 'line', to: [0, 0] }] };
+    const b = { ...createBoard({ length: 10, width: 10, thickness: 1 }), curves: [k] };
+    expect(curvePlan(b, k)!.clip).toBe(false);
+    expect(vol(b)).toBeGreaterThan(1);
+    expect(Math.abs(vol(b) - splitVolumeForTest(b, k))).toBeLessThan(1e-9);
+  });
+  it('two arcs meeting ON the boundary in a convex waste corner split', () => {
+    // One arc run, but its two arcs meet ON the top edge at (5, 10), where the waste's corner is convex: the wood is the two
+    // top corners, apart. The guard checks an arc–arc junction even on the boundary.
+    const k: CurveCut = { id: 'k', through: 'thickness', uFrom: 'min', vFrom: 'min', start: [0, 0], segments: [
+      { type: 'line', to: [10, 0] }, { type: 'line', to: [10, 3] }, { type: 'arc', to: [5, 10], side: 'left', rise: 0.5 },
+      { type: 'arc', to: [0, 3], side: 'left', rise: 0.5 }, { type: 'line', to: [0, 0] }] };
+    const b = { ...createBoard({ length: 10, width: 10, thickness: 1 }), curves: [k] };
+    expect(curvePlan(b, k)!.clip).toBe(false);
+    expect(Math.abs(vol(b) - splitVolumeForTest(b, k))).toBeLessThan(1e-9);
+  });
   it('a cell the waste only TOUCHES (its wall through the crown vertex) keeps its wood once', () => {
     // ARCH's 18 chords put a vertex at the crown (15, 1.5). A groove over v ∈ [0.5, 1.5] in the top quarter leaves a cell
     // above it starting at v = 1.5: it meets the piece only at the crown, so no piece plane has it wholly outside — it goes

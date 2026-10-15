@@ -335,19 +335,20 @@ function lifter(through: Dimension): (n: P2, d: number) => Half {
 }
 
 /**
- * P6's premise, checked: the wood is convex at every outline vertex OFF the face boundary — the waste's corner there is
- * reflex or straight. Two arcs that each bow into the waste can still meet in a convex WASTE corner (a reflex wood
- * corner, from a hand-edited file); their chord planes, extended, would then remove wood past the other arc. Such a
- * curve splits instead (the same wood, by the agreement test). Every canonical form passes: chord vertices of an arc
- * bowing into the waste are reflex in it, and every other vertex lies on the boundary.
+ * P6's premise, checked (with `curvePlan`'s one-arc-run rule): the wood is convex at every outline vertex OFF the face
+ * boundary, and at every arc–arc join (`always`, outline indices) wherever it lies — the waste's corner there is reflex
+ * or straight. Two arcs that each bow into the waste can still meet in a convex WASTE corner (a reflex wood corner, from a
+ * hand-edited file); their chord planes, extended, would then remove wood past the other arc. Such a curve splits instead
+ * (the same wood, by the agreement test). Every canonical form passes: chord vertices of an arc bowing into the waste are
+ * reflex in it, and every other vertex lies on the boundary.
  */
-function woodConvexOffBoundary(board: Pick<Board, Dimension>, through: Dimension, pts: readonly P2[]): boolean {
+function woodConvexOffBoundary(board: Pick<Board, Dimension>, through: Dimension, pts: readonly P2[], always: ReadonlySet<number>): boolean {
   const [u, v] = uvDims(through);
   const s = twiceArea(pts) > 0 ? 1 : -1;
   const onBoundary = (p: P2) => Math.abs(p[0]) <= CURVE_EPS || Math.abs(p[0] - board[u]) <= CURVE_EPS
     || Math.abs(p[1]) <= CURVE_EPS || Math.abs(p[1] - board[v]) <= CURVE_EPS;
   return pts.every((p, i) => {
-    if (onBoundary(p)) return true;
+    if (onBoundary(p) && !always.has(i)) return true;
     const a = pts[(i - 1 + pts.length) % pts.length]!;
     const b = pts[(i + 1) % pts.length]!;
     return s * ((p[0] - a[0]) * (b[1] - p[1]) - (p[1] - a[1]) * (b[0] - p[0])) <= CURVE_EPS;
@@ -355,8 +356,9 @@ function woodConvexOffBoundary(board: Pick<Board, Dimension>, through: Dimension
 }
 
 /**
- * How `boardBodies` removes one curve's waste (spec §3.2, P6). CLIP — every arc bows into the waste and every straight
- * side lies along the face boundary, so the wood left is convex near the curve: one kept half-plane per chord, the side
+ * How `boardBodies` removes one curve's waste (spec §3.2, P6). CLIP — every arc bows into the waste, every straight
+ * side lies along the face boundary, the arcs form ONE run (two runs part the wood: each run's planes keep its own side),
+ * and the wood is convex at every off-boundary vertex and arc–arc join, so the wood left is convex near the curve: one kept half-plane per chord, the side
  * holding the arc's centre. SPLIT otherwise: the waste polygon's convex pieces (`splitPieces`). Planes are board-local
  * 3D with no component along `through`. Null when the outline has no area.
  */
@@ -366,18 +368,25 @@ export function curvePlan(board: Pick<Board, Dimension>, c: Omit<CurveCut, 'id'>
   const segs = localSegments(board, c);
   const o = curveOutline(board, c);
   if (Math.abs(twiceArea(o.pts)) <= CURVE_EPS) return null;
-  const clips = segs.every((s) => (s.kind === 'arc' ? bowsInto(segs, s) === 'waste' : onRectBoundary(board, c.through, s)))
-    && woodConvexOffBoundary(board, c.through, o.pts);
-  if (!clips) return { clip: false, pieces: splitPieces(board, c) };
-  // Each chord's arc: the chords of segment k run from its start to its end, in outline order.
+  // Each chord's arc: the chords of segment k run from its start to its end, in outline order; and where each segment
+  // starts in the outline.
   const arcOfEdge: LocalArc[] = [];
+  const startAt: number[] = [];
   let at = 0;
   for (const s of segs) {
+    startAt.push(at);
     if (s.kind === 'line') { at += 1; continue; }
     const n = arcChords(s, CURVE_TOLERANCE, CURVE_SEGMENTS_MAX);
     for (let k = 0; k < n; k += 1) arcOfEdge[at + k] = s;
     at += n;
   }
+  const isArc = (i: number) => segs[(i + segs.length) % segs.length]!.kind === 'arc';
+  // An arc–arc join is checked even on the boundary (two arcs meeting there in a convex waste corner part the wood).
+  const joins = new Set(segs.flatMap((s, i) => (s.kind === 'arc' && isArc(i - 1) ? [startAt[i]!] : [])));
+  const clips = segs.every((s) => (s.kind === 'arc' ? bowsInto(segs, s) === 'waste' : onRectBoundary(board, c.through, s)))
+    && segs.filter((s, i) => s.kind === 'arc' && !isArc(i - 1)).length <= 1
+    && woodConvexOffBoundary(board, c.through, o.pts, joins);
+  if (!clips) return { clip: false, pieces: splitPieces(board, c) };
   const planes: Half[] = [];
   for (let i = 0; i < o.pts.length; i += 1) {
     if (!o.arcEdge[i]) continue;
