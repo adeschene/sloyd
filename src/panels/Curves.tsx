@@ -1,0 +1,207 @@
+import { useState } from 'react';
+import type { ReactNode } from 'react';
+import { useStore } from '../store/store';
+import {
+  archCurve, archFields, bowCurve, bowFields, cornerCurve, cornerFields, curveFaults, curveKindWord, defaultArch,
+  defaultBow, defaultCorner, defaultCorners, defaultNotch, deriveCurveKind, holeFaults, uvDims,
+} from '../document/document';
+import type { Board, CurveCut, CutFrom, Dimension } from '../document/document';
+import { curveFaultText, curveLine } from '../document/curveText';
+import { distinctFaults, edgeName, endWord, faultKey } from '../document/holeText';
+import { formatLength } from '../units/length';
+import { DimensionField } from './DimensionField';
+import { Popover } from './Popover';
+
+const DIMS: Dimension[] = ['length', 'width', 'thickness'];
+const cap = (d: string) => d[0]!.toUpperCase() + d.slice(1);
+type Draft = Omit<CurveCut, 'id'>;
+type Control = 'Rise' | 'Span' | 'Radius' | 'Start';
+
+/** The in-face dimension of `through` that is not `d`. */
+const otherDim = (through: Dimension, d: Dimension): Dimension => uvDims(through).find((x) => x !== d)!;
+
+/** The dimension a cut-through crosses, for the refusal's words: an Arch's or Bow's depth dimension (the in-face one
+ *  that is not `along`); otherwise the smaller of u and v. */
+function cutDim(board: Board, next: Draft): Dimension {
+  const along = archFields(next)?.along ?? bowFields(next)?.along;
+  const [u, v] = uvDims(next.through);
+  if (along) return along === u ? v : u;
+  return board[u] <= board[v] ? u : v;
+}
+
+/** The first hole fault `after` adds that the stored part lacks and that is a hole into a curve's waste, in words; or
+ *  null. Known limit (deferred): a hole already past an EDGE shares its fault key with a hole-into-curve fault. */
+function holeRefusal(board: Board, after: Board): string | null {
+  for (const row of board.holes) {
+    const was = new Set(distinctFaults(holeFaults(board, row)).map(faultKey));
+    const hit = distinctFaults(holeFaults(after, row)).find((f) => !was.has(faultKey(f)) && f.curve);
+    if (hit) return `Puts hole ${hit.index + 1} into ${curveKindWord(hit.curve!.kind)} — move it first.`;
+  }
+  return null;
+}
+
+/** The refusal for an edit that ADDS a curve fault, or a hole fault, the stored state lacks (spec §8), or null. `control`
+ *  names the field the user changed, for "reduce the … first"; a select change passes null. */
+function refusalFor(board: Board, curve: CurveCut, next: Draft, control: Control | null): string | null {
+  const had = new Set(curveFaults(board, curve).map((f) => f.kind));
+  const added = curveFaults(board, next).find((f) => !had.has(f.kind));
+  if (added?.kind === 'cuts-through') return `Removes more than the ${cutDim(board, next)} — reduce the ${control ?? 'Rise'} first.`;
+  if (added) {
+    return control === 'Radius'
+      ? `A radius can't run past ${edgeName(added.edge!)} — reduce it first.`
+      : `Runs past ${edgeName(added.edge!)} — reduce the ${control ?? 'Span'} first.`;
+  }
+  const after: Board = { ...board, curves: board.curves.map((c) => (c.id === curve.id ? { ...next, id: curve.id } : c)) };
+  return holeRefusal(board, after);
+}
+
+/** A Through change keeps `along` unless it is the new through, which takes the old through's place. */
+const reseat = (along: Dimension, from: Dimension, to: Dimension): Dimension => (along === to ? from : along);
+
+function CurveRowView({ board, curve }: { board: Board; curve: CurveCut }) {
+  const units = useStore((s) => s.doc.units);
+  const updateCurve = useStore((s) => s.updateCurve);
+  const removeCurve = useStore((s) => s.removeCurve);
+  const [error, setError] = useState<string | null>(null);
+  const f = (n: number) => formatLength(n, units);
+  const line = curveLine(board, curve, units);
+  const stored = curveFaults(board, curve);
+  /** Tries the edit: the refusal text when it is refused (nothing stored), else null. */
+  const attempt = (next: Draft, control: Control | null): string | null => {
+    const refused = refusalFor(board, curve, next, control);
+    if (refused) return refused;
+    setError(null);
+    updateCurve(board.id, curve.id, next);
+    return null;
+  };
+  // Holes chunk 1 R7: a typed field owns its refusal (DimensionField shows the returned text as ITS error, keeps the
+  // text and focus). A select shows its refusal on the row (it stays on the stored value).
+  const field = (next: Draft, control: Control): string | undefined => attempt(next, control) ?? undefined;
+  const set = (next: Draft) => { const r = attempt(next, null); if (r) setError(r); };
+
+  const arch = archFields(curve);
+  const bow = arch ? null : bowFields(curve);
+  const corner = arch || bow ? null : cornerFields(curve);
+  const kind = deriveCurveKind(curve);
+  const label = arch ? (arch.rise === arch.span / 2 ? 'Half-round notch' : 'Arch') : bow ? 'Bow' : corner ? 'Rounded corner' : 'Curve cut';
+
+  const throughSelect = (onThrough: (to: Dimension) => void) => (
+    <div className="field">
+      <label htmlFor={`curve-through-${curve.id}`}>Through</label>
+      <select id={`curve-through-${curve.id}`} className="input" value={curve.through} onChange={(e) => onThrough(e.target.value as Dimension)}>
+        {DIMS.map((d) => <option key={d} value={d}>{cap(d)}</option>)}
+      </select>
+    </div>
+  );
+  const sideSelect = (edge: Dimension, value: CutFrom, onSide: (side: CutFrom) => void) => (
+    <div className="field">
+      <label htmlFor={`curve-side-${curve.id}`}>Side</label>
+      <select id={`curve-side-${curve.id}`} className="input" value={value} onChange={(e) => onSide(e.target.value as CutFrom)}>
+        {(['min', 'max'] as const).map((s) => <option key={s} value={s}>{`${cap(edge)} ${s} ${endWord(edge)}`}</option>)}
+      </select>
+    </div>
+  );
+
+  let fields: ReactNode = null;
+  let note: string | null = null;
+  if (arch) {
+    const edge = otherDim(curve.through, arch.along);
+    fields = (
+      <div className="field-grid field-grid-2">
+        {throughSelect((to) => set(archCurve({ ...arch, through: to, along: reseat(arch.along, curve.through, to) })))}
+        {sideSelect(edge, arch.side, (side) => set(archCurve({ ...arch, side })))}
+        <div className="field">
+          <label htmlFor={`curve-from-${curve.id}`}>From</label>
+          <select id={`curve-from-${curve.id}`} className="input" value={arch.from} onChange={(e) => set(archCurve({ ...arch, from: e.target.value as CutFrom }))}>
+            {(['min', 'max'] as const).map((s) => <option key={s} value={s}>{`${cap(arch.along)} ${s} ${endWord(arch.along)}`}</option>)}
+          </select>
+        </div>
+        <DimensionField label="Start" value={arch.start} min={0} units={units} onCommit={(start) => field(archCurve({ ...arch, start }), 'Start')} />
+        <DimensionField label="Span" value={arch.span} units={units} onCommit={(span) => field(archCurve({ ...arch, span }), 'Span')} />
+        <DimensionField label="Rise" value={arch.rise} units={units} onCommit={(rise) => (
+          // Its own words, not the field's "Must be at most": an arc rises at most half its span (a half circle).
+          rise > arch.span / 2 + 1e-9 ? 'An arc is at most a half circle — reduce the Rise first.' : field(archCurve({ ...arch, rise }), 'Rise')
+        )} />
+      </div>
+    );
+  } else if (bow) {
+    // P2: every Bow edit writes it at the CURRENT edge length (a resize never stretches it; an edit refits it).
+    const refit = (b: typeof bow) => bowCurve({ ...b, span: board[b.along] });
+    const edge = otherDim(curve.through, bow.along);
+    if (bow.span !== board[bow.along]) note = `Spans ${f(bow.span)} of this ${f(board[bow.along])} ${bow.along} — change the Rise to refit it.`;
+    fields = (
+      <div className="field-grid field-grid-2">
+        {throughSelect((to) => set(refit({ ...bow, through: to, along: reseat(bow.along, curve.through, to) })))}
+        {sideSelect(edge, bow.side, (side) => set(refit({ ...bow, side })))}
+        <DimensionField label="Rise" value={bow.rise} units={units} onCommit={(rise) => field(refit({ ...bow, rise }), 'Rise')} />
+      </div>
+    );
+  } else if (corner) {
+    const [u, v] = uvDims(curve.through);
+    fields = (
+      <div className="field-grid field-grid-2">
+        {throughSelect((to) => set(cornerCurve({ ...corner, through: to })))}
+        <div className="field field-wide">
+          <label htmlFor={`curve-corner-${curve.id}`}>Corner</label>
+          <select id={`curve-corner-${curve.id}`} className="input" value={`${corner.uFrom}|${corner.vFrom}`} onChange={(e) => {
+            const [uFrom, vFrom] = e.target.value.split('|') as [CutFrom, CutFrom];
+            set(cornerCurve({ ...corner, uFrom, vFrom }));
+          }}>
+            {(['min', 'max'] as const).flatMap((uf) => (['min', 'max'] as const).map((vf) => (
+              <option key={`${uf}|${vf}`} value={`${uf}|${vf}`}>{`${cap(u)} ${uf} ${endWord(u)} / ${v} ${vf} ${endWord(v)}`}</option>
+            )))}
+          </select>
+        </div>
+        <DimensionField label="Radius" value={corner.radius} units={units} onCommit={(radius) => field(cornerCurve({ ...corner, radius }), 'Radius')} />
+      </div>
+    );
+  }
+  return (
+    <div className="cut" data-kind={kind ?? 'curve'}>
+      <div className="cut-head">
+        <span className="cut-label curve-label">{label}</span>
+        <button className="cut-remove" aria-label={`Remove curve (${line})`} onClick={() => removeCurve(board.id, curve.id)}>✕</button>
+      </div>
+      <p className="field-note">{line}</p>
+      {note && <p className="field-note">{note}</p>}
+      {stored.length > 0 && <p className="field-note" role="status">{cap(curveFaultText(stored[0]!))} at this size.</p>}
+      {fields}
+      {error && <p className="field-error" role="alert">{error}</p>}
+    </div>
+  );
+}
+
+/** The Curves section (curves spec §8): one row per stored curve, and + Add curve ▾. */
+export function Curves({ board }: { board: Board }) {
+  const addCurves = useStore((s) => s.addCurves);
+  // A preset whose default would fault on this part — a curve fault, or a hole it would put into the waste — is
+  // withheld, not added and refused (the AngleCuts/Holes precedent).
+  const fits = (cs: Draft[] | null): cs is Draft[] => {
+    if (!cs) return false;
+    if (cs.some((c) => curveFaults(board, c).length > 0)) return false;
+    const after: Board = { ...board, curves: [...board.curves, ...cs.map((c, i) => ({ ...c, id: `__preset${i}` }))] };
+    return holeRefusal(board, after) === null;
+  };
+  const one = (c: Draft | null) => (c ? [c] : null);
+  const arch = one(defaultArch(board));
+  const notch = one(defaultNotch(board));
+  const bow = one(defaultBow(board));
+  const corner = one(defaultCorner(board));
+  const corners = defaultCorners(board);
+  const items = [
+    ...(fits(arch) ? [{ label: 'Arch', detail: 'An arch along the width min side', run: () => addCurves(board.id, arch) }] : []),
+    ...(fits(notch) ? [{ label: 'Half-round notch', detail: 'A half circle 2" wide, centred', run: () => addCurves(board.id, notch) }] : []),
+    ...(fits(bow) ? [{ label: 'Bow', detail: 'The whole width min side bowed', run: () => addCurves(board.id, bow) }] : []),
+    ...(fits(corner) ? [{ label: 'Rounded corner', detail: 'One corner', run: () => addCurves(board.id, corner) }] : []),
+    ...(fits(corners) ? [{ label: 'Rounded corners', detail: 'All four corners', run: () => addCurves(board.id, corners) }] : []),
+  ];
+  return (
+    <>
+      <h3>Curves{board.curves.length > 0 && <span className="h3-count"> · {board.curves.length}</span>}</h3>
+      {board.curves.map((c) => <CurveRowView key={c.id} board={board} curve={c} />)}
+      {items.length > 0
+        ? <Popover className="add-curve" label={<>+ Add curve<span aria-hidden="true"> ▾</span></>} title="Add a curve" items={items} />
+        : <p className="field-note">No curve preset fits this part.</p>}
+    </>
+  );
+}

@@ -5,6 +5,7 @@ import {
   boundaryDistance, circleMeetsWaste, isAir, rectMeetsWaste, wasteContains,
 } from './curves';
 import { convexPieces, twiceArea } from './curves';
+import { defaultArch, defaultBow, defaultCorner, defaultCorners, defaultNotch } from './curves';
 import type { P2 } from './curves';
 import { createBoard } from './document';
 import type { CurveCut } from './types';
@@ -252,5 +253,24 @@ describe('convexPieces', () => {
     const flagged = pieces.flatMap((p) => p.pts.flatMap((a, i) => (p.onArc[i] ? [[a, p.pts[(i + 1) % p.pts.length]!]] : [])))
       .map(([a, b]) => [a!, b!].map((q) => q.join(',')).sort().join(' ')).sort();
     expect(flagged).toEqual(['0,1 2,0', '2,0 4,1']);
+  });
+});
+
+describe('presets (spec §8)', () => {
+  it('arch: through the thickness on the width min side, 3" in from each length end, rise min(1-1/2, width/4)', () => {
+    expect(defaultArch(apron)).toEqual(archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 3, span: 24, rise: 1.25 }));
+    expect(defaultArch(createBoard({ length: 6, width: 5, thickness: 0.75 }))).toBeNull();     // no span left
+  });
+  it('notch: 2" wide, centred, rise 1', () => {
+    expect(defaultNotch(apron)).toEqual(archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 14, span: 2, rise: 1 }));
+    expect(defaultNotch(createBoard({ length: 1.5, width: 5, thickness: 0.75 }))).toBeNull();
+  });
+  it('bow: the whole width min side, rise min(1/2, width/4)', () => {
+    expect(defaultBow(apron)).toEqual(bowCurve({ through: 'thickness', along: 'length', side: 'min', span: 30, rise: 0.5 }));
+  });
+  it('corner and corners: radius min(1, smaller face dimension / 4)', () => {
+    expect(defaultCorner(top)).toEqual(cornerCurve({ through: 'thickness', uFrom: 'min', vFrom: 'min', radius: 1 }));
+    expect(defaultCorners(createBoard({ length: 3, width: 2, thickness: 0.75 }))).toHaveLength(4);
+    expect(defaultCorners(createBoard({ length: 3, width: 2, thickness: 0.75 }))![0]).toMatchObject({ segments: [{ to: [0.5, 0] }, {}, {}] });
   });
 });

@@ -645,6 +645,38 @@ export function cornerFields(c: Omit<CurveCut, 'id'>): CornerFields | null {
   return { through: c.through, uFrom: c.uFrom, vFrom: c.vFrom, radius: r };
 }
 
+// ── Presets (spec §8): the Properties menu's defaults, through the canonical writers above.
+
+/** "Arch": through the thickness, on the min side of the in-face dimension that is not the length, 3" in from each
+ *  length end, rise min(1-1/2", ¼ of that dimension). Null when no span is left. */
+export function defaultArch(b: Pick<Board, Dimension>): Omit<CurveCut, 'id'> | null {
+  const [u, v] = uvDims('thickness');
+  const span = b[u] - 6;
+  if (span <= 0) return null;
+  return archCurve({ through: 'thickness', along: u, side: 'min', from: 'min', start: 3, span, rise: Math.min(1.5, b[v] / 4) });
+}
+/** "Half-round notch": 2" wide (rise 1), centred along the length. Null on a part under 2" long. */
+export function defaultNotch(b: Pick<Board, Dimension>): Omit<CurveCut, 'id'> | null {
+  const [u] = uvDims('thickness');
+  if (b[u] < 2) return null;
+  return archCurve({ through: 'thickness', along: u, side: 'min', from: 'min', start: b[u] / 2 - 1, span: 2, rise: 1 });
+}
+/** "Bow": the whole width min side, rise min(1/2", ¼ of the width) (P2: written at the edge's length). */
+export function defaultBow(b: Pick<Board, Dimension>): Omit<CurveCut, 'id'> {
+  const [u, v] = uvDims('thickness');
+  return bowCurve({ through: 'thickness', along: u, side: 'min', span: b[u], rise: Math.min(0.5, b[v] / 4) });
+}
+const cornerRadius = (b: Pick<Board, Dimension>) => { const [u, v] = uvDims('thickness'); return Math.min(1, Math.min(b[u], b[v]) / 4); };
+/** "Rounded corner": the length-min / width-min corner. */
+export function defaultCorner(b: Pick<Board, Dimension>): Omit<CurveCut, 'id'> {
+  return cornerCurve({ through: 'thickness', uFrom: 'min', vFrom: 'min', radius: cornerRadius(b) });
+}
+/** "Rounded corners": all four, one undo entry (the store's addCurves takes them together). */
+export function defaultCorners(b: Pick<Board, Dimension>): Omit<CurveCut, 'id'>[] {
+  const r = cornerRadius(b);
+  return (['min', 'max'] as const).flatMap((uf) => (['min', 'max'] as const).map((vf) => cornerCurve({ through: 'thickness', uFrom: uf, vFrom: vf, radius: r })));
+}
+
 export type CurveKind = 'arch' | 'bow' | 'corner';
 export function deriveCurveKind(c: Omit<CurveCut, 'id'>): CurveKind | null {
   return archFields(c) ? 'arch' : bowFields(c) ? 'bow' : cornerFields(c) ? 'corner' : null;
