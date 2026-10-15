@@ -16,6 +16,12 @@ export const SNAP_INCHES = 1 / 16;
  *  joinery keep SNAP_INCHES. Here, not in units/, because it produces no string (the → units edge rule). */
 export const snapStep = (units: Units): number => (units.display === 'metric-mm' ? 1 / 25.4 : SNAP_INCHES);
 
+/** A FREE value rounded to the free-drag grid (`snapStep`). Metric divides by 25.4 so a dragged k mm is stored as exactly
+ *  `k / 25.4` — the value `parseLength` gives for a typed `k` — rather than `k * (1/25.4)`, which differs in the last bit
+ *  for about 45% of k (a no-op undo entry when the typed value then lands on it). Imperial is unchanged byte for byte. */
+export const snapToGrid = (v: number, units: Units): number =>
+  units.display === 'metric-mm' ? Math.round(v * 25.4) / 25.4 : Math.round(v / SNAP_INCHES) * SNAP_INCHES;
+
 /**
  * The dimension a cut's offset and width are measured along: the one that is
  * neither cut into nor run across. Implied rather than stored — see the Cut

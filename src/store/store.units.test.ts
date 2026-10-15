@@ -43,4 +43,15 @@ describe('units switch', () => {
     s().moveGroupTo(ids, [10.3, 0, 0]);
     expect(Math.min(...worldParts(s().doc).map((b) => b.position[0]))).toBe(Math.round(10.3 * 16) / 16);
   });
+  it('a metric group move lands the min corner on exactly k / 25.4, what typing k stores (M1)', () => {
+    for (const k of [3, 5, 6, 9, 10, 12]) { // each k * (1/25.4) !== k / 25.4
+      s().replaceDocument(createDocument('Test'));
+      s().addBoard(); s().addBoard();
+      const ids = worldParts(s().doc).map((b) => b.id);
+      expect(Math.min(...worldParts(s().doc).map((b) => b.position[0]))).toBe(0);
+      s().setUnitsDisplay('metric-mm');
+      s().moveGroupTo(ids, [k / 25.4 + 0.2 / 25.4, 0, 0]);
+      expect(Math.min(...worldParts(s().doc).map((b) => b.position[0]))).toBe(k / 25.4);
+    }
+  });
 });

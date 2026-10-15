@@ -5,9 +5,8 @@ import * as THREE from 'three';
 import type { TransformControls as TransformControlsImpl } from 'three-stdlib';
 import { useStore } from '../store/store';
 import { boardCenter, boardExtents, boardsBounds, isCovered, partAt, worldParts } from '../document/document';
-import { snapStep } from '../document/geometry';
+import { snapStep, snapToGrid } from '../document/geometry';
 import { gizmoDistanceFactor, gizmoSizeForExtent } from './gizmoScale';
-
 
 // --- Gizmo axis-flip fix -----------------------------------------------
 //
@@ -234,7 +233,7 @@ export function Gizmo({ hidden = false }: { hidden?: boolean } = {}) {
   const selectedIds = useStore((s) => s.selectedIds);
   const doc = useStore((s) => s.doc);
   const step = snapStep(doc.units);
-  const snap = (v: number) => Math.round(v / step) * step;
+  const snap = (v: number) => snapToGrid(v, doc.units);
   const updateBoard = useStore((s) => s.updateBoard);
   const moveGroupTo = useStore((s) => s.moveGroupTo);
   const selected = useMemo(() => {
