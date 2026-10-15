@@ -40,7 +40,7 @@ handicraft education tradition built around hand woodworking.
 - **Holes (spec `2026-10-14-sloyd-holes-design.md`, inv 50)**: both chunks deployed (schema 16; fu 327 and 343 closed).
   Open near it: 328–342 (336: the wall-grain seam, deferred by the user to a texture/shader session; 337: real-hardware
   looks owed), 344–346.
-- **NEXT: follow-ups** (the user's choice, 2026-10-15, in a fresh session; master `ff292b2` and production are in step, no
+- **NEXT: follow-ups** (the user's choice, 2026-10-15, in a fresh session; production is merge `1e16c01`, every later commit docs-only; no
   branches open). `docs/follow-ups.md` is authoritative: an open entry reads `**Status:** open`, and many are record-only, so
   read the entry before proposing work. Owed to the USER, not code: review of the spec amendments marked *Amended
   (implementation, chunk 1)* / *(… chunk 2)* in the curves spec; a real Brave print (254, 345, 357, 379); real-hardware looks
