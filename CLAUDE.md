@@ -668,8 +668,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     or add an exclusion without a written reason. `cutsThatRemoveStock` decides which cuts
     are compared; the resulting row split on exact dimensions is correct — do not round.
     Angle cuts have their own table, `ANGLE_CUT_FIELDS` (`angleCuts.ts`), every field but `id` — `kind` INCLUDED — exact.
-    Hole rows have `HOLE_FIELDS` (`holes.ts`), every field but `id`, exact (a count-1 row's ignored `pitch` included, fu
-    338): the cut list groups by them as a multiset, ids ignored (`holeSignature`); `sameShared` compares rows in order,
+    Hole rows have `HOLE_FIELDS` (`holes.ts`), every field but `id`, exact — except a count-1 row's ignored `pitch`,
+    which `holeRowValues` reads as 0 (fu 338, the user's ruling 2026-10-15): the cut list groups by them as a multiset, ids ignored (`holeSignature`); `sameShared` compares rows in order,
     ids included, as it does cuts and angle cuts.
     Curves have `CURVE_FIELDS` (`curves.ts`, `satisfies`), every field but `id`, exact, the segment list
     compared field by field in order: the cut list groups by them as a multiset, ids ignored; `sameShared` in order, ids included.

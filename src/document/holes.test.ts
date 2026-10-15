@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
 import {
   HOLE_KEYS, HOLE_SEGMENTS, PRISM_EPS, acrossOf, boardHoles, clipPolygon, copyHoleRow, holeInstances, holePrism, holeRing,
-  holeRims, insideHole, minusPrism, mirrorHoleRow, ringInside, sameHoleRow, defaultHole, defaultShelfPinRow, defaultHingeCup, mm,
+  holeRims, insideHole, minusPrism, mirrorHoleRow, ringInside, sameHoleRow, holeRowValues, defaultHole, defaultShelfPinRow, defaultHingeCup, mm,
 } from './holes';
 import { parseLength, IMPERIAL } from '../units/length';
 import type { V3 } from './angleCuts';
@@ -22,6 +22,13 @@ describe('hole rows (holes spec §2)', () => {
       station: 2.5, count: 20, pitch: 1.25, acrossFrom: 'max', inset: 1,
     };
     for (const k of HOLE_KEYS) expect(sameHoleRow(PIN, { ...PIN, [k]: changed[k] } as HoleRow), k).toBe(false);
+  });
+  it('a single bore (count 1) is the same row whatever pitch it stores — the pitch it ignores (fu 338)', () => {
+    const one: HoleRow = { ...PIN, count: 1, pitch: 0 };
+    expect(sameHoleRow(one, { ...one, pitch: 32 / 25.4 })).toBe(true);
+    expect(holeRowValues({ ...one, pitch: 5 })).toEqual(holeRowValues(one));
+    // From two holes up the pitch places them: compared exactly.
+    expect(sameHoleRow({ ...one, count: 2 }, { ...one, count: 2, pitch: 32 / 25.4 })).toBe(false);
   });
   it('copyHoleRow is equal and not the same object', () => {
     const c = copyHoleRow(PIN);

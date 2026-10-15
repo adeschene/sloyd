@@ -5468,6 +5468,11 @@ or coincident (faulted) holes, for cracks at the fallback split's T-junctions. *
 count-1 row stores a pitch it ignores; two identical single bores whose rows once had different pitches split into two
 cut-list rows (and do not link). Normalising the pitch at count 1 (on compare, or on write) is the user's call.
 **Status:** open (for the user).
+- **Closed 2026-10-15 (the user ruled: on compare, not on write).** `holeRowValues` reads a count-1 row's `pitch` as 0,
+  so every "same row" decision built on it — the cut list's grouping, `sameHoleRow` (links, the no-op edit, write-back
+  reuse), the geometry and UV keys — ignores it; stored files are unchanged, and the Every field (shown only from
+  count 2) is never the edit that differs. Tests: two single bores with different stored pitches are one row and one
+  `sameHoleRow`; at count 2 the pitch still splits them. **Status:** closed.
 
 **339. AngleCuts and the field-owned refusal message.** Holes' DimensionField onCommits return the refusal text (R7): the
 field shows it as its own error, keeps focus and the typed text. AngleCuts' refusals still use the row alert, and the
