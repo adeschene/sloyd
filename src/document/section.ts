@@ -1,7 +1,7 @@
 import type { Board } from './types';
 import type { V3 } from './angleCuts';
 import { axisFrame, boardExtents, DIMENSION_ORDER, fromWorldOffset, toWorldOffset } from './geometry';
-import { clipConvex, partGeometry, BODY_EPS, type BodyFace } from './bodies';
+import { clipConvex, geometryKey, partGeometry, BODY_EPS, type BodyFace } from './bodies';
 import { holePrism, minusPrism } from './holes';
 
 /**
@@ -64,6 +64,34 @@ export interface SectionCap { pieces: V3[][]; outline: [V3, V3][] }
 export function localCapPieces(
   board: Board, s: Section, offset?: readonly number[],
 ): { pieces: V3[][]; li: number; u: number } | null {
+  const local = localCap(board, s, offset);
+  // A COPY: the cached pieces never leave this module (see LOCAL_CAPS).
+  return local && { pieces: local.pieces.map((poly) => poly.map((p) => [p[0], p[1], p[2]] as V3)), li: local.li, u: local.u };
+}
+
+/** A part's cap in its own coordinates, pieces AND outline. Cached and shared between calls: never mutated. */
+interface LocalCap { pieces: readonly (readonly V3[])[]; outline: readonly (readonly [V3, V3])[]; li: number; u: number }
+
+/**
+ * The local cap depends only on the part's geometry (`geometryKey`, what `partGeometry` reads), the local axis `li`,
+ * the plane's local place `u` (exact) and the kept side. A move that leaves `u` alone (a gizmo or group move across the
+ * plane's direction, a resize along another axis) only translates the cap, so the pieces and outline are kept and only
+ * the world map is redone (section-cut final review I3, measured in sectionPerf.test.ts: about 12-14 ms -> 0.5 ms).
+ *
+ * ONE entry per (part id, li, side), holding the geometry key and `u` it was built for: a slider drag never revisits an
+ * exact `u`, and a resize drag never revisits a geometry, so keeping old ones would only retain megabytes of pieces for
+ * the collector (measured: an LRU keyed on every geometry and `u` cost the fresh-geometry case about 2 ms a cap). The
+ * id only picks the slot; a hit needs the same geometry key and the same `u` (Object.is), so two parts sharing an id
+ * across projects can never read each other's cap. At most LOCAL_CAPS_MAX slots, least recently used evicted.
+ *
+ * Never mutated: the containers (piece list, each piece, outline list, each segment) are frozen, and no cached POINT
+ * is reachable outside this module — `sectionCaps` maps every point into new world arrays and `localCapPieces` copies —
+ * so freezing the 6000-odd points of a drilled side's cap (measured: about 1 ms, and slower reads after) buys nothing.
+ */
+const LOCAL_CAPS = new Map<string, { geo: string; u: number; cap: LocalCap | null }>();
+const LOCAL_CAPS_MAX = 64;
+
+function localCap(board: Board, s: Section, offset?: readonly number[]): LocalCap | null {
   const k = AXIS_INDEX[s.axis];
   const { dim, reversed } = axisFrame(board)[k]!;
   const li = DIMENSION_ORDER.indexOf(dim);
@@ -72,6 +100,28 @@ export function localCapPieces(
   if (u < -BODY_EPS || u > board[dim] + BODY_EPS) return null;
   // Kept side in local terms: the world kept side, reflected when this axis runs reversed.
   const keepLow = s.flip === reversed;
+  const key = `${li}|${keepLow ? 'lo' : 'hi'}|${board.id}`;
+  const geo = geometryKey(board);
+  const hit = LOCAL_CAPS.get(key);
+  if (hit) LOCAL_CAPS.delete(key);                     // re-inserted below: most recently used
+  // Object.is: exact, and -0 is not 0 (the halfspace's `d` would differ in sign).
+  if (hit && hit.geo === geo && Object.is(hit.u, u)) { LOCAL_CAPS.set(key, hit); return hit.cap; }
+  const pieces = buildLocalPieces(board, li, u, keepLow);
+  const cap: LocalCap | null = pieces ? freezeContainers({ pieces, outline: unionOutline(pieces, li), li, u }) : null;
+  LOCAL_CAPS.set(key, { geo, u, cap });
+  if (LOCAL_CAPS.size > LOCAL_CAPS_MAX) LOCAL_CAPS.delete(LOCAL_CAPS.keys().next().value!);
+  return cap;
+}
+
+function freezeContainers(o: { pieces: V3[][]; outline: [V3, V3][]; li: number; u: number }): LocalCap {
+  for (const poly of o.pieces) Object.freeze(poly);
+  for (const seg of o.outline) Object.freeze(seg);
+  Object.freeze(o.pieces);
+  Object.freeze(o.outline);
+  return Object.freeze(o);
+}
+
+function buildLocalPieces(board: Board, li: number, u: number, keepLow: boolean): V3[][] | null {
   const n: V3 = [0, 0, 0];
   n[li] = keepLow ? -1 : 1;
   const h = { n, d: keepLow ? u : -u };          // kept where n·x + d ≥ 0
@@ -120,7 +170,7 @@ export function localCapPieces(
     boxed = next;
   }
   pieces = boxed.map((b) => b.poly);
-  return pieces.length ? { pieces, li, u } : null;
+  return pieces.length ? pieces : null;
 }
 
 /** Twice the signed area of a polygon projected along index `li` (Newell's component `li`). */
@@ -137,7 +187,7 @@ function newellAlong(poly: readonly V3[], li: number): number {
 /** THE caps (section-cut spec §3.1): a part's cut faces in world inches where the part is DRAWN (explode offset
  *  added), or null. */
 export function sectionCaps(board: Board, s: Section, offset?: readonly number[]): SectionCap | null {
-  const local = localCapPieces(board, s, offset);
+  const local = localCap(board, s, offset);
   if (!local) return null;
   const o = offset ?? [0, 0, 0];
   // toWorld is affine per axis (position + a reflection or not): evaluate axisFrame's helper once at 0 and 1 per axis.
@@ -154,7 +204,7 @@ export function sectionCaps(board: Board, s: Section, offset?: readonly number[]
   ];
   return {
     pieces: local.pieces.map((poly) => poly.map(w)),
-    outline: unionOutline(local.pieces, local.li).map(([a, b]) => [w(a), w(b)] as [V3, V3]),
+    outline: local.outline.map(([a, b]) => [w(a), w(b)] as [V3, V3]),
   };
 }
 
@@ -164,7 +214,7 @@ export function sectionCaps(board: Board, s: Section, offset?: readonly number[]
  * direction and −1 against it; a stretch whose weights sum to zero is interior (a seam between pocket cells, or one of
  * minusPrism's splits, always meets its twin running the other way) and is dropped. What is left is the cut's outline.
  */
-export function unionOutline(pieces: readonly V3[][], li: number): [V3, V3][] {
+export function unionOutline(pieces: readonly (readonly V3[])[], li: number): [V3, V3][] {
   const [i, j] = [0, 1, 2].filter((d) => d !== li) as [number, number];
   const plane = pieces[0]?.[0]?.[li] ?? 0;
   interface Line { dx: number; dy: number; c: number; spans: { t0: number; t1: number; w: number }[] }

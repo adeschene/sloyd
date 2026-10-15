@@ -265,7 +265,9 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
   // The section cap (section-cut spec §3.1; invariant 51), in WORLD inches where drawn. Keyed on boardUVSignature,
   // which covers every geometry input partGeometry reads (dimensions, cuts, angle cuts, hole rows; inv 15), plus where
   // the part sits — unlike the meshes, a cap depends on the part's place relative to the plane. Rebuilt on a slider
-  // move only for parts the plane crosses; the part meshes never rebuild (invariant 50).
+  // move only for parts the plane crosses; the part meshes never rebuild (invariant 50). A move that keeps the plane's
+  // place in the part (a drag across its direction) reruns this memo, but sectionCaps then only re-maps a cached local
+  // cap (section.ts' LOCAL_CAPS).
   const cap = useMemo(() => {
     if (!section) return null;
     const c = sectionCaps(board, section, offset);

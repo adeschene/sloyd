@@ -324,7 +324,7 @@ describe('sectionCaps outline', () => {
 
 // The linear-scan, per-interval-sum union outline as it stood before the bucketed/sweep rewrite (perf round): the
 // optimised one must return exactly the same segments.
-function referenceUnionOutline(pieces: readonly V3[][], li: number): [V3, V3][] {
+function referenceUnionOutline(pieces: readonly (readonly V3[])[], li: number): [V3, V3][] {
   const [i, j] = [0, 1, 2].filter((d) => d !== li) as [number, number];
   const plane = pieces[0]?.[0]?.[li] ?? 0;
   interface Line { dx: number; dy: number; c: number; spans: { t0: number; t1: number; w: number }[] }
@@ -401,5 +401,52 @@ describe('unionOutline line grouping across a bucket edge', () => {
     const seam = unionOutline([lower, upper], 0).filter(([p, q]) => Math.abs(p[2] - q[2]) < 1e-3 && p[2] > 1e-6 && p[2] < 0.5);
     expect(seam).toEqual([]);
     expect(unionOutline([lower, upper], 0).length).toBe(unionOutline([upper, lower], 0).length);
+  });
+});
+
+describe('sectionCaps: the local cap cache (final review I3)', () => {
+  const pin = { id: 'r1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const,
+    alongFrom: 'min' as const, station: 2, count: 5, pitch: 1.25, acrossFrom: 'min' as const, inset: 1.5 };
+  const part = createBoard({ id: 'cached', length: 12, width: 6, thickness: 0.75, posture: 'upright', rotation: 90,
+    position: [1, 0.5, -2], holes: [pin] });
+  const s: Section = { axis: 'top', at: 3.3, flip: false };
+  /** The same cap built cold: a part id no other call uses, so its slot is empty. */
+  let cold = 0;
+  const uncached = (b: Board, sec: Section, offset?: number[]) => { cold += 1; return sectionCaps({ ...b, id: `cold-${cold}` }, sec, offset); };
+  const close = (a: readonly (readonly number[])[], b: readonly (readonly number[])[]) => {
+    expect(a.length).toBe(b.length);
+    a.forEach((p, n) => p.forEach((v, k) => expect(v).toBeCloseTo(b[n]![k]!, 9)));
+  };
+  it('a move across the plane\'s direction (same place in the part) gives the cap translated', () => {
+    const first = sectionCaps(part, s)!;
+    const moved = { ...part, position: [3.5, 0.5, 4] as P3 };
+    const again = sectionCaps(moved, s)!;
+    expect(again.pieces.length).toBe(first.pieces.length);
+    first.pieces.forEach((poly, n) => close(again.pieces[n]!, poly.map((p) => [p[0] + 2.5, p[1], p[2] + 6])));
+    expect(again).toEqual(uncached(moved, s));
+  });
+  it('a move ALONG the cut axis (a new place in the part) is rebuilt, not translated', () => {
+    sectionCaps(part, s);
+    const moved = { ...part, position: [1, 0.25, -2] as P3 };
+    expect(sectionCaps(moved, s)).toEqual(uncached(moved, s));
+  });
+  it('the same id with new geometry at the same place is rebuilt (never a stale cap)', () => {
+    sectionCaps(part, s);
+    const resized = { ...part, thickness: 1 };              // upright: thickness is not the cut axis
+    expect(sectionCaps(resized, s)).toEqual(uncached(resized, s));
+    const drilled = { ...part, holes: [{ ...pin, count: 3 }] };
+    expect(sectionCaps(drilled, s)).toEqual(uncached(drilled, s));
+    const flipped = { ...s, flip: true };
+    expect(sectionCaps(part, flipped)).toEqual(uncached(part, flipped));
+  });
+  it('mutating what localCapPieces or sectionCaps returned never reaches the next call', () => {
+    const expected = uncached(part, s);
+    const local = localCapPieces(part, s)!;
+    local.pieces[0]![0]![0] = 999;
+    local.pieces.length = 0;
+    const world = sectionCaps(part, s)!;
+    world.pieces[0]![0]![0] = 999;
+    world.outline.length = 0;
+    expect(sectionCaps(part, s)).toEqual(expected);
   });
 });
