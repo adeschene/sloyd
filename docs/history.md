@@ -452,6 +452,25 @@ and 79.
 
 ## What each round did
 
+**What metric display chunk 1 did (2026-10-15, feature gaps §3)** (spec `docs/superpowers/specs/2026-10-15-sloyd-metric-display-design.md`,
+plan `docs/superpowers/plans/2026-10-15-sloyd-metric-display-chunk1.md`, branch `metric-1` from `06409b6`). No schema change
+(R6: an older build reads a metric project as imperial; rollback free). **Merged, not deployed: chunk 1 deploys with chunk
+2** (the user's ruling at plan review — a metric cut-list sheet would otherwise mix mm rows and imperial diagram labels).
+User rulings: per-project (`units.display`); whole mm; Buying keeps trade units; a bare typed number is mm in a metric
+project; free drags snap to 1 mm; hole diameters and pitches to 0.1 mm; drawings bare numbers plus a sheet note (chunk 2);
+approach A (the document's `Units` passed explicitly, inv 52). Plan-review rulings: Materials dialog sizes and Generate's
+limits stay imperial; `snapStep` in `geometry.ts` (no `→ units` edge). Subagent-driven, six tasks plus a final review:
+(1) `units/length.ts` — `Units`, metric format/parse, `formatMm`, `formatLengthBare`, `formatSize`, `floorToTick`; the
+review caught metric `- 19` parsing as INCHES (the bare-number test ran before the sign strip), and the plan's rounding
+mutation could not fail (18.5 mm is exact in float; 0.5 and 6.5 mm sit below the half and test the nudge); (2) the
+document's `units.display`, `setUnitsDisplay`; (3) cut list, bench lines, the taper refusal (`floorToTick`), Refine's change
+list (`formatSize`, the unit once); (4) every field, the tape, guides, dialogs; (5) the Units switch and 1 mm drag snap;
+(6) the temporary number/no-units forms removed so the compiler proved every caller converted, plus an ad-hoc length-text
+grep (nothing person-facing left but `designCheck`'s messages, fu 355). The final review caught a metric max refused by
+float subtraction (`posDim − offset` is not exact under n/25.4 storage — a 1e-9 bound tolerance, inv 22) and drags storing
+k·(1/25.4) where typing stores k/25.4 (`snapToGrid`). Live pass: `docs/browser-verification-metric-display.md`. Follow-ups
+353–356.
+
 **What the section cut did (2026-10-15, feature gaps §2)** (spec `docs/superpowers/specs/2026-10-14-sloyd-section-cut-design.md`,
 plan `docs/superpowers/plans/2026-10-14-sloyd-section-cut.md`, branch `section-cut` from `e56170f`). **Merged to master as `71e8d19` and deployed the same day** (`index-DwixxasK.js`). No schema change; view
 state only, so a rollback costs nothing. User rulings: viewport only (no Plans-sheet sections, fu 256 stays its own item);

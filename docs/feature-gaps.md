@@ -52,7 +52,7 @@ curves" arrive). Most of these need a schema bump, with the rollback cost that b
 | Hardware / accessories BOM | Screws, hinges, slides, pulls | open |
 | Weight | OpenCutList reports cost and weight together | open |
 | Printable part labels | OpenCutList-style stickers; distinct from the diagram label layout | open |
-| Metric display | Input already parses metric; `units.display` only allows `'imperial-fractional'` | open |
+| Metric display | Input already parses metric; `units.display` only allows `'imperial-fractional'` | chunk 1 merged 2026-10-15 (Units switch, fields, typing, tape, cut list, bench lines in whole mm); not deployed until chunk 2 (drawings, Buying, grid) |
 
 ## 4. Ergonomics
 
