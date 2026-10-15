@@ -5684,6 +5684,20 @@ vertices and fans from the centroid on every face of a curved part EXCEPT one a 
 can remain where a holed face meets a split slice (shelf pins on an arched side). No fixture has one; untested. Remedy to
 measure: feed earcut the inserted vertices with a guard against its filter, or conform the ring-cut polygon. **Status:**
 open.
+- **Closed 2026-10-15 (follow-ups session, branch `follow-ups-1`).** Reproduced first: with the holes' mesh in the
+  watertight check, the default arch with a shelf-pin row left 4229 unmatched edges (8458 through, 212 for one bore);
+  a holed part without curves, 0. The cause was wider than earcut's filter: the split arch cuts the broad face into
+  strips, so a mouth nearly always straddles a seam and took `faceTriangles`' wedge fallback, whose corners match neither
+  neighbour nor wall; it was also most of the rebuild (an arched bookcase side with two pin rows: 63 ms, over the 40 ms
+  bound). Neither named remedy was taken: each plane a CLEAN hole opens into is merged (`unionLoops`, a directed
+  `unionOutline`; loops chained and welded), triangulated once with the wall's own rings as holes, each triangle conformed
+  (`mergeHoledPlanes`, grainTiling.ts). Watertight on five fixtures (blind and through rows, a straddling bore, a bore in a
+  box cell, a hinge cup) and the caps across them; the side rebuilds in ~33 ms, the stile ~6 (new `curvesPerf` cases).
+  Mutated: no merge, no conform, unwelded loops, no disjoint guard, no faulted-hole guard each turn a test red. Residue:
+  a plane a faulted hole reaches or whose rings overlap keeps the per-face path and its T-junctions (pinned by area, not
+  watertightness); the ring-inside-its-loop guard is unreachable for a clean hole (defensive); the holes' own mesh costs
+  ~15 ms on that side, unchanged and unexamined (the profile was too coarse to attribute). Real-hardware look still owed
+  with fu 370. **Status:** closed.
 
 **370. Real-hardware looks owed (26a).** Seen only on software GL (llvmpipe): smooth shading on the curved faces (radial
 normals); the grain seam on a curved face (fu 336); the arch-end edge lines and the absence of facet lines (not

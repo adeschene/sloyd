@@ -2,6 +2,7 @@ import { createBoard, mirrorPart, pocketCells, keptHalfSpace, partGeometry, tape
 import { axisFrame, fromWorldOffset, DIMENSION_ORDER } from './geometry';
 import { holePrism } from './holes';
 import { keptBySection, sectionAxisIndex, sectionPlaneOf, sectionSpan, SECTION_EPS, sectionCaps, unionOutline, localCapPieces, type Section } from './section';
+import { unionLoops } from './outline';
 import { chiralPart } from './turnFixtures';
 import type { V3 } from './angleCuts';
 
@@ -279,6 +280,26 @@ describe('unionOutline', () => {
     const top: P3[] = [[1, 1, 0], [2, 1, 0], [2, 2, 0], [1, 2, 0]];
     // perimeter of the union: 3 + 1 + (1 + 1 + 1 + 1 + 1) + 1 = 10
     expect(len(unionOutline([big, top], 2) as [P3, P3][])).toBeCloseTo(10, 12);
+  });
+});
+
+describe('unionLoops (fu 369): the same stretches, directed as the pieces run', () => {
+  // Signed area of the directed stretches about +z: shoelace over each stretch (a closed boundary's sum is its area).
+  const signed = (segs: [P3, P3][]) => segs.reduce((s, [p, q]) => s + (p[0] * q[1] - q[0] * p[1]) / 2, 0);
+  it('a T-junction: the union runs counter-clockwise (area +4), the same stretches as unionOutline', () => {
+    const big: P3[] = [[0, 0, 0], [2, 0, 0], [2, 1, 0], [0, 1, 0]];
+    const s1: P3[] = [[0, 1, 0], [1, 1, 0], [1, 2, 0], [0, 2, 0]];
+    const s2: P3[] = [[1, 1, 0], [2, 1, 0], [2, 2, 0], [1, 2, 0]];
+    const loops = unionLoops([big, s1, s2], 2) as [P3, P3][];
+    expect(signed(loops)).toBeCloseTo(4, 12);
+    expect(len(loops)).toBeCloseTo(len(unionOutline([big, s1, s2], 2) as [P3, P3][]), 12);
+  });
+  it('a frame of four pieces round a gap: outer counter-clockwise, inner clockwise (area 9 − 1)', () => {
+    const sq = (x0: number, y0: number, x1: number, y1: number): P3[] => [[x0, y0, 0], [x1, y0, 0], [x1, y1, 0], [x0, y1, 0]];
+    const frame = [sq(0, 0, 3, 1), sq(0, 2, 3, 3), sq(0, 1, 1, 2), sq(2, 1, 3, 2)];
+    const loops = unionLoops(frame, 2) as [P3, P3][];
+    expect(signed(loops)).toBeCloseTo(8, 12);
+    expect(len(loops)).toBeCloseTo(16, 12);
   });
 });
 

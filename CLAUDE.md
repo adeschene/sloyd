@@ -840,8 +840,11 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     mesh is WATERTIGHT**: every body through `bodyMesh`, vertices welded (`CONFORM_EPS`), every part vertex strictly inside
     a face's edge inserted (the candidate's own object, never a projection), faces fanned from their CENTROID (a vertex-0
     fan's zero-area triangles are dropped and reopen the crack); a split curve's T-junctions otherwise show as pinholes in
-    the shadow and on the cap. `curvesWatertight.test.ts` pins it (exact Float32 keys, every directed edge matched); a face
-    a hole reaches still goes through `faceTriangles` (fu 369). **Rebuild performance —
+    the shadow and on the cap. `curvesWatertight.test.ts` pins it (exact Float32 keys, every directed edge matched, the
+    holes' mesh included). **A curved part's holed plane is drawn as ONE region** (fu 369: a split curve cuts the broad face
+    into strips, so a mouth straddles them): every plane a CLEAN hole opens into is the union of its faces (`unionLoops`,
+    chained), triangulated with the rings as holes — the wall's own ring vertices — and each triangle conformed; a plane a
+    faulted hole reaches, or whose rings overlap, keeps the per-face `faceTriangles` path (residue, drawn approximately). **Rebuild performance —
     a resize drag rebuilds a holed part every frame; these break silently:** per-hole prisms and rings are memoised by
     the deep-frozen `Hole`'s IDENTITY (a WeakMap; an unfrozen hole computes fresh — never memoise one that can change);
     seam faces (what a coplanar, opposite-facing face of another body covers) are subtracted ONLY in holed bodies (and in EVERY body of a curved part, box cells included); a

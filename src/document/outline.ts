@@ -16,6 +16,19 @@ export const SECTION_EPS = 1e-7;
  * minusPrism's splits, always meets its twin running the other way) and is dropped. What is left is the cut's outline.
  */
 export function unionOutline(pieces: readonly (readonly V3[])[], li: number): [V3, V3][] {
+  return outlineOf(pieces, li, false);
+}
+
+/**
+ * unionOutline with each stretch DIRECTED as the pieces run along it (fu 369): with the pieces wound counter-clockwise
+ * in (i, j) — the two axes other than `li`, in index order — the union's outer boundaries run counter-clockwise and its
+ * inner ones clockwise, so a caller can chain the stretches into loops and tell the two apart by signed area.
+ */
+export function unionLoops(pieces: readonly (readonly V3[])[], li: number): [V3, V3][] {
+  return outlineOf(pieces, li, true);
+}
+
+function outlineOf(pieces: readonly (readonly V3[])[], li: number, directed: boolean): [V3, V3][] {
   const [i, j] = [0, 1, 2].filter((d) => d !== li) as [number, number];
   const plane = pieces[0]?.[0]?.[li] ?? 0;
   interface Line { dx: number; dy: number; c: number; spans: { t0: number; t1: number; w: number }[] }
@@ -91,14 +104,18 @@ export function unionOutline(pieces: readonly (readonly V3[])[], li: number): [V
     const ends = [...m.spans].sort((a, b) => a.t1 - b.t1);
     let si = 0, ei = 0, sum = 0;
     let runStart: number | null = null;
+    let runSign = 0;
+    // A run against the line's canonical direction is pushed reversed when directed; a change of sign ends a run there.
+    const push = (t0: number, t1: number) => out.push(directed && runSign < 0 ? [at(m, t1), at(m, t0)] : [at(m, t0), at(m, t1)]);
     for (let k = 0; k + 1 < cuts.length; k += 1) {
       const mid = (cuts[k]! + cuts[k + 1]!) / 2;
       while (si < starts.length && starts[si]!.t0 < mid) { sum += starts[si]!.w; si += 1; }
       while (ei < ends.length && ends[ei]!.t1 <= mid) { sum -= ends[ei]!.w; ei += 1; }
-      if (sum !== 0) { if (runStart === null) runStart = cuts[k]!; }
-      else if (runStart !== null) { out.push([at(m, runStart), at(m, cuts[k]!)]); runStart = null; }
+      const sign = Math.sign(sum);
+      if (runStart !== null && (sign === 0 || (directed && sign !== runSign))) { push(runStart, cuts[k]!); runStart = null; }
+      if (sign !== 0 && runStart === null) { runStart = cuts[k]!; runSign = sign; }
     }
-    if (runStart !== null) out.push([at(m, runStart), at(m, cuts[cuts.length - 1]!)]);
+    if (runStart !== null) push(runStart, cuts[cuts.length - 1]!);
   }
   return out;
 }
