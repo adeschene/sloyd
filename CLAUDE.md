@@ -21,7 +21,7 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-15: curves chunk 2 (merge `1e16c01`) — bundle `index-C-5a29hA.js`, CSS
+- **Production is curves chunk 2 (merge `1e16c01`); master is AHEAD with follow-ups 1 (`333bddf`), not deployed** — production's bundle `index-C-5a29hA.js`, CSS
   `index-DdiQhqkN.css`, **SCHEMA 17** (unchanged by chunk 2, so rolling back to curves chunk 1, `54ea740` / `index-D4nh2vvL.js`,
   is free; below 17, `7f851f9` / `index-BZDp6iOz.js` or earlier, REFUSES every project saved since — export first). Test count
   is under Commands.

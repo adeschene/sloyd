@@ -18,7 +18,8 @@
 
 ## Deployment record
 
-**Production matches `master` as of 2026-10-15 with curves chunk 2 live** (`index-C-5a29hA.js`, CSS `index-DdiQhqkN.css`,
+**Master is ahead of production since 2026-10-15: follow-ups 1 merged as `333bddf`, NOT deployed (no schema change).** Production has curves chunk 2 live,
+as it stood when it matched master: **curves chunk 2 live** (`index-C-5a29hA.js`, CSS `index-DdiQhqkN.css`,
 merge `1e16c01`, schema 17 unchanged — a rollback to curves chunk 1, `54ea740` / `index-D4nh2vvL.js`, is free). Merged on the
 user's word (4436 tests across 151 files, build clean on the merged tree; branch deleted). Verified per the deployment rule:
 `200` on a deep route at the edge; bundle and CSS match `dist/` in-network (via `127.0.0.1`) and at the edge; the old bundle
