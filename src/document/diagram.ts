@@ -5,7 +5,6 @@ import { DIMENSION_ORDER } from './geometry';
 import { pocketCells, clippedRegion, cutShape, cutRemovesNothing, type CutKind } from './cuts';
 import { buildDepthField, type FaceCell } from './depthField';
 import { formatLengthBare, type Units } from '../units/length';
-// Imperial until metric chunk 2 (drawings/buying, spec §4).
 import { angleCutsThatRemoveStock, keptHalfSpace, throughOf } from './angleCuts';
 import { angleLine } from './angleText';
 

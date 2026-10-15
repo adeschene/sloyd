@@ -260,6 +260,8 @@ function Capture({ clean, setClean, captureRef }: {
  * fades by distance from the *camera* it behaved completely differently in
  * orthographic (whose framing parks the camera 100+ units back by
  * construction). fadeStrength={0} turns it off; nothing here fades.
+ *
+ * A metric project uses the 10 mm / 100 mm / 1 m ladder instead (gridDensity.ts).
  */
 function AdaptiveGrid() {
   const camera = useThree((s) => s.camera);
