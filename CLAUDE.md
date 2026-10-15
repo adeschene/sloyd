@@ -21,13 +21,13 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-15: fu 354 (merge `bf0bdc2`) on metric display chunks 1 + 2 (`b993ac7`) — bundle
-  `index-yiFC6fXl.js`, CSS `index-CwNDYAf3.css`, **SCHEMA 16** (unchanged since holes chunk 1, so rolling back to `71e8d19`,
+- **Production matches `master`** as of 2026-10-15: fu 360 + 355 (merges `0f2be31`, `3b7455c`; records `5753480`) on fu 354
+  (`bf0bdc2`) — bundle `index-BIWe_ffw.js`, CSS `index-CwNDYAf3.css`, **SCHEMA 16** (unchanged since holes chunk 1, so rolling back to `bf0bdc2`, `index-yiFC6fXl.js`, `71e8d19`,
   `index-DwixxasK.js`, or earlier down to `2ded5cc` is free — an older build reads a metric project as imperial; below 16,
   `bfde00c`, REFUSES every project saved since: export first). Test count is under Commands.
 - **Metric display (spec `2026-10-15-sloyd-metric-display-design.md`, inv 52)**: deployed. 354 closed (metric parts match the nominal
   sections and stock they read the same as). Open near it: 357 (the units note prints on page 1 only), 359 (the
-  imperial plane note can read the same on both sides), 356/358 record-only. 355 and 360 closed on `master` (merge `3b7455c`), not yet deployed.
+  imperial plane note can read the same on both sides), 356/358 record-only. 355 and 360 closed and deployed.
 - **Section cut (spec `2026-10-14-sloyd-section-cut-design.md`, inv 51)**: deployed. Open near it: 347 (cap look on real
   hardware), 348 (cap cost on drilled parts), 349–350, 352 record-only (351 closed: inv 43 amended).
 - **Holes (spec `2026-10-14-sloyd-holes-design.md`, inv 50)**: both chunks deployed (schema 16; fu 327 and 343 closed).
