@@ -341,14 +341,14 @@ describe('buildNesting', () => {
 
 describe('buildNesting in metric (chunk 2)', () => {
   const MM = { display: 'metric-mm' as const, precision: 16 };
-  it('metric nesting labels are bare mm', () => {
+  it('placed parts are bare mm; the sheet prose is trade form', () => {
     const n = buildNesting([part(30, 11.25, 'Shelf')], PLY, 0.125, MM);
     expect(n.sheets[0]!.parts[0]!.dims).toBe('762 × 286');
-    expect(n.sheet).toBe('2438 × 1219');
-    expect(n.label).toBe('1 sheet (2438 × 1219)');
+    expect(n.sheet).toBe('96" × 48" (2438 × 1219 mm)');
+    expect(n.label).toBe('1 sheet (96" × 48" (2438 × 1219 mm))');
   });
-  it('an unplaceable part reads bare mm too', () => {
+  it('an unplaceable part reads in mm with its unit', () => {
     const n = buildNesting([part(100, 30, 'Oops')], PLY, 0.125, MM);
-    expect(n.unplaceable[0]!.dims).toBe('2540 × 762');
+    expect(n.unplaceable[0]!.dims).toBe('2540 × 762 mm');
   });
 });

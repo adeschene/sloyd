@@ -1,5 +1,5 @@
 import type { Board, SheetStock } from './types';
-import { formatLengthBare, type Units } from '../units/length';
+import { formatLengthBare, formatSize, tradeSize, type Units } from '../units/length';
 
 /**
  * `length × width`, formatted — the ONE home of that expression here.
@@ -313,13 +313,16 @@ export function buildNesting(
         name: board.name,
         // No `turned` here, and not an omission: a part that fit no sheet in
         // ANY allowed orientation was never placed, so it has none to report.
-        dims: formatDims(board.length, board.width, units),
+        // Prose in the cut list (the user's own part), not a measured label: a metric project reads `2500 × 600 mm`.
+        dims: formatSize([board.length, board.width], units),
       });
     }
   }
 
   const count = sheets.length;
-  const sheet = formatDims(stock.length, stock.width, units);
+  // Prose (the group header, the unplaceable line), never measured by SheetLayout: the sheet in TRADE form as Buying
+  // reads it — metric `96" × 48" (2438 × 1219 mm)`. Placed parts' `dims` stay bare (inv 19).
+  const sheet = tradeSize([stock.length, stock.width], units);
   return {
     sheets: sheets.map((s) => ({ parts: s.parts })),
     unplaceable,
