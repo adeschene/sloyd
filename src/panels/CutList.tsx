@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store/store';
 import { buildCutList, flatDocument } from '../document/document';
+import { isMetric } from '../units/length';
 import { PartDiagram } from './PartDiagram';
 import { SheetLayout } from './SheetLayout';
 import { buildPurchase, defaultShop, type ShopSettings } from '../document/purchase';
@@ -74,7 +75,10 @@ export function CutList({ onClose, shop = DEFAULT_SHOP, onOpenPrices, suspended 
     <div className="cutlist-overlay" role="dialog" aria-modal="true" aria-label="Cut list" inert={suspended}>
       <div className="cutlist-sheet" ref={sheet} tabIndex={-1}>
         <header className="cutlist-head">
-          <h2>Cut list — {doc.name}</h2>
+          <div>
+            <h2>Cut list — {doc.name}</h2>
+            {isMetric(doc.units) && <p className="sheet-units-note">Dimensions in mm</p>}
+          </div>
           <div className="cutlist-actions">
             <label className="cutlist-diagram-mode">
               Diagrams

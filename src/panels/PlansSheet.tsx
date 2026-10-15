@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store/store';
+import { isMetric } from '../units/length';
 import { worldParts } from '../document/tree';
 import { planAssemblies } from '../document/plans';
 import { EXPLODE_SPREAD } from '../document/explode';
@@ -34,7 +35,10 @@ export function PlansSheet({ onClose }: { onClose: () => void }) {
     <div className="cutlist-overlay plans-overlay" role="dialog" aria-modal="true" aria-label="Plans">
       <div className="cutlist-sheet plans-sheet" ref={sheet} tabIndex={-1}>
         <header className="cutlist-head">
-          <h2>Plans — {doc.name}</h2>
+          <div>
+            <h2>Plans — {doc.name}</h2>
+            {isMetric(doc.units) && <p className="sheet-units-note">Dimensions in mm</p>}
+          </div>
           <div className="cutlist-actions">
             <label className="plans-explode">
               Explode

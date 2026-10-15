@@ -12,6 +12,16 @@ describe('PlansSheet', () => {
     expect(screen.getByText('Nothing to draw yet.')).toBeInTheDocument();
   });
 
+  it('a metric Plans sheet carries the sheet note; an imperial one does not', () => {
+    act(() => useStore.getState().replaceDocument(cabinetsDoc()));
+    const first = render(<PlansSheet onClose={() => {}} />);
+    expect(screen.queryByText('Dimensions in mm')).toBeNull();
+    first.unmount();
+    act(() => useStore.getState().setUnitsDisplay('metric-mm'));
+    render(<PlansSheet onClose={() => {}} />);
+    expect(screen.getByText('Dimensions in mm')).toBeInTheDocument();
+  });
+
   it('draws the exploded view, the piece, then each assembly with its count', () => {
     act(() => useStore.getState().replaceDocument(cabinetsDoc()));
     render(<PlansSheet onClose={() => {}} />);

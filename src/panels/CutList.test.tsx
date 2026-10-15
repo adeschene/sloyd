@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
 import { createBoard, createDocument } from '../document/document';
@@ -99,6 +99,17 @@ describe('CutList', () => {
     load(dadoed, {});
     const { container } = render(<CutList onClose={() => {}} />);
     expect(container.querySelectorAll('.cutlist-diagram')).toHaveLength(1);
+  });
+
+  it('a metric cut list carries the sheet note, even with diagrams off; an imperial one does not', async () => {
+    load(dadoed, {});
+    const first = render(<CutList onClose={() => {}} />);
+    expect(screen.queryByText('Dimensions in mm')).toBeNull();
+    first.unmount();
+    act(() => useStore.getState().setUnitsDisplay('metric-mm'));
+    render(<CutList onClose={() => {}} />);
+    await userEvent.selectOptions(screen.getByLabelText('Diagrams'), 'none');
+    expect(screen.getByText('Dimensions in mm')).toBeInTheDocument();
   });
 
   it('draws nothing when diagrams are turned off', async () => {
