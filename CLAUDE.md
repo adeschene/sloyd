@@ -25,7 +25,7 @@ handicraft education tradition built around hand woodworking.
   `index-BcAtcm35.css`, **SCHEMA 16** (unchanged since holes chunk 1, so rolling back to `d74e5c5`, `index-DFCdm3n1.js`, or
   `2ded5cc` is free; below 16, `bfde00c`, REFUSES every project saved since: export first). Test count is under Commands.
 - **Section cut (spec `2026-10-14-sloyd-section-cut-design.md`, inv 51)**: deployed. Open near it: 347 (cap look on real
-  hardware), 348 (cap cost on drilled parts), 349–351 (351 = inv 43's wording, the user's call), 352 record-only.
+  hardware), 348 (cap cost on drilled parts), 349–350, 352 record-only (351 closed: inv 43 amended).
 - **Holes (spec `2026-10-14-sloyd-holes-design.md`, inv 50)**: both chunks deployed (schema 16; fu 327 and 343 closed).
   Open near it: 328–342 (336: the wall-grain seam, deferred by the user to a texture/shader session; 337: real-hardware
   looks owed), 344–346.
@@ -621,7 +621,9 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     actions go through `applyHidden` (one entry per run, the SAME `doc`, no autosave); others only
     reconcile. `selectionPatch` drops hidden ids — do not move that to callers. A hide is
     refused while `gesturing`. **PROHIBITION: no hide or show may clear `tapeAnchor` or
-    `tapeHover`.** Never call `visibleBoards` in a selector; filter in a memo or handler.
+    `tapeHover`.** Never return `visibleBoards`' array (or anything built from it) from a selector — a fresh array every store write
+    re-renders every frame; filter in a memo or handler. A selector may reduce it to a PRIMITIVE (the Section toggle's
+    "any part visible", fu 351).
     Hidden parts are still in the cut list, joinery, checks, export and autosave.
     Consecutive hide/show toggles share ONE undo entry (the run is the top of `past`, by identity;
     any edit, gesture snapshot, undo or redo ends it; a run back at its start leaves no entry).

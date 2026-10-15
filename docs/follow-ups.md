@@ -5540,8 +5540,8 @@ pass could not drive a snap marker reliably through Playwright hover (one marker
 
 **351. Invariant 43's wording vs a boolean selector.** Inv 43 says never call `visibleBoards` in a selector. The Section
 toggle's "any part visible" test does, returning a BOOLEAN (stable snapshot, identity-keyed cache), which the rule's reason
-(a fresh array re-rendering every store write) does not reach. **Status:** open — the user's call: amend the wording to
-"never return `visibleBoards`' array from a selector", or move the test into a memo (re-subscribing the controls to `doc`).
+(a fresh array re-rendering every store write) does not reach. **Status:** closed 2026-10-15 — the user amended inv 43: never return
+`visibleBoards`' array from a selector; a primitive reduction is allowed.
 
 **352. Section-cut minors (record-only).** (1) The cap cache keeps up to 64 slots after their parts are deleted or the
 project switches (bounded; no clear-on-switch). (2) `unionOutline`'s bucket-edge test pins the grouping but does not
