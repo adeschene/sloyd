@@ -3,6 +3,8 @@ import { axisFrame, fromWorldOffset, DIMENSION_ORDER } from './geometry';
 import { holePrism } from './holes';
 import { keptBySection, sectionAxisIndex, sectionPlaneOf, sectionSpan, SECTION_EPS, sectionCaps, unionOutline, type Section } from './section';
 import { chiralPart } from './turnFixtures';
+import { localCapPieces } from './section';
+import type { V3 } from './angleCuts';
 
 describe('section side test', () => {
   const front: Section = { axis: 'front', at: 3, flip: false };
@@ -306,5 +308,72 @@ describe('sectionCaps outline', () => {
     const b = createBoard({ id: 'n', length: 20, width: 6, thickness: 1.5, position: [0, 0, 0], holes: [pin] });
     const cap = sectionCaps(b, { axis: 'front', at: 1.5, flip: false })!;
     expect(len(cap.outline as [P3, P3][])).toBeCloseTo(43 - 0.25 + 0.5 + 0.5 + 0.25, 6);
+  });
+});
+
+// The linear-scan, per-interval-sum union outline as it stood before the bucketed/sweep rewrite (perf round): the
+// optimised one must return exactly the same segments.
+function referenceUnionOutline(pieces: readonly V3[][], li: number): [V3, V3][] {
+  const [i, j] = [0, 1, 2].filter((d) => d !== li) as [number, number];
+  const plane = pieces[0]?.[0]?.[li] ?? 0;
+  interface Line { dx: number; dy: number; c: number; spans: { t0: number; t1: number; w: number }[] }
+  const lines: Line[] = [];
+  for (const poly of pieces) {
+    for (let n = 0; n < poly.length; n += 1) {
+      const p = poly[n]!, q = poly[(n + 1) % poly.length]!;
+      let dx = q[i] - p[i], dy = q[j] - p[j];
+      const l = Math.hypot(dx, dy);
+      if (l <= SECTION_EPS) continue;
+      dx /= l; dy /= l;
+      let w = 1;
+      if (dx < -1e-9 || (Math.abs(dx) <= 1e-9 && dy < 0)) { dx = -dx; dy = -dy; w = -1; }
+      const c = -dy * p[i] + dx * p[j];                    // offset along the line's normal (−dy, dx)
+      const ta = dx * p[i] + dy * p[j], tb = dx * q[i] + dy * q[j];
+      let line = lines.find((m) => Math.abs(m.dx - dx) <= 1e-9 && Math.abs(m.dy - dy) <= 1e-9 && Math.abs(m.c - c) <= SECTION_EPS);
+      if (!line) { line = { dx, dy, c, spans: [] }; lines.push(line); }
+      line.spans.push({ t0: Math.min(ta, tb), t1: Math.max(ta, tb), w });
+    }
+  }
+  const out: [V3, V3][] = [];
+  const at = (m: Line, t: number): V3 => {
+    const v: V3 = [0, 0, 0];
+    v[li] = plane;
+    v[i] = -m.dy * m.c + m.dx * t;
+    v[j] = m.dx * m.c + m.dy * t;
+    return v;
+  };
+  for (const m of lines) {
+    const ts = m.spans.flatMap((s) => [s.t0, s.t1]).sort((a, b) => a - b);
+    const cuts: number[] = [];
+    for (const t of ts) if (!cuts.length || t - cuts[cuts.length - 1]! > SECTION_EPS) cuts.push(t);
+    let runStart: number | null = null;
+    for (let k = 0; k + 1 < cuts.length; k += 1) {
+      const mid = (cuts[k]! + cuts[k + 1]!) / 2;
+      const sum = m.spans.reduce((s, sp) => s + (sp.t0 < mid && mid < sp.t1 ? sp.w : 0), 0);
+      if (sum !== 0) { if (runStart === null) runStart = cuts[k]!; }
+      else if (runStart !== null) { out.push([at(m, runStart), at(m, cuts[k]!)]); runStart = null; }
+    }
+    if (runStart !== null) out.push([at(m, runStart), at(m, cuts[cuts.length - 1]!)]);
+  }
+  return out;
+}
+
+describe('unionOutline equals the linear-scan reference', () => {
+  const pin = (id: string, acrossFrom: 'min' | 'max') => ({
+    id, face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const,
+    alongFrom: 'min' as const, station: 2, count: 21, pitch: 32 / 25.4, acrossFrom, inset: 1.5,
+  });
+  const dado = { id: 'c1', face: 'thickness' as const, from: 'max' as const, across: 'width' as const, offset: 10, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
+  const part = createBoard({ id: 's', length: 30, width: 11.25, thickness: 0.75, cuts: [dado], holes: [pin('r1', 'min'), pin('r2', 'max')] });
+  it.each([
+    ['across the bores', { axis: 'top', at: 0.6, flip: false }],
+    ['along a row', { axis: 'front', at: 1.5, flip: false }],
+    ['through the dado (seams between pocket cells)', { axis: 'side', at: 10.4, flip: false }],
+    ['a pocket-cell seam plane', { axis: 'side', at: 10, flip: true }],
+  ] as const)('%s', (_name, s) => {
+    const local = localCapPieces(part, s)!;
+    const got = unionOutline(local.pieces, local.li);
+    expect(got.length).toBeGreaterThan(0);
+    expect(got).toEqual(referenceUnionOutline(local.pieces, local.li));
   });
 });

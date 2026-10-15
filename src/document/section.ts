@@ -1,9 +1,8 @@
 import type { Board } from './types';
 import type { V3 } from './angleCuts';
-import { axisFrame, boardExtents, DIMENSION_ORDER, fromWorldOffset } from './geometry';
+import { axisFrame, boardExtents, DIMENSION_ORDER, fromWorldOffset, toWorldOffset } from './geometry';
 import { clipConvex, partGeometry, BODY_EPS, type BodyFace } from './bodies';
 import { holePrism, minusPrism } from './holes';
-import { toWorld } from './snapPoints';
 
 /**
  * The viewport's section cut (section-cut spec): ONE axis-aligned plane, view state only (never in the document).
@@ -99,10 +98,28 @@ export function localCapPieces(
   // so a plane on a grid line can both cut a merged slab and lie on a neighbour's face, mixing the two; unionOutline's
   // cancellation needs them to agree. minusPrism keeps a polygon's winding.
   pieces = pieces.map((poly) => (newellAlong(poly, li) * capN[li]! < 0 ? [...poly].reverse() : poly));
+  // A hole can only touch a piece whose box meets the hole's (centre ± radius + depth, generous on every axis), so
+  // minusPrism sees only those; the rest pass through untouched (its own first test would have returned them too).
+  const boxOf = (poly: readonly V3[]) => {
+    const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+    for (const p of poly) for (let k = 0; k < 3; k += 1) { if (p[k]! < lo[k]!) lo[k] = p[k]!; if (p[k]! > hi[k]!) hi[k] = p[k]!; }
+    return { poly, lo, hi };
+  };
+  let boxed = pieces.map(boxOf);
   for (const hole of holes) {
+    const reach = hole.radius + hole.depth + 1e-4;
+    if (Math.abs(hole.centre[li]! - u) > reach) continue;       // the plane is farther from the bore than it can reach
     const prism = holePrism(hole);
-    pieces = pieces.flatMap((p) => minusPrism(p, prism));
+    const next: typeof boxed = [];
+    for (const b of boxed) {
+      let near = true;
+      for (let k = 0; k < 3; k += 1) if (b.hi[k]! < hole.centre[k]! - reach || b.lo[k]! > hole.centre[k]! + reach) { near = false; break; }
+      if (!near) next.push(b);
+      else for (const q of minusPrism(b.poly, prism)) next.push(q === b.poly ? b : boxOf(q));
+    }
+    boxed = next;
   }
+  pieces = boxed.map((b) => b.poly);
   return pieces.length ? { pieces, li, u } : null;
 }
 
@@ -123,10 +140,18 @@ export function sectionCaps(board: Board, s: Section, offset?: readonly number[]
   const local = localCapPieces(board, s, offset);
   if (!local) return null;
   const o = offset ?? [0, 0, 0];
-  const w = (p: readonly number[]): V3 => {
-    const q = toWorld(board, { length: p[0]!, width: p[1]!, thickness: p[2]! });
-    return [q[0] + o[0]!, q[1] + o[1]!, q[2] + o[2]!];
-  };
+  // toWorld is affine per axis (position + a reflection or not): evaluate axisFrame's helper once at 0 and 1 per axis.
+  const frame = axisFrame(board);
+  const li: number[] = [], base: number[] = [], scale: number[] = [];
+  for (let k = 0; k < 3; k += 1) {
+    li[k] = DIMENSION_ORDER.indexOf(frame[k]!.dim);
+    const at0 = toWorldOffset(board, k, 0, frame);
+    base[k] = board.position[k]! + at0 + o[k]!;
+    scale[k] = toWorldOffset(board, k, 1, frame) - at0;
+  }
+  const w = (p: readonly number[]): V3 => [
+    base[0]! + scale[0]! * p[li[0]!]!, base[1]! + scale[1]! * p[li[1]!]!, base[2]! + scale[2]! * p[li[2]!]!,
+  ];
   return {
     pieces: local.pieces.map((poly) => poly.map(w)),
     outline: unionOutline(local.pieces, local.li).map(([a, b]) => [w(a), w(b)] as [V3, V3]),
@@ -144,6 +169,38 @@ export function unionOutline(pieces: readonly V3[][], li: number): [V3, V3][] {
   const plane = pieces[0]?.[0]?.[li] ?? 0;
   interface Line { dx: number; dy: number; c: number; spans: { t0: number; t1: number; w: number }[] }
   const lines: Line[] = [];
+  // Lines are bucketed on (dx, dy, c) quantised to their tolerances; a lookup visits the 27 neighbouring cells and takes
+  // the EARLIEST-created line within tolerance, which is what a linear first-match scan returned.
+  const buckets = new Map<number, number[]>();
+  const hash = (x: number, y: number, z: number) => (Math.imul(x | 0, 73856093) ^ Math.imul(y | 0, 19349663) ^ Math.imul(z | 0, 83492791)) | 0;
+  // Cells are 10x the tolerance, so a value is within tolerance of at most one neighbouring cell, and only when it sits
+  // in the cell's outer tenth.
+  const QA = 1e-8, QC = SECTION_EPS * 10;
+  const qa = (v: number) => Math.floor(v / QA);
+  const qc = (v: number) => Math.floor(v / QC);
+  // The cell below (-1), the cell itself (0) or the cell above (+1) may hold a match; `lo`/`hi` say which are in reach.
+  const reach = (v: number, cell: number, tol: number, out: number[]): number => {
+    const q = Math.floor(v / cell), f = v - q * cell;
+    out[0] = q;
+    if (f < tol) { out[1] = q - 1; return 2; }
+    if (cell - f < tol) { out[1] = q + 1; return 2; }
+    return 1;
+  };
+  const rx: number[] = [0, 0], ry: number[] = [0, 0], rz: number[] = [0, 0];
+  const findLine = (dx: number, dy: number, c: number): Line | undefined => {
+    let best = -1;
+    const nx = reach(dx, QA, 1e-9, rx), ny = reach(dy, QA, 1e-9, ry), nz = reach(c, QC, SECTION_EPS, rz);
+    for (let a = 0; a < nx; a += 1) for (let b = 0; b < ny; b += 1) for (let e = 0; e < nz; e += 1) {
+      const ids = buckets.get(hash(rx[a]!, ry[b]!, rz[e]!));
+      if (!ids) continue;
+      for (const id of ids) {
+        if (best !== -1 && id > best) break;
+        const m = lines[id]!;
+        if (Math.abs(m.dx - dx) <= 1e-9 && Math.abs(m.dy - dy) <= 1e-9 && Math.abs(m.c - c) <= SECTION_EPS) { best = id; break; }
+      }
+    }
+    return best === -1 ? undefined : lines[best];
+  };
   for (const poly of pieces) {
     for (let n = 0; n < poly.length; n += 1) {
       const p = poly[n]!, q = poly[(n + 1) % poly.length]!;
@@ -155,8 +212,14 @@ export function unionOutline(pieces: readonly V3[][], li: number): [V3, V3][] {
       if (dx < -1e-9 || (Math.abs(dx) <= 1e-9 && dy < 0)) { dx = -dx; dy = -dy; w = -1; }
       const c = -dy * p[i] + dx * p[j];                    // offset along the line's normal (−dy, dx)
       const ta = dx * p[i] + dy * p[j], tb = dx * q[i] + dy * q[j];
-      let line = lines.find((m) => Math.abs(m.dx - dx) <= 1e-9 && Math.abs(m.dy - dy) <= 1e-9 && Math.abs(m.c - c) <= SECTION_EPS);
-      if (!line) { line = { dx, dy, c, spans: [] }; lines.push(line); }
+      let line = findLine(dx, dy, c);
+      if (!line) {
+        line = { dx, dy, c, spans: [] };
+        const key = hash(qa(dx), qa(dy), qc(c));
+        const ids = buckets.get(key);
+        if (ids) ids.push(lines.length); else buckets.set(key, [lines.length]);
+        lines.push(line);
+      }
       line.spans.push({ t0: Math.min(ta, tb), t1: Math.max(ta, tb), w });
     }
   }
@@ -172,10 +235,15 @@ export function unionOutline(pieces: readonly V3[][], li: number): [V3, V3][] {
     const ts = m.spans.flatMap((s) => [s.t0, s.t1]).sort((a, b) => a - b);
     const cuts: number[] = [];
     for (const t of ts) if (!cuts.length || t - cuts[cuts.length - 1]! > SECTION_EPS) cuts.push(t);
+    // A span is live at mid when t0 < mid < t1: a sweep over starts and ends sorted by t (t0 < t1 always).
+    const starts = [...m.spans].sort((a, b) => a.t0 - b.t0);
+    const ends = [...m.spans].sort((a, b) => a.t1 - b.t1);
+    let si = 0, ei = 0, sum = 0;
     let runStart: number | null = null;
     for (let k = 0; k + 1 < cuts.length; k += 1) {
       const mid = (cuts[k]! + cuts[k + 1]!) / 2;
-      const sum = m.spans.reduce((s, sp) => s + (sp.t0 < mid && mid < sp.t1 ? sp.w : 0), 0);
+      while (si < starts.length && starts[si]!.t0 < mid) { sum += starts[si]!.w; si += 1; }
+      while (ei < ends.length && ends[ei]!.t1 <= mid) { sum -= ends[ei]!.w; ei += 1; }
       if (sum !== 0) { if (runStart === null) runStart = cuts[k]!; }
       else if (runStart !== null) { out.push([at(m, runStart), at(m, cuts[k]!)]); runStart = null; }
     }
