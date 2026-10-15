@@ -734,7 +734,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     schema stays byte-identical (built-in catalog, fixture-pinned); Refine's adds the project's ids (fu 322: a per-project
     grammar, compiled live 2026-10-14). The library and prices are browser state: undo reverts a project's copy only.
     **Nominal names** (chunk 2) show only for a material whose catalog entry is `nominal` (pine; a custom solid with the
-    switch), only on an EXACT section match, and on a cut-list row only when EVERY board on it is that section; drawings
+    switch), only on an EXACT section match (in a METRIC project: both sides read the same whole mm, fu 354 — a 38 × 89 mm part is a
+    2×4; Buying and sheet nesting likewise let a metric part exceed the stock's outer bounds by `fitSlack`, half a mm), and on a cut-list row only when EVERY board on it is that section; drawings
     keep actual dimensions. The switch never touches a stored material's prices.
 
 50. **`holes.ts` is the ONE place holes become geometry (`holeInstances`, through `boardHoles` and `partGeometry`'s
