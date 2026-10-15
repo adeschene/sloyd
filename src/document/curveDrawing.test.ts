@@ -76,6 +76,29 @@ describe('curveDrawEdges (curves spec §5.1; Q2, Q4)', () => {
   });
 });
 
+describe('curveDrawEdges: frozen and strictly increasing (final review)', () => {
+  it('the memoised result is deep-frozen', () => {
+    const e = curveDrawEdges(apron()).find((x) => x.path)!;
+    expect(Object.isFrozen(e.p)).toBe(true);
+    expect(Object.isFrozen(e.path)).toBe(true);
+    expect(Object.isFrozen(e.path!.pts)).toBe(true);
+    expect(Object.isFrozen(e.path!.pts[1])).toBe(true);
+    expect(Object.isFrozen(e.path!.at)).toBe(true);
+  });
+
+  it('beside a dado-split end every interior at lies strictly in (0, 1)', () => {
+    const dado: Cut = { id: 'd', face: 'thickness', from: 'max', across: 'width', offset: 14.5, width: 1, depth: 0.25, stopMin: 0, stopMax: 0 };
+    for (const e of curveDrawEdges(apron({ cuts: [dado] }))) {
+      if (!e.path) continue;
+      const { at } = e.path;
+      expect(at[0]).toBe(0);
+      expect(at[at.length - 1]).toBe(1);
+      for (let i = 1; i < at.length; i += 1) expect(at[i]!).toBeGreaterThan(at[i - 1]!);
+      for (const x of at.slice(1, -1)) { expect(x).toBeGreaterThan(0); expect(x).toBeLessThan(1); }
+    }
+  });
+});
+
 describe('silhouettes through mirrors and turns', () => {
   const POSTURES = ['flat', 'on-edge', 'upright'] as const;
   const TURNS = [0, 90, 180, 270] as const;

@@ -171,7 +171,7 @@ function partSegments(b: Board, toward: readonly number[]): Seg3[] {
 /**
  * Visible and hidden 2D segments for `parts` seen through `view` (spec §2). Edges from
  * `boardEdges` (invariant 16) — on a curved part through `curveDrawEdges`, the fine path drawn with its chord's
- * visibility (curves spec §5.1, Q2, Q3) — and hole lines from `holeDrawingSegments` (holes spec §3.4), through `toWorld`, and the curved surfaces' silhouettes from `curveSilhouettes` (ruling Q1; probed `lift`ed toward the viewer, see `silhouetteLines`); occluders from `worldBodies` (invariant 38 as amended by angle-cuts spec §10).
+ * visibility (curves spec §5.1, Q2, Q3) — and hole lines from `holeDrawingSegments` (holes spec §3.4), through `toWorld`, and the curved surfaces' silhouettes from `silhouetteLines` (ruling Q1; each hidden-line probe is stepped PROBE = 4 x DRAW_EPS along the outward normal of each viewer-facing adjacent face, grazing lines still hide); occluders from `worldBodies` (invariant 38 as amended by angle-cuts spec §10).
  * No drawing order is involved, so cyclic overlaps are exact.
  */
 export function drawView(parts: readonly Board[], view: View, offsets?: ReadonlyMap<string, Vec3>): Drawing {

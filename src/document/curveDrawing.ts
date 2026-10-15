@@ -86,13 +86,26 @@ export function curveDrawEdges(board: Board): readonly DrawEdge[] {
       const dy = b[1] - a[1];
       const l2 = dx * dx + dy * dy;
       const param = (x: P2) => ((x[0] - a[0]) * dx + (x[1] - a[1]) * dy) / l2;
+      // Nodes are kept by central-projection fraction but `at` is orthogonal: next to a split end a fine node can project
+      // to <= 0 or >= 1. Keep strictly inside, so `at` runs strictly 0 .. 1 and the path starts and ends exactly at p and q.
+      nodes.splice(0, nodes.length, ...nodes.filter((x) => param(x) > 0 && param(x) < 1));
       nodes.sort((x, y) => param(x) - param(y));
       const lift = (x: P2): V3 => { const r: V3 = [p[0], p[1], p[2]]; r[ch.ui] = x[0]; r[ch.vi] = x[1]; return r; };
       return { p, q, path: { pts: [p, ...nodes.map(lift), q], at: [0, ...nodes.map(param), 1], k: ch.k } };
     }
     return { p, q };
   });
-  const frozen = Object.freeze(out.map((e) => Object.freeze(e)));
+  const frozen = Object.freeze(out.map((e) => {
+    Object.freeze(e.p);
+    Object.freeze(e.q);
+    if (e.path) {
+      for (const pt of e.path.pts) Object.freeze(pt);
+      Object.freeze(e.path.pts);
+      Object.freeze(e.path.at);
+      Object.freeze(e.path);
+    }
+    return Object.freeze(e);
+  }));
   memo.set(edges, frozen);
   return frozen;
 }

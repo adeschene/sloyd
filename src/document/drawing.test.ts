@@ -346,7 +346,7 @@ describe('curved parts on the sheet (curves spec §5.1; Q2, Q3, Q4)', () => {
   });
 
   it('a part in front hides the arch mid-chord: the cut is a point ON the fine path, not on the chord', () => {
-    // x = 14.2 (the cut lands within 1e-3 of it: the path bulges off the chord) falls inside the model chord 13.653..14.5 (0.0043" under the arc at its end): the visible near-face arc
+    // x = 14.2 (the cut lands within 1e-3 of it: the path bulges off the chord) falls inside the model chord 13.653..15.0 (18 chords, symmetric about x = 15): the visible near-face arc
     // stops at the interpolated path point, within the path's 0.001" of the true arc.
     const d = drawView([apron(), box('front', 8, 1, 5, [14.2, 0, 3])], FRONT);
     const ends = d.visible.filter((s) => s.part === 'ap').flatMap((s) => [s.a, s.b]).filter((p) => Math.abs(p[0] - 14.2) < 1e-3 && p[1] > 1e-6 && p[1] < 4);

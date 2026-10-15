@@ -520,4 +520,13 @@ describe('curves on part diagrams (curves spec §5.2; Q5, Q6)', () => {
     const views = buildDiagrams(apron({ cuts: [dado('min'), dado('max')] }), IMPERIAL);
     expect(views.filter((v) => v.curves.length === 1).map((v) => v.key)).toEqual(['thickness|min', 'thickness|max']);
   });
+
+  it('a curve run wholly off its face draws no waste but still lists its faulted note', () => {
+    const off = { id: 'o', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 40, span: 10, rise: 1 }) };
+    const views = buildDiagrams(apron({ curves: [off] }), IMPERIAL);
+    const v = views.find((x) => x.key === 'thickness|min')!;
+    expect(v.curves).toHaveLength(0);
+    expect(v.curveNotes).toHaveLength(1);
+    expect(v.curveNotes[0]!.text).toContain('— check:');
+  });
 });

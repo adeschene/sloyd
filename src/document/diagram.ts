@@ -326,7 +326,8 @@ export function buildDiagrams(board: Board, units: Units): DiagramView[] {
     for (const c of board.curves) {
       if (view.face === c.through) {
         const poly = wasteOnFace(board, c, view.h, view.v);
-        if (poly) { view.curves.push({ id: c.id, poly }); drawn.add(c.id); }
+        if (poly) view.curves.push({ id: c.id, poly });
+        drawn.add(c.id); // a curve run wholly off its face still lists its (faulted) bench line
         continue;
       }
       const [cu, cv] = uvDims(c.through);
