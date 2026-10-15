@@ -6,11 +6,11 @@ import {
   translateItems, insertItems, itemKey, sharesStorageWith, removeItems, shareInstance, makeUniqueItem, storageKey, siblingsOf, containerAt, containerLinear, mirroredAt, postureRefusal, sameSideFirst, partAt, resolvedPartAt, resolveBoard, shapeMap, joinPath,
   toLocal, groupItems, ungroupItem, turnInstance as turnInstanceOp, setMirrored, mirroredCopy, updateContainer, lastSegment,
 } from '../document/document';
-import type { AngleCut, Board, HoleRow, CustomMaterial, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, Section, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
+import type { AngleCut, Board, HoleRow, CurveCut, CustomMaterial, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, Section, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
 import type { LengthDisplay } from '../units/length';
 import { snapToGrid } from '../document/geometry';
 import { copyAngleCut, sameAngleCut } from '../document/angleCuts';
-import { copyCurve } from '../document/curves';
+import { copyCurve, sameCurve } from '../document/curves';
 import { copyHoleRow, sameHoleRow } from '../document/holes';
 import { pruneMaterials, upsertMaterials, materialUses } from '../document/materials';
 import { MAX_ROW } from '../document/row';
@@ -375,6 +375,10 @@ interface StoreState {
   addHoleRows: (boardId: string, rows: Omit<HoleRow, 'id'>[]) => void;
   updateHoleRow: (boardId: string, rowId: string, next: Omit<HoleRow, 'id'>) => void;
   removeHoleRow: (boardId: string, rowId: string) => void;
+  /** Curve cuts (curves spec §8): several in one call are one undo entry. */
+  addCurves: (boardId: string, curves: Omit<CurveCut, 'id'>[]) => void;
+  updateCurve: (boardId: string, curveId: string, next: Omit<CurveCut, 'id'>) => void;
+  removeCurve: (boardId: string, curveId: string) => void;
 
   /** Link the named parts (linking spec §3.1): the first wins, each named part's whole link joins; every member then names ONE shape (components spec §3.2). One undo entry. */
   linkBoards: (ids: string[]) => void;
@@ -1688,6 +1692,36 @@ export const useStore = create<StoreState>((set, get) => {
       if (!board || !board.holes.some((r) => r.id === rowId)) return;
       edit((doc) => mapWorld(doc, (w) => w.map((b) =>
         b.id === boardId ? { ...b, holes: b.holes.filter((r) => r.id !== rowId) } : b)));
+      judgeHeld();
+    },
+
+    // Curve cuts (curves spec §8): as hole rows, through mapWorld; held points re-judged after (invariant 24): the
+    // waste is air, so a curve can swallow a grabbed lattice point.
+    addCurves: (boardId, curves) => {
+      if (readOnly()) return;
+      const board = worldParts(get().doc).find((b) => b.id === boardId);
+      if (!board || curves.length === 0) return;
+      const added = curves.map((c) => ({ ...copyCurve(c as CurveCut), id: nextId() }));
+      edit((doc) => mapWorld(doc, (w) => w.map((b) => (b.id === boardId ? { ...b, curves: [...b.curves, ...added] } : b))));
+      judgeHeld();
+    },
+    updateCurve: (boardId, curveId, next) => {
+      if (readOnly()) return;
+      const board = worldParts(get().doc).find((b) => b.id === boardId);
+      const cur = board?.curves.find((c) => c.id === curveId);
+      if (!board || !cur) return;
+      const after: CurveCut = { ...copyCurve(next as CurveCut), id: curveId };
+      if (sameCurve(cur, after)) return; // a no-op edit pushes no undo entry (invariant 4)
+      edit((doc) => mapWorld(doc, (w) => w.map((b) =>
+        b.id === boardId ? { ...b, curves: b.curves.map((c) => (c.id === curveId ? after : c)) } : b)));
+      judgeHeld();
+    },
+    removeCurve: (boardId, curveId) => {
+      if (readOnly()) return;
+      const board = worldParts(get().doc).find((b) => b.id === boardId);
+      if (!board || !board.curves.some((c) => c.id === curveId)) return;
+      edit((doc) => mapWorld(doc, (w) => w.map((b) =>
+        b.id === boardId ? { ...b, curves: b.curves.filter((c) => c.id !== curveId) } : b)));
       judgeHeld();
     },
 
