@@ -1611,4 +1611,23 @@ describe('Properties in a metric project', () => {
     expect(worldParts(useStore.getState().doc)[0].length).toBe(24);
     expect(screen.getByLabelText('Length')).toHaveValue('610 mm');
   });
+  it('takes a typed width equal to the displayed max in metric: a 140 mm part, a cut 20 mm from the end, width 120 (I1)', async () => {
+    useStore.getState().setUnitsDisplay('metric-mm');
+    useStore.getState().addBoard();
+    const id = worldParts(useStore.getState().doc)[0].id;
+    act(() => {
+      const st = useStore.getState();
+      st.updateBoard(id, { length: 140 / 25.4 });
+      st.addCut(id);
+      const [c] = worldParts(useStore.getState().doc)[0].cuts;
+      st.updateCut(id, c.id, { face: 'thickness', from: 'max', across: 'width', offset: 20 / 25.4, width: 10 / 25.4, depth: 0.25, stopMin: 0, stopMax: 0 });
+    });
+    useStore.getState().selectBoard(id);
+    render(<Properties />);
+    const width = screen.getByLabelText('Cut width');
+    await userEvent.clear(width); await userEvent.type(width, '120{Enter}');
+    expect(screen.queryByText(/Must be at most/)).toBeNull();
+    expect(worldParts(useStore.getState().doc)[0].cuts[0].width).toBe(120 / 25.4);
+    expect(width).toHaveValue('120 mm');
+  });
 });

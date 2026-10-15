@@ -388,4 +388,45 @@ describe('DimensionField in a metric project', () => {
     await userEvent.clear(f); await userEvent.type(f, '100{Enter}');
     expect(screen.getByRole('alert').textContent).toContain('51 mm');
   });
+  it('takes a typed value equal to a max that is a metric DIFFERENCE (I1: 140 mm - 20 mm accepts 120)', async () => {
+    const max = 140 / 25.4 - 20 / 25.4;
+    expect(120 / 25.4 > max).toBe(true); // the ulp that made an exact compare refuse
+    const onCommit = vi.fn();
+    render(<DimensionField label="W" value={1} units={MM} min={0} max={max} onCommit={onCommit} />);
+    const f = screen.getByLabelText('W');
+    await userEvent.clear(f); await userEvent.type(f, '120{Enter}');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(onCommit).toHaveBeenCalledWith(120 / 25.4); // the typed value, never clamped to max
+  });
+  it('still refuses a whole mm over a difference max, and a value under a difference min', async () => {
+    render(<DimensionField label="W" value={1} units={MM} min={30 / 25.4 - 10 / 25.4} max={140 / 25.4 - 20 / 25.4} onCommit={() => {}} />);
+    const f = screen.getByLabelText('W');
+    await userEvent.clear(f); await userEvent.type(f, '121{Enter}');
+    expect(screen.getByRole('alert').textContent).toBe('Must be at most 120 mm');
+    await userEvent.clear(f); await userEvent.type(f, '19{Enter}');
+    expect(screen.getByRole('alert').textContent).toBe('Must be at least 20 mm');
+  });
+  it('accepts a value equal to a difference MIN (tolerance both ways: 21 mm - 10 mm accepts 11)', async () => {
+    const min = 21 / 25.4 - 10 / 25.4;
+    expect(11 / 25.4 < min).toBe(true); // an ulp the other way: an exact compare refuses 11
+    const onCommit = vi.fn();
+    render(<DimensionField label="W" value={6} units={MM} min={min} onCommit={onCommit} />);
+    const f = screen.getByLabelText('W');
+    await userEvent.clear(f); await userEvent.type(f, '11{Enter}');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(onCommit).toHaveBeenCalledWith(11 / 25.4);
+  });
+  it('the unparseable-text hint gives metric examples in a metric project (M2)', async () => {
+    render(<DimensionField label="W" value={1} units={MM} onCommit={() => {}} />);
+    const f = screen.getByLabelText('W');
+    await userEvent.clear(f); await userEvent.type(f, 'abc{Enter}');
+    expect(screen.getByRole('alert').textContent).toBe('Enter a measurement, e.g. 19 or 3/4"');
+  });
+  it('an UNFOCUSED field re-rendered from imperial to metric shows mm (the adopt effect keys on units)', () => {
+    const { rerender } = render(<DimensionField label="L" value={30} units={IMPERIAL} onCommit={() => {}} />);
+    const f = screen.getByLabelText('L') as HTMLInputElement;
+    expect(f.value).toBe('30"');
+    rerender(<DimensionField label="L" value={30} units={MM} onCommit={() => {}} />);
+    expect(f.value).toBe('762 mm');
+  });
 });

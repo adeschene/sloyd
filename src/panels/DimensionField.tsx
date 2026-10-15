@@ -1,6 +1,9 @@
 import { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState } from 'react';
-import { formatLength, parseLength } from '../units/length';
+import { formatLength, isMetric, parseLength } from '../units/length';
 import type { Units } from '../units/length';
+
+/** Inches. Far below any display precision (1/64", 1 mm), far above a few ulps of a bound near 100". */
+const BOUND_TOLERANCE = 1e-9;
 
 interface Props {
   label: string;
@@ -101,11 +104,17 @@ export const DimensionField = forwardRef<HTMLInputElement, Props>(function Dimen
   const commit = (): boolean => {
     const parsed = parse ? parse(text) : parseLength(text, units);
     if (parsed === null) {
-      setError(invalid ?? 'Enter a measurement, e.g. 3/4 or 1-1/2');
+      // Examples in the project's own words: a bare number is mm in metric, a fraction inches in either (M2).
+      setError(invalid ?? (isMetric(units)
+        ? 'Enter a measurement, e.g. 19 or 3/4"'
+        : 'Enter a measurement, e.g. 3/4 or 1-1/2'));
       return false;
     }
+    // min/max are compared with a float tolerance (inv 22): a caller's bound is often a DIFFERENCE of two stored values
+    // (`acrossDim - cut.stopMax`), and in metric (n / 25.4 storage) 140/25.4 - 20/25.4 is an ulp below 120/25.4, so an
+    // exact compare refuses the very number the message names. Never a clamp: the typed value is what is committed.
     if (min !== undefined) {
-      if (parsed < min) {
+      if (parsed < min - BOUND_TOLERANCE) {
         setError(`Must be at least ${fmt(min)}`);
         return false;
       }
@@ -113,7 +122,7 @@ export const DimensionField = forwardRef<HTMLInputElement, Props>(function Dimen
       setError('Must be greater than zero');
       return false;
     }
-    if (max !== undefined && parsed > max) {
+    if (max !== undefined && parsed > max + BOUND_TOLERANCE) {
       setError(`Must be at most ${fmt(max)}`);
       return false;
     }
