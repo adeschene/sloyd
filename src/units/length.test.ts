@@ -195,7 +195,7 @@ describe('formatLength — imperial is unchanged', () => {
 describe('formatMm', () => {
   it.each([
     [0.25, 1, '6.4 mm'], [inch(32), 1, '32 mm'], [inch(35), 1, '35 mm'], [inch(5), 1, '5 mm'], [0.25, 0, '6 mm'],
-    [inch(-6.35), 1, '-6.4 mm'], [0, 1, '0 mm'], [NaN, 1, '—'],
+    [inch(-6.35), 1, '-6.4 mm'], [inch(6.45), 1, '6.5 mm'], [inch(-0.05), 1, '-0.1 mm'], [inch(-0.04), 1, '0 mm'], [0, 1, '0 mm'], [NaN, 1, '—'],
   ] as const)('%s, %s dp → %s', (v, d, s) => expect(formatMm(v, d)).toBe(s));
 });
 
@@ -210,8 +210,10 @@ describe('parseLength — metric', () => {
   it.each([
     ['19', inch(19)], ['19.5', inch(19.5)], ['-38', inch(-38)], ['.5', inch(0.5)], ['19mm', inch(19)], ['19 mm', inch(19)],
     ['3/4', 0.75], ['1-1/2', 1.5], ['1 1/2', 1.5], ['19"', 19], ['19 in', 19], ['2\'', 24], ['2\'6"', 30], ['-3/4', -0.75],
+    ['- 19', inch(-19)], ['-.5', inch(-0.5)], ['- 3/4', -0.75],
   ])('%s', (t, v) => expect(parseLength(t, MM)).toBeCloseTo(v, 12));
   it.each(['', 'abc', '1/0', '19 cm', 'mm'])('junk %s → null', (t) => expect(parseLength(t, MM)).toBeNull());
+  it('imperial reads a spaced sign the same way', () => expect(parseLength('- 19', IMPERIAL)).toBe(-19));
   it('a bare number is still inches in imperial', () => expect(parseLength('19', IMPERIAL)).toBe(19));
   it('mm in imperial is mm', () => expect(parseLength('19mm', IMPERIAL)).toBeCloseTo(inch(19), 12));
   it('round trip within half a mm', () => {

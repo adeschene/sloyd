@@ -13,7 +13,6 @@ const FEET_RE = /^((?:\d+\.?\d*|\.\d+))\s*(?:'|ft)\s*/;
 const MIXED_RE = /^(\d+)[\s-](\d+)\/(\d+)$/;
 const FRACTION_RE = /^(\d+)\/(\d+)$/;
 const DECIMAL_RE = /^(?:\d+\.?\d*|\.\d+)$/;
-const BARE_RE = /^-?(?:\d+\.?\d*|\.\d+)$/;
 
 /**
  * Parse a shop-style length into decimal inches.
@@ -32,9 +31,6 @@ export function parseLength(input: string, units?: Units): number | null {
   const mm = rest.match(MM_RE);
   if (mm) return Number(mm[1]) / MM_PER_INCH;
 
-  // A bare number in a metric project is millimetres (spec R4); marks, fractions and feet fall through to inches.
-  if (units && isMetric(units) && BARE_RE.test(rest)) return Number(rest) / MM_PER_INCH;
-
   let sign = 1;
   if (rest.startsWith('-')) {
     sign = -1;
@@ -49,6 +45,7 @@ export function parseLength(input: string, units?: Units): number | null {
     if (!rest) return sign * total;
   }
 
+  const unmarked = !feet && !/(?:"|″|in|inch|inches)$/.test(rest);
   rest = rest.replace(/(?:"|″|in|inch|inches)$/, '').trim();
   if (!rest) return feet ? sign * total : null;
 
@@ -66,7 +63,12 @@ export function parseLength(input: string, units?: Units): number | null {
     return sign * (total + Number(frac[1]) / den);
   }
 
-  if (DECIMAL_RE.test(rest)) return sign * (total + Number(rest));
+  if (DECIMAL_RE.test(rest)) {
+    // A bare number (no feet, no inch mark) in a metric project is millimetres (spec R4), after the sign strip so
+    // '- 19' and '-19' agree.
+    if (unmarked && units && isMetric(units)) return (sign * Number(rest)) / MM_PER_INCH;
+    return sign * (total + Number(rest));
+  }
 
   return null;
 }
