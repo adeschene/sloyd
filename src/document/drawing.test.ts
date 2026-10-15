@@ -1,8 +1,9 @@
 import { createBoard } from './document';
 import type { Board, HoleRow } from './types';
 import { chiralAngled, chiralCurved } from './turnFixtures';
-import { archCurve } from './curves';
+import { archCurve, defaultCorners } from './curves';
 import { mirrorPart } from './frames';
+import { curveSilhouettes } from './curveDrawing';
 import { drawView, hiddenSpan, hiddenSpanPlanes, worldBodies, FRONT, SIDE, ISO, TOP, type Seg2 } from './drawing';
 
 const len = (s: Seg2) => Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]);
@@ -354,10 +355,14 @@ describe('curved parts on the sheet (curves spec §5.1; Q2, Q3, Q4)', () => {
   });
 
   it('edge-on (Side looks along the length, in the arch\'s plane): chunk 1\'s chords, unrefined (Q3)', () => {
-    // Measured on master 54ea740: Side draws 4 visible and 42 hidden segments for this apron.
+    // Measured on master 54ea740: Side draws 4 visible and 42 hidden chord segments for this apron; ruling Q1 adds the crown.
     const d = drawView([apron()], SIDE);
     expect(d.visible).toHaveLength(4);
-    expect(d.hidden).toHaveLength(42);
+    expect(d.hidden).toHaveLength(43);
+    // The crown (15, 1.5) is model vertex 9 of 18 (fraction 1/2), a silhouette looking along the length; the wood beyond
+    // it along +X hides it: one hidden 3/4" line at y = 1.5 (Side's right is -Z: x from -0.75 to 0).
+    expect(total(horizontalAt(d.hidden, 1.5))).toBeCloseTo(0.75, 9);
+    expect(total(horizontalAt(d.visible, 1.5))).toBe(0);
   });
 
   const POSTURES = ['flat', 'on-edge', 'upright'] as const;
@@ -386,4 +391,31 @@ describe('curved parts on the sheet (curves spec §5.1; Q2, Q3, Q4)', () => {
       }
     },
   );
+});
+
+describe('curved surfaces draw their silhouettes (ruling Q1)', () => {
+  // Flat: length X, thickness Y (up), width Z. Four 2" corners on a 36 x 20 x 3/4 top. Before chunk 2 its Front and Side
+  // elevations had NO vertical line at either end (probe on master 54ea740).
+  const top = box('t', 36, 20, 0.75, [0, 0, 0], { curves: defaultCorners({ length: 36, width: 20, thickness: 0.75 }).map((c, i) => ({ id: `c${i}`, ...c })) });
+  it('Front: each end closes — one visible and one hidden 3/4" line at x = 0 and at x = 36', () => {
+    const d = drawView([top], FRONT);
+    for (const x of [0, 36]) {
+      expect(total(verticalAt(d.visible, x))).toBeCloseTo(0.75, 9);
+      expect(total(verticalAt(d.hidden, x))).toBeCloseTo(0.75, 9);
+    }
+  });
+  it('Front: the tangent joins on the front and back faces (x = 1, the corner radius) draw no line', () => {
+    const d = drawView([top], FRONT);
+    for (const x of [1, 35]) {
+      expect(total(verticalAt(d.visible, x))).toBe(0);
+      expect(total(verticalAt(d.hidden, x))).toBe(0);
+    }
+  });
+  it('Side: each end closes at x = 0 and x = -20 (Side\'s right is -Z)', () => {
+    const d = drawView([top], SIDE);
+    for (const x of [0, -20]) expect(total(verticalAt(d.visible, x))).toBeCloseTo(0.75, 9);
+  });
+  it('Plan looks down the thickness: no silhouettes (the outline is the drawing)', () => {
+    expect(curveSilhouettes(top, [0, 1, 0])).toHaveLength(0);
+  });
 });

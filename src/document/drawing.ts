@@ -5,7 +5,7 @@ import { worldBox } from './designCheck';
 import { axisFrame, boardExtents } from './geometry';
 import { toWorld } from './snapPoints';
 import { holeDrawingSegments } from './holeDrawing';
-import { curveDrawEdges } from './curveDrawing';
+import { curveDrawEdges, silhouetteLines } from './curveDrawing';
 
 /**
  * An orthographic view (plans-sheet spec §2.2). `toward` points from the model TO the viewer;
@@ -149,7 +149,7 @@ const corners = (bx: { min: readonly number[]; max: readonly number[] }): Vec3[]
 
 /** One line to draw, world space, no explode offset: a chord and, on a curved part, the fine path along it (curves spec
  *  §5.1, ruling Q2: visibility is decided on the chord A→E; the path only changes what is drawn). */
-interface Seg3 { A: Vec3; E: Vec3; path?: { pts: Vec3[]; at: number[] } }
+interface Seg3 { A: Vec3; E: Vec3; path?: { pts: Vec3[]; at: number[] }; lift?: Vec3 }
 
 function partSegments(b: Board, toward: readonly number[]): Seg3[] {
   if (b.curves.length === 0) return partGeometry(b).edges.map(([p, q]) => ({ A: toWorld(b, p), E: toWorld(b, q) }));
@@ -171,7 +171,7 @@ function partSegments(b: Board, toward: readonly number[]): Seg3[] {
 /**
  * Visible and hidden 2D segments for `parts` seen through `view` (spec §2). Edges from
  * `boardEdges` (invariant 16) — on a curved part through `curveDrawEdges`, the fine path drawn with its chord's
- * visibility (curves spec §5.1, Q2, Q3) — and hole lines from `holeDrawingSegments` (holes spec §3.4), through `toWorld`; occluders from `worldBodies` (invariant 38 as amended by angle-cuts spec §10).
+ * visibility (curves spec §5.1, Q2, Q3) — and hole lines from `holeDrawingSegments` (holes spec §3.4), through `toWorld`, and the curved surfaces' silhouettes from `curveSilhouettes` (ruling Q1; probed `lift`ed toward the viewer, see `silhouetteLines`); occluders from `worldBodies` (invariant 38 as amended by angle-cuts spec §10).
  * No drawing order is involved, so cyclic overlaps are exact.
  */
 export function drawView(parts: readonly Board[], view: View, offsets?: ReadonlyMap<string, Vec3>): Drawing {
@@ -212,6 +212,7 @@ export function drawView(parts: readonly Board[], view: View, offsets?: Readonly
     const segments: Seg3[] = [
       ...partSegments(b, view.toward),
       ...holeDrawingSegments(b, view.toward).map(([A, E]) => ({ A, E })),
+      ...silhouetteLines(b, view.toward),
     ];
     for (const seg of segments) {
       const A = plus(seg.A, off);
@@ -224,13 +225,15 @@ export function drawView(parts: readonly Board[], view: View, offsets?: Readonly
       const segMin = [Math.min(pa[0], pe[0]), Math.min(pa[1], pe[1])];
       const segMax = [Math.max(pa[0], pe[0]), Math.max(pa[1], pe[1])];
 
+      const pA = seg.lift ? plus(A, seg.lift) : A; // the hidden test's probe (silhouettes only)
+      const pE = seg.lift ? plus(E, seg.lift) : E;
       const spans: [number, number][] = [];
       for (const s of solids) {
         // Pure prefilter: a solid entirely behind the edge, or off to the side on screen, hides none of it.
         if (s.depthMax < depthMin) continue;
         if (s.rmax[0]! < segMin[0]! - DRAW_EPS || s.rmin[0]! > segMax[0]! + DRAW_EPS) continue;
         if (s.rmax[1]! < segMin[1]! - DRAW_EPS || s.rmin[1]! > segMax[1]! + DRAW_EPS) continue;
-        const span = s.bx ? hiddenSpan(A, E, s.bx, view.toward, sMax) : hiddenSpanPlanes(A, E, s.planes!, view.toward, sMax);
+        const span = s.bx ? hiddenSpan(pA, pE, s.bx, view.toward, sMax) : hiddenSpanPlanes(pA, pE, s.planes!, view.toward, sMax);
         if (span) spans.push(span);
       }
       spans.sort((x, y) => x[0] - y[0]);

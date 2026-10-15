@@ -2,9 +2,10 @@
 import type { Board } from './types';
 import { DIMENSION_ORDER } from './geometry';
 import { partGeometry } from './bodies';
+import { toWorld } from './snapPoints';
 import type { Segment } from './cuts';
 import {
-  arcChords, arcPoint, distToSegment, localSegments, uvDims, CURVE_SEGMENTS_MAX, CURVE_TOLERANCE, type LocalArc, type P2,
+  arcChords, arcPoint, curveOutline, distToSegment, localSegments, twiceArea, uvDims, CURVE_SEGMENTS_MAX, CURVE_TOLERANCE, type LocalArc, type P2,
 } from './curves';
 
 type V3 = [number, number, number];
@@ -94,4 +95,69 @@ export function curveDrawEdges(board: Board): readonly DrawEdge[] {
   const frozen = Object.freeze(out.map((e) => Object.freeze(e)));
   memo.set(edges, frozen);
   return frozen;
+}
+
+/**
+ * The silhouette lines of a part's curved surfaces for a view looking along `toward` (ruling Q1), world space, no explode
+ * offset: a line along each curve's `through`, the whole way through, at every SMOOTH model outline vertex whose two
+ * faces face opposite ways to the view (a face exactly edge-on counts). The MODEL vertex, not the true tangent point: it
+ * lies on the body boundary, so drawView's occluders judge it as they judge every other edge. Sharp vertices are
+ * curvedEdges' lines already. An outline edge lying on the face rectangle stands in for the part's own face there.
+ * Built only through `toWorld` (invariant 44). drawView decides what is hidden.
+ */
+export function curveSilhouettes(board: Board, toward: readonly number[]): [V3, V3][] {
+  return silhouetteLines(board, toward).map(({ A, E }) => [A, E]);
+}
+
+/** Inches: how far a silhouette's hidden-line probe is stepped toward the viewer (`toward` is a unit vector). */
+const PROBE = 1e-4;
+
+/**
+ * curveSilhouettes with each line's `lift`: a world offset (toward the viewer) that drawView adds to the line ONLY when it
+ * judges what hides it. The line lies exactly on the body boundary where a chord leaves the face at a shallow angle, so
+ * the occluders' DRAW_EPS growth would otherwise count the part's own wood as hiding it (measured: a rounded top's near
+ * end line read hidden). Stepping toward the viewer, not sideways, keeps a far line's seam against the wood it is behind. The drawn position is never moved.
+ */
+export function silhouetteLines(board: Board, toward: readonly number[]): { A: V3; E: V3; lift: V3 }[] {
+  const out: { A: V3; E: V3; lift: V3 }[] = [];
+  for (const c of board.curves) {
+    const [u, v] = uvDims(c.through);
+    const ui = DIMENSION_ORDER.indexOf(u);
+    const vi = DIMENSION_ORDER.indexOf(v);
+    const k = DIMENSION_ORDER.indexOf(c.through);
+    const W = (x: P2, depth: number): V3 => {
+      const p: V3 = [0, 0, 0];
+      p[ui] = x[0]; p[vi] = x[1]; p[k] = depth;
+      return toWorld(board, { length: p[0], width: p[1], thickness: p[2] });
+    };
+    const o = W([0, 0], 0);
+    const axis = (x: P2) => W(x, 0).map((w, i) => w - o[i]!);
+    const dot3 = (a: readonly number[], b: readonly number[]) => a[0]! * b[0]! + a[1]! * b[1]! + a[2]! * b[2]!;
+    const d: P2 = [dot3(axis([1, 0]), toward), dot3(axis([0, 1]), toward)];
+    if (Math.hypot(d[0], d[1]) <= 1e-9) continue; // looking down `through`
+    const { pts, smooth } = curveOutline(board, c);
+    const ccw = twiceArea(pts) > 0;
+    const U = board[u];
+    const V = board[v];
+    const at = (x: number, y: number) => Math.abs(x - y) <= 1e-9;
+    const normal = (a: P2, b: P2): P2 => {
+      if (at(a[0], 0) && at(b[0], 0)) return [-1, 0];
+      if (at(a[0], U) && at(b[0], U)) return [1, 0];
+      if (at(a[1], 0) && at(b[1], 0)) return [0, -1];
+      if (at(a[1], V) && at(b[1], V)) return [0, 1];
+      const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      const left: P2 = [-(b[1] - a[1]) / l, (b[0] - a[0]) / l];
+      return ccw ? left : [-left[0], -left[1]];
+    };
+    const m = pts.length;
+    pts.forEach((q, i) => {
+      if (!smooth[i]) return;
+      const n1 = normal(pts[(i - 1 + m) % m]!, q);
+      const n2 = normal(q, pts[(i + 1) % m]!);
+      if ((n1[0] * d[0] + n1[1] * d[1]) * (n2[0] * d[0] + n2[1] * d[1]) > 0) return;
+      const lift = toward.map((t) => PROBE * t) as V3;
+      out.push({ A: W(q, 0), E: W(q, board[c.through]), lift });
+    });
+  }
+  return out;
 }

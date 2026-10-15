@@ -2,7 +2,9 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard, archCurve, cornerCurve, partGeometry } from './document';
 import type { Board, Cut } from './types';
-import { curveDrawEdges, DRAWING_CURVE_SEGMENTS_MAX } from './curveDrawing';
+import { curveDrawEdges, curveSilhouettes, DRAWING_CURVE_SEGMENTS_MAX } from './curveDrawing';
+import { chiralCurved } from './turnFixtures';
+import { mirrorPart } from './frames';
 
 // Flat at turn 0. Arch on a 30 x 5 x 3/4 apron, width min side, 3" in from each end, 1-1/2" rise:
 // R = (12^2 + 1.5^2) / (2 * 1.5) = 48.75, centre (15, 1.5 - 48.75) = (15, -47.25), sweep 2 asin(12/48.75) = 0.49742.
@@ -71,5 +73,37 @@ describe('curveDrawEdges (curves spec §5.1; Q2, Q4)', () => {
       expect(path!.pts[path!.pts.length - 1]).toEqual(q);
       for (const x of path!.pts.slice(1, -1)) expect(onArc(x)).toBeLessThan(1e-9);
     }
+  });
+});
+
+describe('silhouettes through mirrors and turns', () => {
+  const POSTURES = ['flat', 'on-edge', 'upright'] as const;
+  const TURNS = [0, 90, 180, 270] as const;
+  const ends = (segs: [number[], number[]][]) => segs.flatMap(([a, b]) => [[...a], [...b]]);
+  // One-to-one match by distance (1e-9), not rounding buckets (which split equal points straddling a boundary).
+  const near = (a: number[][], b: number[][]) => {
+    if (a.length !== b.length) return false;
+    const used = new Array<boolean>(b.length).fill(false);
+    return a.every((p) => {
+      const k = b.findIndex((q, i) => !used[i] && Math.hypot(p[0]! - q[0]!, p[1]! - q[1]!, p[2]! - q[2]!) < 1e-9);
+      if (k < 0) return false;
+      used[k] = true;
+      return true;
+    });
+  };
+  const VIEWS = [[0, 0, 1], [1, 0, 0], [0.5773502691896258, 0.5773502691896258, 0.5773502691896258]];
+  it.each(POSTURES.flatMap((posture) => TURNS.map((rotation) => ({ posture, rotation }))))(
+    '%o: mirrorPart\'s silhouettes are the reflection across x = 0',
+    ({ posture, rotation }) => {
+      const b = { ...chiralCurved(posture), rotation, position: [2, 1, -3] as [number, number, number] };
+      for (const T of VIEWS) {
+        const R = [-T[0]!, T[1]!, T[2]!]; // the mirrored part seen from the mirrored direction
+        const reflected = ends(curveSilhouettes(b, T)).map(([x, y, z]) => [0 - x!, y!, z!]);
+        expect(near(ends(curveSilhouettes(mirrorPart(b), R)), reflected)).toBe(true);
+      }
+    },
+  );
+  it('the chiral fixture draws silhouettes in some view (the test above is not vacuous)', () => {
+    expect(VIEWS.some((T) => curveSilhouettes(chiralCurved('flat'), T).length > 0)).toBe(true);
   });
 });
