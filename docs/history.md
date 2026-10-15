@@ -460,6 +460,36 @@ and 79.
 
 ## What each round did
 
+**What curves chunk 2 did (2026-10-15, fu 361)** (plan `docs/superpowers/plans/2026-10-15-sloyd-curves-chunk2.md`, spec §5, branch
+`curves-2` from master `3b4abdb`, HEAD `3f6fba4`). **Built, NOT merged or deployed. No schema change** (17), so rolling back is free.
+The plan's rulings Q1–Q6 were approved by the user with it. **Q1 (a live defect on master):** a probe found the Plans sheet drew no
+silhouette for a curved surface: a four-corner top's Front and Side elevations had open ends and an arch's Side view lacked its
+hidden crown, because a smooth outline point's line along `through` is suppressed (inv 16) and nothing replaced it. `silhouetteLines`
+adds that line at each smooth MODEL vertex whose two faces turn opposite ways to the view. **Q2:** visibility is decided on the model
+chord and the fine path (0.001", ≤96 chords, nodes ON the true arc) is drawn with that split, so the visible/hidden split is
+chunk 1's. **Q3:** an edge-on view keeps the model chords (96 chords fold back over themselves, the holes R2 lesson). **Q4:** a chord
+a dado or second curve splits keeps its split end on the chord. **Q5:** part diagrams hatch the waste, draw a sharp-vertex line only
+on a face the vertex lies on, and open a curve's through min view only when neither side exists, after holes' entry views. **Q6:**
+`curveLineEntries` keeps the four-corner collapse by returning `{ ids, text }`.
+**Tasks:** 1 `curveDrawEdges` (`0e3c27a`); 2 `drawView` takes it, with a pin of uncurved drawings first (`00fb0f2`, `2f2b7d7`; timing
+~6 ms per view, unchanged); 3 silhouettes (`6372509`, `1b2661c`); 4 diagrams, pin first (`32e078d`, `10e611f`); 5 `PartDiagram`
+(`7674e85`); 6 the live check and these records.
+**Review findings.** Task 2 (three plan-test corrections accepted: the dado filter, a one-to-one 1e-9 mirror match, an added occluder
+test, each fixing a plan-test defect without weakening the pin). Task 3 implementer: the plan's code hid the rounded top's near end
+line (a DRAW_EPS graze on the shallow first chord); a 1e-4 lift toward the viewer was added, and the review (Important) found that fixed lift
+failed gentle bows (30 × 0.25, 60 × 0.1 read hidden): **fix round 1** probes from 4×`DRAW_EPS` along the viewer-facing adjacent faces'
+outward normals (an execution ruling beyond the plan), with Side hidden totals and drawView-pinned bow tests. Final review
+(opus, `3b4abdb..7674e85`): no Critical or Important; endorsed the T2, T3 and T6 rulings. **Final fix wave** (`3f6fba4`): the stale
+drawView doc; the draw edges deep-frozen; fine nodes at chord parameter 0 or 1 dropped (Q4 exactness; no constructed case reaches the
+guard, kept by ruling); a curve run wholly off its face still lists its note in the view it opened (its `— check:` line would appear
+nowhere); the T2 occluder-test comment. Re-review: all five addressed. Record-only: Q2's split up to 0.005" off an oblique occluder edge.
+**Live check** (controller, dev :5181, software GL): the rounded top's elevations close, the arch is smooth, the bow's hidden arc dashes
+continuously, Explode with 0 errors; the cut-list diagrams read as specified (one note for four corners, the dado's thickness-max view
+opening no min view); print notes black; metric notes in mm. The 96-chord line weight on a real print and the user's Brave print are
+owed (fu 254, 345, 357, 379). The profile read back intact; the joined project's `savedAt` moved (the switch flush).
+**Follow-ups:** 361 closed; residue 374–379 (the edge-on fold, a silhouette through another cut's air, chord ends off the arc,
+the unreachable node guard, deferred minors, the drawView timing). Tests: 4436 across 151 files (4374 across 148 on master).
+
 **What curves chunk 1 did (2026-10-15, feature gaps §1)** (spec `docs/superpowers/specs/2026-10-15-sloyd-curves-design.md`,
 plan `docs/superpowers/plans/2026-10-15-sloyd-curves-chunk1.md`, branch `curves` from `4be8d00`, HEAD `0ccb64f`). **Merged as `54ea740` and deployed 2026-10-15**
 (`index-D4nh2vvL.js`). **Schema 17**: a build below 17 refuses every project saved since (export first). Picked by Claude at the user's request. The user's rulings while brainstorming:

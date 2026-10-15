@@ -57,16 +57,17 @@ function curveLineBase(board: Board, c: CurveCut, units: Units): string {
   return `Curve cut through the ${c.through}: ${arcs} arc${arcs === 1 ? '' : 's'} and ${lines} line${lines === 1 ? '' : 's'}`;
 }
 
-/** Every curve's line, stored order; four corner curves on one face with one radius and no fault collapse to one line,
- *  printed where the first of them stands (spec §4.2). */
-export function curveLines(board: Board, units: Units): string[] {
+/** Every curve's line as `{ ids, text }` (spec §4.2, ruling Q6): THE ONE home of the collapse; `ids` names every curve the
+ *  line covers (four for a collapsed set of corners), so a part diagram can list the lines of the curves it draws. Four
+ *  corner curves on one face with one radius and no fault collapse to one line, printed where the first of them stands. */
+export function curveLineEntries(board: Board, units: Units): { ids: string[]; text: string }[] {
   const corners = board.curves.map((c) => ({ c, f: cornerFields(c) })).filter((x) => x.f && curveFaults(board, x.c).length === 0);
   const groups = new Map<string, CurveCut[]>();
   for (const { c, f } of corners) {
     const key = `${f!.through}|${f!.radius}`;
     (groups.get(key) ?? groups.set(key, []).get(key)!).push(c);
   }
-  const collapsed = new Map<CurveCut, string>();
+  const collapsed = new Map<CurveCut, { ids: string[]; text: string }>();
   const skip = new Set<CurveCut>();
   for (const [, cs] of groups) {
     // One curve per distinct corner, the first of each in stored order; a duplicate corner keeps its own line.
@@ -76,8 +77,13 @@ export function curveLines(board: Board, units: Units): string[] {
     const four = [...firstAt.values()].sort((a, b) => board.curves.indexOf(a) - board.curves.indexOf(b));
     const f = cornerFields(four[0]!)!;
     const through = f.through === 'thickness' ? '' : `, cut through the ${f.through}`;
-    collapsed.set(four[0]!, `Round all four corners to a ${formatLength(f.radius, units)} radius${through}`);
+    collapsed.set(four[0]!, { ids: four.map((c) => c.id), text: `Round all four corners to a ${formatLength(f.radius, units)} radius${through}` });
     for (const c of four.slice(1)) skip.add(c);
   }
-  return board.curves.flatMap((c) => (skip.has(c) ? [] : [collapsed.get(c) ?? curveLine(board, c, units)]));
+  return board.curves.flatMap((c) => (skip.has(c) ? [] : [collapsed.get(c) ?? { ids: [c.id], text: curveLine(board, c, units) }]));
+}
+
+/** Every curve's line, stored order (spec §4.2). */
+export function curveLines(board: Board, units: Units): string[] {
+  return curveLineEntries(board, units).map((e) => e.text);
 }

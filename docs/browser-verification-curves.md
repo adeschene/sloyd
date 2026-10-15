@@ -102,3 +102,32 @@ Same dev server, Playwright, software GL (llvmpipe), so the real-hardware caveat
 - Console: 0 errors. Found 1 reads as resolved on llvmpipe; a look on real hardware stays owed (fu 26a).
 - Profile: six keys, three projects, "joined" active; project keys and `sloyd.autosave.v1` / `sloyd.llm.v1` hash
   identically to before; only the library index differs (joined row's `savedAt`, as before). Test project deleted.
+
+## Chunk 2 (drawings) — 2026-10-15, branch `curves-2`, HEAD `7674e85` (before the final fix wave `3f6fba4`)
+
+Run by the controller on the dev server (`localhost:5181`, Playwright, software GL). The check project was IMPORTED from
+`curves-check.sloyd` as one new project and deleted afterwards through the project menu's arm/confirm button; the dev server
+was stopped. Parts: an on-edge 30 × 5 apron with an Arch and a width-min rabbet; a 36 × 20 top with four 1" corners; a bowed
+30 × 12 shelf with a Bow (1/4") and a thickness-max dado.
+
+**Confirmed**
+
+| # | Check | Result |
+|---|---|---|
+| 1 | Plans sheet | ✅ The rounded top's Front elevation closes at both ends (Q1; `curves2-elevations.png`). The arch reads smooth. The bow's hidden arc dashes continuously in Plan (`curves2-plans.png`). Explode renders; 0 console errors. |
+| 2 | Cut list, All parts (DOM readout) | ✅ Top, thickness min: 4 hatched polygons (20 points each) and ONE note, `Round all four corners to a 1" radius`. Shelf, thickness MAX (the dado's view; no min view opened, Q5): 1 polygon and the Bow note. Apron, width min: 2 curve lines at the arch ends and the Arch note. Apron, thickness min: 1 hatched polygon (40 points) and its note. |
+| 3 | Print media (`emulateMedia print`) | ✅ Notes compute to `rgb(0, 0, 0)` (`curves2-cutlist-print.png`). |
+| 4 | Metric project | ✅ Notes read `25 mm radius`, `Bow … 6 mm (radius 11433 mm)` and `76 mm … 610 mm span, 38 mm rise (radius 1238 mm)`. Switched back to inches. |
+
+**Not confirmed here**
+
+- Screenshots of the 3D view timed out while llvmpipe rendered; the canvas was hidden for the captures above. Software GL
+  hides precision-sensitive shading (fu 26a).
+- The line weight of 96-chord arcs, the dash look and the notes' black on a **real print**, and the user's Brave print (fu 254,
+  345, 357, 379).
+- The final fix wave (`3f6fba4`: deep-frozen draw edges, strict node params, off-face curve notes) was covered by tests only,
+  not re-run live.
+
+**Profile.** The project was imported, then deleted; the profile read back intact: six keys, three projects, active project
+unchanged. One side effect, as in chunk 1's check: "Shaker Side Table — joined" was re-saved by the project-switch flush. It
+is still version 17 with 9 boards, but its `savedAt` moved.

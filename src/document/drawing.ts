@@ -5,6 +5,7 @@ import { worldBox } from './designCheck';
 import { axisFrame, boardExtents } from './geometry';
 import { toWorld } from './snapPoints';
 import { holeDrawingSegments } from './holeDrawing';
+import { curveDrawEdges, silhouetteLines } from './curveDrawing';
 
 /**
  * An orthographic view (plans-sheet spec §2.2). `toward` points from the model TO the viewer;
@@ -146,9 +147,31 @@ const corners = (bx: { min: readonly number[]; max: readonly number[] }): Vec3[]
     (k & 1 ? bx.max : bx.min)[0]!, (k & 2 ? bx.max : bx.min)[1]!, (k & 4 ? bx.max : bx.min)[2]!,
   ]);
 
+/** One line to draw, world space, no explode offset: a chord and, on a curved part, the fine path along it (curves spec
+ *  §5.1, ruling Q2: visibility is decided on the chord A→E; the path only changes what is drawn). */
+interface Seg3 { A: Vec3; E: Vec3; path?: { pts: Vec3[]; at: number[] }; lift?: Vec3 }
+
+function partSegments(b: Board, toward: readonly number[]): Seg3[] {
+  if (b.curves.length === 0) return partGeometry(b).edges.map(([p, q]) => ({ A: toWorld(b, p), E: toWorld(b, q) }));
+  const W = (p: readonly number[]) => toWorld(b, { length: p[0]!, width: p[1]!, thickness: p[2]! });
+  return curveDrawEdges(b).map((e) => {
+    const A = W(e.p);
+    const E = W(e.q);
+    if (!e.path) return { A, E };
+    const step = [e.p[0], e.p[1], e.p[2]];
+    step[e.path.k] = step[e.path.k]! + 1;
+    // Edge-on (ruling Q3): the outline's plane holds the view direction, so a fine path would fold over itself on
+    // screen (holes chunk 2 R2) — the model chord stands.
+    const n = W(step).map((x, i) => x - A[i]!);
+    if (Math.abs(dot(n, toward)) <= 1e-9) return { A, E };
+    return { A, E, path: { pts: e.path.pts.map(W), at: e.path.at } };
+  });
+}
+
 /**
  * Visible and hidden 2D segments for `parts` seen through `view` (spec §2). Edges from
- * `boardEdges` (invariant 16) and hole lines from `holeDrawingSegments` (holes spec §3.4), through `toWorld`; occluders from `worldBodies` (invariant 38 as amended by angle-cuts spec §10).
+ * `boardEdges` (invariant 16) — on a curved part through `curveDrawEdges`, the fine path drawn with its chord's
+ * visibility (curves spec §5.1, Q2, Q3) — and hole lines from `holeDrawingSegments` (holes spec §3.4), through `toWorld`, and the curved surfaces' silhouettes from `silhouetteLines` (ruling Q1; each hidden-line probe is stepped PROBE = 4 x DRAW_EPS along the outward normal of each viewer-facing adjacent face, grazing lines still hide); occluders from `worldBodies` (invariant 38 as amended by angle-cuts spec §10).
  * No drawing order is involved, so cyclic overlaps are exact.
  */
 export function drawView(parts: readonly Board[], view: View, offsets?: ReadonlyMap<string, Vec3>): Drawing {
@@ -186,13 +209,14 @@ export function drawView(parts: readonly Board[], view: View, offsets?: Readonly
     const off = offsets?.get(b.id);
     // Board edges (invariant 16) and hole lines (holes spec §3.4): one list, one hidden-line pass, the same occluders —
     // the hole-free bodies, so a through-bore's far rim seen down its axis is hidden (spec §3.4, pinned by test).
-    const segments: [Vec3, Vec3][] = [
-      ...partGeometry(b).edges.map(([p, q]) => [toWorld(b, p), toWorld(b, q)] as [Vec3, Vec3]),
-      ...holeDrawingSegments(b, view.toward),
+    const segments: Seg3[] = [
+      ...partSegments(b, view.toward),
+      ...holeDrawingSegments(b, view.toward).map(([A, E]) => ({ A, E })),
+      ...silhouetteLines(b, view.toward),
     ];
-    for (const [P0, Q0] of segments) {
-      const A = plus(P0, off);
-      const E = plus(Q0, off);
+    for (const seg of segments) {
+      const A = plus(seg.A, off);
+      const E = plus(seg.E, off);
       const pa = proj(A);
       const pe = proj(E);
       const length = Math.hypot(pe[0] - pa[0], pe[1] - pa[1]);
@@ -201,13 +225,15 @@ export function drawView(parts: readonly Board[], view: View, offsets?: Readonly
       const segMin = [Math.min(pa[0], pe[0]), Math.min(pa[1], pe[1])];
       const segMax = [Math.max(pa[0], pe[0]), Math.max(pa[1], pe[1])];
 
+      const pA = seg.lift ? plus(A, seg.lift) : A; // the hidden test's probe (silhouettes only)
+      const pE = seg.lift ? plus(E, seg.lift) : E;
       const spans: [number, number][] = [];
       for (const s of solids) {
         // Pure prefilter: a solid entirely behind the edge, or off to the side on screen, hides none of it.
         if (s.depthMax < depthMin) continue;
         if (s.rmax[0]! < segMin[0]! - DRAW_EPS || s.rmin[0]! > segMax[0]! + DRAW_EPS) continue;
         if (s.rmax[1]! < segMin[1]! - DRAW_EPS || s.rmin[1]! > segMax[1]! + DRAW_EPS) continue;
-        const span = s.bx ? hiddenSpan(A, E, s.bx, view.toward, sMax) : hiddenSpanPlanes(A, E, s.planes!, view.toward, sMax);
+        const span = s.bx ? hiddenSpan(pA, pE, s.bx, view.toward, sMax) : hiddenSpanPlanes(pA, pE, s.planes!, view.toward, sMax);
         if (span) spans.push(span);
       }
       spans.sort((x, y) => x[0] - y[0]);
@@ -219,8 +245,23 @@ export function drawView(parts: readonly Board[], view: View, offsets?: Readonly
       }
 
       const at = (t: number): P2 => [pa[0] + t * (pe[0] - pa[0]), pa[1] + t * (pe[1] - pa[1])];
+      const pp = seg.path?.pts.map((x) => proj(plus(x, off)));
+      // The path's point at chord parameter t: between the two nodes bracketing it.
+      const along = (t: number): P2 => {
+        const ts = seg.path!.at;
+        let i = 0;
+        while (i < ts.length - 2 && ts[i + 1]! < t) i += 1;
+        const f = (t - ts[i]!) / (ts[i + 1]! - ts[i]!);
+        return [pp![i]![0] + f * (pp![i + 1]![0] - pp![i]![0]), pp![i]![1] + f * (pp![i + 1]![1] - pp![i]![1])];
+      };
       const push = (out: Seg2[], t0: number, t1: number) => {
-        if ((t1 - t0) * length >= DRAW_EPS) out.push({ a: at(t0), b: at(t1), part: b.id });
+        if ((t1 - t0) * length < DRAW_EPS) return;
+        if (!seg.path) { out.push({ a: at(t0), b: at(t1), part: b.id }); return; }
+        const pts = [along(t0), ...pp!.filter((_, i) => seg.path!.at[i]! > t0 && seg.path!.at[i]! < t1), along(t1)];
+        for (let i = 0; i + 1 < pts.length; i += 1) {
+          const [p, q] = [pts[i]!, pts[i + 1]!];
+          if (Math.hypot(q[0] - p[0], q[1] - p[1]) >= 1e-12) out.push({ a: p, b: q, part: b.id });
+        }
       };
       let cur = 0;
       for (const [s0, s1] of merged) {

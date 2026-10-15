@@ -1,8 +1,10 @@
 import { createBoard } from './document';
 import type { Board, HoleRow } from './types';
-import { chiralAngled } from './turnFixtures';
+import { chiralAngled, chiralCurved } from './turnFixtures';
+import { archCurve, bowCurve, defaultCorners } from './curves';
 import { mirrorPart } from './frames';
-import { drawView, hiddenSpan, hiddenSpanPlanes, worldBodies, FRONT, ISO, TOP, type Seg2 } from './drawing';
+import { curveSilhouettes } from './curveDrawing';
+import { drawView, hiddenSpan, hiddenSpanPlanes, worldBodies, FRONT, SIDE, ISO, TOP, type Seg2 } from './drawing';
 
 const len = (s: Seg2) => Math.hypot(s.b[0] - s.a[0], s.b[1] - s.a[1]);
 const total = (segs: Seg2[], part?: string) =>
@@ -305,5 +307,135 @@ describe('holes on the sheet (holes spec §3.4)', () => {
     expect(d1.visible.length).toBe(d0.visible.length);
     const dy = ISO.up[1]! * 10;
     d0.visible.forEach((s, i) => expect(d1.visible[i]!.a[1]).toBeCloseTo(s.a[1] + dy, 9));
+  });
+});
+
+describe('curved parts on the sheet (curves spec §5.1; Q2, Q3, Q4)', () => {
+  // On edge: length on X, width on Y (up), thickness on Z (the Front view looks down the thickness).
+  // Arch: R = 48.75, centre (15, -47.25) in (length, width); 18 model chords, 3 fine pieces each (Task 1's derivation).
+  const arch = { id: 'a', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 3, span: 24, rise: 1.5 }) };
+  const apron = (cuts: Board['cuts'] = []) => box('ap', 30, 5, 0.75, [0, 0, 0], { posture: 'on-edge', curves: [arch], cuts });
+  const off = ([x, y]: readonly number[]) => Math.abs(Math.hypot(x! - 15, y! + 47.25) - 48.75);
+  const arcPieces = (segs: Seg2[]) => segs.filter((s) => off(s.a) < 1e-9 && off(s.b) < 1e-9 && !(Math.abs(s.a[1]) < 1e-9 && Math.abs(s.b[1]) < 1e-9));
+
+  it('Front: the arch is 54 fine pieces on the true arc, visible on the near face and hidden on the far one', () => {
+    const d = drawView([apron()], FRONT);
+    expect(arcPieces(d.visible)).toHaveLength(54);
+    expect(arcPieces(d.hidden)).toHaveLength(54);
+  });
+
+  it('the visible/hidden split is the model chords\' (Q2): every curved part\'s totals match chunk 1 within the sagitta', () => {
+    const d = drawView([apron()], FRONT);
+    const arcLen = 48.75 * 2 * Math.asin(12 / 48.75); // 24.249
+    expect(total(arcPieces(d.visible))).toBeCloseTo(arcLen, 2);
+    expect(total(arcPieces(d.hidden))).toBeCloseTo(arcLen, 2);
+  });
+
+  it('a dado splitting a chord: the drawn piece ends exactly at the dado wall (Q4), interior points on the arc', () => {
+    const dado = { id: 'd', face: 'thickness' as const, from: 'max' as const, across: 'width' as const, offset: 14.5, width: 1, depth: 0.25, stopMin: 0, stopMax: 0 };
+    const d = drawView([apron([dado])], FRONT);
+    const all = [...d.visible, ...d.hidden];
+    const atWall = all.flatMap((s) => [s.a, s.b]).filter((p) => Math.abs(p[0] - 14.5) < 1e-9 && p[1] > 1e-6 && p[1] < 4); // not the wall's far end at y = 5
+    expect(atWall.length).toBeGreaterThan(0);
+    for (const p of atWall) expect(off(p)).toBeLessThan(0.005);
+    for (const p of all.flatMap((s) => [s.a, s.b])) {
+      if (p[1] > 1e-6 && p[1] < 1.5 + 1e-9 && Math.abs(p[0] - 14.5) > 1e-9 && Math.abs(p[0] - 15.5) > 1e-9 && p[0] > 3 && p[0] < 27) {
+        expect(off(p)).toBeLessThan(1e-9);
+      }
+    }
+  });
+
+  it('a part in front hides the arch mid-chord: the cut is a point ON the fine path, not on the chord', () => {
+    // x = 14.2 (the cut lands within 1e-3 of it: the path bulges off the chord) falls inside the model chord 13.653..15.0 (18 chords, symmetric about x = 15): the visible near-face arc
+    // stops at the interpolated path point, within the path's 0.001" of the true arc.
+    const d = drawView([apron(), box('front', 8, 1, 5, [14.2, 0, 3])], FRONT);
+    const ends = d.visible.filter((s) => s.part === 'ap').flatMap((s) => [s.a, s.b]).filter((p) => Math.abs(p[0] - 14.2) < 1e-3 && p[1] > 1e-6 && p[1] < 4);
+    expect(ends.length).toBeGreaterThan(0);
+    for (const p of ends) expect(off(p)).toBeLessThan(0.0015);
+  });
+
+  it('edge-on (Side looks along the length, in the arch\'s plane): chunk 1\'s chords, unrefined (Q3)', () => {
+    // Measured on master 54ea740: Side draws 4 visible and 42 hidden chord segments for this apron; ruling Q1 adds the crown.
+    const d = drawView([apron()], SIDE);
+    expect(d.visible).toHaveLength(4);
+    expect(d.hidden).toHaveLength(43);
+    // The crown (15, 1.5) is model vertex 9 of 18 (fraction 1/2), a silhouette looking along the length; the wood beyond
+    // it along +X hides it: one hidden 3/4" line at y = 1.5 (Side's right is -Z: x from -0.75 to 0).
+    expect(total(horizontalAt(d.hidden, 1.5))).toBeCloseTo(0.75, 9);
+    expect(total(horizontalAt(d.visible, 1.5))).toBe(0);
+  });
+
+  const POSTURES = ['flat', 'on-edge', 'upright'] as const;
+  const TURNS = [0, 90, 180, 270] as const;
+  // Matched by distance (1e-9), not by rounding: a rounding bucket splits two equal points that straddle its boundary
+  // (measured on flat 90/270: points 2e-14 apart landed in -2 and -2.000001), which is noise, not a difference.
+  const near = (a: number[][], b: number[][]) => {
+    if (a.length !== b.length) return false;
+    const used = new Array<boolean>(b.length).fill(false);
+    return a.every((p) => {
+      const k = b.findIndex((q, i) => !used[i] && Math.hypot(p[0]! - q[0]!, p[1]! - q[1]!) < 1e-9);
+      if (k < 0) return false;
+      used[k] = true;
+      return true;
+    });
+  };
+  it.each(POSTURES.flatMap((posture) => TURNS.map((rotation) => ({ posture, rotation }))))(
+    '%o: a mirrored curved part draws the reflection across x = 0 (Front and Plan)',
+    ({ posture, rotation }) => {
+      const b = { ...chiralCurved(posture), rotation, position: [2, 1, -3] as [number, number, number] };
+      for (const v of [FRONT, TOP]) {
+        const pts = (d: ReturnType<typeof drawView>) => [...d.visible, ...d.hidden].flatMap((s) => [[...s.a], [...s.b]]);
+        const reflected = pts(drawView([b], v)).map(([x, y]) => [0 - x!, y!]);
+        expect(near(pts(drawView([mirrorPart(b)], v)), reflected)).toBe(true);
+        expect(total(drawView([mirrorPart(b)], v).visible)).toBeCloseTo(total(drawView([b], v).visible), 6);
+      }
+    },
+  );
+});
+
+describe('curved surfaces draw their silhouettes (ruling Q1)', () => {
+  // Flat: length X, thickness Y (up), width Z. Four 2" corners on a 36 x 20 x 3/4 top. Before chunk 2 its Front and Side
+  // elevations had NO vertical line at either end (probe on master 54ea740).
+  const top = box('t', 36, 20, 0.75, [0, 0, 0], { curves: defaultCorners({ length: 36, width: 20, thickness: 0.75 }).map((c, i) => ({ id: `c${i}`, ...c })) });
+  it('Front: each end closes — one visible and one hidden 3/4" line at x = 0 and at x = 36', () => {
+    const d = drawView([top], FRONT);
+    for (const x of [0, 36]) {
+      expect(total(verticalAt(d.visible, x))).toBeCloseTo(0.75, 9);
+      expect(total(verticalAt(d.hidden, x))).toBeCloseTo(0.75, 9);
+    }
+  });
+  it('Front: the tangent joins on the front and back faces (x = 1, the corner radius) draw no line', () => {
+    const d = drawView([top], FRONT);
+    for (const x of [1, 35]) {
+      expect(total(verticalAt(d.visible, x))).toBe(0);
+      expect(total(verticalAt(d.hidden, x))).toBe(0);
+    }
+  });
+  it('Side: each end closes at x = 0 and x = -20 (Side\'s right is -Z)', () => {
+    const d = drawView([top], SIDE);
+    for (const x of [0, -20]) expect(total(verticalAt(d.visible, x))).toBeCloseTo(0.75, 9);
+    // The silhouettes are at world x = 1 and x = 35 (the corner joins), z = 0 and 20 -> screen x = 0 and -20. The near
+    // pair (x = 35) is visible, the far pair (x = 1) hides behind the part; both are asserted so a far line wrongly
+    // turning visible (a visible total of 1.5) is caught.
+    for (const x of [0, -20]) expect(total(verticalAt(d.hidden, x))).toBeCloseTo(0.75, 9);
+  });
+  it('Plan looks down the thickness: no silhouettes (the outline is the drawing)', () => {
+    expect(curveSilhouettes(top, [0, 1, 0])).toHaveLength(0);
+  });
+});
+
+describe('a shallow chord does not hide its own silhouette (review fix, ruling Q1)', () => {
+  // Flat span x 12 x 3/4, a bow along the length on the width-min side, seen from Side (toward +X, screen x = -z, y = height).
+  // Looking along the bow, the silhouette is where the bowed face's normal turns through edge-on: at the crown for 30 x 0.25
+  // (8 chords: the crown, world (15, z = 0), is a vertex -> screen x = 0), and at the two vertices flanking the crown for
+  // 60 x 0.1 (24 chords: world x = 24 and 36, z = 0.004 -> screen x = -0.004; one is near the viewer, one behind). The
+  // chords there leave the face at n.toward ~ 4e-3 and 2.7e-3, so a fixed lift toward the viewer (1e-4) cleared them by
+  // ~4e-7, less than the occluders' DRAW_EPS / 2 growth, and the near line read hidden (visible 0, hidden 0.75).
+  const bow = (span: number, rise: number) =>
+    box('b', span, 12, 0.75, [0, 0, 0], { curves: [{ id: 'bw', ...bowCurve({ through: 'thickness', along: 'length', side: 'min', span, rise }) }] });
+  it.each([[30, 0.25, 0], [60, 0.1, -0.004]])('span %d rise %d: a 3/4" visible silhouette at screen x = %d', (span, rise, sx) => {
+    const d = drawView([bow(span, rise)], SIDE);
+    const near = (segs: Seg2[]) => total(segs.filter((s) => Math.abs(s.a[0] - sx) < 5e-4 && Math.abs(s.b[0] - sx) < 5e-4 && Math.abs(s.a[0] - s.b[0]) < 1e-9));
+    expect(near(d.visible)).toBeCloseTo(0.75, 9);
   });
 });

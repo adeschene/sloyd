@@ -381,12 +381,45 @@ viewport): `DRAWING_CURVE_TOLERANCE = 0.001` inches, capped at 96 chords per arc
 the model's bodies (a chord's worst gap to the arc is 0.005", far below a printed line's width). No dimension callouts on
 curves this round (with fu 252 and 333).
 
+*Amended (implementation, chunk 2, Q1 — for the user's review):* the sheet drew **no silhouette** for a curved surface (a live
+defect on master, found by a probe 2026-10-15): a rounded top's Front and Side elevations had open ends and an arch's Side
+view lacked its (hidden, dashed) crown, because a line along `through` at a smooth outline point is suppressed (inv 16) and
+nothing replaced it where the surface turns away. `silhouetteLines` now adds, per view, a line along `through` at each
+smooth MODEL outline vertex whose two meeting faces face opposite ways; the model vertex, not the true tangent point, since
+the true arc lies up to 0.005" inside the model's wood. *Execution ruling:* each silhouette is probed from an offset of
+4×`DRAW_EPS` along the outward normals of the viewer-facing adjacent faces — the plan's code read a visible silhouette as
+hidden through `DRAW_EPS` grazing, and a fixed lift toward the viewer failed gentle bows (30 × 0.25, 60 × 0.1).
+
+*Amended (implementation, chunk 2, Q2 — for the user's review):* visibility is decided on the MODEL chord: `drawView` computes
+each chord's hidden spans as in chunk 1 and draws the fine path (`curveDrawEdges`) with that split, so every curved part's
+visible/hidden split is chunk 1's. A split lands up to 0.005" (the model tolerance, not 0.001") off an oblique occluder edge;
+record-only.
+
+*Amended (implementation, chunk 2, Q3 — for the user's review):* a view whose direction lies in the outline's plane (an arch's
+Side view) keeps chunk 1's chords unrefined, because a 96-chord arc folds back over itself there. The 24-chord fold remains
+(filed as residue).
+
+*Amended (implementation, chunk 2, Q4 — for the user's review):* a model chord split by a dado or a second curve keeps its
+split end exactly where the model put it (on the chord, up to 0.005" off the arc) so the other feature's line meets it; only
+the path's interior nodes lie on the true arc. Nodes at a chord parameter of 0 or 1 are dropped (a guard no constructed case
+reaches, kept as the statement of the rule).
+
 ### 5.2 Part diagrams
 
 - In the view looking down a curve's `through`: the waste outline is drawn (the drawing tolerance), clipped to the part.
 - In the other views: a line across the part at each SHARP outline vertex, matching the viewport's lines (§3.3).
 - Each curve's bench line (§4.1) as an HTML note under the figure — never a measured SVG label (invariant 19, as hole and
   angle-cut notes).
+
+*Amended (implementation, chunk 2, Q5 and Q6 — for the user's review):*
+- **Q5.** The waste is hatched, as angle wedges are. A sharp-vertex line is drawn only in the view of a face the vertex lies on
+  and never along the outline's own edges (the spec's "in the other views" would put an arch's end lines on the far edge's
+  view, where nothing is). A curve opens its through face's MIN-side view only when neither side exists, decided after every
+  hole has opened its entry view, so a hole's view takes the curve rather than a second view appearing.
+- **Q6.** Notes keep the four-corner collapse: `curveLineEntries(board, units)` returns `{ ids, text }` and a view lists the
+  entries any of whose ids it draws.
+- *Execution ruling:* a curve run wholly off its face still lists its note in the view it opened, or its `— check:` line
+  would appear nowhere.
 
 ## 6. Schema, mirroring, links, holes
 

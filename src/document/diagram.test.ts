@@ -449,3 +449,84 @@ describe('buildDiagrams in metric (chunk 2)', () => {
     expect(v.vLabel).toBe('140');
   });
 });
+
+import { archCurve, bowCurve, defaultCorners, twiceArea } from './curves';
+import { curveLine } from './curveText';
+
+describe('curves on part diagrams (curves spec §5.2; Q5, Q6)', () => {
+  // Flat 30 x 5 x 3/4 apron, an arch on the width min side, 3" in from each end, 1-1/2" rise (R = 48.75, sweep 0.49742).
+  const arch = { id: 'a', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 3, span: 24, rise: 1.5 }) };
+  const rabbet = (from: 'min' | 'max') => ({ id: `r${from}`, face: 'width' as const, from, across: 'length' as const, offset: 0, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 });
+  const apron = (over: Partial<Board> = {}) => createBoard({ length: 30, width: 5, thickness: 0.75, curves: [arch], ...over });
+
+  it('a curve opens its through face\'s min-side view and draws the waste there, at the drawing tolerance', () => {
+    const views = buildDiagrams(apron(), IMPERIAL);
+    expect(views.map((v) => v.key)).toEqual(['thickness|min']);
+    const [c] = views[0]!.curves;
+    expect(c!.id).toBe('a');
+    // Segment area R^2/2 (theta - sin theta) = 2376.5625/2 * (0.49742 - sin 0.49742) = 23.94..; inscribed chords at
+    // 0.001" lose under (2/3) * 0.001 * 24.25 = 0.016.
+    const theta = 2 * Math.asin(12 / 48.75);
+    const exact = (48.75 ** 2 / 2) * (theta - Math.sin(theta));
+    const area = Math.abs(twiceArea(c!.poly)) / 2;
+    expect(area).toBeLessThanOrEqual(exact + 1e-9);
+    expect(exact - area).toBeLessThan(0.02);
+    // 39 fine chords plus the closing line: 40 vertices (curveOutline: one point per segment start and per interior node).
+    expect(c!.poly).toHaveLength(40);
+  });
+
+  it('a curve that runs off the part draws only inside it (Review Focus 4)', () => {
+    const off = { id: 'o', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: -2, span: 10, rise: 1 }) };
+    const [v] = buildDiagrams(createBoard({ length: 30, width: 5, thickness: 0.75, curves: [off] }), IMPERIAL);
+    const poly = v!.curves[0]!.poly;
+    expect(Math.min(...poly.map((p) => p[0]))).toBeCloseTo(0, 12);
+    expect(poly.every(([h, w]) => h >= -1e-12 && h <= 30 + 1e-12 && w >= -1e-12 && w <= 5 + 1e-12)).toBe(true);
+  });
+
+  it('the arch\'s two ends draw as lines across the thickness on the arched edge\'s view only (Q5)', () => {
+    const views = buildDiagrams(apron({ cuts: [rabbet('min'), rabbet('max')] }), IMPERIAL);
+    const near = views.find((v) => v.key === 'width|min')!;
+    const far = views.find((v) => v.key === 'width|max')!;
+    // Width face: horizontal length, vertical thickness; the arch runs through the thickness (vertical).
+    expect(near.curveLines).toEqual([{ id: 'a', along: 'v', at: 3 }, { id: 'a', along: 'v', at: 27 }]);
+    expect(far.curveLines).toEqual([]);
+    expect(near.curveNotes).toEqual([{ key: 'a', text: curveLine(apron(), arch, IMPERIAL) }]);
+    expect(far.curveNotes).toEqual([]);
+  });
+
+  it('a bow and rounded corners draw no lines (their ends are at the outline, their joins smooth)', () => {
+    const bow = { id: 'b', ...bowCurve({ through: 'thickness', along: 'length', side: 'min', span: 30, rise: 0.5 }) };
+    const corners = defaultCorners({ length: 30, width: 5, thickness: 0.75 }).map((c, i) => ({ id: `k${i}`, ...c }));
+    const views = buildDiagrams(createBoard({ length: 30, width: 5, thickness: 0.75, curves: [bow, ...corners], cuts: [rabbet('min'), rabbet('max')] }), IMPERIAL);
+    expect(views.flatMap((v) => v.curveLines)).toEqual([]);
+  });
+
+  it('four corners: one note in the through view, the collapsed line (Q6)', () => {
+    const corners = defaultCorners({ length: 36, width: 20, thickness: 0.75 }).map((c, i) => ({ id: `k${i}`, ...c }));
+    const [v] = buildDiagrams(createBoard({ length: 36, width: 20, thickness: 0.75, curves: corners }), IMPERIAL);
+    expect(v!.curves).toHaveLength(4);
+    expect(v!.curveNotes).toEqual([{ key: 'k0', text: 'Round all four corners to a 1" radius' }]);
+  });
+
+  it('a hole\'s entry view takes the curve: no second view of the face (Q5, order-independent)', () => {
+    const hole = { id: 'h', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 1.5, count: 1, pitch: 0, acrossFrom: 'max' as const, inset: 1 };
+    const views = buildDiagrams(apron({ holes: [hole] }), IMPERIAL);
+    expect(views.map((v) => v.key)).toEqual(['thickness|max']);
+    expect(views[0]!.curves).toHaveLength(1);
+  });
+
+  it('both sides of the through face, when both exist, each draw the waste', () => {
+    const dado = (from: 'min' | 'max') => ({ id: `d${from}`, face: 'thickness' as const, from, across: 'width' as const, offset: 1, width: 0.5, depth: 0.125, stopMin: 0, stopMax: 0 });
+    const views = buildDiagrams(apron({ cuts: [dado('min'), dado('max')] }), IMPERIAL);
+    expect(views.filter((v) => v.curves.length === 1).map((v) => v.key)).toEqual(['thickness|min', 'thickness|max']);
+  });
+
+  it('a curve run wholly off its face draws no waste but still lists its faulted note', () => {
+    const off = { id: 'o', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 40, span: 10, rise: 1 }) };
+    const views = buildDiagrams(apron({ curves: [off] }), IMPERIAL);
+    const v = views.find((x) => x.key === 'thickness|min')!;
+    expect(v.curves).toHaveLength(0);
+    expect(v.curveNotes).toHaveLength(1);
+    expect(v.curveNotes[0]!.text).toContain('— check:');
+  });
+});
