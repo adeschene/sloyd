@@ -755,7 +755,7 @@ export function migrateDocument(raw: unknown): SloydDocument {
   // No schema step (metric-display spec R6): an older build reads 'metric-mm' as imperial.
   const display: LengthDisplay = units?.display === 'metric-mm' ? 'metric-mm' : 'imperial-fractional';
   const precision =
-    units && typeof units.precision === 'number' && units.precision > 0
+    units && typeof units.precision === 'number' && Number.isFinite(units.precision) && units.precision > 0
       ? units.precision
       : 16;
 

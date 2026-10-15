@@ -1577,4 +1577,15 @@ describe('units on load', () => {
     expect(migrateDocument({ ...base, units: { display: 'furlongs', precision: 16 } }).units).toEqual({ display: 'imperial-fractional', precision: 16 });
     expect(migrateDocument({ ...base, units: undefined }).units).toEqual({ display: 'imperial-fractional', precision: 16 });
   });
+  it('defaults a malformed units value: null, a string, an array, or a non-finite precision', () => {
+    const base = createDocument('U');
+    const fallback = { display: 'imperial-fractional', precision: 16 };
+    expect(migrateDocument({ ...base, units: null }).units).toEqual(fallback);
+    expect(migrateDocument({ ...base, units: 'metric-mm' }).units).toEqual(fallback);
+    expect(migrateDocument({ ...base, units: ['metric-mm', 16] }).units).toEqual(fallback);
+    expect(migrateDocument({ ...base, units: { display: 'metric-mm', precision: Infinity } }).units)
+      .toEqual({ display: 'metric-mm', precision: 16 });
+    expect(migrateDocument({ ...base, units: { display: 'metric-mm', precision: NaN } }).units)
+      .toEqual({ display: 'metric-mm', precision: 16 });
+  });
 });
