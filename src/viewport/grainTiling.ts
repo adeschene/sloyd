@@ -7,6 +7,8 @@ import {
 import type { Board, Body, BodyFace, CurveCut, Hole, LocalArc, P2, Plane, Region, Span, StockChecks, V3 } from '../document/document';
 import { axisDimensions, faceGrainKinds, grainFamily } from './grainFaces';
 import type { Dimension, GrainFamily, GrainKind } from './grainFaces';
+import { candidates as sortedCandidates, centroidFan, insertOnEdges, welder } from './conform';
+import type { Candidates } from './conform';
 
 /** A world axis: 0 = X, 1 = Y, 2 = Z. */
 type Axis = 0 | 1 | 2;
@@ -274,6 +276,16 @@ function packGroups(byMaterial: number[][][]): { groups: { start: number; count:
 }
 
 /**
+ * Whether BoardMesh draws `body` through a BoxGeometry (today's path, byte-for-byte: angle-cuts spec §3.3, holes spec
+ * §3.2) rather than bodyMesh: a box no hole reaches, on a part WITHOUT curves. Every body of a curved part goes through
+ * bodyMesh, a box cell beside a curve's slices included, so its faces take the slices' vertices (no T-junction, finding 1)
+ * and its walls against them drop as seams.
+ */
+export function drawsAsBox(board: Board, body: Body, holes: readonly Hole[]): body is Body & { box: Region } {
+  return board.curves.length === 0 && body.box !== null && !holes.some((h) => holeTouchesBox(h, body.box!));
+}
+
+/**
  * Triangles for one CLIPPED body (angle-cuts spec §3.3): positions relative
  * to the board's centre, UVs from the SAME face plans as boardUVs (invariant
  * 17: board-relative, FIT against the board), grouped by BoxGeometry's
@@ -292,8 +304,9 @@ function packGroups(byMaterial: number[][][]): { groups: { start: number; count:
  * A curved part (curves spec §3.4) also returns `normals`: a face lying on one of an arc's chords takes the RADIAL
  * normal of that arc at each vertex (so the facets shade as one smooth surface, and run into a tangent straight face
  * without a crease), every other face its flat normal. A part without curves returns none — byte-for-byte what it
- * returned before — and BoardMesh computes its normals as it always did. A split curved body (`box === null`) drops
- * its seams as a holed body does (`uncovered`): the internal walls on its chord planes and diagonals are never drawn.
+ * returned before — and BoardMesh computes its normals as it always did. Every body of a curved part drops its seams
+ * as a holed body does (`uncovered`): the internal walls on its chord planes and diagonals, and a box cell's walls against
+ * the slices, are never drawn. And its faces are conformed (conformedTriangles): the merged mesh is watertight.
  */
 export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], bodies?: readonly Body[]): { positions: Float32Array; uvs: Float32Array; normals?: Float32Array; groups: { start: number; count: number; materialIndex: number }[] } {
   const plans = facePlans(board);
@@ -304,8 +317,13 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], 
   const offsetOf = worldOffsets(board);
   const curved = board.curves.length > 0;
   const byMaterial: { pos: number[]; uv: number[]; nor: number[] }[] = Array.from({ length: 6 }, () => ({ pos: [], uv: [], nor: [] }));
-  const seams = bodies && (holed(body, holes) || (curved && body.box === null)) ? seamIndex(bodies) : null;
-  const faces = seams ? body.faces.flatMap((f) => uncovered(f, body, seams)) : body.faces;
+  // A curved part's faces come from curvedPart: seams dropped, vertices welded, and every part vertex lying inside one of
+  // their edges inserted when triangulated (conform.ts: no T-junctions between a split curve's slices, or a slice and a
+  // box cell beside it). A part without curves never reaches it.
+  const part = curved && bodies ? curvedPart(bodies) : null;
+  const seams = !part && bodies && holed(body, holes) ? seamIndex(bodies) : null;
+  const faces = part?.faces.get(body) ?? (seams ? body.faces.flatMap((f) => uncovered(f, body, seams)) : body.faces);
+  const candidates = part?.points ?? null;
   const toWorld = (local: readonly number[]): V3 => [0, 1, 2].map((i) => local[dimIndex(frame[i]!.dim)]! * (frame[i]!.reversed ? -1 : 1)) as V3;
   const chordsOf = curved ? curveChords(board) : null;
   for (const f of faces) {
@@ -342,7 +360,7 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], 
       const w = toWorld(local);
       out.nor.push(w[0], w[1], w[2]);
     };
-    for (const t of faceTriangles(f, holes)) {
+    for (const t of candidates ? conformedTriangles(f, holes, candidates) : faceTriangles(f, holes)) {
       const w0 = offsetOf(t[0]!); const w1 = offsetOf(t[1]!); const w2 = offsetOf(t[2]!);
       const d = facing(w0, w1, w2, n);
       // Near-duplicate vertices from clipping make zero-area fans; emit nothing for them.
@@ -357,6 +375,45 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], 
   }
   const { groups, out: [positions, uvs, normals] } = packGroups(byMaterial.map((m) => [m.pos, m.uv, m.nor]));
   return { positions: positions!, uvs: uvs!, normals: normals!, groups };
+}
+
+/**
+ * A curved part's face as triangles with no T-junction (whole-branch review, finding 1): every part vertex lying inside
+ * one of its edges inserted (`insertOnEdges`) and the polygon fanned from its centroid. A face that takes no vertex is
+ * fanned as it always was. A face a hole reaches keeps faceTriangles' path unchanged (earcut drops collinear points, so
+ * an inserted vertex would not survive it; a holed curved part's T-junctions are a known limit, reported).
+ */
+function conformedTriangles(f: BodyFace, holes: readonly Hole[], candidates: Candidates): V3[][] {
+  if (holes.some((h) => holeTouches(h, f.verts))) return faceTriangles(f, holes);
+  const poly = insertOnEdges(f.verts, f.n, candidates);
+  return poly === f.verts ? faceTriangles(f, holes) : centroidFan(poly);
+}
+
+/**
+ * A curved part's drawn faces, per body, and the vertices its faces conform to (whole-branch review, finding 1): every
+ * body's faces minus the seams other bodies cover (`uncovered`, for EVERY body of the part — a box cell beside the slices
+ * included), each vertex WELDED to one representative (conform.ts' welder), and the representatives of every drawn
+ * face's vertices — a seam remainder's new corners included, since a neighbour's edge in another plane may pass through
+ * one. Built once per FROZEN bodies array (partGeometry's) and kept by its identity, as seamIndex is: bodyMesh runs once
+ * per body, so building it per call would be quadratic. An unfrozen array is built afresh (invariant 50's rule).
+ */
+interface CurvedPart { faces: Map<Body, BodyFace[]>; points: Candidates }
+const curvedParts = new WeakMap<readonly Body[], CurvedPart>();
+function curvedPart(bodies: readonly Body[]): CurvedPart {
+  const hit = curvedParts.get(bodies);
+  if (hit) return hit;
+  const index = seamIndex(bodies);
+  const { points, canon } = welder();
+  const faces = new Map<Body, BodyFace[]>();
+  for (const body of bodies) {
+    faces.set(body, body.faces.flatMap((f) => uncovered(f, body, index)).map((f) => {
+      const verts = f.verts.map(canon);
+      return verts.every((p, i) => p === f.verts[i]) ? f : { ...f, verts };
+    }));
+  }
+  const part = { faces, points: sortedCandidates(points) };
+  if (Object.isFrozen(bodies)) curvedParts.set(bodies, part);
+  return part;
 }
 
 /** One arc chord of a curve, in board-local (u, v), with the arc it is a chord of and the u/v dimension indices. */
