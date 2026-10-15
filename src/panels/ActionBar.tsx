@@ -3,6 +3,7 @@ import { useStore } from '../store/store';
 import { EXPLODED_TITLE } from './ViewportControls';
 import { CopyInRow } from './CopyInRow';
 import { Popover } from './Popover';
+import { EditLock } from './EditLock';
 
 /** `view`: the action changes only view state (a selection, hidden parts), so it stays live while exploded (fu 262). */
 export interface Action { label: string; run: () => void; view?: boolean }
@@ -52,7 +53,8 @@ export function ActionBar({ actions, onDelete }: { actions: ActionEntry[]; onDel
           </svg>
         </button>
       </div>
-      <CopyInRow open={rowOpen} onOpenChange={setRowOpen} />
+      {/* The form edits: locked while exploded, even when it was opened before (fu 262). */}
+      <EditLock><CopyInRow open={rowOpen} onOpenChange={setRowOpen} /></EditLock>
     </>
   );
 }

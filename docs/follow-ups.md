@@ -5032,7 +5032,11 @@ Properties, and the guides footer's own disclosure toggle.
   copies), More ▾ disabled only when nothing in it is live, Delete locked; Popover items gained `disabled`. Store gates
   are unchanged (the three view actions were already allowed while exploded). Tests: App (view actions live, editing
   ones and Delete locked; the guides list locked, its disclosure live) and Properties (Select linked selects while
-  exploded, Unlink and Length disabled). Seen in the dev browser: the panel lays out as before. **Status:** closed.
+  exploded, Unlink and Length disabled). Seen in the dev browser: the panel lays out as before. Found in review before
+  the merge: the Copy in a row form renders beside the bar, so moving the bar out of the lock left a form opened BEFORE
+  exploding live (Apply then silently refused by `edit()`); it is wrapped in `EditLock` inside ActionBar (test: opened,
+  then exploded — Apply and Count disabled; red without the wrapper). Its Cancel is locked with it (the form's one
+  fieldset); a selection change or Explode back to 0 frees it. **Status:** closed.
 
 **263. The sheet slider recomputes the isometric synchronously.** About 130-250 ms per step at furniture scale
 (measured in node); consider `useDeferredValue`.
