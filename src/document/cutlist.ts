@@ -40,8 +40,8 @@ export interface CutListRow {
   /** e.g. `24" × 3-1/2"`, already formatted. */
   dims: string;
   /**
-   * The nominal name (`2×4`) when the material is sold in nominal sizes and EVERY board on the row is exactly that
-   * section; null otherwise (custom materials spec §5.3). Not the representative's: a row collapses boards that PRINT
+   * The nominal name (`2×4`) when the material is sold in nominal sizes and EVERY board on the row is that section
+   * (exactly in imperial; reading the same whole mm in metric, fu 354 — `nominalName`); null otherwise (custom materials spec §5.3). Not the representative's: a row collapses boards that PRINT
    * alike, and naming them all after the first would round what is machined (invariant 18).
    */
   nominal: string | null;

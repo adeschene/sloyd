@@ -14,13 +14,6 @@ export const SNAP_INCHES = 1 / 16;
 
 /** The FREE-drag grid (metric-display spec R5): 1/16" or 1 mm. Exact moves are never rounded to it (inv 25); Generate and
  *  joinery keep SNAP_INCHES. Here, not in units/, because it produces no string (the → units edge rule). */
-/**
- * How far a measured part may exceed the stock that holds it (fu 354): half a millimetre in a metric project — a part that
- * reads the same whole mm as the stock fits it (89 mm on a 3-1/2" board) — and nothing in imperial, which stays exact.
- * Applied only against the STOCK's outer bounds, never between parts or shelves (invariant 23 stays exact).
- */
-export const fitSlack = (units: Units): number => (units.display === 'metric-mm' ? 0.5 / 25.4 : 0);
-
 export const snapStep = (units: Units): number => (units.display === 'metric-mm' ? 1 / 25.4 : SNAP_INCHES);
 
 /** A FREE value rounded to the free-drag grid (`snapStep`). Metric divides by 25.4 so a dragged k mm is stored as exactly

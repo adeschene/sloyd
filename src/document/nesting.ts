@@ -1,6 +1,5 @@
 import type { Board, SheetStock } from './types';
-import { fitSlack } from './geometry';
-import { formatLengthBare, formatSize, tradeSize, type Units } from '../units/length';
+import { formatLengthBare, formatSize, isMetric, mmTicks, tradeSize, type Units } from '../units/length';
 
 /**
  * `length × width`, formatted — the ONE home of that expression here.
@@ -163,8 +162,15 @@ export interface Nesting {
  */
 const EPS = 1e-6;
 
-/** `slack` is `fitSlack(units)` against a STOCK bound (fu 354) and 0 against a shelf, which stays exact (inv 23). */
-const fits = (extent: number, room: number, slack = 0): boolean => extent <= room + EPS + slack;
+const fits = (extent: number, room: number): boolean => extent <= room + EPS;
+
+/**
+ * Against a STOCK bound (a sheet's or a board's length or width), never a shelf (invariant 23 stays exact): in a metric
+ * project an extent fits when it READS no more than the stock at whole mm (fu 354 — the same rounding as the fields and
+ * `nominalName`, so a part named 2×4 always fits 2×4 stock); imperial is `fits`, unchanged. Purchase shares it.
+ */
+export const fitsStock = (extent: number, room: number, units: Units): boolean =>
+  isMetric(units) ? mmTicks(extent) <= mmTicks(room) : fits(extent, room);
 
 /** A full-length strip. Its height is fixed by its first — therefore tallest — part. */
 interface Shelf {
@@ -191,7 +197,6 @@ function placeOn(
   // order for the same board regardless of `turned`. Computed once here
   // rather than inside `put`, which runs per placement attempt.
   const dims = formatDims(board.length, board.width, units);
-  const slack = fitSlack(units);
 
   const put = (f: Footprint, x: number, y: number) => {
     sheet.parts.push({
@@ -212,7 +217,7 @@ function placeOn(
     for (const f of options) {
       // Kerf between neighbours only — never at an edge.
       const x = shelf.used + kerf;
-      if (fits(x + f.w, stock.length, slack) && fits(f.h, shelf.h)) {
+      if (fitsStock(x + f.w, stock.length, units) && fits(f.h, shelf.h)) {
         put(f, x, shelf.y);
         shelf.used = x + f.w;
         return true;
@@ -223,7 +228,7 @@ function placeOn(
   const last = sheet.shelves[sheet.shelves.length - 1];
   const y = last ? last.y + last.h + kerf : 0;
   for (const f of options) {
-    if (fits(f.w, stock.length, slack) && fits(y + f.h, stock.width, slack)) {
+    if (fitsStock(f.w, stock.length, units) && fitsStock(y + f.h, stock.width, units)) {
       put(f, 0, y);
       sheet.shelves.push({ y, h: f.h, used: f.w });
       return true;
@@ -366,7 +371,7 @@ export function packOnto<B extends Bin>(
     if (open.some((o) => placeOn(o.sheet, board, options, o.bin, kerf, units))) continue;
     let pick: B | null = null;
     for (const s of sizes) {
-      if (!fits(options[0]!.w, s.length, fitSlack(units)) || !fits(options[0]!.h, s.width, fitSlack(units))) continue;
+      if (!fitsStock(options[0]!.w, s.length, units) || !fitsStock(options[0]!.h, s.width, units)) continue;
       if (!pick || s.length > pick.length || (s.length === pick.length && s.width > pick.width)) pick = s;
     }
     if (!pick) { unplaceable.push(board); continue; }

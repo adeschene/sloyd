@@ -361,6 +361,28 @@ describe('metric parts fit the stock they read the same as (fu 354)', () => {
     expect(metric([pine('shelf', mm(600), mm(286), mm(19))], shop).entries[0]!.unplaceable).toBe(0);
     expect(metric([pine('shelf', mm(600), mm(287), mm(19))], shop).entries[0]!.unplaceable).toBe(1);
   });
+  it('decimal mm: what is NAMED a 2×4 is BOUGHT as one (89.45 reads 89); 89.5 reads 90 and is too wide', () => {
+    const shop = shopWith({ pine: { mode: 'piece', stock: [D] } });
+    expect(nominalName(mm(38), mm(89.45), MM)).toBe('2×4');
+    expect(metric([pine('stud', mm(600), mm(89.45), mm(38))], shop).entries[0]!.unplaceable).toBe(0);
+    expect(metric([pine('stud', mm(600), mm(89.5), mm(38))], shop).entries[0]!.unplaceable).toBe(1);
+  });
+  it('a part reading thicker than the stock is not bought from it: 19.5 mm (reads 20) skips 3/4" stock', () => {
+    const shop = shopWith({ pine: { mode: 'piece', stock: [A, size('F', 1, 5.5, 96, 20)] } });
+    const p = metric([pine('board', mm(600), mm(100), mm(19.5))], shop);
+    expect(p.entries[0]!.lines[0]).toContain('1" × 5-1/2" × 96" (25 × 140 × 2438 mm)');
+    expect(p.entries[0]!.notes.join(' ')).toContain('plane 1" (25 mm) stock to 20 mm');
+  });
+  it('the half-mm boundary: 64 mm reads as 2-1/2" (63.5) — a 2×3 — and fits 2×3 stock', () => {
+    const shop = shopWith({ pine: { mode: 'piece', stock: [size('G', 1.5, 2.5, 96, 6)] } });
+    expect(nominalName(mm(38), mm(64), MM)).toBe('2×3');
+    expect(metric([pine('rail', mm(600), mm(64), mm(38))], shop).entries[0]!.unplaceable).toBe(0);
+  });
+  it('a running sum is one bound: two 1219 mm parts plus kerf do not share a 96" (2438 mm) board', () => {
+    const shop = shopWith({ pine: { mode: 'piece', stock: [D] } });
+    const p = metric([pine('a', mm(1219), mm(89), mm(38)), pine('b', mm(1219), mm(89), mm(38))], shop);
+    expect(p.entries[0]!.lines[0]).toContain('Buy 2 ×');
+  });
   it('imperial stays exact: a 3.504" part fits no 2×4', () => {
     const shop = shopWith({ pine: { mode: 'piece', stock: [D] } });
     expect(purchase([pine('stud', 24, mm(89), 1.5)], shop).entries[0]!.unplaceable).toBe(1);
