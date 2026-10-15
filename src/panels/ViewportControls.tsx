@@ -12,6 +12,19 @@ const SECTION_AXES: readonly { axis: SectionAxis; text: string; title: string }[
   { axis: 'top', text: 'Top', title: 'Cut across the height, seen from above' },
 ];
 
+/**
+ * True when any part is drawn. A store selector returning a BOOLEAN: invariant 43's selector rule is about
+ * `visibleBoards`' new array re-rendering on every `set()`, which a boolean cannot do. The walk is cached on the
+ * (doc, hiddenIds) pair, so a `set()` that changes neither costs one comparison.
+ */
+let shownCache: { doc: unknown; hiddenIds: unknown; value: boolean } | null = null;
+function anyPartShown(s: { doc: Parameters<typeof worldParts>[0]; hiddenIds: readonly string[] }): boolean {
+  if (shownCache && shownCache.doc === s.doc && shownCache.hiddenIds === s.hiddenIds) return shownCache.value;
+  const value = visibleBoards(worldParts(s.doc), s.hiddenIds).length > 0;
+  shownCache = { doc: s.doc, hiddenIds: s.hiddenIds, value };
+  return value;
+}
+
 /** The one wording for "this is locked because the view is exploded" (plans-sheet spec §4.2). */
 export const EXPLODED_TITLE = 'Slide Explode back to 0 to edit';
 
@@ -62,19 +75,28 @@ export function ViewportControls({
   const hasSelection = useStore((s) => s.selectedIds.length > 0);
   const section = useStore((s) => s.section);
   const setSection = useStore((s) => s.setSection);
-  const doc = useStore((s) => s.doc);
-  const hiddenIds = useStore((s) => s.hiddenIds);
-  const shown = useMemo(() => visibleBoards(worldParts(doc), hiddenIds), [doc, hiddenIds]);
-  const offsets = useMemo(
-    () => (explode > 0 ? explodeOffsets(doc, explode * EXPLODE_SPREAD) : null),
-    [doc, explode],
+  // Off, the controls need only "is any part drawn" (a boolean, so a gizmo drag's per-frame `doc` does not re-render
+  // them); on, the spans, so `doc` and `hiddenIds` are subscribed only while a section is on.
+  const anyShown = useStore(anyPartShown);
+  const docOn = useStore((s) => (s.section ? s.doc : null));
+  const hiddenOn = useStore((s) => (s.section ? s.hiddenIds : null));
+  const shown = useMemo(
+    () => (docOn && hiddenOn ? visibleBoards(worldParts(docOn), hiddenOn) : null),
+    [docOn, hiddenOn],
   );
-  const spanOf = (axis: SectionAxis) => sectionSpan(shown, offsets, axis);
+  const offsets = useMemo(
+    () => (docOn && explode > 0 ? explodeOffsets(docOn, explode * EXPLODE_SPREAD) : null),
+    [docOn, explode],
+  );
+  const spanOf = (axis: SectionAxis) => (shown ? sectionSpan(shown, offsets, axis) : null);
   const centre = (axis: SectionAxis) => { const sp = spanOf(axis); return sp ? (sp[0] + sp[1]) / 2 : null; };
   const toggleSection = () => {
     if (section) { setSection(null); return; }
-    const at = centre('front');
-    if (at !== null) setSection({ axis: 'front', at, flip: false });
+    // Off, nothing is subscribed: read the store once, in the handler.
+    const s = useStore.getState();
+    const offs = s.explode > 0 ? explodeOffsets(s.doc, s.explode * EXPLODE_SPREAD) : null;
+    const sp = sectionSpan(visibleBoards(worldParts(s.doc), s.hiddenIds), offs, 'front');
+    if (sp) setSection({ axis: 'front', at: (sp[0] + sp[1]) / 2, flip: false });
   };
   const span = section ? spanOf(section.axis) : null;
   // Disabled while saving, so a double click saves one file (spec §3.2).
@@ -121,7 +143,7 @@ export function ViewportControls({
           <button aria-pressed={showGuides} onClick={onToggleGuides} title="Show tape-measure guide points">Guides</button>
         </div>
         <button aria-pressed={section !== null} onClick={toggleSection}
-          disabled={section === null && centre('front') === null}
+          disabled={section === null && !anyShown}
           title="Cut the model with a plane to see inside joints and holes">Section</button>
         <div className="viewport-explode">
           <label

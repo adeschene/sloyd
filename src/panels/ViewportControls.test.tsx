@@ -1,3 +1,4 @@
+import { Profiler } from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
@@ -236,6 +237,34 @@ describe('ViewportControls section', () => {
     renderControls();
     expect(useStore.getState().section?.at).toBe(40);
     expect((screen.getByLabelText('Position') as HTMLInputElement).value).toBe(formatLength(40));
+  });
+  it('off, follows whether any part is drawn: hiding the only part disables it, showing it enables it', () => {
+    withPart();
+    renderControls();
+    expect(btn('Section')).not.toBeDisabled();
+    act(() => useStore.setState({ hiddenIds: ['a'] }));
+    expect(btn('Section')).toBeDisabled();
+    act(() => useStore.setState({ hiddenIds: [] }));
+    expect(btn('Section')).not.toBeDisabled();
+  });
+  it('off, a document edit that keeps parts drawn does not re-render the controls; on, it does', () => {
+    withPart();
+    let commits = 0;
+    render(
+      <Profiler id="vc" onRender={() => { commits += 1; }}>
+        <ViewportControls orthographic={false} onToggleProjection={noop} showGrid onToggleGrid={noop}
+          showAxes onToggleAxes={noop} showGuides onToggleGuides={noop}
+          onView={noop} onSaveImage={() => Promise.resolve()} />
+      </Profiler>,
+    );
+    commits = 0;
+    act(() => useStore.getState().updateBoard('a', { position: [1, 0, 0] }));
+    act(() => useStore.getState().updateBoard('a', { position: [2, 0, 0] }));
+    expect(commits).toBe(0);
+    act(() => useStore.getState().setSection({ axis: 'front', at: 3, flip: false }));
+    commits = 0;
+    act(() => useStore.getState().updateBoard('a', { position: [3, 0, 0] }));
+    expect(commits).toBeGreaterThan(0);
   });
   it('with every part hidden: the group stays usable and writes no NaN', async () => {
     withPart();
