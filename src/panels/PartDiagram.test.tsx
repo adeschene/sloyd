@@ -3,6 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { buildDiagrams, createBoard } from '../document/document';
 import type { Cut } from '../document/document';
 import { PartDiagram, LEFT_PAD, TICK } from './PartDiagram';
+import { archCurve, defaultCorners } from '../document/curves';
 import { labelWidth, LABEL_ASCENT, LABEL_DESCENT, LABEL_BOX_H } from './diagramLabels';
 
 const dado = (over: Partial<Cut> = {}): Cut => ({
@@ -1002,5 +1003,59 @@ describe('PartDiagram holes (holes spec §4.3, amended)', () => {
       expect(Math.abs(X(at === 'hmax' ? s.h[0] : s.h[1]) - xFar)).toBeGreaterThan(1e-3);
       cleanup();
     }
+  });
+});
+
+describe('PartDiagram curves (curves spec §5.2)', () => {
+  const arch = { id: 'a', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 3, span: 24, rise: 1.5 }) };
+  const rabbet = { id: 'r', face: 'width' as const, from: 'min' as const, across: 'length' as const, offset: 0, width: 0.25, depth: 0.25, stopMin: 0, stopMax: 0 };
+  const views = () => buildDiagrams(createBoard({ length: 30, width: 5, thickness: 0.75, curves: [arch], cuts: [rabbet] }), IMPERIAL);
+
+  it('draws the waste as a hatched polygon, one per curve, and its bench line once as an HTML note', () => {
+    const v = views().find((x) => x.key === 'thickness|min')!;
+    const { container } = render(<PartDiagram view={v} />);
+    const polys = container.querySelectorAll('polygon.cutlist-diagram-curve');
+    expect(polys).toHaveLength(1);
+    expect(polys[0]!.getAttribute('fill')).toMatch(/^url\(#/);
+    expect(polys[0]!.getAttribute('points')!.split(' ')).toHaveLength(v.curves[0]!.poly.length);
+    const notes = container.querySelectorAll('p.cutlist-diagram-curve-note');
+    expect(notes).toHaveLength(1);
+    expect(notes[0]!.textContent).toBe(v.curveNotes[0]!.text);
+  });
+
+  it('draws a sharp-vertex line across the part, scaled like the outline', () => {
+    const v = views().find((x) => x.key === 'width|min')!;
+    const { container } = render(<PartDiagram view={v} />);
+    const lines = container.querySelectorAll('line.cutlist-diagram-curve-line');
+    expect(lines).toHaveLength(2);
+    const outline = container.querySelector('rect.cutlist-diagram-outline')!;
+    const x0 = Number(outline.getAttribute('x'));
+    const w = Number(outline.getAttribute('width'));
+    expect(Number(lines[0]!.getAttribute('x1'))).toBeCloseTo(x0 + (3 / 30) * w, 6);
+    expect(Number(lines[0]!.getAttribute('x2'))).toBeCloseTo(Number(lines[0]!.getAttribute('x1')), 9);
+    expect(Math.abs(Number(lines[0]!.getAttribute('y2')) - Number(lines[0]!.getAttribute('y1')))).toBeCloseTo(Number(outline.getAttribute('height')), 6);
+  });
+
+  it('a vUp view flips the waste polygon\'s v like every other mark', () => {
+    const v = views().find((x) => x.key === 'thickness|min')!;
+    expect(v.vUp).toBe(true);
+    const ys = (view: typeof v) => render(<PartDiagram view={view} />).container.querySelector('polygon.cutlist-diagram-curve')!
+      .getAttribute('points')!.split(' ').map((p) => Number(p.split(',')[1]));
+    const up = ys(v);
+    const down = ys({ ...v, vUp: false });
+    const sums = up.map((y, i) => y + down[i]!);
+    for (const s of sums) expect(s).toBeCloseTo(sums[0]!, 6);
+  });
+
+  it('a part without curves renders no curve elements', () => {
+    const { container } = render(<PartDiagram view={view(dado())} />);
+    expect(container.querySelectorAll('.cutlist-diagram-curve, .cutlist-diagram-curve-line, .cutlist-diagram-curve-note')).toHaveLength(0);
+  });
+
+  it('four corners print one note', () => {
+    const corners = defaultCorners({ length: 36, width: 20, thickness: 0.75 }).map((c, i) => ({ id: `k${i}`, ...c }));
+    const [v] = buildDiagrams(createBoard({ length: 36, width: 20, thickness: 0.75, curves: corners }), IMPERIAL);
+    render(<PartDiagram view={v!} />);
+    expect(screen.getAllByText('Round all four corners to a 1" radius')).toHaveLength(1);
   });
 });

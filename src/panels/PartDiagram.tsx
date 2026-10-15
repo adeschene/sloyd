@@ -366,6 +366,26 @@ export function PartDiagram({ view }: { view: DiagramView }) {
           />
         ))}
 
+        {view.curves.map((c) => (
+          <polygon
+            key={c.id}
+            className="cutlist-diagram-curve"
+            points={c.poly.map(([h, v]) => {
+              const x = left + fit.offsetX + h * fit.sx;
+              const y = top + (view.vUp ? view.v - v : v) * fit.sy;
+              return `${x},${y}`;
+            }).join(' ')}
+            fill={`url(#${hatch})`}
+          />
+        ))}
+
+        {view.curveLines.map((l, i) => {
+          const X = (h: number) => left + fit.offsetX + h * fit.sx;
+          const Y = (v: number) => top + (view.vUp ? view.v - v : v) * fit.sy;
+          const [x1, y1, x2, y2] = l.along === 'v' ? [X(l.at), Y(0), X(l.at), Y(view.v)] : [X(0), Y(l.at), X(view.h), Y(l.at)];
+          return <line key={`${l.id}:${i}`} className="cutlist-diagram-curve-line" x1={x1} y1={y1} x2={x2} y2={y2} />;
+        })}
+
         {view.holes.map((c) => {
           const x = left + fit.offsetX + c.h * fit.sx;
           const y = top + (view.vUp ? view.v - c.v : c.v) * fit.sy;
@@ -474,6 +494,9 @@ export function PartDiagram({ view }: { view: DiagramView }) {
       ))}
       {view.holeNotes.map((n) => (
         <p className="cutlist-diagram-hole-note" key={n.row}>{n.text}</p>
+      ))}
+      {view.curveNotes.map((n) => (
+        <p className="cutlist-diagram-curve-note" key={n.key}>{n.text}</p>
       ))}
     </figure>
   );
