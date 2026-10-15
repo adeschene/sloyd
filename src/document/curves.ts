@@ -133,7 +133,7 @@ export function arcChords(arc: LocalArc, tolerance: number, max: number): number
 }
 
 /** The arc's point at fraction t of its sweep (t = 0 is a, 1 is b — returned exactly). */
-function arcPoint(arc: LocalArc, t: number): P2 {
+export function arcPoint(arc: LocalArc, t: number): P2 {
   if (t === 0) return arc.a;
   if (t === 1) return arc.b;
   const t0 = Math.atan2(arc.a[1] - arc.centre[1], arc.a[0] - arc.centre[0]) + arc.sweep * t;
