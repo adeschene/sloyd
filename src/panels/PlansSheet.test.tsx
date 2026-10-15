@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { useStore } from '../store/store';
 import { createBoard, createDocument } from '../document/document';
@@ -16,10 +17,20 @@ describe('PlansSheet', () => {
     act(() => useStore.getState().replaceDocument(cabinetsDoc()));
     const first = render(<PlansSheet onClose={() => {}} />);
     expect(screen.queryByText('Dimensions in mm')).toBeNull();
+    expect(first.container.querySelector('.cutlist-sheet')).not.toHaveClass('sheet-metric');
     first.unmount();
     act(() => useStore.getState().setUnitsDisplay('metric-mm'));
-    render(<PlansSheet onClose={() => {}} />);
+    const second = render(<PlansSheet onClose={() => {}} />);
     expect(screen.getByText('Dimensions in mm')).toBeInTheDocument();
+    expect(second.container.querySelector('.cutlist-sheet')).toHaveClass('sheet-metric');
+  });
+
+  it('the stylesheet repeats the note in every printed page\'s margin, for the metric named page only (fu 357)', () => {
+    const css = readFileSync('src/styles.css', 'utf8').replace(/\s+/g, ' ');
+    expect(css).toContain('@page metric-sheet { @top-right { content: "Dimensions in mm";');
+    expect(css).toMatch(/@media print \{[^@]*\.sheet-metric \{ page: metric-sheet; \}/);
+    // No unnamed @page rule carries it: an imperial print gains nothing.
+    expect(css).not.toMatch(/@page \{[^}]*Dimensions in mm/);
   });
 
   it('draws the exploded view, the piece, then each assembly with its count', () => {

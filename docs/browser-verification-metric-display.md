@@ -35,3 +35,19 @@ One project created ("Metric 2 check — delete me") and deleted; the profile re
 | 6 | The user's imperial "Shaker Side Table — joined" | Plans sheet unchanged (`20"`, `20-1/4"`…), no note. |
 
 Seen again (fu 354): parts typed in round mm (19 × 89, 38 × 89) match no nominal pine section, so Buying places neither.
+
+## fu 357 — the units note on every printed page (2026-10-15, branch `fu-357`)
+
+Dev server, Playwright's Chromium 148, `page.pdf` (Letter, 0.4in margins — a print dialog's default; at Playwright's default 0
+margins the margin box has no room and the text, though in the PDF, is not visible). One project imported ("fu 357 print check —
+delete me": the cabinets fixture plus 60 strips, metric) and deleted; the profile read back with its 6 keys and 3 projects, the
+user's "Shaker Side Table — joined" active again (its `savedAt` moved: the switch re-saves the open project).
+
+| # | Check | Result |
+|---|---|---|
+| 1 | Spike: a CSS `table-header-group`, a real `<thead>` (one body row, and a row per line), `position: fixed`, an `@page` margin box | Header groups: page 1 only. Fixed: every page, over the content. Margin box: every page, in the margin. |
+| 2 | Metric cut list, all diagrams (16 pages) | `Dimensions in mm` on 16/16 pages (page 1 twice: margin and header), top-right, clear of the rows. |
+| 3 | Metric Plans sheet (3 pages, one section each) | 3/3. |
+| 4 | The same project in inches, Plans sheet | No note on any page; same page count. |
+
+Owed: Firefox and Safari ignore margin boxes (page-1 note only, as before); a real print from Brave for the user's eye (fu 254, 345).

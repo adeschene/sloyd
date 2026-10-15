@@ -452,6 +452,13 @@ and 79.
 
 ## What each round did
 
+**What fu 357 did (2026-10-15)** (bounded, in-chat design; branch `fu-357`). The approved mechanism — the note as a print-only
+header group repeated per page — was measured not to work: Chromium repeats neither a CSS `table-header-group` nor a real
+`<thead>` on later printed pages. The user, printing from Brave, took the `@page` margin box instead: a metric sheet carries
+`.sheet-metric`, which prints on the named page `metric-sheet`, whose `@top-right` reads `Dimensions in mm` on every page (cut list
+16/16, Plans 3/3 in the live check; imperial unchanged). Browsers without margin boxes (Firefox, Safari) print as before.
+`docs/browser-verification-metric-display.md`, "fu 357".
+
 **What fu 360 and fu 355 did (2026-10-15)** (bounded, one in-chat design for both; branches `fu-360` and `fu-355`, merged as
 `0f2be31` and `3b7455c`; deployed the same day, `index-BIWe_ffw.js`). **fu 360**: the user chose giving built-in pine the nominal set. Pine keeps its own 1× list (6′ and 8′,
 its own ids, so no 1× pick changes) and adds `NOMINAL_DEFAULT_STOCK`'s 2× (8/10/12′) and 4×4 (8′) — 36 sizes; a 2×4 in pine

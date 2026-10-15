@@ -33,7 +33,7 @@ export function PlansSheet({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="cutlist-overlay plans-overlay" role="dialog" aria-modal="true" aria-label="Plans">
-      <div className="cutlist-sheet plans-sheet" ref={sheet} tabIndex={-1}>
+      <div className={`cutlist-sheet plans-sheet${isMetric(doc.units) ? ' sheet-metric' : ''}`} ref={sheet} tabIndex={-1}>
         <header className="cutlist-head">
           <div>
             <h2>Plans — {doc.name}</h2>
