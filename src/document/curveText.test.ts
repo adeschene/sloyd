@@ -64,3 +64,12 @@ describe('curveLines', () => {
     expect(lines).toEqual(['Round all four corners to a 2" radius', curveLine(top, dup, IMPERIAL)]);
   });
 });
+
+import { defaultCorners } from './curves';
+import { curveLineEntries } from './curveText';
+it('curveLineEntries: four equal corners are one entry carrying all four ids; curveLines is its texts', () => {
+  const b = createBoard({ length: 36, width: 20, thickness: 0.75, curves: defaultCorners({ length: 36, width: 20, thickness: 0.75 }).map((c, i) => ({ id: `c${i}`, ...c })) });
+  const e = curveLineEntries(b, IMPERIAL);
+  expect(e).toEqual([{ ids: ['c0', 'c1', 'c2', 'c3'], text: 'Round all four corners to a 1" radius' }]);
+  expect(curveLines(b, IMPERIAL)).toEqual(e.map((x) => x.text));
+});

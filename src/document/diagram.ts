@@ -1,4 +1,4 @@
-import type { Board, CutFrom, Dimension, HoleRow, Span } from './types';
+import type { Board, CurveCut, CutFrom, Dimension, HoleRow, Span } from './types';
 import { holeInstances } from './holes';
 import { holeLine } from './holeText';
 import { DIMENSION_ORDER } from './geometry';
@@ -7,6 +7,9 @@ import { buildDepthField, type FaceCell } from './depthField';
 import { formatLengthBare, type Units } from '../units/length';
 import { angleCutsThatRemoveStock, keptHalfSpace, throughOf } from './angleCuts';
 import { angleLine } from './angleText';
+import { curveOutline, twiceArea, uvDims } from './curves';
+import { curveLineEntries } from './curveText';
+import { DRAWING_CURVE_TOLERANCE, DRAWING_CURVE_SEGMENTS_MAX } from './curveDrawing';
 
 /** One angle cut in a view (spec §4.3): the wedge it removes, in (h, v) board inches, and its bench line. */
 export interface DiagramAngle { id: string; poly: [number, number][]; label: string }
@@ -57,6 +60,11 @@ export interface DiagramHoleSide {
   bottomAt: 'hmin' | 'hmax' | 'vmin' | 'vmax' | null;
 }
 
+/** A curve's waste outline seen down its `through`, clipped to the face, board inches. */
+export interface DiagramCurve { id: string; poly: [number, number][] }
+/** A line across the part at a curve's sharp outline vertex on this face (`along` the axis it runs, `at` on the other). */
+export interface DiagramCurveLine { id: string; along: 'h' | 'v'; at: number }
+
 export interface DiagramView {
   /** Holes seen down their axis in this view (circles). */
   holes: DiagramHole[];
@@ -96,9 +104,38 @@ export interface DiagramView {
   angles: DiagramAngle[];
   /** One line per distinct crossing depth, already formatted. Empty when none. */
   crossings: string[];
+  /** Curve waste outlines seen down a curve's `through`, clipped to the face, board inches. */
+  curves: DiagramCurve[];
+  /** Lines across the part at a curve's sharp outline vertices on this face (Q5). */
+  curveLines: DiagramCurveLine[];
+  /** Bench lines of the curves drawn here (inv 19, Q6): built in curveText.ts. */
+  curveNotes: { key: string; text: string }[];
 }
 
 const capitalise = (d: Dimension): string => d[0].toUpperCase() + d.slice(1);
+
+/** A curve's waste outline at the drawing tolerance, clipped to the face rectangle [0, W] x [0, H] (Sutherland–Hodgman:
+ *  a non-convex subject against a convex window), consecutive repeats dropped; null when nothing is left. */
+function wasteOnFace(board: Board, c: CurveCut, W: number, H: number): [number, number][] | null {
+  let poly: [number, number][] = curveOutline(board, c, DRAWING_CURVE_TOLERANCE, DRAWING_CURVE_SEGMENTS_MAX).pts.map(([x, y]) => [x, y]);
+  const sides: ((p: [number, number]) => number)[] = [(p) => p[0], (p) => W - p[0], (p) => p[1], (p) => H - p[1]];
+  for (const g of sides) {
+    const next: [number, number][] = [];
+    for (let i = 0; i < poly.length; i += 1) {
+      const p = poly[i]!;
+      const q = poly[(i + 1) % poly.length]!;
+      if (g(p) >= 0) next.push(p);
+      if ((g(p) >= 0) !== (g(q) >= 0)) {
+        const t = g(p) / (g(p) - g(q));
+        next.push([p[0] + t * (q[0] - p[0]), p[1] + t * (q[1] - p[1])]);
+      }
+    }
+    poly = next;
+    if (poly.length === 0) return null;
+  }
+  const clean = poly.filter((p, i) => { const q = poly[(i + poly.length - 1) % poly.length]!; return Math.hypot(p[0] - q[0], p[1] - q[1]) > 1e-9; });
+  return clean.length >= 3 && Math.abs(twiceArea(clean)) > 1e-12 ? clean : null;
+}
 
 /**
  * A board's setups, drawn.
@@ -156,6 +193,9 @@ export function buildDiagrams(board: Board, units: Units): DiagramView[] {
         angles: [],
         cells: [],
         crossings: [],
+        curves: [],
+        curveLines: [],
+        curveNotes: [],
       };
       views.set(key, view);
     }
@@ -244,6 +284,9 @@ export function buildDiagrams(board: Board, units: Units): DiagramView[] {
     used.get(view)!.add(r.id);
   };
   for (const r of board.holes) ensure(r.face, r.from);
+  // Curves (curves spec §5.2, ruling Q5): a curve opens its through face's min side when neither side exists — after
+  // every hole has opened its entry view, so a hole's view takes the curve instead of a second view appearing.
+  for (const c of board.curves) if (!views.has(`${c.through}|min`) && !views.has(`${c.through}|max`)) ensure(c.through, 'min');
   for (const r of board.holes) for (const h of holeInstances(board, r)) {
     const entry = views.get(`${r.face}|${r.from}`);
     const exit = h.through ? views.get(`${r.face}|${r.from === 'min' ? 'max' : 'min'}`) : undefined;
@@ -274,6 +317,35 @@ export function buildDiagrams(board: Board, units: Units): DiagramView[] {
     }
   }
   for (const [view, ids] of used) for (const r of board.holes) if (ids.has(r.id)) view.holeNotes.push({ row: r.id, text: holeLine(board, r, u) });
+
+  // Curves drawn (spec §5.2; Q5, Q6): the waste in every view of the through face; a line at each SHARP vertex on the
+  // viewed face of another view, never along the outline's own edges; the bench lines of whatever this view draws.
+  const curveEntries = curveLineEntries(board, u);
+  for (const view of views.values()) {
+    const drawn = new Set<string>();
+    for (const c of board.curves) {
+      if (view.face === c.through) {
+        const poly = wasteOnFace(board, c, view.h, view.v);
+        if (poly) { view.curves.push({ id: c.id, poly }); drawn.add(c.id); }
+        continue;
+      }
+      const [cu, cv] = uvDims(c.through);
+      const F = view.face;
+      if (F !== cu && F !== cv) continue;
+      const G = F === cu ? cv : cu;
+      const { pts, smooth } = curveOutline(board, c);
+      pts.forEach((q, i) => {
+        if (smooth[i]) return;
+        const qF = F === cu ? q[0] : q[1];
+        const qG = G === cu ? q[0] : q[1];
+        const onFace = view.from === 'min' ? Math.abs(qF) <= 1e-9 : Math.abs(qF - board[F]) <= 1e-9;
+        if (!onFace || qG <= 1e-9 || qG >= board[G] - 1e-9) return;
+        view.curveLines.push({ id: c.id, along: view.horizontal === c.through ? 'h' : 'v', at: qG });
+        drawn.add(c.id);
+      });
+    }
+    for (const e of curveEntries) if (e.ids.some((id) => drawn.has(id))) view.curveNotes.push({ key: e.ids[0]!, text: e.text });
+  }
 
   // A cut-free board still gets a drawing, for the "all parts" setting: broad
   // face on, length running horizontally — the view a woodworker draws by hand.
