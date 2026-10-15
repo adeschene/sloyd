@@ -22,6 +22,14 @@ const FACES: { value: string; label: string; face: 'width' | 'thickness'; from: 
  * edit never swaps them under the user. Every kind is edited; a stored cut the row cannot represent
  * (a hand-edited file) shows its bench line and a remove button only.
  */
+/**
+ * fu 296 (holes' and curves' precedent): a cut a later RESIZE pushed past its part is KEPT and noted ("… at this
+ * size."), never clamped; an edit is refused only when it would overrun by MORE than the stored cut does. So a shortened
+ * rail's miter can still change its long point or end, or be reduced, but never deepened past the part. `excess` is how
+ * far a cut's depth passes what it may remove (≤ 0: it fits).
+ */
+const worse = (next: number, stored: number) => next > 1e-9 && next > stored + 1e-9;
+
 function AngleRow({ board, cut }: { board: Board; cut: AngleCut }) {
   const units = useStore((s) => s.doc.units);
   const updateAngleCut = useStore((s) => s.updateAngleCut);
@@ -42,10 +50,12 @@ function AngleRow({ board, cut }: { board: Board; cut: AngleCut }) {
   if (cut.kind === 'miter') {
     const m = miterFields(cut, board);
     // Returns the refusal (fu 339): a select shows it in the row's alert (`pick`), a field as its own error.
+    const mExcess = board[m.across] * m.ratio - board.length;
     const setM = (patch: Partial<MiterFields>): string | void => {
       const next = { ...m, ...patch };
-      // A miter deeper than the part is refused, never written (spec §7) — it would consume the part.
-      if (board[next.across] * next.ratio > board.length) return 'Removes more than the length — reduce the angle first.';
+      // A miter deeper than the part is refused, never written (spec §7) — it would consume the part — unless the stored
+      // one already is, at this size, and this edit goes no deeper (fu 296).
+      if (worse(board[next.across] * next.ratio - board.length, mExcess)) return 'Removes more than the length — reduce the angle first.';
       setError(null);
       updateAngleCut(board.id, cut.id, miterCut(next, board));
     };
@@ -57,6 +67,7 @@ function AngleRow({ board, cut }: { board: Board; cut: AngleCut }) {
         {head}
         <p className="field-note">{line}</p>
         {none}
+        {mExcess > 1e-9 && <p className="field-note" role="status">This miter removes more than the length at this size.</p>}
         <div className="field-grid field-grid-2">
           <div className="field field-wide">
             <label htmlFor={`miter-end-${cut.id}`}>End</label>
@@ -88,10 +99,12 @@ function AngleRow({ board, cut }: { board: Board; cut: AngleCut }) {
   }
   const bevel = cut.kind === 'bevel' ? bevelFields(cut, board) : null;
   if (bevel) {
+    const bExcess = board[bevelAcross(bevel.face)] * bevel.ratio - board[bevel.face];
     const setB = (patch: Partial<BevelFields>): string | void => {
       const next = { ...bevel, ...patch };
-      // A bevel deeper than its face is refused, never written (spec §7) — it would consume the part.
-      if (board[bevelAcross(next.face)] * next.ratio > board[next.face]) return `Removes more than the ${next.face} — reduce the angle first.`;
+      // A bevel deeper than its face is refused, never written (spec §7) — it would consume the part — unless the stored
+      // one already is, at this size, and this edit overruns no further (fu 296).
+      if (worse(board[bevelAcross(next.face)] * next.ratio - board[next.face], bExcess)) return `Removes more than the ${next.face} — reduce the angle first.`;
       setError(null);
       updateAngleCut(board.id, cut.id, bevelCut(next, board));
     };
@@ -103,6 +116,7 @@ function AngleRow({ board, cut }: { board: Board; cut: AngleCut }) {
         {head}
         <p className="field-note">{line}</p>
         {none}
+        {bExcess > 1e-9 && <p className="field-note" role="status">{`This bevel removes more than the ${bevel.face} at this size.`}</p>}
         <div className="field-grid field-grid-2">
           <div className="field field-wide">
             <label htmlFor={`bevel-face-${cut.id}`}>Face</label>
@@ -133,6 +147,7 @@ function AngleRow({ board, cut }: { board: Board; cut: AngleCut }) {
       setError(null);
       updateAngleCut(board.id, cut.id, chamferCut({ ...chamfer, ...patch }, board));
     };
+    const cExcess = Math.max(chamfer.legFace - board[chamfer.face], chamfer.legAlong - board[chamfer.along]);
     const edgeIndex = CHAMFER_EDGES.findIndex((x) => x.face === chamfer.face && x.from === chamfer.from && x.along === chamfer.along && x.alongFrom === chamfer.alongFrom);
     const cap = (s: string) => s[0]!.toUpperCase() + s.slice(1);
     // fu 300: the bench vocabulary, short enough not to clip (fu 299) — a length side is an end; the through dimension is implied.
@@ -143,14 +158,17 @@ function AngleRow({ board, cut }: { board: Board; cut: AngleCut }) {
         {head}
         <p className="field-note">{line}</p>
         {none}
+        {cExcess > 1e-9 && <p className="field-note" role="status">This chamfer is bigger than its edge at this size.</p>}
         <div className="field-grid field-grid-2">
           <div className="field field-wide">
             <label htmlFor={`chamfer-edge-${cut.id}`}>Edge</label>
             <select id={`chamfer-edge-${cut.id}`} className="input" value={edgeIndex} onChange={(e) => {
               const x = CHAMFER_EDGES[Number(e.target.value)]!;
-              // Changing the edge keeps the legs; a leg longer than the new edge's face is refused, never clamped.
+              // Changing the edge keeps the legs; a leg longer than the new edge's face is refused, never clamped — unless
+              // the stored edge's legs already overrun as far, at this size (fu 296).
               const over = chamfer.legFace > board[x.face] ? x.face : chamfer.legAlong > board[x.along] ? x.along : null;
-              if (over) { setError(`Removes more than the ${over} — reduce the size first.`); return; }
+              const excess = Math.max(chamfer.legFace - board[x.face], chamfer.legAlong - board[x.along]);
+              if (over && worse(excess, cExcess)) { setError(`Removes more than the ${over} — reduce the size first.`); return; }
               setC(x);
             }}>
               {CHAMFER_EDGES.map((x, i) => <option key={i} value={i}>{edgeText(x)}</option>)}
@@ -172,18 +190,21 @@ function AngleRow({ board, cut }: { board: Board; cut: AngleCut }) {
     setError(null);
     updateAngleCut(board.id, cut.id, taperCut({ ...f, ...patch }));
   };
+  const tExcess = f.amount - board[f.face];
   return (
     <div className="cut">
       {head}
       <p className="field-note">{line}</p>
       {none}
+      {tExcess > 1e-9 && <p className="field-note" role="status">{`This taper removes more than the ${f.face} at this size.`}</p>}
       <div className="field-grid field-grid-2">
         <div className="field field-wide">
           <label htmlFor={`angle-face-${cut.id}`}>Face</label>
           <select id={`angle-face-${cut.id}`} className="input" value={`${f.face}|${f.from}`} onChange={(e) => {
             const o = FACES.find((x) => x.value === e.target.value)!;
-            // A removal beyond the new face is refused, never written (spec §7); the select stays on the stored face.
-            if (f.amount > board[o.face]) { setError(`Removes more than the ${o.face} — reduce the removal first.`); return; }
+            // A removal beyond the new face is refused, never written (spec §7); the select stays on the stored face —
+            // unless the stored removal already passes its face as far, at this size (fu 296).
+            if (worse(f.amount - board[o.face], tExcess)) { setError(`Removes more than the ${o.face} — reduce the removal first.`); return; }
             set({ face: o.face, from: o.from });
           }}>
             {FACES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}

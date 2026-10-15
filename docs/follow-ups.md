@@ -5188,6 +5188,17 @@ not checked against stored miter depths: the 24" rail resized to 2" kept both 45
 the next miter edit (Long point) was refused with `Removes more than the length — reduce the angle first.`, nothing
 written. Seen live (chunk 2). The add-time half is closed 2026-10-12: the Miter and Miter both ends presets are withheld
 from the + Add menu on a part wider than long (Taper stays). The resize half stays open. **Status:** open, fails safe.
+- **Closed 2026-10-15 (follow-ups session, branch `follow-ups-1`), on the holes/curves precedent (inv 50, 53: a fault a
+  resize causes is KEPT and noted, never clamped; an edit refused only when it adds one).** Every angle row now computes
+  its stored cut's EXCESS (depth past what it may remove) and notes a positive one — `This miter removes more than the
+  length at this size.`, likewise bevel and taper, `This chamfer is bigger than its edge at this size.` — and refuses an
+  edit only when the result would overrun by MORE than the stored cut (`worse`). So the shortened rail's miter takes a
+  Long point or End change, or a reduction, and is still refused when deepened or moved to a side it would overrun
+  further. Stricter than the holes rule (which allows any edit not ADDING a fault kind) on purpose: deepening an
+  already-consuming cut has no use. The resize itself is still not refused (the precedent). Tests: the shortened rail
+  (note; Long point taken; Across to the thickness fits and clears the note; back across the width refused), a thinned
+  bevel, a taper moved to a face it overruns by less (taken) and more (refused), a chamfer moved to an edge it overruns no
+  further; each kind's rule mutated back to the old refusal turns its test red. **Status:** closed.
 
 **297. A hand-edited offset miter is moved to canonical form on its first edit.** A miter whose stored points do not
 start at the corner (an offset miter, only reachable by editing the file) is rewritten to the canonical corner-anchored

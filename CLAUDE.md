@@ -448,6 +448,8 @@ Deployment scaffolding: `Dockerfile`, `docker-compose.yml`, `nginx.conf`,
 - **`AngleCuts.tsx`**: every hook sits above every `kind` branch (a fixed crash class). Every refusal reads `Removes more
   than the <dimension> — reduce the <control> first.`, is decided before `updateAngleCut`, and leaves the select on the
   stored value. A menu preset whose default would be refused on this part is withheld, not added and then refused.
+  A cut a later resize pushed past its part is KEPT and noted (`… at this size.`); an edit is refused only when it would
+  overrun by MORE than the stored cut does (fu 296, the holes/curves precedent).
 - **`nesting.ts`** takes `doc.boards`, NEVER `CutListRows`; too-big parts go in
   `unplaceable`, never dropped. The word `turned` rides on `dims` (inv 19).
 - **`SheetLayout.tsx`** is the only caller of `fitLabel`'s `requireDetail`; the tier
