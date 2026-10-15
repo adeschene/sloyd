@@ -1,4 +1,4 @@
-import type { Board, CurveCut, CurveSegment, Dimension } from './types';
+import type { Board, CurveCut, CurveSegment, CutFrom, Dimension } from './types';
 import { DIMENSION_ORDER } from './geometry';
 
 /** A point in a face's (u, v). */
@@ -207,4 +207,263 @@ export function chordPolygon(segs: readonly LocalSeg[]): P2[] {
  *  WASTE (crown inside or on it: a rounded corner, a bow). Derived, for wording and the geometry path (spec §2.1). */
 export function bowsInto(segs: readonly LocalSeg[], arc: LocalArc): 'wood' | 'waste' {
   return inPolygonClosed(chordPolygon(segs), arc.crown) ? 'waste' : 'wood';
+}
+
+/** A point's distance to one TRUE segment (spec §3.1: never the chords). An arc: |p − C| − R when the ray from the centre
+ *  through p meets the arc (that point lies on the crown's side of the chord), else the nearer end. */
+function segDistance(s: LocalSeg, p: P2): number {
+  if (s.kind === 'line') return distToSegment(p, s.a, s.b);
+  const d = Math.hypot(p[0] - s.centre[0], p[1] - s.centre[1]);
+  if (d > 0) {
+    const q: P2 = [s.centre[0] + ((p[0] - s.centre[0]) * s.radius) / d, s.centre[1] + ((p[1] - s.centre[1]) * s.radius) / d];
+    if (crownSide(s, q) >= -CURVE_EPS) return Math.abs(d - s.radius);
+  }
+  return Math.min(Math.hypot(p[0] - s.a[0], p[1] - s.a[1]), Math.hypot(p[0] - s.b[0], p[1] - s.b[1]));
+}
+
+/** Signed distance of p from an arc's chord line, positive toward the crown. */
+function crownSide(s: LocalArc, p: P2): number {
+  const dx = s.b[0] - s.a[0];
+  const dy = s.b[1] - s.a[1];
+  const c = Math.hypot(dx, dy);
+  const nl = (-dy * (p[0] - s.a[0]) + dx * (p[1] - s.a[1])) / c;      // left of a→b
+  const crownLeft = -dy * (s.crown[0] - s.a[0]) + dx * (s.crown[1] - s.a[1]) > 0;
+  return crownLeft ? nl : -nl;
+}
+
+export function boundaryDistance(segs: readonly LocalSeg[], p: P2): number {
+  return Math.min(...segs.map((s) => segDistance(s, p)));
+}
+
+/**
+ * The waste as a set (spec §2.2): the chord polygon (CLOSED) XOR each arc's lens — the disc on the crown's side of the
+ * chord, chord line included. A crown outside the polygon adds its lens (an arch); one inside removes it (a corner), so
+ * a point on a corner's chord is not waste. A point within CURVE_EPS of the TRUE outline is in the waste when `mode` is
+ * 'closed', out of it when 'open'; elsewhere the XOR decides unambiguously.
+ */
+export function wasteContains(segs: readonly LocalSeg[], p: P2, mode: 'closed' | 'open'): boolean {
+  if (boundaryDistance(segs, p) <= CURVE_EPS) return mode === 'closed';
+  let inside = inPolygonClosed(chordPolygon(segs), p);
+  for (const s of segs) {
+    if (s.kind !== 'arc') continue;
+    if (Math.hypot(p[0] - s.centre[0], p[1] - s.centre[1]) < s.radius && crownSide(s, p) >= -CURVE_EPS) inside = !inside;
+  }
+  return inside;
+}
+
+/** Whether a straight side lies along the face rectangle's boundary (both ends on one side line). */
+function onRectBoundary(board: Pick<Board, Dimension>, through: Dimension, s: LocalLine): boolean {
+  const [u, v] = uvDims(through);
+  const on = (k: 0 | 1, val: number) => Math.abs(s.a[k] - val) <= CURVE_EPS && Math.abs(s.b[k] - val) <= CURVE_EPS;
+  return on(0, 0) || on(0, board[u]) || on(1, 0) || on(1, board[v]);
+}
+
+/**
+ * Air for the stock probe (P3): inside the closed waste, except ON the kept surface — an arc, or a straight side that is
+ * not along the face boundary. So the lattice point in the middle of an arched edge is air; an arc's end is stock.
+ */
+export function isAir(board: Pick<Board, Dimension>, c: Omit<CurveCut, 'id'>, p: P2): boolean {
+  const segs = localSegments(board, c);
+  if (!wasteContains(segs, p, 'closed')) return false;
+  return !segs.some((s) => segDistance(s, p) <= CURVE_EPS && (s.kind === 'arc' || !onRectBoundary(board, c.through, s)));
+}
+
+/** Where a closed segment p0→p1 meets an arc (closed: tangency counts), as points. */
+function segArcHits(p0: P2, p1: P2, s: LocalArc): P2[] {
+  const dx = p1[0] - p0[0];
+  const dy = p1[1] - p0[1];
+  const l2 = dx * dx + dy * dy;
+  if (l2 === 0) return Math.abs(Math.hypot(p0[0] - s.centre[0], p0[1] - s.centre[1]) - s.radius) <= CURVE_EPS && crownSide(s, p0) >= -CURVE_EPS ? [p0] : [];
+  const t0 = ((s.centre[0] - p0[0]) * dx + (s.centre[1] - p0[1]) * dy) / l2;
+  const fx = p0[0] + t0 * dx - s.centre[0];
+  const fy = p0[1] + t0 * dy - s.centre[1];
+  const dist = Math.hypot(fx, fy);
+  if (dist > s.radius + CURVE_EPS) return [];
+  const half = Math.sqrt(Math.max(0, s.radius * s.radius - dist * dist)) / Math.sqrt(l2);
+  const out: P2[] = [];
+  for (const t of half === 0 ? [t0] : [t0 - half, t0 + half]) {
+    if (t < -CURVE_EPS || t > 1 + CURVE_EPS) continue;
+    const q: P2 = [p0[0] + t * dx, p0[1] + t * dy];
+    if (crownSide(s, q) >= -CURVE_EPS) out.push(q);
+  }
+  return out;
+}
+
+/** Where a closed segment meets a line segment (closed): the crossing point, or both ends of a collinear overlap. */
+function segSegHits(p0: P2, p1: P2, a: P2, b: P2): P2[] {
+  const r: P2 = [p1[0] - p0[0], p1[1] - p0[1]];
+  const s: P2 = [b[0] - a[0], b[1] - a[1]];
+  const den = r[0] * s[1] - r[1] * s[0];
+  const qp: P2 = [a[0] - p0[0], a[1] - p0[1]];
+  if (Math.abs(den) <= CURVE_EPS * Math.hypot(...r) * Math.hypot(...s)) {
+    // Parallel: collinear overlap only.
+    if (distToSegment(a, p0, p1) > CURVE_EPS && distToSegment(b, p0, p1) > CURVE_EPS && distToSegment(p0, a, b) > CURVE_EPS && distToSegment(p1, a, b) > CURVE_EPS) return [];
+    return [a, b, p0, p1].filter((p) => distToSegment(p, p0, p1) <= CURVE_EPS && distToSegment(p, a, b) <= CURVE_EPS);
+  }
+  const t = (qp[0] * s[1] - qp[1] * s[0]) / den;
+  const w = (qp[0] * r[1] - qp[1] * r[0]) / den;
+  const tol = 1e-12;
+  return t >= -tol && t <= 1 + tol && w >= -tol && w <= 1 + tol ? [[p0[0] + t * r[0], p0[1] + t * r[1]]] : [];
+}
+
+/** Every point where a closed segment meets the true outline. */
+function boundaryHits(segs: readonly LocalSeg[], p0: P2, p1: P2): P2[] {
+  return segs.flatMap((s) => (s.kind === 'line' ? segSegHits(p0, p1, s.a, s.b) : segArcHits(p0, p1, s)));
+}
+
+/** A disc meets the waste (closed: touching meets) — a hole whose axis runs along `through` (spec §6.3). */
+export function circleMeetsWaste(segs: readonly LocalSeg[], centre: P2, r: number): boolean {
+  return wasteContains(segs, centre, 'closed') || boundaryDistance(segs, centre) <= r + CURVE_EPS;
+}
+
+/** An axis-aligned rectangle [lo, hi] meets the waste (closed) — a hole square to `through`, projected (spec §6.3). */
+export function rectMeetsWaste(segs: readonly LocalSeg[], lo: P2, hi: P2): boolean {
+  const corners: P2[] = [[lo[0], lo[1]], [hi[0], lo[1]], [hi[0], hi[1]], [lo[0], hi[1]]];
+  if (corners.some((p) => wasteContains(segs, p, 'closed'))) return true;
+  const inRect = (p: P2) => p[0] >= lo[0] - CURVE_EPS && p[0] <= hi[0] + CURVE_EPS && p[1] >= lo[1] - CURVE_EPS && p[1] <= hi[1] + CURVE_EPS;
+  if (segs.some((s) => inRect(s.a) || (s.kind === 'arc' && inRect(s.crown)))) return true;
+  return corners.some((p, i) => boundaryHits(segs, p, corners[(i + 1) % 4]!).length > 0);
+}
+
+export type CurveFaultKind = 'runs-off' | 'cuts-through';
+export interface CurveFault { kind: CurveFaultKind; edge?: { dim: Dimension; side: CutFrom } }
+
+/** The arc's points at 0°, 90°, 180°, 270° about its centre that lie on it: with its ends, its extremes in u and v. */
+function arcExtremes(s: LocalArc): P2[] {
+  const out: P2[] = [];
+  for (const [dx, dy] of [[1, 0], [0, 1], [-1, 0], [0, -1]] as const) {
+    const q: P2 = [s.centre[0] + dx * s.radius, s.centre[1] + dy * s.radius];
+    if (crownSide(s, q) >= -CURVE_EPS) out.push(q);
+  }
+  return out;
+}
+
+/**
+ * THE fault decider (spec §2.5), exact against the true arcs:
+ * - `runs-off`: a point of the outline outside the face rectangle (on it is allowed); the edge is the first side passed,
+ *   in the order u min, u max, v min, v max (P4);
+ * - `cuts-through`: the kept face is empty or in pieces — judged on the face's boundary loop: the parts of it inside the
+ *   (closed) waste form two or more runs, or the whole loop. A touch counts (zero thickness is no wood).
+ */
+export function curveFaults(board: Pick<Board, Dimension>, c: Omit<CurveCut, 'id'>): CurveFault[] {
+  const [u, v] = uvDims(c.through);
+  const U = board[u];
+  const V = board[v];
+  const segs = localSegments(board, c);
+  const out: CurveFault[] = [];
+  const pts = segs.flatMap((s) => (s.kind === 'arc' ? [s.a, s.b, ...arcExtremes(s)] : [s.a, s.b]));
+  const passes: [boolean, { dim: Dimension; side: CutFrom }][] = [
+    [pts.some((p) => p[0] < -CURVE_EPS), { dim: u, side: 'min' }],
+    [pts.some((p) => p[0] > U + CURVE_EPS), { dim: u, side: 'max' }],
+    [pts.some((p) => p[1] < -CURVE_EPS), { dim: v, side: 'min' }],
+    [pts.some((p) => p[1] > V + CURVE_EPS), { dim: v, side: 'max' }],
+  ];
+  const first = passes.find(([hit]) => hit);
+  if (first) out.push({ kind: 'runs-off', edge: first[1] });
+  // The boundary loop, parametrised from (0, 0) anticlockwise: the four sides as segments.
+  const loop: [P2, P2][] = [[[0, 0], [U, 0]], [[U, 0], [U, V]], [[U, V], [0, V]], [[0, V], [0, 0]]];
+  const samples: P2[] = [];
+  for (const [p0, p1] of loop) {
+    const len = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]);
+    const ts = [0, ...boundaryHits(segs, p0, p1).map((q) => Math.hypot(q[0] - p0[0], q[1] - p0[1]) / len)].sort((a, b) => a - b);
+    const cuts: number[] = [];
+    for (const t of ts) if (!cuts.length || t - cuts[cuts.length - 1]! > 1e-12) cuts.push(Math.max(0, Math.min(1, t)));
+    if (cuts[cuts.length - 1]! < 1 - 1e-12) cuts.push(1);
+    for (let k = 0; k + 1 < cuts.length; k += 1) {
+      const at = (t: number): P2 => [p0[0] + t * (p1[0] - p0[0]), p0[1] + t * (p1[1] - p0[1])];
+      samples.push(at(cuts[k]!), at((cuts[k]! + cuts[k + 1]!) / 2));
+    }
+  }
+  const inside = samples.map((p) => wasteContains(segs, p, 'closed'));
+  if (inside.every(Boolean)) { out.push({ kind: 'cuts-through' }); return out; }
+  // Runs of `true`, around the loop: count the starts (a true after a false).
+  const runs = inside.filter((b, i) => b && !inside[(i - 1 + inside.length) % inside.length]).length;
+  if (runs >= 2) out.push({ kind: 'cuts-through' });
+  return out;
+}
+
+// ── Canonical forms (spec §2.2): one writer and one reader per row type. A reader returns null for a stored form its row
+//    cannot represent exactly (the angle-cuts rule): the row then shows the bench line and Remove only.
+
+export interface ArchFields { through: Dimension; along: Dimension; side: CutFrom; from: CutFrom; start: number; span: number; rise: number }
+
+/** An Arch (or Half-round notch: rise = span / 2) on the `side` edge of the in-face dimension that is not `along`,
+ *  from `start` to `start + span` measured from `from`'s end of `along`, bowing `rise` into the wood. */
+export function archCurve(f: ArchFields): Omit<CurveCut, 'id'> {
+  const [u] = uvDims(f.through);
+  if (f.along === u) {
+    return { through: f.through, uFrom: f.from, vFrom: f.side, start: [f.start, 0],
+      segments: [{ type: 'arc', to: [f.start + f.span, 0], side: 'left', rise: f.rise }, { type: 'line', to: [f.start, 0] }] };
+  }
+  return { through: f.through, uFrom: f.side, vFrom: f.from, start: [0, f.start],
+    segments: [{ type: 'arc', to: [0, f.start + f.span], side: 'right', rise: f.rise }, { type: 'line', to: [0, f.start] }] };
+}
+
+export function archFields(c: Omit<CurveCut, 'id'>): ArchFields | null {
+  if (c.segments.length !== 2) return null;
+  const [a, l] = c.segments as [CurveSegment, CurveSegment];
+  if (a.type !== 'arc' || a.rise === undefined || l.type !== 'line') return null;
+  if (l.to[0] !== c.start[0] || l.to[1] !== c.start[1]) return null;
+  const [u, v] = uvDims(c.through);
+  if (c.start[1] === 0 && a.to[1] === 0 && a.to[0] > c.start[0] && a.side === 'left') {
+    return { through: c.through, along: u, side: c.vFrom, from: c.uFrom, start: c.start[0], span: a.to[0] - c.start[0], rise: a.rise };
+  }
+  if (c.start[0] === 0 && a.to[0] === 0 && a.to[1] > c.start[1] && a.side === 'right') {
+    return { through: c.through, along: v, side: c.uFrom, from: c.vFrom, start: c.start[1], span: a.to[1] - c.start[1], rise: a.rise };
+  }
+  return null;
+}
+
+export interface BowFields { through: Dimension; along: Dimension; side: CutFrom; span: number; rise: number }
+
+/** A Bow of the `side` edge along `along`, over `span` from that dimension's MIN end (P2: written at the edge length),
+ *  bowing `rise` into the waste: the edge's middle stays, its ends come in by `rise`. */
+export function bowCurve(f: BowFields): Omit<CurveCut, 'id'> {
+  const [u] = uvDims(f.through);
+  const { span: s, rise: h } = f;
+  if (f.along === u) {
+    return { through: f.through, uFrom: 'min', vFrom: f.side, start: [0, 0],
+      segments: [{ type: 'line', to: [0, h] }, { type: 'arc', to: [s, h], side: 'right', rise: h }, { type: 'line', to: [s, 0] }, { type: 'line', to: [0, 0] }] };
+  }
+  return { through: f.through, uFrom: f.side, vFrom: 'min', start: [0, 0],
+    segments: [{ type: 'line', to: [h, 0] }, { type: 'arc', to: [h, s], side: 'left', rise: h }, { type: 'line', to: [0, s] }, { type: 'line', to: [0, 0] }] };
+}
+
+export function bowFields(c: Omit<CurveCut, 'id'>): BowFields | null {
+  if (c.segments.length !== 4 || c.start[0] !== 0 || c.start[1] !== 0) return null;
+  const [l1, a, l2, l3] = c.segments as [CurveSegment, CurveSegment, CurveSegment, CurveSegment];
+  if (l1.type !== 'line' || a.type !== 'arc' || a.rise === undefined || l2.type !== 'line' || l3.type !== 'line') return null;
+  if (l3.to[0] !== 0 || l3.to[1] !== 0) return null;
+  const [u, v] = uvDims(c.through);
+  const h = a.rise;
+  if (c.uFrom === 'min' && a.side === 'right' && l1.to[0] === 0 && l1.to[1] === h && a.to[1] === h && l2.to[0] === a.to[0] && l2.to[1] === 0 && a.to[0] > 0) {
+    return { through: c.through, along: u, side: c.vFrom, span: a.to[0], rise: h };
+  }
+  if (c.vFrom === 'min' && a.side === 'left' && l1.to[1] === 0 && l1.to[0] === h && a.to[0] === h && l2.to[1] === a.to[1] && l2.to[0] === 0 && a.to[1] > 0) {
+    return { through: c.through, along: v, side: c.uFrom, span: a.to[1], rise: h };
+  }
+  return null;
+}
+
+export interface CornerFields { through: Dimension; uFrom: CutFrom; vFrom: CutFrom; radius: number }
+
+/** The corner at (`uFrom`, `vFrom`) rounded to `radius` — a quarter circle tangent to both sides. */
+export function cornerCurve(f: CornerFields): Omit<CurveCut, 'id'> {
+  const r = f.radius;
+  return { through: f.through, uFrom: f.uFrom, vFrom: f.vFrom, start: [0, 0],
+    segments: [{ type: 'line', to: [r, 0] }, { type: 'arc', to: [0, r], side: 'left', radius: r }, { type: 'line', to: [0, 0] }] };
+}
+
+export function cornerFields(c: Omit<CurveCut, 'id'>): CornerFields | null {
+  if (c.segments.length !== 3 || c.start[0] !== 0 || c.start[1] !== 0) return null;
+  const [l1, a, l2] = c.segments as [CurveSegment, CurveSegment, CurveSegment];
+  if (l1.type !== 'line' || a.type !== 'arc' || a.radius === undefined || l2.type !== 'line' || a.side !== 'left') return null;
+  const r = a.radius;
+  if (l1.to[0] !== r || l1.to[1] !== 0 || a.to[0] !== 0 || a.to[1] !== r || l2.to[0] !== 0 || l2.to[1] !== 0) return null;
+  return { through: c.through, uFrom: c.uFrom, vFrom: c.vFrom, radius: r };
+}
+
+export type CurveKind = 'arch' | 'bow' | 'corner';
+export function deriveCurveKind(c: Omit<CurveCut, 'id'>): CurveKind | null {
+  return archFields(c) ? 'arch' : bowFields(c) ? 'bow' : cornerFields(c) ? 'corner' : null;
 }

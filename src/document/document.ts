@@ -39,8 +39,8 @@ export {
   insideHole, minusCover, minusPrism, mirrorHoleRow, ringInside, sameHoleRow, mm, defaultHole, defaultShelfPinRow, defaultHingeCup,
 } from './holes';
 export type { Hole, Plane } from './holes';
-export { CURVE_EPS, CURVE_FIELDS, CURVE_KEYS, CURVE_SEGMENTS_MAX, CURVE_SEGMENTS_STORED_MAX, CURVE_TOLERANCE, copyCurve, curveValues, sameCurve, uvDims, arcOf, bowsInto, curveOutline, localSegments, arcChords } from './curves';
-export type { P2, LocalArc, LocalLine, LocalSeg, Outline } from './curves';
+export { CURVE_EPS, CURVE_FIELDS, CURVE_KEYS, CURVE_SEGMENTS_MAX, CURVE_SEGMENTS_STORED_MAX, CURVE_TOLERANCE, copyCurve, curveValues, sameCurve, uvDims, arcOf, bowsInto, curveOutline, localSegments, arcChords, boundaryDistance, wasteContains, isAir, circleMeetsWaste, rectMeetsWaste, curveFaults, archCurve, archFields, bowCurve, bowFields, cornerCurve, cornerFields, deriveCurveKind } from './curves';
+export type { P2, LocalArc, LocalLine, LocalSeg, Outline, CurveFaultKind, CurveFault, ArchFields, BowFields, CornerFields, CurveKind } from './curves';
 export { DRAWING_HOLE_SEGMENTS, holeDrawingSegments } from './holeDrawing';
 export { holeFaults, holeInStock, stockChecks } from './holeFaults';
 export type { HoleFault, HoleFaultKind, StockChecks } from './holeFaults';

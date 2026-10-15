@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { arcOf, bowsInto, copyCurve, curveOutline, curveValues, localSegments, sameCurve, uvDims } from './curves';
+import {
+  archCurve, archFields, bowCurve, bowFields, cornerCurve, cornerFields, curveFaults, deriveCurveKind,
+  boundaryDistance, circleMeetsWaste, isAir, rectMeetsWaste, wasteContains,
+} from './curves';
 import type { P2 } from './curves';
 import { createBoard } from './document';
 import type { CurveCut } from './types';
@@ -111,5 +115,85 @@ describe('bowsInto', () => {
     const bow: CurveCut = { id: 'b', through: 'thickness', uFrom: 'min', vFrom: 'min', start: [0, 0], segments: [{ type: 'line', to: [0, 0.5] }, { type: 'arc', to: [30, 0.5], side: 'right', rise: 0.5 }, { type: 'line', to: [30, 0] }, { type: 'line', to: [0, 0] }] };
     const bs = localSegments(apron, bow);
     expect(bowsInto(bs, bs[1] as never)).toBe('waste');
+  });
+});
+
+describe('inside and distance, on the true arcs', () => {
+  const segs = localSegments(apron, ARCH);
+  it('the crown is on the boundary; just under it is waste; the chord line is the boundary', () => {
+    expect(boundaryDistance(segs, [15, 1.5])).toBeLessThan(1e-9);
+    expect(wasteContains(segs, [15, 1.4], 'open')).toBe(true);
+    expect(wasteContains(segs, [15, 1.6], 'closed')).toBe(false);
+    expect(wasteContains(segs, [15, 0], 'closed')).toBe(true);
+    expect(wasteContains(segs, [15, 0], 'open')).toBe(false);
+  });
+  it('a corner: the region between the corner and the arc; the chord line is NOT waste', () => {
+    const cs = localSegments(top, CORNER);
+    expect(wasteContains(cs, [35.9, 0.1], 'open')).toBe(true);
+    expect(wasteContains(cs, [35, 1], 'closed')).toBe(false);          // on the chord (34,0)–(36,2), inside the arc's lens
+  });
+  it('isAir (P3): the middle of the arched edge is air; an arc end is not; the rect corner of a rounded corner is air', () => {
+    expect(isAir(apron, ARCH, [15, 0])).toBe(true);
+    expect(isAir(apron, ARCH, [3, 0])).toBe(false);
+    expect(isAir(apron, ARCH, [15, 1.5])).toBe(false);
+    expect(isAir(top, CORNER, [36, 0])).toBe(true);
+    expect(isAir(top, CORNER, [20, 10])).toBe(false);
+  });
+  it('a circle meets the waste when it touches it', () => {
+    expect(circleMeetsWaste(segs, [15, 2], 0.5)).toBe(true);           // touches the crown
+    expect(circleMeetsWaste(segs, [15, 2], 0.5 - 1e-6)).toBe(false);
+    expect(circleMeetsWaste(segs, [15, 0.5], 0.1)).toBe(true);         // inside
+  });
+  it('a rectangle meets the waste when it touches it', () => {
+    expect(rectMeetsWaste(segs, [14, 1.5], [16, 3])).toBe(true);       // its edge touches the crown
+    expect(rectMeetsWaste(segs, [14, 1.5 + 1e-6], [16, 3])).toBe(false);
+    expect(rectMeetsWaste(segs, [0, 0], [2, 5])).toBe(false);          // beside the arch
+  });
+});
+
+describe('curveFaults (spec §2.5)', () => {
+  it('none for the arch, the corner and a bow', () => {
+    expect(curveFaults(apron, ARCH)).toEqual([]);
+    expect(curveFaults(top, CORNER)).toEqual([]);
+    expect(curveFaults(apron, bowCurve({ through: 'thickness', along: 'length', side: 'min', span: 30, rise: 0.5 }))).toEqual([]);
+  });
+  it('runs-off: an arch on a shortened part names the side it passes (Review Focus 1)', () => {
+    expect(curveFaults({ ...apron, length: 26 }, ARCH)).toEqual([{ kind: 'runs-off', edge: { dim: 'length', side: 'max' } }]);
+  });
+  it('runs-off at the width max side when only the crown is outside the face (ends inside)', () => {
+    expect(curveFaults({ ...apron, width: 1 }, ARCH)).toContainEqual({ kind: 'runs-off', edge: { dim: 'width', side: 'max' } });
+  });
+  it('cuts-through: a rise equal to the width touches the far side; just under it does not', () => {
+    const deep = (rise: number) => archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 3, span: 24, rise });
+    expect(curveFaults({ ...apron, width: 1.5 }, deep(1.5))).toEqual([{ kind: 'cuts-through' }]);
+    expect(curveFaults({ ...apron, width: 1.5 + 1e-6 }, deep(1.5))).toEqual([]);
+  });
+});
+
+describe('writers and readers (spec §2.2 canonical forms)', () => {
+  it('archCurve writes the spec\'s apron arch and archFields reads it back', () => {
+    const f = { through: 'thickness' as const, along: 'length' as const, side: 'min' as const, from: 'min' as const, start: 3, span: 24, rise: 1.5 };
+    const { id: _id, ...arch } = ARCH;
+    expect(archCurve(f)).toEqual(arch);
+    expect(archFields(archCurve(f))).toEqual(f);
+  });
+  it('an arch along v (on an end) round-trips', () => {
+    const f = { through: 'thickness' as const, along: 'width' as const, side: 'max' as const, from: 'min' as const, start: 1, span: 3, rise: 0.5 };
+    expect(archFields(archCurve(f))).toEqual(f);
+    expect(archCurve(f).segments[0]).toMatchObject({ side: 'right' });
+  });
+  it('bow and corner round-trip; the spec\'s corner is cornerCurve', () => {
+    const b = { through: 'width' as const, along: 'length' as const, side: 'max' as const, span: 18, rise: 0.5 };
+    expect(bowFields(bowCurve(b))).toEqual(b);
+    const c = { through: 'thickness' as const, uFrom: 'max' as const, vFrom: 'min' as const, radius: 2 };
+    const { id: _id, ...corner } = CORNER;
+    expect(cornerCurve(c)).toEqual(corner);
+    expect(cornerFields(cornerCurve(c))).toEqual(c);
+  });
+  it('deriveCurveKind; a form no row represents is null', () => {
+    expect(deriveCurveKind(ARCH)).toBe('arch');
+    expect(deriveCurveKind(CORNER)).toBe('corner');
+    expect(deriveCurveKind(bowCurve({ through: 'thickness', along: 'length', side: 'min', span: 30, rise: 0.5 }))).toBe('bow');
+    expect(deriveCurveKind({ ...ARCH, segments: [{ type: 'arc', to: [27, 0], side: 'left', radius: 50 }, { type: 'line', to: [3, 0] }] })).toBeNull();
   });
 });
