@@ -285,6 +285,12 @@ describe('nominal default stock (custom materials spec §5.4)', () => {
     expect(p.entries[0]!.notes).toEqual([]);
     expect(p.entries[0]!.lines[0]).toMatch(/^Buy 1 × 2×4 × 8′/);
   });
+  it('a 38 × 89 mm part in a METRIC pine project buys a 2×4 too, with no plane note (fu 360, as found)', () => {
+    const d = { ...docOf([pine('stud', 610 / 25.4, 89 / 25.4, 38 / 25.4)]), units: { display: 'metric-mm' as const, precision: 16 } };
+    const p = buildPurchase(d, buildCutList(d), defaultShop());
+    expect(p.entries[0]!.notes).toEqual([]);
+    expect(p.entries[0]!.lines[0]).toMatch(/^Buy 1 × 2×4 × 8′/);
+  });
   it('the flag changes nothing for pine, sheets or a non-nominal solid', () => {
     expect(defaultBuying('pine', true)).toEqual(defaultBuying('pine'));
     expect(defaultBuying('m-v-bb55', true)).toEqual({ mode: 'sheet', pricePerSheet: null });
