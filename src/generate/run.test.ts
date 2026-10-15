@@ -467,6 +467,34 @@ describe('runRefine', () => {
     expect((client.complete as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(1);   // a repair call
   });
 
+  it('a metric project\'s faults are shown in mm, while the model is told in inches (fu 355)', async () => {
+    const doc = { ...orig([bp('A', [0, 0, 0], [10, 1, 10]), bp('B', [20, 0, 0], [10, 1, 10])]), units: { display: 'metric-mm' as const, precision: 16 } };
+    const d = echo(doc);
+    const into = { ...d, parts: [d.parts[0]!, { ...d.parts[1]!, at: { ...d.parts[1]!.at, x: d.parts[0]!.at.x + 9.5 } }] };   // B now 0.5in into A
+    const { client, seen } = fakeClient([into]);
+    const out = await go(client, doc);
+    if ('refused' in out) throw new Error('refused');
+    const [v] = out.violations;
+    expect(v!.message).toBe('B passes 0.5in into A along X.');
+    expect(v!.shown).toBe('B passes 12.7 mm into A along X.');
+    // The repair turn the model reads carries the inches text, never the mm.
+    const told = JSON.stringify(seen[1]);
+    expect(told).toContain('B passes 0.5in into A along X.');
+    expect(told).not.toContain(' mm');
+  });
+
+  it('a metric project\'s taper-at-joint advice is shown in whole mm, floored (fu 355)', async () => {
+    const doc = { ...orig([bp('Leg', [0, 0, 0], [1.75, 28, 1.75]), bp('Rail X', [1.75, 23.5, 0.5], [18, 3, 0.75])]), units: { display: 'metric-mm' as const, precision: 16 } };
+    const d = echo(doc);
+    const tapered = { ...d, parts: d.parts.map((p) => (p.name === 'Leg' ? { ...p, tapers: [{ faces: ['+x', '+z'], toward: '-y', start: 24, amount: 0.375 }] } : p)) };
+    const { client } = fakeClient([tapered]);
+    const out = await go(client, doc);
+    if ('refused' in out) throw new Error('refused');
+    const v = out.violations.find((x) => x.kind === 'angle-joint')!;
+    expect(v.message).toContain('start it 23.5in or less');
+    expect(v.shown).toContain('start it 596 mm or less');
+  });
+
   it('an unchanged design over the limit it was already over is a too-large violation, not present (F1, probe B)', async () => {
     const doc = orig([bp('Slab', [0, 0, 0], [36, 1, 10])]);
     const { client } = fakeClient([echo(doc)]);

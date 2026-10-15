@@ -87,6 +87,16 @@ describe('RefineDialog', () => {
     expect(screen.getByText('and 3 more')).toBeTruthy();
   });
 
+  it('shows a new issue\'s displayed copy (a metric project), not the model\'s inches (fu 355)', () => {
+    const run: RefineRun = { status: 'ready', projectId: 'p1', projectName: 'Box — refined', costUsd: 0.07, outcome: {
+      doc: {} as never, usage: {} as never, changes: [], joints: null, present: [],
+      violations: [{ kind: 'overlap', message: 'A passes 0.5in into B along X.', shown: 'A passes 12.7 mm into B along X.', parts: ['A', 'B'] }],
+    } };
+    render(<RefineDialog {...base} run={run} />);
+    expect(screen.getByText('A passes 12.7 mm into B along X.')).toBeTruthy();
+    expect(screen.queryByText('A passes 0.5in into B along X.')).toBeNull();
+  });
+
   it('shows the estimate as a range (fu 236)', () => {
     render(<RefineDialog {...base} />);
     fireEvent.change(screen.getByLabelText('Instruction'), { target: { value: 'taller' } });

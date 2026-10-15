@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { DETAIL_CAPS } from '../generate/prompt';
 import type { Detail } from '../generate/prompt';
 import { MAX_REPAIRS } from '../generate/run';
+import { shownText } from '../document/designCheck';
 import type { RefineSettings } from '../generate/refine';
 import type { RefineRun } from '../useRefine';
 import { formatCostRange } from '../generate/estimate';
@@ -133,7 +134,7 @@ export function RefineDialog(p: Props) {
             {/* Unjoined (fu 311): the note above already states the taper fault in the person's words, so its
                 model-facing twin (decimal inches) is not listed again. It still counts as an issue. */}
             {out.violations.filter((v) => !(out.joints?.notJoined && v.kind === 'angle-joint'))
-              .map((v, i) => <p key={`v${i}`} className="field-error">{v.message}</p>)}
+              .map((v, i) => <p key={`v${i}`} className="field-error">{shownText(v)}</p>)}
             {out.changes.length === 0 ? <p>No changes.</p> : (
               <ul className="generate-runs">
                 {out.changes.slice(0, CHANGES_SHOWN).map((c, i) => <li key={i}>{c.text}</li>)}

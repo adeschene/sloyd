@@ -474,3 +474,43 @@ describe('tapered parts: contacts read contactSolids (AI-tapers spec §3.3)', ()
     expect(checkDesign(docOf(notched, top), NO_LIMITS)).toEqual(checkDesign(docOf(leg(), top), NO_LIMITS));
   });
 });
+
+describe('the displayed copy in a metric project (fu 355)', () => {
+  const MM = { display: 'metric-mm', precision: 16 } as const;
+  const metric = (...boards: Board[]): FlatDocument => ({ ...docOf(...boards), units: MM });
+  const one = (doc: FlatDocument, kind: string, display?: typeof MM) =>
+    (display ? checkDesign(doc, NO_LIMITS, display) : checkDesign(doc, NO_LIMITS)).find((v) => v.kind === kind)!;
+
+  it('an overlap reads in mm for the person and in inches for the model', () => {
+    const v = one(metric(box('A', [0, 0, 0], [10, 1, 10]), box('B', [0, 0.75, 0], [10, 1, 10])), 'overlap');
+    expect(v.message).toBe('B passes 0.25in into A along Y.');
+    expect(v.shown).toBe('B passes 6.4 mm into A along Y.');
+  });
+  it('too-small reads to 0.1 mm, so a part under the minimum never reads the same as it', () => {
+    const v = one(metric(box('Strip', [0, 0, 0], [10, 1 / 16, 1])), 'too-small');
+    expect(v.message).toBe('Strip is 0.063in along Y; the minimum is 0.125in.');
+    expect(v.shown).toBe('Strip is 1.6 mm along Y; the minimum is 3.2 mm.');
+  });
+  it('the tip margin and the unsupported hint read in mm', () => {
+    const tip = one({ ...cantilever(21.8), units: MM }, 'tips');
+    expect(tip.message).toContain('0.955in inside the edge');
+    expect(tip.shown).toContain('its centre of mass is 24.3 mm inside the edge of what touches the floor; keep it at least 25.4 mm inside.');
+    const lost = one(metric(box('Base', [0, 0, 0], [10, 1, 10]), box('Float', [0, 3, 0], [10, 1, 10])), 'unsupported');
+    expect(lost.message).toContain('the nearest supported part is Base, 2in away');
+    expect(lost.shown).toContain('the nearest supported part is Base, 50.8 mm away');
+  });
+  it('a message with no length has no displayed copy', () => {
+    const lost = one(metric(box('Float', [0, 3, 0], [10, 1, 10])), 'unsupported');
+    expect('shown' in lost).toBe(false);
+  });
+  it('an imperial project gets exactly the violations it got before: no displayed copy', () => {
+    const d = docOf(box('A', [0, 0, 0], [10, 1, 10]), box('B', [0, 0.75, 0], [10, 1 / 16, 10]), box('Float', [0, 5, 0], [10, 1, 10]));
+    const v = checkDesign(d, NO_LIMITS);
+    expect(v.length).toBeGreaterThan(2);
+    expect(v.every((x) => !('shown' in x))).toBe(true);
+  });
+  it('the display units can be given apart from the document (Refine checks an imperial conversion)', () => {
+    const v = one(docOf(box('A', [0, 0, 0], [10, 1, 10]), box('B', [0, 0.75, 0], [10, 1, 10])), 'overlap', MM);
+    expect(v.shown).toBe('B passes 6.4 mm into A along Y.');
+  });
+});

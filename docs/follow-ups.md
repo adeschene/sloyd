@@ -5571,7 +5571,13 @@ Imperial unchanged (exact). Stored values untouched.
 **355. `designCheck` messages shown in decimal inches.** `inches()` in `designCheck.ts` writes "passes 0.25in into …" — text
 that is model-facing (stays inches, spec non-goal) but also rendered in the Joinery and Refine dialogs. In a metric project
 those dialog lines read in inches. Remedy: format the displayed copy with the project's units, keep the model's in inches.
-**Status:** open.
+**Status:** closed 2026-10-15. A `Violation` may carry `shown`, the person's copy: set only in a METRIC project and only when
+it differs (an imperial violation is byte-for-byte as before, inv 52). `checkDesign` and `jointViolations`/`jointFaults` take
+a `display` units parameter defaulting to the checked document's; Refine passes the ORIGINAL project's (`EvaluateOpts.units`),
+because it checks the model's imperial conversion. Fault lengths read to 0.1 mm (`formatMm(v, 1)`: a 2.6 mm part must not read
+"3 mm; the minimum is 3 mm"); the taper advice is floored to whole mm (`floorToTick`, as `angledRefusal`'s). `collapseViolations`
+suffixes both copies; the Joinery and Refine dialogs render `shownText(v)`. The converter's rejections (`rejectedViolations`:
+"beyond 10,000in", "1/16in") stay inches — they describe the model's numbers. The model's feedback is unchanged.
 
 **356. Metric chunk 1 minors (record-only).** (1) The 1e-9 bound tolerance can store a value up to an ulp past a bound; a
 reload clamps it, below any display. (2) `'- 19 mm'` (space after the sign before `mm`) is null in both modes — the
