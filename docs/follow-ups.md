@@ -5749,6 +5749,13 @@ always lies under the face's own visible edge line. **Status:** open (a dedicate
 **375. A silhouette drawn through another cut's air.** `silhouetteLines` draws a smooth vertex's line along `through` for its
 whole length; where another cut (a dado, a hole) removes wood along that line, the line is drawn through air. **Status:** open
 (unseen on a print; fix by clipping the silhouette to the wood).
+- **Closed 2026-10-15 (follow-ups session, branch `follow-ups-1`).** Reproduced first: the default-style arch with a 1/4"
+  dado across its crown drew the crown silhouette (looking along the length) the full 3/4". `silhouetteLines` now clips
+  each line to the part's convex bodies (`onWood`: a plane along the line is met within 1e-7, since the line lies ON a
+  body face; a plane crossing it clips exactly), merging the stretches where slices meet, so a dado, another curve or an
+  angle cut breaks the line. Holes are not clipped: a clean hole never meets a curve's waste (touching is a breaks-out),
+  and a faulted one is drawn approximately. Tests: the plain crown (one line, 3/4"), under the dado (1/2", nothing above
+  the floor), a dado clear of it (whole); mutated — no clip, no merge — each red. **Status:** closed.
 
 **376. Chord ends off the arc (record-only).** (1) Q4: a model chord split by a dado or a second curve keeps its split end ON
 the chord, up to 0.005" (the model tolerance) off the true arc, so the other feature's line meets it. (2) Q2: visibility is

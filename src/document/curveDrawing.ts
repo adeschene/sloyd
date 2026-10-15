@@ -2,6 +2,7 @@
 import type { Board } from './types';
 import { DIMENSION_ORDER } from './geometry';
 import { partGeometry } from './bodies';
+import { bodyPlanes } from './holes';
 import { toWorld } from './snapPoints';
 import type { Segment } from './cuts';
 import {
@@ -112,14 +113,46 @@ export function curveDrawEdges(board: Board): readonly DrawEdge[] {
 
 /**
  * The silhouette lines of a part's curved surfaces for a view looking along `toward` (ruling Q1), world space, no explode
- * offset: a line along each curve's `through`, the whole way through, at every SMOOTH model outline vertex whose two
- * faces face opposite ways to the view (a face exactly edge-on counts). The MODEL vertex, not the true tangent point: it
+ * offset: a line along each curve's `through` at every SMOOTH model outline vertex whose two faces face opposite ways
+ * to the view (a face exactly edge-on counts), drawn only where that vertex is on the wood (fu 375: clipped to the
+ * part's bodies, so a dado or another cut that removes the wood there breaks the line; holes aside — a clean hole never
+ * meets a curve's waste, and a faulted one is drawn approximately). The MODEL vertex, not the true tangent point: it
  * lies on the body boundary, so drawView's occluders judge it as they judge every other edge. Sharp vertices are
  * curvedEdges' lines already. An outline edge lying on the face rectangle stands in for the part's own face there.
  * Built only through `toWorld` (invariant 44). drawView decides what is hidden.
  */
 export function curveSilhouettes(board: Board, toward: readonly number[]): [V3, V3][] {
   return silhouetteLines(board, toward).map(({ A, E }) => [A, E]);
+}
+
+/**
+ * The stretches of the board-local line at (u, v) = q, along dimension index `k` from 0 to `depth`, that lie in some
+ * convex body (its closed planes; one parallel to the line is met within WOOD_EPS, since the line runs ON a body's
+ * boundary), merged where they touch; a stretch shorter than WOOD_EPS is dropped.
+ */
+const WOOD_EPS = 1e-7;
+function onWood(planes: readonly (readonly { n: readonly number[]; d: number }[])[], q: P2, ui: number, vi: number, k: number, depth: number): [number, number][] {
+  const spans: [number, number][] = [];
+  for (const ps of planes) {
+    let lo = 0, hi = depth;
+    for (const { n, d } of ps) {
+      const f0 = n[ui]! * q[0] + n[vi]! * q[1] + d;   // n·p(t) + d ≥ 0, linear in t
+      const fk = n[k]!;
+      // A plane along the line (the line lies ON such a face): kept within WOOD_EPS. One crossing it clips exactly.
+      if (Math.abs(fk) <= 1e-12) { if (f0 < -WOOD_EPS) { lo = 1; hi = 0; break; } continue; }
+      const t = -f0 / fk;
+      if (fk > 0) lo = Math.max(lo, t); else hi = Math.min(hi, t);
+      if (lo > hi) break;
+    }
+    if (hi - lo > WOOD_EPS) spans.push([lo, hi]);
+  }
+  spans.sort((a, b) => a[0] - b[0]);
+  const out: [number, number][] = [];
+  for (const sp of spans) {
+    const last = out[out.length - 1];
+    if (last && sp[0] <= last[1] + WOOD_EPS) last[1] = Math.max(last[1], sp[1]); else out.push([sp[0], sp[1]]);
+  }
+  return out;
 }
 
 /** Inches: how far a silhouette's hidden-line probe is stepped out of each viewer-facing adjacent face. drawView's
@@ -139,6 +172,7 @@ const PROBE = 4e-6; // 4 x drawing.ts' DRAW_EPS (1e-6), not imported: drawing.ts
  */
 export function silhouetteLines(board: Board, toward: readonly number[]): { A: V3; E: V3; lift: V3 }[] {
   const out: { A: V3; E: V3; lift: V3 }[] = [];
+  const planes = board.curves.length > 0 ? partGeometry(board).bodies.map((b) => bodyPlanes(b.faces)) : [];
   for (const c of board.curves) {
     const [u, v] = uvDims(c.through);
     const ui = DIMENSION_ORDER.indexOf(u);
@@ -181,7 +215,7 @@ export function silhouetteLines(board: Board, toward: readonly number[]): { A: V
         if (n[0] * d[0] + n[1] * d[1] <= 1e-9) continue; // edge-on or facing away
         for (let j = 0; j < 3; j++) lift[j] += PROBE * (n[0] * wu[j]! + n[1] * wv[j]!);
       }
-      out.push({ A: W(q, 0), E: W(q, board[c.through]), lift });
+      for (const [t0, t1] of onWood(planes, q, ui, vi, k, board[c.through])) out.push({ A: W(q, t0), E: W(q, t1), lift });
     });
   }
   return out;

@@ -783,7 +783,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     visible/hidden split is chunk 1's), and a view whose direction lies in the outline's plane (**edge-on**) keeps the model
     chords unrefined (a 96-chord arc folds back over itself). A chord split by another feature keeps its split end on the
     chord (Q4). **Curved surfaces' silhouettes come from `silhouetteLines`** (a line along `through` at each smooth model
-    vertex whose faces turn opposite ways to the view), each probed from **4×`DRAW_EPS` along the outward normals of the
+    vertex whose faces turn opposite ways to the view, clipped to the part's bodies — fu 375: never through another cut's air), each probed from **4×`DRAW_EPS` along the outward normals of the
     viewer-facing adjacent faces** — never lifted toward the viewer (a fixed lift failed gentle bows) and never probed from the
     vertex itself (DRAW_EPS grazing reads it hidden).
 

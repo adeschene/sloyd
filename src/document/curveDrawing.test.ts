@@ -130,3 +130,24 @@ describe('silhouettes through mirrors and turns', () => {
     expect(VIEWS.some((T) => curveSilhouettes(chiralCurved('flat'), T).length > 0)).toBe(true);
   });
 });
+
+describe('silhouettes stay on the wood (fu 375)', () => {
+  // Looking along the length (world X, flat at turn 0), the arch's crown (u = 15, v = 1.5) turns away from the viewer:
+  // one silhouette line along the thickness there.
+  const along = [1, 0, 0];
+  const crown = (b: Board) => curveSilhouettes(b, along).filter(([p]) => Math.abs(p[0]! - 15) < 1e-9);
+  const len = (s: readonly (readonly (readonly number[])[])[]) => s.reduce((n, [p, q]) => n + Math.hypot(q![0]! - p![0]!, q![1]! - p![1]!, q![2]! - p![2]!), 0);
+  const dado = (offset: number): Cut => ({ id: 'd', face: 'thickness', from: 'max', across: 'width', offset, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 });
+  it('a plain arch: the crown line runs the full 3/4"', () => {
+    expect(crown(apron())).toHaveLength(1);
+    expect(len(crown(apron()))).toBeCloseTo(0.75, 12);
+  });
+  it('a 1/4"-deep dado across the crown: the line runs only through the 1/2" of wood left under it', () => {
+    const b = apron({ cuts: [dado(14.625)] });
+    expect(len(crown(b))).toBeCloseTo(0.5, 9);
+    for (const [p, q] of crown(b)) for (const x of [p!, q!]) expect(x[1]!).toBeLessThanOrEqual(0.5 + 1e-9);
+  });
+  it('a dado clear of the crown leaves the crown line whole', () => {
+    expect(len(crown(apron({ cuts: [dado(20)] })))).toBeCloseTo(0.75, 12);
+  });
+});
