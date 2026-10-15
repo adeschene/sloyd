@@ -1,7 +1,7 @@
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
-import { archCurve, archFields, bowCurve, bowFields, createBoard, createDocument } from '../document/document';
+import { archCurve, archFields, bowCurve, bowFields, cornerCurve, createBoard, createDocument } from '../document/document';
 import type { Board, CurveCut } from '../document/document';
 import { Properties } from './Properties';
 
@@ -88,6 +88,28 @@ describe('the Curves section', () => {
     expect(curves()[0]).toEqual(bow);
     expect(screen.getByRole('alert')).toHaveTextContent('An arc is at most a half circle — reduce the Rise first.');
     expect(screen.getByLabelText('Through')).toHaveValue('thickness');
+  });
+
+  it('a select change that runs a Bow off the part names the Rise, not a Span it has none of (finding 3)', async () => {
+    // A 1" bow through the thickness, re-seated through the width: its depth is now the 3/4" thickness, so its end lines
+    // run past the thickness max side. Not a half-circle (span 30) nor a cut-through: the runs-off words.
+    const user = userEvent.setup();
+    const bow: CurveCut = { id: 'c1', ...bowCurve({ through: 'thickness', along: 'length', side: 'min', span: 30, rise: 1 }) };
+    open(apron({ curves: [bow] }));
+    expect(screen.queryByRole('status')).toBeNull();
+    await user.selectOptions(screen.getByLabelText('Through'), 'width');
+    expect(curves()[0]).toEqual(bow);
+    expect(screen.getByRole('alert')).toHaveTextContent(/^Runs past the thickness max side — reduce the Rise first\.$/);
+  });
+
+  it('a select change that runs a Rounded corner off the part names its Radius (finding 3\'s twin)', async () => {
+    // A 1" corner through the thickness, re-seated through the width: the 3/4" thickness is now one of its legs' sides.
+    const user = userEvent.setup();
+    const corner: CurveCut = { id: 'c1', ...cornerCurve({ through: 'thickness', uFrom: 'min', vFrom: 'min', radius: 1 }) };
+    open(apron({ curves: [corner] }));
+    await user.selectOptions(screen.getByLabelText('Through'), 'width');
+    expect(curves()[0]).toEqual(corner);
+    expect(screen.getByRole('alert')).toHaveTextContent(/^A radius can't run past the thickness max side — reduce it first\.$/);
   });
 
   it('a Rise that cuts through the part is refused in words', async () => {

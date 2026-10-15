@@ -67,9 +67,12 @@ function refusalFor(board: Board, curve: CurveCut, next: Draft, control: Control
   const added = curveFaults(board, next).find((f) => !had.has(f.kind));
   if (added?.kind === 'cuts-through') return `Removes more than the ${cutDim(board, next)} — reduce the ${control ?? 'Rise'} first.`;
   if (added) {
-    return control === 'Radius'
+    // A select change (no control) names the field that sizes this kind: a Bow has no Span (its Rise), a corner its
+    // Radius (finding 3).
+    const sizer: Control = control ?? (bowFields(next) || bowFields(curve) ? 'Rise' : cornerFields(next) || cornerFields(curve) ? 'Radius' : 'Span');
+    return sizer === 'Radius'
       ? `A radius can't run past ${edgeName(added.edge!)} — reduce it first.`
-      : `Runs past ${edgeName(added.edge!)} — reduce the ${control ?? 'Span'} first.`;
+      : `Runs past ${edgeName(added.edge!)} — reduce the ${sizer} first.`;
   }
   const after: Board = { ...board, curves: board.curves.map((c) => (c.id === curve.id ? { ...next, id: curve.id } : c)) };
   return holeRefusal(board, after);
