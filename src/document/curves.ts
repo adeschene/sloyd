@@ -239,14 +239,18 @@ export function boundaryDistance(segs: readonly LocalSeg[], p: P2): number {
  * The waste as a set (spec §2.2): the chord polygon (CLOSED) XOR each arc's lens — the disc on the crown's side of the
  * chord, chord line included. A crown outside the polygon adds its lens (an arch); one inside removes it (a corner), so
  * a point on a corner's chord is not waste. A point within CURVE_EPS of the TRUE outline is in the waste when `mode` is
- * 'closed', out of it when 'open'; elsewhere the XOR decides unambiguously.
+ * 'closed', out of it when 'open'; elsewhere the XOR decides; the chord's own CURVE_EPS band is
+ * settled per arc (an arc bowing into the wood leaves its chord band to the polygon, one bowing into the waste takes it).
  */
 export function wasteContains(segs: readonly LocalSeg[], p: P2, mode: 'closed' | 'open'): boolean {
   if (boundaryDistance(segs, p) <= CURVE_EPS) return mode === 'closed';
   let inside = inPolygonClosed(chordPolygon(segs), p);
   for (const s of segs) {
     if (s.kind !== 'arc') continue;
-    if (Math.hypot(p[0] - s.centre[0], p[1] - s.centre[1]) < s.radius && crownSide(s, p) >= -CURVE_EPS) inside = !inside;
+    // The chord band belongs to the polygon (closed), so a lens that ADDS waste (bows into wood) excludes it: the band is
+    // waste; a lens that REMOVES waste (bows into waste) includes it: the band is not.
+    const band = bowsInto(segs, s) === 'wood' ? crownSide(s, p) > CURVE_EPS : crownSide(s, p) >= -CURVE_EPS;
+    if (Math.hypot(p[0] - s.centre[0], p[1] - s.centre[1]) < s.radius && band) inside = !inside;
   }
   return inside;
 }

@@ -197,3 +197,25 @@ describe('writers and readers (spec §2.2 canonical forms)', () => {
     expect(deriveCurveKind({ ...ARCH, segments: [{ type: 'arc', to: [27, 0], side: 'left', radius: 50 }, { type: 'line', to: [3, 0] }] })).toBeNull();
   });
 });
+
+describe('an arc bowing into the wood keeps its chord as waste', () => {
+  const quarter: Omit<CurveCut, 'id'> = {
+    through: 'thickness', uFrom: 'min', vFrom: 'min', start: [0, 0],
+    segments: [{ type: 'line', to: [10, 0] }, { type: 'arc', to: [0, 10], side: 'right', radius: 10 }, { type: 'line', to: [0, 0] }],
+  };
+  const off: Omit<CurveCut, 'id'> = {
+    through: 'thickness', uFrom: 'min', vFrom: 'min', start: [2, 0],
+    segments: [{ type: 'arc', to: [8, 0], side: 'right', rise: 1 }, { type: 'line', to: [8, 3] }, { type: 'line', to: [2, 3] }, { type: 'line', to: [2, 0] }],
+  };
+  it('a quarter-disc waste: the chord point is waste and air', () => {
+    const segs = localSegments(top, quarter);
+    expect(curveFaults(top, quarter)).toEqual([]);
+    expect(wasteContains(segs, [5, 5], 'closed')).toBe(true);
+    expect(wasteContains(segs, [5, 5], 'open')).toBe(true);
+    expect(isAir(top, quarter, [5, 5])).toBe(true);
+  });
+  it('an arc bowing off the part adds no spurious cuts-through', () => {
+    expect(wasteContains(localSegments(apron, off), [5, 0], 'closed')).toBe(true);
+    expect(curveFaults(apron, off).some((x) => x.kind === 'cuts-through')).toBe(false);
+  });
+});
