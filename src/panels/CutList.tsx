@@ -73,7 +73,7 @@ export function CutList({ onClose, shop = DEFAULT_SHOP, onOpenPrices, suspended 
 
   return (
     <div className="cutlist-overlay" role="dialog" aria-modal="true" aria-label="Cut list" inert={suspended}>
-      <div className="cutlist-sheet" ref={sheet} tabIndex={-1}>
+      <div className={`cutlist-sheet${isMetric(doc.units) ? ' sheet-metric' : ''}`} ref={sheet} tabIndex={-1}>
         <header className="cutlist-head">
           <div>
             <h2>Cut list — {doc.name}</h2>

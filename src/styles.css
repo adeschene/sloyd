@@ -1313,6 +1313,13 @@ select.input { cursor: pointer; }
 .custom-material.is-deleted legend, .custom-material.is-deleted .material-definition { text-decoration: line-through; color: var(--ink-dim); }
 .link-button { padding: 0; border: 0; background: none; color: inherit; text-decoration: underline; cursor: pointer; }
 
+/* fu 357: the metric sheet's running note, in the top margin of every printed page (a margin box: Chromium 131+, so Chrome,
+   Edge, Brave; a browser without margin boxes ignores it and prints the header's note on page 1 only, as before). Named, so an
+   imperial print gains nothing. Header-group repetition was measured NOT to repeat in Chromium (fu 357's record). */
+@page metric-sheet {
+  @top-right { content: "Dimensions in mm"; font: 9pt system-ui, sans-serif; color: #000; }
+}
+
 @media print {
   /* The overlay is a direct child of `.app` — see CutList.tsx. */
   .app > *:not(.cutlist-overlay) { display: none !important; }
@@ -1369,6 +1376,9 @@ select.input { cursor: pointer; }
   .cutlist-layout-head,
   .cutlist-layout-key,
   .sheet-units-note { color: #000; }
+  /* fu 357: a metric sheet prints on the named page below, so the note repeats in EVERY page's margin, not only under
+     the title on page 1 (spec R8: a long cut list or a multi-section Plans sheet). */
+  .sheet-metric { page: metric-sheet; }
 
   .cutlist-row {
     border-bottom: 1px solid #ccc;

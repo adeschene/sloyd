@@ -105,11 +105,14 @@ describe('CutList', () => {
     load(dadoed, {});
     const first = render(<CutList onClose={() => {}} />);
     expect(screen.queryByText('Dimensions in mm')).toBeNull();
+    // fu 357: only a metric sheet takes the named print page that repeats the note in every page's margin.
+    expect(first.container.querySelector('.cutlist-sheet')).not.toHaveClass('sheet-metric');
     first.unmount();
     act(() => useStore.getState().setUnitsDisplay('metric-mm'));
-    render(<CutList onClose={() => {}} />);
+    const second = render(<CutList onClose={() => {}} />);
     await userEvent.selectOptions(screen.getByLabelText('Diagrams'), 'none');
     expect(screen.getByText('Dimensions in mm')).toBeInTheDocument();
+    expect(second.container.querySelector('.cutlist-sheet')).toHaveClass('sheet-metric');
   });
 
   it('sheet prose reads the trade size; a metric project adds its mm, and the oversize line names the part in mm', () => {

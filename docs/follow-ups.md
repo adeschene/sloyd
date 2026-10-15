@@ -5592,7 +5592,14 @@ units until chunk 2 owns the diagrams. **Status:** record-only.
 **357. The units note prints on a sheet's first page only.** `Dimensions in mm` sits in the cut-list and Plans-sheet
 headers; a long cut list or a multi-section Plans sheet (`.plans-section { break-inside: avoid }`) prints later pages with
 unitless numbers. Spec R8 says "one note per sheet". Remedy to discuss: repeat the note in each printed section's caption.
-**Status:** open — for the user's eye on a real print (fu 345, 254).
+**Status:** closed 2026-10-15. The named remedy was rejected: a cut-list group runs across page breaks, so a caption misses pages.
+Measured in this Chromium (148) with `page.pdf` read page by page: a header group (CSS `table-header-group` or a real `<thead>`)
+does NOT repeat; `position: fixed` repeats but overlays content; an `@page` margin box repeats in the margin. Shipped: a metric
+sheet gets `.sheet-metric`, which in print takes the named page `metric-sheet`, whose `@top-right` margin box reads `Dimensions in
+mm` (styles.css). Live, on the dev server with a 76-part metric fixture at 0.4in margins: cut list 16/16 pages and Plans 3/3
+carry it (page 1 twice: margin and header), top-right, clear of content; the same project in inches prints none, same page
+count. Limits: margin boxes are Chromium 131+ (Chrome, Edge, Brave — the user prints from Brave); Firefox/Safari ignore the rule
+and print the header note on page 1 only, as before; a print with margins set to None leaves no room for it.
 
 **358. Metric chunk 2 minors (record-only).** (1) The part diagram's crossings note (`overlap: 6 deep governs`) is bare
 while its neighbouring bench notes carry ` mm` (the sheet note covers it). (2) Chain dimensions are rounded one by one, so

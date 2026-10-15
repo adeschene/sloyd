@@ -26,8 +26,8 @@ handicraft education tradition built around hand woodworking.
   `index-DwixxasK.js`, or earlier down to `2ded5cc` is free — an older build reads a metric project as imperial; below 16,
   `bfde00c`, REFUSES every project saved since: export first). Test count is under Commands.
 - **Metric display (spec `2026-10-15-sloyd-metric-display-design.md`, inv 52)**: deployed. 354 closed (metric parts match the nominal
-  sections and stock they read the same as). Open near it: 357 (the units note prints on page 1 only), 359 (the
-  imperial plane note can read the same on both sides), 356/358 record-only. 355 and 360 closed and deployed.
+  sections and stock they read the same as). Open near it: 359 (the
+  imperial plane note can read the same on both sides), 356/358 record-only. 355 and 360 closed and deployed; 357 closed on `master`, not yet deployed.
 - **Section cut (spec `2026-10-14-sloyd-section-cut-design.md`, inv 51)**: deployed. Open near it: 347 (cap look on real
   hardware), 348 (cap cost on drilled parts), 349–350, 352 record-only (351 closed: inv 43 amended).
 - **Holes (spec `2026-10-14-sloyd-holes-design.md`, inv 50)**: both chunks deployed (schema 16; fu 327 and 343 closed).
@@ -110,6 +110,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | metric display (chunks 1–2) | 10-15 | — | Per-project `in \| mm` Units switch; whole mm for fields, typing (a bare number is mm), tape, cut list, bench lines (holes to 0.1 mm), drag snap; drawings bare mm + "Dimensions in mm" note; Buying parts in mm, trade sizes with mm brackets; metric grid (inv 52) |
 | fu 354 | 10-15 | — | Metric parts match nominal sections and stock when they READ the same whole mm (`nominalName`, `fitsStock`, one `mmTicks` rounding); imperial exact |
 | fu 360 + 355 | 10-15 | — | Built-in pine's default stock adds the nominal 2× and 4×4 sizes (36); metric design faults show mm in the Joinery/Refine dialogs (`Violation.shown`), the model's text unchanged |
+| fu 357 | 10-15 | — | A metric sheet's `Dimensions in mm` repeats in every printed page's top margin (`@page metric-sheet`, margin box) |
 
 ### The deployment rule
 
@@ -789,7 +790,8 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     Materials dialog's sheet and stock sizes (trade units), Generate's limits, model-facing text (a design fault's `message`; the dialogs show its `shown` copy, mm to 0.1 — taper
     advice floored to whole mm — except `too-large`, which reads in the inches its limit was typed in; fu 355), `stockLengthText`
     (`8′`). Drawings (Plans sheet, part diagrams, nesting labels) read BARE mm via `formatLengthBare`, with one
-    `Dimensions in mm` note in the sheet header; Buying reads parts in the project's units and trade sizes imperial with
+    `Dimensions in mm` note in the sheet header, repeated in every printed page's top margin by the named page `metric-sheet`
+    (`.sheet-metric`; an `@page` margin box, Chromium 131+ — a header group was measured not to repeat; fu 357); Buying reads parts in the project's units and trade sizes imperial with
     mm in brackets (`tradeLength`/`tradeSize`/`mmBracket`, one home); the grid ladder is 10 mm / 100 mm / 1 m.
 
 ## Commands
@@ -797,7 +799,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 4188 tests across 141 files
+npm test           # Vitest, currently 4189 tests across 141 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```
