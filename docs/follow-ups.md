@@ -5448,6 +5448,10 @@ the hardware bill of materials (fu 267). **Status:** open (spec §11).
 
 **335. Metric display of hole sizes.** `units.display` is unchanged; a whole-millimetre diameter or pitch prints its mm in
 parentheses only (spec §4.1, amended). **Status:** open (spec §11).
+- **Closed 2026-10-15 (bookkeeping, follow-ups session): delivered by the metric-display round.** A metric project's
+  holes read in mm through `holeLengthText` (diameter and pitch to 0.1 mm, positions whole mm, no imperial aside —
+  `holeText.test.ts`, "diameter and pitch to 0.1 mm"), and the Holes fields share that string (inv 52). An imperial
+  project keeps the ` (35 mm)` aside for a whole-mm size, as this entry described; that is intended. **Status:** closed.
 
 **336. The grain seam inside a bore (ruling R9).** A wall facet takes the plan of the world axis its normal is nearest
 (spec §3.2, inv 35's sloped-face rule), so a bore's wall switches from end-grain rings to long grain halfway round with a
