@@ -7,6 +7,7 @@ import {
   toLocal, groupItems, ungroupItem, turnInstance as turnInstanceOp, setMirrored, mirroredCopy, updateContainer, lastSegment,
 } from '../document/document';
 import type { AngleCut, Board, HoleRow, CustomMaterial, BoardSnapPoint, Cut, Instance, Lift, Named, Rekey, Rotation, Section, SloydDocument, SnapPoint, StoredBoard, TapeAxis } from '../document/document';
+import type { LengthDisplay } from '../units/length';
 import { SNAP_INCHES } from '../document/geometry';
 import { copyAngleCut, sameAngleCut } from '../document/angleCuts';
 import { copyHoleRow, sameHoleRow } from '../document/holes';
@@ -332,6 +333,8 @@ interface StoreState {
   /** Rename a part or an assembly, unique among its siblings; returns the stored name. */
   renameItem: (path: string, typed: string) => string;
   setDocumentName: (name: string) => void;
+  /** The project's length display (metric-display spec §2, R1): one document edit, moves no number. A no-op when unchanged. */
+  setUnitsDisplay: (display: LengthDisplay) => void;
   replaceDocument: (doc: SloydDocument) => void;
   undo: () => void;
   redo: () => void;
@@ -1482,6 +1485,10 @@ export const useStore = create<StoreState>((set, get) => {
     },
 
     setDocumentName: (name) => edit((doc) => ({ ...doc, name })),
+    setUnitsDisplay: (display) => {
+      if (get().doc.units.display === display) return;
+      edit((doc) => ({ ...doc, units: { ...doc.units, display } }));
+    },
 
     // `tapeHover` goes with the anchor in all three wholesale-rewrite actions
     // (here, undo and redo), for the reason invariant 24 states as its own

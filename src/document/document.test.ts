@@ -1569,3 +1569,12 @@ describe('schema 16: holes (holes spec §5.1)', () => {
     expect(doc.shapes[0]!.holes).toEqual([good]);
   });
 });
+
+describe('units on load', () => {
+  it('keeps metric on load and falls back on an unknown display', () => {
+    const base = createDocument('U');
+    expect(migrateDocument({ ...base, units: { display: 'metric-mm', precision: 32 } }).units).toEqual({ display: 'metric-mm', precision: 32 });
+    expect(migrateDocument({ ...base, units: { display: 'furlongs', precision: 16 } }).units).toEqual({ display: 'imperial-fractional', precision: 16 });
+    expect(migrateDocument({ ...base, units: undefined }).units).toEqual({ display: 'imperial-fractional', precision: 16 });
+  });
+});

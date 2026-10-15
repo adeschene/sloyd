@@ -1,5 +1,6 @@
 // Type-only: links.ts's table classifies Board's fields, and Shape/ShapedBoard derive from it.
 import type { OwnField, SharedField } from './links';
+import type { Units } from '../units/length';
 
 /** Degrees about the vertical axis, counter-clockwise seen from above, applied after posture. */
 export type Rotation = 0 | 90 | 180 | 270;
@@ -230,7 +231,7 @@ export type StoredBoard = Board | ShapedBoard;
 export interface SloydDocument {
   version: number;
   name: string;
-  units: { display: 'imperial-fractional'; precision: number };
+  units: Units;
   /**
    * Facts about the SHOP, not about the project's materials. A table saw takes
    * 1/8", a thin-kerf blade less, a CNC router 1/4" — that belongs to the
