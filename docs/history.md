@@ -18,8 +18,14 @@
 
 ## Deployment record
 
-**Master is ahead of production since 2026-10-15: follow-ups 1 merged as `333bddf`, NOT deployed (no schema change).** Production has curves chunk 2 live,
-as it stood when it matched master: **curves chunk 2 live** (`index-C-5a29hA.js`, CSS `index-DdiQhqkN.css`,
+**Production matches `master` as of 2026-10-15 with follow-ups 1 live** (`index-LdkILHkB.js`, CSS `index-DdiQhqkN.css`
+unchanged, deployed commit `558187f`, merge `333bddf`, schema 17 unchanged — a rollback to curves chunk 2, `1e16c01` /
+`index-C-5a29hA.js`, is free). Deployed on the user's word (4472 tests, build clean on the merged tree). Verified per the
+deployment rule: `200` on `/` and a deep route in-network and at the edge; the edge bundle's sha256 matches `dist/`; the old
+bundle 404s in-network; CSP `connect-src 'self' https://api.anthropic.com` at the edge; a real-browser load (0 errors, "+ Add
+board"), its two keys cleared and read back empty after 3s.
+
+The previous deployment: **curves chunk 2 live** (`index-C-5a29hA.js`, CSS `index-DdiQhqkN.css`,
 merge `1e16c01`, schema 17 unchanged — a rollback to curves chunk 1, `54ea740` / `index-D4nh2vvL.js`, is free). Merged on the
 user's word (4436 tests across 151 files, build clean on the merged tree; branch deleted). Verified per the deployment rule:
 `200` on a deep route at the edge; bundle and CSS match `dist/` in-network (via `127.0.0.1`) and at the edge; the old bundle

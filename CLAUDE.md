@@ -21,7 +21,8 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production is curves chunk 2 (merge `1e16c01`); master is AHEAD with follow-ups 1 (`333bddf`), not deployed** — production's bundle `index-C-5a29hA.js`, CSS
+- **Production matches `master`** as of 2026-10-15: follow-ups 1 (merge `333bddf`, deployed as `558187f`) — bundle `index-LdkILHkB.js`;
+  rollback to curves chunk 2 (`1e16c01`, `index-C-5a29hA.js`) is free. Curves chunk 2's bundle was `index-C-5a29hA.js`, CSS
   `index-DdiQhqkN.css`, **SCHEMA 17** (unchanged by chunk 2, so rolling back to curves chunk 1, `54ea740` / `index-D4nh2vvL.js`,
   is free; below 17, `7f851f9` / `index-BZDp6iOz.js` or earlier, REFUSES every project saved since — export first). Test count
   is under Commands.
@@ -39,14 +40,14 @@ handicraft education tradition built around hand woodworking.
 - **Holes (spec `2026-10-14-sloyd-holes-design.md`, inv 50)**: both chunks deployed (schema 16; fu 327 and 343 closed).
   Open near it: 328–342 (336: the wall-grain seam, deferred by the user to a texture/shader session; 337: real-hardware
   looks owed), 345–346 (335, 338, 339, 344 closed in follow-ups 1).
-- **Follow-ups 1 (2026-10-15, branch `follow-ups-1`, merged to master as `333bddf`, NOT deployed; no schema change, so deploying or
+- **Follow-ups 1 (2026-10-15, branch `follow-ups-1`, merged to master as `333bddf` and DEPLOYED as `index-LdkILHkB.js`; no schema change, so
   rolling it back costs nothing)**: closed 369 (a curved part's holed planes drawn as one region: watertight, the pinned
   arched side ~52 → 16 ms), 375 (silhouettes clipped to the wood), 339, 262 (+261 not reproducible), 338 and 359 (the
   user's rulings), 335 (bookkeeping), 348, 344 + 263, 316, 296. Two rulings made in implementation await the user: 296
   (angle-cuts spec §7 marked *Amended (implementation, follow-ups 2026-10-15)*) and 262's set of view-only actions (Hide
   others, Select copies, Select linked, the guides disclosure).
-- **NEXT: ask** — deploy follow-ups 1 (per `DEPLOYMENT.local.md`), then 368 (hand-edited non-convex waste perf; its three
-  causes are hypotheses to measure) or other open items. `docs/follow-ups.md` is authoritative: an open entry reads
+- **NEXT: 368** (the user's choice, 2026-10-15: hand-edited non-convex waste perf; its three causes are hypotheses to
+  measure), then ask. `docs/follow-ups.md` is authoritative: an open entry reads
   `**Status:** open`, and many are record-only, so read the entry before proposing work. Owed to the USER, not code: review
   of the spec amendments marked *Amended (implementation, …)* in the curves and angle-cuts specs; a real Brave print (254,
   345, 357, 379); real-hardware looks (26a: 337, 347, 370 — 370 is the only real proof 369's pinholes are gone; the Plans
