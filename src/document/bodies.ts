@@ -2,11 +2,16 @@ import type { Board, Region } from './types';
 import { CUT_GEOMETRY_KEYS, pocketCells, pocketEdges, type Point, type Segment } from './cuts';
 import { boardHoles, holeRowValues, type Hole } from './holes';
 import { angleCutValues, keptHalfSpace, type V3 } from './angleCuts';
-import { curvePlan, curveValues, splitPieces } from './curves';
+import { curvePlan, curveValues, smoothLines, splitPieces } from './curves';
+import { DIMENSION_ORDER } from './geometry';
+import { unionOutline } from './outline';
 import type { CurveCut } from './types';
 
 /** Inches. Below any bench precision, above float drift on part-sized numbers. */
 export const BODY_EPS = 1e-9;
+/** Inches: how near a candidate line must pass a smooth outline point to be one of an arc's facet lines (curves spec
+ *  §3.3). The chord vertices are the same numbers in both (curveOutline), so this only absorbs clip's arithmetic. */
+export const SMOOTH_EPS = 1e-7;
 
 /** One face of a body: outward unit normal and a convex polygon, board-local. Winding is NOT meaningful —
  *  a consumer that needs it orients against `n` (BoardMesh does). `cut` names the angle cut whose plane
@@ -258,8 +263,11 @@ interface Wing { n: V3; w: V3 }
  * Every comparison is within BODY_EPS (or SLIVER, for lengths): a crossing two
  * neighbouring faces share is computed twice and the two values differ in the
  * last bits, so nothing here assumes exact equality.
+ *
+ * `keep` (curves spec §3.3) skips candidate lines: a polygon edge on a line it refuses (given the edge's start and its
+ * direction) makes no candidate, but its face still contributes wings to the lines that remain.
  */
-export function bodyEdges(bodies: readonly Body[]): [V3, V3][] {
+export function bodyEdges(bodies: readonly Body[], keep?: (o: V3, u: V3) => boolean): [V3, V3][] {
   const edgesOf = (f: BodyFace): [V3, V3][] =>
     f.verts.map((a, i) => [a, f.verts[(i + 1) % f.verts.length]!] as [V3, V3]).filter(([a, b]) => len(sub(b, a)) > SLIVER);
   // A face with fewer than three non-sliver edges has no area worth the name, and with its sliver edges
@@ -275,6 +283,7 @@ export function bodyEdges(bodies: readonly Body[]): [V3, V3][] {
       let u = unit(sub(b, a));
       const lead = Math.abs(u[0]) > BODY_EPS ? u[0] : Math.abs(u[1]) > BODY_EPS ? u[1] : u[2];
       if (lead < 0) u = scale(u, -1);
+      if (keep && !keep(a, u)) continue;
       let line = lines.find((l) => len(cross(l.u, u)) <= BODY_EPS && len(cross(sub(a, l.o), l.u)) <= BODY_EPS);
       if (!line) { line = { o: a, u, ts: [], spans: [] }; lines.push(line); }
       const ta = dot(sub(a, line.o), line.u);
@@ -360,14 +369,78 @@ export function bodyEdges(bodies: readonly Body[]): [V3, V3][] {
 
 const toPoint = (p: V3): Point => ({ length: p[0], width: p[1], thickness: p[2] });
 
+/** Signed area of a face polygon in the plane square to axis k (the other two axes in order). */
+function areaIn(verts: readonly V3[], k: number): number {
+  const [i, j] = [0, 1, 2].filter((d) => d !== k) as [number, number];
+  let a = 0;
+  for (let n = 0; n < verts.length; n += 1) {
+    const p = verts[n]!;
+    const q = verts[(n + 1) % verts.length]!;
+    a += p[i]! * q[j]! - q[i]! * p[j]!;
+  }
+  return a;
+}
+
+/**
+ * A curved part's edges, BUILT (curves spec §3.3; the timing spike: bodyEdges over an arch's slices is quadratic in
+ * them). (1) On every plane square to a curve's `through`: the boundary of the faces lying on it, by `unionOutline`,
+ * a face facing +k wound anticlockwise and one facing −k clockwise — so two bodies' faces against each other (a seam)
+ * cancel, and slices' faces merge into one outline. A segment already drawn on a plane of an earlier axis is skipped,
+ * and so is one on another curve's smooth line (below).
+ * (2) Everything else: `bodyEdges` with the lines on those planes skipped, and the lines along `through` at smooth
+ * outline points (a chord vertex, a tangent join) skipped — an arc draws no facet lines (invariant 16).
+ * Never mutates `bodies` (partGeometry's are frozen and shared).
+ */
+export function curvedEdges(board: Board, bodies: readonly Body[]): [V3, V3][] {
+  const axes = [...new Set(board.curves.map((c) => DIMENSION_ORDER.indexOf(c.through)))];
+  const faces = bodies.flatMap((b) => b.faces);
+  const smooth = smoothLines(board);
+  const onSmooth = (o: V3, u: V3) => smooth.some(({ k, p }) => Math.abs(Math.abs(u[k]!) - 1) <= BODY_EPS
+    && [0, 1, 2].every((i) => i === k || Math.abs(o[i]! - p[i]!) <= SMOOTH_EPS));
+  const out: [V3, V3][] = [];
+  const planes: { k: number; c: number }[] = [];
+  for (const k of axes) {
+    const groups: { c: number; pieces: V3[][] }[] = [];
+    for (const f of faces) {
+      if (Math.abs(Math.abs(f.n[k]!) - 1) > BODY_EPS) continue;
+      const c = f.verts[0]![k]!;
+      let g = groups.find((x) => Math.abs(x.c - c) <= BODY_EPS);
+      if (!g) { g = { c, pieces: [] }; groups.push(g); }
+      const wantPositive = f.n[k]! > 0;
+      g.pieces.push(areaIn(f.verts, k) > 0 === wantPositive ? f.verts : [...f.verts].reverse());
+    }
+    for (const g of groups) {
+      for (const [a, b] of unionOutline(g.pieces, k)) {
+        if (planes.some((p) => Math.abs(a[p.k]! - p.c) <= BODY_EPS && Math.abs(b[p.k]! - p.c) <= BODY_EPS)) continue;
+        // A plane of one axis can hold another curve's smooth line (a rounded edge's tangent line on the face an arch
+        // runs through): its outline runs there, but the surface does not crease.
+        if (onSmooth(a, unit(sub(b, a)))) continue;
+        out.push([a, b]);
+      }
+    }
+    for (const g of groups) planes.push({ k, c: g.c });
+  }
+  const keep = (o: V3, u: V3) =>
+    !planes.some(({ k, c }) => Math.abs(u[k]!) <= BODY_EPS && Math.abs(o[k]! - c) <= BODY_EPS) && !onSmooth(o, u);
+  out.push(...bodyEdges(bodies, keep));
+  return out;
+}
+
+/** The three-way choice over a part's bodies: pocketEdges' grid for a plain part, curvedEdges for a curved one,
+ *  bodyEdges for an angled one. */
+function edgesOf(board: Board, bodies: () => readonly Body[]): Segment[] {
+  if (board.angleCuts.length === 0 && board.curves.length === 0) return pocketEdges(board);
+  const b = bodies();
+  return (board.curves.length > 0 ? curvedEdges(board, b) : bodyEdges(b)).map(([p, q]) => [toPoint(p), toPoint(q)] as Segment);
+}
+
 /**
  * A part's edge lines (invariant 16): `pocketEdges`' exact grid rule for a part
- * without angle cuts, `bodyEdges` otherwise. The ONE name every edge drawer
- * (BoardMesh, the drawings) reads.
+ * without angle cuts or curves, `curvedEdges` for a curved part, `bodyEdges`
+ * otherwise. The ONE name every edge drawer (BoardMesh, the drawings) reads.
  */
 export function boardEdges(board: Board): Segment[] {
-  if (board.angleCuts.length === 0) return pocketEdges(board);
-  return bodyEdges(boardBodies(board)).map(([a, b]) => [toPoint(a), toPoint(b)] as Segment);
+  return edgesOf(board, () => boardBodies(board));
 }
 
 /** A part's board-local geometry, shared by every part with the same geometry key. NEVER mutate it (frozen). */
@@ -439,9 +512,7 @@ export function partGeometry(board: Board): PartGeometry {
     holes,
     get edges() {
       if (!edges) {
-        edges = deepFreeze(board.angleCuts.length === 0
-          ? pocketEdges(board)
-          : bodyEdges(bodies).map(([a, b]) => [toPoint(a), toPoint(b)] as Segment));
+        edges = deepFreeze(edgesOf(board, () => bodies));
       }
       return edges;
     },

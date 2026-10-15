@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
 import type { AngleCut, Board, Cut, CurveCut } from './types';
-import { BODY_EPS, splitBodiesForTest, type Body } from './bodies';
+import { BODY_EPS, clipConvex, curvedEdges, splitBodiesForTest, type Body } from './bodies';
 import { ARCH, CORNER } from './curveFixtures';
-import { bowCurve, curveOutline, curvePlan } from './curves';
+import { archCurve, bowCurve, cornerCurve, curveOutline, curvePlan, smoothLines } from './curves';
+import type { V3 } from './angleCuts';
 import { geometryKey, boardBodies, boardEdges, bodyEdges, bodyVerts, bodyVolume, partGeometry, PART_GEOMETRY_LIMIT } from './bodies';
 import { pocketCells, pocketEdges } from './cuts';
 import type { Segment } from './cuts';
@@ -410,5 +411,120 @@ describe('boardBodies with curves (curves spec §3.2)', () => {
     expect(geometryKey({ ...apron, curves: [ARCH] })).not.toBe(geometryKey(apron));
     expect(geometryKey({ ...apron, curves: [{ ...ARCH, id: 'zz' }] })).not.toBe(geometryKey({ ...apron, curves: [ARCH] }));
     expect(geometryKey({ ...apron, curves: [{ ...ARCH, start: [3.5, 0] }] })).not.toBe(geometryKey({ ...apron, curves: [ARCH] }));
+  });
+});
+
+/** Segments as a canonical set: each line's intervals merged, endpoints ordered, rounded to 1e-7. */
+function canon(segs: readonly [V3, V3][]): string[] {
+  const r = (x: number) => Math.round(x * 1e7) / 1e7;
+  const lines = new Map<string, [number, number][]>();
+  for (const [a, b] of segs) {
+    const d = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+    const l = Math.hypot(...d);
+    if (l < 1e-7) continue;
+    let u = d.map((x) => x / l);
+    const lead = u.find((x) => Math.abs(x) > 1e-9)!;
+    if (lead < 0) u = u.map((x) => -x);
+    const ta = a[0] * u[0]! + a[1] * u[1]! + a[2] * u[2]!;
+    const foot = [0, 1, 2].map((i) => a[i]! - ta * u[i]!);
+    const key = [...u, ...foot].map(r).join(',');
+    const tb = b[0] * u[0]! + b[1] * u[1]! + b[2] * u[2]!;
+    (lines.get(key) ?? lines.set(key, []).get(key)!).push([Math.min(ta, tb), Math.max(ta, tb)]);
+  }
+  const out: string[] = [];
+  for (const [key, spans] of lines) {
+    spans.sort((x, y) => x[0] - y[0]);
+    let [s, e] = spans[0]!;
+    for (const [s2, e2] of spans.slice(1)) { if (s2 <= e + 1e-7) e = Math.max(e, e2); else { out.push(`${key}|${r(s)},${r(e)}`); [s, e] = [s2, e2]; } }
+    out.push(`${key}|${r(s)},${r(e)}`);
+  }
+  return out.sort();
+}
+
+/** The longest stretch any two segments of a list share on one line. A segment drawn twice restarts a dashed path, so
+ *  the built edges must have none (canon alone would merge a duplicate away). */
+function overlap(segs: readonly [V3, V3][]): number {
+  const byLine = new Map<string, [number, number][]>();
+  for (const seg of segs) {
+    const k = canon([seg])[0];
+    if (!k) continue;
+    const [key, span] = k.split('|') as [string, string];
+    const [lo, hi] = span.split(',').map(Number) as [number, number];
+    (byLine.get(key) ?? byLine.set(key, []).get(key)!).push([lo, hi]);
+  }
+  let worst = 0;
+  for (const spans of byLine.values()) {
+    spans.sort((x, y) => x[0] - y[0]);
+    let end = -Infinity;
+    for (const [lo, hi] of spans) { worst = Math.max(worst, Math.min(end, hi) - lo); end = Math.max(end, hi); }
+  }
+  return worst;
+}
+
+/** The slow oracle: bodyEdges over every face, minus the lines along `through` at smooth outline points. */
+function oracle(b: Board): string[] {
+  const smooth = smoothLines(b);
+  const keep = (o: V3, u: V3) => !smooth.some(({ k, p }) => Math.abs(Math.abs(u[k]!) - 1) <= 1e-9
+    && [0, 1, 2].every((i) => i === k || Math.abs(o[i]! - p[i]!) <= 1e-7));
+  return canon(bodyEdges(boardBodies(b), keep));
+}
+
+describe('curvedEdges equals the slow edges minus facet lines (curves spec §3.3)', () => {
+  const apron = createBoard({ length: 30, width: 5, thickness: 0.75 });
+  const top = createBoard({ length: 36, width: 20, thickness: 0.75 });
+  const dado = { id: 't', face: 'thickness' as const, from: 'max' as const, across: 'width' as const, offset: 10, width: 0.75, depth: 0.25, stopMin: 0, stopMax: 0 };
+  // The 1/8" chamfer on the width-max / thickness-max edge — defaultChamfer's form (angleCuts.test.ts), away from the arch.
+  const chamfer = { id: 'ch', kind: 'chamfer' as const, face: 'width' as const, from: 'max' as const, along: 'thickness' as const, alongFrom: 'max' as const, points: [[0, 0.125], [0.125, 0]] as [[number, number], [number, number]] };
+  const endCorner = { id: 'y', ...cornerCurve({ through: 'length', uFrom: 'min', vFrom: 'max', radius: 0.5 }) };
+  const cases: [string, Board][] = [
+    ['arch', { ...apron, curves: [ARCH] }],
+    ['notch', { ...apron, curves: [{ id: 'n', ...archCurve({ through: 'thickness', along: 'length', side: 'min', from: 'min', start: 14, span: 2, rise: 1 }) }] }],
+    ['bow', { ...apron, curves: [{ id: 'w', ...bowCurve({ through: 'thickness', along: 'length', side: 'min', span: 30, rise: 0.5 }) }] }],
+    ['four corners', { ...top, curves: (['min', 'max'] as const).flatMap((uf) => (['min', 'max'] as const).map((vf) => ({ id: `${uf}${vf}`, ...cornerCurve({ through: 'thickness', uFrom: uf, vFrom: vf, radius: 2 }) }))) }],
+    ['through the width', { ...apron, curves: [{ id: 'x', ...bowCurve({ through: 'width', along: 'length', side: 'min', span: 30, rise: 0.25 }) }] }],
+    ['through the length', { ...apron, curves: [endCorner] }],
+    ['with a dado', { ...apron, cuts: [dado], curves: [ARCH] }],
+    ['with a chamfer', { ...apron, angleCuts: [chamfer], curves: [ARCH] }],
+    // Two through axes (not in the brief): the end corner's planes and the arch's share the top/end edges — the
+    // earlier-plane skip is what keeps them from being drawn twice.
+    ['through two axes', { ...apron, curves: [ARCH, endCorner] }],
+  ];
+  for (const [name, b] of cases) {
+    it(name, () => {
+      const got = curvedEdges(b, boardBodies(b));
+      expect(canon(got)).toEqual(oracle(b));
+      expect(overlap(got)).toBeLessThan(1e-7);
+    });
+  }
+  it('seams between bodies on a through plane cancel (every body split at mid-thickness draws the same edges)', () => {
+    const b = { ...apron, cuts: [dado], curves: [ARCH] };
+    const halves = boardBodies(b).flatMap((x) => [
+      clipConvex(x.faces, { n: [0, 0, 1], d: -0.375 }), clipConvex(x.faces, { n: [0, 0, -1], d: 0.375 })]
+      .filter((f) => f.length >= 4).map((faces) => ({ box: null, faces })));
+    expect(halves.length).toBeGreaterThan(boardBodies(b).length);
+    expect(canon(curvedEdges(b, halves))).toEqual(canon(curvedEdges(b, boardBodies(b))));
+  });
+  it('an arch draws no line between its chords and one at each end', () => {
+    const b = { ...apron, curves: [ARCH] };
+    const along = curvedEdges(b, boardBodies(b)).filter(([a, c]) => Math.abs(a[0] - c[0]) < 1e-9 && Math.abs(a[1] - c[1]) < 1e-9);
+    const at = (x: number, y: number) => along.some(([a]) => Math.abs(a[0] - x) < 1e-7 && Math.abs(a[1] - y) < 1e-7);
+    expect(at(3, 0)).toBe(true);
+    expect(at(27, 0)).toBe(true);
+    expect(at(15, 1.5)).toBe(false);                                    // the crown is a chord vertex (18 chords: k = 9)
+  });
+  it('a part without curves keeps its edges byte-for-byte; a curved part reads curvedEdges, through the cache too', () => {
+    // The brief compared boardEdges({ ...apron, curves: [] }) with boardEdges(apron) — the same input (createBoard
+    // gives curves: []), which asserts nothing. Pin each branch to the function it must call instead.
+    expect(apron.curves).toEqual([]);
+    expect(boardEdges(apron)).toEqual(pocketEdges(apron));
+    expect(partGeometry(apron).edges).toEqual(pocketEdges(apron));
+    const angled = { ...apron, angleCuts: [chamfer] };
+    expect(boardEdges(angled)).toEqual(asSegments(angled));
+    expect(partGeometry(angled).edges).toEqual(asSegments(angled));
+    const curved = { ...apron, angleCuts: [chamfer], curves: [ARCH] };
+    const built = curvedEdges(curved, boardBodies(curved)).map(([p, q]) => [
+      { length: p[0], width: p[1], thickness: p[2] }, { length: q[0], width: q[1], thickness: q[2] }]);
+    expect(boardEdges(curved)).toEqual(built);
+    expect(partGeometry(curved).edges).toEqual(built);
   });
 });

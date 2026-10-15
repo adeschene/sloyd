@@ -179,6 +179,23 @@ export function curveOutline(board: Pick<Board, Dimension>, c: Omit<CurveCut, 'i
   return { pts, arcEdge, smooth };
 }
 
+/** The lines along each curve's `through` at its smooth outline points (spec §3.3): board-local, the point with
+ *  p[k] = 0, k the through axis. curvedEdges drops a candidate line on one of these. */
+export function smoothLines(board: Pick<Board, Dimension | 'curves'>): { k: number; p: V3 }[] {
+  return board.curves.flatMap((c) => {
+    const [u, v] = uvDims(c.through);
+    const k = DIMENSION_ORDER.indexOf(c.through);
+    const o = curveOutline(board, c);
+    return o.pts.flatMap((q, i) => {
+      if (!o.smooth[i]) return [];
+      const p: V3 = [0, 0, 0];
+      p[DIMENSION_ORDER.indexOf(u)] = q[0];
+      p[DIMENSION_ORDER.indexOf(v)] = q[1];
+      return [{ k, p }];
+    });
+  });
+}
+
 /** Point in a closed polygon by ray parity; a point within CURVE_EPS of an edge counts as inside. */
 export function inPolygonClosed(poly: readonly P2[], p: P2): boolean {
   let inside = false;
