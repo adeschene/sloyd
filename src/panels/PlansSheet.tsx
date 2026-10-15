@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store/store';
 import { isMetric } from '../units/length';
 import { worldParts } from '../document/tree';
@@ -22,6 +22,9 @@ export function PlansSheet({ onClose }: { onClose: () => void }) {
   const parts = worldParts(doc);
   const assemblies = useMemo(() => planAssemblies(doc), [doc]);
   const [amount, setAmount] = useState(SHEET_EXPLODE);
+  // The figure follows the slider at low priority (fu 263): an isometric of a furniture piece takes 100 ms and more to
+  // draw, so the thumb moves at once and the figure catches up with the latest value, skipping the ones in between.
+  const drawnAmount = useDeferredValue(amount);
   const sheet = useRef<HTMLDivElement>(null);
 
   useEffect(() => { sheet.current?.focus(); }, []);
@@ -56,7 +59,7 @@ export function PlansSheet({ onClose }: { onClose: () => void }) {
           <>
             <section className="plans-section">
               <h3>Exploded view</h3>
-              <ExplodedFigure doc={doc} amount={amount * EXPLODE_SPREAD} />
+              <ExplodedFigure doc={doc} amount={drawnAmount * EXPLODE_SPREAD} />
             </section>
             <section className="plans-section">
               <h3>{doc.name}</h3>

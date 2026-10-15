@@ -5037,6 +5037,11 @@ Properties, and the guides footer's own disclosure toggle.
 **263. The sheet slider recomputes the isometric synchronously.** About 130-250 ms per step at furniture scale
 (measured in node); consider `useDeferredValue`.
 - **Status:** open.
+- **Closed 2026-10-15 (follow-ups session, with fu 344).** The sheet passes the exploded figure `useDeferredValue(amount)`,
+  and `ExplodedFigure` and `PlanTrio` are `memo`ised: a tick re-renders the sheet and the slider at once, the trios not at
+  all (their props never change), and the figure at low priority with the latest value. With fu 344 a drilled piece's
+  figure is also ~2x cheaper. Not measurable in jsdom (concurrent rendering); the existing test still sees the figure follow
+  the slider. A real-browser feel is owed with the sheet's other real-hardware looks. **Status:** closed.
 
 **264. A piece wrapped in ONE top-level assembly explodes at `EXPLODE_INNER` spread.** The first term is zero, and the
 sheet draws that wrapper as a duplicate of the whole piece.
@@ -5533,6 +5538,12 @@ bottom rims and runs them through the hidden-line pass even in the exploded view
 discarded segments, ~25 ms per sheet on a drilled cabinet — part of why the sheet's Explode slider lags (fu 263). Remedy to
 measure first: emit no silhouettes or blind-bottom rims when no hidden lines are drawn.
 **Status:** open.
+- **Closed 2026-10-15 (follow-ups session, branch `follow-ups-1`).** Measured first: the exploded isometric of two
+  drilled sides (84 bores) took 41 ms (min of 9) and produced 8800 hidden segments it never draws. `drawView` takes
+  `{ hiddenLines: false }` (the exploded figure passes it), and `holeDrawingSegments(…, visibleOnly)` then leaves out a
+  CLEAN hole's blind bottom rim and wall silhouettes — inside the hole-free occluder, always hidden. A faulted hole keeps
+  every line (its wall can run into air). 41 → 18 ms; visible lines identical (pinned on the sides and on a faulted bore;
+  mutated — every hole treated as clean — red). **Status:** closed.
 
 **345. The dash look on a real print.** Hidden lines are `4px, 3px` dashes over chained paths (R2): a hidden rim is one
 subpath so it dashes continuously, and chaining also carries the dash phase around a part's own box corners, so a corner
