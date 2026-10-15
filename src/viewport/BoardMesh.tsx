@@ -2,14 +2,16 @@ import type { ToggleModifiers } from '../store/selectionGesture';
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import {
-  boardCenter, boardExtents, holeRims, holeTouchesBox, partGeometry, pointToLocalXYZ, stockChecks,
-  solidWorldBox, wholeBoard,
+  boardCenter, boardExtents, holeRims, holeTouchesBox, keptBySection, partGeometry, pointToLocalXYZ, sectionCaps,
+  sectionPlaneOf, stockChecks, solidWorldBox, wholeBoard,
 } from '../document/document';
-import type { Board, V3 } from '../document/document';
+import type { Board, Section, V3 } from '../document/document';
+import type { ThreeEvent } from '@react-three/fiber';
 import { faceGrainKinds, grainFamily } from './grainFaces';
 import { bodyMesh, boardUVs, boardUVSignature, holesMesh } from './grainTiling';
 import { grainTexture } from './grainTexture';
 import { CLICK_DRAG_SLOP_PX, clickPairStartedWithDrag } from './pointer';
+import { NO_PLANES, SECTION_PLANES } from './sectionPlane';
 
 /** Oak — the one live colour in the app. */
 const SELECTED = '#c8955a';
@@ -20,6 +22,21 @@ const SELECTED = '#c8955a';
  * keeps every joint visible whatever the species.
  */
 const EDGE_DARKEN = 0.3;
+
+/** The section cap's shade relative to the stock: the cut face reads as end grain, darker than every face (invariant
+ *  51). A real-hardware look is owed (fu 347). */
+const CAP_DARKEN = 0.62;
+
+/** Drops hits on the section's removed side, so a click passes through to what is drawn (invariant 51). */
+function sectionRaycast(s: Section) {
+  return function (this: THREE.Mesh, rc: THREE.Raycaster, hits: THREE.Intersection[]) {
+    const start = hits.length;
+    THREE.Mesh.prototype.raycast.call(this, rc, hits);
+    let w = start;
+    for (let i = start; i < hits.length; i += 1) if (keptBySection(s, hits[i]!.point.toArray())) hits[w++] = hits[i]!;
+    hits.length = w;
+  };
+}
 
 /**
  * How solid the placeholder ghost is when a board's own cuts have removed all
@@ -82,9 +99,11 @@ interface Props {
   selectable: boolean;
   /** The material's colour, from the document's catalog (custom materials spec §3) — Viewport reads it. */
   color: string;
+  /** The section cut, or null (invariant 51). Clips this part's materials and edges; draws its cap. */
+  section: Section | null;
 }
 
-export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable, offset, color }: Props) {
+export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable, offset, color, section }: Props) {
   // Geometry is derived from the document on every render — the mesh is never
   // the source of truth. Extents already account for rotation and posture,
   // so the mesh itself is axis-aligned and never carries a rotation.
@@ -210,6 +229,91 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
 
   useEffect(() => () => edges.dispose(), [edges]);
 
+  // One pair of handlers for the part's meshes AND its section cap, so a cap click selects exactly as a face does.
+  const onClick = (e: ThreeEvent<MouseEvent>) => {
+    if (!selectable) return;
+    // Only a click that didn't travel selects. R3F fires onClick for any
+    // release whose object was among the pointer-down hits, with no
+    // drag threshold of its own (see initialHits in @react-three/fiber's
+    // events module), so without this guard a gesture that merely ENDED
+    // over a board selected it. Two ways that bit: dragging a board by
+    // the gizmo while a second board sat behind the cursor put both in
+    // initialHits, so releasing over the second one selected it; and
+    // orbiting the camera from a board and releasing re-selected it.
+    // e.delta is the pixel distance travelled since pointer-down, which
+    // is exactly the drag-versus-click distinction, and 2px matches the
+    // threshold R3F itself uses for its miss handling.
+    if (e.delta > CLICK_DRAG_SLOP_PX) return;
+    // stopPropagation is LOAD-BEARING since multi-select: a ray through
+    // a board split by a dado hits two of its solids, R3F would deliver
+    // onClick to each, and a toggle delivered twice is a no-op.
+    e.stopPropagation();
+    onSelect(board.id, e.nativeEvent);
+  };
+  const onDoubleClick = (e: ThreeEvent<MouseEvent>) => {
+    if (!selectable) return;
+    // An orbit and then a click is not a double-click (see
+    // clickPairStartedWithDrag); the click already ran as a select.
+    if (clickPairStartedWithDrag()) return;
+    e.stopPropagation();
+    onOpen(board.id);
+  };
+
+  // Never `undefined`: R3F would assign it to the mesh. With no section, three's own raycast.
+  const raycast = useMemo(() => (section ? sectionRaycast(section) : THREE.Mesh.prototype.raycast), [section]);
+
+  // The section cap (section-cut spec §3.1; invariant 51), in WORLD inches where drawn. Keyed on boardUVSignature,
+  // which covers every geometry input partGeometry reads (dimensions, cuts, angle cuts, hole rows; inv 15), plus where
+  // the part sits — unlike the meshes, a cap depends on the part's place relative to the plane. Rebuilt on a slider
+  // move only for parts the plane crosses; the part meshes never rebuild (invariant 50). A move that keeps the plane's
+  // place in the part (a drag across its direction) reruns this memo, but sectionCaps then only re-maps a cached local
+  // cap (section.ts' LOCAL_CAPS).
+  const cap = useMemo(() => {
+    if (!section) return null;
+    const c = sectionCaps(board, section, offset);
+    if (!c) return null;
+    // The cap faces the removed side (the viewer): −sectionPlaneOf's normal.
+    const { normal } = sectionPlaneOf(section);
+    const capN: V3 = [-normal[0], -normal[1], -normal[2]];
+    // Each piece is fanned COUNTER-CLOCKWISE about capN, so the cap is front-facing to the viewer. sectionCaps' world
+    // pieces come out clockwise seen from the removed side (every board frame is improper, inv 44 / fu 215), and with
+    // DoubleSide a back face has its normal flipped by the shader — lit as from behind. Decided per piece from its own
+    // Newell normal, so a future change of hand cannot silently flip it back.
+    const fill: number[] = [];
+    for (const poly of c.pieces) {
+      let nx = 0, ny = 0, nz = 0;
+      for (let k = 0; k < poly.length; k += 1) {
+        const p = poly[k]!, q = poly[(k + 1) % poly.length]!;
+        nx += (p[1] - q[1]) * (p[2] + q[2]);
+        ny += (p[2] - q[2]) * (p[0] + q[0]);
+        nz += (p[0] - q[0]) * (p[1] + q[1]);
+      }
+      const ring = nx * capN[0] + ny * capN[1] + nz * capN[2] < 0 ? [...poly].reverse() : poly;
+      for (let k = 1; k + 1 < ring.length; k += 1) fill.push(...ring[0]!, ...ring[k]!, ...ring[k + 1]!);
+    }
+    const fillGeo = new THREE.BufferGeometry();
+    fillGeo.setAttribute('position', new THREE.Float32BufferAttribute(fill, 3));
+    // EXPLICIT normals (lit by meshStandardMaterial), all capN. Without them the normal is zero and the lighting
+    // undefined — software GL may hide that (26a).
+    const normals = new Float32Array(fill.length);
+    for (let k = 0; k < normals.length; k += 3) {
+      normals[k] = capN[0]; normals[k + 1] = capN[1]; normals[k + 2] = capN[2];
+    }
+    fillGeo.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+    const lineGeo = new THREE.BufferGeometry();
+    lineGeo.setAttribute('position', new THREE.Float32BufferAttribute(c.outline.flatMap(([a, b]) => [...a, ...b]), 3));
+    return { fillGeo, lineGeo };
+  }, [section, offset?.[0], offset?.[1], offset?.[2], board.position[0], board.position[1], board.position[2],
+    board.rotation, board.posture, extents[0], extents[1], extents[2], boardUVSignature(board)]);
+  useEffect(() => () => { cap?.fillGeo.dispose(); cap?.lineGeo.dispose(); }, [cap]);
+  const capColor = useMemo(
+    () => (faded ? fadedColor : new THREE.Color(color)).clone().multiplyScalar(CAP_DARKEN),
+    [faded, fadedColor, color],
+  );
+  // Every part and edge material clips by the ONE shared plane while a section is on; three recompiles on a
+  // plane-count change by itself, so `clip` keys nothing.
+  const clip = section ? SECTION_PLANES : NO_PLANES;
+
   const kinds = faceGrainKinds(board);
   const family = grainFamily(board.material);
 
@@ -225,34 +329,9 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
           castShadow={!geometries.placeholder && !faded}
           receiveShadow={!geometries.placeholder}
           renderOrder={faded ? FADED_RENDER_ORDER : 0}
-          onClick={(e) => {
-            if (!selectable) return;
-            // Only a click that didn't travel selects. R3F fires onClick for any
-            // release whose object was among the pointer-down hits, with no
-            // drag threshold of its own (see initialHits in @react-three/fiber's
-            // events module), so without this guard a gesture that merely ENDED
-            // over a board selected it. Two ways that bit: dragging a board by
-            // the gizmo while a second board sat behind the cursor put both in
-            // initialHits, so releasing over the second one selected it; and
-            // orbiting the camera from a board and releasing re-selected it.
-            // e.delta is the pixel distance travelled since pointer-down, which
-            // is exactly the drag-versus-click distinction, and 2px matches the
-            // threshold R3F itself uses for its miss handling.
-            if (e.delta > CLICK_DRAG_SLOP_PX) return;
-            // stopPropagation is LOAD-BEARING since multi-select: a ray through
-            // a board split by a dado hits two of its solids, R3F would deliver
-            // onClick to each, and a toggle delivered twice is a no-op.
-            e.stopPropagation();
-            onSelect(board.id, e.nativeEvent);
-          }}
-          onDoubleClick={(e) => {
-            if (!selectable) return;
-            // An orbit and then a click is not a double-click (see
-            // clickPairStartedWithDrag); the click already ran as a select.
-            if (clickPairStartedWithDrag()) return;
-            e.stopPropagation();
-            onOpen(board.id);
-          }}
+          raycast={raycast}
+          onClick={onClick}
+          onDoubleClick={onDoubleClick}
         >
           {/* The ghost takes ONE plain material rather than the six grain
               materials: per-face grain describes how stock was sawn, and this
@@ -268,6 +347,8 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
               transparent
               opacity={GHOST_OPACITY}
               depthWrite={false}
+              clippingPlanes={clip}
+              clipShadows
             />
           ) : kinds.map((kind, i) => (
             // Keyed on `faded` so the material remounts when the grain map
@@ -287,6 +368,9 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
               polygonOffset
               polygonOffsetFactor={1}
               polygonOffsetUnits={1}
+              clippingPlanes={clip}
+              // Without it the removed half still casts its shadow (Material.clipShadows defaults to false).
+              clipShadows
             />
           ))}
         </mesh>
@@ -299,8 +383,34 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
           color={selected ? SELECTED : faded ? fadedEdgeColor : edgeColor}
           transparent
           opacity={faded ? FADED_EDGE_OPACITY : selected ? 1 : 0.8}
+          clippingPlanes={clip}
         />
       </lineSegments>
+
+      {/* The cap: already in world inches where drawn (offset included), so undo the group's own translation. Its
+          materials take NO clippingPlanes (it lies ON the plane) and its mesh keeps three's default raycast (a hit on
+          the plane, in float32, would fail a 1e-7 side test). castShadow closes the kept half's shadow where the cut
+          opened it; receiveShadow, as the part's faces do. The fill is wound counter-clockwise about the cap normal
+          (front-facing to the viewer, see the memo); DoubleSide stays as a fallback for a camera on the removed side. */}
+      {cap && (
+        <group position={offset
+          ? [-center[0] - offset[0], -center[1] - offset[1], -center[2] - offset[2]]
+          : [-center[0], -center[1], -center[2]]}>
+          <mesh geometry={cap.fillGeo} onClick={onClick} onDoubleClick={onDoubleClick}
+            renderOrder={faded ? FADED_RENDER_ORDER : 0} castShadow={!faded} receiveShadow>
+            {/* Keyed on `faded`, as the grain materials are: three bakes `transparent` into the program (the OPAQUE
+                define) and a prop change alone does not recompile it, so a cap drawn opaque would stay opaque. */}
+            <meshStandardMaterial key={`cap-${faded}`} color={capColor} roughness={0.9} metalness={0} side={THREE.DoubleSide}
+              emissive={selected ? SELECTED : '#000000'} emissiveIntensity={selected ? 0.16 : 0}
+              transparent={faded} opacity={faded ? FADED_OPACITY : 1}
+              polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1} />
+          </mesh>
+          <lineSegments geometry={cap.lineGeo}>
+            <lineBasicMaterial color={selected ? SELECTED : faded ? fadedEdgeColor : edgeColor}
+              transparent opacity={faded ? FADED_EDGE_OPACITY : selected ? 1 : 0.8} />
+          </lineSegments>
+        </group>
+      )}
     </group>
   );
 }

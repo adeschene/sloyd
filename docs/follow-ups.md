@@ -5513,3 +5513,40 @@ zero-count row would open a diagram view — both unreachable (`takeId` makes ro
 (2) The Hinge cup's thin-stock withholding test lacks a self-contained positive control (it relies on the other tests'
 fitting part). (3) R6: in FRONT a through-bore's edge-on rims are hidden, drawn beneath the coincident visible edges (no
 visible difference; pinned as is). **Status:** record-only.
+
+## From the section-cut round — 2026-10-15
+
+**347. The section caps' look on real hardware.** Caps are the part's colour × `CAP_DARKEN` (0.62), no grain, lit by an
+explicit normal toward the viewer (the live pass measured a cap at ≈ 0.6× the same material's lit face, so front-lit).
+On dark cherry the cap reads near-black and its outline (the part's edge colour) is not legible, so a tenon inside its
+mortise cannot be told apart on screen. Also owed (fu 26a, software GL only here): z-fighting where a cap meets a
+clipped face, the clipped half casting no shadow (`clipShadows`), a cap receiving another part's shadow.
+**Status:** open — for the user's eye on real hardware; retune `CAP_DARKEN` and the cap outline colour together.
+
+**348. Cap cost on drilled parts.** `sectionCaps` on a 42-pin cabinet side cut ACROSS its bores takes 13–14 ms (min of 9;
+the round's target was 10 ms): ~8 ms in `minusPrism` splitting the cap into ~2000 wedge pieces, ~5 ms in `unionOutline`.
+A slider move recomputes it per crossed part per frame, so two drilled sides crossed at once are ~28 ms a frame. A move
+that keeps the local plane coordinate is served from the per-part cap cache (0.35–0.55 ms); explode ticks and moves along
+the cut axis miss it. Remedy to measure first: triangulate a face's interior rings as holes (as `faceTriangles` does)
+instead of wedge-splitting. **Status:** open.
+
+**349. Snap points on caps.** The Tape and Move tools offer no points on a cap (a mortise's floor corner seen in
+section, a bore's centre on the cut). Spec §1 non-goal. **Status:** open — ask before assuming it is wanted.
+
+**350. Move/Tape markers on the removed side — owed a hand check.** Candidates on the removed side are filtered
+(`keptBySection`; guide points exempt by ruling, since guides are drawn unclipped), pinned by code review only: the live
+pass could not drive a snap marker reliably through Playwright hover (one marker in many tries, section on or off).
+**Status:** open — a two-minute check by hand.
+
+**351. Invariant 43's wording vs a boolean selector.** Inv 43 says never call `visibleBoards` in a selector. The Section
+toggle's "any part visible" test does, returning a BOOLEAN (stable snapshot, identity-keyed cache), which the rule's reason
+(a fresh array re-rendering every store write) does not reach. **Status:** open — the user's call: amend the wording to
+"never return `visibleBoards`' array from a selector", or move the test into a memo (re-subscribing the controls to `doc`).
+
+**352. Section-cut minors (record-only).** (1) The cap cache keeps up to 64 slots after their parts are deleted or the
+project switches (bounded; no clear-on-switch). (2) `unionOutline`'s bucket-edge test pins the grouping but does not
+discriminate the strict and closed neighbour reach. (3) The world map is affine from `toWorldOffset` at 0 and 1, not
+bit-identical to `toWorld` (~1e-15 in; nothing compares caps to snap points with `===`). (4) A hovered snap marker can
+outlive a section move until the next pointer move (display only; a click re-picks from the filtered list). (5) The perf
+guards are wall-clock (fu 340); the hole-prism memo-bypass mutation does not slow the cap (fresh holes per run).
+**Status:** record-only.

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { Line } from '@react-three/drei';
 import { useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { guideSnapPoints, offsetPoint, sameSnapPoint, snapPointsFor, towardFor, worldParts } from '../document/document';
+import { guideSnapPoints, offsetPoint, sameSnapPoint, snapPointsFor, towardFor, worldParts, keptBySection } from '../document/document';
 import type { SnapPoint } from '../document/document';
 // THE FIRST `viewport -> units` IMPORT in the repo. Legal under CLAUDE.md's
 // layer order — `units` is the bottom layer, `viewport` sits well above it —
@@ -48,6 +48,7 @@ export function TapeTool({ showGuides = true, hidden = false }: { showGuides?: b
   const tool = useStore((s) => s.tool);
   const boards = useStore((s) => worldParts(s.doc));
   const hiddenIds = useStore((s) => s.hiddenIds);
+  const section = useStore((s) => s.section);
   const guides = useStore((s) => s.doc.guides);
   const anchor = useStore((s) => s.tapeAnchor);
   // The raw text from the readout's box, parsed below. Subscribed here rather
@@ -116,11 +117,13 @@ export function TapeTool({ showGuides = true, hidden = false }: { showGuides?: b
   // Built only while the tape is the tool: the handlers below are attached only then, and a
   // gizmo drag under another tool changes `boards` every frame (angle-cuts final review).
   const candidates = useMemo(
+    // A part's point on the section's removed side is clipped away, so it is not a candidate (invariant 51). Guide
+    // markers are drawn unclipped (section-cut spec §4), so a guide's points stay targets on either side.
     () => tool !== 'tape' ? [] : [
       ...visibleBoards(boards, hiddenIds).flatMap(snapPointsFor),
       ...(showGuides ? guideSnapPoints(guides) : []),
-    ],
-    [tool, boards, hiddenIds, guides, showGuides],
+    ].filter((p) => p.owner.type === 'guide' || keptBySection(section, p.at)),
+    [tool, boards, hiddenIds, guides, showGuides, section],
   );
 
   useEffect(() => {

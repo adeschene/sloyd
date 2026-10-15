@@ -1,5 +1,5 @@
 import { clearOnMiss, selectByClick } from '../store/selectionGesture';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Grid, OrbitControls, OrthographicCamera, PerspectiveCamera } from '@react-three/drei';
 import * as THREE from 'three';
@@ -18,6 +18,7 @@ import { SCENE_EXTENT } from './extent';
 import { gridDensity } from './gridDensity';
 import type { GridTier } from './gridDensity';
 import { screenPixelsPerInch } from './screenScale';
+import { syncSectionPlane } from './sectionPlane';
 import { watchClickPairs } from './pointer';
 import { orthoDistance, orthoZoom, perspectiveDistance, subsetBounds, viewDirection } from './framing';
 import type { StandardView } from './framing';
@@ -366,6 +367,9 @@ export function Viewport({
   const doc = useStore((s) => s.doc);
   const catalog = useStore((s) => catalogOf(s.doc));
   const explode = useStore((s) => s.explode);
+  const section = useStore((s) => s.section);
+  // The ONE shared plane follows the store before paint (invariant 51): a slider move is one uniform, no rebuild.
+  useLayoutEffect(() => { if (section) syncSectionPlane(section); }, [section]);
   const offsets = useMemo(
     () => (explode > 0 ? explodeOffsets(doc, explode * EXPLODE_SPREAD) : null),
     [doc, explode],
@@ -402,6 +406,9 @@ export function Viewport({
   return (
     <Canvas
       shadows
+      // Local clipping is per-material and costs nothing for a material whose `clippingPlanes` is empty — the section
+      // cut's materials alone pay for it (invariant 51).
+      onCreated={({ gl }) => { gl.localClippingEnabled = true; }}
       dpr={[2, 3]}
       // A modal tool must not change the selection as a side effect, and a
       // modified miss must not wipe a built-up selection — both rules live
@@ -498,6 +505,7 @@ export function Viewport({
           onSelect={selectByClick}
           selectable={tool === 'select'}
           color={catalog.color(board.material)}
+          section={section}
         />
       ))}
 
