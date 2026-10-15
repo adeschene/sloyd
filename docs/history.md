@@ -457,7 +457,10 @@ header group repeated per page — was measured not to work: Chromium repeats ne
 `<thead>` on later printed pages. The user, printing from Brave, took the `@page` margin box instead: a metric sheet carries
 `.sheet-metric`, which prints on the named page `metric-sheet`, whose `@top-right` reads `Dimensions in mm` on every page (cut list
 16/16, Plans 3/3 in the live check; imperial unchanged). Browsers without margin boxes (Firefox, Safari) print as before.
-`docs/browser-verification-metric-display.md`, "fu 357".
+`docs/browser-verification-metric-display.md`, "fu 357". Merged as `7f851f9` (4189 tests, build clean on the merged tree) and
+**deployed the same day**: bundle `index-BZDp6iOz.js`, CSS `index-G3ndwYrP.css` (the CSS changed); the old bundle and CSS 404
+in-network, CSP at the edge, a real-browser load with 0 errors, production storage cleared after. No schema change; rollback to
+`a927d1e` (`index-BIWe_ffw.js`) is free. A real print from Brave is still owed for the user's eye.
 
 **What fu 360 and fu 355 did (2026-10-15)** (bounded, one in-chat design for both; branches `fu-360` and `fu-355`, merged as
 `0f2be31` and `3b7455c`; deployed the same day, `index-BIWe_ffw.js`). **fu 360**: the user chose giving built-in pine the nominal set. Pine keeps its own 1× list (6′ and 8′,
