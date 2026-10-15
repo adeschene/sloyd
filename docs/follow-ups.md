@@ -5556,7 +5556,7 @@ guards are wall-clock (fu 340); the hole-prism memo-bypass mutation does not slo
 **353. Metric chunk 2 owed (and chunk 1's deploy gate).** The part diagrams' and sheet-nesting labels, the Plans sheet, the
 Buying section's actual dimensions and the viewport grid stay imperial in a metric project until chunk 2 (spec §4). Chunk 1
 is merged but must not deploy alone: a metric cut-list sheet would print mm rows beside imperial diagram labels.
-**Status:** open — next.
+**Status:** closed 2026-10-15 — chunk 2 (drawings bare mm + sheet note, Buying brackets, metric grid).
 
 **354. Round-mm parts miss nominal lumber.** A part typed in whole mm is not a nominal section (286 mm = 11.26" > a 1×12's
 11.25"), so the cut list names no nominal size and Buying reports "fits no pine stock — too wide". Correct arithmetic, but a
@@ -5573,3 +5573,22 @@ reload clamps it, below any display. (2) `'- 19 mm'` (space after the sign befor
 pre-existing `MM_RE` shape. (3) A metric `formatSize` with a non-finite value renders `— × 140 mm`. (4) JoineryDialog
 formats with the open project's units, not the source's. (5) `diagram.test.ts` calls `buildDiagrams` only with imperial
 units until chunk 2 owns the diagrams. **Status:** record-only.
+
+## From the metric display round (chunk 2) — 2026-10-15
+
+**357. The units note prints on a sheet's first page only.** `Dimensions in mm` sits in the cut-list and Plans-sheet
+headers; a long cut list or a multi-section Plans sheet (`.plans-section { break-inside: avoid }`) prints later pages with
+unitless numbers. Spec R8 says "one note per sheet". Remedy to discuss: repeat the note in each printed section's caption.
+**Status:** open — for the user's eye on a real print (fu 345, 254).
+
+**358. Metric chunk 2 minors (record-only).** (1) The part diagram's crossings note (`overlap: 6 deep governs`) is bare
+while its neighbouring bench notes carry ` mm` (the sheet note covers it). (2) Chain dimensions are rounded one by one, so
+three ~10.4 mm steps read 10 / 10 / 10 under an overall of 31 — as at 1/16 in imperial, but more visible at whole mm.
+(3) The CutList/PlansSheet header wrapper and note are duplicated. (4) No metric tests for the Buying layout title, the fu
+273 note or the end-grain note (all through pinned helpers). **Status:** record-only.
+
+**359. The imperial plane note can read the same on both sides.** A part 0.748" thick (19 mm typed, then the project
+switched to inches, or any part within 1/32" under 3/4") bought from 3/4" stock prints `plane 3/4" stock to 3/4"` — the same
+display-rounding contradiction chunk 2 removed from metric (omitted when both read the same whole mm). Pre-existing;
+left byte-identical on purpose (inv 52's imperial guarantee). Remedy: the same "reads the same → omit" rule at the
+display precision. **Status:** open — the user's call (it changes imperial output).

@@ -452,6 +452,19 @@ and 79.
 
 ## What each round did
 
+**What metric display chunk 2 did (2026-10-15)** (plan `docs/superpowers/plans/2026-10-15-sloyd-metric-display-chunk2.md`,
+branch `metric-2` from `133d22a`; chunk 1 merged as `80d41fb`). No schema change. Subagent-driven, four tasks plus a final
+review: (1) drawings in bare mm — `dimensions.ts`, `diagram.ts`' own labels, `nesting.ts`' `formatDims` and `packOnto` take
+`Units` and format through `formatLengthBare` (one string measured and drawn, inv 19), `PlanTrio` memoises on `units`;
+(2) one `Dimensions in mm` note in the cut-list and Plans-sheet headers, metric only, shown whenever the sheet is open
+(bare-number prose appears with no drawing) and printed black; (3) Buying — parts in the project's units (`formatSize`),
+trade sizes imperial with mm in brackets (`tradeLength`/`tradeSize`, then one `mmBracket` home after the final review),
+nominal names, `8′`, board feet and money unchanged; (4) the metric grid ladder 10 mm / 100 mm / 1 m with 10× sections.
+The final review caught `plane 3/4" (19 mm) stock to 19 mm` — a 19 mm part bought from 3/4" stock (0.05 mm thinner);
+ruled: in metric the note is omitted when stock and part read the same whole mm. Deploy-gate questions put to the user:
+sheet sizes in cut-list prose (bare vs trade form), fu 354 (round-mm parts miss nominal sections — now printed beside
+bracketed stock), fu 355. Live pass appended to `docs/browser-verification-metric-display.md`. Follow-ups 357–359.
+
 **What metric display chunk 1 did (2026-10-15, feature gaps §3)** (spec `docs/superpowers/specs/2026-10-15-sloyd-metric-display-design.md`,
 plan `docs/superpowers/plans/2026-10-15-sloyd-metric-display-chunk1.md`, branch `metric-1` from `06409b6`). No schema change
 (R6: an older build reads a metric project as imperial; rollback free). **Merged, not deployed: chunk 1 deploys with chunk
