@@ -453,7 +453,7 @@ and 79.
 ## What each round did
 
 **What the section cut did (2026-10-15, feature gaps §2)** (spec `docs/superpowers/specs/2026-10-14-sloyd-section-cut-design.md`,
-plan `docs/superpowers/plans/2026-10-14-sloyd-section-cut.md`, branch `section-cut` from `e56170f`). No schema change; view
+plan `docs/superpowers/plans/2026-10-14-sloyd-section-cut.md`, branch `section-cut` from `e56170f`). **Merged to master as `71e8d19` and deployed the same day** (`index-DwixxasK.js`). No schema change; view
 state only, so a rollback costs nothing. User rulings: viewport only (no Plans-sheet sections, fu 256 stays its own item);
 axis planes placed by slider + exact field + Flip; solid caps built from the exact model, not a stencil trick; editing left
 free (picking and snapping filtered to the kept side); approach A (GPU clipping for meshes and edges, exact caps on the

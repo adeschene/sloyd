@@ -21,9 +21,11 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-14: holes chunk 2 (merge `d74e5c5`) — bundle `index-DFCdm3n1.js`, CSS
-  `index-CT8doMkT.css`, **SCHEMA 16** (unchanged since chunk 1, so rolling back to `2ded5cc`, `index-CTpNZw9F.js`, is free;
-  below 16, `bfde00c`, REFUSES every project saved since: export first). Test count is under Commands.
+- **Production matches `master`** as of 2026-10-15: the section cut (merge `71e8d19`) — bundle `index-DwixxasK.js`, CSS
+  `index-BcAtcm35.css`, **SCHEMA 16** (unchanged since holes chunk 1, so rolling back to `d74e5c5`, `index-DFCdm3n1.js`, or
+  `2ded5cc` is free; below 16, `bfde00c`, REFUSES every project saved since: export first). Test count is under Commands.
+- **Section cut (spec `2026-10-14-sloyd-section-cut-design.md`, inv 51)**: deployed. Open near it: 347 (cap look on real
+  hardware), 348 (cap cost on drilled parts), 349–351 (351 = inv 43's wording, the user's call), 352 record-only.
 - **Holes (spec `2026-10-14-sloyd-holes-design.md`, inv 50)**: both chunks deployed (schema 16; fu 327 and 343 closed).
   Open near it: 328–342 (336: the wall-grain seam, deferred by the user to a texture/shader session; 337: real-hardware
   looks owed), 344–346.
@@ -100,6 +102,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | custom materials (chunk 2) | 10-14 | — | Nominal lumber names (`units/nominal.ts`, exact match): cut-list rows named when every board is the section, Buying `2×4 × 8′`, a Properties Nominal size select, the Sold in nominal sizes switch; pine is nominal |
 | holes (chunk 1) | 10-14 | 16 | `HoleRow` (blind/through, a row of `count` at `pitch`, inv 50): rendered open (walls, bottoms, rims), centre snap points, `holeFaults`' strict rule, bench lines (32 mm pitch at 1/64 + mm) and cut-list grouping; Holes section (Hole, Shelf-pin row); joinery/Refine/Repair refuse holed projects |
 | holes (chunk 2) | 10-14 | — | Plans sheet: hole rims (96-gons; edge-on as one segment) and wall silhouettes through the one hidden-line pass, occluded by the hole-free bodies; plan paths chain within a part; part diagrams: ellipses, centre marks, dashed depth sides, each row's bench line as a note; the Hinge cup preset |
+| section cut | 10-15 | — | Viewport section: one Front/Side/Top plane (slider, exact field, Flip), GPU-clipped parts and edges, exact solid caps from the bodies minus bores (one winding, outline = union boundary), picking/snapping on the kept side (guides exempt); view state only (inv 51) |
 
 ### The deployment rule
 
