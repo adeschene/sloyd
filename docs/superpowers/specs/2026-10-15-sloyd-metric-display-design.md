@@ -1,7 +1,7 @@
 # Sloyd — metric display (design)
 
 Date: 2026-10-15. Feature gaps §3 ("Metric display: input already parses metric; `units.display` only allows
-`'imperial-fractional'`"). Status: spec, awaiting the user's review.
+`'imperial-fractional'`"). Status: approved; chunk 1 plan `docs/superpowers/plans/2026-10-15-sloyd-metric-display-chunk1.md`.
 
 ## 1. Purpose and rulings
 
@@ -72,8 +72,9 @@ export interface Units { display: LengthDisplay; precision: number }   // precis
 
 - **The Units switch:** an `in | mm` segmented control labelled "Units" in the top bar beside the project name; a document
   edit (one undo entry, autosaved); refused while exploded (inv 47, like every edit).
-- **Fields** (`DimensionField` and its users: Properties size and position, cuts, angle cuts' lengths, holes, Copy in a row,
-  Materials dialog sizes), **GuidesList**, **TapeReadout** (display and type-anywhere capture): format and parse with the
+- **Fields** (`DimensionField` and its users: Properties size and position, cuts, angle cuts' lengths, holes, Copy in a row
+  — not the Materials dialog's sheet sizes: trade dimensions on a browser-wide library stay imperial, ruled at plan review),
+  **GuidesList**, **TapeReadout** (display and type-anywhere capture): format and parse with the
   project's units. A committed `3/4` in a metric project then shows `19 mm`.
 - **Free-drag snap:** Gizmo and the store's drag rounding use `snapStep(doc.units)`.
 - **Cut list:** stock collapses at display precision (inv 18) — whole mm in metric; a size triple writes the unit once:
@@ -109,3 +110,12 @@ and the `→ units` edge rule are restated to name `Units` where they name preci
 - Mutation-test the bare-number rule, the rounding, and the snap step.
 - Live check on the dev server with the user watching: a metric project's fields, typing, tape, drag snap, cut list (chunk
   1); Plans sheet, diagrams, nesting, buying, grid (chunk 2).
+
+## 7. Plan-review rulings (2026-10-15)
+
+- Chunk 1 merges but is **deployed only together with chunk 2**: a metric cut-list sheet would otherwise print mm rows beside
+  imperial diagram labels.
+- The Materials dialog's sheet sizes stay imperial (trade units, R3; the library is browser-wide).
+- Generate's size limits read a bare number as inches (Generate makes imperial projects; its prompt stays in inches).
+- `snapStep` lives in `document/geometry.ts` beside `SNAP_INCHES` (it produces no string; the `→ units` edge rule); a
+  type-only import of `Units` is not an edge.
