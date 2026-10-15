@@ -17,7 +17,7 @@ import { formatLength } from '../units/length';
  */
 export function GuidesList() {
   const guides = useStore((s) => s.doc.guides);
-  const precision = useStore((s) => s.doc.units.precision);
+  const units = useStore((s) => s.doc.units);
   const removeGuide = useStore((s) => s.removeGuide);
   const clearGuides = useStore((s) => s.clearGuides);
 
@@ -31,11 +31,11 @@ export function GuidesList() {
         {guides.map((g) => (
           <li key={g.id}>
             <span className="guide-coords">
-              {g.at.map((n) => formatLength(n, precision)).join(', ')}
+              {g.at.map((n) => formatLength(n, units)).join(', ')}
             </span>
             <button
               className="guide-remove"
-              aria-label={`Remove guide at ${g.at.map((n) => formatLength(n, precision)).join(', ')}`}
+              aria-label={`Remove guide at ${g.at.map((n) => formatLength(n, units)).join(', ')}`}
               onClick={() => removeGuide(g.id)}
             >
               ×

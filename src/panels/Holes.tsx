@@ -6,6 +6,7 @@ import { distinctFaults, edgeName, endWord as end, faultKey as key, holeFaultTex
 import { DimensionField } from './DimensionField';
 import { CountField } from './CountField';
 import { Popover } from './Popover';
+import { formatLength, formatMm, imperialAt, isMetric } from '../units/length';
 
 const DIMS: Dimension[] = ['length', 'width', 'thickness'];
 const cap = (d: string) => d[0]!.toUpperCase() + d.slice(1);
@@ -30,8 +31,13 @@ const seedPitch = (diameter: number) => (mm(32) > diameter ? mm(32) : 2 * diamet
  *  end-grain row in a 30" rail would otherwise seed a 15" bore. */
 const throughSeed = (faceDim: number) => Math.min(faceDim / 2, 0.5);
 
-function HoleRowView({ board, row, precision }: { board: Board; row: HoleRow; precision: number }) {
+function HoleRowView({ board, row }: { board: Board; row: HoleRow }) {
   const units = useStore((s) => s.doc.units);
+  // Diameter and Every read as a hole is specified (spec R7): mm to one decimal in a metric project; imperial at the
+  // document's precision (Diameter) and at 1/64 at least (Every, as the bench line prints the pitch).
+  const metric = isMetric(units);
+  const diameterText = (v: number) => (metric ? formatMm(v, 1) : formatLength(v, units));
+  const pitchText = (v: number) => (metric ? formatMm(v, 1) : formatLength(v, imperialAt(Math.max(units.precision, 64))));
   const updateHoleRow = useStore((s) => s.updateHoleRow);
   const removeHoleRow = useStore((s) => s.removeHoleRow);
   const [error, setError] = useState<string | null>(null);
@@ -81,14 +87,14 @@ function HoleRowView({ board, row, precision }: { board: Board; row: HoleRow; pr
             )))}
           </select>
         </div>
-        <DimensionField label="Diameter" value={row.diameter} precision={precision} onCommit={(diameter) => field({ diameter })} />
+        <DimensionField label="Diameter" value={row.diameter} units={units} format={diameterText} onCommit={(diameter) => field({ diameter })} />
         <div className="field">
           <label htmlFor={`hole-through-${row.id}`}>Through</label>
           <input id={`hole-through-${row.id}`} type="checkbox" checked={row.depth === 'through'}
             onChange={(e) => set({ depth: e.target.checked ? 'through' : throughSeed(board[row.face]) })} />
         </div>
         {row.depth !== 'through' && (
-          <DimensionField label="Depth" value={row.depth} precision={precision} onCommit={(depth) => field({ depth })} />
+          <DimensionField label="Depth" value={row.depth} units={units} onCommit={(depth) => field({ depth })} />
         )}
         <div className="field">
           <label htmlFor={`hole-along-${row.id}`}>Along</label>
@@ -103,12 +109,12 @@ function HoleRowView({ board, row, precision }: { board: Board; row: HoleRow; pr
             <option value="max">{`${cap(row.along)} max ${end(row.along)}`}</option>
           </select>
         </div>
-        <DimensionField label="First at" value={row.station} min={0} precision={precision} onCommit={(station) => field({ station })} />
+        <DimensionField label="First at" value={row.station} min={0} units={units} onCommit={(station) => field({ station })} />
         <CountField label="Count" value={row.count} onCommit={(count) => field({ count })} />
         {row.count > 1 && (
-          <DimensionField label="Every" value={row.pitch} precision={Math.max(precision, 64)} onCommit={(pitch) => field({ pitch })} />
+          <DimensionField label="Every" value={row.pitch} units={units} format={pitchText} onCommit={(pitch) => field({ pitch })} />
         )}
-        <DimensionField label="In from" value={row.inset} min={0} precision={precision} onCommit={(inset) => field({ inset })} />
+        <DimensionField label="In from" value={row.inset} min={0} units={units} onCommit={(inset) => field({ inset })} />
         <div className="field">
           <label htmlFor={`hole-side-${row.id}`}>Side</label>
           <select id={`hole-side-${row.id}`} className="input" value={row.acrossFrom} onChange={(e) => set({ acrossFrom: e.target.value as CutFrom })}>
@@ -123,7 +129,7 @@ function HoleRowView({ board, row, precision }: { board: Board; row: HoleRow; pr
 }
 
 /** The Holes section (holes spec §7, as amended): one row per stored HoleRow, and + Add hole ▾. */
-export function Holes({ board, precision }: { board: Board; precision: number }) {
+export function Holes({ board }: { board: Board }) {
   const addHoleRows = useStore((s) => s.addHoleRows);
   // A preset whose default would fault on this part is withheld, not added and refused (AngleCuts' precedent).
   const fits = (r: Omit<HoleRow, 'id'> | null): r is Omit<HoleRow, 'id'> => {
@@ -142,7 +148,7 @@ export function Holes({ board, precision }: { board: Board; precision: number })
   return (
     <>
       <h3>Holes{board.holes.length > 0 && <span className="h3-count"> · {board.holes.length}</span>}</h3>
-      {board.holes.map((row) => <HoleRowView key={row.id} board={board} row={row} precision={precision} />)}
+      {board.holes.map((row) => <HoleRowView key={row.id} board={board} row={row} />)}
       {items.length > 0
         ? <Popover className="add-hole" label={<>+ Add hole<span aria-hidden="true"> ▾</span></>} title="Add a hole" items={items} />
         : <p className="field-note">No hole preset fits this part.</p>}

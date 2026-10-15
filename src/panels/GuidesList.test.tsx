@@ -40,4 +40,11 @@ describe('GuidesList', () => {
     await userEvent.click(screen.getByRole('button', { name: /clear all/i }));
     expect(useStore.getState().doc.guides).toEqual([]);
   });
+
+  it('lists a guide in mm in a metric project', () => {
+    useStore.getState().setUnitsDisplay('metric-mm');
+    useStore.getState().addGuide([0, 0, 0.75]);
+    render(<GuidesList />);
+    expect(screen.getByText('0 mm, 0 mm, 19 mm')).toBeInTheDocument();
+  });
 });

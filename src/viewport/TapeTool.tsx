@@ -61,6 +61,8 @@ export function TapeTool({ showGuides = true, hidden = false }: { showGuides?: b
   // failure mode wearing the right clothes — the memo would be correct and
   // would simply never re-run.
   const axis = useStore((s) => s.tapeAxis);
+  // A bare typed number is millimetres in a metric project: the preview parses as TapeReadout's commit does.
+  const units = useStore((s) => s.doc.units);
 
   const gl = useThree((s) => s.gl);
   const camera = useThree((s) => s.camera);
@@ -314,8 +316,8 @@ export function TapeTool({ showGuides = true, hidden = false }: { showGuides?: b
   // exists only to hold the array stable FOR that memo, and a new `anchor` or
   // `hovered` object always means a new point, so over-invalidating costs one
   // pure recomputation and nothing else. Under-invalidation is what invariant
-  // 15 warns about, and neither list can under-invalidate: all four inputs —
-  // anchor, hovered, typed and axis — are listed.
+  // 15 warns about, and neither list can under-invalidate: all five inputs —
+  // anchor, hovered, typed, axis and units — are listed.
   const preview = useMemo(() => {
     if (!anchor) return null;
     // The SAME call TapeReadout's commit() makes. The `!hovered` gate this
@@ -323,10 +325,10 @@ export function TapeTool({ showGuides = true, hidden = false }: { showGuides?: b
     // longer has to come from a second feature.
     const toward = towardFor(anchor.at, axis, hovered?.at ?? null);
     if (!toward) return null;
-    const distance = parseLength(typed);
+    const distance = parseLength(typed, units);
     if (distance === null) return null;
     return offsetPoint(anchor.at, toward, distance);
-  }, [anchor, hovered, typed, axis]);
+  }, [anchor, hovered, typed, axis, units]);
 
   // The far end of the measuring line: the preview when there is one, the
   // hovered point otherwise.

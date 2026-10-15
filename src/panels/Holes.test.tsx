@@ -243,4 +243,12 @@ describe('the Holes section', () => {
     await user.click(screen.getByRole('button', { name: /Remove hole row/ }));
     expect(rows()).toEqual([]);
   });
+  it('a metric project shows a shelf-pin row\'s Every and Diameter in mm (spec R7)', async () => {
+    const user = userEvent.setup();
+    open(side());
+    act(() => useStore.getState().setUnitsDisplay('metric-mm'));
+    await add(user, 'Shelf-pin row');
+    expect(screen.getByLabelText('Every')).toHaveValue('32 mm');
+    expect(screen.getByLabelText('Diameter')).toHaveValue('6.4 mm');
+  });
 });

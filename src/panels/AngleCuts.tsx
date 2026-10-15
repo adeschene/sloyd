@@ -22,7 +22,7 @@ const FACES: { value: string; label: string; face: 'width' | 'thickness'; from: 
  * edit never swaps them under the user. Every kind is edited; a stored cut the row cannot represent
  * (a hand-edited file) shows its bench line and a remove button only.
  */
-function AngleRow({ board, cut, precision }: { board: Board; cut: AngleCut; precision: number }) {
+function AngleRow({ board, cut }: { board: Board; cut: AngleCut }) {
   const units = useStore((s) => s.doc.units);
   const updateAngleCut = useStore((s) => s.updateAngleCut);
   const removeAngleCut = useStore((s) => s.removeAngleCut);
@@ -153,7 +153,7 @@ function AngleRow({ board, cut, precision }: { board: Board; cut: AngleCut; prec
               {CHAMFER_EDGES.map((x, i) => <option key={i} value={i}>{edgeText(x)}</option>)}
             </select>
           </div>
-          <DimensionField label="Size" precision={precision}
+          <DimensionField label="Size" units={units}
             value={chamfer.legFace === chamfer.legAlong ? chamfer.legFace : null} max={Math.min(board[chamfer.face], board[chamfer.along])}
             onCommit={(v) => setC({ legFace: v, legAlong: v })} />
         </div>
@@ -193,10 +193,10 @@ function AngleRow({ board, cut, precision }: { board: Board; cut: AngleCut; prec
             <option value="max">Length max end</option>
           </select>
         </div>
-        <DimensionField label="Starts" precision={precision}
+        <DimensionField label="Starts" units={units}
           value={Number.isFinite(f.start) ? f.start : null} max={board.length}
           onCommit={(v) => set({ start: v })} />
-        <DimensionField label="Removes at that end" precision={precision}
+        <DimensionField label="Removes at that end" units={units}
           value={Number.isFinite(f.amount) ? f.amount : null} max={board[f.face]}
           onCommit={(v) => set({ amount: v })} />
       </div>
@@ -206,12 +206,12 @@ function AngleRow({ board, cut, precision }: { board: Board; cut: AngleCut; prec
 }
 
 /** The Angles section (spec §7): a single part's angle cuts. Taper, Miter, Bevel and Chamfer. */
-export function AngleCuts({ board, precision }: { board: Board; precision: number }) {
+export function AngleCuts({ board }: { board: Board }) {
   const addAngleCuts = useStore((s) => s.addAngleCuts);
   return (
     <>
       <h3>Angles{board.angleCuts.length > 0 && <span className="h3-count"> · {board.angleCuts.length}</span>}</h3>
-      {board.angleCuts.map((cut) => <AngleRow key={cut.id} board={board} cut={cut} precision={precision} />)}
+      {board.angleCuts.map((cut) => <AngleRow key={cut.id} board={board} cut={cut} />)}
       <Popover className="add-angle" label={<>+ Add<span aria-hidden="true"> ▾</span></>} title="Add an angle cut"
         items={[
           { label: 'Taper', detail: 'Slope one face along the length', run: () => addAngleCuts(board.id, [defaultTaper(board)]) },

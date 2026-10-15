@@ -1600,3 +1600,15 @@ describe('Nominal size (custom materials spec §5.3)', () => {
     expect(useStore.getState().past.length).toBe(n + 1);
   });
 });
+
+describe('Properties in a metric project', () => {
+  it('shows a part\'s Length in mm in a metric project', () => {
+    useStore.getState().setUnitsDisplay('metric-mm');
+    useStore.getState().addBoard();
+    const id = worldParts(useStore.getState().doc)[0].id;
+    useStore.getState().selectBoard(id);
+    render(<Properties />);
+    expect(worldParts(useStore.getState().doc)[0].length).toBe(24);
+    expect(screen.getByLabelText('Length')).toHaveValue('610 mm');
+  });
+});

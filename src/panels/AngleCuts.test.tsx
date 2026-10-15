@@ -60,11 +60,11 @@ describe('the Angles section', () => {
   it('keeps one hook order when a row\'s cut changes kind in place (taper → miter → taper)', () => {
     const taper: AngleCut = { id: 'a1', kind: 'taper', face: 'width', from: 'min', along: 'length', alongFrom: 'min', points: [[0, 0.5], [20, 0]] };
     const miter: AngleCut = { id: 'a1', kind: 'miter', face: 'length', from: 'min', along: 'width', alongFrom: 'min', points: [[0, 0], [2, 2]] };
-    const { rerender } = render(<AngleCuts board={leg({ angleCuts: [taper] })} precision={16} />);
+    const { rerender } = render(<AngleCuts board={leg({ angleCuts: [taper] })} />);
     expect(screen.getByLabelText('Starts')).toBeInTheDocument();
-    rerender(<AngleCuts board={leg({ angleCuts: [miter] })} precision={16} />);
+    rerender(<AngleCuts board={leg({ angleCuts: [miter] })} />);
     expect(screen.getByText(/^Miter 45\.0°/)).toBeInTheDocument();
-    rerender(<AngleCuts board={leg({ angleCuts: [taper] })} precision={16} />);
+    rerender(<AngleCuts board={leg({ angleCuts: [taper] })} />);
     expect(screen.getByLabelText('Starts')).toBeInTheDocument();
   });
 });

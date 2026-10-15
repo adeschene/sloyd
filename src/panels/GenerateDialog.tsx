@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { parseLength } from '../units/length';
+import { IMPERIAL, parseLength } from '../units/length';
 import { MATERIALS } from '../document/types';
 import { DETAIL_CAPS, STYLES } from '../generate/prompt';
 import type { Detail, GenerateSettings, Style } from '../generate/prompt';
@@ -22,7 +22,8 @@ interface Props {
 /** '' → null (no limit); a positive length → inches; anything else → 'bad'. */
 export function parseLimit(text: string): number | null | 'bad' {
   if (!text.trim()) return null;
-  const v = parseLength(text);
+  // Ruling P2 (metric display): Generate's size limits are read as inches; a new project has no units yet.
+  const v = parseLength(text, IMPERIAL);
   return v !== null && v > 0 ? v : 'bad';
 }
 

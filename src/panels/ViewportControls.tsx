@@ -71,6 +71,7 @@ export function ViewportControls({
   const tool = useStore((s) => s.tool);
   const setTool = useStore((s) => s.setTool);
   const explode = useStore((s) => s.explode);
+  const units = useStore((s) => s.doc.units);
   const setExplode = useStore((s) => s.setExplode);
   const hasSelection = useStore((s) => s.selectedIds.length > 0);
   const section = useStore((s) => s.section);
@@ -175,7 +176,7 @@ export function ViewportControls({
           <input type="range" aria-label="Section position" step="any"
             min={span ? span[0] : section.at} max={span ? span[1] : section.at} value={section.at}
             onChange={(e) => setSection({ ...section, at: Number(e.target.value) })} />
-          <DimensionField label="Position" value={section.at} allowNegative
+          <DimensionField label="Position" value={section.at} allowNegative units={units}
             min={span?.[0]} max={span?.[1]} onCommit={(at) => setSection({ ...section, at })} />
           <button aria-pressed={section.flip} onClick={() => setSection({ ...section, flip: !section.flip })}
             title="Keep the other side of the cut">Flip</button>

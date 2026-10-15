@@ -1,4 +1,5 @@
 import { DimensionField } from './DimensionField';
+import { IMPERIAL } from '../units/length';
 import { HOLE_COUNT_MAX } from '../document/document';
 
 const parseCount = (text: string): number | null => (/^\s*\d+\s*$/.test(text) ? Number(text.trim()) : null);
@@ -9,6 +10,7 @@ const parseCount = (text: string): number | null => (/^\s*\d+\s*$/.test(text) ? 
 export function CountField({ label, value, onCommit }: { label: string; value: number; onCommit: (n: number) => string | void }) {
   return (
     <DimensionField label={label} value={value} onCommit={onCommit} min={1} max={HOLE_COUNT_MAX}
+      units={IMPERIAL} // unused: parse and format are supplied
       parse={parseCount} format={String} invalid="Enter a whole number of holes, e.g. 12" />
   );
 }

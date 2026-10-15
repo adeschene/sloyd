@@ -2,12 +2,13 @@ import { useState } from 'react';
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DimensionField } from './DimensionField';
+import { IMPERIAL } from '../units/length';
 
 function Harness({ initial }: { initial: number }) {
   const [value, setValue] = useState(initial);
   return (
     <>
-      <DimensionField label="X" value={value} allowNegative onCommit={setValue} />
+      <DimensionField units={IMPERIAL} label="X" value={value} allowNegative onCommit={setValue} />
       <button onClick={() => setValue(19.25)}>external change</button>
     </>
   );
@@ -15,7 +16,7 @@ function Harness({ initial }: { initial: number }) {
 
 const setup = (props: Partial<React.ComponentProps<typeof DimensionField>> = {}) => {
   const onCommit = vi.fn();
-  render(<DimensionField label="Length" value={1.5} onCommit={onCommit} {...props} />);
+  render(<DimensionField units={IMPERIAL} label="Length" value={1.5} onCommit={onCommit} {...props} />);
   return { onCommit, input: screen.getByLabelText('Length') as HTMLInputElement };
 };
 
@@ -120,9 +121,9 @@ describe('DimensionField', () => {
 
   it('picks up an external value change while not being edited', () => {
     const { rerender } = render(
-      <DimensionField label="Length" value={1.5} onCommit={vi.fn()} />,
+      <DimensionField units={IMPERIAL} label="Length" value={1.5} onCommit={vi.fn()} />,
     );
-    rerender(<DimensionField label="Length" value={3} onCommit={vi.fn()} />);
+    rerender(<DimensionField units={IMPERIAL} label="Length" value={3} onCommit={vi.fn()} />);
     expect((screen.getByLabelText('Length') as HTMLInputElement).value).toBe('3"');
   });
 
@@ -173,7 +174,7 @@ describe('DimensionField', () => {
     // undo elsewhere), silently dropping this real edit on blur.
     const onCommit = vi.fn();
     const { rerender } = render(
-      <DimensionField label="Length" value={1.5} onCommit={onCommit} />,
+      <DimensionField units={IMPERIAL} label="Length" value={1.5} onCommit={onCommit} />,
     );
     const input = screen.getByLabelText('Length') as HTMLInputElement;
     await userEvent.click(input);
@@ -181,7 +182,7 @@ describe('DimensionField', () => {
     await userEvent.type(input, '2');
 
     // An external change lands while the field is still focused.
-    rerender(<DimensionField label="Length" value={99} onCommit={onCommit} />);
+    rerender(<DimensionField units={IMPERIAL} label="Length" value={99} onCommit={onCommit} />);
 
     await userEvent.tab();
     expect(onCommit).toHaveBeenCalledWith(2);
@@ -231,10 +232,10 @@ describe('DimensionField — mixed (value null)', () => {
   // through the mixed state.
   it('writes nothing when a focused field turns mixed under it and then blurs untouched', async () => {
     const onCommit = vi.fn();
-    const { rerender } = render(<DimensionField label="Length" value={1.5} onCommit={onCommit} />);
+    const { rerender } = render(<DimensionField units={IMPERIAL} label="Length" value={1.5} onCommit={onCommit} />);
     const input = screen.getByLabelText('Length') as HTMLInputElement;
     await userEvent.click(input);
-    rerender(<DimensionField label="Length" value={null} onCommit={onCommit} />);
+    rerender(<DimensionField units={IMPERIAL} label="Length" value={null} onCommit={onCommit} />);
     await userEvent.tab();
     expect(onCommit).not.toHaveBeenCalled();
     expect(input.value).toBe('');
@@ -264,11 +265,11 @@ describe('DimensionField — mixed (value null)', () => {
 
   it('adopts an external change from mixed to a value and back', () => {
     const onCommit = vi.fn();
-    const { rerender } = render(<DimensionField label="Length" value={null} onCommit={onCommit} />);
+    const { rerender } = render(<DimensionField units={IMPERIAL} label="Length" value={null} onCommit={onCommit} />);
     const input = screen.getByLabelText('Length') as HTMLInputElement;
-    rerender(<DimensionField label="Length" value={2} onCommit={onCommit} />);
+    rerender(<DimensionField units={IMPERIAL} label="Length" value={2} onCommit={onCommit} />);
     expect(input.value).toBe('2"');
-    rerender(<DimensionField label="Length" value={null} onCommit={onCommit} />);
+    rerender(<DimensionField units={IMPERIAL} label="Length" value={null} onCommit={onCommit} />);
     expect(input.value).toBe('');
   });
 });
@@ -317,13 +318,13 @@ describe('DimensionField — onErrorChange', () => {
 
   it('reports false when an external change clears the error', async () => {
     const onErrorChange = vi.fn();
-    const { rerender } = render(<DimensionField label="Length" value={1.5} onCommit={vi.fn()} onErrorChange={onErrorChange} />);
+    const { rerender } = render(<DimensionField units={IMPERIAL} label="Length" value={1.5} onCommit={vi.fn()} onErrorChange={onErrorChange} />);
     const input = screen.getByLabelText('Length') as HTMLInputElement;
     await userEvent.clear(input);
     await userEvent.type(input, '0');
     await userEvent.tab();
     expect(onErrorChange).toHaveBeenLastCalledWith(true);
-    rerender(<DimensionField label="Length" value={3} onCommit={vi.fn()} onErrorChange={onErrorChange} />);
+    rerender(<DimensionField units={IMPERIAL} label="Length" value={3} onCommit={vi.fn()} onErrorChange={onErrorChange} />);
     expect(onErrorChange).toHaveBeenLastCalledWith(false);
   });
 });
@@ -339,7 +340,7 @@ describe('DimensionField defaults (existing callers)', () => {
 
   it('a caller that refuses (onCommit returns a message) shows it as the field\'s own error, keeping text and focus (ruling R7)', async () => {
     const onCommit = vi.fn(() => 'nope');
-    render(<DimensionField label="Length" value={1.5} onCommit={onCommit} />);
+    render(<DimensionField units={IMPERIAL} label="Length" value={1.5} onCommit={onCommit} />);
     const input = screen.getByLabelText('Length') as HTMLInputElement;
     await userEvent.clear(input);
     await userEvent.type(input, '3{Enter}');
@@ -352,5 +353,39 @@ describe('DimensionField defaults (existing callers)', () => {
     await userEvent.type(input, '{Enter}');
     expect(onCommit).toHaveBeenCalledTimes(2);
     expect(document.activeElement).toBe(input);
+  });
+});
+
+describe('DimensionField in a metric project', () => {
+  const MM = { display: 'metric-mm' as const, precision: 16 };
+  it('metric: shows mm and reads a bare number as mm', async () => {
+    const onCommit = vi.fn();
+    render(<DimensionField label="Length" value={30} units={MM} onCommit={onCommit} />);
+    const f = screen.getByLabelText('Length') as HTMLInputElement;
+    expect(f.value).toBe('762 mm');
+    await userEvent.clear(f); await userEvent.type(f, '600{Enter}');
+    expect(onCommit).toHaveBeenCalledWith(600 / 25.4);
+  });
+  it('a fraction typed in a metric field commits inches', async () => {
+    const onCommit = vi.fn();
+    render(<DimensionField label="T" value={1} units={MM} onCommit={onCommit} />);
+    const f = screen.getByLabelText('T');
+    await userEvent.clear(f); await userEvent.type(f, '3/4{Enter}');
+    expect(onCommit).toHaveBeenCalledWith(0.75);
+  });
+  it('untouched blur commits nothing in metric', async () => {
+    const onCommit = vi.fn();
+    const { rerender } = render(<DimensionField label="W" value={5.5} units={MM} onCommit={onCommit} />);
+    const f = screen.getByLabelText('W');
+    f.focus();
+    rerender(<DimensionField label="W" value={5.51} units={MM} onCommit={onCommit} />);
+    f.blur();
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+  it('min/max messages read in mm', async () => {
+    render(<DimensionField label="P" value={1} units={MM} max={2} onCommit={() => {}} />);
+    const f = screen.getByLabelText('P');
+    await userEvent.clear(f); await userEvent.type(f, '100{Enter}');
+    expect(screen.getByRole('alert').textContent).toContain('51 mm');
   });
 });
