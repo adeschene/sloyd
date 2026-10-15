@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createBoard } from './document';
 import type { AngleCut, Board, Cut, CurveCut } from './types';
-import { splitBodiesForTest } from './bodies';
+import { BODY_EPS, splitBodiesForTest, type Body } from './bodies';
 import { ARCH, CORNER } from './curveFixtures';
 import { bowCurve, curveOutline, curvePlan } from './curves';
 import { geometryKey, boardBodies, boardEdges, bodyEdges, bodyVerts, bodyVolume, partGeometry, PART_GEOMETRY_LIMIT } from './bodies';
@@ -292,6 +292,29 @@ describe('boardBodies with curves (curves spec §3.2)', () => {
   const apron = createBoard({ length: 30, width: 5, thickness: 0.75 });
   const top = createBoard({ length: 36, width: 20, thickness: 0.75 });
   const vol = (b: Board) => boardBodies(b).reduce((s, x) => s + bodyVolume(x), 0);
+  /** p is inside or on a convex body: on the inner side of every face plane (outward normals), within BODY_EPS. */
+  const inBody = (p: readonly number[], x: Body) => x.faces.every((f) => {
+    const q = f.verts[0]!;
+    return f.n[0] * (p[0]! - q[0]) + f.n[1] * (p[1]! - q[1]) + f.n[2] * (p[2]! - q[2]) <= BODY_EPS;
+  });
+  /** Every vertex of every body of `a` lies inside or on some body of `b`. */
+  const coveredBy = (a: readonly Body[], b: readonly Body[]) => a.every((x) => bodyVerts(x).every((p) => b.some((y) => inBody(p, y))));
+  /** Spec §3.2's agreement: equal volume, AND every point of one is in the other (by vertices, both ways). */
+  const expectSameWood = (a: readonly Body[], b: readonly Body[]) => {
+    const v = (xs: readonly Body[]) => xs.reduce((s, x) => s + bodyVolume(x), 0);
+    expect(Math.abs(v(a) - v(b))).toBeLessThan(1e-9);
+    expect(coveredBy(a, b)).toBe(true);
+    expect(coveredBy(b, a)).toBe(true);
+  };
+
+  it('the agreement helper can fail: the same volume moved elsewhere is not the same wood', () => {
+    const plain = boardBodies(apron);
+    const moved: Body[] = plain.map((x) => ({ box: null, faces: x.faces.map((f) => ({ ...f, verts: f.verts.map((p) => [p[0] + 1, p[1], p[2]] as typeof p) })) }));
+    expect(Math.abs(plain.reduce((s, x) => s + bodyVolume(x), 0) - moved.reduce((s, x) => s + bodyVolume(x), 0))).toBeLessThan(1e-9);
+    expect(coveredBy(moved, plain)).toBe(false);
+    expect(coveredBy(plain, moved)).toBe(false);
+    expect(coveredBy(plain, plain)).toBe(true);
+  });
 
   it('an arch SPLITS: the volume is the box minus the true segment, within the chord tolerance', () => {
     const v = vol({ ...apron, curves: [ARCH] });
@@ -318,6 +341,7 @@ describe('boardBodies with curves (curves spec §3.2)', () => {
     const plan = curvePlan(b, bow)!;
     expect(plan.clip).toBe(true);
     expect(Math.abs(clipped - splitVolumeForTest(b, bow))).toBeLessThan(1e-9);
+    expectSameWood(boardBodies(b), splitBodiesForTest(b, bow));
   });
   it('faces on an arc chord carry the curve id; a body no curve touches keeps its box', () => {
     const b = { ...apron, cuts: [{ id: 't', face: 'thickness' as const, from: 'max' as const, across: 'width' as const, offset: 0.5, width: 1, depth: 0.25, stopMin: 0, stopMax: 0 }], curves: [ARCH] };
@@ -331,7 +355,7 @@ describe('boardBodies with curves (curves spec §3.2)', () => {
       { type: 'arc', to: [0, 2], side: 'left', rise: 0.2 }, { type: 'line', to: [0, 0] }] };
     const b = { ...top, curves: [k] };
     expect(curvePlan(b, k)!.clip).toBe(false);
-    expect(Math.abs(vol(b) - splitVolumeForTest(b, k))).toBeLessThan(1e-9);
+    expectSameWood(boardBodies(b), splitBodiesForTest(b, k));
   });
   it('two arc runs separated by boundary sides split (each keeps its own corner; their half-planes together keep nothing)', () => {
     const k: CurveCut = { id: 'k', through: 'thickness', uFrom: 'min', vFrom: 'min', start: [0, 0], segments: [
@@ -340,7 +364,7 @@ describe('boardBodies with curves (curves spec §3.2)', () => {
     const b = { ...createBoard({ length: 10, width: 10, thickness: 1 }), curves: [k] };
     expect(curvePlan(b, k)!.clip).toBe(false);
     expect(vol(b)).toBeGreaterThan(1);
-    expect(Math.abs(vol(b) - splitVolumeForTest(b, k))).toBeLessThan(1e-9);
+    expectSameWood(boardBodies(b), splitBodiesForTest(b, k));
   });
   it('two arcs meeting ON the boundary in a convex waste corner split', () => {
     // One arc run, but its two arcs meet ON the top edge at (5, 10), where the waste's corner is convex: the wood is the two
@@ -350,7 +374,7 @@ describe('boardBodies with curves (curves spec §3.2)', () => {
       { type: 'arc', to: [0, 3], side: 'left', rise: 0.5 }, { type: 'line', to: [0, 0] }] };
     const b = { ...createBoard({ length: 10, width: 10, thickness: 1 }), curves: [k] };
     expect(curvePlan(b, k)!.clip).toBe(false);
-    expect(Math.abs(vol(b) - splitVolumeForTest(b, k))).toBeLessThan(1e-9);
+    expectSameWood(boardBodies(b), splitBodiesForTest(b, k));
   });
   it('a cell the waste only TOUCHES (its wall through the crown vertex) keeps its wood once', () => {
     // ARCH's 18 chords put a vertex at the crown (15, 1.5). A groove over v ∈ [0.5, 1.5] in the top quarter leaves a cell
@@ -362,8 +386,25 @@ describe('boardBodies with curves (curves spec §3.2)', () => {
     const above = bodies.filter((x) => bodyVerts(x).every((p) => p[1] >= 1.5 - 1e-9 && p[2] >= 0.5 - 1e-9));
     near(above.reduce((s, x) => s + bodyVolume(x), 0), 30 * 3.5 * 0.25);
   });
-  it('a part with no curves is byte-for-byte unchanged', () => {
-    expect(boardBodies({ ...apron, curves: [] })).toEqual(boardBodies(apron));
+  it('a part with no curves is byte-for-byte what it was: a plain box, and an angle cut\'s caps, carry no curve key', () => {
+    // Exact structure, key for key (toStrictEqual tells a missing key from one set to undefined): the box path's body.
+    expect(boardBodies(apron)).toStrictEqual([{ box: { length: [0, 30], width: [0, 5], thickness: [0, 0.75] }, faces: [
+      { n: [-1, 0, 0], verts: [[0, 0, 0], [0, 0, 0.75], [0, 5, 0.75], [0, 5, 0]] },
+      { n: [1, 0, 0], verts: [[30, 0, 0], [30, 5, 0], [30, 5, 0.75], [30, 0, 0.75]] },
+      { n: [0, -1, 0], verts: [[0, 0, 0], [30, 0, 0], [30, 0, 0.75], [0, 0, 0.75]] },
+      { n: [0, 1, 0], verts: [[0, 5, 0], [0, 5, 0.75], [30, 5, 0.75], [30, 5, 0]] },
+      { n: [0, 0, -1], verts: [[0, 0, 0], [0, 5, 0], [30, 5, 0], [30, 0, 0]] },
+      { n: [0, 0, 1], verts: [[0, 0, 0.75], [30, 0, 0.75], [30, 5, 0.75], [0, 5, 0.75]] },
+    ] }]);
+    // The angle path: every body {box, faces}; a sloped cap exactly {n, verts, cut}, every other face exactly {n, verts}.
+    const tapered = boardBodies(leg({ angleCuts: [taper] }));
+    expect(tapered.every((x) => Object.keys(x).join() === 'box,faces')).toBe(true);
+    const keys = tapered.flatMap((x) => x.faces.map((f) => Object.keys(f).join()));
+    expect(keys.filter((k) => k === 'n,verts,cut')).toHaveLength(tapered.length);
+    expect(keys.every((k) => k === 'n,verts' || k === 'n,verts,cut')).toBe(true);
+    // The angle path's bodies are boxes where no cut reached them (a notched leg keeps its untouched cells' boxes).
+    const notched = leg({ cuts: [{ id: 'n', face: 'thickness', from: 'max', across: 'width', offset: 26, width: 1, depth: 0.5, stopMin: 0, stopMax: 0 }], angleCuts: [taper] });
+    expect(boardBodies(notched).some((x) => x.box !== null)).toBe(true);
   });
   it('geometryKey carries each curve\'s id and values', () => {
     expect(geometryKey({ ...apron, curves: [ARCH] })).not.toBe(geometryKey(apron));
