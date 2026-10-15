@@ -50,9 +50,11 @@ describe('a curved part rebuilds inside a frame', () => {
   });
   // Bound 100 ms, not 40 (the holes guard's precedent for an unusual case): no preset authors a non-convex waste, only a
   // hand-edited file can. Measured on partGeometry's frozen bodies (83 bodies, 477 faces): bodies ~4 ms, edges ~35 ms,
-  // mesh ~8 ms. The upstream causes, a recorded follow-up: the ear-clip triangles are not merged into convex pieces
-  // (14 pieces, each sliced along its extended planes), bodyEdges finds a polygon edge's line by a linear lookup and
-  // filters every face per line, and frozen bodies slow bodyEdges about threefold.
+  // mesh ~8 ms when the guard was written (~48–54 ms in all); since the watertight fix the mesh also welds and conforms
+  // every face (conform.ts), and the case measures ~62–72 ms in all (min of 9, a loaded machine). The upstream causes,
+  // fu 368: the ear-clip triangles are not merged into convex pieces (14 pieces, each sliced along its extended planes),
+  // bodyEdges finds a polygon edge's line by a linear lookup and filters every face per line, and frozen bodies slow
+  // bodyEdges about threefold.
   it('an L-shaped notch with one arc (a non-convex waste, ear-clipped): at most 100 ms', () => {
     const board = (k: number) => createBoard({ length: 30 * k, width: 5, thickness: 0.75, curves: [notchL] });
     // The fixture is what it claims: the SPLIT path, more than one convex piece.

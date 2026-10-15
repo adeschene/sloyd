@@ -1,5 +1,11 @@
 # Curves, chunk 1 (primitive through bench) — Implementation Plan
 
+**Status:** implemented on branch `curves` (2026-10-15, schema 17), **not yet merged or deployed** (merge and deploy on
+the user's word). Planning rulings P1–P7 approved by the user with this plan. The whole-branch review's fix wave
+(`f1292ee`..`6fb1f4d`) added a watertight mesh and cap for curved parts (`viewport/conform.ts`, `capFill.ts`,
+`drawsAsBox`), a fault key that tells a curve from an edge, and select refusals naming a Bow's Rise and a corner's Radius;
+a browser re-check followed (`0ccb64f`). The record is `docs/history.md`; the execution rulings are marked in the spec.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A part can carry curve cuts (`Board.curves`, schema 17) — arcs cut clean through it — that the 3D view, edges,
