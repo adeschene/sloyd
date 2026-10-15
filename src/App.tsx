@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Viewport } from './viewport/Viewport';
 import type { ViewportHandle } from './viewport/Viewport';
 import { Toolbar } from './panels/Toolbar';
-import { ViewportControls, EXPLODED_TITLE } from './panels/ViewportControls';
+import { ViewportControls } from './panels/ViewportControls';
 import { PartsList } from './panels/PartsList';
 import { Properties } from './panels/Properties';
 import { GuidesFooter } from './panels/GuidesFooter';
@@ -981,9 +981,8 @@ export default function App() {
             </section>
             <section className="panel panel-props">
               <h2>Properties</h2>
-              <fieldset className="edit-lock" disabled={exploded} title={exploded ? EXPLODED_TITLE : undefined}>
-                <Properties library={library.materials} onNewMaterial={(ids, kind) => { setNewMaterialFor({ ids, kind }); setDialog('prices'); }} />
-              </fieldset>
+              {/* Properties locks its own editing regions while exploded (EditLock, fu 262), so its view actions stay live. */}
+              <Properties library={library.materials} onNewMaterial={(ids, kind) => { setNewMaterialFor({ ids, kind }); setDialog('prices'); }} />
             </section>
             {/*
               Keyed per project (ui-polish spec §4.5): the footer opens itself
@@ -991,9 +990,7 @@ export default function App() {
               A fresh instance per project makes a load or a switch its new
               baseline, so opening a project with guides leaves it closed.
             */}
-            <fieldset className="edit-lock" disabled={exploded} title={exploded ? EXPLODED_TITLE : undefined}>
-              <GuidesFooter key={activeId} />
-            </fieldset>
+            <GuidesFooter key={activeId} />
           </aside>
         </main>
       </div>

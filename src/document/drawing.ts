@@ -174,7 +174,9 @@ function partSegments(b: Board, toward: readonly number[]): Seg3[] {
  * visibility (curves spec §5.1, Q2, Q3) — and hole lines from `holeDrawingSegments` (holes spec §3.4), through `toWorld`, and the curved surfaces' silhouettes from `silhouetteLines` (ruling Q1; each hidden-line probe is stepped PROBE = 4 x DRAW_EPS along the outward normal of each viewer-facing adjacent face, grazing lines still hide); occluders from `worldBodies` (invariant 38 as amended by angle-cuts spec §10).
  * No drawing order is involved, so cyclic overlaps are exact.
  */
-export function drawView(parts: readonly Board[], view: View, offsets?: ReadonlyMap<string, Vec3>): Drawing {
+export function drawView(parts: readonly Board[], view: View, offsets?: ReadonlyMap<string, Vec3>, opts: { hiddenLines?: boolean } = {}): Drawing {
+  // A view drawn without hidden lines (the exploded isometric, fu 344) skips the hole lines that can only be hidden.
+  const visibleOnly = opts.hiddenLines === false;
   const proj = (p: readonly number[]): P2 => [dot(p, view.right), dot(p, view.up)];
   const visible: Seg2[] = [];
   const hidden: Seg2[] = [];
@@ -211,7 +213,7 @@ export function drawView(parts: readonly Board[], view: View, offsets?: Readonly
     // the hole-free bodies, so a through-bore's far rim seen down its axis is hidden (spec §3.4, pinned by test).
     const segments: Seg3[] = [
       ...partSegments(b, view.toward),
-      ...holeDrawingSegments(b, view.toward).map(([A, E]) => ({ A, E })),
+      ...holeDrawingSegments(b, view.toward, visibleOnly).map(([A, E]) => ({ A, E })),
       ...silhouetteLines(b, view.toward),
     ];
     for (const seg of segments) {

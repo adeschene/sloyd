@@ -2,6 +2,7 @@ import { createBoard, mirrorPart, pocketCells, keptHalfSpace, partGeometry, tape
 import { axisFrame, fromWorldOffset, DIMENSION_ORDER } from './geometry';
 import { holePrism } from './holes';
 import { keptBySection, sectionAxisIndex, sectionPlaneOf, sectionSpan, SECTION_EPS, sectionCaps, unionOutline, localCapPieces, type Section } from './section';
+import { unionLoops } from './outline';
 import { chiralPart } from './turnFixtures';
 import type { V3 } from './angleCuts';
 
@@ -282,6 +283,26 @@ describe('unionOutline', () => {
   });
 });
 
+describe('unionLoops (fu 369): the same stretches, directed as the pieces run', () => {
+  // Signed area of the directed stretches about +z: shoelace over each stretch (a closed boundary's sum is its area).
+  const signed = (segs: [P3, P3][]) => segs.reduce((s, [p, q]) => s + (p[0] * q[1] - q[0] * p[1]) / 2, 0);
+  it('a T-junction: the union runs counter-clockwise (area +4), the same stretches as unionOutline', () => {
+    const big: P3[] = [[0, 0, 0], [2, 0, 0], [2, 1, 0], [0, 1, 0]];
+    const s1: P3[] = [[0, 1, 0], [1, 1, 0], [1, 2, 0], [0, 2, 0]];
+    const s2: P3[] = [[1, 1, 0], [2, 1, 0], [2, 2, 0], [1, 2, 0]];
+    const loops = unionLoops([big, s1, s2], 2) as [P3, P3][];
+    expect(signed(loops)).toBeCloseTo(4, 12);
+    expect(len(loops)).toBeCloseTo(len(unionOutline([big, s1, s2], 2) as [P3, P3][]), 12);
+  });
+  it('a frame of four pieces round a gap: outer counter-clockwise, inner clockwise (area 9 − 1)', () => {
+    const sq = (x0: number, y0: number, x1: number, y1: number): P3[] => [[x0, y0, 0], [x1, y0, 0], [x1, y1, 0], [x0, y1, 0]];
+    const frame = [sq(0, 0, 3, 1), sq(0, 2, 3, 3), sq(0, 1, 1, 2), sq(2, 1, 3, 2)];
+    const loops = unionLoops(frame, 2) as [P3, P3][];
+    expect(signed(loops)).toBeCloseTo(8, 12);
+    expect(len(loops)).toBeCloseTo(16, 12);
+  });
+});
+
 describe('sectionCaps outline', () => {
   it('across bores: the rectangle plus each 48-gon void', () => {
     const pin = { id: 'r1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.5,
@@ -289,6 +310,33 @@ describe('sectionCaps outline', () => {
     const b = createBoard({ id: 'v', length: 20, width: 6, thickness: 1.5, position: [0, 0, 0], holes: [pin] });
     const gonPerimeter = 48 * 2 * 0.125 * Math.sin(Math.PI / 48);
     expect(len(sectionCaps(b, { axis: 'top', at: 1.25, flip: false })!.outline as [P3, P3][])).toBeCloseTo(52 + 3 * gonPerimeter, 6);
+  });
+  // fu 348: across bores the outline is built from the unbored pieces and the rings; it must be what a union of the bored
+  // pieces gives (every segment of each lies on the other's). Overlapping bores fall back to the union itself.
+  const covers = (a: [P3, P3][], b: [P3, P3][]) => a.every(([p, q]) => {
+    const m: P3 = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2];
+    return b.some(([x, y]) => {
+      const d = [y[0] - x[0], y[1] - x[1], y[2] - x[2]];
+      const l2 = d[0]! ** 2 + d[1]! ** 2 + d[2]! ** 2;
+      const t = Math.max(0, Math.min(1, ((m[0] - x[0]) * d[0]! + (m[1] - x[1]) * d[1]! + (m[2] - x[2]) * d[2]!) / l2));
+      return Math.hypot(m[0] - x[0] - t * d[0]!, m[1] - x[1] - t * d[1]!, m[2] - x[2] - t * d[2]!) <= 1e-9;
+    });
+  });
+  const pinRow = (station: number, count: number) => ({ id: `r${station}`, face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.5,
+    along: 'length' as const, alongFrom: 'min' as const, station, count, pitch: 2, acrossFrom: 'min' as const, inset: 1.5 });
+  it('across bores, the built outline is the union of the bored pieces (fu 348)', () => {
+    const b = createBoard({ id: 'v1', length: 20, width: 6, thickness: 1.5, position: [0, 0, 0], holes: [pinRow(2, 3)] });
+    const cap = sectionCaps(b, { axis: 'top', at: 1.25, flip: false })!;
+    const union = unionOutline(cap.pieces, 1) as [P3, P3][];
+    expect(covers(cap.outline as [P3, P3][], union)).toBe(true);
+    expect(covers(union, cap.outline as [P3, P3][])).toBe(true);
+  });
+  it('overlapping bores: the outline is the union\'s, not two whole rings (fu 348)', () => {
+    const b = createBoard({ id: 'v2', length: 20, width: 6, thickness: 1.5, position: [0, 0, 0], holes: [pinRow(2, 1), pinRow(2.1, 1)] });
+    const cap = sectionCaps(b, { axis: 'top', at: 1.25, flip: false })!;
+    const union = unionOutline(cap.pieces, 1) as [P3, P3][];
+    expect(covers(cap.outline as [P3, P3][], union)).toBe(true);
+    expect(covers(union, cap.outline as [P3, P3][])).toBe(true);
   });
   it('a plain box: the rectangle', () => {
     expect(len(sectionCaps(box, { axis: 'front', at: 3, flip: false })!.outline as [P3, P3][])).toBeCloseTo(43, 9);

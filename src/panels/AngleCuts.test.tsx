@@ -48,6 +48,19 @@ describe('the Angles section', () => {
     expect(screen.getByRole('button', { name: /Remove angle cut/ })).toBeInTheDocument();
     expect(screen.queryByLabelText('Starts')).toBeNull();
   });
+  it('a taper past its thinned face may move to a face it overruns by less, never by more (fu 296)', async () => {
+    const user = userEvent.setup();
+    open(leg());
+    act(() => useStore.getState().addAngleCuts('leg', [taperCut({ face: 'width', from: 'min', end: 'min', start: 21, amount: 0.5 })]));
+    act(() => useStore.getState().updateBoard('leg', { width: 0.4, thickness: 0.45 }));   // 0.1 over the width
+    expect(screen.getByText('This taper removes more than the width at this size.')).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText('Face'), 'Thickness face — min side');   // 0.05 over: less
+    expect(cuts()[0]).toMatchObject({ face: 'thickness' });
+    act(() => useStore.getState().updateBoard('leg', { width: 0.3 }));                     // the width: 0.2 over
+    await user.selectOptions(screen.getByLabelText('Face'), 'Width face — min side');
+    expect(cuts()[0]).toMatchObject({ face: 'thickness' });
+    expect(screen.getByRole('alert')).toHaveTextContent('Removes more than the width — reduce the removal first.');
+  });
   it('refuses a face change that would remove more than the new face', async () => {
     const user = userEvent.setup();
     open(leg({ width: 4, thickness: 1 }));
@@ -109,6 +122,36 @@ describe('miters in the Angles section (spec §7, chunk 2)', () => {
     await addMenu(user, 'Miter');
     await user.selectOptions(screen.getByLabelText('Long point'), 'max');
     expect(cuts()[0]).toMatchObject({ alongFrom: 'max', points: [[0, 0], [2.5, 2.5]] });
+  });
+  it('a rail shortened past its miter: noted, and edits that go no deeper are taken (fu 296)', async () => {
+    const user = userEvent.setup();
+    open(rail());
+    await addMenu(user, 'Miter');
+    act(() => useStore.getState().updateBoard('leg', { length: 2 }));   // 45° across 2-1/2" now passes the 2" length
+    expect(screen.getByText('This miter removes more than the length at this size.')).toBeInTheDocument();
+    // Long point changes no depth: taken (was refused, the angle unreduced).
+    await user.selectOptions(screen.getByLabelText('Long point'), 'max');
+    expect(cuts()[0]).toMatchObject({ alongFrom: 'max' });
+    expect(screen.queryByRole('alert')).toBeNull();
+    // Across the thickness, 3/4" deep: it fits again, and the note goes.
+    await user.selectOptions(screen.getByLabelText('Across'), 'thickness');
+    expect(cuts()[0]).toMatchObject({ along: 'thickness' });
+    expect(screen.queryByText(/at this size/)).toBeNull();
+    // Back across the width would pass the length again from a cut that fits: refused, as before.
+    await user.selectOptions(screen.getByLabelText('Across'), 'width');
+    expect(cuts()[0]).toMatchObject({ along: 'thickness' });
+    expect(screen.getByRole('alert')).toHaveTextContent('Removes more than the length — reduce the angle first.');
+  });
+  it('a bevel whose part was made too thin for it: noted, and a long-point edit is taken (fu 296)', async () => {
+    const user = userEvent.setup();
+    open(rail());
+    await addMenu(user, 'Bevel');
+    const stored = cuts()[0]!;
+    act(() => useStore.getState().updateBoard('leg', { width: 0.1 }));
+    expect(screen.getByText(/^This bevel removes more than the width at this size\.$/)).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText('Long point'), 'max');
+    expect(cuts()[0]).not.toEqual(stored);
+    expect(screen.queryByRole('alert')).toBeNull();
   });
   it('refuses switching across to a side whose depth would pass the length (Review Focus 2)', async () => {
     const user = userEvent.setup();
@@ -190,6 +233,15 @@ describe('bevels and chamfers in the Angles section (chunk 3)', () => {
     open(b);
     act(() => useStore.getState().addAngleCuts('leg', [chamferCut({ ...e, legFace: leg, legAlong: leg }, b)]));
   };
+  it('a chamfer bigger than its thinned edge: noted, and may move to an edge it overruns no further (fu 296)', async () => {
+    const user = userEvent.setup();
+    chamferOn(plank({ width: 3, thickness: 0.75 }), { face: 'width', from: 'max', along: 'thickness', alongFrom: 'max' }, 0.5);
+    act(() => useStore.getState().updateBoard('leg', { thickness: 0.4 }));   // the thickness leg: 0.1 over
+    expect(screen.getByText('This chamfer is bigger than its edge at this size.')).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText('Edge'), 'Width min side · thickness max side');   // the same 0.1 over
+    expect(cuts()[0]).toMatchObject({ face: 'width', from: 'min', along: 'thickness', alongFrom: 'max' });
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
   it('refuses an edge change whose legs exceed the new edge (along-leg half), and a legal move clears the alert', async () => {
     const user = userEvent.setup();
     chamferOn(plank({ width: 3, thickness: 0.75 }), { face: 'length', from: 'max', along: 'width', alongFrom: 'max' }, 1);

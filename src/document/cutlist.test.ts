@@ -728,6 +728,10 @@ describe('holes on the cut list (spec §4)', () => {
   it('a drilled side and a plain one are two rows', () => {
     expect(buildCutList(sides([{ holes: [r1] }, {}]) as FlatDocument).groups[0]!.rows).toHaveLength(2);
   });
+  it('two single bores that once had different pitches are one row (fu 338)', () => {
+    const one = { ...r1, count: 1, pitch: 0 };
+    expect(buildCutList(sides([{ holes: [one] }, { holes: [{ ...one, pitch: 1.25 }] }]) as FlatDocument).groups[0]!.rows).toHaveLength(1);
+  });
   it('the same rows in another order, other ids, are one row (Review Focus 5)', () => {
     const rows = buildCutList(sides([{ holes: [r1, r2] }, { holes: [{ ...r2, id: 'x' }, { ...r1, id: 'y' }] }]) as FlatDocument).groups[0]!.rows;
     expect(rows).toHaveLength(1);

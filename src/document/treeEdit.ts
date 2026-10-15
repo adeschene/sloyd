@@ -463,26 +463,22 @@ function plainWithMarkers(doc: SloydDocument): SloydDocument {
   return { ...doc, boards: fix(doc.boards), definitions: doc.definitions.map((d) => ({ ...d, boards: fix(d.boards) })) };
 }
 
-/** A part's shared fields as a comparable string, each cut by GEOMETRY
- *  (CUT_GEOMETRY_KEYS, in order) and NOT by id: pocketFor mints fresh cut ids
- *  per board, so identical mortises differ only by id (spec §5). Angle cuts
- *  likewise by ANGLE_CUT_FIELDS, not id. */
-function sharedSignature(b: Board): unknown[] {
-  return SHARED_KEYS.map((k) => (k === 'cuts' ? b.cuts.map((c) => CUT_GEOMETRY_KEYS.map((f) => c[f])) : k === 'angleCuts' ? b.angleCuts.map(angleCutValues) : k === 'holes' ? b.holes.map(holeRowValues) : k === 'curves' ? b.curves.map(curveValues) : b[k]));
-}
-
-/** sharedSignature for GROUPING users of one shape: the order cuts (and angle cuts) were stored in is not geometry
- *  (joinery appends mortises in site order, a turned user's list differs from its mate's), so each list is sorted. */
+/** A part's shared fields as comparable values, each cut by GEOMETRY (CUT_GEOMETRY_KEYS, in order) and NOT by id:
+ *  pocketFor mints fresh cut ids per board, so identical mortises differ only by id (spec §5); angle cuts likewise by
+ *  ANGLE_CUT_FIELDS, holes and curves by their tables. Each list SORTED: the order cuts were stored in is not geometry
+ *  (joinery appends mortises in site order, a turned user's list differs from its mate's). Used to group a shape's users
+ *  (regroupShapes) and to compare placements of one definition (resultSignature, fu 316). */
 function groupSignature(b: Board): unknown[] {
   const sorted = (xs: unknown[]) => xs.map((x) => JSON.stringify(x)).sort();
   return SHARED_KEYS.map((k) => (k === 'cuts' ? sorted(b.cuts.map((c) => CUT_GEOMETRY_KEYS.map((f) => c[f]))) : k === 'angleCuts' ? sorted(b.angleCuts.map(angleCutValues)) : k === 'holes' ? sorted(b.holes.map(holeRowValues)) : k === 'curves' ? sorted(b.curves.map(curveValues)) : b[k]));
 }
 
 /** A lowered result as compared across placements: own position and rotation
- *  plus the shared fields. Never `id`, `name` or `shape`: an occurrence is
+ *  plus the shared fields, lists in any order (fu 316: placements whose cuts differ only in order share; step 2 writes
+ *  the first one's record). Never `id`, `name` or `shape`: an occurrence is
  *  matched by its relative id already, and names are never written here. */
 function resultSignature(b: Board): unknown[] {
-  return [b.position, b.rotation, sharedSignature(b)];
+  return [b.position, b.rotation, groupSignature(b)];
 }
 
 /** The results of every occurrence under the instance path `path`, keyed by id
@@ -623,7 +619,7 @@ function regroupShapes(doc: SloydDocument): SloydDocument {
  * Path names are compared against the same flattened before, so they are never
  * written back as renames. Then:
  * 1. assemblies, top-down (`splitAssemblies`): a definition whose placements'
- *    subtree results differ splits; the group holding the first placement keeps
+ *    subtree results differ (cut lists compared in any order, fu 316) splits; the group holding the first placement keeps
  *    it, every other group gets a one-level copy (ids kept, so paths and
  *    results stay keyed by occurrence id). Repeat until every definition's
  *    placements agree.

@@ -196,9 +196,10 @@ function byThePiece(material: string, label: string, parts: Board[], stock: Stoc
       unplaceable += 1;
       continue;
     }
-    // Metric: a 19 mm part from 3/4" stock reads the same whole mm both sides, so there is nothing to plane to say.
-    const sameMm = isMetric(units) && formatLengthBare(t, units) === formatLengthBare(part.thickness, units);
-    if (t > part.thickness + EPS && !sameMm) notes.push(`${part.name}: plane ${tradeLength(t, units)} stock to ${formatLength(part.thickness, units)}`);
+    // Stock and part that READ the same leave nothing to plane to say: a 19 mm part from 3/4" stock (the same whole mm),
+    // or a 0.748" part from 3/4" stock (both 3/4" at display precision; fu 359, the user's ruling — imperial too).
+    const same = formatLengthBare(t, units) === formatLengthBare(part.thickness, units);
+    if (t > part.thickness + EPS && !same) notes.push(`${part.name}: plane ${tradeLength(t, units)} stock to ${formatLength(part.thickness, units)}`);
     groups.set(t, [...(groups.get(t) ?? []), part]);
   }
 

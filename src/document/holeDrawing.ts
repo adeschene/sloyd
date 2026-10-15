@@ -3,6 +3,7 @@ import type { V3 } from './angleCuts';
 import { DIMENSION_ORDER } from './geometry';
 import { partGeometry } from './bodies';
 import { holeRing } from './holes';
+import { holeInStock, stockChecks } from './holeFaults';
 import { toWorld } from './snapPoints';
 
 type Vec3 = [number, number, number];
@@ -21,10 +22,17 @@ const dot = (a: readonly number[], b: readonly number[]) => a[0]! * b[0]! + a[1]
  * mirror is the one composition's. The silhouette's radial r = (V·T)·U − (U·T)·V, scaled to the radius, is the one
  * direction in the disc plane perpendicular to T. drawView decides what is hidden; this module decides nothing about it.
  * Rims come first, then the silhouettes.
+ *
+ * `visibleOnly` (fu 344: a view that draws no hidden lines, the Plans sheet's exploded isometric): a CLEAN hole's
+ * (holeInStock) blind bottom rim and wall silhouettes are left out — they lie inside the hole-free occluding body, so they
+ * are always hidden, and the hidden-line pass only threw them away. A faulted hole keeps every line (its wall can run
+ * into air).
  */
-export function holeDrawingSegments(b: Board, toward: readonly number[]): [Vec3, Vec3][] {
+export function holeDrawingSegments(b: Board, toward: readonly number[], visibleOnly = false): [Vec3, Vec3][] {
   const holes = partGeometry(b).holes;
   if (holes.length === 0) return [];
+  const checks = visibleOnly ? stockChecks(b) : null;
+  const inside = (h: (typeof holes)[number]) => checks !== null && holeInStock(b, h, checks);
   const P = (p: readonly number[]): Vec3 => toWorld(b, { length: p[0]!, width: p[1]!, thickness: p[2]! });
   const out: [Vec3, Vec3][] = [];
   // Each hole's world frame, from mapped points only: centre C, axis A (entry to far rim), silhouette radial r (null when
@@ -47,10 +55,11 @@ export function holeDrawingSegments(b: Board, toward: readonly number[]): [Vec3,
     // Looking down the axis: the rim covers the wall, no silhouettes.
     const r = n <= 1e-9 * h.radius ? null : [0, 1, 2].map((i) => (tv * U[i]! - tu * V[i]!) / n);
     const edgeOn = Math.abs(dot(A, toward)) <= 1e-9 * Math.hypot(A[0]!, A[1]!, A[2]!);
-    return { h, C, A, r, edgeOn };
+    return { h, C, A, r, edgeOn, clean: inside(h) };
   });
-  for (const { h, C, A, r, edgeOn } of frames) {
+  for (const { h, C, A, r, edgeOn, clean } of frames) {
     for (const t of [0, h.depth]) {
+      if (clean && !h.through && t === h.depth) continue;   // visibleOnly: a clean blind bottom is always hidden
       if (edgeOn && r) {
         // Edge-on, the rim projects to exactly the diameter across r (ruling R2): ONE segment, not 96 chords folded back
         // along one line, so a hidden rim reads dashed on the sheet.
@@ -66,8 +75,8 @@ export function holeDrawingSegments(b: Board, toward: readonly number[]): [Vec3,
       for (let i = 0; i < ring.length; i += 1) out.push([ring[i]!, ring[(i + 1) % ring.length]!]);
     }
   }
-  for (const { C, A, r } of frames) {
-    if (!r) continue;
+  for (const { C, A, r, clean } of frames) {
+    if (!r || clean) continue;   // visibleOnly: a clean hole's wall is always hidden
     for (const s of [1, -1]) {
       const p0: Vec3 = [C[0] + s * r[0]!, C[1] + s * r[1]!, C[2] + s * r[2]!];
       out.push([p0, [p0[0] + A[0]!, p0[1] + A[1]!, p0[2] + A[2]!]]);

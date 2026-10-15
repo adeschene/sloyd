@@ -468,6 +468,30 @@ and 79.
 
 ## What each round did
 
+**What follow-ups 1 did (2026-10-15)** (branch `follow-ups-1` from master `8dd789a`; the user asked for the follow-ups from the
+recent feature-gap rounds "in priority order"; no ranking was written down, so it was ranked: real defects, then latent
+bugs, the user's rulings, performance, fail-safe losses). **No schema change** (17). Each entry's closure in
+`docs/follow-ups.md` carries the measurements and the mutations.
+**369 (a live defect, reproduced first):** with the holes' mesh in the watertight check, an arched apron with a pin row
+left 4229 unmatched edges (a holed uncurved part: 0). The split arch cuts the broad face into strips, so a mouth
+straddles a seam and took `faceTriangles`' wedge fallback — also most of the rebuild (63 ms for an arched side with two
+pin rows, over the 40 ms bound). Neither named remedy: each plane a CLEAN hole opens into is merged (`unionLoops`, a
+directed `unionOutline`), triangulated once with the wall's own rings as holes, each triangle conformed
+(`mergeHoledPlanes`); faulted or overlapping rings keep the per-face path. A perf case that timed `holesMesh` too failed
+one full-suite run in two under load; `holesMesh` costs the same without curves (measured) and stays with holesPerf.
+**375:** silhouettes clipped to the part's bodies. **339:** AngleCuts' Angle fields return their refusal (unreachable
+today; adopted). **262/261:** `EditLock` wraps editing regions only, the ActionBar locks its own non-`view` actions;
+review before the merge found Copy in a row's form left outside every lock (fixed, pinned); 261 did not reproduce.
+**338, 359:** the user's rulings (a count-1 row's pitch not compared; no imperial plane note that reads the same).
+**335:** bookkeeping. **348:** a drilled cap's outline built from the unbored pieces and the rings (15.7 → 10.6 ms; the
+named triangulation would need earcut in `document/`). **344 + 263:** the exploded figure skips always-hidden hole lines
+(41 → 18 ms on a drilled pair) and follows the sheet slider through `useDeferredValue`, the figures memoised.
+**316:** placements compare cuts in any order. **296:** an overrun a resize caused is noted, and an edit refused only when
+it overruns further (angle-cuts spec §7 amended, for the user's review).
+Browser (dev server, software GL): an arched part with a pin row draws its mouths open and the face whole; the exploded
+Properties panel lays out as before with Hide others live. Owed: fu 370's real-hardware look (the only proof the
+pinholes are gone) and the sheet slider's feel.
+
 **What curves chunk 2 did (2026-10-15, fu 361)** (plan `docs/superpowers/plans/2026-10-15-sloyd-curves-chunk2.md`, spec §5, branch
 `curves-2` from master `3b4abdb`, HEAD `8d176a3`). **Merged as `1e16c01` and deployed 2026-10-15** (`index-C-5a29hA.js`). **No schema change** (17), so rolling back to chunk 1 is free.
 The plan's rulings Q1–Q6 were approved by the user with it. **Q1 (a live defect on master):** a probe found the Plans sheet drew no

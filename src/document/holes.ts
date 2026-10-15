@@ -16,12 +16,14 @@ export const HOLE_KEYS = Object.keys(HOLE_FIELDS) as (keyof typeof HOLE_FIELDS)[
 /** Holes per row, at most. A hand-edited count above it is dropped on load (expanding it would freeze the view). */
 export const HOLE_COUNT_MAX = 500;
 
-/** One row's comparable values, in HOLE_KEYS order. */
+/** One row's comparable values, in HOLE_KEYS order. A single bore's `pitch` reads 0: stored and ignored at count 1, it
+ *  places nothing, so two single bores that once had different pitches are the same row (fu 338, the user's ruling) —
+ *  on the cut list, in a link, as a no-op edit. Every other value exact. */
 export function holeRowValues(r: Omit<HoleRow, 'id'>): (string | number)[] {
-  return HOLE_KEYS.map((k) => r[k]);
+  return HOLE_KEYS.map((k) => (k === 'pitch' && r.count === 1 ? 0 : r[k]));
 }
 
-/** Exact equality on every HOLE_FIELDS field (stored values, invariant 18). */
+/** Exact equality on every HOLE_FIELDS field (stored values, invariant 18), a single bore's pitch aside (fu 338). */
 export function sameHoleRow(a: Omit<HoleRow, 'id'>, b: Omit<HoleRow, 'id'>): boolean {
   const x = holeRowValues(a);
   const y = holeRowValues(b);

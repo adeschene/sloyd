@@ -5017,14 +5017,35 @@ passing the explode offsets.
 **261. Renaming in the parts list reverts silently while exploded.** `PartsList` is outside the edit lock (same class
 as F3); make it visibly disabled.
 - **Status:** open.
+- **Closed 2026-10-15 as not reproducible (follow-ups session).** The parts list has no rename control and never had
+  one (`git log -S NameField -- src/panels/PartsList.tsx` is empty): renaming lives in Properties, inside the lock, and
+  the header's Project name field is `disabled` while exploded (Toolbar.tsx). Nothing in the parts list writes the
+  document except the eye (hide is view state, live by design). **Status:** closed.
 
 **262. The blanket edit lock also disables view-only controls.** Select copies / Select linked / the open buttons in
 Properties, and the guides footer's own disclosure toggle.
 - **Status:** open.
+- **Closed 2026-10-15 (follow-ups session, branch `follow-ups-1`).** App's two blanket fieldsets are gone; `EditLock`
+  (panels/EditLock.tsx, the same fieldset) wraps only editing regions: in Properties the name and everything below the
+  action bar, with Select linked outside and Unlink inside; in the guides footer the list, not the disclosure. The
+  ActionBar sits outside and disables its own actions while exploded except those marked `view` (Hide others, Select
+  copies), More ▾ disabled only when nothing in it is live, Delete locked; Popover items gained `disabled`. Store gates
+  are unchanged (the three view actions were already allowed while exploded). Tests: App (view actions live, editing
+  ones and Delete locked; the guides list locked, its disclosure live) and Properties (Select linked selects while
+  exploded, Unlink and Length disabled). Seen in the dev browser: the panel lays out as before. Found in review before
+  the merge: the Copy in a row form renders beside the bar, so moving the bar out of the lock left a form opened BEFORE
+  exploding live (Apply then silently refused by `edit()`); it is wrapped in `EditLock` inside ActionBar (test: opened,
+  then exploded — Apply and Count disabled; red without the wrapper). Its Cancel is locked with it (the form's one
+  fieldset); a selection change or Explode back to 0 frees it. **Status:** closed.
 
 **263. The sheet slider recomputes the isometric synchronously.** About 130-250 ms per step at furniture scale
 (measured in node); consider `useDeferredValue`.
 - **Status:** open.
+- **Closed 2026-10-15 (follow-ups session, with fu 344).** The sheet passes the exploded figure `useDeferredValue(amount)`,
+  and `ExplodedFigure` and `PlanTrio` are `memo`ised: a tick re-renders the sheet and the slider at once, the trios not at
+  all (their props never change), and the figure at low priority with the latest value. With fu 344 a drilled piece's
+  figure is also ~2x cheaper. Not measurable in jsdom (concurrent rendering); the existing test still sees the figure follow
+  the slider. A real-browser feel is owed with the sheet's other real-hardware looks. **Status:** closed.
 
 **264. A piece wrapped in ONE top-level assembly explodes at `EXPLODE_INNER` spread.** The first term is zero, and the
 sheet draws that wrapper as a duplicate of the whole piece.
@@ -5171,6 +5192,17 @@ not checked against stored miter depths: the 24" rail resized to 2" kept both 45
 the next miter edit (Long point) was refused with `Removes more than the length — reduce the angle first.`, nothing
 written. Seen live (chunk 2). The add-time half is closed 2026-10-12: the Miter and Miter both ends presets are withheld
 from the + Add menu on a part wider than long (Taper stays). The resize half stays open. **Status:** open, fails safe.
+- **Closed 2026-10-15 (follow-ups session, branch `follow-ups-1`), on the holes/curves precedent (inv 50, 53: a fault a
+  resize causes is KEPT and noted, never clamped; an edit refused only when it adds one).** Every angle row now computes
+  its stored cut's EXCESS (depth past what it may remove) and notes a positive one — `This miter removes more than the
+  length at this size.`, likewise bevel and taper, `This chamfer is bigger than its edge at this size.` — and refuses an
+  edit only when the result would overrun by MORE than the stored cut (`worse`). So the shortened rail's miter takes a
+  Long point or End change, or a reduction, and is still refused when deepened or moved to a side it would overrun
+  further. Stricter than the holes rule (which allows any edit not ADDING a fault kind) on purpose: deepening an
+  already-consuming cut has no use. The resize itself is still not refused (the precedent). Tests: the shortened rail
+  (note; Long point taken; Across to the thickness fits and clears the note; back across the width refused), a thinned
+  bevel, a taper moved to a face it overruns by less (taken) and more (refused), a chamfer moved to an edge it overruns no
+  further; each kind's rule mutated back to the old refusal turns its test red. **Status:** closed.
 
 **297. A hand-edited offset miter is moved to canonical form on its first edit.** A miter whose stored points do not
 start at the corner (an offset miter, only reachable by editing the file) is rewritten to the canonical corner-anchored
@@ -5311,6 +5343,12 @@ turns alone; they need fu 232's mirrored placements from Generate. **Status:** o
 **316. `splitAssemblies`' `resultSignature` is order-sensitive.** Two placements whose joined cuts differ only in order
 split into two definitions: sharing is lost, geometry is right. The cut-order ruling covered `regroupShapes` and `sameJoined`
 only. **Status:** open, fails safe.
+- **Closed 2026-10-15 (follow-ups session, branch `follow-ups-1`).** `resultSignature` now reads `groupSignature` (every
+  list sorted; the order-sensitive `sharedSignature` is gone, its one other caller having been this), so placements of one
+  definition whose joined cuts differ only in order stay one definition; step 2 already writes one edit per storage key,
+  from the first occurrence, so the definition takes the first placement's order and ids. Test: three drawer placements,
+  one with its two cuts reversed — one definition, every copy reading the first's ids (red before the change).
+  **Status:** closed.
 
 **317. Turned-links minors (record-only).** `groupSignature` also sorts angle cuts (inert today); the greedy multiset match
 in `sameCutSet` could false-negative within 1e-9 (it refuses, safe); the first-member-keeps-order rule is unpinned by a
@@ -5436,6 +5474,10 @@ the hardware bill of materials (fu 267). **Status:** open (spec §11).
 
 **335. Metric display of hole sizes.** `units.display` is unchanged; a whole-millimetre diameter or pitch prints its mm in
 parentheses only (spec §4.1, amended). **Status:** open (spec §11).
+- **Closed 2026-10-15 (bookkeeping, follow-ups session): delivered by the metric-display round.** A metric project's
+  holes read in mm through `holeLengthText` (diameter and pitch to 0.1 mm, positions whole mm, no imperial aside —
+  `holeText.test.ts`, "diameter and pitch to 0.1 mm"), and the Holes fields share that string (inv 52). An imperial
+  project keeps the ` (35 mm)` aside for a whole-mm size, as this entry described; that is intended. **Status:** closed.
 
 **336. The grain seam inside a bore (ruling R9).** A wall facet takes the plan of the world axis its normal is nearest
 (spec §3.2, inv 35's sloped-face rule), so a bore's wall switches from end-grain rings to long grain halfway round with a
@@ -5456,12 +5498,24 @@ or coincident (faulted) holes, for cracks at the fallback split's T-junctions. *
 count-1 row stores a pitch it ignores; two identical single bores whose rows once had different pitches split into two
 cut-list rows (and do not link). Normalising the pitch at count 1 (on compare, or on write) is the user's call.
 **Status:** open (for the user).
+- **Closed 2026-10-15 (the user ruled: on compare, not on write).** `holeRowValues` reads a count-1 row's `pitch` as 0,
+  so every "same row" decision built on it — the cut list's grouping, `sameHoleRow` (links, the no-op edit, write-back
+  reuse), the geometry and UV keys — ignores it; stored files are unchanged, and the Every field (shown only from
+  count 2) is never the edit that differs. Tests: two single bores with different stored pitches are one row and one
+  `sameHoleRow`; at count 2 the pitch still splits them. **Status:** closed.
 
 **339. AngleCuts and the field-owned refusal message.** Holes' DimensionField onCommits return the refusal text (R7): the
 field shows it as its own error, keeps focus and the typed text. AngleCuts' refusals still use the row alert, and the
 holes Task 10 review judged it to carry the same latent pattern (a caller-refused DimensionField edit blurring with the
 refused value showing while the stored value is unchanged) — inferred from the code, not checked live. Adopting R7 there
 is a small change. **Status:** open.
+- **Closed 2026-10-15 (follow-ups session, branch `follow-ups-1`).** Checked first whether the pattern is reachable: it
+  is not, today — every AngleCuts field a caller can refuse (the miter and bevel Angle) carries a `max` floored to what
+  the check accepts, so the field's own bound refuses first; the Starts, Removes and Size fields have no caller refusal.
+  Adopted anyway, as the entry asked: `setM`/`setB` return the refusal, the Angle fields pass it back to DimensionField
+  (its own error, focus and typed text kept), and the selects show it in the row alert as before (`pickM`/`pickB`).
+  `AngleField`'s `onCommit` type now admits the message; its test pins the plumbing (a returned refusal is the field's
+  error). No UI test can reach the AngleCuts half, so it is unpinned by construction. **Status:** closed.
 
 **340. The hole perf guard is wall-clock (Task 11b, final review).** `holesPerf.test.ts` bounds runs (≤40 ms
 healthy, ≤100 ms faulted). On 2026-10-14 it failed 1 of 4 isolated runs at a load average of 5.4, then passed 3/3 (the
@@ -5505,6 +5559,12 @@ bottom rims and runs them through the hidden-line pass even in the exploded view
 discarded segments, ~25 ms per sheet on a drilled cabinet — part of why the sheet's Explode slider lags (fu 263). Remedy to
 measure first: emit no silhouettes or blind-bottom rims when no hidden lines are drawn.
 **Status:** open.
+- **Closed 2026-10-15 (follow-ups session, branch `follow-ups-1`).** Measured first: the exploded isometric of two
+  drilled sides (84 bores) took 41 ms (min of 9) and produced 8800 hidden segments it never draws. `drawView` takes
+  `{ hiddenLines: false }` (the exploded figure passes it), and `holeDrawingSegments(…, visibleOnly)` then leaves out a
+  CLEAN hole's blind bottom rim and wall silhouettes — inside the hole-free occluder, always hidden. A faulted hole keeps
+  every line (its wall can run into air). 41 → 18 ms; visible lines identical (pinned on the sides and on a faulted bore;
+  mutated — every hole treated as clean — red). **Status:** closed.
 
 **345. The dash look on a real print.** Hidden lines are `4px, 3px` dashes over chained paths (R2): a hidden rim is one
 subpath so it dashes continuously, and chaining also carries the dash phase around a part's own box corners, so a corner
@@ -5532,6 +5592,15 @@ A slider move recomputes it per crossed part per frame, so two drilled sides cro
 that keeps the local plane coordinate is served from the per-part cap cache (0.35–0.55 ms); explode ticks and moves along
 the cut axis miss it. Remedy to measure first: triangulate a face's interior rings as holes (as `faceTriangles` does)
 instead of wedge-splitting. **Status:** open.
+- **Closed 2026-10-15 (follow-ups session, branch `follow-ups-1`).** Measured first (one process, min of 12): 15.7 ms a
+  cap, `unionOutline` over the 1975 wedges ~5 of it. The named remedy (triangulate the rings as holes) would need a
+  triangulator in `document/`, which imports no `three` (earcut lives there) — not taken. Instead the outline is BUILT
+  when every bore the plane meets is cut across its axis, strictly between mouth and bottom, its ring strictly inside one
+  unbored piece and clear of every other ring: the unbored pieces' union plus each ring's edges (`buildLocalPieces`);
+  anything else unions the bored pieces as before. 15.7 → 10.6 ms. Tests: the built outline and a union of the same
+  pieces cover each other; overlapping bores fall back. Mutated — no disjoint guard, no base outline — each red. The
+  one-piece condition is stricter than needed (a ring inside the union across a seam would do); kept as the safe side.
+  Residue: minusPrism's wedges, ~8 ms, remain (a triangulated cap would need earcut in `document/`). **Status:** closed.
 
 **349. Snap points on caps.** The Tape and Move tools offer no points on a cap (a mortise's floor corner seen in
 section, a bore's centre on the cut). Spec §1 non-goal. **Status:** open — ask before assuming it is wanted.
@@ -5615,6 +5684,10 @@ switched to inches, or any part within 1/32" under 3/4") bought from 3/4" stock 
 display-rounding contradiction chunk 2 removed from metric (omitted when both read the same whole mm). Pre-existing;
 left byte-identical on purpose (inv 52's imperial guarantee). Remedy: the same "reads the same → omit" rule at the
 display precision. **Status:** open — the user's call (it changes imperial output).
+- **Closed 2026-10-15 (the user ruled: omit when the same, imperial too).** `buildPurchase` compares stock and part
+  through `formatLengthBare` in the project's units, one rule for both systems (was metric-only): a 0.748" part from
+  3/4" stock prints no plane note; one display step under (11/16") keeps it. The one ruled exception to inv 52's
+  byte-for-byte imperial guarantee. **Status:** closed.
 
 **360. Built-in pine has no 2× (or thicker) default stock.** `defaultBuying('pine')` lists only 3/4" S4S boards (the
 1×2…1×12 widths at 6′/8′ lengths); a custom NOMINAL solid gets the full `NOMINAL_DEFAULT_STOCK` (1× at 8′, 2× at
@@ -5684,6 +5757,22 @@ vertices and fans from the centroid on every face of a curved part EXCEPT one a 
 can remain where a holed face meets a split slice (shelf pins on an arched side). No fixture has one; untested. Remedy to
 measure: feed earcut the inserted vertices with a guard against its filter, or conform the ring-cut polygon. **Status:**
 open.
+- **Closed 2026-10-15 (follow-ups session, branch `follow-ups-1`).** Reproduced first: with the holes' mesh in the
+  watertight check, the default arch with a shelf-pin row left 4229 unmatched edges (8458 through, 212 for one bore);
+  a holed part without curves, 0. The cause was wider than earcut's filter: the split arch cuts the broad face into
+  strips, so a mouth nearly always straddles a seam and took `faceTriangles`' wedge fallback, whose corners match neither
+  neighbour nor wall; it was also most of the rebuild (an arched bookcase side with two pin rows: 63 ms, over the 40 ms
+  bound). Neither named remedy was taken: each plane a CLEAN hole opens into is merged (`unionLoops`, a directed
+  `unionOutline`; loops chained and welded), triangulated once with the wall's own rings as holes, each triangle conformed
+  (`mergeHoledPlanes`, grainTiling.ts). Watertight on five fixtures (blind and through rows, a straddling bore, a bore in a
+  box cell, a hinge cup) and the caps across them; the side's bodies, edges and mesh rebuild in ~16 ms (was ~52), the stile
+  ~6 (new `curvesPerf` cases; the holes' own mesh, ~13 ms there and the same on a part without curves, stays with holesPerf —
+  timing it in the curves guard put the side at ~33 ms and failed one full-suite run in two under load).
+  Mutated: no merge, no conform, unwelded loops, no disjoint guard, no faulted-hole guard each turn a test red. Residue:
+  a plane a faulted hole reaches or whose rings overlap keeps the per-face path and its T-junctions (pinned by area, not
+  watertightness); the ring-inside-its-loop guard is unreachable for a clean hole (defensive); the holes' own mesh costs
+  ~13 ms for 52 bores on any part (~0.26 ms a hole), unexamined (fu 340's guard). Real-hardware look still owed
+  with fu 370. **Status:** closed.
 
 **370. Real-hardware looks owed (26a).** Seen only on software GL (llvmpipe): smooth shading on the curved faces (radial
 normals); the grain seam on a curved face (fu 336); the arch-end edge lines and the absence of facet lines (not
@@ -5733,6 +5822,13 @@ always lies under the face's own visible edge line. **Status:** open (a dedicate
 **375. A silhouette drawn through another cut's air.** `silhouetteLines` draws a smooth vertex's line along `through` for its
 whole length; where another cut (a dado, a hole) removes wood along that line, the line is drawn through air. **Status:** open
 (unseen on a print; fix by clipping the silhouette to the wood).
+- **Closed 2026-10-15 (follow-ups session, branch `follow-ups-1`).** Reproduced first: the default-style arch with a 1/4"
+  dado across its crown drew the crown silhouette (looking along the length) the full 3/4". `silhouetteLines` now clips
+  each line to the part's convex bodies (`onWood`: a plane along the line is met within 1e-7, since the line lies ON a
+  body face; a plane crossing it clips exactly), merging the stretches where slices meet, so a dado, another curve or an
+  angle cut breaks the line. Holes are not clipped: a clean hole never meets a curve's waste (touching is a breaks-out),
+  and a faulted one is drawn approximately. Tests: the plain crown (one line, 3/4"), under the dado (1/2", nothing above
+  the floor), a dado clear of it (whole); mutated — no clip, no merge — each red. **Status:** closed.
 
 **376. Chord ends off the arc (record-only).** (1) Q4: a model chord split by a dado or a second curve keeps its split end ON
 the chord, up to 0.005" (the model tolerance) off the true arc, so the other feature's line meets it. (2) Q2: visibility is

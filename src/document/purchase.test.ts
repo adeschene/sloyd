@@ -356,9 +356,13 @@ describe('Buying in a metric project (metric display chunk 2)', () => {
     const p = metric([pine('same', 20, 3, inch(19))], shopWith({ pine: { mode: 'piece', stock: [A] } }));
     expect(p.entries[0]!.notes).toEqual([]);
   });
-  it('a 19 mm-ish part in an IMPERIAL project keeps its plane note', () => {
+  it('no plane note in IMPERIAL either when stock and part read the same (0.748" reads 3/4"; fu 359)', () => {
     const p = purchase([pine('same', 20, 3, 0.748)], shopWith({ pine: { mode: 'piece', stock: [A] } }));
-    expect(p.entries[0]!.notes).toEqual(['same: plane 3/4" stock to 3/4"']);
+    expect(p.entries[0]!.notes).toEqual([]);
+  });
+  it('an imperial part a 1/16" (one display step) under its stock reads differently, and keeps its note (fu 359)', () => {
+    const p = purchase([pine('thin', 20, 3, 0.75 - 1 / 16)], shopWith({ pine: { mode: 'piece', stock: [A] } }));
+    expect(p.entries[0]!.notes).toEqual(['thin: plane 3/4" stock to 11/16"']);
   });
   it('a non-nominal stock size reads as a trade size with mm in brackets', () => {
     const E = size('E', 1, 7.25, 96, 20);

@@ -2,7 +2,7 @@ import type { Board } from './types';
 import type { V3 } from './angleCuts';
 import { axisFrame, boardExtents, DIMENSION_ORDER, fromWorldOffset, toWorldOffset } from './geometry';
 import { clipConvex, geometryKey, partGeometry, BODY_EPS, type BodyFace } from './bodies';
-import { holePrism, minusPrism } from './holes';
+import { HOLE_EPS, holePrism, holeRing, minusPrism, ringInside } from './holes';
 import { SECTION_EPS, unionOutline } from './outline';
 
 /**
@@ -107,8 +107,9 @@ function localCap(board: Board, s: Section, offset?: readonly number[]): LocalCa
   if (hit) LOCAL_CAPS.delete(key);                     // re-inserted below: most recently used
   // Object.is: exact, and -0 is not 0 (the halfspace's `d` would differ in sign).
   if (hit && hit.geo === geo && Object.is(hit.u, u)) { LOCAL_CAPS.set(key, hit); return hit.cap; }
-  const pieces = buildLocalPieces(board, li, u, keepLow);
-  const cap: LocalCap | null = pieces ? freezeContainers({ pieces, outline: unionOutline(pieces, li), li, u }) : null;
+  const built = buildLocalPieces(board, li, u, keepLow);
+  const cap: LocalCap | null = built
+    ? freezeContainers({ pieces: built.pieces, outline: built.outline ?? unionOutline(built.pieces, li), li, u }) : null;
   LOCAL_CAPS.set(key, { geo, u, cap });
   if (LOCAL_CAPS.size > LOCAL_CAPS_MAX) LOCAL_CAPS.delete(LOCAL_CAPS.keys().next().value!);
   return cap;
@@ -122,7 +123,15 @@ function freezeContainers(o: { pieces: V3[][]; outline: [V3, V3][]; li: number; 
   return Object.freeze(o);
 }
 
-function buildLocalPieces(board: Board, li: number, u: number, keepLow: boolean): V3[][] | null {
+/**
+ * The cap's pieces, and its outline when it can be had without `unionOutline` over the bored pieces (fu 348): when every
+ * bore the plane meets is cut ACROSS its axis, strictly between mouth and bottom, its ring strictly inside one unbored
+ * piece and clear of every other ring, the bored union's boundary is the unbored pieces' boundary plus each ring — so the
+ * outline is `unionOutline` over the few unbored pieces and the rings' edges, and the ~2000 wedges minusPrism leaves
+ * across a pin row are never walked (measured: ~5 ms of a drilled side's ~15). Otherwise `outline` is undefined and the
+ * caller unions the pieces, as before. The pieces are minusPrism's either way.
+ */
+function buildLocalPieces(board: Board, li: number, u: number, keepLow: boolean): { pieces: V3[][]; outline?: [V3, V3][] } | null {
   const n: V3 = [0, 0, 0];
   n[li] = keepLow ? -1 : 1;
   const h = { n, d: keepLow ? u : -u };          // kept where n·x + d ≥ 0
@@ -156,6 +165,29 @@ function buildLocalPieces(board: Board, li: number, u: number, keepLow: boolean)
     for (const p of poly) for (let k = 0; k < 3; k += 1) { if (p[k]! < lo[k]!) lo[k] = p[k]!; if (p[k]! > hi[k]!) hi[k] = p[k]!; }
     return { poly, lo, hi };
   };
+  // The direct outline's rings, or null once any bore the plane meets is not a clean ring inside one piece.
+  let rings: V3[][] | null = [];
+  const base = pieces;
+  for (const hole of holes) {
+    if (!rings) break;
+    const a = DIMENSION_ORDER.indexOf(hole.axis);
+    if (a !== li) {
+      if (Math.abs(u - hole.centre[li]!) > hole.radius + 1e-6) continue;   // the plane passes beside this bore
+      rings = null; break;
+    }
+    const t = hole.dir * (u - hole.centre[a]!);
+    if (t < -1e-6 || t > hole.depth + 1e-6) continue;                     // above its mouth or below its bottom
+    if (t < 1e-6 || t > hole.depth - 1e-6) { rings = null; break; }       // on the mouth or the bottom: the prism's caps decide
+    const ring = holeRing(hole, t).map((p) => { const q: V3 = [p[0], p[1], p[2]]; q[li] = u; return q; });
+    if (!base.some((poly) => ringInside(poly, capN, ring))) { rings = null; break; }
+    rings.push(ring);
+  }
+  if (rings) {
+    const [i, j] = [0, 1, 2].filter((k) => k !== li) as [number, number];
+    const c = rings.map((r) => [r.reduce((s2, p) => s2 + p[i]!, 0) / r.length, r.reduce((s2, p) => s2 + p[j]!, 0) / r.length]);
+    const rad = rings.map((r, k) => Math.hypot(r[0]![i]! - c[k]![0]!, r[0]![j]! - c[k]![1]!));
+    if (!rings.every((_, k) => rings!.every((__, m) => m <= k || Math.hypot(c[k]![0]! - c[m]![0]!, c[k]![1]! - c[m]![1]!) > rad[k]! + rad[m]! + HOLE_EPS))) rings = null;
+  }
   let boxed = pieces.map(boxOf);
   for (const hole of holes) {
     const reach = hole.radius + hole.depth + 1e-4;
@@ -171,7 +203,9 @@ function buildLocalPieces(board: Board, li: number, u: number, keepLow: boolean)
     boxed = next;
   }
   pieces = boxed.map((b) => b.poly);
-  return pieces.length ? pieces : null;
+  if (!pieces.length) return null;
+  if (!rings || rings.length === 0) return { pieces };
+  return { pieces, outline: [...unionOutline(base, li), ...rings.flatMap((r) => r.map((p, k) => [p, r[(k + 1) % r.length]!] as [V3, V3]))] };
 }
 
 /** Twice the signed area of a polygon projected along index `li` (Newell's component `li`). */

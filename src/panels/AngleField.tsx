@@ -9,7 +9,8 @@ const parseDegrees = (text: string): number | null => {
 const formatDegrees = (v: number) => `${v.toFixed(1)}°`;
 
 /** Degrees, 0 < a < 90 and ≤ `max` (spec §7). DimensionField with a degree parse/format: one set of edit rules. */
-export function AngleField({ label, value, onCommit, max }: { label: string; value: number; onCommit: (degrees: number) => void; max?: number }) {
+/** `onCommit` may return a refusal message: the field shows it as its own error and keeps focus (DimensionField, R7). */
+export function AngleField({ label, value, onCommit, max }: { label: string; value: number; onCommit: (degrees: number) => string | void; max?: number }) {
   // Floored to the 0.1° the field displays (epsilon keeps an exact 45.0): the stated bound is always typeable (fu 293).
   const limit = Math.floor(Math.min(max ?? Infinity, 89.9) * 10 + 1e-9) / 10;
   return (

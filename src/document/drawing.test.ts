@@ -1,4 +1,4 @@
-import { createBoard } from './document';
+import { createBoard, holeInStock, partGeometry, stockChecks } from './document';
 import type { Board, HoleRow } from './types';
 import { chiralAngled, chiralCurved } from './turnFixtures';
 import { archCurve, bowCurve, defaultCorners } from './curves';
@@ -437,5 +437,35 @@ describe('a shallow chord does not hide its own silhouette (review fix, ruling Q
     const d = drawView([bow(span, rise)], SIDE);
     const near = (segs: Seg2[]) => total(segs.filter((s) => Math.abs(s.a[0] - sx) < 5e-4 && Math.abs(s.b[0] - sx) < 5e-4 && Math.abs(s.a[0] - s.b[0]) < 1e-9));
     expect(near(d.visible)).toBeCloseTo(0.75, 9);
+  });
+});
+
+describe('a view drawn without hidden lines skips the hole lines that can only be hidden (fu 344)', () => {
+  const pins = (b: Board): HoleRow[] => {
+    const r = { id: 'f', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const,
+      alongFrom: 'min' as const, station: 2, count: 21, pitch: 32 / 25.4, acrossFrom: 'min' as const, inset: 1.5 };
+    return [r, { ...r, id: 'b', acrossFrom: 'max' as const }].map((x) => ({ ...x, inset: Math.min(x.inset, b.width / 2) }));
+  };
+  const key = (s: Seg2) => `${s.a.join(',')}|${s.b.join(',')}|${s.part}`;
+  const same = (parts: Board[], offsets?: Map<string, [number, number, number]>) => {
+    const all = drawView(parts, ISO, offsets);
+    const vis = drawView(parts, ISO, offsets, { hiddenLines: false });
+    return { equal: JSON.stringify(vis.visible.map(key)) === JSON.stringify(all.visible.map(key)), all, vis };
+  };
+  it('a drilled pair of sides, exploded: the same visible lines, far fewer hidden ones', () => {
+    const s = createBoard({ id: 'L', length: 30, width: 11.25, thickness: 0.75, posture: 'upright' });
+    const sides = [{ ...s, holes: pins(s) }, { ...s, id: 'R', position: [24, 0, 0] as [number, number, number], holes: pins(s) }];
+    const { equal, all, vis } = same(sides, new Map([['R', [6, 0, 0]]]));
+    expect(equal).toBe(true);
+    expect(vis.hidden.length).toBeLessThan(all.hidden.length / 4);
+  });
+  it('a FAULTED bore (its wall runs out of the edge into air) keeps every line: the same visible lines', () => {
+    const b = createBoard({ id: 'p', length: 10, width: 4, thickness: 1 });
+    const out: HoleRow = { id: 'o', face: 'thickness', from: 'max', diameter: 1, depth: 0.5, along: 'length', alongFrom: 'min',
+      station: 5, count: 1, pitch: 0, acrossFrom: 'min', inset: 0.25 };
+    const holed = { ...b, holes: [out] };
+    expect(partGeometry(holed).holes.every((h) => !holeInStock(holed, h, stockChecks(holed)))).toBe(true);
+    const { equal } = same([holed]);
+    expect(equal).toBe(true);
   });
 });

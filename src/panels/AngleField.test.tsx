@@ -43,4 +43,13 @@ describe('AngleField', () => {
     input.focus(); input.blur();
     expect(onCommit).not.toHaveBeenCalled();
   });
+  it('a refusal the caller returns is the field\'s own error: focus and the typed text kept (fu 339, R7)', async () => {
+    const { input, onCommit } = setup(45, vi.fn(() => 'Removes more than the length — reduce the angle first.'));
+    await userEvent.clear(input); await userEvent.type(input, '60{Enter}');
+    expect(onCommit).toHaveBeenLastCalledWith(60);
+    expect(screen.getByRole('alert')).toHaveTextContent('Removes more than the length — reduce the angle first.');
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(document.activeElement).toBe(input);
+    expect(input.value).toBe('60');
+  });
 });

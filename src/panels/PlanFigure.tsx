@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import type { Board, SloydDocument } from '../document/types';
 import { worldParts } from '../document/tree';
 import { drawView, FRONT, ISO, SIDE, TOP, type Drawing, type P2, type Seg2, type View } from '../document/drawing';
@@ -109,8 +109,9 @@ function Elevation({ d, at, scale, h, v }: { d: Drawing; at: Placement; scale: n
   );
 }
 
-/** Front, side and plan of `parts`, third-angle, one scale, dimensioned (spec §5.2). */
-export function PlanTrio({ parts, units, label }: { parts: readonly Board[]; units: Units; label: string }) {
+/** Front, side and plan of `parts`, third-angle, one scale, dimensioned (spec §5.2). Memoised on its props (fu 263): a
+ *  tick of the sheet's Explode slider re-renders the sheet, never these. */
+export const PlanTrio = memo(function PlanTrio({ parts, units, label }: { parts: readonly Board[]; units: Units; label: string }) {
   const views = useMemo(() => [FRONT, SIDE, TOP].map((view: View) => ({
     view, d: drawView(parts, view), dims: dimensionView(parts, view, units),
   })), [parts, units]);
@@ -135,11 +136,12 @@ export function PlanTrio({ parts, units, label }: { parts: readonly Board[]; uni
       {notes.length > 0 && <ul className="plans-notes">{notes.map((n) => <li key={n}>{n}</li>)}</ul>}
     </figure>
   );
-}
+});
 
-/** The isometric exploded view, visible lines only (spec §5.2 item 1). */
-export function ExplodedFigure({ doc, amount }: { doc: SloydDocument; amount: number }) {
-  const d = useMemo(() => drawView(worldParts(doc), ISO, explodeOffsets(doc, amount)), [doc, amount]);
+/** The isometric exploded view, visible lines only (spec §5.2 item 1; drawn without hidden lines, fu 344). Memoised on its
+ *  props (fu 263): the sheet passes it a DEFERRED amount, so the slider's urgent render leaves it alone. */
+export const ExplodedFigure = memo(function ExplodedFigure({ doc, amount }: { doc: SloydDocument; amount: number }) {
+  const d = useMemo(() => drawView(worldParts(doc), ISO, explodeOffsets(doc, amount), { hiddenLines: false }), [doc, amount]);
   const lay = layoutSingle(d.bounds);
   return (
     <svg className="plans-figure" viewBox={`0 0 ${lay.width} ${lay.height}`} style={pageWidth(lay.width)} role="img"
@@ -147,4 +149,4 @@ export function ExplodedFigure({ doc, amount }: { doc: SloydDocument; amount: nu
       <Lines d={d} map={mapper(d, lay.at, lay.scale)} hidden={false} />
     </svg>
   );
-}
+});

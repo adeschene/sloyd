@@ -42,6 +42,18 @@ describe('Copy in a row', () => {
     expect(screen.queryByRole('button', { name: 'Apply' })).toBeNull();
   });
 
+  it('a form opened before exploding is locked while exploded (fu 262: it sits beside the action bar)', async () => {
+    onePart();
+    const user = userEvent.setup();
+    await open(user);
+    expect((screen.getByRole('button', { name: 'Apply' }) as HTMLButtonElement).matches(':disabled')).toBe(false);
+    act(() => useStore.getState().setExplode(0.4));
+    expect((screen.getByRole('button', { name: 'Apply' }) as HTMLButtonElement).matches(':disabled')).toBe(true);
+    expect((screen.getByRole('spinbutton', { name: 'Count' }) as HTMLInputElement).matches(':disabled')).toBe(true);
+    act(() => useStore.getState().setExplode(0));
+    expect((screen.getByRole('button', { name: 'Apply' }) as HTMLButtonElement).matches(':disabled')).toBe(false);
+  });
+
   it('refuses a fit with no room, with the reason, and enables Apply when the count drops', async () => {
     onePart();
     const user = userEvent.setup();

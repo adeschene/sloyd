@@ -2,12 +2,12 @@ import { ShapeUtils, Vector2 } from 'three';
 import {
   angleCutValues, axialOffset, axisFrame, boardExtents, bodyPlanes, clipPlan, clipPolygon, CUT_GEOMETRY_KEYS, DIMENSION_ORDER,
   HOLE_EPS, holeInStock, holePrism, stockChecks, holeRing, holeRowValues, curveValues, holeTouches, holeTouchesBox, isSheetGood, minusCover, minusPrism, ringInside, spanToWorldOffset, toWorldOffset,
-  wholeBoard, arcChords, curveOutline, CURVE_SEGMENTS_MAX, CURVE_TOLERANCE, localSegments, SMOOTH_EPS, uvDims,
+  wholeBoard, arcChords, curveOutline, CURVE_SEGMENTS_MAX, CURVE_TOLERANCE, localSegments, SMOOTH_EPS, unionLoops, uvDims,
 } from '../document/document';
 import type { Board, Body, BodyFace, CurveCut, Hole, LocalArc, P2, Plane, Region, Span, StockChecks, V3 } from '../document/document';
 import { axisDimensions, faceGrainKinds, grainFamily } from './grainFaces';
 import type { Dimension, GrainFamily, GrainKind } from './grainFaces';
-import { candidates as sortedCandidates, centroidFan, insertOnEdges, welder } from './conform';
+import { candidates as sortedCandidates, centroidFan, CONFORM_EPS, insertOnEdges, welder } from './conform';
 import type { Candidates } from './conform';
 
 /** A world axis: 0 = X, 1 = Y, 2 = Z. */
@@ -320,13 +320,16 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], 
   // A curved part's faces come from curvedPart: seams dropped, vertices welded, and every part vertex lying inside one of
   // their edges inserted when triangulated (conform.ts: no T-junctions between a split curve's slices, or a slice and a
   // box cell beside it). A part without curves never reaches it.
-  const part = curved && bodies ? curvedPart(bodies) : null;
+  const part = curved && bodies ? curvedPart(board, bodies, holes) : null;
   const seams = !part && bodies && holed(body, holes) ? seamIndex(bodies) : null;
   const faces = part?.faces.get(body) ?? (seams ? body.faces.flatMap((f) => uncovered(f, body, seams)) : body.faces);
   const candidates = part?.points ?? null;
   const toWorld = (local: readonly number[]): V3 => [0, 1, 2].map((i) => local[dimIndex(frame[i]!.dim)]! * (frame[i]!.reversed ? -1 : 1)) as V3;
   const chordsOf = curved ? curveChords(board) : null;
-  for (const f of faces) {
+  // A curved part's holed planes, merged (fu 369): this body draws each plane it was given whole, with its rings cut out.
+  const jobs: [BodyFace, V3[][] | null][] = faces.map((f) => [f, null]);
+  for (const m of part?.merged.get(body) ?? []) jobs.push([m.face, m.tris]);
+  for (const [f, given] of jobs) {
     const n = toWorld(f.n);
     let axis = 0;
     for (let i = 1; i < 3; i += 1) if (Math.abs(n[i]!) > Math.abs(n[axis]!) + 1e-9) axis = i;
@@ -360,7 +363,7 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], 
       const w = toWorld(local);
       out.nor.push(w[0], w[1], w[2]);
     };
-    for (const t of candidates ? conformedTriangles(f, holes, candidates) : faceTriangles(f, holes)) {
+    for (const t of given ?? (candidates ? conformedTriangles(f, holes, candidates) : faceTriangles(f, holes))) {
       const w0 = offsetOf(t[0]!); const w1 = offsetOf(t[1]!); const w2 = offsetOf(t[2]!);
       const d = facing(w0, w1, w2, n);
       // Near-duplicate vertices from clipping make zero-area fans; emit nothing for them.
@@ -380,8 +383,9 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], 
 /**
  * A curved part's face as triangles with no T-junction (whole-branch review, finding 1): every part vertex lying inside
  * one of its edges inserted (`insertOnEdges`) and the polygon fanned from its centroid. A face that takes no vertex is
- * fanned as it always was. A face a hole reaches keeps faceTriangles' path unchanged (earcut drops collinear points, so
- * an inserted vertex would not survive it; a holed curved part's T-junctions are a known limit, reported).
+ * fanned as it always was. A face a hole reaches is normally not here: its plane is merged (curvedPart, fu 369). One
+ * that is — a plane a faulted hole reaches, or whose rings overlap — keeps faceTriangles' path unchanged, T-junctions
+ * and all (the accepted residue: a faulted hole is drawn approximately).
  */
 function conformedTriangles(f: BodyFace, holes: readonly Hole[], candidates: Candidates): V3[][] {
   if (holes.some((h) => holeTouches(h, f.verts))) return faceTriangles(f, holes);
@@ -397,11 +401,11 @@ function conformedTriangles(f: BodyFace, holes: readonly Hole[], candidates: Can
  * one. Built once per FROZEN bodies array (partGeometry's) and kept by its identity, as seamIndex is: bodyMesh runs once
  * per body, so building it per call would be quadratic. An unfrozen array is built afresh (invariant 50's rule).
  */
-interface CurvedPart { faces: Map<Body, BodyFace[]>; points: Candidates }
+interface CurvedPart { holes: readonly Hole[]; faces: Map<Body, BodyFace[]>; points: Candidates; merged: Map<Body, MergedPlane[]> }
 const curvedParts = new WeakMap<readonly Body[], CurvedPart>();
-function curvedPart(bodies: readonly Body[]): CurvedPart {
+function curvedPart(board: Board, bodies: readonly Body[], holes: readonly Hole[]): CurvedPart {
   const hit = curvedParts.get(bodies);
-  if (hit) return hit;
+  if (hit && hit.holes === holes) return hit;
   const index = seamIndex(bodies);
   const { points, canon } = welder();
   const faces = new Map<Body, BodyFace[]>();
@@ -411,9 +415,146 @@ function curvedPart(bodies: readonly Body[]): CurvedPart {
       return verts.every((p, i) => p === f.verts[i]) ? f : { ...f, verts };
     }));
   }
-  const part = { faces, points: sortedCandidates(points) };
+  const cands = sortedCandidates(points);
+  const merged = holes.length > 0 ? mergeHoledPlanes(board, bodies, holes, faces, cands, canon) : new Map<Body, MergedPlane[]>();
+  const part = { holes, faces, points: cands, merged };
   if (Object.isFrozen(bodies)) curvedParts.set(bodies, part);
   return part;
+}
+
+/**
+ * fu 369: a split curve cuts a part's broad faces into coplanar strips, so a bore's mouth nearly always straddles a seam
+ * between two of them — faceTriangles' disjoint-convex fallback then wedge-splits every strip it crosses, and neither the
+ * wedges' corners nor the strips' T-junctions match the neighbouring strip or the wall's rim: pinholes, and most of the
+ * rebuild (51 ms of mesh for an arched side with two pin rows, measured). So each plane a CLEAN hole (holeInStock) opens
+ * into — its entry plane, and a through hole's exit plane — is drawn as ONE region: its drawn faces' union (unionLoops,
+ * chained into loops; counter-clockwise loops are outer boundaries, clockwise ones inner), triangulated with every ring
+ * on it as a hole (the SAME ring vertices the wall uses, so the rim matches exactly), each triangle then conformed to the
+ * part's vertices (earcut drops collinear points, and the union drops the strips' corners along a straight run: both
+ * come back as insertions, so the plane's edges meet its neighbours' vertex for vertex). A plane whose region cannot be
+ * trusted is left to the per-face path: a faulted hole reaching any face on it, rings that overlap (ruling R4's test;
+ * holeInStock does not judge meets-hole), or a ring not strictly inside one outer loop and outside its inner ones (a
+ * clean hole's mouth always is — no breaks-out, no off-flat — so that guard is defensive; no fixture reaches it). The merged plane is drawn by the first body,
+ * in body order, owning one of its faces; its faces are dropped from every body's list.
+ */
+interface MergedPlane { face: BodyFace; tris: V3[][] }
+function mergeHoledPlanes(board: Board, bodies: readonly Body[], holes: readonly Hole[], faces: Map<Body, BodyFace[]>, cands: Candidates, canon: (p: V3) => V3): Map<Body, MergedPlane[]> {
+  const out = new Map<Body, MergedPlane[]>();
+  const checks = stockChecks(board);
+  const clean = new Set(holes.filter((h) => holeInStock(board, h, checks)));
+  const faulted = holes.filter((h) => !clean.has(h));
+  // Every plane a clean hole opens into: axis, outward sign, coordinate, and the holes on it.
+  const planes: { a: number; sign: number; at: number; holes: Hole[] }[] = [];
+  const planeOf = (a: number, sign: number, at: number) => {
+    let p = planes.find((q) => q.a === a && q.sign === sign && Math.abs(q.at - at) <= CONFORM_EPS);
+    if (!p) { p = { a, sign, at, holes: [] }; planes.push(p); }
+    return p;
+  };
+  for (const h of clean) {
+    const a = DIMENSION_ORDER.indexOf(h.axis);
+    planeOf(a, -h.dir, h.centre[a]!).holes.push(h);
+    if (h.through) planeOf(a, h.dir, h.centre[a]! + h.dir * h.depth).holes.push(h);
+  }
+  for (const pl of planes) {
+    const { a } = pl;
+    const [u, v] = [0, 1, 2].filter((k) => k !== a) as [number, number];
+    const members: { body: Body; f: BodyFace }[] = [];
+    for (const body of bodies) {
+      for (const f of faces.get(body) ?? []) {
+        if (Math.abs(f.n[a]! - pl.sign) <= HOLE_EPS && Math.abs(f.verts[0]![a]! - pl.at) <= CONFORM_EPS) members.push({ body, f });
+      }
+    }
+    if (members.length === 0) continue;
+    // Only a faulted hole can reach a plane it does not open into: a clean one's wall meets no face (touching is a
+    // breaks-out), and its own planes are the ones it is listed on.
+    if (faulted.some((h) => members.some(({ f }) => holeTouches(h, f.verts)))) continue;
+    const disjoint = pl.holes.every((h, i) => pl.holes.slice(i + 1).every((g) =>
+      Math.hypot(h.centre[u]! - g.centre[u]!, h.centre[v]! - g.centre[v]!) > h.radius + g.radius + HOLE_EPS));
+    if (!disjoint) continue;
+    // Pieces wound counter-clockwise in (u, v), as unionLoops wants.
+    const area2 = (poly: readonly V3[]) => poly.reduce((s, p, i) => { const q = poly[(i + 1) % poly.length]!; return s + p[u]! * q[v]! - q[u]! * p[v]!; }, 0);
+    const pieces = members.map(({ f }) => (area2(f.verts) < 0 ? [...f.verts].reverse() : f.verts));
+    const loops = chainLoops(unionLoops(pieces, a), canon);
+    if (!loops) continue;
+    const outer = loops.filter((l) => area2(l) > 0);
+    const inner = loops.filter((l) => area2(l) < 0);
+    const inside = (p: V3, loop: readonly V3[]) => {
+      let c = false;
+      for (let i = 0, j = loop.length - 1; i < loop.length; j = i, i += 1) {
+        const pi = loop[i]!, pj = loop[j]!;
+        if ((pi[v]! > p[v]!) !== (pj[v]! > p[v]!) && p[u]! < ((pj[u]! - pi[u]!) * (p[v]! - pi[v]!)) / (pj[v]! - pi[v]!) + pi[u]!) c = !c;
+      }
+      return c;
+    };
+    const home = (p: V3) => {
+      const hits = outer.filter((l) => inside(p, l));
+      return hits.length === 1 ? hits[0]! : null;   // nested islands: left to the per-face path
+    };
+    const rings = pl.holes.map((h) => { const t = axialOffset(h, { n: members[0]!.f.n, verts: members[0]!.f.verts }); return t === null ? null : holeRing(h, t); });
+    if (rings.some((r) => r === null)) continue;
+    // A ring is clear of every loop when its centre is inside its outer loop, outside every inner one, and farther than
+    // its radius (+ HOLE_EPS) from every loop edge: the ring's vertices lie on that circle.
+    const clear = (c: V3, r: number, loop: readonly V3[]) => loop.every((a, i) => {
+      const b = loop[(i + 1) % loop.length]!;
+      const du = b[u]! - a[u]!, dv = b[v]! - a[v]!;
+      const t = Math.max(0, Math.min(1, ((c[u]! - a[u]!) * du + (c[v]! - a[v]!) * dv) / (du * du + dv * dv)));
+      return Math.hypot(c[u]! - a[u]! - t * du, c[v]! - a[v]! - t * dv) > r + HOLE_EPS;
+    });
+    const ringHome = pl.holes.map((h) => {
+      const l = home(h.centre);
+      return l && !inner.some((i) => inside(h.centre, i)) && clear(h.centre, h.radius, l) && inner.every((i) => clear(h.centre, h.radius, i)) ? l : null;
+    });
+    if (ringHome.some((l) => l === null)) continue;
+    const tris: V3[][] = [];
+    const flat = (p: V3) => new Vector2(p[u], p[v]);
+    for (const l of outer) {
+      const holesIn = [...inner.filter((i) => home(i[0]!) === l), ...(rings as V3[][]).filter((_, k) => ringHome[k] === l)];
+      const all = [...l, ...holesIn.flat()];
+      // Loop vertices (outer, then inner) come before the rings in `all`: a part vertex can lie only on an edge between
+      // two of them — the plane meets the rest of the part only along its loops — so only such a triangle is conformed.
+      const onLoop = l.length + holesIn.slice(0, holesIn.length - rings.filter((_, q) => ringHome[q] === l).length).reduce((n, h) => n + h.length, 0);
+      for (const [i, j, k] of ShapeUtils.triangulateShape(l.map(flat), holesIn.map((r) => r.map(flat)))) {
+        const t = [all[i!]!, all[j!]!, all[k!]!];
+        const loops = (i! < onLoop ? 1 : 0) + (j! < onLoop ? 1 : 0) + (k! < onLoop ? 1 : 0);
+        if (loops < 2) { tris.push(t); continue; }
+        const poly = insertOnEdges(t, members[0]!.f.n, cands);
+        if (poly === t) tris.push(t); else tris.push(...centroidFan(poly));
+      }
+    }
+    const drop = new Set(members.map(({ f }) => f));
+    for (const body of bodies) { const fs = faces.get(body); if (fs?.some((f) => drop.has(f))) faces.set(body, fs.filter((f) => !drop.has(f))); }
+    const first = members[0]!;
+    const list = out.get(first.body) ?? [];
+    list.push({ face: { n: first.f.n, verts: outer[0] ?? first.f.verts }, tris });
+    out.set(first.body, list);
+  }
+  return out;
+}
+
+/** Directed boundary stretches chained into closed loops, every corner WELDED to the part's vertex there (canon); null
+ *  when they do not close (a stretch with no successor) — the caller then leaves the plane to the per-face path. */
+function chainLoops(segments: [V3, V3][], canon: (p: V3) => V3): V3[][] | null {
+  const from = new Map<V3, number[]>();
+  const segs = segments.map(([p, q]) => [canon(p), canon(q)] as [V3, V3]).filter(([p, q]) => p !== q);
+  segs.forEach(([p], k) => { const l = from.get(p); if (l) l.push(k); else from.set(p, [k]); });
+  const used = new Uint8Array(segs.length);
+  const loops: V3[][] = [];
+  for (let s0 = 0; s0 < segs.length; s0 += 1) {
+    if (used[s0]) continue;
+    const loop: V3[] = [];
+    let k = s0;
+    for (;;) {
+      used[k] = 1;
+      loop.push(segs[k]![0]);
+      const end = segs[k]![1];
+      if (end === segs[s0]![0]) break;
+      const next = (from.get(end) ?? []).find((j) => !used[j]);
+      if (next === undefined) return null;
+      k = next;
+    }
+    if (loop.length >= 3) loops.push(loop);
+  }
+  return loops;
 }
 
 /** One arc chord of a curve, in board-local (u, v), with the arc it is a chord of and the u/v dimension indices. */

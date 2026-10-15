@@ -66,6 +66,7 @@ export type { Nesting, NestedSheet, PlacedPart, UnplaceablePart, Footprint } fro
 export { boardSnapPoints, cutSnapPoints, guideSnapPoints, offsetPoint, sameSnapPoint, snapPointsFor, tapeAxisFromKey, towardFor } from './snapPoints';
 export type { BoardSnapPoint, SnapKind, SnapOwner, SnapPoint, TapeAxis } from './snapPoints';
 export { keptBySection, sectionAxisIndex, sectionPlaneOf, sectionSpan, sectionCaps, unionOutline, SECTION_EPS } from './section';
+export { unionLoops } from './outline';
 export type { Section, SectionAxis, SectionCap } from './section';
 
 /**

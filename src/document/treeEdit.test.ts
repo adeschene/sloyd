@@ -337,6 +337,17 @@ describe('writeBackFlat shares where identical', () => {
     expect(worldParts(out).map((b) => b.holes[0]!.id)).toEqual(['h0', 'h0', 'h0']);
   });
 
+  it('placements whose cuts differ only in ORDER keep one definition (fu 316)', () => {
+    const doc = drawers(3);
+    const before = flat(doc);
+    const other = { ...cut, offset: 5 };
+    const after = before.map((b, k) => ({ ...b, cuts: k === 1 ? [{ id: `y${k}`, ...other }, { id: `x${k}`, ...cut }] : [{ id: `x${k}`, ...cut }, { id: `y${k}`, ...other }] }));
+    const out = writeBackFlat(doc, before, after);
+    expect(new Set(out.instances.map((i) => i.definition)).size).toBe(1);
+    // The first placement's record is written: every copy reads its order and ids.
+    expect(worldParts(out).map((b) => b.cuts.map((c) => c.id))).toEqual([['x0', 'y0'], ['x0', 'y0'], ['x0', 'y0']]);
+  });
+
   it('a copy whose result differs splits off; the others stay shared', () => {
     const doc = drawers(3);
     const before = flat(doc);
