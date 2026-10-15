@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { useStore } from '../store/store';
 import {
   archCurve, archFields, bowCurve, bowFields, cornerCurve, cornerFields, curveFaults, curveKindWord, defaultArch,
-  defaultBow, defaultCorner, defaultCorners, defaultNotch, deriveCurveKind, holeFaults, uvDims,
+  defaultBow, defaultCorner, defaultCorners, defaultNotch, deriveCurveKind, holeFaults, uvDims, CURVE_EPS,
 } from '../document/document';
 import type { Board, CurveCut, CutFrom, Dimension } from '../document/document';
 import { curveFaultText, curveLine } from '../document/curveText';
@@ -40,9 +40,29 @@ function holeRefusal(board: Board, after: Board): string | null {
   return null;
 }
 
+const HALF_CIRCLE = 'An arc is at most a half circle — reduce the Rise first.';
+
+/** True when an arc of `next` is one the loader drops (`validateCurveCuts`): a rise over half its chord, a radius under
+ *  half its chord, or no chord. EXACT, the loader's own tests — a tolerance here would store an arc the next load drops
+ *  (silent loss). Judged on EVERY candidate, typed or selected: a Bow re-seated onto a narrow dimension is refit to a
+ *  short span at its old rise. */
+function pastHalfCircle(next: Draft): boolean {
+  let at = next.start;
+  for (const s of next.segments) {
+    if (s.type === 'arc') {
+      const chord = Math.hypot(s.to[0] - at[0], s.to[1] - at[1]);
+      if (chord <= CURVE_EPS) return true;
+      if (s.rise !== undefined ? s.rise > chord / 2 : s.radius! < chord / 2) return true;
+    }
+    at = s.to;
+  }
+  return false;
+}
+
 /** The refusal for an edit that ADDS a curve fault, or a hole fault, the stored state lacks (spec §8), or null. `control`
  *  names the field the user changed, for "reduce the … first"; a select change passes null. */
 function refusalFor(board: Board, curve: CurveCut, next: Draft, control: Control | null): string | null {
+  if (pastHalfCircle(next)) return HALF_CIRCLE;
   const had = new Set(curveFaults(board, curve).map((f) => f.kind));
   const added = curveFaults(board, next).find((f) => !had.has(f.kind));
   if (added?.kind === 'cuts-through') return `Removes more than the ${cutDim(board, next)} — reduce the ${control ?? 'Rise'} first.`;
@@ -55,10 +75,6 @@ function refusalFor(board: Board, curve: CurveCut, next: Draft, control: Control
   return holeRefusal(board, after);
 }
 
-/** An arc rises at most half its chord (a half circle). EXACT, as the loader's own test (`validateCurveCuts` drops
- *  `rise > chord / 2`): a field tolerance here would store an arc the next load drops. */
-const pastHalf = (span: number, rise: number) => rise > span / 2;
-const HALF_CIRCLE = 'An arc is at most a half circle — reduce the Rise first.';
 
 /** A Through change keeps `along` unless it is the new through, which takes the old through's place. */
 const reseat = (along: Dimension, from: Dimension, to: Dimension): Dimension => (along === to ? from : along);
@@ -122,13 +138,9 @@ function CurveRowView({ board, curve }: { board: Board; curve: CurveCut }) {
           </select>
         </div>
         <DimensionField label="Start" value={arch.start} min={0} units={units} onCommit={(start) => field(archCurve({ ...arch, start }), 'Start')} />
-        <DimensionField label="Span" value={arch.span} units={units} onCommit={(span) => (
-          pastHalf(span, arch.rise) ? HALF_CIRCLE : field(archCurve({ ...arch, span }), 'Span')
-        )} />
-        <DimensionField label="Rise" value={arch.rise} units={units} onCommit={(rise) => (
-          // Its own words, not the field's "Must be at most": an arc rises at most half its span (a half circle).
-          pastHalf(arch.span, rise) ? HALF_CIRCLE : field(archCurve({ ...arch, rise }), 'Rise')
-        )} />
+        <DimensionField label="Span" value={arch.span} units={units} onCommit={(span) => field(archCurve({ ...arch, span }), 'Span')} />
+        {/* An arc past a half circle is refused in refusalFor's own words, not the field's "Must be at most". */}
+        <DimensionField label="Rise" value={arch.rise} units={units} onCommit={(rise) => field(archCurve({ ...arch, rise }), 'Rise')} />
       </div>
     );
   } else if (bow) {
@@ -141,9 +153,7 @@ function CurveRowView({ board, curve }: { board: Board; curve: CurveCut }) {
       <div className="field-grid field-grid-2">
         {throughSelect((to) => set(refit({ ...bow, through: to, along: reseat(bow.along, curve.through, to) })))}
         {sideSelect(edge, bow.side, (side) => set(refit({ ...bow, side })))}
-        <DimensionField label="Rise" value={bow.rise} units={units} onCommit={(rise) => (
-          pastHalf(board[bow.along], rise) ? HALF_CIRCLE : field(refit({ ...bow, rise }), 'Rise')
-        )} />
+        <DimensionField label="Rise" value={bow.rise} units={units} onCommit={(rise) => field(refit({ ...bow, rise }), 'Rise')} />
       </div>
     );
   } else if (corner) {

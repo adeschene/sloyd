@@ -1,7 +1,7 @@
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
-import { archFields, bowFields, createBoard, createDocument } from '../document/document';
+import { archFields, bowCurve, bowFields, createBoard, createDocument } from '../document/document';
 import type { Board, CurveCut } from '../document/document';
 import { Properties } from './Properties';
 
@@ -74,6 +74,20 @@ describe('the Curves section', () => {
     await typeInto(user, 'Rise', '6');                              // a 10" edge: at most 5
     expect(bowFields(curves()[0]!)!.rise).toBe(0.5);
     expect(screen.getByRole('alert')).toHaveTextContent('An arc is at most a half circle — reduce the Rise first.');
+  });
+
+  it('a select change that would store an arc past a half circle is refused: a faulted Bow re-seated through the length (fix round 1)', async () => {
+    // A 30" bow on a 26" part runs off the length max end. Through → Length re-seats it along the thickness and refits it
+    // to a 3/4" span at its 1/2" rise — past a half circle (the loader would drop it), and its new runs-off is the SAME
+    // kind as the stored one, so only the shared half-circle check catches it.
+    const user = userEvent.setup();
+    const bow: CurveCut = { id: 'c1', ...bowCurve({ through: 'thickness', along: 'length', side: 'min', span: 30, rise: 0.5 }) };
+    open(apron({ length: 26, curves: [bow] }));
+    expect(screen.getByRole('status')).toHaveTextContent('Runs past the length max end at this size.');
+    await user.selectOptions(screen.getByLabelText('Through'), 'length');
+    expect(curves()[0]).toEqual(bow);
+    expect(screen.getByRole('alert')).toHaveTextContent('An arc is at most a half circle — reduce the Rise first.');
+    expect(screen.getByLabelText('Through')).toHaveValue('thickness');
   });
 
   it('a Rise that cuts through the part is refused in words', async () => {
