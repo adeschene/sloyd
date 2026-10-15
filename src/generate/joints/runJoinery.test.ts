@@ -10,6 +10,7 @@ import { applyJoints } from './recipes';
 import { findSites, jointKey } from './sites';
 import { defaultChoice, validChoice } from './choose';
 import { checkDesign } from '../../document/designCheck';
+import { ARCH } from '../../document/curveFixtures';
 import { taperCut } from '../../document/angleCuts';
 import { axisFrame, endFacing } from '../../document/geometry';
 import type { AngleCut } from '../../document/types';
@@ -497,6 +498,15 @@ describe('runJoinery — tapered legs (AI-tapers spec §4)', () => {
     const out = await run(c, holed);
     expect('refused' in out).toBe(true);
     expect(c.complete).not.toHaveBeenCalled();
+  });
+  it('refuses a document with curves before any call (curves spec §7)', async () => {
+    const c = client({ joints: [] });
+    const curved = { ...CORNER, boards: CORNER.boards.map((b, i) => (i === 0 ? { ...b, curves: [ARCH] } : b)) };
+    const before = JSON.stringify(curved);
+    const out = await run(c, curved);
+    expect('refused' in out).toBe(true);
+    expect(c.complete).not.toHaveBeenCalled();
+    expect(JSON.stringify(curved)).toBe(before);
   });
   it('refuses a taper that runs into a joint before any call, leaving the document alone', async () => {
     const c = client(short);

@@ -6,6 +6,7 @@ import { TOUCH, jointViolations, worldBox } from '../../document/designCheck';
 import type { Violation } from '../../document/designCheck';
 import type { Units } from '../../units/length';
 import { holedRefusal } from '../../document/holedRefusal';
+import { curvedRefusal } from '../../document/curvedRefusal';
 import { boxOf } from './pocket';
 import { tenonSection } from './recipes';
 import { findSites } from './sites';
@@ -128,6 +129,8 @@ export function angleConflicts(flat: FlatDocument, sites: readonly Site[]): Angl
 export function joineryRefusal(doc: SloydDocument, flat: FlatDocument = flatDocument(doc), sites: readonly Site[] = findSites(flat)): string | null {
   const holed = holedRefusal(flat, 'joinery');
   if (holed) return holed;
+  const curved = curvedRefusal(flat, 'joinery');
+  if (curved) return curved;
   return jointRefusal(flat, taperConflicts(flat, sites), angleConflicts(flat, sites));
 }
 

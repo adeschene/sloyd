@@ -7,6 +7,7 @@ import f5 from './fixtures/5-rail-enters-once.json?raw';
 import f6 from './fixtures/6-nested.json?raw';
 import { flatDocument, makeUniqueItem, migrateDocument, removeItems, writeBackFlat } from '../../document/document';
 import type { AngleCut, Board, Cut, FlatDocument, SloydDocument } from '../../document/document';
+import { ARCH } from '../../document/curveFixtures';
 import { findSites, jointKey } from './sites';
 import { applyJoints } from './recipes';
 import { cutBox, gateUnjoin, sameCut, sameJoined } from './unjoin';
@@ -128,6 +129,16 @@ describe('repairDocument withholds a holed document (holes spec §6)', () => {
     expect(repairDocument(fx.damaged)).not.toBeNull();
     const doc = { ...fx.damaged, boards: fx.damaged.boards.map((b, i) => (i === 0 ? { ...b, holes: [{ id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 1.5 }] } : b)),
       definitions: fx.damaged.definitions.map((d) => ({ ...d, boards: d.boards.map((b, i) => (i === 0 ? { ...b, holes: [{ id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 2, count: 1, pitch: 0, acrossFrom: 'min' as const, inset: 1.5 }] } : b)) })) };
+    expect(repairDocument(doc)).toBeNull();
+  });
+});
+
+describe('repairDocument withholds a curved document (curves spec §7)', () => {
+  it('a damaged fixture with a curve is not repaired', () => {
+    const fx = load(f1);
+    expect(repairDocument(fx.damaged)).not.toBeNull();
+    const doc = { ...fx.damaged, boards: fx.damaged.boards.map((b, i) => (i === 0 ? { ...b, curves: [ARCH] } : b)),
+      definitions: fx.damaged.definitions.map((d) => ({ ...d, boards: d.boards.map((b, i) => (i === 0 ? { ...b, curves: [ARCH] } : b)) })) };
     expect(repairDocument(doc)).toBeNull();
   });
 });

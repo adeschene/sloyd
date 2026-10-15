@@ -8,6 +8,7 @@ import type { TaperFaultCode } from './taperWorld';
 import { angleCutsFor, angleRatiosOf, noAngles, worldAngles } from './angleWorld';
 import type { AngleFaultCode } from './angleWorld';
 import { holedRefusal } from './holedRefusal';
+import { curvedRefusal } from './curvedRefusal';
 import { isShaped, resolveBoard, shapeMap } from './shapes';
 import { NAME_SEPARATOR, flatDocument, worldParts } from './tree';
 
@@ -18,7 +19,7 @@ import { NAME_SEPARATOR, flatDocument, worldParts } from './tree';
  * designs that format can express; everything else is REFUSED here, on the
  * document alone, before any model call.
  */
-export type RefusalReason = 'empty' | 'cuts' | 'turned' | 'nested' | 'too-large' | 'joints' | 'mirrored' | 'taper-form' | 'angle-form' | 'angle-joint' | 'holes';
+export type RefusalReason = 'empty' | 'cuts' | 'turned' | 'nested' | 'too-large' | 'joints' | 'mirrored' | 'taper-form' | 'angle-form' | 'angle-joint' | 'holes' | 'curves';
 export interface RefineRefusal { reason: RefusalReason; message: string }
 export interface RefineMax { distinct: number; placed: number }
 
@@ -74,6 +75,8 @@ export function documentToDesign(doc: SloydDocument, max: RefineMax): { design: 
   if (placed === 0) return refuse('empty', 'There is nothing to refine yet.');
   const holed = holedRefusal(flatDocument(doc), 'refine');
   if (holed) return refuse('holes', holed);
+  const curved = curvedRefusal(flatDocument(doc), 'refine');
+  if (curved) return refuse('curves', curved);
   const stored: StoredBoard[] = [...doc.boards, ...doc.definitions.flatMap((d) => d.boards)];
   // Defence in depth: Refine's own path never reaches this with cuts (plainForRefine's joint gate
   // runs first and hands over the plain parts), but documentToDesign can still be called directly.

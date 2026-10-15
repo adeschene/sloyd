@@ -10,6 +10,7 @@ import { bevelCut, chamferCut, miterCut, miterRatio, taperCut } from './angleCut
 import { angleRatiosOf, worldAngles } from './angleWorld';
 import { worldTapers } from './taperWorld';
 import { boardExtents } from './geometry';
+import { ARCH } from './curveFixtures';
 import { flatDocument } from './tree';
 import type { AngleCut, Board, Cut, Posture, Rotation, SloydDocument } from './types';
 
@@ -43,6 +44,15 @@ describe('documentToDesign', () => {
     expect(doc.shapes.length).toBeGreaterThan(0);   // role-linked parts share a Shape: the case below is never skipped
     expect(refused(shaped)?.reason).toBe('holes');
     expect(refused(doc)).toBeNull();
+  });
+
+  it('refuses a document with curves (curves spec §7, defence in depth)', () => {
+    const doc = table();
+    const curved = { ...doc, boards: doc.boards.map((b, i) => (i === 0 ? { ...b, curves: [ARCH] } : b)) };
+    expect(refused(curved)?.reason).toBe('curves');
+    const shaped = { ...doc, shapes: doc.shapes.map((s, i) => (i === 0 ? { ...s, curves: [ARCH] } : s)) };
+    expect(doc.shapes.length).toBeGreaterThan(0);
+    expect(refused(shaped)?.reason).toBe('curves');
   });
 
   it('round-trips: converting back (centre: false) reproduces every placed part exactly', () => {

@@ -5,6 +5,7 @@ import { JOINERY_OUTPUT_PER_SITE, joineryEstimateUsd, refineEstimateUsd } from '
 import { CHARS_PER_TOKEN } from './estimate';
 import { JOINERY_PROMPT, JOINT_SCHEMA } from './joints/choose';
 import { designToDocument } from '../document/generated';
+import { ARCH } from '../document/curveFixtures';
 import { flatDocument, migrateDocument, worldParts, writeBackFlat } from '../document/document';
 import type { Board, SloydDocument } from '../document/document';
 import { applyJoints } from './joints/recipes';
@@ -66,6 +67,25 @@ describe('the Refine dialog reads a document once (F4)', () => {
     }
     expect(refineEstimateUsd(client, joined, S)).not.toBeNull();
     expect(refineEstimateUsd(client, handCut, S)).toBeNull();
+  });
+});
+
+describe('curves (curves spec §7)', () => {
+  const withCurve = (d: SloydDocument, name: string): SloydDocument => ({ ...d, boards: d.boards.map((b) => (b.name === name ? { ...b, curves: [ARCH] } : b)) });
+  it('a curved plain document is refused as curves', () => {
+    const base = plainForRefine(withCurve(plain, 'Top'));
+    expect('refused' in base && base.refused.reason).toBe('curves');
+  });
+  it('a curved joined document is refused as curves before the gate', () => {
+    gate.mockClear();
+    const base = plainForRefine(withCurve(joined, 'Top'));
+    expect('refused' in base && base.refused.reason).toBe('curves');
+    expect(gate).not.toHaveBeenCalled();
+  });
+  it('the dialog reads it as neither joined nor repairable', () => {
+    const info = refineDialogInfo(withCurve(joined, 'Top'));
+    expect(info.joined).toBe(false);
+    expect(info.repair).toBeNull();
   });
 });
 
