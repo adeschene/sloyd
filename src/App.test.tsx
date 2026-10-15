@@ -1,5 +1,5 @@
 import { worldParts } from './document/tree';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from './App';
 import { useStore } from './store/store';
@@ -2055,15 +2055,36 @@ describe('App edit lock while exploded', () => {
     expect(addAngle.matches(':disabled')).toBe(false);
   });
 
-  it('locks the guides footer while exploded', async () => {
+  it('locks the guides list while exploded, not its disclosure (fu 262)', async () => {
     await mountWithOneBoard();
-    const footer = document.querySelector('.panel-guides') as HTMLElement;
-    const lock = footer.closest('fieldset.edit-lock') as HTMLFieldSetElement;
-    expect(lock).not.toBeNull();
-    expect(lock.disabled).toBe(false);
+    const user = userEvent.setup();
+    act(() => useStore.getState().addGuide([2, 0, 0]));
+    const toggle = screen.getByRole('button', { name: /^Guides · 1/ }) as HTMLButtonElement;
     act(() => useStore.getState().setExplode(0.4));
+    expect(toggle.matches(':disabled')).toBe(false);
+    if (toggle.getAttribute('aria-expanded') !== 'true') await user.click(toggle);
+    const body = document.getElementById('guides-body')!;
+    const lock = body.querySelector('fieldset.edit-lock') as HTMLFieldSetElement;
     expect(lock.disabled).toBe(true);
     expect(lock.title).toBe('Slide Explode back to 0 to edit');
+    await user.click(toggle);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
     act(() => useStore.getState().setExplode(0));
+  });
+
+  it('keeps the view actions live while exploded and locks the editing ones (fu 262)', async () => {
+    await mountWithOneBoard();
+    act(() => useStore.getState().setExplode(0.4));
+    const bar = document.querySelector('.panel-props .action-bar') as HTMLElement;
+    const button = (name: string) => within(bar).getByRole('button', { name }) as HTMLButtonElement;
+    expect(button('Hide others').disabled).toBe(false);
+    expect(button('Duplicate').disabled).toBe(true);
+    expect(button('Group').disabled).toBe(true);
+    expect(button('Delete').disabled).toBe(true);
+    // More ▾ holds only Copy in a row… for a single part: nothing live in it, so the trigger is disabled.
+    expect(within(bar).getByRole('button', { name: /More/ }).matches(':disabled')).toBe(true);
+    act(() => useStore.getState().setExplode(0));
+    expect(button('Duplicate').disabled).toBe(false);
+    expect(button('Delete').disabled).toBe(false);
   });
 });

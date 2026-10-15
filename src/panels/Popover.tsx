@@ -6,6 +6,8 @@ export interface PopoverItem {
   /** A second, quieter line under the label. Not part of the accessible name. */
   detail?: string;
   run: () => void;
+  /** Shown but not choosable (the exploded view's lock on an editing item, fu 262). */
+  disabled?: boolean;
 }
 
 interface Props {
@@ -89,7 +91,7 @@ export function Popover({ label, items, title, align = 'start', className }: Pro
       {open && (
         <div className={`popover-popup popover-${align}`}>
           {items.map((it) => (
-            <button key={it.label} className="popover-item" aria-label={it.label}
+            <button key={it.label} className="popover-item" aria-label={it.label} disabled={it.disabled}
               onClick={() => { trigger.current?.focus(); setOpen(false); it.run(); }}>
               <span className="popover-item-label">{it.label}</span>
               {it.detail && <span className="popover-item-detail">{it.detail}</span>}

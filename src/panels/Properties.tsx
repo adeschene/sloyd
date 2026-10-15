@@ -4,6 +4,7 @@ import { isSheetGood, pocketCells, cutShape, storedAsShape, cutRemovesNothing, f
 import { DimensionField } from './DimensionField';
 import { NameField } from './NameField';
 import { ActionBar, COPY_IN_ROW } from './ActionBar';
+import { EditLock } from './EditLock';
 import { formatLength } from '../units/length';
 import type { Units } from '../units/length';
 import { NOMINAL_SECTIONS, nominalName } from '../units/nominal';
@@ -436,13 +437,14 @@ function GroupProperties({ library, onNewMaterial }: { library: CustomMaterial[]
           ...(plan && !('refused' in plan) ? [{ label: 'Link', run: () => linkBoards(selectedIds) }] : []),
           { label: 'Duplicate', run: () => duplicateBoards(selectedIds) },
           { label: 'Group', run: () => useStore.getState().groupSelected() },
-          { label: 'Hide others', run: hideUnselected },
+          { label: 'Hide others', run: hideUnselected, view: true },
           ...(allParts && boards.some((b) => b.shape) ? [{ label: 'Unlink', run: () => unlinkBoards(selectedIds) }] : []),
           ...(anyAssembly ? [{ label: 'Ungroup', run: () => useStore.getState().ungroupSelected() }] : []),
           COPY_IN_ROW,
         ]}
         onDelete={() => deleteBoards(selectedIds)}
       />
+      <EditLock>
       {plan && 'refused' in plan && <p className="field-error" role="status">{plan.refused}</p>}
       {plan && !('refused' in plan) && plan.changing.length > 0 && (
         <p className="link-note">
@@ -481,6 +483,7 @@ function GroupProperties({ library, onNewMaterial }: { library: CustomMaterial[]
       </div>
       </div>
       </>}
+      </EditLock>
     </div>
   );
 }
@@ -505,23 +508,26 @@ function InstanceProperties({ path }: { path: string }) {
   if (!inst) return null;
   return (
     <div className="properties" key={path}>
+      <EditLock>
       <div className="props-name">
         <NameField value={inst.name} onCommit={(typed) => useStore.getState().renameItem(path, typed)} />
         <span className="kind-chip">Assembly</span>
       </div>
+      </EditLock>
       <ActionBar
         actions={[
           { label: 'Duplicate', run: () => duplicateBoards([path]) },
           { label: 'Ungroup', run: () => useStore.getState().ungroupSelected() },
-          { label: 'Hide others', run: hideUnselected },
+          { label: 'Hide others', run: hideUnselected, view: true },
           { label: 'Copy mirrored', run: () => useStore.getState().copyMirrored(path) },
           COPY_IN_ROW,
-          ...(copies >= 2 && copyHere ? [{ label: 'Select copies', run: () => selectCopies(path) }] : []),
+          ...(copies >= 2 && copyHere ? [{ label: 'Select copies', run: () => selectCopies(path), view: true }] : []),
           ...(refs >= 2 ? [{ label: 'Make Unique', run: () => makeUnique(path) }] : []),
           { label: 'Group', run: () => useStore.getState().groupSelected() },
         ]}
         onDelete={() => deleteBoards([path])}
       />
+      <EditLock>
       <p className="assembly-note">Double-click it in the view to edit its parts.</p>
       {copies >= 2 && <p className="link-note">Shared by {copies} copies: edits inside change all of them.</p>}
       <h3>Orientation</h3>
@@ -542,6 +548,7 @@ function InstanceProperties({ path }: { path: string }) {
         Mirrored
       </label>
       </div>
+      </EditLock>
     </div>
   );
 }
@@ -608,15 +615,17 @@ export function Properties({ library = [], onNewMaterial }: { library?: CustomMa
 
   return (
     <div className="properties" key={board.id}>
+      <EditLock>
       <div className="props-name">
         <NameField value={board.name} onCommit={commitName} />
         <span className="kind-chip">Part</span>
       </div>
+      </EditLock>
       <ActionBar
         actions={[
           { label: 'Duplicate', run: () => duplicateBoard(board.id) },
           { label: 'Group', run: () => useStore.getState().groupSelected() },
-          { label: 'Hide others', run: hideUnselected },
+          { label: 'Hide others', run: hideUnselected, view: true },
           COPY_IN_ROW,
         ]}
         onDelete={() => deleteBoard(board.id)}
@@ -626,10 +635,11 @@ export function Properties({ library = [], onNewMaterial }: { library?: CustomMa
           <p>Linked with {linkedCount} other {linkedCount === 1 ? 'part' : 'parts'}: edits to size, material, grain, posture or cuts change all {linkedCount + 1}.</p>
           <div className="row">
             {linkedHere && <button onClick={() => selectLinked(board.id)}>Select linked</button>}
-            <button onClick={() => unlinkBoards([board.id])}>Unlink</button>
+            <EditLock><button onClick={() => unlinkBoards([board.id])}>Unlink</button></EditLock>
           </div>
         </div>
       )}
+      <EditLock>
 
       <h3>Size</h3>
       <div className="field-grid field-grid-3">
@@ -701,6 +711,7 @@ export function Properties({ library = [], onNewMaterial }: { library?: CustomMa
       <AngleCuts board={board} />
       <Holes board={board} />
       <Curves board={board} />
+      </EditLock>
     </div>
   );
 }

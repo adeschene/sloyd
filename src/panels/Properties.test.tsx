@@ -1224,6 +1224,17 @@ describe('linking controls', () => {
     expect(st().selectedIds).toEqual([a, b]);
   });
 
+  it('while exploded, Select linked stays live and Unlink and the fields are locked (fu 262)', async () => {
+    const [a, b] = two();
+    act(() => { st().linkBoards([a!, b!]); st().selectBoard(a!); st().setExplode(0.4); });
+    render(<Properties />);
+    expect((screen.getByRole('button', { name: 'Unlink' }) as HTMLButtonElement).matches(':disabled')).toBe(true);
+    expect((screen.getByLabelText('Length') as HTMLInputElement).matches(':disabled')).toBe(true);
+    await userEvent.click(screen.getByRole('button', { name: 'Select linked' }));
+    expect(st().selectedIds).toEqual([a, b]);
+    act(() => { st().setExplode(0); });
+  });
+
   it('Select linked is not offered when the only other member is hidden (fu 228)', async () => {
     const [a, b] = two();
     act(() => { st().linkBoards([a!, b!]); st().selectBoard(a!); });

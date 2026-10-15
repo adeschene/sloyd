@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store/store';
 import { GuidesList } from './GuidesList';
+import { EditLock } from './EditLock';
 
 /**
  * Guides as a footer of the side panel (ui-polish spec §4.5): a count, closed
@@ -31,7 +32,8 @@ export function GuidesFooter() {
           <span className="guides-caret" aria-hidden="true">{open ? '▾' : '▸'}</span>
         </button>
       </h2>
-      {open && <div id="guides-body" className="guides-body"><GuidesList /></div>}
+      {/* Only the list is locked while exploded (fu 262): the disclosure is view state. */}
+      {open && <div id="guides-body" className="guides-body"><EditLock><GuidesList /></EditLock></div>}
     </section>
   );
 }

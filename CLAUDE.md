@@ -772,7 +772,9 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     gate; any action with side effects outside `edit()` also refuses at entry (`readOnly()`: re-key, Group,
     Ungroup, guide and board deletes, `addBoard`); `setTool` refuses all but Select; `renameItem` returns the
     stored name. `setExplode` is the one writer, and leaving 0 goes only through `setTool('select')`. The
-    UI lock is a `<fieldset class="edit-lock" disabled>` with `display: contents` (layout-transparent). The explode
+    UI lock is a `<fieldset class="edit-lock" disabled>` with `display: contents` (layout-transparent), placed by `EditLock`
+    around EDITING regions only (fu 262): the ActionBar sits outside it and disables its own non-`view` actions (Hide others,
+    Select copies stay live), as do Select linked and the guides footer's disclosure. The explode
     offset is a render-time translation, never written back (inv 1). Drawings take lines from `boardEdges` and hole
     lines from `holeDrawingSegments` (one list, one hidden-line pass), and occluders from `worldBodies` (each body CLOSED: a box, or its faces as half-spaces): a ray along a seam between
     solids is inside. The exploded set is

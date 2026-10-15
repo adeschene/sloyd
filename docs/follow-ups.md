@@ -5017,10 +5017,22 @@ passing the explode offsets.
 **261. Renaming in the parts list reverts silently while exploded.** `PartsList` is outside the edit lock (same class
 as F3); make it visibly disabled.
 - **Status:** open.
+- **Closed 2026-10-15 as not reproducible (follow-ups session).** The parts list has no rename control and never had
+  one (`git log -S NameField -- src/panels/PartsList.tsx` is empty): renaming lives in Properties, inside the lock, and
+  the header's Project name field is `disabled` while exploded (Toolbar.tsx). Nothing in the parts list writes the
+  document except the eye (hide is view state, live by design). **Status:** closed.
 
 **262. The blanket edit lock also disables view-only controls.** Select copies / Select linked / the open buttons in
 Properties, and the guides footer's own disclosure toggle.
 - **Status:** open.
+- **Closed 2026-10-15 (follow-ups session, branch `follow-ups-1`).** App's two blanket fieldsets are gone; `EditLock`
+  (panels/EditLock.tsx, the same fieldset) wraps only editing regions: in Properties the name and everything below the
+  action bar, with Select linked outside and Unlink inside; in the guides footer the list, not the disclosure. The
+  ActionBar sits outside and disables its own actions while exploded except those marked `view` (Hide others, Select
+  copies), More ▾ disabled only when nothing in it is live, Delete locked; Popover items gained `disabled`. Store gates
+  are unchanged (the three view actions were already allowed while exploded). Tests: App (view actions live, editing
+  ones and Delete locked; the guides list locked, its disclosure live) and Properties (Select linked selects while
+  exploded, Unlink and Length disabled). Seen in the dev browser: the panel lays out as before. **Status:** closed.
 
 **263. The sheet slider recomputes the isometric synchronously.** About 130-250 ms per step at furniture scale
 (measured in node); consider `useDeferredValue`.
