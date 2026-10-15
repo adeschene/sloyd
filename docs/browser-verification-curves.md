@@ -85,3 +85,20 @@ two-axis case at about 13.7 ms; this run was on a loaded machine. How smooth it 
 - **Found 1** (shadow and cap speckles).
 - **The faded part beside a dado** (#9).
 - **Drag smoothness** on an arched apron and a four-corner top (#12).
+
+## Re-check after the watertight fix (2026-10-15, HEAD `6fb1f4d`)
+
+Same dev server, Playwright, software GL (llvmpipe), so the real-hardware caveats above still apply. One new project,
+"curves recheck — delete me", with a 30 × 5 × ¾ apron on edge with the default Arch (rise raised to 1-1/2") and a plain
+30 × 5 × ¾ board on edge beside it, orthographic Top view, as in Found 1.
+
+- **Ground shadow:** the arched apron's shadow is solid along the whole arch span, with none of the light pinholes
+  Found 1 saw. It is indistinguishable from the plain board's shadow (`curves-shadow-fixed.png`; compare
+  `curves-shadow-speckles.png`). Only the far edge's shadow-map stair-stepping remains, on both boards alike.
+- **Section cap:** Front plane at 2-1/2" through the arch, Iso and Front views: the cap is one even colour with a clean
+  arch edge and no specks (`curves-section-fixed.png`).
+- **Bowed rail / plain board:** a Bow through the plain board's shadow scene (`curves-shadow-fixed-bow.png`) still
+  casts a clean, solid shadow, and the plain board's shadow and the arch silhouette look as before.
+- Console: 0 errors. Found 1 reads as resolved on llvmpipe; a look on real hardware stays owed (fu 26a).
+- Profile: six keys, three projects, "joined" active; project keys and `sloyd.autosave.v1` / `sloyd.llm.v1` hash
+  identically to before; only the library index differs (joined row's `savedAt`, as before). Test project deleted.
