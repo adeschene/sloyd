@@ -132,6 +132,18 @@ describe('repairDocument withholds a holed document (holes spec §6)', () => {
   });
 });
 
+describe('repairDocument keeps the project\'s units (metric-display spec)', () => {
+  it('a repaired metric document is still metric', () => {
+    const d = load(f1).damaged;
+    const damaged = migrateDocument({ ...d, units: { display: 'metric-mm', precision: 16 } });
+    expect(damaged.units.display).toBe('metric-mm');
+    const r = repairDocument(damaged);
+    if (r === null || 'refused' in r) throw new Error('expected a repair');
+    expect(r.dropped).toBeGreaterThan(0);
+    expect(r.doc.units).toEqual({ display: 'metric-mm', precision: 16 });
+  });
+});
+
 describe('repairDocument keeps custom materials (custom materials spec §6)', () => {
   it('a repaired document carries the project\'s custom materials', () => {
     const ash = { id: 'm-s-ash1', label: 'Ash', color: '#d8c8a8', kind: 'solid' as const };
