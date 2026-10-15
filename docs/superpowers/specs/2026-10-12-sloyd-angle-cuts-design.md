@@ -270,6 +270,12 @@ face switch that would remove more than the new face allows is refused with a fi
   - **Bevel**: which edge · angle. **Chamfer**: which edge · size.
 - Fields **refuse** out-of-range input, never clamp (DimensionField's rule): angle ≤ 0° or ≥ 90°, a start beyond the
   part, a removal beyond the face.
+- *Amended (implementation, follow-ups 2026-10-15, fu 296) — **for the user's review**:* a cut that a later RESIZE pushed
+  past its part (a rail shortened below its miter's depth) is kept and noted (`This miter removes more than the length at
+  this size.`), as holes and curves keep a resize-caused fault; an edit to it is refused only when the result would
+  overrun by MORE than the stored cut does. So such a miter can change its long point or end, or be reduced, without
+  first reducing the angle — it is written while still too deep. A cut that fits is still never written too deep
+  (unchanged). Before this, every edit to such a cut was refused until the angle was reduced.
 - Store actions `addAngleCuts` / `updateAngleCut` / `removeAngleCut`: through `edit()` (one undo entry, autosave),
   written back through `treeEdit` (invariant 46). Held points are re-judged with `dropHeldIfGone` AFTER the edit
   (invariant 24, point-precise: a miter can remove a grabbed corner). Inside the edit-lock fieldset, refused by
