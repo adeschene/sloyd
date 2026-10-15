@@ -3,7 +3,7 @@ import { MATERIALS, isCustomMaterialId, isSheetGood } from './types';
 import { catalogOf } from './materials';
 import type { CutList } from './cutlist';
 import { packOnto, grainFootprint, type Nesting, type PlacedPart } from './nesting';
-import { formatLength, imperialAt, type Units } from '../units/length';
+import { formatLength, formatLengthBare, formatSize, isMetric, tradeLength, tradeSize, type Units } from '../units/length';
 // Imperial until metric chunk 2 (drawings/buying, spec §4).
 import { NOMINAL_SECTIONS, nominalName, stockLengthText } from '../units/nominal';
 import { formatBoardFeet, formatMoney, INCHES_PER_BOARD_FOOT } from '../units/quantity';
@@ -147,13 +147,14 @@ export interface PurchaseEntry {
 export interface Purchase { entries: PurchaseEntry[]; total: number; totalLabel: string }
 
 /** A stock size as the yard names it: `2×4 × 8′` for a nominal material's section, else actual `t × w × l`. */
-const sizeDims = (s: StockBoard, p: number, nominal: boolean) => {
+const sizeDims = (s: StockBoard, units: Units, nominal: boolean) => {
   const name = nominal ? nominalName(s.thickness, s.width) : null;
-  return name !== null
-    ? `${name} × ${stockLengthText(s.length, p)}`
-    : `${formatLength(s.thickness, imperialAt(p))} × ${formatLength(s.width, imperialAt(p))} × ${formatLength(s.length, imperialAt(p))}`;
+  if (name === null) return tradeSize([s.thickness, s.width, s.length], units);
+  const text = `${name} × ${stockLengthText(s.length, units.precision)}`;
+  return isMetric(units) ? `${text} (${[s.thickness, s.width, s.length].map((v) => formatLengthBare(v, units)).join(' × ')} mm)` : text;
 };
-const partDims = (b: Board, p: number) => `${formatLength(b.thickness, imperialAt(p))} × ${formatLength(b.width, imperialAt(p))} × ${formatLength(b.length, imperialAt(p))}`;
+/** A PART as the user sees it: in the project's units (a metric project reads mm). */
+const partDims = (b: Board, units: Units) => formatSize([b.thickness, b.width, b.length], units);
 const priceText = (cost: number | null) => (cost === null ? 'no price' : formatMoney(cost));
 const fitsIn = (f: { w: number; h: number }, s: StockBoard) => f.w <= s.length + 1e-6 && f.h <= s.width + 1e-6;
 
@@ -165,7 +166,6 @@ function minBy<T>(items: readonly T[], key: (t: T) => number): T {
 }
 
 function byThePiece(material: string, label: string, parts: Board[], stock: StockBoard[], kerf: number, units: Units, nominal: boolean): PurchaseEntry {
-  const p = units.precision;
   const notes: string[] = [];
   let unplaceable = 0;
   const thicknesses = [...new Set(stock.map((s) => s.thickness))].sort((a, b) => a - b);
@@ -174,7 +174,7 @@ function byThePiece(material: string, label: string, parts: Board[], stock: Stoc
     // End grain (grain through the thickness) cannot come out of a board along its length; pricing it as long
     // grain would buy stock that cannot yield it. Refused with its reason until it is modelled (final review).
     if (part.grain === 'thickness') {
-      notes.push(`${part.name} (${partDims(part, p)}) has end grain — not priced as ${label.toLowerCase()} stock`);
+      notes.push(`${part.name} (${partDims(part, units)}) has end grain — not priced as ${label.toLowerCase()} stock`);
       unplaceable += 1;
       continue;
     }
@@ -187,11 +187,11 @@ function byThePiece(material: string, label: string, parts: Board[], stock: Stoc
       const reason = stock.length === 0 ? `no ${label.toLowerCase()} sizes listed`
         : thick.length === 0 ? 'too thick'
         : stock.some((s) => s.thickness >= part.thickness - EPS && f.h <= s.width + 1e-6) ? 'too long' : 'too wide';
-      notes.push(`${part.name} (${partDims(part, p)}) fits no ${label.toLowerCase()} stock — ${reason}`);
+      notes.push(`${part.name} (${partDims(part, units)}) fits no ${label.toLowerCase()} stock — ${reason}`);
       unplaceable += 1;
       continue;
     }
-    if (t > part.thickness + EPS) notes.push(`${part.name}: plane ${formatLength(t, imperialAt(p))} stock to ${formatLength(part.thickness, imperialAt(p))}`);
+    if (t > part.thickness + EPS) notes.push(`${part.name}: plane ${tradeLength(t, units)} stock to ${formatLength(part.thickness, units)}`);
     groups.set(t, [...(groups.get(t) ?? []), part]);
   }
 
@@ -228,20 +228,20 @@ function byThePiece(material: string, label: string, parts: Board[], stock: Stoc
 
   for (const { priced, smaller, boards } of cheaperUnknown.values()) {
     notes.push(boards === 1
-      ? `1 board priced as ${sizeDims(priced, p, nominal)} — a ${sizeDims(smaller, p, nominal)} would hold its parts (no price set)`
-      : `${boards} boards priced as ${sizeDims(priced, p, nominal)} — a ${sizeDims(smaller, p, nominal)} would hold each one's parts (no price set)`);
+      ? `1 board priced as ${sizeDims(priced, units, nominal)} — a ${sizeDims(smaller, units, nominal)} would hold its parts (no price set)`
+      : `${boards} boards priced as ${sizeDims(priced, units, nominal)} — a ${sizeDims(smaller, units, nominal)} would hold each one's parts (no price set)`);
   }
   const used = stock.filter((s) => count.has(s.id));
   const cost = used.some((s) => s.price === null) ? null : used.reduce((n, s) => n + count.get(s.id)! * s.price!, 0);
-  const lines = used.length > 0 ? [`Buy ${used.map((s) => `${count.get(s.id)} × ${sizeDims(s, p, nominal)}`).join(', ')} · ${priceText(cost)}`] : [];
+  const lines = used.length > 0 ? [`Buy ${used.map((s) => `${count.get(s.id)} × ${sizeDims(s, units, nominal)}`).join(', ')} · ${priceText(cost)}`] : [];
   const layouts = used.map((s) => {
-    const dims = sizeDims(s, p, nominal);
+    const dims = sizeDims(s, units, nominal);
     return {
       key: s.id,
       title: `${dims} — board`,
       stock: { length: s.length, width: s.width, rotate: 'grain' as const },
       // Actual dimensions on purpose: nothing reads `sheet` for a Buying layout (it is the sheet-goods unplaceable noun); the caption names the section.
-      nesting: { sheets: chosen.filter((c) => c.size === s).map((c) => ({ parts: c.parts })), unplaceable: [], label: '', sheet: sizeDims(s, p, false) },
+      nesting: { sheets: chosen.filter((c) => c.size === s).map((c) => ({ parts: c.parts })), unplaceable: [], label: '', sheet: sizeDims(s, units, false) },
     };
   });
   // Nothing bought is not "priced at $0" (final review): null, and with no buy line it is not counted as unpriced.

@@ -171,6 +171,19 @@ export function formatSize(values: readonly number[], units: Units): string {
   return `${values.map((v) => formatLengthBare(v, units)).join(' × ')} mm`;
 }
 
+/** A TRADE dimension (a stock board, a planing thickness; spec R3): imperial as the yard sells it at `units.precision`,
+ *  with its millimetres in brackets in a metric project — `3/4" (19 mm)`. */
+export function tradeLength(inches: number, units: Units): string {
+  const text = formatLength(inches, imperialAt(units.precision));
+  return isMetric(units) ? `${text} (${formatLengthBare(inches, units)} mm)` : text;
+}
+
+/** A trade SIZE (`t × w × l`), the mm once in brackets in metric: `3/4" × 5-1/2" × 96" (19 × 140 × 2438 mm)`. */
+export function tradeSize(values: readonly number[], units: Units): string {
+  const text = values.map((v) => formatLength(v, imperialAt(units.precision))).join(' × ');
+  return isMetric(units) ? `${text} (${values.map((v) => formatLengthBare(v, units)).join(' × ')} mm)` : text;
+}
+
 /** Floor to the display grid — a LIMIT is floored, never rounded (fu 309's advice): 1/precision inch, or 1 mm. The 1e-9
  *  is float noise (inv 22). */
 export function floorToTick(inches: number, units: Units): number {
