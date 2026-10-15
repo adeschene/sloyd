@@ -3,7 +3,7 @@ import { MATERIALS, isCustomMaterialId, isSheetGood } from './types';
 import { catalogOf } from './materials';
 import type { CutList } from './cutlist';
 import { packOnto, grainFootprint, type Nesting, type PlacedPart } from './nesting';
-import { formatLength, imperialAt } from '../units/length';
+import { formatLength, imperialAt, type Units } from '../units/length';
 // Imperial until metric chunk 2 (drawings/buying, spec §4).
 import { NOMINAL_SECTIONS, nominalName, stockLengthText } from '../units/nominal';
 import { formatBoardFeet, formatMoney, INCHES_PER_BOARD_FOOT } from '../units/quantity';
@@ -164,7 +164,8 @@ function minBy<T>(items: readonly T[], key: (t: T) => number): T {
   return best;
 }
 
-function byThePiece(material: string, label: string, parts: Board[], stock: StockBoard[], kerf: number, p: number, nominal: boolean): PurchaseEntry {
+function byThePiece(material: string, label: string, parts: Board[], stock: StockBoard[], kerf: number, units: Units, nominal: boolean): PurchaseEntry {
+  const p = units.precision;
   const notes: string[] = [];
   let unplaceable = 0;
   const thicknesses = [...new Set(stock.map((s) => s.thickness))].sort((a, b) => a - b);
@@ -203,10 +204,10 @@ function byThePiece(material: string, label: string, parts: Board[], stock: Stoc
     if (!group) continue;
     const sizes = stock.filter((s) => Math.abs(s.thickness - t) <= EPS);
     const byId = new Map(group.map((b) => [b.id, b]));
-    for (const bin of packOnto(group, sizes, kerf, p).bins) {
+    for (const bin of packOnto(group, sizes, kerf, units).bins) {
       const own = bin.parts.map((pp) => byId.get(pp.boardId)!);
       const holds = (s: StockBoard) => {
-        const r = packOnto(own, [s], kerf, p);
+        const r = packOnto(own, [s], kerf, units);
         return r.bins.length === 1 && r.unplaceable.length === 0 ? r.bins[0]!.parts : null;
       };
       const fitting = sizes.filter((s) => s === bin.bin || holds(s) !== null);
@@ -256,7 +257,6 @@ function byThePiece(material: string, label: string, parts: Board[], stock: Stoc
  * board down to the cheapest size that still holds its parts, proved by re-packing them.
  */
 export function buildPurchase(doc: FlatDocument, list: CutList, shop: ShopSettings): Purchase {
-  const p = doc.units.precision;
   const catalog = catalogOf(doc);
   const materials = [...new Set(list.groups.map((g) => g.material))];
   const entries: PurchaseEntry[] = materials.map((m) => {
@@ -265,7 +265,7 @@ export function buildPurchase(doc: FlatDocument, list: CutList, shop: ShopSettin
     const buying = shop.materials[m] ?? defaultBuying(m, nominal);
     const groups = list.groups.filter((g) => g.material === m);
     if (buying.mode === 'piece' && !isSheetGood(m)) {
-      return byThePiece(m, label, doc.boards.filter((b) => b.material === m), buying.stock, doc.stock.kerf, p, nominal);
+      return byThePiece(m, label, doc.boards.filter((b) => b.material === m), buying.stock, doc.stock.kerf, doc.units, nominal);
     }
     if (buying.mode === 'board-foot' && !isSheetGood(m)) {
       const price = buying.pricePerBoardFoot;

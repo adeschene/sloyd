@@ -439,3 +439,13 @@ describe('holes in the part diagrams (holes spec §4.3, amended)', () => {
     expect(v.holeNotes[0]!.text).toMatch(/— check: hole 3 runs past the length max end$/);
   });
 });
+
+describe('buildDiagrams in metric (chunk 2)', () => {
+  const MM = { display: 'metric-mm' as const, precision: 16 };
+  it('metric part-diagram labels are bare mm', () => {
+    const b = createBoard({ length: 30, width: 5.5, thickness: 0.75 });
+    const v = buildDiagrams(b, MM)[0]!;
+    expect(v.hLabel).toBe('762');
+    expect(v.vLabel).toBe('140');
+  });
+});

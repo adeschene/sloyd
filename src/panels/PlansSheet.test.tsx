@@ -45,3 +45,15 @@ describe('PlansSheet', () => {
     expect(onClose).toHaveBeenCalledOnce();
   });
 });
+
+describe('PlansSheet in metric (chunk 2)', () => {
+  it('a metric document draws bare mm dimensions', () => {
+    const doc = { ...createDocument('Metric'), units: { display: 'metric-mm' as const, precision: 16 }, boards: [createBoard({ length: 30, width: 12, thickness: 2 })] };
+    act(() => useStore.getState().replaceDocument(doc));
+    const { container } = render(<PlansSheet onClose={() => {}} />);
+    const labels = [...container.querySelectorAll('.plans-figure text')].map((t) => t.textContent!);
+    expect(labels).toContain('762');
+    expect(labels.some((t) => /^\d+$/.test(t))).toBe(true);
+    expect(labels.join(' ')).not.toContain('"');
+  });
+});

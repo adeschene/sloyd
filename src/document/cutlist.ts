@@ -282,7 +282,6 @@ function stockInchesOf(board: Board): number {
 
 export function buildCutList(doc: FlatDocument): CutList {
   const units = doc.units;
-  const precision = units.precision;
   const catalog = catalogOf(doc);
   const groups = new Map<string, CutListGroup>();
   const rows = new Map<string, CutListRow>();
@@ -373,7 +372,7 @@ export function buildCutList(doc: FlatDocument): CutList {
     const sheet = catalog.get(group.material)?.sheet;
     if (sheet) {
       group.sheet = sheet;
-      group.nesting = buildNesting(groupBoards.get(group)!, sheet, doc.stock.kerf, precision);
+      group.nesting = buildNesting(groupBoards.get(group)!, sheet, doc.stock.kerf, units);
     }
   }
   out.sort(

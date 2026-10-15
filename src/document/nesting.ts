@@ -1,6 +1,5 @@
 import type { Board, SheetStock } from './types';
-import { formatLength, imperialAt } from '../units/length';
-// Imperial until metric chunk 2 (drawings/buying, spec §4).
+import { formatLengthBare, type Units } from '../units/length';
 
 /**
  * `length × width`, formatted — the ONE home of that expression here.
@@ -8,16 +7,20 @@ import { formatLength, imperialAt } from '../units/length';
  * It had three copies (a placed part, an unplaceable part, the sheet stock
  * itself) with nothing pinning that they stayed in agreement if one were ever
  * edited alone — follow-up 92's first half. They are one dimension pair read
- * off one sheet, and the module already imports `formatLength` so that a
+ * off one sheet, and the module already imports `formatLengthBare` so that a
  * dimension cannot read differently in two places on one printed sheet; three
  * spellings of the same expression is that guarantee held by convention
  * rather than by construction.
  *
  * Takes two numbers rather than a `Board`, which is what lets the sheet-stock
  * call site share it — `SheetStock` is not a `Board` and never will be.
+ *
+ * A drawing label (spec R8): bare numbers in the document's units — metric `762 × 286` (the sheet carries one
+ * "Dimensions in mm" note), imperial with its marks, byte-for-byte as before. This module stays the one owner of
+ * the string `SheetLayout` measures and draws (invariant 19).
  */
-const formatDims = (length: number, width: number, precision: number) =>
-  `${formatLength(length, imperialAt(precision))} × ${formatLength(width, imperialAt(precision))}`;
+const formatDims = (length: number, width: number, units: Units) =>
+  `${formatLengthBare(length, units)} × ${formatLengthBare(width, units)}`;
 
 /**
  * How a part lands on a sheet: its footprint AS PLACED.
@@ -180,12 +183,12 @@ function placeOn(
   options: Footprint[],
   stock: { length: number; width: number },
   kerf: number,
-  precision: number,
+  units: Units,
 ): boolean {
   // length × width, the board's own dimensions — matches CutListRow.dims's
   // order for the same board regardless of `turned`. Computed once here
   // rather than inside `put`, which runs per placement attempt.
-  const dims = formatDims(board.length, board.width, precision);
+  const dims = formatDims(board.length, board.width, units);
 
   const put = (f: Footprint, x: number, y: number) => {
     sheet.parts.push({
@@ -253,7 +256,7 @@ export function buildNesting(
   boards: Board[],
   stock: SheetStock,
   kerf: number,
-  precision: number,
+  units: Units,
 ): Nesting {
   // Decreasing by the preferred orientation's across-sheet extent — first-fit
   // DECREASING, not a guarantee. Under `rotate: 'free'` this key is the
@@ -294,7 +297,7 @@ export function buildNesting(
     // with. Try existing sheets first; if none take it, try one fresh sheet;
     // only THAT attempt's own result decides placed-vs-unplaceable, so there
     // is nothing left to diverge from.
-    if (sheets.some((sheet) => placeOn(sheet, board, options, stock, kerf, precision))) continue;
+    if (sheets.some((sheet) => placeOn(sheet, board, options, stock, kerf, units))) continue;
 
     const sheet: WorkingSheet = { parts: [], shelves: [] };
     // A fresh sheet must never enter `sheets` unless a part actually landed
@@ -302,7 +305,7 @@ export function buildNesting(
     // empty sheet counted here is the exact wrong purchasing number this
     // feature exists to produce, so `push` happens only inside this branch,
     // gated on `placeOn`'s own result, never unconditionally before it.
-    if (placeOn(sheet, board, options, stock, kerf, precision)) {
+    if (placeOn(sheet, board, options, stock, kerf, units)) {
       sheets.push(sheet);
     } else {
       unplaceable.push({
@@ -310,13 +313,13 @@ export function buildNesting(
         name: board.name,
         // No `turned` here, and not an omission: a part that fit no sheet in
         // ANY allowed orientation was never placed, so it has none to report.
-        dims: formatDims(board.length, board.width, precision),
+        dims: formatDims(board.length, board.width, units),
       });
     }
   }
 
   const count = sheets.length;
-  const sheet = formatDims(stock.length, stock.width, precision);
+  const sheet = formatDims(stock.length, stock.width, units);
   return {
     sheets: sheets.map((s) => ({ parts: s.parts })),
     unplaceable,
@@ -343,7 +346,7 @@ export function packOnto<B extends Bin>(
   boards: Board[],
   sizes: readonly B[],
   kerf: number,
-  precision: number,
+  units: Units,
 ): { bins: PackedBin<B>[]; unplaceable: Board[] } {
   const sorted = [...boards].sort((a, b) => {
     const fa = grainFootprint(a);
@@ -354,7 +357,7 @@ export function packOnto<B extends Bin>(
   const unplaceable: Board[] = [];
   for (const board of sorted) {
     const options = [grainFootprint(board)];
-    if (open.some((o) => placeOn(o.sheet, board, options, o.bin, kerf, precision))) continue;
+    if (open.some((o) => placeOn(o.sheet, board, options, o.bin, kerf, units))) continue;
     let pick: B | null = null;
     for (const s of sizes) {
       if (!fits(options[0]!.w, s.length) || !fits(options[0]!.h, s.width)) continue;
@@ -362,7 +365,7 @@ export function packOnto<B extends Bin>(
     }
     if (!pick) { unplaceable.push(board); continue; }
     const sheet: WorkingSheet = { parts: [], shelves: [] };
-    placeOn(sheet, board, options, pick, kerf, precision);
+    placeOn(sheet, board, options, pick, kerf, units);
     open.push({ bin: pick, sheet });
   }
   return { bins: open.map((o) => ({ bin: o.bin, parts: o.sheet.parts })), unplaceable };

@@ -20,7 +20,6 @@ export function PlansSheet({ onClose }: { onClose: () => void }) {
   const doc = useStore((s) => s.doc);
   const parts = worldParts(doc);
   const assemblies = useMemo(() => planAssemblies(doc), [doc]);
-  const precision = doc.units.precision;
   const [amount, setAmount] = useState(SHEET_EXPLODE);
   const sheet = useRef<HTMLDivElement>(null);
 
@@ -57,12 +56,12 @@ export function PlansSheet({ onClose }: { onClose: () => void }) {
             </section>
             <section className="plans-section">
               <h3>{doc.name}</h3>
-              <PlanTrio parts={parts} precision={precision} label={doc.name} />
+              <PlanTrio parts={parts} units={doc.units} label={doc.name} />
             </section>
             {assemblies.map((a) => (
               <section className="plans-section" key={a.definition}>
                 <h3>{a.title}{a.copies > 1 ? ` × ${a.copies}` : ''}{mirroredNote(a.mirroredCopies)}</h3>
-                <PlanTrio parts={a.parts} precision={precision} label={a.title} />
+                <PlanTrio parts={a.parts} units={doc.units} label={a.title} />
               </section>
             ))}
           </>

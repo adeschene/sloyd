@@ -1,3 +1,4 @@
+import { IMPERIAL } from '../units/length';
 import { buildNesting, footprintsOf } from './nesting';
 import { createBoard } from './document';
 import type { SheetStock } from './types';
@@ -68,7 +69,7 @@ const overlaps = (a: { x: number; y: number; w: number; h: number },
 
 describe('buildNesting', () => {
   it('returns no sheets for no parts', () => {
-    const n = buildNesting([], PLY, 0.125, 16);
+    const n = buildNesting([], PLY, 0.125, IMPERIAL);
     expect(n.sheets).toEqual([]);
     expect(n.unplaceable).toEqual([]);
     expect(n.label).toBe('0 sheets (96" × 48")');
@@ -76,7 +77,7 @@ describe('buildNesting', () => {
   });
 
   it('labels one sheet in the singular', () => {
-    expect(buildNesting([part(24, 12, 'A')], PLY, 0.125, 16).label)
+    expect(buildNesting([part(24, 12, 'A')], PLY, 0.125, IMPERIAL).label)
       .toBe('1 sheet (96" × 48")');
   });
 
@@ -86,7 +87,7 @@ describe('buildNesting', () => {
   // matching cut-list row for the same board — not as the raw float
   // `SheetLayout.tsx` used to interpolate directly.
   it('formats a placed part\'s dims, not the raw float', () => {
-    const n = buildNesting([part(23.5, 12, 'A')], PLY, 0, 16);
+    const n = buildNesting([part(23.5, 12, 'A')], PLY, 0, IMPERIAL);
     expect(n.sheets[0].parts[0].dims).toBe('23-1/2" × 12"');
   });
 
@@ -101,7 +102,7 @@ describe('buildNesting', () => {
       name: 'Turned', length: 48, width: 24, thickness: 0.75,
       grain: 'width', material: 'plywood',
     });
-    const n = buildNesting([b], PLY, 0, 16);
+    const n = buildNesting([b], PLY, 0, IMPERIAL);
     expect(n.sheets[0].parts[0].turned).toBe(true);
     // The pair is NOT transposed — the point of this test, unchanged by the
     // word that now follows it. Asserted as a non-match as well as a match,
@@ -128,7 +129,7 @@ describe('buildNesting', () => {
       name: 'Straight', length: 48, width: 24, thickness: 0.75,
       grain: 'length', material: 'plywood',
     });
-    const n = buildNesting([turned, straight], PLY, 0, 16);
+    const n = buildNesting([turned, straight], PLY, 0, IMPERIAL);
     const parts = n.sheets.flatMap((s) => s.parts);
     const t = parts.find((p) => p.name === 'Turned')!;
     const st = parts.find((p) => p.name === 'Straight')!;
@@ -147,7 +148,7 @@ describe('buildNesting', () => {
       name: 'Back Panel', length: 100, width: 30, thickness: 0.75,
       grain: 'width', material: 'plywood',
     });
-    const n = buildNesting([tooBig], PLY, 0, 16);
+    const n = buildNesting([tooBig], PLY, 0, IMPERIAL);
     expect(n.unplaceable).toHaveLength(1);
     expect(n.unplaceable[0].dims).toBe('100" × 30"');
   });
@@ -159,7 +160,7 @@ describe('buildNesting', () => {
   it('fits four 24-inch parts on a 96-inch sheet at zero kerf', () => {
     const n = buildNesting(
       [part(24, 12, 'A'), part(24, 12, 'B'), part(24, 12, 'C'), part(24, 12, 'D')],
-      PLY, 0, 16,
+      PLY, 0, IMPERIAL,
     );
     expect(n.sheets).toHaveLength(1);
     expect(n.sheets[0].parts.map((p) => p.x)).toEqual([0, 24, 48, 72]);
@@ -169,7 +170,7 @@ describe('buildNesting', () => {
   it('spends a second sheet once kerf is counted', () => {
     const n = buildNesting(
       [part(24, 12, 'A'), part(24, 12, 'B'), part(24, 12, 'C'), part(24, 12, 'D')],
-      PLY, 0.125, 16,
+      PLY, 0.125, IMPERIAL,
     );
     expect(n.sheets).toHaveLength(1);
     expect(n.sheets[0].parts).toHaveLength(4);
@@ -191,19 +192,19 @@ describe('buildNesting', () => {
   // with it, all fifteen ride the first.
   it('tolerates float error from decimal-inch summation, not sixteenths', () => {
     const boards = Array.from({ length: 15 }, (_, i) => part(6.4, 4, `P${i}`));
-    const n = buildNesting(boards, PLY, 0, 16);
+    const n = buildNesting(boards, PLY, 0, IMPERIAL);
     expect(n.sheets).toHaveLength(1);
     expect(n.sheets[0].parts.filter((p) => p.y === 0)).toHaveLength(15);
   });
 
   it('leaves no kerf at a sheet or shelf edge', () => {
-    const n = buildNesting([part(24, 12, 'A')], PLY, 0.125, 16);
+    const n = buildNesting([part(24, 12, 'A')], PLY, 0.125, IMPERIAL);
     expect(n.sheets[0].parts[0]).toMatchObject({ x: 0, y: 0 });
   });
 
   it('opens a second sheet when the first is full', () => {
     const boards = Array.from({ length: 9 }, (_, i) => part(48, 24, `P${i}`));
-    const n = buildNesting(boards, PLY, 0, 16);
+    const n = buildNesting(boards, PLY, 0, IMPERIAL);
     expect(n.sheets).toHaveLength(3);
     expect(n.sheets.flatMap((s) => s.parts)).toHaveLength(9);
   });
@@ -213,7 +214,7 @@ describe('buildNesting', () => {
       part(30, 20, 'A'), part(30, 20, 'B'), part(18, 18, 'C'),
       part(48, 6, 'D'), part(12, 40, 'E'), part(7, 3, 'F'),
     ];
-    const n = buildNesting(boards, PLY, 0.125, 16);
+    const n = buildNesting(boards, PLY, 0.125, IMPERIAL);
     for (const [a, b] of pairs(n)) expect(overlaps(a, b)).toBe(false);
     for (const s of n.sheets) {
       for (const p of s.parts) {
@@ -243,7 +244,7 @@ describe('buildNesting', () => {
       part(30, 20, 'A'), part(30, 20, 'B'), part(18, 18, 'C'),
       part(48, 6, 'D'), part(12, 40, 'E'), part(7, 3, 'F'),
     ];
-    const n = buildNesting(boards, PLY, 0.125, 16);
+    const n = buildNesting(boards, PLY, 0.125, IMPERIAL);
     for (const s of n.sheets) {
       // Distinct shelf starts, ascending. A deduped, sorted array is strictly
       // increasing BY CONSTRUCTION — that alone proves nothing about
@@ -272,7 +273,7 @@ describe('buildNesting', () => {
   it('does not stand a part taller than the shelf it would ride', () => {
     const rail = createBoard({ name: 'Rail', length: 90, width: 10, grain: 'length', material: 'mdf' });
     const stick = createBoard({ name: 'Stick', length: 30, width: 4, grain: 'length', material: 'mdf' });
-    const n = buildNesting([rail, stick], MDF, 0, 16);
+    const n = buildNesting([rail, stick], MDF, 0, IMPERIAL);
     expect(n.sheets).toHaveLength(1);
     expect(n.sheets[0].parts).toEqual([
       { boardId: rail.id, name: 'Rail', x: 0, y: 0, w: 90, h: 10, turned: false, dims: '90" × 10"' },
@@ -281,7 +282,7 @@ describe('buildNesting', () => {
   });
 
   it('records a part too big for any sheet without opening one', () => {
-    const n = buildNesting([part(100, 30, 'Back Panel')], PLY, 0.125, 16);
+    const n = buildNesting([part(100, 30, 'Back Panel')], PLY, 0.125, IMPERIAL);
     expect(n.sheets).toEqual([]);
     expect(n.unplaceable).toEqual([
       { boardId: expect.any(String), name: 'Back Panel', dims: '100" × 30"' },
@@ -289,7 +290,7 @@ describe('buildNesting', () => {
   });
 
   it('still packs the parts that do fit', () => {
-    const n = buildNesting([part(100, 30, 'Oops'), part(24, 12, 'Fine')], PLY, 0.125, 16);
+    const n = buildNesting([part(100, 30, 'Oops'), part(24, 12, 'Fine')], PLY, 0.125, IMPERIAL);
     expect(n.unplaceable).toHaveLength(1);
     expect(n.sheets).toHaveLength(1);
     expect(n.sheets[0].parts[0].name).toBe('Fine');
@@ -300,7 +301,7 @@ describe('buildNesting', () => {
   it('reports a width-grained part as turned', () => {
     const ply = buildNesting(
       [createBoard({ name: 'X', length: 60, width: 40, grain: 'width', material: 'plywood' })],
-      { length: 48, width: 96, rotate: 'grain' }, 0, 16,
+      { length: 48, width: 96, rotate: 'grain' }, 0, IMPERIAL,
     );
     expect(ply.sheets).toHaveLength(1);
     expect(ply.sheets[0].parts[0]).toMatchObject({ w: 40, h: 60, turned: true });
@@ -313,9 +314,9 @@ describe('buildNesting', () => {
       part(30, 20, 'A'), part(30, 20, 'B'), part(18, 18, 'C'),
       part(48, 6, 'D'), part(12, 40, 'E'), part(7, 3, 'F'),
     ];
-    const forward = buildNesting(boards, PLY, 0.125, 16);
-    const reversed = buildNesting([...boards].reverse(), PLY, 0.125, 16);
-    const shuffled = buildNesting([boards[3], boards[0], boards[5], boards[2], boards[4], boards[1]], PLY, 0.125, 16);
+    const forward = buildNesting(boards, PLY, 0.125, IMPERIAL);
+    const reversed = buildNesting([...boards].reverse(), PLY, 0.125, IMPERIAL);
+    const shuffled = buildNesting([boards[3], boards[0], boards[5], boards[2], boards[4], boards[1]], PLY, 0.125, IMPERIAL);
     expect(reversed).toEqual(forward);
     expect(shuffled).toEqual(forward);
   });
@@ -331,9 +332,23 @@ describe('buildNesting', () => {
   it('packs free-rotating material at least as tightly as grain-locked', () => {
     const boards = Array.from({ length: 6 }, (_, i) =>
       createBoard({ name: `P${i}`, length: 18, width: 25, grain: 'length', material: 'mdf' }));
-    const free = buildNesting(boards, MDF, 0, 16).sheets.length;
-    const locked = buildNesting(boards, PLY, 0, 16).sheets.length;
+    const free = buildNesting(boards, MDF, 0, IMPERIAL).sheets.length;
+    const locked = buildNesting(boards, PLY, 0, IMPERIAL).sheets.length;
     expect(free).toBeLessThanOrEqual(locked);
     expect(free).toBeLessThan(locked);
+  });
+});
+
+describe('buildNesting in metric (chunk 2)', () => {
+  const MM = { display: 'metric-mm' as const, precision: 16 };
+  it('metric nesting labels are bare mm', () => {
+    const n = buildNesting([part(30, 11.25, 'Shelf')], PLY, 0.125, MM);
+    expect(n.sheets[0]!.parts[0]!.dims).toBe('762 × 286');
+    expect(n.sheet).toBe('2438 × 1219');
+    expect(n.label).toBe('1 sheet (2438 × 1219)');
+  });
+  it('an unplaceable part reads bare mm too', () => {
+    const n = buildNesting([part(100, 30, 'Oops')], PLY, 0.125, MM);
+    expect(n.unplaceable[0]!.dims).toBe('2540 × 762');
   });
 });
