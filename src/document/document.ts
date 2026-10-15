@@ -50,7 +50,7 @@ export { cleanName, uniqueName, dedupeNames } from './names';
 export type { Named } from './names';
 export { pocketEdges, pocketCells, CUT_GEOMETRY_FIELDS, CUT_GEOMETRY_KEYS, cutLabel, cutRegion, clippedRegion, cutShape, storedAsShape, cutRemovesNothing, cutsThatRemoveStock, pointToLocalXYZ, solidWorldBox, wholeBoard } from './cuts';
 export type { CutKind, CutShape, Point, Segment } from './cuts';
-export { BODY_EPS, boardBodies, boardEdges, bodyEdges, bodyVerts, bodyVolume, geometryKey, partGeometry, PART_GEOMETRY_LIMIT } from './bodies';
+export { BODY_EPS, SMOOTH_EPS, boardBodies, boardEdges, bodyEdges, bodyVerts, bodyVolume, geometryKey, partGeometry, PART_GEOMETRY_LIMIT } from './bodies';
 export type { PartGeometry } from './bodies';
 export type { Body, BodyFace } from './bodies';
 export { buildCutList } from './cutlist';

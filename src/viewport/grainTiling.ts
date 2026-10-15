@@ -2,9 +2,9 @@ import { ShapeUtils, Vector2 } from 'three';
 import {
   angleCutValues, axialOffset, axisFrame, boardExtents, bodyPlanes, clipPlan, clipPolygon, CUT_GEOMETRY_KEYS, DIMENSION_ORDER,
   HOLE_EPS, holeInStock, holePrism, stockChecks, holeRing, holeRowValues, curveValues, holeTouches, holeTouchesBox, isSheetGood, minusCover, minusPrism, ringInside, spanToWorldOffset, toWorldOffset,
-  wholeBoard,
+  wholeBoard, arcChords, curveOutline, CURVE_SEGMENTS_MAX, CURVE_TOLERANCE, localSegments, SMOOTH_EPS, uvDims,
 } from '../document/document';
-import type { Board, Body, BodyFace, Hole, Plane, Region, Span, StockChecks, V3 } from '../document/document';
+import type { Board, Body, BodyFace, CurveCut, Hole, LocalArc, P2, Plane, Region, Span, StockChecks, V3 } from '../document/document';
 import { axisDimensions, faceGrainKinds, grainFamily } from './grainFaces';
 import type { Dimension, GrainFamily, GrainKind } from './grainFaces';
 
@@ -288,18 +288,28 @@ function packGroups(byMaterial: number[][][]): { groups: { start: number; count:
  *
  * Holes are cut out of the faces they reach (faceTriangles); a part without
  * holes draws exactly what it drew before.
+ *
+ * A curved part (curves spec §3.4) also returns `normals`: a face lying on one of an arc's chords takes the RADIAL
+ * normal of that arc at each vertex (so the facets shade as one smooth surface, and run into a tangent straight face
+ * without a crease), every other face its flat normal. A part without curves returns none — byte-for-byte what it
+ * returned before — and BoardMesh computes its normals as it always did. A split curved body (`box === null`) drops
+ * its seams as a holed body does (`uncovered`): the internal walls on its chord planes and diagonals are never drawn.
  */
-export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], bodies?: readonly Body[]): { positions: Float32Array; uvs: Float32Array; groups: { start: number; count: number; materialIndex: number }[] } {
+export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], bodies?: readonly Body[]): { positions: Float32Array; uvs: Float32Array; normals?: Float32Array; groups: { start: number; count: number; materialIndex: number }[] } {
   const plans = facePlans(board);
   const frame = axisFrame(board);
   const extents = boardExtents(board);
   const [ou, ov] = boardUVOffset(board.id);
   const dimIndex = (d: Dimension) => DIMENSION_ORDER.indexOf(d);
   const offsetOf = worldOffsets(board);
-  const byMaterial: { pos: number[]; uv: number[] }[] = Array.from({ length: 6 }, () => ({ pos: [], uv: [] }));
-  const faces = bodies && holed(body, holes) ? body.faces.flatMap((f) => uncovered(f, body, bodies)) : body.faces;
+  const curved = board.curves.length > 0;
+  const byMaterial: { pos: number[]; uv: number[]; nor: number[] }[] = Array.from({ length: 6 }, () => ({ pos: [], uv: [], nor: [] }));
+  const seams = bodies && (holed(body, holes) || (curved && body.box === null)) ? seamIndex(bodies) : null;
+  const faces = seams ? body.faces.flatMap((f) => uncovered(f, body, seams)) : body.faces;
+  const toWorld = (local: readonly number[]): V3 => [0, 1, 2].map((i) => local[dimIndex(frame[i]!.dim)]! * (frame[i]!.reversed ? -1 : 1)) as V3;
+  const chordsOf = curved ? curveChords(board) : null;
   for (const f of faces) {
-    const n = [0, 1, 2].map((i) => f.n[dimIndex(frame[i]!.dim)]! * (frame[i]!.reversed ? -1 : 1));
+    const n = toWorld(f.n);
     let axis = 0;
     for (let i = 1; i < 3; i += 1) if (Math.abs(n[i]!) > Math.abs(n[axis]!) + 1e-9) axis = i;
     const cut = f.cut ? board.angleCuts.find((c) => c.id === f.cut) : undefined;
@@ -317,20 +327,88 @@ export function bodyMesh(board: Board, body: Body, holes: readonly Hole[] = [], 
         p[plan.axes[1]]! / plan.tileInches[1] + (plan.fit[1] ? 0 : ov),
       );
     };
+    // The vertex normal stream (curved parts only): the arc this face lies on, if any, gives a radial normal per vertex.
+    const arc = chordsOf && f.curve !== undefined ? chordArc(chordsOf.get(f.curve), f) : null;
+    const nor = (p: V3) => {
+      if (!chordsOf) return;
+      if (!arc) { out.nor.push(n[0], n[1], n[2]); return; }
+      const ru = p[arc.iu]! - arc.arc.centre[0];
+      const rv = p[arc.iv]! - arc.arc.centre[1];
+      const l = Math.hypot(ru, rv);
+      const s = (ru * f.n[arc.iu]! + rv * f.n[arc.iv]!) < 0 ? -1 / l : 1 / l;
+      const local: V3 = [0, 0, 0];
+      local[arc.iu] = ru * s;
+      local[arc.iv] = rv * s;
+      const w = toWorld(local);
+      out.nor.push(w[0], w[1], w[2]);
+    };
     for (const t of faceTriangles(f, holes)) {
       const w0 = offsetOf(t[0]!); const w1 = offsetOf(t[1]!); const w2 = offsetOf(t[2]!);
       const d = facing(w0, w1, w2, n);
       // Near-duplicate vertices from clipping make zero-area fans; emit nothing for them.
       if (d === null) continue;
-      put(w0);
-      if (d < 0) { put(w2); put(w1); } else { put(w1); put(w2); }
+      put(w0); nor(t[0]!);
+      if (d < 0) { put(w2); nor(t[2]!); put(w1); nor(t[1]!); } else { put(w1); nor(t[1]!); put(w2); nor(t[2]!); }
     }
   }
-  const { groups, out: [positions, uvs] } = packGroups(byMaterial.map((m) => [m.pos, m.uv]));
-  return { positions: positions!, uvs: uvs!, groups };
+  if (!curved) {
+    const { groups, out: [positions, uvs] } = packGroups(byMaterial.map((m) => [m.pos, m.uv]));
+    return { positions: positions!, uvs: uvs!, groups };
+  }
+  const { groups, out: [positions, uvs, normals] } = packGroups(byMaterial.map((m) => [m.pos, m.uv, m.nor]));
+  return { positions: positions!, uvs: uvs!, normals: normals!, groups };
 }
 
-/** A hole's box meets the body's (holeTouchesBox over the body's vertex bounds): the body is HOLED (ruling R11). */
+/** One arc chord of a curve, in board-local (u, v), with the arc it is a chord of and the u/v dimension indices. */
+interface Chord { a: P2; b: P2; arc: LocalArc; iu: number; iv: number }
+
+/**
+ * Every curve's arc chords (curves spec §3.4), by curve id — the outline's own chord points (curveOutline), so a chord
+ * face's vertices are these numbers. Built once per bodyMesh call.
+ */
+function curveChords(board: Board): Map<string, Chord[]> {
+  const out = new Map<string, Chord[]>();
+  for (const c of board.curves) out.set(c.id, chordsOfCurve(board, c));
+  return out;
+}
+
+function chordsOfCurve(board: Board, c: CurveCut): Chord[] {
+  const [u, v] = uvDims(c.through);
+  const iu = DIMENSION_ORDER.indexOf(u);
+  const iv = DIMENSION_ORDER.indexOf(v);
+  const o = curveOutline(board, c);
+  const chords: Chord[] = [];
+  let at = 0;
+  // The outline lists each segment's start, then (for an arc) its interior chord points: an arc's chords are the
+  // outline edges at..at + n - 1 (curvePlan's walk).
+  for (const s of localSegments(board, c)) {
+    if (s.kind === 'line') { at += 1; continue; }
+    const n = arcChords(s, CURVE_TOLERANCE, CURVE_SEGMENTS_MAX);
+    for (let k = 0; k < n; k += 1) chords.push({ a: o.pts[at + k]!, b: o.pts[(at + k + 1) % o.pts.length]!, arc: s, iu, iv });
+    at += n;
+  }
+  return chords;
+}
+
+/**
+ * The chord a face lies on, if any: every vertex's (u, v) within SMOOTH_EPS of that one chord SEGMENT. A face tagged
+ * with the curve but not on a chord (an internal wall on a chord plane's extension, a diagonal) gets null — its flat
+ * normal. Not the centroid's distance to the circle: a chord face's centroid sits up to a sagitta inside it, and a
+ * chord face clipped by another cut has vertices inside the chord, off the circle.
+ */
+function chordArc(chords: readonly Chord[] | undefined, f: BodyFace): Chord | null {
+  if (!chords) return null;
+  const near = (p: V3, ch: Chord) => {
+    const pu = p[ch.iu]!; const pv = p[ch.iv]!;
+    const du = ch.b[0] - ch.a[0]; const dv = ch.b[1] - ch.a[1];
+    const t = Math.max(0, Math.min(1, ((pu - ch.a[0]) * du + (pv - ch.a[1]) * dv) / (du * du + dv * dv)));
+    return Math.hypot(pu - ch.a[0] - t * du, pv - ch.a[1] - t * dv) <= SMOOTH_EPS;
+  };
+  return chords.find((ch) => f.verts.every((p) => near(p, ch))) ?? null;
+}
+
+/** A hole's box meets the body's (holeTouchesBox over the body's vertex bounds): the body is HOLED (ruling R11). A holed
+ *  body — and a split curved body, curves spec §3.4 — draws only its `uncovered` faces. */
 function holed(body: Body, holes: readonly Hole[]): boolean {
   if (holes.length === 0) return false;
   const lo: V3 = [Infinity, Infinity, Infinity];
@@ -345,22 +423,81 @@ function holed(body: Body, holes: readonly Hole[]): boolean {
  * body facing the opposite way lies against it, so between them is stock — a seam inside the part, never seen, and
  * punching it with every ring that crosses it was most of a holed part's rebuild. Coincident faces drop entirely; a
  * face a neighbour only partly covers keeps the rest (a dado's floor, beside the bodies on either side). A face nothing
- * covers comes back as the same object.
+ * covers comes back as the same object. Also run on a split curved body (curves spec §3.4): the walls between the slices
+ * of a curve's split lie against each other the same way.
  */
-function uncovered(f: BodyFace, body: Body, bodies: readonly Body[]): BodyFace[] {
+function uncovered(f: BodyFace, body: Body, index: SeamIndex): BodyFace[] {
   let pieces: V3[][] = [f.verts];
-  for (const other of bodies) {
-    if (other === body) continue;
-    for (const g of other.faces) {
-      if (f.n[0] * g.n[0] + f.n[1] * g.n[1] + f.n[2] * g.n[2] > -1 + HOLE_EPS) continue;
-      const p = g.verts[0]!;
-      const q = f.verts[0]!;
-      if (Math.abs(f.n[0] * (p[0] - q[0]) + f.n[1] * (p[1] - q[1]) + f.n[2] * (p[2] - q[2])) > HOLE_EPS) continue;
-      pieces = pieces.flatMap((piece) => minusCover(piece, f.n, g.verts));
-    }
+  const q = f.verts[0]!;
+  for (const k of facingAgainst(index, body, f.n[0], f.n[1], f.n[2], q[0], q[1], q[2])) {
+    const g = index.faces[k]!;
+    pieces = pieces.flatMap((piece) => minusCover(piece, f.n, g.verts));
   }
   if (pieces.length === 1 && pieces[0] === f.verts) return [f];
   return pieces.map((verts) => ({ ...f, verts }));
+}
+
+/** The indices, in order, of every face of ANOTHER body lying against a face (normal n, first vertex q): coplanar and
+ *  facing the opposite way, within HOLE_EPS (the test `uncovered` always made, unchanged). Only the faces whose normal
+ *  KEY lies in the window that test allows are visited (see SeamIndex), so a part with hundreds of faces does not test
+ *  every pair. */
+function facingAgainst(index: SeamIndex, body: Body, n0: number, n1: number, n2: number, q0: number, q1: number, q2: number): number[] {
+  const { num, owner, keys, order } = index;
+  const want = -(n0 * KEY[0] + n1 * KEY[1] + n2 * KEY[2]);
+  // First sorted position with key >= want − KEY_WINDOW.
+  let lo = 0;
+  let hi = keys.length;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (keys[mid]! < want - KEY_WINDOW) lo = mid + 1; else hi = mid; }
+  const out: number[] = [];
+  for (let j = lo; j < keys.length && keys[j]! <= want + KEY_WINDOW; j += 1) {
+    const k = order[j]!;
+    const o = k * 6;
+    if (n0 * num[o]! + n1 * num[o + 1]! + n2 * num[o + 2]! > -1 + HOLE_EPS) continue;
+    if (Math.abs(n0 * (num[o + 3]! - q0) + n1 * (num[o + 4]! - q1) + n2 * (num[o + 5]! - q2)) > HOLE_EPS) continue;
+    if (owner[k] !== body) out.push(k);
+  }
+  return out.sort((a, b) => a - b);   // body order, then face order: the order the covers are subtracted in
+}
+
+/**
+ * The normal key: n · KEY, a fixed unit direction leaning on no axis. Two (near-)unit normals with n·m <= −1 + HOLE_EPS
+ * have |n + m|² = |n|² + |m|² + 2 n·m <= 2·HOLE_EPS (+ rounding), so their keys sum to at most √(2e-9) ≈ 4.5e-5 in
+ * magnitude: KEY_WINDOW = 1e-4 cannot miss a face the full test would take.
+ */
+const KEY = (() => { const v = [1, 0.618, 0.382]; const l = Math.hypot(...v); return v.map((x) => x / l) as V3; })();
+const KEY_WINDOW = 1e-4;
+
+/**
+ * Every face of a part's bodies, in body order then face order (the order `uncovered` subtracts in), with its normal
+ * and first vertex as plain numbers, and sorted by normal key (`order`, `keys`): a split curved part has hundreds of
+ * faces (an L-shaped notch's ear-clipped waste: 83 bodies, 477 faces — some 237 000 pairs per rebuild tested one by
+ * one). Built once per FROZEN bodies array (partGeometry's, shared and never mutated) and kept by its identity; an
+ * unfrozen array is indexed afresh on every call (invariant 50's rule: never memoise what can change). Module-level
+ * is safe here, unlike `worldOffsets`' memo: the index holds no pose (board-local faces only), so every part sharing
+ * those frozen bodies — in any pose — shares one correct index, and the WeakMap lets it go with the bodies.
+ */
+interface SeamIndex { owner: Body[]; faces: BodyFace[]; num: Float64Array; keys: Float64Array; order: Int32Array }
+const seamIndexes = new WeakMap<readonly Body[], SeamIndex>();
+function seamIndex(bodies: readonly Body[]): SeamIndex {
+  const hit = seamIndexes.get(bodies);
+  if (hit) return hit;
+  const owner: Body[] = [];
+  const faces: BodyFace[] = [];
+  for (const b of bodies) for (const g of b.faces) { owner.push(b); faces.push(g); }
+  const num = new Float64Array(faces.length * 6);
+  const key = new Float64Array(faces.length);
+  for (let k = 0; k < faces.length; k += 1) {
+    const g = faces[k]!;
+    const p = g.verts[0]!;
+    const o = k * 6;
+    num[o] = g.n[0]; num[o + 1] = g.n[1]; num[o + 2] = g.n[2]; num[o + 3] = p[0]; num[o + 4] = p[1]; num[o + 5] = p[2];
+    key[k] = g.n[0] * KEY[0] + g.n[1] * KEY[1] + g.n[2] * KEY[2];
+  }
+  const order = Int32Array.from(faces.keys()).sort((a, b) => key[a]! - key[b]!);
+  const keys = Float64Array.from(order, (k) => key[k]!);
+  const index = { owner, faces, num, keys, order };
+  if (Object.isFrozen(bodies)) seamIndexes.set(bodies, index);
+  return index;
 }
 
 /**

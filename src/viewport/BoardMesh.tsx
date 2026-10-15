@@ -166,12 +166,16 @@ export function BoardMesh({ board, selected, faded, onOpen, onSelect, selectable
             geo.setAttribute('uv', new THREE.BufferAttribute(boardUVs(board, body.box), 2));
             return { geo, center };
           }
-          const m = bodyMesh(board, body, holes, bodies);   // seams between holed bodies skipped (ruling R11)
+          // Seams between holed bodies, and between a split curved part's bodies, skipped (ruling R11; curves spec §3.4).
+          const m = bodyMesh(board, body, holes, bodies);
           const geo = new THREE.BufferGeometry();
           geo.setAttribute('position', new THREE.BufferAttribute(m.positions, 3));
           geo.setAttribute('uv', new THREE.BufferAttribute(m.uvs, 2));
           for (const g of m.groups) geo.addGroup(g.start, g.count, g.materialIndex);
-          geo.computeVertexNormals();
+          // A curved part's normals are explicit (radial on an arc's facets: one smooth surface); any other part's are
+          // computed, as they always were.
+          if (m.normals) geo.setAttribute('normal', new THREE.BufferAttribute(m.normals, 3));
+          else geo.computeVertexNormals();
           return { geo, center: [0, 0, 0] as [number, number, number] };
         }),
         // Every hole's wall and bottom (holes spec §3.2) in ONE geometry (final review 2: one mesh per part, not per
