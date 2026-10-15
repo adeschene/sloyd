@@ -135,12 +135,17 @@ function formatFraction(inches: number, precision: number): string {
   return `${sign}${whole}-${num}/${den}"`;
 }
 
-/** Decimal millimetres for `inches`, rounded half away from zero at `decimals` places after the same relative-epsilon
- *  nudge the fraction path uses; a zero result has no sign. */
+/** |inches| in ticks of 1 mm (or 0.1 mm), rounded half away from zero after the fraction path's relative-epsilon nudge —
+ *  THE metric rounding: the text, the nominal match and the stock fit all read it (fu 354). */
+export function mmTicks(inches: number, decimals: 0 | 1 = 0): number {
+  const f = decimals === 1 ? 10 : 1;
+  return Math.round(Math.abs(inches * MM_PER_INCH) * f * (1 + Number.EPSILON) + Number.EPSILON);
+}
+
+/** Decimal millimetres for `inches` at `decimals` places (`mmTicks`' rounding); a zero result has no sign. */
 function mmNumber(inches: number, decimals: 0 | 1): string {
   const mm = inches * MM_PER_INCH;
-  const f = decimals === 1 ? 10 : 1;
-  const ticks = Math.round(Math.abs(mm) * f * (1 + Number.EPSILON) + Number.EPSILON);
+  const ticks = mmTicks(inches, decimals);
   if (ticks === 0) return '0';
   const sign = mm < 0 ? '-' : '';
   return decimals === 1 && ticks % 10 !== 0 ? `${sign}${(ticks / 10).toFixed(1)}` : `${sign}${decimals === 1 ? ticks / 10 : ticks}`;

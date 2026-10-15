@@ -1,4 +1,4 @@
-import { formatLength, imperialAt } from './length';
+import { formatLength, imperialAt, isMetric, mmTicks, type Units } from './length';
 // `stockLengthText` is imperial on purpose: trade lengths are sold in feet in any project (spec R3).
 
 /** US softwood dimensional lumber: nominal inches → actual (custom materials spec §5.1). */
@@ -19,10 +19,17 @@ export const NOMINAL_SECTIONS: readonly NominalSection[] = NAMED.map(([t, w]) =>
 /** Far below 1/64", far above float drift: the cut list's flush tolerance. Never a rounding (invariant 18). */
 const EPS = 1e-9;
 
-/** The section's name when thickness × width (either order) IS one, else null (spec §5.2). */
-export function nominalName(thickness: number, width: number): string | null {
+/**
+ * The section's name when thickness × width (either order) IS one, else null (spec §5.2). Imperial: EXACT at 1e-9.
+ * Metric (fu 354): both sides read the same whole mm — a 38 × 89 mm part is a 2×4 (1-1/2 × 3-1/2 = 38.1 × 88.9 mm), as the
+ * person typing it means; the stored value is untouched.
+ */
+export function nominalName(thickness: number, width: number, units: Units): string | null {
   const [a, b] = thickness <= width ? [thickness, width] : [width, thickness];
-  return NOMINAL_SECTIONS.find((s) => Math.abs(s.thickness - a) <= EPS && Math.abs(s.width - b) <= EPS)?.name ?? null;
+  const same = isMetric(units)
+    ? (x: number, y: number) => mmTicks(x) === mmTicks(y)
+    : (x: number, y: number) => Math.abs(x - y) <= EPS;
+  return NOMINAL_SECTIONS.find((s) => same(s.thickness, a) && same(s.width, b))?.name ?? null;
 }
 
 /** A stock board's length as a yard writes it: whole feet as `8′`, anything else exactly as `formatLength`. */

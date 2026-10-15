@@ -352,3 +352,15 @@ describe('buildNesting in metric (chunk 2)', () => {
     expect(n.unplaceable[0]!.dims).toBe('2540 × 762 mm');
   });
 });
+
+describe('metric slack against the sheet bounds (fu 354)', () => {
+  const MM = { display: 'metric-mm' as const, precision: 16 };
+  const SHEET: SheetStock = { length: 96, width: 23.5, rotate: 'grain' };   // 596.9 mm wide
+  const part = () => createBoard({ length: 12, width: 597 / 25.4, grain: 'length', material: 'plywood' });
+  it('a part that reads the sheet width in mm fits in metric', () => {
+    expect(buildNesting([part()], SHEET, 0.125, MM).unplaceable).toHaveLength(0);
+  });
+  it('and not in imperial, which stays exact', () => {
+    expect(buildNesting([part()], SHEET, 0.125, IMPERIAL).unplaceable).toHaveLength(1);
+  });
+});

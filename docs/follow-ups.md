@@ -5561,7 +5561,12 @@ is merged but must not deploy alone: a metric cut-list sheet would print mm rows
 **354. Round-mm parts miss nominal lumber.** A part typed in whole mm is not a nominal section (286 mm = 11.26" > a 1×12's
 11.25"), so the cut list names no nominal size and Buying reports "fits no pine stock — too wide". Correct arithmetic, but a
 metric user picking boards from a US yard will meet it. Remedy to discuss: a tolerance for nominal matching in metric, or a
-Nominal size select that snaps the part to the actual section. **Status:** open — for the user.
+Nominal size select that snaps the part to the actual section. **Status:** closed 2026-10-15 — the user chose matching at
+display precision: in a metric project `nominalName` matches when both sides read the same whole mm, and Buying (thickness
+filter, `fitsIn`, the packer) and sheet nesting fit a part when it READS no more than the stock's outer bounds at whole mm
+(`fitsStock`, `mmTicks` — the review caught a first cut with a literal half-mm slack, which disagreed with the naming for
+decimal mm: 89.45 mm was named 2×4 but refused; 19.5 mm read 20 yet was bought from 3/4"). Shelves stay exact (inv 23).
+Imperial unchanged (exact). Stored values untouched.
 
 **355. `designCheck` messages shown in decimal inches.** `inches()` in `designCheck.ts` writes "passes 0.25in into …" — text
 that is model-facing (stays inches, spec non-goal) but also rendered in the Joinery and Refine dialogs. In a metric project

@@ -40,8 +40,8 @@ export interface CutListRow {
   /** e.g. `24" × 3-1/2"`, already formatted. */
   dims: string;
   /**
-   * The nominal name (`2×4`) when the material is sold in nominal sizes and EVERY board on the row is exactly that
-   * section; null otherwise (custom materials spec §5.3). Not the representative's: a row collapses boards that PRINT
+   * The nominal name (`2×4`) when the material is sold in nominal sizes and EVERY board on the row is that section
+   * (exactly in imperial; reading the same whole mm in metric, fu 354 — `nominalName`); null otherwise (custom materials spec §5.3). Not the representative's: a row collapses boards that PRINT
    * alike, and naming them all after the first would round what is machined (invariant 18).
    */
   nominal: string | null;
@@ -334,14 +334,14 @@ export function buildCutList(doc: FlatDocument): CutList {
         // more useful one at the bench. Follow-up 55.
         setup: setupLines(board, units),
         diagrams: buildDiagrams(board, units),
-        nominal: catalog.get(board.material)?.nominal ? nominalName(board.thickness, board.width) : null,
+        nominal: catalog.get(board.material)?.nominal ? nominalName(board.thickness, board.width, units) : null,
         stockInches: 0,
         stock: '',
       };
       rows.set(key, row);
       group.rows.push(row);
     }
-    if (row.qty > 0 && row.nominal !== null && nominalName(board.thickness, board.width) !== row.nominal) row.nominal = null;
+    if (row.qty > 0 && row.nominal !== null && nominalName(board.thickness, board.width, units) !== row.nominal) row.nominal = null;
     row.qty += 1;
     row.names.push(board.name);
 
