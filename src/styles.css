@@ -477,8 +477,11 @@ button[aria-pressed='true'] {
   position: absolute; top: 12px; right: 12px; z-index: 2;
   display: flex; flex-direction: column; align-items: flex-end; gap: 6px;
   max-width: calc(100% - 220px);
+  /* The column is wider than the Section group and has a gap: its empty area is canvas, so clicks and orbits pass
+     through it; only the groups themselves take events. */
+  pointer-events: none;
 }
-.viewport-controls-right > .viewport-controls { position: static; max-width: 100%; }
+.viewport-controls-right > .viewport-controls { position: static; max-width: 100%; pointer-events: auto; }
 .viewport-controls-section {
   align-items: center; flex-wrap: wrap; justify-content: flex-end;
   color: var(--ink);
