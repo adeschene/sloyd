@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../store/store';
+import { isMetric } from '../units/length';
 import { worldParts } from '../document/tree';
 import { planAssemblies } from '../document/plans';
 import { EXPLODE_SPREAD } from '../document/explode';
@@ -20,7 +21,6 @@ export function PlansSheet({ onClose }: { onClose: () => void }) {
   const doc = useStore((s) => s.doc);
   const parts = worldParts(doc);
   const assemblies = useMemo(() => planAssemblies(doc), [doc]);
-  const precision = doc.units.precision;
   const [amount, setAmount] = useState(SHEET_EXPLODE);
   const sheet = useRef<HTMLDivElement>(null);
 
@@ -35,7 +35,10 @@ export function PlansSheet({ onClose }: { onClose: () => void }) {
     <div className="cutlist-overlay plans-overlay" role="dialog" aria-modal="true" aria-label="Plans">
       <div className="cutlist-sheet plans-sheet" ref={sheet} tabIndex={-1}>
         <header className="cutlist-head">
-          <h2>Plans — {doc.name}</h2>
+          <div>
+            <h2>Plans — {doc.name}</h2>
+            {isMetric(doc.units) && <p className="sheet-units-note">Dimensions in mm</p>}
+          </div>
           <div className="cutlist-actions">
             <label className="plans-explode">
               Explode
@@ -57,12 +60,12 @@ export function PlansSheet({ onClose }: { onClose: () => void }) {
             </section>
             <section className="plans-section">
               <h3>{doc.name}</h3>
-              <PlanTrio parts={parts} precision={precision} label={doc.name} />
+              <PlanTrio parts={parts} units={doc.units} label={doc.name} />
             </section>
             {assemblies.map((a) => (
               <section className="plans-section" key={a.definition}>
                 <h3>{a.title}{a.copies > 1 ? ` × ${a.copies}` : ''}{mirroredNote(a.mirroredCopies)}</h3>
-                <PlanTrio parts={a.parts} precision={precision} label={a.title} />
+                <PlanTrio parts={a.parts} units={doc.units} label={a.title} />
               </section>
             ))}
           </>

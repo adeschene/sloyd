@@ -3,6 +3,7 @@ import type { Board, SloydDocument } from '../document/types';
 import { worldParts } from '../document/tree';
 import { drawView, FRONT, ISO, SIDE, TOP, type Drawing, type P2, type Seg2, type View } from '../document/drawing';
 import { dimensionView, type DimLine } from '../document/dimensions';
+import type { Units } from '../units/length';
 import { explodeOffsets } from '../document/explode';
 import { fitChain } from './planDims';
 import { DIM_BAND, PLAN_WIDTH, layoutSingle, layoutTrio, type Placement } from './planLayout';
@@ -109,10 +110,10 @@ function Elevation({ d, at, scale, h, v }: { d: Drawing; at: Placement; scale: n
 }
 
 /** Front, side and plan of `parts`, third-angle, one scale, dimensioned (spec §5.2). */
-export function PlanTrio({ parts, precision, label }: { parts: readonly Board[]; precision: number; label: string }) {
+export function PlanTrio({ parts, units, label }: { parts: readonly Board[]; units: Units; label: string }) {
   const views = useMemo(() => [FRONT, SIDE, TOP].map((view: View) => ({
-    view, d: drawView(parts, view), dims: dimensionView(parts, view, precision),
-  })), [parts, precision]);
+    view, d: drawView(parts, view), dims: dimensionView(parts, view, units),
+  })), [parts, units]);
   const [front, side, top] = views as [typeof views[0], typeof views[0], typeof views[0]];
   const lay = layoutTrio(front.d.bounds, side.d.bounds, top.d.bounds);
   const notes: string[] = [];

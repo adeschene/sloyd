@@ -1,4 +1,4 @@
-import { parseLength, formatLength, canBeginLength, formatLengthBare, formatMm, formatSize, floorToTick, IMPERIAL, imperialAt, type Units } from './length';
+import { parseLength, formatLength, canBeginLength, formatLengthBare, formatMm, formatSize, mmBracket, tradeLength, tradeSize, floorToTick, IMPERIAL, imperialAt, type Units } from './length';
 
 describe('parseLength', () => {
   it.each([
@@ -229,5 +229,24 @@ describe('floorToTick', () => {
     expect(floorToTick(23.47, IMPERIAL)).toBe(Math.floor(23.47 * 16 + 1e-9) / 16);
     expect(formatLength(floorToTick(inch(596.9), MM), MM)).toBe('596 mm');
     expect(floorToTick(inch(596), MM) * 25.4).toBeCloseTo(596, 9);   // exactly on a tick stays
+  });
+});
+
+describe('mmBracket', () => {
+  it('metric: the mm in brackets, leading space; imperial: empty', () => {
+    expect(mmBracket([30, 5.5], MM)).toBe(' (762 \u00d7 140 mm)');
+    expect(mmBracket([30], IMPERIAL)).toBe('');
+  });
+});
+
+describe('tradeLength / tradeSize', () => {
+  it('metric: imperial as the yard sells it, mm in brackets', () => {
+    expect(tradeLength(0.75, MM)).toBe('3/4" (19 mm)');
+    expect(tradeSize([0.75, 5.5, 96], MM)).toBe('3/4" \u00d7 5-1/2" \u00d7 96" (19 \u00d7 140 \u00d7 2438 mm)');
+  });
+  it('imperial: today\'s strings', () => {
+    expect(tradeLength(0.75, IMPERIAL)).toBe('3/4"');
+    expect(tradeSize([0.75, 5.5, 96], IMPERIAL)).toBe('3/4" \u00d7 5-1/2" \u00d7 96"');
+    expect(tradeSize([0.75, 5.5], imperialAt(64))).toBe('3/4" \u00d7 5-1/2"');
   });
 });

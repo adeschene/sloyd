@@ -260,19 +260,23 @@ function Capture({ clean, setClean, captureRef }: {
  * fades by distance from the *camera* it behaved completely differently in
  * orthographic (whose framing parks the camera 100+ units back by
  * construction). fadeStrength={0} turns it off; nothing here fades.
+ *
+ * A metric project uses the 10 mm / 100 mm / 1 m ladder instead (gridDensity.ts).
  */
 function AdaptiveGrid() {
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
   const controls = useThree((s) => s.controls) as OrbitLike | null;
-  const [tier, setTier] = useState<GridTier>(() => ({ cellSize: 1, sectionSize: 12 }));
+  const units = useStore((s) => s.doc.units);
+  // Infinitely zoomed in resolves to the finest tier of this project's ladder.
+  const [tier, setTier] = useState<GridTier>(() => gridDensity(Infinity, units));
 
   // Re-evaluated per frame because it depends on the live camera, but only
   // committed to state when the tier actually changes — a tier change is rare
   // (a couple of zoom octaves apart), so this is a no-op on almost every frame.
   useFrame(() => {
     const target = controls ? controls.target : ORIGIN;
-    const next = gridDensity(screenPixelsPerInch(camera, target, size.height));
+    const next = gridDensity(screenPixelsPerInch(camera, target, size.height), units);
     if (next.cellSize !== tier.cellSize) setTier(next);
   });
 

@@ -1,5 +1,5 @@
 import { formatLength, imperialAt } from './length';
-// Imperial until metric chunk 2 (drawings/buying, spec §4).
+// `stockLengthText` is imperial on purpose: trade lengths are sold in feet in any project (spec R3).
 
 /** US softwood dimensional lumber: nominal inches → actual (custom materials spec §5.1). */
 export const NOMINAL_ACTUAL: Readonly<Record<number, number>> = { 1: 0.75, 2: 1.5, 3: 2.5, 4: 3.5, 6: 5.5, 8: 7.25, 10: 9.25, 12: 11.25 };

@@ -2,6 +2,7 @@ import { createBoard, createDocument, buildCutList } from './document';
 import type { Board, CustomMaterial, FlatDocument } from './types';
 import { buildPurchase, defaultBuying, defaultShop, validateShop, type MaterialBuying, type ShopSettings, type StockBoard } from './purchase';
 import { nominalName } from '../units/nominal';
+import type { Units } from '../units/length';
 
 const size = (id: string, thickness: number, width: number, length: number, price: number | null): StockBoard =>
   ({ id, thickness, width, length, price });
@@ -306,5 +307,37 @@ describe('Buying names nominal sizes (custom materials spec §5.3)', () => {
     const l = run(d).entries[0]!.layouts[0]!;
     expect(l.title).toBe('1×4 × 6′ — board');
     expect(l.nesting.sheet).toBe('3/4" × 3-1/2" × 72"');
+  });
+});
+
+describe('Buying in a metric project (metric display chunk 2)', () => {
+  const MM: Units = { display: 'metric-mm', precision: 16 };
+  const inch = (mm: number) => mm / 25.4;
+  const metric = (boards: Board[], shop: ShopSettings) => {
+    const doc = { ...docOf(boards), units: MM };
+    return buildPurchase(doc, buildCutList(doc), shop);
+  };
+  it('a nominal stock line keeps its name, adds mm; a part note reads mm', () => {
+    const shop = shopWith({ pine: { mode: 'piece', stock: [D] } });
+    const p = metric([pine('stud', 24, 3.5, 1.5), pine('wide', inch(600), inch(300), 1.5)], shop);
+    expect(p.entries[0]!.lines).toEqual(['Buy 1 × 2×4 × 8\u2032 (38 × 89 × 2438 mm) \u00b7 $8.00']);
+    expect(p.entries[0]!.notes).toEqual(['wide (38 × 300 × 600 mm) fits no pine stock \u2014 too wide']);
+  });
+  it('plane note: trade stock with mm, part in mm', () => {
+    const p = metric([pine('half', 20, 3, 0.5)], shopWith({ pine: { mode: 'piece', stock: [A] } }));
+    expect(p.entries[0]!.notes).toEqual(['half: plane 3/4" (19 mm) stock to 13 mm']);
+  });
+  it('no plane note when stock and part read the same whole mm', () => {
+    const p = metric([pine('same', 20, 3, inch(19))], shopWith({ pine: { mode: 'piece', stock: [A] } }));
+    expect(p.entries[0]!.notes).toEqual([]);
+  });
+  it('a 19 mm-ish part in an IMPERIAL project keeps its plane note', () => {
+    const p = purchase([pine('same', 20, 3, 0.748)], shopWith({ pine: { mode: 'piece', stock: [A] } }));
+    expect(p.entries[0]!.notes).toEqual(['same: plane 3/4" stock to 3/4"']);
+  });
+  it('a non-nominal stock size reads as a trade size with mm in brackets', () => {
+    const E = size('E', 1, 7.25, 96, 20);
+    const p = metric([pine('wide', 30, 6)], shopWith({ pine: { mode: 'piece', stock: [A, E] } }));
+    expect(p.entries[0]!.lines).toEqual(['Buy 1 × 1" × 7-1/4" × 96" (25 × 184 × 2438 mm) \u00b7 $20.00']);
   });
 });

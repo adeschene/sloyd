@@ -4,8 +4,7 @@ import { holeLine } from './holeText';
 import { DIMENSION_ORDER } from './geometry';
 import { pocketCells, clippedRegion, cutShape, cutRemovesNothing, type CutKind } from './cuts';
 import { buildDepthField, type FaceCell } from './depthField';
-import { formatLength, imperialAt, type Units } from '../units/length';
-// Imperial until metric chunk 2 (drawings/buying, spec §4).
+import { formatLengthBare, type Units } from '../units/length';
 import { angleCutsThatRemoveStock, keptHalfSpace, throughOf } from './angleCuts';
 import { angleLine } from './angleText';
 
@@ -127,9 +126,8 @@ const capitalise = (d: Dimension): string => d[0].toUpperCase() + d.slice(1);
  * `depthField.ts`'s own doc comment for that rule).
  */
 export function buildDiagrams(board: Board, units: Units): DiagramView[] {
-  // A bare number is imperial at that precision (the shim the line functions share); the labels below stay imperial either way.
   const u = units;
-  const f = (n: number) => formatLength(n, imperialAt(u.precision));
+  const f = (n: number) => formatLengthBare(n, units);
   const views = new Map<string, DiagramView>();
 
   const ensure = (face: Dimension, from: CutFrom): DiagramView => {

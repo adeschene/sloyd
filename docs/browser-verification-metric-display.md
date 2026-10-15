@@ -20,3 +20,18 @@ Observed consequence, recorded as a follow-up: a part typed in round millimetres
 
 Not exercised here: the tape typed in mm (TapeReadout's metric commit is unit-tested only through `parseLength`), the
 viewport grid (chunk 2), a real print.
+
+## Chunk 2 (2026-10-15, branch `metric-2`, before the final review)
+
+One project created ("Metric 2 check — delete me") and deleted; the profile read back with its 6 keys and 3 projects.
+
+| # | Check | Result |
+|---|---|---|
+| 1 | Cut list of a metric project (a 600 × 286 × 19 mm drilled side, a second part) | `Dimensions in mm` under the title; part-diagram labels bare (`600`, `286`); bench lines in mm (chunk 1). |
+| 2 | Buying | Parts in mm (`Board (19 × 286 × 600 mm) fits no pine stock — too wide`); a true 1×4 typed in inches buys `1 × 1×4 × 6′ (19 × 89 × 1829 mm)`; its layout caption carries the same bracket. |
+| 3 | Plans sheet | Note under the title; every dimension bare mm (`600`, `100`, `1300`, `286`, `197`, `89`, `19`) — `metric-2-plans.png`. |
+| 4 | Print emulation | The note is visible and black (`display: block`, `rgb(0, 0, 0)`). |
+| 5 | Viewport grid (Iso) | 100 mm sections with 10 mm cells — `metric-2-grid.png`; the look is owed to real hardware (fu 26a). |
+| 6 | The user's imperial "Shaker Side Table — joined" | Plans sheet unchanged (`20"`, `20-1/4"`…), no note. |
+
+Seen again (fu 354): parts typed in round mm (19 × 89, 38 × 89) match no nominal pine section, so Buying places neither.

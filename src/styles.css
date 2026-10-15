@@ -994,6 +994,12 @@ select.input { cursor: pointer; }
   background: rgba(20, 15, 11, 0.72);
 }
 
+.sheet-units-note {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  color: var(--ink-dim);
+}
+
 .cutlist-sheet {
   width: min(760px, 100%);
   height: max-content;
@@ -1361,7 +1367,8 @@ select.input { cursor: pointer; }
   .cutlist-setup,
   .cutlist-layout-count,
   .cutlist-layout-head,
-  .cutlist-layout-key { color: #000; }
+  .cutlist-layout-key,
+  .sheet-units-note { color: #000; }
 
   .cutlist-row {
     border-bottom: 1px solid #ccc;

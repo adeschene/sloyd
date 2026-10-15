@@ -157,7 +157,8 @@ reads off the page, and not otherwise.** `cutlist.ts`, `diagram.ts`, `nesting.ts
 (`formatLength`, so one dimension never reads two ways on one sheet) and
 `viewport/TapeTool.tsx` (`parseLength`, for the live preview) take it.
 `snapPoints.ts` and `row.ts` deliberately do not. Do not generalise to "everything under
-`document` imports `formatLength`". A TYPE-only import of `Units` is not an edge (`types.ts`, `geometry.ts`' `snapStep`).
+`document` imports `formatLength`". A TYPE-only import of `Units` is not an edge (`types.ts`, `geometry.ts`' `snapStep`), nor is `gridDensity.ts`' `isMetric` (the
+ground grid's ladder is a display choice of the project's units, not a string).
 
 **Storage seam:** all persistence — autosave, export, import — goes through
 `StorageAdapter`. Nothing else touches `localStorage` or the filesystem. A desktop build
@@ -775,15 +776,17 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     `holeLengthText` (one home for the bench line and the fields, inv 19), stock collapsing at whole mm (inv 18), free drags
     on whole mm via `snapToGrid` (`Math.round(v * 25.4) / 25.4`, the SAME float a typed value stores). Field bounds are
     compared with a 1e-9 tolerance (inv 22): a metric max like `posDim − offset` is not exact. Imperial on purpose: the
-    Materials dialog's sheet and stock sizes (trade units), Generate's limits, model-facing text; until metric chunk 2, the
-    drawings, Buying and the grid.
+    Materials dialog's sheet and stock sizes (trade units), Generate's limits, model-facing text, `stockLengthText`
+    (`8′`). Drawings (Plans sheet, part diagrams, nesting labels) read BARE mm via `formatLengthBare`, with one
+    `Dimensions in mm` note in the sheet header; Buying reads parts in the project's units and trade sizes imperial with
+    mm in brackets (`tradeLength`/`tradeSize`/`mmBracket`, one home); the grid ladder is 10 mm / 100 mm / 1 m.
 
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 4128 tests across 141 files
+npm test           # Vitest, currently 4149 tests across 141 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

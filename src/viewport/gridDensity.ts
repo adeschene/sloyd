@@ -10,14 +10,26 @@
  *
  * This is the same thing CAD tools do — the grid coarsens as you pull back
  * rather than shimmering or fading out.
+ *
+ * The ladder is a display choice of the project's units (a metric project
+ * steps 10 mm / 100 mm / 1 m), not a string a person reads, so this module
+ * takes `isMetric` from `units` without it being a formatting edge.
  */
+import { isMetric } from '../units/length';
+import type { Units } from '../units/length';
 
 /**
  * Inch, foot, and twelve-foot. Each tier is 12x the one below, so the coarser
  * grid's lines always fall exactly on lines the finer grid also drew — the
  * spacing changes without the lines appearing to shift.
  */
-const LADDER = [1, 12, 144] as const;
+const LADDER_IN = [1, 12, 144] as const;
+
+/**
+ * 10 mm, 100 mm, 1 m (in inches). Each tier is 10x the one below, so the
+ * coarser grid's lines still fall exactly on the finer grid's lines.
+ */
+const LADDER_MM = [10, 100, 1000].map((v) => v / 25.4);
 
 /**
  * Smallest on-screen spacing, in CSS pixels, that a grid line may have before
@@ -29,7 +41,7 @@ export const MIN_LINE_SPACING_PX = 4;
 export interface GridTier {
   /** Spacing of the fine (cell) lines, in inches. */
   cellSize: number;
-  /** Spacing of the heavy (section) lines, in inches. Always 12x cellSize. */
+  /** Spacing of the heavy (section) lines, in inches. 12x cellSize (imperial) or 10x (metric). */
   sectionSize: number;
 }
 
@@ -40,7 +52,9 @@ export interface GridTier {
  * point of interest — see `screenPixelsPerInch` in Viewport, which derives it
  * from the active camera.
  */
-export function gridDensity(pixelsPerInch: number): GridTier {
+export function gridDensity(pixelsPerInch: number, units: Units): GridTier {
+  const LADDER = isMetric(units) ? LADDER_MM : LADDER_IN;
+  const per = isMetric(units) ? 10 : 12;
   // NaN or a non-positive density means the camera is in a degenerate state
   // (zero zoom, or a zero-size canvas). Fall back to the coarsest tier rather
   // than comparing against nonsense: too coarse is merely sparse, whereas too
@@ -49,12 +63,12 @@ export function gridDensity(pixelsPerInch: number): GridTier {
   // below correctly resolves it to the finest tier.
   if (Number.isNaN(pixelsPerInch) || pixelsPerInch <= 0) {
     const coarsest = LADDER[LADDER.length - 1];
-    return { cellSize: coarsest, sectionSize: coarsest * 12 };
+    return { cellSize: coarsest, sectionSize: coarsest * per };
   }
 
   const cellSize =
     LADDER.find((spacing) => spacing * pixelsPerInch >= MIN_LINE_SPACING_PX) ??
     LADDER[LADDER.length - 1];
 
-  return { cellSize, sectionSize: cellSize * 12 };
+  return { cellSize, sectionSize: cellSize * per };
 }

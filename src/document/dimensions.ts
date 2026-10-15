@@ -1,8 +1,7 @@
 import type { Board } from './types';
 import type { View } from './drawing';
 import { boardExtents } from './geometry';
-import { formatLength, imperialAt } from '../units/length';
-// Imperial until metric chunk 2 (drawings/buying, spec §4).
+import { formatLengthBare, type Units } from '../units/length';
 
 /** One dimension, in screen inches along its axis; `label` is THE string drawn and measured (invariant 19). */
 export interface DimLine { from: number; to: number; label: string }
@@ -19,17 +18,17 @@ function extentAlong(b: Board, dir: readonly number[]): [number, number] {
   return a <= c ? [a, c] : [c, a];
 }
 
-function axis(parts: readonly Board[], dir: readonly number[], name: string, precision: number): DimAxis {
+function axis(parts: readonly Board[], dir: readonly number[], name: string, units: Units): DimAxis {
   if (parts.length === 0) return { name, overall: null, chain: [] };
-  const line = (from: number, to: number): DimLine => ({ from, to, label: formatLength(to - from, imperialAt(precision)) });
+  const line = (from: number, to: number): DimLine => ({ from, to, label: formatLengthBare(to - from, units) });
   const coords = [...new Set(parts.flatMap((b) => extentAlong(b, dir)))].sort((x, y) => x - y);
   const lo = coords[0]!;
   const hi = coords[coords.length - 1]!;
-  // Skip a coordinate whose distance from the last kept one READS as zero at this precision.
-  const zero = formatLength(0, imperialAt(precision));
+  // Skip a coordinate whose distance from the last kept one READS as zero in these units (metric: '0').
+  const zero = formatLengthBare(0, units);
   const kept = [lo];
   for (const c of coords.slice(1)) {
-    if (formatLength(c - kept[kept.length - 1]!, imperialAt(precision)) !== zero) kept.push(c);
+    if (formatLengthBare(c - kept[kept.length - 1]!, units) !== zero) kept.push(c);
   }
   // The maximum always survives, so the chain sums to the overall (spec §5.3, amended).
   if (kept[kept.length - 1] !== hi) {
@@ -41,9 +40,9 @@ function axis(parts: readonly Board[], dir: readonly number[], name: string, pre
 }
 
 /** Overall and chain dimensions for an axis view (spec §5.3). Fitting is `panels/planDims.ts`. */
-export function dimensionView(parts: readonly Board[], view: View, precision: number): DimensionSet {
+export function dimensionView(parts: readonly Board[], view: View, units: Units): DimensionSet {
   return {
-    horizontal: axis(parts, view.right, view.rightName, precision),
-    vertical: axis(parts, view.up, view.upName, precision),
+    horizontal: axis(parts, view.right, view.rightName, units),
+    vertical: axis(parts, view.up, view.upName, units),
   };
 }

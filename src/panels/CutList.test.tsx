@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
 import { createBoard, createDocument } from '../document/document';
@@ -99,6 +99,30 @@ describe('CutList', () => {
     load(dadoed, {});
     const { container } = render(<CutList onClose={() => {}} />);
     expect(container.querySelectorAll('.cutlist-diagram')).toHaveLength(1);
+  });
+
+  it('a metric cut list carries the sheet note, even with diagrams off; an imperial one does not', async () => {
+    load(dadoed, {});
+    const first = render(<CutList onClose={() => {}} />);
+    expect(screen.queryByText('Dimensions in mm')).toBeNull();
+    first.unmount();
+    act(() => useStore.getState().setUnitsDisplay('metric-mm'));
+    render(<CutList onClose={() => {}} />);
+    await userEvent.selectOptions(screen.getByLabelText('Diagrams'), 'none');
+    expect(screen.getByText('Dimensions in mm')).toBeInTheDocument();
+  });
+
+  it('sheet prose reads the trade size; a metric project adds its mm, and the oversize line names the part in mm', () => {
+    load({ material: 'plywood', thickness: 0.75, length: 24, width: 12, name: 'Side' },
+         { material: 'plywood', thickness: 0.75, length: 98, width: 24, name: 'Side' });
+    const imperial = render(<CutList onClose={() => {}} />);
+    expect(imperial.container.textContent).toContain('1 sheet (96" × 48")');
+    expect(imperial.container.textContent).toContain('Side (98" × 24") does not fit a 96" × 48" sheet.');
+    imperial.unmount();
+    act(() => useStore.getState().setUnitsDisplay('metric-mm'));
+    const metric = render(<CutList onClose={() => {}} />);
+    expect(metric.container.textContent).toContain('1 sheet (96" × 48" (2438 × 1219 mm))');
+    expect(metric.container.textContent).toContain('Side (2489 × 610 mm) does not fit a 96" × 48" (2438 × 1219 mm) sheet.');
   });
 
   it('draws nothing when diagrams are turned off', async () => {

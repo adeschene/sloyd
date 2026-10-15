@@ -1,3 +1,4 @@
+import { IMPERIAL } from '../units/length';
 import { render, screen } from '@testing-library/react';
 import { createBoard, createDocument } from '../document/document';
 import type { HoleRow } from '../document/types';
@@ -13,7 +14,7 @@ const mortised = createBoard({
 
 describe('PlanTrio', () => {
   it('draws three views with overall and chain dimensions', () => {
-    const { container } = render(<PlanTrio parts={[slab(0), slab(10), slab(20)]} precision={16} label="Shelf unit" />);
+    const { container } = render(<PlanTrio parts={[slab(0), slab(10), slab(20)]} units={IMPERIAL} label="Shelf unit" />);
     expect(screen.getByRole('img', { name: 'Shelf unit: front, side and plan' })).toBeInTheDocument();
     const labels = [...container.querySelectorAll('text')].map((t) => t.textContent);
     // Coordinates 0,2,10,12,20,22: chain 2, 8, 2, 8, 2; overall 22.
@@ -25,7 +26,7 @@ describe('PlanTrio', () => {
   });
 
   it('draws hidden lines dashed in the elevations', () => {
-    const { container } = render(<PlanTrio parts={[mortised]} precision={16} label="Leg" />);
+    const { container } = render(<PlanTrio parts={[mortised]} units={IMPERIAL} label="Leg" />);
     expect(container.querySelector('path.plan-hidden')!.getAttribute('d')).toMatch(/M/);
   });
 
@@ -34,7 +35,7 @@ describe('PlanTrio', () => {
     const pin: HoleRow = { id: 'h1', face: 'thickness', from: 'max', diameter: 0.25, depth: 0.375, along: 'length', alongFrom: 'min', station: 5, count: 1, pitch: 0, acrossFrom: 'min', inset: 2 };
     const part = (holes: HoleRow[]) => createBoard({ length: 30, width: 11.25, thickness: 0.75, holes });
     const moves = (holes: HoleRow[]) => {
-      const { container, unmount } = render(<PlanTrio parts={[part(holes)]} precision={16} label="Side" />);
+      const { container, unmount } = render(<PlanTrio parts={[part(holes)]} units={IMPERIAL} label="Side" />);
       const plan = container.querySelector('path.plan-hidden')!.getAttribute('d')!;
       unmount();
       return { m: (plan.match(/M/g) ?? []).length, l: (plan.match(/L/g) ?? []).length };
@@ -60,7 +61,7 @@ describe('PlanTrio', () => {
     // dropped rather than counted. Trio scale = 752 / (front width 30 + side width 12) = 17.9; a
     // 3in segment is 3·17.9 = 53.7 wide; its label is 2 chars → 12.4·2 + 8 = 32.8 ≤ 53.7: all 13 survive.
     const parts = Array.from({ length: 13 }, (_, k) => createBoard({ length: 30, width: 12, thickness: 3, position: [0, 3 * k, 0] }));
-    render(<PlanTrio parts={parts} precision={16} label="Stack" />);
+    render(<PlanTrio parts={parts} units={IMPERIAL} label="Stack" />);
     expect(screen.getAllByText(/Height chain omitted — too dense/).length).toBeGreaterThan(0);
   });
 });
@@ -74,12 +75,12 @@ describe('figure width on the page (fu 254)', () => {
       createBoard({ length: 36, width: 12, thickness: 0.75, position: [0, 71.25, 0] }),
       createBoard({ length: 72, width: 12, thickness: 0.75, posture: 'upright', rotation: 90, position: [0, 0, 0] }),
     ];
-    const { container } = render(<PlanTrio parts={parts} precision={16} label="Bookcase" />);
+    const { container } = render(<PlanTrio parts={parts} units={IMPERIAL} label="Bookcase" />);
     const width = parseFloat((container.querySelector('svg') as SVGSVGElement).style.width);
     expect(width).toBeCloseTo(((248 + (48 * 1002) / 84) / 1000) * 100, 6);
   });
   it('draws a full-width trio at 100%', () => {
-    const { container } = render(<PlanTrio parts={[slab(0)]} precision={16} label="Slab" />);
+    const { container } = render(<PlanTrio parts={[slab(0)]} units={IMPERIAL} label="Slab" />);
     expect((container.querySelector('svg') as SVGSVGElement).style.width).toBe('100%');
   });
 });
@@ -91,5 +92,28 @@ describe('ExplodedFigure', () => {
     expect(container.querySelector('path.plan-visible')!.getAttribute('d')).toMatch(/M/);
     expect(container.querySelector('path.plan-hidden')).toBeNull();
     expect(screen.getByRole('img', { name: 'Exploded view' })).toHaveAttribute('data-amount', '0.6');
+  });
+});
+
+describe('PlanTrio in metric (chunk 2)', () => {
+  const MM = { display: 'metric-mm' as const, precision: 16 };
+  const texts = (c: HTMLElement) => [...c.querySelectorAll('text')].map((t) => t.textContent!);
+
+  it('draws bare mm dimensions, no inch mark', () => {
+    const { container } = render(<PlanTrio parts={[slab(0), slab(10), slab(20)]} units={MM} label="Shelf unit" />);
+    const labels = texts(container);
+    expect(labels).toContain('559');   // 22in overall height
+    expect(labels).toContain('762');   // 30in overall width
+    expect(labels.some((t) => /^\d+$/.test(t))).toBe(true);
+    expect(labels.join(' ')).not.toContain('"');
+  });
+
+  it('re-labels when only the units change (inv 15)', () => {
+    const parts = [slab(0), slab(10), slab(20)];
+    const { container, rerender } = render(<PlanTrio parts={parts} units={IMPERIAL} label="Shelf unit" />);
+    expect(texts(container)).toContain('30"');
+    rerender(<PlanTrio parts={parts} units={MM} label="Shelf unit" />);
+    expect(texts(container)).toContain('762');
+    expect(texts(container).join(' ')).not.toContain('"');
   });
 });
