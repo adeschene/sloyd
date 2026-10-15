@@ -7,6 +7,8 @@ import { angleCutValues, angleCutsThatRemoveStock } from './angleCuts';
 import { angleLine, shortPointLine } from './angleText';
 import { holeLine } from './holeText';
 import { holeRowValues } from './holes';
+import { curveLines } from './curveText';
+import { curveValues } from './curves';
 import { findTenons } from './tenons';
 import type { Tenon } from './tenons';
 import { buildDiagrams } from './diagram';
@@ -209,6 +211,7 @@ function setupLines(board: Board, units: Units): string[] {
   const short = shortPointLine(board, units);
   if (short) lines.push(short);
   for (const r of board.holes) lines.push(holeLine(board, r, units));
+  lines.push(...curveLines(board, units));
   return lines;
 }
 
@@ -220,6 +223,11 @@ function angleSignature(board: Board): string {
 /** The hole half of a row's identity: EXACT and order-independent, ids ignored (holes spec §4.2). */
 function holeSignature(board: Board): string {
   return board.holes.map((r) => holeRowValues(r).join(':')).sort().join(';');
+}
+
+/** The curve half of a row's identity: EXACT and order-independent, ids ignored (curves spec §4.2). */
+function curveSignature(board: Board): string {
+  return board.curves.map(curveValues).sort().join(';');
 }
 
 /**
@@ -259,6 +267,7 @@ function rowKey(board: Board, units: Units): string {
     // An angle cut that removes nothing must not split a row either (spec §2.3).
     angleSignature(board),
     holeSignature(board),
+    curveSignature(board),
   ].join('|');
 }
 

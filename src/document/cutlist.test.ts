@@ -1,9 +1,10 @@
-import { buildCutList, createBoard, createDocument } from './document';
+import { buildCutList, createBoard, createDocument, cornerCurve } from './document';
 import type { Board, FlatDocument, SloydDocument } from './document';
 import { flatDocument } from './tree';
 import { chiralPart } from './turnFixtures';
 import type { Cut } from './types';
 import { cutRegion } from './cuts';
+import { ARCH } from './curveFixtures';
 import { axisFrame, spanToWorldOffset } from './geometry';
 
 /** A document containing exactly these boards, with unique default names. */
@@ -832,5 +833,24 @@ describe('metric part diagram notes (units chunk 1)', () => {
     expect(notes.length).toBeGreaterThan(0);
     expect(notes[0]!.text).toContain(' mm');
     expect(notes[0]!.text).not.toContain('"');
+  });
+});
+
+describe('curves on the cut list (spec §4)', () => {
+  const aprons = (extra: Partial<Board>[]) => ({ ...createDocument('T'), boards: extra.map((x, i) => createBoard({ id: `a${i}`, name: `Apron ${i}`, length: 30, width: 5, thickness: 0.75, material: 'oak', ...x })) });
+  const corner = { id: 'k', ...cornerCurve({ through: 'thickness', uFrom: 'max', vFrom: 'max', radius: 1 }) };
+  it('an arched apron and a plain one are two rows', () => {
+    expect(buildCutList(aprons([{ curves: [ARCH] }, {}]) as FlatDocument).groups[0]!.rows).toHaveLength(2);
+  });
+  it('the same curves in another order, other ids, are one row (Review Focus 5)', () => {
+    const rows = buildCutList(aprons([{ curves: [ARCH, corner] }, { curves: [{ ...corner, id: 'x' }, { ...ARCH, id: 'y' }] }]) as FlatDocument).groups[0]!.rows;
+    expect(rows).toHaveLength(1);
+  });
+  it('curve lines print after the hole lines, and the stock is the box (inv 18)', () => {
+    const pin = { id: 'h1', face: 'thickness' as const, from: 'max' as const, diameter: 0.25, depth: 0.375, along: 'length' as const, alongFrom: 'min' as const, station: 1, count: 1, pitch: 0, acrossFrom: 'max' as const, inset: 1 };
+    const row = buildCutList(aprons([{ holes: [pin], curves: [ARCH] }]) as FlatDocument).groups[0]!.rows[0]!;
+    expect(row.setup.findIndex((l) => l.startsWith('Arch'))).toBeGreaterThan(row.setup.findIndex((l) => l.startsWith('Hole')));
+    expect(row.length).toBe(30);
+    expect(row.width).toBe(5);
   });
 });
