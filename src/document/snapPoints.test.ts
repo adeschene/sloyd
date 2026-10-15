@@ -7,6 +7,8 @@ import { pocketCells } from './cuts';
 import { boardSnapPoints, cutSnapPoints, guideSnapPoints, offsetPoint, sameSnapPoint, snapPointsFor, tapeAxisFromKey, towardFor } from './snapPoints';
 import type { SnapPoint } from './snapPoints';
 import type { Board, Cut, Posture, Rotation } from './types';
+import type { BoardSnapPoint } from './snapPoints';
+import { ARCH, CORNER } from './curveFixtures';
 
 /** A 24 x 6 x 1 board at a non-zero, non-symmetric corner. */
 const board = (patch: Partial<Board> = {}): Board =>
@@ -905,5 +907,26 @@ describe('hole centres (holes spec §3.5)', () => {
     expect(pts.some((p) => p.at.every((v, i) => Math.abs(v - [12, 0.75, 2.75][i]!) < 1e-9))).toBe(false);
     expect(pts.some((p) => p.at.every((v, i) => Math.abs(v - [12.05, 0.75, 2.75][i]!) < 1e-9))).toBe(true);
     expect(pts).toHaveLength(26);
+  });
+});
+
+describe('curve snap points (curves spec §3.5, P5)', () => {
+  const apron = createBoard({ id: 'p', length: 30, width: 5, thickness: 0.75, curves: [ARCH] });
+  const has = (pts: BoardSnapPoint[], at: number[], kind?: string) => pts.some((p) => (!kind || p.kind === kind) && p.at.every((v, i) => Math.abs(v - at[i]!) <= 1e-9));
+  it('arc ends (corner) and crown (edge-mid) on both faces; the arched edge\'s middle is withheld (P3)', () => {
+    const pts = boardSnapPoints(apron);
+    for (const y of [0, 0.75]) {
+      expect(has(pts, [3, y, 0], 'corner')).toBe(true);
+      expect(has(pts, [27, y, 0], 'corner')).toBe(true);
+      expect(has(pts, [15, y, 1.5], 'edge-mid')).toBe(true);
+      expect(has(pts, [15, y, 0])).toBe(false);
+    }
+  });
+  it('a centre off the face is not offered; a corner\'s centre is, as face-center, and the rounded-off corner is withheld', () => {
+    expect(boardSnapPoints(apron).some((p) => p.at[2]! < -1)).toBe(false);
+    const top = createBoard({ id: 't', length: 36, width: 20, thickness: 0.75, curves: [{ ...CORNER, uFrom: 'min' }] });
+    const pts = boardSnapPoints(top);
+    expect(has(pts, [2, 0.75, 2], 'face-center')).toBe(true);
+    expect(has(pts, [0, 0.75, 0])).toBe(false);
   });
 });

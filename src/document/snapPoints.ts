@@ -1,5 +1,7 @@
 import { keptHalfSpace } from './angleCuts';
 import { partGeometry } from './bodies';
+import { localSegments, uvDims } from './curves';
+import type { P2 } from './curves';
 import { clippedRegion, cutRemovesNothing, stockProbe } from './cuts';
 import type { Point } from './cuts';
 import { DIMENSION_ORDER, axisFrame, boardExtents, fromWorldOffset, positionAxisOf, toWorldOffset } from './geometry';
@@ -143,7 +145,7 @@ export function boardSnapPoints(board: Board): BoardSnapPoint[] {
     }
   }
 
-  if (board.cuts.length === 0 && board.angleCuts.length === 0 && board.holes.length === 0) return points;
+  if (board.cuts.length === 0 && board.angleCuts.length === 0 && board.holes.length === 0 && board.curves.length === 0) return points;
   const geometry = partGeometry(board);
   if (geometry.bodies.length === 0) return points;
 
@@ -169,6 +171,24 @@ export function boardSnapPoints(board: Board): BoardSnapPoint[] {
       c[DIMENSION_ORDER.indexOf(h.axis)] += h.dir * t;
       const at = toWorld(board, { length: c[0]!, width: c[1]!, thickness: c[2]! });
       if (!lattice.some((q) => close(q.at, at))) lattice.push({ kind: 'face-center', at, owner });
+    }
+  }
+  // Curve points (curves spec §3.5, P5): each arc's ends ('corner'), crown ('edge-mid') and centre ('face-center', which
+  // may sit in air — the hole-centre exception to invariant 16: it is the centre of a drawn arc), on both faces square to
+  // `through`; a point outside the face rectangle is not offered. Deduped by distance against the lattice.
+  for (const c of board.curves) {
+    const [u, v] = uvDims(c.through);
+    const inFace = (q: P2) => q[0] >= -1e-9 && q[0] <= board[u] + 1e-9 && q[1] >= -1e-9 && q[1] <= board[v] + 1e-9;
+    for (const s of localSegments(board, c)) {
+      if (s.kind !== 'arc') continue;
+      const marks: [P2, SnapKind][] = [[s.a, 'corner'], [s.b, 'corner'], [s.crown, 'edge-mid'], [s.centre, 'face-center']];
+      for (const [q, kind] of marks) {
+        if (!inFace(q)) continue;
+        for (const t of [0, board[c.through]]) {
+          const at = toWorld(board, { [u]: q[0], [v]: q[1], [c.through]: t } as Point);
+          if (!lattice.some((x) => close(x.at, at))) lattice.push({ kind, at, owner });
+        }
+      }
     }
   }
   if (board.angleCuts.length === 0) return lattice;

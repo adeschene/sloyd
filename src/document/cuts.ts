@@ -1,5 +1,6 @@
 import { materialKind, type Board, type Cut, type Dimension, type Region, type Span } from './types';
 import { boardHoles, insideHole } from './holes';
+import { isAir, uvDims } from './curves';
 import { keptHalfSpace } from './angleCuts';
 import { axisFrame, boardExtents, DIMENSION_ORDER, positionAxisOf, spanToWorldOffset, toWorldOffset } from './geometry';
 
@@ -291,6 +292,8 @@ export function stockProbe(board: Board): (p: Point) => boolean {
     if (!kept(p)) return false;
     // The mouth is air (holes spec §3.5, amended).
     if (holes.some((h) => insideHole(h, [p.length, p.width, p.thickness]))) return false;
+    // The waste is air, its kept surface is not (curves spec §3.5, P3).
+    if (board.curves.some((c) => { const [u, v] = uvDims(c.through); return isAir(board, c, [p[u], p[v]]); })) return false;
     for (const i of cells('length', p.length)) {
       for (const j of cells('width', p.width)) {
         for (const k of cells('thickness', p.thickness)) {
