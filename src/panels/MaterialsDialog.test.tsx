@@ -91,10 +91,10 @@ describe('MaterialsDialog — prices', () => {
     // Unsaved edits first: only the stash (not the stored value) can bring these back.
     fireEvent.change(field('Pine size 1: price'), { target: { value: '4' } });
     fireEvent.change(field('Oak: price per board foot'), { target: { value: '11' } });
-    // Pine: by the piece → board foot → by the piece keeps all 14 sizes and the edit.
+    // Pine: by the piece → board foot → by the piece keeps all 36 sizes and the edit.
     fireEvent.change(mode('Pine: bought'), { target: { value: 'board-foot' } });
     fireEvent.change(mode('Pine: bought'), { target: { value: 'piece' } });
-    expect(screen.getAllByRole('textbox', { name: /^Pine size \d+: width$/ })).toHaveLength(14);
+    expect(screen.getAllByRole('textbox', { name: /^Pine size \d+: width$/ })).toHaveLength(36);
     expect(field('Pine size 1: price')).toHaveValue('4');
     // Oak: board foot ($9, 1.5) → by the piece → board foot keeps both.
     fireEvent.change(mode('Oak: bought'), { target: { value: 'piece' } });

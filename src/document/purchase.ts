@@ -46,13 +46,17 @@ export const NOMINAL_DEFAULT_STOCK: readonly StockBoard[] = [
 ].map(([s, l]) => ({ id: `n${s.name.replace('×', 'x')}x${l}`, thickness: s.thickness, width: s.width, length: l, price: null }));
 
 /** A material's default buying entry. No default carries a price: prices are local facts.
- *  `nominal`: a custom solid sold in nominal sizes (spec §5.4); pine keeps its own list. */
+ *  `nominal`: a custom solid sold in nominal sizes (spec §5.4). Pine keeps its own 1× list (6′ and 8′, its own ids)
+ *  and adds the nominal list's thicker sizes, so a 2×4 in pine buys a 2×4 (fu 360). */
 export function defaultBuying(material: string, nominal = false): MaterialBuying {
   if (isSheetGood(material)) return { mode: 'sheet', pricePerSheet: null };
   if (material === 'pine') {
     return {
       mode: 'piece',
-      stock: S4S_WIDTHS.flatMap((w) => S4S_LENGTHS.map((l) => ({ id: `s${w}x${l}`, thickness: 0.75, width: w, length: l, price: null }))),
+      stock: [
+        ...S4S_WIDTHS.flatMap((w) => S4S_LENGTHS.map((l) => ({ id: `s${w}x${l}`, thickness: 0.75, width: w, length: l, price: null }))),
+        ...NOMINAL_DEFAULT_STOCK.filter((s) => s.thickness > 0.75).map((s) => ({ ...s })),
+      ],
     };
   }
   if (nominal) return { mode: 'piece', stock: NOMINAL_DEFAULT_STOCK.map((s) => ({ ...s })) };

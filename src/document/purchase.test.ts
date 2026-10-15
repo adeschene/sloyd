@@ -266,6 +266,25 @@ describe('nominal default stock (custom materials spec §5.4)', () => {
     expect((b as Extract<typeof b, { mode: 'piece' }>).stock.every((s) => s.price === null)).toBe(true);
     expect(new Set((b as Extract<typeof b, { mode: 'piece' }>).stock.map((s) => s.id)).size).toBe(29);
   });
+  it('pine keeps its 1× boards at 6′ and 8′ and adds the nominal 2× and 4×4 sizes (fu 360)', () => {
+    const b = defaultBuying('pine') as Extract<MaterialBuying, { mode: 'piece' }>;
+    const names = b.stock.map((s) => `${nominalName(s.thickness, s.width, IMPERIAL)} ${s.length}`);
+    expect(names).toEqual([
+      ...['1×2', '1×3', '1×4', '1×6', '1×8', '1×10', '1×12'].flatMap((n) => [72, 96].map((l) => `${n} ${l}`)),
+      ...['2×2', '2×3', '2×4', '2×6', '2×8', '2×10', '2×12'].flatMap((n) => [96, 120, 144].map((l) => `${n} ${l}`)),
+      '4×4 96',
+    ]);
+    expect(b.stock.every((s) => s.price === null)).toBe(true);
+    expect(new Set(b.stock.map((s) => s.id)).size).toBe(36);
+    // The 1× ids are pine's own, as before.
+    expect(b.stock[0]!.id).toBe('s1.5x72');
+  });
+  it('a 2×4 in built-in pine buys a 2×4 by default (fu 360)', () => {
+    const d = docOf([pine('stud', 30, 3.5, 1.5)]);
+    const p = buildPurchase(d, buildCutList(d), defaultShop());
+    expect(p.entries[0]!.notes).toEqual([]);
+    expect(p.entries[0]!.lines[0]).toMatch(/^Buy 1 × 2×4 × 8′/);
+  });
   it('the flag changes nothing for pine, sheets or a non-nominal solid', () => {
     expect(defaultBuying('pine', true)).toEqual(defaultBuying('pine'));
     expect(defaultBuying('m-v-bb55', true)).toEqual({ mode: 'sheet', pricePerSheet: null });
