@@ -4,7 +4,8 @@ import { holeLine } from './holeText';
 import { DIMENSION_ORDER } from './geometry';
 import { pocketCells, clippedRegion, cutShape, cutRemovesNothing, type CutKind } from './cuts';
 import { buildDepthField, type FaceCell } from './depthField';
-import { formatLength } from '../units/length';
+import { formatLength, imperialAt, type Units } from '../units/length';
+// Imperial until metric chunk 2 (drawings/buying, spec §4).
 import { angleCutsThatRemoveStock, keptHalfSpace, throughOf } from './angleCuts';
 import { angleLine } from './angleText';
 
@@ -125,8 +126,10 @@ const capitalise = (d: Dimension): string => d[0].toUpperCase() + d.slice(1);
  * this module does not recompute what counts as a crossing (see
  * `depthField.ts`'s own doc comment for that rule).
  */
-export function buildDiagrams(board: Board, precision: number): DiagramView[] {
-  const f = (n: number) => formatLength(n, precision);
+export function buildDiagrams(board: Board, units: Units): DiagramView[] {
+  // A bare number is imperial at that precision (the shim the line functions share); the labels below stay imperial either way.
+  const u = units;
+  const f = (n: number) => formatLength(n, imperialAt(u.precision));
   const views = new Map<string, DiagramView>();
 
   const ensure = (face: Dimension, from: CutFrom): DiagramView => {
@@ -228,7 +231,7 @@ export function buildDiagrams(board: Board, precision: number): DiagramView[] {
     if (clean.length < 3) continue;
     const existing = (['min', 'max'] as const).map((from) => views.get(`${face}|${from}`)).filter((v): v is DiagramView => v !== undefined);
     const targets = existing.length > 0 ? existing : [ensure(face, 'min')];
-    const label = angleLine(board, c, precision);
+    const label = angleLine(board, c, u);
     for (const view of targets) view.angles.push({ id: c.id, poly: clean.map(([x, y]) => [x, y] as [number, number]), label });
   }
 
@@ -272,7 +275,7 @@ export function buildDiagrams(board: Board, precision: number): DiagramView[] {
       mark(view, r);
     }
   }
-  for (const [view, ids] of used) for (const r of board.holes) if (ids.has(r.id)) view.holeNotes.push({ row: r.id, text: holeLine(board, r, precision) });
+  for (const [view, ids] of used) for (const r of board.holes) if (ids.has(r.id)) view.holeNotes.push({ row: r.id, text: holeLine(board, r, u) });
 
   // A cut-free board still gets a drawing, for the "all parts" setting: broad
   // face on, length running horizontally — the view a woodworker draws by hand.

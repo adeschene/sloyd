@@ -1,6 +1,6 @@
 import { MATERIALS, type CustomMaterial, type MaterialKind } from '../document/types';
 import { labelKey, mintMaterialId, sameMaterial, validateCustomMaterial } from '../document/materials';
-import { formatLength, parseLength } from '../units/length';
+import { IMPERIAL, formatLength, imperialAt, parseLength } from '../units/length';
 
 export type RowSource = 'project' | 'library' | 'new';
 /** Text drafts: a field may hold text that does not parse yet; Save stays off until every row does. */
@@ -17,7 +17,8 @@ export interface Row {
 }
 export interface SavePlan { project: CustomMaterial[]; library: CustomMaterial[] | null; assign: { ids: string[]; material: string } | null }
 
-const lengthText = (v: number) => formatLength(v, 64);
+// Ruling P1 (metric display): stock and sheet sizes in the Materials dialog stay imperial.
+const lengthText = (v: number) => formatLength(v, imperialAt(64));
 const toDraft = (m: CustomMaterial): DefDraft => ({
   label: m.label, color: m.color, nominal: m.nominal === true,
   sheetLength: m.sheet ? lengthText(m.sheet.length) : '', sheetWidth: m.sheet ? lengthText(m.sheet.width) : '',
@@ -54,7 +55,8 @@ export function useLibraryVersion(r: Row, library: readonly CustomMaterial[]): R
   return lib ? { ...r, draft: toDraft(lib) } : r;
 }
 
-const positiveLength = (t: string) => { const v = parseLength(t); return v !== null && v > 0 ? v : undefined; };
+// Ruling P1: a sheet size is typed as inches, as `lengthText` shows it.
+const positiveLength = (t: string) => { const v = parseLength(t, IMPERIAL); return v !== null && v > 0 ? v : undefined; };
 
 /** The material a row's draft describes, or undefined while any field is refused. */
 export function fromDraft(r: Row): CustomMaterial | undefined {

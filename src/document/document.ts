@@ -5,6 +5,7 @@ import type {
   Shape, StoredBoard,
 } from './types';
 import type { SharedField } from './links';
+import type { LengthDisplay } from '../units/length';
 import { dissolveShapes, pruneShapes, isShaped } from './shapes';
 import { linksToShapes } from './linksToShapes';
 import { ROOT_STORAGE_ID } from './treeEdit';
@@ -750,9 +751,11 @@ export function migrateDocument(raw: unknown): SloydDocument {
   if (d.version < 4) rawBoards = rawBoards.map(addCutsToV4);
   if (d.version < 8) rawBoards = rawBoards.map(trueTurnsToV8);
 
-  const units = d.units as SloydDocument['units'] | undefined;
+  const units = d.units as { display?: unknown; precision?: unknown } | undefined;
+  // No schema step (metric-display spec R6): an older build reads 'metric-mm' as imperial.
+  const display: LengthDisplay = units?.display === 'metric-mm' ? 'metric-mm' : 'imperial-fractional';
   const precision =
-    units && typeof units.precision === 'number' && units.precision > 0
+    units && typeof units.precision === 'number' && Number.isFinite(units.precision) && units.precision > 0
       ? units.precision
       : 16;
 
@@ -804,7 +807,7 @@ export function migrateDocument(raw: unknown): SloydDocument {
   let doc: SloydDocument = {
     version: CURRENT_VERSION,
     name: typeof d.name === 'string' && d.name ? d.name : 'Untitled',
-    units: { display: 'imperial-fractional', precision },
+    units: { display, precision },
     stock: { kerf },
     guides,
     boards,

@@ -28,7 +28,7 @@ const FIELD_LABEL: Record<RowMode, string> = { gap: 'Gap', pitch: 'Pitch', fit: 
 export function CopyInRow({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const allBoards = useStore((s) => worldParts(s.doc));
   const selectedIds = useStore((s) => s.selectedIds);
-  const precision = useStore((s) => s.doc.units.precision);
+  const units = useStore((s) => s.doc.units);
   const copyInRow = useStore((s) => s.copyInRow);
   const [countText, setCountText] = useState('2');
   const [dir, setDir] = useState(0);
@@ -57,7 +57,7 @@ export function CopyInRow({ open, onOpenChange }: { open: boolean; onOpenChange:
   const value = typed[mode] ?? (mode === 'pitch' ? s : 2 * s);
   const count = Number(countText);
   const layout = rowLayout(mode, value, s, count);
-  const fmt = (v: number) => formatLength(v, precision);
+  const fmt = (v: number) => formatLength(v, units);
   const why: Record<RowRefusal, string> = {
     count: `A row has 2 to ${MAX_ROW} parts.`,
     value: 'Enter a measurement.',
@@ -100,7 +100,7 @@ export function CopyInRow({ open, onOpenChange }: { open: boolean; onOpenChange:
           commitUnchanged: Pitch's and Across's shown value is a default that
           follows the direction until the person types; typing a value equal
           to the default must still pin it. */}
-      <DimensionField key={mode} label={FIELD_LABEL[mode]} precision={precision} value={value}
+      <DimensionField key={mode} label={FIELD_LABEL[mode]} units={units} value={value}
         min={mode === 'gap' ? 0 : undefined} commitUnchanged onErrorChange={setFieldRefused}
         onCommit={(v) => setTyped((t) => ({ ...t, [mode]: v }))} />
       <p className={layout.ok ? 'copy-row-summary' : 'copy-row-summary invalid'} role="status">{summary}</p>

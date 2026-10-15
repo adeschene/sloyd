@@ -5,6 +5,7 @@ import { useStore } from '../store/store';
 import { createBoard, createDocument } from '../document/document';
 import type { Board } from '../document/document';
 import { Properties } from './Properties';
+import { holeLengthText } from '../document/holeText';
 
 const side = (over: Partial<Board> = {}) => createBoard({ id: 'side', name: 'Side', length: 30, width: 11.25, thickness: 0.75, ...over });
 const open = (b: Board) => {
@@ -242,5 +243,28 @@ describe('the Holes section', () => {
     await add(user, 'Hole');
     await user.click(screen.getByRole('button', { name: /Remove hole row/ }));
     expect(rows()).toEqual([]);
+  });
+  it('a metric project shows a shelf-pin row\'s Every and Diameter in mm (spec R7)', async () => {
+    const user = userEvent.setup();
+    open(side());
+    act(() => useStore.getState().setUnitsDisplay('metric-mm'));
+    await add(user, 'Shelf-pin row');
+    expect(screen.getByLabelText('Every')).toHaveValue('32 mm');
+    expect(screen.getByLabelText('Diameter')).toHaveValue('6.4 mm');
+  });
+  it('Every and Diameter are the bench line\'s own strings, in either units (one formatter, inv 19)', async () => {
+    const user = userEvent.setup();
+    open(side());
+    await add(user, 'Shelf-pin row');
+    const r = rows()[0]!;
+    for (const display of ['imperial-fractional', 'metric-mm'] as const) {
+      act(() => useStore.getState().setUnitsDisplay(display));
+      const units = useStore.getState().doc.units;
+      expect(screen.getByLabelText('Every')).toHaveValue(holeLengthText(r.pitch, units, 'pitch'));
+      expect(screen.getByLabelText('Diameter')).toHaveValue(holeLengthText(r.diameter, units, 'diameter'));
+    }
+    expect(screen.getByLabelText('Every')).toHaveValue('32 mm');
+    act(() => useStore.getState().setUnitsDisplay('imperial-fractional'));
+    expect(screen.getByLabelText('Every')).toHaveValue('1-17/64"');
   });
 });

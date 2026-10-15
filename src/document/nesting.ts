@@ -1,5 +1,6 @@
 import type { Board, SheetStock } from './types';
-import { formatLength } from '../units/length';
+import { formatLength, imperialAt } from '../units/length';
+// Imperial until metric chunk 2 (drawings/buying, spec §4).
 
 /**
  * `length × width`, formatted — the ONE home of that expression here.
@@ -16,7 +17,7 @@ import { formatLength } from '../units/length';
  * call site share it — `SheetStock` is not a `Board` and never will be.
  */
 const formatDims = (length: number, width: number, precision: number) =>
-  `${formatLength(length, precision)} × ${formatLength(width, precision)}`;
+  `${formatLength(length, imperialAt(precision))} × ${formatLength(width, imperialAt(precision))}`;
 
 /**
  * How a part lands on a sheet: its footprint AS PLACED.

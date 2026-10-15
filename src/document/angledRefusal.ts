@@ -1,6 +1,6 @@
 import type { CutFrom, FlatDocument } from './types';
 import { faceName } from './angleText';
-import { formatLength } from '../units/length';
+import { floorToTick, formatLength } from '../units/length';
 
 /** One tapered part whose taper runs into a joint (AI-tapers spec §4.1). Indices are flat-document board indices. */
 export interface TaperConflict {
@@ -18,7 +18,6 @@ export interface TaperConflict {
  */
 export function taperJointRefusal(flat: FlatDocument, conflicts: readonly TaperConflict[]): string | null {
   if (conflicts.length === 0) return null;
-  const p = flat.units.precision;
   return conflicts.map(({ part, other, end, nearest }) => {
     const name = flat.boards[part]!.name;
     const joint = flat.boards[other]!.name;
@@ -26,10 +25,10 @@ export function taperJointRefusal(flat: FlatDocument, conflicts: readonly TaperC
     // rounded: a patch at 23.47 must read 23-7/16", not 23-1/2" (which would be refused again).
     // The 1e-9 is float noise only (invariant 22). Within one tick of the end, the joint is
     // read as joining at that end.
-    const limit = Math.floor(nearest * p + 1e-9) / p;
+    const limit = floorToTick(nearest, flat.units);
     return limit === 0
       ? `${name}'s taper runs to ${faceName('length', end)}, where it joins ${joint} — taper the other end, or remove it.`
-      : `${name}'s taper runs into its joint with ${joint} — start it at ${formatLength(limit, p)} or less from ${faceName('length', end)}, or remove it.`;
+      : `${name}'s taper runs into its joint with ${joint} — start it at ${formatLength(limit, flat.units)} or less from ${faceName('length', end)}, or remove it.`;
   }).join(' ');
 }
 

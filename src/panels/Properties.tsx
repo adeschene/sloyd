@@ -5,6 +5,7 @@ import { DimensionField } from './DimensionField';
 import { NameField } from './NameField';
 import { ActionBar, COPY_IN_ROW } from './ActionBar';
 import { formatLength } from '../units/length';
+import type { Units } from '../units/length';
 import { NOMINAL_SECTIONS, nominalName } from '../units/nominal';
 import { AngleCuts } from './AngleCuts';
 import { Holes } from './Holes';
@@ -24,7 +25,7 @@ const DIMENSION_LABEL: Record<Dimension, string> = {
  * remounts via `key={board.id}`), so a stale error can never resurface on a
  * different cut, or on this one after a selection round-trip.
  */
-function CutRow({ board, cut, precision, solids }: { board: Board; cut: Cut; precision: number; solids: Region[] }) {
+function CutRow({ board, cut, units, solids }: { board: Board; cut: Cut; units: Units; solids: Region[] }) {
   const updateCut = useStore((s) => s.updateCut);
   const removeCut = useStore((s) => s.removeCut);
   const [error, setError] = useState<string | null>(null);
@@ -182,7 +183,7 @@ function CutRow({ board, cut, precision, solids }: { board: Board; cut: Cut; pre
         <span className="cut-label">{word}</span>
         <button
           className="cut-remove"
-          aria-label={`Remove cut (${word}, offset ${formatLength(cut.offset, precision)})`}
+          aria-label={`Remove cut (${word}, offset ${formatLength(cut.offset, units)})`}
           onClick={() => removeCut(board.id, cut.id)}
         >
           ✕
@@ -243,18 +244,18 @@ function CutRow({ board, cut, precision, solids }: { board: Board; cut: Cut; pre
         </select>
       </div>
 
-      <DimensionField key={`stopMin-${attempt}`} label="Stop short — near end" precision={precision}
+      <DimensionField key={`stopMin-${attempt}`} label="Stop short — near end" units={units}
         value={cut.stopMin} min={0} max={Math.max(0, acrossDim - cut.stopMax)}
         onCommit={(v) => set({ stopMin: v })} />
-      <DimensionField key={`stopMax-${attempt}`} label="Stop short — far end" precision={precision}
+      <DimensionField key={`stopMax-${attempt}`} label="Stop short — far end" units={units}
         value={cut.stopMax} min={0} max={Math.max(0, acrossDim - cut.stopMin)}
         onCommit={(v) => set({ stopMax: v })} />
 
-      <DimensionField key={`offset-${attempt}`} label="From the end" precision={precision} value={cut.offset}
+      <DimensionField key={`offset-${attempt}`} label="From the end" units={units} value={cut.offset}
         min={0} max={posDim} onCommit={(v) => set({ offset: v })} />
-      <DimensionField key={`width-${attempt}`} label="Cut width" precision={precision} value={cut.width}
+      <DimensionField key={`width-${attempt}`} label="Cut width" units={units} value={cut.width}
         max={Math.max(0, posDim - cut.offset)} onCommit={(v) => set({ width: v })} />
-      <DimensionField key={`depth-${attempt}`} label="Depth" precision={precision} value={cut.depth}
+      <DimensionField key={`depth-${attempt}`} label="Depth" units={units} value={cut.depth}
         max={faceDim} onCommit={(v) => set({ depth: v })} />
       </div>
 
@@ -402,7 +403,7 @@ function GroupProperties({ library, onNewMaterial }: { library: CustomMaterial[]
   const doc = useStore((s) => s.doc);
   const allBoards = useStore((s) => worldParts(s.doc));
   const selectedIds = useStore((s) => s.selectedIds);
-  const precision = useStore((s) => s.doc.units.precision);
+  const units = useStore((s) => s.doc.units);
   const updateBoards = useStore((s) => s.updateBoards);
   const deleteBoards = useStore((s) => s.deleteBoards);
   const duplicateBoards = useStore((s) => s.duplicateBoards);
@@ -451,11 +452,11 @@ function GroupProperties({ library, onNewMaterial }: { library: CustomMaterial[]
       {allParts && <>
       <h3>Size</h3>
       <div className="field-grid field-grid-3">
-      <DimensionField label="Length" precision={precision} value={shared(boards, (b) => b.length)}
+      <DimensionField label="Length" units={units} value={shared(boards, (b) => b.length)}
         onCommit={(v) => set({ length: v })} />
-      <DimensionField label="Width" precision={precision} value={shared(boards, (b) => b.width)}
+      <DimensionField label="Width" units={units} value={shared(boards, (b) => b.width)}
         onCommit={(v) => set({ width: v })} />
-      <DimensionField label="Thickness" precision={precision} value={shared(boards, (b) => b.thickness)}
+      <DimensionField label="Thickness" units={units} value={shared(boards, (b) => b.thickness)}
         onCommit={(v) => set({ thickness: v })} />
       </div>
       <NominalSize ids={selectedIds} boards={boards} />
@@ -549,7 +550,7 @@ export function Properties({ library = [], onNewMaterial }: { library?: CustomMa
     s.selectedIds.length === 1 ? worldParts(s.doc).find((b) => b.id === s.selectedIds[0]) : undefined);
   const instPath = useStore((s) => (s.selectedIds.length === 1 && instanceAt(s.doc, s.selectedIds[0]!) ? s.selectedIds[0]! : null));
   const groupSize = useStore((s) => s.selectedIds.length);
-  const precision = useStore((s) => s.doc.units.precision);
+  const units = useStore((s) => s.doc.units);
   const updateBoard = useStore((s) => s.updateBoard);
   const deleteBoard = useStore((s) => s.deleteBoard);
   const duplicateBoard = useStore((s) => s.duplicateBoard);
@@ -631,20 +632,20 @@ export function Properties({ library = [], onNewMaterial }: { library?: CustomMa
 
       <h3>Size</h3>
       <div className="field-grid field-grid-3">
-      <DimensionField ref={lengthRef} label="Length" precision={precision} value={board.length}
+      <DimensionField ref={lengthRef} label="Length" units={units} value={board.length}
         onCommit={(v) => updateBoard(board.id, { length: v })} />
-      <DimensionField label="Width" precision={precision} value={board.width}
+      <DimensionField label="Width" units={units} value={board.width}
         onCommit={(v) => updateBoard(board.id, { width: v })} />
-      <DimensionField label="Thickness" precision={precision} value={board.thickness}
+      <DimensionField label="Thickness" units={units} value={board.thickness}
         onCommit={(v) => updateBoard(board.id, { thickness: v })} />
       </div>
       <NominalSize ids={[board.id]} boards={[board]} />
 
       <h3>Position</h3>
       <div className="field-grid field-grid-3">
-      <DimensionField label="X" precision={precision} allowNegative value={board.position[0]} onCommit={setPos(0)} />
-      <DimensionField label="Y" precision={precision} allowNegative value={board.position[1]} onCommit={setPos(1)} />
-      <DimensionField label="Z" precision={precision} allowNegative value={board.position[2]} onCommit={setPos(2)} />
+      <DimensionField label="X" units={units} allowNegative value={board.position[0]} onCommit={setPos(0)} />
+      <DimensionField label="Y" units={units} allowNegative value={board.position[1]} onCommit={setPos(1)} />
+      <DimensionField label="Z" units={units} allowNegative value={board.position[2]} onCommit={setPos(2)} />
       </div>
 
       <h3>Orientation &amp; stock</h3>
@@ -692,12 +693,12 @@ export function Properties({ library = [], onNewMaterial }: { library?: CustomMa
           is derived from the geometry rather than chosen by the user. */}
       <h3>Cuts{board.cuts.length > 0 && <span className="h3-count"> · {board.cuts.length}</span>}</h3>
       {board.cuts.map((cut) => (
-        <CutRow key={cut.id} board={board} cut={cut} precision={precision} solids={solids} />
+        <CutRow key={cut.id} board={board} cut={cut} units={units} solids={solids} />
       ))}
       <button className="add-cut" onClick={() => addCut(board.id)}>+ Add cut</button>
 
-      <AngleCuts board={board} precision={precision} />
-      <Holes board={board} precision={precision} />
+      <AngleCuts board={board} />
+      <Holes board={board} />
     </div>
   );
 }

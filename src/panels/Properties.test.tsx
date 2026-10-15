@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { useStore } from '../store/store';
 import { createBoard, createDocument } from '../document/document';
 import type { Board } from '../document/document';
-import { formatLength } from '../units/length';
+import { formatLength, IMPERIAL } from '../units/length';
 import { Properties } from './Properties';
 import { assemblyDoc } from '../document/treeFixtures';
 import { chiralPart } from '../document/turnFixtures';
@@ -662,7 +662,7 @@ describe('cuts', () => {
     const stored = worldParts(useStore.getState().doc).find((b) => b.id === id)!.cuts[0].depth;
     expect(stored).not.toBe(0.75);
     expect((screen.getByLabelText(/depth/i) as HTMLInputElement).value)
-      .toBe(formatLength(stored, 16));
+      .toBe(formatLength(stored, IMPERIAL));
   });
 
   it('clears the whole-board error after an undo restores a legal cut', async () => {
@@ -1598,5 +1598,36 @@ describe('Nominal size (custom materials spec §5.3)', () => {
     const parts = useStore.getState().doc.boards as Board[];
     expect(parts.map((b) => [b.thickness, b.width])).toEqual([[1.5, 3.5], [1.5, 3.5]]);
     expect(useStore.getState().past.length).toBe(n + 1);
+  });
+});
+
+describe('Properties in a metric project', () => {
+  it('shows a part\'s Length in mm in a metric project', () => {
+    useStore.getState().setUnitsDisplay('metric-mm');
+    useStore.getState().addBoard();
+    const id = worldParts(useStore.getState().doc)[0].id;
+    useStore.getState().selectBoard(id);
+    render(<Properties />);
+    expect(worldParts(useStore.getState().doc)[0].length).toBe(24);
+    expect(screen.getByLabelText('Length')).toHaveValue('610 mm');
+  });
+  it('takes a typed width equal to the displayed max in metric: a 140 mm part, a cut 20 mm from the end, width 120 (I1)', async () => {
+    useStore.getState().setUnitsDisplay('metric-mm');
+    useStore.getState().addBoard();
+    const id = worldParts(useStore.getState().doc)[0].id;
+    act(() => {
+      const st = useStore.getState();
+      st.updateBoard(id, { length: 140 / 25.4 });
+      st.addCut(id);
+      const [c] = worldParts(useStore.getState().doc)[0].cuts;
+      st.updateCut(id, c.id, { face: 'thickness', from: 'max', across: 'width', offset: 20 / 25.4, width: 10 / 25.4, depth: 0.25, stopMin: 0, stopMax: 0 });
+    });
+    useStore.getState().selectBoard(id);
+    render(<Properties />);
+    const width = screen.getByLabelText('Cut width');
+    await userEvent.clear(width); await userEvent.type(width, '120{Enter}');
+    expect(screen.queryByText(/Must be at most/)).toBeNull();
+    expect(worldParts(useStore.getState().doc)[0].cuts[0].width).toBe(120 / 25.4);
+    expect(width).toHaveValue('120 mm');
   });
 });

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import { formatLength } from '../units/length';
+import { useStore } from '../store/store';
 import { MAX_REPAIRS } from '../generate/run';
 import type { JointKind } from '../generate/joints/sites';
 import type { JoineryRun } from '../useJoinery';
@@ -61,6 +62,8 @@ function statusText(r: JoineryRun): string {
 
 /** Joinery's form and result. The run belongs to App (useJoinery), so closing this does not cancel it. */
 export function JoineryDialog(p: Props) {
+  // The project's units (metric display): the open project's, which joinery was started on.
+  const units = useStore((s) => s.doc.units);
   const sheet = useRef<HTMLDivElement>(null);
   useEffect(() => { sheet.current?.focus(); }, []);
   useEffect(() => {
@@ -78,7 +81,7 @@ export function JoineryDialog(p: Props) {
       const before = out.result.sizeBefore[i];
       const after = out.result.sizeAfter[i];
       return Math.abs(before - after) > 1e-9
-        ? [`Overall ${name} now ${formatLength(after, 16)} (was ${formatLength(before, 16)})`] : [];
+        ? [`Overall ${name} now ${formatLength(after, units)} (was ${formatLength(before, units)})`] : [];
     })
     : [];
   const fallbackReason = out?.fallback?.replace(/\.$/, '');
@@ -120,7 +123,7 @@ export function JoineryDialog(p: Props) {
                 out.result.trimmed.length > 0 && `Trimmed: ${out.result.trimmed.join(', ')}.`,
               ].filter(Boolean).join(' ')}</p>
             )}
-            {out.result.lowered > 0 && <p>{`The whole piece was lowered ${formatLength(out.result.lowered)} to sit on the floor again.`}</p>}
+            {out.result.lowered > 0 && <p>{`The whole piece was lowered ${formatLength(out.result.lowered, units)} to sit on the floor again.`}</p>}
             {out.notes.map((n, i) => <p key={`n${i}`}>{n}</p>)}
             {out.preexisting.map((v, i) => <p key={`p${i}`}>{`Already in the original: ${v.message}`}</p>)}
             {out.violations.map((v, i) => <p key={`v${i}`} className="field-error">{v.message}</p>)}

@@ -1,5 +1,5 @@
 import type { Board, CutFrom, Dimension, HoleRow } from './types';
-import { formatLength } from '../units/length';
+import { formatLength, formatMm, imperialAt, isMetric, type Units } from '../units/length';
 import { faceName } from './angleText';
 import { acrossOf } from './holes';
 import { holeFaults, type HoleFault } from './holeFaults';
@@ -38,27 +38,38 @@ function mm(v: number): string {
   return whole > 0 && Math.abs(m - whole) <= 1e-9 && !on64 ? ` (${whole} mm)` : '';
 }
 
+/** A hole's diameter or pitch as a hole is specified (spec R7): THE one home (invariant 19), read by the bench line and
+ *  by the Holes section's Diameter and Every fields, so the field and the line are one string. Metric: mm to one decimal.
+ *  Imperial: the diameter at the document precision, the pitch at 1/64 at least (a jig set to a rounded pitch drifts
+ *  along the row). The bench line's imperial ` (35 mm)` annotation is NOT part of it: a field's text must parse back. */
+export function holeLengthText(v: number, units: Units, kind: 'diameter' | 'pitch'): string {
+  if (isMetric(units)) return formatMm(v, 1);
+  return kind === 'pitch' ? formatLength(v, imperialAt(Math.max(units.precision, 64))) : formatLength(v, units);
+}
+
 /**
  * One hole row as a bench line (holes spec §4.1, as amended): THE ONE home of these strings (invariant 19). Lengths at
  * the document precision except the pitch, at 1/64 at least (a jig set to a rounded pitch drifts along the row). "last
  * at" is computed from the exact stored values, then rounded. A faulted row (a later edit ran it off the part, spec §2.4)
  * ends with its first fault and how many more — the user's ruling: the bench must not read a wrong row silently.
  */
-export function holeLine(board: Board, r: HoleRow, precision: number): string {
-  const base = holeLineBase(r, precision);
+export function holeLine(board: Board, r: HoleRow, units: Units): string {
+  const base = holeLineBase(r, units);
   const faults = distinctFaults(holeFaults(board, r));
   if (faults.length === 0) return base;
   return `${base} — check: ${holeFaultText(faults[0]!, r)}${faults.length > 1 ? ` (and ${faults.length - 1} more)` : ''}`;
 }
 
-function holeLineBase(r: HoleRow, precision: number): string {
-  const f = (n: number) => formatLength(n, precision);
-  const size = `${f(r.diameter)}${mm(r.diameter)} dia × ${r.depth === 'through' ? 'through' : `${f(r.depth)} deep`}`;
+function holeLineBase(r: HoleRow, units: Units): string {
+  const metric = isMetric(units);
+  const f = (n: number) => formatLength(n, units);
+  const dia = (n: number) => `${holeLengthText(n, units, 'diameter')}${metric ? '' : mm(n)}`;
+  const size = `${dia(r.diameter)} dia × ${r.depth === 'through' ? 'through' : `${f(r.depth)} deep`}`;
   const where = `in ${faceName(r.face, r.from)}`;
   const across = acrossOf(r);
   const inset = `${f(r.inset)} in from the ${across} ${r.acrossFrom} ${end(across)}`;
   if (r.count === 1) return `Hole ${size} ${where}, ${f(r.station)} from the ${r.along} ${r.alongFrom} ${end(r.along)}, ${inset}`;
-  const pitch = `${formatLength(r.pitch, Math.max(precision, 64))}${mm(r.pitch)}`;
+  const pitch = `${holeLengthText(r.pitch, units, 'pitch')}${metric ? '' : mm(r.pitch)}`;
   const last = r.station + (r.count - 1) * r.pitch;
   return `Row of ${r.count} holes ${size} ${where}, along the ${r.along}: first ${f(r.station)} from the ${r.alongFrom} ${end(r.along)}, every ${pitch}, last at ${f(last)}; ${inset}`;
 }

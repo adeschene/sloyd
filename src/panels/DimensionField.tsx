@@ -1,5 +1,9 @@
 import { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState } from 'react';
-import { formatLength, parseLength } from '../units/length';
+import { formatLength, isMetric, parseLength } from '../units/length';
+import type { Units } from '../units/length';
+
+/** Inches. Far below any display precision (1/64", 1 mm), far above a few ulps of a bound near 100". */
+const BOUND_TOLERANCE = 1e-9;
 
 interface Props {
   label: string;
@@ -26,7 +30,9 @@ interface Props {
    *  correcting a number the user just typed loses a measurement without
    *  saying so. */
   max?: number;
-  precision?: number;
+  /** The project's units (metric-display spec): the default format and parse, and so the min/max messages. A bare
+   *  number reads as millimetres in a metric project; a fraction or an inch mark is inches in either. */
+  units: Units;
   /** Call `onCommit` for a typed entry even when it parses to `value`. For a
    *  caller whose `value` is a live DEFAULT (copy in a row): typing the
    *  default is still the person's choice, and must be recorded so it stops
@@ -36,23 +42,23 @@ interface Props {
    *  changes (including false on mount), so a caller can refuse to act on a
    *  value other than the one on screen (copy in a row's Apply, fu 218). */
   onErrorChange?: (refused: boolean) => void;
-  /** Text -> number, or null when unparseable. Default `parseLength`. */
+  /** Text -> number, or null when unparseable. Default `parseLength(text, units)`. */
   parse?: (text: string) => number | null;
   /** Number -> text, for the field AND the min/max messages. Default
-   *  `formatLength(v, precision)`. */
+   *  `formatLength(v, units)`. */
   format?: (v: number) => string;
   /** The message for unparseable text. Default is the length wording. */
   invalid?: string;
 }
 
 export const DimensionField = forwardRef<HTMLInputElement, Props>(function DimensionField({
-  label, value, onCommit, allowNegative = false, min, max, precision = 16,
+  label, value, onCommit, allowNegative = false, min, max, units,
   commitUnchanged = false, onErrorChange, parse, format, invalid,
 }: Props, forwardedRef) {
   // parse/format generalise this field to non-length values (AngleField);
   // every rule here — the dirty guard, Enter/Escape, refusal never clamps — is
   // shared, never copied (invariant 5).
-  const fmt = format ?? ((v: number) => formatLength(v, precision));
+  const fmt = format ?? ((v: number) => formatLength(v, units));
   const id = useId();
   // The one formatter for `value`, so every resync path — initial state, the
   // adopt effect, the untouched-blur resync, Escape — handles mixed alike.
@@ -82,7 +88,7 @@ export const DimensionField = forwardRef<HTMLInputElement, Props>(function Dimen
       // announcing itself invalid to assistive tech.
       setError(null);
     }
-  }, [value, precision]);
+  }, [value, units.display, units.precision]);
 
   // ONE reporter for every path that sets or clears `error` — commit, the
   // adopt effect, the untouched blur, Escape, and a remount — rather than a
@@ -96,13 +102,19 @@ export const DimensionField = forwardRef<HTMLInputElement, Props>(function Dimen
   // whether a commit should happen at all (see the `dirty` guard on blur).
   // False when the entry was refused.
   const commit = (): boolean => {
-    const parsed = (parse ?? parseLength)(text);
+    const parsed = parse ? parse(text) : parseLength(text, units);
     if (parsed === null) {
-      setError(invalid ?? 'Enter a measurement, e.g. 3/4 or 1-1/2');
+      // Examples in the project's own words: a bare number is mm in metric, a fraction inches in either (M2).
+      setError(invalid ?? (isMetric(units)
+        ? 'Enter a measurement, e.g. 19 or 3/4"'
+        : 'Enter a measurement, e.g. 3/4 or 1-1/2'));
       return false;
     }
+    // min/max are compared with a float tolerance (inv 22): a caller's bound is often a DIFFERENCE of two stored values
+    // (`acrossDim - cut.stopMax`), and in metric (n / 25.4 storage) 140/25.4 - 20/25.4 is an ulp below 120/25.4, so an
+    // exact compare refuses the very number the message names. Never a clamp: the typed value is what is committed.
     if (min !== undefined) {
-      if (parsed < min) {
+      if (parsed < min - BOUND_TOLERANCE) {
         setError(`Must be at least ${fmt(min)}`);
         return false;
       }
@@ -110,7 +122,7 @@ export const DimensionField = forwardRef<HTMLInputElement, Props>(function Dimen
       setError('Must be greater than zero');
       return false;
     }
-    if (max !== undefined && parsed > max) {
+    if (max !== undefined && parsed > max + BOUND_TOLERANCE) {
       setError(`Must be at most ${fmt(max)}`);
       return false;
     }

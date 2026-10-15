@@ -1,3 +1,5 @@
+import { snapStep, snapToGrid } from './geometry';
+import { parseLength } from '../units/length';
 import { createBoard } from './document';
 import type { Board, Dimension, Posture, Rotation } from './document';
 import {
@@ -118,5 +120,32 @@ describe('the offset helpers', () => {
     expect(endFacing(b, 0, -1)).toBe('max');
     expect(endFacing(b, 0, 1)).toBe('min');
     expect(endFacing(part('flat', 0), 0, -1)).toBe('min');
+  });
+});
+
+describe('snapStep', () => {
+  it('is 1/16 in imperial and 1 mm in metric', () => {
+    expect(snapStep({ display: 'imperial-fractional', precision: 16 })).toBe(1 / 16);
+    expect(snapStep({ display: 'metric-mm', precision: 16 })).toBe(1 / 25.4);
+  });
+});
+
+describe('snapToGrid', () => {
+  const metric = { display: 'metric-mm', precision: 16 } as const;
+  const imperial = { display: 'imperial-fractional', precision: 16 } as const;
+  it('stores a dragged k mm as exactly k / 25.4 — the value a typed k parses to (M1)', () => {
+    for (let k = -500; k <= 2000; k++) {
+      // `===`: exact, with -0 === 0 (a value just below zero rounds to -0, as the imperial path's does).
+      expect(snapToGrid(k / 25.4 + 0.3 / 25.4, metric) === k / 25.4).toBe(true);
+      expect(snapToGrid(k / 25.4 - 0.3 / 25.4, metric) === k / 25.4).toBe(true);
+    }
+  });
+  it('agrees with a typed whole-mm value, so drag-then-type pushes no undo entry', () => {
+    for (let k = 1; k <= 2000; k++) expect(snapToGrid(k / 25.4 + 0.4 / 25.4, metric)).toBe(parseLength(String(k), metric));
+  });
+  it('keeps imperial byte for byte: Math.round(v / (1/16)) * (1/16)', () => {
+    for (const v of [0, 0.03, 0.04, 3.03, 10.3, -2.97, 47.99, 1 / 3]) {
+      expect(snapToGrid(v, imperial)).toBe(Math.round(v / (1 / 16)) * (1 / 16));
+    }
   });
 });

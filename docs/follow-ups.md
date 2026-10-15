@@ -5550,3 +5550,26 @@ bit-identical to `toWorld` (~1e-15 in; nothing compares caps to snap points with
 outlive a section move until the next pointer move (display only; a click re-picks from the filtered list). (5) The perf
 guards are wall-clock (fu 340); the hole-prism memo-bypass mutation does not slow the cap (fresh holes per run).
 **Status:** record-only.
+
+## From the metric display round (chunk 1) — 2026-10-15
+
+**353. Metric chunk 2 owed (and chunk 1's deploy gate).** The part diagrams' and sheet-nesting labels, the Plans sheet, the
+Buying section's actual dimensions and the viewport grid stay imperial in a metric project until chunk 2 (spec §4). Chunk 1
+is merged but must not deploy alone: a metric cut-list sheet would print mm rows beside imperial diagram labels.
+**Status:** open — next.
+
+**354. Round-mm parts miss nominal lumber.** A part typed in whole mm is not a nominal section (286 mm = 11.26" > a 1×12's
+11.25"), so the cut list names no nominal size and Buying reports "fits no pine stock — too wide". Correct arithmetic, but a
+metric user picking boards from a US yard will meet it. Remedy to discuss: a tolerance for nominal matching in metric, or a
+Nominal size select that snaps the part to the actual section. **Status:** open — for the user.
+
+**355. `designCheck` messages shown in decimal inches.** `inches()` in `designCheck.ts` writes "passes 0.25in into …" — text
+that is model-facing (stays inches, spec non-goal) but also rendered in the Joinery and Refine dialogs. In a metric project
+those dialog lines read in inches. Remedy: format the displayed copy with the project's units, keep the model's in inches.
+**Status:** open.
+
+**356. Metric chunk 1 minors (record-only).** (1) The 1e-9 bound tolerance can store a value up to an ulp past a bound; a
+reload clamps it, below any display. (2) `'- 19 mm'` (space after the sign before `mm`) is null in both modes — the
+pre-existing `MM_RE` shape. (3) A metric `formatSize` with a non-finite value renders `— × 140 mm`. (4) JoineryDialog
+formats with the open project's units, not the source's. (5) `diagram.test.ts` calls `buildDiagrams` only with imperial
+units until chunk 2 owns the diagrams. **Status:** record-only.

@@ -41,7 +41,7 @@ export function TapeReadout() {
   const tool = useStore((s) => s.tool);
   const anchor = useStore((s) => s.tapeAnchor);
   const hovered = useStore((s) => s.tapeHover);
-  const precision = useStore((s) => s.doc.units.precision);
+  const units = useStore((s) => s.doc.units);
   // The text lives in the STORE, not in a useState here, for the same reason
   // `tapeHover` does: this box is a DOM overlay outside the Canvas, and two
   // things on the other side of that boundary need the value — App's keydown
@@ -139,7 +139,7 @@ export function TapeReadout() {
       setError('no-direction');
       return;
     }
-    const distance = parseLength(text);
+    const distance = parseLength(text, units);
     if (distance === null) {
       setError('unparseable');
       return;
@@ -167,7 +167,7 @@ export function TapeReadout() {
           </span>
         )}
         <span className="tape-readout-label">
-          {measured === null ? '—' : formatLength(measured, precision)}
+          {measured === null ? '—' : formatLength(measured, units)}
         </span>
         <input
           ref={input}

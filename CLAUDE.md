@@ -157,7 +157,7 @@ reads off the page, and not otherwise.** `cutlist.ts`, `diagram.ts`, `nesting.ts
 (`formatLength`, so one dimension never reads two ways on one sheet) and
 `viewport/TapeTool.tsx` (`parseLength`, for the live preview) take it.
 `snapPoints.ts` and `row.ts` deliberately do not. Do not generalise to "everything under
-`document` imports `formatLength`".
+`document` imports `formatLength`". A TYPE-only import of `Units` is not an edge (`types.ts`, `geometry.ts`' `snapStep`).
 
 **Storage seam:** all persistence — autosave, export, import — goes through
 `StorageAdapter`. Nothing else touches `localStorage` or the filesystem. A desktop build
@@ -209,7 +209,8 @@ source of truth — `tapeHover`'s clearing enumeration, `tapeAxis`'s structural 
 
 ```
 src/
-├── units/            length.ts (parseLength/formatLength/canBeginLength; capture set {0-9 . -}), nominal.ts
+├── units/            length.ts (Units; parseLength/formatLength(…, units)/canBeginLength; capture set {0-9 . -}; formatMm,
+│                     formatLengthBare, formatSize, floorToTick; inv 52), nominal.ts
 │                     (NOMINAL_SECTIONS, nominalName — EXACT at 1e-9, either order —, stockLengthText: whole feet `8′`),
 │                     quantity.ts (board/square feet, two decimals fixed)
 ├── document/
@@ -517,7 +518,7 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
       point-precise. Deleting the former or adding one for the latter breaks behaviour that
       only the "keeps" tests catch.
     - The enumeration lives only at `tapeHover`'s declaration in `store.ts`; never restate it.
-25. **Exact moves are never rounded to `SNAP_INCHES`**: snap move, click-placed guide,
+25. **Exact moves are never rounded to the drag grid (`SNAP_INCHES`, or 1 mm in a metric project — `snapToGrid`)**: snap move, click-placed guide,
     ray-typed guide, axis-placed guide and copy in a row (copy k = original + k·step·sign,
     never from the previous copy). Round what a free drag produced, nothing else.
 26. **`grabbed` is a `BoardSnapPoint`**, so a guide-owned grab cannot be constructed. Do
@@ -765,12 +766,24 @@ worked examples is in `docs/history.md` ("Removed from CLAUDE.md, 2026-10-07").
     candidates), guide points exempt — guides are drawn unclipped. The per-part local-cap cache is hit only on the same
     `geometryKey` and the exact local plane coordinate; never hand out its arrays.
 
+52. **A length becomes text — and text becomes a length — only through `units/length.ts`, with the DOCUMENT's own `Units`**
+    (`formatLength`/`parseLength` take `Units`; there is no module- or browser-level unit setting, so a background run or a
+    sheet formats with its own document). Stored values are inches always; a units switch (`setUnitsDisplay`, one edit,
+    locked while exploded) moves no number. Imperial output is byte-for-byte what it was. Metric: whole mm (half away from
+    zero after the fraction path's nudge), a bare typed number is mm (marks, fractions and feet stay inches — so switching
+    units reinterprets a pending typed tape entry, preview and commit alike), hole diameter and pitch to 0.1 mm through
+    `holeLengthText` (one home for the bench line and the fields, inv 19), stock collapsing at whole mm (inv 18), free drags
+    on whole mm via `snapToGrid` (`Math.round(v * 25.4) / 25.4`, the SAME float a typed value stores). Field bounds are
+    compared with a 1e-9 tolerance (inv 22): a metric max like `posDim − offset` is not exact. Imperial on purpose: the
+    Materials dialog's sheet and stock sizes (trade units), Generate's limits, model-facing text; until metric chunk 2, the
+    drawings, Buying and the grid.
+
 ## Commands
 
 ```bash
 npm install
 npm run dev        # Vite dev server; use --port <n> to avoid collisions
-npm test           # Vitest, currently 4017 tests across 138 files
+npm test           # Vitest, currently 4128 tests across 141 files
 npm run build      # tsc -b && vite build — this is the typecheck gate
 docker compose up -d --build    # deploy (see DEPLOYMENT.local.md first)
 ```

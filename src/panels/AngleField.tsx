@@ -1,4 +1,5 @@
 import { DimensionField } from './DimensionField';
+import { IMPERIAL } from '../units/length';
 
 const parseDegrees = (text: string): number | null => {
   const t = text.trim().replace(/°\s*$/, '').trim();
@@ -13,6 +14,7 @@ export function AngleField({ label, value, onCommit, max }: { label: string; val
   const limit = Math.floor(Math.min(max ?? Infinity, 89.9) * 10 + 1e-9) / 10;
   return (
     <DimensionField label={label} value={value} onCommit={onCommit} max={limit}
+      units={IMPERIAL} // unused: parse and format are supplied
       parse={parseDegrees} format={formatDegrees} invalid="Enter an angle in degrees, e.g. 45 or 22.5" />
   );
 }

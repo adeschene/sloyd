@@ -66,6 +66,15 @@ describe('runJoinery', () => {
     expect(out.result.doc.materials).toEqual([ash]);
   });
 
+  it('the joined result keeps a metric project\'s units (metric-display spec)', async () => {
+    const doc = migrateDocument({ ...CORNER, units: { display: 'metric-mm', precision: 16 } });
+    expect(doc.units.display).toBe('metric-mm');
+    const out = await run(client(short), doc);
+    if ('refused' in out || 'noSites' in out) throw new Error('expected a join');
+    expect(flatDocument(out.result.doc).boards.some((b) => b.cuts.length > 0)).toBe(true);
+    expect(out.result.doc.units).toEqual({ display: 'metric-mm', precision: 16 });
+  });
+
   it('repairs a tenon collision: the second answer clears it', async () => {
     const c = client(long, short);
     const out = await run(c);

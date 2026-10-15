@@ -4,7 +4,7 @@ import {
   defaultBuying, DEFAULT_WASTE_FACTOR, WASTE_FACTOR_MAX, WASTE_FACTOR_MIN,
   type MaterialBuying, type ShopSettings,
 } from '../document/purchase';
-import { formatLength, parseLength } from '../units/length';
+import { IMPERIAL, formatLength, imperialAt, parseLength } from '../units/length';
 import {
   initialRows, newRow, planSave, rebaseRows, rowNotes, rowRefusal, setRowKind,
   // Not a React hook, whatever its name says: a pure row transform, called from a click handler.
@@ -45,7 +45,8 @@ type Draft =
 
 const PRICE_RE = /^(?:\d+(?:\.\d*)?|\.\d+)$/;
 const priceText = (v: number | null) => (v === null ? '' : String(v));
-const lengthText = (v: number) => formatLength(v, 64);
+// Ruling P1 (metric display): stock and sheet sizes in the Materials dialog stay imperial.
+const lengthText = (v: number) => formatLength(v, imperialAt(64));
 
 function toDraft(b: MaterialBuying): Draft {
   if (b.mode === 'board-foot') return { mode: 'board-foot', price: priceText(b.pricePerBoardFoot), waste: String(b.wasteFactor) };
@@ -60,7 +61,8 @@ function parsePrice(t: string): number | null | undefined {
   return PRICE_RE.test(s) ? Number(s) : undefined;
 }
 function parseDim(t: string): number | undefined {
-  const v = parseLength(t);
+  // Ruling P1: typed as inches, as `lengthText` shows them, whatever the project's units.
+  const v = parseLength(t, IMPERIAL);
   return v !== null && v > 0 ? v : undefined;
 }
 function parseWaste(t: string): number | undefined {

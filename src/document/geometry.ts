@@ -1,3 +1,4 @@
+import type { Units } from '../units/length';
 import type { Board, Dimension, Posture, Span } from './types';
 
 /** The order two dimensions are considered in when they share the floor. */
@@ -10,6 +11,16 @@ export const DIMENSION_ORDER: Dimension[] = ['length', 'width', 'thickness'];
  * applied to an exact position or a difference of two (invariant 25).
  */
 export const SNAP_INCHES = 1 / 16;
+
+/** The FREE-drag grid (metric-display spec R5): 1/16" or 1 mm. Exact moves are never rounded to it (inv 25); Generate and
+ *  joinery keep SNAP_INCHES. Here, not in units/, because it produces no string (the → units edge rule). */
+export const snapStep = (units: Units): number => (units.display === 'metric-mm' ? 1 / 25.4 : SNAP_INCHES);
+
+/** A FREE value rounded to the free-drag grid (`snapStep`). Metric divides by 25.4 so a dragged k mm is stored as exactly
+ *  `k / 25.4` — the value `parseLength` gives for a typed `k` — rather than `k * (1/25.4)`, which differs in the last bit
+ *  for about 45% of k (a no-op undo entry when the typed value then lands on it). Imperial is unchanged byte for byte. */
+export const snapToGrid = (v: number, units: Units): number =>
+  units.display === 'metric-mm' ? Math.round(v * 25.4) / 25.4 : Math.round(v / SNAP_INCHES) * SNAP_INCHES;
 
 /**
  * The dimension a cut's offset and width are measured along: the one that is
