@@ -1,9 +1,8 @@
 import { createBoard, mirrorPart, pocketCells, keptHalfSpace, partGeometry, taperCut, type Board, type Posture, type Rotation } from './document';
 import { axisFrame, fromWorldOffset, DIMENSION_ORDER } from './geometry';
 import { holePrism } from './holes';
-import { keptBySection, sectionAxisIndex, sectionPlaneOf, sectionSpan, SECTION_EPS, sectionCaps, unionOutline, type Section } from './section';
+import { keptBySection, sectionAxisIndex, sectionPlaneOf, sectionSpan, SECTION_EPS, sectionCaps, unionOutline, localCapPieces, type Section } from './section';
 import { chiralPart } from './turnFixtures';
-import { localCapPieces } from './section';
 import type { V3 } from './angleCuts';
 
 describe('section side test', () => {
@@ -375,5 +374,20 @@ describe('unionOutline equals the linear-scan reference', () => {
     const got = unionOutline(local.pieces, local.li);
     expect(got.length).toBeGreaterThan(0);
     expect(got).toEqual(referenceUnionOutline(local.pieces, local.li));
+  });
+});
+
+describe('unionOutline line grouping across a bucket edge', () => {
+  // Two squares sharing the edge y = c in the plane x = 0 (li = 0, so i = y... pieces use [x, y, z]); the shared edge's
+  // offset differs by 0.95e-7 (inside SECTION_EPS) and straddles a cell boundary of the 1e-6 quantum.
+  it('cancels a seam whose two copies sit on either side of a cell edge', () => {
+    const edge = 3e-6;                                   // a cell boundary of the 1e-6 quantum
+    const a = edge - 0.5e-7, b = edge + 0.45e-7;
+    // Counter-clockwise about +x in (y, z): piece 1 below the seam z = a, piece 2 above it at z = b.
+    const lower: V3[] = [[0, 0, 0], [0, 1, 0], [0, 1, a], [0, 0, a]];
+    const upper: V3[] = [[0, 0, b], [0, 1, b], [0, 1, 1], [0, 0, 1]];
+    const seam = unionOutline([lower, upper], 0).filter(([p, q]) => Math.abs(p[2] - q[2]) < 1e-3 && p[2] > 1e-6 && p[2] < 0.5);
+    expect(seam).toEqual([]);
+    expect(unionOutline([lower, upper], 0).length).toBe(unionOutline([upper, lower], 0).length);
   });
 });

@@ -8,7 +8,7 @@ import type { Board, Section } from '../document/document';
  * BoardMesh's fan/normal building sits on top). Bounds are about 3x the measured minimum, rounded up to 5 ms.
  *
  * Measured minima on this machine (ms), before the perf round -> after it:
- * - top plane through the pins' depth, ACROSS 42 bores (about 2000 cap pieces): 36-38 -> 13.5-14.2 (bound 45). The rewrite:
+ * - top plane through the pins' depth, ACROSS 42 bores (about 2000 cap pieces): 36-38 -> 13.5-14.2 (bound 40). The rewrite:
  *   unionOutline's line grouping bucketed on its tolerances (was a linear scan, about 18-21 ms) and its weights swept
  *   (about 8-9 ms after the bucketing, 5 ms after the sweep), the world map done as one affine map per axis (about
  *   2 ms), a box prefilter before minusPrism (about 3 ms). What is left is minusPrism's wedge splitting, about 8 ms.
@@ -41,8 +41,8 @@ function minOf9(cuts: Board['cuts'], s: Section): number {
 }
 
 describe('a section cap rebuilds inside a frame', () => {
-  it('across 42 shelf-pin bores (top plane at the pins\' depth): minimum of 9 is at most 45 ms', () => {
-    expect(minOf9([], { axis: 'top', at: 0.6, flip: false })).toBeLessThanOrEqual(45);
+  it('across 42 shelf-pin bores (top plane at the pins\' depth): minimum of 9 is at most 40 ms', () => {
+    expect(minOf9([], { axis: 'top', at: 0.6, flip: false })).toBeLessThanOrEqual(40);
   });
   it('along a row of 21 bores (front plane at the inset): minimum of 9 is at most 10 ms', () => {
     expect(minOf9([], { axis: 'front', at: 1.5, flip: false })).toBeLessThanOrEqual(10);

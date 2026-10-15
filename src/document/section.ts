@@ -182,8 +182,8 @@ export function unionOutline(pieces: readonly V3[][], li: number): [V3, V3][] {
   const reach = (v: number, cell: number, tol: number, out: number[]): number => {
     const q = Math.floor(v / cell), f = v - q * cell;
     out[0] = q;
-    if (f < tol) { out[1] = q - 1; return 2; }
-    if (cell - f < tol) { out[1] = q + 1; return 2; }
+    if (f <= 2 * tol) { out[1] = q - 1; return 2; }
+    if (cell - f <= 2 * tol) { out[1] = q + 1; return 2; }
     return 1;
   };
   const rx: number[] = [0, 0], ry: number[] = [0, 0], rz: number[] = [0, 0];
