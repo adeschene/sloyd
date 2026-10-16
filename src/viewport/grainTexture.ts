@@ -176,9 +176,7 @@ function woodCut(d: number, wobbleAmplitude: number): Draw {
       // these from the sequential `rand` instead would give the two edges
       // different bands and put a seam back across the grain, which is the one
       // failure this whole construction exists to avoid.
-      // k = 0 has its OWN seed (fu 37): `0 % half` is the edges' bucket, so the centre band shared their width, weight
-      // and wobble — a three-way collision where only the edge pair is required.
-      const bandRand = seededRandom(hash(k === 0 ? 'band:centre' : `band:${Math.abs(k) % half}`));
+      const bandRand = seededRandom(hash(`band:${Math.abs(k) % half}`));
       const harmonics = makeHarmonics(bandRand, 3, wobbleAmplitude);
       const width = 2.2 + bandRand() * 3.4;
       const alpha = 0.10 + bandRand() * 0.14;
