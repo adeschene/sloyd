@@ -21,7 +21,8 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production matches `master`** as of 2026-10-16: fu 368 (merge `1015f08`, deployed as `676225c`) — bundle `index-DG6bkBPk.js`;
+- **Production is fu 368** (merge `1015f08`, deployed as `676225c`, bundle `index-DG6bkBPk.js`); **master is AHEAD with follow-ups 2
+  (`0f4d732`), not deployed**;
   rollback to follow-ups 1 (`558187f`, `index-LdkILHkB.js`) or curves chunk 2 (`1e16c01`, `index-C-5a29hA.js`) is free.
   rollback to curves chunk 2 (`1e16c01`, `index-C-5a29hA.js`) is free. Curves chunk 2's bundle was `index-C-5a29hA.js`, CSS
   `index-DdiQhqkN.css`, **SCHEMA 17** (unchanged by chunk 2, so rolling back to curves chunk 1, `54ea740` / `index-D4nh2vvL.js`,
@@ -50,7 +51,7 @@ handicraft education tradition built around hand woodworking.
 - **Fu 368 (2026-10-16, merged as `1015f08`, deployed as `index-DG6bkBPk.js`)**: a non-convex waste's rebuild ~52 → ~6 ms: `bodyEdges`' line and
   coplanar lookups indexed (byte-identical, A/B over 21 fixtures), ear-clip triangles merged into convex pieces
   (Hertel–Mehlhorn; 83 bodies → 16); the frozen-bodies hypothesis did not reproduce. No schema change.
-- **Follow-ups 2 (2026-10-16, branch `follow-ups-2`, NOT deployed; no schema change)**: closed 297 (offset miters read-only),
+- **Follow-ups 2 (2026-10-16, merged as `0f4d732`, NOT deployed; no schema change, so deploying or rolling back is free)**: closed 297 (offset miters read-only),
   290 (Float32 slivers measured absent, pinned), 314 (unreachable), 287 and 292 (the user's rulings: record-only, wording
   kept), 208/209 (undo, redo, delete refused mid-drag), 210 (a cleared mixed field stays mixed).
 - **NEXT: ask.** The recent rounds' code-sized residue is done; what is left there is feature-sized (needs a spec) or owed to
