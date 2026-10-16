@@ -21,8 +21,8 @@ handicraft education tradition built around hand woodworking.
 
 ## Status
 
-- **Production is fu 96** (merge `9a31093`, deployed as `bcd2715`, bundle `index-BspJH3pS.js`, CSS `index-JL_iwVLq.css`);
-  rollback to follow-ups 3 (`d07cbaa`, `index-DwWqjN7c.js`) or follow-ups 2 (`4ad8881`, `index-BFCf2c3f.js`) is free.
+- **Production is follow-ups 4** (merge `c27f8ff`, deployed as `a9c678e`, bundle `index-BxqTdZO2.js`, CSS `index-BB3TDXsh.css`);
+  rollback to fu 96 (`bcd2715`, `index-BspJH3pS.js`) or follow-ups 3 (`d07cbaa`, `index-DwWqjN7c.js`) is free.
   Curves chunk 2's bundle was `index-C-5a29hA.js`, CSS
   `index-DdiQhqkN.css`, **SCHEMA 17** (unchanged by chunk 2, so rolling back to curves chunk 1, `54ea740` / `index-D4nh2vvL.js`,
   is free; below 17, `7f851f9` / `index-BZDp6iOz.js` or earlier, REFUSES every project saved since — export first). Test count
@@ -60,7 +60,7 @@ handicraft education tradition built around hand woodworking.
   record-only (the new centre seed's band crossed its neighbour; reverted); 96 closed by its own round (below).
 - **Fu 96 (2026-10-16, merged as `9a31093`, deployed as `index-BspJH3pS.js`; no schema change)**: a sheet or board layout part too small for its index
   number gets a callout beside the drawing with a leader (the user's rulings: beside the part; a long interior leader accepted).
-- **Follow-ups 4 (2026-10-16, merged as `c27f8ff`, NOT deployed; no schema change, so deploying or rolling back is free)**: the triage's last code-sized opens —
+- **Follow-ups 4 (2026-10-16, merged as `c27f8ff`, deployed as `index-BxqTdZO2.js`; no schema change)**: the triage's last code-sized opens —
   test gaps 127, 13, 54 (`groupFields`: the group key is the row key's prefix), 2 (an import test that could not fail, fixed);
   98 (a Saw kerf field in the cut list header, `setKerf`), 154 (closed: the index is re-read on every write; pinned with two
   adapters), 6 (`1  1/2`, `1 - 1/2` parse).

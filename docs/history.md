@@ -18,7 +18,14 @@
 
 ## Deployment record
 
-**Production matches `master` as of 2026-10-16 with fu 96 live** (`index-BspJH3pS.js`, CSS `index-JL_iwVLq.css` — changed: the
+**Production matches `master` as of 2026-10-16 with follow-ups 4 live** (`index-BxqTdZO2.js`, CSS `index-BB3TDXsh.css` — changed:
+the kerf field and the wrapping header —, deployed commit `a9c678e`, merge `c27f8ff`, schema 17 unchanged — rollback to fu 96,
+`bcd2715` / `index-BspJH3pS.js`, is free). Deployed on the user's word (4539 tests, build clean). Verified: `200` on `/` and a deep
+route in-network and at the edge, the edge bundle's and CSS's sha256 matching `dist/`, the old bundle and CSS 404 in-network,
+the CSP at the edge, the edge CSS carrying `.cutlist-kerf`, a real-browser load (0 errors, "+ Add board" present), its two keys
+removed from a plain asset page and read back empty after 3s.
+
+The previous deployment: **fu 96 live** (`index-BspJH3pS.js`, CSS `index-JL_iwVLq.css` — changed: the
 leader style —, deployed commit `bcd2715`, merge `9a31093`, schema 17 unchanged — rollback to follow-ups 3, `d07cbaa` /
 `index-DwWqjN7c.js`, is free). Deployed on the user's word (4512 tests, build clean). Verified: `200` on `/` and a deep route
 in-network and at the edge, the edge bundle's and CSS's sha256 matching `dist/`, the old bundle and CSS 404 in-network, the CSP
