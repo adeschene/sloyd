@@ -53,11 +53,16 @@ handicraft education tradition built around hand woodworking.
 - **Follow-ups 2 (2026-10-16, merged as `0f4d732`, deployed as `index-BFCf2c3f.js`; no schema change)**: closed 297 (offset miters read-only),
   290 (Float32 slivers measured absent, pinned), 314 (unreachable), 287 and 292 (the user's rulings: record-only, wording
   kept), 208/209 (undo, redo, delete refused mid-drag), 210 (a cleared mixed field stays mixed).
+- **Follow-ups 3 (2026-10-16, branch `follow-ups-3`, NOT deployed; no schema change)**: from the 1–178 triage, closed 168 (a
+  failed run's spend reported, `< $0.01`), 53 (offset refused past `posDim - width`), 152 (Escape returns focus to the caret), 95
+  (the sheet count says what it leaves out), 35 (a project that cannot be opened says why in the menu), 3, 18, 9, 23, 40, 14, 57,
+  and 11 (its named remedy rejected: three's Raycaster would throw on `raycast={null}`). Held for the USER: 96 (sheet index
+  label overflows a part under ~2.4" — needs a design ruling) and 37 (the centre grain seed's before/after, reverted: the new
+  band crossed its neighbour).
 - **NEXT: ask.** The recent rounds' code-sized residue is done; what is left there is feature-sized (needs a spec) or owed to
   the user's eye. The oldest entries (1–178) were TRIAGED 2026-10-16 (every one now carries a `**Status:**` line, tagged
   `(triaged 2026-10-16)`; numbers 24, 25, 97, 131, 157, 158 each name two entries, never renumber): 65 closed, 69 record-only,
-  15 owed or open by decision, 40 open as work — the code-sized defects 168 (cost before an LlmError dropped, "≈ $0.00"), 53
-  (offset field leaves width unsatisfiable), 152 (Escape loses focus), 95, 96, 35 (silent too-new open), 3, 18. `docs/follow-ups.md` is authoritative: an open entry reads
+  15 owed or open by decision, 40 open as work (follow-ups 3 closed 13 of them; 96 and 37 await the user). `docs/follow-ups.md` is authoritative: an open entry reads
   `**Status:** open`, and many are record-only, so read the entry before proposing work. Owed to the USER, not code: review
   of the spec amendments marked *Amended (implementation, chunk 1/2)* in the curves spec; a real Brave print (254,
   345, 357, 379); real-hardware looks (26a: 337, 347, 370 — 370 is the only real proof 369's pinholes are gone; the Plans
@@ -144,6 +149,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | follow-ups 1 | 10-15 | — | Fu 369 (a curved part's holed planes as one region: watertight, ~3x faster), 375, 339, 262 (+261), 338/359 (the user's rulings), 335, 348, 344 + 263, 316, 296 |
 | fu 368 | 10-16 | — | A non-convex waste rebuilds ~52 → ~6 ms: `bodyEdges` lookups indexed (byte-identical), convex pieces merged (Hertel–Mehlhorn) |
 | follow-ups 2 | 10-16 | — | Fu 297, 290, 314, 287/292 (rulings), 208/209 (undo, redo, delete refused mid-drag), 210 |
+| follow-ups 3 | 10-16 | — | From the 1–178 triage: fu 168 (failed run's spend), 53, 152, 95, 35 (unopenable project says why), 3, 18, 9, 23, 40, 14, 57, 11 |
 
 ### The deployment rule
 
@@ -483,6 +489,8 @@ Deployment scaffolding: `Dockerfile`, `docker-compose.yml`, `nginx.conf`,
   deliberately no prefix rule.**
 - **`useGenerations.ts`**: auth or cancel during planning starts no run; a cancel landing
   as planning resolves is caught before the runs (its test asserts run CALLS).
+  A failed run's cost comes from `spentOnFailure` (run.ts; Refine too): a `RunFailed`'s usage or the calls before a rethrown
+  error, null when nothing was spent; every spent cost prints through `formatCost` (`< $0.01`, never `≈ $0.00`; fu 168).
 - **`store.ts`**: `copyInRow` and `duplicateBoards` share `copyBoard` so they cannot drift.
   `undo`, `redo` and `deleteBoards` are refused while `gesturing` (fu 208/209: mid-drag they lost or merged the drag's entry).
   `tapeAxis` is NOT a held point (an enum cannot go stale; do not give it clearing rules).
@@ -502,7 +510,10 @@ Deployment scaffolding: `Dockerfile`, `docker-compose.yml`, `nginx.conf`,
 - **`ProjectMenu.tsx`**: deliberately not an ARIA menu. The arm/disarm swap renders a
   `<button>` at the same sibling index in both branches — giving either a `key` breaks
   focus. Rendered only when `libraryAvailable`. A duplicate error's cause is read off
-  `storage.available` (the ADAPTER flag, never React's `available`; fu 159).
+  `storage.available` (the ADAPTER flag, never React's `available`; fu 159). A row click closes the menu at once; `onOpen`
+  resolves null or why the project cannot be opened (`storage.readProject`, asked only on failure so the switch path keeps
+  `loadProject`), and a failure reopens the menu on that row with the message, focus on the caret (fu 35). Escape focuses the
+  caret before closing (fu 152).
 - **`GuidesList.tsx`** has no selection model, deliberately.
 - **`Popover.tsx`**: focuses the trigger BEFORE running an item (App records the opener);
   Escape is bound on its subtree with `stopPropagation`, never on window (inv 27).
