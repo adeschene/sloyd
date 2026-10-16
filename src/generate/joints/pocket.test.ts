@@ -1,10 +1,10 @@
 import { buildCutList, createBoard, createDocument, migrateDocument, worldParts } from '../../document/document';
 import { flatDocument } from '../../document/tree';
-import { stockProbe } from '../../document/cuts';
-import { axisDimensions, toWorldOffset } from '../../document/geometry';
+import { clippedRegion, cutShape, stockProbe } from '../../document/cuts';
+import { axisDimensions, axisFrame, toWorldOffset } from '../../document/geometry';
 import type { Board, Cut, Posture, Rotation } from '../../document/types';
 import { boxOf, pocketFor } from './pocket';
-import type { WorldBox } from './pocket';
+import type { V3, WorldBox } from './pocket';
 
 /**
  * The bound comes from OUTSIDE the code under test (invariant 23): a sample
@@ -176,6 +176,56 @@ describe('pocketFor', () => {
       const doc = { ...createDocument('Rails'), units: { display: 'metric-mm' as const, precision: 16 }, boards: parts };
       const rows = buildCutList(flatDocument(doc)).groups.flatMap((g) => g.rows);
       expect(rows.map((r) => r.qty)).toEqual([2]);
+    });
+
+    // A box given in the part's own mm coordinates, reached as joinery reaches it: through WORLD floats.
+    const viaWorld = (b: Board, local: Record<'length' | 'width' | 'thickness', [number, number]>): WorldBox => {
+      const dims = axisDimensions(b);
+      const at = (i: number, u: number) => b.position[i] + toWorldOffset(b, i, u);
+      const ends = [0, 1, 2].map((i) => [at(i, mm(local[dims[i]][0])), at(i, mm(local[dims[i]][1]))].sort((x, y) => x - y));
+      // Reaching past a face is how a recipe's box opens it: one mm beyond each end the box touches.
+      const pad = (i: number, j: 0 | 1) => {
+        const d = dims[i];
+        const touches = j === 0 ? local[d][j] === 0 : local[d][j] === Math.round(b[d] * 25.4);
+        const worldMin = (j === 0) !== axisFrame(b)[i].reversed;
+        return touches ? (worldMin ? -1 : 1) * mm(1) : 0;
+      };
+      return {
+        min: [0, 1, 2].map((i) => ends[i][0] + Math.min(0, pad(i, 0), pad(i, 1))) as V3,
+        max: [0, 1, 2].map((i) => ends[i][1] + Math.max(0, pad(i, 0), pad(i, 1))) as V3,
+      };
+    };
+
+    it('a rabbet flush with the max end: both turns agree, it is a rabbet, and it reaches the end', () => {
+      for (const P of [0, 13, 41]) for (let k = 3; k < 600; k += 11) for (const rotation of [0, 180] as const) {
+        const b = createBoard({ length: mm(610), width: mm(90), thickness: mm(19), rotation, position: [mm(P), mm(P), mm(P)] });
+        const c = pocketFor(b, viaWorld(b, { length: [k, 610], width: [0, 90], thickness: [13, 19] }));
+        const at = `P ${P} k ${k} turn ${rotation}`;
+        const turned = createBoard({ ...b, rotation: rotation === 0 ? 180 : 0 });
+        const other = pocketFor(turned, viaWorld(turned, { length: [k, 610], width: [0, 90], thickness: [13, 19] }));
+        expect(fields(other), at).toEqual(fields(c));
+        const cut = { ...b, cuts: [c] };
+        expect(cutShape(cut, c).word, at).toBe('rabbet');
+        const r = clippedRegion(cut, c);
+        expect(Math.abs(r.length[1] - b.length), at).toBeLessThanOrEqual(1e-9);
+        expect(Math.abs(r.length[0] - mm(k)), at).toBeLessThanOrEqual(1e-9);
+      }
+    });
+
+    it('a housing re-stored beside an existing rabbet (storedAsShape) agrees across turns and positions', () => {
+      // The mm version of the cut-storage §3.2 case above: a back rabbet opens the housing's width-min end, so the run is
+      // the width and `storedAsShape` re-stores what pocketFor first wrote.
+      const rabbet: Cut = { id: 'r', face: 'width', from: 'min', across: 'length', offset: mm(10), width: mm(9), depth: mm(6), stopMin: 0, stopMax: 0 };
+      const seen = new Map<string, string>();
+      for (const P of [0, 17, 53]) for (let k = 40; k < 1700; k += 37) for (const rotation of [0, 180] as const) {
+        const b = createBoard({ length: mm(1830), width: mm(286), thickness: mm(19), rotation, position: [mm(P), mm(P), mm(P)], cuts: [rabbet] });
+        const c = pocketFor(b, viaWorld(b, { length: [k, k + 19], width: [6, 25], thickness: [13, 19] }));
+        expect(c.across).toBe('width');
+        const key = fields(c).join(':');
+        const prev = seen.get(String(k));
+        if (prev === undefined) seen.set(String(k), key);
+        else expect(key, `P ${P} k ${k} turn ${rotation}`).toBe(prev);
+      }
     });
 
     it('a number off both grids is stored as computed', () => {

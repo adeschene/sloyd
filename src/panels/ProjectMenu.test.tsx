@@ -430,13 +430,15 @@ describe('ProjectMenu new badge', () => {
   });
 });
 
-// Fu 151: Tabbing onto Duplicate showed Duplicate alone, so a keyboard user never saw that Delete follows. Focus inside
-// a row reveals both, as hover does. Not `?raw`: Vitest hands CSS back as '' (palette.test.ts reads it the same way).
+// Fu 151: Tabbing onto Duplicate showed Duplicate alone, so a keyboard user never saw that Delete follows. Keyboard focus
+// inside a row reveals both, as hover does. Not `?raw`: Vitest hands CSS back as '' (palette.test.ts reads it the same way).
 describe('the row actions reveal together', () => {
-  it('focus anywhere in a row shows both of its actions, as hover does', () => {
+  it('keyboard focus anywhere in a row shows both of its actions, as hover does', () => {
     const css = readFileSync('src/styles.css', 'utf8');
     const rule = css.match(/([^{}]*)\{\s*opacity:\s*1;\s*\}/g)?.find((r) => r.includes('.project-row:hover .project-row-action'));
     expect(rule).toBeDefined();
-    expect(rule).toMatch(/\.project-row:focus-within \.project-row-action\s*[,{]/);
+    // KEYBOARD focus only: `:focus-within` also lit both after a mouse click on Duplicate (it focuses itself).
+    expect(rule).toMatch(/\.project-row:has\(:focus-visible\) \.project-row-action\s*[,{]/);
+    expect(css).not.toMatch(/\.project-row:focus-within/);
   });
 });

@@ -77,7 +77,7 @@ return `null`. Degrades to a clear rejection, never a wrong number.
 Only matters for a future desktop build.
 
 **Status:** open (latent, desktop builds only): `sanitizeFilename` has no reserved-device-name guard. (triaged 2026-10-16)
-**Status:** CLOSED 2026-10-16 (follow-ups 5): `sanitizeFilename` gives a device name (CON, PRN, AUX, NUL, COM1-9, LPT1-9, any case, after cleaning) a `-project` suffix (`con-project.sloyd`); `console`, `com10`, `con table` untouched. Pinned in `browser.test.ts` (mutated: an unanchored pattern reds 3).
+**Status:** CLOSED 2026-10-16 (follow-ups 5): `sanitizeFilename` gives a device name (CON, PRN, AUX, NUL, COM0-9, LPT0-9 — Microsoft's list includes the 0s —, any case, after cleaning) a `-project` suffix (`con-project.sloyd`); `console`, `com10`, `con table` untouched. Pinned in `browser.test.ts` (mutated: an unanchored pattern reds 3; `[1-9]` reds the two 0 cases).
 
 **8. The `storage` singleton is imported from the concrete module.** `App.tsx` and
 `FileMenu.tsx` both `import { storage } from '../storage/browser'`, and both test files
@@ -3540,7 +3540,7 @@ record rather than retune. Recorded now because the argument for the current sta
 "nobody noticed", which is not an argument.
 
 **Status:** open (hygiene, one CSS rule; a visual change for the user's nod): no `.project-row:focus-within` reveal. (triaged 2026-10-16)
-**Status:** CLOSED 2026-10-16 (follow-ups 5): `.project-row:focus-within .project-row-action` joins the hover reveal (a CSS test pins it). Seen live: Tab onto Duplicate shows Duplicate (focus ring) and Delete together (`docs/img/fu151-row-focus.png`). The look is for the user's eye, as the entry asked.
+**Status:** fixed on the branch 2026-10-16 (follow-ups 5); THE LOOK IS OWED TO THE USER. `.project-row:has(:focus-visible) .project-row-action` joins the hover reveal — KEYBOARD focus only (`:focus-within` was tried first and dropped: Duplicate focuses itself on click, so a mouse user would have kept both lit). A CSS test pins the rule and the absence of `:focus-within`. Seen live: a menu opened by mouse shows no actions; Tab onto the row shows both, and onto Duplicate both with its ring (`docs/img/fu151-row-focus.png`); a fresh mouse-only load, a real click on Duplicate, pointer moved away: none lit, `:focus-visible` false. (A click after earlier Tabs in the same page does read `:focus-visible` — Chromium carries the last modality into a programmatic `focus()`; accepted, it is the keyboard user's page.)
 
 **152. Escape closes the project menu and leaves focus on `<body>` rather than returning it
 to the caret.** Confirmed live: `document.activeElement` after an Escape from an armed delete
@@ -4831,7 +4831,7 @@ the same.
   wanted, belongs where the cut is stored.
 - **Status:** open, low, recorded.
 **Status:** open (latent): unchanged in `pocketFor`, and its reach has WIDENED — since metric display (inv 52) a metric project's whole-mm sizes are non-dyadic and can reach `pocketFor` through Add joinery. Not reproduced; reproduce before any remedy, and never by rounding the row key (inv 18). (triaged 2026-10-16)
-**Status:** CLOSED 2026-10-16 (follow-ups 5). Reproduced first: of 4008 probed mm dados, 2591 stored a different offset/width at 180° than at 0°; turn 0 was not exact either (`mm(37) − mm(12)` need not be `mm(25)`), so position split rows too, and a two-part cut list printed `[1, 1]`. `pocketFor` now stores each number (offset, width, depth, stops) within its own EPS (1e-9") of a 1/64" or 0.1 mm grid point as that point's exact float — dyadic first, 0.1 mm as `parseLength` stores a typed `x.y` mm; anything else as computed. The row key is untouched (inv 18). Tests in `pocket.test.ts`: both turns and three positions over a sweep, a stopped groove of every depth, the cut list's one row of 2, an off-grid number kept; all five fields and both branches mutated. Residue in fu 382 (`rebaseCuts`).
+**Status:** CLOSED 2026-10-16 (follow-ups 5). Reproduced first: of 4008 probed mm dados, 2591 stored a different offset/width at 180° than at 0°; turn 0 was not exact either (`mm(37) − mm(12)` need not be `mm(25)`), so position split rows too, and a two-part cut list printed `[1, 1]`. `pocketFor` now stores each of ITS OWN numbers (offset, width, depth, stops) within its EPS (1e-9") of a 1/64" or 0.1 mm grid point as that point's exact float — dyadic first, 0.1 mm as `parseLength` stores a typed `x.y` mm; anything else as computed. When `storedAsShape` then re-stores the cut (another cut opens one of its ends), it recomputes from the region and the result is NOT the grid float (a 19 mm housing beside a back rabbet: width `0.74803149606298…` varying in the last digits with position along the part) — but it is a function of identical inputs, so both turns and every position still agree (pinned), and the row split is closed. A rabbet flush with the max end stays a rabbet reaching the end within EPS in both turns (pinned). The row key is untouched (inv 18). Tests in `pocket.test.ts`: both turns and three positions over a sweep, a stopped groove of every depth, the cut list's one row of 2, a flush-max rabbet, a re-stored housing, an off-grid number kept; all five fields and both branches mutated (without `onGrid` five tests red). Residue in fu 382.
 
 **217. Small test gaps the round judged fine to leave.** Record-only.
 - Joinery equivariance covers a 180° turn only. `pocketFor`'s pose test covers all four turns in
@@ -6383,6 +6383,6 @@ and (4); the rest record-only.
 **382. Follow-ups 5 residue.** (1) Joinery's `rebaseCuts` (`recipes.ts`) still does float arithmetic on stored cuts when a
 part grows (`offset += amount`, a stop `+= amount`), so a rebased mm cut may sit an ulp off the grid point `pocketFor` would
 store for the same opening. It applies the same LOCAL operation to congruent parts, so it cannot split two of them once
-`pocketFor`'s inputs agree (fu 216); not changed without a failing case. (2) Fu 151's `:focus-within` also reveals a row's
-actions when its main button has focus by any means (an arrow or a click before the menu closes) — `:has(:focus-visible)`
-would narrow it to keyboard focus; the look is the user's. **Status:** record-only.
+`pocketFor`'s inputs agree (fu 216); not changed without a failing case. (2) Likewise `storedAsShape`'s re-store recomputes a
+re-stored cut's numbers off the grid (fu 216's last Status) — deterministic, so no split; snapping after it was declined because
+its ulp rulings (fu 200, the user's) decide which side of a flush boundary a re-store may land on. **Status:** record-only.

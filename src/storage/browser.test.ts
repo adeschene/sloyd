@@ -317,7 +317,7 @@ describe('exportProject', () => {
   // Fu 7: Windows refuses a file named for a device (CON, PRN, AUX, NUL, COM1-9, LPT1-9), whatever its extension or case.
   it.each([
     ['con', 'con-project.sloyd'], ['PRN', 'PRN-project.sloyd'], ['Aux', 'Aux-project.sloyd'], ['nul', 'nul-project.sloyd'],
-    ['COM1', 'COM1-project.sloyd'], ['lpt9', 'lpt9-project.sloyd'], [' con! ', 'con-project.sloyd'],
+    ['COM1', 'COM1-project.sloyd'], ['lpt9', 'lpt9-project.sloyd'], ['com0', 'com0-project.sloyd'], ['LPT0', 'LPT0-project.sloyd'], [' con! ', 'con-project.sloyd'],
     ['console', 'console.sloyd'], ['com10', 'com10.sloyd'], ['con table', 'con-table.sloyd'],
   ])('a project named %j exports as %j', async (name, file) => {
     const a = new BrowserStorageAdapter(new FakeStorage());

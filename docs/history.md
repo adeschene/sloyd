@@ -520,12 +520,14 @@ a different offset or width at 180° than at 0°, and turn 0 was not exact eithe
 a part's POSITION split rows too; two rails cut alike, one turned, printed as two rows of 1. No float order makes a reflected
 difference exact, so the remedy is where the cut is stored, as the entry said: `pocketFor` stores each number within its own
 EPS of a 1/64" or 0.1 mm grid point as that point's float (dyadic first; 0.1 mm as `parseLength` stores a typed mm). Generate's
-dyadic cuts are unchanged byte-for-byte (the whole suite, joinery fixtures included, passed untouched). `rebaseCuts`' own
-arithmetic is residue 382(1). **7**: device filenames get `-project`. **51**: `nextId` mints `id_` (a kind per call site judged
+dyadic cuts are unchanged byte-for-byte (the whole suite, joinery fixtures included, passed untouched). A re-store (`storedAsShape`) after it is off the grid but
+deterministic — both turns and every position agree (pinned with a housing beside a back rabbet, and a flush-max rabbet
+still reaching its end); residue 382 with `rebaseCuts`. **7** also reserves COM0/LPT0 (Microsoft's list). **7**: device filenames get `-project`. **51**: `nextId` mints `id_` (a kind per call site judged
 not worth 33 sites of plumbing). **71**: sweep case 4 pins that the shifted `3/4"` label still reaches its band. **78**:
 measured first — the ulp sliver was covered by both cuts and marked `crossing` at different depths; boundaries within 1e-9
-merge. **151**: focus inside a project row reveals both actions; seen live (`docs/img/fu151-row-focus.png`), the look for the
-user's eye. **207 not changed**: its one remedy (`controls.dragging = false`) fires drei's `dragging-changed`, which re-enables
+merge. **151**: KEYBOARD focus inside a project row reveals both actions (`:has(:focus-visible)`; `:focus-within` was dropped after
+review — Duplicate focuses itself on click, so mouse users would have kept both lit); seen live both ways
+(`docs/img/fu151-row-focus.png`), the look owed to the user. **207 not changed**: its one remedy (`controls.dragging = false`) fires drei's `dragging-changed`, which re-enables
 orbit mid-press — judged only with a real mouse. Every new test watched fail first and every fix mutated. 4623 tests across
 156 files. No schema change.
 

@@ -72,10 +72,10 @@ handicraft education tradition built around hand woodworking.
   `ec438c9`, deployed as `index-CaMRIw2a.js`; no schema change)**: fu 333, 279, 362 closed — every hole row, angle cut and curve gets a lettered tag on the elevation trio that keys
   its part, in its true view (dashed when hidden everywhere), and a key list under the trio in short bench words. Residue 381
   (tags over dimension lines, for the user's eye; the real print).
-- **Follow-ups 5 (2026-10-16, branch `follow-ups-5`; no schema change; NOT merged)**: closed 216 (`pocketFor` stores a mm cut's numbers on
+- **Follow-ups 5 (2026-10-16, branch `follow-ups-5`; no schema change; NOT merged)**: closed 216 (`pocketFor` stores a mm cut's own numbers on
   the exact grid point — turned and moved parts split no cut-list row), 7 (device filenames), 51 (`id_` ids), 71 (pinned), 78
-  (no sliver cell; it was marked crossing), 151 (row actions reveal on focus; a look for the user's eye). 207 looked at and left
-  open (the remedy re-enables orbit mid-press; real mouse). Residue 382.
+  (no sliver cell; it was marked crossing). 151 fixed (row actions reveal on KEYBOARD focus) — the look owed to the user. 207
+  looked at and left open (the remedy re-enables orbit mid-press; real mouse). Residue 382.
 - **NEXT: ask.** Every follow-up (1–380) was TRIAGED 2026-10-16 (1–178 first, then 179–380; each entry's last
   `**Status:**` line tagged `(triaged 2026-10-16)`). The 179–380 pass: 61 + 7 Status lines; 114 closed, 35 record-only,
   29 feature-sized, 13 owed to the user, 7 by decision, 4 open as work (207, 216, 234, 269). The open set, by kind, is
@@ -167,7 +167,7 @@ One line each; the full narrative per round is in `docs/history.md`.
 | follow-ups 4 | 10-16 | — | Fu 127, 13, 54, 2 (test gaps), 98 (Saw kerf field), 154 (two tabs: pinned), 6 (spaced mixed lengths) |
 | plans balloons | 10-16 | — | One numbered balloon per cut-list row on the Plans sheet's exploded view; the cut list and its layouts print the row number (fu 252) |
 | feature callouts | 10-16 | — | Lettered feature tags on the Plans sheet's elevations, a key list per trio (fu 333, 279, 362) |
-| follow-ups 5 | 10-16 | — | Fu 216 (mm joinery cuts on the exact grid), 7, 51, 71, 78, 151 |
+| follow-ups 5 | 10-16 | — | Fu 216 (mm joinery cuts on the exact grid), 7, 51, 71, 78; 151 (row actions on keyboard focus) |
 
 ### The deployment rule
 
@@ -513,9 +513,10 @@ Deployment scaffolding: `Dockerfile`, `docker-compose.yml`, `nginx.conf`,
   visible, true and hidden, any hidden (ties Front, Side, Plan). A part's features are keyed by the innermost LISTED
   assembly's trio (`keyed`), so each feature once per sheet; same-letter tags within a diameter merge, others are pushed out
   along their leaders and clamped inside the figure, and a tag that still overlaps is not drawn and its letter is noted.
-- **`pocket.ts`**: `pocketFor` stores every number within EPS of a 1/64" or 0.1 mm grid point AS that point's float
+- **`pocket.ts`**: `pocketFor` stores each of its OWN numbers within EPS of a 1/64" or 0.1 mm grid point AS that point's float
   (`onGrid`, dyadic first; fu 216) — a box arrives through world differences and reflections, and the cut list compares
-  stored cuts exactly. This is the storage remedy inv 18 allows; never round the row key instead.
+  stored cuts exactly. A `storedAsShape` re-store after it is off-grid but deterministic (fu 382); never snap after it, and
+  never round the row key instead.
 - **`prompt.ts`**: a batch concept rides in the USER turn, never in `SYSTEM_PROMPT`, which
   must stay a fixed prefix. `Concept` lives in `prompt.ts` so it never imports
   `concepts.ts`. **`concepts.ts`**' parse is all-or-nothing (never mixes planned and
@@ -1013,7 +1014,7 @@ This list is the triage's open set — when an entry's status changes, change it
   271, 274; angle cuts 275, 276 (the joint kinds only), 278, 280, 298; holes 328–332, 334; curves 363–367.
 - **Owed to the user, not code:** real prints (70, 79, 84, 94, 254, 345, 379, 380(4), 381(3), 374 if a print shows the fold);
   real hardware (26a, 21, 28, 34, 39, 255, 337, 347, 370 — the only real proof 369's pinholes are gone; 336's grain seam is deferred to a texture/shader session);
-  by eye — 142, 319, 380(1) column balance, 381(1) tags over dimension lines, 381(4) a shared unlisted definition keyed twice, 272 (a phone); 350 (a hand check of section markers); 106
+  by eye — 142, 151 (row actions on keyboard focus), 319, 380(1) column balance, 381(1) tags over dimension lines, 381(4) a shared unlisted definition keyed twice, 272 (a phone); 350 (a hand check of section markers); 106
   (touch/pen); 153 (a browser at quota); paid runs 172, 177, 283; the curves spec's *Amended (implementation, chunk 1/2)*
   rulings.
 - **Open by decision:** 130 (ask before assuming it is wanted; real hardware), 147, 163's residue (do not re-open
